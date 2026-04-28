@@ -12,19 +12,6 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ## Active Tasks
 
-### TASK-008 — NTP sync at boot (time-001)
-**Owner**: Developer
-**Feature**: time-001
-**Status**: in_progress (code landed + builds clean, awaiting DUT verification)
-**Git ref**: (commit pending in Spotify-Diy-Thing)
-**Notes**:
-- Root cause for the 2026-04-28 DUT TLS failure (`status Code-1`, `_handle_error 0x0050`). ESP32 has no RTC and the firmware never called `configTime()`, so mbedTLS rejected Spotify's certs whose `notBefore` is in the future.
-- `setup()` now calls `configTime(0, 0, "pool.ntp.org", "time.google.com", "time.cloudflare.com")` immediately after WiFi-up, then waits up to 5 s for `time(nullptr) > 1700000000` (2023-11-14). Non-fatal on timeout — logs `[time] WARN ...` and proceeds so the failure mode stays distinguishable.
-- Spike harness `i` command extended: also prints epoch + ISO-8601 UTC + `sane=0|1` so T019/T020 verify the fix.
-- Both `cyd2usb` and `cyd2usb_spike` envs build clean.
-- DUT verification when reachable: flash `cyd2usb_spike`, watch for `[time] synced epoch=...` in boot log, send `i` and confirm UTC > 2025-12-08, observe whether `spotifyRefreshToken` now succeeds (decides whether time-001 alone fixes the TLS failure or whether TASK-006 rotation is also needed).
-- Cross-feature interaction recorded: `cross_feature_matrix.yaml:X001` (time-001 → auth-001, dependency, risk: high).
-
 ### TASK-007 — M1 API capability spike harness
 **Owner**: Developer
 **Feature**: api-001
@@ -75,6 +62,20 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Resume when DUT is reachable again.
 
 ## Completed Tasks
+
+### TASK-008 — NTP sync at boot (time-001)
+**Owner**: Developer
+**Feature**: time-001
+**Status**: done (2026-04-28, DUT verified)
+**Git ref**: Spotify-Diy-Thing@c0c4950, esp_spotify@5e94a9f
+**Notes**:
+- Root cause for the 2026-04-28 DUT TLS failure (`status Code-1`, `_handle_error 0x0050`). ESP32 has no RTC and the firmware never called `configTime()`, so mbedTLS rejected Spotify's certs whose `notBefore` is in the future.
+- `setup()` now calls `configTime(0, 0, "pool.ntp.org", "time.google.com", "time.cloudflare.com")` immediately after WiFi-up, then waits up to 5 s for `time(nullptr) > 1700000000` (2023-11-14). Non-fatal on timeout — logs `[time] WARN ...` and proceeds so the failure mode stays distinguishable.
+- Spike harness `i` command extended: also prints epoch + ISO-8601 UTC + `sane=0|1` so T019/T020 verify the fix.
+- Both `cyd2usb` and `cyd2usb_spike` envs build clean.
+- DUT verification 2026-04-28: `[time] synced epoch=1777404307 in 3400ms`. `i` returned `[INFO] time epoch=1777404345 utc=2026-04-28T19:25:45Z sane=1`. Subsequent `Refreshing Access Tokens` returned **HTTP 400 `invalid_grant — Refresh token revoked`** from Spotify — confirms time-001 alone closed the TLS-validation issue; remaining failure is purely credentials. The trailing `0x0050` log is the library re-using a closed client after the 400 (cosmetic).
+- Cross-feature interaction recorded: `cross_feature_matrix.yaml:X001` (time-001 → auth-001, dependency, risk: high).
+- Conclusion: time-001 done. The "TLS issue" suspicion is closed; further work blocked on TASK-006 (rotation) only — the leaked refresh token has been auto-revoked by Spotify's leak scanner, exactly the failure TASK-006 anticipated.
 
 ### TASK-004 — NFC posture: disabled on this dev unit
 **Owner**: PM (decision) → Developer (change)

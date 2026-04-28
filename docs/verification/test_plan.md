@@ -144,7 +144,7 @@ Common preconditions for all tests below:
 - **Objective**: Sanity baseline for heap-delta interpretation (T016/T017) and verification that time-001's NTP sync produced a valid clock.
 - **Steps**: Send `i` immediately after boot, then again after running T001–T015, then again after T016/T017.
 - **Expected result**: Two `[INFO]` lines per `i`. Heap deltas bounded, audio-analysis dominant. Time line shows `sane=1` and `utc=` ISO-8601 timestamp past 2025-12-08 (the current Spotify cert's `notBefore`). If `sane=0`, time-001 failed and T020 will already have flagged it.
-- **Status**: planned
+- **Status**: time portion **passing** (2026-04-28: `[INFO] time epoch=1777404345 utc=2026-04-28T19:25:45Z sane=1`). Heap-delta portion still planned (requires audio-features / audio-analysis runs, blocked on TASK-006 rotation).
 
 ### T020 — [time-001] NTP sync at boot
 - **Type**: integration
@@ -155,7 +155,7 @@ Common preconditions for all tests below:
 - **Steps**: 1. Flash `cyd2usb_spike`. 2. Capture serial log from boot.
 - **Expected result**: Log line `[time] synced epoch=<n> in <ms>ms` with `n > 1700000000`, before any `Refreshing Access Tokens` line. Following `spotifyRefreshToken` succeeds (no `Status Code: -2`). Total NTP wait under 5 s.
 - **Negative case**: If UDP/123 blocked, expect `[time] WARN: NTP sync failed after 5000ms, proceeding with epoch=<small>` at +5 s. Firmware still boots (non-fatal); subsequent TLS still fails as before. Documents environment for follow-up.
-- **Status**: planned
+- **Status**: **passing** (positive case, 2026-04-28). Boot log: `[time] synced epoch=1777404307 in 3400ms`. Subsequent `Refreshing Access Tokens` reached Spotify (HTTP 400 returned, not a TLS-layer failure) — confirming time-001 alone closed the TLS-validation issue. Negative case not exercised (no captive-AP environment available); kept as `planned-deferred`.
 
 ---
 

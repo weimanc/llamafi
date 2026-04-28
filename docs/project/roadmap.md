@@ -18,11 +18,10 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 | TASK-004 NFC posture decision (gate or remove) | done (2026-04-28) |
 | TASK-005 secret hygiene (`.gitignore`, `.example` template) | done (2026-04-28) |
 | TASK-006 refresh-token rotation (leak response) | paused (Spotify account access issue) |
-| TASK-008 NTP sync at boot (time-001) | in_progress (code landed, awaiting DUT verify) |
+| TASK-008 NTP sync at boot (time-001) | done (2026-04-28) |
 
 ### Still to do
-- TASK-008 DUT verification: confirm `[time] synced` line appears and that `spotifyRefreshToken` succeeds. If TLS still fails after time fix, root-cause shifts back to TASK-006 (rotation) or library-level TLS quirks.
-- TASK-006: resume when user has Spotify account access back. Verifying TASK-004 (no `NFC Bad`) rides along on the same flash cycle.
+- TASK-006: resume when user has Spotify account access back. **DUT confirmed (2026-04-28) that the leaked refresh token is now `invalid_grant — Refresh token revoked`** by Spotify's leak scanner, so rotation is the only remaining gate to running M1 spike tests. Verifying TASK-004 (no `NFC Bad`) and a fresh `[time] synced` line ride along on the same flash cycle.
 
 ---
 
