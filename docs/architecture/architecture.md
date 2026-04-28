@@ -99,81 +99,108 @@ The display layer is the only intentional abstraction in the codebase: `spotifyD
 
 # Target Architecture (esp_spotify Winamp extension)
 
+> Per ADR-006: keep the Spotify-Diy-Thing baseline architecture. Change the UI; leave everything else.
+
 ## System Overview
 
-Extends the baseline into a Spotify Connect *controller* (no audio path on device) presenting a Winamp 2 classic skin UI on the same CYD hardware. Controls exposed via touch: play/pause, previous, next, seek, shuffle, repeat, volume. Track metadata and playback position read from the Spotify Web API. A VU meter is rendered for visual fidelity to the Winamp aesthetic; it is synthesised from cached `audio-analysis` data, beat-aligned to the playing track (ADR-002).
+The baseline firmware, with its display layer replaced by a Winamp 2 classic skin renderer and its touch layer extended to cover the full skin's controls. The device remains a Spotify Connect *controller* (no audio path on device): track metadata and playback position come from the Spotify Web API; control intents (play/pause, prev, next, seek, shuffle, repeat, volume) are sent back via the same API. A VU meter is rendered for visual fidelity to the Winamp aesthetic; it is synthesised from cached `audio-analysis` data, beat-aligned to the playing track (ADR-002).
 
-A PC-side mirror of the UI is a first-class build target alongside the device firmware (ADR-001).
+There is **no PC mirror** and **no portable `core/` layer**. UI iteration happens on the DUT.
 
 ## Component Architecture
 
-Layered architecture per ADR-001: a portable `core/` plus per-target `platform/` leaves.
+The baseline diagram (above) still applies. Changes are localised:
 
-**Core (portable):**
+```
+                       +---------------------+
+                       |  Spotify Web API    |
+                       +----------+----------+
+                                  |  HTTPS
++-------------------+    +--------v---------+    +---------------------+
+| WiFiManager (AP)  |--->| Wifi STA + DNS   |--->| SpotifyArduino      |
+|  /config + DRD    |    +------------------+    |  (extended to cover |
++-------------------+                            |   seek, shuffle,    |
+        |                                        |   repeat, volume,   |
+        | first-boot only                        |   audio-analysis —  |
+        v                                        |   see Open Qs)      |
++-------------------+      +------------------+  +---+----+------------+
+|  NVS (wifi creds) |      | SPIFFS           |<-----+    |
++-------------------+      |  /spotify_diy_   |           |  track JSON
+                           |  config.json     |           |  + analysis
+                           |  + audio-analysis|           v
+                           |  cache           |   +-------+---------+
+                           +------------------+   | spotifyLogic.h  |
+                                                  |  poll loop      |
+                                                  |  + position     |
+                                                  |    interpolation|
+                                                  |  + VU module    |
++-------------------+                              +-------+---------+
+| XPT2046 touch     |---SPI---+                            |
+|  touchScreen.h    |         |                            v
+|  (skin-region     |         |                   +--------+--------+
+|   hit-testing)    |         +------------------>|  spotifyDisplay |
++-------------------+                             |  (interface)    |
+                                                  +--------+--------+
+                                                           |
+                                                           v
+                                                  +--------+--------+
+                                                  | winampSkinLCD.h |
+                                                  |  (TFT_eSPI +    |
+                                                  |   baked atlas)  |
+                                                  +-----------------+
+```
 
-- `PlayerState` — single canonical model (see Data Flows below). Fields: track metadata (id, title, artist, album, duration_ms), `position_ms`, `last_poll_clock_ms`, `is_playing`, `shuffle`, `repeat`, `volume_pct`, VU ring buffer (stereo), `vu.source`, `conn`, `last_error`. Concurrency rules per ADR-005.
-- `Poller` — periodic `GET /me/player` reads → `PlayerState` updates.
-- `Interpolator` — advances `position_ms` between polls against `Clock`; resyncs on poll with a 500 ms snap threshold (ADR-005).
-- `VuSynth` — drives the stereo VU ring buffer from cached `audio-analysis` for the current track; falls back to `audio-features` or `off` when analysis is unavailable (ADR-002).
-- `IntentHandler` — translates UI intents into Spotify commands; applies optimistic local mutations and reconciles on the next poll (ADR-004).
-- `Renderer` — pure function over `PlayerState` + baked skin layout, emitting draw commands against `Surface`.
+What's new vs. baseline:
 
-**Platform leaves (per target):**
+- **`winampSkinLCD.h`** — new concrete `spotifyDisplay` implementation. Renders the Winamp 2 classic skin against TFT_eSPI using a baked atlas + layout table (ADR-003). Replaces `cheapYellowLCD.h` for this project.
+- **Skin-region hit-testing in `touchScreen.h`** — replaces the three-zone (prev / dead / next) mapping with per-button rects from the same baked layout table. Issues calls into the Spotify client for play/pause, prev, next, seek, shuffle, repeat, volume.
+- **Position interpolation in `spotifyLogic.h`** — between ~1 Hz polls, the displayed position is computed as `progress_ms_at_last_poll + (millis() - last_poll_millis)`. On each poll, the API value is treated as truth; if the gap exceeds ~500 ms, snap rather than glide. Local seeks update both fields directly. (Survives from ADR-005; not its own ADR.)
+- **VU module** — one new file, fed by an `audio-analysis` cache. Fetched once per track change and held in RAM (and optionally mirrored to SPIFFS for restart persistence; see Open Questions). Fallback chain per ADR-002: `audio-analysis` → `audio-features` → `off`.
+- **Optimistic UI** — touch handlers flip the locally tracked play/pause / shuffle / repeat / volume / position immediately for visual feedback, then fire the API call. The next poll reconciles. (Survives from ADR-004; an implementation pattern, not a separate component.)
 
-- `Surface` — pixel/sprite blit primitives. DUT: TFT_eSPI on the CYD's 320×240 ILI9341 (per baseline). PC mirror: SDL2 (or equivalent) at native skin resolution.
-- `Input` — emits `Intent` values. DUT: XPT2046 resistive touch (per baseline). PC mirror: mouse mapped to touch coordinates.
-- `SpotifyTransport` — HTTPS request/response, OAuth refresh. DUT: on-device TLS (continuing the baseline's `WiFiClientSecure` + `SpotifyArduino` foundation, or replacing it — TBD). PC mirror: real HTTPS, or a mock transport replaying canned JSON fixtures.
-- `Clock` — monotonic milliseconds.
-- `Storage` — persistent key/value for OAuth refresh token and per-track `audio-analysis` cache. DUT: SPIFFS (continuing baseline). PC mirror: local file.
+What's removed:
 
-Dependency direction: `core/` depends only on the abstract leaf interfaces. Leaves do not call each other.
+- **`matrixDisplay.h`** (HUB75 backend) — out of scope for the Winamp skin, not carried forward.
+
+What's unchanged from baseline:
+
+- Toolchain (`espressif32@6.9.0`, env `cyd2usb`, PlatformIO).
+- Super-loop in `loop()`. No FreeRTOS task split.
+- `SpotifyArduino` consumed directly. No `SpotifyTransport` wrapper.
+- WiFiManager provisioning, NVS for WiFi creds, SPIFFS for Spotify creds.
+- `get_refresh_token.py` host-side OAuth bootstrap.
+- `spotifyDisplay.h` as the display seam.
 
 ## Software Stack
 
-Inherits the baseline's Arduino + PlatformIO + TFT_eSPI + SPIFFS toolchain on the DUT side. Build targets: `make pc` and `pio run -e cyd2usb` (or equivalent) compile the same `core/` sources against different `platform/` implementations.
+Identical to baseline (PlatformIO + Arduino-ESP32 + TFT_eSPI + JPEGDEC + WiFiManager + SpotifyArduino + ArduinoJson). No new libraries are mandated by the architecture; the `audio-analysis` fetch may use either an extension to `SpotifyArduino` or a small helper built on the existing `WiFiClientSecure` (Open Question).
 
-Skin asset pipeline (proposed under ADR-003): a host-side build-time tool emits `gen/skin_assets.c` (sprite atlas, RGB565 to match TFT_eSPI's native format) and `gen/skin_layout.h` (button rects, VU rect, text rects, 9-slice metadata) from the Winamp 2 classic skin. No runtime parser on the device.
-
-The baseline's `SpotifyArduino` library covers `getCurrentlyPlaying`, `previousTrack`, `nextTrack`, and exposes (unwired) `seek`. It does not cover `audio-analysis` or `audio-features` endpoints, nor shuffle/repeat toggles. Decision pending: extend `SpotifyArduino`, fork it, or write a thinner client purpose-built for the controller.
+Skin asset pipeline (per ADR-003): a host-side build-time tool emits `gen/skin_assets.c` (sprite atlas, RGB565) and `gen/skin_layout.h` (button rects, VU rect, text rects, slider tracks, 9-slice metadata) from the Winamp 2 classic skin. Run as a PlatformIO pre-build step or as a separate `make` target. No runtime parser on the device.
 
 ## Component Interfaces
 
-The baseline's `spotifyDisplay.h` interface is superseded by the new `Surface` leaf in the target architecture; the HUB75 matrix backend (`matrixDisplay.h`) is out of scope for the Winamp skin and not carried forward.
+`spotifyDisplay.h` is reused as-is and is the only architectural interface in scope. New display capabilities (VU rect render, slider state, button highlight) are added as methods on this interface; both `cheapYellowLCD.h` (if kept for fallback) and `winampSkinLCD.h` either implement them or stub them.
 
-IFCs to be drafted (in `interfaces/`): `Surface`, `Input`, `SpotifyTransport`, `Clock`, `Storage`, plus the Spotify Web API client contract used by `Poller` and `IntentHandler`.
+No IFCs are drafted in `interfaces/`. `Surface` / `Input` / `SpotifyTransport` / `Clock` / `Storage` from the superseded ADR-001 are not introduced.
 
-## Data Flows
+## Data Flow
 
-```
-Spotify Web API ──poll──► Poller ──► PlayerState ◄── Interpolator ◄── Clock
-                                          │
-                              VuSynth ────┤  (audio-analysis cache, ADR-002)
-                                          │
-Touch / Mouse ──► Input ──► Intent ──► IntentHandler ──► Spotify Web API
-                                          │                    │
-                                          └──optimistic────────┘  (ADR-004)
-                                          │
-                                          ▼
-                                       Renderer ──► Surface (CYD LCD | SDL)
-```
+1. **Boot.** Same as baseline: SPIFFS mount → `fetchConfigFile()` → WiFiManager → `spotifySetup()` → `spotifyRefreshToken()`.
+2. **Steady state.** `loop()` polls `getCurrentlyPlaying` at the existing cadence. On track change: fetch + cache `audio-analysis` for the new track, fetch album JPEG, decode, hand off to the active `spotifyDisplay`. Between polls, the seek bar and elapsed-time field advance via local interpolation.
+3. **Touch.** `handleTouched()` polls XPT2046 each iteration; the touch coordinate is hit-tested against the baked button layout. Each button maps to a `SpotifyArduino` call (or seek). The local UI state is flipped immediately for visual feedback; the next poll reconciles.
+4. **VU.** On each render frame, the VU module looks up the active analysis segment for the current interpolated position, drives an attack/release envelope with a beat-transient injection, and writes a stereo level into the renderer.
+5. **NFC (optional).** Unchanged from baseline; gate with `NFC_ENABLED` (TASK-004 still open).
 
-Tasking sketch (final cadences subject to DUT validation):
+## Migration from baseline (delta)
 
-| Task         | Period   | Job                                                  |
-|--------------|----------|------------------------------------------------------|
-| Poller       | 1000 ms  | `GET /me/player` → `PlayerState`                     |
-| Interpolator | 50 ms    | advance `position_ms` from `Clock`                   |
-| VuSynth      | 50 ms    | drive VU buffer from cached `audio-analysis`         |
-| Renderer     | 33 ms    | dirty-rect blit                                      |
-| Input        | 20 ms    | poll XPT2046 / mouse, emit intents                   |
-| IntentHandler| event    | optimistic mutation + API call                       |
-
-## Migration from baseline
-
-- Keeps: `WiFiManager` provisioning, NVS+SPIFFS persistence split, `get_refresh_token.py` host-side OAuth bootstrap, CYD board (env `cyd2usb`).
-- Replaces: single-display abstraction → `Surface` leaf; coarse three-zone touch → full skin-region hit-testing in `Input`; direct `SpotifyArduino` use → `SpotifyTransport` leaf wrapping it (or successor).
-- Drops from scope: HUB75 matrix display backend, NFC tap-to-play (decision pending — see Open Questions).
-- Adds: `core/` portable layer, PC mirror build target, baked skin atlas, VU synthesis from `audio-analysis`.
+- Add `winampSkinLCD.h` implementing `spotifyDisplay`; build `-DWINAMP_DISPLAY` (or rename the existing `-DYELLOW_DISPLAY` flag space).
+- Add the host-side skin bake tool and the generated `gen/skin_assets.c` / `gen/skin_layout.h`.
+- Extend `touchScreen.h` to consume the layout table and fire all controller intents.
+- Add an `audio-analysis` fetch path (extend `SpotifyArduino`, fork, or helper — Open Question) and an in-memory cache with LRU eviction.
+- Add a small VU module driven by the cache.
+- Add position interpolation in the existing poll loop.
+- Drop `matrixDisplay.h` and its build env from scope.
+- Everything else: keep.
 
 ---
 
@@ -181,15 +208,14 @@ Tasking sketch (final cadences subject to DUT validation):
 
 Cross-cutting questions across both states. Items marked **(baseline)** apply to current firmware; **(target)** apply to the Winamp extension; unmarked apply to both.
 
-- **(target)** Spotify-Diy-Thing fork URL — the baseline uses `witnessmenow/spotify-api-arduino`. For the target, do we extend that library to cover `audio-analysis`, `audio-features`, shuffle/repeat, and seek-debouncing — or build a thinner replacement client?
-- **(target)** WiFi + TLS root CA strategy for `accounts.spotify.com` and `api.spotify.com` — pin or trust-store?
-- **(target)** `audio-analysis` cache size and eviction — per-track JSON ~30–80 KB; LRU keyed by track id, sized to N most-recent. Need a value for N given remaining flash after baseline + skin atlas.
+- **(target)** `SpotifyArduino` extension strategy — the library covers `getCurrentlyPlaying`, `previousTrack`, `nextTrack`, and exposes (unwired) `seek`. It does not cover `audio-analysis`, `audio-features`, shuffle/repeat toggles, or volume. Options: extend the library upstream, fork, or add small helpers using the existing `WiFiClientSecure`. No PC mirror means no portability constraint on this choice.
+- **(target)** WiFi + TLS root CA strategy for `accounts.spotify.com` and `api.spotify.com` — pin or trust-store? Baseline currently delegates to `SpotifyArduino`'s defaults; revisit if the new endpoints exercise different cert chains.
+- **(target)** `audio-analysis` cache size and eviction — per-track JSON ~30–80 KB; LRU keyed by track id, sized to N most-recent. Need a value for N given remaining flash + RAM after baseline + skin atlas. Also: in-RAM only (lost across reboot) vs SPIFFS-mirrored.
 - **(target)** `audio-analysis` cache miss UX — momentary VU "off" on track change while analysis is fetched; acceptable, or worth a placeholder envelope?
-- **(target)** Skin atlas pixel format — RGB565 is the proposed default to match TFT_eSPI; confirm against flash budget once atlas size is known.
-- **(target)** Tasking model on DUT — Arduino `loop()` super-loop (continuing baseline) vs migrate to FreeRTOS tasks. Affects render pacing and poll/render decoupling.
-- **(target)** Seek-bar drag UX — debounce-on-release is decided (ADR-004); open is the visual treatment of position during drag (snap to finger immediately, freeze interpolator until release).
-- **(target)** Position snap threshold — 500 ms is the starting value (ADR-005); tune once real network jitter is measured.
-- **(target)** Spotify rate-limiting headroom — how aggressively the speculative-poll refinement (ADR-004 option c) can be used without bumping the ~180 req/min ceiling.
+- **(target)** Skin atlas pixel format — RGB565 is the default to match TFT_eSPI; confirm against flash budget once atlas size is known.
+- **(target)** Seek-bar drag UX — debounce-on-release for the API call is decided (survives ADR-004); open is the visual treatment of position during drag (snap to finger immediately, freeze interpolation until release).
+- **(target)** Position snap threshold — 500 ms is the starting value (survives ADR-005); tune once real network jitter is measured.
+- **(target)** Spotify rate-limiting headroom — the optimistic-UI pattern allows a speculative one-shot poll ~250 ms after a successful intent to shorten reconciliation; gate against the ~180 req/min ceiling.
 - **(baseline / target)** Touch UX gesture model on a 320×240 panel given more controls (play/pause, volume, seek, shuffle, repeat). See TASK-002, TASK-003.
 - **(baseline)** NFC: keep, gate behind a build flag, or remove? See TASK-004. **(target)** carries the same question; if dropped, NFC code is removed in the migration.
 - **(baseline)** Secret hygiene: `data/spotify_diy_config.json` must be gitignored once this directory becomes a git repo. See TASK-005.

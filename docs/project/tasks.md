@@ -1,0 +1,79 @@
+# Task Tracker
+
+> Owner: Project Manager
+
+Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
+
+## Project Scope
+
+**In scope:** `Spotify-Diy-Thing/` — Arduino/PlatformIO firmware for ESP32 CYD2USB displaying Spotify now-playing track + album art via Spotify Web API.
+
+**Out of scope:** `cspot/` — vendored upstream of an unrelated Spotify Connect player library. Do not extend, do not depend on. If touched at all, only to track upstream pulls.
+
+## Active Tasks
+
+_No active tasks._
+
+## Blocked Tasks
+
+### TASK-006 — Rotate leaked refresh token + client secret
+**Owner**: Developer
+**Status**: blocked
+**Blocked by**: DUT not on hand (need physical device for `uploadfs` step)
+**Notes**:
+- Refresh token from initial bring-up was pasted into a shared chat transcript.
+- Rotation procedure: Spotify dashboard → rotate client secret → re-run `get_refresh_token.py` on host → edit `Spotify-Diy-Thing/data/spotify_diy_config.json` → `pio run -e cyd2usb -t uploadfs --upload-port /dev/ttyUSB0` → reset device → confirm polling.
+- Resume when DUT is reachable again.
+
+## Completed Tasks
+
+### TASK-004 — NFC posture: disabled on this dev unit
+**Owner**: PM (decision) → Developer (change)
+**Status**: done (2026-04-28)
+**Notes**:
+- PN532 not wired on this dev unit; boot was logging harmless `NFC Bad`.
+- Commented out `#define NFC_ENABLED 1` in `Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino:28`. Code uses `#ifdef NFC_ENABLED` (4 sites), so commenting — not setting to `0` — is what disables it. Comment block records the intent and the gotcha.
+- `nfc.h` source kept; re-enable by uncommenting if a reader is wired later.
+- Verification deferred until DUT is reachable (TASK-006-style).
+
+### TASK-005 — Secret hygiene (gitignore + example template)
+**Owner**: Developer
+**Status**: done (2026-04-28)
+**Notes**:
+- Added `data/spotify_diy_config.json` to `Spotify-Diy-Thing/.gitignore` (file-specific, not whole `data/`).
+- Added `Spotify-Diy-Thing/data/spotify_diy_config.example.json` with REPLACE_ME placeholders as the trackable template.
+- Verified with `git check-ignore`: real config ignored, example trackable. Real secret was never committed (pre-existing untracked state).
+
+### TASK-001 — Bring up first dev unit (CYD2USB)
+**Owner**: Developer
+**Feature**: deploy-001
+**Status**: done
+**Git ref**: working tree (Spotify-Diy-Thing untracked)
+**Notes**:
+- Pinned `platform = espressif32@6.9.0` in `Spotify-Diy-Thing/platformio.ini` — repo's unpinned line broke against current PlatformIO (`Network.h` missing in newer Arduino-ESP32 cores).
+- Built + flashed `cyd2usb` env (TFT_INVERSION_ON) over `/dev/ttyUSB0`.
+- Spotify dashboard's new redirect-URI policy (loopback HTTP only) breaks the on-device OAuth flow. Worked around with off-device `get_refresh_token.py` (loopback `127.0.0.1:8888`), then baked refresh token + client creds into SPIFFS via `data/spotify_diy_config.json` + `pio run -t uploadfs`.
+- Wifi configured via WiFiManager captive portal. Device polling Spotify Web API; renders track on next playback.
+- Deployment procedure documented in `docs/first_time_run_deploy.md`.
+
+## Backlog (initial PM assessment)
+
+To be triaged with the team.
+
+- **TASK-002** — Touchscreen seek/scrub. Currently `touchScreen.h:46-53` only maps left/right thirds to prev/next; middle is dead, seek bar is display-only. Wire `SpotifyArduino::seek()` to taps inside the bar geometry. Owner: Developer.
+- **TASK-003** — Play/pause + volume on touch. No control surface for either today. Layout decision needed first. Owner: Architect → Developer.
+- **TASK-004** — Decide NFC support posture. Reader not connected on dev unit; boot logs `NFC Bad` harmlessly. Either wire a PN532 and validate, or set `NFC_ENABLED 0` to silence. Owner: PM (decision).
+
+---
+
+## Entry Format
+
+```
+### TASK-001 — [Title]
+**Owner**: Developer | VE | QM | PM
+**Feature**: F001 (if applicable)
+**Status**: todo | in_progress | blocked | done
+**Git ref**: branch name or commit SHA
+**Blocked by**: (if applicable)
+**Notes**:
+```
