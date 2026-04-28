@@ -28,7 +28,7 @@ features:
     files:
       - get_refresh_token.py
       - Spotify-Diy-Thing/SpotifyDiyThing/refreshToken.h
-    cross_features: [cfg-001]
+    cross_features: [cfg-001, time-001]
     test_ids: []
     notes: On-device flow in refreshToken.h is dead code under current Spotify policy; kept for reference but not reachable via dashboard-allowed redirect URIs.
 
@@ -51,7 +51,7 @@ features:
     git_ref: ""
     files:
       - Spotify-Diy-Thing/SpotifyDiyThing/WifiManagerHandler.h
-    cross_features: [cfg-001]
+    cross_features: [cfg-001, time-001]
     test_ids: []
     notes: Config-portal "Info" page does not show the Spotify text fields — only "Configure WiFi" does. Saving from Info silently writes empty client creds.
 
@@ -63,7 +63,7 @@ features:
     files:
       - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
       - Spotify-Diy-Thing/SpotifyDiyThing/spotifyLogic.h
-    cross_features: [disp-001]
+    cross_features: [disp-001, api-001]
     test_ids: []
 
   - id: disp-001
@@ -91,6 +91,17 @@ features:
     cross_features: []
     test_ids: []
     notes: Seek bar is rendered but not interactive — see TASK-002.
+
+  - id: time-001
+    name: SNTP system-clock sync at boot
+    description: configTime() against pool.ntp.org / time.google.com / time.cloudflare.com at the end of WiFi-up in setup(), before any TLS handshake. Bounded 5 s wait until time(nullptr) > 1700000000 (2023-11-14); non-fatal on timeout. Without this, ESP32's RTC-less clock starts ~1970, mbedTLS rejects current Spotify certs whose notBefore is in the future, and accounts.spotify.com TLS fails with a generic send error (X001).
+    status: implemented
+    git_ref: ""
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
+    cross_features: [wifi-001, auth-001]
+    test_ids: [T019, T020]
+    notes: Fix for the 2026-04-28 boot-time TLS failure. Spike harness `i` command also reports current epoch + ISO-8601 UTC for verification.
 
   - id: api-001
     name: Spotify Web API capability spike (M1 de-risk)

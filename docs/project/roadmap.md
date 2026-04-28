@@ -15,12 +15,14 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 | Feature / Task | Status |
 |----------------|--------|
 | TASK-001 first bring-up | done |
-| TASK-005 secret hygiene (`.gitignore`, `.example` template) | done (2026-04-28) |
-| TASK-006 refresh-token rotation (leak response) | blocked (DUT not on hand) |
 | TASK-004 NFC posture decision (gate or remove) | done (2026-04-28) |
+| TASK-005 secret hygiene (`.gitignore`, `.example` template) | done (2026-04-28) |
+| TASK-006 refresh-token rotation (leak response) | paused (Spotify account access issue) |
+| TASK-008 NTP sync at boot (time-001) | in_progress (code landed, awaiting DUT verify) |
 
 ### Still to do
-- TASK-006: resume when DUT is reachable. Verifying TASK-004 (no `NFC Bad` in boot log) rides along on the same flash cycle.
+- TASK-008 DUT verification: confirm `[time] synced` line appears and that `spotifyRefreshToken` succeeds. If TLS still fails after time fix, root-cause shifts back to TASK-006 (rotation) or library-level TLS quirks.
+- TASK-006: resume when user has Spotify account access back. Verifying TASK-004 (no `NFC Bad`) rides along on the same flash cycle.
 
 ---
 

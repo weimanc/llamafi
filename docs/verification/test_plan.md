@@ -138,11 +138,23 @@ Common preconditions for all tests below:
 - **Expected result**: As T017 with `doc=32768`. Either success or a recorded structural reason it cannot fit (informs decision to stream-parse or drop fields).
 - **Status**: planned
 
-### T019 — [api-001] info / heap baseline
+### T019 — [api-001, time-001] info / heap / clock baseline
 - **Type**: unit
-- **Objective**: Sanity baseline for heap-delta interpretation in T016/T017.
+- **Feature(s)**: api-001, time-001
+- **Objective**: Sanity baseline for heap-delta interpretation (T016/T017) and verification that time-001's NTP sync produced a valid clock.
 - **Steps**: Send `i` immediately after boot, then again after running T001–T015, then again after T016/T017.
-- **Expected result**: Three `[INFO]` lines; heap deltas across them are bounded and audio-analysis is the dominant consumer.
+- **Expected result**: Two `[INFO]` lines per `i`. Heap deltas bounded, audio-analysis dominant. Time line shows `sane=1` and `utc=` ISO-8601 timestamp past 2025-12-08 (the current Spotify cert's `notBefore`). If `sane=0`, time-001 failed and T020 will already have flagged it.
+- **Status**: planned
+
+### T020 — [time-001] NTP sync at boot
+- **Type**: integration
+- **Feature(s)**: time-001
+- **Interaction**: X001 (time-001 → auth-001 dependency)
+- **Objective**: Verify the SNTP block in `setup()` produces a sane system clock before the first TLS handshake.
+- **Preconditions**: WiFi up, AP allows outbound UDP/123 to at least one of `pool.ntp.org` / `time.google.com` / `time.cloudflare.com`.
+- **Steps**: 1. Flash `cyd2usb_spike`. 2. Capture serial log from boot.
+- **Expected result**: Log line `[time] synced epoch=<n> in <ms>ms` with `n > 1700000000`, before any `Refreshing Access Tokens` line. Following `spotifyRefreshToken` succeeds (no `Status Code: -2`). Total NTP wait under 5 s.
+- **Negative case**: If UDP/123 blocked, expect `[time] WARN: NTP sync failed after 5000ms, proceeding with epoch=<small>` at +5 s. Firmware still boots (non-fatal); subsequent TLS still fails as before. Documents environment for follow-up.
 - **Status**: planned
 
 ---

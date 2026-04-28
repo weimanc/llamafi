@@ -1,0 +1,33 @@
+# cross_feature_matrix.yaml
+# Owner: Developer
+# Updated by: Developer when cross-feature interactions are identified
+# Read by: VE (test planning), QM (auditing)
+
+interactions:
+  - id: X001
+    feature_a: time-001
+    feature_b: auth-001
+    interaction_type: dependency
+    description: TLS validation of Spotify cert chain (accounts.spotify.com, api.spotify.com) requires the system clock to be inside the cert's notBefore/notAfter window. ESP32 has no RTC, so without time-001's NTP sync at boot, auth-001's first refreshAccessToken() call fails at the TLS layer with mbedTLS error 0x0050, surfacing as `Status Code: -2`. time-001 must complete (or time out) before any TLS request issued by auth-001.
+    risk: high
+    test_coverage: [T020]
+    notes: Discovered on 2026-04-28 DUT run. Auth retried every 5 s in the existing super-loop, never succeeded with a fresh boot. Fix is configTime() before spotifySetup() in setup().
+
+  - id: X002
+    feature_a: api-001
+    feature_b: poll-001
+    interaction_type: shared_state
+    description: Spike harness reads `lastTrackUri` global owned by poll-001 (set in handleCurrentlyPlaying) to scope its audio-features and audio-analysis fetches. Spike has no track-discovery path of its own; if poll-001 hasn't populated the URI yet, the `f`/`a`/`A` commands skip with `[SKIP]`.
+    risk: low
+    test_coverage: [T016, T017, T018]
+    notes: Throwaway coupling; api-001 is deleted at M1 exit.
+
+# --- Entry template ---
+# - id: X001
+#   feature_a: auth-001
+#   feature_b: api-001
+#   interaction_type: shared_state | dependency | conflict | overlap
+#   description: ""
+#   risk: low | medium | high
+#   test_coverage: []     # test IDs from VE's test plan that cover this interaction
+#   notes: ""
