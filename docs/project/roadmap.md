@@ -26,7 +26,7 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 
 ## M1 — API capability spike (de-risk)
 
-**Status:** planned
+**Status:** in_progress (code drafted 2026-04-28, awaiting DUT run — TASK-007)
 **Scope:** Prove every Spotify Web API call the Winamp UI will need round-trips on this DUT + this account, *before* any skin work. Throwaway code: trivial trigger surface (serial command per call, or three crude touch zones), baseline `cheapYellowLCD.h` UI untouched. Output is a written go/no-go per row + a decision on `SpotifyArduino` extension strategy. Spike code can be deleted or absorbed into M4/M5.
 
 | Capability | Endpoint | In `SpotifyArduino`? | Risk |

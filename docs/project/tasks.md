@@ -12,7 +12,43 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ## Active Tasks
 
-_No active tasks._
+### TASK-007 — M1 API capability spike harness
+**Owner**: Developer
+**Feature**: api-001
+**Status**: in_progress (code drafted, awaiting DUT run)
+**Git ref**: (commit pending)
+**Notes**:
+- Spike harness implemented under `-DSPIKE_MODE` build flag (env `cyd2usb_spike`). Both spike and default envs compile clean.
+- SpotifyArduino vendored to `Spotify-Diy-Thing/lib/SpotifyArduino/` with a 3-line `getBearerToken()` patch. See `LOCAL_PATCHES.md`.
+- DUT required to run. Procedure: build/flash `cyd2usb_spike`, start playback from a Spotify client, send command keys via serial, fill the per-row table below.
+- Pair with TASK-006 (refresh-token rotation) on the same DUT trip.
+
+#### Per-row results (fill during DUT run)
+
+| Key | Action | Result | Notes |
+|-----|--------|--------|-------|
+| `>` | nextTrack | | |
+| `<` | previousTrack | | |
+| ` ` | toggle play/pause | | |
+| `p` | play | | |
+| `P` | pause | | |
+| `s` | seek 30000 | | |
+| `S` | seek 0 | | |
+| `+` | setVolume +10 | | |
+| `-` | setVolume -10 | | |
+| `v` | setVolume 50 | | |
+| `h` | shuffle on | | |
+| `H` | shuffle off | | |
+| `r` | repeat track | | |
+| `R` | repeat context | | |
+| `o` | repeat off | | |
+| `f` | audio-features | code= clen= heap_delta= | |
+| `a` | audio-analysis (16K filter) | code= clen= heap_delta= beats= segments= | |
+| `A` | audio-analysis (32K filter) | code= clen= heap_delta= beats= segments= | only if `a` failed |
+
+#### Decisions to record at exit
+- SpotifyArduino extension strategy (extend / fork-and-keep-vendored / replace). Closes one Open Question in `architecture.md`.
+- Working `audio-analysis` doc size; feeds vu-001 cache sizing in M6.
 
 ## Blocked Tasks
 

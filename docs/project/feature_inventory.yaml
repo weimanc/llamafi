@@ -1,0 +1,120 @@
+# feature_inventory.yaml
+# Owner: Developer
+# Updated by: Developer on every feature addition, change, or removal
+# Read by: PM (oversight), VE (test planning), QM (auditing)
+#
+# Scope: Spotify-Diy-Thing/ only. cspot/ is vendored and out of scope.
+
+features:
+  - id: deploy-001
+    name: First-time bring-up procedure
+    description: End-to-end procedure to flash a blank CYD2USB unit, bake Spotify creds into SPIFFS, configure wifi, and start polling Spotify Web API. Documented in docs/first_time_run_deploy.md.
+    status: implemented
+    git_ref: ""
+    files:
+      - docs/first_time_run_deploy.md
+      - get_refresh_token.py
+      - Spotify-Diy-Thing/platformio.ini
+      - Spotify-Diy-Thing/data/spotify_diy_config.json
+    cross_features: [auth-001, cfg-001]
+    test_ids: []
+    notes: Platform pinned to espressif32@6.9.0. Hardware target is the two-USB CYD variant; uses the cyd2usb PlatformIO env (TFT_INVERSION_ON).
+
+  - id: auth-001
+    name: Spotify OAuth refresh-token bootstrap
+    description: Off-device Authorization Code flow against http://127.0.0.1:8888/callback/ (Spotify's loopback-only HTTP exception). Helper script captures the refresh token; baked into SPIFFS instead of running the device's built-in flow which Spotify's redirect-URI policy now rejects.
+    status: implemented
+    git_ref: ""
+    files:
+      - get_refresh_token.py
+      - Spotify-Diy-Thing/SpotifyDiyThing/refreshToken.h
+    cross_features: [cfg-001]
+    test_ids: []
+    notes: On-device flow in refreshToken.h is dead code under current Spotify policy; kept for reference but not reachable via dashboard-allowed redirect URIs.
+
+  - id: cfg-001
+    name: Persisted Spotify config (SPIFFS)
+    description: JSON config at /spotify_diy_config.json holding clientId, clientSecret, refreshToken. Read on every boot; written either by the captive portal's save callback or pre-baked via PlatformIO `uploadfs`.
+    status: implemented
+    git_ref: ""
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/configFile.h
+      - Spotify-Diy-Thing/data/spotify_diy_config.json
+    cross_features: [wifi-001]
+    test_ids: []
+    notes: Keys are clientId/clientSecret (lowercase 'd'). NVS holds wifi creds separately.
+
+  - id: wifi-001
+    name: Wifi captive-portal setup (WiFiManager)
+    description: First-boot AP `SpotifyDIY` / `thing123`. Configure WiFi page also exposes Client ID / Secret / Refresh Token text fields. Double-press reset within ~10s re-enters config mode (DoubleResetDetector).
+    status: implemented
+    git_ref: ""
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/WifiManagerHandler.h
+    cross_features: [cfg-001]
+    test_ids: []
+    notes: Config-portal "Info" page does not show the Spotify text fields — only "Configure WiFi" does. Saving from Info silently writes empty client creds.
+
+  - id: poll-001
+    name: Currently-playing poll loop
+    description: Polls /v1/me/player/currently-playing periodically, decodes JPEG album art, updates display. 204 No Content handled as "nothing playing".
+    status: implemented
+    git_ref: ""
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
+      - Spotify-Diy-Thing/SpotifyDiyThing/spotifyLogic.h
+    cross_features: [disp-001]
+    test_ids: []
+
+  - id: disp-001
+    name: CYD LCD rendering
+    description: TFT_eSPI-based 320x240 ILI9341 panel rendering — track + artist text, album art JPEG, progress bar.
+    status: implemented
+    git_ref: ""
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/cheapYellowLCD.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/spotifyDisplay.h
+      - Spotify-Diy-Thing/DisplayConfig/User_Setup.h
+    cross_features: []
+    test_ids: []
+    notes: Panel polarity differs between single-USB and two-USB CYD variants; cyd2usb env sets TFT_INVERSION_ON. The cyd env produces inverted colors on this hardware.
+
+  - id: touch-001
+    name: Touch input (prev / next track)
+    description: Tap left third → previous track, tap right third → next track. Middle band is a dead zone. No play/pause, volume, or seek.
+    status: implemented
+    git_ref: ""
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/touchScreen.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/CYD28_TouchscreenR.cpp
+      - Spotify-Diy-Thing/SpotifyDiyThing/CYD28_TouchscreenR.h
+    cross_features: []
+    test_ids: []
+    notes: Seek bar is rendered but not interactive — see TASK-002.
+
+  - id: api-001
+    name: Spotify Web API capability spike (M1 de-risk)
+    description: Throwaway harness exercising every Spotify Web API call the forthcoming Winamp UI will need. Single-character serial commands fire one call each; outcomes logged as [OK]/[FAIL]/[GET]/[ERR]. Covers play, pause, next, previous, seek, setVolume, toggleShuffle, setRepeatMode (all on SpotifyArduino), plus audio-features and audio-analysis (raw makeGetRequest with filtered ArduinoJson parse, using a vendored-library getBearerToken() patch). Build env cyd2usb_spike adds -DSPIKE_MODE; default cyd2usb env unchanged.
+    status: in_progress
+    git_ref: ""
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/spikeMode.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/spikeRawHttp.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
+      - Spotify-Diy-Thing/lib/SpotifyArduino/src/SpotifyArduino.h
+      - Spotify-Diy-Thing/lib/SpotifyArduino/LOCAL_PATCHES.md
+      - Spotify-Diy-Thing/platformio.ini
+    cross_features: [poll-001]
+    test_ids: [T001-T019]
+    notes: Throwaway. M1 exit decides extension strategy (extend/fork/replace) — closes Open Question in architecture.md. audio-analysis heap budget recorded here feeds vu-001 (M6) cache sizing. Run ad-hoc; not in regression suite.
+
+  - id: nfc-001
+    name: NFC reader (PN532) — optional
+    description: Tag holds a Spotify URI/URL; on swipe device asks Spotify to play it. Optionally writes back currently-playing context to the tag.
+    status: implemented
+    git_ref: ""
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/nfc.h
+    cross_features: []
+    test_ids: []
+    notes: Probe runs unconditionally if NFC_ENABLED is set; harmless "NFC Bad" log when no reader is wired. Not validated on the current dev unit.
