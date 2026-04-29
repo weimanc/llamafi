@@ -12,56 +12,89 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ## Active Tasks
 
-### TASK-007 — M1 API capability spike harness
-**Owner**: Developer
-**Feature**: api-001
-**Status**: in_progress (code drafted, awaiting DUT run)
-**Git ref**: (commit pending)
+### TASK-009 — TLS connection lifecycle for non-GET endpoints
+**Owner**: Developer (consult Architect for ADR)
+**Feature**: api-002 (new — to be registered)
+**Status**: open
+**Blocks**: M5 (full-skin touch controls), TASK-002, TASK-003
 **Notes**:
-- Spike harness implemented under `-DSPIKE_MODE` build flag (env `cyd2usb_spike`). Both spike and default envs compile clean.
-- SpotifyArduino vendored to `Spotify-Diy-Thing/lib/SpotifyArduino/` with a 3-line `getBearerToken()` patch. See `LOCAL_PATCHES.md`.
-- DUT required to run. Procedure: build/flash `cyd2usb_spike`, start playback from a Spotify client, send command keys via serial, fill the per-row table below.
-- Pair with TASK-006 (refresh-token rotation) on the same DUT trip.
+- Discovered during TASK-007 DUT run 2026-04-29: every `POST` (`nextTrack`, `previousTrack`) and `PUT` (`pause`, `play`, `seek`, `setVolume`, `toggleShuffle`, `setRepeatMode`) fails at TLS-send with mbedTLS `0x0050 (NET_CONN_RESET)`. `GET /v1/me/player/currently-playing` works in the same boot from the same poll loop. Pattern: GET works after stop()+connect(); non-GET fails after the same dance.
+- Most likely root cause: the library's reuse of a single `WiFiClientSecure` across heterogeneous request types interacts badly with Arduino-ESP32 2.0.17's TLS stack. Known class of bug; multiple workarounds.
+- Three candidate fixes (architect to choose, ideally in a new ADR):
+  1. Per-request fresh `WiFiClientSecure` (allocate / free around each call). Heaviest on heap fragmentation.
+  2. Explicit `closeClient()` + small delay between heterogeneous requests in the library.
+  3. Migrate the affected endpoints to Arduino-ESP32's `HTTPClient`, which manages connection lifecycle internally. Recommended.
+- Verification: re-run the spike's `>` `<` `p` `P` `s` `S` `+` `-` `v` `h` `H` `r` `R` `o` rows after fix; expect all `[OK]`.
 
-#### Per-row results (fill during DUT run)
-
-| Key | Action | Result | Notes |
-|-----|--------|--------|-------|
-| `>` | nextTrack | | |
-| `<` | previousTrack | | |
-| ` ` | toggle play/pause | | |
-| `p` | play | | |
-| `P` | pause | | |
-| `s` | seek 30000 | | |
-| `S` | seek 0 | | |
-| `+` | setVolume +10 | | |
-| `-` | setVolume -10 | | |
-| `v` | setVolume 50 | | |
-| `h` | shuffle on | | |
-| `H` | shuffle off | | |
-| `r` | repeat track | | |
-| `R` | repeat context | | |
-| `o` | repeat off | | |
-| `f` | audio-features | code= clen= heap_delta= | |
-| `a` | audio-analysis (16K filter) | code= clen= heap_delta= beats= segments= | |
-| `A` | audio-analysis (32K filter) | code= clen= heap_delta= beats= segments= | only if `a` failed |
-
-#### Decisions to record at exit
-- SpotifyArduino extension strategy (extend / fork-and-keep-vendored / replace). Closes one Open Question in `architecture.md`.
-- Working `audio-analysis` doc size; feeds vu-001 cache sizing in M6.
+### TASK-010 — VU data-source rethink (ADR-002 invalidated)
+**Owner**: Architect
+**Feature**: vu-001 (planned)
+**Status**: open
+**Blocks**: M6 (VU meter)
+**Notes**:
+- Discovered during TASK-007 DUT run 2026-04-29: both `/v1/audio-features/{id}` and `/v1/audio-analysis/{id}` return **HTTP 403** for the dev account's client app. Spotify deprecated these endpoints for new Developer apps as of late 2024 (announced via the Web API change-log). The app `db2ff394...` was created during TASK-001 (post-deprecation), so it has no access.
+- ADR-002 ("VU meter sourced from Spotify `audio-analysis`, beat-synchronised") is therefore not implementable on this account.
+- Options for a new ADR:
+  - (a) Drop VU entirely. Skin renders the VU rect as static art.
+  - (b) Synthesise a coarse VU from `currentlyPlaying` data only — track tempo (if Spotify still exposes it on the now-playing endpoint), elapsed-position, and a hand-tuned envelope. Not music-locked but might "look alive."
+  - (c) Apply for Spotify "Extended Quota Mode" (manual approval, weeks, uncertain outcome). Restores audio-features/analysis access.
+  - (d) On-device I2S microphone (ADR-002 option c, previously rejected). Real audio data, hardware addition, room-noise contamination.
+- Recommend (b) for first cut — cheap, ships, doesn't block M2/M3/M5. Keep (c) on a second track as an upgrade path.
 
 ## Blocked Tasks
 
-### TASK-006 — Rotate leaked refresh token + client secret
-**Owner**: Developer
-**Status**: blocked
-**Blocked by**: DUT not on hand (need physical device for `uploadfs` step)
-**Notes**:
-- Refresh token from initial bring-up was pasted into a shared chat transcript.
-- Rotation procedure: Spotify dashboard → rotate client secret → re-run `get_refresh_token.py` on host → edit `Spotify-Diy-Thing/data/spotify_diy_config.json` → `pio run -e cyd2usb -t uploadfs --upload-port /dev/ttyUSB0` → reset device → confirm polling.
-- Resume when DUT is reachable again.
+_None._
 
 ## Completed Tasks
+
+### TASK-007 — M1 API capability spike harness
+**Owner**: Developer
+**Feature**: api-001
+**Status**: done (2026-04-29, DUT verified — with two new follow-ups, see below)
+**Git ref**: Spotify-Diy-Thing@6066cab + (rotation/cleanups commit pending)
+
+**Per-row results (DUT run 2026-04-29 after TASK-006 rotation + time-001):**
+
+| Key | Action | Result | Detail |
+|-----|--------|--------|--------|
+| `>` | nextTrack | **FAIL** | Library returned false. Root cause: mbedTLS `0x0050` on `client->println()` send. POST never reached Spotify. |
+| `<` | previousTrack | not run | Same path as `>`; would fail identically. |
+| ` ` | toggle | not run | Dispatches to play/pause; same PUT path failure. |
+| `p` | play | not run | PUT path; same failure. |
+| `P` | pause | **FAIL** | mbedTLS `0x0050` on send. PUT never reached Spotify. |
+| `s` | seek 30000 | not run | PUT path; same failure. |
+| `S` | seek 0 | not run | PUT path; same failure. |
+| `+` `-` `v` | setVolume | not run | PUT path; same failure. |
+| `h` `H` | shuffle | not run | PUT path; same failure. |
+| `r` `R` `o` | repeat | not run | PUT path; same failure. |
+| `f` | audio-features | **HTTP 403** from Spotify | `code=403 clen=-1`. Endpoint deprecated for new Developer apps as of late 2024. Connection-level: TLS round-trip succeeded; the library reached Spotify and got an authoritative 403. |
+| `a` | audio-analysis (16K) | **HTTP 403** from Spotify | Same deprecation. |
+| `A` | audio-analysis (32K) | not run | Same deprecation; doc-size fallback irrelevant. |
+| `i` | info / heap / clock | **OK** | `heap=218808 track=7fUr8EpRc0AC4MCPMVPIgI playing(assumed)=1 vol(local)=50` and `time epoch=1777445587 utc=2026-04-29T06:53:07Z sane=1`. T019 + T020 passing. |
+
+GET `/v1/me/player/currently-playing` runs every 5 s in the background poll loop and **succeeds repeatedly** (`Successfully got currently playing`), confirming auth is healthy and the library's GET path works.
+
+**Decisions recorded at exit:**
+
+1. **SpotifyArduino extension strategy — closed.** Vendoring + `getBearerToken()` patch is *not* sufficient. The library's reuse of a single `WiFiClientSecure` across heterogeneous request types (GET + POST + PUT) breaks at TLS-send level for non-GET on Arduino-ESP32 2.0.17. A fresh client per non-GET (or migration to Arduino's `HTTPClient`, which manages connection lifecycle internally) is required for production wiring. Worth a new ADR before M5.
+
+2. **`audio-analysis` doc size — moot.** Endpoint returns 403 for this app, so cache sizing is unanswerable from this spike. ADR-002's primary VU data source is unavailable; M6 needs a new strategy. Worth a new ADR superseding ADR-002.
+
+**Follow-ups opened:**
+- **TASK-009** — TLS connection lifecycle: pick a fix (per-request fresh client / `HTTPClient` migration) and verify all PUT/POST endpoints recover. Blocking M5.
+- **TASK-010** — VU data source rethink: ADR-002 invalidated. Decide between (a) drop VU, (b) synthesised-from-poll-data VU (e.g. fake envelope from `currentlyPlaying.tempo` if exposed), (c) apply for Spotify Extended Quota Mode, (d) on-device microphone (ADR-002 option c, previously not chosen). Blocking M6.
+
+### TASK-006 — Rotate leaked refresh token + client secret
+**Owner**: Developer
+**Status**: done (2026-04-29)
+**Git ref**: Spotify-Diy-Thing config (data/spotify_diy_config.json, gitignored) + (commit pending for example file move)
+**Notes**:
+- Spotify auto-revoked the leaked refresh token between bring-up (2026-04-26) and this run (`invalid_grant — Refresh token revoked` returned 2026-04-28). Their leak-scanner caught it from the chat transcript. LL-002.
+- Rotation completed 2026-04-29: dashboard secret rotated, `get_refresh_token.py` produced a new refresh token via loopback flow, both written to `data/spotify_diy_config.json`, `uploadfs` flashed. Boot now shows `Successfully got currently playing` repeatedly.
+- Concurrent fixes during rotation:
+  - `SPOTIFY_DEBUG` disabled in vendored `lib/SpotifyArduino/src/SpotifyArduino.h` so the new credentials don't bleed onto serial like the old ones did. LL-003 action item.
+  - `data/spotify_diy_config.example.json` moved to `Spotify-Diy-Thing/spotify_diy_config.example.json` (project root) — its 32-char path tripped SPIFFS's filename-length limit and broke `uploadfs`. The example file was never meant to be on-device anyway.
+- TASK-004 NFC verification rode along: no `NFC Bad` line in this boot's log. NFC silenced as intended.
 
 ### TASK-008 — NTP sync at boot (time-001)
 **Owner**: Developer

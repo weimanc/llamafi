@@ -27,7 +27,7 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 
 ## M1 — API capability spike (de-risk)
 
-**Status:** in_progress (code drafted 2026-04-28, awaiting DUT run — TASK-007)
+**Status:** done (2026-04-29) — with two new blockers surfaced for downstream milestones (TASK-009, TASK-010)
 **Scope:** Prove every Spotify Web API call the Winamp UI will need round-trips on this DUT + this account, *before* any skin work. Throwaway code: trivial trigger surface (serial command per call, or three crude touch zones), baseline `cheapYellowLCD.h` UI untouched. Output is a written go/no-go per row + a decision on `SpotifyArduino` extension strategy. Spike code can be deleted or absorbed into M4/M5.
 
 | Capability | Endpoint | In `SpotifyArduino`? | Risk |
@@ -47,13 +47,12 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 | Decision: extend `SpotifyArduino` / fork / write helpers | api-001 (closes Open Q) |
 | Heap headroom note for `audio-analysis` parse | api-001 (informs M5 cache sizing) |
 
-### Exit criteria
-- Each row marked pass or fail with the failing-row mitigation written down.
-- `SpotifyArduino` strategy chosen and recorded as a short ADR or as a note in `architecture.md` Open Questions.
-- M4 and M5 unblocked of the "does the endpoint even work" question.
+### Exit criteria — outcome
 
-### Blockers
-- DUT required. Spike code can be drafted host-side now and run on the next DUT trip alongside TASK-006.
+- ✅ Each row marked pass or fail with the failing-row mitigation written down. See `tasks.md:TASK-007` per-row table and `test_plan.md:T001-T020`.
+- ✅ `SpotifyArduino` strategy decided: vendoring + tiny-patch is **not** sufficient. The library reuses one `WiFiClientSecure` across heterogeneous request types and breaks at TLS-send for non-GET. Recommendation (subject to architect ADR): migrate affected endpoints to Arduino-ESP32 `HTTPClient`. Tracked as **TASK-009 / api-002**.
+- ⚠ M5 is **not** unblocked: the spike found that the entire control surface (play/pause/seek/volume/shuffle/repeat/next/previous) cannot be driven from this firmware until TASK-009 lands.
+- ⚠ M6 has **lost its data source**: `audio-features` and `audio-analysis` return HTTP 403 from Spotify for new Developer apps as of late 2024. ADR-002's primary path is invalidated. Tracked as **TASK-010 / vu-001 rethink**.
 
 ---
 
@@ -110,7 +109,7 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 
 ## M5 — Full-skin touch controls
 
-**Status:** planned
+**Status:** **blocked on TASK-009** (TLS connection lifecycle — non-GET endpoints fail until fixed)
 **Scope:** Replace the three-zone (prev / dead / next) mapping in `touchScreen.h` with skin-region hit-testing driven by `gen/skin_layout.h`. Wire each button to the corresponding `SpotifyArduino` call. Optimistic UI per ADR-006: flip local state immediately, fire API call, let next poll reconcile.
 
 | Control | API surface | Status |
@@ -137,8 +136,8 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 
 ## M6 — VU meter
 
-**Status:** planned
-**Scope:** New VU module per ADR-002. Fetches `audio-analysis` for the current track on track change, caches in RAM (LRU, N TBD), drives an attack/release envelope with beat transients. Fallback chain: `audio-analysis` → `audio-features` → `off`.
+**Status:** **blocked on TASK-010** (ADR-002 invalidated — `audio-features` and `audio-analysis` return HTTP 403 for new Developer apps; primary data source unavailable)
+**Scope:** Originally per ADR-002. Now requires a superseding ADR before any work — see TASK-010 candidate options ((a) drop, (b) synthesise from poll data, (c) Spotify Extended Quota Mode, (d) on-device microphone).
 
 | Deliverable | Feature ID |
 |-------------|------------|

@@ -20,7 +20,16 @@ interactions:
     description: Spike harness reads `lastTrackUri` global owned by poll-001 (set in handleCurrentlyPlaying) to scope its audio-features and audio-analysis fetches. Spike has no track-discovery path of its own; if poll-001 hasn't populated the URI yet, the `f`/`a`/`A` commands skip with `[SKIP]`.
     risk: low
     test_coverage: [T016, T017, T018]
-    notes: Throwaway coupling; api-001 is deleted at M1 exit.
+    notes: Throwaway coupling; api-001 is deleted once M5 supersedes.
+
+  - id: X003
+    feature_a: poll-001
+    feature_b: api-002
+    interaction_type: shared_state
+    description: Both poll-001 (GET /v1/me/player/currently-playing) and api-002 (the planned non-GET fix) operate on the same WiFiClientSecure instance declared in spotifyLogic.h. The bug being fixed by api-002 is precisely that interleaving a non-GET after poll-001's GET (or vice versa) leaves the TLS context in a state mbedTLS rejects on the next send. The fix must preserve poll-001's working GET path while making non-GET work — concrete options are listed in TASK-009.
+    risk: high
+    test_coverage: []
+    notes: Discovered 2026-04-29 in TASK-007 spike run. Until api-002 lands, every PUT/POST in the firmware is broken; only the existing GET poll loop functions.
 
 # --- Entry template ---
 # - id: X001

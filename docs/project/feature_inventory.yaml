@@ -106,8 +106,8 @@ features:
   - id: api-001
     name: Spotify Web API capability spike (M1 de-risk)
     description: Throwaway harness exercising every Spotify Web API call the forthcoming Winamp UI will need. Single-character serial commands fire one call each; outcomes logged as [OK]/[FAIL]/[GET]/[ERR]. Covers play, pause, next, previous, seek, setVolume, toggleShuffle, setRepeatMode (all on SpotifyArduino), plus audio-features and audio-analysis (raw makeGetRequest with filtered ArduinoJson parse, using a vendored-library getBearerToken() patch). Build env cyd2usb_spike adds -DSPIKE_MODE; default cyd2usb env unchanged.
-    status: in_progress
-    git_ref: ""
+    status: implemented
+    git_ref: Spotify-Diy-Thing@6066cab + (rotation/cleanups commit pending)
     files:
       - Spotify-Diy-Thing/SpotifyDiyThing/spikeMode.h
       - Spotify-Diy-Thing/SpotifyDiyThing/spikeRawHttp.h
@@ -115,9 +115,25 @@ features:
       - Spotify-Diy-Thing/lib/SpotifyArduino/src/SpotifyArduino.h
       - Spotify-Diy-Thing/lib/SpotifyArduino/LOCAL_PATCHES.md
       - Spotify-Diy-Thing/platformio.ini
-    cross_features: [poll-001]
-    test_ids: [T001-T019]
-    notes: Throwaway. M1 exit decides extension strategy (extend/fork/replace) — closes Open Question in architecture.md. audio-analysis heap budget recorded here feeds vu-001 (M6) cache sizing. Run ad-hoc; not in regression suite.
+    cross_features: [poll-001, time-001, api-002]
+    test_ids: [T001, T002, T003, T004, T005, T006, T007, T008, T009, T010, T011, T012, T013, T014, T015, T016, T017, T018, T019]
+    notes: |
+      M1 exit summary (DUT run 2026-04-29):
+      - Auth chain (rotated creds + time-001 NTP sync) works end-to-end. Spike commands dispatch successfully from serial.
+      - GET /v1/me/player/currently-playing: works (poll loop stable).
+      - All POST/PUT control endpoints (next/previous/play/pause/seek/volume/shuffle/repeat): FAIL at TLS-send with mbedTLS 0x0050. Library reuses one WiFiClientSecure across request types; non-GET breaks. Tracked as TASK-009 / api-002.
+      - GET /v1/audio-features/{id}, GET /v1/audio-analysis/{id}: HTTP 403 from Spotify. Endpoints deprecated for new Developer apps as of late 2024. Tracked as TASK-010 (ADR-002 invalidated).
+      Spike code is throwaway but kept in tree until M5/M6 superseding fixes land. Not in regression suite.
+
+  - id: api-002
+    name: TLS connection lifecycle fix for non-GET endpoints
+    description: Fix or replacement for the SpotifyArduino library's connection-reuse pattern that fails at TLS-send (mbedTLS 0x0050) for every POST/PUT after a prior GET. Candidate approaches per TASK-009; recommended is migrating affected endpoints to Arduino-ESP32 HTTPClient which manages connection lifecycle internally.
+    status: planned
+    git_ref: ""
+    files: []
+    cross_features: [api-001, poll-001]
+    test_ids: []
+    notes: Blocking M5 (full-skin touch controls), TASK-002, TASK-003. Architect to draft an ADR before implementation.
 
   - id: nfc-001
     name: NFC reader (PN532) — optional

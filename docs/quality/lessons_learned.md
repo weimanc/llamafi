@@ -115,6 +115,34 @@ Triggering work: re-scope of the Winamp UI architecture (ADR-006), creation and 
 
 ---
 
+### LL-008 — 2026-04-29 — `WiFiClientSecure` reuse breaks non-GET on Arduino-ESP32
+
+**Context**: TASK-007 spike run. Library makes a `getCurrentlyPlaying` GET successfully, then any subsequent `nextTrack` (POST) or `pause` (PUT) on the same client object fails at `client->println()` with mbedTLS `0x0050 (NET_CONN_RESET)`. GETs still succeed indefinitely; non-GETs fail consistently.
+
+**Observation**: A whole class of API calls — every control endpoint the Winamp UI needs — is broken on the current stack despite the library's API surface looking complete. `audio-features` / `audio-analysis` (both GET, made via raw `makeGetRequest`) DID reach Spotify and return authoritative HTTP responses, confirming the issue is specifically non-GET on the shared client, not GETs in general.
+
+**Root cause** (hypothesised, to be confirmed during TASK-009): Arduino-ESP32 2.0.17 `WiFiClientSecure` does not always reset its TLS context cleanly across `stop() → connect()` cycles. The library's `makeRequestWithBody` path (PUT/POST) calls `client->flush()` then `client->connect()` then writes headers — the write fails because the prior TLS context isn't fully torn down. The GET path happens to work, possibly because of how its specific timing or buffer state aligns. This is a documented class of bug in the ESP32 Arduino TLS stack.
+
+**Suggested improvement**: For any Arduino-ESP32 firmware doing both GETs and POST/PUTs to the same TLS host, do **not** share a single long-lived `WiFiClientSecure` across request types. Either allocate a fresh client per request (heap fragmentation risk to manage), or — better — use `HTTPClient` which manages connection lifecycle internally. Spike-style harnesses should test at least one GET and one non-GET before declaring a library "works."
+
+**Status**: open
+
+---
+
+### LL-009 — 2026-04-29 — Spotify deprecated `audio-features` / `audio-analysis` for new Developer apps
+
+**Context**: TASK-007 spike run. Both `GET /v1/audio-features/{id}` and `GET /v1/audio-analysis/{id}` return HTTP 403 for the dev account's app `db2ff394...` (created during TASK-001 in 2026-04-26). ADR-002 had architected the entire VU-meter feature around `audio-analysis` data, with `audio-features` as a fallback — both gates closed.
+
+**Observation**: An architecture decision (ADR-002) that looked solid at design time was based on an API capability Spotify has since revoked for new app registrations. The deprecation was announced in late 2024 (Spotify Web API change-log) and our app, registered post-deprecation, has never had access. The architecture review missed the policy/access dimension entirely.
+
+**Root cause**: Architecture review treated Spotify's API as a given technical surface, not a policy surface that the API provider can constrain by app age, by approval status, or by quota tier. We did not check the API change-log against our app's registration date, or test the endpoints during architecture (they would have returned 403 then, too).
+
+**Suggested improvement**: For any architecture decision that depends on a third-party API endpoint, the architect should — as part of the decision — verify the endpoint actually returns data for the app in question, not just that it exists in the documentation. Where the provider distinguishes app tiers (Spotify Extended Quota Mode, Twitter elevated access, etc.), record which tier the project assumes and what happens if that tier becomes unavailable.
+
+**Status**: open
+
+---
+
 ## Best-practice candidates (for human sign-off)
 
 Per AGENTS.md, QM does not self-promote. Below are LL items that look durable enough to become best-practice rules:
@@ -123,6 +151,8 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-002** → "Credential leak = P0 incident, rotate before next task." Universal.
 - **LL-003** → "Audit vendored library debug-log surface for secret output before first flash." Universal for any auth-handling library.
 - **LL-005** → "Promote and populate `cross_feature_matrix.yaml` on the first cross-feature link, not the second." Process rule, applies to Developer.
+- **LL-008** → "On Arduino-ESP32, do not share a single `WiFiClientSecure` across GET and non-GET requests." Library/integration rule, applies to Developer.
+- **LL-009** → "Architecture decisions that depend on third-party API endpoints must verify endpoint access for the project's actual app, not just the documented API surface." Process rule, applies to Architect.
 
 ---
 
