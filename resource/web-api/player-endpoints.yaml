@@ -1,0 +1,597 @@
+  /me/player:
+    get:
+      tags:
+        - Player
+      operationId: get-information-about-the-users-current-playback
+      x-spotify-policy-list:
+        $ref: '#/components/x-spotify-policy/playerPolicyList'
+      summary: |
+        Get Playback State
+      description: |
+        Get information about the user’s current playback state, including track or episode, progress, and active device.
+      parameters:
+        - $ref: '#/components/parameters/QueryMarket'
+        - $ref: '#/components/parameters/QueryAdditionalTypes'
+      responses:
+        '200':
+          $ref: '#/components/responses/OneCurrentlyPlaying'
+        '204':
+          description: Playback not available or active
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security:
+        - oauth_2_0:
+            - user-read-playback-state
+    put:
+      tags:
+        - Player
+      operationId: transfer-a-users-playback
+      x-spotify-policy-list:
+        $ref: '#/components/x-spotify-policy/playerPolicyList'
+      summary: |
+        Transfer Playback
+      description: |
+        Transfer playback to a new device and optionally begin playback. This API only works for users who have Spotify Premium. The order of execution is not guaranteed when you use this API with other Player API endpoints.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              example:
+                device_ids:
+                  - 74ASZWbe4lXaubB36ztrGX
+              type: object
+              additionalProperties: true
+              required:
+                - device_ids
+              properties:
+                device_ids:
+                  type: array
+                  description: |
+                    A JSON array containing the ID of the device on which playback should be started/transferred.<br/>For example:`{device_ids:["74ASZWbe4lXaubB36ztrGX"]}`<br/>_**Note**: Although an array is accepted, only a single device_id is currently supported. Supplying more than one will return `400 Bad Request`_
+                  items:
+                    type: string
+                play:
+                  type: boolean
+                  description: |
+                    **true**: ensure playback happens on new device.<br/>**false** or not provided: keep the current playback state.
+                  additionalProperties: true
+      responses:
+        '204':
+          description: Playback transferred
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security:
+        - oauth_2_0:
+            - user-modify-playback-state
+  /me/player/devices:
+    get:
+      tags:
+        - Player
+      operationId: get-a-users-available-devices
+      summary: |
+        Get Available Devices
+      description: |
+        Get information about a user’s available Spotify Connect devices. Some device models are not supported and will not be listed in the API response.
+      responses:
+        '200':
+          $ref: '#/components/responses/ManyDevices'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security:
+        - oauth_2_0:
+            - user-read-playback-state
+  /me/player/currently-playing:
+    get:
+      tags:
+        - Player
+      operationId: get-the-users-currently-playing-track
+      x-spotify-policy-list:
+        $ref: '#/components/x-spotify-policy/playerPolicyList'
+      summary: |
+        Get Currently Playing Track
+      description: |
+        Get the object currently being played on the user's Spotify account.
+      parameters:
+        - $ref: '#/components/parameters/QueryMarket'
+        - $ref: '#/components/parameters/QueryAdditionalTypes'
+      responses:
+        '200':
+          $ref: '#/components/responses/OneCurrentlyPlayingTrack'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security:
+        - oauth_2_0:
+            - user-read-currently-playing
+
+  /me/player/play:
+    put:
+      tags:
+        - Player
+      operationId: start-a-users-playback
+      x-spotify-policy-list:
+        $ref: '#/components/x-spotify-policy/playerPolicyList'
+      summary: |
+        Start/Resume Playback
+      description: |
+        Start a new context or resume current playback on the user's active device. This API only works for users who have Spotify Premium. The order of execution is not guaranteed when you use this API with other Player API endpoints.
+      parameters:
+        - name: device_id
+          required: false
+          in: query
+          schema:
+            title: Device ID
+            description: The id of the device this command is targeting. If
+              not supplied, the user's currently active device is the target.
+            example: 0d1841b0976bae2a3a310dd74c0f3df354899bc8
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              example:
+                context_uri: spotify:album:5ht7ItJgpBH7W6vJ5BqpPr
+                offset:
+                  position: 5
+                position_ms: 0
+              type: object
+              additionalProperties: true
+              properties:
+                context_uri:
+                  type: string
+                  description: |
+                    Optional. Spotify URI of the context to play.
+                    Valid contexts are albums, artists & playlists.
+                    `{context_uri:"spotify:album:1Je1IMUlBXcx1Fz0WE7oPT"}`
+                  additionalProperties: true
+                uris:
+                  type: array
+                  description: |
+                    Optional. A JSON array of the Spotify track URIs to play.
+                    For example: `{"uris": ["spotify:track:4iV5W9uYEdYUVa79Axb7Rh", "spotify:track:1301WleyT98MSxVHPZCA6M"]}`
+                  items:
+                    type: string
+                offset:
+                  type: object
+                  description: |
+                    Optional. Indicates from where in the context playback should start. Only available when context_uri corresponds to an album or playlist object
+                    "position" is zero based and can’t be negative. Example: `"offset": {"position": 5}`
+                    "uri" is a string representing the uri of the item to start at. Example: `"offset": {"uri": "spotify:track:1301WleyT98MSxVHPZCA6M"}`
+                  additionalProperties: true
+                position_ms:
+                  type: integer
+                  description: integer
+                  additionalProperties: true
+      responses:
+        '204':
+          description: Playback started
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security:
+        - oauth_2_0:
+            - user-modify-playback-state
+  /me/player/pause:
+    put:
+      tags:
+        - Player
+      operationId: pause-a-users-playback
+      x-spotify-policy-list:
+        $ref: '#/components/x-spotify-policy/playerPolicyList'
+      summary: |
+        Pause Playback
+      description: |
+        Pause playback on the user's account. This API only works for users who have Spotify Premium. The order of execution is not guaranteed when you use this API with other Player API endpoints.
+      parameters:
+        - name: device_id
+          required: false
+          in: query
+          schema:
+            title: Device ID
+            description: |
+              The id of the device this command is targeting. If not supplied, the user's currently active device is the target.
+            example: 0d1841b0976bae2a3a310dd74c0f3df354899bc8
+            type: string
+      responses:
+        '204':
+          description: Playback paused
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security:
+        - oauth_2_0:
+            - user-modify-playback-state
+  /me/player/next:
+    post:
+      tags:
+        - Player
+      operationId: skip-users-playback-to-next-track
+      x-spotify-policy-list:
+        $ref: '#/components/x-spotify-policy/playerPolicyList'
+      summary: |
+        Skip To Next
+      description: |
+        Skips to next track in the user’s queue. This API only works for users who have Spotify Premium. The order of execution is not guaranteed when you use this API with other Player API endpoints.
+      parameters:
+        - name: device_id
+          required: false
+          in: query
+          schema:
+            title: Device ID
+            description: The id of the device this command is targeting. If
+              not supplied, the user's currently active device is the target.
+            example: 0d1841b0976bae2a3a310dd74c0f3df354899bc8
+            type: string
+      responses:
+        '204':
+          description: Command sent
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security:
+        - oauth_2_0:
+            - user-modify-playback-state
+  /me/player/previous:
+    post:
+      tags:
+        - Player
+      operationId: skip-users-playback-to-previous-track
+      x-spotify-policy-list:
+        $ref: '#/components/x-spotify-policy/playerPolicyList'
+      summary: |
+        Skip To Previous
+      description: |
+        Skips to previous track in the user’s queue. This API only works for users who have Spotify Premium. The order of execution is not guaranteed when you use this API with other Player API endpoints.
+      parameters:
+        - name: device_id
+          required: false
+          in: query
+          schema:
+            title: Device ID
+            description: |
+              The id of the device this command is targeting. If
+              not supplied, the user's currently active device is the target.
+            example: 0d1841b0976bae2a3a310dd74c0f3df354899bc8
+            type: string
+      responses:
+        '204':
+          description: Command sent
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security:
+        - oauth_2_0:
+            - user-modify-playback-state
+  /me/player/seek:
+    put:
+      tags:
+        - Player
+      operationId: seek-to-position-in-currently-playing-track
+      x-spotify-policy-list:
+        $ref: '#/components/x-spotify-policy/playerPolicyList'
+      summary: |
+        Seek To Position
+      description: |
+        Seeks to the given position in the user’s currently playing track. This API only works for users who have Spotify Premium. The order of execution is not guaranteed when you use this API with other Player API endpoints.
+      parameters:
+        - name: position_ms
+          required: true
+          in: query
+          schema:
+            title: Position (ms)
+            description: |
+              The position in milliseconds to seek to. Must be a
+              positive number. Passing in a position that is greater than the length of
+              the track will cause the player to start playing the next song.
+            example: 25000
+            type: integer
+        - name: device_id
+          required: false
+          in: query
+          schema:
+            title: Device ID
+            description: |
+              The id of the device this command is targeting. If
+              not supplied, the user's currently active device is the target.
+            example: 0d1841b0976bae2a3a310dd74c0f3df354899bc8
+            type: string
+      responses:
+        '204':
+          description: Command sent
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security:
+        - oauth_2_0:
+            - user-modify-playback-state
+  /me/player/repeat:
+    put:
+      tags:
+        - Player
+      operationId: set-repeat-mode-on-users-playback
+      summary: |
+        Set Repeat Mode
+      description: |
+        Set the repeat mode for the user's playback. This API only works for users who have Spotify Premium. The order of execution is not guaranteed when you use this API with other Player API endpoints.
+      parameters:
+        - name: state
+          required: true
+          in: query
+          schema:
+            title: State
+            description: |
+              **track**, **context** or **off**.<br/>
+              **track** will repeat the current track.<br/>
+              **context** will repeat the current context.<br/>
+              **off** will turn repeat off.
+            example: context
+            type: string
+        - name: device_id
+          required: false
+          in: query
+          schema:
+            title: Device ID
+            description: |
+              The id of the device this command is targeting. If
+              not supplied, the user's currently active device is the target.
+            example: 0d1841b0976bae2a3a310dd74c0f3df354899bc8
+            type: string
+      responses:
+        '204':
+          description: Command sent
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security:
+        - oauth_2_0:
+            - user-modify-playback-state
+  /me/player/volume:
+    put:
+      tags:
+        - Player
+      operationId: set-volume-for-users-playback
+      summary: |
+        Set Playback Volume
+      description: |
+        Set the volume for the user’s current playback device. This API only works for users who have Spotify Premium. The order of execution is not guaranteed when you use this API with other Player API endpoints.
+      parameters:
+        - name: volume_percent
+          required: true
+          in: query
+          schema:
+            title: Volume %
+            description: |
+              The volume to set. Must be a value from 0 to 100 inclusive.
+            example: 50
+            type: integer
+        - name: device_id
+          required: false
+          in: query
+          schema:
+            title: Device ID
+            description: |
+              The id of the device this command is targeting. If not supplied, the user's currently active device is the target.
+            example: 0d1841b0976bae2a3a310dd74c0f3df354899bc8
+            type: string
+      responses:
+        '204':
+          description: Command sent
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security:
+        - oauth_2_0:
+            - user-modify-playback-state
+  /me/player/shuffle:
+    put:
+      tags:
+        - Player
+      operationId: toggle-shuffle-for-users-playback
+      summary: |
+        Toggle Playback Shuffle
+      description: |
+        Toggle shuffle on or off for user’s playback. This API only works for users who have Spotify Premium. The order of execution is not guaranteed when you use this API with other Player API endpoints.
+      parameters:
+        - name: state
+          required: true
+          in: query
+          schema:
+            title: State
+            description: |
+              **true** : Shuffle user's playback.<br/>
+              **false** : Do not shuffle user's playback.
+            example: true
+            type: boolean
+        - name: device_id
+          required: false
+          in: query
+          schema:
+            title: Device ID
+            description: |
+              The id of the device this command is targeting. If
+              not supplied, the user's currently active device is the target.
+            example: 0d1841b0976bae2a3a310dd74c0f3df354899bc8
+            type: string
+      responses:
+        '204':
+          description: Command sent
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security:
+        - oauth_2_0:
+            - user-modify-playback-state
+  /me/player/recently-played:
+    get:
+      tags:
+        - Player
+      operationId: get-recently-played
+      x-spotify-policy-list:
+        $ref: '#/components/x-spotify-policy/playerPolicyList'
+      summary: |
+        Get Recently Played Tracks
+      description: |
+        Get tracks from the current user's recently played tracks.
+        _**Note**: Currently doesn't support podcast episodes._
+      parameters:
+        - name: limit
+          required: false
+          in: query
+          schema:
+            title: Limit
+            description: |
+              The maximum number of items to return. Default: 20. Minimum: 1. Maximum: 50.
+            default: 20
+            example: 10
+            type: integer
+            minimum: 0
+            maximum: 50
+        - name: after
+          required: false
+          in: query
+          schema:
+            title: After
+            description: |
+              A Unix timestamp in milliseconds. Returns all items
+              after (but not including) this cursor position. If `after` is specified, `before`
+              must not be specified.
+            example: 1484811043508
+            type: integer
+        - name: before
+          required: false
+          in: query
+          schema:
+            title: Before
+            description: |
+              A Unix timestamp in milliseconds. Returns all items
+              before (but not including) this cursor position. If `before` is specified,
+              `after` must not be specified.
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/CursorPagedPlayHistory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security:
+        - oauth_2_0:
+            - user-read-recently-played
+  /me/player/queue:
+    get:
+      tags:
+        - Player
+      operationId: get-queue
+      x-spotify-policy-list:
+        $ref: '#/components/x-spotify-policy/playerPolicyList'
+      summary: |
+        Get the User's Queue
+      description: |
+        Get the list of objects that make up the user's queue.
+      responses:
+        '200':
+          $ref: '#/components/responses/Queue'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security:
+        - oauth_2_0:
+            - user-read-currently-playing
+            - user-read-playback-state
+    post:
+      tags:
+        - Player
+      operationId: add-to-queue
+      x-spotify-policy-list:
+        $ref: '#/components/x-spotify-policy/playerPolicyList'
+      summary: |
+        Add Item to Playback Queue
+      description: |
+        Add an item to be played next in the user's current playback queue. This API only works for users who have Spotify Premium. The order of execution is not guaranteed when you use this API with other Player API endpoints.
+      parameters:
+        - name: uri
+          required: true
+          in: query
+          schema:
+            title: Spotify URI
+            description: |
+              The uri of the item to add to the queue. Must be a track or an episode uri.
+            example: spotify:track:4iV5W9uYEdYUVa79Axb7Rh
+            type: string
+        - name: device_id
+          required: false
+          in: query
+          schema:
+            title: Device ID
+            description: |
+              The id of the device this command is targeting. If
+              not supplied, the user's currently active device is the target.
+            example: 0d1841b0976bae2a3a310dd74c0f3df354899bc8
+            type: string
+      responses:
+        '204':
+          description: Command received
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security:
+        - oauth_2_0:
+            - user-modify-playback-state
+  /markets:
+    get:
+      deprecated: true
+      tags:
+        - Markets
+      operationId: get-available-markets
+      summary: |
+        Get Available Markets
+      description: |
+        Get the list of markets where Spotify is available.
+      responses:
