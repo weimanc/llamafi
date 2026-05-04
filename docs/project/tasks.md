@@ -13,18 +13,14 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ## Active Tasks
 
 ### TASK-009 — TLS connection lifecycle for non-GET endpoints
-**Owner**: Developer (consult Architect for ADR)
+**Owner**: Developer (implementation), Architect (ADR-007)
 **Feature**: api-002 (new — to be registered)
-**Status**: open
+**Status**: in_progress (ADR-007 proposed 2026-05-04 — awaiting human sign-off → Developer implements)
 **Blocks**: M5 (full-skin touch controls), TASK-002, TASK-003
 **Notes**:
-- Discovered during TASK-007 DUT run 2026-04-29: every `POST` (`nextTrack`, `previousTrack`) and `PUT` (`pause`, `play`, `seek`, `setVolume`, `toggleShuffle`, `setRepeatMode`) fails at TLS-send with mbedTLS `0x0050 (NET_CONN_RESET)`. `GET /v1/me/player/currently-playing` works in the same boot from the same poll loop. Pattern: GET works after stop()+connect(); non-GET fails after the same dance.
-- Most likely root cause: the library's reuse of a single `WiFiClientSecure` across heterogeneous request types interacts badly with Arduino-ESP32 2.0.17's TLS stack. Known class of bug; multiple workarounds.
-- Three candidate fixes (architect to choose, ideally in a new ADR):
-  1. Per-request fresh `WiFiClientSecure` (allocate / free around each call). Heaviest on heap fragmentation.
-  2. Explicit `closeClient()` + small delay between heterogeneous requests in the library.
-  3. Migrate the affected endpoints to Arduino-ESP32's `HTTPClient`, which manages connection lifecycle internally. Recommended.
-- Verification: re-run the spike's `>` `<` `p` `P` `s` `S` `+` `-` `v` `h` `H` `r` `R` `o` rows after fix; expect all `[OK]`.
+- Discovered during TASK-007 DUT run 2026-04-29: every `POST` (`nextTrack`, `previousTrack`) and `PUT` (`pause`, `play`, `seek`, `setVolume`, `toggleShuffle`, `setRepeatMode`) fails at TLS-send with mbedTLS `0x0050 (NET_CONN_RESET)`. `GET /v1/me/player/currently-playing` works in the same boot from the same poll loop.
+- Architect 2026-05-04: confirmed root cause via `lib/SpotifyArduino/src/SpotifyArduino.cpp` inspection. Library uses HTTP/1.0 (server closes after response) but never calls `client->stop()` between requests — only `client->flush()` then `connect()`. Arduino-ESP32 2.0.17 `WiFiClientSecure::connect()` on a peer-closed socket can succeed without re-handshaking, producing `0x0050` on the next write. ADR-007 selects **option 2** (insert `client->stop()` before each `connect()` in `makeRequestWithBody` + `makeGetRequest`). Options 1 and 3 rejected — 1 thrashes heap with no upside, 3 is a disproportionate library rewrite. Option 3 retained as pre-authorised fallback if verification partial-passes.
+- Verification gate (VE): re-run spike harness rows `>` `<` ` ` `p` `P` `s` `S` `+` `-` `v` `h` `H` `r` `R` `o`; all must return `[OK]`. GET poll loop must remain healthy. Rows `f` / `a` stay 403 (TASK-010, out of scope here).
 
 ### TASK-010 — VU data-source rethink (ADR-002 invalidated)
 **Owner**: Architect
