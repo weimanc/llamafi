@@ -1,0 +1,191 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+@docs/agents/AGENTS.md
+
+## Workspace layout
+
+This directory contains two **independent, unrelated** upstream projects (each its own git repo):
+
+- `cspot/` — [feelfreelinux/cspot](https://github.com/feelfreelinux/cspot). C++ Spotify Connect player library targeting ESP32 and desktop (CLI). Uses CMake / esp-idf.
+- `Spotify-Diy-Thing/` — [witnessmenow/Spotify-Diy-Thing](https://github.com/witnessmenow/Spotify-Diy-Thing). Arduino/PlatformIO ESP32 project that displays the currently-playing track via the Spotify Web API on a "Cheap Yellow Display" or HUB75 matrix panel. Does **not** depend on cspot.
+
+Treat each subdirectory as a separate project. Don't cross-reference code between them.
+
+---
+
+## cspot/
+
+C++ Spotify Connect implementation. Library code lives in `cspot/cspot/` (with bundled `bell` audio framework as a submodule under `cspot/cspot/bell`). Two build targets under `cspot/targets/`:
+
+- `cli/` — desktop player (Linux/macOS/Windows), built with CMake. Used for development/testing.
+- `esp32/` — ESP32 firmware, built with esp-idf.
+
+Submodules are required: clone with `--recursive` or run `git submodule update --init --recursive` after pulling.
+
+### Build — CLI (Linux)
+
+```sh
+cd cspot/targets/cli
+mkdir -p build && cd build
+cmake .. -DUSE_ALSA=ON          # or -DUSE_PORTAUDIO=ON on macOS
+make
+./cspotcli                       # ZeroConf-advertises by default
+```
+
+Optional CMake flags: `-DBELL_EXTERNAL_MBEDTLS=<mbedtls_build>/cmake` and `-DMBEDTLS_RELEASE=<name>` for a local mbedtls build instead of system-wide.
+
+Linux deps: `libavahi-compat-libdnssd-dev`, `libasound2-dev`, mbedtls, protoc, Python `protobuf` + `grpcio-tools` (nanopb codegen).
+
+A Nix `flake.nix` is provided at the cspot root for a reproducible dev shell.
+
+### Build — ESP32
+
+```sh
+# After sourcing esp-idf's export.sh
+pip3 install protobuf grpcio-tools     # into esp-idf's venv
+cd cspot/targets/esp32
+idf.py set-target esp32                # once per checkout
+idf.py menuconfig                      # set wifi + CSPOT Configuration
+idf.py build flash monitor
+```
+
+### Architecture
+
+`cspot` is a **library**: the embedding program supplies an `AudioSink` (see `cspot/cspot/include/AudioSink.h`) that consumes 16-bit / 44.1 kHz stereo PCM and optionally implements `volumeChanged()` for hardware volume. Auth-blob caching is also the embedder's job (see `targets/cli/main.cpp` and its `authBlob.json` for reference).
+
+Connection flow (key files in `cspot/cspot/src/`):
+
+1. `ApResolve.cpp` fetches an access point from `apresolve.spotify.com`.
+2. `PlainConnection.cpp` opens a TCP connection; `ShannonConnection.cpp` (+ `Shannon.cpp`, `AuthChallenges.cpp`) upgrades it to the encrypted Shannon stream.
+3. `Session.cpp` / `MercurySession.cpp` handle the Mercury pub/sub protocol on top.
+4. `SpircHandler.cpp` implements Spotify Connect control (play/pause/next/volume) via Mercury.
+5. `TrackQueue.cpp` / `TrackReference.cpp` / `TrackPlayer.cpp` resolve tracks, fetch encrypted audio (`CDNAudioFile.cpp`), decrypt and decode (Vorbis via `bell`), and feed PCM into the user-supplied `AudioSink`.
+6. `LoginBlob.cpp` handles ZeroConf-style local auth + credential persistence.
+
+Wire formats are nanopb-generated from `cspot/cspot/protobuf/*.proto` at configure time.
+
+Audio sinks live in the `bell` submodule under `cspot/cspot/bell/src/sinks/{unix,esp}/`. Add a new sink by subclassing `AudioSink` and implementing `feedPCMFrames`.
+
+---
+
+## Spotify-Diy-Thing/
+
+Arduino sketch (`SpotifyDiyThing/SpotifyDiyThing.ino`) that polls the Spotify Web API over HTTPS and renders the currently-playing track + album art. **Not** related to cspot — it does not act as a Spotify Connect endpoint.
+
+### This machine's setup
+
+- **PlatformIO is not on PATH.** Use `~/.platformio/penv/bin/pio` (alias `pio` if you want).
+- **Board:** ESP32-2432S028R "Cheap Yellow Display", **two-USB variant** — must build with env `cyd2usb` (`-DTFT_INVERSION_ON`). The plain `cyd` env produces inverted colors on this hardware.
+- **Serial port:** `/dev/ttyUSB0`, CH340 (USB VID:PID `1A86:7523`).
+- **Platform pin:** `platformio.ini` pins `platform = espressif32@6.9.0` (Arduino-ESP32 2.0.17). The repo's original unpinned line broke against current PlatformIO because the bundled WiFi lib in newer cores expects `Network.h`, which the install didn't ship. Don't bump above 6.9.x without checking the WiFi/Network split.
+
+### Build / flash / monitor
+
+```sh
+cd Spotify-Diy-Thing
+~/.platformio/penv/bin/pio run -e cyd2usb                                  # build (this board)
+~/.platformio/penv/bin/pio run -e cyd2usb -t upload --upload-port /dev/ttyUSB0
+~/.platformio/penv/bin/pio run -e cyd2usb -t uploadfs --upload-port /dev/ttyUSB0   # SPIFFS only
+```
+
+Other envs in `platformio.ini` (don't use on this board): `cyd` (single-USB CYD, inversion off), `trinity` (HUB75 matrix). Env selects display via `-DYELLOW_DISPLAY` vs `-DMATRIX_DISPLAY`. The `cyd*` envs bake the full TFT_eSPI `User_Setup.h` into `build_flags` — the library's bundled User_Setup is ignored.
+
+`platformio.ini` keeps `lib_ldf_mode = deep+` because `Seeed_Arduino_NFC` needs conditional includes resolved.
+
+### Serial monitor via tmux
+
+The monitor holds the port exclusive, blocking flashes. Run it in a detached tmux session so it can be killed/restarted around uploads:
+
+```sh
+tmux new-session -d -s spotify-mon "~/.platformio/penv/bin/pio device monitor -e cyd2usb -p /dev/ttyUSB0"
+tmux capture-pane -t spotify-mon -p -S -500     # read last ~500 lines
+tmux kill-session -t spotify-mon                # before flashing
+```
+
+`Ctrl-C` inside the pane kills the whole session (it's the only process); recreate with `tmux new-session` after upload.
+
+### Runtime configuration
+
+Two persistence layers, both survive reflashing the firmware partition:
+
+- **Wifi creds** — written by WiFiManager into ESP32 NVS (separate partition).
+- **Spotify creds + refresh token** — JSON at `/spotify_diy_config.json` on SPIFFS. Schema (see `configFile.h`):
+  ```json
+  { "refreshToken": "...", "clientId": "...", "clientSecret": "..." }
+  ```
+  Keys are `clientId`/`clientSecret`, lowercase 'd'. The WiFiManager param labels (`WM_CLIENT_ID_LABEL = "clientID"` etc., `WifiManagerHandler.h:9`) differ but are only used as form-field IDs.
+
+Two ways to populate the config:
+
+1. **Captive portal (interactive).** First boot or double-press reset within ~10s (`DoubleResetDetector`, `DRD_TIMEOUT=10`, SPIFFS-backed via `ESP_DRD_USE_SPIFFS=true`). Phone joins SSID `SpotifyDIY` / pw `thing123`. **Must use the "Configure WiFi" page**, not "Info" — only the configure page exposes the Client ID / Secret / Refresh Token text fields. If you save from the wifi-only page, those fields are written as empty strings and the OAuth URL renders with `client_id=` blank.
+
+2. **Pre-baked SPIFFS image (preferred when reflashing dev boards).** Put a fully-filled `data/spotify_diy_config.json` in the project root and run `pio run -e cyd2usb -t uploadfs`. Bypasses the portal entirely — wifi must still be configured separately the first time, but creds + refresh token are already there.
+
+After SPIFFS has client ID + secret but no refresh token, the device enters "Refresh Token Mode" and serves a small auth-helper page on its LAN IP (`refreshToken.h`).
+
+### Spotify redirect-URI policy (important)
+
+As of Apr 2025 (all apps by Nov 2025), Spotify only accepts redirect URIs that are HTTPS, **except** loopback HTTP: `http://127.0.0.1:PORT/...` or `http://[::1]:PORT/...`. `localhost` and LAN IPs (`http://192.168.x.x/...`) are rejected at dashboard save time. The device's built-in flow uses its LAN IP, so it cannot complete the dashboard side anymore.
+
+Workaround used here: `../get_refresh_token.py` runs the Authorization Code flow on the host using `http://127.0.0.1:8888/callback/` (must be added to the Spotify app's Redirect URIs), prints the refresh token. Bake that into `data/spotify_diy_config.json` and `uploadfs`.
+
+### Hardcoded station WiFi (bypass captive portal)
+
+`SpotifyDiyThing/wifi_creds.h` (gitignored) opt-in shim. If present, `WifiManagerHandler.h` sees it via `__has_include` and short-circuits to `WiFi.begin(SSID, PASS)` before falling back to the portal. Format:
+
+```c
+#define HARDCODED_WIFI_SSID "..."
+#define HARDCODED_WIFI_PASS "..."
+```
+
+Reflash app to apply (creds compile in). On connect timeout (30s) it falls through to the normal WiFiManager portal flow.
+
+### DNS override (cellular / restrictive networks)
+
+Some upstreams (notably AT&T cellular when tethered) block DNS — both the carrier proxy and outbound queries to public resolvers (1.1.1.1, 8.8.8.8 over UDP+TCP). The DUT can't resolve `*.spotify.com`, `pool.ntp.org`, etc.
+
+Workaround: `dnsOverride.h` runs a tiny `AsyncUDP` resolver on the DUT itself. Reads `/host_overrides.json` from SPIFFS, answers queries from the table, NXDOMAIN otherwise. lwip's resolver is repointed at the DUT's own IP.
+
+Refresh loop (no app reflash):
+
+```sh
+cd Spotify-Diy-Thing
+tools/refresh_host_overrides.sh                                    # regenerates data/host_overrides.json via dig
+~/.platformio/penv/bin/pio run -e cyd2usb -t uploadfs --upload-port /dev/ttyUSB0
+```
+
+JSON schema:
+
+```json
+{ "hosts": { "api.spotify.com": "35.186.224.24", ... } }
+```
+
+`data/host_overrides.json` is gitignored — site/network specific. CDN GSLB IPs rotate every few hours/days, so this is a development-only hack, not durable. NTP is a separate problem on these networks (UDP/123 also blocked); resolving `pool.ntp.org` doesn't help if the NTP packets themselves are dropped.
+
+### Touch input (CYD)
+
+`touchScreen.h:46-53` only recognizes two zones, hardcoded:
+- `x < 120` → previous track
+- `x > 200` → next track
+- `120 ≤ x ≤ 200` is dead — the seek bar in the UI is **display-only**.
+
+No play/pause, volume, or seek/scrub. `SpotifyArduino::seek()` exists but is not wired up.
+
+### NFC
+
+PN532 detection runs unconditionally in `setup()` (`NFC_ENABLED` in the .ino). On hardware without the reader wired up, expect `Didn't find PN53x board` / `NFC reader - not working!!!` / `NFC Bad` in the boot log — non-fatal, the device continues normally. Set `NFC_ENABLED 0` to skip the probe.
+
+### Code layout (all under `SpotifyDiyThing/`)
+
+- `SpotifyDiyThing.ino` — main loop, display-type `#define` selection, Spotify polling.
+- `spotifyLogic.h` — Spotify API call + state-machine logic.
+- `spotifyDisplay.h` — display abstraction (the indirection that lets `cheapYellowLCD.h` and `matrixDisplay.h` swap in via the `*_DISPLAY` flag).
+- `cheapYellowLCD.h` / `matrixDisplay.h` — concrete display backends.
+- `nfc.h` — optional PN532 NFC reader; tags carry Spotify URIs/URLs that get played on swipe. Set `NFC_ENABLED 0` in the `.ino` to disable. `writeContextToNfc` toggles writing the currently-playing context back to a tag (off for albums that auto-flow into related songs).
+- `touchScreen.h` / `CYD28_TouchscreenR.{h,cpp}` — CYD touch input (rotated coordinates).
+- `configFile.h` — SPIFFS-backed persisted config.
+- `WifiManagerHandler.h`, `refreshToken.h` — first-run setup flow described above.
+
+`GitHubPages/` hosts the ESPWebTools browser flasher (Chrome/Edge) — a build artifact deployment target, not part of firmware.
