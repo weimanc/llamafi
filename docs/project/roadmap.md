@@ -93,7 +93,7 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 
 ## M4 — Position interpolation
 
-**Status:** planned
+**Status:** done (2026-05-07)
 **Scope:** Smooth seek-bar / elapsed-time movement between ~1 Hz polls. Few lines in `spotifyLogic.h` per ADR-006: stash `progress_ms` + `millis()` on each poll, derive displayed position each frame, snap on poll if gap > 500 ms. Local seeks update both fields directly.
 
 | Deliverable | Feature ID |
