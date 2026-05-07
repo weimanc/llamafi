@@ -36,37 +36,37 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-016 — Logging redesign tier 1 (M-LOG, parent)
 **Owner**: Developer (implementation), Architect (ADR-010 + amendments done), VE (T036–T040)
 **Feature**: log-001 (registered at first implementation commit)
-**Status**: design-complete (ADR-010 accepted 2026-05-07; multi-role reviewed and amended same day; implementation pending)
+**Status**: tier-1 shipped (2026-05-07 — all five sub-tasks landed and DUT-verified except `/log` HTTP test which is gated on a non-AP-isolated network)
 **Estimate**: ~half a day total across sub-tasks
 **Notes**:
 - Whiteboard: `docs/architecture/whiteboards/2026-05-07-logging-rethink.md`. ADR + amendments: `docs/architecture/decisions/ADR-010.md`. Review: `docs/architecture/decisions/ADR-010-review.md`.
 - Split into independently-shippable sub-tasks (per @PM during review):
 
 #### TASK-016b — Secret redactor + remove configFile.h JSON dump (security fix, ship first)
-**Status**: ready (~1 h). Highest priority — closes LL-002/LL-003 in-tree.
+**Status**: shipped (Spotify-Diy-Thing@442b030, 2026-05-07). DUT-verified — three distinct redacted values render correctly (8-slot rotating pool needed; single-buffer aliased all printf args to the last value). Closes LL-002/LL-003 in-tree.
 - New `secret.h` with `redact(s) -> "AQ…IY (len=131)"`. nullptr-safe, "" returns a non-empty marker.
 - Remove the configFile.h JSON dump that prints refresh token + client secret on every boot.
 - Commit message leads with security-fix framing for audit grep.
 
 #### TASK-016a — esp_log hook + 12 KB ringbuffer + permanent post-connect HTTP server + /log
-**Status**: ready (~3–4 h).
+**Status**: shipped (Spotify-Diy-Thing@7f1009c, 2026-05-07). DUT-verified for boot trace + ESP_LOGI capture; `/log` HTTP test deferred (AP isolation on this network).
 - `esp_log_set_vprintf` fans to Serial + ringbuffer. Line-oriented, drop-oldest, `portENTER_CRITICAL_SAFE` (works in ISR context too). 256-char line cap; one-time WARN tag=`log` on first truncation.
 - Stand up a permanent HTTP server bound to `WiFi.localIP()` (not 0.0.0.0; not the WiFiManager portal one — that shuts down post-onboarding).
 - `GET /log?n=N` plain text, last N lines. `GET /log?clear=1` empties. No auth — LAN-only is documented invariant.
 - Default levels: INFO baseline; DEBUG for `display`, `spotify`, `time`; WARN for vendored tags (`HTTPClient`, `WiFiClient`, `ssl_client`, `mbedtls`).
 
 #### TASK-016c — mbedTLS / HTTP decoder macros
-**Status**: ready (~1 h).
+**Status**: shipped (with TASK-016d in the same commit, 2026-05-07). DUT-verified — `[spotify.poll] fail http=HTTP -1` line shows decoder + ESP_LOGW path live.
 - `LOG_TLS_ERR(rc)`: 0x0050, 0x004C, -9984, -76, -80 (more as discovered). `LOG_HTTP_ERR(code)`: 401, 403, 429, 5xx.
 - Unknown codes pass through as raw hex / int — never silently dropped.
 
 #### TASK-016d — 30 s heartbeat tick
-**Status**: ready (~30 min).
+**Status**: shipped, DUT-verified 2026-05-07. Heartbeat fires; counters track poll attempts/successes/last code. Long blocking calls (TLS retries) push the next tick out, which is the intended visibility — heartbeat surfaces opaque blocking. Required `-DCORE_DEBUG_LEVEL=3` to be effective.
 - Super-loop `millis()` gate. Tag `hb`. Key=value pairs: `display=…`, `wifi=rssi(…)`, `heap=…k`, `poll=ok(204):N/last=…`, `uptime=HH:MM:SS`, `build=<epoch> <sha>`.
 - Counters reset on reboot.
 
 #### TASK-016e — `tools/audit_log_hygiene.sh`
-**Status**: ready (~30 min). Ships with or before 016b.
+**Status**: shipped with 016b (2026-05-07). Currently clean across the sketch. Run from `Spotify-Diy-Thing/`: `tools/audit_log_hygiene.sh`.
 - Greps for banned patterns: `Bearer `, `client_secret=`, `Serial.print*` of names matching `*token*` / `*secret*` / `*refresh*`. Exit 1 on hit. Wire into review checklist; CI when CI exists.
 
 **Migration policy**: incremental — new code uses `ESP_LOGx`; existing `Serial.println` stays until touched. Secret-leaking sites are fixed in tier 1 regardless.
