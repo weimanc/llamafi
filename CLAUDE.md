@@ -94,6 +94,19 @@ Other envs in `platformio.ini` (don't use on this board): `cyd` (single-USB CYD,
 
 `platformio.ini` keeps `lib_ldf_mode = deep+` because `Seeed_Arduino_NFC` needs conditional includes resolved.
 
+### Skin asset bake (M2)
+
+Host-side bake of `skins/winamp2_base.wsz` → `SpotifyDiyThing/gen/skin_assets.c` + `skin_layout.h`. Run on demand (not a PIO pre-build hook):
+
+```sh
+cd Spotify-Diy-Thing/tools
+python3 bake_skin.py -i ../skins/winamp2_base.wsz -o ../SpotifyDiyThing/gen
+# determinism check (T025): re-bake should be byte-identical to committed gen/
+cd ../SpotifyDiyThing/gen && sha256sum -c golden.sha256
+```
+
+Deps: `python3-pillow` and **ImageMagick CLI** (`magick` on PATH). Pillow's `BI_RLE8` BMP decoder fails on Winamp's `TEXT.BMP`; the tool shells out to `magick` as a fallback. Without ImageMagick the font atlas step raises. See ADR-008.
+
 ### Serial monitor via tmux
 
 The monitor holds the port exclusive, blocking flashes. Run it in a detached tmux session so it can be killed/restarted around uploads:

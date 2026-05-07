@@ -208,9 +208,9 @@ Host-side tool tests. Run on the dev machine, not the DUT.
 - **Feature(s)**: m2-001
 - **Objective**: Verify two bake runs from the same source `.wsz` produce byte-identical `gen/skin_assets.c` and `gen/skin_layout.h`.
 - **Preconditions**: Pillow + ImageMagick installed.
-- **Steps**: 1. `python3 tools/bake_skin.py -i skins/winamp2_base.wsz -o /tmp/a`. 2. Same with `-o /tmp/b`. 3. `diff -r /tmp/a /tmp/b`.
-- **Expected result**: No diff.
-- **Status**: planned (golden hash not in tree yet). VE follow-up: commit a SHA-256 of each output file to a fixture and add a CI step.
+- **Steps**: 1. `python3 tools/bake_skin.py -i skins/winamp2_base.wsz -o SpotifyDiyThing/gen`. 2. `cd SpotifyDiyThing/gen && sha256sum -c golden.sha256`.
+- **Expected result**: `skin_assets.c: OK` and `skin_layout.h: OK`.
+- **Status**: passing (2026-05-07). Golden hash committed at `SpotifyDiyThing/gen/golden.sha256`. CI hook deferred until CI exists.
 
 ### T026 — [m2-001] Generated headers compile in firmware build
 - **Type**: integration

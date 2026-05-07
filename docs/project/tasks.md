@@ -15,12 +15,13 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-012 — M2 skin bake tool, tier 1
 **Owner**: Developer
 **Feature**: m2-001 (new)
-**Status**: in_progress (2026-05-07, tier 1 landed; tier 2 pending)
-**Blocks**: M3 (depends on layout header + atlas)
+**Status**: done (2026-05-07, tier-1 user scope — title + main controls — closed via tier-2 batch)
+**Blocks**: M3 (unblocked: layout + atlas + glyph UVs all present)
 **Notes**:
 - Tier 1 deliverables landed at Spotify-Diy-Thing@a9682be: bake tool, source `.wsz` (Winamp 2 Base-2.91), generated `gen/skin_assets.c` + `gen/skin_layout.h`. Build clean. Atlas budget ~94 KB.
-- Tier 2 (when M3 starts wiring the renderer): font glyph UV table for printable ASCII (Winamp text.bmp standard 31×3 layout), time digits (NUMBERS.BMP), play/pause indicator (PLAYPAUS.BMP), seek bar (POSBAR.BMP), title bar sprites (TITLEBAR.BMP).
-- Build wiring: standalone tool, manual invocation per user pref. `python3 tools/bake_skin.py -i skins/winamp2_base.wsz -o SpotifyDiyThing/gen`. No PIO pre-build hook.
+- Tier-2 batch (this commit) closes the user's stated tier-1 scope ("title and main control buttons"): `SKIN_GLYPH[128]` ASCII→UV table emitted from `CHAR_MAP` in `bake_skin.py`, golden hash committed at `gen/golden.sha256` (T025 now passing), ImageMagick CLI dep documented in `CLAUDE.md`.
+- Tier 3 deferred until M3 wires the renderer: time digits (NUMBERS.BMP), play/pause indicator (PLAYPAUS.BMP), seek bar (POSBAR.BMP), title bar sprites (TITLEBAR.BMP), VOLUME/BALANCE/MONOSTER/SHUFREP, eject.
+- Build wiring: standalone tool, manual invocation per user pref. `python3 tools/bake_skin.py -i skins/winamp2_base.wsz -o SpotifyDiyThing/gen`. Determinism: `cd SpotifyDiyThing/gen && sha256sum -c golden.sha256`.
 
 ### TASK-009 — TLS connection lifecycle for non-GET endpoints
 **Owner**: Developer (implementation), Architect (ADR-007)
