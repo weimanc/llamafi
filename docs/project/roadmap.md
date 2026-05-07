@@ -58,7 +58,7 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 
 ## M2 — Skin asset pipeline (host-side)
 
-**Status:** planned
+**Status:** in_progress (tier 1 done 2026-05-07 — bake tool + main bg + transport buttons + raw font atlas; tier 2 covers glyph UV table, time digits, sliders alongside M3 wiring)
 **Scope:** Build-time bake tool (per ADR-003) that converts the Winamp 2 classic skin to `gen/skin_assets.c` (RGB565 atlas) + `gen/skin_layout.h` (button rects, VU rect, text rects, slider tracks, 9-slice metadata). No firmware change yet — output is verified by inspection and by rendering the atlas in a throwaway preview. Independent of M1 (host-only); can run in parallel.
 
 | Deliverable | Status |

@@ -12,6 +12,16 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ## Active Tasks
 
+### TASK-012 — M2 skin bake tool, tier 1
+**Owner**: Developer
+**Feature**: m2-001 (new)
+**Status**: in_progress (2026-05-07, tier 1 landed; tier 2 pending)
+**Blocks**: M3 (depends on layout header + atlas)
+**Notes**:
+- Tier 1 deliverables landed at Spotify-Diy-Thing@a9682be: bake tool, source `.wsz` (Winamp 2 Base-2.91), generated `gen/skin_assets.c` + `gen/skin_layout.h`. Build clean. Atlas budget ~94 KB.
+- Tier 2 (when M3 starts wiring the renderer): font glyph UV table for printable ASCII (Winamp text.bmp standard 31×3 layout), time digits (NUMBERS.BMP), play/pause indicator (PLAYPAUS.BMP), seek bar (POSBAR.BMP), title bar sprites (TITLEBAR.BMP).
+- Build wiring: standalone tool, manual invocation per user pref. `python3 tools/bake_skin.py -i skins/winamp2_base.wsz -o SpotifyDiyThing/gen`. No PIO pre-build hook.
+
 ### TASK-009 — TLS connection lifecycle for non-GET endpoints
 **Owner**: Developer (implementation), Architect (ADR-007)
 **Feature**: api-002 (new — to be registered)
