@@ -33,22 +33,48 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Architect 2026-05-04: confirmed root cause via `lib/SpotifyArduino/src/SpotifyArduino.cpp` inspection. Library uses HTTP/1.0 (server closes after response) but never calls `client->stop()` between requests — only `client->flush()` then `connect()`. Arduino-ESP32 2.0.17 `WiFiClientSecure::connect()` on a peer-closed socket can succeed without re-handshaking, producing `0x0050` on the next write. ADR-007 selects **option 2** (insert `client->stop()` before each `connect()` in `makeRequestWithBody` + `makeGetRequest`). Options 1 and 3 rejected — 1 thrashes heap with no upside, 3 is a disproportionate library rewrite. Option 3 retained as pre-authorised fallback if verification partial-passes.
 - Verification gate (VE): re-run spike harness rows `>` `<` ` ` `p` `P` `s` `S` `+` `-` `v` `h` `H` `r` `R` `o`; all must return `[OK]`. GET poll loop must remain healthy. Rows `f` / `a` stay 403 (TASK-010, out of scope here).
 
-### TASK-016 — Logging redesign tier 1 (M-LOG)
-**Owner**: Developer (tier-1 implementation), Architect (ADR-010 done)
-**Feature**: log-001 (to be registered at first implementation commit)
-**Status**: design-complete (ADR-010 accepted 2026-05-07; implementation pending)
+### TASK-016 — Logging redesign tier 1 (M-LOG, parent)
+**Owner**: Developer (implementation), Architect (ADR-010 + amendments done), VE (T036–T040)
+**Feature**: log-001 (registered at first implementation commit)
+**Status**: design-complete (ADR-010 accepted 2026-05-07; multi-role reviewed and amended same day; implementation pending)
+**Estimate**: ~half a day total across sub-tasks
 **Notes**:
-- Whiteboard: `docs/architecture/whiteboards/2026-05-07-logging-rethink.md`. ADR: `docs/architecture/decisions/ADR-010.md`.
-- Tier-1 deliverables (per ADR-010):
-  (a) `esp_log_set_vprintf` hook fanning to Serial + 12 KB RAM ringbuffer, line-oriented, drop-oldest, spinlock-guarded.
-  (b) `/log?n=N` and `/log?clear=1` endpoints on the existing web server. Plain text. No auth (LAN-only).
-  (c) `secret.h` redactor (`redact(token) -> "AQ…IY (len=131)"`) + **remove `configFile.h` JSON dump** in the same commit (closes LL-002/LL-003 in our own code).
-  (d) `LOG_TLS_ERR(rc)` and `LOG_HTTP_ERR(code)` decoder macros, populated for codes we've actually seen (0x0050, 0x004C, -9984, -76, -80, HTTP 401/403/429/5xx).
-  (e) 30 s INFO heartbeat tag `hb` with key=value pairs (display, wifi rssi, heap, poll counters, uptime, build epoch / commit short-sha).
-- Default levels: INFO baseline; DEBUG for `display`, `spotify`, `time` while those subsystems are active; WARN for vendored tags (`HTTPClient`, `WiFiClient`, `ssl_client`, `mbedtls`). Overridable via `esp_log_level_set`.
-- Migration policy: incremental — new code uses `ESP_LOGx`; existing `Serial.println` stays until touched, except call sites that print secrets (fixed in tier 1 regardless).
-- Out of scope for this task (deferred to TASK-017 when raised): UDP syslog push, state-machine trace points beyond what call-site adoption naturally yields, SPIFFS-backed buffer + panic flush, runtime per-tag control over the web UI.
-- Open follow-ups (from ADR): heartbeat task vs super-loop tick (lean: super-loop), `/log` plain-text vs NDJSON (lean: plain), include short-sha in heartbeat (lean: yes).
+- Whiteboard: `docs/architecture/whiteboards/2026-05-07-logging-rethink.md`. ADR + amendments: `docs/architecture/decisions/ADR-010.md`. Review: `docs/architecture/decisions/ADR-010-review.md`.
+- Split into independently-shippable sub-tasks (per @PM during review):
+
+#### TASK-016b — Secret redactor + remove configFile.h JSON dump (security fix, ship first)
+**Status**: ready (~1 h). Highest priority — closes LL-002/LL-003 in-tree.
+- New `secret.h` with `redact(s) -> "AQ…IY (len=131)"`. nullptr-safe, "" returns a non-empty marker.
+- Remove the configFile.h JSON dump that prints refresh token + client secret on every boot.
+- Commit message leads with security-fix framing for audit grep.
+
+#### TASK-016a — esp_log hook + 12 KB ringbuffer + permanent post-connect HTTP server + /log
+**Status**: ready (~3–4 h).
+- `esp_log_set_vprintf` fans to Serial + ringbuffer. Line-oriented, drop-oldest, `portENTER_CRITICAL_SAFE` (works in ISR context too). 256-char line cap; one-time WARN tag=`log` on first truncation.
+- Stand up a permanent HTTP server bound to `WiFi.localIP()` (not 0.0.0.0; not the WiFiManager portal one — that shuts down post-onboarding).
+- `GET /log?n=N` plain text, last N lines. `GET /log?clear=1` empties. No auth — LAN-only is documented invariant.
+- Default levels: INFO baseline; DEBUG for `display`, `spotify`, `time`; WARN for vendored tags (`HTTPClient`, `WiFiClient`, `ssl_client`, `mbedtls`).
+
+#### TASK-016c — mbedTLS / HTTP decoder macros
+**Status**: ready (~1 h).
+- `LOG_TLS_ERR(rc)`: 0x0050, 0x004C, -9984, -76, -80 (more as discovered). `LOG_HTTP_ERR(code)`: 401, 403, 429, 5xx.
+- Unknown codes pass through as raw hex / int — never silently dropped.
+
+#### TASK-016d — 30 s heartbeat tick
+**Status**: ready (~30 min).
+- Super-loop `millis()` gate. Tag `hb`. Key=value pairs: `display=…`, `wifi=rssi(…)`, `heap=…k`, `poll=ok(204):N/last=…`, `uptime=HH:MM:SS`, `build=<epoch> <sha>`.
+- Counters reset on reboot.
+
+#### TASK-016e — `tools/audit_log_hygiene.sh`
+**Status**: ready (~30 min). Ships with or before 016b.
+- Greps for banned patterns: `Bearer `, `client_secret=`, `Serial.print*` of names matching `*token*` / `*secret*` / `*refresh*`. Exit 1 on hit. Wire into review checklist; CI when CI exists.
+
+**Migration policy**: incremental — new code uses `ESP_LOGx`; existing `Serial.println` stays until touched. Secret-leaking sites are fixed in tier 1 regardless.
+
+**Follow-ups (post tier 1)**:
+- After M3 + M5 close, lift `display` and `spotify` defaults from DEBUG to INFO. **Tracked as a checkpoint, not a task — Architect to revisit at each milestone close.**
+- Promotion candidate (QM, awaiting human approval): "ADRs require @VE testability + @Developer implementability passes before transitioning to `accepted`."
+- Out of scope for tier 1 (future TASK-017 if raised): UDP syslog push, state-machine trace points beyond natural call-site adoption, SPIFFS-backed buffer + panic flush, runtime per-tag control via web UI.
 
 ### TASK-015 — M3 Winamp display backend
 **Owner**: Developer
