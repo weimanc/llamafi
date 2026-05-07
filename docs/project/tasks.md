@@ -33,16 +33,22 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Architect 2026-05-04: confirmed root cause via `lib/SpotifyArduino/src/SpotifyArduino.cpp` inspection. Library uses HTTP/1.0 (server closes after response) but never calls `client->stop()` between requests — only `client->flush()` then `connect()`. Arduino-ESP32 2.0.17 `WiFiClientSecure::connect()` on a peer-closed socket can succeed without re-handshaking, producing `0x0050` on the next write. ADR-007 selects **option 2** (insert `client->stop()` before each `connect()` in `makeRequestWithBody` + `makeGetRequest`). Options 1 and 3 rejected — 1 thrashes heap with no upside, 3 is a disproportionate library rewrite. Option 3 retained as pre-authorised fallback if verification partial-passes.
 - Verification gate (VE): re-run spike harness rows `>` `<` ` ` `p` `P` `s` `S` `+` `-` `v` `h` `H` `r` `R` `o`; all must return `[OK]`. GET poll loop must remain healthy. Rows `f` / `a` stay 403 (TASK-010, out of scope here).
 
-### TASK-016 — Logging redesign (M-LOG, cross-cutting)
-**Owner**: Architect (ADR-010), then Developer (tier 1)
-**Feature**: log-001 (to be registered when implementation starts)
-**Status**: whiteboard (2026-05-07; ADR pending — see open questions in the whiteboard doc)
+### TASK-016 — Logging redesign tier 1 (M-LOG)
+**Owner**: Developer (tier-1 implementation), Architect (ADR-010 done)
+**Feature**: log-001 (to be registered at first implementation commit)
+**Status**: design-complete (ADR-010 accepted 2026-05-07; implementation pending)
 **Notes**:
-- Whiteboard: `docs/architecture/whiteboards/2026-05-07-logging-rethink.md`. Captures pain points seen during M3 DUT verify (lost boot trace, opaque mbedTLS codes, secrets in serial, silent hangs).
-- Tier 1 (do first): adopt `esp_log`; RAM ringbuffer + `/log` pull endpoint on the device's existing web server; secret redactor; mbedTLS/HTTP code decoder; 30 s key=value heartbeat. **Removes the `configFile.h` JSON dump** — closes LL-002/LL-003 in our own code, not just in the vendored lib.
-- Tier 2: UDP syslog push, state-machine trace points (poll/display/wifi/time/DRD), migration of legacy `Serial.println` sites.
-- Tier 3 (defer): SPIFFS-backed buffer + panic flush; per-tag runtime control via web UI / serial command.
-- Open questions are listed at the end of the whiteboard. ADR-010 is gated on resolving them.
+- Whiteboard: `docs/architecture/whiteboards/2026-05-07-logging-rethink.md`. ADR: `docs/architecture/decisions/ADR-010.md`.
+- Tier-1 deliverables (per ADR-010):
+  (a) `esp_log_set_vprintf` hook fanning to Serial + 12 KB RAM ringbuffer, line-oriented, drop-oldest, spinlock-guarded.
+  (b) `/log?n=N` and `/log?clear=1` endpoints on the existing web server. Plain text. No auth (LAN-only).
+  (c) `secret.h` redactor (`redact(token) -> "AQ…IY (len=131)"`) + **remove `configFile.h` JSON dump** in the same commit (closes LL-002/LL-003 in our own code).
+  (d) `LOG_TLS_ERR(rc)` and `LOG_HTTP_ERR(code)` decoder macros, populated for codes we've actually seen (0x0050, 0x004C, -9984, -76, -80, HTTP 401/403/429/5xx).
+  (e) 30 s INFO heartbeat tag `hb` with key=value pairs (display, wifi rssi, heap, poll counters, uptime, build epoch / commit short-sha).
+- Default levels: INFO baseline; DEBUG for `display`, `spotify`, `time` while those subsystems are active; WARN for vendored tags (`HTTPClient`, `WiFiClient`, `ssl_client`, `mbedtls`). Overridable via `esp_log_level_set`.
+- Migration policy: incremental — new code uses `ESP_LOGx`; existing `Serial.println` stays until touched, except call sites that print secrets (fixed in tier 1 regardless).
+- Out of scope for this task (deferred to TASK-017 when raised): UDP syslog push, state-machine trace points beyond what call-site adoption naturally yields, SPIFFS-backed buffer + panic flush, runtime per-tag control over the web UI.
+- Open follow-ups (from ADR): heartbeat task vs super-loop tick (lean: super-loop), `/log` plain-text vs NDJSON (lean: plain), include short-sha in heartbeat (lean: yes).
 
 ### TASK-015 — M3 Winamp display backend
 **Owner**: Developer
