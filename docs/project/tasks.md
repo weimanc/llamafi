@@ -12,6 +12,19 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ## Active Tasks
 
+### TASK-011 — M4 position interpolation polish
+**Owner**: Developer
+**Feature**: poll-002 (new)
+**Status**: in_progress (2026-05-06)
+**Blocks**: M4 close-out
+**Notes**:
+- Pre-existing code in `spotifyLogic.h` already stashes `songStartMillis = millis() - progressMs` on poll and `updateProgressBar()` derives current position. Re-anchor on every poll covers ADR-006's "snap if gap > 500ms" with a strict version (always snap). Pause and not-playing are handled.
+- Gaps closed in this task:
+  1. `displayTrackProgress` is now idempotent — caches last `barXWidth`, skips redraw if identical pixel position. Track-change / seek-back handled via shrink-branch full repaint.
+  2. Throttle dropped from 500ms → 100ms (`delayBetweenProgressUpdates`). Safe because of (1).
+  3. Re-anchor `displayTrackProgress` call kept in `handleCurrentlyPlaying` for pause-state correctness; idempotent so cost is nil during play.
+- Verification gate: DUT plays a track, seek bar advances visibly smoothly (no 500ms steps). Pause still shows correct position. Track skip resets the bar without artifacts.
+
 ### TASK-009 — TLS connection lifecycle for non-GET endpoints
 **Owner**: Developer (implementation), Architect (ADR-007)
 **Feature**: api-002 (new — to be registered)
