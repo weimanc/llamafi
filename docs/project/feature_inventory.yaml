@@ -157,7 +157,7 @@ features:
     status: implemented
     git_ref: Spotify-Diy-Thing@a9682be
     files:
-      - Spotify-Diy-Thing/skins/winamp2_base.wsz
+      - Spotify-Diy-Thing/skins/base-2.91.wsz
       - Spotify-Diy-Thing/tools/bake_skin.py
       - Spotify-Diy-Thing/SpotifyDiyThing/gen/skin_assets.c
       - Spotify-Diy-Thing/SpotifyDiyThing/gen/skin_layout.h

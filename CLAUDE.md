@@ -97,11 +97,11 @@ Other envs in `platformio.ini` (don't use on this board): `cyd` (single-USB CYD,
 
 ### Skin asset bake (M2)
 
-Host-side bake of `skins/winamp2_base.wsz` → `SpotifyDiyThing/gen/skin_assets.c` + `skin_layout.h`. Run on demand (not a PIO pre-build hook):
+Host-side bake of `skins/base-2.91.wsz` → `SpotifyDiyThing/gen/skin_assets.c` + `skin_layout.h`. Run on demand (not a PIO pre-build hook):
 
 ```sh
 cd Spotify-Diy-Thing/tools
-python3 bake_skin.py -i ../skins/winamp2_base.wsz -o ../SpotifyDiyThing/gen
+python3 bake_skin.py -i ../skins/base-2.91.wsz -o ../SpotifyDiyThing/gen
 # determinism check (T025): re-bake should be byte-identical to committed gen/
 cd ../SpotifyDiyThing/gen && sha256sum -c golden.sha256
 ```

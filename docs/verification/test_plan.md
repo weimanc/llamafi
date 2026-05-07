@@ -208,7 +208,7 @@ Host-side tool tests. Run on the dev machine, not the DUT.
 - **Feature(s)**: m2-001
 - **Objective**: Verify two bake runs from the same source `.wsz` produce byte-identical `gen/skin_assets.c` and `gen/skin_layout.h`.
 - **Preconditions**: Pillow + ImageMagick installed.
-- **Steps**: 1. `python3 tools/bake_skin.py -i skins/winamp2_base.wsz -o SpotifyDiyThing/gen`. 2. `cd SpotifyDiyThing/gen && sha256sum -c golden.sha256`.
+- **Steps**: 1. `python3 tools/bake_skin.py -i skins/base-2.91.wsz -o SpotifyDiyThing/gen`. 2. `cd SpotifyDiyThing/gen && sha256sum -c golden.sha256`.
 - **Expected result**: `skin_assets.c: OK` and `skin_layout.h: OK`.
 - **Status**: passing (2026-05-07). Golden hash committed at `SpotifyDiyThing/gen/golden.sha256`. CI hook deferred until CI exists.
 
@@ -232,7 +232,7 @@ Host-side tool tests. Run on the dev machine, not the DUT.
 - **Type**: integration
 - **Feature(s)**: m2-001
 - **Objective**: Verify the ImageMagick fallback triggers correctly for BMPs Pillow can't decode (specifically Winamp's `TEXT.BMP`).
-- **Steps**: Bake from `skins/winamp2_base.wsz` (which contains RLE8 `TEXT.BMP`). Confirm `SKIN_FONT` array is populated and non-trivial.
+- **Steps**: Bake from `skins/base-2.91.wsz` (which contains RLE8 `TEXT.BMP`). Confirm `SKIN_FONT` array is populated and non-trivial.
 - **Expected result**: `SKIN_FONT[155*74]` array present, all-zero check fails (palette + glyphs decoded).
 - **Status**: passing (2026-05-07, font atlas size 22940 bytes as expected).
 
