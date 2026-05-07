@@ -75,8 +75,8 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 
 ## M3 — Winamp display backend
 
-**Status:** planned
-**Scope:** New `winampSkinLCD.h` implementing `spotifyDisplay.h`, rendering the baked atlas + layout against TFT_eSPI on the CYD. `cheapYellowLCD.h` stays for fallback; build flag selects. HUB75 / `matrixDisplay.h` dropped from project scope.
+**Status:** done (2026-05-07 — DUT visual verify confirmed all 8 chrome+touch items)
+**Scope:** New `winampDisplay.h` (subclass of CheapYellowDisplay, reusing JPEG/SPIFFS/touch plumbing) renders the baked atlas + layout against TFT_eSPI on the CYD. `cheapYellowLCD.h` stays as the default; `cyd2usb_winamp` env selects. HUB75 / `matrixDisplay.h` dropped from project scope per ADR-006.
 
 | Deliverable | Feature ID |
 |-------------|------------|

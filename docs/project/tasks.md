@@ -79,7 +79,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-015 — M3 Winamp display backend
 **Owner**: Developer
 **Feature**: m3-001 (new)
-**Status**: in_progress (2026-05-07 — tier 2 functionality landed; DUT visual verify pending)
+**Status**: done (2026-05-07 — DUT visual verify complete; all 8 items confirmed: bg, buttons, status indicator, time digits, title, marquee, progress thumb, touch press feedback)
 **Notes**:
 - Tier 1 (Spotify-Diy-Thing@e8f52b7): `winampDisplay.h` scaffold. Subclasses `CheapYellowDisplay`; reuses JPEG/SPIFFS/touch plumbing. New `cyd2usb_winamp` PIO env. Static bg + transport buttons + ASCII title.
 - Tier 2 (Spotify-Diy-Thing@e4871e8): `bake_skin.py` now bakes NUMBERS/POSBAR/PLAYPAUS atlases + UVs. `winampDisplay.h` uses POSBAR sprite for bar+thumb, PLAYPAUS for status indicator, marquee scroll on title overflow, pressed-button feedback in `checkForInput`.

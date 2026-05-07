@@ -281,7 +281,7 @@ DUT-side visual + integration tests. Scaffold lands compile-clean; runtime verif
 - **Preconditions**: WiFi connected, Spotify creds present, no track playing.
 - **Steps**: Boot DUT, observe screen.
 - **Expected result**: Skin background visible; PREV/PLAY/PAUSE/STOP/NEXT sprites at canonical x-coords (16/39/62/85/108) on row y=88 in window-local coords; black margin around the window.
-- **Status**: planned (DUT pending).
+- **Status**: passing (2026-05-07 DUT verify, user confirmed).
 
 ### T034 — [m3-001] Title text glyphs render legibly
 - **Type**: visual (DUT)
@@ -289,7 +289,7 @@ DUT-side visual + integration tests. Scaffold lands compile-clean; runtime verif
 - **Objective**: `printCurrentlyPlayingToScreen` writes the track name into the TITLE slot using `SKIN_GLYPH` glyphs; lower-case folds to upper; truncates at slot edge.
 - **Steps**: Play a track with a known short ASCII title; observe.
 - **Expected result**: Title visible inside (TITLE_X, TITLE_Y, TITLE_W, TITLE_H) area; no overflow into surrounding chrome; slot is repainted from background between title changes.
-- **Status**: planned (DUT pending; marquee scroll deferred).
+- **Status**: passing (2026-05-07 DUT verify; marquee scroll also confirmed working on overflow).
 
 ### T035 — [m3-001] Progress bar advances inside POSBAR slot
 - **Type**: visual (DUT)
@@ -297,7 +297,7 @@ DUT-side visual + integration tests. Scaffold lands compile-clean; runtime verif
 - **Objective**: `displayTrackProgress` fills a green bar inside `(BAR_X=16, BAR_Y=72, BAR_W=248, BAR_H=10)` in window-local coords, advancing smoothly via the M4 100 ms tick.
 - **Steps**: Play a track; observe seek bar over ~30 s.
 - **Expected result**: No flicker, no stale fill on track change/seek; advance visible at ~10 Hz.
-- **Status**: planned (DUT pending).
+- **Status**: passing (2026-05-07 DUT verify, user confirmed).
 
 ---
 
