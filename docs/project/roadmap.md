@@ -157,21 +157,23 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 ## M-LOG2 — On-screen log overlay (debug HUD)
 
 **Status:** planned (added 2026-05-07; complements M-LOG tier-1 ringbuffer).
-**Scope:** Render the most recent ringbuffer lines to the black margin/bottom strip on the CYD panel as a scrolling terminal — newest line at the bottom, older lines scroll up. Diagnostic aid for state-coupling investigations: lets the user see live what the firmware is doing without a tethered monitor or `/log` HTTP pull.
+**Scope:** Use the **whole 320×240 panel** as a log terminal; the Winamp chrome paints on top and naturally clips whatever it covers. Top strip (y 0–62) shows older lines, bottom strip (y 178–240) shows newer lines, the middle band is hidden behind the Winamp window. Diagnostic aid for state-coupling investigations: lets the user see live what the firmware is doing without a tethered monitor or `/log` HTTP pull.
 **Why:** Symptoms during M3 verify (slow first sync, occasional hangs, stale track shown after Spotify advanced) are all manifestations of the super-loop blocking inside network calls — heartbeat data already showed 56 s gaps. The on-screen overlay makes those gaps and their causes visible at the same moment they're affecting the UI.
 **Design sketch:**
 - New `screenLog.h` renderer; subscribed to the existing 12 KB ringbuffer (no new state).
-- Use TFT_eSPI built-in font 1 (~6×8 px). On the 320×240 CYD with the 275×116 Winamp window centered, the bottom 62 px strip gives ~7 lines × 53 chars; the 22 px L/R margins are too narrow for text.
+- Layering: log is the bottom layer (full-screen, ~30 lines × 53 chars at TFT_eSPI font 1, ~6×8 px). Winamp chrome is the top layer and overlays the middle band; what it covers is hidden, what it doesn't is visible.
+- Visible budget: top strip ~7 lines (oldest visible), bottom strip ~7 lines (newest), middle ~16 lines hidden behind chrome — they scroll through but aren't seen.
+- Newest line at the bottom of the screen; older lines scroll up; oldest line eventually scrolls off the top.
 - Default colors: green-on-black (terminal aesthetic, on-brand for Winamp). No anti-aliasing — direct `tft.drawString`.
 - Lines truncated on the right (no wrapping).
-- Update gating: dirty flag set by `ringPush`; redraw at most ~4 Hz from the main loop to avoid SPI thrash.
+- Redraw orchestration: dirty flag set by `ringPush`; redraw at most ~4 Hz from the main loop to avoid SPI thrash. Each redraw paints the log over the full screen, then re-blits the Winamp chrome (background + transport buttons + status indicator + title slot + posbar). Time-digit / progress-thumb / title-marquee updates are unchanged — they self-repaint over their slot from `MAIN.BMP` and don't need to know the log exists.
 - Behind `#define SCREEN_LOG` (or a `cyd2usb_winamp_screenlog` env that adds the flag) so it can be disabled cleanly. Default off — production-build aesthetic.
-**Cross-cuts:** depends on log-001 (ringbuffer); informs disp-001 / m3-001 (fights for screen real estate).
+**Cross-cuts:** depends on log-001 (ringbuffer); informs disp-001 / m3-001 (the chrome is now the "top layer", not the only layer).
 **Tracked as:** TASK-018.
 
 ### Exit criteria
-- With `-DSCREEN_LOG` set, the bottom of the panel shows the last ~7 ringbuffer lines, scrolling on each new entry.
-- Without the flag, no overhead — `screenLog::tick()` and the renderer are compiled out.
+- With `-DSCREEN_LOG` set, the panel shows log lines top + bottom, with the Winamp chrome overlaid in the middle. New entries appear at the bottom and scroll up.
+- Without the flag, no overhead — `screenLog::tick()` and the renderer are compiled out; chrome paints directly to a black background as today.
 - Default off — `cyd2usb_winamp` env unchanged.
 
 ---
