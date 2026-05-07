@@ -47,15 +47,17 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - DUT integration surfaced a blast-radius correction to ADR-010: Arduino-ESP32 redefines `ESP_LOGx` to its own `log_x` macros that bypass `esp_log_writev`. Our hook was effectively starved. Fix: new `LOG_I/W/D/E(tag, fmt, ...)` macros in `logSink.h` that format → Serial + `ringPush` directly. Migrated heartbeat + `spotify.poll` call sites. Other `ESP_LOGx` sites still work (Serial only) until migrated. ADR-010 amended.
 
 ### TASK-019 — Decouple display from blocking network calls (M-IO)
-**Owner**: Architect (ADR), then Developer
-**Feature**: io-001 (to be registered when an ADR lands)
-**Status**: open (2026-05-07 — observed during M3 DUT verify)
+**Owner**: Architect (ADR-011), then Developer
+**Feature**: io-001 (registered with tier-1 implementation)
+**Status**: tier-1 implementation shipped (2026-05-07; ADR-011 accepted)
 **Notes**:
 - Symptoms: slow first sync after boot; occasional hangs (clock + progress thumb stop); LCD shows previous track many seconds after Spotify advanced; heartbeat 56 s gaps observed during TLS retries.
 - Diagnostic plan: enable TASK-018 (on-screen log) once shipped; let user observe blocking events live. Cross-reference with `/log?n=` ringbuffer dumps once a non-AP-isolated network is available.
 - Likely contributors to investigate (none confirmed yet): TLS retry storms on captive-portal networks, 5 s `delayBetweenRequests` being too long for short tracks, synchronous `getCurrentlyPlaying` blocking the renderer for the full TLS+HTTP duration.
 - Likely fixes (TBD ADR): aggressive timeouts; move HTTP off the main task; speculative re-poll on track-change indication.
 - Exit criteria: heartbeat gap distribution < 5 s p95 across normal play.
+- Tier 1 (ADR-011, 2026-05-07): exponential backoff on consecutive Spotify-poll failures (5 s → 10 → 20 → 40 → 60 s cap, reset on success or touch). Heartbeat now emits `block_max=Nms` — longest synchronous getCurrentlyPlaying since last tick. Touch-driven force-update also resets backoff so user input always escapes the back-off floor.
+- Tier 2 (deferred): async IO / FreeRTOS worker task. Exit criteria for tier-1 sufficiency: with the on-screen overlay enabled during a Marriott-WiFi failure burst, the loop visibly keeps updating (heartbeat ticks within ±5 s of cadence). If `block_max` routinely exceeds 2.5 s and UI still hangs, escalate.
 
 ### TASK-016 — Logging redesign tier 1 (M-LOG, parent)
 **Owner**: Developer (implementation), Architect (ADR-010 + amendments done), VE (T036–T040)
