@@ -26,7 +26,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-009 — TLS connection lifecycle for non-GET endpoints
 **Owner**: Developer (implementation), Architect (ADR-007)
 **Feature**: api-002 (new — to be registered)
-**Status**: in_progress (ADR-007 proposed 2026-05-04 — awaiting human sign-off → Developer implements)
+**Status**: implementation shipped, **verification blocked on network policy** (2026-05-07: spike harness retest on Marriott guest WiFi shows GET works ≈92 %, all 15 PUT/POST commands fail with 0x0050 NET_CONN_RESET at send_ssl_data after fresh TLS — captive-portal-style method filter suspected. Needs retest on phone tether or different upstream.)
 **Blocks**: M5 (full-skin touch controls), TASK-002, TASK-003
 **Notes**:
 - Discovered during TASK-007 DUT run 2026-04-29: every `POST` (`nextTrack`, `previousTrack`) and `PUT` (`pause`, `play`, `seek`, `setVolume`, `toggleShuffle`, `setRepeatMode`) fails at TLS-send with mbedTLS `0x0050 (NET_CONN_RESET)`. `GET /v1/me/player/currently-playing` works in the same boot from the same poll loop.
