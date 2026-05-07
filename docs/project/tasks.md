@@ -34,9 +34,9 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Verification gate (VE): re-run spike harness rows `>` `<` ` ` `p` `P` `s` `S` `+` `-` `v` `h` `H` `r` `R` `o`; all must return `[OK]`. GET poll loop must remain healthy. Rows `f` / `a` stay 403 (TASK-010, out of scope here).
 
 ### TASK-018 — On-screen log overlay (M-LOG2)
-**Owner**: Developer (will need brief Architect input on redraw orchestration with the chrome)
-**Feature**: log-002 (to be registered at first implementation commit)
-**Status**: planned (2026-05-07)
+**Owner**: Developer
+**Feature**: log-002 (registered at implementation)
+**Status**: done (2026-05-07 — DUT verified; user confirms green log text in top + bottom strips, chrome unaffected)
 **Notes**:
 - Roadmap entry: M-LOG2. Spec: log is full-screen 320×240 background; Winamp chrome paints on top and clips whatever it covers. Top strip (~7 lines) shows older history; bottom strip (~7 lines) shows new lines; middle ~16 lines hidden behind chrome — they scroll through but aren't seen. Subscribed to the existing 12 KB ringbuffer (no new state).
 - TFT_eSPI built-in font 1 (~6×8 px), green-on-black. Lines truncated right (no wrap).
@@ -44,6 +44,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Update gating: dirty flag set by `ringPush`; redraw at ≤4 Hz to avoid SPI thrash.
 - Redraw orchestration: each tick paints log full-screen, then re-blits the chrome (bg + transport buttons + status + title slot + posbar). Time-digit / progress-thumb / title-marquee updates already self-repaint over their slot from MAIN.BMP — they don't need to know the log exists.
 - Diagnostic motivation: makes state-coupling problems (TASK-019) visible at the moment they affect the UI.
+- DUT integration surfaced a blast-radius correction to ADR-010: Arduino-ESP32 redefines `ESP_LOGx` to its own `log_x` macros that bypass `esp_log_writev`. Our hook was effectively starved. Fix: new `LOG_I/W/D/E(tag, fmt, ...)` macros in `logSink.h` that format → Serial + `ringPush` directly. Migrated heartbeat + `spotify.poll` call sites. Other `ESP_LOGx` sites still work (Serial only) until migrated. ADR-010 amended.
 
 ### TASK-019 — Decouple display from blocking network calls (M-IO)
 **Owner**: Architect (ADR), then Developer
