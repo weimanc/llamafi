@@ -46,6 +46,54 @@ All audits: scope, findings, actions, status.
 
 ---
 
+### Audit — 2026-05-07 — Process self-audit triggered by user "@PM how much of the process was followed"
+
+**Triggered by**: human (direct-invoke `@PM`)
+
+**Areas checked**:
+- [x] Feature inventory completeness
+- [x] Test coverage per feature
+- [x] Cross-feature test coverage (matrix)
+- [x] Documentation currency
+- [x] Inter-agent protocol adherence (per AGENTS.md)
+- [x] Build artefacts in sync
+
+**Findings**:
+
+1. **Feature inventory — yellow.** Three new features shipped without inventory entries: `poll-002` (M4, Spotify-Diy-Thing@f84b112), `m2-001` (M2 tier 1, @a9682be), `dev-001` (network shims, @bf5d5ca). Back-filled this session.
+
+2. **Test coverage — yellow.** New features had zero test entries before this audit. Back-filled T021–T031 across three new suites (poll-002, m2-001, dev-001). Most entries are `passing` or `planned-deferred`; deterministic regression for the bake tool (T025 byte-identical re-bake) is `planned` — needs a checked-in golden hash.
+
+3. **Cross-feature matrix — green.** No new cross-feature interactions beyond the existing `poll-001 ↔ disp-001` link, which `poll-002` and `disp-001` extend rather than introduce. Matrix unchanged.
+
+4. **Documentation currency — yellow → green after this audit.**
+   - ADR for the bake tool's implementation choices was missing — back-filled as ADR-008.
+   - Roadmap M2 status updated (in_progress, tier 1 done) and M4 (done) on 2026-05-07.
+   - Tasks file: TASK-011 moved to Completed; TASK-012, TASK-013 added.
+
+5. **Inter-agent protocol — red.** Substantial gaps caught by the user's `@PM` query, captured as LL-010 and LL-011:
+   - No Architect consult before bake-tool implementation (ADR-003 deferred items decided without ADR).
+   - No VE testability challenge before either M4 or M2 tier 1 finalized.
+   - No QM prompt after TASK-011 (M4) closed.
+   - Dev-001 (cellular/captive-portal infra) shipped with no PM tracking at all.
+   - Best-practices file (`docs/quality/best_practices.md`) not consulted this session.
+
+6. **Build artefacts — green.** `cyd2usb` env builds clean post-M4 and post-M2 tier 1. Album art temporarily disabled via `DISABLE_ALBUM_ART` define in `.ino` — orthogonal i.scdn.co fetch hang, tracked separately (no task ID yet — VE follow-up to register).
+
+**Actions assigned**:
+
+| Action | Owner | Tracked as |
+|--------|-------|------------|
+| Commit checked-in golden hash for bake tool output (T025) | VE | not yet ticketed; flag PM at next planning |
+| Register the album-art fetch hang as a task | PM | not yet ticketed |
+| Pre-commit checklist for cross-role hand-offs (LL-010) | human review | LL candidate, awaiting promotion |
+| Tasks-file entry rule for any new sketch/tools file (LL-011) | human review | LL candidate, awaiting promotion |
+| Read `best_practices.md` at session start as standing practice | Developer | discipline change, no ticket |
+
+**Resolution**: open — back-fill complete (this commit), follow-up actions remain pending.
+
+---
+
 ## Entry Format
 
 ```

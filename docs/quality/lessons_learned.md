@@ -143,6 +143,42 @@ Triggering work: re-scope of the Winamp UI architecture (ADR-006), creation and 
 
 ---
 
+## Retrospective — 2026-05-07 — Multi-day session, M4 close + M2 tier 1 + dev-001 back-fill
+
+Triggering work: M4 polish (TASK-011), M2 skin bake tool tier 1 (TASK-012), and back-filled tracking for the cellular/captive-portal dev infra (TASK-013, dev-001) shipped during the 2026-05-05/06 field-debug session.
+
+### What went well
+
+- **Bake tool delivered on first attempt with working preview.** Pillow + ImageMagick fallback handled all three Winamp BMPs; output compiled clean; preview composite matched layout on visual check.
+- **DNS override + HTTPS-Date stack designed iteratively against real failures.** Each shim was pulled out only when a specific upstream condition (DNS block, NTP block, captive-portal MAC gating) was confirmed by a separate experiment. No speculative infrastructure.
+- **MAC-spoof workaround for Marriott captive portal was diagnosed correctly.** TLS error -9984 with a now-correct clock pointed at portal interception; pre-auth via NetworkManager `cloned-mac-address` resolved it without firmware changes. Captured as procedure (memory file), not committed code.
+
+### LL-010 — 2026-05-07 — Multi-role inter-agent protocol skipped under "single-voice" execution
+
+**Context**: M4 close (TASK-011) and M2 tier 1 (TASK-012) both shipped without an Architect consult, VE testability challenge, or QM prompt. The 2026-05-05/06 dev-infra work shipped without *any* PM tracking — no task entry, no feature_inventory entry, no test plan. All caught by a 2026-05-07 self-audit, then back-filled.
+
+**Observation**: When one operator plays every role, the inter-agent protocol from `AGENTS.md` (Developer→VE notification, Developer→Architect consult, PM→QM prompt, etc.) collapses into one internal voice. The mechanical conventions (commit messages with feature IDs, ADR consultation before scope decisions) survived; the structured hand-offs did not. Result: ~50% of the documented protocol followed, with the gaps clustered in cross-role notifications.
+
+**Root cause**: Direct-invoke model (`@PM`, `@Architect`, `@VE`) is a discipline, not a tool. Without an explicit "switch hat" prompt at boundaries (feature implemented → notify VE, scope decision → consult Architect, milestone partial-complete → prompt QM), the operator stays in whichever role started the work and skips the cross-role steps.
+
+**Suggested improvement**: For Developer-initiated work, add a checklist gate before commit: (a) Architect consulted on any scope-defining decision not covered by an existing ADR? (b) VE notified with a test entry (even if `planned-deferred`)? (c) `feature_inventory.yaml` updated? (d) PM informed via `tasks.md` entry? Failing any of these is fine — but should be a deliberate "skip with reason," not an oversight. Same gate applies in reverse for tasks PM tracks but no one implements.
+
+**Status**: open
+
+### LL-011 — 2026-05-07 — Dev-environment infra still belongs in PM tracker
+
+**Context**: The 2026-05-05/06 cellular + captive-portal mitigation work (~300 lines of code, three new modules, one helper script) shipped with no `tasks.md` entry, no feature_inventory entry, no test plan. Rationale at the time: "this is dev-environment infra, not roadmap-bearing." Caught and back-filled as TASK-013 / dev-001 a day later.
+
+**Observation**: The "not on the roadmap" framing led to "not tracked at all," but the work is in tree, has cross_features (`wifi-001`, `time-001`), and will need maintenance the moment a future user hits a different hostile-network condition. Treating it as untracked left the PM and VE with no signal that this surface area exists.
+
+**Root cause**: PM tracking conflated with milestone tracking. The roadmap is milestone-level; `tasks.md` is broader and should cover any work that produces durable artefacts.
+
+**Suggested improvement**: Any commit that introduces a new file under `Spotify-Diy-Thing/SpotifyDiyThing/` or `tools/` gets a `tasks.md` entry, regardless of whether it advances a milestone. If it doesn't fit any milestone, it goes in a "Dev infra" section.
+
+**Status**: open
+
+---
+
 ## Best-practice candidates (for human sign-off)
 
 Per AGENTS.md, QM does not self-promote. Below are LL items that look durable enough to become best-practice rules:
@@ -153,6 +189,8 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-005** → "Promote and populate `cross_feature_matrix.yaml` on the first cross-feature link, not the second." Process rule, applies to Developer.
 - **LL-008** → "On Arduino-ESP32, do not share a single `WiFiClientSecure` across GET and non-GET requests." Library/integration rule, applies to Developer.
 - **LL-009** → "Architecture decisions that depend on third-party API endpoints must verify endpoint access for the project's actual app, not just the documented API surface." Process rule, applies to Architect.
+- **LL-010** → "Pre-commit checklist for cross-role hand-offs (Architect / VE / PM / inventory). Skips allowed but must be deliberate." Process rule, applies to Developer.
+- **LL-011** → "Any new file under sketch/tools dirs gets a tasks.md entry, even if it doesn't advance a milestone." Process rule, applies to PM (and to Developer at commit time).
 
 ---
 

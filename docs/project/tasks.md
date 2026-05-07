@@ -32,6 +32,16 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Architect 2026-05-04: confirmed root cause via `lib/SpotifyArduino/src/SpotifyArduino.cpp` inspection. Library uses HTTP/1.0 (server closes after response) but never calls `client->stop()` between requests — only `client->flush()` then `connect()`. Arduino-ESP32 2.0.17 `WiFiClientSecure::connect()` on a peer-closed socket can succeed without re-handshaking, producing `0x0050` on the next write. ADR-007 selects **option 2** (insert `client->stop()` before each `connect()` in `makeRequestWithBody` + `makeGetRequest`). Options 1 and 3 rejected — 1 thrashes heap with no upside, 3 is a disproportionate library rewrite. Option 3 retained as pre-authorised fallback if verification partial-passes.
 - Verification gate (VE): re-run spike harness rows `>` `<` ` ` `p` `P` `s` `S` `+` `-` `v` `h` `H` `r` `R` `o`; all must return `[OK]`. GET poll loop must remain healthy. Rows `f` / `a` stay 403 (TASK-010, out of scope here).
 
+### TASK-014 — Album art (i.scdn.co) fetch hang
+**Owner**: Developer (investigation), Architect (if it leads to a TLS-stack choice)
+**Feature**: poll-001 (regression surface)
+**Status**: open (2026-05-07 — back-filled from audit)
+**Notes**:
+- Symptom (2026-05-06 Marriott captive portal session, post MAC pre-auth): DUT fetches Spotify currently-playing JSON cleanly, then hangs after logging `Removing existing image` in `cheapYellowLCD::displayImageUsingFile`. Subsequent watchdog/UI freeze; serial output from the poll loop also stops.
+- Workaround in tree: `#define DISABLE_ALBUM_ART 1` in `.ino` skips the entire image fetch+decode path. Set in commit f84b112 to unblock M4 verification.
+- Hypotheses to rule in/out: (a) JPEGDEC streaming hits an OOM under the new TFT_eSPI build; (b) i.scdn.co's CDN behind the captive portal returns a redirect/304 the lib doesn't handle; (c) the same WiFiClientSecure-reuse bug as TASK-009 but on the image-server cert path; (d) SPIFFS write-blocking on a fragmented FS.
+- Diagnostic next step: capture serial with timing across the `getImage` call to localise the hang. May overlap with TASK-009 fix verification.
+
 ### TASK-010 — VU data-source rethink (ADR-002 invalidated)
 **Owner**: Architect
 **Feature**: vu-001 (planned)
@@ -52,6 +62,16 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 _None._
 
 ## Completed Tasks
+
+### TASK-013 — Hostile-network development shims (back-filled)
+**Owner**: Developer
+**Feature**: dev-001 (new)
+**Status**: done (2026-05-06, code in tree; back-filled to PM tracker 2026-05-07)
+**Git ref**: Spotify-Diy-Thing@bf5d5ca
+**Notes**:
+- Implemented across the 2026-05-05/06 session while debugging DUT on AT&T tethered hotspot then Marriott guest captive portal. Three orthogonal shims: hardcoded WiFi creds, SPIFFS-driven DNS override, HTTPS-Date time bootstrap with build-epoch fallback. All gated by file presence or compile flag — production captive-portal path unchanged.
+- **Process gap (back-fill reason):** committed without a corresponding tasks.md entry, feature_inventory entry, or VE notification at the time. Caught by 2026-05-07 self-audit.
+- No regression test. Manual verification was the field debug itself. VE backlog: smoke test for dnsOverride loads + answers from SPIFFS JSON; build-epoch fallback path coverage.
 
 ### TASK-011 — M4 position interpolation polish
 **Owner**: Developer

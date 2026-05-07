@@ -135,6 +135,57 @@ features:
     test_ids: []
     notes: Blocking M5 (full-skin touch controls), TASK-002, TASK-003. Architect to draft an ADR before implementation.
 
+  - id: poll-002
+    name: Position interpolation (M4 — smooth seek bar)
+    description: Stash progressMs + millis() on each poll, derive displayed position each frame, snap on poll. Renderer (cheapYellowLCD::displayTrackProgress) is idempotent — caches lastBarXWidth and skips redraw on identical pixel position; track-change / seek-back take a shrink-branch full repaint. Tick lowered from 500ms to 100ms.
+    status: implemented
+    git_ref: Spotify-Diy-Thing@f84b112
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/spotifyLogic.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/cheapYellowLCD.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
+    cross_features: [poll-001, disp-001]
+    test_ids: []
+    notes: |
+      Closes ADR-006 M4 minimal scope. Local-seek field updates remain unwired pending api-002 (M5).
+      Album art temporarily gated behind DISABLE_ALBUM_ART (.ino) — orthogonal i.scdn.co fetch hang, not part of this feature.
+      No regression test yet — visual-only verification (TASK-011 close). VE backlog.
+
+  - id: m2-001
+    name: Skin asset bake tool (host-side)
+    description: Standalone Python tool that converts a Winamp 2 .wsz skin into RGB565 atlas C arrays + a static layout header per ADR-003. Tier 1 covers main background, transport buttons (prev/play/pause/stop/next), and raw text.bmp font atlas. Pillow's BI_RLE8 BMP decoder fails on Winamp's TEXT.BMP; tool falls back to ImageMagick (`magick`) round-tripped through PNG.
+    status: implemented
+    git_ref: Spotify-Diy-Thing@a9682be
+    files:
+      - Spotify-Diy-Thing/skins/winamp2_base.wsz
+      - Spotify-Diy-Thing/tools/bake_skin.py
+      - Spotify-Diy-Thing/SpotifyDiyThing/gen/skin_assets.c
+      - Spotify-Diy-Thing/SpotifyDiyThing/gen/skin_layout.h
+    cross_features: [disp-001]
+    test_ids: []
+    notes: |
+      Tier 2 (deferred to M3 wiring): font glyph UV table for printable ASCII, time digits (NUMBERS.BMP), play/pause indicator (PLAYPAUS.BMP), seek bar (POSBAR.BMP), title bar sprites (TITLEBAR.BMP).
+      Build wiring: standalone, manual invocation. No PIO pre-build hook (per user pref).
+      Atlas budget: 94 KB total RGB565 (MAIN 64K + CBUTTONS 10K + FONT 22K).
+      External dep: ImageMagick CLI (`magick`). Document in deploy notes.
+
+  - id: dev-001
+    name: Hostile-network development shims
+    description: Three opt-in mitigations for testing the DUT on networks that interfere with the default flow. (a) wifi_creds.h __has_include shim short-circuits WiFiManager portal with hardcoded SSID/PASS. (b) dnsOverride.h runs an AsyncUDP resolver on the DUT bound to :53, reading /host_overrides.json from SPIFFS and repointing lwip via dns_setserver(). tools/refresh_host_overrides.sh regenerates the table via dig. (c) httpsDate.h plain-HTTP Date-header time bootstrap with __DATE__/__TIME__ build-epoch last resort. All three are no-op when the relevant input is absent.
+    status: implemented
+    git_ref: Spotify-Diy-Thing@bf5d5ca
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/WifiManagerHandler.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/dnsOverride.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/httpsDate.h
+      - Spotify-Diy-Thing/tools/refresh_host_overrides.sh
+    cross_features: [wifi-001, time-001]
+    test_ids: []
+    notes: |
+      Validated against AT&T tethered hotspot (DNS+TCP blocked, fail expected) and Marriott guest captive portal (works after MAC pre-auth via portal — separate workflow).
+      gitignored: SpotifyDiyThing/wifi_creds.h, data/host_overrides.json — site/network specific.
+      Not on the milestone roadmap. Dev-environment infra; expected to stay opt-in indefinitely.
+
   - id: nfc-001
     name: NFC reader (PN532) — optional
     description: Tag holds a Spotify URI/URL; on swipe device asks Spotify to play it. Optionally writes back currently-playing context to the tag.

@@ -160,6 +160,108 @@ Common preconditions for all tests below:
 
 ---
 
+## Suite: poll-002 — Position interpolation (M4)
+
+Visual e2e tests against a live DUT with Spotify playing on the same Premium account. Default `cyd2usb` env (no `-DSPIKE_MODE`). Renderer-side correctness; the spotifyLogic interpolation math is exercised implicitly via display state.
+
+### T021 — [poll-002] Seek bar advances smoothly between polls
+- **Type**: e2e (visual)
+- **Feature(s)**: poll-002
+- **Objective**: Verify the seek bar advances at ~10 Hz, not the prior 2 Hz step rate.
+- **Preconditions**: DUT booted, WiFi up, Spotify playing a track ≥ 60 s long on a Premium device.
+- **Steps**: Watch seek bar for 10 s.
+- **Expected result**: Bar appears to move continuously (sub-perceptual stepping). No stutter, no backwards jump on poll boundary.
+- **Status**: passing (2026-05-07, user confirmed "alright-ish, good enough"). No automated assertion — visual only.
+
+### T022 — [poll-002] Pause freezes bar at correct position
+- **Type**: e2e (visual)
+- **Feature(s)**: poll-002
+- **Objective**: Verify `updateProgressBar` idles when `songStartMillis == 0` and the re-anchor in `handleCurrentlyPlaying` keeps the displayed position correct.
+- **Steps**: 1. Play a track. 2. Pause from another device mid-track. 3. Wait 10 s.
+- **Expected result**: Bar stops at paused position; doesn't drift, doesn't jump back to 0.
+- **Status**: planned-deferred (not exercised on 2026-05-07; user accepted M4 close on T021 alone).
+
+### T023 — [poll-002] Track skip resets bar without artifacts
+- **Type**: e2e (visual)
+- **Feature(s)**: poll-002
+- **Objective**: Verify the renderer's shrink-branch full-repaint covers track-change correctly (lastBarXWidth resets via the smaller new value).
+- **Steps**: Skip to next track from another device.
+- **Expected result**: Bar snaps to the new track's progress (likely near 0) within one poll. No leftover white pixels from the previous track's longer bar.
+- **Status**: planned-deferred.
+
+### T024 — [poll-002] Idempotent renderer SPI cost under 100ms tick
+- **Type**: integration (instrumentation)
+- **Feature(s)**: poll-002
+- **Objective**: Verify the lower tick rate (500 → 100 ms) doesn't increase TFT_eSPI write traffic during steady playback (when pixel position is unchanged, redraw should no-op).
+- **Steps**: Add a counter around `tft.fillRect` calls in `displayTrackProgress`, run a 60 s playback window, log calls.
+- **Expected result**: Calls per second ≤ pixel-position changes per second (≈ once per 200–400 ms depending on track length). 100 ms tick should NOT produce 10 fillRects/s.
+- **Status**: planned (no instrumentation in tree yet). Backlog if SPI/CPU contention surfaces.
+
+---
+
+## Suite: m2-001 — Skin asset bake tool
+
+Host-side tool tests. Run on the dev machine, not the DUT.
+
+### T025 — [m2-001] Bake produces deterministic output
+- **Type**: unit (regression)
+- **Feature(s)**: m2-001
+- **Objective**: Verify two bake runs from the same source `.wsz` produce byte-identical `gen/skin_assets.c` and `gen/skin_layout.h`.
+- **Preconditions**: Pillow + ImageMagick installed.
+- **Steps**: 1. `python3 tools/bake_skin.py -i skins/winamp2_base.wsz -o /tmp/a`. 2. Same with `-o /tmp/b`. 3. `diff -r /tmp/a /tmp/b`.
+- **Expected result**: No diff.
+- **Status**: planned (golden hash not in tree yet). VE follow-up: commit a SHA-256 of each output file to a fixture and add a CI step.
+
+### T026 — [m2-001] Generated headers compile in firmware build
+- **Type**: integration
+- **Feature(s)**: m2-001
+- **Objective**: Verify `gen/skin_assets.c` + `gen/skin_layout.h` build cleanly under `cyd2usb` env without referenced-but-missing-symbol errors.
+- **Steps**: `pio run -e cyd2usb`.
+- **Expected result**: SUCCESS.
+- **Status**: passing (2026-05-07 build clean post-bake). Linker may DCE unused arrays until M3 references them.
+
+### T027 — [m2-001] Preview composite matches reference
+- **Type**: visual
+- **Feature(s)**: m2-001
+- **Objective**: Verify sprite UVs and screen positions match Winamp 2's documented main-window layout.
+- **Steps**: Run with `--preview /tmp/skin.png`. Eyeball against a reference Winamp 2 main-window screenshot.
+- **Expected result**: Five transport buttons sit in their canonical positions on the main background; no overlap, no off-by-one.
+- **Status**: passing (2026-05-07, eyeballed). No checked-in reference.
+
+### T028 — [m2-001] BMP fallback path covers RLE8
+- **Type**: integration
+- **Feature(s)**: m2-001
+- **Objective**: Verify the ImageMagick fallback triggers correctly for BMPs Pillow can't decode (specifically Winamp's `TEXT.BMP`).
+- **Steps**: Bake from `skins/winamp2_base.wsz` (which contains RLE8 `TEXT.BMP`). Confirm `SKIN_FONT` array is populated and non-trivial.
+- **Expected result**: `SKIN_FONT[155*74]` array present, all-zero check fails (palette + glyphs decoded).
+- **Status**: passing (2026-05-07, font atlas size 22940 bytes as expected).
+
+---
+
+## Suite: dev-001 — Hostile-network shims
+
+DUT-side tests for the development infrastructure. Not part of the production verification suite — manual gate when the relevant network condition is reachable.
+
+### T029 — [dev-001] hardcoded WiFi shim short-circuits portal
+- **Type**: e2e
+- **Steps**: Place `wifi_creds.h` with a valid SSID/PASS in the sketch dir, flash, observe boot log.
+- **Expected result**: `Connecting to hardcoded SSID <name>` line; no `*wm:StartAP` portal entry. On bad creds, fallback to portal after ~30 s.
+- **Status**: passing (2026-05-05/06 field debug).
+
+### T030 — [dev-001] DNS override loads + answers from SPIFFS
+- **Type**: e2e
+- **Steps**: Populate `data/host_overrides.json` with at least one host, `pio run -t uploadfs`, reboot. Observe DUT boot log for `[dns] loaded ...` lines and `[dns] override server up on <ip>:53`.
+- **Expected result**: Each host listed; subsequent `[dns] <host> -> <ip>` lines on first resolution. NXDOMAIN for unknown hosts.
+- **Status**: passing (2026-05-05).
+
+### T031 — [dev-001] Build-epoch fallback sets clock when network bootstrap fails
+- **Type**: e2e
+- **Steps**: Boot DUT on a network that blocks both UDP/123 (NTP) and HTTP/80 to `1.1.1.1` (HTTP-Date target).
+- **Expected result**: Log line `[time] WARN: NTP+HTTPS-Date failed, falling back to build epoch=<n>` with `n > 1700000000`. Subsequent TLS attempts pass cert `notBefore` check (or fail for an unrelated reason).
+- **Status**: passing (2026-05-06 Marriott captive portal pre-auth; epoch=1778045098 set).
+
+---
+
 ## Entry Format
 
 ```
