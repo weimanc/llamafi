@@ -154,6 +154,20 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 
 ---
 
+## M-LOG — Logging redesign (cross-cutting, parallel)
+
+**Status:** planned (whiteboard 2026-05-07; ADR-010 to follow).
+**Scope:** Replace ad-hoc `Serial.println` + vendored `SPOTIFY_DEBUG` with `esp_log` tags+levels, RAM ringbuffer + `/log` pull endpoint, mbedTLS/HTTP code decoder, redactor for secret-bearing fields, 30 s heartbeat. Tier 2 adds UDP syslog and state-machine trace points; tier 3 adds SPIFFS-backed buffer + panic flush.
+**Why:** DUT verification this session nearly lost the boot trace; mbedTLS error codes are opaque; refresh tokens are still printed by `configFile.h`; hangs (TASK-014) leave no progress trail. Whiteboard: `docs/architecture/whiteboards/2026-05-07-logging-rethink.md`.
+**Cross-cuts:** every existing milestone — adopt incrementally, not as a single migration.
+**Tracked as:** TASK-016.
+
+### Exit criteria
+- ADR-010 accepted; tier-1 items shipped (esp_log adoption surface, ringbuffer + `/log`, secret redactor, mbedTLS decoder, heartbeat).
+- Configuration JSON dump removed from boot path (LL-002 / LL-003 follow-up closed in code, not just in vendored lib).
+
+---
+
 ## M7 — Polish / open questions
 
 **Status:** planned
