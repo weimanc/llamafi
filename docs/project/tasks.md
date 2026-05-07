@@ -56,9 +56,9 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Diagnostic next step: capture serial with timing across the `getImage` call to localise the hang. May overlap with TASK-009 fix verification.
 
 ### TASK-010 — VU data-source rethink (ADR-002 invalidated)
-**Owner**: Architect
+**Owner**: Architect (decision), Developer (next)
 **Feature**: vu-001 (planned)
-**Status**: open
+**Status**: design-complete (ADR-009 accepted 2026-05-07; awaiting implementation)
 **Blocks**: M6 (VU meter)
 **Notes**:
 - Discovered during TASK-007 DUT run 2026-04-29: both `/v1/audio-features/{id}` and `/v1/audio-analysis/{id}` return **HTTP 403** for the dev account's client app. Spotify deprecated these endpoints for new Developer apps as of late 2024 (announced via the Web API change-log). The app `db2ff394...` was created during TASK-001 (post-deprecation), so it has no access.
@@ -69,6 +69,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
   - (c) Apply for Spotify "Extended Quota Mode" (manual approval, weeks, uncertain outcome). Restores audio-features/analysis access.
   - (d) On-device I2S microphone (ADR-002 option c, previously rejected). Real audio data, hardware addition, room-noise contamination.
 - Recommend (b) for first cut — cheap, ships, doesn't block M2/M3/M5. Keep (c) on a second track as an upgrade path.
+- 2026-05-07: ADR-009 accepted with **option (e) — synthesise from `currentlyPlaying` only** (option (a)'s premise also dead since `audio-features` is in the same deprecation). Implementation tier-1 will ship a 20 Hz envelope + flat-120 BPM beat clock + LFO stereo split. Extended-quota application kept as a parallel, non-blocking track. Feature `vu-001` description to be re-worded by Developer at implementation start.
 
 ## Blocked Tasks
 
