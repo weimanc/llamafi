@@ -33,6 +33,17 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Architect 2026-05-04: confirmed root cause via `lib/SpotifyArduino/src/SpotifyArduino.cpp` inspection. Library uses HTTP/1.0 (server closes after response) but never calls `client->stop()` between requests — only `client->flush()` then `connect()`. Arduino-ESP32 2.0.17 `WiFiClientSecure::connect()` on a peer-closed socket can succeed without re-handshaking, producing `0x0050` on the next write. ADR-007 selects **option 2** (insert `client->stop()` before each `connect()` in `makeRequestWithBody` + `makeGetRequest`). Options 1 and 3 rejected — 1 thrashes heap with no upside, 3 is a disproportionate library rewrite. Option 3 retained as pre-authorised fallback if verification partial-passes.
 - Verification gate (VE): re-run spike harness rows `>` `<` ` ` `p` `P` `s` `S` `+` `-` `v` `h` `H` `r` `R` `o`; all must return `[OK]`. GET poll loop must remain healthy. Rows `f` / `a` stay 403 (TASK-010, out of scope here).
 
+### TASK-015 — M3 Winamp display backend (scaffold)
+**Owner**: Developer
+**Feature**: m3-001 (new)
+**Status**: in_progress (2026-05-07 — tier 1 scaffold lands; DUT visual verify pending)
+**Notes**:
+- New `winampDisplay.h` subclasses `CheapYellowDisplay` to reuse JPEG/SPIFFS/touch plumbing; overrides chrome to draw from m2-001 atlas (`SKIN_MAIN_BG`, `SKIN_CBUTTONS`, `SKIN_GLYPH`).
+- New `cyd2usb_winamp` PlatformIO env (`-DWINAMP_DISPLAY`). Default `cyd2usb` env unchanged (still uses CheapYellowDisplay).
+- Tier-1 scope: static bg, 5 transport buttons (normal state only), ASCII-only title (no marquee), progress bar as a rect inside the canonical POSBAR slot. Album-art path inherits parent (currently disabled by `DISABLE_ALBUM_ART`, TASK-014).
+- Both envs build clean — flash 88.6%. DUT visual verify is the next gate.
+- Follow-ups: marquee scroll on title overflow; pressed-button feedback in `checkForInput`; POSBAR/PLAYPAUS sprite use once tier-3 bake lands; 2× scaling option (would need a software upscaler since `pushImage` doesn't scale).
+
 ### TASK-014 — Album art (i.scdn.co) fetch hang
 **Owner**: Developer (investigation), Architect (if it leads to a TLS-stack choice)
 **Feature**: poll-001 (regression surface)

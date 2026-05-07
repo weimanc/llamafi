@@ -164,10 +164,27 @@ features:
     cross_features: [disp-001]
     test_ids: []
     notes: |
-      Tier 2 (deferred to M3 wiring): font glyph UV table for printable ASCII, time digits (NUMBERS.BMP), play/pause indicator (PLAYPAUS.BMP), seek bar (POSBAR.BMP), title bar sprites (TITLEBAR.BMP).
+      Tier-2 batch (Spotify-Diy-Thing@0e9057a, 2026-05-07) added SKIN_GLYPH[128] ASCII->UV table + golden hash; closes M3's asset-side dependency.
+      Tier 3 deferred until M3 has a working renderer scaffold: time digits (NUMBERS.BMP), play/pause indicator (PLAYPAUS.BMP), seek bar sprites (POSBAR.BMP), title bar (TITLEBAR.BMP), VOLUME/BALANCE/MONOSTER/SHUFREP, eject.
       Build wiring: standalone, manual invocation. No PIO pre-build hook (per user pref).
       Atlas budget: 94 KB total RGB565 (MAIN 64K + CBUTTONS 10K + FONT 22K).
       External dep: ImageMagick CLI (`magick`). Document in deploy notes.
+
+  - id: m3-001
+    name: Winamp display backend (renderer scaffold)
+    description: SpotifyDisplay backend that paints the Winamp 2 main window from the m2-001 atlas. Subclasses CheapYellowDisplay to inherit the JPEG/SPIFFS/touch plumbing; overrides showDefaultScreen/displayTrackProgress/printCurrentlyPlayingToScreen to draw via SKIN_MAIN_BG, SKIN_CBUTTONS, SKIN_GLYPH. Selected at compile time via -DWINAMP_DISPLAY (env cyd2usb_winamp).
+    status: scaffold
+    git_ref: ""
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
+      - Spotify-Diy-Thing/platformio.ini
+    cross_features: [disp-001, poll-002, touch-001]
+    test_ids: []
+    notes: |
+      Tier 1: 1x native (275x116) centered on the 320x240 CYD canvas, no scaling. Static background, transport buttons in normal state, ASCII-only title (truncate, no marquee), progress bar as plain rect inside the canonical POSBAR slot. Album art inherits unchanged from CheapYellowDisplay (currently disabled by DISABLE_ALBUM_ART, TASK-014).
+      Build clean on cyd2usb (default YELLOW_DISPLAY) and cyd2usb_winamp (this scaffold). Flash 88.6%. DUT visual verify deferred.
+      Open: marquee scroll, pressed-button feedback wired to checkForInput, POSBAR/PLAYPAUS sprite use once tier-3 bake lands, 2x scaling option.
 
   - id: dev-001
     name: Hostile-network development shims

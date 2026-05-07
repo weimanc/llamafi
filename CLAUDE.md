@@ -88,6 +88,7 @@ cd Spotify-Diy-Thing
 ~/.platformio/penv/bin/pio run -e cyd2usb                                  # build (this board)
 ~/.platformio/penv/bin/pio run -e cyd2usb -t upload --upload-port /dev/ttyUSB0
 ~/.platformio/penv/bin/pio run -e cyd2usb -t uploadfs --upload-port /dev/ttyUSB0   # SPIFFS only
+~/.platformio/penv/bin/pio run -e cyd2usb_winamp                           # M3 Winamp renderer (uses gen/ atlas)
 ```
 
 Other envs in `platformio.ini` (don't use on this board): `cyd` (single-USB CYD, inversion off), `trinity` (HUB75 matrix). Env selects display via `-DYELLOW_DISPLAY` vs `-DMATRIX_DISPLAY`. The `cyd*` envs bake the full TFT_eSPI `User_Setup.h` into `build_flags` — the library's bundled User_Setup is ignored.
