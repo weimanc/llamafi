@@ -33,6 +33,29 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Architect 2026-05-04: confirmed root cause via `lib/SpotifyArduino/src/SpotifyArduino.cpp` inspection. Library uses HTTP/1.0 (server closes after response) but never calls `client->stop()` between requests — only `client->flush()` then `connect()`. Arduino-ESP32 2.0.17 `WiFiClientSecure::connect()` on a peer-closed socket can succeed without re-handshaking, producing `0x0050` on the next write. ADR-007 selects **option 2** (insert `client->stop()` before each `connect()` in `makeRequestWithBody` + `makeGetRequest`). Options 1 and 3 rejected — 1 thrashes heap with no upside, 3 is a disproportionate library rewrite. Option 3 retained as pre-authorised fallback if verification partial-passes.
 - Verification gate (VE): re-run spike harness rows `>` `<` ` ` `p` `P` `s` `S` `+` `-` `v` `h` `H` `r` `R` `o`; all must return `[OK]`. GET poll loop must remain healthy. Rows `f` / `a` stay 403 (TASK-010, out of scope here).
 
+### TASK-018 — On-screen log overlay (M-LOG2)
+**Owner**: Developer (will need brief Architect input on screen-real-estate trade-off vs M3 chrome)
+**Feature**: log-002 (to be registered at first implementation commit)
+**Status**: planned (2026-05-07)
+**Notes**:
+- Roadmap entry: M-LOG2. Spec: render last ~7 ringbuffer lines to the bottom 62 px strip of the CYD using TFT_eSPI font 1, green-on-black. Newest at bottom, scrolls up. Subscribed to the existing 12 KB ring (no new state).
+- Behind `#define SCREEN_LOG` (or a new `cyd2usb_winamp_screenlog` env). Default off — zero overhead when not built in.
+- Update gating: dirty flag set by `ringPush`; redraw at ≤4 Hz to avoid SPI thrash.
+- Truncate long lines (no wrap). Bottom strip dimensions: 320×62 → ~7 lines × 53 chars at font 1.
+- Diagnostic motivation: makes state-coupling problems (TASK-019) visible at the moment they affect the UI.
+- Open: should the overlay also paint over the Winamp window when something is critically wrong (e.g. during a long block), or stay strictly in the margin? Defer until in code.
+
+### TASK-019 — Decouple display from blocking network calls (M-IO)
+**Owner**: Architect (ADR), then Developer
+**Feature**: io-001 (to be registered when an ADR lands)
+**Status**: open (2026-05-07 — observed during M3 DUT verify)
+**Notes**:
+- Symptoms: slow first sync after boot; occasional hangs (clock + progress thumb stop); LCD shows previous track many seconds after Spotify advanced; heartbeat 56 s gaps observed during TLS retries.
+- Diagnostic plan: enable TASK-018 (on-screen log) once shipped; let user observe blocking events live. Cross-reference with `/log?n=` ringbuffer dumps once a non-AP-isolated network is available.
+- Likely contributors to investigate (none confirmed yet): TLS retry storms on captive-portal networks, 5 s `delayBetweenRequests` being too long for short tracks, synchronous `getCurrentlyPlaying` blocking the renderer for the full TLS+HTTP duration.
+- Likely fixes (TBD ADR): aggressive timeouts; move HTTP off the main task; speculative re-poll on track-change indication.
+- Exit criteria: heartbeat gap distribution < 5 s p95 across normal play.
+
 ### TASK-016 — Logging redesign tier 1 (M-LOG, parent)
 **Owner**: Developer (implementation), Architect (ADR-010 + amendments done), VE (T036–T040)
 **Feature**: log-001 (registered at first implementation commit)

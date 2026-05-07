@@ -154,9 +154,52 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 
 ---
 
+## M-LOG2 — On-screen log overlay (debug HUD)
+
+**Status:** planned (added 2026-05-07; complements M-LOG tier-1 ringbuffer).
+**Scope:** Render the most recent ringbuffer lines to the black margin/bottom strip on the CYD panel as a scrolling terminal — newest line at the bottom, older lines scroll up. Diagnostic aid for state-coupling investigations: lets the user see live what the firmware is doing without a tethered monitor or `/log` HTTP pull.
+**Why:** Symptoms during M3 verify (slow first sync, occasional hangs, stale track shown after Spotify advanced) are all manifestations of the super-loop blocking inside network calls — heartbeat data already showed 56 s gaps. The on-screen overlay makes those gaps and their causes visible at the same moment they're affecting the UI.
+**Design sketch:**
+- New `screenLog.h` renderer; subscribed to the existing 12 KB ringbuffer (no new state).
+- Use TFT_eSPI built-in font 1 (~6×8 px). On the 320×240 CYD with the 275×116 Winamp window centered, the bottom 62 px strip gives ~7 lines × 53 chars; the 22 px L/R margins are too narrow for text.
+- Default colors: green-on-black (terminal aesthetic, on-brand for Winamp). No anti-aliasing — direct `tft.drawString`.
+- Lines truncated on the right (no wrapping).
+- Update gating: dirty flag set by `ringPush`; redraw at most ~4 Hz from the main loop to avoid SPI thrash.
+- Behind `#define SCREEN_LOG` (or a `cyd2usb_winamp_screenlog` env that adds the flag) so it can be disabled cleanly. Default off — production-build aesthetic.
+**Cross-cuts:** depends on log-001 (ringbuffer); informs disp-001 / m3-001 (fights for screen real estate).
+**Tracked as:** TASK-018.
+
+### Exit criteria
+- With `-DSCREEN_LOG` set, the bottom of the panel shows the last ~7 ringbuffer lines, scrolling on each new entry.
+- Without the flag, no overhead — `screenLog::tick()` and the renderer are compiled out.
+- Default off — `cyd2usb_winamp` env unchanged.
+
+---
+
+## M-IO — Decouple display from blocking network calls
+
+**Status:** planned (added 2026-05-07; observed during M3 verify).
+**Scope:** Investigate and remove the cases where a Spotify API call blocks the super-loop long enough to freeze time/slider/touch and let track state go stale.
+**Symptoms (2026-05-07 M3 DUT verify):**
+- Slow first sync after boot.
+- Occasional hangs — clock + progress thumb stop advancing.
+- LCD shows previous track for many seconds after Spotify has moved on.
+- Heartbeat data captured 56 s gaps between consecutive ticks during TLS retries.
+**Likely contributors (to be confirmed via on-screen log + `/log` traces):**
+- HTTP retry storms when TLS handshake fails on captive-portal-style networks.
+- 5 s `delayBetweenRequests` is too long when a track is short.
+- Synchronous `getCurrentlyPlaying` blocks the renderer for the full TLS+HTTP duration.
+**Tracked as:** TASK-019.
+
+### Exit criteria
+- TBD — likely an ADR proposing async IO, a worker task, or aggressive timeouts.
+- Heartbeat gap distribution stays under 5 s p95 across normal play.
+
+---
+
 ## M-LOG — Logging redesign (cross-cutting, parallel)
 
-**Status:** planned (whiteboard 2026-05-07; ADR-010 to follow).
+**Status:** tier 1 shipped 2026-05-07 (ADR-010 + amendments + DUT-verified). Whiteboard 2026-05-07.
 **Scope:** Replace ad-hoc `Serial.println` + vendored `SPOTIFY_DEBUG` with `esp_log` tags+levels, RAM ringbuffer + `/log` pull endpoint, mbedTLS/HTTP code decoder, redactor for secret-bearing fields, 30 s heartbeat. Tier 2 adds UDP syslog and state-machine trace points; tier 3 adds SPIFFS-backed buffer + panic flush.
 **Why:** DUT verification this session nearly lost the boot trace; mbedTLS error codes are opaque; refresh tokens are still printed by `configFile.h`; hangs (TASK-014) leave no progress trail. Whiteboard: `docs/architecture/whiteboards/2026-05-07-logging-rethink.md`.
 **Cross-cuts:** every existing milestone — adopt incrementally, not as a single migration.
