@@ -33,16 +33,17 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Architect 2026-05-04: confirmed root cause via `lib/SpotifyArduino/src/SpotifyArduino.cpp` inspection. Library uses HTTP/1.0 (server closes after response) but never calls `client->stop()` between requests — only `client->flush()` then `connect()`. Arduino-ESP32 2.0.17 `WiFiClientSecure::connect()` on a peer-closed socket can succeed without re-handshaking, producing `0x0050` on the next write. ADR-007 selects **option 2** (insert `client->stop()` before each `connect()` in `makeRequestWithBody` + `makeGetRequest`). Options 1 and 3 rejected — 1 thrashes heap with no upside, 3 is a disproportionate library rewrite. Option 3 retained as pre-authorised fallback if verification partial-passes.
 - Verification gate (VE): re-run spike harness rows `>` `<` ` ` `p` `P` `s` `S` `+` `-` `v` `h` `H` `r` `R` `o`; all must return `[OK]`. GET poll loop must remain healthy. Rows `f` / `a` stay 403 (TASK-010, out of scope here).
 
-### TASK-015 — M3 Winamp display backend (scaffold)
+### TASK-015 — M3 Winamp display backend
 **Owner**: Developer
 **Feature**: m3-001 (new)
-**Status**: in_progress (2026-05-07 — tier 1 scaffold lands; DUT visual verify pending)
+**Status**: in_progress (2026-05-07 — tier 2 functionality landed; DUT visual verify pending)
 **Notes**:
-- New `winampDisplay.h` subclasses `CheapYellowDisplay` to reuse JPEG/SPIFFS/touch plumbing; overrides chrome to draw from m2-001 atlas (`SKIN_MAIN_BG`, `SKIN_CBUTTONS`, `SKIN_GLYPH`).
-- New `cyd2usb_winamp` PlatformIO env (`-DWINAMP_DISPLAY`). Default `cyd2usb` env unchanged (still uses CheapYellowDisplay).
-- Tier-1 scope: static bg, 5 transport buttons (normal state only), ASCII-only title (no marquee), progress bar as a rect inside the canonical POSBAR slot. Album-art path inherits parent (currently disabled by `DISABLE_ALBUM_ART`, TASK-014).
-- Both envs build clean — flash 88.6%. DUT visual verify is the next gate.
-- Follow-ups: marquee scroll on title overflow; pressed-button feedback in `checkForInput`; POSBAR/PLAYPAUS sprite use once tier-3 bake lands; 2× scaling option (would need a software upscaler since `pushImage` doesn't scale).
+- Tier 1 (Spotify-Diy-Thing@e8f52b7): `winampDisplay.h` scaffold. Subclasses `CheapYellowDisplay`; reuses JPEG/SPIFFS/touch plumbing. New `cyd2usb_winamp` PIO env. Static bg + transport buttons + ASCII title.
+- Tier 2 (Spotify-Diy-Thing@e4871e8): `bake_skin.py` now bakes NUMBERS/POSBAR/PLAYPAUS atlases + UVs. `winampDisplay.h` uses POSBAR sprite for bar+thumb, PLAYPAUS for status indicator, marquee scroll on title overflow, pressed-button feedback in `checkForInput`.
+- Build: cyd2usb_winamp flash 88.6 → 96.6 % (atlas + render now linked); default cyd2usb env unchanged at 88.6 %. **Tight headroom — TITLEBAR/VOLUME/BALANCE atlases would push past 100 %; deliberately deferred.**
+- `.ino` reorders `#if defined WINAMP_DISPLAY` ahead of `YELLOW_DISPLAY` because `cyd2usb_winamp` inherits `common_cyd`'s `-DYELLOW_DISPLAY`. Confirmed via section-GC nm dump.
+- Verification gate (T033–T035): DUT flash, eyeball bg+buttons, title (long string for marquee), progress bar advance, press feedback. Pending next DUT session.
+- Follow-ups: NUMBERS sprite use (time digits — currently DCE'd, no caller); seek/scrub on POSBAR touch; eject/shuffle/repeat/volume controls; 2× scaling (needs software upscaler).
 
 ### TASK-014 — Album art (i.scdn.co) fetch hang
 **Owner**: Developer (investigation), Architect (if it leads to a TLS-stack choice)

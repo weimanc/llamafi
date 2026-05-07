@@ -182,9 +182,11 @@ features:
     cross_features: [disp-001, poll-002, touch-001]
     test_ids: []
     notes: |
-      Tier 1: 1x native (275x116) centered on the 320x240 CYD canvas, no scaling. Static background, transport buttons in normal state, ASCII-only title (truncate, no marquee), progress bar as plain rect inside the canonical POSBAR slot. Album art inherits unchanged from CheapYellowDisplay (currently disabled by DISABLE_ALBUM_ART, TASK-014).
-      Build clean on cyd2usb (default YELLOW_DISPLAY) and cyd2usb_winamp (this scaffold). Flash 88.6%. DUT visual verify deferred.
-      Open: marquee scroll, pressed-button feedback wired to checkForInput, POSBAR/PLAYPAUS sprite use once tier-3 bake lands, 2x scaling option.
+      Tier 1: 1x native (275x116) centered on the 320x240 CYD canvas, no scaling. Static background, transport buttons in normal state, ASCII-only title, plain progress rect, album art inherits.
+      Tier 2 (Spotify-Diy-Thing@e4871e8, 2026-05-07): POSBAR sprite-based bar + thumb, PLAYPAUS status indicator, title marquee scroll (1500 ms hold, 120 ms step, edge clipping), pressed-button feedback in checkForInput.
+      Build flash: cyd2usb_winamp 96.6% (atlas + render code now linked); default cyd2usb env unchanged (88.6%). DUT visual verify still pending.
+      .ino orders WINAMP_DISPLAY ahead of YELLOW_DISPLAY because cyd2usb_winamp inherits common_cyd's -DYELLOW_DISPLAY.
+      Open: NUMBERS sprite use (time digits not yet rendered — loaded but DCE'd until referenced), 2x scaling, eject/shuffle/repeat/volume controls, full TITLEBAR variants.
 
   - id: dev-001
     name: Hostile-network development shims
