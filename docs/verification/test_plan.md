@@ -17,6 +17,8 @@ Common preconditions for all tests below:
 
 **M1 exit verdict (2026-04-29):** the entire control surface (T001–T015) is **failing** for the same root cause — `WiFiClientSecure` reuse breaks non-GET requests at TLS-send. T016/T017/T018 are blocked by Spotify's late-2024 deprecation of audio-features/audio-analysis for new Developer apps (HTTP 403 returned). Per-test detail below; cross-cutting follow-ups TASK-009 (TLS lifecycle) and TASK-010 (VU rethink).
 
+**Update (2026-05-08):** T001–T015 all **passing** after the LOCAL_PATCHES fixes (TASK-009 close-out). Diagnosis was incomplete in April — the original `WiFiClientSecure` reuse fix (ADR-007) was necessary but not sufficient. Three further structural bugs in the vendored `SpotifyArduino` lib needed patching: (a) extraneous trailing CRLF after body, (b) `Content-Type: application/json` on bodyless requests (caused server to early-RST), (c) strict `statusCode == 204` check that rejected Spotify's actual 200 responses. Per-test status lines below carry the "failing" history; treat T001–T015 as **passing as of 2026-05-08**.
+
 ### T001 — [api-001] nextTrack
 - **Type**: e2e
 - **Objective**: Verify `SpotifyArduino::nextTrack()` advances the current track.

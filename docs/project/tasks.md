@@ -26,7 +26,16 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-009 — TLS connection lifecycle for non-GET endpoints
 **Owner**: Developer (implementation), Architect (ADR-007)
 **Feature**: api-002 (new — to be registered)
-**Status**: implementation shipped, **verification blocked on network policy** (2026-05-07: spike harness retest on Marriott guest WiFi shows GET works ≈92 %, all 15 PUT/POST commands fail with 0x0050 NET_CONN_RESET at send_ssl_data after fresh TLS — captive-portal-style method filter suspected. Needs retest on phone tether or different upstream.)
+**Status**: done (2026-05-08 — DUT-verified, 14/15 spike rows [OK] in one run, 15th was a Marriott-WiFi getHttpStatusCode timeout, not a lib bug. Network was NOT the scapegoat — three additional structural lib bugs were found and patched.)
+**Notes**:
+- ADR-007 patch (`client->stop()` before each `connect()`) addresses the *first-write* 0x0050. Necessary but insufficient.
+- Three further LOCAL_PATCHES required to actually pass the spike control surface (T001–T015):
+  1. Removed trailing `client->println()` after body (was a false-negative health check that fired after the server's HTTP/1.0 implicit close).
+  2. Made `Content-Type: application/json` conditional on a non-empty body. With `Content-Length: 0`, sending application/json caused Spotify to early-RST the connection (same 0x0050 numeric symptom).
+  3. Kept `Content-Length` unconditional (Spotify returns 411 Length Required without it on POST/PUT, even empty-body).
+  4. Replaced `return statusCode == 204` with `return statusCode >= 200 && statusCode < 300`. Spec says 204 but Spotify actually returns 200 for most player endpoints.
+- All four documented in `Spotify-Diy-Thing/lib/SpotifyArduino/LOCAL_PATCHES.md`.
+- Earlier user-side observation ("prev and fwd controls work via DUT touch") is now explained: Spotify was always actioning the request; the lib just couldn't see success due to strict-204 + the early-RST false negatives.
 **Blocks**: M5 (full-skin touch controls), TASK-002, TASK-003
 **Notes**:
 - Discovered during TASK-007 DUT run 2026-04-29: every `POST` (`nextTrack`, `previousTrack`) and `PUT` (`pause`, `play`, `seek`, `setVolume`, `toggleShuffle`, `setRepeatMode`) fails at TLS-send with mbedTLS `0x0050 (NET_CONN_RESET)`. `GET /v1/me/player/currently-playing` works in the same boot from the same poll loop.
