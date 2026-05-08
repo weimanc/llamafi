@@ -269,6 +269,22 @@ features:
       Reads CYD28_TouchR raw point directly; bypasses the cheapYellowLCD legacy handleTouched() globals.
       STOP maps to pause (Spotify has no native stop). Seek-drag with debounce-on-release deferred. Volume / shuffle / repeat sprites deferred (not on rendered chrome).
 
+  - id: perf-001
+    name: Loop-iteration + hot-path performance instrumentation (M-PERF tier 1)
+    description: perf.h namespace with record(name, ms) / recordLoop(ms) / loopMaxMs() / worstPathName() / worstPathMs() / stackHwmBytes() / reset(). Heartbeat consumes + resets each tick, adds stack_hwm + loop_max + slow=<name>:Nms fields. .ino wraps the four top-level loop paths (screenlog.tick, display.input, spotify.poll, display.bar). Iterations > 50 ms emit a LOG_W("perf", "iter=Nms ...") line.
+    status: implemented
+    git_ref: ""
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/perf.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/logHeartbeat.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
+      - Spotify-Diy-Thing/platformio.ini
+    cross_features: [log-001, poll-001, m3-001, touch-002]
+    test_ids: []
+    notes: |
+      DUT data captured 2026-05-08. Touch handler `display.input` dominates at up to 4 189 ms / iteration (synchronous Spotify API inside checkForInput). Polling secondary at 1.5–2 s. stack_hwm ≈ 2 380 bytes (comfortable).
+      TASK-030 SPI clock A/B (55 MHz → 40 MHz) shipped same commit; user-confirmed flicker improvement on static chrome.
+
   - id: nfc-001
     name: NFC reader (PN532) — optional
     description: Tag holds a Spotify URI/URL; on swipe device asks Spotify to play it. Optionally writes back currently-playing context to the tag.

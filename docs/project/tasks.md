@@ -57,34 +57,44 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ### TASK-029 — M-PERF tier 1: loop-iteration + hot-path timing
 **Owner**: Developer
-**Feature**: perf-001 (to be registered at impl)
-**Status**: planned (2026-05-08)
+**Feature**: perf-001 (registered alongside this commit)
+**Status**: done (2026-05-08 — DUT-verified)
 **Notes**:
-- Add `unsigned long loopStart = micros()` at the top of `loop()` and a `LOG_W("perf", "iter=%lums", ms)` if elapsed > 50 ms.
-- Track per-path max since last heartbeat for: `getCurrentlyPlaying`, `screenlog::tick`, `repaintChrome`, `displayTrackProgress`, `checkForInput`. Heartbeat emits `loop_max=Nms path_max=<worst-path>:Mms`.
-- Add `uxTaskGetStackHighWaterMark(NULL)` to heartbeat. Field `stack_hwm=Nbytes`.
-- ~60 LOC. No code restructure. One reflash; capture serial for ≥5 min including a touch-and-pause cycle.
+- New `perf.h` namespace: `record(name, ms)`, `recordLoop(ms)`, `loopMaxMs()`, `worstPathName()`, `worstPathMs()`, `stackHwmBytes()`, `reset()`. Heartbeat consumes + resets each tick.
+- `.ino` wraps top-level loop paths (`screenlog::tick`, `display.input`, `spotify.poll`, `display.bar`) with `millis()` brackets and emits `LOG_W("perf", "iter=Nms ...")` when an iteration > 50 ms.
+- New heartbeat fields: `stack_hwm=Nb loop_max=Nms slow=<name>:Mms`.
+- DUT data captured (see TASK-031 notes): touch handler dominates at up to 4 189 ms / iteration; polling secondary at 1.5–2 s; stack hwm ≈ 2 380 bytes (comfortable).
 
 ### TASK-030 — M-PERF tier 1: SPI clock A/B
 **Owner**: Developer
-**Status**: planned (2026-05-08)
+**Status**: done (2026-05-08 — DUT-verified: 40 MHz reduces flicker; kept)
 **Notes**:
-- Flip `SPI_FREQUENCY=55000000` → `40000000` in `common_cyd.build_flags`. Reflash. 30 s observation: does flicker change?
-- If yes → keep at 40 MHz (signal integrity), file a one-line note. If no → revert and look elsewhere.
+- Flipped `SPI_FREQUENCY` 55 MHz → 40 MHz in `common_cyd.build_flags`. User-confirmed flicker improvement on the static Winamp chrome. Default kept at 40 MHz.
+- Bonus finding (independent of TASK-030): with `SCREEN_LOG` enabled, the 4 Hz full-screen `fillScreen` + chrome-repaint cycle causes visible tearing. Without `SCREEN_LOG`, the chrome is stable. The screenLog overlay is fine for diagnostic use; don't ship it as the default. Already addressed by it being opt-in via `-DSCREEN_LOG`. Tier-2 follow-up (incremental-redraw / dirty-line diff) tracked separately for if/when on-screen logging gets used regularly — see TASK-029 follow-up notes / TASK-033.
 
-### TASK-031 — M-PERF tier 2 ADR: async Spotify poll
+### TASK-031 — M-PERF tier 2 ADR: async Spotify HTTP (poll + touch)
 **Owner**: Architect
-**Status**: planned (gated on TASK-029 data)
+**Status**: open — TASK-029 data confirms it's the highest-leverage win (2026-05-08)
 **Notes**:
-- Promote M-IO tier 2: move `getCurrentlyPlaying` onto a FreeRTOS task pinned to APP_CPU (core 1); main loop reads completed snapshots via a guarded slot.
-- ADR worth writing only if TASK-029 confirms `getCurrentlyPlaying` is the dominant `loop_max` contributor.
+- Original framing: "async getCurrentlyPlaying poll". TASK-029 data widens the scope: the **dominant** loop blocker is actually the touch handler (`display.input` up to 4 189 ms — synchronous Spotify API call inside `checkForInput`), not the poll loop (1.5–2 s). Both have the same root cause: synchronous HTTP on the loop task. Both should move off together.
+- Proposed direction (for the ADR): one FreeRTOS task on APP_CPU owns `WiFiClientSecure` + the SpotifyArduino instance. Loop task posts requests via a queue (poll, prev/next/play/pause/seek/etc.) and reads the latest `currentlyPlaying` snapshot from a guarded slot. Loop never blocks on HTTP. Touch fires immediately, queues the call, paints pressed→released sprite, returns.
+- Expected impact: `loop_max` should drop from ≥4 s to ≤30 ms in the typical case. UI control responsiveness goes from "sluggish" to "instant".
+- Memory cost: one task stack (~4 KB), one queue (small), one snapshot slot. Comfortable.
 
 ### TASK-032 — M-PERF tier 2 ADR: DMA SPI for blits
 **Owner**: Architect
-**Status**: planned (gated on TASK-029 data)
+**Status**: lower priority (TASK-029 data shows blits aren't the dominant cost — `display.input` is dominated by the synchronous API call inside the handler, NOT the blits). Still potentially useful for `screenLog::tick` if the overlay becomes a primary use mode.
 **Notes**:
-- TFT_eSPI's `initDMA` / `pushImageDMA` overlaps blit with CPU work. Candidates: `repaintChrome` (~32 KB), `screenlog::tick`'s `fillScreen` (153 KB) + chrome repaint.
-- ADR worth writing only if TASK-029 confirms blits are dominant.
+- `repaintChrome` (~32 KB) takes a few ms — non-issue at current cadence.
+- `screenlog::tick`'s 4 Hz full-screen blit causes the user-observed tearing when the overlay is on. If the overlay graduates from "diagnostic only" to "regular use", DMA + dirty-line diff become worth doing. Not now.
+
+### TASK-034 — Quick-win: drop the 80 ms touch-press hold delay
+**Owner**: Developer
+**Status**: planned (2026-05-08; TASK-029 finding)
+**Notes**:
+- `winampDisplay::checkForInput` does `delay(80)` between drawing the pressed sprite and drawing the released sprite. Loop task can't make progress during that 80 ms. After TASK-031 ships, the synchronous API call's ~2 s contribution disappears, but `delay(80)` would still be there.
+- Replace with a millis-deadline state machine: pressed-until = now + 80; on next loop iteration after pressed-until, paint released. Always-helpful, ~10 LOC.
+- Could ship before or with TASK-031.
 
 ### TASK-033 — M-PERF tier 3: implementation
 **Owner**: Developer
