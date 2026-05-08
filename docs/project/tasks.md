@@ -87,7 +87,16 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ### TASK-032 — M-PERF tier 2 ADR: DMA SPI for blits
 **Owner**: Architect
-**Status**: lower priority (TASK-029 data shows blits aren't the dominant cost — `display.input` is dominated by the synchronous API call inside the handler, NOT the blits). Still potentially useful for `screenLog::tick` if the overlay becomes a primary use mode.
+**Status**: closed — ADR-013 verdict **deferred** (2026-05-08). DMA gains hinge on the CPU having non-SPI work to do during a blit; in our current shape, every blit is followed by another blit on the same bus, so CPU+DMA race for one shared resource. Revisit when (a) a non-display CPU consumer runs in parallel with blits — TASK-014 album-art decode is the main candidate, (b) the chrome surface grows materially (M-CHROME tier 2), or (c) we move to a wider data path. Cheap-win bracketing handed off to TASK-038.
+
+### TASK-038 — `startWrite`/`endWrite` bracket multi-blit chrome paths
+**Owner**: Developer
+**Feature**: perf-001
+**Status**: planned (2026-05-08; ADR-013 follow-up)
+**Notes**:
+- Bracket `repaintChrome()`, `drawTitleText()`, `drawTransportButtons()`, `drawTimeDigits()`, and `screenLog::tick`'s render loop with `tft.startWrite()` / `tft.endWrite()`. Keeps CS asserted across the sequence; eliminates per-pushImage chip-select toggle + address-window setup overhead.
+- Expected: ~3–10 % chrome-redraw cost reduction based on TFT_eSPI usage notes.
+- ~10 LOC. No risk surface beyond "make sure every startWrite has a matching endWrite even on error paths."
 **Notes**:
 - `repaintChrome` (~32 KB) takes a few ms — non-issue at current cadence.
 - `screenlog::tick`'s 4 Hz full-screen blit causes the user-observed tearing when the overlay is on. If the overlay graduates from "diagnostic only" to "regular use", DMA + dirty-line diff become worth doing. Not now.
