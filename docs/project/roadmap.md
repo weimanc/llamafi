@@ -215,6 +215,45 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 
 ---
 
+## M-LIST — Top-align Winamp UI + add playlist panel
+
+**Status:** planned (added 2026-05-08).
+
+**Scope:** Stop centering the Winamp main window on the panel. Top-align it instead, then use the freed-up area below to render a Spotify playlist / queue / next-up list. Two orientation options on the table:
+
+| Option | Panel rotation | UI rotation | Playlist area | Notes |
+|---|---|---|---|---|
+| **C (default lean)** | landscape (no change, 320×240) | none | **320 × 124 px** below UI | one-line change to `originY`; no bake-time rotation; touch coordinates unchanged. Largest playlist canvas. |
+| **B (portrait)** | `setRotation(0)`/`2` (240×320) | 90° at bake time | 240 × 45 px below UI | needs rotated atlas, layout-constant swap, touch x/y swap, screenLog flip. Phone-like ergonomics; ~3× less playlist area than C. |
+
+Pick on aesthetic/ergonomic grounds. C if "as much playlist as possible" wins; B if "device held vertically like a phone" wins.
+
+**Why now:** M5 closed the control surface. The current centered chrome wastes ~50 % of the panel as black margin. A playlist is the natural use of that real-estate, fits the Winamp aesthetic (Winamp had a separate playlist window), and gives the user up-next visibility that maps directly to a planned UX (tap a row to play that track).
+
+**Sub-tasks:**
+
+| Deliverable | Owner | Tier |
+|---|---|---|
+| Architect decision: option B vs C (one ADR) | Architect | gate |
+| Top-align: shift `originY` to 0 in `winampDisplay.h::displaySetup` | Developer | tier 1 |
+| Reposition the screenLog overlay layout to wrap around the new chrome position | Developer | tier 1 |
+| Spotify Web API surface for the queue: `GET /me/player/queue` (already in `resource/web-api/player-endpoints.yaml`) | Developer | tier 1 |
+| Playlist renderer: scrolling N-row list with current-track highlight, font 1 or 2, rendered into the freed strip | Developer | tier 1 |
+| Tap-on-row → play-that-track (`spotify.playAdvanced` with the track URI as `context_uri`) | Developer | tier 2 |
+| If option B chosen: bake-time atlas rotation + layout-constant swap + touch coord swap + screenLog flip | Developer | tier-B-only |
+
+**Cross-cuts:** depends on `m3-001`, `touch-002`, `log-002`. Touches `disp-001`. Adds new feature `playlist-001`.
+
+**Tracked as:** TASK-020 (architect decision + tier-1 wire-up), TASK-021 (tap-to-play), TASK-022 (option-B rotation if chosen).
+
+### Exit criteria
+- Winamp chrome paints flush with the top edge.
+- Playlist strip below the chrome shows the current Spotify queue (≥3 rows, current track first or highlighted), updated on each poll cycle.
+- ScreenLog overlay still functional (zero overhead when off; renders cleanly around the new chrome position when on).
+- No flash regression > 1 % on `cyd2usb_winamp`.
+
+---
+
 ## M7 — Polish / open questions
 
 **Status:** planned

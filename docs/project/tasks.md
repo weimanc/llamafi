@@ -55,6 +55,32 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Diagnostic motivation: makes state-coupling problems (TASK-019) visible at the moment they affect the UI.
 - DUT integration surfaced a blast-radius correction to ADR-010: Arduino-ESP32 redefines `ESP_LOGx` to its own `log_x` macros that bypass `esp_log_writev`. Our hook was effectively starved. Fix: new `LOG_I/W/D/E(tag, fmt, ...)` macros in `logSink.h` that format → Serial + `ringPush` directly. Migrated heartbeat + `spotify.poll` call sites. Other `ESP_LOGx` sites still work (Serial only) until migrated. ADR-010 amended.
 
+### TASK-020 — M-LIST tier 1: top-align UI + playlist panel
+**Owner**: Architect (orientation decision), Developer (impl)
+**Feature**: playlist-001 (to be registered when impl starts)
+**Status**: planned (2026-05-08)
+**Notes**:
+- Roadmap entry: M-LIST. Two orientations on the table:
+  - **C (default lean)**: keep landscape; just shift `originY` from 62 to 0 in winampDisplay::displaySetup. Frees 320×124 below the chrome. One-line code change.
+  - **B (portrait)**: `setRotation(0)`/`2` panel + 90° atlas rotation at bake time + layout-constant swap + touch coord swap + screenLog flip. Frees only 240×45 (3× less). Phone-like ergonomics.
+- ADR needed before code: which orientation, where the playlist sits (below vs flanking), font choice (1 or 2), row count, current-track highlight style.
+- Spotify Web API: `GET /me/player/queue` already snapshotted in `resource/web-api/player-endpoints.yaml`. Returns currently_playing + queue array.
+- Cross-cuts: m3-001 (chrome positioning), touch-002 (taps below chrome region), log-002 (overlay layout).
+
+### TASK-021 — M-LIST tier 2: tap-on-row plays that track
+**Owner**: Developer
+**Status**: planned (2026-05-08)
+**Notes**:
+- Touch hit-test on playlist rows; on tap, call `playAdvanced(body, deviceId)` with the row's track URI. Relies on TASK-020 layout being final.
+
+### TASK-022 — M-LIST option B: portrait rotation
+**Owner**: Developer
+**Status**: planned (2026-05-08; only fires if TASK-020 ADR picks option B)
+**Notes**:
+- Bake tool extension: `--rotate 90` flag that 90°-rotates every BMP at bake time and rewrites the layout header's coords. Cheaper than runtime rotation.
+- Touch coordinate swap (CYD28_TouchR setRotation or app-level x/y swap).
+- ScreenLog overlay layout constants flip (PANEL_W ↔ PANEL_H, line-y math).
+
 ### TASK-019 — Decouple display from blocking network calls (M-IO)
 **Owner**: Architect (ADR-011), then Developer
 **Feature**: io-001 (registered with tier-1 implementation)
