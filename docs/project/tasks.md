@@ -55,6 +55,44 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Diagnostic motivation: makes state-coupling problems (TASK-019) visible at the moment they affect the UI.
 - DUT integration surfaced a blast-radius correction to ADR-010: Arduino-ESP32 redefines `ESP_LOGx` to its own `log_x` macros that bypass `esp_log_writev`. Our hook was effectively starved. Fix: new `LOG_I/W/D/E(tag, fmt, ...)` macros in `logSink.h` that format → Serial + `ringPush` directly. Migrated heartbeat + `spotify.poll` call sites. Other `ESP_LOGx` sites still work (Serial only) until migrated. ADR-010 amended.
 
+### TASK-029 — M-PERF tier 1: loop-iteration + hot-path timing
+**Owner**: Developer
+**Feature**: perf-001 (to be registered at impl)
+**Status**: planned (2026-05-08)
+**Notes**:
+- Add `unsigned long loopStart = micros()` at the top of `loop()` and a `LOG_W("perf", "iter=%lums", ms)` if elapsed > 50 ms.
+- Track per-path max since last heartbeat for: `getCurrentlyPlaying`, `screenlog::tick`, `repaintChrome`, `displayTrackProgress`, `checkForInput`. Heartbeat emits `loop_max=Nms path_max=<worst-path>:Mms`.
+- Add `uxTaskGetStackHighWaterMark(NULL)` to heartbeat. Field `stack_hwm=Nbytes`.
+- ~60 LOC. No code restructure. One reflash; capture serial for ≥5 min including a touch-and-pause cycle.
+
+### TASK-030 — M-PERF tier 1: SPI clock A/B
+**Owner**: Developer
+**Status**: planned (2026-05-08)
+**Notes**:
+- Flip `SPI_FREQUENCY=55000000` → `40000000` in `common_cyd.build_flags`. Reflash. 30 s observation: does flicker change?
+- If yes → keep at 40 MHz (signal integrity), file a one-line note. If no → revert and look elsewhere.
+
+### TASK-031 — M-PERF tier 2 ADR: async Spotify poll
+**Owner**: Architect
+**Status**: planned (gated on TASK-029 data)
+**Notes**:
+- Promote M-IO tier 2: move `getCurrentlyPlaying` onto a FreeRTOS task pinned to APP_CPU (core 1); main loop reads completed snapshots via a guarded slot.
+- ADR worth writing only if TASK-029 confirms `getCurrentlyPlaying` is the dominant `loop_max` contributor.
+
+### TASK-032 — M-PERF tier 2 ADR: DMA SPI for blits
+**Owner**: Architect
+**Status**: planned (gated on TASK-029 data)
+**Notes**:
+- TFT_eSPI's `initDMA` / `pushImageDMA` overlaps blit with CPU work. Candidates: `repaintChrome` (~32 KB), `screenlog::tick`'s `fillScreen` (153 KB) + chrome repaint.
+- ADR worth writing only if TASK-029 confirms blits are dominant.
+
+### TASK-033 — M-PERF tier 3: implementation
+**Owner**: Developer
+**Status**: gated on TASK-031 / TASK-032 acceptance
+**Notes**:
+- Whichever of (async poll, DMA blits, screenLog incremental redraw, touch-debounce state-machine) the ADRs greenlight.
+- Touch-debounce / press-hold state-machine: 80 ms `delay()` in checkForInput becomes a millis-deadline; release re-renders the unpressed sprite. Always helpful, no ADR needed; could land in this task or fold into the next M5-follow-up commit.
+
 ### TASK-023 — M-CHROME tier 1: bake-tool extension + atlases
 **Owner**: Developer
 **Feature**: chrome-001 (to be registered at impl)

@@ -215,6 +215,59 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 
 ---
 
+## M-PERF — Profiling + targeted optimisation
+
+**Status:** planned (added 2026-05-08; triggered by user-reported "LCD flicker + sluggish controls" during M5 use).
+
+**Scope:** Two distinct symptoms — separate, instrument, then optimise where the data points.
+
+- **LCD/backlight flicker.** Likely candidates: aggressive SPI clock (`SPI_FREQUENCY=55000000`), mid-blit tear during big repaints, power dip under combined WiFi-TX + display + JPEG decode load. `TFT_BL` is static HIGH, not PWM — backlight itself shouldn't flicker, panel content can.
+- **Sluggish controls.** Already partially diagnosed via M-IO `block_max_ms` heartbeat: synchronous Spotify polls blocking the loop for ~600–2000 ms. Touch isn't sampled while a poll is in flight.
+
+The objective is to verify those hypotheses with measurements before deciding which optimisations to ship — many of them are non-trivial (async poll, DMA SPI), and we want signal before scope.
+
+### Tier 1 — Instrumentation (no architecture change)
+
+| Deliverable | Owner | Notes |
+|---|---|---|
+| Loop-iteration timer; `LOG_W` when an iteration > 50 ms | Developer | adds `loop_max_ms` to heartbeat; identifies which iterations are slow |
+| `micros()` pairs around hot paths (`getCurrentlyPlaying`, `screenlog::tick`, `repaintChrome`, `displayTrackProgress`, `checkForInput`) | Developer | per-path max since last heartbeat; surfaced as `path_max=<name>:Nms` field |
+| Stack high-water mark in heartbeat (`uxTaskGetStackHighWaterMark`) | Developer | tells us whether we're near stack overflow |
+| 40 MHz vs 55 MHz SPI A/B (just a build flag flip) | Developer | 30-second test; rules in/out signal-integrity flicker |
+
+Total ~60 LOC + one build-flag flip. No DUT-iteration churn beyond a single flash for the instrumentation.
+
+### Tier 2 — Decisions (gated on tier-1 data)
+
+| Deliverable | Owner | Notes |
+|---|---|---|
+| ADR: async Spotify poll (FreeRTOS task on APP_CPU, snapshot slot read by main loop) | Architect | M-IO tier 2 promotion. Biggest expected win. Skip if tier-1 data shows polling isn't the bottleneck. |
+| ADR: DMA SPI for big blits (`tft.initDMA`, `tft.pushImageDMA`) | Architect | Modest win on `repaintChrome` + `screenLog::tick` full-screen paths. Skip if tier-1 shows blits aren't dominant. |
+| ADR: screenLog incremental redraw (diff-against-previous, repaint only changed lines) | Architect | Saves ~90% of SPI traffic when only the newest line is new. Justifies itself only if SCREEN_LOG is on by default. |
+
+### Tier 3 — Implementation (gated on tier-2 ADRs being accepted)
+
+| Deliverable | Owner |
+|---|---|
+| Async Spotify poll task | Developer |
+| DMA-converted blit paths | Developer |
+| screenLog incremental redraw | Developer |
+| Touch debounce / press-hold state-machine (replaces 80 ms `delay()` in `checkForInput`) | Developer |
+
+The 80 ms touch-press `delay()` is a known stall — it's there for visual press-feedback. Replace with a millis-tracked release-on-timer. Small but always-helpful.
+
+**Cross-cuts:** depends on `log-001` (heartbeat field plumbing). Touches `poll-001` (potential async restructure), `m3-001` (DMA blit candidates), `log-002` (redraw efficiency). Adds new feature `perf-001`.
+
+**Tracked as:** TASK-029 (tier 1 instrumentation), TASK-030 (tier-1 SPI clock A/B test), TASK-031 (tier-2 ADR — async poll), TASK-032 (tier-2 ADR — DMA blits), TASK-033 (tier-3 impl, gated).
+
+### Exit criteria
+
+- Tier 1 lands and DUT data is captured for a representative session (≥5 min play, includes at least one network blip).
+- An honest diagnosis: which paths actually exceed 50 ms, what `loop_max_ms` looks like during touch / during pause, whether the SPI A/B made the flicker measurably better.
+- Tier-2 ADRs only written for paths the data justifies. No optimisation without measurement.
+
+---
+
 ## M-CHROME — Bake the rest of the Winamp main-window sprites
 
 **Status:** planned (added 2026-05-08).
