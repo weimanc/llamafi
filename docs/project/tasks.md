@@ -72,9 +72,9 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Flipped `SPI_FREQUENCY` 55 MHz → 40 MHz in `common_cyd.build_flags`. User-confirmed flicker improvement on the static Winamp chrome. Default kept at 40 MHz.
 - Bonus finding (independent of TASK-030): with `SCREEN_LOG` enabled, the 4 Hz full-screen `fillScreen` + chrome-repaint cycle causes visible tearing. Without `SCREEN_LOG`, the chrome is stable. The screenLog overlay is fine for diagnostic use; don't ship it as the default. Already addressed by it being opt-in via `-DSCREEN_LOG`. Tier-2 follow-up (incremental-redraw / dirty-line diff) tracked separately for if/when on-screen logging gets used regularly — see TASK-029 follow-up notes / TASK-033.
 
-### TASK-031 — M-PERF tier 2 ADR: async Spotify HTTP (poll + touch)
-**Owner**: Architect (ADR-012 done), Developer (impl pending)
-**Status**: design-complete — ADR-012 proposed 2026-05-08, multi-role review folded inline. Ready for implementation; sub-tasks 031a/b/c/d.
+### TASK-031 — M-PERF tier 2: async Spotify HTTP (poll + touch)
+**Owner**: Architect (ADR-012 done), Developer (impl done)
+**Status**: done (2026-05-08; ADR-012 + 031a/b/c/d shipped + DUT-verified — `loop_max` 4 191 ms → 16 ms; seek-during-poll race resolved; user confirms snappy UI).
 **Notes**:
 - ADR: `docs/architecture/decisions/ADR-012.md`. Per LL-010 the @VE / @Developer / @QM / @PM passes are folded inline. Status: `proposed` (transition to `accepted` once human signs off, per the LL-010 promotion candidate).
 - Sub-task split (PM):
