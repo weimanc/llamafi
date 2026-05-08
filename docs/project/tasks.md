@@ -400,6 +400,29 @@ GET `/v1/me/player/currently-playing` runs every 5 s in the background poll loop
 
 To be triaged with the team.
 
+### TASK-035 — Drop OTA `app1` partition (reclaim 1.25 MB flash)
+**Owner**: Architect → Developer
+**Status**: parked (2026-05-08; revisit if M-CHROME tier 2 hits the flash wall)
+**Notes**:
+- Default Arduino-ESP32 partition CSV reserves a second 1.25 MB `app1` slot for OTA. We never call OTA. Single-line custom `partitions.csv` reclaims it. Would push `cyd2usb_winamp`'s effective ceiling from 1 280 KB to 2 560 KB.
+- Cost: lose OTA capability. Acceptable for this project. Revert is just removing the custom CSV.
+- Not needed today (97.8 % of 1 280 KB used; 28 KB free). Keep parked until M-CHROME tier 2 (TITLEBAR + VOLUME + BALANCE = +178 KB) actually needs it.
+
+### TASK-036 — Compress skin atlas (palette-8 with runtime LUT or PNG-on-flash)
+**Owner**: Architect (ADR), Developer (impl)
+**Status**: parked (2026-05-08; alternative path if TASK-035 isn't enough)
+**Notes**:
+- Current atlas is raw RGB565 = 2 B/px. ~96 KB total. Most of those pixels are duplicates (chrome, button frames). A palette-8 + 256-entry RGB565 LUT cuts the bake to ~½ size at the cost of an indirection in `blitSprite`.
+- PNG-on-flash + decompress at boot is heavier (~50 KB extra code for libpng), uses heap. Probably not worth it on this board.
+- Bake-tool change + `winampDisplay.h` `blitSprite` change. ~100 LOC + ADR.
+
+### TASK-037 — Strip unused TFT_eSPI font sets
+**Owner**: Developer
+**Status**: parked (2026-05-08; small win, easy)
+**Notes**:
+- `common_cyd.build_flags` enables `LOAD_FONT2/4/6/7/8/GLCD/GFXFF`. We only render via the baked Winamp glyph atlas (custom path, doesn't touch TFT_eSPI fonts) and via `screenLog` font 1 GLCD. Drop everything except `LOAD_GLCD`.
+- Saves a few KB rodata. Verify no regression in screenLog or any legacy `cheapYellowLCD` text fallback.
+
 - **TASK-002** — Touchscreen seek/scrub. ✅ closed 2026-05-08 by M5 (tap-to-seek shipped; drag-with-debounce deferred to a follow-up if/when it's wanted).
 - **TASK-003** — Play/pause + volume on touch. Play/pause closed 2026-05-08 by M5. Volume deferred — not on the main-window chrome we render today; needs VOLUME.BMP baked + a slot reserved.
 - **TASK-004** — Decide NFC support posture. Reader not connected on dev unit; boot logs `NFC Bad` harmlessly. Either wire a PN532 and validate, or set `NFC_ENABLED 0` to silence. Owner: PM (decision).
