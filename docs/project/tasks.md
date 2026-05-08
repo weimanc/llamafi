@@ -73,13 +73,17 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Bonus finding (independent of TASK-030): with `SCREEN_LOG` enabled, the 4 Hz full-screen `fillScreen` + chrome-repaint cycle causes visible tearing. Without `SCREEN_LOG`, the chrome is stable. The screenLog overlay is fine for diagnostic use; don't ship it as the default. Already addressed by it being opt-in via `-DSCREEN_LOG`. Tier-2 follow-up (incremental-redraw / dirty-line diff) tracked separately for if/when on-screen logging gets used regularly — see TASK-029 follow-up notes / TASK-033.
 
 ### TASK-031 — M-PERF tier 2 ADR: async Spotify HTTP (poll + touch)
-**Owner**: Architect
-**Status**: open — TASK-029 data confirms it's the highest-leverage win (2026-05-08)
+**Owner**: Architect (ADR-012 done), Developer (impl pending)
+**Status**: design-complete — ADR-012 proposed 2026-05-08, multi-role review folded inline. Ready for implementation; sub-tasks 031a/b/c/d.
 **Notes**:
-- Original framing: "async getCurrentlyPlaying poll". TASK-029 data widens the scope: the **dominant** loop blocker is actually the touch handler (`display.input` up to 4 189 ms — synchronous Spotify API call inside `checkForInput`), not the poll loop (1.5–2 s). Both have the same root cause: synchronous HTTP on the loop task. Both should move off together.
-- Proposed direction (for the ADR): one FreeRTOS task on APP_CPU owns `WiFiClientSecure` + the SpotifyArduino instance. Loop task posts requests via a queue (poll, prev/next/play/pause/seek/etc.) and reads the latest `currentlyPlaying` snapshot from a guarded slot. Loop never blocks on HTTP. Touch fires immediately, queues the call, paints pressed→released sprite, returns.
-- Expected impact: `loop_max` should drop from ≥4 s to ≤30 ms in the typical case. UI control responsiveness goes from "sluggish" to "instant".
-- Memory cost: one task stack (~4 KB), one queue (small), one snapshot slot. Comfortable.
+- ADR: `docs/architecture/decisions/ADR-012.md`. Per LL-010 the @VE / @Developer / @QM / @PM passes are folded inline. Status: `proposed` (transition to `accepted` once human signs off, per the LL-010 promotion candidate).
+- Sub-task split (PM):
+  - **TASK-031a**: skeleton — `spotifyTask.h` + storage TU + task creation wired into `.ino` + queue + snapshot scaffolding. Empty action handling. ~150 LOC.
+  - **TASK-031b**: move `getCurrentlyPlaying` into the task. Loop reads snapshot. ~80 LOC.
+  - **TASK-031c**: move `nextTrack/previousTrack/play/pause/seek` into the task. Touch handler enqueues. ~30 LOC.
+  - **TASK-031d**: remove the 1.5 s deferred-repoll guard from M5 — race is gone (LL-015 no longer applies). ~10 LOC.
+- VE follow-up: T060–T065 to be written at implementation time.
+- Expected `loop_max`: 4 191 ms → < 100 ms (per ADR exit criterion).
 
 ### TASK-032 — M-PERF tier 2 ADR: DMA SPI for blits
 **Owner**: Architect
