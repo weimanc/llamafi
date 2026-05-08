@@ -92,7 +92,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-038 — `startWrite`/`endWrite` bracket multi-blit chrome paths
 **Owner**: Developer
 **Feature**: perf-001
-**Status**: planned (2026-05-08; ADR-013 follow-up)
+**Status**: done (2026-05-08, DUT-verified — chrome renders identically, no transaction-state bugs)
 **Notes**:
 - Bracket `repaintChrome()`, `drawTitleText()`, `drawTransportButtons()`, `drawTimeDigits()`, and `screenLog::tick`'s render loop with `tft.startWrite()` / `tft.endWrite()`. Keeps CS asserted across the sequence; eliminates per-pushImage chip-select toggle + address-window setup overhead.
 - Expected: ~3–10 % chrome-redraw cost reduction based on TFT_eSPI usage notes.
@@ -103,7 +103,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ### TASK-034 — Quick-win: drop the 80 ms touch-press hold delay
 **Owner**: Developer
-**Status**: planned (2026-05-08; TASK-029 finding)
+**Status**: done (2026-05-08, DUT-verified — press feedback still visible, loop no longer blocks during the hold)
 **Notes**:
 - `winampDisplay::checkForInput` does `delay(80)` between drawing the pressed sprite and drawing the released sprite. Loop task can't make progress during that 80 ms. After TASK-031 ships, the synchronous API call's ~2 s contribution disappears, but `delay(80)` would still be there.
 - Replace with a millis-deadline state machine: pressed-until = now + 80; on next loop iteration after pressed-until, paint released. Always-helpful, ~10 LOC.
