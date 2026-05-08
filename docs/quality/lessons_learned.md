@@ -177,6 +177,54 @@ Triggering work: M4 polish (TASK-011), M2 skin bake tool tier 1 (TASK-012), and 
 
 **Status**: open
 
+### LL-012 — 2026-05-08 — `WiFiClientSecure::lastError()` is a misleading name
+
+**Context**: TASK-018 follow-up, debugging `HTTP -1` from the vendored Spotify lib. We added `client.lastError(buf, sizeof(buf))` to surface the underlying mbedtls code on `-1` returns.
+
+**Observation**: Every `-1` reported `rc=49 (0x0031)`. mbedtls_strerror printed "UNKNOWN ERROR CODE (0031)". Spent two reflash cycles theorising about exotic socket errnos before realising 49 was the lwip socket fd from the *previous successful* `start_ssl_client` call. Arduino-ESP32 stores `_lastError = ret` where `ret` is the start_ssl_client return value — positive socket fd on success, negative on mbedtls error. The function name implies "last error" but the value is "last result", retained even when the previous call succeeded.
+
+**Root cause**: API name doesn't match semantics. Doc string for `lastError()` doesn't clarify; we trusted the name.
+
+**Suggested improvement**: For sticky-state APIs whose names suggest a single semantic, confirm by reading the source before building diagnostic chains on top. Treat any positive return from `lastError()` as "stale success state, not a current error." Comment the discriminator at every call site.
+
+**Status**: open — fix already in `spotifyLogic.h` (rc>0 prints as "stale connect fd"). Promotion candidate.
+
+### LL-013 — 2026-05-08 — Same numeric error code can mask multiple root causes
+
+**Context**: ADR-007 patched the `WiFiClientSecure` reuse bug — fixed mbedtls `0x0050 NET_CONN_RESET` on the *first* write of a stale TLS session. Spike harness retest (one week later) still produced `0x0050` on every PUT/POST. Knee-jerk: "ADR-007 didn't actually fix it." Reality: three independent lib bugs (trailing-CRLF health check; `Content-Type: application/json` with `Content-Length: 0`; strict `204`-only status check) all produced `0x0050` at the same `send_ssl_data():382` log line. Different root causes, same numeric symptom.
+
+**Observation**: When a fix doesn't move the needle, "the fix didn't work" is the easy hypothesis. "The same error number is masking a different bug" is the harder, more often correct one. ADR-007 *was* working; the next bug in the chain just wore the same uniform.
+
+**Root cause**: TLS-level errors are a small enumeration; many distinct code paths funnel through the same layer and report the same code. mbedtls 0x0050 means "peer reset" — that can happen at any write, for any reason that prompts the peer to close.
+
+**Suggested improvement**: Treat numeric error codes as the *symptom*, never the *cause*. Cross-check with: where in the request stream did the failure happen (first write vs last write — different cause); did the server send a response before the close (means a different protocol-level reject); does the lib's request shape match what the server documents and accepts (spec cross-check)? Don't accept "the fix didn't work" until each of those is checked.
+
+**Status**: open — caught and patched (LOCAL_PATCHES.md #4–6). Promotion candidate.
+
+### LL-014 — 2026-05-08 — Don't blame the network without a positive test
+
+**Context**: After the ADR-007 retest failed all 15 spike rows on Marriott guest WiFi, my first hypothesis was "captive portal blocks non-GET HTTPS methods". User pushed back: AP-level method filtering of HTTPS is implausible without TLS MITM, and we had no MITM evidence (cert validation was passing on GETs). The "method filtering" hypothesis required a mechanism inconsistent with other observed facts.
+
+**Observation**: A flaky network is a tempting target. Hard to falsify (every retry is a new chance to see the same flake). Easy to write up as "network was bad, network was bad again." Real diagnosis is more demanding — it requires a chain of mechanism, not a chain of correlations.
+
+**Root cause**: Cognitive cheap shortcut. Network blame is the embedded equivalent of "have you tried turning it off and on again."
+
+**Suggested improvement**: Before blaming the network for a *consistent* failure mode (sporadic ones really often are network), require either (a) a positive test that excludes the firmware/lib (e.g. curl from host succeeds where DUT fails), or (b) a mechanism explanation consistent with every other observed fact. If neither is available, treat "it's the network" as a hypothesis on equal footing with "it's the lib", not the default.
+
+**Status**: open — directly applicable to TASK-019 / future M-IO investigations. Promotion candidate.
+
+### LL-015 — 2026-05-08 — Optimistic-UI mutations must outlive the same loop iteration
+
+**Context**: M5 implementation. Touch handler set `songStartMillis = 0` to freeze the M4 interpolator on pause-touch and set `requestDueTime = 0` to force-poll. Both inside the same `checkForInput()` call. Bar continued ticking visibly post-pause anyway.
+
+**Observation**: Loop order is `checkForInput()` → `updateCurrentlyPlaying()` → `updateProgressBar()`. The `requestDueTime = 0` triggered an immediate GET in the *same* loop iteration; the GET raced Spotify's pause-commit, re-anchored `songStartMillis` from `is_playing=true`, and `updateProgressBar` at the end of the same iteration resumed ticking. The optimistic mutation got steamrolled before the very next render.
+
+**Root cause**: "Optimistic UI" only works if the optimistic state survives long enough for the user to see it. In a single-task super-loop, "long enough" is at least one render — i.e., the optimistic state must NOT be invalidated by something else later in the same iteration.
+
+**Suggested improvement**: When applying an optimistic mutation, check the loop's downstream code paths for anything that can rewrite the same state in the same iteration. If a force-action (force-poll, force-redraw) is part of the same handler, delay it past the next render or guard the optimistic state against the rewrite explicitly. Tier-1 fix here: defer the re-poll by ~1500 ms instead of firing immediately. Tier-2 (deferred): a `local-state-authoritative-until` window that suppresses poll re-anchoring during the optimistic phase.
+
+**Status**: open — partial fix shipped (deferred re-poll). Promotion candidate.
+
 ---
 
 ## Best-practice candidates (for human sign-off)
@@ -191,6 +239,10 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-009** → "Architecture decisions that depend on third-party API endpoints must verify endpoint access for the project's actual app, not just the documented API surface." Process rule, applies to Architect.
 - **LL-010** → "Pre-commit checklist for cross-role hand-offs (Architect / VE / PM / inventory). Skips allowed but must be deliberate." Process rule, applies to Developer.
 - **LL-011** → "Any new file under sketch/tools dirs gets a tasks.md entry, even if it doesn't advance a milestone." Process rule, applies to PM (and to Developer at commit time).
+- **LL-012** → "Read the source for any sticky-state API named `lastError`, `lastResult`, `state`, etc. before building diagnostic chains on its return value." Library rule, applies to Developer.
+- **LL-013** → "When a fix doesn't change a numeric error code, distinguish 'fix failed' from 'next bug in the chain shares the symptom'. Trace request bytes; cross-check spec." Process rule, applies to Developer + Architect.
+- **LL-014** → "Network blame for a *consistent* failure mode requires a positive test (curl from host) or a mechanism consistent with other facts. Default-network-blame is banned." Process rule, applies to Developer.
+- **LL-015** → "Optimistic-UI mutations must survive the same loop iteration. Audit the downstream code path before shipping; defer force-actions or guard optimistic state explicitly." Architecture rule, applies to Developer.
 
 ---
 

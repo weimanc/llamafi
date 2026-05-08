@@ -94,6 +94,64 @@ All audits: scope, findings, actions, status.
 
 ---
 
+### Audit — 2026-05-08 — Process self-audit (TASK-009 close, M-LOG/2, M-IO, M5)
+
+**Triggered by**: human (`@docs/agents/AGENTS.md how much of the process did we skip?`)
+
+**Scope**: everything between the 2026-05-07 audit and now — TASK-016 a/b/c/d/e/f (M-LOG tier 1), TASK-018 (M-LOG2), TASK-019 tier 1 (M-IO, ADR-011), TASK-009 close-out (3 lib patches beyond ADR-007), M5 (touch-002) close, skin source swap.
+
+**Process scorecard (per AGENTS.md inter-agent protocol)**:
+
+| Protocol rule | Followed? | Notes |
+|---|---|---|
+| Developer notifies VE when feature `implemented` | ✗ | Six features shipped (log-001, log-002, io-001, touch-002, plus the api-002 lib patches and the bake-tool tier 3 sprites earlier) without explicit VE handoff. VE got pulled in once via the ADR-010 mini-review; that's it. |
+| VE challenges Developer on testability before finalised | partial | ADR-010 review did this — caught the build-time `CORE_DEBUG_LEVEL` gate retroactively, not before. Every other ship cycle skipped this entirely. |
+| Architect reviews R&D proposals before PM schedules | n/a | No R&D this session. |
+| Developer consults Architect before cross-component changes | ✗ | The TASK-009 close-out (3 lib patches in the request-construction path) and M5 (touch-002 reaching into spotifyLogic's `songStartMillis` for optimistic-UI freeze) were both cross-component. Neither paused for an Architect ping. |
+| VE challenges Architect on testability of interfaces | ✗ | ADR-011 (M-IO tier 1) shipped with "mini multi-role review folded into the ADR itself for speed". Self-conducted. T046–T049 were named but never written into `test_plan.md`. |
+| PM prompts QM after every feature/milestone close | ✗ | M5 was closed (commit `b37b66a`) with no QM prompt. This audit is the manual user catch. |
+| QM brings best-practice candidates to human | partial | LL-010 was flagged for promotion; never resolved. Multiple new LL candidates surfaced this session and weren't captured (see Findings 4 below). |
+
+**Findings**:
+
+1. **Feature inventory — red.** Four shipped features missing from `feature_inventory.yaml`: `log-001` (M-LOG tier 1), `log-002` (on-screen overlay), `io-001` (M-IO tier 1), `touch-002` (M5). All four were referenced by ADRs, tasks, and commit messages — but never registered. Same class of skip as LL-005/LL-011 (cross-feature matrix, dev-infra not tracked).
+
+2. **Test plan — red.** Three planned test suites never landed:
+   - T036–T040 (M-LOG tier 1) — named in `ADR-010-review.md`, never written.
+   - T046–T049 (M-IO tier 1) — named in ADR-011, never written.
+   - T0xx (M5 / touch-002) — never named, never written.
+   The visual confirmations during this session were ad-hoc DUT eyeball checks recorded in commit messages — not in the test plan, not regression-able.
+
+3. **ADR review gating — red.** The very thing LL-010 was raised for. ADR-010 reached `accepted` ahead of multi-role review and was amended *four times* retroactively as findings emerged from implementation (build-time level gate, exact-tag matching, log_e/log_w bypass, ESP_LOGx blast radius). ADR-011 took a "mini multi-role review folded into the ADR itself for speed" shortcut and shipped without a real VE/Developer pass. ADR-007 was assumed to fully fix non-GET TLS — turned out three more structural lib bugs were stacked on the same numeric error (covered by the new LL-013 below).
+
+4. **Lessons captured — red.** At least four LL-worthy findings from this session went uncaptured before this audit:
+   - "WiFiClientSecure::lastError() returns last *result* not last *error* — sticky stale success fd." (`fd=49` mistaken for an error code, sent us down a dead-end "rc=49 unknown" path for two reflashes.)
+   - "Arduino-ESP32 redefines ESP_LOGx to its own log_x macros that bypass esp_log_writev." (Caused the screenlog overlay to render an empty ringbuffer for several reflash cycles before being diagnosed.)
+   - "Same numeric error code can mask multiple independent root causes." (mbedtls 0x0050 NET_CONN_RESET appeared in three distinct lib bugs; ADR-007 was assumed to fix all instances of it.)
+   - "When the SDK spec says 204 No Content but the server returns 200, the server wins." (Lib's `return statusCode == 204` made every successful PUT/POST look like a failure.)
+
+5. **Network-blame antipattern.** When the spike harness retest failed all 15 rows, my first hypothesis was "Marriott captive portal blocks non-GET methods over HTTPS". User pushed back. AP-level method filtering of HTTPS is implausible without TLS MITM, and we had no MITM evidence — the hypothesis was lazy. The actual cause was three structural lib bugs (caught by spec cross-check and request-byte tracing). LL-014 below.
+
+6. **Build artefacts — green.** Both `cyd2usb` and `cyd2usb_winamp` and `cyd2usb_winamp_screenlog` and `cyd2usb_spike` envs build clean. Flash 88.8 % / 97.8 % / 97.8 % / 90.4 % respectively.
+
+7. **Heartbeat / observability — green.** TASK-016d's `block_max_ms` field is now in every heartbeat; the `/log` endpoint exists (HTTP-test deferred until a non-AP-isolated network); on-screen overlay populated and DUT-verified.
+
+**Actions assigned**:
+
+| Action | Owner | Tracked as |
+|--------|-------|------------|
+| Register `log-001`, `log-002`, `io-001`, `touch-002` in `feature_inventory.yaml` | Developer | this commit |
+| Write T036–T040 (M-LOG), T046–T049 (M-IO), T050+ (M5) into `test_plan.md` | VE | this commit |
+| Add LL-012 / LL-013 / LL-014 / LL-015 to `lessons_learned.md` | QM | this commit |
+| Promote LL-010 (multi-role review pre-`accepted`) — already a candidate; user-decision pending | human | already pending |
+| Re-run multi-role review on ADR-011 properly (currently "self-conducted") | Architect ↔ VE | not yet ticketed |
+| Fold TASK-009 close-out lib patches back into ADR-007 as amendments (or ADR-007-review.md) | Architect | not yet ticketed |
+| Prompt QM at the next milestone close (any of M6, M7) — habit fix | PM | discipline |
+
+**Resolution**: open — back-fill ships in this commit; ADR-011 review and ADR-007 amendment remain pending.
+
+---
+
 ## Entry Format
 
 ```

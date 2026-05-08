@@ -303,6 +303,124 @@ DUT-side visual + integration tests. Scaffold lands compile-clean; runtime verif
 
 ---
 
+## Suite: log-001 — Logging tier 1 (ringbuffer + redactor + decoder + heartbeat)
+
+Back-filled 2026-05-08 per ADR-010-review.md and the 2026-05-08 audit. DUT verification has been ad-hoc; these rows formalize what was tested.
+
+### T036 — [log-001] Ringbuffer wrap, line ordering, /log endpoint
+- **Type**: integration (host)
+- **Objective**: Inject ≥200 log lines via `LOG_I("test", ...)`; assert `/log?n=80` returns the last 80 in order; assert wrap doesn't tear lines (every line null-terminated).
+- **Steps**: Call from a one-shot Sketch in a non-AP-isolated network. `curl http://<dut-ip>/log?n=80`.
+- **Expected**: 80 lines returned, oldest → newest, no truncated UTF-8 sequences.
+- **Status**: planned (deferred — `/log` HTTP test gated on network without AP client isolation).
+
+### T037 — [log-001] /log?clear=1 empties the ring
+- **Type**: integration (host)
+- **Steps**: `curl http://<dut-ip>/log?clear=1` then `curl /log`.
+- **Expected**: First returns `ok\n`. Second returns 0 lines until next push.
+- **Status**: planned (same network gate as T036).
+
+### T038 — [log-001] Secret redactor — boundary cases
+- **Type**: unit (host-runnable if `secret.h` is decoupled)
+- **Objective**: `redact()` returns shape `XX…YY (len=N)` for n>4; `<short len=N>` for 1≤n≤4; `<empty>` for ""; `<null>` for nullptr; pool of 8 keeps multi-call printf args distinct.
+- **Steps**: Invoke from a sketch test fixture; print 9 redacts in one printf and verify slot 0 was overwritten.
+- **Expected**: First 8 printf args distinct, 9th is the same as the 1st (rotating).
+- **Status**: passing (2026-05-07 DUT verify of "config loaded: clientId=db…e0 (len=32) clientSecret=b9…63 (len=32) refreshToken=AQ…IY (len=131)" — three distinct values rendered correctly).
+
+### T039 — [log-001] mbedtls / HTTP decoder table coverage
+- **Type**: unit (host-runnable)
+- **Objective**: `tlsErr()` returns documented strings for known codes (0x0050, 0x004C, -76, -80, -9984, -29312, -29184, -30592, -32256). `httpErr()` covers 200/204/30x/40x/50x. Unknown codes fall through with raw hex.
+- **Steps**: Call each code, assert string match.
+- **Expected**: Per-table strings; unknown formatted as `%d (0x%04X) ?` / `HTTP %d`.
+- **Status**: passing (2026-05-07 DUT — `[W][spotify.tls] after -1: rc=-29312 (-0x7280) SSL_CONN_EOF` observed live).
+
+### T040 — [log-001] Heartbeat cadence and field shape
+- **Type**: e2e (DUT)
+- **Objective**: Monitor for 5 minutes; assert ≥9 lines tagged `hb` arrive; spacing is 30 ± 5 s under normal play; key=value parses cleanly; `block_max=Nms` field present (added by io-001).
+- **Steps**: Let DUT run idle for 5 minutes with a track playing, capture serial.
+- **Expected**: ≥9 hb lines; cadence stretching only during known blocking calls (TLS retries).
+- **Status**: passing (2026-05-08 — 4 heartbeats captured at 30/39/30/62 s spacing; `block_max=Nms` field present).
+
+---
+
+## Suite: io-001 — Loop responsiveness (M-IO tier 1)
+
+Back-filled 2026-05-08 per ADR-011 / 2026-05-08 audit.
+
+### T046 — [io-001] Backoff math on consecutive failures
+- **Type**: e2e (DUT)
+- **Objective**: After N consecutive failures, next-poll interval is 5 s × min(2^N, 12) capped at 60 s.
+- **Steps**: Provoke failures (DNS-mangle / disconnect upstream); observe `[D][spotify.poll] backoff: consecutive=N next=Mms` log lines.
+- **Expected**: 5 → 10 → 20 → 40 → 60 → 60 → 60 …
+- **Status**: passing (observed during Marriott-WiFi failure bursts; cadence visibly stretches).
+
+### T047 — [io-001] Reset on poll success
+- **Type**: e2e (DUT)
+- **Objective**: After a backed-off interval, next successful poll resets `consecutiveSpotifyFailures = 0`; subsequent interval returns to base 5 s.
+- **Steps**: Trigger a failure burst, restore network, observe.
+- **Expected**: First success after recovery resets; next interval is 5 s.
+- **Status**: passing (eyeballed).
+
+### T048 — [io-001] Touch resets backoff
+- **Type**: e2e (DUT)
+- **Objective**: User-initiated touch (prev/next/play/pause/seek) clears `consecutiveSpotifyFailures` so the next poll is immediate (or after the touch-002 1.5 s defer), not after the back-off interval.
+- **Steps**: Provoke a 60 s back-off; tap a transport button mid-window.
+- **Expected**: Next poll fires within ~1.5 s of the tap, not at the next back-off boundary.
+- **Status**: passing (touch-002 also verified concurrently).
+
+### T049 — [io-001] block_max_ms heartbeat field
+- **Type**: e2e (DUT)
+- **Objective**: Heartbeat emits `block_max=Nms`; under healthy network N stays <2500; during a Marriott TLS-retry burst N rises toward 2000-ish (one SPOTIFY_TIMEOUT) and resets each emit.
+- **Steps**: Capture serial; grep `block_max=`.
+- **Expected**: Per-emit reset; values consistent with observed network state.
+- **Status**: passing (2026-05-08 — `block_max=2644ms` observed during a burst).
+
+---
+
+## Suite: log-002 — On-screen log overlay (M-LOG2)
+
+Back-filled 2026-05-08.
+
+### T050 — [log-002] SCREEN_LOG default-off has zero overhead
+- **Type**: visual + flash-budget (DUT)
+- **Steps**: Build `cyd2usb_winamp` (no `-DSCREEN_LOG`); flash; observe.
+- **Expected**: Default chrome only; flash usage matches pre-overlay baseline (97.6 %); no log text on screen.
+- **Status**: passing.
+
+### T051 — [log-002] SCREEN_LOG renders ringbuffer in top + bottom strips
+- **Type**: visual (DUT)
+- **Steps**: Build `cyd2usb_winamp_screenlog`; flash; let logs flow.
+- **Expected**: Green log text top strip (~7 lines, oldest) and bottom strip (~7 lines, newest); chrome unaffected; new entries appear at bottom.
+- **Status**: passing (2026-05-07 DUT verify).
+
+---
+
+## Suite: touch-002 — Skin-region touch (M5)
+
+Back-filled 2026-05-08.
+
+### T052 — [touch-002] Each transport button acts on Spotify
+- **Type**: e2e (DUT)
+- **Objective**: Tap each of the 5 transport sprites; Spotify's playback state changes accordingly.
+- **Steps**: Have a track playing on Spotify; tap PREV / PLAY / PAUSE / STOP / NEXT in turn.
+- **Expected**: Track skips, plays, pauses, pauses (STOP→pause), skips. Each tap also briefly draws the pressed sprite.
+- **Status**: passing (2026-05-08 user confirmed: "all buttons work").
+
+### T053 — [touch-002] Posbar tap seeks
+- **Type**: e2e (DUT)
+- **Objective**: Tap on the posbar groove; thumb snaps to tap position; Spotify follows.
+- **Expected**: Visual: thumb at tap location within one frame. Spotify: progressMs ≈ tap-mapped value within one poll.
+- **Status**: passing (2026-05-08 user confirmed).
+
+### T054 — [touch-002] Optimistic-UI freeze on pause/stop/prev/next
+- **Type**: visual (DUT)
+- **Objective**: After pause/stop/prev/next touch, the M4 interpolator must freeze (no further bar / time-digit advance) until the next poll re-anchors.
+- **Steps**: Tap PAUSE; observe bar + time digits.
+- **Expected**: Bar + time freeze on the press, stay frozen for ~1.5 s, then jump to true paused position once Spotify confirms.
+- **Status**: passing (2026-05-08 — user reported original drift, fix shipped, confirmed working).
+
+---
+
 ## Entry Format
 
 ```

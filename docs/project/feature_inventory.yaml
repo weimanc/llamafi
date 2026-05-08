@@ -205,6 +205,70 @@ features:
       gitignored: SpotifyDiyThing/wifi_creds.h, data/host_overrides.json — site/network specific.
       Not on the milestone roadmap. Dev-environment infra; expected to stay opt-in indefinitely.
 
+  - id: log-001
+    name: Logging redesign tier 1 — esp_log fan-out + 12 KB ringbuffer + /log endpoint + secret redactor + heartbeat
+    description: ESP-IDF esp_log_set_vprintf hook fans every ESP_LOGx line to Serial + a 12 KB RAM ringbuffer (48 slots × 256 chars). Permanent post-WiFi HTTP server on WiFi.localIP() exposes GET /log[?n=N|?clear=1]. secret.h `redact()` (8-slot rotating pool) replaces the configFile.h JSON dump. logDecode.h decodes mbedtls / HTTP codes at log call sites. logHeartbeat.h emits a 30-second tag=hb INFO line with display, RSSI, heap, uptime, poll counters, last status, block_max_ms (added by io-001), build epoch.
+    status: implemented
+    git_ref: Spotify-Diy-Thing@2f2af07 (ADR-010 + amendments)
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/logSink.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/logSinkStorage.cpp
+      - Spotify-Diy-Thing/SpotifyDiyThing/logServer.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/logDecode.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/logHeartbeat.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/secret.h
+      - Spotify-Diy-Thing/tools/audit_log_hygiene.sh
+    cross_features: [cfg-001, poll-001, time-001, wifi-001, disp-001]
+    test_ids: []
+    notes: |
+      Two known coverage gaps documented in ADR-010 amendments: (a) ESP_LOGx is redefined by Arduino-ESP32 and bypasses esp_log_writev — own LOG_x macros provide a direct Serial+ringbuffer path; (b) Arduino-ESP32 log_e/log_w (ssl_client / WiFiGeneric internals) print via printf and never reach the hook. Tier-2 capture deferred.
+      /log HTTP test is gated on a non-AP-isolated network. Build flag CORE_DEBUG_LEVEL=4 required to compile in DEBUG-level calls.
+
+  - id: log-002
+    name: On-screen log overlay (debug HUD)
+    description: Renders the most-recent ringbuffer lines across the whole 320×240 panel using TFT_eSPI font 1 (6×8 px GLCD), green-on-black. Winamp chrome paints on top via WinampDisplay::repaintChrome — top strip ~7 lines visible (oldest), bottom ~7 (newest), middle ~16 hidden behind chrome. Rate-limited to 4 Hz; dirty-detection via g_head snapshot; SwapBytes saved/restored around drawString.
+    status: implemented
+    git_ref: Spotify-Diy-Thing@6aa0236
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/screenLog.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
+      - Spotify-Diy-Thing/platformio.ini
+    cross_features: [log-001, m3-001, disp-001]
+    test_ids: []
+    notes: |
+      Behind -DSCREEN_LOG / cyd2usb_winamp_screenlog env. Default off; zero overhead when disabled.
+      WinampDisplay gained repaintChrome() and currentStatusUv member to support the overlay redraw cycle.
+
+  - id: io-001
+    name: Loop responsiveness during blocking Spotify calls (M-IO tier 1)
+    description: Per ADR-011. Exponential backoff on consecutive Spotify-poll failures (5 s → 10 → 20 → 40 → 60 s cap, reset on success or touch). Heartbeat exposes block_max_ms — the longest synchronous getCurrentlyPlaying since the last tick, surfaces opaque blocking events.
+    status: implemented
+    git_ref: Spotify-Diy-Thing@e06bc40 (ADR-011)
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/spotifyLogic.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/cheapYellowLCD.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/logHeartbeat.h
+    cross_features: [poll-001, log-001, touch-001, touch-002]
+    test_ids: []
+    notes: |
+      Tier 1 keeps synchronous IO; tier 2 (async / FreeRTOS worker task) deferred until DUT data shows tier 1 isn't enough.
+      Touch (touch-002 + cheapYellowLCD legacy) clears consecutiveSpotifyFailures so user input always escapes the back-off floor.
+
+  - id: touch-002
+    name: Skin-region touch (M5)
+    description: Replaces touch-001's three-zone (prev/dead/next) mapping with proper hit-testing on the Winamp main-window chrome. Each transport sprite (PREV/PLAY/PAUSE/STOP/NEXT) is its own region; tap on the posbar groove maps to a millisecond seek position via songDuration. Optimistic UI — on touch, songStartMillis is zeroed (pause/stop/prev/next) or re-anchored (seek) so the M4 interpolator obeys the user immediately rather than waiting for a poll round-trip; re-poll deferred ~1.5 s so Spotify has time to commit before the read-back.
+    status: implemented
+    git_ref: Spotify-Diy-Thing@9f19f68
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
+    cross_features: [m3-001, poll-002, api-002, io-001]
+    test_ids: []
+    notes: |
+      Reads CYD28_TouchR raw point directly; bypasses the cheapYellowLCD legacy handleTouched() globals.
+      STOP maps to pause (Spotify has no native stop). Seek-drag with debounce-on-release deferred. Volume / shuffle / repeat sprites deferred (not on rendered chrome).
+
   - id: nfc-001
     name: NFC reader (PN532) — optional
     description: Tag holds a Spotify URI/URL; on swipe device asks Spotify to play it. Optionally writes back currently-playing context to the tag.
