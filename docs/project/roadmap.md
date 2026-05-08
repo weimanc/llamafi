@@ -109,17 +109,19 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 
 ## M5 — Full-skin touch controls
 
-**Status:** **blocked on TASK-009** (TLS connection lifecycle — non-GET endpoints fail until fixed)
+**Status:** done (2026-05-08 — DUT-verified; transport buttons + posbar seek live, optimistic-UI interpolator freeze in place)
 **Scope:** Replace the three-zone (prev / dead / next) mapping in `touchScreen.h` with skin-region hit-testing driven by `gen/skin_layout.h`. Wire each button to the corresponding `SpotifyArduino` call. Optimistic UI per ADR-006: flip local state immediately, fire API call, let next poll reconcile.
 
 | Control | API surface | Status |
 |---------|-------------|--------|
-| Play / pause | needs new (extend SpotifyArduino or helper) | planned |
-| Prev / Next | existing `previousTrack` / `nextTrack` | planned |
-| Seek (drag, debounce-on-release) | `seek` (exists, unwired) | planned |
-| Shuffle toggle | needs new | planned |
-| Repeat toggle | needs new | planned |
-| Volume | needs new | planned |
+| Play / pause | `play` / `pause` (lib already had — patched 2026-05-08) | done |
+| Prev / Next | `previousTrack` / `nextTrack` | done |
+| Seek (tap-to-position) | `seek` | done |
+| Stop | maps to `pause` (no native Spotify stop) | done |
+| Shuffle toggle | not on main-window chrome — deferred | not yet |
+| Repeat toggle | not on main-window chrome — deferred | not yet |
+| Volume | not on main-window chrome — deferred | not yet |
+| Seek-drag with debounce-on-release | tap-only for tier 1; drag deferred | not yet |
 
 | Deliverable | Feature ID |
 |-------------|------------|

@@ -274,8 +274,8 @@ GET `/v1/me/player/currently-playing` runs every 5 s in the background poll loop
 
 To be triaged with the team.
 
-- **TASK-002** — Touchscreen seek/scrub. Currently `touchScreen.h:46-53` only maps left/right thirds to prev/next; middle is dead, seek bar is display-only. Wire `SpotifyArduino::seek()` to taps inside the bar geometry. Owner: Developer.
-- **TASK-003** — Play/pause + volume on touch. No control surface for either today. Layout decision needed first. Owner: Architect → Developer.
+- **TASK-002** — Touchscreen seek/scrub. ✅ closed 2026-05-08 by M5 (tap-to-seek shipped; drag-with-debounce deferred to a follow-up if/when it's wanted).
+- **TASK-003** — Play/pause + volume on touch. Play/pause closed 2026-05-08 by M5. Volume deferred — not on the main-window chrome we render today; needs VOLUME.BMP baked + a slot reserved.
 - **TASK-004** — Decide NFC support posture. Reader not connected on dev unit; boot logs `NFC Bad` harmlessly. Either wire a PN532 and validate, or set `NFC_ENABLED 0` to silence. Owner: PM (decision).
 
 ---
