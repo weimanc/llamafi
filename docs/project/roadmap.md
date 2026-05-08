@@ -215,6 +215,54 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 
 ---
 
+## M-CHROME — Bake the rest of the Winamp main-window sprites
+
+**Status:** planned (added 2026-05-08).
+
+**Scope:** Bring the remaining main-window chrome elements out of the `.wsz` and onto the panel. Some have an API source we can drive (volume / shuffle / repeat / mono-vs-stereo); the rest are pure static decoration that just makes the chrome look complete. Cross-checked against the local Spotify Web API snapshot (`resource/web-api/`) — Spotify exposes `device.volume_percent`, `shuffle_state`, `repeat_state`, `currently_playing_type` directly on `/me/player/currently-playing`, so all of those are free. **Bitrate and sample rate are NOT in any Web API schema** — Spotify deliberately doesn't surface stream quality. They get rendered as hardcoded static values (44 kHz, 320 kbps assuming Premium, "stereo" for tracks / "mono" for episodes per `currently_playing_type`).
+
+**Tier 1 (fits in current flash budget — ~28 KB free, ~18 KB needed):**
+
+| Element | Source BMP | Bytes | Driven by | Static / dynamic |
+|---|---|---|---|---|
+| Mono/stereo + kHz/kbps strip | MONOSTER.BMP | 2 784 | `currently_playing_type` | mostly static (kHz=44, kbps=320 hardcoded; mono/stereo derived) |
+| Shuffle / repeat indicator | SHUFREP.BMP | 15 640 | `shuffle_state`, `repeat_state` | fully dynamic |
+
+**Tier 2 (gated on flash-budget work — currently won't fit):**
+
+| Element | Source BMP | Bytes | Driven by | Notes |
+|---|---|---|---|---|
+| Title bar | TITLEBAR.BMP | 59 856 | static | decoration; could subset to one variant (~10 KB) before baking to fit |
+| Volume slider | VOLUME.BMP | 58 888 | `device.volume_percent` | 28 frames; could subset to ~8 keyframes (~17 KB) |
+| Balance slider | BALANCE.BMP | 58 888 | none | pure decoration; "always centred" or skip entirely |
+
+The tier-2 sheets are dominated by frame-strip variants (28 volume positions, 28 balance positions, 3-state title bar). Subsetting at bake time would let one or two of them fit; baking all three at full resolution requires a real flash-budget conversation (lighter atlas format, partition resize, or compressing the existing atlases).
+
+**Sub-tasks:**
+
+| Deliverable | Owner | Tier |
+|---|---|---|
+| Extend `tools/bake_skin.py` to optionally include MONOSTER + SHUFREP atlases + sprite UVs | Developer | 1 |
+| Render the mono/stereo + kHz/kbps strip in `winampDisplay.h` (driven by `currently_playing_type`) | Developer | 1 |
+| Render shuffle/repeat indicator state from `shuffle_state` / `repeat_state` (touch tier 2 separate) | Developer | 1 |
+| ADR or short note on flash-budget approach for tier 2 (subset / partition / compress) | Architect | 2-gate |
+| Bake + render title bar (static) | Developer | 2 |
+| Bake + render volume slider driven by `device.volume_percent` | Developer | 2 |
+| Decide whether balance ships at all | Architect | 2-gate |
+
+**Cross-cuts:** depends on `m2-001` (bake tool), `m3-001` (renderer), `poll-001` (already polls `currently_playing`). Adds new feature `chrome-001`. Touches the planned but unimplemented volume / shuffle / repeat slots from M5 — TASK-003's volume sub-task closes here.
+
+**Tracked as:** TASK-023 (bake-tool extension + tier-1 atlases), TASK-024 (mono/stereo + kHz/kbps strip), TASK-025 (shuffle/repeat indicator), TASK-026 (tier-2 ADR), TASK-027 (titlebar bake+render), TASK-028 (volume slider bake+render).
+
+### Exit criteria
+
+- Tier 1: MONOSTER + SHUFREP visible on the chrome; both reflect Spotify's reported state within one poll.
+- Tier 2: gated on the flash-budget ADR — exit criterion lifted into that ADR when written.
+- No regression in the existing chrome (transport, posbar, time digits, title marquee).
+- Flash budget for tier 1 stays under 99 % on `cyd2usb_winamp`.
+
+---
+
 ## M-LIST — Top-align Winamp UI + add playlist panel
 
 **Status:** planned (added 2026-05-08).

@@ -55,6 +55,54 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Diagnostic motivation: makes state-coupling problems (TASK-019) visible at the moment they affect the UI.
 - DUT integration surfaced a blast-radius correction to ADR-010: Arduino-ESP32 redefines `ESP_LOGx` to its own `log_x` macros that bypass `esp_log_writev`. Our hook was effectively starved. Fix: new `LOG_I/W/D/E(tag, fmt, ...)` macros in `logSink.h` that format → Serial + `ringPush` directly. Migrated heartbeat + `spotify.poll` call sites. Other `ESP_LOGx` sites still work (Serial only) until migrated. ADR-010 amended.
 
+### TASK-023 — M-CHROME tier 1: bake-tool extension + atlases
+**Owner**: Developer
+**Feature**: chrome-001 (to be registered at impl)
+**Status**: planned (2026-05-08)
+**Notes**:
+- Extend `tools/bake_skin.py`: load `MONOSTER.BMP` (58×24) + `SHUFREP.BMP` (92×85) from the .wsz; emit `SKIN_MONOSTER` / `SKIN_SHUFREP` arrays + sprite UVs in `gen/skin_layout.h`.
+- MONOSTER sprite UVs: 29×12 each — `MONO` at (0,0), `STEREO` at (29,0), and a "lit" variant pair at (0,12) / (29,12). Confirm offsets against the source BMP at bake time.
+- SHUFREP sprite UVs: 28×15 each (approx) — shuffle off/on (lit) at top row, repeat off/track/all at next rows. Layout per Winamp 2.x convention; derive from `92x85` dimensions.
+- Re-bake; flash budget should land at ~98.4 %.
+
+### TASK-024 — M-CHROME tier 1: mono/stereo + kHz/kbps strip
+**Owner**: Developer
+**Feature**: chrome-001
+**Status**: planned (2026-05-08)
+**Notes**:
+- Render the MONOSTER strip at the canonical Winamp main-window position. Mono vs stereo selected by `currently_playing_type` (`track` / `episode` / `ad` / `unknown`): tracks render `STEREO`, episodes render `MONO`, others render unlit.
+- kHz and kbps: Spotify Web API doesn't expose either. Hardcoded — `44` for kHz; `320` for kbps if Premium can be assumed (see `changelog-feb-2026-migration-guide.md` — Premium is now required for Dev Mode apps), else `--`.
+- Renders text via the existing `SKIN_GLYPH` font atlas so no extra font work needed.
+
+### TASK-025 — M-CHROME tier 1: shuffle / repeat indicator
+**Owner**: Developer
+**Feature**: chrome-001
+**Status**: planned (2026-05-08)
+**Notes**:
+- Drive sprite selection from `shuffle_state` (boolean) and `repeat_state` (`off` / `track` / `context`). Already in the `currentlyPlaying` payload — no extra GET.
+- Tap-on-sprite to toggle is M5 follow-up territory (touch-002 extension), not in this task. Tier 1 is render-only.
+
+### TASK-026 — M-CHROME tier-2 flash-budget ADR
+**Owner**: Architect
+**Status**: planned (2026-05-08)
+**Notes**:
+- TITLEBAR/VOLUME/BALANCE atlases at full resolution = +178 KB, no fit. Decision: subset at bake time (one titlebar variant, ~8 volume keyframes, drop balance) vs partition resize vs lighter pixel format (palette-8) vs compress on flash + decompress at boot.
+- ADR should land before TASK-027 / TASK-028 start.
+
+### TASK-027 — M-CHROME tier 2: title bar render
+**Owner**: Developer
+**Status**: gated on TASK-026
+**Notes**:
+- Static decoration. Once subset choice from ADR is settled, bake + blit at the top of the main window.
+- Could optionally caption with `device.name` (e.g. "playing on: KITCHEN SPEAKER") — defer until tier-1 ships.
+
+### TASK-028 — M-CHROME tier 2: volume slider + (maybe) balance
+**Owner**: Developer
+**Status**: gated on TASK-026
+**Notes**:
+- VOLUME.BMP is 28 frames vertically — pick the frame matching `device.volume_percent` rounded to the nearest keyframe. Closes the volume sub-task that was deferred from TASK-003 / M5.
+- BALANCE: decision in TASK-026 ADR; lean is "skip — no API source, just decoration."
+
 ### TASK-020 — M-LIST tier 1: top-align UI + playlist panel
 **Owner**: Architect (orientation decision), Developer (impl)
 **Feature**: playlist-001 (to be registered when impl starts)
