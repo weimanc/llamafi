@@ -143,26 +143,51 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Drive sprite selection from `shuffle_state` (boolean) and `repeat_state` (`off` / `track` / `context`). Already in the `currentlyPlaying` payload — no extra GET.
 - Tap-on-sprite to toggle is M5 follow-up territory (touch-002 extension), not in this task. Tier 1 is render-only.
 
+### TASK-039 — M-CHROME tier 2: extend SpotifyArduino parser for device.volume_percent
+**Owner**: Developer
+**Feature**: api-002 (lib patch family)
+**Status**: planned (2026-05-09; ADR-014 sub-task 1)
+**Notes**:
+- Add `device.volume_percent` to the JSON filter in `SpotifyArduino::getCurrentlyPlaying`.
+- Add `int volumePercent` field to `CurrentlyPlaying` struct (default `-1` = unknown / no device).
+- Mirror the existing `currentlyPlayingType` extraction pattern.
+- Document in `lib/SpotifyArduino/LOCAL_PATCHES.md`.
+
+### TASK-040 — M-CHROME tier 2: bake-time static composite onto MAIN_BG
+**Owner**: Developer
+**Feature**: chrome-001 / m2-001
+**Status**: planned (2026-05-09; ADR-014 sub-task 2-3)
+**Notes**:
+- Extend `tools/bake_skin.py` with composite mode: TITLEBAR active variant, BALANCE centered, kbps "192", kHz "44", static MS_STEREO_ON + MS_MONO_OFF.
+- Drop MONOSTER.BMP from TIER3_SHEETS (after compositing). Remove SKIN_MONOSTER atlas + UV defines from gen/.
+- Drop `winampDisplay::drawBitrateSampleRate()`, `drawMonoStereo()`, `redrawMetadataStrip()`, the snapshot-seq watcher block in `checkForInput`.
+- Confirm visual via `--preview` eyeball before committing.
+
+### TASK-041 — M-CHROME tier 2: dynamic VOLUME slider
+**Owner**: Developer
+**Feature**: chrome-001
+**Status**: planned (2026-05-09; ADR-014 sub-task 4; depends on TASK-039 + TASK-040)
+**Notes**:
+- Bake VOLUME.BMP with 5 keyframes (every ~6th of 28). `gen/skin_layout.h` exposes `VOLUME_FRAME(n)` SkinUV macro.
+- Snapshot: add `int8_t volumePercent` (-1 if unknown). Set in `spotifyTask::onCurrentlyPlaying`.
+- New `winampDisplay::drawVolume(int percent)` blits the keyframe at (107, 57). Negative percent → draw lowest keyframe (or "no device" sentinel).
+- Wired into `repaintChrome()` and the snapshot-seq watcher inside `checkForInput`.
+- VE follow-up T070: change volume via spike harness, observe DUT chrome reflects the new level within one poll.
+
 ### TASK-026 — M-CHROME tier-2 flash-budget ADR
 **Owner**: Architect
-**Status**: planned (2026-05-08)
+**Status**: superseded by ADR-014 (2026-05-09 — composite-static reframe sidesteps the flash-budget question entirely; only VOLUME needs new atlas surface and at 5 keyframes it fits in the 18 KB headroom)
 **Notes**:
 - TITLEBAR/VOLUME/BALANCE atlases at full resolution = +178 KB, no fit. Decision: subset at bake time (one titlebar variant, ~8 volume keyframes, drop balance) vs partition resize vs lighter pixel format (palette-8) vs compress on flash + decompress at boot.
 - ADR should land before TASK-027 / TASK-028 start.
 
 ### TASK-027 — M-CHROME tier 2: title bar render
 **Owner**: Developer
-**Status**: gated on TASK-026
-**Notes**:
-- Static decoration. Once subset choice from ADR is settled, bake + blit at the top of the main window.
-- Could optionally caption with `device.name` (e.g. "playing on: KITCHEN SPEAKER") — defer until tier-1 ships.
+**Status**: superseded by TASK-040 (2026-05-09 — title bar is now baked into MAIN_BG via the static-composite pass)
 
 ### TASK-028 — M-CHROME tier 2: volume slider + (maybe) balance
 **Owner**: Developer
-**Status**: gated on TASK-026
-**Notes**:
-- VOLUME.BMP is 28 frames vertically — pick the frame matching `device.volume_percent` rounded to the nearest keyframe. Closes the volume sub-task that was deferred from TASK-003 / M5.
-- BALANCE: decision in TASK-026 ADR; lean is "skip — no API source, just decoration."
+**Status**: superseded by TASK-040 (balance) + TASK-041 (volume) per ADR-014
 
 ### TASK-020 — M-LIST tier 1: top-align UI + playlist panel
 **Owner**: Architect (orientation decision), Developer (impl)
