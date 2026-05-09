@@ -213,6 +213,22 @@ Triggering work: M4 polish (TASK-011), M2 skin bake tool tier 1 (TASK-012), and 
 
 **Status**: open — directly applicable to TASK-019 / future M-IO investigations. Promotion candidate.
 
+### LL-016 — 2026-05-09 — "Swap X" is under-specified when a feature has multiple layers
+
+**Context**: M-CHROME tier 1 mono/stereo indicator. User said "mono and stereo needs to be swapped." I changed it. User said "swapped again." I changed it back differently. User said "both unlit." I added a default + snapshot-seq refresh. User said "stereo lit, mono dim. just swap stereo and mono please." Final fix: swap two `blitSprite` call positions. **Four reflash cycles to land a one-line change.**
+
+**Observation**: the visible state of a sprite-based indicator is the composition of *three* layers: (a) where the labelled pixels live in the source BMP atlas (UV mapping), (b) the runtime state assignment (which sprite is "lit" given the current data), (c) the on-screen position (where each sprite gets blitted). "Swap" is ambiguous across all three. I picked the wrong layer twice, lost ~5 minutes of DUT-iteration churn each time, and burned the user's patience.
+
+**Root cause** (multi-stage):
+1. **First round, didn't even look at the asset.** Picked layer (a) on intuition before examining the BMP. Should have extracted + zoomed the bitmap *first* — the visual ground truth was 30 seconds away.
+2. **Conflated bugs.** "Both unlit, swapped again" is two reports. I treated it as "fix the swap, the unlit will resolve when polls land." I should have decoupled them — the unlit was a separate timing bug (snapshot.valid=false at boot before any poll).
+3. **Defaulted to canonical-Winamp layout instead of asking.** Even after the atlas was correct, on-screen position is a UX preference. The canonical Winamp main window has stereo-left, mono-right. The user's preference is the opposite. That's not wrong; that's a choice. I shouldn't have argued with the visual layout via implementation — should have just asked.
+4. **Test cycle is expensive when the request is ambiguous.** Each guess cost: edit → bake → build → flash → wait for WiFi + first poll → user observes. ~30–60 seconds. With ambiguity, that's a terrible feedback loop. **Asking one clarifying question costs five seconds.**
+
+**Suggested improvement**: when a user request maps onto a sprite-based feature, default-question is *"do you mean the source atlas, the data → sprite mapping, or the on-screen position?"* Ask before changing. Cheaper than guessing. Also: for any request involving an asset, look at the asset before changing code. The thirty-second image-extract path beats the five-minute reflash-and-test path every single time.
+
+**Status**: open — promotion candidate. Same family as LL-014 (don't blame the network without a positive test): "diagnose before guessing" generalises.
+
 ### LL-015 — 2026-05-08 — Optimistic-UI mutations must outlive the same loop iteration
 
 **Context**: M5 implementation. Touch handler set `songStartMillis = 0` to freeze the M4 interpolator on pause-touch and set `requestDueTime = 0` to force-poll. Both inside the same `checkForInput()` call. Bar continued ticking visibly post-pause anyway.
@@ -243,6 +259,7 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-013** → "When a fix doesn't change a numeric error code, distinguish 'fix failed' from 'next bug in the chain shares the symptom'. Trace request bytes; cross-check spec." Process rule, applies to Developer + Architect.
 - **LL-014** → "Network blame for a *consistent* failure mode requires a positive test (curl from host) or a mechanism consistent with other facts. Default-network-blame is banned." Process rule, applies to Developer.
 - **LL-015** → "Optimistic-UI mutations must survive the same loop iteration. Audit the downstream code path before shipping; defer force-actions or guard optimistic state explicitly." Architecture rule, applies to Developer.
+- **LL-016** → "Look at the asset before changing code; ask which layer (atlas / data-mapping / on-screen position) when 'swap' is ambiguous." Process rule, applies to Developer.
 
 ---
 
