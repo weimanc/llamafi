@@ -138,8 +138,8 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 
 ## M6 — VU meter
 
-**Status:** **blocked on TASK-010** (ADR-002 invalidated — `audio-features` and `audio-analysis` return HTTP 403 for new Developer apps; primary data source unavailable)
-**Scope:** Originally per ADR-002. Now requires a superseding ADR before any work — see TASK-010 candidate options ((a) drop, (b) synthesise from poll data, (c) Spotify Extended Quota Mode, (d) on-device microphone).
+**Status:** done (2026-05-09 — ADR-009 option (e) shipped; decorative envelope synthesised from `currentlyPlaying` + flat 120 BPM beat clock + LFO stereo split. No real audio data — Web API doesn't surface it.)
+**Scope (final):** ADR-009 option (e). Two horizontal bars rendered into the canonical Winamp visualization rect at window-coords (24,43,76,6)/(24,50,76,6); green/yellow/red colour grading by level; 20 Hz tick; decays to zero on `is_playing=false`. Decoration only — explicitly not music-locked.
 
 | Deliverable | Feature ID |
 |-------------|------------|

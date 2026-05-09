@@ -269,9 +269,9 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Diagnostic next step: capture serial with timing across the `getImage` call to localise the hang. May overlap with TASK-009 fix verification.
 
 ### TASK-010 — VU data-source rethink (ADR-002 invalidated)
-**Owner**: Architect (decision), Developer (next)
-**Feature**: vu-001 (planned)
-**Status**: design-complete (ADR-009 accepted 2026-05-07; awaiting implementation)
+**Owner**: Architect (decision), Developer (impl)
+**Feature**: vu-001 (implemented)
+**Status**: done (ADR-009 accepted 2026-05-07; M6 implementation shipped 2026-05-09 — Spotify-Diy-Thing@049c088 — synthetic envelope + 120 BPM beat clock + LFO stereo split + green/yellow/red colour grading)
 **Blocks**: M6 (VU meter)
 **Notes**:
 - Discovered during TASK-007 DUT run 2026-04-29: both `/v1/audio-features/{id}` and `/v1/audio-analysis/{id}` return **HTTP 403** for the dev account's client app. Spotify deprecated these endpoints for new Developer apps as of late 2024 (announced via the Web API change-log). The app `db2ff394...` was created during TASK-001 (post-deprecation), so it has no access.

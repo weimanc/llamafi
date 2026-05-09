@@ -269,6 +269,21 @@ features:
       Reads CYD28_TouchR raw point directly; bypasses the cheapYellowLCD legacy handleTouched() globals.
       STOP maps to pause (Spotify has no native stop). Seek-drag with debounce-on-release deferred. Volume / shuffle / repeat sprites deferred (not on rendered chrome).
 
+  - id: vu-001
+    name: Decorative VU bars (M6)
+    description: Two horizontal bars in the canonical Winamp visualization rect ((24,43,76,6)/(24,50,76,6) window-local). Synthetic envelope per ADR-009 option (e) — slow swell + per-tick noise + 120 BPM beat transient, smoothed with attack/release; LFO ±15% L/R split; decays to zero on is_playing=false. Green/yellow/red color grading by level. 20 Hz tick gate. Dirty-detection on pixel widths skips SPI when bars haven't moved. No real audio data — Spotify Web API doesn't expose it.
+    status: implemented
+    git_ref: Spotify-Diy-Thing@049c088
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/vuMeter.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
+    cross_features: [m3-001, poll-002, perf-001]
+    test_ids: []
+    notes: |
+      Decoration not visualisation — ADR-009 is explicit about this. No claim to be music-locked.
+      Cost surfaced via perf::record("vu.tick", ms); typical < 1 ms per tick when bars don't move (dirty-skip), ~1-3 ms when they do.
+
   - id: perf-001
     name: Loop-iteration + hot-path performance instrumentation (M-PERF tier 1)
     description: perf.h namespace with record(name, ms) / recordLoop(ms) / loopMaxMs() / worstPathName() / worstPathMs() / stackHwmBytes() / reset(). Heartbeat consumes + resets each tick, adds stack_hwm + loop_max + slow=<name>:Nms fields. .ino wraps the four top-level loop paths (screenlog.tick, display.input, spotify.poll, display.bar). Iterations > 50 ms emit a LOG_W("perf", "iter=Nms ...") line.
