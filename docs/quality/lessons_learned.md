@@ -241,6 +241,23 @@ Triggering work: M4 polish (TASK-011), M2 skin bake tool tier 1 (TASK-012), and 
 
 **Status**: open — partial fix shipped (deferred re-poll). Promotion candidate.
 
+### LL-017 — 2026-05-09 — A library that produces output is more dangerous than one that errors
+
+**Context**: TASK-042. User reported BALANCE.BMP composite was wrong on screen ("thin 2-pixel strip surrounded by cyan"). Four prior rounds of investigation had me adjusting crop coordinates, transparency keys, and on-screen positions — none of which were the actual bug. The bug was that Pillow 11.3.0 silently mis-decodes BI_RLE8 streams that use the delta opcode (`00 02 dx dy`) — ~56 % of pixels in BALANCE.BMP came out at the wrong x coordinates, but `Image.open(...).load()` returned successfully and an `Image` object containing garbage was used downstream as if it were correct.
+
+**Observation**: ImageMagick fails with an explicit error on the same file (`unable to runlength decode`). That's a clean failure — caught instantly, easy to route around. PIL's behaviour is the opposite: success-with-wrong-output. The `try/except (ValueError, OSError)` fallback to magick existed in the bake tool, but never fired because PIL never raised. Every bake produced byte-identical (and consistently wrong) output, so the existing T025 determinism check happily kept passing on garbage.
+
+**Root cause**: my mental model of the decoder was binary — "PIL decodes, or raises." A third state ("PIL decodes wrong, silently") wasn't on my failure-mode list. Once it was, the right action was to *not trust the library* — own the decode in our own 30 LOC, byte-validate against a third-party reference (ffmpeg), and only then trust the output.
+
+**Suggested improvement**:
+- For any third-party data-pipeline library handling formats with corner cases (rare opcodes, exotic chroma subsampling, weird metadata), produce a **second independent decode** for the file class actually in use, and assert byte-equality at integration time. If the library disagrees with the second source, treat the library as suspect — don't reach for "must be a config flag we missed" reflexively.
+- For binary inputs whose pixels we ship in flash, prefer to **own the decoder for the format subset we depend on**. The maintenance cost of 30 LOC of opcode-walking is much lower than the cost of debugging a silent-corruption bug in production firmware.
+- When a fix changes only crop coordinates / placement values without explaining the new pixel data, that's a signal the bug is upstream of the placement layer. Re-check the data extraction before adjusting placement.
+
+Sister rule to LL-014 (don't blame network without a positive test) and LL-016 (look at the asset before changing code). Theme: **diagnose at the actual data, don't accept what a layer above says without independent confirmation.**
+
+**Status**: open — promotion candidate. Process implication: when introducing a library dependency on a data-pipeline path, the ADR for that decision should call out *"how do we know the library produced correct output, not just non-error output?"* — that question wasn't asked in ADR-008 and the silent-corruption bug landed undetected.
+
 ---
 
 ## Best-practice candidates (for human sign-off)
@@ -260,6 +277,7 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-014** → "Network blame for a *consistent* failure mode requires a positive test (curl from host) or a mechanism consistent with other facts. Default-network-blame is banned." Process rule, applies to Developer.
 - **LL-015** → "Optimistic-UI mutations must survive the same loop iteration. Audit the downstream code path before shipping; defer force-actions or guard optimistic state explicitly." Architecture rule, applies to Developer.
 - **LL-016** → "Look at the asset before changing code; ask which layer (atlas / data-mapping / on-screen position) when 'swap' is ambiguous." Process rule, applies to Developer.
+- **LL-017** → "A library that produces output is more dangerous than one that errors. For data-pipeline libraries on the file classes we actually depend on, validate output against a second independent decoder; don't trust no-exception as success." Process rule, applies to Developer + Architect.
 
 ---
 

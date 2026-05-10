@@ -236,7 +236,31 @@ Host-side tool tests. Run on the dev machine, not the DUT.
 - **Objective**: Verify the ImageMagick fallback triggers correctly for BMPs Pillow can't decode (specifically Winamp's `TEXT.BMP`).
 - **Steps**: Bake from `skins/base-2.91.wsz` (which contains RLE8 `TEXT.BMP`). Confirm `SKIN_FONT` array is populated and non-trivial.
 - **Expected result**: `SKIN_FONT[155*74]` array present, all-zero check fails (palette + glyphs decoded).
-- **Status**: passing (2026-05-07, font atlas size 22940 bytes as expected).
+- **Status**: superseded by T071 (2026-05-09 — manual BI_RLE8 decoder is now the primary path per ADR-008 Amendment 1; ImageMagick is no longer load-bearing for any RLE8 BMP).
+
+### T071 — [m2-001] Manual BI_RLE8 decoder produces correct pixels for delta-using streams
+- **Type**: unit (host-runnable)
+- **Feature(s)**: m2-001
+- **Objective**: Guard against the silent-corruption regression captured in TASK-042 / LL-017. For a BMP whose RLE8 stream uses delta opcodes (`00 02 dx dy`), `_decode_bmp_rle8` must produce pixel-identical output to ffmpeg's decoder.
+- **Preconditions**: Pillow installed; ffmpeg on PATH (test-time only — not a bake-time dep).
+- **Steps**:
+  1. Extract `BALANCE.BMP` from `skins/base-2.91.wsz` to a tempfile.
+  2. Decode via `_decode_bmp_rle8(raw)` → image A.
+  3. Decode via `ffmpeg -i tmp.bmp tmp.png` → image B.
+  4. Pixel-compare A vs B.
+- **Expected result**: Zero mismatches. (Pillow's own decode would mismatch ~16,588 of 29,444 pixels — the test should NOT trust PIL.)
+- **Status**: planned. Owner: VE.
+
+### T072 — [m2-001] Bake regression — BALANCE composite contains green bar pixels
+- **Type**: integration (host-runnable)
+- **Feature(s)**: m2-001
+- **Objective**: Catch any future regression where SKIN_MAIN_BG[] loses the green balance-bar pixels (e.g. via Pillow upgrade silently re-asserting itself, or a refactor that breaks the manual-decoder dispatch).
+- **Steps**:
+  1. Run bake.
+  2. Open `gen/composite/balance_bar_frame0.png`.
+  3. Assert at least one pixel in the (0..38, 3..7) sub-rect has G ≥ 100 and R < 60 (the canonical Winamp green bar colour family `(30,105,22)` → `(40,153,28)`).
+- **Expected result**: Assertion passes. The PIL-broken state would have all-cyan pixels in that sub-rect (G=198 but R=0, fails on R<60... wait, cyan IS R=0 G=198, which would falsely pass the G≥100 threshold). **Refine**: require BOTH G ≥ 100 AND B ≤ 80 — cyan has B=255, so cyan fails. Green pixels have B≈10–30, pass.
+- **Status**: planned. Owner: VE.
 
 ---
 

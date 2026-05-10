@@ -163,6 +163,18 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Drop `winampDisplay::drawBitrateSampleRate()`, `drawMonoStereo()`, `redrawMetadataStrip()`, the snapshot-seq watcher block in `checkForInput`.
 - Confirm visual via `--preview` eyeball before committing.
 
+### TASK-042 — Manual BI_RLE8 decoder in bake_skin.py (silent-corruption fix)
+**Owner**: Developer (impl), Architect (ADR-008 amendment), VE (regression)
+**Feature**: m2-001
+**Status**: done (2026-05-09; in-tree, not yet committed pending @VE regen of golden.sha256 and @Architect amend of ADR-008)
+**Notes**:
+- BALANCE.BMP composite was rendering as a 2-px thin strip surrounded by cyan. Diagnosis: Pillow 11.3.0's `BmpRleDecoder` mishandles the **delta opcode** (`00 02 dx dy`) in BI_RLE8 streams. base-2.91.wsz's BALANCE.BMP uses delta(9, 0) at the start of nearly every row (419 deltas across 433 rows) to encode a 9-pixel transparent left border compactly. PIL's decoder ignores the dx — pixel data lands at x=0..37 instead of x=9..46 — and produces silent garbage for ~56 % of pixels (16,588 of 29,444).
+- ImageMagick fails outright on the same file (`unable to runlength decode image @ error/bmp.c/ReadBMPImage/1147`), so the existing magick fallback path (ADR-008 decision #8) does not catch this.
+- ffmpeg decodes correctly. A 30-LOC manual BI_RLE8 decoder (`_decode_bmp_rle8` in `tools/bake_skin.py`) is byte-identical to ffmpeg.
+- Fix: manual decoder is now the **primary** path for any BMP with `compression=1` (8 bpp RLE). Magick fallback retained for unrelated edge cases. PIL kept for non-RLE BMPs.
+- Side effects: SKIN_MAIN_BG[] bytes change (now contains the real green balance bar, kbps/kHz text under proper decode, etc.). `gen/golden.sha256` is stale until VE regenerates.
+- Process miss: this fix went in without TASK ID, ADR amendment, or VE regression. Captured in audit_log 2026-05-09 entry, lessons-learned LL-017.
+
 ### TASK-041 — M-CHROME tier 2: dynamic VOLUME slider
 **Owner**: Developer
 **Feature**: chrome-001
