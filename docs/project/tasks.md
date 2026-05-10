@@ -163,6 +163,20 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Drop `winampDisplay::drawBitrateSampleRate()`, `drawMonoStereo()`, `redrawMetadataStrip()`, the snapshot-seq watcher block in `checkForInput`.
 - Confirm visual via `--preview` eyeball before committing.
 
+### TASK-044 — M-CHROME tier 2.5: display-only volume knob
+**Owner**: Developer (impl), Architect (ADR-016)
+**Feature**: chrome-001
+**Status**: done (2026-05-10; ADR-016 §1-§4 implemented; user-confirmed visual all 5 keyframe buckets + sentinel).
+**Notes**:
+- Bake (`tools/bake_skin.py`): added `extract_volume_knob` + `AUX_SPRITES` plumbing. Knob crop `(15, 422, 14, 11)` from BALANCE.BMP emitted as `SKIN_VOLUME_KNOB[14*11]` (308 bytes) — separate atlas, not padded into SKIN_VOLUME (saves 1.2 KB vs the wider-row alternative). Per-element review PNG `gen/composite/volume_knob.png`.
+- Layout (`gen/skin_layout.h`): added `VOLUME_KNOB_W=14`, `VOLUME_KNOB_H=11`, plus `VOLUME_W=68` / `VOLUME_H=13` for the runtime to compute the knob travel range.
+- Render (`winampDisplay.h::drawVolume`): after the keyframe blit, if `clamped >= 0`, blit the knob at `originX + VOLUME_X + (clamped * 54) / 100, originY + VOLUME_Y + 1`. Skipped on sentinel per ADR-016 §4.
+- Knob sprite is fully filled (no cyan border pixels) — verified by per-pixel scan of the cropped 14×11 image; `blitSprite(...)` works without a colour-key path.
+- Build: cyd2usb_winamp clean. Flash 99.2 % → 99.2 % (+432 bytes used: 308 atlas + ~124 code), 9.9 KB free remaining.
+- Bake determinism: re-bake byte-identical; `golden.sha256` regenerated.
+- DUT verify: drawVolume sequence captured at boot + 4 distinct buckets (`pct=-1 NONE`, `pct=17 KF0`, `pct=51 KF2`, `pct=65 KF3`, `pct=98 KF4`). User visually confirmed knob tracks position correctly; colour sprite changes match keyframe bucket.
+- Touch control (TASK-045) intentionally NOT in scope — display-only first per ADR-016 §12.
+
 ### TASK-043 — Switch primary poll to `/me/player` (unblock TASK-041)
 **Owner**: Developer (impl), Architect (ADR-015), VE (T073 + T070a/b re-run)
 **Feature**: api-002 (lib patch family)
