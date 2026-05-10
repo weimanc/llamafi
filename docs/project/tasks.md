@@ -163,6 +163,19 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Drop `winampDisplay::drawBitrateSampleRate()`, `drawMonoStereo()`, `redrawMetadataStrip()`, the snapshot-seq watcher block in `checkForInput`.
 - Confirm visual via `--preview` eyeball before committing.
 
+### TASK-043 — Switch primary poll to `/me/player` (unblock TASK-041)
+**Owner**: Developer (impl), Architect (ADR-015), VE (T073 + T070a/b re-run)
+**Feature**: api-002 (lib patch family)
+**Status**: planned (2026-05-10; gated behind ADR-015 acceptance)
+**Notes**:
+- Implementation spec: ADR-015 §1–§5. One-line lib change: `SPOTIFY_CURRENTLY_PLAYING_ENDPOINT` URL changes from `/v1/me/player/currently-playing?additional_types=episode` to `/v1/me/player?additional_types=episode`. No parser change.
+- Discovered by T070a/b execution on 2026-05-10. Wire capture (`/me/player/currently-playing` vs `/me/player`) shows `device` field is **only** present on `/me/player` response — Spotify spec says both endpoints return `CurrentlyPlayingContextObject`, server returns a subset for `/currently-playing`. Second instance of the LL-013 spec-vs-server divergence pattern.
+- TASK-041 implementation is structurally correct against ADR-014 A1; it just receives `-1` forever because TASK-039's filter targets a field the server doesn't send to that endpoint.
+- Document in `lib/SpotifyArduino/LOCAL_PATCHES.md` as patch #8.
+- VE gates before close: T073 (host-side wire-comparison), T070a (real-volume render path on DUT), T070b (sentinel transition on DUT). All three must pass.
+- Cost: zero on parser, ~150 bytes extra response body, zero round-trip increase.
+- Scope discipline: do not rename `getCurrentlyPlaying`; do not surface `repeat_state` / `shuffle_state`; do not refactor toward `getPlayerDetails`. All deferred per ADR-015's OOS list.
+
 ### TASK-042 — Manual BI_RLE8 decoder in bake_skin.py (silent-corruption fix)
 **Owner**: Developer (impl), Architect (ADR-008 amendment), VE (regression)
 **Feature**: m2-001

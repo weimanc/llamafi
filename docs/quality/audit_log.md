@@ -4,6 +4,46 @@
 
 All audits: scope, findings, actions, status.
 
+### Audit — 2026-05-10 — TASK-041 verification surfaced upstream data-source bug (LL-013 v2)
+
+**Triggered by**: human ("have QM audit the work and recommend next step"); follow-up after T070a/T070b execution attempted on DUT.
+
+**Areas checked**:
+- [x] Did TASK-041 verification follow the planned T070a/T070b protocol?
+- [x] Was the failure mode captured in the right place (lib parser vs. data source vs. firmware)?
+- [x] Were the lessons captured and the right next-step structure produced?
+- [x] Is the proposed fix (ADR-015) scoped to the actual bug or is it scope creep?
+
+**Findings**:
+
+1. **TASK-041 implementation is structurally correct against ADR-014 Amendment 1.** Verified by inline architect re-review (commits b8f37d3..8075176). The four-commit ordering, the dedup gate, the keyframe synthesis, the snapshot-writer placement — all faithful. PASS.
+
+2. **TASK-039's lib-side parser patch is correct as written, but patched the wrong endpoint.** The filter `device.volume_percent` and the null-guard at `SpotifyArduino.cpp:636-640` work exactly as documented. But the URL hard-coded into `getCurrentlyPlaying` (`/v1/me/player/currently-playing?additional_types=episode`) returns a response that does not include the `device` field at all — wire-captured 2026-05-10 against a working session. Spec says `CurrentlyPlayingContextObject` (which includes `device`); server returns a subset. The patch was written to the spec, not to the wire. This is the **second concrete instance** of the LL-013 spec-vs-server divergence pattern.
+
+3. **The bug was caught by VE running T070a/T070b on the DUT, not by review.** Pre-impl review of TASK-039 + ADR-014 Amendment 1 trusted the spec. No `curl` dump of the actual response shape was captured at any review stage. Add as discipline rule: any lib-filter patch must include wire capture in its review surface (ADR or LOCAL_PATCH entry) before merge. LL-018 captures this; promotion candidate.
+
+4. **The fix is one URL change.** ADR-015 §1: switch `SPOTIFY_CURRENTLY_PLAYING_ENDPOINT` from `/v1/me/player/currently-playing` to `/v1/me/player`. `/me/player` is a strict superset of `/me/player/currently-playing` for every field the firmware reads — verified by side-by-side wire capture. No parser change. Zero round-trip cost increase, ~150-byte payload growth. Scope discipline preserved (no rename, no `repeat_state` / `shuffle_state` surfacing, no `getPlayerDetails` refactor).
+
+5. **Process compliance — green.** The fix path was produced through the architect → ADR → PM → VE → QM flow rather than directly committing the URL change. ADR-015 has inline multi-role review per LL-010; T073 added as a new VE gate; tasks.md updated with TASK-043 referencing the ADR; LL-018 captures the underlying pattern; this audit row records the retrospective.
+
+6. **Diagnostic instrumentation.** The temporary `[D][chrome.diag]` Serial.printf added to `spotifyLogic.h` during the T070a/T070b session is currently uncommitted. Should be reverted as part of the TASK-043 commit (it served its purpose; leaving it in is dead-cost output every poll). Captured here as a TASK-043 sub-action.
+
+**Actions assigned**:
+
+| Action | Owner | Tracked as |
+|--------|-------|------------|
+| Implement ADR-015 §1 (URL change) | Developer | TASK-043 |
+| Document patch #8 in `lib/SpotifyArduino/LOCAL_PATCHES.md` | Developer | TASK-043 |
+| Revert temporary `[D][chrome.diag]` log line in `spotifyLogic.h` | Developer | TASK-043 (same commit) |
+| Run T073 (host-side wire-comparison) | VE | this commit's verification gate |
+| Re-run T070a / T070b on DUT post-impl | VE | TASK-043 close gate |
+| Promote LL-013 + LL-009 + LL-018 to best-practice rules | human | candidate, deferred |
+| Future filter-touching ADRs MUST include wire-capture evidence inline | Architect | discipline rule (ADR-015 sets the precedent) |
+
+**Resolution**: open — TASK-043 + ADR-015 + T073 + LL-018 + this row land in this commit. T073 + T070a + T070b execution will close TASK-043 in a follow-up commit.
+
+---
+
 ### Audit — 2026-05-09 — TASK-042 process-skip retrospective (silent BMP-decoder corruption)
 
 **Triggered by**: user (`@AGENTS.md how much of the process was skipped`)

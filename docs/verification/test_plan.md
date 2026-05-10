@@ -462,6 +462,19 @@ Tests for the Winamp main-window static + dynamic chrome elements. Tier-1 (kbps/
 - **Expected result**: New log line within ≤ 5 s after the API call. Chrome reflects the new keyframe visually. No redraw thrash on subsequent polls when volume hasn't changed (cache-gating works).
 - **Status**: planned. Owner: VE. Blocks TASK-041 close.
 
+### T073 — [api-002] `/me/player` is a strict superset of `/me/player/currently-playing` for fields the firmware reads
+- **Type**: integration (host-side, no DUT)
+- **Feature(s)**: api-002 (lib patch family); supports TASK-043 / ADR-015
+- **Objective**: Catch any future Spotify-side change that would make `/me/player` start returning *less* data than `/me/player/currently-playing` for any field the firmware consumes (`is_playing`, `progress_ms`, `currently_playing_type`, `context.uri`, `item.uri`, `item.duration_ms`, `item.name`, `item.artists[0].name`, `device.volume_percent`).
+- **Preconditions**: Valid creds in `Spotify-Diy-Thing/data/spotify_diy_config.json`; an active Spotify Connect device playing a track during the test window; Python 3 + `urllib`.
+- **Steps**:
+  1. Refresh access token from creds.
+  2. Within ~200 ms, fetch both `/v1/me/player/currently-playing?additional_types=episode` and `/v1/me/player?additional_types=episode` with the same bearer token.
+  3. For each field the firmware reads (list above), assert: present in `/me/player` response with the same value as in `/currently-playing` (drift on `progress_ms` allowed up to 1 s).
+  4. Assert `device.volume_percent` exists on `/me/player`.
+- **Expected result**: All assertions pass. If any fail, ADR-015 must be re-evaluated and TASK-043 may need to roll back.
+- **Status**: planned. Owner: VE. Blocks TASK-043 close.
+
 ### T070b — [chrome-001] Sentinel keyframe shows when no active device
 - **Type**: e2e (DUT)
 - **Feature(s)**: chrome-001

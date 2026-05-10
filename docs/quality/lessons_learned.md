@@ -258,6 +258,26 @@ Sister rule to LL-014 (don't blame network without a positive test) and LL-016 (
 
 **Status**: open — promotion candidate. Process implication: when introducing a library dependency on a data-pipeline path, the ADR for that decision should call out *"how do we know the library produced correct output, not just non-error output?"* — that question wasn't asked in ADR-008 and the silent-corruption bug landed undetected.
 
+### LL-018 — 2026-05-10 — Spec-vs-server divergence is structural, not exceptional (LL-013 v2)
+
+**Context**: TASK-041 (M-CHROME tier 2 dynamic VOLUME) shipped end-to-end at commits b8f37d3..8075176, faithful to ADR-014 Amendment 1. T070a/T070b verification on the DUT (2026-05-10) found `Snapshot.volumePercent` stays at the `-1` sentinel on every successful 200 OK poll, regardless of which Spotify Connect device is active or what its volume is.
+
+The lib parser is correct. The bug is upstream: `/me/player/currently-playing` does **not** include the `device` field at all, even though the OpenAPI spec (`resource/web-api/official-open-api.yaml:4701, 4967-4985`) declares the response shape as `CurrentlyPlayingContextObject` which has `device` as a top-level property. The server returns a subset; the spec describes the union. `device` is only actually returned by `/me/player`.
+
+**Observation**: This is the **second concrete instance** of the same pattern that drove LL-013. First instance (M1 spike, 2026-05-08): the spec said player-control endpoints return 204, server actually returns 200, and the lib's strict `return statusCode == 204` flagged every successful call as failure. Second instance (here): the spec said `/me/player/currently-playing` returns the full `CurrentlyPlayingContextObject`, server returns a subset.
+
+**Root cause**: The Spotify OpenAPI spec models multiple endpoints with the same response schema reference (`CurrentlyPlayingContextObject`) for documentation convenience. The server actually returns *different* shapes for those endpoints. The spec is a description of the *union* of fields any of those endpoints might surface — not a contract any single endpoint guarantees. Treating the spec as a contract for one specific endpoint is the trap.
+
+**Suggested improvement**:
+
+1. **Pre-merge wire capture for any lib-filter patch.** Any ADR or LOCAL_PATCH that depends on a documented field being present in a specific endpoint's response must include a `curl` dump showing the field is *actually* in that endpoint's response, captured against the project's own credentials. 30 seconds of work per patch; would have caught both LL-013 instances at design time.
+2. **Treat the OpenAPI spec as an over-approximation, not a contract.** When designing an endpoint consumer, ask "what does the server return for *this specific endpoint*?" and verify, rather than "what does the spec say the response shape is?".
+3. **Promote LL-013 + LL-009 to best-practice rules.** Two concrete instances of LL-013, plus the same family as LL-009 (verify endpoint access for the project's actual app, not just the documented API surface). Three data points across the project. Strong promotion case — these aren't isolated mistakes, they're a recurring class.
+
+Sister rule to LL-013 / LL-009 / LL-014 (don't blame the network without a positive test). Theme: **the wire is the source of truth; documentation is one input among many.**
+
+**Status**: open — strong promotion candidate. Process implication: ADR-015 establishes the precedent of including wire capture inline in the ADR's evidence section; subsequent ADRs touching API filters should follow the same pattern.
+
 ---
 
 ## Best-practice candidates (for human sign-off)
@@ -278,6 +298,7 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-015** → "Optimistic-UI mutations must survive the same loop iteration. Audit the downstream code path before shipping; defer force-actions or guard optimistic state explicitly." Architecture rule, applies to Developer.
 - **LL-016** → "Look at the asset before changing code; ask which layer (atlas / data-mapping / on-screen position) when 'swap' is ambiguous." Process rule, applies to Developer.
 - **LL-017** → "A library that produces output is more dangerous than one that errors. For data-pipeline libraries on the file classes we actually depend on, validate output against a second independent decoder; don't trust no-exception as success." Process rule, applies to Developer + Architect.
+- **LL-018** → "Treat the OpenAPI spec as an over-approximation, not a contract. Any lib-filter patch that depends on a documented field must include a wire-capture proof that the field is actually returned by the specific endpoint being patched." Process rule, applies to Developer + Architect. Two concrete instances (LL-013 was the first). Strongest promotion case in the candidate set.
 
 ---
 
