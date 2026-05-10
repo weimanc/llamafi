@@ -241,6 +241,8 @@ Triggering work: M4 polish (TASK-011), M2 skin bake tool tier 1 (TASK-012), and 
 
 **Status**: open — partial fix shipped (deferred re-poll). Promotion candidate.
 
+*Second concrete instance (2026-05-10, TASK-045)*: drag-to-set volume slider exhibits the same risk shape on continuous-touch input rather than single tap. Solved here with a tier-2-style mechanism: `WinampDisplay::optimisticVolumeUntilMs` is set to `now + 2000` on every drag sample, and `spotifyLogic.h::updateCurrentlyPlaying` skips the snap-driven `drawVolume` dedup gate when `millis() < getOptimisticVolumeUntil()`. The optimistic state is now authoritative for a bounded window across loop iterations, regardless of how many polls land in between. ADR-016 §10 captures the decision; the abstraction (`getOptimisticVolumeUntil()` virtual on the display interface) is reusable for any future per-element optimistic-write surface (e.g., scrub-to-seek's progress bar). Promotes the LL-015 suggestion's tier-2 idea into delivered code.
+
 ### LL-017 — 2026-05-09 — A library that produces output is more dangerous than one that errors
 
 **Context**: TASK-042. User reported BALANCE.BMP composite was wrong on screen ("thin 2-pixel strip surrounded by cyan"). Four prior rounds of investigation had me adjusting crop coordinates, transparency keys, and on-screen positions — none of which were the actual bug. The bug was that Pillow 11.3.0 silently mis-decodes BI_RLE8 streams that use the delta opcode (`00 02 dx dy`) — ~56 % of pixels in BALANCE.BMP came out at the wrong x coordinates, but `Image.open(...).load()` returned successfully and an `Image` object containing garbage was used downstream as if it were correct.

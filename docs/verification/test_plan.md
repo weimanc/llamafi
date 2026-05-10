@@ -447,6 +447,33 @@ Back-filled 2026-05-08.
 
 ## Suite: chrome-001 — Main-window decoration (M-CHROME tiers 1+2)
 
+### T074 — [chrome-001] Drag inside volume slot dispatches setVolume to Spotify
+- **Type**: e2e (DUT)
+- **Feature(s)**: chrome-001, touch-002
+- **Objective**: Confirm a touch-drag inside the volume slot enqueues debounced ACT_VOLUME requests, the spotifyTask body calls SpotifyArduino::setVolume, and Spotify accepts the released percent within ≤ 30 s of finger lift.
+- **Preconditions**: TASK-045 in tree; DUT booted with active Spotify Connect device that has `supports_volume: true` (Web Player, desktop app, etc).
+- **Steps**:
+  1. Drag finger from left to right across the volume slot.
+  2. Observe DUT serial: continuous `[D][chrome] drawVolume pct=NN keyframe=K` lines while dragging; `[D][spotify.task] dequeued action=VOLUME param=NN` lines (rate-limited ~3/s).
+  3. Lift finger; observe `[D][chrome] drag-end commit pct=NN` line.
+  4. Within ≤ 30 s, host-side `curl /v1/me/player` should report the released percent.
+- **Expected result**: At least one ACT_VOLUME dispatch during drag; one drag-end commit on lift; Spotify's `device.volume_percent` matches released value.
+- **Status**: passing (2026-05-10 — captured 8 ACT_VOLUME dispatches across multiple drag sessions: param=71, 56, 34, 25, 38, 62, 67, 70. Drag-end commits at pct=62 and pct=70. User-confirmed visual: knob tracked finger).
+
+### T075 — [chrome-001] Optimistic-UI freeze prevents flicker during/after drag
+- **Type**: visual (DUT)
+- **Feature(s)**: chrome-001
+- **Objective**: Confirm `WinampDisplay::getOptimisticVolumeUntil()` suppresses the snap-driven `drawVolume` dedup gate for ~2 s after each drag sample; user does NOT see the slider snap back to a stale `snap.volumePercent` between drag-end and the next poll's commit.
+- **Preconditions**: TASK-045 in tree; DUT booted; active device.
+- **Steps**:
+  1. Drag the slider to a value distinctly different from the current.
+  2. Lift finger.
+  3. Watch the slider for ~5 s. The slider's coloured fill + knob position must NOT visibly snap back to the pre-drag value during that window.
+- **Expected result**: No flicker. After the optimistic window expires (~2 s), normal dedup resumes; if Spotify has committed the new value, the next poll matches the cache and no redraw fires; if Spotify is slower, the snap may catch up but only once and to a non-stale value.
+- **Status**: passing (2026-05-10 — user-confirmed "works perfectly"; serial showed no drawVolume calls between drag-end and the next setVolume's downstream snapshot read).
+
+
+
 Tests for the Winamp main-window static + dynamic chrome elements. Tier-1 (kbps/kHz strip, MS indicator) + tier-2 static composite (TITLEBAR, BALANCE, kbps/kHz baked, MS_STEREO_ON/MS_MONO_OFF) are visual-only and not currently ticketed here — captured by T027's preview eyeball at bake time. Tier-2 dynamic VOLUME (TASK-041) is testable as below.
 
 ### T070a — [chrome-001] Volume snapshot reaches DUT chrome within one poll

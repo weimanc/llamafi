@@ -163,6 +163,27 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Drop `winampDisplay::drawBitrateSampleRate()`, `drawMonoStereo()`, `redrawMetadataStrip()`, the snapshot-seq watcher block in `checkForInput`.
 - Confirm visual via `--preview` eyeball before committing.
 
+### TASK-045 — M-CHROME tier 2.5: drag-to-set volume control
+**Owner**: Developer (impl), Architect (ADR-016), VE (T074 + T075)
+**Feature**: chrome-001, touch-002 (extension family)
+**Status**: done (2026-05-10; ADR-016 §5-§10 implemented; user-confirmed "works perfectly").
+**Notes**:
+- `ACT_VOLUME` added to `spotifyTask::Action` enum + dispatch case in `spotifyTaskStorage.cpp::taskBody` (no `doPoll()` after — drag-burst guard per ADR-016 §9). Calls `s_spotify->setVolume((int)req.param)` which accepts any 2xx (LOCAL_PATCHES patch #6).
+- `hitTestVolume(sx, sy)` mirrors `hitTestPosbar` shape — returns `0..100` percent if inside `(originX + VOLUME_X, originY + VOLUME_Y, 68, 13)`, else `-1`.
+- Drag state machine in `WinampDisplay`: `D_IDLE` ↔ `D_VOLUME_DRAG`. Transition on first hit inside the slot; transition back on the loop iteration where `ts.touched()` returns false. Drag-end commits a final `ACT_VOLUME(lastVolumeRendered)` if it diverges from `lastVolumeEnqueuedPct`.
+- Debounce: ACT_VOLUME enqueued at most once per 300 ms during drag (`VOLUME_DRAG_DEBOUNCE_MS`), unconditionally on drag-end. Bounds queue depth at ~1 in practice.
+- Optimistic-UI freeze (LL-015): `optimisticVolumeUntilMs = millis() + 2000` set on every drag sample. `WinampDisplay::getOptimisticVolumeUntil()` overrides the new base-class virtual on `SpotifyDisplay`. `spotifyLogic.h::updateCurrentlyPlaying` gates the snap-driven `drawVolume` dedup on `millis() >= getOptimisticVolumeUntil()`. Stops the next regular poll's stale `volumePercent` from re-anchoring the slider over the user's chosen value before Spotify commits.
+- Build: cyd2usb_winamp clean. Flash 99.2 % → 99.3 % (+492 bytes used: 0 new atlas, ~492 bytes code), 9.4 KB free.
+- DUT verify: captured drag samples and drag-end commits across multiple drag sessions. Sample log:
+  ```
+  drawVolume pct=58→61→62  →  drag-end commit pct=62
+  drawVolume pct=67→...→70 →  drag-end commit pct=70
+  spotify.task dequeued action=VOLUME param=71, 56, 34, 25, 38, 62, 67, 70
+  ```
+- T074 (drag dispatches setVolume): PASS — 8 ACT_VOLUME dispatches during drag session, all accepted by Spotify.
+- T075 (optimistic-UI freeze prevents flicker): PASS — user-confirmed no snap-back during/after drag.
+- ADR-016 OOS scope held: snap-to-bucket NOT implemented (linear values), pressed-state knob NOT introduced, no cross-drag.
+
 ### TASK-044 — M-CHROME tier 2.5: display-only volume knob
 **Owner**: Developer (impl), Architect (ADR-016)
 **Feature**: chrome-001
