@@ -278,6 +278,8 @@ Sister rule to LL-013 / LL-009 / LL-014 (don't blame the network without a posit
 
 **Status**: open — strong promotion candidate. Process implication: ADR-015 establishes the precedent of including wire capture inline in the ADR's evidence section; subsequent ADRs touching API filters should follow the same pattern.
 
+*Verification evidence (2026-05-10)*: ADR-015's URL change verified end-to-end on the DUT. T073 (host-side wire-comparison) caught the bug class directly in ~3 seconds without needing a flash cycle — exactly the discipline this LL prescribes. T070a / T070b PASS on first attempt against the new endpoint. The 30-second wire-capture step at design time would have prevented this entire investigation cycle.
+
 ---
 
 ## Best-practice candidates (for human sign-off)

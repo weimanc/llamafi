@@ -166,15 +166,15 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-043 — Switch primary poll to `/me/player` (unblock TASK-041)
 **Owner**: Developer (impl), Architect (ADR-015), VE (T073 + T070a/b re-run)
 **Feature**: api-002 (lib patch family)
-**Status**: planned (2026-05-10; gated behind ADR-015 acceptance)
+**Status**: done (2026-05-10; ADR-015 §1–§5 implemented; T073 + T070a + T070b all PASS).
 **Notes**:
-- Implementation spec: ADR-015 §1–§5. One-line lib change: `SPOTIFY_CURRENTLY_PLAYING_ENDPOINT` URL changes from `/v1/me/player/currently-playing?additional_types=episode` to `/v1/me/player?additional_types=episode`. No parser change.
-- Discovered by T070a/b execution on 2026-05-10. Wire capture (`/me/player/currently-playing` vs `/me/player`) shows `device` field is **only** present on `/me/player` response — Spotify spec says both endpoints return `CurrentlyPlayingContextObject`, server returns a subset for `/currently-playing`. Second instance of the LL-013 spec-vs-server divergence pattern.
-- TASK-041 implementation is structurally correct against ADR-014 A1; it just receives `-1` forever because TASK-039's filter targets a field the server doesn't send to that endpoint.
-- Document in `lib/SpotifyArduino/LOCAL_PATCHES.md` as patch #8.
-- VE gates before close: T073 (host-side wire-comparison), T070a (real-volume render path on DUT), T070b (sentinel transition on DUT). All three must pass.
-- Cost: zero on parser, ~150 bytes extra response body, zero round-trip increase.
-- Scope discipline: do not rename `getCurrentlyPlaying`; do not surface `repeat_state` / `shuffle_state`; do not refactor toward `getPlayerDetails`. All deferred per ADR-015's OOS list.
+- Lib URL change in `lib/SpotifyArduino/src/SpotifyArduino.h:68` — `SPOTIFY_CURRENTLY_PLAYING_ENDPOINT` flipped from `/v1/me/player/currently-playing?additional_types=episode` to `/v1/me/player?additional_types=episode`. Documented as LOCAL_PATCHES.md patch #8.
+- Diag log added during T070a debug session (`spotifyLogic.h` `[D][chrome.diag]` Serial.printf) reverted in same commit — LL-010 hygiene.
+- Side-fix discovered during T070b: 204 No Content path in `spotifyTaskStorage.cpp::doPoll` did NOT bump snapshot seq nor reset `volumePercent`, so the dedup gate suppressed the NONE redraw on session-close. Fix: 204 path now writes `g_snapshot.volumePercent = -1` and bumps seq under the spinlock, leaving track fields alone. ~5 LOC.
+- T073 host-side test: `tools/test_player_endpoint_superset.py`. PASS — confirmed `/me/player` is a strict superset for every firmware-consumed field; `device.volume_percent=16` returned (Web Player active, supports_volume=true).
+- T070a DUT: captured drawVolume transitions `pct=10 keyframe=0` → `pct=90 keyframe=4` against host-side toggle script (`/tmp/volume_toggle.py` 10↔90 every 12s). Visual: red max-fill bar at 90%.
+- T070b DUT: captured `pct=-1 keyframe=NONE` (boot) → `pct=65 keyframe=3` (first poll) → `pct=-1 keyframe=NONE` (Web Player closed, 204 path triggered the 204-handler reset). All three transitions in serial; visual confirmed.
+- ADR-015 OOS scope held: no rename, no extra fields surfaced, no refactor toward `getPlayerDetails`.
 
 ### TASK-042 — Manual BI_RLE8 decoder in bake_skin.py (silent-corruption fix)
 **Owner**: Developer (impl), Architect (ADR-008 amendment), VE (regression)
@@ -191,7 +191,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-041 — M-CHROME tier 2: dynamic VOLUME slider
 **Owner**: Developer
 **Feature**: chrome-001
-**Status**: planned (2026-05-09; gated behind ADR-014 Amendment 1, accepted 2026-05-10. TASK-039 done; TASK-040 done at fbbe421.)
+**Status**: done (2026-05-10; impl at b8f37d3..8075176; verification end-to-end via TASK-043 — see below).
 
 **Implementation spec**: ADR-014 Amendment 1 §A1.1–A1.7 is authoritative. Original ADR-014 §3 wording is superseded — do not implement against §3 directly.
 

@@ -40,7 +40,14 @@ All audits: scope, findings, actions, status.
 | Promote LL-013 + LL-009 + LL-018 to best-practice rules | human | candidate, deferred |
 | Future filter-touching ADRs MUST include wire-capture evidence inline | Architect | discipline rule (ADR-015 sets the precedent) |
 
-**Resolution**: open — TASK-043 + ADR-015 + T073 + LL-018 + this row land in this commit. T073 + T070a + T070b execution will close TASK-043 in a follow-up commit.
+**Resolution**: closed (2026-05-10). TASK-043 implemented (lib URL change + LOCAL_PATCHES patch #8 + diag-log revert + T073 host-side test + 204-handler side-fix discovered during T070b). All three VE gates PASS:
+- **T073** PASS — `/me/player` confirmed strict superset of `/me/player/currently-playing` for firmware-consumed fields; `device.volume_percent` present (Web Player Firefox, supports_volume=true).
+- **T070a** PASS — DUT captured drawVolume transitions `pct=10 keyframe=0` → `pct=90 keyframe=4` (red max-fill bar) against host-side toggle script.
+- **T070b** PASS — both directions: NONE→real (`pct=-1 keyframe=NONE` → `pct=65 keyframe=3` orange) and real→NONE (Web Player closed, 204 fired, 204-handler reset volume to -1, dedup gate fired, NONE rendered).
+
+The 204-handler fix in `spotifyTaskStorage.cpp::doPoll` was a small implementation gap not anticipated in ADR-014 Amendment 1 §A1.2 — the original wording assumed the 204 path would naturally surface a sentinel transition, but the existing 204 handler did not bump `seq` nor reset `volumePercent`, so the dedup gate suppressed the redraw. Five lines added; no further follow-up.
+
+LL-013 / LL-009 / LL-018 promotion remains a deferred human decision; this audit closes its scope without that step.
 
 ---
 

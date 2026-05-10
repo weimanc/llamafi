@@ -460,7 +460,7 @@ Tests for the Winamp main-window static + dynamic chrome elements. Tier-1 (kbps/
   3. Observe DUT serial within 5 s for a fresh `drawVolume pct=NN keyframe=K` line.
   4. Visual: VOLUME slider on the DUT now shows the new keyframe.
 - **Expected result**: New log line within ≤ 5 s after the API call. Chrome reflects the new keyframe visually. No redraw thrash on subsequent polls when volume hasn't changed (cache-gating works).
-- **Status**: planned. Owner: VE. Blocks TASK-041 close.
+- **Status**: passing (2026-05-10 — DUT captured drawVolume bucket transitions `pct=10 keyframe=0` → `pct=90 keyframe=4` against host-side toggle script `/tmp/volume_toggle.py`. Visual: red max-fill bar at 90% confirmed by user. Some poll attempts hit the recurring DUT network-flake ceiling — not a TASK-041 regression).
 
 ### T073 — [api-002] `/me/player` is a strict superset of `/me/player/currently-playing` for fields the firmware reads
 - **Type**: integration (host-side, no DUT)
@@ -473,7 +473,7 @@ Tests for the Winamp main-window static + dynamic chrome elements. Tier-1 (kbps/
   3. For each field the firmware reads (list above), assert: present in `/me/player` response with the same value as in `/currently-playing` (drift on `progress_ms` allowed up to 1 s).
   4. Assert `device.volume_percent` exists on `/me/player`.
 - **Expected result**: All assertions pass. If any fail, ADR-015 must be re-evaluated and TASK-043 may need to roll back.
-- **Status**: planned. Owner: VE. Blocks TASK-043 close.
+- **Status**: passing (2026-05-10 — first run against Web Player Firefox active device, all six firmware-consumed fields matched between endpoints, `device.volume_percent=16` present on `/me/player`).
 
 ### T070b — [chrome-001] Sentinel keyframe shows when no active device
 - **Type**: e2e (DUT)
@@ -487,7 +487,7 @@ Tests for the Winamp main-window static + dynamic chrome elements. Tier-1 (kbps/
   4. Observe DUT serial within ≤ 5 s for a `drawVolume pct=NN keyframe=K` line with `K != NONE`.
   5. Visual: VOLUME slot transitions from empty-grey to the matching real keyframe.
 - **Expected result**: KEYFRAME_NONE on boot. Clean transition to a real keyframe on first poll after a device becomes active. No flicker or partial-paint artefacts.
-- **Status**: planned. Owner: VE. Blocks TASK-041 close.
+- **Status**: passing (2026-05-10 — full bidirectional cycle captured: `pct=-1 keyframe=NONE` (boot) → `pct=65 keyframe=3` (Web Player active, orange bar) → `pct=-1 keyframe=NONE` (Web Player closed, 204 fired, 204-handler in TASK-043 reset volume to -1, dedup gate fired, NONE rendered). User visually confirmed both transitions. Caveat: pause-without-close keeps the device active, so volume stays at last value — that's correct behaviour, not a regression).
 
 ---
 
