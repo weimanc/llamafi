@@ -179,14 +179,23 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 **Owner**: Developer
 **Feature**: chrome-001
 **Status**: planned (2026-05-09; gated behind ADR-014 Amendment 1, accepted 2026-05-10. TASK-039 done; TASK-040 done at fbbe421.)
-**Notes**:
-- Implementation spec is **ADR-014 Amendment 1** §A1.1–A1.7. The original §3 wording in ADR-014 is superseded — do not implement against §3 directly.
-- Asset inspection done: VOLUME.BMP layout is canonical 28×15-stride (verified via `_decode_bmp_rle8` + PIL fallback, since VOLUME.BMP is uncompressed unlike BALANCE/TEXT). Keyframes locked in §A1.3: source frames 0, 7, 14, 20, 27 plus a synthesised KEYFRAME_NONE for the sentinel case.
-- Render trigger: `spotifyLogic.h::updateCurrentlyPlaying`, **not** `checkForInput`. Cache-gated via a local `lastVolumeRendered = -2` to avoid redundant blits.
-- Sentinel: `volumePercent < 0` → KEYFRAME_NONE (greyed empty track). Decision per §A1.2 — bake the 6th keyframe rather than punt on visual semantics.
-- Snapshot writer: poll-success branch in `spotifyTask` task body, alongside `isPlaying`/`progressMs`/`playingType`. (Note: there is no `onCurrentlyPlaying` callback — original ADR wording was wrong.)
-- VE: T070 split into T070a (real-volume render path) + T070b (sentinel transition). Both required before close.
-- Internal commit ordering per §A1.7: (1) bake atlas, (2) snapshot field, (3) `drawVolume` renderer, (4) wire-in. Each compiles cleanly on its own.
+
+**Implementation spec**: ADR-014 Amendment 1 §A1.1–A1.7 is authoritative. Original ADR-014 §3 wording is superseded — do not implement against §3 directly.
+
+**Issues raised in 2026-05-10 Architect review and how each is closed**:
+
+| # | Issue (from review) | Severity | Closed by |
+|---|---|---|---|
+| 1 | "Snapshot-seq watcher inside `checkForInput`" referenced by §3 was deleted in TASK-040 — drift between ADR and code. | medium | §A1.1 — render trigger moves to `spotifyLogic.h::updateCurrentlyPlaying`. |
+| 2 | `updateCurrentlyPlaying`'s existing `isSameTrack` gate would suppress volume-only changes (volume can shift without a track change). | high | §A1.1 — `static int8_t lastVolumeRendered = -2;` value-cache, checked **before** the `isSameTrack` early-return. |
+| 3 | Sentinel render unspecified — original ADR punted between "lowest keyframe", "skip", or "neutral", each wrong. | medium | §A1.2 — bake a dedicated 6th KEYFRAME_NONE (greyed empty track). Decision committed, not deferred. |
+| 4 | VOLUME.BMP frame layout assumed canonical without inspection (LL-016 family — same shape as BALANCE.BMP's non-canonical-stride trap). | medium | §A1.3 — empirically inspected via `_decode_bmp_rle8` (uncompressed BMP, fell through to PIL); confirmed canonical 28×15-stride. Frames locked: 0, 7, 14, 20, 27. |
+| 5 | "`spotifyTask::onCurrentlyPlaying`" wording in §3 — no such callback exists. | low | §A1.4 — corrected to "snapshot-write block of the poll-success branch in the task body". |
+| 6 | On-screen position (107, 57) collision risk vs the now-baked TITLEBAR / kbps-text / BALANCE composite. | log-only | §A1.5 — verified non-colliding (3 px gap to BALANCE x=177; 8 px gap above kbps text at y=43-49). No change needed. |
+| 7 | Atlas-surface accounting needs to include sentinel keyframe. | low | §A1.2 — 6 × 68×13 × 2 = 10,608 bytes. Fits in 18 KB flash headroom. |
+| 8 | T070 acceptance was vague — no concrete pass criteria for VE. | medium | §A1.6 — split into T070a (real-volume render path) + T070b (sentinel transition). Both planned in `test_plan.md`. Both required before TASK-041 closes. |
+
+**Internal commit ordering** per §A1.7: (1) bake atlas (5 source-frame keyframes + synthesised KEYFRAME_NONE), (2) snapshot field, (3) `drawVolume` renderer, (4) wire-in to `updateCurrentlyPlaying` + `repaintChrome`. Each step compiles cleanly on its own; steps 1–3 are dead code until step 4 — intentional, eases review.
 
 ### TASK-026 — M-CHROME tier-2 flash-budget ADR
 **Owner**: Architect
