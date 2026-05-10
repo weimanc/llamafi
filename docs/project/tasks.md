@@ -178,13 +178,15 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-041 — M-CHROME tier 2: dynamic VOLUME slider
 **Owner**: Developer
 **Feature**: chrome-001
-**Status**: planned (2026-05-09; ADR-014 sub-task 4; depends on TASK-039 + TASK-040)
+**Status**: planned (2026-05-09; gated behind ADR-014 Amendment 1, accepted 2026-05-10. TASK-039 done; TASK-040 done at fbbe421.)
 **Notes**:
-- Bake VOLUME.BMP with 5 keyframes (every ~6th of 28). `gen/skin_layout.h` exposes `VOLUME_FRAME(n)` SkinUV macro.
-- Snapshot: add `int8_t volumePercent` (-1 if unknown). Set in `spotifyTask::onCurrentlyPlaying`.
-- New `winampDisplay::drawVolume(int percent)` blits the keyframe at (107, 57). Negative percent → draw lowest keyframe (or "no device" sentinel).
-- Wired into `repaintChrome()` and the snapshot-seq watcher inside `checkForInput`.
-- VE follow-up T070: change volume via spike harness, observe DUT chrome reflects the new level within one poll.
+- Implementation spec is **ADR-014 Amendment 1** §A1.1–A1.7. The original §3 wording in ADR-014 is superseded — do not implement against §3 directly.
+- Asset inspection done: VOLUME.BMP layout is canonical 28×15-stride (verified via `_decode_bmp_rle8` + PIL fallback, since VOLUME.BMP is uncompressed unlike BALANCE/TEXT). Keyframes locked in §A1.3: source frames 0, 7, 14, 20, 27 plus a synthesised KEYFRAME_NONE for the sentinel case.
+- Render trigger: `spotifyLogic.h::updateCurrentlyPlaying`, **not** `checkForInput`. Cache-gated via a local `lastVolumeRendered = -2` to avoid redundant blits.
+- Sentinel: `volumePercent < 0` → KEYFRAME_NONE (greyed empty track). Decision per §A1.2 — bake the 6th keyframe rather than punt on visual semantics.
+- Snapshot writer: poll-success branch in `spotifyTask` task body, alongside `isPlaying`/`progressMs`/`playingType`. (Note: there is no `onCurrentlyPlaying` callback — original ADR wording was wrong.)
+- VE: T070 split into T070a (real-volume render path) + T070b (sentinel transition). Both required before close.
+- Internal commit ordering per §A1.7: (1) bake atlas, (2) snapshot field, (3) `drawVolume` renderer, (4) wire-in. Each compiles cleanly on its own.
 
 ### TASK-026 — M-CHROME tier-2 flash-budget ADR
 **Owner**: Architect

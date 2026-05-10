@@ -445,6 +445,39 @@ Back-filled 2026-05-08.
 
 ---
 
+## Suite: chrome-001 — Main-window decoration (M-CHROME tiers 1+2)
+
+Tests for the Winamp main-window static + dynamic chrome elements. Tier-1 (kbps/kHz strip, MS indicator) + tier-2 static composite (TITLEBAR, BALANCE, kbps/kHz baked, MS_STEREO_ON/MS_MONO_OFF) are visual-only and not currently ticketed here — captured by T027's preview eyeball at bake time. Tier-2 dynamic VOLUME (TASK-041) is testable as below.
+
+### T070a — [chrome-001] Volume snapshot reaches DUT chrome within one poll
+- **Type**: e2e (DUT)
+- **Feature(s)**: chrome-001 (also exercises api-002 lib-patch surface from TASK-039)
+- **Objective**: Confirm a remote `setVolume` call propagates through the next currently-playing poll into a redrawn VOLUME slider on the DUT.
+- **Preconditions**: DUT booted, Spotify Connect active device reporting `device.volume_percent`. TASK-041 implementation in tree.
+- **Steps**:
+  1. Note current volume via `[D][chrome] drawVolume pct=NN keyframe=K` log line on boot.
+  2. From host: `curl -X PUT -H "Authorization: Bearer $TOKEN" "https://api.spotify.com/v1/me/player/volume?volume_percent=NN"` with NN in a different keyframe bucket than current. (Or use the existing spike-harness `v` row.)
+  3. Observe DUT serial within 5 s for a fresh `drawVolume pct=NN keyframe=K` line.
+  4. Visual: VOLUME slider on the DUT now shows the new keyframe.
+- **Expected result**: New log line within ≤ 5 s after the API call. Chrome reflects the new keyframe visually. No redraw thrash on subsequent polls when volume hasn't changed (cache-gating works).
+- **Status**: planned. Owner: VE. Blocks TASK-041 close.
+
+### T070b — [chrome-001] Sentinel keyframe shows when no active device
+- **Type**: e2e (DUT)
+- **Feature(s)**: chrome-001
+- **Objective**: Confirm KEYFRAME_NONE renders when `device.volume_percent` is unavailable (no active Spotify Connect device, or `device` field absent from the response). Confirm the transition to a real keyframe once a device becomes active.
+- **Preconditions**: DUT booted with a fresh Spotify session that has NO active device (close all Spotify clients). TASK-041 implementation in tree.
+- **Steps**:
+  1. Boot DUT; observe boot log + screen.
+  2. Verify `[D][chrome] drawVolume pct=-1 keyframe=NONE` log line and KEYFRAME_NONE (greyed empty track) on screen.
+  3. From a phone or desktop Spotify client: start playback (transfer to that device).
+  4. Observe DUT serial within ≤ 5 s for a `drawVolume pct=NN keyframe=K` line with `K != NONE`.
+  5. Visual: VOLUME slot transitions from empty-grey to the matching real keyframe.
+- **Expected result**: KEYFRAME_NONE on boot. Clean transition to a real keyframe on first poll after a device becomes active. No flicker or partial-paint artefacts.
+- **Status**: planned. Owner: VE. Blocks TASK-041 close.
+
+---
+
 ## Entry Format
 
 ```
