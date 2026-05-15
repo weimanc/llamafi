@@ -417,7 +417,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-047d — M-LIST-v2: total time in PLEDIT bottom bar
 **Owner**: Developer
 **Feature**: playlist-002
-**Status**: planned (2026-05-15; depends on TASK-047a + TASK-047b + TASK-047c)
+**Status**: done (2026-05-15 — commit 15ab2c5; right-aligned in scrollbar track x=222, y+5 in bottom bar)
 **Notes**:
 - Sum `durationMs` across all `count` snapshot entries on each `drawPlaylist()` call.
 - Format as `"H:MM:SS"` (hours if sum ≥ 1 h, else `"MM:SS"`).
