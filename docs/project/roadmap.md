@@ -319,40 +319,250 @@ The tier-2 sheets are dominated by frame-strip variants (28 volume positions, 28
 
 ## M-LIST — Top-align Winamp UI + add playlist panel
 
-**Status:** planned (added 2026-05-08).
+**Status:** done (TASK-020 DUT-verified 2026-05-15; M-LIST-v2 PLEDIT skin in progress per ADR-018).
 
-**Scope:** Stop centering the Winamp main window on the panel. Top-align it instead, then use the freed-up area below to render a Spotify playlist / queue / next-up list. Two orientation options on the table:
+**Scope:** Top-align the Winamp chrome and render a Spotify queue strip in the freed area below.
 
-| Option | Panel rotation | UI rotation | Playlist area | Notes |
-|---|---|---|---|---|
-| **C (default lean)** | landscape (no change, 320×240) | none | **320 × 124 px** below UI | one-line change to `originY`; no bake-time rotation; touch coordinates unchanged. Largest playlist canvas. |
-| **B (portrait)** | `setRotation(0)`/`2` (240×320) | 90° at bake time | 240 × 45 px below UI | needs rotated atlas, layout-constant swap, touch x/y swap, screenLog flip. Phone-like ergonomics; ~3× less playlist area than C. |
+**Decisions locked (ADR-017):**
 
-Pick on aesthetic/ergonomic grounds. C if "as much playlist as possible" wins; B if "device held vertically like a phone" wins.
+| Decision | Choice |
+|---|---|
+| Orientation | **C — landscape, `originY = 0`** (TASK-022 cancelled) |
+| Playlist area | 320 × 124 px at y=116..240 |
+| Data source | `GET /me/player/queue` (Tier 1; see `ADR-017-api-candidates.md`) |
+| Row 0 | Currently-playing track (yellow-gold highlight) |
+| Rows 1-6 | Queue items (Winamp grey-green) |
+| Font | TFT_eSPI Font 2 (12×16 px) — 7 rows |
+| Tap-to-play | Tier 2 (TASK-021, deferred) |
 
-**Why now:** M5 closed the control surface. The current centered chrome wastes ~50 % of the panel as black margin. A playlist is the natural use of that real-estate, fits the Winamp aesthetic (Winamp had a separate playlist window), and gives the user up-next visibility that maps directly to a planned UX (tap a row to play that track).
+**Sub-tasks (all done):**
+
+| Deliverable | Owner | Status |
+|---|---|---|
+| TASK-020a: `originY = 0` layout shift | Developer | done |
+| TASK-020b: `QueueSnapshot` + `getQueue()` + poll logic | Developer | done |
+| TASK-020c: `drawPlaylist()` renderer + seqno-diff hook | Developer | done |
+| TASK-021: tap-on-row → play that track | Developer | deferred (tier 2) |
+| TASK-022: portrait rotation (option B) | — | **cancelled** |
+
+### Exit criteria (met 2026-05-15)
+- ✅ Winamp chrome paints flush with the top edge.
+- ✅ Playlist strip shows currently-playing in row 0, queue rows 1-6 below, updated ≤5 s.
+- ✅ 60 s keepalive re-fetches queue without track change.
+- ✅ Flash budget delta ≤ +3 % on `cyd2usb_winamp`.
+
+---
+
+## M-LIST-v2 — Winamp PLEDIT playlist skin
+
+**Status:** planned (2026-05-15 — whiteboard done, ADR-018 accepted).
+
+**Scope:** Replace the plain-black row list from TASK-020 with a proper Winamp Playlist Editor (`PLEDIT.BMP`) skin. Option C hybrid: baked title bar (14 px) + bottom bar (16 px) + `SKIN_PLEDIT_ROW_HIGHLIGHT` sprite; 5 track rows with `MM:SS` duration right-aligned; total playlist time in bottom bar.
+
+**Decisions locked (ADR-018):**
+
+| Decision | Choice |
+|---|---|
+| Fitting strategy | **Option C — PLEDIT title bar + bottom bar baked; 5 track rows** |
+| Row count | **5** (authenticity over count) |
+| Duration format | **`MM:SS` right-aligned** per row, original Winamp style |
+| Scrollbar | Static decoration (Tier 1); live position deferred Tier 2 |
+| Total time | Sum `durationMs`, rendered in PLEDIT bottom bar time slot |
 
 **Sub-tasks:**
 
-| Deliverable | Owner | Tier |
-|---|---|---|
-| Architect decision: option B vs C (one ADR) | Architect | gate |
-| Top-align: shift `originY` to 0 in `winampDisplay.h::displaySetup` | Developer | tier 1 |
-| Reposition the screenLog overlay layout to wrap around the new chrome position | Developer | tier 1 |
-| Spotify Web API surface for the queue: `GET /me/player/queue` (already in `resource/web-api/player-endpoints.yaml`) | Developer | tier 1 |
-| Playlist renderer: scrolling N-row list with current-track highlight, font 1 or 2, rendered into the freed strip | Developer | tier 1 |
-| Tap-on-row → play-that-track (`spotify.playAdvanced` with the track URI as `context_uri`) | Developer | tier 2 |
-| If option B chosen: bake-time atlas rotation + layout-constant swap + touch coord swap + screenLog flip | Developer | tier-B-only |
+| Deliverable | Owner | Tier | Status |
+|---|---|---|---|
+| TASK-047a: `bake_skin.py` PLEDIT extraction + atlas + preview | Developer | 1 | planned |
+| TASK-047b: `durationMs` in `QueueEntry` + `getQueue()` filter | Developer | 1 | planned |
+| TASK-047c: `drawPlaylist()` redesign — PLEDIT chrome + row format | Developer | 1 | planned |
+| TASK-047d: total time in PLEDIT bottom bar | Developer | 1 | planned |
+| TASK-021: tap-on-row → play that track | Developer | 2 | deferred |
+| TASK-047e: scrollbar live position | Developer | 2 | deferred |
 
-**Cross-cuts:** depends on `m3-001`, `touch-002`, `log-002`. Touches `disp-001`. Adds new feature `playlist-001`.
-
-**Tracked as:** TASK-020 (architect decision + tier-1 wire-up), TASK-021 (tap-to-play), TASK-022 (option-B rotation if chosen).
+**Cross-cuts:** depends on TASK-020 (done), `m2-001` bake pipeline, `m3-001` renderer. Adds feature `playlist-002`.
 
 ### Exit criteria
-- Winamp chrome paints flush with the top edge.
-- Playlist strip below the chrome shows the current Spotify queue (≥3 rows, current track first or highlighted), updated on each poll cycle.
-- ScreenLog overlay still functional (zero overhead when off; renders cleanly around the new chrome position when on).
-- No flash regression > 1 % on `cyd2usb_winamp`.
+- `gen/skin_preview.png` shows PLEDIT title bar + 5 rows + bottom bar below main chrome.
+- DUT: PLEDIT title bar at `y=116`, bottom bar at `y=224`.
+- DUT: row 0 `► Artist - Title   MM:SS` with PLEDIT highlight bg.
+- DUT: rows 1-4 PLEDIT green text, right-aligned `MM:SS`, black bg.
+- DUT: total time in bottom bar time slot.
+- Flash delta ≤ +2 % on `cyd2usb_winamp`.
+- `sha256sum -c golden.sha256` passes after re-bake.
+- No regression in main chrome.
+
+---
+
+## M-LIST-v3 — Playlist interactivity: selected-row tracking + virtual scroll
+
+**Status:** planned (2026-05-15).
+
+**Scope:** Three tightly coupled playlist features that together make the PLEDIT strip behave like the real Winamp playlist editor.
+
+### Feature 1 — Selected-row highlight tracks the current song
+
+**Problem:** Row 0 is permanently highlighted (gold). After `TASK-021` tap-to-play, the user sees instant `PUT /play` 204 but the highlight stays at row 0 until the next queue poll (~5 s). The delay breaks the cause-and-effect expectation.
+
+**Approach:**
+- After `ACT_PLAY_URI param=N` is dispatched, `winampDisplay` tracks an `optimisticSelectedRow` index (similar to `optimisticVolumeUntilMs`). `drawPlaylist()` renders that row as selected instead of row 0 until the queue snapshot's seqno advances (confirming Spotify updated the queue) or a timeout expires (~8 s).
+- On track change (seqno advances), derive selected row from the new `items[0]` URI matching the previously enqueued URI — or just reset to row 0 (items[0] = currently playing, always correct post-poll).
+
+### Feature 2 — Virtual scroll: queue > 5 items
+
+**Problem:** `SPOTIFY_QUEUE_MAX_ITEMS = 5` caps the queue. Expanding to 10–20 items requires a scroll offset to stay within the 5 visible rows.
+
+**Approach:**
+- Extend `SPOTIFY_QUEUE_MAX_ITEMS` (patched in `lib/SpotifyArduino/`) to e.g. 20. `QueueSnapshot` grows accordingly.
+- Add `scrollOffset` (int, 0-based) to `WinampDisplay`. `drawPlaylist()` renders `items[scrollOffset .. scrollOffset + PLEDIT_ROW_COUNT - 1]`.
+- Touch: row tap maps to `scrollOffset + row` for `ACT_PLAY_URI`.
+- Scroll gesture (swipe in PLEDIT content area) increments/decrements `scrollOffset`. Simple up/down drag detection (reuse `dragState` pattern).
+
+### Feature 3 — Live scrollbar thumb
+
+**Problem:** TASK-047e deferred the scrollbar to a static decoration.
+
+**Approach:**
+- Scrollbar thumb position = `scrollOffset / (count - PLEDIT_ROW_COUNT)` × scrollbar track height.
+- On each `drawPlaylist()` redraw, blit the thumb sprite at the computed Y within the scrollbar track (right-side PLEDIT chrome).
+- Depends on Feature 2 (scroll offset exists only once virtual scroll lands).
+
+### Cross-feature: auto-scroll to current track on track change
+
+**Problem:** After the queue scrolls, the currently-playing track (items[0]) may be above the scroll window. A track change should snap the view back to include it.
+
+**Approach:**
+- On `seqno` advance (track changed), reset `scrollOffset = 0` so items[0] (current track) is always in view.
+- If the user had scrolled, the snap is intentional and expected (same behaviour as real Winamp).
+
+**Sub-tasks (to be fleshed out by PM when scheduled):**
+
+| Task | Scope |
+|---|---|
+| TASK-051a | `optimisticSelectedRow` in `winampDisplay.h`; drawPlaylist uses it for highlight |
+| TASK-051b | Extend `SPOTIFY_QUEUE_MAX_ITEMS` to 20; grow `QueueSnapshot`; verify RAM budget |
+| TASK-051c | `scrollOffset` in `WinampDisplay`; drawPlaylist slices items[offset..offset+5] |
+| TASK-051d | Swipe gesture in PLEDIT content area drives scrollOffset |
+| TASK-051e | Live scrollbar thumb (depends on TASK-051c) |
+| TASK-051f | Auto-scroll-to-current on seqno advance (reset scrollOffset = 0) |
+
+**Cross-cuts:** extends `TASK-021` (tap-to-play row index must add `scrollOffset`); extends `TASK-047c/d` (drawPlaylist); touches `lib/SpotifyArduino` (queue size constant). Adds feature `playlist-003`.
+
+### Exit criteria
+- Selected row highlight follows the playing track within one poll after track change; optimistic highlight appears immediately on tap.
+- With queue > 5 items, swipe up/down scrolls the visible window; all rows reachable.
+- Scrollbar thumb position matches scroll position.
+- Track change (external or via tap) snaps view to show currently-playing in row 0.
+- No regression in tap-to-play (TASK-021) or PLEDIT chrome (TASK-047).
+
+---
+
+## M-VIS — Visualization area: spectrum + waveform + toggle
+
+**Status:** planned (2026-05-15 — whiteboard done; mono spectrum chosen per Winamp 2 main-window convention).
+
+**Scope:** Replace the fixed synthetic VU meter with a proper Winamp-style visualization section. Tap on the vis area cycles through four modes: **VU → Spectrum → Wave → Blank → VU**. VU mode is the existing M6 implementation (kept). Spectrum and wave are new synthesized renderers operating within the confirmed vis area `(x=24, y=43, w=76, h=13 px)`.
+
+No new API calls. All views derive from the existing synthetic envelope engine (`lLvl`, `rLvl`, beat phase, LFO) already in `vuMeter.h`.
+
+**Vis area geometry (confirmed):**
+```
+window-local: x=24, y=43, w=76, h=13
+VU left bar:  y=43..48  (6px)
+gap row:      y=49       from SKIN_MAIN_BG
+VU right bar: y=50..55  (6px)
+wave midline: y=49 (centre)
+```
+
+**Mode cycle:** tap vis area → `vu::nextMode()` → `VIS_VU → VIS_SPECTRUM → VIS_WAVE → VIS_BLANK → VIS_VU`
+
+**Decisions locked:**
+
+| Decision | Choice |
+|---|---|
+| Spectrum layout | Mono, 38 bars × 2px wide, full 76px (matches Winamp 2 main-window default) |
+| Spectrum colours | Green 0–50 % height, yellow 50–80 %, red 80–100 % (Winamp classic palette) |
+| Peak dots | 1×1 px per bin, rises instantly, falls ~1 px / 100 ms |
+| Wave colour | `TFT_GREEN` (Winamp oscilloscope default) |
+| Wave cycles | 2.5 per 76 px width (dense, matches Winamp feel) |
+| Wave amplitude | `lLvl × 5 px` (±5 from centre; collapses to flat line when paused) |
+| Background restore | All modes: blit `SKIN_MAIN_BG` rows for vis area before draw (same pattern as TASK-049) |
+| Data source | Synthetic only — existing envelope engine, no new API |
+
+**Aesthetics spec:**
+
+*Spectrum:* 38 vertical bars × 2px, bottom-up fill, green→yellow→red by height. Static `shape[38]` pink-noise rolloff table (`1 - i/37 × 0.6`). Beat transient injected into low bins only (i < 8). Peak dot per bar decays at 1 px/100 ms.
+
+*Wave:* `y[x] = centre + round(lLvl × 5 × sin(φ + x × 2.5 × 2π / 76))`. Phase `φ` advances `+0.3 rad` per tick (20 Hz). Restore SKIN_MAIN_BG before each frame; draw single green pixels.
+
+*Blank:* restore SKIN_MAIN_BG to vis area, then idle (no per-tick work).
+
+**Sub-tasks:**
+
+| Task | Scope | Status |
+|---|---|---|
+| TASK-050a | `VisMode` enum + `nextMode()` + vis hit-test + touch dispatch + blank mode | planned |
+| TASK-050b | Spectrum analyzer: bin synthesis, bar render, peak dots | planned |
+| TASK-050c | Waveform oscilloscope: phase-advancing sine, single-pixel line | planned |
+
+**Cross-cuts:** extends `vuMeter.h` (adds sig to `tick()`); touches `winampDisplay.h::checkForInput()`; depends on TASK-049 (SKIN_MAIN_BG background restore pattern already established). Adds feature `vis-001`.
+
+### Exit criteria
+- Tapping vis area cycles VU → Spectrum → Wave → Blank → VU on DUT.
+- Spectrum: 38 bars visible, colour grades green→yellow→red by height, peak dots visible and decaying.
+- Wave: smooth sine oscillation, amplitude tracks playback level, flat line when paused.
+- Blank: vis area shows skin background texture only.
+- VU mode: unchanged from M6 (regression check).
+- No regression in touch controls (transport, posbar, volume, shufrep) — vis hit-test must not overlap existing zones.
+- Flash delta ≤ +1 % on `cyd2usb_winamp` (`shape[]` table + peak state ≈ < 300 bytes).
+
+---
+
+## M-UI-POLISH — Small UI fidelity improvements
+
+**Status:** planned (2026-05-15 — whiteboard done).
+
+**Scope:** Two focused fidelity fixes that close gaps between the current render and original Winamp 2 behaviour. No new API calls, no bake-tool changes, no new atlas data.
+
+### Item 1 — Artist + title in marquee strip (TASK-048)
+
+**Gap:** title strip currently shows track `name` only. `Snapshot::artistName` is already populated — just not wired.
+
+**Original Winamp 2 format (main window):** `"Artist - Title"` — no track-number prefix (that is playlist-editor only). Fall back to `"Title"` alone when artist is blank.
+
+**Changes:**
+- `lastTitle[128]` → `lastTitle[260]` (artist 128 + `" - "` 3 + title 128 + NUL 1).
+- Compose `artist + " - " + name` on track change; detect change on either field.
+- Scroll gap: insert `"   "` (3 spaces) between end of string and loop-back start, producing the classic endless-ticker feel original Winamp had.
+- Scroll speed (`TITLE_SCROLL_STEP_MS=120`) stays unchanged unless user prefers faster.
+
+**Change surface:** ~10 LOC in `winampDisplay.h`. No bake or firmware arch change.
+
+### Item 2 — VU zero-fill from SKIN_MAIN_BG (TASK-049)
+
+**Gap:** `vuMeter.h::tick()` clears the "off" portion of each bar with `fillRect(TFT_BLACK)`, overwriting the skin's visualization-area background texture.
+
+**Fix:** Mirror the pattern `drawTitleText()` already uses — blit the corresponding `SKIN_MAIN_BG` rows into the zero-fill region. VU rects `(x=24, LEFT_Y=43, RIGHT_Y=50, w=76, h=6)` are fully within the `275×116` `SKIN_MAIN_BG` atlas.
+
+**Changes:**
+- Add `const uint16_t *mainBg` parameter to `vu::tick()`.
+- Replace `fillRect(TFT_BLACK)` with per-row `pushImage` from `SKIN_MAIN_BG` at the zero-fill offset.
+- Update `vu::tick(originX, originY, SKIN_MAIN_BG)` call site in `.ino`.
+
+**Change surface:** ~15 LOC in `vuMeter.h` + 1 LOC call site. No bake or atlas change.
+
+### Sub-tasks
+
+| Task | Item | Status |
+|---|---|---|
+| TASK-048 | Artist + title in marquee strip | planned |
+| TASK-049 | VU zero-fill from SKIN_MAIN_BG | planned |
+
+### Exit criteria
+- DUT: title strip shows `"Artist - Title"`, scrolling continuously with a gap spacer between end and loop-start.
+- DUT: title strip shows `"Title"` only when artist field is blank.
+- DUT: VU bars restore skin background texture in the zero-fill region (no solid black border visible around bars during playback).
+- No regression in title scroll timing, VU animation cadence, or chrome repaint.
 
 ---
 
