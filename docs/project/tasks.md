@@ -672,6 +672,75 @@ GET `/v1/me/player/currently-playing` runs every 5 s in the background poll loop
 
 To be triaged with the team.
 
+### TASK-054 — M-HITZONES: hit-zone preview PNG from bake_skin.py
+**Owner**: Developer
+**Feature**: m2-001 (bake pipeline extension)
+**Status**: planned (2026-05-15)
+**Notes**:
+- Extend `tools/bake_skin.py`: after `render_full_preview()` runs, call a new `render_hitzones(canvas, out_path)` that overlays all registered touch zones as semi-transparent magenta rects with white labels.
+- Zone registry: Python list of `(label, x, y, w, h)` tuples using the same constant values that are emitted to `skin_layout.h` (single source of truth — define once, use in both the emitter and the renderer).
+- Rendering: `ImageDraw.Draw(overlay)` filled magenta rects at alpha=100 (40 %); `Image.alpha_composite` over the preview canvas; `ImageDraw.textbbox` / `ImageDraw.text` for labels centred in each rect. PIL `ImageFont.load_default()` — no external font dep.
+- Zones to cover (minimum set): PREV, PLAY, PAUSE, STOP, NEXT, SEEK (posbar), VOL (volume slider), SHUF, RPT, VIS, LOGO/RECONNECT, PLEDIT ROW0–ROW4.
+- Output: `gen/skin_hitzones.png` — written unconditionally alongside `skin_preview.png`.
+- Exclude `skin_hitzones.png` from `gen/golden.sha256` (derived artefact, not a firmware input).
+- ~50 LOC. No new Python deps.
+
+### TASK-053a — M-CONN: bake active + inactive title bar sprites
+**Owner**: Developer
+**Feature**: conn-001
+**Status**: planned (2026-05-15)
+**Notes**:
+- `TITLEBAR.BMP` (344×87): row 0 y=0..13 = active main title (275px wide); row 1 y=15..28 = inactive. Exact row offsets to be confirmed by inspection — record in `skin_layout.h` as `TITLEBAR_ACTIVE_Y`, `TITLEBAR_INACTIVE_Y`.
+- `PLEDIT.BMP` (280×186): active title bar row 0, inactive row 1 — same inspection approach.
+- Extend `tools/bake_skin.py` to emit `SKIN_TITLEBAR_ACTIVE[275*14]`, `SKIN_TITLEBAR_INACTIVE[275*14]`, `SKIN_PLEDIT_TITLE_ACTIVE[275*20]`, `SKIN_PLEDIT_TITLE_INACTIVE[275*20]` (actual heights from inspection).
+- Add layout constants: `TITLEBAR_ACTIVE_Y`, `TITLEBAR_INACTIVE_Y`, `PLEDIT_TITLE_ACTIVE_Y`, `PLEDIT_TITLE_INACTIVE_Y` to `gen/skin_layout.h`.
+- Regenerate `gen/golden.sha256`.
+
+### TASK-053b — M-CONN: spotifyTask::isHealthy() connection state
+**Owner**: Developer
+**Feature**: conn-001
+**Status**: planned (2026-05-15)
+**Notes**:
+- Add `bool spotifyTask::isHealthy()` to `spotifyTask.h` — returns `s_consecutiveFailures < 2`. Inline read; no mutex needed (single atomic uint read).
+- Display layer calls this on each `drawChrome()` / `drawPlaylist()` invocation to pick active vs inactive title bar variant.
+- Threshold of 2: one transient failure doesn't switch the UI; sustained failure does.
+
+### TASK-053c — M-CONN: active/inactive title bar switch in renderer
+**Owner**: Developer
+**Feature**: conn-001
+**Status**: planned (2026-05-15; depends on TASK-053a, TASK-053b)
+**Notes**:
+- `drawChrome()`: replace `SKIN_TITLEBAR` blit with `isHealthy() ? SKIN_TITLEBAR_ACTIVE : SKIN_TITLEBAR_INACTIVE`. Track `lastHealthy` bool; force redraw when health changes (bypass normal seqno gate for the title bar rect only).
+- `drawPlaylist()`: same pattern for PLEDIT title bar.
+- No other chrome elements change — only the title bar rows dim/restore.
+
+### TASK-053d — M-CONN: spotifyTask::resetTls() — close WiFiClientSecure
+**Owner**: Developer
+**Feature**: conn-001
+**Status**: planned (2026-05-15)
+**Notes**:
+- `SpotifyArduino` holds a `WiFiClientSecure _client` member (private). Patch `lib/SpotifyArduino/src/SpotifyArduino.h` to add `void resetClient() { _client.stop(); }`.
+- Expose `void spotifyTask::resetTls()` in `spotifyTask.h` — calls `s_spotify->resetClient()` + zeroes `s_consecutiveFailures`. Thread-safe: only callable from loop task; spotify task only reads `_client` during active requests (task is blocked in `xQueueReceive` between polls). Document this assumption.
+- Called by TASK-053e (serial) and TASK-053f (logo tap).
+
+### TASK-053e — M-CONN: serial `reconnect` command
+**Owner**: Developer
+**Feature**: conn-001
+**Status**: planned (2026-05-15; depends on TASK-053d)
+**Notes**:
+- In `SpotifyDiyThing.ino` `loop()`: add `if (Serial.available())` check; read until `\n`; trim; if equals `"reconnect"` call `spotifyTask::resetTls()` + `spotifyTask::enqueue(ACT_FORCE_POLL)`. Log `[conn] serial reconnect triggered`.
+- Keep parser minimal — no full command framework. One command only.
+
+### TASK-053f — M-CONN: Winamp logo tap → TLS reset + reconnect
+**Owner**: Developer
+**Feature**: conn-001
+**Status**: planned (2026-05-15; depends on TASK-053d)
+**Notes**:
+- Logo location: bottom-right of `MAIN.BMP` (275×116). Approximate rect x=250..274, y=100..115 — confirm exact bounds by pixel inspection of `MAIN.BMP` during TASK-053a.
+- Add `hitTestLogo(int sx, int sy)` to `WinampDisplay` (private). Checks `sx >= originX + LOGO_X && sx < originX + LOGO_X + LOGO_W && sy >= originY + LOGO_Y && sy < originY + LOGO_Y + LOGO_H`.
+- In `update()` touch block: add `else if (hitTestLogo(...))` branch — call `spotifyTask::resetTls()` + `spotifyTask::resetBackoff()` + `spotifyTask::enqueue(ACT_FORCE_POLL)`. Log `[conn] logo tap → TLS reset`.
+- 2 s cooldown via `lastLogoTapMs` member — prevents repeat triggers on held finger.
+
 ### TASK-035 — Drop OTA `app1` partition (reclaim 1.25 MB flash)
 **Owner**: Developer
 **Status**: done (2026-05-10 — tripped the wall during TASK-025 bring-up; firmware.bin overflowed the 1.28 MB app0 partition by ~2.6 KB and bootlooped silently with `rst:0x3 (SW_RESET)` and zero app output. No exception, no panic — the loader's image-hash check fails when the trailing bytes spill into app1 territory, and re-resets immediately.)

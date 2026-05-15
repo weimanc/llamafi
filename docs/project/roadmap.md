@@ -73,6 +73,48 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 
 ---
 
+## M-HITZONES — Hit-zone preview PNG
+
+**Status:** planned (2026-05-15).
+
+**Scope:** Extend `tools/bake_skin.py` to emit a second PNG alongside `gen/skin_preview.png`: `gen/skin_hitzones.png`. Same 320×240 composite base, but all registered touch hit zones overlaid with semi-transparent magenta rectangles and short text labels. Dev tool — not a firmware artefact. Makes it trivial to verify that hit-test rects align with visible skin elements after any layout change.
+
+**Output:** `gen/skin_hitzones.png` — generated unconditionally alongside `skin_preview.png` on every bake run.
+
+**Zone registry** (defined as a list in `bake_skin.py`, sourced from the same constants that feed `skin_layout.h`):
+
+| Zone ID | Rect (x, y, w, h) | Label |
+|---|---|---|
+| prev | `CB_PREV_X, CB_PREV_Y, CB_PREV_W, CB_PREV_H` | `PREV` |
+| play | `CB_PLAY_*` | `PLAY` |
+| pause | `CB_PAUSE_*` | `PAUSE` |
+| stop | `CB_STOP_*` | `STOP` |
+| next | `CB_NEXT_*` | `NEXT` |
+| posbar | `POSBAR_X, POSBAR_Y, POSBAR_W, POSBAR_H` | `SEEK` |
+| volume | `VOLUME_X, VOLUME_Y, VOLUME_W, VOLUME_H` | `VOL` |
+| shuffle | `SHUFFLE_X, SHUFFLE_Y, SHUFFLE_W, SHUFFLE_H` | `SHUF` |
+| repeat | `REPEAT_X, REPEAT_Y, REPEAT_W, REPEAT_H` | `RPT` |
+| vis | `VIS_X, VIS_Y, VIS_W, VIS_H` | `VIS` |
+| logo | `LOGO_X, LOGO_Y, LOGO_W, LOGO_H` | `LOGO/RECONNECT` |
+| pledit rows 0-4 | `PLEDIT_CONTENT_X, PLEDIT_ROWS_Y + i*ROW_H, PLEDIT_CONTENT_W, PLEDIT_ROW_H` | `ROW0`..`ROW4` |
+
+**Rendering approach:**
+- Start from the same `render_full_preview()` composite (skin pixels as background).
+- For each zone: draw a filled magenta rectangle at 40 % opacity (`Image.blend` or `ImageDraw` with alpha layer) over the zone rect.
+- Draw zone label in white at the rect centre using `ImageFont` (PIL default bitmap font, no external dep).
+- Save as `gen/skin_hitzones.png`.
+
+**Implementation surface:** ~50 LOC added to `bake_skin.py`. No firmware change. No new deps (PIL `ImageDraw` already in use).
+
+**Tracked as:** TASK-054.
+
+### Exit criteria
+- `gen/skin_hitzones.png` regenerates on every `bake_skin.py` run.
+- All active zones visible as labelled magenta overlays; positions match DUT touch behaviour.
+- `sha256sum -c golden.sha256` still passes (hitzones PNG excluded from the golden hash — it's a derived dev artefact).
+
+---
+
 ## M3 — Winamp display backend
 
 **Status:** done (2026-05-07 — DUT visual verify confirmed all 8 chrome+touch items)
@@ -206,6 +248,63 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 - TBD — likely an ADR proposing async IO, a worker task, or aggressive timeouts.
 - Heartbeat gap distribution stays under 5 s p95 across normal play.
 - Any screen tap escapes a backoff run within one poll cycle (TASK-052).
+
+---
+
+## M-CONN — Connection health UI + TLS recovery controls
+
+**Status:** planned (2026-05-15).
+
+**Scope:** Make the disconnected state visible and give the user two recovery paths — a serial command and a tap on the Winamp logo — plus auto-recovery via TLS client reset after sustained failure.
+
+### Feature 1 — Inactive title bar variants (disconnection indicator)
+
+Both Winamp windows have active and inactive title bar sprites in the skin:
+- `TITLEBAR.BMP` (344×87): row 0 = active main title, row 1 = inactive main title (same 275px width, different colour palette — dimmer, greyed).
+- `PLEDIT.BMP` (280×186): row 0 = active PLEDIT title, row 1 = inactive PLEDIT title.
+
+**Approach:**
+- Bake both active and inactive variants for each window into `gen/skin_assets.c` + `gen/skin_layout.h` (`SKIN_TITLEBAR_ACTIVE`, `SKIN_TITLEBAR_INACTIVE`, `SKIN_PLEDIT_TITLE_ACTIVE`, `SKIN_PLEDIT_TITLE_INACTIVE`).
+- Expose connection state from `spotifyTask`: `bool spotifyTask::isHealthy()` returns true if `s_consecutiveFailures < 2` (i.e. last poll succeeded or only one miss). False after 2+ consecutive failures.
+- `drawChrome()` and `drawPlaylist()` read `isHealthy()` and blit the matching title bar variant. Switch triggers a forced title-bar redraw (bypass seqno gate for that element only).
+- Visual effect: title bars dim/grey out when Spotify unreachable, restore to active when polls succeed again — same semantic as Winamp losing window focus.
+
+### Feature 2 — Serial command `reconnect`
+
+**Approach:**
+- In `SpotifyDiyThing.ino` main `loop()`, check `Serial.available()`. If a line ending in `\n` is received and equals `"reconnect"`, call a new `spotifyTask::resetTls()` function then enqueue `ACT_FORCE_POLL`.
+- `resetTls()`: calls `stop()` on the `WiFiClientSecure` inside `SpotifyArduino` (patch lib to expose `void resetClient()` or make `_client` accessible); zeroes `s_consecutiveFailures`.
+- Useful during dev sessions with a serial monitor open — type `reconnect` to escape a stale-fd loop without reflashing or physical reset.
+
+### Feature 3 — Winamp logo tap → TLS close + reconnect
+
+The Winamp logo (amber/gold icon) sits at the bottom-right of `MAIN.BMP` (275×116), approximately `x=250..274, y=100..115`. Exact bounds to be confirmed by bake-tool inspection.
+
+**Approach:**
+- Add `hitTestLogo(int sx, int sy)` to `WinampDisplay` — returns true if tap lands in the logo rect (adjusted by `originX/originY`).
+- On hit: call `spotifyTask::resetTls()` + `spotifyTask::enqueue(ACT_FORCE_POLL)` + `spotifyTask::resetBackoff()`. Log `[conn] logo tap → TLS reset`.
+- No optimistic UI — wait for next successful poll to restore active title bars.
+- 2 s cooldown (separate from `touchScreenCoolDownTime`) to prevent rapid repeat triggers.
+
+**Sub-tasks:**
+
+| Task | Scope | Status |
+|---|---|---|
+| TASK-053a | Bake active + inactive title bar sprites for main + PLEDIT windows | planned |
+| TASK-053b | `spotifyTask::isHealthy()` + connection state propagation to display | planned |
+| TASK-053c | `drawChrome()` + `drawPlaylist()` switch active/inactive title bar on health change | planned |
+| TASK-053d | `spotifyTask::resetTls()` — close `WiFiClientSecure`, zero backoff counter | planned |
+| TASK-053e | Serial `reconnect` command in main loop | planned |
+| TASK-053f | Winamp logo hit-test → `resetTls()` + `ACT_FORCE_POLL` + 2 s cooldown | planned |
+
+**Cross-cuts:** depends on TASK-052 (backoff reset), M-CHROME (TITLEBAR.BMP bake pipeline — reuse or extend), `m3-001` renderer. Adds feature `conn-001`. Patches `lib/SpotifyArduino` (expose client reset).
+
+### Exit criteria
+- After 2+ consecutive poll failures, both title bars switch to inactive variant within one render cycle.
+- On poll success, title bars restore to active variant.
+- `reconnect\n` on serial closes TLS, triggers fresh poll, logs confirmation.
+- Tapping logo area closes TLS, triggers fresh poll; title bars restore if poll succeeds.
+- No regression in transport controls, posbar, volume, PLEDIT tap-to-play.
 
 ---
 
