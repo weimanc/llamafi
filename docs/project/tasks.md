@@ -653,7 +653,22 @@ GET `/v1/me/player/currently-playing` runs every 5 s in the background poll loop
 - Wifi configured via WiFiManager captive portal. Device polling Spotify Web API; renders track on next playback.
 - Deployment procedure documented in `docs/first_time_run_deploy.md`.
 
-## Backlog (initial PM assessment)
+### TASK-052 — M-IO: any tap resets backoff + force-polls Spotify
+**Owner**: Developer
+**Feature**: io-001
+**Status**: planned (2026-05-15)
+**Notes**:
+- **Problem**: during a backoff run (consecutive failures → 10/20/40/60 s waits), the screen feels dead even when the network recovers. User has no escape except waiting for the next cadence poll.
+- **Fix**: every tap — whether on an active control or a dead zone (inactive PLEDIT rows, PLEDIT title/bottom bar, black areas) — resets `s_consecutiveFailures = 0` and enqueues `ACT_FORCE_POLL`. This matches ADR-011's stated intent ("touch resets backoff") and extends it to all touch events, not just transport buttons.
+- **Backoff reset on dispatch** (not just on poll success): zero `s_consecutiveFailures` the moment any touch-driven action is enqueued. `nextWaitMs()` will return `kPollPeriodMs` (5 s) immediately — the task unblocks from its long `xQueueReceive` wait at queue-receive time (action already in queue, wait irrelevant) and issues the poll.
+- **1 s force-poll cooldown**: track `lastForcePollMs` in `winampDisplay.h`. Any tap that would otherwise fall through all hit-tests (dead zone) sends `ACT_FORCE_POLL` only if `millis() - lastForcePollMs > 1000`. Active-control taps (transport, seek, volume, PLEDIT row) already enqueue their own action + trigger `doPoll()` post-action — they don't need the dead-zone path, but they do reset `s_consecutiveFailures` via a new `spotifyTask::resetBackoff()` call.
+- **Implementation surface**:
+  1. `spotifyTask.h` / `spotifyTaskStorage.cpp`: expose `void resetBackoff()` (sets `s_consecutiveFailures = 0`).
+  2. `winampDisplay.h::update()`: at top of the `ts.touched()` block (before any hit-test), call `spotifyTask::resetBackoff()`. At the end of the else-fall-through (no hit matched), if cooldown elapsed enqueue `ACT_FORCE_POLL` and update `lastForcePollMs`.
+- **No UI feedback needed** — backoff recovery is transparent; the next successful poll updates the display normally.
+- **Cooldown rationale**: 1 s prevents a held-finger from hammering the queue with repeated `ACT_FORCE_POLL` when already draining. Separate from `touchScreenCoolDownTime` (which gates all touch recognition).
+
+
 
 To be triaged with the team.
 

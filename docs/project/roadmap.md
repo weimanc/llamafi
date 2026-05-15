@@ -195,9 +195,17 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 - Synchronous `getCurrentlyPlaying` blocks the renderer for the full TLS+HTTP duration.
 **Tracked as:** TASK-019.
 
+**Sub-tasks:**
+
+| Task | Scope | Status |
+|---|---|---|
+| TASK-019 | Async Spotify poll (FreeRTOS task, ADR-011/ADR-012) | done (tier 1) |
+| TASK-052 | Any tap resets backoff + force-polls; 1 s cooldown on dead zones | planned |
+
 ### Exit criteria
 - TBD — likely an ADR proposing async IO, a worker task, or aggressive timeouts.
 - Heartbeat gap distribution stays under 5 s p95 across normal play.
+- Any screen tap escapes a backoff run within one poll cycle (TASK-052).
 
 ---
 
