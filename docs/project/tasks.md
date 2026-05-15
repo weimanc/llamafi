@@ -272,30 +272,171 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 **Status**: superseded by TASK-040 (balance) + TASK-041 (volume) per ADR-014
 
 ### TASK-020 — M-LIST tier 1: top-align UI + playlist panel
-**Owner**: Architect (orientation decision), Developer (impl)
-**Feature**: playlist-001 (to be registered when impl starts)
-**Status**: planned (2026-05-08)
+**Owner**: Developer
+**Feature**: playlist-001
+**Status**: done (2026-05-15 — DUT-verified, user confirmed playlist panel visible)
 **Notes**:
-- Roadmap entry: M-LIST. Two orientations on the table:
-  - **C (default lean)**: keep landscape; just shift `originY` from 62 to 0 in winampDisplay::displaySetup. Frees 320×124 below the chrome. One-line code change.
-  - **B (portrait)**: `setRotation(0)`/`2` panel + 90° atlas rotation at bake time + layout-constant swap + touch coord swap + screenLog flip. Frees only 240×45 (3× less). Phone-like ergonomics.
-- ADR needed before code: which orientation, where the playlist sits (below vs flanking), font choice (1 or 2), row count, current-track highlight style.
-- Spotify Web API: `GET /me/player/queue` already snapshotted in `resource/web-api/player-endpoints.yaml`. Returns currently_playing + queue array.
-- Cross-cuts: m3-001 (chrome positioning), touch-002 (taps below chrome region), log-002 (overlay layout).
+- ADR-017 accepted. Orientation C, `GET /me/player/queue`, Font 2, 7 rows.
+- **020a**: `originY = 0` — chrome flush to top edge. Also fixed VU meter hardcoded origin → `chromeOriginX()/chromeOriginY()` getters (bug: VU was stuck at old centered position).
+- **020b**: `getQueue()` added to `SpotifyArduino` (LOCAL_PATCHES pattern). `QueueSnapshot` struct + `g_queueMux` spinlock in `spotifyTask`. Poll trigger: track-change detection in `onCurrentlyPlaying` + 60 s keepalive. `queueBufferSize = 6000` (3000 was insufficient for 20 filtered queue items).
+- **020c**: `drawPlaylist()` in `winampDisplay.h` — seqno-diff + 1 Hz rate gate; `fillRect` strip + 7 rows Font 2; row 0 gold highlight + white text, rows 1-6 Winamp grey-green. Seqno check and draw call in main loop under `#ifdef WINAMP_DISPLAY`.
+- Scope: `user-read-playback-state` covers queue endpoint — no token regeneration needed (returned 200, not 403).
+- Flash: 50.0 % (stable). RAM: +1 KB for QueueSnapshot.
+
+### TASK-050a — M-VIS: VisMode enum + toggle dispatch + blank mode
+**Owner**: Developer
+**Feature**: vis-001 (new)
+**Status**: planned (2026-05-15)
+**Blocks**: TASK-050b, TASK-050c (need mode dispatch before adding renderers)
+**Notes**:
+- Add `enum VisMode { VIS_VU, VIS_SPECTRUM, VIS_WAVE, VIS_BLANK };` to `vuMeter.h` namespace.
+- Add file-static `VisMode s_mode = VIS_VU;` inside `vuMeter.h`.
+- `nextMode()`: cycles `VIS_VU → VIS_SPECTRUM → VIS_WAVE → VIS_BLANK → VIS_VU`.
+- `currentMode()`: returns `s_mode`.
+- Update `tick()` signature: `void tick(int originX, int originY, const uint16_t *mainBg)` (adds `mainBg` — TASK-049 change folded in here; these two tasks should land together).
+- Dispatcher in `tick()`: `switch(s_mode) { VIS_VU: tickVU(); VIS_SPECTRUM: tickSpectrum(); VIS_WAVE: tickWave(); VIS_BLANK: blitVisBackground(); }`.
+- `blitVisBackground(originX, originY, mainBg)`: restores `SKIN_MAIN_BG` rows for the full vis area `(RECT_X, LEFT_Y, RECT_W, VIS_H=13)`. Shared utility used by all non-VU modes as their background-restore step.
+- **Vis area constants** (add to `vuMeter.h`): `VIS_H = RIGHT_Y + RECT_H - LEFT_Y = 13`.
+- **Touch hit-test** (`winampDisplay.h`): add `bool hitTestVis(int sx, int sy)`:
+  - Bounds: `sx in [originX+RECT_X, originX+RECT_X+RECT_W)` AND `sy in [originY+LEFT_Y, originY+LEFT_Y+VIS_H)`.
+  - Confirm no overlap with existing hit-test zones (transport is at `y=originY+88..106`; posbar at its own y; volume/shufrep/repeat at their slots — all clear from vis area at `y=originY+43..56`).
+- Wire `hitTestVis` into `checkForInput()`: on tap inside vis area → `vu::nextMode()`. No API action, no optimistic freeze.
+- TASK-049 is a prerequisite for this task's `blitVisBackground`; implement together or immediately before.
+
+### TASK-050b — M-VIS: spectrum analyzer view
+**Owner**: Developer
+**Feature**: vis-001
+**Status**: planned (2026-05-15; depends on TASK-050a)
+**Notes**:
+- **Bin synthesis (38 bins, mono):** `binLevel[i] = envelope × shape[i] × (1 + beatBoost(i))`
+  - `envelope = (lLvl + rLvl) * 0.5f` — uses existing envelope state.
+  - `shape[38]` — `constexpr float` table: `shape[i] = 1.0f - (i / 37.0f) * 0.6f`. Pink-noise rolloff: low bins loud, high bins quieter.
+  - `beatBoost(i)`: beat transient (existing `beat` variable in `tick()`) applied only when `i < 8` (low-freq bins). `beatBoost(i) = (i < 8) ? beat * 0.8f : 0.0f`.
+  - Clamp `binLevel[i]` to [0.0, 1.0].
+- **Peak dots:** file-static `float specPeak[38] = {0}`. Each tick: `if (binLevel[i] > specPeak[i]) specPeak[i] = binLevel[i];` then `specPeak[i] -= 0.008f` (≈1 px per 100ms at 20Hz, VIS_H=13 → full decay in 1.6s).
+- **Render per tick:**
+  1. Restore SKIN_MAIN_BG for full vis area (call `blitVisBackground()`).
+  2. For each bin `i` in 0..37:
+     - `barH = (int)(binLevel[i] * VIS_H)` — height in pixels.
+     - `barX = originX + RECT_X + i * 2` — 2px wide.
+     - `barY_top = originY + LEFT_Y + (VIS_H - barH)` — bottom-up.
+     - Colour by `binLevel[i]`: green if < 0.5, yellow if < 0.8, red otherwise.
+     - `tft.fillRect(barX, barY_top, 2, barH, colour)` — draws bar.
+     - Peak dot: `peakY = originY + LEFT_Y + (int)((1.0f - specPeak[i]) * VIS_H)`. Clamp to `[originY+LEFT_Y, originY+LEFT_Y+VIS_H-1]`. `tft.drawPixel(barX, peakY, TFT_WHITE)`.
+  - Dedup optimisation: `lastBinH[38]` + `lastPeakY[38]` — skip `fillRect`/`drawPixel` if unchanged (same pattern as VU's `lastLW`/`lastRW`).
+
+### TASK-050c — M-VIS: waveform oscilloscope view
+**Owner**: Developer
+**Feature**: vis-001
+**Status**: planned (2026-05-15; depends on TASK-050a)
+**Notes**:
+- **Synthesis:** `y[x] = VIS_CENTRE_Y + round(lLvl * 5.0f * sin(wavePhase + x * WAVE_CYCLES * TWO_PI / VIS_W))`
+  - `VIS_CENTRE_Y = originY + LEFT_Y + VIS_H / 2` = `originY + 49`.
+  - `lLvl` from existing envelope (collapses to 0 when paused → flat line at centre).
+  - `WAVE_CYCLES = 2.5f` (2.5 full cycles across 76px).
+  - `wavePhase` file-static float, advances `+0.3f` per tick (20 Hz ≈ visible sweep without fast flicker).
+  - Clamp `y[x]` to `[originY+LEFT_Y, originY+LEFT_Y+VIS_H-1]`.
+- **Render per tick:**
+  1. Restore `SKIN_MAIN_BG` for full vis area (`blitVisBackground()`). This clears the previous frame.
+  2. For each `x` in 0..75: `tft.drawPixel(originX + RECT_X + x, y[x], TFT_GREEN)`.
+  3. Advance `wavePhase`.
+- **No dedup:** full SKIN_MAIN_BG restore every tick already clears old pixels; dedup would need per-pixel tracking across 76 columns — not worth it at 20 Hz.
+- **Paused state:** `lLvl` smoothly decays to 0 via existing RELEASE constant — flat line appears naturally; no special case needed.
+
+### TASK-048 — M-UI-POLISH: artist + title in marquee strip
+**Owner**: Developer
+**Feature**: disp-001 (existing)
+**Status**: planned (2026-05-15)
+**Notes**:
+- `Snapshot::artistName[128]` already populated (`spotifyTaskStorage.cpp:100-101`). Just not wired into `drawTitleText()`.
+- `winampDisplay.h:173` copies only `currentlyPlaying.trackName` → `lastTitle`. Change to compose `artist + " - " + name`.
+- Buffer: `lastTitle[128]` → `lastTitle[260]` (artist 128 + `" - "` 3 + title 128 + NUL).
+- Compose logic: if `artistName[0] != '\0'`: `snprintf(lastTitle, sizeof(lastTitle), "%s - %s", artistName, trackName)`. Else: `strncpy(lastTitle, trackName, ...)`.
+- Track change detection (`strcmp(lastTitle, ...)` on line 173): update to trigger recompose on *either* `trackName` or `artistName` change (store `lastArtist[128]` alongside `lastTitle`, check both).
+- Scroll gap: after the last glyph in `drawTitleText()`, the loop-back should insert a 3-space gap (`"   "`) before restarting from the string start. Achieves the classic "endless ticker" feel. Implement by appending `"   "` to the composed string, or by adding 3×`GLYPH_W+1` px of blank before the wrap in the render loop.
+- Scroll speed: `TITLE_SCROLL_STEP_MS=120` unchanged — adjust only if user requests.
+- Original Winamp 2 reference: main window shows `"Artist - Title"` format (no track-number prefix; that is playlist-editor only). Falls back to `"Title"` alone when artist blank.
+
+### TASK-049 — M-UI-POLISH: VU zero-fill from SKIN_MAIN_BG
+**Owner**: Developer
+**Feature**: vu-001 (existing)
+**Status**: planned (2026-05-15)
+**Notes**:
+- `vuMeter.h:121` and `vuMeter.h:127` clear the off-portion of each bar with `tft.fillRect(..., TFT_BLACK)`. This overwrites the skin's visualization-area background.
+- Fix: replace with per-row `pushImage` from `SKIN_MAIN_BG` at the corresponding window-local pixel offset. Same pattern as `drawTitleText()` line 513-514.
+- VU rects are fully inside the 275×116 `SKIN_MAIN_BG` atlas:
+  - Left bar:  window-local `(RECT_X=24, LEFT_Y=43, RECT_W=76, RECT_H=6)`.
+  - Right bar: window-local `(RECT_X=24, RIGHT_Y=50, RECT_W=76, RECT_H=6)`.
+- API change: `vu::tick(int originX, int originY)` → `vu::tick(int originX, int originY, const uint16_t *mainBg)`. Pass `SKIN_MAIN_BG` from the call site in `.ino` (or `winampDisplay.h` — wherever `vu::tick` is invoked).
+- In `tick()`, replace:
+  ```cpp
+  if (lW < RECT_W) tft.fillRect(lx + lW, ly, RECT_W - lW, RECT_H, TFT_BLACK);
+  ```
+  with a row-loop blitting `mainBg + (LEFT_Y + row) * SKIN_MAIN_BG_W + RECT_X + lW` for `RECT_W - lW` pixels. Same for right bar.
+- No bake-tool change. No atlas change. `SKIN_MAIN_BG` already contains the correct background pixels.
+- `vu::invalidate()` path: no change needed — full bar repaint already triggered by the existing `lastLW/lastRW` dedup logic.
+
+### TASK-047a — M-LIST-v2: bake_skin.py PLEDIT extraction + atlas + preview
+**Owner**: Developer
+**Feature**: playlist-002
+**Status**: done (2026-05-15 — 5 rows × 13px, tiled title bar, split bottom bar, SKIN_PLEDIT_BG 275×58 emitted; commits 949c057..388665f)
+**Blocks**: TASK-047c (renderer needs atlas + layout constants)
+**Notes**:
+- Extract `PLEDIT.BMP` from `skins/base-2.91.wsz`. Inspect dimensions + sprite offsets empirically (LL-016 pattern — record actual values, don't assume canonical).
+- New `build_pledit_atlas(wsz)` function in `tools/bake_skin.py`:
+  - Crop title bar strip `(0, 0, 275, 14)` → scale/pad to 320 px wide (prefer pad with PLEDIT body bg colour on right; fallback nearest-neighbour stretch).
+  - Crop bottom bar strip `(0, bottom_y, 275, 16)` → same horizontal treatment.
+  - Composite both into `SKIN_PLEDIT_BG[320 * 30]` (title at index 0, bottom bar immediately after; renderer uses offset arithmetic: `SKIN_PLEDIT_BG` at `y=116` for title, `SKIN_PLEDIT_BG + 320*14` at `y=210` for bottom bar).
+  - Crop row-highlight sprite `(0, first_row_y, 260, 16)` → `SKIN_PLEDIT_ROW_HIGHLIGHT[260 * 16]`.
+- Emit `SKIN_PLEDIT_BG` + `SKIN_PLEDIT_ROW_HIGHLIGHT` to `gen/skin_assets.c`.
+- Emit layout constants to `gen/skin_layout.h`: `PLEDIT_Y=116`, `PLEDIT_H=124`, `PLEDIT_TITLE_H=14`, `PLEDIT_BOTTOM_H=16`, `PLEDIT_ROWS_Y=130`, `PLEDIT_ROW_H=16`, `PLEDIT_ROW_COUNT=5`, `PLEDIT_BOTTOM_Y=210`, `PLEDIT_W=320`.
+- Composite PLEDIT panel into `gen/skin_preview.png` lower band (y=116..240) with 5 sample rows. Validate on-host before DUT.
+- Regenerate `gen/golden.sha256`; confirm `sha256sum -c golden.sha256` passes.
+
+### TASK-047b — M-LIST-v2: durationMs in QueueEntry + getQueue() filter
+**Owner**: Developer
+**Feature**: playlist-002
+**Status**: done (2026-05-15)
+**Blocks**: TASK-047d (total time needs `durationMs`)
+**Notes**:
+- Add `uint32_t durationMs` to `QueueEntry` struct. Size impact: +4 bytes × 5 entries = +20 bytes RAM (negligible).
+- Reduce `QUEUE_MAX` from 7 to 5 (5 rows per ADR-018). Saves `2 × (48+32+64+4) = 296 bytes` RAM.
+- Extend `getQueue()` ArduinoJson filter doc in `SpotifyArduino` LOCAL_PATCHES to include `duration_ms` from both `currently_playing` and `queue[]` items.
+- At snapshot-write time, mirror `Snapshot::durationMs` (already present for posbar) into `g_queueSnapshot.items[0].durationMs` — no extra API call needed for row 0.
+- Document in `lib/SpotifyArduino/LOCAL_PATCHES.md` as patch #10 (or next available).
+
+### TASK-047c — M-LIST-v2: drawPlaylist() redesign — PLEDIT chrome + row format
+**Owner**: Developer
+**Feature**: playlist-002
+**Status**: done (2026-05-15 — commit 2d90ffa; drawPlaylist() rewritten with PLEDIT chrome, 5 rows, Font 1 text, originX=22 centering)
+**Notes**:
+- Implemented: title bar + bottom bar via pushImage(SKIN_PLEDIT_BG), 5 rows fillRect+Font1. Text format "Artist - Track" (no duration yet — TASK-047b prereq not done). Row 0 uses PLEDIT_BG_SELECTED + PLEDIT_FG_CURRENT; rows 1-4 use PLEDIT_BG_NORMAL + PLEDIT_FG_NORMAL. Left/right gutters filled PLEDIT_BODY_BG. seqno-gated, PLAYLIST_DRAW_MIN_MS rate limit.
+- Duration column deferred to TASK-047b+d.
+- Hit-test update for TASK-021 (Tier 2): row y boundaries now `y=PLEDIT_ROWS_Y+row*PLEDIT_ROW_H`.
+
+### TASK-047d — M-LIST-v2: total time in PLEDIT bottom bar
+**Owner**: Developer
+**Feature**: playlist-002
+**Status**: planned (2026-05-15; depends on TASK-047a + TASK-047b + TASK-047c)
+**Notes**:
+- Sum `durationMs` across all `count` snapshot entries on each `drawPlaylist()` call.
+- Format as `"H:MM:SS"` (hours if sum ≥ 1 h, else `"MM:SS"`).
+- Determine render position from PLEDIT.BMP bottom bar inspection at TASK-047a time — record pixel offset as `PLEDIT_TOTALTIME_X` / `PLEDIT_TOTALTIME_Y` in `gen/skin_layout.h`.
+- Font: TFT_eSPI Font 1 (6×8) — fits the smaller bottom bar height. Colour: white or PLEDIT text colour from inspection.
+- Only re-render when seqno advances (same gate as `drawPlaylist()`).
 
 ### TASK-021 — M-LIST tier 2: tap-on-row plays that track
 **Owner**: Developer
-**Status**: planned (2026-05-08)
+**Status**: planned (2026-05-08; depends on TASK-047c for updated row y-boundaries)
 **Notes**:
-- Touch hit-test on playlist rows; on tap, call `playAdvanced(body, deviceId)` with the row's track URI. Relies on TASK-020 layout being final.
+- Hit-test: `y >= PLEDIT_ROWS_Y && y < PLEDIT_BOTTOM_Y` → `row = (y - PLEDIT_ROWS_Y) / PLEDIT_ROW_H`. Bounds-check against `QueueSnapshot::count`.
+- On tap: `enqueue(ACT_PLAY_URI, row_index)` → task reads `QueueSnapshot::items[row_index].uri` → `playAdvanced`.
+- Need new `ACT_PLAY_URI` action enum. Index-in-snapshot avoids URI string in `Request` struct; race-free (task owns snapshot write side).
+- Note: row y-boundaries updated by TASK-047c (PLEDIT layout shifts rows down by `PLEDIT_TITLE_H=14` px vs TASK-020 baseline).
 
 ### TASK-022 — M-LIST option B: portrait rotation
 **Owner**: Developer
-**Status**: planned (2026-05-08; only fires if TASK-020 ADR picks option B)
-**Notes**:
-- Bake tool extension: `--rotate 90` flag that 90°-rotates every BMP at bake time and rewrites the layout header's coords. Cheaper than runtime rotation.
-- Touch coordinate swap (CYD28_TouchR setRotation or app-level x/y swap).
-- ScreenLog overlay layout constants flip (PANEL_W ↔ PANEL_H, line-y math).
+**Status**: cancelled (2026-05-15 — ADR-017 chose option C; portrait rotation not needed)
 
 ### TASK-019 — Decouple display from blocking network calls (M-IO)
 **Owner**: Architect (ADR-011), then Developer
