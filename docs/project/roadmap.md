@@ -309,10 +309,11 @@ The tier-2 sheets are dominated by frame-strip variants (28 volume positions, 28
 
 ### Exit criteria
 
-- Tier 1: MONOSTER + SHUFREP visible on the chrome; both reflect Spotify's reported state within one poll.
-- Tier 2: gated on the flash-budget ADR — exit criterion lifted into that ADR when written.
-- No regression in the existing chrome (transport, posbar, time digits, title marquee).
-- Flash budget for tier 1 stays under 99 % on `cyd2usb_winamp`.
+- Tier 1: MONOSTER + SHUFREP visible on the chrome; both reflect Spotify's reported state within one poll. ✅ MONOSTER baked statically (TASK-040, ADR-014); SHUFREP rendered dynamically with tap-toggle (TASK-025, 2026-05-10).
+- Tier 2: gated on the flash-budget ADR — superseded by ADR-014 + TASK-035 (drop OTA app1). ✅
+- Eject decorative composite landed alongside tier 1 (TASK-046, 2026-05-10).
+- No regression in the existing chrome (transport, posbar, time digits, title marquee). ✅
+- Flash budget for tier 1 stays under 99 % on `cyd2usb_winamp`. ⚠ Hit 99.7% during TASK-025, which trip-tested TASK-035; current binary at 49.9 % of the new 2.56 MB app0.
 
 ---
 

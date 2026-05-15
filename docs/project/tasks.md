@@ -129,19 +129,30 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-024 — M-CHROME tier 1: mono/stereo + kHz/kbps strip
 **Owner**: Developer
 **Feature**: chrome-001
-**Status**: planned (2026-05-08)
+**Status**: superseded by TASK-040 (2026-05-09 — the strip is now baked statically into MAIN_BG via the ADR-014 composite path; no runtime renderer)
 **Notes**:
-- Render the MONOSTER strip at the canonical Winamp main-window position. Mono vs stereo selected by `currently_playing_type` (`track` / `episode` / `ad` / `unknown`): tracks render `STEREO`, episodes render `MONO`, others render unlit.
-- kHz and kbps: Spotify Web API doesn't expose either. Hardcoded — `44` for kHz; `320` for kbps if Premium can be assumed (see `changelog-feb-2026-migration-guide.md` — Premium is now required for Dev Mode apps), else `--`.
-- Renders text via the existing `SKIN_GLYPH` font atlas so no extra font work needed.
+- Bake-tool `composite_static_decoration` paints `MS_MONO_OFF` at (212, 41) and `MS_STEREO_ON` at (241, 41), plus glyph-composited `kbps "192"` at (110, 43) and `kHz "44"` at (156, 43). All four are decorative now — `currently_playing_type` driven mono/stereo was descoped along with TASK-040 since Spotify doesn't expose kHz/kbps anyway.
 
 ### TASK-025 — M-CHROME tier 1: shuffle / repeat indicator
 **Owner**: Developer
-**Feature**: chrome-001
-**Status**: planned (2026-05-08)
+**Feature**: chrome-001 / touch-002
+**Status**: done (2026-05-15 — render + tap-toggle DUT-verified on home network; shuffle/repeat sprites visible, tap-toggle confirmed working by user)
 **Notes**:
-- Drive sprite selection from `shuffle_state` (boolean) and `repeat_state` (`off` / `track` / `context`). Already in the `currentlyPlaying` payload — no extra GET.
-- Tap-on-sprite to toggle is M5 follow-up territory (touch-002 extension), not in this task. Tier 1 is render-only.
+- Bake (`tools/bake_skin.py`): added `build_shufrep_atlas` packing 4 normal-state sprites (REPEAT off/on, SHUFFLE off/on) into a 75×30 atlas (4500 bytes flash). Pressed states intentionally skipped — tap feedback is implicit in the state flip.
+- Lib (LOCAL_PATCHES patch #9): extended `getCurrentlyPlaying` filter + parser to surface `shuffle_state` and `repeat_state` on the existing `/me/player` poll. Added `bool shuffleState` + `RepeatOptions repeatState` to `CurrentlyPlaying`.
+- Snapshot: added `bool shuffleState` + `int8_t repeatState` to `spotifyTask::Snapshot`. Defaults `false` / `2 (off)`. Written under spinlock by `onCurrentlyPlaying`.
+- Renderer (`winampDisplay.h`): `drawShuffle(int)` / `drawRepeat(int)` overrides blit from SKIN_SHUFREP at canonical (164, 89) / (210, 89). Cached in `lastShuffleRendered` / `lastRepeatRendered`. Both paint in `repaintChrome` after blitMainBackground.
+- Tap dispatch: `hitTestShuffle` / `hitTestRepeat` slot tests; tap toggles shuffle (off↔on) and cycles repeat (off → context → track → off, snapshot encoding 2 → 1 → 0 → 2). Optimistic UI paints the new sprite immediately; freeze window (`SHUFREP_OPTIMISTIC_HOLD_MS=2000`) gates the snap-driven redraw in `spotifyLogic.h`. ACT_SHUFFLE / ACT_REPEAT enqueued to `spotifyTask`; task body calls `s_spotify->toggleShuffle` / `setRepeatMode` then re-polls (matches NEXT/PREV/PLAY pattern; volume skips repoll because of drag-burst, shuffle/repeat are single events).
+- Visual: tier 1 plan was render-only but the touch toggle came along with it because the M5 plumbing was already in place. Pressed-state sprites still deferred (would have doubled the SHUFREP atlas to 9 KB; we're at 4.5 KB now).
+
+### TASK-046 — Decorative eject button bake
+**Owner**: Developer
+**Feature**: chrome-001
+**Status**: done (2026-05-10 — visible in `gen/skin_preview.png`; no runtime code).
+**Notes**:
+- Composite `CBUTTONS.BMP (114, 0, 22, 16)` onto `MAIN_BG (136, 89)` in `tools/bake_skin.py::composite_static_decoration`. CBUTTONS was already loaded for the transport-button atlas; passed as a pre-baked source via `composite_sources.setdefault("CBUTTONS.BMP", cbut_bmp)` to avoid re-opening the zip entry.
+- Static composite — eject has no Spotify equivalent (closest semantic is `transferPlayback` to a non-Spotify endpoint, not useful), so render-only.
+- 0 bytes runtime cost (paints once at bake time into `SKIN_MAIN_BG`).
 
 ### TASK-039 — M-CHROME tier 2: extend SpotifyArduino parser for device.volume_percent
 **Owner**: Developer
@@ -506,12 +517,13 @@ GET `/v1/me/player/currently-playing` runs every 5 s in the background poll loop
 To be triaged with the team.
 
 ### TASK-035 — Drop OTA `app1` partition (reclaim 1.25 MB flash)
-**Owner**: Architect → Developer
-**Status**: parked (2026-05-08; revisit if M-CHROME tier 2 hits the flash wall)
+**Owner**: Developer
+**Status**: done (2026-05-10 — tripped the wall during TASK-025 bring-up; firmware.bin overflowed the 1.28 MB app0 partition by ~2.6 KB and bootlooped silently with `rst:0x3 (SW_RESET)` and zero app output. No exception, no panic — the loader's image-hash check fails when the trailing bytes spill into app1 territory, and re-resets immediately.)
 **Notes**:
-- Default Arduino-ESP32 partition CSV reserves a second 1.25 MB `app1` slot for OTA. We never call OTA. Single-line custom `partitions.csv` reclaims it. Would push `cyd2usb_winamp`'s effective ceiling from 1 280 KB to 2 560 KB.
-- Cost: lose OTA capability. Acceptable for this project. Revert is just removing the custom CSV.
-- Not needed today (97.8 % of 1 280 KB used; 28 KB free). Keep parked until M-CHROME tier 2 (TITLEBAR + VOLUME + BALANCE = +178 KB) actually needs it.
+- Custom partition table at `Spotify-Diy-Thing/partitions_no_ota.csv`. Drops `app1`; `app0` grows from 0x140000 → 0x280000 (2.56 MB). NVS / otadata / SPIFFS / coredump untouched, so existing user data + wifi creds + spotify creds survive across the layout change.
+- `[env:cyd2usb]` (and the cyd2usb-derived envs) sets `board_build.partitions = partitions_no_ota.csv`. The legacy `cyd` env keeps the default Arduino-ESP32 partitions (uses much less flash; OTA optionality preserved there for now).
+- Cost: lose OTA capability on `cyd2usb*` envs. Acceptable — this project flashes over USB.
+- Diagnostic note: when this fires the next time, the symptom is *boot loop with no application Serial output*. PlatformIO's "Flash 99.7%" report compares against the partition size, not the actual on-disk binary size (which is ~3 KB larger after the loader-checksum padding). If the binary grows past ~99.6%, double-check `ls -la .pio/build/<env>/firmware.bin` against the app0 size in `partitions.bin` before assuming a code bug.
 
 ### TASK-036 — Compress skin atlas (palette-8 with runtime LUT or PNG-on-flash)
 **Owner**: Architect (ADR), Developer (impl)
