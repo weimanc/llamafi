@@ -310,3 +310,74 @@ features:
     cross_features: []
     test_ids: []
     notes: Probe runs unconditionally if NFC_ENABLED is set; harmless "NFC Bad" log when no reader is wired. Not validated on the current dev unit.
+
+  - id: chrome-001
+    name: Winamp main-window chrome decoration (M-CHROME tiers 1+2+2.5)
+    description: |
+      Bakes and renders the remaining Winamp 2 main-window chrome elements from the .wsz skin. Tier 1: SHUFREP atlas (75×30 px, 4 sprites) for shuffle/repeat indicators + tap-toggle; static composite patches MAIN_BG at bake time (TITLEBAR active variant, BALANCE centred, kbps "192", kHz "44", MS_STEREO_ON, MS_MONO_OFF, eject button). Tier 2: VOLUME atlas (6 keyframes × 68×13 px + sentinel, 10 608 bytes) for a dynamic volume slider driven by device.volume_percent from /me/player. Tier 2.5: drag-to-set volume touch control with 300 ms debounce, optimistic-UI freeze (2 s), and volume knob sprite (14×11 px from BALANCE.BMP). All dynamic state sourced from spotifyTask::Snapshot (shuffleState, repeatState, volumePercent). ADR-014 (static composite), ADR-016 (volume drag).
+    status: implemented
+    git_ref: Spotify-Diy-Thing@2026-05-10 (TASK-025 last — 2026-05-15)
+    files:
+      - Spotify-Diy-Thing/tools/bake_skin.py
+      - Spotify-Diy-Thing/SpotifyDiyThing/gen/skin_assets.c
+      - Spotify-Diy-Thing/SpotifyDiyThing/gen/skin_layout.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTask.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTaskStorage.cpp
+      - Spotify-Diy-Thing/lib/SpotifyArduino/src/SpotifyArduino.h
+      - Spotify-Diy-Thing/lib/SpotifyArduino/LOCAL_PATCHES.md
+    cross_features: [m2-001, m3-001, touch-002, api-002]
+    test_ids: [T070a, T070b, T073, T074, T075]
+    notes: |
+      Tier 1 (TASK-040, TASK-025, TASK-046): static composite baked into SKIN_MAIN_BG (no runtime cost); SHUFREP 4-sprite atlas (shuffle off/on, repeat off/on); eject composite. Shuffle/repeat tap-toggle dispatches ACT_SHUFFLE/ACT_REPEAT through spotifyTask; optimistic-UI paints new sprite immediately; 2 s freeze gates snap-driven redraw.
+      Tier 2 (TASK-041, TASK-044): VOLUME atlas 6 keyframes (0/28/56/84/112/140 % thresholds) + synthesised KEYFRAME_NONE (greyed empty track, sentinel for volumePercent=-1). Volume knob sprite tracks the keyframe pixel-position. Driven by device.volume_percent from /me/player (TASK-043).
+      Tier 2.5 (TASK-045): drag state machine D_IDLE ↔ D_VOLUME_DRAG; debounced ACT_VOLUME enqueued at ≤300 ms; drag-end commits final value; optimisticVolumeUntilMs virtual on SpotifyDisplay interface.
+      T-entries for shuffle/repeat render + tap-toggle are missing from test_plan.md — VE action from 2026-05-15 audit.
+
+  - id: playlist-001
+    name: Top-aligned UI + Spotify queue strip (M-LIST tier 1)
+    description: |
+      Shifts the Winamp chrome to originY=0 (flush with top edge) and renders a 5-row Spotify queue strip in the freed area below (y=116..240). getQueue() added to SpotifyArduino (LOCAL_PATCHES patch #10 family) polling GET /me/player/queue. QueueSnapshot struct + g_queueMux spinlock in spotifyTask. Poll trigger: track-change detection in onCurrentlyPlaying + 60 s keepalive. drawPlaylist() in winampDisplay.h uses seqno-diff + 1 Hz rate gate. Row 0 is current track (gold highlight), rows 1-6 are queue (Winamp grey-green), TFT_eSPI Font 2. ADR-017 (Option C landscape, 7 rows). Also fixed VU meter hardcoded origin → chromeOriginX()/chromeOriginY() getters.
+    status: implemented
+    git_ref: Spotify-Diy-Thing@2026-05-15 (TASK-020)
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTask.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTaskStorage.cpp
+      - Spotify-Diy-Thing/lib/SpotifyArduino/src/SpotifyArduino.h
+      - Spotify-Diy-Thing/lib/SpotifyArduino/src/SpotifyArduino.cpp
+      - Spotify-Diy-Thing/lib/SpotifyArduino/LOCAL_PATCHES.md
+    cross_features: [m3-001, api-002, poll-001]
+    test_ids: []
+    notes: |
+      user-read-playback-state scope covers /me/player/queue — no additional OAuth scope needed.
+      queueBufferSize = 6000 (3000 was insufficient for 20 filtered items).
+      Flash delta: 50.0% (stable post TASK-035 partition expansion).
+      RAM: +1 KB for QueueSnapshot.
+      Tap-to-play (TASK-021) deferred to tier 2 (M-LIST-v3).
+      VE: no test suite written — action from 2026-05-15 audit.
+
+  - id: playlist-002
+    name: Winamp PLEDIT playlist skin (M-LIST-v2)
+    description: |
+      Replaces the plain-black row list (playlist-001) with a proper Winamp Playlist Editor (PLEDIT.BMP) skin. bake_skin.py extended with build_pledit_atlas(): crops PLEDIT.BMP title bar (14 px) and bottom bar (16 px), pads/tiles horizontally to 320 px, composites into SKIN_PLEDIT_BG[320×30]; crops row-highlight sprite into SKIN_PLEDIT_ROW_HIGHLIGHT[260×16]. Layout constants emitted to gen/skin_layout.h (PLEDIT_Y, PLEDIT_H, PLEDIT_TITLE_H, PLEDIT_BOTTOM_H, PLEDIT_ROWS_Y, PLEDIT_ROW_H=16, PLEDIT_ROW_COUNT=5, PLEDIT_BOTTOM_Y, PLEDIT_W). drawPlaylist() rewritten: PLEDIT title bar + 5 rows + bottom bar via pushImage; Font 1 text "Artist - Track" format; PLEDIT highlight bg for row 0; duration column (MM:SS right-aligned) from durationMs in QueueEntry; total playlist time (sum durationMs) right-aligned in bottom bar. ADR-018 (Option C, 5 rows, MM:SS duration, total time).
+    status: implemented
+    git_ref: Spotify-Diy-Thing@2026-05-15 (TASK-047a/b/c/d)
+    files:
+      - Spotify-Diy-Thing/tools/bake_skin.py
+      - Spotify-Diy-Thing/SpotifyDiyThing/gen/skin_assets.c
+      - Spotify-Diy-Thing/SpotifyDiyThing/gen/skin_layout.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTask.h
+      - Spotify-Diy-Thing/lib/SpotifyArduino/src/SpotifyArduino.h
+      - Spotify-Diy-Thing/lib/SpotifyArduino/LOCAL_PATCHES.md
+    cross_features: [m2-001, m3-001, playlist-001, api-002]
+    test_ids: []
+    notes: |
+      QUEUE_MAX reduced 7→5 (5 rows per ADR-018); saves 296 bytes RAM.
+      durationMs added to QueueEntry (+4 bytes × 5 = +20 bytes RAM).
+      getQueue() filter extended for duration_ms (both currently_playing and queue[] items).
+      golden.sha256 regenerated after TASK-047a bake changes.
+      Scrollbar static decoration only (tier 2 deferred: TASK-047e, M-LIST-v3).
+      Tap-to-play (TASK-021) deferred (depends on updated row y-boundaries from TASK-047c — now available).
+      VE: no test suite written — action from 2026-05-15 audit.

@@ -4,6 +4,73 @@
 
 All audits: scope, findings, actions, status.
 
+### Audit — 2026-05-15 — M-LIST close + M-LIST-v2 close (TASK-020, TASK-047a/b/c/d)
+
+**Triggered by**: human (`@QM audit last of the M-LIST work`)
+
+**Areas checked**:
+- [x] Feature inventory completeness (features in code not in inventory)
+- [x] Test coverage per feature (implemented features with no test_ids)
+- [x] Cross-feature test coverage (interactions with no test_coverage)
+- [x] Documentation currency (docs lagging behind code)
+- [x] Inter-agent protocol adherence
+
+**Findings**:
+
+1. **Feature inventory — red. Three shipped features unregistered.**
+   - `playlist-001` (M-LIST tier 1: `QueueSnapshot` + `getQueue()` + `drawPlaylist()`, TASK-020, done 2026-05-15) — no entry in `feature_inventory.yaml`.
+   - `playlist-002` (M-LIST-v2: PLEDIT chrome skin, TASK-047a/b/c/d, done 2026-05-15) — no entry.
+   - `chrome-001` (M-CHROME: shuffle/repeat, volume slider, eject, TASK-023 through TASK-046) — no entry despite being heavily implemented and DUT-verified. T070a/T070b/T074/T075 reference `chrome-001` in `test_plan.md` but the inventory has no corresponding record. This is the most significant gap — the feature has code, tests, an ADR, and tasks but zero inventory presence.
+   - Same class as LL-005/LL-010/LL-011 (features ship without inventory back-fill). **Third consecutive milestone with this failure mode.**
+
+2. **Test coverage — red. All three unregistered features have zero test IDs.**
+   - `playlist-001`: no test suite. DUT verification at TASK-020 close was ad-hoc user eyeball only ("user confirmed playlist panel visible"). Not regression-able.
+   - `playlist-002`: no test suite. TASK-047a/b/c/d DUT verification was ad-hoc commit notes only. The drawPlaylist() redesign, PLEDIT chrome, duration column, and total-time bottom bar have no planned or written test entries.
+   - `chrome-001` shuffle/repeat (TASK-025): DUT-verified by user ("shuffle/repeat sprites visible, tap-toggle confirmed working") but no T-entry written in `test_plan.md` for either the render or the tap-toggle path. T070a/T070b/T073/T074/T075 cover the volume slider — the shuffle/repeat surface is uncovered.
+   - Registered features continue to carry `test_ids: []` across the board (chronic gap noted in all prior audits; not escalating further here — already on the backlog).
+
+3. **Cross-feature test coverage — yellow. Matrix not updated for new interactions.**
+   - `playlist-001` introduces at minimum two new interactions: (a) `playlist-001 ↔ api-002` (getQueue() lib patch touches SpotifyArduino — same patch family as LOCAL_PATCHES); (b) `playlist-001 ↔ m3-001` (drawPlaylist() is inside `winampDisplay.h`). Neither in `cross_feature_matrix.yaml`.
+   - `playlist-002 ↔ m2-001` (PLEDIT bake pipeline extension — new `build_pledit_atlas` function added to `bake_skin.py`). Not in matrix.
+   - Existing matrix entries all retain `test_coverage`; no entries are broken — the gap is additive omission.
+
+4. **Documentation currency — yellow. Roadmap M-LIST-v2 table stale.**
+   - `roadmap.md` M-LIST-v2 sub-task table still lists TASK-047a, 047b, 047c, 047d as "planned". `tasks.md` correctly shows all four done (2026-05-15). One-line status update needed in the roadmap table.
+   - `roadmap.md` M-LIST status line says "done (TASK-020 DUT-verified 2026-05-15; M-LIST-v2 PLEDIT skin in progress per ADR-018)" — correctly notes M-LIST-v2 as in-progress; but that's now fully done too. Should be updated to fully-done.
+   - ADR-017 and ADR-018 currency: both accepted per tasks/roadmap; no currency issue.
+
+5. **Inter-agent protocol — yellow.**
+   - M-LIST close (TASK-020 done 2026-05-15): PM did NOT trigger QM audit after milestone close. This audit was triggered directly by the human. Same skip as the post-M5 skip (audit 2026-05-08, Finding 5 — "PM prompts QM after every feature/milestone close" was red). Third consecutive milestone without a PM→QM prompt.
+   - M-LIST-v2 close (TASK-047a/b/c/d all done 2026-05-15): same — no VE test-plan write after "done" status was set. VE was not explicitly notified.
+   - ADR-018 was accepted pre-implementation (noted in roadmap/tasks). Architect → PM flow was followed.
+   - LL-010's "pre-commit checklist for cross-role hand-offs" remains unadopted as a best practice (human sign-off still pending from 2026-05-07). Two more instances of the same skip have occurred since it was raised.
+
+6. **Build and bake artefacts — green (conditioned).**
+   - Tasks note flash at 50.0% after TASK-020 — comfortable after TASK-035 partition expansion.
+   - `golden.sha256` was regenerated after TASK-047a (notes: "Regenerate `gen/golden.sha256`; confirm `sha256sum -c golden.sha256` passes").
+   - No independent verification of the regeneration was performed in this audit — QM trusts the developer's note but flags: per LL-017/LL-009 discipline, `sha256sum -c` should be confirmed by a second agent or by a CI step, not just noted in a commit message. This is a soft finding, not a red flag.
+
+**Actions assigned**:
+
+| Action | Owner | Tracked as |
+|--------|-------|------------|
+| Register `playlist-001` in `feature_inventory.yaml` (M-LIST tier 1 feature) | Developer | new |
+| Register `playlist-002` in `feature_inventory.yaml` (M-LIST-v2 PLEDIT skin) | Developer | new |
+| Register `chrome-001` in `feature_inventory.yaml` (M-CHROME all tiers) | Developer | new |
+| Write T-suite for `playlist-001`: queue display seqno gate, keepalive re-fetch, row 0 highlight, row formatting | VE | new |
+| Write T-suite for `playlist-002`: PLEDIT chrome visible, 5-row row format, duration column, total time in bottom bar | VE | new |
+| Write T-entries for TASK-025 shuffle/repeat render + tap-toggle (under `chrome-001` suite in `test_plan.md`) | VE | new |
+| Add `playlist-001 ↔ api-002`, `playlist-001 ↔ m3-001`, `playlist-002 ↔ m2-001` interactions to `cross_feature_matrix.yaml` | Developer | new |
+| Update `roadmap.md` M-LIST-v2 sub-task table: all four TASK-047 entries to "done"; M-LIST-v2 status to "done" | PM | new |
+| PM must prompt QM after every milestone close — LL-010 repeat violation (3rd instance). Escalate LL-010 promotion to human. | human | LL-010 |
+
+**Promotion candidate flagged (for human sign-off)**:
+- **LL-010** — "Pre-commit checklist for cross-role hand-offs": Three consecutive milestones (M5, M-LIST, M-LIST-v2) have repeated the PM→QM skip and the inventory/test back-fill skip. The pattern is now a structural gap, not an oversight. This is the strongest single promotion case in the queue — more concrete instances than any other LL.
+
+**Resolution**: open — actions assigned; no implementation in this audit. Roadmap + inventory + test plan updates to be committed by respective owners. LL-010 promotion decision held for human.
+
+---
+
 ### Audit — 2026-05-10 — TASK-041 verification surfaced upstream data-source bug (LL-013 v2)
 
 **Triggered by**: human ("have QM audit the work and recommend next step"); follow-up after T070a/T070b execution attempted on DUT.

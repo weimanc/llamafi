@@ -31,6 +31,33 @@ interactions:
     test_coverage: []
     notes: Discovered 2026-04-29 in TASK-007 spike run. Until api-002 lands, every PUT/POST in the firmware is broken; only the existing GET poll loop functions.
 
+  - id: X004
+    feature_a: playlist-001
+    feature_b: api-002
+    interaction_type: dependency
+    description: playlist-001's getQueue() is a lib patch on SpotifyArduino (LOCAL_PATCHES pattern) that makes a GET request to /me/player/queue using the same WiFiClientSecure connection-lifecycle fix introduced by api-002. If api-002's client->stop() pre-connect discipline is violated or rolled back, getQueue() will exhibit the same 0x0050 mbedTLS failure on non-first-request as the pre-api-002 control endpoints. The queue poll also runs inside spotifyTask on APP_CPU and shares the SpotifyArduino instance with the /me/player poll — both must respect the stop-before-connect contract.
+    risk: medium
+    test_coverage: []
+    notes: Added 2026-05-15 (QM audit). No test specifically validates getQueue() TLS lifecycle in isolation — covered implicitly by the fact that DUT verification (TASK-020) succeeded on the same connection-lifecycle fix. VE to add an explicit test entry.
+
+  - id: X005
+    feature_a: playlist-001
+    feature_b: m3-001
+    interaction_type: shared_state
+    description: drawPlaylist() lives inside winampDisplay.h and shares the TFT_eSPI tft instance with the rest of the Winamp chrome renderer (m3-001). Both render paths must respect the tft.startWrite()/endWrite() bracketing introduced by TASK-038 — drawPlaylist() must not call pushImage or fillRect outside a write bracket, and repaintChrome() must not inadvertently overwrite the playlist area (y=116..240) on a full chrome repaint. The two areas are disjoint (chrome at y=0..115, playlist at y=116..240) so the risk is low but the invariant must be maintained as the chrome surface grows.
+    risk: low
+    test_coverage: []
+    notes: Added 2026-05-15 (QM audit). Invariant is structural (origin + height constants keep the areas disjoint); any change to PLEDIT_Y or the chrome height must re-verify non-overlap.
+
+  - id: X006
+    feature_a: playlist-002
+    feature_b: m2-001
+    interaction_type: dependency
+    description: playlist-002 extends the bake_skin.py pipeline (m2-001) with build_pledit_atlas() — a new function that opens PLEDIT.BMP from the .wsz, crops and pads title + bottom bar strips, crops the row-highlight sprite, and emits SKIN_PLEDIT_BG + SKIN_PLEDIT_ROW_HIGHLIGHT to gen/skin_assets.c + gen/skin_layout.h. Any change to m2-001's wsz-loading infrastructure, the RGB565 emitter format, or the gen/ file layout affects playlist-002's bake output. golden.sha256 covers both m2-001 and playlist-002 outputs — a bake regression in either shows up in the same determinism check.
+    risk: low
+    test_coverage: []
+    notes: Added 2026-05-15 (QM audit). T025 golden-hash determinism check covers this indirectly. VE to add a positive-content check for SKIN_PLEDIT_BG (analogous to T072 for BALANCE.BMP) if PLEDIT.BMP ever uses BI_RLE8 compression — current PLEDIT.BMP is uncompressed so the manual decoder path does not apply.
+
 # --- Entry template ---
 # - id: X001
 #   feature_a: auth-001
