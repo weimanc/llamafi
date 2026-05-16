@@ -1,7 +1,7 @@
 # Design — M2 Skin Asset Pipeline
 
 > Owner: Architect / Developer
-> Status: in_progress (tier 1 done 2026-05-07; tier 2 in progress)
+> Status: done (tier 2 confirmed complete 2026-05-16 — all atlas + layout items verified in gen/)
 > Tracked-as: feature m2-001
 
 ## Scope
@@ -17,7 +17,7 @@ No firmware change — output verified by inspection and throwaway preview rende
 | Tier | Scope | Status |
 |---|---|---|
 | 1 | Bake tool + main bg + transport buttons + raw font atlas | done 2026-05-07 |
-| 2 | Glyph UV table, time digits, sliders | in progress (alongside M3 wiring) |
+| 2 | Glyph UV table, time digits, posbar, volume slider, SHUFREP, PLEDIT chrome, volume knob | done (absorbed into M3–M-CHROME–M-LIST-v2 work) |
 
 ## Determinism check (T025)
 

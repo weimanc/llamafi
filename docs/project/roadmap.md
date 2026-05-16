@@ -74,6 +74,15 @@ Bake and render MONOSTER, SHUFREP, title bar, volume/balance sliders from skin B
 
 ---
 
+### M2 — Skin asset pipeline
+
+Host-side bake tool converting the Winamp 2 skin to RGB565 atlas + layout header.
+**Status:** done (tier 2 confirmed complete 2026-05-16)
+**Deps:** —
+**Design:** [M2-skin-asset-pipeline.md](../architecture/designs/M2-skin-asset-pipeline.md)
+
+---
+
 ### M-LIST — Top-align UI + playlist panel
 
 Top-align Winamp chrome; render Spotify queue strip in freed area below using `GET /me/player/queue`.
@@ -83,15 +92,6 @@ Top-align Winamp chrome; render Spotify queue strip in freed area below using `G
 ---
 
 ## Outstanding
-
-### M2 — Skin asset pipeline
-
-Host-side bake tool converting the Winamp 2 skin to RGB565 atlas + layout header.
-**Status:** in_progress (tier 1 done 2026-05-07; tier 2 in progress)
-**Deps:** —
-**Design:** [M2-skin-asset-pipeline.md](../architecture/designs/M2-skin-asset-pipeline.md)
-
----
 
 ### M-IO — Decouple display from blocking network calls
 

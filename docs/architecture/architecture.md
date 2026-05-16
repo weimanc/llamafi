@@ -210,9 +210,9 @@ Cross-cutting questions across both states. Items marked **(baseline)** apply to
 
 - **(target)** `SpotifyArduino` extension strategy — the library covers `getCurrentlyPlaying`, `previousTrack`, `nextTrack`, and exposes (unwired) `seek`. It does not cover `audio-analysis`, `audio-features`, shuffle/repeat toggles, or volume. Options: extend the library upstream, fork, or add small helpers using the existing `WiFiClientSecure`. No PC mirror means no portability constraint on this choice.
 - **(target)** WiFi + TLS root CA strategy for `accounts.spotify.com` and `api.spotify.com` — pin or trust-store? Baseline currently delegates to `SpotifyArduino`'s defaults; revisit if the new endpoints exercise different cert chains.
-- **(target)** `audio-analysis` cache size and eviction — per-track JSON ~30–80 KB; LRU keyed by track id, sized to N most-recent. Need a value for N given remaining flash + RAM after baseline + skin atlas. Also: in-RAM only (lost across reboot) vs SPIFFS-mirrored.
-- **(target)** `audio-analysis` cache miss UX — momentary VU "off" on track change while analysis is fetched; acceptable, or worth a placeholder envelope?
-- **(target)** Skin atlas pixel format — RGB565 is the default to match TFT_eSPI; confirm against flash budget once atlas size is known.
+- **(target)** `audio-analysis` cache size and eviction — closed. M6 went synthetic (ADR-009 option e); no analysis fetch.
+- **(target)** `audio-analysis` cache miss UX — closed. Same as above.
+- **(target)** Skin atlas pixel format — closed. RGB565 confirmed; flash budget resolved via ADR-014 + TASK-035.
 - **(target)** Seek-bar drag UX — debounce-on-release for the API call is decided (survives ADR-004); open is the visual treatment of position during drag (snap to finger immediately, freeze interpolation until release).
 - **(target)** Position snap threshold — 500 ms is the starting value (survives ADR-005); tune once real network jitter is measured.
 - **(target)** Spotify rate-limiting headroom — the optimistic-UI pattern allows a speculative one-shot poll ~250 ms after a successful intent to shorten reconciliation; gate against the ~180 req/min ceiling.
