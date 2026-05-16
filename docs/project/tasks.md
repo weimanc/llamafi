@@ -528,6 +528,71 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Recommend (b) for first cut — cheap, ships, doesn't block M2/M3/M5. Keep (c) on a second track as an upgrade path.
 - 2026-05-07: ADR-009 accepted with **option (e) — synthesise from `currentlyPlaying` only** (option (a)'s premise also dead since `audio-features` is in the same deprecation). Implementation tier-1 will ship a 20 Hz envelope + flat-120 BPM beat clock + LFO stereo split. Extended-quota application kept as a parallel, non-blocking track. Feature `vu-001` description to be re-worded by Developer at implementation start.
 
+### TASK-052a — M-VIS-ATLAS: bake_vis.py — bar-height extraction pipeline
+**Owner**: Developer
+**Feature**: vis-002 (new)
+**Status**: done (2026-05-16 — 412 frames, 7.6 KB, wrap L1=18 ✓, sha256 golden committed)
+**Blocks**: TASK-052b, TASK-052c, TASK-052d
+**Notes**:
+- New `tools/bake_vis.py` (sibling to `bake_skin.py`). Inputs: one or more committed `.webm` screengrab videos; output: `gen/vis_atlas.c` + `gen/vis_atlas.h` + `gen/vis_atlas.npy` + `gen/vis_atlas.sha256`.
+- Auto-calibrate vis area per M-VIS-video-analysis-method.md (blue border detection).
+- Subsample source at 20 Hz; extract bar heights (0..16) per bar per frame via background pixel classification.
+- Emit `uint8_t VIS_ATLAS[N_FRAMES][19]` byte-per-bar C array and companion NumPy `.npy`.
+- Report wrap-jump distance (L1 between frame[0] and frame[-1]) to console.
+- SHA256 golden: `sha256sum -c gen/vis_atlas.sha256` must pass on same machine.
+- See `docs/architecture/designs/M-VIS-ATLAS-vis-atlas.md` §1.
+
+### TASK-052b — M-VIS-ATLAS: preview_vis.py — animated GIF output
+**Owner**: Developer
+**Feature**: vis-002
+**Status**: done (2026-05-16 — 412 frames, gen/skin_preview_animated.gif, bars render correct gradient + geometry)
+**Deps**: TASK-052a (needs vis_atlas.npy)
+**Notes**:
+- `tools/preview_vis.py` reads `gen/vis_atlas.npy` + `gen/skin_preview.png`; composites atlas frames into vis area at PREVIEW_SCALE=2.5; writes animated GIF at 20 fps.
+- Bar geometry and VIS_ROW_COLOR palette identical to firmware renderer.
+- Vis area verified: correct 3px bar + 1px gap, green→yellow gradient, peak dots.
+
+### TASK-052c — M-VIS-ATLAS: preview_vis.py — live pygame window + synthetic mode
+**Owner**: Developer
+**Feature**: vis-002
+**Status**: done (2026-05-16 — --live pygame window + --mode synthetic implemented; --loop-start/--loop-end sub-range tuning)
+**Deps**: TASK-052b
+**Notes**:
+- `--live` flag opens pygame window at 20 Hz real-time.
+- `--mode synthetic` runs firmware AR(1)/inertia/oscillator logic in Python for A/B comparison vs atlas.
+- `--loop-start F` / `--loop-end F` to select atlas sub-range for wrap-point tuning.
+
+### TASK-052d — M-VIS-ATLAS: firmware VIS_ATLAS mode in vuMeter.h
+**Owner**: Developer
+**Feature**: vis-002
+**Status**: done (2026-05-16 — compile clean; VIS_ATLAS_MODE in enum, tickAtlas() added, tap cycle VU→Spectrum→Atlas→Wave→Blank→VU)
+**Deps**: TASK-052a (needs gen/vis_atlas.h)
+**Notes**:
+- `VIS_ATLAS_MODE` in `VisMode` enum (renamed from VIS_ATLAS to avoid clash with global array symbol).
+- `tickAtlas()`: index `VIS_ATLAS[frame][i]` directly (.rodata); freeze on `!playing`; loop mod `VIS_ATLAS_FRAMES`.
+- No peak dots in atlas mode.
+
+### TASK-052e — M-VIS-ATLAS: flash headroom verification
+**Owner**: Developer
+**Feature**: vis-002
+**Status**: done (2026-05-16 — Flash 52.4%, vis_atlas.c.o=10 KB ≤ 12 KB budget ✓)
+**Deps**: TASK-052d
+**Notes**:
+- `pio run -e cyd2usb_winamp`: Flash 52.4% (1,374,121 / 2,621,440 bytes). Healthy.
+- `vis_atlas.c.o` = 10,288 bytes. 7.8 KB data in .rodata, well within 12 KB budget.
+- 412 frames × 19 bytes = 7,828 bytes actual atlas data.
+
+### TASK-052f — M-VIS-ATLAS: VE regression — existing vis modes unchanged
+**Owner**: VE
+**Feature**: vis-002
+**Status**: planned (2026-05-16)
+**Deps**: TASK-052d
+**Notes**:
+- DUT flash `cyd2usb_winamp` post-TASK-052d. Tap through VU → Spectrum → Atlas → Wave → Blank → VU on device.
+- Confirm: VU bars intact, Spectrum 19 bars + gradient + peak dots, Wave white sine + vertical fill, Blank clean skin bg.
+- Atlas mode: bars animate at 20 Hz, freeze on pause, loop. No crash at wrap.
+- Flash delta for vis_atlas.c reported (TASK-052e result).
+
 ## Blocked Tasks
 
 _None._
