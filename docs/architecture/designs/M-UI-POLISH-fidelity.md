@@ -1,7 +1,7 @@
 # Design — M-UI-POLISH Small UI Fidelity Improvements
 
 > Owner: Developer
-> Status: planned (2026-05-15)
+> Status: done (2026-05-16)
 > Tracked-as: TASK-048, TASK-049
 > Deps: M3, M6
 

@@ -105,7 +105,7 @@ Remove cases where Spotify API calls block the super-loop long enough to freeze 
 ### M-UI-POLISH — Small UI fidelity improvements
 
 Wire artist name into marquee (`Artist - Title`); restore skin background in VU zero-fill region.
-**Status:** planned (2026-05-15)
+**Status:** done (2026-05-16)
 **Deps:** M3, M6
 **Design:** [M-UI-POLISH-fidelity.md](../architecture/designs/M-UI-POLISH-fidelity.md)
 
