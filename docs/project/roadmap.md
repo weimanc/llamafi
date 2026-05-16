@@ -114,7 +114,7 @@ Wire artist name into marquee (`Artist - Title`); restore skin background in VU 
 ### M-HITZONES — Hit-zone preview PNG
 
 Extend bake tool to emit a semi-transparent hit-zone overlay PNG for touch alignment verification.
-**Status:** planned (2026-05-15)
+**Status:** done (2026-05-16)
 **Deps:** M2
 **Design:** [M-HITZONES-hitzone-preview.md](../architecture/designs/M-HITZONES-hitzone-preview.md)
 
