@@ -32,6 +32,16 @@ On seqno advance, reset `scrollOffset = 0`. Items[0] (currently playing) always 
 
 Sub-task: TASK-051f.
 
+## Known issue — tap-to-play replaces queue (2026-05-16 DUT observation)
+
+Current `playAdvanced(uri)` in TASK-021 starts the selected track as a new session, clearing the Spotify queue. PLEDIT shows 5 identical rows of the new track; Spotify shows 1 item. User expectation: preserve queue, jump to selected position.
+
+Resolution options:
+- **Context play** (preferred): surface `context_uri` from `/me/player` into `Snapshot`; use `PUT /v1/me/player/play` with `{"context_uri": "...", "offset": {"uri": "..."}}`. Works for playlist/album contexts. Needs new lib patch to capture `context_uri`.
+- **Blind skip**: call `next` N times (N = row index). Fragile if queue mutates between tap and execution.
+
+Pre-requisite for option 1: `context_uri` added to `Snapshot` (new LOCAL_PATCHES entry).
+
 ## Exit criteria
 
 - Selected row highlight follows playing track within one poll; optimistic highlight appears immediately on tap.

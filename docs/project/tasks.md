@@ -427,6 +427,8 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - On tap: `enqueue(ACT_PLAY_URI, row_index)` → task reads `QueueSnapshot::items[row_index].uri` → `playAdvanced`.
 - Need new `ACT_PLAY_URI` action enum. Index-in-snapshot avoids URI string in `Request` struct; race-free (task owns snapshot write side).
 - Note: row y-boundaries updated by TASK-047c (PLEDIT layout shifts rows down by `PLEDIT_TITLE_H=14` px vs TASK-020 baseline).
+- **DUT observation (2026-05-16)**: `playAdvanced(uri)` clears the Spotify queue and starts the selected track as a fresh session. PLEDIT immediately shows 5 identical rows of the new track; Spotify queue shows only that 1 item. This is `playAdvanced` API behaviour — it replaces the context, it does not skip ahead in the existing queue.
+- **Desired behaviour**: keep the existing queue intact; "jump" to the tapped track. Implementation options: (a) if playing from a playlist/album context, use `PUT /v1/me/player/play` with `context_uri` + `offset.uri`; (b) without context, call `next` N times to skip ahead. Neither is trivially available from the current queue snapshot (which carries URIs but not the original context URI or position). Tracked for resolution in M-LIST-v3 (TASK-051a–f). See `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md`.
 
 ### TASK-022 — M-LIST option B: portrait rotation
 **Owner**: Developer
