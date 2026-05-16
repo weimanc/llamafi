@@ -187,5 +187,5 @@ Wave-y = 0 is the **top** of the vis area (maximum positive amplitude); wave-y =
 | # | Question | Owner |
 |---|---|---|
 | OQ-1 | Fidelity: spatial/temporal smoothing and sub-pixel dithering options evaluated but not yet implemented — see `M-WAVE-ATLAS-fidelity-options.md`. If a PROP is raised, Architect reviews before scheduling. | R&D → Architect |
-| OQ-2 | Firmware: `tickWave()` currently plays a synthetic sine. A `VIS_WAVE_ATLAS` mode (parallel to `VIS_ATLAS_MODE` for the spectrum) would substitute atlas playback. Not yet tasked. | PM |
+| OQ-2 | ~~Firmware: `tickWave()` currently plays a synthetic sine. A `VIS_WAVE_ATLAS` mode (parallel to `VIS_ATLAS_MODE` for the spectrum) would substitute atlas playback. Not yet tasked.~~ **Resolved** — design doc `M-WAVE-ATLAS-firmware-playback.md` covers `VIS_WAVE_ATLAS`, `tickWaveAtlas()`, tap cycle update, and sub-tasks TASK-053a–d. | Architect |
 | OQ-3 | Loop wrap: L1 distance frame[0]↔frame[-1] = 106, flagged as potentially visible. No user complaint yet — monitor on DUT when atlas playback is wired in. | Developer |
