@@ -286,7 +286,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-050a — M-VIS: VisMode enum + toggle dispatch + blank mode
 **Owner**: Developer
 **Feature**: vis-001 (new)
-**Status**: planned (2026-05-15; spec corrected 2026-05-16 by Architect per R&D)
+**Status**: done (2026-05-16 — VisMode enum + nextMode() + blitVisBackground() + hitTestVis() + mode dispatch in tick(); compile-verified)
 **Blocks**: TASK-050b, TASK-050c (need mode dispatch before adding renderers)
 **Notes**:
 - Add `enum VisMode { VIS_VU, VIS_SPECTRUM, VIS_WAVE, VIS_BLANK };` to `vuMeter.h` namespace.
@@ -307,7 +307,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-050b — M-VIS: spectrum analyzer view
 **Owner**: Developer
 **Feature**: vis-001
-**Status**: planned (2026-05-15; spec corrected 2026-05-16 by Architect per R&D pixel measurements)
+**Status**: done (2026-05-16 — 19 bars × 3px, VIS_ROW_COLOR gradient, grey peak dots 3px wide, decay 1/VIS_H per tick; compile-verified)
 **Notes**:
 - **Authoritative spec:** `docs/architecture/designs/M-VIS-visualization.md`. Summary of corrections from original 2026-05-15 notes:
   - **19 bars** (not 38): 3px wide + 1px gap = 4px step. `barX = originX + RECT_X + i * 4`.
@@ -324,7 +324,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-050c — M-VIS: waveform oscilloscope view
 **Owner**: Developer
 **Feature**: vis-001
-**Status**: planned (2026-05-15; spec corrected 2026-05-16 by Architect per R&D pixel measurements)
+**Status**: done (2026-05-16 — white sine wave, vertical fill between samples, midline y=originY+50, phase-advancing; compile-verified)
 **Notes**:
 - **Authoritative spec:** `docs/architecture/designs/M-VIS-visualization.md`. Summary of corrections from original 2026-05-15 notes:
   - **Colour:** `VIS_WAVE_COLOR = 0xFFFF` (white, VISCOLOR[18]). NOT `TFT_GREEN`. R&D measurement confirmed white.
@@ -354,7 +354,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-049 — M-UI-POLISH: VU zero-fill from SKIN_MAIN_BG
 **Owner**: Developer
 **Feature**: vu-001 (existing)
-**Status**: planned (2026-05-15)
+**Status**: done (2026-05-16 — pushImage zero-fill pattern already implemented in vuMeter.h; mainBg param present; confirmed in code)
 **Notes**:
 - `vuMeter.h:121` and `vuMeter.h:127` clear the off-portion of each bar with `tft.fillRect(..., TFT_BLACK)`. This overwrites the skin's visualization-area background.
 - Fix: replace with per-row `pushImage` from `SKIN_MAIN_BG` at the corresponding window-local pixel offset. Same pattern as `drawTitleText()` line 513-514.
