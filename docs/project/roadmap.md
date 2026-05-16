@@ -8,7 +8,9 @@ Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the 
 
 ---
 
-## M0 — Baseline hardened
+## Completed
+
+### M0 — Baseline hardened
 
 First dev unit working end-to-end; secrets and NFC posture cleaned up before UI work begins.
 **Status:** done
@@ -16,7 +18,7 @@ First dev unit working end-to-end; secrets and NFC posture cleaned up before UI 
 
 ---
 
-## M1 — API capability spike
+### M1 — API capability spike
 
 Prove every Spotify Web API call the Winamp UI needs round-trips on this DUT before any skin work.
 **Status:** done — surfaced TASK-009 (HTTPClient migration) and TASK-010 (audio-features/analysis 403 blocker)
@@ -24,7 +26,65 @@ Prove every Spotify Web API call the Winamp UI needs round-trips on this DUT bef
 
 ---
 
-## M2 — Skin asset pipeline
+### M3 — Winamp display backend
+
+New `winampDisplay.h` rendering baked atlas + layout on the CYD via TFT_eSPI.
+**Status:** done (2026-05-07 — DUT visual verify confirmed)
+**Deps:** M2
+
+---
+
+### M4 — Position interpolation
+
+Smooth seek-bar / elapsed-time movement between ~1 Hz polls via local millis-based interpolation.
+**Status:** done (2026-05-07)
+**Deps:** M3
+
+---
+
+### M5 — Full-skin touch controls
+
+Replace three-zone touch map with skin-region hit-testing wired to full Spotify API control surface.
+**Status:** done (2026-05-08 — DUT-verified)
+**Deps:** M1, M3, M4
+
+---
+
+### M6 — VU meter
+
+Decorative two-bar VU synthesised from Spotify poll envelope; green/yellow/red grading; decays on pause.
+**Status:** done (2026-05-09 — ADR-009 option (e))
+**Deps:** M5
+
+---
+
+### M-LOG — Logging redesign
+
+Replace ad-hoc Serial prints with esp_log tags/levels, RAM ringbuffer, `/log` pull, mbedTLS decoder, secret redactor.
+**Status:** tier 1 shipped 2026-05-07 (ADR-010 + DUT-verified); tier 2/3 deferred
+**Deps:** cross-cutting
+
+---
+
+### M-CHROME — Remaining main-window chrome sprites
+
+Bake and render MONOSTER, SHUFREP, title bar, volume/balance sliders from skin BMP sheets.
+**Status:** tier 1 done (2026-05-10 — MONOSTER static, SHUFREP dynamic, eject decoration); tier 2 superseded by ADR-014 + TASK-035
+**Deps:** M2, M3
+
+---
+
+### M-LIST — Top-align UI + playlist panel
+
+Top-align Winamp chrome; render Spotify queue strip in freed area below using `GET /me/player/queue`.
+**Status:** done (TASK-020 DUT-verified 2026-05-15; ADR-017)
+**Deps:** M3, M-IO
+
+---
+
+## Outstanding
+
+### M2 — Skin asset pipeline
 
 Host-side bake tool converting the Winamp 2 skin to RGB565 atlas + layout header.
 **Status:** in_progress (tier 1 done 2026-05-07; tier 2 in progress)
@@ -33,65 +93,7 @@ Host-side bake tool converting the Winamp 2 skin to RGB565 atlas + layout header
 
 ---
 
-## M-HITZONES — Hit-zone preview PNG
-
-Extend bake tool to emit a semi-transparent hit-zone overlay PNG for touch alignment verification.
-**Status:** planned (2026-05-15)
-**Deps:** M2
-**Design:** [M-HITZONES-hitzone-preview.md](../architecture/designs/M-HITZONES-hitzone-preview.md)
-
----
-
-## M3 — Winamp display backend
-
-New `winampDisplay.h` rendering baked atlas + layout on the CYD via TFT_eSPI.
-**Status:** done (2026-05-07 — DUT visual verify confirmed)
-**Deps:** M2
-
----
-
-## M4 — Position interpolation
-
-Smooth seek-bar / elapsed-time movement between ~1 Hz polls via local millis-based interpolation.
-**Status:** done (2026-05-07)
-**Deps:** M3
-
----
-
-## M5 — Full-skin touch controls
-
-Replace three-zone touch map with skin-region hit-testing wired to full Spotify API control surface.
-**Status:** done (2026-05-08 — DUT-verified)
-**Deps:** M1, M3, M4
-
----
-
-## M6 — VU meter
-
-Decorative two-bar VU synthesised from Spotify poll envelope; green/yellow/red grading; decays on pause.
-**Status:** done (2026-05-09 — ADR-009 option (e))
-**Deps:** M5
-
----
-
-## M-LOG — Logging redesign
-
-Replace ad-hoc Serial prints with esp_log tags/levels, RAM ringbuffer, `/log` pull, mbedTLS decoder, secret redactor.
-**Status:** tier 1 shipped 2026-05-07 (ADR-010 + DUT-verified); tier 2/3 deferred
-**Deps:** cross-cutting
-
----
-
-## M-LOG2 — On-screen log overlay
-
-Full-panel log terminal behind the Winamp chrome; top and bottom strips visible, middle hidden.
-**Status:** planned (added 2026-05-07)
-**Deps:** M-LOG (log-001 ringbuffer), M3
-**Design:** [M-LOG2-screen-log-overlay.md](../architecture/designs/M-LOG2-screen-log-overlay.md)
-
----
-
-## M-IO — Decouple display from blocking network calls
+### M-IO — Decouple display from blocking network calls
 
 Remove cases where Spotify API calls block the super-loop long enough to freeze UI and stale state.
 **Status:** tier 1 done (TASK-019 async FreeRTOS poll); TASK-052 planned
@@ -100,68 +102,7 @@ Remove cases where Spotify API calls block the super-loop long enough to freeze 
 
 ---
 
-## M-CONN — Connection health UI + TLS recovery controls
-
-Inactive title bars on disconnect; serial `reconnect` command; Winamp logo tap → TLS reset.
-**Status:** planned (2026-05-15)
-**Deps:** TASK-052 (M-IO), M-CHROME (TITLEBAR bake), M3
-**Design:** [M-CONN-connection-health.md](../architecture/designs/M-CONN-connection-health.md)
-
----
-
-## M-CHROME — Remaining main-window chrome sprites
-
-Bake and render MONOSTER, SHUFREP, title bar, volume/balance sliders from skin BMP sheets.
-**Status:** tier 1 done (2026-05-10 — MONOSTER static, SHUFREP dynamic, eject decoration); tier 2 superseded by ADR-014 + TASK-035
-**Deps:** M2, M3
-
----
-
-## M-PERF — Profiling + targeted optimisation
-
-Instrument loop and hot paths; measure before deciding which optimisations to ship.
-**Status:** planned (added 2026-05-08)
-**Deps:** M-LOG (log-001 heartbeat), M3, M-IO
-**Design:** [M-PERF-profiling.md](../architecture/designs/M-PERF-profiling.md)
-
----
-
-## M-LIST — Top-align UI + playlist panel
-
-Top-align Winamp chrome; render Spotify queue strip in freed area below using `GET /me/player/queue`.
-**Status:** done (TASK-020 DUT-verified 2026-05-15; ADR-017)
-**Deps:** M3, M-IO
-
----
-
-## M-LIST-v2 — Winamp PLEDIT playlist skin
-
-Replace plain row list with proper PLEDIT skin: title bar, bottom bar, 5 rows, MM:SS durations, total time.
-**Status:** planned (2026-05-15; ADR-018)
-**Deps:** M-LIST, M2, M3
-**Design:** [M-LIST-v2-pledit-skin.md](../architecture/designs/M-LIST-v2-pledit-skin.md)
-
----
-
-## M-LIST-v3 — Playlist interactivity
-
-Selected-row highlight tracking, virtual scroll (20 items), live scrollbar thumb.
-**Status:** planned (2026-05-15)
-**Deps:** M-LIST-v2, TASK-021 (tap-to-play)
-**Design:** [M-LIST-v3-playlist-interactivity.md](../architecture/designs/M-LIST-v3-playlist-interactivity.md)
-
----
-
-## M-VIS — Visualization area
-
-Tap-cycling visualizer replacing fixed VU: VU → Spectrum (38 bars) → Wave (sine) → Blank.
-**Status:** planned (2026-05-15)
-**Deps:** M6, TASK-049 (SKIN_MAIN_BG restore pattern)
-**Design:** [M-VIS-visualization.md](../architecture/designs/M-VIS-visualization.md)
-
----
-
-## M-UI-POLISH — Small UI fidelity improvements
+### M-UI-POLISH — Small UI fidelity improvements
 
 Wire artist name into marquee (`Artist - Title`); restore skin background in VU zero-fill region.
 **Status:** planned (2026-05-15)
@@ -170,7 +111,70 @@ Wire artist name into marquee (`Artist - Title`); restore skin background in VU 
 
 ---
 
-## M7 — Polish / open questions
+### M-HITZONES — Hit-zone preview PNG
+
+Extend bake tool to emit a semi-transparent hit-zone overlay PNG for touch alignment verification.
+**Status:** planned (2026-05-15)
+**Deps:** M2
+**Design:** [M-HITZONES-hitzone-preview.md](../architecture/designs/M-HITZONES-hitzone-preview.md)
+
+---
+
+### M-CONN — Connection health UI + TLS recovery controls
+
+Inactive title bars on disconnect; serial `reconnect` command; Winamp logo tap → TLS reset.
+**Status:** planned (2026-05-15)
+**Deps:** M-IO (TASK-052), M-CHROME (done), M3
+**Design:** [M-CONN-connection-health.md](../architecture/designs/M-CONN-connection-health.md)
+
+---
+
+### M-LIST-v2 — Winamp PLEDIT playlist skin
+
+Replace plain row list with proper PLEDIT skin: title bar, bottom bar, 5 rows, MM:SS durations, total time.
+**Status:** planned (2026-05-15; ADR-018)
+**Deps:** M-LIST, M2, M3
+**Design:** [M-LIST-v2-pledit-skin.md](../architecture/designs/M-LIST-v2-pledit-skin.md)
+
+---
+
+### M-VIS — Visualization area
+
+Tap-cycling visualizer replacing fixed VU: VU → Spectrum (38 bars) → Wave (sine) → Blank.
+**Status:** planned (2026-05-15)
+**Deps:** M6, M-UI-POLISH (TASK-049)
+**Design:** [M-VIS-visualization.md](../architecture/designs/M-VIS-visualization.md)
+
+---
+
+### M-LOG2 — On-screen log overlay
+
+Full-panel log terminal behind the Winamp chrome; top and bottom strips visible, middle hidden.
+**Status:** planned (added 2026-05-07)
+**Deps:** M-LOG (done), M3
+**Design:** [M-LOG2-screen-log-overlay.md](../architecture/designs/M-LOG2-screen-log-overlay.md)
+
+---
+
+### M-LIST-v3 — Playlist interactivity
+
+Selected-row highlight tracking, virtual scroll (20 items), live scrollbar thumb.
+**Status:** planned (2026-05-15)
+**Deps:** M-LIST-v2, TASK-021 (tap-to-play)
+**Design:** [M-LIST-v3-playlist-interactivity.md](../architecture/designs/M-LIST-v3-playlist-interactivity.md)
+
+---
+
+### M-PERF — Profiling + targeted optimisation
+
+Instrument loop and hot paths; measure before deciding which optimisations to ship.
+**Status:** planned (added 2026-05-08)
+**Deps:** M-LOG (done), M3, M-IO
+**Design:** [M-PERF-profiling.md](../architecture/designs/M-PERF-profiling.md)
+
+---
+
+### M7 — Polish / open questions
 
 Resolve remaining open questions (TLS CA strategy, seek-drag, speculative poll, audio-analysis cache) once system exercised end-to-end.
 **Status:** planned
