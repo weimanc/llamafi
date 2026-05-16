@@ -1,7 +1,7 @@
 # Design — M-CONN Connection Health UI + TLS Recovery Controls
 
 > Owner: Developer
-> Status: planned (2026-05-15)
+> Status: implemented (2026-05-16); DUT validation outstanding
 > Tracked-as: TASK-053a–f
 > Deps: TASK-052 (M-IO backoff reset), M-CHROME (TITLEBAR.BMP bake), m3-001 renderer
 

@@ -123,7 +123,7 @@ Extend bake tool to emit a semi-transparent hit-zone overlay PNG for touch align
 ### M-CONN — Connection health UI + TLS recovery controls
 
 Inactive title bars on disconnect; serial `reconnect` command; Winamp logo tap → TLS reset.
-**Status:** planned (2026-05-15)
+**Status:** implemented (2026-05-16); DUT validation outstanding
 **Deps:** M-IO (TASK-052), M-CHROME (done), M3
 **Design:** [M-CONN-connection-health.md](../architecture/designs/M-CONN-connection-health.md)
 
