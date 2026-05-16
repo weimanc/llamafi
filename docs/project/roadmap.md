@@ -96,7 +96,7 @@ Top-align Winamp chrome; render Spotify queue strip in freed area below using `G
 ### M-IO — Decouple display from blocking network calls
 
 Remove cases where Spotify API calls block the super-loop long enough to freeze UI and stale state.
-**Status:** tier 1 done (TASK-019 async FreeRTOS poll); TASK-052 planned
+**Status:** done (TASK-019 async poll; TASK-052 tap resets backoff, 2026-05-16)
 **Deps:** M3
 **Design:** [M-IO-decouple-display-network.md](../architecture/designs/M-IO-decouple-display-network.md)
 

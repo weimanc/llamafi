@@ -1,7 +1,7 @@
 # Design — M-IO Decouple Display from Blocking Network Calls
 
 > Owner: Developer / Architect
-> Status: tier 1 done (TASK-019 async FreeRTOS poll); TASK-052 planned
+> Status: done (TASK-019 async FreeRTOS poll; TASK-052 tap resets backoff 2026-05-16)
 > Tracked-as: TASK-019, TASK-052
 
 ## Problem
