@@ -140,8 +140,8 @@ Replace plain row list with proper PLEDIT skin: title bar, bottom bar, 5 rows, M
 
 ### M-VIS — Visualization area
 
-Tap-cycling visualizer replacing fixed VU: VU → Spectrum (38 bars) → Wave (sine) → Blank.
-**Status:** planned (2026-05-15)
+Tap-cycling visualizer replacing fixed VU: VU → Spectrum (19 bars) → Wave (sine) → Blank.
+**Status:** design updated (2026-05-16 — R&D pixel measurements incorporated; implementation pending TASK-050a/b/c)
 **Deps:** M6, M-UI-POLISH (TASK-049)
 **Design:** [M-VIS-visualization.md](../architecture/designs/M-VIS-visualization.md)
 
@@ -149,8 +149,8 @@ Tap-cycling visualizer replacing fixed VU: VU → Spectrum (38 bars) → Wave (s
 
 ### M-LOG2 — On-screen log overlay
 
-Full-panel log terminal behind the Winamp chrome; top and bottom strips visible, middle hidden.
-**Status:** planned (added 2026-05-07)
+Full-panel log terminal behind the Winamp chrome; newest 15 lines visible in PLEDIT area.
+**Status:** done (TASK-018 DUT-verified 2026-05-07); PLEDIT compat fix needed before using with M-LIST-v2
 **Deps:** M-LOG (done), M3
 **Design:** [M-LOG2-screen-log-overlay.md](../architecture/designs/M-LOG2-screen-log-overlay.md)
 
@@ -177,7 +177,7 @@ Instrument loop and hot paths; measure before deciding which optimisations to sh
 ### M7 — Polish / open questions
 
 Resolve remaining open questions (TLS CA strategy, seek-drag, speculative poll, audio-analysis cache) once system exercised end-to-end.
-**Status:** planned
+**Status:** done (2026-05-16 — ADR-019 TLS CA, ADR-020 speculative poll, seek-drag visual resolved in design doc; audio-analysis already closed ADR-009)
 **Deps:** M6 and all prior milestones
 **Design:** [M7-open-questions.md](../architecture/designs/M7-open-questions.md)
 

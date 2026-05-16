@@ -284,6 +284,25 @@ Sister rule to LL-013 / LL-009 / LL-014 (don't blame the network without a posit
 
 ---
 
+### LL-019 — 2026-05-16 — Implementation specs written before R&D measurements produce high error rates
+
+**Context**: TASK-050a/b/c (M-VIS) were written on 2026-05-16 as detailed implementation specs before any pixel-accurate R&D measurements were taken. R&D reports (M-VIS-spectrum-analysis.md, M-VIS-waveform-analysis.md) landed the same day after the specs were already in tasks.md. The Architect's comparison found 5 wrong values in TASK-050b alone (bar count 38→19, bar width 2px→3px+1px gap, colour method threshold→row-lookup, decay constant 0.008f→0.0625f, peak dot size 1px→3px) and 3 wrong values in TASK-050c (colour TFT_GREEN→white, render method single-pixel→vertical-fill, midline y=49→y=50). None of the wrong values were individually implausible — they were all reasonable from first principles. The aggregate was wrong enough to produce a visibly incorrect result on DUT.
+
+**Observation**: Specs written from memory, analogies, or first principles before measurement are unreliable for pixel-level behaviour. In this case "38 bars" came from halving a round-number estimate; "green/yellow/red threshold colouring" from a generic spectrum convention; "drawPixel per column" from a minimal interpretation of the oscilloscope spec. Each looked reasonable alone. The actual Winamp behaviour (19 bars, absolute-row colour table, vertical fill between samples) was only discoverable by measuring the real renderer. No gate existed to prevent the spec from being treated as authoritative.
+
+**Root cause**: The spec was written in the same session as the R&D was ordered, with the implicit assumption that the spec could be drafted from knowledge and corrected after. The tasks.md format does not distinguish "measured" from "estimated" values, and nothing flagged the spec as provisional while R&D was in flight.
+
+**Suggested improvement**:
+1. When a design spec depends on pixel-accurate measurements (vis geometry, colour values, animation rates), mark it explicitly as `[PROVISIONAL — awaiting R&D]` until the R&D report is available. Do not write specific numbers until they are measured.
+2. Implementation gates: Developer should not start a task whose spec carries a `[PROVISIONAL]` tag. The R&D measurement must arrive and be incorporated by the Architect before coding begins.
+3. This applies especially to any spec derived from observing a third-party renderer (Winamp, Media Player, etc.) — "it looks like X" without frame-by-frame analysis is always provisional.
+
+Sister rule to LL-016 ("look at the asset before changing code") and LL-017 ("a library that produces output is more dangerous than one that errors"). Theme: **measure the ground truth before writing implementation numbers.**
+
+**Status**: open — promotion candidate. First instance on this project; preventive catch (no implementation had started when caught). Strong promotion case for projects with any asset-measurement-dependent feature work.
+
+---
+
 ## Best-practice candidates (for human sign-off)
 
 Per AGENTS.md, QM does not self-promote. Below are LL items that look durable enough to become best-practice rules:
@@ -303,6 +322,7 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-016** → "Look at the asset before changing code; ask which layer (atlas / data-mapping / on-screen position) when 'swap' is ambiguous." Process rule, applies to Developer.
 - **LL-017** → "A library that produces output is more dangerous than one that errors. For data-pipeline libraries on the file classes we actually depend on, validate output against a second independent decoder; don't trust no-exception as success." Process rule, applies to Developer + Architect.
 - **LL-018** → "Treat the OpenAPI spec as an over-approximation, not a contract. Any lib-filter patch that depends on a documented field must include a wire-capture proof that the field is actually returned by the specific endpoint being patched." Process rule, applies to Developer + Architect. Two concrete instances (LL-013 was the first). Strongest promotion case in the candidate set.
+- **LL-019** → "Implementation specs that depend on pixel-accurate asset measurements must be marked `[PROVISIONAL — awaiting R&D]` and blocked from implementation until R&D validates the numbers. First-principles estimates produce high error rates on pixel-level behaviour." Process rule, applies to Developer (implementation gate) and Architect (provisional tagging). First instance on this project; preventive catch.
 
 ---
 

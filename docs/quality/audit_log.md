@@ -4,6 +4,73 @@
 
 All audits: scope, findings, actions, status.
 
+### Audit — 2026-05-16 — M-VIS design update: supersession correctness (Architect R&D integration)
+
+**Triggered by**: human (`@QM to check if this latest M-VIS supersedes previous work`)
+
+**Scope**: The Architect updated `docs/architecture/designs/M-VIS-visualization.md` and `docs/project/tasks.md` TASK-050a/b/c on 2026-05-16 using pixel-accurate R&D measurements from `M-VIS-spectrum-analysis.md` and `M-VIS-waveform-analysis.md`. Audit checks whether the supersession is complete and correct, and whether any gaps were opened by the update.
+
+**Areas checked**:
+- [x] Supersession technical correctness (every correction verified against R&D data)
+- [x] Feature inventory completeness (vis-001)
+- [x] Cross-feature matrix (new interactions introduced by vis-001)
+- [x] Documentation currency (tasks.md, roadmap.md, design doc consistency)
+- [x] Process pattern (new LL candidate)
+
+**Findings**:
+
+1. **Supersession technical correctness — GREEN.** All 10 corrections verified against the R&D reports:
+
+   | Correction | R&D evidence | Verdict |
+   |---|---|---|
+   | VIS_H: 13→16 (y=43..58) | Spectrum report: active area y=43..58 (16px) | ✓ correct |
+   | Hit-test y bound: 43..56 → 43..58 | Follows from VIS_H=16 | ✓ correct |
+   | 38 bins → 19 bars | Spectrum report: 76px / 4px unit = 19 | ✓ correct |
+   | Bar: 2px wide, i*2 → 3px wide + 1px gap, i*4 step | Spectrum report: bar_width=3, gap=1, unit=4 | ✓ correct |
+   | Colour: threshold green/yellow/red → VIS_ROW_COLOR[absolute_row] | Spectrum report: colour by absolute row, VISCOLOR[2..17] table | ✓ correct |
+   | Peak decay: 0.008f → 1.0f/VIS_H (~0.0625f) | Spectrum report: ~50 ms/row at 60 Hz; at 20 Hz = 1 row/tick | ✓ correct |
+   | Peak dot: 1px drawPixel → 3px drawFastHLine | Spectrum report: width = 3 skin px (full bar width) | ✓ correct |
+   | Dedup arrays: [38] → [19] | Follows from bar count correction | ✓ correct |
+   | Wave colour: TFT_GREEN → 0xFFFF (white) | Waveform report: VISCOLOR[18] = (255,255,255) | ✓ correct |
+   | Wave render: single drawPixel → drawFastVLine between y[x-1] and y[x] | Waveform report: 1-px line, Winamp fills vertically between samples | ✓ correct |
+   | Wave midline: originY+49 → originY+50 | Waveform report: skin y=50.2 ≈ 50; formula (VIS_H-1)/2=7; 43+7=50 | ✓ correct |
+
+   The correction table in the design doc is well-structured and developer-actionable. The design doc is correctly marked authoritative with R&D provenance. Roadmap bar count (`38 bars → 19 bars`) is updated correctly.
+
+2. **Feature inventory — RED. `vis-001` not registered.**
+   Searching `feature_inventory.yaml`: no `vis-001` entry. TASK-050a, TASK-050b, TASK-050c all reference `vis-001 (new)` in their Feature field, but the feature was never registered. This is the same recurring gap pattern (LL-005, LL-011 — 4th consecutive feature set to be planned/implemented without a pre-implementation inventory entry). The Architect's update did not add the inventory entry either — this task falls to Developer but the gap is caught here.
+
+3. **Cross-feature matrix — RED. No X-entries for vis-001 interactions.**
+   Two structural interactions are absent from `cross_feature_matrix.yaml`:
+   - **vis-001 ↔ vu-001**: `vis-001` extends `vuMeter.h` directly — VisMode enum, `nextMode()`, `tickSpectrum()`, `tickWave()`, `blitVisBackground()` all live inside the same file as the VU envelope engine. The spectrum and wave synthesis consume `lLvl`, `rLvl`, `beat`, and LFO values defined in `vu-001`'s `tick()`. Any change to the envelope parameters or the `tick()` call signature directly alters all three vis-001 renderer outputs.
+   - **vis-001 ↔ m3-001**: `hitTestVis()` and the mode-cycle touch dispatch live in `winampDisplay.h` alongside all other M3 hit-tests. The vis area (y=originY+43..58) is inside the Winamp chrome region that `m3-001` owns. Any origin-offset change, tft.startWrite/endWrite restructuring, or chrome-height change in `m3-001` affects vis-001's hit-test correctness and its background-restore blits.
+
+4. **Documentation currency — GREEN (conditioned).**
+   - `roadmap.md`: updated correctly (38→19 bars, status updated). ✓
+   - `tasks.md` TASK-050a/b/c: notes updated, authoritative design doc cross-referenced. ✓
+   - `M-VIS-visualization.md`: R&D provenance cited, corrections table present, per-mode specs complete. ✓
+   - One minor naming note: design doc uses `VIS_LEFT_Y` but `vuMeter.h` calls it `LEFT_Y`. Design doc acknowledges this with `VIS_LEFT_Y = 43 (LEFT_Y in vuMeter.h)`. Not a bug — design convention vs code convention. Developer should follow the code name.
+
+5. **Process pattern — new LL candidate (LL-019).**
+   TASK-050a/b/c were written on 2026-05-15 as implementation specs *before* R&D pixel measurements were taken (R&D reports dated 2026-05-16). The pre-R&D specs contained **5 wrong values** in TASK-050b alone (bar count, bar width/step, colour method, decay rate, peak dot width) and 3 in TASK-050c (colour, render method, midline). None of the errors were individually implausible — they were all reasonable guesses from first principles. But the aggregate error rate was high enough that the spec as written would have produced a visibly wrong result. No gate existed to prevent implementation from starting before R&D completed. LL-019 captures this as a process rule.
+
+**Actions assigned**:
+
+| Action | Owner | Priority |
+|--------|-------|----------|
+| Register `vis-001` in `feature_inventory.yaml` (before TASK-050a implementation starts) | Developer | before impl |
+| Add X007 (`vis-001 ↔ vu-001`): envelope engine shared, `tick()` signature coupling | Developer | before impl |
+| Add X008 (`vis-001 ↔ m3-001`): hit-test + background-restore inside m3-001's chrome region | Developer | before impl |
+| Write planned T-entries for TASK-050a (vis tap-cycle), 050b (spectrum bars + peaks), 050c (wave vertical fill, colour) | VE | before impl closes |
+| Capture LL-019 in `lessons_learned.md` | QM | this audit |
+
+**Promotion candidate flagged**:
+- **LL-019** (new): "Implementation specs that depend on pixel-accurate asset measurements should be explicitly marked provisional until R&D validates them, with an implementation gate." Five wrong values in a single planned spec, caught only by a post-hoc R&D report — first instance on this project, worth capturing immediately.
+
+**Resolution**: open — LL-019 captured; inventory/matrix/VE actions assigned; no implementation has started so all gaps are preventive, not retroactive.
+
+---
+
 ### Audit — 2026-05-15 — M-LIST close + M-LIST-v2 close (TASK-020, TASK-047a/b/c/d)
 
 **Triggered by**: human (`@QM audit last of the M-LIST work`)

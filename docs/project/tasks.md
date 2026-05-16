@@ -286,7 +286,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-050a — M-VIS: VisMode enum + toggle dispatch + blank mode
 **Owner**: Developer
 **Feature**: vis-001 (new)
-**Status**: planned (2026-05-15)
+**Status**: planned (2026-05-15; spec corrected 2026-05-16 by Architect per R&D)
 **Blocks**: TASK-050b, TASK-050c (need mode dispatch before adding renderers)
 **Notes**:
 - Add `enum VisMode { VIS_VU, VIS_SPECTRUM, VIS_WAVE, VIS_BLANK };` to `vuMeter.h` namespace.
@@ -295,53 +295,47 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - `currentMode()`: returns `s_mode`.
 - Update `tick()` signature: `void tick(int originX, int originY, const uint16_t *mainBg)` (adds `mainBg` — TASK-049 change folded in here; these two tasks should land together).
 - Dispatcher in `tick()`: `switch(s_mode) { VIS_VU: tickVU(); VIS_SPECTRUM: tickSpectrum(); VIS_WAVE: tickWave(); VIS_BLANK: blitVisBackground(); }`.
-- `blitVisBackground(originX, originY, mainBg)`: restores `SKIN_MAIN_BG` rows for the full vis area `(RECT_X, LEFT_Y, RECT_W, VIS_H=13)`. Shared utility used by all non-VU modes as their background-restore step.
-- **Vis area constants** (add to `vuMeter.h`): `VIS_H = RIGHT_Y + RECT_H - LEFT_Y = 13`.
+- `blitVisBackground(originX, originY, mainBg)`: restores `SKIN_MAIN_BG` rows for the full vis area `(RECT_X=24, LEFT_Y=43, RECT_W=76, VIS_H=16)`.
+- **Vis area constants** (add to `vuMeter.h`): `VIS_H = 16` (R&D confirmed y=43..58; **not** 13 — old formula `RIGHT_Y + RECT_H - LEFT_Y` gives VU height, not full spectrum height). Also add `SPEC_BARS=19`, `SPEC_BAR_W=3`, `SPEC_BAR_STEP=4`.
 - **Touch hit-test** (`winampDisplay.h`): add `bool hitTestVis(int sx, int sy)`:
-  - Bounds: `sx in [originX+RECT_X, originX+RECT_X+RECT_W)` AND `sy in [originY+LEFT_Y, originY+LEFT_Y+VIS_H)`.
-  - Confirm no overlap with existing hit-test zones (transport is at `y=originY+88..106`; posbar at its own y; volume/shufrep/repeat at their slots — all clear from vis area at `y=originY+43..56`).
+  - Bounds: `sx in [originX+RECT_X, originX+RECT_X+RECT_W)` AND `sy in [originY+LEFT_Y, originY+LEFT_Y+VIS_H)` (y=originY+43..58).
+  - Confirm no overlap with existing hit-test zones (transport at y=originY+88..106; all clear).
 - Wire `hitTestVis` into `checkForInput()`: on tap inside vis area → `vu::nextMode()`. No API action, no optimistic freeze.
 - TASK-049 is a prerequisite for this task's `blitVisBackground`; implement together or immediately before.
+- **Authoritative spec:** `docs/architecture/designs/M-VIS-visualization.md` (updated 2026-05-16).
 
 ### TASK-050b — M-VIS: spectrum analyzer view
 **Owner**: Developer
 **Feature**: vis-001
-**Status**: planned (2026-05-15; depends on TASK-050a)
+**Status**: planned (2026-05-15; spec corrected 2026-05-16 by Architect per R&D pixel measurements)
 **Notes**:
-- **Bin synthesis (38 bins, mono):** `binLevel[i] = envelope × shape[i] × (1 + beatBoost(i))`
-  - `envelope = (lLvl + rLvl) * 0.5f` — uses existing envelope state.
-  - `shape[38]` — `constexpr float` table: `shape[i] = 1.0f - (i / 37.0f) * 0.6f`. Pink-noise rolloff: low bins loud, high bins quieter.
-  - `beatBoost(i)`: beat transient (existing `beat` variable in `tick()`) applied only when `i < 8` (low-freq bins). `beatBoost(i) = (i < 8) ? beat * 0.8f : 0.0f`.
-  - Clamp `binLevel[i]` to [0.0, 1.0].
-- **Peak dots:** file-static `float specPeak[38] = {0}`. Each tick: `if (binLevel[i] > specPeak[i]) specPeak[i] = binLevel[i];` then `specPeak[i] -= 0.008f` (≈1 px per 100ms at 20Hz, VIS_H=13 → full decay in 1.6s).
-- **Render per tick:**
-  1. Restore SKIN_MAIN_BG for full vis area (call `blitVisBackground()`).
-  2. For each bin `i` in 0..37:
-     - `barH = (int)(binLevel[i] * VIS_H)` — height in pixels.
-     - `barX = originX + RECT_X + i * 2` — 2px wide.
-     - `barY_top = originY + LEFT_Y + (VIS_H - barH)` — bottom-up.
-     - Colour by `binLevel[i]`: green if < 0.5, yellow if < 0.8, red otherwise.
-     - `tft.fillRect(barX, barY_top, 2, barH, colour)` — draws bar.
-     - Peak dot: `peakY = originY + LEFT_Y + (int)((1.0f - specPeak[i]) * VIS_H)`. Clamp to `[originY+LEFT_Y, originY+LEFT_Y+VIS_H-1]`. `tft.drawPixel(barX, peakY, TFT_WHITE)`.
-  - Dedup optimisation: `lastBinH[38]` + `lastPeakY[38]` — skip `fillRect`/`drawPixel` if unchanged (same pattern as VU's `lastLW`/`lastRW`).
+- **Authoritative spec:** `docs/architecture/designs/M-VIS-visualization.md`. Summary of corrections from original 2026-05-15 notes:
+  - **19 bars** (not 38): 3px wide + 1px gap = 4px step. `barX = originX + RECT_X + i * 4`.
+  - **Colour by absolute row:** `VIS_ROW_COLOR[r]` where `r = pixel_y - (originY + LEFT_Y)`. NOT threshold-based green/yellow/red.
+  - Per-bar draw is a row loop: `for (r = VIS_H - barH; r < VIS_H; r++) tft.drawFastHLine(barX, originY+LEFT_Y+r, 3, VIS_ROW_COLOR[r]);`
+  - **Peak decay:** `specPeak[i] -= 1.0f / VIS_H;` (~0.0625f, 1 row per 50ms tick). Old `0.008f` was wrong (≈480ms/row, far too slow).
+  - **Peak dot:** `tft.drawFastHLine(barX, originY+LEFT_Y+peakRow, 3, VIS_PEAK_COLOR)` — 3px wide (full bar width), colour `0x94B2`. Not `drawPixel`.
+  - **Dedup arrays:** `lastBinH[19]` + `lastPeakRow[19]`.
+- **Bin synthesis (19 bins):** `binLevel[i] = clamp(envelope × shape[i] × (1 + beatBoost(i)), 0, 1)`
+  - `envelope = (lLvl + rLvl) * 0.5f`
+  - `shape[19]`: `1.0f - (i / 18.0f) * 0.6f`
+  - `beatBoost`: `(i < 4) ? beat * 0.8f : 0.0f`
 
 ### TASK-050c — M-VIS: waveform oscilloscope view
 **Owner**: Developer
 **Feature**: vis-001
-**Status**: planned (2026-05-15; depends on TASK-050a)
+**Status**: planned (2026-05-15; spec corrected 2026-05-16 by Architect per R&D pixel measurements)
 **Notes**:
-- **Synthesis:** `y[x] = VIS_CENTRE_Y + round(lLvl * 5.0f * sin(wavePhase + x * WAVE_CYCLES * TWO_PI / VIS_W))`
-  - `VIS_CENTRE_Y = originY + LEFT_Y + VIS_H / 2` = `originY + 49`.
-  - `lLvl` from existing envelope (collapses to 0 when paused → flat line at centre).
-  - `WAVE_CYCLES = 2.5f` (2.5 full cycles across 76px).
-  - `wavePhase` file-static float, advances `+0.3f` per tick (20 Hz ≈ visible sweep without fast flicker).
-  - Clamp `y[x]` to `[originY+LEFT_Y, originY+LEFT_Y+VIS_H-1]`.
+- **Authoritative spec:** `docs/architecture/designs/M-VIS-visualization.md`. Summary of corrections from original 2026-05-15 notes:
+  - **Colour:** `VIS_WAVE_COLOR = 0xFFFF` (white, VISCOLOR[18]). NOT `TFT_GREEN`. R&D measurement confirmed white.
+  - **Vertical fill between samples:** Winamp draws line segments, not single pixels per column. Use `drawFastVLine` from `min(y[x-1], y[x])` to `max(y[x-1], y[x])`. Single `drawPixel` per column is not Winamp-accurate.
+  - **Midline:** `VIS_CENTRE_Y = originY + LEFT_Y + (VIS_H-1)/2 = originY + 50`. R&D measured skin y=50.2 ≈ 50. Old `originY + 49` was based on wrong VIS_H=13.
+- **Synthesis:** `y[x] = clamp(VIS_CENTRE_Y + roundf(lLvl * 5.0f * sinf(wavePhase + x * 2.5f * TWO_PI / 76)), originY+43, originY+58)`
 - **Render per tick:**
-  1. Restore `SKIN_MAIN_BG` for full vis area (`blitVisBackground()`). This clears the previous frame.
-  2. For each `x` in 0..75: `tft.drawPixel(originX + RECT_X + x, y[x], TFT_GREEN)`.
-  3. Advance `wavePhase`.
-- **No dedup:** full SKIN_MAIN_BG restore every tick already clears old pixels; dedup would need per-pixel tracking across 76 columns — not worth it at 20 Hz.
-- **Paused state:** `lLvl` smoothly decays to 0 via existing RELEASE constant — flat line appears naturally; no special case needed.
+  1. `blitVisBackground()` — clears previous frame.
+  2. For each `x` in 0..75: `drawFastVLine(originX+RECT_X+x, min(y[x-1],y[x]), abs(y[x]-y[x-1])+1, VIS_WAVE_COLOR)`. For x=0 draw single pixel at y[0].
+  3. Advance `wavePhase += 0.3f`.
+- **Paused state:** `lLvl` decays to 0 → flat HLine at y=50. Natural, no special case.
 
 ### TASK-048 — M-UI-POLISH: artist + title in marquee strip
 **Owner**: Developer

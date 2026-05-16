@@ -186,9 +186,9 @@ No IFCs are drafted in `interfaces/`. `Surface` / `Input` / `SpotifyTransport` /
 ## Data Flow
 
 1. **Boot.** Same as baseline: SPIFFS mount → `fetchConfigFile()` → WiFiManager → `spotifySetup()` → `spotifyRefreshToken()`.
-2. **Steady state.** `loop()` polls `getCurrentlyPlaying` at the existing cadence. On track change: fetch + cache `audio-analysis` for the new track, fetch album JPEG, decode, hand off to the active `spotifyDisplay`. Between polls, the seek bar and elapsed-time field advance via local interpolation.
-3. **Touch.** `handleTouched()` polls XPT2046 each iteration; the touch coordinate is hit-tested against the baked button layout. Each button maps to a `SpotifyArduino` call (or seek). The local UI state is flipped immediately for visual feedback; the next poll reconciles.
-4. **VU.** On each render frame, the VU module looks up the active analysis segment for the current interpolated position, drives an attack/release envelope with a beat-transient injection, and writes a stereo level into the renderer.
+2. **Steady state.** `loop()` polls `getCurrentlyPlaying` via `spotifyTask` (FreeRTOS task, TASK-031) at a 5 s base cadence with exponential backoff. On track change: fetch album JPEG, decode, hand off to the active `spotifyDisplay`. Between polls, the seek bar and elapsed-time field advance via local millis-based interpolation (ADR-005).
+3. **Touch.** `checkForInput()` polls XPT2046 each loop iteration; the touch coordinate is hit-tested against the baked button layout. Each button enqueues an action into `spotifyTask` (ADR-012). The local UI state is flipped immediately for visual feedback (ADR-004); the next poll reconciles. After `ACT_NEXT` / `ACT_PREV`, a 750 ms deferred speculative poll fires automatically (ADR-020).
+4. **VU.** `vu::tick()` runs at 20 Hz. Drives a synthetic stereo envelope from `progressMs` + `is_playing` (ADR-009 option e — `audio-analysis` not available). Beat transient synthesised from a flat 120 BPM clock with per-track phase offset.
 5. **NFC (optional).** Unchanged from baseline; gate with `NFC_ENABLED` (TASK-004 still open).
 
 ## Migration from baseline (delta)
@@ -196,8 +196,7 @@ No IFCs are drafted in `interfaces/`. `Surface` / `Input` / `SpotifyTransport` /
 - Add `winampSkinLCD.h` implementing `spotifyDisplay`; build `-DWINAMP_DISPLAY` (or rename the existing `-DYELLOW_DISPLAY` flag space).
 - Add the host-side skin bake tool and the generated `gen/skin_assets.c` / `gen/skin_layout.h`.
 - Extend `touchScreen.h` to consume the layout table and fire all controller intents.
-- Add an `audio-analysis` fetch path (extend `SpotifyArduino`, fork, or helper — Open Question) and an in-memory cache with LRU eviction.
-- Add a small VU module driven by the cache.
+- Add a synthetic VU module driven by `currentlyPlaying` envelope (ADR-009 option e — `audio-analysis` not available).
 - Add position interpolation in the existing poll loop.
 - Drop `matrixDisplay.h` and its build env from scope.
 - Everything else: keep.
@@ -209,13 +208,13 @@ No IFCs are drafted in `interfaces/`. `Surface` / `Input` / `SpotifyTransport` /
 Cross-cutting questions across both states. Items marked **(baseline)** apply to current firmware; **(target)** apply to the Winamp extension; unmarked apply to both.
 
 - **(target)** `SpotifyArduino` extension strategy — the library covers `getCurrentlyPlaying`, `previousTrack`, `nextTrack`, and exposes (unwired) `seek`. It does not cover `audio-analysis`, `audio-features`, shuffle/repeat toggles, or volume. Options: extend the library upstream, fork, or add small helpers using the existing `WiFiClientSecure`. No PC mirror means no portability constraint on this choice.
-- **(target)** WiFi + TLS root CA strategy for `accounts.spotify.com` and `api.spotify.com` — pin or trust-store? Baseline currently delegates to `SpotifyArduino`'s defaults; revisit if the new endpoints exercise different cert chains.
+- **(target)** WiFi + TLS root CA strategy for `accounts.spotify.com` and `api.spotify.com` — **closed ADR-019** (2026-05-16): keep two hardcoded DigiCert Global Root CA G2 PEMs; no change needed; cert expires 2038.
 - **(target)** `audio-analysis` cache size and eviction — closed. M6 went synthetic (ADR-009 option e); no analysis fetch.
 - **(target)** `audio-analysis` cache miss UX — closed. Same as above.
 - **(target)** Skin atlas pixel format — closed. RGB565 confirmed; flash budget resolved via ADR-014 + TASK-035.
-- **(target)** Seek-bar drag UX — debounce-on-release for the API call is decided (survives ADR-004); open is the visual treatment of position during drag (snap to finger immediately, freeze interpolation until release).
+- **(target)** Seek-bar drag UX — **closed M7** (2026-05-16): snap posbar to finger during drag, freeze interpolation, fire seek on release. Impl in `touchScreen.h` / `spotifyDisplay`.
 - **(target)** Position snap threshold — 500 ms is the starting value (survives ADR-005); tune once real network jitter is measured.
-- **(target)** Spotify rate-limiting headroom — the optimistic-UI pattern allows a speculative one-shot poll ~250 ms after a successful intent to shorten reconciliation; gate against the ~180 req/min ceiling.
+- **(target)** Spotify rate-limiting headroom — **closed ADR-020** (2026-05-16): speculative 750 ms post-poll after `ACT_NEXT`/`ACT_PREV` only; not for other actions.
 - **(baseline / target)** Touch UX gesture model on a 320×240 panel given more controls (play/pause, volume, seek, shuffle, repeat). See TASK-002, TASK-003.
 - **(baseline)** NFC: keep, gate behind a build flag, or remove? See TASK-004. **(target)** carries the same question; if dropped, NFC code is removed in the migration.
 - **(baseline)** Secret hygiene: `data/spotify_diy_config.json` must be gitignored once this directory becomes a git repo. See TASK-005.
