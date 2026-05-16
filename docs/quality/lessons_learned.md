@@ -303,6 +303,25 @@ Sister rule to LL-016 ("look at the asset before changing code") and LL-017 ("a 
 
 ---
 
+### LL-020 — 2026-05-16 — Derived values in R&D reports must be independently verified before spec adoption
+
+**Context**: M-VIS spectrum colours. The R&D report `M-VIS-spectrum-analysis.md` correctly measured 16 RGB888 pixel values from video frames. It then provided a computed RGB565 column — the values that went into the design doc and the code. All 16 RGB565 values were wrong: the conversion formula was misapplied (e.g. row 0 RGB888=(239,49,16) → correct RGB565=0xE982; report said 0xE903, which decodes to (239,32,24)). The design doc propagated all 16 wrong values verbatim. The code matched the spec correctly. Error caught on DUT visual inspection after flash; fix was a 4-line Python one-liner.
+
+**Observation**: The R&D report contained two kinds of data in the same table: *measured* values (RGB888 — correct, derived from video frames) and *computed* values (RGB565 — wrong, derived by formula from the measured values). Nothing in the table distinguished them. The design doc consumed the RGB565 column as measurement output, not as a derived step that could have its own error. The pipeline was: measure → compute → spec → code — with no verification gate between compute and spec.
+
+**Root cause**: Format-conversion steps inside R&D reports are treated as reporting of facts, not as computations that can contain errors. No convention exists requiring derived values to include the formula used or a verification command. Because both columns were in the same table under the same "measured" framing, the computed column inherited the credibility of the measured column.
+
+**Suggested improvement**:
+1. R&D reports must distinguish *measured* values (from direct observation) from *derived* values (computed from measurements). Label columns accordingly.
+2. Any derived value that goes into a spec must include the derivation formula or a one-line verification command in the report. For RGB888→RGB565: `python3 -c "r,g,b=239,49,16; print(hex((r>>3<<11)|(g>>2<<5)|b>>3))"`. This makes the derivation auditable in 30 seconds.
+3. The Architect adopting derived values into a design doc should run the verification before including the value. If no verification command is provided, flag the R&D report and request one before the spec is finalised.
+
+Sister rule to LL-019 (mark provisional specs before R&D is complete) and LL-017 (a library that produces output is more dangerous than one that errors). Theme: **computed values can silently be wrong; always verify derivations independently.**
+
+**Status**: open — promotion candidate. Clear formula, 30-second verification cost, concrete incident with a measurable fix.
+
+---
+
 ## Best-practice candidates (for human sign-off)
 
 Per AGENTS.md, QM does not self-promote. Below are LL items that look durable enough to become best-practice rules:
@@ -323,6 +342,7 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-017** → "A library that produces output is more dangerous than one that errors. For data-pipeline libraries on the file classes we actually depend on, validate output against a second independent decoder; don't trust no-exception as success." Process rule, applies to Developer + Architect.
 - **LL-018** → "Treat the OpenAPI spec as an over-approximation, not a contract. Any lib-filter patch that depends on a documented field must include a wire-capture proof that the field is actually returned by the specific endpoint being patched." Process rule, applies to Developer + Architect. Two concrete instances (LL-013 was the first). Strongest promotion case in the candidate set.
 - **LL-019** → "Implementation specs that depend on pixel-accurate asset measurements must be marked `[PROVISIONAL — awaiting R&D]` and blocked from implementation until R&D validates the numbers. First-principles estimates produce high error rates on pixel-level behaviour." Process rule, applies to Developer (implementation gate) and Architect (provisional tagging). First instance on this project; preventive catch.
+- **LL-020** → "R&D reports must distinguish measured values from derived/computed values. Any derived value entering a spec must include its derivation formula or a one-line verification command. Architect verifies before adopting." Process rule, applies to R&D Engineer (labelling + formula) and Architect (verification gate). Concrete incident: 16/16 RGB565 values wrong in M-VIS spec; 30-second Python check would have caught it.
 
 ---
 
