@@ -1,7 +1,8 @@
-# Whiteboard — Logging rethink
+# Design — Logging rethink
 
-> Owner: Architect (whiteboard, not a decision yet — feeds an ADR)
+> Owner: Architect
 > Date: 2026-05-07
+> Status: feeds ADR-010 (accepted)
 > Trigger: User during M3 DUT verification — "improve logging"
 
 ## Pain points observed this session

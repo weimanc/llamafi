@@ -2,6 +2,7 @@
 
 > Owner: Project Manager
 > Purpose: Milestone-level view of planned work. Features/tasks in `feature_inventory.yaml`/`tasks.md` — roadmap groups into delivery chunks.
+> Detailed implementation specs live in `docs/architecture/designs/` — roadmap milestones reference them, not embed them.
 
 Scope per ADR-006: keep the Spotify-Diy-Thing baseline architecture; change the UI to a Winamp 2 classic skin; extend touch to drive the full skin's controls; add a synthesised VU. Super-loop, `SpotifyArduino`, SPIFFS/NVS/WiFiManager all unchanged.
 
@@ -312,7 +313,7 @@ The Winamp logo (amber/gold icon) sits at the bottom-right of `MAIN.BMP` (275×1
 
 **Status:** tier 1 shipped 2026-05-07 (ADR-010 + amendments + DUT-verified). Whiteboard 2026-05-07.
 **Scope:** Replace ad-hoc `Serial.println` + vendored `SPOTIFY_DEBUG` with `esp_log` tags+levels, RAM ringbuffer + `/log` pull endpoint, mbedTLS/HTTP code decoder, redactor for secret-bearing fields, 30 s heartbeat. Tier 2 adds UDP syslog and state-machine trace points; tier 3 adds SPIFFS-backed buffer + panic flush.
-**Why:** DUT verification this session nearly lost the boot trace; mbedTLS error codes are opaque; refresh tokens are still printed by `configFile.h`; hangs (TASK-014) leave no progress trail. Whiteboard: `docs/architecture/whiteboards/2026-05-07-logging-rethink.md`.
+**Why:** DUT verification this session nearly lost the boot trace; mbedTLS error codes are opaque; refresh tokens are still printed by `configFile.h`; hangs (TASK-014) leave no progress trail. Design doc: `docs/architecture/designs/logging-rethink.md`.
 **Cross-cuts:** every existing milestone — adopt incrementally, not as a single migration.
 **Tracked as:** TASK-016.
 
