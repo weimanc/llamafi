@@ -545,12 +545,14 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-052b — M-VIS-ATLAS: preview_vis.py — animated GIF output
 **Owner**: Developer
 **Feature**: vis-002
-**Status**: done (2026-05-16 — 412 frames, gen/skin_preview_animated.gif, bars render correct gradient + geometry)
+**Status**: done (2026-05-16 — gen/skin_preview_animated.gif, 182 frames, correct 1:1 device-pixel coords, boost+trim applied)
 **Deps**: TASK-052a (needs vis_atlas.npy)
 **Notes**:
-- `tools/preview_vis.py` reads `gen/vis_atlas.npy` + `gen/skin_preview.png`; composites atlas frames into vis area at PREVIEW_SCALE=2.5; writes animated GIF at 20 fps.
-- Bar geometry and VIS_ROW_COLOR palette identical to firmware renderer.
-- Vis area verified: correct 3px bar + 1px gap, green→yellow gradient, peak dots.
+- `tools/preview_vis.py` reads `gen/vis_atlas.npy` + `gen/skin_preview.png`; composites atlas frames into vis area at 1:1 device pixels (skin_preview.png is 320×240, chrome at x=0,y=0); writes animated GIF at 20 fps.
+- Vis coords mirror firmware exactly: skin chrome at (0,0) in preview, vis at x=RECT_X=24, y=LEFT_Y+1=44.
+- `--boost 1.5` (default): scales bar heights so peaks reach ceiling (row 0 = red).
+- `--trim-quiet` (default on, thresh=4, keep=2): collapses runs of all-green frames to 2 highest-energy frames per run.
+- `--boost` and `--trim-quiet` are preview-only tuning knobs; `bake_vis.py` applies the same transforms to the committed C array (see TASK-052a notes below).
 
 ### TASK-052c — M-VIS-ATLAS: preview_vis.py — live pygame window + synthetic mode
 **Owner**: Developer
@@ -565,22 +567,23 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-052d — M-VIS-ATLAS: firmware VIS_ATLAS mode in vuMeter.h
 **Owner**: Developer
 **Feature**: vis-002
-**Status**: done (2026-05-16 — compile clean; VIS_ATLAS_MODE in enum, tickAtlas() added, tap cycle VU→Spectrum→Atlas→Wave→Blank→VU)
+**Status**: done (2026-05-16 — DUT verified; Atlas default mode; tap cycle Atlas→Wave→VU→Blank→Atlas)
 **Deps**: TASK-052a (needs gen/vis_atlas.h)
 **Notes**:
 - `VIS_ATLAS_MODE` in `VisMode` enum (renamed from VIS_ATLAS to avoid clash with global array symbol).
-- `tickAtlas()`: index `VIS_ATLAS[frame][i]` directly (.rodata); freeze on `!playing`; loop mod `VIS_ATLAS_FRAMES`.
-- No peak dots in atlas mode.
+- `tickAtlas()`: index `VIS_ATLAS[frame][i]` directly (.rodata); freeze frame counter on `!playing` but always blit (fix: early return on !playing left vis area showing stale Spectrum frame).
+- No peak dots in atlas mode (footage encodes Winamp peak behaviour by construction).
+- VIS_SPECTRUM removed from tap cycle — superseded by atlas. New cycle: **Atlas → Wave → VU → Blank → Atlas**. Default boot mode: Atlas.
 
 ### TASK-052e — M-VIS-ATLAS: flash headroom verification
 **Owner**: Developer
 **Feature**: vis-002
-**Status**: done (2026-05-16 — Flash 52.4%, vis_atlas.c.o=10 KB ≤ 12 KB budget ✓)
+**Status**: done (2026-05-16 — Flash 52.4%; baked atlas 3.4 KB after trim+boost, well within 12 KB budget ✓)
 **Deps**: TASK-052d
 **Notes**:
 - `pio run -e cyd2usb_winamp`: Flash 52.4% (1,374,121 / 2,621,440 bytes). Healthy.
-- `vis_atlas.c.o` = 10,288 bytes. 7.8 KB data in .rodata, well within 12 KB budget.
-- 412 frames × 19 bytes = 7,828 bytes actual atlas data.
+- Atlas after trim+boost: 182 frames × 19 bytes = 3,458 bytes in .rodata. Original raw: 412 frames × 19 = 7,828 bytes.
+- `bake_vis.py` applies `--boost 1.5` and `--trim-quiet thresh=4 keep=2` before emitting the C array; same parameters as preview_vis.py — DUT and preview match.
 
 ### TASK-052f — M-VIS-ATLAS: VE regression — existing vis modes unchanged
 **Owner**: VE
@@ -588,10 +591,11 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 **Status**: planned (2026-05-16)
 **Deps**: TASK-052d
 **Notes**:
-- DUT flash `cyd2usb_winamp` post-TASK-052d. Tap through VU → Spectrum → Atlas → Wave → Blank → VU on device.
-- Confirm: VU bars intact, Spectrum 19 bars + gradient + peak dots, Wave white sine + vertical fill, Blank clean skin bg.
-- Atlas mode: bars animate at 20 Hz, freeze on pause, loop. No crash at wrap.
-- Flash delta for vis_atlas.c reported (TASK-052e result).
+- DUT flash `cyd2usb_winamp`. Tap through Atlas → Wave → VU → Blank → Atlas on device.
+- Confirm: Atlas 19 bars animate at 20 Hz, peaks hit ceiling (red rows visible), freeze on pause, loop cleanly. No crash at wrap.
+- Confirm: Wave white sine + vertical fill intact; VU bars intact; Blank clean skin bg.
+- Spectrum mode no longer in cycle — do not regress its pixel output (removed intentionally).
+- Flash delta for vis_atlas.c confirmed within budget (TASK-052e).
 
 ## Blocked Tasks
 

@@ -211,20 +211,19 @@ The wrap from frame `VIS_ATLAS_FRAMES - 1` back to frame 0 may produce a visible
 
 ### Mode insertion into tap cycle
 
-**Decision: insert Atlas as a new mode between Spectrum and Wave.**
+**Decision (shipped): Spectrum removed; Atlas is the primary bar-height mode and default boot mode.**
 
-New sequence: **VU → Spectrum → Atlas → Wave → Blank → VU**
+New sequence: **Atlas → Wave → VU → Blank → Atlas**
 
 Rationale:
-- Spectrum and Atlas are both bar-height renderers; grouping them together is intuitive.
-- Wave is a distinct visual idiom — keeping it adjacent to Blank is consistent with the "calm down" end of the cycle.
-- Replacing Spectrum was considered (simpler tap sequence) but rejected: Spectrum still has value when the user prefers the synthetic-coupled motion over the looping atlas.
+- Atlas supersedes Spectrum — real Winamp footage with authentic decay, boosted and trimmed for visual impact.
+- Synthetic Spectrum retained in codebase (`tickSpectrum`, `VIS_SPECTRUM` enum value) but removed from the tap cycle; can be re-inserted if needed.
+- Atlas is the default boot mode (`s_modeRef()` initialises to `VIS_ATLAS_MODE`).
 
 ```cpp
-enum VisMode { VIS_VU, VIS_SPECTRUM, VIS_ATLAS, VIS_WAVE, VIS_BLANK };
+enum VisMode { VIS_VU, VIS_SPECTRUM, VIS_ATLAS_MODE, VIS_WAVE, VIS_BLANK };
+// Tap cycle: VIS_ATLAS_MODE → VIS_WAVE → VIS_VU → VIS_BLANK → VIS_ATLAS_MODE
 ```
-
-The `nextMode()` function increments modulo 5 (was 4).
 
 ### Multiple energy tiers (optional — deferred)
 
@@ -247,9 +246,9 @@ From PROP-002: ~60 KB headroom post M-VIS / M-IO / M-UI-POLISH.
 | Byte-per-bar | 30 s (600 frames × 19 B) | 11.4 KB | 19% |
 | 4-bit packed | 30 s (600 frames × 10 B) | 6.0 KB | 10% |
 
-**Default: 30-second byte-per-bar atlas (11.4 KB).** This is the most comfortable choice given current headroom. If actual headroom (measured from `firmware.elf` after M-VIS ships) is below 20 KB, fall back to 4-bit packing (6.0 KB) or reduce to 10 seconds (3.8 KB).
+**Shipped: 9.1 s atlas (182 frames × 19 B = 3,458 bytes).** Raw 412-frame / 30 s extraction is post-processed by `bake_vis.py` before emit: quiet runs trimmed (thresh=4, keep=2 highest-energy frames per run) then heights scaled 1.5× (clamped to VIS_H=16). This reduces size from 7.8 KB to 3.4 KB while improving visual quality (peaks reach ceiling, quiet dead-air removed).
 
-**Action before merge:** run `pio run -e cyd2usb_winamp` and report `.rodata` segment size from the map file. Confirm 11.4 KB fits.
+**Verified:** `pio run -e cyd2usb_winamp` → Flash 52.4% (1,374,121 / 2,621,440 bytes). Atlas in .rodata = 3,458 bytes, well within 12 KB budget.
 
 ---
 
@@ -279,7 +278,7 @@ No new architectural interfaces. All changes are localised to:
 | Flash tighter than 60 KB estimate | Measure actual headroom from .elf before committing atlas size; fall back to 4-bit packing or 10 s clip |
 | ffmpeg version non-determinism | Offer PNG-strip golden as alternative; document host-specific SHA256 |
 | Visible wrap jump | bake_vis.py reports wrap distance; preview_vis.py `--loop-end` flag lets you select a cleaner wrap without re-extraction |
-| Mode tap sequence change (UX regression) | Atlas inserts between Spectrum and Wave — existing VU → Spectrum start and Wave → Blank end of cycle are preserved |
+| Mode tap sequence change (UX regression) | Spectrum removed from cycle (superseded). New 4-mode cycle: Atlas→Wave→VU→Blank. Atlas is boot default. |
 
 ---
 
@@ -303,9 +302,10 @@ Recommended implementation order: TASK-052a → TASK-052b → TASK-052c (host-si
 - `python3 tools/bake_vis.py` runs to completion; `sha256sum -c gen/vis_atlas.sha256` passes on the build machine.
 - `python3 tools/preview_vis.py --atlas gen/vis_atlas.npy --skin gen/skin_preview.png --out gen/skin_preview_animated.gif` produces a valid animated GIF showing the skin with the atlas vis playing in the vis area.
 - `--live` flag opens a pygame window with the vis animating in real time (both `--mode atlas` and `--mode synthetic`).
-- On DUT: tapping vis area cycles VU → Spectrum → Atlas → Wave → Blank → VU.
-- Atlas mode displays 19 bars, same geometry and colour table (`VIS_ROW_COLOR`) as Spectrum mode.
-- Atlas pauses (holds last frame) on `!is_playing`; resumes from current frame on play.
-- Atlas loops cleanly; no visible crash or memory fault at wrap.
-- Flash delta for `vis_atlas.c` ≤ 12 KB (byte-per-bar, 30 s); confirmed from .elf map.
-- Existing VU / Spectrum / Wave / Blank modes: pixel-identical output to pre-ATLAS baseline on DUT (VE regression).
+- On DUT: device boots into Atlas mode. Tapping vis area cycles Atlas → Wave → VU → Blank → Atlas.
+- Atlas mode displays 19 bars, same geometry and colour table (`VIS_ROW_COLOR`) as Spectrum.
+- Atlas always blits current frame; frame counter freezes on `!is_playing` (does not return early).
+- Atlas loops cleanly; no visible crash or memory fault at wrap (L1 wrap distance = 23 ✓).
+- Flash delta for `vis_atlas.c` ≤ 12 KB; actual 3.4 KB ✓ (post trim+boost, confirmed from build).
+- VU / Wave / Blank modes: pixel-identical output to pre-ATLAS baseline on DUT (VE TASK-052f).
+- Spectrum removed from tap cycle (superseded); implementation retained in codebase.
