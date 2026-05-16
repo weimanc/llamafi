@@ -318,7 +318,7 @@ Sister rule to LL-016 ("look at the asset before changing code") and LL-017 ("a 
 
 Sister rule to LL-019 (mark provisional specs before R&D is complete) and LL-017 (a library that produces output is more dangerous than one that errors). Theme: **computed values can silently be wrong; always verify derivations independently.**
 
-**Status**: open — promotion candidate. Clear formula, 30-second verification cost, concrete incident with a measurable fix.
+**Status**: adopted → BP-001 (2026-05-16)
 
 ---
 
