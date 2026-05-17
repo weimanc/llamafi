@@ -927,7 +927,7 @@ To be triaged with the team.
 **Feature**: serialdbg-001
 **Status**: done (2026-05-17)
 **Notes**:
-- `spotifyTask::dbg_get`: handles "backoff" (consecutiveFailures + nextWaitMs), "heap" (getFreeHeap), "snapshot" (multi-part split protocol), "queue" (stub — full impl in TASK-056m).
+- `spotifyTask::dbg_get`: handles "backoff" (consecutiveFailures + nextWaitMs), "heap" (getFreeHeap), "snapshot" (multi-part split protocol), "queue" (5-row split protocol — TASK-056m).
 - `spotifyTask::dbg_set`: handles "backoff" (sets consecutiveFailures).
 - `spotifyTask::dbg_getFailureCount()`: thin getter for cmdInfo.
 - `s_consecutiveFailures` → `volatile unsigned int` (matches `s_resetTlsPending` pattern).
@@ -963,18 +963,18 @@ To be triaged with the team.
 ### TASK-056l — M-SERIALDBG: extend get snapshot with lastPollAgeMs / currentTrackUri / deviceActive
 **Owner**: Developer
 **Feature**: serialdbg-001, sync-001
-**Status**: todo
+**Status**: done (2026-05-17)
 **Notes**:
-- Add `bool deviceActive` to `Snapshot` struct; populate in `onCurrentlyPlaying`.
-- `spotifyTask::dbg_get("snapshot")`: add three fields to serialization. No cmdGet change.
+- Added `bool deviceActive` to `Snapshot`; populated at both write sites in `spotifyTaskStorage.cpp`.
+- `spotifyTask::dbg_get("snapshot")`: added `lastPollAgeMs`, `deviceActive`, `currentTrackUri` in both single-line and split paths.
 - Prereq for TASK-057 VE harness (T097, T099, T102, T103, T105, T107, T108).
 
 ### TASK-056m — M-SERIALDBG: get queue command (QueueSnapshot rows)
 **Owner**: Developer
 **Feature**: serialdbg-001, sync-001
-**Status**: todo
+**Status**: done (2026-05-17)
 **Notes**:
-- Add "queue" case to `spotifyTask::dbg_get`. Reads under `g_queueMux`. Split protocol (5 rows × ~80 B).
+- Replaced stub with real `QueueSnapshot` serialization via `copyQueueSnapshot`. Up to 5 rows, one JSON line each, split protocol with `"part":N,"last":bool`.
 - No cmdGet change. Prereq for T102.
 
 ### TASK-056k — M-SERIALDBG: VE execute serialdbg-001 suite on DUT

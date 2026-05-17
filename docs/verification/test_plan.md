@@ -681,7 +681,7 @@ Common preconditions for all tests below:
   1. For each button (PREV/PLAY/PAUSE/STOP/NEXT at screen-x 37/60/83/106/129): send `tap <buttonX-1> 97` → parse JSON response → assert `hit=NONE`.
   2. For each button: send `tap <buttonX+1> 97` → parse JSON response → assert `hit=TRANSPORT` and `action=<expected>`.
 - **Expected result**: All 5 × 2 = 10 checks pass. Screen coordinates: PREV centre=49, PLAY=72, PAUSE=95, STOP=118, NEXT=141 (all at y=97). Outside-left = buttonCentreX−12 for each. Zero false triggers on out-of-bound taps.
-- **Status**: planned (M-SERIALDBG not yet implemented). Owner: VE.
+- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
 
 ### T077 — [serialdbg-001, touch-002] Dead zone between posbar and transport row
 
@@ -691,7 +691,7 @@ Common preconditions for all tests below:
 - **Preconditions**: M-SERIALDBG in tree. `DEADZONE` region added to `lastTouchResult` (design doc B5). `set cooldown 0` before tap.
 - **Steps**: Send `tap 162 85` (x=midpoint of posbar width, y=85 = midpoint of 5-pixel dead zone at y=83..87) → parse JSON response.
 - **Expected result**: `hit` is `NONE` or `DEADZONE`; `action` is `NONE` or `FORCE_POLL`. No `TRANSPORT`, `POSBAR`, or `VOLUME` action.
-- **Status**: planned (M-SERIALDBG not yet implemented; DEADZONE region specified in design doc Feature 3a — unblocked). Owner: VE.
+- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
 
 ### T078 — [serialdbg-001, touch-002] Zero-delta drag dispatches no volume action
 
@@ -701,7 +701,7 @@ Common preconditions for all tests below:
 - **Preconditions**: M-SERIALDBG in tree. `dragState == D_IDLE` — confirm with `get dragState` → `"D_IDLE"`. `set cooldown 0`.
 - **Steps**: Send `drag 163 63 163 63 1` (volume slot centre, zero delta, 1 step) → observe serial for ≥ 2 s.
 - **Expected result**: No `[D][spotify.task] dequeued action=VOLUME` log line. `{"ok":true,"cmd":"drag",...}` response present. `dbg_getDragState()` returns `D_IDLE` after completion.
-- **Status**: planned (M-SERIALDBG not yet implemented). Owner: VE.
+- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
 
 ### T079 — [serialdbg-001, touch-002] Cooldown gate blocks rapid sequential taps
 
@@ -713,7 +713,7 @@ Common preconditions for all tests below:
   1. Send `tap 72 97` (PLAY centre) — expect `{"hit":"TRANSPORT","action":"PLAY"}`.
   2. Within < 200 ms, send `tap 141 97` (NEXT centre).
 - **Expected result**: First response: `hit=TRANSPORT, action=PLAY`. Second response: `{"ok":true,"cmd":"tap","hit":"NONE","skipped":true}` or equivalent cooldown-skip indicator. Confirms cooldown gate is active.
-- **Status**: planned (M-SERIALDBG not yet implemented; cooldown-aware mode + `"skipped":true` field specified in design doc Feature 3 — unblocked). Owner: VE.
+- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
 
 ### T080 — [serialdbg-001] `info` command — state snapshot shape
 
@@ -723,7 +723,7 @@ Common preconditions for all tests below:
 - **Preconditions**: M-SERIALDBG in tree. DUT booted with active Spotify session.
 - **Steps**: Send `info` → `json.loads(line)`.
 - **Expected result**: Single JSON line containing at minimum: `git`, `elf`, `build`, `heap`, `isPlaying`, `progressMs`, `durationMs`, `volumePct`, `consecutiveFailures`. All values within plausible ranges (`heap > 50000`, `volumePct` 0–100 or -1, `progressMs < durationMs` when playing).
-- **Status**: planned (M-SERIALDBG not yet implemented; blocked on `volumePct` being added to `cmdInfo` — design doc B6). Owner: VE.
+- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
 
 ### T081 — [serialdbg-001, touch-002] Serial tap reproduces T052 transport suite
 
@@ -733,7 +733,7 @@ Common preconditions for all tests below:
 - **Preconditions**: M-SERIALDBG in tree. Active Spotify device playing a track. `info` → `durationMs > 0`. `set cooldown 0` between each tap.
 - **Steps**: For each of the 5 transport buttons, send `tap <centreX> 97` (PREV=49, PLAY=72, PAUSE=95, STOP=118, NEXT=141). After each tap wait ≤ 5 s; verify Spotify state change via `info` or host-side `curl /v1/me/player`.
 - **Expected result**: Each response: `{"ok":true,"cmd":"tap","hit":"TRANSPORT","pressed":N,"action":"<ACT>"}`. Spotify playback state matches action within ≤ 5 s.
-- **Status**: planned (M-SERIALDBG not yet implemented). Owner: VE.
+- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
 
 ### T082 — [serialdbg-001, touch-002] Serial drag reproduces T074 volume drag
 
@@ -743,7 +743,7 @@ Common preconditions for all tests below:
 - **Preconditions**: M-SERIALDBG in tree with queue-drain drag (no `delay()` in loop — design doc B1/R&D note). Active Spotify device with `supports_volume: true`. `set cooldown 0`.
 - **Steps**: Send `drag 129 63 196 63 60` (volume slot full width, 60 steps — needed to span ≥ 600 ms and trigger ≥ 2 debounce windows at 300 ms each). Observe serial for `drawVolume pct=NN` and `drag-end commit pct=NN` lines.
 - **Expected result**: ≥ 2 `dequeued action=VOLUME` log lines (verifies debounce rate-limiting); one `drag-end commit`; Spotify `device.volume_percent` matches released value within ≤ 30 s. Note: `steps=8` is insufficient — at 10 ms/step the drag completes in 80 ms, within a single 300 ms debounce window.
-- **Status**: planned (M-SERIALDBG not yet implemented; steps value corrected from earlier draft of 8 to 60 per VE review). Owner: VE.
+- **Status**: ready (firmware complete 2026-05-17; DUT execution pending; steps=60 confirmed). Owner: VE.
 
 ### T083 — [serialdbg-001] `help` response is parseable JSON
 
@@ -753,7 +753,7 @@ Common preconditions for all tests below:
 - **Preconditions**: M-SERIALDBG in tree with `cmdHelp` redesigned to emit single JSON object (design doc B3 resolved).
 - **Steps**: Send `help` → read one line → `json.loads(line)` → assert `commands` array present with ≥ 6 entries (reconnect + 5 debug commands).
 - **Expected result**: Parse succeeds. All command names present in `commands[].name`.
-- **Status**: planned (M-SERIALDBG not yet implemented; single-line cmdHelp iterating kCmds[] specified in design doc Feature 6 — unblocked). Owner: VE.
+- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
 
 ### T084 — [serialdbg-001] `set backoff` / `get backoff` round-trip
 
@@ -766,7 +766,7 @@ Common preconditions for all tests below:
   2. Send `get backoff` → assert `consecutiveFailures=5`.
   3. Send `set backoff 0` → assert reset confirmed.
 - **Expected result**: Round-trip consistent. After `set backoff 0`, next heartbeat shows base poll cadence restored.
-- **Status**: planned (M-SERIALDBG not yet implemented). Owner: VE.
+- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
 
 ### T085 — [serialdbg-001, touch-002] POSBAR tap returns NONE when no track loaded
 
@@ -776,7 +776,7 @@ Common preconditions for all tests below:
 - **Preconditions**: M-SERIALDBG in tree. No active Spotify device (204 state). Confirm via `info` → `durationMs=0`.
 - **Steps**: Send `tap 162 77` (posbar centre) → parse response.
 - **Expected result**: `hit=NONE` or `hit=DEADZONE`; no `ACT_SEEK` in log.
-- **Status**: planned (M-SERIALDBG not yet implemented). Owner: VE.
+- **Status**: ready (firmware complete 2026-05-17; DUT execution pending; requires no-device 204 state). Owner: VE.
 
 ### T086 — [serialdbg-001, touch-002] Full-perimeter boundary on POSBAR and VOLUME rects
 
@@ -800,9 +800,7 @@ Common preconditions for all tests below:
      `(162,69)` → assert `hit=VOLUME`, `action=VOLUME`.
 - **Expected result**: 16 checks total. Outside-rim taps never produce `hit=POSBAR`
   or `hit=VOLUME`. Inside-rim taps always do, with `seekMs` / `volumePct` populated.
-- **Status**: planned (M-SERIALDBG not yet implemented; VOLUME y range to be confirmed
-  against `skin_layout.h` constants at execution — design table only lists the centre
-  y=63). Owner: VE.
+- **Status**: ready (firmware complete 2026-05-17; DUT execution pending; confirm VOLUME y range against skin_layout.h at execution). Owner: VE.
 
 ### T087 — [serialdbg-001, chrome-001, conn-001] Serial tap covers SHUFFLE / REPEAT / VIS / LOGO regions
 
@@ -832,8 +830,7 @@ Common preconditions for all tests below:
   ACT_REPEAT (also surfaces in Spotify's `shuffle_state` / `repeat_state` within ≤ 5 s).
   LOGO behaviour matches T094 but is now scriptable. VIS test documents current state
   (action=NONE if inert) as a baseline for future wiring.
-- **Status**: planned (M-SERIALDBG not yet implemented; LOGO coordinate reconciliation
-  pending). Owner: VE.
+- **Status**: ready (firmware complete 2026-05-17; DUT execution pending; reconcile LOGO centre against skin_layout.h LOGO_X/Y/W/H at execution). Owner: VE.
 
 ### T088 — [serialdbg-001, touch-002] DEADZONE positive cases — canvas corners + design-doc dead-zone samples
 
@@ -860,7 +857,7 @@ Common preconditions for all tests below:
   result of `hit=TRANSPORT/POSBAR/VOLUME/SHUFFLE/REPEAT/VIS/LOGO` for these coords is
   a hit-test regression. Side-observation: each tap also triggers one
   `[D][spotify.poll]` line within ~1.5 s (ACT_FORCE_POLL effect).
-- **Status**: planned (M-SERIALDBG not yet implemented). Owner: VE.
+- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
 
 ### T095 — [serialdbg-001, touch-002] Injection-vs-physical calibration
 
@@ -886,8 +883,7 @@ Common preconditions for all tests below:
   diverge in region or action is a structural break — the injection path no longer
   faithfully reproduces the physical path, and every other serialdbg test loses its
   authority.
-- **Status**: planned (M-SERIALDBG not yet implemented; requires manual operator —
-  run on every release candidate, not in routine regression). Owner: VE.
+- **Status**: ready (firmware complete 2026-05-17; manual-operator test; run on every release candidate). Owner: VE.
 
 ### T096 — [serialdbg-001] cmdDrag queue-drain completeness
 
@@ -915,8 +911,7 @@ Common preconditions for all tests below:
   pattern with 63 sample lines. No samples skipped, no duplicate emission, no
   spurious release-sentinel firing mid-drag. dragState ends in `D_IDLE` (verify via
   `dbg_getDragStateName`).
-- **Status**: planned (M-SERIALDBG not yet implemented; requires per-sample trace
-  in `drainInjectionQueue()` — flag to Developer as SERIALDBG-e addition). Owner: VE.
+- **Status**: ready (firmware complete 2026-05-17; per-sample trace present in drainInjectionQueue(); DUT execution pending). Owner: VE.
 
 ### T089 — [serialdbg-001] Production build contains no SERIAL_DEBUG symbols
 
@@ -926,7 +921,7 @@ Common preconditions for all tests below:
 - **Preconditions**: Clean `pio run -e cyd2usb_winamp` build completed.
 - **Steps**: `grep -c SERIAL_DEBUG .pio/build/cyd2usb_winamp/firmware.elf` → expect 0. Also verify flash size does not regress vs. pre-M-SERIALDBG baseline (check `pio run` output for flash % used).
 - **Expected result**: Zero SERIAL_DEBUG symbol occurrences in ELF. Flash usage ≤ pre-SERIALDBG baseline + 0.1% (boot line adds `esp_app_get_description()` call — quantify in exit criteria when boot line guard decision is made per ADR-021 AC-4).
-- **Status**: planned (M-SERIALDBG not yet implemented). Owner: VE.
+- **Status**: passed (2026-05-17). `strings firmware.elf | grep -c SERIAL_DEBUG` → 0. Flash: 52.8% (1,385,429 B / 2,621,440 B). Owner: VE.
 
 ---
 
