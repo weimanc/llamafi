@@ -750,6 +750,45 @@ To be triaged with the team.
 - Exclude `skin_hitzones.png` from `gen/golden.sha256` (derived artefact, not a firmware input).
 - ~50 LOC. No new Python deps.
 
+### TASK-055a — M-WAVE-ATLAS: VIS_WAVE_ATLAS enum + nextMode() update
+**Owner**: Developer
+**Feature**: wave-001
+**Status**: done (2026-05-17)
+**Git ref**: 49ff9a9
+**Notes**:
+- Added `VIS_WAVE_ATLAS` to `VisMode` enum in `vuMeter.h`.
+- Added `waveAtlasFrameRef()` inline state accessor.
+- Updated `nextMode()` cycle: Atlas → WaveAtlas → VU → Blank → Atlas. `VIS_WAVE` removed from cycle (stays in codebase).
+- Included `gen/wave_atlas.h`.
+
+### TASK-055b — M-WAVE-ATLAS: tickWaveAtlas() + dispatch in tick()
+**Owner**: Developer
+**Feature**: wave-001
+**Status**: done (2026-05-17)
+**Git ref**: 49ff9a9
+**Notes**:
+- `tickWaveAtlas()`: 20 Hz frame advance (continuous, not gated on playing); `blitVisBackground()` + white vertical fill between consecutive atlas samples.
+- `prevY` seeded from `row[0]`, not `centreY` — prevents left-edge spike artefact.
+- Dispatch wired in `tick()`: `case VIS_WAVE_ATLAS: tickWaveAtlas(...)`.
+
+### TASK-055c — M-WAVE-ATLAS: flash budget verify
+**Owner**: Developer
+**Feature**: wave-001
+**Status**: done (2026-05-17)
+**Notes**:
+- Build: 52.9 % flash (1,387,237 / 2,621,440 B). Headroom ~47 %. Well within the ≤ previous+17 KB exit criterion.
+
+### TASK-055d — M-WAVE-ATLAS: fix frozen lead-in frames + canonical bake script
+**Owner**: Developer
+**Feature**: wave-001
+**Status**: done (2026-05-17)
+**Git ref**: a071b89
+**Notes**:
+- Root cause: frames 0–29 byte-identical (source video static before music starts) → 1.5 s visual freeze per loop at 20 Hz.
+- Fix: added `--frame-start` / `--frame-end` to `bake_wave.py`; rebaked with `--frame-start 30`. 224 → 194 frames.
+- All AE flags restored: `--boost 2.0 --spatial-smooth 3 --error-diffusion --dc-offset 3`.
+- `tools/bake_wave.sh`: canonical invocation per BP-002. Future rebakes use this script.
+
 ### TASK-053a — M-CONN: bake SKIN_TITLEBAR_INACTIVE sprite
 **Owner**: Developer
 **Feature**: conn-001
