@@ -980,11 +980,29 @@ To be triaged with the team.
 ### TASK-056k — M-SERIALDBG: VE execute serialdbg-001 suite on DUT
 **Owner**: VE
 **Feature**: serialdbg-001
-**Status**: todo
+**Status**: partial (T076–T085, T089, T096 pass 2026-05-17; T086–T088, T095 pending)
 **Blocked by**: TASK-056a through TASK-056i (core impl), TASK-056l (for T095)
 **Notes**:
-- Execute T076–T085, T089, T095, T096 on `cyd2usb_winamp_debug` DUT.
-- T089 (production symbol check) must pass before any serialdbg PR merges.
+- T076–T085, T096 + T089: **pass 2026-05-17** (DUT ee65beb+, harness
+  `Spotify-Diy-Thing/tools/run_serialdbg_tests.py`). 11 PASS / 0 FAIL / 0 SKIP.
+- Firmware fixes landed during DUT bring-up (same day, separate commit):
+  (1) `drainInjectionQueue` skips logging on release sentinel (T096 off-by-one);
+  (2) `dbgSet("cooldown", ms)` accepts arming value, not reset-only (T079
+  previously untestable via serial — see design doc B1 closure);
+  (3) `injectTouch` emits `enqueued ACT_VOLUME pct=N` LOG_D so T082 can count
+  synchronous enqueues instead of async `spotify.task` dequeues;
+  (4) `dbgSet("songDuration", val)` accessor (T085 — previously required
+  waiting many minutes for Spotify to drop the player session after closing
+  all clients).
+- Harness logic fixes: T076 now tests 8 contiguous-row boundary cases (not 10
+  non-contiguous outside-left cases); T079 arms via `set cooldown 500`;
+  T082 counts the new enqueue trace line; T085 forces songDuration=0.
+- **Still pending**:
+  - T086 (full-perimeter POSBAR + VOLUME boundary), T087 (SHUFFLE/REPEAT/VIS/LOGO),
+    T088 (DEADZONE positives) — not in harness yet; manual serial.
+  - T095 (synthetic-vs-physical calibration) — human operator at DUT.
+- T089 (production symbol check) **pass** — verified again 2026-05-17 after
+  the four firmware fixes (0 SERIAL_DEBUG in `cyd2usb_winamp` ELF).
 
 ---
 

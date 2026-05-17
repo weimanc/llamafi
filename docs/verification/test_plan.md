@@ -658,7 +658,11 @@ Tests for the expanded serial command interface. All require M-SERIALDBG firmwar
 All responses are JSON lines per ADR-021. Host scripts use `json.loads(line)` — skip lines not starting with `{` (boot line, esp_log output). Check `ok`, `hit`, `action` fields. **Do not grep for `[serial-touch]` prefix — that notation is illustrative only in this doc; actual output is JSON.**
 
 Open design issues gating some tests (tracked in design doc / ADR-021 review):
-- B1: T079 blocked — cooldown gate untestable until `injectTouch` optionally honours cooldown
+- B1: ~~T079 blocked~~ resolved 2026-05-17 — `dbgSet("cooldown", ms)` now accepts a
+  positive arming value (previously val was ignored, reset-only). `injectTouch`
+  remains read-only against `touchScreenCoolDownTime` by design so synthetic taps
+  never block real input; T079 arms via `set cooldown <ms>` then verifies a
+  follow-up `tap` reports `skipped=true`.
 - B3: T083 blocked — `cmdHelp` must emit single JSON line
 - B4: `get snapshot` split protocol must be finalised before general snapshot parsing
 - B5: DEADZONE region now in design `lastTouchResult` (Feature 3a) — T087/T088 unblocked.
@@ -675,13 +679,23 @@ Common preconditions for all tests below:
 
 - **Type**: integration (DUT, serial-driven)
 - **Feature(s)**: serialdbg-001, touch-002
-- **Objective**: Verify hit-test rects are pixel-accurate: 1 px outside any button rect → `hit=NONE`; 1 px inside → correct action dispatched. Guards off-by-one errors in `hitTestTransport`. Left x-boundary only (y-boundary and right x-boundary are separate coverage extensions).
-- **Preconditions**: M-SERIALDBG in tree. `originX=22`, `originY=0` (confirmed via `get snapshot` or design doc coordinate table). Touch cooldown clear (`set cooldown 0` between each tap).
-- **Steps**:
-  1. For each button (PREV/PLAY/PAUSE/STOP/NEXT at screen-x 37/60/83/106/129): send `tap <buttonX-1> 97` → parse JSON response → assert `hit=NONE`.
-  2. For each button: send `tap <buttonX+1> 97` → parse JSON response → assert `hit=TRANSPORT` and `action=<expected>`.
-- **Expected result**: All 5 × 2 = 10 checks pass. Screen coordinates: PREV centre=49, PLAY=72, PAUSE=95, STOP=118, NEXT=141 (all at y=97). Outside-left = buttonCentreX−12 for each. Zero false triggers on out-of-bound taps.
-- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
+- **Objective**: Verify hit-test rects are pixel-accurate. Transport row is
+  *contiguous* (PREV/PLAY/PAUSE/STOP/NEXT abut at x=38/61/84/107/130 with no gaps), so
+  the meaningful boundary cases are: (a) 1 px outside the row entirely on either
+  end; (b) each shared edge between adjacent buttons (left edge = that button).
+  Guards off-by-one errors in `hitTestTransport`.
+- **Preconditions**: M-SERIALDBG in tree. `originX=22`, `originY=0`. Touch cooldown clear (`set cooldown 0` between each tap).
+- **Steps**: send `tap <x> 97` for each of the 8 boundary cases:
+  1. `(37,97)`  → `hit ≠ TRANSPORT` (1 px left of PREV)
+  2. `(38,97)`  → `hit=TRANSPORT, action=PREV`
+  3. `(61,97)`  → `hit=TRANSPORT, action=PLAY`  (PREV/PLAY boundary)
+  4. `(84,97)`  → `hit=TRANSPORT, action=PAUSE` (PLAY/PAUSE boundary)
+  5. `(107,97)` → `hit=TRANSPORT, action=STOP`  (PAUSE/STOP boundary)
+  6. `(130,97)` → `hit=TRANSPORT, action=NEXT`  (STOP/NEXT boundary)
+  7. `(151,97)` → `hit=TRANSPORT, action=NEXT`  (last px of NEXT)
+  8. `(152,97)` → `hit ≠ TRANSPORT` (1 px right of NEXT)
+- **Expected result**: All 8 checks pass. Zero false triggers on out-of-row taps.
+- **Status**: pass 2026-05-17 (DUT, ee65beb+; harness `tools/run_serialdbg_tests.py::t076`). Owner: VE.
 
 ### T077 — [serialdbg-001, touch-002] Dead zone between posbar and transport row
 
@@ -691,7 +705,7 @@ Common preconditions for all tests below:
 - **Preconditions**: M-SERIALDBG in tree. `DEADZONE` region added to `lastTouchResult` (design doc B5). `set cooldown 0` before tap.
 - **Steps**: Send `tap 162 85` (x=midpoint of posbar width, y=85 = midpoint of 5-pixel dead zone at y=83..87) → parse JSON response.
 - **Expected result**: `hit` is `NONE` or `DEADZONE`; `action` is `NONE` or `FORCE_POLL`. No `TRANSPORT`, `POSBAR`, or `VOLUME` action.
-- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
+- **Status**: pass 2026-05-17 (DUT, ee65beb+; harness `t077`). Owner: VE.
 
 ### T078 — [serialdbg-001, touch-002] Zero-delta drag dispatches no volume action
 
@@ -701,19 +715,28 @@ Common preconditions for all tests below:
 - **Preconditions**: M-SERIALDBG in tree. `dragState == D_IDLE` — confirm with `get dragState` → `"D_IDLE"`. `set cooldown 0`.
 - **Steps**: Send `drag 163 63 163 63 1` (volume slot centre, zero delta, 1 step) → observe serial for ≥ 2 s.
 - **Expected result**: No `[D][spotify.task] dequeued action=VOLUME` log line. `{"ok":true,"cmd":"drag",...}` response present. `dbg_getDragState()` returns `D_IDLE` after completion.
-- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
+- **Status**: pass 2026-05-17 (DUT, ee65beb+; harness `t078`). Owner: VE.
 
 ### T079 — [serialdbg-001, touch-002] Cooldown gate blocks rapid sequential taps
 
 - **Type**: integration (DUT, serial-driven)
 - **Feature(s)**: serialdbg-001, touch-002
-- **Objective**: Two `tap` commands fired within the 200 ms cooldown window → only first registers. Guards `touchScreenCoolDownTime` logic.
-- **Preconditions**: M-SERIALDBG in tree with `injectTouch` optionally honouring cooldown gate (design doc B1 must be resolved — `injectTouch` needs a cooldown-aware mode or a `"skipped":true` response field). `set cooldown 0` to start from clean state.
+- **Objective**: Verify the cooldown gate (`touchScreenCoolDownTime`) suppresses
+  taps and reports `skipped=true`. Note: `injectTouch` is *read-only* against the
+  gate by design (synthetic taps must never block real input after a test), so the
+  gate is armed via the debug-only `set cooldown <ms>` accessor, not by a prior
+  synthetic tap. Guards both the gate's "skip + report" branch and the
+  `dbgSet("cooldown", val)` arming path.
+- **Preconditions**: M-SERIALDBG in tree. B1 resolved — `dbgSet("cooldown", ms)`
+  accepts a positive value to arm the gate; `val=0` or empty resets.
 - **Steps**:
-  1. Send `tap 72 97` (PLAY centre) — expect `{"hit":"TRANSPORT","action":"PLAY"}`.
-  2. Within < 200 ms, send `tap 141 97` (NEXT centre).
-- **Expected result**: First response: `hit=TRANSPORT, action=PLAY`. Second response: `{"ok":true,"cmd":"tap","hit":"NONE","skipped":true}` or equivalent cooldown-skip indicator. Confirms cooldown gate is active.
-- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
+  1. Send `set cooldown 500` — gate armed for 500 ms.
+  2. Send `tap 72 97` (PLAY centre) — expect `{"ok":true,"cmd":"tap","hit":"NONE","skipped":true}`.
+  3. Send `set cooldown 0` — gate cleared.
+  4. Send `tap 72 97` again — expect `{"hit":"TRANSPORT","action":"PLAY","skipped":false}`.
+- **Expected result**: Tap (2) skipped with `hit=NONE,skipped=true`; tap (4) fires
+  normally. Confirms gate fires on arming and clears on reset.
+- **Status**: pass 2026-05-17 (DUT, ee65beb+; harness `t079`). Owner: VE.
 
 ### T080 — [serialdbg-001] `info` command — state snapshot shape
 
@@ -723,7 +746,7 @@ Common preconditions for all tests below:
 - **Preconditions**: M-SERIALDBG in tree. DUT booted with active Spotify session.
 - **Steps**: Send `info` → `json.loads(line)`.
 - **Expected result**: Single JSON line containing at minimum: `git`, `elf`, `build`, `heap`, `isPlaying`, `progressMs`, `durationMs`, `volumePct`, `consecutiveFailures`. All values within plausible ranges (`heap > 50000`, `volumePct` 0–100 or -1, `progressMs < durationMs` when playing).
-- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
+- **Status**: pass 2026-05-17 (DUT, ee65beb+; harness `t080`). Owner: VE.
 
 ### T081 — [serialdbg-001, touch-002] Serial tap reproduces T052 transport suite
 
@@ -733,7 +756,10 @@ Common preconditions for all tests below:
 - **Preconditions**: M-SERIALDBG in tree. Active Spotify device playing a track. `info` → `durationMs > 0`. `set cooldown 0` between each tap.
 - **Steps**: For each of the 5 transport buttons, send `tap <centreX> 97` (PREV=49, PLAY=72, PAUSE=95, STOP=118, NEXT=141). After each tap wait ≤ 5 s; verify Spotify state change via `info` or host-side `curl /v1/me/player`.
 - **Expected result**: Each response: `{"ok":true,"cmd":"tap","hit":"TRANSPORT","pressed":N,"action":"<ACT>"}`. Spotify playback state matches action within ≤ 5 s.
-- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
+- **Status**: pass 2026-05-17 — shape check via harness `t081` (5/5 TRANSPORT
+  hits with correct action). Spotify-side effect manual: confirmed PLAY/PAUSE
+  toggle Spotify play state and PREV/NEXT advance the queue within ≤ 5 s on
+  the test account. Owner: VE.
 
 ### T082 — [serialdbg-001, touch-002] Serial drag reproduces T074 volume drag
 
@@ -741,9 +767,9 @@ Common preconditions for all tests below:
 - **Feature(s)**: serialdbg-001, touch-002, chrome-001
 - **Objective**: Same coverage as T074 (debounced ACT_VOLUME dispatches during drag, drag-end commit on lift) but driven by serial `drag` — making T074 regression-scriptable.
 - **Preconditions**: M-SERIALDBG in tree with queue-drain drag (no `delay()` in loop — design doc B1/R&D note). Active Spotify device with `supports_volume: true`. `set cooldown 0`.
-- **Steps**: Send `drag 129 63 196 63 60` (volume slot full width, 60 steps — needed to span ≥ 600 ms and trigger ≥ 2 debounce windows at 300 ms each). Observe serial for `drawVolume pct=NN` and `drag-end commit pct=NN` lines.
-- **Expected result**: ≥ 2 `dequeued action=VOLUME` log lines (verifies debounce rate-limiting); one `drag-end commit`; Spotify `device.volume_percent` matches released value within ≤ 30 s. Note: `steps=8` is insufficient — at 10 ms/step the drag completes in 80 ms, within a single 300 ms debounce window.
-- **Status**: ready (firmware complete 2026-05-17; DUT execution pending; steps=60 confirmed). Owner: VE.
+- **Steps**: Send `drag 129 63 196 63 60` (volume slot full width, 60 steps — needed to span ≥ 600 ms and trigger ≥ 2 debounce windows at 300 ms each). Observe serial for `enqueued ACT_VOLUME pct=NN` log lines (synchronous trace emitted from `injectTouch` when the debounce window opens).
+- **Expected result**: ≥ 2 `enqueued ACT_VOLUME` log lines (verifies debounce rate-limiting); `{"ok":true,"cmd":"drag",...}` response present; Spotify `device.volume_percent` matches released value within ≤ 30 s. Note: original design counted `dequeued action=VOLUME` lines from `spotify.task`, but those can lag the drag-end response by many seconds if the FreeRTOS task is mid-HTTPS-call; counting the synchronous enqueue trace removes that timing dependency. Note: `steps=8` is insufficient — at 10 ms/step the drag completes in 80 ms, within a single 300 ms debounce window.
+- **Status**: pass 2026-05-17 (DUT, ee65beb+; harness `t082`; 2-3 ACT_VOLUME enqueues observed across full-run). Spotify volume effect manual: confirmed slider commit reaches Spotify `device.volume_percent` on release. Owner: VE.
 
 ### T083 — [serialdbg-001] `help` response is parseable JSON
 
@@ -753,7 +779,7 @@ Common preconditions for all tests below:
 - **Preconditions**: M-SERIALDBG in tree with `cmdHelp` redesigned to emit single JSON object (design doc B3 resolved).
 - **Steps**: Send `help` → read one line → `json.loads(line)` → assert `commands` array present with ≥ 6 entries (reconnect + 5 debug commands).
 - **Expected result**: Parse succeeds. All command names present in `commands[].name`.
-- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
+- **Status**: pass 2026-05-17 (DUT, ee65beb+; harness `t083`; 7 commands listed). Owner: VE.
 
 ### T084 — [serialdbg-001] `set backoff` / `get backoff` round-trip
 
@@ -766,17 +792,26 @@ Common preconditions for all tests below:
   2. Send `get backoff` → assert `consecutiveFailures=5`.
   3. Send `set backoff 0` → assert reset confirmed.
 - **Expected result**: Round-trip consistent. After `set backoff 0`, next heartbeat shows base poll cadence restored.
-- **Status**: ready (firmware complete 2026-05-17; DUT execution pending). Owner: VE.
+- **Status**: pass 2026-05-17 (DUT, ee65beb+; harness `t084`; 5↔0 round-trip). Owner: VE.
 
 ### T085 — [serialdbg-001, touch-002] POSBAR tap returns NONE when no track loaded
 
 - **Type**: integration (DUT, serial-driven)
 - **Feature(s)**: serialdbg-001, touch-002
 - **Objective**: `hitTestPosbar` returns -1 when `songDuration == 0`; tap on posbar must not dispatch `ACT_SEEK`. Guards the `songDuration <= 0` branch.
-- **Preconditions**: M-SERIALDBG in tree. No active Spotify device (204 state). Confirm via `info` → `durationMs=0`.
-- **Steps**: Send `tap 162 77` (posbar centre) → parse response.
-- **Expected result**: `hit=NONE` or `hit=DEADZONE`; no `ACT_SEEK` in log.
-- **Status**: ready (firmware complete 2026-05-17; DUT execution pending; requires no-device 204 state). Owner: VE.
+- **Preconditions**: M-SERIALDBG in tree with `dbgSet("songDuration", val)`
+  accessor (added 2026-05-17) so the precondition can be forced without
+  waiting on Spotify to drop the player session — which can take many
+  minutes after the last client disconnects. The override is transient:
+  the next successful `/me/player` poll restores the real duration.
+- **Steps**:
+  1. Send `set songDuration 0` — assert `ok=true`.
+  2. Send `set cooldown 0`.
+  3. Send `tap 162 77` (posbar centre) → parse response.
+- **Expected result**: `hit ≠ POSBAR` (typically `DEADZONE`); `action ≠ SEEK`
+  (typically `FORCE_POLL`).
+- **Status**: pass 2026-05-17 (DUT, ee65beb+; harness `t085`; hit=DEADZONE
+  action=FORCE_POLL with forced songDuration=0). Owner: VE.
 
 ### T086 — [serialdbg-001, touch-002] Full-perimeter boundary on POSBAR and VOLUME rects
 
@@ -911,7 +946,11 @@ Common preconditions for all tests below:
   pattern with 63 sample lines. No samples skipped, no duplicate emission, no
   spurious release-sentinel firing mid-drag. dragState ends in `D_IDLE` (verify via
   `dbg_getDragStateName`).
-- **Status**: ready (firmware complete 2026-05-17; per-sample trace present in drainInjectionQueue(); DUT execution pending). Owner: VE.
+- **Status**: pass 2026-05-17 (DUT, ee65beb+; harness `t096`; drag60=61/61
+  drag62=63/63 samples). Firmware fix 2026-05-17: `drainInjectionQueue` now logs
+  only on move samples, not on the release sentinel — previously the sentinel
+  emitted a misleading `inject sample N/N sx=0 sy=0` and inflated the tally by
+  one. Owner: VE.
 
 ### T089 — [serialdbg-001] Production build contains no SERIAL_DEBUG symbols
 
