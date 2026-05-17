@@ -14,6 +14,16 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-002 — Commit a canonical bake script alongside generated artifacts
+
+**Adopted from**: LL-021  
+**Date adopted**: 2026-05-17  
+**Rule**: For every bake tool that produces committed generated artifacts, commit a companion shell script containing the exact invocation. The script is the canonical recipe; update it in the same commit as any regenerated artifact.  
+**Rationale**: Bake flags (boost, smoothing, offsets, frame trimming) are invisible inside the generated C/header files and are not consulted from commit messages before re-running a tool. A shell script is a file — it gets read, diffed, and updated as part of normal workflow.  
+**Applies to**: Developer, R&D Engineer
+
+---
+
 ## Entry Format
 
 ```

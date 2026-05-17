@@ -322,6 +322,20 @@ Sister rule to LL-019 (mark provisional specs before R&D is complete) and LL-017
 
 ---
 
+### LL-021 — 2026-05-17 — Bake pipeline parameters lost on rebake (wave_atlas)
+
+**Context**: `wave_atlas` rebaked today to fix a frozen-frames bug (30 identical lead-in frames in source video). A `--frame-start 30` flag was added to `bake_wave.py` and the atlas regenerated. Only `--dc-offset 3` was passed; `--boost 2.0 --spatial-smooth 3 --error-diffusion` were silently omitted. The regression was caught by the user ("did you undo the AE effects?") and corrected immediately, but a full reflash cycle was wasted.
+
+**Observation**: The canonical bake invocation existed only in the `feat(wave): M-WAVE-ATLAS bake pipeline and host preview` commit message body. Nobody consults git log before running a tool. The tool's own `--help` lists flags but gives no indication which combination was used to produce the committed output.
+
+**Root cause**: No machine-readable record of the exact bake invocation is committed alongside the generated artifacts. The artifact (`wave_atlas.c`) is reproducible in principle but the reproduction recipe lives only in narrative prose (commit message), which is not consulted at tool-invocation time.
+
+**Suggested improvement**: For every bake tool that produces committed generated artifacts, commit a companion shell script or Makefile target (e.g. `tools/bake_wave.sh`) containing the exact invocation. The script is the canonical recipe; the commit message may reference it but is not the source of truth. When flags change, the script is updated in the same commit as the regenerated artifact.
+
+**Status**: adopted → BP-002 (2026-05-17)
+
+---
+
 ## Best-practice candidates (for human sign-off)
 
 Per AGENTS.md, QM does not self-promote. Below are LL items that look durable enough to become best-practice rules:
@@ -343,6 +357,7 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-018** → "Treat the OpenAPI spec as an over-approximation, not a contract. Any lib-filter patch that depends on a documented field must include a wire-capture proof that the field is actually returned by the specific endpoint being patched." Process rule, applies to Developer + Architect. Two concrete instances (LL-013 was the first). Strongest promotion case in the candidate set.
 - **LL-019** → "Implementation specs that depend on pixel-accurate asset measurements must be marked `[PROVISIONAL — awaiting R&D]` and blocked from implementation until R&D validates the numbers. First-principles estimates produce high error rates on pixel-level behaviour." Process rule, applies to Developer (implementation gate) and Architect (provisional tagging). First instance on this project; preventive catch.
 - **LL-020** → "R&D reports must distinguish measured values from derived/computed values. Any derived value entering a spec must include its derivation formula or a one-line verification command. Architect verifies before adopting." Process rule, applies to R&D Engineer (labelling + formula) and Architect (verification gate). Concrete incident: 16/16 RGB565 values wrong in M-VIS spec; 30-second Python check would have caught it.
+- **LL-021** → "Bake pipeline parameters must be recorded in a committed, executable form (shell script or Makefile target), not only in a commit message. Commit messages are not consulted before re-running tools." Process rule, applies to Developer + R&D Engineer. Concrete incident: wave_atlas rebaked with only `--dc-offset 3`; `--boost 2.0 --spatial-smooth 3 --error-diffusion` lost because the canonical invocation only existed in the git commit body. → **BP-002**
 
 ---
 
