@@ -61,7 +61,7 @@ R&D-to-production workflow:
 | `roadmap.md` | PM | `docs/project/roadmap.md` |
 | `architecture.md` | Architect | `docs/architecture/architecture.md` |
 | `decisions/` (ADRs) | Architect | `docs/architecture/decisions/` |
-| `designs/` (feature design docs) | Architect | `docs/architecture/designs/` |
+| `designs/` (module design docs) | Architect | `docs/architecture/designs/` |
 | `interfaces/` (IFCs) | Architect | `docs/architecture/interfaces/` |
 | `test_plan.md` | VE | `docs/verification/test_plan.md` |
 | `regression_suite/` | VE | `docs/verification/regression_suite/` |
