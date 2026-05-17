@@ -980,7 +980,7 @@ To be triaged with the team.
 ### TASK-056k — M-SERIALDBG: VE execute serialdbg-001 suite on DUT
 **Owner**: VE
 **Feature**: serialdbg-001
-**Status**: partial (T076–T085, T089, T096 pass 2026-05-17; T086–T088, T095 pending)
+**Status**: harness complete (T086–T088 automated + T095 interactive added 2026-05-17); DUT execution pending for T086–T088, T095
 **Blocked by**: TASK-056a through TASK-056i (core impl), TASK-056l (for T095)
 **Notes**:
 - T076–T085, T096 + T089: **pass 2026-05-17** (DUT ee65beb+, harness
@@ -997,12 +997,19 @@ To be triaged with the team.
 - Harness logic fixes: T076 now tests 8 contiguous-row boundary cases (not 10
   non-contiguous outside-left cases); T079 arms via `set cooldown 500`;
   T082 counts the new enqueue trace line; T085 forces songDuration=0.
-- **Still pending**:
-  - T086 (full-perimeter POSBAR + VOLUME boundary), T087 (SHUFFLE/REPEAT/VIS/LOGO),
-    T088 (DEADZONE positives) — not in harness yet; manual serial.
-  - T095 (synthetic-vs-physical calibration) — human operator at DUT.
+- **T086–T088 automated (2026-05-17)**: harness functions `t086`, `t087`, `t088` added;
+  registered in ALL_TESTS. Coordinate corrections vs test plan:
+  - POSBAR bottom inside boundary: y=81 (not y=82 — POSBAR_BG.h=10, py1=82 is exclusive).
+  - LOGO second-tap within cooldown returns DEADZONE/FORCE_POLL (not LOGO — firmware
+    falls to else branch when `millis() < logoTapCooldownMs`).
+  - TLS reset log pattern: `"hard reset"` / `"stopping client"` ([I][spotify.tls]).
+- **T095 interactive (2026-05-17)**: harness function `t095(dut, interactive)` added;
+  activated by `--interactive` flag; SKIPs without flag. Prompts operator for each of
+  3 zones (PREV/POSBAR-mid/VOLUME-mid), captures dequeue log for physical tap, confirms
+  Spotify effect. Run: `python3 run_serialdbg_tests.py --interactive --tests T095`.
 - T089 (production symbol check) **pass** — verified again 2026-05-17 after
   the four firmware fixes (0 SERIAL_DEBUG in `cyd2usb_winamp` ELF).
+- **Pending DUT run**: T086, T087, T088, T095 ready for next DUT session.
 
 ---
 
