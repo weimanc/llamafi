@@ -1285,6 +1285,131 @@ ADR-022 (planned) should formalize the contract and the rationale for each bound
 
 ---
 
+## Suite: drift-001 — Operational state-drift surfacing (M-DRIFT)
+
+Runtime counterpart to sync-001. sync-001 validates code is right at QA time on a
+controlled rig; drift-001 surfaces when reality diverges at runtime — in the field,
+under flaky networks, sleep-stuck Connect devices, Spotify API quirks — without
+requiring a tethered operator. Three tests cover the two surfaces (heartbeat field
++ in-chrome staleness indicator) and the false-positive boundary.
+
+**Suite status note.** All three tests are `planned` and gated on the firmware
+prereqs below — feature is design-stage, indicator form not yet decided. Suite
+exists as a contract; promote past `planned` after ADR-023 lands and the indicator
+form is fixed.
+
+### Prerequisites
+
+- **TASK-058** (log-001, shared with sync-001): heartbeat `last_poll_age_ms`.
+- **TASK-059** (new): heartbeat `last_render_age_ms` field + `g_lastRenderMs` write
+  on every WinampDisplay snapshot-driven repaint path.
+- **TASK-060** (new): chrome staleness indicator render in `repaintChrome()`;
+  threshold check against `N_STALE_MS` (default 15 000 ms per planned ADR-023).
+- **ADR-023** (new): formalize threshold + indicator form (open question — dimmed
+  titlebar / corner pip / banner — and whether to reuse conn-001 overlay surface).
+
+### Common preconditions
+
+- DUT on `cyd2usb_winamp_debug` (for `set backoff` access). `info` recorded at start.
+- Heartbeat emitting; operator captures the full hb line for each test step.
+- `tools/spotify_state.py` reachable for ground-truth cross-check on false-positive
+  test.
+
+### T111 — [drift-001, log-001] Heartbeat exposes `last_render_age_ms`, value tracks repaint cadence
+
+- **Type**: unit (DUT, log-scrape)
+- **Feature(s)**: drift-001, log-001
+- **Objective**: Confirm the operational drift signal is *observable* — heartbeat
+  carries `last_render_age_ms`, value is plausible relative to the actual repaint
+  cadence under both idle and touch-driven repaint.
+- **Preconditions**: TASK-058 + TASK-059 in tree. Track playing (forces M4
+  interpolator ticks; renderer paints time digits + bar at 10 Hz, so render age
+  resets each tick).
+- **Steps**:
+  1. Wait for one heartbeat. Parse `last_render_age_ms` + `last_poll_age_ms`.
+  2. Assert `last_render_age_ms` field present.
+  3. Under live playback: `last_render_age_ms ≤ 500` (M4 ticks at 100 ms — render
+     should be recent every hb).
+  4. Pause via host (no track interpolator ticks → renderer idle except on poll):
+     wait for next hb. `last_render_age_ms` may rise toward `last_poll_age_ms`.
+  5. Trigger a touch repaint (`tap 281 100` = LOGO → `repaintChrome()`). Next hb:
+     `last_render_age_ms ≤ 30000` (one hb window).
+- **Expected result**: Field present in every hb. Values tracking the repaint
+  events. Sustained `last_render_age_ms > N_STALE_MS` under live playback would
+  indicate the renderer has stopped responding to snapshot updates — exactly the
+  signal drift-001 is designed to surface.
+- **Status**: planned (blocked on TASK-058 + TASK-059). Owner: VE.
+
+### T112 — [drift-001, chrome-001, io-001] Chrome staleness indicator appears above threshold and clears on fresh poll
+
+- **Type**: integration + visual (DUT + host)
+- **Feature(s)**: drift-001, chrome-001, io-001
+- **Objective**: Force the operational drift signal to the user — when
+  `last_poll_age_ms > N_STALE_MS`, the staleness indicator paints; when a poll
+  succeeds, it clears within one render cycle.
+- **Preconditions**: TASK-058 + TASK-060 in tree. ADR-023 indicator form decided
+  (test references the chosen form via the `[D][chrome] staleness-indicator
+  state=<on|off>` LOG_D — required as Block-B observability for this test).
+- **Steps**:
+  1. Steady state: confirm `get backoff.nextPollMs ≈ 5000` and no staleness
+     indicator visible (or `staleness-indicator state=off` in log).
+  2. `set backoff 5` (forces next-poll wait ≈ 60 s). Record `t_force = millis()`.
+  3. Poll heartbeat / `get snapshot` every 5 s; record `last_poll_age_ms` trace.
+  4. At `last_poll_age_ms > 15000` (threshold), visual: staleness indicator
+     visible within one `repaintChrome()` cycle (≤ 1 s after threshold crossed).
+     Log: `staleness-indicator state=on` line emitted.
+  5. `set backoff 0` (clears back-off; next poll fires immediately). Within
+     `~1500 ms`, indicator clears + log shows `state=off`.
+- **Expected result**: Indicator OFF in steady state; ON between threshold and
+  next successful poll; OFF after fresh poll. Exactly one ON→OFF transition per
+  cycle (no flicker). Indicator visually distinct from `conn-001` inactive
+  titlebar (if reusing the same overlay surface, ADR-023 must specify the
+  precedence — drift indicator overrides health, both can coexist, or one
+  suppresses the other).
+- **Status**: planned (blocked on TASK-058 + TASK-060 + ADR-023). Owner: VE.
+
+### T113 — [drift-001, io-001] No false positive during normal back-off recovery within ladder
+
+- **Type**: integration (DUT + host)
+- **Feature(s)**: drift-001, io-001
+- **Objective**: Back-off ladder 5/10/20/40/60 s overlaps the staleness threshold
+  (`N_STALE_MS = 15000`) at step 3 onward. Confirm the indicator fires *only*
+  when actual drift exceeds the threshold, not on every back-off step ≥ 20 s.
+  Specifically: a transient failure that recovers within one or two ladder steps
+  (5 → 10 → success) must NOT trip the indicator; a sustained failure that climbs
+  to 20+ s SHOULD trip it (correct positive). The test pins down the lower bound
+  on false-positives.
+- **Preconditions**: TASK-058 + TASK-060 + ADR-023 in tree. Means to induce
+  exactly two consecutive poll failures then recover: easiest is to drop one
+  DNS override entry (force NXDOMAIN for `api.spotify.com`) for ~12 s, then
+  restore — induces two back-off steps (5 → 10) then success.
+- **Steps**:
+  1. Steady state confirmed; staleness indicator OFF.
+  2. Induce failure (drop DNS entry or block upstream). Wait until two
+     `[D][spotify.poll] backoff: consecutive=N next=Mms` lines arrive
+     (N=1 then N=2 → next ~10 s).
+  3. Restore network. Wait for next successful poll.
+  4. Capture full `last_poll_age_ms` + indicator-state trace across the cycle.
+  5. Separately: induce *sustained* failure (DNS dropped + not restored).
+     Allow back-off to climb to N=3 (next ~20 s). At `last_poll_age_ms > 15000`,
+     indicator MUST trip (true positive — verifies T112 isn't fooled by hb being
+     the only path).
+  6. Restore; indicator clears.
+- **Expected result**: Step 2–3 (transient failure, recovers within ladder
+  step 2): `last_poll_age_ms` peaks at ~15000 (5+10 = max gap between successes),
+  brushes against threshold but does not sustain. Indicator either stays OFF
+  (boundary case — acceptable if it never lights) or flickers ON for ≤ 1
+  render-cycle then clears (acceptable but flag if pattern repeats often → may
+  want hysteresis or 2-poll-cycle threshold). Step 5 (sustained failure):
+  indicator firmly ON, stays ON until recovery. No oscillation.
+- **Status**: planned (blocked on TASK-058 + TASK-060 + ADR-023; also depends
+  on `dev-001` DNS-override toggle being scriptable for the induce/restore
+  pattern — currently `tools/refresh_host_overrides.sh` regenerates the table
+  but doesn't offer a per-host drop/restore primitive; flag to Developer as a
+  small extension or document the manual workaround in the test). Owner: VE.
+
+---
+
 ## Entry Format
 
 ```

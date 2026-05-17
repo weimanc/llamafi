@@ -466,6 +466,40 @@ features:
       moves past `planned`.
       PM: allocate TASK-057 block for SERIALDBG-l/-m + TASK-058 + VE harness.
 
+  - id: drift-001
+    name: Operational state-drift surfacing (M-DRIFT)
+    description: |
+      Runtime counterpart to sync-001's bench-time lag-bound contract. Two surfaces:
+      (a) heartbeat exposes `last_render_age_ms` — millis since the chrome last
+      repainted from a fresh-snapshot path; cheap (one `g_lastRenderMs = millis()`
+      in WinampDisplay snapshot-driven repaints + one hb field). (b) in-chrome
+      staleness indicator — when `last_poll_age_ms > N_STALE_MS` (default 15 000,
+      ≈ 3 × base poll cadence, threshold per planned ADR-023), `repaintChrome()`
+      paints a marker (form TBD — dimmed titlebar shade, corner pip, or banner;
+      reuses conn-001 overlay pattern). Together with sync-001: TSYNC validates
+      code is right at QA time; drift-001 surfaces when reality diverges at
+      runtime.
+    status: planned
+    git_ref: ""
+    files: []
+    cross_features: [conn-001, chrome-001, io-001, log-001, sync-001]
+    test_ids: [T111, T112, T113]
+    notes: |
+      Feature stub drafted 2026-05-17 alongside sync-001 suite. Prereqs:
+        - TASK-058 (log-001): heartbeat `last_poll_age_ms` field — shared with sync-001.
+        - TASK-059 (new): `last_render_age_ms` heartbeat field; `g_lastRenderMs` write
+          on every WinampDisplay snapshot-driven repaint path. Owner: Developer.
+        - TASK-060 (new): chrome staleness indicator render path in `repaintChrome()`;
+          threshold check against `N_STALE_MS`. Owner: Developer (after ADR-023).
+        - ADR-023 (new): formalize the staleness threshold + indicator form. Owner:
+          Architect. Open questions: indicator visual (consensus needed before
+          implementation); whether to reuse conn-001's inactive titlebar overlay
+          (collision with TLS health signalling vs. ambiguity reduction); whether
+          to expose the threshold via `set` debug command for tuning.
+      Out of scope for this feature: DUT self-comparator (option (d) from the
+      2026-05-17 discussion — periodic re-poll + diff against last rendered state).
+      Defer until (b)+(c) prove insufficient in the field.
+
   - id: playlist-002
     name: Winamp PLEDIT playlist skin (M-LIST-v2)
     description: |
