@@ -188,6 +188,22 @@ This unlocks regression-scriptable coverage for T052–T054, T074, T075, T048, a
 
 ---
 
+### M-SYNC — DUT–Spotify state synchronization
+
+Field-level lag bounds + stale-state checks between Spotify's authoritative state and DUT chrome render. 14 tests (T097–T110, TSYNC-1 through -14). Three lag-bound tiers formalized in ADR-022.
+**Status:** planned (2026-05-17); blocked on ADR-022, SERIALDBG-l/-m, TASK-058, VE harness tools
+**Deps:** M-SERIALDBG, M-IO, M-LOG
+
+---
+
+### M-DRIFT — Operational state-drift surfacing
+
+Runtime counterpart to M-SYNC. Two surfaces: (a) `last_render_age_ms` heartbeat field; (b) in-chrome staleness indicator when `last_poll_age_ms > N_STALE_MS`. Threshold + indicator form in ADR-023.
+**Status:** planned (2026-05-17); blocked on ADR-023, TASK-059, TASK-060
+**Deps:** M-SYNC (TASK-058 shared), M-CONN (overlay pattern)
+
+---
+
 ### M7 — Polish / open questions
 
 Resolve remaining open questions (TLS CA strategy, seek-drag, speculative poll, audio-analysis cache) once system exercised end-to-end.

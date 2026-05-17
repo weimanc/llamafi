@@ -859,6 +859,173 @@ To be triaged with the team.
 - `common_cyd.build_flags` enables `LOAD_FONT2/4/6/7/8/GLCD/GFXFF`. We only render via the baked Winamp glyph atlas (custom path, doesn't touch TFT_eSPI fonts) and via `screenLog` font 1 GLCD. Drop everything except `LOAD_GLCD`.
 - Saves a few KB rodata. Verify no regression in screenLog or any legacy `cheapYellowLCD` text fallback.
 
+### TASK-056a — M-SERIALDBG: platformio.ini debug env + inject_git_hash.py
+**Owner**: Developer
+**Feature**: serialdbg-001
+**Status**: done (2026-05-17)
+**Notes**:
+- New `[env:cyd2usb_winamp_debug]` extending `cyd2usb_winamp` with `-DSERIAL_DEBUG`.
+- New `scripts/inject_git_hash.py` pre-script — injects `GIT_REV` define (git short hash + dirty marker).
+- Both `cyd2usb_winamp` and `cyd2usb_winamp_debug` build clean post-change. `GIT_REV` + `SERIAL_DEBUG` confirmed present on debug env via `pio run -v`; absent on production env.
+
+### TASK-056b — M-SERIALDBG: boot version line
+**Owner**: Developer
+**Feature**: serialdbg-001
+**Status**: done (2026-05-17)
+**Notes**:
+- Unconditional `[boot] git=<hash> elf=<8hex> build=<date> <time>` via `esp_ota_get_app_description()`.
+- Ships in both `cyd2usb_winamp` and debug env. `GIT_REV` token guarded; "n/a" in production.
+- Implemented in `setup()` lines 169–188 (landed alongside TASK-056c).
+
+### TASK-056c — M-SERIALDBG: table-driven dispatcher + drainInjectionQueue
+**Owner**: Developer
+**Feature**: serialdbg-001
+**Status**: done (2026-05-17)
+**Notes**:
+- 4-field `SerialCmd kCmds[]` table; `handleSerialCommands()` dispatcher; 64-byte line buffer with WARN+reset on overflow.
+- `drainInjectionQueue()` call at top of `loop()` (TASK-056e fills the implementation).
+- Coordinated with TASK-056j (reconnect JSON format change).
+
+### TASK-056j — M-SERIALDBG: reconnect command → JSON response
+**Owner**: Developer
+**Feature**: serialdbg-001, conn-001
+**Status**: done (2026-05-17)
+**Notes**:
+- `cmdReconnect` emits `{"ok":true,"cmd":"reconnect"}` (landed alongside TASK-056c).
+- T090–T094 conn-001 test suite exists as regression guard. tmux/grep scripts audited — no old `[reconnect]` prefix references found.
+
+### TASK-056n — M-SERIALDBG: IDebugExportable interface + SpotifyDisplay no-ops
+**Owner**: Developer
+**Feature**: serialdbg-001
+**Status**: done (2026-05-17)
+**Notes**:
+- New file `SpotifyDiyThing/debugExportable.h`: `IDebugExportable` with `dbgGet`/`dbgSet` pure virtuals, compiled under `SERIAL_DEBUG`.
+- `SpotifyDisplay` gains default no-op overrides + `injectTouch`/`injectRelease` virtual no-ops under `SERIAL_DEBUG`.
+
+### TASK-056d — M-SERIALDBG: WinampDisplay::injectTouch + injectRelease + lastTouchResult
+**Owner**: Developer
+**Feature**: serialdbg-001
+**Status**: done (2026-05-17)
+**Notes**:
+- Virtual `injectTouch(sx, sy)` + `injectRelease()` on `SpotifyDisplay` base; `WinampDisplay` overrides both.
+- Cooldown-aware gate: if `millis() <= touchScreenCoolDownTime`, sets `lastTouchResult.skipped=true`, returns without dispatch.
+- `bool _injectingDrag` member (WinampDisplay, SERIAL_DEBUG) suppresses checkForInput() drag-end branch during injection.
+- `lastTouchResult` 6-field struct: region (TRANSPORT/POSBAR/VOLUME/SHUFFLE/REPEAT/VIS/LOGO/DEADZONE/NONE), transportPressed, action, seekMs, volumePct, skipped.
+- Implemented co-located with TASK-056g in `winampDisplay.h`.
+
+### TASK-056e — M-SERIALDBG: cmdTap, cmdDrag, injection ring buffer
+**Owner**: Developer
+**Feature**: serialdbg-001
+**Status**: done (2026-05-17)
+**Notes**:
+- `cmdTap`: sscanf x/y, call `injectTouch+injectRelease` via virtual dispatch, emit region-specific JSON from `lastTouchResult`.
+- `cmdDrag`: fill 64-slot `s_injectQueue` ring buffer (steps+1 move samples + 1 release sentinel); sets `_injectingDrag=true`; JSON emitted by `drainInjectionQueue()` on release step. No `delay()` in loop task.
+- `drainInjectionQueue()` pops one step per `loop()` iter; per-sample `LOG_D("serial", "inject sample %d/%d sx=%d sy=%d", ...)` for T096.
+
+### TASK-056f — M-SERIALDBG: spotifyTask::dbg_get / dbg_set
+**Owner**: Developer
+**Feature**: serialdbg-001
+**Status**: done (2026-05-17)
+**Notes**:
+- `spotifyTask::dbg_get`: handles "backoff" (consecutiveFailures + nextWaitMs), "heap" (getFreeHeap), "snapshot" (multi-part split protocol), "queue" (stub — full impl in TASK-056m).
+- `spotifyTask::dbg_set`: handles "backoff" (sets consecutiveFailures).
+- `spotifyTask::dbg_getFailureCount()`: thin getter for cmdInfo.
+- `s_consecutiveFailures` → `volatile unsigned int` (matches `s_resetTlsPending` pattern).
+- Implemented in `spotifyTaskStorage.cpp`.
+
+### TASK-056g — M-SERIALDBG: WinampDisplay::dbgGet / dbgSet overrides
+**Owner**: Developer
+**Feature**: serialdbg-001
+**Status**: done (2026-05-17)
+**Notes**:
+- `dbgGet`: handles "cooldown" (remainingMs), "dragState" (name), "optimisticVolume" (remainingMs), "songDuration" (ms).
+- `dbgSet`: handles "cooldown" (resets to 0; val ignored).
+- Implemented in `winampDisplay.h` alongside TASK-056d.
+
+### TASK-056h — M-SERIALDBG: cmdGet / cmdSet dumb dispatchers
+**Owner**: Developer
+**Feature**: serialdbg-001
+**Status**: done (2026-05-17)
+**Notes**:
+- Dispatch to `spotifyDisplay->dbgGet/dbgSet` then `spotifyTask::dbg_get/dbg_set`. Frozen — never changes as fields grow.
+- Multi-part: owner emits Serial.printf lines directly, returns true with buf[0]='\0'; cmdGet skips wrapper print.
+- Implemented in `SpotifyDiyThing.ino`.
+
+### TASK-056i — M-SERIALDBG: cmdInfo + cmdHelp
+**Owner**: Developer
+**Feature**: serialdbg-001
+**Status**: done (2026-05-17)
+**Notes**:
+- `cmdInfo`: single JSON line (git/elf/build/heap/isPlaying/progressMs/durationMs/volumePct/shuffle/repeat/consecutiveFailures).
+- `cmdHelp`: single JSON line iterating `kCmds[]` — table is SSOT. ADR-021 one-JSON-object-per-newline invariant preserved.
+- Implemented in `SpotifyDiyThing.ino`.
+
+### TASK-056l — M-SERIALDBG: extend get snapshot with lastPollAgeMs / currentTrackUri / deviceActive
+**Owner**: Developer
+**Feature**: serialdbg-001, sync-001
+**Status**: todo
+**Notes**:
+- Add `bool deviceActive` to `Snapshot` struct; populate in `onCurrentlyPlaying`.
+- `spotifyTask::dbg_get("snapshot")`: add three fields to serialization. No cmdGet change.
+- Prereq for TASK-057 VE harness (T097, T099, T102, T103, T105, T107, T108).
+
+### TASK-056m — M-SERIALDBG: get queue command (QueueSnapshot rows)
+**Owner**: Developer
+**Feature**: serialdbg-001, sync-001
+**Status**: todo
+**Notes**:
+- Add "queue" case to `spotifyTask::dbg_get`. Reads under `g_queueMux`. Split protocol (5 rows × ~80 B).
+- No cmdGet change. Prereq for T102.
+
+### TASK-056k — M-SERIALDBG: VE execute serialdbg-001 suite on DUT
+**Owner**: VE
+**Feature**: serialdbg-001
+**Status**: todo
+**Blocked by**: TASK-056a through TASK-056i (core impl), TASK-056l (for T095)
+**Notes**:
+- Execute T076–T085, T089, T095, T096 on `cyd2usb_winamp_debug` DUT.
+- T089 (production symbol check) must pass before any serialdbg PR merges.
+
+---
+
+### TASK-057 — M-SYNC: VE harness tools (spotify_state.py, spotify_drive.py, tsync_diff.py)
+**Owner**: VE
+**Feature**: sync-001
+**Status**: todo
+**Notes**:
+- `tools/spotify_state.py`: refresh-token-aware `/me/player` wrapper; emits structured JSON.
+- `tools/spotify_drive.py`: Connect API control (pause, next, setVolume, setShuffle, setRepeat, seek, transferPlayback).
+- `tools/tsync_diff.py`: fetches `get snapshot` over serial + `/me/player` over HTTPS; diffs firmware-consumed field set (T073); prints `[OK]` or `[DRIFT] field=<name> dut=<v> spotify=<v>`. Anchor for T110.
+- Can be written in parallel to firmware prereqs (TASK-056l/-m, TASK-058).
+
+### TASK-058 — log-001: heartbeat fields last_poll_age_ms + next_poll_in_ms
+**Owner**: Developer
+**Feature**: log-001, sync-001, drift-001
+**Status**: todo
+**Notes**:
+- Add `last_poll_age_ms` (millis since last successful `/me/player` response) and `next_poll_in_ms` (remaining backoff) to the heartbeat log line.
+- Prereq for T097, T105, T109, T111, T112.
+
+### TASK-059 — drift-001: last_render_age_ms heartbeat field + g_lastRenderMs
+**Owner**: Developer
+**Feature**: drift-001
+**Status**: todo
+**Blocked by**: TASK-058 (heartbeat infra)
+**Notes**:
+- Write `g_lastRenderMs = millis()` on every WinampDisplay snapshot-driven repaint path.
+- Add `last_render_age_ms` to heartbeat. Prereq for T111.
+
+### TASK-060 — drift-001: chrome staleness indicator in repaintChrome()
+**Owner**: Developer
+**Feature**: drift-001
+**Status**: todo
+**Blocked by**: ADR-023 (threshold + indicator form decision)
+**Notes**:
+- When `last_poll_age_ms > N_STALE_MS` (threshold from ADR-023), paint staleness indicator.
+- Form TBD in ADR-023: dimmed titlebar shade, corner pip, or banner. Open question: collision with conn-001 inactive-titlebar overlay.
+
+---
+
 - **TASK-002** — Touchscreen seek/scrub. ✅ closed 2026-05-08 by M5 (tap-to-seek shipped; drag-with-debounce deferred to a follow-up if/when it's wanted).
 - **TASK-003** — Play/pause + volume on touch. Play/pause closed 2026-05-08 by M5. Volume deferred — not on the main-window chrome we render today; needs VOLUME.BMP baked + a slot reserved.
 - **TASK-004** — Decide NFC support posture. Reader not connected on dev unit; boot logs `NFC Bad` harmlessly. Either wire a PN532 and validate, or set `NFC_ENABLED 0` to silence. Owner: PM (decision).

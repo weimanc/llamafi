@@ -691,14 +691,14 @@ Common preconditions for all tests below:
 - **Preconditions**: M-SERIALDBG in tree. `DEADZONE` region added to `lastTouchResult` (design doc B5). `set cooldown 0` before tap.
 - **Steps**: Send `tap 162 85` (x=midpoint of posbar width, y=85 = midpoint of 5-pixel dead zone at y=83..87) → parse JSON response.
 - **Expected result**: `hit` is `NONE` or `DEADZONE`; `action` is `NONE` or `FORCE_POLL`. No `TRANSPORT`, `POSBAR`, or `VOLUME` action.
-- **Status**: planned (M-SERIALDBG not yet implemented; blocked on B5 DEADZONE region). Owner: VE.
+- **Status**: planned (M-SERIALDBG not yet implemented; DEADZONE region specified in design doc Feature 3a — unblocked). Owner: VE.
 
 ### T078 — [serialdbg-001, touch-002] Zero-delta drag dispatches no volume action
 
 - **Type**: integration (DUT, serial-driven)
 - **Feature(s)**: serialdbg-001, touch-002
 - **Objective**: A drag that starts and ends at the same coordinate (degenerate drag) must not enqueue ACT_VOLUME.
-- **Preconditions**: M-SERIALDBG in tree. `dragState == D_IDLE` — confirm with `dbg_getDragState()` or ensure no prior drag left state. `set cooldown 0`.
+- **Preconditions**: M-SERIALDBG in tree. `dragState == D_IDLE` — confirm with `get dragState` → `"D_IDLE"`. `set cooldown 0`.
 - **Steps**: Send `drag 163 63 163 63 1` (volume slot centre, zero delta, 1 step) → observe serial for ≥ 2 s.
 - **Expected result**: No `[D][spotify.task] dequeued action=VOLUME` log line. `{"ok":true,"cmd":"drag",...}` response present. `dbg_getDragState()` returns `D_IDLE` after completion.
 - **Status**: planned (M-SERIALDBG not yet implemented). Owner: VE.
@@ -713,7 +713,7 @@ Common preconditions for all tests below:
   1. Send `tap 72 97` (PLAY centre) — expect `{"hit":"TRANSPORT","action":"PLAY"}`.
   2. Within < 200 ms, send `tap 141 97` (NEXT centre).
 - **Expected result**: First response: `hit=TRANSPORT, action=PLAY`. Second response: `{"ok":true,"cmd":"tap","hit":"NONE","skipped":true}` or equivalent cooldown-skip indicator. Confirms cooldown gate is active.
-- **Status**: planned (blocked on design doc B1 — `injectTouch` cooldown-aware mode not yet designed). Owner: VE.
+- **Status**: planned (M-SERIALDBG not yet implemented; cooldown-aware mode + `"skipped":true` field specified in design doc Feature 3 — unblocked). Owner: VE.
 
 ### T080 — [serialdbg-001] `info` command — state snapshot shape
 
@@ -753,7 +753,7 @@ Common preconditions for all tests below:
 - **Preconditions**: M-SERIALDBG in tree with `cmdHelp` redesigned to emit single JSON object (design doc B3 resolved).
 - **Steps**: Send `help` → read one line → `json.loads(line)` → assert `commands` array present with ≥ 6 entries (reconnect + 5 debug commands).
 - **Expected result**: Parse succeeds. All command names present in `commands[].name`.
-- **Status**: planned (blocked on B3 — cmdHelp single-line redesign). Owner: VE.
+- **Status**: planned (M-SERIALDBG not yet implemented; single-line cmdHelp iterating kCmds[] specified in design doc Feature 6 — unblocked). Owner: VE.
 
 ### T084 — [serialdbg-001] `set backoff` / `get backoff` round-trip
 
@@ -954,7 +954,7 @@ T110=TSYNC-14.
   miss the intermediate state; bound is "final state correct within one poll of
   cessation," not "all transitions observed."
 
-ADR-022 (planned) should formalize the contract and the rationale for each bound.
+ADR-022 formalizes the contract and the rationale for each bound.
 
 ### Prerequisites (gate suite execution beyond `planned`)
 

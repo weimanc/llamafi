@@ -400,10 +400,12 @@ features:
       buffer drained one sample per loop iteration (no delay() in loop task). Unconditional
       boot version line `[boot] git=<hash> elf=<8hex> build=<date> <time>` ships in both
       envs as a passive diagnostic; GIT_REV injected via pre:scripts/inject_git_hash.py.
-      Debug accessors on spotifyTask (dbg_setFailureCount/dbg_getFailureCount/
-      dbg_getNextWaitMs) and WinampDisplay (dbg_getTouchCooldownRemainingMs,
-      dbg_resetTouchCooldown, dbg_getDragStateName, dbg_getOptimisticVolumeRemainingMs,
-      dbg_getSongDuration) expose internal state for scripted assertions without network.
+      State exposure via IDebugExportable owner-dispatch (ADR-021 Amendment A1):
+      spotifyTask::dbg_get/dbg_set (unified, handles "snapshot"/"backoff"/"heap"/"queue")
+      and WinampDisplay::dbgGet/dbgSet override (handles "cooldown"/"dragState"/
+      "optimisticVolume"/"songDuration"). debugExportable.h defines the interface;
+      SpotifyDisplay base provides default no-ops; non-Winamp backends compile unchanged.
+      cmdGet/cmdSet are dumb dispatchers — frozen, never need to change as fields grow.
     status: planned
     git_ref: ""
     files:
@@ -413,12 +415,13 @@ features:
       - Spotify-Diy-Thing/SpotifyDiyThing/spotifyDisplay.h
       - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
       - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTask.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/debugExportable.h
       - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTaskStorage.cpp
     cross_features: [conn-001, touch-002, chrome-001, io-001]
     test_ids: [T076, T077, T078, T079, T080, T081, T082, T083, T084, T085, T086, T087, T088, T089, T095, T096]
     notes: |
       ADR-021 + designs/M-SERIALDBG-serial-debug-framework.md.
-      Sub-tasks planned as TASK-056a–k (PM to allocate per design doc Sub-tasks table).
+      Sub-tasks allocated as TASK-056a–n (design doc Sub-tasks table; -n added by ADR-021 A1).
       reconnect (conn-001, TASK-053e) response format migrates from plain-text
       `[reconnect] TLS reset + force poll` to JSON `{"ok":true,"cmd":"reconnect"}` in
       TASK-SERIALDBG-j — conn-001 test suite (T090–T094) must exist as regression guard
@@ -433,7 +436,7 @@ features:
     name: DUT–Spotify state synchronization (M-SYNC)
     description: |
       Field-level lag bounds + stale-state observability between Spotify's authoritative
-      state and the DUT chrome render. Three lag-bound tiers (per planned ADR-022):
+      state and the DUT chrome render. Three lag-bound tiers (ADR-022):
       steady-state field change = one poll cycle (5.5 s); degraded = backoff_remaining +
       one poll (≤ 61 s); touch-confirmed = optimistic_window + one poll (3.5–7 s).
       Observability surface: heartbeat fields `last_poll_age_ms` + `next_poll_in_ms`
@@ -462,9 +465,8 @@ features:
         - tools/spotify_state.py — refresh-token-aware /me/player wrapper.
         - tools/spotify_drive.py — Connect API control (pause/next/setVolume/transfer/etc).
         - tools/tsync_diff.py — per-field DUT-vs-Spotify diff, anchor for T110.
-      Architect: draft ADR-022 to formalize the lag-bound contract before suite execution
-      moves past `planned`.
-      PM: allocate TASK-057 block for SERIALDBG-l/-m + TASK-058 + VE harness.
+      Architect: ADR-022 accepted 2026-05-17 — lag-bound contract formalized.
+      PM: TASK-057 (VE harness), TASK-058 (heartbeat) allocated 2026-05-17.
 
   - id: drift-001
     name: Operational state-drift surfacing (M-DRIFT)
@@ -490,12 +492,10 @@ features:
         - TASK-059 (new): `last_render_age_ms` heartbeat field; `g_lastRenderMs` write
           on every WinampDisplay snapshot-driven repaint path. Owner: Developer.
         - TASK-060 (new): chrome staleness indicator render path in `repaintChrome()`;
-          threshold check against `N_STALE_MS`. Owner: Developer (after ADR-023).
-        - ADR-023 (new): formalize the staleness threshold + indicator form. Owner:
-          Architect. Open questions: indicator visual (consensus needed before
-          implementation); whether to reuse conn-001's inactive titlebar overlay
-          (collision with TLS health signalling vs. ambiguity reduction); whether
-          to expose the threshold via `set` debug command for tuning.
+          4×4 amber pip at top-right of title bar, threshold N_STALE_MS=15000 (ADR-023).
+          Owner: Developer.
+        - ADR-023: accepted 2026-05-17. N_STALE_MS=15000; amber pip (not overlay reuse);
+          layered after conn-001 inactive-titlebar; `last_render_age_ms` via g_lastRenderMs.
       Out of scope for this feature: DUT self-comparator (option (d) from the
       2026-05-17 discussion — periodic re-poll + diff against last rendered state).
       Defer until (b)+(c) prove insufficient in the field.
