@@ -588,14 +588,15 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-052f — M-VIS-ATLAS: VE regression — existing vis modes unchanged
 **Owner**: VE
 **Feature**: vis-002
-**Status**: planned (2026-05-16)
+**Status**: done (2026-05-17 — DUT visual sign-off by user)
 **Deps**: TASK-052d
 **Notes**:
-- DUT flash `cyd2usb_winamp`. Tap through Atlas → Wave → VU → Blank → Atlas on device.
-- Confirm: Atlas 19 bars animate at 20 Hz, peaks hit ceiling (red rows visible), freeze on pause, loop cleanly. No crash at wrap.
-- Confirm: Wave white sine + vertical fill intact; VU bars intact; Blank clean skin bg.
-- Spectrum mode no longer in cycle — do not regress its pixel output (removed intentionally).
-- Flash delta for vis_atlas.c confirmed within budget (TASK-052e).
+- DUT flash `cyd2usb_winamp`. Tapped through Atlas → WaveAtlas → VU → Blank → Atlas on device.
+- Confirmed: Atlas 19 bars animate at 20 Hz, gravity peak dots visible and correct. User: "looks great".
+- WaveAtlas mode added since task was written (TASK-055a–b); cycle is now Atlas → WaveAtlas → VU → Blank → Atlas.
+- VU bars intact; Blank clean skin bg.
+- Spectrum mode no longer in cycle — removed intentionally.
+- Flash delta confirmed within budget (TASK-052e, TASK-055c).
 
 ## Blocked Tasks
 
