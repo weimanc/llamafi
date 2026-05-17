@@ -397,16 +397,112 @@ Do not use `x=48, y=96` as a dead zone — x=48 at y=96 is inside the PREV butto
 
 ---
 
+## Feature 3.5 — `IDebugExportable` owner-dispatch interface (ADR-021 Amendment A1)
+
+> Added 2026-05-17. Supersedes the per-field `dbg_*` accessor pattern originally
+> specified in §4a / §4b. Sub-task SERIALDBG-n implements this before SERIALDBG-f/g/h.
+
+State owners (`WinampDisplay`, `spotifyTask`) expose their debug surface through a
+unified two-method interface. `cmdGet` / `cmdSet` dispatch to owners in order and
+require no changes when new variables or domains are added.
+
+### New file: `SpotifyDiyThing/debugExportable.h`
+
+```cpp
+#pragma once
+#ifdef SERIAL_DEBUG
+
+class IDebugExportable {
+public:
+    // Serialize state for var into buf as a JSON key-value fragment (no outer
+    // braces). Returns false if var is unknown to this owner.
+    // Multi-part: owner emits its own Serial.printf lines and returns true
+    // with buf[0] = '\0'; cmdGet skips the wrapper print in that case.
+    virtual bool dbgGet(const char* var, char* buf, int len) const = 0;
+
+    // Write a debug var. Returns false if var unknown or val invalid.
+    virtual bool dbgSet(const char* var, const char* val) = 0;
+
+protected:
+    ~IDebugExportable() = default;
+};
+
+#endif // SERIAL_DEBUG
+```
+
+### `SpotifyDisplay` — default no-ops
+
+```cpp
+// spotifyDisplay.h — inside class SpotifyDisplay
+#ifdef SERIAL_DEBUG
+#include "debugExportable.h"
+virtual bool dbgGet(const char* var, char* buf, int len) const { return false; }
+virtual bool dbgSet(const char* var, const char* val) { return false; }
+#endif
+```
+
+`WinampDisplay` overrides both. Non-Winamp backends compile without change.
+
+### `cmdGet` / `cmdSet` — dumb dispatchers
+
+```cpp
+static void cmdGet(const char* args) {
+    char buf[256]; buf[0] = '\0';
+    if ((spotifyDisplay && spotifyDisplay->dbgGet(args, buf, sizeof(buf)))
+        || spotifyTask::dbg_get(args, buf, sizeof(buf))) {
+        if (buf[0]) Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
+        return;  // multi-part owners already emitted their own lines
+    }
+    Serial.printf("{\"ok\":false,\"cmd\":\"get\",\"error\":\"unknown var\","
+                  "\"var\":\"%s\"}\n", args);
+}
+
+static void cmdSet(const char* args) {
+    char var[32], val[32];
+    if (sscanf(args, "%31s %31s", var, val) != 2) {
+        Serial.println("{\"ok\":false,\"cmd\":\"set\",\"error\":\"bad args\"}");
+        return;
+    }
+    if ((spotifyDisplay && spotifyDisplay->dbgSet(var, val))
+        || spotifyTask::dbg_set(var, val)) {
+        Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"%s\",\"val\":\"%s\"}\n",
+                      var, val);
+        return;
+    }
+    Serial.printf("{\"ok\":false,\"cmd\":\"set\",\"error\":\"unknown var\","
+                  "\"var\":\"%s\"}\n", var);
+}
+```
+
+### Variable ownership map
+
+| `<var>` | Owner | Read | Write |
+|---------|-------|------|-------|
+| `snapshot` | `spotifyTask::dbg_get` | full Snapshot + `lastPollAgeMs`, `currentTrackUri`, `deviceActive` (SERIALDBG-l) | — |
+| `backoff` | `spotifyTask::dbg_get/set` | `consecutiveFailures`, `nextPollMs` | `consecutiveFailures` |
+| `heap` | `spotifyTask::dbg_get` | `ESP.getFreeHeap()` | — |
+| `queue` | `spotifyTask::dbg_get` | QueueSnapshot rows 0..4 (SERIALDBG-m) | — |
+| `cooldown` | `WinampDisplay::dbgGet/Set` | remaining ms | reset to 0 |
+| `dragState` | `WinampDisplay::dbgGet` | `"D_IDLE"` or `"D_VOLUME_DRAG"` | — |
+| `optimisticVolume` | `WinampDisplay::dbgGet` | remaining ms | — |
+| `songDuration` | `WinampDisplay::dbgGet` | ms | — |
+
+---
+
 ## Feature 4 — `get` / `set` commands
 
 ### Readable variables (`get <var>`)
 
-| `<var>` | Source | Notes |
-|---------|--------|-------|
-| `snapshot` | `spotifyTask::copySnapshot()` | full Snapshot struct |
-| `backoff` | `spotifyTask::dbg_getFailureCount()` | requires debug accessor §4a |
-| `heap` | `ESP.getFreeHeap()` | |
-| `cooldown` | `wd->dbg_getTouchCooldownRemainingMs()` | requires debug accessor §4b |
+| `<var>` | Owner | Notes |
+|---------|-------|-------|
+| `snapshot` | `spotifyTask::dbg_get` | full Snapshot struct; split protocol when > 256 B |
+| `backoff` | `spotifyTask::dbg_get` | consecutiveFailures + nextPollMs |
+| `heap` | `spotifyTask::dbg_get` | `ESP.getFreeHeap()` |
+| `queue` | `spotifyTask::dbg_get` | QueueSnapshot rows; split protocol (SERIALDBG-m) |
+| `cooldown` | `WinampDisplay::dbgGet` | remaining cooldown ms |
+| `dragState` | `WinampDisplay::dbgGet` | drag FSM state name |
+| `optimisticVolume` | `WinampDisplay::dbgGet` | remaining optimistic-hold ms |
+| `songDuration` | `WinampDisplay::dbgGet` | current track duration in ms |
 
 `cmdGet("snapshot")` response — split protocol when serialised JSON exceeds 256 bytes:
 - Each chunk is a complete JSON object on one line.
@@ -455,67 +551,122 @@ def get_snapshot(ser):
 {"ok":false,"cmd":"set","var":"foo","error":"unknown variable"}
 ```
 
-### 4a — `spotifyTask` debug accessors
+### 4a — `spotifyTask` unified debug accessor (ADR-021 Amendment A1)
 
-Add to `SpotifyDiyThing/SpotifyDiyThing/spotifyTask.h` inside the `spotifyTask`
-namespace, guarded:
+> Replaces the previous per-field `dbg_setFailureCount` / `dbg_getFailureCount` /
+> `dbg_getNextWaitMs` functions. Two functions cover all vars handled by the task.
 
-```cpp
-#ifdef SERIAL_DEBUG
-// dbg_* accessors: loop-task only. Cross-task access for set is a write
-// race — same tolerance as existing resetBackoff() (single aligned 32-bit
-// store, atomic on Xtensa). Declare s_consecutiveFailures as volatile to
-// match the s_resetTlsPending pattern. Issue set/get between polls only.
-void dbg_setFailureCount(unsigned int n);
-unsigned int dbg_getFailureCount();
-unsigned int dbg_getNextWaitMs();  // expose nextWaitMs() for get backoff response
-#endif
-```
-
-Implement in `spotifyTaskStorage.cpp`. Also change `s_consecutiveFailures`
-declaration from `static unsigned int` to `static volatile unsigned int` to match
-the `s_resetTlsPending` pattern:
+Add to `spotifyTask.h` inside the namespace, guarded:
 
 ```cpp
 #ifdef SERIAL_DEBUG
-void spotifyTask::dbg_setFailureCount(unsigned int n) {
-  s_consecutiveFailures = n;
-}
-unsigned int spotifyTask::dbg_getFailureCount() {
-  return s_consecutiveFailures;
-}
-unsigned int spotifyTask::dbg_getNextWaitMs() {
-  return (unsigned int)nextWaitMs();
-}
+// Unified owner-dispatch accessors (ADR-021 A1). Loop-task only.
+// dbg_get: serialize state for var into buf (JSON key-value fragment, no braces).
+//   Multi-part payloads emitted via Serial.printf directly; buf set to '\0'.
+//   Returns false if var unknown. Vars: "snapshot", "backoff", "heap", "queue".
+// dbg_set: write a debug var. Returns false if var unknown.
+//   Vars: "backoff" (sets consecutiveFailures; single aligned store, safe on Xtensa).
+bool dbg_get(const char* var, char* buf, int len);
+bool dbg_set(const char* var, const char* val);
 #endif
 ```
 
-### 4b — `WinampDisplay` debug accessors
-
-Add to `winampDisplay.h` inside the class, guarded:
+Implement in `spotifyTaskStorage.cpp`. Change `s_consecutiveFailures` from
+`static unsigned int` to `static volatile unsigned int` (same pattern as
+`s_resetTlsPending`). Example implementation sketch:
 
 ```cpp
 #ifdef SERIAL_DEBUG
-uint32_t dbg_getTouchCooldownRemainingMs() const {
-  unsigned long now = millis();
-  return (touchScreenCoolDownTime > now) ? (uint32_t)(touchScreenCoolDownTime - now) : 0;
+bool spotifyTask::dbg_get(const char* var, char* buf, int len) {
+    if (strcmp(var, "backoff") == 0) {
+        snprintf(buf, len,
+            "\"var\":\"backoff\",\"consecutiveFailures\":%u,\"nextPollMs\":%u,\"last\":true",
+            (unsigned)s_consecutiveFailures, (unsigned)nextWaitMs());
+        return true;
+    }
+    if (strcmp(var, "heap") == 0) {
+        snprintf(buf, len, "\"var\":\"heap\",\"freeHeap\":%lu,\"last\":true",
+                 (unsigned long)ESP.getFreeHeap());
+        return true;
+    }
+    if (strcmp(var, "snapshot") == 0) {
+        // Large payload — emit multi-part lines directly; set buf[0]='\0'.
+        // See Feature 4 split protocol. SERIALDBG-l adds lastPollAgeMs,
+        // currentTrackUri, deviceActive here — no cmdGet change needed.
+        buf[0] = '\0';
+        Snapshot snap; copySnapshot(&snap);
+        // ... emit part 0, part 1 via Serial.printf ...
+        return true;
+    }
+    if (strcmp(var, "queue") == 0) {
+        // SERIALDBG-m: emit QueueSnapshot rows under g_queueMux. Split protocol.
+        buf[0] = '\0';
+        // ... emit rows via Serial.printf ...
+        return true;
+    }
+    return false;
 }
-void dbg_resetTouchCooldown() {
-  touchScreenCoolDownTime = 0;
+
+bool spotifyTask::dbg_set(const char* var, const char* val) {
+    if (strcmp(var, "backoff") == 0) {
+        s_consecutiveFailures = (unsigned)atoi(val);
+        return true;
+    }
+    return false;
 }
-// dragState accessor — needed for T078 teardown verification
-const char *dbg_getDragStateName() const {
-  return (dragState == D_VOLUME_DRAG) ? "D_VOLUME_DRAG" : "D_IDLE";
-}
-// optimistic volume hold — needed for T082/T075 scriptable verification
-uint32_t dbg_getOptimisticVolumeRemainingMs() const {
-  unsigned long now = millis();
-  return (optimisticVolumeUntilMs > now) ? (uint32_t)(optimisticVolumeUntilMs - now) : 0;
-}
-// songDuration mirror — guards hitTestPosbar's songDuration <= 0 branch (T085)
-long dbg_getSongDuration() const { return songDuration; }
 #endif
 ```
+
+### 4b — `WinampDisplay` unified debug accessor (ADR-021 Amendment A1)
+
+> Replaces per-field `dbg_getTouchCooldownRemainingMs`, `dbg_resetTouchCooldown`,
+> `dbg_getDragStateName`, `dbg_getOptimisticVolumeRemainingMs`, `dbg_getSongDuration`.
+> All absorbed into `dbgGet` / `dbgSet` overrides of `IDebugExportable`
+> (from `SpotifyDisplay` base, Feature 3.5).
+
+```cpp
+// winampDisplay.h — inside class WinampDisplay, SERIAL_DEBUG guard
+#ifdef SERIAL_DEBUG
+bool dbgGet(const char* var, char* buf, int len) const override {
+    unsigned long now = millis();
+    if (strcmp(var, "cooldown") == 0) {
+        uint32_t rem = (touchScreenCoolDownTime > now)
+                       ? (uint32_t)(touchScreenCoolDownTime - now) : 0;
+        snprintf(buf, len, "\"var\":\"cooldown\",\"remainingMs\":%u,\"last\":true", rem);
+        return true;
+    }
+    if (strcmp(var, "dragState") == 0) {
+        snprintf(buf, len, "\"var\":\"dragState\",\"state\":\"%s\",\"last\":true",
+                 dragState == D_VOLUME_DRAG ? "D_VOLUME_DRAG" : "D_IDLE");
+        return true;
+    }
+    if (strcmp(var, "optimisticVolume") == 0) {
+        uint32_t rem = (optimisticVolumeUntilMs > now)
+                       ? (uint32_t)(optimisticVolumeUntilMs - now) : 0;
+        snprintf(buf, len,
+                 "\"var\":\"optimisticVolume\",\"remainingMs\":%u,\"last\":true", rem);
+        return true;
+    }
+    if (strcmp(var, "songDuration") == 0) {
+        snprintf(buf, len, "\"var\":\"songDuration\",\"ms\":%ld,\"last\":true",
+                 songDuration);
+        return true;
+    }
+    return false;
+}
+bool dbgSet(const char* var, const char* val) override {
+    if (strcmp(var, "cooldown") == 0) {
+        touchScreenCoolDownTime = 0;  // val ignored — reset only
+        return true;
+    }
+    return false;
+}
+#endif
+```
+
+Test coverage note: T078 teardown uses `get dragState`; T079 uses `set cooldown 0` +
+`get cooldown`; T082/T075 use `get optimisticVolume`; T085 uses `get songDuration`.
+All map directly to the `dbgGet` cases above.
 
 ---
 
@@ -606,6 +757,7 @@ static void cmdHelp(const char *) {
 | AC-5 (Arch) | `get snapshot` split protocol unspecified | **Resolved (2026-05-17):** `"part":N` + `"last":true` convention — see Feature 4 `get snapshot` section. |
 | QM-F2 | `serialdbg-001` not in `feature_inventory.yaml` | PM/Developer registers before implementation starts. |
 | QM-F5 | `reconnect` format change has no test coverage; "T-CONN" doesn't exist | Create `conn-001` suite before TASK-SERIALDBG-j merges. |
+| AC-6 (Arch, 2026-05-17) | `cmdGet` accumulating per-field knowledge across state owners — won't scale to TSYNC additions (SERIALDBG-l, -m) | **Resolved (2026-05-17 — ADR-021 A1):** `IDebugExportable` + `spotifyTask::dbg_get/set` owner-dispatch pattern. New sub-task SERIALDBG-n. |
 
 ## Sub-tasks
 
@@ -620,17 +772,25 @@ use the numeric IDs in `tasks.md`.
 | SERIALDBG-c | Table-driven dispatcher (with 4-field `SerialCmd` struct); replace `handleSerialCommands()`; add `drainInjectionQueue()` call in `loop()` | `SpotifyDiyThing.ino` |
 | SERIALDBG-d | `WinampDisplay::injectTouch()` (cooldown-aware mode + `s_injectingDrag` flag) + `injectRelease()` + `lastTouchResult` (7-field struct with DEADZONE) | `winampDisplay.h` |
 | SERIALDBG-e | `cmdTap`, `cmdDrag` (queue-drain — no `delay()`); injection ring buffer; per-sample `LOG_D("serial", "inject sample %d/%d sx=%d sy=%d", ...)` trace in `drainInjectionQueue()` for T096 observability | `SpotifyDiyThing.ino` |
-| SERIALDBG-f | `spotifyTask::dbg_setFailureCount/getFailureCount/getNextWaitMs`; `s_consecutiveFailures` → `volatile` | `spotifyTask.h`, `spotifyTaskStorage.cpp` |
-| SERIALDBG-g | `WinampDisplay` debug accessors: `dbg_getTouchCooldownRemainingMs`, `dbg_resetTouchCooldown`, `dbg_getDragStateName`, `dbg_getOptimisticVolumeRemainingMs`, `dbg_getSongDuration` | `winampDisplay.h` |
-| SERIALDBG-h | `cmdGet`, `cmdSet` (with multi-line split protocol once AC-5 resolved) | `SpotifyDiyThing.ino` |
+| SERIALDBG-f | ~~Per-field `dbg_setFailureCount/getFailureCount/getNextWaitMs`~~ → **Superseded by SERIALDBG-n + revised §4a.** Implement `spotifyTask::dbg_get` / `dbg_set` (unified); `s_consecutiveFailures` → `volatile`. Handles `"backoff"`, `"heap"`, `"snapshot"` (base fields), `"queue"` stub. | `spotifyTask.h`, `spotifyTaskStorage.cpp` |
+| SERIALDBG-g | ~~Per-field `dbg_getTouchCooldownRemainingMs` etc.~~ → **Superseded by SERIALDBG-n + revised §4b.** Implement `WinampDisplay::dbgGet` / `dbgSet` overrides. Handles `"cooldown"`, `"dragState"`, `"optimisticVolume"`, `"songDuration"`. | `winampDisplay.h` |
+| SERIALDBG-h | `cmdGet`, `cmdSet` as dumb dispatchers per Feature 3.5 (ADR-021 A1); split protocol owned by `dbg_get` / `dbgGet` implementations, not the dispatcher. | `SpotifyDiyThing.ino` |
 | SERIALDBG-i | `cmdInfo` (full fields incl. `volumePct`, `durationMs`, `shuffle`, `repeat`), `cmdHelp` (single JSON line, iterates table) | `SpotifyDiyThing.ino` |
 | SERIALDBG-j | Update `reconnect` to JSON response; create `conn-001` test suite first | `SpotifyDiyThing.ino`, `test_plan.md` |
-| SERIALDBG-k | VE: execute T076–T085, T089 on `cyd2usb_winamp_debug` DUT | test rig |
-| SERIALDBG-l | (added for sync-001) Extend `get snapshot` response with `lastPollAgeMs`, `currentTrackUri`, `deviceActive`. Snapshot struct gains the three fields; spotifyTask::onCurrentlyPlaying populates them; multi-part split protocol from SERIALDBG-h carries the larger payload. | `spotifyTask.h`, `spotifyTaskStorage.cpp`, `SpotifyDiyThing.ino` |
-| SERIALDBG-m | (added for sync-001) New `get queue` command — read-only access to QueueSnapshot rows (≤ 5 entries × `{track, artist, durationMs, uri}`). Reads `g_queueMux`-protected snapshot already populated by playlist-001/002. Split protocol required (5 rows × ~80 B exceeds 256 B single-line). | `SpotifyDiyThing.ino`, `spotifyTask.h` |
+| SERIALDBG-k | VE: execute T076–T085, T089, T095, T096 on `cyd2usb_winamp_debug` DUT | test rig |
+| SERIALDBG-l | (sync-001 prereq) Extend `get snapshot` with `lastPollAgeMs`, `currentTrackUri`, `deviceActive`. Add `bool deviceActive` to `Snapshot`; populate in `onCurrentlyPlaying`. Update `spotifyTask::dbg_get("snapshot")` serialization — **no `cmdGet` change**. | `spotifyTask.h`, `spotifyTaskStorage.cpp` |
+| SERIALDBG-m | (sync-001 prereq) Add `"queue"` case to `spotifyTask::dbg_get` — serializes QueueSnapshot rows 0..4 (`{track, artist, durationMs, uri}`). Reads under `g_queueMux`. Split protocol (5 rows × ~80 B > 256 B). **No `cmdGet` change.** | `spotifyTaskStorage.cpp` |
+| SERIALDBG-n | **(new — ADR-021 A1)** `debugExportable.h` (`IDebugExportable` interface); add `SERIAL_DEBUG`-guarded `dbgGet`/`dbgSet` default no-ops to `SpotifyDisplay` base. Must land before SERIALDBG-f and SERIALDBG-g. | `debugExportable.h`, `spotifyDisplay.h` |
 
-Recommended order: a → b → c+j → d → e → f → g → h → i → k.
-c and j must be coordinated: conn-001 test suite must exist before j merges.
+**Recommended order** (revised for ADR-021 A1):
+
+```
+a → b → c+j → n → d → e → f → g → h → i → l → m → k
+```
+
+- `n` before `f`/`g`: interface must exist before owners implement it.
+- `c` and `j` coordinated: conn-001 suite must exist before j merges.
+- `l` and `m` before `k`: sync-001 tests (T097–T110) depend on snapshot + queue fields.
 
 ---
 
