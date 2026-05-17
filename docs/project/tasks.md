@@ -1026,19 +1026,21 @@ To be triaged with the team.
 ### TASK-058 — log-001: heartbeat fields last_poll_age_ms + next_poll_in_ms
 **Owner**: Developer
 **Feature**: log-001, sync-001, drift-001
-**Status**: todo
+**Status**: done (2026-05-17)
 **Notes**:
-- Add `last_poll_age_ms` (millis since last successful `/me/player` response) and `next_poll_in_ms` (remaining backoff) to the heartbeat log line.
-- Prereq for T097, T105, T109, T111, T112.
+- Added `s_lastSuccessfulPollMs` (set on 200/204) and `s_lastPollFinishedMs` (set after every `doPoll()`) task-private statics in `spotifyTaskStorage.cpp`.
+- Exposed `spotifyTask::lastSuccessfulPollAgeMs()` and `spotifyTask::nextPollInMs()` loop-task-safe getters.
+- Appended `last_poll_age_ms=%lu next_poll_in_ms=%lu` to heartbeat `LOG_I` in `logHeartbeat.h`.
+- Both `cyd2usb_winamp` and `cyd2usb_winamp_debug` build clean.
 
 ### TASK-059 — drift-001: last_render_age_ms heartbeat field + g_lastRenderMs
 **Owner**: Developer
 **Feature**: drift-001
-**Status**: todo
-**Blocked by**: TASK-058 (heartbeat infra)
+**Status**: done (2026-05-17)
 **Notes**:
-- Write `g_lastRenderMs = millis()` on every WinampDisplay snapshot-driven repaint path.
-- Add `last_render_age_ms` to heartbeat. Prereq for T111.
+- Defined `uint32_t g_lastRenderMs = 0` in `spotifyLogic.h`; extern'd in `winampDisplay.h` and `logHeartbeat.h`.
+- Set at end of `updateCurrentlyPlaying()` seq-change path (`spotifyLogic.h`) and at end of `repaintChrome()` (`winampDisplay.h`).
+- Appended `last_render_age_ms=%lu` to heartbeat. Both envs build clean.
 
 ### TASK-060 — drift-001: chrome staleness indicator in repaintChrome()
 **Owner**: Developer
