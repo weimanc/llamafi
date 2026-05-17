@@ -174,6 +174,20 @@ Instrument loop and hot paths; measure before deciding which optimisations to sh
 
 ---
 
+### M-SERIALDBG — Serial debug command expansion + touch injection
+
+Expand `handleSerialCommands()` beyond `reconnect` with a richer debug/test command surface. Primary deliverable: `tap X Y` and `drag X1 Y1 X2 Y2 STEPS` commands that inject synthetic touch events into the same `hitTest*` / `enqueue` path as physical screen presses. Secondary deliverables: `info` (state snapshot), `status` (hit-zone dump).
+
+All responses are JSON lines. Host scripts use `json.loads(line)` — check `ok`, `hit`, `action` fields. Drag emits the same intermediate log lines that physical drag already produces.
+
+This unlocks regression-scriptable coverage for T052–T054, T074, T075, T048, and nine new tests (T076–T085, T089) that are impossible to write without coordinate-precise, repeatable input injection.
+
+**Status:** planned (2026-05-17)
+**Deps:** M5 (touch hit-test path in tree), M-LOG (structured serial output)
+**Design:** [M-SERIALDBG-serial-debug-framework.md](../architecture/designs/M-SERIALDBG-serial-debug-framework.md) · [ADR-021](../architecture/decisions/ADR-021.md)
+
+---
+
 ### M7 — Polish / open questions
 
 Resolve remaining open questions (TLS CA strategy, seek-drag, speculative poll, audio-analysis cache) once system exercised end-to-end.
