@@ -518,6 +518,139 @@ Tests for the Winamp main-window static + dynamic chrome elements. Tier-1 (kbps/
 
 ---
 
+## Suite: conn-001 — Connection recovery (M-CONN)
+
+Tests for the M-CONN recovery surface (TASK-053a–f): `spotifyTask::isHealthy()` /
+`resetTls()` accessors, the serial `reconnect` command, the Winamp logo tap, and the
+inactive-titlebar overlay that signals an unhealthy connection. Suite created
+2026-05-17 to provide regression coverage before TASK-SERIALDBG-j migrates the
+`reconnect` response from plain-text to JSON.
+
+**Response-format crossover.** The pre-SERIALDBG `reconnect` emits the plain-text
+line `[reconnect] TLS reset + force poll`. After TASK-SERIALDBG-j merges, it emits
+`{"ok":true,"cmd":"reconnect"}\n` (one JSON object per `\n`, per ADR-021). T090 below
+is dual-form: each step lists both the pre-j baseline and the post-j expected output;
+the relevant form is selected by what is in tree at execution time. The other tests
+(T091–T094) assert behaviour (state change, force-poll firing, visual chrome state)
+and are format-independent.
+
+Common preconditions for all tests below:
+- DUT flashed with `cyd2usb_winamp` (or `cyd2usb_winamp_debug` once available), booted,
+  WiFi up, Spotify creds valid, active Spotify Connect device playing a track.
+- Serial monitor attached at 115200 via tmux (`tmux capture-pane -t spotify-mon -p`)
+  or `pio device monitor`.
+- Heartbeat (log-001 / T040) emitting at 30 s cadence so backoff state is observable.
+
+### T090 — [conn-001] `reconnect` command emits the documented response line
+
+- **Type**: unit (DUT, serial-driven)
+- **Feature(s)**: conn-001
+- **Objective**: Guard against silent format change of the `reconnect` response.
+  Cross-references serialdbg-001 — TASK-SERIALDBG-j flips the response format from
+  plain-text to JSON; this test must execute against both forms across the cutover.
+- **Preconditions**: M-CONN in tree (TASK-053e). `handleSerialCommands()` reachable
+  (loop running, serial not held exclusive by another process).
+- **Steps**:
+  1. Send the bytes `reconnect\n` over serial.
+  2. Read one line back; record it.
+- **Expected result**:
+  - **Pre-SERIALDBG-j** (current `cyd2usb_winamp`): exact line `[reconnect] TLS reset + force poll`.
+  - **Post-SERIALDBG-j**: line parses as JSON (`json.loads(line)` succeeds); object equals
+    `{"ok":true,"cmd":"reconnect"}` (key set + values exact).
+- **Status**: planned. Owner: VE. Execute first against the current build to establish
+  the plain-text baseline, then re-execute after TASK-SERIALDBG-j merges to confirm the
+  JSON form. Audit any tmux/grep scripts that match the literal `[reconnect]` prefix at
+  the same time.
+
+### T091 — [conn-001] `reconnect` clears consecutiveFailures
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: conn-001, io-001
+- **Objective**: Confirm `resetTls()` zeroes the failure counter so the next poll
+  fires at the base 5 s cadence, not at the back-off interval.
+- **Preconditions**: M-CONN in tree. Means to provoke failures (DNS-mangle, upstream
+  disconnect, or `set backoff 5` once SERIALDBG-f is in tree).
+- **Steps**:
+  1. Drive `s_consecutiveFailures` to ≥ 3 — either provoke real failures and wait for
+     three consecutive `[D][spotify.poll] backoff: consecutive=N` lines, or
+     `set backoff 3` via serial debug (once available).
+  2. Send `reconnect\n`.
+  3. Watch the next heartbeat (within 30 s) and the next `[D][spotify.poll]` line.
+- **Expected result**: Next heartbeat shows the base poll cadence (no `backoff:` line
+  citing `consecutive=3+` after reconnect). Subsequent successful poll keeps the
+  counter at 0. Where `get backoff` is available, it returns `consecutiveFailures=0`
+  immediately after the `reconnect` command.
+- **Status**: planned. Owner: VE.
+
+### T092 — [conn-001] `reconnect` triggers an immediate force poll
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: conn-001, poll-001
+- **Objective**: Confirm `enqueue(ACT_FORCE_POLL)` in the reconnect handler dispatches
+  a poll within ~1.5 s of the command — independent of where the next scheduled poll
+  would have fallen.
+- **Preconditions**: M-CONN in tree. Poll cadence currently > 5 s (either steady-state
+  back-off in progress, or send `reconnect` immediately after observing a poll line
+  so the next scheduled tick is ≥ 4 s out).
+- **Steps**:
+  1. Record `t0 = millis()` of the most recent `[D][spotify.poll]` line.
+  2. Send `reconnect\n` at `t0 + ≥1000 ms`.
+  3. Record `t1 = millis()` of the next `[D][spotify.poll]` line.
+- **Expected result**: `t1 - <send_time>` ≤ 2000 ms (allowing one loop-iteration of
+  drain latency plus the queue dequeue). Significantly earlier than the natural
+  cadence would have predicted.
+- **Status**: planned. Owner: VE.
+
+### T093 — [conn-001] Unhealthy titlebar overlay appears + clears
+
+- **Type**: visual + integration (DUT)
+- **Feature(s)**: conn-001, chrome-001
+- **Objective**: Confirm `isHealthy()` flips the chrome — `SKIN_TITLEBAR_INACTIVE`
+  blits over the active titlebar at (originX, originY) once `s_consecutiveFailures ≥ 2`,
+  and reverts (active bar from baked MAIN_BG shows through) on recovery.
+- **Preconditions**: M-CONN in tree (TASK-053b + TASK-053c).
+- **Steps**:
+  1. Steady state: confirm active (coloured) titlebar visible.
+  2. Provoke ≥ 2 consecutive poll failures (DNS-mangle, upstream disconnect, or
+     `set backoff 5`).
+  3. Observe titlebar: must transition to the inactive (greyed) variant within one
+     `repaintChrome()` cycle.
+  4. Restore network or send `reconnect\n`.
+  5. After the next successful poll, titlebar must revert to active.
+- **Expected result**: Clean transition both directions; no partial-paint artefacts;
+  active variant reappears within one poll of recovery.
+- **Status**: planned. Owner: VE.
+
+### T094 — [conn-001, touch-002] Winamp logo tap triggers TLS reset
+
+- **Type**: e2e (DUT)
+- **Feature(s)**: conn-001, touch-002
+- **Objective**: Confirm `hitTestLogo()` dispatch matches the serial `reconnect`
+  behaviour — `resetTls()` + `enqueue(ACT_FORCE_POLL)` + `repaintChrome()` — and is
+  rate-limited by the 2 s `logoTapCooldownMs`.
+- **Preconditions**: M-CONN in tree (TASK-053f). Means to observe TLS reset (the
+  `[D][spotify.task] resetting TLS client` log line on the next poll body entry).
+- **Steps**:
+  1. Confirm steady-state poll cadence.
+  2. Tap the Winamp logo at screen coordinates (281, 100) (window-local
+     `LOGO_X+LOGO_W/2, LOGO_Y+LOGO_H/2` = 250+12, 100+8; with originX=22, originY=0
+     → 22+250+12=284, 0+100+8=108 — verify exact centre from `skin_layout.h`).
+  3. Within 2 s, tap again.
+  4. Observe serial.
+- **Expected result**: First tap → `repaintChrome()` cycle + `resetting TLS client`
+  log line at next poll + force poll within ~1.5 s. Second tap inside cooldown →
+  no second reset, no extra chrome repaint. Subsequent tap after 2 s → both fire
+  again.
+- **Status**: planned. Owner: VE. Coordinates may need correction once T076 confirms
+  the logo centre on this DUT — design doc lists LOGO at screen (281, 100); the
+  hit-test rect uses window-local `LOGO_X/Y/W/H` = (250, 100, 25, 16) before origin
+  translation. Reconcile against the SERIALDBG coordinate table when SERIALDBG-d
+  emits the LOGO region in `lastTouchResult`. Once M-SERIALDBG ships, T087 covers
+  the same dispatch path via serial — keep T094 as the physical-touch confirmation
+  (T095 calibration depends on retaining the physical path as a reference).
+
+---
+
 ## Suite: serialdbg-001 — Serial debug command surface (M-SERIALDBG)
 
 Tests for the expanded serial command interface. All require M-SERIALDBG firmware in tree (`tap` / `drag` / `get` / `set` / `info` / `help` commands implemented). Host-side: pyserial or `pio device monitor` piped through a script.
@@ -528,7 +661,9 @@ Open design issues gating some tests (tracked in design doc / ADR-021 review):
 - B1: T079 blocked — cooldown gate untestable until `injectTouch` optionally honours cooldown
 - B3: T083 blocked — `cmdHelp` must emit single JSON line
 - B4: `get snapshot` split protocol must be finalised before general snapshot parsing
-- B5: T087/T088 blocked — DEADZONE and PLEDIT regions not yet in `lastTouchResult`
+- B5: DEADZONE region now in design `lastTouchResult` (Feature 3a) — T087/T088 unblocked.
+  PLEDIT (playlist-002 row) region still unspecified; no PLEDIT serial test until a
+  dedicated playlist-002 hit-test surface lands.
 
 Common preconditions for all tests below:
 - DUT flashed with `cyd2usb_winamp_debug` env (defines `SERIAL_DEBUG` per ADR-021), booted, WiFi up, Spotify creds valid.
@@ -643,6 +778,146 @@ Common preconditions for all tests below:
 - **Expected result**: `hit=NONE` or `hit=DEADZONE`; no `ACT_SEEK` in log.
 - **Status**: planned (M-SERIALDBG not yet implemented). Owner: VE.
 
+### T086 — [serialdbg-001, touch-002] Full-perimeter boundary on POSBAR and VOLUME rects
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: serialdbg-001, touch-002, chrome-001
+- **Objective**: Extend T076's transport-only left-x boundary check to the other two
+  variable hit rects on all four edges. Catches off-by-one regressions in
+  `hitTestPosbar` / `hitTestVolume` (e.g. an inclusive/exclusive mistake on a
+  `y < BAR_Y + BAR_H` vs `<=`).
+- **Preconditions**: M-SERIALDBG in tree. Active Spotify Connect device with a track
+  loaded (so `songDuration > 0` — POSBAR taps need this to dispatch ACT_SEEK).
+  `set cooldown 0` before each tap.
+- **Steps**:
+  1. POSBAR (screen rect x=38..285, y=72..82 per design coord table). For each of
+     `(37,77)`, `(286,77)`, `(162,71)`, `(162,83)` → assert `hit=NONE` or
+     `hit=DEADZONE`. For each of `(38,77)`, `(285,77)`, `(162,72)`, `(162,82)` →
+     assert `hit=POSBAR`, `action=SEEK`.
+  2. VOLUME (screen rect x=129..196, y=57..69 per VOLUME atlas 68×13 + design centre
+     y=63). For each of `(128,63)`, `(197,63)`, `(162,56)`, `(162,70)` → assert
+     `hit=NONE` or `hit=DEADZONE`. For each of `(129,63)`, `(196,63)`, `(162,57)`,
+     `(162,69)` → assert `hit=VOLUME`, `action=VOLUME`.
+- **Expected result**: 16 checks total. Outside-rim taps never produce `hit=POSBAR`
+  or `hit=VOLUME`. Inside-rim taps always do, with `seekMs` / `volumePct` populated.
+- **Status**: planned (M-SERIALDBG not yet implemented; VOLUME y range to be confirmed
+  against `skin_layout.h` constants at execution — design table only lists the centre
+  y=63). Owner: VE.
+
+### T087 — [serialdbg-001, chrome-001, conn-001] Serial tap covers SHUFFLE / REPEAT / VIS / LOGO regions
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: serialdbg-001, chrome-001, conn-001
+- **Objective**: Confirm `injectTouch` reaches the four remaining named regions —
+  SHUFFLE, REPEAT, VIS, LOGO — and that each dispatches the documented ACT_* action
+  (or `NONE` for inert regions). Also makes the conn-001 logo-tap path (T094)
+  serial-driven for regression scripting.
+- **Preconditions**: M-SERIALDBG in tree with full region enum in `lastTouchResult`
+  (Feature 3a). `LOGO_X/Y/W/H` constants in `skin_layout.h` reconciled against the
+  design coordinate table — design table lists LOGO centre at screen (281, 100) /
+  32×32; conn-001 `hitTestLogo` uses window-local (LOGO_X=250, LOGO_Y=100, LOGO_W=25,
+  LOGO_H=16) → screen centre ≈ (284, 108). Use whichever centre matches the in-tree
+  constants at test time, and update the design doc if they disagree.
+- **Steps**: For each region, `set cooldown 0`; send `tap <x> <y>`; parse response.
+  1. SHUFFLE: `tap 209 96` → `hit=SHUFFLE`, `action=SHUFFLE`.
+  2. REPEAT: `tap 246 96` → `hit=REPEAT`, `action=REPEAT`.
+  3. VIS: `tap 84 51` → `hit=VIS`. `action` matches the dispatch table — `NONE`
+     if VIS area is currently inert (vu-001 decoration only, no tap handler), else
+     the documented VIS action.
+  4. LOGO: `tap <centreX> <centreY>` → `hit=LOGO`, `action=TLS_RESET`. Within ≤ 2 s,
+     `[D][spotify.task] resetting TLS client` log line + force-poll fires.
+  5. Second LOGO tap inside the 2 s `logoTapCooldownMs`: response still `hit=LOGO`
+     but no second TLS reset (verify via the log line count).
+- **Expected result**: SHUFFLE and REPEAT tap dispatches enqueue ACT_SHUFFLE /
+  ACT_REPEAT (also surfaces in Spotify's `shuffle_state` / `repeat_state` within ≤ 5 s).
+  LOGO behaviour matches T094 but is now scriptable. VIS test documents current state
+  (action=NONE if inert) as a baseline for future wiring.
+- **Status**: planned (M-SERIALDBG not yet implemented; LOGO coordinate reconciliation
+  pending). Owner: VE.
+
+### T088 — [serialdbg-001, touch-002] DEADZONE positive cases — canvas corners + design-doc dead-zone samples
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: serialdbg-001, touch-002
+- **Objective**: Confirm taps that land outside all named regions report `hit=DEADZONE`
+  (not `hit=NONE` — they enter `checkForInput`'s fall-through which dispatches
+  `ACT_FORCE_POLL`). Guards against a region becoming unintentionally hittable as
+  chrome layout shifts (e.g. a future TITLEBAR variant resize swallowing a corner).
+  Pairs with T077 (which covers one specific posbar/transport gap) by extending to
+  the full canvas perimeter + the other three documented dead-zone samples.
+- **Preconditions**: M-SERIALDBG in tree with `DEADZONE` region in `lastTouchResult`
+  (Feature 3a, design B5 resolved). `set cooldown 0` between each tap.
+- **Steps**: For each sample, send `tap <x> <y>`; parse response; record action.
+  1. Design-doc dead zones: `(37,77)`, `(162,71)`, `(162,85)`, `(162,107)` → assert
+     `hit=DEADZONE`, `action=FORCE_POLL`.
+  2. Canvas corners (far outside all chrome at originX=22, originY=0, chrome
+     275×116): `(0,0)`, `(319,0)`, `(0,239)`, `(319,239)` → assert
+     `hit=DEADZONE`, `action=FORCE_POLL`.
+  3. Just outside chrome on each side: `(21,50)` (1 px left of originX),
+     `(298,50)` (1 px right of originX+275=297), `(160,117)` (1 px below
+     originY+116) → assert `hit=DEADZONE`.
+- **Expected result**: 11 checks all return `hit=DEADZONE, action=FORCE_POLL`. Any
+  result of `hit=TRANSPORT/POSBAR/VOLUME/SHUFFLE/REPEAT/VIS/LOGO` for these coords is
+  a hit-test regression. Side-observation: each tap also triggers one
+  `[D][spotify.poll]` line within ~1.5 s (ACT_FORCE_POLL effect).
+- **Status**: planned (M-SERIALDBG not yet implemented). Owner: VE.
+
+### T095 — [serialdbg-001, touch-002] Injection-vs-physical calibration
+
+- **Type**: integration (DUT, mixed serial + physical)
+- **Feature(s)**: serialdbg-001, touch-002
+- **Objective**: Verify the synthetic `injectTouch` path produces the *same*
+  `lastTouchResult` + same ACT_* dispatch as a physical finger at the identical
+  screen coordinate. Without this test, the injection branch can silently diverge
+  from the `ts.touched()` branch (refactor splits them, only one gets a fix) and
+  every other serialdbg-001 test will still pass while real touch breaks.
+- **Preconditions**: M-SERIALDBG in tree. Human operator at the DUT (this test cannot
+  be fully scripted). Spotify playing. `set cooldown 0` before each pair.
+- **Steps**: For each of PREV (49,97), POSBAR mid (162,77), VOLUME mid (163,63):
+  1. Send `tap <x> <y>` over serial; capture JSON `lastTouchResult` + observe
+     downstream Spotify effect.
+  2. Wait for cooldown to clear (≥ 200 ms or `set cooldown 0`).
+  3. Physically tap the same screen coordinate; capture next ACT_* dispatch via
+     the `[D][spotify.task] dequeued action=` log line + observe Spotify effect.
+  4. Compare: same region, same action, same secondary fields (`seekMs` within
+     ±5 % for POSBAR; `volumePct` within ±2 % for VOLUME — physical touch has
+     real coordinate jitter).
+- **Expected result**: All 3 pairs match. Any pair where serial and physical
+  diverge in region or action is a structural break — the injection path no longer
+  faithfully reproduces the physical path, and every other serialdbg test loses its
+  authority.
+- **Status**: planned (M-SERIALDBG not yet implemented; requires manual operator —
+  run on every release candidate, not in routine regression). Owner: VE.
+
+### T096 — [serialdbg-001] cmdDrag queue-drain completeness
+
+- **Type**: unit (DUT, serial-driven)
+- **Feature(s)**: serialdbg-001
+- **Objective**: Verify the cmdDrag injection ring buffer drains every queued sample
+  + the release sentinel — none dropped, no off-by-one on the modulo-64 head/tail
+  wrap. Without this, T082's outcome-level check (≥ 2 ACT_VOLUME dispatches in 60
+  steps) would still pass even if half the samples vanished, masking a queue bug.
+- **Preconditions**: M-SERIALDBG in tree. The cmdDrag path must emit a per-sample
+  trace line (e.g. `[D][serial] inject sample <i>/<N> sx=<x> sy=<y>` from
+  `drainInjectionQueue()`) — Developer to add this trace under `SERIAL_DEBUG` if not
+  already present; without it the test has no observability hook. `set cooldown 0`.
+- **Steps**:
+  1. Send `drag 129 63 196 63 60` (full volume-slot width, 60 steps — max headroom
+     under the 62-step cap, exercises ring-buffer wrap at index 64).
+  2. Capture serial until the `{"ok":true,"cmd":"drag",...}` response (the release
+     sentinel's emit) — `s_dragPending` clears at that point.
+  3. Count `inject sample` trace lines between the cmdDrag invocation and the
+     drag-end response.
+  4. Send a second `drag 129 63 196 63 62` immediately (no clearing) — exercises
+     `s_injectHead = s_injectTail = 0` reset path in cmdDrag.
+- **Expected result**: First drag: exactly 61 sample lines (steps=60 → 61 move
+  samples at i=0..60) followed by the release-sentinel dispatch. Second drag: same
+  pattern with 63 sample lines. No samples skipped, no duplicate emission, no
+  spurious release-sentinel firing mid-drag. dragState ends in `D_IDLE` (verify via
+  `dbg_getDragStateName`).
+- **Status**: planned (M-SERIALDBG not yet implemented; requires per-sample trace
+  in `drainInjectionQueue()` — flag to Developer as SERIALDBG-e addition). Owner: VE.
+
 ### T089 — [serialdbg-001] Production build contains no SERIAL_DEBUG symbols
 
 - **Type**: integration (host build, no DUT)
@@ -652,6 +927,361 @@ Common preconditions for all tests below:
 - **Steps**: `grep -c SERIAL_DEBUG .pio/build/cyd2usb_winamp/firmware.elf` → expect 0. Also verify flash size does not regress vs. pre-M-SERIALDBG baseline (check `pio run` output for flash % used).
 - **Expected result**: Zero SERIAL_DEBUG symbol occurrences in ELF. Flash usage ≤ pre-SERIALDBG baseline + 0.1% (boot line adds `esp_app_get_description()` call — quantify in exit criteria when boot line guard decision is made per ADR-021 AC-4).
 - **Status**: planned (M-SERIALDBG not yet implemented). Owner: VE.
+
+---
+
+## Suite: sync-001 — DUT–Spotify state synchronization (M-SYNC)
+
+Field-level lag bounds + stale-state checks between Spotify's authoritative state and
+the DUT chrome render. Tests target the field-by-field × transition-type drift that
+per-feature suites (poll-002, touch-002, chrome-001, playlist-001/002) catch only
+incidentally. Each test sets a Spotify-side change, then measures the lag until the
+DUT snapshot or chrome reflects it, and asserts no stale-state misreport during the
+transition window.
+
+**Working-name aliases** for cross-reference: T097=TSYNC-1, T098=TSYNC-2, ...,
+T110=TSYNC-14.
+
+### Lag-bound contract (default expectation per test, unless overridden)
+
+- **Steady-state field change** (Spotify-side mutation, DUT idle): one poll cycle.
+  Base poll = 5 s → bound = 5 s + 500 ms render latency = **5.5 s**.
+- **Degraded** (DUT in back-off, `consecutiveFailures ≥ 1`): `backoff_remaining_ms`
+  (per io-001 ladder, max 60 s) + one poll round-trip = **bound up to 61 s**.
+- **Touch-confirmed field** (volume, transport, seek with optimistic-UI freeze):
+  `optimistic_window_ms` (1.5 s touch, 2 s volume) + one poll = **bound 3.5–7 s**.
+- **Cross-poll transient** (e.g. track A→B→A inside 6 s): the DUT may legitimately
+  miss the intermediate state; bound is "final state correct within one poll of
+  cessation," not "all transitions observed."
+
+ADR-022 (planned) should formalize the contract and the rationale for each bound.
+
+### Prerequisites (gate suite execution beyond `planned`)
+
+**Firmware** — must land before the suite can run:
+- **SERIALDBG-l** (new sub-task): extend `get snapshot` response with
+  `lastPollAgeMs`, `currentTrackUri`, `deviceActive`. Pushes the response into the
+  multi-part split protocol from SERIALDBG-h.
+- **SERIALDBG-m** (new sub-task): new `get queue` command returning the
+  QueueSnapshot (rows 0..4, each `{track, artist, durationMs, uri}`). Split protocol.
+- **TASK-058** (new, log-001): heartbeat fields `last_poll_age_ms` and
+  `next_poll_in_ms`.
+
+**Should-have** — promote affected tests beyond manual-scrape:
+- Optimistic-volume-expiry `LOG_D("chrome", "optimistic-volume expired ...")`
+  (T104 / TSYNC-8 hardens).
+- Per-poll structured log `LOG_D("spotify.poll", "snap progress=... track=... ...")`
+  after every successful poll (T097..T101, T107 swap repeated `get snapshot` polling
+  for log scrape — cheaper, lower DUT load).
+
+**Defer** — TSYNC-12 starts as manual log scrape, promotes to assertion when:
+- `LOG_W("spotify.poll", "track transition skipped %s -> %s -> %s in %lu ms")` lands
+  in `spotifyTask::onCurrentlyPlaying` (last-last URI == current && gap < 2 polls).
+
+**Host-side harness** — written by VE in parallel to firmware work:
+- `tools/spotify_state.py` — wraps `curl /v1/me/player`, refresh-token-aware,
+  emits structured JSON. Ground-truth source for all 14 tests.
+- `tools/spotify_drive.py` — Connect API control of a target device (pause, next,
+  setVolume, setShuffle, setRepeat, seek, transferPlayback).
+- `tools/tsync_diff.py` — fetches `get snapshot` over serial + `/me/player` over
+  HTTPS, diffs the firmware-consumed field set (per T073), prints `[OK]` or
+  `[DRIFT] field=<name> dut=<v> spotify=<v>`. Drives T110.
+
+### Common preconditions (apply unless overridden per-test)
+
+- DUT flashed with `cyd2usb_winamp_debug` env (SERIAL_DEBUG required for `get`/`set`
+  paths). Booted, WiFi up, Spotify creds valid, heartbeat emitting.
+- Active Spotify Premium account with two reachable Connect-capable target devices
+  (phone + Web Player typical) so transfer-playback tests can run.
+- Host on the same LAN; tmux serial monitor + python in adjacent panes.
+- `set cooldown 0` between any consecutive DUT touch injections.
+- Issue `info` at test start; record `git`, `elf`, `build`, `heap`, `consecutiveFailures`
+  in the test log for post-hoc correlation.
+
+### T097 — [sync-001, poll-001] (TSYNC-1) Spotify-side pause reflects on DUT within one poll
+
+- **Type**: integration (DUT + host)
+- **Feature(s)**: sync-001, poll-001
+- **Objective**: Verify `isPlaying` propagates from Spotify to DUT within the
+  steady-state lag bound (5.5 s).
+- **Preconditions**: Track playing. `get snapshot.lastPollAgeMs` available
+  (SERIALDBG-l). Note `t0_age = lastPollAgeMs` at test start.
+- **Steps**:
+  1. Confirm DUT `get snapshot.isPlaying == true`.
+  2. Host: `tools/spotify_drive.py pause` — record host-side timestamp `t_send`.
+  3. Loop: poll `get snapshot` every 500 ms until `isPlaying == false` or 7 s elapsed.
+  4. Record `t_seen` of first snapshot showing `isPlaying == false`.
+- **Expected result**: `t_seen - t_send ≤ 5500 ms`. No intermediate `play` action
+  in serial log between `t_send` and `t_seen`. `get snapshot.progressMs` frozen at
+  the value it held when pause hit Spotify (drift ≤ 1 s).
+- **Status**: planned (blocked on SERIALDBG-l). Owner: VE.
+
+### T098 — [sync-001, chrome-001] (TSYNC-2) Spotify-side volume change reflects on DUT within one poll
+
+- **Type**: integration (DUT + host)
+- **Feature(s)**: sync-001, chrome-001
+- **Objective**: Verify `volumePct` propagates within 5.5 s. Distinct from T070a
+  (which proves the path exists end-to-end) — this asserts the *bound*.
+- **Preconditions**: Active device, `supports_volume: true`. Note DUT current
+  volume + keyframe.
+- **Steps**:
+  1. Pick a target volume in a distinctly different keyframe bucket (e.g. current
+     65 → target 20).
+  2. Host: `tools/spotify_drive.py setVolume 20` — record `t_send`.
+  3. Poll DUT `get snapshot.volumePct` every 500 ms until match or 7 s elapsed.
+  4. Record `t_seen` and capture all `drawVolume pct=NN keyframe=K` log lines.
+- **Expected result**: `t_seen - t_send ≤ 5500 ms`. Exactly one `drawVolume` call
+  in the transition window (no thrash). New keyframe matches target bucket.
+- **Status**: planned. Owner: VE.
+
+### T099 — [sync-001, poll-001] (TSYNC-3) Track-end → next-track propagation
+
+- **Type**: integration (DUT + host)
+- **Feature(s)**: sync-001, poll-001
+- **Objective**: On a track transition, DUT picks up new `track`, `artist`,
+  `currentTrackUri`, and resets `progressMs` to ~0 within one poll.
+- **Preconditions**: SERIALDBG-l (`currentTrackUri`). Queue has a next track.
+- **Steps**:
+  1. Note `get snapshot.currentTrackUri` = A.
+  2. Host: `tools/spotify_drive.py next` — `t_send`.
+  3. Poll `get snapshot` every 500 ms until `currentTrackUri != A` or 7 s.
+- **Expected result**: `t_seen - t_send ≤ 5500 ms`. `track`, `artist` differ from
+  A's values; `progressMs ≤ 3000` (allow some advance during the poll); marquee
+  scroll restarts (visible).
+- **Status**: planned (blocked on SERIALDBG-l). Owner: VE.
+
+### T100 — [sync-001, chrome-001] (TSYNC-4) Shuffle toggle (Spotify-side) reflects on DUT chrome
+
+- **Type**: integration (DUT + host)
+- **Feature(s)**: sync-001, chrome-001
+- **Objective**: Shuffle state propagates within 5.5 s; SHUFREP sprite repaints
+  exactly once.
+- **Preconditions**: Note current `shuffleState`.
+- **Steps**:
+  1. Host: `tools/spotify_drive.py toggleShuffle` — `t_send`.
+  2. Poll `get snapshot.shuffleState` until flip or 7 s.
+  3. Verify SHUFREP sprite changed visually (or via a `[D][chrome] drawShuffle ...`
+     log if it exists; add as a Block-B observability ask if not).
+- **Expected result**: Flip ≤ 5500 ms. Exactly one repaint of the SHUFFLE sprite
+  (no flicker). Confirm DUT was not the initiator (no `tap 209 96` in serial log).
+- **Status**: planned. Owner: VE.
+
+### T101 — [sync-001, chrome-001] (TSYNC-5) Repeat toggle (Spotify-side) reflects on DUT chrome
+
+- **Type**: integration (DUT + host)
+- **Feature(s)**: sync-001, chrome-001
+- **Objective**: Repeat state (off → context → track) propagates within 5.5 s per
+  step.
+- **Steps**: Same as T100 but with `tools/spotify_drive.py setRepeat <off|context|track>`
+  in turn, verifying each step lands on the DUT.
+- **Expected result**: Each of three transitions ≤ 5500 ms. REPEAT sprite cycles
+  through three variants without flicker.
+- **Status**: planned. Owner: VE.
+
+### T102 — [sync-001, playlist-001, playlist-002] (TSYNC-6) Queue strip shifts on track-change
+
+- **Type**: integration (DUT + host)
+- **Feature(s)**: sync-001, playlist-001, playlist-002
+- **Objective**: When the current track changes, the PLEDIT row strip shifts
+  (old row 1 → new row 0; old rows 2..5 → new rows 1..4; new row 4 populated from
+  what was previously row 5 or freshly fetched). All within the queue-refresh
+  window — note the `getQueue()` trigger fires *on* track-change, so the strip
+  update is bounded by `track-change-detect-latency + queue-fetch-rtt`.
+- **Preconditions**: SERIALDBG-m (`get queue`). Queue ≥ 6 items deep so row 4
+  always populated. Note rows 0..4 by URI before transition.
+- **Steps**:
+  1. `get queue` → record `before = [uri0, uri1, uri2, uri3, uri4]`.
+  2. Host: `next` — `t_send`.
+  3. Poll `get queue` every 1 s until `row0_uri == before[1]` or 10 s.
+  4. Record final `after = [uri0..4]`.
+- **Expected result**: `t_seen - t_send ≤ 7000 ms` (two polls — track-change poll
+  plus queue-fetch trigger). `after[0] == before[1]`, `after[1] == before[2]`,
+  `after[2] == before[3]`, `after[3] == before[4]`. PLEDIT highlight row 0 shows
+  the new current track within one render cycle of the snapshot update.
+- **Status**: planned (blocked on SERIALDBG-m). Owner: VE.
+
+### T103 — [sync-001, chrome-001] (TSYNC-7) Device transfer propagates to DUT chrome
+
+- **Type**: integration (DUT + host)
+- **Feature(s)**: sync-001, chrome-001
+- **Objective**: Transferring playback between devices changes `volumePct` and
+  `deviceActive`; closing all devices flips to `volumePct=-1` + `deviceActive=false`
+  + KEYFRAME_NONE. Bound 10 s (one poll + transfer-settle delay).
+- **Preconditions**: SERIALDBG-l (`deviceActive` field). Two devices reachable
+  (phone + Web Player).
+- **Steps**:
+  1. Phone is the active device at volume 30. `get snapshot` confirms.
+  2. Host: `tools/spotify_drive.py transfer <web_player_device_id>`. Web Player
+     volume distinct (e.g. 70).
+  3. Poll `get snapshot.volumePct` until match new device's value or 12 s.
+  4. Close Web Player tab (pause-then-close to terminate the device).
+  5. Poll until `volumePct == -1` and `deviceActive == false` or 12 s.
+- **Expected result**: Step 3 transition ≤ 10 s; chrome paints new keyframe.
+  Step 5 transition ≤ 10 s; chrome paints KEYFRAME_NONE. No oscillation between
+  the two volume values. Final stable state matches what `tools/spotify_state.py`
+  reports.
+- **Status**: planned (blocked on SERIALDBG-l). Owner: VE.
+
+### T104 — [sync-001, chrome-001, touch-002] (TSYNC-8) Optimistic-volume window expires before Spotify commit — no stale snap-back
+
+- **Type**: integration (DUT, intentionally degraded host)
+- **Feature(s)**: sync-001, chrome-001, touch-002
+- **Objective**: When Spotify's volume commit is slower than the 2 s optimistic
+  window (e.g. on a flaky cellular link, or with `set backoff 5` forcing a delayed
+  poll), the slider must NOT snap back to the stale `snap.volumePercent` after the
+  window expires. T075 covers the happy path; this covers the contended path.
+- **Preconditions**: Optimistic-volume-expiry `LOG_D` available (Block B), or
+  `dbg_getOptimisticVolumeRemainingMs` polled at 200 ms. Means to slow the next
+  poll: `set backoff 5` (next poll ~60 s out) is the easy way.
+- **Steps**:
+  1. Note current volume. `set backoff 5` — confirm via `get backoff` that
+     `nextPollMs ≈ 60000`.
+  2. `drag 129 63 196 63 60` to a target volume.
+  3. Capture `drag-end commit pct=NN` line — `t_drag_end`.
+  4. Poll `dbg_getOptimisticVolumeRemainingMs` every 200 ms; record
+     `t_optimistic_expired` when it returns 0.
+  5. Continue capturing `drawVolume pct=NN keyframe=K` lines until next poll
+     reaches Spotify (or `set backoff 0` after 5 s to recover).
+- **Expected result**: Between `t_drag_end` and the next confirmed poll's
+  `drawVolume`, NO `drawVolume` line with `pct == <pre-drag value>`. Slider may
+  hold the dragged value past the optimistic window — that's correct; the bug
+  this guards against is snap-back to stale `snap`.
+- **Status**: planned (blocked on Block B optimistic-expiry LOG_D for clean
+  observability — pre-Block-B fallback: poll `dbg_getOptimisticVolumeRemainingMs`).
+  Owner: VE.
+
+### T105 — [sync-001, io-001] (TSYNC-9) State change during 60 s back-off catches up correctly on recovery
+
+- **Type**: integration (DUT + host)
+- **Feature(s)**: sync-001, io-001
+- **Objective**: When DUT is in the back-off ladder ceiling (60 s), a Spotify-side
+  state change made *during* the back-off window propagates within
+  `backoff_remaining + one poll` of the change. No lost transitions; back-off
+  resets on the first successful poll.
+- **Preconditions**: `set backoff 5` (forces next-poll wait ≈ 60 s).
+- **Steps**:
+  1. `set backoff 5` → confirm via `get backoff` that `consecutiveFailures=5` and
+     `nextPollMs` ∈ [55000, 60000]. Record `t_backoff_start = millis()`.
+  2. Wait 10 s. `tools/spotify_drive.py toggleShuffle` — `t_send`.
+  3. Wait for next `[D][spotify.poll]` line in serial — `t_poll`.
+  4. Read `get snapshot.shuffleState` — `t_seen`.
+- **Expected result**: `t_seen - t_send ≤ (60000 - 10000) + 5500 = 55500 ms`.
+  `get backoff.consecutiveFailures == 0` after the successful poll. No
+  intermediate poll fires during the back-off window (verifies no busy-wait).
+  Subsequent `get backoff.nextPollMs ≈ 5000` (base cadence restored).
+- **Status**: planned. Owner: VE.
+
+### T106 — [sync-001, touch-002] (TSYNC-10) Concurrent DUT touch + Spotify-side mutation resolves to last-writer-wins, no oscillation
+
+- **Type**: integration (DUT + host)
+- **Feature(s)**: sync-001, touch-002
+- **Objective**: Race condition: DUT taps PAUSE while host fires `next` within the
+  same poll window. Spotify's last-writer-wins resolves the conflict; DUT must
+  converge to Spotify's final state within 10 s without oscillating between the
+  two intermediate states.
+- **Preconditions**: Track playing. Note `currentTrackUri = A`.
+- **Steps**:
+  1. Send `tap 95 97` (PAUSE) over serial — `t_dut`.
+  2. Within 1 s: host `tools/spotify_drive.py next` — `t_host`.
+  3. Poll `get snapshot` every 500 ms for 15 s; record the full
+     (isPlaying, currentTrackUri) trace.
+- **Expected result**: Final stable state reached within 10 s of `max(t_dut, t_host)`.
+  Trace shows at most one transition per field — no flip-flop between
+  `(playing,A)` and `(paused,A)` and `(playing,B)`. Final state matches what
+  `tools/spotify_state.py` reports at the same moment.
+- **Status**: planned. Owner: VE. Note: outcome is observationally driven —
+  Spotify's conflict resolution is documented as "last write wins" but request
+  ordering depends on network. This test catches *oscillation*, not a specific
+  resolution.
+
+### T107 — [sync-001, poll-002] (TSYNC-11) Seek on phone re-anchors M4 interpolator within one poll
+
+- **Type**: integration (DUT + host, visual cross-check)
+- **Feature(s)**: sync-001, poll-002
+- **Objective**: A phone-side seek changes `progressMs` distinctly without changing
+  `currentTrackUri`; the M4 interpolator re-anchors so the displayed bar jumps to
+  the new position within 5.5 s, not drifts incrementally.
+- **Preconditions**: SERIALDBG-l (`currentTrackUri` to distinguish seek from
+  track-change). Track ≥ 60 s long, currently at position ~10 s.
+- **Steps**:
+  1. `get snapshot` → record `progress0`, `uri0`.
+  2. Host: `tools/spotify_drive.py seek <progress0+30000>` — `t_send`.
+  3. Poll `get snapshot.progressMs` every 500 ms; capture first sample where
+     `|progressMs - (progress0+30000)| < 3000` — `t_seen`.
+  4. Verify `currentTrackUri == uri0` (seek, not track-change).
+- **Expected result**: `t_seen - t_send ≤ 5500 ms`. Visual: seek bar pixel
+  position jumps in a single frame near the new value; no monotonic crawl from
+  old to new.
+- **Status**: planned (blocked on SERIALDBG-l). Owner: VE.
+
+### T108 — [sync-001, poll-001] (TSYNC-12) Track A→B→A round-trip inside one poll window — no silent loss
+
+- **Type**: integration (DUT + host, log-scrape)
+- **Feature(s)**: sync-001, poll-001
+- **Objective**: Within a single 5 s poll window, two transitions land (A→B then
+  B→A) that the DUT may legitimately miss the intermediate B state for. The test
+  asserts the DUT lands on A (correct final state) and — when the Block-C
+  transition-skip WARN ships — emits a WARN logging the dropped intermediate.
+  Until then, this is observation-only: VE captures the per-poll log and notes
+  whether B was ever seen.
+- **Preconditions**: Track A currently playing. Host can fire `next` then
+  `previous` in quick succession. Per-poll structured log (`[D][spotify.poll] snap
+  ...`) live in Block B for clean observation.
+- **Steps**:
+  1. `get snapshot.currentTrackUri == A`.
+  2. Host: `next` — `t1`. (Spotify is now on track B.)
+  3. Within 3 s of t1: host `previous` — `t2`. (Spotify is back on A.)
+  4. Wait 15 s; capture all `[D][spotify.poll] snap track=<uri>` lines and all
+     `get snapshot.currentTrackUri` samples taken at 500 ms cadence.
+- **Expected result**: Final stable `currentTrackUri == A`. The trace may show
+  A continuously (DUT missed B inside the poll gap) or A→B→A (DUT happened to
+  poll during the B window). Both outcomes pass — the explicit failure mode is
+  "DUT stuck on B after host returned to A within ≤ 10 s." Once Block C ships,
+  also assert a `LOG_W("spotify.poll", "track transition skipped ...")` line is
+  emitted when the trace shows A continuously.
+- **Status**: planned (observation-only until Block C; promotes to assertion once
+  the WARN ships). Owner: VE.
+
+### T109 — [sync-001, log-001] (TSYNC-13) Heartbeat exposes `last_poll_age_ms` and `next_poll_in_ms`
+
+- **Type**: unit (DUT, log-scrape)
+- **Feature(s)**: sync-001, log-001
+- **Objective**: Heartbeat structured fields surface poll-cadence health without
+  requiring `get snapshot` polls. Lets every other TSYNC test correlate a lag
+  measurement against poll boundary timing.
+- **Preconditions**: TASK-058 (log-001 heartbeat extension) in tree.
+- **Steps**:
+  1. Wait for one heartbeat line in serial — record full line.
+  2. Parse `last_poll_age_ms` and `next_poll_in_ms` fields.
+  3. Cross-check: `last_poll_age_ms < 6000` (under base poll cadence, ages from
+     poll-completion).
+  4. `set backoff 5`; wait for next heartbeat; assert `next_poll_in_ms` ∈ [50000, 60000].
+- **Expected result**: Both fields present in every heartbeat. Values plausible
+  per current backoff state. Sum `last_poll_age_ms + next_poll_in_ms` ≤ effective
+  poll cadence + 30 s slack.
+- **Status**: planned (blocked on TASK-058). Owner: VE.
+
+### T110 — [sync-001] (TSYNC-14) Host-side `tsync_diff.py` reports zero drift in steady state, accurate drift during induced desync
+
+- **Type**: integration (host, observational)
+- **Feature(s)**: sync-001
+- **Objective**: The host-side comparator (`tools/tsync_diff.py`) is correct —
+  reports `[OK]` when DUT and Spotify agree, reports the right `[DRIFT]` field +
+  values when they don't. Acts as a meta-tool sanity check + a quick triage path
+  when other TSYNC tests fail.
+- **Preconditions**: `tools/tsync_diff.py` written. SERIALDBG-l (snapshot
+  extension — diff compares the firmware-consumed field set from T073).
+- **Steps**:
+  1. Steady state: run `tsync_diff.py` 10 times at 1 s intervals. Expect `[OK]`
+     each time (or `[DRIFT] progressMs <small>` ≤ 1 s — interpolation slack).
+  2. Induce drift: `tools/spotify_drive.py toggleShuffle`; immediately run
+     `tsync_diff.py`. Expect `[DRIFT] shuffleState dut=<old> spotify=<new>`.
+  3. Wait 6 s for DUT to poll. Re-run — expect `[OK]`.
+- **Expected result**: Step 1: 10 × `[OK]` (modulo progressMs slack). Step 2:
+  `[DRIFT] shuffleState ...` reported. Step 3: `[OK]`. Tool exits non-zero when
+  drift detected (suitable for CI integration once a CI exists).
+- **Status**: planned. Owner: VE. Anchor test for the sync-001 suite —
+  T097..T109 use this tool's primitives internally.
 
 ---
 

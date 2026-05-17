@@ -619,13 +619,15 @@ use the numeric IDs in `tasks.md`.
 | SERIALDBG-b | Boot version line (`[boot] git=... elf=... build=...`) | `SpotifyDiyThing.ino` |
 | SERIALDBG-c | Table-driven dispatcher (with 4-field `SerialCmd` struct); replace `handleSerialCommands()`; add `drainInjectionQueue()` call in `loop()` | `SpotifyDiyThing.ino` |
 | SERIALDBG-d | `WinampDisplay::injectTouch()` (cooldown-aware mode + `s_injectingDrag` flag) + `injectRelease()` + `lastTouchResult` (7-field struct with DEADZONE) | `winampDisplay.h` |
-| SERIALDBG-e | `cmdTap`, `cmdDrag` (queue-drain — no `delay()`); injection ring buffer | `SpotifyDiyThing.ino` |
+| SERIALDBG-e | `cmdTap`, `cmdDrag` (queue-drain — no `delay()`); injection ring buffer; per-sample `LOG_D("serial", "inject sample %d/%d sx=%d sy=%d", ...)` trace in `drainInjectionQueue()` for T096 observability | `SpotifyDiyThing.ino` |
 | SERIALDBG-f | `spotifyTask::dbg_setFailureCount/getFailureCount/getNextWaitMs`; `s_consecutiveFailures` → `volatile` | `spotifyTask.h`, `spotifyTaskStorage.cpp` |
 | SERIALDBG-g | `WinampDisplay` debug accessors: `dbg_getTouchCooldownRemainingMs`, `dbg_resetTouchCooldown`, `dbg_getDragStateName`, `dbg_getOptimisticVolumeRemainingMs`, `dbg_getSongDuration` | `winampDisplay.h` |
 | SERIALDBG-h | `cmdGet`, `cmdSet` (with multi-line split protocol once AC-5 resolved) | `SpotifyDiyThing.ino` |
 | SERIALDBG-i | `cmdInfo` (full fields incl. `volumePct`, `durationMs`, `shuffle`, `repeat`), `cmdHelp` (single JSON line, iterates table) | `SpotifyDiyThing.ino` |
 | SERIALDBG-j | Update `reconnect` to JSON response; create `conn-001` test suite first | `SpotifyDiyThing.ino`, `test_plan.md` |
 | SERIALDBG-k | VE: execute T076–T085, T089 on `cyd2usb_winamp_debug` DUT | test rig |
+| SERIALDBG-l | (added for sync-001) Extend `get snapshot` response with `lastPollAgeMs`, `currentTrackUri`, `deviceActive`. Snapshot struct gains the three fields; spotifyTask::onCurrentlyPlaying populates them; multi-part split protocol from SERIALDBG-h carries the larger payload. | `spotifyTask.h`, `spotifyTaskStorage.cpp`, `SpotifyDiyThing.ino` |
+| SERIALDBG-m | (added for sync-001) New `get queue` command — read-only access to QueueSnapshot rows (≤ 5 entries × `{track, artist, durationMs, uri}`). Reads `g_queueMux`-protected snapshot already populated by playlist-001/002. Split protocol required (5 rows × ~80 B exceeds 256 B single-line). | `SpotifyDiyThing.ino`, `spotifyTask.h` |
 
 Recommended order: a → b → c+j → d → e → f → g → h → i → k.
 c and j must be coordinated: conn-001 test suite must exist before j merges.

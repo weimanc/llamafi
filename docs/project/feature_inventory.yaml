@@ -357,6 +357,115 @@ features:
       Tap-to-play (TASK-021) deferred to tier 2 (M-LIST-v3).
       VE: no test suite written — action from 2026-05-15 audit.
 
+  - id: conn-001
+    name: Connection recovery (M-CONN)
+    description: |
+      Health + recovery surface around the async Spotify poll task. spotifyTask::isHealthy()
+      returns s_consecutiveFailures < 2; resetTls() sets volatile s_resetTlsPending and
+      zeroes the failure counter, the task body calls client.stop() on its own stack
+      before the next poll (avoids cross-task mbedTLS races). Three user-facing triggers:
+      a serial `reconnect` command in handleSerialCommands(), a tap on the Winamp logo
+      (hitTestLogo at LOGO_X/Y/W/H = 250,100,25,16 window-local, 2 s logoTapCooldownMs),
+      and the bare resetTls() entry-point. Inactive-titlebar overlay
+      (SKIN_TITLEBAR_INACTIVE blit in repaintChrome()) gives passive visual feedback when
+      !isHealthy(); active variant (baked into MAIN_BG) shows on recovery without extra
+      code.
+    status: implemented
+    git_ref: Spotify-Diy-Thing@2026-05-16 (TASK-053a–f)
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
+      - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTask.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTaskStorage.cpp
+      - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/gen/skin_assets.c
+      - Spotify-Diy-Thing/SpotifyDiyThing/gen/skin_layout.h
+    cross_features: [io-001, chrome-001, touch-002, poll-001]
+    test_ids: [T090, T091, T092, T093, T094]
+    notes: |
+      Back-filled into feature_inventory.yaml 2026-05-17 — original M-CONN landing
+      (TASK-053a–f, 2026-05-16) shipped without an inventory entry.
+      reconnect command response format migrates to JSON in TASK-SERIALDBG-j
+      (serialdbg-001) — T090 is dual-form across that cutover.
+      No dedicated ADR — design captured inline in tasks.md TASK-053 family.
+
+  - id: serialdbg-001
+    name: Serial debug command framework (M-SERIALDBG)
+    description: |
+      Table-driven serial command dispatcher in handleSerialCommands(). Two build modes:
+      cyd2usb_winamp (production — only `reconnect` compiled in) and cyd2usb_winamp_debug
+      (test rig — full `tap` / `drag` / `get` / `set` / `info` / `help` surface gated by
+      SERIAL_DEBUG). All responses are JSON lines (`\n`-terminated) for `json.loads`-driven
+      host scripts. Touch injection via virtual injectTouch / injectRelease on
+      SpotifyDisplay (no static_cast coupling); cmdDrag fills a 64-slot injection ring
+      buffer drained one sample per loop iteration (no delay() in loop task). Unconditional
+      boot version line `[boot] git=<hash> elf=<8hex> build=<date> <time>` ships in both
+      envs as a passive diagnostic; GIT_REV injected via pre:scripts/inject_git_hash.py.
+      Debug accessors on spotifyTask (dbg_setFailureCount/dbg_getFailureCount/
+      dbg_getNextWaitMs) and WinampDisplay (dbg_getTouchCooldownRemainingMs,
+      dbg_resetTouchCooldown, dbg_getDragStateName, dbg_getOptimisticVolumeRemainingMs,
+      dbg_getSongDuration) expose internal state for scripted assertions without network.
+    status: planned
+    git_ref: ""
+    files:
+      - Spotify-Diy-Thing/platformio.ini
+      - Spotify-Diy-Thing/scripts/inject_git_hash.py
+      - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
+      - Spotify-Diy-Thing/SpotifyDiyThing/spotifyDisplay.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTask.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTaskStorage.cpp
+    cross_features: [conn-001, touch-002, chrome-001, io-001]
+    test_ids: [T076, T077, T078, T079, T080, T081, T082, T083, T084, T085, T086, T087, T088, T089, T095, T096]
+    notes: |
+      ADR-021 + designs/M-SERIALDBG-serial-debug-framework.md.
+      Sub-tasks planned as TASK-056a–k (PM to allocate per design doc Sub-tasks table).
+      reconnect (conn-001, TASK-053e) response format migrates from plain-text
+      `[reconnect] TLS reset + force poll` to JSON `{"ok":true,"cmd":"reconnect"}` in
+      TASK-SERIALDBG-j — conn-001 test suite (T090–T094) must exist as regression guard
+      before that change merges. cmdHelp must emit a single JSON line (iterating kCmds[])
+      to preserve the one-JSON-object-per-newline invariant.
+      Production env cyd2usb_winamp must contain zero SERIAL_DEBUG symbols (T089).
+      s_consecutiveFailures changed to `volatile` to match the s_resetTlsPending pattern;
+      cross-task set is a single aligned 32-bit store, atomic on Xtensa.
+      tmux/grep scripts matching the old `[reconnect]` prefix must be audited at j-merge.
+
+  - id: sync-001
+    name: DUT–Spotify state synchronization (M-SYNC)
+    description: |
+      Field-level lag bounds + stale-state observability between Spotify's authoritative
+      state and the DUT chrome render. Three lag-bound tiers (per planned ADR-022):
+      steady-state field change = one poll cycle (5.5 s); degraded = backoff_remaining +
+      one poll (≤ 61 s); touch-confirmed = optimistic_window + one poll (3.5–7 s).
+      Observability surface: heartbeat fields `last_poll_age_ms` + `next_poll_in_ms`
+      (log-001 extension, TASK-058); per-poll structured `[D][spotify.poll] snap ...`
+      log line; optimistic-volume-expiry `LOG_D`; track-transition-skip `LOG_W` (deferred).
+      Host-side comparator `tools/tsync_diff.py` against the firmware-consumed field set
+      from T073.
+    status: planned
+    git_ref: ""
+    files: []
+    cross_features: [poll-001, poll-002, touch-002, chrome-001, playlist-001, playlist-002, io-001, serialdbg-001, log-001]
+    test_ids: [T097, T098, T099, T100, T101, T102, T103, T104, T105, T106, T107, T108, T109, T110]
+    notes: |
+      Suite drafted 2026-05-17 per Option α — all 14 tests planned against the target
+      surface, each test's Preconditions field calls out the firmware prereq it depends on.
+      Firmware prereqs:
+        - SERIALDBG-l (new sub-task): extend `get snapshot` with `lastPollAgeMs`,
+          `currentTrackUri`, `deviceActive`. Owner: Developer.
+        - SERIALDBG-m (new sub-task): new `get queue` command. Owner: Developer.
+        - TASK-058 (new, log-001): heartbeat `last_poll_age_ms` + `next_poll_in_ms`.
+          Owner: Developer.
+        - Should-have (Block B): optimistic-volume-expiry LOG_D, per-poll structured
+          log line. Owner: Developer.
+        - Defer (Block C): track-transition-skip WARN in spotifyTask::onCurrentlyPlaying.
+      VE harness prereqs:
+        - tools/spotify_state.py — refresh-token-aware /me/player wrapper.
+        - tools/spotify_drive.py — Connect API control (pause/next/setVolume/transfer/etc).
+        - tools/tsync_diff.py — per-field DUT-vs-Spotify diff, anchor for T110.
+      Architect: draft ADR-022 to formalize the lag-bound contract before suite execution
+      moves past `planned`.
+      PM: allocate TASK-057 block for SERIALDBG-l/-m + TASK-058 + VE harness.
+
   - id: playlist-002
     name: Winamp PLEDIT playlist skin (M-LIST-v2)
     description: |
