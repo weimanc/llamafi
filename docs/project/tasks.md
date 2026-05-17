@@ -1045,11 +1045,13 @@ To be triaged with the team.
 ### TASK-060 — drift-001: chrome staleness indicator in repaintChrome()
 **Owner**: Developer
 **Feature**: drift-001
-**Status**: todo
-**Blocked by**: ADR-023 (threshold + indicator form decision)
+**Status**: done (2026-05-17)
 **Notes**:
-- When `last_poll_age_ms > N_STALE_MS` (threshold from ADR-023), paint staleness indicator.
-- Form TBD in ADR-023: dimmed titlebar shade, corner pip, or banner. Open question: collision with conn-001 inactive-titlebar overlay.
+- `N_STALE_MS = 15000` compile-time constant in `winampDisplay.h` (3× base poll cadence per ADR-023).
+- 4×4 amber pip (`0xFD00`) baked inline (16 × uint16_t); no atlas change.
+- Blit at `originX+268, originY+1`, layered after conn-001 inactive-titlebar in `repaintChrome()` — both indicators visible simultaneously.
+- Check uses `spotifyTask::lastSuccessfulPollAgeMs()` (TASK-058 getter).
+- Both envs build clean.
 
 ---
 
