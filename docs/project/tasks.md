@@ -1016,12 +1016,12 @@ To be triaged with the team.
 ### TASK-057 — M-SYNC: VE harness tools (spotify_state.py, spotify_drive.py, tsync_diff.py)
 **Owner**: VE
 **Feature**: sync-001
-**Status**: todo
+**Status**: done (2026-05-17)
 **Notes**:
-- `tools/spotify_state.py`: refresh-token-aware `/me/player` wrapper; emits structured JSON.
-- `tools/spotify_drive.py`: Connect API control (pause, next, setVolume, setShuffle, setRepeat, seek, transferPlayback).
-- `tools/tsync_diff.py`: fetches `get snapshot` over serial + `/me/player` over HTTPS; diffs firmware-consumed field set (T073); prints `[OK]` or `[DRIFT] field=<name> dut=<v> spotify=<v>`. Anchor for T110.
-- Can be written in parallel to firmware prereqs (TASK-056l/-m, TASK-058).
+- `tools/spotify_state.py`: refresh-token-aware `/me/player` wrapper; emits structured JSON matching firmware Snapshot field names. Exit 0=ok, 1=error, 2=204.
+- `tools/spotify_drive.py`: Connect API control — pause, play, next, prev, seek, setVolume, setShuffle, toggleShuffle, setRepeat, transfer. Stdlib only.
+- `tools/tsync_diff.py`: `get snapshot` over serial (split-protocol) + `/me/player` over HTTPS; diffs isPlaying/progressMs/durationMs/volumePct/shuffleState/repeatState/trackUri; prints `[OK]` or `[DRIFT] field dut=<v> spotify=<v>`. `--count N --interval S` for repeated runs. Exit 1 on any drift. Anchor for T110.
+- All three: stdlib only (no deps beyond pyserial for tsync_diff). Syntax verified.
 
 ### TASK-058 — log-001: heartbeat fields last_poll_age_ms + next_poll_in_ms
 **Owner**: Developer
