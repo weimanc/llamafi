@@ -557,10 +557,8 @@ Common preconditions for all tests below:
   - **Pre-SERIALDBG-j** (current `cyd2usb_winamp`): exact line `[reconnect] TLS reset + force poll`.
   - **Post-SERIALDBG-j**: line parses as JSON (`json.loads(line)` succeeds); object equals
     `{"ok":true,"cmd":"reconnect"}` (key set + values exact).
-- **Status**: planned. Owner: VE. Execute first against the current build to establish
-  the plain-text baseline, then re-execute after TASK-SERIALDBG-j merges to confirm the
-  JSON form. Audit any tmux/grep scripts that match the literal `[reconnect]` prefix at
-  the same time.
+- **Status**: pass 2026-05-18 (DUT, 7ae8b7f+, build May 18 2026 08:58:13; harness
+  `tools/run_serialdbg_tests.py::t090`; `{"ok":true,"cmd":"reconnect"}` exact match). Owner: VE.
 
 ### T091 — [conn-001] `reconnect` clears consecutiveFailures
 
@@ -580,7 +578,7 @@ Common preconditions for all tests below:
   citing `consecutive=3+` after reconnect). Subsequent successful poll keeps the
   counter at 0. Where `get backoff` is available, it returns `consecutiveFailures=0`
   immediately after the `reconnect` command.
-- **Status**: planned. Owner: VE.
+- **Status**: pass 2026-05-18 (DUT, 7ae8b7f+; harness `t091`; `set backoff 3` → 3, `reconnect` → 0 confirmed). Owner: VE.
 
 ### T092 — [conn-001] `reconnect` triggers an immediate force poll
 
@@ -599,7 +597,7 @@ Common preconditions for all tests below:
 - **Expected result**: `t1 - <send_time>` ≤ 2000 ms (allowing one loop-iteration of
   drain latency plus the queue dequeue). Significantly earlier than the natural
   cadence would have predicted.
-- **Status**: planned. Owner: VE.
+- **Status**: pass 2026-05-18 (DUT, 7ae8b7f+; harness `t092`; force poll in 1127 ms ≤ 2000 ms). Owner: VE.
 
 ### T093 — [conn-001] Unhealthy titlebar overlay appears + clears
 
@@ -871,9 +869,10 @@ Common preconditions for all tests below:
 - **Expected result**: SHUFFLE and REPEAT tap dispatches enqueue ACT_SHUFFLE /
   ACT_REPEAT. VIS cycles visualiser mode. LOGO first tap fires TLS reset. Second
   LOGO tap within 2 s returns `hit=DEADZONE` (not LOGO) with no second TLS reset.
-- **Status**: pass 2026-05-17 (DUT, ee65beb+; all 5 steps pass; VIS confirmed wired;
-  LOGO TLS log `[I][spotify.tls] hard reset — stopping client`; second LOGO tap
-  confirmed DEADZONE with no second reset). Owner: VE.
+- **Status**: pass 2026-05-18 (DUT, 7ae8b7f+; harness `t087`; SHUFFLE+REPEAT+VIS+LOGO
+  correct; LOGO TLS log `[I][spotify.tls] hard reset — stopping client` confirmed;
+  second LOGO tap within 2 s → DEADZONE/FORCE_POLL. Note: harness restructured to
+  send second tap before TLS log search to honour the 2 s cooldown window). Owner: VE.
 
 ### T088 — [serialdbg-001, touch-002] DEADZONE positive cases — canvas corners + design-doc dead-zone samples
 
