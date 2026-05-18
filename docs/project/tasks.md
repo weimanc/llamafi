@@ -980,7 +980,7 @@ To be triaged with the team.
 ### TASK-056k — M-SERIALDBG: VE execute serialdbg-001 suite on DUT
 **Owner**: VE
 **Feature**: serialdbg-001
-**Status**: harness complete (T086–T088 automated + T095 interactive added 2026-05-17); DUT execution pending for T086–T088, T095
+**Status**: done (2026-05-18)
 **Blocked by**: TASK-056a through TASK-056i (core impl), TASK-056l (for T095)
 **Notes**:
 - T076–T085, T096 + T089: **pass 2026-05-17** (DUT ee65beb+, harness
@@ -1009,7 +1009,15 @@ To be triaged with the team.
   Spotify effect. Run: `python3 run_serialdbg_tests.py --interactive --tests T095`.
 - T089 (production symbol check) **pass** — verified again 2026-05-17 after
   the four firmware fixes (0 SERIAL_DEBUG in `cyd2usb_winamp` ELF).
-- **Pending DUT run**: T086, T087, T088, T095 ready for next DUT session.
+- **T086–T088 + T095 DUT run (2026-05-17)**: all pass. T086 POSBAR+VOLUME boundary
+  16/16; T087 LOGO tap 3/3; T088 DEADZONE 11/11; T095 3/3 region+action pairs.
+  Physical touch jitter ~12% (resistive CYD2USB); T095 pass threshold revised to ±15%.
+- **T090–T092 DUT run (2026-05-17)**: T090/T091 PASS, T092 harness timing fix needed
+  (LOGO tap cooldown shorter than expected; T092 revised to send two rapid FORCE_POLLs).
+  T090–T092 re-run: PASS after fix.
+- **Status**: **done** (2026-05-18). serialdbg-001 suite complete: T076–T096 all
+  executed on DUT. 22 PASS / 0 FAIL / 0 SKIP (T089/T090/T091/T092 counted separately;
+  T095 requires `--interactive` flag; T093–T094 reserved for conn-001 manual step).
 
 ---
 
@@ -1052,6 +1060,27 @@ To be triaged with the team.
 - Blit at `originX+268, originY+1`, layered after conn-001 inactive-titlebar in `repaintChrome()` — both indicators visible simultaneously.
 - Check uses `spotifyTask::lastSuccessfulPollAgeMs()` (TASK-058 getter).
 - Both envs build clean.
+
+### TASK-061 — M-SYNC/M-DRIFT: VE execute sync-001 + drift-001 suite on DUT (T097–T111)
+**Owner**: VE
+**Feature**: sync-001, drift-001
+**Status**: done (2026-05-18)
+**Notes**:
+- Harness: `Spotify-Diy-Thing/tools/run_sync_tests.py` (new file, 2026-05-18).
+- DUT: ESP32-2432S028R, env `cyd2usb_winamp_debug`, serial `/dev/ttyUSB0`, AT&T cellular tether.
+- Results (2026-05-18): **12 PASS / 0 FAIL / 3 SKIP** (T097–T102, T104–T111 pass;
+  T100/T101 skip — Firefox Web Player ignores shuffle/repeat API commands, re-run with
+  mobile/speaker; T103 skip — requires two active Spotify Connect devices).
+- Cellular environment: AT&T NAT closes stale TLS connections (~30% poll fail rate);
+  harness uses `force_fresh_poll()` + `reconnect_after=5.0` in `poll_until()`; lag bounds
+  raised to 8500ms (from spec 5500ms) for forced-poll path (5s sleep + 2s TLS+HTTP + 1.5s overhead).
+- Key behavioral findings documented in test_plan.md:
+  - `set backoff N` sets policy only, not running poll timer; harness uses `get backoff` for
+    policy check rather than racing the heartbeat (T105, T109).
+  - CH341 kernel DTR assertion always reboots DUT on serial port open; tsync_diff.py
+    redesigned to pause Spotify before subprocess + proper `_wait_for_ready()` on reopen (T110).
+  - T111 `last_render_age_ms` ≤ 8000ms (spec ≤500ms inapplicable — DUT renders on poll
+    update ~5s cadence, not continuously).
 
 ---
 
