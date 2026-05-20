@@ -213,6 +213,28 @@ Resolve remaining open questions (TLS CA strategy, seek-drag, speculative poll, 
 
 ---
 
+### M-NOART — Remove album-art path and JPEG decoder
+
+The `WinampDisplay` renderer does not use album art; the CYD panel has no space for it.
+The inherited JPEG decode path (`JPEGDEC` library, `getImage()`, `processImageInfo()`) is
+dead weight: it pulls in ~40 KB of JPEG decoder, makes CDN connections that clobber the
+`api.spotify.com` keep-alive session, and crashes with a null `pDraw` on some track
+transitions (`JPEGPutMCU22 LoadProhibited` Guru Meditation, confirmed 2026-05-20).
+
+Work:
+- Gate the entire album-art path in `cheapYellowLCD.h` behind `#ifndef WINAMP_DISPLAY`
+  (or a dedicated `ALBUM_ART_ENABLED` flag).
+- Remove `JPEGDEC` from `platformio.ini` `lib_deps` under `cyd2usb_winamp`.
+- Drop the `processImageInfo` override workaround in `winampDisplay.h` (no longer needed
+  once the path is compiled out).
+- Confirm the winamp build clean-compiles without the decoder and no longer crashes on
+  track change.
+
+**Status:** planned (2026-05-20 — JPEG crash observed on rnd/poll-lag DUT run)
+**Deps:** M3 (winamp renderer in tree)
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.

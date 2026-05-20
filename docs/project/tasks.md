@@ -598,9 +598,55 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Spectrum mode no longer in cycle — removed intentionally.
 - Flash delta confirmed within budget (TASK-052e, TASK-055c).
 
+### TASK-064 — Merge rnd/poll-lag planning docs to master (outer repo)
+**Owner**: PM
+**Status**: todo
+**Git ref**: rnd/poll-lag outer repo — commits `f1b8fb0` (M-NOART roadmap + PROP-004 resolved), `a71753e` (INV-A step3 design doc)
+**Notes**:
+- The M-NOART roadmap entry and PROP-004 status update are PM/planning artifacts that
+  belong on `master` regardless of code promotion timing.
+- Merge or cherry-pick `f1b8fb0` and `a71753e` to `master`. R&D investigation docs
+  (INV-A, INV-B, EXP-001/002, PROP-003) stay on `rnd/poll-lag` per convention.
+- Independent of TASK-062/063 — can be done now.
+
+### TASK-062 — M-NOART: remove album-art path and JPEG decoder
+**Owner**: Developer
+**Feature**: noart-001 (new)
+**Status**: todo
+**Git ref**: rnd/poll-lag (roadmap item added f1b8fb0)
+**Notes**:
+- Gate for promoting the INV-A keep-alive fix to main.
+- JPEG crash (`JPEGPutMCU22 LoadProhibited`) observed on DUT 2026-05-20 during track
+  playback; triggered by the inherited album-art decode path in `CheapYellowDisplay`.
+- Work: gate the album-art path in `cheapYellowLCD.h` behind `#ifndef WINAMP_DISPLAY`
+  (or a dedicated `ALBUM_ART_ENABLED` flag); remove `JPEGDEC` from `lib_deps` under
+  `cyd2usb_winamp` in `platformio.ini`; drop the `processImageInfo` override workaround
+  in `winampDisplay.h` (superseded by the compile-time guard).
+- Exit criterion: `cyd2usb_winamp` build clean without `JPEGDEC`; DUT survives 5+ min
+  of active track playback without a Guru Meditation Error.
+- Design: `docs/project/roadmap.md` M-NOART.
+
+### TASK-063 — Promote rnd/poll-lag keep-alive fix to main
+**Owner**: Developer
+**Feature**: conn-002 (new)
+**Status**: todo
+**Git ref**: rnd/poll-lag — inner repo commit `4f0da82` (keep-alive) + `49d9b71`, `66e71de` (tools)
+**Blocked by**: TASK-062 (JPEG crash makes winamp build unstable; must land M-NOART first)
+**Notes**:
+- Cherry-pick or merge `4f0da82` to `main`, replacing the `processImageInfo` workaround
+  in `winampDisplay.h` with the proper M-NOART `#ifdef` guard from TASK-062.
+- Also promote `tools/poll_latency_mock.py` (`66e71de`) and `tools/command_latency.py`
+  (`49d9b71`) — low-risk R&D tooling, independent of the JPEG issue.
+- The INV-B timeout bump/revert pair (`e174b04` + `bae05bb`) is net-zero; do not promote.
+- Source investigation: INV-A (`docs/rnd/investigations/INV-A-tls-connection-lifecycle.md`),
+  design: `docs/architecture/designs/M-CONN-http11-keepalive.md`.
+- Verified: poll=55/55 100%, block_max 216–442ms typical, zero stale fd warnings (idle).
+  One stale fd=49 sighting during active playback at 1:05 — acceptable, rare.
+
 ## Blocked Tasks
 
-_None._
+### TASK-063 — (see Active Tasks above)
+**Blocked by**: TASK-062
 
 ## Completed Tasks
 
