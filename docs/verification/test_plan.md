@@ -1164,6 +1164,12 @@ correct; the bound relaxation is a test-environment accommodation.
 - **Status**: **pass** (DUT 2026-05-18). Harness: `run_sync_tests.py T102`. Queue row[0] shifted
   in 7534ms ≤ 8500ms. Harness checks any URI change in row[0] (specific URI indeterminate after
   prior next/prev operations). Owner: VE.
+- **Regression gap (TASK-065)**: T102 ran under HTTP/1.0 (pre-INV-A Step 3). After Step 3
+  promotes to main (TASK-063), T102 must be re-run. Root cause: `getQueue()` chunked
+  bail-out silently skips parse under HTTP/1.1 keep-alive — PLEDIT stays empty.
+  Add a prerequisite assertion before the row-shift check: `get queue` must return
+  `count > 0` within one 60 s keepalive cycle of an active track playing.
+  **Must re-run before TASK-063 promotion is considered verified.**
 
 ### T103 — [sync-001, chrome-001] (TSYNC-7) Device transfer propagates to DUT chrome
 

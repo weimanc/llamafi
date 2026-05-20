@@ -598,6 +598,71 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Spectrum mode no longer in cycle — removed intentionally.
 - Flash delta confirmed within budget (TASK-052e, TASK-055c).
 
+### TASK-065 — BUG: PLEDIT empty after HTTP/1.1 keep-alive (getQueue chunked bail-out)
+**Owner**: Developer
+**Feature**: playlist-002, conn-002
+**Status**: todo
+**Git ref**: rnd/poll-lag (observed 2026-05-20 post-M-NOART flash)
+**Blocked by**: TASK-063 (chunked fix lives in the same lib file as the keep-alive change)
+**Notes**:
+
+#### Symptom
+PLEDIT rows are empty (no track names) even when Spotify shows an active queue.
+`get queue` serial command returns `count=0` after a normal boot + track playing.
+
+#### Root cause
+`getQueue()` (`lib/SpotifyArduino/src/SpotifyArduino.cpp:625–630`) bails out silently
+when the response carries `Transfer-Encoding: chunked`:
+
+```cpp
+if (hdr.chunked) {
+    closeClient();
+    return statusCode;  // 200 returned; onQueue never called
+}
+```
+
+Under HTTP/1.0 (pre-INV-A Step 3) Spotify returned `Content-Length` for the queue
+endpoint — `hdr.chunked` was false and the parse path ran. After the HTTP/1.1
+keep-alive switch (INV-A Step 3, 2026-05-20), Spotify responds with
+`Transfer-Encoding: chunked`. The bail-out fires every time, `onQueue` is never
+invoked, `g_queueSnapshot.count` stays 0, `drawPlaylist()` renders 5 empty rows.
+
+`doFetchQueue()` sets `s_queueRefreshNeeded = false` regardless of outcome, so
+subsequent fetches only happen on track-change or the 60 s keepalive — each also
+hits the chunked path and produces the same silent zero.
+
+Note: the INV-A Step 3 design notes (`INV-A-tls-connection-lifecycle.md`, §Step 3
+implementation notes, item 7) explicitly called out the chunked risk and specified
+"fall back to connection-close for that response". This was not implemented — the
+bail-out was carried over from the pre-Step-3 code unchanged.
+
+#### Why verification did not catch this
+- T102 (TSYNC-6 — queue strip shifts on track-change) ran **2026-05-18**, two days
+  before INV-A Step 3 landed (**2026-05-20**). T102 passed under HTTP/1.0; no
+  re-run was scheduled after Step 3.
+- The Step 3 DUT verification run (5 min, idle, all 204s) checked connection
+  metrics only (fd warnings, block_max, poll ratio, heap). The success criteria
+  did not include a `get queue` assertion or a PLEDIT visual check. A PLEDIT
+  content check was not in the Step 3 exit criteria document.
+- `get queue` returning `count=0` on first fetch looks identical to a valid empty
+  queue at idle (no track playing). The idle verification run never exercised the
+  active-playback queue path.
+
+#### Fix
+Implement a dechunker in `getQueue()`: read raw socket bytes into `bodyBuf`,
+strip chunk-size framing (`HEX\r\n…DATA…\r\n`, terminated by `0\r\n\r\n`) before
+passing to `deserializeJson`. ~20-line loop; isolated to the `getQueue` body-read
+path. Removes the bail-out; handles multi-chunk responses correctly.
+Alternative (simpler but incurs a reconnect): add `Connection: close` override for
+the queue request only, forcing the server to send Content-Length.
+
+#### VE gap (regression coverage)
+T102 must be re-run after TASK-063 promotes to main. A new regression test is
+needed: after INV-A Step 3 is on main, `get queue` must return `count > 0` within
+one keepalive cycle of an active track playing. Noted in test_plan.md.
+
+---
+
 ### TASK-064 — Merge rnd/poll-lag planning docs to master (outer repo)
 **Owner**: PM
 **Status**: done (2026-05-20)
