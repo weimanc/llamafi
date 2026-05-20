@@ -66,7 +66,7 @@ Single-purpose ESP32 firmware that polls Spotify's Web API for the user's curren
 
 | Layer            | Choice                                                                |
 |------------------|-----------------------------------------------------------------------|
-| Toolchain        | PlatformIO (`~/.platformio/penv/bin/pio`), env `cyd2usb`              |
+| Toolchain        | PlatformIO (`~/.platformio/penv/bin/pio`), env `cyd2usb_winamp`       |
 | Platform         | `espressif32 @ 6.9.0` (Arduino-ESP32 2.0.17) — pinned                 |
 | Framework        | Arduino                                                               |
 | Spotify client   | `witnessmenow/spotify-api-arduino`                                    |
@@ -164,7 +164,7 @@ What's removed:
 
 What's unchanged from baseline:
 
-- Toolchain (`espressif32@6.9.0`, env `cyd2usb`, PlatformIO).
+- Toolchain (`espressif32@6.9.0`, env `cyd2usb_winamp`, PlatformIO).
 - Super-loop in `loop()`. No FreeRTOS task split.
 - `SpotifyArduino` consumed directly. No `SpotifyTransport` wrapper.
 - WiFiManager provisioning, NVS for WiFi creds, SPIFFS for Spotify creds.

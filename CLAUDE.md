@@ -77,7 +77,7 @@ Arduino sketch (`SpotifyDiyThing/SpotifyDiyThing.ino`) that polls the Spotify We
 ### This machine's setup
 
 - **PlatformIO is not on PATH.** Use `~/.platformio/penv/bin/pio` (alias `pio` if you want).
-- **Board:** ESP32-2432S028R "Cheap Yellow Display", **two-USB variant** — must build with env `cyd2usb` (`-DTFT_INVERSION_ON`). The plain `cyd` env produces inverted colors on this hardware.
+- **Board:** ESP32-2432S028R "Cheap Yellow Display", **two-USB variant** — production target is `cyd2usb_winamp`; requires `-DTFT_INVERSION_ON` (inherited from `cyd2usb` base). The plain `cyd` env produces inverted colors on this hardware.
 - **Serial port:** `/dev/ttyUSB0`, CH340 (USB VID:PID `1A86:7523`).
 - **Platform pin:** `platformio.ini` pins `platform = espressif32@6.9.0` (Arduino-ESP32 2.0.17). The repo's original unpinned line broke against current PlatformIO because the bundled WiFi lib in newer cores expects `Network.h`, which the install didn't ship. Don't bump above 6.9.x without checking the WiFi/Network split.
 
@@ -85,10 +85,10 @@ Arduino sketch (`SpotifyDiyThing/SpotifyDiyThing.ino`) that polls the Spotify We
 
 ```sh
 cd Spotify-Diy-Thing
-~/.platformio/penv/bin/pio run -e cyd2usb                                  # build (this board)
-~/.platformio/penv/bin/pio run -e cyd2usb -t upload --upload-port /dev/ttyUSB0
-~/.platformio/penv/bin/pio run -e cyd2usb -t uploadfs --upload-port /dev/ttyUSB0   # SPIFFS only
-~/.platformio/penv/bin/pio run -e cyd2usb_winamp                           # M3 Winamp renderer (uses gen/ atlas)
+~/.platformio/penv/bin/pio run -e cyd2usb_winamp                           # build — production target
+~/.platformio/penv/bin/pio run -e cyd2usb_winamp -t upload --upload-port /dev/ttyUSB0
+~/.platformio/penv/bin/pio run -e cyd2usb_winamp -t uploadfs --upload-port /dev/ttyUSB0   # SPIFFS only
+~/.platformio/penv/bin/pio run -e cyd2usb_winamp_debug                     # debug build (SERIAL_DEBUG)
 ```
 
 Other envs in `platformio.ini` (don't use on this board): `cyd` (single-USB CYD, inversion off), `trinity` (HUB75 matrix). Env selects display via `-DYELLOW_DISPLAY` vs `-DMATRIX_DISPLAY`. The `cyd*` envs bake the full TFT_eSPI `User_Setup.h` into `build_flags` — the library's bundled User_Setup is ignored.
@@ -113,7 +113,7 @@ Deps: `python3-pillow` and **ImageMagick CLI** (`magick` on PATH). Pillow's `BI_
 The monitor holds the port exclusive, blocking flashes. Run it in a detached tmux session so it can be killed/restarted around uploads:
 
 ```sh
-tmux new-session -d -s spotify-mon "~/.platformio/penv/bin/pio device monitor -e cyd2usb -p /dev/ttyUSB0"
+tmux new-session -d -s spotify-mon "~/.platformio/penv/bin/pio device monitor -e cyd2usb_winamp -p /dev/ttyUSB0"
 tmux capture-pane -t spotify-mon -p -S -500     # read last ~500 lines
 tmux kill-session -t spotify-mon                # before flashing
 ```
@@ -135,7 +135,7 @@ Two ways to populate the config:
 
 1. **Captive portal (interactive).** First boot or double-press reset within ~10s (`DoubleResetDetector`, `DRD_TIMEOUT=10`, SPIFFS-backed via `ESP_DRD_USE_SPIFFS=true`). Phone joins SSID `SpotifyDIY` / pw `thing123`. **Must use the "Configure WiFi" page**, not "Info" — only the configure page exposes the Client ID / Secret / Refresh Token text fields. If you save from the wifi-only page, those fields are written as empty strings and the OAuth URL renders with `client_id=` blank.
 
-2. **Pre-baked SPIFFS image (preferred when reflashing dev boards).** Put a fully-filled `data/spotify_diy_config.json` in the project root and run `pio run -e cyd2usb -t uploadfs`. Bypasses the portal entirely — wifi must still be configured separately the first time, but creds + refresh token are already there.
+2. **Pre-baked SPIFFS image (preferred when reflashing dev boards).** Put a fully-filled `data/spotify_diy_config.json` in the project root and run `pio run -e cyd2usb_winamp -t uploadfs`. Bypasses the portal entirely — wifi must still be configured separately the first time, but creds + refresh token are already there.
 
 After SPIFFS has client ID + secret but no refresh token, the device enters "Refresh Token Mode" and serves a small auth-helper page on its LAN IP (`refreshToken.h`).
 
@@ -167,7 +167,7 @@ Refresh loop (no app reflash):
 ```sh
 cd Spotify-Diy-Thing
 tools/refresh_host_overrides.sh                                    # regenerates data/host_overrides.json via dig
-~/.platformio/penv/bin/pio run -e cyd2usb -t uploadfs --upload-port /dev/ttyUSB0
+~/.platformio/penv/bin/pio run -e cyd2usb_winamp -t uploadfs --upload-port /dev/ttyUSB0
 ```
 
 JSON schema:

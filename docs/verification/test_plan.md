@@ -164,7 +164,7 @@ Common preconditions for all tests below:
 
 ## Suite: poll-002 — Position interpolation (M4)
 
-Visual e2e tests against a live DUT with Spotify playing on the same Premium account. Default `cyd2usb` env (no `-DSPIKE_MODE`). Renderer-side correctness; the spotifyLogic interpolation math is exercised implicitly via display state.
+Visual e2e tests against a live DUT with Spotify playing on the same Premium account. Default `cyd2usb_winamp` env (no `-DSPIKE_MODE`). Renderer-side correctness; the spotifyLogic interpolation math is exercised implicitly via display state.
 
 ### T021 — [poll-002] Seek bar advances smoothly between polls
 - **Type**: e2e (visual)
@@ -217,8 +217,8 @@ Host-side tool tests. Run on the dev machine, not the DUT.
 ### T026 — [m2-001] Generated headers compile in firmware build
 - **Type**: integration
 - **Feature(s)**: m2-001
-- **Objective**: Verify `gen/skin_assets.c` + `gen/skin_layout.h` build cleanly under `cyd2usb` env without referenced-but-missing-symbol errors.
-- **Steps**: `pio run -e cyd2usb`.
+- **Objective**: Verify `gen/skin_assets.c` + `gen/skin_layout.h` build cleanly under `cyd2usb_winamp` env without referenced-but-missing-symbol errors.
+- **Steps**: `pio run -e cyd2usb_winamp`.
 - **Expected result**: SUCCESS.
 - **Status**: passing (2026-05-07 build clean post-bake). Linker may DCE unused arrays until M3 references them.
 
