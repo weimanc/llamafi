@@ -600,14 +600,13 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ### TASK-064 — Merge rnd/poll-lag planning docs to master (outer repo)
 **Owner**: PM
-**Status**: todo
-**Git ref**: rnd/poll-lag outer repo — commits `f1b8fb0` (M-NOART roadmap + PROP-004 resolved), `a71753e` (INV-A step3 design doc)
+**Status**: done (2026-05-20)
+**Git ref**: master `a9748f8`
 **Notes**:
-- The M-NOART roadmap entry and PROP-004 status update are PM/planning artifacts that
-  belong on `master` regardless of code promotion timing.
-- Merge or cherry-pick `f1b8fb0` and `a71753e` to `master`. R&D investigation docs
-  (INV-A, INV-B, EXP-001/002, PROP-003) stay on `rnd/poll-lag` per convention.
-- Independent of TASK-062/063 — can be done now.
+- Applied `roadmap.md` (M-NOART item), `tasks.md` (TASK-062/063/064), and
+  `docs/architecture/designs/M-CONN-http11-keepalive.md` to master via
+  `git checkout rnd/poll-lag -- <files>`. R&D investigation docs stayed on
+  rnd/poll-lag per convention.
 
 ### TASK-062 — M-NOART: remove album-art path and JPEG decoder
 **Owner**: Developer
