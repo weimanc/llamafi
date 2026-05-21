@@ -655,10 +655,11 @@ path. Removes the bail-out; handles multi-chunk responses correctly.
 Alternative (simpler but incurs a reconnect): add `Connection: close` override for
 the queue request only, forcing the server to send Content-Length.
 
-#### VE gap (regression coverage)
-T102 must be re-run after TASK-063 promotes to main. A new regression test is
-needed: after INV-A Step 3 is on main, `get queue` must return `count > 0` within
-one keepalive cycle of an active track playing. Noted in test_plan.md.
+#### VE gap (regression coverage) — **closed 2026-05-21**
+T114 PASS (DUT 2026-05-21, inner `main` `ab3864e`): `get queue` count=4, row[0] non-empty.
+T102 re-run PASS (DUT 2026-05-21): queue row[0] shifted 5832ms ≤ 8500ms under HTTP/1.1
+keep-alive + dechunker. Harness: `run_sync_tests.py` T114 added (inner repo `6c6bbe6`);
+`read_json()` timing bug fixed; T102 settle-wait added. Results recorded in test_plan.md.
 
 ---
 
