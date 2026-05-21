@@ -524,3 +524,57 @@ features:
       Scrollbar static decoration only (tier 2 deferred: TASK-047e, M-LIST-v3).
       Tap-to-play (TASK-021) deferred (depends on updated row y-boundaries from TASK-047c — now available).
       VE: no test suite written — action from 2026-05-15 audit.
+
+  - id: conn-002
+    name: HTTP/1.1 keep-alive + chunked dechunker (M-CONN-HTTP11)
+    description: |
+      Upgrades SpotifyArduino from HTTP/1.0 (connection-close) to HTTP/1.1 keep-alive,
+      eliminating TLS handshake overhead on every poll. makeGetRequest/makeRequestWithBody
+      send HTTP/1.1 + Connection: keep-alive; conditional reconnect keyed on
+      _connectedHost[64]; single retry on write failure; delay(200) after every stop()
+      before connect(). skipHeaders() redesigned to read line-by-line, returning
+      HeaderInfo {contentLength, chunked}. All deserializeJson sites converted to
+      buffer-then-parse (malloc + readBytes) to avoid stream-hang under keep-alive.
+      getQueue() extended with a dechunker: reads HEX\r\n DATA \r\n chunk frames into
+      bodyBuf, stopping on the terminal 0\r\n chunk (TASK-065 fix for PLEDIT empty).
+    status: implemented
+    git_ref: Spotify-Diy-Thing@inner-main-ab3864e (TASK-063 + TASK-065)
+    files:
+      - Spotify-Diy-Thing/lib/SpotifyArduino/src/SpotifyArduino.cpp
+      - Spotify-Diy-Thing/lib/SpotifyArduino/src/SpotifyArduino.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
+    cross_features: [conn-001, playlist-002, api-002]
+    test_ids: [T114]
+    notes: |
+      INV-A investigation: docs/rnd/investigations/INV-A-tls-connection-lifecycle.md (rnd/poll-lag only).
+      Design doc: docs/architecture/designs/M-CONN-http11-keepalive.md.
+      T114 (getQueue chunked regression) is todo — requires DUT run on inner main >= ab3864e.
+      T102 (queue row shift) must be re-run after T114 passes.
+      Verified idle: poll=55/55 100%, block_max 216-442ms, zero stale fd warnings.
+      One stale fd=49 sighting during active playback at 1:05 — acceptable, rare.
+
+  - id: noart-001
+    name: Remove album-art path and JPEG decoder (M-NOART)
+    description: |
+      Compile-time removal of the JPEGDEC library and album-art fetch path from the
+      cyd2usb_winamp build. cheapYellowLCD.h: JPEGDEC include, jpeg/ALBUM_ART globals,
+      displayImageUsingFile(), processImageInfo(), and displayImage() all guarded by
+      #ifndef WINAMP_DISPLAY / #ifdef WINAMP_DISPLAY — processImageInfo returns false,
+      displayImage returns 0 under WINAMP_DISPLAY. platformio.ini: lib_ignore = JPEGDEC
+      added to [env:cyd2usb_winamp], preventing the decoder from being compiled in at all.
+      winampDisplay.h: runtime processImageInfo() override removed (superseded by the
+      compile-time guard). Eliminates the JPEGPutMCU22 LoadProhibited Guru Meditation
+      crash triggered by CDN album-art fetches during active playback.
+    status: implemented
+    git_ref: Spotify-Diy-Thing@inner-main-1411a3e (TASK-062)
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/cheapYellowLCD.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
+      - Spotify-Diy-Thing/platformio.ini
+    cross_features: [conn-002, m3-001]
+    test_ids: []
+    notes: |
+      Design doc: docs/architecture/designs/M-NOART-remove-album-art.md.
+      Exit criterion: cyd2usb_winamp build clean without JPEGDEC; DUT survives 5+ min
+      active playback without Guru Meditation. DUT verification not yet run — pending flash.
+      No VE test suite — add to test plan when DUT verification is scheduled.
