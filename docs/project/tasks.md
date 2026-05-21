@@ -111,7 +111,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ### TASK-033 — M-PERF tier 3: implementation
 **Owner**: Developer
-**Status**: gated on TASK-031 / TASK-032 acceptance
+**Status**: done (2026-05-15 — touch press-hold state machine landed via pendingReleaseAt/PRESS_HOLD_MS; TASK-034 closed 80 ms delay; DMA deferred per ADR-013; async poll done in TASK-031)
 **Notes**:
 - Whichever of (async poll, DMA blits, screenLog incremental redraw, touch-debounce state-machine) the ADRs greenlight.
 - Touch-debounce / press-hold state-machine: 80 ms `delay()` in checkForInput becomes a millis-deadline; release re-renders the unpressed sprite. Always helpful, no ADR needed; could land in this task or fold into the next M5-follow-up commit.
@@ -119,7 +119,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-023 — M-CHROME tier 1: bake-tool extension + atlases
 **Owner**: Developer
 **Feature**: chrome-001 (to be registered at impl)
-**Status**: planned (2026-05-08)
+**Status**: done (2026-05-15 — SKIN_SHUFREP 75×30 atlas emitted (TASK-025); MONOSTER composited into MAIN_BG per ADR-014 (TASK-040); SKIN_SHUFREP in gen/skin_assets.c, constants in gen/skin_layout.h)
 **Notes**:
 - Extend `tools/bake_skin.py`: load `MONOSTER.BMP` (58×24) + `SHUFREP.BMP` (92×85) from the .wsz; emit `SKIN_MONOSTER` / `SKIN_SHUFREP` arrays + sprite UVs in `gen/skin_layout.h`.
 - MONOSTER sprite UVs: 29×12 each — `MONO` at (0,0), `STEREO` at (29,0), and a "lit" variant pair at (0,12) / (29,12). Confirm offsets against the source BMP at bake time.
@@ -157,7 +157,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-039 — M-CHROME tier 2: extend SpotifyArduino parser for device.volume_percent
 **Owner**: Developer
 **Feature**: api-002 (lib patch family)
-**Status**: planned (2026-05-09; ADR-014 sub-task 1)
+**Status**: done (2026-05-10 — SpotifyArduino.cpp:791-868; filter["device"]["volume_percent"] + currentlyPlaying.volumePercent field; LOCAL_PATCHES documented)
 **Notes**:
 - Add `device.volume_percent` to the JSON filter in `SpotifyArduino::getCurrentlyPlaying`.
 - Add `int volumePercent` field to `CurrentlyPlaying` struct (default `-1` = unknown / no device).
@@ -167,7 +167,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-040 — M-CHROME tier 2: bake-time static composite onto MAIN_BG
 **Owner**: Developer
 **Feature**: chrome-001 / m2-001
-**Status**: planned (2026-05-09; ADR-014 sub-task 2-3)
+**Status**: done (2026-05-10 — composite_static_decoration() in bake_skin.py: TITLEBAR active, BALANCE centred, kbps "192", kHz "44", MS_STEREO_ON + MS_MONO_OFF; MONOSTER dropped from runtime atlas; drawBitrateSampleRate/drawMonoStereo/redrawMetadataStrip removed)
 **Notes**:
 - Extend `tools/bake_skin.py` with composite mode: TITLEBAR active variant, BALANCE centered, kbps "192", kHz "44", static MS_STEREO_ON + MS_MONO_OFF.
 - Drop MONOSTER.BMP from TIER3_SHEETS (after compositing). Remove SKIN_MONOSTER atlas + UV defines from gen/.
@@ -340,7 +340,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-048 — M-UI-POLISH: artist + title in marquee strip
 **Owner**: Developer
 **Feature**: disp-001 (existing)
-**Status**: planned (2026-05-15)
+**Status**: done (2026-05-15 — winampDisplay.h:200-214; snprintf "%s - %s   " artist+title; lastTitle[264]; lastArtist change detection; 3-space gap for loop-back)
 **Notes**:
 - `Snapshot::artistName[128]` already populated (`spotifyTaskStorage.cpp:100-101`). Just not wired into `drawTitleText()`.
 - `winampDisplay.h:173` copies only `currentlyPlaying.trackName` → `lastTitle`. Change to compose `artist + " - " + name`.
@@ -421,7 +421,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ### TASK-021 — M-LIST tier 2: tap-on-row plays that track
 **Owner**: Developer
-**Status**: planned (2026-05-08; depends on TASK-047c for updated row y-boundaries)
+**Status**: done (2026-05-16 — winampDisplay.h:342-353; ACT_PLAY_URI dispatched on PLEDIT row tap; spotifyTaskStorage dispatches playAdvanced(uri). Caveat: playAdvanced replaces context; queue-aware skip deferred to M-LIST-v3)
 **Notes**:
 - Hit-test: `y >= PLEDIT_ROWS_Y && y < PLEDIT_BOTTOM_Y` → `row = (y - PLEDIT_ROWS_Y) / PLEDIT_ROW_H`. Bounds-check against `QueueSnapshot::count`.
 - On tap: `enqueue(ACT_PLAY_URI, row_index)` → task reads `QueueSnapshot::items[row_index].uri` → `playAdvanced`.
@@ -825,7 +825,7 @@ GET `/v1/me/player/currently-playing` runs every 5 s in the background poll loop
 ### TASK-052 — M-IO: any tap resets backoff + force-polls Spotify
 **Owner**: Developer
 **Feature**: io-001
-**Status**: planned (2026-05-15)
+**Status**: done (2026-05-16 — winampDisplay.h:233-366; resetBackoff() at top of every touched() block; dead-zone path enqueues ACT_FORCE_POLL with 1 s deadZoneForcePollAt cooldown)
 **Notes**:
 - **Problem**: during a backoff run (consecutive failures → 10/20/40/60 s waits), the screen feels dead even when the network recovers. User has no escape except waiting for the next cadence poll.
 - **Fix**: every tap — whether on an active control or a dead zone (inactive PLEDIT rows, PLEDIT title/bottom bar, black areas) — resets `s_consecutiveFailures = 0` and enqueues `ACT_FORCE_POLL`. This matches ADR-011's stated intent ("touch resets backoff") and extends it to all touch events, not just transport buttons.
@@ -844,7 +844,7 @@ To be triaged with the team.
 ### TASK-054 — M-HITZONES: hit-zone preview PNG from bake_skin.py
 **Owner**: Developer
 **Feature**: m2-001 (bake pipeline extension)
-**Status**: planned (2026-05-15)
+**Status**: done (2026-05-16 — bake_skin.py:1034-1097; render_hitzones() overlays all zones as semi-transparent magenta rects + labels; emits gen/skin_hitzones.png; excluded from golden.sha256)
 **Notes**:
 - Extend `tools/bake_skin.py`: after `render_full_preview()` runs, call a new `render_hitzones(canvas, out_path)` that overlays all registered touch zones as semi-transparent magenta rects with white labels.
 - Zone registry: Python list of `(label, x, y, w, h)` tuples using the same constant values that are emitted to `skin_layout.h` (single source of truth — define once, use in both the emitter and the renderer).
