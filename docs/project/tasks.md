@@ -668,10 +668,14 @@ keep-alive + dechunker. Harness: `run_sync_tests.py` T114 added (inner repo `6c6
 **Status**: done (2026-05-21 — `e9f9203`, `eb70315`, `943ccf3` cherry-picked to outer master; M-NOART design doc, TASK-065 filing, task status updates all on master)
 **Git ref**: rnd/poll-lag outer repo — commits `f1b8fb0` (M-NOART roadmap + PROP-004 resolved), `a71753e` (INV-A step3 design doc)
 **Notes**:
-- Applied `roadmap.md` (M-NOART item), `tasks.md` (TASK-062/063/064), and
-  `docs/architecture/designs/M-CONN-http11-keepalive.md` to master via
-  `git checkout rnd/poll-lag -- <files>`. R&D investigation docs stayed on
-  rnd/poll-lag per convention.
+- PM/Arch/VE artifacts cherry-picked to outer master: M-NOART design doc (`e9f9203`),
+  TASK-065 filing (`eb70315`), task status backfills (`f5bdaf6`, `3da873d`, `f918351`),
+  ADR acceptances (`3da873d`), T114+T102 results (`cff4aaf`, `66b89d4`).
+- R&D investigation docs (INV-A, INV-B, EXP-001/002, PROP-003/004) remain on
+  `rnd/poll-lag` per convention.
+- `docs/project/tasks.md` on master reflects all done-status updates for TASK-062/063/065
+  via the above cherry-picks. Divergence between branches is expected (tasks.md notes
+  were updated on master via cherry-picks of later commits).
 
 ### TASK-062 — M-NOART: remove album-art path and JPEG decoder
 **Owner**: Developer
