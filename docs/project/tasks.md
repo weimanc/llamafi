@@ -601,9 +601,8 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-065 — BUG: PLEDIT empty after HTTP/1.1 keep-alive (getQueue chunked bail-out)
 **Owner**: Developer
 **Feature**: playlist-002, conn-002
-**Status**: todo
+**Status**: done (2026-05-21 — inner repo commit `62d1792` on rnd/poll-lag, cherry-picked to main as `ab3864e`)
 **Git ref**: rnd/poll-lag (observed 2026-05-20 post-M-NOART flash)
-**Blocked by**: TASK-063 (chunked fix lives in the same lib file as the keep-alive change)
 **Notes**:
 
 #### Symptom
@@ -676,7 +675,7 @@ one keepalive cycle of an active track playing. Noted in test_plan.md.
 ### TASK-062 — M-NOART: remove album-art path and JPEG decoder
 **Owner**: Developer
 **Feature**: noart-001 (new)
-**Status**: todo
+**Status**: done (2026-05-21 — inner repo commit `dcfbad0` on rnd/poll-lag, cherry-picked to main as `1411a3e`)
 **Git ref**: rnd/poll-lag (roadmap item added f1b8fb0)
 **Notes**:
 - Gate for promoting the INV-A keep-alive fix to main.
@@ -693,9 +692,8 @@ one keepalive cycle of an active track playing. Noted in test_plan.md.
 ### TASK-063 — Promote rnd/poll-lag keep-alive fix to main
 **Owner**: Developer
 **Feature**: conn-002 (new)
-**Status**: todo
+**Status**: done (2026-05-21 — cherry-picked `66e71de`, `49d9b71`, `8542f91`, `4f0da82`, `dcfbad0`, `62d1792` → main `d7b261b`–`ab3864e`)
 **Git ref**: rnd/poll-lag — inner repo commit `4f0da82` (keep-alive) + `49d9b71`, `66e71de` (tools)
-**Blocked by**: TASK-062 (JPEG crash makes winamp build unstable; must land M-NOART first)
 **Notes**:
 - Cherry-pick or merge `4f0da82` to `main`, replacing the `processImageInfo` workaround
   in `winampDisplay.h` with the proper M-NOART `#ifdef` guard from TASK-062.
@@ -706,11 +704,6 @@ one keepalive cycle of an active track playing. Noted in test_plan.md.
   design: `docs/architecture/designs/M-CONN-http11-keepalive.md`.
 - Verified: poll=55/55 100%, block_max 216–442ms typical, zero stale fd warnings (idle).
   One stale fd=49 sighting during active playback at 1:05 — acceptable, rare.
-
-## Blocked Tasks
-
-### TASK-063 — (see Active Tasks above)
-**Blocked by**: TASK-062
 
 ## Completed Tasks
 
