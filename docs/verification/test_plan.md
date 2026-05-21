@@ -1161,12 +1161,10 @@ correct; the bound relaxation is a test-environment accommodation.
   plus queue-fetch trigger). `after[0] == before[1]`, `after[1] == before[2]`,
   `after[2] == before[3]`, `after[3] == before[4]`. PLEDIT highlight row 0 shows
   the new current track within one render cycle of the snapshot update.
-- **Status**: **pass** (DUT 2026-05-18). Harness: `run_sync_tests.py T102`. Queue row[0] shifted
-  in 7534ms ≤ 8500ms. Harness checks any URI change in row[0] (specific URI indeterminate after
-  prior next/prev operations). Owner: VE.
-- **Regression gap (TASK-065)**: T102 ran under HTTP/1.0 (pre-INV-A Step 3). T102 must be
-  re-run after TASK-065 fix (`ab3864e`) lands on inner `main`. See T114 for the dedicated
-  chunked-dechunker regression; T114 must pass before T102 re-run is meaningful.
+- **Status**: **pass** (DUT 2026-05-18; re-run 2026-05-21 post-TASK-065). Harness: `run_sync_tests.py T102`.
+  Queue row[0] shifted in 5832ms ≤ 8500ms (HTTP/1.1 keep-alive + dechunker, inner `main` `ab3864e`).
+  Harness checks any URI change in row[0] (specific URI indeterminate after prior next/prev
+  operations). Owner: VE. Regression gap cleared — T114 PASS confirmed first.
 
 ### T103 — [sync-001, chrome-001] (TSYNC-7) Device transfer propagates to DUT chrome
 
@@ -1517,9 +1515,9 @@ the indicator behavior once the indicator is implemented.
   rows display artist–title text. Step 6–7: `row0` shifts to match the new
   currently-playing track (T102 row-shift behaviour preserved). No `count=0` at
   any point during active playback.
-- **Status**: todo (must run after TASK-065 lands on main — inner `ab3864e`).
-  Replaces the T102 regression gap note. Owner: VE. Harness: extend
-  `run_sync_tests.py` with T114 step (issue `get queue`, assert `count > 0`).
+- **Status**: **pass** (DUT 2026-05-21). Harness: `run_sync_tests.py T114`. count=4, row[0] non-empty URI.
+  Firmware inner `main` `ab3864e` (dechunker + HTTP/1.1 keep-alive). Owner: VE.
+  Harness added: `t114()` in `run_sync_tests.py` — issues `get queue`, asserts `count > 0`.
 
 ---
 
