@@ -1164,12 +1164,9 @@ correct; the bound relaxation is a test-environment accommodation.
 - **Status**: **pass** (DUT 2026-05-18). Harness: `run_sync_tests.py T102`. Queue row[0] shifted
   in 7534ms ≤ 8500ms. Harness checks any URI change in row[0] (specific URI indeterminate after
   prior next/prev operations). Owner: VE.
-- **Regression gap (TASK-065)**: T102 ran under HTTP/1.0 (pre-INV-A Step 3). After Step 3
-  promotes to main (TASK-063), T102 must be re-run. Root cause: `getQueue()` chunked
-  bail-out silently skips parse under HTTP/1.1 keep-alive — PLEDIT stays empty.
-  Add a prerequisite assertion before the row-shift check: `get queue` must return
-  `count > 0` within one 60 s keepalive cycle of an active track playing.
-  **Must re-run before TASK-063 promotion is considered verified.**
+- **Regression gap (TASK-065)**: T102 ran under HTTP/1.0 (pre-INV-A Step 3). T102 must be
+  re-run after TASK-065 fix (`ab3864e`) lands on inner `main`. See T114 for the dedicated
+  chunked-dechunker regression; T114 must pass before T102 re-run is meaningful.
 
 ### T103 — [sync-001, chrome-001] (TSYNC-7) Device transfer propagates to DUT chrome
 
@@ -1497,6 +1494,32 @@ the indicator behavior once the indicator is implemented.
   pattern — currently `tools/refresh_host_overrides.sh` regenerates the table
   but doesn't offer a per-host drop/restore primitive; flag to Developer as a
   small extension or document the manual workaround in the test). Owner: VE.
+
+### T114 — [conn-002, playlist-002] getQueue() parses correctly under HTTP/1.1 keep-alive (chunked response)
+
+- **Type**: integration (DUT + host)
+- **Feature(s)**: conn-002, playlist-002
+- **Objective**: After INV-A Step 3 (HTTP/1.1 keep-alive), Spotify returns
+  `Transfer-Encoding: chunked` for the `/queue` endpoint. Verify that `getQueue()`
+  dechunks and parses correctly — `g_queueSnapshot.count > 0` within one keepalive
+  cycle (≤ 60 s) of an active track playing. Regression for TASK-065 fix (`62d1792`).
+- **Preconditions**: Firmware from inner `main` ≥ `ab3864e` (dechunker commit).
+  Active track playing on the DUT's Spotify device. SERIAL_DEBUG build (`cyd2usb_winamp_debug`).
+- **Steps**:
+  1. Flash firmware from inner `main` (`cyd2usb_winamp_debug` env). Boot DUT.
+  2. Start a track playing on the DUT device via Spotify app.
+  3. Within 60 s, run `get queue` via serial console.
+  4. Record response: check `count`, `row0.name`, `row0.uri`.
+  5. Visually confirm PLEDIT panel shows 5 populated rows (not blank strings).
+  6. Advance track (next button or Spotify app). Within 10 s, run `get queue` again.
+  7. Confirm `row0.name` changed to the previously-queued track.
+- **Expected result**: Step 3: `count >= 1`, `row0.name` non-empty. Step 5: PLEDIT
+  rows display artist–title text. Step 6–7: `row0` shifts to match the new
+  currently-playing track (T102 row-shift behaviour preserved). No `count=0` at
+  any point during active playback.
+- **Status**: todo (must run after TASK-065 lands on main — inner `ab3864e`).
+  Replaces the T102 regression gap note. Owner: VE. Harness: extend
+  `run_sync_tests.py` with T114 step (issue `get queue`, assert `count > 0`).
 
 ---
 

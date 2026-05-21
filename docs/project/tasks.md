@@ -664,8 +664,8 @@ one keepalive cycle of an active track playing. Noted in test_plan.md.
 
 ### TASK-064 — Merge rnd/poll-lag planning docs to master (outer repo)
 **Owner**: PM
-**Status**: done (2026-05-20)
-**Git ref**: master `a9748f8`
+**Status**: done (2026-05-21 — `e9f9203`, `eb70315`, `943ccf3` cherry-picked to outer master; M-NOART design doc, TASK-065 filing, task status updates all on master)
+**Git ref**: rnd/poll-lag outer repo — commits `f1b8fb0` (M-NOART roadmap + PROP-004 resolved), `a71753e` (INV-A step3 design doc)
 **Notes**:
 - Applied `roadmap.md` (M-NOART item), `tasks.md` (TASK-062/063/064), and
   `docs/architecture/designs/M-CONN-http11-keepalive.md` to master via
