@@ -1862,6 +1862,37 @@ automated. HTML export option removed from design — T130 dropped accordingly.
 
 ---
 
+## Suite: robustness-001 — Crash regression guards
+
+> Guards previously-fixed panics so they cannot silently re-introduce.
+> Tests here are static code audits + short runtime soak; no debug build required.
+
+### T133 — [api-002] CurrentlyPlaying zero-init guard (uninitialized-struct crash regression)
+
+- **Type**: unit (static) + integration (runtime soak)
+- **Feature(s)**: api-002
+- **Objective**: Verify that `CurrentlyPlaying current` is zero-initialized before
+  `currentlyPlayingCallback` is invoked, so that `trackUri` is null — not stack
+  garbage — when `currently_playing_type == "other"` skips both the `track` and
+  `episode` fill blocks. Regression for the `LoadProhibited` crash at
+  `spotifyTask::onCurrentlyPlaying:72` (EXCVADDR=0x0000000c, build `a7389608`,
+  2026-05-22). Fix: `CurrentlyPlaying current = {};` at `SpotifyArduino.cpp:783`.
+- **Preconditions**:
+  - Part A (static): source tree present; no DUT required.
+  - Part B (runtime): DUT flashed with production build (`cyd2usb_winamp`), Spotify
+    playing. Works with debug build too; no serial commands sent.
+- **Steps**:
+  1. **Static**: `grep "CurrentlyPlaying current = {}" lib/SpotifyArduino/src/SpotifyArduino.cpp`
+     — assert match found.
+  2. **Runtime**: Connect to DUT serial; monitor for 90 s (≥12 polls at 5 s interval).
+     Fail if `Guru Meditation Error` appears in output.
+- **Expected result**: Grep finds the zero-init; DUT completes 90 s with no panic.
+- **Status**: **pass** (DUT 2026-05-22). Static grep confirmed; 90 s soak — no
+  `Guru Meditation Error`. Firmware `321c35c` (zero-init patch). Harness:
+  `run_serialdbg_tests.py T133`. Owner: VE.
+
+---
+
 ## Entry Format
 
 ```
