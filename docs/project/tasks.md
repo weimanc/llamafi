@@ -499,7 +499,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 **Feature**: playlist-002, touch-002
 **Status**: planned
 **Design**: `docs/architecture/designs/M-LIST-v3-hitzones.md`
-**Notes**: Update `bake_skin.py` zone registry: replace `ROW0..ROW4` with `SWIPE/TAP` (content area) + `SCROLL DRAG` (scrollbar strip) + informational row sub-labels. Regenerate `gen/skin_hitzones.png`. Human reviews that zones cover correct pixels before any firmware implementation of TASK-051b–i begins. This is the human review gate for M-LIST-v3.
+**Notes**: TASK-054 (done) already built `render_hitzones()` and the single-source-of-truth zone registry pattern. Remaining work: edit the `pledit_rows` block in `render_hitzones()` (bake_skin.py:1086–1090) — replace `ROW0..ROW4` entries with `pledit_content` (SWIPE/TAP, 34,136,244,65), sub-row labels R0–R4 (no magenta fill, informational only), and `pledit_scrollbar` (SCROLL DRAG, 278,136,19,65). Re-run bake_skin.py to regenerate `gen/skin_hitzones.png`. Human eyeball sign-off before any firmware implementation of TASK-051b–i begins. This is the human review gate for M-LIST-v3.
 
 ### TASK-022 — M-LIST option B: portrait rotation
 **Owner**: Developer
