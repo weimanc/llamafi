@@ -1035,10 +1035,12 @@ To be triaged with the team.
 ### TASK-053c — M-CONN: inactive title bar overlay in repaintChrome()
 **Owner**: Developer
 **Feature**: conn-001
-**Status**: done (2026-05-16)
+**Status**: done (2026-05-16; DUT-verified 2026-05-22)
 **Notes**:
 - `repaintChrome()` blits `SKIN_TITLEBAR_INACTIVE` over position (originX, originY) when `!isHealthy()`.
 - Active bar (already in MAIN_BG) shows on recovery without extra code.
+- Health-change trigger: `drawPlaylist()` (called every loop) detects `isHealthy() != lastHealthy` and calls `repaintChrome()` immediately.
+- DUT 2026-05-22: DNS override pointed `api.spotify.com → 192.0.2.1`. consecutive=1 → consecutive=2. After consecutive=2, `last_render_age_ms` dropped 60003→17251 confirming `repaintChrome()` fired. PASS (active→inactive direction).
 
 ### TASK-053d — M-CONN: spotifyTask::resetTls()
 **Owner**: Developer
@@ -1383,6 +1385,34 @@ To be triaged with the team.
 - T131: manual pygame window check — scale, glyphs, all keyboard controls, `e` export.
 - T132: no TBD in `taskbar.md`; `golden.sha256` passes.
 - Report pass/fail to PM. PM prompts QM for retrospective.
+
+### TASK-073 — BUG: `strcmp(nullptr)` crash in `getCurrentlyPlaying` on track start
+**Owner**: Developer
+**Feature**: api-002 (lib patch family)
+**Status**: done (2026-05-22 — LOCAL_PATCHES patch #11; null guard added; DUT-verified no crash on first 200 OK poll with active playback)
+**Notes**:
+
+#### Symptom
+`LoadProhibited` Guru Meditation on boot when Spotify is actively playing. Crash at
+`SpotifyArduino.cpp:894` inside `strcmp`. Only hit on the first poll that returns 200 (track
+playing) immediately after a 204-only sequence; does not crash on subsequent 200 polls.
+
+#### Root cause
+`doc["currently_playing_type"]` returns `nullptr` when the JSON field is absent (observed
+during the initial track-start transition). Line 894: `strcmp(currently_playing_type, "track")`
+called with null first arg → `LoadProhibited`.
+
+The existing `repeat_raw` block (patch #9) already pattern-matches with a null guard;
+`currently_playing_type` was missing the same guard.
+
+#### Fix (`lib/SpotifyArduino/src/SpotifyArduino.cpp:893`)
+```cpp
+if (currently_playing_type == NULL) {
+    current.currentlyPlayingType = other;
+} else if (strcmp(currently_playing_type, "track") == 0) {
+```
+
+LOCAL_PATCHES.md patch #11. DUT confirmed no crash on 2026-05-22 reflash with active playback.
 
 ---
 
