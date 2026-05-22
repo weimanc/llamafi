@@ -123,9 +123,58 @@ def parse_shell_layout(path="SpotifyDiyThing/gen/shell_layout.h"):
 
 The helper is added to `bake_skin.py` (already imported by other tools) so it is not duplicated.
 
-## Screen dimension gap (existing)
+## Known gaps in preview ↔ firmware tracking
 
-The existing `SCREEN_W=320` / `SCREEN_H=240` duplication (`cheapYellowLCD.h` vs `preview_vis.py:56-57`) is out of scope for this doc. Hardware is fixed; the risk is low. Recorded here as a known gap. If a second display variant is ever introduced, add `SCREEN_W` / `SCREEN_H` to `gen/shell_layout.h` at that point.
+Three pre-existing cases where preview tooling does not read from the same
+source as firmware. All are in `bake_skin.py`. Fixing them is in scope for the
+M-SHELL-LAYOUT pass (same file, same helper pattern).
+
+### 1 — `render_hitzones()` hit-zone coordinates (high priority)
+
+`bake_skin.py:render_hitzones()` (line ~1047) builds its zone list from hardcoded
+literals, not from the Python layout dicts that generated `skin_layout.h`:
+
+```python
+# Current (wrong pattern):
+(16,  72, 248, 10, "SEEK"),   # comment says POSBAR_X/Y — but is a literal
+(107, 57,  68, 13, "VOL"),    # comment says VOLUME_X/Y — but is a literal
+(16,  88,  23, 18, "PREV"),   # no reference to CB_PREV_X/Y at all
+```
+
+The dicts `POSBAR_LAYOUT`, `VOLUME_LAYOUT`, `CBUTTON_POSITIONS` already hold
+the authoritative values and are what get emitted into `skin_layout.h`. Firmware
+reads from there; `render_hitzones()` ignores them.
+
+Failure mode: changing any coordinate in a layout dict updates `skin_layout.h`
+and firmware correctly, but `skin_hitzones.png` silently shows the old position.
+
+Fix: rebuild the zone list in `render_hitzones()` from the existing dicts:
+
+```python
+other = [
+    (POSBAR_LAYOUT["POSBAR_X"], POSBAR_LAYOUT["POSBAR_Y"],
+     POSBAR_LAYOUT["POSBAR_BG"][2], POSBAR_LAYOUT["POSBAR_BG"][3], "SEEK"),
+    (VOLUME_LAYOUT["VOLUME_X"], VOLUME_LAYOUT["VOLUME_Y"],
+     VOLUME_FRAME_W, VOLUME_FRAME_H, "VOL"),
+    ...
+]
+```
+
+Practical severity: low today (skin is fixed per ADR-003). Risk pattern is
+identical to the `preview_vis.py:58` `WINDOW_W` hardcode — correct until it
+isn't, with no warning.
+
+### 2 — `preview_vis.py:58` WINDOW_W hardcode
+
+`WINDOW_W = 275  # from gen/skin_layout.h (#define WINDOW_W)` — comment
+acknowledges the source but the value is hardcoded. Fix: parse via
+`parse_shell_layout()` (or equivalent for `skin_layout.h`).
+
+### 3 — `SCREEN_W=320` / `SCREEN_H=240` duplication
+
+`cheapYellowLCD.h:82-83` vs `preview_vis.py:56-57`. Hardware is fixed; risk is
+lowest of the three. Deferred: add to `gen/shell_layout.h` only if a second
+display variant is introduced.
 
 ## Feature inventory impact
 
