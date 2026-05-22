@@ -143,11 +143,12 @@ interactive tool is a developer-only session aid.
 
 ## Exit criteria
 
-- `preview_layout.py --interactive` (or `bake_skin.py --layout-preview --live`)
-  opens a 320×240 pygame window with keyboard controls and a printed params
-  summary on `p`.
-- `bake_skin.py --layout-preview --html` emits `gen/layout_preview.html` with
-  working JS controls and an "Export params" button.
-- All four open questions in `taskbar.md` are answered and recorded there.
-- `golden.sha256` excludes `layout_preview.html` (verify `sha256sum -c` still
-  passes).
+| Criterion | Verification | Test |
+|-----------|-------------|------|
+| `preview_layout.py --interactive` opens 320×240 pygame window with keyboard controls and `p` prints params | **Manual** — requires display; no headless path | T131 |
+| `bake_skin.py --layout-preview --html` emits `gen/layout_preview.html` with base64 skin assets + `<canvas>` element | **Automated** — file presence + structure grep | T130 |
+| "Working JS controls" in HTML | **Manual** — browser runtime required | T131 (visual check) |
+| All four open questions in `taskbar.md` answered (no TBD markers) | **Automated** — `grep -c "TBD"` == 0 | T132 |
+| `golden.sha256` excludes `layout_preview.html` and still passes | **Automated** — `sha256sum -c` | T132 |
+
+Note: this design doc has no feature inventory entry. A `preview-tooling-001` feature must be added to `feature_inventory.yaml` before T130–T132 can be formally tracked (flagged to Architect and PM).

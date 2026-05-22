@@ -598,10 +598,35 @@ features:
       - Spotify-Diy-Thing/tools/preview_vis.py
       - Spotify-Diy-Thing/SpotifyDiyThing/appShell.h
     cross_features: [m2-001]
-    test_ids: [T125, T126, T127]
+    test_ids: [T125, T126, T127, T128, T129]
     notes: |
       Design doc: docs/architecture/designs/M-MULTIAPP/shell-layout.md.
       Blocked on M-MULTIAPP interactive preview tooling (interactive-preview.md).
       Gates M-MULTIAPP taskbar + appshell implementation (steps 3-4 in overview.md).
       golden.sha256: include gen/shell_layout.h (firmware build input, should be stable).
-      Open: whether to also add a C _Static_assert in appShell.h as a compile-time drift guard (T127 covers this at host level).
+      _Static_assert required in appShell.h (T129); Python semantic grep in T127 covers CI-time report.
+      TASKBAR_SLOT_COUNT must be in gen/shell_layout.h schema (not just AppId::COUNT in firmware).
+
+  - id: preview-tooling-001
+    name: Interactive preview tooling (preview_layout.py)
+    description: |
+      New host-side tool preview_layout.py implementing the interactive preview for
+      M-MULTIAPP taskbar aesthetics. Primary: pygame live panel (Option A) — 320x240
+      window, keyboard shortcuts cycle background/indicator/separator/colour, 'p' exports
+      params, 'e' writes gen/shell_layout.h. Secondary: bake_skin.py --layout-preview --html
+      emits gen/layout_preview.html (base64 skin assets + canvas JS overlay) as a shareable
+      artefact. Resolves the four open aesthetic questions in taskbar.md before firmware
+      renderTaskbar() is written. See interactive-preview.md.
+    status: planned
+    git_ref: ""
+    files:
+      - Spotify-Diy-Thing/tools/preview_layout.py
+      - Spotify-Diy-Thing/tools/bake_skin.py
+      - Spotify-Diy-Thing/SpotifyDiyThing/gen/layout_preview.html
+    cross_features: [m2-001, shell-layout-001]
+    test_ids: [T130, T131, T132]
+    notes: |
+      Design doc: docs/architecture/designs/M-MULTIAPP/interactive-preview.md.
+      T131 (pygame window) is manual — requires display.
+      T130 and T132 are automated (file presence + structure checks).
+      Blocked on M-MULTIAPP preview tooling pass; gates M-SHELL-LAYOUT export step.

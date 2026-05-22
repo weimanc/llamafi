@@ -1751,39 +1751,129 @@ Common preconditions:
 
 - **Type**: unit (host-side)
 - **Feature(s)**: shell-layout-001
-- **Objective**: Verify that `gen/shell_layout.h` exists and defines all required `TASKBAR_*` constants.
+- **Objective**: Verify that `gen/shell_layout.h` exists and defines all required `TASKBAR_*` constants including `TASKBAR_SLOT_COUNT`.
 - **Preconditions**: `preview_layout.py --export` has been run and output committed.
 - **Steps**:
-  1. Run `python3 -c "import re, sys; d={m.group(1): m.group(2) for l in open('Spotify-Diy-Thing/SpotifyDiyThing/gen/shell_layout.h') for m in [re.match(r'#define\s+(\w+)\s+(.+)', l)] if m}; required=['TASKBAR_X','TASKBAR_W','TASKBAR_SLOT_H','TASKBAR_ICON_W','TASKBAR_ICON_H','TASKBAR_BG_RGB565','TASKBAR_ACTIVE_STYLE','TASKBAR_ACTIVE_COLOR','TASKBAR_SEP_ENABLED','TASKBAR_SEP_COLOR']; missing=[k for k in required if k not in d]; sys.exit(1) if missing else print('PASS', d)"`.
-  2. Confirm exit code 0 and all required keys printed.
-- **Expected result**: Exit 0; all 10 `TASKBAR_*` constants present.
-- **Status**: planned. Owner: VE.
+  1. Parse `gen/shell_layout.h` using `parse_shell_layout()` — the helper **must strip inline comments** before returning values (e.g. `"275   // left edge..."` → `"275"`); naive regex capture without stripping will cause `int()` to fail downstream.
+  2. Assert required keys present: `TASKBAR_X`, `TASKBAR_W`, `TASKBAR_SLOT_H`, `TASKBAR_SLOT_COUNT`, `TASKBAR_ICON_W`, `TASKBAR_ICON_H`, `TASKBAR_BG_RGB565`, `TASKBAR_ACTIVE_STYLE`, `TASKBAR_ACTIVE_COLOR`, `TASKBAR_SEP_ENABLED`, `TASKBAR_SEP_COLOR` (11 keys).
+  3. Assert exit 0.
+- **Expected result**: Exit 0; all 11 `TASKBAR_*` constants present; no comment text leaking into values.
+- **Status**: planned. Owner: VE. **Arch note**: `TASKBAR_SLOT_COUNT` must be added to `gen/shell_layout.h` schema (currently absent — flagged to Architect).
 
-### T126 — [shell-layout-001] taskbar geometry covers full screen width
+### T126 — [shell-layout-001] taskbar geometry is internally consistent
 
 - **Type**: unit (host-side)
 - **Feature(s)**: shell-layout-001
-- **Objective**: `TASKBAR_X + TASKBAR_W == 320` — taskbar strip fills the right edge with no gap or overflow. `TASKBAR_SLOT_H * 6 == 240` — 6 slots fill screen height exactly.
+- **Objective**: Geometry sanity — strip fills right edge exactly; slots fill full height without relying on a hardcoded app count.
 - **Preconditions**: T125 passing.
 - **Steps**:
-  1. Parse `gen/shell_layout.h` via `parse_shell_layout()`.
+  1. Parse `gen/shell_layout.h` via `parse_shell_layout()` (comment-stripped values).
   2. Assert `int(TASKBAR_X) + int(TASKBAR_W) == 320`.
-  3. Assert `int(TASKBAR_SLOT_H) * 6 == 240`.
-- **Expected result**: Both assertions pass.
+  3. Assert `int(TASKBAR_SLOT_H) * int(TASKBAR_SLOT_COUNT) == 240`.
+- **Expected result**: Both assertions pass. Step 3 uses `TASKBAR_SLOT_COUNT` from the header, not a hardcoded `6`, so the test stays valid if app count changes.
 - **Status**: planned. Owner: VE.
 
 ### T127 — [shell-layout-001] firmware appShell.h uses header constants, not literals
 
 - **Type**: static analysis (host-side)
 - **Feature(s)**: shell-layout-001
-- **Objective**: Drift check — `appShell.h` references taskbar geometry via `TASKBAR_*` names from `gen/shell_layout.h`, not bare literals. Catches edits that bypass the preview tool export.
+- **Objective**: Drift check — `appShell.h` uses `TASKBAR_*` names in taskbar expressions, not bare literals. Semantic grep targets the specific expression patterns, not the numbers in isolation (bare `40` appears constantly in firmware for timing/buffer values and would produce constant false positives).
 - **Preconditions**: T125 passing. `appShell.h` implemented.
 - **Steps**:
-  1. Parse `gen/shell_layout.h` → dict of name → value.
-  2. Grep `appShell.h` for bare integer literals matching TASKBAR_X (275), TASKBAR_W (45), TASKBAR_SLOT_H (40) in hit-test or render context.
-  3. Assert no unguarded literals found.
-- **Expected result**: No bare taskbar geometry literals in `appShell.h`. All constants consumed via `#define` names from `gen/shell_layout.h`.
-- **Status**: planned. Owner: VE. Note: grep for "275", "45", "40" needs context filtering to avoid false positives from unrelated numeric coincidences.
+  1. Grep `appShell.h` for the hit-test literal: `>= 275` or `> 274` (should be `>= TASKBAR_X`).
+  2. Grep `appShell.h` for the slot-height literal: `/ 40` or `% 40` in coordinate context (should be `/ TASKBAR_SLOT_H`).
+  3. Grep `appShell.h` for taskbar fill literal: `fillRect(275` or `fillRect(TASKBAR_X` present and `fillRect(275` absent.
+  4. Assert all three greps return zero matches.
+- **Expected result**: No bare taskbar geometry literals in expression context. `_Static_assert` (see T128) provides the compile-time guard; this test provides the CI-time readable report.
+- **Status**: planned. Owner: VE.
+
+### T128 — [shell-layout-001] parse_shell_layout() handles all value types and strips comments
+
+- **Type**: unit (host-side)
+- **Feature(s)**: shell-layout-001
+- **Objective**: The `parse_shell_layout()` helper correctly parses integer, hex, and char-literal values, and strips inline comments from all of them. This is a concrete implementation requirement — the current regex draft in shell-layout.md does NOT strip comments and will corrupt values.
+- **Preconditions**: `parse_shell_layout()` implemented in `bake_skin.py`.
+- **Steps**:
+  1. Feed a synthetic snippet with one of each type:
+     ```
+     #define FOO_INT   275     // an integer
+     #define FOO_HEX   0x07E0  // a hex value
+     #define FOO_CHAR  'A'     // a char literal
+     #define FOO_FLAG  1
+     ```
+  2. Assert `parse_shell_layout()` returns `{'FOO_INT': '275', 'FOO_HEX': '0x07E0', 'FOO_CHAR': "'A'", 'FOO_FLAG': '1'}` — no comment fragments.
+  3. Assert `int('275') == 275`, `int('0x07E0', 16) == 0x07E0`, `int('1') == 1` all succeed.
+- **Expected result**: All four value types parsed correctly; no comment text in values; int conversion succeeds for numeric types.
+- **Status**: planned. Owner: VE.
+
+### T129 — [shell-layout-001] _Static_assert guards compile-time constant agreement
+
+- **Type**: build (host-side, requires PlatformIO)
+- **Feature(s)**: shell-layout-001
+- **Objective**: Verify that `appShell.h` contains `_Static_assert` statements that fire if `gen/shell_layout.h` disagrees with any computed taskbar bound. Catches drift at compile time before T127's runtime grep ever runs.
+- **Preconditions**: `appShell.h` implemented with `_Static_assert`. PlatformIO env `cyd2usb_winamp` available.
+- **Steps**:
+  1. Confirm `appShell.h` contains `_Static_assert(TASKBAR_X + TASKBAR_W == 320, ...)` and `_Static_assert(TASKBAR_SLOT_H * TASKBAR_SLOT_COUNT == 240, ...)`.
+  2. Temporarily edit `gen/shell_layout.h` to set `TASKBAR_W 44` (wrong value).
+  3. Run `pio run -e cyd2usb_winamp` — expect compile error containing `_Static_assert`.
+  4. Restore correct value; confirm clean build.
+- **Expected result**: Compiler rejects build when constants are inconsistent; clean build when correct.
+- **Status**: planned. Owner: VE. Note: Architect must include `_Static_assert` in `appShell.h` implementation spec (closes shell-layout.md open question 2).
+
+---
+
+## Suite: preview-tooling-001 — Interactive preview tooling (M-MULTIAPP)
+
+Host-side tests. No DUT required. Mix of automated and manual steps — each
+test is labelled accordingly. **Arch note**: no feature inventory entry exists
+for the interactive preview tooling. A `preview-tooling-001` feature entry is
+needed before test coverage can be tracked (flagged to Architect and PM).
+
+### T130 — [preview-tooling-001] layout_preview.html emitted and structurally valid
+
+- **Type**: unit (host-side, automated)
+- **Feature(s)**: preview-tooling-001
+- **Objective**: `bake_skin.py --layout-preview --html` produces `gen/layout_preview.html` that embeds the skin assets as base64 data URIs and contains a `<canvas>` element for the taskbar overlay.
+- **Preconditions**: `bake_skin.py --layout-preview --html` implemented. WSZ skin present.
+- **Steps**:
+  1. Run `python3 bake_skin.py -i ../skins/base-2.91.wsz -o ../SpotifyDiyThing/gen --layout-preview --html`.
+  2. Assert `gen/layout_preview.html` exists and is non-empty.
+  3. Assert file contains `data:image/png;base64,` (skin assets embedded).
+  4. Assert file contains `<canvas` element.
+  5. Assert file contains JS handler references for at least one parameter control (background, indicator style, or separator).
+- **Expected result**: All five assertions pass. File opens in a browser without JS errors (browser check is manual — see T131).
+- **Status**: planned. Owner: VE.
+
+### T131 — [preview-tooling-001] pygame interactive window opens and keyboard controls respond
+
+- **Type**: manual (requires display)
+- **Feature(s)**: preview-tooling-001
+- **Objective**: `preview_layout.py --interactive` renders the full 320×240 layout and keyboard shortcuts cycle parameters visibly.
+- **Preconditions**: Display available. pygame installed. WSZ skin present.
+- **Steps**:
+  1. Run `python3 preview_layout.py --interactive -i ../skins/base-2.91.wsz`.
+  2. Confirm 320×240 window opens showing Winamp chrome left + taskbar right.
+  3. Press `b` — confirm taskbar background cycles to next colour variant.
+  4. Press `i` — confirm active indicator style changes visibly.
+  5. Press `s` — confirm separator lines toggle.
+  6. Press `[` / `]` — confirm active-indicator highlight moves to adjacent slot.
+  7. Press `p` — confirm params printed to stdout in `#define`-compatible format.
+  8. Press `q` — confirm clean exit.
+- **Expected result**: All steps observable. No Python exception. Stdout from step 7 contains all 10 `TASKBAR_*` constant names.
+- **Status**: planned. Owner: VE (manual sign-off required before M-SHELL-LAYOUT gates open).
+
+### T132 — [preview-tooling-001] taskbar.md open questions resolved and golden.sha256 intact
+
+- **Type**: unit (host-side, automated)
+- **Feature(s)**: preview-tooling-001
+- **Objective**: Verify that the four aesthetic open questions in `taskbar.md` are answered (no remaining TBD markers in the Aesthetics section) and that `golden.sha256` still passes after adding `layout_preview.html`.
+- **Preconditions**: T130 passing. Interactive preview session completed and parameters transcribed to `taskbar.md`.
+- **Steps**:
+  1. Run `grep -c "TBD" docs/architecture/designs/M-MULTIAPP/taskbar.md` — assert output is `0`.
+  2. Confirm `gen/layout_preview.html` is listed in the `golden.sha256` exclusion list (or `.gitignore` pattern), not in the hash entries.
+  3. Run `cd SpotifyDiyThing/gen && sha256sum -c golden.sha256` — assert exit 0.
+- **Expected result**: No TBD markers remain in taskbar.md; `layout_preview.html` excluded from hash check; hash check passes.
+- **Status**: planned. Owner: VE.
 
 ---
 

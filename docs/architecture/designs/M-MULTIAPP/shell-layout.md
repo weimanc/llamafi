@@ -74,11 +74,12 @@ Option A is acceptable as a fallback if the interactive preview tool is not buil
 #pragma once
 
 // Taskbar strip geometry (screen coordinates, landscape rotation 1)
-#define TASKBAR_X       275   // left edge of taskbar strip
-#define TASKBAR_W        45   // width of taskbar strip
-#define TASKBAR_SLOT_H   40   // height of each app icon slot (6 slots × 40 = 240)
-#define TASKBAR_ICON_W   24   // icon glyph width (centred in slot)
-#define TASKBAR_ICON_H   24   // icon glyph height
+#define TASKBAR_X          275   // left edge of taskbar strip
+#define TASKBAR_W           45   // width of taskbar strip
+#define TASKBAR_SLOT_COUNT   6   // number of app slots (== AppId::COUNT)
+#define TASKBAR_SLOT_H      40   // height of each icon slot (SLOT_COUNT × SLOT_H == 240)
+#define TASKBAR_ICON_W      24   // icon glyph width (centred in slot)
+#define TASKBAR_ICON_H      24   // icon glyph height
 
 // Aesthetics (resolved in interactive preview pass)
 #define TASKBAR_BG_RGB565     0x2104   // background fill colour
@@ -144,6 +145,15 @@ T127 is the key staleness guard. It runs as part of the pre-build check (or CI) 
 
 ## Open questions
 
-1. **golden.sha256** — should `gen/shell_layout.h` be included in the determinism check? Unlike `gen/layout_preview.png` (excluded — iterative artefact), `shell_layout.h` feeds the firmware build, so it should be stable. Tentative: include it.
-2. **T127 implementation** — static assertion in C (`_Static_assert(TASKBAR_X == 275, ...)`) or Python script comparing parsed values? Python script is more flexible; C static assertion catches it at compile time. Both may be warranted.
+1. ~~**golden.sha256**~~ — **CLOSED (VE).** `gen/shell_layout.h` is a firmware build input (not an iterative preview artefact) and must be included in `golden.sha256`. T132 verifies this.
+2. ~~**T127 implementation**~~ — **CLOSED (VE).** Both `_Static_assert` and Python semantic grep are required. `_Static_assert` in `appShell.h` catches drift at compile time (T129); the Python semantic grep in T127 catches it at CI-time with a readable report. They guard different failure modes. `appShell.h` implementation spec must include `_Static_assert(TASKBAR_X + TASKBAR_W == 320, ...)` and `_Static_assert(TASKBAR_SLOT_H * TASKBAR_SLOT_COUNT == 240, ...)`.
 3. **`preview_vis.py` WINDOW_W hardcode** — while in this area, fix `preview_vis.py:58` to parse `gen/skin_layout.h` via the same helper instead of hardcoding `275`. Low-risk change; resolves the existing duplication gap.
+
+## VE review notes (2026-05-22)
+
+Issues raised and resolved during VE testability review:
+
+- **`parse_shell_layout()` comment stripping** — the regex `r"#define\s+(\w+)\s+(.+)"` captures inline comments verbatim (`"275   // left edge..."`). The implementation must strip everything after `//` before returning values. T128 verifies this.
+- **`TASKBAR_SLOT_COUNT` missing from schema** — T126 originally hardcoded `* 6`; now uses `TASKBAR_SLOT_COUNT` from the header. `6` must not appear as a literal in T126 or firmware.
+- **T127 grep approach** — bare integer `40` appears constantly in firmware (timings, buffer sizes). Replaced with semantic grep on expression patterns (`>= TASKBAR_X`, `/ TASKBAR_SLOT_H`) to eliminate false positives.
+- **interactive-preview.md has no feature inventory entry** — `preview-tooling-001` feature entry needed before T130–T132 can be formally tracked. Flagged to Architect and PM.
