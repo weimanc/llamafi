@@ -123,7 +123,7 @@ Extend bake tool to emit a semi-transparent hit-zone overlay PNG for touch align
 ### M-CONN — Connection health UI + TLS recovery controls
 
 Inactive title bars on disconnect; serial `reconnect` command; Winamp logo tap → TLS reset.
-**Status:** implemented (2026-05-16); DUT validation outstanding
+**Status:** partially validated (2026-05-22) — Feature 2 (`reconnect` command) PASS: `{"ok":true}` ACK, TLS hard reset logged, polls resumed 10/10. Features 1 + 3 (inactive title bars, logo tap) deferred — require active Spotify playback to trigger real poll failures.
 **Deps:** M-IO (TASK-052), M-CHROME (done), M3
 **Design:** [M-CONN-connection-health.md](../architecture/designs/M-CONN-connection-health.md)
 

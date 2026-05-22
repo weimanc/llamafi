@@ -1048,9 +1048,10 @@ To be triaged with the team.
 ### TASK-053e — M-CONN: serial `reconnect` command
 **Owner**: Developer
 **Feature**: conn-001
-**Status**: done (2026-05-16)
+**Status**: done (2026-05-16; DUT-verified 2026-05-22)
 **Notes**:
 - `handleSerialCommands()` in `SpotifyDiyThing.ino` loop — line-buffered; dispatches `resetTls()` + `enqueue(ACT_FORCE_POLL)` on "reconnect".
+- DUT 2026-05-22: sent "reconnect" via serial. Response: `{"ok":true,"cmd":"reconnect"}`. Log: `[I][spotify.tls] hard reset — stopping client`. Polls resumed immediately; 10/10 at 1:06 uptime. PASS.
 
 ### TASK-053f — M-CONN: Winamp logo tap → TLS reset
 **Owner**: Developer
