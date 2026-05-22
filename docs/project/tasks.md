@@ -700,7 +700,7 @@ T116 passes on DUT (ad-hoc/radio: fallback fires, no crash).
 
 ### TASK-067 — VE: write + execute T115/T116 — tap-to-play regression suite
 **Owner**: VE
-**Status**: in-progress (2026-05-22 — T115/T116 stubs written in test_plan.md; awaiting DUT run)
+**Status**: done (2026-05-22 — T115 PASS, T116 PASS; inner `main` `1a9d531`)
 **Deps**: TASK-066 done (inner `main` `7a97088`)
 **Notes**:
 - Write T115 (playlist context — queue preserved) and T116 (ad-hoc fallback — no crash) in `docs/verification/test_plan.md` (stubs already added at planned status).

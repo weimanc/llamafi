@@ -1546,7 +1546,10 @@ the indicator behavior once the indicator is implemented.
   7. Verify via Spotify app: current track = `PREV_ROW1`; upcoming queue ≥ 2 different tracks.
 - **Expected result**: All assertions pass. Queue preserved. No duplicate rows in PLEDIT.
   Spotify app shows the correct track playing with an intact upcoming queue.
-- **Status**: planned (TASK-067). Owner: VE.
+- **Status**: **pass** (DUT 2026-05-22). Harness: `run_sync_tests.py T115`. Album context
+  `spotify:album:3AMXFnwHWXCvNr5NCCpLZI`; row0 shifted to tapped track; distinct=5/5; Spotify agrees.
+  Firmware inner `main` `1a9d531`. Owner: VE.
+  Harness: `t115()` in `run_sync_tests.py` — verifies PLEDIT hit, row0 shift, no duplicates, Spotify cross-check.
 
 ### T116 — [playlist-001, touch-002] tap-to-play fallback with no context_uri (ad-hoc/radio)
 
@@ -1571,7 +1574,10 @@ the indicator behavior once the indicator is implemented.
      for a single-URI session (documented known limitation, not a regression).
 - **Expected result**: DUT does not crash or reboot. Track changes to the tapped track.
   Duplicate-row outcome in this case is accepted and documented.
-- **Status**: planned (TASK-067). Owner: VE.
+- **Status**: **pass** (DUT 2026-05-22). Harness: `run_sync_tests.py T116`. Ad-hoc session
+  self-driven via `_play_adhoc_uri`; contextUri cleared; tap fired fallback path; DUT alive;
+  track changed to tapped URI. Firmware inner `main` `1a9d531`. Owner: VE.
+  Harness: `t116()` in `run_sync_tests.py` — self-contained (forces ad-hoc via host API).
 
 ---
 

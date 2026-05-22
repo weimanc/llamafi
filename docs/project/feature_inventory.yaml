@@ -348,14 +348,14 @@ features:
       - Spotify-Diy-Thing/lib/SpotifyArduino/src/SpotifyArduino.cpp
       - Spotify-Diy-Thing/lib/SpotifyArduino/LOCAL_PATCHES.md
     cross_features: [m3-001, api-002, poll-001]
-    test_ids: []
+    test_ids: [T115, T116]
     notes: |
       user-read-playback-state scope covers /me/player/queue — no additional OAuth scope needed.
       queueBufferSize = 6000 (3000 was insufficient for 20 filtered items).
       Flash delta: 50.0% (stable post TASK-035 partition expansion).
-      RAM: +1 KB for QueueSnapshot.
-      Tap-to-play (TASK-021) deferred to tier 2 (M-LIST-v3).
-      VE: no test suite written — action from 2026-05-15 audit.
+      RAM: +1 KB for QueueSnapshot (+200B contextUri in Snapshot, TASK-066).
+      Tap-to-play bug fixed in TASK-066 (2026-05-22): context_uri wired into ACT_PLAY_URI handler.
+      T115 (playlist context, queue preserved) + T116 (ad-hoc fallback) both PASS DUT 2026-05-22.
 
   - id: conn-001
     name: Connection recovery (M-CONN)
