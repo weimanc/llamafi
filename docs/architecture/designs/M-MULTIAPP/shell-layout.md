@@ -4,7 +4,8 @@
 > Status: draft
 > Date: 2026-05-22
 > Part of: [overview.md](overview.md)
-> Tracked-as: (task TBD)
+> Feeds: ADR-025
+> Tracked-as: TASK-068–TASK-072
 
 ## Context / pain points
 

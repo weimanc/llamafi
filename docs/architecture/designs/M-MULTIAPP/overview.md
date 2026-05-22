@@ -3,7 +3,7 @@
 > Owner: Architect
 > Status: draft
 > Date: 2026-05-22
-> Feeds: ADR TBD (app-switching model)
+> Feeds: ADR-024 (app-switching model)
 > Split docs: [layout.md](layout.md) · [taskbar.md](taskbar.md) · [app-lifecycle.md](app-lifecycle.md) · [preview-tooling.md](preview-tooling.md)
 
 ## Context

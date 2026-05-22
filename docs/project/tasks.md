@@ -1315,6 +1315,76 @@ To be triaged with the team.
 
 ---
 
+### TASK-068 — M-SHELL-LAYOUT: coords.py — originX-aware tap/drag helpers
+
+**Owner**: Developer
+**Feature**: shell-layout-001
+**Status**: todo
+**Blocked by**: ADR-025 proposed (human sign-off required before start)
+**Notes**:
+- New file `Spotify-Diy-Thing/tools/coords.py`.
+- Parses `gen/skin_layout.h` via regex (strip inline comments); derives `ORIGIN_X = (320 - WINDOW_W) // 2`.
+- Exposes named helpers: `vol_drag_x()`, `tap_button(name)`, `tap_logo()`, `pledit_tap(row)`. See `shell-layout.md` Gap 1 for full skeleton.
+- Audit `gen/skin_layout.h` first: confirm `CB_*_W`, `CB_*_H`, `VOLUME_FRAME_W`, `PLEDIT_CONTENT_X`, `PLEDIT_TITLE_H`, `PLEDIT_ROW_H` are all emitted; add missing `#define`s to `bake_skin.py` emit block if not.
+- Update `run_serialdbg_tests.py`: replace all hardcoded `tap`/`drag` coordinate literals with `coords.py` calls. Coordinate reference comment at top of file (lines 19–25) documents screen coords with `originX=22`; replace with `coords.py` imports.
+- Update `run_sync_tests.py`: same. Replace `_PLEDIT_ORIGIN_X = 22` and all hardcoded tap/drag literals. `_pledit_tap_xy()` should delegate to `coords.pledit_tap()`.
+- Verify: run T076–T088, T095–T096, T104, T106, T111, T115–T116 on DUT with `originX=22` (current firmware) — all must still pass. This is the regression gate before M-MULTIAPP shifts `originX` to 0.
+
+### TASK-069 — M-SHELL-LAYOUT: bake_skin.py tooling fixes (gaps 2 + 3)
+
+**Owner**: Developer
+**Feature**: shell-layout-001
+**Status**: todo
+**Blocked by**: ADR-025 proposed
+**Notes**:
+- **Gap 2**: `render_hitzones()` (~line 1047) — rebuild zone list from existing dicts. Transport: iterate `CBUTTON_POSITIONS`. Other zones: read from `POSBAR_LAYOUT`, `VOLUME_LAYOUT`, `SHUFREP_LAYOUT`. See `shell-layout.md` Gap 2 for fixed pattern.
+- **Gap 3**: `preview_vis.py:58` — replace `WINDOW_W = 275` hardcode with parse of `gen/skin_layout.h` using the new `parse_skin_layout()` helper (same pattern as `parse_shell_layout()`; can share implementation).
+- Verify: `bake_skin.py` run produces identical `skin_hitzones.png` to pre-fix (values unchanged — only code structure changes). `sha256sum -c golden.sha256` must pass.
+
+### TASK-070 — M-SHELL-LAYOUT: parse_shell_layout() helper + preview_layout.py
+
+**Owner**: Developer
+**Feature**: preview-tooling-001, shell-layout-001
+**Status**: todo
+**Blocked by**: ADR-025 proposed
+**Notes**:
+- Add `parse_shell_layout(path)` to `bake_skin.py`. Must strip inline comments (`//` suffix) from all values before returning. Handles int (`275`), hex (`0x07E0`), char (`'A'`), flag (`1`). T128 verifies.
+- New script `Spotify-Diy-Thing/tools/preview_layout.py`. See `interactive-preview.md` for full spec:
+  - `--interactive` flag opens pygame window at `--scale N` (default 2).
+  - Renders 320×240 PIL composite: Winamp chrome left, taskbar strip right.
+  - Icon glyphs: Winamp TEXT.BMP 5×6 bitmap font. Chars S/C/W/$/M/G. UV table in `interactive-preview.md`.
+  - Keyboard controls: `b` (bg colour), `i` (indicator style), `s` (separators), `c` (indicator colour), `[`/`]` (active slot), `+`/`-` (scale), `p` (print params), `e` (export), `q` (quit).
+  - `e` key writes `gen/shell_layout.h` using the schema in `shell-layout.md`. Geometry constants (`TASKBAR_X` etc.) are fixed; aesthetic constants are filled from current session state.
+- Run the interactive session, approve a configuration, press `e` to commit `gen/shell_layout.h`.
+
+### TASK-071 — M-SHELL-LAYOUT: gen/shell_layout.h in golden.sha256
+
+**Owner**: Developer
+**Feature**: shell-layout-001
+**Status**: todo
+**Blocked by**: TASK-070 (gen/shell_layout.h must exist first)
+**Notes**:
+- After TASK-070 produces `gen/shell_layout.h`, add its hash to `golden.sha256`.
+- Run `sha256sum -c golden.sha256` to confirm clean. T132 verifies.
+
+### TASK-072 — M-SHELL-LAYOUT: VE execute T125–T132
+
+**Owner**: VE
+**Feature**: shell-layout-001, preview-tooling-001
+**Status**: todo
+**Blocked by**: TASK-068, TASK-069, TASK-070, TASK-071
+**Notes**:
+- T125: `gen/shell_layout.h` present, all 11 `TASKBAR_*` defines present.
+- T126: `TASKBAR_X + TASKBAR_W == 320`; `TASKBAR_SLOT_H * TASKBAR_SLOT_COUNT == 240`.
+- T127: semantic grep — no bare `>= 275` or `/ 40` in `appShell.h` (note: `appShell.h` does not exist yet; T127 gates M-MULTIAPP taskbar implementation, not this task).
+- T128: `parse_shell_layout()` strips comments, handles all value types.
+- T129: `_Static_assert` in `appShell.h` (gates M-MULTIAPP, not this task).
+- T131: manual pygame window check — scale, glyphs, all keyboard controls, `e` export.
+- T132: no TBD in `taskbar.md`; `golden.sha256` passes.
+- Report pass/fail to PM. PM prompts QM for retrospective.
+
+---
+
 ## Entry Format
 
 ```
