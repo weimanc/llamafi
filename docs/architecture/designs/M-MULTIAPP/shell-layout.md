@@ -1,0 +1,149 @@
+# M-MULTIAPP — Shell Layout Header (gen/shell_layout.h)
+
+> Owner: Architect
+> Status: draft
+> Date: 2026-05-22
+> Part of: [overview.md](overview.md)
+> Tracked-as: (task TBD)
+
+## Context / pain points
+
+The project currently has two categories of shared constants between host tooling and firmware:
+
+| Category | Authoritative source | Bridge | Consumers |
+|----------|---------------------|--------|-----------|
+| Skin-derived (WINDOW_W, sprite UVs, hit-zone positions) | `bake_skin.py` measures the WSZ | `gen/skin_layout.h` | firmware via `#include`, Python tools via hardcoded copies with comments |
+| Hardware-fixed (SCREEN_W=320, SCREEN_H=240) | `cheapYellowLCD.h` | none — duplicated verbatim | `preview_vis.py:56-57` (hardcoded, comment says "from gen/skin_layout.h" but does not parse it) |
+
+M-MULTIAPP introduces a **third category**: shell geometry constants — taskbar position, width, slot height, active indicator style, indicator colour, separator colour. These are:
+
+- **Not skin-derived** — cannot be measured from the WSZ; they are design decisions.
+- **Not hardware-fixed** — they are freely chosen and may be iterated on.
+- **Shared** — the firmware's `appShell.h` must use them AND the Python preview tools must render them.
+
+Without a shared mechanism these constants will be defined independently in firmware and preview tooling, and will drift on the first edit.
+
+The `preview_vis.py` duplication of `WINDOW_W` (correct today because the skin is unchanged) is a warning sign: the same pattern applied to shell geometry will be wrong at some point.
+
+## Goals
+
+1. Single authoritative definition for every shell geometry constant.
+2. Firmware consumes the constants from that definition — no independent hardcoding in `appShell.h`.
+3. Python preview tools consume the same constants — no independent hardcoding in Python.
+4. The mechanism is inspectable and testable: a VE script can verify firmware and tooling agree.
+5. Fits the existing `gen/` pattern (generated, gitignored-or-committed, never hand-edited in the gen/ file).
+
+## Design space
+
+### Option A — Manually maintained `gen/shell_layout.h`
+
+A committed, human-authored `gen/shell_layout.h` containing the approved `#define`s. Developer updates it whenever a shell geometry decision changes. Firmware `#include`s it; Python tools parse it via a small `re` regex (`#define\s+(\w+)\s+(.+)`).
+
+**Pros:** simple; consistent with `gen/skin_layout.h` consumption pattern; no new tooling.
+**Cons:** manual — developer must remember to update the header if they change a constant in `appShell.h` directly. Two places to edit (header + any Python constant) creates the same drift risk it aims to prevent, unless the header is the *only* definition.
+
+### Option B — Interactive preview tool emits `gen/shell_layout.h`
+
+The pygame interactive preview (see `interactive-preview.md`) gains a hard export path: pressing `p` (or a dedicated `e` key) writes `gen/shell_layout.h` rather than just printing to stdout. Developer runs the tool, approves a configuration, presses export, commits the result. Firmware `#include`s it; Python tools parse it on startup.
+
+**Pros:** the tool that makes the design decision is also the source of the header — tight coupling by construction. Approved params cannot diverge from the header because the header IS the approved-params record.
+**Cons:** the header is committed (not auto-generated on every build), so it can become stale if someone edits firmware constants directly without re-running the preview tool. Mitigation: VE static assertion (see §Verification impact).
+
+### Option C — Constants live in firmware only; Python tools parse `appShell.h`
+
+`appShell.h` is the single source. Python tools parse it via regex at import time. No `gen/shell_layout.h` needed.
+
+**Pros:** no generated file; firmware is unambiguously authoritative.
+**Cons:** Python tools must parse arbitrary C header syntax; `appShell.h` will contain non-constant material (structs, function declarations) that the parser must skip. Fragile. Also breaks the clean `gen/` boundary: Python tools now depend on a firmware source file.
+
+## Lean / decision
+
+**Option B.**
+
+The interactive preview tool is the decision-making artefact for shell geometry (per `interactive-preview.md`). Coupling the export to `gen/shell_layout.h` means the design tool and the build artefact are the same action. This mirrors how `bake_skin.py` is both the design tool (it renders the preview) and the generator of `gen/skin_layout.h`.
+
+The staleness risk (header out of sync with firmware edits) is addressed by the VE suite (see §Verification impact): a host-side test script parses both `gen/shell_layout.h` and `appShell.h` and asserts they agree.
+
+Option A is acceptable as a fallback if the interactive preview tool is not built first. Option C is rejected: parsing raw C headers from Python is fragile and violates the `gen/` boundary.
+
+## `gen/shell_layout.h` schema
+
+```c
+// Generated by tools/preview_layout.py — do not edit by hand.
+// Re-generate: cd Spotify-Diy-Thing/tools && python3 preview_layout.py --export
+#pragma once
+
+// Taskbar strip geometry (screen coordinates, landscape rotation 1)
+#define TASKBAR_X       275   // left edge of taskbar strip
+#define TASKBAR_W        45   // width of taskbar strip
+#define TASKBAR_SLOT_H   40   // height of each app icon slot (6 slots × 40 = 240)
+#define TASKBAR_ICON_W   24   // icon glyph width (centred in slot)
+#define TASKBAR_ICON_H   24   // icon glyph height
+
+// Aesthetics (resolved in interactive preview pass)
+#define TASKBAR_BG_RGB565     0x2104   // background fill colour
+#define TASKBAR_ACTIVE_STYLE  'A'      // A=3px left bar, B=full cell, C=dot
+#define TASKBAR_ACTIVE_COLOR  0x07E0   // active indicator colour (RGB565)
+#define TASKBAR_SEP_ENABLED   1        // 1=draw separator lines, 0=borderless
+#define TASKBAR_SEP_COLOR     0x4208   // separator line colour (RGB565)
+```
+
+Aesthetic `#define`s are placeholders until the interactive preview pass runs and exports approved values.
+
+## Firmware consumption
+
+`appShell.h` includes `gen/shell_layout.h` and uses its constants directly:
+
+```cpp
+#include "gen/shell_layout.h"
+
+// Hit-test uses TASKBAR_X — not a literal 275
+if (p.x >= TASKBAR_X) {
+    int slot = p.y / TASKBAR_SLOT_H;
+    ...
+}
+```
+
+No geometry literals in `appShell.h` or `winampDisplay.h` for taskbar dimensions.
+
+## Python tool consumption
+
+`bake_skin.py`, `preview_layout.py`, and `preview_vis.py` parse `gen/shell_layout.h` at startup via a shared helper:
+
+```python
+def parse_shell_layout(path="SpotifyDiyThing/gen/shell_layout.h"):
+    defines = {}
+    for line in open(path):
+        m = re.match(r"#define\s+(\w+)\s+(.+)", line)
+        if m:
+            defines[m.group(1)] = m.group(2).strip()
+    return defines
+```
+
+The helper is added to `bake_skin.py` (already imported by other tools) so it is not duplicated.
+
+## Screen dimension gap (existing)
+
+The existing `SCREEN_W=320` / `SCREEN_H=240` duplication (`cheapYellowLCD.h` vs `preview_vis.py:56-57`) is out of scope for this doc. Hardware is fixed; the risk is low. Recorded here as a known gap. If a second display variant is ever introduced, add `SCREEN_W` / `SCREEN_H` to `gen/shell_layout.h` at that point.
+
+## Feature inventory impact
+
+New feature: `shell-layout-001` — "Shell layout header (gen/shell_layout.h)". Added to `feature_inventory.yaml`.
+
+Future M-MULTIAPP features (`appshell-001`, `taskbar-001`, etc.) list `shell-layout-001` as a `cross_features` dependency.
+
+## Verification impact
+
+New test suite: **suite shell-layout-001** (three host-side tests, T125–T127):
+
+- **T125** — `gen/shell_layout.h` present and contains required `#define`s after `preview_layout.py --export`.
+- **T126** — Sanity: `TASKBAR_X + TASKBAR_W == 320` (covers full screen width with no gap or overlap).
+- **T127** — Drift check: a host-side script parses both `gen/shell_layout.h` and `appShell.h`; asserts every `TASKBAR_*` constant in `appShell.h` matches the corresponding `#define` in the header.
+
+T127 is the key staleness guard. It runs as part of the pre-build check (or CI) — if a developer edits `appShell.h` directly without re-exporting from the preview tool, T127 fails and surfaces the drift.
+
+## Open questions
+
+1. **golden.sha256** — should `gen/shell_layout.h` be included in the determinism check? Unlike `gen/layout_preview.png` (excluded — iterative artefact), `shell_layout.h` feeds the firmware build, so it should be stable. Tentative: include it.
+2. **T127 implementation** — static assertion in C (`_Static_assert(TASKBAR_X == 275, ...)`) or Python script comparing parsed values? Python script is more flexible; C static assertion catches it at compile time. Both may be warranted.
+3. **`preview_vis.py` WINDOW_W hardcode** — while in this area, fix `preview_vis.py:58` to parse `gen/skin_layout.h` via the same helper instead of hardcoding `275`. Low-risk change; resolves the existing duplication gap.

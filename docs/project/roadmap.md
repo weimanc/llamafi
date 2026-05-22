@@ -235,6 +235,29 @@ Work:
 
 ---
 
+### M-SHELL-LAYOUT — Shell geometry single source of truth
+
+Establish `gen/shell_layout.h` as the single authoritative definition of taskbar
+geometry and style constants (TASKBAR_X, TASKBAR_W, TASKBAR_SLOT_H, indicator
+colour, separator colour). The interactive preview tool (`preview_layout.py`)
+emits this header on export; firmware `#include`s it; Python preview tools parse
+it via a shared helper. Eliminates the drift risk between firmware and host tooling
+that would otherwise arise from M-MULTIAPP's taskbar constants.
+
+Work:
+1. Add `parse_shell_layout()` helper to `bake_skin.py`.
+2. Add `--export` path to `preview_layout.py` that writes `gen/shell_layout.h`.
+3. Update firmware to `#include "gen/shell_layout.h"` and remove any literal taskbar constants.
+4. Fix `preview_vis.py:58` to parse `gen/skin_layout.h` instead of hardcoding `WINDOW_W=275`.
+5. VE: T125–T127 host-side test suite.
+
+**Status:** design (2026-05-22 — design doc drafted; blocked on M-MULTIAPP interactive preview tooling)
+**Deps:** M-MULTIAPP (interactive preview tool, step 1)
+**Blocks:** M-MULTIAPP taskbar + appshell implementation (steps 3–4)
+**Design:** [M-MULTIAPP/shell-layout.md](../architecture/designs/M-MULTIAPP/shell-layout.md)
+
+---
+
 ### M-MULTIAPP — Multi-app shell with icon taskbar
 
 Add a persistent 45 px icon-only taskbar on the right edge (x: 275..319).
@@ -254,7 +277,7 @@ Work sequence:
 6. Network apps — `dataTask` + Weather + Crypto fetch/render.
 
 **Status:** design (2026-05-22 — design docs drafted; preview tooling pass required before implementation tasks filed)
-**Deps:** M3 (Winamp display in tree), M-NOART (JPEGDEC removed)
+**Deps:** M3 (Winamp display in tree), M-NOART (JPEGDEC removed), M-SHELL-LAYOUT (taskbar constants header, gates steps 3–4)
 **Design:** [M-MULTIAPP/overview.md](../architecture/designs/M-MULTIAPP/overview.md)
 
 ---

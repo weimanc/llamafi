@@ -1581,6 +1581,212 @@ the indicator behavior once the indicator is implemented.
 
 ---
 
+## Suite: playlist-003 — M-LIST-v3 playlist interactivity (Features 4 & 5)
+
+> Tracked-as: TASK-051g (row formatting), TASK-051h (songsSeen counter).
+> Design: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md`.
+> All tests in this suite require SERIAL_DEBUG firmware and a running Spotify session.
+
+### Testability pre-requisite (blocking all T117–T124)
+
+`get snapshot` serial response must expose `scrollOffset` (int) and `songsSeen` (uint16).
+Without these fields, counter and scroll state can only be verified visually.
+Developer must add these fields before any harness-driven test can be written.
+
+---
+
+### T117 — [playlist-002, playlist-003] Row format: number prefix and right-aligned duration
+
+- **Type**: e2e (DUT + host)
+- **Feature(s)**: playlist-002, playlist-003
+- **Objective**: Each PLEDIT row displays `"N. Artist - Title   M:SS"` — queue-relative number (1-based), artist–title in the middle, duration right-aligned. Verifies Feature 4 pixel layout.
+- **Preconditions**:
+  - SERIAL_DEBUG firmware with TASK-051g applied. `get snapshot` exposes `scrollOffset`.
+  - Spotify playing from a playlist; `get queue` returns `count >= 3`. `scrollOffset == 0`.
+- **Steps**:
+  1. `get queue` — record `items[0].artist`, `items[0].name`, `items[0].durationMs`.
+  2. Visual inspection: row 0 text starts with `"1. "`, then artist + " - " + title, ends with `" M:SS"` right-aligned.
+  3. Compute expected duration string from `durationMs`. Confirm it appears in the rightmost ~30px of content area.
+  4. Confirm row 1 starts with `"2. "`.
+- **Expected result**: Number prefix, artist–title, and duration all present and correctly positioned. No duration overlap with title text.
+- **Status**: planned. Owner: VE.
+
+---
+
+### T118 — [playlist-002, playlist-003] Row truncation: `"..."` inserted, duration preserved
+
+- **Type**: e2e (DUT + host)
+- **Feature(s)**: playlist-002, playlist-003
+- **Objective**: When `Artist - Title` exceeds the middle budget, text is trimmed and `"..."` appended. Duration still right-aligned and intact.
+- **Preconditions**:
+  - SERIAL_DEBUG firmware with TASK-051g applied.
+  - Spotify playing a track where `strlen("N. Artist - Title") * 6 > 238 - dur_width - 2`. Use a known long-name track.
+- **Steps**:
+  1. Identify or force a track with a combined artist+title string > ~28 chars (after number prefix and duration budget).
+  2. Visual inspection: row shows `"N. Artis...   M:SS"` — title text cut, `"..."` visible before the gap to duration.
+  3. Confirm duration string is not overwritten or truncated.
+- **Expected result**: Truncated middle section ends with `"..."`. Duration intact and right-aligned.
+- **Status**: planned. Owner: VE.
+
+---
+
+### T119 — [playlist-002, playlist-003, touch-002] Swipe in PLEDIT content area shifts visible window
+
+- **Type**: e2e (DUT + host)
+- **Feature(s)**: playlist-002, playlist-003, touch-002
+- **Objective**: Swipe-up in the PLEDIT content area increments `scrollOffset`; swipe-down decrements. Visible rows shift accordingly.
+- **Preconditions**:
+  - SERIAL_DEBUG firmware with TASK-051b/c/d applied. `get snapshot` exposes `scrollOffset`.
+  - Spotify queue has `count >= 8`.
+- **Steps**:
+  1. `get snapshot` — assert `scrollOffset == 0`.
+  2. Issue `drag` command: vertical swipe-up in PLEDIT content area (e.g. `drag 156 190 156 150 30`).
+  3. `get snapshot` — assert `scrollOffset == 1`.
+  4. Confirm row 0 now displays `"2. ..."` (second queue item).
+  5. Issue swipe-down `drag 156 150 156 190 30`. Assert `scrollOffset == 0`.
+- **Expected result**: `scrollOffset` tracks swipe direction; row numbers and content update accordingly.
+- **Status**: planned. Owner: VE. Note: exact drag coordinates depend on swipe-zone boundaries (pending GUI design — see open issue below).
+
+---
+
+### T120 — [playlist-002, playlist-003] Scrollbar thumb position tracks scrollOffset
+
+- **Type**: e2e (DUT + host)
+- **Feature(s)**: playlist-002, playlist-003
+- **Objective**: As `scrollOffset` increases from 0 to max, the scrollbar thumb moves from top to bottom of the scrollbar track proportionally.
+- **Preconditions**:
+  - SERIAL_DEBUG firmware with TASK-051c/e applied.
+  - Queue `count >= 10`.
+- **Steps**:
+  1. Swipe to `scrollOffset == 0`; screenshot / visual: thumb at top of track.
+  2. Swipe to `scrollOffset == count - PLEDIT_ROW_COUNT`; visual: thumb at bottom of track.
+  3. Swipe to mid-point; visual: thumb at mid-track.
+- **Expected result**: Thumb Y-position = `scrollOffset / (count - PLEDIT_ROW_COUNT)` × track height. Visually monotone.
+- **Status**: planned. Owner: VE. Visual-only until a pixel-read path exists.
+
+---
+
+### T121 — [playlist-002, playlist-003, sync-001] Track change resets scrollOffset to 0
+
+- **Type**: e2e (DUT + host)
+- **Feature(s)**: playlist-002, playlist-003, sync-001
+- **Objective**: When the playing track changes (seqno advance), `scrollOffset` resets to 0 regardless of prior scroll position.
+- **Preconditions**:
+  - SERIAL_DEBUG firmware with TASK-051c/f applied. `get snapshot` exposes `scrollOffset`.
+  - Queue `count >= 8`.
+- **Steps**:
+  1. Swipe to `scrollOffset >= 2`. Confirm via `get snapshot`.
+  2. Skip to next track via Spotify app (external) or `ACT_NEXT`.
+  3. Wait one poll cycle (≤ 8 s).
+  4. `get snapshot` — assert `scrollOffset == 0`.
+  5. Visual: row 0 shows `"N. [new track]   M:SS"`.
+- **Expected result**: `scrollOffset` is 0 after track change. Row 0 shows new currently-playing track.
+- **Status**: planned. Owner: VE.
+
+---
+
+### T122 — [playlist-003, sync-001] `songsSeen` increments on natural track advance
+
+- **Type**: e2e (DUT + host)
+- **Feature(s)**: playlist-003, sync-001
+- **Objective**: `songsSeen` increments by 1 when a track ends naturally (no DUT or external skip).
+- **Preconditions**:
+  - SERIAL_DEBUG firmware with TASK-051h applied. `get snapshot` exposes `songsSeen`.
+  - Spotify playing a short or near-end track (to reduce wait time).
+- **Steps**:
+  1. `get snapshot` — record `songsSeen = N`, `items[1].uri = EXPECTED_NEXT`.
+  2. Wait for track to end naturally (monitor Spotify or poll until `items[0].uri == EXPECTED_NEXT`).
+  3. `get snapshot` — assert `songsSeen == N + 1`.
+  4. Visual: row 0 now shows `"N+1. [new track]"`.
+- **Expected result**: Counter increments exactly once per natural advance.
+- **Status**: planned. Owner: VE. Note: test duration depends on track length — use a short track or seek near end via Spotify app.
+
+---
+
+### T123 — [playlist-003, touch-002] `songsSeen` suppressed on DUT skip (ACT_NEXT)
+
+- **Type**: e2e (DUT + host)
+- **Feature(s)**: playlist-003, touch-002
+- **Objective**: `songsSeen` does NOT increment when the DUT issues `ACT_NEXT` (skipPending flag suppresses).
+- **Preconditions**:
+  - SERIAL_DEBUG firmware with TASK-051h applied. `get snapshot` exposes `songsSeen`.
+- **Steps**:
+  1. `get snapshot` — record `songsSeen = N`.
+  2. Tap the NEXT button on DUT (physical or serial: `tap <NEXT_X> <NEXT_Y>`).
+  3. Wait one poll cycle (≤ 8 s).
+  4. `get snapshot` — assert `songsSeen == N` (unchanged).
+- **Expected result**: `songsSeen` unchanged after DUT-initiated skip.
+- **Status**: planned. Owner: VE.
+
+---
+
+### T124 — [playlist-003] `songsSeen` suppressed on external random skip (manual)
+
+- **Type**: e2e (DUT + host, manual)
+- **Feature(s)**: playlist-003
+- **Objective**: `songsSeen` does NOT increment when the Spotify app on the phone skips to a non-adjacent track.
+- **Preconditions**:
+  - SERIAL_DEBUG firmware with TASK-051h applied. Phone with Spotify app.
+- **Steps**:
+  1. `get snapshot` — record `songsSeen = N`, `items[1].uri`.
+  2. On the phone, use Spotify to navigate to a track that is NOT `items[1]` (e.g. jump to a different album).
+  3. Wait one poll cycle.
+  4. `get snapshot` — assert `songsSeen == N`.
+- **Expected result**: `songsSeen` unchanged. URI mismatch correctly suppressed increment.
+- **Status**: planned. Owner: VE. Manual step required (no harness path to Spotify phone app).
+
+---
+
+## Suite: shell-layout-001 — Shell layout header (M-SHELL-LAYOUT)
+
+Host-side tests. No DUT required. Verify that `gen/shell_layout.h` is present,
+self-consistent, and in agreement with `appShell.h`. All three tests run on the
+host after the interactive preview tool's `--export` step.
+
+Common preconditions:
+- `Spotify-Diy-Thing/SpotifyDiyThing/gen/shell_layout.h` committed/present.
+- `Spotify-Diy-Thing/SpotifyDiyThing/appShell.h` compiled and referencing `gen/shell_layout.h`.
+
+### T125 — [shell-layout-001] shell_layout.h present and complete
+
+- **Type**: unit (host-side)
+- **Feature(s)**: shell-layout-001
+- **Objective**: Verify that `gen/shell_layout.h` exists and defines all required `TASKBAR_*` constants.
+- **Preconditions**: `preview_layout.py --export` has been run and output committed.
+- **Steps**:
+  1. Run `python3 -c "import re, sys; d={m.group(1): m.group(2) for l in open('Spotify-Diy-Thing/SpotifyDiyThing/gen/shell_layout.h') for m in [re.match(r'#define\s+(\w+)\s+(.+)', l)] if m}; required=['TASKBAR_X','TASKBAR_W','TASKBAR_SLOT_H','TASKBAR_ICON_W','TASKBAR_ICON_H','TASKBAR_BG_RGB565','TASKBAR_ACTIVE_STYLE','TASKBAR_ACTIVE_COLOR','TASKBAR_SEP_ENABLED','TASKBAR_SEP_COLOR']; missing=[k for k in required if k not in d]; sys.exit(1) if missing else print('PASS', d)"`.
+  2. Confirm exit code 0 and all required keys printed.
+- **Expected result**: Exit 0; all 10 `TASKBAR_*` constants present.
+- **Status**: planned. Owner: VE.
+
+### T126 — [shell-layout-001] taskbar geometry covers full screen width
+
+- **Type**: unit (host-side)
+- **Feature(s)**: shell-layout-001
+- **Objective**: `TASKBAR_X + TASKBAR_W == 320` — taskbar strip fills the right edge with no gap or overflow. `TASKBAR_SLOT_H * 6 == 240` — 6 slots fill screen height exactly.
+- **Preconditions**: T125 passing.
+- **Steps**:
+  1. Parse `gen/shell_layout.h` via `parse_shell_layout()`.
+  2. Assert `int(TASKBAR_X) + int(TASKBAR_W) == 320`.
+  3. Assert `int(TASKBAR_SLOT_H) * 6 == 240`.
+- **Expected result**: Both assertions pass.
+- **Status**: planned. Owner: VE.
+
+### T127 — [shell-layout-001] firmware appShell.h uses header constants, not literals
+
+- **Type**: static analysis (host-side)
+- **Feature(s)**: shell-layout-001
+- **Objective**: Drift check — `appShell.h` references taskbar geometry via `TASKBAR_*` names from `gen/shell_layout.h`, not bare literals. Catches edits that bypass the preview tool export.
+- **Preconditions**: T125 passing. `appShell.h` implemented.
+- **Steps**:
+  1. Parse `gen/shell_layout.h` → dict of name → value.
+  2. Grep `appShell.h` for bare integer literals matching TASKBAR_X (275), TASKBAR_W (45), TASKBAR_SLOT_H (40) in hit-test or render context.
+  3. Assert no unguarded literals found.
+- **Expected result**: No bare taskbar geometry literals in `appShell.h`. All constants consumed via `#define` names from `gen/shell_layout.h`.
+- **Status**: planned. Owner: VE. Note: grep for "275", "45", "40" needs context filtering to avoid false positives from unrelated numeric coincidences.
+
+---
+
 ## Entry Format
 
 ```

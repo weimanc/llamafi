@@ -578,3 +578,30 @@ features:
       Exit criterion: cyd2usb_winamp build clean without JPEGDEC; DUT survives 5+ min
       active playback without Guru Meditation. DUT verification not yet run — pending flash.
       No VE test suite — add to test plan when DUT verification is scheduled.
+
+  - id: shell-layout-001
+    name: Shell layout header (gen/shell_layout.h)
+    description: |
+      Single authoritative definition of taskbar geometry and style constants shared between
+      firmware and host Python tooling. The interactive preview tool (preview_layout.py)
+      emits gen/shell_layout.h on --export; firmware appShell.h #include-s it; Python tools
+      parse it via a shared parse_shell_layout() helper in bake_skin.py. Eliminates the
+      drift risk where TASKBAR_X, TASKBAR_W, TASKBAR_SLOT_H, indicator colour, and separator
+      colour would otherwise be defined independently in firmware and preview tools.
+      Also fixes the existing preview_vis.py:58 WINDOW_W hardcode to parse gen/skin_layout.h.
+    status: planned
+    git_ref: ""
+    files:
+      - Spotify-Diy-Thing/SpotifyDiyThing/gen/shell_layout.h
+      - Spotify-Diy-Thing/tools/bake_skin.py
+      - Spotify-Diy-Thing/tools/preview_layout.py
+      - Spotify-Diy-Thing/tools/preview_vis.py
+      - Spotify-Diy-Thing/SpotifyDiyThing/appShell.h
+    cross_features: [m2-001]
+    test_ids: [T125, T126, T127]
+    notes: |
+      Design doc: docs/architecture/designs/M-MULTIAPP/shell-layout.md.
+      Blocked on M-MULTIAPP interactive preview tooling (interactive-preview.md).
+      Gates M-MULTIAPP taskbar + appshell implementation (steps 3-4 in overview.md).
+      golden.sha256: include gen/shell_layout.h (firmware build input, should be stable).
+      Open: whether to also add a C _Static_assert in appShell.h as a compile-time drift guard (T127 covers this at host level).
