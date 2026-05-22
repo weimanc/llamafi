@@ -52,9 +52,9 @@ struct WeatherAppState {
 };
 
 struct CryptoAppState {
-    float prices[9];
-    float changes[9];
-    unsigned long lastCryptoFetch;
+    float prices[6];    // BTC ETH BNB SOL XRP ADA — see crypto.md
+    float changes[6];
+    unsigned long lastCryptoFetch;   // 0 = never fetched
 };
 
 struct MatrixAppState {
