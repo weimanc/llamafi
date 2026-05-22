@@ -10,145 +10,117 @@
 
 `preview-tooling.md` specifies a static `--layout-preview` mode for `bake_skin.py`
 that renders `gen/layout_preview.png`. This is pixel-accurate — it composites the
-real Winamp skin assets via PIL — but it requires a full re-run to see each variant.
+real Winamp skin assets via PIL — but requires a full re-run per variant.
 The open aesthetic questions (background colour, active indicator style, separator
 style, icon approach) have four or more binary axes; exploring the full space via
 repeated CLI invocations is slow.
 
-Design goal: make the parameter iteration loop interactive while keeping the same
-PIL rendering path that guarantees pixel accuracy.
+## Decision: pygame live panel (`preview_layout.py`)
 
-## Goals
+New script `Spotify-Diy-Thing/tools/preview_layout.py`. Opens a scaled pygame
+window showing the full 320×240 device layout. Keyboard shortcuts cycle parameters
+in real time; pressing `e` writes `gen/shell_layout.h` with the approved values.
 
-1. Pixel accuracy is non-negotiable — the interactive tool uses the same PIL
-   composite path as the static PNG, not a CSS approximation.
-2. Zero or minimal new dependencies — the project already has PIL (always
-   present) and pygame (lazy-imported in `preview_vis.py`). New deps require
-   justification.
-3. Fast feedback — parameter change → updated render in under one second.
-4. Chosen parameters must flow back to firmware — the tool must make it easy
-   to record the approved values as `renderTaskbar()` constants.
+This is the only interactive approach. Options considered and rejected: HTML
+single-file (JS-rendered taskbar is not PIL-accurate for glyphs), Flask hot-reload
+(new dep, round-trip latency), Jupyter (heavyweight, not in project).
 
-## Design space
+## Window and scale
 
-### Option A — pygame live panel
+The native device canvas is 320×240 — unreadably small on a modern display.
+`preview_layout.py` applies a nearest-neighbour integer scale to the PIL composite
+before blitting to pygame, preserving pixel accuracy.
 
-Extend the existing `--live` pattern in `preview_vis.py` to a new
-`preview_layout.py` script (or `--interactive` flag on `bake_skin.py`).
-Displays the 320×240 PIL composite in a pygame window at 1:1. Keyboard
-shortcuts cycle through the parameter axes:
+Supported scales and fit at common laptop resolutions:
+
+| `--scale` | Window size | Fits at |
+|-----------|-------------|---------|
+| 1 | 320 × 240 | any |
+| 2 (default) | 640 × 480 | all laptops (1366×768+) |
+| 3 | 960 × 720 | 1080p+ |
+| 4 | 1280 × 960 | 1080p+ (leaves ~120 px for title bar) |
+| 5 | 1600 × 1200 | 1440p+ only |
+
+Default: `--scale 2`. Live toggle: `+` / `-` keys cycle through 1–4 without
+restarting.
+
+## Icon glyphs: Winamp 5×6 bitmap font
+
+Icons use single uppercase ASCII characters from the Winamp skin's own TEXT.BMP
+font atlas — the same glyph table (`SKIN_GLYPH`) already used by the firmware.
+
+| Slot | App | Glyph char | CHAR_MAP location |
+|------|-----|------------|-------------------|
+| 0 | Spotify / Winamp | `S` | row 0, col 18 → UV (90, 0) |
+| 1 | Clock | `C` | row 0, col 2 → UV (10, 0) |
+| 2 | Weather | `W` | row 0, col 22 → UV (110, 0) |
+| 3 | Crypto | `$` | row 1, col 29 → UV (145, 6) |
+| 4 | Matrix rain | `M` | row 0, col 12 → UV (60, 0) |
+| 5 | Game of Life | `G` | row 0, col 6 → UV (30, 0) |
+
+Glyph dimensions: **5 × 6 px** (`GLYPH_W=5, GLYPH_H=6` in `bake_skin.py:170`).
+Target icon cell: 24 × 24 px. Padding: `(24-5)//2 = 9` px left/right,
+`(24-6)//2 = 9` px top, `9+1=10` px bottom.
+
+### Rendering in PIL
+
+`sources["TEXT.BMP"]` is already loaded during a bake run. The preview function
+crops each glyph and pastes it into the icon cell:
+
+```python
+font_bmp = sources["TEXT.BMP"]          # already loaded in bake context
+col, row = glyph_uv[ord(label)]         # from build_glyph_table()
+u, v = col * GLYPH_W, row * GLYPH_H
+glyph = font_bmp.crop((u, v, u + GLYPH_W, v + GLYPH_H))
+# paste into 24×24 icon cell, top-left at (cell_x + 9, cell_y + 9)
+cell.paste(glyph, (9, 9))
+```
+
+At `--scale 2` the glyph renders as 10×12 screen pixels — legible. At `--scale 4`
+it renders as 20×24 — fills the cell.
+
+No TTF fonts, no system fonts, no placeholder rectangles. Glyph is pixel-identical
+to what the firmware will render at runtime via `tft.drawChar()` with `SKIN_GLYPH`.
+
+## Keyboard controls
 
 | Key | Action |
 |-----|--------|
-| `b` | Cycle taskbar background (`#111` → `#232323` → `#333` → …) |
-| `i` | Cycle active indicator style (A: bar → B: cell → C: dot) |
+| `b` | Cycle taskbar background colour |
+| `i` | Cycle active indicator style (A: 3 px bar → B: full cell → C: dot) |
 | `s` | Toggle separator lines |
 | `c` | Cycle active indicator colour |
-| `[` / `]` | Step active slot (to preview indicator on different apps) |
+| `[` / `]` | Step active slot (preview indicator on different app slots) |
+| `+` / `-` | Increase / decrease scale (1–4, wraps) |
+| `e` | **Export** — write approved params to `gen/shell_layout.h` |
 | `p` | Print current params as `bake_skin.py` CLI args to stdout |
 | `q` | Quit |
 
-**Pros:** pygame is already a dep (optional, lazy-imported); no server; renders
-at native resolution; consistent with `preview_vis.py` pattern.
-**Cons:** requires a display (no headless CI); not shareable without running
-the script.
+## Approved-params export (`e` key)
 
-### Option B — single-file HTML export
+Pressing `e` writes `gen/shell_layout.h` directly — this is the M-SHELL-LAYOUT
+handoff. No manual transcription. See `shell-layout.md` for the header schema.
 
-`bake_skin.py --layout-preview --html` emits `gen/layout_preview.html`. The
-Winamp skin composites are embedded as base64 PNG data URIs. The taskbar strip
-is rendered as a `<canvas>` overlay drawn by inline JS. Sliders and radio
-buttons update the canvas in real time; `image-rendering: pixelated` keeps
-everything at integer scale. An "Export params" button prints the CLI args
-to a `<pre>` block for copy-paste.
+The `p` key prints the same values as `bake_skin.py`-compatible CLI args (for
+reference / copy-paste into CI scripts).
 
-**Pros:** no Python deps beyond PIL; opens in any browser; shareable as a
-single file; survives headless environments.
-**Cons:** taskbar canvas is JS-redrawn, not PIL-redrawn — colours and glyph
-positions are accurate but the icon glyphs themselves are placeholder shapes
-(font chars or coloured rectangles) until real 24×24 bitmaps are baked in.
-Slight colour-space risk (sRGB in browser vs. RGB565 on device).
+## Colour-space note
 
-### Option C — Flask hot-reload loop
-
-Tiny Flask server (~30 lines). Browser `<img>` polls `/preview.png`; a parameter
-form posts to `/update`; the server re-runs the PIL composite and refreshes the
-image. Pixel-perfect (PIL renders, browser only displays).
-
-**Pros:** full PIL fidelity including icon glyphs; browser devtools can measure
-pixel coordinates directly.
-**Cons:** new dep (Flask); more setup; one round-trip latency per parameter
-change (acceptable but slower than A or B).
-
-### Option D — Jupyter notebook
-
-`ipywidgets` sliders call `render_layout_preview()` inline; `IPython.display`
-shows the PIL image. Good for exploratory iteration.
-
-**Cons:** requires Jupyter — not currently in project; heavyweight for a
-one-time aesthetic decision pass.
-
-## Lean / decision
-
-**Primary: Option A (pygame live panel).**
-Zero new deps, consistent with existing `preview_vis.py` pattern, instant
-feedback. Sufficient for the aesthetic decision pass (one developer, one
-screen, one session).
-
-**Secondary: Option B (HTML export) as a shareable artefact.**
-After the pygame session, run `--layout-preview --html` to emit a single HTML
-file that captures the approved configuration alongside the alternatives.
-Checked into `gen/` (excluded from `golden.sha256`) as a record of the
-decision, and useful if a second opinion is needed without running Python.
-
-Options C and D are deprioritised: Flask adds a dep for no accuracy gain over
-A; Jupyter is overkill for a single-pass aesthetic decision.
-
-## Approved-params handoff
-
-When the pygame session ends, pressing `p` prints:
-
-```
-# approved taskbar params — paste into renderTaskbar() constants
-TASKBAR_BG      = 0x2323  # #232323 in RGB565
-ACTIVE_STYLE    = A       # 3 px left bar
-ACTIVE_COLOR    = 0x07E0  # #1db954 → nearest RGB565
-SEP_COLOR       = 0x4208  # #444444 → nearest RGB565
-SEP_ENABLED     = true
-ICON_APPROACH   = A       # TFT_eSPI GLCD font chars
-```
-
-These values are transcribed into the open-questions section of `taskbar.md`
-to close that section and unblock `renderTaskbar()` implementation.
-
-## Relationship to preview-tooling.md exit criteria
-
-The interactive pass satisfies the same exit criteria as the static pass
-(three variants compared, all four open questions resolved). The static
-`--layout-preview` PNG remains the canonical committed artefact; the
-interactive tool is a developer-only session aid.
-
-## Open questions
-
-1. **Icon glyphs in pygame session** — use PIL `ImageFont` with a small TTF
-   (already available on Linux via system fonts) or placeholder coloured
-   rectangles? Placeholder rects are sufficient for colour/indicator decisions;
-   font chars are needed to validate icon readability.
-2. **Scale factor** — 320×240 is small on a HiDPI display. pygame `--scale 2`
-   (nearest-neighbour zoom) or CSS `transform: scale(2)` in HTML? Must be
-   integer scale to preserve pixel accuracy.
-3. **HTML colour-space** — browser renders sRGB; RGB565 on device has different
-   gamut for saturated colours (notably Spotify green `#1DB954`). Note the
-   discrepancy in the HTML artefact so the designer is aware.
+The pygame window and PIL composite operate in sRGB. RGB565 on the ESP32 has a
+different gamut for saturated colours — notably Spotify green `#1DB954` maps to
+`0x0DE8` in RGB565 and will render slightly differently on device than on screen.
+This is a known display-preview discrepancy; no action required. The `e` export
+writes the RGB565 value directly, not the sRGB approximation.
 
 ## Exit criteria
 
 | Criterion | Verification | Test |
 |-----------|-------------|------|
-| `preview_layout.py --interactive` opens 320×240 pygame window with keyboard controls and `p` prints params | **Manual** — requires display; no headless path | T131 |
-| `bake_skin.py --layout-preview --html` emits `gen/layout_preview.html` with base64 skin assets + `<canvas>` element | **Automated** — file presence + structure grep | T130 |
-| "Working JS controls" in HTML | **Manual** — browser runtime required | T131 (visual check) |
-| All four open questions in `taskbar.md` answered (no TBD markers) | **Automated** — `grep -c "TBD"` == 0 | T132 |
-| `golden.sha256` excludes `layout_preview.html` and still passes | **Automated** — `sha256sum -c` | T132 |
+| `preview_layout.py --interactive` opens scaled pygame window; all keyboard controls respond | Manual — requires display | T131 |
+| Winamp glyphs visible in icon cells at all supported scales | Manual — visual check during T131 | T131 |
+| `e` key writes `gen/shell_layout.h` matching current params | Automated — T125 verifies header completeness post-export | T125 |
+| All four open questions in `taskbar.md` answered (no TBD markers) | Automated — `grep -c "TBD"` == 0 | T132 |
+| `golden.sha256` excludes `layout_preview.html` and still passes | Automated | T132 |
 
-Note: this design doc has no feature inventory entry. A `preview-tooling-001` feature must be added to `feature_inventory.yaml` before T130–T132 can be formally tracked (flagged to Architect and PM).
+Note: `preview-tooling-001` feature entry exists in `feature_inventory.yaml`
+(T130–T132 tracked there).

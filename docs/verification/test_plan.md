@@ -1824,55 +1824,40 @@ Common preconditions:
 
 ## Suite: preview-tooling-001 — Interactive preview tooling (M-MULTIAPP)
 
-Host-side tests. No DUT required. Mix of automated and manual steps — each
-test is labelled accordingly. **Arch note**: no feature inventory entry exists
-for the interactive preview tooling. A `preview-tooling-001` feature entry is
-needed before test coverage can be tracked (flagged to Architect and PM).
+Host-side tests. No DUT required. T131 is manual (requires display); T132 is
+automated. HTML export option removed from design — T130 dropped accordingly.
 
-### T130 — [preview-tooling-001] layout_preview.html emitted and structurally valid
-
-- **Type**: unit (host-side, automated)
-- **Feature(s)**: preview-tooling-001
-- **Objective**: `bake_skin.py --layout-preview --html` produces `gen/layout_preview.html` that embeds the skin assets as base64 data URIs and contains a `<canvas>` element for the taskbar overlay.
-- **Preconditions**: `bake_skin.py --layout-preview --html` implemented. WSZ skin present.
-- **Steps**:
-  1. Run `python3 bake_skin.py -i ../skins/base-2.91.wsz -o ../SpotifyDiyThing/gen --layout-preview --html`.
-  2. Assert `gen/layout_preview.html` exists and is non-empty.
-  3. Assert file contains `data:image/png;base64,` (skin assets embedded).
-  4. Assert file contains `<canvas` element.
-  5. Assert file contains JS handler references for at least one parameter control (background, indicator style, or separator).
-- **Expected result**: All five assertions pass. File opens in a browser without JS errors (browser check is manual — see T131).
-- **Status**: planned. Owner: VE.
-
-### T131 — [preview-tooling-001] pygame interactive window opens and keyboard controls respond
+### T131 — [preview-tooling-001] pygame window opens, controls respond, glyphs visible
 
 - **Type**: manual (requires display)
 - **Feature(s)**: preview-tooling-001
-- **Objective**: `preview_layout.py --interactive` renders the full 320×240 layout and keyboard shortcuts cycle parameters visibly.
+- **Objective**: `preview_layout.py` renders the full layout at the requested scale, keyboard controls cycle all parameters, Winamp font glyphs are visible in icon cells, `e` exports `gen/shell_layout.h`.
 - **Preconditions**: Display available. pygame installed. WSZ skin present.
 - **Steps**:
-  1. Run `python3 preview_layout.py --interactive -i ../skins/base-2.91.wsz`.
-  2. Confirm 320×240 window opens showing Winamp chrome left + taskbar right.
-  3. Press `b` — confirm taskbar background cycles to next colour variant.
-  4. Press `i` — confirm active indicator style changes visibly.
-  5. Press `s` — confirm separator lines toggle.
-  6. Press `[` / `]` — confirm active-indicator highlight moves to adjacent slot.
-  7. Press `p` — confirm params printed to stdout in `#define`-compatible format.
-  8. Press `q` — confirm clean exit.
-- **Expected result**: All steps observable. No Python exception. Stdout from step 7 contains all 10 `TASKBAR_*` constant names.
+  1. Run `python3 preview_layout.py -i ../skins/base-2.91.wsz --scale 2`.
+  2. Confirm window opens at 640×480 showing Winamp chrome (left 550 px) + taskbar (right 90 px).
+  3. Confirm each taskbar slot shows a visible glyph: S, C, W, $, M, G (Winamp 5×6 font, 10×12 px at 2x scale).
+  4. Press `b` — taskbar background colour changes.
+  5. Press `i` — active indicator style changes visibly (bar / full cell / dot).
+  6. Press `s` — separator lines toggle.
+  7. Press `[` / `]` — active-indicator highlight moves to adjacent slot.
+  8. Press `+` — window scales up; press `-` — scales down. Confirm integer scale, no blur.
+  9. Press `e` — confirm `gen/shell_layout.h` written; run T125 to verify completeness.
+  10. Press `p` — params printed to stdout with all `TASKBAR_*` names.
+  11. Press `q` — clean exit.
+- **Expected result**: All steps observable. No Python exception. Glyphs are pixel-identical Winamp chars. `gen/shell_layout.h` written on `e`.
 - **Status**: planned. Owner: VE (manual sign-off required before M-SHELL-LAYOUT gates open).
 
 ### T132 — [preview-tooling-001] taskbar.md open questions resolved and golden.sha256 intact
 
 - **Type**: unit (host-side, automated)
 - **Feature(s)**: preview-tooling-001
-- **Objective**: Verify that the four aesthetic open questions in `taskbar.md` are answered (no remaining TBD markers in the Aesthetics section) and that `golden.sha256` still passes after adding `layout_preview.html`.
-- **Preconditions**: T130 passing. Interactive preview session completed and parameters transcribed to `taskbar.md`.
+- **Objective**: The four aesthetic open questions in `taskbar.md` are answered (no TBD markers remain) and `golden.sha256` still passes after the preview session.
+- **Preconditions**: T131 completed. Approved params recorded in `taskbar.md`.
 - **Steps**:
-  1. Run `grep -c "TBD" docs/architecture/designs/M-MULTIAPP/taskbar.md` — assert output is `0`.
-  2. Confirm `gen/layout_preview.html` is listed in the `golden.sha256` exclusion list (or `.gitignore` pattern), not in the hash entries.
-  3. Run `cd SpotifyDiyThing/gen && sha256sum -c golden.sha256` — assert exit 0.
-- **Expected result**: No TBD markers remain in taskbar.md; `layout_preview.html` excluded from hash check; hash check passes.
+  1. Run `grep -c "TBD" docs/architecture/designs/M-MULTIAPP/taskbar.md` — assert `0`.
+  2. Run `cd Spotify-Diy-Thing/SpotifyDiyThing/gen && sha256sum -c golden.sha256` — assert exit 0.
+- **Expected result**: No TBD markers; hash check passes.
 - **Status**: planned. Owner: VE.
 
 ---

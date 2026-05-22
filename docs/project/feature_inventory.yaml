@@ -610,23 +610,24 @@ features:
   - id: preview-tooling-001
     name: Interactive preview tooling (preview_layout.py)
     description: |
-      New host-side tool preview_layout.py implementing the interactive preview for
-      M-MULTIAPP taskbar aesthetics. Primary: pygame live panel (Option A) — 320x240
-      window, keyboard shortcuts cycle background/indicator/separator/colour, 'p' exports
-      params, 'e' writes gen/shell_layout.h. Secondary: bake_skin.py --layout-preview --html
-      emits gen/layout_preview.html (base64 skin assets + canvas JS overlay) as a shareable
-      artefact. Resolves the four open aesthetic questions in taskbar.md before firmware
+      New host-side tool preview_layout.py: pygame live panel showing the full 320x240
+      device layout at integer scale (--scale 1-4, default 2x). Keyboard shortcuts cycle
+      taskbar background/indicator/separator/colour in real time. Icon glyphs rendered from
+      Winamp TEXT.BMP font atlas (5x6 px SKIN_GLYPH chars S/C/W/$/M/G), pixel-identical to
+      firmware. 'e' key exports approved params directly to gen/shell_layout.h (M-SHELL-LAYOUT
+      handoff). Resolves the four open aesthetic questions in taskbar.md before firmware
       renderTaskbar() is written. See interactive-preview.md.
     status: planned
     git_ref: ""
     files:
       - Spotify-Diy-Thing/tools/preview_layout.py
       - Spotify-Diy-Thing/tools/bake_skin.py
-      - Spotify-Diy-Thing/SpotifyDiyThing/gen/layout_preview.html
+      - Spotify-Diy-Thing/SpotifyDiyThing/gen/shell_layout.h
     cross_features: [m2-001, shell-layout-001]
-    test_ids: [T130, T131, T132]
+    test_ids: [T131, T132]
     notes: |
       Design doc: docs/architecture/designs/M-MULTIAPP/interactive-preview.md.
-      T131 (pygame window) is manual — requires display.
-      T130 and T132 are automated (file presence + structure checks).
+      T131 (pygame window + glyph check) is manual — requires display.
+      T132 (taskbar.md TBD markers cleared + golden.sha256) is automated.
+      T125 (shell_layout.h completeness) owned by shell-layout-001.
       Blocked on M-MULTIAPP preview tooling pass; gates M-SHELL-LAYOUT export step.
