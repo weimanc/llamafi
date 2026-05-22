@@ -22,7 +22,27 @@ Sub-tasks: TASK-051b (extend queue), TASK-051c (scrollOffset + slice), TASK-051d
 
 ## Feature 3 — Live scrollbar thumb
 
-Thumb position = `scrollOffset / (count - PLEDIT_ROW_COUNT)` × scrollbar track height. Blit thumb sprite at computed Y on each `drawPlaylist()` redraw. Depends on Feature 2.
+No sprite exists in PLEDIT.BMP (confirmed 2026-05-22 pixel scan — see `docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md`). The thumb is a synthetic `fillRect` drawn over the tiled `SKIN_PLEDIT_RIGHT_SIDE` track on each `drawPlaylist()` redraw.
+
+### Geometry
+
+```
+track_h  = PLEDIT_ROW_COUNT * PLEDIT_ROW_H          // 65px
+thumb_h  = max(5, PLEDIT_ROW_COUNT * track_h / count)
+thumb_x  = originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W + 1
+thumb_y  = PLEDIT_ROWS_Y
+         + scrollOffset * (track_h - thumb_h) / max(1, count - PLEDIT_ROW_COUNT)
+```
+
+Skip drawing (no thumb) when `count <= PLEDIT_ROW_COUNT`.
+
+### Colour
+
+`0x6B4F` (RGB565 of `(106,106,122)`) — the light stripe already present in `SKIN_PLEDIT_RIGHT_SIDE`. Width 17px (`PLEDIT_SIDE_RIGHT_W - 2`).
+
+### ADR-018 correction
+
+ADR-018 §TASK-047e deferred scrollbar to Tier 2 pending context/playlist data. That dependency is dissolved: the thumb reflects `scrollOffset` within the queue window, which is available now. No playlist-position data required.
 
 Sub-task: TASK-051e.
 

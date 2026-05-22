@@ -89,10 +89,48 @@ Row height: **font-driven** (`m_row_height = max(font_pixel_height, 1)`). No har
 
 The skin used in this project (`base-2.91.wsz`) has `PLEDIT.BMP` at **280×186** (not 275×232). Observed with `_decode_bmp_rle8` + Pillow inspection.
 
-- Width 280: extra 5px on right is scrollbar track / unused.
+- Width 280: extra 5px on right is scrollbar track / unused (see Extra Strip section below).
 - Height 186: shorter than canonical 232 — y=110..185 contains additional bottom-bar button states (4 × 19px groups), not used for normal rendering.
 - Cyan `(0,198,255)` appears at y=20, 41, 71, 110, 129, 148, 167 — these are **palette fill pixels at band boundaries**, not structural separators. Winamp uses hardcoded y-offsets, not cyan detection.
 - Title band still 20px (y=0..19), bottom bar still 38px (y=72..109) — canonical heights confirmed.
+
+---
+
+## Extra strip — x=260..279 (2026-05-22 empirical, bake_skin.py pixel scan)
+
+The extra 20px at x=260..279 contains content only in two bands:
+
+| y range | Content |
+|---------|---------|
+| y=0..37 (38px) | Blue-dotted scrollbar track texture — dark background with alternating blue dots; solid blue row near bottom. Not used in normal rendering; not extracted by `bake_skin.py`. |
+| y=72..109 (38px) | Continuation of the bottom-bar right section (scroll buttons area). Contributes to the scrollbar arrow buttons visible in the bottom bar. |
+| y=38..71, y=110..185 | Background only (transparent key `(0,198,255)`). |
+
+The dotted-blue track texture at y=0..37 is an **alternate scrollbar track style** not rendered in the standard PLEDIT frame. It does not contain a separate thumb sprite. Normal rendering uses `SKIN_PLEDIT_RIGHT_SIDE` (x=32..50, y=42..70) as the scrollbar track visual.
+
+---
+
+## Scrollbar thumb — confirmed synthesised (2026-05-22)
+
+Pixel scan of all PLEDIT.BMP regions confirmed: **no scrollbar thumb sprite exists in the BMP**. Audacious draws the thumb as a synthetic filled rectangle over the track tile.
+
+### Implementation specification (for TASK-051e)
+
+The right-side frame tile (`SKIN_PLEDIT_RIGHT_SIDE`, 19×29, tiled vertically) provides the scrollbar track visual. The thumb is a `fillRect` overlay:
+
+| Parameter | Value |
+|-----------|-------|
+| Thumb width | 17px (`PLEDIT_SIDE_RIGHT_W - 2` for 1px border each side) |
+| Thumb height | `max(5, PLEDIT_ROW_COUNT * track_h / count)` where `track_h = PLEDIT_ROW_COUNT * PLEDIT_ROW_H = 65px` |
+| Thumb X | `originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W + 1` |
+| Thumb Y | `PLEDIT_ROWS_Y + scrollOffset * (track_h - thumb_h) / max(1, count - PLEDIT_ROW_COUNT)` |
+| Thumb fill colour | `0x6B4F` (RGB565 of `(106,106,122)`) — the lighter stripe in the right-side tile |
+| Hide condition | `count <= PLEDIT_ROW_COUNT` — no scroll possible, no thumb drawn |
+
+These colours derive from `SKIN_PLEDIT_RIGHT_SIDE`'s own palette so the thumb blends with the track tile:
+- `(41, 41, 64)` = `0x2948` — dominant dark fill (406/551px)
+- `(106, 106, 122)` = `0x6B4F` — light stripe (87/551px) → **thumb fill**
+- `(29, 29, 45)` = `0x18E5` — background
 
 ---
 
@@ -101,4 +139,4 @@ The skin used in this project (`base-2.91.wsz`) has `PLEDIT.BMP` at **280×186**
 - Individual track rows (no sprite)
 - Row highlight sprite (no sprite — flat fill from PLEDIT.TXT)
 - Currently-playing indicator icon
-- Scrollbar thumb (separate widget, not in PLEDIT.BMP in Audacious)
+- Scrollbar thumb (confirmed absent 2026-05-22 — synthesised via `fillRect`, see above)

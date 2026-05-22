@@ -431,6 +431,76 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - **Desired behaviour**: keep the existing queue intact; "jump" to the tapped track. Implementation options: (a) if playing from a playlist/album context, use `PUT /v1/me/player/play` with `context_uri` + `offset.uri`; (b) without context, call `next` N times to skip ahead. Neither is trivially available from the current queue snapshot (which carries URIs but not the original context URI or position). Tracked for resolution in M-LIST-v3 (TASK-051a–f). See `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md`.
 - **Resolution**: `s_lastTrackContextUri` is already populated by `onCurrentlyPlaying()` (`spotifyTaskStorage.cpp:77-81`) but is never read in the `ACT_PLAY_URI` handler — the wire is missing. Fix tracked in TASK-066.
 
+### TASK-051a — M-LIST-v3: optimistic selected-row highlight
+**Owner**: Developer
+**Feature**: playlist-002, touch-002
+**Status**: planned
+**Design**: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md` Feature 1
+**Notes**: After `ACT_PLAY_URI`, track `optimisticSelectedRow` in `WinampDisplay` (pattern: `optimisticVolumeUntilMs`). Render that row selected until seqno advances or ~8 s timeout. Reset to row 0 on track change.
+
+### TASK-051b — M-LIST-v3: extend queue to 20 items
+**Owner**: Developer
+**Feature**: playlist-002
+**Status**: planned
+**Design**: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md` Feature 2
+**Notes**: Raise `SPOTIFY_QUEUE_MAX_ITEMS` from 5 to 20 in `lib/SpotifyArduino/`. `QueueSnapshot` grows; heap impact must be verified (each `QueueItem` ~100 B → +1500 B).
+
+### TASK-051c — M-LIST-v3: scrollOffset state + sliced row rendering
+**Owner**: Developer
+**Feature**: playlist-002
+**Status**: planned
+**Design**: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md` Feature 2
+**Notes**: Add `int scrollOffset` to `WinampDisplay`. `drawPlaylist()` renders `items[scrollOffset .. scrollOffset+PLEDIT_ROW_COUNT-1]`. Row tap maps to `ACT_PLAY_URI(scrollOffset + row)`.
+
+### TASK-051d — M-LIST-v3: swipe gesture in PLEDIT content area
+**Owner**: Developer
+**Feature**: playlist-002, touch-002
+**Status**: planned
+**Design**: `docs/architecture/designs/M-LIST-v3-hitzones.md` Zone 1
+**Notes**: Add `D_PLEDIT_SCROLL` dragState. On touch-end in content area: if `|dy| < 8px` → tap; else → increment/decrement `scrollOffset`. Requires TASK-051c.
+
+### TASK-051e — M-LIST-v3: live scrollbar thumb (synthesised fillRect)
+**Owner**: Developer
+**Feature**: playlist-002
+**Status**: planned
+**Design**: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md` Feature 3; `docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md`
+**Notes**: No sprite — thumb is `fillRect` colour `0x6B4F` (17px wide) over `SKIN_PLEDIT_RIGHT_SIDE` track. Geometry: `thumb_h = max(5, PLEDIT_ROW_COUNT * 65 / count)`, `thumb_y = PLEDIT_ROWS_Y + scrollOffset * (65 - thumb_h) / max(1, count - PLEDIT_ROW_COUNT)`. Hide when `count <= PLEDIT_ROW_COUNT`. Requires TASK-051c.
+
+### TASK-051f — M-LIST-v3: auto-reset scrollOffset on track change
+**Owner**: Developer
+**Feature**: playlist-002, sync-001
+**Status**: planned
+**Design**: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md` Cross-feature
+**Notes**: On seqno advance, set `scrollOffset = 0`. items[0] (currently playing) always in view post-change.
+
+### TASK-051g — M-LIST-v3: row format N. Artist - Title... M:SS
+**Owner**: Developer
+**Feature**: playlist-002, playlist-003
+**Status**: planned
+**Design**: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md` Feature 4
+**Notes**: Replace current `"Artist - Title"` with `"N. Artist - Title   M:SS"`. N = `songsSeen + scrollOffset + i + 1`. Duration right-aligned (pixel math: `right_edge - strlen(dur)*6`). Middle truncated with `"..."` on overflow. Font 1 fixed 6px/char, 238px usable.
+
+### TASK-051h — M-LIST-v3: songsSeen counter + 2-entry URI history
+**Owner**: Developer
+**Feature**: playlist-003
+**Status**: planned
+**Design**: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md` Feature 5
+**Notes**: `uint16_t songsSeen` (RAM). `char prevNextUri[40]`. `bool skipPending` (set by ACT_NEXT / ACT_PLAY_URI dispatch). Increment when `items[0].uri == prevNextUri && !skipPending`. Update `prevNextUri = items[1].uri` after each poll. Row N shows `songsSeen + scrollOffset + i + 1`.
+
+### TASK-051i — M-LIST-v3: scrollbar strip direct drag (Zone 2)
+**Owner**: Developer
+**Feature**: playlist-002, touch-002
+**Status**: planned
+**Design**: `docs/architecture/designs/M-LIST-v3-hitzones.md` Zone 2
+**Notes**: Touch in x=278..296, y=136..200 → `D_PLEDIT_SCROLL_DIRECT`. Continuous Y-to-scrollOffset mapping during drag; thumb redraws each sample. No tap action from this zone. Requires TASK-051c, TASK-051e.
+
+### TASK-051j — M-LIST-v3: hitzones PNG update + human review gate
+**Owner**: Developer + human sign-off
+**Feature**: playlist-002, touch-002
+**Status**: planned
+**Design**: `docs/architecture/designs/M-LIST-v3-hitzones.md`
+**Notes**: Update `bake_skin.py` zone registry: replace `ROW0..ROW4` with `SWIPE/TAP` (content area) + `SCROLL DRAG` (scrollbar strip) + informational row sub-labels. Regenerate `gen/skin_hitzones.png`. Human reviews that zones cover correct pixels before any firmware implementation of TASK-051b–i begins. This is the human review gate for M-LIST-v3.
+
 ### TASK-022 — M-LIST option B: portrait rotation
 **Owner**: Developer
 **Status**: cancelled (2026-05-15 — ADR-017 chose option C; portrait rotation not needed)
