@@ -123,7 +123,7 @@ Extend bake tool to emit a semi-transparent hit-zone overlay PNG for touch align
 ### M-CONN — Connection health UI + TLS recovery controls
 
 Inactive title bars on disconnect; serial `reconnect` command; Winamp logo tap → TLS reset.
-**Status:** validated (2026-05-22) — F1 (inactive title bars): DNS override triggered consecutive=2; `last_render_age_ms` 60003→17251 confirmed `repaintChrome()` fired with `SKIN_TITLEBAR_INACTIVE`. F2 (reconnect): `{"ok":true}` ACK, TLS reset, polls resumed 10/10. F3 (logo tap): pending manual DUT touch (no `tap` serial command yet — M-SERIALDBG). No regression observed. Also fixed crash: `strcmp(nullptr)` in `getCurrentlyPlaying` on track start (LOCAL_PATCHES #11, TASK-073).
+**Status:** done (2026-05-22 — all exit criteria met). F1: DNS-induced consecutive=2 → repaintChrome fired SKIN_TITLEBAR_INACTIVE (render_age 60003→17251ms). F2: reconnect JSON ack, TLS reset, 10/10 polls. F3: logo tap → TLS reset + force poll logged; 2s cooldown correct; visual redraw confirmed. Also fixed TASK-073 crash (strcmp nullptr on track start).
 **Deps:** M-IO (TASK-052), M-CHROME (done), M3
 **Design:** [M-CONN-connection-health.md](../architecture/designs/M-CONN-connection-health.md)
 

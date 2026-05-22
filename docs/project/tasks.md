@@ -1058,10 +1058,11 @@ To be triaged with the team.
 ### TASK-053f — M-CONN: Winamp logo tap → TLS reset
 **Owner**: Developer
 **Feature**: conn-001
-**Status**: done (2026-05-16)
+**Status**: done (2026-05-16; DUT-verified 2026-05-22)
 **Notes**:
 - `hitTestLogo()` at `LOGO_X/Y/W/H` (250,100,25,16 window-local); 2 s cooldown `logoTapCooldownMs`.
 - Calls `resetTls()` + `enqueue(ACT_FORCE_POLL)` + `repaintChrome()` for immediate visual feedback.
+- DUT 2026-05-22 (3 taps): `[I][touch] logo tap → TLS reset + force poll` logged twice; 2nd tap hit 2s cooldown → `dead zone tap` (correct). TLS hard reset fired, polls recovered 200 OK. Visual redraw confirmed by user. PASS.
 
 ### TASK-035 — Drop OTA `app1` partition (reclaim 1.25 MB flash)
 **Owner**: Developer
