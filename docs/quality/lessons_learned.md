@@ -336,6 +336,61 @@ Sister rule to LL-019 (mark provisional specs before R&D is complete) and LL-017
 
 ---
 
+## Retrospective — 2026-05-22 — TASK-021/TASK-066/TASK-067 — tap-to-play queue-clear bug lifecycle
+
+Triggering work: TASK-066 (fix `ACT_PLAY_URI` context_uri wire-up) + TASK-067 (T115/T116 DUT verification). The bug was first observed at TASK-021 close-out (2026-05-16) and re-surfaced by the user on 2026-05-22 (6 days later). Both the fix (5 lines in `spotifyTaskStorage.cpp`) and the DUT regression suite (T115 PASS, T116 PASS) landed on the same day.
+
+### What went well
+
+- **Fix was minimal and targeted.** The `s_lastTrackContextUri` infrastructure was already in place — the bug was a single missing wire in `ACT_PLAY_URI`. Once identified, the fix was 5 lines with no refactoring required.
+- **Both symptoms resolved by one change.** Queue-cleared and 5-identical-rows were two manifestations of the same root cause; the single fix resolved both without hunting for a second bug.
+- **T116 made fully self-contained.** Adding `_play_adhoc_uri()` to the harness meant T116 required no manual Spotify state setup — the test drives its own precondition via the host API. All future re-runs are automated.
+- **Bug was well-documented at deferral time.** The TASK-021 notes and M-LIST-v3 design doc recorded the DUT observation, both symptoms, and both resolution options accurately. The diagnosis cost was low when the bug was revisited.
+
+---
+
+### LL-022 — 2026-05-22 — Known bug deferred as prose caveat without a blocking task
+
+**Context**: TASK-021 (tap-to-play) was marked `done` on 2026-05-16 with a documented caveat: "`playAdvanced` replaces context; queue-aware skip deferred to M-LIST-v3." The fix required — wiring `s_lastTrackContextUri` into `ACT_PLAY_URI` — was already identified in the notes. No separate bug task was filed. M-LIST-v3 was marked "planned" with no scheduled start. The user re-reported the bug on 2026-05-22.
+
+**Observation**: A known, identified, 5-line fix lived unresolved for 6 days because the deferral path ("M-LIST-v3, TASK-051a–f") was not backed by a concrete task with an owner and priority. The bug returned to the user rather than being resolved proactively.
+
+**Root cause**: Closing a task as `done` with a known functional regression in the notes, deferred to a future milestone that has no scheduled work, effectively orphans the bug. There is no mechanism in the current process to surface deferred-bug notes as actionable items.
+
+**Suggested improvement**: When a task is closed with a documented functional regression ("caveat"), a separate bug task must be filed at close time with status `planned` (not buried in the deferred milestone). The bug task should reference the parent task but stand alone in the tracker. Tasks with known un-fixed regressions should not be marked `done`; use `done-with-known-issue(TASK-NNN)` or equivalent, or hold `done` until the bug task is also closed.
+
+**Status**: open
+
+---
+
+### LL-023 — 2026-05-22 — `injectTouch()` diverged from physical touch path — new actions not mirrored
+
+**Context**: `injectTouch()` (`winampDisplay.h`) is the serial-debug touch injection path used by the VE harness. It was introduced in TASK-056d and mirrors the physical `checkForInput()` touch handler. When TASK-021 added the PLEDIT row-tap branch to `checkForInput()`, the same branch was not added to `injectTouch()`. As a result, any serial `tap X Y` command into the PLEDIT area silently fell through to DEADZONE and dispatched `ACT_FORCE_POLL` instead of `ACT_PLAY_URI`. T115's first run exposed this: `'hit': 'DEADZONE'` for coordinates that should have hit PLEDIT.
+
+**Observation**: The physical touch path and `injectTouch()` are now structurally coupled — any new touch action added to one must be added to the other — but there is no enforcement or checklist for this. The divergence was invisible until a test was actually written and run.
+
+**Root cause**: The `injectTouch()` pattern was introduced to mirror the physical path, but the mirroring requirement was never made explicit in code comments, docs, or a review checklist. New touch-path additions are made in `checkForInput()` without consulting `injectTouch()`.
+
+**Suggested improvement**: Add a co-location comment in `winampDisplay.h` at the top of both `checkForInput()` and `injectTouch()` stating: *"These two methods must be kept in sync. Any new touch-action branch added to one must be mirrored in the other."* Additionally: add to the Developer pre-commit checklist (LL-010 / BP) the item: *"If touching the physical touch path: mirror the change in `injectTouch()`."*
+
+**Status**: open
+
+---
+
+### LL-024 — 2026-05-22 — "VE: no test suite written" prose notes are not actionable without a task
+
+**Context**: The `feature_inventory.yaml` entry for `playlist-001` carried `test_ids: []` and the note *"VE: no test suite written — action from 2026-05-15 audit."* No VE task was filed for TASK-021 at close-out time. The test gap persisted for 7 days. When T115/T116 were eventually written, the `injectTouch()` gap (LL-023) was also discovered — meaning the test infrastructure itself was defective during that window, so even if tests had been written earlier they could not have run correctly without the `injectTouch()` fix.
+
+**Observation**: Audit findings that identify test gaps ("action from audit") recorded only in prose — in a feature YAML note, not as a VE task in `tasks.md` — have no owner, no deadline, and no mechanism to surface as work. They age silently.
+
+**Root cause**: The team convention is to file tasks for implementation work but to record VE actions as prose annotations. VE actions are treated as lower-priority follow-ups rather than first-class tasks. The `test_ids: []` field visually signals a gap but does not create pressure to fill it.
+
+**Suggested improvement**: Any `test_ids: []` entry in `feature_inventory.yaml` for an `implemented` feature must have a corresponding VE task in `tasks.md` with status at least `planned`. The feature should not reach `done` in the roadmap with `test_ids: []`. PM is responsible for filing the VE task at feature close. VE task must reference the feature ID so it is traceable.
+
+**Status**: open
+
+---
+
 ## Best-practice candidates (for human sign-off)
 
 Per AGENTS.md, QM does not self-promote. Below are LL items that look durable enough to become best-practice rules:
@@ -358,6 +413,9 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-019** → "Implementation specs that depend on pixel-accurate asset measurements must be marked `[PROVISIONAL — awaiting R&D]` and blocked from implementation until R&D validates the numbers. First-principles estimates produce high error rates on pixel-level behaviour." Process rule, applies to Developer (implementation gate) and Architect (provisional tagging). First instance on this project; preventive catch.
 - **LL-020** → "R&D reports must distinguish measured values from derived/computed values. Any derived value entering a spec must include its derivation formula or a one-line verification command. Architect verifies before adopting." Process rule, applies to R&D Engineer (labelling + formula) and Architect (verification gate). Concrete incident: 16/16 RGB565 values wrong in M-VIS spec; 30-second Python check would have caught it.
 - **LL-021** → "Bake pipeline parameters must be recorded in a committed, executable form (shell script or Makefile target), not only in a commit message. Commit messages are not consulted before re-running tools." Process rule, applies to Developer + R&D Engineer. Concrete incident: wave_atlas rebaked with only `--dc-offset 3`; `--boost 2.0 --spatial-smooth 3 --error-diffusion` lost because the canonical invocation only existed in the git commit body. → **BP-002**
+- **LL-022** → "A task with a documented functional regression in its notes must not be closed as `done`. File a separate bug task at close time; the bug task must stand alone in the tracker with an owner." Process rule, applies to Developer + PM. Concrete incident: TASK-021 closed `done` with a 5-line fix identified in the notes; bug returned to user 6 days later.
+- **LL-023** → "When adding a new branch to `checkForInput()` (physical touch), mirror it in `injectTouch()` in the same commit. Add co-location comments to both methods enforcing the invariant." Code-structure rule, applies to Developer. Concrete incident: PLEDIT tap branch missing from `injectTouch()` for 7 days; VE harness silently hit DEADZONE.
+- **LL-024** → "`test_ids: []` on an `implemented` feature must be backed by a VE task in `tasks.md`. PM files the VE task at feature close; feature is not `done` at roadmap level until test_ids is populated." Process rule, applies to PM + VE. Concrete incident: `playlist-001` test gap open 7 days with only a prose annotation in the YAML.
 
 ---
 

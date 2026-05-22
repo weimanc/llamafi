@@ -378,6 +378,30 @@ LL-013 / LL-009 / LL-018 promotion remains a deferred human decision; this audit
 ## Entry Format
 
 ```
+### Audit — 2026-05-22 — TASK-021/TASK-066/TASK-067 retrospective (tap-to-play bug lifecycle)
+
+**Triggered by**: PM (post-feature, per AGENTS.md protocol)
+
+**Areas checked**:
+- [x] Feature inventory completeness
+- [x] Test coverage per feature
+- [x] Cross-feature test coverage
+- [x] Documentation currency
+
+**Findings**:
+1. `playlist-001` carried `test_ids: []` from 2026-05-15 to 2026-05-22 (7 days). No VE task was filed at feature close to track this gap. (LL-024)
+2. TASK-021 was closed `done` with a documented functional regression (queue cleared on tap). No separate bug task was filed; the bug returned to the user 6 days later. The fix was 5 lines. (LL-022)
+3. `injectTouch()` in `winampDisplay.h` lacked the PLEDIT row-tap branch for 7 days after TASK-021 shipped. Physical path and injection path diverged silently; VE harness hit DEADZONE instead of PLEDIT until T115 ran. (LL-023)
+
+**Actions assigned**:
+- Developer: add co-location comment to `checkForInput()` and `injectTouch()` enforcing the mirror invariant (LL-023 immediate action — low cost, structural risk mitigation). Filed as low-priority standalone; no new task needed if done at next code touch.
+- PM: at next feature close, verify `test_ids` is non-empty OR a VE task is in `tasks.md` before marking done (LL-024 process gate).
+- PM/Developer: at next task close with a known regression, file a separate bug task rather than prose-only caveat (LL-022 process gate).
+
+**Resolution**: LL-022, LL-023, LL-024 filed in `lessons_learned.md`. Added as best-practice candidates pending human sign-off. `playlist-001.test_ids` now `[T115, T116]`; TASK-067 closed.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:
