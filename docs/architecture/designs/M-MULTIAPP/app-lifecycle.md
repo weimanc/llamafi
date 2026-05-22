@@ -58,17 +58,25 @@ struct CryptoAppState {
 };
 
 struct MatrixAppState {
-    struct Column { int x, y, speed, length; char lastChar; } rain[14];
+    struct Column {
+        int   x;
+        float y;       // float per source — fractional scroll position
+        float speed;   // float per source — fractional pixels per tick
+        int   length;
+        char  lastChar;
+    } rain[14];
     bool initialised;
 };
 
 struct LifeAppState {
     // Grid sized for landscape 275×240 canvas at 5 px/cell: 55 cols × 48 rows
-    // (5in1 source used portrait 48×60 — not usable verbatim; see layout.md)
-    uint8_t grid[55][48];
-    uint16_t hueShift;
-    int sameCountTimer;
-    bool initialised;
+    // (5in1 source used portrait 48×60 at GRID_W=48, GRID_H=60; see layout.md)
+    // Col-major [x][y] — matches source convention; see gol.md for rationale.
+    uint8_t  grid[55][48];      // 0=dead, 1=alive (binary per source)
+    uint16_t hueShift;          // global colour drift, += 3 per generation
+    int      lastCellCount;     // live-cell count from previous generation
+    int      sameCountTimer;    // gens without liveCount change → stagnation reset
+    bool     initialised;
 };
 
 union AppStateStore {

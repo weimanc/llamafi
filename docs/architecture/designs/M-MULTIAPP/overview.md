@@ -56,6 +56,11 @@ as the switching mechanism.
 | bake_skin.py extension for taskbar preview (static PNG) | [preview-tooling.md](preview-tooling.md) |
 | Interactive preview tooling (pygame + HTML) | [interactive-preview.md](interactive-preview.md) |
 | Shell geometry header — single source of truth | [shell-layout.md](shell-layout.md) |
+| Game of Life app — grid, colour, stagnation | [gol.md](gol.md) |
+| Clock app — landscape layout, seconds bar | [clock.md](clock.md) |
+| Weather app — panel layout, dataTask | [weather.md](weather.md) |
+| Crypto app — row layout, sub-canvas options | [crypto.md](crypto.md) |
+| Matrix rain app — stream geometry, float fix | [matrix.md](matrix.md) |
 
 ## Status
 
