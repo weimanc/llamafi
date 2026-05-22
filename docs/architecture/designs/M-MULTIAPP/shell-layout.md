@@ -125,56 +125,163 @@ The helper is added to `bake_skin.py` (already imported by other tools) so it is
 
 ## Known gaps in preview ↔ firmware tracking
 
-Three pre-existing cases where preview tooling does not read from the same
-source as firmware. All are in `bake_skin.py`. Fixing them is in scope for the
-M-SHELL-LAYOUT pass (same file, same helper pattern).
+Four pre-existing cases where tooling does not read from the same source as
+firmware. Ordered by priority. All gaps are fixed in the M-SHELL-LAYOUT pass.
 
-### 1 — `render_hitzones()` hit-zone coordinates (high priority)
+---
 
-`bake_skin.py:render_hitzones()` (line ~1047) builds its zone list from hardcoded
-literals, not from the Python layout dicts that generated `skin_layout.h`:
+### Gap 1 — Test harness `tap`/`drag` screen coordinates *(CRITICAL — M-MULTIAPP blocker)*
+
+**Files:** `Spotify-Diy-Thing/tools/run_serialdbg_tests.py`,
+`Spotify-Diy-Thing/tools/run_sync_tests.py`
+
+Both test scripts hardcode screen coordinates with `originX=22` baked into
+every `tap`/`drag` literal. `layout.md` explicitly changes `originX` to 0 as
+step 2 of M-MULTIAPP. When that lands, every coordinate-based test misses its
+hitbox by exactly 22 pixels — the DUT reports `hit: MISS`, tests fail with
+confusing errors rather than a clear "originX changed" message.
 
 ```python
-# Current (wrong pattern):
+# Current (wrong — originX=22 baked in):
+dut.send("drag 129 63 196 63 40")  # VOLUME: 129 = 22 + VOLUME_X(107)
+dut.cmd("tap  95 97")              # PAUSE:   95 = 22 + CB_PLAY_X(39) + half-w
+dut.cmd("tap 281 100")             # LOGO:   281 = 22 + LOGO_X(243) + 16
+dut.cmd("tap  72 97")              # PLAY:    72 = 22 + CB_PLAY_X(39) + 11
+# run_sync_tests.py PLEDIT helper — named but still wrong:
+_PLEDIT_ORIGIN_X = 22             # hardcoded, not read from skin_layout.h
+```
+
+**Fix:** new module `Spotify-Diy-Thing/tools/coords.py` that parses
+`gen/skin_layout.h` and exposes `originX`-aware named helpers. Both test
+scripts import from it; no coordinate literals remain in test code.
+
+```python
+# coords.py — read once at import
+import re, pathlib
+
+def _parse(path):
+    d = {}
+    for line in open(path):
+        m = re.match(r'#define\s+(\w+)\s+([^/]+)', line)
+        if m:
+            d[m.group(1)] = m.group(2).strip()
+    return d
+
+_S = _parse(pathlib.Path(__file__).parent /
+            "../SpotifyDiyThing/gen/skin_layout.h")
+
+# originX: 0 after M-MULTIAPP layout shift; 22 before. Read from header once
+# it is added there; for now derive from SCREEN_W and WINDOW_W.
+SCREEN_W  = 320
+ORIGIN_X  = (SCREEN_W - int(_S["WINDOW_W"])) // 2  # = 0 after M-MULTIAPP
+
+def vol_drag_x()  -> tuple[int, int]:
+    x0 = ORIGIN_X + int(_S["VOLUME_X"])
+    return x0, x0 + int(_S["VOLUME_FRAME_W"]) - 1  # or nearest equivalent
+
+def tap_button(name: str) -> tuple[int, int]:
+    """name: PREV | PLAY | PAUSE | STOP | NEXT"""
+    x = ORIGIN_X + int(_S[f"CB_{name}_X"]) + int(_S[f"CB_{name}_W"]) // 2
+    y = int(_S[f"CB_{name}_Y"]) + int(_S[f"CB_{name}_H"]) // 2
+    return x, y
+
+def tap_logo() -> tuple[int, int]:
+    return (ORIGIN_X + int(_S["LOGO_X"]) + int(_S["LOGO_W"]) // 2,
+            int(_S["LOGO_Y"]) + int(_S["LOGO_H"]) // 2)
+
+def pledit_tap(row: int) -> tuple[int, int]:
+    x = ORIGIN_X + int(_S["PLEDIT_CONTENT_X"]) + int(_S["PLEDIT_CONTENT_W"]) // 2
+    y = int(_S["PLEDIT_Y"]) + int(_S["PLEDIT_TITLE_H"]) + \
+        row * int(_S["PLEDIT_ROW_H"]) + int(_S["PLEDIT_ROW_H"]) // 2
+    return x, y
+```
+
+Note: `VOLUME_FRAME_W`, `CB_*_W`, `CB_*_H`, `PLEDIT_CONTENT_X`,
+`PLEDIT_TITLE_H`, `PLEDIT_ROW_H` must be present in `skin_layout.h`. Audit
+`gen/skin_layout.h` against this list before implementing `coords.py`; add any
+missing `#define`s to the bake_skin.py emit block.
+
+Once `originX` moves into `gen/shell_layout.h` (post M-MULTIAPP), replace the
+derived `ORIGIN_X` computation in `coords.py` with a direct parse of
+`shell_layout.h`.
+
+---
+
+### Gap 2 — `render_hitzones()` hit-zone coordinates *(HIGH — preview lies on skin change)*
+
+**File:** `Spotify-Diy-Thing/tools/bake_skin.py`, function `render_hitzones()`
+(line ~1047)
+
+Zone list is built from hardcoded literals. Comments name the source dict but
+code ignores it:
+
+```python
+# Current (wrong):
 (16,  72, 248, 10, "SEEK"),   # comment says POSBAR_X/Y — but is a literal
 (107, 57,  68, 13, "VOL"),    # comment says VOLUME_X/Y — but is a literal
 (16,  88,  23, 18, "PREV"),   # no reference to CB_PREV_X/Y at all
 ```
 
 The dicts `POSBAR_LAYOUT`, `VOLUME_LAYOUT`, `CBUTTON_POSITIONS` already hold
-the authoritative values and are what get emitted into `skin_layout.h`. Firmware
-reads from there; `render_hitzones()` ignores them.
+the authoritative values and are what get emitted into `skin_layout.h`.
 
 Failure mode: changing any coordinate in a layout dict updates `skin_layout.h`
-and firmware correctly, but `skin_hitzones.png` silently shows the old position.
+and firmware correctly, but `skin_hitzones.png` silently lies.
 
-Fix: rebuild the zone list in `render_hitzones()` from the existing dicts:
+**Fix:** rebuild zone list from the existing dicts:
 
 ```python
+# Fixed pattern:
 other = [
     (POSBAR_LAYOUT["POSBAR_X"], POSBAR_LAYOUT["POSBAR_Y"],
      POSBAR_LAYOUT["POSBAR_BG"][2], POSBAR_LAYOUT["POSBAR_BG"][3], "SEEK"),
     (VOLUME_LAYOUT["VOLUME_X"], VOLUME_LAYOUT["VOLUME_Y"],
      VOLUME_FRAME_W, VOLUME_FRAME_H, "VOL"),
+    (SHUFREP_LAYOUT["SHUFFLE_X"], SHUFREP_LAYOUT["SHUFFLE_Y"],
+     SHUFREP_LAYOUT["SHUFFLE_W"], SHUFREP_LAYOUT["SHUFFLE_H"], "SHUF"),
+    (SHUFREP_LAYOUT["REPEAT_X"],  SHUFREP_LAYOUT["REPEAT_Y"],
+     SHUFREP_LAYOUT["REPEAT_W"],  SHUFREP_LAYOUT["REPEAT_H"],  "RPT"),
     ...
+]
+transport = [
+    (b["x"], b["y"], b["w"], b["h"], b["label"])
+    for b in CBUTTON_POSITIONS   # already a list of dicts
 ]
 ```
 
-Practical severity: low today (skin is fixed per ADR-003). Risk pattern is
-identical to the `preview_vis.py:58` `WINDOW_W` hardcode — correct until it
-isn't, with no warning.
+Practical severity: low today (skin fixed per ADR-003). Promoted to HIGH
+because `render_hitzones()` is the visual correctness check used to verify
+touch alignment — if it lies, misaligned hitboxes ship undetected.
 
-### 2 — `preview_vis.py:58` WINDOW_W hardcode
+---
 
-`WINDOW_W = 275  # from gen/skin_layout.h (#define WINDOW_W)` — comment
-acknowledges the source but the value is hardcoded. Fix: parse via
-`parse_shell_layout()` (or equivalent for `skin_layout.h`).
+### Gap 3 — `preview_vis.py:58` WINDOW_W hardcode *(MEDIUM)*
 
-### 3 — `SCREEN_W=320` / `SCREEN_H=240` duplication
+**File:** `Spotify-Diy-Thing/tools/preview_vis.py:58`
 
-`cheapYellowLCD.h:82-83` vs `preview_vis.py:56-57`. Hardware is fixed; risk is
-lowest of the three. Deferred: add to `gen/shell_layout.h` only if a second
-display variant is introduced.
+```python
+WINDOW_W = 275  # from gen/skin_layout.h (#define WINDOW_W)
+```
+
+Comment acknowledges the source; code ignores it.
+
+**Fix:** replace with a call to the `parse_shell_layout()` helper (or a
+dedicated `parse_skin_layout()` equivalent) so `preview_vis.py` always matches
+the generated header:
+
+```python
+_skin = parse_skin_layout("../SpotifyDiyThing/gen/skin_layout.h")
+WINDOW_W = int(_skin["WINDOW_W"])   # 275
+WINDOW_H = int(_skin["WINDOW_H"])   # 116
+```
+
+---
+
+### Gap 4 — `SCREEN_W=320` / `SCREEN_H=240` duplication *(LOW — deferred)*
+
+`cheapYellowLCD.h:82-83` vs `preview_vis.py:56-57`. Hardware is fixed; risk
+is lowest of the four. No action until a second display variant is introduced,
+at which point add `SCREEN_W` / `SCREEN_H` to `gen/shell_layout.h`.
 
 ## Feature inventory impact
 
