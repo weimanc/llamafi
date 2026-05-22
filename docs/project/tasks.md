@@ -497,9 +497,9 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-051j — M-LIST-v3: hitzones PNG update + human review gate
 **Owner**: Developer + human sign-off
 **Feature**: playlist-002, touch-002
-**Status**: done (2026-05-22 — gen/skin_hitzones.png regenerated; awaiting human sign-off)
+**Status**: blocked (2026-05-22 — visual validation fail: human review of skin_hitzones.png rejected; scroll arrow sprite positions not measured; SCROLL DRAG zone is missing arrow sub-zones visible in reference. Unblocked by TASK-075.)
 **Design**: `docs/architecture/designs/M-LIST-v3-hitzones.md`
-**Notes**: TASK-054 (done) already built `render_hitzones()` and the single-source-of-truth zone registry pattern. Remaining work: edit the `pledit_rows` block in `render_hitzones()` (bake_skin.py:1086–1090) — replace `ROW0..ROW4` entries with `pledit_content` (SWIPE/TAP, 34,136,244,65), sub-row labels R0–R4 (no magenta fill, informational only), and `pledit_scrollbar` (SCROLL DRAG, 278,136,19,65). Re-run bake_skin.py to regenerate `gen/skin_hitzones.png`. Human eyeball sign-off before any firmware implementation of TASK-051b–i begins. This is the human review gate for M-LIST-v3.
+**Notes**: TASK-054 (done) already built `render_hitzones()` and the single-source-of-truth zone registry pattern. Remaining work: edit the `pledit_rows` block in `render_hitzones()` (bake_skin.py:1086–1090) — replace `ROW0..ROW4` entries with `pledit_content` (SWIPE/TAP, 34,136,244,65), sub-row labels R0–R4 (no magenta fill, informational only), and `pledit_scrollbar` (SCROLL DRAG, 278,136,19,65). Re-run bake_skin.py to regenerate `gen/skin_hitzones.png`. Human eyeball sign-off before any firmware implementation of TASK-051b–i begins. This is the human review gate for M-LIST-v3. **Blocker**: reference image (`resource/winamp_reference_cropped.png`) shows a vertical slider with scroll-up/down arrows embedded in the PLEDIT right-side and bottom-bar areas; exact sprite positions unmeasured — see TASK-075.
 
 ### TASK-022 — M-LIST option B: portrait rotation
 **Owner**: Developer
@@ -1414,6 +1414,69 @@ if (currently_playing_type == NULL) {
 ```
 
 LOCAL_PATCHES.md patch #11. DUT confirmed no crash on 2026-05-22 reflash with active playback.
+
+### TASK-074 — BUG: `LoadProhibited` crash in `onCurrentlyPlaying` — uninitialized `CurrentlyPlaying` struct
+**Owner**: Developer
+**Feature**: api-002 (lib patch family)
+**Status**: done (2026-05-22 — `CurrentlyPlaying current = {}` zero-init patch; DUT-verified 48 polls / 5 min no crash; T133 added)
+**Notes**:
+
+#### Symptom
+`LoadProhibited` Guru Meditation, EXCVADDR=`0x0000000c`, crashing in `strcmp` inside
+`spotifyTask::onCurrentlyPlaying` at `spotifyTaskStorage.cpp:72`. Reproducible within 2–3 polls
+of a fresh boot once `s_lastTrackUri` was non-empty. Distinct from TASK-073 (which fixed a
+`nullptr` crash on `currently_playing_type`).
+
+#### Root cause
+`CurrentlyPlaying current;` at `SpotifyArduino.cpp:783` is uninitialized. When
+`currently_playing_type == "other"`, neither the `track` nor the `episode` fill block executes,
+leaving `current.trackUri` as stack garbage (`0x0000000c`). The null guard in
+`onCurrentlyPlaying` (`cp.trackUri == NULL`) only catches exact zero — `0x0000000c` passes
+through, and `strcmp` crashes on the second poll when `s_lastTrackUri` is non-empty.
+
+#### Fix (`lib/SpotifyArduino/src/SpotifyArduino.cpp:783`)
+```cpp
+CurrentlyPlaying current = {};   // LOCAL_PATCHES: zero-init
+```
+
+LOCAL_PATCHES comment added. T133 in `run_serialdbg_tests.py` guards the fix with a static grep
++ 90 s runtime soak.
+
+---
+
+### TASK-075 — RnD: measure PLEDIT scroll-arrow sprite positions in PLEDIT.BMP
+**Owner**: R&D
+**Feature**: playlist-002, touch-002
+**Status**: planned
+**Blocks**: TASK-051j (hitzones PNG visual validation), TASK-051i (scrollbar strip drag firmware)
+**Notes**:
+
+#### Context
+`resource/winamp_reference_cropped.png` shows the PLEDIT right-side area has a visible vertical
+slider with scroll-up and scroll-down arrows. `PLEDIT-BMP-spec.md` (2026-05-22) documents the
+scrollbar TRACK (right-side tile, 19×29) and THUMB (synthetic fillRect) but explicitly defers
+the arrow button positions: *"Their exact pixel positions within the 150×38px right section have
+not been measured."* (`docs/architecture/designs/M-LIST-v3-hitzones.md §Zone 3`).
+
+The bottom-bar right section crop (`PLEDIT.BMP` x=126, y=72, w=150, h=38) contains the scroll
+arrows alongside LIST/OPTS buttons. Pixel positions are unmeasured.
+
+#### Deliverables
+1. **Pixel-accurate sprite coordinates** for the scroll-up and scroll-down arrow buttons within
+   `PLEDIT.BMP` bottom-bar right section. Include both normal and pressed states if present.
+2. Update `docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md` with a new
+   "Scroll arrow buttons" section covering exact `(x, y, w, h)` per state.
+3. **Hitzone coordinates** (absolute screen coords, originX=22) for the two arrow buttons —
+   feeds directly into the TASK-051j hitzones diagram update and TASK-051i firmware wiring.
+4. Brief write-up on whether the arrows are tappable standalone zones or only accessible via
+   the bottom bar drag (informs TASK-051i design).
+
+#### Method
+- Use `bake_skin.py`'s existing BMP extraction or a standalone Pillow script.
+- Cross-check against `resource/winamp_reference_cropped.png` and Audacious source
+  (`playlistwin.cc`).
+- The bottom-bar right crop is already saved at `/tmp/pledit_bottom_right.png` from a
+  previous inspection session.
 
 ---
 
