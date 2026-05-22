@@ -1758,7 +1758,7 @@ Common preconditions:
   2. Assert required keys present: `TASKBAR_X`, `TASKBAR_W`, `TASKBAR_SLOT_H`, `TASKBAR_SLOT_COUNT`, `TASKBAR_ICON_W`, `TASKBAR_ICON_H`, `TASKBAR_BG_RGB565`, `TASKBAR_ACTIVE_STYLE`, `TASKBAR_ACTIVE_COLOR`, `TASKBAR_SEP_ENABLED`, `TASKBAR_SEP_COLOR` (11 keys).
   3. Assert exit 0.
 - **Expected result**: Exit 0; all 11 `TASKBAR_*` constants present; no comment text leaking into values.
-- **Status**: planned. Owner: VE. **Arch note**: `TASKBAR_SLOT_COUNT` must be added to `gen/shell_layout.h` schema (currently absent — flagged to Architect).
+- **Status**: **passed** (2026-05-22). 11/11 keys present; no comment fragments in values. `parse_shell_layout()` implemented in `bake_skin.py`. Owner: VE.
 
 ### T126 — [shell-layout-001] taskbar geometry is internally consistent
 
@@ -1771,7 +1771,7 @@ Common preconditions:
   2. Assert `int(TASKBAR_X) + int(TASKBAR_W) == 320`.
   3. Assert `int(TASKBAR_SLOT_H) * int(TASKBAR_SLOT_COUNT) == 240`.
 - **Expected result**: Both assertions pass. Step 3 uses `TASKBAR_SLOT_COUNT` from the header, not a hardcoded `6`, so the test stays valid if app count changes.
-- **Status**: planned. Owner: VE.
+- **Status**: **passed** (2026-05-22). `TASKBAR_X(275)+TASKBAR_W(45)=320 ✓`; `TASKBAR_SLOT_H(40)×TASKBAR_SLOT_COUNT(6)=240 ✓`. Owner: VE.
 
 ### T127 — [shell-layout-001] firmware appShell.h uses header constants, not literals
 
@@ -1804,7 +1804,7 @@ Common preconditions:
   2. Assert `parse_shell_layout()` returns `{'FOO_INT': '275', 'FOO_HEX': '0x07E0', 'FOO_CHAR': "'A'", 'FOO_FLAG': '1'}` — no comment fragments.
   3. Assert `int('275') == 275`, `int('0x07E0', 16) == 0x07E0`, `int('1') == 1` all succeed.
 - **Expected result**: All four value types parsed correctly; no comment text in values; int conversion succeeds for numeric types.
-- **Status**: planned. Owner: VE.
+- **Status**: **passed** (2026-05-22). Synthetic snippet: `int→'275'`, `hex→'0x2104'`, `char→"'A'"`, `flag→'1'`; no comment fragments; `int('275')==275 ✓`. Owner: VE.
 
 ### T129 — [shell-layout-001] _Static_assert guards compile-time constant agreement
 
@@ -1846,7 +1846,7 @@ automated. HTML export option removed from design — T130 dropped accordingly.
   10. Press `p` — params printed to stdout with all `TASKBAR_*` names.
   11. Press `q` — clean exit.
 - **Expected result**: All steps observable. No Python exception. Glyphs are pixel-identical Winamp chars. `gen/shell_layout.h` written on `e`.
-- **Status**: planned. Owner: VE (manual sign-off required before M-SHELL-LAYOUT gates open).
+- **Status**: **pending-manual** (2026-05-22). `preview_layout.py` implemented and headless `--export` verified. Interactive session requires display — manual sign-off pending. Owner: VE.
 
 ### T132 — [preview-tooling-001] taskbar.md open questions resolved and golden.sha256 intact
 
@@ -1858,7 +1858,7 @@ automated. HTML export option removed from design — T130 dropped accordingly.
   1. Run `grep -c "TBD" docs/architecture/designs/M-MULTIAPP/taskbar.md` — assert `0`.
   2. Run `cd Spotify-Diy-Thing/SpotifyDiyThing/gen && sha256sum -c golden.sha256` — assert exit 0.
 - **Expected result**: No TBD markers; hash check passes.
-- **Status**: planned. Owner: VE.
+- **Status**: **passed** (2026-05-22). `grep -c TBD taskbar.md → 0`; `sha256sum -c golden.sha256` → skin_assets.c OK, skin_layout.h OK, shell_layout.h OK. Owner: VE.
 
 ---
 

@@ -99,9 +99,22 @@ Other envs in `platformio.ini` (don't use on this board): `cyd` (single-USB CYD,
 
 Host-side bake of `skins/base-2.91.wsz` → `SpotifyDiyThing/gen/skin_assets.c` + `skin_layout.h`. Run on demand (not a PIO pre-build hook):
 
+### Python venv
+
+**Project venv:** `~/proj/esp/venv` — use this for all host-side Python tools.
+
+```sh
+~/proj/esp/venv/bin/python3 tools/bake_skin.py ...
+~/proj/esp/venv/bin/python3 tools/preview_layout.py ...
+~/proj/esp/venv/bin/python3 tools/run_serialdbg_tests.py ...
+~/proj/esp/venv/bin/python3 tools/run_sync_tests.py ...
+```
+
+Installed packages: `Pillow`, `numpy`, `pygame`, `pyserial`.
+
 ```sh
 cd Spotify-Diy-Thing/tools
-python3 bake_skin.py -i ../skins/base-2.91.wsz -o ../SpotifyDiyThing/gen
+~/proj/esp/venv/bin/python3 bake_skin.py -i ../skins/base-2.91.wsz -o ../SpotifyDiyThing/gen
 # determinism check (T025): re-bake should be byte-identical to committed gen/
 cd ../SpotifyDiyThing/gen && sha256sum -c golden.sha256
 ```

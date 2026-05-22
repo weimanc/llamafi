@@ -45,19 +45,17 @@ y=240 +-------+
 
 Each icon cell: 45 wide × 40 tall.
 Icon glyph: 24×24 px centred in the cell (10 px padding left/right, 8 px top/bottom).
-Active indicator: 3 px vertical bar on the left edge of the active cell (x=275, y=cell_top..cell_top+39), colour TBD by preview (see preview-tooling.md).
+Active indicator: 3 px vertical bar on the left edge of the active cell (x=275, y=cell_top..cell_top+39), colour `0x07E0` (Spotify green, `TASKBAR_ACTIVE_COLOR` in `gen/shell_layout.h`).
 
-## Aesthetics (TBD — resolve via preview tooling)
+## Aesthetics (resolved — preview tooling pass complete)
 
-Open questions before implementation:
-1. **Background** — solid dark (#111 or Winamp-grey `#232323`), or a texture stripe from the skin?
-2. **Icon style** — monochrome bitmap glyphs baked into the firmware, or TFT_eSPI font characters?
-3. **Active indicator** — coloured pip, inverted cell, or left-edge bar?
-4. **Separator lines** — thin horizontal rules between cells, or borderless?
-5. **Icon source** — hand-drawn 24×24 RGB565 arrays, or extracted from the WSZ skin?
+Resolved values locked in `gen/shell_layout.h` (exported by `preview_layout.py`):
 
-These are resolved by the preview tooling pass (preview-tooling.md) before
-any firmware code is written.
+1. **Background** — `TASKBAR_BG_RGB565 = 0x2104` (very dark grey, close to `#111`).
+2. **Icon style** — Winamp 5×6 bitmap glyphs from TEXT.BMP, centred in 24×24 cells using `SKIN_GLYPH` table.
+3. **Active indicator** — `TASKBAR_ACTIVE_STYLE = 'A'` (3 px left-edge bar, `TASKBAR_ACTIVE_COLOR = 0x07E0`).
+4. **Separator lines** — `TASKBAR_SEP_ENABLED = 1` with `TASKBAR_SEP_COLOR = 0x4208` (mid-grey rules).
+5. **Icon source** — extracted from the WSZ skin's TEXT.BMP at bake time; same atlas as firmware `SKIN_GLYPH`.
 
 ## Hit-test
 
