@@ -134,9 +134,52 @@ These colours derive from `SKIN_PLEDIT_RIGHT_SIDE`'s own palette so the thumb bl
 
 ---
 
+---
+
+## Scroll arrow buttons — measured 2026-05-22 (TASK-075)
+
+Located at the far right of the bottom bar right section.  
+Source atlas: `right_sec` crop from PLEDIT.BMP pasted at atlas x=125; x-mapping: `atlas_x = BMP_x − 1`.
+
+### Sprite coordinates in PLEDIT.BMP
+
+| Element | BMP x | BMP y | w | h | Notes |
+|---------|-------|-------|---|---|-------|
+| Scroll-UP button | 254..274 | 72..78 | 21 | 7 | Entire button zone (normal state) |
+| Scroll-DOWN button | 254..274 | 79..88 | 21 | 10 | Entire button zone (normal state) |
+| UP glyph (▲ pixels) | 261..268 | 74..77 | 8 | 4 | Light-gray upward triangle within button |
+| DOWN glyph (▼ pixels) | 261..268 | 80..83 | 8 | 4 | Light-gray downward triangle within button |
+
+Glyph color: `(106, 106, 122)` = `0x6B4F` (same shade as scrollbar thumb fill).
+
+The UP▲ glyph widens from 2px (tip at y=74) to 8px (base at y=77).  
+The DOWN▼ glyph narrows from 8px (base at y=80) to 2px (tip at y=83).
+
+**No pressed-state sprites** — PLEDIT.BMP y=110..185 bands are entirely transparent (cyan) in this column for base-2.91.wsz. Pressed feedback must be synthesised if desired.
+
+The diagonal staircase at x=261..269, y=91..103 (visible below the buttons) is decorative skin artwork — not a clickable element. Not used by the renderer.
+
+### Screen hitzone coordinates (originX=22, PLEDIT_BOTTOM_Y=201)
+
+| Zone | Screen x | Screen y | w | h | Action |
+|------|----------|----------|---|---|--------|
+| Scroll-UP tap | 275..296 | 201..207 | 22 | 7 | scrollOffset− (scroll toward start) |
+| Scroll-DOWN tap | 275..296 | 208..217 | 22 | 10 | scrollOffset+ (scroll toward end) |
+| UP glyph center | 282..289 | 203..206 | 8 | 4 | (glyph only, for reference) |
+| DOWN glyph center | 282..289 | 209..212 | 8 | 4 | (glyph only, for reference) |
+
+Note: these buttons are small for touch input (7–10px tall). If the CYD touchscreen precision is insufficient, expand the tap zones to split the full 38px bottom bar height equally (19px each: y=201..219 for UP, y=220..238 for DOWN).
+
+### Standalone vs drag
+
+Scroll arrows are **standalone tappable zones** — each tap scrolls the playlist by exactly 1 item. They complement but do not replace Zone 2 (direct drag on the right-side scrollbar strip). Wiring is tracked in TASK-051i.
+
+---
+
 ## Not in PLEDIT.BMP
 
 - Individual track rows (no sprite)
 - Row highlight sprite (no sprite — flat fill from PLEDIT.TXT)
 - Currently-playing indicator icon
 - Scrollbar thumb (confirmed absent 2026-05-22 — synthesised via `fillRect`, see above)
+- Scroll arrow pressed state (absent in base-2.91.wsz — see Scroll arrow buttons section above)

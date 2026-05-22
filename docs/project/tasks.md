@@ -497,9 +497,9 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-051j — M-LIST-v3: hitzones PNG update + human review gate
 **Owner**: Developer + human sign-off
 **Feature**: playlist-002, touch-002
-**Status**: blocked (2026-05-22 — visual validation fail: human review of skin_hitzones.png rejected; scroll arrow sprite positions not measured; SCROLL DRAG zone is missing arrow sub-zones visible in reference. Unblocked by TASK-075.)
+**Status**: todo (TASK-075 done — blocker cleared 2026-05-22)
 **Design**: `docs/architecture/designs/M-LIST-v3-hitzones.md`
-**Notes**: TASK-054 (done) already built `render_hitzones()` and the single-source-of-truth zone registry pattern. Remaining work: edit the `pledit_rows` block in `render_hitzones()` (bake_skin.py:1086–1090) — replace `ROW0..ROW4` entries with `pledit_content` (SWIPE/TAP, 34,136,244,65), sub-row labels R0–R4 (no magenta fill, informational only), and `pledit_scrollbar` (SCROLL DRAG, 278,136,19,65). Re-run bake_skin.py to regenerate `gen/skin_hitzones.png`. Human eyeball sign-off before any firmware implementation of TASK-051b–i begins. This is the human review gate for M-LIST-v3. **Blocker**: reference image (`resource/winamp_reference_cropped.png`) shows a vertical slider with scroll-up/down arrows embedded in the PLEDIT right-side and bottom-bar areas; exact sprite positions unmeasured — see TASK-075.
+**Notes**: TASK-054 (done) already built `render_hitzones()` and the single-source-of-truth zone registry pattern. Remaining work: edit the `pledit_rows` block in `render_hitzones()` (bake_skin.py:1086–1090) — replace `ROW0..ROW4` entries with `pledit_content` (SWIPE/TAP, 34,136,244,65), sub-row labels R0–R4 (no magenta fill, informational only), `pledit_scrollbar` (SCROLL DRAG, 278,136,19,65), `pledit_scroll_up` (UP BTN, 275,201,22,7), and `pledit_scroll_down` (DOWN BTN, 275,208,22,10). Re-run bake_skin.py to regenerate `gen/skin_hitzones.png`. Human eyeball sign-off before any firmware implementation of TASK-051b–i begins. This is the human review gate for M-LIST-v3. Scroll arrow coords measured in TASK-075 (see `docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md`).
 
 ### TASK-022 — M-LIST option B: portrait rotation
 **Owner**: Developer
@@ -1447,36 +1447,40 @@ LOCAL_PATCHES comment added. T133 in `run_serialdbg_tests.py` guards the fix wit
 ### TASK-075 — RnD: measure PLEDIT scroll-arrow sprite positions in PLEDIT.BMP
 **Owner**: R&D
 **Feature**: playlist-002, touch-002
-**Status**: planned
+**Status**: done (2026-05-22)
 **Blocks**: TASK-051j (hitzones PNG visual validation), TASK-051i (scrollbar strip drag firmware)
+**Git ref**: master (spec update in PLEDIT-BMP-spec.md)
 **Notes**:
 
-#### Context
-`resource/winamp_reference_cropped.png` shows the PLEDIT right-side area has a visible vertical
-slider with scroll-up and scroll-down arrows. `PLEDIT-BMP-spec.md` (2026-05-22) documents the
-scrollbar TRACK (right-side tile, 19×29) and THUMB (synthetic fillRect) but explicitly defers
-the arrow button positions: *"Their exact pixel positions within the 150×38px right section have
-not been measured."* (`docs/architecture/designs/M-LIST-v3-hitzones.md §Zone 3`).
+#### Findings (2026-05-22)
 
-The bottom-bar right section crop (`PLEDIT.BMP` x=126, y=72, w=150, h=38) contains the scroll
-arrows alongside LIST/OPTS buttons. Pixel positions are unmeasured.
+Scroll arrows are in the **bottom bar right section** of PLEDIT.BMP (BMP x=254..274, y=72..88),
+at the rightmost edge of the 150px right section (atlas x=253..274, screen x=275..296).
 
-#### Deliverables
-1. **Pixel-accurate sprite coordinates** for the scroll-up and scroll-down arrow buttons within
-   `PLEDIT.BMP` bottom-bar right section. Include both normal and pressed states if present.
-2. Update `docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md` with a new
-   "Scroll arrow buttons" section covering exact `(x, y, w, h)` per state.
-3. **Hitzone coordinates** (absolute screen coords, originX=22) for the two arrow buttons —
-   feeds directly into the TASK-051j hitzones diagram update and TASK-051i firmware wiring.
-4. Brief write-up on whether the arrows are tappable standalone zones or only accessible via
-   the bottom bar drag (informs TASK-051i design).
+**Sprite coordinates in PLEDIT.BMP:**
 
-#### Method
-- Use `bake_skin.py`'s existing BMP extraction or a standalone Pillow script.
-- Cross-check against `resource/winamp_reference_cropped.png` and Audacious source
-  (`playlistwin.cc`).
-- The bottom-bar right crop is already saved at `/tmp/pledit_bottom_right.png` from a
-  previous inspection session.
+| Element | BMP x | BMP y | w | h |
+|---------|-------|-------|---|---|
+| UP▲ button (normal) | 254..274 | 72..78 | 21 | 7 |
+| DOWN▼ button (normal) | 254..274 | 79..88 | 21 | 10 |
+| UP glyph pixels | 261..268 | 74..77 | 8 | 4 |
+| DOWN glyph pixels | 261..268 | 80..83 | 8 | 4 |
+
+No pressed-state sprites. Glyph color: `(106,106,122)` = `0x6B4F`.
+
+**Screen hitzones (originX=22, PLEDIT_BOTTOM_Y=201):**
+
+| Zone | x | y | w | h |
+|------|---|---|---|---|
+| Scroll-UP tap | 275 | 201 | 22 | 7 |
+| Scroll-DOWN tap | 275 | 208 | 22 | 10 |
+
+Note: buttons are small (7–10px tall). Expand to 19px each if touch precision is insufficient:
+UP=y201..219, DOWN=y220..238.
+
+**Standalone zones**: YES — each tap scrolls 1 item. Complement Zone 2 (direct strip drag).
+
+Full spec in `docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md` §"Scroll arrow buttons".
 
 ---
 
