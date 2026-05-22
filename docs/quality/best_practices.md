@@ -24,6 +24,36 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-003 — File a separate bug task for every known regression at close time
+
+**Adopted from**: LL-022  
+**Date adopted**: 2026-05-22  
+**Rule**: A task with a documented functional regression in its notes must not be closed as `done`. File a separate bug task at close time — owner, status `planned`, reference to parent task — before marking the parent done.  
+**Rationale**: Prose caveats in task notes have no owner and no deadline. They are not surfaced by any dashboard or review step. A known, identified fix can sit unresolved for days and return to the user as a re-reported bug. A task entry creates pressure and traceability. Concrete incident: TASK-021 closed `done` with a 5-line fix named in the notes; bug returned to user 6 days later.  
+**Applies to**: Developer (file the bug task before closing), PM (reject `done` status if a regression caveat has no associated bug task)
+
+---
+
+### BP-004 — Mirror every physical-touch branch in `injectTouch()` in the same commit
+
+**Adopted from**: LL-023  
+**Date adopted**: 2026-05-22  
+**Rule**: Any new action branch added to `checkForInput()` (physical touch path) must be mirrored in `injectTouch()` in the same commit. Both methods carry a co-location comment enforcing this invariant.  
+**Rationale**: `injectTouch()` is the VE harness's only path for injecting touch events. A branch absent from `injectTouch()` silently falls to DEADZONE — the harness dispatches `ACT_FORCE_POLL` and reports no error, so tests can appear to pass while the action under test never fires. Divergence is invisible without a running test. Concrete incident: PLEDIT tap branch missing from `injectTouch()` for 7 days; T115's first run exposed it via `'hit':'DEADZONE'`.  
+**Applies to**: Developer
+
+---
+
+### BP-005 — `test_ids: []` on an implemented feature requires a VE task before `done`
+
+**Adopted from**: LL-024  
+**Date adopted**: 2026-05-22  
+**Rule**: An `implemented` feature in `feature_inventory.yaml` with `test_ids: []` must have a corresponding VE task in `tasks.md` (status at least `planned`) before the feature is declared `done` at the roadmap level. PM files the VE task at feature close; VE populates `test_ids` when tests pass.  
+**Rationale**: `test_ids: []` is a visible signal in the YAML but creates no work item and no deadline. VE audit notes recorded only as YAML prose age silently — no owner, no trigger to act. A tasks.md entry gives the gap a deadline and an owner. Concrete incident: `playlist-001` test gap open 7 days with only a YAML annotation; tests found an additional infra bug (`injectTouch` divergence) when finally written.  
+**Applies to**: PM (file VE task at feature close), VE (own and close the task), Developer (do not ship features expecting `test_ids` to be filled in "later")
+
+---
+
 ## Entry Format
 
 ```

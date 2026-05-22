@@ -359,7 +359,7 @@ Triggering work: TASK-066 (fix `ACT_PLAY_URI` context_uri wire-up) + TASK-067 (T
 
 **Suggested improvement**: When a task is closed with a documented functional regression ("caveat"), a separate bug task must be filed at close time with status `planned` (not buried in the deferred milestone). The bug task should reference the parent task but stand alone in the tracker. Tasks with known un-fixed regressions should not be marked `done`; use `done-with-known-issue(TASK-NNN)` or equivalent, or hold `done` until the bug task is also closed.
 
-**Status**: open
+**Status**: adopted → BP-003 (2026-05-22)
 
 ---
 
@@ -373,7 +373,7 @@ Triggering work: TASK-066 (fix `ACT_PLAY_URI` context_uri wire-up) + TASK-067 (T
 
 **Suggested improvement**: Add a co-location comment in `winampDisplay.h` at the top of both `checkForInput()` and `injectTouch()` stating: *"These two methods must be kept in sync. Any new touch-action branch added to one must be mirrored in the other."* Additionally: add to the Developer pre-commit checklist (LL-010 / BP) the item: *"If touching the physical touch path: mirror the change in `injectTouch()`."*
 
-**Status**: open
+**Status**: adopted → BP-004 (2026-05-22)
 
 ---
 
@@ -387,7 +387,7 @@ Triggering work: TASK-066 (fix `ACT_PLAY_URI` context_uri wire-up) + TASK-067 (T
 
 **Suggested improvement**: Any `test_ids: []` entry in `feature_inventory.yaml` for an `implemented` feature must have a corresponding VE task in `tasks.md` with status at least `planned`. The feature should not reach `done` in the roadmap with `test_ids: []`. PM is responsible for filing the VE task at feature close. VE task must reference the feature ID so it is traceable.
 
-**Status**: open
+**Status**: adopted → BP-005 (2026-05-22)
 
 ---
 
@@ -413,9 +413,9 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-019** → "Implementation specs that depend on pixel-accurate asset measurements must be marked `[PROVISIONAL — awaiting R&D]` and blocked from implementation until R&D validates the numbers. First-principles estimates produce high error rates on pixel-level behaviour." Process rule, applies to Developer (implementation gate) and Architect (provisional tagging). First instance on this project; preventive catch.
 - **LL-020** → "R&D reports must distinguish measured values from derived/computed values. Any derived value entering a spec must include its derivation formula or a one-line verification command. Architect verifies before adopting." Process rule, applies to R&D Engineer (labelling + formula) and Architect (verification gate). Concrete incident: 16/16 RGB565 values wrong in M-VIS spec; 30-second Python check would have caught it.
 - **LL-021** → "Bake pipeline parameters must be recorded in a committed, executable form (shell script or Makefile target), not only in a commit message. Commit messages are not consulted before re-running tools." Process rule, applies to Developer + R&D Engineer. Concrete incident: wave_atlas rebaked with only `--dc-offset 3`; `--boost 2.0 --spatial-smooth 3 --error-diffusion` lost because the canonical invocation only existed in the git commit body. → **BP-002**
-- **LL-022** → "A task with a documented functional regression in its notes must not be closed as `done`. File a separate bug task at close time; the bug task must stand alone in the tracker with an owner." Process rule, applies to Developer + PM. Concrete incident: TASK-021 closed `done` with a 5-line fix identified in the notes; bug returned to user 6 days later.
-- **LL-023** → "When adding a new branch to `checkForInput()` (physical touch), mirror it in `injectTouch()` in the same commit. Add co-location comments to both methods enforcing the invariant." Code-structure rule, applies to Developer. Concrete incident: PLEDIT tap branch missing from `injectTouch()` for 7 days; VE harness silently hit DEADZONE.
-- **LL-024** → "`test_ids: []` on an `implemented` feature must be backed by a VE task in `tasks.md`. PM files the VE task at feature close; feature is not `done` at roadmap level until test_ids is populated." Process rule, applies to PM + VE. Concrete incident: `playlist-001` test gap open 7 days with only a prose annotation in the YAML.
+- **LL-022** → adopted → **BP-003** (2026-05-22)
+- **LL-023** → adopted → **BP-004** (2026-05-22)
+- **LL-024** → adopted → **BP-005** (2026-05-22)
 
 ---
 
