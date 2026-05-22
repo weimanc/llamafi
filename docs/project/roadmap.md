@@ -235,6 +235,30 @@ Work:
 
 ---
 
+### M-MULTIAPP — Multi-app shell with icon taskbar
+
+Add a persistent 45 px icon-only taskbar on the right edge (x: 275..319).
+Shift the Winamp window to originX=0. Six apps: Spotify/Winamp, Clock,
+Weather, Crypto, Matrix rain, Game of Life. Apps do not run concurrently —
+the taskbar is an always-present input layer that triggers state-preserving
+app switches. Network apps (Weather, Crypto) use a shared `dataTask` on the
+same FreeRTOS pattern as `spotifyTask`.
+
+Work sequence:
+1. Preview tooling — extend `bake_skin.py` to render full 320×240 layout
+   composite with taskbar variants; resolve icon style and active indicator.
+2. Layout — shift `originX = 0`; constrain app canvas to x: 0..274.
+3. Taskbar — `renderTaskbar()` + first-priority hit-test in `checkForInput()`.
+4. App shell — `appShell.h` with `AppId` enum, state structs, `switchApp()`.
+5. Non-network apps — Clock, Matrix, GoL tick + input handlers.
+6. Network apps — `dataTask` + Weather + Crypto fetch/render.
+
+**Status:** design (2026-05-22 — design docs drafted; preview tooling pass required before implementation tasks filed)
+**Deps:** M3 (Winamp display in tree), M-NOART (JPEGDEC removed)
+**Design:** [M-MULTIAPP/overview.md](../architecture/designs/M-MULTIAPP/overview.md)
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.

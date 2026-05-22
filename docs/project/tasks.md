@@ -429,6 +429,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Note: row y-boundaries updated by TASK-047c (PLEDIT layout shifts rows down by `PLEDIT_TITLE_H=14` px vs TASK-020 baseline).
 - **DUT observation (2026-05-16)**: `playAdvanced(uri)` clears the Spotify queue and starts the selected track as a fresh session. PLEDIT immediately shows 5 identical rows of the new track; Spotify queue shows only that 1 item. This is `playAdvanced` API behaviour — it replaces the context, it does not skip ahead in the existing queue.
 - **Desired behaviour**: keep the existing queue intact; "jump" to the tapped track. Implementation options: (a) if playing from a playlist/album context, use `PUT /v1/me/player/play` with `context_uri` + `offset.uri`; (b) without context, call `next` N times to skip ahead. Neither is trivially available from the current queue snapshot (which carries URIs but not the original context URI or position). Tracked for resolution in M-LIST-v3 (TASK-051a–f). See `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md`.
+- **Resolution**: `s_lastTrackContextUri` is already populated by `onCurrentlyPlaying()` (`spotifyTaskStorage.cpp:77-81`) but is never read in the `ACT_PLAY_URI` handler — the wire is missing. Fix tracked in TASK-066.
 
 ### TASK-022 — M-LIST option B: portrait rotation
 **Owner**: Developer
@@ -437,15 +438,11 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-019 — Decouple display from blocking network calls (M-IO)
 **Owner**: Architect (ADR-011), then Developer
 **Feature**: io-001 (registered with tier-1 implementation)
-**Status**: tier-1 implementation shipped (2026-05-07; ADR-011 accepted)
+**Status**: done (2026-05-22 — tier-2 delivered by TASK-031; closing)
 **Notes**:
 - Symptoms: slow first sync after boot; occasional hangs (clock + progress thumb stop); LCD shows previous track many seconds after Spotify advanced; heartbeat 56 s gaps observed during TLS retries.
-- Diagnostic plan: enable TASK-018 (on-screen log) once shipped; let user observe blocking events live. Cross-reference with `/log?n=` ringbuffer dumps once a non-AP-isolated network is available.
-- Likely contributors to investigate (none confirmed yet): TLS retry storms on captive-portal networks, 5 s `delayBetweenRequests` being too long for short tracks, synchronous `getCurrentlyPlaying` blocking the renderer for the full TLS+HTTP duration.
-- Likely fixes (TBD ADR): aggressive timeouts; move HTTP off the main task; speculative re-poll on track-change indication.
-- Exit criteria: heartbeat gap distribution < 5 s p95 across normal play.
-- Tier 1 (ADR-011, 2026-05-07): exponential backoff on consecutive Spotify-poll failures (5 s → 10 → 20 → 40 → 60 s cap, reset on success or touch). Heartbeat now emits `block_max=Nms` — longest synchronous getCurrentlyPlaying since last tick. Touch-driven force-update also resets backoff so user input always escapes the back-off floor.
-- Tier 2 (deferred): async IO / FreeRTOS worker task. Exit criteria for tier-1 sufficiency: with the on-screen overlay enabled during a Marriott-WiFi failure burst, the loop visibly keeps updating (heartbeat ticks within ±5 s of cadence). If `block_max` routinely exceeds 2.5 s and UI still hangs, escalate.
+- Tier 1 (ADR-011, 2026-05-07): exponential backoff on consecutive Spotify-poll failures (5 s → 10 → 20 → 40 → 60 s cap, reset on success or touch). Heartbeat now emits `block_max=Nms`.
+- Tier 2 (TASK-031, 2026-05-08): all HTTP moved off the main task into `spotifyTask` (FreeRTOS worker). `loop_max` 4 191 ms → 16 ms. Exit criterion (heartbeat gap < 5 s p95) met. No further work needed.
 
 ### TASK-016 — Logging redesign tier 1 (M-LOG, parent)
 **Owner**: Developer (implementation), Architect (ADR-010 + amendments done), VE (T036–T040)
@@ -463,7 +460,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - Commit message leads with security-fix framing for audit grep.
 
 #### TASK-016a — esp_log hook + 12 KB ringbuffer + permanent post-connect HTTP server + /log
-**Status**: shipped (Spotify-Diy-Thing@7f1009c, 2026-05-07). DUT-verified for boot trace + ESP_LOGI capture; `/log` HTTP test deferred (AP isolation on this network).
+**Status**: shipped + fully verified (Spotify-Diy-Thing@7f1009c, 2026-05-07). DUT-verified for boot trace + ESP_LOGI capture; T036 + T037 verified 2026-05-22 on non-isolated network (DUT 192.168.1.126).
 - `esp_log_set_vprintf` fans to Serial + ringbuffer. Line-oriented, drop-oldest, `portENTER_CRITICAL_SAFE` (works in ISR context too). 256-char line cap; one-time WARN tag=`log` on first truncation.
 - Stand up a permanent HTTP server bound to `WiFi.localIP()` (not 0.0.0.0; not the WiFiManager portal one — that shuts down post-onboarding).
 - `GET /log?n=N` plain text, last N lines. `GET /log?clear=1` empties. No auth — LAN-only is documented invariant.
@@ -505,7 +502,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-014 — Album art (i.scdn.co) fetch hang
 **Owner**: Developer (investigation), Architect (if it leads to a TLS-stack choice)
 **Feature**: poll-001 (regression surface)
-**Status**: open (2026-05-07 — back-filled from audit)
+**Status**: closed — deferred (M-NOART, TASK-062, shipped 2026-05-21 — album-art path removed; DISABLE_ALBUM_ART is now permanent policy, not a workaround. Hang is moot.)
 **Notes**:
 - Symptom (2026-05-06 Marriott captive portal session, post MAC pre-auth): DUT fetches Spotify currently-playing JSON cleanly, then hangs after logging `Removing existing image` in `cheapYellowLCD::displayImageUsingFile`. Subsequent watchdog/UI freeze; serial output from the poll loop also stops.
 - Workaround in tree: `#define DISABLE_ALBUM_ART 1` in `.ino` skips the entire image fetch+decode path. Set in commit f84b112 to unblock M4 verification.
@@ -660,6 +657,56 @@ T114 PASS (DUT 2026-05-21, inner `main` `ab3864e`): `get queue` count=4, row[0] 
 T102 re-run PASS (DUT 2026-05-21): queue row[0] shifted 5832ms ≤ 8500ms under HTTP/1.1
 keep-alive + dechunker. Harness: `run_sync_tests.py` T114 added (inner repo `6c6bbe6`);
 `read_json()` timing bug fixed; T102 settle-wait added. Results recorded in test_plan.md.
+
+---
+
+### TASK-066 — BUG: tap-to-play clears Spotify queue (context_uri not wired in ACT_PLAY_URI)
+**Owner**: Developer
+**Feature**: playlist-001 (bug fix)
+**Status**: done (2026-05-22 — inner `main` `7a97088`)
+**Blocks**: TASK-067 (VE gate)
+**Notes**:
+
+#### Symptom (DUT 2026-05-16, re-confirmed 2026-05-22)
+Tapping a PLEDIT row clears the Spotify queue. After the tap, PLEDIT shows 5 identical rows of the tapped track; Spotify app shows only 1 item. First reported at TASK-021 close-out.
+
+#### Root cause
+`ACT_PLAY_URI` handler (`spotifyTaskStorage.cpp:330-331`) constructs:
+```cpp
+snprintf(body, sizeof(body), "{\"uris\":[\"%s\"]}", uri);
+s_spotify->playAdvanced(body);
+```
+`{"uris":["..."]}` starts a new ad-hoc single-track session, replacing the existing playlist/album context. `s_lastTrackContextUri` (`spotifyTaskStorage.cpp:46`) is populated on every poll (`onCurrentlyPlaying` lines 77-81) but **never read** in the handler — the wire is missing.
+
+Spotify then fills the 4 upcoming queue slots with the same track URI (its behaviour for a single-URI session), causing `qd.count=5` with identical items → 5 duplicate PLEDIT rows.
+
+#### Fix (spotifyTaskStorage.cpp)
+In the `ACT_PLAY_URI` case, check `s_lastTrackContextUri[0]`:
+- Non-empty (playlist/album context): use `{"context_uri":"<ctx>","offset":{"uri":"<track>"}}`
+- Empty (ad-hoc/radio — no context): fall back to existing `{"uris":["<uri>"]}` behaviour
+
+Pattern already established by `nfc.h:174`.
+
+#### Deliverables
+1. `spotifyTaskStorage.cpp` — `ACT_PLAY_URI` handler wires `s_lastTrackContextUri`.
+2. `dbg_get("snapshot")` serial output — add `contextUri` field (reads `s_lastTrackContextUri` directly) so VE can verify preconditions for T115/T116 without a host-side Spotify API call.
+3. Update TASK-021 notes (done — reference to this task already added).
+
+#### Exit criterion
+T115 passes on DUT (playlist context: queue preserved, no duplicate rows).
+T116 passes on DUT (ad-hoc/radio: fallback fires, no crash).
+
+---
+
+### TASK-067 — VE: write + execute T115/T116 — tap-to-play regression suite
+**Owner**: VE
+**Status**: in-progress (2026-05-22 — T115/T116 stubs written in test_plan.md; awaiting DUT run)
+**Deps**: TASK-066 done (inner `main` `7a97088`)
+**Notes**:
+- Write T115 (playlist context — queue preserved) and T116 (ad-hoc fallback — no crash) in `docs/verification/test_plan.md` (stubs already added at planned status).
+- Execute both on DUT with TASK-066 firmware.
+- Update `playlist-001` `test_ids` in `feature_inventory.yaml` to `[T115, T116]` on first pass.
+- Report pass/fail status back to PM. PM to prompt QM for retrospective on TASK-021/TASK-066 lifecycle.
 
 ---
 
