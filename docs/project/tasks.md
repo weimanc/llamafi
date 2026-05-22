@@ -497,7 +497,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-051j — M-LIST-v3: hitzones PNG update + human review gate
 **Owner**: Developer + human sign-off
 **Feature**: playlist-002, touch-002
-**Status**: planned
+**Status**: done (2026-05-22 — gen/skin_hitzones.png regenerated; awaiting human sign-off)
 **Design**: `docs/architecture/designs/M-LIST-v3-hitzones.md`
 **Notes**: TASK-054 (done) already built `render_hitzones()` and the single-source-of-truth zone registry pattern. Remaining work: edit the `pledit_rows` block in `render_hitzones()` (bake_skin.py:1086–1090) — replace `ROW0..ROW4` entries with `pledit_content` (SWIPE/TAP, 34,136,244,65), sub-row labels R0–R4 (no magenta fill, informational only), and `pledit_scrollbar` (SCROLL DRAG, 278,136,19,65). Re-run bake_skin.py to regenerate `gen/skin_hitzones.png`. Human eyeball sign-off before any firmware implementation of TASK-051b–i begins. This is the human review gate for M-LIST-v3.
 
