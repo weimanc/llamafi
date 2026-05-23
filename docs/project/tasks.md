@@ -434,7 +434,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-051a — M-LIST-v3: optimistic selected-row highlight
 **Owner**: Developer
 **Feature**: playlist-002, touch-002
-**Status**: done (2026-05-23, commit 6f18fca) — unconfirmed on DUT; depends on TASK-076 (swipe fix)
+**Status**: done (2026-05-23) — DUT confirmed; tap path working after TASK-076 threshold fix
 **Design**: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md` Feature 1
 **Notes**: After `ACT_PLAY_URI`, track `optimisticSelectedRow` in `WinampDisplay` (pattern: `optimisticVolumeUntilMs`). Render that row selected until seqno advances or ~8 s timeout. Reset to row 0 on track change.
 
@@ -455,9 +455,9 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-051d — M-LIST-v3: swipe gesture in PLEDIT content area
 **Owner**: Developer
 **Feature**: playlist-002, touch-002
-**Status**: blocked (2026-05-23) — code implemented (commit 908e58d) but swipe does NOT change displayed rows on DUT; see TASK-076
+**Status**: done (2026-05-23) — DUT confirmed scrolling after TASK-076 fix
 **Design**: `docs/architecture/designs/M-LIST-v3-hitzones.md` Zone 1
-**Notes**: `D_PLEDIT_SCROLL` dragState implemented. Drag-end: |dy|<8→tap, dy<0→scrollOffset++, dy>0→scrollOffset--. Sets `_pleditScrollDirty=true`. Human confirmed swiping content area shows no row change. Debug task: TASK-076.
+**Notes**: `D_PLEDIT_SCROLL` dragState implemented. Drag-end: |dy|<4→tap, dy<0→scrollOffset++, dy>0→scrollOffset--. Sets `_pleditScrollDirty=true`. Threshold lowered 8→4px (hardware Y-axis compresses gestures to ~5–35px range on CYD). Fixed by TASK-076.
 
 ### TASK-051e — M-LIST-v3: live scrollbar thumb (sprite blit)
 **Owner**: Developer
@@ -490,9 +490,9 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-051i — M-LIST-v3: scrollbar strip direct drag (Zone 2)
 **Owner**: Developer
 **Feature**: playlist-002, touch-002
-**Status**: done (2026-05-23, commit 6f18fca) — unconfirmed on DUT; see TASK-076 (may share root cause with 051d)
+**Status**: done (2026-05-23) — DUT confirmed scrolling after TASK-076 fix
 **Design**: `docs/architecture/designs/M-LIST-v3-hitzones.md` Zone 2
-**Notes**: `D_PLEDIT_SCROLL_DIRECT` state. Y→scrollOffset: `max(0, min(maxOffset, relY*maxOffset/travel))`. `drawScrollThumbOnly()` re-tiles right strip + blits thumb per sample (no full row redraw). Drag-end → D_IDLE + 100ms cooldown.
+**Notes**: `D_PLEDIT_SCROLL_DIRECT` state. Y→scrollOffset: `max(0, min(maxOffset, relY*maxOffset/travel))`. `drawScrollThumbOnly()` re-tiles right strip + blits thumb per sample. Bug fixed by TASK-076: `_pleditScrollDirty` was not set on scrollOffset change, so `drawPlaylist()` skipped row redraw. Added `_pleditScrollDirty = true` alongside `drawScrollThumbOnly()`. Drag-end → D_IDLE + 100ms cooldown.
 
 ### TASK-051j — M-LIST-v3: hitzones PNG update + human review gate
 **Owner**: Developer + human sign-off
@@ -504,7 +504,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-076 — Debug: PLEDIT swipe gesture not changing displayed rows
 **Owner**: Developer
 **Feature**: playlist-002, touch-002
-**Status**: open (2026-05-23)
+**Status**: done (2026-05-23) — root causes found and fixed; DUT confirmed scrolling
 **Blocks**: TASK-051d (swipe), TASK-051i (scrollbar drag — likely same root cause), TASK-051a (optimistic highlight — depends on tap path working)
 **Symptom**: Swiping the PLEDIT content area does not change which queue items are displayed. Thumb position is static. Row content unchanged after gesture.
 
@@ -528,6 +528,149 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 Flash `cyd2usb_winamp_debug`, use serial debug `tap` / `get dragState` commands to inject synthetic touches and verify state transitions before testing physical touch. If drag-end fires correctly on inject but not on physical touch → hypothesis 1 or 2. If `scrollOffset` updates but rows don't change → hypothesis 3.
 
 **Key file**: `SpotifyDiyThing/winampDisplay.h` — `checkForInput()` drag-end block (~line 408), `drawPlaylist()` gate (~line 922).
+
+**Serialdbg test cases** (VE, 2026-05-23):
+
+All tests require `cyd2usb_winamp_debug` firmware. Geometry reference: Zone 1 (content
+area) = screen x∈[34,278), y∈[136,201) (`originX=22`, `PLEDIT_CONTENT_X=12`,
+`PLEDIT_CONTENT_W=244`, `PLEDIT_ROWS_Y=136`, `ROW_H=13`, `ROW_COUNT=5`).
+
+**Prerequisite — `get scrollOffset`**: Tests T136–T139 require `scrollOffset` to be
+exposed via `dbgGet` (add to `winampDisplay.h::dbgGet`, key `"scrollOffset"`). Without
+it, scroll change can only be confirmed visually or via LOG_D output. T134/T135 work
+with current firmware.
+
+**Note on scope**: Serial inject bypasses `ts.touched()` via `injectRelease()`.
+Therefore T134/T135 cannot diagnose H1 (XPT2046 stays asserted) or H2 (slow loop, one
+sample). They prove the scroll logic fires correctly given a proper drag sequence. If
+T135 passes on inject but physical swipe still fails → root cause is H1 or H2 (hardware
+touch timing), not the scrollOffset/dirty-flag logic.
+
+---
+
+**T134 — Zone 1 hit-test: synthetic tap lands in PLEDIT**
+
+Target hypothesis: H4 (hit-zone miss).
+
+Preconditions: DUT booted, Spotify active (any queue count).
+
+Steps:
+1. `tap 156 165` — centre of Zone 1 content area, row 2 (y=165, row=(165-136)/13=2).
+2. Parse response JSON.
+
+Expected: `{"ok":true,"cmd":"tap","hit":"PLEDIT","action":"PLAY_URI",...}` (row=2 since
+scrollOffset=0 + row 2 = idx 2). If `hit` is anything other than `"PLEDIT"` or `ok` is
+false → Zone 1 boundary wrong; verify `originX` at runtime.
+
+Diagnostic value: If this fails, H4 is confirmed — the hitzone math is wrong. Fix
+`PLEDIT_CONTENT_X` or `originX` before proceeding.
+
+---
+
+**T135 — Drag-end fires on synthetic swipe-up: dragState returns to D_IDLE**
+
+Target hypothesis: H1/H2 root-cause isolation (proves logic path works on inject).
+
+Preconditions: `get dragState` == `D_IDLE`; Spotify queue count >= 6 (room to scroll).
+
+Steps:
+1. `get dragState` — assert `state == "D_IDLE"`.
+2. `drag 156 185 156 155 30` — swipe-up, dy = -30, all points in Zone 1.
+3. Wait for `{"ok":true,"cmd":"drag",...}` response (≤ 10 s).
+4. `get dragState` — assert `state == "D_IDLE"`.
+
+Expected: Drag response arrives; dragState returns to D_IDLE. Confirms `injectRelease()`
+ran the `D_PLEDIT_SCROLL` branch (not stuck in state). If dragState stays
+`"D_PLEDIT_SCROLL"` → the release sentinel never popped or `injectRelease()` didn't
+clear state.
+
+---
+
+**T136 — Swipe-up increments scrollOffset by 1 (requires `get scrollOffset`)**
+
+Target hypotheses: H2 (dy accumulation), H3 (dirty-flag / redraw gate).
+
+Preconditions: `get scrollOffset` == 0; `get dragState` == `D_IDLE`; queue count >= 6.
+
+Steps:
+1. `get scrollOffset` — assert 0.
+2. `drag 156 185 156 155 30` — swipe-up, dy = -30.
+3. Wait for `{"ok":true,"cmd":"drag",...}`.
+4. `get scrollOffset` — assert 1.
+
+Expected: scrollOffset == 1. If scrollOffset stays 0 → drag-end ran but dy was < 8 (H2
+— only one sample landed) or the drag hit the wrong state branch. Check LOG_D for
+`_dragStartY`, `_dragCurrentY`, `dy` values at drag-end.
+
+---
+
+**T137 — Swipe-down decrements scrollOffset by 1 (requires `get scrollOffset`)**
+
+Target hypothesis: H2/H3 (bidirectional correctness).
+
+Preconditions: `get scrollOffset` == 1 (run T136 first or scroll manually).
+
+Steps:
+1. `drag 156 155 156 185 30` — swipe-down, dy = +30.
+2. Wait for drag response.
+3. `get scrollOffset` — assert 0.
+
+Expected: scrollOffset == 0.
+
+---
+
+**T138 — Clamp at zero: swipe-down when scrollOffset=0 stays at 0 (requires `get scrollOffset`)**
+
+Target hypothesis: clamp logic correctness.
+
+Preconditions: `get scrollOffset` == 0.
+
+Steps:
+1. `drag 156 155 156 185 30` — swipe-down.
+2. Wait for drag response.
+3. `get scrollOffset` — assert 0 (unchanged).
+
+Expected: `max(scrollOffset - 1, 0)` clamp holds.
+
+---
+
+**T139 — Clamp at max: swipe-up when scrollOffset=maxOffset stays at maxOffset (requires `get scrollOffset`)**
+
+Target hypothesis: clamp logic correctness.
+
+Preconditions: `get queue` to obtain count N; scrollOffset already at maxOffset = N - 5
+(issue N-5 upward drags).
+
+Steps:
+1. Confirm `get scrollOffset` == maxOffset.
+2. `drag 156 185 156 155 30` — swipe-up.
+3. Wait for drag response.
+4. `get scrollOffset` — assert == maxOffset (unchanged).
+
+Expected: `min(scrollOffset + 1, maxOffset)` clamp holds.
+
+---
+
+**T140 — Small-delta tap: |dy| < 8 dispatches PLAY_URI not SCROLL (requires `get scrollOffset`)**
+
+Target hypothesis: tap/scroll discriminator threshold.
+
+Preconditions: `get scrollOffset` == S (any value). Queue count >= 1.
+
+Steps:
+1. Record S = `get scrollOffset`.
+2. `drag 156 165 156 168 1` — dy = +3 (below 8 px threshold).
+3. Wait for drag response.
+4. `get scrollOffset` — assert still == S (no scroll).
+5. Check serial log for `ACT_PLAY_URI` enqueue (row = S + 2, start row = 2).
+
+Expected: scrollOffset unchanged; PLAY_URI enqueued for row index S+2. Confirms the
+|dy|<8 tap branch fires correctly.
+
+---
+
+Test IDs for test_plan.md: T134–T140. Owner: VE. Status: planned.
+Add `get scrollOffset` to firmware before running T136–T140 (flag to Developer).
 
 ### TASK-022 — M-LIST option B: portrait rotation
 **Owner**: Developer

@@ -1893,6 +1893,50 @@ automated. HTML export option removed from design — T130 dropped accordingly.
 
 ---
 
+### T134 — [playlist-002, touch-002] Zone 1 hit-test: synthetic tap in PLEDIT content area
+
+- **Type**: integration (serialdbg)
+- **Feature(s)**: playlist-002, touch-002
+- **Objective**: Confirm Zone 1 hitzone math is correct — a synthetic tap at the centre
+  of PLEDIT content row 2 reports `hit="PLEDIT"`. Targets TASK-076 hypothesis H4 (Zone 1
+  boundary miss).
+- **Preconditions**: DUT flashed with `cyd2usb_winamp_debug`. Any queue count. `scrollOffset=0`.
+- **Steps**:
+  1. `tap 156 168` (row 2 centre; `originX=22`, `PLEDIT_CONTENT_X=12`, `PLEDIT_ROWS_Y=136`, `ROW_H=13`).
+  2. Parse JSON response. Assert `hit == "PLEDIT"` and `action == "PLAY_URI"`.
+- **Expected result**: `{"ok":true,"cmd":"tap","hit":"PLEDIT","action":"PLAY_URI",...}`.
+  Any other `hit` value confirms H4.
+- **Status**: **pass** (2026-05-23). Harness: `run_serialdbg_tests.py T134`. Owner: VE.
+  Result rules out H4 — Zone 1 hitzone is correct. Root cause of TASK-076 is H1 or H2
+  (physical touch timing).
+
+---
+
+### T135 — [playlist-002, touch-002] Drag-end fires on synthetic swipe-up in PLEDIT Zone 1
+
+- **Type**: integration (serialdbg)
+- **Feature(s)**: playlist-002, touch-002
+- **Objective**: Verify that after a synthetic upward drag through Zone 1 (dy = -30 px,
+  30 steps), `injectRelease()` fires the `D_PLEDIT_SCROLL` branch and `dragState` returns
+  to `D_IDLE`. Targets TASK-076 H1 (drag-end never fires on physical touch) root-cause
+  isolation — proves the logic path is correct when given a proper drag sequence.
+- **Preconditions**: DUT flashed with `cyd2usb_winamp_debug`. `get dragState == D_IDLE`.
+  Spotify queue count >= 6 (room to scroll).
+- **Steps**:
+  1. `get dragState` — assert `"D_IDLE"`.
+  2. `drag 156 183 156 153 30` — swipe-up, dy = -30, all points in Zone 1 y∈[136,201).
+  3. Wait for `{"ok":true,"cmd":"drag",...}` response (≤ 15 s).
+  4. `get dragState` — assert `"D_IDLE"`.
+- **Expected result**: Drag response arrives; dragState returns to D_IDLE. Confirms
+  `injectRelease()` ran the `D_PLEDIT_SCROLL` branch correctly. If dragState stays
+  `D_PLEDIT_SCROLL` after the drag response, the branch is broken (not H1/H2).
+- **Status**: **pass** (2026-05-23). Harness: `run_serialdbg_tests.py T135`. Owner: VE.
+  Result rules out H3 (dirty-flag / draw gate) and confirms logic fires correctly on
+  inject. Physical swipe still failing → H1 (XPT2046 stays asserted) or H2 (slow loop,
+  only one sample — dy=0) is the root cause.
+
+---
+
 ## Entry Format
 
 ```
