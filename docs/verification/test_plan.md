@@ -2011,6 +2011,115 @@ automated. HTML export option removed from design — T130 dropped accordingly.
 
 ---
 
+## Suite: multiapp-001 — Origin-relative audit gate (M-MULTIAPP pre-gate)
+
+Pre-condition for M-MULTIAPP firmware implementation. Tests run after M-MULTIAPP firmware
+changes `originX` from 22 → 0 (winamp chrome flush to left edge; taskbar at x=275..319).
+All serialdbg coordinates derived via `coords.py` (TASK-068). No DUT for T141; DUT with
+`cyd2usb_winamp_debug` for T142–T146.
+
+### T141 — [shell-layout-001] Static audit: no bare absolute X in tft draw calls
+
+- **Type**: static analysis (host-side)
+- **Feature(s)**: shell-layout-001
+- **Objective**: Confirm every `tft.draw*` / `tft.fill*` / `tft.pushImage` X argument
+  in `winampDisplay.h` is expressed relative to `originX`, not a bare screen-absolute
+  integer. Catches any site that would silently misplace after the originX shift.
+- **Preconditions**: Source tree present. No DUT required.
+- **Steps**:
+  1. Grep `winampDisplay.h` for tft draw calls; extract each X-argument expression.
+  2. Assert each contains `originX` or a variable derived from it (`rightX`, `rightEdge`,
+     `slotX`, `barX`, `thumb_x`, `tx`, etc.). Flag any bare integer literal as a
+     candidate for review.
+  3. Gutter fills (`fillRect(0, ..., originX, ...)`) are intentional; document as
+     accepted patterns, not failures.
+- **Expected result**: Zero bare absolute X integers outside accepted gutter-fill patterns.
+  All other draw sites origin-relative.
+- **Status**: planned. Owner: VE. Execute after TASK-080 audit table is signed off.
+
+### T142 — [shell-layout-001, serialdbg-001, touch-002] Transport zone correct at originX=0
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: shell-layout-001, serialdbg-001, touch-002
+- **Objective**: After M-MULTIAPP firmware sets `originX=0`, re-run T076's 8 boundary
+  cases using `coords.py`-derived coordinates (not T076's hardcoded values). Guards
+  against any transport draw site that was not properly origin-relative.
+- **Preconditions**: M-MULTIAPP `cyd2usb_winamp_debug` firmware flashed (`originX=0`).
+  `run_serialdbg_tests.py` using `coords.py`. `set cooldown 0` before each tap.
+- **Steps**:
+  1. For each of the 8 T076 boundary cases, regenerate the screen x via `coords.py`.
+     (All shift -22 px from T076 values since originX drops from 22 to 0.)
+  2. Send each `tap <x> <y>`; parse JSON.
+- **Expected result**: Identical pass pattern to T076. Taps at the OLD x+22 coords now
+  miss the transport row (22 px into dead-zone or off-screen).
+- **Status**: planned. Owner: VE.
+
+### T143 — [shell-layout-001, serialdbg-001, touch-002] POSBAR + VOLUME perimeter at originX=0
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: shell-layout-001, serialdbg-001, touch-002
+- **Objective**: Re-run T086's 16 boundary taps at `coords.py`-derived positions under
+  `originX=0`. Guards against any POSBAR/VOLUME hit-test site still carrying an
+  originX=22 literal.
+- **Preconditions**: As T142. Active Spotify device (`songDuration > 0`).
+- **Steps**: 16 boundary taps (4 outside + 4 inside each rect) at updated coords.
+  Assert outside-rim → DEADZONE; inside-rim → correct zone + action.
+- **Expected result**: 16/16 correct at originX=0 coordinates.
+- **Status**: planned. Owner: VE.
+
+### T144 — [shell-layout-001, serialdbg-001, playlist-002] PLEDIT Zone 1 + Zone 2 at originX=0
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: shell-layout-001, serialdbg-001, playlist-002, touch-002
+- **Objective**: PLEDIT content-area (Zone 1) and scrollbar strip (Zone 2) hitzones
+  correct at `originX=0`. Special interest: PLEDIT Y thresholds (`PLEDIT_ROWS_Y=136` etc.)
+  are absolute screen Y constants — confirm they are unaffected by the originX-only shift
+  (TASK-080 finding 3: "absolute-but-safe when originY=0").
+- **Preconditions**: As T142. Queue count ≥ 6.
+- **Steps**:
+  1. `tap` at `coords.py pledit_tap(row=2)` → assert `hit=PLEDIT, action=PLAY_URI`.
+  2. `tap` 1 px left of Zone 1 x-left edge → assert `hit≠PLEDIT`.
+  3. `drag` vertically in Zone 2 strip (scrollbar x range, dy=+30) → assert `get scrollOffset` changes.
+  4. `tap` at old T134 coord `(156, 168)` — this is NOW `originX=0 + PLEDIT_CONTENT_X(12) + 122 = 134`,
+     not 156. If T144 step 1 passes at 134 but step 4 (at 156) hits DEADZONE, the X is correctly
+     origin-relative.
+- **Expected result**: Zone 1 and Zone 2 correct. PLEDIT Y thresholds unchanged (row tap
+  at new x but same y hits correctly). Step 4 confirmation: old hardcoded coord (156) misses.
+- **Status**: planned. Owner: VE.
+
+### T145 — [shell-layout-001, serialdbg-001] Dead-zone canvas corners at originX=0
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: shell-layout-001, serialdbg-001
+- **Objective**: Canvas corners and the new right-margin (x=275..319, the taskbar strip)
+  return DEADZONE (or taskbar dispatch) — no winamp zone misfires. The right chrome
+  edge shifts from x=297 (originX=22) to x=275 (originX=0), opening up 22 extra pixels
+  on the right. Guards against any zone boundary that assumed `chrome_right_x = 297`.
+- **Preconditions**: As T142.
+- **Steps**:
+  1. `tap (0,0)`, `(274,0)`, `(0,239)`, `(274,239)` → each DEADZONE (winamp canvas corners).
+  2. `tap (275,120)` → DEADZONE or taskbar-zone (not any winamp-named zone).
+  3. `tap (319,120)` → DEADZONE or taskbar-zone.
+- **Expected result**: Steps 1–3 produce no `hit=TRANSPORT/POSBAR/VOLUME/PLEDIT/VIS/LOGO`.
+- **Status**: planned. Owner: VE.
+
+### T146 — [shell-layout-001, serialdbg-001] Full T076–T140 regression via coords.py at originX=0
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: shell-layout-001, serialdbg-001
+- **Objective**: With `run_serialdbg_tests.py` fully migrated to `coords.py` (TASK-068),
+  run the complete existing serialdbg suite on `originX=0` firmware. Confirms both (a)
+  `coords.py` generates correct coordinates for the new origin, and (b) all zone logic
+  in firmware is correctly origin-relative. This is the TASK-081 exit gate.
+- **Preconditions**: TASK-068 complete. M-MULTIAPP firmware flashed. Active Spotify device.
+- **Steps**: `~/proj/esp/venv/bin/python3 tools/run_serialdbg_tests.py` — subset T076–T088,
+  T095–T096, T134–T140. Record pass/fail per test.
+- **Expected result**: All tests pass. Any failure pinpoints the draw or hit-test site
+  that is not properly origin-relative — feed back to TASK-080 finding table as "FIX NEEDED."
+- **Status**: planned. Owner: VE. This is the TASK-081 exit gate.
+
+---
+
 ## Entry Format
 
 ```
