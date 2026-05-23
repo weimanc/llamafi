@@ -434,65 +434,65 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-051a — M-LIST-v3: optimistic selected-row highlight
 **Owner**: Developer
 **Feature**: playlist-002, touch-002
-**Status**: planned
+**Status**: done (2026-05-23, commit 6f18fca) — unconfirmed on DUT; depends on TASK-076 (swipe fix)
 **Design**: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md` Feature 1
 **Notes**: After `ACT_PLAY_URI`, track `optimisticSelectedRow` in `WinampDisplay` (pattern: `optimisticVolumeUntilMs`). Render that row selected until seqno advances or ~8 s timeout. Reset to row 0 on track change.
 
 ### TASK-051b — M-LIST-v3: extend queue to 20 items
 **Owner**: Developer
 **Feature**: playlist-002
-**Status**: planned
+**Status**: done (2026-05-23, commit 908e58d) — DUT confirmed count=20
 **Design**: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md` Feature 2
 **Notes**: Raise `SPOTIFY_QUEUE_MAX_ITEMS` from 5 to 20 in `lib/SpotifyArduino/`. `QueueSnapshot` grows; heap impact must be verified (each `QueueItem` ~100 B → +1500 B).
 
 ### TASK-051c — M-LIST-v3: scrollOffset state + sliced row rendering
 **Owner**: Developer
 **Feature**: playlist-002
-**Status**: planned
+**Status**: done (2026-05-23, commit 908e58d) — confirmed: row format visible; scrollOffset=0 at boot
 **Design**: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md` Feature 2
 **Notes**: Add `int scrollOffset` to `WinampDisplay`. `drawPlaylist()` renders `items[scrollOffset .. scrollOffset+PLEDIT_ROW_COUNT-1]`. Row tap maps to `ACT_PLAY_URI(scrollOffset + row)`.
 
 ### TASK-051d — M-LIST-v3: swipe gesture in PLEDIT content area
 **Owner**: Developer
 **Feature**: playlist-002, touch-002
-**Status**: planned
+**Status**: blocked (2026-05-23) — code implemented (commit 908e58d) but swipe does NOT change displayed rows on DUT; see TASK-076
 **Design**: `docs/architecture/designs/M-LIST-v3-hitzones.md` Zone 1
-**Notes**: Add `D_PLEDIT_SCROLL` dragState. On touch-end in content area: if `|dy| < 8px` → tap; else → increment/decrement `scrollOffset`. Requires TASK-051c.
+**Notes**: `D_PLEDIT_SCROLL` dragState implemented. Drag-end: |dy|<8→tap, dy<0→scrollOffset++, dy>0→scrollOffset--. Sets `_pleditScrollDirty=true`. Human confirmed swiping content area shows no row change. Debug task: TASK-076.
 
 ### TASK-051e — M-LIST-v3: live scrollbar thumb (sprite blit)
 **Owner**: Developer
 **Feature**: playlist-002
-**Status**: planned
+**Status**: done (2026-05-23, commit 3b49719) — human sign-off: thumb visible at correct position
 **Design**: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md` Feature 3; `docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md`
 **Notes**: Thumb is a sprite blit, NOT a fillRect (spec corrected 2026-05-22, TASK-075 amendment). Use normal-state thumb sprite (BMP x=52, y=54, w=9, h=17) from `SKIN_ASSETS`. Blit at: `thumb_x = originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W + 1`, `thumb_y = PLEDIT_ROWS_Y + scrollOffset * (65 - 17) / max(1, count - PLEDIT_ROW_COUNT)`. Hide when `count <= PLEDIT_ROW_COUNT`. Requires TASK-051c.
 
 ### TASK-051f — M-LIST-v3: auto-reset scrollOffset on track change
 **Owner**: Developer
 **Feature**: playlist-002, sync-001
-**Status**: planned
+**Status**: done (2026-05-23, commit 908e58d)
 **Design**: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md` Cross-feature
 **Notes**: On seqno advance, set `scrollOffset = 0`. items[0] (currently playing) always in view post-change.
 
 ### TASK-051g — M-LIST-v3: row format N. Artist - Title... M:SS
 **Owner**: Developer
 **Feature**: playlist-002, playlist-003
-**Status**: planned
+**Status**: done (2026-05-23, commit 00aa3e9) — human sign-off: row formatting confirmed on DUT
 **Design**: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md` Feature 4
 **Notes**: Replace current `"Artist - Title"` with `"N. Artist - Title   M:SS"`. N = `songsSeen + scrollOffset + i + 1`. Duration right-aligned (pixel math: `right_edge - strlen(dur)*6`). Middle truncated with `"..."` on overflow. Font 1 fixed 6px/char, 238px usable.
 
 ### TASK-051h — M-LIST-v3: songsSeen counter + 2-entry URI history
 **Owner**: Developer
 **Feature**: playlist-003
-**Status**: planned
+**Status**: done (2026-05-23, commit 00aa3e9)
 **Design**: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md` Feature 5
 **Notes**: `uint16_t songsSeen` (RAM). `char prevNextUri[40]`. `bool skipPending` (set by ACT_NEXT / ACT_PLAY_URI dispatch). Increment when `items[0].uri == prevNextUri && !skipPending`. Update `prevNextUri = items[1].uri` after each poll. Row N shows `songsSeen + scrollOffset + i + 1`.
 
 ### TASK-051i — M-LIST-v3: scrollbar strip direct drag (Zone 2)
 **Owner**: Developer
 **Feature**: playlist-002, touch-002
-**Status**: planned
+**Status**: done (2026-05-23, commit 6f18fca) — unconfirmed on DUT; see TASK-076 (may share root cause with 051d)
 **Design**: `docs/architecture/designs/M-LIST-v3-hitzones.md` Zone 2
-**Notes**: Touch in x=278..296, y=136..200 → `D_PLEDIT_SCROLL_DIRECT`. Continuous Y-to-scrollOffset mapping during drag; thumb redraws each sample. No tap action from this zone. Requires TASK-051c, TASK-051e.
+**Notes**: `D_PLEDIT_SCROLL_DIRECT` state. Y→scrollOffset: `max(0, min(maxOffset, relY*maxOffset/travel))`. `drawScrollThumbOnly()` re-tiles right strip + blits thumb per sample (no full row redraw). Drag-end → D_IDLE + 100ms cooldown.
 
 ### TASK-051j — M-LIST-v3: hitzones PNG update + human review gate
 **Owner**: Developer + human sign-off
@@ -500,6 +500,34 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 **Status**: done (2026-05-23 — human sign-off given)
 **Design**: `docs/architecture/designs/M-LIST-v3-hitzones.md`
 **Notes**: TASK-054 (done) already built `render_hitzones()` and the single-source-of-truth zone registry pattern. Remaining work: edit the `pledit_rows` block in `render_hitzones()` (bake_skin.py:1086–1090) — replace `ROW0..ROW4` entries with `pledit_content` (SWIPE/TAP, 34,136,244,65), sub-row labels R0–R4 (no magenta fill, informational only), `pledit_scrollbar` (SCROLL DRAG, 278,136,19,65), `pledit_scroll_up` (UP BTN, 275,201,22,7), and `pledit_scroll_down` (DOWN BTN, 275,208,22,10). Re-run bake_skin.py to regenerate `gen/skin_hitzones.png`. Human eyeball sign-off before any firmware implementation of TASK-051b–i begins. This is the human review gate for M-LIST-v3. Scroll arrow coords measured in TASK-075 (see `docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md`).
+
+### TASK-076 — Debug: PLEDIT swipe gesture not changing displayed rows
+**Owner**: Developer
+**Feature**: playlist-002, touch-002
+**Status**: open (2026-05-23)
+**Blocks**: TASK-051d (swipe), TASK-051i (scrollbar drag — likely same root cause), TASK-051a (optimistic highlight — depends on tap path working)
+**Symptom**: Swiping the PLEDIT content area does not change which queue items are displayed. Thumb position is static. Row content unchanged after gesture.
+
+**What is implemented** (commit 908e58d / 6f18fca, `winampDisplay.h`):
+- `D_PLEDIT_SCROLL` dragState. Zone 1 touch-down sets state + records `_dragStartY`, `_dragCurrentY`, `_dragStartRow`.
+- Drag-end block (outside cooldown gate): `if (dragState == D_PLEDIT_SCROLL && !ts.touched())` — computes `dy = _dragCurrentY - _dragStartY`. If `|dy| < 8` → tap; else → `scrollOffset ±1` + `_pleditScrollDirty = true`.
+- `drawPlaylist()` gate: `if (!seqnoChanged && !_pleditScrollDirty) return` — dirty flag bypasses 1 Hz rate-limit.
+- `scrollOffset` fed into row loop as `idx = scrollOffset + i`.
+
+**Hypotheses to investigate (in priority order)**:
+
+1. **Drag-end never fires** — `ts.touched()` stays true long after finger lift on the CYD XPT2046 controller, so `!ts.touched()` in the drag-end check never becomes true while `dragState == D_PLEDIT_SCROLL`. Add `LOG_D` to drag-end entry to confirm it fires. Check if `dragState` is reset to `D_IDLE` correctly.
+
+2. **dy always < 8px** — `_dragCurrentY` is only updated when the Loop re-enters the Zone 1 `else if (dragState == D_PLEDIT_SCROLL)` branch. If the loop is slow (blocked on network), only one touch sample arrives per gesture → `_dragCurrentY == _dragStartY` → `dy = 0` → always treated as tap. Add log of `_dragStartY`, `_dragCurrentY`, `dy` at drag-end.
+
+3. **`_pleditScrollDirty` set but `drawPlaylist()` not redrawing** — verify the gate logic: when `seqnoChanged=false` and `_pleditScrollDirty=true`, the function should enter and render. But check: does a seqno poll fire immediately after, resetting `scrollOffset = 0` before the dirty draw runs? The poll is every ~5s so unlikely, but add log to confirm `scrollOffset` value inside the row loop.
+
+4. **Zone 1 hit test miss** — touch coordinates `p.x` / `p.y - originY` may not fall in `[originX + PLEDIT_CONTENT_X, originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W)` × `[PLEDIT_ROWS_Y, PLEDIT_ROWS_Y + 65)`. Verify `originX` value at runtime (may be 22, not 0). Log touch coords on first press.
+
+**Suggested debug approach**:
+Flash `cyd2usb_winamp_debug`, use serial debug `tap` / `get dragState` commands to inject synthetic touches and verify state transitions before testing physical touch. If drag-end fires correctly on inject but not on physical touch → hypothesis 1 or 2. If `scrollOffset` updates but rows don't change → hypothesis 3.
+
+**Key file**: `SpotifyDiyThing/winampDisplay.h` — `checkForInput()` drag-end block (~line 408), `drawPlaylist()` gate (~line 922).
 
 ### TASK-022 — M-LIST option B: portrait rotation
 **Owner**: Developer
