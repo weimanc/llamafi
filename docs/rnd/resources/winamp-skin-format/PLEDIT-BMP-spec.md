@@ -110,27 +110,33 @@ The dotted-blue track texture at y=0..37 is an **alternate scrollbar track style
 
 ---
 
-## Scrollbar thumb — confirmed synthesised (2026-05-22)
+## Scrollbar thumb — sprite confirmed (2026-05-22, corrected 2026-05-22)
 
-Pixel scan of all PLEDIT.BMP regions confirmed: **no scrollbar thumb sprite exists in the BMP**. Audacious draws the thumb as a synthetic filled rectangle over the track tile.
+~~Pixel scan of all PLEDIT.BMP regions confirmed: **no scrollbar thumb sprite exists in the BMP**.~~ **CORRECTION**: The thumb IS a sprite. Earlier analysis missed it. Pixel colour match against a reference screenshot confirmed the golden thumb visible in a rendered playlist uses colours exclusively from BMP x=52..70, y=54..70. See TASK-075 amendment.
+
+The thumb sprite lives in the **frame-sides band** (y=42..70), in the 19px strip immediately right of `SKIN_PLEDIT_RIGHT_SIDE`:
+
+### Scrollbar thumb sprite coordinates in PLEDIT.BMP
+
+| Element | BMP x | BMP y | w | h | Notes |
+|---------|-------|-------|---|---|-------|
+| Thumb — normal state | 52 | 54 | 9 | 17 | Bevelled golden rectangle |
+| Thumb — alt state | 62 | 54 | 8 | 16 | Second variant (hover/pressed) |
+
+Transparent pixels within each sprite (`(0,198,255)`) composite over the dark track tile (`SKIN_PLEDIT_RIGHT_SIDE`) beneath.
+
+The same x=52..70, y=42..50 sub-region contains shade-mode button icons (not used for normal-mode rendering).
 
 ### Implementation specification (for TASK-051e)
 
-The right-side frame tile (`SKIN_PLEDIT_RIGHT_SIDE`, 19×29, tiled vertically) provides the scrollbar track visual. The thumb is a `fillRect` overlay:
+The right-side frame tile (`SKIN_PLEDIT_RIGHT_SIDE`, 19×29, tiled vertically) provides the scrollbar track visual. The thumb is a **sprite blit** of the normal-state thumb (BMP x=52, y=54, 9×17):
 
 | Parameter | Value |
 |-----------|-------|
-| Thumb width | 17px (`PLEDIT_SIDE_RIGHT_W - 2` for 1px border each side) |
-| Thumb height | `max(5, PLEDIT_ROW_COUNT * track_h / count)` where `track_h = PLEDIT_ROW_COUNT * PLEDIT_ROW_H = 65px` |
+| Thumb sprite | BMP x=52, y=54, w=9, h=17 (normal state) |
 | Thumb X | `originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W + 1` |
-| Thumb Y | `PLEDIT_ROWS_Y + scrollOffset * (track_h - thumb_h) / max(1, count - PLEDIT_ROW_COUNT)` |
-| Thumb fill colour | `0x6B4F` (RGB565 of `(106,106,122)`) — the lighter stripe in the right-side tile |
+| Thumb Y | `PLEDIT_ROWS_Y + scrollOffset * (track_h - thumb_h) / max(1, count - PLEDIT_ROW_COUNT)` where `track_h = 65px`, `thumb_h = 17` (sprite height) |
 | Hide condition | `count <= PLEDIT_ROW_COUNT` — no scroll possible, no thumb drawn |
-
-These colours derive from `SKIN_PLEDIT_RIGHT_SIDE`'s own palette so the thumb blends with the track tile:
-- `(41, 41, 64)` = `0x2948` — dominant dark fill (406/551px)
-- `(106, 106, 122)` = `0x6B4F` — light stripe (87/551px) → **thumb fill**
-- `(29, 29, 45)` = `0x18E5` — background
 
 ---
 
@@ -181,5 +187,5 @@ Scroll arrows are **standalone tappable zones** — each tap scrolls the playlis
 - Individual track rows (no sprite)
 - Row highlight sprite (no sprite — flat fill from PLEDIT.TXT)
 - Currently-playing indicator icon
-- Scrollbar thumb (confirmed absent 2026-05-22 — synthesised via `fillRect`, see above)
+- ~~Scrollbar thumb~~ (CORRECTED: thumb sprite IS present — see §"Scrollbar thumb" above)
 - Scroll arrow pressed state (absent in base-2.91.wsz — see Scroll arrow buttons section above)

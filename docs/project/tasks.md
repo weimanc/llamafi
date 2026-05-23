@@ -459,12 +459,12 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 **Design**: `docs/architecture/designs/M-LIST-v3-hitzones.md` Zone 1
 **Notes**: Add `D_PLEDIT_SCROLL` dragState. On touch-end in content area: if `|dy| < 8px` → tap; else → increment/decrement `scrollOffset`. Requires TASK-051c.
 
-### TASK-051e — M-LIST-v3: live scrollbar thumb (synthesised fillRect)
+### TASK-051e — M-LIST-v3: live scrollbar thumb (sprite blit)
 **Owner**: Developer
 **Feature**: playlist-002
 **Status**: planned
 **Design**: `docs/architecture/designs/M-LIST-v3-playlist-interactivity.md` Feature 3; `docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md`
-**Notes**: No sprite — thumb is `fillRect` colour `0x6B4F` (17px wide) over `SKIN_PLEDIT_RIGHT_SIDE` track. Geometry: `thumb_h = max(5, PLEDIT_ROW_COUNT * 65 / count)`, `thumb_y = PLEDIT_ROWS_Y + scrollOffset * (65 - thumb_h) / max(1, count - PLEDIT_ROW_COUNT)`. Hide when `count <= PLEDIT_ROW_COUNT`. Requires TASK-051c.
+**Notes**: Thumb is a sprite blit, NOT a fillRect (spec corrected 2026-05-22, TASK-075 amendment). Use normal-state thumb sprite (BMP x=52, y=54, w=9, h=17) from `SKIN_ASSETS`. Blit at: `thumb_x = originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W + 1`, `thumb_y = PLEDIT_ROWS_Y + scrollOffset * (65 - 17) / max(1, count - PLEDIT_ROW_COUNT)`. Hide when `count <= PLEDIT_ROW_COUNT`. Requires TASK-051c.
 
 ### TASK-051f — M-LIST-v3: auto-reset scrollOffset on track change
 **Owner**: Developer
@@ -497,7 +497,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-051j — M-LIST-v3: hitzones PNG update + human review gate
 **Owner**: Developer + human sign-off
 **Feature**: playlist-002, touch-002
-**Status**: todo (TASK-075 done — blocker cleared 2026-05-22)
+**Status**: done (2026-05-23 — human sign-off given)
 **Design**: `docs/architecture/designs/M-LIST-v3-hitzones.md`
 **Notes**: TASK-054 (done) already built `render_hitzones()` and the single-source-of-truth zone registry pattern. Remaining work: edit the `pledit_rows` block in `render_hitzones()` (bake_skin.py:1086–1090) — replace `ROW0..ROW4` entries with `pledit_content` (SWIPE/TAP, 34,136,244,65), sub-row labels R0–R4 (no magenta fill, informational only), `pledit_scrollbar` (SCROLL DRAG, 278,136,19,65), `pledit_scroll_up` (UP BTN, 275,201,22,7), and `pledit_scroll_down` (DOWN BTN, 275,208,22,10). Re-run bake_skin.py to regenerate `gen/skin_hitzones.png`. Human eyeball sign-off before any firmware implementation of TASK-051b–i begins. This is the human review gate for M-LIST-v3. Scroll arrow coords measured in TASK-075 (see `docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md`).
 
@@ -1444,11 +1444,11 @@ LOCAL_PATCHES comment added. T133 in `run_serialdbg_tests.py` guards the fix wit
 
 ---
 
-### TASK-075 — RnD: measure PLEDIT scroll-arrow sprite positions in PLEDIT.BMP
+### TASK-075 — RnD: measure PLEDIT scroll-arrow + thumb sprite positions in PLEDIT.BMP
 **Owner**: R&D
 **Feature**: playlist-002, touch-002
-**Status**: done (2026-05-22)
-**Blocks**: TASK-051j (hitzones PNG visual validation), TASK-051i (scrollbar strip drag firmware)
+**Status**: done — amended 2026-05-22
+**Blocks**: TASK-051j (hitzones PNG visual validation), TASK-051i (scrollbar strip drag firmware), TASK-051e (thumb sprite blit)
 **Git ref**: master (spec update in PLEDIT-BMP-spec.md)
 **Notes**:
 
@@ -1481,6 +1481,19 @@ UP=y201..219, DOWN=y220..238.
 **Standalone zones**: YES — each tap scrolls 1 item. Complement Zone 2 (direct strip drag).
 
 Full spec in `docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md` §"Scroll arrow buttons".
+
+#### Amendment (2026-05-22) — scrollbar thumb sprite found
+
+Initial findings incorrectly concluded the thumb was absent and synthesised. Pixel colour analysis against a reference screenshot confirmed golden thumb colours match BMP x=52..70 exclusively. Human-verified by extracting and inspecting the sprites.
+
+**Thumb sprite coordinates in PLEDIT.BMP:**
+
+| Element | BMP x | BMP y | w | h |
+|---------|-------|-------|---|---|
+| Thumb — normal state | 52 | 54 | 9 | 17 |
+| Thumb — alt state | 62 | 54 | 8 | 16 |
+
+Spec corrected in `docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md` §"Scrollbar thumb". TASK-051e updated to use sprite blit instead of `fillRect`.
 
 ---
 
