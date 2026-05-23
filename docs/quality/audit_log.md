@@ -402,6 +402,90 @@ LL-013 / LL-009 / LL-018 promotion remains a deferred human decision; this audit
 
 ---
 
+### Audit — 2026-05-23 — TASK-077: scrollbar thumb position bug — design/implementation/validation chain
+
+**Triggered by**: human (validate TASK-077 claims; audit design → impl → VE chain for scrollbar thumb)
+
+**Scope**: TASK-051e (thumb blit impl), TASK-075 (R&D measurement), TASK-077 (bug report), T120 (VE test case), `winampDisplay.h`, `gen/skin_layout.h`, `docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md`.
+
+**Areas checked**:
+- [x] Formula correctness — code vs spec vs first principles
+- [x] Design → implementation traceability (R&D → spec → code)
+- [x] VE exit-criterion execution (T120 status)
+- [x] Bug root-cause substantiation in TASK-077
+- [x] Serial-debug readiness for verification
+
+---
+
+**Findings**:
+
+**1. Formula: code matches spec — GREEN (with one unverified premise)**
+
+Code in `winampDisplay.h` (both `drawPlaylist()` line 1035 and `drawScrollThumbOnly()` line 964):
+
+```cpp
+constexpr int track_h = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;   // 5 × 13 = 65 px
+constexpr int travel  = track_h - SKIN_PLEDIT_THUMB_H;      // 65 − 17 = 48 px
+const int denom  = max(1, (int)count - PLEDIT_ROW_COUNT);
+const int thumb_y = PLEDIT_ROWS_Y + scrollOffset * travel / denom;
+```
+
+`PLEDIT-BMP-spec.md §"Scrollbar thumb"` states the identical formula: `PLEDIT_ROWS_Y + scrollOffset × (track_h − thumb_h) / max(1, count − PLEDIT_ROW_COUNT)` where `track_h = 65px`, `thumb_h = 17`. The code is a verbatim translation.
+
+Mathematical correctness confirmed: at `scrollOffset=0`, thumb top = PLEDIT_ROWS_Y (136). At `scrollOffset=maxOffset`, thumb top = 136 + 48 = 184; thumb bottom = 184 + 17 − 1 = 200. The track bottom (inclusive) = PLEDIT_BOTTOM_Y − 1 = 200. Thumb bottom aligns with track bottom at max scroll. ✓
+
+**One unverified premise**: both code and spec assume the scrollbar track starts at exactly `PLEDIT_ROWS_Y` (136). This is derived as `PLEDIT_Y + PLEDIT_TITLE_H = 116 + 20 = 136`. The right-side tile (`SKIN_PLEDIT_RIGHT_SIDE`) is drawn from `PLEDIT_ROWS_Y`, but BMP row y=42 (the tile's first pixel row) may contain a 1-pixel visual separator before the track body. No R&D measurement has been taken of this. If the effective track starts at y=137, the formula's base offset is 1px high.
+
+**2. VE gate T120 never executed — RED (process miss)**
+
+`docs/verification/test_plan.md` T120 status: `planned`. T120 requires TASK-051e to be applied (explicitly listed in preconditions) and tests thumb movement through the full `scrollOffset` range (0 → mid → max), not just at zero. The task was never executed before TASK-051e was closed.
+
+TASK-051e was closed "done (2026-05-23, commit 3b49719) — human sign-off: thumb visible at correct position." A human visual check at `scrollOffset = 0` (thumb at top) was accepted as sufficient. This is not equivalent to T120. Thumb-at-top is consistent with both a correct and a wrong formula; the formula only shows an error at `scrollOffset > 0`.
+
+**3. `get scrollOffset` serial command not implemented — blocking T120 and T136–T140**
+
+`WinampDisplay::dbgGet` (`winampDisplay.h:840`) handles `cooldown`, `dragState`, `optimisticVolume`, `songDuration`. `scrollOffset` is absent. T136–T140 (TASK-076) and partial T120 verification all require this key. TASK-076 notes list it as a prerequisite ("Tests T136–T140 require `scrollOffset` to be exposed via `dbgGet` — add to `winampDisplay.h::dbgGet`") but it was not implemented before those tasks were closed as "done (TASK-076: DUT confirmed scrolling after TASK-076 fix)".
+
+**4. TASK-077 bug symptom lacks captured evidence — YELLOW**
+
+TASK-077 ("BUG: scrollbar thumb position wrong") was filed 2026-05-23. It contains no captured serial log, no measured screen coordinates, no screenshot. The notes say only "verify against PLEDIT.BMP spec... check PLEDIT_ROWS_Y offset and whether travel denominator is correct." As shown in Finding 1, the denominator is correct per the spec. The observation of "incorrect Y position" has not been formally substantiated with a T120 run or any DUT measurement.
+
+Possible alternative explanations for the DUT observation that have not been ruled out:
+- Thumb X misalignment perceived as Y error: thumb blit at `rightX + 1 = 279` is 4px left of the right-side tile's visual centre (287.5). The 9px thumb occupies the left half of the 19px track tile.
+- Transparency key false-positive: `PLEDIT_TRANSPARENT_RGB565 = 0x063F`. If any non-transparent thumb pixel happens to be that colour, it would render as a hole, distorting perceived position.
+- Single-state sign-off accepted at scrollOffset=0; first DUT scroll moved the thumb to a position that looked proportionally wrong (possibly due to integer truncation artefacts at low count values).
+
+None of these are confirmed. Root cause is undiagnosed.
+
+**5. TASK-051e had no explicit VE exit criterion — process miss (repeated pattern)**
+
+TASK-051e notes do not list T120 as a required gate. T120 was planned in `test_plan.md` but the connection from task → test was never wired. This matches the LL-024 pattern ("'VE: no test suite written' prose notes are not actionable without a task") but in the opposite direction: the test existed but was not linked as a blocking exit criterion.
+
+**Actions assigned**:
+
+| # | Owner | Action |
+|---|-------|--------|
+| 1 | Developer | Add `get scrollOffset` to `WinampDisplay::dbgGet` (`winampDisplay.h:868` else branch). No new task needed — low-risk, ~5 LOC, resolves T136–T140 and T120 blockers simultaneously. |
+| 2 | VE | Execute T120 on DUT with TASK-051e firmware once `get scrollOffset` is available. Step through scrollOffset 0 → mid → max, record thumb y-coordinate vs expected. Required before TASK-077 can be closed. |
+| 3 | R&D or Developer | Measure whether BMP y=42 (right-side tile first row) is a 1-px visual separator. If yes, patch `PLEDIT_ROWS_Y + 1` as the thumb base offset and update `PLEDIT-BMP-spec.md`. |
+| 4 | PM | Link T120 as the explicit exit criterion in TASK-077 notes. Update TASK-077 status to `blocked` (by `get scrollOffset` impl) rather than open with no dependency. |
+| 5 | PM | File LL-025 candidate for human sign-off (see `lessons_learned.md`). |
+
+**Correction (2026-05-23 — post-audit human clarification)**:
+TASK-077 was misfiled. The original user observation was "slider needs to move a bit to the right" — an X-axis concern. The PM agent incorrectly recorded it as a Y-position bug. The QM audit above checked the Y formula (which is correct per spec) and identified the X misalignment in Finding 5 as an alternative explanation. The human clarification confirms Finding 5 was the actual defect.
+
+Fix applied to `winampDisplay.h`:
+- `drawScrollThumbOnly()` line 965: `rightX + 1` → `rightX + (PLEDIT_SIDE_RIGHT_W - SKIN_PLEDIT_THUMB_W) / 2` (= rightX + 5)
+- `drawPlaylist()` line 1034: `+ 1` → `+ (PLEDIT_SIDE_RIGHT_W - SKIN_PLEDIT_THUMB_W) / 2`
+
+This centres the 9px thumb within the 19px right-side tile. TASK-077 status updated to `done`.
+
+**Residual action**: T120 still unexecuted. VE should run T120 to confirm corrected render across scroll range. `get scrollOffset` still missing from `dbgGet`.
+
+**New LL candidate from this episode** (added to LL-025 scope): PM misfiling of user-reported visual bugs. The user said "X" (right/left), the agent recorded "Y" (up/down). Symptom transcription error. Mitigation: PM should quote the user's exact wording in the Symptom field, not paraphrase into a coordinate.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:

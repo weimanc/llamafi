@@ -61,6 +61,7 @@ as the switching mechanism.
 | Weather app — panel layout, dataTask | [weather.md](weather.md) |
 | Crypto app — row layout, sub-canvas options | [crypto.md](crypto.md) |
 | Matrix rain app — stream geometry, float fix | [matrix.md](matrix.md) |
+| Settings app — tab bar, aesthetics, content stubs | [settings.md](settings.md) |
 
 ## Status
 

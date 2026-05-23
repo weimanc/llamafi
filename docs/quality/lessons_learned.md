@@ -391,6 +391,44 @@ Triggering work: TASK-066 (fix `ACT_PLAY_URI` context_uri wire-up) + TASK-067 (T
 
 ---
 
+### LL-025 — 2026-05-23 — Two related gaps: single-state visual sign-off, and PM paraphrase vs. exact-quote for visual bugs
+
+**Context**: TASK-051e (scrollbar thumb blit) was closed on a human eyeball at `scrollOffset = 0`. TASK-077 was filed the same day. The bug was actually an X-axis offset (`thumb_x = rightX + 1`, 4px too far left); the PM agent paraphrased "needs to move a bit to the right" as "Y position wrong" — an axis flip that caused the QM audit to verify the Y formula (correct) rather than immediately fixing the X offset (trivial).
+
+**Observation A — single-state sign-off**: A visual check at one boundary state passes trivially for almost any formula. The actual defect (`+ 1` off in X) would not have been caught even with a correct Y-formula audit because they are orthogonal. The "thumb visible at correct position" sign-off at offset=0 is not a VE gate for any parameter-dependent renderer.
+
+**Observation B — symptom transcription**: The PM agent paraphrased the user's spatial description ("needs to move a bit to the right") into a technical coordinate frame ("incorrect Y position"). Right/left → X axis; up/down → Y axis. The paraphrase introduced an axis error that misdirected the QM audit.
+
+**Root cause A**: No explicit VE exit criterion in TASK-051e. T120 existed but was not linked as a gate. Closure accepted at the easiest single state.
+
+**Root cause B**: PM filed the Symptom field from inference ("this seems like a position problem") rather than quoting the user verbatim. The verbatim quote would have immediately identified the axis.
+
+**Suggested improvement A**: For any renderer whose output is a function of a runtime parameter, the VE gate must cover zero, max, and one intermediate value. Task notes must name the test ID explicitly. "Visually correct at rest" is not a regression guard.
+
+**Suggested improvement B**: PM's Symptom field for visual/UI bugs must include the user's exact quoted wording alongside any technical translation. Quote first, interpret second. If the interpretation changes after clarification, update both fields.
+
+**Status**: open
+
+---
+
+### LL-026 — 2026-05-23 — Reference image available, pixel positions still guessed; human forced to iterate
+
+**Context**: `resource/winamp_reference_cropped.png` was provided at project start and used by R&D during TASK-075 (scroll arrows + thumb sprite identification). Despite this, the thumb's horizontal inset within the scrollbar track was implemented as `rightX + 1` with no derivation — a guess. The value was wrong. TASK-077 was filed (itself misfiled as a Y bug) and required 5+ flash-and-observe cycles with human pixel-level feedback to land on the correct value (`+4`). The reference image was available throughout and could have answered the question directly.
+
+**Observation**: R&D measured *what* the thumb sprite was (BMP x=52, y=54, 9×17) but not *where* it should sit within the 19px scrollbar track on screen. The horizontal inset is visible in the reference image: the thumb occupies the inner portion of the track strip. A one-time measurement at TASK-075 or TASK-051e time would have produced the constant. Instead, the implementation shipped with a magic `+ 1` and the user paid for the error in session time.
+
+**Root cause**: R&D task scope was "identify the sprite" (extract coordinates from BMP), not "specify all rendering parameters" (inset, centering, transparency handling). The gap between "sprite found" and "sprite correctly placed" was not identified as a work item. No one asked: "what is the correct X position relative to the track tile?"
+
+**Suggested improvement**: For every sprite blit introduced by a TASK, the implementation spec must include ALL rendering parameters: X offset, Y offset, transparency key, and — for positioned elements — derivation from a reference image measurement. "Sprite found at BMP (x,y,w,h)" is not a complete spec. If a reference image exists, the spec writer must consult it. If a parameter is truly ambiguous, mark it `[VISUAL CALIBRATION NEEDED]` so it is not silently guessed.
+
+**Structural fix (user direction)**: When a reference image is used as the basis for any rendered element, a paired VE/audit item is required to validate the rendered output against that image. "Reference image consumed → visual validation test" is a mandatory pair, not optional. The test does not need pixel-perfect automation; a manual overlay or side-by-side screenshot comparison is sufficient. Without this gate, an element can ship visually wrong and only human frustration eventually surfaces the error.
+
+**User feedback (direct)**: *"I've had 4 agent sessions getting the slider sprite drawn. It's been an uphill battle. The reference image was given at the start. R&D examined it. And yet I still had to iterate a bunch more times, including using my human feedback on pixel differences — while you have all the resources to make the validation."*
+
+**Status**: open
+
+---
+
 ## Best-practice candidates (for human sign-off)
 
 Per AGENTS.md, QM does not self-promote. Below are LL items that look durable enough to become best-practice rules:
@@ -416,6 +454,8 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-022** → adopted → **BP-003** (2026-05-22)
 - **LL-023** → adopted → **BP-004** (2026-05-22)
 - **LL-024** → adopted → **BP-005** (2026-05-22)
+- **LL-025** → "Visual sign-off for range-dependent renderers must cover zero, max, and one intermediate value. 'Correct at rest' is not a VE gate." Strong promotion case: same failure mode as LL-024 (test gap at closure) but from the opposite direction — test existed, exit criterion link was missing.
+- **LL-026** → "Reference image used → paired visual validation item required. Any element rendered from a reference image must have a VE/audit item that validates the rendered output against that image. No reference image consumed without a closing verification step." Strong promotion case: directly addresses a recurring human frustration; cost of the check is low (side-by-side screenshot); cost of skipping is 4+ wasted sessions. Applies to Developer (spec completeness) + VE (validation item creation).
 
 ---
 

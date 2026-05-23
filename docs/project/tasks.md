@@ -672,20 +672,35 @@ Expected: scrollOffset unchanged; PLAY_URI enqueued for row index S+2. Confirms 
 Test IDs for test_plan.md: T134–T140. Owner: VE. Status: planned.
 Add `get scrollOffset` to firmware before running T136–T140 (flag to Developer).
 
-### TASK-077 — BUG: scrollbar thumb position wrong (golden mismatch)
+### TASK-077 — BUG: scrollbar thumb X position wrong (too far left)
 **Owner**: Developer
 **Feature**: playlist-002
-**Status**: open (2026-05-23)
+**Status**: done (2026-05-23 — `+ 1` corrected to `+ (PLEDIT_SIDE_RIGHT_W - SKIN_PLEDIT_THUMB_W) / 2` in both `drawPlaylist()` and `drawScrollThumbOnly()`)
 **Blocks**: TASK-051j (hitzones PNG visual review)
-**Symptom**: Scrollbar thumb renders at incorrect Y position relative to expected
-Winamp-faithful placement. Observed on DUT after TASK-051e landed. Design/validation
-miss — not caught before commit.
-**Notes**: Thumb blit formula from TASK-051e: `thumb_y = PLEDIT_ROWS_Y + scrollOffset *
-(65 - 17) / max(1, count - PLEDIT_ROW_COUNT)`. Verify against PLEDIT.BMP spec in
-`docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md` and actual sprite dimensions
-(`SKIN_PLEDIT_THUMB_H=17`, track height = `PLEDIT_ROW_COUNT * PLEDIT_ROW_H = 65`).
-Check `PLEDIT_ROWS_Y` offset and whether travel denominator is correct. Fix and re-run
-T120 (thumb position visual check). Flag VE after fix to validate golden.
+**Symptom**: Scrollbar thumb renders too far to the left within the scrollbar track strip.
+User observation: "slider needs to move a bit to the right."
+**Root cause (QM audit 2026-05-23)**: `thumb_x = rightX + 1` placed the 9px thumb 1px
+from the left edge of the 19px right-side tile. Correct offset centres the thumb:
+`(PLEDIT_SIDE_RIGHT_W − SKIN_PLEDIT_THUMB_W) / 2 = (19 − 9) / 2 = 5` px from tile
+left edge. The `+ 1` was an initial guess, not derived from the sprite geometry.
+**Note**: TASK-077 was originally filed as a Y-position bug. QM audit confirmed the Y
+formula (`PLEDIT_ROWS_Y + scrollOffset × travel / denom`) matches the spec exactly.
+The actual defect was X-only. T120 still required for VE sign-off on the corrected render.
+
+---
+
+### TASK-079 — Add `get scrollOffset` to WinampDisplay::dbgGet
+**Owner**: Developer
+**Feature**: serialdbg-001, playlist-002
+**Status**: todo
+**Blocked by**: —
+**Notes**:
+- Add `else if (key == "scrollOffset")` branch to `WinampDisplay::dbgGet` (`winampDisplay.h`, alongside existing "cooldown"/"dragState" branches — TASK-056g pattern).
+- Emit `{"ok":true,"key":"scrollOffset","val":N}` where N is `scrollOffset`.
+- No ADR needed — strictly follows established `dbgGet` pattern; no new architecture.
+- ~5 LOC. Both `cyd2usb_winamp_debug` and production build must remain clean (guard under `#ifdef SERIAL_DEBUG` same as existing branches).
+- **Unblocks**: T136–T140 (scroll gesture tests), T120 (scrollbar thumb position VE sign-off).
+- Exit criterion: `get scrollOffset` over serial returns correct value; T136 passes.
 
 ---
 
@@ -1540,8 +1555,8 @@ To be triaged with the team.
 
 **Owner**: Developer
 **Feature**: shell-layout-001
-**Status**: todo
-**Blocked by**: ADR-025 proposed (human sign-off required before start)
+**Status**: in_progress (2026-05-23 — coords.py committed; run_sync_tests.py updated; run_serialdbg_tests.py still uses hardcoded coords)
+**Blocked by**: —
 **Notes**:
 - New file `Spotify-Diy-Thing/tools/coords.py`.
 - Parses `gen/skin_layout.h` via regex (strip inline comments); derives `ORIGIN_X = (320 - WINDOW_W) // 2`.
@@ -1555,8 +1570,8 @@ To be triaged with the team.
 
 **Owner**: Developer
 **Feature**: shell-layout-001
-**Status**: todo
-**Blocked by**: ADR-025 proposed
+**Status**: in_progress (2026-05-23 — Gap 3 done: preview_vis.py parses skin_layout.h; Gap 2 render_hitzones() rebuild not yet done)
+**Blocked by**: —
 **Notes**:
 - **Gap 2**: `render_hitzones()` (~line 1047) — rebuild zone list from existing dicts. Transport: iterate `CBUTTON_POSITIONS`. Other zones: read from `POSBAR_LAYOUT`, `VOLUME_LAYOUT`, `SHUFREP_LAYOUT`. See `shell-layout.md` Gap 2 for fixed pattern.
 - **Gap 3**: `preview_vis.py:58` — replace `WINDOW_W = 275` hardcode with parse of `gen/skin_layout.h` using the new `parse_skin_layout()` helper (same pattern as `parse_shell_layout()`; can share implementation).
@@ -1566,8 +1581,8 @@ To be triaged with the team.
 
 **Owner**: Developer
 **Feature**: preview-tooling-001, shell-layout-001
-**Status**: todo
-**Blocked by**: ADR-025 proposed
+**Status**: in_progress (2026-05-23 — preview_layout.py exists; interactive preview session + export to gen/shell_layout.h pending human sign-off on aesthetics)
+**Blocked by**: —
 **Notes**:
 - Add `parse_shell_layout(path)` to `bake_skin.py`. Must strip inline comments (`//` suffix) from all values before returning. Handles int (`275`), hex (`0x07E0`), char (`'A'`), flag (`1`). T128 verifies.
 - New script `Spotify-Diy-Thing/tools/preview_layout.py`. See `interactive-preview.md` for full spec:
@@ -1582,8 +1597,8 @@ To be triaged with the team.
 
 **Owner**: Developer
 **Feature**: shell-layout-001
-**Status**: todo
-**Blocked by**: TASK-070 (gen/shell_layout.h must exist first)
+**Status**: in_progress (2026-05-23 — gen/shell_layout.h generated; not yet added to golden.sha256; pending aesthetic sign-off from TASK-070)
+**Blocked by**: TASK-070 aesthetic export
 **Notes**:
 - After TASK-070 produces `gen/shell_layout.h`, add its hash to `golden.sha256`.
 - Run `sha256sum -c golden.sha256` to confirm clean. T132 verifies.
