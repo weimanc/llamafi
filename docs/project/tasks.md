@@ -692,7 +692,7 @@ The actual defect was X-only. T120 still required for VE sign-off on the correct
 ### TASK-079 — Add `get scrollOffset` to WinampDisplay::dbgGet
 **Owner**: Developer
 **Feature**: serialdbg-001, playlist-002
-**Status**: todo
+**Status**: done (2026-05-23)
 **Blocked by**: —
 **Notes**:
 - Add `else if (key == "scrollOffset")` branch to `WinampDisplay::dbgGet` (`winampDisplay.h`, alongside existing "cooldown"/"dragState" branches — TASK-056g pattern).
@@ -701,6 +701,98 @@ The actual defect was X-only. T120 still required for VE sign-off on the correct
 - ~5 LOC. Both `cyd2usb_winamp_debug` and production build must remain clean (guard under `#ifdef SERIAL_DEBUG` same as existing branches).
 - **Unblocks**: T136–T140 (scroll gesture tests), T120 (scrollbar thumb position VE sign-off).
 - Exit criterion: `get scrollOffset` over serial returns correct value; T136 passes.
+- **Delivered**: `winampDisplay.h` +4 LOC; both envs build clean.
+
+---
+
+### TASK-080 — Architect audit: origin-relative render + hit-test pre-gate for M-MULTIAPP
+
+**Owner**: Architect
+**Feature**: shell-layout-001
+**Status**: open (2026-05-23)
+**Blocks**: M-MULTIAPP firmware implementation (originX shift)
+**Notes**:
+
+M-MULTIAPP's first firmware step changes `originX` from 22 → 0 (winamp chrome to left
+edge; taskbar occupies x=275..319). Before any firmware change, every render and
+hit-test site must be confirmed origin-relative.
+
+#### Scope
+
+Audit the following files against the origin-relative invariant:
+
+**1. `winampDisplay.h` — every `tft.draw*` / `tft.fill*` / `tft.pushImage` call**
+
+For each X argument: must be `originX + CONST`, not a bare absolute integer.
+For each Y argument in main-chrome context: must be `originY + CONST`.
+
+Known safe sites (pre-confirmed by spot-check):
+- Main chrome draws: `pushImage(originX, originY, ...)` ✅
+- Transport buttons: `originX + b.x`, `originY + b.y` ✅
+- POSBAR / VOLUME / SHUFREP / LOGO / VIS slots: all `originX + X_CONST`, `originY + Y_CONST` ✅
+- PLEDIT gutter fills: `fillRect(0, PLEDIT_Y, originX, ...)` — intentional; fills the black strip left of originX ✅
+- PLEDIT content X: `originX + PLEDIT_CONTENT_X`, `originX + PLEDIT_W` etc. ✅
+
+Known liability (document, not fix, before originX-only shift):
+- **PLEDIT Y positions** — `PLEDIT_Y=116`, `PLEDIT_ROWS_Y=136`, `PLEDIT_BOTTOM_Y=201` are
+  absolute screen Y values in `gen/skin_layout.h`. Currently correct because `originY=0`
+  always. Not expressed as `originY + PLEDIT_Y_OFFSET`. If `originY` ever becomes non-zero
+  (future multi-panel Y stacking), all PLEDIT Y draws and Y hit-tests must be migrated to
+  `originY + PLEDIT_Y_OFFSET` form.
+- **PLEDIT touch Y comparisons** — `py = p.y - originY` then compared against absolute
+  `PLEDIT_ROWS_Y`. Conceptual mismatch: `py` is origin-relative but the threshold is not.
+  Works when `originY=0`. Same liability; document and flag.
+
+**2. `vuMeter.h` — all render functions**
+
+Confirm all draw calls use the `originX` / `originY` function parameters, not internal
+literals. Pre-confirmed by spot-check; audit should produce a one-line sign-off.
+
+**3. `cheapYellowLCD.h` — any Winamp-specific draws**
+
+Confirm no Winamp chrome draws bypass `WinampDisplay::originX/Y`.
+
+#### Deliverable
+
+Emit a signed-off finding table in this task note (or a linked comment):
+
+| File | Site | X | Y | Status |
+|------|------|---|---|--------|
+| `winampDisplay.h` | `repaintChrome / pushImage(MAIN_BG)` | `originX` | `originY` | ✅ origin-relative |
+| `winampDisplay.h` | `drawPlaylist / pushImage(PLEDIT_Y)` | `originX` | `PLEDIT_Y` | ⚠️ absolute-Y / safe when originY=0 |
+| … | … | … | … | … |
+
+Gate: finding table signed off → M-MULTIAPP firmware impl unblocked.
+VE test suite: TASK-081 executes after the originX shift lands.
+
+---
+
+### TASK-081 — VE: serialdbg regression suite for originX=0 shift (T141–T146)
+
+**Owner**: VE
+**Feature**: shell-layout-001, serialdbg-001, touch-002
+**Status**: open (2026-05-23)
+**Blocked by**: TASK-080 (finding table sign-off), M-MULTIAPP firmware (originX=0 build)
+**Notes**:
+
+After M-MULTIAPP firmware changes `originX` from 22 → 0, every screen tap/drag coordinate
+shifts left by 22 px. Existing serialdbg tests (T076–T088, T095–T096, T134–T140) encode
+coordinates at `originX=22`. TASK-068 updates `run_serialdbg_tests.py` to use `coords.py`
+for live derivation — this task verifies that the updated harness + new firmware all pass.
+
+Tests T141–T146 are defined in the test plan under suite `multiapp-001`.
+
+Entry criteria:
+- `cyd2usb_winamp_debug` firmware built with `originX=0` (M-MULTIAPP firmware impl done)
+- `run_serialdbg_tests.py` using `coords.py` (TASK-068 done)
+- TASK-080 finding table signed off (no "FIX NEEDED" rows)
+
+Exit criteria:
+- T141–T146 all pass on DUT
+- T076, T081, T082, T086, T087, T088, T134 re-run with coords.py coordinates and all pass
+- No new DEADZONE misfire where a named zone is expected
+
+Report pass/fail to PM. PM prompts QM for retrospective.
 
 ---
 

@@ -1662,7 +1662,7 @@ Developer must add these fields before any harness-driven test can be written.
   2. Swipe to `scrollOffset == count - PLEDIT_ROW_COUNT`; visual: thumb at bottom of track.
   3. Swipe to mid-point; visual: thumb at mid-track.
 - **Expected result**: Thumb Y-position = `scrollOffset / (count - PLEDIT_ROW_COUNT)` × track height. Visually monotone.
-- **Status**: planned. Owner: VE. Visual-only until a pixel-read path exists.
+- **Status**: planned. Owner: VE. `get scrollOffset` (TASK-079) now provides the serial assertion; visual pixel-read still required for thumb position confirmation.
 
 ---
 
@@ -1934,6 +1934,80 @@ automated. HTML export option removed from design — T130 dropped accordingly.
   Result rules out H3 (dirty-flag / draw gate) and confirms logic fires correctly on
   inject. Physical swipe still failing → H1 (XPT2046 stays asserted) or H2 (slow loop,
   only one sample — dy=0) is the root cause.
+
+---
+
+### T136 — [serialdbg-001, playlist-002] `get scrollOffset` returns 0 at initial state
+
+- **Type**: integration (serialdbg)
+- **Feature(s)**: serialdbg-001, playlist-002
+- **Objective**: Verify the new `dbgGet` branch is reachable and emits correct JSON. At DUT startup, before any synthetic swipe, `scrollOffset` must be 0.
+- **Preconditions**: DUT flashed with `cyd2usb_winamp_debug`. DUT in steady-state (Spotify poll OK). No prior swipes injected.
+- **Steps**:
+  1. `get scrollOffset` — parse JSON response.
+  2. Assert `ok == true`, `key == "scrollOffset"`, `val == 0`.
+- **Expected result**: `{"ok":true,"cmd":"get","key":"scrollOffset","val":0}`.
+- **Status**: **pass** (2026-05-23). Harness: `run_serialdbg_tests.py T136`. Owner: VE.
+
+---
+
+### T137 — [serialdbg-001, playlist-002] swipe-up increments scrollOffset
+
+- **Type**: integration (serialdbg)
+- **Feature(s)**: serialdbg-001, playlist-002
+- **Objective**: After one synthetic upward swipe through Zone 1, `scrollOffset` increments from 0 to 1.
+- **Preconditions**: DUT flashed with `cyd2usb_winamp_debug`. `get scrollOffset == 0`. Spotify queue count >= 6 (room to scroll).
+- **Steps**:
+  1. `get scrollOffset` — assert `val == 0`.
+  2. `drag` swipe-up through Zone 1 (dy = -30). Wait for drag response.
+  3. `get scrollOffset` — assert `val == 1`.
+- **Expected result**: `scrollOffset` increments to 1 after one upward swipe.
+- **Status**: **pass** (2026-05-23). Harness: `run_serialdbg_tests.py T137`. Owner: VE.
+
+---
+
+### T138 — [serialdbg-001, playlist-002] swipe-down decrements scrollOffset
+
+- **Type**: integration (serialdbg)
+- **Feature(s)**: serialdbg-001, playlist-002
+- **Objective**: After one synthetic downward swipe from `scrollOffset == 1`, offset decrements back to 0.
+- **Preconditions**: DUT flashed with `cyd2usb_winamp_debug`. `get scrollOffset == 1` (relies on T137 completing, or inject one swipe-up first). Queue count >= 6.
+- **Steps**:
+  1. Ensure `scrollOffset == 1` (swipe-up if not already).
+  2. `drag` swipe-down through Zone 1 (dy = +30). Wait for drag response.
+  3. `get scrollOffset` — assert `val == 0`.
+- **Expected result**: `scrollOffset` decrements to 0 after one downward swipe.
+- **Status**: **pass** (2026-05-23). Harness: `run_serialdbg_tests.py T138`. Owner: VE.
+
+---
+
+### T139 — [serialdbg-001, playlist-002] scrollOffset clamps at 0 (no underflow)
+
+- **Type**: integration (serialdbg)
+- **Feature(s)**: serialdbg-001, playlist-002
+- **Objective**: Swipe-down at `scrollOffset == 0` must not produce a negative offset.
+- **Preconditions**: DUT flashed with `cyd2usb_winamp_debug`. `get scrollOffset == 0`.
+- **Steps**:
+  1. `get scrollOffset` — assert `val == 0`.
+  2. `drag` swipe-down through Zone 1 (dy = +30). Wait for drag response.
+  3. `get scrollOffset` — assert `val == 0` (unchanged, not -1).
+- **Expected result**: `scrollOffset` stays 0; no underflow.
+- **Status**: **pass** (2026-05-23). Harness: `run_serialdbg_tests.py T139`. Owner: VE.
+
+---
+
+### T140 — [serialdbg-001, playlist-002] scrollOffset clamps at max (count - PLEDIT_ROW_COUNT)
+
+- **Type**: integration (serialdbg)
+- **Feature(s)**: serialdbg-001, playlist-002
+- **Objective**: After scrolling past the end, `scrollOffset` must not exceed `count - PLEDIT_ROW_COUNT`.
+- **Preconditions**: DUT flashed with `cyd2usb_winamp_debug`. Queue count known (>= PLEDIT_ROW_COUNT + 1). `get scrollOffset == 0`.
+- **Steps**:
+  1. `get snapshot` — read `count` and `PLEDIT_ROW_COUNT` (8). Compute `maxOffset = count - 8`.
+  2. Issue `maxOffset + 2` swipe-up drags (more than needed to saturate).
+  3. `get scrollOffset` — assert `val == maxOffset` (not greater).
+- **Expected result**: `scrollOffset` saturates at `max(0, count - PLEDIT_ROW_COUNT)`; no overrun.
+- **Status**: **pass** (2026-05-23). Harness: `run_serialdbg_tests.py T140`. Owner: VE. Saturated at val=15 (queue count=23, PLEDIT_ROW_COUNT=8).
 
 ---
 
