@@ -672,6 +672,52 @@ Expected: scrollOffset unchanged; PLAY_URI enqueued for row index S+2. Confirms 
 Test IDs for test_plan.md: T134–T140. Owner: VE. Status: planned.
 Add `get scrollOffset` to firmware before running T136–T140 (flag to Developer).
 
+### TASK-077 — BUG: scrollbar thumb position wrong (golden mismatch)
+**Owner**: Developer
+**Feature**: playlist-002
+**Status**: open (2026-05-23)
+**Blocks**: TASK-051j (hitzones PNG visual review)
+**Symptom**: Scrollbar thumb renders at incorrect Y position relative to expected
+Winamp-faithful placement. Observed on DUT after TASK-051e landed. Design/validation
+miss — not caught before commit.
+**Notes**: Thumb blit formula from TASK-051e: `thumb_y = PLEDIT_ROWS_Y + scrollOffset *
+(65 - 17) / max(1, count - PLEDIT_ROW_COUNT)`. Verify against PLEDIT.BMP spec in
+`docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md` and actual sprite dimensions
+(`SKIN_PLEDIT_THUMB_H=17`, track height = `PLEDIT_ROW_COUNT * PLEDIT_ROW_H = 65`).
+Check `PLEDIT_ROWS_Y` offset and whether travel denominator is correct. Fix and re-run
+T120 (thumb position visual check). Flag VE after fix to validate golden.
+
+---
+
+### TASK-078 — Design: PLEDIT content-area drag UX improvements
+**Owner**: Architect (whiteboard), then Developer
+**Feature**: playlist-002, touch-002
+**Status**: open (2026-05-23) — needs whiteboard session before implementation
+**Notes**: Current Zone 1 swipe is functional but unsatisfying. Three discussion points:
+
+1. **Click vs gesture discrimination**: Current threshold (|dy| < 4px → tap, ≥4px →
+   scroll) is crude. A proper discriminator would consider gesture velocity and/or
+   total travel time: short fast → tap; slow long → scroll. Avoids mis-fires when
+   the user intends a firm tap but moves slightly.
+
+2. **Full-screen gesture capture**: Once a Zone 1 drag starts, confine subsequent
+   drag samples to the full screen (not just Zone 1 hitbox). User's finger drifts
+   outside the narrow content strip mid-swipe; samples stop updating `_dragCurrentY`
+   because they fall in dead-zone or other zones. Makes long swipes unreliable.
+   Pattern: set a `_capturingDrag` flag on first Zone 1 touch-down; while set, route
+   all touch samples to the drag handler regardless of xy zone.
+
+3. **Acceleration / momentum**: A single swipe increments scrollOffset by ±1
+   regardless of gesture speed or length. A fast or long swipe should scroll 2–3
+   rows. Simple model: `delta = max(1, abs(dy) / ROW_H)` — proportional to travel in
+   row-heights. Cap at PLEDIT_ROW_COUNT to avoid jumping past all visible rows.
+
+Whiteboard output should produce: updated hitzone design doc, revised gesture state
+machine, and acceptance criteria for VE. Architect to drive; Developer and human
+operator to attend.
+
+---
+
 ### TASK-022 — M-LIST option B: portrait rotation
 **Owner**: Developer
 **Status**: cancelled (2026-05-15 — ADR-017 chose option C; portrait rotation not needed)
