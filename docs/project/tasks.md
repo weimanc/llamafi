@@ -29,6 +29,25 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ---
 
+### TASK-089 — Fix stale tool-script paths + add smoke-test gate (LL-029)
+**Owner**: Developer
+**Feature**: tooling-001 (new)
+**Status**: planned — overdue from audit 2026-05-24; blocks any tool-script invocation on moved paths
+**Blocks**: reliable use of `preview_vis.py`, `bake_wave.sh`, `preview_wave.py`, `bake_skin.py` from `app/tools/`
+**Notes**:
+- Six functional (runtime-breaking) stale paths identified in audit 2026-05-24 (LL-029):
+  - `app/tools/preview_vis.py:65` — `pathlib.Path` references `../SpotifyDiyThing/gen/skin_layout.h`
+  - `app/tools/bake_wave.sh:19` — `-o "$SCRIPT_DIR/../SpotifyDiyThing/gen"`
+  - `app/tools/preview_vis.py:340` — argparse `default="SpotifyDiyThing/gen/skin_preview_animated.gif"`
+  - `app/tools/preview_wave.py:128-129` — argparse `default` + `help` referencing `SpotifyDiyThing/gen/`
+  - `app/tools/bake_skin.py:773` — `parse_shell_layout(path="SpotifyDiyThing/gen/shell_layout.h")` default
+- Eight docstring/help stale paths in `bake_skin.py:8-9`, `bake_vis.py:7-8`, `bake_wave.py:6-7`, `preview_vis.py:20-22,26-27,32,37-38`.
+- Deliverable 1: fix all 14 stale strings (6 functional + 8 docstring) to use `Path(__file__).parent / "../gen/..."` pattern.
+- Deliverable 2: add `app/tools/smoke_test.sh` — imports each Python module (`python3 -c "import coords"` etc.) and calls each shell script with `--help`. Integrate into `check_build.sh` or run standalone as pre-commit gate.
+- Exit criterion: `smoke_test.sh` exits 0 from `app/tools/`; `check_build.sh` 3/3 still passes.
+
+---
+
 ### TASK-088 — Deferred: saveAppState / restoreAppState for switchApp()
 **Owner**: Developer
 **Feature**: app-lifecycle-001 (new)

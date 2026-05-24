@@ -523,6 +523,40 @@ The `check_build.sh` gate (BP-008) caught compile errors but has no visibility i
 
 ---
 
+### LL-030 — 2026-05-24 — "Build passes" and "DUT verified" are not the same done criterion
+
+**Context**: TASK-087 was closed with status `done (2026-05-24 — check_build.sh 3/3 pass; DUT flash + smoke test pending)`. The same pattern appeared in TASK-042 and TASK-009: the parenthetical "(DUT ... pending)" is treated as a note rather than a blocking exit criterion. Same pattern: task is marked done when the build is clean, DUT verification left as follow-up.
+
+**Observation**: The "DUT smoke test pending" parenthetical is structurally a known gap dressed as a footnote. Any subsequent reader of the task list sees `done` and moves on. When VE or PM picks up the task later, the pending DUT item is invisible in the status. TASK-087's BUG-1 defect was also missed because the DUT run that would have surfaced it (Clock canvas touch enqueuing Spotify actions) hadn't happened yet.
+
+**Root cause**: The project has no `pending-dut` intermediate status and no enforcement that VE sign-off is required before `done` when a task's own notes include a DUT gate. The build gate (`check_build.sh`) is a hard automated gate; DUT verification is informal. The distinction allows "done" to mean different things in different tasks.
+
+**Suggested improvement**:
+1. Add `pending-dut` as a recognised task status between `in-progress` and `done`. A task with a DUT exit criterion goes to `pending-dut` after `check_build.sh` passes; VE updates it to `done` after the DUT run.
+2. Any task that lists a "DUT smoke test" in its notes must have that smoke test in its exit criterion, not as a parenthetical.
+3. PM should reject `done` status on any task whose notes contain "DUT ... pending" without a VE sign-off comment.
+
+**Status**: open — pattern not yet addressed in process docs. Promote to BP if human approves.
+
+---
+
+### LL-031 — 2026-05-24 — Tests must be updated when a feature adds new hit-zones
+
+**Context**: T088 (DEADZONE positive cases) was written before the taskbar strip existed. When TASK-087 added the 45px taskbar at x≥275, three of T088's test coordinates — corner-TR (319,0), corner-BR (319,239), and 1px-right-chrome (276,58) — moved from genuine dead zones into valid taskbar slots. T088 continued to expect `hit=DEADZONE` for these coords. When run against the new firmware, T088's TASKBAR hits triggered `switchApp()`, contaminating `currentAppId` for T134–T140 (cascade: 5 tests failed, 2 of which were spurious cascades from the corrupted state).
+
+**Observation**: The failure chain — T088 poisons app state → T134–T140 fail with `hit=CLOCK` — was not obviously connected to the new feature. The root cause (stale T088 coordinates now in the taskbar strip) required inspection of the test's coordinate values against the new layout constants. The contamination was silent: T088 itself would have passed its own assertions if we'd only updated the expected values, but the side effect (switchApp) persisted into subsequent tests.
+
+**Root cause**: No checklist item requires updating existing tests when a new feature adds or changes hit-zones. The implicit assumption is that new features add new tests; existing tests are assumed stable. This fails when a new feature claims screen area that existing tests probe as dead zone.
+
+**Suggested improvement**:
+1. Any task that adds, moves, or resizes a hit-zone must include a sub-step: "grep `run_serialdbg_tests.py` for coordinates that fall inside the new zone's bounds and update or retire those cases."
+2. `T088` specifically should be treated as a live inventory of dead zones, not a static set of coordinates. When a new hit-zone is added to the firmware, T088's coordinate list must be audited and the dead-zone coords that are now inside the new zone must be removed or reclassified.
+3. The fix pattern is `_restore_spotify()` (or analogous state-restore helpers) as teardown in any test that may switch the active app as a side effect. Tests that exercise taskbar coords should always restore state before returning.
+
+**Status**: open — sub-step not yet added to task template. Promote to BP if human approves.
+
+---
+
 ## Entry Format
 
 ```

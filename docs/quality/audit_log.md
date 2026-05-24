@@ -580,6 +580,75 @@ This centres the 9px thumb within the 19px right-side tile. TASK-077 status upda
 
 ---
 
+### Audit — 2026-05-24 — TASK-087 salvage + project quality health check
+
+**Triggered by**: human ("quality is absolutely a mess — audit the work and come up with a plan to salvage")
+
+**Scope**: TASK-087 (M-MULTIAPP step 2) post-implementation review. Two defects found, one resolved, one deferred. Cascading test failures from stale T088 expectations. Rolling backlog of open findings from prior audits reviewed. Strategic observation on project health trajectory requested.
+
+**Areas checked**:
+- [x] TASK-087 implementation vs spec (app-lifecycle.md, taskbar.md)
+- [x] Firmware correctness: input routing for non-Spotify apps
+- [x] Test harness currency: T088 expected values vs new taskbar feature
+- [x] Open actions from prior audits (LL-029, stale tool paths)
+- [x] "Done" criterion discipline
+- [x] Project quality trajectory across milestones M3–M-MULTIAPP
+
+**Findings**:
+
+1. **BUG-1 — RESOLVED.** `checkForInput()` and `injectTouch()` ran all Winamp hit-tests unconditionally regardless of which app was active. Clock canvas taps could enqueue Spotify actions (skip, pause, seek). Fixed: 4-line guard in each path (`currentAppId != AppId::Spotify → return early`). T148 confirms. **No regression: 15/15 tests pass.**
+
+2. **BUG-2 — DEFERRED (TASK-088).** `switchApp()` missing `saveAppState()`/`restoreAppState()`. Design-spec gap; works by accident for Spotify↔Clock because `WinampDisplay` class members survive the round-trip. Risk materialises at M-MULTIAPP step 5 when Matrix/GoL/Weather/Crypto apps need their own state round-trips. Filed as TASK-088 (open, blocking step 5).
+
+3. **T088 stale expectations — FIXED.** T088 tested corner coords (319,0), (319,239), and (276,58) as DEADZONE. These are now inside the taskbar strip. `injectTouch()` correctly dispatched them to `switchApp()`, poisoning app state for T134–T140 (cascading FAIL). Fixed by splitting T088 into DEADZONE (x<275) and TASKBAR (x≥275) groups; added `_restore_spotify()` teardown. **Root cause**: T088 was written before the taskbar existed and was not updated when the taskbar feature was added. Pattern: **tests are not being kept current with new hit-zones.**
+
+4. **"Done" declared before DUT smoke test — PATTERN.** TASK-087 was closed with "DUT flash + smoke test pending" in the status line. Same pattern appeared in prior tasks (TASK-042, TASK-009). The distinction between "build passes" and "DUT verified" is consistently blurred at task close. No `pending-dut` status exists; done is declared when the build is clean, with DUT as an afterthought parenthetical.
+
+5. **Open actions from prior audits accumulating — RED.** Six functional stale tool-script paths (LL-029, audit 2026-05-24) remain unresolved. The PM action to file a fix task was assigned but not executed. The tool-script smoke-test gate (recommended in LL-029 Finding 3) does not exist. These open items are now >0 days old with no assigned task.
+
+6. **Strategic project quality observation — FLAGGED FOR HUMAN.** *(See below.)*
+
+**Strategic observation — flagged to human:**
+
+Across the TASK-087 salvage and the prior audits, a pattern is visible: each milestone is shipping with a residual of open defects, deferred spec items, and stale test coverage, each individually justified as "acceptable for current scope." The accumulated residual is now:
+
+- TASK-088: BUG-2 (saveAppState/restoreAppState — deferred)
+- Open: 6 functional stale tool-script paths (LL-029 — no task filed, no fix)
+- Open: T088 class of problem (tests not updated when features add new hit-zones — no checklist item)
+- Open: tool-script smoke-test gate not implemented
+- Deferred: icon glyphs in taskbar (TFT font 4, not SKIN_GLYPH)
+- Deferred: PLEDIT Y-coordinate absolute addressing (latent originY≠0 debt, TASK-080 finding)
+- Historical: TASK-021/066/067 (tap-to-play with context — partial fix, deferred M-LIST-v3)
+
+Before M-MULTIAPP step 3 (Matrix, GoL, Weather, Crypto apps), **the QM recommends a consolidation sprint** rather than continuing to add features. Specific actions that belong in such a sprint:
+
+| Item | Type | Urgency |
+|------|------|---------|
+| Fix 6 functional stale tool-script paths (LL-029) | Correctness | High — blocks next tool invocation |
+| Add `tools/smoke_test.sh` (import + --help each script) | Process gate | High — prevents recurrence |
+| Implement TASK-088 (saveAppState/restoreAppState) | Spec compliance | Required before step 5 |
+| Add "test-currency" checklist item to any task that adds a hit-zone | Process | Medium — prevents T088 class |
+| Formalise `pending-dut` task status or VE sign-off as done gate | Process | Medium — prevents premature close |
+
+This is a recommendation, not a decision. PM/human determines whether to sprint-clean before step 3 or continue and accept the accumulating debt. QM notes the debt is currently serviceable but the trajectory — each feature adding 2-3 deferred items — will make it unserviceable by step 5/6.
+
+**Actions assigned**:
+
+| # | Owner | Action | Priority |
+|---|-------|--------|----------|
+| 1 | PM | File task for LL-029 stale tool-script paths (overdue from prior audit) | immediate |
+| 2 | QM | Add LL-030 (premature "done" pattern) and LL-031 (test currency on hit-zone changes) | this audit |
+| 3 | Human | Decide: consolidation sprint before step 3, or continue feature work and accept debt | human decision |
+| 4 | PM | If consolidation approved: sequence the sprint tasks in `tasks.md` and block step 3 on completion | after human decision |
+
+**Promotion candidates flagged**:
+- **LL-030** (new): "done before DUT test" pattern.
+- **LL-031** (new): "test hit-zone currency" pattern.
+
+**Resolution**: BUG-1 resolved. LL-030/031 captured. Strategic observation filed for human. Items 1, 3, 4 remain open pending human decision.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:
