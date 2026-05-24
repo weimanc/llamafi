@@ -824,7 +824,7 @@ Exit criteria (from design doc):
 **Owner**: Developer
 **Feature**: shell-layout-001
 **Status**: open (2026-05-24)
-**Blocked by**: TASK-080 (origin audit sign-off), TASK-082 (audit_origin.py baseline)
+**Blocked by**: nothing (steps 1–4); TASK-080 + TASK-082 gate step 5 only
 **Unblocks**: M-MULTIAPP firmware (originX=0 shift)
 **Milestone**: M-RESTRUCTURE
 
@@ -837,7 +837,8 @@ Steps:
 3. Add `taskbar/taskbar.h` per `taskbar.md` spec (stub render + hit-test)
 4. Rewrite `SpotifyDiyThing.ino` as our shell — upstream files included unchanged;
    verify DUT behaviour identical to pre-restructure before step 5
-5. Apply `originX=0` — one-line rect change in shell; run `audit_origin.py` as gate
+5. **[gate: TASK-080 sign-off + TASK-082 baseline]** Apply `originX=0` — one-line
+   rect change in shell; run `audit_origin.py` as exit check
 
 Exit criteria:
 - `check_build.sh` exits 0 after every step

@@ -278,7 +278,7 @@ Gate: `check_build.sh` passes after each step (BP-008). Firmware behaviour
 verified unchanged on DUT after step 4 before proceeding to step 5.
 
 **Status:** planned (2026-05-24)
-**Deps:** M-NOART (done), TASK-080 (architect origin audit sign-off), TASK-082 (audit_origin.py baseline)
+**Deps:** M-NOART (done); TASK-080 + TASK-082 gate step 5 only — steps 1–4 have no blockers
 **Blocks:** M-MULTIAPP step 2 onward
 **Design:** [M-MULTIAPP/source-ownership.md](../architecture/designs/M-MULTIAPP/source-ownership.md)
 
