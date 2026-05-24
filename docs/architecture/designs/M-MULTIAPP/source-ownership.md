@@ -147,6 +147,119 @@ check, not an ongoing concern.
 | `taskbar.md` | draft | defines taskbar renderer — lives in `taskbar/` per this doc |
 | `layout.md` | draft | defines originX=0 shift — enabled by this restructure |
 
+## `app/platformio.ini` spec
+
+`app/platformio.ini` builds our firmware from `app/src/`. It references upstream
+headers via `lib_extra_dirs` and picks up SpotifyArduino from `app/lib/` (moved
+from `Spotify-Diy-Thing/lib/` during TASK-083 step 2).
+
+```ini
+[platformio]
+src_dir = src
+default_envs = cyd2usb_winamp
+
+[env]
+platform = espressif32@6.9.0
+board    = esp32dev
+framework = arduino
+; SpotifyArduino vendored in app/lib/ — LOCAL_PATCHES preserved (see LOCAL_PATCHES.md).
+; Upstream headers (spotifyLogic.h, cheapYellowLCD.h, etc.) resolved via lib_extra_dirs.
+lib_deps =
+    khoih-prog/ESP_DoubleResetDetector@^1.3.2
+    bblanchon/ArduinoJson@^6.21.3
+    wnatth3/WiFiManager@^2.0.16-rc.2
+    https://github.com/witnessmenow/Seeed_Arduino_NFC.git
+; lib_extra_dirs entry 1: upstream flat source dir — provides all upstream .h files.
+;   PlatformIO (lib_ldf_mode=deep+) compiles paired .cpp files (e.g. CYD28_TouchscreenR.cpp)
+;   when their .h is #included. .ino files in this dir are NOT compiled by PlatformIO
+;   (Arduino .ino compilation only applies to src_dir).
+; lib_extra_dirs entry 2: upstream lib/ dir — lets PlatformIO discover external libs
+;   that may remain in Spotify-Diy-Thing/lib/ post-restructure (e.g. future upstream pulls
+;   that add a new lib). app/lib/ is auto-scanned as the project lib dir; no extra_dirs needed for it.
+lib_extra_dirs =
+    ../Spotify-Diy-Thing/SpotifyDiyThing
+    ../Spotify-Diy-Thing/lib
+monitor_speed = 115200
+monitor_filters = esp32_exception_decoder
+upload_speed = 921600
+lib_ldf_mode = deep+
+
+[common_cyd]
+lib_deps =
+    ${env.lib_deps}
+    bodmer/TFT_eSPI@^2.5.33
+build_flags =
+    -DYELLOW_DISPLAY
+    -DUSER_SETUP_LOADED
+    -DILI9341_2_DRIVER
+    -DTFT_WIDTH=240
+    -DTFT_HEIGHT=320
+    -DTFT_MISO=12
+    -DTFT_MOSI=13
+    -DTFT_SCLK=14
+    -DTFT_CS=15
+    -DTFT_DC=2
+    -DTFT_RST=-1
+    -DTFT_BL=21
+    -DTFT_BACKLIGHT_ON=HIGH
+    -DTFT_BACKLIGHT_OFF=LOW
+    -DLOAD_GLCD
+    -DSPI_FREQUENCY=40000000
+    -DSPI_READ_FREQUENCY=20000000
+    -DSPI_TOUCH_FREQUENCY=2500000
+    -DLOAD_FONT2
+    -DLOAD_FONT4
+    -DLOAD_FONT6
+    -DLOAD_FONT7
+    -DLOAD_FONT8
+    -DLOAD_GFXFF
+    -DUSE_HSPI_PORT
+    -DSPOTIFY_MARKET=\"IE\"
+
+[env:cyd2usb]
+board_build.partitions = ../Spotify-Diy-Thing/partitions_no_ota.csv
+lib_deps =
+    ${common_cyd.lib_deps}
+build_flags =
+    ${common_cyd.build_flags}
+    -DTFT_INVERSION_ON
+    -DCORE_DEBUG_LEVEL=4
+
+[env:cyd2usb_winamp]
+extends = env:cyd2usb
+build_flags =
+    ${env:cyd2usb.build_flags}
+    -DWINAMP_DISPLAY
+lib_ignore = JPEGDEC
+
+[env:cyd2usb_winamp_screenlog]
+extends = env:cyd2usb_winamp
+build_flags =
+    ${env:cyd2usb_winamp.build_flags}
+    -DSCREEN_LOG
+
+[env:cyd2usb_winamp_debug]
+extends      = env:cyd2usb_winamp
+extra_scripts = pre:scripts/inject_git_hash.py
+build_flags =
+    ${env:cyd2usb_winamp.build_flags}
+    -DSERIAL_DEBUG
+```
+
+**Dropped envs** (not our target hardware; stay in `Spotify-Diy-Thing/platformio.ini`
+for upstream use): `[env:cyd]`, `[env:cyd2usb_spike]`, `[env:trinity]`.
+
+**`partitions_no_ota.csv`**: referenced via relative path `../Spotify-Diy-Thing/`.
+The file is upstream-owned; no need to copy it. Adjust the path if it moves.
+
+**`lib/SpotifyArduino/`**: PlatformIO auto-discovers `app/lib/` as the project
+lib directory — no `lib_extra_dirs` entry needed for it.
+
+**Implementation note**: validate `lib_extra_dirs` during TASK-083 step 1 by
+confirming `CYD28_TouchscreenR.cpp` compiles (needs the upstream flat dir) and
+`SpotifyArduino` resolves (needs `app/lib/`). If upstream's lib dir introduces
+conflicts, drop the second `lib_extra_dirs` entry and rely solely on `app/lib/`.
+
 ## Migration sequence
 
 1. Create `winamp/` subdirectory; move `winampDisplay.h`, `vuMeter.h`.

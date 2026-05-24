@@ -828,27 +828,96 @@ Exit criteria (from design doc):
 **Unblocks**: M-MULTIAPP firmware (originX=0 shift)
 **Milestone**: M-RESTRUCTURE
 
-Execute the 5-step migration per `docs/architecture/designs/M-MULTIAPP/source-ownership.md`.
-Run `./check_build.sh` after each step before proceeding (BP-008).
+Execute the 4+1-step Option B migration per
+`docs/architecture/designs/M-MULTIAPP/source-ownership.md` (§Migration sequence).
+See that doc for the full `app/platformio.ini` spec and ownership table.
+Run `./check_build.sh` after each step (BP-008).
 
-Steps:
-1. Create `winamp/` subdir; move `winampDisplay.h`, `vuMeter.h`; update
-   `screenLog.h` include to `"winamp/winampDisplay.h"` (review finding)
-2. Add `appShell.h` stub per `app-lifecycle.md` spec
-3. Add `taskbar/taskbar.h` stub per `taskbar.md` spec
-4. Rewrite `SpotifyDiyThing.ino` as our shell — upstream files included unchanged
-5. **[gate: TASK-080 sign-off + TASK-082 baseline]** Apply `originX=0` — one-line
-   rect change in shell
+**Option B chosen** (2026-05-24, commit 88bfb29): separate `app/` PlatformIO
+project at repo root; `Spotify-Diy-Thing/` kept close to upstream stock.
+Steps below supersede any earlier in-place reorganisation notes.
 
-Exit criteria:
+#### Step 1 — Create `app/` PlatformIO skeleton
+
+- Create `app/platformio.ini` per §`app/platformio.ini` spec in source-ownership.md:
+  `src_dir = src`; `lib_extra_dirs` pointing to upstream flat dir + its `lib/`;
+  carry forward `[env]` / `[common_cyd]` / `[env:cyd2usb_winamp*]` from
+  upstream's `platformio.ini`; drop `[env:cyd]`, `[env:cyd2usb_spike]`,
+  `[env:trinity]` (not our target hardware).
+- Create `app/src/main.cpp` stub (`void setup(){} void loop(){}`).
+- Gate: `cd app && ~/.platformio/penv/bin/pio run -e cyd2usb_winamp` passes.
+  (Does not replace `./check_build.sh` yet — upstream build still the reference.)
+
+#### Step 2 — Move our owned files; update build gate
+
+Move **ours-owned source** from `Spotify-Diy-Thing/SpotifyDiyThing/` to `app/src/`:
+- `winampDisplay.h`, `vuMeter.h` → `app/src/winamp/`
+- `spotifyTask.h`, `spotifyTaskStorage.cpp` → `app/src/`
+- `logSink.h`, `logSinkStorage.cpp`, `logHeartbeat.h`, `logDecode.h`,
+  `logServer.h` → `app/src/`
+- `screenLog.h`, `perf.h`, `secret.h`, `serialPrint.h` → `app/src/`
+
+Move **ours-owned assets and tooling**:
+- `Spotify-Diy-Thing/lib/SpotifyArduino/` → `app/lib/SpotifyArduino/`
+  (LOCAL_PATCHES preserved; PlatformIO auto-discovers `app/lib/` as project lib dir)
+- `Spotify-Diy-Thing/tools/` → `app/tools/`
+- `Spotify-Diy-Thing/scripts/` → `app/scripts/`
+- `Spotify-Diy-Thing/skins/` → `app/skins/`
+- `Spotify-Diy-Thing/SpotifyDiyThing/gen/` → `app/gen/`
+
+Update build gate:
+- `check_build.sh`: set `PIO_DIR=$PROJ_ROOT/app`, `GEN_DIR=$PROJ_ROOT/app/gen`.
+- Update `CLAUDE.md` paths that reference `Spotify-Diy-Thing/tools/`,
+  `Spotify-Diy-Thing/skins/`, `SpotifyDiyThing/gen/` to their new `app/` locations.
+- Update `screenLog.h` include: `"winampDisplay.h"` → `"winamp/winampDisplay.h"`.
+
+Gate: `./check_build.sh` passes (both `cyd2usb_winamp` and `cyd2usb_winamp_debug`
+compile from `app/`; `app/gen/golden.sha256` passes).
+
+#### Step 3 — Add `appShell.h` + `taskbar/taskbar.h` stubs
+
+- `app/src/appShell.h`: minimal dispatch stubs per `app-lifecycle.md`; no
+  behaviour change vs current `.ino`.
+- `app/src/taskbar/taskbar.h`: render + hit-test stubs per `taskbar.md`.
+
+Gate: `./check_build.sh` passes.
+
+#### Step 4 — Rewrite shell; revert upstream files
+
+- `app/src/main.cpp`: full shell content (current `SpotifyDiyThing.ino` logic,
+  converted to `.cpp`; includes dispatch via `appShell.h`).
+- Revert `Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino` to upstream stock
+  (obtain from `git show <upstream-ref>:SpotifyDiyThing/SpotifyDiyThing.ino`
+  or re-clone; record upstream ref in `upstream-patches.md`).
+- Revert `Spotify-Diy-Thing/platformio.ini` to upstream (drop our custom envs;
+  they are now in `app/platformio.ini`).
+- Add/update `Spotify-Diy-Thing/data/` symlink or copy to `app/data/` if SPIFFS
+  uploads must go through the `app/` build path.
+
+Gate: `./check_build.sh` passes + `python3 app/tools/audit_origin.py --grep-only`
+exits 0 (shell must not introduce bare absolute X literals).
+
+DUT smoke test: boot with playing track → Winamp chrome renders; NEXT/PREV
+advances track; PLAY/PAUSE toggles; no crash on track change.
+
+#### Step 5 — Apply `originX=0` **[gate: TASK-080 sign-off + TASK-082 baseline]**
+
+- One-line canvas rect change in `app/src/main.cpp` shell: `originX` 22 → 0.
+- Gate: `python3 app/tools/audit_origin.py` full run (T141–T146) exits 0.
+  This is the TASK-082 exit gate and TASK-081 entry condition.
+
+---
+
+Exit criteria (task complete when all are true):
 - `check_build.sh` exits 0 after every step
-- `screenLog.h` uses `"winamp/winampDisplay.h"` path
-- `audit_origin.py --grep-only` exits 0 after step 4 (shell must not introduce
-  bare absolute X literals) and after step 5
-- Step 4 DUT smoke test passes: boot render, NEXT/PREV advances track,
-  PLAY/PAUSE toggles, no crash on track change
-- `audit_origin.py` full run (T141–T146) exits 0 after step 5
-- Upstream files unmodified (verifiable via `git diff` against upstream ref)
+- `app/lib/SpotifyArduino/LOCAL_PATCHES.md` preserved intact
+- `app/src/screenLog.h` uses `"winamp/winampDisplay.h"` include path
+- `audit_origin.py --grep-only` exits 0 after step 4
+- Step 4 DUT smoke test passes
+- `audit_origin.py` full run exits 0 after step 5
+- `Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino` matches upstream ref
+  (diff recorded in `upstream-patches.md` — expected delta: zero for this file)
+- `Spotify-Diy-Thing/platformio.ini` matches upstream ref
 
 Out of scope (M-MULTIAPP work, not this task):
 - Full decoupling of `winampDisplay.h` from `spotifyLogic.h` globals
