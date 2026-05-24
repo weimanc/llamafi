@@ -56,31 +56,43 @@ binary is identical in structure.
 
 ## Target directory structure
 
+**Option B chosen**: `Spotify-Diy-Thing/` is kept as close to stock upstream as
+possible. Our firmware is a separate PlatformIO project at `app/` in the repo root.
+`app/platformio.ini` uses `lib_extra_dirs` to include upstream source files.
+
 ```
-Spotify-Diy-Thing/SpotifyDiyThing/
-├── SpotifyDiyThing.ino    ← our shell (replaces upstream entrypoint)
-├── appShell.h             ← app registry, switchApp(), dispatch
+esp_spotify/
+├── Spotify-Diy-Thing/          ← upstream repo, best-effort stock
+│   └── SpotifyDiyThing/
+│       ├── SpotifyDiyThing.ino ← reverted to upstream (our shell is app/src/main.cpp)
+│       ├── platformio.ini      ← reverted to upstream (our envs move to app/)
+│       ├── cheapYellowLCD.h    ← PATCHED (M-NOART JPEGDEC guards — keep; fixes crash)
+│       └── ... all other upstream files unmodified
 │
-├── winamp/                ← our winamp app
-│   ├── winampDisplay.h
-│   └── vuMeter.h
-│
-├── taskbar/               ← taskbar renderer + hit-test
-│   └── taskbar.h
-│
-├── gen/                   ← generated (skin_layout.h, shell_layout.h, assets)
-│
-│   — upstream files below, unmodified —
-├── spotifyLogic.h
-├── WifiManagerHandler.h
-├── configFile.h
-├── touchScreen.h
-├── CYD28_TouchscreenR.h
-├── CYD28_TouchscreenR.cpp
-├── nfc.h
-├── dnsOverride.h
-└── cheapYellowLCD.h
+└── app/                        ← our PlatformIO project (new)
+    ├── platformio.ini          ← cyd2usb_winamp* envs; lib_extra_dirs → Spotify-Diy-Thing/SpotifyDiyThing
+    ├── src/
+    │   ├── main.cpp            ← our shell (was SpotifyDiyThing.ino)
+    │   ├── appShell.h
+    │   ├── winamp/
+    │   │   ├── winampDisplay.h
+    │   │   └── vuMeter.h
+    │   ├── taskbar/
+    │   │   └── taskbar.h
+    │   └── screenLog.h
+    ├── gen/                    ← generated assets (skin_layout.h, skin_assets.c, …)
+    ├── skins/                  ← base-2.91.wsz
+    └── tools/                  ← bake_skin.py, coords.py, run_serialdbg_tests.py, …
 ```
+
+### Upstream patch policy
+
+| File | Status | Rationale |
+|------|--------|-----------|
+| `cheapYellowLCD.h` | **patched** | M-NOART JPEGDEC guards fix a real crash; no upstream fix available |
+| All other upstream files | stock | Do not modify; pull upstream updates without conflict |
+
+Patches against upstream are tracked in `docs/architecture/designs/M-MULTIAPP/upstream-patches.md` (to be created).
 
 ## Interface boundary: SpotifyAppState
 
