@@ -22,7 +22,7 @@ S = _parse(_GEN)
 
 SCREEN_W = 320
 SCREEN_H = 240
-ORIGIN_X = (SCREEN_W - int(S["WINDOW_W"])) // 2   # 22 pre-M-MULTIAPP; 0 after
+ORIGIN_X = 0   # M-RESTRUCTURE step 5 set originX=0; M-SHELL-LAYOUT will drive this from shell_layout.h
 
 # VIS area constants — from vuMeter.h (not in skin_layout.h).
 _VIS_RECT_X = 24
