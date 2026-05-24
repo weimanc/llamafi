@@ -1906,9 +1906,8 @@ automated. HTML export option removed from design — T130 dropped accordingly.
   2. Parse JSON response. Assert `hit == "PLEDIT"` and `action == "PLAY_URI"`.
 - **Expected result**: `{"ok":true,"cmd":"tap","hit":"PLEDIT","action":"PLAY_URI",...}`.
   Any other `hit` value confirms H4.
-- **Status**: **pass** (2026-05-23). Harness: `run_serialdbg_tests.py T134`. Owner: VE.
-  Result rules out H4 — Zone 1 hitzone is correct. Root cause of TASK-076 is H1 or H2
-  (physical touch timing).
+- **Status**: **pass** (2026-05-23; re-run 2026-05-24 post-M-RESTRUCTURE originX=0, commit b1ffe41). Harness: `run_serialdbg_tests.py T134`. Owner: VE.
+  Re-run coords: `tap 134 168` (originX=0). Harness precondition `wait_for_queue(1)` added — PLEDIT zone requires queue count ≥ 1 (lastVisibleRows=0 otherwise). Result rules out H4.
 
 ---
 
@@ -1930,10 +1929,8 @@ automated. HTML export option removed from design — T130 dropped accordingly.
 - **Expected result**: Drag response arrives; dragState returns to D_IDLE. Confirms
   `injectRelease()` ran the `D_PLEDIT_SCROLL` branch correctly. If dragState stays
   `D_PLEDIT_SCROLL` after the drag response, the branch is broken (not H1/H2).
-- **Status**: **pass** (2026-05-23). Harness: `run_serialdbg_tests.py T135`. Owner: VE.
-  Result rules out H3 (dirty-flag / draw gate) and confirms logic fires correctly on
-  inject. Physical swipe still failing → H1 (XPT2046 stays asserted) or H2 (slow loop,
-  only one sample — dy=0) is the root cause.
+- **Status**: **pass** (2026-05-23; re-run 2026-05-24 post-M-RESTRUCTURE originX=0, commit b1ffe41). Harness: `run_serialdbg_tests.py T135`. Owner: VE.
+  Re-run coords: `drag 134 183 134 153 30` (originX=0). No regression.
 
 ---
 
@@ -1947,7 +1944,7 @@ automated. HTML export option removed from design — T130 dropped accordingly.
   1. `get scrollOffset` — parse JSON response.
   2. Assert `ok == true`, `key == "scrollOffset"`, `val == 0`.
 - **Expected result**: `{"ok":true,"cmd":"get","key":"scrollOffset","val":0}`.
-- **Status**: **pass** (2026-05-23). Harness: `run_serialdbg_tests.py T136`. Owner: VE.
+- **Status**: **pass** (2026-05-23); **FAIL** (2026-05-24 re-run, commit b1ffe41) — harness ordering bug: T135 runs before T136 and mutates scrollOffset to 1; T136 then sees val=1 ≠ 0. Not a firmware regression. Fix: run T136 before T135, or reset scrollOffset at end of T135. Tracked as harness defect.
 
 ---
 
@@ -1962,7 +1959,7 @@ automated. HTML export option removed from design — T130 dropped accordingly.
   2. `drag` swipe-up through Zone 1 (dy = -30). Wait for drag response.
   3. `get scrollOffset` — assert `val == 1`.
 - **Expected result**: `scrollOffset` increments to 1 after one upward swipe.
-- **Status**: **pass** (2026-05-23). Harness: `run_serialdbg_tests.py T137`. Owner: VE.
+- **Status**: **pass** (2026-05-23; re-run 2026-05-24 post-M-RESTRUCTURE originX=0, commit b1ffe41). Harness: `run_serialdbg_tests.py T137`. Owner: VE. Re-run added `wait_for_queue(2)` precondition.
 
 ---
 
@@ -1977,7 +1974,7 @@ automated. HTML export option removed from design — T130 dropped accordingly.
   2. `drag` swipe-down through Zone 1 (dy = +30). Wait for drag response.
   3. `get scrollOffset` — assert `val == 0`.
 - **Expected result**: `scrollOffset` decrements to 0 after one downward swipe.
-- **Status**: **pass** (2026-05-23). Harness: `run_serialdbg_tests.py T138`. Owner: VE.
+- **Status**: **pass** (2026-05-23; re-run 2026-05-24 post-M-RESTRUCTURE originX=0, commit b1ffe41). Harness: `run_serialdbg_tests.py T138`. Owner: VE.
 
 ---
 
@@ -1992,7 +1989,7 @@ automated. HTML export option removed from design — T130 dropped accordingly.
   2. `drag` swipe-down through Zone 1 (dy = +30). Wait for drag response.
   3. `get scrollOffset` — assert `val == 0` (unchanged, not -1).
 - **Expected result**: `scrollOffset` stays 0; no underflow.
-- **Status**: **pass** (2026-05-23). Harness: `run_serialdbg_tests.py T139`. Owner: VE.
+- **Status**: **pass** (2026-05-23; re-run 2026-05-24 post-M-RESTRUCTURE originX=0, commit b1ffe41). Harness: `run_serialdbg_tests.py T139`. Owner: VE.
 
 ---
 
@@ -2007,7 +2004,7 @@ automated. HTML export option removed from design — T130 dropped accordingly.
   2. Issue `maxOffset + 2` swipe-up drags (more than needed to saturate).
   3. `get scrollOffset` — assert `val == maxOffset` (not greater).
 - **Expected result**: `scrollOffset` saturates at `max(0, count - PLEDIT_ROW_COUNT)`; no overrun.
-- **Status**: **pass** (2026-05-23). Harness: `run_serialdbg_tests.py T140`. Owner: VE. Saturated at val=15 (queue count=23, PLEDIT_ROW_COUNT=8).
+- **Status**: **pass** (2026-05-23); **SKIP** (2026-05-24 re-run, commit b1ffe41) — queue snapshot stores exactly PLEDIT_ROW_COUNT=5 items; maxOffset=0 so test cannot verify clamping at a non-zero max. Requires snapshot expansion (> PLEDIT_ROW_COUNT items) to be executable. Tracked as separate task.
 
 ---
 
