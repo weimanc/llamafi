@@ -813,11 +813,11 @@ Exit criteria — all verified 2026-05-24:
 ### TASK-083 — M-RESTRUCTURE: execute source ownership split
 **Owner**: Developer
 **Feature**: shell-layout-001
-**Status**: in-progress (steps 1–4 complete 2026-05-24; step 5 blocked)
-**Blocked by**: TASK-080 + TASK-082 gate step 5 only
-**Unblocks**: M-MULTIAPP firmware (originX=0 shift)
+**Status**: done (2026-05-24)
+**Blocked by**: —
+**Unblocks**: M-MULTIAPP firmware (originX=0 shift) ✓ unblocked
 **Milestone**: M-RESTRUCTURE
-**Commit**: d62c9f4 (steps 1–4)
+**Commits**: d62c9f4 (steps 1–4), 709027b (step 5)
 
 Execute the 4+1-step Option B migration per
 `docs/architecture/designs/M-MULTIAPP/source-ownership.md` (§Migration sequence).

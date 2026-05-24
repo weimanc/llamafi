@@ -277,9 +277,9 @@ Work (per `docs/architecture/designs/M-MULTIAPP/source-ownership.md`):
 Gate: `check_build.sh` passes after each step (BP-008). Firmware behaviour
 verified unchanged on DUT after step 4 before proceeding to step 5.
 
-**Status:** planned (2026-05-24)
-**Deps:** M-NOART (done); TASK-080 + TASK-082 gate step 5 only — steps 1–4 have no blockers
-**Blocks:** M-MULTIAPP step 2 onward
+**Status:** done (2026-05-24) — TASK-083 complete; commits d62c9f4, 709027b
+**Deps:** M-NOART (done)
+**Blocks:** M-MULTIAPP step 2 onward ✓ unblocked
 **Design:** [M-MULTIAPP/source-ownership.md](../architecture/designs/M-MULTIAPP/source-ownership.md)
 
 ---
