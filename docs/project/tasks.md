@@ -832,19 +832,27 @@ Execute the 5-step migration per `docs/architecture/designs/M-MULTIAPP/source-ow
 Run `./check_build.sh` after each step before proceeding (BP-008).
 
 Steps:
-1. Create `winamp/` subdir; move `winampDisplay.h`, `vuMeter.h`; fix includes
-2. Add `appShell.h` per `app-lifecycle.md` spec (stub — dispatch wired, apps stubbed)
-3. Add `taskbar/taskbar.h` per `taskbar.md` spec (stub render + hit-test)
-4. Rewrite `SpotifyDiyThing.ino` as our shell — upstream files included unchanged;
-   verify DUT behaviour identical to pre-restructure before step 5
+1. Create `winamp/` subdir; move `winampDisplay.h`, `vuMeter.h`; update
+   `screenLog.h` include to `"winamp/winampDisplay.h"` (review finding)
+2. Add `appShell.h` stub per `app-lifecycle.md` spec
+3. Add `taskbar/taskbar.h` stub per `taskbar.md` spec
+4. Rewrite `SpotifyDiyThing.ino` as our shell — upstream files included unchanged
 5. **[gate: TASK-080 sign-off + TASK-082 baseline]** Apply `originX=0` — one-line
-   rect change in shell; run `audit_origin.py` as exit check
+   rect change in shell
 
 Exit criteria:
 - `check_build.sh` exits 0 after every step
-- DUT behaviour unchanged after step 4 (verified by human or serialdbg smoke test)
-- `audit_origin.py --grep-only` exits 0 post-step 5
-- TASK-081 (T141–T146) can be executed against the restructured firmware
+- `screenLog.h` uses `"winamp/winampDisplay.h"` path
+- `audit_origin.py --grep-only` exits 0 after step 4 (shell must not introduce
+  bare absolute X literals) and after step 5
+- Step 4 DUT smoke test passes: boot render, NEXT/PREV advances track,
+  PLAY/PAUSE toggles, no crash on track change
+- `audit_origin.py` full run (T141–T146) exits 0 after step 5
+- Upstream files unmodified (verifiable via `git diff` against upstream ref)
+
+Out of scope (M-MULTIAPP work, not this task):
+- Full decoupling of `winampDisplay.h` from `spotifyLogic.h` globals
+- `songStartMillis` write-back design, `spotifyTask::` removal from winampDisplay.h
 
 ---
 

@@ -46,6 +46,7 @@ binary is identical in structure.
 | `nfc.h`, `dnsOverride.h` | upstream | include as-is |
 | `cheapYellowLCD.h` | upstream | include as-is (TFT init) |
 | `spotifyDisplay.h` | upstream | **superseded** — our shell replaces this abstraction |
+| `screenLog.h` | **ours** | stays flat; `#include "winampDisplay.h"` → `#include "winamp/winampDisplay.h"` in step 1 |
 | `SpotifyDiyThing.ino` | **ours** | rewritten as app shell entry point |
 | `appShell.h` | **ours** | new — app registry, switchApp(), tick/input dispatch |
 | `winamp/winampDisplay.h` | **ours** | moved to subdirectory |
@@ -88,9 +89,17 @@ that winampDisplay.h reads and the shell saves/restores on app switch. This is
 the interface between the Spotify data layer (upstream `spotifyLogic.h`) and
 our winamp renderer.
 
-The restructure makes this explicit: winampDisplay.h reads **only** from
-`SpotifyAppState` (no direct globals from spotifyLogic.h). The shell populates
-the struct from the spotifyTask snapshot and passes it in.
+**Scope of decoupling in M-RESTRUCTURE (steps 1–5):** The structural move
+and shell rewrite do not require full interface decoupling. `winampDisplay.h`
+may continue to read `spotifyTask::isHealthy()`, `lastSuccessfulPollAgeMs()`,
+and the existing `spotifyLogic.h` globals during this milestone. Full
+decoupling — routing all data through `SpotifyAppState` — is M-MULTIAPP work.
+
+**Known write-back case:** `songStartMillis` is *mutated* by `WinampDisplay`
+on optimistic seek (not just read). This means `SpotifyAppState` cannot be a
+simple read-only struct for this field. The mutation semantics must be resolved
+before full decoupling; that design belongs in M-MULTIAPP app-lifecycle work,
+not here.
 
 ## Entry point: our shell replaces upstream .ino
 
@@ -128,22 +137,45 @@ check, not an ongoing concern.
 
 ## Migration sequence
 
-1. Create `winamp/` subdirectory; move `winampDisplay.h`, `vuMeter.h`
-2. Add `appShell.h` (per app-lifecycle.md spec)
-3. Add `taskbar/taskbar.h` (per taskbar.md spec)
-4. Rewrite `SpotifyDiyThing.ino` as our shell
-5. Apply originX=0 shift (layout.md) — now a one-line change in shell rect
-6. Run `audit_origin.py` (TASK-082) as migration check
+1. Create `winamp/` subdirectory; move `winampDisplay.h`, `vuMeter.h`.
+   Update `screenLog.h` include: `"winampDisplay.h"` → `"winamp/winampDisplay.h"`.
+   Gate: `check_build.sh` passes.
+
+2. Add `appShell.h` stub (per app-lifecycle.md spec — dispatch wired, app bodies
+   stubbed). Gate: `check_build.sh` passes.
+
+3. Add `taskbar/taskbar.h` stub (per taskbar.md spec — render + hit-test stubs).
+   Gate: `check_build.sh` passes.
+
+4. Rewrite `SpotifyDiyThing.ino` as our shell; upstream files included unchanged.
+   Gate: `check_build.sh` passes **and** `audit_origin.py --grep-only` exits 0
+   (shell must not introduce bare absolute X literals) **and** DUT smoke test:
+   - Boot with a playing track — Winamp chrome renders correctly
+   - Touch NEXT/PREV — track advances
+   - Touch PLAY/PAUSE — playback toggles
+   - No crash on track change
+
+5. Apply `originX=0` (layout.md) — one-line rect change in shell.
+   Gate: `audit_origin.py` (full run, T141–T146) exits 0. This is the TASK-082
+   exit gate and the entry condition for TASK-081 DUT regression.
 
 Steps 1–4 have no firmware behaviour change. Step 5 is the first observable
 change on hardware.
 
 ## Exit criteria
 
-- `winampDisplay.h` has no direct reads from `spotifyLogic.h` globals; all
-  data comes through `SpotifyAppState`
-- `SpotifyDiyThing.ino` contains no upstream code — only shell dispatch
-- Upstream files in the flat directory are unmodified (verifiable via git diff
-  against the upstream ref)
-- Firmware builds and behaves identically to pre-restructure (no regressions)
-- `audit_origin.py --grep-only` exits 0 post-restructure
+- `check_build.sh` exits 0 after each step
+- `SpotifyDiyThing.ino` contains only shell dispatch — no upstream business logic
+- `screenLog.h` updated to use `"winamp/winampDisplay.h"` path
+- Upstream files in the flat directory are unmodified (verifiable via `git diff`
+  against the upstream ref — do not modify `spotifyLogic.h`, `cheapYellowLCD.h` etc.)
+- Step 4 DUT smoke test passes (boot render, NEXT/PREV, PLAY/PAUSE, no crash)
+- `audit_origin.py --grep-only` exits 0 after step 4 and after step 5
+- `audit_origin.py` (full, T141–T146) exits 0 after step 5
+
+**Out of scope for this milestone (M-MULTIAPP work):**
+- Full decoupling of `winampDisplay.h` from `spotifyLogic.h` globals
+- `songStartMillis` write-back design in `SpotifyAppState`
+- `spotifyTask::` direct calls removal from `winampDisplay.h`
+- `saveAppState`/`restoreAppState` field mapping
+- `repaintApp()` / `dataTask` implementation
