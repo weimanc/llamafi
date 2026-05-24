@@ -486,6 +486,39 @@ This centres the 9px thumb within the 19px right-side tile. TASK-077 status upda
 
 ---
 
+### Audit — 2026-05-24 — M-RESTRUCTURE milestone retrospective (TASK-083)
+**Triggered by**: human (post-milestone)
+**Areas checked**:
+- [x] Feature inventory completeness
+- [x] Test coverage per feature (audit_origin.py T141–T146)
+- [x] Cross-feature impact (originX shift vs all draw-call coordinates)
+- [x] Documentation currency (CLAUDE.md, upstream-patches.md, tasks.md, roadmap.md)
+
+**Findings**:
+
+1. **[POSITIVE] Gate discipline held throughout all 5 steps.** `check_build.sh` was run and passed after every step before proceeding. `audit_origin.py --grep-only` (T141) was run as the step-4 gate. Full T141–T146 suite ran as the step-5 gate. BP-008 was followed without exception. No step produced a broken intermediate state.
+
+2. **[POSITIVE] Parallel-agent handoff succeeded cleanly.** TASK-080 and TASK-082 were completed by a parallel agent and landed as uncommitted working-tree changes. The main agent integrated them (committed as part of 709027b) without conflict or rework. The blocking relationship between step-5 and TASK-080/082 was correctly enforced.
+
+3. **[ISSUE — process] `.gitignore` missing before first `git add app/`.** The `app/.gitignore` did not exist when `git add app/` was first run. This caused `.pio/` (embedded git repos — Seeed_Arduino_NFC) to be staged. The error was caught before commit and corrected by writing `.gitignore` and re-staging, but the recovery required manual `git rm --cached` on the embedded git repos. Had it not been caught, `.pio/` would have been committed.
+
+4. **[ISSUE — spec gap] Step-5 file attribution in TASK-083 was wrong.** The task spec stated the originX change was "in `app/src/main.cpp`". The actual location is `app/src/winamp/winampDisplay.h` (line 49, `displaySetup()`). The spec was written before full implementation — a reasonable planning shortcut — but the discrepancy meant the step-5 description could not be followed literally. No rework resulted (the correct location was identified immediately by grep), but spec accuracy matters for agent hand-offs.
+
+5. **[OBSERVATION] `app/.gitignore` was subsequently amended by external tooling** (linter added `gen/origin_audit.png`). The file was therefore under-specified at commit time. Not a defect — the gitignore is correct now — but suggests the initial `.gitignore` was drafted from the Spotify-Diy-Thing precedent rather than a full audit of what `app/` would generate.
+
+6. **[POSITIVE] Upstream revert verified against pinned ref.** `Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino` and `platformio.ini` were both reverted to `6eb95ffd` (upstream origin/main as of 2026-05-24). The ref was recorded in `upstream-patches.md`. PATCH-001 (`cheapYellowLCD.h`) was preserved correctly — it is tracked in the patch registry and not in the revert scope.
+
+7. **[OBSERVATION] DUT smoke test is manual-only; no automated regression.** The step-4 and step-5 DUT smoke tests (Spotify polling live, chrome renders, NEXT/PREV works, no crash on track change) have no automated harness. Confirmation was by serial log capture only. For a structural refactor with "no firmware behaviour change" as a stated goal, this is the expected level — but VE should note that T102 (queue content integration) was last run under HTTP/1.0 pre-INV-A Step 3, and a post-restructure re-run has not been scheduled.
+
+**Actions assigned**:
+- Developer: when adding a new generated-output path to `app/`, audit `app/.gitignore` first — confirm the generated files are excluded before the first `git add`. (Finding 3 prevention.)
+- Architect/PM: spec for a step that changes a specific line must name the file accurately. If the file is uncertain at spec-write time, mark `[FILE TBD — confirm at implementation]` rather than guessing. (Finding 4.)
+- VE: schedule T102 re-run against restructured firmware. Unblocked now that M-RESTRUCTURE is complete.
+
+**Resolution**: Findings 1, 2, 6 are positive — no action. Finding 3 → LL-027. Finding 4 → LL-028. Finding 5 resolved by external tooling. Finding 7 → VE action assigned.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:

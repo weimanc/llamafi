@@ -455,7 +455,37 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-023** → adopted → **BP-004** (2026-05-22)
 - **LL-024** → adopted → **BP-005** (2026-05-22)
 - **LL-025** → "Visual sign-off for range-dependent renderers must cover zero, max, and one intermediate value. 'Correct at rest' is not a VE gate." Strong promotion case: same failure mode as LL-024 (test gap at closure) but from the opposite direction — test existed, exit criterion link was missing.
+- **LL-027** → "Write `.gitignore` before first `git add` on any new build-tool project directory. For PlatformIO: `.pio/` excluded by default. Build outputs are predictable; exclude them proactively." Process rule, applies to Developer.
+- **LL-028** → "Spec steps that name a specific file for a code change must either be verified against the actual codebase or marked `[FILE TBD — confirm at implementation]`. Plausible-but-unverified file paths in specs are silent latent risks for agent hand-offs." Process rule, applies to Architect + PM (spec writers).
 - **LL-026** → "Reference image used → paired visual validation item required. Any element rendered from a reference image must have a VE/audit item that validates the rendered output against that image. No reference image consumed without a closing verification step." Strong promotion case: directly addresses a recurring human frustration; cost of the check is low (side-by-side screenshot); cost of skipping is 4+ wasted sessions. Applies to Developer (spec completeness) + VE (validation item creation).
+
+---
+
+### LL-027 — 2026-05-24 — `.gitignore` must exist before first `git add` on a new directory
+
+**Context**: M-RESTRUCTURE TASK-083 created `app/` as a new PlatformIO project directory. `git add app/` was run before `app/.gitignore` was written. PlatformIO's `.pio/libdeps/` contains git repos (Seeed_Arduino_NFC), which git staged as embedded repositories with a warning.
+
+**Observation**: The embedded git repos were caught before commit and removed with `git rm --cached`. Recovery required manual intervention. The `.gitignore` was then written and the directory re-staged correctly. Had the commit landed with `.pio/` included, reverting would have required `git rm -r --cached app/.pio/` and a corrective commit.
+
+**Root cause**: The `.gitignore` was created reactively (after seeing the staging warning) rather than proactively (before `git add`). For any directory that runs a build tool, the build tool's output directories are predictable in advance.
+
+**Suggested improvement**: When creating a new build-tool project directory, write `.gitignore` as part of the skeleton step — before any `git add`. For PlatformIO: `.pio/` is always excluded. For any tool that fetches or generates files, audit what it produces and exclude it. Rule: `.gitignore` before `git add`, not after.
+
+**Status**: open
+
+---
+
+### LL-028 — 2026-05-24 — Implementation specs that name a specific file must be verified against actual code structure
+
+**Context**: TASK-083 step 5 stated "one-line canvas rect change in `app/src/main.cpp` shell: `originX` 22 → 0." The actual location of the `originX` assignment is `app/src/winamp/winampDisplay.h:49` (`displaySetup()`), not `main.cpp`. The spec was written before the file structure existed — a reasonable planning shortcut — but the named file was wrong.
+
+**Observation**: No rework resulted (grep immediately found the correct location), but a spec naming the wrong file is a latent risk for agent hand-offs where the receiving agent may not re-verify the file attribution and may either fail to find the symbol or make a change in the wrong place.
+
+**Root cause**: The spec was authored at planning time without being able to verify against the actual implementation. The guess (`main.cpp`, which is the shell entry point) was plausible but wrong.
+
+**Suggested improvement**: If a spec step names a specific file for a change, it must either (a) be verified against the actual codebase before the task is assigned, or (b) be marked `[FILE TBD — confirm at implementation]` so the implementer knows to locate it rather than trust the attribution. Plausible-but-unverified file paths in specs are silent landmines.
+
+**Status**: open
 
 ---
 
