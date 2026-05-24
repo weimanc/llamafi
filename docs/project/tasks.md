@@ -820,6 +820,33 @@ Exit criteria (from design doc):
 
 ---
 
+### TASK-083 — M-RESTRUCTURE: execute source ownership split
+**Owner**: Developer
+**Feature**: shell-layout-001
+**Status**: open (2026-05-24)
+**Blocked by**: TASK-080 (origin audit sign-off), TASK-082 (audit_origin.py baseline)
+**Unblocks**: M-MULTIAPP firmware (originX=0 shift)
+**Milestone**: M-RESTRUCTURE
+
+Execute the 5-step migration per `docs/architecture/designs/M-MULTIAPP/source-ownership.md`.
+Run `./check_build.sh` after each step before proceeding (BP-008).
+
+Steps:
+1. Create `winamp/` subdir; move `winampDisplay.h`, `vuMeter.h`; fix includes
+2. Add `appShell.h` per `app-lifecycle.md` spec (stub — dispatch wired, apps stubbed)
+3. Add `taskbar/taskbar.h` per `taskbar.md` spec (stub render + hit-test)
+4. Rewrite `SpotifyDiyThing.ino` as our shell — upstream files included unchanged;
+   verify DUT behaviour identical to pre-restructure before step 5
+5. Apply `originX=0` — one-line rect change in shell; run `audit_origin.py` as gate
+
+Exit criteria:
+- `check_build.sh` exits 0 after every step
+- DUT behaviour unchanged after step 4 (verified by human or serialdbg smoke test)
+- `audit_origin.py --grep-only` exits 0 post-step 5
+- TASK-081 (T141–T146) can be executed against the restructured firmware
+
+---
+
 ### TASK-078 — Design: PLEDIT content-area drag UX improvements
 **Owner**: Architect (whiteboard), then Developer
 **Feature**: playlist-002, touch-002

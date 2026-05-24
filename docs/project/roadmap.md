@@ -230,7 +230,7 @@ Work:
 - Confirm the winamp build clean-compiles without the decoder and no longer crashes on
   track change.
 
-**Status:** planned (2026-05-20 — JPEG crash observed on rnd/poll-lag DUT run)
+**Status:** done (2026-05-21 — commit 1411a3e; `lib_ignore = JPEGDEC` in winamp env, album-art path gated behind `#ifndef WINAMP_DISPLAY`, `processImageInfo` override removed)
 **Deps:** M3 (winamp renderer in tree)
 
 ---
@@ -258,6 +258,32 @@ Work:
 
 ---
 
+### M-RESTRUCTURE — Project source ownership split
+
+Decouple our winamp-app code from the upstream `SpotifyDiyThing` entrypoint.
+The upstream `.ino` becomes our shell; winamp code moves into named subdirectories;
+a `WinampState`/`SpotifyAppState` struct becomes the interface between the Spotify
+data layer and the renderer. No behaviour change — firmware output is identical
+before and after. Prerequisite for M-MULTIAPP because it makes the `originX=0`
+shift a one-liner in the shell rather than a global variable to audit.
+
+Work (per `docs/architecture/designs/M-MULTIAPP/source-ownership.md`):
+1. Create `winamp/` subdir; move `winampDisplay.h`, `vuMeter.h`
+2. Add `appShell.h` per app-lifecycle.md spec
+3. Add `taskbar/taskbar.h` per taskbar.md spec
+4. Rewrite `SpotifyDiyThing.ino` as our shell (upstream files included, not modified)
+5. Apply `originX=0` shift — now a one-line rect change in the shell
+
+Gate: `check_build.sh` passes after each step (BP-008). Firmware behaviour
+verified unchanged on DUT after step 4 before proceeding to step 5.
+
+**Status:** planned (2026-05-24)
+**Deps:** M-NOART (done), TASK-080 (architect origin audit sign-off), TASK-082 (audit_origin.py baseline)
+**Blocks:** M-MULTIAPP step 2 onward
+**Design:** [M-MULTIAPP/source-ownership.md](../architecture/designs/M-MULTIAPP/source-ownership.md)
+
+---
+
 ### M-MULTIAPP — Multi-app shell with icon taskbar
 
 Add a persistent 45 px icon-only taskbar on the right edge (x: 275..319).
@@ -277,7 +303,7 @@ Work sequence:
 6. Network apps — `dataTask` + Weather + Crypto fetch/render.
 
 **Status:** design (2026-05-22 — design docs drafted; preview tooling pass required before implementation tasks filed)
-**Deps:** M3 (Winamp display in tree), M-NOART (JPEGDEC removed), M-SHELL-LAYOUT (taskbar constants header, gates steps 3–4)
+**Deps:** M3 (done), M-NOART (done), M-RESTRUCTURE (gates step 2), M-SHELL-LAYOUT (taskbar constants header, gates steps 3–4)
 **Design:** [M-MULTIAPP/overview.md](../architecture/designs/M-MULTIAPP/overview.md)
 
 ---
