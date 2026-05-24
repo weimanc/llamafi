@@ -759,7 +759,7 @@ Audited: `winampDisplay.h` (all `tft.*` render + hit-test sites), `vuMeter.h`, `
 
 **Owner**: VE
 **Feature**: shell-layout-001, serialdbg-001, touch-002
-**Status**: open (2026-05-23)
+**Status**: done (2026-05-24 — 23/25 pass; exit criteria met; T136 harness defect tracked as TASK-085; T140 skip tracked as TASK-086)
 **Blocked by**: TASK-080 (finding table sign-off), M-MULTIAPP firmware (originX=0 build)
 **Notes**:
 
@@ -776,9 +776,13 @@ Entry criteria:
 - TASK-080 finding table signed off (no "FIX NEEDED" rows)
 
 Exit criteria:
-- T141–T146 all pass on DUT
-- T076, T081, T082, T086, T087, T088, T134 re-run with coords.py coordinates and all pass
-- No new DEADZONE misfire where a named zone is expected
+- T141–T146 all pass on DUT ✅
+- T076, T081, T082, T086, T087, T088, T134 re-run with coords.py coordinates and all pass ✅
+- No new DEADZONE misfire where a named zone is expected ✅
+
+Result: 23/25 pass. T136 FAIL = harness ordering bug (T135 mutates scrollOffset before T136
+checks it; firmware not at fault). T140 SKIP = queue snapshot holds exactly PLEDIT_ROW_COUNT=5
+items so maxOffset=0; clamping at non-zero max untestable without snapshot expansion.
 
 Report pass/fail to PM. PM prompts QM for retrospective.
 
@@ -1979,6 +1983,55 @@ Initial findings incorrectly concluded the thumb was absent and synthesised. Pix
 | Thumb — alt state | 62 | 54 | 8 | 16 |
 
 Spec corrected in `docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md` §"Scrollbar thumb". TASK-051e updated to use sprite blit instead of `fillRect`.
+
+---
+
+### TASK-085 — VE: fix T136 harness ordering bug (scrollOffset precondition)
+
+**Owner**: VE
+**Feature**: serialdbg-001, playlist-002
+**Status**: todo
+**Blocked by**: nothing
+**Notes**:
+
+T135 issues a swipe-up drag that increments `scrollOffset` to 1, but does not reset it
+afterward. T136 then preconditions on `scrollOffset == 0` and fails because it sees 1.
+Not a firmware defect.
+
+Fix options (choose one):
+1. Run T136 **before** T135 in the suite ordering.
+2. Add a reset step at the end of T135: `set scrollOffset 0` (or issue matching swipe-down).
+3. Add an explicit precondition reset in T136 harness code: swipe-down until `get scrollOffset == 0`.
+
+Exit criteria:
+- T136 passes in a full suite run where T135 also runs
+- T135 result unaffected
+
+---
+
+### TASK-086 — VE: T140 unblock — expand queue snapshot beyond PLEDIT_ROW_COUNT items
+
+**Owner**: VE
+**Feature**: serialdbg-001, playlist-002
+**Status**: todo
+**Blocked by**: DUT must have a queue with > 5 tracks loaded
+**Notes**:
+
+T140 verifies `scrollOffset` clamps at `count - PLEDIT_ROW_COUNT`. It was skipped because
+the queue snapshot captured exactly 5 items (= `PLEDIT_ROW_COUNT`), making `maxOffset = 0`
+and the clamping assertion trivially untestable.
+
+Two approaches:
+1. **Queue more tracks before running T140**: ensure Spotify queue has >= 7 items; verify
+   `get queue` count > `PLEDIT_ROW_COUNT` as precondition in the harness.
+2. **Extend `get queue` snapshot capacity**: if the snapshot is hard-capped at 5 rows, raise
+   the cap in firmware (`cmdGetQueue`) to e.g. 10. Filed here in case the cap is the root cause.
+
+Determine which applies — check `cmdGetQueue` implementation for any hard cap first.
+
+Exit criteria:
+- `get queue` returns count > PLEDIT_ROW_COUNT when >= 6 tracks queued
+- T140 passes (scrollOffset saturates at maxOffset, not maxOffset+1 or more)
 
 ---
 
