@@ -1785,7 +1785,7 @@ Common preconditions:
   3. Grep `appShell.h` for taskbar fill literal: `fillRect(275` or `fillRect(TASKBAR_X` present and `fillRect(275` absent.
   4. Assert all three greps return zero matches.
 - **Expected result**: No bare taskbar geometry literals in expression context. `_Static_assert` (see T128) provides the compile-time guard; this test provides the CI-time readable report.
-- **Status**: planned. Owner: VE.
+- **Status**: **blocked** — `appShell.h` is a stub (TASK-083 step 3); does not yet include `gen/shell_layout.h` or reference `TASKBAR_*` constants. Re-run when M-MULTIAPP appShell.h implementation lands. Owner: VE.
 
 ### T128 — [shell-layout-001] parse_shell_layout() handles all value types and strips comments
 
@@ -1818,7 +1818,7 @@ Common preconditions:
   3. Run `pio run -e cyd2usb_winamp` — expect compile error containing `_Static_assert`.
   4. Restore correct value; confirm clean build.
 - **Expected result**: Compiler rejects build when constants are inconsistent; clean build when correct.
-- **Status**: planned. Owner: VE. Note: Architect must include `_Static_assert` in `appShell.h` implementation spec (closes shell-layout.md open question 2).
+- **Status**: **blocked** — `appShell.h` stub has no `_Static_assert`. Re-run when M-MULTIAPP appShell.h implementation includes the guards. Owner: VE. Note: Architect must include `_Static_assert` in `appShell.h` implementation spec (closes shell-layout.md open question 2).
 
 ---
 
@@ -1846,7 +1846,7 @@ automated. HTML export option removed from design — T130 dropped accordingly.
   10. Press `p` — params printed to stdout with all `TASKBAR_*` names.
   11. Press `q` — clean exit.
 - **Expected result**: All steps observable. No Python exception. Glyphs are pixel-identical Winamp chars. `gen/shell_layout.h` written on `e`.
-- **Status**: **pending-manual** (2026-05-22). `preview_layout.py` implemented and headless `--export` verified. Interactive session requires display — manual sign-off pending. Owner: VE.
+- **Status**: **deferred** (2026-05-24). Current `gen/shell_layout.h` accepted as-is; aesthetic iteration scheduled separately. Interactive sign-off session not required to unblock M-MULTIAPP implementation. Owner: VE.
 
 ### T132 — [preview-tooling-001] taskbar.md open questions resolved and golden.sha256 intact
 

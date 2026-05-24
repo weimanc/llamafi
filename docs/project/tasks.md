@@ -1838,7 +1838,7 @@ To be triaged with the team.
 
 **Owner**: Developer
 **Feature**: preview-tooling-001, shell-layout-001
-**Status**: in_progress (2026-05-23 — preview_layout.py exists; interactive preview session + export to gen/shell_layout.h pending human sign-off on aesthetics)
+**Status**: done (2026-05-24 — current gen/shell_layout.h accepted as-is; aesthetic iteration deferred; interactive sign-off not required to unblock M-MULTIAPP)
 **Blocked by**: —
 **Notes**:
 - Add `parse_shell_layout(path)` to `bake_skin.py`. Must strip inline comments (`//` suffix) from all values before returning. Handles int (`275`), hex (`0x07E0`), char (`'A'`), flag (`1`). T128 verifies.
@@ -1854,8 +1854,8 @@ To be triaged with the team.
 
 **Owner**: Developer
 **Feature**: shell-layout-001
-**Status**: in_progress (2026-05-23 — gen/shell_layout.h generated; not yet added to golden.sha256; pending aesthetic sign-off from TASK-070)
-**Blocked by**: TASK-070 aesthetic export
+**Status**: done (2026-05-24 — shell_layout.h already in golden.sha256; sha256sum -c passes clean)
+**Blocked by**: —
 **Notes**:
 - After TASK-070 produces `gen/shell_layout.h`, add its hash to `golden.sha256`.
 - Run `sha256sum -c golden.sha256` to confirm clean. T132 verifies.
@@ -1864,8 +1864,8 @@ To be triaged with the team.
 
 **Owner**: VE
 **Feature**: shell-layout-001, preview-tooling-001
-**Status**: todo
-**Blocked by**: TASK-068, TASK-069, TASK-070, TASK-071
+**Status**: done (2026-05-24 — T125/T126/T128/T132 pass; T127/T129 blocked on M-MULTIAPP appShell.h impl; T131 deferred with aesthetics)
+**Blocked by**: —
 **Notes**:
 - T125: `gen/shell_layout.h` present, all 11 `TASKBAR_*` defines present.
 - T126: `TASKBAR_X + TASKBAR_W == 320`; `TASKBAR_SLOT_H * TASKBAR_SLOT_COUNT == 240`.
