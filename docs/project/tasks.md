@@ -1990,7 +1990,7 @@ Spec corrected in `docs/rnd/resources/winamp-skin-format/PLEDIT-BMP-spec.md` §"
 
 **Owner**: VE
 **Feature**: serialdbg-001, playlist-002
-**Status**: todo
+**Status**: done (2026-05-24)
 **Blocked by**: nothing
 **Notes**:
 
@@ -1998,10 +1998,10 @@ T135 issues a swipe-up drag that increments `scrollOffset` to 1, but does not re
 afterward. T136 then preconditions on `scrollOffset == 0` and fails because it sees 1.
 Not a firmware defect.
 
-Fix options (choose one):
-1. Run T136 **before** T135 in the suite ordering.
-2. Add a reset step at the end of T135: `set scrollOffset 0` (or issue matching swipe-down).
-3. Add an explicit precondition reset in T136 harness code: swipe-down until `get scrollOffset == 0`.
+Fix applied (option 2 — swipe-down cleanup): appended a `_do_drag` swipe-down to the
+end of `t135()` in `run_serialdbg_tests.py` after the `pass_` call. `set scrollOffset`
+is not in `dbgSet`, so swipe-down is the only serial-only reset. T135 is now
+self-contained; T136/T137 see clean state regardless of suite ordering.
 
 Exit criteria:
 - T136 passes in a full suite run where T135 also runs

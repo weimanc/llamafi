@@ -1038,6 +1038,9 @@ def t135(dut: Dut):
                      "not cleared in injectRelease()")
         return
     pass_("T135", f"drag response ok; dragState=D_IDLE; swipe ({x1},{y1})→({x2},{y2})")
+    # Restore scrollOffset to 0 so T136 and T137 see clean initial state.
+    xd, yd, xd2, yd2 = _c.pledit_swipe("down")
+    _do_drag(dut, xd, yd, xd2, yd2)
 
 
 # ── shared drag helper (T136–T140) ────────────────────────────────────────────

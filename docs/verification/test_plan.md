@@ -1944,7 +1944,7 @@ automated. HTML export option removed from design — T130 dropped accordingly.
   1. `get scrollOffset` — parse JSON response.
   2. Assert `ok == true`, `key == "scrollOffset"`, `val == 0`.
 - **Expected result**: `{"ok":true,"cmd":"get","key":"scrollOffset","val":0}`.
-- **Status**: **pass** (2026-05-23); **FAIL** (2026-05-24 re-run, commit b1ffe41) — harness ordering bug: T135 runs before T136 and mutates scrollOffset to 1; T136 then sees val=1 ≠ 0. Not a firmware regression. Fix: run T136 before T135, or reset scrollOffset at end of T135. Tracked as harness defect.
+- **Status**: **pass** (2026-05-23); **FAIL** (2026-05-24 re-run, commit b1ffe41) — harness ordering bug: T135 runs before T136 and mutates scrollOffset to 1; T136 then sees val=1 ≠ 0. Not a firmware regression. Fix applied (TASK-085): swipe-down cleanup appended to t135(); **pass** (2026-05-24 re-run post-fix; full suite 24/25 pass, 1 skip T140).
 
 ---
 
