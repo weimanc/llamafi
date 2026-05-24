@@ -20,6 +20,12 @@ def _parse(path):
 
 S = _parse(_GEN)
 
+_SHELL_GEN = pathlib.Path(__file__).parent / "../gen/shell_layout.h"
+_SH = _parse(_SHELL_GEN)
+TASKBAR_X      = int(_SH["TASKBAR_X"])        # 275
+TASKBAR_W      = int(_SH["TASKBAR_W"])         # 45
+TASKBAR_SLOT_H = int(_SH["TASKBAR_SLOT_H"])    # 40
+
 SCREEN_W = 320
 SCREEN_H = 240
 ORIGIN_X = 0   # M-RESTRUCTURE step 5 set originX=0; M-SHELL-LAYOUT will drive this from shell_layout.h
@@ -135,3 +141,16 @@ def pledit_swipe(direction: str) -> tuple[int, int, int, int]:
         return x, mid_y + 15, x, mid_y - 15   # dy = -30
     else:
         return x, mid_y - 15, x, mid_y + 15   # dy = +30
+
+
+def tap_taskbar_slot(app_id: int) -> tuple[int, int]:
+    """Screen centre of taskbar slot N (0=Spotify, 1=Clock, …)."""
+    x = TASKBAR_X + TASKBAR_W // 2                        # 297
+    y = app_id * TASKBAR_SLOT_H + TASKBAR_SLOT_H // 2     # e.g. 60 for Clock
+    return x, y
+
+
+def clock_canvas_tap() -> tuple[int, int]:
+    """A tap at clock-face centre — inside x<TASKBAR_X.
+    Hits TRANSPORT zone in Spotify mode; must return CLOCK/NONE after BUG-1 fix."""
+    return 137, 120

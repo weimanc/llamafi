@@ -15,7 +15,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-087 — M-MULTIAPP step 2: taskbar + app-shell + Clock app
 **Owner**: Developer
 **Feature**: taskbar-001, clock-001 (new)
-**Status**: done (2026-05-24 — check_build.sh 3/3 pass; DUT flash + smoke test pending)
+**Status**: done (2026-05-24 — check_build.sh 3/3 pass; BUG-1 fixed; T147/T148 written; DUT smoke test pending VE sign-off)
 **Blocks**: M-MULTIAPP step 3 (Matrix, GoL, Weather, Crypto apps)
 **Notes**:
 - **TASK-087a** (`taskbar.h`): `renderTaskbar(TFT_eSPI& tft, AppId activeApp)` — fills 45×240 strip with TASKBAR_BG_RGB565, draws icon letters S/C/W/$/M/G (TFT font 4), separator lines (TASKBAR_SEP_COLOR), and 3 px active-indicator bar (TASKBAR_ACTIVE_COLOR) on the active slot.
@@ -25,6 +25,20 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - **TASK-087e** (`main.cpp`): `clockRepaint()` draws three rounded-rect chrome boxes. `clockTick()`: blinking colon at 1 Hz, rainbow 60-segment seconds bar, day + date strings, RSSI signal bars.
 - **TASK-087f**: `./check_build.sh` 3/3 pass ✓. DUT smoke test required (flash + verify taskbar visible, Clock renders, Spotify switch works).
 - **Feature inventory**: `taskbar-001` + `clock-001` registered.
+- **Salvage (PM audit 2026-05-24)**: BUG-1 fixed — guard added in `checkForInput()` and `injectTouch()` to return early for non-Spotify apps, preventing Clock canvas taps from falling through to Winamp hit-tests. `get appId` added to `dbgGet()`. T147/T148 written in test harness. BUG-2 (saveAppState/restoreAppState) deferred to TASK-088. GAP-1 (icon glyphs) deferred to M-MULTIAPP aesthetics pass.
+
+---
+
+### TASK-088 — Deferred: saveAppState / restoreAppState for switchApp()
+**Owner**: Developer
+**Feature**: app-lifecycle-001 (new)
+**Status**: open — deferred; required before M-MULTIAPP step 5
+**Blocks**: M-MULTIAPP step 5 (Matrix, GoL, Weather, Crypto apps need state round-trips)
+**Notes**:
+- BUG-2 from TASK-087 PM audit: `app-lifecycle.md` specifies `saveAppState()`/`restoreAppState()` inside `switchApp()` but neither is implemented. Works by accident for Spotify↔Clock because `WinampDisplay` class members persist unchanged (no code resets them) and `repaintChrome()` reads the intact cache on switch-back.
+- Risk window opens at step 5: Matrix/GoL/Weather/Crypto apps carry per-app state that must survive round-trips. Without save/restore, a Matrix→Spotify→Matrix sequence would lose rain-column positions.
+- Implementation: add `saveAppState(AppId)` / `restoreAppState(AppId)` free functions (declared in `appShell.h`, defined in `main.cpp`). `saveAppState(Spotify)` copies 10 `WinampDisplay` render-cache fields into `g_appState[0].spotify`; `restoreAppState(Spotify)` mirrors. `vu::s_modeRef()` (file-static) also needs explicit save/restore. `g_appState[]` union is already declared in `appShell.h`. Add `saveAppState(currentAppId)` before the `fillRect` in `switchApp()`, and `restoreAppState(next)` / `initAppState(next)` after `currentAppId = next`.
+- VE gate: T147 Spotify↔Clock round-trip already covers the Spotify slot. Add one new serialdbg test per new app before its launch.
 
 ---
 

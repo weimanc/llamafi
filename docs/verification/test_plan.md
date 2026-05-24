@@ -2132,6 +2132,49 @@ See design doc `docs/architecture/designs/audit-origin.md`.
 
 ---
 
+## Suite: multiapp-002 — App-shell input routing (M-MULTIAPP step 2 salvage)
+
+**DUT required** — T147–T148 use `run_serialdbg_tests.py` with `cyd2usb_winamp_debug` firmware.
+
+### T147 — [shell-layout-001, touch-002] Taskbar tap switches active app
+
+- **Type**: integration (DUT)
+- **Feature(s)**: taskbar-001, app-lifecycle-001
+- **Objective**: Confirm that a `cmdTap` at taskbar coordinates calls `switchApp()`, and
+  `get appId` subsequently reports the new app. Round-trip Spotify→Clock→Spotify.
+- **Preconditions**: DUT booted with `cyd2usb_winamp_debug`. Spotify active (default boot
+  state). `get appId` returns `"Spotify"`.
+- **Steps**:
+  1. `get appId` — assert `name == "Spotify"`.
+  2. `tap 297 60` (Clock slot centre via `coords.tap_taskbar_slot(1)`).
+  3. Wait 300 ms.
+  4. `get appId` — assert `name == "Clock"`.
+  5. `tap 297 20` (Spotify slot via `coords.tap_taskbar_slot(0)`). Wait 300 ms.
+  6. `get appId` — assert `name == "Spotify"`.
+- **Expected result**: Round-trip confirmed. `id` field increments to 1 (Clock) then returns to 0 (Spotify).
+- **Harness**: `run_serialdbg_tests.py --tests T147`. Owner: VE.
+- **Status**: written (2026-05-24). DUT run pending.
+
+### T148 — [shell-layout-001, touch-002] Clock canvas tap: no Winamp zone leak
+
+- **Type**: integration (DUT)
+- **Feature(s)**: taskbar-001, app-lifecycle-001
+- **Objective**: With Clock active, a tap at `x < TASKBAR_X` must return `hit="CLOCK"`,
+  `action="NONE"` — the BUG-1 guard in `checkForInput()` and `injectTouch()` must fire.
+  No Spotify action (PREV/PLAY/PAUSE/NEXT/SEEK/VOLUME/etc.) may be enqueued.
+- **Preconditions**: Clock app active (`get appId` == `"Clock"`).
+- **Steps**:
+  1. `tap 297 60` to switch to Clock.
+  2. `get appId` — assert `"Clock"`.
+  3. `tap 137 120` (clock-face centre via `coords.clock_canvas_tap()` — hits TRANSPORT zone in Spotify mode).
+  4. Assert response `hit` in `("CLOCK", "NON_SPOTIFY")` and `action == "NONE"`.
+  5. Restore: `tap 297 20` (Spotify slot).
+- **Expected result**: `{"hit":"CLOCK","action":"NONE"}`. No `dequeued action=` log line visible in serial output.
+- **Harness**: `run_serialdbg_tests.py --tests T148`. Owner: VE.
+- **Status**: written (2026-05-24). DUT run pending.
+
+---
+
 ## Entry Format
 
 ```

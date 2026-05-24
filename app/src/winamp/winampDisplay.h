@@ -249,6 +249,12 @@ public:
         return;
       }
 
+      // Guard: Winamp hit-zones are only valid when Spotify is active.
+      if (currentAppId != AppId::Spotify) {
+        touchScreenCoolDownTime = millis() + 300;
+        return;
+      }
+
       int  pressed    = hitTestTransport(p.x, p.y);
       long seekMs     = hitTestPosbar(p.x, p.y);
       long volPct     = hitTestVolume(p.x, p.y);
@@ -704,6 +710,22 @@ public:
       return;
     }
     spotifyTask::resetBackoff();
+    // Taskbar first-pass: mirror of checkForInput() taskbar block.
+    if (sx >= TASKBAR_X) {
+      int slot = (int)sy / TASKBAR_SLOT_H;
+      if (slot >= 0 && slot < (int)AppId::COUNT) {
+        AppId tapped = static_cast<AppId>(slot);
+        if (tapped != currentAppId) switchApp(tapped);
+      }
+      touchScreenCoolDownTime = millis() + 300;
+      lastTouchResult = { "TASKBAR", -1, "APP_SWITCH", 0, -1, false };
+      return;
+    }
+    // Guard: Winamp hit-zones are only valid when Spotify is active.
+    if (currentAppId != AppId::Spotify) {
+      lastTouchResult = { "CLOCK", -1, "NONE", 0, -1, false };
+      return;
+    }
     int  pressed    = hitTestTransport(sx, sy);
     long seekMs     = hitTestPosbar(sx, sy);
     long volPct     = hitTestVolume(sx, sy);
@@ -882,6 +904,18 @@ public:
     }
     if (strcmp(var, "scrollOffset") == 0) {
       snprintf(buf, len, "\"key\":\"scrollOffset\",\"val\":%d", scrollOffset);
+      return true;
+    }
+    if (strcmp(var, "appId") == 0) {
+      const char* nm = currentAppId == AppId::Spotify ? "Spotify"
+                     : currentAppId == AppId::Clock   ? "Clock"
+                     : currentAppId == AppId::Weather ? "Weather"
+                     : currentAppId == AppId::Crypto  ? "Crypto"
+                     : currentAppId == AppId::Matrix  ? "Matrix"
+                     : currentAppId == AppId::Life    ? "Life"
+                     : "Unknown";
+      snprintf(buf, len, "\"var\":\"appId\",\"id\":%d,\"name\":\"%s\",\"last\":true",
+               (int)currentAppId, nm);
       return true;
     }
     return false;

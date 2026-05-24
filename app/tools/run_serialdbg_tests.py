@@ -1205,6 +1205,71 @@ def t140(dut: Dut):
     pass_("T140", f"scrollOffset saturates at {val_sat}; extra swipe did not increment")
 
 
+def t147(dut: Dut):
+    """T147: taskbar tap (via injectTouch) switches active app; get appId confirms round-trip."""
+    import time
+    r = dut.cmd("get appId", timeout=3.0)
+    if not r.get("ok") or r.get("name") != "Spotify":
+        skip("T147", f"precondition: need Spotify active, got {r.get('name')!r}")
+        return
+    # Tap the Clock slot in the taskbar.
+    dut.set_cooldown_zero()
+    cx, cy = _c.tap_taskbar_slot(1)
+    dut.cmd(f"tap {cx} {cy}", timeout=3.0)
+    time.sleep(0.3)  # repaintChrome ~60 ms; 300 ms headroom
+    r2 = dut.cmd("get appId", timeout=3.0)
+    if not r2.get("ok") or r2.get("name") != "Clock":
+        fail("T147", f"did not switch to Clock: got appId={r2.get('name')!r}")
+        # Attempt restore before failing.
+        dut.set_cooldown_zero()
+        dut.cmd(f"tap {_c.tap_taskbar_slot(0)[0]} {_c.tap_taskbar_slot(0)[1]}", timeout=3.0)
+        time.sleep(0.3)
+        return
+    # Switch back to Spotify to leave DUT in known state for subsequent tests.
+    dut.set_cooldown_zero()
+    sx, sy = _c.tap_taskbar_slot(0)
+    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    time.sleep(0.3)
+    r3 = dut.cmd("get appId", timeout=3.0)
+    if not r3.get("ok") or r3.get("name") != "Spotify":
+        fail("T147", f"failed to return to Spotify: got {r3.get('name')!r}")
+        return
+    pass_("T147", "Spotify→Clock→Spotify round-trip confirmed via get appId")
+
+
+def t148(dut: Dut):
+    """T148: while Clock active, tap at x<275 returns hit=CLOCK, no Spotify action."""
+    import time
+    # Switch to Clock.
+    dut.set_cooldown_zero()
+    cx, cy = _c.tap_taskbar_slot(1)
+    dut.cmd(f"tap {cx} {cy}", timeout=3.0)
+    time.sleep(0.3)
+    r_pre = dut.cmd("get appId", timeout=3.0)
+    if not r_pre.get("ok") or r_pre.get("name") != "Clock":
+        skip("T148", f"precondition: could not switch to Clock (appId={r_pre.get('name')!r})")
+        return
+    # Tap clock-face centre — coordinate (137, 120) hits TRANSPORT zone in Spotify mode.
+    dut.set_cooldown_zero()
+    tx, ty = _c.clock_canvas_tap()
+    r = dut.cmd(f"tap {tx} {ty}", timeout=3.0)
+    hit = r.get("hit", "")
+    action = r.get("action", "")
+    # Restore to Spotify before asserting (so subsequent tests start clean).
+    dut.set_cooldown_zero()
+    sx, sy = _c.tap_taskbar_slot(0)
+    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    time.sleep(0.3)
+    if hit not in ("CLOCK", "NON_SPOTIFY"):
+        fail("T148", f"BUG-1 guard not firing: hit={hit!r} action={action!r} "
+                     f"at ({tx},{ty}) with Clock active — Winamp zone leaked")
+        return
+    if action != "NONE":
+        fail("T148", f"unexpected Spotify action={action!r} (want NONE) for Clock canvas tap")
+        return
+    pass_("T148", f"Clock active: hit={hit!r} action={action!r} — no Winamp zone leak")
+
+
 # ── main ──────────────────────────────────────────────────────────────────────
 
 ALL_TESTS = {
@@ -1236,6 +1301,8 @@ ALL_TESTS = {
     "T138": t138,
     "T139": t139,
     "T140": t140,
+    "T147": t147,
+    "T148": t148,
 }
 
 def main():
