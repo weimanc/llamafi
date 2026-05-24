@@ -216,11 +216,11 @@ shuffle / repeat toggles from touch. The upstream lib's
 they were only parsed by the unused `getPlayerDetails` path. Surfacing
 them on the same poll avoids a second round-trip per cycle.
 
-### 10. `getQueue` — surface `duration_ms` per item + reduce `SPOTIFY_QUEUE_MAX_ITEMS` 7→5
+### 10. `getQueue` — surface `duration_ms` per item; `SPOTIFY_QUEUE_MAX_ITEMS` set to 20
 
 In `src/SpotifyArduino.h`:
 - Added `long durationMs` to `QueueItem` struct.
-- Reduced `SPOTIFY_QUEUE_MAX_ITEMS` from 7 to 5 (matches `PLEDIT_ROW_COUNT`).
+- `SPOTIFY_QUEUE_MAX_ITEMS` is `20` (capacity for up to 20 queue items including currently-playing).
 
 In `src/SpotifyArduino.cpp` `getQueue`:
 - Added `filter["currently_playing"]["duration_ms"] = true` and `qfi["duration_ms"] = true`
@@ -235,8 +235,10 @@ columns and to compute total playlist time (TASK-047d). The `getQueue` endpoint 
 returns `duration_ms` in each item's track object — it was simply not included in the filter
 or parsed. No extra API round-trip required.
 
-`SPOTIFY_QUEUE_MAX_ITEMS` reduced from 7 to 5 so that the array sizes in `QueueData`,
-`QueueSnapshot`, and the renderer all agree without a runtime bounds-check.
+Note: an earlier version of this patch reduced `SPOTIFY_QUEUE_MAX_ITEMS` to 5 to match
+`PLEDIT_ROW_COUNT`. That reduction was reversed when `app/lib/` was created (TASK-083);
+`cmdGetQueue` in `spotifyTaskStorage.cpp` now uses `QUEUE_MAX` (= `SPOTIFY_QUEUE_MAX_ITEMS`)
+as its serialize cap so the snapshot and serial protocol agree (TASK-086).
 
 ### 11. Null guard before `strcmp(currently_playing_type, ...)` — `src/SpotifyArduino.cpp`
 

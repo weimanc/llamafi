@@ -523,7 +523,7 @@ bool dbg_get(const char* var, char* buf, int len) {
     // Split protocol: each line has "part":N,"last":bool. Reads under spinlock.
     buf[0] = '\0';
     QueueSnapshot qs; copyQueueSnapshot(&qs);
-    uint8_t n = qs.count < 5 ? qs.count : 5;
+    uint8_t n = qs.count < QUEUE_MAX ? qs.count : QUEUE_MAX;
     if (n == 0) {
       Serial.println("{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\","
                      "\"count\":0,\"last\":true}");
