@@ -84,7 +84,7 @@ Arduino sketch (`SpotifyDiyThing/SpotifyDiyThing.ino`) that polls the Spotify We
 ### Build / flash / monitor
 
 ```sh
-cd Spotify-Diy-Thing
+cd app
 ~/.platformio/penv/bin/pio run -e cyd2usb_winamp                           # build — production target
 ~/.platformio/penv/bin/pio run -e cyd2usb_winamp -t upload --upload-port /dev/ttyUSB0
 ~/.platformio/penv/bin/pio run -e cyd2usb_winamp -t uploadfs --upload-port /dev/ttyUSB0   # SPIFFS only
@@ -107,26 +107,26 @@ Exit 0 = all pass. This is the minimum safety gate before committing structural 
 
 ### Skin asset bake (M2)
 
-Host-side bake of `skins/base-2.91.wsz` → `SpotifyDiyThing/gen/skin_assets.c` + `skin_layout.h`. Run on demand (not a PIO pre-build hook):
+Host-side bake of `skins/base-2.91.wsz` → `app/gen/skin_assets.c` + `skin_layout.h`. Run on demand (not a PIO pre-build hook):
 
 ### Python venv
 
 **Project venv:** `~/proj/esp/venv` — use this for all host-side Python tools.
 
 ```sh
-~/proj/esp/venv/bin/python3 tools/bake_skin.py ...
-~/proj/esp/venv/bin/python3 tools/preview_layout.py ...
-~/proj/esp/venv/bin/python3 tools/run_serialdbg_tests.py ...
-~/proj/esp/venv/bin/python3 tools/run_sync_tests.py ...
+~/proj/esp/venv/bin/python3 app/tools/bake_skin.py ...
+~/proj/esp/venv/bin/python3 app/tools/preview_layout.py ...
+~/proj/esp/venv/bin/python3 app/tools/run_serialdbg_tests.py ...
+~/proj/esp/venv/bin/python3 app/tools/run_sync_tests.py ...
 ```
 
 Installed packages: `Pillow`, `numpy`, `pygame`, `pyserial`.
 
 ```sh
-cd Spotify-Diy-Thing/tools
-~/proj/esp/venv/bin/python3 bake_skin.py -i ../skins/base-2.91.wsz -o ../SpotifyDiyThing/gen
+cd app/tools
+~/proj/esp/venv/bin/python3 bake_skin.py -i ../skins/base-2.91.wsz -o ../gen
 # determinism check (T025): re-bake should be byte-identical to committed gen/
-cd ../SpotifyDiyThing/gen && sha256sum -c golden.sha256
+cd ../gen && sha256sum -c golden.sha256
 ```
 
 Deps: `python3-pillow` and **ImageMagick CLI** (`magick` on PATH). Pillow's `BI_RLE8` BMP decoder fails on Winamp's `TEXT.BMP`; the tool shells out to `magick` as a fallback. Without ImageMagick the font atlas step raises. See ADR-008.
@@ -136,7 +136,7 @@ Deps: `python3-pillow` and **ImageMagick CLI** (`magick` on PATH). Pillow's `BI_
 The monitor holds the port exclusive, blocking flashes. Run it in a detached tmux session so it can be killed/restarted around uploads:
 
 ```sh
-tmux new-session -d -s spotify-mon "~/.platformio/penv/bin/pio device monitor -e cyd2usb_winamp -p /dev/ttyUSB0"
+tmux new-session -d -s spotify-mon "cd ~/proj/esp_spotify/app && ~/.platformio/penv/bin/pio device monitor -e cyd2usb_winamp -p /dev/ttyUSB0"
 tmux capture-pane -t spotify-mon -p -S -500     # read last ~500 lines
 tmux kill-session -t spotify-mon                # before flashing
 ```
@@ -158,7 +158,7 @@ Two ways to populate the config:
 
 1. **Captive portal (interactive).** First boot or double-press reset within ~10s (`DoubleResetDetector`, `DRD_TIMEOUT=10`, SPIFFS-backed via `ESP_DRD_USE_SPIFFS=true`). Phone joins SSID `SpotifyDIY` / pw `thing123`. **Must use the "Configure WiFi" page**, not "Info" — only the configure page exposes the Client ID / Secret / Refresh Token text fields. If you save from the wifi-only page, those fields are written as empty strings and the OAuth URL renders with `client_id=` blank.
 
-2. **Pre-baked SPIFFS image (preferred when reflashing dev boards).** Put a fully-filled `data/spotify_diy_config.json` in the project root and run `pio run -e cyd2usb_winamp -t uploadfs`. Bypasses the portal entirely — wifi must still be configured separately the first time, but creds + refresh token are already there.
+2. **Pre-baked SPIFFS image (preferred when reflashing dev boards).** Put a fully-filled `Spotify-Diy-Thing/data/spotify_diy_config.json` (also accessible as `app/data/spotify_diy_config.json` via symlink) and run `pio run -e cyd2usb_winamp -t uploadfs` from `app/`. Bypasses the portal entirely — wifi must still be configured separately the first time, but creds + refresh token are already there.
 
 After SPIFFS has client ID + secret but no refresh token, the device enters "Refresh Token Mode" and serves a small auth-helper page on its LAN IP (`refreshToken.h`).
 
@@ -166,11 +166,11 @@ After SPIFFS has client ID + secret but no refresh token, the device enters "Ref
 
 As of Apr 2025 (all apps by Nov 2025), Spotify only accepts redirect URIs that are HTTPS, **except** loopback HTTP: `http://127.0.0.1:PORT/...` or `http://[::1]:PORT/...`. `localhost` and LAN IPs (`http://192.168.x.x/...`) are rejected at dashboard save time. The device's built-in flow uses its LAN IP, so it cannot complete the dashboard side anymore.
 
-Workaround used here: `../get_refresh_token.py` runs the Authorization Code flow on the host using `http://127.0.0.1:8888/callback/` (must be added to the Spotify app's Redirect URIs), prints the refresh token. Bake that into `data/spotify_diy_config.json` and `uploadfs`.
+Workaround used here: `get_refresh_token.py` (repo root) runs the Authorization Code flow on the host using `http://127.0.0.1:8888/callback/` (must be added to the Spotify app's Redirect URIs), prints the refresh token. Bake that into `Spotify-Diy-Thing/data/spotify_diy_config.json` and run `uploadfs` from `app/`.
 
 ### Hardcoded station WiFi (bypass captive portal)
 
-`SpotifyDiyThing/wifi_creds.h` (gitignored) opt-in shim. If present, `WifiManagerHandler.h` sees it via `__has_include` and short-circuits to `WiFi.begin(SSID, PASS)` before falling back to the portal. Format:
+`Spotify-Diy-Thing/SpotifyDiyThing/wifi_creds.h` (gitignored) opt-in shim. If present, `WifiManagerHandler.h` sees it via `__has_include` and short-circuits to `WiFi.begin(SSID, PASS)` before falling back to the portal. Format:
 
 ```c
 #define HARDCODED_WIFI_SSID "..."
@@ -188,7 +188,7 @@ Workaround: `dnsOverride.h` runs a tiny `AsyncUDP` resolver on the DUT itself. R
 Refresh loop (no app reflash):
 
 ```sh
-cd Spotify-Diy-Thing
+cd app
 tools/refresh_host_overrides.sh                                    # regenerates data/host_overrides.json via dig
 ~/.platformio/penv/bin/pio run -e cyd2usb_winamp -t uploadfs --upload-port /dev/ttyUSB0
 ```
@@ -214,12 +214,22 @@ No play/pause, volume, or seek/scrub. `SpotifyArduino::seek()` exists but is not
 
 PN532 detection runs unconditionally in `setup()` (`NFC_ENABLED` in the .ino). On hardware without the reader wired up, expect `Didn't find PN53x board` / `NFC reader - not working!!!` / `NFC Bad` in the boot log — non-fatal, the device continues normally. Set `NFC_ENABLED 0` to skip the probe.
 
-### Code layout (all under `SpotifyDiyThing/`)
+### Code layout
 
-- `SpotifyDiyThing.ino` — main loop, display-type `#define` selection, Spotify polling.
+**Our firmware** (`app/src/`):
+- `main.cpp` — app shell entry point (was `SpotifyDiyThing.ino`).
+- `winamp/winampDisplay.h`, `winamp/vuMeter.h` — Winamp skin renderer.
+- `appShell.h` — app registry, `switchApp()`, tick/input dispatch (M-MULTIAPP stub).
+- `taskbar/taskbar.h` — taskbar renderer stub (M-MULTIAPP).
+- `screenLog.h` — full-screen log overlay (SCREEN_LOG env).
+- `spotifyTask.h` / `spotifyTaskStorage.cpp` — async Spotify HTTP FreeRTOS task.
+- `logSink.h` / `logSinkStorage.cpp`, `logHeartbeat.h`, `logDecode.h`, `logServer.h` — logging stack.
+- `perf.h`, `secret.h`, `serialPrint.h` — utilities.
+
+**Upstream files** (`Spotify-Diy-Thing/SpotifyDiyThing/`, included via `lib_extra_dirs`):
 - `spotifyLogic.h` — Spotify API call + state-machine logic.
-- `spotifyDisplay.h` — display abstraction (the indirection that lets `cheapYellowLCD.h` and `matrixDisplay.h` swap in via the `*_DISPLAY` flag).
-- `cheapYellowLCD.h` / `matrixDisplay.h` — concrete display backends.
+- `spotifyDisplay.h` — display abstraction (superseded by app shell; kept for upstream compat).
+- `cheapYellowLCD.h` / `matrixDisplay.h` — concrete display backends (cheapYellowLCD.h has PATCH-001).
 - `nfc.h` — optional PN532 NFC reader; tags carry Spotify URIs/URLs that get played on swipe. Set `NFC_ENABLED 0` in the `.ino` to disable. `writeContextToNfc` toggles writing the currently-playing context back to a tag (off for albums that auto-flow into related songs).
 - `touchScreen.h` / `CYD28_TouchscreenR.{h,cpp}` — CYD touch input (rotated coordinates).
 - `configFile.h` — SPIFFS-backed persisted config.

@@ -16,7 +16,7 @@ Pin this to the upstream commit that was current when Option B was adopted
 
 ```
 upstream remote: https://github.com/witnessmenow/Spotify-Diy-Thing.git
-upstream ref:    <fill in: git rev-parse HEAD on the upstream clone at pull time>
+upstream ref:    6eb95ffd546482423c88f647a527b89de633059d  (origin/main as of 2026-05-24)
 ```
 
 ## Patch table

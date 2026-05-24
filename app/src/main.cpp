@@ -1,0 +1,656 @@
+/*******************************************************************
+    Displays Album Art on a 320 x 240 ESP32.
+
+    Parts:
+    ESP32 With Built in 320x240 LCD with Touch Screen (ESP32-2432S028R)
+    https://github.com/witnessmenow/Spotify-Diy-Thing#hardware-required
+
+ *******************************************************************/
+
+// ----------------------------
+// Display type
+// ---------------------------
+
+// This project currently supports the following displays
+// (Uncomment the required #define)
+
+// 1. Cheap yellow display (Using TFT-eSPI library)
+// #define YELLOW_DISPLAY
+
+// 2. Matrix Displays (Like the ESP32 Trinity)
+// #define MATRIX_DISPLAY
+
+// 3. Winamp 2 skin renderer on CYD2USB (M3 — uses gen/ atlas)
+// #define WINAMP_DISPLAY
+
+// If no defines are set, it will default to CYD
+#if !defined(YELLOW_DISPLAY) && !defined(MATRIX_DISPLAY) && !defined(WINAMP_DISPLAY)
+#define YELLOW_DISPLAY // Default to Yellow Display for display type
+#endif
+
+// Album art disabled while the i.scdn.co fetch hang is unresolved.
+// Comment out to re-enable.
+#define DISABLE_ALBUM_ART 1
+
+// NFC disabled per TASK-004: PN532 not wired on this dev unit.
+// Code uses #ifdef NFC_ENABLED, so commenting (not setting to 0) is what disables it.
+//#define NFC_ENABLED 1
+
+// This causes issues in certain circumstances e.g. Play an album and let it auto play to related songs
+bool writeContextToNfc = true;
+
+// ----------------------------
+// Library Defines - Need to be defined before library import
+// ----------------------------
+
+#define ESP_DRD_USE_SPIFFS true
+
+// ----------------------------
+// Standard Libraries
+// ----------------------------
+#include <Arduino.h>
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+
+#include <FS.h>
+#include "SPIFFS.h"
+#include <time.h>     // configTime(), time(); needed for NTP sync at boot (time-001)
+#include <esp_ota_ops.h>  // esp_ota_get_app_description() for serialdbg-001 boot banner (Arduino-ESP32 2.0.x; esp-idf 5.x renames this to <esp_app_desc.h>)
+
+// ----------------------------
+// Additional Libraries - each one of these will need to be installed.
+// ----------------------------
+
+#include <WiFiManager.h>
+// Captive portal for configuring the WiFi
+
+// If installing from the library manager (Search for "WifiManager")
+// https://github.com/tzapu/WiFiManager
+
+#include <ESP_DoubleResetDetector.h>
+// A library for checking if the reset button has been pressed twice
+// Can be used to enable config mode
+// Can be installed from the library manager (Search for "ESP_DoubleResetDetector")
+// https://github.com/khoih-prog/ESP_DoubleResetDetector
+
+#include <SpotifyArduino.h>
+
+// including a "spotify_server_cert" variable
+// header is included as part of the SpotifyArduino libary
+#include <SpotifyArduinoCert.h>
+
+#include <ArduinoJson.h>
+
+WiFiClientSecure client;
+
+//------- Replace the following! ------
+
+// Country code, including this is advisable
+// SPOTIFY_MARKET moved to common_cyd build_flags so both .ino and
+// spotifyTaskStorage.cpp see the same value (TASK-031b).
+#ifndef SPOTIFY_MARKET
+#define SPOTIFY_MARKET "IE"
+#endif
+//------- ---------------------- ------
+
+// ----------------------------
+// Internal includes
+// ----------------------------
+#include "refreshToken.h"
+
+#include "spotifyDisplay.h"
+
+#include "spotifyLogic.h"
+
+#include "configFile.h"
+
+#include "serialPrint.h"
+
+#include "WifiManagerHandler.h"
+
+#include "dnsOverride.h"
+
+#include "httpsDate.h"
+
+#include "logSink.h"
+#include "logServer.h"
+#include "logHeartbeat.h"
+#include "perf.h"
+#include "spotifyTask.h"
+#ifdef SCREEN_LOG
+#include "screenLog.h"
+#endif
+#ifdef WINAMP_DISPLAY
+#include "winamp/vuMeter.h"
+#endif
+
+// ----------------------------
+// App shell
+// ----------------------------
+#include "appShell.h"
+#include "taskbar/taskbar.h"
+
+AppId currentAppId = AppId::Spotify;
+
+// ----------------------------
+// Display Handling Code
+// ----------------------------
+
+// WINAMP_DISPLAY is checked first so that envs which define it on top of
+// YELLOW_DISPLAY (cyd2usb_winamp inherits common_cyd) pick the Winamp renderer.
+#if defined WINAMP_DISPLAY
+
+#include "winamp/winampDisplay.h"
+WinampDisplay winampDisplay;
+SpotifyDisplay *spotifyDisplay = &winampDisplay;
+
+#elif defined YELLOW_DISPLAY
+
+#include "cheapYellowLCD.h"
+CheapYellowDisplay cyd;
+SpotifyDisplay *spotifyDisplay = &cyd;
+
+#elif defined MATRIX_DISPLAY
+#include "matrixDisplay.h"
+MatrixDisplay matrixDisplay;
+SpotifyDisplay *spotifyDisplay = &matrixDisplay;
+
+#endif
+// ----------------------------
+
+#ifdef NFC_ENABLED
+#include "nfc.h"
+#endif
+
+#ifdef SPIKE_MODE
+#include "spikeMode.h"
+#endif
+
+void drawWifiManagerMessage(WiFiManager *myWiFiManager)
+{
+  spotifyDisplay->drawWifiManagerMessage(myWiFiManager);
+}
+
+// ── App dispatch (M-MULTIAPP skeleton, TASK-083 step 4) ────────────────
+// switchApp() and appHandleInput() are stubs: Spotify is the only app.
+// Full multi-app dispatch is M-MULTIAPP work.
+
+void switchApp(AppId next) {
+  if (next == currentAppId) return;
+  currentAppId = next;  // stub — no state save/restore yet
+}
+
+void appHandleInput(AppId) {
+  spotifyDisplay->checkForInput();
+}
+
+void appTick(AppId) {
+#ifdef WINAMP_DISPLAY
+  vu::tick(winampDisplay.chromeOriginX(), winampDisplay.chromeOriginY(), SKIN_MAIN_BG);
+  winampDisplay.drawPlaylist();
+#endif
+  bool forceUpdate = false;
+#ifdef NFC_ENABLED
+  if (writeContextToNfc) {
+    forceUpdate = nfcLoop(lastTrackUri, lastTrackContextUri);
+  } else {
+    forceUpdate = nfcLoop(lastTrackUri);
+  }
+#endif
+  { unsigned long _t = millis(); updateCurrentlyPlaying(forceUpdate);
+    perf::record("spotify.poll", millis() - _t); }
+  { unsigned long _t = millis(); updateProgressBar();
+    perf::record("display.bar", millis() - _t); }
+}
+
+void setup()
+{
+  Serial.begin(115200);
+
+  // serialdbg-001 (TASK-056b): unconditional boot banner. Carved out of the
+  // SERIAL_DEBUG gate per ADR-021 Decision 4 as a production-safe diagnostic
+  // — gives any host (test rig or end user) a deterministic way to confirm
+  // which firmware is actually flashed without round-tripping a command.
+  // GIT_REV comes from scripts/inject_git_hash.py; "n/a" when undefined
+  // (e.g. non-debug envs that skip the pre-script).
+  {
+    const esp_app_desc_t *d = esp_ota_get_app_description();
+    char elf[9];
+    snprintf(elf, sizeof(elf), "%02x%02x%02x%02x",
+             d->app_elf_sha256[0], d->app_elf_sha256[1],
+             d->app_elf_sha256[2], d->app_elf_sha256[3]);
+    Serial.printf("[boot] git=%s elf=%s build=%s %s\n",
+#ifdef GIT_REV
+        GIT_REV,
+#else
+        "n/a",
+#endif
+        elf, __DATE__, __TIME__);
+  }
+
+  logsink::begin();
+
+  bool forceConfig = false;
+
+  drd = new DoubleResetDetector(DRD_TIMEOUT, DRD_ADDRESS);
+  if (drd->detectDoubleReset())
+  {
+    Serial.println(F("Forcing config mode as there was a Double reset detected"));
+    forceConfig = true;
+  }
+
+  spotifyDisplay->displaySetup(&spotify);
+
+#ifdef NFC_ENABLED
+  if (nfcSetup(&spotify, spotifyDisplay))
+  {
+    Serial.println("NFC Good");
+  }
+  else
+  {
+    Serial.println("NFC Bad");
+  }
+#endif
+
+  // Initialise SPIFFS, if this fails try .begin(true)
+  // NOTE: I believe this formats it though it will erase everything on
+  // spiffs already! In this example that is not a problem.
+  // I have found once I used the true flag once, I could use it
+  // without the true flag after that.
+  bool spiffsInitSuccess = SPIFFS.begin(false) || SPIFFS.begin(true);
+  if (!spiffsInitSuccess)
+  {
+    Serial.println("SPIFFS initialisation failed!");
+    while (1)
+      yield(); // Stay here twiddling thumbs waiting
+  }
+  Serial.println("\r\nInitialisation done.");
+
+  refreshToken[0] = '\0';
+  if (!fetchConfigFile(refreshToken, clientId, clientSecret))
+  {
+    // Failed to fetch config file, need to launch Wifi Manager
+    forceConfig = true;
+  }
+
+  setupWiFiManager(forceConfig, refreshToken, &saveConfigFile, &drawWifiManagerMessage);
+
+  // If we are here we should be connected to the Wifi
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  // dns-override: optional, no-op if /host_overrides.json is missing.
+  // Workaround for upstreams that block DNS for tethered clients.
+  dnsOverrideSetup();
+
+  // time-001: SNTP sync before any TLS. ESP32 has no RTC; without this the
+  // clock starts ~1970 and mbedTLS rejects current Spotify certs (notBefore
+  // in the future), surfacing as a generic "send_ssl_data 0x0050" failure.
+  // 5 s bounded wait, non-fatal on timeout.
+  configTime(0, 0, "pool.ntp.org", "time.google.com", "time.cloudflare.com");
+  unsigned long ntpStart = millis();
+  unsigned long ntpDeadline = ntpStart + 5000;
+  while (time(nullptr) < 1700000000UL && millis() < ntpDeadline) {
+    delay(50);
+    yield();
+  }
+  time_t now = time(nullptr);
+  if (now >= 1700000000UL) {
+    Serial.printf("[time] synced epoch=%ld in %lums\n", (long)now, millis() - ntpStart);
+  } else {
+    Serial.printf("[time] NTP sync failed after %lums, trying HTTPS-Date fallback\n",
+                  millis() - ntpStart);
+    time_t httpsT;
+    if (fetchHttpsDate("connectivitycheck.gstatic.com", httpsT)) {
+      struct timeval tv = {httpsT, 0};
+      settimeofday(&tv, nullptr);
+      Serial.printf("[time] HTTPS-Date set epoch=%ld\n", (long)httpsT);
+    } else {
+      time_t b = buildEpoch();
+      struct timeval tv = {b, 0};
+      settimeofday(&tv, nullptr);
+      Serial.printf("[time] WARN: NTP+HTTPS-Date failed, falling back to build epoch=%ld\n", (long)b);
+    }
+  }
+
+  spotifySetup(spotifyDisplay, clientId, clientSecret);
+
+#if defined YELLOW_DISPLAY
+
+  pinMode(0, INPUT); // has an internal pullup
+  bool forceRefreshToken = digitalRead(0) == LOW;
+  if (forceRefreshToken)
+  {
+    Serial.println("GPIO 0 is low, forcing refreshToken");
+  }
+
+#else
+  bool forceRefreshToken = false;
+
+#endif
+
+  // Check if we have a refresh Token
+  if (forceRefreshToken || refreshToken[0] == '\0')
+  {
+
+    spotifyDisplay->drawRefreshTokenMessage();
+    Serial.println("Launching refresh token flow");
+    if (launchRefreshTokenFlow(&spotify, clientId))
+    {
+      Serial.printf("Refresh token acquired: %s\n", redact(refreshToken));
+      saveConfigFile(refreshToken, clientId, clientSecret);
+    }
+  }
+
+  spotifyRefreshToken(refreshToken);
+
+  // Onboarding (WiFiManager portal + refreshToken.h flow) is done; both
+  // would have held port 80. Stand up the permanent /log server now.
+  logsink::serverBegin();
+
+  // ADR-012 / TASK-031a: spawn the async Spotify HTTP task. Skeleton at
+  // this stage — task dequeues + logs but doesn't issue API calls yet.
+  // 031b/c migrate the actual calls in.
+  spotifyTask::begin(&spotify);
+
+  spotifyDisplay->showDefaultScreen();
+
+#ifdef SPIKE_MODE
+  spike::setup(&spotify);
+#endif
+}
+
+// ── serial command dispatcher (serialdbg-001, TASK-056c) ───────────────
+// Table-driven replacement for the old TASK-053e strcmp chain. Non-debug
+// commands (reconnect, the boot-time `[boot]` line) are always compiled
+// in per ADR-021 Decision 4; SERIAL_DEBUG-gated commands (tap, drag, get,
+// set, info, help) are added by sub-tasks d-i.
+//
+// Output convention: every command emits exactly one JSON object on one
+// '\n'-terminated line. Hosts parse with `json.loads(line)`.
+
+static void cmdReconnect(const char *) {
+  spotifyTask::resetTls();
+  spotifyTask::enqueue(spotifyTask::ACT_FORCE_POLL);
+  Serial.println("{\"ok\":true,\"cmd\":\"reconnect\"}");
+}
+
+// 4-field struct; help + args iterated by cmdHelp (TASK-056i).
+typedef void (*cmd_fn)(const char *args);
+struct SerialCmd {
+  const char *name;
+  cmd_fn      fn;
+  const char *help;
+  const char *args;
+};
+
+// TASK-056e: touch-injection ring buffer (SERIAL_DEBUG only).
+// drainInjectionQueue() pops one step per loop() iteration — no delay().
+// cmdDrag fills the queue and returns; JSON response emitted on release step.
+#ifdef SERIAL_DEBUG
+struct InjectionStep { int sx, sy; bool release; };
+static InjectionStep s_injectQueue[64];
+static int s_injectHead = 0, s_injectTail = 0;
+static bool s_dragPending = false;
+static int s_pendingDragX1, s_pendingDragY1,
+           s_pendingDragX2, s_pendingDragY2, s_pendingDragSteps;
+static int s_injectTotal = 0;  // total steps for LOG_D %d/%d
+
+// Forward declarations so kCmds[] can reference the handlers before they
+// are defined (they must appear after kCmds[] to see kNumCmds).
+static void cmdTap(const char *);
+static void cmdDrag(const char *);
+static void cmdGet(const char *);
+static void cmdSet(const char *);
+static void cmdInfo(const char *);
+static void cmdHelp(const char *);
+#endif
+
+static const SerialCmd kCmds[] = {
+  { "reconnect", cmdReconnect, "TLS reset + force poll", "" },
+#ifdef SERIAL_DEBUG
+  { "tap",  cmdTap,  "inject touch point",              "<x> <y>"                            },
+  { "drag", cmdDrag, "inject touch drag (queue-drain)", "<x1> <y1> <x2> <y2> <steps>"        },
+  { "get",  cmdGet,  "read internal state",             "<snapshot|backoff|heap|cooldown>"    },
+  { "set",  cmdSet,  "write debug state",               "<backoff|cooldown> <val>"            },
+  { "info", cmdInfo, "git+elf+build+snapshot summary",  ""                                   },
+  { "help", cmdHelp, "list commands",                   ""                                   },
+#endif
+};
+static constexpr int kNumCmds = sizeof(kCmds) / sizeof(kCmds[0]);
+
+// TASK-056e: drain one injection step per loop() iteration.
+static inline void drainInjectionQueue() {
+#ifdef SERIAL_DEBUG
+  if (s_injectHead == s_injectTail) return;
+  InjectionStep &step = s_injectQueue[s_injectHead % 64];
+  WinampDisplay *wd = static_cast<WinampDisplay*>(spotifyDisplay);
+  if (step.release) {
+    wd->injectRelease();
+    s_dragPending = false;
+    Serial.printf("{\"ok\":true,\"cmd\":\"drag\","
+                  "\"x1\":%d,\"y1\":%d,\"x2\":%d,\"y2\":%d,\"steps\":%d}\n",
+                  s_pendingDragX1, s_pendingDragY1,
+                  s_pendingDragX2, s_pendingDragY2, s_pendingDragSteps);
+  } else {
+    // Log only for move samples; release sentinel's sx/sy are 0/0 and
+    // counting it inflates T096's sample tally by one.
+    LOG_D("serial", "inject sample %d/%d sx=%d sy=%d",
+          s_injectHead + 1, s_injectTotal - 1, step.sx, step.sy);
+    wd->injectTouch(step.sx, step.sy);
+  }
+  ++s_injectHead;
+#endif
+}
+
+static void handleSerialCommands() {
+  static char buf[64];
+  static int  len = 0;
+  while (Serial.available()) {
+    char c = (char)Serial.read();
+    if (c == '\n' || c == '\r') {
+      buf[len] = '\0';
+      if (len > 0) {
+        // Split "name args" at first space; args may be "".
+        char *sp = strchr(buf, ' ');
+        const char *args = sp ? sp + 1 : "";
+        if (sp) *sp = '\0';
+        bool handled = false;
+        for (int i = 0; i < kNumCmds; ++i) {
+          if (strcmp(buf, kCmds[i].name) == 0) {
+            kCmds[i].fn(args);
+            handled = true;
+            break;
+          }
+        }
+        if (!handled) {
+          Serial.printf("{\"ok\":false,\"error\":\"unknown command\",\"cmd\":\"%s\"}\n", buf);
+        }
+      }
+      len = 0;
+    } else if (len < (int)sizeof(buf) - 1) {
+      buf[len++] = c;
+    } else {
+      // Buffer full before newline — drop the partial, WARN, resync on next '\n'.
+      // (Next newline will be misaligned; host-side scripts must treat the
+      // following line as garbage.)
+      Serial.println("{\"ok\":false,\"error\":\"line too long\"}");
+      len = 0;
+    }
+  }
+}
+
+// ── SERIAL_DEBUG command implementations (TASK-056e/h/i) ─────────────
+// All compile only when SERIAL_DEBUG is defined (cyd2usb_winamp_debug env).
+// Each emits exactly one '\n'-terminated JSON object (ADR-021 invariant),
+// except `get snapshot` which may emit two via multi-part protocol.
+#ifdef SERIAL_DEBUG
+
+static void cmdTap(const char *args) {
+  int x, y;
+  if (sscanf(args, "%d %d", &x, &y) != 2) {
+    Serial.println("{\"ok\":false,\"cmd\":\"tap\",\"error\":\"bad args — tap <x> <y>\"}");
+    return;
+  }
+  spotifyDisplay->injectTouch(x, y);
+  spotifyDisplay->injectRelease();
+  WinampDisplay *wd = static_cast<WinampDisplay*>(spotifyDisplay);
+  const auto &r = wd->lastTouchResult;
+  if (strcmp(r.region, "TRANSPORT") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                  "\"hit\":\"%s\",\"pressed\":%d,\"action\":\"%s\",\"skipped\":%s}\n",
+                  x, y, r.region, r.transportPressed, r.action,
+                  r.skipped ? "true" : "false");
+  } else if (strcmp(r.region, "PLEDIT") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                  "\"hit\":\"%s\",\"row\":%d,\"action\":\"%s\",\"skipped\":%s}\n",
+                  x, y, r.region, r.transportPressed, r.action,
+                  r.skipped ? "true" : "false");
+  } else if (strcmp(r.region, "POSBAR") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                  "\"hit\":\"%s\",\"seekMs\":%ld,\"action\":\"%s\",\"skipped\":%s}\n",
+                  x, y, r.region, r.seekMs, r.action,
+                  r.skipped ? "true" : "false");
+  } else if (strcmp(r.region, "VOLUME") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                  "\"hit\":\"%s\",\"volumePct\":%ld,\"action\":\"%s\",\"skipped\":%s}\n",
+                  x, y, r.region, r.volumePct, r.action,
+                  r.skipped ? "true" : "false");
+  } else {
+    Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                  "\"hit\":\"%s\",\"action\":\"%s\",\"skipped\":%s}\n",
+                  x, y, r.region, r.action, r.skipped ? "true" : "false");
+  }
+}
+
+static void cmdDrag(const char *args) {
+  int x1, y1, x2, y2, steps;
+  if (sscanf(args, "%d %d %d %d %d", &x1, &y1, &x2, &y2, &steps) != 5
+      || steps < 1 || steps > 62) {
+    Serial.println("{\"ok\":false,\"cmd\":\"drag\","
+                   "\"error\":\"bad args — drag <x1> <y1> <x2> <y2> <steps=1..62>\"}");
+    return;
+  }
+  WinampDisplay *wd = static_cast<WinampDisplay*>(spotifyDisplay);
+  wd->_injectingDrag = true;
+  s_injectHead = s_injectTail = 0;
+  for (int i = 0; i <= steps; ++i) {
+    s_injectQueue[s_injectTail++ % 64] = {
+      x1 + (x2 - x1) * i / steps,
+      y1 + (y2 - y1) * i / steps,
+      false
+    };
+  }
+  s_injectQueue[s_injectTail++ % 64] = { 0, 0, true };  // release sentinel
+  s_pendingDragX1 = x1; s_pendingDragY1 = y1;
+  s_pendingDragX2 = x2; s_pendingDragY2 = y2;
+  s_pendingDragSteps = steps;
+  s_injectTotal = s_injectTail;
+  s_dragPending = true;
+  // JSON response emitted by drainInjectionQueue() when release step pops.
+}
+
+static void cmdGet(const char *args) {
+  char buf[256]; buf[0] = '\0';
+  if ((spotifyDisplay && spotifyDisplay->dbgGet(args, buf, sizeof(buf)))
+      || spotifyTask::dbg_get(args, buf, sizeof(buf))) {
+    // buf[0]=='\0' means the owner used multi-part Serial.printf directly.
+    if (buf[0]) {
+      Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
+    }
+    return;
+  }
+  Serial.printf("{\"ok\":false,\"cmd\":\"get\","
+                "\"error\":\"unknown var\",\"var\":\"%s\"}\n", args);
+}
+
+static void cmdSet(const char *args) {
+  char var[32], val[32];
+  if (sscanf(args, "%31s %31s", var, val) != 2) {
+    Serial.println("{\"ok\":false,\"cmd\":\"set\",\"error\":\"bad args\"}");
+    return;
+  }
+  if ((spotifyDisplay && spotifyDisplay->dbgSet(var, val))
+      || spotifyTask::dbg_set(var, val)) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\","
+                  "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
+    return;
+  }
+  Serial.printf("{\"ok\":false,\"cmd\":\"set\","
+                "\"error\":\"unknown var\",\"var\":\"%s\"}\n", var);
+}
+
+static void cmdInfo(const char *) {
+  spotifyTask::Snapshot snap;
+  spotifyTask::copySnapshot(&snap);
+  const esp_app_desc_t *d = esp_ota_get_app_description();
+  char elf[9];
+  snprintf(elf, sizeof(elf), "%02x%02x%02x%02x",
+           d->app_elf_sha256[0], d->app_elf_sha256[1],
+           d->app_elf_sha256[2], d->app_elf_sha256[3]);
+  Serial.printf(
+    "{\"ok\":true,\"cmd\":\"info\","
+    "\"git\":\"%s\",\"elf\":\"%s\",\"build\":\"%s %s\","
+    "\"heap\":%lu,\"isPlaying\":%s,\"progressMs\":%ld,"
+    "\"durationMs\":%ld,\"volumePct\":%d,"
+    "\"shuffle\":%s,\"repeat\":%d,\"consecutiveFailures\":%u}\n",
+#ifdef GIT_REV
+    GIT_REV,
+#else
+    "n/a",
+#endif
+    elf, __DATE__, __TIME__,
+    (unsigned long)ESP.getFreeHeap(),
+    snap.isPlaying ? "true" : "false",
+    snap.progressMs,
+    snap.durationMs,
+    (int)snap.volumePercent,
+    snap.shuffleState ? "true" : "false",
+    (int)snap.repeatState,
+    spotifyTask::dbg_getFailureCount());
+}
+
+static void cmdHelp(const char *) {
+  // Single JSON line — iterate kCmds[]; table is the single source of truth.
+  Serial.print("{\"ok\":true,\"cmd\":\"help\",\"commands\":[");
+  for (int i = 0; i < kNumCmds; ++i) {
+    if (i > 0) Serial.print(",");
+    Serial.printf("{\"name\":\"%s\",\"args\":\"%s\",\"desc\":\"%s\"}",
+                  kCmds[i].name, kCmds[i].args, kCmds[i].help);
+  }
+  Serial.println("]}");
+}
+
+#endif // SERIAL_DEBUG
+
+void loop()
+{
+  unsigned long _loopStart = millis();
+
+  drd->loop();
+  drainInjectionQueue();   // serialdbg-001: pops one injection step per iter (TASK-056e)
+  handleSerialCommands();
+  logsink::serverLoop();
+  heartbeat::tick();
+#ifdef SCREEN_LOG
+  { unsigned long _t = millis(); screenlog::tick(spotifyDisplay);
+    perf::record("screenlog.tick", millis() - _t); }
+#endif
+
+#ifdef SPIKE_MODE
+  spike::loop();
+#endif
+
+  { unsigned long _t = millis(); appHandleInput(currentAppId);
+    perf::record("display.input", millis() - _t); }
+
+  { unsigned long _t = millis(); appTick(currentAppId);
+    perf::record("app.tick", millis() - _t); }
+
+  unsigned long _loopMs = millis() - _loopStart;
+  perf::recordLoop(_loopMs);
+  if (_loopMs > 50) {
+    LOG_W("perf", "iter=%lums (worst path so far: %s:%ums)",
+          _loopMs, perf::worstPathName(), (unsigned)perf::worstPathMs());
+  }
+}

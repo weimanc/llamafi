@@ -7,8 +7,8 @@ set -euo pipefail
 PROJ_ROOT="$(cd "$(dirname "$0")" && pwd)"
 PIO="$HOME/.platformio/penv/bin/pio"
 VENV_PY="$HOME/proj/esp/venv/bin/python3"
-PIO_DIR="$PROJ_ROOT/Spotify-Diy-Thing"
-GEN_DIR="$PIO_DIR/SpotifyDiyThing/gen"
+PIO_DIR="$PROJ_ROOT/app"
+GEN_DIR="$PROJ_ROOT/app/gen"
 
 PASS=0
 FAIL=0
