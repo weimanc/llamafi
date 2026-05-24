@@ -15,7 +15,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-087 — M-MULTIAPP step 2: taskbar + app-shell + Clock app
 **Owner**: Developer
 **Feature**: taskbar-001, clock-001 (new)
-**Status**: done (2026-05-24 — check_build.sh 3/3 pass; BUG-1 fixed; T147/T148 written; DUT smoke test pending VE sign-off)
+**Status**: done (2026-05-24 — check_build.sh 3/3 pass; BUG-1 fixed; DUT flash + smoke test PASS; T076/T081/T082/T086/T087/T088/T134–T140/T147/T148 all pass 15/15)
 **Blocks**: M-MULTIAPP step 3 (Matrix, GoL, Weather, Crypto apps)
 **Notes**:
 - **TASK-087a** (`taskbar.h`): `renderTaskbar(TFT_eSPI& tft, AppId activeApp)` — fills 45×240 strip with TASKBAR_BG_RGB565, draws icon letters S/C/W/$/M/G (TFT font 4), separator lines (TASKBAR_SEP_COLOR), and 3 px active-indicator bar (TASKBAR_ACTIVE_COLOR) on the active slot.

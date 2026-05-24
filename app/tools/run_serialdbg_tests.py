@@ -680,31 +680,37 @@ def t087(dut: Dut):
 
 def t088(dut: Dut):
     print("T088  DEADZONE positive cases — canvas corners + dead-zone samples")
-    # All samples must return hit=DEADZONE, action=FORCE_POLL.
     _pbx0, _pbx1, _pby0, _pby1 = _c.posbar_bounds()
     _pbxm, _pbym = _c.tap_posbar()
     _gap_y = _pby1 + 1 + (int(_c.S["CB_PREV_Y"]) - _pby1 - 1) // 2
     _trans_bot = int(_c.S["CB_PREV_Y"]) + int(_c.S["CB_PREV_H"])
-    _win_w = int(_c.S["WINDOW_W"])
-    _win_h = int(_c.S["WINDOW_H"])
-    cases = [
-        # Design-doc dead zones
-        ("dead-posbar-left",  _pbx0 - 1,              _pbym),
-        ("dead-posbar-top",   _pbxm,                   _pby0 - 1),
-        ("dead-gap-posbar-transport", _pbxm,            _gap_y),
-        ("dead-below-transport",      _pbxm,            _trans_bot + 1),
-        # Canvas corners (well outside all chrome)
-        ("corner-TL",           0,                  0),
-        ("corner-TR",           _c.SCREEN_W - 1,    0),
-        ("corner-BL",           0,                  _c.SCREEN_H - 1),
-        ("corner-BR",           _c.SCREEN_W - 1,    _c.SCREEN_H - 1),
-        # 1 px outside chrome bounding box
-        ("1px-left-chrome",   _c.ORIGIN_X - 1,          _win_h // 2),
-        ("1px-right-chrome",  _c.ORIGIN_X + _win_w + 1,  _win_h // 2),
-        ("1px-below-chrome",  _c.ORIGIN_X + _win_w // 2, _win_h + 1),
+    _win_w = int(_c.S["WINDOW_W"])   # 275
+    _win_h = int(_c.S["WINDOW_H"])   # 116
+
+    # Coords with x < TASKBAR_X: expected DEADZONE / FORCE_POLL while Spotify active.
+    # corner-TR/BR and 1px-right-chrome are now in the taskbar strip; tested below.
+    deadzone_cases = [
+        ("dead-posbar-left",           _pbx0 - 1,                  _pbym),
+        ("dead-posbar-top",            _pbxm,                      _pby0 - 1),
+        ("dead-gap-posbar-transport",  _pbxm,                      _gap_y),
+        ("dead-below-transport",       _pbxm,                      _trans_bot + 1),
+        ("corner-TL",                  0,                           0),
+        ("corner-BL",                  0,                           _c.SCREEN_H - 1),
+        ("1px-left-chrome",            _c.ORIGIN_X - 1,             _win_h // 2),
+        ("1px-below-chrome",           _c.ORIGIN_X + _win_w // 2,   _win_h + 1),
     ]
+
+    # Coords with x >= TASKBAR_X: expected TASKBAR (may call switchApp — restore after).
+    taskbar_cases = [
+        ("corner-TR",        _c.SCREEN_W - 1,            0),
+        ("corner-BR",        _c.SCREEN_W - 1,            _c.SCREEN_H - 1),
+        ("1px-right-chrome", _c.ORIGIN_X + _win_w + 1,   _win_h // 2),
+    ]
+
     errors = []
-    for label, x, y in cases:
+
+    # DEADZONE checks (run first, while Spotify is guaranteed active at test start).
+    for label, x, y in deadzone_cases:
         dut.set_cooldown_zero()
         r = dut.cmd(f"tap {x} {y}")
         hit = r.get("hit", "")
@@ -714,10 +720,23 @@ def t088(dut: Dut):
         elif action != "FORCE_POLL":
             errors.append(f"{label}({x},{y}): action={action} (expected FORCE_POLL)")
 
+    # TASKBAR checks (x >= TASKBAR_X — these are correct; corner-TR/BR/right-chrome
+    # are now valid taskbar slots, not dead zones).
+    for label, x, y in taskbar_cases:
+        dut.set_cooldown_zero()
+        r = dut.cmd(f"tap {x} {y}")
+        hit = r.get("hit", "")
+        if hit != "TASKBAR":
+            errors.append(f"{label}({x},{y}): hit={hit} (expected TASKBAR)")
+
+    # Taskbar taps may have switched the active app (e.g. corner-BR → Life).
+    # Restore to Spotify so subsequent tests start in a known state.
+    _restore_spotify(dut)
+
     if errors:
         fail("T088", "; ".join(errors))
     else:
-        pass_("T088", f"{len(cases)}/{len(cases)} DEADZONE checks correct")
+        pass_("T088", f"{len(deadzone_cases)} DEADZONE + {len(taskbar_cases)} TASKBAR correct")
 
 
 # ── T090 — reconnect command emits JSON response ─────────────────────────────
@@ -971,6 +990,9 @@ def t133(dut: Dut):
 
 def t134(dut: Dut):
     print("T134  Zone 1 hit-test: tap in PLEDIT content area")
+    if not _restore_spotify(dut):
+        fail("T134", "precondition: could not restore Spotify app")
+        return
     if not dut.wait_for_queue(min_count=1):
         fail("T134", "precondition: queue count=0 after 30s — Spotify not playing?")
         return
@@ -1044,6 +1066,20 @@ def t135(dut: Dut):
 
 
 # ── shared drag helper (T136–T140) ────────────────────────────────────────────
+
+def _restore_spotify(dut: Dut, timeout: float = 3.0) -> bool:
+    """Ensure currentAppId == Spotify; tap taskbar slot 0 if not. Returns True on success."""
+    import time
+    r = dut.cmd("get appId", timeout=timeout)
+    if r.get("name") == "Spotify":
+        return True
+    dut.set_cooldown_zero()
+    sx, sy = _c.tap_taskbar_slot(0)
+    dut.cmd(f"tap {sx} {sy}", timeout=timeout)
+    time.sleep(0.3)
+    r2 = dut.cmd("get appId", timeout=timeout)
+    return r2.get("name") == "Spotify"
+
 
 def _do_drag(dut: Dut, x1: int, y1: int, x2: int, y2: int,
              steps: int = 30, timeout: float = 15.0) -> dict | None:

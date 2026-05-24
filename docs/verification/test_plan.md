@@ -2153,7 +2153,7 @@ See design doc `docs/architecture/designs/audit-origin.md`.
   6. `get appId` — assert `name == "Spotify"`.
 - **Expected result**: Round-trip confirmed. `id` field increments to 1 (Clock) then returns to 0 (Spotify).
 - **Harness**: `run_serialdbg_tests.py --tests T147`. Owner: VE.
-- **Status**: written (2026-05-24). DUT run pending.
+- **Status**: **pass** (2026-05-24).
 
 ### T148 — [shell-layout-001, touch-002] Clock canvas tap: no Winamp zone leak
 
@@ -2171,7 +2171,7 @@ See design doc `docs/architecture/designs/audit-origin.md`.
   5. Restore: `tap 297 20` (Spotify slot).
 - **Expected result**: `{"hit":"CLOCK","action":"NONE"}`. No `dequeued action=` log line visible in serial output.
 - **Harness**: `run_serialdbg_tests.py --tests T148`. Owner: VE.
-- **Status**: written (2026-05-24). DUT run pending.
+- **Status**: **pass** (2026-05-24).
 
 ---
 
