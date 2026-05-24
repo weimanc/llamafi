@@ -458,6 +458,7 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-027** → "Write `.gitignore` before first `git add` on any new build-tool project directory. For PlatformIO: `.pio/` excluded by default. Build outputs are predictable; exclude them proactively." Process rule, applies to Developer.
 - **LL-028** → "Spec steps that name a specific file for a code change must either be verified against the actual codebase or marked `[FILE TBD — confirm at implementation]`. Plausible-but-unverified file paths in specs are silent latent risks for agent hand-offs." Process rule, applies to Architect + PM (spec writers).
 - **LL-026** → "Reference image used → paired visual validation item required. Any element rendered from a reference image must have a VE/audit item that validates the rendered output against that image. No reference image consumed without a closing verification step." Strong promotion case: directly addresses a recurring human frustration; cost of the check is low (side-by-side screenshot); cost of skipping is 4+ wasted sessions. Applies to Developer (spec completeness) + VE (validation item creation).
+- **LL-029** → "Structural refactors must include a grep-for-old-paths step on moved files, plus a tool-script smoke-test gate (e.g. `python3 -c 'import coords'`) before close. A file move that does not update internal path strings is an incomplete migration. BP candidate — applicable to any project with host-side Python/shell tooling."
 
 ---
 
@@ -486,6 +487,39 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 **Suggested improvement**: If a spec step names a specific file for a change, it must either (a) be verified against the actual codebase before the task is assigned, or (b) be marked `[FILE TBD — confirm at implementation]` so the implementer knows to locate it rather than trust the attribution. Plausible-but-unverified file paths in specs are silent landmines.
 
 **Status**: open
+
+---
+
+### LL-029 — 2026-05-24 — Structural refactors must include a tool-script path audit as a mandatory gate
+
+**Context**: M-RESTRUCTURE (TASK-083) moved the project's tool scripts and generated artifacts from `Spotify-Diy-Thing/tools/` and `Spotify-Diy-Thing/SpotifyDiyThing/gen/` to `app/tools/` and `app/gen/`. The migration was mechanically correct for source files and the build system. However, the tool scripts themselves contain hardcoded path strings referencing their *own* outputs and sibling inputs. These strings were not updated.
+
+Discovered 2026-05-24 during a T102 re-run: the test harness imports `coords.py`, which — at the time — had a stale `pathlib.Path` pointing to `../SpotifyDiyThing/gen/skin_layout.h` (line 9) instead of `../gen/skin_layout.h`. The import crashed immediately, blocking T102.
+
+Further investigation found six additional functional (runtime-breaking) stale paths across four scripts:
+- `app/tools/preview_vis.py:65` — `pathlib.Path(__file__).parent / "../SpotifyDiyThing/gen/skin_layout.h"`
+- `app/tools/bake_wave.sh:19` — `-o "$SCRIPT_DIR/../SpotifyDiyThing/gen"`
+- `app/tools/preview_vis.py:340` — argparse `default="SpotifyDiyThing/gen/skin_preview_animated.gif"`
+- `app/tools/preview_wave.py:128-129` — argparse `default` and `help` referencing `SpotifyDiyThing/gen/skin_preview_wave.gif`
+- `app/tools/bake_skin.py:773` — `parse_shell_layout(path="SpotifyDiyThing/gen/shell_layout.h")` default arg
+
+Plus docstring/help text staleness in `bake_skin.py:8-9`, `bake_vis.py:7-8`, `bake_wave.py:6-7`, `preview_vis.py:20-22,26-27,32,37-38`.
+
+Note: `coords.py` itself had already been fixed (line 9 now reads `"../gen/skin_layout.h"`) before this retrospective was written, likely as part of TASK-083 step 2. The other files were not fixed in the same pass.
+
+**Observation**: The TASK-083 restructure checklist (step 2) explicitly listed updating `CLAUDE.md` path references but did not include a step to audit and update path strings *inside* the tool scripts being moved. The tool scripts were treated as opaque files to be relocated, not as code containing embedded path assumptions that become wrong when the file's working-context changes.
+
+The `check_build.sh` gate (BP-008) caught compile errors but has no visibility into Python or shell script path correctness. No tool-script smoke test exists that would catch a broken import at restructure time. The first consumer (T102) surfaced the breakage.
+
+**Root cause**: The TASK-083 restructure scope definition treated "move files" as sufficient. Path strings inside scripts are a form of structural coupling between a script and its directory context — equivalent to a `#include` path in C. A file move that does not update internal path strings is an incomplete migration. The checklist had no explicit "grep moved scripts for old path strings" step.
+
+**Suggested improvement**:
+1. Any task that moves a file or directory must include an explicit sub-step: grep the moved files for hardcoded path strings referencing the old location. The grep can be one command: `grep -rn "OldPath" movedDir/`.
+2. For PlatformIO / tool-script projects, the restructure checklist should include: "run each tool script with `--help` or a dry-run invocation from its new location and confirm no `FileNotFoundError` on import."
+3. Path strings in tool scripts should be derived from `pathlib.Path(__file__).parent` (relative to the script file), not from the caller's working directory. A script that uses `"SpotifyDiyThing/gen/..."` as a literal string instead of `Path(__file__).parent / "../gen/..."` is fragile to any invocation from a non-standard cwd.
+4. The restructure gate (`check_build.sh`) should be complemented by a `tools/smoke_test.sh` that imports each Python module (e.g. `python3 -c "import coords"`) and runs each shell script with `--help` or `--dry-run`. Absence of this gate is what allowed the stale paths to survive TASK-083.
+
+**Status**: open — six functional stale paths remain unresolved in `app/tools/`. A fix task should be filed (see recommendations in this retrospective).
 
 ---
 

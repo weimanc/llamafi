@@ -519,6 +519,67 @@ This centres the 9px thumb within the 19px right-side tile. TASK-077 status upda
 
 ---
 
+### Audit — 2026-05-24 — M-RESTRUCTURE tool-script path staleness (post-T102 crash)
+
+**Triggered by**: human (T102 re-run crash; further investigation requested)
+
+**Scope**: Tool scripts in `app/tools/` that were moved from `Spotify-Diy-Thing/tools/` during M-RESTRUCTURE (TASK-083). Audit checks whether internal path strings were updated to reflect the new directory layout. Specifically: all `pathlib.Path`, shell `-o`, argparse `default=`, and docstring/help references to `SpotifyDiyThing/gen/` or `../SpotifyDiyThing/gen/`.
+
+**Areas checked**:
+- [x] Functional path references (runtime-breaking if wrong): `pathlib.Path`, shell `-o`, argparse `default=` with no user override
+- [x] Documentation/help path references (misleading but not runtime-breaking): docstrings, argparse `help=` strings
+- [x] Whether the existing restructure gate (`check_build.sh` / BP-008) covers this class of break
+- [x] Root cause and process gap
+
+**Findings**:
+
+1. **Functional stale paths — RED. Six instances across four scripts.**
+
+   | File | Line(s) | Stale string | Correct string |
+   |------|---------|--------------|----------------|
+   | `app/tools/preview_vis.py` | 65 | `"../SpotifyDiyThing/gen/skin_layout.h"` | `"../gen/skin_layout.h"` |
+   | `app/tools/bake_wave.sh` | 19 | `"$SCRIPT_DIR/../SpotifyDiyThing/gen"` | `"$SCRIPT_DIR/../gen"` |
+   | `app/tools/preview_vis.py` | 340 | `default="SpotifyDiyThing/gen/skin_preview_animated.gif"` | `default="../gen/skin_preview_animated.gif"` |
+   | `app/tools/preview_wave.py` | 128 | `default="SpotifyDiyThing/gen/skin_preview_wave.gif"` | `default="../gen/skin_preview_wave.gif"` |
+   | `app/tools/preview_wave.py` | 129 | `help="... SpotifyDiyThing/gen/skin_preview_wave.gif"` | update to match new default |
+   | `app/tools/bake_skin.py` | 773 | `path="SpotifyDiyThing/gen/shell_layout.h"` | `path="../gen/shell_layout.h"` (or relative via `Path(__file__)`) |
+
+   Note: `app/tools/coords.py:9` was already correct (`"../gen/skin_layout.h"`) at the time of this audit — it was fixed during TASK-083 step 2. It is recorded here as the original T102 trigger for traceability.
+
+2. **Docstring / help text stale paths — YELLOW. Eight instances across four scripts.**
+
+   | File | Line(s) | Nature |
+   |------|---------|--------|
+   | `app/tools/bake_skin.py` | 8–9 | Module docstring usage examples reference `../SpotifyDiyThing/gen` |
+   | `app/tools/bake_vis.py` | 7–8 | Module docstring usage examples reference `../SpotifyDiyThing/gen` |
+   | `app/tools/bake_wave.py` | 6–7 | Module docstring usage examples reference `SpotifyDiyThing/gen` |
+   | `app/tools/preview_vis.py` | 20–22, 26–27, 32, 37–38 | Docstring multi-mode examples reference `SpotifyDiyThing/gen/` |
+
+   These do not cause crashes but will mislead any developer following the usage examples. Low priority relative to the functional fixes; should be caught in the same pass.
+
+3. **Gate coverage — RED. `check_build.sh` / BP-008 does not cover tool-script path correctness.**
+   The build gate compiles PlatformIO firmware and checks `golden.sha256`. It has no visibility into Python module import success or shell script path resolution. The TASK-083 restructure checklist did not include a "run tool scripts from their new location" step. There is currently no `tools/smoke_test.sh` or equivalent. The first consumer of the stale paths (T102 via `coords.py`, now fixed) was the one that surfaced the breakage.
+
+4. **Process gap — LL-029 candidate.** The root cause is that "move files" was treated as sufficient for migration. Path strings inside scripts are structural coupling to the old directory layout — equivalent to a broken `#include` — and require an explicit update step. No restructure checklist item covered "grep moved scripts for old path strings." See LL-029 for the full lesson and suggested improvements.
+
+**Actions assigned**:
+
+| # | Owner | Action | Priority |
+|---|-------|--------|----------|
+| 1 | Developer | Fix six functional stale paths (table in Finding 1) in `preview_vis.py`, `bake_wave.sh`, `preview_wave.py`, `bake_skin.py` | HIGH — file as TASK-NNN |
+| 2 | Developer | Update eight docstring/help stale paths (Finding 2) in same pass | MEDIUM — same task |
+| 3 | Developer | Add `tools/smoke_test.sh` (or equivalent gate in `check_build.sh`) that imports each Python module and runs each shell script with `--help` | MEDIUM — file as TASK-NNN or fold into fix task |
+| 4 | PM | File a task for Finding 1+2+3 above; assign Developer; status `planned` | before next tool-script use |
+| 5 | QM | Capture LL-029 in `lessons_learned.md` | this audit (done) |
+| 6 | Human | Review LL-029 for BP promotion | deferred — human sign-off required |
+
+**Promotion candidate flagged**:
+- **LL-029** (new): "Structural refactors must include a grep-for-old-paths step on moved files, plus a tool-script smoke-test gate before close." First concrete instance; preventive class applies to any future milestone involving file moves.
+
+**Resolution**: open — LL-029 captured; fix task not yet filed (pending PM action). Functional stale paths remain in six locations across four files as of 2026-05-24.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:

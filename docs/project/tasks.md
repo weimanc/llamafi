@@ -915,6 +915,48 @@ Out of scope (M-MULTIAPP work, not this task):
 
 ---
 
+### TASK-084 — Fix stale SpotifyDiyThing/ paths in app/tools/ scripts (post-M-RESTRUCTURE)
+**Owner**: Developer
+**Feature**: shell-layout-001
+**Status**: planned
+**Blocked by**: —
+**Milestone**: M-RESTRUCTURE follow-up
+**Triggered by**: QM audit 2026-05-24 (LL-029, BP-009). `coords.py` stale path found during T102 re-run; grep revealed 5 additional functional stale paths.
+
+Fix all stale `SpotifyDiyThing/gen/` path references in `app/tools/` left over from M-RESTRUCTURE.
+
+**Functional (runtime-breaking) — fix first:**
+- `app/tools/preview_vis.py:65` — `pathlib.Path` import: `../SpotifyDiyThing/gen/skin_layout.h` → `../gen/skin_layout.h`
+- `app/tools/bake_wave.sh:19` — shell output dir: `$SCRIPT_DIR/../SpotifyDiyThing/gen` → `$SCRIPT_DIR/../gen`
+- `app/tools/preview_vis.py:340` — argparse default: `SpotifyDiyThing/gen/skin_preview_animated.gif` → `gen/skin_preview_animated.gif`
+- `app/tools/preview_wave.py:128–129` — argparse default + help: `SpotifyDiyThing/gen/skin_preview_wave.gif` → `gen/skin_preview_wave.gif`
+- `app/tools/bake_skin.py:773` — `parse_shell_layout` default arg: `SpotifyDiyThing/gen/shell_layout.h` → `gen/shell_layout.h`
+
+**Docstrings/help text (misleading) — fix in same pass:**
+- `app/tools/bake_skin.py:8-9` — usage example paths
+- `app/tools/bake_vis.py:7-8` — usage example paths
+- `app/tools/bake_wave.py:6-7` — usage example paths
+- `app/tools/preview_vis.py:20-22,26-27,32,37-38` — usage example strings
+- `app/tools/preview_wave.py:15-17,129` — argparse help strings
+
+**Smoke-test gate (add, per BP-009):**
+Add `tools/smoke_test.sh` (or fold into `check_build.sh`) that runs:
+```sh
+cd app && python3 -c "import tools.coords; import tools.bake_skin"
+bash app/tools/bake_wave.sh --help 2>&1 | grep -v "No such file"
+```
+Exit 1 on any import error or path complaint. Gate must pass before task is `done`.
+
+**Exit criteria:**
+- `grep -rn "SpotifyDiyThing/gen" app/tools/` returns zero hits
+- `python3 -c "import coords"` from `app/tools/` exits 0
+- `bash app/tools/bake_wave.sh --help` exits without path errors
+- Smoke-test gate added and passing
+
+**Do not fix:** historical docs (ADR-008.md, audit_log.md, feature_inventory.yaml, design docs) — those are accurate pre-restructure records.
+
+---
+
 ### TASK-078 — Design: PLEDIT content-area drag UX improvements
 **Owner**: Architect (whiteboard), then Developer
 **Feature**: playlist-002, touch-002
