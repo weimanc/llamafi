@@ -2004,7 +2004,7 @@ automated. HTML export option removed from design — T130 dropped accordingly.
   2. Issue `maxOffset + 2` swipe-up drags (more than needed to saturate).
   3. `get scrollOffset` — assert `val == maxOffset` (not greater).
 - **Expected result**: `scrollOffset` saturates at `max(0, count - PLEDIT_ROW_COUNT)`; no overrun.
-- **Status**: **pass** (2026-05-23); **SKIP** (2026-05-24 re-run, commit b1ffe41) — queue snapshot stores exactly PLEDIT_ROW_COUNT=5 items; maxOffset=0 so test cannot verify clamping at a non-zero max. Requires snapshot expansion (> PLEDIT_ROW_COUNT items) to be executable. Tracked as separate task.
+- **Status**: **pass** (2026-05-23); **SKIP** (2026-05-24 re-run, commit b1ffe41) — queue snapshot stores exactly PLEDIT_ROW_COUNT=5 items; maxOffset=0 so test cannot verify clamping at a non-zero max. Requires snapshot expansion (> PLEDIT_ROW_COUNT items) to be executable. Tracked as separate task. **PASS** (2026-05-24, commit 1c39d47, TASK-086) — cmdGetQueue cap raised to QUEUE_MAX; scrollOffset saturated at 15 (queue count=20, maxOffset=15); extra swipe did not increment.
 
 ---
 
