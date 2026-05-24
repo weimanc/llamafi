@@ -6,7 +6,7 @@ when M-MULTIAPP shifts originX from 22 to 0.
 import re
 import pathlib
 
-_GEN = pathlib.Path(__file__).parent / "../SpotifyDiyThing/gen/skin_layout.h"
+_GEN = pathlib.Path(__file__).parent / "../gen/skin_layout.h"
 
 
 def _parse(path):

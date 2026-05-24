@@ -1161,8 +1161,8 @@ correct; the bound relaxation is a test-environment accommodation.
   plus queue-fetch trigger). `after[0] == before[1]`, `after[1] == before[2]`,
   `after[2] == before[3]`, `after[3] == before[4]`. PLEDIT highlight row 0 shows
   the new current track within one render cycle of the snapshot update.
-- **Status**: **pass** (DUT 2026-05-18; re-run 2026-05-21 post-TASK-065). Harness: `run_sync_tests.py T102`.
-  Queue row[0] shifted in 5832ms ≤ 8500ms (HTTP/1.1 keep-alive + dechunker, inner `main` `ab3864e`).
+- **Status**: **pass** (DUT 2026-05-18; re-run 2026-05-21 post-TASK-065; re-run 2026-05-24 post-M-RESTRUCTURE `fec78bb`). Harness: `run_sync_tests.py T102`.
+  Queue row[0] shifted in 5165ms ≤ 8500ms (post-M-RESTRUCTURE `app/` project). No regression.
   Harness checks any URI change in row[0] (specific URI indeterminate after prior next/prev
   operations). Owner: VE. Regression gap cleared — T114 PASS confirmed first.
 
