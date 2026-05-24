@@ -4,8 +4,8 @@
 Usage:
   python3 bake_vis.py -i ../../resource/Screencast_20260516_060344.webm \
                       -i ../../resource/Screencast_20260516_061832.webm \
-                      -o ../SpotifyDiyThing/gen
-  sha256sum -c ../SpotifyDiyThing/gen/vis_atlas.sha256
+                      -o ../gen
+  sha256sum -c ../gen/vis_atlas.sha256
 
 Outputs (relative to -o dir):
   vis_atlas.c       — C source with VIS_ATLAS[N_FRAMES][19]

@@ -3,8 +3,8 @@
 
 Usage:
   python3 tools/bake_wave.py -i ../../resource/Screencast_20260516_061832.webm \
-                              -o SpotifyDiyThing/gen
-  cd SpotifyDiyThing/gen && sha256sum -c wave_atlas.sha256
+                              -o gen
+  cd gen && sha256sum -c wave_atlas.sha256
 
 Outputs (relative to -o dir):
   wave_atlas.c       — C source with WAVE_ATLAS[N_FRAMES][76]

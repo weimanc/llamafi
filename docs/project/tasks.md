@@ -918,7 +918,7 @@ Out of scope (M-MULTIAPP work, not this task):
 ### TASK-084 — Fix stale SpotifyDiyThing/ paths in app/tools/ scripts (post-M-RESTRUCTURE)
 **Owner**: Developer
 **Feature**: shell-layout-001
-**Status**: planned
+**Status**: done (2026-05-24)
 **Blocked by**: —
 **Milestone**: M-RESTRUCTURE follow-up
 **Triggered by**: QM audit 2026-05-24 (LL-029, BP-009). `coords.py` stale path found during T102 re-run; grep revealed 5 additional functional stale paths.

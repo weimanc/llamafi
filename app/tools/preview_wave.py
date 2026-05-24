@@ -12,9 +12,9 @@ Output:
 
 Usage:
   python3 tools/preview_wave.py \\
-      --atlas SpotifyDiyThing/gen/wave_atlas.npy \\
-      --skin  SpotifyDiyThing/gen/skin_preview.png \\
-      --out   SpotifyDiyThing/gen/skin_preview_wave.gif
+      --atlas gen/wave_atlas.npy \\
+      --skin  gen/skin_preview.png \\
+      --out   gen/skin_preview_wave.gif
 """
 from __future__ import annotations
 
@@ -125,8 +125,8 @@ def main() -> None:
     ap.add_argument("--skin", metavar="PNG", required=True,
                     help="skin_preview.png from bake_skin.py (320×240, 1:1 device pixels)")
     ap.add_argument("--out", metavar="GIF",
-                    default="SpotifyDiyThing/gen/skin_preview_wave.gif",
-                    help="Output animated GIF path (default: SpotifyDiyThing/gen/skin_preview_wave.gif)")
+                    default="gen/skin_preview_wave.gif",
+                    help="Output animated GIF path (default: gen/skin_preview_wave.gif)")
     ap.add_argument("--zoom-out", metavar="GIF", default=None,
                     help="Zoom GIF path (default: <out-dir>/wave_zoom.gif)")
     ap.add_argument("--zoom", type=int, default=ZOOM,

@@ -5,8 +5,8 @@ Tier 1 scope: main background, transport buttons, bitmap font (raw atlas).
 Output: gen/skin_assets.c, gen/skin_layout.h
 
 Usage:
-  python3 bake_skin.py -i ../skins/winamp2_base.wsz -o ../SpotifyDiyThing/gen
-  python3 bake_skin.py -i ../skins/winamp2_base.wsz -o ../SpotifyDiyThing/gen --preview /tmp/skin_preview.png
+  python3 bake_skin.py -i ../skins/winamp2_base.wsz -o ../gen
+  python3 bake_skin.py -i ../skins/winamp2_base.wsz -o ../gen --preview /tmp/skin_preview.png
 """
 import argparse
 import io
@@ -770,7 +770,7 @@ def composite_static_decoration(main_bg: Image.Image, sources: dict, log: list =
                "(136, 89, 22, 16)", eject)
 
 
-def parse_shell_layout(path="SpotifyDiyThing/gen/shell_layout.h") -> dict:
+def parse_shell_layout(path="gen/shell_layout.h") -> dict:
     """Parse gen/shell_layout.h, stripping inline // comments.
     Returns dict mapping define name → value string.
     Handles int (275), hex (0x07E0), char ('A'), flag (1)."""

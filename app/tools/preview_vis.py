@@ -17,25 +17,25 @@ Output:
 Usage examples:
   # Animated GIF from atlas (shares gen/ with bake_vis.py):
   python3 tools/preview_vis.py \\
-      --atlas SpotifyDiyThing/gen/vis_atlas.npy \\
-      --skin  SpotifyDiyThing/gen/skin_preview.png \\
-      --out   SpotifyDiyThing/gen/skin_preview_animated.gif
+      --atlas gen/vis_atlas.npy \\
+      --skin  gen/skin_preview.png \\
+      --out   gen/skin_preview_animated.gif
 
   # Live pygame window — atlas mode:
   python3 tools/preview_vis.py \\
-      --atlas SpotifyDiyThing/gen/vis_atlas.npy \\
-      --skin  SpotifyDiyThing/gen/skin_preview.png \\
+      --atlas gen/vis_atlas.npy \\
+      --skin  gen/skin_preview.png \\
       --live
 
   # Live pygame window — synthetic mode (no atlas needed):
   python3 tools/preview_vis.py \\
-      --skin  SpotifyDiyThing/gen/skin_preview.png \\
+      --skin  gen/skin_preview.png \\
       --mode  synthetic --live
 
   # Select loop sub-range to find a cleaner wrap:
   python3 tools/preview_vis.py \\
-      --atlas SpotifyDiyThing/gen/vis_atlas.npy \\
-      --skin  SpotifyDiyThing/gen/skin_preview.png \\
+      --atlas gen/vis_atlas.npy \\
+      --skin  gen/skin_preview.png \\
       --loop-start 20 --loop-end 380 --live
 """
 from __future__ import annotations
@@ -62,7 +62,7 @@ def _parse_skin_layout(path):
     return d
 
 _skin = _parse_skin_layout(
-    pathlib.Path(__file__).parent / "../SpotifyDiyThing/gen/skin_layout.h")
+    pathlib.Path(__file__).parent / "../gen/skin_layout.h")
 
 SCREEN_W   = 320
 SCREEN_H   = 240
@@ -337,7 +337,7 @@ def main() -> None:
     ap.add_argument("--mode", choices=["atlas", "synthetic"], default="atlas",
                     help="Animation source (default: atlas)")
     ap.add_argument("--out", metavar="GIF",
-                    default="SpotifyDiyThing/gen/skin_preview_animated.gif",
+                    default="gen/skin_preview_animated.gif",
                     help="Output animated GIF path")
     ap.add_argument("--live", action="store_true",
                     help="Open real-time pygame window instead of writing GIF")
