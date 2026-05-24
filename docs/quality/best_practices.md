@@ -74,6 +74,16 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-008 — Run check_build.sh before and after every structural change
+
+**Adopted from**: restructure pre-gate (2026-05-24)
+**Date adopted**: 2026-05-24
+**Rule**: Run `./check_build.sh` from the project root before starting any structural change (file moves, `#include` edits, entry-point rewrites) and again after completing it. Do not commit a structural change that fails the script.
+**Rationale**: The DUT-based test suite requires physical hardware and cannot catch compile errors during a refactor. `check_build.sh` is the only automated gate that runs on the local machine without a board. When it was first run, it immediately surfaced a pre-existing compile error (`PLEDIT_THUMB_X_INSET` undefined) that had gone undetected because no build check existed. Without this gate, `#include` breakage, missing constants, and symbol errors accumulate silently until someone next flashes the board.
+**Applies to**: Developer (run before/after every structural change), PM (do not close restructure tasks without confirming check_build.sh exit 0 on the final state)
+
+---
+
 ## Entry Format
 
 ```

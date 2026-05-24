@@ -95,6 +95,16 @@ Other envs in `platformio.ini` (don't use on this board): `cyd` (single-USB CYD,
 
 `platformio.ini` keeps `lib_ldf_mode = deep+` because `Seeed_Arduino_NFC` needs conditional includes resolved.
 
+### Build check (run before/after structural changes)
+
+`check_build.sh` at the project root compiles both firmware targets and verifies the golden hash. Run it before and after any refactor, file move, or `#include` change:
+
+```sh
+./check_build.sh   # 3 checks: cyd2usb_winamp, cyd2usb_winamp_debug, golden.sha256
+```
+
+Exit 0 = all pass. This is the minimum safety gate before committing structural changes (see BP-008).
+
 ### Skin asset bake (M2)
 
 Host-side bake of `skins/base-2.91.wsz` → `SpotifyDiyThing/gen/skin_assets.c` + `skin_layout.h`. Run on demand (not a PIO pre-build hook):
