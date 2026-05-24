@@ -796,6 +796,30 @@ Report pass/fail to PM. PM prompts QM for retrospective.
 
 ---
 
+### TASK-082 — Implement tools/audit_origin.py
+**Owner**: Developer
+**Feature**: shell-layout-001
+**Status**: open (2026-05-24)
+**Blocked by**: nothing (`gen/skin_layout.h` present)
+**Unblocks**: TASK-081 (T141–T146 host-side execution)
+
+Implement `tools/audit_origin.py` per design doc
+`docs/architecture/designs/audit-origin.md`.
+
+Deliverables:
+- `tools/audit_origin.py` (~200 LOC) — all T141–T146 logic + optional visual
+- Minor refactor of `render_hitzones()` in `tools/bake_skin.py` to accept
+  `(image, origin_x, draw_origin)` args; existing call-site unchanged
+
+Exit criteria (from design doc):
+- `python3 tools/audit_origin.py` exits 0 on current tree (originX=22)
+- `--visual` produces `gen/origin_audit.png` with all green dots
+- `--grep-only` exits 0 (no bare absolute X literals in draw calls)
+- Running at `origin_x=0` also exits 0
+- `sha256sum -c gen/golden.sha256` unaffected (`origin_audit.png` excluded from golden)
+
+---
+
 ### TASK-078 — Design: PLEDIT content-area drag UX improvements
 **Owner**: Architect (whiteboard), then Developer
 **Feature**: playlist-002, touch-002
