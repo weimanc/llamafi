@@ -12,6 +12,22 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ## Active Tasks
 
+### TASK-087 — M-MULTIAPP step 2: taskbar + app-shell + Clock app
+**Owner**: Developer
+**Feature**: taskbar-001, clock-001 (new)
+**Status**: done (2026-05-24 — check_build.sh 3/3 pass; DUT flash + smoke test pending)
+**Blocks**: M-MULTIAPP step 3 (Matrix, GoL, Weather, Crypto apps)
+**Notes**:
+- **TASK-087a** (`taskbar.h`): `renderTaskbar(TFT_eSPI& tft, AppId activeApp)` — fills 45×240 strip with TASKBAR_BG_RGB565, draws icon letters S/C/W/$/M/G (TFT font 4), separator lines (TASKBAR_SEP_COLOR), and 3 px active-indicator bar (TASKBAR_ACTIVE_COLOR) on the active slot.
+- **TASK-087b** (`winampDisplay.h`): Added `#include "appShell.h"` + `#include "taskbar/taskbar.h"`. Taskbar first-pass hit-test in `checkForInput()` (after touch read, before Winamp hit-tests): `p.x >= TASKBAR_X` → `switchApp(slot)`. `renderTaskbar()` called at end of `repaintChrome()` (covers startup + reconnect repaints).
+- **TASK-087c** (`appShell.h`): Added per-app state structs (SpotifyAppState, ClockAppState, Weather/Crypto/Matrix/LifeAppState), `g_appLaunched[]`, `clockRepaint()`/`clockTick()` declarations, static asserts (`TASKBAR_X == 275`, `AppId::COUNT == TASKBAR_SLOT_COUNT`) unlocking T127/T129.
+- **TASK-087d** (`main.cpp`): Full `switchApp()` (fillRect app canvas + update currentAppId + renderTaskbar + per-app repaint). `appTick()` dispatches Spotify + Clock; stubs for other apps. `appHandleInput()` unchanged (delegates to `checkForInput()` which has the taskbar guard). Boot `renderTaskbar()` call in `setup()` after `showDefaultScreen()`.
+- **TASK-087e** (`main.cpp`): `clockRepaint()` draws three rounded-rect chrome boxes. `clockTick()`: blinking colon at 1 Hz, rainbow 60-segment seconds bar, day + date strings, RSSI signal bars.
+- **TASK-087f**: `./check_build.sh` 3/3 pass ✓. DUT smoke test required (flash + verify taskbar visible, Clock renders, Spotify switch works).
+- **Feature inventory**: `taskbar-001` + `clock-001` registered.
+
+---
+
 ### TASK-012 — M2 skin bake tool, tier 1
 **Owner**: Developer
 **Feature**: m2-001 (new)

@@ -9,6 +9,8 @@
 #include "gen/skin_layout.h"
 #include "spotifyTask.h"
 #include "vuMeter.h"
+#include "appShell.h"
+#include "taskbar/taskbar.h"
 
 extern const uint16_t SKIN_MAIN_BG[];
 extern const uint16_t SKIN_CBUTTONS[];
@@ -113,6 +115,7 @@ public:
     // repaint from scratch.
     vu::invalidate();
     g_lastRenderMs = millis();  // TASK-059: mark full chrome repaint time
+    renderTaskbar(tft, currentAppId);
   }
 
   // TASK-041 / ADR-014 A1.5 — VOLUME slider renderer.
@@ -233,6 +236,18 @@ public:
       // TASK-052: any tap resets backoff so the next timer-triggered poll
       // fires at base cadence rather than waiting out a long retry interval.
       spotifyTask::resetBackoff();
+
+      // Taskbar first-pass: any tap in x >= TASKBAR_X triggers an app switch
+      // and consumes the event — Winamp hit-tests are skipped.
+      if (p.x >= TASKBAR_X) {
+        int slot = (int)p.y / TASKBAR_SLOT_H;
+        if (slot >= 0 && slot < (int)AppId::COUNT) {
+          AppId tapped = static_cast<AppId>(slot);
+          if (tapped != currentAppId) switchApp(tapped);
+        }
+        touchScreenCoolDownTime = millis() + 300;
+        return;
+      }
 
       int  pressed    = hitTestTransport(p.x, p.y);
       long seekMs     = hitTestPosbar(p.x, p.y);

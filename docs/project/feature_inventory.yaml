@@ -631,3 +631,44 @@ features:
       T132 (taskbar.md TBD markers cleared + golden.sha256) is automated.
       T125 (shell_layout.h completeness) owned by shell-layout-001.
       Blocked on M-MULTIAPP preview tooling pass; gates M-SHELL-LAYOUT export step.
+
+  - id: taskbar-001
+    name: M-MULTIAPP taskbar + app-shell dispatch
+    description: |
+      45×240 px icon taskbar strip on the right edge (x:275..319). renderTaskbar() draws
+      background fill, 6 icon slots (S/C/W/$/M/G via TFT font 4), separator lines, and
+      the 3 px active-indicator bar. First-priority hit-test in checkForInput() consumes
+      taps at x>=275 and calls switchApp(). switchApp() clears the 275×240 app canvas,
+      updates currentAppId, re-renders the taskbar indicator, then calls the incoming
+      app's repaint. appTick() and appHandleInput() dispatch per currentAppId.
+    status: implemented
+    git_ref: ""
+    files:
+      - app/src/taskbar/taskbar.h
+      - app/src/appShell.h
+      - app/src/winamp/winampDisplay.h
+      - app/src/main.cpp
+    cross_features: [shell-layout-001, clock-001]
+    test_ids: []
+    notes: |
+      Design docs: M-MULTIAPP/taskbar.md, M-MULTIAPP/app-lifecycle.md.
+      TASK-087a/b/c/d. Aesthetics locked in gen/shell_layout.h (TASK-070/071/072).
+      State save/restore for Spotify deferred; spotifyTask polls continuously regardless.
+      Non-Spotify apps (Matrix, GoL, Weather, Crypto) are stubs — blank canvas on switch.
+
+  - id: clock-001
+    name: Clock app
+    description: |
+      Stateless clock app: three rounded-rect chrome boxes (time HH:MM with blinking
+      colon, rainbow seconds bar, day+date). Reads system time via getLocalTime().
+      RSSI signal bars in bottom-right. 1 Hz tick rate.
+    status: implemented
+    git_ref: ""
+    files:
+      - app/src/main.cpp
+    cross_features: [taskbar-001]
+    test_ids: []
+    notes: |
+      TASK-087e. Stateless — no state save/restore needed on app switch.
+      clockRepaint() draws the static chrome + immediate first tick.
+      clockTick() is a no-op if < 1 s since last draw.

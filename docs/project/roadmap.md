@@ -302,7 +302,7 @@ Work sequence:
 5. Non-network apps — Clock, Matrix, GoL tick + input handlers.
 6. Network apps — `dataTask` + Weather + Crypto fetch/render.
 
-**Status:** design (2026-05-22 — design docs drafted; preview tooling pass required before implementation tasks filed)
+**Status:** in progress (2026-05-24 — step 3+4 done: taskbar renders, app-shell dispatch wired, Clock app implemented; TASK-087 3/3 build pass; DUT smoke test pending; steps 5–6 remain)
 **Deps:** M3 (done), M-NOART (done), M-RESTRUCTURE (gates step 2), M-SHELL-LAYOUT (taskbar constants header, gates steps 3–4)
 **Design:** [M-MULTIAPP/overview.md](../architecture/designs/M-MULTIAPP/overview.md)
 

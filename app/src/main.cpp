@@ -171,36 +171,125 @@ void drawWifiManagerMessage(WiFiManager *myWiFiManager)
   spotifyDisplay->drawWifiManagerMessage(myWiFiManager);
 }
 
-// ── App dispatch (M-MULTIAPP skeleton, TASK-083 step 4) ────────────────
-// switchApp() and appHandleInput() are stubs: Spotify is the only app.
-// Full multi-app dispatch is M-MULTIAPP work.
+// ── App dispatch (M-MULTIAPP, TASK-087c/d) ─────────────────────────────
+
+bool g_appLaunched[(int)AppId::COUNT] = {};
+
+// ── Clock app (TASK-087e) ───────────────────────────────────────────────
+
+static unsigned long s_clockLastTickMs = 0;
+
+void clockRepaint() {
+  tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK);
+  tft.drawRoundRect(5,   5, 265,  80, 10, 0xF81F); // time box  — pink
+  tft.drawRoundRect(5,  88, 265,  47, 10, 0x07FF); // secs box  — cyan
+  tft.drawRoundRect(5, 138, 265,  97, 10, 0xFFE0); // date box  — yellow
+  s_clockLastTickMs = 0; // force immediate draw on next clockTick()
+  clockTick();
+}
+
+void clockTick() {
+  if (millis() - s_clockLastTickMs < 1000) return;
+  s_clockLastTickMs = millis();
+
+  struct tm t;
+  if (!getLocalTime(&t)) return;
+
+  // Time string: colon blinks on even seconds.
+  char tBuf[16];
+  if (t.tm_sec % 2 == 0) snprintf(tBuf, sizeof(tBuf), "%02d:%02d", t.tm_hour, t.tm_min);
+  else                    snprintf(tBuf, sizeof(tBuf), "%02d %02d", t.tm_hour, t.tm_min);
+
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawString(tBuf, 137, 45, 6);
+
+  // Seconds bar: 60 filled/empty segments across the cyan box.
+  for (int i = 0; i < 60; ++i) {
+    uint16_t c = (i < t.tm_sec) ? tft.color565(
+        (int)(sinf((float)i / 60.0f * TWO_PI)                   * 127 + 128),
+        (int)(sinf((float)i / 60.0f * TWO_PI + TWO_PI / 3.0f)  * 127 + 128),
+        (int)(sinf((float)i / 60.0f * TWO_PI + 2*TWO_PI / 3.0f)* 127 + 128)
+    ) : (uint16_t)0x07FF;  // unlit = cyan background
+    tft.fillRect(8 + (int)((float)i * 4.3f), 100, 2, 25, c);
+  }
+
+  // Day name + date.
+  const char* days[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawString(days[t.tm_wday], 137, 170, 4);
+  char dBuf[16];
+  snprintf(dBuf, sizeof(dBuf), "%02d/%02d/%04d", t.tm_mday, t.tm_mon + 1, t.tm_year + 1900);
+  tft.drawString(dBuf, 137, 200, 4);
+
+  // RSSI signal bars (bottom-right of date box).
+  int rssi = WiFi.RSSI();
+  int bars = (rssi > -55) ? 4 : (rssi > -65) ? 3 : (rssi > -75) ? 2 : 1;
+  for (int i = 0; i < 4; ++i) {
+    uint16_t c = (i < bars) ? TFT_GREEN : (uint16_t)0x4208;
+    tft.fillRect(240 + i * 7, 228 - (i + 1) * 5, 5, (i + 1) * 5, c);
+  }
+}
+
+// ── App shell dispatch (TASK-087d) ─────────────────────────────────────
 
 void switchApp(AppId next) {
   if (next == currentAppId) return;
-  currentAppId = next;  // stub — no state save/restore yet
+  // Clear the app canvas (left 275 px); taskbar strip is preserved.
+  tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK);
+  currentAppId = next;
+  g_appLaunched[(int)next] = true;
+  // Re-draw taskbar to update the active indicator.
+  renderTaskbar(tft, currentAppId);
+  // Per-app repaint.
+  switch (next) {
+    case AppId::Spotify:
+#ifdef WINAMP_DISPLAY
+      winampDisplay.repaintChrome();
+#endif
+      break;
+    case AppId::Clock:
+      clockRepaint();
+      break;
+    default:
+      break;
+  }
 }
 
 void appHandleInput(AppId) {
+  // Taskbar first-pass is inside checkForInput(); delegate unconditionally.
   spotifyDisplay->checkForInput();
 }
 
-void appTick(AppId) {
+void appTick(AppId id) {
+  switch (id) {
+    case AppId::Spotify:
 #ifdef WINAMP_DISPLAY
-  vu::tick(winampDisplay.chromeOriginX(), winampDisplay.chromeOriginY(), SKIN_MAIN_BG);
-  winampDisplay.drawPlaylist();
+      vu::tick(winampDisplay.chromeOriginX(), winampDisplay.chromeOriginY(), SKIN_MAIN_BG);
+      winampDisplay.drawPlaylist();
 #endif
-  bool forceUpdate = false;
+      {
+        bool forceUpdate = false;
 #ifdef NFC_ENABLED
-  if (writeContextToNfc) {
-    forceUpdate = nfcLoop(lastTrackUri, lastTrackContextUri);
-  } else {
-    forceUpdate = nfcLoop(lastTrackUri);
-  }
+        if (writeContextToNfc) {
+          forceUpdate = nfcLoop(lastTrackUri, lastTrackContextUri);
+        } else {
+          forceUpdate = nfcLoop(lastTrackUri);
+        }
 #endif
-  { unsigned long _t = millis(); updateCurrentlyPlaying(forceUpdate);
-    perf::record("spotify.poll", millis() - _t); }
-  { unsigned long _t = millis(); updateProgressBar();
-    perf::record("display.bar", millis() - _t); }
+        { unsigned long _t = millis(); updateCurrentlyPlaying(forceUpdate);
+          perf::record("spotify.poll", millis() - _t); }
+        { unsigned long _t = millis(); updateProgressBar();
+          perf::record("display.bar", millis() - _t); }
+      }
+      break;
+    case AppId::Clock:
+      clockTick();
+      break;
+    default:
+      break;
+  }
 }
 
 void setup()
@@ -354,6 +443,9 @@ void setup()
   spotifyTask::begin(&spotify);
 
   spotifyDisplay->showDefaultScreen();
+  // Draw taskbar strip after the initial screen paint so the icon bar
+  // appears at boot without waiting for the first poll.
+  renderTaskbar(tft, currentAppId);
 
 #ifdef SPIKE_MODE
   spike::setup(&spotify);

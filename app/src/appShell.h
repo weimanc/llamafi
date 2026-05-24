@@ -1,8 +1,8 @@
 #pragma once
-// appShell.h — app registry and dispatch (M-MULTIAPP skeleton, TASK-083 step 3).
-// Stubs only; wired up in step 4 (main.cpp rewrite).
+// appShell.h — app registry, state structs, and dispatch (M-MULTIAPP, TASK-087c).
 
 #include <Arduino.h>
+#include "gen/shell_layout.h"
 
 enum class AppId : uint8_t {
     Spotify  = 0,
@@ -16,7 +16,65 @@ enum class AppId : uint8_t {
 
 extern AppId currentAppId;
 
-// Dispatch stubs — implemented in main.cpp.
+// Dispatch — implemented in main.cpp.
 void appTick(AppId id);
 void appHandleInput(AppId id);
 void switchApp(AppId next);
+
+// --- Per-app state structs (app-lifecycle.md) ---
+
+struct SpotifyAppState {
+    int           lastThumbPx;
+    int           lastSeconds;
+    char          lastTitle[264];
+    int           lastVolumeRendered;
+    int           lastShuffleRendered;
+    int           lastRepeatRendered;
+    int           currentStatusUv;
+    int           titleScrollOffset;
+    unsigned long titleScrollDeadline;
+    uint8_t       visMode;
+};
+
+struct ClockAppState   { bool initialised; };
+
+struct WeatherAppState {
+    float         cTemp, cHum, cWind;
+    unsigned long lastDataFetch;
+};
+
+struct CryptoAppState {
+    float         prices[6];
+    float         changes[6];
+    unsigned long lastCryptoFetch;
+};
+
+struct MatrixAppState {
+    struct Column {
+        int   x;
+        float y;
+        float speed;
+        int   length;
+        char  lastChar;
+    } rain[14];
+    bool initialised;
+};
+
+struct LifeAppState {
+    uint8_t  grid[55][48];
+    uint16_t hueShift;
+    int      lastCellCount;
+    int      sameCountTimer;
+    bool     initialised;
+};
+
+// First-launch tracking — indexed by (int)AppId.
+extern bool g_appLaunched[(int)AppId::COUNT];
+
+// Sanity checks (T127/T129): catch compile-time drift between appShell.h and shell_layout.h.
+static_assert(TASKBAR_X == 275,                           "TASKBAR_X drift vs appShell");
+static_assert((int)AppId::COUNT == TASKBAR_SLOT_COUNT,    "AppId::COUNT vs TASKBAR_SLOT_COUNT mismatch");
+
+// Clock app — stateless render + 1 Hz tick (defined in main.cpp).
+void clockRepaint();
+void clockTick();
