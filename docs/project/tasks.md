@@ -2009,29 +2009,51 @@ Exit criteria:
 
 ---
 
-### TASK-086 — VE: T140 unblock — expand queue snapshot beyond PLEDIT_ROW_COUNT items
+### TASK-086 — Fix cmdGetQueue hard-cap + run T140
 
-**Owner**: VE
+**Owner**: Developer + VE
 **Feature**: serialdbg-001, playlist-002
 **Status**: todo
-**Blocked by**: DUT must have a queue with > 5 tracks loaded
+**Blocked by**: nothing (code fix is clear; DUT needs >= 6 tracks queued at test time)
 **Notes**:
 
-T140 verifies `scrollOffset` clamps at `count - PLEDIT_ROW_COUNT`. It was skipped because
-the queue snapshot captured exactly 5 items (= `PLEDIT_ROW_COUNT`), making `maxOffset = 0`
-and the clamping assertion trivially untestable.
+#### Investigation result (2026-05-24)
 
-Two approaches:
-1. **Queue more tracks before running T140**: ensure Spotify queue has >= 7 items; verify
-   `get queue` count > `PLEDIT_ROW_COUNT` as precondition in the harness.
-2. **Extend `get queue` snapshot capacity**: if the snapshot is hard-capped at 5 rows, raise
-   the cap in firmware (`cmdGetQueue`) to e.g. 10. Filed here in case the cap is the root cause.
+`cmdGetQueue` in `app/src/spotifyTaskStorage.cpp:526` serializes:
+```cpp
+uint8_t n = qs.count < 5 ? qs.count : 5;
+```
+Magic number `5` = `PLEDIT_ROW_COUNT`. The snapshot struct (`QUEUE_MAX = SPOTIFY_QUEUE_MAX_ITEMS = 20`)
+and `onQueue()` copy both support up to 20 items. The harness `wait_for_queue(min_count=6)` counts
+JSON parts with a `"track"` key — it never sees > 5 → T140 always skips.
 
-Determine which applies — check `cmdGetQueue` implementation for any hard cap first.
+`LOCAL_PATCHES.md` patch 10 claims `SPOTIFY_QUEUE_MAX_ITEMS` was reduced 7→5 to match
+`PLEDIT_ROW_COUNT`; the actual value in `app/lib/SpotifyArduino/src/SpotifyArduino.h:94` is `20`
+(set when `app/lib/` was created in TASK-083). Doc is stale.
+
+#### Fix (two files)
+
+**1. `app/src/spotifyTaskStorage.cpp:526`** — raise the serialize cap:
+```cpp
+// before:
+uint8_t n = qs.count < 5 ? qs.count : 5;
+// after:
+uint8_t n = qs.count < QUEUE_MAX ? qs.count : QUEUE_MAX;
+```
+`QUEUE_MAX` is defined in `spotifyTask.h` and already in scope (used by `onQueue()`).
+
+**2. `app/lib/SpotifyArduino/LOCAL_PATCHES.md`** — correct patch 10 note:
+Change "Reduced `SPOTIFY_QUEUE_MAX_ITEMS` from 7 to 5 (matches `PLEDIT_ROW_COUNT`)" to
+"Set `SPOTIFY_QUEUE_MAX_ITEMS` to 20 (increased capacity; snapshot + serialize both support it)."
+
+#### T140 re-run precondition
+Ensure >= 6 tracks queued in Spotify before running. `wait_for_queue(min_count=6)` will
+then unblock automatically.
 
 Exit criteria:
-- `get queue` returns count > PLEDIT_ROW_COUNT when >= 6 tracks queued
-- T140 passes (scrollOffset saturates at maxOffset, not maxOffset+1 or more)
+- `get queue` emits up to 20 parts when queue has >= 6 tracks
+- `wait_for_queue(6)` succeeds with >= 6 tracks queued
+- T140 passes (scrollOffset saturates at maxOffset, not maxOffset+1)
 
 ---
 
