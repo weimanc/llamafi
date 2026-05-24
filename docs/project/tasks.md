@@ -823,10 +823,11 @@ Exit criteria (from design doc):
 ### TASK-083 — M-RESTRUCTURE: execute source ownership split
 **Owner**: Developer
 **Feature**: shell-layout-001
-**Status**: open (2026-05-24)
-**Blocked by**: nothing (steps 1–4); TASK-080 + TASK-082 gate step 5 only
+**Status**: in-progress (steps 1–4 complete 2026-05-24; step 5 blocked)
+**Blocked by**: TASK-080 + TASK-082 gate step 5 only
 **Unblocks**: M-MULTIAPP firmware (originX=0 shift)
 **Milestone**: M-RESTRUCTURE
+**Commit**: d62c9f4 (steps 1–4)
 
 Execute the 4+1-step Option B migration per
 `docs/architecture/designs/M-MULTIAPP/source-ownership.md` (§Migration sequence).
@@ -837,7 +838,7 @@ Run `./check_build.sh` after each step (BP-008).
 project at repo root; `Spotify-Diy-Thing/` kept close to upstream stock.
 Steps below supersede any earlier in-place reorganisation notes.
 
-#### Step 1 — Create `app/` PlatformIO skeleton
+#### Step 1 — Create `app/` PlatformIO skeleton ✓ done 2026-05-24
 
 - Create `app/platformio.ini` per §`app/platformio.ini` spec in source-ownership.md:
   `src_dir = src`; `lib_extra_dirs` pointing to upstream flat dir + its `lib/`;
@@ -848,7 +849,7 @@ Steps below supersede any earlier in-place reorganisation notes.
 - Gate: `cd app && ~/.platformio/penv/bin/pio run -e cyd2usb_winamp` passes.
   (Does not replace `./check_build.sh` yet — upstream build still the reference.)
 
-#### Step 2 — Move our owned files; update build gate
+#### Step 2 — Move our owned files; update build gate ✓ done 2026-05-24
 
 Move **ours-owned source** from `Spotify-Diy-Thing/SpotifyDiyThing/` to `app/src/`:
 - `winampDisplay.h`, `vuMeter.h` → `app/src/winamp/`
@@ -874,7 +875,7 @@ Update build gate:
 Gate: `./check_build.sh` passes (both `cyd2usb_winamp` and `cyd2usb_winamp_debug`
 compile from `app/`; `app/gen/golden.sha256` passes).
 
-#### Step 3 — Add `appShell.h` + `taskbar/taskbar.h` stubs
+#### Step 3 — Add `appShell.h` + `taskbar/taskbar.h` stubs ✓ done 2026-05-24
 
 - `app/src/appShell.h`: minimal dispatch stubs per `app-lifecycle.md`; no
   behaviour change vs current `.ino`.
@@ -882,7 +883,7 @@ compile from `app/`; `app/gen/golden.sha256` passes).
 
 Gate: `./check_build.sh` passes.
 
-#### Step 4 — Rewrite shell; revert upstream files
+#### Step 4 — Rewrite shell; revert upstream files ✓ done 2026-05-24
 
 - `app/src/main.cpp`: full shell content (current `SpotifyDiyThing.ino` logic,
   converted to `.cpp`; includes dispatch via `appShell.h`).
@@ -909,15 +910,14 @@ advances track; PLAY/PAUSE toggles; no crash on track change.
 ---
 
 Exit criteria (task complete when all are true):
-- `check_build.sh` exits 0 after every step
-- `app/lib/SpotifyArduino/LOCAL_PATCHES.md` preserved intact
-- `app/src/screenLog.h` uses `"winamp/winampDisplay.h"` include path
-- `audit_origin.py --grep-only` exits 0 after step 4
-- Step 4 DUT smoke test passes
-- `audit_origin.py` full run exits 0 after step 5
-- `Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino` matches upstream ref
-  (diff recorded in `upstream-patches.md` — expected delta: zero for this file)
-- `Spotify-Diy-Thing/platformio.ini` matches upstream ref
+- `check_build.sh` exits 0 after every step ✓ (3/3 on all steps)
+- `app/lib/SpotifyArduino/LOCAL_PATCHES.md` preserved intact ✓
+- `app/src/screenLog.h` uses `"winamp/winampDisplay.h"` include path ✓
+- `audit_origin.py --grep-only` exits 0 after step 4 ✓ (T141 PASS)
+- Step 4 DUT smoke test passes ✓ (2026-05-24: Spotify polling live, Winamp chrome rendering, no crashes)
+- `audit_origin.py` full run exits 0 after step 5 — PENDING (TASK-082)
+- `Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino` matches upstream ref ✓ (reverted to 6eb95ffd)
+- `Spotify-Diy-Thing/platformio.ini` matches upstream ref ✓ (reverted to 6eb95ffd)
 
 Out of scope (M-MULTIAPP work, not this task):
 - Full decoupling of `winampDisplay.h` from `spotifyLogic.h` globals
