@@ -1671,7 +1671,7 @@ To be triaged with the team.
 
 **Owner**: Developer
 **Feature**: shell-layout-001
-**Status**: in_progress (2026-05-23 — coords.py committed; run_sync_tests.py updated; run_serialdbg_tests.py still uses hardcoded coords)
+**Status**: done (2026-05-24 — run_serialdbg_tests.py migrated to coords.py; regression gate 20/20 pass; two pre-existing harness bugs fixed: warmup ping, T085 songDuration restore)
 **Blocked by**: —
 **Notes**:
 - New file `Spotify-Diy-Thing/tools/coords.py`.
@@ -1686,7 +1686,7 @@ To be triaged with the team.
 
 **Owner**: Developer
 **Feature**: shell-layout-001
-**Status**: in_progress (2026-05-23 — Gap 3 done: preview_vis.py parses skin_layout.h; Gap 2 render_hitzones() rebuild not yet done)
+**Status**: done (2026-05-24 — Gap 2 + Gap 3 complete; sha256sum -c golden.sha256 clean 3/3)
 **Blocked by**: —
 **Notes**:
 - **Gap 2**: `render_hitzones()` (~line 1047) — rebuild zone list from existing dicts. Transport: iterate `CBUTTON_POSITIONS`. Other zones: read from `POSBAR_LAYOUT`, `VOLUME_LAYOUT`, `SHUFREP_LAYOUT`. See `shell-layout.md` Gap 2 for fixed pattern.
