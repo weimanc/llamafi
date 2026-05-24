@@ -2013,7 +2013,7 @@ Exit criteria:
 
 **Owner**: Developer + VE
 **Feature**: serialdbg-001, playlist-002
-**Status**: todo
+**Status**: done (2026-05-24, commit 1c39d47)
 **Blocked by**: nothing (code fix is clear; DUT needs >= 6 tracks queued at test time)
 **Notes**:
 
