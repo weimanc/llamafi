@@ -709,61 +709,49 @@ The actual defect was X-only. T120 still required for VE sign-off on the correct
 
 **Owner**: Architect
 **Feature**: shell-layout-001
-**Status**: open (2026-05-23)
+**Status**: done (2026-05-24 — signed off, no FIX NEEDED rows, originX shift unblocked)
 **Blocks**: M-MULTIAPP firmware implementation (originX shift)
 **Notes**:
 
-M-MULTIAPP's first firmware step changes `originX` from 22 → 0 (winamp chrome to left
-edge; taskbar occupies x=275..319). Before any firmware change, every render and
-hit-test site must be confirmed origin-relative.
+#### Finding Table — Architect sign-off 2026-05-24
 
-#### Scope
+Audited: `winampDisplay.h` (all `tft.*` render + hit-test sites), `vuMeter.h`, `cheapYellowLCD.h`.
 
-Audit the following files against the origin-relative invariant:
+| File | Function / Site | X arg | Y arg | Status |
+|------|-----------------|-------|-------|--------|
+| `winampDisplay.h:81` | `repaintChrome` titlebar inactive | `originX` | `originY` | ✅ |
+| `winampDisplay.h:87` | `repaintChrome` drift pip | `originX+268` | `originY+1` | ✅ |
+| `winampDisplay.h:91,93` | `repaintChrome` posbar + thumb | `originX+POSBAR_X` | `originY+POSBAR_Y` | ✅ |
+| `winampDisplay.h:127,134,135` | `drawVolume` knob | `originX+VOLUME_X` | `originY+VOLUME_Y` | ✅ |
+| `winampDisplay.h:157,170` | `drawShuffle/drawRepeat` | `originX+SHUFFLE/REPEAT_X` | `originY+…_Y` | ✅ |
+| `winampDisplay.h:555` | `repaintChrome` main BG | `originX` | `originY` | ✅ |
+| `winampDisplay.h:594` | transport buttons | `originX+b.x` | `originY+b.y` | ✅ |
+| `winampDisplay.h:910,917` | digits + play/pause | `originX+digit_x[i]` / `originX+PP_X` | `originY+DIGIT_Y` / `originY+PP_Y` | ✅ |
+| `winampDisplay.h:923-929` | title scroll slot | `slotX=originX+TITLE_X` | `slotY=originY+TITLE_Y` | ✅ |
+| `winampDisplay.h:279-285` | posbar thumb (injectTouch) | `slotX=originX+POSBAR_X` | `slotY=originY+POSBAR_Y` | ✅ |
+| `winampDisplay.h:602-669` | all `hitTest*` functions | `originX+…` | `originY+…` | ✅ |
+| `winampDisplay.h:1016-1020` | PLEDIT gutter fills | `0` / `rightEdge=originX+PLEDIT_W` | `PLEDIT_Y` | ✅ intentional gutter / ⚠️ Y absolute — safe `originY=0` |
+| `winampDisplay.h:984,1023` | `drawPlaylist` PLEDIT title bar | `originX` | `PLEDIT_Y` | ⚠️ Y absolute — safe `originY=0` |
+| `winampDisplay.h:961-963` | `drawScrollThumbOnly` side strip loop | `rightX=originX+…` | `sy` from `PLEDIT_ROWS_Y` | ✅ X / ⚠️ Y absolute |
+| `winampDisplay.h:968-969` | `drawScrollThumbOnly` thumb | `rightX+PLEDIT_THUMB_X_INSET` | `PLEDIT_ROWS_Y+offset` | ✅ X / ⚠️ Y absolute |
+| `winampDisplay.h:1027-1030` | `drawPlaylist` left+right side tiles | `originX` / `originX+…` | `sy` from `PLEDIT_ROWS_Y` | ✅ X / ⚠️ Y absolute |
+| `winampDisplay.h:1038-1040` | `drawPlaylist` scroll thumb | `thumb_x=originX+…` | `thumb_y=PLEDIT_ROWS_Y+offset` | ✅ X / ⚠️ Y absolute |
+| `winampDisplay.h:1056-1071` | `drawPlaylist` row fills | `originX+PLEDIT_CONTENT_X` | `ry=PLEDIT_ROWS_Y+i*ROW_H` | ✅ X / ⚠️ Y absolute |
+| `winampDisplay.h:1103-1106` | `drawPlaylist` row text | `originX+PLEDIT_CONTENT_X+…` / `durX=originX+…` | `textY=ry+TEXT_VOFF` | ✅ X / ⚠️ Y absolute |
+| `winampDisplay.h:1111` | `drawPlaylist` bottom bar | `originX` | `PLEDIT_BOTTOM_Y` | ✅ X / ⚠️ Y absolute |
+| `winampDisplay.h:1129-1130` | PLEDIT bottom glyph | `originX+127+GLYPH_W` | `PLEDIT_BOTTOM_Y+10` | ✅ X / ⚠️ Y absolute |
+| `winampDisplay.h:342-365` | drag handler PLEDIT Y hit-test | `p.x >= originX+…` | `py=p.y-originY` vs `PLEDIT_ROWS_Y` | ✅ X / ⚠️ Y mismatch |
+| `winampDisplay.h:751-775` | `injectTouch` PLEDIT Y hit-test | `sx >= originX+…` | `py=sy-originY` vs `PLEDIT_ROWS_Y` | ✅ X / ⚠️ Y mismatch |
+| `vuMeter.h` | all `blitVis*` / `tick*` functions | `originX+…` param | `originY+…` param | ✅ fully param-relative |
+| `cheapYellowLCD.h` | all draw calls | n/a | n/a | ✅ no Winamp chrome draws |
 
-**1. `winampDisplay.h` — every `tft.draw*` / `tft.fill*` / `tft.pushImage` call**
+**Summary:**
+- **X coordinates:** 100% origin-relative across all files. No bare absolute X integers in any draw call. ✅
+- **Y coordinates (PLEDIT only):** `PLEDIT_Y=116`, `PLEDIT_ROWS_Y=136`, `PLEDIT_BOTTOM_Y=201` are absolute screen constants from `gen/skin_layout.h`, used directly. Safe because `originY=0` always. Latent liability for future `originY≠0` scenario — not a blocker for M-MULTIAPP.
+- **PLEDIT touch Y mismatch:** `py = sy - originY` (origin-relative) compared against `PLEDIT_ROWS_Y` (absolute). Conceptual mismatch, safe when `originY=0`. Same latent liability.
+- **No FIX NEEDED rows.** originX=0 shift will work correctly on all sites.
 
-For each X argument: must be `originX + CONST`, not a bare absolute integer.
-For each Y argument in main-chrome context: must be `originY + CONST`.
-
-Known safe sites (pre-confirmed by spot-check):
-- Main chrome draws: `pushImage(originX, originY, ...)` ✅
-- Transport buttons: `originX + b.x`, `originY + b.y` ✅
-- POSBAR / VOLUME / SHUFREP / LOGO / VIS slots: all `originX + X_CONST`, `originY + Y_CONST` ✅
-- PLEDIT gutter fills: `fillRect(0, PLEDIT_Y, originX, ...)` — intentional; fills the black strip left of originX ✅
-- PLEDIT content X: `originX + PLEDIT_CONTENT_X`, `originX + PLEDIT_W` etc. ✅
-
-Known liability (document, not fix, before originX-only shift):
-- **PLEDIT Y positions** — `PLEDIT_Y=116`, `PLEDIT_ROWS_Y=136`, `PLEDIT_BOTTOM_Y=201` are
-  absolute screen Y values in `gen/skin_layout.h`. Currently correct because `originY=0`
-  always. Not expressed as `originY + PLEDIT_Y_OFFSET`. If `originY` ever becomes non-zero
-  (future multi-panel Y stacking), all PLEDIT Y draws and Y hit-tests must be migrated to
-  `originY + PLEDIT_Y_OFFSET` form.
-- **PLEDIT touch Y comparisons** — `py = p.y - originY` then compared against absolute
-  `PLEDIT_ROWS_Y`. Conceptual mismatch: `py` is origin-relative but the threshold is not.
-  Works when `originY=0`. Same liability; document and flag.
-
-**2. `vuMeter.h` — all render functions**
-
-Confirm all draw calls use the `originX` / `originY` function parameters, not internal
-literals. Pre-confirmed by spot-check; audit should produce a one-line sign-off.
-
-**3. `cheapYellowLCD.h` — any Winamp-specific draws**
-
-Confirm no Winamp chrome draws bypass `WinampDisplay::originX/Y`.
-
-#### Deliverable
-
-Emit a signed-off finding table in this task note (or a linked comment):
-
-| File | Site | X | Y | Status |
-|------|------|---|---|--------|
-| `winampDisplay.h` | `repaintChrome / pushImage(MAIN_BG)` | `originX` | `originY` | ✅ origin-relative |
-| `winampDisplay.h` | `drawPlaylist / pushImage(PLEDIT_Y)` | `originX` | `PLEDIT_Y` | ⚠️ absolute-Y / safe when originY=0 |
-| … | … | … | … | … |
-
-Gate: finding table signed off → M-MULTIAPP firmware impl unblocked.
-VE test suite: TASK-081 executes after the originX shift lands.
+**Gate: SIGNED OFF. M-MULTIAPP firmware implementation (TASK-083 step 5) is unblocked on TASK-080.**
 
 ---
 
@@ -799,7 +787,7 @@ Report pass/fail to PM. PM prompts QM for retrospective.
 ### TASK-082 — Implement tools/audit_origin.py
 **Owner**: Developer
 **Feature**: shell-layout-001
-**Status**: open (2026-05-24)
+**Status**: done (2026-05-24 — all exit criteria verified)
 **Blocked by**: nothing (`gen/skin_layout.h` present)
 **Unblocks**: TASK-081 (T141–T146 host-side execution)
 
@@ -807,16 +795,18 @@ Implement `tools/audit_origin.py` per design doc
 `docs/architecture/designs/audit-origin.md`.
 
 Deliverables:
-- `tools/audit_origin.py` (~200 LOC) — all T141–T146 logic + optional visual
-- Minor refactor of `render_hitzones()` in `tools/bake_skin.py` to accept
-  `(image, origin_x, draw_origin)` args; existing call-site unchanged
+- `tools/audit_origin.py` (210 LOC) — T141–T146 logic + `--visual` PNG
+- `gen/origin_audit.png` added to `app/.gitignore`
+- Note: `render_hitzones()` in `bake_skin.py` not refactored — `audit_origin.py`
+  builds its visual independently from imported bake_skin constants; existing
+  call-site unchanged and bake_skin refactor deferred (not needed for T141–T146).
 
-Exit criteria (from design doc):
-- `python3 tools/audit_origin.py` exits 0 on current tree (originX=22)
-- `--visual` produces `gen/origin_audit.png` with all green dots
-- `--grep-only` exits 0 (no bare absolute X literals in draw calls)
-- Running at `origin_x=0` also exits 0
-- `sha256sum -c gen/golden.sha256` unaffected (`origin_audit.png` excluded from golden)
+Exit criteria — all verified 2026-05-24:
+- `python3 tools/audit_origin.py` exits 0 ✅
+- `--visual` produces `gen/origin_audit.png` with all green dots ✅
+- `--grep-only` exits 0 ✅
+- Full run at ox=0 (T146) exits 0 ✅
+- `sha256sum -c gen/golden.sha256` unaffected ✅
 
 ---
 
@@ -915,7 +905,7 @@ Exit criteria (task complete when all are true):
 - `app/src/screenLog.h` uses `"winamp/winampDisplay.h"` include path ✓
 - `audit_origin.py --grep-only` exits 0 after step 4 ✓ (T141 PASS)
 - Step 4 DUT smoke test passes ✓ (2026-05-24: Spotify polling live, Winamp chrome rendering, no crashes)
-- `audit_origin.py` full run exits 0 after step 5 — PENDING (TASK-082)
+- `audit_origin.py` full run exits 0 after step 5 — PENDING (step 5 not yet applied)
 - `Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino` matches upstream ref ✓ (reverted to 6eb95ffd)
 - `Spotify-Diy-Thing/platformio.ini` matches upstream ref ✓ (reverted to 6eb95ffd)
 

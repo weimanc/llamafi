@@ -13,6 +13,7 @@ src/wifi_creds.h
 # Host-only bake review artefacts.
 gen/skin_preview.png
 gen/skin_hitzones.png
+gen/origin_audit.png
 gen/composite/
 gen/vis_atlas.npy
 gen/wave_atlas.npy

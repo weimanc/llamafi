@@ -46,7 +46,7 @@ public:
   void displaySetup(SpotifyArduino *spotifyObj) override {
     CheapYellowDisplay::displaySetup(spotifyObj);
     tft.setSwapBytes(true);  // RGB565 LE in gen/ — pushImage expects byte-swap on
-    originX = (screenWidth  - WINDOW_W) / 2;
+    originX = 0;
     originY = 0;
     Serial.println("winamp display setup");
   }
@@ -603,7 +603,7 @@ private:
     const int by0 = originY + CB_PREV_Y;
     const int by1 = by0 + 18;
     if (sy < by0 || sy >= by1) return -1;
-    const int x0 = originX + CB_PREV_X;     // 38 typical (originX=22)
+    const int x0 = originX + CB_PREV_X;
     if (sx < x0)                       return -1;
     if (sx < x0 + 23)                  return 0;  // PREV
     if (sx < x0 + 23 + 23)             return 1;  // PLAY

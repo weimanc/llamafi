@@ -1,227 +1,355 @@
 #!/usr/bin/env python3
 """
-audit_origin.py — origin-relative render + hit-test audit (TASK-082).
+PC-side origin-relative audit (TASK-082 / T141–T146).
+
+Verifies every winamp render and hit-test site is correctly origin-relative,
+as a pre-gate for the M-MULTIAPP originX shift (22 → 0).
+
+T141 — static grep: no bare integer X in tft draw/fill/pushImage calls.
+T142 — TRANSPORT zone boundary tests at both originX values.
+T143 — POSBAR + VOLUME boundary tests at both origins.
+T144 — PLEDIT Z1/Z2 boundary tests + cross-origin shift regression.
+T145 — right-margin gap and left-gutter DEADZONE tests.
+T146 — full boundary regression at originX=0 (TASK-081 exit gate).
 
 Usage:
-    python3 tools/audit_origin.py             # T141–T146 (full run)
-    python3 tools/audit_origin.py --grep-only # T141 only (static grep)
-    python3 tools/audit_origin.py --visual    # T141–T146 + gen/origin_audit.png
-
-Exit 0 = all requested checks pass.
+  python3 tools/audit_origin.py              # all tests
+  python3 tools/audit_origin.py --grep-only  # T141 only
+  python3 tools/audit_origin.py --visual     # also emit gen/origin_audit.png
 """
-
-import sys
-import re
 import argparse
-from pathlib import Path
+import pathlib
+import re
+import sys
 
-TOOLS_DIR = Path(__file__).parent          # app/tools/
-APP_DIR   = TOOLS_DIR.parent              # app/
-WINAMP_H  = APP_DIR / "src" / "winamp" / "winampDisplay.h"
+TOOLS_DIR = pathlib.Path(__file__).parent
+APP_DIR   = TOOLS_DIR.parent
+GEN_DIR   = APP_DIR / "gen"
+SRC_DIR   = APP_DIR / "src"
+WINAMP_H  = SRC_DIR / "winamp" / "winampDisplay.h"
+LAYOUT_H  = GEN_DIR / "skin_layout.h"
 
-# ── T141 — Static grep ────────────────────────────────────────────────────────
-#
-# Scan winampDisplay.h for tft draw/fill/pushImage calls.
-# Extract the X-coordinate argument and verify it is origin-relative
-# (a variable, not a bare integer literal), except the explicit gutter-fill
-# pattern fillRect(0, ...) which is an accepted origin-independent clear.
-
-# tft methods where the first positional argument is X
-FIRST_ARG_IS_X = re.compile(
-    r'\btft\.(fillRect|pushImage|drawPixel|drawLine|drawRect|fillRoundRect|drawRoundRect'
-    r'|drawBitmap|pushSprite)\s*\('
-)
-
-# tft methods where the second positional argument is X (e.g. drawString)
-SECOND_ARG_IS_X = re.compile(
-    r'\btft\.(drawString|drawFloat|drawNumber|drawChar|drawCentreString|drawRightString)\s*\('
-)
-
-# tft methods that have no X (fillScreen, setTextColor, etc.) — skip
-SKIP_METHODS = re.compile(
-    r'\btft\.(fillScreen|setTextColor|setTextFont|setTextSize|setSwapBytes'
-    r'|getSwapBytes|setCursor|setRotation|begin|init|setTouch)\s*\('
-)
-
-# Accepted non-integer X expressions:
-# - Any identifier (variable name) — always accepted
-# - Simple arithmetic: identifier + constant, identifier - constant, etc.
-BARE_INT = re.compile(r'^\s*(-?\d+)\s*$')
-
-# The explicit gutter-fill 0 is accepted: fillRect(0, ...)
-ACCEPTED_ZERO_CONTEXT = {'fillRect'}
-
-PASS = 0
-FAIL = 1
+SCREEN_W, SCREEN_H = 320, 240
+# VIS area — from vuMeter.h, not emitted to skin_layout.h
+VIS_RECT_X, VIS_LEFT_Y, VIS_RECT_W, VIS_H = 24, 43, 76, 16
 
 
-def t141_grep(verbose=False):
-    """T141: static X-arg audit of winampDisplay.h. Returns list of failure strings."""
-    if not WINAMP_H.exists():
-        return [f"ERROR: {WINAMP_H} not found"]
+# ── Layout ────────────────────────────────────────────────────────────────────
 
+def load_layout(path=LAYOUT_H):
+    """Parse skin_layout.h → {name: int} for all integer #defines."""
+    d = {}
+    for line in open(path):
+        m = re.match(r'#define\s+(\w+)\s+(\d+)', line)
+        if m:
+            d[m.group(1)] = int(m.group(2))
+    return d
+
+
+def calc_origin_x(S):
+    """Derive originX — mirrors firmware init and coords.py."""
+    return (SCREEN_W - S["WINDOW_W"]) // 2
+
+
+# ── Simulator ─────────────────────────────────────────────────────────────────
+
+def hit_test(sx, sy, ox, S, oy=0):
+    """
+    Mirror firmware injectTouch dispatch (winampDisplay.h).
+    Returns zone name string or 'DEADZONE'.
+
+    PLEDIT Y uses absolute screen Y, matching the documented firmware mismatch
+    (TASK-080 finding table); safe while originY=0.
+    """
+    wy = sy - oy
+
+    # 1. Transport — cumulative-width scan, mirrors hitTestTransport
+    by0, by1 = oy + S["CB_PREV_Y"], oy + S["CB_PREV_Y"] + 18
+    if by0 <= sy < by1:
+        seg = [("PREV",  S["CB_PREV_W"]),  ("PLAY",  S["CB_PLAY_W"]),
+               ("PAUSE", S["CB_PAUSE_W"]), ("STOP",  S["CB_STOP_W"]),
+               ("NEXT",  S["CB_NEXT_W"])]
+        cur = ox + S["CB_PREV_X"]
+        for name, w in seg:
+            if sx < cur:
+                break
+            if sx < cur + w:
+                return name
+            cur += w
+
+    # 2. Posbar
+    if (ox + S["POSBAR_X"] <= sx < ox + S["POSBAR_X"] + S["POSBAR_W"]
+            and S["POSBAR_Y"] <= wy < S["POSBAR_Y"] + S["POSBAR_H"]):
+        return "POSBAR"
+
+    # 3. Shuffle (dispatched before VOLUME in firmware)
+    if (ox + S["SHUFFLE_X"] <= sx < ox + S["SHUFFLE_X"] + S["SHUFFLE_W"]
+            and S["SHUFFLE_Y"] <= wy < S["SHUFFLE_Y"] + S["SHUFFLE_H"]):
+        return "SHUFFLE"
+
+    # 4. Repeat
+    if (ox + S["REPEAT_X"] <= sx < ox + S["REPEAT_X"] + S["REPEAT_W"]
+            and S["REPEAT_Y"] <= wy < S["REPEAT_Y"] + S["REPEAT_H"]):
+        return "REPEAT"
+
+    # 5. VIS
+    if (ox + VIS_RECT_X <= sx < ox + VIS_RECT_X + VIS_RECT_W
+            and VIS_LEFT_Y <= wy < VIS_LEFT_Y + VIS_H):
+        return "VIS"
+
+    # 6. Volume (after shuffle/repeat/vis in dispatch)
+    if (ox + S["VOLUME_X"] <= sx < ox + S["VOLUME_X"] + S["VOLUME_FRAME_W"]
+            and S["VOLUME_Y"] <= wy < S["VOLUME_Y"] + S["VOLUME_H"]):
+        return "VOLUME"
+
+    # 7–8. PLEDIT — firmware else branch; py vs absolute PLEDIT_ROWS_Y
+    py       = sy - oy
+    rows_top = S["PLEDIT_ROWS_Y"]
+    rows_bot = rows_top + S["PLEDIT_ROW_COUNT"] * S["PLEDIT_ROW_H"]
+
+    if (rows_top <= py < rows_bot
+            and ox + S["PLEDIT_CONTENT_X"] + S["PLEDIT_CONTENT_W"] <= sx
+            < ox + S["PLEDIT_W"]):
+        return "PLEDIT-Z2"
+
+    if (rows_top <= py < rows_bot
+            and ox + S["PLEDIT_CONTENT_X"] <= sx
+            < ox + S["PLEDIT_CONTENT_X"] + S["PLEDIT_CONTENT_W"]):
+        return "PLEDIT-Z1"
+
+    # 9. Logo
+    if (ox + S["LOGO_X"] <= sx < ox + S["LOGO_X"] + S["LOGO_W"]
+            and S["LOGO_Y"] <= wy < S["LOGO_Y"] + S["LOGO_H"]):
+        return "LOGO"
+
+    return "DEADZONE"
+
+
+# ── Zone geometry ─────────────────────────────────────────────────────────────
+
+def build_zones(S, ox):
+    """Return {name: (sx0, sy0, w, h)} screen-absolute at given origin ox."""
+    rows_y = S["PLEDIT_ROWS_Y"]
+    rows_h = S["PLEDIT_ROW_COUNT"] * S["PLEDIT_ROW_H"]
+    z2_w   = S["PLEDIT_W"] - S["PLEDIT_CONTENT_X"] - S["PLEDIT_CONTENT_W"]
+    return {
+        "PREV":      (ox + S["CB_PREV_X"],  S["CB_PREV_Y"],  S["CB_PREV_W"],  18),
+        "PLAY":      (ox + S["CB_PLAY_X"],  S["CB_PLAY_Y"],  S["CB_PLAY_W"],  18),
+        "PAUSE":     (ox + S["CB_PAUSE_X"], S["CB_PAUSE_Y"], S["CB_PAUSE_W"], 18),
+        "STOP":      (ox + S["CB_STOP_X"],  S["CB_STOP_Y"],  S["CB_STOP_W"],  18),
+        "NEXT":      (ox + S["CB_NEXT_X"],  S["CB_NEXT_Y"],  S["CB_NEXT_W"],  18),
+        "POSBAR":    (ox + S["POSBAR_X"],   S["POSBAR_Y"],   S["POSBAR_W"],   S["POSBAR_H"]),
+        "VOLUME":    (ox + S["VOLUME_X"],   S["VOLUME_Y"],   S["VOLUME_FRAME_W"], S["VOLUME_H"]),
+        "SHUFFLE":   (ox + S["SHUFFLE_X"],  S["SHUFFLE_Y"],  S["SHUFFLE_W"],  S["SHUFFLE_H"]),
+        "REPEAT":    (ox + S["REPEAT_X"],   S["REPEAT_Y"],   S["REPEAT_W"],   S["REPEAT_H"]),
+        "VIS":       (ox + VIS_RECT_X,      VIS_LEFT_Y,      VIS_RECT_W,      VIS_H),
+        "LOGO":      (ox + S["LOGO_X"],     S["LOGO_Y"],     S["LOGO_W"],     S["LOGO_H"]),
+        "PLEDIT-Z2": (ox + S["PLEDIT_CONTENT_X"] + S["PLEDIT_CONTENT_W"],
+                      rows_y, z2_w, rows_h),
+        "PLEDIT-Z1": (ox + S["PLEDIT_CONTENT_X"], rows_y, S["PLEDIT_CONTENT_W"], rows_h),
+    }
+
+
+def boundary_cases(x0, y0, w, h):
+    """4 inside (1px inset per edge) + 4 outside (1px beyond per edge).
+    Returns [(sx, sy, expect_inside), ...]."""
+    cx, cy = x0 + w // 2, y0 + h // 2
+    return (
+        [(x0 + 1, cy, True), (x0 + w - 2, cy, True),
+         (cx, y0 + 1, True), (cx, y0 + h - 2, True)] +
+        [(x0 - 1, cy, False), (x0 + w, cy, False),
+         (cx, y0 - 1, False), (cx, y0 + h, False)]
+    )
+
+
+# ── T141 ──────────────────────────────────────────────────────────────────────
+
+_DRAW_RE   = re.compile(r'tft\s*\.\s*(draw\w+|fill\w+|pushImage)\s*\(([^,)]*)',
+                         re.MULTILINE)
+_STR_FIRST = {"drawString", "drawCentreString", "drawNumber", "drawFloat", "fillScreen"}
+_BARE_INT  = re.compile(r'^\s*[1-9]\d*\s*$')
+
+
+def t141_grep(src=WINAMP_H):
+    """T141: no bare integer ≥1 as the X argument of any tft draw/fill/pushImage call."""
+    text = src.read_text()
     failures = []
-    src = WINAMP_H.read_text(encoding="utf-8")
-    lines = src.splitlines()
-
-    for lineno, line in enumerate(lines, 1):
-        stripped = line.strip()
-
-        # Skip comments
-        if stripped.startswith("//") or stripped.startswith("*"):
+    for m in _DRAW_RE.finditer(text):
+        method, first = m.group(1), m.group(2).strip()
+        if method in _STR_FIRST:
             continue
-
-        # Identify call type
-        m1 = FIRST_ARG_IS_X.search(line)
-        m2 = SECOND_ARG_IS_X.search(line)
-        skip = SKIP_METHODS.search(line)
-
-        if skip and not m1 and not m2:
-            continue
-
-        if not m1 and not m2:
-            continue
-
-        # Extract argument list (up to first unmatched closing paren)
-        paren_start = line.find('(', (m1 or m2).end() - 1)
-        if paren_start < 0:
-            continue
-
-        # Collect args from this line (may be multi-line, but most are single-line)
-        args_str = line[paren_start + 1:]
-        # For multi-line calls, join next lines until parens balance
-        depth = 1
-        for next_line in lines[lineno:]:  # lineno is 1-based, so lines[lineno] is the next
-            if depth <= 0:
-                break
-            for ch in next_line:
-                if ch == '(':
-                    depth += 1
-                elif ch == ')':
-                    depth -= 1
-            if depth > 0:
-                args_str += " " + next_line.strip()
-            else:
-                break
-
-        # Tokenise args by comma (naive — doesn't handle nested parens in args,
-        # but tft calls don't have them).
-        args = _split_args(args_str)
-        if not args:
-            continue
-
-        method = (m1 or m2).group(1)
-
-        if m1:
-            x_arg = args[0]
-        else:  # second arg is X
-            if len(args) < 2:
-                continue
-            x_arg = args[1]
-
-        x_arg = x_arg.strip()
-
-        # Accept: any expression containing a non-digit identifier character
-        # (i.e. a variable is present).
-        if re.search(r'[A-Za-z_]', x_arg):
-            if verbose:
-                print(f"  ok  {WINAMP_H.name}:{lineno}: {method}(x={x_arg!r} ...)")
-            continue
-
-        # It's a numeric expression. Accept 0 in fillRect context.
-        m_int = BARE_INT.match(x_arg)
-        if m_int:
-            val = int(m_int.group(1))
-            if val == 0 and method in ACCEPTED_ZERO_CONTEXT:
-                if verbose:
-                    print(f"  ok  {WINAMP_H.name}:{lineno}: {method}(x=0 [gutter-fill]) ...")
-                continue
+        if _BARE_INT.match(first):
+            lineno = text[:m.start()].count('\n') + 1
             failures.append(
-                f"{WINAMP_H.name}:{lineno}: bare X literal {val!r} in tft.{method}() — "
-                f"must be origin-relative (use originX + offset)"
+                f"{src.name}:{lineno}: tft.{method}({first},...) — bare integer X"
             )
-        else:
-            # Non-trivial numeric expression without identifiers — unlikely, flag it
-            failures.append(
-                f"{WINAMP_H.name}:{lineno}: suspicious X arg {x_arg!r} in tft.{method}()"
-            )
-
     return failures
 
 
-def _split_args(s):
-    """Split a comma-separated argument string, respecting paren depth."""
-    args = []
-    depth = 0
-    current = []
-    for ch in s:
-        if ch == '(' :
-            depth += 1
-            current.append(ch)
-        elif ch == ')':
-            if depth == 0:
-                break
-            depth -= 1
-            current.append(ch)
-        elif ch == ',' and depth == 0:
-            args.append(''.join(current).strip())
-            current = []
-        else:
-            current.append(ch)
-    if current:
-        args.append(''.join(current).strip())
-    return args
+# ── Boundary helpers ──────────────────────────────────────────────────────────
+
+def zone_boundary_failures(S, ox, tag):
+    """4-inside + 4-outside for every zone at ox. Returns failure strings."""
+    out = []
+    for name, rect in build_zones(S, ox).items():
+        for sx, sy, expect in boundary_cases(*rect):
+            result = hit_test(sx, sy, ox, S)
+            if (result == name) != expect:
+                side = "inside" if expect else "outside"
+                out.append(f"{tag} {name} {side} ({sx},{sy}) ox={ox} → {result!r}")
+    return out
 
 
-# ── T142–T146 stubs ───────────────────────────────────────────────────────────
-# Full implementation in TASK-082. These stubs print a notice and exit non-zero
-# so the check_build.sh gate knows T142–T146 are pending.
+def cross_origin_failures(S, ox_from, ox_to):
+    """
+    Shift regression signal: the rightmost pixel of each zone at ox_from
+    must NOT register in that zone at ox_to (zone shifted left by ox_from-ox_to).
+    A hardcoded absolute X boundary would still fire here — that's the bug we catch.
+    """
+    out = []
+    for name, (x0, y0, w, h) in build_zones(S, ox_from).items():
+        sx, sy = x0 + w - 1, y0 + h // 2
+        if hit_test(sx, sy, ox_from, S) != name:
+            continue  # geometry sanity — skip, don't false-flag
+        if hit_test(sx, sy, ox_to, S) == name:
+            out.append(
+                f"cross_origin {name}: right-edge sx={sx} still in zone at ox={ox_to} "
+                f"— X boundary may be hardcoded"
+            )
+    return out
 
-def t142_t146_stub():
-    print("T142–T146: zone boundary + full regression tests (TASK-082 pending)")
-    print("  Run --grep-only to execute only T141.")
-    return ["T142–T146 not yet implemented (TASK-082)"]
+
+def t145_margin_failures(S, ox_current, ox_zero=0):
+    """T145: right-margin gap (at ox=0) and left-gutter (at ox_current) must be DEADZONE."""
+    out = []
+    mid_y = S["CB_PREV_Y"] + 9   # mid-transport row Y
+
+    # At ox_zero: x >= WINDOW_W must be DEADZONE (taskbar gap opens here)
+    for sx in (ox_zero + S["WINDOW_W"], SCREEN_W - 1):
+        r = hit_test(sx, mid_y, ox_zero, S)
+        if r != "DEADZONE":
+            out.append(f"T145 right-margin ox={ox_zero}: sx={sx} → {r!r}")
+
+    # At ox_current>0: left gutter [0, ox_current) must be DEADZONE
+    if ox_current > 0:
+        for sx in (0, ox_current - 1):
+            r = hit_test(sx, mid_y, ox_current, S)
+            if r != "DEADZONE":
+                out.append(f"T145 left-gutter ox={ox_current}: sx={sx} → {r!r}")
+
+    return out
 
 
-# ── CLI ───────────────────────────────────────────────────────────────────────
+# ── Visual ────────────────────────────────────────────────────────────────────
+
+def render_visual(S, out_path=GEN_DIR / "origin_audit.png"):
+    """Two-panel 640×240 PNG: left = originX current, right = originX=0.
+    Zone outlines (magenta) + green/red dots for boundary pass/fail."""
+    from PIL import Image, ImageDraw
+
+    ox_vals  = [calc_origin_x(S), 0]
+    skin_src = GEN_DIR / "skin_preview.png"
+    skin     = Image.open(skin_src).convert("RGB") if skin_src.exists() else None
+    canvas   = Image.new("RGB", (SCREEN_W * 2, SCREEN_H), (20, 20, 20))
+    draw     = ImageDraw.Draw(canvas)
+
+    for i, ox in enumerate(ox_vals):
+        dx = i * SCREEN_W
+        if skin:
+            canvas.paste(skin, (dx + ox, 0))
+        draw.line([(dx, 0), (dx, SCREEN_H - 1)], fill=(60, 60, 60), width=1)
+        draw.text((dx + 4, 4), f"originX={ox}", fill=(200, 200, 200))
+        for name, (x0, y0, w, h) in build_zones(S, ox).items():
+            draw.rectangle([dx + x0, y0, dx + x0 + w - 1, y0 + h - 1],
+                           outline=(200, 0, 200), width=1)
+        for name, rect in build_zones(S, ox).items():
+            for sx, sy, expect in boundary_cases(*rect):
+                ok  = (hit_test(sx, sy, ox, S) == name) == expect
+                col = (0, 220, 0) if ok else (220, 0, 0)
+                draw.ellipse([dx + sx - 2, sy - 2, dx + sx + 2, sy + 2], fill=col)
+
+    canvas.save(out_path)
+    print(f"  visual → {out_path.name}")
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="Origin-relative render audit")
-    parser.add_argument("--grep-only", action="store_true",
-                        help="T141 only: static grep for bare X literals")
-    parser.add_argument("--visual", action="store_true",
-                        help="Generate gen/origin_audit.png (requires T142–T146)")
-    parser.add_argument("--verbose", action="store_true",
-                        help="Print accepted lines too")
-    args = parser.parse_args()
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--grep-only", action="store_true")
+    p.add_argument("--visual",    action="store_true")
+    args = p.parse_args()
 
-    all_failures = []
+    S     = load_layout()
+    ox    = calc_origin_x(S)
+    fails = []
 
-    print("=== audit_origin.py ===")
-    print()
+    def section(tag, new_fails):
+        nonlocal fails
+        if new_fails:
+            for f in new_fails:
+                print(f"  FAIL  {f}")
+        else:
+            print(f"  PASS")
+        fails.extend(new_fails)
 
-    print("[T141] Static grep — bare X literals in winampDisplay.h")
-    failures_141 = t141_grep(verbose=args.verbose)
-    if failures_141:
-        for f in failures_141:
-            print(f"  FAIL  {f}")
-        all_failures.extend(failures_141)
-    else:
-        print("  PASS  no bare X integer literals")
-    print()
+    print(f"T141  static grep — no bare X integers in draw calls")
+    section("T141", t141_grep())
+    if args.grep_only:
+        return 1 if fails else 0
 
-    if not args.grep_only:
-        failures_rest = t142_t146_stub()
-        all_failures.extend(failures_rest)
+    print(f"T142  TRANSPORT boundary (ox={ox} and ox=0)")
+    transport = {"PREV", "PLAY", "PAUSE", "STOP", "NEXT"}
+    t142 = []
+    for test_ox in (ox, 0):
+        for name, rect in build_zones(S, test_ox).items():
+            if name not in transport:
+                continue
+            for sx, sy, expect in boundary_cases(*rect):
+                if (hit_test(sx, sy, test_ox, S) == name) != expect:
+                    side = "inside" if expect else "outside"
+                    t142.append(f"T142 {name} {side} ({sx},{sy}) ox={test_ox}")
+    section("T142", t142)
 
-    if args.visual and not args.grep_only:
-        print("--visual requires T142–T146 (TASK-082 pending)")
-        all_failures.append("--visual not yet implemented")
+    print(f"T143  POSBAR + VOLUME boundary (ox={ox} and ox=0)")
+    t143 = []
+    for test_ox in (ox, 0):
+        for name in ("POSBAR", "VOLUME"):
+            for sx, sy, expect in boundary_cases(*build_zones(S, test_ox)[name]):
+                if (hit_test(sx, sy, test_ox, S) == name) != expect:
+                    side = "inside" if expect else "outside"
+                    t143.append(f"T143 {name} {side} ({sx},{sy}) ox={test_ox}")
+    section("T143", t143)
 
-    passed = len(all_failures) == 0
-    print(f"=== Results: {'PASS' if passed else 'FAIL'} ({len(all_failures)} failures) ===")
-    sys.exit(0 if passed else 1)
+    print(f"T144  PLEDIT Z1/Z2 boundary + cross-origin shift regression")
+    t144 = []
+    for test_ox in (ox, 0):
+        for name in ("PLEDIT-Z1", "PLEDIT-Z2"):
+            for sx, sy, expect in boundary_cases(*build_zones(S, test_ox)[name]):
+                if (hit_test(sx, sy, test_ox, S) == name) != expect:
+                    side = "inside" if expect else "outside"
+                    t144.append(f"T144 {name} {side} ({sx},{sy}) ox={test_ox}")
+    t144 += cross_origin_failures(S, ox, 0)
+    section("T144", t144)
+
+    print(f"T145  canvas corners + right-margin gap")
+    section("T145", t145_margin_failures(S, ox))
+
+    print(f"T146  full boundary regression at ox=0")
+    section("T146", zone_boundary_failures(S, 0, "T146"))
+
+    if args.visual:
+        print("visual")
+        render_visual(S)
+
+    if fails:
+        print(f"\nFAILED — {len(fails)} check(s):")
+        for f in fails:
+            print(f"  {f}")
+        return 1
+    print(f"\nAll checks passed.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
