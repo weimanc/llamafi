@@ -282,6 +282,73 @@ private:
 };
 static ClockApp g_clockApp;
 
+// ── MatrixApp (matrix.md) ──────────────────────────────────────────────
+#define MATRIX_STREAMS    14
+#define MATRIX_STRIDE     19
+#define MATRIX_TICK_MS    25
+#define MATRIX_CANVAS_W  275
+#define MATRIX_CANVAS_H  240
+
+class MatrixApp : public App {
+public:
+  void init() override {
+    initMatrixState();
+    repaintMatrix();
+  }
+  void resume() override {
+    repaintMatrix();
+  }
+  void suspend() override {}
+  void tick() override { matrixTick(); }
+  bool handleInput(TouchPhase phase, int, int) override {
+    if (phase == TouchPhase::Press) {
+      initMatrixState();
+      repaintMatrix();
+      return true;
+    }
+    return false;
+  }
+private:
+  MatrixAppState _s;
+  unsigned long  _lastTickMs = 0;
+
+  void initMatrixState() {
+    for (int i = 0; i < MATRIX_STREAMS; i++) {
+      _s.rain[i].x        = i * MATRIX_STRIDE + 2;
+      _s.rain[i].y        = (float)random(-400, 0);
+      _s.rain[i].speed    = (float)random(5, 15);
+      _s.rain[i].length   = random(15, 40);
+      _s.rain[i].lastChar = ' ';
+    }
+    _s.initialised = true;
+  }
+
+  void repaintMatrix() {
+    tft.fillRect(0, 0, MATRIX_CANVAS_W, MATRIX_CANVAS_H, TFT_BLACK);
+  }
+
+  void matrixTick() {
+    unsigned long now = millis();
+    if (now - _lastTickMs < MATRIX_TICK_MS) return;
+    _lastTickMs = now;
+    for (int i = 0; i < MATRIX_STREAMS; i++) {
+      tft.setTextColor(TFT_WHITE, TFT_BLACK);
+      char hC = random(33, 126);
+      tft.drawChar(hC, _s.rain[i].x, (int)_s.rain[i].y, 2);
+      tft.setTextColor(TFT_GREEN, TFT_BLACK);
+      tft.drawChar(_s.rain[i].lastChar, _s.rain[i].x, (int)_s.rain[i].y - 20, 2);
+      tft.fillRect(_s.rain[i].x, (int)_s.rain[i].y - (_s.rain[i].length * 20),
+                   20, 20, TFT_BLACK);
+      _s.rain[i].lastChar = hC;
+      _s.rain[i].y += _s.rain[i].speed;
+      if (_s.rain[i].y > MATRIX_CANVAS_H + (_s.rain[i].length * 20))
+        _s.rain[i].y = -20.0f;
+    }
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  }
+};
+static MatrixApp g_matrixApp;
+
 // ── App registry + shell gesture state (TASK-090f) ────────────────────
 
 #ifdef WINAMP_DISPLAY
@@ -290,7 +357,7 @@ App* g_apps[(int)AppId::COUNT] = {
   &g_clockApp,    // AppId::Clock   = 1
   nullptr,        // Weather
   nullptr,        // Crypto
-  nullptr,        // Matrix
+  &g_matrixApp,   // Matrix
   nullptr,        // Life
 };
 #else
