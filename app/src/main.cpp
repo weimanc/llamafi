@@ -354,8 +354,8 @@ static MatrixApp g_matrixApp;
 #define WEATHER_FETCH_MS  60000UL
 #define WX_LEFT_CX   68
 #define WX_RIGHT_CX 206
-#define WX_TOP_CY   147
-#define WX_BOT_CY   209
+#define WX_TOP_CY    60   // top row MC_DATUM centre y  (y:0..119)
+#define WX_BOT_CY   180   // bottom row MC_DATUM centre y (y:121..239)
 
 class WeatherApp : public App {
 public:
@@ -374,31 +374,31 @@ private:
   int             _lsec = -1;
 
   void weatherDrawChrome() {
-    tft.drawRoundRect(0,   116, 137, 62, 5, 0xF81F);
-    tft.drawRoundRect(138, 116, 136, 62, 5, 0xFFE0);
-    tft.drawRoundRect(0,   179, 137, 60, 5, 0x07FF);
-    tft.drawRoundRect(138, 179, 136, 60, 5, 0x07E0);
+    tft.drawRoundRect(0,   0,   137, 120, 5, 0xF81F);  // TIME,     top-left
+    tft.drawRoundRect(138, 0,   137, 120, 5, 0xFFE0);  // TEMP,     top-right
+    tft.drawRoundRect(0,   121, 137, 119, 5, 0x07FF);  // HUMIDITY, bottom-left
+    tft.drawRoundRect(138, 121, 137, 119, 5, 0x07E0);  // WIND,     bottom-right
     tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(0xF81F); tft.drawString("TIME",     WX_LEFT_CX,  120, 2);
-    tft.setTextColor(0xFFE0); tft.drawString("TEMP",     WX_RIGHT_CX, 120, 2);
-    tft.setTextColor(0x07FF); tft.drawString("HUMIDITY", WX_LEFT_CX,  183, 2);
-    tft.setTextColor(0x07E0); tft.drawString("WIND",     WX_RIGHT_CX, 183, 2);
+    tft.setTextColor(0xF81F); tft.drawString("TIME",     WX_LEFT_CX,  8,   2);
+    tft.setTextColor(0xFFE0); tft.drawString("TEMP",     WX_RIGHT_CX, 8,   2);
+    tft.setTextColor(0x07FF); tft.drawString("HUMIDITY", WX_LEFT_CX,  129, 2);
+    tft.setTextColor(0x07E0); tft.drawString("WIND",     WX_RIGHT_CX, 129, 2);
     tft.setTextDatum(TL_DATUM);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
   }
 
   void repaintWeatherValues() {
     tft.setTextDatum(MC_DATUM);
-    tft.fillRect(143, 131, 126, 34, TFT_BLACK);
+    tft.fillRect(143, 20, 126, 90, TFT_BLACK);   // TEMP value area (below label)
     tft.setTextColor(0xFFE0, TFT_BLACK);
     tft.drawString(_s.lastDataFetch ? String(_s.cTemp, 1) + "C" : "---", WX_RIGHT_CX, WX_TOP_CY, 4);
-    tft.fillRect(5, 193, 127, 34, TFT_BLACK);
+    tft.fillRect(5, 148, 127, 60, TFT_BLACK);    // HUMIDITY value area
     tft.setTextColor(0x07FF, TFT_BLACK);
     tft.drawString(_s.lastDataFetch ? String((int)_s.cHum) + "%" : "---", WX_LEFT_CX, WX_BOT_CY, 4);
-    tft.fillRect(143, 193, 126, 46, TFT_BLACK);
+    tft.fillRect(143, 148, 126, 75, TFT_BLACK);  // WIND value + unit area
     tft.setTextColor(0x07E0, TFT_BLACK);
-    tft.drawString(_s.lastDataFetch ? String(_s.cWind, 1) : "---", WX_RIGHT_CX, 204, 4);
-    tft.drawString("km/h", WX_RIGHT_CX, 222, 2);
+    tft.drawString(_s.lastDataFetch ? String(_s.cWind, 1) : "---", WX_RIGHT_CX, 174, 4);
+    tft.drawString("km/h", WX_RIGHT_CX, 208, 2);
     tft.setTextDatum(TL_DATUM);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
   }
@@ -408,7 +408,7 @@ private:
     if (!getLocalTime(&ti)) return;
     if (ti.tm_sec == _lsec) return;
     _lsec = ti.tm_sec;
-    tft.fillRect(5, 131, 127, 34, TFT_BLACK);
+    tft.fillRect(5, 20, 127, 90, TFT_BLACK);    // TIME value area
     char tS[6]; strftime(tS, 6, "%H:%M", &ti);
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(0xF81F, TFT_BLACK);
@@ -416,7 +416,7 @@ private:
     int32_t rssi = WiFi.RSSI();
     int bars = (rssi > -50) ? 4 : (rssi > -70) ? 3 : (rssi > -85) ? 2 : 1;
     for (int i = 0; i < 4; i++) {
-      tft.fillRect(249 + (i * 6), 128 - ((i * 3) + 3), 4, (i * 3) + 3,
+      tft.fillRect(249 + (i * 6), 14 - ((i * 3) + 3), 4, (i * 3) + 3,
                    (i < bars) ? (uint16_t)0x07E0 : (uint16_t)0x3186);
     }
     tft.setTextDatum(TL_DATUM);
@@ -424,7 +424,7 @@ private:
   }
 
   void repaintWeather() {
-    tft.fillRect(0, 116, 275, 124, TFT_BLACK);
+    tft.fillRect(0, 0, 275, 240, TFT_BLACK);
     weatherDrawChrome();
     repaintWeatherValues();
     repaintWeatherTime();
@@ -449,12 +449,12 @@ static WeatherApp g_weatherApp;
 // ── CryptoApp (crypto.md) ─────────────────────────────────────────────
 #define CRYPTO_FETCH_MS   60000UL
 #define CRYPTO_COIN_COUNT 6
-#define CX_CANVAS_Y  116
-#define CX_CANVAS_H  124
-#define CX_HEADER_Y  118
-#define CX_RULE_Y    130
-#define CX_ROW_Y0    132
-#define CX_ROW_H      17
+#define CX_CANVAS_Y    0
+#define CX_CANVAS_H  240
+#define CX_HEADER_Y    5
+#define CX_RULE_Y     22
+#define CX_ROW_Y0     25
+#define CX_ROW_H      36   // 6 rows × 36 px = 216; row 5 divider lands at y=239
 #define CX_COL_SYM     5
 #define CX_COL_PRC    55
 #define CX_COL_CHG   270
@@ -491,16 +491,16 @@ private:
     int yPos = CX_ROW_Y0;
     for (int i = 0; i < CRYPTO_COIN_COUNT; i++) {
       tft.setTextColor(0xFFFF);
-      tft.drawString(CRYPTO_SYMBOLS[i], CX_COL_SYM, yPos, 2);
+      tft.drawString(CRYPTO_SYMBOLS[i], CX_COL_SYM, yPos + 11, 2);
       tft.setTextColor(0x07FF);
       tft.drawString(_s.lastCryptoFetch ? formatCryptoPrice(CRYPTO_SYMBOLS[i], _s.prices[i])
-                                        : String("---"), CX_COL_PRC, yPos, 2);
+                                        : String("---"), CX_COL_PRC, yPos + 11, 2);
       if (!_s.lastCryptoFetch) {
         tft.setTextColor(0x7BEF);
-        tft.drawRightString("---", CX_COL_CHG, yPos, 2);
+        tft.drawRightString("---", CX_COL_CHG, yPos + 11, 2);
       } else {
         tft.setTextColor((_s.changes[i] >= 0) ? (uint16_t)0x07E0 : (uint16_t)0xF800);
-        tft.drawRightString(String(_s.changes[i], 1) + "%", CX_COL_CHG, yPos, 2);
+        tft.drawRightString(String(_s.changes[i], 1) + "%", CX_COL_CHG, yPos + 11, 2);
       }
       yPos += CX_ROW_H;
       tft.drawFastHLine(0, yPos - 2, 270, 0x2104);
