@@ -423,6 +423,7 @@ public:
   void invalidatePlaylist() {
     lastQueueSeqno = 0xFFFFFFFF;
     _pleditScrollDirty = true;
+    lastPlaylistDrawMs = 0;  // bypass 1-Hz rate limit — caller wiped the canvas
   }
 
 #ifdef SERIAL_DEBUG
