@@ -106,92 +106,115 @@ stream erase rects overlap by 1 px. Harmless — both rects write black.
 
 ## appTick integration
 
-Replace source's `delay(25)` with millis gate:
+Replace source's `delay(25)` with millis gate. `_lastTickMs` is a member variable
+(not a static local) so it is visible in the class interface and can be reset in
+`init()` if needed.
 
 ```cpp
-void matrixTick(MatrixAppState &s) {
-    static unsigned long lastMs = 0;
+void MatrixApp::matrixTick() {
     unsigned long now = millis();
-    if (now - lastMs < MATRIX_TICK_MS) return;
-    lastMs = now;
+    if (now - _lastTickMs < MATRIX_TICK_MS) return;
+    _lastTickMs = now;
 
     for (int i = 0; i < MATRIX_STREAMS; i++) {
         tft.setTextColor(TFT_WHITE, TFT_BLACK);
         char hC = random(33, 126);
-        tft.drawChar(hC, s.rain[i].x, (int)s.rain[i].y, 2);
+        tft.drawChar(hC, _s.rain[i].x, (int)_s.rain[i].y, 2);
         tft.setTextColor(TFT_GREEN, TFT_BLACK);
-        tft.drawChar(s.rain[i].lastChar, s.rain[i].x, (int)s.rain[i].y - 20, 2);
-        tft.fillRect(s.rain[i].x, (int)s.rain[i].y - (s.rain[i].length * 20),
+        tft.drawChar(_s.rain[i].lastChar, _s.rain[i].x, (int)_s.rain[i].y - 20, 2);
+        tft.fillRect(_s.rain[i].x, (int)_s.rain[i].y - (_s.rain[i].length * 20),
                      20, 20, TFT_BLACK);
-        s.rain[i].lastChar = hC;
-        s.rain[i].y += s.rain[i].speed;
-        if (s.rain[i].y > MATRIX_CANVAS_H + (s.rain[i].length * 20))
-            s.rain[i].y = -20.0f;
+        _s.rain[i].lastChar = hC;
+        _s.rain[i].y += _s.rain[i].speed;
+        if (_s.rain[i].y > MATRIX_CANVAS_H + (_s.rain[i].length * 20))
+            _s.rain[i].y = -20.0f;
     }
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);   // reset — producer rule (ADR-027)
 }
 ```
 
-`static unsigned long lastMs` retains its value across app switches. On restore,
+`_lastTickMs` retains its value across app switches. On resume,
 if >25 ms have elapsed (always true), the first tick fires immediately —
 streams resume mid-fall. Desired behaviour.
 
 ---
 
-## initAppState / restoreAppState
+## App ABC integration
 
-`initAppState(Matrix)` — first launch only:
+Under the live `appShell.h` ABC, Matrix is a `MatrixApp : public App` class.
+The free functions above become private methods; state is held as members.
+
 ```cpp
-void initMatrixState(MatrixAppState &s) {
-    for (int i = 0; i < MATRIX_STREAMS; i++) {
-        s.rain[i].x      = i * MATRIX_STRIDE + 2;
-        s.rain[i].y      = (float)random(-400, 0);
-        s.rain[i].speed  = (float)random(5, 15);
-        s.rain[i].length = random(15, 40);
-        s.rain[i].lastChar = ' ';
+class MatrixApp : public App {
+public:
+    void init() override {
+        initMatrixState();
+        repaintMatrix();
     }
-    s.initialised = true;
-}
+    void resume() override {
+        // rain[] positions persist — no state restore needed.
+        // Clear canvas so any residue from the previous app is gone.
+        repaintMatrix();
+    }
+    void suspend() override {}   // no drag state; no-op
+
+    void tick() override { matrixTick(); }
+
+    // Press on the app canvas reinitialises all streams.
+    // Returns true (consumed) to trigger the inter-gesture cooldown.
+    bool handleInput(TouchPhase phase, int x, int y) override {
+        if (phase == TouchPhase::Press) {
+            initMatrixState();
+            repaintMatrix();
+            return true;
+        }
+        return false;
+    }
+
+private:
+    MatrixAppState _s;
+    unsigned long  _lastTickMs = 0;
+
+    void initMatrixState();   // seeds rain[] — see below
+    void matrixTick();        // per-frame update — see above
+    void repaintMatrix();     // canvas clear — see below
+};
 ```
 
-`restoreAppState(Matrix)` — subsequent returns: no action. The `rain[]` array
-in `g_appState` already holds the saved mid-fall positions. `matrixTick` resumes
-on the next loop iteration.
+`x < TASKBAR_X` is guaranteed by the shell before `handleInput` is called
+(layering rule 2 from app-interface.md) — no extra guard needed inside the method.
 
 ---
 
-## repaintApp(Matrix)
+## initMatrixState / repaintMatrix
 
-`switchApp()` calls `repaintApp(next)` after clearing the left canvas. For
-Matrix there is no canonical pixel-accurate frame to reconstruct from state —
-stream positions are continuous and glyphs are random. The correct repaint is:
+`MatrixApp::init()` — first launch; also called on tap-reinit:
+```cpp
+void MatrixApp::initMatrixState() {
+    for (int i = 0; i < MATRIX_STREAMS; i++) {
+        _s.rain[i].x       = i * MATRIX_STRIDE + 2;
+        _s.rain[i].y       = (float)random(-400, 0);
+        _s.rain[i].speed   = (float)random(5, 15);
+        _s.rain[i].length  = random(15, 40);
+        _s.rain[i].lastChar = ' ';
+    }
+    _s.initialised = true;
+}
+```
+
+`MatrixApp::resume()` — subsequent returns: `rain[]` already holds mid-fall
+positions; only a canvas clear is needed. `matrixTick` resumes on the next
+loop iteration.
 
 ```cpp
-void repaintMatrix() {
+void MatrixApp::repaintMatrix() {
     tft.fillRect(0, 0, MATRIX_CANVAS_W, MATRIX_CANVAS_H, TFT_BLACK);
     // Next matrixTick() call draws stream heads immediately.
 }
 ```
 
-The black fill is redundant (switchApp already called fillRect) but is kept
-for correctness if repaintApp is ever called outside of a switchApp context.
-
----
-
-## Touch input
-
-A tap on the Matrix canvas (x < `TASKBAR_X`) reinitialises all streams:
-
-```cpp
-void matrixHandleInput(MatrixAppState &s, TouchPoint p) {
-    if (p.x < TASKBAR_X) {
-        initMatrixState(s);
-        repaintMatrix();
-    }
-}
-```
-
-Reinit from tap scatters all streams back above the screen — produces a visible
-"reset" effect as they fall in together. Same interaction as GoL tap-to-reseed.
+The black fill duplicates what `switchApp()` already does, but is kept so
+`repaintMatrix()` is correct if called outside a switch context (e.g. tap-reinit).
 
 ---
 
@@ -207,10 +230,21 @@ Reinit from tap scatters all streams back above the screen — produces a visibl
 
 ---
 
+## ADR-028 forward note
+
+`matrixTick()` uses `tft.setTextColor()` / `tft.drawChar()` / `tft.fillRect()`
+directly. ADR-028 (Canvas abstraction) is currently **proposed/blocked**. When it
+activates, migrate these calls to `canvas.drawChar()` / `canvas.fillRect()` and
+remove `tft.setTextColor()` entirely — the stateless Canvas API has no text-color
+register to leak. No interface change to `MatrixApp` is required; only the
+private method bodies change.
+
+---
+
 ## Open questions
 
 None. Algorithm ports verbatim with two numeric substitutions (stride, canvas
-height). Float struct types corrected. All lifecycle paths covered.
+height). Float struct types corrected. All lifecycle paths covered under App ABC.
 
 ---
 
