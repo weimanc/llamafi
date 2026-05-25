@@ -1,10 +1,10 @@
 # M-MULTIAPP — Settings App Design
 
 > Owner: Architect
-> Status: draft (aesthetics TBD — pending preview pass)
-> Date: 2026-05-23
+> Status: draft (aesthetics TBD — pending preview pass; UX for value selection open)
+> Date: 2026-05-25 (updated — app-access resolved, keyboard widget decision added)
 > Part of: [overview.md](overview.md)
-> See also: [taskbar.md](taskbar.md), [app-lifecycle.md](app-lifecycle.md), [layout.md](layout.md)
+> See also: [taskbar.md](taskbar.md), [app-lifecycle.md](app-lifecycle.md), [layout.md](layout.md), [stock.md](stock.md)
 
 ---
 
@@ -145,17 +145,77 @@ placeholders copied from the taskbar values above.
 
 ---
 
-## App access — open question
+## App access — resolved (2026-05-25)
 
-The taskbar currently has exactly 6 slots (AppId 0–5, 40 px each × 6 = 240 px).
-Settings must be accessible but doesn't need to occupy a permanent slot. Two options:
+Settings occupies **AppId slot 6** — a dedicated gear icon in the taskbar.
+Long-press was considered (Option B below) but rejected: discoverability on a
+device with no screen labels is poor.
 
-| Option | Mechanism | Taskbar impact |
-|--------|-----------|----------------|
-| **A** — Dedicated slot | Add Settings as AppId 6; slot height shrinks to 34 px (240/7); glyph stays 24×24 | Taskbar redesign needed; `TASKBAR_SLOT_COUNT=7` ripples to layout |
-| **B** — Long-press | Long-press (≥600 ms) any taskbar cell launches Settings; short-tap switches app as normal | No taskbar geometry change; input dispatch gains press-duration logic |
+Taskbar cell height stays **40 px** (6 visible slots × 40 px = 240 px). Settings at
+slot 6 is reached by scrolling the taskbar strip (see [taskbar.md §Scroll model](taskbar.md)
+and M-TASKBAR-SCROLL in `roadmap.md`). No geometry change to the taskbar is required.
 
-Option B is lower-disruption for M-MULTIAPP. Resolve before filing implementation tasks.
+```
+  visible at scrollOffset=0:        visible at scrollOffset=1:
+  y=0   |  [S]  | Spotify  ← 0     y=0   |  [C]  | Clock    ← 1
+  y=40  |  [C]  | Clock    ← 1     y=40  |  [W]  | Weather  ← 2
+  y=80  |  [W]  | Weather  ← 2     y=80  |  [€]  | Crypto   ← 3
+  y=120 |  [€]  | Crypto   ← 3     y=120 |  [M]  | Matrix   ← 4
+  y=160 |  [M]  | Matrix   ← 4     y=160 |  [G]  | Life     ← 5
+  y=200 |  [G]  | Life     ← 5     y=200 |  [⚙]  | Settings ← 6
+```
+
+Impact on taskbar.md: none — `TASKBAR_SLOT_H = 40` and slot rendering loop already
+parameterised for `scrollOffset` per M-TASKBAR-SCROLL design. Hit-test resolves
+`appIdx = (scrollOffset + slot) % totalApps`.
+
+Impact on `gen/shell_layout.h`: `TASKBAR_SLOT_COUNT` must reflect visible slots (6);
+`AppId::COUNT` grows from 6 → 7 when Settings is registered.
+
+Gear glyph for slot 6: Winamp TEXT.BMP may not contain a gear symbol. If absent,
+use a nearest-available Winamp glyph as placeholder until a custom 24×24 px
+bitmap is baked into the skin atlas.
+
+---
+
+## previousAppId
+
+Settings must return to the app the user came from, not default to Spotify.
+
+Add to `appShell.h`:
+
+```cpp
+AppId g_previousAppId = AppId::Spotify;   // fallback if Settings opened first
+```
+
+In `switchApp()`, before updating `currentAppId`:
+
+```cpp
+if (next == AppId::Settings) {
+    g_previousAppId = currentAppId;
+}
+```
+
+Settings' back action (tapping gear again, or a designated touch zone) calls
+`switchApp(g_previousAppId)`.
+
+---
+
+## Keyboard is a widget, not an AppId
+
+If text input is needed (e.g. entering a custom stock ticker), an on-screen
+keyboard is rendered as a **widget owned by SettingsApp**, not as a separate
+AppId entry. A `KeyboardWidget` would:
+
+- Render in the full 275×240 app canvas while active.
+- Receive touch events forwarded by `SettingsApp::handleInput()`.
+- Callback with the completed string, then be dismissed.
+
+It does NOT appear in the App enum, the taskbar, or `switchApp()`.
+
+**Caution:** the CYD touch panel is resistive. Small QWERTY keys have high
+fat-finger error rates. A predefined scrollable list is preferred for ticker
+and city selection. See §Open questions and [stock.md](stock.md) for UX options.
 
 ---
 
@@ -254,26 +314,49 @@ void renderSettingsContent(SettingsAppState &s) {
 
 ---
 
-## Per-tab content (TBD — placeholders)
+## Per-tab content
 
 | Tab | ID | Content spec |
 |-----|----|-------------|
 | `wifi` | 0 | TBD |
 | `clk` | 1 | TBD |
-| `loc` | 2 | TBD |
+| `loc` | 2 | Weather location (lat/lon). UX open — text entry or predefined city list. |
 | `cal` | 3 | TBD |
-| `app` | 4 | TBD |
+| `app` | 4 | App-level settings. First use case: Stock app — ticker selection + display mode (list / chart / heatmap). UX open — see §Open questions and [stock.md](stock.md). |
 
 Each tab's content will be specified in a follow-up design pass. For now, `renderSettingsContent()` draws a blank panel with the tab index number centred (stub rendering for visual testing).
+
+### `app` tab — stock config (first content stub)
+
+The `app` tab will host:
+
+1. **Ticker list** — which 6 symbols to show. User picks from a predefined set
+   or enters custom symbols (UX open).
+2. **Display mode** — list / chart / heatmap selector (3-option toggle).
+
+Persistence: values written to SPIFFS on change; loaded by `StockApp::init()`.
+Schema addition to `/settings.json` (see §Open questions):
+
+```json
+{
+  "stockTickers": ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOG"],
+  "stockMode":    "list"
+}
+```
 
 ---
 
 ## Open questions
 
-1. **App access mechanism** — slot 6 vs long-press. Resolve before implementation tasks filed. See §App access above.
+1. ~~**App access mechanism**~~ — **resolved 2026-05-25**: slot 6, taskbar scrolls (40 px cells preserved, M-TASKBAR-SCROLL).
 2. **Tab label glyphs** — use `SKIN_GLYPH` bitmap chars or `tft.drawString` with a small font? SKIN_GLYPH chars are 5×6; at 1× scale they are very small in a 55×28 cell. `tft.drawString(..., 1)` (font 1, 8px) or font 2 may be more legible. Decide in preview pass.
 3. **Per-tab content specs** — each of the five tabs is a stub. File separate design tasks as the settings surface is defined.
-4. **Persistence** — settings values will eventually write to SPIFFS (`/settings.json` alongside `/spotify_diy_config.json`). Schema TBD once tab contents are defined.
+4. **Persistence** — settings values will write to SPIFFS (`/settings.json` alongside `/spotify_diy_config.json`). Schema TBD once tab contents are defined.
+5. **UX for value selection** — three options under consideration for ticker/city entry:
+   - **Predefined scrollable list** — curated set, highlight to select. Lowest complexity, best fit for resistive touch. Recommended starting point.
+   - **On-screen QWERTY keyboard widget** — full text entry. High complexity, poor UX on resistive touch.
+   - **Hybrid** — keyboard with live-filter of a predefined list (search-as-you-type). Medium complexity.
+   Decision deferred to UX pass. See also [stock.md §Open questions](stock.md).
 
 ---
 

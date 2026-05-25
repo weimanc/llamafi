@@ -340,6 +340,36 @@ preserved. Architecture pre-wired for Phase 2 fling momentum.
 
 ---
 
+### M-TASKBAR-SCROLL — Scrolling taskbar (wrap-around, N > 6 apps)
+
+The taskbar currently renders exactly 6 apps in 6 fixed slots. Settings (AppId 6) and
+Stock (AppId 7) are already designed; further apps may follow. This milestone extends the
+taskbar to support an arbitrary number of registered apps by making the 6 visible slots a
+scrollable view over the full app list, with wrap-around.
+
+Scroll model: finger swipe up/down on the taskbar strip scrolls the visible window.
+Tap discrimination reuses the PLEDIT dead-zone pattern (`SCROLL_DEAD_ZONE_PX`).
+Velocity/inertia is **not** needed for a ≤12-item list — steps are driven directly from
+finger displacement. Wrap-around is free via modulo: `(scrollOffset + i) % totalApps`.
+A 2 px scroll-position indicator column (deferred to impl) shows current position.
+
+Work:
+1. Add `_tbScrollOffset`, `_tbDragStartY`, `_tbScrollAccum` to `WinampDisplay` private section.
+2. Add `D_TASKBAR_SCROLL` to `DragState` enum.
+3. Update `checkForInput()` taskbar first-pass: Press → `D_TASKBAR_SCROLL`; Move → step accumulation; Up → tap-vs-scroll (3× dead zone threshold), with wrap-around modulo on scroll.
+4. Update `renderTaskbar()` signature to `(tft, activeApp, scrollOffset, totalApps)`; inner loop `appIdx = (scrollOffset + i) % totalApps`.
+5. Wire `_tbScrollOffset` into all `renderTaskbar()` call sites.
+6. VE: T162–T168 (tap-vs-scroll discrimination, scrollOffset increment/decrement, wrap-around, active indicator follows appIdx).
+
+Mechanism is verifiable with 6 apps via serial debug (`get tbScrollOffset`). Visual
+benefit becomes apparent when Settings/Stock (AppId 6, 7) are added and `AppId::COUNT > 6`.
+
+**Status:** open — TASK-105 (implementation), TASK-106 (VE suite T162–T168)
+**Design:** [M-MULTIAPP/taskbar.md §Scroll model](../architecture/designs/M-MULTIAPP/taskbar.md)
+**Deps:** M-MULTIAPP (done), M-TOUCH-CAPTURE (TASK-101 done — DragState pattern established)
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.

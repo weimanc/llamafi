@@ -63,6 +63,7 @@ as the switching mechanism.
 | Crypto app — row layout, sub-canvas options | [crypto.md](crypto.md) |
 | Matrix rain app — stream geometry, float fix | [matrix.md](matrix.md) |
 | Settings app — tab bar, aesthetics, content stubs | [settings.md](settings.md) |
+| Stock app — list / chart / heatmap modes, Yahoo Finance | [stock.md](stock.md) |
 
 ## Status
 
