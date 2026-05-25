@@ -91,7 +91,14 @@ Top-align Winamp chrome; render Spotify queue strip in freed area below using `G
 
 ---
 
-## Outstanding
+### M-PERF — Profiling + targeted optimisation
+
+Instrument loop and hot paths; measure before deciding which optimisations to ship.
+**Status:** done (2026-05-08/15 — TASK-029/030/031/033/034/038; async Spotify HTTP loop_max 4191ms→16ms; SPI clock 40 MHz; startWrite/endWrite chrome brackets; touch press-hold state machine)
+**Deps:** M-LOG (done), M3, M-IO
+**Design:** [M-PERF-profiling.md](../architecture/designs/M-PERF-profiling.md)
+
+---
 
 ### M-IO — Decouple display from blocking network calls
 
@@ -99,15 +106,6 @@ Remove cases where Spotify API calls block the super-loop long enough to freeze 
 **Status:** done (TASK-019 async poll; TASK-052 tap resets backoff, 2026-05-16)
 **Deps:** M3
 **Design:** [M-IO-decouple-display-network.md](../architecture/designs/M-IO-decouple-display-network.md)
-
----
-
-### M-UI-POLISH — Small UI fidelity improvements
-
-Wire artist name into marquee (`Artist - Title`); restore skin background in VU zero-fill region.
-**Status:** done (2026-05-16)
-**Deps:** M3, M6
-**Design:** [M-UI-POLISH-fidelity.md](../architecture/designs/M-UI-POLISH-fidelity.md)
 
 ---
 
@@ -120,57 +118,39 @@ Extend bake tool to emit a semi-transparent hit-zone overlay PNG for touch align
 
 ---
 
-### M-CONN — Connection health UI + TLS recovery controls
+### M-UI-POLISH — Small UI fidelity improvements
 
-Inactive title bars on disconnect; serial `reconnect` command; Winamp logo tap → TLS reset.
-**Status:** done (2026-05-22 — all exit criteria met). F1: DNS-induced consecutive=2 → repaintChrome fired SKIN_TITLEBAR_INACTIVE (render_age 60003→17251ms). F2: reconnect JSON ack, TLS reset, 10/10 polls. F3: logo tap → TLS reset + force poll logged; 2s cooldown correct; visual redraw confirmed. Also fixed TASK-073 crash (strcmp nullptr on track start).
-**Deps:** M-IO (TASK-052), M-CHROME (done), M3
-**Design:** [M-CONN-connection-health.md](../architecture/designs/M-CONN-connection-health.md)
+Wire artist name into marquee (`Artist - Title`); restore skin background in VU zero-fill region.
+**Status:** done (2026-05-16)
+**Deps:** M3, M6
+**Design:** [M-UI-POLISH-fidelity.md](../architecture/designs/M-UI-POLISH-fidelity.md)
+
+---
+
+### M-VIS — Visualization area
+
+Tap-cycling visualizer replacing fixed VU: Atlas (baked from Winamp screengrab) → WaveAtlas → VU → Blank.
+**Status:** done (2026-05-16/17 — TASK-050a-c + M-VIS-ATLAS TASK-052a-f; tap cycle Atlas→WaveAtlas→VU→Blank; DUT sign-off "looks great"; 52.9% flash)
+**Deps:** M6, M-UI-POLISH (TASK-049)
+**Design:** [M-VIS-visualization.md](../architecture/designs/M-VIS-visualization.md)
 
 ---
 
 ### M-LIST-v2 — Winamp PLEDIT playlist skin
 
 Replace plain row list with proper PLEDIT skin: title bar, bottom bar, 5 rows, MM:SS durations, total time.
-**Status:** planned (2026-05-15; ADR-018)
+**Status:** done (2026-05-15 — TASK-047a-d; PLEDIT chrome with title/bottom bars, 5 rows, Font 1, MM:SS durations, total-time strip; ADR-018)
 **Deps:** M-LIST, M2, M3
 **Design:** [M-LIST-v2-pledit-skin.md](../architecture/designs/M-LIST-v2-pledit-skin.md)
-
----
-
-### M-VIS — Visualization area
-
-Tap-cycling visualizer replacing fixed VU: VU → Spectrum (19 bars) → Wave (sine) → Blank.
-**Status:** design updated (2026-05-16 — R&D pixel measurements incorporated; implementation pending TASK-050a/b/c)
-**Deps:** M6, M-UI-POLISH (TASK-049)
-**Design:** [M-VIS-visualization.md](../architecture/designs/M-VIS-visualization.md)
 
 ---
 
 ### M-LOG2 — On-screen log overlay
 
 Full-panel log terminal behind the Winamp chrome; newest 15 lines visible in PLEDIT area.
-**Status:** done (TASK-018 DUT-verified 2026-05-07); PLEDIT compat fix needed before using with M-LIST-v2
+**Status:** done (TASK-018 DUT-verified 2026-05-07)
 **Deps:** M-LOG (done), M3
 **Design:** [M-LOG2-screen-log-overlay.md](../architecture/designs/M-LOG2-screen-log-overlay.md)
-
----
-
-### M-LIST-v3 — Playlist interactivity
-
-Selected-row highlight tracking, virtual scroll (20 items), live scrollbar thumb.
-**Status:** planned (2026-05-15)
-**Deps:** M-LIST-v2, TASK-021 (tap-to-play)
-**Design:** [M-LIST-v3-playlist-interactivity.md](../architecture/designs/M-LIST-v3-playlist-interactivity.md)
-
----
-
-### M-PERF — Profiling + targeted optimisation
-
-Instrument loop and hot paths; measure before deciding which optimisations to ship.
-**Status:** planned (added 2026-05-08)
-**Deps:** M-LOG (done), M3, M-IO
-**Design:** [M-PERF-profiling.md](../architecture/designs/M-PERF-profiling.md)
 
 ---
 
@@ -182,7 +162,7 @@ All responses are JSON lines. Host scripts use `json.loads(line)` — check `ok`
 
 This unlocks regression-scriptable coverage for T052–T054, T074, T075, T048, and nine new tests (T076–T085, T089) that are impossible to write without coordinate-precise, repeatable input injection.
 
-**Status:** planned (2026-05-17)
+**Status:** done (2026-05-17/18 — TASK-056a-n + TASK-056k; tap/drag injection, get/set/info/help, IDebugExportable interface; VE suite T076–T096 22 PASS / 0 FAIL)
 **Deps:** M5 (touch hit-test path in tree), M-LOG (structured serial output)
 **Design:** [M-SERIALDBG-serial-debug-framework.md](../architecture/designs/M-SERIALDBG-serial-debug-framework.md) · [ADR-021](../architecture/decisions/ADR-021.md)
 
@@ -191,7 +171,7 @@ This unlocks regression-scriptable coverage for T052–T054, T074, T075, T048, a
 ### M-SYNC — DUT–Spotify state synchronization
 
 Field-level lag bounds + stale-state checks between Spotify's authoritative state and DUT chrome render. 14 tests (T097–T110, TSYNC-1 through -14). Three lag-bound tiers formalized in ADR-022.
-**Status:** planned (2026-05-17); blocked on ADR-022, SERIALDBG-l/-m, TASK-058, VE harness tools
+**Status:** done (2026-05-17/18 — TASK-057/058/061; spotify_state.py + spotify_drive.py + tsync_diff.py harness; heartbeat fields last_poll_age_ms + next_poll_in_ms; VE suite 12 PASS / 0 FAIL / 3 SKIP on DUT)
 **Deps:** M-SERIALDBG, M-IO, M-LOG
 
 ---
@@ -199,7 +179,7 @@ Field-level lag bounds + stale-state checks between Spotify's authoritative stat
 ### M-DRIFT — Operational state-drift surfacing
 
 Runtime counterpart to M-SYNC. Two surfaces: (a) `last_render_age_ms` heartbeat field; (b) in-chrome staleness indicator when `last_poll_age_ms > N_STALE_MS`. Threshold + indicator form in ADR-023.
-**Status:** planned (2026-05-17); blocked on ADR-023, TASK-059, TASK-060
+**Status:** done (2026-05-17 — TASK-059/060; last_render_age_ms heartbeat field + g_lastRenderMs; 4×4 amber pip at (268,1) when age > N_STALE_MS=15000; ADR-023 accepted)
 **Deps:** M-SYNC (TASK-058 shared), M-CONN (overlay pattern)
 
 ---
@@ -210,6 +190,15 @@ Resolve remaining open questions (TLS CA strategy, seek-drag, speculative poll, 
 **Status:** done (2026-05-16 — ADR-019 TLS CA, ADR-020 speculative poll, seek-drag visual resolved in design doc; audio-analysis already closed ADR-009)
 **Deps:** M6 and all prior milestones
 **Design:** [M7-open-questions.md](../architecture/designs/M7-open-questions.md)
+
+---
+
+### M-CONN — Connection health UI + TLS recovery controls
+
+Inactive title bars on disconnect; serial `reconnect` command; Winamp logo tap → TLS reset.
+**Status:** done (2026-05-22 — all exit criteria met). F1: DNS-induced consecutive=2 → repaintChrome fired SKIN_TITLEBAR_INACTIVE (render_age 60003→17251ms). F2: reconnect JSON ack, TLS reset, 10/10 polls. F3: logo tap → TLS reset + force poll logged; 2s cooldown correct; visual redraw confirmed. Also fixed TASK-073 crash (strcmp nullptr on track start).
+**Deps:** M-IO (TASK-052), M-CHROME (done), M3
+**Design:** [M-CONN-connection-health.md](../architecture/designs/M-CONN-connection-health.md)
 
 ---
 
@@ -235,6 +224,15 @@ Work:
 
 ---
 
+### M-LIST-v3 — Playlist interactivity
+
+Selected-row highlight tracking, virtual scroll (20 items), live scrollbar thumb.
+**Status:** done (2026-05-23 — TASK-051a-j; optimistic highlight, 20-item queue, scrollOffset + sliced rows, swipe gesture, live thumb sprite, auto-reset on track change, row format "N. Artist - Title… M:SS", songsSeen counter, scrollbar direct drag; DUT confirmed)
+**Deps:** M-LIST-v2, TASK-021 (tap-to-play)
+**Design:** [M-LIST-v3-playlist-interactivity.md](../architecture/designs/M-LIST-v3-playlist-interactivity.md)
+
+---
+
 ### M-SHELL-LAYOUT — Shell geometry single source of truth
 
 Establish `gen/shell_layout.h` as the single authoritative definition of taskbar
@@ -251,9 +249,8 @@ Work:
 4. Fix `preview_vis.py:58` to parse `gen/skin_layout.h` instead of hardcoding `WINDOW_W=275`.
 5. VE: T125–T127 host-side test suite.
 
-**Status:** design (2026-05-22 — design doc drafted; blocked on M-MULTIAPP interactive preview tooling)
+**Status:** done (2026-05-24 — TASK-068/069/070/071/072; coords.py originX-aware helpers, bake_skin gaps 2+3, parse_shell_layout helper, T125–T127 pass; aesthetics deferred)
 **Deps:** M-MULTIAPP (interactive preview tool, step 1)
-**Blocks:** M-MULTIAPP taskbar + appshell implementation (steps 3–4)
 **Design:** [M-MULTIAPP/shell-layout.md](../architecture/designs/M-MULTIAPP/shell-layout.md)
 
 ---
@@ -312,6 +309,14 @@ Work sequence:
 - TASK-097–100: VE suites T_MA/T_GOL/T_WX/T_CX/T_X07 (18 automated + 9 manual-planned) — 2026-05-25
 **Deps:** M3 (done), M-NOART (done), M-RESTRUCTURE (gates step 2), M-SHELL-LAYOUT (taskbar constants header, gates steps 3–4)
 **Design:** [M-MULTIAPP/overview.md](../architecture/designs/M-MULTIAPP/overview.md)
+
+---
+
+## Outstanding
+
+No milestones currently outstanding.
+
+Open design task: **TASK-078** (PLEDIT drag UX improvements — whiteboard session on click/gesture discrimination, full-screen gesture capture, scroll acceleration; status: open 2026-05-23).
 
 ---
 
