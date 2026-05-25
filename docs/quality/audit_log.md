@@ -744,6 +744,46 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 
 ---
 
+### Audit — 2026-05-25 — PLEDIT empty rows regression (getQueue malloc failure)
+
+**Triggered by**: human (bug report: PLEDIT shows chrome but no track rows during active playback)
+
+**Areas checked**:
+- [x] Bug root cause (why `onQueue` was never called despite status=200)
+- [x] Introduction point (which commit / milestone introduced the regression)
+- [x] Test coverage gap (was T114 positioned to catch this?)
+- [x] Fix adequacy (does the streaming approach eliminate the failure class?)
+- [x] Lessons learned (LL-038, LL-039 extracted)
+
+**Findings**:
+
+1. **Root cause: `malloc(65536)` silently fails on fragmented heap — RED.**
+   `getQueue()` allocated a 65 536-byte `bodyBuf` to buffer the raw Spotify queue response. On M-MULTIAPP firmware (5 App subclasses + `dataTask`), heap fragmentation causes `malloc` to return `NULL`. The `!bodyBuf` path returns status=200 silently — `onQueue` never fires, `g_queueSnapshot.count` stays 0, PLEDIT renders all rows empty. No `LOG_W` existed on the failure path; the condition was invisible in production logs.
+   _Fixed: `BlockingChunkedStream` streams directly from TLS socket into `deserializeJson` with filter — heap cost drops from 65 KB + 10 KB to ~10 KB. See `app/lib/SpotifyArduino/src/SpotifyArduino.cpp` (LOCAL_PATCHES note)._
+
+2. **Regression introduced by M-MULTIAPP, not by a code change to `getQueue()` — AMBER.**
+   The `malloc(65536)` bodyBuf was introduced in the TASK-065 dechunker fix (2026-05-20) and verified by T114 at the time. M-MULTIAPP (TASK-087–095) increased heap fragmentation without any change to `getQueue()`. The fix that passed T114 was no longer safe under the new firmware's heap profile.
+   _Action: LL-038 filed. See "Suggested improvement" — large heap allocations on resource-constrained targets require re-verification after significant subsystem growth._
+
+3. **T114 not re-run after M-MULTIAPP — AMBER.**
+   T114 asserts `count >= 1` and would have caught this regression immediately. Its precondition pins a firmware commit (`ab3864e`) rather than a firmware capability class. No re-run was scheduled when M-MULTIAPP landed.
+   _Action: LL-039 filed. T114 should be annotated `[RESOURCE-SENSITIVE]` and re-run whenever a new FreeRTOS task or App subclass is added. PM to file a task for VE to re-run T114 + annotate._
+
+4. **Silent failure path in `getQueue()` masked the bug class — RED.**
+   The `!bodyBuf` code path existed but emitted no log. Had a `LOG_W` been present, the first keepalive would have surfaced it. The absence of error logging converted a recoverable resource failure into an invisible one.
+   _Fixed incidentally by removing the path (streaming approach has no malloc). Future patches: any `malloc ≥ 16 KB` failure on ESP32 must log `LOG_W` with `largest_free_block`._
+
+**Also noted**: PLEDIT blank-for-1s on quick app switch (separate bug, same session) — fixed in `invalidatePlaylist()` via `lastPlaylistDrawMs = 0` reset. Commit `208a8ae`. Root cause: TASK-090 "Fix B3" was incomplete — bypassed seqno guard but not the 1-Hz rate limit. LL candidates not extracted (simpler fix, less systemic pattern).
+
+**Actions assigned**:
+- VE: annotate T114 `[RESOURCE-SENSITIVE]`; add it to re-run checklist for any new App/task addition
+- VE: re-run T114 against current `cyd2usb_winamp_debug` firmware to confirm fix
+- PM: file task for T114 annotation + re-run
+
+**Resolution**: Finding 1 fixed (streaming parse, commit to follow). Finding 4 fixed as a side effect. Findings 2–3 open pending VE/PM actions.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:

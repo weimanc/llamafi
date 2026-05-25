@@ -697,6 +697,48 @@ Sister rule to LL-025 (visual sign-off must cover the full range, not a single s
 
 ---
 
+## Retrospective — 2026-05-25 — PLEDIT empty rows (getQueue malloc regression)
+
+Triggering work: user bug report — PLEDIT shows chrome but no track rows during active playback. Root-caused to `malloc(65536)` silently failing on fragmented heap; `onQueue` never called; snapshot stays at `count=0`. Fixed by replacing the bodyBuf approach with a streaming `BlockingChunkedStream` that reads directly from the TLS socket. Two lessons extracted.
+
+### What went well
+
+- **Log-driven diagnosis.** `LOG_D("spotify.queue", "status=200 elapsed=490ms")` without a following `snapshot updated` line uniquely identified the silent return path — no SERIAL_DEBUG build needed.
+- **Root cause found before fixing.** Full analysis of three plausible hypotheses (malloc failure, JSON parse error, `onQueue` not called) narrowed to one before any code was changed.
+
+---
+
+### LL-038 — 2026-05-25 — Large heap malloc on ESP32 fails silently when the heap is fragmented
+
+**Context**: `getQueue()` in `SpotifyArduino.cpp` allocated a 65 536-byte `bodyBuf` to accumulate the raw Spotify queue response before passing it to `deserializeJson`. The allocation was introduced by the TASK-065 dechunker fix (2026-05-20) and passed T114 at the time. After M-MULTIAPP added five new App subclasses plus `dataTask` (TASK-087–095), heap fragmentation increased enough that `malloc(65536)` started returning `NULL`. The failure path (`!bodyBuf`) returned `statusCode` (200) immediately, calling neither `onQueue` nor any error log — PLEDIT showed 0 rows every keepalive cycle.
+
+**Observation**: `malloc` returning `NULL` is a contract violation that the caller must handle explicitly. The code did handle it, but silently: it closed the connection and returned the HTTP status code unchanged. From the outside, the call looked successful (status=200, elapsed=490ms). Without a `LOG_W` or `LOG_E` on the failure path, the symptom was indistinguishable from "parse succeeded but Spotify returned 0 tracks."
+
+**Root cause**: Two compounding factors: (1) the fix chose a large heap buffer when a streaming parse would have required only ~10 KB (the filtered doc); (2) the silent failure path made the condition unobservable without source-level knowledge of the code. Neither was caught because T114 passed on less-fragmented firmware — the test verified correct behaviour, but not behaviour under resource pressure.
+
+**Suggested improvement**:
+- On ESP32, treat any `malloc` of ≥ 16 KB as a risk point. Prefer streaming/incremental approaches that allocate only the output (filtered result), not the full raw input. `deserializeJson(doc, stream, Filter)` costs ~10 KB vs 65 KB + 10 KB.
+- Any `malloc` failure path that returns silently must emit at least a `LOG_W` with `heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT)`, so failures are observable in production logs without a debug build.
+- When a fix introduces a heap allocation to solve a correctness bug, file a follow-up note asking: "does this allocation still fit after the next feature wave?" The answer may change as subsystems grow.
+
+**Status**: open — promotion candidate.
+
+### LL-039 — 2026-05-25 — T114 not re-run after M-MULTIAPP; resource-sensitive tests need a re-run trigger
+
+**Context**: T114 was written for TASK-065 and asserts `getQueue() count >= 1` after one keepalive cycle. It passed on 2026-05-21 against firmware `ab3864e`. M-MULTIAPP (TASK-087–095) added five App subclasses and `dataTask`, increasing heap fragmentation. The TASK-065 dechunker fix started failing under the new firmware, producing the same symptom T114 was designed to catch. T114 was never re-run against the multiapp build; the regression was only discovered via a user bug report.
+
+**Observation**: T114 would have caught the regression immediately — its assertion (`count >= 1`) fails when `onQueue` is not called. The test was correct; it was not triggered. No regression schedule existed for "re-run these tests when heap usage or subsystem count increases."
+
+**Root cause**: T114's precondition names a specific firmware commit (`≥ ab3864e`), not a firmware *capability* class. When new subsystems landed, no mechanism asked: "which existing tests are sensitive to system-resource changes and should be re-verified?" The gap is scheduling, not test design.
+
+**Suggested improvement**:
+- Tests that exercise resource-constrained paths (heap allocation, stack depth, timing jitter) should be annotated `[RESOURCE-SENSITIVE]` analogously to `[FLAKE]`. A new milestone or significant feature addition (any new FreeRTOS task, large static allocation, or app subclass) should trigger a re-run of all `[RESOURCE-SENSITIVE]` tests as part of the merge checklist.
+- T114 specifically: update its precondition from a commit hash to a firmware capability description, and add it to the resource-sensitive re-run list for any future App or task addition.
+
+**Status**: open — promotion candidate. Closely related to LL-034 (VE test gap on App ABC) — the pattern of "test written, not re-run after subsequent changes" is recurring.
+
+---
+
 ## Entry Format
 
 ```

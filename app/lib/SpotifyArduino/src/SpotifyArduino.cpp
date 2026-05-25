@@ -640,58 +640,59 @@ int SpotifyArduino::getQueue(processQueue queueCallback)
 
         DynamicJsonDocument doc(queueBufferSize);
 
-        // INV-A: raw queue response is ~40–60 KB (up to ~20 full Spotify track
-        // objects in the queue array). 32 KB was insufficient; 64 KB covers it.
-        const size_t bodyBufSize = 65536;
-        char *bodyBuf = (char *)malloc(bodyBufSize);
-        if (!bodyBuf)
-        {
-            _chunkedResponse = true;  // force stop: unread body would corrupt stream
-            closeClient();
-            return statusCode;
-        }
-        size_t bodyLen = 0;
-        // 3 s per-byte timeout: TLS records on ESP32 arrive < 1 s apart under
-        // normal conditions; 3 s is safe headroom without the 20 s stall.
-        client->setTimeout(3000);
-        if (hdr.chunked)
-        {
-            // TASK-065: dechunker — strip HTTP/1.1 chunked framing (HEX\r\n DATA \r\n)
-            // before passing to deserializeJson. Spotify sends chunked for /queue
-            // under HTTP/1.1 keep-alive (Content-Length not present).
-            char szLine[16];
-            while (bodyLen < bodyBufSize - 1)
-            {
-                int n = client->readBytesUntil('\n', szLine, sizeof(szLine) - 1);
-                if (n > 0 && szLine[n - 1] == '\r') n--;
-                szLine[n] = '\0';
-                unsigned long chunkSz = strtoul(szLine, nullptr, 16);
-                if (chunkSz == 0) break;  // terminal chunk
-                size_t space = bodyBufSize - 1 - bodyLen;
-                size_t toRead = (chunkSz < space) ? (size_t)chunkSz : space;
-                bodyLen += client->readBytes(bodyBuf + bodyLen, toRead);
-                client->readBytesUntil('\n', szLine, sizeof(szLine) - 1);  // discard trailing CRLF
-                if (toRead < chunkSz) break;  // buffer full
+        // LOCAL_PATCHES: stream directly from TLS socket — eliminates the
+        // former 65 KB bodyBuf malloc that silently failed on heap-fragmented
+        // ESP32 (regression of TASK-065 caused by M-MULTIAPP heap growth).
+        // BlockingChunkedStream strips HTTP/1.1 chunk framing on-the-fly and
+        // blocks on yield() between TLS records so deserializeJson never sees
+        // a spurious EOF. Only ~10 KB (doc) is heap-allocated, not 65 KB.
+        struct BlockingChunkedStream : public Stream {
+            Client*       c;
+            bool          chunked;
+            size_t        chunkRem = 0;
+            bool          done     = false;
+            // Read next chunk-size line; returns false on timeout.
+            bool nextChunk() {
+                char line[16]; int n = 0;
+                unsigned long t0 = millis();
+                while (millis() - t0 < 3000UL) {
+                    if (!c->available()) { yield(); continue; }
+                    int ch = c->read();
+                    if (ch == '\n') break;
+                    if (ch != '\r' && n < 15) line[n++] = ch;
+                }
+                line[n] = '\0';
+                chunkRem = strtoul(line, nullptr, 16);
+                return chunkRem > 0;
             }
-        }
-        else
-        {
-            size_t readLen = (hdr.contentLength > 0 && (size_t)hdr.contentLength < bodyBufSize - 1)
-                             ? (size_t)hdr.contentLength
-                             : bodyBufSize - 1;
-            bodyLen = client->readBytes(bodyBuf, readLen);
-        }
-        client->setTimeout(SPOTIFY_TIMEOUT);
-        bodyBuf[bodyLen] = '\0';
 
-#ifndef SPOTIFY_PRINT_JSON_PARSE
-        DeserializationError error = deserializeJson(doc, bodyBuf, bodyLen, DeserializationOption::Filter(filter));
-#else
-        Serial.write((const uint8_t *)bodyBuf, bodyLen);
-        Serial.println();
-        DeserializationError error = deserializeJson(doc, bodyBuf, bodyLen, DeserializationOption::Filter(filter));
-#endif
-        free(bodyBuf);
+            int read() override {
+                if (done) return -1;
+                if (chunked && chunkRem == 0) {
+                    if (!nextChunk()) { done = true; return -1; }
+                }
+                unsigned long t0 = millis();
+                while (!c->available() && millis() - t0 < 3000UL) yield();
+                if (!c->available()) { done = true; return -1; }
+                int b = c->read();
+                if (b >= 0 && chunked && --chunkRem == 0) {
+                    // discard trailing CRLF after chunk body
+                    unsigned long t = millis();
+                    while (c->available() < 2 && millis() - t < 500UL) yield();
+                    c->read(); c->read();
+                }
+                return b;
+            }
+            int    available() override { return done ? 0 : 1; }
+            size_t write(uint8_t) override { return 0; }
+            int    peek() override { return -1; }
+        } bcs;
+        bcs.c       = client;
+        bcs.chunked = hdr.chunked;
+
+        client->setTimeout(3000);
+        DeserializationError error = deserializeJson(doc, bcs, DeserializationOption::Filter(filter));
+        client->setTimeout(SPOTIFY_TIMEOUT);
         if (!error)
         {
             QueueData qd;
