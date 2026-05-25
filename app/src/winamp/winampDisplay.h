@@ -939,6 +939,7 @@ public:
     // Font 1 glyph height = 8px; TEXT_VOFF centres it in the 13px row.
     tft.setTextFont(1);
     tft.setTextSize(1);
+    tft.setTextDatum(TL_DATUM);  // own our text state — don't inherit datum from other apps
     constexpr int TEXT_MARGIN = 3;
     constexpr int TEXT_VOFF   = (PLEDIT_ROW_H - 8) / 2;
     constexpr int CHAR_W      = 6;   // Font 1 fixed-width glyph (px)

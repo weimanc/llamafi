@@ -216,7 +216,7 @@ class ClockApp : public App {
 public:
   void init()    override { repaint(); }
   void resume()  override { repaint(); }
-  void suspend() override {}
+  void suspend() override { tft.setTextDatum(TL_DATUM); }
   void tick() override {
     if (millis() - s_lastTickMs < 1000) return;
     s_lastTickMs = millis();
@@ -245,6 +245,7 @@ private:
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     tft.drawString(tBuf, 137, 45, 6);
+    tft.setTextDatum(TL_DATUM);
   }
   void drawSecondsBar() {
     struct tm t;
@@ -268,6 +269,7 @@ private:
     char dBuf[16];
     snprintf(dBuf, sizeof(dBuf), "%02d/%02d/%04d", t.tm_mday, t.tm_mon + 1, t.tm_year + 1900);
     tft.drawString(dBuf, 137, 200, 4);
+    tft.setTextDatum(TL_DATUM);
   }
   void drawRssi() {
     int rssi = WiFi.RSSI();

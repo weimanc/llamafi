@@ -635,6 +635,24 @@ Flag to PM to track this as a sub-task under tooling-001 or a standalone task.
 
 ---
 
+### LL-035 — 2026-05-25 — TFT shared hardware state leaks between apps in multi-app shell
+
+**Context**: M-MULTIAPP step 2 (TASK-087/TASK-090) introduced `ClockApp` alongside `WinampDisplay`, both drawing to a single `TFT_eSPI` singleton. `TFT_eSPI` maintains ~6 process-global state fields: `textdatum`, `textfont`, `textsize`, `textcolor`, `swapBytes`, `cursor_x/y`. ADR-026 defined layering rules (no `appShell.h` in `WinampDisplay`, taskbar hit-testing in shell only) but said nothing about TFT hardware state.
+
+**Observation**: After a Clock→Spotify app switch, PLEDIT playlist rows rendered 2–3 characters off the left edge of the content area and ~2 px above the expected baseline. Bug was triggered by a user-reported visual regression; root-caused by code audit. `ClockApp::drawTime()` and `drawDate()` called `tft.setTextDatum(MC_DATUM)` and returned without resetting to `TL_DATUM`. `drawPlaylist()` called `tft.drawString()` with `MC_DATUM` still active, shifting every row's text left by `textWidth/2`.
+
+**Root cause**: ADR-026 addressed *structural* isolation (dependency direction, hit-testing ownership) but left TFT hardware state as an implicit shared resource with no ownership contract. No convention existed: neither "producer resets after use" nor "consumer asserts at entry."
+
+**Suggested improvement**:
+1. **Producer rule**: any function that calls `tft.set*(non-default)` must reset that field to its default before returning. Concrete default: `textdatum` → `TL_DATUM`, `swapBytes` saved/restored (screenLog.h already does this correctly).
+2. **Consumer rule**: any rendering function that cares about a specific TFT state field must assert that state at function entry — don't inherit. Both rules together give defense-in-depth; producer-only is insufficient because callers can forget; consumer-only is correct but relies on every new function knowing the contract.
+3. Capture this as a binding architectural invariant (ADR-027) so new app authors have a named rule to follow.
+4. Code-review checklist item: any `tft.set*()` call that sets a non-default value must have a matching reset in the same scope.
+
+**Status**: open
+
+---
+
 ## Entry Format
 
 ```

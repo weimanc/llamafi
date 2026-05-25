@@ -26,6 +26,7 @@ inline void renderTaskbar(TFT_eSPI& tft, AppId activeApp) {
         int iconY = slotY + (TASKBAR_SLOT_H - 26) / 2; // ≈ slotY + 7
         tft.setTextColor(TFT_WHITE, TASKBAR_BG_RGB565);
         tft.drawChar(icons[i], iconX, iconY, 4);
+        tft.setTextColor(TFT_WHITE, TFT_BLACK);  // reset — ADR-027 producer rule
 
         // Active indicator: TASKBAR_ACTIVE_STYLE 'A' = 3 px left-edge bar.
         if ((int)activeApp == i) {
