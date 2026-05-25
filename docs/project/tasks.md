@@ -50,14 +50,35 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ### TASK-088 — Deferred: saveAppState / restoreAppState for switchApp()
 **Owner**: Developer
-**Feature**: app-lifecycle-001 (new)
-**Status**: open — deferred; required before M-MULTIAPP step 5
-**Blocks**: M-MULTIAPP step 5 (Matrix, GoL, Weather, Crypto apps need state round-trips)
+**Feature**: app-lifecycle-001
+**Status**: superseded by TASK-090 — close without separate implementation
 **Notes**:
-- BUG-2 from TASK-087 PM audit: `app-lifecycle.md` specifies `saveAppState()`/`restoreAppState()` inside `switchApp()` but neither is implemented. Works by accident for Spotify↔Clock because `WinampDisplay` class members persist unchanged (no code resets them) and `repaintChrome()` reads the intact cache on switch-back.
-- Risk window opens at step 5: Matrix/GoL/Weather/Crypto apps carry per-app state that must survive round-trips. Without save/restore, a Matrix→Spotify→Matrix sequence would lose rain-column positions.
-- Implementation: add `saveAppState(AppId)` / `restoreAppState(AppId)` free functions (declared in `appShell.h`, defined in `main.cpp`). `saveAppState(Spotify)` copies 10 `WinampDisplay` render-cache fields into `g_appState[0].spotify`; `restoreAppState(Spotify)` mirrors. `vu::s_modeRef()` (file-static) also needs explicit save/restore. `g_appState[]` union is already declared in `appShell.h`. Add `saveAppState(currentAppId)` before the `fillRect` in `switchApp()`, and `restoreAppState(next)` / `initAppState(next)` after `currentAppId = next`.
-- VE gate: T147 Spotify↔Clock round-trip already covers the Spotify slot. Add one new serialdbg test per new app before its launch.
+- Original scope (free-function `saveAppState`/`restoreAppState` in `main.cpp`) is superseded by the App ABC design in TASK-090. State persistence for SpotifyApp is delivered via `SpotifyApp::suspend()` / `resume()`, which is the correct location under the new layering. The `g_appState[]` union is retained in `appShell.h` for future per-app struct copies; `SpotifyApp::suspend()` will populate it when other apps require Spotify fields on resume.
+- The "risk window opens at step 5" concern is also addressed by TASK-090: each new app class carries its own state in class members and resets it in `suspend()`. No shared union copy needed until cross-app field sharing is required.
+- VE gate (T147 round-trip) carries forward into TASK-090's exit criteria.
+
+---
+
+### TASK-090 — App Interface ABC + AppShell refactor (M-MULTIAPP)
+**Owner**: Developer
+**Feature**: app-interface-001 (new)
+**Status**: planned — design signed off (ADR-026, VE review complete 2026-05-25)
+**Blocks**: M-MULTIAPP step 3 (Matrix, GoL, Weather, Crypto — each requires a clean `App` class to land on)
+**Design**: `docs/architecture/designs/M-MULTIAPP/app-interface.md`, `docs/architecture/decisions/ADR-026.md`
+**Notes**:
+- Fixes B1–B4 from TASK-087 post-mortem as structural consequences of the correct interface, not targeted patches.
+- Absorbs TASK-088 (saveAppState/restoreAppState now delivered via `SpotifyApp::suspend()`).
+- Implementation order (each a subtask; check_build.sh must pass after every step):
+  - **TASK-090a** — `drawPlaylist()` gutter: `screenWidth` → `TASKBAR_X` (1 line; B1 fix; zero risk — do first).
+  - **TASK-090b** — `TouchPhase` enum + `App` struct in `appShell.h`; compile gate only (no runtime change yet).
+  - **TASK-090c** — `WinampDisplay`: add `handleWinampInput(TouchPhase, int, int)`, `resetDragState()`, `invalidatePlaylist()`; remove `#include "appShell.h"`, remove taskbar block from `checkForInput()`, remove `renderTaskbar()` from `repaintChrome()`; retire `checkForInput()` override.
+  - **TASK-090d** — `SpotifyApp` class in `main.cpp`: `init/resume/suspend/tick/handleInput`; `resume()` calls `repaintChrome()` + `invalidatePlaylist()` (B3 fix); `suspend()` calls `resetDragState()` (B2 fix).
+  - **TASK-090e** — `ClockApp` class in `main.cpp`: promote `clockRepaint()`/`clockTick()` free functions into `init/resume/suspend/tick/handleInput`.
+  - **TASK-090f** — `appHandleInput()` gesture loop in `main.cpp`: `s_inGesture` / `s_cooldownMs` shell state; synthesised Release before taskbar switch; delegate `Press`/`Move`/`Release` to active app.
+  - **TASK-090g** — Serial debug: update `cmdTap`/`cmdDrag` injection to call `winampDisplay.handleWinampInput()` directly; add `dbgGet("lastPlaylistDraw")` returning `lastPlaylistDrawMs` (required for T_BI_01).
+  - **TASK-090h** — `check_build.sh` 3/3 pass; DUT flash + full regression (T076/T081/T082/T086–T088/T147/T148 + T_BI_01–T_BI_04).
+- VE tests to implement alongside TASK-090g: T_BI_01 (PLEDIT repaint on resume), T_BI_02 (structural Clock switch assertion), T_BI_03 (suspend mid-gesture), T_BI_04 (Release delivery). Sequences specified in `app-interface.md §Verification impact`.
+- Exit criterion: `check_build.sh` 3/3 pass; all 19 existing tests + T_BI_01–T_BI_04 green on DUT.
 
 ---
 
