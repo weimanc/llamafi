@@ -243,7 +243,9 @@ public:
       if (dragState == D_PLEDIT_SCROLL) {
         const int dy = _dragCurrentY - _dragStartY;
         LOG_D("touch", "PLEDIT drag end: dy=%d startY=%d curY=%d", dy, _dragStartY, _dragCurrentY);
-        if (abs(dy) < 4) {
+        const unsigned long elapsed = millis() - _dragStartMs;
+        const bool isTap = (abs(dy) < 8) || (elapsed < 150 && abs(dy) < 16);
+        if (isTap) {
           if (_dragStartRow >= 0 && _dragStartRow < lastVisibleRows) {
             const int playIdx = scrollOffset + _dragStartRow;
             spotifyTask::enqueue(spotifyTask::ACT_PLAY_URI, (int32_t)playIdx);
@@ -255,11 +257,18 @@ public:
           touchScreenCoolDownTime = millis() + 300;
         } else {
           const int maxOffset = max(0, (int)lastCount - PLEDIT_ROW_COUNT);
-          if (dy < 0) scrollOffset = min(scrollOffset + 1, maxOffset);
-          else        scrollOffset = max(scrollOffset - 1, 0);
+          const int delta = max(1, abs(dy) / PLEDIT_ROW_H);
+          if (dy < 0) scrollOffset = min(scrollOffset + delta, maxOffset);
+          else        scrollOffset = max(scrollOffset - delta, 0);
           _pleditScrollDirty = true;
           touchScreenCoolDownTime = millis() + 150;
         }
+        dragState = D_IDLE;
+      }
+      if (dragState == D_POSBAR_DRAG) {
+        spotifyTask::enqueue(spotifyTask::ACT_SEEK, (int32_t)_posbarDragCurrentMs);
+        songStartMillis = millis() - _posbarDragCurrentMs;
+        touchScreenCoolDownTime = millis() + 200;
         dragState = D_IDLE;
       }
       if (dragState == D_VOLUME_DRAG) {
@@ -276,6 +285,41 @@ public:
     }
 
     // Press or Move.
+    // Phase 1 — captured gesture: route directly to owning handler, no hit-test.
+    if (dragState != D_IDLE) {
+      switch (dragState) {
+        case D_VOLUME_DRAG: {
+          long pct = volumeFromX(x);
+          drawVolume((int)pct);
+          unsigned long now = millis();
+          if (now - lastVolumeEnqueuedMs > VOLUME_DRAG_DEBOUNCE_MS &&
+              (int8_t)pct != lastVolumeEnqueuedPct) {
+            spotifyTask::enqueue(spotifyTask::ACT_VOLUME, (int32_t)pct);
+            LOG_D("touch", "enqueued ACT_VOLUME pct=%ld", pct);
+            lastVolumeEnqueuedMs = now;
+            lastVolumeEnqueuedPct = (int8_t)pct;
+          }
+          optimisticVolumeUntilMs = now + VOLUME_OPTIMISTIC_HOLD_MS;
+          break;
+        }
+        case D_POSBAR_DRAG:
+          _posbarDragCurrentMs = posbarFromX(x);
+          updateSeekThumb(_posbarDragCurrentMs);
+          songStartMillis = millis() - _posbarDragCurrentMs;
+          break;
+        case D_PLEDIT_SCROLL_DIRECT:
+          updateScrollDirect(y);
+          break;
+        case D_PLEDIT_SCROLL:
+          _dragCurrentY = y;
+          break;
+        default: break;
+      }
+      _tickMarquee();
+      return true;
+    }
+
+    // Phase 2 — D_IDLE only: run hit-tests to start a new gesture.
     int  pressed    = hitTestTransport(x, y);
     long seekMs     = hitTestPosbar(x, y);
     long volPct     = hitTestVolume(x, y);
@@ -301,25 +345,10 @@ public:
       touchScreenCoolDownTime = millis() + 200;
       consumed = true;
     } else if (seekMs >= 0) {
-      const int travel = POSBAR_BG.w - POSBAR_THUMB_N.w;
-      long progressForPaint = seekMs;
-      if (progressForPaint > songDuration) progressForPaint = songDuration;
-      int thumbPx = map((int)((progressForPaint * 100) / songDuration), 0, 100, 0, travel);
-      if (thumbPx != lastThumbPx) {
-        int slotX = originX + POSBAR_X;
-        int slotY = originY + POSBAR_Y;
-        if (lastThumbPx >= 0) {
-          SkinUV under = { (int16_t)lastThumbPx, 0, POSBAR_THUMB_N.w, POSBAR_BG.h };
-          blitSprite(slotX + lastThumbPx, slotY, SKIN_POSBAR, SKIN_POSBAR_W, under);
-        }
-        blitSprite(slotX + thumbPx, slotY, SKIN_POSBAR, SKIN_POSBAR_W, POSBAR_THUMB_N);
-        lastThumbPx = thumbPx;
-      }
-      if (songStartMillis != 0) {
-        songStartMillis = millis() - seekMs;
-      }
-      spotifyTask::enqueue(spotifyTask::ACT_SEEK, (int32_t)seekMs);
-      touchScreenCoolDownTime = millis() + 200;
+      dragState = D_POSBAR_DRAG;
+      _posbarDragCurrentMs = posbarFromX(x);
+      updateSeekThumb(_posbarDragCurrentMs);
+      songStartMillis = millis() - _posbarDragCurrentMs;
       consumed = true;
     } else if (hitShuffle) {
       int next = (lastShuffleRendered == 1) ? 0 : 1;
@@ -361,21 +390,8 @@ public:
       const int pleditRowsAll = PLEDIT_ROWS_Y + PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
       if (py >= PLEDIT_ROWS_Y && py < pleditRowsAll &&
           x >= originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W && x < originX + PLEDIT_W) {
-        if (dragState == D_IDLE || dragState == D_PLEDIT_SCROLL_DIRECT) {
-          dragState = D_PLEDIT_SCROLL_DIRECT;
-          const int maxOffset = max(0, (int)lastCount - PLEDIT_ROW_COUNT);
-          if (maxOffset > 0) {
-            constexpr int track_h = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
-            constexpr int travel  = track_h - SKIN_PLEDIT_THUMB_H;
-            const int relY = py - PLEDIT_ROWS_Y;
-            const int newOffset = max(0, min(maxOffset, relY * maxOffset / travel));
-            if (newOffset != scrollOffset) {
-              scrollOffset = newOffset;
-              _pleditScrollDirty = true;
-              drawScrollThumbOnly();
-            }
-          }
-        }
+        dragState = D_PLEDIT_SCROLL_DIRECT;
+        updateScrollDirect(y);
         consumed = true;
       } else if (py >= PLEDIT_ROWS_Y && py < PLEDIT_ROWS_Y + lastVisibleRows * PLEDIT_ROW_H &&
                  x >= originX + PLEDIT_CONTENT_X && x < originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W) {
@@ -385,10 +401,8 @@ public:
           _dragStartY   = y;
           _dragCurrentY = y;
           _dragStartRow = row;
+          _dragStartMs  = millis();
           LOG_D("touch", "PLEDIT drag start: startY=%d row=%d", y, row);
-        } else if (dragState == D_PLEDIT_SCROLL) {
-          _dragCurrentY = y;
-          LOG_D("touch", "PLEDIT drag move: curY=%d dy=%d", y, y - _dragStartY);
         }
         consumed = true;
       } else if (dragState == D_IDLE) {
@@ -481,11 +495,13 @@ private:
   // ts.touched() is false. lastVolumeEnqueuedMs/Pct debounce ACT_VOLUME
   // queue traffic to ~3/s. optimisticVolumeUntilMs gates spotifyLogic's
   // dedup against stale snapshot reads during/after drag.
-  enum DragState { D_IDLE = 0, D_VOLUME_DRAG, D_PLEDIT_SCROLL, D_PLEDIT_SCROLL_DIRECT };
+  enum DragState { D_IDLE = 0, D_VOLUME_DRAG, D_POSBAR_DRAG, D_PLEDIT_SCROLL, D_PLEDIT_SCROLL_DIRECT };
   DragState dragState = D_IDLE;
   int _dragStartY = 0;    // screen Y at start of D_PLEDIT_SCROLL
   int _dragCurrentY = 0;  // most recent screen Y during D_PLEDIT_SCROLL
   int _dragStartRow = 0;  // row index at drag-start (tap fallback)
+  long _posbarDragCurrentMs = 0;
+  unsigned long _dragStartMs = 0;
   bool _pleditScrollDirty = false;  // force drawScrollThumbOnly bypass of rate-limit
   int optimisticSelectedRow = -1;   // TASK-051a: row playing, highlighted until seqno advances
   unsigned long optimisticSelectedUntilMs = 0;
@@ -513,6 +529,52 @@ private:
   // TASK-053f: logo tap → TLS reset cooldown (2 s). Prevents rapid re-trigger.
   unsigned long logoTapCooldownMs = 0;
   static constexpr unsigned long LOGO_TAP_COOLDOWN_MS = 2000;
+
+  long volumeFromX(int sx) const {
+    const int x0 = originX + VOLUME_X;
+    const int cx = max(x0, min(x0 + VOLUME_W - 1, sx));
+    return ((long)(cx - x0) * 100) / (VOLUME_W - 1);
+  }
+
+  long posbarFromX(int sx) const {
+    if (songDuration <= 0) return 0;
+    const int x0 = originX + POSBAR_X;
+    const int cx = max(x0, min(x0 + (int)POSBAR_BG.w - 1, sx));
+    return ((long)(cx - x0) * songDuration) / POSBAR_BG.w;
+  }
+
+  void updateSeekThumb(long ms) {
+    if (songDuration <= 0) return;
+    const int travel = POSBAR_BG.w - POSBAR_THUMB_N.w;
+    long progressForPaint = ms > songDuration ? songDuration : ms;
+    int thumbPx = map((int)((progressForPaint * 100) / songDuration), 0, 100, 0, travel);
+    if (thumbPx != lastThumbPx) {
+      int slotX = originX + POSBAR_X;
+      int slotY = originY + POSBAR_Y;
+      if (lastThumbPx >= 0) {
+        SkinUV under = { (int16_t)lastThumbPx, 0, POSBAR_THUMB_N.w, POSBAR_BG.h };
+        blitSprite(slotX + lastThumbPx, slotY, SKIN_POSBAR, SKIN_POSBAR_W, under);
+      }
+      blitSprite(slotX + thumbPx, slotY, SKIN_POSBAR, SKIN_POSBAR_W, POSBAR_THUMB_N);
+      lastThumbPx = thumbPx;
+    }
+  }
+
+  void updateScrollDirect(int sy) {
+    const int py = sy - originY;
+    const int maxOffset = max(0, (int)lastCount - PLEDIT_ROW_COUNT);
+    if (maxOffset > 0) {
+      constexpr int track_h = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
+      constexpr int travel  = track_h - SKIN_PLEDIT_THUMB_H;
+      const int relY = py - PLEDIT_ROWS_Y;
+      const int newOffset = max(0, min(maxOffset, relY * maxOffset / travel));
+      if (newOffset != scrollOffset) {
+        scrollOffset = newOffset;
+        _pleditScrollDirty = true;
+        drawScrollThumbOnly();
+      }
+    }
+  }
 
   void _tickMarquee() {
     if (titleScrollDeadline && millis() >= titleScrollDeadline) {
@@ -737,6 +799,7 @@ public:
     }
     if (strcmp(var, "dragState") == 0) {
       const char* dsStr = dragState == D_VOLUME_DRAG           ? "D_VOLUME_DRAG"
+                        : dragState == D_POSBAR_DRAG          ? "D_POSBAR_DRAG"
                         : dragState == D_PLEDIT_SCROLL        ? "D_PLEDIT_SCROLL"
                         : dragState == D_PLEDIT_SCROLL_DIRECT ? "D_PLEDIT_SCROLL_DIRECT"
                         : "D_IDLE";
@@ -753,6 +816,11 @@ public:
     if (strcmp(var, "songDuration") == 0) {
       snprintf(buf, len, "\"var\":\"songDuration\",\"ms\":%ld,\"last\":true",
                songDuration);
+      return true;
+    }
+    if (strcmp(var, "posbarDragMs") == 0) {
+      snprintf(buf, len, "\"var\":\"posbarDragMs\",\"ms\":%ld,\"last\":true",
+               _posbarDragCurrentMs);
       return true;
     }
     if (strcmp(var, "scrollOffset") == 0) {
