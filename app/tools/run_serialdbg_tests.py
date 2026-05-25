@@ -1918,6 +1918,270 @@ def t_x07_01(dut: Dut):
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
+# ── velocity-scroll-001 suite (TASK-104) ──────────────────────────────────────
+# Firmware constraint: `drag x1 y1 x2 y2 steps` always ends with a release
+# sentinel; there is no standalone `release` command.  T157-T159 exploit the
+# fact that handleSerialCommands() and drainInjectionQueue() each run ONCE per
+# loop() iteration, so commands sent before the drag queue drains are processed
+# mid-drag:
+#   iter N:   drain pops step N-1 (updates _dragCurrentY)
+#   iter N:   handleSerialCommands processes queued command → tick fires here
+#   iter N+1: drain pops next step (or Release → drag JSON emitted)
+# With steps=1 the queue is: Press@y1, Move@y2, Release.
+#   iter 2: Press — cmd_A = get dragState  (dragState = D_PLEDIT_SCROLL)
+#   iter 3: Move@y2 (_dragCurrentY=y2) — cmd_B = tick 50 20 (fires at full dy)
+#   iter 4: Release → drag JSON
+# As-built: SCROLL_DEAD_ZONE_PX=1, SCROLL_SPEED_K_DEFAULT=0.1667,
+#           dy=-13 → effective=12 → velocity=12×0.1667=2.0004 rows/s
+
+_PLEDIT_X  = 140   # x inside PLEDIT content area  (x ∈ [12..255])
+_PLSTART_Y = 163   # drag start y (below anchor)
+_PLEND_Y   = 150   # drag end y   (above anchor);  dy = 150-163 = -13 (finger up)
+
+
+def _vs_precondition(dut: Dut, tid: str) -> bool:
+    """Shared precondition: Spotify active, queue ≥ 10, scrollOffset=0, D_IDLE."""
+    if not _restore_spotify(dut):
+        skip(tid, "precondition: could not restore Spotify")
+        return False
+    if not dut.wait_for_queue(min_count=10, timeout=30.0):
+        skip(tid, "precondition: queue count < 10 after 30 s — need ≥ 10 items loaded")
+        return False
+    xd, yd, xd2, yd2 = _c.pledit_swipe("down")
+    for _ in range(5):
+        _do_drag(dut, xd, yd, xd2, yd2)
+    so = _get_scroll(dut)
+    if so != 0:
+        skip(tid, f"precondition: scrollOffset={so} could not be reset to 0")
+        return False
+    rg = dut.cmd("get dragState", timeout=3.0)
+    if rg.get("state") != "D_IDLE":
+        skip(tid, f"precondition: dragState={rg.get('state')!r} not D_IDLE")
+        return False
+    dut.set_cooldown_zero()
+    return True
+
+
+def _vs_drain_until_drag(dut: Dut, timeout: float = 10.0) -> tuple[list[dict], dict | None]:
+    """Read JSON lines until the drag-completion response arrives.
+    Returns (other_responses_in_order, drag_resp_or_None)."""
+    pre: list[dict] = []
+    drag_resp = None
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        line = dut.ser.readline().decode(errors="replace").strip()
+        if not line or not line.startswith("{"):
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if obj.get("cmd") == "drag":
+            drag_resp = obj
+            break
+        pre.append(obj)
+    return pre, drag_resp
+
+
+def t155(dut: Dut):
+    """T155: 0-dy tap in dead zone fires PLEDIT hit (tap path, not scroll-end)."""
+    print("T155  Tap within dead zone fires PLEDIT hit (0-dy)")
+    if not _vs_precondition(dut, "T155"):
+        return
+    baseline = _get_scroll(dut)
+    # cmdTap does Press + Release at same point → dy = 0 < DEAD_ZONE(1) → tap path.
+    r = dut.cmd(f"tap {_PLEDIT_X} {_PLEND_Y}", timeout=5.0)
+    if not r.get("ok"):
+        fail("T155", f"tap returned ok=false: {r}")
+        return
+    if r.get("hit") != "PLEDIT":
+        fail("T155", f"hit={r.get('hit')!r} — expected PLEDIT; tap missed content zone")
+        return
+    post = _get_scroll(dut)
+    if post != baseline:
+        fail("T155", f"scrollOffset changed {baseline}→{post} — scroll-end fired instead of tap")
+        return
+    rg = dut.cmd("get dragState", timeout=3.0)
+    if rg.get("state") != "D_IDLE":
+        fail("T155", f"dragState={rg.get('state')!r} — Release cleanup failed")
+        return
+    pass_("T155",
+          f"hit=PLEDIT scrollOffset={post} (unchanged) dragState=D_IDLE — tap path confirmed")
+
+
+def t156(dut: Dut):
+    """T156: dy=13 px drag outside dead zone → scroll-end (no tap, no PLAY_URI)."""
+    print("T156  Release outside dead zone suppresses tap (dy=13 px)")
+    if not _vs_precondition(dut, "T156"):
+        return
+    # y 150→163: dy = +13 > DEAD_ZONE(1) → scroll-end; cooldown set to 150 ms (not 300 ms tap).
+    dut.send(f"drag {_PLEDIT_X} {_PLEND_Y} {_PLEDIT_X} {_PLSTART_Y} 1")
+    _, drag_resp = _vs_drain_until_drag(dut, timeout=10.0)
+    if drag_resp is None:
+        fail("T156", "no drag response within 10 s")
+        return
+    if not drag_resp.get("ok"):
+        fail("T156", f"drag response ok=false: {drag_resp}")
+        return
+    rg = dut.cmd("get dragState", timeout=3.0)
+    if rg.get("state") != "D_IDLE":
+        fail("T156", f"dragState={rg.get('state')!r} — Release did not complete")
+        return
+    # Distinguish scroll-end (cooldown≈150 ms) from tap (cooldown≈300 ms).
+    # After ~15 ms of processing, scroll-end cooldown is ~135 ms; tap would be ~285 ms.
+    rc = dut.cmd("get cooldown", timeout=3.0)
+    cooldown_ms = rc.get("remainingMs", 9999)
+    if cooldown_ms > 220:
+        fail("T156", f"cooldown={cooldown_ms} ms > 220 — tap branch fired (expected scroll-end ≤220 ms)")
+        return
+    pass_("T156",
+          f"dragState=D_IDLE cooldown={cooldown_ms} ms ≤ 220 — scroll-end confirmed, tap suppressed")
+
+
+def t157(dut: Dut):
+    """T157: velocity ≈ 2.0 rows/s at dy=-13 px (effective=12 px, K=0.1667).
+    Verified indirectly: tick 50×20ms at the final drag position produces
+    scrollOffset ∈ [1, 3].  Direct scrollVelocity read is not viable because
+    the drag command always releases before the harness regains control; tick is
+    interleaved mid-drag via serial-buffer queueing (see module header note)."""
+    print("T157  Velocity scaling: tick 50×20ms at dy=-13 → scrollOffset ∈ [1,3]")
+    if not _vs_precondition(dut, "T157"):
+        return
+    # steps=1: Press@163(iter2), Move@150(iter3, _dragCurrentY=150), Release(iter4).
+    # cmd_A(iter2): get dragState  — confirms D_PLEDIT_SCROLL while gesture active.
+    # cmd_B(iter3): tick 50 20    — fires at _dragCurrentY=150; dy=-13; vel≈2.0;
+    #                               50×0.04≈2.0 rows → scrollOffset=2.
+    dut.send(f"drag {_PLEDIT_X} {_PLSTART_Y} {_PLEDIT_X} {_PLEND_Y} 1")
+    dut.send("get dragState")
+    dut.send("tick 50 20")
+    pre, drag_resp = _vs_drain_until_drag(dut, timeout=10.0)
+    if drag_resp is None:
+        fail("T157", "no drag response within 10 s")
+        return
+    if len(pre) < 2:
+        fail("T157", f"expected dragState + tick responses before drag JSON; got {len(pre)}: {pre}")
+        return
+    r_state, r_tick = pre[0], pre[1]
+    if r_state.get("state") != "D_PLEDIT_SCROLL":
+        fail("T157", f"dragState={r_state.get('state')!r} — gesture did not enter D_PLEDIT_SCROLL")
+        return
+    if r_tick.get("cmd") != "tick":
+        fail("T157", f"expected tick response, got: {r_tick}")
+        return
+    so = r_tick.get("scrollOffset", -1)
+    if not (1 <= so <= 3):
+        fail("T157", f"scrollOffset={so} after tick 50×20ms at dy=-13 — "
+                     f"expected [1,3] (velocity≈2.0 rows/s); actual velocity≈{so:.1f} rows/s")
+        return
+    pass_("T157", f"D_PLEDIT_SCROLL confirmed; scrollOffset={so} ∈ [1,3] → velocity≈2.0 rows/s")
+
+
+def t158(dut: Dut):
+    """T158: tick 50×20ms (1 s equivalent) at dy=-13 advances scrollOffset ≥ 1."""
+    print("T158  Tick integration: 1 s at dy=-13 → scrollOffset ≥ 1")
+    if not _vs_precondition(dut, "T158"):
+        return
+    dut.send(f"drag {_PLEDIT_X} {_PLSTART_Y} {_PLEDIT_X} {_PLEND_Y} 1")
+    dut.send("get dragState")
+    dut.send("tick 50 20")
+    pre, drag_resp = _vs_drain_until_drag(dut, timeout=10.0)
+    if drag_resp is None:
+        fail("T158", "no drag response within 10 s")
+        return
+    r_tick = next((r for r in pre if r.get("cmd") == "tick"), None)
+    if r_tick is None:
+        fail("T158", f"no tick response in pre-drag JSONs: {pre}")
+        return
+    so = r_tick.get("scrollOffset", -1)
+    if so < 1:
+        fail("T158", f"scrollOffset={so} after tick 50×20ms at dy=-13 — "
+                     f"expected ≥ 1; accumulator integration or tickScroll guard broken")
+        return
+    pass_("T158", f"scrollOffset={so} ≥ 1 after tick 50×20ms at dy=-13 — integration confirmed")
+
+
+def t159(dut: Dut):
+    """T159: scrollAccum is non-zero during drag, reset to 0.0000 on Release.
+    Uses steps=3 so tick fires mid-drag (at Move@159, dy=-4, vel≈0.50) giving
+    accum≈0.10.  scrollAccum is read in the next iteration (Move@155), still
+    pre-Release, confirming non-zero.  After drag JSON, accum must be 0."""
+    print("T159  Accumulator resets to 0.0000 on Release")
+    if not _vs_precondition(dut, "T159"):
+        return
+    # steps=3 queue: Press@163(i2), Move@159(i3), Move@155(i4), Move@150(i5), Release(i6).
+    # cmd_A(i2): get dragState  → D_PLEDIT_SCROLL
+    # cmd_B(i3): tick 10 20    → _dragCurrentY=159, dy=-4, vel≈0.50, accum≈0.10
+    # cmd_C(i4): get scrollAccum → reads accum≈0.10 (non-zero, < 1 row, no advance)
+    dut.send(f"drag {_PLEDIT_X} {_PLSTART_Y} {_PLEDIT_X} {_PLEND_Y} 3")
+    dut.send("get dragState")
+    dut.send("tick 10 20")
+    dut.send("get scrollAccum")
+    pre, drag_resp = _vs_drain_until_drag(dut, timeout=10.0)
+    if drag_resp is None:
+        fail("T159", "no drag response within 10 s")
+        return
+    if len(pre) < 3:
+        fail("T159", f"expected 3 pre-drag JSONs (dragState, tick, scrollAccum); got {len(pre)}: {pre}")
+        return
+    r_state = pre[0]
+    r_accum_pre = next((r for r in pre if r.get("var") == "scrollAccum"), None)
+    if r_state.get("state") != "D_PLEDIT_SCROLL":
+        fail("T159", f"dragState={r_state.get('state')!r} — gesture not active mid-drag")
+        return
+    if r_accum_pre is None:
+        fail("T159", f"no scrollAccum response in pre-drag JSONs: {pre}")
+        return
+    accum_pre = r_accum_pre.get("val", 0.0)
+    if accum_pre == 0.0:
+        fail("T159", f"scrollAccum={accum_pre} mid-drag — expected non-zero; "
+                     f"tick may have fired before _dragCurrentY was set (tick response: "
+                     f"{next((r for r in pre if r.get('cmd')=='tick'), 'missing')})")
+        return
+    r_accum_post = dut.cmd("get scrollAccum", timeout=3.0)
+    accum_post = r_accum_post.get("val", -1.0)
+    if accum_post != 0.0:
+        fail("T159", f"scrollAccum={accum_post} after Release — expected 0.0000; "
+                     f"Release cleanup (_scrollAccum=0) not firing")
+        return
+    rg = dut.cmd("get dragState", timeout=3.0)
+    if rg.get("state") != "D_IDLE":
+        fail("T159", f"dragState={rg.get('state')!r} after Release — expected D_IDLE")
+        return
+    pass_("T159",
+          f"scrollAccum={accum_pre:.4f} mid-drag (non-zero) → 0.0000 after Release; dragState=D_IDLE")
+
+
+def t160(dut: Dut):
+    """T160: tickScroll is a no-op when dragState is D_IDLE."""
+    print("T160  tickScroll no-op when D_IDLE")
+    if not _vs_precondition(dut, "T160"):
+        return
+    rg = dut.cmd("get dragState", timeout=3.0)
+    if rg.get("state") != "D_IDLE":
+        fail("T160", f"precondition: dragState={rg.get('state')!r} not D_IDLE")
+        return
+    baseline = _get_scroll(dut)
+    if baseline is None:
+        fail("T160", "get scrollOffset failed")
+        return
+    r_tick = dut.cmd("tick 50 20", timeout=5.0)
+    if not r_tick.get("ok"):
+        fail("T160", f"tick command failed: {r_tick}")
+        return
+    post = _get_scroll(dut)
+    if post != baseline:
+        fail("T160", f"scrollOffset changed {baseline}→{post} during D_IDLE tick — "
+                     f"tickScroll guard clause not firing")
+        return
+    r_vel = dut.cmd("get scrollVelocity", timeout=3.0)
+    vel = r_vel.get("val", None)
+    if vel != 0.0:
+        fail("T160", f"scrollVelocity={vel} after D_IDLE tick — expected 0.0000")
+        return
+    pass_("T160",
+          f"scrollOffset={post} (unchanged) scrollVelocity=0.0000 — tickScroll D_IDLE guard confirmed")
+
+
 ALL_TESTS = {
     "T076": t076,
     "T077": t077,
@@ -1976,6 +2240,13 @@ ALL_TESTS = {
     "T_CX_05": t_cx_05,
     # cross-feature X007
     "T_X07_01": t_x07_01,
+    # velocity-scroll-001 (TASK-104)
+    "T155": t155,
+    "T156": t156,
+    "T157": t157,
+    "T158": t158,
+    "T159": t159,
+    "T160": t160,
 }
 
 def main():

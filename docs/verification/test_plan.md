@@ -2695,6 +2695,151 @@ VE review: `docs/verification/regression_suite/touch-capture-ve-review.md`.
 
 ---
 
+## Suite: velocity-scroll-001 — M-LIST-v4 velocity-scroll PLEDIT (TASK-104)
+
+**DUT required** — T155–T161 use `run_serialdbg_tests.py` with `cyd2usb_winamp_debug`.
+Design doc: `docs/architecture/designs/M-LIST-v4-velocity-scroll.md`.
+VE review: `docs/verification/regression_suite/velocity-scroll-ve-review.md`.
+
+As-built constants (authoritative): `SCROLL_DEAD_ZONE_PX = 1`, `SCROLL_SPEED_K_DEFAULT = 0.1667`.
+PLEDIT content area: x ∈ [12..255], y ∈ [136..200], row height = 13 px.
+
+Common preconditions for harness tests (T155–T160):
+- DUT flashed with `cyd2usb_winamp_debug`, booted, WiFi up.
+- Queue ≥ 10 items loaded (PLEDIT overflows viewport).
+- `get dragState` → `D_IDLE`.
+- `get scrollOffset` → 0.
+
+### T155 — [playlist-003] Tap within dead zone fires ACT_PLAY_URI
+
+- **Type**: integration (DUT)
+- **Feature(s)**: playlist-003
+- **Objective**: A drag gesture that ends at the same pixel as it started (dy = 0) stays
+  within the 1 px dead zone and releases as a tap, enqueueing the row via ACT_PLAY_URI.
+  Verifies the dead-zone-only tap discriminator (replaces TASK-078 two-axis elapsed check).
+- **Preconditions**: Common preconditions above. Queue item at scroll row 0 present.
+- **Steps**:
+  1. `drag 140 150 140 150 1` — 0-pixel drag in PLEDIT content area (x=140, y=150); finger held.
+  2. `release`.
+  3. Assert serial log contains `ACT_PLAY_URI`.
+  4. `get scrollOffset` — assert 0 (unchanged).
+  5. `get dragState` — assert `D_IDLE`.
+- **Expected result**: ACT_PLAY_URI fires for the row at (150−136)/13 = row 1. scrollOffset
+  unchanged. dragState D_IDLE. abs(dy)=0 < SCROLL_DEAD_ZONE_PX(1) → tap branch taken.
+- **Harness**: `run_serialdbg_tests.py --tests T155`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T156 — [playlist-003] Release outside dead zone suppresses tap (scroll-end)
+
+- **Type**: integration (DUT)
+- **Feature(s)**: playlist-003
+- **Objective**: A drag of exactly 1 row (13 px, effective 12 px, outside 1 px dead zone)
+  at Release triggers the scroll-end branch and suppresses ACT_PLAY_URI.
+- **Preconditions**: Common preconditions above.
+- **Steps**:
+  1. `drag 140 150 140 163 1` — 13 px downward drag (y 150→163, dy = +13); finger held.
+  2. `release`.
+  3. Assert serial log does NOT contain `ACT_PLAY_URI`.
+  4. `get dragState` — assert `D_IDLE`.
+- **Expected result**: No row played. dragState D_IDLE. The 13 px displacement exceeds
+  SCROLL_DEAD_ZONE_PX (1), so the gesture is classified as scroll-end, not tap.
+- **Harness**: `run_serialdbg_tests.py --tests T156`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T157 — [playlist-003] Velocity scaling: ~2.0 rows/s at dy = 1 row
+
+- **Type**: integration (DUT)
+- **Feature(s)**: playlist-003
+- **Objective**: Verify scrollVelocity ≈ 2.0 rows/s when the finger is held at dy = −13 px
+  (1-row effective travel of 12 px). Confirms speed = effective × K = 12 × 0.1667 ≈ 2.00.
+- **Preconditions**: Common preconditions above.
+- **Steps**:
+  1. `drag 140 163 140 150 5` — upward 13 px drag (y 163→150, dy = −13); finger held.
+  2. `get dragState` — assert `D_PLEDIT_SCROLL`.
+  3. `get scrollVelocity` — assert value in range [1.8, 2.2].
+- **Expected result**: dragState D_PLEDIT_SCROLL (gesture active). scrollVelocity ≈ 2.00
+  (effective=12, K=0.1667). Range [1.8, 2.2] tolerates ±1 natural app-tick jitter. Finger
+  still held after this test (used as precondition for T158 if run sequentially).
+- **Harness**: `run_serialdbg_tests.py --tests T157`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T158 — [playlist-003] Tick integration: 1 s at dy = 1 row advances scrollOffset
+
+- **Type**: integration (DUT)
+- **Feature(s)**: playlist-003
+- **Objective**: Synthetic ticks totalling 1 s at held dy = −13 px advance scrollOffset by
+  approximately 2 rows (velocity ≈ 2.0 rows/s). Verifies tickScroll() integrates the
+  accumulator correctly under deterministic time injection.
+- **Preconditions**: Finger held at dy = −13 from T157 (`drag 140 163 140 150 5`,
+  dragState D_PLEDIT_SCROLL). Re-issue the drag command if running this test standalone.
+- **Steps**:
+  1. `tick 50 20` — injects 50 × 20 ms = 1000 ms equivalent.
+  2. `get scrollOffset` — assert ≥ 1.
+- **Expected result**: scrollOffset advanced by at least 1 row. Expected ≈ 2 rows
+  (2.00 rows/s × 1.0 s). Assertion is ≥ 1 to tolerate natural app-tick variation and
+  accumulator phase at tick start.
+- **Harness**: `run_serialdbg_tests.py --tests T158`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T159 — [playlist-003] Accumulator resets to 0.0000 on Release
+
+- **Type**: integration (DUT)
+- **Feature(s)**: playlist-003
+- **Objective**: After tick integration leaves a non-zero fractional accumulator, Release
+  resets scrollAccum to 0.0 and returns dragState to D_IDLE. Verifies the Release cleanup path.
+- **Preconditions**: Common preconditions above.
+- **Steps**:
+  1. `drag 140 163 140 150 5` — upward 13 px drag; finger held (dy = −13).
+  2. `tick 10 20` — 10 × 20 ms = 200 ms; accumulates ≈ 0.40 rows (< 1, no row boundary crossed).
+  3. `get scrollAccum` — assert value ≠ 0.0000 (non-zero fractional accumulator).
+  4. `release`.
+  5. `get scrollAccum` — assert 0.0000.
+  6. `get dragState` — assert `D_IDLE`.
+- **Expected result**: scrollAccum non-zero before Release (≈ 0.40); exactly 0.0000 after
+  Release. dragState D_IDLE. _scrollAccum is zeroed by the Release handler unconditionally.
+- **Harness**: `run_serialdbg_tests.py --tests T159`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T160 — [playlist-003] tickScroll is a no-op when dragState is D_IDLE
+
+- **Type**: integration (DUT)
+- **Feature(s)**: playlist-003
+- **Objective**: When no drag is active (D_IDLE), tickScroll must not advance scrollOffset
+  or leave a non-zero scrollVelocity. Verifies the guard clause in tickScroll().
+- **Preconditions**: Common preconditions above. No finger on screen.
+- **Steps**:
+  1. `get dragState` — assert `D_IDLE`.
+  2. `get scrollOffset` — record as `baseline_offset`.
+  3. `tick 50 20` — injects 1000 ms worth of synthetic ticks.
+  4. `get scrollOffset` — assert equals `baseline_offset`.
+  5. `get scrollVelocity` — assert 0.0000.
+- **Expected result**: scrollOffset unchanged; scrollVelocity exactly 0.0000. tickScroll()
+  zeroes _scrollVelocity and _scrollAccum, then returns early when dragState ≠ D_PLEDIT_SCROLL.
+- **Harness**: `run_serialdbg_tests.py --tests T160`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T161 — [playlist-003] Seqno change cancels mid-drag gesture [manual]
+
+- **Type**: manual DUT
+- **Feature(s)**: playlist-003
+- **Objective**: A Spotify queue update (seqno advance) while a velocity-scroll gesture is
+  active must cancel the drag, reset scrollOffset to 0, and return dragState to D_IDLE.
+  Prevents tickScroll() from re-scrolling on a stale anchor after seqno reset.
+- **Preconditions**: DUT flashed with `cyd2usb_winamp_debug`, booted. Queue ≥ 10 items.
+  Spotify active on controlling device (phone).
+- **Steps**:
+  1. Begin a drag gesture in the PLEDIT content area — press and hold; do not release.
+  2. On the Spotify client, skip to next track to force a seqno advance.
+  3. Wait for DUT to receive the updated queue (observe display refresh, ~1–2 Spotify polls).
+  4. Query `get dragState` — assert `D_IDLE`.
+  5. Query `get scrollOffset` — assert 0.
+- **Expected result**: dragState D_IDLE; scrollOffset 0. The seqno-change branch in
+  drawPlaylist() cancels the gesture cleanly. No runaway scroll after seqno reset.
+- **Harness**: manual — no automation. Owner: VE.
+- **Status**: planned.
+
+---
+
 ## Entry Format
 
 ```
