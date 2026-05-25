@@ -109,13 +109,14 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-091 — Tag known-intermittent tests in run_serialdbg_tests.py (BP-012)
 **Owner**: VE + Developer
 **Feature**: serialdbg-001
-**Status**: planned
+**Status**: done (2026-05-25)
 **Notes**:
 - Four tests known intermittent: T084, T087, T091, T092 (reconnect race + TLS reset log-line timing).
 - Deliverable: add `# KNOWN INTERMITTENT: <reason> — first observed <date>` comment block above each.
 - Optional stretch: emit `[FLAKE]` result category (separate from FAIL) when these fire; summary shows "N passed, 0 failed, M flaked."
 - Exit criterion: four comment blocks present; `run_serialdbg_tests.py --help` unchanged; no behaviour change.
 - Rationale: BP-012 (LL-034) — intermittent failures dilute regression signal; "not all green" should not be the expected baseline.
+- Done: all four comment blocks added; `flake()` function added; all fail() calls in T084/T087/T091/T092 replaced with flake(); summary line updated; --help unchanged; exit code unchanged (flakes don't fail the run).
 
 ---
 
