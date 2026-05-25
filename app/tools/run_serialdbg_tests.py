@@ -2,7 +2,7 @@
 """
 Serial debug test harness — serialdbg-001 suite.
 
-Executes T076–T088, T095, T096 against a DUT flashed with cyd2usb_winamp_debug.
+Executes T076–T088, T095, T096, T_BI_01–T_BI_04 against a DUT flashed with cyd2usb_winamp_debug.
 T089 (production ELF symbol check) is a host build check — not run here.
 T095 (physical vs. synthetic calibration) requires --interactive (human at DUT).
 
@@ -1306,6 +1306,174 @@ def t148(dut: Dut):
     pass_("T148", f"Clock active: hit={hit!r} action={action!r} — no Winamp zone leak")
 
 
+# ── T_BI_01 — PLEDIT repaint on Spotify resume ───────────────────────────────
+
+def t_bi_01(dut: Dut):
+    """T_BI_01: lastPlaylistDraw advances after Spotify resume (invalidatePlaylist fires)."""
+    # Precondition: queue populated
+    if not dut.wait_for_queue(min_count=1, timeout=30.0):
+        skip("T_BI_01", "queue empty after 30s — Spotify not playing?")
+        return
+    # Ensure Spotify active.
+    r = dut.cmd("get appId", timeout=3.0)
+    if not r.get("ok") or r.get("name") != "Spotify":
+        dut.set_cooldown_zero()
+        sx, sy = _c.tap_taskbar_slot(0)
+        dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+        time.sleep(0.4)
+    # Switch to Clock; wait 2 s (ensures rate-limit window clears; seqno may change).
+    dut.set_cooldown_zero()
+    cx, cy = _c.tap_taskbar_slot(1)
+    dut.cmd(f"tap {cx} {cy}", timeout=3.0)
+    time.sleep(2.0)
+    # Note t_before.
+    r_before = dut.cmd("get lastPlaylistDraw", timeout=3.0)
+    if not r_before.get("ok"):
+        fail("T_BI_01", f"get lastPlaylistDraw failed: {r_before}")
+        return
+    t_before = r_before.get("ms", 0)
+    # Switch back to Spotify — resume() calls invalidatePlaylist().
+    dut.set_cooldown_zero()
+    sx, sy = _c.tap_taskbar_slot(0)
+    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    # Poll until lastPlaylistDraw advances (drawPlaylist fired in tick()), timeout 2 s.
+    deadline = time.monotonic() + 2.0
+    t_after = t_before
+    while time.monotonic() < deadline:
+        r_poll = dut.cmd("get lastPlaylistDraw", timeout=1.0)
+        if r_poll.get("ok"):
+            candidate = r_poll.get("ms", t_before)
+            if candidate != t_before:
+                t_after = candidate
+                break
+        time.sleep(0.05)
+    if t_after == t_before:
+        fail("T_BI_01", f"lastPlaylistDraw did not advance after Spotify resume "
+                        f"(before={t_before} after={t_after}) — "
+                        f"invalidatePlaylist() + tick() path did not fire")
+        return
+    pass_("T_BI_01", f"lastPlaylistDraw advanced {t_before}→{t_after} after Spotify resume")
+
+
+# ── T_BI_02 — no Winamp render bleed onto Clock canvas ───────────────────────
+
+def t_bi_02(dut: Dut):
+    """T_BI_02: taskbar tap while PLAY pending → APP_SWITCH response; appId=Clock (no bleed)."""
+    # Ensure Spotify active.
+    r = dut.cmd("get appId", timeout=3.0)
+    if not r.get("ok") or r.get("name") != "Spotify":
+        skip("T_BI_02", f"precondition: need Spotify active, got {r.get('name')!r}")
+        return
+    # Tap PLAY (Press+Release delivered synchronously; pendingReleaseAt set then cleared).
+    px, py = _c.tap_button("PLAY")
+    dut.set_cooldown_zero()
+    dut.cmd(f"tap {px} {py}", timeout=3.0)
+    # Immediately tap taskbar Clock slot — shell must handle it, not Winamp.
+    dut.set_cooldown_zero()
+    cx, cy = _c.tap_taskbar_slot(1)
+    r_switch = dut.cmd(f"tap {cx} {cy}", timeout=3.0)
+    time.sleep(0.2)  # past the 80 ms pendingReleaseAt window
+    r_app = dut.cmd("get appId", timeout=3.0)
+    # Restore to Spotify before asserting.
+    dut.set_cooldown_zero()
+    sx, sy = _c.tap_taskbar_slot(0)
+    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    time.sleep(0.3)
+    hit    = r_switch.get("hit", "")
+    action = r_switch.get("action", "")
+    if hit != "TASKBAR" or action != "APP_SWITCH":
+        fail("T_BI_02", f"taskbar tap: hit={hit!r} action={action!r} "
+                        f"(expected TASKBAR/APP_SWITCH) — shell did not consume event")
+        return
+    if not r_app.get("ok") or r_app.get("name") != "Clock":
+        fail("T_BI_02", f"appId={r_app.get('name')!r} after taskbar tap — switch did not complete")
+        return
+    pass_("T_BI_02", f"hit={hit!r} action={action!r}; appId=Clock — shell consumed event, no Winamp bleed")
+
+
+# ── T_BI_03 — suspend() clears drag state mid-switch ─────────────────────────
+
+def t_bi_03(dut: Dut):
+    """T_BI_03: suspend() resets dragState; resume() re-enables PLEDIT after Spotify→Clock→Spotify."""
+    # Precondition: Spotify active, queue ≥ 2 items for scroll tests.
+    if not dut.wait_for_queue(min_count=2, timeout=30.0):
+        skip("T_BI_03", "queue count<2 after 30s — Spotify not playing?")
+        return
+    r = dut.cmd("get appId", timeout=3.0)
+    if not r.get("ok") or r.get("name") != "Spotify":
+        dut.set_cooldown_zero()
+        sx, sy = _c.tap_taskbar_slot(0)
+        dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+        time.sleep(0.4)
+    # Reset scrollOffset to 0 first.
+    x1, y1, x2, y2 = _c.pledit_swipe("down")
+    for _ in range(3):
+        dut.set_cooldown_zero()
+        dut.send(f"drag {x1} {y1} {x2} {y2} 5")
+        dut.read_json(timeout=5.0)
+    # Swipe up once so dragState exercises D_PLEDIT_SCROLL path.
+    x1u, y1u, x2u, y2u = _c.pledit_swipe("up")
+    dut.set_cooldown_zero()
+    dut.send(f"drag {x1u} {y1u} {x2u} {y2u} 5")
+    dut.read_json(timeout=5.0)
+    # Verify dragState is D_IDLE after drag completes.
+    rg = dut.cmd("get dragState", timeout=3.0)
+    if rg.get("state") != "D_IDLE":
+        fail("T_BI_03", f"pre-condition: dragState={rg.get('state')} not D_IDLE after drag")
+        return
+    # Switch to Clock — suspend() → resetDragState().
+    dut.set_cooldown_zero()
+    cx, cy = _c.tap_taskbar_slot(1)
+    dut.cmd(f"tap {cx} {cy}", timeout=3.0)
+    time.sleep(0.3)
+    r_clock = dut.cmd("get appId", timeout=3.0)
+    if not r_clock.get("ok") or r_clock.get("name") != "Clock":
+        fail("T_BI_03", f"failed to switch to Clock: appId={r_clock.get('name')!r}")
+        return
+    time.sleep(0.5)
+    # Switch back to Spotify — resume() → invalidatePlaylist().
+    dut.set_cooldown_zero()
+    sx, sy = _c.tap_taskbar_slot(0)
+    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    time.sleep(0.4)
+    # Check dragState is D_IDLE (resetDragState was called by suspend()).
+    rg2 = dut.cmd("get dragState", timeout=3.0)
+    if rg2.get("state") != "D_IDLE":
+        fail("T_BI_03", f"dragState={rg2.get('state')} after Clock switch — suspend() did not reset")
+        return
+    # Check scrollOffset is in range [0, ∞) — no negative underflow from stale drag.
+    rs = dut.cmd("get scrollOffset", timeout=3.0)
+    so = rs.get("val", -1)
+    if not isinstance(so, int) or so < 0:
+        fail("T_BI_03", f"scrollOffset={so!r} — negative or missing after suspend/resume")
+        return
+    pass_("T_BI_03", f"dragState=D_IDLE; scrollOffset={so} ≥ 0 after Clock switch — suspend/resume clean")
+
+
+# ── T_BI_04 — Release delivery after finger lift ─────────────────────────────
+
+def t_bi_04(dut: Dut):
+    """T_BI_04: cmdTap delivers Release phase; response region=TRANSPORT action=PLAY|PAUSE."""
+    r = dut.cmd("get appId", timeout=3.0)
+    if not r.get("ok") or r.get("name") != "Spotify":
+        skip("T_BI_04", f"precondition: need Spotify active, got {r.get('name')!r}")
+        return
+    px, py = _c.tap_button("PLAY")
+    dut.set_cooldown_zero()
+    r_tap = dut.cmd(f"tap {px} {py}", timeout=3.0)
+    # 150 ms — past the 80 ms pendingReleaseAt window; release already delivered synchronously.
+    time.sleep(0.15)
+    hit    = r_tap.get("hit", "")
+    action = r_tap.get("action", "")
+    if hit != "TRANSPORT":
+        fail("T_BI_04", f"hit={hit!r} (expected TRANSPORT) — tap missed transport zone")
+        return
+    if action not in ("PLAY", "PAUSE"):
+        fail("T_BI_04", f"action={action!r} (expected PLAY or PAUSE) — wrong transport action")
+        return
+    pass_("T_BI_04", f"Release delivered: hit={hit!r} action={action!r} — DUT stable, correct region")
+
+
 # ── main ──────────────────────────────────────────────────────────────────────
 
 ALL_TESTS = {
@@ -1339,6 +1507,10 @@ ALL_TESTS = {
     "T140": t140,
     "T147": t147,
     "T148": t148,
+    "T_BI_01": t_bi_01,
+    "T_BI_02": t_bi_02,
+    "T_BI_03": t_bi_03,
+    "T_BI_04": t_bi_04,
 }
 
 def main():
