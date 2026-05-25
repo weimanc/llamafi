@@ -1102,29 +1102,33 @@ Exit 1 on any import error or path complaint. Gate must pass before task is `don
 ### TASK-078 — Design: PLEDIT content-area drag UX improvements
 **Owner**: Architect (whiteboard), then Developer
 **Feature**: playlist-002, touch-002
-**Status**: open (2026-05-23) — needs whiteboard session before implementation
+**Status**: open (2026-05-23) — points 1 and 3 remain; point 2 resolved by TASK-101
+**Blocked by**: TASK-101 (both remaining points require reliable `dy` — see notes)
 **Notes**: Current Zone 1 swipe is functional but unsatisfying. Three discussion points:
 
 1. **Click vs gesture discrimination**: Current threshold (|dy| < 4px → tap, ≥4px →
    scroll) is crude. A proper discriminator would consider gesture velocity and/or
    total travel time: short fast → tap; slow long → scroll. Avoids mis-fires when
    the user intends a firm tap but moves slightly.
+   **Blocked by TASK-101**: velocity = dy/elapsed_ms; both values are only accurate
+   after capture is fixed. A leaky sample stream (finger drifts outside hitbox mid-swipe
+   → Move samples dropped → artificially small dy) misclassifies deliberate swipes as
+   taps. Also requires `_dragStartMs` timestamp added at `D_PLEDIT_SCROLL` Press entry
+   (one-liner; can be included in TASK-101 or as a follow-up).
 
-2. **Full-screen gesture capture**: Once a Zone 1 drag starts, confine subsequent
-   drag samples to the full screen (not just Zone 1 hitbox). User's finger drifts
-   outside the narrow content strip mid-swipe; samples stop updating `_dragCurrentY`
-   because they fall in dead-zone or other zones. Makes long swipes unreliable.
-   Pattern: set a `_capturingDrag` flag on first Zone 1 touch-down; while set, route
-   all touch samples to the drag handler regardless of xy zone.
+2. ~~**Full-screen gesture capture**~~ — **RESOLVED by TASK-101** (M-TOUCH-CAPTURE
+   DragState-first dispatch covers all four sliders including PLEDIT content swipe).
+   No separate implementation needed here.
 
 3. **Acceleration / momentum**: A single swipe increments scrollOffset by ±1
    regardless of gesture speed or length. A fast or long swipe should scroll 2–3
    rows. Simple model: `delta = max(1, abs(dy) / ROW_H)` — proportional to travel in
    row-heights. Cap at PLEDIT_ROW_COUNT to avoid jumping past all visible rows.
+   **Blocked by TASK-101**: `abs(dy)` must measure full gesture travel. Without capture,
+   dropped Move samples make dy artificially small; `delta` rounds to 1 on every swipe,
+   making the enhancement invisible.
 
-Whiteboard output should produce: updated hitzone design doc, revised gesture state
-machine, and acceptance criteria for VE. Architect to drive; Developer and human
-operator to attend.
+Points 1 and 3 are blocked on TASK-101. Implement and verify only after T149–T154 pass.
 
 ---
 
@@ -2303,6 +2307,49 @@ Exit criteria:
   6. dataTask/cross-feature (X007): concurrent dataTask requests from Weather and Crypto do not corrupt each other's result slots.
 - **Test type**: DUT, `cyd2usb_winamp_debug`. Same network dependency as TASK-099. Run alongside TASK-099 where possible (shared DUT session, shared host_overrides.json state).
 - **Exit criterion**: test functions written and passing; `test_ids` in `feature_inventory.yaml`; entries in `test_plan.md` under suite `crypto-001`.
+
+---
+
+### TASK-101 — M-TOUCH-CAPTURE: Implement slider input capture in winampDisplay
+**Owner**: Developer
+**Feature**: touch-002
+**Status**: open (2026-05-25)
+**Blocked by**: VE sign-off on design doc (done — 2026-05-25, see VE review)
+**Notes**:
+- Design doc: `docs/architecture/designs/M-TOUCH-CAPTURE-slider-input-capture.md`
+- VE review: `docs/verification/regression_suite/touch-capture-ve-review.md`
+- Sole change file: `app/src/winamp/winampDisplay.h`
+- Changes:
+  1. Add `D_POSBAR_DRAG` to `DragState` enum.
+  2. Add `long _posbarDragCurrentMs = 0` member.
+  3. Restructure Press/Move path: Phase 1 captured-gesture guard before all hit-tests.
+  4. Add `volumeFromX(int sx)` and `posbarFromX(int sx)` private helpers (clamped, no y check).
+  5. POSBAR Press entry: set `D_POSBAR_DRAG`, init `_posbarDragCurrentMs`, paint thumb.
+  6. POSBAR Release: commit `_posbarDragCurrentMs` as ACT_SEEK.
+  7. `dbgGet("dragState")`: add `D_POSBAR_DRAG` arm.
+  8. `dbgGet("posbarDragMs")`: return `_posbarDragCurrentMs`.
+- Run `check_build.sh` before commit. Run T149–T154 on DUT to close.
+- Optional (unblocks TASK-078 point 1): add `unsigned long _dragStartMs = 0` member;
+  set it alongside `_dragStartY` in the `D_PLEDIT_SCROLL` Press entry. No other changes
+  needed — TASK-078 will read it when implementing velocity discrimination.
+
+---
+
+### TASK-102 — VE: test suite for touch-capture-001 (T149–T154)
+**Owner**: VE
+**Feature**: touch-002
+**Status**: written (2026-05-25) — awaiting TASK-101 implementation to execute
+**Blocked by**: TASK-101
+**Notes**:
+- Tests written in `test_plan.md` under suite `touch-capture-001`.
+- T149: POSBAR single-commit on Release
+- T150: POSBAR capture — drift above groove
+- T151: VOLUME capture — drift below groove
+- T152: PLEDIT scrollbar capture — drift into content area
+- T153: Capture exclusivity — VOLUME drift into POSBAR zone, no seek starts
+- T154: POSBAR tap (Press + immediate Release) seeks to pressed position
+- Execute via `run_serialdbg_tests.py --tests T149,T150,T151,T152,T153,T154`.
+- All 6 must pass before TASK-101 can be marked done.
 
 ---
 

@@ -2574,6 +2574,127 @@ T_CX_05 requires network access to `api.coingecko.com` (or current `host_overrid
 
 ---
 
+## Suite: touch-capture-001 — Slider input capture (TASK-102)
+
+**DUT required** — T149–T154 use `run_serialdbg_tests.py` with `cyd2usb_winamp_debug`.
+Design doc: `docs/architecture/designs/M-TOUCH-CAPTURE-slider-input-capture.md`.
+VE review: `docs/verification/regression_suite/touch-capture-ve-review.md`.
+
+### T149 — [touch-002] POSBAR drag commits single ACT_SEEK on Release at correct position
+
+- **Type**: integration (DUT)
+- **Feature(s)**: touch-002
+- **Objective**: Confirm that `cmdDrag` across the POSBAR groove enqueues exactly one
+  `ACT_SEEK` on Release and that the committed position matches the drag endpoint.
+- **Preconditions**: DUT booted with `cyd2usb_winamp_debug`. Spotify active. `set
+  songDuration 120000` (120 s). `get dragState` == `D_IDLE`.
+- **Steps**:
+  1. `drag 40 77 200 77 10` (left→right sweep across POSBAR at y=77, 10 steps).
+  2. Assert response `ok=true`.
+  3. `get posbarDragMs` — record `committed_ms`.
+  4. Assert `committed_ms` is in range `[50000, 120000]` (right half of a 120 s track).
+  5. Assert serial log contains exactly one `ACT_SEEK` entry during the drag.
+- **Expected result**: Single ACT_SEEK commit; `posbarDragMs` matches the x=200 endpoint
+  (`≈ (200 - POSBAR_X) / POSBAR_W * 120000 ≈ 88000 ms`).
+- **Harness**: `run_serialdbg_tests.py --tests T149`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T150 — [touch-002] POSBAR capture: Move outside hitbox continues updating thumb
+
+- **Type**: integration (DUT)
+- **Feature(s)**: touch-002
+- **Objective**: Finger drifts above the 10 px POSBAR groove; drag samples continue
+  updating `_posbarDragCurrentMs`. Without capture the samples would be lost.
+- **Preconditions**: As T149. `set songDuration 120000`.
+- **Steps**:
+  1. `drag 40 77 200 50 10` — starts in POSBAR (y=77), drifts upward to y=50 (above groove).
+  2. Assert response `ok=true`.
+  3. `get posbarDragMs` — assert value in `[50000, 120000]` (right half, matching x=200).
+  4. `get dragState` — assert `D_IDLE` (released cleanly).
+- **Expected result**: `posbarDragMs` reflects the x endpoint despite y drift. If capture
+  is broken, `posbarDragMs ≈ 0` (drag stopped updating when y left the groove).
+- **Harness**: `run_serialdbg_tests.py --tests T150`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T151 — [touch-002] VOLUME capture: Move outside hitbox continues updating volume
+
+- **Type**: integration (DUT)
+- **Feature(s)**: touch-002
+- **Objective**: Finger drifts below the 13 px VOLUME groove; drag samples continue
+  updating `lastVolumeRendered`. Without capture the update ceases mid-drag.
+- **Preconditions**: DUT booted with `cyd2usb_winamp_debug`. Spotify active.
+  `get dragState` == `D_IDLE`.
+- **Steps**:
+  1. `drag 110 62 170 80 10` — starts inside VOLUME (y=62, within 57–69), drifts to y=80
+     (below groove).
+  2. Assert response `ok=true`.
+  3. `get dragState` — assert `D_IDLE`.
+  4. Assert the drag emitted at least one `ACT_VOLUME` entry (volume debounce may collapse
+     multiple; at least one must appear in the Release commit path).
+- **Expected result**: Volume updated across full x travel despite y drift. No mid-drag
+  freeze at the hitbox edge.
+- **Harness**: `run_serialdbg_tests.py --tests T151`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T152 — [touch-002] PLEDIT scrollbar capture: Move outside strip continues scrolling
+
+- **Type**: integration (DUT)
+- **Feature(s)**: touch-002, playlist-002
+- **Objective**: Finger starts in the 19 px scrollbar strip then drifts left into the
+  content area; `D_PLEDIT_SCROLL_DIRECT` remains active and `scrollOffset` tracks the Y.
+- **Preconditions**: DUT with queue ≥ 8 items (> PLEDIT_ROW_COUNT=5). `get scrollOffset`
+  == 0.
+- **Steps**:
+  1. `drag 283 140 100 180 10` — starts in scrollbar strip (x=283), drifts left to x=100
+     (content area), y sweeps 140→180.
+  2. Assert response `ok=true`.
+  3. `get scrollOffset` — assert value > 0 (scroll advanced from y travel).
+  4. `get dragState` — assert `D_IDLE`.
+- **Expected result**: `scrollOffset` advanced proportional to y travel. Without capture,
+  drift into content area would switch to `D_PLEDIT_SCROLL` or stop updating entirely.
+- **Harness**: `run_serialdbg_tests.py --tests T152`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T153 — [touch-002] Capture exclusivity: drift from VOLUME into POSBAR does not start seek
+
+- **Type**: integration (DUT)
+- **Feature(s)**: touch-002
+- **Objective**: While `D_VOLUME_DRAG` is active, raw (x,y) may fall inside the POSBAR
+  hitbox during a downward drift. Phase 1 must route to the volume handler; Phase 2
+  (POSBAR hit-test) must never run.
+- **Preconditions**: DUT booted with `cyd2usb_winamp_debug`. Spotify active.
+  `set songDuration 120000`.
+- **Steps**:
+  1. `drag 110 62 170 77 10` — starts in VOLUME (y=62), drifts down to y=77 (POSBAR row).
+  2. Assert `ok=true`.
+  3. `get dragState` — assert `D_IDLE`.
+  4. `get posbarDragMs` — assert 0 (no seek initiated).
+  5. Assert serial log contains at least one `VOLUME` entry and zero `ACT_SEEK` entries
+     during this drag.
+- **Expected result**: Volume drag completed; no seek was ever started or committed.
+- **Harness**: `run_serialdbg_tests.py --tests T153`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T154 — [touch-002] POSBAR Press + immediate Release seeks to pressed position
+
+- **Type**: integration (DUT)
+- **Feature(s)**: touch-002
+- **Objective**: A tap (Press then Release with no Move) on the POSBAR groove commits
+  a seek at the tapped position. Verifies `D_POSBAR_DRAG` is entered on Press and
+  `_posbarDragCurrentMs` is initialised from the Press coordinate.
+- **Preconditions**: `set songDuration 60000`. `get dragState` == `D_IDLE`.
+- **Steps**:
+  1. `tap 180 77` (x=180, middle of POSBAR; expected seek ≈ 39000 ms for 60 s track).
+  2. `get posbarDragMs` — record `seeked_ms`.
+  3. Assert `seeked_ms` in range `[35000, 45000]`.
+  4. Assert serial log contains one `ACT_SEEK` entry.
+- **Expected result**: Single seek committed at ~39000 ms. Without the Press-entry init,
+  `_posbarDragCurrentMs` would be 0 and the seek would go to track start.
+- **Harness**: `run_serialdbg_tests.py --tests T154`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+---
+
 ## Entry Format
 
 ```
