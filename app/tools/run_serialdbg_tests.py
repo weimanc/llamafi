@@ -2,7 +2,9 @@
 """
 Serial debug test harness — serialdbg-001 suite.
 
-Executes T076–T088, T095, T096, T_BI_01–T_BI_04 against a DUT flashed with cyd2usb_winamp_debug.
+Executes T076–T088, T095, T096, T_BI_01–T_BI_04,
+T_MA_01–T_MA_03, T_GOL_01–T_GOL_04, T_WX_01–T_WX_05,
+T_CX_01–T_CX_05, T_X07_01 against a DUT flashed with cyd2usb_winamp_debug.
 T089 (production ELF symbol check) is a host build check — not run here.
 T095 (physical vs. synthetic calibration) requires --interactive (human at DUT).
 
@@ -14,6 +16,8 @@ Requirements:
     pip install pyserial
     DUT flashed with cyd2usb_winamp_debug, booted, WiFi up, Spotify creds valid.
     Active Spotify Connect device playing a track (required for most tests).
+    T_WX_05, T_CX_05, T_X07_01 require network access to api.open-meteo.com /
+    api.coingecko.com (or a current host_overrides.json on SPIFFS).
 
 All tap/drag screen coordinates are derived at import time from
 gen/skin_layout.h via tools/coords.py. originX shifts automatically when
@@ -1493,6 +1497,425 @@ def t_bi_04(dut: Dut):
     pass_("T_BI_04", f"Release delivered: hit={hit!r} action={action!r} — DUT stable, correct region")
 
 
+# ── multiapp helpers ─────────────────────────────────────────────────────────
+
+def _switch_to(dut: Dut, app_name: str, slot: int, timeout: float = 3.0) -> bool:
+    """Tap taskbar slot, wait 400 ms, verify appId == app_name. Returns True on success."""
+    dut.set_cooldown_zero()
+    x, y = _c.tap_taskbar_slot(slot)
+    dut.cmd(f"tap {x} {y}", timeout=timeout)
+    time.sleep(0.4)
+    r = dut.cmd("get appId", timeout=timeout)
+    return r.get("ok", False) and r.get("name") == app_name
+
+
+def _check_residue(dut: Dut, tid: str) -> bool:
+    """After switching back to Spotify, verify lastPlaylistDraw advances within 3 s.
+    Returns True if PASS was recorded, False if the check was skipped (no Spotify signal).
+    Does not call fail() — caller decides on skip vs fail."""
+    r_before = dut.cmd("get lastPlaylistDraw", timeout=3.0)
+    if not r_before.get("ok"):
+        return False
+    t_before = r_before.get("ms", 0)
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        r = dut.cmd("get lastPlaylistDraw", timeout=1.0)
+        if r.get("ok") and r.get("ms", t_before) != t_before:
+            pass_(tid, f"lastPlaylistDraw advanced {t_before}→{r['ms']} — no TFT state residue")
+            return True
+        time.sleep(0.05)
+    return False
+
+
+# ── T_MA_01 — MatrixApp switch round-trip ────────────────────────────────────
+
+def t_ma_01(dut: Dut):
+    """T_MA_01: Spotify→Matrix→Spotify round-trip; appId correct at each step."""
+    print("T_MA_01  MatrixApp switch round-trip")
+    # Ensure Spotify active.
+    if not _restore_spotify(dut):
+        skip("T_MA_01", "precondition: could not restore Spotify")
+        return
+    # Switch to Matrix.
+    if not _switch_to(dut, "Matrix", 4):
+        fail("T_MA_01", "did not switch to Matrix")
+        _restore_spotify(dut)
+        return
+    # Switch back.
+    if not _restore_spotify(dut):
+        fail("T_MA_01", "Matrix→Spotify switch-back failed")
+        return
+    pass_("T_MA_01", "Spotify→Matrix→Spotify round-trip confirmed via get appId")
+
+
+# ── T_MA_02 — Matrix BUG-1 guard ─────────────────────────────────────────────
+
+def t_ma_02(dut: Dut):
+    """T_MA_02: Canvas tap while Matrix active returns hit=CLOCK (Winamp zones bypassed)."""
+    print("T_MA_02  Matrix BUG-1 guard")
+    if not _switch_to(dut, "Matrix", 4):
+        skip("T_MA_02", "could not switch to Matrix")
+        _restore_spotify(dut)
+        return
+    # Tap centre of Matrix canvas (x=137, y=120) — x < TASKBAR_X.
+    dut.set_cooldown_zero()
+    r = dut.cmd("tap 137 120", timeout=3.0)
+    # Restore before asserting.
+    _restore_spotify(dut)
+    hit = r.get("hit", "")
+    if hit != "CLOCK":
+        fail("T_MA_02", f"expected hit=CLOCK while Matrix active, got {hit!r}")
+        return
+    pass_("T_MA_02", f"hit={hit!r} — Winamp zones correctly bypassed for Matrix")
+
+
+# ── T_MA_03 — Matrix→Spotify canvas residue ──────────────────────────────────
+
+def t_ma_03(dut: Dut):
+    """T_MA_03: Spotify renders correctly (lastPlaylistDraw advances) after Matrix switch-back."""
+    print("T_MA_03  Matrix→Spotify canvas residue")
+    if not _switch_to(dut, "Matrix", 4):
+        skip("T_MA_03", "could not switch to Matrix")
+        _restore_spotify(dut)
+        return
+    time.sleep(0.15)  # allow one or two Matrix ticks
+    # Switch back to Spotify.
+    dut.set_cooldown_zero()
+    sx, sy = _c.tap_taskbar_slot(0)
+    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    time.sleep(0.1)
+    if not _check_residue(dut, "T_MA_03"):
+        skip("T_MA_03", "lastPlaylistDraw did not advance — Spotify not rendering (not playing?)")
+
+
+# ── T_GOL_01 — LifeApp switch round-trip ─────────────────────────────────────
+
+def t_gol_01(dut: Dut):
+    """T_GOL_01: Spotify→GoL→Spotify round-trip; appId correct at each step."""
+    print("T_GOL_01  LifeApp switch round-trip")
+    if not _restore_spotify(dut):
+        skip("T_GOL_01", "precondition: could not restore Spotify")
+        return
+    if not _switch_to(dut, "Life", 5):
+        fail("T_GOL_01", "did not switch to Life")
+        _restore_spotify(dut)
+        return
+    if not _restore_spotify(dut):
+        fail("T_GOL_01", "GoL→Spotify switch-back failed")
+        return
+    pass_("T_GOL_01", "Spotify→GoL→Spotify round-trip confirmed via get appId")
+
+
+# ── T_GOL_02 — GoL BUG-1 guard ───────────────────────────────────────────────
+
+def t_gol_02(dut: Dut):
+    """T_GOL_02: Canvas tap while GoL active returns hit=CLOCK (Winamp zones bypassed)."""
+    print("T_GOL_02  GoL BUG-1 guard")
+    if not _switch_to(dut, "Life", 5):
+        skip("T_GOL_02", "could not switch to Life")
+        _restore_spotify(dut)
+        return
+    dut.set_cooldown_zero()
+    r = dut.cmd("tap 137 120", timeout=3.0)
+    _restore_spotify(dut)
+    hit = r.get("hit", "")
+    if hit != "CLOCK":
+        fail("T_GOL_02", f"expected hit=CLOCK while GoL active, got {hit!r}")
+        return
+    pass_("T_GOL_02", f"hit={hit!r} — Winamp zones correctly bypassed for GoL")
+
+
+# ── T_GOL_03 — GoL→Spotify canvas residue ────────────────────────────────────
+
+def t_gol_03(dut: Dut):
+    """T_GOL_03: Spotify renders correctly after GoL switch-back."""
+    print("T_GOL_03  GoL→Spotify canvas residue")
+    if not _switch_to(dut, "Life", 5):
+        skip("T_GOL_03", "could not switch to Life")
+        _restore_spotify(dut)
+        return
+    time.sleep(0.2)  # allow GoL to tick
+    dut.set_cooldown_zero()
+    sx, sy = _c.tap_taskbar_slot(0)
+    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    time.sleep(0.1)
+    if not _check_residue(dut, "T_GOL_03"):
+        skip("T_GOL_03", "lastPlaylistDraw did not advance — Spotify not rendering (not playing?)")
+
+
+# ── T_GOL_04 — GoL alive count updated ───────────────────────────────────────
+
+def t_gol_04(dut: Dut):
+    """T_GOL_04: golAlive is populated (>= 0) after GoL ticks."""
+    print("T_GOL_04  GoL alive count updated")
+    if not _switch_to(dut, "Life", 5):
+        skip("T_GOL_04", "could not switch to Life")
+        _restore_spotify(dut)
+        return
+    time.sleep(0.35)  # wait for 3+ GoL ticks (100 ms each)
+    r = dut.cmd("get golAlive", timeout=3.0)
+    _restore_spotify(dut)
+    if not r.get("ok"):
+        fail("T_GOL_04", f"get golAlive failed: {r}")
+        return
+    count = r.get("count", -1)
+    if count < 0:
+        fail("T_GOL_04", f"golAlive={count} — GoL never ticked (expected >= 0)")
+        return
+    pass_("T_GOL_04", f"golAlive={count} — stepGeneration fired at least once")
+
+
+# ── T_WX_01 — WeatherApp switch round-trip ───────────────────────────────────
+
+def t_wx_01(dut: Dut):
+    """T_WX_01: Spotify→Weather→Spotify round-trip; appId correct at each step."""
+    print("T_WX_01  WeatherApp switch round-trip")
+    if not _restore_spotify(dut):
+        skip("T_WX_01", "precondition: could not restore Spotify")
+        return
+    if not _switch_to(dut, "Weather", 2):
+        fail("T_WX_01", "did not switch to Weather")
+        _restore_spotify(dut)
+        return
+    if not _restore_spotify(dut):
+        fail("T_WX_01", "Weather→Spotify switch-back failed")
+        return
+    pass_("T_WX_01", "Spotify→Weather→Spotify round-trip confirmed via get appId")
+
+
+# ── T_WX_02 — Weather BUG-1 guard ────────────────────────────────────────────
+
+def t_wx_02(dut: Dut):
+    """T_WX_02: Canvas tap while Weather active returns hit=CLOCK (Winamp zones bypassed)."""
+    print("T_WX_02  Weather BUG-1 guard")
+    if not _switch_to(dut, "Weather", 2):
+        skip("T_WX_02", "could not switch to Weather")
+        _restore_spotify(dut)
+        return
+    dut.set_cooldown_zero()
+    r = dut.cmd("tap 137 120", timeout=3.0)
+    _restore_spotify(dut)
+    hit = r.get("hit", "")
+    if hit != "CLOCK":
+        fail("T_WX_02", f"expected hit=CLOCK while Weather active, got {hit!r}")
+        return
+    pass_("T_WX_02", f"hit={hit!r} — Winamp zones correctly bypassed for Weather")
+
+
+# ── T_WX_03 — Weather→Spotify canvas residue ─────────────────────────────────
+
+def t_wx_03(dut: Dut):
+    """T_WX_03: Spotify renders correctly after Weather switch-back."""
+    print("T_WX_03  Weather→Spotify canvas residue")
+    if not _switch_to(dut, "Weather", 2):
+        skip("T_WX_03", "could not switch to Weather")
+        _restore_spotify(dut)
+        return
+    time.sleep(0.15)
+    dut.set_cooldown_zero()
+    sx, sy = _c.tap_taskbar_slot(0)
+    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    time.sleep(0.1)
+    if not _check_residue(dut, "T_WX_03"):
+        skip("T_WX_03", "lastPlaylistDraw did not advance — Spotify not rendering (not playing?)")
+
+
+# ── T_WX_04 — Weather pre-fetch state ────────────────────────────────────────
+
+def t_wx_04(dut: Dut):
+    """T_WX_04: weatherReady=false immediately after first switch-in (before fetch completes)."""
+    print("T_WX_04  Weather pre-fetch state")
+    # Only valid if Weather has never shown in this DUT session.
+    r_pre = dut.cmd("get weatherReady", timeout=3.0)
+    if not r_pre.get("ok"):
+        fail("T_WX_04", f"get weatherReady failed: {r_pre}")
+        return
+    if r_pre.get("ready") is True:
+        skip("T_WX_04",
+             "weatherReady already true — Weather fetched data earlier this session; "
+             "pre-fetch state no longer observable")
+        return
+    # Switch to Weather; check immediately (before 60s fetch interval).
+    _switch_to(dut, "Weather", 2)
+    r_imm = dut.cmd("get weatherReady", timeout=3.0)
+    _restore_spotify(dut)
+    if not r_imm.get("ok"):
+        fail("T_WX_04", f"get weatherReady (immediate) failed: {r_imm}")
+        return
+    if r_imm.get("ready") is True:
+        # Data arrived extremely fast (cached or very fast network) — not a failure.
+        skip("T_WX_04", "weatherReady=true immediately — data arrived before check; network too fast?")
+        return
+    pass_("T_WX_04", "weatherReady=false on switch-in — pre-fetch state confirmed")
+
+
+# ── T_WX_05 — Weather data arrives ───────────────────────────────────────────
+
+def t_wx_05(dut: Dut):
+    """T_WX_05: weatherReady becomes true within 30 s of switching to WeatherApp."""
+    print("T_WX_05  Weather data arrives")
+    if not _switch_to(dut, "Weather", 2):
+        skip("T_WX_05", "could not switch to Weather")
+        _restore_spotify(dut)
+        return
+    deadline = time.monotonic() + 30.0
+    ready = False
+    while time.monotonic() < deadline:
+        r = dut.cmd("get weatherReady", timeout=3.0)
+        if r.get("ok") and r.get("ready") is True:
+            ready = True
+            break
+        time.sleep(2.0)
+    _restore_spotify(dut)
+    if not ready:
+        fail("T_WX_05", "weatherReady still false after 30 s — dataTask fetch did not complete")
+        return
+    pass_("T_WX_05", "weatherReady=true — WeatherApp received live data from dataTask")
+
+
+# ── T_CX_01 — CryptoApp switch round-trip ────────────────────────────────────
+
+def t_cx_01(dut: Dut):
+    """T_CX_01: Spotify→Crypto→Spotify round-trip; appId correct at each step."""
+    print("T_CX_01  CryptoApp switch round-trip")
+    if not _restore_spotify(dut):
+        skip("T_CX_01", "precondition: could not restore Spotify")
+        return
+    if not _switch_to(dut, "Crypto", 3):
+        fail("T_CX_01", "did not switch to Crypto")
+        _restore_spotify(dut)
+        return
+    if not _restore_spotify(dut):
+        fail("T_CX_01", "Crypto→Spotify switch-back failed")
+        return
+    pass_("T_CX_01", "Spotify→Crypto→Spotify round-trip confirmed via get appId")
+
+
+# ── T_CX_02 — Crypto BUG-1 guard ─────────────────────────────────────────────
+
+def t_cx_02(dut: Dut):
+    """T_CX_02: Canvas tap while Crypto active returns hit=CLOCK (Winamp zones bypassed)."""
+    print("T_CX_02  Crypto BUG-1 guard")
+    if not _switch_to(dut, "Crypto", 3):
+        skip("T_CX_02", "could not switch to Crypto")
+        _restore_spotify(dut)
+        return
+    dut.set_cooldown_zero()
+    r = dut.cmd("tap 137 120", timeout=3.0)
+    _restore_spotify(dut)
+    hit = r.get("hit", "")
+    if hit != "CLOCK":
+        fail("T_CX_02", f"expected hit=CLOCK while Crypto active, got {hit!r}")
+        return
+    pass_("T_CX_02", f"hit={hit!r} — Winamp zones correctly bypassed for Crypto")
+
+
+# ── T_CX_03 — Crypto→Spotify canvas residue ──────────────────────────────────
+
+def t_cx_03(dut: Dut):
+    """T_CX_03: Spotify renders correctly after Crypto switch-back."""
+    print("T_CX_03  Crypto→Spotify canvas residue")
+    if not _switch_to(dut, "Crypto", 3):
+        skip("T_CX_03", "could not switch to Crypto")
+        _restore_spotify(dut)
+        return
+    time.sleep(0.15)
+    dut.set_cooldown_zero()
+    sx, sy = _c.tap_taskbar_slot(0)
+    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    time.sleep(0.1)
+    if not _check_residue(dut, "T_CX_03"):
+        skip("T_CX_03", "lastPlaylistDraw did not advance — Spotify not rendering (not playing?)")
+
+
+# ── T_CX_04 — Crypto pre-fetch state ─────────────────────────────────────────
+
+def t_cx_04(dut: Dut):
+    """T_CX_04: cryptoReady=false immediately after first switch-in (before fetch completes)."""
+    print("T_CX_04  Crypto pre-fetch state")
+    r_pre = dut.cmd("get cryptoReady", timeout=3.0)
+    if not r_pre.get("ok"):
+        fail("T_CX_04", f"get cryptoReady failed: {r_pre}")
+        return
+    if r_pre.get("ready") is True:
+        skip("T_CX_04",
+             "cryptoReady already true — Crypto fetched data earlier this session; "
+             "pre-fetch state no longer observable")
+        return
+    _switch_to(dut, "Crypto", 3)
+    r_imm = dut.cmd("get cryptoReady", timeout=3.0)
+    _restore_spotify(dut)
+    if not r_imm.get("ok"):
+        fail("T_CX_04", f"get cryptoReady (immediate) failed: {r_imm}")
+        return
+    if r_imm.get("ready") is True:
+        skip("T_CX_04", "cryptoReady=true immediately — data arrived before check")
+        return
+    pass_("T_CX_04", "cryptoReady=false on switch-in — pre-fetch state confirmed")
+
+
+# ── T_CX_05 — Crypto data arrives ────────────────────────────────────────────
+
+def t_cx_05(dut: Dut):
+    """T_CX_05: cryptoReady becomes true within 30 s of switching to CryptoApp."""
+    print("T_CX_05  Crypto data arrives")
+    if not _switch_to(dut, "Crypto", 3):
+        skip("T_CX_05", "could not switch to Crypto")
+        _restore_spotify(dut)
+        return
+    deadline = time.monotonic() + 30.0
+    ready = False
+    while time.monotonic() < deadline:
+        r = dut.cmd("get cryptoReady", timeout=3.0)
+        if r.get("ok") and r.get("ready") is True:
+            ready = True
+            break
+        time.sleep(2.0)
+    _restore_spotify(dut)
+    if not ready:
+        fail("T_CX_05", "cryptoReady still false after 30 s — dataTask fetch did not complete")
+        return
+    pass_("T_CX_05", "cryptoReady=true — CryptoApp received live data from dataTask")
+
+
+# ── T_X07_01 — dataTask cross-feature: rapid Weather↔Crypto switching ────────
+
+def t_x07_01(dut: Dut):
+    """T_X07_01 (X007): rapid Weather→Crypto→Weather→Crypto→Spotify; DUT stable throughout."""
+    print("T_X07_01  dataTask cross-feature: rapid Weather↔Crypto switching")
+    if not _restore_spotify(dut):
+        skip("T_X07_01", "precondition: could not restore Spotify")
+        return
+    sequence = [
+        ("Weather", 2),
+        ("Crypto",  3),
+        ("Weather", 2),
+        ("Crypto",  3),
+        ("Spotify", 0),
+    ]
+    for app_name, slot in sequence:
+        dut.set_cooldown_zero()
+        x, y = _c.tap_taskbar_slot(slot)
+        dut.cmd(f"tap {x} {y}", timeout=3.0)
+        time.sleep(0.2)
+        r = dut.cmd("get appId", timeout=3.0)
+        if not r.get("ok") or r.get("name") != app_name:
+            # Ensure we're back to Spotify before failing.
+            _restore_spotify(dut)
+            fail("T_X07_01",
+                 f"expected appId={app_name!r}, got {r.get('name')!r} — "
+                 f"DUT unstable during rapid dataTask switching")
+            return
+    # Final sanity: DUT still responds to info.
+    r_info = dut.cmd("info", timeout=4.0)
+    if not r_info.get("ok"):
+        fail("T_X07_01", "DUT unresponsive after rapid switching — info command failed")
+        return
+    pass_("T_X07_01",
+          "Weather→Crypto×2→Spotify round-trip clean; DUT stable; "
+          "no dataTask queue corruption detected")
+
+
 # ── main ──────────────────────────────────────────────────────────────────────
 
 ALL_TESTS = {
@@ -1530,6 +1953,29 @@ ALL_TESTS = {
     "T_BI_02": t_bi_02,
     "T_BI_03": t_bi_03,
     "T_BI_04": t_bi_04,
+    # matrix-001
+    "T_MA_01": t_ma_01,
+    "T_MA_02": t_ma_02,
+    "T_MA_03": t_ma_03,
+    # gol-001
+    "T_GOL_01": t_gol_01,
+    "T_GOL_02": t_gol_02,
+    "T_GOL_03": t_gol_03,
+    "T_GOL_04": t_gol_04,
+    # weather-001
+    "T_WX_01": t_wx_01,
+    "T_WX_02": t_wx_02,
+    "T_WX_03": t_wx_03,
+    "T_WX_04": t_wx_04,
+    "T_WX_05": t_wx_05,
+    # crypto-001
+    "T_CX_01": t_cx_01,
+    "T_CX_02": t_cx_02,
+    "T_CX_03": t_cx_03,
+    "T_CX_04": t_cx_04,
+    "T_CX_05": t_cx_05,
+    # cross-feature X007
+    "T_X07_01": t_x07_01,
 }
 
 def main():

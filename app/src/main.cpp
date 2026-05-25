@@ -283,6 +283,11 @@ private:
 };
 static ClockApp g_clockApp;
 
+// ── VE instrumentation statics (consumed by SERIAL_DEBUG cmdGet) ─────────────
+static bool s_wxDataReady   = false;   // set true when WeatherApp receives first fetch
+static bool s_cxDataReady   = false;   // set true when CryptoApp receives first fetch
+static int  s_golAliveCount = -1;      // -1 = GoL never ticked; ≥0 = last alive count
+
 // ── MatrixApp (matrix.md) ──────────────────────────────────────────────
 #define MATRIX_STREAMS    14
 #define MATRIX_STRIDE     19
@@ -439,6 +444,7 @@ private:
     if (dataTask::pollWeather(&r)) {
       _s.cTemp = r.cTemp; _s.cHum = r.cHum; _s.cWind = r.cWind;
       _s.lastDataFetch = millis();
+      s_wxDataReady = true;
       repaintWeatherValues();
     }
     repaintWeatherTime();
@@ -521,6 +527,7 @@ private:
         _s.changes[i] = r.changes[i];
       }
       _s.lastCryptoFetch = now;
+      s_cxDataReady = true;
       repaintCrypto();
     }
   }
@@ -629,6 +636,7 @@ private:
     tft.drawRightString(String(totalAlive), 270, 2, 2);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
 
+    s_golAliveCount = totalAlive;
     if (totalAlive == s.lastCellCount) s.sameCountTimer++;
     else                               s.sameCountTimer = 0;
     s.lastCellCount = totalAlive;
@@ -1128,6 +1136,21 @@ static void cmdGet(const char *args) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\","
                   "\"var\":\"appId\",\"id\":%d,\"name\":\"%s\",\"last\":true}\n",
                   (int)currentAppId, nm);
+    return;
+  }
+  if (strcmp(args, "weatherReady") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\","
+                  "\"ready\":%s,\"last\":true}\n", s_wxDataReady ? "true" : "false");
+    return;
+  }
+  if (strcmp(args, "cryptoReady") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"cryptoReady\","
+                  "\"ready\":%s,\"last\":true}\n", s_cxDataReady ? "true" : "false");
+    return;
+  }
+  if (strcmp(args, "golAlive") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"golAlive\","
+                  "\"count\":%d,\"last\":true}\n", s_golAliveCount);
     return;
   }
   if ((spotifyDisplay && spotifyDisplay->dbgGet(args, buf, sizeof(buf)))

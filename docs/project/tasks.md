@@ -2230,6 +2230,82 @@ Exit criteria:
 
 ---
 
+### TASK-097 — VE: test suite for matrix-001 (MatrixApp)
+**Owner**: VE
+**Feature**: matrix-001
+**Status**: done (2026-05-25 — T_MA_01/02/03 written in harness; T_MA_04/05 planned-manual; test_ids populated)
+**Blocked by**: matrix-001 registered in feature_inventory.yaml (done — 2026-05-25)
+**Notes**:
+- Mandate: BP-005 — implemented feature with `test_ids: []` must have a VE task; BP-010 — VE task not done until `test_ids` populated in `feature_inventory.yaml`.
+- QM audit finding 2 (2026-05-25). Filed by PM.
+- **Required coverage** (minimum):
+  1. App renders to full 275×240 canvas (no top-half black — LL-037 check).
+  2. Streams animate: column y-values advance across ticks.
+  3. App switch residue none: switch Matrix→Spotify→Matrix produces clean canvas, no Winamp bleed.
+  4. Tap reinitialises streams (observable via column state reset).
+  5. ADR-027 compliance: TFT textColor reset after each Matrix tick (no bleed into adjacent app renders).
+- **Test type**: DUT, `cyd2usb_winamp_debug`. Serialdbg harness where observable via `dbgGet`; visual check for canvas coverage.
+- **Exit criterion**: test functions written and passing; `test_ids` list in `feature_inventory.yaml` populated; entries added to `test_plan.md` under suite `matrix-001`.
+
+---
+
+### TASK-098 — VE: test suite for gol-001 (LifeApp)
+**Owner**: VE
+**Feature**: gol-001
+**Status**: done (2026-05-25 — T_GOL_01/02/03/04 written in harness; T_GOL_05/06/07 planned-manual; test_ids populated)
+**Blocked by**: gol-001 registered in feature_inventory.yaml (done — 2026-05-25)
+**Notes**:
+- Mandate: BP-005, BP-010. QM audit finding 2 (2026-05-25). Filed by PM.
+- **Required coverage** (minimum):
+  1. App renders to full 275×240 canvas (LL-037 check).
+  2. Generations advance: generation counter increments across ticks (millis-gated 100 ms).
+  3. Stagnation reset fires: after >120 gens or <5 alive cells, grid is reinitialised.
+  4. Tap reseeds: grid changes on tap input.
+  5. App switch residue none: GoL→Spotify→GoL produces clean canvas, no Winamp bleed.
+  6. Heap stable: free heap after GoL launch within expected range (~183 KB; s_nextGrid ~2.6 KB BSS accounted for).
+- **Test type**: DUT, `cyd2usb_winamp_debug`. Generation counter and cell count observable via `dbgGet` if instrumented; otherwise visual + timing check.
+- **Exit criterion**: test functions written and passing; `test_ids` in `feature_inventory.yaml`; entries in `test_plan.md` under suite `gol-001`.
+
+---
+
+### TASK-099 — VE: test suite for weather-001 (WeatherApp)
+**Owner**: VE
+**Feature**: weather-001
+**Status**: done (2026-05-25 — T_WX_01/02/03/04/05 written in harness; T_WX_06 planned-manual; test_ids populated)
+**Blocked by**: weather-001 registered in feature_inventory.yaml (done — 2026-05-25)
+**Notes**:
+- Mandate: BP-005, BP-010. QM audit finding 2 (2026-05-25). Filed by PM.
+- **Required coverage** (minimum):
+  1. Pre-fetch state: app shows `"---"` for all fields before first dataTask result lands.
+  2. Post-fetch state: temperature, humidity, wind speed fields populated with live values after fetch.
+  3. Full canvas coverage: app renders into full 275×240 app canvas — top row y:0..119 and bottom row y:121..239 both visible (LL-037 regression check — original bug was top-half black).
+  4. Fetch triggered on resume: switching to Weather from another app enqueues DATA_FETCH_WEATHER; data updates within poll timeout.
+  5. App switch residue none: Weather→Spotify→Weather produces clean canvas.
+  6. dataTask/cross-feature (X007): rapid Weather→Crypto→Weather switching does not corrupt either app's displayed values.
+- **Test type**: DUT, `cyd2usb_winamp_debug`. `dbgGet` for fetch state if instrumented; visual + timing check for live data arrival. Network required (or host_overrides.json + SPIFFS current).
+- **Exit criterion**: test functions written and passing; `test_ids` in `feature_inventory.yaml`; entries in `test_plan.md` under suite `weather-001`.
+
+---
+
+### TASK-100 — VE: test suite for crypto-001 (CryptoApp)
+**Owner**: VE
+**Feature**: crypto-001
+**Status**: done (2026-05-25 — T_CX_01/02/03/04/05 written in harness; T_CX_06 planned-manual; test_ids populated; T_X07_01 covers X007 cross-feature)
+**Blocked by**: crypto-001 registered in feature_inventory.yaml (done — 2026-05-25)
+**Notes**:
+- Mandate: BP-005, BP-010. QM audit finding 2 (2026-05-25). Filed by PM.
+- **Required coverage** (minimum):
+  1. Pre-fetch state: all 6 rows show `"---"` before first dataTask result lands.
+  2. Post-fetch state: 6 crypto rows populated with price + 24 h change after fetch.
+  3. Full canvas coverage: rows span full 275×240 canvas — header y=5, first row y=25, last divider y=239 (LL-037 regression check).
+  4. Fetch triggered on resume: switching to Crypto enqueues DATA_FETCH_CRYPTO; data updates within poll timeout.
+  5. App switch residue none: Crypto→Spotify→Crypto produces clean canvas.
+  6. dataTask/cross-feature (X007): concurrent dataTask requests from Weather and Crypto do not corrupt each other's result slots.
+- **Test type**: DUT, `cyd2usb_winamp_debug`. Same network dependency as TASK-099. Run alongside TASK-099 where possible (shared DUT session, shared host_overrides.json state).
+- **Exit criterion**: test functions written and passing; `test_ids` in `feature_inventory.yaml`; entries in `test_plan.md` under suite `crypto-001`.
+
+---
+
 ## Entry Format
 
 ```

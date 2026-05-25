@@ -302,10 +302,14 @@ Work sequence:
 5. Non-network apps — Clock, Matrix, GoL tick + input handlers.
 6. Network apps — `dataTask` + Weather + Crypto fetch/render.
 
-**Status:** in progress — step 2 (TASK-083), step 3+4+refactor (TASK-087 + TASK-090) done; step 5–6 remain
-- TASK-087: taskbar renders, app-shell dispatch, Clock app — DUT verified 2026-05-24
-- TASK-090: App ABC (`init/resume/suspend/tick/handleInput`), SpotifyApp + ClockApp classes, B1–B4 fixed structurally, T_BI_01–04 passing — DUT verified 2026-05-25
-- Foundation for step 5 (Matrix, GoL, Weather, Crypto) is clean; each new app implements the App interface and is added to the `g_apps[]` registry
+**Status:** done (2026-05-25 — all 6 apps wired, DUT-verified, VE test suites written)
+- TASK-087: taskbar + app-shell + Clock — DUT verified 2026-05-24
+- TASK-090: App ABC, SpotifyApp + ClockApp, B1–B4 fixed, T_BI_01–04 passing — 2026-05-25
+- TASK-092: ADR-027 TFT shared-state hotfix — 2026-05-25
+- TASK-093: MatrixApp — DUT verified 2026-05-25
+- TASK-094: LifeApp — DUT verified 2026-05-25
+- TASK-095/096: WeatherApp + CryptoApp + dataTask + full-canvas fix — DUT verified 2026-05-25
+- TASK-097–100: VE suites T_MA/T_GOL/T_WX/T_CX/T_X07 (18 automated + 9 manual-planned) — 2026-05-25
 **Deps:** M3 (done), M-NOART (done), M-RESTRUCTURE (gates step 2), M-SHELL-LAYOUT (taskbar constants header, gates steps 3–4)
 **Design:** [M-MULTIAPP/overview.md](../architecture/designs/M-MULTIAPP/overview.md)
 

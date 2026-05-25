@@ -8,7 +8,13 @@ interactions:
     feature_a: time-001
     feature_b: auth-001
     interaction_type: dependency
-    description: TLS validation of Spotify cert chain (accounts.spotify.com, api.spotify.com) requires the system clock to be inside the cert's notBefore/notAfter window. ESP32 has no RTC, so without time-001's NTP sync at boot, auth-001's first refreshAccessToken() call fails at the TLS layer with mbedTLS error 0x0050, surfacing as `Status Code: -2`. time-001 must complete (or time out) before any TLS request issued by auth-001.
+    description: |
+      TLS validation of Spotify cert chain (accounts.spotify.com, api.spotify.com)
+      requires the system clock to be inside the cert's notBefore/notAfter window.
+      ESP32 has no RTC, so without time-001's NTP sync at boot, auth-001's first
+      refreshAccessToken() call fails at the TLS layer with mbedTLS error 0x0050,
+      surfacing as "Status Code -2". time-001 must complete (or time out) before any
+      TLS request issued by auth-001.
     risk: high
     test_coverage: [T020]
     notes: Discovered on 2026-04-28 DUT run. Auth retried every 5 s in the existing super-loop, never succeeded with a fresh boot. Fix is configTime() before spotifySetup() in setup().
@@ -57,6 +63,56 @@ interactions:
     risk: low
     test_coverage: []
     notes: Added 2026-05-15 (QM audit). T025 golden-hash determinism check covers this indirectly. VE to add a positive-content check for SKIN_PLEDIT_BG (analogous to T072 for BALANCE.BMP) if PLEDIT.BMP ever uses BI_RLE8 compression — current PLEDIT.BMP is uncompressed so the manual decoder path does not apply.
+
+  - id: X007
+    feature_a: weather-001
+    feature_b: crypto-001
+    interaction_type: shared_state
+    description: |
+      Both WeatherApp and CryptoApp share the dataTask FreeRTOS task (dataTask.h /
+      dataTaskStorage.cpp). The task owns a single queue (DataRequest enum values
+      DATA_FETCH_WEATHER / DATA_FETCH_CRYPTO) and a spinlock-guarded result store for
+      each type. If both apps enqueue requests concurrently (e.g. rapid app switching),
+      requests are processed serially — dataTask processes one at a time. A stale result
+      from a previous enqueue is visible via pollWeather()/pollCrypto() until the new
+      result lands. Neither app blocks on the result; both show "---" until valid data
+      arrives. Any change to the queue depth, spinlock discipline, or result struct layout
+      in dataTask.h affects both consumers.
+    risk: low
+    test_coverage: [T_X07_01]
+    notes: |
+      Added 2026-05-25 (QM audit finding 3). ADR-029 covers TLS root CA strategy for
+      both endpoints. Interaction is benign under normal single-app use; risk window is
+      rapid switching between Weather and Crypto apps before either fetch completes.
+
+  - id: X008
+    feature_a: weather-001
+    feature_b: app-interface-001
+    interaction_type: dependency
+    description: |
+      WeatherApp relies on App ABC lifecycle (app-interface-001) for correct init/resume/
+      suspend/tick/handleInput dispatch. resume() enqueues DATA_FETCH_WEATHER so the
+      app refreshes data on every switch-in. suspend() does nothing (stateless WRT
+      ongoing fetch — dataTask result is available whenever polled). switchApp() in
+      appShell correctly calls suspend() on the outgoing app before calling resume() on
+      the incoming app, so no double-enqueue race exists at switch time.
+    risk: low
+    test_coverage: []
+    notes: Added 2026-05-25 (QM audit). Same structural dependency applies to crypto-001; see X009.
+
+  - id: X009
+    feature_a: crypto-001
+    feature_b: app-interface-001
+    interaction_type: dependency
+    description: |
+      CryptoApp relies on App ABC lifecycle (app-interface-001) for correct init/resume/
+      suspend/tick/handleInput dispatch. resume() enqueues DATA_FETCH_CRYPTO. Identical
+      structural dependency as weather-001 ↔ app-interface-001 (X008). Any change to
+      the resume() call site, the switchApp() sequence, or the dataTask enqueue contract
+      affects both weather-001 and crypto-001.
+    risk: low
+    test_coverage: []
+    notes: Added 2026-05-25 (QM audit). Mirror of X008 for the crypto consumer.
 
 # --- Entry template ---
 # - id: X001

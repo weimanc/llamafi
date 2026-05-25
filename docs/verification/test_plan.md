@@ -2261,6 +2261,319 @@ See design doc `docs/architecture/designs/audit-origin.md`.
 
 ---
 
+## Suite: matrix-001 — MatrixApp (TASK-097)
+
+**DUT required** — T_MA_01–T_MA_03 use `run_serialdbg_tests.py` with `cyd2usb_winamp_debug`.
+T_MA_04–T_MA_05 are manual visual / physical-touch checks.
+
+### T_MA_01 — [matrix-001] MatrixApp switch round-trip
+
+- **Type**: integration (DUT)
+- **Feature(s)**: matrix-001, app-interface-001, taskbar-001
+- **Objective**: Spotify→Matrix→Spotify app switch completes without crash; appId correct at each step.
+- **Preconditions**: DUT booted with `cyd2usb_winamp_debug`. Spotify app active.
+- **Steps**:
+  1. `get appId` → assert `name="Spotify"`.
+  2. `tap <taskbar_slot 4>` (Matrix) → wait 400 ms → `get appId` → assert `name="Matrix"`.
+  3. `tap <taskbar_slot 0>` (Spotify) → wait 400 ms → `get appId` → assert `name="Spotify"`.
+- **Expected result**: appId transitions Spotify→Matrix→Spotify. DUT responsive throughout.
+- **Harness**: `run_serialdbg_tests.py --tests T_MA_01`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T_MA_02 — [matrix-001] Matrix BUG-1 guard (Winamp zones bypassed)
+
+- **Type**: integration (DUT)
+- **Feature(s)**: matrix-001, app-interface-001
+- **Objective**: Canvas tap while Matrix is active returns `hit="CLOCK"` — Winamp hit-zones are not evaluated.
+- **Preconditions**: Matrix is the active app.
+- **Steps**:
+  1. Switch to Matrix. `tap 137 120` (centre of canvas, x < TASKBAR_X).
+  2. Assert `hit == "CLOCK"`. Assert DUT still responsive.
+  3. Switch back to Spotify.
+- **Expected result**: `{"hit":"CLOCK","action":"NONE"}` — BUG-1 guard fired; no Winamp region matched.
+- **Harness**: `run_serialdbg_tests.py --tests T_MA_02`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T_MA_03 — [matrix-001] Matrix→Spotify canvas residue
+
+- **Type**: integration (DUT)
+- **Feature(s)**: matrix-001, app-interface-001
+- **Objective**: `lastPlaylistDraw` advances within 3 s of switching from Matrix back to Spotify, confirming ADR-027 TFT state compliance and no rendering crash.
+- **Preconditions**: Spotify connected and polling (queue populated recommended).
+- **Steps**:
+  1. Switch to Matrix. Wait 150 ms (1–2 ticks).
+  2. Switch to Spotify. Read `lastPlaylistDraw` before and poll for 3 s.
+  3. Assert timestamp advances.
+- **Expected result**: `lastPlaylistDraw.ms` increases within 3 s. SKIP if Spotify not rendering.
+- **Harness**: `run_serialdbg_tests.py --tests T_MA_03`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T_MA_04 — [matrix-001] Full canvas coverage (manual visual)
+
+- **Type**: integration (manual DUT)
+- **Feature(s)**: matrix-001
+- **Objective**: MatrixApp renders falling characters across the full 275×240 app canvas. No unexplained blank regions at top, bottom, or sides. (LL-037 regression check.)
+- **Preconditions**: DUT flashed with production or debug build. Matrix app visible on screen.
+- **Steps**:
+  1. Switch to Matrix app via taskbar.
+  2. Observe display for 2+ seconds.
+  3. Verify characters appear in the top 120 rows and the bottom 120 rows of the app canvas.
+- **Expected result**: All 14 streams traverse the full y:0..239 range. No solid-black half.
+- **Status**: planned (manual — requires human observation).
+
+### T_MA_05 — [matrix-001] Tap reinitialises streams (manual physical)
+
+- **Type**: integration (manual DUT)
+- **Feature(s)**: matrix-001
+- **Objective**: Physical touch on the Matrix canvas calls `handleInput(Press)` → `initMatrixState()` + `repaintMatrix()`. Streams restart from scattered starting positions.
+- **Preconditions**: Matrix active, streams mid-animation.
+- **Steps**: 1. Tap the Matrix canvas. 2. Observe streams reset (screen briefly black; new streams begin).
+- **Expected result**: Visible stream reset within one frame.
+- **Status**: planned (manual — physical touch; cmdTap returns CLOCK/NONE for non-Spotify apps).
+
+---
+
+## Suite: gol-001 — LifeApp (TASK-098)
+
+**DUT required** — T_GOL_01–T_GOL_04 automated; T_GOL_05–T_GOL_07 manual.
+
+### T_GOL_01 — [gol-001] LifeApp switch round-trip
+
+- **Type**: integration (DUT)
+- **Feature(s)**: gol-001, app-interface-001, taskbar-001
+- **Objective**: Spotify→GoL→Spotify switch completes without crash; appId correct at each step.
+- **Preconditions**: DUT booted with `cyd2usb_winamp_debug`. Spotify active.
+- **Steps**: Same pattern as T_MA_01 but for slot 5 (Life).
+- **Expected result**: appId transitions Spotify→Life→Spotify. DUT responsive.
+- **Harness**: `run_serialdbg_tests.py --tests T_GOL_01`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T_GOL_02 — [gol-001] GoL BUG-1 guard
+
+- **Type**: integration (DUT)
+- **Feature(s)**: gol-001, app-interface-001
+- **Objective**: Canvas tap while GoL is active returns `hit="CLOCK"`.
+- **Preconditions**: GoL active.
+- **Steps**: Switch to Life. `tap 137 120`. Assert `hit="CLOCK"`. Switch back.
+- **Expected result**: `{"hit":"CLOCK","action":"NONE"}`.
+- **Harness**: `run_serialdbg_tests.py --tests T_GOL_02`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T_GOL_03 — [gol-001] GoL→Spotify canvas residue
+
+- **Type**: integration (DUT)
+- **Feature(s)**: gol-001, app-interface-001
+- **Objective**: `lastPlaylistDraw` advances after GoL→Spotify switch — no TFT state contamination.
+- **Preconditions**: Spotify connected and polling.
+- **Steps**: Same pattern as T_MA_03 but from Life slot.
+- **Expected result**: `lastPlaylistDraw.ms` increases within 3 s. SKIP if Spotify not rendering.
+- **Harness**: `run_serialdbg_tests.py --tests T_GOL_03`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T_GOL_04 — [gol-001] GoL alive count updated (stepGeneration fires)
+
+- **Type**: integration (DUT)
+- **Feature(s)**: gol-001
+- **Objective**: `get golAlive` returns a value ≥ 0 after GoL has been active for 350 ms (≥3 ticks at 100 ms/tick), proving `stepGeneration` fired and set `s_golAliveCount`.
+- **Preconditions**: GoL active.
+- **Steps**:
+  1. Switch to Life. Wait 350 ms.
+  2. `get golAlive` → assert `count >= 0`.
+  3. Switch back to Spotify.
+- **Expected result**: `{"count": N}` where N ≥ 0. `count == -1` means GoL never ticked (FAIL).
+- **Harness**: `run_serialdbg_tests.py --tests T_GOL_04`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T_GOL_05 — [gol-001] Full canvas coverage (manual visual)
+
+- **Type**: integration (manual DUT)
+- **Feature(s)**: gol-001
+- **Objective**: GoL cells appear across the full 275×240 canvas. No solid-black half. (LL-037 check.)
+- **Steps**: Switch to GoL. Observe for 2+ s. Verify cells in top rows and bottom rows.
+- **Status**: planned (manual).
+
+### T_GOL_06 — [gol-001] Tap reseeds grid (manual physical)
+
+- **Type**: integration (manual DUT)
+- **Feature(s)**: gol-001
+- **Objective**: Physical tap on GoL canvas calls `handleInput(Press)` → `spawnLife()` + `resume()`. Grid restarts.
+- **Steps**: GoL active. Physical tap. Observe screen briefly clears then new random pattern appears.
+- **Status**: planned (manual — physical touch only).
+
+### T_GOL_07 — [gol-001] Stagnation reset fires (manual timed)
+
+- **Type**: integration (manual DUT)
+- **Feature(s)**: gol-001
+- **Objective**: When alive count drops below 5 or sameCountTimer exceeds 120, `spawnLife()` is called.
+  Observable as a sudden canvas clear and new random pattern after a stagnant state.
+- **Steps**: Leave GoL running for 30–120 s. Observe at least one stagnation reset (canvas wipe + reseed).
+- **Status**: planned (manual — timing-dependent; automated version would require longer DUT session).
+
+---
+
+## Suite: weather-001 — WeatherApp (TASK-099)
+
+**DUT required** — T_WX_01–T_WX_05 automated. T_WX_06 manual visual.
+T_WX_05 requires network access to `api.open-meteo.com` (or current `host_overrides.json`).
+
+### T_WX_01 — [weather-001] WeatherApp switch round-trip
+
+- **Type**: integration (DUT)
+- **Feature(s)**: weather-001, app-interface-001, taskbar-001
+- **Objective**: Spotify→Weather→Spotify switch completes; appId correct at each step.
+- **Preconditions**: DUT booted with `cyd2usb_winamp_debug`. Spotify active.
+- **Steps**: Same pattern as T_MA_01 but for slot 2 (Weather).
+- **Expected result**: appId transitions Spotify→Weather→Spotify. DUT responsive.
+- **Harness**: `run_serialdbg_tests.py --tests T_WX_01`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T_WX_02 — [weather-001] Weather BUG-1 guard
+
+- **Type**: integration (DUT)
+- **Feature(s)**: weather-001, app-interface-001
+- **Objective**: Canvas tap while Weather active returns `hit="CLOCK"`.
+- **Steps**: Switch to Weather. `tap 137 120`. Assert `hit="CLOCK"`. Switch back.
+- **Harness**: `run_serialdbg_tests.py --tests T_WX_02`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T_WX_03 — [weather-001] Weather→Spotify canvas residue
+
+- **Type**: integration (DUT)
+- **Feature(s)**: weather-001, app-interface-001
+- **Objective**: `lastPlaylistDraw` advances after Weather→Spotify switch — confirms ADR-027 compliance (MC_DATUM reset in weatherDrawChrome/repaintWeatherValues).
+- **Steps**: Same pattern as T_MA_03 from Weather slot.
+- **Harness**: `run_serialdbg_tests.py --tests T_WX_03`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T_WX_04 — [weather-001] Weather pre-fetch state (---display)
+
+- **Type**: integration (DUT)
+- **Feature(s)**: weather-001
+- **Objective**: `weatherReady=false` immediately after first switch-in, confirming `"---"` is displayed before dataTask fetch completes.
+- **Preconditions**: Weather app never shown in this DUT session (first switch-in since boot). If `weatherReady` is already true, test SKIPs.
+- **Steps**:
+  1. `get weatherReady` → assert `ready=false` (precondition).
+  2. Switch to Weather. Immediately `get weatherReady`.
+  3. Assert `ready=false`.
+- **Expected result**: `ready=false` at step 3 — pre-fetch state confirmed.
+- **Harness**: `run_serialdbg_tests.py --tests T_WX_04`. Owner: VE.
+- **Status**: written (2026-05-25). Run at start of session for valid precondition.
+
+### T_WX_05 — [weather-001] Weather data arrives from dataTask
+
+- **Type**: integration (DUT, network)
+- **Feature(s)**: weather-001, dataTask
+- **Objective**: `weatherReady` becomes true within 30 s of switching to WeatherApp, proving `dataTask::pollWeather()` delivered a result and `s_wxDataReady` was set.
+- **Preconditions**: Network access to `api.open-meteo.com` (or `host_overrides.json` with current IP on SPIFFS).
+- **Steps**:
+  1. Switch to Weather.
+  2. Poll `get weatherReady` every 2 s for up to 30 s.
+  3. Assert `ready=true` before timeout.
+- **Expected result**: `ready=true` within 30 s.
+- **Harness**: `run_serialdbg_tests.py --tests T_WX_05`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T_WX_06 — [weather-001] Full canvas top+bottom rows populated (manual visual)
+
+- **Type**: integration (manual DUT)
+- **Feature(s)**: weather-001
+- **Objective**: Both the top row (y:0..119) and bottom row (y:121..239) of the WeatherApp canvas are visible. No solid-black half. (LL-037 regression check — original TASK-096 bug was top half black.)
+- **Steps**:
+  1. Switch to Weather. Wait for at least one data fetch.
+  2. Observe screen. Confirm: top-left "TIME" panel and top-right "TEMP" panel visible in upper half. Bottom-left "HUMIDITY" and bottom-right "WIND" panels visible in lower half.
+- **Expected result**: 4 panels across 2 rows, each filling its quadrant.
+- **Status**: planned (manual — pixel coverage not automatable via serialdbg).
+
+---
+
+## Suite: crypto-001 — CryptoApp (TASK-100)
+
+**DUT required** — T_CX_01–T_CX_05 automated. T_CX_06 manual visual.
+T_CX_05 requires network access to `api.coingecko.com` (or current `host_overrides.json`).
+
+### T_CX_01 — [crypto-001] CryptoApp switch round-trip
+
+- **Type**: integration (DUT)
+- **Feature(s)**: crypto-001, app-interface-001, taskbar-001
+- **Objective**: Spotify→Crypto→Spotify switch completes; appId correct at each step.
+- **Steps**: Same pattern as T_MA_01 but for slot 3 (Crypto).
+- **Harness**: `run_serialdbg_tests.py --tests T_CX_01`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T_CX_02 — [crypto-001] Crypto BUG-1 guard
+
+- **Type**: integration (DUT)
+- **Feature(s)**: crypto-001, app-interface-001
+- **Objective**: Canvas tap while Crypto active returns `hit="CLOCK"`.
+- **Steps**: Switch to Crypto. `tap 137 120`. Assert `hit="CLOCK"`. Switch back.
+- **Harness**: `run_serialdbg_tests.py --tests T_CX_02`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T_CX_03 — [crypto-001] Crypto→Spotify canvas residue
+
+- **Type**: integration (DUT)
+- **Feature(s)**: crypto-001, app-interface-001
+- **Objective**: `lastPlaylistDraw` advances after Crypto→Spotify switch — ADR-027 compliance.
+- **Steps**: Same pattern as T_MA_03 from Crypto slot.
+- **Harness**: `run_serialdbg_tests.py --tests T_CX_03`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T_CX_04 — [crypto-001] Crypto pre-fetch state
+
+- **Type**: integration (DUT)
+- **Feature(s)**: crypto-001
+- **Objective**: `cryptoReady=false` immediately after first switch-in.
+- **Preconditions**: Crypto never shown since boot. SKIPs if `cryptoReady` already true.
+- **Steps**: Same pattern as T_WX_04 but `get cryptoReady` and slot 3.
+- **Harness**: `run_serialdbg_tests.py --tests T_CX_04`. Owner: VE.
+- **Status**: written (2026-05-25). Run at start of session.
+
+### T_CX_05 — [crypto-001] Crypto data arrives from dataTask
+
+- **Type**: integration (DUT, network)
+- **Feature(s)**: crypto-001, dataTask
+- **Objective**: `cryptoReady=true` within 30 s of switching to CryptoApp.
+- **Preconditions**: Network access to `api.coingecko.com`. Run alongside T_WX_05 in same DUT session where possible.
+- **Steps**: Same pattern as T_WX_05 but `get cryptoReady` and slot 3.
+- **Harness**: `run_serialdbg_tests.py --tests T_CX_05`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+### T_CX_06 — [crypto-001] Full canvas 6-row layout (manual visual)
+
+- **Type**: integration (manual DUT)
+- **Feature(s)**: crypto-001
+- **Objective**: CryptoApp renders 6 rows spanning full 275×240 canvas. Header y=5, rule y=22, first data row y=25, last divider y=239. No unexplained blank region. (LL-037 regression check.)
+- **Steps**:
+  1. Switch to Crypto. Wait for data fetch.
+  2. Verify header "CRYPTO TERMINAL" visible near top. Verify 6 coin rows with prices/changes visible, last row reaching near bottom of screen.
+- **Status**: planned (manual).
+
+---
+
+## Suite: cross-feature X007 — dataTask shared queue (weather-001 ↔ crypto-001)
+
+**DUT required** — T_X07_01 automated.
+
+### T_X07_01 — [X007] Rapid Weather↔Crypto switching — dataTask queue stable
+
+- **Type**: cross-feature (DUT)
+- **Feature(s)**: weather-001, crypto-001
+- **Interaction**: X007
+- **Objective**: Rapid Weather→Crypto→Weather→Crypto→Spotify sequence completes with correct appId at every step and DUT remains responsive. Confirms the shared dataTask queue + spinlock does not corrupt app state under concurrent enqueue pressure.
+- **Preconditions**: DUT booted with `cyd2usb_winamp_debug`. Spotify active.
+- **Steps**:
+  1. Spotify→Weather (200 ms) → `get appId` → assert Weather.
+  2. Weather→Crypto (200 ms) → `get appId` → assert Crypto.
+  3. Crypto→Weather (200 ms) → `get appId` → assert Weather.
+  4. Weather→Crypto (200 ms) → `get appId` → assert Crypto.
+  5. Crypto→Spotify (200 ms) → `get appId` → assert Spotify.
+  6. `info` → assert `ok=true` (DUT alive).
+- **Expected result**: All 5 appId assertions pass; `info` responds normally.
+- **Harness**: `run_serialdbg_tests.py --tests T_X07_01`. Owner: VE.
+- **Status**: written (2026-05-25).
+
+---
+
 ## Entry Format
 
 ```

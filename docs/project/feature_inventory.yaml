@@ -701,6 +701,100 @@ features:
       SpotifyApp::suspend()). Design: docs/architecture/designs/M-MULTIAPP/app-interface.md,
       ADR-026. Gates M-MULTIAPP step 3 (Matrix, GoL, Weather, Crypto apps).
 
+  - id: matrix-001
+    name: Matrix rain screensaver app
+    description: |
+      MatrixApp : public App. 14 falling character streams over the full 275×240 canvas.
+      Each stream has independent x position, float y, speed, and length. Characters are
+      random ASCII (32–126); millis-gated at 25 ms (~40 fps). Tap reinitialises all
+      streams. ADR-027 producer rule applied: setTextColor reset to TFT_WHITE/TFT_BLACK
+      at end of each tick. Registered at g_apps[AppId::Matrix].
+    status: implemented
+    git_ref: "eeb8091"
+    files:
+      - app/src/main.cpp
+      - app/src/appShell.h
+    cross_features: [app-interface-001, taskbar-001]
+    test_ids: [T_MA_01, T_MA_02, T_MA_03, T_MA_04, T_MA_05]
+    notes: |
+      TASK-093. Design: docs/architecture/designs/M-MULTIAPP/matrix.md.
+      Stride 19 px between columns. State in MatrixAppState (appShell.h).
+      T_MA_04/05 are manual visual/physical checks (not in harness).
+
+  - id: gol-001
+    name: Game of Life app
+    description: |
+      LifeApp : public App. Conway's Game of Life on a 55×48 toroidal grid (5 px/cell =
+      275×240 canvas). Col-major layout [x][y]. Diff render (only changed cells repainted).
+      Spatial hue gradient for cell colour. Stagnation reset: reinitialised after >120
+      generations or <5 alive cells. Millis-gated at 100 ms (10 gen/s). Tap reseeds.
+      ADR-027 producer rule applied. Registered at g_apps[AppId::Life].
+    status: implemented
+    git_ref: "8ed2385"
+    files:
+      - app/src/main.cpp
+      - app/src/appShell.h
+    cross_features: [app-interface-001, taskbar-001]
+    test_ids: [T_GOL_01, T_GOL_02, T_GOL_03, T_GOL_04, T_GOL_05, T_GOL_06, T_GOL_07]
+    notes: |
+      TASK-094. Design: docs/architecture/designs/M-MULTIAPP/gol.md.
+      s_nextGrid[55][48] static class member (scratch buffer). Heap cost ~12 KB BSS.
+      DUT free heap observed 183 KB after boot with all apps initialised.
+      T_GOL_05/06/07 are manual visual/physical checks (not in harness).
+      s_golAliveCount (main.cpp) exposed via get golAlive for T_GOL_04.
+
+  - id: weather-001
+    name: Weather app (open-meteo)
+    description: |
+      WeatherApp : public App. Fetches current conditions from api.open-meteo.com via
+      dataTask (FreeRTOS background task). Displays temperature, humidity, wind speed in
+      a 2×2 grid spanning the full 275×240 canvas (top row y:0..119, bottom row y:121..239).
+      Shows "---" before first fetch. RSSI signal bars at bottom y=14. Enqueues
+      DATA_FETCH_WEATHER on init/resume and every ~60 s tick. Polls dataTask::pollWeather()
+      for results.
+    status: implemented
+    git_ref: "e96bb60"
+    files:
+      - app/src/main.cpp
+      - app/src/appShell.h
+      - app/src/dataTask.h
+      - app/src/dataTaskStorage.cpp
+      - app/src/dataTaskCerts.h
+    cross_features: [app-interface-001, taskbar-001, crypto-001]
+    test_ids: [T_WX_01, T_WX_02, T_WX_03, T_WX_04, T_WX_05, T_WX_06]
+    notes: |
+      TASK-095 (impl) + TASK-096 (canvas full-height fix). ADR-029: ISRG Root X1 PEM
+      hardcoded in dataTaskCerts.h. http.getString() required (not getStream()) — chunked
+      HTTPS on Arduino-ESP32 2.0.17 fails deserializeJson on raw stream.
+      Design: docs/architecture/designs/M-MULTIAPP/weather.md.
+      T_WX_06 is manual visual (LL-037 regression check). T_WX_04 valid only at session start.
+      s_wxDataReady (main.cpp) exposed via get weatherReady for T_WX_04/T_WX_05.
+
+  - id: crypto-001
+    name: Crypto price ticker app (CoinGecko)
+    description: |
+      CryptoApp : public App. Fetches live prices + 24 h changes for 6 cryptocurrencies
+      from api.coingecko.com via dataTask. Renders 6 rows × 36 px spanning the full
+      275×240 canvas (header y=5, rule y=22, rows start y=25, row text +11 px for
+      vertical centering, last divider y=239). Shows "---" before first fetch. Enqueues
+      DATA_FETCH_CRYPTO on init/resume and every ~60 s tick. Polls dataTask::pollCrypto().
+    status: implemented
+    git_ref: "e96bb60"
+    files:
+      - app/src/main.cpp
+      - app/src/appShell.h
+      - app/src/dataTask.h
+      - app/src/dataTaskStorage.cpp
+      - app/src/dataTaskCerts.h
+    cross_features: [app-interface-001, taskbar-001, weather-001]
+    test_ids: [T_CX_01, T_CX_02, T_CX_03, T_CX_04, T_CX_05, T_CX_06]
+    notes: |
+      TASK-095 (impl) + TASK-096 (canvas full-height fix). ADR-029: GTS Root R4 PEM
+      hardcoded in dataTaskCerts.h. Shared dataTask queue + spinlock with weather-001.
+      Design: docs/architecture/designs/M-MULTIAPP/crypto.md.
+      T_CX_06 is manual visual (LL-037 regression check). T_CX_04 valid only at session start.
+      s_cxDataReady (main.cpp) exposed via get cryptoReady for T_CX_04/T_CX_05.
+
   - id: tooling-001
     name: Host-side tool-script smoke gate
     description: |

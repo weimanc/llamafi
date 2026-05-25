@@ -653,6 +653,50 @@ Flag to PM to track this as a sub-task under tooling-001 or a standalone task.
 
 ---
 
+## Retrospective — 2026-05-25 — M-MULTIAPP complete: Matrix, Life, Weather, Crypto apps
+
+Triggering work: TASK-093 (MatrixApp), TASK-094 (LifeApp), TASK-095 (WeatherApp + CryptoApp + dataTask + ADR-029), TASK-096 (canvas full-height fix). All 6 `g_apps[]` slots now filled and DUT-verified.
+
+### What went well (no LL needed, recorded for balance)
+
+- **App ABC paid off immediately.** MatrixApp, LifeApp, WeatherApp, CryptoApp each landed as a clean subclass with no structural friction. TASK-090's design investment was justified by four successive apps that needed no shell rework.
+- **`dataTask` pattern required no new architecture.** Mirroring `spotifyTask`'s queue + spinlock pattern let Weather + Crypto HTTP work land without a blocking design review. One pattern, two consumers, no surprises.
+- **ADR-029 TLS root CA strategy written upfront.** ISRG Root X1 + GTS Root R4 PEMs were hardcoded before implementation started. No TLS debugging during app work — the ca-cert lesson (LL-001) was applied preventively.
+- **Canvas bug caught and fixed same session.** TASK-096 top-half-black regression was identified by user visual inspection and fixed same commit cycle. No deferred regression.
+- **Prior audit actions largely resolved.** `app-interface-001` registered in feature_inventory.yaml; T_BI_01–T_BI_04 added to test_plan.md; TASK-091 tagged known-intermittent tests (BP-012). All three RED findings from the TASK-090 audit were closed.
+
+---
+
+### LL-036 — 2026-05-25 — Feature inventory registration recurred as a miss for all 4 new app classes
+
+**Context**: TASK-093/094/095 implemented MatrixApp, LifeApp, WeatherApp, CryptoApp. None of the four features (`matrix-001`, `gol-001`, `weather-001`, `crypto-001`) were registered in `feature_inventory.yaml`. This is a direct recurrence of LL-032 (app-interface-001 missing from inventory, TASK-090) which was adopted as BP-010 in the same session.
+
+**Observation**: BP-010 covers the VE side ("VE task not done until test_ids populated"), but there is no corresponding enforceable rule on the Developer side for the feature entry itself. BP-010 assumes the entry exists; it does not require the Developer to create it. The gap was invisible until this audit — tasks.md entries exist, code is in tree, DUT-verified, but from an audit perspective all four features are unregistered.
+
+**Root cause**: BP-010 was adopted to close the loop after feature implementation; the open loop is that implementation can be completed and committed without a feature_inventory.yaml entry ever being written. The Developer checklist (LL-010) lists inventory update as item (c), but that checklist has no enforcement mechanism.
+
+**Suggested improvement**: Developer's `done` criterion for any task tagged `feature: <id> (new)` must include a `feature_inventory.yaml` entry with `status: implemented`, `git_ref`, `files`, and at minimum `test_ids: []`. This is not optional housekeeping — it is the registration act that makes the feature exist to PM, VE, and QM. A task that ships code without this entry is `in_progress`, not `done`.
+
+**Status**: open — promotion candidate alongside LL-032/BP-010. Together they close both ends: Developer registers at implementation (this LL), VE populates test_ids at test-time (BP-010).
+
+---
+
+### LL-037 — 2026-05-25 — Canvas sub-region inherited from prior design era and not updated when app became standalone
+
+**Context**: WeatherApp and CryptoApp were initially implemented (TASK-095) rendering into `y:116..239` — the bottom half of the 275×240 app canvas. This sub-region originated in an earlier design where these apps were conceived as sharing the canvas with Winamp chrome above. Under the App ABC (TASK-090), each app owns the full 275×240 canvas exclusively. The sub-region constraint was not removed from the implementation when the design shifted. TASK-096 was filed and fixed the same session; the user observed the top half black on DUT.
+
+**Observation**: The implementation was correct relative to an older design assumption that was never explicitly invalidated. Nothing in the task spec or code review surfaced the stale constraint. The bug was only visible on DUT with the screen active.
+
+**Root cause**: Design constraints written for one architecture epoch (shared canvas) survived into a new epoch (standalone apps) because there was no gate asking: "given this app now owns the full canvas, is its coordinate origin still appropriate?" The canvas bounds are a precondition that changed when the App ABC landed, but the implementation was written without re-checking that precondition.
+
+**Suggested improvement**: When an app class moves from a "shared display" context to a "standalone full-canvas" context, the implementation spec must explicitly state the expected canvas dimensions (`x: 0..274, y: 0..239`) as a precondition, not an assumption. VE exit criteria for any new App subclass must include: "app fills the full 275×240 app canvas; no unexplained blank regions at any edge." A `fillRect(0,0,275,240,color)` in `init()`/`resume()` is a useful smoke test of the full extent.
+
+Sister rule to LL-025 (visual sign-off must cover the full range, not a single state). Here the "range" is the spatial extent of the canvas; "correct at the bottom half" is not a full-canvas sign-off.
+
+**Status**: open — promotion candidate.
+
+---
+
 ## Entry Format
 
 ```

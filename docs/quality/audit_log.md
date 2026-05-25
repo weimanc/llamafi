@@ -4,6 +4,55 @@
 
 All audits: scope, findings, actions, status.
 
+### Audit — 2026-05-25 — M-MULTIAPP milestone retrospective (all 6 apps complete)
+
+**Triggered by**: human (`@QM: retrospective — 6 apps are in`)
+
+**Scope**: TASK-093 (MatrixApp), TASK-094 (LifeApp), TASK-095 (WeatherApp + CryptoApp + dataTask + ADR-029), TASK-096 (canvas fix). Also checks resolution of prior TASK-090 audit findings.
+
+**Areas checked**:
+- [x] Feature inventory completeness (matrix-001, gol-001, weather-001, crypto-001)
+- [x] Test coverage per feature (4 new apps)
+- [x] Cross-feature matrix (dataTask shared by weather-001 + crypto-001)
+- [x] Documentation currency (tasks.md, test_plan.md, lessons_learned.md)
+- [x] Prior audit finding resolution (TASK-090 audit, 2026-05-25)
+
+**Findings**:
+
+1. **`matrix-001`, `gol-001`, `weather-001`, `crypto-001` NOT in `feature_inventory.yaml` — RED ×4.**
+   All four features are implemented (committed, DUT-verified) but unregistered. Third recurrence of this pattern (previously: LL-032 → BP-010). BP-010 governs the VE side; no enforcement on the Developer registration step.
+   _Owner: Developer. Action: add entries for all four features. See LL-036._
+
+2. **No test suites for MatrixApp, LifeApp, WeatherApp, CryptoApp — RED ×4.**
+   No test_plan.md suites exist; no harness functions written. Four implemented features with `test_ids: []` (once registered). WeatherApp + CryptoApp specifically need lifecycle tests covering: `"---"` pre-fetch state, live data render, dataTask queue delivery, app-switch residue.
+   _Owner: VE. Action: file VE tasks per BP-005; write suites after features are registered (finding 1 precedes this)._
+
+3. **Cross-feature matrix missing: dataTask ↔ weather-001, dataTask ↔ crypto-001, weather-001 ↔ crypto-001 — AMBER.**
+   `dataTask` is a shared FreeRTOS resource (queue + spinlock) serving both WeatherApp and CryptoApp. No cross_feature_matrix.yaml entries document this interaction. If dataTask behaviour changes (queue depth, error handling), both consumers are affected with no traceability.
+   _Owner: Developer. Action: add three interaction entries to cross_feature_matrix.yaml._
+
+4. **Prior TASK-090 audit findings — RESOLVED ✓.**
+   - Finding 1 (app-interface-001 not in inventory): registered with full entry, test_ids populated.
+   - Finding 2 (T_BI tests not in test_plan.md): suite `app-interface-001` added (lines 2178–2259).
+   - Finding 3 (T147/T148 status dates): updated.
+   - Finding 4 (intermittent tests): TASK-091 done — `[FLAKE]` category and comment blocks added.
+   - Finding 5 (TASK-089 stale paths): TASK-089 done — smoke_test.sh integrated into check_build.sh.
+   All five prior findings closed.
+
+5. **LL-035 (TFT shared-state) status still `open` — AMBER.**
+   ADR-027 accepted and fix committed (TASK-092). LL-035 documents the lesson but status was not updated to `reviewed`. Minor housekeeping.
+   _Owner: QM. Noted — update status when human reviews._
+
+**Actions assigned**:
+- Developer: register matrix-001, gol-001, weather-001, crypto-001 in feature_inventory.yaml (finding 1)
+- Developer: add three dataTask cross-feature matrix entries (finding 3)
+- PM: file VE tasks for matrix-001, gol-001, weather-001, crypto-001 test coverage (finding 2)
+- VE: write test suites once features registered (finding 2)
+
+**Resolution**: findings 1–3 open; finding 4 fully resolved; finding 5 housekeeping.
+
+---
+
 ### Audit — 2026-05-25 — TASK-090 retrospective (App Interface ABC + AppShell refactor)
 
 **Triggered by**: human (`@QM: retrospective on TASK-090`)
