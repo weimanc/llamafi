@@ -1,4 +1,5 @@
 cspot/
 Spotify-Diy-Thing/
-resource/
+resource/*
+!resource/ASCII_Aquarium/
 .claude/
