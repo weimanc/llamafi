@@ -459,6 +459,9 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-028** → "Spec steps that name a specific file for a code change must either be verified against the actual codebase or marked `[FILE TBD — confirm at implementation]`. Plausible-but-unverified file paths in specs are silent latent risks for agent hand-offs." Process rule, applies to Architect + PM (spec writers).
 - **LL-026** → "Reference image used → paired visual validation item required. Any element rendered from a reference image must have a VE/audit item that validates the rendered output against that image. No reference image consumed without a closing verification step." Strong promotion case: directly addresses a recurring human frustration; cost of the check is low (side-by-side screenshot); cost of skipping is 4+ wasted sessions. Applies to Developer (spec completeness) + VE (validation item creation).
 - **LL-029** → "Structural refactors must include a grep-for-old-paths step on moved files, plus a tool-script smoke-test gate (e.g. `python3 -c 'import coords'`) before close. A file move that does not update internal path strings is an incomplete migration. BP candidate — applicable to any project with host-side Python/shell tooling."
+- **LL-032** → "A VE task is not done until test_plan.md has entries for every new test ID and feature_inventory.yaml has those IDs in the feature's test_ids list. Writing passing test functions is step 1; updating the canonical registries is step 2. Neither is optional." Extends BP-005. Strong promotion candidate.
+- **LL-033** → "When a DUT session ends with unfinished verification, write a PM handoff commit: numbered TODO block, exact shell commands, regression count with interpretation, and why the session ended. Format: `pm(TASK-NNN): handoff note — [status]`. Enables the next agent to execute without re-reading history." Positive pattern; promotion candidate as a process rule.
+- **LL-034** → "Tag known-intermittent tests in the harness (`# KNOWN INTERMITTENT: reason`). Consider a `[FLAKE]` result category separate from FAIL. When intermittent failures are indistinguishable from real regressions, the suite loses its ability to signal new breakage." Process/tooling rule; applies to VE + Developer."
 
 ---
 
@@ -554,6 +557,81 @@ The `check_build.sh` gate (BP-008) caught compile errors but has no visibility i
 3. The fix pattern is `_restore_spotify()` (or analogous state-restore helpers) as teardown in any test that may switch the active app as a side effect. Tests that exercise taskbar coords should always restore state before returning.
 
 **Status**: open — sub-step not yet added to task template. Promote to BP if human approves.
+
+---
+
+## Retrospective — 2026-05-25 — TASK-090 — App Interface ABC + AppShell refactor
+
+Triggering work: TASK-090 complete — App ABC (`init/resume/suspend/tick/handleInput`), SpotifyApp + ClockApp classes, `appHandleInput()` gesture loop, B1–B4 fixed structurally, T_BI_01–T_BI_04 VE tests implemented and passing. Production build flashed. Three agent sessions (090a–090g, handoff, 090h VE close).
+
+### What went well (no LL needed, recorded for balance)
+
+- **B1–B4 fixed structurally.** All four TASK-087 post-mortem bugs were consequences of a missing `App` lifecycle interface. The Architect correctly diagnosed this and designed the App ABC to make the bugs impossible rather than patching each symptom. No new bugs introduced; confirmed by the full DUT regression suite.
+- **Design doc had executable test sequences.** `app-interface.md §Verification impact` named specific `dbgGet` keys, exact serial commands, and observable assertions for T_BI_01–T_BI_04. VE implemented all four tests directly from the spec without clarification. Correct order: Architect names the observable, VE implements it.
+- **Handoff note was precise and actionable.** The `pm(TASK-090): handoff note` commit had a numbered TODO block with exact shell commands. The 090h session executed the full sequence without re-reading conversation history.
+- **check_build.sh 3/3 on a 618-line winampDisplay.h refactor.** The build gate caught nothing new — the refactor was structurally clean before hitting the DUT.
+
+---
+
+### LL-032 — 2026-05-25 — VE-written tests must be entered in test_plan.md in the same session
+
+**Context**: TASK-090h: VE implemented T_BI_01–T_BI_04 in `run_serialdbg_tests.py`. All four pass on DUT. `test_plan.md` was not updated; no T_BI entries exist there. Additionally, `app-interface-001` was not registered in `feature_inventory.yaml` despite being the named feature for TASK-090.
+
+**Observation**: The passing test functions exist in the harness. But from an audit perspective, `test_plan.md` is the canonical test registry and `feature_inventory.yaml` is the canonical feature registry. Both are missing entries. A future QM audit will find `app-interface-001` absent from the inventory and T_BI tests with no plan entries, breaking traceability from test to feature.
+
+This is the reverse of LL-024 (VE actions not filed as tasks): here the tests *were* written, but not registered in the canonical artifacts.
+
+**Root cause**: VE task scope was treated as "write the Python functions and confirm they pass." Updating `test_plan.md` and `feature_inventory.yaml` are follow-on steps that belong to the same session but are easy to drop when the DUT is the target and docs feel like overhead.
+
+**Suggested improvement**: A VE task is not complete until:
+1. Test functions written and passing.
+2. Entries added to `test_plan.md` (feature ID, objective, steps, status per test ID).
+3. `test_ids` list in `feature_inventory.yaml` populated for the covered feature.
+
+This extends BP-005: the VE task itself is not `done` until the `test_ids` list is populated. VE owns both the harness code and the inventory/plan updates in the same session.
+
+**Status**: open — immediate actions required (see audit entry 2026-05-25). Strong promotion candidate.
+
+---
+
+### LL-033 — 2026-05-25 — Handoff notes with numbered TODO blocks are reliable inter-session mechanisms
+
+**Context**: TASK-090 spanned three sessions. The 090a–090g session ended with a port disconnect mid-run; T148 status was UNKNOWN. The PM agent wrote a dedicated commit (`pm(TASK-090): handoff note`) containing: current regression status with raw counts and interpretation, a numbered NEXT AGENT TODO block with exact shell commands and expected outcomes, and what hadn't been done and why.
+
+**Observation**: The 090h session executed from the handoff without reading conversation history. All four handoff steps completed in order without ambiguity. The port disconnect was characterised precisely ("T148 was the only failure, now fixed — port disconnected mid-run") which let the next agent interpret the 26/27 count correctly rather than treating it as a regression.
+
+**Root cause**: N/A — positive pattern. Recorded because the format is not documented and should be replicable.
+
+**Suggested improvement**: When a DUT session ends with unfinished verification (port disconnect, hardware issue, test not yet written), write a PM handoff commit before closing:
+- Status per numbered sub-task.
+- Current regression count with interpretation (which test failed and why, if known).
+- NEXT AGENT TODO block: numbered, exact shell commands, expected output.
+- Any context the receiving agent needs to interpret partial results.
+
+Format: `pm(TASK-NNN): handoff note — [one-line status]`. Separate commit from the implementation commit.
+
+**Status**: open — positive pattern worth promoting as a process rule.
+
+---
+
+### LL-034 — 2026-05-25 — Pre-existing intermittent failures dilute regression signal in the test suite
+
+**Context**: The regression suite has four known intermittent failures: T084, T087, T091, T092 (reconnect race, TLS reset log-line timing). On each full run 1–2 fire. The headline count varies across runs: 26/27, 27/27, 30/31, 29/31.
+
+When T148 was fixed by TASK-090, the first clean run still showed 26/27 — T087 had fired. A reader could not tell from the count whether a new regression was present or a known flake had fired. The agent had to cross-reference which test failed to confirm T148 was actually fixed.
+
+**Observation**: Four intermittent tests in a 31-test suite means P(all-green) ≈ 66% even with zero new regressions. "Not all green" is the expected baseline, not a signal. The suite has lost its ability to say "something new broke."
+
+**Root cause**: No mechanism to distinguish "known intermittent, tolerated" from "new failure, investigate." Every failure looks identical in the results table.
+
+**Suggested improvement**:
+1. Tag known-intermittent tests in `run_serialdbg_tests.py` with a comment block: `# KNOWN INTERMITTENT: <reason> <date first observed>`.
+2. Optionally add a `[FLAKE]` result category (separate from PASS/FAIL/SKIP) when a known-intermittent test fails. Summary shows "30 passed, 0 failed, 1 flaked" — unambiguous signal.
+3. For T084/T091/T092 (reconnect timing): consider `--retry 2` logic for this class so a single timing miss doesn't count as a failure.
+
+Flag to PM to track this as a sub-task under tooling-001 or a standalone task.
+
+**Status**: open — not a blocking gap, but will worsen as the suite grows.
 
 ---
 

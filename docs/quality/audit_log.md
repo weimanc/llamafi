@@ -4,6 +4,52 @@
 
 All audits: scope, findings, actions, status.
 
+### Audit — 2026-05-25 — TASK-090 retrospective (App Interface ABC + AppShell refactor)
+
+**Triggered by**: human (`@QM: retrospective on TASK-090`)
+
+**Areas checked**:
+- [x] Feature inventory completeness (app-interface-001)
+- [x] Test coverage per feature (T_BI_01–T_BI_04)
+- [x] Documentation currency (test_plan.md, tasks.md, lessons_learned.md)
+- [x] Process patterns (handoff quality, intermittent test signal)
+
+**Findings**:
+
+1. **`app-interface-001` not registered in `feature_inventory.yaml` — RED.**
+   TASK-090 declares `feature: app-interface-001 (new)` in tasks.md. No entry exists in `feature_inventory.yaml`. This leaves the feature invisible to all downstream audit, test coverage, and cross-feature matrix checks.
+   _Owner: Developer. Action: add entry for app-interface-001 to feature_inventory.yaml, referencing app-interface.md and the TASK-090 commit (163ce67)._
+
+2. **T_BI_01–T_BI_04 not in test_plan.md — RED.**
+   All four tests pass in the harness (`run_serialdbg_tests.py`) but no corresponding test plan entries exist in `docs/verification/test_plan.md`. T147 and T148 have entries (suite: multiapp-002); T_BI tests belong in the same suite or a new `app-interface-001` suite.
+   _Owner: VE. Action: add T_BI_01–T_BI_04 entries to test_plan.md under suite `app-interface-001`._
+
+3. **T147/T148 status dates stale — AMBER.**
+   test_plan.md T147/T148 show `**Status**: **pass** (2026-05-24)`. Both confirmed passing again on 2026-05-25 (TASK-090h). Minor housekeeping — not blocking.
+   _Owner: VE. Action: update status dates to 2026-05-25 alongside T_BI additions._
+
+4. **Intermittent test failures (T084/T087/T091/T092) dilute regression signal — AMBER.**
+   Four known intermittent tests in a 31-test suite mean P(all-green) ≈ 66% per run with zero new regressions. The TASK-090h run showed 30/31 with an intermittent failure; the receiving agent had to name-check which test failed to confirm T148 was actually fixed. See LL-034.
+   _Owner: VE + Developer. Action: tag known-intermittents with comment blocks; consider `[FLAKE]` result category. File as sub-task under tooling-001 or standalone._
+
+5. **TASK-089 (stale tool-script paths) still overdue — RED (pre-existing, not TASK-090).**
+   Noted in prior audit; unchanged. Functional stale paths in `preview_vis.py`, `bake_wave.sh`, `preview_wave.py`, `bake_skin.py` remain unresolved. Not introduced by TASK-090.
+   _Owner: Developer. Action: execute TASK-089 per tasks.md spec._
+
+6. **Process positive: PM handoff note pattern worked — GREEN.**
+   The `pm(TASK-090): handoff note` commit was precise, numbered, and included exact shell commands. The 090h receiving agent executed it without re-reading history. Recorded as LL-033 for potential promotion.
+
+**Actions assigned**:
+- Developer: register `app-interface-001` in `feature_inventory.yaml` (finding 1)
+- VE: add T_BI_01–T_BI_04 entries to `test_plan.md`; update T147/T148 status dates (findings 2, 3)
+- VE + Developer: tag known-intermittent tests; file tooling sub-task (finding 4)
+- Developer: execute TASK-089 (finding 5, pre-existing)
+- PM: track findings 1–4 as tasks if not already filed
+
+**Resolution**: pending — actions assigned above; no resolved findings at time of audit.
+
+---
+
 ### Audit — 2026-05-16 — M-VIS design update: supersession correctness (Architect R&D integration)
 
 **Triggered by**: human (`@QM to check if this latest M-VIS supersedes previous work`)
