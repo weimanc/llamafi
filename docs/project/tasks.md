@@ -62,23 +62,35 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-090 — App Interface ABC + AppShell refactor (M-MULTIAPP)
 **Owner**: Developer
 **Feature**: app-interface-001 (new)
-**Status**: implemented — check_build.sh 3/3; DUT flash + regression pending (090h)
+**Status**: in-progress — 090a–090g committed (163ce67); 090h partially done
 **Blocks**: M-MULTIAPP step 3 (Matrix, GoL, Weather, Crypto — each requires a clean `App` class to land on)
 **Design**: `docs/architecture/designs/M-MULTIAPP/app-interface.md`, `docs/architecture/decisions/ADR-026.md`
 **Notes**:
 - Fixes B1–B4 from TASK-087 post-mortem as structural consequences of the correct interface, not targeted patches.
 - Absorbs TASK-088 (saveAppState/restoreAppState now delivered via `SpotifyApp::suspend()`).
-- Implementation order (each a subtask; check_build.sh must pass after every step):
-  - **TASK-090a** — `drawPlaylist()` gutter: `screenWidth` → `TASKBAR_X` (1 line; B1 fix; zero risk — do first).
-  - **TASK-090b** — `TouchPhase` enum + `App` struct in `appShell.h`; compile gate only (no runtime change yet).
-  - **TASK-090c** — `WinampDisplay`: add `handleWinampInput(TouchPhase, int, int)`, `resetDragState()`, `invalidatePlaylist()`; remove `#include "appShell.h"`, remove taskbar block from `checkForInput()`, remove `renderTaskbar()` from `repaintChrome()`; retire `checkForInput()` override.
-  - **TASK-090d** — `SpotifyApp` class in `main.cpp`: `init/resume/suspend/tick/handleInput`; `resume()` calls `repaintChrome()` + `invalidatePlaylist()` (B3 fix); `suspend()` calls `resetDragState()` (B2 fix).
-  - **TASK-090e** — `ClockApp` class in `main.cpp`: promote `clockRepaint()`/`clockTick()` free functions into `init/resume/suspend/tick/handleInput`.
-  - **TASK-090f** — `appHandleInput()` gesture loop in `main.cpp`: `s_inGesture` / `s_cooldownMs` shell state; synthesised Release before taskbar switch; delegate `Press`/`Move`/`Release` to active app.
-  - **TASK-090g** — Serial debug: update `cmdTap`/`cmdDrag` injection to call `winampDisplay.handleWinampInput()` directly; add `dbgGet("lastPlaylistDraw")` returning `lastPlaylistDrawMs` (required for T_BI_01).
-  - **TASK-090h** — `check_build.sh` 3/3 pass; DUT flash + full regression (T076/T081/T082/T086–T088/T147/T148 + T_BI_01–T_BI_04).
-- VE tests to implement alongside TASK-090g: T_BI_01 (PLEDIT repaint on resume), T_BI_02 (structural Clock switch assertion), T_BI_03 (suspend mid-gesture), T_BI_04 (Release delivery). Sequences specified in `app-interface.md §Verification impact`.
-- Exit criterion: `check_build.sh` 3/3 pass; all 19 existing tests + T_BI_01–T_BI_04 green on DUT.
+- 090a–090g: DONE. All code committed at 163ce67. check_build.sh 3/3 green.
+- 090h regression status (last run against debug build, 2026-05-25):
+  - **26/27 existing tests PASS** (T076–T092/T096/T133–T140/T147/T148 suite)
+  - **T148 status UNKNOWN** — serial port disconnected mid-run on final confirm flash; test got 26/27 on the previous run (T148 was the only failure, now fixed — BUG-1 guard added to cmdTap). Needs one clean re-flash + re-run to confirm T148 green.
+  - **T_BI_01–T_BI_04**: NOT YET RUN — VE needs to write these test scripts (sequences in `app-interface.md §Verification impact`). `dbgGet("lastPlaylistDraw")` is implemented. `dbgGet("appId")` and `dbgGet("scrollOffset")` confirmed present.
+
+**NEXT AGENT TODO (090h completion)**:
+1. Flash debug build: `cd app && ~/.platformio/penv/bin/pio run -e cyd2usb_winamp_debug -t upload --upload-port /dev/ttyUSB0`
+2. Run existing regression: `~/proj/esp/venv/bin/python3 app/tools/run_serialdbg_tests.py --port /dev/ttyUSB0`
+   - Expect 27/27. T148 fix (BUG-1 CLOCK guard) was committed but not confirmed on clean run.
+3. @VE: implement T_BI_01–T_BI_04 in `run_serialdbg_tests.py` per sequences in `app-interface.md §Verification impact`. Run and confirm pass.
+4. Flash production build: `cd app && ~/.platformio/penv/bin/pio run -e cyd2usb_winamp -t upload --upload-port /dev/ttyUSB0`
+5. Update this task status to `done` with commit hash and final test count.
+
+- Implementation order completed:
+  - **TASK-090a** ✓ `drawPlaylist()` gutter fix
+  - **TASK-090b** ✓ `TouchPhase` enum + `App` struct (moved to `touchPhase.h` to avoid circular dep)
+  - **TASK-090c** ✓ `WinampDisplay` refactor: `handleWinampInput`, `resetDragState`, `invalidatePlaylist`; removed shell coupling
+  - **TASK-090d** ✓ `SpotifyApp` class
+  - **TASK-090e** ✓ `ClockApp` class
+  - **TASK-090f** ✓ `appHandleInput()` gesture loop with `s_inGesture`/`s_cooldownMs`
+  - **TASK-090g** ✓ Serial debug: `cmdTap`/`cmdDrag` updated; `dbgGet("lastPlaylistDraw")` added
+  - **TASK-090h** — pending T148 confirm + T_BI_01–04 + production flash
 
 ---
 
