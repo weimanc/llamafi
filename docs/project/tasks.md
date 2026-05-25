@@ -89,6 +89,23 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ---
 
+### TASK-092 — Hotfix: TFT shared-state leak on app switch (ADR-027)
+**Owner**: Developer + Architect + QM
+**Feature**: app-interface-001
+**Status**: done (2026-05-25 — commit cb79ea8; production flashed)
+**Notes**:
+- Bug: `ClockApp::drawTime/drawDate` set `MC_DATUM` without reset; PLEDIT rows rendered 2–3 chars off-screen and ~2 px high after Clock→Spotify switch.
+- Fix (three-layer defence-in-depth per ADR-027):
+  - `winampDisplay.h:942` — consumer assert: `tft.setTextDatum(TL_DATUM)` at entry of `drawPlaylist()`
+  - `main.cpp` ClockApp drawTime/drawDate — producer rule: reset `TL_DATUM` after each `drawString`
+  - `main.cpp` ClockApp `suspend()` — lifecycle hook: reset `TL_DATUM` on app exit
+  - `taskbar.h` — producer rule: reset `setTextColor` after `drawChar`
+- Architecture: ADR-027 `proposed → accepted`; ADR-028 Canvas abstraction filed as `proposed/dormant`
+- QM: LL-035 filed in `lessons_learned.md`
+- check_build.sh 4/4 pass; DUT boot clean.
+
+---
+
 ### TASK-091 — Tag known-intermittent tests in run_serialdbg_tests.py (BP-012)
 **Owner**: VE + Developer
 **Feature**: serialdbg-001
