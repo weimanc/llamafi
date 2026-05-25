@@ -347,15 +347,121 @@ These are the invariants this refactor enforces. Violations are architecture bug
 
 ## Verification impact
 
-Existing test suite coverage of the changed surfaces:
+### Existing tests — expected behaviour
 
-- **T147/T148** — Spotify↔Clock switch round-trip. Must still pass. With this refactor, also add: verify taskbar slots 4–6 visible after first `drawPlaylist()` call (covers B1 regression).
-- **T076/T081/T082** — transport button hit-test. `handleWinampInput(x, y)` replaces `checkForInput()`; coordinates unchanged; tests should pass without modification.
-- **T086/T087/T088** — PLEDIT scroll. Verify `scrollOffset` clamp (B4 guard) doesn't break scroll-to-end.
-- **New: T_BI_01** — PLEDIT repaint on Spotify resume. Sequence: switch to Clock → wait 2 s → switch to Spotify → assert PLEDIT rows drawn within 100 ms (via serial `get snapshot` check or visual pixel check).
-- **New: T_BI_02** — no Winamp sprites on Clock canvas. Sequence: tap PLAY → switch to Clock within 80 ms → wait 200 ms → assert no draw call to PLEDIT/chrome coordinates (instrument via `perf::record` or `dbgGet` on `lastTouchResult`).
+- **T147/T148** — Spotify↔Clock switch round-trip. Must still pass. Additionally verify taskbar slots 4–6 are visible after the first `drawPlaylist()` call post-boot (B1 regression guard). No harness change needed — slots visible means the gutter fix is in effect.
+- **T076/T081/T082** — transport button hit-test. `handleWinampInput(TouchPhase, x, y)` replaces `checkForInput()`; screen coordinates unchanged; tests should pass without modification.
+- **T086/T087/T088** — PLEDIT scroll tests. The B4 `scrollOffset` clamp (`max(0, min(scrollOffset, max(0, count - PLEDIT_ROW_COUNT)))`) is identical to the `maxOffset` bound already computed in the drag handlers. No existing test exercises a scroll position that the clamp would alter differently. Run T086–T088 unmodified as a regression gate.
 
-VE to own the new test IDs; Developer to implement.
+### B4 clamp — architect note to VE
+
+The clamp is a guard against out-of-bounds `scrollOffset` on resume; it is **not** a confirmed fix for B4. Root cause remains unconfirmed (intermittent, unknown repro). If B4 recurs after the refactor, do not patch further without a serial-debug repro trace. Escalate to Architect.
+
+### New tests
+
+---
+
+**T_BI_01 — PLEDIT repaint on Spotify resume**
+
+VE challenge: "assert PLEDIT rows drawn within 100ms" has no serial observable — `get snapshot` exposes playback state, not draw timing.
+
+Corrected mechanism: Developer adds `"lastPlaylistDraw"` to `dbgGet`, returning `lastPlaylistDrawMs` (already a `WinampDisplay` member). Test sequence:
+
+```
+tap <taskbar_clock>      # switch to Clock
+wait 2000                # let spotifyTask tick; seqno may change
+get lastPlaylistDraw     # note t_before
+tap <taskbar_spotify>    # switch to Spotify (triggers invalidatePlaylist())
+poll get lastPlaylistDraw every 50ms, timeout 500ms
+assert lastPlaylistDraw > t_before   # drawPlaylist() ran post-resume
+```
+
+If `lastPlaylistDraw` advances, the `invalidatePlaylist()` + seqno-change path fired. This is fully observable via serial.
+
+Developer deliverable: expose `lastPlaylistDrawMs` in `dbgGet("lastPlaylistDraw", ...)`.
+
+---
+
+**T_BI_02 — no Winamp render bleed onto Clock canvas**
+
+VE challenge: "`lastTouchResult` doesn't track render calls; `pendingReleaseAt` fires as a timer, not a touch event — unobservable via serial."
+
+VE is correct. The `pendingReleaseAt` deferred paint is a timer-fired SPI write with no observable serial side-effect. **This is intentionally a structural guarantee, not a runtime assertion.**
+
+Under the new interface, `pendingReleaseAt` only fires inside `handleWinampInput()`, which is only called from `SpotifyApp::handleInput()`, which is only called when `currentAppId == Spotify`. The proof is in the layering, not in a runtime check.
+
+Corrected test goal: verify the structural precondition (app switched correctly, event consumed) rather than the render absence (unobservable):
+
+```
+tap <PLAY button>               # sets pendingReleaseAt = now + 80ms
+# within 80ms:
+tap <taskbar_clock>             # shell synthesises Release → switchApp(Clock)
+wait 200ms                      # pendingReleaseAt window passes
+get appId                       # assert == 1 (Clock)
+get lastTouchResult             # assert action == "APP_SWITCH"
+```
+
+If `appId == Clock` and `lastTouchResult.action == "APP_SWITCH"`, the shell consumed the taskbar tap and the app switch completed. Whether `pendingReleaseAt` would have fired is moot — `handleWinampInput()` was never called after the switch. The structural proof is sufficient; no pixel assertion needed.
+
+---
+
+**T_BI_03 — suspend() clears drag state mid-gesture**
+
+New test, not present in original spec. Covers layering rule 6.
+
+Sequence:
+
+```
+tap <taskbar_spotify>           # ensure Spotify active
+drag <PLEDIT start> partial     # begin drag, do NOT release
+# while drag is in progress (s_inGesture == true):
+tap <taskbar_clock>             # shell: synthesise Release, then switchApp
+get appId                       # assert == 1 (Clock)
+wait 500ms
+tap <taskbar_spotify>           # switch back to Spotify
+# assert PLEDIT draws correctly (use T_BI_01 mechanism):
+poll get lastPlaylistDraw until advances
+get scrollOffset                # assert >= 0 (drag state was reset)
+```
+
+`get scrollOffset` requires `scrollOffset` exposed in `dbgGet` — it already is (existing `dbgGet("scrollOffset")`). No new Developer deliverable needed beyond T_BI_01's `lastPlaylistDraw`.
+
+---
+
+**T_BI_04 — Release delivery after finger lift**
+
+VE challenge: existing transport tests cover Press; Release delivery (the timer-fire path for deferred sprite paint) has no explicit test.
+
+Under the new model, `TouchPhase::Release` is delivered when `s_inGesture && !ts.touched()`. The `pendingReleaseAt` paint triggers on Release in `handleWinampInput()`. Observable via `lastTouchResult`:
+
+```
+tap <PLAY button>               # Press → pendingReleaseAt set; lastTouchResult.action = "PLAY"
+# finger lifts — shell delivers Release on next loop
+wait 150ms                      # past the 80ms pendingReleaseAt window
+get lastTouchResult             # assert region == "TRANSPORT", action == "PLAY"
+# visual: button sprite should be in released state
+```
+
+This verifies the Release path ran without asserting pixel content. If the DUT crashes or hangs, Release was not delivered correctly.
+
+### Interface method coverage summary
+
+| Method | Covered by |
+|--------|-----------|
+| `init()` | T147 first-switch path |
+| `resume()` | T_BI_01 (Spotify), T147/T148 (Clock) |
+| `suspend()` | T_BI_03 mid-gesture switch |
+| `tick()` | All existing tests (runs every loop) |
+| `handleInput(Press)` | T076/T081/T082/T086–T088 |
+| `handleInput(Move)` | Volume drag tests (T096 series), PLEDIT drag |
+| `handleInput(Release)` | T_BI_04 (new) |
+
+Developer deliverables to enable new tests:
+1. `dbgGet("lastPlaylistDraw")` → returns `lastPlaylistDrawMs` as integer ms timestamp.
+2. `dbgGet("appId")` → already exists (from TASK-087 salvage). Confirm still present post-refactor.
+3. `dbgGet("scrollOffset")` → already exists. Confirm still present post-refactor.
+
+VE to own T_BI_01 through T_BI_04 test scripts; Developer to implement the one new dbgGet entry.
 
 ---
 
