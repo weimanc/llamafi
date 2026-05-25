@@ -32,7 +32,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-089 — Fix stale tool-script paths + add smoke-test gate (LL-029)
 **Owner**: Developer
 **Feature**: tooling-001 (new)
-**Status**: planned — overdue from audit 2026-05-24; blocks any tool-script invocation on moved paths
+**Status**: done (2026-05-25 — preview_layout.py stale paths fixed; smoke_test.sh integrated into check_build.sh as step 4; 4/4 pass)
 **Blocks**: reliable use of `preview_vis.py`, `bake_wave.sh`, `preview_wave.py`, `bake_skin.py` from `app/tools/`
 **Notes**:
 - Six functional (runtime-breaking) stale paths identified in audit 2026-05-24 (LL-029):

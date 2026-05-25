@@ -672,3 +672,31 @@ features:
       TASK-087e. Stateless — no state save/restore needed on app switch.
       clockRepaint() draws the static chrome + immediate first tick.
       clockTick() is a no-op if < 1 s since last draw.
+
+  - id: app-interface-001
+    name: App lifecycle interface (App ABC + AppShell refactor)
+    description: |
+      Pure-virtual App interface (init/resume/suspend/tick/handleInput) in appShell.h.
+      SpotifyApp and ClockApp concrete classes replace free functions + ad-hoc switch
+      statements. Shell owns ts.touched() sampling; apps receive TouchPhase
+      (Press/Move/Release) via handleInput(). switchApp() calls suspend() on the
+      outgoing app and resume() on the incoming app. Fixes B1–B4 from TASK-087
+      post-mortem as structural consequences of the correct layering:
+        B1 (gutter wipe clears taskbar slots 3–5) — drawPlaylist() uses TASKBAR_X not screenWidth.
+        B2 (Winamp sprites on Clock canvas) — pendingReleaseAt only fires inside handleWinampInput,
+             called only from SpotifyApp::handleInput, called only when Spotify is active.
+        B3 (PLEDIT blank after switch-back) — SpotifyApp::resume() calls invalidatePlaylist().
+        B4 (scrollOffset stale on resume) — suspend() calls resetDragState(); resume() clamps offset.
+    status: implemented
+    git_ref: "163ce67"
+    files:
+      - app/src/appShell.h
+      - app/src/touchPhase.h
+      - app/src/main.cpp
+      - app/src/winamp/winampDisplay.h
+    cross_features: [taskbar-001, clock-001, touch-002, serialdbg-001]
+    test_ids: [T_BI_01, T_BI_02, T_BI_03, T_BI_04]
+    notes: |
+      TASK-090a–090h. Absorbs TASK-088 (saveAppState/restoreAppState delivered via
+      SpotifyApp::suspend()). Design: docs/architecture/designs/M-MULTIAPP/app-interface.md,
+      ADR-026. Gates M-MULTIAPP step 3 (Matrix, GoL, Weather, Crypto apps).

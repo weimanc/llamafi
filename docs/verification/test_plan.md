@@ -2153,7 +2153,7 @@ See design doc `docs/architecture/designs/audit-origin.md`.
   6. `get appId` — assert `name == "Spotify"`.
 - **Expected result**: Round-trip confirmed. `id` field increments to 1 (Clock) then returns to 0 (Spotify).
 - **Harness**: `run_serialdbg_tests.py --tests T147`. Owner: VE.
-- **Status**: **pass** (2026-05-24).
+- **Status**: **pass** (2026-05-25).
 
 ### T148 — [shell-layout-001, touch-002] Clock canvas tap: no Winamp zone leak
 
@@ -2171,7 +2171,93 @@ See design doc `docs/architecture/designs/audit-origin.md`.
   5. Restore: `tap 297 20` (Spotify slot).
 - **Expected result**: `{"hit":"CLOCK","action":"NONE"}`. No `dequeued action=` log line visible in serial output.
 - **Harness**: `run_serialdbg_tests.py --tests T148`. Owner: VE.
-- **Status**: **pass** (2026-05-24).
+- **Status**: **pass** (2026-05-25).
+
+---
+
+## Suite: app-interface-001 — App lifecycle interface (TASK-090)
+
+**DUT required** — T_BI_01–T_BI_04 use `run_serialdbg_tests.py` with `cyd2usb_winamp_debug` firmware.
+
+### T_BI_01 — [app-interface-001] PLEDIT repaint on Spotify resume
+
+- **Type**: integration (DUT)
+- **Feature(s)**: app-interface-001
+- **Objective**: Confirm that `SpotifyApp::resume()` calls `invalidatePlaylist()`, causing
+  `drawPlaylist()` to fire on the next tick. Observable via `dbgGet("lastPlaylistDraw")`.
+- **Preconditions**: DUT booted with `cyd2usb_winamp_debug`. Spotify active, queue ≥ 1 track.
+- **Steps**:
+  1. Switch to Clock (`tap <taskbar_slot 1>`).
+  2. Wait 2 s (clears 1 Hz rate-limit window on `drawPlaylist`).
+  3. `get lastPlaylistDraw` — record `t_before`.
+  4. Switch back to Spotify (`tap <taskbar_slot 0>`) — triggers `resume()` → `invalidatePlaylist()`.
+  5. Poll `get lastPlaylistDraw` every 50 ms, timeout 2 s.
+  6. Assert `ms > t_before`.
+- **Expected result**: `lastPlaylistDraw.ms` advances within 2 s of the switch-back, proving
+  `drawPlaylist()` ran post-resume.
+- **Harness**: `run_serialdbg_tests.py --tests T_BI_01`. Owner: VE.
+- **Status**: **pass** (2026-05-25).
+
+### T_BI_02 — [app-interface-001] No Winamp render bleed onto Clock canvas
+
+- **Type**: integration (DUT)
+- **Feature(s)**: app-interface-001, taskbar-001
+- **Objective**: Verify the shell intercepts a taskbar tap while Spotify is active, switches
+  to Clock, and the response carries `hit=TASKBAR action=APP_SWITCH` — proving `handleWinampInput`
+  was never called after the switch. Structural proof that `pendingReleaseAt` cannot fire on the
+  Clock canvas.
+- **Preconditions**: DUT booted with `cyd2usb_winamp_debug`. Spotify active.
+- **Steps**:
+  1. `tap <PLAY button>` — sets `pendingReleaseAt` internally, response `hit=TRANSPORT`.
+  2. `tap <taskbar_slot 1>` (Clock) — response captured as `r_switch`.
+  3. Wait 200 ms (past the 80 ms `pendingReleaseAt` window).
+  4. `get appId` — assert `name == "Clock"`.
+  5. Assert `r_switch.hit == "TASKBAR"` and `r_switch.action == "APP_SWITCH"`.
+  6. Restore: `tap <taskbar_slot 0>` (Spotify).
+- **Expected result**: `{"hit":"TASKBAR","action":"APP_SWITCH"}` and `appId == Clock`. No Winamp
+  action dispatched after the switch.
+- **Harness**: `run_serialdbg_tests.py --tests T_BI_02`. Owner: VE.
+- **Status**: **pass** (2026-05-25).
+
+### T_BI_03 — [app-interface-001] suspend() clears drag state; resume() restores PLEDIT
+
+- **Type**: integration (DUT)
+- **Feature(s)**: app-interface-001
+- **Objective**: Confirm that `SpotifyApp::suspend()` calls `resetDragState()` and
+  `SpotifyApp::resume()` restores the PLEDIT correctly. After a Spotify→Clock→Spotify
+  round-trip, `dragState == D_IDLE` and `scrollOffset >= 0`.
+- **Preconditions**: DUT booted with `cyd2usb_winamp_debug`. Spotify active, queue ≥ 2 tracks.
+- **Steps**:
+  1. Reset `scrollOffset` to 0 via 3× swipe-down drags.
+  2. Swipe-up drag — exercises `D_PLEDIT_SCROLL` path.
+  3. `get dragState` — assert `D_IDLE` (drag complete).
+  4. `tap <taskbar_slot 1>` — switch to Clock; `suspend()` calls `resetDragState()`.
+  5. `get appId` — assert `Clock`.
+  6. Wait 500 ms.
+  7. `tap <taskbar_slot 0>` — switch back to Spotify; `resume()` calls `invalidatePlaylist()`.
+  8. `get dragState` — assert `D_IDLE`.
+  9. `get scrollOffset` — assert `val >= 0`.
+- **Expected result**: `dragState=D_IDLE` and `scrollOffset >= 0` after round-trip. `lastPlaylistDraw`
+  advances (verified via T_BI_01 mechanism — not asserted separately here).
+- **Harness**: `run_serialdbg_tests.py --tests T_BI_03`. Owner: VE.
+- **Status**: **pass** (2026-05-25).
+
+### T_BI_04 — [app-interface-001] Release phase delivery via cmdTap
+
+- **Type**: integration (DUT)
+- **Feature(s)**: app-interface-001, touch-002
+- **Objective**: Confirm that `cmdTap` delivers both `TouchPhase::Press` and `TouchPhase::Release`
+  to `handleWinampInput` synchronously. Observable via the tap response `hit` and `action` fields.
+  Verifies the `injectTouch` + `injectRelease` call chain is intact after the App ABC refactor.
+- **Preconditions**: DUT booted with `cyd2usb_winamp_debug`. Spotify active.
+- **Steps**:
+  1. `tap <PLAY button>` — `injectTouch` (Press) + `injectRelease` (Release) called synchronously.
+  2. Wait 150 ms (past the 80 ms `pendingReleaseAt` window; Release already delivered).
+  3. Assert response `hit == "TRANSPORT"` and `action in ("PLAY", "PAUSE")`.
+- **Expected result**: Response `{"hit":"TRANSPORT","action":"PLAY"}` (or `"PAUSE"`). DUT stable
+  (no crash, no hang). Confirms Release path ran to completion.
+- **Harness**: `run_serialdbg_tests.py --tests T_BI_04`. Owner: VE.
+- **Status**: **pass** (2026-05-25).
 
 ---
 

@@ -103,7 +103,7 @@ def _open_wsz_text_bmp(wsz: pathlib.Path) -> Image.Image:
 
 def _load_skin_preview(wsz: pathlib.Path) -> Image.Image | None:
     """Return gen/skin_preview.png if it exists (relative to wsz location)."""
-    gen_dir = wsz.parent.parent / "SpotifyDiyThing" / "gen"
+    gen_dir = wsz.parent.parent / "gen"
     path = gen_dir / "skin_preview.png"
     if path.exists():
         return Image.open(path).convert("RGB")
@@ -226,7 +226,7 @@ def main() -> None:
     if not wsz.exists():
         sys.exit(f"WSZ not found: {wsz}")
 
-    gen_dir = wsz.parent.parent / "SpotifyDiyThing" / "gen"
+    gen_dir = wsz.parent.parent / "gen"
 
     font_bmp     = _open_wsz_text_bmp(wsz)
     skin_preview = _load_skin_preview(wsz)
