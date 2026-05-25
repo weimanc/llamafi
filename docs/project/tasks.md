@@ -106,6 +106,36 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ---
 
+### TASK-093 — MatrixApp implementation (M-MULTIAPP step 3a)
+**Owner**: Developer
+**Feature**: matrix-001 (new)
+**Status**: done (2026-05-25 — commit eeb8091; check_build.sh 4/4 pass; DUT flashed)
+**Design**: `docs/architecture/designs/M-MULTIAPP/matrix.md`
+**Notes**:
+- `MatrixApp : public App` in `main.cpp`. 14 streams, stride 19, canvas 275×240.
+- Float y/speed per source; millis-gated at 25 ms (~40 fps); tap reinitialises streams.
+- ADR-027 producer rule: `setTextColor(TFT_WHITE, TFT_BLACK)` reset at end of each tick.
+- Registered at `g_apps[AppId::Matrix]`.
+- Exit criteria C1–C5 met. Smoke test: streams visible, wrap, tap reinit, app-switch residue none.
+
+---
+
+### TASK-094 — LifeApp implementation (M-MULTIAPP step 3b)
+**Owner**: Developer
+**Feature**: gol-001 (new)
+**Status**: done (2026-05-25 — commit 8ed2385; check_build.sh 4/4 pass; DUT flashed)
+**Design**: `docs/architecture/designs/M-MULTIAPP/gol.md`
+**Notes**:
+- `LifeApp : public App` in `main.cpp`. 55×48 grid (5 px/cell = 275×240). Col-major [x][y].
+- Toroidal boundary, diff render, spatial hue gradient, stagnation reset at >120 gens or <5 alive.
+- `s_nextGrid[55][48]` as static class member (scratch buffer, not persisted).
+- Millis-gated at 100 ms (10 gen/s). Tap reseeds. ADR-027 producer rule on text colour.
+- Registered at `g_apps[AppId::Life]`.
+- Heap cost ~12 KB BSS (nextGrid 2640 B + LifeAppState 2648 B). Observed 183 KB free on DUT.
+- Exit criteria C1–C6 met. C7 (SPI diff byte count) deferred — visual diff confirmed correct.
+
+---
+
 ### TASK-091 — Tag known-intermittent tests in run_serialdbg_tests.py (BP-012)
 **Owner**: VE + Developer
 **Feature**: serialdbg-001
