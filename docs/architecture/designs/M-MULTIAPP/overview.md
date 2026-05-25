@@ -53,6 +53,7 @@ as the switching mechanism.
 | Pixel budget, Winamp shift, canvas constraint | [layout.md](layout.md) |
 | Taskbar icons, hitbox, RTOS role | [taskbar.md](taskbar.md) |
 | App enum, state structs, switchApp() | [app-lifecycle.md](app-lifecycle.md) |
+| App interface ABC + AppShell refactor (ADR-026) | [app-interface.md](app-interface.md) |
 | bake_skin.py extension for taskbar preview (static PNG) | [preview-tooling.md](preview-tooling.md) |
 | Interactive preview tooling (pygame + HTML) | [interactive-preview.md](interactive-preview.md) |
 | Shell geometry header — single source of truth | [shell-layout.md](shell-layout.md) |
