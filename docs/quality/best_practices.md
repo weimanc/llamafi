@@ -92,6 +92,36 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-010 — VE task is not done until test_plan.md and feature_inventory.yaml are updated
+
+**Adopted from**: LL-032
+**Date adopted**: 2026-05-25
+**Rule**: A VE task is complete only when: (1) test functions are written and passing; (2) an entry exists in `test_plan.md` for each new test ID (feature ID, objective, steps, status); (3) the feature's `test_ids` list in `feature_inventory.yaml` is populated. Writing passing harness functions without updating the canonical registries is step 1 of 3, not done.
+**Rationale**: The harness (`run_serialdbg_tests.py`) is the execution path; `test_plan.md` and `feature_inventory.yaml` are the canonical record of what tests exist and what they cover. Tests absent from these registries are invisible to future audits — QM sees `test_ids: []` and flags a gap that no longer exists. Concrete incident: T_BI_01–T_BI_04 all pass on DUT but are absent from `test_plan.md` and `app-interface-001` is absent from `feature_inventory.yaml`. A future audit would miss them entirely.
+**Applies to**: VE (own all three steps in the same session), PM (reject VE task `done` if `test_ids` list is still empty), Developer (do not accept a feature as tested without VE confirming registry updates)
+
+---
+
+### BP-011 — Write a PM handoff commit when a DUT session ends with unfinished verification
+
+**Adopted from**: LL-033
+**Date adopted**: 2026-05-25
+**Rule**: When a DUT session ends with unfinished verification (port disconnect, hardware issue, test not yet written), write a dedicated PM commit before closing the session. Required content: (1) status per numbered sub-task; (2) current regression count with interpretation (which test failed and why); (3) NEXT AGENT TODO block — numbered, exact shell commands, expected output; (4) any context needed to interpret partial results. Format: `pm(TASK-NNN): handoff note — [one-line status]`.
+**Rationale**: The receiving agent has no access to the prior session's conversation. Without a precise handoff, it must reconstruct context from git log and docs, and may misinterpret a partial count (e.g. 26/27 with a known fix committed but not confirmed) as a regression. A well-formed handoff commit eliminated that risk entirely in TASK-090h: the agent executed a four-step sequence from the handoff without reading history, and interpreted the 26/27 count correctly because the failing test was named.
+**Applies to**: PM (write the handoff commit), Developer (prompt PM if closing a session with incomplete DUT verification)
+
+---
+
+### BP-012 — Tag known-intermittent tests; keep regression signal unambiguous
+
+**Adopted from**: LL-034
+**Date adopted**: 2026-05-25
+**Rule**: Known-intermittent tests in `run_serialdbg_tests.py` must be tagged with a `# KNOWN INTERMITTENT: <reason> — first observed <date>` comment block. The pass/fail count in any session note must name the failing test, not just the number. If the suite grows to ≥5 intermittents, add a `[FLAKE]` result category distinct from FAIL so summary lines read "N passed, 0 failed, M flaked."
+**Rationale**: Four known-intermittent tests in a 31-test suite means P(all-green) ≈ 66% per run with zero new regressions. "Not all green" becomes the expected baseline rather than a signal. When a real fix is confirmed by the count, any reader must cross-reference which test failed to distinguish flake from regression — one extra step that should not be necessary. Concrete incident: TASK-090h's first run was 26/27 with T087 as the intermittent; without naming T087, the 26/27 count was ambiguous.
+**Applies to**: VE (tag intermittents at discovery; own the FLAKE threshold decision), Developer (add `# KNOWN INTERMITTENT` comment before merging any test known to fail intermittently), PM (require the failing test name — not just a count — in any session note or handoff)
+
+---
+
 ## Entry Format
 
 ```

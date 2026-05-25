@@ -459,9 +459,9 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-028** → "Spec steps that name a specific file for a code change must either be verified against the actual codebase or marked `[FILE TBD — confirm at implementation]`. Plausible-but-unverified file paths in specs are silent latent risks for agent hand-offs." Process rule, applies to Architect + PM (spec writers).
 - **LL-026** → "Reference image used → paired visual validation item required. Any element rendered from a reference image must have a VE/audit item that validates the rendered output against that image. No reference image consumed without a closing verification step." Strong promotion case: directly addresses a recurring human frustration; cost of the check is low (side-by-side screenshot); cost of skipping is 4+ wasted sessions. Applies to Developer (spec completeness) + VE (validation item creation).
 - **LL-029** → "Structural refactors must include a grep-for-old-paths step on moved files, plus a tool-script smoke-test gate (e.g. `python3 -c 'import coords'`) before close. A file move that does not update internal path strings is an incomplete migration. BP candidate — applicable to any project with host-side Python/shell tooling."
-- **LL-032** → "A VE task is not done until test_plan.md has entries for every new test ID and feature_inventory.yaml has those IDs in the feature's test_ids list. Writing passing test functions is step 1; updating the canonical registries is step 2. Neither is optional." Extends BP-005. Strong promotion candidate.
-- **LL-033** → "When a DUT session ends with unfinished verification, write a PM handoff commit: numbered TODO block, exact shell commands, regression count with interpretation, and why the session ended. Format: `pm(TASK-NNN): handoff note — [status]`. Enables the next agent to execute without re-reading history." Positive pattern; promotion candidate as a process rule.
-- **LL-034** → "Tag known-intermittent tests in the harness (`# KNOWN INTERMITTENT: reason`). Consider a `[FLAKE]` result category separate from FAIL. When intermittent failures are indistinguishable from real regressions, the suite loses its ability to signal new breakage." Process/tooling rule; applies to VE + Developer."
+- **LL-032** → adopted → **BP-010** (2026-05-25)
+- **LL-033** → adopted → **BP-011** (2026-05-25)
+- **LL-034** → adopted → **BP-012** (2026-05-25)
 
 ---
 
@@ -590,7 +590,7 @@ This is the reverse of LL-024 (VE actions not filed as tasks): here the tests *w
 
 This extends BP-005: the VE task itself is not `done` until the `test_ids` list is populated. VE owns both the harness code and the inventory/plan updates in the same session.
 
-**Status**: open — immediate actions required (see audit entry 2026-05-25). Strong promotion candidate.
+**Status**: adopted → BP-010 (2026-05-25)
 
 ---
 
@@ -610,7 +610,7 @@ This extends BP-005: the VE task itself is not `done` until the `test_ids` list 
 
 Format: `pm(TASK-NNN): handoff note — [one-line status]`. Separate commit from the implementation commit.
 
-**Status**: open — positive pattern worth promoting as a process rule.
+**Status**: adopted → BP-011 (2026-05-25)
 
 ---
 
@@ -631,7 +631,7 @@ When T148 was fixed by TASK-090, the first clean run still showed 26/27 — T087
 
 Flag to PM to track this as a sub-task under tooling-001 or a standalone task.
 
-**Status**: open — not a blocking gap, but will worsen as the suite grows.
+**Status**: adopted → BP-012 (2026-05-25)
 
 ---
 
