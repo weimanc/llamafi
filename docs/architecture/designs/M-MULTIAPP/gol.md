@@ -1,10 +1,10 @@
 # M-MULTIAPP — Game of Life App Design
 
 > Owner: Architect
-> Status: draft
+> Status: draft — App ABC integration pending
 > Date: 2026-05-22
 > Part of: [overview.md](overview.md)
-> See also: [app-lifecycle.md](app-lifecycle.md), [layout.md](layout.md)
+> See also: [app-lifecycle.md](app-lifecycle.md), [app-interface.md](app-interface.md), [layout.md](layout.md)
 > Source reference: `resource/5in1/5in1 cyberdeck CYD 2.8inch.txt` — `runLife()` / `spawnLife()`
 
 ---
@@ -52,8 +52,8 @@ All other algorithm logic ports verbatim or near-verbatim.
 
 1. Port the 5in1 GoL algorithm faithfully — no unnecessary reinvention.
 2. Adapt grid dimensions to landscape 275×240 canvas.
-3. Integrate with shell lifecycle (`initAppState`, `restoreAppState`,
-   `saveAppState`, `appTick`, `appHandleInput`) per `app-lifecycle.md`.
+3. Integrate with shell lifecycle per `app-interface.md` App ABC
+   (`LifeApp : public App` — `init`, `resume`, `suspend`, `tick`, `handleInput`).
 4. No network dependency. No FreeRTOS task beyond main loop.
 5. State preserved across app switches (returns to same generation / hueShift).
 6. Stagnation auto-resets — never freezes on screen.
@@ -160,6 +160,7 @@ void stepGeneration(LifeAppState &s) {
     tft.fillRect(215, 0, 55, 15, TFT_BLACK);
     tft.setTextColor(0x07FF);
     tft.drawRightString(String(totalAlive), 270, 2, 2);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);   // reset — producer rule (ADR-027)
 
     // Stagnation
     if (totalAlive == s.lastCellCount) s.sameCountTimer++;
@@ -168,8 +169,8 @@ void stepGeneration(LifeAppState &s) {
     s.hueShift += 3;
 
     if (totalAlive < 5 || s.sameCountTimer > 120) {
-            spawnLife(s);
-        repaintApp(AppId::Life);  // full redraw after reseed
+        spawnLife(s);
+        resume();   // full redraw after reseed (replaces repaintApp(AppId::Life))
     }
 }
 ```
@@ -179,31 +180,72 @@ the shell's non-blocking tick model. Dropped — immediate respawn.
 
 ---
 
-## appTick() integration
+## App ABC integration
+
+Under the live `appShell.h` ABC, GoL is a `LifeApp : public App` class.
+Free functions become private methods; `_s`, `_lastTickMs`, and `s_nextGrid`
+(scratch buffer) are owned by the class.
 
 ```cpp
-// appTick for Life — millis-gated, per source's delay(100) pattern
-void golTick(LifeAppState &s) {
-    static unsigned long lastMs = 0;
+class LifeApp : public App {
+public:
+    void init() override { spawnLife(_s); resume(); }
+
+    void resume() override {
+        tft.fillRect(0, 0, GOL_GRID_W * GOL_CELL_PX, GOL_GRID_H * GOL_CELL_PX, TFT_BLACK);
+        repaintLife(_s);
+    }
+
+    void suspend() override {}   // no gesture state; no-op
+
+    void tick() override { golTick(); }
+
+    // Press on the GoL canvas reseeds all cells.
+    // x < TASKBAR_X is guaranteed by the shell (layering rule 2, app-interface.md).
+    bool handleInput(TouchPhase phase, int x, int y) override {
+        if (phase == TouchPhase::Press) {
+            spawnLife(_s);
+            resume();
+            return true;
+        }
+        return false;
+    }
+
+private:
+    LifeAppState  _s;
+    unsigned long _lastTickMs = 0;   // replaces static unsigned long lastMs
+
+    static uint8_t s_nextGrid[GOL_GRID_W][GOL_GRID_H];   // scratch; not persisted
+
+    void spawnLife(LifeAppState &s);
+    void stepGeneration(LifeAppState &s);
+    void repaintLife(LifeAppState &s);
+    void golTick();
+};
+```
+
+`millis()`-gated tick, per source's `delay(100)` pattern:
+
+```cpp
+void LifeApp::golTick() {
     unsigned long now = millis();
-    if (now - lastMs < 100) return;
-    lastMs = now;
-    stepGeneration(s);
+    if (now - _lastTickMs < GOL_TICK_MS) return;
+    _lastTickMs = now;
+    stepGeneration(_s);
 }
 ```
 
-The source used `delay(100)` at the end of `runLife()`. In the shell this
-becomes a `millis()` gate so other shell work (taskbar input, etc.) is not
-blocked.
+The source used `delay(100)` at the end of `runLife()`. The `millis()` gate
+keeps other shell work (taskbar input, etc.) unblocked.
 
 ---
 
-## repaintApp(Life)
+## repaintLife()
 
-Full repaint from state (called on switch-in or after reseed):
+Full repaint from state — called by `resume()` and after reseed:
 
 ```cpp
-void repaintLife(LifeAppState &s) {
+void LifeApp::repaintLife(LifeAppState &s) {
     tft.fillRect(0, 0, 275, 240, TFT_BLACK);
     for (int x = 0; x < 55; x++) {
         for (int y = 0; y < 48; y++) {
@@ -221,18 +263,10 @@ void repaintLife(LifeAppState &s) {
 
 ## Touch input
 
-Source cycles app mode on any touch. In the shell, taskbar taps are caught
-by `appHandleInput` before reaching GoL's handler. A GoL-canvas tap
-(x < `TASKBAR_X`) triggers a reseed:
-
-```cpp
-void golHandleInput(LifeAppState &s, TouchPoint p) {
-    if (p.x < TASKBAR_X) {
-        spawnLife(s);
-        repaintApp(AppId::Life);
-    }
-}
-```
+Source cycles app mode on any touch. In the shell, taskbar taps are consumed
+by the shell before reaching `LifeApp::handleInput()` (layering rule 2). A
+GoL-canvas `Press` triggers reseed and returns `true` (consumed). `Move` and
+`Release` return `false`.
 
 ---
 
@@ -256,7 +290,7 @@ void golHandleInput(LifeAppState &s, TouchPoint p) {
 ~~1. **Live-count HUD position**~~ **CLOSED.** `drawRightString` at x=270, y=2. Confirmed.
 
 ~~2. **"GENERATING SEED…" splash**~~ **CLOSED.** No text overlay on reseed.
-Shell clear + immediate `repaintApp` is sufficient.
+Shell clear + immediate `resume()` is sufficient.
 
 ~~3. **hueShift reset on reseed**~~ **CLOSED.** Reset `hueShift = 0` in
 `spawnLife()`. Clean colour restart on each reseed.

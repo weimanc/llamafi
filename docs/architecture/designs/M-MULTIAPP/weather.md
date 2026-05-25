@@ -1,10 +1,10 @@
 # M-MULTIAPP — Weather App Design
 
 > Owner: Architect
-> Status: draft
+> Status: draft — App ABC integration pending
 > Date: 2026-05-22
 > Part of: [overview.md](overview.md)
-> See also: [app-lifecycle.md](app-lifecycle.md), [layout.md](layout.md)
+> See also: [app-lifecycle.md](app-lifecycle.md), [app-interface.md](app-interface.md), [layout.md](layout.md)
 > Source reference: `resource/5in1/5in1 cyberdeck CYD 2.8inch.txt` — `runWeather()` / `updateWeather()`
 
 ---
@@ -156,6 +156,8 @@ void weatherDrawChrome() {
     tft.setTextColor(0xFFE0); tft.drawString("TEMP",    206,  120, 2);
     tft.setTextColor(0x07FF); tft.drawString("HUMIDITY", 68,  183, 2);
     tft.setTextColor(0x07E0); tft.drawString("WIND",    206,  183, 2);
+    tft.setTextDatum(TL_DATUM);              // reset — producer rule (ADR-027)
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);  // reset — producer rule (ADR-027)
 }
 ```
 
@@ -185,6 +187,8 @@ void repaintWeatherValues(const WeatherAppState &s) {
     String windStr = (s.lastDataFetch == 0) ? "---" : String(s.cWind, 1);
     tft.drawString(windStr, 206, 204, 4);
     tft.drawString("km/h", 206, 222, 2);
+    tft.setTextDatum(TL_DATUM);              // reset — producer rule (ADR-027)
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);  // reset — producer rule (ADR-027)
 }
 ```
 
@@ -194,12 +198,11 @@ a cold boot.
 ### Per-second time update
 
 ```cpp
-void repaintWeatherTime() {
+void WeatherApp::repaintWeatherTime() {
     struct tm ti;
     if (!getLocalTime(&ti)) return;
-    static int lsec = -1;
-    if (ti.tm_sec == lsec) return;
-    lsec = ti.tm_sec;
+    if (ti.tm_sec == _lsec) return;   // _lsec member replaces static int lsec
+    _lsec = ti.tm_sec;
 
     // Clear time value area within TIME panel
     tft.fillRect(5, 131, 127, 34, TFT_BLACK);
@@ -217,16 +220,18 @@ void repaintWeatherTime() {
     }
     // Bar positions: x=249,255,261,267. Heights 3,6,9,12px. Bottom y=128.
     // Tallest bar top: 128-12=116. All within TEMP panel (x=138..274, y=116..178) ✓
+    tft.setTextDatum(TL_DATUM);              // reset — producer rule (ADR-027)
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);  // reset — producer rule (ADR-027)
 }
 ```
 
-### repaintApp(Weather)
+### repaintWeather()
 
 ```cpp
-void repaintWeather(WeatherAppState &s) {
+void WeatherApp::repaintWeather() {
     tft.fillRect(0, 116, 275, 124, TFT_BLACK);   // clear sub-canvas only
     weatherDrawChrome();
-    repaintWeatherValues(s);
+    repaintWeatherValues();
     repaintWeatherTime();   // draws current time immediately, no wait
 }
 ```
@@ -238,35 +243,67 @@ void repaintWeather(WeatherAppState &s) {
 Source fetches every 60 s in `loop()` regardless of mode. In the shell,
 fetch is driven by `dataTask` (see `app-lifecycle.md`):
 
-- `initAppState(Weather)`: if `s.lastDataFetch == 0`, post `DATA_FETCH_WEATHER`
-  to `dataTask` queue immediately.
-- `weatherTick()`: if `millis() - s.lastDataFetch > 60000`, post fetch request.
+- `WeatherApp::init()`: post `DATA_FETCH_WEATHER` to `dataTask` immediately on first launch.
+- `weatherTick()`: if `millis() - _s.lastDataFetch > 60000`, post fetch request.
 - `dataTask` fetches, parses, writes result under spinlock.
-- `weatherTick()` reads result under spinlock; if data changed, calls
-  `repaintWeatherValues(s)`.
+- `weatherTick()` reads result under spinlock; if data changed, calls `repaintWeatherValues()`.
 
 Fetch interval: 60 s (unchanged from source). Open-Meteo free tier imposes no
 hard rate limit at this interval.
 
 ---
 
-## appTick integration
+## App ABC integration
+
+Under the live `appShell.h` ABC, Weather is a `WeatherApp : public App` class.
+Free functions become private methods; `_s` and `_lsec` are members.
 
 ```cpp
-void weatherTick(WeatherAppState &s) {
+class WeatherApp : public App {
+public:
+    void init() override {
+        repaintWeather();
+        dataTask::enqueue(DATA_FETCH_WEATHER);   // immediate fetch on first launch
+        _s.lastDataFetch = millis();
+    }
+
+    // resume() replaces restoreAppState(Weather):
+    // chrome + cached values paint immediately; weatherTick() re-fetches if stale.
+    void resume() override { repaintWeather(); }
+
+    void suspend() override {}   // read-only display; no gesture state
+
+    void tick() override { weatherTick(); }
+
+    bool handleInput(TouchPhase, int, int) override { return false; }
+
+private:
+    WeatherAppState _s;
+    int _lsec = -1;   // replaces static int lsec in repaintWeatherTime()
+
+    void repaintWeather();
+    void weatherDrawChrome();
+    void repaintWeatherValues();
+    void repaintWeatherTime();
+    void weatherTick();
+};
+```
+
+```cpp
+void WeatherApp::weatherTick() {
     // Data staleness check
-    if (s.lastDataFetch == 0 || millis() - s.lastDataFetch > 60000) {
+    if (_s.lastDataFetch == 0 || millis() - _s.lastDataFetch > WEATHER_FETCH_MS) {
         dataTask::enqueue(DATA_FETCH_WEATHER);
-        s.lastDataFetch = millis();   // prevent re-queuing until result lands
+        _s.lastDataFetch = millis();   // prevent re-queuing until result lands
     }
     // Check for new data under spinlock
     DataResult result;
     if (dataTask::pollWeather(&result)) {
-        s.cTemp = result.cTemp;
-        s.cHum  = result.cHum;
-        s.cWind = result.cWind;
-        s.lastDataFetch = millis();
-        repaintWeatherValues(s);
+        _s.cTemp = result.cTemp;
+        _s.cHum  = result.cHum;
+        _s.cWind = result.cWind;
+        _s.lastDataFetch = millis();
+        repaintWeatherValues();
     }
     // Per-second time/RSSI update
     repaintWeatherTime();
@@ -284,16 +321,16 @@ struct WeatherAppState {
 };
 ```
 
-On `restoreAppState(Weather)`: call `repaintWeather(s)` — chrome + cached
-values paint immediately. If `lastDataFetch != 0`, data is still valid
-(shows last known values). Fetch triggers in `weatherTick` if stale.
+State lives as `WeatherApp::_s` (class member). `resume()` paints chrome +
+cached values immediately. If `lastDataFetch != 0`, data is still valid.
+Fetch re-triggers in `weatherTick()` if stale.
 
 ---
 
 ## Touch input
 
-No weather-specific touch response. Taps fall through without action — weather
-is read-only.
+No weather-specific touch response. `handleInput()` returns `false` —
+taps are available to the shell for taskbar navigation only.
 
 ---
 
@@ -330,7 +367,7 @@ is read-only.
 ## Open questions
 
 None. Location fixed to Hemel Hempstead. Panel geometry calculated. All
-lifecycle paths covered.
+lifecycle paths covered under App ABC.
 
 ---
 

@@ -1,10 +1,10 @@
 # M-MULTIAPP — Crypto App Design
 
 > Owner: Architect
-> Status: draft
+> Status: draft — App ABC integration pending
 > Date: 2026-05-22
 > Part of: [overview.md](overview.md)
-> See also: [app-lifecycle.md](app-lifecycle.md), [layout.md](layout.md)
+> See also: [app-lifecycle.md](app-lifecycle.md), [app-interface.md](app-interface.md), [layout.md](layout.md)
 > Source reference: `resource/5in1/5in1 cyberdeck CYD 2.8inch.txt` — `runCrypto()`
 
 ---
@@ -175,6 +175,8 @@ void repaintCrypto(const CryptoAppState &s) {
         yPos += 17;
         tft.drawFastHLine(0, yPos - 2, 270, 0x2104);   // divider
     }
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);   // reset — producer rule (ADR-027)
+    // textdatum left as TL_DATUM (default) — no datum reset needed
 }
 ```
 
@@ -222,28 +224,56 @@ Fetch interval: 60 s. CoinGecko free tier allows 30 calls/min; one call per
 
 ---
 
-## appTick integration
+## App ABC integration
 
-No per-second update (unlike Clock/Weather). `cryptoTick` only acts when
+Under the live `appShell.h` ABC, Crypto is a `CryptoApp : public App` class.
+Free functions become private methods; `_s` is a member.
+
+```cpp
+class CryptoApp : public App {
+public:
+    void init() override {
+        repaintCrypto();
+        dataTask::enqueue(DATA_FETCH_CRYPTO);   // immediate fetch on first launch
+        _s.lastCryptoFetch = millis();
+    }
+
+    // resume() replaces restoreAppState(Crypto):
+    // cached prices paint immediately; cryptoTick() re-fetches if stale.
+    void resume() override { repaintCrypto(); }
+
+    void suspend() override {}   // read-only display; no gesture state
+
+    void tick() override { cryptoTick(); }
+
+    bool handleInput(TouchPhase, int, int) override { return false; }
+
+private:
+    CryptoAppState _s;
+
+    void repaintCrypto();
+    void cryptoTick();
+};
+```
+
+No per-second update (unlike Clock/Weather). `cryptoTick()` only acts when
 new data arrives from `dataTask`:
 
 ```cpp
-void cryptoTick(CryptoAppState &s) {
-    // Trigger fetch if stale
+void CryptoApp::cryptoTick() {
     unsigned long now = millis();
-    if (s.lastCryptoFetch == 0 || now - s.lastCryptoFetch > CRYPTO_FETCH_MS) {
+    if (_s.lastCryptoFetch == 0 || now - _s.lastCryptoFetch > CRYPTO_FETCH_MS) {
         dataTask::enqueue(DATA_FETCH_CRYPTO);
-        s.lastCryptoFetch = now;   // prevent re-queuing until result lands
+        _s.lastCryptoFetch = now;   // prevent re-queuing until result lands
     }
-    // Check for new data
     CryptoDataResult result;
     if (dataTask::pollCrypto(&result) && result.ok) {
         for (int i = 0; i < 6; i++) {
-            s.prices[i]  = result.prices[i];
-            s.changes[i] = result.changes[i];
+            _s.prices[i]  = result.prices[i];
+            _s.changes[i] = result.changes[i];
         }
-        s.lastCryptoFetch = now;
-        repaintCrypto(s);   // full repaint on new data
+        _s.lastCryptoFetch = now;
+        repaintCrypto();   // full repaint on new data
     }
 }
 ```
@@ -260,17 +290,17 @@ struct CryptoAppState {
 };
 ```
 
-`prices` / `changes` arrays sized to 6 (not 9). On `restoreAppState(Crypto)`:
-call `repaintCrypto(s)` immediately — cached prices paint at once. If
-`lastCryptoFetch != 0`, data is valid (shows last known values). If stale
-(>60 s), `cryptoTick` triggers a refresh on the next loop iteration.
+`prices` / `changes` arrays sized to 6 (not 9). State lives as `CryptoApp::_s`
+(class member). `resume()` paints cached prices immediately. If `lastCryptoFetch != 0`,
+data is valid (shows last known values). `cryptoTick()` triggers a refresh if stale
+(>60 s).
 
 ---
 
 ## Touch input
 
-No crypto-specific touch response. Display is read-only; taps fall through
-to shell navigation only.
+No crypto-specific touch response. `handleInput()` returns `false` —
+taps are available to the shell for taskbar navigation only.
 
 ---
 

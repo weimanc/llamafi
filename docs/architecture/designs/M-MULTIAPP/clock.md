@@ -1,11 +1,21 @@
 # M-MULTIAPP — Clock App Design
 
 > Owner: Architect
-> Status: draft
+> Status: implemented — doc predates App ABC (see implementation note)
 > Date: 2026-05-22
 > Part of: [overview.md](overview.md)
-> See also: [app-lifecycle.md](app-lifecycle.md), [layout.md](layout.md)
+> See also: [app-lifecycle.md](app-lifecycle.md), [app-interface.md](app-interface.md), [layout.md](layout.md)
 > Source reference: `resource/5in1/5in1 cyberdeck CYD 2.8inch.txt` — `runClock()`
+
+> **Implementation note (2026-05-25):** This doc predates the App ABC. The live
+> implementation in `main.cpp` uses `ClockApp : public App` per `app-interface.md`
+> and `appShell.h`. Free functions (`clockTick`, `clockDrawChrome`, `repaintClock`,
+> `repaintClockContent`) map to `tick()`, `resume()`, and private helper methods.
+> `setTextDatum(MC_DATUM)` left without a producer-rule reset was the root cause of
+> LL-035/ADR-027 — fixed in commit `cb79ea8`; the live `ClockApp` resets `textdatum`
+> to `TL_DATUM` after every `drawString` call. `static int lsec` maps to `_lsec`
+> as a class member. `restoreAppState` / `repaintApp(Clock)` terminology below is
+> superseded by `ClockApp::resume()`.
 
 ---
 
