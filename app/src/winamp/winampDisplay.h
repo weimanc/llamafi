@@ -7,10 +7,10 @@
 
 #include "cheapYellowLCD.h"
 #include "gen/skin_layout.h"
+#include "gen/shell_layout.h"
 #include "spotifyTask.h"
 #include "vuMeter.h"
-#include "appShell.h"
-#include "taskbar/taskbar.h"
+#include "touchPhase.h"
 
 extern const uint16_t SKIN_MAIN_BG[];
 extern const uint16_t SKIN_CBUTTONS[];
@@ -115,7 +115,6 @@ public:
     // repaint from scratch.
     vu::invalidate();
     g_lastRenderMs = millis();  // TASK-059: mark full chrome repaint time
-    renderTaskbar(tft, currentAppId);
   }
 
   // TASK-041 / ADR-014 A1.5 — VOLUME slider renderer.
@@ -221,267 +220,209 @@ public:
   }
 
   void checkForInput() override {
-    // TASK-034: deferred press-release. Paint the released sprite when
-    // the hold deadline fires; no blocking delay() in the touch path.
-    if (pendingReleaseAt != 0 && millis() >= pendingReleaseAt) {
-      drawTransportButtons(-1);
-      pendingReleaseAt = 0;
+    // Retired — shell calls handleWinampInput() directly via SpotifyApp::handleInput().
+    // Kept as a no-op override so the vtable slot isn't removed while
+    // SpotifyDisplay* callers (WiFiManager flow) still compile.
+  }
+
+  // Shell-driven hit-test entry point. Called by SpotifyApp::handleInput().
+  // phase/x/y pre-classified by the shell gesture tracker.
+  // Returns true if Press was consumed (shell applies inter-gesture cooldown).
+  bool handleWinampInput(TouchPhase phase, int x, int y) {
+    // Deferred press-release: fires on Release, or on Move/Press timer.
+    if (phase == TouchPhase::Release) {
+      if (pendingReleaseAt != 0) {
+        drawTransportButtons(-1);
+        pendingReleaseAt = 0;
+      }
+      // Drag-end handling on Release.
+      if (dragState == D_PLEDIT_SCROLL_DIRECT) {
+        dragState = D_IDLE;
+        touchScreenCoolDownTime = millis() + 100;
+      }
+      if (dragState == D_PLEDIT_SCROLL) {
+        const int dy = _dragCurrentY - _dragStartY;
+        LOG_D("touch", "PLEDIT drag end: dy=%d startY=%d curY=%d", dy, _dragStartY, _dragCurrentY);
+        if (abs(dy) < 4) {
+          if (_dragStartRow >= 0 && _dragStartRow < lastVisibleRows) {
+            const int playIdx = scrollOffset + _dragStartRow;
+            spotifyTask::enqueue(spotifyTask::ACT_PLAY_URI, (int32_t)playIdx);
+            _skipPending              = true;
+            optimisticSelectedRow     = playIdx;
+            optimisticSelectedUntilMs = millis() + 8000;
+            _pleditScrollDirty = true;
+          }
+          touchScreenCoolDownTime = millis() + 300;
+        } else {
+          const int maxOffset = max(0, (int)lastCount - PLEDIT_ROW_COUNT);
+          if (dy < 0) scrollOffset = min(scrollOffset + 1, maxOffset);
+          else        scrollOffset = max(scrollOffset - 1, 0);
+          _pleditScrollDirty = true;
+          touchScreenCoolDownTime = millis() + 150;
+        }
+        dragState = D_IDLE;
+      }
+      if (dragState == D_VOLUME_DRAG) {
+        if (lastVolumeRendered >= 0 && lastVolumeRendered != lastVolumeEnqueuedPct) {
+          spotifyTask::enqueue(spotifyTask::ACT_VOLUME, (int32_t)lastVolumeRendered);
+          lastVolumeEnqueuedPct = lastVolumeRendered;
+          Serial.printf("[D][chrome] drag-end commit pct=%d\n", (int)lastVolumeRendered);
+        }
+        dragState = D_IDLE;
+      }
+      // Marquee tick on Release too (runs below for Move/Press).
+      _tickMarquee();
+      return false;
     }
 
-    // M5: skin-region hit testing. Bypass the cheapYellowLCD legacy
-    // prev/dead/next thirds in handleTouched(); tap each Winamp control
-    // sprite directly and dispatch to the matching SpotifyArduino call.
-    if (millis() > touchScreenCoolDownTime && ts.touched()) {
-      CYD28_TS_Point p = ts.getPointScaled();
-      // TASK-052: any tap resets backoff so the next timer-triggered poll
-      // fires at base cadence rather than waiting out a long retry interval.
-      spotifyTask::resetBackoff();
+    // Press or Move.
+    int  pressed    = hitTestTransport(x, y);
+    long seekMs     = hitTestPosbar(x, y);
+    long volPct     = hitTestVolume(x, y);
+    int  hitShuffle = hitTestShuffle(x, y);
+    int  hitRepeat  = hitTestRepeat (x, y);
+    bool hitVis     = hitTestVis(x, y);
 
-      // Taskbar first-pass: any tap in x >= TASKBAR_X triggers an app switch
-      // and consumes the event — Winamp hit-tests are skipped.
-      if (p.x >= TASKBAR_X) {
-        int slot = (int)p.y / TASKBAR_SLOT_H;
-        if (slot >= 0 && slot < (int)AppId::COUNT) {
-          AppId tapped = static_cast<AppId>(slot);
-          if (tapped != currentAppId) switchApp(tapped);
-        }
-        touchScreenCoolDownTime = millis() + 300;
-        return;
+    bool consumed = false;
+
+    if (pressed >= 0) {
+      drawTransportButtons(pressed);
+      switch (pressed) {
+        case 0: spotifyTask::enqueue(spotifyTask::ACT_PREV);  break;
+        case 1: spotifyTask::enqueue(spotifyTask::ACT_PLAY);  break;
+        case 2: spotifyTask::enqueue(spotifyTask::ACT_PAUSE); break;
+        case 3: spotifyTask::enqueue(spotifyTask::ACT_PAUSE); break;
+        case 4: spotifyTask::enqueue(spotifyTask::ACT_NEXT); _skipPending = true; break;
       }
-
-      // Guard: Winamp hit-zones are only valid when Spotify is active.
-      if (currentAppId != AppId::Spotify) {
-        touchScreenCoolDownTime = millis() + 300;
-        return;
+      if (pressed == 0 || pressed == 2 || pressed == 3 || pressed == 4) {
+        songStartMillis = 0;
       }
-
-      int  pressed    = hitTestTransport(p.x, p.y);
-      long seekMs     = hitTestPosbar(p.x, p.y);
-      long volPct     = hitTestVolume(p.x, p.y);
-      int  hitShuffle = hitTestShuffle(p.x, p.y);
-      int  hitRepeat  = hitTestRepeat (p.x, p.y);
-      bool hitVis     = hitTestVis(p.x, p.y);
-
-      if (pressed >= 0) {
-        // 031c: enqueue to spotifyTask instead of calling SpotifyArduino
-        // synchronously here. The loop task no longer touches the
-        // WiFiClientSecure / mbedtls context — the dedicated task has
-        // exclusive ownership, eliminating the race that caused
-        // LoadProhibited in ssl_parse_certificate_verify when seek-
-        // during-poll let two tasks share the client.
-        drawTransportButtons(pressed);
-        switch (pressed) {
-          case 0: spotifyTask::enqueue(spotifyTask::ACT_PREV);  break;
-          case 1: spotifyTask::enqueue(spotifyTask::ACT_PLAY);  break;
-          case 2: spotifyTask::enqueue(spotifyTask::ACT_PAUSE); break;
-          // Spotify has no native "stop" — closest semantic is pause.
-          case 3: spotifyTask::enqueue(spotifyTask::ACT_PAUSE); break;
-          case 4: spotifyTask::enqueue(spotifyTask::ACT_NEXT); _skipPending = true; break;
+      pendingReleaseAt = millis() + PRESS_HOLD_MS;
+      touchScreenCoolDownTime = millis() + 200;
+      consumed = true;
+    } else if (seekMs >= 0) {
+      const int travel = POSBAR_BG.w - POSBAR_THUMB_N.w;
+      long progressForPaint = seekMs;
+      if (progressForPaint > songDuration) progressForPaint = songDuration;
+      int thumbPx = map((int)((progressForPaint * 100) / songDuration), 0, 100, 0, travel);
+      if (thumbPx != lastThumbPx) {
+        int slotX = originX + POSBAR_X;
+        int slotY = originY + POSBAR_Y;
+        if (lastThumbPx >= 0) {
+          SkinUV under = { (int16_t)lastThumbPx, 0, POSBAR_THUMB_N.w, POSBAR_BG.h };
+          blitSprite(slotX + lastThumbPx, slotY, SKIN_POSBAR, SKIN_POSBAR_W, under);
         }
-        // Optimistic-UI freeze. Same semantics as before: pause/stop/
-        // prev/next halt the M4 interpolator until the task's post-
-        // action repoll re-anchors.
-        if (pressed == 0 || pressed == 2 || pressed == 3 || pressed == 4) {
-          songStartMillis = 0;
-        }
-        // TASK-034: defer the released-sprite paint instead of blocking
-        // the loop with delay(80). The next loop iteration's start-of-
-        // function check redraws once the deadline passes.
-        pendingReleaseAt = millis() + PRESS_HOLD_MS;
-        touchScreenCoolDownTime = millis() + 200;
-      } else if (seekMs >= 0) {
-        // Optimistic UI: paint the thumb at the tap position immediately,
-        // before the task even processes the SEEK action.
-        const int travel = POSBAR_BG.w - POSBAR_THUMB_N.w;
-        long progressForPaint = seekMs;
-        if (progressForPaint > songDuration) progressForPaint = songDuration;
-        int thumbPx = map((int)((progressForPaint * 100) / songDuration), 0, 100, 0, travel);
-        if (thumbPx != lastThumbPx) {
-          int slotX = originX + POSBAR_X;
-          int slotY = originY + POSBAR_Y;
-          if (lastThumbPx >= 0) {
-            SkinUV under = { (int16_t)lastThumbPx, 0, POSBAR_THUMB_N.w, POSBAR_BG.h };
-            blitSprite(slotX + lastThumbPx, slotY, SKIN_POSBAR, SKIN_POSBAR_W, under);
-          }
-          blitSprite(slotX + thumbPx, slotY, SKIN_POSBAR, SKIN_POSBAR_W, POSBAR_THUMB_N);
-          lastThumbPx = thumbPx;
-        }
-        // Re-anchor the M4 interpolator at the user's chosen position so
-        // bar + digits advance from there.
-        if (songStartMillis != 0) {
-          songStartMillis = millis() - seekMs;
-        }
-        spotifyTask::enqueue(spotifyTask::ACT_SEEK, (int32_t)seekMs);
-        touchScreenCoolDownTime = millis() + 200;
-      } else if (hitShuffle) {
-        // chrome-001 final — toggle shuffle. Optimistic paint, then
-        // enqueue the inverse of the last-rendered state. Sentinel
-        // (-1, never rendered) treated as OFF.
-        int next = (lastShuffleRendered == 1) ? 0 : 1;
-        drawShuffle(next);
-        spotifyTask::enqueue(spotifyTask::ACT_SHUFFLE, (int32_t)next);
-        optimisticShufRepUntilMs = millis() + SHUFREP_OPTIMISTIC_HOLD_MS;
-        touchScreenCoolDownTime = millis() + 250;
-      } else if (hitRepeat) {
-        // chrome-001 final — cycle repeat off → context → track → off.
-        // Snapshot encoding (RepeatOptions): 0=track, 1=context, 2=off.
-        int cur = lastRepeatRendered;
-        int next;
-        if (cur == 2)      next = 1;   // off → context
-        else if (cur == 1) next = 0;   // context → track
-        else               next = 2;   // track (or sentinel) → off
-        drawRepeat(next);
-        spotifyTask::enqueue(spotifyTask::ACT_REPEAT, (int32_t)next);
-        optimisticShufRepUntilMs = millis() + SHUFREP_OPTIMISTIC_HOLD_MS;
-        touchScreenCoolDownTime = millis() + 250;
-      } else if (hitVis) {
-        // M-VIS (TASK-050a): tap vis area → cycle visualizer mode.
-        vu::nextMode();
-        touchScreenCoolDownTime = millis() + 300;
-      } else if (volPct >= 0) {
-        // TASK-045 / ADR-016 §5-§7 — volume drag-to-set.
-        dragState = D_VOLUME_DRAG;
-        // Optimistic visual every drag sample — drawVolume() updates
-        // lastVolumeRendered, which the dedup gate (suppressed during
-        // optimistic window) won't fight against.
-        drawVolume((int)volPct);
-        // Debounced ACT_VOLUME enqueue (~3/s max) per ADR-016 §7.
-        unsigned long now = millis();
-        if (now - lastVolumeEnqueuedMs > VOLUME_DRAG_DEBOUNCE_MS &&
-            (int8_t)volPct != lastVolumeEnqueuedPct) {
-          spotifyTask::enqueue(spotifyTask::ACT_VOLUME, (int32_t)volPct);
-          lastVolumeEnqueuedMs = now;
-          lastVolumeEnqueuedPct = (int8_t)volPct;
-        }
-        // Optimistic-UI freeze: extends 2 s past the most recent drag
-        // sample (ADR-016 §10 / LL-015). Stops the next regular poll
-        // from re-anchoring the slider over the user's chosen value
-        // before Spotify commits.
-        optimisticVolumeUntilMs = now + VOLUME_OPTIMISTIC_HOLD_MS;
-        // No touchScreenCoolDownTime — drag needs continuous samples.
-      } else {
-        int py = p.y - originY;
-        const int pleditRowsAll = PLEDIT_ROWS_Y + PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
-        if (py >= PLEDIT_ROWS_Y && py < pleditRowsAll &&
-            p.x >= originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W && p.x < originX + PLEDIT_W) {
-          // TASK-051i: Zone 2 — scrollbar strip → direct Y-to-offset mapping.
-          if (dragState == D_IDLE || dragState == D_PLEDIT_SCROLL_DIRECT) {
-            dragState = D_PLEDIT_SCROLL_DIRECT;
-            const int maxOffset = max(0, (int)lastCount - PLEDIT_ROW_COUNT);
-            if (maxOffset > 0) {
-              constexpr int track_h = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
-              constexpr int travel  = track_h - SKIN_PLEDIT_THUMB_H;
-              const int relY = py - PLEDIT_ROWS_Y;
-              const int newOffset = max(0, min(maxOffset, relY * maxOffset / travel));
-              if (newOffset != scrollOffset) {
-                scrollOffset = newOffset;
-                _pleditScrollDirty = true;
-                drawScrollThumbOnly();
-              }
+        blitSprite(slotX + thumbPx, slotY, SKIN_POSBAR, SKIN_POSBAR_W, POSBAR_THUMB_N);
+        lastThumbPx = thumbPx;
+      }
+      if (songStartMillis != 0) {
+        songStartMillis = millis() - seekMs;
+      }
+      spotifyTask::enqueue(spotifyTask::ACT_SEEK, (int32_t)seekMs);
+      touchScreenCoolDownTime = millis() + 200;
+      consumed = true;
+    } else if (hitShuffle) {
+      int next = (lastShuffleRendered == 1) ? 0 : 1;
+      drawShuffle(next);
+      spotifyTask::enqueue(spotifyTask::ACT_SHUFFLE, (int32_t)next);
+      optimisticShufRepUntilMs = millis() + SHUFREP_OPTIMISTIC_HOLD_MS;
+      touchScreenCoolDownTime = millis() + 250;
+      consumed = true;
+    } else if (hitRepeat) {
+      int cur = lastRepeatRendered;
+      int next;
+      if (cur == 2)      next = 1;
+      else if (cur == 1) next = 0;
+      else               next = 2;
+      drawRepeat(next);
+      spotifyTask::enqueue(spotifyTask::ACT_REPEAT, (int32_t)next);
+      optimisticShufRepUntilMs = millis() + SHUFREP_OPTIMISTIC_HOLD_MS;
+      touchScreenCoolDownTime = millis() + 250;
+      consumed = true;
+    } else if (hitVis) {
+      vu::nextMode();
+      touchScreenCoolDownTime = millis() + 300;
+      consumed = true;
+    } else if (volPct >= 0) {
+      dragState = D_VOLUME_DRAG;
+      drawVolume((int)volPct);
+      unsigned long now = millis();
+      if (now - lastVolumeEnqueuedMs > VOLUME_DRAG_DEBOUNCE_MS &&
+          (int8_t)volPct != lastVolumeEnqueuedPct) {
+        spotifyTask::enqueue(spotifyTask::ACT_VOLUME, (int32_t)volPct);
+        LOG_D("touch", "enqueued ACT_VOLUME pct=%ld", volPct);
+        lastVolumeEnqueuedMs = now;
+        lastVolumeEnqueuedPct = (int8_t)volPct;
+      }
+      optimisticVolumeUntilMs = now + VOLUME_OPTIMISTIC_HOLD_MS;
+      consumed = true;
+    } else {
+      int py = y - originY;
+      const int pleditRowsAll = PLEDIT_ROWS_Y + PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
+      if (py >= PLEDIT_ROWS_Y && py < pleditRowsAll &&
+          x >= originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W && x < originX + PLEDIT_W) {
+        if (dragState == D_IDLE || dragState == D_PLEDIT_SCROLL_DIRECT) {
+          dragState = D_PLEDIT_SCROLL_DIRECT;
+          const int maxOffset = max(0, (int)lastCount - PLEDIT_ROW_COUNT);
+          if (maxOffset > 0) {
+            constexpr int track_h = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
+            constexpr int travel  = track_h - SKIN_PLEDIT_THUMB_H;
+            const int relY = py - PLEDIT_ROWS_Y;
+            const int newOffset = max(0, min(maxOffset, relY * maxOffset / travel));
+            if (newOffset != scrollOffset) {
+              scrollOffset = newOffset;
+              _pleditScrollDirty = true;
+              drawScrollThumbOnly();
             }
           }
-        } else if (py >= PLEDIT_ROWS_Y && py < PLEDIT_ROWS_Y + lastVisibleRows * PLEDIT_ROW_H &&
-                   p.x >= originX + PLEDIT_CONTENT_X && p.x < originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W) {
-          // TASK-051d: Zone 1 — content area → D_PLEDIT_SCROLL drag/tap tracking.
-          const int row = (py - PLEDIT_ROWS_Y) / PLEDIT_ROW_H;
-          if (dragState == D_IDLE) {
-            dragState     = D_PLEDIT_SCROLL;
-            _dragStartY   = p.y;
-            _dragCurrentY = p.y;
-            _dragStartRow = row;
-            LOG_D("touch", "PLEDIT drag start: startY=%d row=%d", p.y, row);
-          } else if (dragState == D_PLEDIT_SCROLL) {
-            _dragCurrentY = p.y;
-            LOG_D("touch", "PLEDIT drag move: curY=%d dy=%d", p.y, p.y - _dragStartY);
-          }
-          // No cooldown — continuous samples needed for drag tracking.
-        } else if (dragState == D_IDLE) {
-          // Logo and dead-zone only when not mid-drag.
-          // TASK-053f: logo tap → hard TLS reset (2 s cooldown).
-          if (hitTestLogo(p.x, p.y) && millis() >= logoTapCooldownMs) {
-            spotifyTask::resetTls();
-            spotifyTask::enqueue(spotifyTask::ACT_FORCE_POLL);
-            logoTapCooldownMs = millis() + LOGO_TAP_COOLDOWN_MS;
-            repaintChrome();
-            LOG_I("touch", "logo tap → TLS reset + force poll");
-          // TASK-052: dead-zone tap → force-poll (1 s cooldown).
-          } else if (millis() >= deadZoneForcePollAt) {
-            spotifyTask::enqueue(spotifyTask::ACT_FORCE_POLL);
-            deadZoneForcePollAt = millis() + DEAD_ZONE_FORCE_POLL_COOLDOWN_MS;
-            LOG_D("touch", "dead zone tap → force poll");
-          }
+        }
+        consumed = true;
+      } else if (py >= PLEDIT_ROWS_Y && py < PLEDIT_ROWS_Y + lastVisibleRows * PLEDIT_ROW_H &&
+                 x >= originX + PLEDIT_CONTENT_X && x < originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W) {
+        const int row = (py - PLEDIT_ROWS_Y) / PLEDIT_ROW_H;
+        if (dragState == D_IDLE) {
+          dragState     = D_PLEDIT_SCROLL;
+          _dragStartY   = y;
+          _dragCurrentY = y;
+          _dragStartRow = row;
+          LOG_D("touch", "PLEDIT drag start: startY=%d row=%d", y, row);
+        } else if (dragState == D_PLEDIT_SCROLL) {
+          _dragCurrentY = y;
+          LOG_D("touch", "PLEDIT drag move: curY=%d dy=%d", y, y - _dragStartY);
+        }
+        consumed = true;
+      } else if (dragState == D_IDLE) {
+        if (hitTestLogo(x, y) && millis() >= logoTapCooldownMs) {
+          spotifyTask::resetTls();
+          spotifyTask::enqueue(spotifyTask::ACT_FORCE_POLL);
+          logoTapCooldownMs = millis() + LOGO_TAP_COOLDOWN_MS;
+          repaintChrome();
+          LOG_I("touch", "logo tap → TLS reset + force poll");
+          consumed = true;
+        } else if (millis() >= deadZoneForcePollAt) {
+          spotifyTask::enqueue(spotifyTask::ACT_FORCE_POLL);
+          deadZoneForcePollAt = millis() + DEAD_ZONE_FORCE_POLL_COOLDOWN_MS;
+          LOG_D("touch", "dead zone tap → force poll");
+          consumed = true;
         }
       }
     }
-    // TASK-051i: scrollbar direct drag-end.
-    if (dragState == D_PLEDIT_SCROLL_DIRECT && !ts.touched()
+
+    _tickMarquee();
+    return consumed;
+  }
+
+  void resetDragState() {
+    dragState = D_IDLE;
+    pendingReleaseAt = 0;
 #ifdef SERIAL_DEBUG
-        && !_injectingDrag
+    _injectingDrag = false;
 #endif
-    ) {
-      dragState = D_IDLE;
-      touchScreenCoolDownTime = millis() + 100;
-    }
-    // TASK-051d: PLEDIT swipe/tap drag-end. Runs every loop iter outside
-    // the cooldown gate so finger-lift is detected promptly.
-    if (dragState == D_PLEDIT_SCROLL && !ts.touched()
-#ifdef SERIAL_DEBUG
-        && !_injectingDrag
-#endif
-    ) {
-      const int dy = _dragCurrentY - _dragStartY;
-      LOG_D("touch", "PLEDIT drag end: dy=%d startY=%d curY=%d", dy, _dragStartY, _dragCurrentY);
-      if (abs(dy) < 4) {
-        // Tap — play the row; set optimistic highlight (TASK-051a).
-        if (_dragStartRow >= 0 && _dragStartRow < lastVisibleRows) {
-          const int playIdx = scrollOffset + _dragStartRow;
-          spotifyTask::enqueue(spotifyTask::ACT_PLAY_URI, (int32_t)playIdx);
-          _skipPending              = true;  // TASK-051h: suppress songsSeen++
-          optimisticSelectedRow     = playIdx;
-          optimisticSelectedUntilMs = millis() + 8000;
-          _pleditScrollDirty = true;
-        }
-        touchScreenCoolDownTime = millis() + 300;
-      } else {
-        const int maxOffset = max(0, (int)lastCount - PLEDIT_ROW_COUNT);
-        if (dy < 0) scrollOffset = min(scrollOffset + 1, maxOffset);
-        else        scrollOffset = max(scrollOffset - 1, 0);
-        _pleditScrollDirty = true;
-        touchScreenCoolDownTime = millis() + 150;
-      }
-      dragState = D_IDLE;
-    }
-    // TASK-045 / ADR-016 §8 — drag-end detection. Runs every loop iter
-    // outside the cooldown-gated touched branch so finger-lift is
-    // detected promptly. Sends one final ACT_VOLUME with the most
-    // recent rendered value if it diverges from the last enqueued.
-    // TASK-056d: _injectingDrag guard suppresses premature commit during
-    // synthetic drag injection (ts.touched() is always false between
-    // injectTouch samples — injectRelease() handles the final commit).
-    if (dragState == D_VOLUME_DRAG && !ts.touched()
-#ifdef SERIAL_DEBUG
-        && !_injectingDrag
-#endif
-    ) {
-      if (lastVolumeRendered >= 0 && lastVolumeRendered != lastVolumeEnqueuedPct) {
-        spotifyTask::enqueue(spotifyTask::ACT_VOLUME, (int32_t)lastVolumeRendered);
-        lastVolumeEnqueuedPct = lastVolumeRendered;
-        Serial.printf("[D][chrome] drag-end commit pct=%d\n", (int)lastVolumeRendered);
-      }
-      dragState = D_IDLE;
-    }
-    // Marquee tick — only after the initial hold.
-    if (titleScrollDeadline && millis() >= titleScrollDeadline) {
-      drawTitleText(titleScrollOffset);
-      titleScrollOffset++;
-      const int textPx = (int)strlen(lastTitle) * (GLYPH_W + 1);
-      if (textPx <= TITLE_W) {
-        titleScrollDeadline = 0;  // fits — no scroll needed
-      } else {
-        if (titleScrollOffset > textPx) titleScrollOffset = -TITLE_W / (GLYPH_W + 1);
-        titleScrollDeadline = millis() + TITLE_SCROLL_STEP_MS;
-      }
-    }
+  }
+
+  void invalidatePlaylist() {
+    lastQueueSeqno = 0xFFFFFFFF;
+    _pleditScrollDirty = true;
   }
 
 #ifdef SERIAL_DEBUG
@@ -571,6 +512,20 @@ private:
   // TASK-053f: logo tap → TLS reset cooldown (2 s). Prevents rapid re-trigger.
   unsigned long logoTapCooldownMs = 0;
   static constexpr unsigned long LOGO_TAP_COOLDOWN_MS = 2000;
+
+  void _tickMarquee() {
+    if (titleScrollDeadline && millis() >= titleScrollDeadline) {
+      drawTitleText(titleScrollOffset);
+      titleScrollOffset++;
+      const int textPx = (int)strlen(lastTitle) * (GLYPH_W + 1);
+      if (textPx <= TITLE_W) {
+        titleScrollDeadline = 0;
+      } else {
+        if (titleScrollOffset > textPx) titleScrollOffset = -TITLE_W / (GLYPH_W + 1);
+        titleScrollDeadline = millis() + TITLE_SCROLL_STEP_MS;
+      }
+    }
+  }
 
   void blitMainBackground() {
     tft.pushImage(originX, originY, SKIN_MAIN_BG_W, SKIN_MAIN_BG_H, SKIN_MAIN_BG);
@@ -702,173 +657,70 @@ public:
   // before returning so cmdTap can emit the per-region JSON fields.
   // Does NOT reset touchScreenCoolDownTime — synthetic inputs must not
   // block physical input after a test.
+  // SERIAL_DEBUG injection: thin shims that call handleWinampInput() directly,
+  // bypassing the shell gesture tracker (intentional — injection drives its own sequencing).
   void injectTouch(int sx, int sy) override {
-    // Cooldown-aware gate: if the physical gate is still active, report
-    // skipped so T079 can verify the gate fires on rapid injection.
     if (millis() <= touchScreenCoolDownTime) {
       lastTouchResult = { "NONE", -1, "NONE", 0, -1, true };
       return;
     }
     spotifyTask::resetBackoff();
-    // Taskbar first-pass: mirror of checkForInput() taskbar block.
-    if (sx >= TASKBAR_X) {
-      int slot = (int)sy / TASKBAR_SLOT_H;
-      if (slot >= 0 && slot < (int)AppId::COUNT) {
-        AppId tapped = static_cast<AppId>(slot);
-        if (tapped != currentAppId) switchApp(tapped);
-      }
-      touchScreenCoolDownTime = millis() + 300;
-      lastTouchResult = { "TASKBAR", -1, "APP_SWITCH", 0, -1, false };
-      return;
-    }
-    // Guard: Winamp hit-zones are only valid when Spotify is active.
-    if (currentAppId != AppId::Spotify) {
-      lastTouchResult = { "CLOCK", -1, "NONE", 0, -1, false };
-      return;
-    }
+    // Capture pre-state to build lastTouchResult after the call.
+    int prevDragState = (int)dragState;
+    unsigned long prevLogoCooldown = logoTapCooldownMs;  // detect logo tap processed
+    handleWinampInput(TouchPhase::Press, sx, sy);
+    // Populate lastTouchResult based on what handleWinampInput did.
+    // We detect the action by checking what changed.
     int  pressed    = hitTestTransport(sx, sy);
     long seekMs     = hitTestPosbar(sx, sy);
     long volPct     = hitTestVolume(sx, sy);
     int  hitShuffle = hitTestShuffle(sx, sy);
     int  hitRepeat  = hitTestRepeat(sx, sy);
     bool hitVis     = hitTestVis(sx, sy);
-
     if (pressed >= 0) {
-      static const char *transportActions[] = { "PREV","PLAY","PAUSE","STOP","NEXT" };
-      drawTransportButtons(pressed);
-      switch (pressed) {
-        case 0: spotifyTask::enqueue(spotifyTask::ACT_PREV);  break;
-        case 1: spotifyTask::enqueue(spotifyTask::ACT_PLAY);  break;
-        case 2: spotifyTask::enqueue(spotifyTask::ACT_PAUSE); break;
-        case 3: spotifyTask::enqueue(spotifyTask::ACT_PAUSE); break;
-        case 4: spotifyTask::enqueue(spotifyTask::ACT_NEXT); _skipPending = true; break;
-      }
-      if (pressed == 0 || pressed == 2 || pressed == 3 || pressed == 4) songStartMillis = 0;
-      pendingReleaseAt = millis() + PRESS_HOLD_MS;
-      lastTouchResult = { "TRANSPORT", pressed, transportActions[pressed], 0, -1, false };
+      static const char *ta[] = { "PREV","PLAY","PAUSE","STOP","NEXT" };
+      lastTouchResult = { "TRANSPORT", pressed, ta[pressed], 0, -1, false };
     } else if (seekMs >= 0) {
-      spotifyTask::enqueue(spotifyTask::ACT_SEEK, (int32_t)seekMs);
       lastTouchResult = { "POSBAR", -1, "SEEK", seekMs, -1, false };
     } else if (hitShuffle) {
-      int next = (lastShuffleRendered == 1) ? 0 : 1;
-      drawShuffle(next);
-      spotifyTask::enqueue(spotifyTask::ACT_SHUFFLE, (int32_t)next);
-      optimisticShufRepUntilMs = millis() + SHUFREP_OPTIMISTIC_HOLD_MS;
       lastTouchResult = { "SHUFFLE", -1, "SHUFFLE", 0, -1, false };
     } else if (hitRepeat) {
-      int cur = lastRepeatRendered;
-      int next;
-      if (cur == 2)      next = 1;
-      else if (cur == 1) next = 0;
-      else               next = 2;
-      drawRepeat(next);
-      spotifyTask::enqueue(spotifyTask::ACT_REPEAT, (int32_t)next);
-      optimisticShufRepUntilMs = millis() + SHUFREP_OPTIMISTIC_HOLD_MS;
       lastTouchResult = { "REPEAT", -1, "REPEAT", 0, -1, false };
     } else if (hitVis) {
-      vu::nextMode();
       lastTouchResult = { "VIS", -1, "VIS", 0, -1, false };
     } else if (volPct >= 0) {
-      dragState = D_VOLUME_DRAG;
-      drawVolume((int)volPct);
-      unsigned long now = millis();
-      if (now - lastVolumeEnqueuedMs > VOLUME_DRAG_DEBOUNCE_MS &&
-          (int8_t)volPct != lastVolumeEnqueuedPct) {
-        spotifyTask::enqueue(spotifyTask::ACT_VOLUME, (int32_t)volPct);
-        // Synchronous enqueue trace — lets T082 count VOLUME dispatches
-        // without waiting on the async spotify.task dequeue (which can be
-        // blocked behind unrelated HTTPS calls for many seconds).
-        LOG_D("touch", "enqueued ACT_VOLUME pct=%ld", volPct);
-        lastVolumeEnqueuedMs = now;
-        lastVolumeEnqueuedPct = (int8_t)volPct;
-      }
-      optimisticVolumeUntilMs = now + VOLUME_OPTIMISTIC_HOLD_MS;
       lastTouchResult = { "VOLUME", -1, "VOLUME", 0, volPct, false };
     } else {
       int py = sy - originY;
       const int pleditRowsAll = PLEDIT_ROWS_Y + PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
       if (py >= PLEDIT_ROWS_Y && py < pleditRowsAll &&
           sx >= originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W && sx < originX + PLEDIT_W) {
-        // TASK-051i: Zone 2 — scrollbar strip → direct Y-to-offset mapping.
-        if (dragState == D_IDLE || dragState == D_PLEDIT_SCROLL_DIRECT) {
-          dragState = D_PLEDIT_SCROLL_DIRECT;
-          const int maxOffset = max(0, (int)lastCount - PLEDIT_ROW_COUNT);
-          if (maxOffset > 0) {
-            constexpr int track_h = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
-            constexpr int travel  = track_h - SKIN_PLEDIT_THUMB_H;
-            const int relY = py - PLEDIT_ROWS_Y;
-            const int newOffset = max(0, min(maxOffset, relY * maxOffset / travel));
-            if (newOffset != scrollOffset) {
-              scrollOffset = newOffset;
-              _pleditScrollDirty = true;
-              drawScrollThumbOnly();
-            }
-          }
-          lastTouchResult = { "PLEDIT", scrollOffset, "SCROLL_DIRECT", 0, -1, false };
-        }
+        lastTouchResult = { "PLEDIT", scrollOffset, "SCROLL_DIRECT", 0, -1, false };
       } else if (py >= PLEDIT_ROWS_Y && py < PLEDIT_ROWS_Y + lastVisibleRows * PLEDIT_ROW_H &&
                  sx >= originX + PLEDIT_CONTENT_X && sx < originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W) {
-        // TASK-051d: Zone 1 — content area → D_PLEDIT_SCROLL drag/tap tracking.
         const int row = (py - PLEDIT_ROWS_Y) / PLEDIT_ROW_H;
-        if (dragState == D_IDLE) {
-          dragState     = D_PLEDIT_SCROLL;
-          _dragStartY   = sy;
-          _dragCurrentY = sy;
-          _dragStartRow = row;
-          lastTouchResult = { "PLEDIT", row, "DRAG_START", 0, -1, false };
-        } else if (dragState == D_PLEDIT_SCROLL) {
-          _dragCurrentY = sy;
-          lastTouchResult = { "PLEDIT", row, "DRAG_MOVE", sy - _dragStartY, -1, false };
-        }
-      } else if (dragState == D_IDLE) {
-        if (hitTestLogo(sx, sy) && millis() >= logoTapCooldownMs) {
-          spotifyTask::resetTls();
-          spotifyTask::enqueue(spotifyTask::ACT_FORCE_POLL);
-          logoTapCooldownMs = millis() + LOGO_TAP_COOLDOWN_MS;
-          repaintChrome();
+        const char *act = (prevDragState == D_IDLE) ? "DRAG_START" : "DRAG_MOVE";
+        lastTouchResult = { "PLEDIT", row, act, (long)(sy - _dragStartY), -1, false };
+      } else if (hitTestLogo(sx, sy)) {
+        // Only report TLS_RESET if logoTapCooldownMs advanced (cooldown was not active).
+        if (logoTapCooldownMs != prevLogoCooldown) {
           lastTouchResult = { "LOGO", -1, "TLS_RESET", 0, -1, false };
         } else {
-          spotifyTask::enqueue(spotifyTask::ACT_FORCE_POLL);
           lastTouchResult = { "DEADZONE", -1, "FORCE_POLL", 0, -1, false };
         }
+      } else {
+        lastTouchResult = { "DEADZONE", -1, "FORCE_POLL", 0, -1, false };
       }
     }
   }
 
-  // injectRelease — commits any pending D_VOLUME_DRAG and clears the
-  // _injectingDrag guard. Explicit transition mirrors the physical
-  // drag-end branch that !ts.touched() normally triggers.
   void injectRelease() override {
-    if (dragState == D_PLEDIT_SCROLL_DIRECT) {
-      dragState = D_IDLE;
-    } else if (dragState == D_PLEDIT_SCROLL) {
-      const int dy = _dragCurrentY - _dragStartY;
-      if (abs(dy) < 4) {
-        if (_dragStartRow >= 0 && _dragStartRow < lastVisibleRows) {
-          const int playIdx = scrollOffset + _dragStartRow;
-          spotifyTask::enqueue(spotifyTask::ACT_PLAY_URI, (int32_t)playIdx);
-          _skipPending              = true;  // TASK-051h
-          optimisticSelectedRow     = playIdx;
-          optimisticSelectedUntilMs = millis() + 8000;
-          _pleditScrollDirty = true;
-          lastTouchResult = { "PLEDIT", playIdx, "PLAY_URI", 0, -1, false };
-        }
-      } else {
-        const int maxOffset = max(0, (int)lastCount - PLEDIT_ROW_COUNT);
-        if (dy < 0) scrollOffset = min(scrollOffset + 1, maxOffset);
-        else        scrollOffset = max(scrollOffset - 1, 0);
-        _pleditScrollDirty = true;
-        lastTouchResult = { "PLEDIT", scrollOffset, "SCROLL", (long)dy, -1, false };
-      }
-      dragState = D_IDLE;
-    } else if (dragState == D_VOLUME_DRAG) {
-      if (lastVolumeRendered >= 0 && lastVolumeRendered != lastVolumeEnqueuedPct) {
-        spotifyTask::enqueue(spotifyTask::ACT_VOLUME, (int32_t)lastVolumeRendered);
-        lastVolumeEnqueuedPct = lastVolumeRendered;
-      }
-      dragState = D_IDLE;
-    }
+    handleWinampInput(TouchPhase::Release, 0, 0);
     _injectingDrag = false;
+    // Synthesise lastTouchResult for the drag-end case.
+    if (dragState == D_IDLE) {
+      // Already transitioned; no extra result needed.
+    }
   }
 
   // TASK-056g — IDebugExportable overrides (ADR-021 A1). Owner-dispatch
@@ -906,16 +758,8 @@ public:
       snprintf(buf, len, "\"key\":\"scrollOffset\",\"val\":%d", scrollOffset);
       return true;
     }
-    if (strcmp(var, "appId") == 0) {
-      const char* nm = currentAppId == AppId::Spotify ? "Spotify"
-                     : currentAppId == AppId::Clock   ? "Clock"
-                     : currentAppId == AppId::Weather ? "Weather"
-                     : currentAppId == AppId::Crypto  ? "Crypto"
-                     : currentAppId == AppId::Matrix  ? "Matrix"
-                     : currentAppId == AppId::Life    ? "Life"
-                     : "Unknown";
-      snprintf(buf, len, "\"var\":\"appId\",\"id\":%d,\"name\":\"%s\",\"last\":true",
-               (int)currentAppId, nm);
+    if (strcmp(var, "lastPlaylistDraw") == 0) {
+      snprintf(buf, len, "\"var\":\"lastPlaylistDraw\",\"ms\":%lu", lastPlaylistDrawMs);
       return true;
     }
     return false;
@@ -1065,8 +909,8 @@ public:
     const int rightEdge = originX + PLEDIT_W;
     if (originX > 0)
       tft.fillRect(0, PLEDIT_Y, originX, PLEDIT_H, TFT_BLACK);
-    if (rightEdge < screenWidth)
-      tft.fillRect(rightEdge, PLEDIT_Y, screenWidth - rightEdge, PLEDIT_H, TFT_BLACK);
+    if (rightEdge < TASKBAR_X)
+      tft.fillRect(rightEdge, PLEDIT_Y, TASKBAR_X - rightEdge, PLEDIT_H, TFT_BLACK);
 
     // Title bar — top PLEDIT_TITLE_H rows of SKIN_PLEDIT_BG atlas.
     tft.pushImage(originX, PLEDIT_Y, SKIN_PLEDIT_BG_W, PLEDIT_TITLE_H, SKIN_PLEDIT_BG);

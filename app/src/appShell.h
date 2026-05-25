@@ -3,6 +3,16 @@
 
 #include <Arduino.h>
 #include "gen/shell_layout.h"
+#include "touchPhase.h"
+
+struct App {
+    virtual void init()    = 0;
+    virtual void resume()  = 0;
+    virtual void suspend() = 0;
+    virtual void tick()    = 0;
+    virtual bool handleInput(TouchPhase phase, int x, int y) = 0;
+    virtual ~App() = default;
+};
 
 enum class AppId : uint8_t {
     Spotify  = 0,
@@ -75,6 +85,3 @@ extern bool g_appLaunched[(int)AppId::COUNT];
 static_assert(TASKBAR_X == 275,                           "TASKBAR_X drift vs appShell");
 static_assert((int)AppId::COUNT == TASKBAR_SLOT_COUNT,    "AppId::COUNT vs TASKBAR_SLOT_COUNT mismatch");
 
-// Clock app — stateless render + 1 Hz tick (defined in main.cpp).
-void clockRepaint();
-void clockTick();

@@ -62,7 +62,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-090 — App Interface ABC + AppShell refactor (M-MULTIAPP)
 **Owner**: Developer
 **Feature**: app-interface-001 (new)
-**Status**: planned — design signed off (ADR-026, VE review complete 2026-05-25)
+**Status**: implemented — check_build.sh 3/3; DUT flash + regression pending (090h)
 **Blocks**: M-MULTIAPP step 3 (Matrix, GoL, Weather, Crypto — each requires a clean `App` class to land on)
 **Design**: `docs/architecture/designs/M-MULTIAPP/app-interface.md`, `docs/architecture/decisions/ADR-026.md`
 **Notes**:

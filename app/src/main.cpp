@@ -175,121 +175,187 @@ void drawWifiManagerMessage(WiFiManager *myWiFiManager)
 
 bool g_appLaunched[(int)AppId::COUNT] = {};
 
-// ── Clock app (TASK-087e) ───────────────────────────────────────────────
-
-static unsigned long s_clockLastTickMs = 0;
-
-void clockRepaint() {
-  tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK);
-  tft.drawRoundRect(5,   5, 265,  80, 10, 0xF81F); // time box  — pink
-  tft.drawRoundRect(5,  88, 265,  47, 10, 0x07FF); // secs box  — cyan
-  tft.drawRoundRect(5, 138, 265,  97, 10, 0xFFE0); // date box  — yellow
-  s_clockLastTickMs = 0; // force immediate draw on next clockTick()
-  clockTick();
-}
-
-void clockTick() {
-  if (millis() - s_clockLastTickMs < 1000) return;
-  s_clockLastTickMs = millis();
-
-  struct tm t;
-  if (!getLocalTime(&t)) return;
-
-  // Time string: colon blinks on even seconds.
-  char tBuf[16];
-  if (t.tm_sec % 2 == 0) snprintf(tBuf, sizeof(tBuf), "%02d:%02d", t.tm_hour, t.tm_min);
-  else                    snprintf(tBuf, sizeof(tBuf), "%02d %02d", t.tm_hour, t.tm_min);
-
-  tft.setTextDatum(MC_DATUM);
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.drawString(tBuf, 137, 45, 6);
-
-  // Seconds bar: 60 filled/empty segments across the cyan box.
-  for (int i = 0; i < 60; ++i) {
-    uint16_t c = (i < t.tm_sec) ? tft.color565(
-        (int)(sinf((float)i / 60.0f * TWO_PI)                   * 127 + 128),
-        (int)(sinf((float)i / 60.0f * TWO_PI + TWO_PI / 3.0f)  * 127 + 128),
-        (int)(sinf((float)i / 60.0f * TWO_PI + 2*TWO_PI / 3.0f)* 127 + 128)
-    ) : (uint16_t)0x07FF;  // unlit = cyan background
-    tft.fillRect(8 + (int)((float)i * 4.3f), 100, 2, 25, c);
+// ── SpotifyApp (TASK-090d) ─────────────────────────────────────────────
+#ifdef WINAMP_DISPLAY
+class SpotifyApp : public App {
+public:
+  void init() override {
+    winampDisplay.showDefaultScreen();
   }
-
-  // Day name + date.
-  const char* days[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
-  tft.setTextDatum(MC_DATUM);
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.drawString(days[t.tm_wday], 137, 170, 4);
-  char dBuf[16];
-  snprintf(dBuf, sizeof(dBuf), "%02d/%02d/%04d", t.tm_mday, t.tm_mon + 1, t.tm_year + 1900);
-  tft.drawString(dBuf, 137, 200, 4);
-
-  // RSSI signal bars (bottom-right of date box).
-  int rssi = WiFi.RSSI();
-  int bars = (rssi > -55) ? 4 : (rssi > -65) ? 3 : (rssi > -75) ? 2 : 1;
-  for (int i = 0; i < 4; ++i) {
-    uint16_t c = (i < bars) ? TFT_GREEN : (uint16_t)0x4208;
-    tft.fillRect(240 + i * 7, 228 - (i + 1) * 5, 5, (i + 1) * 5, c);
+  void resume() override {
+    winampDisplay.repaintChrome();
+    winampDisplay.invalidatePlaylist();
   }
-}
+  void suspend() override {
+    winampDisplay.resetDragState();
+  }
+  void tick() override {
+    vu::tick(winampDisplay.chromeOriginX(), winampDisplay.chromeOriginY(), SKIN_MAIN_BG);
+    winampDisplay.drawPlaylist();
+#ifdef NFC_ENABLED
+    if (writeContextToNfc) {
+      nfcLoop(lastTrackUri, lastTrackContextUri);
+    } else {
+      nfcLoop(lastTrackUri);
+    }
+#endif
+    { unsigned long _t = millis(); updateCurrentlyPlaying(false);
+      perf::record("spotify.poll", millis() - _t); }
+    { unsigned long _t = millis(); updateProgressBar();
+      perf::record("display.bar", millis() - _t); }
+  }
+  bool handleInput(TouchPhase phase, int x, int y) override {
+    return winampDisplay.handleWinampInput(phase, x, y);
+  }
+};
+static SpotifyApp g_spotifyApp;
+#endif // WINAMP_DISPLAY
 
-// ── App shell dispatch (TASK-087d) ─────────────────────────────────────
+// ── ClockApp (TASK-090e) ───────────────────────────────────────────────
+class ClockApp : public App {
+public:
+  void init()    override { repaint(); }
+  void resume()  override { repaint(); }
+  void suspend() override {}
+  void tick() override {
+    if (millis() - s_lastTickMs < 1000) return;
+    s_lastTickMs = millis();
+    drawTime();
+    drawSecondsBar();
+    drawDate();
+    drawRssi();
+  }
+  bool handleInput(TouchPhase, int, int) override { return false; }
+private:
+  unsigned long s_lastTickMs = 0;
+  void repaint() {
+    tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK);
+    tft.drawRoundRect(5,   5, 265,  80, 10, 0xF81F);
+    tft.drawRoundRect(5,  88, 265,  47, 10, 0x07FF);
+    tft.drawRoundRect(5, 138, 265,  97, 10, 0xFFE0);
+    s_lastTickMs = 0;
+    tick();
+  }
+  void drawTime() {
+    struct tm t;
+    if (!getLocalTime(&t)) return;
+    char tBuf[16];
+    if (t.tm_sec % 2 == 0) snprintf(tBuf, sizeof(tBuf), "%02d:%02d", t.tm_hour, t.tm_min);
+    else                    snprintf(tBuf, sizeof(tBuf), "%02d %02d", t.tm_hour, t.tm_min);
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.drawString(tBuf, 137, 45, 6);
+  }
+  void drawSecondsBar() {
+    struct tm t;
+    if (!getLocalTime(&t)) return;
+    for (int i = 0; i < 60; ++i) {
+      uint16_t c = (i < t.tm_sec) ? tft.color565(
+          (int)(sinf((float)i / 60.0f * TWO_PI)                   * 127 + 128),
+          (int)(sinf((float)i / 60.0f * TWO_PI + TWO_PI / 3.0f)  * 127 + 128),
+          (int)(sinf((float)i / 60.0f * TWO_PI + 2*TWO_PI / 3.0f)* 127 + 128)
+      ) : (uint16_t)0x07FF;
+      tft.fillRect(8 + (int)((float)i * 4.3f), 100, 2, 25, c);
+    }
+  }
+  void drawDate() {
+    struct tm t;
+    if (!getLocalTime(&t)) return;
+    const char* days[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.drawString(days[t.tm_wday], 137, 170, 4);
+    char dBuf[16];
+    snprintf(dBuf, sizeof(dBuf), "%02d/%02d/%04d", t.tm_mday, t.tm_mon + 1, t.tm_year + 1900);
+    tft.drawString(dBuf, 137, 200, 4);
+  }
+  void drawRssi() {
+    int rssi = WiFi.RSSI();
+    int bars = (rssi > -55) ? 4 : (rssi > -65) ? 3 : (rssi > -75) ? 2 : 1;
+    for (int i = 0; i < 4; ++i) {
+      uint16_t c = (i < bars) ? TFT_GREEN : (uint16_t)0x4208;
+      tft.fillRect(240 + i * 7, 228 - (i + 1) * 5, 5, (i + 1) * 5, c);
+    }
+  }
+};
+static ClockApp g_clockApp;
+
+// ── App registry + shell gesture state (TASK-090f) ────────────────────
+
+#ifdef WINAMP_DISPLAY
+App* g_apps[(int)AppId::COUNT] = {
+  &g_spotifyApp,  // AppId::Spotify = 0
+  &g_clockApp,    // AppId::Clock   = 1
+  nullptr,        // Weather
+  nullptr,        // Crypto
+  nullptr,        // Matrix
+  nullptr,        // Life
+};
+#else
+App* g_apps[(int)AppId::COUNT] = {};
+#endif
+
+static bool          s_inGesture  = false;
+static int           s_lastTouchX = 0, s_lastTouchY = 0;
+static unsigned long s_cooldownMs = 0;
 
 void switchApp(AppId next) {
   if (next == currentAppId) return;
-  // Clear the app canvas (left 275 px); taskbar strip is preserved.
+  if (g_apps[(int)currentAppId]) g_apps[(int)currentAppId]->suspend();
   tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK);
   currentAppId = next;
-  g_appLaunched[(int)next] = true;
-  // Re-draw taskbar to update the active indicator.
-  renderTaskbar(tft, currentAppId);
-  // Per-app repaint.
-  switch (next) {
-    case AppId::Spotify:
-#ifdef WINAMP_DISPLAY
-      winampDisplay.repaintChrome();
-#endif
-      break;
-    case AppId::Clock:
-      clockRepaint();
-      break;
-    default:
-      break;
+  if (g_apps[(int)next]) {
+    if (!g_appLaunched[(int)next]) {
+      g_appLaunched[(int)next] = true;
+      g_apps[(int)next]->init();
+    } else {
+      g_apps[(int)next]->resume();
+    }
   }
+  renderTaskbar(tft, currentAppId);
 }
 
 void appHandleInput(AppId) {
-  // Taskbar first-pass is inside checkForInput(); delegate unconditionally.
-  spotifyDisplay->checkForInput();
+  bool touched = ts.touched();
+  if (touched) {
+    CYD28_TS_Point p = ts.getPointScaled();
+    spotifyTask::resetBackoff();
+    if (p.x >= TASKBAR_X) {
+      if (s_inGesture && g_apps[(int)currentAppId]) {
+        g_apps[(int)currentAppId]->handleInput(
+            TouchPhase::Release, s_lastTouchX, s_lastTouchY);
+        s_inGesture = false;
+      }
+      int slot = (int)p.y / TASKBAR_SLOT_H;
+      if (slot >= 0 && slot < (int)AppId::COUNT)
+        switchApp(static_cast<AppId>(slot));
+      s_cooldownMs = millis() + 300;
+      return;
+    }
+    if (!s_inGesture && millis() <= s_cooldownMs) return;
+    s_lastTouchX = p.x; s_lastTouchY = p.y;
+    if (!s_inGesture) {
+      s_inGesture = true;
+      if (g_apps[(int)currentAppId]) {
+        bool consumed = g_apps[(int)currentAppId]->handleInput(
+            TouchPhase::Press, p.x, p.y);
+        if (consumed) s_cooldownMs = millis() + 200;
+      }
+    } else {
+      if (g_apps[(int)currentAppId])
+        g_apps[(int)currentAppId]->handleInput(TouchPhase::Move, p.x, p.y);
+    }
+  } else if (s_inGesture) {
+    s_inGesture = false;
+    if (g_apps[(int)currentAppId])
+      g_apps[(int)currentAppId]->handleInput(
+          TouchPhase::Release, s_lastTouchX, s_lastTouchY);
+    s_cooldownMs = millis() + 200;
+  }
 }
 
 void appTick(AppId id) {
-  switch (id) {
-    case AppId::Spotify:
-#ifdef WINAMP_DISPLAY
-      vu::tick(winampDisplay.chromeOriginX(), winampDisplay.chromeOriginY(), SKIN_MAIN_BG);
-      winampDisplay.drawPlaylist();
-#endif
-      {
-        bool forceUpdate = false;
-#ifdef NFC_ENABLED
-        if (writeContextToNfc) {
-          forceUpdate = nfcLoop(lastTrackUri, lastTrackContextUri);
-        } else {
-          forceUpdate = nfcLoop(lastTrackUri);
-        }
-#endif
-        { unsigned long _t = millis(); updateCurrentlyPlaying(forceUpdate);
-          perf::record("spotify.poll", millis() - _t); }
-        { unsigned long _t = millis(); updateProgressBar();
-          perf::record("display.bar", millis() - _t); }
-      }
-      break;
-    case AppId::Clock:
-      clockTick();
-      break;
-    default:
-      break;
-  }
+  if (g_apps[(int)id]) g_apps[(int)id]->tick();
 }
 
 void setup()
@@ -442,9 +508,13 @@ void setup()
   // 031b/c migrate the actual calls in.
   spotifyTask::begin(&spotify);
 
-  spotifyDisplay->showDefaultScreen();
-  // Draw taskbar strip after the initial screen paint so the icon bar
-  // appears at boot without waiting for the first poll.
+  // Boot: init the Spotify app via the App interface, then draw taskbar.
+  if (g_apps[(int)AppId::Spotify]) {
+    g_appLaunched[(int)AppId::Spotify] = true;
+    g_apps[(int)AppId::Spotify]->init();
+  } else {
+    spotifyDisplay->showDefaultScreen();
+  }
   renderTaskbar(tft, currentAppId);
 
 #ifdef SPIKE_MODE
@@ -484,6 +554,7 @@ struct InjectionStep { int sx, sy; bool release; };
 static InjectionStep s_injectQueue[64];
 static int s_injectHead = 0, s_injectTail = 0;
 static bool s_dragPending = false;
+static bool s_injectIsFirst = false;  // first non-release item → Press, rest → Move
 static int s_pendingDragX1, s_pendingDragY1,
            s_pendingDragX2, s_pendingDragY2, s_pendingDragSteps;
 static int s_injectTotal = 0;  // total steps for LOG_D %d/%d
@@ -516,21 +587,28 @@ static inline void drainInjectionQueue() {
 #ifdef SERIAL_DEBUG
   if (s_injectHead == s_injectTail) return;
   InjectionStep &step = s_injectQueue[s_injectHead % 64];
-  WinampDisplay *wd = static_cast<WinampDisplay*>(spotifyDisplay);
+#ifdef WINAMP_DISPLAY
   if (step.release) {
-    wd->injectRelease();
+    winampDisplay.handleWinampInput(TouchPhase::Release, 0, 0);
+    winampDisplay._injectingDrag = false;
     s_dragPending = false;
     Serial.printf("{\"ok\":true,\"cmd\":\"drag\","
                   "\"x1\":%d,\"y1\":%d,\"x2\":%d,\"y2\":%d,\"steps\":%d}\n",
                   s_pendingDragX1, s_pendingDragY1,
                   s_pendingDragX2, s_pendingDragY2, s_pendingDragSteps);
   } else {
-    // Log only for move samples; release sentinel's sx/sy are 0/0 and
-    // counting it inflates T096's sample tally by one.
     LOG_D("serial", "inject sample %d/%d sx=%d sy=%d",
           s_injectHead + 1, s_injectTotal - 1, step.sx, step.sy);
-    wd->injectTouch(step.sx, step.sy);
+    if (s_injectIsFirst) {
+      winampDisplay.handleWinampInput(TouchPhase::Press, step.sx, step.sy);
+      s_injectIsFirst = false;
+    } else {
+      winampDisplay.handleWinampInput(TouchPhase::Move, step.sx, step.sy);
+    }
   }
+#else
+  (void)step;
+#endif
   ++s_injectHead;
 #endif
 }
@@ -584,10 +662,27 @@ static void cmdTap(const char *args) {
     Serial.println("{\"ok\":false,\"cmd\":\"tap\",\"error\":\"bad args — tap <x> <y>\"}");
     return;
   }
-  spotifyDisplay->injectTouch(x, y);
-  spotifyDisplay->injectRelease();
-  WinampDisplay *wd = static_cast<WinampDisplay*>(spotifyDisplay);
-  const auto &r = wd->lastTouchResult;
+#ifdef WINAMP_DISPLAY
+  // Taskbar handled at shell level — WinampDisplay must not reference switchApp.
+  if (x >= TASKBAR_X) {
+    int slot = (int)y / TASKBAR_SLOT_H;
+    if (slot >= 0 && slot < (int)AppId::COUNT)
+      switchApp(static_cast<AppId>(slot));
+    winampDisplay.lastTouchResult = { "TASKBAR", -1, "APP_SWITCH", 0, -1, false };
+    Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                  "\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}\n", x, y);
+    return;
+  }
+  // BUG-1 guard: Winamp hit-zones only valid when Spotify is active.
+  if (currentAppId != AppId::Spotify) {
+    winampDisplay.lastTouchResult = { "CLOCK", -1, "NONE", 0, -1, false };
+    Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                  "\"hit\":\"CLOCK\",\"action\":\"NONE\",\"skipped\":false}\n", x, y);
+    return;
+  }
+  winampDisplay.injectTouch(x, y);
+  winampDisplay.injectRelease();
+  const auto &r = winampDisplay.lastTouchResult;
   if (strcmp(r.region, "TRANSPORT") == 0) {
     Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                   "\"hit\":\"%s\",\"pressed\":%d,\"action\":\"%s\",\"skipped\":%s}\n",
@@ -613,6 +708,10 @@ static void cmdTap(const char *args) {
                   "\"hit\":\"%s\",\"action\":\"%s\",\"skipped\":%s}\n",
                   x, y, r.region, r.action, r.skipped ? "true" : "false");
   }
+#else
+  Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                "\"hit\":\"NONE\",\"action\":\"NONE\",\"skipped\":false}\n", x, y);
+#endif
 }
 
 static void cmdDrag(const char *args) {
@@ -623,9 +722,11 @@ static void cmdDrag(const char *args) {
                    "\"error\":\"bad args — drag <x1> <y1> <x2> <y2> <steps=1..62>\"}");
     return;
   }
-  WinampDisplay *wd = static_cast<WinampDisplay*>(spotifyDisplay);
-  wd->_injectingDrag = true;
+#ifdef WINAMP_DISPLAY
+  winampDisplay._injectingDrag = true;
+#endif
   s_injectHead = s_injectTail = 0;
+  s_injectIsFirst = true;  // first dequeued sample → Press, rest → Move
   for (int i = 0; i <= steps; ++i) {
     s_injectQueue[s_injectTail++ % 64] = {
       x1 + (x2 - x1) * i / steps,
@@ -644,6 +745,20 @@ static void cmdDrag(const char *args) {
 
 static void cmdGet(const char *args) {
   char buf[256]; buf[0] = '\0';
+  // appId — shell-owned; WinampDisplay cannot reference currentAppId.
+  if (strcmp(args, "appId") == 0) {
+    const char* nm = currentAppId == AppId::Spotify ? "Spotify"
+                   : currentAppId == AppId::Clock   ? "Clock"
+                   : currentAppId == AppId::Weather ? "Weather"
+                   : currentAppId == AppId::Crypto  ? "Crypto"
+                   : currentAppId == AppId::Matrix  ? "Matrix"
+                   : currentAppId == AppId::Life    ? "Life"
+                   : "Unknown";
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\","
+                  "\"var\":\"appId\",\"id\":%d,\"name\":\"%s\",\"last\":true}\n",
+                  (int)currentAppId, nm);
+    return;
+  }
   if ((spotifyDisplay && spotifyDisplay->dbgGet(args, buf, sizeof(buf)))
       || spotifyTask::dbg_get(args, buf, sizeof(buf))) {
     // buf[0]=='\0' means the owner used multi-part Serial.printf directly.
