@@ -446,7 +446,7 @@ public:
     const int dy = _dragCurrentY - _dragStartY;
     const float effective = max(0.0f, (float)abs(dy) - (float)SCROLL_DEAD_ZONE_PX);
     const float speed = effective * _scrollSpeedK;
-    _scrollVelocity = (dy <= 0 ? -1.0f : 1.0f) * speed;
+    _scrollVelocity = (dy <= 0 ? 1.0f : -1.0f) * speed;
 
     _scrollAccum += _scrollVelocity * dt;
     const int steps = (int)_scrollAccum;
@@ -522,8 +522,8 @@ private:
   float _scrollVelocity = 0.0f;
   float _scrollAccum    = 0.0f;
   float _scrollSpeedK   = SCROLL_SPEED_K_DEFAULT;
-  static constexpr int   SCROLL_DEAD_ZONE_PX    = 8;
-  static constexpr float SCROLL_SPEED_K_DEFAULT = 0.088f;
+  static constexpr int   SCROLL_DEAD_ZONE_PX    = 1;
+  static constexpr float SCROLL_SPEED_K_DEFAULT = 0.1667f;  // linear: 2 rows/s at 1-row travel
   bool _pleditScrollDirty = false;  // force drawScrollThumbOnly bypass of rate-limit
   int optimisticSelectedRow = -1;   // TASK-051a: row playing, highlighted until seqno advances
   unsigned long optimisticSelectedUntilMs = 0;
