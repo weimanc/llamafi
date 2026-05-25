@@ -2195,6 +2195,41 @@ Exit criteria:
 
 ---
 
+### TASK-095 — WeatherApp + CryptoApp implementation (M-MULTIAPP step 4)
+**Owner**: Developer + Architect
+**Feature**: weather-001 (new), crypto-001 (new)
+**Status**: done (2026-05-25 — commits 9da9ca0, d5de546; DUT verified)
+**Design**: `docs/architecture/designs/M-MULTIAPP/weather.md`, `crypto.md`
+**Notes**:
+- **ADR-029** (accepted 2026-05-25): TLS root CA strategy for non-Spotify HTTPS endpoints.
+  `api.open-meteo.com` → ISRG Root X1; `api.coingecko.com` → GTS Root R4. Hardcoded PEMs
+  in `app/src/dataTaskCerts.h`. `http.getString()` required (not `getStream()`) — chunked
+  HTTPS on Arduino-ESP32 2.0.17 fails `deserializeJson` on raw stream.
+- `dataTask` FreeRTOS task (`app/src/dataTask.h` + `dataTaskStorage.cpp`): queue + spinlock,
+  mirrors `spotifyTask` pattern. `begin()` called in `setup()` after `spotifyTask::begin()`.
+- `WeatherApp` + `CryptoApp` classes in `main.cpp`; replace `nullptr` slots 2 + 3 in `g_apps[]`.
+- `tools/refresh_host_overrides.sh` extended with new endpoints; SPIFFS re-flashed.
+- Serial port migrated to `/dev/ttyUSB1` (CH340 re-enumerated).
+- Exit criteria: both apps fetch live data on first switch-in; `"---"` shown before first
+  fetch; app switch residue none; DUT stable.
+
+---
+
+### TASK-096 — Fix Weather+Crypto canvas to full 275×240
+**Owner**: Developer
+**Feature**: weather-001, crypto-001
+**Status**: done (2026-05-25 — commit e96bb60; DUT verified)
+**Notes**:
+- Both apps rendered in `y:116..239` sub-canvas only (legacy design assumed Winamp chrome
+  was still showing above). As standalone apps they own the full 275×240 canvas.
+- Weather: 2×2 grid now spans full height — top row `y:0..119` (h=120), bottom row
+  `y:121..239` (h=119). Panel centres: top cy=60, bottom cy=180. RSSI bars at bottom y=14.
+- Crypto: 6 rows × 36 px, starting y=25 (header y=5, rule y=22). Row text offset +11 px
+  for vertical centering. Last divider lands at y=239.
+- Exit criteria: both apps fill the full screen on DUT. Confirmed by user.
+
+---
+
 ## Entry Format
 
 ```
