@@ -314,9 +314,29 @@ Work sequence:
 
 ## Outstanding
 
-No milestones currently outstanding.
+### M-TOUCH-CAPTURE — Slider input capture
 
-Open design task: **TASK-078** (PLEDIT drag UX improvements — whiteboard session on click/gesture discrimination, full-screen gesture capture, scroll acceleration; status: open 2026-05-23).
+Pointer capture for all four interactive sliders (POSBAR, VOLUME, PLEDIT scrollbar strip,
+PLEDIT content swipe). Mid-gesture drift outside a hitbox no longer drops events or mis-routes
+to another handler. POSBAR commits seek on Release from a cached position (not release coords).
+
+**Status:** implemented (2026-05-25 — TASK-101 committed b253eb8; check_build passes)
+**Pending:** VE suite T149–T154 (TASK-102) execution on DUT
+**Design:** [M-TOUCH-CAPTURE-slider-input-capture.md](../architecture/designs/M-TOUCH-CAPTURE-slider-input-capture.md)
+
+---
+
+### M-LIST-v4 — Velocity-scroll PLEDIT
+
+Replace the commit-on-release PLEDIT swipe gesture with a velocity-joystick model: finger
+offset from the press anchor maps to scroll speed (rows/s). Holding the finger still at a
+nonzero offset scrolls continuously. Dead-zone-only tap discrimination. Integer `scrollOffset`
+preserved. Architecture pre-wired for Phase 2 fling momentum.
+
+**Status:** open — TASK-103 (implementation), TASK-104 (VE suite T155–T161)
+**ADR:** ADR-030 (accepted 2026-05-25)
+**Design:** [M-LIST-v4-velocity-scroll.md](../architecture/designs/M-LIST-v4-velocity-scroll.md)
+**VE review:** [velocity-scroll-ve-review.md](../verification/regression_suite/velocity-scroll-ve-review.md)
 
 ---
 

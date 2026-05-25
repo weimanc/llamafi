@@ -2351,6 +2351,32 @@ Exit criteria:
 - Execute via `run_serialdbg_tests.py --tests T149,T150,T151,T152,T153,T154`.
 - All 6 must pass before TASK-101 can be marked done.
 
+### TASK-103 — M-LIST-v4: Implement velocity-scroll for PLEDIT
+**Owner**: Developer
+**Feature**: list-scroll-001 (new)
+**Status**: open (2026-05-25)
+**Blocked by**: TASK-101 done (unblocked — committed b253eb8), ADR-030 accepted ✓
+**Design**: `docs/architecture/designs/M-LIST-v4-velocity-scroll.md`
+**ADR**: ADR-030 (accepted 2026-05-25)
+**Notes**:
+- Sole change file: `app/src/winamp/winampDisplay.h` + `app/src/appShell.h` (tick call site) + serial debug handler (cmdTick)
+- New members: `_scrollVelocity`, `_scrollAccum`, `_scrollSpeedK`
+- `tickScroll(float dt)` — explicit dt parameter; called from SpotifyApp tick with real elapsed time
+- Release logic: dead-zone-only tap check; remove TASK-078 point 1 two-axis heuristic (after DUT evidence, see §_dragStartMs removal in design)
+- `drawPlaylist()` seqno branch: cancel D_PLEDIT_SCROLL mid-gesture
+- Serial debug: `dbgGet("scrollAccum")`, `dbgGet("scrollVelocity")`, `dbgSet("speedK", ...)`, `cmdTick n dtMs`
+- Run `check_build.sh` before commit; VE suite T155–T161 (TASK-104) must pass
+
+### TASK-104 — VE: test suite for velocity-scroll (T155–T161)
+**Owner**: VE
+**Feature**: list-scroll-001
+**Status**: planned (2026-05-25)
+**Blocked by**: TASK-103
+**Notes**:
+- Acceptance tests to be written against revised design doc after TASK-103 implementation
+- Covers: dead-zone tap, speed scaling, continuous scroll, no-tap on out-of-dead-zone release, seqno cancellation, cmdTick determinism, dbgGet observability
+- Proposed IDs: T155–T161
+
 ---
 
 ## Entry Format
