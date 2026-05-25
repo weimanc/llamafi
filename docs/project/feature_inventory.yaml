@@ -700,3 +700,20 @@ features:
       TASK-090a–090h. Absorbs TASK-088 (saveAppState/restoreAppState delivered via
       SpotifyApp::suspend()). Design: docs/architecture/designs/M-MULTIAPP/app-interface.md,
       ADR-026. Gates M-MULTIAPP step 3 (Matrix, GoL, Weather, Crypto apps).
+
+  - id: tooling-001
+    name: Host-side tool-script smoke gate
+    description: |
+      smoke_test.sh verifies Python tool imports (coords, bake_skin) and shell script
+      --help invocations resolve without FileNotFoundError. Integrated into check_build.sh
+      as step 4. Catches stale path strings in tool scripts after file moves (LL-029 / BP-009).
+    status: implemented
+    git_ref: "2d798b0"
+    files:
+      - app/tools/smoke_test.sh
+      - check_build.sh
+    cross_features: []
+    test_ids: []
+    notes: |
+      TASK-089. Smoke test covers coords + bake_skin imports and bake_wave.sh --help.
+      preview_layout.py stale SpotifyDiyThing/gen paths fixed in same commit.

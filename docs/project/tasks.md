@@ -89,6 +89,19 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ---
 
+### TASK-091 — Tag known-intermittent tests in run_serialdbg_tests.py (BP-012)
+**Owner**: VE + Developer
+**Feature**: serialdbg-001
+**Status**: planned
+**Notes**:
+- Four tests known intermittent: T084, T087, T091, T092 (reconnect race + TLS reset log-line timing).
+- Deliverable: add `# KNOWN INTERMITTENT: <reason> — first observed <date>` comment block above each.
+- Optional stretch: emit `[FLAKE]` result category (separate from FAIL) when these fire; summary shows "N passed, 0 failed, M flaked."
+- Exit criterion: four comment blocks present; `run_serialdbg_tests.py --help` unchanged; no behaviour change.
+- Rationale: BP-012 (LL-034) — intermittent failures dilute regression signal; "not all green" should not be the expected baseline.
+
+---
+
 ### TASK-012 — M2 skin bake tool, tier 1
 **Owner**: Developer
 **Feature**: m2-001 (new)
