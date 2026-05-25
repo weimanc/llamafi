@@ -17,20 +17,26 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 **Feature**: taskbar-scroll-001 (new)
 **Status**: open
 **Milestone**: M-TASKBAR-SCROLL
-**Blocks**: Settings app (AppId 6), Stock app (AppId 7) — visual benefit requires COUNT > 6
+**Blocks**: nothing — stub registration lands in this task
 **Design**: `docs/architecture/designs/M-MULTIAPP/taskbar.md` §Scroll model
 **Notes**:
-- **TASK-105a**: Add three private fields to `WinampDisplay` (`winamp/winampDisplay.h`):
+- **TASK-105a**: Register stub apps to bring `AppId::COUNT` to 8 (`appShell.h` + `main.cpp`):
+  - Add `Settings = 6, Stock = 7` to `AppId` enum; update `COUNT = 8`.
+  - `SettingsApp` stub: `tick()` fills canvas `TFT_DARKGREY` + draws `"SETTINGS"` centred; all other methods no-op.
+  - `StockApp` stub: same pattern, label `"STOCK"`.
+  - Register both in `g_apps[]`. Update `icons[]` in `taskbar.h` to 8 entries (add `'='` for Settings, `'$'` for Stock; `'$'` already used for Crypto — use `'K'` for Stock).
+  - Exit: `check_build.sh` 4/4 pass; DUT taskbar shows 6 icons with no scroll yet; tapping Settings/Stock slots (if visible) renders stub canvas.
+- **TASK-105b**: Add three private fields to `WinampDisplay` (`winamp/winampDisplay.h`):
   `int _tbScrollOffset = 0`, `int _tbDragStartY = 0`, `float _tbScrollAccum = 0.0f`.
-- **TASK-105b**: Add `D_TASKBAR_SCROLL` to the `DragState` enum (alongside existing `D_PLEDIT_SCROLL`, `D_PLEDIT_SCROLL_DIRECT`).
-- **TASK-105c**: Update taskbar first-pass in `checkForInput()`:
+- **TASK-105c**: Add `D_TASKBAR_SCROLL` to the `DragState` enum (alongside existing `D_PLEDIT_SCROLL`, `D_PLEDIT_SCROLL_DIRECT`).
+- **TASK-105d**: Update taskbar first-pass in `checkForInput()`:
   - Press (`D_IDLE`) in `p.x >= TASKBAR_X`: record `_tbDragStartY = p.y`; transition `dragState = D_TASKBAR_SCROLL`.
   - Move while `D_TASKBAR_SCROLL`: accumulate `_tbScrollAccum`; compute integer steps from `(dy - SCROLL_DEAD_ZONE_PX) * 0.04f`; apply `_tbScrollOffset = (_tbScrollOffset + steps + N) % N`; call `renderTaskbar()` if steps != 0.
   - Up while `D_TASKBAR_SCROLL`: if `|dy| < SCROLL_DEAD_ZONE_PX * 3` (tap) → compute `appIdx = (_tbScrollOffset + slot) % N`, call `switchApp` if not current; reset `_tbScrollAccum = 0.0f`; `dragState = D_IDLE`; 300 ms cooldown.
-- **TASK-105d**: Update `renderTaskbar()` signature: `void renderTaskbar(TFT_eSPI& tft, AppId activeApp, int scrollOffset, int totalApps)`. Inner loop: `int appIdx = (scrollOffset + i) % totalApps`. Active indicator: `appIdx == (int)activeApp`.
-- **TASK-105e**: Update all `renderTaskbar()` call sites to pass `_tbScrollOffset` and `(int)AppId::COUNT`.
-- **TASK-105f**: Expose `_tbScrollOffset` via `dbgGet("tbScrollOffset")` under `#ifdef SERIAL_DEBUG` (same pattern as `scrollOffset` — TASK-079). Required for T162–T168.
-- Exit criterion: `check_build.sh` 4/4 pass; `get tbScrollOffset` returns 0 at boot; drag up increments; wrap-around confirmed via serial (at offset N-1, drag up → 0); tap-after-scroll switches correct app.
+- **TASK-105e**: Update `renderTaskbar()` signature: `void renderTaskbar(TFT_eSPI& tft, AppId activeApp, int scrollOffset, int totalApps)`. Inner loop: `int appIdx = (scrollOffset + i) % totalApps`. Active indicator: `appIdx == (int)activeApp`.
+- **TASK-105f**: Update all `renderTaskbar()` call sites to pass `_tbScrollOffset` and `(int)AppId::COUNT`.
+- **TASK-105g**: Expose `_tbScrollOffset` via `dbgGet("tbScrollOffset")` under `#ifdef SERIAL_DEBUG` (same pattern as `scrollOffset` — TASK-079). Required for T162–T168.
+- Exit criterion: `check_build.sh` 4/4 pass; DUT taskbar scrolls over 8 apps; `get tbScrollOffset` returns 0 at boot; drag up increments; wrap-around at offset 7 → 0; tap-after-scroll switches correct app; stub Settings/Stock canvases render without crash.
 
 ---
 

@@ -361,8 +361,9 @@ Work:
 5. Wire `_tbScrollOffset` into all `renderTaskbar()` call sites.
 6. VE: T162–T168 (tap-vs-scroll discrimination, scrollOffset increment/decrement, wrap-around, active indicator follows appIdx).
 
-Mechanism is verifiable with 6 apps via serial debug (`get tbScrollOffset`). Visual
-benefit becomes apparent when Settings/Stock (AppId 6, 7) are added and `AppId::COUNT > 6`.
+Stub registration of Settings (AppId 6) and Stock (AppId 7) is included in TASK-105a,
+bringing `AppId::COUNT` to 8 immediately so the scroll is visually exercisable on DUT
+without waiting for full app implementations.
 
 **Status:** open — TASK-105 (implementation), TASK-106 (VE suite T162–T168)
 **Design:** [M-MULTIAPP/taskbar.md §Scroll model](../architecture/designs/M-MULTIAPP/taskbar.md)
