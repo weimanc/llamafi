@@ -243,8 +243,9 @@ public:
       if (dragState == D_PLEDIT_SCROLL) {
         const int dy = _dragCurrentY - _dragStartY;
         LOG_D("touch", "PLEDIT drag end: dy=%d startY=%d curY=%d", dy, _dragStartY, _dragCurrentY);
-        const unsigned long elapsed = millis() - _dragStartMs;
-        const bool isTap = (abs(dy) < 8) || (elapsed < 150 && abs(dy) < 16);
+        const bool isTap = abs(dy) < SCROLL_DEAD_ZONE_PX;
+        _scrollAccum    = 0.0f;
+        _scrollVelocity = 0.0f;
         if (isTap) {
           if (_dragStartRow >= 0 && _dragStartRow < lastVisibleRows) {
             const int playIdx = scrollOffset + _dragStartRow;
@@ -256,11 +257,6 @@ public:
           }
           touchScreenCoolDownTime = millis() + 300;
         } else {
-          const int maxOffset = max(0, (int)lastCount - PLEDIT_ROW_COUNT);
-          const int delta = max(1, abs(dy) / PLEDIT_ROW_H);
-          if (dy < 0) scrollOffset = min(scrollOffset + delta, maxOffset);
-          else        scrollOffset = max(scrollOffset - delta, 0);
-          _pleditScrollDirty = true;
           touchScreenCoolDownTime = millis() + 150;
         }
         dragState = D_IDLE;
@@ -401,7 +397,6 @@ public:
           _dragStartY   = y;
           _dragCurrentY = y;
           _dragStartRow = row;
-          _dragStartMs  = millis();
           LOG_D("touch", "PLEDIT drag start: startY=%d row=%d", y, row);
         }
         consumed = true;
@@ -438,6 +433,29 @@ public:
     lastQueueSeqno = 0xFFFFFFFF;
     _pleditScrollDirty = true;
     lastPlaylistDrawMs = 0;  // bypass 1-Hz rate limit — caller wiped the canvas
+  }
+
+  void tickScroll(float dt) {
+    if (dragState != D_PLEDIT_SCROLL) {
+      _scrollAccum    = 0.0f;
+      _scrollVelocity = 0.0f;
+      return;
+    }
+    if (dt <= 0.0f || dt > 0.2f) return;
+
+    const int dy = _dragCurrentY - _dragStartY;
+    const float effective = max(0.0f, (float)abs(dy) - (float)SCROLL_DEAD_ZONE_PX);
+    const float speed = effective * _scrollSpeedK;
+    _scrollVelocity = (dy <= 0 ? -1.0f : 1.0f) * speed;
+
+    _scrollAccum += _scrollVelocity * dt;
+    const int steps = (int)_scrollAccum;
+    if (steps != 0) {
+      _scrollAccum -= (float)steps;
+      const int maxOffset = max(0, (int)lastCount - PLEDIT_ROW_COUNT);
+      scrollOffset = max(0, min(maxOffset, scrollOffset + steps));
+      _pleditScrollDirty = true;
+    }
   }
 
 #ifdef SERIAL_DEBUG
@@ -501,7 +519,11 @@ private:
   int _dragCurrentY = 0;  // most recent screen Y during D_PLEDIT_SCROLL
   int _dragStartRow = 0;  // row index at drag-start (tap fallback)
   long _posbarDragCurrentMs = 0;
-  unsigned long _dragStartMs = 0;
+  float _scrollVelocity = 0.0f;
+  float _scrollAccum    = 0.0f;
+  float _scrollSpeedK   = SCROLL_SPEED_K_DEFAULT;
+  static constexpr int   SCROLL_DEAD_ZONE_PX    = 8;
+  static constexpr float SCROLL_SPEED_K_DEFAULT = 0.088f;
   bool _pleditScrollDirty = false;  // force drawScrollThumbOnly bypass of rate-limit
   int optimisticSelectedRow = -1;   // TASK-051a: row playing, highlighted until seqno advances
   unsigned long optimisticSelectedUntilMs = 0;
@@ -831,6 +853,16 @@ public:
       snprintf(buf, len, "\"var\":\"lastPlaylistDraw\",\"ms\":%lu", lastPlaylistDrawMs);
       return true;
     }
+    if (strcmp(var, "scrollAccum") == 0) {
+      snprintf(buf, len, "\"var\":\"scrollAccum\",\"val\":%.4f,\"last\":true",
+               _scrollAccum);
+      return true;
+    }
+    if (strcmp(var, "scrollVelocity") == 0) {
+      snprintf(buf, len, "\"var\":\"scrollVelocity\",\"val\":%.4f,\"last\":true",
+               _scrollVelocity);
+      return true;
+    }
     return false;
   }
   bool dbgSet(const char* var, const char* val) override {
@@ -849,6 +881,10 @@ public:
       // the player session. Any value accepted; the next /me/player poll
       // overwrites it. Counterpart to the existing `get songDuration`.
       songDuration = (val && *val) ? strtol(val, nullptr, 10) : 0;
+      return true;
+    }
+    if (strcmp(var, "speedK") == 0) {
+      _scrollSpeedK = (val && *val) ? strtof(val, nullptr) : SCROLL_SPEED_K_DEFAULT;
       return true;
     }
     return false;
@@ -957,6 +993,11 @@ public:
     lastPlaylistDrawMs = now;
     if (seqnoChanged) {
       lastQueueSeqno  = qs.seqno;
+      if (dragState == D_PLEDIT_SCROLL) {
+        dragState       = D_IDLE;
+        _scrollAccum    = 0.0f;
+        _scrollVelocity = 0.0f;
+      }
       scrollOffset    = 0;   // TASK-051f
       optimisticSelectedRow = -1;  // TASK-051a: new queue clears optimistic
       // TASK-051h: songsSeen — natural advance detection

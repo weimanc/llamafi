@@ -191,6 +191,13 @@ public:
     winampDisplay.resetDragState();
   }
   void tick() override {
+    {
+      static unsigned long _lastScrollMs = 0;
+      unsigned long now = millis();
+      float dt = (_lastScrollMs == 0) ? 0.0f : (now - _lastScrollMs) / 1000.0f;
+      _lastScrollMs = now;
+      winampDisplay.tickScroll(dt);
+    }
     vu::tick(winampDisplay.chromeOriginX(), winampDisplay.chromeOriginY(), SKIN_MAIN_BG);
     winampDisplay.drawPlaylist();
 #ifdef NFC_ENABLED
@@ -942,6 +949,7 @@ static int s_injectTotal = 0;  // total steps for LOG_D %d/%d
 // are defined (they must appear after kCmds[] to see kNumCmds).
 static void cmdTap(const char *);
 static void cmdDrag(const char *);
+static void cmdTick(const char *);
 static void cmdGet(const char *);
 static void cmdSet(const char *);
 static void cmdInfo(const char *);
@@ -953,6 +961,7 @@ static const SerialCmd kCmds[] = {
 #ifdef SERIAL_DEBUG
   { "tap",  cmdTap,  "inject touch point",              "<x> <y>"                            },
   { "drag", cmdDrag, "inject touch drag (queue-drain)", "<x1> <y1> <x2> <y2> <steps>"        },
+  { "tick", cmdTick, "inject synthetic scroll ticks",   "[n=1] [dtMs=20]"                    },
   { "get",  cmdGet,  "read internal state",             "<snapshot|backoff|heap|cooldown>"    },
   { "set",  cmdSet,  "write debug state",               "<backoff|cooldown> <val>"            },
   { "info", cmdInfo, "git+elf+build+snapshot summary",  ""                                   },
@@ -1120,6 +1129,25 @@ static void cmdDrag(const char *args) {
   s_injectTotal = s_injectTail;
   s_dragPending = true;
   // JSON response emitted by drainInjectionQueue() when release step pops.
+}
+
+static void cmdTick(const char *args) {
+  int n = 1, dtMs = 20;
+  sscanf(args, "%d %d", &n, &dtMs);
+  if (n < 1)    n    = 1;
+  if (dtMs < 1) dtMs = 20;
+#ifdef WINAMP_DISPLAY
+  for (int i = 0; i < n; ++i)
+    winampDisplay.tickScroll(dtMs / 1000.0f);
+  char sbuf[64]; int scrollOff = 0;
+  if (winampDisplay.dbgGet("scrollOffset", sbuf, sizeof(sbuf)))
+    sscanf(sbuf, "\"key\":\"scrollOffset\",\"val\":%d", &scrollOff);
+  Serial.printf("{\"ok\":true,\"cmd\":\"tick\",\"steps\":%d,\"dtMs\":%d,"
+                "\"scrollOffset\":%d}\n", n, dtMs, scrollOff);
+#else
+  Serial.printf("{\"ok\":true,\"cmd\":\"tick\",\"steps\":%d,\"dtMs\":%d,"
+                "\"scrollOffset\":0}\n", n, dtMs);
+#endif
 }
 
 static void cmdGet(const char *args) {
