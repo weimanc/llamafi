@@ -129,6 +129,7 @@ WiFiClientSecure client;
 // ----------------------------
 #include "appShell.h"
 #include "taskbar/taskbar.h"
+#include "dataTask.h"
 
 AppId currentAppId = AppId::Spotify;
 
@@ -349,6 +350,183 @@ private:
 };
 static MatrixApp g_matrixApp;
 
+// ── WeatherApp (weather.md) ───────────────────────────────────────────
+#define WEATHER_FETCH_MS  60000UL
+#define WX_LEFT_CX   68
+#define WX_RIGHT_CX 206
+#define WX_TOP_CY   147
+#define WX_BOT_CY   209
+
+class WeatherApp : public App {
+public:
+  void init() override {
+    repaintWeather();
+    dataTask::enqueue(dataTask::DATA_FETCH_WEATHER);
+    _s.lastDataFetch = millis();
+  }
+  void resume()  override { repaintWeather(); }
+  void suspend() override {}
+  void tick()    override { weatherTick(); }
+  bool handleInput(TouchPhase, int, int) override { return false; }
+
+private:
+  WeatherAppState _s   = {};
+  int             _lsec = -1;
+
+  void weatherDrawChrome() {
+    tft.drawRoundRect(0,   116, 137, 62, 5, 0xF81F);
+    tft.drawRoundRect(138, 116, 136, 62, 5, 0xFFE0);
+    tft.drawRoundRect(0,   179, 137, 60, 5, 0x07FF);
+    tft.drawRoundRect(138, 179, 136, 60, 5, 0x07E0);
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(0xF81F); tft.drawString("TIME",     WX_LEFT_CX,  120, 2);
+    tft.setTextColor(0xFFE0); tft.drawString("TEMP",     WX_RIGHT_CX, 120, 2);
+    tft.setTextColor(0x07FF); tft.drawString("HUMIDITY", WX_LEFT_CX,  183, 2);
+    tft.setTextColor(0x07E0); tft.drawString("WIND",     WX_RIGHT_CX, 183, 2);
+    tft.setTextDatum(TL_DATUM);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  }
+
+  void repaintWeatherValues() {
+    tft.setTextDatum(MC_DATUM);
+    tft.fillRect(143, 131, 126, 34, TFT_BLACK);
+    tft.setTextColor(0xFFE0, TFT_BLACK);
+    tft.drawString(_s.lastDataFetch ? String(_s.cTemp, 1) + "C" : "---", WX_RIGHT_CX, WX_TOP_CY, 4);
+    tft.fillRect(5, 193, 127, 34, TFT_BLACK);
+    tft.setTextColor(0x07FF, TFT_BLACK);
+    tft.drawString(_s.lastDataFetch ? String((int)_s.cHum) + "%" : "---", WX_LEFT_CX, WX_BOT_CY, 4);
+    tft.fillRect(143, 193, 126, 46, TFT_BLACK);
+    tft.setTextColor(0x07E0, TFT_BLACK);
+    tft.drawString(_s.lastDataFetch ? String(_s.cWind, 1) : "---", WX_RIGHT_CX, 204, 4);
+    tft.drawString("km/h", WX_RIGHT_CX, 222, 2);
+    tft.setTextDatum(TL_DATUM);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  }
+
+  void repaintWeatherTime() {
+    struct tm ti;
+    if (!getLocalTime(&ti)) return;
+    if (ti.tm_sec == _lsec) return;
+    _lsec = ti.tm_sec;
+    tft.fillRect(5, 131, 127, 34, TFT_BLACK);
+    char tS[6]; strftime(tS, 6, "%H:%M", &ti);
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(0xF81F, TFT_BLACK);
+    tft.drawString(tS, WX_LEFT_CX, WX_TOP_CY, 4);
+    int32_t rssi = WiFi.RSSI();
+    int bars = (rssi > -50) ? 4 : (rssi > -70) ? 3 : (rssi > -85) ? 2 : 1;
+    for (int i = 0; i < 4; i++) {
+      tft.fillRect(249 + (i * 6), 128 - ((i * 3) + 3), 4, (i * 3) + 3,
+                   (i < bars) ? (uint16_t)0x07E0 : (uint16_t)0x3186);
+    }
+    tft.setTextDatum(TL_DATUM);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  }
+
+  void repaintWeather() {
+    tft.fillRect(0, 116, 275, 124, TFT_BLACK);
+    weatherDrawChrome();
+    repaintWeatherValues();
+    repaintWeatherTime();
+  }
+
+  void weatherTick() {
+    if (!_s.lastDataFetch || millis() - _s.lastDataFetch > WEATHER_FETCH_MS) {
+      dataTask::enqueue(dataTask::DATA_FETCH_WEATHER);
+      _s.lastDataFetch = millis();
+    }
+    dataTask::WeatherResult r;
+    if (dataTask::pollWeather(&r)) {
+      _s.cTemp = r.cTemp; _s.cHum = r.cHum; _s.cWind = r.cWind;
+      _s.lastDataFetch = millis();
+      repaintWeatherValues();
+    }
+    repaintWeatherTime();
+  }
+};
+static WeatherApp g_weatherApp;
+
+// ── CryptoApp (crypto.md) ─────────────────────────────────────────────
+#define CRYPTO_FETCH_MS   60000UL
+#define CRYPTO_COIN_COUNT 6
+#define CX_CANVAS_Y  116
+#define CX_CANVAS_H  124
+#define CX_HEADER_Y  118
+#define CX_RULE_Y    130
+#define CX_ROW_Y0    132
+#define CX_ROW_H      17
+#define CX_COL_SYM     5
+#define CX_COL_PRC    55
+#define CX_COL_CHG   270
+
+static const char* CRYPTO_SYMBOLS[CRYPTO_COIN_COUNT] =
+    {"BTC","ETH","BNB","SOL","XRP","ADA"};
+
+static String formatCryptoPrice(const char* sym, float price) {
+  if (strcmp(sym,"XRP")==0 || strcmp(sym,"ADA")==0) return String(price, 4);
+  return (price >= 1000.0f) ? String((int)price) : String(price, 2);
+}
+
+class CryptoApp : public App {
+public:
+  void init() override {
+    repaintCrypto();
+    dataTask::enqueue(dataTask::DATA_FETCH_CRYPTO);
+    _s.lastCryptoFetch = millis();
+  }
+  void resume()  override { repaintCrypto(); }
+  void suspend() override {}
+  void tick()    override { cryptoTick(); }
+  bool handleInput(TouchPhase, int, int) override { return false; }
+
+private:
+  CryptoAppState _s = {};
+
+  void repaintCrypto() {
+    tft.fillRect(0, CX_CANVAS_Y, 275, CX_CANVAS_H, TFT_BLACK);
+    tft.setTextDatum(TL_DATUM);
+    tft.setTextColor(0xFFE0);
+    tft.drawString("CRYPTO TERMINAL", CX_COL_SYM, CX_HEADER_Y, 2);
+    tft.drawFastHLine(0, CX_RULE_Y, 270, 0x07FF);
+    int yPos = CX_ROW_Y0;
+    for (int i = 0; i < CRYPTO_COIN_COUNT; i++) {
+      tft.setTextColor(0xFFFF);
+      tft.drawString(CRYPTO_SYMBOLS[i], CX_COL_SYM, yPos, 2);
+      tft.setTextColor(0x07FF);
+      tft.drawString(_s.lastCryptoFetch ? formatCryptoPrice(CRYPTO_SYMBOLS[i], _s.prices[i])
+                                        : String("---"), CX_COL_PRC, yPos, 2);
+      if (!_s.lastCryptoFetch) {
+        tft.setTextColor(0x7BEF);
+        tft.drawRightString("---", CX_COL_CHG, yPos, 2);
+      } else {
+        tft.setTextColor((_s.changes[i] >= 0) ? (uint16_t)0x07E0 : (uint16_t)0xF800);
+        tft.drawRightString(String(_s.changes[i], 1) + "%", CX_COL_CHG, yPos, 2);
+      }
+      yPos += CX_ROW_H;
+      tft.drawFastHLine(0, yPos - 2, 270, 0x2104);
+    }
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  }
+
+  void cryptoTick() {
+    unsigned long now = millis();
+    if (!_s.lastCryptoFetch || now - _s.lastCryptoFetch > CRYPTO_FETCH_MS) {
+      dataTask::enqueue(dataTask::DATA_FETCH_CRYPTO);
+      _s.lastCryptoFetch = now;
+    }
+    dataTask::CryptoResult r;
+    if (dataTask::pollCrypto(&r) && r.ok) {
+      for (int i = 0; i < CRYPTO_COIN_COUNT; i++) {
+        _s.prices[i]  = r.prices[i];
+        _s.changes[i] = r.changes[i];
+      }
+      _s.lastCryptoFetch = now;
+      repaintCrypto();
+    }
+  }
+};
+static CryptoApp g_cryptoApp;
+
 // ── LifeApp (gol.md) ──────────────────────────────────────────────────
 #define GOL_GRID_W       55
 #define GOL_GRID_H       48
@@ -476,12 +654,12 @@ static LifeApp g_lifeApp;
 
 #ifdef WINAMP_DISPLAY
 App* g_apps[(int)AppId::COUNT] = {
-  &g_spotifyApp,  // AppId::Spotify = 0
-  &g_clockApp,    // AppId::Clock   = 1
-  nullptr,        // Weather
-  nullptr,        // Crypto
-  &g_matrixApp,   // Matrix
-  &g_lifeApp,     // Life
+  &g_spotifyApp,   // AppId::Spotify  = 0
+  &g_clockApp,     // AppId::Clock    = 1
+  &g_weatherApp,   // AppId::Weather  = 2
+  &g_cryptoApp,    // AppId::Crypto   = 3
+  &g_matrixApp,    // AppId::Matrix   = 4
+  &g_lifeApp,      // AppId::Life     = 5
 };
 #else
 App* g_apps[(int)AppId::COUNT] = {};
@@ -699,6 +877,7 @@ void setup()
   // this stage — task dequeues + logs but doesn't issue API calls yet.
   // 031b/c migrate the actual calls in.
   spotifyTask::begin(&spotify);
+  dataTask::begin();
 
   // Boot: init the Spotify app via the App interface, then draw taskbar.
   if (g_apps[(int)AppId::Spotify]) {

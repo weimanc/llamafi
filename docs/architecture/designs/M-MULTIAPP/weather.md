@@ -241,7 +241,21 @@ void WeatherApp::repaintWeather() {
 ## Data fetch integration
 
 Source fetches every 60 s in `loop()` regardless of mode. In the shell,
-fetch is driven by `dataTask` (see `app-lifecycle.md`):
+fetch is driven by `dataTask` (see `app-lifecycle.md`).
+
+**TLS note (ADR-029):** The source prototype's bare `http.begin(url)` silently
+uses `setInsecure()`. The production implementation in `dataTaskStorage.cpp`
+uses the verified form:
+
+```cpp
+WiFiClientSecure tls;
+tls.setCACert(OPEN_METEO_ROOT_CA);   // ISRG Root X1 — dataTaskCerts.h
+HTTPClient http;
+http.begin(tls, WEATHER_API_URL);
+// ...
+String body = http.getString();      // not getStream() — reliable on chunked HTTPS
+deserializeJson(doc, body);
+```
 
 - `WeatherApp::init()`: post `DATA_FETCH_WEATHER` to `dataTask` immediately on first launch.
 - `weatherTick()`: if `millis() - _s.lastDataFetch > 60000`, post fetch request.

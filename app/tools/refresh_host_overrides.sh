@@ -14,6 +14,8 @@ HOSTS=(
   pool.ntp.org
   time.google.com
   time.cloudflare.com
+  api.open-meteo.com
+  api.coingecko.com
 )
 
 resolve() {

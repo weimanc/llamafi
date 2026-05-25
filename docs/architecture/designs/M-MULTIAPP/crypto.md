@@ -216,7 +216,10 @@ void fetchCrypto(CryptoDataResult &out) {
 ```
 
 Note: source uses `DynamicJsonDocument doc(4096)` (ArduinoJson v6). Shell
-uses v7 `JsonDocument` (no size arg) — consistent with `updateWeather()`.
+also uses ArduinoJson v6 (6.21.6 installed) — `DynamicJsonDocument doc(2048)`.
+TLS per ADR-029: `WiFiClientSecure` + `COINGECKO_ROOT_CA` (GTS Root R4).
+Use `http.getString()` not `getStream()` — chunked HTTPS on Arduino-ESP32
+2.0.17 fails `deserializeJson` on raw stream.
 Heap usage is lower with 6 coins vs 9.
 
 Fetch interval: 60 s. CoinGecko free tier allows 30 calls/min; one call per
