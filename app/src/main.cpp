@@ -665,16 +665,56 @@ private:
 uint8_t LifeApp::s_nextGrid[GOL_GRID_W][GOL_GRID_H];
 static LifeApp g_lifeApp;
 
+class SettingsApp : public App {
+public:
+  void init()    override {}
+  void resume()  override { _dirty = true; }
+  void suspend() override {}
+  void tick()    override {
+    if (!_dirty) return;
+    tft.fillRect(0, 0, TASKBAR_X, 240, TFT_DARKGREY);
+    tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
+    tft.drawString("SETTINGS", 60, 110, 4);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    _dirty = false;
+  }
+  bool handleInput(TouchPhase, int, int) override { return false; }
+private:
+  bool _dirty = false;
+};
+static SettingsApp g_settingsApp;
+
+class StockApp : public App {
+public:
+  void init()    override {}
+  void resume()  override { _dirty = true; }
+  void suspend() override {}
+  void tick()    override {
+    if (!_dirty) return;
+    tft.fillRect(0, 0, TASKBAR_X, 240, TFT_NAVY);
+    tft.setTextColor(TFT_WHITE, TFT_NAVY);
+    tft.drawString("STOCK", 80, 110, 4);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    _dirty = false;
+  }
+  bool handleInput(TouchPhase, int, int) override { return false; }
+private:
+  bool _dirty = false;
+};
+static StockApp g_stockApp;
+
 // ── App registry + shell gesture state (TASK-090f) ────────────────────
 
 #ifdef WINAMP_DISPLAY
 App* g_apps[(int)AppId::COUNT] = {
-  &g_spotifyApp,   // AppId::Spotify  = 0
-  &g_clockApp,     // AppId::Clock    = 1
-  &g_weatherApp,   // AppId::Weather  = 2
-  &g_cryptoApp,    // AppId::Crypto   = 3
-  &g_matrixApp,    // AppId::Matrix   = 4
-  &g_lifeApp,      // AppId::Life     = 5
+  &g_spotifyApp,    // AppId::Spotify   = 0
+  &g_clockApp,      // AppId::Clock     = 1
+  &g_weatherApp,    // AppId::Weather   = 2
+  &g_cryptoApp,     // AppId::Crypto    = 3
+  &g_matrixApp,     // AppId::Matrix    = 4
+  &g_lifeApp,       // AppId::Life      = 5
+  &g_settingsApp,   // AppId::Settings  = 6
+  &g_stockApp,      // AppId::Stock     = 7
 };
 #else
 App* g_apps[(int)AppId::COUNT] = {};
@@ -697,7 +737,7 @@ void switchApp(AppId next) {
       g_apps[(int)next]->resume();
     }
   }
-  renderTaskbar(tft, currentAppId);
+  renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), (int)AppId::COUNT);
 }
 
 void appHandleInput(AppId) {
@@ -711,10 +751,14 @@ void appHandleInput(AppId) {
             TouchPhase::Release, s_lastTouchX, s_lastTouchY);
         s_inGesture = false;
       }
-      int slot = (int)p.y / TASKBAR_SLOT_H;
-      if (slot >= 0 && slot < (int)AppId::COUNT)
-        switchApp(static_cast<AppId>(slot));
-      s_cooldownMs = millis() + 300;
+      s_lastTouchY = p.y;  // track for release
+      if (winampDisplay.tbIsDragging()) {
+        if (winampDisplay.tbGestureContinue(p.y, (int)AppId::COUNT))
+          renderTaskbar(tft, currentAppId,
+                        winampDisplay.tbScrollOffset(), (int)AppId::COUNT);
+      } else {
+        winampDisplay.tbGesturePress(p.y);
+      }
       return;
     }
     if (!s_inGesture && millis() <= s_cooldownMs) return;
@@ -730,12 +774,19 @@ void appHandleInput(AppId) {
       if (g_apps[(int)currentAppId])
         g_apps[(int)currentAppId]->handleInput(TouchPhase::Move, p.x, p.y);
     }
-  } else if (s_inGesture) {
-    s_inGesture = false;
-    if (g_apps[(int)currentAppId])
-      g_apps[(int)currentAppId]->handleInput(
-          TouchPhase::Release, s_lastTouchX, s_lastTouchY);
-    s_cooldownMs = millis() + 200;
+  } else {
+    if (winampDisplay.tbIsDragging()) {
+      int appIdx = (int)currentAppId;
+      if (winampDisplay.tbGestureEnd(s_lastTouchY, (int)AppId::COUNT, &appIdx))
+        if (appIdx != (int)currentAppId) switchApp(static_cast<AppId>(appIdx));
+      s_cooldownMs = millis() + 300;
+    } else if (s_inGesture) {
+      s_inGesture = false;
+      if (g_apps[(int)currentAppId])
+        g_apps[(int)currentAppId]->handleInput(
+            TouchPhase::Release, s_lastTouchX, s_lastTouchY);
+      s_cooldownMs = millis() + 200;
+    }
   }
 }
 
@@ -901,7 +952,7 @@ void setup()
   } else {
     spotifyDisplay->showDefaultScreen();
   }
-  renderTaskbar(tft, currentAppId);
+  renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), (int)AppId::COUNT);
 
 #ifdef SPIKE_MODE
   spike::setup(&spotify);
@@ -1053,9 +1104,9 @@ static void cmdTap(const char *args) {
 #ifdef WINAMP_DISPLAY
   // Taskbar handled at shell level — WinampDisplay must not reference switchApp.
   if (x >= TASKBAR_X) {
-    int slot = (int)y / TASKBAR_SLOT_H;
-    if (slot >= 0 && slot < (int)AppId::COUNT)
-      switchApp(static_cast<AppId>(slot));
+    int slot   = (int)y / TASKBAR_SLOT_H;
+    int appIdx = (winampDisplay.tbScrollOffset() + slot) % (int)AppId::COUNT;
+    switchApp(static_cast<AppId>(appIdx));
     winampDisplay.lastTouchResult = { "TASKBAR", -1, "APP_SWITCH", 0, -1, false };
     Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                   "\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}\n", x, y);

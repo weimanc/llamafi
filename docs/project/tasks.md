@@ -15,28 +15,22 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-105 — M-TASKBAR-SCROLL: Implement scrolling taskbar
 **Owner**: Developer
 **Feature**: taskbar-scroll-001 (new)
-**Status**: open
+**Status**: implemented (flashed 2026-05-26; pending VE TASK-106)
 **Milestone**: M-TASKBAR-SCROLL
 **Blocks**: nothing — stub registration lands in this task
-**Design**: `docs/architecture/designs/M-MULTIAPP/taskbar.md` §Scroll model
+**Design**: `docs/architecture/designs/M-MULTIAPP/taskbar.md` §Scroll model (updated to match impl)
 **Notes**:
-- **TASK-105a**: Register stub apps to bring `AppId::COUNT` to 8 (`appShell.h` + `main.cpp`):
-  - Add `Settings = 6, Stock = 7` to `AppId` enum; update `COUNT = 8`.
-  - `SettingsApp` stub: `tick()` fills canvas `TFT_DARKGREY` + draws `"SETTINGS"` centred; all other methods no-op.
-  - `StockApp` stub: same pattern, label `"STOCK"`.
-  - Register both in `g_apps[]`. Update `icons[]` in `taskbar.h` to 8 entries (add `'='` for Settings, `'$'` for Stock; `'$'` already used for Crypto — use `'K'` for Stock).
-  - Exit: `check_build.sh` 4/4 pass; DUT taskbar shows 6 icons with no scroll yet; tapping Settings/Stock slots (if visible) renders stub canvas.
-- **TASK-105b**: Add three private fields to `WinampDisplay` (`winamp/winampDisplay.h`):
-  `int _tbScrollOffset = 0`, `int _tbDragStartY = 0`, `float _tbScrollAccum = 0.0f`.
-- **TASK-105c**: Add `D_TASKBAR_SCROLL` to the `DragState` enum (alongside existing `D_PLEDIT_SCROLL`, `D_PLEDIT_SCROLL_DIRECT`).
-- **TASK-105d**: Update taskbar first-pass in `checkForInput()`:
-  - Press (`D_IDLE`) in `p.x >= TASKBAR_X`: record `_tbDragStartY = p.y`; transition `dragState = D_TASKBAR_SCROLL`.
-  - Move while `D_TASKBAR_SCROLL`: accumulate `_tbScrollAccum`; compute integer steps from `(dy - SCROLL_DEAD_ZONE_PX) * 0.04f`; apply `_tbScrollOffset = (_tbScrollOffset + steps + N) % N`; call `renderTaskbar()` if steps != 0.
-  - Up while `D_TASKBAR_SCROLL`: if `|dy| < SCROLL_DEAD_ZONE_PX * 3` (tap) → compute `appIdx = (_tbScrollOffset + slot) % N`, call `switchApp` if not current; reset `_tbScrollAccum = 0.0f`; `dragState = D_IDLE`; 300 ms cooldown.
-- **TASK-105e**: Update `renderTaskbar()` signature: `void renderTaskbar(TFT_eSPI& tft, AppId activeApp, int scrollOffset, int totalApps)`. Inner loop: `int appIdx = (scrollOffset + i) % totalApps`. Active indicator: `appIdx == (int)activeApp`.
-- **TASK-105f**: Update all `renderTaskbar()` call sites to pass `_tbScrollOffset` and `(int)AppId::COUNT`.
-- **TASK-105g**: Expose `_tbScrollOffset` via `dbgGet("tbScrollOffset")` under `#ifdef SERIAL_DEBUG` (same pattern as `scrollOffset` — TASK-079). Required for T162–T168.
-- Exit criterion: `check_build.sh` 4/4 pass; DUT taskbar scrolls over 8 apps; `get tbScrollOffset` returns 0 at boot; drag up increments; wrap-around at offset 7 → 0; tap-after-scroll switches correct app; stub Settings/Stock canvases render without crash.
+- **TASK-105a**: ✅ `AppId::COUNT = 8`; `SettingsApp`/`StockApp` stubs; `g_apps[]` extended; `icons[]` extended.
+- **TASK-105b**: ✅ Private fields added to `WinampDisplay`: `_tbScrollOffset`, `_tbDragStartY`, `_tbDragBaseOff`, `_tbScrollAccum`, `_tbIsScrolling`. *(105b spec listed 3 fields; 2 extras added during UX tuning.)*
+- **TASK-105c**: ✅ `D_TASKBAR_SCROLL` added to `DragState`; debug string table updated.
+- **TASK-105d**: ✅ **UX deviated from spec** — gesture model changed after DUT testing:
+  - **Spec**: velocity-style accumulation (`eff * 0.04f`), `SCROLL_DEAD_ZONE_PX = 1`, tap = `|dy| < 3 px`.
+  - **Implemented**: **1:1 positional** (each `TASKBAR_SLOT_H` px = 1 slot, anchored to press origin via `_tbDragBaseOff`); **LP filter** on raw dy (`TB_LP_ALPHA = 0.4f`); **`TB_SCROLL_DEAD_ZONE_PX = 3`**; tap detection via `_tbIsScrolling` flag (latched, not re-evaluated at release). Gesture routing is in `appHandleInput()` via public method bundle (`tbGesturePress`, `tbGestureContinue`, `tbGestureEnd`) rather than inline code in `checkForInput()`.
+  - Design doc updated: `docs/architecture/designs/M-MULTIAPP/taskbar.md`.
+- **TASK-105e**: ✅ `renderTaskbar()` signature updated: 4 args.
+- **TASK-105f**: ✅ All call sites updated (`switchApp`, `setup()`, taskbar move branch).
+- **TASK-105g**: ✅ `dbgGet("tbScrollOffset")` added.
+- Exit criterion: `check_build.sh` 4/4 ✅; DUT flashed; UX accepted by operator.
 
 ---
 
@@ -49,14 +43,18 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 **Notes**:
 - All tests require `cyd2usb_winamp_debug` firmware + `get tbScrollOffset` via serial.
 - Taskbar hitbox: `x ∈ [TASKBAR_X, 319]`, `y ∈ [0, 239]`. Slot height = `TASKBAR_SLOT_H = 40`.
-- **T162** — Tap: short drag (dy < 3 × SCROLL_DEAD_ZONE_PX) triggers `switchApp`, no scrollOffset change.
-- **T163** — Drag-up: dy = −40 increments `tbScrollOffset` by 1.
-- **T164** — Drag-down: dy = +40 decrements `tbScrollOffset` by 1.
-- **T165** — Clamp at 0: drag-down when `tbScrollOffset = 0` stays at 0.
-- **T166** — Wrap-around up: drag-up when `tbScrollOffset = N − 1` wraps to 0.
-- **T167** — Wrap-around down: drag-down when `tbScrollOffset = 0` wraps to `N − 1`.
+- ⚠️ **T162/T165 need revision** — TASK-105 UX deviated from original spec (see TASK-105d notes):
+  - T162 tap threshold: tap = `_tbIsScrolling` never set = raw `|dy| < TB_SCROLL_DEAD_ZONE_PX = 3` (not `SCROLL_DEAD_ZONE_PX * 3`). Test value unchanged but constant source changed.
+  - T165 clamp: **does not clamp** — wrap-around is used in all directions. T165 should become "wrap-around down" (same as T167). VE to revise T165 before running.
+  - T163/T164: 1:1 positional model means ≥40 px travel triggers 1 slot. Due to LP filter (`α=0.4`), `cmdDrag` of exactly 40 px may land at ~35 px smoothed — use ≥50 px drag in serial tests to guarantee a slot step.
+- **T162** — Tap: `|rawDy| < 3 px` (never exceeds dead zone) → `switchApp`, `tbScrollOffset` unchanged.
+- **T163** — Drag-up: drag ≥50 px up → `tbScrollOffset` increments by 1.
+- **T164** — Drag-down: drag ≥50 px down → `tbScrollOffset` decrements by 1.
+- **T165** — Wrap-around down: drag-down when `tbScrollOffset = 0` wraps to `N − 1 = 7`. *(revised — no clamp; all directions wrap)*
+- **T166** — Wrap-around up: drag-up when `tbScrollOffset = N − 1 = 7` wraps to 0.
+- **T167** — *(retired — duplicate of revised T165; renumber if needed)*
 - **T168** — Active indicator follows app, not slot: after scroll, active bar renders at the slot containing `currentAppId`, not at slot `(int)currentAppId`.
-- Test IDs T162–T168. Owner: VE. Status: planned.
+- Test IDs T162–T168. Owner: VE. Status: planned (TASK-105 unblocked 2026-05-26).
 
 ---
 

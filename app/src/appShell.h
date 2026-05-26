@@ -21,7 +21,9 @@ enum class AppId : uint8_t {
     Crypto   = 3,
     Matrix   = 4,
     Life     = 5,
-    COUNT    = 6,
+    Settings = 6,
+    Stock    = 7,
+    COUNT    = 8,
 };
 
 extern AppId currentAppId;
@@ -83,5 +85,5 @@ extern bool g_appLaunched[(int)AppId::COUNT];
 
 // Sanity checks (T127/T129): catch compile-time drift between appShell.h and shell_layout.h.
 static_assert(TASKBAR_X == 275,                           "TASKBAR_X drift vs appShell");
-static_assert((int)AppId::COUNT == TASKBAR_SLOT_COUNT,    "AppId::COUNT vs TASKBAR_SLOT_COUNT mismatch");
+// AppId::COUNT (8) intentionally exceeds TASKBAR_SLOT_COUNT (6) — taskbar scrolls (M-TASKBAR-SCROLL).
 

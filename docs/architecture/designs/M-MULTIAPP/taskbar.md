@@ -1,7 +1,7 @@
 # M-MULTIAPP — Taskbar
 
 > Part of: [overview.md](overview.md)
-> Updated: 2026-05-25 — scrolling design added (wrap-around, N > 6 apps)
+> Updated: 2026-05-26 — scroll UX revised: 1:1 positional + LP filter + 3 px dead zone (post-implementation UX tuning)
 
 ## Role
 
@@ -73,40 +73,46 @@ PLEDIT scroll uses a **velocity accumulator** (`tickScroll`, `_scrollVelocity`,
 fractional-step inertia feels natural.
 
 The taskbar has at most ~10–12 items. Velocity inertia on a 6-slot strip would
-feel mushy and overshoot easily. Instead we adopt the **structural pattern** from
-PLEDIT — dead zone, drag state, integer-step accumulation — but drive steps
-directly from finger displacement with no velocity:
+feel mushy and overshoot easily. The taskbar uses a **1:1 positional model**:
+finger displacement from the press origin maps directly to slot offset, smoothed
+by an LP filter to absorb digitizer jitter.
 
 | Concept | PLEDIT source | Taskbar adaptation |
 |---------|---------------|-------------------|
-| Tap-vs-drag dead zone | `SCROLL_DEAD_ZONE_PX = 1` | same constant, re-used |
+| Tap-vs-drag dead zone | `SCROLL_DEAD_ZONE_PX = 1` | **`TB_SCROLL_DEAD_ZONE_PX = 3`** (separate constant) |
 | Drag state enum | `D_PLEDIT_SCROLL` in `DragState` | add `D_TASKBAR_SCROLL` |
 | Drag start Y | `_dragStartY` | `_tbDragStartY` (separate field) |
-| Integer step accumulation | `_scrollAccum` + `steps` | same pattern, no velocity term |
-| Wrap-around clamp | `max(0, min(max, offset+steps))` | `(offset + steps + N) % N` |
+| Offset at press | — | `_tbDragBaseOff` (positional anchor) |
+| Scroll amount | velocity accumulator | **1:1**: `steps = (int)(-smoothedDy / SLOT_H)` |
+| Jitter suppression | — | **LP filter** on raw dy: `accum += (raw − accum) × 0.4` |
+| Tap detection | `abs(dy) < DEAD_ZONE * 3` | **`_tbIsScrolling` flag** (set once dead zone exceeded) |
+| Wrap-around | `max(0, min(max, offset))` | `((_tbDragBaseOff + steps) % N + N) % N` |
 | Dirty flag + redraw | `_pleditScrollDirty` | call `renderTaskbar()` directly |
 
-The velocity fields (`_scrollVelocity`, `_scrollSpeedK`) are **not** ported —
-they are PLEDIT-specific and have no value here.
+The velocity fields (`_scrollVelocity`, `_scrollSpeedK`) are **not** ported.
 
 ### State additions (WinampDisplay private section)
 
 ```cpp
-// Taskbar scroll
-int    _tbScrollOffset  = 0;          // index of top visible app slot (0..N-1)
-int    _tbDragStartY    = 0;
-float  _tbScrollAccum   = 0.0f;
-```
+// Taskbar scroll (M-TASKBAR-SCROLL)
+int   _tbScrollOffset = 0;    // index of top visible app slot (0..N-1); only persistent field
+int   _tbDragStartY   = 0;    // Y at press; used for dead-zone and tap-slot calculation
+int   _tbDragBaseOff  = 0;    // _tbScrollOffset captured at press; positional 1:1 anchor
+float _tbScrollAccum  = 0.0f; // LP-filtered pixel displacement from _tbDragStartY
+bool  _tbIsScrolling  = false; // latched true once dead zone exceeded; blocks tap-on-release
 
-`_tbScrollOffset` replaces the hardcoded `slot = p.y / 40` mapping in the
-hit-test. It is the only persistent scroll state.
+static constexpr int   TB_SCROLL_DEAD_ZONE_PX = 3;   // px before scroll engages
+static constexpr float TB_LP_ALPHA             = 0.4f; // EMA weight (0=frozen, 1=raw)
+```
 
 ### Scroll arithmetic
 
+Positional 1:1, anchored to press origin. Finger-up (negative raw dy) increases offset:
+
 ```cpp
-// Advance N steps (positive = scroll down / higher IDs visible):
-const int totalApps = (int)AppId::COUNT;
-_tbScrollOffset = (_tbScrollOffset + steps + totalApps) % totalApps;
+_tbScrollAccum += ((float)rawDy - _tbScrollAccum) * TB_LP_ALPHA;  // LP filter
+const int steps     = (int)(-_tbScrollAccum / TASKBAR_SLOT_H);    // 1:1 slot mapping
+const int newOffset = ((_tbDragBaseOff + steps) % N + N) % N;      // wrap-around
 ```
 
 Wrap-around is free: modulo naturally cycles from the last app back to slot 0.
@@ -137,53 +143,36 @@ A minimal 2×(slot_h-4) px indicator column on the right edge of the taskbar
 It moves proportionally: `indicatorY = (scrollOffset * 240) / totalApps`.
 Deferred to implementation; not required for first scroll pass.
 
-## Hit-test (updated — scroll-aware)
+## Hit-test (scroll-aware)
 
-In `WinampDisplay::checkForInput()`, the taskbar first-pass becomes:
+Taskbar gesture routing lives in `appHandleInput()` in `main.cpp` (not
+`WinampDisplay::checkForInput()`). Three branches, dispatched via
+`winampDisplay.tbIsDragging()` and the public method bundle on `WinampDisplay`:
 
+**Press** (`p.x >= TASKBAR_X`, `tbIsDragging() == false`):
 ```cpp
-if (p.x >= 275) {
-    if (dragState == D_IDLE) {
-        // record drag start for tap-vs-scroll discrimination
-        _tbDragStartY = p.y;
-        dragState = D_TASKBAR_SCROLL;  // tentative; resolved on move/up
-    }
-    // consume — do not fall through to Winamp hit-tests
-    return;
-}
+winampDisplay.tbGesturePress(p.y);
+// captures _tbDragStartY, _tbDragBaseOff, resets _tbScrollAccum/_tbIsScrolling
+// sets dragState = D_TASKBAR_SCROLL
 ```
 
-On **move** while `dragState == D_TASKBAR_SCROLL`:
+**Move** (`p.x >= TASKBAR_X`, `tbIsDragging() == true`):
 ```cpp
-const int dy = p.y - _tbDragStartY;
-const float eff = max(0.0f, (float)abs(dy) - (float)SCROLL_DEAD_ZONE_PX);
-_tbScrollAccum += (dy < 0 ? 1.0f : -1.0f) * eff * 0.04f;  // tune constant
-const int steps = (int)_tbScrollAccum;
-if (steps != 0) {
-    _tbScrollAccum -= (float)steps;
-    const int N = (int)AppId::COUNT;
-    _tbScrollOffset = (_tbScrollOffset + steps + N) % N;
-    renderTaskbar(tft, currentAppId, _tbScrollOffset, N);
-}
+if (winampDisplay.tbGestureContinue(p.y, (int)AppId::COUNT))
+    renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), (int)AppId::COUNT);
+// tbGestureContinue: LP-filters rawDy, sets _tbIsScrolling once dead zone exceeded,
+// computes 1:1 steps, updates _tbScrollOffset, returns true if offset changed
 ```
 
-On **up** while `dragState == D_TASKBAR_SCROLL`:
+**Release** (`!touched`, `tbIsDragging() == true`):
 ```cpp
-const bool isTap = abs(p.y - _tbDragStartY) < SCROLL_DEAD_ZONE_PX * 3;
-if (isTap) {
-    const int slot    = p.y / TASKBAR_SLOT_H;          // 0..5
-    const int appIdx  = (_tbScrollOffset + slot) % (int)AppId::COUNT;
-    if (appIdx != (int)currentAppId) {
-        switchApp(static_cast<AppId>(appIdx));
-    }
-}
-_tbScrollAccum = 0.0f;
-dragState = D_IDLE;
-touchScreenCoolDownTime = millis() + 300;
+int appIdx = (int)currentAppId;
+if (winampDisplay.tbGestureEnd(s_lastTouchY, (int)AppId::COUNT, &appIdx))
+    if (appIdx != (int)currentAppId) switchApp(static_cast<AppId>(appIdx));
+// tbGestureEnd: tap = !_tbIsScrolling; resets drag state; fills outAppIdx for tap
 ```
 
-The tap dead zone for switch is 3× the scroll dead zone (3 px) to prevent
-accidental app switches during short swipes.
+**Tap detection**: `_tbIsScrolling` is latched the first time `|rawDy| >= TB_SCROLL_DEAD_ZONE_PX (= 3)`. If it was never set, the release is a tap. This gives a clean binary separation — no `abs(dy)` comparison at release time.
 
 ## Rendering
 

@@ -56,6 +56,50 @@ public:
   int chromeOriginX() const { return originX; }
   int chromeOriginY() const { return originY; }
 
+  // Taskbar gesture API (M-TASKBAR-SCROLL) — called from appHandleInput().
+  int  tbScrollOffset() const { return _tbScrollOffset; }
+  bool tbIsDragging()   const { return dragState == D_TASKBAR_SCROLL; }
+
+  void tbGesturePress(int y) {
+    _tbDragStartY  = y;
+    _tbDragBaseOff = _tbScrollOffset;
+    _tbScrollAccum = 0.0f;
+    _tbIsScrolling = false;
+    dragState      = D_TASKBAR_SCROLL;
+  }
+
+  // 1:1 positional scroll with LP filter. Returns true when offset changed.
+  // Finger UP (negative dy) = higher-index apps scroll into view.
+  bool tbGestureContinue(int y, int totalApps) {
+    const int rawDy = y - _tbDragStartY;
+    // Exponential moving average — smooths digitizer jitter, preserves 1:1 feel.
+    _tbScrollAccum += ((float)rawDy - _tbScrollAccum) * TB_LP_ALPHA;
+    // Dead zone: don't scroll until clearly past tap threshold.
+    if (!_tbIsScrolling && abs(rawDy) < TB_SCROLL_DEAD_ZONE_PX) return false;
+    _tbIsScrolling = true;
+    // 1:1: negate because finger-up (negative dy) should increase offset.
+    const int steps     = (int)(-_tbScrollAccum / TASKBAR_SLOT_H);
+    const int newOffset = ((_tbDragBaseOff + steps) % totalApps + totalApps) % totalApps;
+    if (newOffset != _tbScrollOffset) {
+      _tbScrollOffset = newOffset;
+      return true;
+    }
+    return false;
+  }
+
+  // Returns true if gesture was a tap; fills *outAppIdx. Resets drag state.
+  bool tbGestureEnd(int y, int totalApps, int* outAppIdx) {
+    const bool isTap = !_tbIsScrolling;
+    _tbScrollAccum = 0.0f;
+    _tbIsScrolling = false;
+    dragState      = D_IDLE;
+    if (isTap && outAppIdx) {
+      *outAppIdx = (_tbScrollOffset + y / TASKBAR_SLOT_H) % totalApps;
+      return true;
+    }
+    return false;
+  }
+
   void showDefaultScreen() override {
     tft.fillScreen(TFT_BLACK);
     lastThumbPx = -1;
@@ -513,7 +557,7 @@ private:
   // ts.touched() is false. lastVolumeEnqueuedMs/Pct debounce ACT_VOLUME
   // queue traffic to ~3/s. optimisticVolumeUntilMs gates spotifyLogic's
   // dedup against stale snapshot reads during/after drag.
-  enum DragState { D_IDLE = 0, D_VOLUME_DRAG, D_POSBAR_DRAG, D_PLEDIT_SCROLL, D_PLEDIT_SCROLL_DIRECT };
+  enum DragState { D_IDLE = 0, D_VOLUME_DRAG, D_POSBAR_DRAG, D_PLEDIT_SCROLL, D_PLEDIT_SCROLL_DIRECT, D_TASKBAR_SCROLL };
   DragState dragState = D_IDLE;
   int _dragStartY = 0;    // screen Y at start of D_PLEDIT_SCROLL
   int _dragCurrentY = 0;  // most recent screen Y during D_PLEDIT_SCROLL
@@ -525,6 +569,14 @@ private:
   static constexpr int   SCROLL_DEAD_ZONE_PX    = 1;
   static constexpr float SCROLL_SPEED_K_DEFAULT = 0.1667f;  // linear: 2 rows/s at 1-row travel
   bool _pleditScrollDirty = false;  // force drawScrollThumbOnly bypass of rate-limit
+  // Taskbar scroll (M-TASKBAR-SCROLL, TASK-105b)
+  int   _tbScrollOffset = 0;
+  int   _tbDragStartY   = 0;
+  int   _tbDragBaseOff  = 0;    // offset captured at press; positional 1:1 anchor
+  float _tbScrollAccum  = 0.0f; // LP-filtered pixel displacement from _tbDragStartY
+  bool  _tbIsScrolling  = false; // set once dead zone is exceeded; blocks tap-on-release
+  static constexpr int   TB_SCROLL_DEAD_ZONE_PX = 3;
+  static constexpr float TB_LP_ALPHA             = 0.4f;
   int optimisticSelectedRow = -1;   // TASK-051a: row playing, highlighted until seqno advances
   unsigned long optimisticSelectedUntilMs = 0;
   uint16_t _songsSeen = 0;          // TASK-051h: natural track advances since boot
@@ -824,6 +876,7 @@ public:
                         : dragState == D_POSBAR_DRAG          ? "D_POSBAR_DRAG"
                         : dragState == D_PLEDIT_SCROLL        ? "D_PLEDIT_SCROLL"
                         : dragState == D_PLEDIT_SCROLL_DIRECT ? "D_PLEDIT_SCROLL_DIRECT"
+                        : dragState == D_TASKBAR_SCROLL       ? "D_TASKBAR_SCROLL"
                         : "D_IDLE";
       snprintf(buf, len, "\"var\":\"dragState\",\"state\":\"%s\",\"last\":true", dsStr);
       return true;
@@ -847,6 +900,10 @@ public:
     }
     if (strcmp(var, "scrollOffset") == 0) {
       snprintf(buf, len, "\"key\":\"scrollOffset\",\"val\":%d", scrollOffset);
+      return true;
+    }
+    if (strcmp(var, "tbScrollOffset") == 0) {
+      snprintf(buf, len, "\"key\":\"tbScrollOffset\",\"val\":%d", _tbScrollOffset);
       return true;
     }
     if (strcmp(var, "lastPlaylistDraw") == 0) {
