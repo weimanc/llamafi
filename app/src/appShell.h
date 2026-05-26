@@ -23,7 +23,8 @@ enum class AppId : uint8_t {
     Life     = 5,
     Settings = 6,
     Stock    = 7,
-    COUNT    = 8,
+    Aquarium = 8,
+    COUNT    = 9,
 };
 
 extern AppId currentAppId;
@@ -80,10 +81,14 @@ struct LifeAppState {
     bool     initialised;
 };
 
+struct AquariumAppState {
+    bool initialised;
+};
+
 // First-launch tracking — indexed by (int)AppId.
 extern bool g_appLaunched[(int)AppId::COUNT];
 
 // Sanity checks (T127/T129): catch compile-time drift between appShell.h and shell_layout.h.
 static_assert(TASKBAR_X == 275,                           "TASKBAR_X drift vs appShell");
-// AppId::COUNT (8) intentionally exceeds TASKBAR_SLOT_COUNT (6) — taskbar scrolls (M-TASKBAR-SCROLL).
+// AppId::COUNT (9) intentionally exceeds TASKBAR_SLOT_COUNT (6) — taskbar scrolls (M-TASKBAR-SCROLL).
 

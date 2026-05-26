@@ -703,6 +703,9 @@ private:
 };
 static StockApp g_stockApp;
 
+#include "aquarium/aquariumApp.h"
+static AquariumApp g_aquariumApp;
+
 // ── App registry + shell gesture state (TASK-090f) ────────────────────
 
 #ifdef WINAMP_DISPLAY
@@ -715,6 +718,7 @@ App* g_apps[(int)AppId::COUNT] = {
   &g_lifeApp,       // AppId::Life      = 5
   &g_settingsApp,   // AppId::Settings  = 6
   &g_stockApp,      // AppId::Stock     = 7
+  &g_aquariumApp,   // AppId::Aquarium  = 8
 };
 #else
 App* g_apps[(int)AppId::COUNT] = {};
@@ -1210,7 +1214,10 @@ static void cmdGet(const char *args) {
                    : currentAppId == AppId::Weather ? "Weather"
                    : currentAppId == AppId::Crypto  ? "Crypto"
                    : currentAppId == AppId::Matrix  ? "Matrix"
-                   : currentAppId == AppId::Life    ? "Life"
+                   : currentAppId == AppId::Life     ? "Life"
+                   : currentAppId == AppId::Settings ? "Settings"
+                   : currentAppId == AppId::Stock    ? "Stock"
+                   : currentAppId == AppId::Aquarium ? "Aquarium"
                    : "Unknown";
     Serial.printf("{\"ok\":true,\"cmd\":\"get\","
                   "\"var\":\"appId\",\"id\":%d,\"name\":\"%s\",\"last\":true}\n",
