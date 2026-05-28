@@ -34,6 +34,48 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ---
 
+### TASK-107 — BUG: Aquarium blank screen — debug render/push path
+**Owner**: Developer
+**Feature**: aquarium-001
+**Status**: open
+**Milestone**: M-AQUARIUM
+**Blocked by**: nothing
+**Notes**:
+- EXP-002 (2026-05-28) ruled out heap pressure as cause. Sprite allocates OK (275×145 8bpp,
+  avail=57,332) when launched from any prior app under normal conditions.
+- Candidate root causes to investigate in order:
+  1. `pushSprite` offset: `_canvas.pushSprite(0, 145 − _canvasH)` — when h=145 offset=0;
+     verify TFT is not mis-addressed (check whether `tft.fillRect(0,0,TASKBAR_X,240,TFT_BLACK)`
+     in `switchApp()` clears correctly before init).
+  2. 8bpp palette: `_canvas.setColorDepth(8)` creates a paletted sprite; `setTextColor` and
+     `drawString` on an 8bpp sprite use palette index 0 unless a palette is loaded. Verify
+     that fish glyph colours resolve correctly in 8bpp mode.
+  3. `g_appLaunched` guard: confirm `init()` is actually called (not `resume()` on first entry).
+     Add a `Serial.printf("[aquarium] init\n")` at entry to confirm.
+  4. `_spriteReady` false path: if sprite alloc fails silently after the log, tick() returns
+     early and screen stays black. Cross-check `_spriteReady` value in tick() entry.
+- Reference: `app/src/aquarium/aquariumApp.h` — `init()`, `tick()`, `renderFrame()`.
+- EXP-002 report: `docs/rnd/experiments/EXP-002-heap-benchmark.md`.
+
+---
+
+### TASK-108 — Hardening: Coingecko TLS client.stop() on fetch failure
+**Owner**: Developer
+**Feature**: crypto-001
+**Status**: open
+**Blocked by**: nothing
+**Notes**:
+- EXP-002 (2026-05-28) observed that a failed TLS connection to `api.coingecko.com`
+  left ~64 KB of heap stranded for several minutes (freeHeap 110 k → 46 k;
+  maxAllocHeap 57 k → 41 k). Memory recovered on its own but timing is non-deterministic.
+- Fix: ensure `http.end()` / `client.stop()` is called on all error paths in
+  `dataTask` crypto fetch so the SSL context is released promptly.
+- Affects: `app/src/dataTask.h` crypto fetch path (and audit weather path for symmetry).
+- Low-risk: one-liner guard; no behaviour change on success path.
+- EXP-002 report: `docs/rnd/experiments/EXP-002-heap-benchmark.md`.
+
+---
+
 ### TASK-106 — VE: test suite for taskbar-scroll-001 (T162–T168)
 **Owner**: VE
 **Feature**: taskbar-scroll-001

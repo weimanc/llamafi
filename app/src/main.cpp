@@ -730,6 +730,13 @@ static unsigned long s_cooldownMs = 0;
 
 void switchApp(AppId next) {
   if (next == currentAppId) return;
+#ifdef SERIAL_DEBUG
+  Serial.printf("[shell] leaving %d  heap=%lu maxAlloc=%lu minFree=%lu\n",
+    (int)currentAppId,
+    (unsigned long)ESP.getFreeHeap(),
+    (unsigned long)ESP.getMaxAllocHeap(),
+    (unsigned long)ESP.getMinFreeHeap());
+#endif
   if (g_apps[(int)currentAppId]) g_apps[(int)currentAppId]->suspend();
   tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK);
   currentAppId = next;
@@ -741,6 +748,13 @@ void switchApp(AppId next) {
       g_apps[(int)next]->resume();
     }
   }
+#ifdef SERIAL_DEBUG
+  Serial.printf("[shell] entered %d  heap=%lu maxAlloc=%lu minFree=%lu\n",
+    (int)next,
+    (unsigned long)ESP.getFreeHeap(),
+    (unsigned long)ESP.getMaxAllocHeap(),
+    (unsigned long)ESP.getMinFreeHeap());
+#endif
   renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), (int)AppId::COUNT);
 }
 
