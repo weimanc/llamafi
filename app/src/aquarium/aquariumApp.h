@@ -35,8 +35,8 @@ public:
             (unsigned long)ESP.getMaxAllocHeap());
         if (_spriteReady) {
             _drawSandStrip();
-            if (145 - _canvasH > 0)
-                tft.fillRect(0, 0, TASKBAR_X, 145 - _canvasH, TFT_BLACK);
+            if (_canvasH < 145)
+                tft.fillRect(0, _canvasH, TASKBAR_X, 145 - _canvasH, TFT_BLACK);
         }
         _canvas.setTextFont(2);  // needed for glyph metrics regardless of alloc result
 
@@ -64,8 +64,8 @@ public:
         if (_spriteReady) {
             _canvas.setTextFont(2);
             _drawSandStrip();
-            if (145 - _canvasH > 0)
-                tft.fillRect(0, 0, TASKBAR_X, 145 - _canvasH, TFT_BLACK);
+            if (_canvasH < 145)
+                tft.fillRect(0, _canvasH, TASKBAR_X, 145 - _canvasH, TFT_BLACK);
         }
         _lastTickMs = millis();
     }
@@ -89,8 +89,8 @@ public:
                     _canvas.setTextFont(2);
                     _lastTickMs = now2;
                     _drawSandStrip();
-                    if (145 - _canvasH > 0)
-                        tft.fillRect(0, 0, TASKBAR_X, 145 - _canvasH, TFT_BLACK);
+                    if (_canvasH < 145)
+                        tft.fillRect(0, _canvasH, TASKBAR_X, 145 - _canvasH, TFT_BLACK);
                     Serial.printf("[aquarium] retry succeeded  heap=%lu\n",
                         (unsigned long)ESP.getFreeHeap());
                 } else {
@@ -133,11 +133,9 @@ public:
 
     bool handleInput(TouchPhase phase, int x, int y) override {
         if (phase == TouchPhase::Press) {
-            // Touch coords are screen-space; sprite pushes at y=(145-_canvasH).
-            // Translate to sprite-local Y before spawning.
-            float fy = (float)(y - (145 - _canvasH));
-            if (fy >= 0.0f && fy < (float)_canvasH)
-                spawnFlake((float)x, fy);
+            // Sprite is always at screen (0,0); touch coords are sprite-local directly.
+            if (y < _canvasH)
+                spawnFlake((float)x, (float)y);
             return true;
         }
         return false;
@@ -1090,6 +1088,6 @@ private:
         drawOctopus();
         drawSeahorse();
         drawClock();
-        _canvas.pushSprite(0, 145 - _canvasH);
+        _canvas.pushSprite(0, 0);
     }
 };
