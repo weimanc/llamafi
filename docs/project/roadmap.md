@@ -371,6 +371,76 @@ without waiting for full app implementations.
 
 ---
 
+### M-AQUARIUM-DEMOSCENE — Aquarium demoscene optimisations
+
+Apply classic "never store what you can compute" and "cache only the minimum repeating
+unit" techniques to `AquariumApp`. Motivated by the RAM audit (2026-05-28) which found
+the app contributing ~24 KB to `.bss` via arrays that are either over-cached, tiled
+beyond their natural period, or reconstructible from data already available at draw time.
+
+Work (all changes local to `aquariumApp.h`):
+1. **Gradient x-tile** — replace `_gradientBandCache[275×36]` (19,800 B) with
+   `_gradTile[36][32]` (2,304 B). The Bayer dither pattern repeats every 32 px in x;
+   render each row by tiling the 32-pixel strip via a 550 B stack buffer. Alternatively,
+   evaluate scanline-only render (zero cache) on DUT — 8-bit palette quantisation may
+   make dithering visually redundant. **Supersedes ADR-033 heap migration.**
+2. **Mirror fish on the fly** — drop `_fishMirroredLeft[12][28]` (336 B); apply
+   `_mirrorBracket()` inline during draw using the existing right-string in reverse.
+3. **Glyph offsets → per-char widths** — replace `_fishGlyphOffsetRight/Left[12][28]`
+   (1,344 B) with `_fishCharWidthRight/Left[12][28]` (672 B); accumulate x position
+   incrementally during draw.
+4. **Seaweed root arrays → inline + flash** — `_seaweedBaseX` and `_seaweedAmp` are
+   two-line formulas of `i`; compute inline. `_seaweedHeightNoise` → `static const`
+   table in flash (`.rodata`). Drop `_seaweedCached` flag.
+5. **Seaweed phase hoisting** — hoist the time-constant sin phase component per root
+   out of `_swayPoint`; eliminates ~1,200 redundant float ops/frame (CPU only).
+6. **Fish struct packing** — narrow `type` (int→uint8_t), `speed` (float→uint8_t),
+   `visualWidth` (int→uint8_t); reorder fields to eliminate padding. ~192 B across pool.
+
+Expected `.bss` reduction: **~18.7 KB**. Combined with M-AQUARIUM-OPT pool right-sizing,
+total aquarium `.bss` drops from ~24 KB to ~2.6 KB. No heap lifecycle changes needed.
+
+**Status:** open
+**Design:** [M-AQUARIUM/demoscene-opt.md](../architecture/designs/M-AQUARIUM/demoscene-opt.md)
+**Deps:** M-AQUARIUM (done)
+**Note:** ADR-033 (gradient heap migration) is superseded by Change 1 of this milestone.
+Update ADR-033 to `Status: superseded` when this ships.
+
+---
+
+### M-AQUARIUM-OPT — Aquarium static-RAM reduction
+
+Reduce `AquariumApp`'s contribution to `.bss` by ~22 KB and improve heap headroom for TLS
+handshakes when the aquarium is active or suspended.
+
+Identified in RAM audit 2026-05-28: `AquariumApp` is the single largest static-RAM consumer
+in the firmware outside of system libraries, driven by two issues:
+(a) `_gradientBandCache[275×36]` (19.3 KB) lives permanently in `.bss` even when the app is
+suspended; and (b) pool arrays `_fishPool[48]` and `_bubbles[50]` are oversized relative to the
+active count constants (`AQ_FISH_COUNT=16`, `AQ_BUBBLE_COUNT=10`), wasting ~3 KB in `.bss`.
+
+Work:
+1. **Heap-migrate gradient cache** (ADR-033): replace `uint16_t _gradientBandCache[…]` member
+   array with a `uint16_t* _gradientBandCache = nullptr` pointer. Allocate on `init()`/`resume()`
+   alongside the sprite; free on `suspend()`. Cache-invalid flag `_gradientBandCached` becomes
+   the null check. Net: 19.3 KB leaves `.bss`; on suspend, that heap is available for mbedTLS.
+2. **Right-size pool arrays**: reduce `AQ_FISH_POOL_MAX` from 48 → 16 (`AQ_FISH_COUNT`) and
+   `AQ_BUBBLE_POOL_MAX` from 50 → 10 (`AQ_BUBBLE_COUNT`). The upstream over-allocated these
+   for a settings-UI that was dropped (ADR-031). Net: ~3 KB leaves `.bss`.
+3. **Update `overview.md`** Open Question #2 as resolved.
+4. **VE**: verify fish count, bubble count, and gradient render on DUT after changes.
+
+Expected outcome: `.bss` reduced by ~22 KB; heap headroom when aquarium is suspended increases
+from ~100 KB to ~122 KB, giving mbedTLS single-handshake peaks (~40 KB) comfortable margin.
+ADR-032 heap arbitration (SSL yield protocol) is independent and may proceed in parallel.
+
+**Status:** open
+**ADR:** ADR-033 (gradient cache heap migration)
+**Design:** [M-AQUARIUM/memory-opt.md](../architecture/designs/M-AQUARIUM/memory-opt.md)
+**Deps:** M-AQUARIUM (done — aquariumApp.h in tree)
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.
