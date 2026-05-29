@@ -441,6 +441,37 @@ ADR-032 heap arbitration (SSL yield protocol) is independent and may proceed in 
 
 ---
 
+### M-DATATASK-STREAM-PARSE — Replace buffered HTTP parse with streaming across all dataTask fetchers
+
+All four fetch functions in `dataTaskStorage.cpp` (weather, crypto, stock quote, stock chart) call `http.getString()` before passing to `deserializeJson`. This allocates the full response body as a heap `String` before the ArduinoJson doc — peak heap pressure is `String + DynamicJsonDocument` simultaneously. On a fragmented heap, the String allocation fails or truncates, and ArduinoJson returns a parse error → `fetchFailed=1 / errorCode=-99`. Observed on DUT during rapid StockApp range-tab cycling.
+
+Fix:
+1. Replace `deserializeJson(doc, http.getString())` with `deserializeJson(doc, http.getStream())` in all four fetchers. Eliminates the intermediate String; only the doc arena is needed.
+2. Update `CHART_BUDGET_B` in `test_yahoo_finance_api.py` from 8192 to 16384 to match the firmware's `DynamicJsonDocument(16384)` for chart fetches. Add cross-reference comment citing the firmware source line.
+3. Add a capacity safety-factor note (≥ 1.5×) to the host budget check explaining why raw payload bytes ≠ doc capacity.
+
+**Status**: open
+**ADR**: ADR-034 (proposed)
+**Triggered by**: QM audit LL-040 (2026-05-29)
+**Deps**: M-MULTIAPP (dataTask in tree)
+
+---
+
+### M-STOCK-VE-STRESS — Redesign T186: per-range fetch verification with counter assertion
+
+T186 fires 32 taps to stress-test StockApp rapid range switching, but dataTask queue depth is 4. All taps beyond the first four are silently dropped — only D1/D5 fetches ran; Mo1/Ytd (the larger ranges most likely to exhaust heap) were never exercised. The test reported PASS with unmeasured coverage.
+
+Fix:
+1. Drive each range individually: tap → wait for `lastChartFetch` counter to advance → confirm no `fetchFailed` → repeat for all four ranges. This guarantees each range executes at least once.
+2. Add a focused rapid-switch phase (D1↔Ytd alternating, 4–6 cycles with queue-drain waits) to test the back-to-back allocation pattern under real pressure.
+3. Add a `Dut` class docstring noting the serial stream is not thread-safe; document fire-and-forget + drain-phase as the canonical pattern for async log capture (avoids the ACK-theft failure mode from T186 iteration 2).
+
+**Status**: open
+**Triggered by**: QM audit LL-041 / LL-042 (2026-05-29)
+**Deps**: M-DATATASK-STREAM-PARSE (fix the bug first, then verify the fix holds under stress)
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.

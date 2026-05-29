@@ -739,6 +739,69 @@ Triggering work: user bug report — PLEDIT shows chrome but no track rows durin
 
 ---
 
+## Retrospective — 2026-05-29 — StockApp -99 NET ERR: host API test and VE stress test both failed to surface root cause
+
+Triggering incident: user observed "NET ERR -99" on screen while manually cycling range tabs in StockApp chart view. Two existing tools were expected to catch this class of issue and did not. Three lessons extracted.
+
+### What went wrong
+
+- **`test_yahoo_finance_api.py` checked the wrong budget** — used `CHART_BUDGET_B = 8192` for chart fetches, but the firmware uses `DynamicJsonDocument(16384)`. A payload that the test passed could still fail in firmware.
+- **The budget model was wrong even if the constant were correct** — the test compares raw HTTP payload bytes against the `DynamicJsonDocument` capacity. ArduinoJson's capacity must accommodate the parsed tree, not just the raw JSON. `http.getString()` also allocates a separate heap `String` before parsing. Neither of these was modelled.
+- **T186 stress test took three iterations to work**, and still didn't trigger the failure — queue depth=4 silently drops most taps; "32 taps fired" produced only 4 actual fetches, all D1/D5. Mo1 and Ytd were never exercised under pressure.
+
+---
+
+### LL-040 — 2026-05-29 — Host API test used wrong budget constant and wrong capacity model
+
+**Context**: `test_yahoo_finance_api.py` T_SF_06 checks that chart payloads fit the "DUT budget" of 8192 bytes. The firmware's `fetchStockChart()` uses `DynamicJsonDocument(16384)` — 2× the constant in the test. Additionally, the test measures raw HTTP response bytes, not the ArduinoJson capacity requirement (which is larger than raw JSON due to the parsed-tree representation) nor the peak heap pressure (which includes the `http.getString()` String allocation stacked on top of the document).
+
+**Observation**: The test passed for all ranges including Ytd, giving false confidence. On DUT, the same request may fail because the heap can't satisfy both the `String` and the `DynamicJsonDocument` allocation concurrently, or because ArduinoJson runs out of capacity parsing a complex document.
+
+**Root cause**: The budget constant was written during an earlier design pass and not updated when the firmware was changed to use 16384. The conceptual model ("does the payload fit?") is correct but the operationalisation is wrong — payload bytes ≠ ArduinoJson capacity ≠ peak heap pressure.
+
+**Suggested improvement**:
+- `CHART_BUDGET_B` in the test must match `DynamicJsonDocument(N)` in firmware exactly. Owner: Developer updates the constant whenever the firmware doc size changes; host test must cross-reference the firmware value (comment citing the source line).
+- The payload size check should apply a safety factor (≥ 1.5×) to approximate ArduinoJson tree overhead. A comment should explain why.
+- Eliminate the intermediate `String` in firmware: replace `deserializeJson(doc, http.getString())` with `deserializeJson(doc, http.getStream())`. This removes the double-allocation (no `String` heap cost) and makes the host budget check more accurate.
+
+**Status**: open — promotion candidate.
+
+---
+
+### LL-041 — 2026-05-29 — ESP32 stress test assumed "taps fired = fetches executed"; queue depth not accounted for
+
+**Context**: T186 fires 32 taps (8 rounds × 4 tabs) to stress-test rapid range switching. The dataTask queue depth is 4. After the first 4 enqueues, all subsequent taps are silently dropped (`LOG_W "queue full — dropped"`). The 30s drain window captured only 4 chart fetches — all D1 or D5. Mo1 and Ytd (the ranges most likely to exhaust heap) were never executed.
+
+**Observation**: The test reported PASS because `fetchFailed` was not set for the 4 fetches that did run. The stress condition the test was designed to create (heap pressure from back-to-back fetches of large ranges) was never actually reached.
+
+**Root cause**: The test was designed from the tap side ("fire N taps") rather than from the fetch side ("confirm N fetches actually executed"). The queue-depth limit is a firmware constant that the VE should consult when designing throughput stress tests. No assertion on the number of actual fetches was made.
+
+**Suggested improvement**:
+- Stress tests targeting a queue-backed task must assert on *completed* fetch count (e.g. `lastChartFetch` counter advancing), not on *commands fired*. A stress test that can't verify its own load level has unknown coverage.
+- VE should read the firmware's `xQueueCreate(depth, ...)` call when designing queue-driven tests. If queue depth < intended rounds, either reduce round rate to let the queue drain between rounds, or accept that only `depth` concurrent fetches will run and size ROUNDS accordingly.
+- For coverage of all ranges under pressure: send one tap per range, wait for the fetch counter to advance, repeat — rather than firing a burst that floods the queue.
+
+**Status**: open — promotion candidate.
+
+---
+
+### LL-042 — 2026-05-29 — VE stress test took three implementation iterations due to serial port contention assumptions
+
+**Context**: T186 was written three times before it ran correctly. Iteration 1 polled `fetchFailed` inside the tap loop — the DUT was too busy to answer serial queries in 3s. Iteration 2 used a background `threading.Thread` to collect log lines while `cmd()` ran concurrently — the thread consumed JSON ACKs from the serial stream, causing the same timeout. Iteration 3 separated the test into three serial phases (setup with generous timeouts / fire-and-forget taps / stream-read drain) and worked.
+
+**Observation**: The serial port is not a concurrent resource. Any test design that reads from `dut.ser` on two threads simultaneously will produce intermittent ACK loss. This is a structural constraint of the harness, not a timing issue that can be fixed with longer timeouts.
+
+**Root cause**: The harness's `Dut.cmd()` and `Dut.read_json()` assume exclusive ownership of the serial stream. When a background thread also reads from `dut.ser`, ACKs intended for `cmd()` are silently consumed. The constraint was not documented.
+
+**Suggested improvement**:
+- Add a note to the `Dut` class header: "Serial stream is not thread-safe. Never read `dut.ser` from a background thread concurrently with `cmd()`/`read_json()`."
+- For tests that need to both send commands and collect asynchronous log lines: use the fire-and-forget + drain-phase pattern (send → don't wait for ACK → read stream directly → flush → query state). Do not use threads.
+- DUT queries inside hot-firing tap loops should be avoided entirely; always post-check after a drain window.
+
+**Status**: open — promotion candidate.
+
+---
+
 ## Entry Format
 
 ```

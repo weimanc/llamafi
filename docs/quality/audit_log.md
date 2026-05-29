@@ -4,6 +4,45 @@
 
 All audits: scope, findings, actions, status.
 
+### Audit — 2026-05-29 — StockApp -99 NET ERR incident: host test + VE stress test gap
+
+**Triggered by**: human (annoyance report — verification test did not catch issue; `test_yahoo_finance_api.py` did not highlight memory issue)
+
+**Scope**: `app/tools/test_yahoo_finance_api.py` (T_SF_01–T_SF_07), `run_serialdbg_tests.py` T186 (StockApp rapid range-tab stress). Focused audit, not full inventory sweep.
+
+**Areas checked**:
+- [x] Budget constant in host test vs firmware source
+- [x] Capacity model correctness (raw bytes vs ArduinoJson tree vs heap pressure)
+- [x] Stress test coverage (queue depth vs taps fired)
+- [x] Harness serial-stream concurrency assumptions
+
+**Findings**:
+
+1. **`test_yahoo_finance_api.py` CHART_BUDGET_B = 8192 does not match firmware — RED.**
+   `fetchStockChart()` in `dataTaskStorage.cpp` uses `DynamicJsonDocument(16384)`. The test constant is half the firmware value. A payload that T_SF_06 passes can still fail on DUT.
+   _Action: Developer — update `CHART_BUDGET_B` to 16384, add cross-reference comment citing `dataTaskStorage.cpp` line. File LL-040._
+
+2. **Budget model checks raw payload bytes, not ArduinoJson capacity or peak heap pressure — RED.**
+   `len(body)` is not the right operand. ArduinoJson's parsed tree requires more memory than the raw JSON. `http.getString()` additionally allocates a heap `String` before parsing; peak heap pressure = String + DynamicJsonDocument simultaneously.
+   _Action: Developer — replace `http.getString()` with `http.getStream()` in `fetchStockChart()` to eliminate the double allocation. Host test — add a capacity safety factor (≥ 1.5×) to the budget check with an explanatory comment. File LL-040._
+
+3. **T186 stress test never exercised Mo1 or Ytd ranges — AMBER.**
+   dataTask queue depth is 4. 32 taps fired; only 4 fetches executed; all D1/D5. The ranges most likely to trigger heap pressure were never run under the stress condition. Test reported PASS with unknown coverage.
+   _Action: VE — redesign T186 to drive one range at a time and assert on `lastChartFetch` advancing (not tap count). File LL-041._
+
+4. **T186 took three implementation iterations due to undocumented serial stream exclusivity — AMBER.**
+   Background-thread log collection and concurrent `cmd()` calls both read `dut.ser`, producing ACK loss and timeouts. The constraint (stream is not thread-safe) is not documented in the harness.
+   _Action: VE — add docstring to `Dut` class noting serial stream is not thread-safe. Document fire-and-forget + drain-phase pattern as the canonical approach for async log capture. File LL-042._
+
+**Actions assigned**:
+- Developer: fix `CHART_BUDGET_B` in `test_yahoo_finance_api.py`; replace `http.getString()` with `http.getStream()` in `fetchStockChart()`
+- VE: redesign T186 with fetch-counter assertion; add `Dut` thread-safety note
+- PM: file tasks for above two actions
+
+**Resolution**: pending.
+
+---
+
 ### Audit — 2026-05-25 — M-MULTIAPP milestone retrospective (all 6 apps complete)
 
 **Triggered by**: human (`@QM: retrospective — 6 apps are in`)

@@ -2840,6 +2840,206 @@ Common preconditions for harness tests (T155–T160):
 
 ---
 
+## Suite: stock-001 — StockApp POC (TASK-110)
+
+Common preconditions for all DUT tests below:
+- DUT flashed with `cyd2usb_winamp_debug`, booted, WiFi up, Spotify creds valid.
+- Serial debug interface active. Firmware includes `switchApp <id>`, `get stockSubView`,
+  `get stockChartTicker`, `get stockChartRange`, `get lastQuoteFetch`, `get lastChartFetch`,
+  `set fetchFailed`, `set fetchErrorCode`, `set triggerFetch`.
+- Geometry reference: list row centres y=36+26i (AAPL=36..NVDA=218); chart back=(10,7);
+  range tabs y=7 x: 1D=148, 5D=184, 1M=220, YTD=256; plot y:18..213; footer y=214.
+- Harness: `run_serialdbg_tests.py --tests T169,...`
+
+### T169 — [stock-001] Stock app switch round-trip
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: `switchApp 7` activates StockApp in list view; `switchApp 0` restores Spotify.
+- **Preconditions**: DUT booted, Spotify active.
+- **Steps**: 1. `switchApp 7`. 2. `get stockSubView` → assert `"list"`. 3. `switchApp 0`. 4. `get appId` → assert `"Spotify"`.
+- **Expected result**: `stockSubView=list` on first launch; round-trip succeeds.
+- **Harness**: `run_serialdbg_tests.py --tests T169`. Owner: VE.
+- **Status**: written (2026-05-29).
+
+### T170 — [stock-001] Pre-fetch placeholder state
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: `init()` sets `lastQuoteFetch` immediately on first launch (fetch enqueued but not yet returned).
+- **Preconditions**: Stock not previously activated this session (`lastQuoteFetch=0` before switch).
+- **Steps**: 1. Confirm `get lastQuoteFetch == 0`. 2. `switchApp 7`. 3. `get lastQuoteFetch` — assert `> 0`.
+- **Expected result**: `lastQuoteFetch > 0` immediately after `init()` (timestamp set before fetch returns).
+- **Harness**: `run_serialdbg_tests.py --tests T170`. SKIP if already fetched. Owner: VE.
+- **Status**: written (2026-05-29).
+
+### T171 — [stock-001] Colour coding
+
+- **Type**: manual DUT
+- **Feature(s)**: stock-001
+- **Objective**: Positive `changePct` rows render green (0x07E0), negative rows red (0xF800).
+- **Preconditions**: Live quote fetch complete; at least one positive and one negative row in live data.
+- **Steps**: 1. Switch to Stock. 2. Wait for fetch. 3. Visually inspect list rows.
+- **Expected result**: Green text for `+` rows, red for `-` rows.
+- **Harness**: manual only (no pixel-read command). Owner: VE.
+- **Status**: written (2026-05-29).
+
+### T172 — [stock-001] App switch canvas residue
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: After Stock→Spotify switch, Winamp chrome repaints cleanly (no stock residue).
+- **Preconditions**: Spotify active, playing a track (playlist draw observable).
+- **Steps**: 1. `switchApp 7`. 2. Wait 150 ms. 3. `switchApp 0`. 4. Poll `get lastPlaylistDraw` — assert it advances within 3 s.
+- **Expected result**: `lastPlaylistDraw` advances — Winamp repainted over Stock canvas.
+- **Harness**: `run_serialdbg_tests.py --tests T172`. Owner: VE.
+- **Status**: written (2026-05-29).
+
+### T173 — [stock-001] Resume cache
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: Switching away from Stock and back within 60 s does not trigger a new quote fetch.
+- **Preconditions**: Quote fetch already completed (`lastQuoteFetch > 0`).
+- **Steps**: 1. `switchApp 7`. 2. Record `lastQuoteFetch`. 3. `switchApp 0`. 4. Wait 2 s. 5. `switchApp 7`. 6. `get lastQuoteFetch` — assert unchanged.
+- **Expected result**: `lastQuoteFetch` value identical before and after the round-trip.
+- **Harness**: `run_serialdbg_tests.py --tests T173`. Owner: VE.
+- **Status**: written (2026-05-29).
+
+### T174 — [stock-001] Row drill-in
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: Tapping NVDA row (row 7, y=218) enters chart view with correct ticker and default D1 range.
+- **Preconditions**: Stock active, `stockSubView=list`, `fetchFailed=false`.
+- **Steps**: 1. `switchApp 7`. 2. `tap 137 218`. 3. `get stockSubView` → `"chart"`. 4. `get stockChartTicker` → `"NVDA"`. 5. `get stockChartRange` → `"D1"`.
+- **Expected result**: All three asserts pass within 1 s.
+- **Harness**: `run_serialdbg_tests.py --tests T174`. Owner: VE.
+- **Status**: written (2026-05-29).
+
+### T175 — [stock-001] Back navigation
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: Back button `(10,7)` in chart header returns `stockSubView` to `"list"`.
+- **Preconditions**: `stockSubView=chart`.
+- **Steps**: 1. Enter chart view (drill-in). 2. `tap 10 7`. 3. `get stockSubView` → `"list"`.
+- **Expected result**: `stockSubView=list` within 1 s.
+- **Harness**: `run_serialdbg_tests.py --tests T175`. Owner: VE.
+- **Status**: written (2026-05-29).
+
+### T176 — [stock-001] Plot bounds proxy
+
+- **Type**: integration (DUT) + manual
+- **Feature(s)**: stock-001
+- **Objective**: Chart fetch completes; automated: `lastChartFetch > 0`. Manual: line pixels confined to y:18..213.
+- **Preconditions**: `stockSubView=chart`.
+- **Steps**: 1. Drill into chart. 2. Poll `get lastChartFetch` until `> 0` (timeout 30 s). 3. (Manual) verify no line pixel exits y:18..213.
+- **Expected result**: `lastChartFetch > 0`; no plot overflow.
+- **Harness**: `run_serialdbg_tests.py --tests T176` (automated proxy); manual pixel step separate. Owner: VE.
+- **Status**: written (2026-05-29).
+
+### T177 — [stock-001] Range tab switch
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: Tapping 5D tab `(184,7)` sets `stockChartRange=D5` and triggers a new fetch.
+- **Preconditions**: `stockSubView=chart`.
+- **Steps**: 1. Drill into chart. 2. Record `lastChartFetch`. 3. `tap 184 7`. 4. `get stockChartRange` → `"D5"`. 5. Poll `get lastChartFetch` until it advances.
+- **Expected result**: `stockChartRange=D5`; `lastChartFetch` advances within 5 s.
+- **Harness**: `run_serialdbg_tests.py --tests T177`. Owner: VE.
+- **Status**: written (2026-05-29).
+
+### T178 — [stock-001] Chart pre-fetch placeholder
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: Immediately after drill-in, before fetch returns, `stockSubView=chart` and `stockChartRange=D1`.
+- **Preconditions**: Stock in list view.
+- **Steps**: 1. `tap 137 36` (AAPL). 2. Within 100 ms: `get stockSubView` → `"chart"`. 3. `get stockChartRange` → `"D1"`.
+- **Expected result**: Both vars confirmed before dataTask returns the chart payload.
+- **Harness**: `run_serialdbg_tests.py --tests T178`. Owner: VE.
+- **Status**: written (2026-05-29).
+
+### T179 — [stock-001] Footer lo/hi
+
+- **Type**: manual DUT
+- **Feature(s)**: stock-001
+- **Objective**: After chart fetch, `lo:` and `hi:` values visible at y=214; `lo < hi`.
+- **Preconditions**: Chart fetch complete.
+- **Steps**: Visual inspection of footer line at y=214.
+- **Expected result**: `lo: X.XX` left-aligned, `hi: Y.YY` right-aligned; numerically `lo < hi`.
+- **Harness**: manual only. Owner: VE.
+- **Status**: written (2026-05-29).
+
+### T180 — [stock-001] Drill-in always defaults to D1
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: Every drill-in resets `stockChartRange` to `D1` regardless of prior range.
+- **Preconditions**: Stock active, list view.
+- **Steps**: 1. Drill AAPL → `stockChartRange=D1`. 2. Tap 5D tab. 3. Back to list. 4. Re-drill AAPL. 5. `get stockChartRange` → `"D1"`.
+- **Expected result**: Range resets to D1 on each new drill-in.
+- **Harness**: `run_serialdbg_tests.py --tests T180`. Owner: VE.
+- **Status**: written (2026-05-29).
+
+### T181 — [stock-001] Back then re-drill different ticker
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: back→list→tap NVDA; chart redraws with `stockChartTicker=NVDA`.
+- **Preconditions**: Stock active, list view.
+- **Steps**: 1. Drill AAPL. 2. `tap 10 7` (back). 3. `tap 137 218` (NVDA). 4. `get stockSubView` → `"chart"`. 5. `get stockChartTicker` → `"NVDA"`.
+- **Expected result**: Both asserts pass within 1 s.
+- **Harness**: `run_serialdbg_tests.py --tests T181`. Owner: VE.
+- **Status**: written (2026-05-29).
+
+### T182 — [stock-001] Canvas isolation via taskbar path
+
+- **Type**: cross-feature (DUT)
+- **Feature(s)**: stock-001, taskbar-scroll-001
+- **Objective**: Switching to Stock via the real taskbar UI (scroll + slot tap) after a chart session does not corrupt the display on return to Spotify.
+- **Preconditions**: Stock previously in chart view; taskbar at offset 0.
+- **Steps**: 1. `switchApp 7` → drill into chart. 2. `switchApp 0`. 3. Drag taskbar: `drag 297 200 297 100 10` (scroll to offset 2). 4. `tap 297 220` (slot 5 = Stock at offset 2). 5. Verify `appId=Stock`. 6. `drag 297 100 297 200 10` (reset). 7. `switchApp 0`. 8. Verify `lastPlaylistDraw` advances.
+- **Expected result**: Stock active via taskbar tap; `lastPlaylistDraw` advances after Spotify return.
+- **Harness**: `run_serialdbg_tests.py --tests T182`. Owner: VE.
+- **Status**: written (2026-05-29).
+
+### T183 — [stock-001] Fetch error injection
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: `set fetchFailed 1` causes error screen; list row taps ignored; `stockSubView` stays `"list"`.
+- **Preconditions**: Stock active, list view.
+- **Steps**: 1. `set fetchFailed 1`. 2. `set fetchErrorCode -1`. 3. Wait 150 ms. 4. `tap 137 120` (list row). 5. `get stockSubView` → `"list"`. 6. `set fetchFailed 0`.
+- **Expected result**: `stockSubView` unchanged; tap suppressed by `fetchFailed` guard. Error screen visible (manual confirm).
+- **Harness**: `run_serialdbg_tests.py --tests T183`. Owner: VE.
+- **Status**: written (2026-05-29).
+
+### T184 — [stock-001] Error in chart view — back still works
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: Back button remains functional while `fetchFailed=1` in chart view.
+- **Preconditions**: `stockSubView=chart`.
+- **Steps**: 1. Drill into chart. 2. `set fetchFailed 1`. 3. Wait 150 ms. 4. `tap 10 7`. 5. `get stockSubView` → `"list"`. 6. `set fetchFailed 0`.
+- **Expected result**: `stockSubView=list` — back always works regardless of error state.
+- **Harness**: `run_serialdbg_tests.py --tests T184`. Owner: VE.
+- **Status**: written (2026-05-29).
+
+### T185 — [stock-001] Error recovery on successful fetch
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: After `set triggerFetch 1`, `lastQuoteFetch` advances — confirming a real fetch was enqueued and completed.
+- **Preconditions**: Stock active.
+- **Steps**: 1. `set fetchFailed 1`. 2. `set fetchErrorCode -99`. 3. Record `lastQuoteFetch`. 4. `set triggerFetch 1`. 5. Poll `get lastQuoteFetch` until it advances (timeout 65 s).
+- **Expected result**: `lastQuoteFetch` value changes — fetch completed; error state recoverable.
+- **Harness**: `run_serialdbg_tests.py --tests T185`. Owner: VE.
+- **Status**: written (2026-05-29).
+
+---
+
 ## Entry Format
 
 ```
