@@ -2458,6 +2458,80 @@ Exit criteria:
 
 ---
 
+### TASK-109 — StockApp POC: List + Chart detail implementation
+**Owner**: Developer
+**Feature**: stock-001 (new)
+**Status**: open
+**Blocked by**: nothing — `StockApp` stub already registered in `g_apps[]` (TASK-105a)
+**Design**: `docs/architecture/designs/M-MULTIAPP/stock.md` · `stock-list.md` · `stock-chart.md`
+**Milestone**: M-STOCK-POC
+**Notes**:
+
+Sub-tasks (implement in order; each must compile cleanly before proceeding):
+
+- **TASK-109a** — `appShell.h`: Add `StockAppState` struct (replace placeholder). Add `StockSubView` + `StockRange` enums. Fields: `tickers[6][8]`, `subView`, `prices[6]`, `changePct[6]`, `lastQuoteFetch`, `chartTickerIdx`, `chartRange`, `chartPoints[110]`, `chartLen`, `chartLo`, `chartHi`, `lastChartFetch`, `fetchFailed` (bool), `fetchErrorCode` (int). (~565 B total, within BSS budget.)
+
+- **TASK-109b** — `dataTask.h` / `dataTaskStorage.cpp`: Add `DATA_FETCH_STOCK_QUOTE` and `DATA_FETCH_STOCK_CHART` fetch types. **Quote handler** (discovered by 109i probe: v7/quote is 401-gated): 6 sequential GETs to `STOCK_CHART_URL_BASE + symbol + "?interval=1d&range=1d"` per symbol; parse `chart.result[0].meta.regularMarketPrice` + `meta.chartPreviousClose`; compute `changePct = (price - prev) / prev * 100`. Skip null `close[]` entries. **Chart handler**: GET to `STOCK_CHART_URL_BASE + symbol + "?interval=X&range=Y"`, parse `chart.result[0].indicators.quote[0].close[]` into float array, skip nulls. YTD uses `interval=1wk` not `1d` (1d = 12 KB > 8192 B budget, verified by 109i). Use `DynamicJsonDocument doc(8192)` for all fetches. `http.getString()` not `getStream()` (same constraint as crypto.md).
+
+- **TASK-109c** — TLS: Run `openssl s_client -connect query1.finance.yahoo.com:443 2>/dev/null | openssl x509 -noout -issuer` to confirm root CA. Add `YAHOO_FINANCE_ROOT_CA[]` to `dataTaskCerts.h`. Wire into stock fetch handlers (same `WiFiClientSecure` + `http.begin(tls, url)` pattern as CoinGecko — ADR-029 compliance).
+
+- **TASK-109d** — `repaintList()` + `repaintError()`: `repaintList()` checks `fetchFailed` at entry — if true, delegates to `repaintError()` and returns. Normal path: clear sub-canvas, draw `"STOCK TERMINAL"` header (font 2, x=5, y=`ST_LIST_HEADER_Y`), horizontal rule at `ST_LIST_RULE_Y`, 6 rows: symbol (white, x=5), price (`formatStockPrice()`, white, x=55), change% (green `0x07E0` / red `0xF800`, right-aligned x=270), `"---"` before first fetch. `repaintError()`: full sub-canvas black fill, centred `"STOCK FETCH FAILED"` (font 2, red), `"NET ERR  <fetchErrorCode>"` (font 2, red), `"retrying in 60s..."` (font 1, grey). ADR-027 producer rule: reset `TL_DATUM`/`MC_DATUM` on exit of both functions.
+
+- **TASK-109e** — `repaintChart()`: Clear sub-canvas. Header (y:116..131): `"<"` back glyph (font 2, x=5), ticker + price (x=30), 4 range tabs (x: 130/166/202/238 — each 36 px); highlight active tab with `0x4208` background. Plot area (y:132..223): line graph — `drawLine` segments from `chartPoints[]`, y mapped linearly to `chartLo..chartHi`. Flat line at midpoint if `chartLen == 0`. Line colour `0x07FF` (cyan). Footer (y:224..239): `"lo: X.XX"` left, `"hi: X.XX"` right; `"---"` if not fetched. ADR-027 producer rule: reset datum after all `drawString` calls.
+
+- **TASK-109f** — `handleInput()`: List sub-view: if `fetchFailed`, ignore all taps (no drill-in while error shown). Otherwise: row hit-test on `TouchPhase::End` at y ∈ [ST_LIST_ROW_START_Y, 239] → `drillToChart(rowIdx)`. Chart sub-view: back button (x < 30, y:116..131) always active even in error state → `backToList()`. Range tabs (x ≥ 130, y:116..131): disabled if `fetchFailed`. Chart body: no-op.
+
+- **TASK-109g** — `tick()` / `fetchQuotes()` / `fetchChart()` / `drillToChart()` / `backToList()`: Quote staleness check every `STOCK_QUOTE_FETCH_MS` (60 s) in List sub-view. Chart staleness: 60 s for D1, 300 s for D5/Mo1/Ytd. `drillToChart(idx)`: set `chartTickerIdx`, `chartRange = D1`, `subView = ChartDetail`, fetch if stale, `repaintChart()`. `backToList()`: set `subView = List`, `repaintList()`. `init()`: populate hardcoded tickers, set `subView = List`, enqueue first quote fetch.
+
+- **TASK-109h** — Build + smoke: `check_build.sh` 4/4 pass. DUT flash + verify: (1) taskbar → Stock shows `"---"` rows; (2) first fetch populates prices; (3) tap row → chart header shows correct ticker; (4) range tab tap fetches new data; (5) `[<]` returns to list with prices intact; (6) Stock → Spotify → Stock: Winamp chrome pixel-correct; (7) Stock sub-canvas has no residue above y=116.
+
+- **TASK-109i** — `app/tools/test_yahoo_finance_api.py`: host-side API probe (no DUT). Checks: (1) quote endpoint HTTP 200; (2) all 6 symbols have non-null `regularMarketPrice` + `regularMarketChangePercent`; (3) quote JSON ≤ 6144 B; (4) chart endpoint all 4 ranges HTTP 200; (5) `timestamp[]` + `close[]` parallel arrays present and non-empty; (6) chart JSON ≤ 8192 B for all ranges; (7) TLS cert issuer printed for 109c pinning. Run *before* 109c — the issuer dump is the input to the `openssl s_client` verification step. Exit 0 = all pass.
+
+Exit criterion: TASK-109h smoke items all PASS; `check_build.sh` 4/4 green; TASK-110 VE suite written.
+
+---
+
+### TASK-110 — VE: Stock app test suite (T169–T182)
+**Owner**: VE
+**Feature**: stock-001
+**Status**: planned — write + execute after TASK-109 done
+**Blocked by**: TASK-109
+**Milestone**: M-STOCK-POC
+**Notes**:
+
+All tests require `cyd2usb_winamp_debug` firmware + serial debug interface. Serial debug additions required from TASK-109:
+- `get stockSubView` → `"list"` or `"chart"`
+- `get stockChartTicker` → ticker symbol string (e.g. `"NVDA"`)
+- `get stockChartRange` → `"D1"` / `"D5"` / `"Mo1"` / `"Ytd"`
+- `get lastQuoteFetch` → millis timestamp (0 = never)
+
+**List view — exit criteria L1–L6:**
+
+- **T169** (L1) — All 6 rows render within sub-canvas: inject `switchApp(Stock)`, capture display; verify no pixel overflow above y=116 or below y=239.
+- **T170** (L2) — Pre-fetch placeholders: immediately after `switchApp(Stock)` before first fetch lands, all 6 price/change fields show `"---"`.
+- **T171** (L3) — Colour coding: after fetch, verify positive change% rows display green (0x07E0) and negative rows display red (0xF800). Requires at least one of each sign in live data or mock.
+- **T172** (L4) — App switch residue: Spotify → Stock → Spotify; verify Winamp chrome pixel-correct and no stock row residue above y=116.
+- **T173** (L5) — Resume cache: switch away from Stock and back within 60 s; prices render immediately without new fetch (`lastQuoteFetch` unchanged).
+- **T174** (L6) — Row drill-in: `injectTouch` on row 2 (NVDA); verify `stockSubView == "chart"` and `stockChartTicker == "NVDA"`.
+
+**Chart detail view — exit criteria C1–C7:**
+
+- **T175** (C1) — Back navigation: from chart, `injectTouch` on back zone (x=10, y=120); verify `stockSubView == "list"` and list header `"STOCK TERMINAL"` visible.
+- **T176** (C2) — Plot bounds: after chart fetch, verify no line segment pixel exits y:132..223 bounds.
+- **T177** (C3) — Range tab: `injectTouch` on 5D tab (x=183, y=120); verify `stockChartRange == "D5"` and new fetch triggered (`lastChartFetch` timestamp advances).
+- **T178** (C4) — Pre-fetch placeholder: immediately after drill-in, before fetch lands, chart header price shows `"---"` and flat line at plot midpoint.
+- **T179** (C5) — Footer: after fetch, `lo:` and `hi:` values visible in footer; `lo < hi`.
+- **T180** (C6) — Drill-in default range: every drill-in sets `stockChartRange == "D1"`.
+- **T181** (C7) — Back then re-drill: back → List → tap same row; chart redraws correctly; `get stockChartTicker` matches tapped row.
+- **T182** (cross) — Stock canvas isolation: Stock → Spotify → Stock; sub-canvas (y:116..239) pixel-matches a fresh `repaintList()` result; no chart or prior-session residue.
+- **T183** (error) — Inject fetch error: set `fetchFailed=true` + `fetchErrorCode=-1` via serial debug (`dbgSet`); verify sub-canvas shows `"STOCK FETCH FAILED"` + `"NET ERR  -1"` + `"retrying in 60s..."`. Verify row tap does nothing (no drill-in).
+- **T184** (error/chart) — Error in chart view: drill into chart, inject `fetchFailed=true`; verify error screen shown; verify `[<]` back button still navigates to list.
+- **T185** (error/recovery) — Error clears on success: inject error, confirm error screen; trigger successful fetch via `dbgSet("triggerFetch", "1")`; confirm error screen replaced by normal list/chart render.
+
+Exit criterion: T169–T182 all PASS; test IDs registered in `feature_inventory.yaml` under `stock-001`.
+
+---
+
 ## Entry Format
 
 ```
