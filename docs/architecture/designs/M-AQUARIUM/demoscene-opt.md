@@ -375,15 +375,14 @@ print(", ".join(f"{v:.4f}f" for v in vals))
 
 Expected output (verify before committing):
 ```
-0.5729f, 0.3508f, -0.9686f, 0.7399f, 0.9014f, -0.8814f,
--0.1423f, 0.7763f, 0.9877f, 0.4695f, -0.3000f, -0.9530f
+0.5729f, 0.3510f, -0.9705f, 0.7485f, 0.1225f, -0.8873f, 0.8827f, -0.1128f, -0.7549f, 0.9681f, -0.3418f, -0.5808f
 ```
 
-Definition in `.cpp` body (or at end of `aquariumApp.h` after the class closing `}`):
+Definition at end of `aquariumApp.h` after the class closing `}`:
 ```cpp
 const float AquariumApp::kHeightNoise[AquariumApp::AQ_SEAWEED_ROOTS] = {
-     0.5729f,  0.3508f, -0.9686f,  0.7399f,  0.9014f, -0.8814f,
-    -0.1423f,  0.7763f,  0.9877f,  0.4695f, -0.3000f, -0.9530f,
+     0.5729f,  0.3510f, -0.9705f,  0.7485f,  0.1225f, -0.8873f,
+     0.8827f, -0.1128f, -0.7549f,  0.9681f, -0.3418f, -0.5808f,
 };
 ```
 

@@ -21,7 +21,6 @@ public:
         _octopus  = Octopus{};
         _seahorse = Seahorse{};
         _gradientBandCached = false;
-        _seaweedCached      = false;
         _retryShown         = false;
         _lastRetryMs        = 0;
 
@@ -250,10 +249,7 @@ private:
     uint16_t _gradTile[AQ_BACKGROUND_GRADIENT_H][32];
     bool     _gradientBandCached = false;
 
-    float _seaweedBaseX[AQ_SEAWEED_ROOTS];
-    float _seaweedAmp[AQ_SEAWEED_ROOTS];
-    float _seaweedHeightNoise[AQ_SEAWEED_ROOTS];
-    bool  _seaweedCached = false;
+    static const float kHeightNoise[AQ_SEAWEED_ROOTS];
 
     char    _fishMirroredLeft[AQ_GLYPH_COUNT][AQ_GLYPH_BUF];
     uint8_t _fishGlyphLenRight[AQ_GLYPH_COUNT];
@@ -900,11 +896,11 @@ private:
     }
 
     // ── Seaweed ───────────────────────────────────────────────────────────────
-    void _swayPoint(float u, float bx, int y0, float bh, float sw, float t, int bi,
-                    float& ox, float& oy) {
+    void _swayPoint(float u, float bx, int y0, float bh, float sw,
+                    float phaseBody, float phaseRipple, float& ox, float& oy) {
         u = _clamp(u, 0.0f, 1.0f);
-        float body   = sinf(t*(1.05f+bi*0.025f)*AQ_SWAY - u*5.1f + bi*0.72f);
-        float ripple = sinf(t*0.72f*AQ_SWAY + u*9.0f + bi*1.31f);
+        float body   = sinf(phaseBody   - u*5.1f);
+        float ripple = sinf(phaseRipple + u*9.0f);
         float bend   = sw * u * (0.20f + u*0.80f);
         float travel = body * (1.5f + bh*0.055f) * u * u;
         float detail = ripple * 1.2f * u;
@@ -912,13 +908,14 @@ private:
         oy = y0 - bh * u;
     }
 
-    void _seaweedBranches(int bi, float bh, float sw, float t, float bx, int y0) {
+    void _seaweedBranches(int bi, float bh, float sw,
+                          float phaseBody, float phaseRipple, float t, float bx, int y0) {
         int bc = _clamp(int(bh/14.0f), 2, 5);
         for (int b = 0; b < bc; ++b) {
             float u = 0.30f + b*0.14f + ((bi+b)%3)*0.018f;
             if (u > 0.88f) u = 0.88f;
             float px, py;
-            _swayPoint(u, bx, y0, bh, sw, t, bi, px, py);
+            _swayPoint(u, bx, y0, bh, sw, phaseBody, phaseRipple, px, py);
             float side = ((bi+b)&1) ? 1.0f : -1.0f;
             float bl   = 5.5f + ((bi*3 + b*5) % 5);
             float bwig = sinf(t*(1.1f+bi*0.03f)*AQ_SWAY + bi + b*1.7f) * 1.2f;
@@ -929,25 +926,20 @@ private:
     }
 
     void drawSeaweed(float t) {
-        if (!_seaweedCached) {
-            for (int i = 0; i < AQ_SEAWEED_ROOTS; ++i) {
-                _seaweedBaseX[i]     = 10 + i * (AQ_CANVAS_W - 20.0f) / (AQ_SEAWEED_ROOTS - 1);
-                _seaweedAmp[i]       = 5.0f + (i % 4) * 2.0f;
-                _seaweedHeightNoise[i] = sinf(i * 2.173f + 0.61f);
-            }
-            _seaweedCached = true;
-        }
         for (int i = 0; i < AQ_SEAWEED_ROOTS; ++i) {
-            float bx   = _seaweedBaseX[i];
-            float sw   = sinf(t*(0.8f+0.09f*i)*AQ_SWAY + i*0.7f) * _seaweedAmp[i];
-            float hv   = 1.0f + AQ_SEAWEED_RAND * _seaweedHeightNoise[i];
-            float bh   = _clamp(32.0f * AQ_SEAWEED_LEN * hv, 18.0f, 72.0f);
-            int   y0   = _canvasH - 2;
-            float px   = bx, py = float(y0);
+            float bx  = 10.0f + i * (AQ_CANVAS_W - 20.0f) / float(AQ_SEAWEED_ROOTS - 1);
+            float amp = 5.0f + (i % 4) * 2.0f;
+            float sw  = sinf(t*(0.8f+0.09f*i)*AQ_SWAY + i*0.7f) * amp;
+            float hv  = 1.0f + AQ_SEAWEED_RAND * kHeightNoise[i];
+            float bh  = _clamp(32.0f * AQ_SEAWEED_LEN * hv, 18.0f, 72.0f);
+            int   y0  = _canvasH - 2;
+            float phaseBody   = t * (1.05f + i*0.025f) * AQ_SWAY + i*0.72f;
+            float phaseRipple = t * 0.72f * AQ_SWAY + i*1.31f;
+            float px = bx, py = float(y0);
             for (int seg = 1; seg <= 7; ++seg) {
                 float u = float(seg) / 7;
                 float nx, ny;
-                _swayPoint(u, bx, y0, bh, sw, t, i, nx, ny);
+                _swayPoint(u, bx, y0, bh, sw, phaseBody, phaseRipple, nx, ny);
                 uint16_t col = (u < 0.38f) ? TFT_DARKGREEN
                              : (u < 0.76f) ? TFT_GREEN : TFT_GREENYELLOW;
                 _canvas.drawLine(int(px), int(py), int(nx), int(ny), col);
@@ -955,7 +947,7 @@ private:
                     _canvas.drawLine(int(px)+1, int(py), int(nx)+1, int(ny), TFT_DARKGREEN);
                 px = nx; py = ny;
             }
-            _seaweedBranches(i, bh, sw, t, bx, y0);
+            _seaweedBranches(i, bh, sw, phaseBody, phaseRipple, t, bx, y0);
         }
     }
 
@@ -1095,4 +1087,10 @@ private:
         drawClock();
         _canvas.pushSprite(0, 0);
     }
+};
+
+// sinf(i * 2.173f + 0.61f) for i = 0..11 — placed in .rodata (flash), zero DRAM cost
+const float AquariumApp::kHeightNoise[AquariumApp::AQ_SEAWEED_ROOTS] = {
+     0.5729f,  0.3510f, -0.9705f,  0.7485f,  0.1225f, -0.8873f,
+     0.8827f, -0.1128f, -0.7549f,  0.9681f, -0.3418f, -0.5808f,
 };
