@@ -12,7 +12,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ## Active Tasks
 
-### TASK-109 — M-AQUARIUM-CRAB: Implement aquarium crab creature
+### TASK-111 — M-AQUARIUM-CRAB: Implement aquarium crab creature
 **Owner**: Developer
 **Feature**: aquarium-crab-001 (new)
 **Status**: open
@@ -20,17 +20,21 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 **Blocked by**: nothing (M-AQUARIUM done — `aquariumApp.h` in tree)
 **Design**: `docs/architecture/designs/M-AQUARIUM/crab.md`
 **Notes**:
-- **TASK-109a**: Add `Crab` struct (state enum, x, direction, stateEnteredMs, lastTargetSeenMs, walkFrameB, lastWalkFrameMs) and all `CRAB_*` constants to `aquariumApp.h`.
-- **TASK-109b**: Implement `initCrab()` — center x, direction right, state WALK, seed timestamps.
-- **TASK-109c**: Implement `updateCrab(float dt)`:
+- **TASK-111a**: Add `Crab` struct (state enum, x, direction, walkFrame, pinchFrame, sleepZFrame, cuteDurationMs, timestamps) and all `CRAB_*` constants to `aquariumApp.h`.
+- **TASK-111b**: Implement `initCrab()` — center x, direction right, state WALK, seed timestamps.
+- **TASK-111c**: Implement `updateCrab(float dt)`:
   - Walk: `_crab.x += direction * CRAB_SPEED_PX_S * dt`; reverse at margins; seaweed-root avoidance via `_seaweedBaseX[]`.
-  - Walk-frame toggle every `CRAB_WALK_STEP_MS`.
-  - Proximity scan: active flakes + fish in lower `CRAB_BOTTOM_ZONE_Y` band within `CRAB_PINCH_RANGE_PX` → enter PINCH_L or PINCH_R.
+  - Walk-frame: 4-frame leg sweep (direction-aware modulo advance every `CRAB_WALK_STEP_MS`).
+  - Proximity scan: active fish + flakes in bottom zone → enter PINCH_L or PINCH_R; reset `pinchFrame = 0`.
+  - Pinch frame advance (0→3); on frame 3 hold: `findPinchTarget()` → hit (remove fish, CUTE 3s) or miss (WALK).
+  - Cute exit: `elapsed >= cuteDurationMs` → WALK.
+  - Sleep Z advance every `CRAB_SLEEP_Z_MS`.
   - State transitions per §3 of design doc.
-- **TASK-109d**: Implement `drawCrab()` — select glyph by state; `setTextColor(TFT_RED, 0)`; `drawString` at `(int)_crab.x, CRAB_Y`.
-- **TASK-109e**: Wire `initCrab()` into `init()` after `spreadInitialFishLayout()`; `updateCrab(dt)` into `tick()` after `updateFlakes()`; `drawCrab()` into `renderFrame()` after `drawSeaweed()`.
-- **TASK-109f**: `check_build.sh` 4/4 ✅; flash to DUT; verify crab visible at bottom, walks, pinches a flake on touch-spawn.
-- Exit criterion: crab renders in red at canvas bottom, walks, pinches nearby flake; `check_build.sh` passes.
+- **TASK-111d**: Implement `drawCrab()` — two-row draw (body + leg row overlapped); sleep ZZZ sway column; cute blink via `(elapsed/375)%2`.
+- **TASK-111e**: Implement `findPinchTarget()` — proximity re-scan returning fish index or -1.
+- **TASK-111f**: Wire `initCrab()` into `init()`; `updateCrab(dt)` into `tick()` after `updateFlakes()`; `drawCrab()` into `renderFrame()` after `drawSeaweed()`.
+- **TASK-111g**: `check_build.sh` 4/4 ✅; flash to DUT; verify crab visible at bottom, walks, pinches a flake on touch-spawn.
+- Exit criterion: crab renders in red at canvas bottom, walks, pinches nearby fish (fish disappears), cute blink plays; `check_build.sh` passes.
 
 ---
 

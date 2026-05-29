@@ -497,7 +497,7 @@ Work (all changes in `app/src/aquarium/aquariumApp.h`):
 3. Wire into `init()`, `tick()`, and `renderFrame()`.
 4. Build + DUT verify.
 
-**Status**: open — TASK-109
+**Status**: open — TASK-111
 **Design**: [M-AQUARIUM/crab.md](../architecture/designs/M-AQUARIUM/crab.md)
 **Deps**: M-AQUARIUM (done — `aquariumApp.h` in tree)
 
