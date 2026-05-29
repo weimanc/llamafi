@@ -83,7 +83,7 @@ static void fetchWeather() {
     LOG_D("dataTask.weather", "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
     if (code == 200) {
         DynamicJsonDocument doc(1024);
-        DeserializationError err = deserializeJson(doc, http.getStream());
+        DeserializationError err = deserializeJson(doc, http.getString());
         if (!err) {
             WeatherResult r;
             r.ok    = true;
@@ -118,7 +118,7 @@ static void fetchCrypto() {
     LOG_D("dataTask.crypto", "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
     if (code == 200) {
         DynamicJsonDocument doc(2048);
-        DeserializationError err = deserializeJson(doc, http.getStream());
+        DeserializationError err = deserializeJson(doc, http.getString());
         if (!err) {
             CryptoResult r;
             r.ok = true;

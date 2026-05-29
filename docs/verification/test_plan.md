@@ -3040,6 +3040,102 @@ Common preconditions for all DUT tests below:
 
 ---
 
+## Suite M-DATATASK-STREAM-PARSE — getStream() switch + ticker guard fix (4c3cb05)
+
+> **VE challenge resolved (2026-05-29):** Host probe confirmed open-meteo.com and coingecko.com
+> both return `Transfer-Encoding: chunked` with no `Content-Length`. `http.getStream()` passes
+> raw chunk-framing bytes to ArduinoJson on Arduino-ESP32 2.0.17 (HTTPClient does not dechunk
+> the stream); JSON parse would fail. `fetchWeather()` and `fetchCrypto()` reverted to
+> `http.getString()` same session (ADR-034 amended). Yahoo Finance returns `Content-Length`;
+> `fetchStockQuote()` and `fetchStockChart()` remain on `getStream()`. T189/T190 below verify
+> existing `getString()` behaviour — no streaming risk on those endpoints.
+
+### T186 — [stock-001] Chart fetch for MSFT (tickerIdx=6) no longer rejected by guard
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: Verify the `tickerIdx >= 8` guard fix (was `>= 6`) allows MSFT (index 6) to fetch chart data.
+- **Preconditions**: Stock app active, list view, `fetchFailed=0`.
+- **Steps**:
+  1. `switchApp 7` (Stock app).
+  2. Tap the MSFT row in the list view.
+  3. `get stockChartTicker` → assert `"MSFT"`.
+  4. `set triggerFetch 1` (resets `lastChartFetch` to 0).
+  5. Poll `get lastChartFetch` until nonzero (timeout 65 s).
+  6. `get fetchFailed` → assert `"0"`.
+- **Expected result**: `lastChartFetch` advances; `fetchFailed=0`. Under the old guard MSFT returned early (no fetch) and the chart displayed nothing.
+- **Harness**: `run_serialdbg_tests.py --tests T186`. Owner: VE.
+- **Status**: planned.
+
+### T187 — [stock-001] Chart fetch for NVDA (tickerIdx=7) no longer rejected by guard
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: Verify NVDA (index 7) chart fetch succeeds after `tickerIdx >= 8` guard fix.
+- **Preconditions**: Stock app active, list view, `fetchFailed=0`.
+- **Steps**:
+  1. `switchApp 7` (Stock app).
+  2. Tap the NVDA row in the list view.
+  3. `get stockChartTicker` → assert `"NVDA"`.
+  4. `set triggerFetch 1`.
+  5. Poll `get lastChartFetch` until nonzero (timeout 65 s).
+  6. `get fetchFailed` → assert `"0"`.
+- **Expected result**: `lastChartFetch` advances; `fetchFailed=0`.
+- **Harness**: `run_serialdbg_tests.py --tests T187`. Owner: VE.
+- **Status**: planned.
+
+### T188 — [stock-001] Successive chart range switches do not trigger -99 on fragmented heap
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: Verify `getStream()` eliminates the -99 NET ERR caused by double-allocation under `getString()` (ADR-034). Cycle all four range tabs in sequence; `fetchFailed` must remain 0 throughout.
+- **Preconditions**: Stock app active, drill into AAPL chart (D1 range).
+- **Steps**:
+  1. `set stockChartRange D1` if not already set.
+  2. `set triggerFetch 1`. Poll `get lastChartFetch` until advances (timeout 65 s). `get fetchFailed` → `"0"`.
+  3. Tap the 5D range tab. `set triggerFetch 1`. Poll `get lastChartFetch`. `get fetchFailed` → `"0"`.
+  4. Tap the 1M range tab. `set triggerFetch 1`. Poll `get lastChartFetch`. `get fetchFailed` → `"0"`.
+  5. Tap the 6M range tab. `set triggerFetch 1`. Poll `get lastChartFetch`. `get fetchFailed` → `"0"`.
+  6. Tap D1 again. `set triggerFetch 1`. Poll `get lastChartFetch`. `get fetchFailed` → `"0"`.
+- **Expected result**: All five polls succeed; `fetchFailed=0` at every step. -99 NET ERR is not displayed.
+- **Harness**: `run_serialdbg_tests.py --tests T188`. Owner: VE.
+- **Status**: planned.
+
+### T189 — [weather-001] Weather fetch parses correctly (getString + chunked response)
+
+- **Type**: integration (DUT)
+- **Feature(s)**: weather-001
+- **Objective**: Verify `fetchWeather()` using `http.getString()` delivers a valid `WeatherResult`
+  after the ADR-034 partial revert. open-meteo.com returns chunked encoding; `getString()`
+  handles dechunking internally — confirm no regression from 4c3cb05 churn.
+- **Preconditions**: WiFi connected, Weather app active (`switchApp 3`), `get weatherReady` returns `"0"` (first fetch pending).
+- **Steps**:
+  1. `switchApp 3`.
+  2. Poll `get weatherReady` until `"1"` (timeout 90 s).
+  3. Inspect tmux log for `dataTask.weather GET 200` line; assert no `dataTask.weather JSON parse error` line within that window.
+  4. Manual: temperature string visible on display (not `---`).
+- **Expected result**: `weatherReady=1` within 90 s; log shows GET 200 with no JSON error; display shows temperature.
+- **Harness**: manual + tmux log check. Owner: VE.
+- **Status**: planned.
+
+### T190 — [crypto-001] Crypto fetch parses correctly (getString + chunked response)
+
+- **Type**: integration (DUT)
+- **Feature(s)**: crypto-001
+- **Objective**: Verify `fetchCrypto()` using `http.getString()` delivers a valid `CryptoResult`
+  after the ADR-034 partial revert. coingecko.com returns chunked encoding; confirm no regression.
+- **Preconditions**: WiFi connected, Crypto app active (`switchApp 4`), display shows `---`.
+- **Steps**:
+  1. `switchApp 4`.
+  2. Wait 90 s for initial fetch cycle.
+  3. Inspect tmux log for `dataTask.crypto GET 200`; assert no `dataTask.crypto JSON parse error`.
+  4. Manual: at least one price row shows a non-`---` value.
+- **Expected result**: Log shows GET 200 with no JSON error; display shows prices.
+- **Harness**: manual + tmux log check. Owner: VE.
+- **Status**: planned.
+
+---
+
 ## Entry Format
 
 ```

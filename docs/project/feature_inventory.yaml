@@ -553,6 +553,50 @@ features:
       Verified idle: poll=55/55 100%, block_max 216-442ms, zero stale fd warnings.
       One stale fd=49 sighting during active playback at 1:05 — acceptable, rare.
 
+  - id: stock-001
+    name: Stock app POC — list + chart detail (M-STOCK-POC)
+    description: |
+      StockApp : public App. Fetches live quotes + OHLC chart data for 8 tickers
+      (AAPL, AMD, AMZN, ARM, GOOG, META, MSFT, NVDA) from Yahoo Finance
+      (query1.finance.yahoo.com/v8/finance/chart/) via dataTask. Two sub-views:
+      List — 8 rows showing symbol, price, change%; Chart — line graph with 4 range
+      tabs (D1 / 5D / 1M / 6M), back button, footer lo/hi. Renders across full
+      275×240 canvas (header y=0..239 spans both views). Error state: `fetchFailed`
+      guard shows "STOCK FETCH FAILED / NET ERR <code> / retrying in 60s..." and
+      suppresses tap drill-in in list view; back always active in chart view.
+      dataTask queue events: DATA_FETCH_STOCK_QUOTE (quote for all 8 tickers sequentially),
+      DATA_FETCH_STOCK_CHART (single ticker/range). Quote fetch every 60 s; chart fetch
+      every 60 s (D1) or 300 s (5D/1M/6M). fetchStockQuote() and fetchStockChart()
+      use http.getStream() — Yahoo Finance returns Content-Length (not chunked), so
+      streaming parse is safe and eliminates double-allocation (ADR-034).
+      Serial debug: get stockSubView, get stockChartTicker, get stockChartRange,
+      get lastQuoteFetch, get lastChartFetch, set fetchFailed, set fetchErrorCode,
+      set triggerFetch (resets both fetch timestamps to 0).
+    status: implemented
+    git_ref: "4c3cb05 (HEAD; impl 27bd86b; tickers f704c2e+4d71798; stream fix 4c3cb05)"
+    files:
+      - app/src/main.cpp
+      - app/src/appShell.h
+      - app/src/dataTask.h
+      - app/src/dataTaskStorage.cpp
+      - app/src/dataTaskCerts.h
+      - app/tools/test_yahoo_finance_api.py
+      - docs/architecture/designs/M-STOCK-POC/
+    cross_features: [taskbar-scroll-001, conn-002, weather-001, crypto-001]
+    test_ids: [T169, T170, T171, T172, T173, T174, T175, T176, T177, T178, T179,
+               T180, T181, T182, T183, T184, T185, T186, T187, T188]
+    notes: |
+      TASK-109 (impl) + TASK-110 (VE suite). Design: docs/architecture/designs/M-STOCK-POC/.
+      TLS: ISRG Root X1 PEM hardcoded in dataTaskCerts.h (Yahoo Finance cert chain — ADR-029).
+      http.getStream() safe here: Yahoo Finance returns Content-Length (verified 2026-05-29
+      via host probe — Transfer-Encoding absent, Content-Length present). Different from
+      weather-001/crypto-001 which use chunked responses and must retain http.getString().
+      tickerIdx guard: fetchStockChart() guards tickerIdx >= 8 (not >= 6 as originally
+      written for a 6-ticker array — fixed in 4c3cb05 after array expanded to 8 in f704c2e).
+      T186/T187 verify the guard fix; T188 verifies no -99 regression on fragmented heap.
+      T169–T182 are the core POC suite from TASK-110; T183–T185 are error-injection tests;
+      T186–T188 are regression tests from M-DATATASK-STREAM-PARSE (4c3cb05 audit).
+
   - id: noart-001
     name: Remove album-art path and JPEG decoder (M-NOART)
     description: |
@@ -761,11 +805,14 @@ features:
       - app/src/dataTaskStorage.cpp
       - app/src/dataTaskCerts.h
     cross_features: [app-interface-001, taskbar-001, crypto-001]
-    test_ids: [T_WX_01, T_WX_02, T_WX_03, T_WX_04, T_WX_05, T_WX_06]
+    test_ids: [T_WX_01, T_WX_02, T_WX_03, T_WX_04, T_WX_05, T_WX_06, T189]
     notes: |
       TASK-095 (impl) + TASK-096 (canvas full-height fix). ADR-029: ISRG Root X1 PEM
-      hardcoded in dataTaskCerts.h. http.getString() required (not getStream()) — chunked
-      HTTPS on Arduino-ESP32 2.0.17 fails deserializeJson on raw stream.
+      hardcoded in dataTaskCerts.h. http.getString() required (not getStream()) — confirmed
+      2026-05-29: api.open-meteo.com returns Transfer-Encoding: chunked with no Content-Length;
+      getStream() passes raw chunked framing to ArduinoJson which fails to parse. getString()
+      handles dechunking internally. Commit 4c3cb05 briefly switched to getStream() (ADR-034)
+      but was partially reverted same day after VE challenge confirmed chunked encoding.
       Design: docs/architecture/designs/M-MULTIAPP/weather.md.
       T_WX_06 is manual visual (LL-037 regression check). T_WX_04 valid only at session start.
       s_wxDataReady (main.cpp) exposed via get weatherReady for T_WX_04/T_WX_05.
@@ -787,10 +834,14 @@ features:
       - app/src/dataTaskStorage.cpp
       - app/src/dataTaskCerts.h
     cross_features: [app-interface-001, taskbar-001, weather-001]
-    test_ids: [T_CX_01, T_CX_02, T_CX_03, T_CX_04, T_CX_05, T_CX_06]
+    test_ids: [T_CX_01, T_CX_02, T_CX_03, T_CX_04, T_CX_05, T_CX_06, T190]
     notes: |
       TASK-095 (impl) + TASK-096 (canvas full-height fix). ADR-029: GTS Root R4 PEM
       hardcoded in dataTaskCerts.h. Shared dataTask queue + spinlock with weather-001.
+      http.getString() required (not getStream()) — confirmed 2026-05-29: api.coingecko.com
+      returns Transfer-Encoding: chunked with no Content-Length; getStream() passes raw chunked
+      framing to ArduinoJson which fails to parse. Commit 4c3cb05 briefly switched to
+      getStream() but was partially reverted same day after VE challenge confirmed chunked.
       Design: docs/architecture/designs/M-MULTIAPP/crypto.md.
       T_CX_06 is manual visual (LL-037 regression check). T_CX_04 valid only at session start.
       s_cxDataReady (main.cpp) exposed via get cryptoReady for T_CX_04/T_CX_05.
