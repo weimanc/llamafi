@@ -247,7 +247,7 @@ private:
     Octopus  _octopus;
     Seahorse _seahorse;
 
-    uint16_t _gradientBandCache[AQ_CANVAS_W * AQ_BACKGROUND_GRADIENT_H];
+    uint16_t _gradTile[AQ_BACKGROUND_GRADIENT_H][32];
     bool     _gradientBandCached = false;
 
     float _seaweedBaseX[AQ_SEAWEED_ROOTS];
@@ -862,19 +862,18 @@ private:
         }
     }
 
-    void _buildGradCache(const uint16_t* colors, const uint8_t* stops, int n) {
+    void _buildGradTile(const uint16_t* colors, const uint8_t* stops, int n) {
         int gradH = _canvasH / 4;
         for (int y = 0; y < gradH; ++y) {
             int base = (y * 255) / (gradH - 1);
-            for (int x = 0; x < AQ_CANVAS_W; ++x) {
+            for (int x = 0; x < 32; ++x) {
                 int thr = _bayerT(x, y, 4) - 128;
                 int t = base + (thr * 28) / 128;
                 t = t < 0 ? 0 : (t > 255 ? 255 : t);
                 int r,g,b;
                 _gradAtT(colors, stops, n, t, r, g, b);
                 uint16_t c = _rgb888to565(r,g,b);
-                // swap byte order for pushImage compatibility
-                _gradientBandCache[y * AQ_CANVAS_W + x] = uint16_t((c<<8)|(c>>8));
+                _gradTile[y][x] = uint16_t((c<<8)|(c>>8));
             }
         }
     }
@@ -886,12 +885,18 @@ private:
             _RGB565(0,4,164), _RGB565(0,3,126), _RGB565(0,2,90),
             _RGB565(0,1,58),  _RGB565(0,0,30),  0x0000,
         };
+        _canvas.fillSprite(AQ_BG_COLOR);
+        int gradH = _canvasH / 4;
         if (!_gradientBandCached) {
-            _buildGradCache(kBlue, kStops, 9);
+            _buildGradTile(kBlue, kStops, 9);
             _gradientBandCached = true;
         }
-        _canvas.fillSprite(AQ_BG_COLOR);
-        _canvas.pushImage(0, 0, AQ_CANVAS_W, _canvasH / 4, _gradientBandCache);
+        uint16_t rowBuf[AQ_CANVAS_W];
+        for (int y = 0; y < gradH; ++y) {
+            for (int x = 0; x < AQ_CANVAS_W; ++x)
+                rowBuf[x] = _gradTile[y][x & 31];
+            _canvas.pushImage(0, y, AQ_CANVAS_W, 1, rowBuf);
+        }
     }
 
     // ── Seaweed ───────────────────────────────────────────────────────────────
