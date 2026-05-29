@@ -15,6 +15,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
+#include <esp_heap_caps.h>
 
 namespace dataTask {
 
@@ -187,6 +188,12 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
     String url = String(STOCK_URL_BASE) + STOCK_TICKERS[tickerIdx]
                  + "?interval=" + STOCK_INTERVAL_STR[rangeIdx]
                  + "&range="    + STOCK_RANGE_STR[rangeIdx];
+#ifdef SERIAL_DEBUG
+    LOG_D("dataTask.stock", "chart START %s range=%s heap_free=%u heap_min=%u",
+          STOCK_TICKERS[tickerIdx], STOCK_RANGE_STR[rangeIdx],
+          heap_caps_get_free_size(MALLOC_CAP_8BIT),
+          heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
+#endif
     StockChartResult r;
     WiFiClientSecure tls;
     tls.setCACert(YAHOO_FINANCE_ROOT_CA);
@@ -204,9 +211,17 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
             r.ok = false; r.errorCode = code;
             http.end();
         } else {
+#ifdef SERIAL_DEBUG
+            LOG_D("dataTask.stock", "chart pre-json heap_free=%u",
+                  heap_caps_get_free_size(MALLOC_CAP_8BIT));
+#endif
             DynamicJsonDocument doc(16384);
             DeserializationError err = deserializeJson(doc, http.getString());
             http.end();
+#ifdef SERIAL_DEBUG
+            LOG_D("dataTask.stock", "chart post-json heap_free=%u err=%s",
+                  heap_caps_get_free_size(MALLOC_CAP_8BIT), err.c_str());
+#endif
             if (err) {
                 LOG_W("dataTask.stock", "chart JSON err: %s", err.c_str());
                 r.ok = false; r.errorCode = -99;

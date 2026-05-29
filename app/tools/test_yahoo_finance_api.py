@@ -5,7 +5,7 @@ Validates the endpoints the StockApp firmware uses before any DUT flash.
 Discovered during TASK-109i: Yahoo Finance v7/finance/quote returns 401 Unauthorized
 (gated as of 2026-05). Data strategy revised to use v8/finance/chart for all fetches:
 
-  List view  : 6 × GET v8/finance/chart/{symbol}?interval=1d&range=1d
+  List view  : 8 × GET v8/finance/chart/{symbol}?interval=1d&range=1d
                Parse chart.result[0].meta: regularMarketPrice + chartPreviousClose
                Derive changePct = (price - prevClose) / prevClose * 100
 
@@ -40,7 +40,7 @@ import time
 import urllib.error
 import urllib.request
 
-SYMBOLS = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOG"]
+SYMBOLS = ["AAPL", "AMD", "AMZN", "ARM", "GOOG", "META", "MSFT", "NVDA"]
 
 CHART_URL_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/"
 
@@ -85,8 +85,8 @@ def _info(label, detail=""):
 # ── checks ────────────────────────────────────────────────────────────────────
 
 def check_quote_reachable():
-    """T_SF_01 — 6 per-symbol chart 1d/1d requests all return HTTP 200."""
-    print("\nT_SF_01  Per-symbol quote requests (6 × chart 1d/1d) reachable")
+    """T_SF_01 — 8 per-symbol chart 1d/1d requests all return HTTP 200."""
+    print("\nT_SF_01  Per-symbol quote requests (8 × chart 1d/1d) reachable")
     all_ok = True
     bodies = {}
     for sym in SYMBOLS:
@@ -274,7 +274,7 @@ def main():
     args = parser.parse_args()
 
     print("Yahoo Finance API probe — StockApp POC (TASK-109i)")
-    print(f"Quote symbols : {', '.join(SYMBOLS)}")
+    print(f"Quote symbols : {', '.join(SYMBOLS)}  ({len(SYMBOLS)} symbols)")
     print(f"Chart symbol  : {args.chart_symbol}  ranges: D1(5m) D5(60m) Mo1(1d) Ytd(1wk)")
     print(f"DUT budget    : {CHART_BUDGET_B} B per request (DynamicJsonDocument)")
 

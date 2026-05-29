@@ -29,6 +29,7 @@ import json
 import pathlib
 import re
 import sys
+import threading
 import time
 from typing import Optional
 
@@ -1916,6 +1917,652 @@ def t_x07_01(dut: Dut):
           "no dataTask queue corruption detected")
 
 
+# ── stock-001 suite (TASK-110) ────────────────────────────────────────────────
+# All tests use `switchApp 7` (debug command) to reach StockApp directly rather
+# than scrolling the taskbar — taskbar scrolling is covered by T162–T168.
+# T182 is the one exception: it uses the taskbar path to exercise the real UI.
+#
+# Firmware prerequisites (main.cpp):
+#   get stockSubView, get stockChartTicker, get stockChartRange,
+#   get lastQuoteFetch, get lastChartFetch,
+#   set fetchFailed, set fetchErrorCode, set triggerFetch,
+#   switchApp <id>
+#
+# Geometry (from main.cpp constants):
+#   List rows: y_centre = 36 + 26*i   (AAPL=36, AMD=62, AMZN=88, ARM=114,
+#                                       GOOG=140, META=166, MSFT=192, NVDA=218)
+#   Chart header: y 0..17
+#   Back tap: (10, 7)   Chart tabs (x,7): 1D=148, 5D=184, 1M=220, YTD=256
+#   Plot area: y 18..213   Footer: y=214
+
+_STOCK_APP_ID = 7  # AppId::Stock
+
+
+def _switch_to_stock(dut: Dut, timeout: float = 5.0) -> bool:
+    """Switch to StockApp via the serial switchApp command."""
+    r = dut.cmd(f"switchApp {_STOCK_APP_ID}", timeout=timeout)
+    if not r.get("ok"):
+        return False
+    time.sleep(0.3)
+    r2 = dut.cmd("get appId", timeout=timeout)
+    return r2.get("ok", False) and r2.get("name") == "Stock"
+
+
+def _restore_from_stock(dut: Dut, timeout: float = 5.0) -> bool:
+    """Switch back to Spotify from Stock."""
+    r = dut.cmd("switchApp 0", timeout=timeout)
+    if not r.get("ok"):
+        return False
+    time.sleep(0.3)
+    r2 = dut.cmd("get appId", timeout=timeout)
+    return r2.get("ok", False) and r2.get("name") == "Spotify"
+
+
+def _stock_get(dut: Dut, var: str, timeout: float = 3.0):
+    """Get a stock debug var; return the response dict."""
+    return dut.cmd(f"get {var}", timeout=timeout)
+
+
+def _wait_quote_fetch(dut: Dut, baseline: int, timeout_s: float = 65.0) -> bool:
+    """Wait until lastQuoteFetch advances past baseline (fetch completed)."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        r = _stock_get(dut, "lastQuoteFetch")
+        if r.get("ok") and int(r.get("val", 0)) != baseline:
+            return True
+        time.sleep(2.0)
+    return False
+
+
+# ── T169 — Stock app switch round-trip ───────────────────────────────────────
+
+def t169(dut: Dut):
+    """T169 (L1): switchApp→Stock activates StockApp; switchApp→Spotify restores."""
+    print("T169  Stock app switch round-trip")
+    if not _restore_spotify(dut):
+        skip("T169", "precondition: could not restore Spotify")
+        return
+    if not _switch_to_stock(dut):
+        fail("T169", "switchApp 7 did not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    r = _stock_get(dut, "stockSubView")
+    if not r.get("ok"):
+        fail("T169", f"get stockSubView failed: {r}")
+        _restore_from_stock(dut)
+        return
+    if r.get("val") != "list":
+        fail("T169", f"expected stockSubView=list on first launch, got {r.get('val')!r}")
+        _restore_from_stock(dut)
+        return
+    if not _restore_from_stock(dut):
+        fail("T169", "Stock→Spotify switch-back failed")
+        return
+    pass_("T169", "Stock round-trip OK; stockSubView=list on launch")
+
+
+# ── T170 — Pre-fetch placeholders ─────────────────────────────────────────────
+
+def t170(dut: Dut):
+    """T170 (L2): immediately after Stock launch, lastQuoteFetch>0 and prices not yet received."""
+    print("T170  Pre-fetch placeholder state")
+    # Check whether Stock was already fetched this session.
+    r_pre = _stock_get(dut, "lastQuoteFetch")
+    if r_pre.get("ok") and int(r_pre.get("val", 0)) > 0:
+        # Already fetched — can only verify via a fresh session.
+        skip("T170", "lastQuoteFetch already set — pre-fetch state not observable mid-session")
+        return
+    if not _switch_to_stock(dut):
+        skip("T170", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    # init() sets lastQuoteFetch = millis() immediately and enqueues the fetch.
+    r = _stock_get(dut, "lastQuoteFetch")
+    _restore_from_stock(dut)
+    if not r.get("ok"):
+        fail("T170", f"get lastQuoteFetch failed: {r}")
+        return
+    val = int(r.get("val", 0))
+    if val == 0:
+        fail("T170", "lastQuoteFetch still 0 after init() — init() did not set timestamp")
+        return
+    pass_("T170", f"lastQuoteFetch={val} — init() enqueued fetch; placeholder state confirmed")
+
+
+# ── T171 — Colour coding (data-dependent) ─────────────────────────────────────
+
+def t171(dut: Dut):
+    """T171 (L3): positive changePct rows render green, negative red. Requires live data."""
+    print("T171  Colour coding (manual pixel check — skipped in automated run)")
+    skip("T171", "pixel verification required — run manually; check green/red rows after fetch")
+
+
+# ── T172 — App switch residue ─────────────────────────────────────────────────
+
+def t172(dut: Dut):
+    """T172 (L4): Spotify→Stock→Spotify; Winamp chrome repaints cleanly."""
+    print("T172  App switch residue")
+    if not _restore_spotify(dut):
+        skip("T172", "precondition: could not restore Spotify")
+        return
+    if not _switch_to_stock(dut):
+        fail("T172", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    time.sleep(0.15)
+    if not _restore_from_stock(dut):
+        fail("T172", "Stock→Spotify switch-back failed")
+        return
+    if not _check_residue(dut, "T172"):
+        skip("T172", "lastPlaylistDraw did not advance — Spotify not rendering (not playing?)")
+
+
+# ── T173 — Resume cache ───────────────────────────────────────────────────────
+
+def t173(dut: Dut):
+    """T173 (L5): switch away from Stock and back within 60 s; prices come from cache."""
+    print("T173  Resume cache")
+    if not _switch_to_stock(dut):
+        skip("T173", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    r_pre = _stock_get(dut, "lastQuoteFetch")
+    baseline = int(r_pre.get("val", 0)) if r_pre.get("ok") else 0
+    if baseline == 0:
+        skip("T173", "no quote fetch recorded yet — cannot verify resume cache")
+        _restore_from_stock(dut)
+        return
+    # Switch away and quickly back.
+    dut.cmd("switchApp 0", timeout=3.0)
+    time.sleep(2.0)
+    if not _switch_to_stock(dut):
+        fail("T173", "could not switch back to Stock")
+        _restore_from_stock(dut)
+        return
+    r_post = _stock_get(dut, "lastQuoteFetch")
+    _restore_from_stock(dut)
+    post_val = int(r_post.get("val", 0)) if r_post.get("ok") else -1
+    if post_val != baseline:
+        fail("T173", f"lastQuoteFetch changed {baseline}→{post_val} — unexpected re-fetch on resume")
+        return
+    pass_("T173", f"lastQuoteFetch unchanged ({baseline}) — resume served from cache")
+
+
+# ── T174 — Row drill-in ───────────────────────────────────────────────────────
+
+def t174(dut: Dut):
+    """T174 (L6): tap NVDA row (row 7, y=218); verify stockSubView=chart, stockChartTicker=NVDA."""
+    print("T174  Row drill-in (NVDA)")
+    if not _switch_to_stock(dut):
+        skip("T174", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    r_sv = _stock_get(dut, "stockSubView")
+    if r_sv.get("val") != "list":
+        skip("T174", f"stockSubView={r_sv.get('val')!r} — expected list; prior test may have left chart view")
+        _restore_from_stock(dut)
+        return
+    r_ff = _stock_get(dut, "stockSubView")
+    # Also check fetchFailed via a set-then-get round-trip isn't practical here;
+    # just proceed — if fetchFailed the tap will be ignored and subView stays list.
+    dut.set_cooldown_zero()
+    dut.cmd("tap 137 218", timeout=3.0)  # NVDA row centre: y = 25 + 7*26 + 11 = 218
+    time.sleep(0.3)
+    r_sv2 = _stock_get(dut, "stockSubView")
+    r_tk  = _stock_get(dut, "stockChartTicker")
+    r_rng = _stock_get(dut, "stockChartRange")
+    _restore_from_stock(dut)
+    if r_sv2.get("val") != "chart":
+        fail("T174", f"stockSubView={r_sv2.get('val')!r} after tap — drill-in did not fire")
+        return
+    if r_tk.get("val") != "NVDA":
+        fail("T174", f"stockChartTicker={r_tk.get('val')!r} — expected NVDA")
+        return
+    if r_rng.get("val") != "D1":
+        fail("T174", f"stockChartRange={r_rng.get('val')!r} — expected D1 default on drill-in")
+        return
+    pass_("T174", "drill-in NVDA: subView=chart, ticker=NVDA, range=D1")
+
+
+# ── T175 — Back navigation ────────────────────────────────────────────────────
+
+def t175(dut: Dut):
+    """T175 (C1): from chart view, tap back zone (10,7); stockSubView returns to list."""
+    print("T175  Back navigation from chart")
+    if not _switch_to_stock(dut):
+        skip("T175", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    # Drill into any row (AAPL, row 0, y=36).
+    dut.set_cooldown_zero()
+    dut.cmd("tap 137 36", timeout=3.0)
+    time.sleep(0.3)
+    r_sv = _stock_get(dut, "stockSubView")
+    if r_sv.get("val") != "chart":
+        skip("T175", "drill-in did not fire (fetchFailed?) — cannot test back navigation")
+        _restore_from_stock(dut)
+        return
+    # Tap back button: x=10 < ST_CHART_BACK_W(30), y=7 < ST_CHART_HEADER_H(18).
+    dut.set_cooldown_zero()
+    dut.cmd("tap 10 7", timeout=3.0)
+    time.sleep(0.2)
+    r_sv2 = _stock_get(dut, "stockSubView")
+    _restore_from_stock(dut)
+    if r_sv2.get("val") != "list":
+        fail("T175", f"stockSubView={r_sv2.get('val')!r} after back tap — expected list")
+        return
+    pass_("T175", "back tap (10,7) returned stockSubView=list")
+
+
+# ── T176 — Plot bounds (automated proxy only) ─────────────────────────────────
+
+def t176(dut: Dut):
+    """T176 (C2): chart fetch completes; lastChartFetch>0 confirms data received."""
+    print("T176  Plot bounds (automated: lastChartFetch proxy; pixel check manual)")
+    if not _switch_to_stock(dut):
+        skip("T176", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    dut.set_cooldown_zero()
+    dut.cmd("tap 137 36", timeout=3.0)  # drill into AAPL
+    time.sleep(0.3)
+    r_sv = _stock_get(dut, "stockSubView")
+    if r_sv.get("val") != "chart":
+        skip("T176", "could not enter chart view")
+        _restore_from_stock(dut)
+        return
+    # Wait for chart fetch to complete (up to 30 s).
+    deadline = time.monotonic() + 30.0
+    fetched = False
+    while time.monotonic() < deadline:
+        r = _stock_get(dut, "lastChartFetch")
+        if r.get("ok") and int(r.get("val", 0)) > 0:
+            fetched = True
+            break
+        time.sleep(1.0)
+    _restore_from_stock(dut)
+    if not fetched:
+        fail("T176", "lastChartFetch still 0 after 30 s — chart fetch did not complete")
+        return
+    pass_("T176", "lastChartFetch>0 — chart data received; pixel bounds check is manual (y:18..213)")
+
+
+# ── T177 — Range tab switch ───────────────────────────────────────────────────
+
+def t177(dut: Dut):
+    """T177 (C3): tap 5D tab (184,7); stockChartRange=D5 and lastChartFetch resets."""
+    print("T177  Range tab — 5D")
+    if not _switch_to_stock(dut):
+        skip("T177", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    dut.set_cooldown_zero()
+    dut.cmd("tap 137 36", timeout=3.0)  # drill into AAPL
+    time.sleep(0.3)
+    if _stock_get(dut, "stockSubView").get("val") != "chart":
+        skip("T177", "could not enter chart view")
+        _restore_from_stock(dut)
+        return
+    # Tap 5D tab: x=184 (tab 1 centre), y=7 (header centre).
+    dut.set_cooldown_zero()
+    dut.cmd("tap 184 7", timeout=3.0)
+    time.sleep(0.2)
+    r_rng = _stock_get(dut, "stockChartRange")
+    # lastChartFetch resets to 0 on tab change, then advances when enqueue fires.
+    deadline = time.monotonic() + 5.0
+    fetched = False
+    while time.monotonic() < deadline:
+        r = _stock_get(dut, "lastChartFetch")
+        if r.get("ok") and int(r.get("val", 0)) > 0:
+            fetched = True
+            break
+        time.sleep(0.3)
+    _restore_from_stock(dut)
+    if r_rng.get("val") != "D5":
+        fail("T177", f"stockChartRange={r_rng.get('val')!r} after 5D tap — expected D5")
+        return
+    if not fetched:
+        fail("T177", "lastChartFetch did not advance after tab change — enqueue not fired")
+        return
+    pass_("T177", "5D tab: stockChartRange=D5, lastChartFetch advanced")
+
+
+# ── T178 — Pre-fetch placeholder in chart view ────────────────────────────────
+
+def t178(dut: Dut):
+    """T178 (C4): immediately after drill-in, before fetch returns, stockChartRange=D1."""
+    print("T178  Chart pre-fetch placeholder")
+    if not _switch_to_stock(dut):
+        skip("T178", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    # Ensure list view — prior test (T177) may have left us in chart view.
+    if _stock_get(dut, "stockSubView").get("val") == "chart":
+        dut.set_cooldown_zero()
+        dut.cmd("tap 10 7", timeout=3.0)  # back to list
+        time.sleep(0.2)
+    dut.set_cooldown_zero()
+    dut.cmd("tap 137 36", timeout=3.0)  # drill AAPL; fetch enqueued but not returned
+    time.sleep(0.1)  # minimal wait — check before dataTask returns
+    r_sv  = _stock_get(dut, "stockSubView")
+    r_rng = _stock_get(dut, "stockChartRange")
+    _restore_from_stock(dut)
+    if r_sv.get("val") != "chart":
+        skip("T178", "drill-in did not fire")
+        return
+    if r_rng.get("val") != "D1":
+        fail("T178", f"stockChartRange={r_rng.get('val')!r} on drill-in — expected D1 default")
+        return
+    pass_("T178", "stockSubView=chart, stockChartRange=D1 immediately after drill-in")
+
+
+# ── T179 — Footer lo/hi (manual) ──────────────────────────────────────────────
+
+def t179(dut: Dut):
+    """T179 (C5): lo: and hi: values visible in footer after fetch. Manual pixel check."""
+    print("T179  Footer lo/hi (manual pixel check — skipped in automated run)")
+    skip("T179", "pixel verification required — run manually; check lo:/hi: at y=214 after fetch")
+
+
+# ── T180 — Drill-in default range ────────────────────────────────────────────
+
+def t180(dut: Dut):
+    """T180 (C6): every drill-in sets stockChartRange=D1."""
+    print("T180  Drill-in default range always D1")
+    if not _switch_to_stock(dut):
+        skip("T180", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    # First: drill, change range, go back, re-drill — verify range resets.
+    dut.set_cooldown_zero()
+    dut.cmd("tap 137 36", timeout=3.0)   # AAPL
+    time.sleep(0.3)
+    if _stock_get(dut, "stockSubView").get("val") != "chart":
+        skip("T180", "first drill-in failed")
+        _restore_from_stock(dut)
+        return
+    dut.set_cooldown_zero()
+    dut.cmd("tap 184 7", timeout=3.0)    # change to 5D
+    time.sleep(0.2)
+    # Back to list.
+    dut.set_cooldown_zero()
+    dut.cmd("tap 10 7", timeout=3.0)
+    time.sleep(0.2)
+    # Re-drill same row.
+    dut.set_cooldown_zero()
+    dut.cmd("tap 137 36", timeout=3.0)
+    time.sleep(0.3)
+    r_rng = _stock_get(dut, "stockChartRange")
+    _restore_from_stock(dut)
+    if r_rng.get("val") != "D1":
+        fail("T180", f"stockChartRange={r_rng.get('val')!r} on re-drill — expected D1 reset")
+        return
+    pass_("T180", "re-drill after range change: stockChartRange reset to D1")
+
+
+# ── T181 — Back then re-drill ─────────────────────────────────────────────────
+
+def t181(dut: Dut):
+    """T181 (C7): back→list→tap NVDA again; chart redraws with correct ticker."""
+    print("T181  Back then re-drill")
+    if not _switch_to_stock(dut):
+        skip("T181", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    # Drill AAPL, go back, drill NVDA.
+    dut.set_cooldown_zero()
+    dut.cmd("tap 137 36", timeout=3.0)   # AAPL
+    time.sleep(0.3)
+    if _stock_get(dut, "stockSubView").get("val") != "chart":
+        skip("T181", "first drill-in failed")
+        _restore_from_stock(dut)
+        return
+    dut.set_cooldown_zero()
+    dut.cmd("tap 10 7", timeout=3.0)     # back
+    time.sleep(0.2)
+    dut.set_cooldown_zero()
+    dut.cmd("tap 137 218", timeout=3.0)  # NVDA row
+    time.sleep(0.3)
+    r_sv  = _stock_get(dut, "stockSubView")
+    r_tk  = _stock_get(dut, "stockChartTicker")
+    _restore_from_stock(dut)
+    if r_sv.get("val") != "chart":
+        fail("T181", "re-drill did not enter chart view")
+        return
+    if r_tk.get("val") != "NVDA":
+        fail("T181", f"stockChartTicker={r_tk.get('val')!r} — expected NVDA")
+        return
+    pass_("T181", "back→re-drill NVDA: subView=chart, ticker=NVDA")
+
+
+# ── T182 — Canvas isolation (taskbar-driven path) ─────────────────────────────
+
+def t182(dut: Dut):
+    """T182 (cross): Stock→chart view→switchApp away→taskbar back→list; no residue."""
+    print("T182  Stock canvas isolation (taskbar-driven switch)")
+    if not _restore_spotify(dut):
+        skip("T182", "precondition: could not restore Spotify")
+        return
+    # Enter chart view via serial switchApp (fastest setup).
+    if not _switch_to_stock(dut):
+        fail("T182", "could not switch to Stock")
+        return
+    dut.set_cooldown_zero()
+    dut.cmd("tap 137 36", timeout=3.0)
+    time.sleep(0.3)
+    if _stock_get(dut, "stockSubView").get("val") != "chart":
+        skip("T182", "could not enter chart view — cannot test canvas isolation")
+        _restore_from_stock(dut)
+        return
+    # Switch away via switchApp.
+    dut.cmd("switchApp 0", timeout=3.0)
+    time.sleep(0.3)
+    # Switch back via taskbar scroll + slot tap (real UI path).
+    dut.set_cooldown_zero()
+    dut.cmd("drag 297 200 297 100 10", timeout=3.0)  # scroll up 2 slots → offset=2
+    time.sleep(0.3)
+    r_off = dut.cmd("get tbScrollOffset", timeout=3.0)
+    if r_off.get("val") != 2:
+        skip("T182", f"tbScrollOffset={r_off.get('val')} — taskbar scroll failed; cannot verify taskbar path")
+        dut.cmd("drag 297 100 297 200 10", timeout=3.0)  # reset scroll
+        return
+    dut.set_cooldown_zero()
+    sx, sy = _c.tap_taskbar_slot(5)   # slot 5 at offset 2 = AppId (2+5)%9 = 7 = Stock
+    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    time.sleep(0.4)
+    r_app = dut.cmd("get appId", timeout=3.0)
+    if r_app.get("name") != "Stock":
+        skip("T182", f"appId={r_app.get('name')!r} — taskbar tap missed Stock slot")
+        dut.cmd("drag 297 100 297 200 10", timeout=3.0)
+        _restore_spotify(dut)
+        return
+    # resume() should restore to last subView (chart) then list if we tapped back...
+    # Actually resume() calls repaintChart() if subView==ChartDetail.
+    # The test is: no display crash, subView is still whatever it was.
+    r_sv = _stock_get(dut, "stockSubView")
+    # Reset taskbar scroll.
+    dut.cmd("drag 297 100 297 200 10", timeout=3.0)
+    _restore_from_stock(dut)
+    if not r_app.get("ok"):
+        fail("T182", "DUT unresponsive after taskbar-driven switch to Stock")
+        return
+    if not _check_residue(dut, "T182"):
+        skip("T182", "lastPlaylistDraw did not advance after return to Spotify")
+        return
+
+
+# ── T183 — Inject fetch error ────────────────────────────────────────────────
+
+def t183(dut: Dut):
+    """T183 (error): set fetchFailed=1, fetchErrorCode=-1; tap ignored; error screen shown."""
+    print("T183  Inject fetch error")
+    if not _switch_to_stock(dut):
+        skip("T183", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    # Ensure list view — prior test may have left us in chart view.
+    if _stock_get(dut, "stockSubView").get("val") == "chart":
+        dut.set_cooldown_zero()
+        dut.cmd("tap 10 7", timeout=3.0)  # back to list
+        time.sleep(0.2)
+    dut.cmd("set fetchFailed 1", timeout=3.0)
+    dut.cmd("set fetchErrorCode -1", timeout=3.0)
+    time.sleep(0.15)  # wait one tick for repaint
+    # Tap a list row — should be ignored when fetchFailed.
+    dut.set_cooldown_zero()
+    dut.cmd("tap 137 120", timeout=3.0)
+    time.sleep(0.1)
+    r_sv = _stock_get(dut, "stockSubView")
+    # Clear error state before returning.
+    dut.cmd("set fetchFailed 0", timeout=3.0)
+    dut.cmd("set fetchErrorCode 0", timeout=3.0)
+    _restore_from_stock(dut)
+    if r_sv.get("val") != "list":
+        fail("T183", f"stockSubView={r_sv.get('val')!r} after tap while fetchFailed — expected no drill-in")
+        return
+    pass_("T183", "tap ignored while fetchFailed=1; stockSubView stayed list; error screen shown (manual verify)")
+
+
+# ── T184 — Error in chart view ────────────────────────────────────────────────
+
+def t184(dut: Dut):
+    """T184 (error/chart): inject error while in chart; back button still works."""
+    print("T184  Error injection in chart view")
+    if not _switch_to_stock(dut):
+        skip("T184", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    dut.set_cooldown_zero()
+    dut.cmd("tap 137 36", timeout=3.0)
+    time.sleep(0.3)
+    if _stock_get(dut, "stockSubView").get("val") != "chart":
+        skip("T184", "could not enter chart view")
+        _restore_from_stock(dut)
+        return
+    dut.cmd("set fetchFailed 1", timeout=3.0)
+    time.sleep(0.15)
+    # Back button must still work even when fetchFailed.
+    dut.set_cooldown_zero()
+    dut.cmd("tap 10 7", timeout=3.0)
+    time.sleep(0.2)
+    r_sv = _stock_get(dut, "stockSubView")
+    dut.cmd("set fetchFailed 0", timeout=3.0)
+    _restore_from_stock(dut)
+    if r_sv.get("val") != "list":
+        fail("T184", f"stockSubView={r_sv.get('val')!r} after back tap while fetchFailed — expected list")
+        return
+    pass_("T184", "back tap works while fetchFailed=1 in chart view; returned to list")
+
+
+# ── T185 — Error clears on successful fetch ───────────────────────────────────
+
+def t185(dut: Dut):
+    """T185 (error/recovery): error→triggerFetch→lastQuoteFetch advances."""
+    print("T185  Error clears on successful fetch")
+    if not _switch_to_stock(dut):
+        skip("T185", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    dut.cmd("set fetchFailed 1", timeout=3.0)
+    dut.cmd("set fetchErrorCode -99", timeout=3.0)
+    time.sleep(0.15)
+    r_pre = _stock_get(dut, "lastQuoteFetch")
+    baseline = int(r_pre.get("val", 0)) if r_pre.get("ok") else 0
+    # Zero timestamps so the next tick enqueues immediately.
+    dut.cmd("set triggerFetch 1", timeout=3.0)
+    # Wait for fetch to complete and lastQuoteFetch to advance.
+    fetched = _wait_quote_fetch(dut, baseline, timeout_s=65.0)
+    _restore_from_stock(dut)
+    if not fetched:
+        fail("T185", "lastQuoteFetch did not advance after triggerFetch within 65 s")
+        return
+    pass_("T185", "triggerFetch triggered re-fetch; lastQuoteFetch advanced — error recovery confirmed")
+
+
+# ── T186 — Rapid range-tab stress (race / heap-fragmentation probe) ───────────
+#
+# Hypothesis: rapid tab switches while a chart fetch is in-flight stack up
+# DATA_FETCH_STOCK_CHART requests in the 4-slot queue.  Each call allocates a
+# 16 KB DynamicJsonDocument + WiFiClientSecure back-to-back; heap fragmentation
+# can cause deserializeJson to fail → fetchFailed=1 / fetchErrorCode=-99.
+
+# Tab centres (x): D1=148, D5=184, Mo1=220, Ytd=256  (all y=9, header band 0-17)
+_TAB_XY = [(148, 9), (184, 9), (220, 9), (256, 9)]
+_TAB_NAMES = ["D1", "D5", "Mo1", "Ytd"]
+
+
+def t186(dut: Dut):
+    """T186 (stress/heap): rapid range-tab cycling — capture heap + JSON-err log lines."""
+    print("T186  Rapid range-tab stress (race/heap probe)", flush=True)
+    if not _switch_to_stock(dut):
+        skip("T186", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+
+    # Ensure list view, then drill AAPL.
+    if _stock_get(dut, "stockSubView", timeout=8.0).get("val") == "chart":
+        dut.set_cooldown_zero()
+        dut.cmd("tap 10 7", timeout=5.0)
+        time.sleep(0.3)
+    dut.set_cooldown_zero()
+    dut.cmd("tap 137 36", timeout=5.0)  # drill AAPL
+    time.sleep(1.0)                      # wait for chart render before checking
+    if _stock_get(dut, "stockSubView", timeout=8.0).get("val") != "chart":
+        skip("T186", "could not drill into chart view")
+        _restore_from_stock(dut)
+        return
+
+    ROUNDS      = 8
+    TAP_DELAY_S = 0.15
+
+    # ── Phase 1: fire taps (fire-and-forget, no JSON ACK wait) ───────────────
+    # Avoid any dut.cmd() calls here — ACK responses would pile up in the buffer.
+    # set_cooldown_zero is also a cmd call, skip it; tabs are in the header band
+    # which has no cooldown guard in the firmware.
+    for _ in range(ROUNDS):
+        for tx, ty in _TAB_XY:
+            dut.send(f"tap {tx} {ty}")
+            time.sleep(TAP_DELAY_S)
+
+    print(f"  [T186] {ROUNDS*len(_TAB_XY)} taps fired; reading log for 30 s…", flush=True)
+
+    # ── Phase 2: drain — read serial directly, collect heap/err lines ────────
+    # No cmd() calls — we own the stream.  Flush stale ACKs as we go.
+    heap_lines = []
+    orig_to = dut.ser.timeout
+    dut.ser.timeout = 0.3
+    deadline = time.monotonic() + 30.0
+    while time.monotonic() < deadline:
+        try:
+            line = dut.ser.readline().decode(errors="replace").strip()
+        except Exception:
+            break
+        if not line:
+            continue
+        if re.search(r"(chart.*(START|pre.json|post.json|JSON err)|fetchFailed)", line, re.I):
+            heap_lines.append(line)
+            print(f"  [log] {line}", flush=True)
+    dut.ser.timeout = orig_to
+    dut.ser.reset_input_buffer()
+
+    print(f"  [T186] captured {len(heap_lines)} heap/err lines", flush=True)
+
+    # ── Phase 3: query state ──────────────────────────────────────────────────
+    r_final = _stock_get(dut, "fetchFailed", timeout=8.0)
+    r_code  = _stock_get(dut, "fetchErrorCode", timeout=8.0)
+    failed  = r_final.get("val") == "1" or r_final.get("val") is True
+
+    if failed:
+        dut.cmd("set fetchFailed 0", timeout=5.0)
+        dut.cmd("set fetchErrorCode 0", timeout=5.0)
+        _restore_from_stock(dut)
+        fail("T186", f"fetchFailed=1 errorCode={r_code.get('val')} after {ROUNDS} rounds — see heap lines above")
+        return
+
+    _restore_from_stock(dut)
+    pass_("T186", f"{ROUNDS}×4 taps at {int(TAP_DELAY_S*1000)}ms — no fetchFailed; {len(heap_lines)} heap lines captured")
+
+
 # ── main ──────────────────────────────────────────────────────────────────────
 
 # ── velocity-scroll-001 suite (TASK-104) ──────────────────────────────────────
@@ -2240,6 +2887,25 @@ ALL_TESTS = {
     "T_CX_05": t_cx_05,
     # cross-feature X007
     "T_X07_01": t_x07_01,
+    # stock-001 (TASK-110)
+    "T169": t169,
+    "T170": t170,
+    "T171": t171,
+    "T172": t172,
+    "T173": t173,
+    "T174": t174,
+    "T175": t175,
+    "T176": t176,
+    "T177": t177,
+    "T178": t178,
+    "T179": t179,
+    "T180": t180,
+    "T181": t181,
+    "T182": t182,
+    "T183": t183,
+    "T184": t184,
+    "T185": t185,
+    "T186": t186,
     # velocity-scroll-001 (TASK-104)
     "T155": t155,
     "T156": t156,

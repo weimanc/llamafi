@@ -749,6 +749,7 @@ public:
     if (phase != TouchPhase::Release) return (_s.subView == StockSubView::ChartDetail);
 
     if (_s.subView == StockSubView::List) {
+
       if (_s.fetchFailed) return true;
       if (y >= ST_LIST_ROW_START_Y && y < ST_CANVAS_Y + ST_CANVAS_H) {
         int rowIdx = constrain((y - ST_LIST_ROW_START_Y) / ST_LIST_ROW_H,
@@ -770,6 +771,54 @@ public:
           return true;
         }
       }
+      return true;
+    }
+    return false;
+  }
+
+  bool dbgGet(const char* var, char* buf, int len) const {
+    if (strcmp(var, "stockSubView") == 0) {
+      snprintf(buf, len, "\"var\":\"stockSubView\",\"val\":\"%s\",\"last\":true",
+               _s.subView == StockSubView::ChartDetail ? "chart" : "list");
+      return true;
+    }
+    if (strcmp(var, "stockChartTicker") == 0) {
+      snprintf(buf, len, "\"var\":\"stockChartTicker\",\"val\":\"%s\",\"last\":true",
+               _s.tickers[_s.chartTickerIdx]);
+      return true;
+    }
+    if (strcmp(var, "stockChartRange") == 0) {
+      const char* r = (_s.chartRange == StockRange::D1)  ? "D1"
+                    : (_s.chartRange == StockRange::D5)  ? "D5"
+                    : (_s.chartRange == StockRange::Mo1) ? "Mo1" : "Ytd";
+      snprintf(buf, len, "\"var\":\"stockChartRange\",\"val\":\"%s\",\"last\":true", r);
+      return true;
+    }
+    if (strcmp(var, "lastQuoteFetch") == 0) {
+      snprintf(buf, len, "\"var\":\"lastQuoteFetch\",\"val\":%lu,\"last\":true",
+               _s.lastQuoteFetch);
+      return true;
+    }
+    if (strcmp(var, "lastChartFetch") == 0) {
+      snprintf(buf, len, "\"var\":\"lastChartFetch\",\"val\":%lu,\"last\":true",
+               _s.lastChartFetch);
+      return true;
+    }
+    return false;
+  }
+
+  bool dbgSet(const char* var, const char* val) {
+    if (strcmp(var, "fetchFailed") == 0) {
+      _s.fetchFailed = val && strcmp(val, "0") != 0;
+      return true;
+    }
+    if (strcmp(var, "fetchErrorCode") == 0) {
+      _s.fetchErrorCode = val ? atoi(val) : 0;
+      return true;
+    }
+    if (strcmp(var, "triggerFetch") == 0 && val && strcmp(val, "1") == 0) {
+      _s.lastQuoteFetch = 0;
+      _s.lastChartFetch = 0;
       return true;
     }
     return false;
@@ -956,6 +1005,8 @@ private:
   }
 };
 static StockApp g_stockApp;
+static bool stockDbgGet(const char* v, char* b, int l) { return g_stockApp.dbgGet(v, b, l); }
+static bool stockDbgSet(const char* v, const char* val) { return g_stockApp.dbgSet(v, val); }
 
 #include "aquarium/aquariumApp.h"
 static AquariumApp g_aquariumApp;
@@ -1275,6 +1326,7 @@ static void cmdDrag(const char *);
 static void cmdTick(const char *);
 static void cmdGet(const char *);
 static void cmdSet(const char *);
+static void cmdSwitchApp(const char *);
 static void cmdInfo(const char *);
 static void cmdHelp(const char *);
 #endif
@@ -1287,6 +1339,7 @@ static const SerialCmd kCmds[] = {
   { "tick", cmdTick, "inject synthetic scroll ticks",   "[n=1] [dtMs=20]"                    },
   { "get",  cmdGet,  "read internal state",             "<snapshot|backoff|heap|cooldown>"    },
   { "set",  cmdSet,  "write debug state",               "<backoff|cooldown> <val>"            },
+  { "switchApp", cmdSwitchApp, "switch active app by id", "<appId 0..8>"                      },
   { "info", cmdInfo, "git+elf+build+snapshot summary",  ""                                   },
   { "help", cmdHelp, "list commands",                   ""                                   },
 #endif
@@ -1384,11 +1437,21 @@ static void cmdTap(const char *args) {
                   "\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}\n", x, y);
     return;
   }
-  // BUG-1 guard: Winamp hit-zones only valid when Spotify is active.
+  // Non-Spotify app dispatch: route tap to active app's handleInput when the
+  // app implements real canvas interaction (Stock). Other apps retain BUG-1
+  // guard (hit=CLOCK) — they don't need tap dispatch in tests.
   if (currentAppId != AppId::Spotify) {
-    winampDisplay.lastTouchResult = { "CLOCK", -1, "NONE", 0, -1, false };
-    Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
-                  "\"hit\":\"CLOCK\",\"action\":\"NONE\",\"skipped\":false}\n", x, y);
+    if (currentAppId == AppId::Stock && g_apps[(int)AppId::Stock]) {
+      g_apps[(int)AppId::Stock]->handleInput(TouchPhase::Press, x, y);
+      bool consumed = g_apps[(int)AppId::Stock]->handleInput(TouchPhase::Release, x, y);
+      Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                    "\"hit\":\"STOCK\",\"action\":\"%s\",\"skipped\":false}\n",
+                    x, y, consumed ? "CONSUMED" : "NONE");
+    } else {
+      winampDisplay.lastTouchResult = { "CLOCK", -1, "NONE", 0, -1, false };
+      Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                    "\"hit\":\"CLOCK\",\"action\":\"NONE\",\"skipped\":false}\n", x, y);
+    }
     return;
   }
   winampDisplay.injectTouch(x, y);
@@ -1515,6 +1578,10 @@ static void cmdGet(const char *args) {
     }
     return;
   }
+  if (stockDbgGet(args, buf, sizeof(buf))) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
+    return;
+  }
   Serial.printf("{\"ok\":false,\"cmd\":\"get\","
                 "\"error\":\"unknown var\",\"var\":\"%s\"}\n", args);
 }
@@ -1531,8 +1598,24 @@ static void cmdSet(const char *args) {
                   "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
     return;
   }
+  if (stockDbgSet(var, val)) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\","
+                  "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
+    return;
+  }
   Serial.printf("{\"ok\":false,\"cmd\":\"set\","
                 "\"error\":\"unknown var\",\"var\":\"%s\"}\n", var);
+}
+
+static void cmdSwitchApp(const char *args) {
+  int id = -1;
+  if (sscanf(args, "%d", &id) != 1 || id < 0 || id >= (int)AppId::COUNT) {
+    Serial.printf("{\"ok\":false,\"cmd\":\"switchApp\","
+                  "\"error\":\"bad id — range 0..%d\"}\n", (int)AppId::COUNT - 1);
+    return;
+  }
+  switchApp(static_cast<AppId>(id));
+  Serial.printf("{\"ok\":true,\"cmd\":\"switchApp\",\"id\":%d}\n", id);
 }
 
 static void cmdInfo(const char *) {
