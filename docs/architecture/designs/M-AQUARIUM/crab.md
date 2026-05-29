@@ -149,7 +149,7 @@ Higher characters have larger phase offset → column bends like a seaweed frond
 |---|---|
 | WALK → PINCH_L/R | fish or flake within `CRAB_PINCH_RANGE_PX` and in bottom zone; side = sign of dx; `pinchFrame` reset to 0 |
 | PINCH frame 3 → WALK (miss) | hold expires, proximity re-check finds no target; `pinchFrame` reset to 0 |
-| PINCH frame 3 → CUTE (hit) | hold expires, proximity re-check finds target; target fish removed from pool; `cuteDurationMs = CRAB_CUTE_HIT_MS` |
+| PINCH frame 3 → CUTE (hit) | hold expires, proximity re-check finds target (fish checked first, then flake); target removed from pool; `cuteDurationMs = CRAB_CUTE_HIT_MS` |
 | WALK → CUTE (idle) | random roll `< CRAB_CUTE_CHANCE` per tick, no nearby targets; `cuteDurationMs = CRAB_CUTE_IDLE_MS` |
 | CUTE → WALK | `elapsed >= _crab.cuteDurationMs` |
 | WALK → SLEEP | no targets detected for `CRAB_IDLE_SLEEP_MS` |
@@ -367,7 +367,7 @@ if (_crab.state == Crab::State::PINCH_L || _crab.state == Crab::State::PINCH_R) 
 }
 ```
 
-`findPinchTarget()` is a private helper that re-runs the proximity scan (same logic as the initial WALK→PINCH trigger) and returns the nearest fish index in range, or -1. Flakes are not removed on hit — they continue sinking.
+`findPinchTarget()` is a private helper that re-runs the proximity scan (same logic as the initial WALK→PINCH trigger) and returns the nearest fish index in range, or -1. On a successful pinch, **both fish and flakes are removed** (`active = false`); fish are checked first via `findPinchTarget()`, then flakes if no fish was found.
 
 Background + seaweed are already drawn before `drawCrab()`; transparent text background composites cleanly.
 
