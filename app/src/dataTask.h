@@ -9,8 +9,10 @@
 namespace dataTask {
 
 enum FetchType : uint8_t {
-    DATA_FETCH_WEATHER = 0,
-    DATA_FETCH_CRYPTO  = 1,
+    DATA_FETCH_WEATHER     = 0,
+    DATA_FETCH_CRYPTO      = 1,
+    DATA_FETCH_STOCK_QUOTE = 2,
+    DATA_FETCH_STOCK_CHART = 3,
 };
 
 struct WeatherResult {
@@ -26,15 +28,36 @@ struct CryptoResult {
     float changes[6]  = {};
 };
 
+struct StockQuoteResult {
+    bool  ok           = false;
+    float prices[6]    = {};
+    float changePct[6] = {};
+    int   errorCode    = 0;
+};
+
+struct StockChartResult {
+    bool    ok          = false;
+    float   points[110] = {};
+    uint8_t len         = 0;
+    float   lo          = 0.0f;
+    float   hi          = 0.0f;
+    int     errorCode   = 0;
+};
+
 // Spawn the FreeRTOS task. Call once in setup(), after WiFi is connected.
 void begin();
 
 // Post a fetch request. Non-blocking (drops if queue full).
 void enqueue(FetchType type);
 
+// Post a chart fetch for one ticker/range. Non-blocking (drops if queue full).
+void enqueueStockChart(uint8_t tickerIdx, uint8_t rangeIdx);
+
 // Copy latest result into *out; returns true if new data since last poll.
 // Caller must supply a valid pointer. Thread-safe (spinlock).
 bool pollWeather(WeatherResult *out);
 bool pollCrypto(CryptoResult *out);
+bool pollStockQuote(StockQuoteResult *out);
+bool pollStockChart(StockChartResult *out);
 
 }  // namespace dataTask

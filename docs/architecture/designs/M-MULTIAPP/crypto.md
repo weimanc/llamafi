@@ -61,7 +61,8 @@ with stride 31 px. Row 8 lands at y=280 — fits in 320 portrait with 40 px spar
 
 ## Landscape adaptation
 
-Canvas: **275×124 sub-canvas** (y:116..239). Winamp chrome stays visible above.
+Canvas: **275×240 full screen** (y:0..239). The Winamp chrome is cleared on switch-in.
+(Historical note: design originally specified a 275×124 sub-canvas at y:116..239 — never implemented.)
 
 9 rows × 31 px = 279 px >> 124 px — cannot port verbatim.
 
@@ -316,13 +317,13 @@ taps are available to the shell for taskbar navigation only.
                             "?ids=bitcoin,ethereum,binancecoin,solana,ripple,cardano" \
                             "&vs_currencies=usd&include_24hr_change=true"
 
-// Sub-canvas geometry
-#define CX_CANVAS_Y         116
-#define CX_CANVAS_H         124
-#define CX_HEADER_Y         118    // "CRYPTO TERMINAL" text y
-#define CX_RULE_Y           130    // horizontal rule y
-#define CX_ROW_START_Y      132    // first row top y
-#define CX_ROW_H            17     // row stride (px)
+// Full-screen canvas geometry (actual implementation — CX_CANVAS_Y=0, CX_CANVAS_H=240)
+#define CX_CANVAS_Y         0
+#define CX_CANVAS_H         240
+#define CX_HEADER_Y         5      // "CRYPTO TERMINAL" text y
+#define CX_RULE_Y           22     // horizontal rule y
+#define CX_ROW_START_Y      25     // first row top y
+#define CX_ROW_H            36     // row stride (px)
 #define CX_COL_SYMBOL       5      // symbol x (TL_DATUM)
 #define CX_COL_PRICE        55     // price x (TL_DATUM)
 #define CX_COL_CHANGE       270    // change% x (right-align)
@@ -342,14 +343,13 @@ taps are available to the shell for taskbar navigation only.
 
 ## Exit criteria
 
-- **C1** — All 6 rows render within sub-canvas (x:0..274, y:116..239).
-  Last row bottom: 217+14=231 < 239 ✓. Last divider: 232 < 239 ✓.
+- **C1** — All 6 rows render within canvas (x:0..274, y:0..239).
 - **C2** — `"---"` shown for all prices and changes before first fetch.
 - **C3** — After fetch, correct prices and changes displayed. BTC/ETH/BNB/SOL
   formatted as integer (if ≥1000) or 2 dp; XRP/ADA formatted to 4 dp.
 - **C4** — Positive change% shown in green (0x07E0); negative in red (0xF800).
 - **C5** — App switch: Spotify → Crypto → Spotify. Winamp chrome pixel-correct;
-  no crypto row residue above y=116.
+  no crypto row residue after switch.
 - **C6** — Restore: cached prices shown immediately on switch-in; fresh fetch
   triggered within one `cryptoTick()` if data is >60 s stale.
 - **C7** — `http.GET()` non-200 response (e.g. 429) does not crash or freeze;

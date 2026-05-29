@@ -52,17 +52,16 @@ All downstream coordinates are `originX`-relative — no other geometry
 constants need changing. The PLEDIT hit-test (line 345) and all `blitSprite`
 calls use `originX` as the base.
 
-## Canvas constraint for non-Winamp apps
+## Canvas for non-Spotify apps
 
-Apps other than Spotify render into the **app canvas**: x: 0..274, y: 116..239
-(275×124). The Winamp chrome occupies y: 0..115 permanently. Apps must not
-write outside this rectangle. The taskbar (x: 275..319) is off-limits to all
-apps.
+Apps other than Spotify use the **full left canvas**: x: 0..274, y: 0..239
+(275×240). When a non-Spotify app becomes active, `switchApp()` clears the
+entire canvas with `fillRect(0, 0, 275, 240, BLACK)`, erasing the Winamp
+chrome. The taskbar (x: 275..319) is off-limits to all apps.
 
-Exception: Clock, Matrix, GoL are visually distinct enough that they could
-use the full 275×240 left canvas (overwriting the Winamp chrome region) if the
-Winamp chrome is suspended. This is a future option — initial implementation
-constrains all apps to 275×124.
+Note: early design docs (weather.md, crypto.md) incorrectly described a
+"sub-canvas y:116..239" (275×124). That constraint was never implemented —
+all apps from Weather onward use full 275×240.
 
 ## Orientation mismatch — 5in1 source apps
 

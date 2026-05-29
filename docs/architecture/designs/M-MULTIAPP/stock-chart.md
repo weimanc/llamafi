@@ -13,7 +13,7 @@ ticker with selectable time range. `[<]` button in header returns to List.
 
 ## Layout
 
-Full sub-canvas: 275×124 px (y:116..239).
+Full canvas: 275×240 px (y:0..239).
 
 ```
 x=0  x=30        x=130  x=166  x=202  x=238   x=274

@@ -108,10 +108,12 @@ Same `WiFiClientSecure` + `http.begin(tls, url)` pattern as crypto.md and weathe
 
 ---
 
-## Sub-canvas
+## Canvas
 
-Same geometry as crypto.md: **275×124 px** (y:116..239). Winamp chrome stays
-visible above. Both views render within this boundary.
+Full screen: **275×240 px** (y:0..239). Same as CryptoApp actual implementation.
+Note: crypto.md contains an erroneous "sub-canvas y:116..239" spec that was never
+implemented — CryptoApp uses full screen (CX_CANVAS_Y=0, CX_CANVAS_H=240). Do not
+reference that section of crypto.md.
 
 ---
 
@@ -219,31 +221,31 @@ void StockApp::tick() {
 // Quote fetch: STOCK_CHART_URL_BASE + symbol + "?interval=1d&range=1d"
 // Chart fetch: STOCK_CHART_URL_BASE + symbol + "?interval=" + I + "&range=" + R
 
-// Sub-canvas geometry (shared by both views)
-#define ST_CANVAS_Y             116
-#define ST_CANVAS_H             124
+// Full-screen canvas geometry
+#define ST_CANVAS_Y             0
+#define ST_CANVAS_H             240
 #define ST_CANVAS_X2            274         // inclusive right edge
 
 // List view geometry — see stock-list.md
-#define ST_LIST_HEADER_Y        118
-#define ST_LIST_RULE_Y          130
-#define ST_LIST_ROW_START_Y     132
-#define ST_LIST_ROW_H           17
+#define ST_LIST_HEADER_Y        5
+#define ST_LIST_RULE_Y          22
+#define ST_LIST_ROW_START_Y     25
+#define ST_LIST_ROW_H           36
 #define ST_LIST_COL_SYMBOL      5
 #define ST_LIST_COL_PRICE       55
 #define ST_LIST_COL_CHANGE      270
 
 // Chart detail geometry — see stock-chart.md
-#define ST_CHART_HEADER_Y       116
-#define ST_CHART_HEADER_H       16          // y:116..131
+#define ST_CHART_HEADER_Y       0
+#define ST_CHART_HEADER_H       18
 #define ST_CHART_BACK_W         30          // back button touch zone width
 #define ST_CHART_TICKER_X       30          // ticker + price text start
 #define ST_CHART_TABS_X         130         // range tab area start x
 #define ST_CHART_TAB_W          36          // (275 - 130) / 4
-#define ST_CHART_PLOT_Y         132
-#define ST_CHART_PLOT_H         92          // y:132..223
-#define ST_CHART_FOOTER_Y       224
-#define ST_CHART_FOOTER_H       15          // y:224..239
+#define ST_CHART_PLOT_Y         18
+#define ST_CHART_PLOT_H         196         // y:18..213
+#define ST_CHART_FOOTER_Y       214
+#define ST_CHART_FOOTER_H       25          // y:214..239
 ```
 
 ---
@@ -260,7 +262,7 @@ void StockApp::tick() {
 - Ticker selection → hardcoded defaults `AAPL MSFT NVDA AMZN META GOOG`.
 - Display mode switching → drill-down from List row tap; heatmap deferred.
 - Chart ticker selection → set by tapping a List row (`drillToChart(rowIdx)`).
-- Back navigation → `[<]` button in chart header (x:0..29, y:116..131).
+- Back navigation → `[<]` button in chart header (x:0..29, y:0..17).
 - Heatmap → deferred; no implementation target set.
 - Market hours indicator → deferred.
 - Settings integration → deferred.

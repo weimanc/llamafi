@@ -85,6 +85,25 @@ struct AquariumAppState {
     bool initialised;
 };
 
+enum class StockSubView : uint8_t { List = 0, ChartDetail = 1 };
+enum class StockRange   : uint8_t { D1 = 0, D5 = 1, Mo1 = 2, Ytd = 3 };
+
+struct StockAppState {
+    char          tickers[6][8];
+    StockSubView  subView;
+    float         prices[6];
+    float         changePct[6];
+    unsigned long lastQuoteFetch;
+    uint8_t       chartTickerIdx;
+    StockRange    chartRange;
+    float         chartPoints[110];
+    uint8_t       chartLen;
+    float         chartLo, chartHi;
+    unsigned long lastChartFetch;
+    bool          fetchFailed;
+    int           fetchErrorCode;
+};
+
 // First-launch tracking — indexed by (int)AppId.
 extern bool g_appLaunched[(int)AppId::COUNT];
 

@@ -104,9 +104,8 @@ device without GPS, ensures NTP-derived local time matches the API response.
 
 ## Landscape adaptation
 
-Canvas: **275×124 sub-canvas** (y:116..239). Weather is a data display — Winamp
-chrome stays visible above. No header bar needed (Winamp chrome already
-identifies the device).
+Canvas: **275×240 full screen** (y:0..239). Winamp chrome is cleared on switch-in.
+(Historical note: design originally specified a 275×124 sub-canvas at y:116..239 — never implemented.)
 
 ### Panel geometry
 
@@ -361,14 +360,11 @@ taps are available to the shell for taskbar navigation only.
 #define WX_LEFT_W              137
 #define WX_RIGHT_X             138
 #define WX_RIGHT_W             136
-#define WX_TOP_Y               116
-#define WX_TOP_H               62
-#define WX_BOT_Y               179
-#define WX_BOT_H               60
+// actual implementation — full screen, panels split at y=120
 #define WX_LEFT_CX             68     // left col MC_DATUM centre x
 #define WX_RIGHT_CX            206    // right col MC_DATUM centre x
-#define WX_TOP_CY              147    // top row MC_DATUM centre y
-#define WX_BOT_CY              209    // bottom row MC_DATUM centre y
+#define WX_TOP_CY              60     // top row MC_DATUM centre y  (y:0..119)
+#define WX_BOT_CY              180    // bottom row MC_DATUM centre y (y:121..239)
 #define WX_LABEL_TOP_Y         120    // label y for top panels
 #define WX_LABEL_BOT_Y         183    // label y for bottom panels
 #define WX_WIND_UNIT_Y         222    // "km/h" y
@@ -387,14 +383,13 @@ lifecycle paths covered under App ABC.
 
 ## Exit criteria
 
-- **C1** — Chrome panels rendered within sub-canvas (x:0..274, y:116..239).
-  Right edge: 138+136=274 ✓. Bottom: 179+60=239 ✓.
+- **C1** — Chrome panels rendered within full canvas (x:0..274, y:0..239).
 - **C2** — `"---"` shown for all three values before first successful fetch.
 - **C3** — Time updates every second; RSSI bars refresh alongside.
 - **C4** — After fetch completes, new values appear within one `weatherTick()`
   call. `"---"` replaced by real data.
 - **C5** — App switch: Spotify → Weather → Spotify. Winamp chrome pixel-correct;
-  no weather panel residue above y=116.
+  no weather panel residue after switch.
 - **C6** — Restore: cached values shown immediately; fetch re-triggered if
   >60 s stale.
 - **C7** — `timezone=Europe/London` produces correct HH:MM for both GMT (winter)

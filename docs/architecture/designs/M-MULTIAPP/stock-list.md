@@ -127,9 +127,9 @@ Error clears automatically when the next scheduled fetch succeeds.
 
 ## Exit criteria
 
-- **L1** — All 6 rows render within sub-canvas (x:0..274, y:116..239). No overflow above y=116 or below y=239.
+- **L1** — All 6 rows render within canvas (x:0..274, y:0..239). No overflow below y=239.
 - **L2** — `"---"` shown for price and change% before first fetch completes.
 - **L3** — Positive change% rendered green (0x07E0); negative red (0xF800).
-- **L4** — App switch Spotify → Stock → Spotify: Winamp chrome pixel-correct, no stock row residue above y=116.
+- **L4** — App switch Spotify → Stock → Spotify: Winamp chrome pixel-correct, no stock row residue after switch.
 - **L5** — Cached prices shown immediately on `resume()`; re-fetch enqueued if last fetch >60 s ago.
 - **L6** — Tapping any row transitions to Chart detail for the correct ticker (verified by chart header showing tapped ticker symbol).

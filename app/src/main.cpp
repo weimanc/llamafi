@@ -684,22 +684,275 @@ private:
 };
 static SettingsApp g_settingsApp;
 
+// ── StockApp (stock.md) ───────────────────────────────────────────────
+#define STOCK_TICKER_COUNT      6
+#define STOCK_QUOTE_FETCH_MS    60000UL
+#define STOCK_CHART_FETCH_D1    60000UL
+#define STOCK_CHART_FETCH_SLOW  300000UL
+
+#define ST_CANVAS_Y           0
+#define ST_CANVAS_H         240
+#define ST_CANVAS_X2        274
+#define ST_LIST_HEADER_Y      5
+#define ST_LIST_RULE_Y       22
+#define ST_LIST_ROW_START_Y  25
+#define ST_LIST_ROW_H        36
+#define ST_LIST_COL_SYMBOL    5
+#define ST_LIST_COL_PRICE    55
+#define ST_LIST_COL_CHANGE  270
+#define ST_CHART_HEADER_Y     0
+#define ST_CHART_HEADER_H    18
+#define ST_CHART_BACK_W      30
+#define ST_CHART_TICKER_X    30
+#define ST_CHART_TABS_X     130
+#define ST_CHART_TAB_W       36
+#define ST_CHART_PLOT_Y      18
+#define ST_CHART_PLOT_H     196
+#define ST_CHART_FOOTER_Y   214
+
+static String formatStockPrice(float price) {
+  if (price >= 1000.0f) return String((int)price);
+  if (price >= 10.0f)   return String(price, 2);
+  return String(price, 4);
+}
+
 class StockApp : public App {
 public:
-  void init()    override {}
-  void resume()  override { _dirty = true; }
-  void suspend() override {}
-  void tick()    override {
-    if (!_dirty) return;
-    tft.fillRect(0, 0, TASKBAR_X, 240, TFT_NAVY);
-    tft.setTextColor(TFT_WHITE, TFT_NAVY);
-    tft.drawString("STOCK", 80, 110, 4);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    _dirty = false;
+  void init() override {
+    strcpy(_s.tickers[0], "AAPL"); strcpy(_s.tickers[1], "MSFT");
+    strcpy(_s.tickers[2], "NVDA"); strcpy(_s.tickers[3], "AMZN");
+    strcpy(_s.tickers[4], "META"); strcpy(_s.tickers[5], "GOOG");
+    _s.subView = StockSubView::List;
+    repaintList();
+    dataTask::enqueue(dataTask::DATA_FETCH_STOCK_QUOTE);
+    _s.lastQuoteFetch = millis();
   }
-  bool handleInput(TouchPhase, int, int) override { return false; }
+
+  void resume() override {
+    switch (_s.subView) {
+      case StockSubView::List:        repaintList();  break;
+      case StockSubView::ChartDetail: repaintChart(); break;
+    }
+  }
+
+  void suspend() override {}
+
+  void tick() override {
+    switch (_s.subView) {
+      case StockSubView::List:        stockTickQuotes(); break;
+      case StockSubView::ChartDetail: stockTickChart();  break;
+    }
+  }
+
+  bool handleInput(TouchPhase phase, int x, int y) override {
+    if (phase != TouchPhase::Release) return (_s.subView == StockSubView::ChartDetail);
+
+    if (_s.subView == StockSubView::List) {
+      if (_s.fetchFailed) return true;
+      if (y >= ST_LIST_ROW_START_Y && y < ST_CANVAS_Y + ST_CANVAS_H) {
+        int rowIdx = constrain((y - ST_LIST_ROW_START_Y) / ST_LIST_ROW_H,
+                               0, STOCK_TICKER_COUNT - 1);
+        drillToChart((uint8_t)rowIdx);
+        return true;
+      }
+    } else {
+      if (y >= ST_CHART_HEADER_Y && y < ST_CHART_HEADER_Y + ST_CHART_HEADER_H) {
+        if (x < ST_CHART_BACK_W) {
+          backToList();
+          return true;
+        }
+        if (!_s.fetchFailed && x >= ST_CHART_TABS_X) {
+          uint8_t tab = (uint8_t)constrain((x - ST_CHART_TABS_X) / ST_CHART_TAB_W, 0, 3);
+          _s.chartRange     = (StockRange)tab;
+          _s.lastChartFetch = 0;
+          dataTask::enqueueStockChart(_s.chartTickerIdx, tab);
+          return true;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
 private:
-  bool _dirty = false;
+  StockAppState _s = {};
+
+  void repaintError() {
+    tft.fillRect(0, ST_CANVAS_Y, ST_CANVAS_X2 + 1, ST_CANVAS_H, TFT_BLACK);
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(0xF800, TFT_BLACK);
+    tft.setTextFont(2);
+    tft.drawString("STOCK FETCH FAILED", 137, 100);
+    char buf[24];
+    snprintf(buf, sizeof(buf), "NET ERR  %d", _s.fetchErrorCode);
+    tft.drawString(buf, 137, 125);
+    tft.setTextColor(0x7BEF, TFT_BLACK);
+    tft.setTextFont(1);
+    tft.drawString("retrying in 60s...", 137, 150);
+    tft.setTextDatum(TL_DATUM);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  }
+
+  void repaintList() {
+    if (_s.fetchFailed) { repaintError(); return; }
+    tft.fillRect(0, ST_CANVAS_Y, ST_CANVAS_X2 + 1, ST_CANVAS_H, TFT_BLACK);
+    tft.setTextDatum(TL_DATUM);
+    tft.setTextColor(0xFFE0);
+    tft.drawString("STOCK TERMINAL", ST_LIST_COL_SYMBOL, ST_LIST_HEADER_Y, 2);
+    tft.drawFastHLine(ST_LIST_COL_SYMBOL, ST_LIST_RULE_Y,
+                      ST_CANVAS_X2 - ST_LIST_COL_SYMBOL, 0x4208);
+    int yPos = ST_LIST_ROW_START_Y;
+    for (int i = 0; i < STOCK_TICKER_COUNT; i++) {
+      int base = yPos + 11;
+      tft.setTextColor(0xFFFF);
+      tft.drawString(_s.tickers[i], ST_LIST_COL_SYMBOL, base, 2);
+      tft.setTextColor(0x07FF);
+      tft.drawString(_s.lastQuoteFetch
+                       ? formatStockPrice(_s.prices[i])
+                       : String("---"),
+                     ST_LIST_COL_PRICE, base, 2);
+      tft.setTextDatum(TR_DATUM);
+      if (!_s.lastQuoteFetch) {
+        tft.setTextColor(0x7BEF);
+        tft.drawString("---", ST_LIST_COL_CHANGE, base, 2);
+      } else {
+        tft.setTextColor((_s.changePct[i] >= 0) ? (uint16_t)0x07E0 : (uint16_t)0xF800);
+        String pct = (_s.changePct[i] >= 0 ? String("+") : String(""))
+                     + String(_s.changePct[i], 1) + "%";
+        tft.drawString(pct, ST_LIST_COL_CHANGE, base, 2);
+      }
+      tft.setTextDatum(TL_DATUM);
+      yPos += ST_LIST_ROW_H;
+    }
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  }
+
+  void repaintChart() {
+    if (_s.fetchFailed) { repaintError(); return; }
+    tft.fillRect(0, ST_CANVAS_Y, ST_CANVAS_X2 + 1, ST_CANVAS_H, TFT_BLACK);
+
+    // header: back glyph + ticker + price
+    tft.setTextDatum(TL_DATUM);
+    tft.setTextColor(0xFFFF);
+    tft.drawString("<", 5, ST_CHART_HEADER_Y, 2);
+    String hdr = String(_s.tickers[_s.chartTickerIdx]);
+    hdr += (_s.chartLen > 0)
+             ? (" " + formatStockPrice(_s.chartPoints[_s.chartLen - 1]))
+             : " ---";
+    tft.drawString(hdr, ST_CHART_TICKER_X, ST_CHART_HEADER_Y, 2);
+
+    // range tabs
+    static const char* TAB_LABELS[4] = {"1D","5D","1M","YTD"};
+    for (int t = 0; t < 4; t++) {
+      int tx = ST_CHART_TABS_X + t * ST_CHART_TAB_W;
+      if ((uint8_t)_s.chartRange == (uint8_t)t)
+        tft.fillRect(tx, ST_CHART_HEADER_Y, ST_CHART_TAB_W, ST_CHART_HEADER_H, 0x4208);
+      tft.setTextDatum(MC_DATUM);
+      tft.setTextColor(0xFFFF);
+      tft.drawString(TAB_LABELS[t], tx + ST_CHART_TAB_W / 2, ST_CHART_HEADER_Y + 7, 2);
+    }
+    tft.setTextDatum(TL_DATUM);
+
+    // plot area
+    if (_s.chartLen < 2) {
+      tft.drawFastHLine(0, ST_CHART_PLOT_Y + ST_CHART_PLOT_H / 2,
+                        ST_CANVAS_X2 + 1, 0x07FF);
+    } else {
+      float xStep  = (float)ST_CANVAS_X2 / (_s.chartLen - 1);
+      float rng    = _s.chartHi - _s.chartLo;
+      if (rng < 0.001f) rng = 0.001f;
+      float yScale = (float)(ST_CHART_PLOT_H - 2) / rng;
+      for (int i = 1; i < (int)_s.chartLen; i++) {
+        int x0 = (int)((i - 1) * xStep);
+        int x1 = (int)(i       * xStep);
+        int y0 = ST_CHART_PLOT_Y + ST_CHART_PLOT_H - 2
+                 - (int)((_s.chartPoints[i - 1] - _s.chartLo) * yScale);
+        int y1 = ST_CHART_PLOT_Y + ST_CHART_PLOT_H - 2
+                 - (int)((_s.chartPoints[i]     - _s.chartLo) * yScale);
+        tft.drawLine(x0, y0, x1, y1, 0x07FF);
+      }
+    }
+
+    // footer
+    tft.setTextDatum(TL_DATUM);
+    tft.setTextColor(0x7BEF);
+    if (_s.chartLen == 0) {
+      tft.drawString("lo: ---", 5, ST_CHART_FOOTER_Y, 1);
+      tft.setTextDatum(TR_DATUM);
+      tft.drawString("hi: ---", ST_CANVAS_X2 - 5, ST_CHART_FOOTER_Y, 1);
+    } else {
+      tft.drawString(String("lo: ") + String(_s.chartLo, 2), 5, ST_CHART_FOOTER_Y, 1);
+      tft.setTextDatum(TR_DATUM);
+      tft.drawString(String("hi: ") + String(_s.chartHi, 2),
+                     ST_CANVAS_X2 - 5, ST_CHART_FOOTER_Y, 1);
+    }
+    tft.setTextDatum(TL_DATUM);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  }
+
+  void drillToChart(uint8_t tickerIdx) {
+    _s.chartTickerIdx = tickerIdx;
+    _s.chartRange     = StockRange::D1;
+    _s.subView        = StockSubView::ChartDetail;
+    if (!_s.lastChartFetch || millis() - _s.lastChartFetch > STOCK_CHART_FETCH_D1) {
+      dataTask::enqueueStockChart(tickerIdx, (uint8_t)StockRange::D1);
+      _s.lastChartFetch = millis();
+    }
+    repaintChart();
+  }
+
+  void backToList() {
+    _s.subView = StockSubView::List;
+    repaintList();
+  }
+
+  void stockTickQuotes() {
+    unsigned long now = millis();
+    if (!_s.lastQuoteFetch || now - _s.lastQuoteFetch > STOCK_QUOTE_FETCH_MS) {
+      dataTask::enqueue(dataTask::DATA_FETCH_STOCK_QUOTE);
+      _s.lastQuoteFetch = now;
+    }
+    dataTask::StockQuoteResult r;
+    if (dataTask::pollStockQuote(&r)) {
+      if (r.ok) {
+        for (int i = 0; i < STOCK_TICKER_COUNT; i++) {
+          _s.prices[i]    = r.prices[i];
+          _s.changePct[i] = r.changePct[i];
+        }
+        _s.fetchFailed    = false;
+        _s.fetchErrorCode = 0;
+      } else {
+        _s.fetchFailed    = true;
+        _s.fetchErrorCode = r.errorCode;
+      }
+      repaintList();
+    }
+  }
+
+  void stockTickChart() {
+    unsigned long now      = millis();
+    unsigned long fetchMs  = (_s.chartRange == StockRange::D1)
+                               ? STOCK_CHART_FETCH_D1 : STOCK_CHART_FETCH_SLOW;
+    if (!_s.lastChartFetch || now - _s.lastChartFetch > fetchMs) {
+      dataTask::enqueueStockChart(_s.chartTickerIdx, (uint8_t)_s.chartRange);
+      _s.lastChartFetch = now;
+    }
+    dataTask::StockChartResult r;
+    if (dataTask::pollStockChart(&r)) {
+      if (r.ok) {
+        memcpy(_s.chartPoints, r.points, r.len * sizeof(float));
+        _s.chartLen       = r.len;
+        _s.chartLo        = r.lo;
+        _s.chartHi        = r.hi;
+        _s.fetchFailed    = false;
+        _s.fetchErrorCode = 0;
+      } else {
+        _s.fetchFailed    = true;
+        _s.fetchErrorCode = r.errorCode;
+      }
+      repaintChart();
+    }
+  }
 };
 static StockApp g_stockApp;
 
