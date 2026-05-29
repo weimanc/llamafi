@@ -148,9 +148,9 @@ private:
     static constexpr int   AQ_CANVAS_H            = 145;  // max — runtime uses _canvasH
     static constexpr int   AQ_SEA_LEVEL_Y         = AQ_CANVAS_H - 36;  // max — runtime uses _seaLevelY
     static constexpr int   AQ_FISH_COUNT          = 16;   // max — runtime uses _fishCount
-    static constexpr int   AQ_FISH_POOL_MAX       = 48;
+    static constexpr int   AQ_FISH_POOL_MAX       = 16;
     static constexpr int   AQ_BUBBLE_COUNT        = 10;
-    static constexpr int   AQ_BUBBLE_POOL_MAX     = 50;
+    static constexpr int   AQ_BUBBLE_POOL_MAX     = 10;
     static constexpr int   AQ_FLAKE_MAX           = 16;
     static constexpr int   AQ_OCTOPUS_FREQ        = 1;
     static constexpr int   AQ_SEAHORSE_FREQ       = 1;
