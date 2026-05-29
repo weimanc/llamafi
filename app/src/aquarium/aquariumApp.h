@@ -208,12 +208,12 @@ private:
         uint16_t    baseColor;
     };
     struct Fish {
-        bool active;
-        int type;
-        float x, y, vx, vy, speed, phase, wanderBias;
-        int visualWidth;
+        float    x, y, vx, vy, phase, wanderBias, depthBrightness;
         uint16_t displayColor, renderColor;
-        float depthBrightness;
+        uint8_t  speed;
+        uint8_t  type;
+        uint8_t  visualWidth;
+        bool     active;
     };
     struct Octopus {
         bool active;
@@ -377,9 +377,9 @@ private:
         f.active = on;
         if (!on) return;
         const FishSpecies* sp = _species();
-        f.type = random(0, AQ_GLYPH_COUNT);
-        f.visualWidth = _fishGlyphWidthRight[f.type];
-        if (f.visualWidth <= 0) f.visualWidth = int(strlen(sp[f.type].right)) * 12;
+        f.type = uint8_t(random(0, AQ_GLYPH_COUNT));
+        f.visualWidth = uint8_t(_fishGlyphWidthRight[f.type]);
+        if (f.visualWidth == 0) f.visualWidth = uint8_t(int(strlen(sp[f.type].right)) * 12);
         f.displayColor = sp[f.type].baseColor;
         if (random(100) < 20) f.displayColor = _altColors()[random(0, kAltColorCount)];
         int roll = random(100);
@@ -390,7 +390,7 @@ private:
         f.y = _frand(20.0f, float(_seaLevelY) - 10.0f);
         f.vx = _frand(-1.0f, 1.0f);
         f.vy = _frand(-0.5f, 0.5f);
-        f.speed = _frand(14.0f, 30.0f);
+        f.speed = uint8_t(_frand(14.0f, 30.0f));
         f.phase = _frand(0.0f, 6.28318f);
         f.wanderBias = _frand(0.4f, 1.3f);
     }
