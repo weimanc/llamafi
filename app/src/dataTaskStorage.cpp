@@ -62,7 +62,7 @@ static const char* CRYPTO_IDS[] = {
     "bitcoin","ethereum","binancecoin","solana","ripple","cardano"
 };
 
-static const char* STOCK_TICKERS[6]      = {"AAPL","MSFT","NVDA","AMZN","META","GOOG"};
+static const char* STOCK_TICKERS[8]      = {"AAPL","AMD","AMZN","ARM","GOOG","META","MSFT","NVDA"};
 static const char* STOCK_RANGE_STR[4]    = {"1d","5d","1mo","ytd"};
 static const char* STOCK_INTERVAL_STR[4] = {"5m","60m","1d","1wk"};
 static const char  STOCK_URL_BASE[]      = "https://query1.finance.yahoo.com/v8/finance/chart/";
@@ -142,7 +142,7 @@ static void fetchCrypto() {
 static void fetchStockQuote() {
     StockQuoteResult r;
     r.ok = true;
-    for (int i = 0; i < 6 && r.ok; i++) {
+    for (int i = 0; i < 8 && r.ok; i++) {
         String url = String(STOCK_URL_BASE) + STOCK_TICKERS[i] + "?interval=1d&range=1d";
         WiFiClientSecure tls;
         tls.setCACert(YAHOO_FINANCE_ROOT_CA);

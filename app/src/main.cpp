@@ -685,7 +685,7 @@ private:
 static SettingsApp g_settingsApp;
 
 // ── StockApp (stock.md) ───────────────────────────────────────────────
-#define STOCK_TICKER_COUNT      6
+#define STOCK_TICKER_COUNT      8
 #define STOCK_QUOTE_FETCH_MS    60000UL
 #define STOCK_CHART_FETCH_D1    60000UL
 #define STOCK_CHART_FETCH_SLOW  300000UL
@@ -696,7 +696,7 @@ static SettingsApp g_settingsApp;
 #define ST_LIST_HEADER_Y      5
 #define ST_LIST_RULE_Y       22
 #define ST_LIST_ROW_START_Y  25
-#define ST_LIST_ROW_H        36
+#define ST_LIST_ROW_H        26
 #define ST_LIST_COL_SYMBOL    5
 #define ST_LIST_COL_PRICE    55
 #define ST_LIST_COL_CHANGE  270
@@ -719,9 +719,10 @@ static String formatStockPrice(float price) {
 class StockApp : public App {
 public:
   void init() override {
-    strcpy(_s.tickers[0], "AAPL"); strcpy(_s.tickers[1], "MSFT");
-    strcpy(_s.tickers[2], "NVDA"); strcpy(_s.tickers[3], "AMZN");
-    strcpy(_s.tickers[4], "META"); strcpy(_s.tickers[5], "GOOG");
+    strcpy(_s.tickers[0], "AAPL"); strcpy(_s.tickers[1], "AMD");
+    strcpy(_s.tickers[2], "AMZN"); strcpy(_s.tickers[3], "ARM");
+    strcpy(_s.tickers[4], "GOOG"); strcpy(_s.tickers[5], "META");
+    strcpy(_s.tickers[6], "MSFT"); strcpy(_s.tickers[7], "NVDA");
     _s.subView = StockSubView::List;
     repaintList();
     dataTask::enqueue(dataTask::DATA_FETCH_STOCK_QUOTE);
