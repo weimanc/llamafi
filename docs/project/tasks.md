@@ -12,6 +12,28 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ## Active Tasks
 
+### TASK-109 — M-AQUARIUM-CRAB: Implement aquarium crab creature
+**Owner**: Developer
+**Feature**: aquarium-crab-001 (new)
+**Status**: open
+**Milestone**: M-AQUARIUM-CRAB
+**Blocked by**: nothing (M-AQUARIUM done — `aquariumApp.h` in tree)
+**Design**: `docs/architecture/designs/M-AQUARIUM/crab.md`
+**Notes**:
+- **TASK-109a**: Add `Crab` struct (state enum, x, direction, stateEnteredMs, lastTargetSeenMs, walkFrameB, lastWalkFrameMs) and all `CRAB_*` constants to `aquariumApp.h`.
+- **TASK-109b**: Implement `initCrab()` — center x, direction right, state WALK, seed timestamps.
+- **TASK-109c**: Implement `updateCrab(float dt)`:
+  - Walk: `_crab.x += direction * CRAB_SPEED_PX_S * dt`; reverse at margins; seaweed-root avoidance via `_seaweedBaseX[]`.
+  - Walk-frame toggle every `CRAB_WALK_STEP_MS`.
+  - Proximity scan: active flakes + fish in lower `CRAB_BOTTOM_ZONE_Y` band within `CRAB_PINCH_RANGE_PX` → enter PINCH_L or PINCH_R.
+  - State transitions per §3 of design doc.
+- **TASK-109d**: Implement `drawCrab()` — select glyph by state; `setTextColor(TFT_RED, 0)`; `drawString` at `(int)_crab.x, CRAB_Y`.
+- **TASK-109e**: Wire `initCrab()` into `init()` after `spreadInitialFishLayout()`; `updateCrab(dt)` into `tick()` after `updateFlakes()`; `drawCrab()` into `renderFrame()` after `drawSeaweed()`.
+- **TASK-109f**: `check_build.sh` 4/4 ✅; flash to DUT; verify crab visible at bottom, walks, pinches a flake on touch-spawn.
+- Exit criterion: crab renders in red at canvas bottom, walks, pinches nearby flake; `check_build.sh` passes.
+
+---
+
 ### TASK-105 — M-TASKBAR-SCROLL: Implement scrolling taskbar
 **Owner**: Developer
 **Feature**: taskbar-scroll-001 (new)

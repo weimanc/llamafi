@@ -44,16 +44,23 @@ SYMBOLS = ["AAPL", "AMD", "AMZN", "ARM", "GOOG", "META", "MSFT", "NVDA"]
 
 CHART_URL_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/"
 
-# (range_param, interval_param, label, max_payload_B)
-# YTD uses 1wk interval — 1d would be ~12 KB, exceeding the 8192 B DUT budget.
-RANGES = [
-    ("1d",  "5m",  "D1",  8192),
-    ("5d",  "60m", "D5",  8192),
-    ("1mo", "1d",  "Mo1", 8192),
-    ("ytd", "1wk", "Ytd", 8192),   # interval=1wk: ~22 pts, ~3.7 KB — fits budget
-]
+# Budget constants — must match DynamicJsonDocument(N) in dataTaskStorage.cpp.
+# Quote fetches (fetchStockQuote):  DynamicJsonDocument doc(8192)
+# Chart fetches (fetchStockChart):  DynamicJsonDocument doc(16384)
+# Apply a 1.5× safety factor mentally: raw payload must be well under N, not just under N,
+# because ArduinoJson's parsed tree requires more memory than the raw JSON bytes.
+QUOTE_BUDGET_B = 8192   # dataTaskStorage.cpp fetchStockQuote() doc(8192)
+CHART_BUDGET_B = 16384  # dataTaskStorage.cpp fetchStockChart() doc(16384) — ADR-034
 
-CHART_BUDGET_B = 8192   # DynamicJsonDocument doc(8192) in firmware
+# (range_param, interval_param, label)
+# YTD uses 1wk interval — 1d would be ~12 KB; even at 1wk raw payload is ~3.7 KB,
+# well within the 16384 B doc budget (ADR-034 confirmed via host probe 2026-05-29).
+RANGES = [
+    ("1d",  "5m",  "D1"),
+    ("5d",  "60m", "D5"),
+    ("1mo", "1d",  "Mo1"),
+    ("ytd", "1wk", "Ytd"),
+]
 
 YF_HOST = "query1.finance.yahoo.com"
 
@@ -131,10 +138,10 @@ def check_quote_budget(bodies):
     all_ok = True
     for sym, body in bodies.items():
         n = len(body)
-        if n <= CHART_BUDGET_B:
-            _ok(sym, f"{n} B <= {CHART_BUDGET_B} B")
+        if n <= QUOTE_BUDGET_B:
+            _ok(sym, f"{n} B <= {QUOTE_BUDGET_B} B")
         else:
-            _fail(sym, f"{n} B exceeds {CHART_BUDGET_B} B budget")
+            _fail(sym, f"{n} B exceeds {QUOTE_BUDGET_B} B budget")
             all_ok = False
     return all_ok
 
@@ -144,7 +151,7 @@ def check_chart_ranges(chart_symbol):
     print(f"\nT_SF_04  Chart ranges reachable (symbol={chart_symbol})")
     all_ok_04 = True
     range_bodies = {}
-    for rng, interval, label, _ in RANGES:
+    for rng, interval, label in RANGES:
         url = f"{CHART_URL_BASE}{chart_symbol}?interval={interval}&range={rng}"
         status, body = _get(url)
         if status == 200:
@@ -158,7 +165,7 @@ def check_chart_ranges(chart_symbol):
     print("\nT_SF_05  timestamp[] and close[] parallel arrays — each range")
     all_ok_05 = True
     null_warn = []
-    for label, (rng, interval, body) in range_bodies.items():
+    for label, (_, _, body) in range_bodies.items():
         try:
             doc    = json.loads(body)
             result = doc["chart"]["result"][0]
@@ -276,7 +283,7 @@ def main():
     print("Yahoo Finance API probe — StockApp POC (TASK-109i)")
     print(f"Quote symbols : {', '.join(SYMBOLS)}  ({len(SYMBOLS)} symbols)")
     print(f"Chart symbol  : {args.chart_symbol}  ranges: D1(5m) D5(60m) Mo1(1d) Ytd(1wk)")
-    print(f"DUT budget    : {CHART_BUDGET_B} B per request (DynamicJsonDocument)")
+    print(f"DUT budget    : quote={QUOTE_BUDGET_B} B  chart={CHART_BUDGET_B} B (DynamicJsonDocument — ADR-034)")
 
     failures = []
 

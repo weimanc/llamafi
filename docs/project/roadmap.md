@@ -472,6 +472,37 @@ Fix:
 
 ---
 
+### M-AQUARIUM-CRAB — Aquarium crab creature
+
+Add a single red ASCII crab to the aquarium that lives on the bottom of the canvas,
+walks left and right, and pinches nearby fish or food flakes with the nearest claw.
+
+Crab glyphs:
+
+```
+Walk A:    v(._.)v      Walk B:    ^(._.)^
+Pinch R:   v(._.)>      Pinch L:   <(._.)v
+Cute:      v(^.^)v      Sleep:     v(-.-) z
+```
+
+Behaviour:
+- **Walk** — moves sideways at ~12 px/s; reverses at canvas edges and seaweed roots.
+- **Pinch** — triggered when a fish or food flake enters `CRAB_PINCH_RANGE_PX = 45 px` horizontally within the bottom 80 px zone; extends the correct claw toward the target for 600 ms.
+- **Cute** — rare random emote during quiet periods.
+- **Sleep** — triggered after 20 s of no nearby targets; auto-wakes on target detection or after 5 s.
+
+Work (all changes in `app/src/aquarium/aquariumApp.h`):
+1. Add `Crab` struct + `CRAB_*` constants.
+2. Implement `initCrab()`, `updateCrab(dt)`, `drawCrab()`.
+3. Wire into `init()`, `tick()`, and `renderFrame()`.
+4. Build + DUT verify.
+
+**Status**: open — TASK-109
+**Design**: [M-AQUARIUM/crab.md](../architecture/designs/M-AQUARIUM/crab.md)
+**Deps**: M-AQUARIUM (done — `aquariumApp.h` in tree)
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.

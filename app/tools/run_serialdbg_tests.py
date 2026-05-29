@@ -1974,6 +1974,19 @@ def _wait_quote_fetch(dut: Dut, baseline: int, timeout_s: float = 65.0) -> bool:
     return False
 
 
+def _wait_chart_enqueue(dut: Dut, timeout_s: float = 10.0) -> bool:
+    """Wait until lastChartFetch > 0 (fetch enqueued by firmware tick).
+    lastChartFetch is set at enqueue time, not completion — caller must add
+    a fixed sleep (~30 s) before checking fetchFailed for result correctness."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        r = _stock_get(dut, "lastChartFetch")
+        if r.get("ok") and int(r.get("val", 0)) > 0:
+            return True
+        time.sleep(0.5)
+    return False
+
+
 # ── T169 — Stock app switch round-trip ───────────────────────────────────────
 
 def t169(dut: Dut):
@@ -2479,88 +2492,126 @@ def t185(dut: Dut):
     pass_("T185", "triggerFetch triggered re-fetch; lastQuoteFetch advanced — error recovery confirmed")
 
 
-# ── T186 — Rapid range-tab stress (race / heap-fragmentation probe) ───────────
+# ── T186–T188 — M-DATATASK-STREAM-PARSE regression suite ─────────────────────
 #
-# Hypothesis: rapid tab switches while a chart fetch is in-flight stack up
-# DATA_FETCH_STOCK_CHART requests in the 4-slot queue.  Each call allocates a
-# 16 KB DynamicJsonDocument + WiFiClientSecure back-to-back; heap fragmentation
-# can cause deserializeJson to fail → fetchFailed=1 / fetchErrorCode=-99.
-
-# Tab centres (x): D1=148, D5=184, Mo1=220, Ytd=256  (all y=9, header band 0-17)
-_TAB_XY = [(148, 9), (184, 9), (220, 9), (256, 9)]
+# T186: MSFT (tickerIdx=6) chart fetch succeeds after tickerIdx >= 8 guard fix.
+# T187: NVDA (tickerIdx=7) same.
+# T188: Cycling all four range tabs fetches without -99 NET ERR (getStream fix).
+#
+# Row centres (x=137): AAPL=36, AMD=62, AMZN=88, ARM=114,
+#                       GOOG=140, META=166, MSFT=192, NVDA=218
+# Tab centres (x): D1=148, D5=184, Mo1=220, Ytd=256  (all y=9)
+_TAB_XY    = [(148, 9), (184, 9), (220, 9), (256, 9)]
 _TAB_NAMES = ["D1", "D5", "Mo1", "Ytd"]
 
 
-def t186(dut: Dut):
-    """T186 (stress/heap): rapid range-tab cycling — capture heap + JSON-err log lines."""
-    print("T186  Rapid range-tab stress (race/heap probe)", flush=True)
+def _t18x_guard(dut: Dut, tid: str, ticker: str, row_y: int):
+    """Shared body for T186/T187: verify tickerIdx guard fix allows ticker to fetch."""
     if not _switch_to_stock(dut):
-        skip("T186", "could not switch to Stock")
+        skip(tid, "could not switch to Stock")
         _restore_from_stock(dut)
         return
+    if _stock_get(dut, "stockSubView").get("val") == "chart":
+        dut.set_cooldown_zero()
+        dut.cmd("tap 10 7", timeout=5.0)   # back to list
+        time.sleep(0.3)
+    dut.cmd("set fetchFailed 0", timeout=3.0)
+    dut.cmd("set fetchErrorCode 0", timeout=3.0)
+    # Drill into ticker row — triggers enqueue via drillToChart().
+    dut.set_cooldown_zero()
+    dut.cmd(f"tap 137 {row_y}", timeout=5.0)
+    time.sleep(0.5)
+    r_sv = _stock_get(dut, "stockSubView")
+    if r_sv.get("val") != "chart":
+        skip(tid, f"drill-in did not enter chart view (subView={r_sv.get('val')!r})")
+        _restore_from_stock(dut)
+        return
+    r_tk = _stock_get(dut, "stockChartTicker")
+    if r_tk.get("val") != ticker:
+        fail(tid, f"stockChartTicker={r_tk.get('val')!r} — expected {ticker}")
+        _restore_from_stock(dut)
+        return
+    # Reset and trigger a fresh chart fetch.
+    dut.cmd("set triggerFetch 1", timeout=3.0)
+    if not _wait_chart_enqueue(dut, timeout_s=10.0):
+        fail(tid, "lastChartFetch stayed 0 — fetch not enqueued (guard still blocking?)")
+        _restore_from_stock(dut)
+        return
+    # Wait for HTTP to complete (lastChartFetch only marks enqueue, not completion).
+    print(f"  [{tid}] fetch enqueued; waiting 35 s for HTTP…", flush=True)
+    time.sleep(35.0)
+    r_ff   = _stock_get(dut, "fetchFailed")
+    r_code = _stock_get(dut, "fetchErrorCode")
+    _restore_from_stock(dut)
+    if r_ff.get("val") == "1" or r_ff.get("val") is True:
+        fail(tid, f"fetchFailed=1 errorCode={r_code.get('val')} for {ticker} — guard fix may not have landed")
+        return
+    pass_(tid, f"{ticker} chart fetch completed; fetchFailed=0")
 
-    # Ensure list view, then drill AAPL.
-    if _stock_get(dut, "stockSubView", timeout=8.0).get("val") == "chart":
+
+def t186(dut: Dut):
+    """T186: MSFT (tickerIdx=6) chart fetch succeeds after tickerIdx >= 8 guard fix."""
+    print("T186  MSFT guard fix — tickerIdx=6 chart fetch")
+    _t18x_guard(dut, "T186", "MSFT", 192)
+
+
+def t187(dut: Dut):
+    """T187: NVDA (tickerIdx=7) chart fetch succeeds after tickerIdx >= 8 guard fix."""
+    print("T187  NVDA guard fix — tickerIdx=7 chart fetch")
+    _t18x_guard(dut, "T187", "NVDA", 218)
+
+
+def t188(dut: Dut):
+    """T188: cycling all four range tabs fetches without -99 (getStream() fix, ADR-034)."""
+    print("T188  Range-cycle no-99 regression (ADR-034 getStream fix)", flush=True)
+    if not _switch_to_stock(dut):
+        skip("T188", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    # Clear any leftover error state from prior tests.
+    dut.cmd("set fetchFailed 0", timeout=3.0)
+    dut.cmd("set fetchErrorCode 0", timeout=3.0)
+    if _stock_get(dut, "stockSubView").get("val") == "chart":
         dut.set_cooldown_zero()
         dut.cmd("tap 10 7", timeout=5.0)
-        time.sleep(0.3)
+        time.sleep(0.5)
     dut.set_cooldown_zero()
-    dut.cmd("tap 137 36", timeout=5.0)  # drill AAPL
-    time.sleep(1.0)                      # wait for chart render before checking
-    if _stock_get(dut, "stockSubView", timeout=8.0).get("val") != "chart":
-        skip("T186", "could not drill into chart view")
+    dut.cmd("tap 137 36", timeout=5.0)   # drill AAPL
+    time.sleep(1.0)                       # allow chart render before checking
+    if _stock_get(dut, "stockSubView").get("val") != "chart":
+        skip("T188", "could not drill into chart view")
         _restore_from_stock(dut)
         return
 
-    ROUNDS      = 8
-    TAP_DELAY_S = 0.15
+    FETCH_WAIT_S = 35  # conservative: covers TLS + HTTP + parse on fragmented heap
+    # Use tab taps (not triggerFetch) — tab taps only enqueue DATA_FETCH_STOCK_CHART.
+    # triggerFetch also resets lastQuoteFetch, triggering an 8-ticker quote fetch
+    # in parallel that can take 60 s+, causing serial timeouts mid-test.
 
-    # ── Phase 1: fire taps (fire-and-forget, no JSON ACK wait) ───────────────
-    # Avoid any dut.cmd() calls here — ACK responses would pile up in the buffer.
-    # set_cooldown_zero is also a cmd call, skip it; tabs are in the header band
-    # which has no cooldown guard in the firmware.
-    for _ in range(ROUNDS):
-        for tx, ty in _TAB_XY:
-            dut.send(f"tap {tx} {ty}")
-            time.sleep(TAP_DELAY_S)
-
-    print(f"  [T186] {ROUNDS*len(_TAB_XY)} taps fired; reading log for 30 s…", flush=True)
-
-    # ── Phase 2: drain — read serial directly, collect heap/err lines ────────
-    # No cmd() calls — we own the stream.  Flush stale ACKs as we go.
-    heap_lines = []
-    orig_to = dut.ser.timeout
-    dut.ser.timeout = 0.3
-    deadline = time.monotonic() + 30.0
-    while time.monotonic() < deadline:
-        try:
-            line = dut.ser.readline().decode(errors="replace").strip()
-        except Exception:
-            break
-        if not line:
-            continue
-        if re.search(r"(chart.*(START|pre.json|post.json|JSON err)|fetchFailed)", line, re.I):
-            heap_lines.append(line)
-            print(f"  [log] {line}", flush=True)
-    dut.ser.timeout = orig_to
-    dut.ser.reset_input_buffer()
-
-    print(f"  [T186] captured {len(heap_lines)} heap/err lines", flush=True)
-
-    # ── Phase 3: query state ──────────────────────────────────────────────────
-    r_final = _stock_get(dut, "fetchFailed", timeout=8.0)
-    r_code  = _stock_get(dut, "fetchErrorCode", timeout=8.0)
-    failed  = r_final.get("val") == "1" or r_final.get("val") is True
-
-    if failed:
-        dut.cmd("set fetchFailed 0", timeout=5.0)
-        dut.cmd("set fetchErrorCode 0", timeout=5.0)
-        _restore_from_stock(dut)
-        fail("T186", f"fetchFailed=1 errorCode={r_code.get('val')} after {ROUNDS} rounds — see heap lines above")
-        return
+    for tab_idx, (tx, ty) in enumerate(_TAB_XY):
+        tab_name = _TAB_NAMES[tab_idx]
+        # Tap the tab — sets chartRange, resets lastChartFetch=0, enqueues chart fetch.
+        dut.set_cooldown_zero()
+        dut.cmd(f"tap {tx} {ty}", timeout=5.0)
+        if not _wait_chart_enqueue(dut, timeout_s=10.0):
+            fail("T188", f"lastChartFetch stayed 0 on {tab_name} — fetch not enqueued")
+            dut.cmd("set fetchFailed 0", timeout=3.0)
+            _restore_from_stock(dut)
+            return
+        print(f"  [T188] {tab_name} enqueued; waiting {FETCH_WAIT_S} s…", flush=True)
+        time.sleep(FETCH_WAIT_S)
+        r_ff   = _stock_get(dut, "fetchFailed", timeout=8.0)
+        r_code = _stock_get(dut, "fetchErrorCode", timeout=8.0)
+        if r_ff.get("val") == "1" or r_ff.get("val") is True:
+            dut.cmd("set fetchFailed 0", timeout=3.0)
+            dut.cmd("set fetchErrorCode 0", timeout=3.0)
+            _restore_from_stock(dut)
+            fail("T188", f"fetchFailed=1 errorCode={r_code.get('val')} on range {tab_name}")
+            return
+        print(f"  [T188] {tab_name} ok", flush=True)
 
     _restore_from_stock(dut)
-    pass_("T186", f"{ROUNDS}×4 taps at {int(TAP_DELAY_S*1000)}ms — no fetchFailed; {len(heap_lines)} heap lines captured")
+    pass_("T188", f"all 4 ranges (D1/D5/Mo1/Ytd) fetched without -99 — getStream() fix confirmed")
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
@@ -2906,6 +2957,8 @@ ALL_TESTS = {
     "T184": t184,
     "T185": t185,
     "T186": t186,
+    "T187": t187,
+    "T188": t188,
     # velocity-scroll-001 (TASK-104)
     "T155": t155,
     "T156": t156,
