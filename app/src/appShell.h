@@ -102,6 +102,7 @@ struct StockAppState {
     unsigned long lastChartFetch;
     bool          fetchFailed;
     int           fetchErrorCode;
+    uint16_t      fetchErrCount;   // cumulative -99 errors since boot; never auto-clears
 };
 
 // First-launch tracking — indexed by (int)AppId.

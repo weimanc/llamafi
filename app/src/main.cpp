@@ -804,6 +804,11 @@ public:
                _s.lastChartFetch);
       return true;
     }
+    if (strcmp(var, "fetchErrCount") == 0) {
+      snprintf(buf, len, "\"var\":\"fetchErrCount\",\"val\":%u,\"last\":true",
+               _s.fetchErrCount);
+      return true;
+    }
     return false;
   }
 
@@ -819,6 +824,10 @@ public:
     if (strcmp(var, "triggerFetch") == 0 && val && strcmp(val, "1") == 0) {
       _s.lastQuoteFetch = 0;
       _s.lastChartFetch = 0;
+      return true;
+    }
+    if (strcmp(var, "fetchErrCount") == 0) {
+      _s.fetchErrCount = 0;
       return true;
     }
     return false;
@@ -974,6 +983,7 @@ private:
       } else {
         _s.fetchFailed    = true;
         _s.fetchErrorCode = r.errorCode;
+        _s.fetchErrCount++;
       }
       repaintList();
     }
@@ -999,6 +1009,7 @@ private:
       } else {
         _s.fetchFailed    = true;
         _s.fetchErrorCode = r.errorCode;
+        _s.fetchErrCount++;
       }
       repaintChart();
     }

@@ -570,8 +570,11 @@ features:
       use http.getStream() — Yahoo Finance returns Content-Length (not chunked), so
       streaming parse is safe and eliminates double-allocation (ADR-034).
       Serial debug: get stockSubView, get stockChartTicker, get stockChartRange,
-      get lastQuoteFetch, get lastChartFetch, set fetchFailed, set fetchErrorCode,
-      set triggerFetch (resets both fetch timestamps to 0).
+      get lastQuoteFetch, get lastChartFetch, get fetchErrCount, set fetchFailed,
+      set fetchErrorCode, set triggerFetch (resets both fetch timestamps to 0),
+      set fetchErrCount 0 (manual reset). fetchErrCount is a cumulative error counter
+      that never auto-clears — survives app switches and successful retries, so the
+      agent can confirm errors occurred even after fetchFailed has cleared.
     status: implemented
     git_ref: "4c3cb05 (HEAD; impl 27bd86b; tickers f704c2e+4d71798; stream fix 4c3cb05)"
     files:

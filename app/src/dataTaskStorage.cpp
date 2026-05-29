@@ -215,8 +215,14 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
             LOG_D("dataTask.stock", "chart pre-json heap_free=%u",
                   heap_caps_get_free_size(MALLOC_CAP_8BIT));
 #endif
-            DynamicJsonDocument doc(16384);
-            DeserializationError err = deserializeJson(doc, http.getStream());
+            // Filter: extract only close[] — D1 response is ~8 KB (78×5m candles);
+            // full parse needs >16384 B pool and cascades a dirty TCP RST into
+            // the Spotify keep-alive connection. Filter reduces pool to <2 KB.
+            StaticJsonDocument<128> filter;
+            filter["chart"]["result"][0]["indicators"]["quote"][0]["close"] = true;
+            StaticJsonDocument<2048> doc;
+            DeserializationError err = deserializeJson(doc, http.getStream(),
+                                           DeserializationOption::Filter(filter));
             http.end();
 #ifdef SERIAL_DEBUG
             LOG_D("dataTask.stock", "chart post-json heap_free=%u err=%s",
