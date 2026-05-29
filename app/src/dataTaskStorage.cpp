@@ -83,7 +83,7 @@ static void fetchWeather() {
     LOG_D("dataTask.weather", "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
     if (code == 200) {
         DynamicJsonDocument doc(1024);
-        DeserializationError err = deserializeJson(doc, http.getString());
+        DeserializationError err = deserializeJson(doc, http.getStream());
         if (!err) {
             WeatherResult r;
             r.ok    = true;
@@ -118,7 +118,7 @@ static void fetchCrypto() {
     LOG_D("dataTask.crypto", "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
     if (code == 200) {
         DynamicJsonDocument doc(2048);
-        DeserializationError err = deserializeJson(doc, http.getString());
+        DeserializationError err = deserializeJson(doc, http.getStream());
         if (!err) {
             CryptoResult r;
             r.ok = true;
@@ -163,7 +163,7 @@ static void fetchStockQuote() {
             break;
         }
         DynamicJsonDocument doc(8192);
-        DeserializationError err = deserializeJson(doc, http.getString());
+        DeserializationError err = deserializeJson(doc, http.getStream());
         http.end();
         if (err) {
             LOG_W("dataTask.stock", "JSON err sym=%s: %s", STOCK_TICKERS[i], err.c_str());
@@ -184,7 +184,7 @@ static void fetchStockQuote() {
 }
 
 static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
-    if (tickerIdx >= 6 || rangeIdx >= 4) return;
+    if (tickerIdx >= 8 || rangeIdx >= 4) return;
     String url = String(STOCK_URL_BASE) + STOCK_TICKERS[tickerIdx]
                  + "?interval=" + STOCK_INTERVAL_STR[rangeIdx]
                  + "&range="    + STOCK_RANGE_STR[rangeIdx];
@@ -216,7 +216,7 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
                   heap_caps_get_free_size(MALLOC_CAP_8BIT));
 #endif
             DynamicJsonDocument doc(16384);
-            DeserializationError err = deserializeJson(doc, http.getString());
+            DeserializationError err = deserializeJson(doc, http.getStream());
             http.end();
 #ifdef SERIAL_DEBUG
             LOG_D("dataTask.stock", "chart post-json heap_free=%u err=%s",
