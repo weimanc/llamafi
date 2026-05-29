@@ -30,8 +30,8 @@ struct CryptoResult {
 
 struct StockQuoteResult {
     bool  ok           = false;
-    float prices[6]    = {};
-    float changePct[6] = {};
+    float prices[8]    = {};
+    float changePct[8] = {};
     int   errorCode    = 0;
 };
 
