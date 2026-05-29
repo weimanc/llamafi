@@ -41,6 +41,7 @@ public:
         initFishGlyphMetrics();
         applyFishPopulation();
         spreadInitialFishLayout();
+        initCrab();
         applyBubblePopulation(true);
 
         unsigned long now = millis();
@@ -121,6 +122,7 @@ public:
         float dt = step * 0.001f;
         updateClock();
         updateFlakes(dt);
+        updateCrab(dt);
         updateBubbles(dt);
         updateFish(dt);
         updateOctopus(_aquariumNowMs, dt);
@@ -164,6 +166,38 @@ private:
     static constexpr int   AQ_SEAWEED_ROOTS       = 12;
     static constexpr int   AQ_GLYPH_COUNT         = 12;
     static constexpr size_t AQ_GLYPH_BUF          = 28;
+
+    // Crab constants (M-AQUARIUM-CRAB)
+    static constexpr int   CRAB_CHAR_W           = 6;
+    static constexpr int   CRAB_CHAR_H           = 14;
+    static constexpr int   CRAB_W_PX             = 7 * CRAB_CHAR_W;
+    static constexpr int   CRAB_LEG_OVERLAP_PX   = 8;
+    static constexpr int   CRAB_BOTTOM_MARGIN_PX = 4;
+    static constexpr int   CRAB_FOOT_PX          = CRAB_BOTTOM_MARGIN_PX + CRAB_CHAR_H + CRAB_LEG_OVERLAP_PX;
+    static constexpr int   CRAB_Y                = AQ_CANVAS_H - CRAB_FOOT_PX;
+    static constexpr int   CRAB_Y_LOCAL          = CRAB_Y - AQ_SEAWEED_Y;
+    static constexpr int   CRAB_MARGIN_PX        = 8;
+    static constexpr float CRAB_SPEED_PX_S       = 12.0f;
+    static constexpr int   CRAB_PINCH_RANGE_PX   = 45;
+    static constexpr int   CRAB_BOTTOM_ZONE_Y    = AQ_CANVAS_H - 80;
+    static constexpr uint32_t CRAB_WALK_STEP_MS  = 200;
+    static constexpr uint32_t CRAB_PINCH_FRAME_MS = 180;
+    static constexpr uint32_t CRAB_PINCH_HOLD_MS  = 200;
+    static constexpr int   CRAB_CLAW_RISE_PX     = 3;
+    static constexpr float CRAB_CUTE_CHANCE      = 0.0004f;
+    static constexpr uint32_t CRAB_CUTE_BLINK_MS = 375;
+    static constexpr uint32_t CRAB_CUTE_IDLE_MS  = 1500;
+    static constexpr uint32_t CRAB_CUTE_HIT_MS   = 3000;
+    static constexpr uint32_t CRAB_IDLE_SLEEP_MS = 20000;
+    static constexpr uint32_t CRAB_SLEEP_MS      = 5000;
+    static constexpr int   CRAB_SEAWEED_PAD_PX   = 6;
+    static constexpr int   CRAB_SLEEP_BASE_Y     = 16;
+    static constexpr int   CRAB_SLEEP_STEP_PX    = 7;
+    static constexpr int   CRAB_SLEEP_Z_COUNT    = 4;
+    static constexpr uint32_t CRAB_SLEEP_Z_MS    = 400;
+    static constexpr float CRAB_SLEEP_SWAY_AMP   = 2.0f;
+    static constexpr float CRAB_SLEEP_SWAY_SPEED = 1.5f;
+    static constexpr float CRAB_SLEEP_SWAY_PHASE = 0.5f;
 
     // Physics constants (transcribed from upstream lines 300-327)
     static constexpr float FISH_SWIM_WAVE_AMPLITUDE     = 1.5f;
@@ -226,6 +260,22 @@ private:
         unsigned long nextSpawnMs;
     };
 
+    struct Crab {
+        enum class State : uint8_t { WALK, PINCH_L, PINCH_R, CUTE, SLEEP };
+        float    x;
+        int8_t   direction;
+        State    state;
+        uint8_t  walkFrame;
+        uint8_t  pinchFrame;
+        uint8_t  sleepZFrame;
+        uint32_t cuteDurationMs;
+        uint32_t stateEnteredMs;
+        uint32_t walkFrameMs;
+        uint32_t pinchFrameMs;
+        uint32_t sleepZFrameMs;
+        uint32_t lastTargetSeenMs;
+    };
+
     // ── Members ──────────────────────────────────────────────────────────────
     TFT_eSprite   _canvas{&tft};
     TFT_eSprite   _seaweedCanvas{&tft};
@@ -242,6 +292,8 @@ private:
     Bubble   _bubbles[AQ_BUBBLE_POOL_MAX];
     Octopus  _octopus;
     Seahorse _seahorse;
+    Crab     _crab;
+    float    _seaweedBaseX[AQ_SEAWEED_ROOTS];
 
     uint16_t _gradTile[AQ_BACKGROUND_GRADIENT_H][32];
     bool     _gradientBandCached = false;
@@ -449,7 +501,7 @@ private:
             if (!_flakes[i].active) continue;
             _flakes[i].y += _flakes[i].vy * dt;
             _flakes[i].x += sinf(t * 1.2f + i) * 8.0f * dt;
-            if (_flakes[i].y > float(AQ_SEA_LEVEL_Y)) _flakes[i].active = false;
+            if (_flakes[i].y >= float(AQ_CANVAS_H)) _flakes[i].active = false;
         }
     }
 
@@ -865,7 +917,8 @@ private:
 
     void drawSeaweed(float t) {
         for (int i = 0; i < AQ_SEAWEED_ROOTS; ++i) {
-            float bx  = 10.0f + i * (AQ_CANVAS_W - 20.0f) / float(AQ_SEAWEED_ROOTS - 1);
+            _seaweedBaseX[i] = 10.0f + i * (AQ_CANVAS_W - 20.0f) / float(AQ_SEAWEED_ROOTS - 1);
+            float bx  = _seaweedBaseX[i];
             float amp = 5.0f + (i % 4) * 2.0f;
             float sw  = sinf(t*(0.8f+0.09f*i)*AQ_SWAY + i*0.7f) * amp;
             float hv  = 1.0f + AQ_SEAWEED_RAND * kHeightNoise[i];
@@ -890,13 +943,13 @@ private:
     }
 
     // ── Draw entities ─────────────────────────────────────────────────────────
-    void drawFlakes(int stripY) {
-        _canvas.setTextSize(1);
-        _canvas.setTextDatum(MC_DATUM);
+    void drawFlakes(TFT_eSprite& canvas, int stripY) {
+        canvas.setTextSize(1);
+        canvas.setTextDatum(MC_DATUM);
         for (int i = 0; i < AQ_FLAKE_MAX; ++i) {
             if (!_flakes[i].active) continue;
-            _canvas.setTextColor(_flakes[i].color);
-            _canvas.drawString("*", int(_flakes[i].x), int(_flakes[i].y) - stripY);
+            canvas.setTextColor(_flakes[i].color);
+            canvas.drawString("*", int(_flakes[i].x), int(_flakes[i].y) - stripY);
         }
     }
 
@@ -1020,6 +1073,234 @@ private:
         _canvas.setTextFont(2);
     }
 
+    // ── Crab ──────────────────────────────────────────────────────────────────
+    void initCrab() {
+        for (int i = 0; i < AQ_SEAWEED_ROOTS; ++i)
+            _seaweedBaseX[i] = 10.0f + i * (AQ_CANVAS_W - 20.0f) / float(AQ_SEAWEED_ROOTS - 1);
+        uint32_t now           = millis();
+        _crab.x                = AQ_CANVAS_W * 0.5f;
+        _crab.direction        = 1;
+        _crab.state            = Crab::State::WALK;
+        _crab.walkFrame        = 0;
+        _crab.pinchFrame       = 0;
+        _crab.sleepZFrame      = 0;
+        _crab.cuteDurationMs   = CRAB_CUTE_IDLE_MS;
+        _crab.stateEnteredMs   = now;
+        _crab.walkFrameMs      = now;
+        _crab.pinchFrameMs     = now;
+        _crab.sleepZFrameMs    = now;
+        _crab.lastTargetSeenMs = now;
+    }
+
+    // Returns fish pool index of nearest fish in pinch range, or -1.
+    int findPinchTarget() {
+        float cx = _crab.x;
+        for (int i = 0; i < AQ_FISH_COUNT; ++i) {
+            if (_fishPool[i].active &&
+                fabsf(_fishPool[i].x - cx) < float(CRAB_PINCH_RANGE_PX) &&
+                _fishPool[i].y > float(CRAB_BOTTOM_ZONE_Y))
+                return i;
+        }
+        return -1;
+    }
+
+    void updateCrab(float dt) {
+        uint32_t now = millis();
+        Crab& c = _crab;
+
+        if (c.state == Crab::State::CUTE) {
+            if (now - c.stateEnteredMs >= c.cuteDurationMs) {
+                c.state          = Crab::State::WALK;
+                c.stateEnteredMs = now;
+            }
+            return;
+        }
+
+        if (c.state == Crab::State::SLEEP) {
+            if (now - c.sleepZFrameMs >= CRAB_SLEEP_Z_MS) {
+                c.sleepZFrame = (c.sleepZFrame + 1) % CRAB_SLEEP_Z_COUNT;
+                c.sleepZFrameMs = now;
+            }
+            bool targetNear = false;
+            for (int i = 0; i < AQ_FLAKE_MAX && !targetNear; ++i)
+                if (_flakes[i].active && fabsf(_flakes[i].x - c.x) < float(CRAB_PINCH_RANGE_PX) && _flakes[i].y > float(CRAB_BOTTOM_ZONE_Y))
+                    targetNear = true;
+            for (int i = 0; i < AQ_FISH_COUNT && !targetNear; ++i)
+                if (_fishPool[i].active && fabsf(_fishPool[i].x - c.x) < float(CRAB_PINCH_RANGE_PX) && _fishPool[i].y > float(CRAB_BOTTOM_ZONE_Y))
+                    targetNear = true;
+            if (targetNear || now - c.stateEnteredMs >= CRAB_SLEEP_MS) {
+                c.state          = Crab::State::WALK;
+                c.stateEnteredMs = now;
+                c.lastTargetSeenMs = now;
+            }
+            return;
+        }
+
+        if (c.state == Crab::State::PINCH_L || c.state == Crab::State::PINCH_R) {
+            uint32_t elapsed = now - c.pinchFrameMs;
+            if (c.pinchFrame < 3 && elapsed >= CRAB_PINCH_FRAME_MS) {
+                c.pinchFrame++;
+                c.pinchFrameMs = now;
+            } else if (c.pinchFrame == 3 && elapsed >= CRAB_PINCH_HOLD_MS) {
+                int hitFish = findPinchTarget();
+                int hitFlake = -1;
+                if (hitFish < 0) {
+                    for (int i = 0; i < AQ_FLAKE_MAX; ++i) {
+                        if (_flakes[i].active &&
+                            fabsf(_flakes[i].x - c.x) < float(CRAB_PINCH_RANGE_PX) &&
+                            _flakes[i].y > float(CRAB_BOTTOM_ZONE_Y)) {
+                            hitFlake = i;
+                            break;
+                        }
+                    }
+                }
+                if (hitFish >= 0) {
+                    _fishPool[hitFish].active = false;
+                    c.state = Crab::State::CUTE;
+                    c.cuteDurationMs = CRAB_CUTE_HIT_MS;
+                } else if (hitFlake >= 0) {
+                    _flakes[hitFlake].active = false;
+                    c.state = Crab::State::CUTE;
+                    c.cuteDurationMs = CRAB_CUTE_HIT_MS;
+                } else {
+                    c.state = Crab::State::WALK;
+                }
+                c.pinchFrame     = 0;
+                c.stateEnteredMs = now;
+            }
+            return;
+        }
+
+        // WALK state — proximity scan
+        bool anyTarget = false;
+        int pinchFlake = -1, pinchFish = -1;
+        for (int i = 0; i < AQ_FLAKE_MAX; ++i) {
+            if (_flakes[i].active && fabsf(_flakes[i].x - c.x) < float(CRAB_PINCH_RANGE_PX) && _flakes[i].y > float(CRAB_BOTTOM_ZONE_Y)) {
+                anyTarget = true;
+                if (pinchFlake < 0) pinchFlake = i;
+            }
+        }
+        for (int i = 0; i < AQ_FISH_COUNT; ++i) {
+            if (_fishPool[i].active && fabsf(_fishPool[i].x - c.x) < float(CRAB_PINCH_RANGE_PX) && _fishPool[i].y > float(CRAB_BOTTOM_ZONE_Y)) {
+                anyTarget = true;
+                if (pinchFish < 0) pinchFish = i;
+            }
+        }
+        if (anyTarget) c.lastTargetSeenMs = now;
+
+        if (now - c.lastTargetSeenMs >= CRAB_IDLE_SLEEP_MS) {
+            c.state         = Crab::State::SLEEP;
+            c.stateEnteredMs = now;
+            c.sleepZFrameMs  = now;
+            c.sleepZFrame    = 0;
+            return;
+        }
+
+        if (pinchFlake >= 0 || pinchFish >= 0) {
+            float targetX = (pinchFlake >= 0) ? _flakes[pinchFlake].x : _fishPool[pinchFish].x;
+            c.state       = (targetX >= c.x) ? Crab::State::PINCH_R : Crab::State::PINCH_L;
+            c.pinchFrame  = 0;
+            c.pinchFrameMs = now;
+            c.stateEnteredMs = now;
+            return;
+        }
+
+        if (!anyTarget && float(random(0, 10000)) < CRAB_CUTE_CHANCE * 10000.0f) {
+            c.state          = Crab::State::CUTE;
+            c.cuteDurationMs = CRAB_CUTE_IDLE_MS;
+            c.stateEnteredMs = now;
+            return;
+        }
+
+        // Walk movement + edge/seaweed reversal
+        float nextX  = c.x + float(c.direction) * CRAB_SPEED_PX_S * dt;
+        float minX   = float(CRAB_MARGIN_PX);
+        float maxX   = float(AQ_CANVAS_W - CRAB_W_PX - CRAB_MARGIN_PX);
+        if (nextX < minX) { nextX = minX; c.direction =  1; }
+        if (nextX > maxX) { nextX = maxX; c.direction = -1; }
+
+        for (int i = 0; i < AQ_SEAWEED_ROOTS; ++i) {
+            float sw = _seaweedBaseX[i];
+            if (nextX < sw + float(CRAB_SEAWEED_PAD_PX) &&
+                nextX + float(CRAB_W_PX) > sw - float(CRAB_SEAWEED_PAD_PX)) {
+                c.direction = -c.direction;
+                nextX = c.x;
+                break;
+            }
+        }
+        c.x = nextX;
+
+        if (now - c.walkFrameMs >= CRAB_WALK_STEP_MS) {
+            c.walkFrame   = (c.walkFrame + (c.direction > 0 ? 1u : 3u)) & 3u;
+            c.walkFrameMs = now;
+        }
+    }
+
+    void drawCrab() {
+        static const char* kLegFrames[4] = { "',,,", ",',,", ",,',", ",,,' " };
+
+        _seaweedCanvas.setTextFont(2);
+        _seaweedCanvas.setTextSize(1);
+        _seaweedCanvas.setTextDatum(TL_DATUM);
+        _seaweedCanvas.setTextColor(TFT_RED, 0);
+
+        int cx = (int)_crab.x;
+        int lx = cx + CRAB_CHAR_W;
+        int ly = CRAB_Y_LOCAL + CRAB_LEG_OVERLAP_PX;
+
+        switch (_crab.state) {
+            case Crab::State::WALK:
+                _seaweedCanvas.drawString("v(._.)v", cx, CRAB_Y_LOCAL);
+                break;
+            case Crab::State::CUTE: {
+                uint32_t elapsed = millis() - _crab.stateEnteredMs;
+                bool showCute = ((elapsed / CRAB_CUTE_BLINK_MS) % 2) == 1;
+                _seaweedCanvas.drawString(showCute ? "v(^.^)v" : "v(._.)v", cx, CRAB_Y_LOCAL);
+                break;
+            }
+            case Crab::State::SLEEP:
+                _seaweedCanvas.drawString("v(-.-)v", cx, CRAB_Y_LOCAL);
+                break;
+            case Crab::State::PINCH_R:
+                switch (_crab.pinchFrame) {
+                    case 0: _seaweedCanvas.drawString("v(._.)v",  cx, CRAB_Y_LOCAL); break;
+                    case 1: _seaweedCanvas.drawString("v(o_o)v",  cx, CRAB_Y_LOCAL); break;
+                    case 2:
+                        _seaweedCanvas.drawString("v(o_O) ",  cx, CRAB_Y_LOCAL);
+                        _seaweedCanvas.drawString("V", cx + 6 * CRAB_CHAR_W, CRAB_Y_LOCAL - CRAB_CLAW_RISE_PX);
+                        break;
+                    case 3: _seaweedCanvas.drawString("v(o_o(|)", cx, CRAB_Y_LOCAL); break;
+                }
+                break;
+            case Crab::State::PINCH_L:
+                switch (_crab.pinchFrame) {
+                    case 0: _seaweedCanvas.drawString("v(._.)v",   cx, CRAB_Y_LOCAL); break;
+                    case 1: _seaweedCanvas.drawString("v(o_o)v",   cx, CRAB_Y_LOCAL); break;
+                    case 2:
+                        _seaweedCanvas.drawString(" (O_o)v",   cx, CRAB_Y_LOCAL);
+                        _seaweedCanvas.drawString("V", cx, CRAB_Y_LOCAL - CRAB_CLAW_RISE_PX);
+                        break;
+                    case 3: _seaweedCanvas.drawString("(|)(o_o)v", cx, CRAB_Y_LOCAL); break;
+                }
+                break;
+        }
+
+        const char* legs = (_crab.state == Crab::State::WALK) ? kLegFrames[_crab.walkFrame] : ",,,,";
+        _seaweedCanvas.drawString(legs, lx, ly);
+
+        if (_crab.state == Crab::State::SLEEP) {
+            float nowSec = millis() * 0.001f;
+            int   zx     = cx + 3 * CRAB_CHAR_W;
+            for (int i = 0; i < CRAB_SLEEP_Z_COUNT; ++i) {
+                int   zy    = CRAB_Y_LOCAL - CRAB_SLEEP_BASE_Y - i * CRAB_SLEEP_STEP_PX;
+                float phase = float(i) * CRAB_SLEEP_SWAY_PHASE;
+                float sway  = sinf(nowSec * CRAB_SLEEP_SWAY_SPEED + phase) * CRAB_SLEEP_SWAY_AMP;
+                char  ch    = (i == (int)_crab.sleepZFrame) ? 'Z' : 'z';
+                _seaweedCanvas.drawChar(uint16_t(ch), zx + (int)sway, zy);
+            }
+        }
+    }
+
     // ── Render ────────────────────────────────────────────────────────────────
     void renderFrame() {
         float t = _timeSec();
@@ -1027,6 +1308,8 @@ private:
         // Seaweed sprite — one pass, pushed once at y=AQ_SEAWEED_Y
         _seaweedCanvas.fillSprite(AQ_BG_COLOR);
         drawSeaweed(t);
+        drawCrab();
+        drawFlakes(_seaweedCanvas, AQ_SEAWEED_Y);
         drawBubbles(_seaweedCanvas, AQ_SEAWEED_Y);
         _seaweedCanvas.pushSprite(0, AQ_SEAWEED_Y);
 
@@ -1037,7 +1320,7 @@ private:
             if (s == 0) drawBackground();
             if (s == 0) drawClock();
             drawBubbles(_canvas, sy);
-            drawFlakes(sy);
+            drawFlakes(_canvas, sy);
             drawFish(sy);
             drawOctopus(sy);
             drawSeahorse(sy);
