@@ -759,15 +759,15 @@ public:
       }
     } else {
       if (y >= ST_CHART_HEADER_Y && y < ST_CHART_HEADER_Y + ST_CHART_HEADER_H) {
-        if (x < ST_CHART_BACK_W) {
+        if (x < ST_CHART_BACK_W * 2) {
           backToList();
           return true;
         }
         if (!_s.fetchFailed && x >= ST_CHART_TABS_X) {
           uint8_t tab = (uint8_t)constrain((x - ST_CHART_TABS_X) / ST_CHART_TAB_W, 0, 3);
           _s.chartRange     = (StockRange)tab;
-          _s.lastChartFetch = 0;
           dataTask::enqueueStockChart(_s.chartTickerIdx, tab);
+          _s.lastChartFetch = millis();
           return true;
         }
       }
