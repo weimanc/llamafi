@@ -39,7 +39,6 @@ public:
         }
         _canvas.setTextFont(2);  // needed for glyph metrics regardless of alloc result
 
-        initFishMirrors();
         initFishGlyphMetrics();
         applyFishPopulation();
         spreadInitialFishLayout();
@@ -251,13 +250,9 @@ private:
 
     static const float kHeightNoise[AQ_SEAWEED_ROOTS];
 
-    char    _fishMirroredLeft[AQ_GLYPH_COUNT][AQ_GLYPH_BUF];
     uint8_t _fishGlyphLenRight[AQ_GLYPH_COUNT];
-    uint8_t _fishGlyphLenLeft[AQ_GLYPH_COUNT];
     int16_t _fishGlyphWidthRight[AQ_GLYPH_COUNT];
-    int16_t _fishGlyphWidthLeft[AQ_GLYPH_COUNT];
-    int16_t _fishGlyphOffsetRight[AQ_GLYPH_COUNT][AQ_GLYPH_BUF];
-    int16_t _fishGlyphOffsetLeft[AQ_GLYPH_COUNT][AQ_GLYPH_BUF];
+    uint8_t _fishCharWidthRight[AQ_GLYPH_COUNT][AQ_GLYPH_BUF];
 
     // ── Static fish/color data (Meyer's singleton, header-safe) ──────────────
     static const FishSpecies* _species() {
@@ -354,61 +349,27 @@ private:
         }
     }
 
-    void initFishMirrors() {
+    void initFishGlyphMetrics() {
         const FishSpecies* sp = _species();
         for (int i = 0; i < AQ_GLYPH_COUNT; ++i) {
             const char* right = sp[i].right;
             size_t n = strlen(right);
-            bool ok = (n > 0 && n + 1 <= AQ_GLYPH_BUF);
-            if (ok) {
-                for (size_t k = 0; k < n; ++k) {
-                    unsigned char u = (unsigned char)right[k];
-                    if (u < 32 || u > 126) { ok = false; break; }
-                    _fishMirroredLeft[i][k] = _mirrorBracket(right[n - 1 - k]);
-                }
-                if (ok) { _fishMirroredLeft[i][n] = '\0'; continue; }
+            if (n >= AQ_GLYPH_BUF) n = AQ_GLYPH_BUF - 1;
+            _fishGlyphLenRight[i] = uint8_t(n);
+            int16_t totalW = 0;
+            for (size_t c = 0; c < n; ++c) {
+                char tmp[2] = {right[c], '\0'};
+                uint8_t w = uint8_t(_canvas.textWidth(tmp));
+                _fishCharWidthRight[i][c] = w;
+                totalW += w;
             }
-            strncpy(_fishMirroredLeft[i], right, AQ_GLYPH_BUF - 1);
-            _fishMirroredLeft[i][AQ_GLYPH_BUF - 1] = '\0';
+            _fishGlyphWidthRight[i] = totalW;
         }
     }
 
-    void _cacheGlyphMetrics(const char* txt, uint8_t& lenOut, int16_t& widthOut,
-                             int16_t offsetsOut[]) {
-        char prefix[AQ_GLYPH_BUF];
-        size_t len = strlen(txt);
-        if (len >= AQ_GLYPH_BUF) len = AQ_GLYPH_BUF - 1;
-        for (size_t c = 0; c < len; ++c) {
-            memcpy(prefix, txt, c);
-            prefix[c] = '\0';
-            offsetsOut[c] = int16_t(_canvas.textWidth(prefix));
-        }
-        lenOut   = uint8_t(len);
-        widthOut = int16_t(_canvas.textWidth(txt));
-    }
-
-    void initFishGlyphMetrics() {
-        const FishSpecies* sp = _species();
-        for (int i = 0; i < AQ_GLYPH_COUNT; ++i) {
-            _cacheGlyphMetrics(sp[i].right,          _fishGlyphLenRight[i],
-                               _fishGlyphWidthRight[i], _fishGlyphOffsetRight[i]);
-            _cacheGlyphMetrics(_fishMirroredLeft[i], _fishGlyphLenLeft[i],
-                               _fishGlyphWidthLeft[i],  _fishGlyphOffsetLeft[i]);
-        }
-    }
-
-    const char* _glyphStr(const Fish& f) const {
-        return (f.vx >= 0.0f) ? _species()[f.type].right : _fishMirroredLeft[f.type];
-    }
-    uint8_t _glyphLen(const Fish& f) const {
-        return (f.vx >= 0.0f) ? _fishGlyphLenRight[f.type] : _fishGlyphLenLeft[f.type];
-    }
-    const int16_t* _glyphOffsets(const Fish& f) const {
-        return (f.vx >= 0.0f) ? _fishGlyphOffsetRight[f.type] : _fishGlyphOffsetLeft[f.type];
-    }
     int _glyphVisW(const Fish& f) const {
         if (f.visualWidth > 0) return f.visualWidth;
-        return int(strlen(_glyphStr(f))) * 12;
+        return int(strlen(_species()[f.type].right)) * 12;
     }
 
     // ── Fish population ───────────────────────────────────────────────────────
@@ -417,8 +378,7 @@ private:
         if (!on) return;
         const FishSpecies* sp = _species();
         f.type = random(0, AQ_GLYPH_COUNT);
-        int rw = _fishGlyphWidthRight[f.type], lw = _fishGlyphWidthLeft[f.type];
-        f.visualWidth = (rw > lw) ? rw : lw;
+        f.visualWidth = _fishGlyphWidthRight[f.type];
         if (f.visualWidth <= 0) f.visualWidth = int(strlen(sp[f.type].right)) * 12;
         f.displayColor = sp[f.type].baseColor;
         if (random(100) < 20) f.displayColor = _altColors()[random(0, kAltColorCount)];
@@ -983,20 +943,25 @@ private:
         for (int i = 0; i < _fishCount; ++i) {
             Fish& f = _fishPool[i];
             if (!f.active) continue;
-            const char*     txt     = _glyphStr(f);
-            const int16_t*  offsets = _glyphOffsets(f);
-            uint8_t         len     = _glyphLen(f);
+            const char*    right   = _species()[f.type].right;
+            const uint8_t* cw      = _fishCharWidthRight[f.type];
+            uint8_t        len     = _fishGlyphLenRight[f.type];
+            bool           goRight = (f.vx >= 0.0f);
             float angle  = waveBase + f.phase;
             float wave   = sinf(angle);
             float waveC  = cosf(angle);
             _canvas.setTextColor(f.renderColor);
+            int16_t xpos = 0;
             for (uint8_t c = 0; c < len; ++c) {
-                if (txt[c] != ' ') {
-                    float yo = wave * FISH_SWIM_WAVE_AMPLITUDE;
-                    int cx2 = int(f.x) + offsets[c];
-                    int cy2 = int(f.y) + int(yo + (yo >= 0.0f ? 0.5f : -0.5f));
-                    _canvas.drawChar(uint16_t(txt[c]), cx2, cy2);
+                uint8_t rc = goRight ? c : uint8_t(len - 1 - c);
+                char    gl = goRight ? right[rc] : _mirrorBracket(right[rc]);
+                if (gl != ' ') {
+                    float yo  = wave * FISH_SWIM_WAVE_AMPLITUDE;
+                    int   cx2 = int(f.x) + xpos;
+                    int   cy2 = int(f.y) + int(yo + (yo >= 0.0f ? 0.5f : -0.5f));
+                    _canvas.drawChar(uint16_t(gl), cx2, cy2);
                 }
+                xpos += int16_t(cw[rc]);
                 float nw = wave*kCos + waveC*kSin;
                 waveC = waveC*kCos - wave*kSin;
                 wave = nw;
