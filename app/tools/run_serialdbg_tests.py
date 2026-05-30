@@ -305,6 +305,7 @@ def t077(dut: Dut):
 # ── T078 — zero-delta drag dispatches no ACT_VOLUME ──────────────────────────
 
 def t078(dut: Dut):
+    """T078: zero-delta drag does not commit ACT_VOLUME. [PARTIAL — requires Spotify playing for full verification]"""
     print("T078  Zero-delta drag → no ACT_VOLUME")
     dut.set_cooldown_zero()
     # Verify drag state is idle first
@@ -405,6 +406,7 @@ def t081(dut: Dut):
 # ── T082 — serial drag reproduces volume drag ─────────────────────────────────
 
 def t082(dut: Dut):
+    """T082: serial drag produces ACT_VOLUME enqueue events; debounce verified by count. [PARTIAL — requires Spotify playing for full verification]"""
     print("T082  Serial drag → ACT_VOLUME debounce (log count check)")
     dut.set_cooldown_zero()
     _vx0, _vx1 = _c.vol_drag_x()
@@ -443,6 +445,7 @@ def t082(dut: Dut):
 # ── T083 — `help` is parseable single JSON line ───────────────────────────────
 
 def t083(dut: Dut):
+    """T083: `help` command returns parseable JSON with required command names. [SMOKE — verifies command registry, not behavior]"""
     print("T083  `help` is parseable JSON")
     r = dut.cmd("help", timeout=3.0)
     cmds = r.get("commands", [])
@@ -773,6 +776,7 @@ def t088(dut: Dut):
 # ── T090 — reconnect command emits JSON response ─────────────────────────────
 
 def t090(dut: Dut):
+    """T090: `reconnect` emits valid JSON response. [SMOKE — superseded by T091]"""
     print("T090  `reconnect` emits JSON {ok:true, cmd:'reconnect'}")
     r = dut.cmd("reconnect", timeout=4.0)
     if r.get("ok") is not True or r.get("cmd") != "reconnect":
@@ -841,6 +845,7 @@ def t092(dut: Dut):
 # ── T093 — unhealthy titlebar overlay (interactive visual) ───────────────────
 
 def t093(dut: Dut, interactive: bool):
+    """T093: unhealthy titlebar overlay appears and clears after reconnect. [MANUAL — requires human operator]"""
     if not interactive:
         skip("T093", "visual test — re-run with --interactive")
         return
@@ -871,6 +876,7 @@ def t093(dut: Dut, interactive: bool):
 # ── T094 — Winamp logo tap → TLS reset (interactive physical) ────────────────
 
 def t094(dut: Dut, interactive: bool):
+    """T094: physical tap on Winamp logo triggers TLS reset; second tap within cooldown is no-op. [MANUAL — requires human operator]"""
     if not interactive:
         skip("T094", "physical-tap test — re-run with --interactive (T087 covers serial proxy)")
         return
@@ -911,6 +917,7 @@ def t094(dut: Dut, interactive: bool):
 # ── T095 — injection-vs-physical calibration (interactive) ───────────────────
 
 def t095(dut: Dut, interactive: bool):
+    """T095: injection-vs-physical calibration — same region/action for serial and physical tap in each zone. [MANUAL — requires human operator]"""
     if not interactive:
         skip("T095", "requires --interactive flag (human operator at DUT). "
              "Re-run: python3 run_serialdbg_tests.py --interactive --tests T095")
@@ -1487,7 +1494,7 @@ def t_bi_03(dut: Dut):
 # ── T_BI_04 — Release delivery after finger lift ─────────────────────────────
 
 def t_bi_04(dut: Dut):
-    """T_BI_04: cmdTap delivers Release phase; response region=TRANSPORT action=PLAY|PAUSE."""
+    """T_BI_04: cmdTap delivers Release phase; response region=TRANSPORT action=PLAY|PAUSE. [PARTIAL — requires Spotify playing for full verification]"""
     r = dut.cmd("get appId", timeout=3.0)
     if not r.get("ok") or r.get("name") != "Spotify":
         skip("T_BI_04", f"precondition: need Spotify active, got {r.get('name')!r}")
@@ -2075,7 +2082,7 @@ def t170(dut: Dut):
 # ── T171 — Colour coding (data-dependent) ─────────────────────────────────────
 
 def t171(dut: Dut):
-    """T171 (L3): positive changePct rows render green, negative red. Requires live data."""
+    """T171 (L3): positive changePct rows render green, negative red. Requires live data. [MANUAL — pixel verification required]"""
     print("T171  Colour coding (manual pixel check — skipped in automated run)")
     skip("T171", "pixel verification required — run manually; check green/red rows after fetch")
 
@@ -2304,7 +2311,7 @@ def t178(dut: Dut):
 # ── T179 — Footer lo/hi (manual) ──────────────────────────────────────────────
 
 def t179(dut: Dut):
-    """T179 (C5): lo: and hi: values visible in footer after fetch. Manual pixel check."""
+    """T179 (C5): lo: and hi: values visible in footer after fetch. [MANUAL — pixel verification required]"""
     print("T179  Footer lo/hi (manual pixel check — skipped in automated run)")
     skip("T179", "pixel verification required — run manually; check lo:/hi: at y=214 after fetch")
 
