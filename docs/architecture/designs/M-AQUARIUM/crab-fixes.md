@@ -23,6 +23,7 @@ Crab implemented per `crab.md`. Issues observed on DUT plus one enhancement:
 | CRAB-FIX-007 | Crab too aggressive; add post-meal sleep + satiated cooldown + tap-to-wake |
 | CRAB-FIX-008 | ZZZ column sway too subtle; increase to ±4 px X, add ±2 px Y |
 | CRAB-FIX-009 | Crab never moves in Y; add diagonal walk (Y coupled to X, 4 px range) |
+| CRAB-FIX-010 | Leg sway runs full speed when stationary; reduce amp+frequency when not walking |
 
 ---
 
@@ -567,6 +568,49 @@ Y is **not updated** in SLEEP, PINCH, or CUTE states — crab stays put while no
 
 ---
 
+## CRAB-FIX-010 — Leg wave fades to idle when crab is not walking
+
+### Problem
+
+Leg sway runs at full amplitude and speed regardless of crab state. When the crab is standing still (SLEEP, PINCH, CUTE) the legs should barely twitch — reduced amplitude and frequency — rather than scrambling at walking pace.
+
+### Design
+
+A single float `legWaveIntensity` in the Crab struct acts as a scalar on both amplitude and speed. It lerps toward 1.0 while walking and toward a low idle value in all other states. One field, no extra per-frame branches in the draw path.
+
+**New Crab struct field:**
+```cpp
+float legWaveIntensity;   // 0..1; init = 1.0f
+```
+
+**New constants:**
+```cpp
+static constexpr float CRAB_LEG_WAVE_IDLE_SCALE = 0.15f;  // 15% amp+speed at rest
+static constexpr float CRAB_LEG_WAVE_LERP_RATE  = 2.0f;   // transition speed (units/s)
+```
+
+**In `updateCrab()`, at the end of every state's update block:**
+```cpp
+float waveTarget = (_crab.state == Crab::State::WALK) ? 1.0f : CRAB_LEG_WAVE_IDLE_SCALE;
+_crab.legWaveIntensity += (waveTarget - _crab.legWaveIntensity) * CRAB_LEG_WAVE_LERP_RATE * dt;
+```
+
+At `CRAB_LEG_WAVE_LERP_RATE = 2.0`, the transition covers most of the range in ~0.5 s — snappy enough to feel responsive, slow enough to look organic.
+
+**In `drawCrab()`, scale both amplitude and speed before the leg draw loop:**
+```cpp
+float effectiveAmp   = CRAB_LEG_WAVE_AMP   * _crab.legWaveIntensity;
+float effectiveSpeed = CRAB_LEG_WAVE_SPEED  * _crab.legWaveIntensity;
+float waveBase = _timeSec() * effectiveSpeed + _crab.phase;
+float wave  = sinf(waveBase);
+float waveC = cosf(waveBase);
+// ... rest of leg draw loop unchanged, using effectiveAmp in place of CRAB_LEG_WAVE_AMP
+```
+
+No change to the draw loop structure — only the two scalars change.
+
+---
+
 ## Exit criteria
 
 | ID | Done when |
@@ -580,3 +624,4 @@ Y is **not updated** in SLEEP, PINCH, or CUTE states — crab stays put while no
 | CRAB-FIX-007 | Post-meal sleep (10–60 s by fish size); satiated cooldown (30 s, fish-only); tap crab to reduce both |
 | CRAB-FIX-008 | ZZZ sways ±4 px X, ±2 px Y (elliptical motion) |
 | CRAB-FIX-009 | Crab walks diagonally (Y coupled to X); ±4 px range, `vy` randomised on X reversal |
+| CRAB-FIX-010 | Leg wave fades to 15% amp+speed when not walking; lerps at 2.0/s |
