@@ -28,6 +28,8 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - **TASK-112f** ✅ `[PARTIAL]` / `[SMOKE]` / `[MANUAL]` annotations applied
 - **TASK-112g** ✅ T090 excluded from default dispatch (superseded by T091)
 
+**VE rerun 2026-05-30**: reflashed debug build (production fw was on DUT — SERIAL_DEBUG absent). All 9 tests pass in isolation. Full-suite run shows API rate-limit cascades (T186/T187/T188 trade off failures across runs; T170 cold-start; T174 SKIP from T178 ordering) — no firmware defects. Production reflash pending (cyd2usb_winamp env).
+
 ---
 
 ### TASK-111 — M-AQUARIUM-CRAB: Implement aquarium crab creature
