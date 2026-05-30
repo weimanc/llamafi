@@ -1657,8 +1657,8 @@ def t_gol_03(dut: Dut):
 # ── T_GOL_04 — GoL alive count updated ───────────────────────────────────────
 
 def t_gol_04(dut: Dut):
-    """T_GOL_04: golAlive is populated (>= 0) after GoL ticks."""
-    print("T_GOL_04  GoL alive count updated")
+    """T_GOL_04: golAlive > 0 after GoL ticks — confirms cells are alive and stepGeneration ran."""
+    print("T_GOL_04  GoL alive count > 0")
     if not _switch_to(dut, "Life", 5):
         skip("T_GOL_04", "could not switch to Life")
         _restore_spotify(dut)
@@ -1670,10 +1670,10 @@ def t_gol_04(dut: Dut):
         fail("T_GOL_04", f"get golAlive failed: {r}")
         return
     count = r.get("count", -1)
-    if count < 0:
-        fail("T_GOL_04", f"golAlive={count} — GoL never ticked (expected >= 0)")
+    if count <= 0:
+        fail("T_GOL_04", f"golAlive={count} — expected > 0; GoL may not have ticked or board is empty")
         return
-    pass_("T_GOL_04", f"golAlive={count} — stepGeneration fired at least once")
+    pass_("T_GOL_04", f"golAlive={count} > 0 — cells alive, stepGeneration confirmed")
 
 
 # ── T_WX_01 — WeatherApp switch round-trip ───────────────────────────────────
