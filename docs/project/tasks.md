@@ -15,22 +15,18 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-112 — VE: serialdbg test quality fix pass (audit 2026-05-30)
 **Owner**: VE (Developer for firmware additions)
 **Feature**: serialdbg-001 (cross-cutting)
-**Status**: open
-**Blocked by**: nothing
+**Status**: done
+**Git refs**: `c62d7a4` (112a) · `b759781` (112b) · `97733d7` (112c) · `8d2cc34` (112d) · `2598fac` (112e) · `379befa` (112f) · `3734936` (112g)
 **Audit ref**: `docs/quality/audit_log.md` — Audit 2026-05-30
 **VE spec**: `docs/verification/test_plan.md` — Suite: serialdbg-audit-001
 
-Sub-tasks in priority order:
-
-- **TASK-112a** (Priority A — RED): Fix T176 — replace `lastChartFetch > 0` proxy with `_wait_chart_complete(before)` using `fetchOkCount`. No firmware change needed.
-- **TASK-112b** (Priority A — RED): Fix T170 — add `quoteOkCount` to `StockAppState`; increment in `stockTickQuotes()` on success; expose via `dbgGet`/`dbgSet`; update T170 to assert count advances within 65 s.
-- **TASK-112c** (Priority B — AMBER): Fix T136 — remove standalone test; fold `scrollOffset=0` precondition into T137 setup block.
-- **TASK-112d** (Priority B — AMBER): Fix T178 — assert pre-fetch placeholder state (`chartLen=0`, `fetchFailed=false`) instead of trivially-true `chartRange=D1`.
-- **TASK-112e** (Priority B — AMBER): Fix T_GOL_04 — assert `golAlive > 0` or `golGeneration >= 3`; confirm which GoL state vars are exposed via `dbgGet`.
-- **TASK-112f** (Priority C — AMBER): Annotate T078, T082, T_BI_04 with `[PARTIAL]`; annotate T090, T083 with `[SMOKE]`; annotate T093–T095, T171, T179 with `[MANUAL]` in test_plan.md and run_serialdbg_tests.py docstrings.
-- **TASK-112g** (Priority C): Evaluate T090 vs T091 overlap; demote or remove T090 if T091 supersedes it.
-
-Exit criterion: all Priority A sub-tasks complete + verified on DUT; Priority B complete; Priority C annotated. Re-run affected tests; update test_plan.md status. No regressions in currently-passing suite.
+- **TASK-112a** ✅ T176 → `_wait_chart_complete(before)` via `fetchOkCount`
+- **TASK-112b** ✅ `quoteOkCount` firmware counter + T170 rewritten to assert completion
+- **TASK-112c** ✅ T136 removed; precondition folded into T137 setup
+- **TASK-112d** ✅ T178 → asserts `chartLen=0` + `fetchFailed=false` placeholder state
+- **TASK-112e** ✅ T_GOL_04 → `golAlive > 0`
+- **TASK-112f** ✅ `[PARTIAL]` / `[SMOKE]` / `[MANUAL]` annotations applied
+- **TASK-112g** ✅ T090 excluded from default dispatch (superseded by T091)
 
 ---
 
