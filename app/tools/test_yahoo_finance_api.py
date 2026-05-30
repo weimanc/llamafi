@@ -18,7 +18,7 @@ Checks:
   T_SF_03  Each quote payload fits DUT DynamicJsonDocument budget (<=8192 B)
   T_SF_04  Chart ranges (D1/D5/Mo1/Ytd) return HTTP 200
   T_SF_05  timestamp[] and close[] parallel arrays, non-empty, each range
-  T_SF_06  Chart payloads fit DUT budget (<=8192 B) for all ranges
+  T_SF_06  Filtered close[] point count fits firmware chartPoints[110] buffer — each range
   T_SF_07  TLS cert issuer printed for TASK-109c pinning (informational)
 
 No DUT, no credentials, no serial port required.
@@ -44,17 +44,18 @@ SYMBOLS = ["AAPL", "AMD", "AMZN", "ARM", "GOOG", "META", "MSFT", "NVDA"]
 
 CHART_URL_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/"
 
-# Budget constants — must match DynamicJsonDocument(N) in dataTaskStorage.cpp.
-# Quote fetches (fetchStockQuote):  DynamicJsonDocument doc(8192)
-# Chart fetches (fetchStockChart):  DynamicJsonDocument doc(16384)
-# Apply a 1.5× safety factor mentally: raw payload must be well under N, not just under N,
-# because ArduinoJson's parsed tree requires more memory than the raw JSON bytes.
+# Quote budget — must match DynamicJsonDocument(N) in dataTaskStorage.cpp fetchStockQuote().
+# Raw payload bytes are the right proxy here: no filter, full parse into doc(8192).
 QUOTE_BUDGET_B = 8192   # dataTaskStorage.cpp fetchStockQuote() doc(8192)
-CHART_BUDGET_B = 16384  # dataTaskStorage.cpp fetchStockChart() doc(16384) — ADR-034
+
+# Chart buffer limit — dataTaskStorage.cpp fetchStockChart() uses a JSON filter that
+# extracts only close[] before ArduinoJson allocates (StaticJsonDocument<2048> doc).
+# Raw payload size is irrelevant — only the non-null close[] point count matters.
+# Firmware caps at 110: `if (r.len >= 110) break` → chartPoints[110] buffer (LL-040).
+CHART_MAX_POINTS = 110  # appShell.h StockAppState::chartPoints[110]
 
 # (range_param, interval_param, label)
-# YTD uses 1wk interval — 1d would be ~12 KB; even at 1wk raw payload is ~3.7 KB,
-# well within the 16384 B doc budget (ADR-034 confirmed via host probe 2026-05-29).
+# YTD uses 1wk interval — 1d would produce ~100 pts; 1wk stays well under 110.
 RANGES = [
     ("1d",  "5m",  "D1"),
     ("5d",  "60m", "D5"),
@@ -190,14 +191,21 @@ def check_chart_ranges(chart_symbol):
             if nulls:
                 null_warn.append(f"  {label}: {nulls}/{n_ts} null closes")
 
-    print("\nT_SF_06  Chart payloads within DUT budget")
+    print(f"\nT_SF_06  Filtered close[] fits firmware chartPoints[{CHART_MAX_POINTS}] — each range")
     all_ok_06 = True
     for label, (_, _, body) in range_bodies.items():
-        n = len(body)
-        if n <= CHART_BUDGET_B:
-            _ok(label, f"{n} B <= {CHART_BUDGET_B} B")
+        try:
+            doc    = json.loads(body)
+            closes = (doc["chart"]["result"][0].get("indicators", {}).get("quote") or [{}])[0].get("close") or []
+        except (json.JSONDecodeError, KeyError, IndexError, TypeError) as e:
+            _fail(label, f"parse error: {e}")
+            all_ok_06 = False
+            continue
+        non_null = sum(1 for v in closes if v is not None)
+        if non_null <= CHART_MAX_POINTS:
+            _ok(label, f"{non_null} non-null pts <= {CHART_MAX_POINTS}")
         else:
-            _fail(label, f"{n} B exceeds {CHART_BUDGET_B} B — check interval mapping")
+            _fail(label, f"{non_null} non-null pts exceeds chartPoints[{CHART_MAX_POINTS}] — firmware will silently truncate")
             all_ok_06 = False
 
     if null_warn:
@@ -283,7 +291,7 @@ def main():
     print("Yahoo Finance API probe — StockApp POC (TASK-109i)")
     print(f"Quote symbols : {', '.join(SYMBOLS)}  ({len(SYMBOLS)} symbols)")
     print(f"Chart symbol  : {args.chart_symbol}  ranges: D1(5m) D5(60m) Mo1(1d) Ytd(1wk)")
-    print(f"DUT budget    : quote={QUOTE_BUDGET_B} B  chart={CHART_BUDGET_B} B (DynamicJsonDocument — ADR-034)")
+    print(f"DUT budget    : quote={QUOTE_BUDGET_B} B (DynamicJsonDocument)  chart={CHART_MAX_POINTS} pts (filtered StaticJsonDocument<2048>)")
 
     failures = []
 
