@@ -25,22 +25,18 @@ public:
         _lastRetryMs        = 0;
 
         _canvas.setColorDepth(8);
-        _seaweedCanvas.setColorDepth(8);
         bool c1 = (_canvas.createSprite(AQ_CANVAS_W, AQ_STRIP_H) != nullptr);
-        bool c2 = (_seaweedCanvas.createSprite(AQ_CANVAS_W, AQ_SEAWEED_SPRITE_H) != nullptr);
-        _spriteReady = c1 && c2;
-        if (!_spriteReady) { if (c1) _canvas.deleteSprite(); if (c2) _seaweedCanvas.deleteSprite(); }
+        _spriteReady = c1;
+        if (!c1) _canvas.deleteSprite();
         Serial.printf("[aquarium] init sprite %dx%d 8bpp: %s  heap=%lu maxAlloc=%lu\n",
             AQ_CANVAS_W, AQ_STRIP_H, c1 ? "OK" : "FAILED",
-            (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMaxAllocHeap());
-        Serial.printf("[aquarium] seaweed sprite %dx%d 8bpp: %s  heap=%lu maxAlloc=%lu\n",
-            AQ_CANVAS_W, AQ_SEAWEED_SPRITE_H, c2 ? "OK" : "FAILED",
             (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMaxAllocHeap());
         _canvas.setTextFont(2);  // needed for glyph metrics regardless of alloc result
 
         initFishGlyphMetrics();
         applyFishPopulation();
         spreadInitialFishLayout();
+        initSeaweed();
         initCrab();
         applyBubblePopulation(true);
 
@@ -53,13 +49,11 @@ public:
         _retryShown  = false;
         _lastRetryMs = 0;
         _canvas.setColorDepth(8);
-        _seaweedCanvas.setColorDepth(8);
         bool c1 = (_canvas.createSprite(AQ_CANVAS_W, AQ_STRIP_H) != nullptr);
-        bool c2 = (_seaweedCanvas.createSprite(AQ_CANVAS_W, AQ_SEAWEED_SPRITE_H) != nullptr);
-        _spriteReady = c1 && c2;
-        if (!_spriteReady) { if (c1) _canvas.deleteSprite(); if (c2) _seaweedCanvas.deleteSprite(); }
-        Serial.printf("[aquarium] resume sprite: %s  seaweed: %s  heap=%lu maxAlloc=%lu\n",
-            c1 ? "OK" : "FAILED", c2 ? "OK" : "FAILED",
+        _spriteReady = c1;
+        if (!c1) _canvas.deleteSprite();
+        Serial.printf("[aquarium] resume sprite: %s  heap=%lu maxAlloc=%lu\n",
+            c1 ? "OK" : "FAILED",
             (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMaxAllocHeap());
         if (_spriteReady) {
             _canvas.setTextFont(2);
@@ -69,22 +63,19 @@ public:
 
     void suspend() override {
         _canvas.deleteSprite();
-        _seaweedCanvas.deleteSprite();
         _spriteReady = false;
     }
 
     void tick() override {
         if (!_spriteReady) {
             // Retry sprite allocation every 500 ms — SSL/TLS buffers may free up
-            // after the first Spotify poll, giving us the ~33 KB we need.
+            // after the first Spotify poll, giving us the ~11 KB we need.
             unsigned long now2 = millis();
             if (now2 - _lastRetryMs >= 500) {
                 _lastRetryMs = now2;
                 _canvas.setColorDepth(8);
-                _seaweedCanvas.setColorDepth(8);
                 bool c1 = (_canvas.createSprite(AQ_CANVAS_W, AQ_STRIP_H) != nullptr);
-                bool c2 = (_seaweedCanvas.createSprite(AQ_CANVAS_W, AQ_SEAWEED_SPRITE_H) != nullptr);
-                _spriteReady = c1 && c2;
+                _spriteReady = c1;
                 if (_spriteReady) {
                     _canvas.setTextFont(2);
                     _lastTickMs = now2;
@@ -92,7 +83,6 @@ public:
                         (unsigned long)ESP.getFreeHeap());
                 } else {
                     if (c1) _canvas.deleteSprite();
-                    if (c2) _seaweedCanvas.deleteSprite();
                     Serial.printf("[aquarium] retry failed  heap=%lu maxAlloc=%lu\n",
                         (unsigned long)ESP.getFreeHeap(),
                         (unsigned long)ESP.getMaxAllocHeap());
@@ -144,11 +134,8 @@ private:
     static constexpr int   AQ_CANVAS_W            = 275;
     static constexpr int   AQ_CANVAS_H            = 240;  // informational; no single sprite this size
     static constexpr int   AQ_STRIP_H             = 40;
-    static constexpr int   AQ_STRIP_COUNT         = 4;
-    static constexpr int   AQ_SEAWEED_Y           = 160;  // AQ_STRIP_H * AQ_STRIP_COUNT
-    static constexpr int   AQ_SEAWEED_SPRITE_H    = 80;
-    static constexpr int   AQ_SEAWEED_Y_LOCAL     = AQ_CANVAS_H - 2 - AQ_SEAWEED_Y;  // 78
-    static constexpr int   AQ_SEA_LEVEL_Y         = AQ_SEAWEED_Y - 8;  // 152
+    static constexpr int   AQ_STRIP_COUNT         = 6;
+    static constexpr int   AQ_SEA_LEVEL_Y         = 152;
     static constexpr int   AQ_FISH_COUNT          = 16;
     static constexpr int   AQ_FISH_POOL_MAX       = 16;
     static constexpr int   AQ_BUBBLE_COUNT        = 10;
@@ -164,6 +151,8 @@ private:
     static constexpr uint16_t AQ_CLOCK_COLOR      = 0xFFFF;
     static constexpr uint16_t AQ_BG_COLOR         = 0x0000;
     static constexpr int   AQ_SEAWEED_ROOTS       = 12;
+    static constexpr int   kSeaweedPhases         = 32;
+    static constexpr int   kSeaweedSegs           = 8;
     static constexpr int   AQ_GLYPH_COUNT         = 12;
     static constexpr size_t AQ_GLYPH_BUF          = 28;
 
@@ -175,7 +164,6 @@ private:
     static constexpr int   CRAB_BOTTOM_MARGIN_PX = 4;
     static constexpr int   CRAB_FOOT_PX          = CRAB_BOTTOM_MARGIN_PX + CRAB_CHAR_H + CRAB_LEG_OVERLAP_PX;
     static constexpr int   CRAB_Y                = AQ_CANVAS_H - CRAB_FOOT_PX;
-    static constexpr int   CRAB_Y_LOCAL          = CRAB_Y - AQ_SEAWEED_Y;
     static constexpr int   CRAB_MARGIN_PX        = 8;
     static constexpr float CRAB_SPEED_PX_S       = 12.0f;
     static constexpr int   CRAB_PINCH_RANGE_PX   = 45;
@@ -190,7 +178,6 @@ private:
     static constexpr uint32_t CRAB_CUTE_HIT_MS   = 3000;
     static constexpr uint32_t CRAB_IDLE_SLEEP_MS = 20000;
     static constexpr uint32_t CRAB_SLEEP_MS      = 5000;
-    static constexpr int   CRAB_SEAWEED_PAD_PX   = 6;
     static constexpr int   CRAB_SLEEP_BASE_Y     = 16;
     static constexpr int   CRAB_SLEEP_STEP_PX    = 7;
     static constexpr int   CRAB_SLEEP_Z_COUNT    = 4;
@@ -278,7 +265,6 @@ private:
 
     // ── Members ──────────────────────────────────────────────────────────────
     TFT_eSprite   _canvas{&tft};
-    TFT_eSprite   _seaweedCanvas{&tft};
     bool          _spriteReady     = false;
     bool          _retryShown      = false;
     unsigned long _lastTickMs      = 0;
@@ -294,11 +280,14 @@ private:
     Seahorse _seahorse;
     Crab     _crab;
     float    _seaweedBaseX[AQ_SEAWEED_ROOTS];
+    float    _seaweedSpeed[AQ_SEAWEED_ROOTS];
+    float    _seaweedPhase[AQ_SEAWEED_ROOTS];
 
     uint16_t _gradTile[AQ_BACKGROUND_GRADIENT_H][32];
     bool     _gradientBandCached = false;
 
-    static const float kHeightNoise[AQ_SEAWEED_ROOTS];
+    static const float   kHeightNoise[AQ_SEAWEED_ROOTS];
+    static const int8_t  kSeaweedDisp[32][8] PROGMEM;
 
     uint8_t _fishGlyphLenRight[AQ_GLYPH_COUNT];
     int16_t _fishGlyphWidthRight[AQ_GLYPH_COUNT];
@@ -417,7 +406,7 @@ private:
                           : (roll < 70) ? _frand(0.66f,0.84f) : _frand(0.88f,1.0f);
         f.renderColor = _scaleColor(f.displayColor, f.depthBrightness);
         f.x = _frand(-42.0f, AQ_CANVAS_W + 12.0f);
-        f.y = _frand(20.0f, float(AQ_SEA_LEVEL_Y) - 10.0f);
+        f.y = _frand(20.0f, float(AQ_CANVAS_H) - 30.0f);
         f.vx = _frand(-1.0f, 1.0f);
         f.vy = _frand(-0.5f, 0.5f);
         f.speed = uint8_t(_frand(14.0f, 30.0f));
@@ -453,7 +442,7 @@ private:
             float bx = f.x, by = f.y;
             for (int a = 0; a < 80; ++a) {
                 float cx = _frand(10.0f, AQ_CANVAS_W - f.visualWidth - 10.0f);
-                float cy = _frand(18.0f, float(AQ_SEA_LEVEL_Y) - 18.0f);
+                float cy = _frand(18.0f, float(AQ_CANVAS_H) - 34.0f);
                 bx = cx; by = cy;
                 if (_spawnClear(i, cx, cy, gx, gy)) break;
             }
@@ -663,8 +652,8 @@ private:
                 f.vy += (repelY/repelCount) * FISH_AVOID_STRENGTH * dt;
             }
 
-            if (f.y < 18) f.vy += 0.8f * dt;
-            if (f.y > float(AQ_SEA_LEVEL_Y) - 8) f.vy -= 0.8f * dt;
+            if (f.y < 18)                          f.vy += 0.8f * dt;
+            if (f.y > float(AQ_CANVAS_H) - 22.0f) f.vy -= 0.8f * dt;
 
             float mag = sqrtf(f.vx*f.vx + f.vy*f.vy);
             if (mag < 0.0001f) { f.vx = 1.0f; f.vy = 0.0f; mag = 1.0f; }
@@ -691,7 +680,7 @@ private:
                                   : (roll2 < 70) ? _frand(0.66f,0.84f) : _frand(0.88f,1.0f);
                 f.renderColor = _scaleColor(f.displayColor, f.depthBrightness);
             }
-            f.y = _clamp(f.y, 14.0f, float(AQ_SEA_LEVEL_Y) - 6.0f);
+            f.y = _clamp(f.y, 14.0f, float(AQ_CANVAS_H) - 20.0f);
         }
     }
 
@@ -886,59 +875,44 @@ private:
     }
 
     // ── Seaweed ───────────────────────────────────────────────────────────────
-    void _swayPoint(float u, float bx, int y0, float bh, float sw,
-                    float phaseBody, float phaseRipple, float& ox, float& oy) {
-        u = _clamp(u, 0.0f, 1.0f);
-        float body   = sinf(phaseBody   - u*5.1f);
-        float ripple = sinf(phaseRipple + u*9.0f);
-        float bend   = sw * u * (0.20f + u*0.80f);
-        float travel = body * (1.5f + bh*0.055f) * u * u;
-        float detail = ripple * 1.2f * u;
-        ox = bx + bend + travel + detail;
-        oy = y0 - bh * u;
-    }
-
-    void _seaweedBranches(int bi, float bh, float sw,
-                          float phaseBody, float phaseRipple, float t, float bx, int y0) {
-        int bc = _clamp(int(bh/14.0f), 2, 5);
+    void _seaweedBranches(int bi, float bh, float scale, uint8_t pi,
+                          float t, float bx, int y0_world, int stripY) {
+        int bc = _clamp(int(bh / 14.0f), 2, 5);
         for (int b = 0; b < bc; ++b) {
-            float u = 0.30f + b*0.14f + ((bi+b)%3)*0.018f;
+            float u = 0.30f + b * 0.14f + ((bi + b) % 3) * 0.018f;
             if (u > 0.88f) u = 0.88f;
-            float px, py;
-            _swayPoint(u, bx, y0, bh, sw, phaseBody, phaseRipple, px, py);
-            float side = ((bi+b)&1) ? 1.0f : -1.0f;
-            float bl   = 5.5f + ((bi*3 + b*5) % 5);
-            float bwig = sinf(t*(1.1f+bi*0.03f)*AQ_SWAY + bi + b*1.7f) * 1.2f;
-            int ex = int(px + side*(bl*0.58f + fabsf(sw)*0.05f) + bwig);
-            int ey = int(py - bl*0.78f);
-            _seaweedCanvas.drawLine(int(px), int(py), ex, ey, (b&1) ? TFT_DARKGREEN : TFT_GREEN);
+            int seg = int(u * float(kSeaweedSegs - 1) + 0.5f);
+            if (seg >= kSeaweedSegs) seg = kSeaweedSegs - 1;
+            float px = bx + (int8_t)pgm_read_byte(&kSeaweedDisp[pi][seg]) * scale;
+            float py = float(y0_world) - bh * u - float(stripY);
+            float side = ((bi + b) & 1) ? 1.0f : -1.0f;
+            float bl   = 5.5f + float((bi * 3 + b * 5) % 5);
+            float bwig = sinf(t * (1.1f + bi * 0.03f) * AQ_SWAY + bi + b * 1.7f) * 1.2f;
+            int ex = int(px + side * bl * 0.58f + bwig);
+            int ey = int(py - bl * 0.78f);
+            _canvas.drawLine(int(px), int(py), ex, ey, (b & 1) ? TFT_DARKGREEN : TFT_GREEN);
         }
     }
 
-    void drawSeaweed(float t) {
+    void drawSeaweed(float t, int stripY) {
+        const int y0 = AQ_CANVAS_H - 2;    // 238 — world y of seaweed roots
         for (int i = 0; i < AQ_SEAWEED_ROOTS; ++i) {
-            _seaweedBaseX[i] = 10.0f + i * (AQ_CANVAS_W - 20.0f) / float(AQ_SEAWEED_ROOTS - 1);
-            float bx  = _seaweedBaseX[i];
-            float amp = 5.0f + (i % 4) * 2.0f;
-            float sw  = sinf(t*(0.8f+0.09f*i)*AQ_SWAY + i*0.7f) * amp;
-            float hv  = 1.0f + AQ_SEAWEED_RAND * kHeightNoise[i];
-            float bh  = _clamp(32.0f * AQ_SEAWEED_LEN * hv, 18.0f, 72.0f);
-            int   y0  = AQ_SEAWEED_Y_LOCAL;
-            float phaseBody   = t * (1.05f + i*0.025f) * AQ_SWAY + i*0.72f;
-            float phaseRipple = t * 0.72f * AQ_SWAY + i*1.31f;
-            float px = bx, py = float(y0);
-            for (int seg = 1; seg <= 7; ++seg) {
-                float u = float(seg) / 7;
-                float nx, ny;
-                _swayPoint(u, bx, y0, bh, sw, phaseBody, phaseRipple, nx, ny);
-                uint16_t col = (u < 0.38f) ? TFT_DARKGREEN
-                             : (u < 0.76f) ? TFT_GREEN : TFT_GREENYELLOW;
-                _seaweedCanvas.drawLine(int(px), int(py), int(nx), int(ny), col);
-                if (u < 0.78f)
-                    _seaweedCanvas.drawLine(int(px)+1, int(py), int(nx)+1, int(ny), TFT_DARKGREEN);
+            float bx    = _seaweedBaseX[i];
+            float hv    = 1.0f + AQ_SEAWEED_RAND * kHeightNoise[i];
+            float bh    = _clamp(32.0f * AQ_SEAWEED_LEN * hv, 18.0f, 72.0f);
+            float scale = bh / 50.0f;
+            uint8_t pi  = _seaweedPhaseIdx(i, t);
+            float px = bx, py = float(y0 - stripY);
+            for (int s = 1; s < kSeaweedSegs; ++s) {
+                float nx = bx + (int8_t)pgm_read_byte(&kSeaweedDisp[pi][s]) * scale;
+                float ny = float(y0) - bh * s / float(kSeaweedSegs - 1) - float(stripY);
+                uint16_t col = (s < 3) ? TFT_DARKGREEN : (s < 6) ? TFT_GREEN : TFT_GREENYELLOW;
+                _canvas.drawLine(int(px), int(py), int(nx), int(ny), col);
+                if (s < 6)
+                    _canvas.drawLine(int(px)+1, int(py), int(nx)+1, int(ny), TFT_DARKGREEN);
                 px = nx; py = ny;
             }
-            _seaweedBranches(i, bh, sw, phaseBody, phaseRipple, t, bx, y0);
+            _seaweedBranches(i, bh, scale, pi, t, bx, y0, stripY);
         }
     }
 
@@ -1073,10 +1047,24 @@ private:
         _canvas.setTextFont(2);
     }
 
+    // ── Seaweed init ──────────────────────────────────────────────────────────
+    void initSeaweed() {
+        constexpr float kTwoPi = 6.28318f;
+        for (int i = 0; i < AQ_SEAWEED_ROOTS; ++i) {
+            _seaweedBaseX[i] = 10.0f + i * (AQ_CANVAS_W - 20.0f) / float(AQ_SEAWEED_ROOTS - 1);
+            _seaweedSpeed[i] = (0.8f + 0.09f * i) * AQ_SWAY;
+            _seaweedPhase[i] = (i * 0.7f) * kSeaweedPhases / kTwoPi;
+        }
+    }
+
+    uint8_t _seaweedPhaseIdx(int i, float t) const {
+        constexpr float kTwoPi = 6.28318f;
+        return (uint8_t)(int(t * _seaweedSpeed[i] * kSeaweedPhases / kTwoPi
+                            + _seaweedPhase[i]) & (kSeaweedPhases - 1));
+    }
+
     // ── Crab ──────────────────────────────────────────────────────────────────
     void initCrab() {
-        for (int i = 0; i < AQ_SEAWEED_ROOTS; ++i)
-            _seaweedBaseX[i] = 10.0f + i * (AQ_CANVAS_W - 20.0f) / float(AQ_SEAWEED_ROOTS - 1);
         uint32_t now           = millis();
         _crab.x                = AQ_CANVAS_W * 0.5f;
         _crab.direction        = 1;
@@ -1212,22 +1200,13 @@ private:
             return;
         }
 
-        // Walk movement + edge/seaweed reversal
+        // Walk movement + edge reversal
         float nextX  = c.x + float(c.direction) * CRAB_SPEED_PX_S * dt;
         float minX   = float(CRAB_MARGIN_PX);
         float maxX   = float(AQ_CANVAS_W - CRAB_W_PX - CRAB_MARGIN_PX);
         if (nextX < minX) { nextX = minX; c.direction =  1; }
         if (nextX > maxX) { nextX = maxX; c.direction = -1; }
 
-        for (int i = 0; i < AQ_SEAWEED_ROOTS; ++i) {
-            float sw = _seaweedBaseX[i];
-            if (nextX < sw + float(CRAB_SEAWEED_PAD_PX) &&
-                nextX + float(CRAB_W_PX) > sw - float(CRAB_SEAWEED_PAD_PX)) {
-                c.direction = -c.direction;
-                nextX = c.x;
-                break;
-            }
-        }
         c.x = nextX;
 
         if (now - c.walkFrameMs >= CRAB_WALK_STEP_MS) {
@@ -1236,67 +1215,74 @@ private:
         }
     }
 
-    void drawCrab() {
+    void drawCrab(int stripY) {
+        int localBodyY = CRAB_Y - stripY;
+        // 51 = CRAB_SLEEP_BASE_Y + (CRAB_SLEEP_Z_COUNT-1)*CRAB_SLEEP_STEP_PX + CRAB_CHAR_H
+        static constexpr int kCrabDrawReach = CRAB_SLEEP_BASE_Y
+                                            + (CRAB_SLEEP_Z_COUNT - 1) * CRAB_SLEEP_STEP_PX
+                                            + CRAB_CHAR_H;
+        if (localBodyY <= -CRAB_CHAR_H || localBodyY >= AQ_STRIP_H + kCrabDrawReach) return;
+
         static const char* kLegFrames[4] = { "',,,", ",',,", ",,',", ",,,' " };
 
-        _seaweedCanvas.setTextFont(2);
-        _seaweedCanvas.setTextSize(1);
-        _seaweedCanvas.setTextDatum(TL_DATUM);
-        _seaweedCanvas.setTextColor(TFT_RED, 0);
+        _canvas.setTextFont(2);
+        _canvas.setTextSize(1);
+        _canvas.setTextDatum(TL_DATUM);
+        _canvas.setTextColor(TFT_RED);
 
         int cx = (int)_crab.x;
         int lx = cx + CRAB_CHAR_W;
-        int ly = CRAB_Y_LOCAL + CRAB_LEG_OVERLAP_PX;
+        int ly = localBodyY + CRAB_LEG_OVERLAP_PX;
 
         switch (_crab.state) {
             case Crab::State::WALK:
-                _seaweedCanvas.drawString("v(._.)v", cx, CRAB_Y_LOCAL);
+                _canvas.drawString("v(._.)v", cx, localBodyY);
                 break;
             case Crab::State::CUTE: {
                 uint32_t elapsed = millis() - _crab.stateEnteredMs;
                 bool showCute = ((elapsed / CRAB_CUTE_BLINK_MS) % 2) == 1;
-                _seaweedCanvas.drawString(showCute ? "v(^.^)v" : "v(._.)v", cx, CRAB_Y_LOCAL);
+                _canvas.drawString(showCute ? "v(^.^)v" : "v(._.)v", cx, localBodyY);
                 break;
             }
             case Crab::State::SLEEP:
-                _seaweedCanvas.drawString("v(-.-)v", cx, CRAB_Y_LOCAL);
+                _canvas.drawString("v(-.-)v", cx, localBodyY);
                 break;
             case Crab::State::PINCH_R:
                 switch (_crab.pinchFrame) {
-                    case 0: _seaweedCanvas.drawString("v(._.)v",  cx, CRAB_Y_LOCAL); break;
-                    case 1: _seaweedCanvas.drawString("v(o_o)v",  cx, CRAB_Y_LOCAL); break;
+                    case 0: _canvas.drawString("v(._.)v",  cx, localBodyY); break;
+                    case 1: _canvas.drawString("v(o_o)v",  cx, localBodyY); break;
                     case 2:
-                        _seaweedCanvas.drawString("v(o_O) ",  cx, CRAB_Y_LOCAL);
-                        _seaweedCanvas.drawString("V", cx + 6 * CRAB_CHAR_W, CRAB_Y_LOCAL - CRAB_CLAW_RISE_PX);
+                        _canvas.drawString("v(o_O) ",  cx, localBodyY);
+                        _canvas.drawString("V", cx + 6 * CRAB_CHAR_W, localBodyY - CRAB_CLAW_RISE_PX);
                         break;
-                    case 3: _seaweedCanvas.drawString("v(o_o(|)", cx, CRAB_Y_LOCAL); break;
+                    case 3: _canvas.drawString("v(o_o(|)", cx, localBodyY); break;
                 }
                 break;
             case Crab::State::PINCH_L:
                 switch (_crab.pinchFrame) {
-                    case 0: _seaweedCanvas.drawString("v(._.)v",   cx, CRAB_Y_LOCAL); break;
-                    case 1: _seaweedCanvas.drawString("v(o_o)v",   cx, CRAB_Y_LOCAL); break;
+                    case 0: _canvas.drawString("v(._.)v",   cx, localBodyY); break;
+                    case 1: _canvas.drawString("v(o_o)v",   cx, localBodyY); break;
                     case 2:
-                        _seaweedCanvas.drawString(" (O_o)v",   cx, CRAB_Y_LOCAL);
-                        _seaweedCanvas.drawString("V", cx, CRAB_Y_LOCAL - CRAB_CLAW_RISE_PX);
+                        _canvas.drawString(" (O_o)v",   cx, localBodyY);
+                        _canvas.drawString("V", cx, localBodyY - CRAB_CLAW_RISE_PX);
                         break;
-                    case 3: _seaweedCanvas.drawString("(|)(o_o)v", cx, CRAB_Y_LOCAL); break;
+                    case 3: _canvas.drawString("(|)(o_o)v", cx, localBodyY); break;
                 }
                 break;
         }
 
         const char* legs = (_crab.state == Crab::State::WALK) ? kLegFrames[_crab.walkFrame] : ",,,,";
-        _seaweedCanvas.drawString(legs, lx, ly);
+        _canvas.drawString(legs, lx, ly);
 
         if (_crab.state == Crab::State::SLEEP) {
             float nowSec = millis() * 0.001f;
             int   zx     = cx + 3 * CRAB_CHAR_W;
             for (int i = 0; i < CRAB_SLEEP_Z_COUNT; ++i) {
-                int   zy    = CRAB_Y_LOCAL - CRAB_SLEEP_BASE_Y - i * CRAB_SLEEP_STEP_PX;
+                int   zy    = localBodyY - CRAB_SLEEP_BASE_Y - i * CRAB_SLEEP_STEP_PX;
                 float phase = float(i) * CRAB_SLEEP_SWAY_PHASE;
                 float sway  = sinf(nowSec * CRAB_SLEEP_SWAY_SPEED + phase) * CRAB_SLEEP_SWAY_AMP;
                 char  ch    = (i == (int)_crab.sleepZFrame) ? 'Z' : 'z';
-                _seaweedCanvas.drawChar(uint16_t(ch), zx + (int)sway, zy);
+                _canvas.drawChar(uint16_t(ch), zx + (int)sway, zy);
             }
         }
     }
@@ -1305,22 +1291,15 @@ private:
     void renderFrame() {
         float t = _timeSec();
 
-        // Seaweed sprite — one pass, pushed once at y=AQ_SEAWEED_Y
-        _seaweedCanvas.fillSprite(AQ_BG_COLOR);
-        drawSeaweed(t);
-        drawCrab();
-        drawFlakes(_seaweedCanvas, AQ_SEAWEED_Y);
-        drawBubbles(_seaweedCanvas, AQ_SEAWEED_Y);
-        _seaweedCanvas.pushSprite(0, AQ_SEAWEED_Y);
-
-        // Strip passes — 4 × 40 px covering y:0..159
+        // 6 strip passes covering y:0..239
         for (int s = 0; s < AQ_STRIP_COUNT; ++s) {
             int sy = s * AQ_STRIP_H;
             _canvas.fillSprite(AQ_BG_COLOR);
-            if (s == 0) drawBackground();
-            if (s == 0) drawClock();
+            if (s == 0) { drawBackground(); drawClock(); }
             drawBubbles(_canvas, sy);
             drawFlakes(_canvas, sy);
+            drawSeaweed(t, sy);
+            drawCrab(sy);
             drawFish(sy);
             drawOctopus(sy);
             drawSeahorse(sy);
@@ -1333,4 +1312,42 @@ private:
 const float AquariumApp::kHeightNoise[AquariumApp::AQ_SEAWEED_ROOTS] = {
      0.5729f,  0.3510f, -0.9705f,  0.7485f,  0.1225f, -0.8873f,
      0.8827f, -0.1128f, -0.7549f,  0.9681f, -0.3418f, -0.5808f,
+};
+
+// 32-phase × 8-segment canonical seaweed displacement LUT (CRAB-FIX-004).
+// Generated by Python: bh=50, amp=7, AQ_SWAY=1.10. Range -5..+8 px (fits int8_t).
+// At render time: nx = bx + pgm_read_byte(&kSeaweedDisp[phaseIdx][seg]) * (bh/50).
+const int8_t AquariumApp::kSeaweedDisp[32][8] PROGMEM = {
+    {   0,    0,    0,   -1,   -1,    1,    4,    4},
+    {   0,    0,    0,   -1,   -1,    2,    5,    6},
+    {   0,    0,    0,   -1,    0,    2,    5,    7},
+    {   0,    0,    0,    0,    0,    2,    5,    7},
+    {   0,    0,    0,    0,    0,    2,    5,    8},
+    {   0,    0,    0,    0,    0,    2,    5,    8},
+    {   0,    0,    1,    0,    1,    2,    5,    8},
+    {   0,    0,    1,    1,    1,    2,    4,    7},
+    {   0,    0,    1,    1,    1,    3,    4,    7},
+    {   0,    0,    1,    1,    2,    3,    3,    6},
+    {   0,    0,    1,    1,    2,    3,    3,    5},
+    {   0,    0,    1,    1,    2,    2,    2,    3},
+    {   0,    0,    1,    2,    2,    2,    1,    2},
+    {   0,    0,    1,    2,    3,    2,    1,    1},
+    {   0,    0,    1,    2,    3,    2,    0,   -1},
+    {   0,    0,    0,    2,    3,    2,    0,   -2},
+    {   0,    0,    0,    1,    3,    2,   -1,   -3},
+    {   0,    0,    0,    1,    2,    2,   -1,   -4},
+    {   0,    0,    0,    1,    2,    1,   -2,   -4},
+    {   0,    0,    0,    1,    2,    1,   -2,   -5},
+    {   0,    0,    0,    0,    1,    0,   -2,   -5},
+    {   0,    0,   -1,    0,    1,    0,   -2,   -5},
+    {   0,    0,   -1,    0,    0,   -1,   -2,   -5},
+    {   0,    0,   -1,   -1,    0,   -1,   -3,   -5},
+    {   0,   -1,   -1,   -1,   -1,   -2,   -3,   -4},
+    {   0,   -1,   -1,   -1,   -2,   -2,   -3,   -4},
+    {   0,   -1,   -1,   -1,   -2,   -3,   -3,   -3},
+    {   0,   -1,   -1,   -2,   -3,   -3,   -3,   -3},
+    {   0,    0,   -1,   -2,   -3,   -4,   -3,   -2},
+    {   0,    0,   -1,   -2,   -3,   -4,   -3,   -1},
+    {   0,    0,   -1,   -2,   -4,   -4,   -3,   -1},
+    {   0,    0,   -1,   -2,   -4,   -4,   -3,    0},
 };
