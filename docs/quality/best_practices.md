@@ -122,6 +122,50 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-013 — Queue-backed firmware tasks: assert completed fetch count, not commands fired
+
+**Adopted from**: LL-041  
+**Date adopted**: 2026-05-30  
+**Rule**: Any test that drives a queue-backed firmware task (dataTask, etc.) must assert that the expected number of operations *completed*, not that the expected number of commands were *sent*. Use a monotonic ok-counter in firmware state, snapshot it before the triggering command, and poll until it advances.  
+**Rationale**: FreeRTOS queues silently drop items when full. A burst of N taps may produce only `queue_depth` actual fetches — all subsequent taps are dropped with no error visible to the test. A test that asserts "N taps fired → all N ranges covered" will pass even when only 4 ranges were fetched. This pattern produced a false PASS in T186 (32 taps fired; only 4 D1/D5 fetches ran; Mo1/Ytd — the high-heap-pressure ranges — were never exercised). Fix: firmware `fetchOkCount` + `_wait_chart_complete(before)` in the harness. Pattern generalises to any queue-backed subsystem.  
+**How to apply**: (1) Add a `uint16_t xyzOkCount` field to the relevant firmware state struct. (2) Increment it on every successful operation completion. (3) Expose via `dbgGet`/`dbgSet`. (4) In the test: `before = get xyzOkCount` → trigger → poll until `xyzOkCount > before`. Check `queue_depth` before sizing burst tests.  
+**Applies to**: VE (own the counter pattern; never assert on commands-fired), Developer (add ok-counters when implementing queue-backed tasks), Architect (include ok-counter in interface spec for any queue-backed subsystem)
+
+---
+
+### BP-014 — Serial test harness: enforce thread ownership by assertion, not comment
+
+**Adopted from**: LL-042  
+**Date adopted**: 2026-05-30  
+**Rule**: The `Dut` serial harness is not thread-safe. Ownership is enforced by recording `_owner_thread` at construction and calling `_assert_owner()` at the top of every method that reads or writes `self.ser`. Any cross-thread access must raise immediately — not produce a silent ACK loss 30 seconds later.  
+**Rationale**: `Dut.cmd()` and `Dut.read_json()` assume exclusive ownership of the serial stream. A background thread reading `dut.ser` concurrently silently consumes ACKs intended for `cmd()`, causing intermittent `TimeoutError`s that look like timing issues and resist longer-timeout fixes. T186 required three implementation iterations before the root cause (background thread + serial contention) was identified. Once `_assert_owner()` was added, cross-thread misuse raises `RuntimeError` at the call site with an immediate diagnostic.  
+**How to apply**: Fire-and-forget + drain-phase pattern for async log collection: send command → do not wait for ACK → sleep → read stream directly → query state. Never spawn a thread to read `dut.ser` while `cmd()` runs on the main thread.  
+**Applies to**: VE (own the fire-and-forget pattern; never read `dut.ser` from a background thread), Developer (preserve `_assert_owner()` calls when adding new `Dut` methods)
+
+---
+
+### BP-015 — Test the actual firmware constraint, not a payload or capacity proxy
+
+**Adopted from**: LL-040  
+**Date adopted**: 2026-05-30  
+**Rule**: Before writing a budget or size check in a host test, identify the *exact* constraint the firmware enforces and assert that — not a proxy metric that correlates loosely with it. When firmware uses a JSON filter, raw payload bytes are irrelevant; when firmware caps an array at N elements, assert element count ≤ N.  
+**Rationale**: `test_yahoo_finance_api.py` T_SF_06 checked `len(raw_body) <= CHART_BUDGET_B`. After ADR-034 switched chart fetching to a JSON filter + `StaticJsonDocument<2048>`, raw payload size became irrelevant — the filter extracts only `close[]` before ArduinoJson allocates. The test gave false confidence for months. The real constraint was `non_null_close_count <= 110` (firmware's `chartPoints[110]` buffer cap). Fixing T_SF_06 to assert element count exposed the correct invariant in one line.  
+**How to apply**: (1) Read the firmware parse path before writing the host budget check. (2) Identify: is there a filter? What buffer does the output land in? What is the firmware's cap? (3) Assert that cap directly. (4) If the firmware uses `DynamicJsonDocument(N)` with no filter, raw bytes ≤ N is a reasonable (if imprecise) proxy — but add a comment explaining why and apply a 1.5× safety factor.  
+**Applies to**: VE (read firmware parse path before writing budget checks), Developer (document the effective constraint in a comment alongside any `StaticJsonDocument` or buffer-capped array)
+
+---
+
+### BP-016 — Tests must assert causal behavior, not initial state or trivially-true defaults
+
+**Adopted from**: serialdbg audit 2026-05-30  
+**Date adopted**: 2026-05-30  
+**Rule**: A test that only reads a value that the firmware always initialises to a fixed constant, or that only asserts a field is non-negative, is not a test — it is an observation. Every test function must contain at least one assertion whose failure would indicate a real firmware defect, not just an unexpected initial condition.  
+**Rationale**: The 2026-05-30 audit found 9 weak-assertion tests in the 78-test serialdbg suite. Representative examples: T136 asserts `scrollOffset=0` on startup (trivially true; proves nothing); T178 asserts `chartRange=D1` after `drillToChart()` (hardcoded in the function; cannot fail); T_GOL_04 asserts `golAlive >= 0` (asserts a uint is non-negative). None of these can catch a real regression. A test that cannot fail is not providing coverage — it is consuming run-time and creating false confidence.  
+**How to apply**: For each test, ask: "What firmware defect would cause this assertion to fail?" If the answer is "nothing realistic", the assertion is wrong. Fix options: (a) replace the trivial assertion with a causal one (assert state *after* an action, not the initial state before it); (b) fold the initial-state check into the *setup* block of the test that exercises the behavior; (c) remove the test and document why the coverage is intentionally absent.  
+**Applies to**: VE (apply the "what defect would break this?" test before finalising any assertion), QM (flag trivially-true assertions in audits as AMBER; escalate to RED if a suite has > 10% trivial tests)
+
+---
+
 ## Entry Format
 
 ```
