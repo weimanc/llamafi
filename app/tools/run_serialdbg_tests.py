@@ -2196,12 +2196,13 @@ def t175(dut: Dut):
 # ── T176 — Plot bounds (automated proxy only) ─────────────────────────────────
 
 def t176(dut: Dut):
-    """T176 (C2): chart fetch completes; lastChartFetch>0 confirms data received."""
-    print("T176  Plot bounds (automated: lastChartFetch proxy; pixel check manual)")
+    """T176 (C2): chart fetch completes; fetchOkCount advances confirms data received."""
+    print("T176  Plot bounds (automated: fetchOkCount advance; pixel check manual)")
     if not _switch_to_stock(dut):
         skip("T176", "could not switch to Stock")
         _restore_from_stock(dut)
         return
+    before = _stock_ok_count(dut)
     dut.set_cooldown_zero()
     dut.cmd("tap 137 36", timeout=3.0)  # drill into AAPL
     time.sleep(0.3)
@@ -2210,20 +2211,13 @@ def t176(dut: Dut):
         skip("T176", "could not enter chart view")
         _restore_from_stock(dut)
         return
-    # Wait for chart fetch to complete (up to 30 s).
-    deadline = time.monotonic() + 30.0
-    fetched = False
-    while time.monotonic() < deadline:
-        r = _stock_get(dut, "lastChartFetch")
-        if r.get("ok") and int(r.get("val", 0)) > 0:
-            fetched = True
-            break
-        time.sleep(1.0)
-    _restore_from_stock(dut)
-    if not fetched:
-        fail("T176", "lastChartFetch still 0 after 30 s — chart fetch did not complete")
+    print(f"  [T176] drill-in complete (fetchOkCount={before}); waiting for fetch…", flush=True)
+    if not _wait_chart_complete(dut, before, timeout_s=45.0):
+        _restore_from_stock(dut)
+        fail("T176", "fetchOkCount did not advance after 45 s — chart fetch did not complete")
         return
-    pass_("T176", "lastChartFetch>0 — chart data received; pixel bounds check is manual (y:18..213)")
+    _restore_from_stock(dut)
+    pass_("T176", "fetchOkCount advanced — chart data received; pixel bounds check is manual (y:18..213)")
 
 
 # ── T177 — Range tab switch ───────────────────────────────────────────────────
