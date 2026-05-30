@@ -208,14 +208,14 @@ private:
     static constexpr float    CRAB_SLEEP_SWAY_Y_AMP    = 2.0f;
     static constexpr float    CRAB_SLEEP_SWAY_SPEED    = 1.5f;
     static constexpr float    CRAB_SLEEP_SWAY_PHASE    = 0.5f;
-    static constexpr uint16_t CRAB_SLEEP_Z_COLOR       = _RGB565(120, 0, 80);
+    static constexpr uint16_t CRAB_SLEEP_Z_COLOR       = 0x780A;
     static constexpr int      CRAB_LEG_CHAR_W          = 3;
     static constexpr float    CRAB_LEG_WAVE_SPEED      = 4.0f;
     static constexpr float    CRAB_LEG_WAVE_AMP        = 2.0f;
     static constexpr float    CRAB_LEG_WAVE_SPACING    = 0.85f;
     static constexpr float    CRAB_LEG_WAVE_IDLE_SCALE = 0.15f;
     static constexpr float    CRAB_LEG_WAVE_LERP_RATE  = 2.0f;
-    static constexpr uint16_t CRAB_LEG_COLOR           = _RGB565(160, 0, 0);
+    static constexpr uint16_t CRAB_LEG_COLOR           = 0xA000;
     static constexpr uint32_t CRAB_MEAL_SLEEP_MIN_MS   = 10000;
     static constexpr uint32_t CRAB_MEAL_SLEEP_MAX_MS   = 60000;
     static constexpr int      CRAB_MEAL_FISH_W_MIN     = 12;
