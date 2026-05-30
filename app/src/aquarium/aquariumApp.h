@@ -186,6 +186,10 @@ private:
     static constexpr float CRAB_SLEEP_SWAY_AMP   = 2.0f;
     static constexpr float CRAB_SLEEP_SWAY_SPEED = 1.5f;
     static constexpr float CRAB_SLEEP_SWAY_PHASE = 0.5f;
+    static constexpr int   CRAB_LEG_CHAR_W       = 3;
+    static constexpr float CRAB_LEG_WAVE_SPEED   = 4.0f;
+    static constexpr float CRAB_LEG_WAVE_AMP     = 2.0f;
+    static constexpr float CRAB_LEG_WAVE_SPACING = 0.85f;
 
     // Physics constants (transcribed from upstream lines 300-327)
     static constexpr float FISH_SWIM_WAVE_AMPLITUDE     = 1.5f;
@@ -262,6 +266,7 @@ private:
         uint32_t pinchFrameMs;
         uint32_t sleepZFrameMs;
         uint32_t lastTargetSeenMs;
+        float    phase;
     };
 
     // ── Members ──────────────────────────────────────────────────────────────
@@ -280,6 +285,7 @@ private:
     Octopus  _octopus;
     Seahorse _seahorse;
     Crab     _crab;
+    int16_t  _crabBodyW = 49;
     float    _seaweedBaseX[AQ_SEAWEED_ROOTS];
     float    _seaweedSpeed[AQ_SEAWEED_ROOTS];
     float    _seaweedPhase[AQ_SEAWEED_ROOTS];
@@ -1064,6 +1070,8 @@ private:
 
     // ── Crab ──────────────────────────────────────────────────────────────────
     void initCrab() {
+        _canvas.setTextFont(2);
+        _crabBodyW = (int16_t)_canvas.textWidth("v(._.)v");
         uint32_t now           = millis();
         _crab.x                = AQ_CANVAS_W * 0.5f;
         _crab.direction        = 1;
@@ -1077,6 +1085,7 @@ private:
         _crab.pinchFrameMs     = now;
         _crab.sleepZFrameMs    = now;
         _crab.lastTargetSeenMs = now;
+        _crab.phase            = _frand(0.0f, 6.28318f);
     }
 
     // Returns fish pool index of nearest fish in pinch range, or -1.
@@ -1230,7 +1239,6 @@ private:
         _canvas.setTextColor(TFT_RED);
 
         int cx = (int)_crab.x;
-        int lx = cx + CRAB_CHAR_W;
         int ly = localBodyY + CRAB_LEG_OVERLAP_PX;
 
         switch (_crab.state) {
@@ -1270,8 +1278,32 @@ private:
                 break;
         }
 
-        const char* legs = (_crab.state == Crab::State::WALK) ? kLegFrames[_crab.walkFrame] : ",,,,";
-        _canvas.drawString(legs, lx, ly);
+        bool walking = (_crab.state == Crab::State::WALK);
+        const char* leftLegs  = walking ? kLegFrames[_crab.walkFrame]           : ",,,,";
+        const char* rightLegs = walking ? kLegFrames[(_crab.walkFrame + 2) & 3] : ",,,,";
+        int lx = cx + CRAB_CHAR_W;
+        int rx = cx + _crabBodyW - CRAB_CHAR_W - CRAB_LEG_CHAR_W * 4;
+
+        float waveBase = _timeSec() * CRAB_LEG_WAVE_SPEED + _crab.phase;
+        float wave  = sinf(waveBase);
+        float waveC = cosf(waveBase);
+        static const float kLegSin = sinf(CRAB_LEG_WAVE_SPACING);
+        static const float kLegCos = cosf(CRAB_LEG_WAVE_SPACING);
+
+        for (int i = 0; i < 4; ++i) {
+            int yo = (int)(wave * CRAB_LEG_WAVE_AMP);
+            _canvas.drawChar(uint16_t(leftLegs[i]), lx + i * CRAB_LEG_CHAR_W, ly + yo);
+            float nw = wave * kLegCos + waveC * kLegSin;
+            waveC = waveC * kLegCos - wave * kLegSin;
+            wave = nw;
+        }
+        for (int i = 0; i < 4; ++i) {
+            int yo = (int)(wave * CRAB_LEG_WAVE_AMP);
+            _canvas.drawChar(uint16_t(rightLegs[i]), rx + i * CRAB_LEG_CHAR_W, ly + yo);
+            float nw = wave * kLegCos + waveC * kLegSin;
+            waveC = waveC * kLegCos - wave * kLegSin;
+            wave = nw;
+        }
 
         if (_crab.state == Crab::State::SLEEP) {
             float nowSec = millis() * 0.001f;
