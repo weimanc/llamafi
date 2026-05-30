@@ -22,7 +22,7 @@ Crab implemented per `crab.md`. Issues observed on DUT plus one enhancement:
 | CRAB-FIX-006 | Leg raise char `'` too high — replace with `.` |
 | CRAB-FIX-007 | Crab too aggressive; add post-meal sleep + satiated cooldown + tap-to-wake |
 | CRAB-FIX-008 | ZZZ column sway too subtle; increase to ±4 px X, add ±2 px Y |
-| CRAB-FIX-009 | Crab never moves in Y; add slow vertical wandering |
+| CRAB-FIX-009 | Crab never moves in Y; add diagonal walk (Y coupled to X, 4 px range) |
 
 ---
 
@@ -368,7 +368,7 @@ Replace `'` with `.` in `kLegFrames`:
 // before:
 static const char* kLegFrames[4] = { "',,,", ",',,", ",,',", ",,,' " };
 // after:
-static const char* kLegFrames[4] = { ".,,,", ",.,," , ",,.," , ",,," };
+static const char* kLegFrames[4] = { ".,,,", ",.,," , ",,.," , ",,,." };
 ```
 
 One-line change. No logic, no constant, no struct change.
@@ -501,49 +501,54 @@ The `cosf` reuses the same angle already computed for `sinf` — no extra trig c
 
 ---
 
-## CRAB-FIX-009 — Crab Y wandering
+## CRAB-FIX-009 — Crab diagonal walk (sideways like a real crab)
 
 ### Problem
 
-Crab is glued to `CRAB_Y_LOCAL`. It never moves vertically, making it feel pinned rather than alive.
+Crab is glued to `CRAB_Y_LOCAL`. Real crabs walk sideways — the natural gait is diagonal, not purely horizontal. Y should only change when X is also changing; no independent up/down wandering.
 
 ### Design
 
-Add `float y` to the Crab struct (alongside existing `float x`). The crab wanders slowly in Y within the bottom zone.
+Add `float y` and `float vy` to the Crab struct. `vy` is a slow Y velocity that is applied only while walking. Y is bounded to a 4 px range so the diagonal is subtle.
 
 **New Crab struct fields:**
 ```cpp
-float y;          // current Y in canvas-local coords; init = CRAB_Y_LOCAL
-float targetY;    // destination the crab drifts toward
+float y;    // current Y; init = CRAB_Y_LOCAL
+float vy;   // Y velocity (px/s); randomised on direction reversal
 ```
 
-**Y bounds** (bottom zone, leaves room for legs):
+**Y bounds:**
 ```cpp
-static constexpr int CRAB_Y_MIN = CRAB_Y_LOCAL - 35;   // up from floor
-static constexpr int CRAB_Y_MAX = CRAB_Y_LOCAL;         // floor
+static constexpr int   CRAB_Y_MIN        = CRAB_Y_LOCAL - 4;  // 4 px total range
+static constexpr int   CRAB_Y_MAX        = CRAB_Y_LOCAL;
+static constexpr float CRAB_VY_MAX_PX_S  = 1.0f;              // keeps diagonal shallow
 ```
 
-**Movement** — in `updateCrab()` WALK state, periodically pick a new `targetY` and drift toward it:
+**Movement — in `updateCrab()` WALK state, after X is updated:**
+
+Y moves only when X moves (coupled):
 ```cpp
-// re-target occasionally (reuse existing cute-chance style roll):
-if (random(10000) < 3) {   // ~0.03% per tick → new target every ~30 s on average
-    c.targetY = _frand(float(CRAB_Y_MIN), float(CRAB_Y_MAX));
-}
-// drift toward target at fixed speed (slower than X):
-float dy = c.targetY - c.y;
-float step = CRAB_Y_SPEED_PX_S * dt;
-if (fabsf(dy) < step) c.y = c.targetY;
-else                   c.y += (dy > 0 ? step : -step);
+c.y += c.vy * dt;
+c.y  = _clamp(c.y, float(CRAB_Y_MIN), float(CRAB_Y_MAX));
+// bounce vy at Y bounds so crab doesn't freeze against the wall:
+if (c.y <= float(CRAB_Y_MIN) || c.y >= float(CRAB_Y_MAX)) c.vy = -c.vy;
 ```
 
-New constant:
+**Randomise `vy` on X direction reversal** (edge hit or seaweed avoidance removed, but edge reversal remains):
 ```cpp
-static constexpr float CRAB_Y_SPEED_PX_S = 4.0f;   // ~1/3 of X speed
+// where direction flips:
+c.direction = -c.direction;
+c.vy = _frand(-CRAB_VY_MAX_PX_S, CRAB_VY_MAX_PX_S);
 ```
 
-**In `drawCrab()`:** replace all `CRAB_Y_LOCAL` references with `(int)_crab.y`. ZZZ column anchor updates accordingly. No other draw changes needed.
+Also set a random `vy` in `initCrab()`:
+```cpp
+_crab.vy = _frand(-CRAB_VY_MAX_PX_S, CRAB_VY_MAX_PX_S);
+```
 
-**SLEEP / PINCH states:** `y` is not updated while not in WALK (crab stays put). `targetY` persists across state changes.
+Y is **not updated** in SLEEP, PINCH, or CUTE states — crab stays put while not walking.
+
+**In `drawCrab()`:** replace all `CRAB_Y_LOCAL` references with `(int)_crab.y`. ZZZ column anchor updates accordingly.
 
 ---
 
@@ -559,4 +564,4 @@ static constexpr float CRAB_Y_SPEED_PX_S = 4.0f;   // ~1/3 of X speed
 | CRAB-FIX-006 | Leg raise uses `.` — subtle lift at baseline, not `'` flying high |
 | CRAB-FIX-007 | Post-meal sleep (10–60 s by fish size); satiated cooldown (30 s, fish-only); tap crab to reduce both |
 | CRAB-FIX-008 | ZZZ sways ±4 px X, ±2 px Y (elliptical motion) |
-| CRAB-FIX-009 | Crab drifts in Y within ±35 px of floor at 4 px/s; `y` and `targetY` added to struct |
+| CRAB-FIX-009 | Crab walks diagonally (Y coupled to X); ±4 px range, `vy` randomised on X reversal |
