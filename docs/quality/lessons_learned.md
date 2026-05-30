@@ -806,6 +806,23 @@ Triggering incident: user observed "NET ERR -99" on screen while manually cyclin
 
 **Status**: adopted → BP-014 (2026-05-30).
 
+### LL-043 — 2026-05-30 — VE agent spent first 10 minutes diagnosing a wrong DUT state claim before running any tests
+
+**Context**: TASK-112 VE rerun. PM handoff stated "DUT is running a May 30 2026-06:39:34 debug build (aquarium agent flashed it)." The prior session was the aquarium CRAB-FIX-011–014 agent, which would have flashed the production target (`cyd2usb_winamp`) for visual verification — the debug target was never relevant to that work. The build timestamp in the heartbeat matched, which looked like confirmation.
+
+**Observation**: The DUT had production firmware (`cyd2usb_winamp`, no `SERIAL_DEBUG`). The VE agent's first test run failed with `set cooldown 0 failed: {'ok': False, 'error': 'unknown command', 'cmd': 'set'}`. Diagnosing this required tracing through firmware source to distinguish `unknown command` (command not in `kCmds[]` at all — implies no `SERIAL_DEBUG`) from `unknown var` (command found, variable not found — implies debug firmware running but variable not registered). The agent correctly identified the root cause and reflashed the debug build, but consumed ~10 minutes and multiple tool calls before the first real test ran. The user notes this is a recurring pattern — prior agents have hit the same wall.
+
+**Root cause**: Two compounding factors:
+1. **Stale DUT state in handoff**: The prior agent (aquarium) flashed production firmware for its own testing, left the DUT in that state, and the PM handoff did not verify the build type — it inherited the claim from context. Build timestamps match between production and debug builds (same source, same date), so the heartbeat `build=May 30 2026-06:39:34` gave false confidence.
+2. **No explicit SERIAL_DEBUG probe at harness startup**: `run_serialdbg_tests.py` connects, waits for DUT ready, then runs tests. It never explicitly checks that debug-only commands are available. The smoke check (T169) exercises `set cooldown 0` but the failure message is ambiguous to an agent without firmware-source context.
+
+**Suggested improvement**:
+1. **Harness-level preflight**: Add a `_verify_debug_firmware()` step to `Dut._wait_for_ready()` or as the first step in `main()`. Send `get heap` and check the response. If `ok: false, error: "unknown command"` → raise `RuntimeError("Production firmware detected — SERIAL_DEBUG not active. Reflash cyd2usb_winamp_debug before running tests.")`. This makes the diagnostic self-contained in ≤1s with zero firmware-source knowledge required.
+2. **PM handoff: always state the flash command used**: The PM handoff should record the exact `pio run -e <ENV>` command the prior agent ran, not just the build timestamp. `cyd2usb_winamp` (production) vs `cyd2usb_winamp_debug` is the critical distinction.
+3. **Agent briefings: treat DUT state as unverified**: Any briefing note that says "DUT is running X" should be treated as a *claim to verify*, not a *fact*. The first VE step should be preflight verification regardless of what the context says.
+
+**Status**: open
+
 ---
 
 ## Entry Format
