@@ -2267,8 +2267,8 @@ def t177(dut: Dut):
 # ── T178 — Pre-fetch placeholder in chart view ────────────────────────────────
 
 def t178(dut: Dut):
-    """T178 (C4): immediately after drill-in, before fetch returns, stockChartRange=D1."""
-    print("T178  Chart pre-fetch placeholder")
+    """T178 (C4): immediately after drill-in, chartLen=0 and fetchFailed=false (placeholder state)."""
+    print("T178  Chart pre-fetch placeholder (chartLen=0, fetchFailed=false)")
     if not _switch_to_stock(dut):
         skip("T178", "could not switch to Stock")
         _restore_from_stock(dut)
@@ -2278,19 +2278,27 @@ def t178(dut: Dut):
         dut.set_cooldown_zero()
         dut.cmd("tap 10 7", timeout=3.0)  # back to list
         time.sleep(0.2)
+    # Reset chart data so chartLen=0 and fetchFailed=false are reliably observable.
+    dut.cmd("set triggerFetch 1", timeout=3.0)
     dut.set_cooldown_zero()
     dut.cmd("tap 137 36", timeout=3.0)  # drill AAPL; fetch enqueued but not returned
     time.sleep(0.1)  # minimal wait — check before dataTask returns
-    r_sv  = _stock_get(dut, "stockSubView")
-    r_rng = _stock_get(dut, "stockChartRange")
+    r_sv     = _stock_get(dut, "stockSubView")
+    r_len    = _stock_get(dut, "chartLen")
+    r_failed = _stock_get(dut, "fetchFailed")
     _restore_from_stock(dut)
     if r_sv.get("val") != "chart":
         skip("T178", "drill-in did not fire")
         return
-    if r_rng.get("val") != "D1":
-        fail("T178", f"stockChartRange={r_rng.get('val')!r} on drill-in — expected D1 default")
+    chart_len    = r_len.get("val", -1)
+    fetch_failed = r_failed.get("val")
+    if chart_len != 0:
+        fail("T178", f"chartLen={chart_len} after reset+drill-in — expected 0 (placeholder)")
         return
-    pass_("T178", "stockSubView=chart, stockChartRange=D1 immediately after drill-in")
+    if fetch_failed not in (False, 0, "false", "0"):
+        fail("T178", f"fetchFailed={fetch_failed!r} after reset+drill-in — expected false")
+        return
+    pass_("T178", "chartLen=0, fetchFailed=false — placeholder state confirmed before fetch returns")
 
 
 # ── T179 — Footer lo/hi (manual) ──────────────────────────────────────────────

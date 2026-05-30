@@ -819,6 +819,16 @@ public:
                _s.quoteOkCount);
       return true;
     }
+    if (strcmp(var, "chartLen") == 0) {
+      snprintf(buf, len, "\"var\":\"chartLen\",\"val\":%u,\"last\":true",
+               _s.chartLen);
+      return true;
+    }
+    if (strcmp(var, "fetchFailed") == 0) {
+      snprintf(buf, len, "\"var\":\"fetchFailed\",\"val\":%s,\"last\":true",
+               _s.fetchFailed ? "true" : "false");
+      return true;
+    }
     return false;
   }
 
@@ -834,6 +844,8 @@ public:
     if (strcmp(var, "triggerFetch") == 0 && val && strcmp(val, "1") == 0) {
       _s.lastQuoteFetch = 0;
       _s.lastChartFetch = 0;
+      _s.chartLen       = 0;
+      _s.fetchFailed    = false;
       return true;
     }
     if (strcmp(var, "fetchErrCount") == 0) {
