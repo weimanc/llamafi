@@ -814,6 +814,11 @@ public:
                _s.fetchOkCount);
       return true;
     }
+    if (strcmp(var, "quoteOkCount") == 0) {
+      snprintf(buf, len, "\"var\":\"quoteOkCount\",\"val\":%u,\"last\":true",
+               _s.quoteOkCount);
+      return true;
+    }
     return false;
   }
 
@@ -837,6 +842,10 @@ public:
     }
     if (strcmp(var, "fetchOkCount") == 0) {
       _s.fetchOkCount = 0;
+      return true;
+    }
+    if (strcmp(var, "quoteOkCount") == 0) {
+      _s.quoteOkCount = 0;
       return true;
     }
     return false;
@@ -989,6 +998,7 @@ private:
         }
         _s.fetchFailed    = false;
         _s.fetchErrorCode = 0;
+        _s.quoteOkCount++;
       } else {
         _s.fetchFailed    = true;
         _s.fetchErrorCode = r.errorCode;

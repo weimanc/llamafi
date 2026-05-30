@@ -2000,6 +2000,17 @@ def _stock_ok_count(dut: Dut) -> int:
     return -1
 
 
+def _stock_quote_ok_count(dut: Dut) -> int:
+    """Return current quoteOkCount from firmware, or -1 on error."""
+    r = _stock_get(dut, "quoteOkCount")
+    if r.get("ok"):
+        try:
+            return int(r.get("val", -1))
+        except (ValueError, TypeError):
+            pass
+    return -1
+
+
 def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0) -> bool:
     """Wait until fetchOkCount advances past `before` — proves a chart fetch completed
     (HTTP + parse), not just that it was enqueued (LL-041). `before` must be snapshotted
@@ -2043,29 +2054,27 @@ def t169(dut: Dut):
 # ── T170 — Pre-fetch placeholders ─────────────────────────────────────────────
 
 def t170(dut: Dut):
-    """T170 (L2): immediately after Stock launch, lastQuoteFetch>0 and prices not yet received."""
-    print("T170  Pre-fetch placeholder state")
-    # Check whether Stock was already fetched this session.
-    r_pre = _stock_get(dut, "lastQuoteFetch")
-    if r_pre.get("ok") and int(r_pre.get("val", 0)) > 0:
-        # Already fetched — can only verify via a fresh session.
-        skip("T170", "lastQuoteFetch already set — pre-fetch state not observable mid-session")
-        return
+    """T170 (L2): quote fetch completes after Stock switch-in; quoteOkCount advances within 65 s."""
+    print("T170  Quote fetch completes after switch-in")
     if not _switch_to_stock(dut):
         skip("T170", "could not switch to Stock")
         _restore_from_stock(dut)
         return
-    # init() sets lastQuoteFetch = millis() immediately and enqueues the fetch.
-    r = _stock_get(dut, "lastQuoteFetch")
+    before = _stock_quote_ok_count(dut)
+    print(f"  [T170] switched to Stock (quoteOkCount={before}); waiting for quote fetch…", flush=True)
+    deadline = time.monotonic() + 65.0
+    advanced = False
+    while time.monotonic() < deadline:
+        current = _stock_quote_ok_count(dut)
+        if current > before:
+            advanced = True
+            break
+        time.sleep(2.0)
     _restore_from_stock(dut)
-    if not r.get("ok"):
-        fail("T170", f"get lastQuoteFetch failed: {r}")
+    if not advanced:
+        fail("T170", "quoteOkCount did not advance within 65 s — quote fetch may not have completed")
         return
-    val = int(r.get("val", 0))
-    if val == 0:
-        fail("T170", "lastQuoteFetch still 0 after init() — init() did not set timestamp")
-        return
-    pass_("T170", f"lastQuoteFetch={val} — init() enqueued fetch; placeholder state confirmed")
+    pass_("T170", f"quoteOkCount advanced past {before} — quote fetch completed")
 
 
 # ── T171 — Colour coding (data-dependent) ─────────────────────────────────────
