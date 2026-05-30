@@ -809,6 +809,11 @@ public:
                _s.fetchErrCount);
       return true;
     }
+    if (strcmp(var, "fetchOkCount") == 0) {
+      snprintf(buf, len, "\"var\":\"fetchOkCount\",\"val\":%u,\"last\":true",
+               _s.fetchOkCount);
+      return true;
+    }
     return false;
   }
 
@@ -828,6 +833,10 @@ public:
     }
     if (strcmp(var, "fetchErrCount") == 0) {
       _s.fetchErrCount = 0;
+      return true;
+    }
+    if (strcmp(var, "fetchOkCount") == 0) {
+      _s.fetchOkCount = 0;
       return true;
     }
     return false;
@@ -1006,6 +1015,7 @@ private:
         _s.chartHi        = r.hi;
         _s.fetchFailed    = false;
         _s.fetchErrorCode = 0;
+        _s.fetchOkCount++;
       } else {
         _s.fetchFailed    = true;
         _s.fetchErrorCode = r.errorCode;

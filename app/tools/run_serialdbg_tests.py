@@ -53,6 +53,12 @@ class Dut:
         self.ser.dtr = False
         self.ser.rts = False
         self.ser.open()
+        # Serial stream is NOT thread-safe. All methods that touch self.ser must be
+        # called from the thread that constructed this Dut. Never read self.ser from
+        # a background thread concurrently with cmd()/read_json() — ACKs will be
+        # silently consumed, causing timeouts. Use fire-and-forget + drain-phase
+        # pattern for tests that need async log collection (LL-042).
+        self._owner_thread = threading.current_thread()
         self._wait_for_ready()
 
     def _wait_for_ready(self):
@@ -143,7 +149,15 @@ class Dut:
             time.sleep(2.0)
         return False
 
+    def _assert_owner(self):
+        if threading.current_thread() is not self._owner_thread:
+            raise RuntimeError(
+                "Dut serial access from wrong thread — see LL-042. "
+                "Use fire-and-forget + drain-phase pattern instead of background threads."
+            )
+
     def send(self, cmd: str):
+        self._assert_owner()
         self.ser.write((cmd + "\n").encode())
         self.ser.flush()
 
@@ -181,6 +195,7 @@ class Dut:
 
     def drain_log_lines(self, pattern: str, count: int, timeout: float = 10.0) -> list[str]:
         """Collect `count` log lines matching `pattern` within timeout."""
+        self._assert_owner()
         matches = []
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline and len(matches) < count:
@@ -1974,16 +1989,27 @@ def _wait_quote_fetch(dut: Dut, baseline: int, timeout_s: float = 65.0) -> bool:
     return False
 
 
-def _wait_chart_enqueue(dut: Dut, timeout_s: float = 10.0) -> bool:
-    """Wait until lastChartFetch > 0 (fetch enqueued by firmware tick).
-    lastChartFetch is set at enqueue time, not completion — caller must add
-    a fixed sleep (~30 s) before checking fetchFailed for result correctness."""
+def _stock_ok_count(dut: Dut) -> int:
+    """Return current fetchOkCount from firmware, or -1 on error."""
+    r = _stock_get(dut, "fetchOkCount")
+    if r.get("ok"):
+        try:
+            return int(r.get("val", -1))
+        except (ValueError, TypeError):
+            pass
+    return -1
+
+
+def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0) -> bool:
+    """Wait until fetchOkCount advances past `before` — proves a chart fetch completed
+    (HTTP + parse), not just that it was enqueued (LL-041). `before` must be snapshotted
+    from fetchOkCount before the triggering tap/command. Returns True on success."""
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        r = _stock_get(dut, "lastChartFetch")
-        if r.get("ok") and int(r.get("val", 0)) > 0:
+        current = _stock_ok_count(dut)
+        if current > before:
             return True
-        time.sleep(0.5)
+        time.sleep(1.0)
     return False
 
 
@@ -2531,22 +2557,21 @@ def _t18x_guard(dut: Dut, tid: str, ticker: str, row_y: int):
         fail(tid, f"stockChartTicker={r_tk.get('val')!r} — expected {ticker}")
         _restore_from_stock(dut)
         return
-    # Reset and trigger a fresh chart fetch.
+    # Snapshot ok count, trigger fetch, wait for proven completion (LL-041).
+    before = _stock_ok_count(dut)
     dut.cmd("set triggerFetch 1", timeout=3.0)
-    if not _wait_chart_enqueue(dut, timeout_s=10.0):
-        fail(tid, "lastChartFetch stayed 0 — fetch not enqueued (guard still blocking?)")
+    print(f"  [{tid}] fetch triggered (fetchOkCount={before}); waiting for completion…", flush=True)
+    if not _wait_chart_complete(dut, before, timeout_s=45.0):
         _restore_from_stock(dut)
+        fail(tid, f"fetchOkCount did not advance after 45 s for {ticker} — guard fix may not have landed")
         return
-    # Wait for HTTP to complete (lastChartFetch only marks enqueue, not completion).
-    print(f"  [{tid}] fetch enqueued; waiting 35 s for HTTP…", flush=True)
-    time.sleep(35.0)
     r_ff   = _stock_get(dut, "fetchFailed")
     r_code = _stock_get(dut, "fetchErrorCode")
     _restore_from_stock(dut)
     if r_ff.get("val") == "1" or r_ff.get("val") is True:
-        fail(tid, f"fetchFailed=1 errorCode={r_code.get('val')} for {ticker} — guard fix may not have landed")
+        fail(tid, f"fetchFailed=1 errorCode={r_code.get('val')} for {ticker}")
         return
-    pass_(tid, f"{ticker} chart fetch completed; fetchFailed=0")
+    pass_(tid, f"{ticker} chart fetch completed; fetchOkCount advanced")
 
 
 def t186(dut: Dut):
@@ -2583,23 +2608,26 @@ def t188(dut: Dut):
         _restore_from_stock(dut)
         return
 
-    FETCH_WAIT_S = 35  # conservative: covers TLS + HTTP + parse on fragmented heap
     # Use tab taps (not triggerFetch) — tab taps only enqueue DATA_FETCH_STOCK_CHART.
     # triggerFetch also resets lastQuoteFetch, triggering an 8-ticker quote fetch
     # in parallel that can take 60 s+, causing serial timeouts mid-test.
+    #
+    # Pattern (LL-041): snapshot fetchOkCount before tap → tap → wait for count to
+    # advance → proven completion, not a blind sleep. Queue depth is irrelevant
+    # because we observe the counter, not the number of taps fired.
 
     for tab_idx, (tx, ty) in enumerate(_TAB_XY):
         tab_name = _TAB_NAMES[tab_idx]
-        # Tap the tab — sets chartRange, resets lastChartFetch=0, enqueues chart fetch.
+        before = _stock_ok_count(dut)
         dut.set_cooldown_zero()
         dut.cmd(f"tap {tx} {ty}", timeout=5.0)
-        if not _wait_chart_enqueue(dut, timeout_s=10.0):
-            fail("T188", f"lastChartFetch stayed 0 on {tab_name} — fetch not enqueued")
+        print(f"  [T188] {tab_name} tapped (fetchOkCount={before}); waiting for completion…", flush=True)
+        if not _wait_chart_complete(dut, before, timeout_s=45.0):
             dut.cmd("set fetchFailed 0", timeout=3.0)
+            dut.cmd("set fetchErrorCode 0", timeout=3.0)
             _restore_from_stock(dut)
+            fail("T188", f"fetchOkCount did not advance on {tab_name} — fetch may not have completed")
             return
-        print(f"  [T188] {tab_name} enqueued; waiting {FETCH_WAIT_S} s…", flush=True)
-        time.sleep(FETCH_WAIT_S)
         r_ff   = _stock_get(dut, "fetchFailed", timeout=8.0)
         r_code = _stock_get(dut, "fetchErrorCode", timeout=8.0)
         if r_ff.get("val") == "1" or r_ff.get("val") is True:
@@ -2611,7 +2639,7 @@ def t188(dut: Dut):
         print(f"  [T188] {tab_name} ok", flush=True)
 
     _restore_from_stock(dut)
-    pass_("T188", f"all 4 ranges (D1/D5/Mo1/Ytd) fetched without -99 — getStream() fix confirmed")
+    pass_("T188", "all 4 ranges (D1/D5/Mo1/Ytd) fetched without -99 — getStream() fix confirmed")
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
