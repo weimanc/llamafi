@@ -19,6 +19,10 @@ Crab implemented per `crab.md`. Issues observed on DUT plus one enhancement:
 | CRAB-FIX-003 | Crab stuck at one spot; no x movement |
 | CRAB-FIX-004 | Seaweed trig cost forces two-zone split; fish floor constraint; 22 KB heap locked — replace with displacement LUT + uniform strips |
 | CRAB-FIX-005 | Crab Y is fixed; add gentle full-body sway like fish swim wave |
+| CRAB-FIX-006 | Leg raise char `'` too high — replace with `.` |
+| CRAB-FIX-007 | Crab too aggressive; add post-meal sleep + satiated cooldown + tap-to-wake |
+| CRAB-FIX-008 | ZZZ column sway too subtle; increase to ±4 px X, add ±2 px Y |
+| CRAB-FIX-009 | Crab never moves in Y; add slow vertical wandering |
 
 ---
 
@@ -350,6 +354,199 @@ Body row, ZZZ column, and all other draw calls remain at fixed `CRAB_Y_LOCAL`.
 
 ---
 
+## CRAB-FIX-006 — Leg raise character: `'` → `.`
+
+### Problem
+
+The apostrophe (`'`) renders near the top of the character cell — visually it looks like the leg is flying upward rather than being subtly lifted. The period (`.`) sits at the baseline mid-height, giving a much more subtle "foot lifted slightly off the ground" impression.
+
+### Fix
+
+Replace `'` with `.` in `kLegFrames`:
+
+```cpp
+// before:
+static const char* kLegFrames[4] = { "',,,", ",',,", ",,',", ",,,' " };
+// after:
+static const char* kLegFrames[4] = { ".,,,", ",.,," , ",,.," , ",,," };
+```
+
+One-line change. No logic, no constant, no struct change.
+
+---
+
+## CRAB-FIX-007 — Post-meal sleep + satiated cooldown + tap-to-wake
+
+### Problem
+
+Crab eats fish too aggressively — no consequence for a kill, no hunger cycle.
+
+### Design
+
+**Three new behavioural layers stacked on the existing state machine:**
+
+#### Layer 1 — Post-meal sleep duration scales with fish size
+
+On a successful pinch hit, sleep duration is proportional to `visualWidth` of the eaten fish:
+
+```cpp
+// fish visualWidth range ≈ 12 px (smallest) .. 66 px (largest)
+static constexpr uint32_t CRAB_MEAL_SLEEP_MIN_MS = 10000;   // 10 s
+static constexpr uint32_t CRAB_MEAL_SLEEP_MAX_MS = 60000;   // 60 s
+static constexpr int      CRAB_MEAL_FISH_W_MIN   = 12;
+static constexpr int      CRAB_MEAL_FISH_W_MAX   = 66;
+
+uint32_t mealSleepMs = CRAB_MEAL_SLEEP_MIN_MS
+    + uint32_t((visualWidth - CRAB_MEAL_FISH_W_MIN)
+               * (CRAB_MEAL_SLEEP_MAX_MS - CRAB_MEAL_SLEEP_MIN_MS)
+               / (CRAB_MEAL_FISH_W_MAX - CRAB_MEAL_FISH_W_MIN));
+```
+
+New field in Crab struct:
+```cpp
+uint32_t sleepDurationMs;   // set on SLEEP entry; 0 = use CRAB_SLEEP_MS (idle default)
+```
+
+On SLEEP entry from a meal: `c.sleepDurationMs = mealSleepMs`.  
+On SLEEP entry from idle timeout: `c.sleepDurationMs = CRAB_SLEEP_MS`.  
+SLEEP→WALK transition uses `c.sleepDurationMs` instead of the hardcoded constant.
+
+#### Layer 2 — Satiated cooldown (no fish targeting after a meal)
+
+After waking from a **meal sleep**, the crab ignores fish for a cooldown period but will still eat flakes.
+
+New field in Crab struct:
+```cpp
+uint32_t satiatedUntilMs;   // absolute timestamp; 0 = hungry
+```
+
+New constant:
+```cpp
+static constexpr uint32_t CRAB_SATIATED_MS = 30000;   // 30 s post-wake cooldown
+```
+
+On SLEEP→WALK from a meal sleep: `c.satiatedUntilMs = now + CRAB_SATIATED_MS`.  
+On SLEEP→WALK from idle sleep: `c.satiatedUntilMs` unchanged (already 0 or expired).
+
+In `updateCrab()` WALK proximity scan — fish targeting gate:
+```cpp
+// only add fish to pinch candidates if not satiated:
+if (now >= c.satiatedUntilMs) {
+    // ... existing fish scan
+}
+// flake scan always runs
+```
+
+#### Layer 3 — Tap crab to reduce sleep + satiated timers
+
+In `handleInput()`, before spawning a flake, check if the touch falls on the crab:
+
+```cpp
+bool onCrab = (x >= (int)_crab.x && x <= (int)_crab.x + CRAB_W_PX
+            && y >= CRAB_Y - 4 && y <= CRAB_Y + CRAB_CHAR_H + CRAB_LEG_OVERLAP_PX + 4);
+```
+
+If `onCrab`:
+- **In SLEEP:** advance sleep by 8 s (`c.stateEnteredMs -= 8000`), clamped so remaining sleep ≥ 1 s.
+- **In WALK (satiated):** reduce `c.satiatedUntilMs` by 10 s per tap, floor at `now`.
+- Do **not** spawn a flake on a crab tap.
+- Return `true` (input consumed).
+
+New constant:
+```cpp
+static constexpr uint32_t CRAB_TAP_SLEEP_SKIP_MS   = 8000;
+static constexpr uint32_t CRAB_TAP_SATIATED_SKIP_MS = 10000;
+```
+
+### State machine delta
+
+```
+PINCH frame 3 (fish hit) → CUTE(3 s) → SLEEP(mealSleepMs) → WALK + satiatedUntilMs set
+PINCH frame 3 (flake hit) → CUTE(3 s) → WALK (no satiated — flakes don't count)
+tap while SLEEP           → stateEnteredMs advanced (wake sooner)
+tap while satiated WALK   → satiatedUntilMs reduced (hunger restored sooner)
+```
+
+All other transitions unchanged.
+
+---
+
+## CRAB-FIX-008 — ZZZ sway: +2 px in both X and Y
+
+### Problem
+
+Current ZZZ column only sways in X at ±2 px. User wants more expressiveness: ±4 px X, ±2 px Y.
+
+### Fix
+
+Increase `CRAB_SLEEP_SWAY_AMP` and add a Y component using the cosine of the same wave (90° phase offset from X — gives elliptical rather than straight-line motion):
+
+```cpp
+// before:
+static constexpr float CRAB_SLEEP_SWAY_AMP   = 2.0f;
+
+// after:
+static constexpr float CRAB_SLEEP_SWAY_AMP   = 4.0f;   // X: was 2, now 4
+static constexpr float CRAB_SLEEP_SWAY_Y_AMP = 2.0f;   // Y: new
+```
+
+In the ZZZ draw loop:
+```cpp
+float swayX = sinf(nowSec * CRAB_SLEEP_SWAY_SPEED + phase) * CRAB_SLEEP_SWAY_AMP;
+float swayY = cosf(nowSec * CRAB_SLEEP_SWAY_SPEED + phase) * CRAB_SLEEP_SWAY_Y_AMP;
+_seaweedCanvas.drawChar(uint16_t(ch), zx + (int)swayX, zy + (int)swayY);
+```
+
+The `cosf` reuses the same angle already computed for `sinf` — no extra trig call if the compiler hoists it, or cache `cos` alongside `sin` in the loop.
+
+---
+
+## CRAB-FIX-009 — Crab Y wandering
+
+### Problem
+
+Crab is glued to `CRAB_Y_LOCAL`. It never moves vertically, making it feel pinned rather than alive.
+
+### Design
+
+Add `float y` to the Crab struct (alongside existing `float x`). The crab wanders slowly in Y within the bottom zone.
+
+**New Crab struct fields:**
+```cpp
+float y;          // current Y in canvas-local coords; init = CRAB_Y_LOCAL
+float targetY;    // destination the crab drifts toward
+```
+
+**Y bounds** (bottom zone, leaves room for legs):
+```cpp
+static constexpr int CRAB_Y_MIN = CRAB_Y_LOCAL - 35;   // up from floor
+static constexpr int CRAB_Y_MAX = CRAB_Y_LOCAL;         // floor
+```
+
+**Movement** — in `updateCrab()` WALK state, periodically pick a new `targetY` and drift toward it:
+```cpp
+// re-target occasionally (reuse existing cute-chance style roll):
+if (random(10000) < 3) {   // ~0.03% per tick → new target every ~30 s on average
+    c.targetY = _frand(float(CRAB_Y_MIN), float(CRAB_Y_MAX));
+}
+// drift toward target at fixed speed (slower than X):
+float dy = c.targetY - c.y;
+float step = CRAB_Y_SPEED_PX_S * dt;
+if (fabsf(dy) < step) c.y = c.targetY;
+else                   c.y += (dy > 0 ? step : -step);
+```
+
+New constant:
+```cpp
+static constexpr float CRAB_Y_SPEED_PX_S = 4.0f;   // ~1/3 of X speed
+```
+
+**In `drawCrab()`:** replace all `CRAB_Y_LOCAL` references with `(int)_crab.y`. ZZZ column anchor updates accordingly. No other draw changes needed.
+
+**SLEEP / PINCH states:** `y` is not updated while not in WALK (crab stays put). `targetY` persists across state changes.
+
+---
+
 ## Exit criteria
 
 | ID | Done when |
@@ -359,3 +556,7 @@ Body row, ZZZ column, and all other draw calls remain at fixed `CRAB_Y_LOCAL`.
 | CRAB-FIX-003 | Crab walks continuously left/right, reverses at edges |
 | CRAB-FIX-004 | `_seaweedCanvas` removed; 6-strip model covers full 240px; fish swim into seaweed zone; heap reduced by 22 KB |
 | CRAB-FIX-005 | Crab bobs gently at ~1.2 rad/s, ±1–2 px; ZZZ column tracks the bob |
+| CRAB-FIX-006 | Leg raise uses `.` — subtle lift at baseline, not `'` flying high |
+| CRAB-FIX-007 | Post-meal sleep (10–60 s by fish size); satiated cooldown (30 s, fish-only); tap crab to reduce both |
+| CRAB-FIX-008 | ZZZ sways ±4 px X, ±2 px Y (elliptical motion) |
+| CRAB-FIX-009 | Crab drifts in Y within ±35 px of floor at 4 px/s; `y` and `targetY` added to struct |
