@@ -2935,7 +2935,7 @@ ALL_TESTS = {
     "T086": t086,
     "T087": t087,
     "T088": t088,
-    "T090": t090,
+    # T090 excluded from default runs — T091 covers reconnect behavior (see docstring).
     "T091": t091,
     "T092": t092,
     "T093": None,   # interactive visual; handled specially in main()
