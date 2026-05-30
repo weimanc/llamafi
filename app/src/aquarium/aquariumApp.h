@@ -1402,8 +1402,8 @@ private:
         bool walking = (_crab.state == Crab::State::WALK);
         const char* leftLegs  = walking ? kLegFrames[_crab.walkFrame]           : ",,,,";
         const char* rightLegs = walking ? kLegFrames[(_crab.walkFrame + 2) & 3] : ",,,,";
-        int lx = drawCx + CRAB_CHAR_W;
-        int rx = drawCx + bodyW - CRAB_CHAR_W - CRAB_LEG_CHAR_W * 4;
+        int lx = cx + CRAB_CHAR_W;
+        int rx = cx + (int)_crabBodyW - CRAB_CHAR_W - CRAB_LEG_CHAR_W * 4;
 
         float effectiveAmp   = CRAB_LEG_WAVE_AMP   * _crab.legWaveIntensity;
         float effectiveSpeed = CRAB_LEG_WAVE_SPEED  * _crab.legWaveIntensity;
