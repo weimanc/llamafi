@@ -764,7 +764,9 @@ Triggering incident: user observed "NET ERR -99" on screen while manually cyclin
 - The payload size check should apply a safety factor (≥ 1.5×) to approximate ArduinoJson tree overhead. A comment should explain why.
 - Eliminate the intermediate `String` in firmware: replace `deserializeJson(doc, http.getString())` with `deserializeJson(doc, http.getStream())`. This removes the double-allocation (no `String` heap cost) and makes the host budget check more accurate.
 
-**Status**: open — promotion candidate.
+**Resolution (2026-05-30)**: The ADR-034 `getStream()` fix (already landed) plus a JSON filter (`StaticJsonDocument<128>` filter + `StaticJsonDocument<2048>` doc) made raw payload bytes entirely irrelevant for chart fetches — only the non-null `close[]` point count matters. `CHART_BUDGET_B=16384` removed; replaced with `CHART_MAX_POINTS=110` mirroring `chartPoints[110]` in `StockAppState` and the `if (r.len >= 110) break` cap in firmware. T_SF_06 now counts non-null `close[]` entries and asserts `<= 110`. `QUOTE_BUDGET_B=8192` retained — quote fetch has no filter so raw bytes vs `DynamicJsonDocument(8192)` remains correct. Committed `50ce839`.
+
+**Status**: resolved — promotion candidate (rule: "test the actual firmware constraint, not a proxy; identify what the firmware checks and assert that directly").
 
 ---
 
@@ -781,7 +783,9 @@ Triggering incident: user observed "NET ERR -99" on screen while manually cyclin
 - VE should read the firmware's `xQueueCreate(depth, ...)` call when designing queue-driven tests. If queue depth < intended rounds, either reduce round rate to let the queue drain between rounds, or accept that only `depth` concurrent fetches will run and size ROUNDS accordingly.
 - For coverage of all ranges under pressure: send one tap per range, wait for the fetch counter to advance, repeat — rather than firing a burst that floods the queue.
 
-**Status**: open — promotion candidate.
+**Resolution (2026-05-30)**: Added `fetchOkCount` monotonic counter to `StockAppState` (incremented on every successful chart parse in `stockTickChart()`; exposed via `get`/`set` serial commands). Replaced `_wait_chart_enqueue()` (enqueue proxy via `lastChartFetch`) with `_wait_chart_complete(before)` which polls `fetchOkCount` until it advances past a pre-tap snapshot — proven HTTP+parse completion, independent of queue depth. T186, T187, T188 all updated: snapshot → tap → assert count advanced. Blind 35 s sleep eliminated. Constraint is now structurally enforced by the counter, not by the test author's knowledge of queue depth. Committed `6c3c70f`.
+
+**Status**: resolved — promotion candidate (rule: "queue-backed stress tests must assert on completed fetch count, not commands fired; add a monotonic ok-counter to firmware and poll it").
 
 ---
 
@@ -798,7 +802,9 @@ Triggering incident: user observed "NET ERR -99" on screen while manually cyclin
 - For tests that need to both send commands and collect asynchronous log lines: use the fire-and-forget + drain-phase pattern (send → don't wait for ACK → read stream directly → flush → query state). Do not use threads.
 - DUT queries inside hot-firing tap loops should be avoided entirely; always post-check after a drain window.
 
-**Status**: open — promotion candidate.
+**Resolution (2026-05-30)**: `Dut.__init__` now captures `_owner_thread = threading.current_thread()`. `_assert_owner()` is called at the top of `send()`, `read_json()`, and `drain_log_lines()` — any cross-thread access raises `RuntimeError` immediately with a LL-042 reference rather than silently consuming ACKs. The constraint is now machine-enforced at the call site, not reliant on documentation. Committed `6c3c70f`.
+
+**Status**: resolved — promotion candidate (rule: "serial harness ownership must be enforced by an assertion, not a comment; record the owner thread at construction and raise on violation").
 
 ---
 
