@@ -615,54 +615,45 @@ No change to the draw loop structure — only the two scalars change.
 
 ---
 
-## CRAB-FIX-011 — Left claw pinch body/leg misalignment
+## CRAB-FIX-011 — Pinch animation: freeze legs; anchor body on right during left-claw frames
 
 ### Root cause
 
-The crab body string in PINCH frames is wider than the idle `v(._.)v` because a claw character is prepended or appended. TFT_eSPI Font-2 glyph widths are variable, so the string drawn at `cx` pushes the right edge further right than usual. The left-legs anchor `lx = cx + CRAB_CHAR_W` and right-legs anchor `rx = cx + _crabBodyW - ...` are both computed from the same `cx`, so:
+The crab body string in PINCH frames is wider than the idle `v(._.)v` because a claw character is prepended or appended. TFT_eSPI Font-2 glyph widths are variable, so the string drawn at `cx` shifts the body geometry per frame. The original fix tied leg anchors to `drawCx + frameBodyW`, which still varies per pinch frame — so legs drift as the animation cycles.
 
-- **Left claw active** — the extended body string is wider; the whole body shifts right from `cx` (which is the top-left anchor). The right edge moves right, dragging the right leg group with it. The left edge stays at `cx` so legs appear misaligned under a wider body.
-- **Right claw active** — the extension is on the right side; `cx` is unchanged, right edge shifts right. Left legs stay correct; right legs follow the new right edge. User confirms right claw looks acceptable — no fix needed.
+DUT validation (v1 fix):
+- Right side of body stays fixed during left-claw pinch ✓
+- Left claw grows leftward ✓
+- Legs still move during pinch animation ✗ — not acceptable
 
-### Design
+### Design (revised)
 
-Anchor the **right edge** of the body at a constant screen position during left-claw frames. The visible invariant is: right side of crab does not move when left claw extends.
+Two independent rules:
 
-Define a stable right-edge anchor:
-
-```cpp
-// resolved once in drawCrab(); used for left-claw compensation
-int crabRightEdge = (int)_crab.x + _crabBodyW;   // right edge of idle body
-```
-
-For each PINCH frame, measure the actual body string width:
+**Rule 1 — Body draw origin (left-claw frames only).**  
+Anchor the right edge of the body at `_crab.x + _crabBodyW` so the right side of the crab does not move. Only fires when the left claw is active.
 
 ```cpp
+int crabRightEdge = (int)_crab.x + _crabBodyW;
 int16_t frameBodyW = (int16_t)_seaweedCanvas.textWidth(bodyStr);
-```
 
-When the active claw is **left** (`direction == +1` means facing right → left claw leads; adjust for whichever directional convention `drawCrab()` uses):
-
-```cpp
 int drawCx = (leftClawActive)
     ? crabRightEdge - frameBodyW   // anchor right edge; shift cx left
-    : (int)_crab.x;                // normal: anchor left edge
+    : (int)_crab.x;                // normal / right-claw: anchor left edge
 ```
 
-Use `drawCx` as the x origin for the body draw **and** for all leg anchor calculations this frame. Result: the right edge of the body stays fixed; the left claw grows leftward; legs stay symmetric under the (possibly narrower) portion of the body they were under before.
-
-**Leg anchors from `drawCx`:**
+**Rule 2 — Leg anchors are always derived from idle body geometry.**  
+Legs never read `drawCx` or `frameBodyW`. They always use the stable idle constants:
 
 ```cpp
-int lx = drawCx + CRAB_CHAR_W;
-int rx = drawCx + frameBodyW - CRAB_CHAR_W - legStrW;
+// fixed regardless of pinch state or which claw is active:
+int lx = (int)_crab.x + CRAB_CHAR_W;
+int rx = (int)_crab.x + _crabBodyW - CRAB_CHAR_W - legStrW;
 ```
 
-No new struct fields needed. `_crabBodyW` already cached. `frameBodyW` computed per draw call (cheap — one `textWidth` call).
+This means legs are frozen in place for the entire PINCH state — they do not react to the body string changing width. The claw animation is purely a body-row event; the leg row is static during it.
 
-### Clarification note
-
-"Left claw active" maps to which PINCH frames. In the existing implementation the body strings for PINCH left vs right differ by which side has the claw character. The compensation fires only on the frame variants where the left side of the body string is extended.
+No new struct fields needed.
 
 ---
 
@@ -830,7 +821,7 @@ if (hitLands) {
 | CRAB-FIX-008 | ZZZ sways ±4 px X, ±2 px Y (elliptical motion) |
 | CRAB-FIX-009 | Crab walks diagonally (Y coupled to X); ±4 px range, `vy` randomised on X reversal |
 | CRAB-FIX-010 | Leg wave fades to 15% amp+speed when not walking; lerps at 2.0/s |
-| CRAB-FIX-011 | Left claw pinch: right edge of crab stays fixed; legs remain symmetric under body |
+| CRAB-FIX-011 | Left-claw pinch: right edge fixed, claw grows left, legs do not move during any pinch frame |
 | CRAB-FIX-012 | Sleeping crab ignores fish (only tap/timer wakes it); satiated cooldown active 30 s post-wake, verified on DUT |
 | CRAB-FIX-013 | Pinch strike scatters fish within 42 px; fish flee for 600 ms then resume normal swim |
 | CRAB-FIX-014 | Fish hit rate is 1-in-6; flake hit unchanged; miss → WALK directly (no CUTE); scatter still fires |
