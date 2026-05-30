@@ -24,6 +24,10 @@ Crab implemented per `crab.md`. Issues observed on DUT plus one enhancement:
 | CRAB-FIX-008 | ZZZ column sway too subtle; increase to ±4 px X, add ±2 px Y |
 | CRAB-FIX-009 | Crab never moves in Y; add diagonal walk (Y coupled to X, 4 px range) |
 | CRAB-FIX-010 | Leg sway runs full speed when stationary; reduce amp+frequency when not walking |
+| CRAB-FIX-011 | Left claw pinch misaligns body and legs — variable-width body string shifts everything right |
+| CRAB-FIX-012 | Fish proximity wakes sleeping crab; satiated cooldown not preventing re-feeding |
+| CRAB-FIX-013 | No fish scatter on pinch strike — add radial flee burst within one body-width |
+| CRAB-FIX-014 | Crab catches fish too reliably; reduce fish hit to 1-in-6 chance (flake rate unchanged) |
 
 ---
 
@@ -611,6 +615,207 @@ No change to the draw loop structure — only the two scalars change.
 
 ---
 
+## CRAB-FIX-011 — Left claw pinch body/leg misalignment
+
+### Root cause
+
+The crab body string in PINCH frames is wider than the idle `v(._.)v` because a claw character is prepended or appended. TFT_eSPI Font-2 glyph widths are variable, so the string drawn at `cx` pushes the right edge further right than usual. The left-legs anchor `lx = cx + CRAB_CHAR_W` and right-legs anchor `rx = cx + _crabBodyW - ...` are both computed from the same `cx`, so:
+
+- **Left claw active** — the extended body string is wider; the whole body shifts right from `cx` (which is the top-left anchor). The right edge moves right, dragging the right leg group with it. The left edge stays at `cx` so legs appear misaligned under a wider body.
+- **Right claw active** — the extension is on the right side; `cx` is unchanged, right edge shifts right. Left legs stay correct; right legs follow the new right edge. User confirms right claw looks acceptable — no fix needed.
+
+### Design
+
+Anchor the **right edge** of the body at a constant screen position during left-claw frames. The visible invariant is: right side of crab does not move when left claw extends.
+
+Define a stable right-edge anchor:
+
+```cpp
+// resolved once in drawCrab(); used for left-claw compensation
+int crabRightEdge = (int)_crab.x + _crabBodyW;   // right edge of idle body
+```
+
+For each PINCH frame, measure the actual body string width:
+
+```cpp
+int16_t frameBodyW = (int16_t)_seaweedCanvas.textWidth(bodyStr);
+```
+
+When the active claw is **left** (`direction == +1` means facing right → left claw leads; adjust for whichever directional convention `drawCrab()` uses):
+
+```cpp
+int drawCx = (leftClawActive)
+    ? crabRightEdge - frameBodyW   // anchor right edge; shift cx left
+    : (int)_crab.x;                // normal: anchor left edge
+```
+
+Use `drawCx` as the x origin for the body draw **and** for all leg anchor calculations this frame. Result: the right edge of the body stays fixed; the left claw grows leftward; legs stay symmetric under the (possibly narrower) portion of the body they were under before.
+
+**Leg anchors from `drawCx`:**
+
+```cpp
+int lx = drawCx + CRAB_CHAR_W;
+int rx = drawCx + frameBodyW - CRAB_CHAR_W - legStrW;
+```
+
+No new struct fields needed. `_crabBodyW` already cached. `frameBodyW` computed per draw call (cheap — one `textWidth` call).
+
+### Clarification note
+
+"Left claw active" maps to which PINCH frames. In the existing implementation the body strings for PINCH left vs right differ by which side has the claw character. The compensation fires only on the frame variants where the left side of the body string is extended.
+
+---
+
+## CRAB-FIX-012 — Fish must not wake sleeping crab; fix satiated cooldown
+
+### Problems
+
+Two independent issues:
+
+**Issue A — Fish proximity wakes sleeping crab.**  
+The SLEEP state timer fires and transitions to WALK regardless of what triggered the original SLEEP entry. If the tick rate is high enough that a fish passes over the crab before `sleepDurationMs` expires, no waking occurs — but the proximity scan in WALK immediately targets the fish and eats it, starting another SLEEP. The net effect is: a school of fish cycling over the crab keeps resetting the meal → sleep → wake → meal loop with no quiet period.
+
+**Issue B — Satiated cooldown not visible.**  
+`satiatedUntilMs` is set on `SLEEP→WALK` from a **meal** sleep. However if `sleepDurationMs` and `satiatedUntilMs` share the same `bool` path and `satiatedUntilMs` is never initialised to 0 in `initCrab()`, the condition `now >= c.satiatedUntilMs` is always true (unsigned wraparound). Additionally the cooldown is 30 s, but if the crab immediately re-enters SLEEP after CUTE (which is 3 s), the satiated timer is running while the crab is still asleep — by the time it wakes, the cooldown may already have expired.
+
+### Fix A — Fish must not wake the crab
+
+Fish proximity detection and targeting only runs in `WALK` state. **Do not add any fish-proximity check to the SLEEP state.** The crab in SLEEP must only wake via:
+1. `sleepDurationMs` elapsed.
+2. Tap (already in CRAB-FIX-007).
+
+No code change needed if the current implementation already satisfies this — audit that SLEEP state update block contains no fish scan. If a fish scan exists there, remove it.
+
+### Fix B — Satiated cooldown starts after CUTE, not before
+
+The timeline should be:
+
+```
+PINCH (fish hit) → CUTE (3 s) → SLEEP (mealSleepMs) → WALK
+                                                         ↑
+                              satiatedUntilMs = now + CRAB_SATIATED_MS set HERE
+```
+
+The cooldown clock starts the moment the crab **wakes**, not when it falls asleep. Ensure `satiatedUntilMs` is assigned at the `SLEEP→WALK` transition (already the design intent in CRAB-FIX-007, but verify the implementation matches).
+
+**Initialisation fix** — in `initCrab()`:
+
+```cpp
+_crab.satiatedUntilMs = 0;   // explicitly zero; 0 = hungry
+```
+
+The gate condition `now >= c.satiatedUntilMs` is then always true at init (crab starts hungry). Use a separate boolean or check `c.satiatedUntilMs != 0` before evaluating the timestamp comparison to avoid the `uint32_t` wraparound trap:
+
+```cpp
+bool satiated = (c.satiatedUntilMs != 0) && (now < c.satiatedUntilMs);
+if (!satiated) {
+    // fish scan
+}
+```
+
+Clear `satiatedUntilMs` on SLEEP entry from idle (not meal) to prevent stale values:
+
+```cpp
+// WALK→SLEEP from idle timeout:
+c.satiatedUntilMs = 0;
+```
+
+---
+
+## CRAB-FIX-013 — Fish scatter on pinch strike
+
+### Design
+
+When the crab executes a pinch strike (PINCH state reaches the hit/miss frame — the same frame where a fish is consumed if one is in range), all fish within a scatter radius receive a brief flee impulse directed away from the crab centre. The radius is one crab body width (`CRAB_W_PX`).
+
+**New constants:**
+
+```cpp
+static constexpr float CRAB_SCATTER_RADIUS_PX  = float(CRAB_W_PX);   // ≈ 42 px
+static constexpr float CRAB_SCATTER_SPEED_PX_S = 80.0f;              // flee burst speed
+static constexpr uint32_t CRAB_SCATTER_FLEE_MS = 600;                // flee duration
+```
+
+**Trigger point — in `updateCrab()`, at the PINCH strike frame transition:**
+
+```cpp
+// existing: check for fish hit, consume if found
+// new: after that check, scatter nearby fish
+_scatterFish((int)_crab.x + _crabBodyW / 2, (int)_crab.y);
+```
+
+**`_scatterFish(int cx, int cy)` — new method on `AquariumApp`:**
+
+```cpp
+void _scatterFish(int cx, int cy) {
+    for (auto& f : _fish) {
+        if (!f.alive) continue;
+        float dx = f.x - float(cx);
+        float dy = f.y - float(cy);
+        float dist = sqrtf(dx * dx + dy * dy);
+        if (dist > CRAB_SCATTER_RADIUS_PX) continue;
+        // direction away from crab centre; handle dist == 0 gracefully
+        float nx = (dist > 0.5f) ? dx / dist : (f.x < cx ? -1.0f : 1.0f);
+        float ny = (dist > 0.5f) ? dy / dist : -1.0f;
+        f.vx = nx * CRAB_SCATTER_SPEED_PX_S;
+        f.vy = ny * CRAB_SCATTER_SPEED_PX_S;
+        f.fleeUntilMs = millis() + CRAB_SCATTER_FLEE_MS;
+    }
+}
+```
+
+**New field on Fish struct:**
+
+```cpp
+uint32_t fleeUntilMs;   // 0 = normal; >0 = fleeing until this timestamp
+```
+
+**In `updateFish()` — while `fleeUntilMs` is active:**
+
+- Use `f.vx`, `f.vy` directly as the fish velocity (override normal swim logic).
+- Do **not** apply the normal speed/direction randomisation.
+- On expiry (`now >= f.fleeUntilMs`), set `f.fleeUntilMs = 0` and let normal swim logic resume. The fish naturally blends back to its usual behaviour via the existing velocity smoothing.
+
+**Boundary handling** — existing edge-clamp logic still fires during flee, so fish cannot scatter off screen.
+
+**Eaten fish** — the consumed fish is already removed before `_scatterFish` runs; it will not be iterated (its `alive` flag is false).
+
+---
+
+## CRAB-FIX-014 — Fish hit probability: 1-in-6
+
+### Problem
+
+The crab lands every fish that enters pinch range with certainty. Combined with the proximity-targeting already in the design, it can clear a school quickly. A 1-in-6 random miss makes the crab feel fallible without requiring a change to the triggering geometry.
+
+### Design
+
+At the PINCH strike frame, before applying a fish hit, roll a single random check:
+
+```cpp
+static constexpr int CRAB_FISH_HIT_CHANCE = 6;   // 1-in-N success
+
+// in updateCrab(), at the PINCH strike frame, fish branch only:
+bool hitLands = (_rand() % CRAB_FISH_HIT_CHANCE == 0);
+if (hitLands) {
+    // consume fish, enter CUTE, set mealSleepMs, etc.
+} else {
+    // miss — still scatter fish (CRAB-FIX-013 fires regardless of hit/miss)
+    // transition back to WALK directly (no CUTE, no sleep)
+    c.state = Crab::State::WALK;
+}
+```
+
+`_rand()` should use the same RNG already in the aquarium (e.g. `rand()` seeded at init, or `esp_random()` if available). No new seeding needed.
+
+**Flakes are unaffected.** The hit-check gate wraps the fish branch only; the flake branch retains its existing logic (geometry only — if in range, hit succeeds).
+
+**Scatter still fires on miss.** The pinch extended; nearby fish were startled whether or not the strike landed. `_scatterFish()` is called unconditionally at the strike frame, before the hit/miss branch.
+
+**Miss animation.** On a miss the crab goes directly back to WALK rather than CUTE. This makes misses visually distinct (no celebration) and avoids a 3 s pause for nothing.
+
+---
+
 ## Exit criteria
 
 | ID | Done when |
@@ -625,3 +830,7 @@ No change to the draw loop structure — only the two scalars change.
 | CRAB-FIX-008 | ZZZ sways ±4 px X, ±2 px Y (elliptical motion) |
 | CRAB-FIX-009 | Crab walks diagonally (Y coupled to X); ±4 px range, `vy` randomised on X reversal |
 | CRAB-FIX-010 | Leg wave fades to 15% amp+speed when not walking; lerps at 2.0/s |
+| CRAB-FIX-011 | Left claw pinch: right edge of crab stays fixed; legs remain symmetric under body |
+| CRAB-FIX-012 | Sleeping crab ignores fish (only tap/timer wakes it); satiated cooldown active 30 s post-wake, verified on DUT |
+| CRAB-FIX-013 | Pinch strike scatters fish within 42 px; fish flee for 600 ms then resume normal swim |
+| CRAB-FIX-014 | Fish hit rate is 1-in-6; flake hit unchanged; miss → WALK directly (no CUTE); scatter still fires |
