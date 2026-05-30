@@ -823,6 +823,54 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 
 ---
 
+### Audit — 2026-05-30 — serialdbg test suite coverage quality
+
+**Triggered by**: human (post LL-040/041/042 resolution — question: "how many tests are fire-and-forget?")
+
+**Areas checked**:
+- [x] All 78 test functions in `run_serialdbg_tests.py` classified by assertion strength
+- [x] Tests that assert only serial ACK receipt (not DUT behavior)
+- [x] Tests using enqueue-proxy timestamps instead of completion counters (LL-041 pattern)
+- [x] Tests permanently skipped in automation (interactive / pixel-only)
+- [x] Tests with weak or trivially-true assertions
+
+**Findings**:
+
+1. **2 fire-and-forget / ACK-only tests — AMBER.**
+   - T090: asserts `reconnect` returns `ok=true` and `cmd="reconnect"` — only proves the serial command was received, not that reconnection occurred.
+   - T083: asserts `help` response is parseable JSON with correct command names — functional smoke, not a behavioral test.
+   _These provide minimal signal. T090 should assert post-reconnect state (e.g. `consecutiveFailures=0`). T083 is acceptable as a smoke check but should be labelled as such._
+
+2. **2 enqueue-proxy tests (LL-041 pattern not yet fixed here) — RED.**
+   - T170: asserts `lastQuoteFetch > 0` — proves `init()` set the timestamp, not that a quote fetch completed.
+   - T176: asserts `lastChartFetch > 0` — same enqueue-proxy pattern that LL-041 identified and fixed in T186–T188. Inconsistency: T186–T188 use `fetchOkCount`; T176 still uses the stale proxy.
+   _Direct fix: upgrade T176 to use `fetchOkCount` (already in firmware). T170 needs a quote ok-counter equivalent or a data-presence check._
+
+3. **9 weak-state assertion tests — AMBER.**
+   - T078: drag sends; asserts `dragState=D_IDLE` only — VOLUME action not confirmed.
+   - T082: volume drag; counts `"enqueue"` log lines — dispatched Spotify action not confirmed.
+   - T134: PLEDIT tap; asserts `hit=PLEDIT` only — `action` value not checked.
+   - T136: asserts `scrollOffset=0` initial value — observes state, proves nothing.
+   - T178: asserts `chartRange=D1` default — trivially true, no causal assertion.
+   - T_BI_04: PLAY tap; asserts `action ∈ {PLAY, PAUSE}` — state toggle not verified.
+   - T_GOL_04: asserts `golAlive >= 0` — field presence only; 0 is valid even if simulation didn't run.
+   - T_WX_04, T_CX_04: assert `ready=false` before fetch — timing-dependent; skipped if data arrive fast.
+   _Varying severity. T136 and T178 are pure observation with no assertion value. T_WX_04/T_CX_04 are inherently racy. T082/T078 require Spotify playing to verify fully — acceptable to leave as partial coverage with explicit annotation._
+
+4. **5 permanently-skipped tests in automation — GREEN (by design).**
+   - T093, T094, T095: `--interactive` flag only; require human operator. By design.
+   - T171, T179: pixel verification; no automated path. By design.
+   _No action needed, but these should be annotated `[MANUAL]` explicitly in test_plan.md so future agents don't attempt to automate them._
+
+**Actions assigned**:
+- VE: fix T176 (enqueue proxy → `fetchOkCount`); propose T170 fix; annotate weak tests; add `[MANUAL]` tags — see TASK-112
+- PM: file TASK-112 for VE fix pass
+- QM: extract promotion candidates from this audit if pattern recurs
+
+**Resolution**: open — TASK-112 filed.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:

@@ -3136,6 +3136,64 @@ Common preconditions for all DUT tests below:
 
 ---
 
+## Suite: serialdbg-audit-001 — Test quality fix pass (TASK-112)
+
+**Triggered by**: QM audit 2026-05-30 — 18/78 serialdbg tests have limited or no signal.
+**Scope**: Fix or annotate every test flagged RED/AMBER in the audit. No new firmware features required except a quote ok-counter for T170.
+
+**Priority A — enqueue-proxy fixes (LL-041 pattern, firmware already has fetchOkCount for charts):**
+
+### T176 fix — chart fetch proven completion
+**Current**: asserts `lastChartFetch > 0` (enqueue proxy).
+**Fix**: snapshot `fetchOkCount` before drill-in → drill → assert `fetchOkCount` advanced within 45 s. Identical pattern to T186–T188 (already passing). No firmware change needed.
+**Acceptance**: T176 passes using `_wait_chart_complete(before)`.
+
+### T170 fix — quote fetch proven completion
+**Current**: asserts `lastQuoteFetch > 0` (timestamp set in `init()`, not on fetch completion).
+**Fix option A**: add `quoteOkCount` to `StockAppState` (mirrors `fetchOkCount`); increment in `stockTickQuotes()` on success; expose via `dbgGet`/`dbgSet`. Snapshot before switch-in → assert advances within 65 s.
+**Fix option B**: assert `get stockPrice_AAPL` (or similar) returns a non-zero float — data presence implies fetch completed. Requires a `dbgGet` var for price array (not currently exposed).
+**Recommendation**: Option A — consistent with `fetchOkCount` pattern; no ambiguity about zero prices at open/close.
+**Acceptance**: T170 passes asserting actual quote completion, not timestamp proxy.
+
+**Priority B — pure-observation tests (no causal assertion, low effort to fix or annotate):**
+
+### T136 — scrollOffset initial value
+**Current**: reads `scrollOffset` and asserts it equals 0. Proves initial state, not behavior.
+**Fix**: remove as standalone test; fold the `scrollOffset=0` precondition check into T137 setup. T137 already verifies the meaningful behavior (swipe-up increments).
+**Acceptance**: T136 removed from suite; T137 precondition check explicit in setup block.
+
+### T178 — chartRange default before fetch
+**Current**: asserts `stockChartRange=D1` immediately after drill-in. Trivially true — `drillToChart()` always sets D1.
+**Fix**: extend to assert `fetchFailed=false` AND `chartLen=0` at the same moment (pre-fetch: data not yet arrived). That validates the placeholder state, not just the hardcoded default.
+**Acceptance**: T178 asserts pre-fetch placeholder state (chartLen=0, fetchFailed=false) rather than the trivially-true range default.
+
+### T_GOL_04 — GoL simulation ran
+**Current**: asserts `golAlive >= 0` after 350 ms. Field presence check; 0 is valid.
+**Fix**: assert `golAlive > 0` (at least one live cell after 3+ ticks — valid for any non-trivial initial state) OR assert `golGeneration >= 3` if that variable is exposed. Check firmware for available GoL state vars.
+**Acceptance**: T_GOL_04 asserts that the simulation actually advanced, not just that the field exists.
+
+**Priority C — weak tests requiring Spotify playing (annotate, don't fix now):**
+
+### T078, T082, T_BI_04 — volume drag / PLAY toggle
+**Issue**: meaningful verification requires observing actual Spotify API calls (volume change, play/pause state). Not feasible without a playing track and external Spotify state check.
+**Action**: add `[PARTIAL — requires Spotify playing for full verification]` annotation to each test in test_plan.md. No code change.
+
+### T090 — reconnect ACK-only
+**Current**: asserts `ok=true` and `cmd="reconnect"` only.
+**Fix**: after `reconnect`, assert `get backoff consecutiveFailures=0` within 3 s — proves the reconnect handler ran, not just that the serial command arrived. (T091 already does this with FLAKE annotation; T090 should be merged into or replaced by T091.)
+**Recommendation**: mark T090 as superseded by T091; remove from active suite or demote to smoke-only with explicit comment.
+**Acceptance**: T090 either removed or annotated `[SMOKE — superseded by T091]`.
+
+### T083 — help command
+**Action**: annotate `[SMOKE — verifies command registry, not behavior]`. No code change needed; signal level is appropriate for a registry check.
+
+**Priority D — permanently manual (annotate only):**
+
+### T093, T094, T095, T171, T179
+**Action**: add `[MANUAL — requires human operator / pixel verification]` to each entry in test_plan.md. Confirm `--interactive` flag gates T093–T095. No automation path exists or is planned.
+
+---
+
 ## Entry Format
 
 ```
