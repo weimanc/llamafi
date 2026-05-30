@@ -362,7 +362,7 @@ The apostrophe (`'`) renders near the top of the character cell — visually it 
 
 ### Fix
 
-Replace `'` with `.` in `kLegFrames`:
+Replace `'` with `.` in `kLegFrames`, and draw legs in a darker red than the body:
 
 ```cpp
 // before:
@@ -371,7 +371,16 @@ static const char* kLegFrames[4] = { "',,,", ",',,", ",,',", ",,,' " };
 static const char* kLegFrames[4] = { ".,,,", ",.,," , ",,.," , ",,,." };
 ```
 
-One-line change. No logic, no constant, no struct change.
+New constant for leg colour (body stays `TFT_RED`):
+```cpp
+static constexpr uint16_t CRAB_LEG_COLOR = _RGB565(160, 0, 0);  // dark red
+```
+
+In `drawCrab()`, set colour before drawing leg strings:
+```cpp
+_seaweedCanvas.setTextColor(CRAB_LEG_COLOR);
+_seaweedCanvas.drawString(leftLegs,  lx, ly);
+_seaweedCanvas.drawString(rightLegs, rx, ly);
 
 ---
 
@@ -490,8 +499,14 @@ static constexpr float CRAB_SLEEP_SWAY_AMP   = 4.0f;   // X: was 2, now 4
 static constexpr float CRAB_SLEEP_SWAY_Y_AMP = 2.0f;   // Y: new
 ```
 
-In the ZZZ draw loop:
+New colour constant — dark red-purple, distinct from the crab body red:
 ```cpp
+static constexpr uint16_t CRAB_SLEEP_Z_COLOR = _RGB565(120, 0, 80);  // dark red-purple
+```
+
+In the ZZZ draw loop, set colour once before the loop, then draw with sway:
+```cpp
+_seaweedCanvas.setTextColor(CRAB_SLEEP_Z_COLOR);
 float swayX = sinf(nowSec * CRAB_SLEEP_SWAY_SPEED + phase) * CRAB_SLEEP_SWAY_AMP;
 float swayY = cosf(nowSec * CRAB_SLEEP_SWAY_SPEED + phase) * CRAB_SLEEP_SWAY_Y_AMP;
 _seaweedCanvas.drawChar(uint16_t(ch), zx + (int)swayX, zy + (int)swayY);
