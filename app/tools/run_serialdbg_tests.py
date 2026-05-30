@@ -1151,19 +1151,9 @@ def _get_scroll(dut: Dut, timeout: float = 3.0) -> int | None:
 # ── T136 — get scrollOffset returns 0 at initial state ────────────────────────
 
 def t136(dut: Dut):
-    print("T136  get scrollOffset returns 0 at initial state")
-    r = dut.cmd("get scrollOffset", timeout=3.0)
-    if not r.get("ok"):
-        fail("T136", f"ok=false: {r}")
-        return
-    if r.get("key") != "scrollOffset":
-        fail("T136", f"key={r.get('key')!r} — branch not reached or wrong key name")
-        return
-    val = r.get("val")
-    if val != 0:
-        fail("T136", f"val={val} expected 0; scrollOffset not reset at startup")
-        return
-    pass_("T136", f"get scrollOffset → val={val}")
+    # Merged into T137 setup as an explicit precondition assertion (TASK-112c).
+    # Kept here as a no-op so the dispatch table entry still resolves; run T137 instead.
+    skip("T136", "merged into T137 precondition — run T137")
 
 
 # ── T137 — swipe-up increments scrollOffset ────────────────────────────────────
@@ -1173,7 +1163,12 @@ def t137(dut: Dut):
     if not dut.wait_for_queue(min_count=2):
         fail("T137", "precondition: queue count<2 after 30s — Spotify not playing?")
         return
-    pre = _get_scroll(dut)
+    # Precondition: scrollOffset must be 0 before we swipe (absorbs T136 assertion).
+    r_pre = dut.cmd("get scrollOffset", timeout=3.0)
+    if not r_pre.get("ok") or r_pre.get("key") != "scrollOffset":
+        fail("T137", f"precondition: get scrollOffset failed: {r_pre}")
+        return
+    pre = r_pre.get("val")
     if pre != 0:
         fail("T137", f"pre-condition: scrollOffset={pre} not 0; run swipe-downs or reflash")
         return
