@@ -60,6 +60,7 @@ class Dut:
         # pattern for tests that need async log collection (LL-042).
         self._owner_thread = threading.current_thread()
         self._wait_for_ready()
+        self._verify_debug_firmware()
 
     def _wait_for_ready(self):
         """CH341 driver asserts DTR during open() regardless of userspace settings,
@@ -148,6 +149,30 @@ class Dut:
                 return True
             time.sleep(2.0)
         return False
+
+    def _verify_debug_firmware(self):
+        """Probe for SERIAL_DEBUG firmware before running any tests (LL-043 / BP-017).
+        Sends 'get heap'; production builds return 'unknown command' because all
+        debug commands are behind #ifdef SERIAL_DEBUG.  Raises RuntimeError with
+        exact reflash commands so the fix requires zero firmware-source knowledge.
+        """
+        r = self.cmd("get heap", timeout=3.0)
+        if not r.get("ok") and r.get("error") == "unknown command":
+            raise RuntimeError(
+                "\n"
+                "╔══════════════════════════════════════════════════════════╗\n"
+                "║  PRODUCTION FIRMWARE DETECTED — SERIAL_DEBUG not active  ║\n"
+                "╚══════════════════════════════════════════════════════════╝\n"
+                "Reflash the debug build before running tests:\n"
+                "  tmux kill-session -t spotify-mon\n"
+                "  cd app\n"
+                "  ~/.platformio/penv/bin/pio run -e cyd2usb_winamp_debug \\\n"
+                "      -t upload --upload-port /dev/ttyUSB0\n"
+                "  tmux new-session -d -s spotify-mon \\\n"
+                "      'cd ~/proj/esp_spotify/app && \\\n"
+                "       ~/.platformio/penv/bin/pio device monitor \\\n"
+                "       -e cyd2usb_winamp -p /dev/ttyUSB0'\n"
+            )
 
     def _assert_owner(self):
         if threading.current_thread() is not self._owner_thread:

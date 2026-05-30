@@ -166,6 +166,16 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-017 — Verify SERIAL_DEBUG firmware is active before any VE test execution
+
+**Adopted from**: LL-043  
+**Date adopted**: 2026-05-30  
+**Rule**: `run_serialdbg_tests.py` must probe for debug firmware immediately after DUT ready by sending `get heap` and raising `RuntimeError` with exact reflash commands if `unknown command` is returned. Any PM handoff that involves flashing must record the exact `pio run -e <ENV>` string used — a build timestamp alone is insufficient. Agent briefings that claim DUT state are claims to verify, not facts.  
+**Rationale**: Production (`cyd2usb_winamp`) and debug (`cyd2usb_winamp_debug`) builds share the same build timestamp when compiled same-day. The heartbeat `build=<date>` output is identical; only a SERIAL_DEBUG command probe distinguishes them. Without the preflight, an agent receives `unknown command` from `set cooldown 0` and must trace firmware source to understand why — consuming 5–10 minutes before the first real test runs. This pattern recurred across multiple VE sessions (LL-043). With the preflight, the failure is instant and self-diagnosing.  
+**Applies to**: VE (harness preflight is now automatic — no action needed beyond keeping `_verify_debug_firmware()` in `Dut.__init__`), PM (record exact `pio run -e <ENV>` in any handoff that involves a flash; "debug build" with no env name is not sufficient), All agents (treat any briefing claim about DUT state as a hypothesis; the harness verifies it at startup)
+
+---
+
 ## Entry Format
 
 ```

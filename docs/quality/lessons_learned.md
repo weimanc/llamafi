@@ -821,7 +821,9 @@ Triggering incident: user observed "NET ERR -99" on screen while manually cyclin
 2. **PM handoff: always state the flash command used**: The PM handoff should record the exact `pio run -e <ENV>` command the prior agent ran, not just the build timestamp. `cyd2usb_winamp` (production) vs `cyd2usb_winamp_debug` is the critical distinction.
 3. **Agent briefings: treat DUT state as unverified**: Any briefing note that says "DUT is running X" should be treated as a *claim to verify*, not a *fact*. The first VE step should be preflight verification regardless of what the context says.
 
-**Status**: open
+**Resolution (2026-05-30)**: `Dut._verify_debug_firmware()` added to `run_serialdbg_tests.py` — called at end of `__init__` after `_wait_for_ready()`. Sends `get heap`; raises `RuntimeError` with exact reflash commands if `unknown command` is returned. BP-017 adopted; PM handoff guidance added to the BP.
+
+**Status**: adopted → BP-017 (2026-05-30)
 
 ---
 
