@@ -153,6 +153,7 @@ private:
     static constexpr int   AQ_SEAWEED_ROOTS       = 12;
     static constexpr int   kSeaweedPhases         = 32;
     static constexpr int   kSeaweedSegs           = 8;
+    static constexpr float kSeaweedPhasesPerRad   = kSeaweedPhases / 6.28318f;
     static constexpr int   AQ_GLYPH_COUNT         = 12;
     static constexpr size_t AQ_GLYPH_BUF          = 28;
 
@@ -1049,17 +1050,15 @@ private:
 
     // ── Seaweed init ──────────────────────────────────────────────────────────
     void initSeaweed() {
-        constexpr float kTwoPi = 6.28318f;
         for (int i = 0; i < AQ_SEAWEED_ROOTS; ++i) {
             _seaweedBaseX[i] = 10.0f + i * (AQ_CANVAS_W - 20.0f) / float(AQ_SEAWEED_ROOTS - 1);
             _seaweedSpeed[i] = (0.8f + 0.09f * i) * AQ_SWAY;
-            _seaweedPhase[i] = (i * 0.7f) * kSeaweedPhases / kTwoPi;
+            _seaweedPhase[i] = (i * 0.7f) * kSeaweedPhasesPerRad;
         }
     }
 
     uint8_t _seaweedPhaseIdx(int i, float t) const {
-        constexpr float kTwoPi = 6.28318f;
-        return (uint8_t)(int(t * _seaweedSpeed[i] * kSeaweedPhases / kTwoPi
+        return (uint8_t)(int(t * _seaweedSpeed[i] * kSeaweedPhasesPerRad
                             + _seaweedPhase[i]) & (kSeaweedPhases - 1));
     }
 
