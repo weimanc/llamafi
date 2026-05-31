@@ -32,6 +32,132 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ---
 
+### TASK-113 — M-TOUCH-UX: Touch UX layer design (ADR-035)
+**Owner**: Architect (design); Developer + VE (implementation — separate tasks TBD)
+**Features**: touch-003, touch-004, touch-005
+**Status**: design done (2026-05-31); implementation not started
+**Milestone**: M-TOUCH-UX
+**Design**: `docs/architecture/designs/M-TOUCH-UX.md` · ADR: `docs/architecture/decisions/ADR-035.md`
+
+Scope of this task (design phase only):
+- **TASK-113a** ✅ Architect: ADR-035 drafted — four decisions covering hitbox primitive, debounce activation, gesture deferral, shell busy indicator.
+- **TASK-113b** ✅ Architect: M-TOUCH-UX.md drafted — Part 1 (hitbox + debounce), Part 2 (shell busy indicator + `hasPendingAsync()` contract, SpotifyApp chain, StockApp chain, `switchApp()` + `suspend()` contracts).
+- **TASK-113c** ✅ Team review round 1 (VE, Developer, QM) — findings raised and addressed: DEV-01..05 (ADR sync, `mutable`, thread safety, timer-reset guard, file list); T-BUSY-03/04 wording; LL-044, LL-045.
+- **TASK-113d** ✅ Exit criteria finalised: T-BUSY-01..05 + T-CDWN-01..03 in M-TOUCH-UX.md.
+- **TASK-113e** ✅ feature_inventory.yaml: touch-003/004/005 registered (proposed).
+- **TASK-113f** ✅ lessons_learned.md: LL-044 (debug-path-only mechanism) + LL-045 (ADR/design-doc sync failure) appended.
+
+**Developer deliverables required before VE execution:**
+- `get shellBusy` in SERIAL_DEBUG `cmdGet()` (gates T-BUSY-01..05)
+- `get visMode` in SERIAL_DEBUG `cmdGet()` (gates T-CDWN-01)
+
+**Implementation tasks:** TASK-114 → TASK-118 below.
+
+---
+
+### TASK-114 — M-TOUCH-UX Phase 1: Low-risk foundation
+**Owner**: Developer
+**Features**: touch-003, touch-005 (part 1)
+**Status**: open
+**Milestone**: M-TOUCH-UX
+**Depends on**: TASK-113 (design done)
+**Blocks**: TASK-115 (hitbox.h available for adoption), TASK-118 (VIS debounce fix live)
+**Design**: `docs/architecture/designs/M-TOUCH-UX.md` Part 1
+
+Sub-tasks:
+- **TASK-114a**: Create `app/src/touch/hitbox.h` — `struct Rect { int16_t x, y, w, h; }` + `hitTest` / `hitTestRow` / `hitTestCol` inlines. No callers changed yet (adoption is incremental).
+- **TASK-114b**: Add `touchScreenCoolDownTime` Phase 2 check to `handleWinampInput()` — one line at top of Phase 2 block in `winampDisplay.h`: `if (millis() <= touchScreenCoolDownTime) { _tickMarquee(); return false; }`. Verify VIS, Shuffle, Repeat all respect the intended cooldown durations.
+- **TASK-114c**: `check_build.sh` 4/4 ✅. Flash `cyd2usb_winamp`; verify VIS cycling requires ~300 ms between taps.
+
+Exit criterion: `check_build.sh` passes; VIS debounce confirmed on DUT.
+
+---
+
+### TASK-115 — M-TOUCH-UX Phase 2: Busy indicator infrastructure
+**Owner**: Developer
+**Features**: touch-004 (shell layer)
+**Status**: open
+**Milestone**: M-TOUCH-UX
+**Depends on**: TASK-114
+**Blocks**: TASK-116 (hasPendingAsync() ABC must exist before app overrides)
+**Design**: `docs/architecture/designs/M-TOUCH-UX.md` Part 2 — indicator wire, shell state + API, renderActiveIndicator, switchApp, suspend contract
+
+Sub-tasks:
+- **TASK-115a**: `taskbar.h` — add `TASKBAR_BUSY_COLOR 0xFD20`; add `renderActiveIndicator(TFT_eSPI&, AppId, int scrollOffset, int totalApps, bool busy)`; `renderTaskbar()` gains `bool busy = false` param and delegates indicator paint to `renderActiveIndicator()`.
+- **TASK-115b**: `main.cpp` — add `static bool g_shellBusy = false`; `static unsigned long g_shellBusySetMs = 0`; `SHELL_BUSY_TIMEOUT_MS = 3000`; implement `shell::setBusy(bool)` (sets flag, calls `renderActiveIndicator()` with `(int)AppId::COUNT`).
+- **TASK-115c**: `appShell.h` — add `virtual bool hasPendingAsync() const { return false; }` to `App` ABC (non-pure; document why non-pure in comment).
+- **TASK-115d**: `main.cpp` `loop()` — add primary clear (poll `hasPendingAsync()`) and fallback auto-clear (after `SHELL_BUSY_TIMEOUT_MS`) after `appTick()`.
+- **TASK-115e**: `main.cpp` `switchApp()` — insert `shell::setBusy(false)` after `suspend()`, before `renderTaskbar()`.
+- **TASK-115f**: `check_build.sh` 4/4 ✅. Flash `cyd2usb_winamp`; verify indicator still green on all apps (no app sets busy yet — amber not expected until TASK-116).
+
+Exit criterion: `check_build.sh` passes; DUT boots; indicator green; no regression on app switching.
+
+---
+
+### TASK-116 — M-TOUCH-UX Phase 3: App integration
+**Owner**: Developer
+**Features**: touch-004 (app layer), touch-005 (part 2 — g_shellBusy Press gate)
+**Status**: open
+**Milestone**: M-TOUCH-UX
+**Depends on**: TASK-115 (hasPendingAsync() ABC must be in tree)
+**Blocks**: TASK-117 (SERIAL_DEBUG deliverables wire into app state)
+**Design**: `docs/architecture/designs/M-TOUCH-UX.md` — App integration points, g_shellBusy gate
+
+Sub-tasks:
+- **TASK-116a**: `winampDisplay.h` — add `bool _lastInputWasAsync = false`; `wasLastInputAsync()` accessor; set flag at all 11 async dispatch sites in Phase 2 AND Release handler (PREV/PLAY/PAUSE/STOP/NEXT, Shuffle, Repeat, seek-drag Release, volume-drag Release, PLEDIT row tap Release, logo tap). VIS tap must NOT set the flag.
+- **TASK-116b**: `spotifyTask.h` — add `volatile bool _actionPending`; add `hasPendingActions()` public query; set on enqueue, clear only when `xQueueReceive` returns `pdFALSE` (queue empty — not on every dequeue).
+- **TASK-116c**: `main.cpp` SpotifyApp — add `mutable bool _actionDispatched = false`; override `hasPendingAsync()` (`_actionDispatched && spotifyTask::hasPendingActions()`, self-clears); update `handleInput()` to check `wasLastInputAsync()` after BOTH Press and Release delegate calls; `suspend()` resets flag.
+- **TASK-116d**: `main.cpp` StockApp — add `bool _pendingAsync = false`; override `hasPendingAsync()`; set `_pendingAsync = true` inside the stale-cache `if` block only (not unconditionally) in `drillToChart()` and tab-range handler; clear in `pollStockChart()` resolve path; `suspend()` resets flag.
+- **TASK-116e**: `main.cpp` `appHandleInput()` — add `g_shellBusy` Press gate: `if (!s_inGesture && (millis() <= s_cooldownMs || g_shellBusy)) return;`; add busy setter `if (!g_shellBusy && g_apps[id]->hasPendingAsync()) shell::setBusy(true)` after **all four** `handleInput()` call sites.
+- **TASK-116f**: `check_build.sh` 4/4 ✅. Flash `cyd2usb_winamp`; smoke: tap PLAY → amber appears → clears; tap StockApp row → amber appears → clears. Verify no amber on Clock/Weather/Crypto/Matrix/Life/Aquarium taps.
+
+Exit criterion: `check_build.sh` passes; amber indicator fires and clears on Spotify and StockApp user actions; no amber on passive apps.
+
+---
+
+### TASK-117 — M-TOUCH-UX Phase 4: SERIAL_DEBUG deliverables
+**Owner**: Developer
+**Features**: touch-004, touch-005
+**Status**: open
+**Milestone**: M-TOUCH-UX
+**Depends on**: TASK-116 (g_shellBusy and visMode state must exist)
+**Blocks**: TASK-118 (VE cannot execute without these)
+**Design**: `docs/architecture/designs/M-TOUCH-UX.md` — Developer deliverables table
+
+Sub-tasks:
+- **TASK-117a**: `vuMeter.h` — add `vu::currentMode()` public getter (wraps function-local static mode).
+- **TASK-117b**: `main.cpp` `cmdGet()` — add `"shellBusy"` → JSON bool (`{"ok":true,"cmd":"get","var":"shellBusy","busy":<bool>,"last":true}`).
+- **TASK-117c**: `main.cpp` `cmdGet()` — add `"visMode"` → JSON int 0..3 (`{"ok":true,"cmd":"get","var":"visMode","mode":<int>,"last":true}`); integer mapping: 0=VIS_ATLAS_MODE, 1=VIS_VU, 2=VIS_BLANK, 3=VIS_WAVE_ATLAS.
+- **TASK-117d**: `main.cpp` `cmdTap()` — add `g_shellBusy` check for canvas taps (x < TASKBAR_X): if `g_shellBusy`, drop tap silently (same behaviour as physical touch through `appHandleInput()`). Taskbar-range taps (x ≥ TASKBAR_X) unaffected.
+- **TASK-117e**: Flash `cyd2usb_winamp_debug`; verify `get shellBusy` and `get visMode` respond correctly; verify `tap` while busy is dropped.
+
+Exit criterion: debug build flashed; `get shellBusy` and `get visMode` return valid JSON; `tap` to canvas while busy returns no action (fetchOkCount unchanged).
+
+---
+
+### TASK-118 — M-TOUCH-UX Phase 5: VE execution
+**Owner**: VE
+**Features**: touch-003, touch-004, touch-005
+**Status**: open
+**Milestone**: M-TOUCH-UX
+**Depends on**: TASK-117 (all SERIAL_DEBUG deliverables in debug build)
+**Design**: `docs/architecture/designs/M-TOUCH-UX.md` — Exit criteria table
+
+Sub-tasks:
+- **TASK-118a**: Execute T-BUSY-01 (StockApp row tap → amber → clears on result).
+- **TASK-118b**: Execute T-BUSY-01b (StockApp tab-range tap → amber).
+- **TASK-118c**: Execute T-BUSY-02 (Spotify PLAY → amber → clears).
+- **TASK-118d**: Execute T-BUSY-03 (passive apps: Clock/Weather/Crypto/Matrix/Life/Aquarium — no amber).
+- **TASK-118e**: Execute T-BUSY-05 (app switch while busy → amber clears; poll 3× at 20 ms).
+- **TASK-118f**: Execute T-CDWN-01 (`set cooldown 0` → tap 1 → 220 ms → tap 2 suppressed → 100 ms → tap 3 cycles).
+- **TASK-118g**: Execute T-CDWN-02 (poll shellBusy true → second tap blocked → fetchOkCount N+1).
+- **TASK-118h**: Execute T-CDWN-03 (taskbar tap passes g_shellBusy gate → app switches).
+- **TASK-118i**: `[MANUAL]` T-BUSY-04 (auto-clear after 3 s) — run on network-blocked DUT; record pass/skip.
+
+Exit criterion: T-BUSY-01/01b/02/03/05 pass; T-CDWN-01/02/03 pass; T-BUSY-04 manual pass or documented skip.
+
+---
+
 ### TASK-111 — M-AQUARIUM-CRAB: Implement aquarium crab creature
 **Owner**: Developer
 **Feature**: aquarium-crab-001 (new)

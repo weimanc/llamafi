@@ -827,6 +827,34 @@ Triggering incident: user observed "NET ERR -99" on screen while manually cyclin
 
 ---
 
+### LL-044 — 2026-05-31 — Mechanism written but only exercised in debug path — never fires in production
+
+**Context**: Touch UX design review (ADR-035 / M-TOUCH-UX). `touchScreenCoolDownTime` in `winampDisplay.h` is set by three handlers (VIS: 300 ms, Shuffle: 250 ms, Repeat: 250 ms) with correct, intentional durations. The variable had been in the codebase through multiple shipping milestones.
+
+**Observation**: The variable is only checked inside `#ifdef SERIAL_DEBUG injectTouch()`. In every production build the check never executes. Users reported VIS cycling was too easy to skip past — the 200 ms shell cooldown (not the intended 300 ms) was the only gate. The bug was undetected because SERIAL_DEBUG tests ran the intended path; no test exercised the production path specifically.
+
+**Root cause**: The guard (`if (millis() <= touchScreenCoolDownTime)`) was placed in the debug-injection path rather than in the production hot-path (`handleWinampInput()` Phase 2). Because the mechanism worked correctly under `injectTouch()`, it was never flagged as incomplete.
+
+**Suggested improvement**: When adding a new timing gate or rate-limiter, verify the check lives in the path that production code actually executes — not only in a test-injection shim. A single comment at the write site (`touchScreenCoolDownTime = millis() + 300; // checked at Phase 2 top`) is cheaper than rediscovering the gap later.
+
+**Status**: open
+
+---
+
+### LL-045 — 2026-05-31 — ADR and design doc drifted after VE-driven design change
+
+**Context**: Touch UX design review round 2 (ADR-035 / M-TOUCH-UX). VE-CH2 changed the SpotifyApp signal chain: the original `wasLastInputAsync()` direct return was replaced by `_actionDispatched && spotifyTask::hasPendingActions()`. M-TOUCH-UX.md was updated in the same pass. ADR-035 Decision 4 was not.
+
+**Observation**: Developer review (DEV-01) caught the divergence: M-TOUCH-UX described the new chain; ADR-035 still described the old one. A reviewer reading only the ADR would have implemented the wrong chain.
+
+**Root cause**: The design revision was made in M-TOUCH-UX (the detail doc) while the ADR (the decision record) was treated as already-settled and not revisited. Two docs for the same decision with no enforced sync point.
+
+**Suggested improvement**: After any design revision driven by a review finding, update both the ADR and the design doc in the same edit pass before closing the finding. Treat "update ADR" as a mandatory step of resolving a decision-level finding — not an optional follow-up. A checklist item on the review template would enforce this.
+
+**Status**: open
+
+---
+
 ## Entry Format
 
 ```

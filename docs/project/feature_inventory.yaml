@@ -849,6 +849,75 @@ features:
       T_CX_06 is manual visual (LL-037 regression check). T_CX_04 valid only at session start.
       s_cxDataReady (main.cpp) exposed via get cryptoReady for T_CX_04/T_CX_05.
 
+  - id: touch-003
+    name: Shared hitbox primitive (touch/hitbox.h)
+    description: |
+      Header-only `Rect` struct with three inline helpers: `hitTest` (point-in-rect),
+      `hitTestRow` (0-based row index), `hitTestCol` (0-based column index). Replaces
+      per-app inline coordinate arithmetic. Apps adopt incrementally — no forced migration.
+      Eliminates per-app arithmetic bugs and makes hitbox intent explicit in code review.
+      Zero runtime overhead (8-byte struct; inlines compile identically to hand-rolled versions).
+    status: proposed
+    git_ref: ""
+    files:
+      - app/src/touch/hitbox.h
+    cross_features: [touch-004, touch-005, app-interface-001, stock-001]
+    test_ids: []
+    notes: |
+      ADR-035 Decision 1. Design: docs/architecture/designs/M-TOUCH-UX.md.
+      StockApp adoption pattern documented in M-TOUCH-UX Part 1 (before/after).
+
+  - id: touch-004
+    name: Shell busy indicator — amber taskbar active bar
+    description: |
+      Shell-owned `g_shellBusy` flag + `shell::setBusy()` API. While set, the 3 px
+      active-app indicator bar in the taskbar renders amber (`TASKBAR_BUSY_COLOR 0xFD20`)
+      instead of green. `renderActiveIndicator()` repaints only the 3×40 px bar on
+      transition (one SPI write, not a full taskbar repaint). `App` ABC gains
+      `hasPendingAsync() const` (default false). Shell polls each loop; auto-clears after
+      `SHELL_BUSY_TIMEOUT_MS = 3000` ms as fallback. `switchApp()` always clears busy
+      before painting the new active slot. Classic "sand-glass" equivalent for a touch UI.
+    status: proposed
+    git_ref: ""
+    files:
+      - app/gen/shell_layout.h
+      - app/src/taskbar/taskbar.h
+      - app/src/appShell.h
+      - app/src/main.cpp
+      - app/src/winamp/winampDisplay.h
+      - app/src/spotifyTask.h
+    cross_features: [touch-005, app-interface-001, taskbar-001, stock-001]
+    test_ids: [T-BUSY-01, T-BUSY-02, T-BUSY-03, T-BUSY-04, T-BUSY-05]
+    notes: |
+      ADR-035 Decision 4. Design: docs/architecture/designs/M-TOUCH-UX.md Part 2.
+      SpotifyApp: `_actionDispatched && spotifyTask::hasPendingActions()` (mutable flag,
+      volatile _actionPending in spotifyTask for thread safety). StockApp: `bool _pendingAsync`
+      set on enqueue, cleared on pollStockChart() resolve. Developer deliverable: `get shellBusy`
+      in SERIAL_DEBUG cmdGet() before VE can execute T-BUSY suite.
+
+  - id: touch-005
+    name: Debounce activation — touchScreenCoolDownTime Phase 2 check + g_shellBusy gate
+    description: |
+      Two existing but incomplete debounce mechanisms corrected. (2a) `touchScreenCoolDownTime`
+      in `handleWinampInput()` is already set at VIS (300 ms), Shuffle (250 ms), Repeat (250 ms)
+      dispatch sites but was only checked in the `#ifdef SERIAL_DEBUG injectTouch()` path —
+      never in production. Fix: one guard at the top of Phase 2. (2b) The shell's 200 ms
+      `s_cooldownMs` expires long before a network fetch completes. Fix: extend the existing
+      Press gate in `appHandleInput()` to also block while `g_shellBusy` is set. Taskbar taps
+      are checked before this gate and are unaffected. No new debounce class.
+    status: proposed
+    git_ref: ""
+    files:
+      - app/src/winamp/winampDisplay.h
+      - app/src/main.cpp
+    cross_features: [touch-004, app-interface-001, touch-002]
+    test_ids: [T-CDWN-01, T-CDWN-02, T-CDWN-03]
+    notes: |
+      ADR-035 Decision 2 (2a + 2b). Design: docs/architecture/designs/M-TOUCH-UX.md Part 1
+      debounce section. 2a fixes VIS cycling difficulty (LL-044). 2b extends the shell busy
+      gate. Developer deliverable: `get visMode` in SERIAL_DEBUG cmdGet() before VE can
+      execute T-CDWN-01.
+
   - id: tooling-001
     name: Host-side tool-script smoke gate
     description: |
