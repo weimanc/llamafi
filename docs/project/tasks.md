@@ -157,12 +157,12 @@ Sub-tasks and results (debug build flashed; run 2026-05-31):
 - **TASK-118i** T-BUSY-04 `[MANUAL]` — not yet run.
 
 **Outstanding items before TASK-118 can close:**
-1. **T076 / T079 / T081 regression** — each successful transport tap now correctly sets `g_shellBusy=true` (Spotify API call in flight), blocking subsequent taps in the same test's sweep. Harness fix needed: add `_poll_shell_busy(dut, False, 4000)` before each tap in T076 and T081; add `_poll_shell_busy(dut, False, 4000)` at start of T079 post-reset step. These are harness-only changes (firmware behaviour is correct).
-2. **T-CDWN-02 re-run** — when Yahoo Finance not rate-limited.
-3. **T-BUSY-04 manual run** — network-blocked DUT required.
-4. **Design doc sync** — ADR-035 and M-TOUCH-UX.md still describe `_actionDispatched` chain (superseded by `spotifyTask::hasPendingActions()` direct call). Follow-up doc update needed.
+1. ~~T076/T079/T081 harness fix~~ ✅ — `_poll_shell_busy(dut, False)` added before each transport tap; T079 gets an initial poll before cooldown arm. Firmware behaviour correct; harness-only change.
+2. ~~Design doc sync~~ ✅ — ADR-035 + M-TOUCH-UX.md updated: `_actionDispatched` chain removed; both docs now describe `hasPendingAsync()` = `spotifyTask::hasPendingActions()` directly.
+3. **T-CDWN-02 re-run** — when Yahoo Finance not rate-limited.
+4. **T-BUSY-04 manual run** — network-blocked DUT required.
 
-Exit criterion: T-BUSY-01/01b/02/03/05 ✅; T-CDWN-01/03 ✅; T-CDWN-02 pending re-run; T-BUSY-04 manual pending; T076/T079/T081 harness fix pending.
+Exit criterion: T-BUSY-01/01b/02/03/05 ✅; T-CDWN-01/03 ✅; T076/T079/T081 harness ✅; doc sync ✅; T-CDWN-02 pending re-run; T-BUSY-04 manual pending.
 
 ---
 

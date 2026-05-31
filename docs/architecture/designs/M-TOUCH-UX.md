@@ -263,38 +263,24 @@ void stockTickChart() {
 
 Same pattern for tab range changes: `_pendingAsync = true` only inside the `if` block that calls `enqueueStockChart`; cleared on `pollStockChart()` resolve.
 
-**SpotifyApp — via spotifyTask queue depth:**
+**SpotifyApp — via spotifyTask queue depth (simplified):**
 
-`WinampDisplay` is not the signal source — the `_lastInputWasAsync` approach is retired (it had "last triggered" semantics, not "currently in flight"). Instead, `SpotifyApp` tracks its own dispatch flag and asks `spotifyTask` whether the queue has drained:
+`SpotifyApp::hasPendingAsync()` queries the spotifyTask action queue directly — no intermediate dispatch flag:
 
 ```cpp
-// SpotifyApp private:
-mutable bool _actionDispatched = false;   // mutable: self-clears inside const hasPendingAsync()
-
+// SpotifyApp (as implemented):
 bool hasPendingAsync() const override {
-    if (!_actionDispatched) return false;
-    if (spotifyTask::hasPendingActions()) return true;
-    // Queue drained — action processed.
-    _actionDispatched = false;   // const method; requires mutable
-    return false;
+    return spotifyTask::hasPendingActions();
 }
-void suspend() override { winampDisplay.resetDragState(); _actionDispatched = false; }
+bool handleInput(TouchPhase phase, int x, int y) override {
+    return winampDisplay.handleWinampInput(phase, x, y);
+}
+void suspend() override { winampDisplay.resetDragState(); }
 ```
 
-`SpotifyApp::handleInput()` sets the flag when WinampDisplay dispatches async work. Since `WinampDisplay` must not call shell functions, the signal travels up through `handleInput()`'s return value is insufficient — instead, `SpotifyApp` checks WinampDisplay's existing `wasLastInputAsync()` accessor (always-on, non-SERIAL_DEBUG) immediately after the call:
+The spotifyTask action queue is exclusively user-initiated (PREV, PLAY, PAUSE, STOP, NEXT, Shuffle, Repeat, seek, volume, PLEDIT row tap, reconnect). `hasPendingActions()` true means a user tap is still in flight. `cmdTap` also enqueues via `injectTouch()`, so both production touches and injected taps are covered.
 
-```cpp
-bool SpotifyApp::handleInput(TouchPhase phase, int x, int y) override {
-    bool consumed = winampDisplay.handleWinampInput(phase, x, y);
-    if (consumed && winampDisplay.wasLastInputAsync())
-        _actionDispatched = true;
-    return consumed;
-}
-```
-
-`WinampDisplay` retains `_lastInputWasAsync` (reset per call, set at dispatch sites) purely as a signal to `SpotifyApp`. It has no shell dependency. `SpotifyApp` reads it and sets its own `_actionDispatched` flag; the "currently in flight" check is `spotifyTask::hasPendingActions()`.
-
-**Async dispatch sites in `handleWinampInput()` that must set `_lastInputWasAsync = true`:** transport buttons (PREV, PLAY, PAUSE, STOP, NEXT — all call `spotifyTask::enqueue()`), Shuffle toggle, Repeat toggle, seek-drag Release (enqueues seek), volume-drag Release (enqueues volume), PLEDIT row tap Release (enqueues play-URI), logo tap (triggers reconnect + force-poll). VIS tap (`vu::nextMode()`) is **synchronous** — must NOT set the flag. Note that seek-drag, volume-drag, and PLEDIT tap fire on `Release`, not Phase 2 — `_lastInputWasAsync` must also be checked/set in the Release handler path of `handleWinampInput()`, and `SpotifyApp::handleInput()` must check `wasLastInputAsync()` after both the Press and Release delegate calls.
+`WinampDisplay._lastInputWasAsync` / `wasLastInputAsync()` remain in `winampDisplay.h` (always-on, non-SERIAL_DEBUG) but are not consumed by `SpotifyApp` — the direct queue query made the flag-chain unnecessary. `WinampDisplay` has zero shell dependency.
 
 `spotifyTask::hasPendingActions()` — a new public query on the task, returning true while the action queue is non-empty. **Thread safety:** implementation must use a `volatile bool _actionPending` flag. **Semantics:** the flag is cleared only when `xQueueReceive` returns `pdFALSE` (queue empty after dequeue), not on every dequeue. Clearing on every dequeue would cause `hasPendingAsync()` to return false between queued items when multiple actions are enqueued, making the amber indicator flash for each action. Developer to confirm the existing queue implementation uses `xQueueReceive` (FreeRTOS queue) before coding.
 
@@ -305,7 +291,7 @@ No app ever calls `shell::setBusy()` directly.
 ### App switch while busy — `switchApp()` clears busy
 
 `switchApp()` calls `shell::setBusy(false)` immediately after `suspend()` and before `renderTaskbar()`. This ensures:
-- The suspended app's `_pendingAsync` / `_actionDispatched` is reset by `suspend()` (see contract above).
+- The suspended app's `_pendingAsync` is reset by `suspend()` (see contract above). SpotifyApp has no such flag — its queue drains independently.
 - The new active slot is always painted green on switch, regardless of prior busy state.
 
 ```cpp
@@ -329,7 +315,7 @@ void switchApp(AppId next) {
 
 The existing `suspend()` layering rule (rule 6) states: "must always reset drag/gesture state."
 
-**Addition:** `suspend()` must also reset any `_pendingAsync` / `_actionDispatched` flag, so `hasPendingAsync()` returns false immediately after suspension. This prevents the shell's `loop()` polling from seeing stale in-flight state on the newly-active app.
+**Addition:** `suspend()` must also reset any `_pendingAsync` flag, so `hasPendingAsync()` returns false immediately after suspension. This prevents the shell's `loop()` polling from seeing stale in-flight state on the newly-active app. SpotifyApp has no such flag — `spotifyTask::hasPendingActions()` self-clears as the queue drains, and `switchApp()` calls `shell::setBusy(false)` before the new app's taskbar paint.
 
 ### Full repaint path
 
@@ -355,7 +341,7 @@ Internally delegates to `renderActiveIndicator()`. Default preserves all existin
 | `app/src/winamp/winampDisplay.h` | add `touchScreenCoolDownTime` Phase 2 check (one line, top of Phase 2 block); add `_lastInputWasAsync` bool + `wasLastInputAsync()` accessor; set at all async dispatch sites in both Phase 2 and Release-path; no shell dependency |
 | `app/src/winamp/vuMeter.h` | add `vu::currentMode()` public getter (wraps the function-local static mode) — required for `get visMode` SERIAL_DEBUG deliverable |
 | `app/src/spotifyTask.h` | add `hasPendingActions()` public query; `volatile bool _actionPending` flag cleared only when queue becomes empty (not on every dequeue) |
-| `app/src/main.cpp` (SpotifyApp) | `mutable bool _actionDispatched`; `hasPendingAsync()` = `_actionDispatched && spotifyTask::hasPendingActions()`; `handleInput()` checks `wasLastInputAsync()` after BOTH Press and Release delegate calls; `suspend()` resets flag |
+| `app/src/main.cpp` (SpotifyApp) | `hasPendingAsync()` = `spotifyTask::hasPendingActions()` directly; no `_actionDispatched` flag; `handleInput()` delegates to `winampDisplay.handleWinampInput()` without inspecting `wasLastInputAsync()`; `suspend()` calls `winampDisplay.resetDragState()` only |
 | `app/src/main.cpp` (StockApp) | `bool _pendingAsync`; set inside the stale-cache `if` block only (not unconditionally); cleared on `pollStockChart()` resolve; `suspend()` resets flag |
 | `app/src/main.cpp` (appHandleInput) | (2b gate) extend Press guard: `if (!s_inGesture && (millis() <= s_cooldownMs \|\| g_shellBusy)) return;`; (busy set) `if (!g_shellBusy && app->hasPendingAsync()) shell::setBusy(true)` after **all four** `handleInput()` call sites (Release-on-taskbar-interrupt, Press, Move, Release-on-finger-up); `cmdTap` must also check `g_shellBusy` before calling `handleInput()` for canvas taps, so injected taps obey the same gate as physical touches |
 | `app/src/main.cpp` (loop) | primary clear: poll `hasPendingAsync()` each loop; fallback auto-clear after `SHELL_BUSY_TIMEOUT_MS` |
@@ -384,7 +370,7 @@ Internally delegates to `renderActiveIndicator()`. Default preserves all existin
 | T-BUSY-02 | `switchApp(Spotify)` → `tap <coords.tap_button("PLAY")>` → poll `get shellBusy` until `busy==true` (max 500 ms); returns `busy==false` within `SHELL_BUSY_TIMEOUT_MS` (3 s) or sooner once `spotifyTask` queue drains. |
 | T-BUSY-03 | For each of Clock, Weather, Crypto, Matrix, Life, Aquarium: switch to app, tap anywhere on the app canvas (e.g. centre `137 120`), `get shellBusy` returns `busy==false`. |
 | T-BUSY-04 | `[MANUAL]` Auto-clear path: `switchApp(Stock)` → `tap 137 36` → wait 3100 ms without interacting → `get shellBusy` returns `busy==false`. Requires the fetch to still be in-flight at 3 s — run on a network-blocked DUT (WiFi disabled) or with `set fetchFailed 1` pre-injected to hold `_pendingAsync` open. No automated CI path exists without a `set freezeFetch` Developer deliverable; mark manual until that deliverable is added. |
-| T-BUSY-05 | `switchApp(Stock)` → `tap 137 36` (amber set) → poll `get shellBusy` until `busy==true` → `switchApp(Spotify)` → poll `get shellBusy` 3× at 20 ms intervals; all must return `busy==false` (detects re-arm if `suspend()` fails to reset `_pendingAsync`). `[VISUAL]` taskbar Spotify slot appears green — manual verification only; harness cannot read pixel colour. |
+| T-BUSY-05 | `switchApp(Stock)` → `tap 137 36` (amber set) → poll `get shellBusy` until `busy==true` → `switchApp(Spotify)` → poll `get shellBusy` 3× at 20 ms intervals; all must return `busy==false` (detects re-arm if Stock's `suspend()` fails to reset `_pendingAsync`, or if `switchApp()` fails to call `shell::setBusy(false)`). `[VISUAL]` taskbar Spotify slot appears green — manual verification only; harness cannot read pixel colour. |
 | T-CDWN-01 | `switchApp(Spotify)` → `set cooldown 0` (zero `touchScreenCoolDownTime`) → `get visMode` (baseline M0) → `tap <VIS x,y>` (tap 1; cycles to M1) → `get visMode == M1` → sleep 220–280 ms (shell `s_cooldownMs` elapsed; `touchScreenCoolDownTime` still live: 300 ms from tap 1) → `tap <VIS x,y>` (tap 2; Phase 2 gate active) → `get visMode == M1` (unchanged; second tap suppressed by `touchScreenCoolDownTime`) → sleep 100 ms → `tap <VIS x,y>` (tap 3; gate elapsed at 320–380 ms) → `get visMode == M2`. Tests the Phase 2 gate specifically — **not** the shell gate (which fires within 200 ms; tapping within 200 ms would only prove the shell gate, not the bug fix). |
 | T-CDWN-02 | `switchApp(Stock)` → `get fetchOkCount` (baseline N) → `tap 137 36` (fetch starts) → poll `get shellBusy` until `busy==true` (max 500 ms; ensures gate is active before second tap) → `tap 137 36` (second tap; `g_shellBusy` gate blocks it via `cmdTap` g_shellBusy check) → poll `get shellBusy` until `busy==false` → `get fetchOkCount == N+1` (one fetch, not two). |
 | T-CDWN-03 | `switchApp(Stock)` → `tap 137 36` → poll `get shellBusy` until `busy==true` → `tap <taskbar_clock x,y>` (x ≥ 275; taskbar tap executes before the canvas `g_shellBusy` gate) → `get appId == Clock` → `get shellBusy == false`. |
@@ -403,7 +389,7 @@ Internally delegates to `renderActiveIndicator()`. Default preserves all existin
 
 1. **`hasPendingAsync()` canonical semantics: "currently in flight."** Both StockApp and SpotifyApp self-clear when work completes. The shell's `loop()` polls and clears the indicator promptly; auto-clear is fallback only. (VE-CH1, VE-CH2)
 
-2. **SpotifyApp chain: `_actionDispatched` + `spotifyTask::hasPendingActions()`.** `WinampDisplay._lastInputWasAsync` is retained as a per-call signal to `SpotifyApp::handleInput()`; it is not used directly by the shell. `SpotifyApp` tracks its own `_actionDispatched` flag. (VE-CH2)
+2. **SpotifyApp chain simplified to direct queue query.** `SpotifyApp::hasPendingAsync()` = `spotifyTask::hasPendingActions()` directly; no `_actionDispatched` flag in SpotifyApp. `WinampDisplay._lastInputWasAsync` / `wasLastInputAsync()` remain in WinampDisplay but are not consumed by SpotifyApp. (VE-CH2)
 
 3. **`switchApp()` clears busy; `suspend()` resets pending flag.** New active slot always painted green on switch. (VE-CH3)
 

@@ -295,6 +295,7 @@ def t076(dut: Dut):
     ]
     errors = []
     for label, x, y, exp_hit, exp_action in cases:
+        _poll_shell_busy(dut, False, timeout_ms=2000)   # wait for prior async action to clear
         dut.set_cooldown_zero()
         r = dut.cmd(f"tap {x} {y}")
         hit = r.get("hit", "")
@@ -370,6 +371,7 @@ def t079(dut: Dut):
     # injectTouch (cmd tap) intentionally does NOT arm touchScreenCoolDownTime
     # — synthetic taps must not block real input. So `set cooldown <ms>` is
     # used to arm the gate, then we verify a follow-up `tap` reports skipped.
+    _poll_shell_busy(dut, False, timeout_ms=1000)   # ensure no prior async leaves shellBusy
     r_arm = dut.cmd("set cooldown 500")
     if not r_arm.get("ok"):
         fail("T079", f"set cooldown 500 failed: {r_arm}")
@@ -417,6 +419,7 @@ def t081(dut: Dut):
                ("STOP", "STOP"), ("NEXT", "NEXT")]
     errors = []
     for name, action in buttons:
+        _poll_shell_busy(dut, False, timeout_ms=3000)   # wait for prior enqueued action to clear
         cx, cy = _c.tap_button(name)
         dut.set_cooldown_zero()
         r = dut.cmd(f"tap {cx} {cy}")
