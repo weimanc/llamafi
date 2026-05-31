@@ -89,6 +89,7 @@ inline int           &lLastWRef()       { static int v = -1; return v; }
 inline int           &rLastWRef()       { static int v = -1; return v; }
 inline VisMode       &s_modeRef()       { static VisMode m = VIS_ATLAS_MODE; return m; }
 inline VisMode       &s_prevModeRef()   { static VisMode m = VIS_ATLAS_MODE; return m; }
+inline VisMode        currentMode()     { return s_modeRef(); }
 inline uint16_t      &atlasFrameRef()     { static uint16_t f = 0; return f; }
 inline uint16_t      &waveAtlasFrameRef() { static uint16_t f = 0; return f; }
 

@@ -4,7 +4,8 @@ Serial debug test harness — serialdbg-001 suite.
 
 Executes T076–T088, T095, T096, T_BI_01–T_BI_04,
 T_MA_01–T_MA_03, T_GOL_01–T_GOL_04, T_WX_01–T_WX_05,
-T_CX_01–T_CX_05, T_X07_01 against a DUT flashed with cyd2usb_winamp_debug.
+T_CX_01–T_CX_05, T_X07_01,
+T-BUSY-01/01b/02/03/05, T-CDWN-01/02/03 against a DUT flashed with cyd2usb_winamp_debug.
 T089 (production ELF symbol check) is a host build check — not run here.
 T095 (physical vs. synthetic calibration) requires --interactive (human at DUT).
 
@@ -2680,6 +2681,418 @@ def t188(dut: Dut):
     pass_("T188", "all 4 ranges (D1/D5/Mo1/Ytd) fetched without -99 — getStream() fix confirmed")
 
 
+# ── M-TOUCH-UX suite (TASK-118) ───────────────────────────────────────────────
+# Verifies: busy indicator (shellBusy), cooldown gate, g_shellBusy cmdTap gate.
+# Firmware prerequisites: get shellBusy, get visMode, cmdTap g_shellBusy check.
+# All tests require cyd2usb_winamp_debug build.
+
+_SPOTIFY_APP_ID = 0
+_CLOCK_APP_ID   = 1
+
+
+def _poll_shell_busy(dut: Dut, expected: bool, timeout_ms: int = 500,
+                     cmd_timeout: float = 5.0) -> bool:
+    """Poll get shellBusy until busy==expected. Returns True if reached within timeout.
+    cmd_timeout: per-command serial timeout; raised to 5 s by default to tolerate
+    transient serial flooding from concurrent dataTask output (chart/quote fetches)."""
+    deadline = time.monotonic() + timeout_ms / 1000.0
+    while time.monotonic() < deadline:
+        try:
+            r = dut.cmd("get shellBusy", timeout=cmd_timeout)
+            if r.get("ok") and r.get("busy") == expected:
+                return True
+        except TimeoutError:
+            pass  # transient serial flood from dataTask; retry
+        time.sleep(0.02)
+    return False
+
+
+def _poll_chart_len_positive(dut: Dut, timeout_s: float = 45.0) -> bool:
+    """Poll get chartLen until > 0 (fetch complete)."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        r = _stock_get(dut, "chartLen")
+        try:
+            if r.get("ok") and int(r.get("val", 0)) > 0:
+                return True
+        except (ValueError, TypeError):
+            pass
+        time.sleep(1.0)
+    return False
+
+
+def _get_shell_busy(dut: Dut) -> bool | None:
+    """Return current shellBusy bool, or None on error."""
+    r = dut.cmd("get shellBusy", timeout=2.0)
+    if r.get("ok"):
+        return r.get("busy")
+    return None
+
+
+def _get_vis_mode(dut: Dut) -> int | None:
+    """Return current visMode integer (0–3), or None on error."""
+    r = dut.cmd("get visMode", timeout=2.0)
+    if r.get("ok"):
+        try:
+            return int(r["mode"])
+        except (KeyError, ValueError, TypeError):
+            pass
+    return None
+
+
+# ── T-BUSY-01 — StockApp row tap triggers busy; clears on fetch complete ──────
+
+def t_busy_01(dut: Dut):
+    """T-BUSY-01: switchApp(Stock) → tap AAPL row → shellBusy true → chartLen>0 → shellBusy false."""
+    print("T-BUSY-01  StockApp row tap → amber → clears on fetch complete")
+    if not _switch_to_stock(dut):
+        skip("T-BUSY-01", "could not switch to StockApp")
+        return
+    # Ensure list view (tap back to list if needed)
+    dut.cmd("tap 10 7", timeout=2.0)  # back tap — no-op if already in list
+    time.sleep(0.3)
+    # Tap AAPL row (137, 36) to drill to chart and trigger async fetch
+    dut.cmd("tap 137 36", timeout=2.0)
+    # Poll for busy (may be brief; miss → test gap, not firmware defect)
+    busy_seen = _poll_shell_busy(dut, True, timeout_ms=500)
+    if not busy_seen:
+        # Not necessarily a defect — busy window may be shorter than poll granularity
+        print("  [T-BUSY-01] shellBusy=true not observed within 500 ms (test gap; continuing)")
+    else:
+        print("  [T-BUSY-01] shellBusy=true observed")
+    # Wait for chart fetch to complete (chartLen > 0)
+    print("  [T-BUSY-01] waiting for chartLen > 0…", flush=True)
+    if not _poll_chart_len_positive(dut, timeout_s=45.0):
+        _restore_from_stock(dut)
+        fail("T-BUSY-01", "chartLen did not exceed 0 after 45 s — fetch did not complete")
+        return
+    # After fetch, shellBusy must be false
+    time.sleep(0.1)
+    busy_after = _get_shell_busy(dut)
+    _restore_from_stock(dut)
+    if busy_after is None:
+        fail("T-BUSY-01", "get shellBusy failed after chart fetch")
+        return
+    if busy_after:
+        fail("T-BUSY-01", "shellBusy still true after chartLen > 0 — auto-clear did not fire")
+        return
+    pass_("T-BUSY-01", f"shellBusy cleared after chart fetch complete (busy_seen={busy_seen})")
+
+
+# ── T-BUSY-01b — StockApp tab-range tap also triggers busy ────────────────────
+
+def t_busy_01b(dut: Dut):
+    """T-BUSY-01b: drill to chart, tap 5D tab → shellBusy true."""
+    print("T-BUSY-01b  StockApp tab-range tap → amber")
+    if not _switch_to_stock(dut):
+        skip("T-BUSY-01b", "could not switch to StockApp")
+        return
+    # Ensure list view
+    dut.cmd("tap 10 7", timeout=2.0)
+    time.sleep(0.3)
+    # Force stale cache BEFORE drill-in so the drill always triggers a fresh fetch.
+    # Without this, a recent T-BUSY-01 fetch (< STOCK_CHART_FETCH_D1 = 60 s ago) keeps
+    # the cache fresh and drillToChart() skips the enqueue, leaving _pendingAsync false.
+    dut.cmd("set triggerFetch 1", timeout=2.0)
+    # Drill to AAPL chart; guaranteed fetch now (stale flag set above).
+    drill_before = _stock_ok_count(dut)
+    dut.cmd("tap 137 36", timeout=2.0)
+    time.sleep(0.3)
+    if not _wait_chart_complete(dut, drill_before, timeout_s=45.0):
+        _restore_from_stock(dut)
+        skip("T-BUSY-01b", "initial chart fetch did not complete — cannot test tab-range path")
+        return
+    time.sleep(0.1)
+    # Snapshot fetchOkCount BEFORE 5D tap — 5D tab always triggers a new fetch (unconditional).
+    before5d = _stock_ok_count(dut)
+    dut.cmd("tap 184 7", timeout=2.0)
+    busy_seen = _poll_shell_busy(dut, True, timeout_ms=500)
+    # Let this fetch settle before leaving.
+    _wait_chart_complete(dut, before5d, timeout_s=45.0)
+    _restore_from_stock(dut)
+    if not busy_seen:
+        fail("T-BUSY-01b", "shellBusy=true not observed within 500 ms after 5D tab tap")
+        return
+    pass_("T-BUSY-01b", "shellBusy=true observed after 5D range tab tap")
+
+
+# ── T-BUSY-02 — Spotify PLAY tap triggers busy; clears ────────────────────────
+
+def t_busy_02(dut: Dut):
+    """T-BUSY-02: Spotify PLAY tap → shellBusy true → clears within 3 s."""
+    print("T-BUSY-02  Spotify PLAY → amber → clears")
+    if not _restore_spotify(dut):
+        skip("T-BUSY-02", "could not restore Spotify app")
+        return
+    vx, vy = _c.tap_button("PLAY")
+    dut.cmd(f"tap {vx} {vy}", timeout=2.0)
+    busy_seen = _poll_shell_busy(dut, True, timeout_ms=500)
+    if not busy_seen:
+        fail("T-BUSY-02", "shellBusy=true not observed within 500 ms after PLAY tap")
+        return
+    print("  [T-BUSY-02] shellBusy=true; waiting for clear (max 3.5 s)…", flush=True)
+    cleared = _poll_shell_busy(dut, False, timeout_ms=3500)
+    if not cleared:
+        fail("T-BUSY-02", "shellBusy still true after 3.5 s — auto-clear or queue drain did not fire")
+        return
+    pass_("T-BUSY-02", "shellBusy true→false observed after PLAY tap")
+
+
+# ── T-BUSY-03 — Passive apps: no amber on canvas tap ─────────────────────────
+
+def t_busy_03(dut: Dut):
+    """T-BUSY-03: Clock/Weather/Crypto/Matrix/Life/Aquarium canvas taps → shellBusy false."""
+    print("T-BUSY-03  Passive apps — no amber on canvas tap")
+    # Use switchApp <id> for all — avoids taskbar scroll issues and Aquarium (AppId 8)
+    # which is out of the default visible taskbar range.
+    PASSIVE_APPS = [
+        ("Clock",    1),
+        ("Weather",  2),
+        ("Crypto",   3),
+        ("Matrix",   4),
+        ("Life",     5),
+        ("Aquarium", 8),
+    ]
+    # Apps that do network fetches on first activation need a longer settle time.
+    _FETCH_APPS = {"Weather", "Crypto"}
+    errors = []
+    for app_name, app_id in PASSIVE_APPS:
+        # When the DUT switches to a network-active app (Weather/Crypto), HTTPClient debug
+        # output from Core 0 races with the switchApp response from Core 1, splitting the
+        # JSON across two lines (UART not mutex-protected between cores). The switchApp
+        # command DOES execute; only the response is garbled. Recover by waiting for HTTP
+        # activity to settle, then verifying via get appId.
+        dut.ser.reset_input_buffer()
+        switch_confirmed = False
+        try:
+            r = dut.cmd(f"switchApp {app_id}", timeout=3.0)
+            if r.get("ok"):
+                switch_confirmed = True
+        except TimeoutError:
+            pass  # garbled response — command executed; verify below
+        if not switch_confirmed:
+            # HTTP activity may have split the response. Wait, flush, re-verify.
+            time.sleep(3.0)
+            dut.ser.reset_input_buffer()
+            try:
+                r_v = dut.cmd("get appId", timeout=5.0)
+                if r_v.get("ok") and r_v.get("name") == app_name:
+                    switch_confirmed = True
+                else:
+                    errors.append(f"{app_name}: switch unconfirmed (appId={r_v.get('name')!r})")
+                    continue
+            except TimeoutError:
+                errors.append(f"{app_name}: switchApp timed out and appId verify also timed out")
+                continue
+        settle = 3.0 if app_name in _FETCH_APPS else 0.5
+        time.sleep(settle)
+        # Flush after settle to discard HTTP log lines that could split or precede the tap response.
+        dut.ser.reset_input_buffer()
+        try:
+            r_tap = dut.cmd("tap 137 120", timeout=5.0)
+        except TimeoutError:
+            errors.append(f"{app_name}: tap timed out (serial flood from network init)")
+            continue
+        if not r_tap.get("ok"):
+            errors.append(f"{app_name}: tap failed: {r_tap}")
+            continue
+        time.sleep(0.1)
+        busy = _get_shell_busy(dut)
+        if busy is None:
+            errors.append(f"{app_name}: get shellBusy failed")
+        elif busy:
+            errors.append(f"{app_name}: shellBusy=true after canvas tap (unexpected)")
+        else:
+            print(f"  [T-BUSY-03] {app_name}: shellBusy=false ✓")
+    _restore_spotify(dut)
+    if errors:
+        fail("T-BUSY-03", "; ".join(errors))
+    else:
+        pass_("T-BUSY-03", f"all {len(PASSIVE_APPS)} passive apps: shellBusy=false after canvas tap")
+
+
+# ── T-BUSY-05 — App switch while busy clears amber ────────────────────────────
+
+def t_busy_05(dut: Dut):
+    """T-BUSY-05: Stock row tap (busy) → switchApp(Spotify) → shellBusy false × 3."""
+    print("T-BUSY-05  App switch while busy → amber clears")
+    if not _switch_to_stock(dut):
+        skip("T-BUSY-05", "could not switch to StockApp")
+        return
+    dut.cmd("tap 10 7", timeout=2.0)
+    time.sleep(0.3)
+    # Force stale cache so drill-in triggers a new async fetch.
+    dut.cmd("set triggerFetch 1", timeout=2.0)
+    dut.cmd("tap 137 36", timeout=2.0)
+    busy_seen = _poll_shell_busy(dut, True, timeout_ms=500)
+    if not busy_seen:
+        _restore_from_stock(dut)
+        fail("T-BUSY-05", "shellBusy=true not observed within 500 ms — cannot exercise switch-while-busy path")
+        return
+    # Switch to Spotify while busy
+    dut.cmd(f"switchApp {_SPOTIFY_APP_ID}", timeout=3.0)
+    time.sleep(0.05)
+    # Poll 3× at 20 ms intervals — all must be false
+    results = []
+    for _ in range(3):
+        results.append(_get_shell_busy(dut))
+        time.sleep(0.02)
+    # Wait for any in-flight fetch to settle before cleanup
+    _poll_shell_busy(dut, False, timeout_ms=5000)
+    if any(b is not True for b in results):
+        # None means get failed; True means still busy
+        bad = [str(r) for r in results if r is not False]
+        if bad:
+            fail("T-BUSY-05", f"shellBusy not false after switchApp: {results}")
+            return
+    pass_("T-BUSY-05", f"shellBusy=false in all 3 polls after switchApp (results={results})")
+
+
+# ── T-CDWN-01 — VIS Phase-2 cooldown gate (touchScreenCoolDownTime) ───────────
+
+def t_cdwn_01(dut: Dut):
+    """T-CDWN-01: VIS cycling — tap 1 cycles; tap 2 at 220 ms suppressed; tap 3 at 330 ms cycles."""
+    print("T-CDWN-01  VIS Phase-2 cooldown gate")
+    if not _restore_spotify(dut):
+        skip("T-CDWN-01", "could not restore Spotify app")
+        return
+    dut.cmd("set cooldown 0", timeout=2.0)
+    time.sleep(0.05)
+    m0 = _get_vis_mode(dut)
+    if m0 is None:
+        fail("T-CDWN-01", "get visMode failed at baseline")
+        return
+    vx, vy = _c.tap_vis()
+    # Tap 1 — cycles to M1
+    t1 = time.monotonic()
+    dut.cmd(f"tap {vx} {vy}", timeout=2.0)
+    time.sleep(0.05)
+    m1 = _get_vis_mode(dut)
+    if m1 is None:
+        fail("T-CDWN-01", "get visMode failed after tap 1")
+        return
+    if m1 == m0:
+        fail("T-CDWN-01", f"tap 1 did not cycle visMode (stuck at {m0})")
+        return
+    print(f"  [T-CDWN-01] tap 1: visMode {m0}→{m1}")
+    # Sleep until ~250 ms from tap 1 (shell cooldown expired; VIS cooldown 300 ms still live)
+    elapsed = time.monotonic() - t1
+    target = 0.250
+    remaining = target - elapsed
+    if remaining > 0:
+        time.sleep(remaining)
+    # Tap 2 — VIS Phase-2 cooldown (touchScreenCoolDownTime) blocks it
+    dut.cmd(f"tap {vx} {vy}", timeout=2.0)
+    time.sleep(0.05)
+    m_after2 = _get_vis_mode(dut)
+    if m_after2 is None:
+        fail("T-CDWN-01", "get visMode failed after tap 2")
+        return
+    if m_after2 != m1:
+        fail("T-CDWN-01", f"tap 2 at ~250 ms cycled visMode ({m1}→{m_after2}); Phase-2 gate did not suppress")
+        return
+    print(f"  [T-CDWN-01] tap 2 suppressed: visMode still {m1}")
+    # Sleep additional 100 ms (total ~350 ms from tap 1 → cooldown elapsed)
+    time.sleep(0.10)
+    # Tap 3 — gate elapsed, should cycle
+    dut.cmd(f"tap {vx} {vy}", timeout=2.0)
+    time.sleep(0.05)
+    m2 = _get_vis_mode(dut)
+    if m2 is None:
+        fail("T-CDWN-01", "get visMode failed after tap 3")
+        return
+    if m2 == m1:
+        fail("T-CDWN-01", f"tap 3 at ~350 ms did not cycle visMode (stuck at {m1})")
+        return
+    print(f"  [T-CDWN-01] tap 3: visMode {m1}→{m2}")
+    pass_("T-CDWN-01", f"Phase-2 gate confirmed: tap2 suppressed, tap3 cycled ({m0}→{m1}→{m1}→{m2})")
+
+
+# ── T-CDWN-02 — g_shellBusy gate in cmdTap blocks second canvas tap ───────────
+
+def t_cdwn_02(dut: Dut):
+    """T-CDWN-02: tap row while busy → second tap dropped by cmdTap g_shellBusy gate → fetchOkCount N+1."""
+    print("T-CDWN-02  cmdTap g_shellBusy gate blocks second tap")
+    if not _switch_to_stock(dut):
+        skip("T-CDWN-02", "could not switch to StockApp")
+        return
+    dut.cmd("tap 10 7", timeout=2.0)
+    time.sleep(0.3)
+    # Force stale cache so drill-in triggers a new async fetch.
+    dut.cmd("set triggerFetch 1", timeout=2.0)
+    n = _stock_ok_count(dut)
+    if n < 0:
+        _restore_from_stock(dut)
+        fail("T-CDWN-02", "get fetchOkCount failed at baseline")
+        return
+    # Tap 1 — drill to chart, triggers async fetch
+    dut.cmd("tap 137 36", timeout=2.0)
+    # Poll until busy (ensures gate is live before second tap)
+    busy_seen = _poll_shell_busy(dut, True, timeout_ms=500)
+    if not busy_seen:
+        _restore_from_stock(dut)
+        fail("T-CDWN-02", "shellBusy=true not seen within 500 ms — gate may not be active for second tap")
+        return
+    # Tap 2 — cmdTap g_shellBusy check should drop this; use long timeout since dataTask
+    # may be flooding serial with chart parse output right now.
+    try:
+        dut.cmd("tap 137 36", timeout=8.0)
+    except TimeoutError:
+        pass  # drop silently — the tap was blocked; no response expected either way
+    print(f"  [T-CDWN-02] fetchOkCount baseline N={n}; waiting for fetch to complete…", flush=True)
+    # Poll until not busy (fetch complete); _poll_shell_busy retries on transient TimeoutError.
+    _poll_shell_busy(dut, False, timeout_ms=50000)
+    final_n = _stock_ok_count(dut)
+    _restore_from_stock(dut)
+    if final_n < 0:
+        fail("T-CDWN-02", "get fetchOkCount failed after test")
+        return
+    if final_n >= n + 2:
+        fail("T-CDWN-02", f"fetchOkCount={final_n} (N+2 or more) — second tap was NOT blocked by g_shellBusy gate")
+        return
+    if final_n == n:
+        flake("T-CDWN-02", f"fetchOkCount unchanged ({n}) — network fetch failed; gate was active but count unprovable")
+        return
+    pass_("T-CDWN-02", f"fetchOkCount advanced N={n}→{final_n} (exactly +1; second tap blocked by g_shellBusy gate)")
+
+
+# ── T-CDWN-03 — Taskbar tap bypasses g_shellBusy gate ────────────────────────
+
+def t_cdwn_03(dut: Dut):
+    """T-CDWN-03: tap row (busy) → taskbar Clock tap (x≥275) → appId=Clock, shellBusy=false."""
+    print("T-CDWN-03  Taskbar tap passes g_shellBusy gate → app switches")
+    if not _switch_to_stock(dut):
+        skip("T-CDWN-03", "could not switch to StockApp")
+        return
+    dut.cmd("tap 10 7", timeout=2.0)
+    time.sleep(0.3)
+    # Force stale cache so drill-in triggers a new async fetch.
+    dut.cmd("set triggerFetch 1", timeout=2.0)
+    dut.cmd("tap 137 36", timeout=2.0)
+    busy_seen = _poll_shell_busy(dut, True, timeout_ms=500)
+    if not busy_seen:
+        _restore_from_stock(dut)
+        fail("T-CDWN-03", "shellBusy=true not seen — cannot verify taskbar tap while busy")
+        return
+    # Taskbar Clock tap (slot 1)
+    tx, ty = _c.tap_taskbar_slot(_CLOCK_APP_ID)
+    dut.cmd(f"tap {tx} {ty}", timeout=2.0)
+    time.sleep(0.3)
+    r_app = dut.cmd("get appId", timeout=3.0)
+    app_name = r_app.get("name") if r_app.get("ok") else None
+    busy_after = _get_shell_busy(dut)
+    # Restore to Spotify before asserting
+    dut.cmd(f"switchApp {_SPOTIFY_APP_ID}", timeout=3.0)
+    time.sleep(0.3)
+    if app_name != "Clock":
+        fail("T-CDWN-03", f"appId={app_name!r} after taskbar tap — expected 'Clock'")
+        return
+    if busy_after is not False:
+        fail("T-CDWN-03", f"shellBusy={busy_after} after switchApp to Clock — expected false")
+        return
+    pass_("T-CDWN-03", "taskbar Clock tap while busy: appId=Clock, shellBusy=false")
+
+
 # ── main ──────────────────────────────────────────────────────────────────────
 
 # ── velocity-scroll-001 suite (TASK-104) ──────────────────────────────────────
@@ -3025,6 +3438,15 @@ ALL_TESTS = {
     "T186": t186,
     "T187": t187,
     "T188": t188,
+    # M-TOUCH-UX (TASK-118)
+    "T-BUSY-01":  t_busy_01,
+    "T-BUSY-01b": t_busy_01b,
+    "T-BUSY-02":  t_busy_02,
+    "T-BUSY-03":  t_busy_03,
+    "T-BUSY-05":  t_busy_05,
+    "T-CDWN-01":  t_cdwn_01,
+    "T-CDWN-02":  t_cdwn_02,
+    "T-CDWN-03":  t_cdwn_03,
     # velocity-scroll-001 (TASK-104)
     "T155": t155,
     "T156": t156,

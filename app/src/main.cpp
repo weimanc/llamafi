@@ -179,7 +179,6 @@ bool g_appLaunched[(int)AppId::COUNT] = {};
 // ── SpotifyApp (TASK-090d) ─────────────────────────────────────────────
 #ifdef WINAMP_DISPLAY
 class SpotifyApp : public App {
-  mutable bool _actionDispatched = false;
 public:
   void init() override {
     winampDisplay.showDefaultScreen();
@@ -190,10 +189,13 @@ public:
   }
   void suspend() override {
     winampDisplay.resetDragState();
-    _actionDispatched = false;
   }
+  // spotifyTask action queue is exclusively user-initiated (play/pause/next/prev/
+  // volume/shuffle/repeat/seek) — hasPendingActions() true means a user tap is
+  // still in flight. cmdTap also enqueues via injectTouch(), so this path covers
+  // both production touches (via handleInput) and injected taps.
   bool hasPendingAsync() const override {
-    return _actionDispatched && spotifyTask::hasPendingActions();
+    return spotifyTask::hasPendingActions();
   }
   void tick() override {
     {
@@ -218,9 +220,7 @@ public:
       perf::record("display.bar", millis() - _t); }
   }
   bool handleInput(TouchPhase phase, int x, int y) override {
-    bool r = winampDisplay.handleWinampInput(phase, x, y);
-    if (winampDisplay.wasLastInputAsync()) _actionDispatched = true;
-    return r;
+    return winampDisplay.handleWinampInput(phase, x, y);
   }
 };
 static SpotifyApp g_spotifyApp;
@@ -1518,6 +1518,11 @@ static void cmdTap(const char *args) {
                   "\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}\n", x, y);
     return;
   }
+  if (g_shellBusy) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                  "\"hit\":\"CANVAS\",\"action\":\"NONE\",\"skipped\":true}\n", x, y);
+    return;
+  }
   // Non-Spotify app dispatch: route tap to active app's handleInput when the
   // app implements real canvas interaction (Stock). Other apps retain BUG-1
   // guard (hit=CLOCK) — they don't need tap dispatch in tests.
@@ -1525,6 +1530,8 @@ static void cmdTap(const char *args) {
     if (currentAppId == AppId::Stock && g_apps[(int)AppId::Stock]) {
       g_apps[(int)AppId::Stock]->handleInput(TouchPhase::Press, x, y);
       bool consumed = g_apps[(int)AppId::Stock]->handleInput(TouchPhase::Release, x, y);
+      if (!g_shellBusy && g_apps[(int)AppId::Stock]->hasPendingAsync())
+        shell::setBusy(true);
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                     "\"hit\":\"STOCK\",\"action\":\"%s\",\"skipped\":false}\n",
                     x, y, consumed ? "CONSUMED" : "NONE");
@@ -1537,6 +1544,8 @@ static void cmdTap(const char *args) {
   }
   winampDisplay.injectTouch(x, y);
   winampDisplay.injectRelease();
+  if (!g_shellBusy && g_apps[(int)AppId::Spotify]->hasPendingAsync())
+    shell::setBusy(true);
   const auto &r = winampDisplay.lastTouchResult;
   if (strcmp(r.region, "TRANSPORT") == 0) {
     Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
@@ -1649,6 +1658,21 @@ static void cmdGet(const char *args) {
   if (strcmp(args, "golAlive") == 0) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"golAlive\","
                   "\"count\":%d,\"last\":true}\n", s_golAliveCount);
+    return;
+  }
+  if (strcmp(args, "shellBusy") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\","
+                  "\"busy\":%s,\"last\":true}\n", g_shellBusy ? "true" : "false");
+    return;
+  }
+  if (strcmp(args, "visMode") == 0) {
+    vu::VisMode m = vu::currentMode();
+    int mi = (m == vu::VIS_ATLAS_MODE) ? 0
+           : (m == vu::VIS_VU)         ? 1
+           : (m == vu::VIS_BLANK)      ? 2
+           : (m == vu::VIS_WAVE_ATLAS) ? 3 : -1;
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"visMode\","
+                  "\"mode\":%d,\"last\":true}\n", mi);
     return;
   }
   if ((spotifyDisplay && spotifyDisplay->dbgGet(args, buf, sizeof(buf)))

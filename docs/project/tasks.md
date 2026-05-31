@@ -76,7 +76,7 @@ Exit criterion: `check_build.sh` passes; VIS debounce confirmed on DUT.
 ### TASK-115 — M-TOUCH-UX Phase 2: Busy indicator infrastructure
 **Owner**: Developer
 **Features**: touch-004 (shell layer)
-**Status**: open
+**Status**: complete (git `6df8859`)
 **Milestone**: M-TOUCH-UX
 **Depends on**: TASK-114
 **Blocks**: TASK-116 (hasPendingAsync() ABC must exist before app overrides)
@@ -97,7 +97,7 @@ Exit criterion: `check_build.sh` passes; DUT boots; indicator green; no regressi
 ### TASK-116 — M-TOUCH-UX Phase 3: App integration
 **Owner**: Developer
 **Features**: touch-004 (app layer), touch-005 (part 2 — g_shellBusy Press gate)
-**Status**: open
+**Status**: complete (git `3e852f3`)
 **Milestone**: M-TOUCH-UX
 **Depends on**: TASK-115 (hasPendingAsync() ABC must be in tree)
 **Blocks**: TASK-117 (SERIAL_DEBUG deliverables wire into app state)
@@ -118,43 +118,51 @@ Exit criterion: `check_build.sh` passes; amber indicator fires and clears on Spo
 ### TASK-117 — M-TOUCH-UX Phase 4: SERIAL_DEBUG deliverables
 **Owner**: Developer
 **Features**: touch-004, touch-005
-**Status**: open
+**Status**: complete (uncommitted — staged in this session)
 **Milestone**: M-TOUCH-UX
-**Depends on**: TASK-116 (g_shellBusy and visMode state must exist)
-**Blocks**: TASK-118 (VE cannot execute without these)
+**Depends on**: TASK-116
+**Blocks**: TASK-118
 **Design**: `docs/architecture/designs/M-TOUCH-UX.md` — Developer deliverables table
 
 Sub-tasks:
-- **TASK-117a**: `vuMeter.h` — add `vu::currentMode()` public getter (wraps function-local static mode).
-- **TASK-117b**: `main.cpp` `cmdGet()` — add `"shellBusy"` → JSON bool (`{"ok":true,"cmd":"get","var":"shellBusy","busy":<bool>,"last":true}`).
-- **TASK-117c**: `main.cpp` `cmdGet()` — add `"visMode"` → JSON int 0..3 (`{"ok":true,"cmd":"get","var":"visMode","mode":<int>,"last":true}`); integer mapping: 0=VIS_ATLAS_MODE, 1=VIS_VU, 2=VIS_BLANK, 3=VIS_WAVE_ATLAS.
-- **TASK-117d**: `main.cpp` `cmdTap()` — add `g_shellBusy` check for canvas taps (x < TASKBAR_X): if `g_shellBusy`, drop tap silently (same behaviour as physical touch through `appHandleInput()`). Taskbar-range taps (x ≥ TASKBAR_X) unaffected.
-- **TASK-117e**: Flash `cyd2usb_winamp_debug`; verify `get shellBusy` and `get visMode` respond correctly; verify `tap` while busy is dropped.
+- **TASK-117a** ✅ `vuMeter.h` — `vu::currentMode()` public getter added.
+- **TASK-117b** ✅ `cmdGet()` — `get shellBusy` → JSON bool.
+- **TASK-117c** ✅ `cmdGet()` — `get visMode` → JSON int 0..3.
+- **TASK-117d** ✅ `cmdTap()` — `g_shellBusy` check for canvas taps; returns `skipped:true` when busy.
+- **TASK-117e** ✅ Flashed `cyd2usb_winamp_debug`; `get shellBusy` / `get visMode` verified.
 
-Exit criterion: debug build flashed; `get shellBusy` and `get visMode` return valid JSON; `tap` to canvas while busy returns no action (fetchOkCount unchanged).
+**Implementation note:** `SpotifyApp::hasPendingAsync()` simplified during TASK-118 VE run — removed `_actionDispatched` gate; now returns `spotifyTask::hasPendingActions()` directly. The action queue is exclusively user-initiated so the signal is sound without the extra flag. Removed `_actionDispatched`, `wasLastInputAsync()` check from `handleInput()`. Design docs (ADR-035, M-TOUCH-UX) still describe the old chain and need a follow-up sync (see TASK-118 outstanding items).
+
+Exit criterion: ✅
 
 ---
 
 ### TASK-118 — M-TOUCH-UX Phase 5: VE execution
 **Owner**: VE
 **Features**: touch-003, touch-004, touch-005
-**Status**: open
+**Status**: in progress — partial run complete; 3 outstanding items
 **Milestone**: M-TOUCH-UX
-**Depends on**: TASK-117 (all SERIAL_DEBUG deliverables in debug build)
+**Depends on**: TASK-117
 **Design**: `docs/architecture/designs/M-TOUCH-UX.md` — Exit criteria table
 
-Sub-tasks:
-- **TASK-118a**: Execute T-BUSY-01 (StockApp row tap → amber → clears on result).
-- **TASK-118b**: Execute T-BUSY-01b (StockApp tab-range tap → amber).
-- **TASK-118c**: Execute T-BUSY-02 (Spotify PLAY → amber → clears).
-- **TASK-118d**: Execute T-BUSY-03 (passive apps: Clock/Weather/Crypto/Matrix/Life/Aquarium — no amber).
-- **TASK-118e**: Execute T-BUSY-05 (app switch while busy → amber clears; poll 3× at 20 ms).
-- **TASK-118f**: Execute T-CDWN-01 (`set cooldown 0` → tap 1 → 220 ms → tap 2 suppressed → 100 ms → tap 3 cycles).
-- **TASK-118g**: Execute T-CDWN-02 (poll shellBusy true → second tap blocked → fetchOkCount N+1).
-- **TASK-118h**: Execute T-CDWN-03 (taskbar tap passes g_shellBusy gate → app switches).
-- **TASK-118i**: `[MANUAL]` T-BUSY-04 (auto-clear after 3 s) — run on network-blocked DUT; record pass/skip.
+Sub-tasks and results (debug build flashed; run 2026-05-31):
+- **TASK-118a** ✅ T-BUSY-01 PASS
+- **TASK-118b** ✅ T-BUSY-01b PASS
+- **TASK-118c** ✅ T-BUSY-02 PASS
+- **TASK-118d** ✅ T-BUSY-03 PASS
+- **TASK-118e** ✅ T-BUSY-05 PASS
+- **TASK-118f** ✅ T-CDWN-01 PASS
+- **TASK-118g** ⚠ T-CDWN-02 FLAKE — Yahoo Finance rate-limit prevented fetch completing; gate was confirmed active (`skipped:true` returned), fetchOkCount unprovable. Needs re-run when network is clear.
+- **TASK-118h** ✅ T-CDWN-03 PASS
+- **TASK-118i** T-BUSY-04 `[MANUAL]` — not yet run.
 
-Exit criterion: T-BUSY-01/01b/02/03/05 pass; T-CDWN-01/02/03 pass; T-BUSY-04 manual pass or documented skip.
+**Outstanding items before TASK-118 can close:**
+1. **T076 / T079 / T081 regression** — each successful transport tap now correctly sets `g_shellBusy=true` (Spotify API call in flight), blocking subsequent taps in the same test's sweep. Harness fix needed: add `_poll_shell_busy(dut, False, 4000)` before each tap in T076 and T081; add `_poll_shell_busy(dut, False, 4000)` at start of T079 post-reset step. These are harness-only changes (firmware behaviour is correct).
+2. **T-CDWN-02 re-run** — when Yahoo Finance not rate-limited.
+3. **T-BUSY-04 manual run** — network-blocked DUT required.
+4. **Design doc sync** — ADR-035 and M-TOUCH-UX.md still describe `_actionDispatched` chain (superseded by `spotifyTask::hasPendingActions()` direct call). Follow-up doc update needed.
+
+Exit criterion: T-BUSY-01/01b/02/03/05 ✅; T-CDWN-01/03 ✅; T-CDWN-02 pending re-run; T-BUSY-04 manual pending; T076/T079/T081 harness fix pending.
 
 ---
 
