@@ -851,7 +851,65 @@ Triggering incident: user observed "NET ERR -99" on screen while manually cyclin
 
 **Suggested improvement**: After any design revision driven by a review finding, update both the ADR and the design doc in the same edit pass before closing the finding. Treat "update ADR" as a mandatory step of resolving a decision-level finding — not an optional follow-up. A checklist item on the review template would enforce this.
 
-**Status**: open
+**Status**: open — second incident recorded under LL-046 (same root cause; code change during VE run). Escalate to BP.
+
+---
+
+## Retrospective — 2026-05-31 — TASK-114–118 (M-TOUCH-UX: hitbox + debounce + busy indicator)
+
+Triggering work: full M-TOUCH-UX milestone — hitbox.h primitive (TASK-114), shell busy indicator infrastructure (TASK-115), SpotifyApp + StockApp integration (TASK-116), SERIAL_DEBUG deliverables (TASK-117), VE execution (TASK-118). Six commits across five phases. TASK-118 partially closed; two items (T-CDWN-02 re-run, T-BUSY-04 manual) remain open.
+
+### What went well (no LL needed, recorded for balance)
+
+- **Phase-gated delivery worked.** Each of the five implementation phases had an independent exit criterion (build, flash, smoke). No phase produced a regression that blocked the next. The amber indicator came up correctly on the first DUT flash.
+- **Design review round paid off.** VE + Developer pre-implementation challenges (DEV-01..05, VE-CH1..CH3) caught five specification gaps before any code was written — `mutable` keyword, thread-safety for `_actionPending`, timer-reset guard on Move events, file list, and ADR sync. Five changes cheaper than five bugs.
+- **VE automated 7 of 9 exit criteria.** T-BUSY-01/01b/02/03/05 and T-CDWN-01/03 all executed by the harness without manual observation. Only T-BUSY-04 (auto-clear with network-blocked DUT) is genuinely manual by design.
+- **Simplification caught under test, not after shipping.** The `_actionDispatched` / `wasLastInputAsync()` chain (4 files, mutable flag, two-hop signal) was simplified to a direct `spotifyTask::hasPendingActions()` query during TASK-118 — before the task closed. The simpler code is in the tree; the complex design stayed on paper.
+- **Harness fix was harness-only.** T076/T079/T081 failures were correctly diagnosed as a harness gap (no poll-for-idle between taps), not a firmware defect. The gate itself (shellBusy blocks sequential canvas taps) was correct and intentional.
+
+---
+
+### LL-046 — 2026-05-31 — Sequential-tap tests need poll-for-idle when a busy gate exists on the tap path
+
+**Context**: TASK-118 VE execution. T076 (hit-zone boundary sweep, 8 taps) and T081 (transport suite, 5 taps) ran sequential `cmd tap` calls with only `set_cooldown_zero()` between them. After TASK-117 wired `g_shellBusy` into `cmdTap` (correct — T-CDWN-02 requires it), any transport tap that enqueues a Spotify action sets `g_shellBusy=true`. The next tap in the sweep arrived while busy was still true and was returned as `skipped:true, hit:CANVAS` — a test failure for the wrong reason.
+
+**Observation**: T076/T079/T081 were written for a world where `cmdTap` had no busy gate. The gate was a new constraint added by TASK-117. No one checked whether existing tests remained valid under the new gate. The harness fix (`_poll_shell_busy(False)` before each tap) was mechanical and correct, but the gap between "gate added" and "existing tests audited" was never closed.
+
+**Root cause**: Existing tests are not systematically re-evaluated when a new tap-path gate is introduced. The gate is an implicit precondition for every `cmd tap` call; existing tests inherited an undocumented precondition mismatch.
+
+**Suggested improvement**: When a new gate is added to the `cmdTap` path (busy gate, cooldown gate, app-state guard), treat it as a breaking change for existing sequential-tap tests. The Developer or VE adding the gate must grep `run_serialdbg_tests.py` for bare `dut.cmd("tap ...")` calls that do not precede the tap with an idle-wait, and add `_poll_shell_busy(dut, False)` (or equivalent) where needed. This is a subset of BP-004 (mirror physical-touch path in inject path) applied to the harness level.
+
+**Status**: open — promotion candidate.
+
+---
+
+### LL-047 — 2026-05-31 — Intermediate dispatch flag was unnecessary; terminal signal was directly observable
+
+**Context**: TASK-116 implemented `SpotifyApp::hasPendingAsync()` as `_actionDispatched && spotifyTask::hasPendingActions()`. `_actionDispatched` was a `mutable bool` in SpotifyApp, set when `wasLastInputAsync()` reported an async dispatch, cleared when the queue drained. `WinampDisplay._lastInputWasAsync` was a per-call bool set at all async dispatch sites. The design required: two new state variables across two classes, `wasLastInputAsync()` checked after both Press and Release delegate calls, `mutable` qualifier on the flag, and `suspend()` to reset it.
+
+During TASK-118 VE, the Developer recognised that `spotifyTask::hasPendingActions()` is the authoritative, self-clearing signal: the queue is non-empty exactly when a user action is in flight. The `_actionDispatched` gate added no information — it only filtered "was there ever a dispatch since the last reset," which is always true when the queue is non-empty and false when it is empty (the same condition the queue reports directly). The entire two-hop chain was replaced with one line.
+
+**Observation**: The design introduced an intermediate tracking variable because the design assumed WinampDisplay's per-call async signal was the only available hook into "did an async dispatch happen." The queue-level signal was already present and directly observable, but was not considered as the primary signal during the review.
+
+**Root cause**: Design reviews focused on "how does the shell know a tap dispatched async work" (signal path up from WinampDisplay) rather than "what is the authoritative source of truth for async work in flight" (spotifyTask queue). The authoritative signal was always one call away. The per-call `_lastInputWasAsync` approach was designed for a world where the queue might have other callers; in practice the queue is exclusively user-initiated, making the queue depth a direct proxy for "user tap in flight."
+
+**Suggested improvement**: Before designing a signal chain to propagate state from a component (WinampDisplay) up through layers (SpotifyApp → shell), ask: "is the terminal state already queryable at the point of consumption?" If `hasPendingActions()` on the task is observable at SpotifyApp scope, prefer `return spotifyTask::hasPendingActions()` over any intermediate flag. The intermediate flag earns its keep only when: (a) the terminal signal is not accessible from the consumer, or (b) the consumer needs "was async dispatched at all" independently of whether it has drained. Neither applied here.
+
+**Status**: open.
+
+---
+
+### LL-045 recurrence note — 2026-05-31 — Code change during VE run left both ADR and design doc stale
+
+**Context**: LL-045 (filed today, same session) describes ADR/design doc drift after a VE-driven design change. This is a second incident of the same root cause: the `_actionDispatched` simplification made during TASK-118 was a code change, not a design-review finding, but it had the same outcome — both ADR-035 and M-TOUCH-UX.md described the old chain after the code was live. The fix was made same-session (afe35b6) but only after the retro surfaced the gap.
+
+**Observation**: LL-045 was filed as an open lesson with a suggested improvement ("update ADR in the same edit pass as the design doc"). That improvement was not applied here because the code change happened during a test run, not a formal review pass. The suggested improvement is correct but only covers review-driven changes; it does not cover implementation-driven simplifications.
+
+**Root cause addition to LL-045**: Doc drift is not limited to review rounds. Any code change that contradicts a named design decision (ADR or design doc) — including simplifications discovered during implementation — must trigger a doc sync before the commit that makes the change. The rule is: "code and doc always agree at commit boundary."
+
+**Suggested improvement (extension to LL-045)**: The sync rule must apply to implementation-driven changes as well as review-driven changes. Add to the Developer checklist (LL-010): "if this commit changes an interaction described in an ADR or design doc, update the doc in the same commit." The git diff is the enforcement point — if an ADR is named in the commit context but not in the diff, that is a flag.
+
+**Status**: escalate to BP together with LL-045. Two incidents of the same root cause, two days apart, same codebase.
 
 ---
 

@@ -2,7 +2,39 @@
 
 > Owner: Quality Manager
 
-All audits: scope, findings, actions, status.
+All audits: scope, findings, actions, results.
+
+### Retrospective — 2026-05-31 — M-TOUCH-UX milestone (TASK-114–118)
+
+**Triggered by**: PM request at TASK-118 partial close.
+
+**Scope**: TASK-114 (hitbox + cooldown gate), TASK-115 (shell busy infrastructure), TASK-116 (app integration), TASK-117 (SERIAL_DEBUG deliverables), TASK-118 (VE execution). Six commits `aab35b0..afe35b6`.
+
+**Areas checked**:
+- [x] Design-to-implementation fidelity (ADR-035 vs actual code)
+- [x] VE harness correctness post-gate-introduction
+- [x] Doc sync state at close
+- [x] LL recurrence tracking (LL-045)
+
+**Findings**:
+
+1. **T076/T079/T081 harness failures after `g_shellBusy` gate wired into `cmdTap`** — AMBER (harness gap, not firmware defect). Sequential-tap tests did not poll for idle between taps. New lesson filed: LL-046. Fix applied: `_poll_shell_busy(False)` before each tap in T076/T081; initial poll at T079 entry. Commit `afe35b6`.
+
+2. **`_actionDispatched` chain over-engineered; simplified during VE** — AMBER (design gap caught under test). Direct `spotifyTask::hasPendingActions()` query replaced the two-hop flag chain. Firmware correct; design doc reflected reality only after retro. New lesson filed: LL-047.
+
+3. **ADR-035 + M-TOUCH-UX both stale after implementation-driven simplification** — RED (LL-045 recurrence). Code changed during TASK-118 but docs lagged until afe35b6. Second incident of same root cause (LL-045 was filed earlier today for a review-driven change; this is an implementation-driven change with identical outcome). Escalation recommended: promote LL-045 + this recurrence to BP together.
+
+4. **T-CDWN-02 rate-limit flake** — AMBER (external dependency). Yahoo Finance rate-limiting prevented fetchOkCount from incrementing during the test window. Gate behaviour confirmed (`skipped:true` returned). Re-run pending when network clear. No firmware action.
+
+**Actions**:
+- LL-046 filed (sequential-tap idle-wait). Open.
+- LL-047 filed (direct query vs flag chain). Open.
+- LL-045 escalation note filed. Both LL-045 and recurrence recommended for BP promotion. Awaiting human sign-off.
+- T076/T079/T081 fixed in `afe35b6`. Closed.
+- Doc sync (ADR-035, M-TOUCH-UX) fixed in `afe35b6`. Closed.
+- T-CDWN-02 re-run and T-BUSY-04 manual remain open in TASK-118.
+
+---
 
 ### Audit — 2026-05-29 — StockApp -99 NET ERR incident: host test + VE stress test gap
 
