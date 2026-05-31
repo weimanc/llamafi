@@ -34,6 +34,23 @@ inline const char *tlsErr(int rc) {
   }
 }
 
+// ArduinoJson DeserializationError mapped to -90 - err.code() (stock fetches).
+// Enum order: Ok=0 EmptyInput=1 IncompleteInput=2 InvalidInput=3 NoMemory=4 TooDeep=5
+inline const char *stockJsonErr(int code) {
+  switch (code) {
+    case -91: return "-91 JSON_EMPTY_INPUT";
+    case -92: return "-92 JSON_INCOMPLETE (stream cut)";
+    case -93: return "-93 JSON_INVALID (format changed?)";
+    case -94: return "-94 JSON_NO_MEMORY (doc too small)";
+    case -95: return "-95 JSON_TOO_DEEP";
+    default: {
+      static char buf[24];
+      snprintf(buf, sizeof(buf), "%d JSON_?", code);
+      return buf;
+    }
+  }
+}
+
 inline const char *httpErr(int code) {
   switch (code) {
     case 200: return "200 OK";

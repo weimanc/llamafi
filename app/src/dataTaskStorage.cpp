@@ -167,7 +167,7 @@ static void fetchStockQuote() {
         http.end();
         if (err) {
             LOG_W("dataTask.stock", "JSON err sym=%s: %s", STOCK_TICKERS[i], err.c_str());
-            r.ok = false; r.errorCode = -99;
+            r.ok = false; r.errorCode = -90 - (int)err.code();
             break;
         }
         auto meta       = doc["chart"]["result"][0]["meta"];
@@ -230,7 +230,7 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
 #endif
             if (err) {
                 LOG_W("dataTask.stock", "chart JSON err: %s", err.c_str());
-                r.ok = false; r.errorCode = -99;
+                r.ok = false; r.errorCode = -90 - (int)err.code();
             } else {
                 JsonArray closeArr =
                     doc["chart"]["result"][0]["indicators"]["quote"][0]["close"].as<JsonArray>();

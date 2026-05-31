@@ -106,7 +106,7 @@ struct StockAppState {
     unsigned long lastChartFetch;
     bool          fetchFailed;
     int           fetchErrorCode;
-    uint16_t      fetchErrCount;   // cumulative -99 errors since boot; never auto-clears
+    uint16_t      fetchErrCount;   // cumulative JSON parse errors since boot (-91..-95); never auto-clears
     uint16_t      fetchOkCount;    // cumulative successful chart fetches since boot; never auto-clears
     uint16_t      quoteOkCount;    // cumulative successful quote fetches since boot; never auto-clears
 };
