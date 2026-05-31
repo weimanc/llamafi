@@ -457,6 +457,8 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-025** → "Visual sign-off for range-dependent renderers must cover zero, max, and one intermediate value. 'Correct at rest' is not a VE gate." Strong promotion case: same failure mode as LL-024 (test gap at closure) but from the opposite direction — test existed, exit criterion link was missing.
 - **LL-027** → "Write `.gitignore` before first `git add` on any new build-tool project directory. For PlatformIO: `.pio/` excluded by default. Build outputs are predictable; exclude them proactively." Process rule, applies to Developer.
 - **LL-028** → "Spec steps that name a specific file for a code change must either be verified against the actual codebase or marked `[FILE TBD — confirm at implementation]`. Plausible-but-unverified file paths in specs are silent latent risks for agent hand-offs." Process rule, applies to Architect + PM (spec writers).
+- **LL-048** → "Host test constants and comments for firmware JSON doc sizes are interface contracts — update them in the same commit as the firmware change. A firmware parse-strategy change that does not update the host test is an incomplete migration." Process rule, applies to Developer (update test constants at firmware change time) and VE (flag any test constant whose comment references a non-existent `DynamicJsonDocument` or `StaticJsonDocument` allocation). Concrete incident: LL-040 resolution said quote path used `DynamicJsonDocument(8192)` with no filter; quote path acquired a filter the next day; test was not updated. BP candidate — bring to human.
+- **LL-049** → "ArduinoJson filtered parses have two separately-sized documents: the filter doc and the data doc. Both must be sized deliberately and documented. The host test's budget check only validates the data doc; filter doc truncation is a separate failure mode invisible to the test. Extend BP-015 to require: compute minimum filter doc capacity from path depth × leaf count; record it as a comment alongside every `StaticJsonDocument<N> filter` declaration." Process rule, applies to Developer (sizing + documentation at introduction) and VE (extend host-test scope). Concrete incident: `StaticJsonDocument<64>` for a 5-level/2-leaf filter tree silently dropped both fields; DUT returned zeros. Host test passed. No gate existed between 64B declaration and DUT observation.
 - **LL-026** → "Reference image used → paired visual validation item required. Any element rendered from a reference image must have a VE/audit item that validates the rendered output against that image. No reference image consumed without a closing verification step." Strong promotion case: directly addresses a recurring human frustration; cost of the check is low (side-by-side screenshot); cost of skipping is 4+ wasted sessions. Applies to Developer (spec completeness) + VE (validation item creation).
 - **LL-029** → "Structural refactors must include a grep-for-old-paths step on moved files, plus a tool-script smoke-test gate (e.g. `python3 -c 'import coords'`) before close. A file move that does not update internal path strings is an incomplete migration. BP candidate — applicable to any project with host-side Python/shell tooling."
 - **LL-032** → adopted → **BP-010** (2026-05-25)
@@ -764,7 +766,9 @@ Triggering incident: user observed "NET ERR -99" on screen while manually cyclin
 - The payload size check should apply a safety factor (≥ 1.5×) to approximate ArduinoJson tree overhead. A comment should explain why.
 - Eliminate the intermediate `String` in firmware: replace `deserializeJson(doc, http.getString())` with `deserializeJson(doc, http.getStream())`. This removes the double-allocation (no `String` heap cost) and makes the host budget check more accurate.
 
-**Resolution (2026-05-30)**: The ADR-034 `getStream()` fix (already landed) plus a JSON filter (`StaticJsonDocument<128>` filter + `StaticJsonDocument<2048>` doc) made raw payload bytes entirely irrelevant for chart fetches — only the non-null `close[]` point count matters. `CHART_BUDGET_B=16384` removed; replaced with `CHART_MAX_POINTS=110` mirroring `chartPoints[110]` in `StockAppState` and the `if (r.len >= 110) break` cap in firmware. T_SF_06 now counts non-null `close[]` entries and asserts `<= 110`. `QUOTE_BUDGET_B=8192` retained — quote fetch has no filter so raw bytes vs `DynamicJsonDocument(8192)` remains correct. Committed `50ce839`.
+**Resolution (2026-05-30)**: The ADR-034 `getStream()` fix (already landed) plus a JSON filter (`StaticJsonDocument<128>` filter + `StaticJsonDocument<2048>` doc) made raw payload bytes entirely irrelevant for chart fetches — only the non-null `close[]` point count matters. `CHART_BUDGET_B=16384` removed; replaced with `CHART_MAX_POINTS=110` mirroring `chartPoints[110]` in `StockAppState` and the `if (r.len >= 110) break` cap in firmware. T_SF_06 now counts non-null `close[]` entries and asserts `<= 110`. `QUOTE_BUDGET_B=8192` retained — quote fetch had no filter at this point, so raw bytes vs `DynamicJsonDocument(8192)` was correct at time of writing. Committed `50ce839`.
+
+**⚠ Resolution note stale as of 2026-05-31** (commits 08f8d22, c745b2f): `fetchStockQuote` was reworked to use `StaticJsonDocument<128> filter + StaticJsonDocument<256> doc` with streaming. The quote fetch now has a filter; `DynamicJsonDocument(8192)` no longer exists in the path. `QUOTE_BUDGET_B=8192` in the host test is now an incorrect proxy — it describes a non-existent allocation. See LL-048 for the coverage gap this created and LL-049 for the related filter-doc sizing gap.
 
 **Status**: adopted → BP-015 (2026-05-30).
 
@@ -896,6 +900,63 @@ During TASK-118 VE, the Developer recognised that `spotifyTask::hasPendingAction
 **Suggested improvement**: Before designing a signal chain to propagate state from a component (WinampDisplay) up through layers (SpotifyApp → shell), ask: "is the terminal state already queryable at the point of consumption?" If `hasPendingActions()` on the task is observable at SpotifyApp scope, prefer `return spotifyTask::hasPendingActions()` over any intermediate flag. The intermediate flag earns its keep only when: (a) the terminal signal is not accessible from the consumer, or (b) the consumer needs "was async dispatched at all" independently of whether it has drained. Neither applied here.
 
 **Status**: open.
+
+---
+
+## Retrospective — 2026-05-31 — Reactive StaticJsonDocument sizing: three quote-path bugs, host test coverage gap
+
+Triggering work: three DUT-discovered bugs in `dataTaskStorage.cpp fetchStockQuote()`, all fixed reactively on-device during the 2026-05-31 session:
+
+1. `DynamicJsonDocument(8192)` → `-94 NoMemory` under heap fragmentation (~4 min uptime). Fix: switch to streaming filter + `StaticJsonDocument<256>` (commit 08f8d22).
+2. `StaticJsonDocument<64> filter` too small for 5-level nested filter tree → silent truncation → all prices 0.0. Fix: upsize filter to `StaticJsonDocument<128>`, data to `StaticJsonDocument<256>` (commit c745b2f).
+3. `fetchStockChart` had already been reworked to streaming filter (ADR-034); the same pattern was not applied to `fetchStockQuote`. Bug 1 is the direct consequence.
+
+`test_yahoo_finance_api.py` exists specifically to surface this class of failure before any DUT flash (see LL-040, BP-015). None of the three bugs were caught by it. Two lessons extracted.
+
+### What went well
+
+- **Streaming filter pattern (ADR-034) was the right architecture.** Applying it to fetchStockQuote fixed two independent bugs simultaneously (heap pressure + doc sizing). One pattern; two symptoms resolved without hunting separately.
+- **Error code decomposition (-91..-95, -100) made root-cause identification immediate.** Without the decomposition (865e403, 9864e29), NoMemory and filter-truncation would both surface as opaque `-99`.
+
+---
+
+### LL-048 — 2026-05-31 — LL-040 resolution note became stale when quote path acquired a filter
+
+**Context**: LL-040 (2026-05-29) was adopted as BP-015 (2026-05-30). Its resolution note reads: *"QUOTE_BUDGET_B=8192 retained — quote fetch has no filter so raw bytes vs DynamicJsonDocument(8192) remains correct. Committed 50ce839."* On 2026-05-31 (commit 08f8d22), `fetchStockQuote` was reworked to use `StaticJsonDocument<128> filter + StaticJsonDocument<256> doc` with streaming. The note is now wrong: the quote fetch has a filter; `DynamicJsonDocument(8192)` no longer exists in the path.
+
+**Observation**: `test_yahoo_finance_api.py` line 49 still reads `QUOTE_BUDGET_B = 8192` with the comment `# Raw payload bytes are the right proxy here: no filter, full parse into doc(8192).` Both the comment and the constant describe firmware code that no longer exists. T_SF_03 passes for any payload ≤ 8192 bytes — which is every real quote payload — while the actual firmware constraints (filter doc ≤ 128 bytes, data doc ≤ 256 bytes) are untested. This is a direct BP-015 violation: the test is asserting a proxy metric rather than the actual firmware constraint.
+
+The stale note also breaks the cross-reference chain: LL-040's resolution is the only record that explains why QUOTE_BUDGET_B exists at all. Future readers of the test will believe the model is correct, because the lesson that established it says it is.
+
+**Root cause**: The LL-040 resolution note was written in one session; the firmware change that invalidated it landed in the very next session. No rule requires updating the host test (or its companion lesson note) when the firmware parse strategy changes. BP-015 says "read the firmware parse path before writing the host budget check" — but it only triggers at test-creation time, not at firmware-change time.
+
+**Suggested improvement**:
+1. Whenever `fetchStockQuote()` or `fetchStockChart()` doc types or sizes change in firmware, the host test constants and comments must be updated in the same commit. Treat `QUOTE_BUDGET_B`, `CHART_MAX_POINTS`, and their comments as interface contracts between firmware and test, not static documentation.
+2. Add a reverse-lookup comment in the firmware alongside each `StaticJsonDocument` declaration: `// HOST TEST: test_yahoo_finance_api.py QUOTE_BUDGET_B / CHART_MAX_POINTS`. This makes the coupling visible at both ends of the contract.
+3. Update LL-040's resolution note to reflect the current (post-08f8d22) state: "Quote path now also uses streaming filter. T_SF_03 QUOTE_BUDGET_B=8192 is no longer the right model; see LL-048."
+
+**Status**: open — BP candidate. See LL-049 for the related filter-doc sizing gap.
+
+---
+
+### LL-049 — 2026-05-31 — Filter document capacity not modelled in host test; StaticJsonDocument<64> filter truncation not catchable
+
+**Context**: `fetchStockQuote()` uses `StaticJsonDocument<128> filter` to hold the filter tree before passing it to `deserializeJson(..., Filter(filter))`. The original size was `StaticJsonDocument<64>`. The filter tree is 5 levels deep (`chart → result[0] → meta → regularMarketPrice / chartPreviousClose`). ArduinoJson needs approximately 80 bytes to represent this tree; `StaticJsonDocument<64>` silently truncated it. The filtered fields were dropped; all prices parsed as 0.0. Fix: upsize to `StaticJsonDocument<128>`.
+
+The host test has no check for filter document capacity. T_SF_03 checks raw payload bytes; even a perfectly-calibrated T_SF_03 could not catch a filter doc that is too small for its own tree — the filter doc is a firmware-internal allocation that is independent of payload size. BP-015 ("assert the actual firmware constraint") covers the *output* document (`StaticJsonDocument<256>` holding the two float fields) but does not extend to the *filter* document.
+
+**Observation**: There is a class of `StaticJsonDocument` sizing bug that is structurally invisible to the host test: filter doc truncation. The filter tree topology (path depth × number of leaves) determines the minimum required capacity; this is derivable at design time from the filter structure, but is not currently recorded anywhere. A developer can set `StaticJsonDocument<64>` on a 5-level filter and the host test gives no signal. The only gate is the DUT.
+
+**Root cause**: BP-015 was designed around the output document ("what buffer does the parsed result land in?"). It did not consider the filter document as a separate, independently-sized resource with its own capacity floor. The ArduinoJson documentation provides a capacity estimator formula; it was not applied when the filter was introduced.
+
+**Suggested improvement**:
+1. For each `StaticJsonDocument<N> filter` in firmware, add a comment recording the minimum required N and how it was derived. For the quote filter: `// 5-level path × 2 leaves → ~80B ArduinoJson minimum; <128> gives headroom`. For the chart filter: `// 5-level path × 1 leaf → ~56B minimum; <128> fine`. This makes the sizing auditable without a DUT.
+2. Add a T_SF_03b check to `test_yahoo_finance_api.py`: parse one quote body in Python, extract only the filter fields (`chart.result[0].meta.regularMarketPrice/chartPreviousClose`), compute the minimal JSON size of that sub-tree, and assert it is well within `StaticJsonDocument<256>`. This does not catch filter-doc truncation directly but validates the output-doc sizing end-to-end.
+3. Extend BP-015's scope: "Identify: is there a filter? What is the filter tree's depth and leaf count? Compute minimum filter doc capacity via ArduinoJson's estimator. Record it as a comment alongside the `StaticJsonDocument<N> filter` declaration." Add this as a checklist item when any new JSON filter is introduced in firmware.
+
+Sister lesson to LL-040 (proxy metric vs actual constraint) and LL-038 (large heap alloc fails silently). Theme: **ArduinoJson has two separately-sized documents per filtered parse; both must be sized deliberately, both must be documented.**
+
+**Status**: open — BP candidate. Bring to human for sign-off before promoting.
 
 ---
 
