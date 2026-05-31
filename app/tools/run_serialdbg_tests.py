@@ -648,6 +648,7 @@ def t086(dut: Dut):
             errors.append(f"{label}({x},{y}): hit=POSBAR (want outside)")
 
     for label, x, y in posbar_inside:
+        _poll_shell_busy(dut, False, timeout_ms=2000)   # prior SEEK may still be in flight
         dut.set_cooldown_zero()
         r = dut.cmd(f"tap {x} {y}")
         hit, action, seek_ms = r.get("hit"), r.get("action"), r.get("seekMs", -1)
@@ -661,6 +662,7 @@ def t086(dut: Dut):
             errors.append(f"{label}({x},{y}): hit=VOLUME (want outside)")
 
     for label, x, y in vol_inside:
+        _poll_shell_busy(dut, False, timeout_ms=2000)   # last SEEK or prior VOLUME in flight
         dut.set_cooldown_zero()
         r = dut.cmd(f"tap {x} {y}")
         hit, action, vol_pct = r.get("hit"), r.get("action"), r.get("volumePct", -2)
@@ -690,13 +692,14 @@ def t087(dut: Dut):
     if r.get("hit") != "SHUFFLE" or r.get("action") != "SHUFFLE":
         errors.append(f"SHUFFLE: hit={r.get('hit')} action={r.get('action')}")
 
-    time.sleep(0.3)
+    _poll_shell_busy(dut, False, timeout_ms=3000)   # SHUFFLE enqueues async; 0.3 s sleep insufficient
     dut.set_cooldown_zero()
     _rpx, _rpy = _c.tap_repeat()
     r = dut.cmd(f"tap {_rpx} {_rpy}")
     if r.get("hit") != "REPEAT" or r.get("action") != "REPEAT":
         errors.append(f"REPEAT: hit={r.get('hit')} action={r.get('action')}")
 
+    _poll_shell_busy(dut, False, timeout_ms=3000)   # REPEAT enqueues async
     dut.set_cooldown_zero()
     _vsx, _vsy = _c.tap_vis()
     r = dut.cmd(f"tap {_vsx} {_vsy}")
