@@ -162,8 +162,12 @@ static void fetchStockQuote() {
             http.end();
             break;
         }
-        DynamicJsonDocument doc(8192);
-        DeserializationError err = deserializeJson(doc, http.getStream());
+        StaticJsonDocument<64> filter;
+        filter["chart"]["result"][0]["meta"]["regularMarketPrice"] = true;
+        filter["chart"]["result"][0]["meta"]["chartPreviousClose"] = true;
+        StaticJsonDocument<128> doc;
+        DeserializationError err = deserializeJson(doc, http.getStream(),
+                                       DeserializationOption::Filter(filter));
         http.end();
         if (err) {
             LOG_W("dataTask.stock", "JSON err sym=%s: %s", STOCK_TICKERS[i], err.c_str());
