@@ -162,10 +162,10 @@ static void fetchStockQuote() {
             http.end();
             break;
         }
-        StaticJsonDocument<64> filter;
+        StaticJsonDocument<128> filter;
         filter["chart"]["result"][0]["meta"]["regularMarketPrice"] = true;
         filter["chart"]["result"][0]["meta"]["chartPreviousClose"] = true;
-        StaticJsonDocument<128> doc;
+        StaticJsonDocument<256> doc;
         DeserializationError err = deserializeJson(doc, http.getStream(),
                                        DeserializationOption::Filter(filter));
         http.end();
