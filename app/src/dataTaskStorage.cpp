@@ -150,7 +150,7 @@ static void fetchStockQuote() {
         HTTPClient http;
         if (!http.begin(tls, url)) {
             LOG_W("dataTask.stock", "http.begin failed sym=%s", STOCK_TICKERS[i]);
-            r.ok = false; r.errorCode = -1;
+            r.ok = false; r.errorCode = -100;
             break;
         }
         unsigned long t0 = millis();
@@ -200,7 +200,7 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
     HTTPClient http;
     if (!http.begin(tls, url)) {
         LOG_W("dataTask.stock", "chart http.begin failed");
-        r.ok = false; r.errorCode = -1;
+        r.ok = false; r.errorCode = -100;
     } else {
         unsigned long t0 = millis();
         int code = http.GET();

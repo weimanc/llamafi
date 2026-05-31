@@ -6,6 +6,7 @@
 //
 //   ESP_LOGE("spotify.tls", "tls fail rc=%s", tlsErr(rc));
 //   ESP_LOGW("spotify",     "poll http=%s",   httpErr(code));
+//   LOG_W("dataTask.stock", "fetch err=%s",   stockErr(code));
 //
 // Returned pointers are either static literals (for known codes) or a
 // static per-thread fallback buffer (for unknown codes). Not reentrant
@@ -34,25 +35,23 @@ inline const char *tlsErr(int rc) {
   }
 }
 
-// ArduinoJson DeserializationError mapped to -90 - err.code() (stock fetches).
-// Enum order: Ok=0 EmptyInput=1 IncompleteInput=2 InvalidInput=3 NoMemory=4 TooDeep=5
-inline const char *stockJsonErr(int code) {
-  switch (code) {
-    case -91: return "-91 JSON_EMPTY_INPUT";
-    case -92: return "-92 JSON_INCOMPLETE (stream cut)";
-    case -93: return "-93 JSON_INVALID (format changed?)";
-    case -94: return "-94 JSON_NO_MEMORY (doc too small)";
-    case -95: return "-95 JSON_TOO_DEEP";
-    default: {
-      static char buf[24];
-      snprintf(buf, sizeof(buf), "%d JSON_?", code);
-      return buf;
-    }
-  }
-}
-
 inline const char *httpErr(int code) {
   switch (code) {
+    // HTTPClient internal errors (negative codes from http.GET())
+    case  -1: return "-1 HTTPC_CONNECTION_REFUSED";
+    case  -2: return "-2 HTTPC_SEND_HEADER_FAILED";
+    case  -3: return "-3 HTTPC_SEND_PAYLOAD_FAILED";
+    case  -4: return "-4 HTTPC_NOT_CONNECTED";
+    case  -5: return "-5 HTTPC_CONNECTION_LOST";
+    case  -6: return "-6 HTTPC_NO_STREAM";
+    case  -7: return "-7 HTTPC_NO_HTTP_SERVER";
+    case  -8: return "-8 HTTPC_TOO_LESS_RAM";
+    case  -9: return "-9 HTTPC_ENCODING";
+    case -10: return "-10 HTTPC_STREAM_WRITE";
+    case -11: return "-11 HTTPC_READ_TIMEOUT";
+    // Our sentinel: http.begin() returned false (URL/TLS setup failure)
+    case -100: return "-100 HTTP_BEGIN_FAILED";
+    // HTTP status codes
     case 200: return "200 OK";
     case 204: return "204 No Content";
     case 301: return "301 Moved";
@@ -72,5 +71,21 @@ inline const char *httpErr(int code) {
       snprintf(buf, sizeof(buf), "HTTP %d", code);
       return buf;
     }
+  }
+}
+
+// Stock fetch error decoder. Error code ranges:
+//   -1..-11  HTTPClient internal (see httpErr())
+//   -91..-95 ArduinoJson DeserializationError (-90 - err.code())
+//   -100     http.begin() returned false (URL/TLS setup failure)
+//   HTTP 4xx/5xx passed through as-is
+inline const char *stockErr(int code) {
+  switch (code) {
+    case -91: return "-91 JSON_EMPTY_INPUT";
+    case -92: return "-92 JSON_INCOMPLETE (stream cut)";
+    case -93: return "-93 JSON_INVALID (format changed?)";
+    case -94: return "-94 JSON_NO_MEMORY (doc too small)";
+    case -95: return "-95 JSON_TOO_DEEP";
+    default:  return httpErr(code);
   }
 }
