@@ -179,6 +179,7 @@ bool g_appLaunched[(int)AppId::COUNT] = {};
 // ── SpotifyApp (TASK-090d) ─────────────────────────────────────────────
 #ifdef WINAMP_DISPLAY
 class SpotifyApp : public App {
+  mutable bool _actionDispatched = false;
 public:
   void init() override {
     winampDisplay.showDefaultScreen();
@@ -189,6 +190,10 @@ public:
   }
   void suspend() override {
     winampDisplay.resetDragState();
+    _actionDispatched = false;
+  }
+  bool hasPendingAsync() const override {
+    return _actionDispatched && spotifyTask::hasPendingActions();
   }
   void tick() override {
     {
@@ -213,7 +218,9 @@ public:
       perf::record("display.bar", millis() - _t); }
   }
   bool handleInput(TouchPhase phase, int x, int y) override {
-    return winampDisplay.handleWinampInput(phase, x, y);
+    bool r = winampDisplay.handleWinampInput(phase, x, y);
+    if (winampDisplay.wasLastInputAsync()) _actionDispatched = true;
+    return r;
   }
 };
 static SpotifyApp g_spotifyApp;
@@ -717,7 +724,9 @@ static String formatStockPrice(float price) {
 }
 
 class StockApp : public App {
+  bool _pendingAsync = false;
 public:
+  bool hasPendingAsync() const override { return _pendingAsync; }
   void init() override {
     strcpy(_s.tickers[0], "AAPL"); strcpy(_s.tickers[1], "AMD");
     strcpy(_s.tickers[2], "AMZN"); strcpy(_s.tickers[3], "ARM");
@@ -736,7 +745,7 @@ public:
     }
   }
 
-  void suspend() override {}
+  void suspend() override { _pendingAsync = false; }
 
   void tick() override {
     switch (_s.subView) {
@@ -768,6 +777,7 @@ public:
           _s.chartRange     = (StockRange)tab;
           dataTask::enqueueStockChart(_s.chartTickerIdx, tab);
           _s.lastChartFetch = millis();
+          _pendingAsync     = true;
           return true;
         }
       }
@@ -986,6 +996,7 @@ private:
     if (!_s.lastChartFetch || millis() - _s.lastChartFetch > STOCK_CHART_FETCH_D1) {
       dataTask::enqueueStockChart(tickerIdx, (uint8_t)StockRange::D1);
       _s.lastChartFetch = millis();
+      _pendingAsync     = true;
     }
     repaintChart();
   }
@@ -1030,6 +1041,7 @@ private:
     }
     dataTask::StockChartResult r;
     if (dataTask::pollStockChart(&r)) {
+      _pendingAsync = false;
       if (r.ok) {
         memcpy(_s.chartPoints, r.points, r.len * sizeof(float));
         _s.chartLen       = r.len;
@@ -1132,6 +1144,8 @@ void appHandleInput(AppId) {
         g_apps[(int)currentAppId]->handleInput(
             TouchPhase::Release, s_lastTouchX, s_lastTouchY);
         s_inGesture = false;
+        if (!g_shellBusy && g_apps[(int)currentAppId]->hasPendingAsync())
+          shell::setBusy(true);
       }
       s_lastTouchY = p.y;  // track for release
       if (winampDisplay.tbIsDragging()) {
@@ -1143,7 +1157,7 @@ void appHandleInput(AppId) {
       }
       return;
     }
-    if (!s_inGesture && millis() <= s_cooldownMs) return;
+    if (!s_inGesture && (millis() <= s_cooldownMs || g_shellBusy)) return;
     s_lastTouchX = p.x; s_lastTouchY = p.y;
     if (!s_inGesture) {
       s_inGesture = true;
@@ -1151,10 +1165,15 @@ void appHandleInput(AppId) {
         bool consumed = g_apps[(int)currentAppId]->handleInput(
             TouchPhase::Press, p.x, p.y);
         if (consumed) s_cooldownMs = millis() + 200;
+        if (!g_shellBusy && g_apps[(int)currentAppId]->hasPendingAsync())
+          shell::setBusy(true);
       }
     } else {
-      if (g_apps[(int)currentAppId])
+      if (g_apps[(int)currentAppId]) {
         g_apps[(int)currentAppId]->handleInput(TouchPhase::Move, p.x, p.y);
+        if (!g_shellBusy && g_apps[(int)currentAppId]->hasPendingAsync())
+          shell::setBusy(true);
+      }
     }
   } else {
     if (winampDisplay.tbIsDragging()) {
@@ -1164,9 +1183,12 @@ void appHandleInput(AppId) {
       s_cooldownMs = millis() + 300;
     } else if (s_inGesture) {
       s_inGesture = false;
-      if (g_apps[(int)currentAppId])
+      if (g_apps[(int)currentAppId]) {
         g_apps[(int)currentAppId]->handleInput(
             TouchPhase::Release, s_lastTouchX, s_lastTouchY);
+        if (!g_shellBusy && g_apps[(int)currentAppId]->hasPendingAsync())
+          shell::setBusy(true);
+      }
       s_cooldownMs = millis() + 200;
     }
   }

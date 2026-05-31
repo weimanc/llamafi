@@ -44,6 +44,9 @@ constexpr uint32_t kBackoffMaxMs   = 60000;       // matches ADR-011
 // Task-private state — never accessed from the loop.
 static char s_lastTrackUri[200]        = {0};
 static char s_lastTrackContextUri[200] = {0};
+// TASK-116b: true while ≥1 user action is in-flight. Set by enqueue() for
+// non-POLL actions; cleared when xQueueReceive returns pdFALSE (queue empty).
+static volatile bool s_actionPending = false;
 // TASK-056f: volatile matches s_resetTlsPending pattern — single aligned
 // 32-bit store from the loop task (dbg_set "backoff") is atomic on Xtensa.
 static volatile unsigned int s_consecutiveFailures = 0;
@@ -259,6 +262,7 @@ static void taskBody(void *) {
     BaseType_t got = xQueueReceive(reqQueue, &req, pdMS_TO_TICKS(waitMs));
 
     if (got == pdFALSE) {
+      s_actionPending = false;     // queue drained — no user actions in flight
       req.action = ACT_POLL;       // self-issue cadence poll
       req.param  = 0;
     } else {
@@ -421,7 +425,10 @@ void resetTls() {
 bool enqueue(Action a, int32_t param) {
   if (reqQueue == nullptr) return false;
   Request req = { (uint8_t)a, param };
-  if (xQueueSend(reqQueue, &req, 0) == pdTRUE) return true;
+  if (xQueueSend(reqQueue, &req, 0) == pdTRUE) {
+    if (a != ACT_POLL) s_actionPending = true;
+    return true;
+  }
   // Drop-and-log: full queue means we're either spamming or the task is
   // blocked. Diagnostically visible.
   LOG_W("spotify.task", "queue full — dropped action=%s param=%ld",
@@ -442,6 +449,8 @@ void copyQueueSnapshot(QueueSnapshot *out) {
   *out = g_queueSnapshot;
   portEXIT_CRITICAL_SAFE(&g_queueMux);
 }
+
+bool hasPendingActions() { return s_actionPending; }
 
 #ifdef SERIAL_DEBUG
 // TASK-056f — unified owner-dispatch debug accessors (ADR-021 A1).

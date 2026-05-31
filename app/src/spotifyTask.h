@@ -113,6 +113,12 @@ void copyQueueSnapshot(QueueSnapshot *out);
 // write is a single aligned 32-bit store (atomic on ESP32 Xtensa).
 void resetBackoff();
 
+// TASK-116b: returns true while a user-initiated action is in flight.
+// Set when enqueue() accepts a non-POLL action; cleared when the queue
+// drains (xQueueReceive returns pdFALSE). Prevents amber indicator from
+// flashing between consecutive queued actions.
+bool hasPendingActions();
+
 // TASK-058: poll timing getters — safe to call from the loop task.
 // lastSuccessfulPollAgeMs: millis since last 200 or 204; 0 before first poll.
 // nextPollInMs: estimated ms until next cadence poll (clamped to 0 when overdue).

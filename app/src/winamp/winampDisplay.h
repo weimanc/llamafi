@@ -294,6 +294,7 @@ public:
           if (_dragStartRow >= 0 && _dragStartRow < lastVisibleRows) {
             const int playIdx = scrollOffset + _dragStartRow;
             spotifyTask::enqueue(spotifyTask::ACT_PLAY_URI, (int32_t)playIdx);
+            _lastInputWasAsync        = true;
             _skipPending              = true;
             optimisticSelectedRow     = playIdx;
             optimisticSelectedUntilMs = millis() + 8000;
@@ -307,6 +308,7 @@ public:
       }
       if (dragState == D_POSBAR_DRAG) {
         spotifyTask::enqueue(spotifyTask::ACT_SEEK, (int32_t)_posbarDragCurrentMs);
+        _lastInputWasAsync = true;
         songStartMillis = millis() - _posbarDragCurrentMs;
         touchScreenCoolDownTime = millis() + 200;
         dragState = D_IDLE;
@@ -314,6 +316,7 @@ public:
       if (dragState == D_VOLUME_DRAG) {
         if (lastVolumeRendered >= 0 && lastVolumeRendered != lastVolumeEnqueuedPct) {
           spotifyTask::enqueue(spotifyTask::ACT_VOLUME, (int32_t)lastVolumeRendered);
+          _lastInputWasAsync = true;
           lastVolumeEnqueuedPct = lastVolumeRendered;
           Serial.printf("[D][chrome] drag-end commit pct=%d\n", (int)lastVolumeRendered);
         }
@@ -382,6 +385,7 @@ public:
       if (pressed == 0 || pressed == 2 || pressed == 3 || pressed == 4) {
         songStartMillis = 0;
       }
+      _lastInputWasAsync = true;
       pendingReleaseAt = millis() + PRESS_HOLD_MS;
       touchScreenCoolDownTime = millis() + 200;
       consumed = true;
@@ -395,6 +399,7 @@ public:
       int next = (lastShuffleRendered == 1) ? 0 : 1;
       drawShuffle(next);
       spotifyTask::enqueue(spotifyTask::ACT_SHUFFLE, (int32_t)next);
+      _lastInputWasAsync = true;
       optimisticShufRepUntilMs = millis() + SHUFREP_OPTIMISTIC_HOLD_MS;
       touchScreenCoolDownTime = millis() + 250;
       consumed = true;
@@ -406,6 +411,7 @@ public:
       else               next = 2;
       drawRepeat(next);
       spotifyTask::enqueue(spotifyTask::ACT_REPEAT, (int32_t)next);
+      _lastInputWasAsync = true;
       optimisticShufRepUntilMs = millis() + SHUFREP_OPTIMISTIC_HOLD_MS;
       touchScreenCoolDownTime = millis() + 250;
       consumed = true;
@@ -449,6 +455,7 @@ public:
         if (hitTestLogo(x, y) && millis() >= logoTapCooldownMs) {
           spotifyTask::resetTls();
           spotifyTask::enqueue(spotifyTask::ACT_FORCE_POLL);
+          _lastInputWasAsync = true;
           logoTapCooldownMs = millis() + LOGO_TAP_COOLDOWN_MS;
           repaintChrome();
           LOG_I("touch", "logo tap → TLS reset + force poll");
@@ -465,6 +472,8 @@ public:
     _tickMarquee();
     return consumed;
   }
+
+  bool wasLastInputAsync() { bool v = _lastInputWasAsync; _lastInputWasAsync = false; return v; }
 
   void resetDragState() {
     dragState = D_IDLE;
@@ -604,6 +613,8 @@ private:
   // TASK-053f: logo tap → TLS reset cooldown (2 s). Prevents rapid re-trigger.
   unsigned long logoTapCooldownMs = 0;
   static constexpr unsigned long LOGO_TAP_COOLDOWN_MS = 2000;
+
+  bool _lastInputWasAsync = false;
 
   long volumeFromX(int sx) const {
     const int x0 = originX + VOLUME_X;
