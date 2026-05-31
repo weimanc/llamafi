@@ -11,6 +11,10 @@ struct App {
     virtual void suspend() = 0;
     virtual void tick()    = 0;
     virtual bool handleInput(TouchPhase phase, int x, int y) = 0;
+    // Return true while async work initiated by handleInput() is still in flight.
+    // Self-clears when the work completes. Shell polls this after every tick().
+    // Non-pure: apps with no async input need not override (safe default = false).
+    virtual bool hasPendingAsync() const { return false; }
     virtual ~App() = default;
 };
 

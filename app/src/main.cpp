@@ -1076,6 +1076,21 @@ static bool          s_inGesture  = false;
 static int           s_lastTouchX = 0, s_lastTouchY = 0;
 static unsigned long s_cooldownMs = 0;
 
+// ── Shell busy state (M-TOUCH-UX TASK-115b) ───────────────────────────────
+static bool          g_shellBusy      = false;
+static unsigned long g_shellBusySetMs = 0;
+static constexpr unsigned long SHELL_BUSY_TIMEOUT_MS = 3000;
+
+namespace shell {
+// Sets busy flag and immediately repaints only the active-slot indicator.
+void setBusy(bool busy) {
+    g_shellBusy = busy;
+    if (busy) g_shellBusySetMs = millis();
+    renderActiveIndicator(tft, currentAppId,
+                          winampDisplay.tbScrollOffset(), (int)AppId::COUNT, busy);
+}
+}
+
 void switchApp(AppId next) {
   if (next == currentAppId) return;
 #ifdef SERIAL_DEBUG
@@ -1086,6 +1101,7 @@ void switchApp(AppId next) {
     (unsigned long)ESP.getMinFreeHeap());
 #endif
   if (g_apps[(int)currentAppId]) g_apps[(int)currentAppId]->suspend();
+  shell::setBusy(false);   // clear before new taskbar paint (TASK-115e)
   tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK);
   currentAppId = next;
   if (g_apps[(int)next]) {
@@ -1727,6 +1743,14 @@ void loop()
 
   { unsigned long _t = millis(); appTick(currentAppId);
     perf::record("app.tick", millis() - _t); }
+
+  // Primary busy clear: app reports work done (TASK-115d).
+  if (g_shellBusy && g_apps[(int)currentAppId] &&
+      !g_apps[(int)currentAppId]->hasPendingAsync())
+      shell::setBusy(false);
+  // Fallback: auto-clear after timeout (safety net).
+  if (g_shellBusy && millis() - g_shellBusySetMs > SHELL_BUSY_TIMEOUT_MS)
+      shell::setBusy(false);
 
   unsigned long _loopMs = millis() - _loopStart;
   perf::recordLoop(_loopMs);

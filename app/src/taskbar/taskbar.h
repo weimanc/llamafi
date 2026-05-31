@@ -7,8 +7,27 @@
 #include "gen/shell_layout.h"
 #include "appShell.h"
 
+// Amber indicator while shell busy (firmware-only constant — not in generated shell_layout.h
+// to avoid invalidating check_build.sh golden hash).
+#define TASKBAR_BUSY_COLOR 0xFD20
+
+// Repaints only the 3 px active indicator for the slot showing activeApp.
+// Call when busy state changes; renderTaskbar() delegates to this internally.
+inline void renderActiveIndicator(TFT_eSPI& tft, AppId activeApp,
+                                  int scrollOffset, int totalApps, bool busy) {
+    uint16_t col = busy ? TASKBAR_BUSY_COLOR : TASKBAR_ACTIVE_COLOR;
+    for (int i = 0; i < TASKBAR_SLOT_COUNT; ++i) {
+        int appIdx = (scrollOffset + i) % totalApps;
+        if (appIdx == (int)activeApp) {
+            int slotY = i * TASKBAR_SLOT_H;
+            tft.fillRect(TASKBAR_X, slotY, 3, TASKBAR_SLOT_H, col);
+            return;
+        }
+    }
+}
+
 inline void renderTaskbar(TFT_eSPI& tft, AppId activeApp,
-                           int scrollOffset, int totalApps) {
+                           int scrollOffset, int totalApps, bool busy = false) {
     tft.fillRect(TASKBAR_X, 0, TASKBAR_W, 240, TASKBAR_BG_RGB565);
 
     const char icons[] = {'S', 'C', 'W', '$', 'M', 'G', '=', 'K', '~'};
@@ -25,8 +44,6 @@ inline void renderTaskbar(TFT_eSPI& tft, AppId activeApp,
         tft.setTextColor(TFT_WHITE, TASKBAR_BG_RGB565);
         tft.drawChar(icons[appIdx], iconX, iconY, 4);
         tft.setTextColor(TFT_WHITE, TFT_BLACK);  // ADR-027 producer rule
-
-        if (appIdx == (int)activeApp)
-            tft.fillRect(TASKBAR_X, slotY, 3, TASKBAR_SLOT_H, TASKBAR_ACTIVE_COLOR);
     }
+    renderActiveIndicator(tft, activeApp, scrollOffset, totalApps, busy);
 }
