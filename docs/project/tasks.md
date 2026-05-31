@@ -55,19 +55,19 @@ Scope of this task (design phase only):
 
 ---
 
-### TASK-114 — M-TOUCH-UX Phase 1: Low-risk foundation
+### TASK-114 — M-TOUCH-UX Phase 1: Low-risk foundation ✅
 **Owner**: Developer
 **Features**: touch-003, touch-005 (part 1)
-**Status**: open
+**Status**: complete
 **Milestone**: M-TOUCH-UX
 **Depends on**: TASK-113 (design done)
 **Blocks**: TASK-115 (hitbox.h available for adoption), TASK-118 (VIS debounce fix live)
 **Design**: `docs/architecture/designs/M-TOUCH-UX.md` Part 1
 
 Sub-tasks:
-- **TASK-114a**: Create `app/src/touch/hitbox.h` — `struct Rect { int16_t x, y, w, h; }` + `hitTest` / `hitTestRow` / `hitTestCol` inlines. No callers changed yet (adoption is incremental).
-- **TASK-114b**: Add `touchScreenCoolDownTime` Phase 2 check to `handleWinampInput()` — one line at top of Phase 2 block in `winampDisplay.h`: `if (millis() <= touchScreenCoolDownTime) { _tickMarquee(); return false; }`. Verify VIS, Shuffle, Repeat all respect the intended cooldown durations.
-- **TASK-114c**: `check_build.sh` 4/4 ✅. Flash `cyd2usb_winamp`; verify VIS cycling requires ~300 ms between taps.
+- **TASK-114a** ✅: Create `app/src/touch/hitbox.h` — `struct Rect { int16_t x, y, w, h; }` + `hitTest` / `hitTestRow` / `hitTestCol` inlines. No callers changed yet (adoption is incremental).
+- **TASK-114b** ✅: Add `touchScreenCoolDownTime` Phase 2 check to `handleWinampInput()` — one line at top of Phase 2 block in `winampDisplay.h`: `if (millis() <= touchScreenCoolDownTime) { _tickMarquee(); return false; }`. Verify VIS, Shuffle, Repeat all respect the intended cooldown durations.
+- **TASK-114c** ✅: `check_build.sh` 4/4 ✅. Flash `cyd2usb_winamp`; verify VIS cycling requires ~300 ms between taps.
 
 Exit criterion: `check_build.sh` passes; VIS debounce confirmed on DUT.
 

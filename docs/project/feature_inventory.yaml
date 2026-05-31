@@ -857,7 +857,7 @@ features:
       per-app inline coordinate arithmetic. Apps adopt incrementally — no forced migration.
       Eliminates per-app arithmetic bugs and makes hitbox intent explicit in code review.
       Zero runtime overhead (8-byte struct; inlines compile identically to hand-rolled versions).
-    status: proposed
+    status: implemented
     git_ref: ""
     files:
       - app/src/touch/hitbox.h

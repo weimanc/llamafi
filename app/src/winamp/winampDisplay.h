@@ -360,6 +360,7 @@ public:
     }
 
     // Phase 2 — D_IDLE only: run hit-tests to start a new gesture.
+    if (millis() <= touchScreenCoolDownTime) { _tickMarquee(); return false; }
     int  pressed    = hitTestTransport(x, y);
     long seekMs     = hitTestPosbar(x, y);
     long volPct     = hitTestVolume(x, y);
