@@ -22,6 +22,7 @@ Keyboard / mouse:
     click back zone (x<30, y<18, chart)    — return to prev view
     r    force screener refresh
     +/-  adjust scale
+    [/]  decrease / increase ticker count shown (3..25)
     q    quit (prints Phase 2 + 3 reports)
 """
 from __future__ import annotations
@@ -77,6 +78,12 @@ TASKBAR_SLOT_COUNT = 6
 # label visibility threshold (mirrors ADR-036 D6)
 LABEL_MIN_W = 40
 LABEL_MIN_H = 26
+
+# treemap orientation bias: ramps from 1.0 (large tiles) to HORIZONTAL_BIAS
+# (small tiles). BIAS_FULL_SHORT: short-side px at which full bias is reached;
+# above that the bias linearly decays back to 1.0 (standard squarify).
+HORIZONTAL_BIAS      = 1.5   # max bias; tune 1.3–2.0
+BIAS_FULL_SHORT      = 80    # px: short side at/below which full bias applies
 
 
 # ── colours (RGB) ─────────────────────────────────────────────────────────────
@@ -158,7 +165,9 @@ def _squarify(items: list[tuple[float, int]],
 
     row_sum = sum(row_areas)
 
-    if w >= h:
+    t    = max(0.0, 1.0 - short / BIAS_FULL_SHORT)
+    bias = 1.0 + (HORIZONTAL_BIAS - 1.0) * t
+    if w > h * bias:
         # Strip runs top-to-bottom along the height; width = row_sum / h
         strip_w = row_sum / h
         cy = y
@@ -310,6 +319,7 @@ class HeatmapPoc:
         self.view      = "list"
         self.prev_view = "list"
 
+        self.ticker_count: int           = 25
         self.tickers:   list[TickerData] = []
         self.hm_layout: list[tuple]      = []
         self.loading    = False
@@ -343,9 +353,12 @@ class HeatmapPoc:
             else:
                 tickers, perf = fetch_screener()
 
+            with self._lock:
+                count = self.ticker_count
+
             t0     = time.perf_counter()
             layout = compute_treemap(
-                [max(0.0, t.market_cap) for t in tickers],
+                [max(0.0, t.market_cap) for t in tickers[:count]],
                 HM_X, HM_Y, HM_W, HM_H,
             )
             perf["tile_ms"] = (time.perf_counter() - t0) * 1000
@@ -394,6 +407,18 @@ class HeatmapPoc:
         with self._lock:
             self.view = v
 
+    def set_ticker_count(self, n: int):
+        with self._lock:
+            n = max(3, min(n, len(self.tickers) if self.tickers else 25))
+            if n == self.ticker_count:
+                return
+            self.ticker_count = n
+            if self.tickers:
+                self.hm_layout = compute_treemap(
+                    [max(0.0, t.market_cap) for t in self.tickers[:n]],
+                    HM_X, HM_Y, HM_W, HM_H,
+                )
+
     # ── render ────────────────────────────────────────────────────────────
 
     def render(self):
@@ -410,11 +435,12 @@ class HeatmapPoc:
             chart_sym     = self.chart_symbol
             chart_prices  = list(self.chart_prices)
             chart_loading = self.chart_loading
+            ticker_count  = self.ticker_count
 
         if view == "list":
-            self._render_list(draw, tickers, loading, error)
+            self._render_list(draw, tickers, ticker_count, loading, error)
         elif view == "heatmap":
-            self._render_heatmap(draw, tickers, layout, loading, error)
+            self._render_heatmap(draw, tickers, ticker_count, layout, loading, error)
         elif view == "chart":
             self._render_chart(draw, tickers, chart_sym, chart_prices, chart_loading)
 
@@ -434,8 +460,9 @@ class HeatmapPoc:
             self._f1.draw_centered(draw, (x1 + x2) // 2, HEADER_H // 2,
                                    label, fg=C_TEXT)
 
-    def _render_list(self, draw, tickers, loading, error):
-        self._render_header(draw, "Tech Stocks", "list")
+    def _render_list(self, draw, tickers, ticker_count, loading, error):
+        n_rows = min(ticker_count, LIST_N_ROWS)
+        self._render_header(draw, f"Tech Stocks ({ticker_count})", "list")
         draw.line([(LIST_COL_SYMBOL, LIST_RULE_Y), (APP_W - 1, LIST_RULE_Y)],
                   fill=C_RULE)
 
@@ -446,7 +473,7 @@ class HeatmapPoc:
             self._f1.draw(draw, 5, 66, f"Error: {error}", fg=C_RED)
             return
 
-        for i, td in enumerate(tickers[:LIST_N_ROWS]):
+        for i, td in enumerate(tickers[:n_rows]):
             cy = LIST_ROW_START + i * LIST_ROW_H + LIST_ROW_H // 2
 
             self._f2.draw_left(draw, LIST_COL_SYMBOL, cy, td.symbol, fg=C_TEXT)
@@ -459,12 +486,12 @@ class HeatmapPoc:
             col = C_GREEN if td.change_pct >= 0 else C_RED
             self._f2.draw_right(draw, LIST_COL_CHANGE, cy, chg_str, fg=col)
 
-            if i < LIST_N_ROWS - 1:
+            if i < n_rows - 1:
                 sep_y = LIST_ROW_START + (i + 1) * LIST_ROW_H - 1
                 draw.line([(0, sep_y), (APP_W - 1, sep_y)], fill=C_RULE)
 
-    def _render_heatmap(self, draw, tickers, layout, loading, error):
-        self._render_header(draw, "Tech Heatmap", "heatmap")
+    def _render_heatmap(self, draw, tickers, ticker_count, layout, loading, error):
+        self._render_header(draw, f"Tech Heatmap ({ticker_count})", "heatmap")
         draw.rectangle([0, HEADER_H, APP_W - 1, APP_H - 1], fill=C_BG)
 
         if loading and not tickers:
@@ -490,14 +517,23 @@ class HeatmapPoc:
                 continue
 
             cx, cy = tx + tw // 2, ty + th // 2
+            sign = "+" if td.change_pct >= 0 else ""
+            pct1 = f"{sign}{td.change_pct:.1f}"   # "+2.3"
+
             if tw >= LABEL_MIN_W and th >= LABEL_MIN_H:
-                # Two lines: symbol (Font2) + change% (Font1)
-                sign = "+" if td.change_pct >= 0 else ""
+                # Large: Font2 symbol + Font1 change
                 self._f2.draw_centered(draw, cx, cy - 5, td.symbol, fg=lbl)
-                self._f1.draw_centered(draw, cx, cy + 9,
-                                       f"{sign}{td.change_pct:.1f}%", fg=lbl)
-            elif tw >= 20 and th >= 10:
+                self._f1.draw_centered(draw, cx, cy + 9, pct1, fg=lbl)
+            elif tw >= 28 and th >= 16:
+                # Medium: Font1 symbol + Font1 change
+                self._f1.draw_centered(draw, cx, cy - 4, td.symbol, fg=lbl)
+                self._f1.draw_centered(draw, cx, cy + 5, pct1, fg=lbl)
+            elif tw >= 16 and th >= 9:
+                # Small: symbol only, drop change first
                 self._f1.draw_centered(draw, cx, cy, td.symbol[:4], fg=lbl)
+            elif tw >= 12 and th >= 7:
+                # Tiny: symbol only (truncated)
+                self._f1.draw_centered(draw, cx, cy, td.symbol[:3], fg=lbl)
 
     def _render_chart(self, draw, tickers, symbol, prices, loading):
         # Header with back zone
@@ -693,7 +729,6 @@ class HeatmapPoc:
             import pygame
         except ImportError:
             sys.exit("pip install pygame  (required for interactive preview)")
-        from PIL import Image
 
         pygame.init()
         pygame.display.set_caption(
@@ -724,14 +759,19 @@ class HeatmapPoc:
                         scale = max(1, scale - 1)
                         screen = pygame.display.set_mode(
                             (SCREEN_W * scale, SCREEN_H * scale))
+                    elif k == pygame.K_RIGHTBRACKET:
+                        self.set_ticker_count(self.ticker_count + 1)
+                    elif k == pygame.K_LEFTBRACKET:
+                        self.set_ticker_count(self.ticker_count - 1)
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     mx, my = event.pos
                     self.handle_click(mx // scale, my // scale)
 
-            frame  = self.render()
-            scaled = frame.resize((SCREEN_W * scale, SCREEN_H * scale),
-                                  Image.NEAREST)
-            surf = pygame.image.fromstring(scaled.tobytes(), scaled.size, "RGB")
+            frame = self.render()
+            surf  = pygame.image.fromstring(frame.tobytes(), frame.size, "RGB")
+            if scale > 1:
+                surf = pygame.transform.scale(
+                    surf, (SCREEN_W * scale, SCREEN_H * scale))
             screen.blit(surf, (0, 0))
             pygame.display.flip()
             clock.tick(30)
