@@ -286,6 +286,9 @@ static void fetchHeatmapQuote() {
         portEXIT_CRITICAL_SAFE(&s_heatmapMux);
         return;
     }
+    // Screener endpoint requires a browser-like User-Agent; without it the
+    // response is 200 OK but returns an empty quotes array.
+    http.addHeader("User-Agent", "Mozilla/5.0");
     unsigned long t0 = millis();
     int code = http.GET();
     LOG_D("dataTask.stock", "heatmap GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
@@ -323,7 +326,10 @@ static void fetchHeatmapQuote() {
                 r.marketCap[r.count] = q["marketCap"].as<float>();
                 r.count++;
             }
-            LOG_D("dataTask.stock", "heatmap ok count=%u", r.count);
+            if (r.count == 0)
+                LOG_W("dataTask.stock", "heatmap parse ok but count=0 — quotes array empty or path mismatch");
+            else
+                LOG_D("dataTask.stock", "heatmap ok count=%u", r.count);
         }
     }
     portENTER_CRITICAL_SAFE(&s_heatmapMux);
