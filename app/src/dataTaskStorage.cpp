@@ -295,13 +295,14 @@ static void fetchHeatmapQuote() {
         http.end();
     } else {
         // Filter: 4 fields per quote entry; raw payload ~54 kB → filtered ~2.3 kB.
-        // StaticJsonDocument<256> for filter; <4096> for data (measured in ADR-036 D4).
+        // StaticJsonDocument<256> for filter; DynamicJsonDocument(4096) for data on heap
+        // (StaticJson<4096> on a 10 kB task stack overflows with TLS handshake overhead).
         StaticJsonDocument<256> filter;
         filter["finance"]["result"][0]["quotes"][0]["symbol"]                    = true;
         filter["finance"]["result"][0]["quotes"][0]["marketCap"]                 = true;
         filter["finance"]["result"][0]["quotes"][0]["regularMarketPrice"]        = true;
         filter["finance"]["result"][0]["quotes"][0]["regularMarketChangePercent"]= true;
-        StaticJsonDocument<4096> doc;
+        DynamicJsonDocument doc(4096);
         DeserializationError err = deserializeJson(doc, http.getStream(),
                                        DeserializationOption::Filter(filter));
         http.end();
