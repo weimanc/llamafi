@@ -809,7 +809,10 @@ public:
         if (!_s.fetchFailed && x >= ST_CHART_TABS_X) {
           uint8_t tab = (uint8_t)constrain((x - ST_CHART_TABS_X) / ST_CHART_TAB_W, 0, 3);
           _s.chartRange     = (StockRange)tab;
-          dataTask::enqueueStockChart(_s.chartTickerIdx, tab);
+          if (_s.chartSymbol[0])
+            dataTask::enqueueStockChartBySym(_s.chartSymbol, tab);
+          else
+            dataTask::enqueueStockChart(_s.chartTickerIdx, tab);
           _s.lastChartFetch = millis();
           _pendingAsync     = true;
           return true;
@@ -829,7 +832,7 @@ public:
     }
     if (strcmp(var, "stockChartTicker") == 0) {
       snprintf(buf, len, "\"var\":\"stockChartTicker\",\"val\":\"%s\",\"last\":true",
-               _s.tickers[_s.chartTickerIdx]);
+               _s.chartSymbol[0] ? _s.chartSymbol : _s.tickers[_s.chartTickerIdx]);
       return true;
     }
     if (strcmp(var, "stockChartRange") == 0) {
@@ -1079,6 +1082,8 @@ private:
 
   void backToPrevView() {
     _s.subView = _s.prevSubView;
+    if (_s.subView == StockSubView::List)        _s.chartSymbol[0] = '\0';
+    if (_s.subView == StockSubView::HeatmapDetail) _s.prevSubView = StockSubView::List;
     switch (_s.subView) {
       case StockSubView::List:          repaintList();    break;
       case StockSubView::HeatmapDetail: repaintHeatmap(); break;
@@ -1269,7 +1274,10 @@ private:
     unsigned long fetchMs  = (_s.chartRange == StockRange::D1)
                                ? STOCK_CHART_FETCH_D1 : STOCK_CHART_FETCH_SLOW;
     if (!_s.lastChartFetch || now - _s.lastChartFetch > fetchMs) {
-      dataTask::enqueueStockChart(_s.chartTickerIdx, (uint8_t)_s.chartRange);
+      if (_s.chartSymbol[0])
+        dataTask::enqueueStockChartBySym(_s.chartSymbol, (uint8_t)_s.chartRange);
+      else
+        dataTask::enqueueStockChart(_s.chartTickerIdx, (uint8_t)_s.chartRange);
       _s.lastChartFetch = now;
     }
     dataTask::StockChartResult r;

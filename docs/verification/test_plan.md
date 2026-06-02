@@ -3194,6 +3194,253 @@ Common preconditions for all DUT tests below:
 
 ---
 
+## Suite: stock-heatmap-bugfix-001 (TASK-121/122/123)
+
+Bug-fix validation suite for StockApp heatmap feature (stock-002, M-HEATMAP). Three bugs
+addressed: wrong ticker on tab-switch after heatmap drill-through (TASK-121), tile area
+overflow due to wrong normalization constant (TASK-122), and squarify algorithm orientation
+and slen deviations from the PoC (TASK-123).
+
+Common preconditions for DUT tests below:
+- DUT flashed with `cyd2usb_winamp_debug`, booted, WiFi up, Spotify creds valid.
+- Serial debug interface active. StockApp accessible via `switchApp 7`.
+- Heatmap button: x > 190, y < 22 in list view header. Back button: x > 190, y < 22 in heatmap header.
+- Chart tabs: x = 130..274, y = 0..17. Tab centres: 1D x=148, 5D x=184, 1M x=220, YTD x=256.
+- ARM tile: visible in heatmap after screener fetch; typical DUT screen position varies — confirm
+  visually or use `triggerHeatmap` + any large tile (AAPL, MSFT) if ARM is not in the live dataset.
+- Harness: `run_serialdbg_tests.py --tests T191,...`
+
+---
+
+### T191 — [stock-002, TASK-121] Post-drill `get stockChartTicker` returns index-based ticker (BUG observable)
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: stock-002
+- **Objective**: Document and confirm the TASK-121 bug is observable via serial before the fix.
+  After a heatmap drill-through to a symbol not at `chartTickerIdx=0`, `get stockChartTicker`
+  returns `tickers[chartTickerIdx]` (AAPL) rather than the drilled symbol. This test is the
+  pre-fix regression baseline; after the fix it becomes an acceptance check (see T192).
+- **Preconditions**: DUT in StockApp list view. Heatmap data present (`heatmapCount > 0`).
+  `chartTickerIdx` defaults to 0 (AAPL) at boot.
+- **Steps**:
+  1. `switchApp 7` → confirm `get stockSubView == "list"`.
+  2. `tap 220 10` (HEAT button: x=220 > 190, y=10 < 22) → confirm `get stockSubView == "heatmap"`.
+  3. Poll `get heatmapCount` until `> 0` (timeout 30 s).
+  4. Tap any visible non-AAPL tile (ARM recommended, or MSFT/NVDA if ARM absent).
+     Record the symbol shown in the chart header visually.
+  5. `get stockSubView` → assert `"chart"`.
+  6. `get stockChartTicker` → record value.
+- **Expected result (pre-fix)**: `stockChartTicker` returns `"AAPL"` (or whatever `tickers[0]` is),
+  NOT the drilled symbol — this confirms the bug. `chartTickerIdx` was not updated by `drillToChartBySym`.
+  **Expected result (post-fix)**: `stockChartTicker` still returns the index-based ticker because
+  `drillToChartBySym` sets `chartSymbol` but does NOT change `chartTickerIdx`. The correct fix
+  assertion is in T192 — the price signal, not this field. Note: after TASK-121 fix, the tab-switch
+  code path uses `chartSymbol` directly; the `get stockChartTicker` field remains index-based by design.
+- **Status**: planned. Owner: VE.
+
+---
+
+### T192 — [stock-002, TASK-121] Tab-switch after heatmap drill fetches the drilled symbol (SERIALDBG)
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: stock-002
+- **Objective**: After TASK-121 fix — when the user taps a range tab after a heatmap drill-through,
+  the fetch is for the drilled symbol, not the default ticker. Observable via `fetchOkCount`:
+  a new fetch fires on tab-switch (counter increments) and the chart header still shows the
+  drilled symbol (not AAPL/default).
+- **Preconditions**: TASK-121 fix in tree. DUT in StockApp, heatmap data loaded. A non-default
+  symbol tile is visible (e.g. ARM, MSFT). `chartTickerIdx` defaults to 0 (AAPL) at boot.
+- **Steps**:
+  1. `switchApp 7` → `get stockSubView == "list"`.
+  2. Enter heatmap (tap HEAT button at x=220, y=10). Poll `get heatmapCount` until > 0.
+  3. Tap a non-AAPL tile (e.g. ARM at its screen position). Confirm chart view opens.
+  4. `get stockSubView` → assert `"chart"`. `get stockChartRange` → assert `"D1"`.
+  5. Note `before_ok = get fetchOkCount`.
+  6. Tap 5D tab: `tap 184 9` (x=184, y=9 within 0..17).
+  7. `get stockChartRange` → assert `"D5"`.
+  8. Poll `get fetchOkCount` until `> before_ok` (timeout 45 s).
+  9. Visual: chart header still shows the drilled symbol (e.g. ARM), NOT AAPL or another default.
+- **Expected result**: `fetchOkCount` advances (a real fetch fired for the drilled symbol at D5).
+  Chart header text unchanged (drilled symbol persists across tab switch). If the bug were present,
+  the header would revert to AAPL and the price range would shift to AAPL 5D values.
+- **Status**: planned. Owner: VE.
+
+---
+
+### T193 — [stock-002, TASK-121] Auto-refresh path uses drilled symbol after heatmap drill-through (SERIALDBG)
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: stock-002
+- **Objective**: The `stockTickChart()` auto-refresh path (TASK-121b fix) also uses `chartSymbol`
+  when set. After the fix, a forced auto-refresh via `set triggerFetch 1` while in post-drill
+  chart view should re-fetch the drilled symbol, not `chartTickerIdx`.
+- **Preconditions**: TASK-121 fix in tree. DUT drilled into chart from heatmap (chartSymbol set
+  to a non-default symbol). Chart already rendered (D1 data present). `fetchOkCount` recorded.
+- **Steps**:
+  1. Enter heatmap, drill into a non-default symbol. Note `before_ok = get fetchOkCount`.
+  2. `set triggerFetch 1` (resets `lastChartFetch` to 0 to force next tick to re-fetch).
+  3. Wait 3 s (allow one `stockTickChart()` tick to fire). Poll `get fetchOkCount` until `> before_ok`
+     (timeout 30 s).
+  4. `get chartLen` → assert `> 0` (data arrived).
+  5. Visual: chart header still shows the drilled symbol.
+- **Expected result**: `fetchOkCount` advances. Header unchanged. Without the fix, `stockTickChart`
+  would have called `enqueueStockChart(_s.chartTickerIdx, ...)` and the chart would have redrawn
+  with the wrong (default) ticker data, causing visible price-range change.
+- **Status**: planned. Owner: VE.
+
+---
+
+### T194 — [stock-002, TASK-121] Back-to-list then re-drill clears chartSymbol (SERIALDBG)
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: stock-002
+- **Objective**: After navigating back to list from the heatmap-drilled chart, then drilling into
+  a list row directly (index-based), `chartSymbol` is cleared and subsequent tab-switches use
+  the index path (`enqueueStockChart(_s.chartTickerIdx, tab)`), not the stale `chartSymbol`.
+- **Preconditions**: TASK-121 fix in tree. DUT has just completed a heatmap drill-through (chartSymbol set).
+- **Steps**:
+  1. From heatmap chart view, tap back (x=10, y=7) → `get stockSubView == "chart"` or `"list"`.
+     Navigate back to list: tap back from chart `(10,7)`, then tap back from heatmap `(220,10)` if needed.
+  2. `get stockSubView` → assert `"list"`.
+  3. Tap a list row (e.g. AAPL at y=36): `tap 137 36` → `get stockSubView == "chart"`.
+  4. `get stockChartRange` → assert `"D1"`. Note `before_ok = get fetchOkCount`.
+  5. Tap 5D tab: `tap 184 9`. `get stockChartRange` → assert `"D5"`.
+  6. Poll `get fetchOkCount` until `> before_ok` (timeout 45 s).
+  7. `get stockChartTicker` → assert matches the tapped list row ticker (e.g. `"AAPL"`).
+- **Expected result**: `stockChartTicker` shows the index-based ticker (confirming `chartSymbol` was
+  cleared when `drillToChart()` was called). Fetch succeeded for that ticker at D5.
+- **Status**: planned. Owner: VE.
+
+---
+
+### T195 — [stock-002, TASK-122] Heatmap tiles fill canvas without bottom overflow [MANUAL]
+
+- **Type**: visual (DUT, manual)
+- **Feature(s)**: stock-002
+- **Objective**: After TASK-122 fix, heatmap tiles fill y=22..239 exactly with no tile edge or fill
+  extending past y=239 (the bottom of the display). Before the fix, tiles overflow the bottom ~10%,
+  so the bottom ~22 rows show tile content below the last visible pixel row.
+- **Preconditions**: TASK-122 fix in tree. DUT in heatmap view with at least one fetch complete
+  (`heatmapCount > 0`).
+- **Steps**:
+  1. `switchApp 7` → enter heatmap (tap HEAT button).
+  2. Wait for heatmap data (observe tiles appearing).
+  3. Examine the bottom edge of the display closely.
+- **Expected result**: The tile with the lowest extent ends cleanly at or before y=239. No tile
+  content is cut off mid-glyph or mid-fill at the screen edge. No tile extends into the taskbar
+  region (y > 239 is not visible, but the last row of pixels at y=239 should show tile background,
+  not a misaligned cut).
+  Pass: clean bottom edge — last row of pixels is tile fill matching a tile's colour.
+  Fail: cut-off tile label text or partial colour block below y=239 boundary, or tiles obviously
+  not reaching the bottom (under-fill, indicating a different normalization error).
+- **Status**: planned (manual). Owner: VE.
+
+---
+
+### T196 — [stock-002, TASK-122] Heatmap data present after fetch (SERIALDBG)
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: stock-002
+- **Objective**: Confirm the heatmap fetch succeeds and tile count is non-zero — the minimal
+  automated gate before visual TASK-122/TASK-123 validation can proceed. Also verifies
+  `triggerHeatmap` sets the subview and forces a fresh fetch.
+- **Preconditions**: DUT in StockApp. Network available (or `host_overrides.json` populated for
+  the heatmap screener endpoint).
+- **Steps**:
+  1. `switchApp 7` → `get stockSubView == "list"`.
+  2. `set triggerHeatmap 1` (sets subView = HeatmapDetail, forces fresh fetch).
+  3. `get stockSubView` → assert `"heatmap"`.
+  4. Poll `get heatmapCount` every 3 s until `> 0` (timeout 60 s).
+- **Expected result**: `heatmapCount` returns a value ≥ 1 within 60 s. This confirms the screener
+  fetch succeeded and the data layer is operational. A timeout here indicates a network/parse
+  issue unrelated to TASK-122/TASK-123 and blocks T195/T197/T198.
+- **Status**: planned. Owner: VE.
+
+---
+
+### T197 — [stock-002, TASK-122, TASK-123] DUT heatmap layout matches PoC reference for same data [HOST]
+
+- **Type**: host-side (offline, Python)
+- **Feature(s)**: stock-002
+- **Objective**: Run `preview_heatmap.py --no-fetch` to generate a deterministic reference layout
+  from the same synthetic dataset, then compare the PoC's squarify output geometry to the expected
+  DUT output after both TASK-122 and TASK-123 fixes. Guards against regression in either fix.
+  This is the primary algorithmic correctness gate for TASK-123 — the PoC is the reference
+  implementation.
+- **Preconditions**: Python venv available (`~/proj/esp/venv`). `preview_heatmap.py` in tree.
+  TASK-122 and TASK-123 fixes applied to `main.cpp`. No display required (`--no-fetch` uses
+  synthetic data and does not open a pygame window when run headlessly).
+- **Steps**:
+  1. Run `~/proj/esp/venv/bin/python3 app/tools/preview_heatmap.py --no-fetch` to confirm the
+     PoC renders without error. Note the first tile dimensions printed at quit (Phase 2 report).
+  2. Extract the expected layout from the PoC: the first tile (largest market cap) should be a
+     tall vertical column on the left (wide canvas, so `w > h * bias` → vertical strip), not a
+     horizontal band across the top (which would be the TASK-123 Bug A symptom).
+  3. Confirm the total area of all tiles equals `275 * (240 - 22) = 275 * 218 = 59,950 px²`
+     (TASK-122 fix: correct normalization). Sum all `tile_w * tile_h` from the layout output.
+  4. Confirm `slen` used in each recursive call is `min(rw, rh)` — verified by the PoC's use
+     of `short = min(w, h)` in `_squarify`. On the initial 275×218 canvas, `slen = 218` (the
+     short side), consistent with Bug B fix.
+- **Expected result**:
+  - PoC runs without exception.
+  - First tile is a tall left-side column (vertical strip orientation) on the 275×218 canvas.
+  - Sum of all tile areas ≈ 59,950 px² (±a few px² for rounding).
+  - `short = min(275, 218) = 218` used in first squarify call (consistent with Bug B).
+  Pass criterion: first tile taller than it is wide (h > w) on initial 275×218 canvas.
+  Fail criterion: first tile wider than it is tall (w > h), indicating orientation is still inverted.
+- **Status**: planned [HOST]. Owner: VE.
+
+---
+
+### T198 — [stock-002, TASK-123] DUT heatmap first tile is a tall vertical column, not a horizontal band [MANUAL]
+
+- **Type**: visual (DUT, manual)
+- **Feature(s)**: stock-002
+- **Objective**: After TASK-123 fix (Bug A orientation swap), the first (largest) heatmap tile
+  on the 275×218 DUT canvas should be a tall vertical column on the left, not a short horizontal
+  band across the top. This directly validates the orientation fix.
+- **Preconditions**: TASK-122 and TASK-123 fixes in tree. DUT in heatmap view with live or
+  triggered fetch complete (`heatmapCount > 0`). For a deterministic comparison, use
+  `set triggerHeatmap 1` to force a fresh fetch immediately before observation.
+- **Steps**:
+  1. Enter heatmap view (HEAT button or `set triggerHeatmap 1`).
+  2. Wait for tiles to render.
+  3. Observe the largest tile (typically AAPL or MSFT — the one with the biggest market cap,
+     rendered first by the squarify algorithm).
+- **Expected result (post-fix)**: The largest tile is visibly taller than it is wide — a column
+  at the left edge of the canvas, approximately spanning the full y=22..239 height.
+  Pass: tile height > tile width for the dominant tile.
+  Fail: the dominant tile is a short horizontal band spanning the full canvas width — this is
+  the TASK-123 Bug A symptom (orientation still inverted).
+- **Status**: planned (manual). Owner: VE.
+
+---
+
+### T199 — [stock-002, TASK-123] DUT squarify aspect ratios are comparable to PoC (visual quality gate) [MANUAL]
+
+- **Type**: visual (DUT, manual)
+- **Feature(s)**: stock-002
+- **Objective**: After both TASK-122 and TASK-123 fixes, the overall heatmap tile layout on the
+  DUT should visually resemble the PoC's `--no-fetch` output — roughly square tiles, no
+  extremely elongated sliver tiles caused by a wrong `slen`. This is a qualitative check;
+  exact pixel-matching is not required (live data differs from synthetic data).
+- **Preconditions**: TASK-122 and TASK-123 fixes in tree. DUT in heatmap view with data loaded.
+  Host running `preview_heatmap.py --no-fetch` for reference (or a screenshot).
+- **Steps**:
+  1. Side-by-side comparison: PoC `--no-fetch` output (host) vs DUT heatmap display.
+  2. Inspect the tile aspect ratios: are any tiles extremely elongated (height-to-width ratio
+     > 10:1 or < 1:10)? Such slivers are the primary symptom of TASK-123 Bug B (wrong `slen`
+     using the long side instead of the short side inflates the aspect ratio criterion, causing
+     the algorithm to continue adding tiles to a strip past the optimal split point).
+- **Expected result**: No slivers — no tile with aspect ratio more extreme than approximately
+  5:1. Tiles are visually similar in squareness to the PoC layout. An occasional narrow tile
+  for very small-cap symbols is acceptable; systematic sliver tiles throughout the layout are not.
+  Pass: layout looks tile-like, comparable to PoC.
+  Fail: systematic slivers visible — thin horizontal or vertical bars spanning most of the canvas.
+- **Status**: planned (manual). Owner: VE.
+
+---
+
 ## Entry Format
 
 ```

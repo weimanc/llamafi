@@ -200,6 +200,151 @@ Three implementation phases + VE:
 
 ---
 
+### TASK-121 — BUG: Chart tab-switch fetches wrong ticker after heatmap drill-through
+**Owner**: Developer
+**Feature**: stock-002
+**Status**: open
+**Milestone**: M-HEATMAP
+**Depends on**: TASK-119c (heatmap navigation wired)
+**Blocks**: TASK-120 (VE cannot validate correct chart data until fixed)
+**Source**: code review 2026-06-02
+
+Root cause: `drillToChartBySym()` sets `_s.chartSymbol` but does not update `_s.chartTickerIdx`. Both tab-switch and auto-refresh use `enqueueStockChart(_s.chartTickerIdx, …)` unconditionally, so switching ranges re-fetches the last index-based ticker, not the heatmap symbol.
+
+Sub-tasks:
+- **TASK-121a**: `handleInput()` tab-switch block (`main.cpp` line 812): when `_s.chartSymbol[0]` is set, call `dataTask::enqueueStockChartBySym(_s.chartSymbol, tab)`; else keep `enqueueStockChart(_s.chartTickerIdx, tab)`.
+- **TASK-121b**: `stockTickChart()` auto-refresh path (`main.cpp` line 1272): same guard — `chartSymbol[0]` set → `enqueueStockChartBySym`; else `enqueueStockChart`.
+- **TASK-121c**: `check_build.sh` 4/4; flash debug; repro sequence (heatmap → ARM → 5D → 1D) confirms price stays ~400 throughout.
+
+Exit criterion: price displayed on 1D after switching from 5D matches the initial drill-through price; `check_build.sh` passes.
+
+**Test IDs**: T191 (bug observable pre-fix baseline), T192 (tab-switch uses drilled symbol, SERIALDBG), T193 (auto-refresh path, SERIALDBG), T194 (back-to-list clears chartSymbol, SERIALDBG).
+
+---
+
+### TASK-122 — BUG: Heatmap area normalization wrong — tiles overflow bottom ~10%
+**Owner**: Developer
+**Feature**: stock-002
+**Status**: open
+**Milestone**: M-HEATMAP
+**Depends on**: TASK-119b
+**Source**: code review 2026-06-02
+
+`computeHeatmapLayout()` (`main.cpp` line 1110) normalizes tile weights to `275 × 240 = 66 000 px²` but the tile canvas is `rw=275, rh=240−ST_LIST_RULE_Y=218`, i.e. `59 950 px²`. The weights sum to ~10% more area than available, causing tiles to overflow the bottom edge.
+
+Fix (`main.cpp` line 1110):
+```cpp
+// before
+wt[i] = ... / total * (275.0f * 240.0f);
+// after
+wt[i] = ... / total * (275.0f * (float)(240 - ST_LIST_RULE_Y));
+```
+
+Exit criterion: tiles fill y=22..239 exactly with no overflow; `check_build.sh` passes.
+
+**Test IDs**: T195 (bottom edge visual, MANUAL), T196 (heatmapCount > 0 automated gate, SERIALDBG), T197 (total tile area ≈ 59950 px², HOST).
+
+---
+
+### TASK-123 — BUG: Heatmap treemap algorithm deviates from PoC — orientation + slen
+**Owner**: Developer
+**Feature**: stock-002
+**Status**: open
+**Milestone**: M-HEATMAP
+**Depends on**: TASK-122 (fix area first to isolate visual diff)
+**Source**: code review 2026-06-02
+
+Two related algorithm bugs in `computeHeatmapLayout()`:
+
+**Bug A — strip orientation inverted (line 1116):**
+DUT `horiz = (rw >= rh)` → wide rect → horizontal strip (tiles side-by-side).
+PoC: wide rect → vertical strip (tiles stacked, fixed-width column at left).
+These are opposite. On the 275×218 canvas the first large tile becomes a short top band instead of a tall left column.
+Fix: swap the branch bodies so wide rect → vertical strip, tall rect → horizontal strip.
+
+**Bug B — aspect-ratio criterion uses long side instead of short (line 1117):**
+DUT `slen = horiz ? rw : rh` evaluates to `max(rw, rh)` always (the long side).
+Bruls et al. (and the PoC `short = min(w, h)`) use the SHORT side.
+Fix: `float slen = (rw < rh) ? rw : rh;`
+
+Exit criterion: DUT heatmap visually matches the PoC `preview_heatmap.py --no-fetch` layout for the same synthetic data; `check_build.sh` passes.
+
+**Test IDs**: T197 (shared with TASK-122 — tile area sum and PoC orientation check, HOST), T198 (first tile is tall column, MANUAL), T199 (no sliver tiles, qualitative visual, MANUAL).
+
+---
+
+### TASK-124 — INVESTIGATE: Yahoo Finance -1 (TCP connection refused) on DUT
+**Owner**: RnD
+**Feature**: stock-001 / stock-002 (cross-cutting)
+**Status**: open
+**Milestone**: M-HEATMAP (blocking quality; not blocking release)
+**Source**: observed during TASK-121 verification 2026-06-02
+
+#### Symptom
+
+StockApp shows `ERR -1` on the LCD. The serial log shows `HTTPC_CONNECTION_REFUSED (-1)` on
+Yahoo Finance quote and chart fetches, with elapsed times of up to 31 s before failure:
+
+```
+[D][dataTask.stock] quote GET ARM -1 elapsed=30896ms
+```
+
+`fetchErrCount` increments through all 8 tickers (one error per ticker per 60 s poll cycle).
+Recovers on its own after 1–5 minutes with no firmware change.
+
+#### Known facts (2026-06-02)
+
+- **Not a traditional rate limit**: 20 rapid-fire requests from the host Python process (same
+  LAN, same NAT IP) all return 200 in < 100 ms each. Yahoo Finance does not appear to throttle
+  at the request rate the DUT generates (≤ 1 req/60 s per ticker).
+- **DUT-specific**: the failure is triggered by the DUT's HTTP/1.0 + mbedTLS (ESP32) stack,
+  not by request frequency from the host.
+- **HTTP/1.0 forced**: TASK-119 forced `HTTP/1.0` on the heatmap screener to avoid
+  `Transfer-Encoding: chunked` parse failure (ADR-034). The quote/chart endpoints also use
+  HTTP/1.0 via `SpotifyArduino`'s `makeGetRequest`. Every request opens a new TLS handshake
+  (no session reuse, no keep-alive).
+- **Timing**: errors first appeared during the TASK-121 repro session where the DUT made
+  ~10–15 rapid sequential chart fetches (tab-switch test loop). The DUT may have hit a
+  per-IP connection-rate limit that the per-request query rate does not reveal.
+- **Error code -1** maps to `HTTPC_ERROR_CONNECTION_REFUSED` in the ESP32 Arduino HTTPClient
+  library, but the 30 s elapsed time indicates a TCP timeout rather than an immediate RST —
+  Yahoo's server is silently dropping new connections rather than actively refusing them.
+
+#### Hypotheses to investigate
+
+1. **Per-IP new-connection rate**: Yahoo may throttle based on new TCP/TLS connections per
+   minute per IP (not per HTTP request). The DUT's HTTP/1.0 never reuses connections;
+   10+ new TLS handshakes in 2 minutes may cross a threshold invisible to the host's keep-alive
+   pool. Test: burst 30+ requests from the host with `Connection: close` (HTTP/1.0 semantics)
+   and measure when 429/drop first appears.
+2. **User-Agent fingerprint**: The DUT sends `User-Agent: ESP32` (or the string set in
+   `dataTaskStorage.cpp`). Yahoo may deprioritise or block non-browser UAs under load.
+   Test: replay DUT User-Agent from Python; compare 200-rate to browser UA.
+3. **TLS fingerprint (JA3)**: ESP32 mbedTLS produces a different TLS ClientHello than
+   CPython's ssl module. Yahoo's CDN (Fastly/Akamai) may throttle unfamiliar JA3 hashes.
+   Difficult to mitigate without a TLS library swap; document if confirmed.
+4. **IPv4 vs IPv6**: host may use IPv6 (different IP block), DUT is IPv4-only. Yahoo may
+   apply stricter per-IPv4-address limits.
+
+#### Potential mitigations
+
+- **Exponential back-off + jitter** in `stockTickList()` on consecutive `-1` errors: after
+  3 failures double the retry interval (cap at 10 min). Prevents cascade where every 60 s
+  poll re-triggers the block.
+- **HTTP/1.1 + Connection: keep-alive** for quote/chart endpoints (separate from screener
+  which needs HTTP/1.0 for chunked avoidance). Reduces new-connection rate by reusing TLS
+  session across tickers.
+- **Stagger ticker fetches**: instead of all 8 tickers in one 60 s burst, spread them 7 s
+  apart. Same data freshness, lower peak connection rate.
+
+#### Exit criterion
+
+Root cause identified (one of the four hypotheses confirmed or new one found); at least one
+mitigation implemented and verified to reduce `fetchErrCount` to 0 over a 30-minute uptime
+with normal usage (list + chart browsing).
+
+---
+
 ### TASK-111 — M-AQUARIUM-CRAB: Implement aquarium crab creature
 **Owner**: Developer
 **Feature**: aquarium-crab-001 (new)
