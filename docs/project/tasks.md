@@ -166,6 +166,40 @@ Exit criterion: T-BUSY-01/01b/02/03/05 ✅; T-CDWN-01/03 ✅; T076/T079/T081 har
 
 ---
 
+### TASK-119 — M-HEATMAP: StockApp heatmap view — design accepted
+**Owner**: Developer
+**Feature**: stock-002 (new)
+**Status**: open
+**Milestone**: M-HEATMAP
+**Depends on**: stock-001 complete (TASK-116+)
+**Blocks**: TASK-120, TASK-121
+**Design**: `docs/architecture/decisions/ADR-036.md` (accepted 2026-06-02)
+
+Three implementation phases + VE:
+
+#### TASK-119a — Data pipeline (no UI)
+- `dataTask.h`: add `DATA_FETCH_HEATMAP_QUOTE` op, `HeatmapQuoteResult` struct, `pollHeatmapQuote()`.
+- `dataTaskStorage.cpp`: add `fetchHeatmapQuote()` — screener GET, `StaticJsonDocument<256>` filter + `StaticJsonDocument<4096>` data doc, streaming parse per ADR-034. Mutex + result store following existing `StockQuoteResult` pattern. Wire into task loop.
+- `appShell.h` `StockAppState`: add `prevSubView`, `lastHeatmapFetch`, `heatmapData` (`HeatmapQuoteResult`), `heatmapLayout[20]` (`HeatmapTile`), `heatmapLayoutDirty`.
+- Exit: `check_build.sh` 4/4; `get heatmapCount` serial command returns valid count after switching to heatmap view. No UI yet.
+
+#### TASK-119b — Render + layout (no navigation)
+- `main.cpp`: add `HeatmapDetail` to `StockSubView`; add `computeHeatmapLayout()` (Bruls et al. squarified treemap, landscape-first, no heap alloc); add `repaintHeatmap()` (tile fillRect + adaptive label: ticker always, change% if w≥40 && h≥28; colour LUT for ±5% scale).
+- `tick()`: call `computeHeatmapLayout()` when `heatmapLayoutDirty`; call `repaintHeatmap()` when in HeatmapDetail.
+- Exit: `check_build.sh` 4/4; flash debug build; manually switch to HeatmapDetail via serial `switchApp`; verify tiles render with correct colours and labels.
+
+#### TASK-119c — Navigation wiring
+- `handleInput()`: toggle tap (`x > 190 && y < 22`) in ListDetail ↔ HeatmapDetail; tile tap in HeatmapDetail → `fetchStockChartBySymbol(symbol, 0)` + `prevSubView = HeatmapDetail` + subView = ChartDetail; back tap in ChartDetail → restore `prevSubView`.
+- Add `fetchStockChartBySymbol(const char* symbol, uint8_t rangeIdx)` — mirrors `fetchStockChart()` with symbol string.
+- Exit: `check_build.sh` 4/4; flash; verify List↔Heat toggle, tile drill-through to chart, back returns to heatmap (not list).
+
+#### TASK-120 — VE: T-HEAT-* test suite
+- Owner: VE (Developer adds `get heatmapCount` SERIAL_DEBUG deliverable first).
+- Tests: toggle navigation, tile tap drill-through, back nav to correct sub-view, fetch completes (via `get heatmapCount`), error state on fetch failure.
+- Exit: T-HEAT-* written in `test_plan.md`; harness passing; feature_inventory.yaml updated.
+
+---
+
 ### TASK-111 — M-AQUARIUM-CRAB: Implement aquarium crab creature
 **Owner**: Developer
 **Feature**: aquarium-crab-001 (new)
