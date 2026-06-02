@@ -938,6 +938,11 @@ private:
     tft.setTextDatum(TL_DATUM);
     tft.setTextColor(0xFFE0);
     tft.drawString("STOCK TERMINAL", ST_LIST_COL_SYMBOL, ST_LIST_HEADER_Y, 2);
+    // Toggle button — tap to enter HeatmapDetail
+    tft.setTextDatum(TR_DATUM);
+    tft.setTextColor(0x07E0, TFT_BLACK);
+    tft.drawString("HEAT>", ST_CANVAS_X2 - 2, ST_LIST_HEADER_Y, 2);
+    tft.setTextDatum(TL_DATUM);
     tft.drawFastHLine(ST_LIST_COL_SYMBOL, ST_LIST_RULE_Y,
                       ST_CANVAS_X2 - ST_LIST_COL_SYMBOL, 0x4208);
     int yPos = ST_LIST_ROW_START_Y;
@@ -1096,8 +1101,8 @@ private:
     for (uint8_t i=0; i<n; i++)
       wt[i] = _s.heatmapData.marketCap[order[i]] / total * (275.0f * 240.0f);
 
-    // Squarified treemap — iterative strip layout
-    float rx=0, ry=0, rw=275, rh=240;
+    // Squarified treemap — iterative strip layout (y=22..239, top row reserved for header)
+    float rx=0, ry=ST_LIST_RULE_Y, rw=275, rh=240-ST_LIST_RULE_Y;
     uint8_t si=0;
     while (si < n && rw > 0.5f && rh > 0.5f) {
       bool horiz = (rw >= rh);
@@ -1158,6 +1163,16 @@ private:
 
   void repaintHeatmap() {
     tft.fillRect(0, ST_CANVAS_Y, ST_CANVAS_X2 + 1, ST_CANVAS_H, TFT_BLACK);
+    // Header strip (y=0..21) — title left, LIST toggle right
+    tft.setTextDatum(TL_DATUM);
+    tft.setTextColor(0xFFE0, TFT_BLACK);
+    tft.drawString("MKTCAP HEAT", ST_LIST_COL_SYMBOL, ST_LIST_HEADER_Y, 2);
+    tft.setTextDatum(TR_DATUM);
+    tft.setTextColor(0x07E0, TFT_BLACK);
+    tft.drawString("<LIST", ST_CANVAS_X2 - 2, ST_LIST_HEADER_Y, 2);
+    tft.setTextDatum(TL_DATUM);
+    tft.drawFastHLine(ST_LIST_COL_SYMBOL, ST_LIST_RULE_Y,
+                      ST_CANVAS_X2 - ST_LIST_COL_SYMBOL, 0x4208);
     if (!_s.heatmapData.ok && _s.heatmapData.errorCode == 0) {
       tft.setTextDatum(MC_DATUM);
       tft.setTextColor(0x7BEF, TFT_BLACK);
