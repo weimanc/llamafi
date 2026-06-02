@@ -1112,14 +1112,14 @@ private:
     if (total == 0.0f) total = 1.0f;
     float wt[20];
     for (uint8_t i=0; i<n; i++)
-      wt[i] = _s.heatmapData.marketCap[order[i]] / total * (275.0f * 240.0f);
+      wt[i] = _s.heatmapData.marketCap[order[i]] / total * (275.0f * (float)(240 - ST_LIST_RULE_Y));
 
     // Squarified treemap — iterative strip layout (y=22..239, top row reserved for header)
     float rx=0, ry=ST_LIST_RULE_Y, rw=275, rh=240-ST_LIST_RULE_Y;
     uint8_t si=0;
     while (si < n && rw > 0.5f && rh > 0.5f) {
-      bool horiz = (rw >= rh);
-      float slen = horiz ? rw : rh;
+      bool horiz = (rh > rw);
+      float slen = (rw < rh) ? rw : rh;
 
       float sum=0, smax=0, smin=1e30f;
       uint8_t ei = si;
