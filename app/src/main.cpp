@@ -910,6 +910,14 @@ public:
       _s.quoteOkCount = 0;
       return true;
     }
+    if (strcmp(var, "triggerHeatmap") == 0) {
+      // Enter heatmap sub-view and trigger an immediate fetch (debug/testing).
+      _s.prevSubView    = _s.subView;
+      _s.subView        = StockSubView::HeatmapDetail;
+      _s.lastHeatmapFetch = 0;  // force immediate fetch on next tick
+      repaintHeatmap();
+      return true;
+    }
     return false;
   }
 

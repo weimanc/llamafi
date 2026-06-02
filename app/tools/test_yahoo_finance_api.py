@@ -44,9 +44,11 @@ SYMBOLS = ["AAPL", "AMD", "AMZN", "ARM", "GOOG", "META", "MSFT", "NVDA"]
 
 CHART_URL_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/"
 
-# Quote budget — must match DynamicJsonDocument(N) in dataTaskStorage.cpp fetchStockQuote().
-# Raw payload bytes are the right proxy here: no filter, full parse into doc(8192).
-QUOTE_BUDGET_B = 8192   # dataTaskStorage.cpp fetchStockQuote() doc(8192)
+# Quote doc limit — dataTaskStorage.cpp fetchStockQuote() uses a JSON filter that
+# extracts only regularMarketPrice + chartPreviousClose before ArduinoJson allocates
+# (StaticJsonDocument<128> filter + StaticJsonDocument<256> doc, streaming parse).
+# Raw payload size is irrelevant — only the filtered output size matters (LL-048).
+QUOTE_DOC_BYTES = 256   # dataTaskStorage.cpp fetchStockQuote() StaticJsonDocument<256> doc
 
 # Chart buffer limit — dataTaskStorage.cpp fetchStockChart() uses a JSON filter that
 # extracts only close[] before ArduinoJson allocates (StaticJsonDocument<2048> doc).
@@ -134,15 +136,25 @@ def check_quote_fields(bodies):
 
 
 def check_quote_budget(bodies):
-    """T_SF_03 — each quote payload fits DUT DynamicJsonDocument(8192)."""
-    print("\nT_SF_03  Quote payloads within DUT budget")
+    """T_SF_03 — filtered quote output (2 meta fields) fits StaticJsonDocument<256>."""
+    print(f"\nT_SF_03  Filtered quote output fits StaticJsonDocument<{QUOTE_DOC_BYTES}>")
     all_ok = True
     for sym, body in bodies.items():
-        n = len(body)
-        if n <= QUOTE_BUDGET_B:
-            _ok(sym, f"{n} B <= {QUOTE_BUDGET_B} B")
+        try:
+            doc  = json.loads(body)
+            meta = doc["chart"]["result"][0]["meta"]
+            price = meta.get("regularMarketPrice")
+            prev  = meta.get("chartPreviousClose")
+        except (json.JSONDecodeError, KeyError, IndexError, TypeError) as e:
+            _fail(sym, f"parse error: {e}")
+            all_ok = False
+            continue
+        # Approximate filtered JSON size: only the two fields firmware extracts.
+        n = len(json.dumps({"regularMarketPrice": price, "chartPreviousClose": prev}).encode())
+        if n < QUOTE_DOC_BYTES:
+            _ok(sym, f"filtered ~{n} B << StaticJsonDocument<{QUOTE_DOC_BYTES}>")
         else:
-            _fail(sym, f"{n} B exceeds {QUOTE_BUDGET_B} B budget")
+            _fail(sym, f"filtered {n} B >= StaticJsonDocument<{QUOTE_DOC_BYTES}> limit")
             all_ok = False
     return all_ok
 
@@ -291,7 +303,7 @@ def main():
     print("Yahoo Finance API probe — StockApp POC (TASK-109i)")
     print(f"Quote symbols : {', '.join(SYMBOLS)}  ({len(SYMBOLS)} symbols)")
     print(f"Chart symbol  : {args.chart_symbol}  ranges: D1(5m) D5(60m) Mo1(1d) Ytd(1wk)")
-    print(f"DUT budget    : quote={QUOTE_BUDGET_B} B (DynamicJsonDocument)  chart={CHART_MAX_POINTS} pts (filtered StaticJsonDocument<2048>)")
+    print(f"DUT budget    : quote filtered ~50 B → StaticJsonDocument<{QUOTE_DOC_BYTES}>  chart={CHART_MAX_POINTS} pts → StaticJsonDocument<2048>")
 
     failures = []
 

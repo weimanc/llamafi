@@ -289,6 +289,14 @@ static void fetchHeatmapQuote() {
     // Screener endpoint requires a browser-like User-Agent; without it the
     // response is 200 OK but returns an empty quotes array.
     http.addHeader("User-Agent", "Mozilla/5.0");
+    // Force HTTP/1.0 to avoid Transfer-Encoding: chunked. The screener endpoint
+    // returns chunked encoding under HTTP/1.1, which embeds hex chunk-size headers
+    // (e.g. "2913\r\n") in the raw stream. http.getStream() returns the raw
+    // WiFiClient stream without decoding chunks; ArduinoJson then parses the
+    // leading "2913" as a JSON number and never reaches the finance object, giving
+    // count=0 with err=Ok. HTTP/1.0 forces identity encoding (close-delimited)
+    // so getStream() yields clean JSON that ArduinoJson can parse correctly.
+    http.useHTTP10(true);
     unsigned long t0 = millis();
     int code = http.GET();
     LOG_D("dataTask.stock", "heatmap GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
@@ -327,7 +335,7 @@ static void fetchHeatmapQuote() {
                 r.count++;
             }
             if (r.count == 0)
-                LOG_W("dataTask.stock", "heatmap parse ok but count=0 — quotes array empty or path mismatch");
+                LOG_W("dataTask.stock", "heatmap parse ok but count=0 — unexpected empty quotes array");
             else
                 LOG_D("dataTask.stock", "heatmap ok count=%u", r.count);
         }

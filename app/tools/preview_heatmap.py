@@ -111,7 +111,7 @@ CHANGE_SAT_PCT = 5.0   # ±% at which tile colour saturates to full green/red
 
 SCREENER_URL = (
     "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved"
-    "?scrIds=ms_technology&count=25&formatted=false"
+    "?scrIds=ms_technology&count=20&formatted=false"
 )
 CHART_URL_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/"
 YF_HEADERS = {"User-Agent": "Mozilla/5.0"}
@@ -319,7 +319,7 @@ class HeatmapPoc:
         self.view      = "list"
         self.prev_view = "list"
 
-        self.ticker_count: int           = 25
+        self.ticker_count: int           = 20
         self.tickers:   list[TickerData] = []
         self.hm_layout: list[tuple]      = []
         self.loading    = False
