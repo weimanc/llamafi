@@ -696,6 +696,7 @@ static SettingsApp g_settingsApp;
 #define STOCK_QUOTE_FETCH_MS    60000UL
 #define STOCK_CHART_FETCH_D1    60000UL
 #define STOCK_CHART_FETCH_SLOW  300000UL
+#define STOCK_HEATMAP_FETCH_MS  120000UL
 
 #define ST_CANVAS_Y           0
 #define ST_CANVAS_H         240
@@ -717,6 +718,24 @@ static SettingsApp g_settingsApp;
 #define ST_CHART_PLOT_H     196
 #define ST_CHART_FOOTER_Y   214
 
+static uint16_t heatmapColour(float pct) {
+    if (pct > 5.0f) pct = 5.0f;
+    if (pct < -5.0f) pct = -5.0f;
+    if (pct >= 0.0f) {
+        float t = pct / 5.0f;
+        uint8_t r = (uint8_t)(4.0f * (1.0f - t));
+        uint8_t g = (uint8_t)(8.0f + 55.0f * t);
+        uint8_t b = (uint8_t)(4.0f * (1.0f - t));
+        return ((uint16_t)r << 11) | ((uint16_t)g << 5) | b;
+    } else {
+        float t = (-pct) / 5.0f;
+        uint8_t r = (uint8_t)(4.0f + 27.0f * t);
+        uint8_t g = (uint8_t)(8.0f * (1.0f - t));
+        uint8_t b = (uint8_t)(4.0f * (1.0f - t));
+        return ((uint16_t)r << 11) | ((uint16_t)g << 5) | b;
+    }
+}
+
 static String formatStockPrice(float price) {
   if (price >= 1000.0f) return String((int)price);
   if (price >= 10.0f)   return String(price, 2);
@@ -732,7 +751,8 @@ public:
     strcpy(_s.tickers[2], "AMZN"); strcpy(_s.tickers[3], "ARM");
     strcpy(_s.tickers[4], "GOOG"); strcpy(_s.tickers[5], "META");
     strcpy(_s.tickers[6], "MSFT"); strcpy(_s.tickers[7], "NVDA");
-    _s.subView = StockSubView::List;
+    _s.subView     = StockSubView::List;
+    _s.prevSubView = StockSubView::List;
     repaintList();
     dataTask::enqueue(dataTask::DATA_FETCH_STOCK_QUOTE);
     _s.lastQuoteFetch = millis();
@@ -740,8 +760,9 @@ public:
 
   void resume() override {
     switch (_s.subView) {
-      case StockSubView::List:        repaintList();  break;
-      case StockSubView::ChartDetail: repaintChart(); break;
+      case StockSubView::List:          repaintList();    break;
+      case StockSubView::ChartDetail:   repaintChart();   break;
+      case StockSubView::HeatmapDetail: repaintHeatmap(); break;
     }
   }
 
@@ -749,16 +770,19 @@ public:
 
   void tick() override {
     switch (_s.subView) {
-      case StockSubView::List:        stockTickQuotes(); break;
-      case StockSubView::ChartDetail: stockTickChart();  break;
+      case StockSubView::List:          stockTickQuotes();  break;
+      case StockSubView::ChartDetail:   stockTickChart();   break;
+      case StockSubView::HeatmapDetail: stockTickHeatmap(); break;
     }
   }
 
   bool handleInput(TouchPhase phase, int x, int y) override {
-    if (phase != TouchPhase::Release) return (_s.subView == StockSubView::ChartDetail);
+    if (phase != TouchPhase::Release)
+      return (_s.subView == StockSubView::ChartDetail ||
+              _s.subView == StockSubView::HeatmapDetail);
 
     if (_s.subView == StockSubView::List) {
-
+      if (y < ST_LIST_RULE_Y && x > 190) { enterHeatmap(); return true; }
       if (_s.fetchFailed) return true;
       if (y >= ST_LIST_ROW_START_Y && y < ST_CANVAS_Y + ST_CANVAS_H) {
         int rowIdx = constrain((y - ST_LIST_ROW_START_Y) / ST_LIST_ROW_H,
@@ -766,10 +790,20 @@ public:
         drillToChart((uint8_t)rowIdx);
         return true;
       }
+    } else if (_s.subView == StockSubView::HeatmapDetail) {
+      if (y < ST_LIST_RULE_Y && x > 190) { backToPrevView(); return true; }
+      for (uint8_t i=0; i<_s.heatmapData.count; i++) {
+        const HeatmapTile& t = _s.heatmapLayout[i];
+        if (x>=t.x && x<t.x+t.w && y>=t.y && y<t.y+t.h) {
+          drillToChartBySym(_s.heatmapData.symbols[t.tickerIdx], 0);
+          return true;
+        }
+      }
+      return true;
     } else {
       if (y >= ST_CHART_HEADER_Y && y < ST_CHART_HEADER_Y + ST_CHART_HEADER_H) {
         if (x < ST_CHART_BACK_W * 2) {
-          backToList();
+          backToPrevView();
           return true;
         }
         if (!_s.fetchFailed && x >= ST_CHART_TABS_X) {
@@ -789,7 +823,8 @@ public:
   bool dbgGet(const char* var, char* buf, int len) const {
     if (strcmp(var, "stockSubView") == 0) {
       snprintf(buf, len, "\"var\":\"stockSubView\",\"val\":\"%s\",\"last\":true",
-               _s.subView == StockSubView::ChartDetail ? "chart" : "list");
+               _s.subView == StockSubView::HeatmapDetail ? "heatmap" :
+               _s.subView == StockSubView::ChartDetail   ? "chart"   : "list");
       return true;
     }
     if (strcmp(var, "stockChartTicker") == 0) {
@@ -837,6 +872,11 @@ public:
     if (strcmp(var, "fetchFailed") == 0) {
       snprintf(buf, len, "\"var\":\"fetchFailed\",\"val\":%s,\"last\":true",
                _s.fetchFailed ? "true" : "false");
+      return true;
+    }
+    if (strcmp(var, "heatmapCount") == 0) {
+      snprintf(buf, len, "\"var\":\"heatmapCount\",\"val\":%u,\"last\":true",
+               _s.heatmapData.count);
       return true;
     }
     return false;
@@ -934,7 +974,7 @@ private:
     tft.setTextDatum(TL_DATUM);
     tft.setTextColor(0xFFFF);
     tft.drawString("<", 5, ST_CHART_HEADER_Y, 2);
-    String hdr = String(_s.tickers[_s.chartTickerIdx]);
+    String hdr = String(_s.chartSymbol[0] ? _s.chartSymbol : _s.tickers[_s.chartTickerIdx]);
     hdr += (_s.chartLen > 0)
              ? (" " + formatStockPrice(_s.chartPoints[_s.chartLen - 1]))
              : " ---";
@@ -990,7 +1030,9 @@ private:
   }
 
   void drillToChart(uint8_t tickerIdx) {
+    _s.prevSubView    = _s.subView;
     _s.chartTickerIdx = tickerIdx;
+    _s.chartSymbol[0] = '\0';
     _s.chartRange     = StockRange::D1;
     _s.subView        = StockSubView::ChartDetail;
     if (!_s.lastChartFetch || millis() - _s.lastChartFetch > STOCK_CHART_FETCH_D1) {
@@ -1001,9 +1043,177 @@ private:
     repaintChart();
   }
 
-  void backToList() {
-    _s.subView = StockSubView::List;
-    repaintList();
+  void drillToChartBySym(const char* sym, uint8_t rangeIdx) {
+    _s.prevSubView = _s.subView;
+    strncpy(_s.chartSymbol, sym, 7); _s.chartSymbol[7] = '\0';
+    _s.chartRange  = (StockRange)rangeIdx;
+    _s.subView     = StockSubView::ChartDetail;
+    dataTask::enqueueStockChartBySym(sym, rangeIdx);
+    _s.lastChartFetch = millis();
+    _pendingAsync     = true;
+    repaintChart();
+  }
+
+  void enterHeatmap() {
+    _s.prevSubView = StockSubView::List;
+    _s.subView     = StockSubView::HeatmapDetail;
+    if (!_s.lastHeatmapFetch) {
+      dataTask::enqueueHeatmapQuote();
+      _s.lastHeatmapFetch = millis();
+    }
+    repaintHeatmap();
+  }
+
+  void backToPrevView() {
+    _s.subView = _s.prevSubView;
+    switch (_s.subView) {
+      case StockSubView::List:          repaintList();    break;
+      case StockSubView::HeatmapDetail: repaintHeatmap(); break;
+      default:                          repaintList();    break;
+    }
+  }
+
+  void computeHeatmapLayout() {
+    uint8_t n = _s.heatmapData.count;
+    if (n == 0) { _s.heatmapLayoutDirty = false; return; }
+    if (n > 20) n = 20;
+
+    // Insertion-sort order[] by marketCap descending
+    uint8_t order[20];
+    for (uint8_t i=0; i<n; i++) order[i]=i;
+    for (uint8_t i=1; i<n; i++) {
+      uint8_t k=order[i]; int j=i-1;
+      while (j>=0 && _s.heatmapData.marketCap[order[j]] < _s.heatmapData.marketCap[k])
+        { order[j+1]=order[j]; j--; }
+      order[j+1]=k;
+    }
+
+    // Normalize weights to canvas area px²
+    float total=0;
+    for (uint8_t i=0; i<n; i++) total += _s.heatmapData.marketCap[order[i]];
+    if (total == 0.0f) total = 1.0f;
+    float wt[20];
+    for (uint8_t i=0; i<n; i++)
+      wt[i] = _s.heatmapData.marketCap[order[i]] / total * (275.0f * 240.0f);
+
+    // Squarified treemap — iterative strip layout
+    float rx=0, ry=0, rw=275, rh=240;
+    uint8_t si=0;
+    while (si < n && rw > 0.5f && rh > 0.5f) {
+      bool horiz = (rw >= rh);
+      float slen = horiz ? rw : rh;
+
+      float sum=0, smax=0, smin=1e30f;
+      uint8_t ei = si;
+
+      for (uint8_t i=si; i<n; i++) {
+        float ns = sum + wt[i];
+        float nx = (wt[i] > smax) ? wt[i] : smax;
+        float ni = (i==si || wt[i] < smin) ? wt[i] : smin;
+        float nw = (slen*slen*nx/(ns*ns) > ns*ns/(slen*slen*ni)) ?
+                    slen*slen*nx/(ns*ns) : ns*ns/(slen*slen*ni);
+        float ow = (i==si) ? 1e30f :
+                   (slen*slen*smax/(sum*sum) > sum*sum/(slen*slen*smin) ?
+                    slen*slen*smax/(sum*sum) : sum*sum/(slen*slen*smin));
+        if (nw <= ow || i==si) { sum=ns; smax=nx; smin=ni; ei=i+1; }
+        else break;
+      }
+
+      // Flush strip [si..ei) into remaining rect
+      if (horiz) {
+        float sh = sum / rw;
+        float cx = rx;
+        for (uint8_t i=si; i<ei; i++) {
+          float tw = wt[i] / sh;
+          HeatmapTile& t = _s.heatmapLayout[i];
+          t.x = (int16_t)roundf(cx);
+          t.y = (int16_t)roundf(ry);
+          t.h = (int16_t)roundf(sh);
+          t.w = (i==ei-1) ? (int16_t)(roundf(rx+rw) - t.x)
+                           : (int16_t)(roundf(cx+tw) - t.x);
+          t.tickerIdx = order[i];
+          cx += tw;
+        }
+        ry += sh; rh -= sh;
+      } else {
+        float sw = sum / rh;
+        float cy = ry;
+        for (uint8_t i=si; i<ei; i++) {
+          float th = wt[i] / sw;
+          HeatmapTile& t = _s.heatmapLayout[i];
+          t.x = (int16_t)roundf(rx);
+          t.y = (int16_t)roundf(cy);
+          t.w = (int16_t)roundf(sw);
+          t.h = (i==ei-1) ? (int16_t)(roundf(ry+rh) - t.y)
+                           : (int16_t)(roundf(cy+th) - t.y);
+          t.tickerIdx = order[i];
+          cy += th;
+        }
+        rx += sw; rw -= sw;
+      }
+      si = ei;
+    }
+    _s.heatmapLayoutDirty = false;
+  }
+
+  void repaintHeatmap() {
+    tft.fillRect(0, ST_CANVAS_Y, ST_CANVAS_X2 + 1, ST_CANVAS_H, TFT_BLACK);
+    if (!_s.heatmapData.ok && _s.heatmapData.errorCode == 0) {
+      tft.setTextDatum(MC_DATUM);
+      tft.setTextColor(0x7BEF, TFT_BLACK);
+      tft.drawString("LOADING...", 137, 120, 2);
+      tft.setTextDatum(TL_DATUM);
+      tft.setTextColor(TFT_WHITE, TFT_BLACK);
+      return;
+    }
+    if (!_s.heatmapData.ok) {
+      tft.setTextDatum(MC_DATUM);
+      tft.setTextColor(0xF800, TFT_BLACK);
+      tft.drawString("HEATMAP FETCH FAILED", 137, 100, 2);
+      char buf[20]; snprintf(buf, sizeof(buf), "ERR %d", _s.heatmapData.errorCode);
+      tft.drawString(buf, 137, 125, 2);
+      tft.setTextColor(0x7BEF, TFT_BLACK);
+      tft.drawString("retry in 120s", 137, 150, 1);
+      tft.setTextDatum(TL_DATUM);
+      tft.setTextColor(TFT_WHITE, TFT_BLACK);
+      return;
+    }
+    tft.setTextDatum(MC_DATUM);
+    for (uint8_t i=0; i<_s.heatmapData.count; i++) {
+      const HeatmapTile& t = _s.heatmapLayout[i];
+      if (t.w <= 0 || t.h <= 0) continue;
+      float pct = _s.heatmapData.changePct[t.tickerIdx];
+      uint16_t col = heatmapColour(pct);
+      tft.fillRect(t.x, t.y, t.w, t.h, col);
+      tft.drawRect(t.x, t.y, t.w, t.h, 0x2104);
+      int16_t cx = t.x + t.w / 2;
+      int16_t cy = t.y + t.h / 2;
+      tft.setTextColor(TFT_WHITE, col);
+      tft.drawString(_s.heatmapData.symbols[t.tickerIdx], cx, cy, 2);
+      if (t.w >= 40 && t.h >= 28) {
+        char pb[10]; snprintf(pb, sizeof(pb), "%+.1f%%", pct);
+        tft.drawString(pb, cx, cy + 16, 1);
+      }
+    }
+    tft.setTextDatum(TL_DATUM);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  }
+
+  void stockTickHeatmap() {
+    unsigned long now = millis();
+    if (!_s.lastHeatmapFetch || now - _s.lastHeatmapFetch > STOCK_HEATMAP_FETCH_MS) {
+      dataTask::enqueueHeatmapQuote();
+      _s.lastHeatmapFetch = now;
+    }
+    dataTask::HeatmapQuoteResult r;
+    if (dataTask::pollHeatmapQuote(&r)) {
+      _s.heatmapData        = r;
+      _s.heatmapLayoutDirty = true;
+    }
+    if (_s.heatmapLayoutDirty) {
+      computeHeatmapLayout();
+      repaintHeatmap();
+    }
   }
 
   void stockTickQuotes() {

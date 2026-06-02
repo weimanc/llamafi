@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include "gen/shell_layout.h"
 #include "touchPhase.h"
+#include "dataTask.h"
 
 struct App {
     virtual void init()    = 0;
@@ -89,8 +90,10 @@ struct AquariumAppState {
     bool initialised;
 };
 
-enum class StockSubView : uint8_t { List = 0, ChartDetail = 1 };
+enum class StockSubView : uint8_t { List = 0, ChartDetail = 1, HeatmapDetail = 2 };
 enum class StockRange   : uint8_t { D1 = 0, D5 = 1, Mo1 = 2, Ytd = 3 };
+
+struct HeatmapTile { int16_t x, y, w, h; uint8_t tickerIdx; };
 
 struct StockAppState {
     char          tickers[8][8];
@@ -109,6 +112,12 @@ struct StockAppState {
     uint16_t      fetchErrCount;   // cumulative JSON parse errors since boot (-91..-95); never auto-clears
     uint16_t      fetchOkCount;    // cumulative successful chart fetches since boot; never auto-clears
     uint16_t      quoteOkCount;    // cumulative successful quote fetches since boot; never auto-clears
+    StockSubView  prevSubView;
+    unsigned long lastHeatmapFetch;
+    dataTask::HeatmapQuoteResult heatmapData;
+    HeatmapTile   heatmapLayout[20];
+    bool          heatmapLayoutDirty;
+    char          chartSymbol[8];  // symbol for heatmap drill-through chart
 };
 
 // First-launch tracking — indexed by (int)AppId.

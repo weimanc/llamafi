@@ -9,10 +9,12 @@
 namespace dataTask {
 
 enum FetchType : uint8_t {
-    DATA_FETCH_WEATHER     = 0,
-    DATA_FETCH_CRYPTO      = 1,
-    DATA_FETCH_STOCK_QUOTE = 2,
-    DATA_FETCH_STOCK_CHART = 3,
+    DATA_FETCH_WEATHER          = 0,
+    DATA_FETCH_CRYPTO           = 1,
+    DATA_FETCH_STOCK_QUOTE      = 2,
+    DATA_FETCH_STOCK_CHART      = 3,
+    DATA_FETCH_HEATMAP_QUOTE    = 4,
+    DATA_FETCH_STOCK_CHART_BY_SYM = 5,
 };
 
 struct WeatherResult {
@@ -44,6 +46,16 @@ struct StockChartResult {
     int     errorCode   = 0;
 };
 
+struct HeatmapQuoteResult {
+    bool    ok              = false;
+    int     errorCode       = 0;
+    uint8_t count           = 0;
+    char    symbols[20][8]  = {};
+    float   prices[20]      = {};
+    float   changePct[20]   = {};
+    float   marketCap[20]   = {};
+};
+
 // Spawn the FreeRTOS task. Call once in setup(), after WiFi is connected.
 void begin();
 
@@ -53,11 +65,18 @@ void enqueue(FetchType type);
 // Post a chart fetch for one ticker/range. Non-blocking (drops if queue full).
 void enqueueStockChart(uint8_t tickerIdx, uint8_t rangeIdx);
 
+// Post a heatmap screener fetch. Non-blocking (drops if queue full).
+void enqueueHeatmapQuote();
+
+// Post a chart fetch by symbol string (for heatmap drill-through). Non-blocking.
+void enqueueStockChartBySym(const char* symbol, uint8_t rangeIdx);
+
 // Copy latest result into *out; returns true if new data since last poll.
 // Caller must supply a valid pointer. Thread-safe (spinlock).
 bool pollWeather(WeatherResult *out);
 bool pollCrypto(CryptoResult *out);
 bool pollStockQuote(StockQuoteResult *out);
 bool pollStockChart(StockChartResult *out);
+bool pollHeatmapQuote(HeatmapQuoteResult *out);
 
 }  // namespace dataTask

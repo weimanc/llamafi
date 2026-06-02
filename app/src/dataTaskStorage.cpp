@@ -21,7 +21,7 @@ namespace dataTask {
 
 // --- internal types ----------------------------------------------------------
 
-struct Request { uint8_t type; uint8_t param0; uint8_t param1; };
+struct Request { uint8_t type; uint8_t param0; uint8_t param1; char symbol[8]; };
 
 // --- module state ------------------------------------------------------------
 
@@ -43,6 +43,10 @@ static bool             s_stockQuoteNew   = false;
 static portMUX_TYPE    s_stockChartMux    = portMUX_INITIALIZER_UNLOCKED;
 static StockChartResult s_stockChartResult;
 static bool             s_stockChartNew   = false;
+
+static portMUX_TYPE       s_heatmapMux    = portMUX_INITIALIZER_UNLOCKED;
+static HeatmapQuoteResult s_heatmapResult;
+static bool               s_heatmapNew    = false;
 
 constexpr UBaseType_t kStackBytes  = 10 * 1024;
 constexpr UBaseType_t kPriority    = 1;
@@ -67,6 +71,10 @@ static const char* STOCK_TICKERS[8]      = {"AAPL","AMD","AMZN","ARM","GOOG","ME
 static const char* STOCK_RANGE_STR[4]    = {"1d","5d","1mo","ytd"};
 static const char* STOCK_INTERVAL_STR[4] = {"5m","60m","1d","1wk"};
 static const char  STOCK_URL_BASE[]      = "https://query1.finance.yahoo.com/v8/finance/chart/";
+
+static const char  HEATMAP_URL[] =
+    "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved"
+    "?scrIds=ms_technology&count=20&formatted=false";
 
 // --- fetch functions ---------------------------------------------------------
 
@@ -162,6 +170,9 @@ static void fetchStockQuote() {
             http.end();
             break;
         }
+        // Filter tree: chart→result[0]→meta→{regularMarketPrice,chartPreviousClose}
+        // 5-level path × 2 leaves; ArduinoJson ~80B minimum; <128> gives headroom.
+        // HOST TEST: test_yahoo_finance_api.py T_SF_03 QUOTE_DOC_BYTES=256.
         StaticJsonDocument<128> filter;
         filter["chart"]["result"][0]["meta"]["regularMarketPrice"] = true;
         filter["chart"]["result"][0]["meta"]["chartPreviousClose"] = true;
@@ -222,6 +233,8 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
             // Filter: extract only close[] — D1 response is ~8 KB (78×5m candles);
             // full parse needs >16384 B pool and cascades a dirty TCP RST into
             // the Spotify keep-alive connection. Filter reduces pool to <2 KB.
+            // Tree: chart→result[0]→indicators→quote[0]→close, 5 levels × 1 leaf, ~56B min.
+            // HOST TEST: test_yahoo_finance_api.py T_SF_06 CHART_MAX_POINTS=110.
             StaticJsonDocument<128> filter;
             filter["chart"]["result"][0]["indicators"]["quote"][0]["close"] = true;
             StaticJsonDocument<2048> doc;
@@ -261,6 +274,117 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
     portEXIT_CRITICAL_SAFE(&s_stockChartMux);
 }
 
+static void fetchHeatmapQuote() {
+    WiFiClientSecure tls;
+    tls.setCACert(YAHOO_FINANCE_ROOT_CA);
+    HTTPClient http;
+    if (!http.begin(tls, HEATMAP_URL)) {
+        LOG_W("dataTask.stock", "heatmap http.begin failed");
+        HeatmapQuoteResult r; r.ok = false; r.errorCode = -100;
+        portENTER_CRITICAL_SAFE(&s_heatmapMux);
+        s_heatmapResult = r; s_heatmapNew = true;
+        portEXIT_CRITICAL_SAFE(&s_heatmapMux);
+        return;
+    }
+    unsigned long t0 = millis();
+    int code = http.GET();
+    LOG_D("dataTask.stock", "heatmap GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
+    HeatmapQuoteResult r;
+    if (code != 200) {
+        r.ok = false; r.errorCode = code;
+        http.end();
+    } else {
+        // Filter: 4 fields per quote entry; raw payload ~54 kB → filtered ~2.3 kB.
+        // StaticJsonDocument<256> for filter; <4096> for data (measured in ADR-036 D4).
+        StaticJsonDocument<256> filter;
+        filter["finance"]["result"][0]["quotes"][0]["symbol"]                    = true;
+        filter["finance"]["result"][0]["quotes"][0]["marketCap"]                 = true;
+        filter["finance"]["result"][0]["quotes"][0]["regularMarketPrice"]        = true;
+        filter["finance"]["result"][0]["quotes"][0]["regularMarketChangePercent"]= true;
+        StaticJsonDocument<4096> doc;
+        DeserializationError err = deserializeJson(doc, http.getStream(),
+                                       DeserializationOption::Filter(filter));
+        http.end();
+        if (err) {
+            LOG_W("dataTask.stock", "heatmap JSON err: %s", err.c_str());
+            r.ok = false; r.errorCode = -90 - (int)err.code();
+        } else {
+            JsonArrayConst quotes =
+                doc["finance"]["result"][0]["quotes"].as<JsonArrayConst>();
+            r.ok = true;
+            for (JsonVariantConst q : quotes) {
+                if (r.count >= 20) break;
+                const char* sym = q["symbol"].as<const char*>();
+                if (!sym) continue;
+                strncpy(r.symbols[r.count], sym, 7); r.symbols[r.count][7] = '\0';
+                r.prices[r.count]    = q["regularMarketPrice"].as<float>();
+                r.changePct[r.count] = q["regularMarketChangePercent"].as<float>();
+                r.marketCap[r.count] = q["marketCap"].as<float>();
+                r.count++;
+            }
+            LOG_D("dataTask.stock", "heatmap ok count=%u", r.count);
+        }
+    }
+    portENTER_CRITICAL_SAFE(&s_heatmapMux);
+    s_heatmapResult = r;
+    s_heatmapNew    = true;
+    portEXIT_CRITICAL_SAFE(&s_heatmapMux);
+}
+
+static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
+    if (!symbol || symbol[0] == '\0' || rangeIdx >= 4) return;
+    String url = String(STOCK_URL_BASE) + symbol
+                 + "?interval=" + STOCK_INTERVAL_STR[rangeIdx]
+                 + "&range="    + STOCK_RANGE_STR[rangeIdx];
+    StockChartResult r;
+    WiFiClientSecure tls;
+    tls.setCACert(YAHOO_FINANCE_ROOT_CA);
+    HTTPClient http;
+    if (!http.begin(tls, url)) {
+        LOG_W("dataTask.stock", "chart-sym http.begin failed sym=%s", symbol);
+        r.ok = false; r.errorCode = -100;
+    } else {
+        unsigned long t0 = millis();
+        int code = http.GET();
+        LOG_D("dataTask.stock", "chart-sym GET %s %d elapsed=%lums",
+              symbol, code, (unsigned long)(millis() - t0));
+        if (code != 200) {
+            r.ok = false; r.errorCode = code;
+            http.end();
+        } else {
+            StaticJsonDocument<128> filter;
+            filter["chart"]["result"][0]["indicators"]["quote"][0]["close"] = true;
+            StaticJsonDocument<2048> doc;
+            DeserializationError err = deserializeJson(doc, http.getStream(),
+                                           DeserializationOption::Filter(filter));
+            http.end();
+            if (err) {
+                LOG_W("dataTask.stock", "chart-sym JSON err: %s", err.c_str());
+                r.ok = false; r.errorCode = -90 - (int)err.code();
+            } else {
+                JsonArray closeArr =
+                    doc["chart"]["result"][0]["indicators"]["quote"][0]["close"].as<JsonArray>();
+                r.lo = 1e30f; r.hi = -1e30f;
+                for (JsonVariant v : closeArr) {
+                    if (v.isNull()) continue;
+                    float val = v.as<float>();
+                    r.points[r.len++] = val;
+                    if (val < r.lo) r.lo = val;
+                    if (val > r.hi) r.hi = val;
+                    if (r.len >= 110) break;
+                }
+                if (r.lo > r.hi) { r.lo = 0.0f; r.hi = 1.0f; }
+                r.ok = true;
+                LOG_D("dataTask.stock", "chart-sym ok sym=%s len=%u", symbol, r.len);
+            }
+        }
+    }
+    portENTER_CRITICAL_SAFE(&s_stockChartMux);
+    s_stockChartResult = r;
+    s_stockChartNew    = true;
+    portEXIT_CRITICAL_SAFE(&s_stockChartMux);
+}
+
 // --- task body ---------------------------------------------------------------
 
 static void taskBody(void *) {
@@ -270,10 +394,12 @@ static void taskBody(void *) {
         BaseType_t got = xQueueReceive(s_queue, &req, portMAX_DELAY);
         if (got != pdTRUE) continue;
         switch (req.type) {
-            case DATA_FETCH_WEATHER:     fetchWeather(); break;
-            case DATA_FETCH_CRYPTO:      fetchCrypto();  break;
-            case DATA_FETCH_STOCK_QUOTE: fetchStockQuote(); break;
-            case DATA_FETCH_STOCK_CHART: fetchStockChart(req.param0, req.param1); break;
+            case DATA_FETCH_WEATHER:          fetchWeather(); break;
+            case DATA_FETCH_CRYPTO:           fetchCrypto();  break;
+            case DATA_FETCH_STOCK_QUOTE:      fetchStockQuote(); break;
+            case DATA_FETCH_STOCK_CHART:      fetchStockChart(req.param0, req.param1); break;
+            case DATA_FETCH_HEATMAP_QUOTE:    fetchHeatmapQuote(); break;
+            case DATA_FETCH_STOCK_CHART_BY_SYM: fetchStockChartBySym(req.symbol, req.param1); break;
             default: break;
         }
     }
@@ -332,9 +458,24 @@ bool pollCrypto(CryptoResult *out) {
 
 void enqueueStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
     if (!s_queue) return;
-    Request req = { (uint8_t)DATA_FETCH_STOCK_CHART, tickerIdx, rangeIdx };
+    Request req = {}; req.type = DATA_FETCH_STOCK_CHART; req.param0 = tickerIdx; req.param1 = rangeIdx;
     if (xQueueSend(s_queue, &req, 0) != pdTRUE)
         LOG_W("dataTask", "queue full — dropped stock chart idx=%u rng=%u", tickerIdx, rangeIdx);
+}
+
+void enqueueHeatmapQuote() {
+    if (!s_queue) return;
+    Request req = {}; req.type = DATA_FETCH_HEATMAP_QUOTE;
+    if (xQueueSend(s_queue, &req, 0) != pdTRUE)
+        LOG_W("dataTask", "queue full — dropped heatmap quote");
+}
+
+void enqueueStockChartBySym(const char* symbol, uint8_t rangeIdx) {
+    if (!s_queue || !symbol) return;
+    Request req = {}; req.type = DATA_FETCH_STOCK_CHART_BY_SYM; req.param1 = rangeIdx;
+    strncpy(req.symbol, symbol, 7); req.symbol[7] = '\0';
+    if (xQueueSend(s_queue, &req, 0) != pdTRUE)
+        LOG_W("dataTask", "queue full — dropped chart-sym %s", symbol);
 }
 
 bool pollStockQuote(StockQuoteResult *out) {
@@ -358,6 +499,18 @@ bool pollStockChart(StockChartResult *out) {
         got             = true;
     }
     portEXIT_CRITICAL_SAFE(&s_stockChartMux);
+    return got;
+}
+
+bool pollHeatmapQuote(HeatmapQuoteResult *out) {
+    bool got = false;
+    portENTER_CRITICAL_SAFE(&s_heatmapMux);
+    if (s_heatmapNew) {
+        *out        = s_heatmapResult;
+        s_heatmapNew = false;
+        got          = true;
+    }
+    portEXIT_CRITICAL_SAFE(&s_heatmapMux);
     return got;
 }
 
