@@ -352,8 +352,11 @@ static void fetchHeatmapQuote() {
         }
     }
     portENTER_CRITICAL_SAFE(&s_heatmapMux);
-    s_heatmapResult = r;
-    s_heatmapNew    = true;
+    // Don't overwrite an unread good result with a bad one.
+    if (r.ok || !s_heatmapNew || !s_heatmapResult.ok) {
+        s_heatmapResult = r;
+        s_heatmapNew    = true;
+    }
     portEXIT_CRITICAL_SAFE(&s_heatmapMux);
 }
 
