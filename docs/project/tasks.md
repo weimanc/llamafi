@@ -279,6 +279,24 @@ Exit criterion: DUT heatmap visually matches the PoC `preview_heatmap.py --no-fe
 
 ---
 
+### TASK-127 — INVESTIGATE: Heatmap screener -1 (TLS fingerprint / JA3 block)
+**Owner**: RnD
+**Feature**: stock-002
+**Status**: closed (2026-06-03 — EXP-003; see below)
+**Milestone**: M-HEATMAP
+**Git ref**: `dcf8e72` (PROP-004 fix — pre-alloc `s_heatmapDoc`)
+
+Screener endpoint returned `-1` on DUT during TASK-126 soak (2026-06-03). Two hypotheses:
+H1 — JA3/TLS fingerprint block; H2 — transient CDN per-IP state from RST storm.
+
+**Findings (EXP-003):**
+- **H1 (JA3 block): Invalidated.** DUT now gets HTTP 200 without any TLS changes.
+- **H2 (transient CDN state): Confirmed.** Block self-recovered within ~24h; same RST-storm per-IP throttle mechanism as EXP-001.
+- **New issue found:** `NoMemory` / `IncompleteInput` on JSON parse after HTTP 200. Root cause: `DynamicJsonDocument doc(4096)` per-call `malloc` fails after ~60 min of TLS session cycling (heap fragmentation — `malloc(4096)` finds no contiguous block despite 123 KB total free).
+- **PROP-004 implemented:** switched to static `s_heatmapDoc(4096)` pre-allocated at boot. DUT validation: `heatmap ok count=20 usage=1842/4096`. Fixed in `dcf8e72`.
+
+---
+
 ### TASK-125 — BUG: ChartDetail displays stale graph when ticker or range changes
 **Owner**: Developer
 **Feature**: stock-002
