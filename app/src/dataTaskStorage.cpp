@@ -161,6 +161,8 @@ static void fetchStockQuote() {
             r.ok = false; r.errorCode = -100;
             break;
         }
+        http.addHeader("User-Agent", "Mozilla/5.0");
+        http.useHTTP10(true);
         unsigned long t0 = millis();
         int code = http.GET();
         LOG_D("dataTask.stock", "quote GET %s %d elapsed=%lums",
@@ -217,6 +219,8 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
         LOG_W("dataTask.stock", "chart http.begin failed");
         r.ok = false; r.errorCode = -100;
     } else {
+        http.addHeader("User-Agent", "Mozilla/5.0");
+        http.useHTTP10(true);
         unsigned long t0 = millis();
         int code = http.GET();
         LOG_D("dataTask.stock", "chart GET %s range=%s %d elapsed=%lums",
@@ -359,6 +363,8 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
         LOG_W("dataTask.stock", "chart-sym http.begin failed sym=%s", symbol);
         r.ok = false; r.errorCode = -100;
     } else {
+        http.addHeader("User-Agent", "Mozilla/5.0");
+        http.useHTTP10(true);
         unsigned long t0 = millis();
         int code = http.GET();
         LOG_D("dataTask.stock", "chart-sym GET %s %d elapsed=%lums",
