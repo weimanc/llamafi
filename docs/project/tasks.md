@@ -363,7 +363,7 @@ Exit criterion: `check_build.sh` 4/4; DUT visual verification described in TASK-
 ### TASK-129 — FEAT: Heatmap tile label — Tier 6 rotated vertical text
 **Owner**: Developer
 **Feature**: stock-002
-**Status**: open
+**Status**: complete (git `0f9ee08`)
 **Milestone**: M-HEATMAP
 **Design**: `docs/architecture/decisions/ADR-037.md` — Amendment (Tier 6), 2026-06-03
 **Depends on**: TASK-128 (complete)
@@ -377,7 +377,9 @@ Adds Tier 6 to `repaintHeatmap()`: narrow-tall tiles (`w ≥ 8 && w < 20 && h �
 
 Exit criterion: `check_build.sh` 4/4; rotated ticker visible and contained within tile bounds on DUT.
 
-**Test IDs**: T211 (rotated ticker visible on narrow tile, MANUAL), T212 (no bleed into adjacent tiles, MANUAL), T213 (OOM fallback: blank tile, not crash, MANUAL — low priority).
+**Completion note**: T6 confirmed firing on 10 tiles (ASML/ORCL/LRCX/AMAT/PLTR/IBM/TXN/KLAC/SNDK/QCOM, w=21..35 h=28..49) during DUT test with HM_T5_W=40. Sprite alloc+free ok, heap stable 120k, no bleed observed. T211 PASS (rotated ticker visible); T212 PASS (no bleed); T213 deferred (low priority — OOM path not exercised).
+
+**Test IDs**: T211 (rotated ticker visible on narrow tile, MANUAL — PASS), T212 (no bleed into adjacent tiles, MANUAL — PASS), T213 (OOM fallback: blank tile, not crash, MANUAL — low priority, deferred).
 
 ---
 
