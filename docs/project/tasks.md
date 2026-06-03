@@ -310,6 +310,38 @@ Exit criterion: navigate list → chart (AAPL), then tap heatmap tile (ARM) — 
 
 ---
 
+### TASK-128 — FEAT: Heatmap tile label — graduated font-size degradation
+**Owner**: Developer
+**Feature**: stock-002
+**Status**: open
+**Milestone**: M-HEATMAP
+**Design**: `docs/architecture/decisions/ADR-037.md` (accepted 2026-06-03)
+**Source**: user request 2026-06-03
+
+Replace the existing two-state label rule (ADR-036 D6) in `repaintHeatmap()` with the 5-tier cascade defined in ADR-037. No changes to `computeHeatmapLayout()`, `HeatmapTile`, or the data pipeline.
+
+#### Sub-tasks
+
+- **TASK-128a** — Replace the label block in `repaintHeatmap()` (`main.cpp`) with the 5-tier cascade. Implement the Tier 5 width overflow guard (`strlen(sym) * 6 > t.w` → skip). Adjust vertical `cy` offsets per ADR-037 positioning table.
+- **TASK-128b** — `check_build.sh` 4/4. Flash debug build. Visually verify on DUT: Tier 1 active on largest tile (AAPL/MSFT), Tier 3 visible on mid-size tiles, blank tile for smallest entries. Confirm no text bleeds into adjacent tiles.
+
+#### Constants to introduce (suggested)
+
+```cpp
+// Tile label tier thresholds — see ADR-037
+constexpr int16_t HM_T1_H = 36, HM_T1_W = 40;  // F2 ticker + F2 pct
+constexpr int16_t HM_T2_H = 28, HM_T2_W = 40;  // F2 ticker + F1 pct
+constexpr int16_t HM_T3_H = 20, HM_T3_W = 40;  // F1 ticker + F1 pct
+constexpr int16_t HM_T4_H = 18, HM_T4_W = 40;  // F2 ticker only (wide-short strip)
+constexpr int16_t HM_T5_H = 10, HM_T5_W = 20;  // F1 ticker only
+```
+
+Exit criterion: `check_build.sh` 4/4; DUT visual verification described in TASK-128b.
+
+**Test IDs**: T207 (Tier 1 on largest tile, MANUAL), T208 (Tier 3 on mid tiles, MANUAL), T209 (blank for sub-threshold tile, MANUAL), T210 (no text overflow, MANUAL).
+
+---
+
 ### TASK-126 — BUG: Yahoo Finance chart fetches -92/-1 (missing useHTTP10 + User-Agent)
 **Owner**: Developer
 **Feature**: stock-002
