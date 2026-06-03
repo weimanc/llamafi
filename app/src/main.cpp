@@ -698,6 +698,13 @@ static SettingsApp g_settingsApp;
 #define STOCK_CHART_FETCH_SLOW  300000UL
 #define STOCK_HEATMAP_FETCH_MS  120000UL
 
+// Tile label tier thresholds — see ADR-037
+constexpr int16_t HM_T1_H = 36, HM_T1_W = 40;
+constexpr int16_t HM_T2_H = 28, HM_T2_W = 40;
+constexpr int16_t HM_T3_H = 20, HM_T3_W = 40;
+constexpr int16_t HM_T4_H = 18, HM_T4_W = 40;
+constexpr int16_t HM_T5_H = 10, HM_T5_W = 20;
+
 #define ST_CANVAS_Y           0
 #define ST_CANVAS_H         240
 #define ST_CANVAS_X2        274
@@ -1217,10 +1224,22 @@ private:
       int16_t cx = t.x + t.w / 2;
       int16_t cy = t.y + t.h / 2;
       tft.setTextColor(TFT_WHITE, col);
-      tft.drawString(_s.heatmapData.symbols[t.tickerIdx], cx, cy, 2);
-      if (t.w >= 40 && t.h >= 28) {
-        char pb[10]; snprintf(pb, sizeof(pb), "%+.1f%%", pct);
-        tft.drawString(pb, cx, cy + 16, 1);
+      const char* sym = _s.heatmapData.symbols[t.tickerIdx];
+      char pb[10]; snprintf(pb, sizeof(pb), "%+.1f%%", pct);
+      if (t.h >= HM_T1_H && t.w >= HM_T1_W) {
+        tft.drawString(sym, cx, cy - 9, 2);
+        tft.drawString(pb,  cx, cy + 9, 2);
+      } else if (t.h >= HM_T2_H && t.w >= HM_T2_W) {
+        tft.drawString(sym, cx, cy - 5, 2);
+        tft.drawString(pb,  cx, cy + 9, 1);
+      } else if (t.h >= HM_T3_H && t.w >= HM_T3_W) {
+        tft.drawString(sym, cx, cy - 5, 1);
+        tft.drawString(pb,  cx, cy + 5, 1);
+      } else if (t.h >= HM_T4_H && t.w >= HM_T4_W) {
+        tft.drawString(sym, cx, cy, 2);
+      } else if (t.h >= HM_T5_H && t.w >= HM_T5_W) {
+        if ((size_t)(strlen(sym) * 6) <= (size_t)t.w)
+          tft.drawString(sym, cx, cy, 1);
       }
     }
     tft.setTextDatum(TL_DATUM);
