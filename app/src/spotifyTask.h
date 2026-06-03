@@ -135,6 +135,13 @@ bool isHealthy();
 // backoff counter so the recovery poll fires immediately.
 void resetTls();
 
+// TASK-131: yield Spotify TLS so the heatmap fetch can allocate its own
+// session from the freed heap. Blocks the caller until the task has called
+// client.stop() (up to 5 s). Must be followed by heatmapResume() once the
+// fetch completes; the task spins (20 ms ticks) until that call.
+void heatmapPause();
+void heatmapResume();
+
 #ifdef SERIAL_DEBUG
 // TASK-056f (serialdbg-001 / ADR-021 A1) — unified owner-dispatch accessors.
 // Loop-task only (no cross-task safety for snapshot reads outside spinlock).

@@ -9,6 +9,7 @@
 #include "spotifyTask.h"
 
 #include <WiFiClientSecure.h>
+#include <freertos/semphr.h>
 
 #include "logSink.h"
 #include "logDecode.h"
@@ -55,6 +56,13 @@ static volatile unsigned int s_consecutiveFailures = 0;
 // volatile ensures the compiler does not hoist the check out of the loop.
 // A single bool write is atomic on ESP32 Xtensa (aligned word store).
 static volatile bool s_resetTlsPending = false;
+
+// TASK-131: heatmap yield — dataTask requests Spotify TLS stop so it can
+// allocate its own session from the freed heap. s_heatmapPauseReq is set
+// by heatmapPause(); taskBody calls client.stop() then gives the semaphore
+// and spins until heatmapResume() clears the flag.
+static volatile bool     s_heatmapPauseReq = false;
+static SemaphoreHandle_t s_heatmapPausedSem = nullptr;
 
 // TASK-058: poll timing — read by loop-task getters (aligned 32-bit reads; atomic on Xtensa).
 static volatile uint32_t s_lastSuccessfulPollMs = 0;  // millis() of last 200 or 204
@@ -270,6 +278,20 @@ static void taskBody(void *) {
             actionName(req.action), (long)req.param);
     }
 
+    // TASK-131: heatmap yield — stop Spotify TLS so dataTask can allocate
+    // its own Yahoo Finance TLS session from the freed heap. This check runs
+    // after xQueueReceive so any in-flight API call has already completed
+    // before we touch the client. We spin (20 ms ticks) until heatmapResume()
+    // clears the flag; the current request is discarded via continue.
+    if (s_heatmapPauseReq) {
+      client.stop();
+      LOG_I("spotify.tls", "heatmap yield — client stopped");
+      if (s_heatmapPausedSem) xSemaphoreGive(s_heatmapPausedSem);
+      while (s_heatmapPauseReq) vTaskDelay(pdMS_TO_TICKS(20));
+      LOG_I("spotify.tls", "heatmap yield — resumed");
+      continue;
+    }
+
     switch (req.action) {
       case ACT_POLL:
       case ACT_FORCE_POLL:
@@ -378,6 +400,7 @@ void begin(SpotifyArduino *spotifyObj) {
   }
   s_spotify = spotifyObj;
 
+  s_heatmapPausedSem = xSemaphoreCreateBinary();
   reqQueue = xQueueCreate(8, sizeof(Request));
   if (reqQueue == nullptr) {
     LOG_E("spotify.task", "xQueueCreate failed — task NOT started");
@@ -420,6 +443,20 @@ bool isHealthy() {
 void resetTls() {
   s_consecutiveFailures = 0;
   s_resetTlsPending = true;
+}
+
+void heatmapPause() {
+  if (!s_heatmapPausedSem || !reqQueue) return;
+  s_heatmapPauseReq = true;
+  // wake the task if it is blocked in xQueueReceive
+  Request r{ACT_POLL, 0};
+  xQueueSendToFront(reqQueue, &r, 0);
+  // wait for task ack (up to 5 s — covers any in-flight Spotify API call)
+  xSemaphoreTake(s_heatmapPausedSem, pdMS_TO_TICKS(5000));
+}
+
+void heatmapResume() {
+  s_heatmapPauseReq = false;
 }
 
 bool enqueue(Action a, int32_t param) {

@@ -7,6 +7,7 @@
 
 #include "dataTask.h"
 #include "dataTaskCerts.h"
+#include "spotifyTask.h"
 #include "logSink.h"
 
 #include <HTTPClient.h>
@@ -279,10 +280,18 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
 }
 
 // Pre-allocated at startup (unfragmented heap) and reused per fetch cycle to avoid
-// malloc(4096) failure after 60+ min of TLS cycling (PROP-004 / EXP-003).
-static DynamicJsonDocument s_heatmapDoc(4096);
+// malloc failure after long-uptime TLS cycling (PROP-004 / EXP-003).
+// Capacity: 20 symbols × ~120 B each ≈ 2.4 kB peak usage; 2560 gives headroom.
+static DynamicJsonDocument s_heatmapDoc(2560);
 
 static void fetchHeatmapQuote() {
+    // TASK-131: stop Spotify's TLS connection before allocating our own.
+    // Spotify's persistent session holds ~40 k of heap; at steady state
+    // maxAlloc ≈ 39 k — not enough for a new Yahoo Finance TLS handshake
+    // (~50–70 k). heatmapPause() blocks until the spotify task has called
+    // client.stop(); heatmapResume() (below) releases it to reconnect.
+    spotifyTask::heatmapPause();
+
     WiFiClientSecure tls;
     tls.setCACert(YAHOO_FINANCE_ROOT_CA);
     HTTPClient http;
@@ -358,6 +367,7 @@ static void fetchHeatmapQuote() {
         s_heatmapNew    = true;
     }
     portEXIT_CRITICAL_SAFE(&s_heatmapMux);
+    spotifyTask::heatmapResume();  // release Spotify task to reconnect
 }
 
 static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
