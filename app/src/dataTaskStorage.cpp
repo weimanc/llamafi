@@ -278,6 +278,10 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
     portEXIT_CRITICAL_SAFE(&s_stockChartMux);
 }
 
+// Pre-allocated at startup (unfragmented heap) and reused per fetch cycle to avoid
+// malloc(4096) failure after 60+ min of TLS cycling (PROP-004 / EXP-003).
+static DynamicJsonDocument s_heatmapDoc(4096);
+
 static void fetchHeatmapQuote() {
     WiFiClientSecure tls;
     tls.setCACert(YAHOO_FINANCE_ROOT_CA);
@@ -309,16 +313,17 @@ static void fetchHeatmapQuote() {
         r.ok = false; r.errorCode = code;
         http.end();
     } else {
-        // Filter: 4 fields per quote entry; raw payload ~54 kB → filtered ~2.3 kB.
-        // StaticJsonDocument<256> for filter; DynamicJsonDocument(4096) for data on heap
-        // (StaticJson<4096> on a 10 kB task stack overflows with TLS handshake overhead).
+        // Filter: 4 fields per quote entry; raw payload ~54 kB → filtered ~2.4 kB.
+        // s_heatmapDoc pre-allocated at startup (avoids malloc failure from heap
+        // fragmentation after long uptime TLS cycling). See PROP-004 / EXP-003.
         StaticJsonDocument<256> filter;
         filter["finance"]["result"][0]["quotes"][0]["symbol"]                    = true;
         filter["finance"]["result"][0]["quotes"][0]["marketCap"]                 = true;
         filter["finance"]["result"][0]["quotes"][0]["regularMarketPrice"]        = true;
         filter["finance"]["result"][0]["quotes"][0]["regularMarketChangePercent"]= true;
-        DynamicJsonDocument doc(4096);
-        DeserializationError err = deserializeJson(doc, http.getStream(),
+        s_heatmapDoc.clear();
+        LOG_D("dataTask.stock", "heatmap doc cap=%u", (unsigned)s_heatmapDoc.capacity());
+        DeserializationError err = deserializeJson(s_heatmapDoc, http.getStream(),
                                        DeserializationOption::Filter(filter));
         http.end();
         if (err) {
@@ -326,7 +331,7 @@ static void fetchHeatmapQuote() {
             r.ok = false; r.errorCode = -90 - (int)err.code();
         } else {
             JsonArrayConst quotes =
-                doc["finance"]["result"][0]["quotes"].as<JsonArrayConst>();
+                s_heatmapDoc["finance"]["result"][0]["quotes"].as<JsonArrayConst>();
             r.ok = true;
             for (JsonVariantConst q : quotes) {
                 if (r.count >= 20) break;
@@ -341,7 +346,9 @@ static void fetchHeatmapQuote() {
             if (r.count == 0)
                 LOG_W("dataTask.stock", "heatmap parse ok but count=0 — unexpected empty quotes array");
             else
-                LOG_D("dataTask.stock", "heatmap ok count=%u", r.count);
+                LOG_D("dataTask.stock", "heatmap ok count=%u usage=%u/%u",
+                      r.count, (unsigned)s_heatmapDoc.memoryUsage(),
+                      (unsigned)s_heatmapDoc.capacity());
         }
     }
     portENTER_CRITICAL_SAFE(&s_heatmapMux);

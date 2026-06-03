@@ -72,6 +72,7 @@ inline void tick() {
   formatUptime(up, sizeof(up), now);
   int rssi = WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0;
   uint32_t heap = ESP.getFreeHeap();
+  uint32_t maxAlloc = ESP.getMaxAllocHeap();
   uint32_t blockMax = blockMaxMsRef();
   blockMaxMsRef() = 0;  // window resets each emit
 
@@ -87,7 +88,7 @@ inline void tick() {
                               : (uint32_t)(now - g_lastRenderMs);
 
   LOG_I("hb",
-        "display=%s wifi=rssi(%d) heap=%uk stack_hwm=%ub uptime=%s "
+        "display=%s wifi=rssi(%d) heap=%uk maxAlloc=%uk stack_hwm=%ub uptime=%s "
         "poll=%u/%u last=%d block_max=%ums "
         "loop_max=%ums slow=%s:%ums "
         "last_poll_age_ms=%lu next_poll_in_ms=%lu last_render_age_ms=%lu "
@@ -95,6 +96,7 @@ inline void tick() {
         displayName(),
         rssi,
         (unsigned)(heap / 1024),
+        (unsigned)(maxAlloc / 1024),
         (unsigned)stackHwm,
         up,
         (unsigned)pollSuccessRef(), (unsigned)pollAttemptsRef(),
