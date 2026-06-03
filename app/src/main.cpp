@@ -1270,8 +1270,15 @@ private:
     }
     dataTask::HeatmapQuoteResult r;
     if (dataTask::pollHeatmapQuote(&r)) {
-      _s.heatmapData        = r;
-      _s.heatmapLayoutDirty = true;
+      if (r.ok) {
+        _s.heatmapData        = r;
+        _s.heatmapLayoutDirty = true;
+      } else if (!_s.heatmapData.ok) {
+        // No good data yet — propagate error so screen shows it
+        _s.heatmapData        = r;
+        _s.heatmapLayoutDirty = true;
+      }
+      // else: keep last good data on screen; transient fetch error is silently retried
     }
     if (_s.heatmapLayoutDirty) {
       computeHeatmapLayout();
