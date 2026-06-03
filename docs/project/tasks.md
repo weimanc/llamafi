@@ -331,7 +331,7 @@ Exit criterion: navigate list → chart (AAPL), then tap heatmap tile (ARM) — 
 ### TASK-128 — FEAT: Heatmap tile label — graduated font-size degradation
 **Owner**: Developer
 **Feature**: stock-002
-**Status**: open
+**Status**: complete
 **Milestone**: M-HEATMAP
 **Design**: `docs/architecture/decisions/ADR-037.md` (accepted 2026-06-03)
 **Source**: user request 2026-06-03
@@ -357,6 +357,27 @@ constexpr int16_t HM_T5_H = 10, HM_T5_W = 20;  // F1 ticker only
 Exit criterion: `check_build.sh` 4/4; DUT visual verification described in TASK-128b.
 
 **Test IDs**: T207 (Tier 1 on largest tile, MANUAL), T208 (Tier 3 on mid tiles, MANUAL), T209 (blank for sub-threshold tile, MANUAL), T210 (no text overflow, MANUAL).
+
+---
+
+### TASK-129 — FEAT: Heatmap tile label — Tier 6 rotated vertical text
+**Owner**: Developer
+**Feature**: stock-002
+**Status**: open
+**Milestone**: M-HEATMAP
+**Design**: `docs/architecture/decisions/ADR-037.md` — Amendment (Tier 6), 2026-06-03
+**Depends on**: TASK-128 (complete)
+
+Adds Tier 6 to `repaintHeatmap()`: narrow-tall tiles (`w ≥ 8 && w < 20 && h ≥ strlen(sym)*6 + 2`) render the ticker via a `TFT_eSprite` pushed at −90° using `pushRotated`. Ticker only — no pct. Silent fallback to blank if `createSprite` fails (OOM).
+
+#### Sub-tasks
+
+- **TASK-129a** — Add Tier 6 branch to the label cascade in `repaintHeatmap()` (`main.cpp`). Add `HM_T6_MIN_W = 8` constant. Implement sprite path per ADR-037 Amendment render snippet.
+- **TASK-129b** — `check_build.sh` 4/4. Flash debug. Verify rotated ticker visible on a narrow tile (may require temporarily lowering `HM_T5_W` to force Tier 6 on a wider tile for testing). Confirm no bleed into adjacent tiles.
+
+Exit criterion: `check_build.sh` 4/4; rotated ticker visible and contained within tile bounds on DUT.
+
+**Test IDs**: T211 (rotated ticker visible on narrow tile, MANUAL), T212 (no bleed into adjacent tiles, MANUAL), T213 (OOM fallback: blank tile, not crash, MANUAL — low priority).
 
 ---
 
