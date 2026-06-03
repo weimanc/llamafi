@@ -363,21 +363,21 @@ Exit criterion: `check_build.sh` 4/4; DUT visual verification described in TASK-
 ### TASK-129 — FEAT: Heatmap tile label — Tier 6 rotated vertical text
 **Owner**: Developer
 **Feature**: stock-002
-**Status**: complete (git `0f9ee08`)
+**Status**: complete (git `0f9ee08` + fix)
 **Milestone**: M-HEATMAP
 **Design**: `docs/architecture/decisions/ADR-037.md` — Amendment (Tier 6), 2026-06-03
 **Depends on**: TASK-128 (complete)
 
-Adds Tier 6 to `repaintHeatmap()`: narrow-tall tiles (`w ≥ 8 && w < 20 && h ≥ strlen(sym)*6 + 2`) render the ticker via a `TFT_eSprite` pushed at −90° using `pushRotated`. Ticker only — no pct. Silent fallback to blank if `createSprite` fails (OOM).
+Adds Tier 6 to `repaintHeatmap()`: tiles with `w ≥ 8` that can't fit horizontal text render the ticker via a `TFT_eSprite` pushed at −90° using `pushRotated`, viewport-clipped to the tile. Ticker only — no pct. Silent fallback to blank if `createSprite` fails (OOM).
 
 #### Sub-tasks
 
 - **TASK-129a** — Add Tier 6 branch to the label cascade in `repaintHeatmap()` (`main.cpp`). Add `HM_T6_MIN_W = 8` constant. Implement sprite path per ADR-037 Amendment render snippet.
-- **TASK-129b** — `check_build.sh` 4/4. Flash debug. Verify rotated ticker visible on a narrow tile (may require temporarily lowering `HM_T5_W` to force Tier 6 on a wider tile for testing). Confirm no bleed into adjacent tiles.
+- **TASK-129b** — `check_build.sh` 4/4. Flash debug. Verify rotated ticker visible on a narrow tile. Confirm no bleed into adjacent tiles.
 
 Exit criterion: `check_build.sh` 4/4; rotated ticker visible and contained within tile bounds on DUT.
 
-**Completion note**: T6 confirmed firing on 10 tiles (ASML/ORCL/LRCX/AMAT/PLTR/IBM/TXN/KLAC/SNDK/QCOM, w=21..35 h=28..49) during DUT test with HM_T5_W=40. Sprite alloc+free ok, heap stable 120k, no bleed observed. T211 PASS (rotated ticker visible); T212 PASS (no bleed); T213 deferred (low priority — OOM path not exercised).
+**Completion note**: Two bugs found and fixed during DUT verification: (1) T5 overflow guard was inside the branch body, silently dropping tiles that matched T5's w/h conditions but couldn't fit horizontal text — fix: move guard into the condition. (2) T6 originally had a height guard that blocked short tiles — fix: drop guard, use `setViewport` to clip. Final DUT run: KLAC/SNDK/QCOM (w=21..22, h=30..31) confirmed rotated, heap stable 121k, no bleed.
 
 **Test IDs**: T211 (rotated ticker visible on narrow tile, MANUAL — PASS), T212 (no bleed into adjacent tiles, MANUAL — PASS), T213 (OOM fallback: blank tile, not crash, MANUAL — low priority, deferred).
 

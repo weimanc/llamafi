@@ -1238,10 +1238,9 @@ private:
         tft.drawString(pb,  cx, cy + 5, 1);
       } else if (t.h >= HM_T4_H && t.w >= HM_T4_W) {
         tft.drawString(sym, cx, cy, 2);
-      } else if (t.h >= HM_T5_H && t.w >= HM_T5_W) {
-        if ((size_t)(strlen(sym) * 6) <= (size_t)t.w)
-          tft.drawString(sym, cx, cy, 1);
-      } else if (t.w >= HM_T6_MIN_W && t.h >= (int16_t)(strlen(sym) * 6 + 2)) {
+      } else if (t.h >= HM_T5_H && t.w >= HM_T5_W && (size_t)(strlen(sym) * 6) <= (size_t)t.w) {
+        tft.drawString(sym, cx, cy, 1);
+      } else if (t.w >= HM_T6_MIN_W) {
         TFT_eSprite spr(&tft);
         uint8_t slen = (uint8_t)strlen(sym);
         uint16_t sprW = slen * 6;
@@ -1251,8 +1250,10 @@ private:
           spr.setTextColor(TFT_WHITE, col);
           spr.drawString(sym, 0, 0, 1);
           spr.setPivot(sprW / 2, 4);
+          tft.setViewport(t.x, t.y, t.w, t.h);
           tft.setPivot(cx, cy);
           spr.pushRotated(-90, col);
+          tft.resetViewport();
           spr.deleteSprite();
         }
       }
