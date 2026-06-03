@@ -169,10 +169,11 @@ Exit criterion: T-BUSY-01/01b/02/03/05 ✅; T-CDWN-01/03 ✅; T076/T079/T081 har
 ### TASK-119 — M-HEATMAP: StockApp heatmap view — design accepted
 **Owner**: Developer
 **Feature**: stock-002 (new)
-**Status**: open
+**Status**: complete (git 483920e)
 **Milestone**: M-HEATMAP
 **Depends on**: stock-001 complete (TASK-116+)
 **Blocks**: TASK-120, TASK-121
+**Completion note**: All sub-tasks (119a/b/c) implemented; TASK-121/122/123 bugs fixed. Unblocks TASK-120.
 **Design**: `docs/architecture/decisions/ADR-036.md` (accepted 2026-06-02)
 
 Three implementation phases + VE:
@@ -203,7 +204,8 @@ Three implementation phases + VE:
 ### TASK-121 — BUG: Chart tab-switch fetches wrong ticker after heatmap drill-through
 **Owner**: Developer
 **Feature**: stock-002
-**Status**: open
+**Status**: complete (git 40dd18c)
+**Completion note**: chartSymbol guard added to tab-switch (main.cpp:812) and auto-refresh (main.cpp:1277).
 **Milestone**: M-HEATMAP
 **Depends on**: TASK-119c (heatmap navigation wired)
 **Blocks**: TASK-120 (VE cannot validate correct chart data until fixed)
@@ -225,7 +227,8 @@ Exit criterion: price displayed on 1D after switching from 5D matches the initia
 ### TASK-122 — BUG: Heatmap area normalization wrong — tiles overflow bottom ~10%
 **Owner**: Developer
 **Feature**: stock-002
-**Status**: open
+**Status**: complete (git 483920e)
+**Completion note**: Area normalized to 275*(240-ST_LIST_RULE_Y) = 59 950 px².
 **Milestone**: M-HEATMAP
 **Depends on**: TASK-119b
 **Source**: code review 2026-06-02
@@ -249,7 +252,8 @@ Exit criterion: tiles fill y=22..239 exactly with no overflow; `check_build.sh` 
 ### TASK-123 — BUG: Heatmap treemap algorithm deviates from PoC — orientation + slen
 **Owner**: Developer
 **Feature**: stock-002
-**Status**: open
+**Status**: complete (git 483920e)
+**Completion note**: Orientation: horiz=(rh>rw); slen uses short side min(rw,rh). Matches PoC.
 **Milestone**: M-HEATMAP
 **Depends on**: TASK-122 (fix area first to isolate visual diff)
 **Source**: code review 2026-06-02

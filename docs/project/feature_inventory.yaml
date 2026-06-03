@@ -600,6 +600,37 @@ features:
       T169–T182 are the core POC suite from TASK-110; T183–T185 are error-injection tests;
       T186–T188 are regression tests from M-DATATASK-STREAM-PARSE (4c3cb05 audit).
 
+  - id: stock-002
+    name: StockApp heatmap view (M-HEATMAP)
+    description: |
+      Adds HeatmapDetail sub-view to StockApp. Fetches market-cap-weighted screener data
+      for up to 20 tickers from query1.finance.yahoo.com/v1/finance/screener/predefined/saved
+      (forced HTTP/1.0 — chunked response avoided per ADR-034). Computes squarified treemap
+      layout (Bruls et al., no heap alloc) across 275×218 canvas (y=22..239). Tiles coloured
+      on ±5% scale (red→green LUT); adaptive label: ticker always, change% if w≥40 && h≥28.
+      Navigation: tap x>190 && y<22 toggles List↔Heatmap; tile tap drills to ChartDetail
+      via drillToChartBySym() which sets chartSymbol and prevSubView=HeatmapDetail; back
+      restores prevSubView. chartSymbol guard in tab-switch and auto-refresh ensures drilled
+      symbol persists across range tabs (TASK-121 fix).
+      Serial debug: get heatmapCount.
+    status: implemented
+    git_ref: "483920e (area+orientation fix; impl 11eb6bb; nav fixes 40dd18c/82b6a18)"
+    files:
+      - app/src/main.cpp
+      - app/src/appShell.h
+      - app/src/dataTask.h
+      - app/src/dataTaskStorage.cpp
+      - docs/architecture/decisions/ADR-036.md
+    cross_features: [stock-001]
+    test_ids: []
+    notes: |
+      TASK-119 (impl) + TASK-120 (VE suite — pending). Design: ADR-036.
+      HTTP/1.0 forced on screener endpoint to avoid Transfer-Encoding: chunked parse
+      failure (ADR-034 constraint). Bug fixes: TASK-121 (chartSymbol tab-switch guard),
+      TASK-122 (area normalization), TASK-123 (treemap orientation/slen).
+      TASK-124 (Yahoo -1 TCP rate-limit) open investigation — not blocking.
+      test_ids populated after TASK-120 VE run.
+
   - id: noart-001
     name: Remove album-art path and JPEG decoder (M-NOART)
     description: |
