@@ -704,6 +704,7 @@ constexpr int16_t HM_T2_H = 28, HM_T2_W = 40;
 constexpr int16_t HM_T3_H = 20, HM_T3_W = 40;
 constexpr int16_t HM_T4_H = 18, HM_T4_W = 40;
 constexpr int16_t HM_T5_H = 10, HM_T5_W = 20;
+constexpr int16_t HM_T6_MIN_W = 8;           // minimum tile width for rotated text
 
 #define ST_CANVAS_Y           0
 #define ST_CANVAS_H         240
@@ -1240,6 +1241,20 @@ private:
       } else if (t.h >= HM_T5_H && t.w >= HM_T5_W) {
         if ((size_t)(strlen(sym) * 6) <= (size_t)t.w)
           tft.drawString(sym, cx, cy, 1);
+      } else if (t.w >= HM_T6_MIN_W && t.h >= (int16_t)(strlen(sym) * 6 + 2)) {
+        TFT_eSprite spr(&tft);
+        uint8_t slen = (uint8_t)strlen(sym);
+        uint16_t sprW = slen * 6;
+        if (spr.createSprite(sprW, 8)) {
+          spr.fillSprite(col);
+          spr.setTextFont(1);
+          spr.setTextColor(TFT_WHITE, col);
+          spr.drawString(sym, 0, 0, 1);
+          spr.setPivot(sprW / 2, 4);
+          tft.setPivot(cx, cy);
+          spr.pushRotated(-90, col);
+          spr.deleteSprite();
+        }
       }
     }
     tft.setTextDatum(TL_DATUM);
