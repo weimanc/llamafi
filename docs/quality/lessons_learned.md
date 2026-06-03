@@ -974,6 +974,27 @@ Sister lesson to LL-040 (proxy metric vs actual constraint) and LL-038 (large he
 
 ---
 
+### LL-050 — 2026-06-03 — LL-038 recurrence: 4 KB DynamicJsonDocument malloc failed after 60+ min TLS cycling; getMaxAllocHeap() not logged
+
+**Context**: `fetchHeatmapQuote()` used `DynamicJsonDocument doc(4096)` allocated per call. After ~60 min of TLS session cycling (Spotify + Yahoo Finance fetches each temporarily consuming ~32 KB), heap fragmentation left no contiguous 4 KB block despite 123 KB total free. `malloc(4096)` returned null; `doc.capacity() == 0`; `deserializeJson` failed immediately with `NoMemory`. LL-038 (2026-05-25) diagnosed the same failure class for a 64 KB allocation in `getQueue()` and recommended streaming parse + avoiding large per-call heap buffers. The 4 KB heatmap doc was within the revised approach (streaming filter, small output doc) but was still allocated per call rather than statically.
+
+**Observation**: Three things caused this to consume hours of RnD time instead of minutes:
+1. **`getFreeHeap()` alone is misleading.** Heartbeat logged `heap=123k` — appeared healthy. `getMaxAllocHeap()` was not logged; fragmentation was invisible until EXP-003 analysis.
+2. **No `doc.capacity()` log after construction.** A malloc failure produces `capacity()==0`, which is distinguishable from a pool-too-small failure (`capacity()==4096`, `memoryUsage()>4096`). Without that log, both hypotheses (malloc fail vs undersized pool) required hours to distinguish analytically.
+3. **LL-038's suggested improvement only named ≥16 KB as a risk threshold.** The `DynamicJsonDocument(4096)` was within what felt like "safe" territory, so LL-038 didn't trigger a review of the heatmap path.
+
+**Root cause**: LL-038 was partially absorbed: streaming parse and small output docs were used, but the lesson "prefer static allocation for any document that will be repeatedly constructed alongside TLS sessions" was not applied because the 4 KB size was below the named threshold. The fragmentation check (`getMaxAllocHeap()`) recommended in LL-038 was also never added to the heartbeat, so recurrence had no early-warning signal.
+
+**Suggested improvement**:
+1. **`ESP.getMaxAllocHeap()` in every heartbeat.** Now done (`maxAlloc=Nk` field, commit `dcf8e72`). This is the direct fragmentation indicator; `getFreeHeap()` alone should not be the only heap metric.
+2. **Log `doc.capacity()` immediately after any `DynamicJsonDocument` construction.** Cost: one `LOG_D`. Value: instantly separates malloc failure from pool overflow. Now done for `s_heatmapDoc`.
+3. **Revise LL-038's threshold.** The 16 KB threshold is not the right rule. The rule is: *any `DynamicJsonDocument` constructed inside a function called repeatedly alongside TLS sessions should be static + `clear()`*. Size is not the criterion — cycling frequency and TLS coexistence are. Add this as BP candidate.
+4. **T-HEAT-* suite gap.** Tests ran on fresh-booted DUT. A long-uptime fragmentation failure is not catchable by any current test. This is the same gap as LL-039 ([RESOURCE-SENSITIVE] tests not re-run under different heap conditions). Note it in test_plan.md: T192-T196 should be re-run after 60 min of continuous DUT operation before any M-HEATMAP milestone sign-off.
+
+**Status**: open — items 1–3 are BP candidates; item 4 is a VE handoff.
+
+---
+
 ## Entry Format
 
 ```
