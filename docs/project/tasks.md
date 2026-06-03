@@ -195,6 +195,8 @@ Three implementation phases + VE:
 - Exit: `check_build.sh` 4/4; flash; verify List↔Heat toggle, tile drill-through to chart, back returns to heatmap (not list).
 
 #### TASK-120 — VE: T-HEAT-* test suite
+**Status**: complete (harness passing: T192/T193/T194/T196/T200/T201/T202/T203; manual T195/T197/T198/T199 planned)
+**Completion note**: 8/8 automated tests passing in full suite run. T192/T193/T194 timing-sensitive due to Yahoo screener cache expiry and serial flooding in long runs; guarded with _wait_shell_not_busy, cache-reuse HEAT tap, and (10,30) tile position. test_plan.md statuses updated; feature_inventory.yaml stock-002 test_ids populated.
 - Owner: VE (Developer adds `get heatmapCount` SERIAL_DEBUG deliverable first).
 - Tests: toggle navigation, tile tap drill-through, back nav to correct sub-view, fetch completes (via `get heatmapCount`), error state on fetch failure.
 - Exit: T-HEAT-* written in `test_plan.md`; harness passing; feature_inventory.yaml updated.

@@ -622,14 +622,16 @@ features:
       - app/src/dataTaskStorage.cpp
       - docs/architecture/decisions/ADR-036.md
     cross_features: [stock-001]
-    test_ids: []
+    test_ids: [T192, T193, T194, T196, T200, T201, T202, T203]
     notes: |
-      TASK-119 (impl) + TASK-120 (VE suite — pending). Design: ADR-036.
+      TASK-119 (impl) + TASK-120 (VE suite complete). Design: ADR-036.
       HTTP/1.0 forced on screener endpoint to avoid Transfer-Encoding: chunked parse
       failure (ADR-034 constraint). Bug fixes: TASK-121 (chartSymbol tab-switch guard),
       TASK-122 (area normalization), TASK-123 (treemap orientation/slen).
       TASK-124 (Yahoo -1 TCP rate-limit) open investigation — not blocking.
-      test_ids populated after TASK-120 VE run.
+      T192/T193/T194: timing-sensitive in long suite runs (Yahoo screener cache expiry +
+      serial flooding); stable when run individually or with warm screener cache.
+      T195/T197/T198/T199: manual/host-side tests, not yet run.
 
   - id: noart-001
     name: Remove album-art path and JPEG decoder (M-NOART)

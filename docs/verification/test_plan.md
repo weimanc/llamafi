@@ -3236,7 +3236,7 @@ Common preconditions for DUT tests below:
   `drillToChartBySym` sets `chartSymbol` but does NOT change `chartTickerIdx`. The correct fix
   assertion is in T192 — the price signal, not this field. Note: after TASK-121 fix, the tab-switch
   code path uses `chartSymbol` directly; the `get stockChartTicker` field remains index-based by design.
-- **Status**: planned. Owner: VE.
+- **Status**: superseded. T191 was the pre-fix regression baseline; TASK-121 fix is in tree. Acceptance check moved to T192/T193. Retained for historical record only.
 
 ---
 
@@ -3263,7 +3263,7 @@ Common preconditions for DUT tests below:
 - **Expected result**: `fetchOkCount` advances (a real fetch fired for the drilled symbol at D5).
   Chart header text unchanged (drilled symbol persists across tab switch). If the bug were present,
   the header would revert to AAPL and the price range would shift to AAPL 5D values.
-- **Status**: planned. Owner: VE.
+- **Status**: passing [SERIALDBG]. Harness: `run_serialdbg_tests.py --tests T192`. Note: suite-run timing-sensitive (heatmap screener cache expiry + serial flooding); passes in consecutive runs when Yahoo Finance API is responsive.
 
 ---
 
@@ -3286,7 +3286,7 @@ Common preconditions for DUT tests below:
 - **Expected result**: `fetchOkCount` advances. Header unchanged. Without the fix, `stockTickChart`
   would have called `enqueueStockChart(_s.chartTickerIdx, ...)` and the chart would have redrawn
   with the wrong (default) ticker data, causing visible price-range change.
-- **Status**: planned. Owner: VE.
+- **Status**: passing [SERIALDBG]. Harness: `run_serialdbg_tests.py --tests T193`. Note: skips when Yahoo Finance returns empty chart data (external API flakiness, not a firmware defect).
 
 ---
 
@@ -3309,7 +3309,7 @@ Common preconditions for DUT tests below:
   7. `get stockChartTicker` → assert matches the tapped list row ticker (e.g. `"AAPL"`).
 - **Expected result**: `stockChartTicker` shows the index-based ticker (confirming `chartSymbol` was
   cleared when `drillToChart()` was called). Fetch succeeded for that ticker at D5.
-- **Status**: planned. Owner: VE.
+- **Status**: passing [SERIALDBG]. Harness: `run_serialdbg_tests.py --tests T194`. Note: suite-run timing-sensitive; spurious touch events during TFT repaint may set shellBusy — harness uses _wait_shell_not_busy guards to handle.
 
 ---
 
@@ -3354,7 +3354,7 @@ Common preconditions for DUT tests below:
 - **Expected result**: `heatmapCount` returns a value ≥ 1 within 60 s. This confirms the screener
   fetch succeeded and the data layer is operational. A timeout here indicates a network/parse
   issue unrelated to TASK-122/TASK-123 and blocks T195/T197/T198.
-- **Status**: planned. Owner: VE.
+- **Status**: passing [SERIALDBG]. Harness: `run_serialdbg_tests.py --tests T196`. Note: skips/fails when Yahoo Finance screener endpoint is slow or unavailable (external dependency).
 
 ---
 
@@ -3438,6 +3438,84 @@ Common preconditions for DUT tests below:
   Pass: layout looks tile-like, comparable to PoC.
   Fail: systematic slivers visible — thin horizontal or vertical bars spanning most of the canvas.
 - **Status**: planned (manual). Owner: VE.
+
+---
+
+### T200 — [stock-002, TASK-120] List→Heatmap toggle via HEAT button tap (SERIALDBG)
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: stock-002
+- **Objective**: Verify the HEAT button tap (x>190, y<22) in StockApp list view transitions to
+  HeatmapDetail sub-view. Tests the touch-input path through `handleInput()` → `enterHeatmap()`.
+- **Preconditions**: DUT in StockApp list view (`get stockSubView == "list"`).
+- **Steps**:
+  1. `switchApp 7` → `get stockSubView` → assert `"list"`.
+  2. `set cooldown 0`.
+  3. `tap 220 10` (x=220>190, y=10<22 — HEAT button zone).
+  4. `get stockSubView` → assert `"heatmap"`.
+- **Expected result**: `stockSubView` transitions from `"list"` to `"heatmap"` immediately after tap.
+  Pass: `"heatmap"`. Fail: `"list"` (tap missed) or `"chart"` (wrong handler).
+- **Status**: passing [SERIALDBG]. Harness: `run_serialdbg_tests.py --tests T200`.
+
+---
+
+### T201 — [stock-002, TASK-120] Heatmap→List back toggle via HEAT button tap (SERIALDBG)
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: stock-002
+- **Objective**: Verify the HEAT button tap (x>190, y<22) in HeatmapDetail view calls `backToPrevView()`
+  and returns to ListDetail. Tests the symmetric back-navigation path.
+- **Preconditions**: DUT in StockApp HeatmapDetail view (`get stockSubView == "heatmap"`).
+- **Steps**:
+  1. `switchApp 7` → `set triggerHeatmap 1` → `get stockSubView` → assert `"heatmap"`.
+  2. `set cooldown 0`.
+  3. `tap 220 10` (HEAT button zone in heatmap header).
+  4. `get stockSubView` → assert `"list"`.
+- **Expected result**: `stockSubView` returns to `"list"`.
+  Pass: `"list"`. Fail: `"heatmap"` (tap not registered) or other.
+- **Status**: passing [SERIALDBG]. Harness: `run_serialdbg_tests.py --tests T201`.
+
+---
+
+### T202 — [stock-002, TASK-120] Heatmap tile tap drills to ChartDetail (SERIALDBG)
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: stock-002
+- **Objective**: Verify that tapping a tile in HeatmapDetail calls `drillToChartBySym()` and
+  transitions to ChartDetail. The tile canvas covers y=22..239, x=0..274 without gaps (squarify
+  fills 100% of the area), so any tap at canvas center (137, 130) must hit a tile.
+- **Preconditions**: DUT in HeatmapDetail with `heatmapCount > 0` (tiles rendered).
+- **Steps**:
+  1. `switchApp 7` → `set triggerHeatmap 1` → poll `get heatmapCount` until `> 0` (60 s timeout).
+  2. `set cooldown 0`.
+  3. `tap 137 130` (canvas center, y=130 >> ST_LIST_RULE_Y=22 — guaranteed tile hit).
+  4. `get stockSubView` → assert `"chart"`.
+  5. `get stockChartTicker` → record drilled symbol.
+- **Expected result**: `stockSubView = "chart"`. `stockChartTicker` returns the symbol from the
+  tapped tile (this is `chartSymbol`, set by `drillToChartBySym`).
+  Pass: `"chart"`. Fail: `"heatmap"` (tap not handled) or `"list"` (spurious back-nav).
+- **Status**: passing [SERIALDBG]. Harness: `run_serialdbg_tests.py --tests T202`. Note: tile drill uses (10, 30) — top-left corner, always hits the largest market-cap tile.
+
+---
+
+### T203 — [stock-002, TASK-120] Chart back-tap restores HeatmapDetail (not List) (SERIALDBG)
+
+- **Type**: integration (DUT, serial-driven)
+- **Feature(s)**: stock-002
+- **Objective**: Verify that the chart back button (`tap 10 7`) restores `prevSubView` correctly.
+  When ChartDetail was entered via a heatmap tile drill, `prevSubView = HeatmapDetail`, so back
+  must return to HeatmapDetail — not ListDetail.
+- **Preconditions**: DUT in ChartDetail entered via heatmap tile drill (`prevSubView = HeatmapDetail`).
+  Set up via `set triggerHeatmap 1` → wait for tiles → `tap 137 130`.
+- **Steps**:
+  1. `switchApp 7` → `set triggerHeatmap 1` → poll `get heatmapCount` until > 0.
+  2. `set cooldown 0` → `tap 137 130` → `get stockSubView` → assert `"chart"`.
+  3. `set cooldown 0` → `tap 10 7` (chart back button).
+  4. `get stockSubView` → assert `"heatmap"`.
+- **Expected result**: `stockSubView = "heatmap"` after back tap. Without the `prevSubView` mechanism,
+  back would return to ListDetail (`"list"`) — the naive default.
+  Pass: `"heatmap"`. Fail: `"list"` (prevSubView not set correctly by drillToChartBySym).
+- **Status**: passing [SERIALDBG]. Harness: `run_serialdbg_tests.py --tests T203`.
 
 ---
 

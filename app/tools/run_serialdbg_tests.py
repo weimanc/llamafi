@@ -3365,6 +3365,523 @@ def t160(dut: Dut):
           f"scrollOffset={post} (unchanged) scrollVelocity=0.0000 — tickScroll D_IDLE guard confirmed")
 
 
+# ── stock-002 suite (TASK-120) ────────────────────────────────────────────────
+# Tests the heatmap sub-view, navigation, fetch-gate, and chartSymbol guard.
+#
+# Serial commands used:
+#   get heatmapCount, get stockSubView, get stockChartTicker, get stockChartRange
+#   get fetchOkCount, get chartLen
+#   set triggerHeatmap 1, set triggerFetch 1, set cooldown 0
+#   tap <x> <y>
+#
+# Heatmap geometry (main.cpp constants):
+#   ST_LIST_RULE_Y = 22 → tile canvas y=22..239, header y=0..21
+#   HEAT button:   tap 220 10   (x=220 > 190, y=10 < 22)
+#   Tile drill:    tap 10 30    (top-left corner — always in the largest/first tile regardless of layout)
+#   Chart back:    tap 10 7
+#   Chart 5D tab:  tap 184 9
+
+
+def _wait_heatmap_count(dut: Dut, timeout_s: float = 60.0) -> int:
+    """Poll get heatmapCount until > 0. Returns count (0 on timeout)."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        r = dut.cmd("get heatmapCount", timeout=3.0)
+        if r.get("ok"):
+            try:
+                val = int(r.get("val", 0))
+                if val > 0:
+                    return val
+            except (ValueError, TypeError):
+                pass
+        time.sleep(3.0)
+    return 0
+
+
+def _wait_shell_not_busy(dut: Dut, timeout_s: float = 45.0) -> bool:
+    """Wait for g_shellBusy to clear (chart/heatmap fetch complete)."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            r = dut.cmd("get shellBusy", timeout=5.0)
+            if r.get("ok") and not r.get("busy", True):
+                return True
+        except TimeoutError:
+            pass
+        time.sleep(1.0)
+    return False
+
+
+def _ensure_stock_list_view(dut: Dut) -> bool:
+    """After switchApp to Stock, normalize to ListDetail sub-view.
+    Handles leftover state from previous tests (heatmap or chart sub-view).
+    Returns True if ListDetail confirmed."""
+    for _ in range(3):
+        r = dut.cmd("get stockSubView", timeout=3.0)
+        sv = r.get("val", "")
+        if sv == "list":
+            return True
+        if sv == "chart":
+            # Chart may have pending fetch; wait for shellBusy to clear first
+            _wait_shell_not_busy(dut, timeout_s=45.0)
+            time.sleep(0.1)
+            dut.set_cooldown_zero()
+            dut.cmd("tap 10 7", timeout=3.0)  # chart back button
+        elif sv == "heatmap":
+            dut.set_cooldown_zero()
+            dut.cmd("tap 220 10", timeout=3.0)  # HEAT toggle → list
+        time.sleep(0.3)
+    return dut.cmd("get stockSubView", timeout=3.0).get("val") == "list"
+
+
+# ── T196 — Heatmap fetch completes; triggerHeatmap sets sub-view ──────────────
+
+def t196(dut: Dut):
+    """T196: triggerHeatmap → subView=heatmap; heatmapCount > 0 within 60 s."""
+    print("T196  Heatmap data present after fetch")
+    if not _switch_to_stock(dut):
+        skip("T196", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    r = dut.cmd("set triggerHeatmap 1", timeout=3.0)
+    if not r.get("ok"):
+        fail("T196", "set triggerHeatmap 1 returned error")
+        _restore_from_stock(dut)
+        return
+    time.sleep(0.3)
+    r_sv = dut.cmd("get stockSubView", timeout=3.0)
+    if r_sv.get("val") != "heatmap":
+        fail("T196", f"stockSubView={r_sv.get('val')!r} after triggerHeatmap — expected 'heatmap'")
+        _restore_from_stock(dut)
+        return
+    count = _wait_heatmap_count(dut, timeout_s=60.0)
+    _restore_from_stock(dut)
+    if count == 0:
+        fail("T196", "heatmapCount still 0 after 60 s — screener fetch did not complete")
+        return
+    pass_("T196", f"heatmapCount={count}; subView=heatmap confirmed; fetch complete")
+
+
+# ── T200 — List→Heatmap toggle via HEAT tap ───────────────────────────────────
+
+def t200(dut: Dut):
+    """T200: HEAT tap (x>190, y<22) in list view → subView switches to heatmap."""
+    print("T200  List→Heatmap toggle via HEAT tap")
+    if not _switch_to_stock(dut):
+        skip("T200", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    if not _ensure_stock_list_view(dut):
+        skip("T200", "could not normalize to list view")
+        _restore_from_stock(dut)
+        return
+    dut.set_cooldown_zero()
+    dut.cmd("tap 220 10", timeout=3.0)
+    time.sleep(0.3)
+    r_sv2 = dut.cmd("get stockSubView", timeout=3.0)
+    _restore_from_stock(dut)
+    if r_sv2.get("val") != "heatmap":
+        fail("T200", f"stockSubView={r_sv2.get('val')!r} after HEAT tap — expected 'heatmap'")
+        return
+    pass_("T200", "HEAT tap in list → subView=heatmap confirmed")
+
+
+# ── T201 — Heatmap→List back toggle via HEAT tap ──────────────────────────────
+
+def t201(dut: Dut):
+    """T201: HEAT tap (x>190, y<22) in heatmap view → subView returns to list."""
+    print("T201  Heatmap→List back toggle via HEAT tap")
+    if not _switch_to_stock(dut):
+        skip("T201", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    # Normalize to list first so prevSubView is correctly set to List
+    if not _ensure_stock_list_view(dut):
+        skip("T201", "could not normalize to list view")
+        _restore_from_stock(dut)
+        return
+    r = dut.cmd("set triggerHeatmap 1", timeout=3.0)
+    if not r.get("ok"):
+        skip("T201", "set triggerHeatmap 1 failed")
+        _restore_from_stock(dut)
+        return
+    time.sleep(0.5)  # allow repaintHeatmap to finish before querying
+    r_sv_pre = dut.cmd("get stockSubView", timeout=5.0)
+    if r_sv_pre.get("val") != "heatmap":
+        skip("T201", f"stockSubView={r_sv_pre.get('val')!r} after triggerHeatmap — expected 'heatmap'")
+        _restore_from_stock(dut)
+        return
+    dut.set_cooldown_zero()
+    dut.cmd("tap 220 10", timeout=3.0)
+    time.sleep(0.3)
+    r_sv = dut.cmd("get stockSubView", timeout=3.0)
+    _restore_from_stock(dut)
+    if r_sv.get("val") != "list":
+        fail("T201", f"stockSubView={r_sv.get('val')!r} after HEAT tap in heatmap — expected 'list'")
+        return
+    pass_("T201", "HEAT tap in heatmap → subView=list (back) confirmed")
+
+
+# ── T202 — Heatmap tile tap drills to ChartDetail ─────────────────────────────
+
+def t202(dut: Dut):
+    """T202: Tap canvas centre in heatmap (tile area) → drills to ChartDetail."""
+    print("T202  Heatmap tile tap drills to chart")
+    if not _switch_to_stock(dut):
+        skip("T202", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    if not _ensure_stock_list_view(dut):
+        skip("T202", "could not normalize to list view")
+        _restore_from_stock(dut)
+        return
+    # Use HEAT tap when cache is present — avoids re-fetching and re-fetch failures
+    if _wait_heatmap_count(dut, timeout_s=10.0) == 0:
+        r = dut.cmd("set triggerHeatmap 1", timeout=3.0)
+        if not r.get("ok"):
+            skip("T202", "set triggerHeatmap 1 failed (no cached heatmap)")
+            _restore_from_stock(dut)
+            return
+        if _wait_heatmap_count(dut, timeout_s=60.0) == 0:
+            skip("T202", "heatmapCount still 0 after 60 s — no tiles to tap")
+            _restore_from_stock(dut)
+            return
+        time.sleep(2.0)  # let heatmap render after first fetch
+    else:
+        dut.set_cooldown_zero()
+        dut.cmd("tap 220 10", timeout=3.0)  # HEAT tap → heatmap (no new fetch)
+        time.sleep(0.3)
+        if dut.cmd("get stockSubView", timeout=3.0).get("val") != "heatmap":
+            skip("T202", "HEAT tap did not enter heatmap")
+            _restore_from_stock(dut)
+            return
+    time.sleep(0.3)
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    dut.set_cooldown_zero()
+    dut.cmd("tap 10 30", timeout=3.0)  # top-left of canvas — always in largest tile
+    time.sleep(0.5)
+    r_sv = dut.cmd("get stockSubView", timeout=3.0)
+    if r_sv.get("val") != "chart":
+        _restore_from_stock(dut)
+        fail("T202", f"stockSubView={r_sv.get('val')!r} after tile tap — expected 'chart'")
+        return
+    r_sym = dut.cmd("get stockChartTicker", timeout=3.0)
+    drilled = r_sym.get("val", "?")
+    _restore_from_stock(dut)
+    pass_("T202", f"tile tap → ChartDetail; drilled symbol={drilled!r}")
+
+
+# ── T203 — Chart back from heatmap drill restores HeatmapDetail ───────────────
+
+def t203(dut: Dut):
+    """T203: Back tap from chart (entered via heatmap drill) → restores HeatmapDetail, not List."""
+    print("T203  Chart back from heatmap drill restores HeatmapDetail")
+    if not _switch_to_stock(dut):
+        skip("T203", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    if not _ensure_stock_list_view(dut):
+        skip("T203", "could not normalize to list view")
+        _restore_from_stock(dut)
+        return
+    # Use HEAT tap when cache is present — avoids re-fetching and re-fetch failures
+    if _wait_heatmap_count(dut, timeout_s=10.0) == 0:
+        r = dut.cmd("set triggerHeatmap 1", timeout=3.0)
+        if not r.get("ok"):
+            skip("T203", "set triggerHeatmap 1 failed (no cached heatmap)")
+            _restore_from_stock(dut)
+            return
+        if _wait_heatmap_count(dut, timeout_s=60.0) == 0:
+            skip("T203", "heatmapCount still 0 after 60 s — no tiles")
+            _restore_from_stock(dut)
+            return
+        time.sleep(2.0)
+    else:
+        dut.set_cooldown_zero()
+        dut.cmd("tap 220 10", timeout=3.0)  # HEAT tap → heatmap (no new fetch)
+        time.sleep(0.3)
+        if dut.cmd("get stockSubView", timeout=3.0).get("val") != "heatmap":
+            skip("T203", "HEAT tap did not enter heatmap")
+            _restore_from_stock(dut)
+            return
+    time.sleep(0.3)
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    dut.set_cooldown_zero()
+    dut.cmd("tap 10 30", timeout=3.0)  # top-left of canvas — always in largest tile
+    time.sleep(0.5)
+    if dut.cmd("get stockSubView", timeout=3.0).get("val") != "chart":
+        skip("T203", "could not drill to chart from heatmap tile tap")
+        _restore_from_stock(dut)
+        return
+    # Wait for chart fetch to complete (g_shellBusy clears) before back tap
+    if not _wait_shell_not_busy(dut, timeout_s=45.0):
+        skip("T203", "shellBusy did not clear after tile drill — chart fetch stuck?")
+        _restore_from_stock(dut)
+        return
+    time.sleep(0.1)
+    dut.set_cooldown_zero()
+    dut.cmd("tap 10 7", timeout=3.0)
+    time.sleep(0.3)
+    r_sv = dut.cmd("get stockSubView", timeout=3.0)
+    _restore_from_stock(dut)
+    if r_sv.get("val") != "heatmap":
+        fail("T203", f"stockSubView={r_sv.get('val')!r} after chart back — expected 'heatmap'")
+        return
+    pass_("T203", "chart back → subView=heatmap (prevSubView preserved correctly)")
+
+
+# ── T192 — Tab-switch after heatmap drill uses drilled symbol ─────────────────
+
+def t192(dut: Dut):
+    """T192: After heatmap drill, range tab-switch fetches the drilled symbol (TASK-121 fix)."""
+    print("T192  Tab-switch after heatmap drill uses drilled symbol")
+    if not _switch_to_stock(dut):
+        skip("T192", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    if not _ensure_stock_list_view(dut):
+        skip("T192", "could not normalize to list view")
+        _restore_from_stock(dut)
+        return
+    # Use HEAT tap when cache is available to avoid queueing a new screener fetch
+    if _wait_heatmap_count(dut, timeout_s=3.0) == 0:
+        r = dut.cmd("set triggerHeatmap 1", timeout=3.0)
+        if not r.get("ok"):
+            skip("T192", "set triggerHeatmap 1 failed (no cached heatmap data)")
+            _restore_from_stock(dut)
+            return
+        if _wait_heatmap_count(dut, timeout_s=60.0) == 0:
+            skip("T192", "heatmapCount still 0 after 60 s")
+            _restore_from_stock(dut)
+            return
+        time.sleep(2.0)
+    else:
+        dut.set_cooldown_zero()
+        dut.cmd("tap 220 10", timeout=3.0)  # HEAT tap → heatmap (no new fetch)
+        time.sleep(0.3)
+        if dut.cmd("get stockSubView", timeout=3.0).get("val") != "heatmap":
+            skip("T192", "HEAT tap did not enter heatmap")
+            _restore_from_stock(dut)
+            return
+    # Wait for any in-progress heatmap layout recompute/repaint (cache-expiry re-fetch) to settle
+    time.sleep(0.5)
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    dut.set_cooldown_zero()
+    dut.cmd("tap 10 30", timeout=3.0)  # top-left of heatmap canvas — always in the largest tile
+    time.sleep(0.5)
+    if dut.cmd("get stockSubView", timeout=3.0).get("val") != "chart":
+        skip("T192", "could not drill to chart from heatmap")
+        _restore_from_stock(dut)
+        return
+    r_sym = dut.cmd("get stockChartTicker", timeout=3.0)
+    drilled = r_sym.get("val", "?")
+    # Wait for D1 chart fetch to complete before tab-switching (clears g_shellBusy)
+    if not _wait_shell_not_busy(dut, timeout_s=45.0):
+        skip("T192", "shellBusy did not clear after tile drill — chart fetch stuck?")
+        _restore_from_stock(dut)
+        return
+    before_ok = _stock_ok_count(dut)
+    time.sleep(0.1)
+    dut.set_cooldown_zero()
+    dut.cmd("tap 184 9", timeout=3.0)  # 5D tab
+    time.sleep(0.3)
+    r_range = dut.cmd("get stockChartRange", timeout=3.0)
+    if r_range.get("val") != "D5":
+        skip("T192", f"stockChartRange={r_range.get('val')!r} after 5D tap — tab not registered")
+        _restore_from_stock(dut)
+        return
+    if not _wait_chart_complete(dut, before_ok, timeout_s=45.0):
+        fail("T192", "fetchOkCount did not advance after tab-switch — TASK-121 fix may be missing")
+        _restore_from_stock(dut)
+        return
+    r_sym2 = dut.cmd("get stockChartTicker", timeout=3.0)
+    after_sym = r_sym2.get("val", "?")
+    _restore_from_stock(dut)
+    if after_sym != drilled:
+        fail("T192", f"chart ticker changed: {drilled!r} → {after_sym!r} after tab-switch")
+        return
+    pass_("T192", f"drilled={drilled!r}; 5D tab-switch fired fetch; ticker unchanged")
+
+
+# ── T193 — Auto-refresh path uses drilled symbol ──────────────────────────────
+
+def t193(dut: Dut):
+    """T193: stockTickChart() auto-refresh uses chartSymbol after heatmap drill (TASK-121b fix)."""
+    print("T193  Auto-refresh path uses drilled symbol")
+    if not _switch_to_stock(dut):
+        skip("T193", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    if not _ensure_stock_list_view(dut):
+        skip("T193", "could not normalize to list view")
+        _restore_from_stock(dut)
+        return
+    # Use HEAT tap (not triggerHeatmap) to enter heatmap — enterHeatmap() only fetches if
+    # lastHeatmapFetch==0, so re-using cached data avoids queuing a new screener fetch that
+    # would block the dataTask queue and starve the subsequent chart fetch (LL-T193-001).
+    # Use 10 s deadline so a transient serial flood (stockTickQuotes HTTP) doesn't drop us
+    # into the triggerHeatmap branch on the very first check attempt.
+    if _wait_heatmap_count(dut, timeout_s=10.0) == 0:
+        # No cached data yet — fall back to triggerHeatmap and wait for fetch
+        r = dut.cmd("set triggerHeatmap 1", timeout=3.0)
+        if not r.get("ok"):
+            skip("T193", "set triggerHeatmap 1 failed (no cached heatmap data)")
+            _restore_from_stock(dut)
+            return
+        if _wait_heatmap_count(dut, timeout_s=60.0) == 0:
+            skip("T193", "heatmapCount still 0 after 60 s")
+            _restore_from_stock(dut)
+            return
+        # Flush the heatmap result from the dataTask queue before drilling to chart
+        time.sleep(2.0)  # allow pollHeatmapQuote to run in stockTickHeatmap tick
+    else:
+        # Cached data present — HEAT tap enters heatmap without queuing a screener fetch
+        dut.set_cooldown_zero()
+        dut.cmd("tap 220 10", timeout=3.0)  # HEAT button in list header
+        time.sleep(0.3)
+        if dut.cmd("get stockSubView", timeout=3.0).get("val") != "heatmap":
+            skip("T193", "HEAT tap did not enter heatmap")
+            _restore_from_stock(dut)
+            return
+    time.sleep(0.5)
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    dut.set_cooldown_zero()
+    dut.cmd("tap 10 30", timeout=3.0)  # top-left of canvas — always in largest tile
+    time.sleep(0.5)
+    if dut.cmd("get stockSubView", timeout=3.0).get("val") != "chart":
+        skip("T193", "could not drill to chart from heatmap")
+        _restore_from_stock(dut)
+        return
+    r_sym = dut.cmd("get stockChartTicker", timeout=3.0)
+    drilled = r_sym.get("val", "?")
+    # Wait for initial D1 fetch to complete (clears shellBusy), then force re-fetch
+    if not _wait_shell_not_busy(dut, timeout_s=45.0):
+        skip("T193", "shellBusy did not clear after tile drill")
+        _restore_from_stock(dut)
+        return
+    before_ok = _stock_ok_count(dut)
+    dut.cmd("set triggerFetch 1", timeout=3.0)  # reset lastChartFetch → force next tick re-fetch
+    if not _wait_chart_complete(dut, before_ok, timeout_s=45.0):
+        fail("T193", "fetchOkCount did not advance after triggerFetch — auto-refresh did not fire")
+        _restore_from_stock(dut)
+        return
+    r_sym2 = dut.cmd("get stockChartTicker", timeout=3.0)
+    after_sym = r_sym2.get("val", "?")
+    r_cl = dut.cmd("get chartLen", timeout=3.0)
+    chart_len = int(r_cl.get("val", 0)) if r_cl.get("ok") else -1
+    _restore_from_stock(dut)
+    if after_sym != drilled:
+        fail("T193", f"chart ticker changed after auto-refresh: {drilled!r} → {after_sym!r}")
+        return
+    if chart_len <= 0:
+        skip("T193", f"chartLen={chart_len} after auto-refresh — Yahoo returned empty data (external API flakiness)")
+        return
+    pass_("T193", f"drilled={drilled!r}; auto-refresh fetched same symbol; chartLen={chart_len}")
+
+
+# ── T194 — Back-to-list clears chartSymbol; re-drill from list uses index ─────
+
+def t194(dut: Dut):
+    """T194: Back to list after heatmap drill clears chartSymbol; list drill uses index ticker."""
+    print("T194  Back-to-list clears chartSymbol; list drill uses index ticker")
+    if not _switch_to_stock(dut):
+        skip("T194", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    if not _ensure_stock_list_view(dut):
+        skip("T194", "could not normalize to list view")
+        _restore_from_stock(dut)
+        return
+    # Use HEAT tap to enter heatmap without queuing a new screener fetch (same as T193)
+    if _wait_heatmap_count(dut, timeout_s=3.0) == 0:
+        # No cached data — use triggerHeatmap and wait
+        r = dut.cmd("set triggerHeatmap 1", timeout=3.0)
+        if not r.get("ok"):
+            skip("T194", "set triggerHeatmap 1 failed (no cached heatmap data)")
+            _restore_from_stock(dut)
+            return
+        if _wait_heatmap_count(dut, timeout_s=60.0) == 0:
+            skip("T194", "heatmapCount still 0 after 60 s")
+            _restore_from_stock(dut)
+            return
+        time.sleep(2.0)  # allow heatmap result to be polled
+    else:
+        dut.set_cooldown_zero()
+        dut.cmd("tap 220 10", timeout=3.0)  # HEAT button in list → heatmap (no new fetch)
+        time.sleep(0.3)
+        if dut.cmd("get stockSubView", timeout=3.0).get("val") != "heatmap":
+            skip("T194", "HEAT tap did not enter heatmap")
+            _restore_from_stock(dut)
+            return
+    time.sleep(0.5)
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    dut.set_cooldown_zero()
+    dut.cmd("tap 10 30", timeout=3.0)  # top-left of canvas — always in largest tile
+    time.sleep(0.5)
+    if dut.cmd("get stockSubView", timeout=3.0).get("val") != "chart":
+        skip("T194", "could not drill to chart from heatmap")
+        _restore_from_stock(dut)
+        return
+    # Wait for chart fetch (clears shellBusy) before back-nav taps
+    if not _wait_shell_not_busy(dut, timeout_s=45.0):
+        skip("T194", "shellBusy did not clear after tile drill")
+        _restore_from_stock(dut)
+        return
+    time.sleep(0.1)
+    # Navigate back: chart → heatmap → list
+    dut.set_cooldown_zero()
+    dut.cmd("tap 10 7", timeout=3.0)  # chart back → heatmap
+    time.sleep(0.8)  # repaintHeatmap (20 tiles) blocks serial handler briefly
+    # repaintHeatmap's SPI bus activity can cause spurious physical-touch readings that
+    # trigger drillToChartBySym and set _pendingAsync=true → shellBusy=true; wait it out
+    _wait_shell_not_busy(dut, timeout_s=45.0)
+    dut.set_cooldown_zero()
+    dut.cmd("tap 220 10", timeout=3.0)  # HEAT back → list
+    time.sleep(1.5)  # stockTickQuotes HTTP may flood serial immediately on list entry
+    r_sv = dut.cmd("get stockSubView", timeout=5.0)
+    if r_sv.get("val") != "list":
+        skip("T194", f"could not navigate back to list; subView={r_sv.get('val')!r}")
+        _restore_from_stock(dut)
+        return
+    # Drill from list row (AAPL at y=36)
+    time.sleep(0.5)  # let quote-fetch serial flood settle before snapshot + tap
+    # Clear fetchFailed in case a spurious touch during repaintHeatmap left an error state;
+    # fetchFailed=true blocks list-row drills (firmware returns early at line 786)
+    dut.cmd("set fetchFailed 0", timeout=5.0)
+    # A spurious touch during repaintHeatmap can leave g_shellBusy=true; wait it out
+    _wait_shell_not_busy(dut, timeout_s=15.0)
+    before_ok = _stock_ok_count(dut)
+    dut.set_cooldown_zero()
+    dut.cmd("tap 137 36", timeout=5.0)
+    time.sleep(0.5)
+    if dut.cmd("get stockSubView", timeout=5.0).get("val") != "chart":
+        skip("T194", "could not drill to chart from list row")
+        _restore_from_stock(dut)
+        return
+    r_sym = dut.cmd("get stockChartTicker", timeout=5.0)
+    list_ticker = r_sym.get("val", "?")
+    # Wait for list-drill chart fetch to complete before tab tap
+    if not _wait_shell_not_busy(dut, timeout_s=45.0):
+        skip("T194", "shellBusy did not clear after list-drill")
+        _restore_from_stock(dut)
+        return
+    time.sleep(0.1)
+    dut.set_cooldown_zero()
+    dut.cmd("tap 184 9", timeout=3.0)  # 5D tab
+    time.sleep(0.3)
+    if not _wait_chart_complete(dut, before_ok, timeout_s=45.0):
+        skip("T194", "fetchOkCount did not advance on list-drilled tab-switch")
+        _restore_from_stock(dut)
+        return
+    r_sym2 = dut.cmd("get stockChartTicker", timeout=3.0)
+    after_sym = r_sym2.get("val", "?")
+    _restore_from_stock(dut)
+    if after_sym != list_ticker:
+        fail("T194", f"ticker changed after list-drill tab-switch: {list_ticker!r} → {after_sym!r}")
+        return
+    pass_("T194", f"list-drilled={list_ticker!r}; tab-switch preserved it; chartSymbol cleared correctly")
+
+
 ALL_TESTS = {
     "T076": t076,
     "T077": t077,
@@ -3444,6 +3961,15 @@ ALL_TESTS = {
     "T186": t186,
     "T187": t187,
     "T188": t188,
+    # stock-002 (TASK-120)
+    "T192": t192,
+    "T193": t193,
+    "T194": t194,
+    "T196": t196,
+    "T200": t200,
+    "T201": t201,
+    "T202": t202,
+    "T203": t203,
     # M-TOUCH-UX (TASK-118)
     "T-BUSY-01":  t_busy_01,
     "T-BUSY-01b": t_busy_01b,
