@@ -360,10 +360,38 @@ Exit criterion: `check_build.sh` 4/4; DUT visual verification described in TASK-
 
 ---
 
+### TASK-131 — BUG: FM-2 — Persistent SSL OOM blocks all heatmap refreshes after cold boot
+**Owner**: Developer
+**Feature**: stock-002
+**Status**: complete (git `c82b4d1`)
+**Milestone**: M-HEATMAP
+**Source**: TASK-130c findings (VE review 2026-06-03)
+
+After the first cold-boot heatmap fetch (which succeeds), all subsequent auto-fetches (`STOCK_HEATMAP_FETCH_MS = 120s`) return `-1` with `elapsed < 100ms` — characteristic of `start_ssl_client: -32512 (SSL - Memory allocation failed)`. `maxAlloc` at steady state is ~39k, insufficient for a new Yahoo Finance HTTPS TLS session (~50–70k required). Spotify's persistent TLS connection fragments the heap.
+
+The two existing guards (`f09f196`, `a0f7601`) correctly prevent stale data from being wiped, so the display shows the initial good data indefinitely. But no refresh ever succeeds.
+
+#### Repro
+
+Flash `cyd2usb_winamp_debug`. Switch to StockApp → heatmap. Wait 120s for first auto-refresh. Serial shows `heatmap GET -1 elapsed=72ms` on every cycle.
+
+#### Suggested mitigations
+
+1. Close Spotify's `HTTPClient` before heatmap fetch, reopen after — releases the Spotify TLS memory block.
+2. Reduce `s_heatmapDoc` capacity (`DynamicJsonDocument s_heatmapDoc(4096)`) if 20 symbols fit in less.
+3. Move heatmap fetch to a keep-alive HTTPClient (reuse Yahoo connection across 120s intervals).
+4. Use PSRAM for `s_heatmapDoc` or TLS buffers to reduce internal heap pressure.
+
+**Test IDs**: T215, T217 (requires T217 re-run after pattern fix in harness)
+
+**Completion note (2026-06-04):** Fix: `spotifyTask::heatmapPause()` / `heatmapResume()` — stops Spotify TLS before heatmap fetch, releases heap; `s_heatmapDoc` reduced 4096→2560. DUT soak (10 min, 5 fetches): T216 PASS, T217 PASS (min maxAlloc=39k, 0 violations). T215 SKIP — fix prevents -1, FM-3 guard cannot be provoked in normal operation (existing T216 soak coverage sufficient).
+
+---
+
 ### TASK-130 — VE: Heatmap fetch reliability stress test (serial-dbg)
 **Owner**: VE
 **Feature**: stock-002
-**Status**: open
+**Status**: complete
 **Milestone**: M-HEATMAP
 **Source**: user report 2026-06-03 — ERR -1 persists after two fixes (mailbox guard + main-loop guard)
 
@@ -395,6 +423,8 @@ Design and execute a serial-debug stress suite that maps all remaining heatmap f
 Exit criterion: T214–T218 all pass or each failing test has a filed bug task with repro steps.
 
 **Test IDs**: T214–T218.
+
+**Completion note (2026-06-03):** Suite written (`app/tools/test_heatmap_reliability.py`). Full run: T214 PASS, T216 PASS, T218 PASS; T215 SKIP (FM-2 blocks all new 200s); T217 SKIP (harness pattern bug `"hb:"` → fix to `"[hb]"` applied, re-run pending). Key findings: FM-1/FM-3 guards both working; FM-4 closed (explained by FM-2); FM-2 confirmed as sole unresolved failure — filed as TASK-131. Report at `docs/verification/regression_suite/heatmap-reliability-ve-review.md`.
 
 ---
 
