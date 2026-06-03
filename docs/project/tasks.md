@@ -360,6 +360,44 @@ Exit criterion: `check_build.sh` 4/4; DUT visual verification described in TASK-
 
 ---
 
+### TASK-130 — VE: Heatmap fetch reliability stress test (serial-dbg)
+**Owner**: VE
+**Feature**: stock-002
+**Status**: open
+**Milestone**: M-HEATMAP
+**Source**: user report 2026-06-03 — ERR -1 persists after two fixes (mailbox guard + main-loop guard)
+
+Design and execute a serial-debug stress suite that maps all remaining heatmap fetch reliability issues. Two fixes are already in (`f09f196`, `a0f7601`) but ERR -1 is still observed. The suite must reproduce the failure, characterise it, and provide Developer with a reproducible harness.
+
+#### Known failure modes to cover
+
+| ID | Scenario | Observable |
+|----|----------|-----------|
+| FM-1 | Double-enqueue: `triggerHeatmap` + next tick both enqueue; fetch B (-1) races fetch A (200) in one-slot mailbox | ERR shown despite A being 200 |
+| FM-2 | Long-uptime TLS heap fragmentation: Spotify poll + Yahoo HTTPS competing; `maxAlloc` drops until screener can't open TLS | Persistent -1 at 120s cycle; never recovers |
+| FM-3 | Fetch -1 overwrites `_s.heatmapData` when `ok=false` (pre-fix regression check) | ERR shown, `heatmapCount=0` |
+| FM-4 | Unknown — ERR -1 still reported after both fixes; root cause not yet identified | ERR shown, `heatmapCount=20` |
+
+#### Sub-tasks
+
+- **TASK-130a** — Write `test_heatmap_reliability.py` (or extend `run_serialdbg_tests.py`). Tests T214–T218. All must run on DUT via serial; no mocking.
+- **TASK-130b** — Execute suite against current debug build. Log all `heatmap GET -1` occurrences, `get heatmapCount` state before/after each, and `get stockSubView` to confirm display state. Capture for ≥10 minutes to catch long-uptime failures.
+- **TASK-130c** — Write findings report: which FMs are reproduced, which are fixed, which are new. File new bug tasks for any unresolved FM. Hand off to Developer.
+
+#### Suggested test cases
+
+- **T214** — Rapid `set triggerHeatmap 1` × 5 in 2s: assert `heatmapCount` never drops to 0 after a prior success.
+- **T215** — Single `set triggerHeatmap 1`: wait for 200 ok, then wait for immediate -1; assert `heatmapCount` still > 0 and `stockSubView = heatmap`.
+- **T216** — 10-minute uptime soak: poll `heatmapCount` + `stockSubView` every 30s; assert never 0 / never "error" while DUT has had at least one successful fetch.
+- **T217** — Heap headroom: after each heatmap fetch attempt (pass or fail), log `hb` heartbeat `maxAlloc`; assert never below 32k (minimum for TLS handshake).
+- **T218** — Recovery: after a -1 cycle, wait 120s for next auto-fetch; assert `heatmapCount` recovers to > 0 within 300s.
+
+Exit criterion: T214–T218 all pass or each failing test has a filed bug task with repro steps.
+
+**Test IDs**: T214–T218.
+
+---
+
 ### TASK-129 — FEAT: Heatmap tile label — Tier 6 rotated vertical text
 **Owner**: Developer
 **Feature**: stock-002
