@@ -251,10 +251,12 @@ private:
     static constexpr float    CRAB_SCATTER_RADIUS_PX    = float(CRAB_W_PX);
     static constexpr float    CRAB_SCATTER_SPEED_PX_S   = 80.0f;
     static constexpr uint32_t CRAB_SCATTER_FLEE_MS      = 600;
+    static constexpr float    CRAB_SCATTER_Y_BIAS       = 0.35f;
 
     // Physics constants (transcribed from upstream lines 300-327)
     static constexpr float FISH_SWIM_WAVE_AMPLITUDE     = 1.5f;
     static constexpr float FISH_SWIM_WAVE_SPEED         = 5.6f;
+    static constexpr float FISH_SWIM_WAVE_SPEED_FLEE    = 16.0f;
     static constexpr float FISH_SWIM_WAVE_SPACING       = 0.85f;
     static constexpr float FISH_AVOID_RADIUS_X          = 52.0f;
     static constexpr float FISH_AVOID_RADIUS_Y          = 20.0f;
@@ -1056,7 +1058,7 @@ private:
         _canvas.setTextSize(1);
         _canvas.setTextDatum(TL_DATUM);
         const float t = _timeSec();
-        const float waveBase = t * FISH_SWIM_WAVE_SPEED;
+        uint32_t nowMs = millis();
         static const float kSin = lut_sin(FISH_SWIM_WAVE_SPACING);
         static const float kCos = lut_cos(FISH_SWIM_WAVE_SPACING);
         const int fontH = (int)_canvas.fontHeight();
@@ -1067,7 +1069,9 @@ private:
             const uint8_t* cw      = _fishCharWidthRight[f.type];
             uint8_t        len     = _fishGlyphLenRight[f.type];
             bool           goRight = (f.vx >= 0.0f);
-            float angle  = waveBase + f.phase;
+            bool  fleeing  = (f.fleeUntilMs != 0 && nowMs < f.fleeUntilMs);
+            float waveSpd  = fleeing ? FISH_SWIM_WAVE_SPEED_FLEE : FISH_SWIM_WAVE_SPEED;
+            float angle    = t * waveSpd + f.phase;
             float wave   = lut_sin(angle);
             float waveC  = lut_cos(angle);
             _canvas.setTextColor(f.renderColor);
@@ -1223,6 +1227,9 @@ private:
             if (dist > CRAB_SCATTER_RADIUS_PX) continue;
             float nx = (dist > 0.5f) ? dx / dist : (f.x < float(cx) ? -1.0f : 1.0f);
             float ny = (dist > 0.5f) ? dy / dist : -1.0f;
+            ny *= CRAB_SCATTER_Y_BIAS;
+            float blen = sqrtf(nx*nx + ny*ny);
+            if (blen > 0.01f) { nx /= blen; ny /= blen; }
             f.vx = nx * CRAB_SCATTER_SPEED_PX_S;
             f.vy = ny * CRAB_SCATTER_SPEED_PX_S;
             f.fleeUntilMs = now + CRAB_SCATTER_FLEE_MS;
