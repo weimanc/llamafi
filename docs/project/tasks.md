@@ -641,7 +641,7 @@ Exit criterion: `check_build.sh` passes; no bare `sinf`/`cosf` in aquariumApp.h;
 ### TASK-137 — VE: CPU-opt acceptance (ADR-038)
 **Owner**: VE
 **Feature**: perf-cpu-001
-**Status**: open — pending human visual sign-off (criteria 3, 6, 8, 9, 13)
+**Status**: complete (2026-06-04 — human visual sign-off received)
 **Milestone**: M-PERF-CPU
 **Design**: `docs/architecture/designs/M-AQUARIUM/cpu-opt.md` §7
 **Depends on**: TASK-132, TASK-133, TASK-134, TASK-135, TASK-136
@@ -662,17 +662,17 @@ Exit criterion: all 16 VE criteria pass; §7.1 fully populated; combined `tick` 
 |---|---|---|
 | 1 | PASS | `_lastClockUpdateMs` guard compiled and DUT stable |
 | 2 | PASS | check_build.sh 4/4 after P1+P2 |
-| 3 | NEEDS HUMAN | Visual — DUT running on /dev/ttyUSB0 |
+| 3 | PASS | Human sign-off 2026-06-04 — fish separate normally, no clumping |
 | 4 | PASS | upd 1074→935 µs (−139 µs >> 5 µs threshold) |
 | 5 | PASS | 10 switch cycles no NaN/freeze crash |
-| 6 | NEEDS HUMAN | Visual push-out behaviour |
+| 6 | PASS | Human sign-off 2026-06-04 — fish avoid visitors |
 | 7 | PASS | upd 935→449 µs (−486 µs >> 10 µs threshold) |
-| 8 | NEEDS HUMAN | Visual wave visualiser (switch to Winamp app) |
-| 9 | NEEDS HUMAN | Visual wave cadence A/B |
+| 8 | PASS | Human sign-off 2026-06-04 — continuous sinusoid, no flattening |
+| 9 | PASS | Human sign-off 2026-06-04 — wave cadence unchanged |
 | 10 | PASS | draw 49910→45792 µs (−4118 µs >> 20 µs threshold) |
 | 11 | PASS | grep sinf aquariumApp.h = 0 matches |
 | 12 | PASS | grep sinf vuMeter.h = 0 matches (after fixing rotation seed) |
-| 13 | NEEDS HUMAN | Visual animation continuous 60 s |
+| 13 | PASS | Human sign-off 2026-06-04 — fish wave, seaweed, bubbles all continuous |
 | 14 | PASS | tick 46246→41400 µs (−4846 µs >> 40 µs threshold) |
 | 15 | PASS | 10 aquarium↔winamp cycles, DUT responsive |
 | 16 | PASS | check_build.sh 4/4 final |

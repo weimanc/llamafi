@@ -420,7 +420,7 @@ void renderSettingsContent(SettingsAppState &s) {
 | Tab | ID | Content |
 |-----|----|---------|
 | `wifi` | 0 | WiFi scan + connect flow (see [wifi-settings.md](wifi-settings.md)) |
-| `time` | 1 | Timezone, NTP server, 12/24h toggle, weather location (lat/lon) |
+| `time` | 1 | City/location, timezone (auto-DST), 12/24h, date format (see [time-settings.md](time-settings.md)) |
 | `cal` | 2 | Touch calibration — launches `CalibrationFlow` (see [touch-calibration.md](touch-calibration.md)) |
 | `app` | 3 | Secondary menus for: Stock, Crypto, Aquarium, Matrix, Life |
 
