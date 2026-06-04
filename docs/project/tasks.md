@@ -803,26 +803,19 @@ See: `docs/rnd/reports/EXP-001-yahoo-finance-errors.md`, `docs/rnd/proposals/PRO
 ### TASK-111 — M-AQUARIUM-CRAB: Implement aquarium crab creature
 **Owner**: Developer
 **Feature**: aquarium-crab-001 (new)
-**Status**: open
+**Status**: complete (git `1d77e96`, with post-impl fixes `d3ff6c1` `9397f60` `ebe8f89` `795b6a8`)
 **Milestone**: M-AQUARIUM-CRAB
 **Blocked by**: nothing (M-AQUARIUM done — `aquariumApp.h` in tree)
 **Design**: `docs/architecture/designs/M-AQUARIUM/crab.md`
+**Completion note**: Crab implemented 2026-05-29. Walks canvas bottom, pinches flakes/fish, cute blink on hit, sleep ZZZ column. Post-impl fixes: symmetric legs + sway (d3ff6c1), CRAB-FIX-006–010 colour/aggression/zzz/Y-wander (9397f60), CRAB-FIX-011–014 leg freeze during pinch (ebe8f89/795b6a8). Feature complete and DUT-verified.
 **Notes**:
-- **TASK-111a**: Add `Crab` struct (state enum, x, direction, walkFrame, pinchFrame, sleepZFrame, cuteDurationMs, timestamps) and all `CRAB_*` constants to `aquariumApp.h`.
-- **TASK-111b**: Implement `initCrab()` — center x, direction right, state WALK, seed timestamps.
-- **TASK-111c**: Implement `updateCrab(float dt)`:
-  - Walk: `_crab.x += direction * CRAB_SPEED_PX_S * dt`; reverse at margins; seaweed-root avoidance via `_seaweedBaseX[]`.
-  - Walk-frame: 4-frame leg sweep (direction-aware modulo advance every `CRAB_WALK_STEP_MS`).
-  - Proximity scan: active fish + flakes in bottom zone → enter PINCH_L or PINCH_R; reset `pinchFrame = 0`.
-  - Pinch frame advance (0→3); on frame 3 hold: `findPinchTarget()` → hit (remove fish, CUTE 3s) or miss (WALK).
-  - Cute exit: `elapsed >= cuteDurationMs` → WALK.
-  - Sleep Z advance every `CRAB_SLEEP_Z_MS`.
-  - State transitions per §3 of design doc.
-- **TASK-111d**: Implement `drawCrab()` — two-row draw (body + leg row overlapped); sleep ZZZ sway column; cute blink via `(elapsed/375)%2`.
-- **TASK-111e**: Implement `findPinchTarget()` — proximity re-scan returning fish index or -1.
-- **TASK-111f**: Wire `initCrab()` into `init()`; `updateCrab(dt)` into `tick()` after `updateFlakes()`; `drawCrab()` into `renderFrame()` after `drawSeaweed()`.
-- **TASK-111g**: `check_build.sh` 4/4 ✅; flash to DUT; verify crab visible at bottom, walks, pinches a flake on touch-spawn.
-- Exit criterion: crab renders in red at canvas bottom, walks, pinches nearby fish (fish disappears), cute blink plays; `check_build.sh` passes.
+- **TASK-111a** ✅: Add `Crab` struct (state enum, x, direction, walkFrame, pinchFrame, sleepZFrame, cuteDurationMs, timestamps) and all `CRAB_*` constants to `aquariumApp.h`.
+- **TASK-111b** ✅: Implement `initCrab()` — center x, direction right, state WALK, seed timestamps.
+- **TASK-111c** ✅: Implement `updateCrab(float dt)`.
+- **TASK-111d** ✅: Implement `drawCrab()`.
+- **TASK-111e** ✅: Implement `findPinchTarget()`.
+- **TASK-111f** ✅: Wire into `init()`, `tick()`, `renderFrame()`.
+- **TASK-111g** ✅: `check_build.sh` 4/4; DUT-verified.
 
 ---
 

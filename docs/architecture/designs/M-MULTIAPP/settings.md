@@ -2,7 +2,7 @@
 
 > Owner: Architect
 > Status: draft (aesthetics TBD — pending preview pass; UX for value selection open)
-> Date: 2026-05-25 (updated 2026-06-04 — SettingsApp class sketch + list-row pattern added; ADR-039 proposed)
+> Date: 2026-05-25 (updated 2026-06-04 — SettingsApp class sketch + list-row pattern; 4-tab layout; Option A content distribution)
 > Part of: [overview.md](overview.md)
 > See also: [taskbar.md](taskbar.md), [app-lifecycle.md](app-lifecycle.md), [layout.md](layout.md), [stock.md](stock.md)
 
@@ -10,7 +10,7 @@
 
 ## Role
 
-The Settings app is a configuration menu accessible from the multi-app shell. It presents five **tab sections** across the top of the canvas; tapping a tab switches the content panel below it. Tabs are navigational placeholders for now — content will be specified per-section in follow-up design passes.
+The Settings app is a configuration menu accessible from the multi-app shell. It presents four **tab sections** across the top of the canvas; tapping a tab switches the content panel below it.
 
 The visual language inherits from the taskbar: same background tone, same separator style, same active-indicator idiom — so the shell feels coherent.
 
@@ -37,35 +37,87 @@ x=0                              x=274  x=275
 
 ## Tab layout
 
-Five equal-width tabs span the full canvas width:
+Four tabs span the full canvas width:
 
-| Tab | Label | Meaning | x range |
+| Tab | Label | Content | x range |
 |-----|-------|---------|---------|
-| 0 | `wifi` | Wi-Fi / network settings | 0..54 |
-| 1 | `clk` | Clock / NTP / timezone | 55..109 |
-| 2 | `loc` | Location (lat/lon for weather) | 110..164 |
-| 3 | `cal` | Display calibration / brightness | 165..219 |
-| 4 | `app` | Application-level settings | 220..274 |
+| 0 | `wifi` | Wi-Fi / network settings | 0..68 |
+| 1 | `time` | Clock, NTP, timezone + weather location (lat/lon) | 69..137 |
+| 2 | `cal` | Touch calibration | 138..206 |
+| 3 | `app` | Per-app settings (secondary menu per app) | 207..274 |
 
 Tab bar geometry:
 
 ```
-x=0    x=55   x=110  x=165  x=220  x=275
-+------+------+------+------+------+   y=0
-| wifi |  clk |  loc |  cal |  app |   tab bar  h=28
-+------+------+------+------+------+   y=28
-|                                  |
-|          content panel           |   h=212
-|                                  |
-+----------------------------------+   y=240
+x=0      x=69     x=138    x=207    x=275
++--------+--------+--------+--------+   y=0
+|  wifi  |  time  |  cal   |  app   |   tab bar  h=28
++--------+--------+--------+--------+   y=28
+|                                   |
+|           content panel           |   h=212
+|                                   |
++-----------------------------------+   y=240
 ```
 
-Pixel math: 5 × 55 = 275 ✓  
+Pixel math: 69 + 69 + 69 + 68 = 275 ✓ (tabs 0–2 = 69 px, tab 3 = 68 px)
 Tab bar + content = 28 + 212 = 240 ✓
 
-**Tab label rendering** — use Winamp 5×6 bitmap glyphs from `SKIN_GLYPH` (same source as taskbar icons, baked from TEXT.BMP). Centre label in its 55×28 cell. Short label strings keep each glyph row legible at small sizes.
+**Tab label rendering** — `tft.drawString` with font 2 (16px) centred in each cell.
+Short 4-char labels fit cleanly at this width. SKIN_GLYPH (5×6) is too small at 1× scale.
 
 **Separator lines** — draw with `TASKBAR_SEP_COLOR` (same as taskbar) between tabs and between tab bar and content panel.
+
+### Content distribution — Option A
+
+Clock and Weather configuration live in the tab whose label telegraphs the content
+(`time`). They do **not** appear in the `app` tab. The `app` tab covers only apps
+whose config has no natural home in the other three tabs.
+
+| Tab | Configurable items |
+|-----|--------------------|
+| `wifi` | SSID, password status, DNS override toggle |
+| `time` | Timezone, NTP server, 12/24h toggle, weather location (lat/lon) |
+| `cal` | Touch calibration (X/Y offset + scale) |
+| `app` | Secondary menus for: Stock, Crypto, Aquarium, Matrix, Life |
+
+### `app` tab — menu of menus
+
+The `app` tab renders a list of app names. Tapping an entry pushes into that
+app's own row-list. Back returns to the app-name list.
+
+```
++-----------------------------------+
+|  Stock              >             |
+|  Crypto             >             |
+|  Aquarium           >             |
+|  Matrix             >             |
+|  Life               >             |
++-----------------------------------+
+```
+
+Navigation state added to `SettingsAppState`:
+
+```cpp
+struct SettingsAppState {
+    uint8_t activeTab;       // 0..3
+    int8_t  appSubmenu;      // -1 = app list; 0..N = index into app submenu list
+    bool    initialised;
+};
+```
+
+`handleInput()` for the `app` tab:
+- `appSubmenu == -1` + row tap → set `appSubmenu = rowIdx`, repaint submenu
+- `appSubmenu >= 0` + back zone (y < SETTINGS_CONTENT_Y + SETTINGS_ROW_HEADER_H) → set `appSubmenu = -1`, repaint app list
+
+Per-app submenu content:
+
+| App | Settings rows |
+|-----|--------------|
+| Stock | Tickers ×8 (cycle from predefined list), default view (list/chart/heatmap) |
+| Crypto | Coins ×6 (cycle from predefined list), currency (USD/EUR) |
+| Aquarium | Fish count (4/8/12/16), speed (slow/normal/fast) |
+| Matrix | Color (green/white/amber), speed (slow/normal/fast) |
+| Life | Speed (slow/normal/fast), color scheme (rainbow/mono) |
 
 ---
 
@@ -241,8 +293,10 @@ private:
     void repaintTabBar();
     void repaintContent();             // dispatches to per-tab method
 
-    void repaintTabApp();              // tab 4 — first live content (stock config)
-    // repaintTabWifi/Clk/Loc/Cal: stub until per-tab design passes run
+    void repaintTabApp();              // tab 3 — app list or submenu
+    void repaintTabAppList();          // app-name list (appSubmenu == -1)
+    void repaintTabAppSubmenu();       // per-app row list (appSubmenu >= 0)
+    // repaintTabWifi/Time/Cal: stub until per-tab design passes run
 
     void onTabTap(int tab);
     void onRowTap(int tab, int row);
@@ -264,14 +318,17 @@ private:
 
 ```cpp
 struct SettingsAppState {
-    uint8_t activeTab;   // 0..4
+    uint8_t activeTab;    // 0..3
+    int8_t  appSubmenu;   // -1 = app list; 0..4 = index into app submenu list
     bool    initialised;
 };
 ```
 
-No network fetches. No persistent writes yet — settings values are TBD per tab.
+No network fetches. No persistent writes in this struct — settings values for each
+app are persisted to SPIFFS separately on change.
 
 `activeTab` persists across app switches (user returns to the same tab they left).
+`appSubmenu` resets to -1 on suspend — user always re-enters the app list, not mid-submenu.
 
 ---
 
@@ -301,11 +358,14 @@ No Spotify-style drag zones. All taps are point hits.
 
 ```c
 // Settings app geometry (to be added to gen/shell_layout.h after preview export)
-#define SETTINGS_TAB_COUNT          5
-#define SETTINGS_TAB_W             55    // canvas_w / TAB_COUNT = 275/5
+#define SETTINGS_TAB_COUNT          4
+#define SETTINGS_TAB_W             69    // tabs 0..2; tab 3 = 275 - 3*69 = 68
 #define SETTINGS_TAB_BAR_H         28
 #define SETTINGS_CONTENT_Y         28
 #define SETTINGS_CONTENT_H        212    // 240 - TAB_BAR_H
+
+// Inline helper — tab 3 is 1px narrower to reach exactly 275
+// int tabW(int i) { return (i < 3) ? SETTINGS_TAB_W : 275 - 3 * SETTINGS_TAB_W; }
 
 // Aesthetics — DRAFT, override via preview export
 #define SETTINGS_BG_RGB565        0x2104
@@ -357,31 +417,42 @@ void renderSettingsContent(SettingsAppState &s) {
 
 ## Per-tab content
 
-| Tab | ID | Content spec |
-|-----|----|-------------|
-| `wifi` | 0 | TBD |
-| `clk` | 1 | TBD |
-| `loc` | 2 | Weather location (lat/lon). UX open — text entry or predefined city list. |
-| `cal` | 3 | TBD |
-| `app` | 4 | App-level settings. First use case: Stock app — ticker selection + display mode (list / chart / heatmap). UX open — see §Open questions and [stock.md](stock.md). |
+| Tab | ID | Content |
+|-----|----|---------|
+| `wifi` | 0 | SSID, password status, DNS override toggle |
+| `time` | 1 | Timezone, NTP server, 12/24h toggle, weather location (lat/lon) |
+| `cal` | 2 | Touch calibration — launches `CalibrationFlow` (see [touch-calibration.md](touch-calibration.md)) |
+| `app` | 3 | Secondary menus for: Stock, Crypto, Aquarium, Matrix, Life |
 
-Each tab's content will be specified in a follow-up design pass. For now, `renderSettingsContent()` draws a blank panel with the tab index number centred (stub rendering for visual testing).
+Each tab's content will be specified in a follow-up design pass. For now,
+`renderSettingsContent()` draws a blank panel with the tab index centred
+(stub rendering for visual testing).
 
-### `app` tab — stock config (first content stub)
+### Per-app submenu content (tab 3)
 
-The `app` tab will host:
+| App | Settings rows |
+|-----|--------------|
+| Stock | Tickers ×8 (cycle from predefined list), default view (list/chart/heatmap) |
+| Crypto | Coins ×6 (cycle from predefined list), currency (USD/EUR) |
+| Aquarium | Fish count (4/8/12/16), speed (slow/normal/fast) |
+| Matrix | Color (green/white/amber), speed (slow/normal/fast) |
+| Life | Speed (slow/normal/fast), color scheme (rainbow/mono) |
 
-1. **Ticker list** — which 6 symbols to show. User picks from a predefined set
-   or enters custom symbols (UX open).
-2. **Display mode** — list / chart / heatmap selector (3-option toggle).
-
-Persistence: values written to SPIFFS on change; loaded by `StockApp::init()`.
-Schema addition to `/settings.json` (see §Open questions):
+Persistence: each app's values written to SPIFFS on change under `/settings.json`.
+Example schema:
 
 ```json
 {
-  "stockTickers": ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOG"],
-  "stockMode":    "list"
+  "stockTickers": ["AAPL", "AMD", "AMZN", "ARM", "GOOG", "META", "MSFT", "NVDA"],
+  "stockMode":    "list",
+  "cryptoCoins":  ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"],
+  "cryptoCcy":    "USD",
+  "aquariumFish": 8,
+  "aquariumSpeed": "normal",
+  "matrixColor":  "green",
+  "matrixSpeed":  "normal",
+  "lifeSpeed":    "normal",
+  "lifeColors":   "rainbow"
 }
 ```
 
@@ -486,15 +557,13 @@ Row height is a shared convention (26 px), not enforced by a base class.
 ## Open questions
 
 1. ~~**App access mechanism**~~ — **resolved 2026-05-25**: slot 6, taskbar scrolls (40 px cells preserved, M-TASKBAR-SCROLL).
-2. ~~**Shared base class with StockApp list view**~~ — **resolved 2026-06-04**: no base class extracted. StockApp (3-column read-only) and SettingsApp (2-column interactive) differ enough that a shared base adds vtable/template complexity without simplifying either. Pattern documented in §List-row content pattern above; extract if a third list-style app appears. See ADR-039.
-3. **Tab label glyphs** — use `SKIN_GLYPH` bitmap chars or `tft.drawString` with a small font? SKIN_GLYPH chars are 5×6; at 1× scale they are very small in a 55×28 cell. `tft.drawString(..., 1)` (font 1, 8px) or font 2 may be more legible. Decide in preview pass.
-4. **Per-tab content specs** — each of the five tabs is a stub. File separate design tasks as the settings surface is defined.
-5. **Persistence** — settings values will write to SPIFFS (`/settings.json` alongside `/spotify_diy_config.json`). Schema TBD once tab contents are defined.
-6. **UX for value selection** — three options under consideration for ticker/city entry:
-   - **Predefined scrollable list** — curated set, highlight to select. Lowest complexity, best fit for resistive touch. Recommended starting point.
-   - **On-screen QWERTY keyboard widget** — full text entry. High complexity, poor UX on resistive touch.
-   - **Hybrid** — keyboard with live-filter of a predefined list (search-as-you-type). Medium complexity.
-   Decision deferred to UX pass. See also [stock.md §Open questions](stock.md).
+2. ~~**Shared base class with StockApp list view**~~ — **resolved 2026-06-04**: no base class. See ADR-039.
+3. ~~**Tab count and content distribution**~~ — **resolved 2026-06-04**: 4 tabs (wifi/time/cal/app). Clock+location merged into `time`. Option A adopted — each tab owns its natural content; `app` tab is menu-of-menus for app-specific config.
+4. **Tab label glyphs** — `tft.drawString` font 2 (16px) decided over SKIN_GLYPH (5×6 too small). Exact label strings: `wifi`, `time`, `cal`, `app`. Confirm legibility in preview pass.
+5. **Pixel math** — tabs 0..2 = 69 px, tab 3 = 68 px (275 − 3×69). 1 px asymmetry on last tab — confirm acceptable in preview pass.
+6. **Per-tab content specs** — `wifi`, `time`, `cal` tabs are stubs. File separate design tasks per tab as implementation proceeds.
+7. **Persistence** — `/settings.json` on SPIFFS alongside `/spotify_diy_config.json`. Schema draft in §Per-tab content; finalise per tab as implemented.
+8. **UX for value selection** — predefined cycle-on-tap (resistive touch friendly) chosen as default. Text entry deferred; not needed for any currently-planned setting.
 
 ---
 
