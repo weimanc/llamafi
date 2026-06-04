@@ -2,7 +2,7 @@
 
 > Owner: Architect
 > Status: draft (aesthetics TBD — pending preview pass; UX for value selection open)
-> Date: 2026-05-25 (updated — app-access resolved, keyboard widget decision added)
+> Date: 2026-05-25 (updated 2026-06-04 — SettingsApp class sketch + list-row pattern added; ADR-039 proposed)
 > Part of: [overview.md](overview.md)
 > See also: [taskbar.md](taskbar.md), [app-lifecycle.md](app-lifecycle.md), [layout.md](layout.md), [stock.md](stock.md)
 
@@ -219,6 +219,47 @@ and city selection. See §Open questions and [stock.md](stock.md) for UX options
 
 ---
 
+## SettingsApp class sketch
+
+`SettingsApp` subclasses `App` directly (no shared base class — see ADR-039).
+
+```cpp
+class SettingsApp : public App {
+public:
+    void init()    override;           // load persisted activeTab from SPIFFS (default 0)
+    void resume()  override { repaint(); }
+    void suspend() override {}         // no inflight work to cancel
+    void tick()    override {}         // purely reactive — no polling or async
+    bool handleInput(TouchPhase phase, int x, int y) override;
+
+private:
+    struct State {
+        uint8_t activeTab = 0;
+    } _s;
+
+    void repaint();                    // full canvas: repaintTabBar() + repaintContent()
+    void repaintTabBar();
+    void repaintContent();             // dispatches to per-tab method
+
+    void repaintTabApp();              // tab 4 — first live content (stock config)
+    // repaintTabWifi/Clk/Loc/Cal: stub until per-tab design passes run
+
+    void onTabTap(int tab);
+    void onRowTap(int tab, int row);
+};
+```
+
+**Lifecycle notes:**
+
+- `tick()` is a no-op. Settings has no background fetches. Repaint happens on
+  `resume()` and in response to tap events only.
+- `init()` runs once at first `switchApp(AppId::Settings)`. Loads `activeTab`
+  from SPIFFS if a `/settings.json` entry exists; otherwise stays at 0.
+- `suspend()` is empty — no FreeRTOS tasks to cancel, no pending async.
+- `hasPendingAsync()` not overridden (defaults `false`) — correct.
+
+---
+
 ## State struct
 
 ```cpp
@@ -346,13 +387,110 @@ Schema addition to `/settings.json` (see §Open questions):
 
 ---
 
+## List-row content pattern
+
+Each settings tab that presents configurable items uses a **header + fixed-height
+rows** layout. The pattern is structurally identical to `StockApp::repaintList()`
+but adapted for 2-column label/value pairs with interactive cycling.
+
+No shared base class is extracted — see ADR-039 for the rationale.
+
+### Row data model
+
+```cpp
+struct SettingsRow {
+    const char* label;        // left column — setting name
+    const char* value;        // right column — current value string
+    uint16_t    labelColor;   // usually SETTINGS_LABEL_COLOR
+    uint16_t    valueColor;   // changes per state: ON/OFF/neutral
+};
+```
+
+### Row renderer
+
+```cpp
+static void drawSettingsRows(const SettingsRow* rows, int count,
+                             const char* header = nullptr) {
+    int y = SETTINGS_CONTENT_Y;
+
+    // Optional section header line
+    if (header) {
+        tft.setTextDatum(TL_DATUM);
+        tft.setTextColor(SETTINGS_HEADER_COLOR);
+        tft.drawString(header, SETTINGS_ROW_COL_LABEL, y + 4, 2);
+        tft.drawFastHLine(SETTINGS_ROW_COL_LABEL,
+                          y + SETTINGS_ROW_HEADER_H - 1,
+                          274 - SETTINGS_ROW_COL_LABEL, SETTINGS_SEP_COLOR);
+        y += SETTINGS_ROW_HEADER_H;
+    }
+
+    for (int i = 0; i < count; i++) {
+        int mid = y + SETTINGS_ROW_H / 2;
+        tft.setTextDatum(ML_DATUM);
+        tft.setTextColor(rows[i].labelColor);
+        tft.drawString(rows[i].label, SETTINGS_ROW_COL_LABEL, mid, 2);
+        tft.setTextDatum(MR_DATUM);
+        tft.setTextColor(rows[i].valueColor);
+        tft.drawString(rows[i].value, SETTINGS_ROW_COL_VALUE, mid, 2);
+        y += SETTINGS_ROW_H;
+    }
+    tft.setTextDatum(TL_DATUM);
+}
+```
+
+### Touch — row index from y
+
+```cpp
+// Inside onRowTap() / content-area branch of handleInput():
+int firstRowY = SETTINGS_CONTENT_Y + (header ? SETTINGS_ROW_HEADER_H : 0);
+int rowIdx    = (y - firstRowY) / SETTINGS_ROW_H;
+if (rowIdx < 0 || rowIdx >= count) return false;
+// cycle the value at rowIdx, re-render that row
+```
+
+### Geometry constants (append to `gen/shell_layout.h` after preview export)
+
+```c
+#define SETTINGS_ROW_H              26     // matches ST_LIST_ROW_H in StockApp
+#define SETTINGS_ROW_HEADER_H       22     // tab section header height
+#define SETTINGS_ROW_COL_LABEL       8     // left edge of label text
+#define SETTINGS_ROW_COL_VALUE     268     // right-aligned terminus
+#define SETTINGS_ROW_MAX             8     // max rows visible in 212px panel (212/26)
+```
+
+### Colour constants
+
+```c
+#define SETTINGS_LABEL_COLOR      0xFFFF   // white
+#define SETTINGS_HEADER_COLOR     0xFFE0   // yellow — section header text
+#define SETTINGS_VALUE_COLOR      0x07FF   // cyan — neutral value
+#define SETTINGS_VALUE_ON         0x07E0   // green — enabled / active
+#define SETTINGS_VALUE_OFF        0x7BEF   // grey — disabled / inactive
+```
+
+### Comparison with StockApp list
+
+| Aspect | StockApp list | SettingsApp rows |
+|--------|--------------|-----------------|
+| Columns | 3 (symbol / price / pct) | 2 (label / value) |
+| Alignment | L / L / R | L / R |
+| Content type | Read-only fetched data | Interactive — cycle on tap |
+| Tap action | Drill to chart sub-view | Cycle value in place |
+| Row height | 26 px (`ST_LIST_ROW_H`) | 26 px (`SETTINGS_ROW_H`) |
+| Section header | Title + rule above rows | Optional per-section header |
+
+Row height is a shared convention (26 px), not enforced by a base class.
+
+---
+
 ## Open questions
 
 1. ~~**App access mechanism**~~ — **resolved 2026-05-25**: slot 6, taskbar scrolls (40 px cells preserved, M-TASKBAR-SCROLL).
-2. **Tab label glyphs** — use `SKIN_GLYPH` bitmap chars or `tft.drawString` with a small font? SKIN_GLYPH chars are 5×6; at 1× scale they are very small in a 55×28 cell. `tft.drawString(..., 1)` (font 1, 8px) or font 2 may be more legible. Decide in preview pass.
-3. **Per-tab content specs** — each of the five tabs is a stub. File separate design tasks as the settings surface is defined.
-4. **Persistence** — settings values will write to SPIFFS (`/settings.json` alongside `/spotify_diy_config.json`). Schema TBD once tab contents are defined.
-5. **UX for value selection** — three options under consideration for ticker/city entry:
+2. ~~**Shared base class with StockApp list view**~~ — **resolved 2026-06-04**: no base class extracted. StockApp (3-column read-only) and SettingsApp (2-column interactive) differ enough that a shared base adds vtable/template complexity without simplifying either. Pattern documented in §List-row content pattern above; extract if a third list-style app appears. See ADR-039.
+3. **Tab label glyphs** — use `SKIN_GLYPH` bitmap chars or `tft.drawString` with a small font? SKIN_GLYPH chars are 5×6; at 1× scale they are very small in a 55×28 cell. `tft.drawString(..., 1)` (font 1, 8px) or font 2 may be more legible. Decide in preview pass.
+4. **Per-tab content specs** — each of the five tabs is a stub. File separate design tasks as the settings surface is defined.
+5. **Persistence** — settings values will write to SPIFFS (`/settings.json` alongside `/spotify_diy_config.json`). Schema TBD once tab contents are defined.
+6. **UX for value selection** — three options under consideration for ticker/city entry:
    - **Predefined scrollable list** — curated set, highlight to select. Lowest complexity, best fit for resistive touch. Recommended starting point.
    - **On-screen QWERTY keyboard widget** — full text entry. High complexity, poor UX on resistive touch.
    - **Hybrid** — keyboard with live-filter of a predefined list (search-as-you-type). Medium complexity.
