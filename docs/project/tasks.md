@@ -395,6 +395,45 @@ Flash `cyd2usb_winamp_debug`. Switch to StockApp → heatmap. Wait 120s for firs
 
 ---
 
+### TASK-138 — VE: tlsYield reliability suite — T219/T220/T221 + T217 threshold fix
+**Owner**: VE
+**Feature**: stock-002, crypto-001, weather-001 (cross-cutting — io-001 / X010)
+**Status**: open
+**Source**: VE coverage gap audit 2026-06-04 (following TASK-131 extended fix `e00b453`)
+
+The four new `tlsYield` callsites added in `e00b453` (fetchCrypto, fetchStockQuote, fetchStockChart, fetchStockChartBySym) and the weather HTTP/1.0 fix have no heap-headroom or mechanism tests. T216/T217 cover only the heatmap path. An OOM regression on these paths would surface as a -1 error code indistinguishable from a network failure.
+
+#### Sub-tasks
+
+- **TASK-138a** — Write `app/tools/test_tls_yield_reliability.py` containing T219, T220, T221. Pattern: `run_serialdbg_tests.py`-style Dut harness; log-scrape serial output for `tls yield` lines + LOG_HEAP `maxBlk` values.
+
+- **TASK-138b** — **T219**: Stock quote tlsYield — all 8 tickers succeed + mechanism fires.
+  - Trigger: `switchApp 7` → `set triggerFetch 1`.
+  - Assert: `quote GET <SYM> 200` for all 8 symbols (AAPL AMD AMZN ARM GOOG META MSFT NVDA); `[spotify.tls] tls yield — client stopped` precedes first ticker; `tls yield — resumed` follows last ticker; LOG_HEAP `maxBlk≥50k` after yield.
+  - Fail: any ticker returns non-200; yield lines absent; maxBlk<50k before loop.
+
+- **TASK-138c** — **T220**: Crypto tlsYield — GET 200, NoMemory absent, mechanism fires.
+  - Trigger: `switchApp 4` → wait for auto-fetch cycle (up to 90s).
+  - Assert: `dataTask.crypto GET 200`; no `JSON parse error: NoMemory`; `tls yield — client stopped` / `tls yield — resumed` in log; LOG_HEAP `maxBlk≥50k` after yield.
+  - Fail: NoMemory error; yield lines absent; maxBlk<50k.
+
+- **TASK-138d** — **T221**: Weather TCP-close regression guard (HTTP/1.0 fix).
+  - Trigger: `switchApp 3` → wait for fetch cycle (up to 90s).
+  - Assert: `dataTask.weather GET 200` followed within 2s by `disconnect(): tcp is closed`; no `tcp keep open for reuse` line; LOG_HEAP `maxBlk` after fetch within 5k of pre-fetch value (TLS freed, not leaked).
+  - Fail: `tcp keep open for reuse` present (HTTP/1.1 keep-alive regression); `maxBlk` drops >5k.
+
+- **TASK-138e** — Fix T217 threshold: update `test_heatmap_reliability.py` line asserting `maxAlloc < 32k` → `< 50k`. Rationale: Yahoo Finance TLS floor is ~50k; 32k passes even when heap is too fragmented for a new session.
+
+- **TASK-138f** — Execute T219/T220/T221 on DUT (debug build). Record results. Update `test_plan.md` with T219–T221 entries and statuses.
+
+#### Exit criterion
+
+T219, T220, T221 all pass on DUT; T217 threshold updated and T217 re-run passes; T219–T221 written in `test_plan.md`.
+
+**Test IDs**: T219, T220, T221 (new); T217 threshold update (existing).
+
+---
+
 ### TASK-132 — PERF-CPU: Instrumentation setup + baseline capture
 **Owner**: Developer
 **Feature**: perf-cpu-001 (new)
