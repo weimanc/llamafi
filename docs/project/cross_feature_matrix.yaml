@@ -136,7 +136,7 @@ interactions:
       while Spotify is live MUST wrap the fetch with heatmapPause() /
       heatmapResume(), or arrange equivalent TLS yield, to avoid this OOM.
     risk: high
-    test_coverage: [T216, T217]
+    test_coverage: [T216, T217, T219, T220, T221]
     notes: |
       Confirmed on DUT 2026-06-04: 10-min soak post-fix, 5 fetches all 200,
       maxAlloc min=39k (between fetches, with Spotify reconnected), 0 violations.

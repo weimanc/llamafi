@@ -436,6 +436,97 @@ T219, T220, T221 all pass on DUT; T217 threshold updated and T217 re-run passes;
 
 ---
 
+### TASK-139 — VE: Harden `Dut` against DRD portal trap (LL-051 / BP-018)
+**Owner**: VE
+**Feature**: test-infra (cross-cutting)
+**Status**: open
+**Source**: LL-051 / BP-018 filed 2026-06-04 after TASK-138 DUT session
+
+`Dut._wait_for_ready()` does not detect or recover from the WiFiManager force-portal
+state. If a DoubleResetDetector (DRD) trigger puts the DUT into `startConfigPortal()`
+(no-timeout, blocks forever), the harness silently wastes 85 s (25 s WiFi wait +
+60 s Spotify poll wait), emits a spurious `[Dut] DUT ready.`, and lets all subsequent
+tests fail with opaque `TimeoutError` or `unknown command`. There is also no
+cross-process reset-gap guard: a second test script opening the port within 10 s of
+the first closing it fires a second reset → DRD.
+
+#### Sub-tasks
+
+- **TASK-139a** — **Portal detection + auto-recovery in `_wait_for_ready()`**
+  - During the 25 s WiFi wait, also watch for portal indicators:
+    `"Forcing config mode"`, `"configuring access point"`, `"SpotifyDIY"`, `"WiFiManager"`.
+  - If any seen: print `[Dut] PORTAL DETECTED — auto-recovering (waiting 12 s for DRD window)…`,
+    sleep until 12 s have elapsed since port-open (the DRD window), pulse RTS once
+    (`rts=True` 100 ms, `rts=False`), then restart the boot wait loop (once only — raise
+    `RuntimeError` with manual instructions if portal recurs on the second attempt).
+  - Tighten fallback: if 25 s elapse with no `"IP address:"` AND no portal indicators,
+    raise `RuntimeError("DUT WiFi not connected — check serial output")` rather than
+    silently continuing to the Spotify poll loop.
+
+- **TASK-139b** — **Cross-process reset-gap enforcement via timestamp file**
+  - `close()`: after `self.ser.close()`, write `str(time.time())` to
+    `/tmp/esp32_dut_last_reset`.
+  - `__init__` (before `self.ser.open()`): read `/tmp/esp32_dut_last_reset` if it
+    exists; if `time.time() - last_ts < 12.0`, sleep the remainder with a one-line
+    print `[Dut] waiting Xs for DRD gap (BP-018)…`.
+  - Covers the close→immediate-reopen pattern across separate Python processes
+    (chained test scripts, re-runs).
+
+#### Exit criterion
+
+`Dut` detects portal output and auto-recovers without human intervention; a
+close→reopen within 10 s is automatically deferred; all existing tests unaffected.
+No new test IDs required — regression gate is `check_build.sh` + existing serialdbg
+test suite passing after the change.
+
+---
+
+### TASK-140 — VE: Extract satellite test boilerplate to `ve_suite_base.py`
+**Owner**: VE
+**Feature**: test-infra (cross-cutting)
+**Status**: open
+**Source**: Code-duplication audit 2026-06-04 (TASK-138 close)
+
+`RESULTS dict` + `pass_/fail/skip/flake()` + `main()` with `--port/--baud/--timeout/--tests`
+argparse are byte-for-byte identical in `test_heatmap_reliability.py` (~46 lines) and
+`test_tls_yield_reliability.py` (~46 lines). Every future satellite VE test file will
+copy this block again. `Dut` already lives in `run_serialdbg_tests.py` and is imported;
+the result-tracking + CLI layer above it needs the same treatment.
+
+The `Dut` class should remain in `run_serialdbg_tests.py` (it is its primary home and
+the serialdbg suite imports it from there). Only the boilerplate above `Dut` is extracted.
+
+#### Sub-tasks
+
+- **TASK-140a** — Create `app/tools/ve_suite_base.py` containing:
+  - `RESULTS: dict[str, str]` + `pass_/fail/skip/flake()` functions (exact current
+    implementations).
+  - `run_suite(all_tests: list[str], test_fns: dict[str, Callable], dut: Dut,
+    selected: list[str])` — the test-dispatch + per-test exception catch loop currently
+    duplicated in both `main()` functions.
+  - `make_arg_parser(all_tests: list[str]) -> argparse.ArgumentParser` — the standard
+    `--port/--baud/--timeout/--tests` parser.
+  - `print_results(all_tests: list[str])` — the results summary + exit code logic.
+
+- **TASK-140b** — Refactor `test_heatmap_reliability.py` to import from `ve_suite_base`.
+  Replace the local `RESULTS`, `pass_/fail/skip/flake`, and `main()` block with imports
+  and a 3-line `main()` that calls `make_arg_parser`, `Dut`, `run_suite`,
+  `print_results`. Behaviour must be identical (same CLI, same output format).
+
+- **TASK-140c** — Refactor `test_tls_yield_reliability.py` likewise.
+
+- **TASK-140d** — Smoke-test: run both satellite suites end-to-end on DUT after refactor
+  to confirm identical pass/fail/skip behaviour. `check_build.sh` 4/4.
+
+#### Exit criterion
+
+Both satellite files import boilerplate from `ve_suite_base.py`; no local copies of
+`RESULTS`/`pass_`/`fail`/`skip`/`flake`/`main` remain in either file; all tests pass;
+a new satellite test can be created by importing 4 names from `ve_suite_base` + defining
+test functions.
+
+---
+
 ### TASK-132 — PERF-CPU: Instrumentation setup + baseline capture
 **Owner**: Developer
 **Feature**: perf-cpu-001 (new)
