@@ -138,6 +138,11 @@ public:
                 (unsigned long)_perfFrames);
             _perfCycUpdate = _perfCycDraw = _perfCycTick = _perfFrames = 0;
         }
+
+        // Frame rate cap: pad short frames to 42 ms so all frames are uniform,
+        // smoothing out the perceptual stutter from WiFi/DMA timing variance.
+        long _rem = 42L - (long)(millis() - now);
+        if (_rem > 0) vTaskDelay(pdMS_TO_TICKS((uint32_t)_rem));
     }
 
     bool handleInput(TouchPhase phase, int x, int y) override {
