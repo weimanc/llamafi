@@ -20,6 +20,14 @@
 
 namespace dataTask {
 
+// Logs free heap and largest contiguous block before/after each TLS session.
+// Largest block (maxBlk) is the operative metric: a new TLS handshake needs
+// ~50–70 k contiguous; if maxBlk < 50 k the fetch will return -1 (SSL OOM).
+#define LOG_HEAP(tag) \
+    LOG_D(tag, "heap free=%uk maxBlk=%uk", \
+          (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)         / 1024), \
+          (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)/ 1024))
+
 // --- internal types ----------------------------------------------------------
 
 struct Request { uint8_t type; uint8_t param0; uint8_t param1; char symbol[8]; };
@@ -80,6 +88,7 @@ static const char  HEATMAP_URL[] =
 // --- fetch functions ---------------------------------------------------------
 
 static void fetchWeather() {
+    LOG_HEAP("dataTask.weather");
     WiFiClientSecure tls;
     tls.setCACert(OPEN_METEO_ROOT_CA);
     HTTPClient http;
@@ -112,9 +121,11 @@ static void fetchWeather() {
         LOG_W("dataTask.weather", "http %d", code);
     }
     http.end();
+    LOG_HEAP("dataTask.weather");
 }
 
 static void fetchCrypto() {
+    LOG_HEAP("dataTask.crypto");
     WiFiClientSecure tls;
     tls.setCACert(COINGECKO_ROOT_CA);
     HTTPClient http;
@@ -147,9 +158,11 @@ static void fetchCrypto() {
         LOG_W("dataTask.crypto", "http %d", code);
     }
     http.end();
+    LOG_HEAP("dataTask.crypto");
 }
 
 static void fetchStockQuote() {
+    LOG_HEAP("dataTask.stock");   // before 8-ticker TLS loop
     StockQuoteResult r;
     r.ok = true;
     for (int i = 0; i < 8 && r.ok; i++) {
@@ -199,6 +212,7 @@ static void fetchStockQuote() {
     s_stockQuoteNew    = true;
     portEXIT_CRITICAL_SAFE(&s_stockQuoteMux);
     if (r.ok) LOG_D("dataTask.stock", "quote ok aapl=%.2f msft=%.2f", r.prices[0], r.prices[1]);
+    LOG_HEAP("dataTask.stock");   // after 8-ticker TLS loop
 }
 
 static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
@@ -206,12 +220,10 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
     String url = String(STOCK_URL_BASE) + STOCK_TICKERS[tickerIdx]
                  + "?interval=" + STOCK_INTERVAL_STR[rangeIdx]
                  + "&range="    + STOCK_RANGE_STR[rangeIdx];
-#ifdef SERIAL_DEBUG
-    LOG_D("dataTask.stock", "chart START %s range=%s heap_free=%u heap_min=%u",
+    LOG_D("dataTask.stock", "chart START %s range=%s heap free=%uk maxBlk=%uk",
           STOCK_TICKERS[tickerIdx], STOCK_RANGE_STR[rangeIdx],
-          heap_caps_get_free_size(MALLOC_CAP_8BIT),
-          heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
-#endif
+          (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)          / 1024),
+          (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024));
     StockChartResult r;
     WiFiClientSecure tls;
     tls.setCACert(YAHOO_FINANCE_ROOT_CA);
@@ -231,10 +243,9 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
             r.ok = false; r.errorCode = code;
             http.end();
         } else {
-#ifdef SERIAL_DEBUG
-            LOG_D("dataTask.stock", "chart pre-json heap_free=%u",
-                  heap_caps_get_free_size(MALLOC_CAP_8BIT));
-#endif
+            LOG_D("dataTask.stock", "chart pre-json heap free=%uk maxBlk=%uk",
+                  (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)          / 1024),
+                  (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024));
             // Filter: extract only close[] — D1 response is ~8 KB (78×5m candles);
             // full parse needs >16384 B pool and cascades a dirty TCP RST into
             // the Spotify keep-alive connection. Filter reduces pool to <2 KB.
@@ -246,10 +257,10 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
             DeserializationError err = deserializeJson(doc, http.getStream(),
                                            DeserializationOption::Filter(filter));
             http.end();
-#ifdef SERIAL_DEBUG
-            LOG_D("dataTask.stock", "chart post-json heap_free=%u err=%s",
-                  heap_caps_get_free_size(MALLOC_CAP_8BIT), err.c_str());
-#endif
+            LOG_D("dataTask.stock", "chart post-json heap free=%uk maxBlk=%uk err=%s",
+                  (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)          / 1024),
+                  (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024),
+                  err.c_str());
             if (err) {
                 LOG_W("dataTask.stock", "chart JSON err: %s", err.c_str());
                 r.ok = false; r.errorCode = -90 - (int)err.code();
@@ -291,6 +302,7 @@ static void fetchHeatmapQuote() {
     // (~50–70 k). heatmapPause() blocks until the spotify task has called
     // client.stop(); heatmapResume() (below) releases it to reconnect.
     spotifyTask::heatmapPause();
+    LOG_HEAP("dataTask.stock");   // after Spotify TLS freed — expect maxBlk ≥ 50k
 
     WiFiClientSecure tls;
     tls.setCACert(YAHOO_FINANCE_ROOT_CA);
@@ -368,6 +380,7 @@ static void fetchHeatmapQuote() {
     }
     portEXIT_CRITICAL_SAFE(&s_heatmapMux);
     spotifyTask::heatmapResume();  // release Spotify task to reconnect
+    LOG_HEAP("dataTask.stock");   // after heatmap TLS freed
 }
 
 static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
@@ -376,6 +389,7 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
                  + "?interval=" + STOCK_INTERVAL_STR[rangeIdx]
                  + "&range="    + STOCK_RANGE_STR[rangeIdx];
     StockChartResult r;
+    LOG_HEAP("dataTask.stock");
     WiFiClientSecure tls;
     tls.setCACert(YAHOO_FINANCE_ROOT_CA);
     HTTPClient http;
@@ -424,6 +438,7 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
     s_stockChartResult = r;
     s_stockChartNew    = true;
     portEXIT_CRITICAL_SAFE(&s_stockChartMux);
+    LOG_HEAP("dataTask.stock");
 }
 
 // --- task body ---------------------------------------------------------------

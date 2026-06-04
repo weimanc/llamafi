@@ -114,6 +114,35 @@ interactions:
     test_coverage: []
     notes: Added 2026-05-25 (QM audit). Mirror of X008 for the crypto consumer.
 
+  - id: X010
+    feature_a: io-001
+    feature_b: stock-002
+    interaction_type: conflict
+    description: |
+      The Spotify task (io-001) holds a persistent WiFiClientSecure session
+      (~40 k of internal heap) between polls. At steady state this leaves
+      maxAlloc ≈ 39 k — below the ~50–70 k a new Yahoo Finance TLS handshake
+      requires. Any heatmap auto-refresh (stock-002, 120 s cadence) fails with
+      SSL -32512 (Memory allocation failed) unless Spotify's TLS is released
+      first.
+
+      Fix (TASK-131 / git c82b4d1): spotifyTask::heatmapPause() stops the
+      Spotify client before the fetch and blocks until the task acknowledges
+      (binary semaphore, up to 5 s). heatmapResume() releases the task to
+      reconnect on its next natural poll. The pause/resume call-site is
+      fetchHeatmapQuote() in dataTaskStorage.cpp.
+
+      Invariant: any future dataTask fetch that needs its own TLS session
+      while Spotify is live MUST wrap the fetch with heatmapPause() /
+      heatmapResume(), or arrange equivalent TLS yield, to avoid this OOM.
+    risk: high
+    test_coverage: [T216, T217]
+    notes: |
+      Confirmed on DUT 2026-06-04: 10-min soak post-fix, 5 fetches all 200,
+      maxAlloc min=39k (between fetches, with Spotify reconnected), 0 violations.
+      heap probe LOG_HEAP macro added to all dataTask fetch functions to surface
+      regressions via the serial debug log (dataTask.{weather,crypto,stock} tags).
+
 # --- Entry template ---
 # - id: X001
 #   feature_a: auth-001
