@@ -135,12 +135,13 @@ bool isHealthy();
 // backoff counter so the recovery poll fires immediately.
 void resetTls();
 
-// TASK-131: yield Spotify TLS so the heatmap fetch can allocate its own
-// session from the freed heap. Blocks the caller until the task has called
-// client.stop() (up to 5 s). Must be followed by heatmapResume() once the
-// fetch completes; the task spins (20 ms ticks) until that call.
-void heatmapPause();
-void heatmapResume();
+// TASK-131: stop Spotify TLS so a dataTask fetch can allocate its own
+// session from the freed heap (~40 k released). Blocks until the spotify
+// task acks (up to 5 s). Must be followed by tlsResume(); the task spins
+// (20 ms ticks) holding the yield until that call.
+// Used by every HTTPS fetch in dataTask (heatmap, crypto, stock quote/chart).
+void tlsYield();
+void tlsResume();
 
 #ifdef SERIAL_DEBUG
 // TASK-056f (serialdbg-001 / ADR-021 A1) — unified owner-dispatch accessors.

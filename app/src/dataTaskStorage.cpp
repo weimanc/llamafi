@@ -92,6 +92,7 @@ static void fetchWeather() {
     WiFiClientSecure tls;
     tls.setCACert(OPEN_METEO_ROOT_CA);
     HTTPClient http;
+    http.useHTTP10(true);   // force Connection:close so http.end() frees TLS
     if (!http.begin(tls, WEATHER_URL)) {
         LOG_W("dataTask.weather", "http.begin failed");
         return;
@@ -99,9 +100,14 @@ static void fetchWeather() {
     unsigned long t0 = millis();
     int code = http.GET();
     LOG_D("dataTask.weather", "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
+    String body;
+    if (code == 200) body = http.getString();
+    else             LOG_W("dataTask.weather", "http %d", code);
+    http.end();             // TLS freed here (HTTP/1.0 close)
+    LOG_HEAP("dataTask.weather");
     if (code == 200) {
         DynamicJsonDocument doc(1024);
-        DeserializationError err = deserializeJson(doc, http.getString());
+        DeserializationError err = deserializeJson(doc, body);
         if (!err) {
             WeatherResult r;
             r.ok    = true;
@@ -117,28 +123,37 @@ static void fetchWeather() {
         } else {
             LOG_W("dataTask.weather", "JSON parse error: %s", err.c_str());
         }
-    } else {
-        LOG_W("dataTask.weather", "http %d", code);
     }
-    http.end();
-    LOG_HEAP("dataTask.weather");
 }
 
 static void fetchCrypto() {
+    // CoinGecko TLS takes ~4-5s; Spotify polls every 5s and can fire mid-connect,
+    // fragmenting the heap enough that DynamicJsonDocument(2048) hits NoMemory.
+    // Pause Spotify TLS first (same mechanism as heatmap) to give the alloc clean
+    // contiguous heap. HTTP/1.0 ensures http.end() frees TLS before JSON parse.
+    spotifyTask::tlsYield();
     LOG_HEAP("dataTask.crypto");
     WiFiClientSecure tls;
     tls.setCACert(COINGECKO_ROOT_CA);
     HTTPClient http;
+    http.useHTTP10(true);   // force Connection:close so http.end() frees TLS
     if (!http.begin(tls, CRYPTO_URL)) {
         LOG_W("dataTask.crypto", "http.begin failed");
+        spotifyTask::tlsResume();
         return;
     }
     unsigned long t0 = millis();
     int code = http.GET();
     LOG_D("dataTask.crypto", "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
+    String body;
+    if (code == 200) body = http.getString();
+    else             LOG_W("dataTask.crypto", "http %d", code);
+    http.end();             // TLS freed here (HTTP/1.0 close)
+    spotifyTask::tlsResume();
+    LOG_HEAP("dataTask.crypto");
     if (code == 200) {
         DynamicJsonDocument doc(2048);
-        DeserializationError err = deserializeJson(doc, http.getString());
+        DeserializationError err = deserializeJson(doc, body);
         if (!err) {
             CryptoResult r;
             r.ok = true;
@@ -154,14 +169,11 @@ static void fetchCrypto() {
         } else {
             LOG_W("dataTask.crypto", "JSON parse error: %s", err.c_str());
         }
-    } else {
-        LOG_W("dataTask.crypto", "http %d", code);
     }
-    http.end();
-    LOG_HEAP("dataTask.crypto");
 }
 
 static void fetchStockQuote() {
+    spotifyTask::tlsYield();         // free Spotify TLS before 8 consecutive Yahoo handshakes
     LOG_HEAP("dataTask.stock");   // before 8-ticker TLS loop
     StockQuoteResult r;
     r.ok = true;
@@ -213,10 +225,12 @@ static void fetchStockQuote() {
     portEXIT_CRITICAL_SAFE(&s_stockQuoteMux);
     if (r.ok) LOG_D("dataTask.stock", "quote ok aapl=%.2f msft=%.2f", r.prices[0], r.prices[1]);
     LOG_HEAP("dataTask.stock");   // after 8-ticker TLS loop
+    spotifyTask::tlsResume();
 }
 
 static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
     if (tickerIdx >= 8 || rangeIdx >= 4) return;
+    spotifyTask::tlsYield();
     String url = String(STOCK_URL_BASE) + STOCK_TICKERS[tickerIdx]
                  + "?interval=" + STOCK_INTERVAL_STR[rangeIdx]
                  + "&range="    + STOCK_RANGE_STR[rangeIdx];
@@ -288,6 +302,7 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
     s_stockChartResult = r;
     s_stockChartNew    = true;
     portEXIT_CRITICAL_SAFE(&s_stockChartMux);
+    spotifyTask::tlsResume();
 }
 
 // Pre-allocated at startup (unfragmented heap) and reused per fetch cycle to avoid
@@ -299,9 +314,9 @@ static void fetchHeatmapQuote() {
     // TASK-131: stop Spotify's TLS connection before allocating our own.
     // Spotify's persistent session holds ~40 k of heap; at steady state
     // maxAlloc ≈ 39 k — not enough for a new Yahoo Finance TLS handshake
-    // (~50–70 k). heatmapPause() blocks until the spotify task has called
-    // client.stop(); heatmapResume() (below) releases it to reconnect.
-    spotifyTask::heatmapPause();
+    // (~50–70 k). tlsYield() blocks until the spotify task has called
+    // client.stop(); tlsResume() (below) releases it to reconnect.
+    spotifyTask::tlsYield();
     LOG_HEAP("dataTask.stock");   // after Spotify TLS freed — expect maxBlk ≥ 50k
 
     WiFiClientSecure tls;
@@ -379,12 +394,13 @@ static void fetchHeatmapQuote() {
         s_heatmapNew    = true;
     }
     portEXIT_CRITICAL_SAFE(&s_heatmapMux);
-    spotifyTask::heatmapResume();  // release Spotify task to reconnect
+    spotifyTask::tlsResume();  // release Spotify task to reconnect
     LOG_HEAP("dataTask.stock");   // after heatmap TLS freed
 }
 
 static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
     if (!symbol || symbol[0] == '\0' || rangeIdx >= 4) return;
+    spotifyTask::tlsYield();
     String url = String(STOCK_URL_BASE) + symbol
                  + "?interval=" + STOCK_INTERVAL_STR[rangeIdx]
                  + "&range="    + STOCK_RANGE_STR[rangeIdx];
@@ -439,6 +455,7 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
     s_stockChartNew    = true;
     portEXIT_CRITICAL_SAFE(&s_stockChartMux);
     LOG_HEAP("dataTask.stock");
+    spotifyTask::tlsResume();
 }
 
 // --- task body ---------------------------------------------------------------
