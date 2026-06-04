@@ -321,7 +321,7 @@ def _run_soak(dut: Dut, soak_minutes: int):
 
     print(f"T216  {soak_minutes}-min soak: heatmapCount>0 and subView=heatmap throughout",
           flush=True)
-    print(f"T217  Heap headroom: maxAlloc>32k after each fetch", flush=True)
+    print(f"T217  Heap headroom: maxAlloc>50k after each fetch", flush=True)
 
     _flush(dut)
     if not _switch_to_stock(dut):
@@ -398,7 +398,7 @@ def _run_soak(dut: Dut, soak_minutes: int):
             if alloc is not None:
                 maxalloc_bytes.append(alloc)
                 ts = time.monotonic() - t_soak
-                if alloc < 32768:
+                if alloc < 51200:
                     heap_violations.append((alloc, line))
                     print(f"  [T217] HEAP VIOLATION t+{ts:.0f}s maxAlloc={alloc//1024}k",
                           flush=True)
@@ -470,7 +470,7 @@ def _run_soak(dut: Dut, soak_minutes: int):
 
     # Evaluate T217
     if heap_violations:
-        fail("T217", f"{len(heap_violations)} maxAlloc<32k readings: "
+        fail("T217", f"{len(heap_violations)} maxAlloc<50k readings: "
                      f"{[f'{v//1024}k' for v, _ in heap_violations]}")
     elif not maxalloc_bytes:
         skip("T217", f"no heartbeat maxAlloc lines in {soak_minutes}-min soak "
@@ -478,7 +478,7 @@ def _run_soak(dut: Dut, soak_minutes: int):
     else:
         min_alloc = min(maxalloc_bytes)
         pass_("T217", f"{len(maxalloc_bytes)} readings; "
-                      f"min={min_alloc//1024}k; all ≥ 32k (TLS headroom OK)")
+                      f"min={min_alloc//1024}k; all ≥ 50k (TLS headroom OK)")
 
 
 def t216(dut: Dut, soak_minutes: int = 10):

@@ -176,6 +176,16 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-018 — DUT reset via host tools: wait ≥12s between any two resets; prefer physical button
+
+**Adopted from**: LL-051  
+**Date adopted**: 2026-06-04  
+**Rule**: Never issue a second DUT reset (by any means) within 10 seconds of a prior reset. Opening a serial port on CH340-based boards counts as reset #1 (DTR pulse on port open). Wait ≥12s after port open before issuing any programmatic reset. When recovering a DUT stuck in the WiFiManager portal, use a single physical EN/RST button press with the serial port already closed — do not open the port and immediately reset.  
+**Rationale**: `DoubleResetDetector` (DRD_TIMEOUT=10s) treats any two resets within the window as a deliberate double-press and calls `startConfigPortal()`, which has **no timeout** and blocks indefinitely. Host-side reset scripts that open the port then toggle RTS within milliseconds always fire two resets within 10s, re-triggering the portal on every attempt. The escape from force-portal is straightforward (DRD state is already cleared by `drd->stop()` before `startConfigPortal()` blocks), but only works if the next reset is clean and isolated. Repeated rapid resets turn a recoverable state into an infinite loop.  
+**Applies to**: VE (harness startup: open port, wait ≥12s before any `cmd()` that might trigger a reset; document in `Dut.__init__` if it opens port on construction), Developer (any reset helper script must enforce the 12s gap), All agents (DUT recovery SOP: close port → single physical button press → wait 20s → reopen port → proceed)
+
+---
+
 ## Entry Format
 
 ```

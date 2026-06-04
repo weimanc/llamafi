@@ -995,6 +995,36 @@ Sister lesson to LL-040 (proxy metric vs actual constraint) and LL-038 (large he
 
 ---
 
+### LL-051 — 2026-06-04 — DoubleResetDetector trap: host-side serial port open + DTR toggle = two resets = portal stuck
+
+**Context**: During test harness iteration (TASK-138f), the DUT ended up stuck in `startConfigPortal()` (no-timeout, blocking). The immediate cause was a Python one-liner that opened `/dev/ttyUSB0` and toggled RTS to reset the ESP32. This was issued to recover the DUT after a previous reset.
+
+**Observation**: Every attempt to reset the DUT via host tooling re-triggered the portal instead of escaping it. After multiple iterations the DUT was still stuck. Root cause was not identified in the session; repeated "reset" commands compounded the problem.
+
+**Root cause**: Three mechanisms interact to create the trap:
+
+1. **CH340 DTR-on-open**: When any program opens `/dev/ttyUSB0`, the OS asserts DTR. On the CYD board (CH340 with standard EN/IO0 circuit), asserting DTR triggers an EN (chip enable) reset pulse. This counts as **reset #1**.
+
+2. **DRD_TIMEOUT = 10s**: Any second reset within 10 seconds causes `DoubleResetDetector::detectDoubleReset()` to return `true`.
+
+3. **`startConfigPortal()` has no timeout**: When `forceConfig=true`, the code calls `wm.startConfigPortal("SpotifyDIY","thing123")` — this blocks indefinitely. There is no escape without entering credentials in the form, OR issuing a single clean reset from outside the 10s window.
+
+The compounding error: once in `startConfigPortal()`, `drd->stop()` has already been called (DRD state cleared). A single clean reset at this point would escape the portal. But every host-side "reset attempt" reopened the serial port (= implicit DTR pulse reset #1), then toggled RTS within milliseconds (= reset #2) — retriggering the DRD on every attempt.
+
+**Suggested improvement**:
+
+1. **Never issue two resets within 10 seconds.** Any host-initiated reset (DTR toggle, RTS pulse, port open/close) counts. If the DUT was reset within the last 10 seconds — by any means — wait out the full 10s window before the next reset.
+
+2. **Prefer physical button press** when recovering from portal: a deliberate single press of the EN/RST button on the board has no implicit second pulse. Host-side serial port tooling should be closed (port not open) when the physical reset is pressed.
+
+3. **Escaping force portal**: `startConfigPortal()` calls `drd->stop()` before blocking. So once in the force portal, the DRD state is cleared. One clean reset (≥10s after ANY prior reset) is sufficient — it exits to `autoConnect()` which connects to saved NVS WiFi creds. Do NOT open the serial port and immediately reset; open port, wait ≥12s, then test.
+
+4. **Harness note for `run_serialdbg_tests.py`**: `Dut.__init__()` opens the serial port. If the DUT was recently reset, opening the port triggers DTR reset #1. The `_wait_for_ready()` drain loop waits for the WiFi-connected banner, but it does NOT prevent DRD triggering on a rapid second reset. Harness reconnect / restart logic must respect the 10s gap.
+
+**Status**: open — items 1–3 are BP candidates
+
+---
+
 ## Entry Format
 
 ```

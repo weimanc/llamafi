@@ -3519,6 +3519,77 @@ Common preconditions for DUT tests below:
 
 ---
 
+## Suite: tls-yield-reliability-001 — tlsYield mechanism coverage (TASK-138)
+
+tlsYield/tlsResume was extended from the heatmap path to all dataTask fetches (fetchCrypto,
+fetchStockQuote, fetchWeather) in commit `e00b453`. This suite verifies heap headroom and
+mechanism correctness on those paths. T216/T217 cover the heatmap path (test_heatmap_reliability.py).
+Harness: `app/tools/test_tls_yield_reliability.py`.
+
+### T219 — [stock-002, TASK-138] Stock quote tlsYield: all 8 tickers 200 + mechanism fires + maxBlk≥50k (SERIALDBG)
+
+- **Type**: integration (DUT, serial log-scrape)
+- **Feature(s)**: stock-002
+- **Objective**: Verify that `fetchStockQuote` correctly calls `tlsYield()` before the 8-ticker
+  GET loop, freeing Spotify's TLS session, and that all 8 Yahoo Finance requests succeed with HTTP 200.
+  Pre-loop `maxBlk≥50k` confirms TLS was freed before the loop starts.
+- **Preconditions**: DUT flashed `cyd2usb_winamp_debug`. Active Spotify session (tlsYield
+  blocks until Spotify task yields). WiFi up.
+- **Steps**:
+  1. `switchApp 7` (non-blocking send); detect ack in monitoring loop.
+  2. Send `set triggerFetch 1` immediately after ack.
+  3. Monitor serial for `tls yield — client stopped/resumed`, `dataTask.stock` LOG_HEAP (pre-loop),
+     and 8× `quote GET <SYM> 200` lines.
+- **Expected result**: All 8 tickers respond 200. Pre-loop `maxBlk≥50k`. At least one yield
+  signal (`client stopped` or `resumed`) present. `client stopped` may be missed due to
+  5-second tlsYield timeout race (LL-051); `resumed` alone is accepted as yield evidence.
+- **Status**: passing [SERIALDBG]. Harness: `test_tls_yield_reliability.py --tests T219`.
+  DUT run 2026-06-04: 8/8 tickers 200; yield=partial (client-stopped seen, resumed not); pre_maxBlk=71k.
+
+---
+
+### T220 — [stock-002, TASK-138] Crypto tlsYield: GET 200 + NoMemory absent + mechanism fires + maxBlk≥50k (SERIALDBG)
+
+- **Type**: integration (DUT, serial log-scrape)
+- **Feature(s)**: stock-002 (dataTask shared infrastructure)
+- **Objective**: Verify `fetchCrypto` calls `tlsYield()` before the CoinGecko GET, and that the
+  JSON parse does not fail with `NoMemory` after the fix. `maxBlk≥50k` on any dataTask.crypto
+  LOG_HEAP confirms TLS headroom.
+- **Preconditions**: DUT flashed `cyd2usb_winamp_debug`. Active Spotify session. WiFi up.
+- **Steps**:
+  1. `switchApp 3` (non-blocking send); detect ack in monitoring loop.
+  2. Monitor for `tls yield` lines, `dataTask.crypto GET <code>`, `NoMemory` (absent),
+     and `dataTask.crypto` LOG_HEAP lines.
+- **Expected result**: GET 200. `NoMemory` absent. At least one yield signal present.
+  `maxBlk≥50k` on all crypto LOG_HEAP readings.
+  `client stopped` may race the monitoring window; `resumed` alone is accepted (same as T219).
+- **Status**: passing [SERIALDBG]. Harness: `test_tls_yield_reliability.py --tests T220`.
+  DUT run 2026-06-04: GET 200; NoMemory absent; resumed seen; maxBlk=71k.
+
+---
+
+### T221 — [stock-002, TASK-138] Weather TCP-close regression: GET 200 + heap recovery ≤5k drop (SERIALDBG)
+
+- **Type**: integration (DUT, serial log-scrape)
+- **Feature(s)**: stock-002 (dataTask shared infrastructure)
+- **Objective**: Verify that `fetchWeather` uses HTTP/1.0 (`useHTTP10(true)`), causing the
+  server to close the TCP connection after the response. `http.end()` then frees the TLS session
+  immediately. Pre/post `maxBlk` delta must be ≤5k. `tcp keep open for reuse` must be absent.
+- **Preconditions**: DUT flashed `cyd2usb_winamp_debug` (CORE_DEBUG_LEVEL=4 exposes
+  Arduino HTTPClient `log_d` lines — `tcp is closed` / `tcp keep open for reuse`).
+  WiFi up.
+- **Steps**:
+  1. 2s settle delay after prior test.
+  2. `switchApp 2` (non-blocking send).
+  3. Monitor for `dataTask.weather` LOG_HEAP (pre), `GET <code>`, HTTPClient tcp log lines,
+     `dataTask.weather` LOG_HEAP (post).
+- **Expected result**: GET 200. `tcp keep open for reuse` absent. `tcp is closed` present.
+  Pre/post maxBlk drop ≤5k (TLS freed promptly by http.end()).
+- **Status**: passing [SERIALDBG]. Harness: `test_tls_yield_reliability.py --tests T221`.
+  DUT run 2026-06-04: GET 200; pre_maxBlk=39k post_maxBlk=39k drop=0k; tcp_closed confirmed.
+
+---
+
 ## Entry Format
 
 ```

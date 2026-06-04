@@ -398,7 +398,7 @@ Flash `cyd2usb_winamp_debug`. Switch to StockApp → heatmap. Wait 120s for firs
 ### TASK-138 — VE: tlsYield reliability suite — T219/T220/T221 + T217 threshold fix
 **Owner**: VE
 **Feature**: stock-002, crypto-001, weather-001 (cross-cutting — io-001 / X010)
-**Status**: open
+**Status**: complete
 **Source**: VE coverage gap audit 2026-06-04 (following TASK-131 extended fix `e00b453`)
 
 The four new `tlsYield` callsites added in `e00b453` (fetchCrypto, fetchStockQuote, fetchStockChart, fetchStockChartBySym) and the weather HTTP/1.0 fix have no heap-headroom or mechanism tests. T216/T217 cover only the heatmap path. An OOM regression on these paths would surface as a -1 error code indistinguishable from a network failure.
@@ -431,6 +431,8 @@ The four new `tlsYield` callsites added in `e00b453` (fetchCrypto, fetchStockQuo
 T219, T220, T221 all pass on DUT; T217 threshold updated and T217 re-run passes; T219–T221 written in `test_plan.md`.
 
 **Test IDs**: T219, T220, T221 (new); T217 threshold update (existing).
+
+**Completion note (2026-06-04):** T219/T220/T221 written in `app/tools/test_tls_yield_reliability.py`; all three pass on DUT (debug build, `/dev/ttyUSB0`). T219: 8/8 tickers 200, yield=partial (client-stopped seen), pre_maxBlk=71k. T220: GET 200, NoMemory absent, resumed seen, maxBlk=71k. T221: GET 200, pre/post maxBlk=39k, drop=0k, tcp_closed confirmed. T217 threshold updated 32k→50k in `test_heatmap_reliability.py` (3 sites). T219–T221 entries added to `test_plan.md` (tls-yield-reliability-001 suite). LL-051 and BP-018 filed: DoubleResetDetector portal trap from host-side serial DTR double-reset.
 
 ---
 
