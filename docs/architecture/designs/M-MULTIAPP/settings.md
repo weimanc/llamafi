@@ -1,8 +1,8 @@
 # M-MULTIAPP — Settings App Design
 
 > Owner: Architect
-> Status: draft (aesthetics TBD — pending preview pass; UX for value selection open)
-> Date: 2026-05-25 (updated 2026-06-04 — SettingsApp class sketch + list-row pattern; 4-tab layout; Option A content distribution)
+> Status: draft
+> Date: 2026-05-25 (updated 2026-06-04 — class sketch; list-row pattern; list-navigation model replacing tab bar)
 > Part of: [overview.md](overview.md)
 > See also: [taskbar.md](taskbar.md), [app-lifecycle.md](app-lifecycle.md), [layout.md](layout.md), [stock.md](stock.md)
 
@@ -10,9 +10,12 @@
 
 ## Role
 
-The Settings app is a configuration menu accessible from the multi-app shell. It presents four **tab sections** across the top of the canvas; tapping a tab switches the content panel below it.
+The Settings app is a configuration menu accessible from the multi-app shell.
+It presents a **vertical category list** at the top level. Tapping a category
+pushes into that category's settings rows. Back returns to the category list.
 
-The visual language inherits from the taskbar: same background tone, same separator style, same active-indicator idiom — so the shell feels coherent.
+Navigation model: category list → section rows → (Applications only) per-app rows.
+Maximum depth: 3 levels. All levels use the list-row rendering pattern.
 
 ---
 
@@ -23,177 +26,94 @@ Settings uses the **full 275×240 left canvas** (same as Clock, Matrix, GoL). Th
 ```
 x=0                              x=274  x=275
 +--------------------------------+      +------+
-|  [ tab bar — full width, h=28 ]|      |      |
+|  header bar  (h=28)            |      |      |
 +--------------------------------+      | TASK |
 |                                |      |  BAR |
-|        content panel           |      |      |
+|        list area               |      |      |
 |       275 × 212 px             |      |      |
 |                                |      |      |
 +--------------------------------+      +------+
                                   y=240
 ```
 
+Header bar (y=0..27): shows `"< back"` on the left (returns to category list
+or previous app) and the current view title on the right. Background
+`SETTINGS_BG_RGB565`. Separator line at y=27.
+
 ---
 
-## Tab layout
+## Category list
 
-Four tabs span the full canvas width:
-
-| Tab | Label | Content | x range |
-|-----|-------|---------|---------|
-| 0 | `wifi` | Wi-Fi / network settings | 0..68 |
-| 1 | `time` | Clock, NTP, timezone + weather location (lat/lon) | 69..137 |
-| 2 | `cal` | Touch calibration | 138..206 |
-| 3 | `app` | Per-app settings (secondary menu per app) | 207..274 |
-
-Tab bar geometry:
-
-```
-x=0      x=69     x=138    x=207    x=275
-+--------+--------+--------+--------+   y=0
-|  wifi  |  time  |  cal   |  app   |   tab bar  h=28
-+--------+--------+--------+--------+   y=28
-|                                   |
-|           content panel           |   h=212
-|                                   |
-+-----------------------------------+   y=240
-```
-
-Pixel math: 69 + 69 + 69 + 68 = 275 ✓ (tabs 0–2 = 69 px, tab 3 = 68 px)
-Tab bar + content = 28 + 212 = 240 ✓
-
-**Tab label rendering** — `tft.drawString` with font 2 (16px) centred in each cell.
-Short 4-char labels fit cleanly at this width. SKIN_GLYPH (5×6) is too small at 1× scale.
-
-**Separator lines** — draw with `TASKBAR_SEP_COLOR` (same as taskbar) between tabs and between tab bar and content panel.
-
-### Content distribution — Option A
-
-Clock and Weather configuration live in the tab whose label telegraphs the content
-(`time`). They do **not** appear in the `app` tab. The `app` tab covers only apps
-whose config has no natural home in the other three tabs.
-
-| Tab | Configurable items |
-|-----|--------------------|
-| `wifi` | SSID, password status, DNS override toggle |
-| `time` | Timezone, NTP server, 12/24h toggle, weather location (lat/lon) |
-| `cal` | Touch calibration (X/Y offset + scale) |
-| `app` | Secondary menus for: Stock, Crypto, Aquarium, Matrix, Life |
-
-### `app` tab — menu of menus
-
-The `app` tab renders a list of app names. Tapping an entry pushes into that
-app's own row-list. Back returns to the app-name list.
+The top-level view is a vertical list of six categories. Each row has a label
+on the left and a `>` chevron on the right indicating it navigates deeper.
 
 ```
 +-----------------------------------+
-|  Stock              >             |
-|  Crypto             >             |
-|  Aquarium           >             |
-|  Matrix             >             |
-|  Life               >             |
+|  ⚙  Settings                     |   header (h=28) — back returns to prev app
++-----------------------------------+
+|  WiFi              >              |
+|  Time & Location   >              |
+|  Touch Calibration >              |
+|  Display           >              |
+|  LED               >              |
+|  Applications      >              |
 +-----------------------------------+
 ```
 
-Navigation state added to `SettingsAppState`:
+6 rows × 26px = 156px. Remaining 56px is dark fill — no scroll needed.
 
-```cpp
-struct SettingsAppState {
-    uint8_t activeTab;       // 0..3
-    int8_t  appSubmenu;      // -1 = app list; 0..N = index into app submenu list
-    bool    initialised;
-};
+| Index | Category label | Section doc |
+|-------|---------------|-------------|
+| 0 | WiFi | [wifi-settings.md](wifi-settings.md) |
+| 1 | Time & Location | [time-settings.md](time-settings.md) |
+| 2 | Touch Calibration | [touch-calibration.md](touch-calibration.md) |
+| 3 | Display | [display-settings.md](display-settings.md) |
+| 4 | LED | [led-settings.md](led-settings.md) |
+| 5 | Applications | (submenu — see below) |
+
+Tapping a row sets `_s.section = rowIdx` and renders that section's view.
+The header `< back` zone (x < 60, y < 28) returns to the category list
+(`_s.section = -1`) or, when already at the category list, calls
+`switchApp(g_previousAppId)`.
+
+### Applications section — menu of menus
+
+Applications is the only section with a second level of depth.
+
+**Level 1 — app list (`_s.appSubmenu == -1`):**
+
+```
++-----------------------------------+
+|  <  Applications                  |
++-----------------------------------+
+|  Stock             >              |
+|  Crypto            >              |
+|  Aquarium          >              |
+|  Matrix            >              |
+|  Life              >              |
++-----------------------------------+
 ```
 
-`handleInput()` for the `app` tab:
-- `appSubmenu == -1` + row tap → set `appSubmenu = rowIdx`, repaint submenu
-- `appSubmenu >= 0` + back zone (y < SETTINGS_CONTENT_Y + SETTINGS_ROW_HEADER_H) → set `appSubmenu = -1`, repaint app list
+**Level 2 — per-app settings (`_s.appSubmenu >= 0`):**
 
-Per-app submenu content:
+```
++-----------------------------------+
+|  <  Stock                         |
++-----------------------------------+
+|  Ticker 1          AAPL           |
+|  Ticker 2          AMD            |
+|  ...                              |
+|  Default view      list           |
++-----------------------------------+
+```
 
 | App | Settings rows |
 |-----|--------------|
 | Stock | Tickers ×8 (cycle from predefined list), default view (list/chart/heatmap) |
 | Crypto | Coins ×6 (cycle from predefined list), currency (USD/EUR) |
 | Aquarium | Fish count (4/8/12/16), speed (slow/normal/fast) |
-| Matrix | Color (green/white/amber), speed (slow/normal/fast) |
-| Life | Speed (slow/normal/fast), color scheme (rainbow/mono) |
-
----
-
-## Aesthetics — preview pass required
-
-The three aesthetic choices below mirror the options explored for the taskbar active indicator. Run `preview_layout.py` in settings mode to compare them on-device before locking any values.
-
-### Tab active-indicator options
-
-**Option A — bottom-bar (recommended starting point)**
-
-3 px bar on the *bottom* edge of the active tab cell. Mirrors the taskbar's `ACTIVE_STYLE='A'` left-bar, rotated 90°. Subtle, consistent with shell idiom.
-
-```
- wifi    clk     loc     cal     app
-+------+------+------+------+------+
-|      |      |      |      |      |
-|      |      |      |      |      |
-+======+------+------+------+------+
-  ^^^
-  3 px bottom bar, TASKBAR_ACTIVE_COLOR (0x07E0, Spotify green)
-```
-
-**Option B — full-cell highlight**
-
-Active tab cell filled with a lighter grey. High visibility; feels more "button-pressed".
-
-```
- wifi    clk     loc     cal     app
-+------+▓▓▓▓▓▓+------+------+------+
-|      |▓ clk▓|      |      |      |
-|      |▓▓▓▓▓▓|      |      |      |
-+------+------+------+------+------+
-  ▓▓▓ = SETTINGS_TAB_ACTIVE_BG (e.g. 0x4208 mid-grey or lighter)
-```
-
-**Option C — top-bar**
-
-3 px bar on the *top* edge of the active tab. Same weight as A; top-anchored indicator reads as "open/selected" rather than "underlined".
-
-```
- wifi    clk     loc     cal     app
-+======+------+------+------+------+
-|      |      |      |      |      |
-| wifi |  clk |      |      |      |
-+------+------+------+------+------+
-  ^^^
-  3 px top bar, TASKBAR_ACTIVE_COLOR
-```
-
-### Background and text tones
-
-Start with taskbar values; adjust in preview:
-
-| Constant | Candidate | Notes |
-|----------|-----------|-------|
-| `SETTINGS_BG_RGB565` | `0x2104` | Match taskbar background |
-| `SETTINGS_TAB_ACTIVE_COLOR` | `0x07E0` | Match `TASKBAR_ACTIVE_COLOR` |
-| `SETTINGS_SEP_COLOR` | `0x4208` | Match `TASKBAR_SEP_COLOR` |
-| `SETTINGS_TAB_LABEL_COLOR` | `0xFFFF` | White for inactive |
-| `SETTINGS_TAB_ACTIVE_LABEL` | `0x07E0` | Active label tinted green |
-
-These are **draft candidates** — override via preview export before implementation.
-
-### Preview tooling integration
-
-Add a `--mode settings` (or `--settings`) flag to `preview_layout.py` that:
-
-1. Renders the 275×240 canvas with the tab bar and a placeholder content panel.
-2. Iterates active-indicator style (A / B / C) and active-tab colours with
-   keyboard controls (same pattern as taskbar preview pass).
-3. Exports approved values as `SETTINGS_*` defines appended to `gen/shell_layout.h`
-   via the same `--export` path.
-
-Until that pass runs, all `SETTINGS_*` defines in `gen/shell_layout.h` are
-placeholders copied from the taskbar values above.
+| Matrix | Colour (green/white/amber), speed (slow/normal/fast) |
+| Life | Speed (slow/normal/fast), colour scheme (rainbow/mono) |
 
 ---
 
@@ -278,38 +198,38 @@ and city selection. See §Open questions and [stock.md](stock.md) for UX options
 ```cpp
 class SettingsApp : public App {
 public:
-    void init()    override;           // load persisted activeTab from SPIFFS (default 0)
+    void init()    override;      // one-time setup; no persisted state needed
     void resume()  override { repaint(); }
-    void suspend() override {}         // no inflight work to cancel
-    void tick()    override {}         // purely reactive — no polling or async
+    void suspend() override { _s.section = -1; _s.appSubmenu = -1; }
+    void tick()    override;      // delegates to active flow (wifi/cal) when running
     bool handleInput(TouchPhase phase, int x, int y) override;
 
 private:
     struct State {
-        uint8_t activeTab = 0;
+        int8_t section   = -1;   // -1 = category list; 0..5 = section index
+        int8_t appSubmenu = -1;  // -1 = app list; ≥0 = per-app rows (section 5 only)
     } _s;
 
-    void repaint();                    // full canvas: repaintTabBar() + repaintContent()
-    void repaintTabBar();
-    void repaintContent();             // dispatches to per-tab method
+    void repaint();
+    void repaintHeader(const char* title);
+    void repaintCategoryList();
+    void repaintSection();             // dispatches on _s.section
+    void repaintSectionApps();
+    void repaintSectionAppSubmenu();
+    // wifi, cal, disp sections delegate to their respective Flow objects
 
-    void repaintTabApp();              // tab 3 — app list or submenu
-    void repaintTabAppList();          // app-name list (appSubmenu == -1)
-    void repaintTabAppSubmenu();       // per-app row list (appSubmenu >= 0)
-    // repaintTabWifi/Time/Cal: stub until per-tab design passes run
-
-    void onTabTap(int tab);
-    void onRowTap(int tab, int row);
+    void onCategoryTap(int idx);
+    void onRowTap(int row);
+    void goBack();
 };
 ```
 
 **Lifecycle notes:**
 
-- `tick()` is a no-op. Settings has no background fetches. Repaint happens on
-  `resume()` and in response to tap events only.
-- `init()` runs once at first `switchApp(AppId::Settings)`. Loads `activeTab`
-  from SPIFFS if a `/settings.json` entry exists; otherwise stays at 0.
-- `suspend()` is empty — no FreeRTOS tasks to cancel, no pending async.
+- `suspend()` resets to category list — user always re-enters at the top level.
+- `tick()` delegates to `g_wifiFlow` / `g_calFlow` when those are active
+  (they need ticking for scan spinner / connecting spinner).
+- All other sections are purely reactive; `tick()` is a no-op for them.
 - `hasPendingAsync()` not overridden (defaults `false`) — correct.
 
 ---
@@ -318,62 +238,66 @@ private:
 
 ```cpp
 struct SettingsAppState {
-    uint8_t activeTab;    // 0..3
-    int8_t  appSubmenu;   // -1 = app list; 0..4 = index into app submenu list
-    bool    initialised;
+    int8_t section    = -1;   // -1 = category list; 0..5 = section index
+    int8_t appSubmenu = -1;   // used only when section == 5 (Applications)
 };
 ```
 
-No network fetches. No persistent writes in this struct — settings values for each
-app are persisted to SPIFFS separately on change.
+No network fetches. No persistent writes in this struct — individual section
+values are persisted to SPIFFS by their respective storage helpers on change.
 
-`activeTab` persists across app switches (user returns to the same tab they left).
-`appSubmenu` resets to -1 on suspend — user always re-enters the app list, not mid-submenu.
+State resets to `{-1, -1}` on `suspend()` — user always re-enters at the
+category list, never mid-submenu.
 
 ---
 
 ## Touch input
 
+All taps are point hits — no drag zones.
+
 ```cpp
-void settingsHandleInput(SettingsAppState &s, TouchPoint p) {
-    if (p.y < SETTINGS_TAB_BAR_H) {
-        // Tab bar hit — identify slot
-        int tab = p.x / SETTINGS_TAB_W;   // 0..4
-        if (tab < SETTINGS_TAB_COUNT && tab != s.activeTab) {
-            s.activeTab = tab;
-            renderSettingsTabBar(s);
-            renderSettingsContent(s);
-        }
-        return;
+bool SettingsApp::handleInput(TouchPhase phase, int x, int y) {
+    if (phase != TouchPhase::Release) return false;
+
+    // Header back zone (x < 60, y < 28)
+    if (y < SETTINGS_HEADER_H && x < 60) { goBack(); return true; }
+
+    // List area row index
+    int row = (y - SETTINGS_HEADER_H) / SETTINGS_ROW_H;
+    if (row < 0) return false;
+
+    if (_s.section == -1) {
+        onCategoryTap(row);   // category list
+    } else {
+        onRowTap(row);        // section content or app submenu
     }
-    // Content-area taps: delegated to per-tab handler (TBD)
+    return true;
+}
+
+void SettingsApp::goBack() {
+    if (_s.appSubmenu >= 0)  { _s.appSubmenu = -1; repaintSectionApps(); }
+    else if (_s.section >= 0){ _s.section    = -1; repaintCategoryList(); }
+    else                       switchApp(g_previousAppId);
 }
 ```
 
-No Spotify-style drag zones. All taps are point hits.
-
 ---
 
-## Constants (draft — pending preview pass)
+## Constants
 
 ```c
-// Settings app geometry (to be added to gen/shell_layout.h after preview export)
-#define SETTINGS_TAB_COUNT          4
-#define SETTINGS_TAB_W             69    // tabs 0..2; tab 3 = 275 - 3*69 = 68
-#define SETTINGS_TAB_BAR_H         28
+// Settings app geometry
+#define SETTINGS_HEADER_H          28    // header bar height (same as taskbar)
 #define SETTINGS_CONTENT_Y         28
-#define SETTINGS_CONTENT_H        212    // 240 - TAB_BAR_H
+#define SETTINGS_CONTENT_H        212    // 240 - HEADER_H
+#define SETTINGS_CAT_COUNT          6    // number of top-level categories
 
-// Inline helper — tab 3 is 1px narrower to reach exactly 275
-// int tabW(int i) { return (i < 3) ? SETTINGS_TAB_W : 275 - 3 * SETTINGS_TAB_W; }
-
-// Aesthetics — DRAFT, override via preview export
+// Colours
 #define SETTINGS_BG_RGB565        0x2104
-#define SETTINGS_TAB_ACTIVE_STYLE 'A'    // A=bottom-bar, B=fill, C=top-bar
-#define SETTINGS_TAB_ACTIVE_COLOR 0x07E0
 #define SETTINGS_SEP_COLOR        0x4208
-#define SETTINGS_TAB_LABEL_COLOR  0xFFFF
-#define SETTINGS_TAB_ACTIVE_LABEL 0x07E0
+#define SETTINGS_HEADER_COLOR     0xFFFF
+#define SETTINGS_CAT_COLOR        0xFFFF  // category label colour
+#define SETTINGS_CHEVRON_COLOR    0x4208  // > glyph colour
 ```
 
 ---
@@ -381,54 +305,52 @@ No Spotify-style drag zones. All taps are point hits.
 ## Rendering
 
 ```cpp
-void renderSettingsTabBar(SettingsAppState &s) {
-    // Fill tab bar background
-    tft.fillRect(0, 0, 275, SETTINGS_TAB_BAR_H, SETTINGS_BG_RGB565);
-
-    for (int i = 0; i < SETTINGS_TAB_COUNT; i++) {
-        int x0 = i * SETTINGS_TAB_W;
-
-        // Separator line between tabs
-        if (i > 0)
-            tft.drawFastVLine(x0, 0, SETTINGS_TAB_BAR_H, SETTINGS_SEP_COLOR);
-
-        // Tab label glyph (TBD — placeholder for now)
-        uint16_t labelColor = (i == s.activeTab)
-            ? SETTINGS_TAB_ACTIVE_LABEL : SETTINGS_TAB_LABEL_COLOR;
-        // tft.drawString(tabLabels[i], x0 + SETTINGS_TAB_W/2, 14, 1); // centred
-
-        // Active indicator (style A — bottom bar)
-        if (i == s.activeTab)
-            tft.fillRect(x0, SETTINGS_TAB_BAR_H - 3, SETTINGS_TAB_W, 3,
-                         SETTINGS_TAB_ACTIVE_COLOR);
-    }
-
-    // Separator between tab bar and content
-    tft.drawFastHLine(0, SETTINGS_TAB_BAR_H, 275, SETTINGS_SEP_COLOR);
+void SettingsApp::repaintHeader(const char* title) {
+    tft.fillRect(0, 0, 275, SETTINGS_HEADER_H, SETTINGS_BG_RGB565);
+    tft.setTextDatum(ML_DATUM);
+    tft.setTextColor(SETTINGS_HEADER_COLOR);
+    tft.drawString("< back", 4, 14, 2);
+    tft.setTextDatum(MR_DATUM);
+    tft.drawString(title, 271, 14, 2);
+    tft.drawFastHLine(0, SETTINGS_HEADER_H - 1, 275, SETTINGS_SEP_COLOR);
+    tft.setTextDatum(TL_DATUM);
 }
 
-void renderSettingsContent(SettingsAppState &s) {
+void SettingsApp::repaintCategoryList() {
+    static const char* kLabels[] = {
+        "WiFi", "Time & Location", "Touch Calibration",
+        "Display", "LED", "Applications"
+    };
+    repaintHeader("Settings");
     tft.fillRect(0, SETTINGS_CONTENT_Y, 275, SETTINGS_CONTENT_H, SETTINGS_BG_RGB565);
-    // Tab-specific content: TBD per section
+    for (int i = 0; i < SETTINGS_CAT_COUNT; i++) {
+        int y = SETTINGS_CONTENT_Y + i * SETTINGS_ROW_H;
+        int mid = y + SETTINGS_ROW_H / 2;
+        tft.setTextDatum(ML_DATUM);
+        tft.setTextColor(SETTINGS_CAT_COLOR);
+        tft.drawString(kLabels[i], SETTINGS_ROW_COL_LABEL, mid, 2);
+        tft.setTextDatum(MR_DATUM);
+        tft.setTextColor(SETTINGS_CHEVRON_COLOR);
+        tft.drawString(">", SETTINGS_ROW_COL_VALUE, mid, 2);
+    }
+    tft.setTextDatum(TL_DATUM);
 }
 ```
 
 ---
 
-## Per-tab content
+## Per-section content
 
-| Tab | ID | Content |
-|-----|----|---------|
-| `wifi` | 0 | WiFi scan + connect flow (see [wifi-settings.md](wifi-settings.md)) |
-| `time` | 1 | City/location, timezone (auto-DST), 12/24h, date format (see [time-settings.md](time-settings.md)) |
-| `cal` | 2 | Touch calibration — launches `CalibrationFlow` (see [touch-calibration.md](touch-calibration.md)) |
-| `app` | 3 | Secondary menus for: Stock, Crypto, Aquarium, Matrix, Life |
+| Section | Index | Content |
+|---------|-------|---------|
+| WiFi | 0 | WiFi scan + connect flow (see [wifi-settings.md](wifi-settings.md)) |
+| Time & Location | 1 | City/location, timezone (auto-DST), 12/24h, date format (see [time-settings.md](time-settings.md)) |
+| Touch Calibration | 2 | 4-corner calibration — launches `CalibrationFlow` (see [touch-calibration.md](touch-calibration.md)) |
+| Display | 3 | Screen brightness, LDR auto-brightness (see [display-settings.md](display-settings.md)) |
+| LED | 4 | RGB LED mode, colour, brightness (see [led-settings.md](led-settings.md)) |
+| Applications | 5 | Secondary menus for: Stock, Crypto, Aquarium, Matrix, Life |
 
-Each tab's content will be specified in a follow-up design pass. For now,
-`renderSettingsContent()` draws a blank panel with the tab index centred
-(stub rendering for visual testing).
-
-### Per-app submenu content (tab 3)
+### Per-app submenu content (Applications section)
 
 | App | Settings rows |
 |-----|--------------|
@@ -460,7 +382,7 @@ Example schema:
 
 ## List-row content pattern
 
-Each settings tab that presents configurable items uses a **header + fixed-height
+Each settings section that presents configurable items uses a **header + fixed-height
 rows** layout. The pattern is structurally identical to `StockApp::repaintList()`
 but adapted for 2-column label/value pairs with interactive cycling.
 
@@ -558,19 +480,19 @@ Row height is a shared convention (26 px), not enforced by a base class.
 
 1. ~~**App access mechanism**~~ — **resolved 2026-05-25**: slot 6, taskbar scrolls (40 px cells preserved, M-TASKBAR-SCROLL).
 2. ~~**Shared base class with StockApp list view**~~ — **resolved 2026-06-04**: no base class. See ADR-039.
-3. ~~**Tab count and content distribution**~~ — **resolved 2026-06-04**: 4 tabs (wifi/time/cal/app). Clock+location merged into `time`. Option A adopted — each tab owns its natural content; `app` tab is menu-of-menus for app-specific config.
-4. **Tab label glyphs** — `tft.drawString` font 2 (16px) decided over SKIN_GLYPH (5×6 too small). Exact label strings: `wifi`, `time`, `cal`, `app`. Confirm legibility in preview pass.
-5. **Pixel math** — tabs 0..2 = 69 px, tab 3 = 68 px (275 − 3×69). 1 px asymmetry on last tab — confirm acceptable in preview pass.
-6. **Per-tab content specs** — `wifi`, `time`, `cal` tabs are stubs. File separate design tasks per tab as implementation proceeds.
-7. **Persistence** — `/settings.json` on SPIFFS alongside `/spotify_diy_config.json`. Schema draft in §Per-tab content; finalise per tab as implemented.
-8. **UX for value selection** — predefined cycle-on-tap (resistive touch friendly) chosen as default. Text entry deferred; not needed for any currently-planned setting.
+3. ~~**Navigation model**~~ — **resolved 2026-06-04**: vertical category list (6 entries), no tab bar. `section` index drives content panel. Tab-based model rejected.
+4. **Persistence** — `/settings.json` on SPIFFS alongside `/spotify_diy_config.json`. Schema draft in §Per-section content; finalise per section as implemented.
+5. **UX for value selection** — predefined cycle-on-tap (resistive touch friendly) chosen as default. Text entry via `KeyboardWidget` for WiFi password and ticker/coin entry.
+6. **Category list scroll** — 6 entries × 26 px = 156 px; fits within 212 px content panel. No scroll needed at current count. If entries grow beyond 8 (208 px), add scroll arrows.
 
 ---
 
-## Exit criteria (draft — update once content is specified)
+## Exit criteria
 
-- **C1** — Tab bar renders within x:0..274, y:0..27. No pixel in taskbar strip (x≥275).
-- **C2** — Tapping each tab updates `activeTab` and repaints the indicator. Five taps → five distinct states.
-- **C3** — Content panel renders within x:0..274, y:28..239.
+- **C1** — Category list renders 6 rows within y:28..239 (content panel). No pixel overflows into taskbar strip (x≥275).
+- **C2** — Tapping each category row opens the correct section; header shows the category name; back chevron (`< back`) returns to category list.
+- **C3** — Content panel renders within x:0..274, y:28..239 for all sections.
 - **C4** — App switch: Spotify → Settings → Spotify. Winamp chrome pixel-correct after two `switchApp()` calls; no settings residue.
-- **C5** — `activeTab` persists across switch-away / switch-back. User returns to the same tab.
+- **C5** — `suspend()` resets `section=-1`, `appSubmenu=-1`; returning to Settings always lands on the category list.
+- **C6** — Applications section: tapping an app name opens its per-app row list; back returns to Applications list; back again returns to category list.
+- **C7** — `WifiFlow` and `CalibrationFlow` take over full content panel when active; returning from them via back restores the parent section.
