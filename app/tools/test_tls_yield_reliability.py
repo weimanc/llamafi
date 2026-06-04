@@ -30,7 +30,6 @@ Requirements:
     TLS client (T219, T220).
 """
 
-import argparse
 import json
 import re
 import sys
@@ -40,30 +39,10 @@ import pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
 from run_serialdbg_tests import Dut
-
-# ── result tracking ───────────────────────────────────────────────────────────
-
-RESULTS: dict[str, str] = {}
-
-
-def pass_(tid: str, detail: str = ""):
-    RESULTS[tid] = "PASS"
-    print(f"  [PASS] {tid}" + (f"  {detail}" if detail else ""))
-
-
-def fail(tid: str, reason: str):
-    RESULTS[tid] = f"FAIL: {reason}"
-    print(f"  [FAIL] {tid}  {reason}")
-
-
-def skip(tid: str, reason: str):
-    RESULTS[tid] = f"SKIP: {reason}"
-    print(f"  [SKIP] {tid}  {reason}")
-
-
-def flake(tid: str, reason: str):
-    RESULTS[tid] = f"FLAKE: {reason}"
-    print(f"  [FLAKE] {tid}  {reason}")
+from ve_suite_base import (
+    RESULTS, pass_, fail, skip, flake,
+    make_arg_parser, run_suite, print_results,
+)
 
 
 # ── shared helpers ────────────────────────────────────────────────────────────
@@ -465,52 +444,19 @@ ALL_TESTS = ["T219", "T220", "T221"]
 
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--port", default="/dev/ttyUSB0")
-    p.add_argument("--baud", type=int, default=115200)
-    p.add_argument("--timeout", type=float, default=3.0,
-                   help="default serial read timeout in seconds")
-    p.add_argument("--tests", default=",".join(ALL_TESTS),
-                   help="comma-separated test IDs (default: all)")
+    p = make_arg_parser(ALL_TESTS, description=__doc__)
     args = p.parse_args()
-
     selected = [t.strip() for t in args.tests.split(",") if t.strip()]
     unknown = [t for t in selected if t not in ALL_TESTS]
     if unknown:
         sys.exit(f"Unknown tests: {unknown}. Available: {ALL_TESTS}")
-
     print(f"Connecting to {args.port} @ {args.baud}…")
     dut = Dut(args.port, args.baud, timeout=args.timeout)
     print(f"Connected. Running: {selected}\n")
-
-    for tid in selected:
-        try:
-            if tid == "T219":
-                t219(dut)
-            elif tid == "T220":
-                t220(dut)
-            elif tid == "T221":
-                t221(dut)
-        except TimeoutError as e:
-            fail(tid, f"TimeoutError: {e}")
-        except Exception as e:
-            import traceback
-            fail(tid, f"Exception: {e}")
-            traceback.print_exc()
-        time.sleep(1.0)
-
+    test_fns = {"T219": t219, "T220": t220, "T221": t221}
+    run_suite(ALL_TESTS, test_fns, dut, selected, inter_test_sleep=1.0)
     dut.close()
-
-    print("\n── Results ──────────────────────────────────")
-    passed  = sum(1 for v in RESULTS.values() if v == "PASS")
-    failed  = sum(1 for v in RESULTS.values() if v.startswith("FAIL"))
-    skipped = sum(1 for v in RESULTS.values() if v.startswith("SKIP"))
-    flaked  = sum(1 for v in RESULTS.values() if v.startswith("FLAKE"))
-    for tid in ALL_TESTS:
-        if tid in RESULTS:
-            print(f"  {tid}: {RESULTS[tid]}")
-    print(f"\n{passed} passed, {failed} failed, {skipped} skipped, {flaked} flaked")
-    sys.exit(0 if failed == 0 else 1)
+    print_results(ALL_TESTS)
 
 
 if __name__ == "__main__":

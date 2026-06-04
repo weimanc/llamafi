@@ -45,6 +45,13 @@ except ImportError:
 
 # ── serial helpers ────────────────────────────────────────────────────────────
 
+_DUT_RESET_GAP_FILE = pathlib.Path("/tmp/esp32_dut_last_reset")
+_DUT_DRD_WINDOW_S   = 12.0
+_PORTAL_INDICATORS  = (
+    "Forcing config mode", "configuring access point", "SpotifyDIY", "WiFiManager"
+)
+
+
 class Dut:
     def __init__(self, port: str, baud: int = 115200, timeout: float = 3.0):
         self.ser = serial.Serial()
@@ -53,7 +60,18 @@ class Dut:
         self.ser.timeout = timeout
         self.ser.dtr = False
         self.ser.rts = False
+        # BP-018: enforce gap between serial opens to avoid DRD double-reset
+        try:
+            last_ts = float(_DUT_RESET_GAP_FILE.read_text())
+            gap = time.time() - last_ts
+            if gap < _DUT_DRD_WINDOW_S:
+                wait = _DUT_DRD_WINDOW_S - gap
+                print(f"  [Dut] waiting {wait:.1f}s for DRD gap (BP-018)…", flush=True)
+                time.sleep(wait)
+        except (FileNotFoundError, ValueError):
+            pass
         self.ser.open()
+        self._port_open_time = time.monotonic()
         # Serial stream is NOT thread-safe. All methods that touch self.ser must be
         # called from the thread that constructed this Dut. Never read self.ser from
         # a background thread concurrently with cmd()/read_json() — ACKs will be
@@ -63,11 +81,12 @@ class Dut:
         self._wait_for_ready()
         self._verify_debug_firmware()
 
-    def _wait_for_ready(self):
+    def _wait_for_ready(self, _recovery_attempt: int = 0):
         """CH341 driver asserts DTR during open() regardless of userspace settings,
         which resets the ESP32.  Detect the reboot signature and wait for the DUT
         to reach steady-state (WiFi up + first SUCCESSFUL Spotify poll + queue fetch)
-        before returning.  Retries once via 'reconnect' if the startup poll fails."""
+        before returning.  Retries once via 'reconnect' if the startup poll fails.
+        Detects WiFiManager force-portal and auto-recovers via RTS pulse (BP-018 / LL-051)."""
         orig_timeout = self.ser.timeout
         self.ser.timeout = 0.5
         boot_seen = False
@@ -83,12 +102,40 @@ class Dut:
             return
         print("  [Dut] reboot detected — waiting for DUT ready…", flush=True)
         self.ser.timeout = 1.0
-        # Wait for WiFi
+        # Wait for WiFi, watching for portal indicators (BP-018 / LL-051)
+        ip_seen = False
+        portal_seen = False
         deadline = time.monotonic() + 25.0
         while time.monotonic() < deadline:
             line = self.ser.readline().decode(errors="replace").strip()
             if "IP address:" in line:
+                ip_seen = True
                 break
+            if any(ind in line for ind in _PORTAL_INDICATORS):
+                portal_seen = True
+                break
+        if portal_seen:
+            elapsed = time.monotonic() - self._port_open_time
+            wait_s = max(0.0, _DUT_DRD_WINDOW_S - elapsed)
+            print(f"  [Dut] PORTAL DETECTED — auto-recovering "
+                  f"(waiting {wait_s:.0f}s for DRD window)…", flush=True)
+            if wait_s > 0:
+                time.sleep(wait_s)
+            self.ser.rts = True
+            time.sleep(0.1)
+            self.ser.rts = False
+            self.ser.timeout = orig_timeout
+            if _recovery_attempt >= 1:
+                raise RuntimeError(
+                    "[Dut] Portal recurred after auto-recovery — manual intervention required.\n"
+                    "Hold the reset button for 15 s to clear the DRD counter, "
+                    "then re-run the test script."
+                )
+            self._wait_for_ready(_recovery_attempt=1)
+            return
+        if not ip_seen:
+            self.ser.timeout = orig_timeout
+            raise RuntimeError("DUT WiFi not connected — check serial output")
         # Wait for first successful Spotify poll (ok 200) AND queue fetch completion.
         # 60s window covers backoff after a failed startup poll.
         poll_ok = False
@@ -240,6 +287,10 @@ class Dut:
 
     def close(self):
         self.ser.close()
+        try:
+            _DUT_RESET_GAP_FILE.write_text(str(time.time()))
+        except Exception:
+            pass
 
 
 # ── test registry ─────────────────────────────────────────────────────────────

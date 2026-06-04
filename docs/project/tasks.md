@@ -439,7 +439,7 @@ T219, T220, T221 all pass on DUT; T217 threshold updated and T217 re-run passes;
 ### TASK-139 — VE: Harden `Dut` against DRD portal trap (LL-051 / BP-018)
 **Owner**: VE
 **Feature**: test-infra (cross-cutting)
-**Status**: open
+**Status**: complete
 **Source**: LL-051 / BP-018 filed 2026-06-04 after TASK-138 DUT session
 
 `Dut._wait_for_ready()` does not detect or recover from the WiFiManager force-portal
@@ -479,12 +479,14 @@ close→reopen within 10 s is automatically deferred; all existing tests unaffec
 No new test IDs required — regression gate is `check_build.sh` + existing serialdbg
 test suite passing after the change.
 
+**Completion note (2026-06-04):** `_PORTAL_INDICATORS` + portal branch in `_wait_for_ready()` added; RTS pulse auto-recovery implemented; `RuntimeError` raised on second portal recurrence. `_DUT_RESET_GAP_FILE` + `_port_open_time` added; `__init__` reads gap file before `ser.open()` and sleeps remainder if < 12 s; `close()` writes timestamp. DRD gap guard confirmed firing in smoke run (waited 5.7 s between tls_yield and heatmap suite runs). `check_build.sh` 4/4.
+
 ---
 
 ### TASK-140 — VE: Extract satellite test boilerplate to `ve_suite_base.py`
 **Owner**: VE
 **Feature**: test-infra (cross-cutting)
-**Status**: open
+**Status**: complete
 **Source**: Code-duplication audit 2026-06-04 (TASK-138 close)
 
 `RESULTS dict` + `pass_/fail/skip/flake()` + `main()` with `--port/--baud/--timeout/--tests`
@@ -524,6 +526,8 @@ Both satellite files import boilerplate from `ve_suite_base.py`; no local copies
 `RESULTS`/`pass_`/`fail`/`skip`/`flake`/`main` remain in either file; all tests pass;
 a new satellite test can be created by importing 4 names from `ve_suite_base` + defining
 test functions.
+
+**Completion note (2026-06-04):** `app/tools/ve_suite_base.py` created: `RESULTS`, `pass_/fail/skip/flake`, `make_arg_parser` (description kwarg), `run_suite` (inter_test_sleep param), `print_results`. `test_heatmap_reliability.py`: local result-tracking block removed; imports from `ve_suite_base`; `main()` uses `make_arg_parser` + lambda wiring for T216/T217 soak_minutes. `test_tls_yield_reliability.py`: same pattern; `inter_test_sleep=1.0`. Both `argparse` imports removed. DUT smoke: T219/T220/T221 PASS; T214 PASS, T215 SKIP (no -1 on this run); T216 PASS (1-min soak); T217 expected-FAIL (no 120s heatmap fetch in 1-min window — same as before refactor). `check_build.sh` 4/4.
 
 ---
 
