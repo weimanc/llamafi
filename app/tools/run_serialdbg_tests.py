@@ -3068,7 +3068,12 @@ def t_cdwn_01(dut: Dut):
 # ── T-CDWN-02 — g_shellBusy gate in cmdTap blocks second canvas tap ───────────
 
 def t_cdwn_02(dut: Dut):
-    """T-CDWN-02: tap row while busy → second tap dropped by cmdTap g_shellBusy gate → fetchOkCount N+1."""
+    """T-CDWN-02: tap row while busy → second tap dropped by cmdTap g_shellBusy gate → one fetch, not two.
+
+    Primary assertion: second cmdTap returns skipped:true (gate active).
+    Secondary assertion: exactly one fetch resolves (fetchOkCount+fetchErrCount == 1).
+    Cold ESP32 TLS to Yahoo Finance can take 30–40 s; we wait up to 60 s for resolution.
+    """
     print("T-CDWN-02  cmdTap g_shellBusy gate blocks second tap")
     if not _switch_to_stock(dut):
         skip("T-CDWN-02", "could not switch to StockApp")
@@ -3077,6 +3082,7 @@ def t_cdwn_02(dut: Dut):
     time.sleep(0.3)
     # Force stale cache so drill-in triggers a new async fetch.
     dut.cmd("set triggerFetch 1", timeout=2.0)
+    dut.cmd("set fetchErrCount 0", timeout=2.0)
     n = _stock_ok_count(dut)
     if n < 0:
         _restore_from_stock(dut)
@@ -3090,27 +3096,42 @@ def t_cdwn_02(dut: Dut):
         _restore_from_stock(dut)
         fail("T-CDWN-02", "shellBusy=true not seen within 500 ms — gate may not be active for second tap")
         return
-    # Tap 2 — cmdTap g_shellBusy check should drop this; use long timeout since dataTask
-    # may be flooding serial with chart parse output right now.
-    try:
-        dut.cmd("tap 137 36", timeout=8.0)
-    except TimeoutError:
-        pass  # drop silently — the tap was blocked; no response expected either way
-    print(f"  [T-CDWN-02] fetchOkCount baseline N={n}; waiting for fetch to complete…", flush=True)
-    # Poll until not busy (fetch complete); _poll_shell_busy retries on transient TimeoutError.
-    _poll_shell_busy(dut, False, timeout_ms=50000)
-    final_n = _stock_ok_count(dut)
+    # Tap 2 — PRIMARY ASSERTION: cmdTap must return skipped:true (g_shellBusy gate active).
+    tap2_r = dut.cmd("tap 137 36", timeout=8.0)
+    tap2_skipped = tap2_r.get("skipped", False) if isinstance(tap2_r, dict) else False
+    print(f"  [T-CDWN-02] tap2 response: {tap2_r}", flush=True)
+    if not tap2_skipped:
+        _restore_from_stock(dut)
+        fail("T-CDWN-02", f"second tap was NOT skipped — g_shellBusy gate did not block it (tap2={tap2_r})")
+        return
+    # Secondary assertion: wait for exactly one fetch to resolve (ok or err). Cold ESP32
+    # TLS to Yahoo Finance can take 30–40 s; use 60 s deadline. fetchErrCount was reset
+    # above so any increment means the enqueued fetch (not a prior stale result) resolved.
+    print(f"  [T-CDWN-02] gate confirmed (skipped:true); waiting up to 60 s for fetch to resolve…", flush=True)
+    deadline = time.monotonic() + 60.0
+    fetch_ok = n
+    fetch_err = 0
+    while time.monotonic() < deadline:
+        try:
+            cur_ok = _stock_ok_count(dut)
+            cur_err_r = dut.cmd("get fetchErrCount", timeout=5.0)
+            cur_err = cur_err_r.get("val", 0) if isinstance(cur_err_r, dict) else 0
+            if cur_ok > n or cur_err > 0:
+                fetch_ok  = cur_ok
+                fetch_err = cur_err
+                break
+        except TimeoutError:
+            pass  # DUT busy with TLS fetch — retry
+        time.sleep(1.0)
     _restore_from_stock(dut)
-    if final_n < 0:
-        fail("T-CDWN-02", "get fetchOkCount failed after test")
+    total = (fetch_ok - n) + fetch_err
+    if total == 0:
+        flake("T-CDWN-02", "gate confirmed (skipped:true) but fetch never resolved within 60 s (network unavailable)")
         return
-    if final_n >= n + 2:
-        fail("T-CDWN-02", f"fetchOkCount={final_n} (N+2 or more) — second tap was NOT blocked by g_shellBusy gate")
+    if total >= 2:
+        fail("T-CDWN-02", f"gate confirmed but {total} fetches resolved — second tap may have triggered a fetch despite skipped:true")
         return
-    if final_n == n:
-        flake("T-CDWN-02", f"fetchOkCount unchanged ({n}) — network fetch failed; gate was active but count unprovable")
-        return
-    pass_("T-CDWN-02", f"fetchOkCount advanced N={n}→{final_n} (exactly +1; second tap blocked by g_shellBusy gate)")
+    pass_("T-CDWN-02", f"gate confirmed (skipped:true); exactly 1 fetch resolved (ok={fetch_ok-n} err={fetch_err})")
 
 
 # ── T-CDWN-03 — Taskbar tap bypasses g_shellBusy gate ────────────────────────
