@@ -9,6 +9,7 @@
 #include <cstring>
 #include <cmath>
 #include "appShell.h"
+#include "util/mathUtil.h"
 
 extern TFT_eSPI tft;
 
@@ -110,7 +111,11 @@ public:
         unsigned long step = elapsed < 1UL ? 1UL : (elapsed > 50UL ? 50UL : elapsed);
         _aquariumNowMs += step;
         float dt = step * 0.001f;
+
+        uint32_t t_tick = xthal_get_ccount();
         updateClock();
+
+        uint32_t t_upd = xthal_get_ccount();
         updateFlakes(dt);
         updateCrab(dt);
         updateBubbles(dt);
@@ -118,7 +123,21 @@ public:
         updateOctopus(_aquariumNowMs, dt);
         updateSeahorse(_aquariumNowMs, dt);
         keepVisitorsSeparated();
+        _perfCycUpdate += xthal_get_ccount() - t_upd;
+
+        uint32_t t_draw = xthal_get_ccount();
         renderFrame();
+        _perfCycDraw += xthal_get_ccount() - t_draw;
+
+        _perfCycTick += xthal_get_ccount() - t_tick;
+        ++_perfFrames;
+        if (_perfFrames >= 300) {
+            float div = _perfFrames * 240.0f;
+            Serial.printf("[aq perf] tick=%.0fus upd=%.0fus draw=%.0fus frames=%lu\n",
+                _perfCycTick / div, _perfCycUpdate / div, _perfCycDraw / div,
+                (unsigned long)_perfFrames);
+            _perfCycUpdate = _perfCycDraw = _perfCycTick = _perfFrames = 0;
+        }
     }
 
     bool handleInput(TouchPhase phase, int x, int y) override {
@@ -255,6 +274,21 @@ private:
     static constexpr float VISITOR_CLEAR_RADIUS_X       = 56.0f;
     static constexpr float VISITOR_CLEAR_RADIUS_Y       = 38.0f;
 
+    // Reciprocals for radius denominators (P2: eliminate FP division at call sites)
+    static constexpr float kInv9999                      = 1.0f / 9999.0f;
+    static constexpr float kInvFishAvoidRX               = 1.0f / FISH_AVOID_RADIUS_X;
+    static constexpr float kInvFishAvoidRY               = 1.0f / FISH_AVOID_RADIUS_Y;
+    static constexpr float kInvOctFishAvRX               = 1.0f / OCTOPUS_FISH_AVOID_RADIUS_X;
+    static constexpr float kInvOctFishAvRY               = 1.0f / OCTOPUS_FISH_AVOID_RADIUS_Y;
+    static constexpr float kInvOctFishClRX               = 1.0f / OCTOPUS_FISH_CLEAR_RADIUS_X;
+    static constexpr float kInvOctFishClRY               = 1.0f / OCTOPUS_FISH_CLEAR_RADIUS_Y;
+    static constexpr float kInvSHFishAvRX                = 1.0f / SEAHORSE_FISH_AVOID_RADIUS_X;
+    static constexpr float kInvSHFishAvRY                = 1.0f / SEAHORSE_FISH_AVOID_RADIUS_Y;
+    static constexpr float kInvSHFishClRX                = 1.0f / SEAHORSE_FISH_CLEAR_RADIUS_X;
+    static constexpr float kInvSHFishClRY                = 1.0f / SEAHORSE_FISH_CLEAR_RADIUS_Y;
+    static constexpr float kInvVisClRX                   = 1.0f / VISITOR_CLEAR_RADIUS_X;
+    static constexpr float kInvVisClRY                   = 1.0f / VISITOR_CLEAR_RADIUS_Y;
+
     // ── Structs ──────────────────────────────────────────────────────────────
     struct Flake {
         bool active;
@@ -314,11 +348,12 @@ private:
 
     // ── Members ──────────────────────────────────────────────────────────────
     TFT_eSprite   _canvas{&tft};
-    bool          _spriteReady     = false;
-    bool          _retryShown      = false;
-    unsigned long _lastTickMs      = 0;
-    unsigned long _lastRetryMs     = 0;
-    unsigned long _aquariumNowMs   = 0;
+    bool          _spriteReady        = false;
+    bool          _retryShown         = false;
+    unsigned long _lastTickMs         = 0;
+    unsigned long _lastRetryMs        = 0;
+    unsigned long _aquariumNowMs      = 0;
+    unsigned long _lastClockUpdateMs  = 0;
     int           _clockHour       = 0;
     int           _clockMinute     = 0;
 
@@ -335,6 +370,11 @@ private:
 
     uint16_t _gradTile[AQ_BACKGROUND_GRADIENT_H][32];
     bool     _gradientBandCached = false;
+
+    uint32_t _perfCycUpdate = 0;
+    uint32_t _perfCycDraw   = 0;
+    uint32_t _perfCycTick   = 0;
+    uint32_t _perfFrames    = 0;
 
     static const float   kHeightNoise[AQ_SEAWEED_ROOTS];
     static const int8_t  kSeaweedDisp[32][8] PROGMEM;
@@ -386,7 +426,7 @@ private:
     static T _clamp(T v, T lo, T hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
     float _frand(float a, float b) {
-        return a + (b - a) * float(random(0, 10000)) / 9999.0f;
+        return a + (b - a) * float(random(0, 10000)) * kInv9999;
     }
 
     float _timeSec() const { return _aquariumNowMs * 0.001f; }
@@ -540,7 +580,7 @@ private:
         for (int i = 0; i < AQ_FLAKE_MAX; ++i) {
             if (!_flakes[i].active) continue;
             _flakes[i].y += _flakes[i].vy * dt;
-            _flakes[i].x += sinf(t * 1.2f + i) * 8.0f * dt;
+            _flakes[i].x += lut_sin(t * 1.2f + i) * 8.0f * dt;
             if (_flakes[i].y >= float(AQ_CANVAS_H)) _flakes[i].active = false;
         }
     }
@@ -551,7 +591,7 @@ private:
             if (!_bubbles[i].active) continue;
             _bubbles[i].y -= _bubbles[i].vy * dt;
             _bubbles[i].x = _bubbles[i].baseX
-                           + sinf(t * 1.8f + _bubbles[i].phase) * _bubbles[i].swayAmp;
+                           + lut_sin(t * 1.8f + _bubbles[i].phase) * _bubbles[i].swayAmp;
             if (_bubbles[i].y < -10.0f) _resetBubble(_bubbles[i], false);
         }
     }
@@ -570,13 +610,13 @@ private:
     void _steerFromOctopus(Fish& f, float fcx, float fcy, float dt) {
         if (!_octopus.active) return;
         float dx = fcx - _octopus.x, dy = fcy - (_octopus.y + OCTOPUS_CENTER_Y_OFFSET);
-        float sx = dx/OCTOPUS_FISH_AVOID_RADIUS_X, sy = dy/OCTOPUS_FISH_AVOID_RADIUS_Y;
+        float sx = dx*kInvOctFishAvRX, sy = dy*kInvOctFishAvRY;
         float sd2 = sx*sx + sy*sy;
         if (sd2 <= 0.0001f || sd2 >= 1.0f) return;
-        float dist = sqrtf(dx*dx + dy*dy) + 0.0001f;
+        float inv = q_rsqrt(dx*dx + dy*dy + 0.00000001f);
         float push = (1.0f - sd2); push *= push;
-        f.vx += (dx/dist) * push * OCTOPUS_FISH_AVOID_STRENGTH * dt;
-        f.vy += (dy/dist) * push * OCTOPUS_FISH_AVOID_STRENGTH * dt;
+        f.vx += (dx*inv) * push * OCTOPUS_FISH_AVOID_STRENGTH * dt;
+        f.vy += (dy*inv) * push * OCTOPUS_FISH_AVOID_STRENGTH * dt;
     }
 
     void _steerFromSeahorse(Fish& f, float fcx, float fcy, float dt) {
@@ -584,13 +624,13 @@ private:
         float hcx = _seahorse.x + SEAHORSE_CENTER_X_OFFSET;
         float hcy = _seahorse.y + SEAHORSE_CENTER_Y_OFFSET;
         float dx = fcx - hcx, dy = fcy - hcy;
-        float sx = dx/SEAHORSE_FISH_AVOID_RADIUS_X, sy = dy/SEAHORSE_FISH_AVOID_RADIUS_Y;
+        float sx = dx*kInvSHFishAvRX, sy = dy*kInvSHFishAvRY;
         float sd2 = sx*sx + sy*sy;
         if (sd2 <= 0.0001f || sd2 >= 1.0f) return;
-        float dist = sqrtf(dx*dx + dy*dy) + 0.0001f;
+        float inv = q_rsqrt(dx*dx + dy*dy + 0.00000001f);
         float push = (1.0f - sd2); push *= push;
-        f.vx += (dx/dist) * push * SEAHORSE_FISH_AVOID_STRENGTH * dt;
-        f.vy += (dy/dist) * push * SEAHORSE_FISH_AVOID_STRENGTH * dt;
+        f.vx += (dx*inv) * push * SEAHORSE_FISH_AVOID_STRENGTH * dt;
+        f.vy += (dy*inv) * push * SEAHORSE_FISH_AVOID_STRENGTH * dt;
     }
 
     void _pushOutOfOctopus(Fish& f) {
@@ -598,16 +638,16 @@ private:
         float fcx = f.x + f.visualWidth*0.5f, fcy = f.y + FISH_CENTER_Y_OFFSET;
         float ocy = _octopus.y + OCTOPUS_CENTER_Y_OFFSET;
         float dx = fcx - _octopus.x, dy = fcy - ocy;
-        float sx = dx/OCTOPUS_FISH_CLEAR_RADIUS_X, sy = dy/OCTOPUS_FISH_CLEAR_RADIUS_Y;
+        float sx = dx*kInvOctFishClRX, sy = dy*kInvOctFishClRY;
         float sd2 = sx*sx + sy*sy;
         if (sd2 >= 1.0f) return;
         if (sd2 <= 0.0001f) {
             dx = (f.vx >= 0.0f) ? 1.0f : -1.0f;
             dy = (f.vy >= 0.0f) ? 0.35f : -0.35f;
-            sd2 = (dx/OCTOPUS_FISH_CLEAR_RADIUS_X)*(dx/OCTOPUS_FISH_CLEAR_RADIUS_X)
-                + (dy/OCTOPUS_FISH_CLEAR_RADIUS_Y)*(dy/OCTOPUS_FISH_CLEAR_RADIUS_Y);
+            sd2 = (dx*kInvOctFishClRX)*(dx*kInvOctFishClRX)
+                + (dy*kInvOctFishClRY)*(dy*kInvOctFishClRY);
         }
-        float scale = 1.0f / sqrtf(sd2);
+        float scale = q_rsqrt(sd2);
         f.x += (_octopus.x + dx*scale - fcx) * 0.55f;
         f.y += (ocy        + dy*scale - fcy) * 0.55f;
     }
@@ -618,16 +658,16 @@ private:
         float hcx = _seahorse.x + SEAHORSE_CENTER_X_OFFSET;
         float hcy = _seahorse.y + SEAHORSE_CENTER_Y_OFFSET;
         float dx = fcx - hcx, dy = fcy - hcy;
-        float sx = dx/SEAHORSE_FISH_CLEAR_RADIUS_X, sy = dy/SEAHORSE_FISH_CLEAR_RADIUS_Y;
+        float sx = dx*kInvSHFishClRX, sy = dy*kInvSHFishClRY;
         float sd2 = sx*sx + sy*sy;
         if (sd2 >= 1.0f) return;
         if (sd2 <= 0.0001f) {
             dx = (f.vx >= 0.0f) ? 1.0f : -1.0f;
             dy = (f.vy >= 0.0f) ? 0.35f : -0.35f;
-            sd2 = (dx/SEAHORSE_FISH_CLEAR_RADIUS_X)*(dx/SEAHORSE_FISH_CLEAR_RADIUS_X)
-                + (dy/SEAHORSE_FISH_CLEAR_RADIUS_Y)*(dy/SEAHORSE_FISH_CLEAR_RADIUS_Y);
+            sd2 = (dx*kInvSHFishClRX)*(dx*kInvSHFishClRX)
+                + (dy*kInvSHFishClRY)*(dy*kInvSHFishClRY);
         }
-        float scale = 1.0f / sqrtf(sd2);
+        float scale = q_rsqrt(sd2);
         f.x += (hcx + dx*scale - fcx) * 0.45f;
         f.y += (hcy + dy*scale - fcy) * 0.45f;
     }
@@ -659,8 +699,8 @@ private:
                 f.fleeUntilMs = 0;
             }
 
-            f.vx += cosf(f.phase + t*0.9f) * 0.45f * f.wanderBias * dt;
-            f.vy += sinf(f.phase*1.7f + t*0.7f) * 0.22f * dt;
+            f.vx += lut_cos(f.phase + t*0.9f) * 0.45f * f.wanderBias * dt;
+            f.vy += lut_sin(f.phase*1.7f + t*0.7f) * 0.22f * dt;
 
             float avgVX=0, avgVY=0, scx=0, scy=0;
             int nearCount=0, repelCount=0;
@@ -681,7 +721,7 @@ private:
                 float sdx = cx[j] - fcx, sdy = cy[j] - fcy;
                 if (sdx >  AQ_CANVAS_W * 0.5f) sdx -= AQ_CANVAS_W;
                 if (sdx < -AQ_CANVAS_W * 0.5f) sdx += AQ_CANVAS_W;
-                float ssx = sdx/FISH_AVOID_RADIUS_X, ssy = sdy/FISH_AVOID_RADIUS_Y;
+                float ssx = sdx*kInvFishAvoidRX, ssy = sdy*kInvFishAvoidRY;
                 float sd2 = ssx*ssx + ssy*ssy;
                 if (sd2 > 0.0001f && sd2 < 1.0f) {
                     float dist = sqrtf(sdx*sdx + sdy*sdy) + 0.0001f;
@@ -692,8 +732,9 @@ private:
                 }
             }
             if (nearCount > 0) {
-                avgVX /= nearCount; avgVY /= nearCount;
-                scx /= nearCount;   scy /= nearCount;
+                float invN = 1.0f / nearCount;
+                avgVX *= invN; avgVY *= invN;
+                scx   *= invN; scy   *= invN;
                 f.vx += (avgVX - f.vx) * 0.45f * dt;
                 f.vy += (avgVY - f.vy) * 0.25f * dt;
                 f.vx += (scx - f.x) * 0.0018f;
@@ -720,11 +761,11 @@ private:
             if (f.y < 18)                          f.vy += 0.8f * dt;
             if (f.y > float(AQ_CANVAS_H) - 22.0f) f.vy -= 0.8f * dt;
 
-            float mag = sqrtf(f.vx*f.vx + f.vy*f.vy);
-            if (mag < 0.0001f) { f.vx = 1.0f; f.vy = 0.0f; mag = 1.0f; }
-            f.vx /= mag; f.vy /= mag;
+            float mag2 = f.vx*f.vx + f.vy*f.vy;
+            if (mag2 < 0.00000001f) { f.vx = 1.0f; f.vy = 0.0f; }
+            else { float inv = q_rsqrt(mag2); f.vx *= inv; f.vy *= inv; }
 
-            float spd = f.speed + sinf(t*3.2f + f.phase) * 4.0f;
+            float spd = f.speed + lut_sin(t*3.2f + f.phase) * 4.0f;
             f.x += f.vx * spd * dt;
             f.y += f.vy * spd * dt;
             _pushOutOfOctopus(f);
@@ -774,7 +815,7 @@ private:
         }
         float t = now * 0.001f;
         _octopus.x += _octopus.vx * dt;
-        _octopus.y  = _octopus.baseY + sinf(t*0.45f + _octopus.phase) * 6.0f;
+        _octopus.y  = _octopus.baseY + lut_sin(t*0.45f + _octopus.phase) * 6.0f;
         if ((_octopus.vx > 0.0f && _octopus.x >  AQ_CANVAS_W + OCTOPUS_EXIT_PAD) ||
             (_octopus.vx < 0.0f && _octopus.x < -OCTOPUS_EXIT_PAD))
             _octopus.active = false;
@@ -806,11 +847,11 @@ private:
             return;
         }
         float t = now * 0.001f;
-        float pulse = 1.0f + sinf(t*0.55f + _seahorse.phase) * 0.18f;
+        float pulse = 1.0f + lut_sin(t*0.55f + _seahorse.phase) * 0.18f;
         _seahorse.x += _seahorse.vx * pulse * dt;
         _seahorse.y  = _seahorse.baseY
-                     + sinf(t*0.82f  + _seahorse.phase)        * 4.5f
-                     + sinf(t*2.15f  + _seahorse.phase * 1.7f) * 0.9f;
+                     + lut_sin(t*0.82f  + _seahorse.phase)        * 4.5f
+                     + lut_sin(t*2.15f  + _seahorse.phase * 1.7f) * 0.9f;
         if ((_seahorse.vx > 0.0f && _seahorse.x >  AQ_CANVAS_W + SEAHORSE_EXIT_PAD) ||
             (_seahorse.vx < 0.0f && _seahorse.x < -SEAHORSE_EXIT_PAD))
             _seahorse.active = false;
@@ -822,16 +863,16 @@ private:
         float hcx = _seahorse.x + SEAHORSE_CENTER_X_OFFSET;
         float hcy = _seahorse.y + SEAHORSE_CENTER_Y_OFFSET;
         float dx = hcx - ocx, dy = hcy - ocy;
-        float sx = dx/VISITOR_CLEAR_RADIUS_X, sy = dy/VISITOR_CLEAR_RADIUS_Y;
+        float sx = dx*kInvVisClRX, sy = dy*kInvVisClRY;
         float sd2 = sx*sx + sy*sy;
         if (sd2 >= 1.0f) return;
         if (sd2 <= 0.0001f) {
             dx = (_seahorse.vx >= _octopus.vx) ? 1.0f : -1.0f;
             dy = 0.35f;
-            sd2 = (dx/VISITOR_CLEAR_RADIUS_X)*(dx/VISITOR_CLEAR_RADIUS_X)
-                + (dy/VISITOR_CLEAR_RADIUS_Y)*(dy/VISITOR_CLEAR_RADIUS_Y);
+            sd2 = (dx*kInvVisClRX)*(dx*kInvVisClRX)
+                + (dy*kInvVisClRY)*(dy*kInvVisClRY);
         }
-        float scale = 1.0f / sqrtf(sd2);
+        float scale = q_rsqrt(sd2);
         float thx = ocx + dx*scale, thy = ocy + dy*scale;
         float px  = (thx - hcx) * 0.18f, py = (thy - hcy) * 0.22f;
         _seahorse.x    += px;
@@ -844,6 +885,9 @@ private:
 
     // ── Clock ─────────────────────────────────────────────────────────────────
     void updateClock() {
+        unsigned long ms = millis();
+        if (ms - _lastClockUpdateMs < 1000) return;
+        _lastClockUpdateMs = ms;
         time_t now = time(nullptr);
         struct tm ti;
         localtime_r(&now, &ti);
@@ -952,7 +996,7 @@ private:
             float py = float(y0_world) - bh * u - float(stripY);
             float side = ((bi + b) & 1) ? 1.0f : -1.0f;
             float bl   = 5.5f + float((bi * 3 + b * 5) % 5);
-            float bwig = sinf(t * (1.1f + bi * 0.03f) * AQ_SWAY + bi + b * 1.7f) * 1.2f;
+            float bwig = lut_sin(t * (1.1f + bi * 0.03f) * AQ_SWAY + bi + b * 1.7f) * 1.2f;
             int ex = int(px + side * bl * 0.58f + bwig);
             int ey = int(py - bl * 0.78f);
             _canvas.drawLine(int(px), int(py), ex, ey, (b & 1) ? TFT_DARKGREEN : TFT_GREEN);
@@ -1008,8 +1052,8 @@ private:
         _canvas.setTextDatum(TL_DATUM);
         const float t = _timeSec();
         const float waveBase = t * FISH_SWIM_WAVE_SPEED;
-        static const float kSin = sinf(FISH_SWIM_WAVE_SPACING);
-        static const float kCos = cosf(FISH_SWIM_WAVE_SPACING);
+        static const float kSin = lut_sin(FISH_SWIM_WAVE_SPACING);
+        static const float kCos = lut_cos(FISH_SWIM_WAVE_SPACING);
         const int fontH = (int)_canvas.fontHeight();
         for (int i = 0; i < AQ_FISH_COUNT; ++i) {
             Fish& f = _fishPool[i];
@@ -1019,8 +1063,8 @@ private:
             uint8_t        len     = _fishGlyphLenRight[f.type];
             bool           goRight = (f.vx >= 0.0f);
             float angle  = waveBase + f.phase;
-            float wave   = sinf(angle);
-            float waveC  = cosf(angle);
+            float wave   = lut_sin(angle);
+            float waveC  = lut_cos(angle);
             _canvas.setTextColor(f.renderColor);
             int16_t xpos = 0;
             for (uint8_t c = 0; c < len; ++c) {
@@ -1046,13 +1090,13 @@ private:
         if (!_octopus.active) return;
         float t  = _timeSec();
         int   cx = int(_octopus.x), cy = int(_octopus.y) - stripY;
-        int   r  = 205 + int(42.0f * sinf(t*0.18f + _octopus.colorPhase));
-        int   g  = 78  + int(38.0f * sinf(t*0.13f + _octopus.colorPhase + 2.1f));
-        int   b  = 178 + int(58.0f * sinf(t*0.16f + _octopus.colorPhase + 4.2f));
+        int   r  = 205 + int(42.0f * lut_sin(t*0.18f + _octopus.colorPhase));
+        int   g  = 78  + int(38.0f * lut_sin(t*0.13f + _octopus.colorPhase + 2.1f));
+        int   b  = 178 + int(58.0f * lut_sin(t*0.16f + _octopus.colorPhase + 4.2f));
         _canvas.setTextSize(1);
         _canvas.setTextDatum(TL_DATUM);
         _canvas.setTextColor(_rgb888to565(r,g,b));
-        float tw = sinf(t*1.25f + _octopus.phase) * 1.4f;
+        float tw = lut_sin(t*1.25f + _octopus.phase) * 1.4f;
         _canvas.drawChar('(', cx-13, cy + int(tw));
         _canvas.drawChar('.', cx- 3, cy - 5);
         _canvas.drawChar('.', cx+ 7, cy - 5);
@@ -1060,7 +1104,7 @@ private:
         static const char  tg[] = {'(','(','(',')',')',')'};
         static const int   tx[] = {-24,-16,-8,2,10,18};
         for (int i = 0; i < 6; ++i) {
-            float w = sinf(t*1.75f + _octopus.phase + i*0.72f);
+            float w = lut_sin(t*1.75f + _octopus.phase + i*0.72f);
             _canvas.drawChar(uint16_t(tg[i]), cx+tx[i]+int(w*1.4f), cy+13+int(w*2.2f));
         }
     }
@@ -1084,11 +1128,11 @@ private:
         };
         float t  = _timeSec();
         int   x  = int(_seahorse.x), y = int(_seahorse.y) - stripY;
-        int   sw = int(sinf(t*1.15f + _seahorse.phase) * 1.2f);
-        int   ff = int(sinf(t*10.0f + _seahorse.finPhase) * 1.2f);
-        int   r  = 238 + int(12.0f * sinf(t*0.11f + _seahorse.phase));
-        int   g  = 142 + int(18.0f * sinf(t*0.16f + _seahorse.phase + 1.4f));
-        int   b  = 48  + int(12.0f * sinf(t*0.13f + _seahorse.phase + 2.8f));
+        int   sw = int(lut_sin(t*1.15f + _seahorse.phase) * 1.2f);
+        int   ff = int(lut_sin(t*10.0f + _seahorse.finPhase) * 1.2f);
+        int   r  = 238 + int(12.0f * lut_sin(t*0.11f + _seahorse.phase));
+        int   g  = 142 + int(18.0f * lut_sin(t*0.16f + _seahorse.phase + 1.4f));
+        int   b  = 48  + int(12.0f * lut_sin(t*0.13f + _seahorse.phase + 2.8f));
         _canvas.setTextSize(1);
         _canvas.setTextFont(1);
         _canvas.setTextDatum(TL_DATUM);
@@ -1107,7 +1151,7 @@ private:
         }
         _canvas.setTextColor(_rgb888to565(255,188,82));
         int finX = _seahorse.facingRight ? x+5+ff : x+20+ff;
-        const char* fin = (sinf(t*12.0f + _seahorse.finPhase) > 0.0f) ? "~" : "-";
+        const char* fin = (lut_sin(t*12.0f + _seahorse.finPhase) > 0.0f) ? "~" : "-";
         _canvas.drawString(fin, finX, y+24);
         _canvas.setTextFont(2);
     }
@@ -1408,10 +1452,10 @@ private:
         float effectiveAmp   = CRAB_LEG_WAVE_AMP   * _crab.legWaveIntensity;
         float effectiveSpeed = CRAB_LEG_WAVE_SPEED  * _crab.legWaveIntensity;
         float waveBase = _timeSec() * effectiveSpeed + _crab.phase;
-        float wave  = sinf(waveBase);
-        float waveC = cosf(waveBase);
-        static const float kLegSin = sinf(CRAB_LEG_WAVE_SPACING);
-        static const float kLegCos = cosf(CRAB_LEG_WAVE_SPACING);
+        float wave  = lut_sin(waveBase);
+        float waveC = lut_cos(waveBase);
+        static const float kLegSin = lut_sin(CRAB_LEG_WAVE_SPACING);
+        static const float kLegCos = lut_cos(CRAB_LEG_WAVE_SPACING);
 
         _canvas.setTextColor(CRAB_LEG_COLOR);
         for (int i = 0; i < 4; ++i) {
@@ -1438,8 +1482,8 @@ private:
                 int   zy    = localBodyY - CRAB_SLEEP_BASE_Y - i * CRAB_SLEEP_STEP_PX;
                 float phase = float(i) * CRAB_SLEEP_SWAY_PHASE;
                 float ang   = nowSec * CRAB_SLEEP_SWAY_SPEED + phase;
-                float swayX = sinf(ang) * CRAB_SLEEP_SWAY_AMP;
-                float swayY = cosf(ang) * CRAB_SLEEP_SWAY_Y_AMP;
+                float swayX = lut_sin(ang) * CRAB_SLEEP_SWAY_AMP;
+                float swayY = lut_cos(ang) * CRAB_SLEEP_SWAY_Y_AMP;
                 char  ch    = (i == (int)_crab.sleepZFrame) ? 'Z' : 'z';
                 _canvas.drawChar(uint16_t(ch), zx + (int)swayX, zy + (int)swayY);
             }
@@ -1468,7 +1512,7 @@ private:
     }
 };
 
-// sinf(i * 2.173f + 0.61f) for i = 0..11 — placed in .rodata (flash), zero DRAM cost
+// lut_sin(i * 2.173f + 0.61f) for i = 0..11 — placed in .rodata (flash), zero DRAM cost
 const float AquariumApp::kHeightNoise[AquariumApp::AQ_SEAWEED_ROOTS] = {
      0.5729f,  0.3510f, -0.9705f,  0.7485f,  0.1225f, -0.8873f,
      0.8827f, -0.1128f, -0.7549f,  0.9681f, -0.3418f, -0.5808f,

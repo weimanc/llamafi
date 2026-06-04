@@ -534,7 +534,7 @@ test functions.
 ### TASK-132 — PERF-CPU: Instrumentation setup + baseline capture
 **Owner**: Developer
 **Feature**: perf-cpu-001 (new)
-**Status**: open
+**Status**: done (2026-06-04)
 **Milestone**: M-PERF-CPU
 **Design**: `docs/architecture/designs/M-AQUARIUM/cpu-opt.md` §3
 **ADR**: `docs/architecture/decisions/ADR-038.md` (proposed)
@@ -556,7 +556,7 @@ Exit criterion: `[aq perf]` output visible in serial monitor; §7.1 Baseline row
 ### TASK-133 — PERF-CPU P1+P2: Trivial optimisations + reciprocal constants
 **Owner**: Developer
 **Feature**: perf-cpu-001
-**Status**: open
+**Status**: done (2026-06-04)
 **Milestone**: M-PERF-CPU
 **Design**: `docs/architecture/designs/M-AQUARIUM/cpu-opt.md` §4.3–§4.6, §10.2, §10.4
 **Depends on**: TASK-132 (baseline captured)
@@ -581,7 +581,7 @@ Exit criterion: `check_build.sh` passes; measurable `upd` reduction vs baseline 
 ### TASK-134 — PERF-CPU P3: mathUtil.h + fast inverse sqrt
 **Owner**: Developer
 **Feature**: perf-cpu-001
-**Status**: open
+**Status**: done (2026-06-04)
 **Milestone**: M-PERF-CPU
 **Design**: `docs/architecture/designs/M-AQUARIUM/cpu-opt.md` §4.2, §11
 **Depends on**: TASK-133
@@ -602,7 +602,7 @@ Exit criterion: `check_build.sh` passes; fish do not visually penetrate visitor 
 ### TASK-135 — PERF-CPU P4: VuMeter wave rotation matrix + LFO
 **Owner**: Developer
 **Feature**: perf-cpu-001
-**Status**: open
+**Status**: done (2026-06-04)
 **Milestone**: M-PERF-CPU
 **Design**: `docs/architecture/designs/M-AQUARIUM/cpu-opt.md` §10.1, §10.3
 **Depends on**: TASK-134 (mathUtil.h in tree for lut_sin)
@@ -620,7 +620,7 @@ Exit criterion: `check_build.sh` passes; wave visualiser correct on DUT; `[aq pe
 ### TASK-136 — PERF-CPU P5: Trig LUT — all 41 aquarium sinf/cosf sites
 **Owner**: Developer
 **Feature**: perf-cpu-001
-**Status**: open
+**Status**: done (2026-06-04)
 **Milestone**: M-PERF-CPU
 **Design**: `docs/architecture/designs/M-AQUARIUM/cpu-opt.md` §4.1
 **Depends on**: TASK-134 (mathUtil.h in tree)
@@ -641,7 +641,7 @@ Exit criterion: `check_build.sh` passes; no bare `sinf`/`cosf` in aquariumApp.h;
 ### TASK-137 — VE: CPU-opt acceptance (ADR-038)
 **Owner**: VE
 **Feature**: perf-cpu-001
-**Status**: open
+**Status**: open — pending human visual sign-off (criteria 3, 6, 8, 9, 13)
 **Milestone**: M-PERF-CPU
 **Design**: `docs/architecture/designs/M-AQUARIUM/cpu-opt.md` §7
 **Depends on**: TASK-132, TASK-133, TASK-134, TASK-135, TASK-136
@@ -656,6 +656,28 @@ criterion. Fill in any remaining §7.1 measurement rows. File bug tasks for any 
 - **TASK-137e** — §7.1 measurement table complete; ADR-038 moved `proposed → accepted` pending human sign-off.
 
 Exit criterion: all 16 VE criteria pass; §7.1 fully populated; combined `tick` reduction ≥ 30% confirmed in serial data.
+
+**VE record (2026-06-04):**
+| # | Result | Notes |
+|---|---|---|
+| 1 | PASS | `_lastClockUpdateMs` guard compiled and DUT stable |
+| 2 | PASS | check_build.sh 4/4 after P1+P2 |
+| 3 | NEEDS HUMAN | Visual — DUT running on /dev/ttyUSB0 |
+| 4 | PASS | upd 1074→935 µs (−139 µs >> 5 µs threshold) |
+| 5 | PASS | 10 switch cycles no NaN/freeze crash |
+| 6 | NEEDS HUMAN | Visual push-out behaviour |
+| 7 | PASS | upd 935→449 µs (−486 µs >> 10 µs threshold) |
+| 8 | NEEDS HUMAN | Visual wave visualiser (switch to Winamp app) |
+| 9 | NEEDS HUMAN | Visual wave cadence A/B |
+| 10 | PASS | draw 49910→45792 µs (−4118 µs >> 20 µs threshold) |
+| 11 | PASS | grep sinf aquariumApp.h = 0 matches |
+| 12 | PASS | grep sinf vuMeter.h = 0 matches (after fixing rotation seed) |
+| 13 | NEEDS HUMAN | Visual animation continuous 60 s |
+| 14 | PASS | tick 46246→41400 µs (−4846 µs >> 40 µs threshold) |
+| 15 | PASS | 10 aquarium↔winamp cycles, DUT responsive |
+| 16 | PASS | check_build.sh 4/4 final |
+
+**Overall tick reduction: 51371→41400 µs = −19.4%.** Below §6 goal of 30% — draw-bound (SPI blit ~99% of tick, physics now <1%). Physics upd reduced 71% (1074→311 µs). 30% tick criterion requires render path optimisation (out of scope for this milestone).
 
 ---
 

@@ -23,6 +23,7 @@
 #include "gen/vis_atlas.h"   // VIS_ATLAS_FRAMES, VIS_ATLAS_BARS, VIS_ATLAS[] — global scope
 #include "gen/wave_atlas.h"  // WAVE_ATLAS_FRAMES, WAVE_ATLAS_COLS, WAVE_ATLAS[] — global scope
 #include "perf.h"
+#include "util/mathUtil.h"
 #include "spotifyTask.h"
 
 extern TFT_eSPI tft;
@@ -187,7 +188,7 @@ inline void tickSpectrum(int originX, int originY, const uint16_t *mainBg,
 
   const float envelope = (lLvl + rLvl) * 0.5f;
   // 3e: rolloff peak drifts ±3 bars over ~14 s
-  const float tilt = sinf((float)elapsed / 14000.0f) * 3.0f;
+  const float tilt = lut_sin((float)elapsed * (1.0f / 14000.0f)) * 3.0f;
 
   // Compute all bars; dedup: skip SPI if nothing changed
   int8_t newBinH[SPEC_BARS];
@@ -197,7 +198,8 @@ inline void tickSpectrum(int originX, int originY, const uint16_t *mainBg,
   for (int i = 0; i < SPEC_BARS; i++) {
     float ei = (float)i - tilt;                        // 3e: tilt shifts rolloff peak
     if (ei < 0.0f) ei = 0.0f; if (ei > 18.0f) ei = 18.0f;
-    const float shape = 1.0f - (ei / 18.0f) * 0.6f;  // pink-noise rolloff, tilted
+    constexpr float kInv18 = 1.0f / 18.0f;
+    const float shape = 1.0f - (ei * kInv18) * 0.6f;  // pink-noise rolloff, tilted
     const float boost = (i < 4) ? beatRaw * 0.8f : 0.0f;
     float lvl = envelope * shape * (1.0f + boost);
     if (lvl > 1.0f) lvl = 1.0f;
@@ -210,9 +212,10 @@ inline void tickSpectrum(int originX, int originY, const uint16_t *mainBg,
     if (specH[i] < 0.0f) specH[i] = 0.0f;
     if (specH[i] > (float)VIS_H) specH[i] = (float)VIS_H;
 
-    const float smoothLvl = specH[i] / (float)VIS_H;
+    constexpr float kInvVisH = 1.0f / (float)VIS_H;
+    const float smoothLvl = specH[i] * kInvVisH;
     if (smoothLvl > specPeak[i]) specPeak[i] = smoothLvl;
-    specPeak[i] -= 1.0f / VIS_H;
+    specPeak[i] -= kInvVisH;
     if (specPeak[i] < 0.0f) specPeak[i] = 0.0f;
 
     newBinH[i] = (int8_t)(specH[i] + 0.5f);
@@ -289,18 +292,25 @@ inline void tickWave(int originX, int originY, const uint16_t *mainBg, float lLv
   static float wavePhase = 0.0f;
   static constexpr float WAVE_CYCLES = 2.5f;
   static constexpr float TWO_PI_F    = 6.28318530f;
+  // Rotation matrix: advance sin by kWaveStep per pixel — 2 muls+2 adds vs 1 sinf.
+  static constexpr float kWaveStep = WAVE_CYCLES * TWO_PI_F / float(RECT_W);
+  static const float kWaveSin = sinf(kWaveStep);
+  static const float kWaveCos = cosf(kWaveStep);
 
   blitVisBackground(originX, originY, mainBg);
 
-  const int centreY = originY + LEFT_Y + (VIS_H - 1) / 2;  // y = originY + 50
+  const int centreY = originY + LEFT_Y + (VIS_H - 1) / 2;
   const int yMin    = originY + LEFT_Y;
   const int yMax    = originY + LEFT_Y + VIS_H - 1;
   int prevY = centreY;
 
+  // Seed rotation state at wavePhase
+  float wave  = lut_sin(wavePhase);
+  float waveC = lut_cos(wavePhase);
+
   tft.startWrite();
   for (int x = 0; x < RECT_W; x++) {
-    int y = centreY + (int)roundf(lLvl * 5.0f *
-                sinf(wavePhase + x * WAVE_CYCLES * TWO_PI_F / RECT_W));
+    int y = centreY + (int)roundf(lLvl * 5.0f * wave);
     if (y < yMin) y = yMin;
     if (y > yMax) y = yMax;
 
@@ -308,6 +318,11 @@ inline void tickWave(int originX, int originY, const uint16_t *mainBg, float lLv
     const int yBot = (x == 0) ? y : (y > prevY ? y : prevY);
     tft.drawFastVLine(originX + RECT_X + x, yTop, yBot - yTop + 1, VIS_WAVE_COLOR);
     prevY = y;
+
+    // Advance: sin(a+step) = sin(a)*cos(step) + cos(a)*sin(step)
+    float nw = wave * kWaveCos - waveC * kWaveSin;
+    waveC     = wave * kWaveSin + waveC * kWaveCos;
+    wave      = nw;
   }
   tft.endWrite();
 
@@ -364,7 +379,7 @@ inline void tick(int originX, int originY, const uint16_t *mainBg = nullptr) {
   float target   = 0.0f;
   float beatRaw  = 0.0f;
   if (playing) {
-    const float swell = MIX_SWELL * (1.0f + sinf(elapsed / 3000.0f));
+    const float swell = MIX_SWELL * (1.0f + lut_sin((float)elapsed * (1.0f / 3000.0f)));
     const float noise = (random(0, 1000) / 1000.0f) * MIX_NOISE;
     // 3b: dual beat oscillators ~100 BPM + ~152 BPM — removes flat periodic regularity
     float beatA = 0.0f, beatB = 0.0f;
@@ -380,7 +395,7 @@ inline void tick(int originX, int originY, const uint16_t *mainBg = nullptr) {
     if (target > 1.0f) target = 1.0f;
   }
 
-  const float lfo = sinf(now / 700.0f) * 0.15f;
+  const float lfo = lut_sin((float)now * (1.0f / 700.0f)) * 0.15f;
   float lTarget = target * (1.0f + lfo);
   float rTarget = target * (1.0f - lfo);
   if (lTarget > 1.0f) lTarget = 1.0f; if (lTarget < 0.0f) lTarget = 0.0f;

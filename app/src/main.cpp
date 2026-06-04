@@ -123,6 +123,7 @@ WiFiClientSecure client;
 #ifdef WINAMP_DISPLAY
 #include "winamp/vuMeter.h"
 #endif
+#include "util/mathUtil.h"
 
 // ----------------------------
 // App shell
@@ -201,7 +202,7 @@ public:
     {
       static unsigned long _lastScrollMs = 0;
       unsigned long now = millis();
-      float dt = (_lastScrollMs == 0) ? 0.0f : (now - _lastScrollMs) / 1000.0f;
+      float dt = (_lastScrollMs == 0) ? 0.0f : (now - _lastScrollMs) * 0.001f;
       _lastScrollMs = now;
       winampDisplay.tickScroll(dt);
     }
@@ -1640,6 +1641,7 @@ void setup()
     spotifyDisplay->showDefaultScreen();
   }
   renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), (int)AppId::COUNT);
+  buildMathLUT();
 
 #ifdef SPIKE_MODE
   spike::setup(&spotify);
@@ -1897,7 +1899,7 @@ static void cmdTick(const char *args) {
   if (dtMs < 1) dtMs = 20;
 #ifdef WINAMP_DISPLAY
   for (int i = 0; i < n; ++i)
-    winampDisplay.tickScroll(dtMs / 1000.0f);
+    winampDisplay.tickScroll(dtMs * 0.001f);
   char sbuf[64]; int scrollOff = 0;
   if (winampDisplay.dbgGet("scrollOffset", sbuf, sizeof(sbuf)))
     sscanf(sbuf, "\"key\":\"scrollOffset\",\"val\":%d", &scrollOff);

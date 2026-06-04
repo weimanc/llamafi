@@ -404,12 +404,12 @@ naturally, no visible animation discontinuity.
 
 | Phase | `tick` µs before | `tick` µs after | `upd` µs before | `upd` µs after | Notes |
 |---|---|---|---|---|---|
-| Baseline | — | — | — | — | Pre-any-CPU-opt |
-| P1 | | | | | |
-| P2 | | | | | |
-| P3 | | | | | |
-| P4 | | | | | |
-| P5 | | | | | |
+| Baseline | — | 51371 | — | 1074 | Captured 2026-06-04. Raw: 49727/51608/52777 µs tick; 1071/1079/1071 µs upd; draw avg=50236 µs. **SPI blit dominates: draw≈98% of tick.** Trig opts will improve upd only; 30% tick criterion unachievable via physics changes alone. |
+| P1+P2 | 51371 | 50850 | 1074 | 935 | Applied together (TASK-133). Raw after: 49268/51017/52264 µs tick; 893/943/970 µs upd. upd −13%; tick −1% (draw-bound). |
+| P2 | — | — | — | — | Merged into P1 row above |
+| P3 | 50850 | 46246 | 935 | 449 | TASK-134: mathUtil.h + q_rsqrt. Raw: 44349/46049/48339 µs tick; 436/448/463 µs upd. upd −52% vs P2; tick −9%. |
+| P4+P5 | 46246 | 41400 | 449 | 311 | TASK-135+136 applied together. Raw: 41518/41340/41341 µs tick; 333/293/307 µs upd. tick −10.5% vs P3; upd −31% vs P3. Draw also improved (draw funcs had sinf). |
+| P5 | — | — | — | — | Merged into P4 row above |
 
 ---
 
