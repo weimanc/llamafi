@@ -363,7 +363,7 @@ Exit criterion: `check_build.sh` 4/4; DUT visual verification described in TASK-
 ### TASK-131 — BUG: FM-2 — Persistent SSL OOM blocks all heatmap refreshes after cold boot
 **Owner**: Developer
 **Feature**: stock-002
-**Status**: complete (git `c82b4d1`)
+**Status**: complete (git `c82b4d1`, extended `e00b453`)
 **Milestone**: M-HEATMAP
 **Source**: TASK-130c findings (VE review 2026-06-03)
 
@@ -384,7 +384,14 @@ Flash `cyd2usb_winamp_debug`. Switch to StockApp → heatmap. Wait 120s for firs
 
 **Test IDs**: T215, T217 (requires T217 re-run after pattern fix in harness)
 
-**Completion note (2026-06-04):** Fix: `spotifyTask::heatmapPause()` / `heatmapResume()` — stops Spotify TLS before heatmap fetch, releases heap; `s_heatmapDoc` reduced 4096→2560. DUT soak (10 min, 5 fetches): T216 PASS, T217 PASS (min maxAlloc=39k, 0 violations). T215 SKIP — fix prevents -1, FM-3 guard cannot be provoked in normal operation (existing T216 soak coverage sufficient).
+**Completion note (2026-06-04, initial fix `c82b4d1`):** `spotifyTask::tlsYield()` / `tlsResume()` (originally named `heatmapPause/Resume`) stops Spotify TLS before heatmap fetch, releases ~40k heap; `s_heatmapDoc` reduced 4096→2560. DUT soak: T216 PASS, T217 PASS (min maxAlloc=39k, 0 violations). T215 SKIP — fix prevents -1; FM-3 guard covered by T216.
+
+**Extended fix (2026-06-04, `e00b453`):** Audit of all dataTask HTTPS paths revealed the same SSL OOM class in three further fetches:
+- `fetchWeather`: HTTP/1.1 keep-alive left TLS open after `http.end()`. Fixed: `http.useHTTP10(true)` + body-first pattern.
+- `fetchCrypto`: Spotify poll during 4–5s CoinGecko handshake fragmented heap to ~2k maxBlk; `DynamicJsonDocument(2048)` hit NoMemory. Fixed: `tlsYield/tlsResume` + `useHTTP10` + body-first. Closes TASK-108.
+- `fetchStockQuote`: AAPL's TLS cycle fragmented heap 39k→31k maxBlk; AMD and subsequent tickers returned -1. Fixed: `tlsYield/tlsResume` wrapping the 8-ticker loop. DUT: all 8 tickers 200, maxBlk=71k after loop.
+- `fetchStockChart` / `fetchStockChartBySym`: same OOM class, same fix.
+- Renamed `heatmapPause/Resume` → `tlsYield/tlsResume` throughout (mechanism is generic, not heatmap-specific); `spotifyTask.h`, `spotifyTaskStorage.cpp`, `dataTaskStorage.cpp` updated.
 
 ---
 
@@ -702,7 +709,7 @@ See: `docs/rnd/reports/EXP-001-yahoo-finance-errors.md`, `docs/rnd/proposals/PRO
 ### TASK-108 — Hardening: Coingecko TLS client.stop() on fetch failure
 **Owner**: Developer
 **Feature**: crypto-001
-**Status**: open
+**Status**: done (git `e00b453`, closed as part of TASK-131 extended fix 2026-06-04)
 **Blocked by**: nothing
 **Notes**:
 - EXP-002 (2026-05-28) observed that a failed TLS connection to `api.coingecko.com`
@@ -713,6 +720,8 @@ See: `docs/rnd/reports/EXP-001-yahoo-finance-errors.md`, `docs/rnd/proposals/PRO
 - Affects: `app/src/dataTask.h` crypto fetch path (and audit weather path for symmetry).
 - Low-risk: one-liner guard; no behaviour change on success path.
 - EXP-002 report: `docs/rnd/experiments/EXP-002-heap-benchmark.md`.
+
+**Completion note (2026-06-04):** Superseded and closed by TASK-131 extended fix. `fetchCrypto` now wraps the entire fetch in `tlsYield/tlsResume` + `http.useHTTP10(true)` + body-first pattern, ensuring TLS is released on all paths (success and failure). Weather path also audited and fixed identically. DUT confirmed: `heap free=119k maxBlk=71k` after crypto fetch; no NoMemory errors.
 
 ---
 
