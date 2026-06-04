@@ -419,7 +419,7 @@ void renderSettingsContent(SettingsAppState &s) {
 
 | Tab | ID | Content |
 |-----|----|---------|
-| `wifi` | 0 | SSID, password status, DNS override toggle |
+| `wifi` | 0 | WiFi scan + connect flow (see [wifi-settings.md](wifi-settings.md)) |
 | `time` | 1 | Timezone, NTP server, 12/24h toggle, weather location (lat/lon) |
 | `cal` | 2 | Touch calibration — launches `CalibrationFlow` (see [touch-calibration.md](touch-calibration.md)) |
 | `app` | 3 | Secondary menus for: Stock, Crypto, Aquarium, Matrix, Life |
