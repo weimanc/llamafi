@@ -388,6 +388,134 @@ Flash `cyd2usb_winamp_debug`. Switch to StockApp → heatmap. Wait 120s for firs
 
 ---
 
+### TASK-132 — PERF-CPU: Instrumentation setup + baseline capture
+**Owner**: Developer
+**Feature**: perf-cpu-001 (new)
+**Status**: open
+**Milestone**: M-PERF-CPU
+**Design**: `docs/architecture/designs/M-AQUARIUM/cpu-opt.md` §3
+**ADR**: `docs/architecture/decisions/ADR-038.md` (proposed)
+**Blocks**: TASK-133 (baseline must be captured before any optimisation phase)
+
+Add `xthal_get_ccount()`-based perf accumulators to `AquariumApp` and capture the
+pre-optimisation baseline so each subsequent phase has a measured before/after record.
+
+Sub-tasks:
+- **TASK-132a** — Add four `uint32_t` accumulators (`_perfCycUpdate`, `_perfCycDraw`, `_perfCycTick`, `_perfFrames`) to `AquariumApp` member list.
+- **TASK-132b** — Wrap `tick()` update and render regions with `xthal_get_ccount()` pairs; emit `[aq perf] tick=Xus upd=Xus draw=Xus` via `Serial.printf` every 300 frames (~10 s). Pattern per cpu-opt.md §3.2.
+- **TASK-132c** — Build `cyd2usb_winamp_debug`, flash, navigate to Aquarium, let settle 30 s, record three consecutive `[aq perf]` lines → enter as **Baseline** row in cpu-opt.md §7.1.
+- **TASK-132d** — `check_build.sh` 4/4.
+
+Exit criterion: `[aq perf]` output visible in serial monitor; §7.1 Baseline row filled in.
+
+---
+
+### TASK-133 — PERF-CPU P1+P2: Trivial optimisations + reciprocal constants
+**Owner**: Developer
+**Feature**: perf-cpu-001
+**Status**: open
+**Milestone**: M-PERF-CPU
+**Design**: `docs/architecture/designs/M-AQUARIUM/cpu-opt.md` §4.3–§4.6, §10.2, §10.4
+**Depends on**: TASK-132 (baseline captured)
+**Blocks**: TASK-134
+
+**P1 — trivial (aquariumApp.h):**
+- **TASK-133a** — `updateClock()`: add `_lastClockUpdateMs` member; early-return if `millis() - _lastClockUpdateMs < 1000`. (§4.5)
+- **TASK-133b** — `_frand`: replace `/ 9999.0f` with `* kInv9999` (`static constexpr float`). (§4.6)
+- **TASK-133c** — `updateFish:695-696`: replace four `/ nearCount` with `float invN = 1.0f/nearCount` + four multiplies. (§4.4)
+
+**P2 — reciprocal constants:**
+- **TASK-133d** — `aquariumApp.h`: add 12 `static constexpr float` reciprocals for all radius denominators (`kInvFishAvoidRX/RY`, `kInvOctFishAv/ClRX/RY`, `kInvSHFishAv/ClRX/RY`, `kInvVisClRX/RY`); replace all division sites in `updateFish`, `_steerFrom*`, `_pushOutOf*`, `keepVisitorsSeparated`. (§4.3)
+- **TASK-133e** — `vuMeter.h:tickSpectrum`: add `constexpr float kInv18`, `kInvVisH`; replace `ei/18.0f`, `specH[i]/(float)VIS_H`, `1.0f/VIS_H`. (§10.2)
+- **TASK-133f** — `main.cpp`: replace two `/ 1000.0f` with `* 0.001f` at lines ~204 and ~1900. (§10.4)
+- **TASK-133g** — Build `cyd2usb_winamp_debug`, flash, capture three `[aq perf]` lines → fill P1+P2 row in §7.1. Visual check: fish swim normally, spectrum bars animate.
+- **TASK-133h** — `check_build.sh` 4/4.
+
+Exit criterion: `check_build.sh` passes; measurable `upd` reduction vs baseline in §7.1; no visual regression.
+
+---
+
+### TASK-134 — PERF-CPU P3: mathUtil.h + fast inverse sqrt
+**Owner**: Developer
+**Feature**: perf-cpu-001
+**Status**: open
+**Milestone**: M-PERF-CPU
+**Design**: `docs/architecture/designs/M-AQUARIUM/cpu-opt.md` §4.2, §11
+**Depends on**: TASK-133
+**Blocks**: TASK-135, TASK-136 (both need mathUtil.h in tree)
+
+- **TASK-134a** — Create `app/src/util/mathUtil.h`: `q_rsqrt`, `lut_sin`, `lut_cos`, `buildMathLUT()`, `extern float g_sinLUT[512]`. Create `app/src/util/mathUtil.cpp`: `float g_sinLUT[512]` definition. (§11)
+- **TASK-134b** — `main.cpp:setup()`: add `buildMathLUT()` call before first app tick.
+- **TASK-134c** — `aquariumApp.h`: replace `1.0f/sqrtf(sd2)` with `q_rsqrt(sd2)` at `_pushOutOfOctopus:610`, `_pushOutOfSeahorse:630`, `keepVisitorsSeparated:834`.
+- **TASK-134d** — `aquariumApp.h`: fold velocity normalisation `updateFish:723-725` — `mag=sqrtf(...); vx/=mag` → `inv=q_rsqrt(...); vx*=inv; vy*=inv`.
+- **TASK-134e** — `aquariumApp.h`: fold `_steerFromOctopus:576` and `_steerFromSeahorse:590` — `dist=sqrtf(dx²+dy²)` then `/dist` → `inv=q_rsqrt(dx²+dy²); dx*=inv`.
+- **TASK-134f** — Build `cyd2usb_winamp_debug`, flash, capture `[aq perf]` → fill P3 row in §7.1. Visual: fish avoid octopus/seahorse with no penetration through bounding ellipse.
+- **TASK-134g** — `check_build.sh` 4/4.
+
+Exit criterion: `check_build.sh` passes; fish do not visually penetrate visitor ellipses; `[aq perf] upd` reduced vs P2 row; §7.1 P3 row filled.
+
+---
+
+### TASK-135 — PERF-CPU P4: VuMeter wave rotation matrix + LFO
+**Owner**: Developer
+**Feature**: perf-cpu-001
+**Status**: open
+**Milestone**: M-PERF-CPU
+**Design**: `docs/architecture/designs/M-AQUARIUM/cpu-opt.md` §10.1, §10.3
+**Depends on**: TASK-134 (mathUtil.h in tree for lut_sin)
+**Blocks**: TASK-137
+
+- **TASK-135a** — `vuMeter.h:tickWave`: replace the 76-sinf pixel loop with rotation matrix. Add `static constexpr float kWaveStep = WAVE_CYCLES * TWO_PI_F / float(RECT_W)`. Add `static const float kWaveSin = sinf(kWaveStep)` and `kWaveCos` (evaluated once). Seed `wave=sinf(wavePhase)`, `waveC=cosf(wavePhase)` per frame; advance per pixel. (§10.1)
+- **TASK-135b** — `vuMeter.h:tick()`: replace three LFO `sinf` calls (`:190`, `:367`, `:383`) with `lut_sin` + inline `* reciprocal` for the time-scaling division. `#include "util/mathUtil.h"`. (§10.3)
+- **TASK-135c** — Build `cyd2usb_winamp_debug`, flash, navigate to Winamp wave visualiser. Verify: waveform visible, continuous, phase-advances at same apparent speed. Capture `[aq perf]` → fill P4 row in §7.1.
+- **TASK-135d** — `check_build.sh` 4/4.
+
+Exit criterion: `check_build.sh` passes; wave visualiser correct on DUT; `[aq perf] draw` measurably reduced vs P3; §7.1 P4 row filled.
+
+---
+
+### TASK-136 — PERF-CPU P5: Trig LUT — all 41 aquarium sinf/cosf sites
+**Owner**: Developer
+**Feature**: perf-cpu-001
+**Status**: open
+**Milestone**: M-PERF-CPU
+**Design**: `docs/architecture/designs/M-AQUARIUM/cpu-opt.md` §4.1
+**Depends on**: TASK-134 (mathUtil.h in tree)
+**Blocks**: TASK-137
+
+Replace every remaining `sinf`/`cosf` call in `aquariumApp.h` with `lut_sin`/`lut_cos`.
+
+- **TASK-136a** — `#include "util/mathUtil.h"` at top of `aquariumApp.h`. Replace all 41 `sinf`/`cosf` call sites. Sites by function: `updateFlakes` (1), `updateBubbles` (1), `updateFish` (3), `updateOctopus` (1), `updateSeahorse` (3), `keepVisitorsSeparated` (0 — no trig), `drawFish` (2 seed + 4 constexpr statics), `drawOctopus` (10), `drawSeahorse` (6), `drawCrab` (10), `_seaweedBranches` (1). Exception: `buildMathLUT()` body in mathUtil.h retains `sinf`.
+- **TASK-136b** — Verify `grep -n 'sinf\|cosf' app/src/aquarium/aquariumApp.h` returns zero matches (excluding any `#include` lines).
+- **TASK-136c** — Build `cyd2usb_winamp_debug`, flash, let Aquarium run 60 s. Visual: fish swim, seaweed sways, bubbles rise, octopus/seahorse traverse, crab walks. No frozen elements.
+- **TASK-136d** — Capture `[aq perf]` → fill P5 row in §7.1.
+- **TASK-136e** — `check_build.sh` 4/4.
+
+Exit criterion: `check_build.sh` passes; no bare `sinf`/`cosf` in aquariumApp.h; all animation continuous; §7.1 P5 row filled; `[aq perf] tick` ≥ 30% below Baseline.
+
+---
+
+### TASK-137 — VE: CPU-opt acceptance (ADR-038)
+**Owner**: VE
+**Feature**: perf-cpu-001
+**Status**: open
+**Milestone**: M-PERF-CPU
+**Design**: `docs/architecture/designs/M-AQUARIUM/cpu-opt.md` §7
+**Depends on**: TASK-132, TASK-133, TASK-134, TASK-135, TASK-136
+
+Execute the full VE criteria table from cpu-opt.md §7. Record pass/fail against each
+criterion. Fill in any remaining §7.1 measurement rows. File bug tasks for any failure.
+
+- **TASK-137a** — VE criteria 1–7 (P1–P3 checks): clock throttle, fish behaviour, push-out, steer, `[aq perf] upd` reductions.
+- **TASK-137b** — VE criteria 8–10 (P4 checks): wave visualiser, cadence, `[aq perf] draw` reduction.
+- **TASK-137c** — VE criteria 11–14 (P5 checks): sinf grep, animation continuous, `[aq perf] tick` ≥ 30% reduction.
+- **TASK-137d** — VE criteria 15–16: 10 app-switch cycles without crash; `check_build.sh` 4/4.
+- **TASK-137e** — §7.1 measurement table complete; ADR-038 moved `proposed → accepted` pending human sign-off.
+
+Exit criterion: all 16 VE criteria pass; §7.1 fully populated; combined `tick` reduction ≥ 30% confirmed in serial data.
+
+---
+
 ### TASK-130 — VE: Heatmap fetch reliability stress test (serial-dbg)
 **Owner**: VE
 **Feature**: stock-002
