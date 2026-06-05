@@ -2,9 +2,18 @@
 
 > Owner: Architect
 > Status: draft
-> Date: 2026-06-04
+> Date: 2026-06-04 (updated 2026-06-05 — whiteboard decisions applied)
 > Part of: M-MULTIAPP Settings (`time` tab)
-> See also: [settings.md](settings.md), [keyboard-widget.md](keyboard-widget.md)
+> See also: [settings.md](settings.md)
+
+## Whiteboard decisions (2026-06-05)
+
+| Topic | Decision |
+|-------|----------|
+| Struct | No separate `TimeSettings` — use `g_settings` (AppSettings) directly. `SettingsStorage::save()` covers persistence. |
+| Lat/lon | Dropped — no weather app; location fields not needed in UI. `lat`/`lon` remain in AppSettings for future use but are not exposed in TimeSection. |
+| Timezone picker | Dropped — timezone always follows city selection. |
+| City scroll | Right-side scrollbar (18 px strip) with ▲/▼ tap buttons; 6 city rows visible per page. |
 
 ---
 
@@ -94,69 +103,61 @@ Memory: 50 cities × ~80 bytes = ~4 KB in flash. Acceptable.
 
 ## Tab content layout
 
-The `time` tab uses the list-row pattern from
-[settings.md §List-row content pattern](settings.md) with two section headers.
+The `time` tab uses the list-row pattern with two section headers.
+Lat/lon dropped (no weather app). Timezone picker dropped (follows city).
 
 ```
 +-----------------------------------+
-|  Location                         |   section header
-|  City           London         >  |   → city picker (secondary list)
-|  Latitude       51.50°         >  |   → keyboard (numeric, optional override)
-|  Longitude      -0.12°         >  |   → keyboard (numeric, optional override)
+|  Location                         |   section header (22 px)
+|  City           London         >  |   → city picker; S_CHEVRON
 |  ─────────────────────────────── |
-|  Clock & Date                     |   section header
-|  Timezone       Europe/London  >  |   → timezone picker (secondary list)
-|  Clock          24h               |   → cycle: 12h ↔ 24h
-|  Date           DD/MM/YYYY        |   → cycle: DMY → MDY → YMD → DMY
+|  Clock & Date                     |   section header (22 px)
+|  Timezone       Europe/London     |   read-only, follows city; S_VALUE (cyan)
+|  Clock          24h               |   cycle: 12h ↔ 24h
+|  Date           DD/MM/YYYY        |   cycle: DMY → MDY → YMD → DMY
 +-----------------------------------+
 ```
 
-8 rows × 26px = 208px — fits within the 212px content panel.
+5 content rows + 2 section headers = 5×26 + 2×22 = 174 px — fits 212 px panel.
 
-`>` indicator on rows that open a secondary view. Cycle-on-tap rows show
-the current value only.
+City row has `>` chevron. Timezone row is read-only display (no chevron, no tap).
 
 ---
 
-## City picker (secondary list)
+## City picker (secondary view)
 
-Same secondary-list pattern as the `app` tab submenu. Replaces the content
-panel while active; `< back` returns to the main time tab.
+Replaces the content panel while active. Header shows "Select city" + `< back`.
+Sorted alphabetically. Current city highlighted with `S_VALUE_ON` on the right.
 
 ```
-+-----------------------------------+
-|  < time         Select city       |
-+-----------------------------------+
-|  Amsterdam   NL                   |
-|  Berlin      DE                   |
-|  London      GB         (current) |
-|  Los Angeles US                   |
-|  New York    US                   |
-|  Paris       FR                   |
-|  Sydney      AU                   |
-|  Tokyo       JP                   |
-|  ...                              |
-+-----------------------------------+
++-------------------------------+--+
+|  Amsterdam   NL               |▲ |   scrollbar strip (x=257..274)
+|  Berlin      DE               |  |
+|  London      GB     (current) |░░|   thumb proportional to list position
+|  Los Angeles US               |  |
+|  New York    US               |  |
+|  Paris       FR               |▼ |
++-------------------------------+--+
 ```
 
-List sorted alphabetically by city name. Current city highlighted with
-`SETTINGS_VALUE_ON` (green) on the right column.
+**Scrollbar geometry** (right strip, x=257..274, 18 px wide):
 
-On tap: set `g_timeSettings.city`, `lat`, `lon`, `posixTz`, `tzName`.
-Call `configTzTime(posixTz, ...)` immediately to apply at runtime without
-reboot. Write to SPIFFS. Return to main time tab.
+| Zone | y range | Action |
+|------|---------|--------|
+| ▲ button | `S_CONTENT_Y .. S_CONTENT_Y+20` | `_cityOffset--` (clamped) |
+| ▼ button | `220..240` | `_cityOffset++` (clamped) |
+| Thumb track | between | no tap action in Phase 1 |
 
----
+6 city rows visible per page (S_CONTENT_H / S_ROW_H = 8, minus 2 for buttons = 6).
+City row width clipped to x=0..256 to leave room for scrollbar.
 
-## Timezone picker (secondary list)
+On city tap:
+1. Copy `city`, `posixTz`, `tzName`, `lat`, `lon` from `g_cities[i]` into `g_settings`.
+2. Call `configTzTime(g_settings.posixTz, "pool.ntp.org", "time.google.com", "time.cloudflare.com")`.
+3. `saveSettings()`.
+4. Return to Main view.
 
-Available if the user wants a timezone that differs from the auto-selected
-city timezone (unusual but possible — e.g. a device in one timezone displaying
-another city's time for weather). Shows the same city list filtered to unique
-timezones, or a flat list of POSIX timezone names.
-
-On tap: updates `posixTz` and `tzName` only (lat/lon unchanged).
-Calls `configTzTime(posixTz, ...)` immediately.
+Timezone picker: **dropped** — timezone always follows city selection.
 
 ---
 
@@ -256,33 +257,24 @@ Defaults (if key absent):
 
 ---
 
-## TimeSettings struct
+## Storage
+
+No separate `TimeSettings` struct or namespace. All fields live in `AppSettings`
+(`settingsStorage.h`) and are persisted by `SettingsStorage::save()`.
+
+Relevant `AppSettings` fields:
 
 ```cpp
-enum class DateFmt : uint8_t { DMY = 0, MDY = 1, YMD = 2 };
-
-struct TimeSettings {
-    char    posixTz[48];   // POSIX tz string, e.g. "GMT0BST,M3.5.0/1,M10.5.0"
-    char    tzName[32];    // display name, e.g. "Europe/London"
-    char    city[24];      // selected city, e.g. "London"
-    float   lat;
-    float   lon;
-    bool    fmt24h;
-    DateFmt dateFmt;
-};
-
-extern TimeSettings g_timeSettings;
-
-namespace TimeSettingsStorage {
-    void load();           // reads /settings.json["time"] → g_timeSettings
-    void save();           // writes g_timeSettings → /settings.json["time"]
-    void applyTz();        // calls configTzTime(g_timeSettings.posixTz, ...)
-}
+char    posixTz[48];   // "GMT0BST,M3.5.0/1,M10.5.0"
+char    tzName[32];    // "Europe/London"
+char    city[24];      // "London"
+float   lat;           // retained in struct; not exposed in TimeSection UI
+float   lon;
+bool    fmt24h;
+DateFmt dateFmt;
 ```
 
-`TimeSettingsStorage::load()` called in `setup()` before `configTzTime()`.
-`TimeSettingsStorage::applyTz()` also called immediately on timezone change
-(city tap or timezone picker tap) to apply without reboot.
+`SettingsStorage::load()` called in `setup()` before `configTzTime()`.
 
 ---
 
@@ -290,44 +282,259 @@ namespace TimeSettingsStorage {
 
 ```cpp
 // main.cpp::setup() — replace configTime() block:
-TimeSettingsStorage::load();
-TimeSettingsStorage::applyTz();     // configTzTime(posixTz, ntp1, ntp2, ntp3)
+SettingsStorage::load();
+configTzTime(g_settings.posixTz,
+             "pool.ntp.org", "time.google.com", "time.cloudflare.com");
 // ... NTP sync wait (unchanged) ...
 ```
 
 ---
 
-## State struct (TimeFlow)
+## TimeSection class sketch
 
 ```cpp
-enum class TimeFlowView : uint8_t {
-    Main, CityPicker, TimezonePicker
-};
+// app/src/settings/timeSection.h
 
-struct TimeFlowState {
-    TimeFlowView view = TimeFlowView::Main;
-    uint8_t      cityScroll;      // top visible city index
-    uint8_t      tzScroll;        // top visible timezone index
+enum class TimeView : uint8_t { Main, CityPicker };
+
+class TimeSection : public SettingsSection {
+public:
+    const char* title() const override {
+        return (_view == TimeView::CityPicker) ? "Select city" : "Time & Location";
+    }
+
+    void enter() override {
+        _view       = TimeView::Main;
+        _cityOffset = 0;
+        repaint();
+    }
+
+    void leave() override {}   // no async; nothing to cancel
+
+    void tick() override {}    // purely reactive; no polling needed
+
+    void repaint() override {
+        drawHeader();
+        clearContent();
+        (_view == TimeView::Main) ? repaintMain() : repaintCityPicker();
+    }
+
+    SectionResult handleInput(TouchPhase phase, int x, int y) override {
+        if (phase != TouchPhase::Release) return SectionResult::Continue;
+
+        if (isBackTap(x, y)) {
+            if (_view == TimeView::CityPicker) {
+                _view = TimeView::Main;
+                repaint();
+                return SectionResult::Continue;
+            }
+            return SectionResult::GoBack;
+        }
+
+        if (_view == TimeView::Main)       _handleMainTap(x, y);
+        else                               _handlePickerTap(x, y);
+        return SectionResult::Continue;
+    }
+
+private:
+    // ---- State ---------------------------------------------------------------
+    TimeView _view       = TimeView::Main;
+    uint8_t  _cityOffset = 0;   // top visible city index in picker
+
+    static constexpr uint8_t kPickerRows = 6;   // visible rows (8 - 2 for scroll buttons)
+
+    // ---- Scrollbar geometry (right strip) ------------------------------------
+    static constexpr int16_t kSbX     = 257;   // scrollbar left edge
+    static constexpr int16_t kSbW     =  18;   // scrollbar width
+    static constexpr int16_t kSbUpY0  = S_CONTENT_Y;
+    static constexpr int16_t kSbUpY1  = S_CONTENT_Y + 20;
+    static constexpr int16_t kSbDnY0  = 220;
+    static constexpr int16_t kSbDnY1  = 240;
+    static constexpr int16_t kRowW    = 256;   // city row width (leaves room for scrollbar)
+
+    // ---- Main view -----------------------------------------------------------
+
+    void repaintMain() {
+        // Section header: Location
+        int y = drawRows(nullptr, 0, "Location");   // draws sub-header, returns y after it
+
+        // City row with chevron
+        char cityVal[26];
+        strlcpy(cityVal, g_settings.city[0] ? g_settings.city : "None", sizeof(cityVal));
+        drawChevronRow(y, "City");
+        // overwrite value with actual city name (drawChevronRow draws ">"; redraw value col)
+        tft.setTextDatum(MR_DATUM);
+        tft.setTextColor(S_VALUE);
+        tft.drawString(cityVal, S_COL_VALUE - 14, y + S_ROW_H / 2, 2);
+        tft.setTextDatum(TL_DATUM);
+        y += S_ROW_H;
+
+        drawSep(y); y += 4;
+
+        // Section header: Clock & Date
+        tft.setTextDatum(TL_DATUM);
+        tft.setTextColor(S_SUBHDR);
+        tft.drawString("Clock & Date", S_COL_LABEL, y + 4, 2);
+        tft.drawFastHLine(S_COL_LABEL, y + S_ROW_HDR_H - 1, S_CANVAS_W - S_COL_LABEL, S_SEP);
+        y += S_ROW_HDR_H;
+
+        // Timezone row (read-only)
+        drawRow(y, { "Timezone",
+                     g_settings.tzName[0] ? g_settings.tzName : "UTC",
+                     S_LABEL, S_VALUE });
+        y += S_ROW_H;
+
+        // Clock format row
+        drawRow(y, { "Clock",
+                     g_settings.fmt24h ? "24h" : "12h",
+                     S_LABEL, S_VALUE_ON });
+        y += S_ROW_H;
+
+        // Date format row
+        static const char* kDateFmtStr[] = { "DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD" };
+        drawRow(y, { "Date",
+                     kDateFmtStr[(int)g_settings.dateFmt],
+                     S_LABEL, S_VALUE_ON });
+    }
+
+    void _handleMainTap(int x, int y) {
+        (void)x;
+        // City row: y in S_CONTENT_Y + S_ROW_HDR_H .. +S_ROW_H
+        int cityRowY = S_CONTENT_Y + S_ROW_HDR_H;
+        if (y >= cityRowY && y < cityRowY + S_ROW_H) {
+            _view = TimeView::CityPicker;
+            repaint();
+            return;
+        }
+
+        // Rows below sep + "Clock & Date" header:
+        int baseY = cityRowY + S_ROW_H + 4 + S_ROW_HDR_H;   // after sep (4px) + header
+
+        // Timezone row (baseY): read-only — no tap
+        // Clock row (baseY + S_ROW_H):
+        if (y >= baseY + S_ROW_H && y < baseY + 2 * S_ROW_H) {
+            g_settings.fmt24h = !g_settings.fmt24h;
+            saveSettings();
+            repaint();
+            return;
+        }
+        // Date row (baseY + 2*S_ROW_H):
+        if (y >= baseY + 2 * S_ROW_H && y < baseY + 3 * S_ROW_H) {
+            g_settings.dateFmt = (DateFmt)(((int)g_settings.dateFmt + 1) % 3);
+            saveSettings();
+            repaint();
+        }
+    }
+
+    // ---- City picker view ----------------------------------------------------
+
+    void repaintCityPicker() {
+        _drawScrollbar();
+        int y = S_CONTENT_Y;
+        uint8_t end = min((int)_cityOffset + kPickerRows, (int)g_cityCount);
+        for (uint8_t i = _cityOffset; i < end; i++) {
+            bool current = (strncmp(g_cities[i].city, g_settings.city,
+                                    sizeof(g_settings.city)) == 0);
+            tft.setTextDatum(ML_DATUM);
+            tft.setTextColor(S_LABEL);
+            // clip text to kRowW to avoid overwriting scrollbar
+            tft.drawString(g_cities[i].city, S_COL_LABEL, y + S_ROW_H / 2, 2);
+            tft.setTextDatum(MR_DATUM);
+            tft.setTextColor(current ? S_VALUE_ON : S_VALUE_OFF);
+            tft.drawString(g_cities[i].country, kRowW - 4, y + S_ROW_H / 2, 2);
+            tft.setTextDatum(TL_DATUM);
+            y += S_ROW_H;
+        }
+    }
+
+    void _handlePickerTap(int px, int py) {
+        // Scrollbar taps
+        if (px >= kSbX) {
+            if (py >= kSbUpY0 && py < kSbUpY1 && _cityOffset > 0) {
+                _cityOffset--;
+                repaintCityPicker();
+            } else if (py >= kSbDnY0 && py < kSbDnY1 &&
+                       _cityOffset + kPickerRows < g_cityCount) {
+                _cityOffset++;
+                repaintCityPicker();
+            }
+            return;
+        }
+
+        // City row tap
+        int row = (py - S_CONTENT_Y) / S_ROW_H;
+        if (row < 0 || row >= kPickerRows) return;
+        uint8_t idx = _cityOffset + (uint8_t)row;
+        if (idx >= g_cityCount) return;
+
+        _selectCity(idx);
+    }
+
+    void _selectCity(uint8_t idx) {
+        strlcpy(g_settings.city,     g_cities[idx].city,     sizeof(g_settings.city));
+        strlcpy(g_settings.tzName,   g_cities[idx].tzName,   sizeof(g_settings.tzName));
+        strlcpy(g_settings.posixTz,  g_cities[idx].posixTz,  sizeof(g_settings.posixTz));
+        g_settings.lat = g_cities[idx].lat;
+        g_settings.lon = g_cities[idx].lon;
+        configTzTime(g_settings.posixTz,
+                     "pool.ntp.org", "time.google.com", "time.cloudflare.com");
+        saveSettings();
+        _view = TimeView::Main;
+        repaint();
+    }
+
+    // ---- Scrollbar -----------------------------------------------------------
+
+    void _drawScrollbar() {
+        // Background strip
+        tft.fillRect(kSbX, S_CONTENT_Y, kSbW, S_CONTENT_H, S_SEP);
+
+        // ▲ button
+        tft.fillRect(kSbX, kSbUpY0, kSbW, 20, S_BG);
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextColor(S_LABEL);
+        tft.drawString("^", kSbX + kSbW / 2, kSbUpY0 + 10, 2);
+
+        // ▼ button
+        tft.fillRect(kSbX, kSbDnY0, kSbW, 20, S_BG);
+        tft.drawString("v", kSbX + kSbW / 2, kSbDnY0 + 10, 2);
+        tft.setTextDatum(TL_DATUM);
+
+        // Thumb (proportional, skips arrow zones)
+        int trackY0 = kSbUpY1 + 2;
+        int trackH  = kSbDnY0 - trackY0 - 2;
+        if (g_cityCount > kPickerRows && trackH > 0) {
+            int thumbH = max(8, trackH * kPickerRows / g_cityCount);
+            int thumbY = trackY0 + (_cityOffset * (trackH - thumbH))
+                         / (g_cityCount - kPickerRows);
+            tft.fillRect(kSbX + 3, thumbY, kSbW - 6, thumbH, S_VALUE);
+        }
+    }
 };
 ```
 
----
+### Design notes
+
+- **Single file, two views.** `TimeView::Main` and `TimeView::CityPicker` are internal sub-views. `< back` from CityPicker returns to Main (not GoBack) — the section is never truly dismissed from the picker.
+- **Tap Y math in `_handleMainTap`.** Row positions are derived from the same y-accumulation as `repaintMain()` — no `tapToRow()` because the layout has mixed-height elements (section headers 22 px, rows 26 px, sep 4 px). Explicit y-range checks are used instead.
+- **Scrollbar hides when list fits.** `_drawScrollbar()` draws the thumb only when `g_cityCount > kPickerRows`. ▲/▼ buttons always draw but `_handlePickerTap` clamps offsets so they're no-ops at the limits.
+- **`configTzTime()` side effect.** Calling it at runtime changes the active tz immediately — `getLocalTime()` in ClockApp will reflect the new timezone on the next tick. No reboot needed.
+- **`g_cityCount` / `g_cities[]`** are declared `extern` in a `cities.h` header (see §City / timezone data). The array lives in flash (`PROGMEM` if needed for size).
 
 ## Open questions
 
 1. **City list completeness** — ~50 cities covers major metros. If a user's
-   city is absent, they fall back to manual lat/lon + timezone picker.
-   The city list is a `const` array in flash — adding entries requires
-   reflash. Consider a future "custom city" entry that stores a name +
-   lat/lon + tz manually.
-2. **Lat/lon precision** — `float` (6–7 sig figs) is sufficient for weather
-   API calls. Store as `float` in the struct; JSON with 4 decimal places.
-3. **NTP server** — currently hardcoded to `pool.ntp.org` / `time.google.com`
-   / `time.cloudflare.com`. Expose as an advanced row if needed (corporate
-   networks). Deferred.
-4. **Offline timezone apply** — `configTzTime()` can be called before NTP
-   sync; the tz rule applies to whatever time is currently set (even the
-   build-epoch fallback). This is correct behaviour — no guard needed.
+   city is absent, the previous selection is preserved. Adding cities requires
+   reflash (array is in flash). A "custom entry" (free-text city + manual tz)
+   is deferred — requires KeyboardWidget.
+2. **NTP server** — hardcoded to `pool.ntp.org` / `time.google.com` /
+   `time.cloudflare.com`. Corporate networks may block these. Expose as an
+   advanced row if needed — deferred.
+3. **Offline timezone apply** — `configTzTime()` can be called before NTP
+   sync; the tz rule applies to whatever time is currently set (build-epoch
+   fallback). Correct behaviour — no guard needed.
+4. **Scrollbar thumb drag** — Phase 1 uses ▲/▼ button taps only. Drag on
+   the thumb track is a no-op. Add in a follow-up if 50-city scroll feels slow.
 
 ---
 
