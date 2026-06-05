@@ -462,7 +462,7 @@ With `chartLen == 0`, `repaintChart()` shows the flat cyan line + `"---"` price 
 
 Exit criterion: navigate list → chart (AAPL), then tap heatmap tile (ARM) — chart clears to blank/loading state before ARM data arrives; `check_build.sh` 4/4 passes.
 
-**Test IDs**: T204 (drill from list clears chart before new data, MANUAL), T205 (heatmap tile tap clears chart before new data, MANUAL), T206 (range tab-switch clears chart before new data, MANUAL).
+**Test IDs**: T205 (heatmap tile tap clears chart before new data, MANUAL), T206 (range tab-switch clears chart before new data, MANUAL). *(T204 originally planned for "drill from list clears chart" MANUAL — validated during TASK-125 DUT exit verify; ID T204 subsequently reassigned to automated D1↔Ytd stress test in M-STOCK-VE-STRESS.)*
 
 ---
 
@@ -3278,12 +3278,3 @@ Exit criteria:
 - **Exit criterion**: test functions written and passing; `test_ids` in `feature_inventory.yaml`; entries in `test_plan.md` under suite `crypto-001`.
 
 ---
-
-### TASK-001 — [Title]
-**Owner**: Developer | VE | QM | PM
-**Feature**: F001 (if applicable)
-**Status**: todo | in_progress | blocked | done
-**Git ref**: branch name or commit SHA
-**Blocked by**: (if applicable)
-**Notes**:
-```
