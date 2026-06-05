@@ -321,6 +321,303 @@ Constants (append to `gen/shell_layout.h` or define in led section header):
 
 ---
 
+## LedSection class sketch
+
+```cpp
+// app/src/settings/ledSection.h
+
+enum class LedView : uint8_t { List, Picker };
+
+class LedSection : public SettingsSection {
+public:
+    // SettingsSection contract
+    const char*   title()  const override { return "LED"; }   // same in both views
+    void          enter()        override;   // reset to List; mirror g_settings HSV
+    void          tick()         override;   // Pulse breathing advance; no-op otherwise
+    void          repaint()      override;   // dispatch to repaintList() / repaintPicker()
+    SectionResult handleInput(TouchPhase phase, int x, int y) override;
+
+private:
+    // ---- View state -------------------------------------------------------------
+    LedView _view = LedView::List;
+
+    // ---- Mirrored settings (working copies; not committed until Save) -----------
+    LedMode _mode = LedMode::Off;
+    uint8_t _hue  = 85;
+    uint8_t _sat  = 255;
+    uint8_t _val  = 200;
+
+    // ---- Picker drag capture ----------------------------------------------------
+    bool _svDragging  = false;   // pointer captured by SV square
+    bool _hueDragging = false;   // pointer captured by hue strip
+    bool _dirty       = false;   // true when working copy differs from g_settings
+
+    // ---- Picker geometry (mirrors layout table in §Colour picker view) ----------
+    static constexpr int16_t kBarY   = 28;   // button bar top y (content-relative)
+    static constexpr int16_t kPickY  = 61;   // SV square + hue strip top y
+    static constexpr int16_t kPickH  = 168;  // square / strip height
+
+    static constexpr int16_t kSvX    =   8;  static constexpr int16_t kSvW = 168;
+    static constexpr int16_t kHueX   = 184;  static constexpr int16_t kHueW =  24;
+
+    // ---- Private helpers --------------------------------------------------------
+    void repaintList();
+    void repaintPicker();
+
+    // Draw the coloured swatch on the list Colour row (16×10 px filled rect).
+    void drawColourSwatch(int rowY) const;
+
+    // Draw SV square (168×168 scanlines) for current _hue.
+    void drawSvSquare() const;
+    // Draw hue strip (24×168 rainbow).
+    void drawHueStrip() const;
+    // Draw the SV cursor (8×8 hollow square) at (_sat, _val).
+    void drawSvCursor() const;
+    // Draw the hue cursor (24×3 white bar) at _hue.
+    void drawHueCursor() const;
+    // Draw the button bar (OFF/ON toggle + SAVE).
+    void drawPickerButtons() const;
+
+    // Write current _hue/_sat/_val to LED hardware immediately (live preview).
+    void applyLed() const;
+
+    // Clamp a raw touch x/y to SV square bounds and update _sat/_val.
+    void svFromTouch(int px, int py);
+    // Clamp a raw touch y to hue strip bounds and update _hue.
+    void hueFromTouch(int py);
+};
+
+// ---------------------------------------------------------------------------
+
+inline void LedSection::enter() {
+    _view        = LedView::List;
+    _mode        = g_settings.ledMode;
+    _hue         = g_settings.ledHue;
+    _sat         = g_settings.ledSat;
+    _val         = g_settings.ledVal;
+    _svDragging  = false;
+    _hueDragging = false;
+    _dirty       = false;
+}
+
+inline void LedSection::tick() {
+    // Drive Pulse breathing animation when in picker or list view.
+    // The LedFlow singleton also drives it outside settings; here we only need
+    // to advance the live preview during an open picker session.
+    // Delegated to LedFlow::tick() — no duplicate logic here.
+}
+
+inline void LedSection::repaint() {
+    drawHeader();
+    clearContent();
+    if (_view == LedView::List) repaintList();
+    else                        repaintPicker();
+}
+
+inline void LedSection::repaintList() {
+    bool colourActive = (_mode == LedMode::Static || _mode == LedMode::Pulse);
+
+    const char* modeStr = "Off";
+    if      (_mode == LedMode::Static) modeStr = "Static";
+    else if (_mode == LedMode::Pulse)  modeStr = "Pulse";
+    else if (_mode == LedMode::Clock)  modeStr = "Clock";
+
+    // Row 0: Mode  Static >
+    int y0 = S_CONTENT_Y;
+    drawRow(y0, { "Mode", modeStr, S_LABEL, S_VALUE });
+
+    // Row 1: Colour  [swatch] — greyed when Off or Clock
+    int y1 = y0 + S_ROW_H;
+    uint16_t swatchCol = colourActive ? S_CHEVRON : S_VALUE_OFF;
+    drawRow(y1, { "Colour", "", S_LABEL, swatchCol });
+    if (colourActive) drawColourSwatch(y1);
+
+    // Chevron on Colour row (right side indicator)
+    tft.setTextDatum(MR_DATUM);
+    tft.setTextColor(S_CHEVRON);
+    tft.drawString(">", S_COL_VALUE, y1 + S_ROW_H / 2, 2);
+    tft.setTextDatum(TL_DATUM);
+}
+
+inline void LedSection::repaintPicker() {
+    drawPickerButtons();
+    drawSvSquare();     // ~50–80 ms one-shot
+    drawHueStrip();
+    drawSvCursor();
+    drawHueCursor();
+}
+
+inline SectionResult LedSection::handleInput(TouchPhase phase, int x, int y) {
+    // ---- List view input -------------------------------------------------------
+    if (_view == LedView::List) {
+        if (phase != TouchPhase::Release) return SectionResult::Continue;
+        if (isBackTap(x, y)) return SectionResult::GoBack;
+
+        int row = tapToRow(y);
+        if (row == 0) {
+            // Cycle mode: Off → Static → Pulse → Clock → Off
+            _mode = static_cast<LedMode>((static_cast<uint8_t>(_mode) + 1) % 4);
+            g_settings.ledMode = _mode;
+            saveSettings();
+            applyLed();
+            clearContent();
+            repaintList();
+        } else if (row == 1) {
+            // Open picker (only useful when colour is active, but always navigable)
+            _view  = LedView::Picker;
+            _dirty = false;
+            clearContent();
+            repaintPicker();
+        }
+        return SectionResult::Continue;
+    }
+
+    // ---- Picker view input -----------------------------------------------------
+
+    // SV square — pointer capture
+    if (_svDragging) {
+        if (phase == TouchPhase::Move) {
+            svFromTouch(x, y);
+            drawSvCursor();
+            applyLed();
+        } else if (phase == TouchPhase::Release) {
+            svFromTouch(x, y);
+            _svDragging = false;
+            drawSvCursor();
+            applyLed();
+            _dirty = true;
+        }
+        return SectionResult::Continue;
+    }
+
+    // Hue strip — pointer capture
+    if (_hueDragging) {
+        if (phase == TouchPhase::Move) {
+            hueFromTouch(y);
+            drawHueStrip();
+            drawHueCursor();
+            drawSvSquare();   // SV background updates on hue change
+            drawSvCursor();
+            applyLed();
+        } else if (phase == TouchPhase::Release) {
+            hueFromTouch(y);
+            _hueDragging = false;
+            drawHueStrip();
+            drawHueCursor();
+            drawSvSquare();
+            drawSvCursor();
+            applyLed();
+            _dirty = true;
+        }
+        return SectionResult::Continue;
+    }
+
+    // Fresh press — hit test for capture
+    if (phase == TouchPhase::Press) {
+        Rect svRect  = { kSvX,  kPickY, kSvW,  kPickH };
+        Rect hueRect = { kHueX, kPickY, kHueW, kPickH };
+        if (hitTest(svRect, x, y)) {
+            _svDragging = true;
+            svFromTouch(x, y);
+            drawSvCursor();
+            applyLed();
+        } else if (hitTest(hueRect, x, y)) {
+            _hueDragging = true;
+            hueFromTouch(y);
+            drawHueStrip();
+            drawHueCursor();
+            drawSvSquare();
+            drawSvCursor();
+            applyLed();
+        }
+        return SectionResult::Continue;
+    }
+
+    if (phase != TouchPhase::Release) return SectionResult::Continue;
+
+    // Release — button bar and back zone
+    if (isBackTap(x, y)) {
+        // Discard working copy; restore from g_settings
+        _hue  = g_settings.ledHue;
+        _sat  = g_settings.ledSat;
+        _val  = g_settings.ledVal;
+        _mode = g_settings.ledMode;
+        applyLed();
+        _view = LedView::List;
+        clearContent();
+        repaintList();
+        return SectionResult::Continue;   // NOT GoBack — just return to list
+    }
+
+    // Button bar hit-test (y: kBarY..kBarY+28)
+    Rect barRect = { 0, (int16_t)kBarY, S_CANVAS_W, (int16_t)28 };
+    if (!hitTest(barRect, x, y)) return SectionResult::Continue;
+
+    if (x >= 8 && x <= 73) {
+        // OFF button
+        _mode = LedMode::Off;
+        g_settings.ledMode = _mode;
+        applyLed();
+        _dirty = true;
+        drawPickerButtons();
+    } else if (x >= 77 && x <= 142) {
+        // ON button — restore Static if currently Off
+        if (_mode == LedMode::Off) _mode = LedMode::Static;
+        g_settings.ledMode = _mode;
+        applyLed();
+        _dirty = true;
+        drawPickerButtons();
+    } else if (x >= 200 && x <= 267) {
+        // SAVE button — commit HSV + mode to g_settings and persist
+        g_settings.ledHue = _hue;
+        g_settings.ledSat = _sat;
+        g_settings.ledVal = _val;
+        g_settings.ledMode = _mode;
+        saveSettings();
+        _dirty = false;
+        // Brief visual confirmation: invert Save button ~100 ms
+        tft.fillRect(200, kBarY + 4, 68, 20, S_HDR_TXT);
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextColor(S_BG);
+        tft.drawString("SAVE", 234, kBarY + 14, 2);
+        tft.setTextDatum(TL_DATUM);
+        delay(100);
+        drawPickerButtons();
+    }
+
+    return SectionResult::Continue;
+}
+
+inline void LedSection::svFromTouch(int px, int py) {
+    int cx = constrain(px, (int)kSvX, (int)(kSvX + kSvW - 1));
+    int cy = constrain(py, (int)kPickY, (int)(kPickY + kPickH - 1));
+    _sat = (uint8_t)((cx - kSvX) * 255 / (kSvW - 1));
+    _val = (uint8_t)(255 - (cy - kPickY) * 255 / (kPickH - 1));
+}
+
+inline void LedSection::hueFromTouch(int py) {
+    int cy = constrain(py, (int)kPickY, (int)(kPickY + kPickH - 1));
+    _hue = (uint8_t)((cy - kPickY) * 255 / (kPickH - 1));
+}
+
+inline void LedSection::applyLed() const {
+    // Convert working HSV to RGB and write to ledc channels.
+    // Off mode: all channels to 0 regardless of colour.
+    if (_mode == LedMode::Off) {
+        ledcWrite(LED_R_CH, 0);
+        ledcWrite(LED_G_CH, 0);
+        ledcWrite(LED_B_CH, 0);
+        return;
+    }
+    auto [r, g, b] = hsvToRgb(_hue, _sat, _val);
+    ledcWrite(LED_R_CH, r);
+    ledcWrite(LED_G_CH, g);
+    ledcWrite(LED_B_CH, b);
+}
+```
+
+---
+
 ## Open questions
 
 1. **Common-cathode vs common-anode** — assumed common-cathode (duty 255 = ON).

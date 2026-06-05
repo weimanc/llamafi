@@ -952,20 +952,31 @@ features:
       execute T-CDWN-01.
 
   - id: settings-001
-    name: SettingsApp navigation stub — category list + section routing
+    name: SettingsApp — shell, base infrastructure, SPIFFS storage
     description: |
-      Navigation shell for the Settings app. Category list (6 entries) with chevron
-      rows, header bar with `< back`, 3-level back logic (appSubmenu → section → previous
-      app via g_previousAppId). Each section renders a stub placeholder; no live section
-      implementations. Applications section supports 2-level drill (app list → per-app
-      stub rows). Full implementations (WiFi flow, display, LED, touch-cal, time) are
-      separate tasks.
-    status: implemented
-    git_ref: ""
+      Full settings infrastructure delivered in two commits (8005297, 2661e4a).
+      (a) SettingsApp navigation shell: category list (6 entries) with chevron rows,
+      header bar with `< back`, 3-level back logic (appSubmenu → section → previous app
+      via g_previousAppId). Applications section supports 2-level drill. Stub section
+      placeholders; per-section implementations are separate features.
+      (b) settingsStorage: AppSettings struct persisted to /settings.json on SPIFFS;
+      per-key defaults applied on missing/corrupt file. Covers time, display, LED, stock,
+      crypto, aquarium, matrix, life settings.
+      (c) SettingsSection abstract base: shared chrome (header bar, row rendering,
+      hit-testing via hitbox.h) for all section implementations. enter/leave/tick/repaint/
+      handleInput/title contract; SliderWidget horizontal drag widget for brightness rows.
+      UI elements (SliderWidget, signal bars) fold into this feature — they only serve
+      SettingsApp sections and do not cross-cut independently.
+    status: in_progress
+    git_ref: "8005297, 2661e4a"
     files:
       - app/src/main.cpp
+      - app/src/settingsStorage.h
+      - app/src/settingsStorage.cpp
+      - app/src/settings/settingsSection.h
+      - app/src/settings/sliderWidget.h
       - app/tools/run_serialdbg_tests.py
-    cross_features: [app-interface-001, taskbar-001, touch-004]
+    cross_features: [app-interface-001, taskbar-001, touch-004, cfg-001]
     test_ids: [T-SET-01, T-SET-02, T-SET-03, T-SET-04, T-SET-05, T-SET-06, T-SET-07, T-SET-08]
     notes: |
       TASK-141/142 done (2026-06-05). Design: docs/architecture/designs/M-MULTIAPP/settings.md.
@@ -973,6 +984,33 @@ features:
       invalidation). g_previousAppId in main.cpp; switchApp() updated to capture it.
       cmdTap fixed: Settings dispatch arm added (non-Spotify apps beyond Stock were falling
       to hit=CLOCK stub without calling handleInput).
+      Status in_progress: nav shell done; per-section implementations (WiFi, Display, LED,
+      Time, Touch-Cal, Applications) are follow-on features. KeyboardWidget (Phase 2 of
+      settings-wifi) may warrant its own entry if shared across sections.
+
+  - id: settings-wifi
+    name: WiFi settings section — scan, select, connect (WifiSection)
+    description: |
+      WifiSection : SettingsSection implements the WiFi tab within SettingsApp (ADR-040).
+      Phase 1 (read-only PoC, 2026-06-05): STATUS view shows live connection info (SSID,
+      IP, signal bars); async SCANNING with 4-frame spinner via WiFi.scanNetworks(true);
+      LIST of up to 8 networks sorted by RSSI with encrypted [E] marker and signal bars.
+      LIST tap is a no-op placeholder in Phase 1.
+      Phase 2 (planned): KeyboardWidget password entry, WiFi.begin() + WiFi.persistent(true)
+      NVS-backed connect, CONNECTING + RESULT(fail) states, "Forget network" action,
+      removal of WiFiManager + DoubleResetDetector from lib_deps (retires wifi-001).
+    status: planned
+    git_ref: ""
+    files:
+      - app/src/settings/wifiSection.h
+      - docs/architecture/designs/M-MULTIAPP/wifi-settings.md
+    cross_features: [settings-001, wifi-001, io-001, cfg-001]
+    test_ids: []
+    notes: |
+      Phase 1 code written 2026-06-05; not yet wired into SettingsApp (no SettingsApp
+      section-push mechanism yet). Phase 2 removes wifi-001 entirely (X013).
+      Scan ↔ Spotify TLS conflict flagged as X014 — not yet DUT-tested.
+      Design: docs/architecture/designs/M-MULTIAPP/wifi-settings.md. ADR-040.
 
   - id: tooling-001
     name: Host-side tool-script smoke gate

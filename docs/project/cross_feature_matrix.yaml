@@ -143,6 +143,94 @@ interactions:
       heap probe LOG_HEAP macro added to all dataTask fetch functions to surface
       regressions via the serial debug log (dataTask.{weather,crypto,stock} tags).
 
+  - id: X011
+    feature_a: settings-001
+    feature_b: cfg-001
+    interaction_type: shared_state
+    description: |
+      settingsStorage (/settings.json) and configFile.h (/spotify_diy_config.json) both
+      write to SPIFFS. Different file paths — no write conflict at the file level. The
+      shared dependency is the SPIFFS mount: if SPIFFS.begin() fails at boot, both
+      persistence layers are unavailable. settingsStorage applies per-key defaults on
+      missing/corrupt JSON; cfg-001 similarly falls back to defaults. Neither has a
+      tested SPIFFS-failure recovery path (both silently use in-memory defaults).
+    risk: low
+    test_coverage: []
+    notes: |
+      Added 2026-06-05 (Architect). Low risk on correctly flashed hardware; SPIFFS
+      mount failure untested. No recovery beyond reboot. cfg-001 added to
+      settings-001.cross_features.
+
+  - id: X012
+    feature_a: settings-001
+    feature_b: app-interface-001
+    interaction_type: dependency
+    description: |
+      SettingsApp subclasses App (app-interface-001) and is dispatched by the appShell.
+      Two specific coupling points:
+      (a) g_previousAppId — assigned in switchApp() before any transition to Settings;
+      read by SettingsApp::goBack() to return to the prior app. Any change to the
+      switchApp() sequence or AppId ordering must preserve this assignment.
+      (b) SettingsApp::suspend() resets section=-1, appSubmenu=-1. The shell calls
+      suspend() on switch-away; this reset must complete before resume() is called on
+      the incoming app, to avoid stale nav state if the user re-enters Settings.
+      (c) SettingsSection::handleInput() returns SectionResult::GoBack to signal
+      SettingsApp to pop the active section — this internal signal must not be confused
+      with the App::handleInput() bool return used by the shell dispatch.
+    risk: low
+    test_coverage: [T-SET-01, T-SET-02, T-SET-03]
+    notes: |
+      Added 2026-06-05 (Architect). g_previousAppId fallback is AppId::Spotify; if
+      Settings is the first app launched (boot-to-wifi-tab), goBack() correctly falls
+      back to Spotify. SectionResult is internal to SettingsApp; the shell never sees it.
+
+  - id: X013
+    feature_a: settings-wifi
+    feature_b: wifi-001
+    interaction_type: conflict
+    description: |
+      settings-wifi Phase 2 retires wifi-001 entirely: WiFiManager and DoubleResetDetector
+      removed from lib_deps, WifiManagerHandler.h retired, boot sequence changed from
+      setupWiFiManager() to WiFi.persistent(true) + WiFi.begin() (no-args NVS reconnect).
+      During Phase 1, wifi-001 still owns the initial connection; WifiSection is a
+      read-only viewer layered on top with no conflict.
+      The Phase 2 cutover is a breaking change: any board not yet in NVS (fresh flash,
+      no saved credentials) loses the captive-portal first-run path. Mitigation: boot
+      falls through to Settings wifi tab if WiFi.begin() fails within 10 s (see
+      wifi-settings.md integration prerequisite).
+    risk: medium
+    test_coverage: []
+    notes: |
+      Added 2026-06-05 (Architect). check_build.sh must pass post-removal (exit criterion
+      C7 in wifi-settings.md). The wifi_creds.h __has_include shim (dev-workaround-001)
+      pre-dates WiFiManager and connects before any portal/WifiSection logic — it is
+      unaffected by the Phase 2 cutover.
+
+  - id: X014
+    feature_a: settings-wifi
+    feature_b: io-001
+    interaction_type: conflict
+    description: |
+      WiFi.scanNetworks(true) (async scan in WifiSection::_startScan()) runs on the WiFi
+      radio while spotifyTask (io-001) holds a live TLS session. Scan activity can briefly
+      disrupt the WiFi station association, causing the Spotify poll to fail mid-request
+      with a mbedTLS send error or connection reset. The spotifyTask reconnect logic handles
+      transient failures (retry on next poll interval), so the risk is a single missed poll
+      rather than a session breakdown — acceptable given the 30 s poll interval.
+      Not yet tested on DUT under concurrent scan + active Spotify poll.
+
+      Pattern note: X010 (io-001 ↔ stock-002 TLS OOM) was a similar radio/heap resource
+      conflict discovered on DUT after shipping. Flagged proactively here before Phase 1
+      DUT validation. If DUT confirms disruption, apply the heatmapPause() pattern:
+      pause spotifyTask before scan, resume after WiFi.scanDelete().
+    risk: medium
+    test_coverage: []
+    notes: |
+      Added 2026-06-05 (Architect). Scan is user-triggered (not automatic) so the
+      conflict window is narrow and low-frequency. Phase 2 auto-connect does not
+      add new scans; the single user-initiated scan in _startScan() is the only
+      exposure point.
+
 # --- Entry template ---
 # - id: X001
 #   feature_a: auth-001

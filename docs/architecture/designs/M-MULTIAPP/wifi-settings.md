@@ -2,9 +2,20 @@
 
 > Owner: Architect
 > Status: draft
-> Date: 2026-06-04
+> Date: 2026-06-04 (updated 2026-06-05 — WifiSection base-class adoption; phase split)
 > Part of: M-MULTIAPP Settings (`wifi` tab)
-> See also: [settings.md](settings.md), [keyboard-widget.md](keyboard-widget.md)
+> See also: [settings.md](settings.md), [keyboard-widget.md](keyboard-widget.md), ADR-040
+
+---
+
+## Phase split
+
+| Phase | Scope | Exit criteria |
+|-------|-------|---------------|
+| **Phase 1** — read-only PoC | STATUS + SCANNING + LIST. Async scan, signal bars, lock indicator. LIST tap is a no-op placeholder. No connect, no keyboard, no NVS write. | C1 — networks populate within 5 s |
+| **Phase 2** — connect + persist | KEYBOARD + CONNECTING + RESULT states. `WiFi.begin()` wired up. NVS persist. "Forget network". Remove WiFiManager. | C2..C7 |
+
+Phase 1 delivered first; Phase 2 builds on the same file.
 
 ---
 
@@ -63,65 +74,108 @@ needed — the user can reach WiFi settings from the taskbar at any time.
 
 ---
 
-## Architecture — WifiFlow as a SettingsApp component
+## Architecture — WifiSection as a SettingsSection subclass
 
-`WifiFlow` is a full-canvas component owned by `SettingsApp`, following the
-same pattern as `CalibrationFlow` ([touch-calibration.md](touch-calibration.md)).
-It is not a separate `AppId`. Activated when the user enters the `wifi` tab.
+`WifiSection` extends `SettingsSection` (ADR-040). It is not a separate
+`AppId`. `SettingsApp` pushes it when the user taps the WiFi category row.
 
 ```cpp
-class WifiFlow {
+// app/src/settings/wifiSection.h
+
+enum class WifiStep : uint8_t {
+    Status,                          // Phase 1
+    Scanning,                        // Phase 1
+    List,                            // Phase 1
+    // --- Phase 2 ---
+    Keyboard,
+    Connecting,
+    Result,
+};
+
+struct WifiNet {
+    char    ssid[33];
+    int32_t rssi;
+    bool    encrypted;
+};
+
+class WifiSection : public SettingsSection {
 public:
-    void start();
-    bool active() const;
-    void tick();
-    bool handleInput(TouchPhase phase, int x, int y);
+    // SettingsSection contract
+    const char*   title()  const override;
+    void          enter()        override;   // → Status; WiFi.scanDelete() safety
+    void          leave()        override;   // cancel in-flight scan
+    void          tick()         override;   // Scanning spinner + completion check
+    void          repaint()      override;   // dispatch to repaint*()
+    SectionResult handleInput(TouchPhase phase, int x, int y) override;
+
 private:
-    WifiFlowState _s;
+    WifiStep      _step      = WifiStep::Status;
+    uint8_t       _spinFrame = 0;
+    unsigned long _lastSpin  = 0;
+    WifiNet       _nets[16];
+    uint8_t       _netCount  = 0;
+
+    // Phase 2 additions (declared here, implemented later):
+    // char          _pendingSsid[33];
+    // unsigned long _connectStart;
+    // wl_status_t   _failReason;
+
+    void startScan();
     void repaintStatus();
     void repaintScanning();
     void repaintList();
-    void repaintConnecting();
-    void repaintResult();
-    void startScan();
-    void connectTo(int networkIdx);
-    void onPasswordSubmit(const char* pass);
-    void onPasswordCancel();
+    void drawSignalBars(int16_t x, int16_t y, int32_t rssi) const;
+    // Phase 2: repaintConnecting(), repaintResult(), connectTo(int), ...
 };
 ```
+
+`title()` is state-dependent:
+
+| `_step`    | returns            |
+|------------|--------------------|
+| `Status`   | `"Status"`         |
+| `Scanning` | `"Scanning..."`    |
+| `List`     | `"Select network"` |
+
+The `drawHeader()` call in `repaint()` uses `title()` so the header string
+updates automatically on each repaint.
 
 ---
 
 ## State machine
 
 ```
-STATUS ──"Scan"──► SCANNING
-                      │
-               (scanComplete ≥ 0)
-                      ▼
-                    LIST ──tap open network──► CONNECTING
-                      │
-               tap encrypted network
-                      │
-                      ▼
-                  KEYBOARD (KeyboardWidget active)
-                      │
-              submit password
-                      │
-                      ▼
-                  CONNECTING
-                 /          \
-           success          failure
-              │                │
-              ▼                ▼
-           STATUS           RESULT(fail)
-                              │
-                           "Retry"──► LIST
-                           "Cancel"──► STATUS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ PHASE 1 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STATUS ──"Scan networks" tap──► SCANNING
+                                    │
+                            (scanComplete ≥ 0)
+                                    ▼
+                                  LIST   ← tap row: placeholder (no-op Phase 1)
+                  back ◄──────────────────────
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ PHASE 2 adds ━━━━━━━━━━━━━━━━━━━━━━━━
+                                  LIST ──tap open network──► CONNECTING
+                                    │
+                             tap encrypted network
+                                    │
+                                    ▼
+                                KEYBOARD (KeyboardWidget active)
+                                    │
+                            submit password
+                                    │
+                                    ▼
+                                CONNECTING
+                               /          \
+                         success          failure
+                            │                │
+                            ▼                ▼
+                         STATUS           RESULT(fail)
+                                             │
+                                          "Retry"──► LIST
+                                          "Cancel"──► STATUS
 ```
 
-`< back` in the status bar always returns to STATUS (cancels mid-flow without
-connecting).
+`< back` at Status → `SectionResult::GoBack` (SettingsApp pops section).
+`< back` at Scanning/List → cancel/ignore and return to Status.
 
 ---
 
@@ -345,20 +399,30 @@ Error reason from `wl_status_t`:
 
 ---
 
-## State struct
+## State
+
+Phase 1 state is kept as direct members of `WifiSection` (no nested struct):
 
 ```cpp
-enum class WifiStep : uint8_t {
-    Status, Scanning, List, Keyboard, Connecting, Result
-};
+// Phase 1 fields
+WifiStep      _step      = WifiStep::Status;
+uint8_t       _spinFrame = 0;
+unsigned long _lastSpin  = 0;
+WifiNet       _nets[16];
+uint8_t       _netCount  = 0;
 
-struct WifiFlowState {
-    WifiStep     step = WifiStep::Status;
-    char         pendingSsid[33];
-    unsigned long connectStart;
-    wl_status_t  failReason;
-    uint8_t      spinnerFrame;
-    unsigned long lastSpinMs;
+// Phase 2 additions
+// char          _pendingSsid[33];
+// unsigned long _connectStart;
+// wl_status_t   _failReason;
+```
+
+`WifiNet` per entry:
+```cpp
+struct WifiNet {
+    char    ssid[33];
+    int32_t rssi;
+    bool    encrypted;
 };
 ```
 
@@ -383,10 +447,22 @@ struct WifiFlowState {
 
 ## Exit criteria
 
-- **C1** — `WiFi.scanNetworks(true)` called; LIST populates within 5s on a
-  typical home network.
+### Phase 1
+
+- **C1** — `WiFi.scanNetworks(true)` called on "Scan networks" tap; spinner
+  advances each tick; LIST populates within 5 s on a typical home network.
+- **C1a** — STATUS view shows: connected dot, SSID, IP, signal bars
+  (reads live from `WiFi.*` on `enter()`/`repaintStatus()`).
+- **C1b** — LIST shows up to 8 networks sorted by RSSI; each row shows SSID
+  + signal bars + `[E]` encrypted marker.
+- **C1c** — `< back` from Status → SettingsApp category list. `< back` from
+  Scanning or List → Status.
+- **C1d** — `check_build.sh` passes; no new link errors.
+
+### Phase 2
+
 - **C2** — Tapping an open network connects without keyboard; `WiFi.localIP()`
-  non-zero within 10s.
+  non-zero within 10 s.
 - **C3** — Tapping an encrypted network opens `KeyboardWidget`; submitted
   password passed to `WiFi.begin()`.
 - **C4** — Successful connection persists across `ESP.restart()` (NVS-backed).
