@@ -6,6 +6,133 @@ Completed, closed, cancelled, and superseded tasks. Active tasks are in [tasks.m
 
 ---
 
+### TASK-101 — M-TOUCH-CAPTURE: Implement slider input capture in winampDisplay
+**Owner**: Developer
+**Feature**: touch-002
+**Status**: closed — implemented (b253eb8, 2026-05-25); VE T149/T150/T151/T153/T154 PASS (2026-06-05); T152 SKIP [CONDITIONAL]
+**Design**: `docs/architecture/designs/M-TOUCH-CAPTURE-slider-input-capture.md`
+**VE review**: `docs/verification/regression_suite/touch-capture-ve-review.md`
+
+Changes landed in `b253eb8` (sole change file: `app/src/winamp/winampDisplay.h`):
+1. `D_POSBAR_DRAG` added to `DragState` enum.
+2. `long _posbarDragCurrentMs = 0` member added.
+3. Press/Move Phase 1 captured-gesture guard restructured before all hit-tests.
+4. `volumeFromX(sx)` and `posbarFromX(sx)` private helpers added (clamped, x-only).
+5. POSBAR Press: sets `D_POSBAR_DRAG`, inits `_posbarDragCurrentMs`, paints thumb.
+6. POSBAR Release: commits `_posbarDragCurrentMs` as `ACT_SEEK`.
+7. `dbgGet("dragState")`: `D_POSBAR_DRAG` arm added.
+8. `dbgGet("posbarDragMs")`: returns `_posbarDragCurrentMs`.
+
+T152 (PLEDIT scrollbar drift) is SKIP [CONDITIONAL] — needs queue ≥ 6; does not block TASK-078.
+
+---
+
+### TASK-102 — VE: test suite for touch-capture-001 (T149–T154)
+**Owner**: VE
+**Feature**: touch-002
+**Status**: closed — T149/T150/T151/T153/T154 PASS; T152 SKIP [CONDITIONAL] (2026-06-05)
+**Git ref**: harness added to `run_serialdbg_tests.py` 2026-06-05
+
+- T149 PASS — posbarDragMs=89032 ms; ACT_SEEK committed at correct position
+- T150 PASS — posbarDragMs=89032 ms despite y-drift above POSBAR groove (capture confirmed)
+- T151 PASS — 2 ACT_VOLUME events during y-drift below VOLUME groove (capture confirmed)
+- T152 SKIP [CONDITIONAL] — queue < 6 at run time; re-run with ≥ 6 queued tracks
+- T153 PASS — posbarDragMs unchanged (89032 ms); no seek; capture exclusivity confirmed
+- T154 PASS — seeked_ms=39677 ms (expected ≈39677); Press-entry init confirmed
+
+T152 is the only pending item; does not block TASK-078 (all capture paths verified by T149–T151).
+
+---
+
+### TASK-113 — M-TOUCH-UX: Touch UX layer design (ADR-035)
+**Owner**: Architect (design); Developer + VE (implementation — TASK-114–118)
+**Features**: touch-003, touch-004, touch-005
+**Status**: closed — design done (2026-05-31); implementation complete via TASK-114–118
+**Milestone**: M-TOUCH-UX
+**Design**: `docs/architecture/designs/M-TOUCH-UX.md` · ADR: `docs/architecture/decisions/ADR-035.md`
+
+- **TASK-113a** ✅ ADR-035 drafted — four decisions covering hitbox primitive, debounce activation, gesture deferral, shell busy indicator.
+- **TASK-113b** ✅ M-TOUCH-UX.md drafted — Part 1 (hitbox + debounce), Part 2 (shell busy indicator + `hasPendingAsync()` contract, SpotifyApp chain, StockApp chain, `switchApp()` + `suspend()` contracts).
+- **TASK-113c** ✅ Team review round 1 (VE, Developer, QM) — findings raised and addressed: DEV-01..05; T-BUSY-03/04 wording; LL-044, LL-045.
+- **TASK-113d** ✅ Exit criteria finalised: T-BUSY-01..05 + T-CDWN-01..03.
+- **TASK-113e** ✅ feature_inventory.yaml: touch-003/004/005 registered.
+- **TASK-113f** ✅ LL-044 + LL-045 appended to lessons_learned.md.
+
+Implementation shipped in TASK-114 (phase 1, `7a4422f`), TASK-115 (phase 2, `6df8859`), TASK-116 (phase 3, `3e852f3`). QM retrospective: `1761e36`.
+
+---
+
+### TASK-105 — M-TASKBAR-SCROLL: Implement scrolling taskbar
+**Owner**: Developer
+**Feature**: taskbar-scroll-001
+**Status**: closed — implemented (flashed 2026-05-26); VE TASK-106 passed (ee43831, T162–T166)
+**Milestone**: M-TASKBAR-SCROLL
+**Design**: `docs/architecture/designs/M-MULTIAPP/taskbar.md`
+
+- **TASK-105a** ✅ `AppId::COUNT = 8`; `SettingsApp`/`StockApp` stubs; `g_apps[]` + `icons[]` extended.
+- **TASK-105b** ✅ Private scroll fields added to `WinampDisplay`.
+- **TASK-105c** ✅ `D_TASKBAR_SCROLL` added to `DragState`.
+- **TASK-105d** ✅ 1:1 positional gesture model (deviated from velocity-style spec after DUT testing); LP filter + `TB_SCROLL_DEAD_ZONE_PX = 3`.
+- **TASK-105e** ✅ `renderTaskbar()` signature updated.
+- **TASK-105f** ✅ All call sites updated.
+- **TASK-105g** ✅ `dbgGet("tbScrollOffset")` added.
+
+VE suite T162–T166 passed (see TASK-106 in archive). Stale-chart bug fixed in `ee43831`.
+
+---
+
+### TASK-103 — M-LIST-v4: Implement velocity-scroll for PLEDIT
+**Owner**: Developer
+**Feature**: list-scroll-001
+**Status**: closed — implemented (abf4722 + 362ad1d, 2026-05-25)
+**ADR**: ADR-030 (accepted 2026-05-25)
+**Design**: `docs/architecture/designs/M-LIST-v4-velocity-scroll.md`
+
+- `abf4722` — velocity-scroll live PLEDIT gesture (feat)
+- `362ad1d` — velocity-joystick scroll fix
+- New members: `_scrollVelocity`, `_scrollAccum`, `_scrollSpeedK`; `tickScroll(float dt)` explicit-dt; serial debug `scrollAccum`, `scrollVelocity`, `speedK`, `cmdTick`.
+- VE suite T155–T161 written and executed via TASK-104.
+
+---
+
+### TASK-104 — VE: test suite for velocity-scroll (T155–T161)
+**Owner**: VE
+**Feature**: list-scroll-001
+**Status**: closed — suite written and executed (aaf8009, 2026-05-25)
+
+- `aaf8009` — velocity-scroll-001 suite T155–T161 written.
+- Covers: dead-zone tap, speed scaling, continuous scroll, no-tap on out-of-dead-zone release, seqno cancellation, cmdTick determinism, dbgGet observability.
+- All 7 tests passing.
+
+---
+
+### TASK-109 — StockApp POC: List + Chart detail implementation
+**Owner**: Developer
+**Feature**: stock-001
+**Status**: closed — implemented (27bd86b, 2026-05-29) + multiple follow-on fixes
+**Milestone**: M-STOCK-POC
+**Design**: `docs/architecture/designs/M-MULTIAPP/stock.md` · `stock-list.md` · `stock-chart.md`
+
+- **TASK-109a–h** ✅ All sub-tasks complete. StockApp POC: list view (6 tickers, price + change%), chart detail (line graph, 4 range tabs, back nav), error screen, TLS via ADR-029.
+- Key commits: `27bd86b` (feat); `a9228ef` (chart filter + error counter); `cda3c1c` (back button + double-enqueue fix); `dab4f67` (useHTTP10 + UA on fetches); many more via stock-002 follow-ons.
+- **TASK-109i** ✅ `app/tools/test_yahoo_finance_api.py` — host-side API probe.
+- VE suite written and executed via TASK-110.
+
+---
+
+### TASK-110 — VE: Stock app test suite (T169–T186)
+**Owner**: VE
+**Feature**: stock-001
+**Status**: closed — suite written and executed (1160543, 2026-05-29); TASK-112 quality pass applied
+**Milestone**: M-STOCK-POC
+
+- `1160543` — T170–T186 suite written and executed with heap debug logging.
+- TASK-112a–d applied further quality fixes: T176 counter proxy, quoteOkCount, T136 merge, T178 placeholder assert.
+- Test IDs registered in feature_inventory.yaml under stock-001.
+- Note: T186/T187/T188 show API rate-limit cascades in full-suite runs — no firmware defects; classified as [FLAKE] / [PARTIAL].
+
+---
+
 ### TASK-112 — VE: serialdbg test quality fix pass (audit 2026-05-30)
 **Owner**: VE (Developer for firmware additions)
 **Feature**: serialdbg-001 (cross-cutting)

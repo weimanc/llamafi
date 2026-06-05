@@ -6,6 +6,7 @@ Executes T076–T088, T095, T096, T_BI_01–T_BI_04,
 T_MA_01–T_MA_03, T_GOL_01–T_GOL_04, T_WX_01–T_WX_05,
 T_CX_01–T_CX_05, T_X07_01,
 T-BUSY-01/01b/02/03/05, T-CDWN-01/02/03,
+T149–T154 (touch-capture-001),
 T162–T166 (taskbar-scroll-001) against a DUT flashed with cyd2usb_winamp_debug.
 T089 (production ELF symbol check) is a host build check — not run here.
 T095 (physical vs. synthetic calibration) requires --interactive (human at DUT).
@@ -3239,6 +3240,252 @@ def _vs_drain_until_drag(dut: Dut, timeout: float = 10.0) -> tuple[list[dict], d
     return pre, drag_resp
 
 
+# ── touch-capture-001 (T149–T154) ────────────────────────────────────────────
+
+def _tc_drag_collect(dut: Dut, cmd: str, markers: list[str],
+                     timeout: float = 15.0) -> tuple[list[str], dict | None]:
+    """Send a drag command, collect log lines containing any marker string,
+    and return (matched_lines, drag_response_or_None)."""
+    dut.send(cmd)
+    matched: list[str] = []
+    drag_resp = None
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            line = dut.ser.readline().decode(errors="replace").strip()
+        except Exception:
+            break
+        if not line:
+            continue
+        if markers and any(m in line for m in markers):
+            matched.append(line)
+        if line.startswith("{"):
+            try:
+                obj = json.loads(line)
+                if obj.get("cmd") == "drag":
+                    drag_resp = obj
+                    break
+            except json.JSONDecodeError:
+                pass
+    return matched, drag_resp
+
+
+def t149(dut: Dut):
+    print("T149  POSBAR drag: ACT_SEEK committed at correct position")
+    dut.cmd("set songDuration 120000")
+    rg = dut.cmd("get dragState")
+    if rg.get("state") != "D_IDLE":
+        fail("T149", f"precondition: dragState={rg.get('state')} not D_IDLE"); return
+    dut.set_cooldown_zero()
+
+    pbx0, _pbx1, _pby0, _pby1 = _c.posbar_bounds()
+    pby = _c.tap_posbar()[1]
+    x_start = pbx0 + 24   # left quarter, well inside hitbox
+    x_end   = pbx0 + 184  # right half → posbarFromX ≈ 89032 ms of 120000
+
+    _, drag_resp = _tc_drag_collect(dut, f"drag {x_start} {pby} {x_end} {pby} 10",
+                                    ["ACT_SEEK", "seek commit"])
+    if drag_resp is None:
+        fail("T149", "no drag response within 15 s"); return
+    if not drag_resp.get("ok"):
+        fail("T149", f"drag ok=false: {drag_resp}"); return
+
+    rp = dut.cmd("get posbarDragMs")
+    committed_ms = rp.get("ms", -1)
+    if not (50000 <= committed_ms <= 120000):
+        fail("T149", f"posbarDragMs={committed_ms} not in [50000, 120000]"); return
+
+    rs = dut.cmd("get dragState")
+    if rs.get("state") != "D_IDLE":
+        fail("T149", f"dragState={rs.get('state')} after drag (expected D_IDLE)"); return
+
+    pass_("T149", f"posbarDragMs={committed_ms} ms; dragState=D_IDLE")
+
+
+def t150(dut: Dut):
+    print("T150  POSBAR capture: Move above groove still updates posbarDragMs")
+    dut.cmd("set songDuration 120000")
+    rg = dut.cmd("get dragState")
+    if rg.get("state") != "D_IDLE":
+        fail("T150", f"precondition: dragState={rg.get('state')} not D_IDLE"); return
+    dut.set_cooldown_zero()
+
+    pbx0, _pbx1, pby0, _pby1 = _c.posbar_bounds()
+    pby = _c.tap_posbar()[1]
+    x_start = pbx0 + 24   # same x profile as T149
+    x_end   = pbx0 + 184  # same endpoint → same expected committed_ms
+    y_end   = pby0 - 22   # above POSBAR hitbox (pby0=72 → y_end=50)
+
+    _, drag_resp = _tc_drag_collect(dut, f"drag {x_start} {pby} {x_end} {y_end} 10", [])
+    if drag_resp is None:
+        fail("T150", "no drag response within 15 s"); return
+    if not drag_resp.get("ok"):
+        fail("T150", f"drag ok=false: {drag_resp}"); return
+
+    rp = dut.cmd("get posbarDragMs")
+    committed_ms = rp.get("ms", -1)
+    if not (50000 <= committed_ms <= 120000):
+        fail("T150", f"posbarDragMs={committed_ms} not in [50000, 120000] "
+                     f"(~0 = capture broken; Move samples dropped after y left groove)"); return
+
+    rs = dut.cmd("get dragState")
+    if rs.get("state") != "D_IDLE":
+        fail("T150", f"dragState={rs.get('state')} after drag (expected D_IDLE)"); return
+
+    pass_("T150", f"posbarDragMs={committed_ms} ms despite y-drift above groove; dragState=D_IDLE")
+
+
+def t151(dut: Dut):
+    print("T151  VOLUME capture: Move below groove still emits ACT_VOLUME")
+    rg = dut.cmd("get dragState")
+    if rg.get("state") != "D_IDLE":
+        fail("T151", f"precondition: dragState={rg.get('state')} not D_IDLE"); return
+    dut.set_cooldown_zero()
+
+    vx0, _vx1, _vy0, vy1 = _c.vol_bounds()
+    vy = _c.vol_drag_y()
+    x_start = vx0 + 3   # well inside VOLUME x-range
+    x_end   = vx0 + 60  # moves right but stays inside x-range
+    y_end   = vy1 + 11  # drifts below VOLUME hitbox bottom edge
+
+    lines, drag_resp = _tc_drag_collect(
+        dut, f"drag {x_start} {vy} {x_end} {y_end} 10",
+        ["enqueued ACT_VOLUME", "drag-end commit"])
+    if drag_resp is None:
+        fail("T151", "no drag response within 15 s"); return
+    if not drag_resp.get("ok"):
+        fail("T151", f"drag ok=false: {drag_resp}"); return
+
+    rs = dut.cmd("get dragState")
+    if rs.get("state") != "D_IDLE":
+        fail("T151", f"dragState={rs.get('state')} after drag (expected D_IDLE)"); return
+
+    if not lines:
+        fail("T151", "no ACT_VOLUME event seen — volume not updated across y-drift; "
+                     "capture likely broken"); return
+
+    pass_("T151", f"dragState=D_IDLE; {len(lines)} ACT_VOLUME event(s) during y-drift below groove")
+
+
+def t152(dut: Dut):
+    print("T152  PLEDIT scrollbar capture: Move into content area continues scrolling")
+    if not _restore_spotify(dut):
+        fail("T152", "precondition: could not restore Spotify app"); return
+    if not dut.wait_for_queue(min_count=6):
+        skip("T152", "queue < 6 items — scrollOffset max=0; need more queued tracks"); return
+
+    # Reset scrollOffset to 0
+    xd, yd, xd2, yd2 = _c.pledit_swipe("down")
+    for _ in range(10):
+        _do_drag(dut, xd, yd, xd2, yd2)
+    pre = _get_scroll(dut)
+    if pre != 0:
+        fail("T152", f"precondition: scrollOffset={pre} could not be reset to 0"); return
+
+    # Scrollbar strip: x ∈ [PLEDIT_CONTENT_X+PLEDIT_CONTENT_W, PLEDIT_W-1] = [256, 274].
+    # Start drag in centre of strip (x=265), drift left into content area (x=52).
+    # y sweeps top-of-rows→lower to advance scrollOffset via updateScrollDirect().
+    pledit_rows_y = int(_c.S["PLEDIT_ROWS_Y"])          # 136
+    sb_x      = int(_c.S["PLEDIT_CONTENT_X"]) + int(_c.S["PLEDIT_CONTENT_W"]) + 9  # 265
+    content_x = int(_c.S["PLEDIT_CONTENT_X"]) + 40      # 52
+    y_start   = pledit_rows_y + 4                        # 140
+    y_end     = pledit_rows_y + 44                       # 180
+
+    resp = _do_drag(dut, sb_x, y_start, content_x, y_end, steps=10)
+    if resp is None:
+        fail("T152", "no drag response within 15 s"); return
+    if not resp.get("ok"):
+        fail("T152", f"drag ok=false: {resp}"); return
+
+    post = _get_scroll(dut)
+    if post is None:
+        fail("T152", "could not read scrollOffset after drag"); return
+    if post <= 0:
+        fail("T152", f"scrollOffset={post} after drag (expected > 0) — "
+                     "capture broken; drift into content area lost D_PLEDIT_SCROLL_DIRECT"); return
+
+    rs = dut.cmd("get dragState")
+    if rs.get("state") != "D_IDLE":
+        fail("T152", f"dragState={rs.get('state')} after drag (expected D_IDLE)"); return
+
+    pass_("T152", f"scrollOffset 0→{post} during scrollbar→content drift; dragState=D_IDLE")
+
+
+def t153(dut: Dut):
+    print("T153  Capture exclusivity: VOLUME drift into POSBAR row does not start seek")
+    dut.cmd("set songDuration 120000")
+    rg = dut.cmd("get dragState")
+    if rg.get("state") != "D_IDLE":
+        fail("T153", f"precondition: dragState={rg.get('state')} not D_IDLE"); return
+
+    # Snapshot posbarDragMs before the drag — may be non-zero from earlier tests.
+    # The key assertion is that it does NOT change during a VOLUME drag (capture exclusivity).
+    rp_pre = dut.cmd("get posbarDragMs")
+    baseline_ms = rp_pre.get("ms", -1)
+
+    dut.set_cooldown_zero()
+
+    vx0, _vx1, _vy0, _vy1 = _c.vol_bounds()
+    vy  = _c.vol_drag_y()   # y inside VOLUME
+    pby = _c.tap_posbar()[1]  # y inside POSBAR — drift target
+    x_start = vx0 + 3    # inside VOLUME x-range
+    x_end   = vx0 + 60   # still inside VOLUME x-range at release
+
+    lines, drag_resp = _tc_drag_collect(
+        dut, f"drag {x_start} {vy} {x_end} {pby} 10",
+        ["ACT_SEEK", "seek commit", "D_POSBAR"])
+    if drag_resp is None:
+        fail("T153", "no drag response within 15 s"); return
+    if not drag_resp.get("ok"):
+        fail("T153", f"drag ok=false: {drag_resp}"); return
+
+    rs = dut.cmd("get dragState")
+    if rs.get("state") != "D_IDLE":
+        fail("T153", f"dragState={rs.get('state')} after drag (expected D_IDLE)"); return
+
+    rp_post = dut.cmd("get posbarDragMs")
+    post_ms = rp_post.get("ms", -1)
+    if post_ms != baseline_ms:
+        fail("T153", f"posbarDragMs changed {baseline_ms}→{post_ms} during VOLUME drag "
+                     f"(Phase 2 POSBAR hit-test fired — capture exclusivity broken)"); return
+
+    if lines:
+        fail("T153", f"ACT_SEEK log line seen during VOLUME drag: {lines[0]!r}"); return
+
+    pass_("T153", f"posbarDragMs unchanged at {post_ms} ms; no seek initiated; dragState=D_IDLE")
+
+
+def t154(dut: Dut):
+    print("T154  POSBAR tap: Press + Release seeks to pressed x position")
+    dut.cmd("set songDuration 60000")
+    rg = dut.cmd("get dragState")
+    if rg.get("state") != "D_IDLE":
+        fail("T154", f"precondition: dragState={rg.get('state')} not D_IDLE"); return
+    dut.set_cooldown_zero()
+
+    pbx0, _pbx1, _pby0, _pby1 = _c.posbar_bounds()
+    pby  = _c.tap_posbar()[1]
+    # tap_x = pbx0+164 → posbarFromX = 164*60000/248 ≈ 39677 ms — in [35000, 45000]
+    tap_x = pbx0 + 164
+
+    _poll_shell_busy(dut, False, timeout_ms=2000)
+    r = dut.cmd(f"tap {tap_x} {pby}")
+    if r.get("skipped"):
+        fail("T154", f"tap skipped (cooldown still active?): {r}"); return
+    if r.get("hit") != "POSBAR":
+        fail("T154", f"hit={r.get('hit')!r} (expected POSBAR) — x={tap_x} y={pby}"); return
+
+    rp = dut.cmd("get posbarDragMs")
+    seeked_ms = rp.get("ms", -1)
+    if not (35000 <= seeked_ms <= 45000):
+        fail("T154", f"posbarDragMs={seeked_ms} not in [35000, 45000] "
+                     f"(0 = Press-entry init broken; D_POSBAR_DRAG not entered on tap)"); return
+
+    pass_("T154", f"seeked_ms={seeked_ms} ms (expected ≈39677); tap→seek committed correctly")
+
+
+# ── velocity-scroll-001 ────────────────────────────────────────────────────────
+
 def t155(dut: Dut):
     """T155: 0-dy tap in dead zone fires PLEDIT hit (tap path, not scroll-end)."""
     print("T155  Tap within dead zone fires PLEDIT hit (0-dy)")
@@ -4147,6 +4394,13 @@ ALL_TESTS = {
     "T140": t140,
     "T147": t147,
     "T148": t148,
+    # touch-capture-001 (TASK-102)
+    "T149": t149,
+    "T150": t150,
+    "T151": t151,
+    "T152": t152,
+    "T153": t153,
+    "T154": t154,
     "T_BI_01": t_bi_01,
     "T_BI_02": t_bi_02,
     "T_BI_03": t_bi_03,
