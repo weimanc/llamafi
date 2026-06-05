@@ -4363,6 +4363,215 @@ def t194(dut: Dut):
     pass_("T194", f"list-drilled={list_ticker!r}; tab-switch preserved it; chartSymbol cleared correctly")
 
 
+# ── Settings nav stub — T-SET-01..08 (TASK-142) ─────────────────────────────
+
+_SETTINGS_APP_ID = 6   # AppId::Settings
+_CRYPTO_APP_ID   = 3   # AppId::Crypto
+
+
+def _switch_to_settings(dut: Dut, timeout: float = 3.0) -> bool:
+    r = dut.cmd(f"switchApp {_SETTINGS_APP_ID}", timeout=timeout)
+    if not r.get("ok"):
+        return False
+    time.sleep(0.2)
+    r2 = dut.cmd("get appId", timeout=timeout)
+    return r2.get("ok", False) and r2.get("name") == "Settings"
+
+
+def _settings_section(dut: Dut, timeout: float = 3.0):
+    r = dut.cmd("get settingsSection", timeout=timeout)
+    return r.get("section") if r.get("ok") else None
+
+
+def _settings_submenu(dut: Dut, timeout: float = 3.0):
+    r = dut.cmd("get settingsAppSubmenu", timeout=timeout)
+    return r.get("submenu") if r.get("ok") else None
+
+
+def _settings_tap_row(dut: Dut, row: int, timeout: float = 3.0):
+    """Tap the midpoint of settings list row `row` (0-indexed from content area)."""
+    y = 28 + row * 26 + 13
+    dut.cmd(f"tap 137 {y}", timeout=timeout)
+    time.sleep(0.1)
+
+
+def _settings_tap_back(dut: Dut, timeout: float = 3.0):
+    dut.cmd("tap 30 14", timeout=timeout)
+    time.sleep(0.1)
+
+
+def t_set_01(dut: Dut):
+    """T-SET-01: switchApp(Settings) → settingsSection==-1 (category list)."""
+    print("T-SET-01  Settings opens at category list (section==-1)")
+    if not _switch_to_settings(dut):
+        skip("T-SET-01", "could not switch to Settings")
+        _restore_spotify(dut)
+        return
+    sec = _settings_section(dut)
+    _restore_spotify(dut)
+    if sec != -1:
+        fail("T-SET-01", f"settingsSection={sec!r} after switchApp — expected -1 (category list)")
+        return
+    pass_("T-SET-01", "settingsSection==-1 after switchApp(Settings) — category list confirmed")
+
+
+def t_set_02(dut: Dut):
+    """T-SET-02: tap each stub row 0..4 → section==idx; back → section==-1 (× 5)."""
+    print("T-SET-02  Section navigation: tap row→section; back→-1 (× 5)")
+    if not _switch_to_settings(dut):
+        skip("T-SET-02", "could not switch to Settings")
+        _restore_spotify(dut)
+        return
+    for idx in range(5):
+        _settings_tap_row(dut, idx)
+        sec = _settings_section(dut)
+        if sec != idx:
+            _restore_spotify(dut)
+            fail("T-SET-02", f"row {idx}: settingsSection={sec!r}, expected {idx}")
+            return
+        _settings_tap_back(dut)
+        sec = _settings_section(dut)
+        if sec != -1:
+            _restore_spotify(dut)
+            fail("T-SET-02", f"row {idx}: after back, settingsSection={sec!r}, expected -1")
+            return
+    _restore_spotify(dut)
+    pass_("T-SET-02", "all 5 stub sections: tap→correct index, back→-1")
+
+
+def t_set_03(dut: Dut):
+    """T-SET-03: Applications drill (row 5 → row 0) → submenu==0; back×2 unwinds fully."""
+    print("T-SET-03  Applications drill: section 5, submenu 0, back×2")
+    if not _switch_to_settings(dut):
+        skip("T-SET-03", "could not switch to Settings")
+        _restore_spotify(dut)
+        return
+    _settings_tap_row(dut, 5)
+    sec = _settings_section(dut)
+    sub = _settings_submenu(dut)
+    if sec != 5:
+        _restore_spotify(dut)
+        fail("T-SET-03", f"section={sec!r} after tap row 5, expected 5")
+        return
+    if sub != -1:
+        _restore_spotify(dut)
+        fail("T-SET-03", f"submenu={sub!r} at Applications level 1, expected -1")
+        return
+    _settings_tap_row(dut, 0)  # Stock
+    sub = _settings_submenu(dut)
+    if sub != 0:
+        _restore_spotify(dut)
+        fail("T-SET-03", f"submenu={sub!r} after tap Stock, expected 0")
+        return
+    _settings_tap_back(dut)    # back to app list
+    sub = _settings_submenu(dut)
+    if sub != -1:
+        _restore_spotify(dut)
+        fail("T-SET-03", f"submenu={sub!r} after first back, expected -1")
+        return
+    _settings_tap_back(dut)    # back to category list
+    sec = _settings_section(dut)
+    _restore_spotify(dut)
+    if sec != -1:
+        fail("T-SET-03", f"section={sec!r} after second back, expected -1")
+        return
+    pass_("T-SET-03", "Applications drill: section 5, submenu 0 confirmed; back×2 unwinds to -1/-1")
+
+
+def t_set_06(dut: Dut):
+    """T-SET-06: suspend reset — switch away mid-submenu, return → section==-1, submenu==-1."""
+    print("T-SET-06  suspend() reset: re-enter Settings → always category list")
+    if not _switch_to_settings(dut):
+        skip("T-SET-06", "could not switch to Settings")
+        _restore_spotify(dut)
+        return
+    _settings_tap_row(dut, 5)   # Applications
+    _settings_tap_row(dut, 0)   # Stock submenu
+    sub = _settings_submenu(dut)
+    if sub != 0:
+        _restore_spotify(dut)
+        skip("T-SET-06", f"could not reach submenu 0, got {sub!r}")
+        return
+    if not _restore_spotify(dut):
+        fail("T-SET-06", "switchApp(Spotify) failed mid-test")
+        return
+    if not _switch_to_settings(dut):
+        fail("T-SET-06", "could not re-enter Settings after suspend")
+        return
+    sec = _settings_section(dut)
+    sub = _settings_submenu(dut)
+    _restore_spotify(dut)
+    if sec != -1 or sub != -1:
+        fail("T-SET-06", f"after suspend+resume: section={sec!r} submenu={sub!r}, expected -1/-1")
+        return
+    pass_("T-SET-06", "suspend() reset confirmed: section==-1 submenu==-1 on re-entry")
+
+
+def t_set_07(dut: Dut):
+    """T-SET-07: back from Applications L2 (Aquarium) traverses all three levels correctly."""
+    print("T-SET-07  Double-back from Applications L2 (Aquarium) → fully unwound")
+    if not _switch_to_settings(dut):
+        skip("T-SET-07", "could not switch to Settings")
+        _restore_spotify(dut)
+        return
+    _settings_tap_row(dut, 5)   # Applications
+    _settings_tap_row(dut, 2)   # Aquarium
+    sec = _settings_section(dut)
+    sub = _settings_submenu(dut)
+    if sec != 5 or sub != 2:
+        _restore_spotify(dut)
+        fail("T-SET-07", f"section={sec!r} submenu={sub!r} after drill to Aquarium, expected 5/2")
+        return
+    _settings_tap_back(dut)     # back to app list
+    sub = _settings_submenu(dut)
+    if sub != -1:
+        _restore_spotify(dut)
+        fail("T-SET-07", f"submenu={sub!r} after first back, expected -1")
+        return
+    _settings_tap_back(dut)     # back to category list
+    sec = _settings_section(dut)
+    _restore_spotify(dut)
+    if sec != -1:
+        fail("T-SET-07", f"section={sec!r} after second back, expected -1")
+        return
+    pass_("T-SET-07", "back×2 from Aquarium submenu: submenu→-1, section→-1 confirmed")
+
+
+def t_set_08(dut: Dut):
+    """T-SET-08: back from category list returns to g_previousAppId (Crypto)."""
+    print("T-SET-08  goBack() from category list → g_previousAppId (Crypto)")
+    r = dut.cmd(f"switchApp {_CRYPTO_APP_ID}", timeout=3.0)
+    if not r.get("ok"):
+        skip("T-SET-08", "could not switch to Crypto")
+        _restore_spotify(dut)
+        return
+    time.sleep(0.2)
+    r2 = dut.cmd("get appId", timeout=3.0)
+    if r2.get("name") != "Crypto":
+        skip("T-SET-08", f"appId={r2.get('name')!r} — could not confirm Crypto")
+        _restore_spotify(dut)
+        return
+    if not _switch_to_settings(dut):
+        skip("T-SET-08", "could not switch to Settings from Crypto")
+        _restore_spotify(dut)
+        return
+    sec = _settings_section(dut)
+    if sec != -1:
+        _restore_spotify(dut)
+        fail("T-SET-08", f"settingsSection={sec!r} on entry, expected -1")
+        return
+    _settings_tap_back(dut)    # back from category list → should go to Crypto
+    time.sleep(0.2)
+    r3 = dut.cmd("get appId", timeout=3.0)
+    app_name = r3.get("name")
+    if app_name != "Crypto":
+        _restore_spotify(dut)
+        fail("T-SET-08", f"appId={app_name!r} after back from category list, expected Crypto")
+        return
+    _restore_spotify(dut)
+    pass_("T-SET-08", "goBack() from category list → Crypto confirmed (g_previousAppId tracking works)")
+
+
 ALL_TESTS = {
     "T076": t076,
     "T077": t077,
@@ -4481,6 +4690,14 @@ ALL_TESTS = {
     "T165": t165,
     "T166": t166,
     # T167 retired (duplicate of T165); T168 manual (rendering — no serial observable)
+    # settings-nav-stub-001 (TASK-142)
+    "T-SET-01": t_set_01,
+    "T-SET-02": t_set_02,
+    "T-SET-03": t_set_03,
+    "T-SET-06": t_set_06,
+    "T-SET-07": t_set_07,
+    "T-SET-08": t_set_08,
+    # T-SET-04 manual visual; T-SET-05 manual visual
 }
 
 def main():

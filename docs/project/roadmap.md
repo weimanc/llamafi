@@ -343,7 +343,9 @@ Full per-section implementations (WiFi flow, display, LED, touch-cal, time, Appl
 sub-menus with SPIFFS persistence) are **not** in scope here — each will be a separate
 milestone once the stub is verified.
 
-**Status:** in progress — TASK-141 implemented (check_build.sh 4/4); DUT smoke (TASK-141d) + VE suite T-SET-01..08 (TASK-142) pending
+**Status:** done (2026-06-05 — TASK-141/142; check_build.sh 4/4; T-SET-01..08 6/6 PASS; DUT-141d visual all pass)
+- TASK-141: SettingsApp class, constants, g_previousAppId tracking, SERIAL_DEBUG get settingsSection/settingsAppSubmenu
+- TASK-142: VE suite T-SET-01..08 written + executed; also fixed cmdTap bug (non-Spotify apps beyond Stock not dispatched to handleInput)
 **Design:** [M-MULTIAPP/settings.md](../architecture/designs/M-MULTIAPP/settings.md)
 **Deps:** M-MULTIAPP (done), M-TASKBAR-SCROLL (done)
 

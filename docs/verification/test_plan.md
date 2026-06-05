@@ -1104,7 +1104,7 @@ Common preconditions for harness tests (T162–T166):
   3. `get tbScrollOffset` — assert 0 (unchanged).
 - **Expected result**: appId = Clock; tbScrollOffset = 0. Tap path confirmed.
 - **Harness**: `run_serialdbg_tests.py --tests T162`. Owner: VE.
-- **Status**: written (2026-06-05).
+- **Status**: passing [SERIALDBG]. DUT run 2026-06-05.
 
 ### T163 — [taskbar-scroll-001] Drag-up ≥50 px increments tbScrollOffset by 1
 
@@ -1120,7 +1120,7 @@ Common preconditions for harness tests (T162–T166):
 - **Expected result**: tbScrollOffset advanced by 1 (mod 8). LP-smoothed ≈ 42.5 px clears
   TASKBAR_SLOT_H threshold; single slot step confirmed.
 - **Harness**: `run_serialdbg_tests.py --tests T163`. Owner: VE.
-- **Status**: written (2026-06-05).
+- **Status**: passing [SERIALDBG]. DUT run 2026-06-05.
 
 ### T164 — [taskbar-scroll-001] Drag-down ≥50 px decrements tbScrollOffset by 1
 
@@ -1135,7 +1135,7 @@ Common preconditions for harness tests (T162–T166):
   3. `get tbScrollOffset` — assert 0.
 - **Expected result**: tbScrollOffset 1→0. Non-wrap decrement confirmed.
 - **Harness**: `run_serialdbg_tests.py --tests T164`. Owner: VE.
-- **Status**: written (2026-06-05).
+- **Status**: passing [SERIALDBG]. DUT run 2026-06-05.
 
 ### T165 — [taskbar-scroll-001] Wrap-around down: offset=0, drag-down → offset=7
 
@@ -1152,7 +1152,7 @@ Common preconditions for harness tests (T162–T166):
 - **Expected result**: tbScrollOffset 0→7. Wrap-around confirmed.
   `newOffset = ((0 + (−1)) % 8 + 8) % 8 = 7`.
 - **Harness**: `run_serialdbg_tests.py --tests T165`. Owner: VE.
-- **Status**: written (2026-06-05).
+- **Status**: passing [SERIALDBG]. DUT run 2026-06-05.
 
 ### T166 — [taskbar-scroll-001] Wrap-around up: offset=7, drag-up → offset=0
 
@@ -1168,7 +1168,7 @@ Common preconditions for harness tests (T162–T166):
 - **Expected result**: tbScrollOffset 7→0. Wrap-around confirmed.
   `newOffset = ((7 + 1) % 8 + 8) % 8 = 0`.
 - **Harness**: `run_serialdbg_tests.py --tests T166`. Owner: VE.
-- **Status**: written (2026-06-05).
+- **Status**: passing [SERIALDBG]. DUT run 2026-06-05.
 
 ### T167 — [taskbar-scroll-001] *(retired)*
 
@@ -1973,7 +1973,7 @@ Common preconditions for all T-SET tests:
   4. Visual: 6 label rows visible within y:28..239; no pixel overflow above y=0 or into taskbar strip (x≥275).
 - **Expected result**: `settingsSection == -1`; 6 tappable rows in content panel; canvas bounded correctly (C1).
 - **Harness**: `run_serialdbg_tests.py --tests T-SET-01`. Owner: VE.
-- **Status**: written (2026-06-05).
+- **Status**: passing [SERIALDBG]. DUT run 2026-06-05.
 
 ---
 
@@ -1991,7 +1991,7 @@ Common preconditions for all T-SET tests:
   5. `get settingsSection` — assert `section == -1`.
 - **Expected result**: Section opens with correct header for each index; back returns to category list (C2a).
 - **Harness**: `run_serialdbg_tests.py --tests T-SET-02`. Owner: VE.
-- **Status**: written (2026-06-05).
+- **Status**: passing [SERIALDBG]. DUT run 2026-06-05.
 
 ---
 
@@ -2013,7 +2013,7 @@ Common preconditions for all T-SET tests:
   9. `get settingsSection` — assert `section == -1`.
 - **Expected result**: `settingsSection==5`, `settingsAppSubmenu==0`, then both reset to -1 after two backs (C2b).
 - **Harness**: `run_serialdbg_tests.py --tests T-SET-03`. Owner: VE.
-- **Status**: written (2026-06-05).
+- **Status**: passing [SERIALDBG]. DUT run 2026-06-05.
 
 ---
 
@@ -2029,7 +2029,7 @@ Common preconditions for all T-SET tests:
   3. For section 5, also tap into an app submenu row and verify bounds.
 - **Expected result**: All sections bounded within content panel (C3). Paired with T-SET-01 as a single visual pass.
 - **Harness**: manual visual. Owner: VE.
-- **Status**: written (2026-06-05).
+- **Status**: planned (manual visual — pending DUT-141d walkthrough).
 
 ---
 
@@ -2046,7 +2046,7 @@ Common preconditions for all T-SET tests:
   4. Visual: Winamp chrome is pixel-correct; no grey/dark settings background or text residue on canvas.
 - **Expected result**: Winamp chrome fully restored; zero settings residue (C4).
 - **Harness**: manual visual. Owner: VE.
-- **Status**: written (2026-06-05).
+- **Status**: planned (manual visual — pending DUT-141d walkthrough).
 
 ---
 
@@ -2067,7 +2067,7 @@ Common preconditions for all T-SET tests:
   8. `get settingsAppSubmenu` — assert `submenu == -1`.
 - **Expected result**: Both vars reset to -1 after suspend/resume cycle (C5).
 - **Harness**: `run_serialdbg_tests.py --tests T-SET-06`. Owner: VE.
-- **Status**: written (2026-06-05).
+- **Status**: passing [SERIALDBG]. DUT run 2026-06-05.
 
 ---
 
@@ -2088,7 +2088,7 @@ Common preconditions for all T-SET tests:
   8. `get settingsSection` — assert `section == -1` (at category list).
 - **Expected result**: Two back taps unwind both levels correctly (C6).
 - **Harness**: `run_serialdbg_tests.py --tests T-SET-07`. Owner: VE.
-- **Status**: written (2026-06-05).
+- **Status**: passing [SERIALDBG]. DUT run 2026-06-05.
 
 ---
 
@@ -2107,7 +2107,7 @@ Common preconditions for all T-SET tests:
   6. `get appId` — assert `name == "Crypto"`.
 - **Expected result**: `appId` returns to Crypto, confirming `g_previousAppId` tracking in `switchApp()`.
 - **Harness**: `run_serialdbg_tests.py --tests T-SET-08`. Owner: VE.
-- **Status**: written (2026-06-05).
+- **Status**: passing [SERIALDBG]. DUT run 2026-06-05.
 
 ---
 

@@ -6,6 +6,29 @@ Completed, closed, cancelled, and superseded tasks. Active tasks are in [tasks.m
 
 ---
 
+### TASK-141 — M-SETTINGS: SettingsApp navigation stub
+**Owner**: Developer
+**Feature**: settings-001
+**Status**: closed — implemented; check_build.sh 4/4; T-SET-01..08 8/8 PASS; DUT-141d visual all pass (2026-06-05)
+**Milestone**: M-SETTINGS-STUB
+
+Changes in this session:
+- `app/src/main.cpp`: 14 `SETTINGS_*` constants; `g_previousAppId` tracking in `switchApp()`; full `SettingsApp` class replacing placeholder (category list, 5 stub sections, Applications 2-level drill, `goBack()`, `suspend()` reset); `settingsDbgGet` + `dbgGet` method (SERIAL_DEBUG); `cmdTap` Settings dispatch arm (bugfix — non-Spotify apps beyond Stock were falling to `hit=CLOCK`).
+- `app/tools/run_serialdbg_tests.py`: T-SET-01..08 harness functions + registered in `ALL_TESTS`.
+- `docs/verification/test_plan.md`: suite `settings-nav-stub-001` T-SET-01..08.
+
+---
+
+### TASK-142 — VE: SettingsApp navigation stub test suite (T-SET-01..08)
+**Owner**: VE
+**Feature**: settings-001
+**Status**: closed — T-SET-01..03/06..08 PASS [SERIALDBG]; T-SET-04/05 PASS [MANUAL] (2026-06-05)
+**Milestone**: M-SETTINGS-STUB
+
+All 8 tests pass. T-SET-04 (content bounds) and T-SET-05 (app-switch residue) confirmed visually during TASK-141d DUT walkthrough.
+
+---
+
 ### TASK-101 — M-TOUCH-CAPTURE: Implement slider input capture in winampDisplay
 **Owner**: Developer
 **Feature**: touch-002

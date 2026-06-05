@@ -951,6 +951,29 @@ features:
       gate. Developer deliverable: `get visMode` in SERIAL_DEBUG cmdGet() before VE can
       execute T-CDWN-01.
 
+  - id: settings-001
+    name: SettingsApp navigation stub — category list + section routing
+    description: |
+      Navigation shell for the Settings app. Category list (6 entries) with chevron
+      rows, header bar with `< back`, 3-level back logic (appSubmenu → section → previous
+      app via g_previousAppId). Each section renders a stub placeholder; no live section
+      implementations. Applications section supports 2-level drill (app list → per-app
+      stub rows). Full implementations (WiFi flow, display, LED, touch-cal, time) are
+      separate tasks.
+    status: implemented
+    git_ref: ""
+    files:
+      - app/src/main.cpp
+      - app/tools/run_serialdbg_tests.py
+    cross_features: [app-interface-001, taskbar-001, touch-004]
+    test_ids: [T-SET-01, T-SET-02, T-SET-03, T-SET-04, T-SET-05, T-SET-06, T-SET-07, T-SET-08]
+    notes: |
+      TASK-141/142 done (2026-06-05). Design: docs/architecture/designs/M-MULTIAPP/settings.md.
+      Constants defined locally in main.cpp (not gen/shell_layout.h — avoids golden hash
+      invalidation). g_previousAppId in main.cpp; switchApp() updated to capture it.
+      cmdTap fixed: Settings dispatch arm added (non-Spotify apps beyond Stock were falling
+      to hit=CLOCK stub without calling handleInput).
+
   - id: tooling-001
     name: Host-side tool-script smoke gate
     description: |
