@@ -5,7 +5,8 @@ Serial debug test harness — serialdbg-001 suite.
 Executes T076–T088, T095, T096, T_BI_01–T_BI_04,
 T_MA_01–T_MA_03, T_GOL_01–T_GOL_04, T_WX_01–T_WX_05,
 T_CX_01–T_CX_05, T_X07_01,
-T-BUSY-01/01b/02/03/05, T-CDWN-01/02/03 against a DUT flashed with cyd2usb_winamp_debug.
+T-BUSY-01/01b/02/03/05, T-CDWN-01/02/03,
+T162–T166 (taskbar-scroll-001) against a DUT flashed with cyd2usb_winamp_debug.
 T089 (production ELF symbol check) is a host build check — not run here.
 T095 (physical vs. synthetic calibration) requires --interactive (human at DUT).
 
@@ -3437,6 +3438,167 @@ def t160(dut: Dut):
           f"scrollOffset={post} (unchanged) scrollVelocity=0.0000 — tickScroll D_IDLE guard confirmed")
 
 
+# ── taskbar-scroll-001 suite (TASK-105/TASK-106) ─────────────────────────────
+# Tests T162–T166 for the taskbar scroll gesture (tbScrollOffset mechanics).
+#
+# Serial commands used:
+#   get tbScrollOffset, get appId
+#   drag <x1> <y1> <x2> <y2> <steps>
+#   tap <x> <y>
+#   set cooldown 0
+#
+# Taskbar geometry (shell_layout.h):
+#   TASKBAR_X=275, TASKBAR_W=45, TASKBAR_SLOT_H=40
+#   x centre = 297;  slot n y-centre = n*40+20
+#   N_APPS = 8  (AppId::COUNT)
+#
+# Drag parameters for reliable 1-slot step:
+#   50 px / 10 steps → LP-smoothed ≈ 42.5 px > TASKBAR_SLOT_H(40) → exactly 1 slot
+#   (LP α=0.4; TB_SCROLL_DEAD_ZONE_PX=3 exceeded after the first 5 px step)
+#
+# T167 is retired — duplicate of revised T165.
+# T168 is MANUAL — active-indicator rendering cannot be verified via serial.
+
+_TB_X = _c.TASKBAR_X + _c.TASKBAR_W // 2   # 297
+_TB_N = 8                                    # AppId::COUNT
+
+
+def _tb_get_offset(dut: Dut) -> "int | None":
+    r = dut.cmd("get tbScrollOffset", timeout=3.0)
+    v = r.get("val")
+    return int(v) if isinstance(v, (int, float)) else None
+
+
+def _tb_set_offset(dut: Dut, target: int) -> bool:
+    """Drive tbScrollOffset to target via drag gestures (one drag per slot step).
+    Chooses the shorter path; each drag is 50 px / 10 steps (LP-safe).
+    y span [60, 110] stays within screen bounds and clear of slot 0 edge."""
+    current = _tb_get_offset(dut)
+    if current is None:
+        return False
+    n = _TB_N
+    steps_up   = (target - current) % n   # up = offset++
+    steps_down = (current - target) % n   # down = offset--
+    if steps_up <= steps_down:
+        for _ in range(steps_up):
+            dut.set_cooldown_zero()
+            dut.cmd(f"drag {_TB_X} 110 {_TB_X} 60 10", timeout=5.0)  # 50 px up → +1
+            time.sleep(0.1)
+    else:
+        for _ in range(steps_down):
+            dut.set_cooldown_zero()
+            dut.cmd(f"drag {_TB_X} 60 {_TB_X} 110 10", timeout=5.0)  # 50 px down → -1
+            time.sleep(0.1)
+    return _tb_get_offset(dut) == target
+
+
+def _tb_precondition(dut: Dut, tid: str) -> bool:
+    """Common precondition for T162–T166: Spotify active, tbScrollOffset=0."""
+    if not _restore_spotify(dut):
+        skip(tid, "precondition: could not restore Spotify")
+        return False
+    if not _tb_set_offset(dut, 0):
+        skip(tid, f"precondition: tbScrollOffset={_tb_get_offset(dut)} could not be reset to 0")
+        return False
+    dut.set_cooldown_zero()
+    return True
+
+
+def t162(dut: Dut):
+    """T162: Tap taskbar slot 1 (|rawDy|=0 < TB_SCROLL_DEAD_ZONE_PX=3) → switchApp fires, tbScrollOffset unchanged."""
+    print("T162  Tap taskbar slot 1 — switchApp fires, tbScrollOffset unchanged")
+    if not _tb_precondition(dut, "T162"):
+        return
+    baseline = _tb_get_offset(dut)
+    cx, cy = _c.tap_taskbar_slot(1)   # Clock slot
+    dut.cmd(f"tap {cx} {cy}", timeout=3.0)
+    time.sleep(0.2)
+    r_app = dut.cmd("get appId", timeout=3.0)
+    post = _tb_get_offset(dut)
+    _restore_spotify(dut)
+    if r_app.get("name") != "Clock":
+        fail("T162", f"appId={r_app.get('name')!r} after tap slot 1 — expected Clock; switchApp not fired")
+        return
+    if post != baseline:
+        fail("T162", f"tbScrollOffset changed {baseline}→{post} after tap — scroll triggered instead of tap")
+        return
+    pass_("T162", f"appId=Clock; tbScrollOffset={post} (unchanged at {baseline}) — tap/switchApp path confirmed")
+
+
+def t163(dut: Dut):
+    """T163: Drag-up ≥50 px / 10 steps → tbScrollOffset increments by 1 (mod N)."""
+    print("T163  Drag-up 50 px → tbScrollOffset + 1")
+    if not _tb_precondition(dut, "T163"):
+        return
+    baseline = _tb_get_offset(dut)
+    dut.cmd(f"drag {_TB_X} 110 {_TB_X} 60 10", timeout=5.0)   # 50 px up
+    post = _tb_get_offset(dut)
+    expected = (baseline + 1) % _TB_N
+    _tb_set_offset(dut, 0)
+    if post != expected:
+        fail("T163", f"tbScrollOffset={post} after drag-up; expected {expected} (baseline={baseline})")
+        return
+    pass_("T163", f"tbScrollOffset {baseline}→{post} (+1 mod {_TB_N}) confirmed")
+
+
+def t164(dut: Dut):
+    """T164: Drag-down ≥50 px / 10 steps → tbScrollOffset decrements by 1 (mod N).
+    Starts at offset=1 to exercise non-wrap decrement (wrap is T165)."""
+    print("T164  Drag-down 50 px → tbScrollOffset - 1")
+    if not _tb_precondition(dut, "T164"):
+        return
+    if not _tb_set_offset(dut, 1):
+        skip("T164", f"could not set tbScrollOffset=1; actual={_tb_get_offset(dut)}")
+        return
+    dut.set_cooldown_zero()
+    baseline = _tb_get_offset(dut)   # should be 1
+    dut.cmd(f"drag {_TB_X} 60 {_TB_X} 110 10", timeout=5.0)   # 50 px down
+    post = _tb_get_offset(dut)
+    expected = (baseline - 1 + _TB_N) % _TB_N
+    _tb_set_offset(dut, 0)
+    if post != expected:
+        fail("T164", f"tbScrollOffset={post} after drag-down; expected {expected} (baseline={baseline})")
+        return
+    pass_("T164", f"tbScrollOffset {baseline}→{post} (-1 mod {_TB_N}) confirmed")
+
+
+def t165(dut: Dut):
+    """T165: Wrap-around down — offset=0, drag-down → offset=N-1=7."""
+    print("T165  Wrap-around down: offset=0, drag-down → offset=7")
+    if not _tb_precondition(dut, "T165"):
+        return
+    baseline = _tb_get_offset(dut)
+    if baseline != 0:
+        skip("T165", f"precondition offset={baseline}, expected 0")
+        return
+    dut.cmd(f"drag {_TB_X} 60 {_TB_X} 110 10", timeout=5.0)   # 50 px down from 0 → wrap to N-1
+    post = _tb_get_offset(dut)
+    _tb_set_offset(dut, 0)
+    if post != _TB_N - 1:
+        fail("T165", f"tbScrollOffset={post} after wrap-down from 0; expected {_TB_N - 1}")
+        return
+    pass_("T165", f"tbScrollOffset 0→{post} (wrap-around down confirmed)")
+
+
+def t166(dut: Dut):
+    """T166: Wrap-around up — offset=N-1=7, drag-up → offset=0."""
+    print("T166  Wrap-around up: offset=7, drag-up → offset=0")
+    if not _tb_precondition(dut, "T166"):
+        return
+    if not _tb_set_offset(dut, _TB_N - 1):
+        skip("T166", f"could not set tbScrollOffset={_TB_N - 1}; actual={_tb_get_offset(dut)}")
+        return
+    dut.set_cooldown_zero()
+    baseline = _tb_get_offset(dut)   # should be 7
+    dut.cmd(f"drag {_TB_X} 110 {_TB_X} 60 10", timeout=5.0)   # 50 px up from N-1 → wrap to 0
+    post = _tb_get_offset(dut)
+    _tb_set_offset(dut, 0)
+    if post != 0:
+        fail("T166", f"tbScrollOffset={post} after wrap-up from {_TB_N - 1}; expected 0")
+        return
+    pass_("T166", f"tbScrollOffset {baseline}→{post} (wrap-around up confirmed)")
+
+
 # ── stock-002 suite (TASK-120) ────────────────────────────────────────────────
 # Tests the heatmap sub-view, navigation, fetch-gate, and chartSymbol guard.
 #
@@ -4058,6 +4220,13 @@ ALL_TESTS = {
     "T158": t158,
     "T159": t159,
     "T160": t160,
+    # taskbar-scroll-001 (TASK-105/TASK-106)
+    "T162": t162,
+    "T163": t163,
+    "T164": t164,
+    "T165": t165,
+    "T166": t166,
+    # T167 retired (duplicate of T165); T168 manual (rendering — no serial observable)
 }
 
 def main():

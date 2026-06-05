@@ -818,6 +818,7 @@ public:
         if (!_s.fetchFailed && x >= ST_CHART_TABS_X) {
           uint8_t tab = (uint8_t)constrain((x - ST_CHART_TABS_X) / ST_CHART_TAB_W, 0, 3);
           _s.chartRange     = (StockRange)tab;
+          _s.chartLen = 0; _s.chartLo = _s.chartHi = 0;
           if (_s.chartSymbol[0])
             dataTask::enqueueStockChartBySym(_s.chartSymbol, tab);
           else
@@ -1065,6 +1066,7 @@ private:
       _s.lastChartFetch = millis();
       _pendingAsync     = true;
     }
+    _s.chartLen = 0; _s.chartLo = _s.chartHi = 0;
     repaintChart();
   }
 
@@ -1076,6 +1078,7 @@ private:
     dataTask::enqueueStockChartBySym(sym, rangeIdx);
     _s.lastChartFetch = millis();
     _pendingAsync     = true;
+    _s.chartLen = 0; _s.chartLo = _s.chartHi = 0;
     repaintChart();
   }
 

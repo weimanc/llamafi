@@ -296,7 +296,7 @@ H1 — JA3/TLS fingerprint block; H2 — transient CDN per-IP state from RST sto
 ### TASK-125 — BUG: ChartDetail displays stale graph when ticker or range changes
 **Owner**: Developer
 **Feature**: stock-002
-**Status**: open
+**Status**: complete
 **Milestone**: M-HEATMAP
 **Source**: user report 2026-06-03
 
@@ -875,7 +875,7 @@ See: `docs/rnd/reports/EXP-001-yahoo-finance-errors.md`, `docs/rnd/proposals/PRO
 ### TASK-106 — VE: test suite for taskbar-scroll-001 (T162–T168)
 **Owner**: VE
 **Feature**: taskbar-scroll-001
-**Status**: open (planned — write + execute after TASK-105 done)
+**Status**: complete (2026-06-05 — T162–T166 written + registered; T167 retired; T168 manual/planned; check_build.sh 4/4)
 **Milestone**: M-TASKBAR-SCROLL
 **Blocked by**: TASK-105 (firmware + `get tbScrollOffset` via TASK-105f)
 **Notes**:

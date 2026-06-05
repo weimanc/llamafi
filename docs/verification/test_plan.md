@@ -2698,6 +2698,7 @@ VE review: `docs/verification/regression_suite/touch-capture-ve-review.md`.
 ## Suite: velocity-scroll-001 — M-LIST-v4 velocity-scroll PLEDIT (TASK-104)
 
 **DUT required** — T155–T161 use `run_serialdbg_tests.py` with `cyd2usb_winamp_debug`.
+T162–T166 are in the taskbar-scroll-001 suite (below).
 Design doc: `docs/architecture/designs/M-LIST-v4-velocity-scroll.md`.
 VE review: `docs/verification/regression_suite/velocity-scroll-ve-review.md`.
 
@@ -2835,6 +2836,122 @@ Common preconditions for harness tests (T155–T160):
   5. Query `get scrollOffset` — assert 0.
 - **Expected result**: dragState D_IDLE; scrollOffset 0. The seqno-change branch in
   drawPlaylist() cancels the gesture cleanly. No runaway scroll after seqno reset.
+- **Harness**: manual — no automation. Owner: VE.
+- **Status**: planned.
+
+---
+
+## Suite: taskbar-scroll-001 — Taskbar Scroll Gesture (TASK-105/TASK-106)
+
+**DUT required** — T162–T166 use `run_serialdbg_tests.py` with `cyd2usb_winamp_debug`.
+
+As-built constants (authoritative): `TASKBAR_SLOT_H = 40`, `TB_SCROLL_DEAD_ZONE_PX = 3`, `TB_LP_ALPHA = 0.4`, `N = 8` (AppId::COUNT).
+Taskbar strip: `x ∈ [275, 319]`, `y ∈ [0, 239]`. Slot n y-centre: `n*40 + 20`.
+
+Common preconditions for harness tests (T162–T166):
+- DUT flashed with `cyd2usb_winamp_debug`, booted, WiFi up.
+- `get appId` → `Spotify` (restored by `_tb_precondition`).
+- `get tbScrollOffset` → 0 (reset by `_tb_precondition`).
+
+### T162 — [taskbar-scroll-001] Tap on taskbar fires switchApp; tbScrollOffset unchanged
+
+- **Type**: integration (DUT)
+- **Feature(s)**: taskbar-scroll-001
+- **Objective**: A press+release with |rawDy| = 0 never exceeds `TB_SCROLL_DEAD_ZONE_PX` (3),
+  so `_tbIsScrolling` stays false. `tbGestureEnd` takes the tap branch, calling `switchApp`.
+  `tbScrollOffset` must be unchanged.
+- **Preconditions**: Common preconditions above. `tbScrollOffset = 0`.
+- **Steps**:
+  1. `tap 297 60` — tap centre of slot 1 (Clock); dy = 0.
+  2. `get appId` — assert `Clock`.
+  3. `get tbScrollOffset` — assert 0 (unchanged).
+- **Expected result**: appId = Clock; tbScrollOffset = 0. Tap path confirmed.
+- **Harness**: `run_serialdbg_tests.py --tests T162`. Owner: VE.
+- **Status**: written (2026-06-05).
+
+### T163 — [taskbar-scroll-001] Drag-up ≥50 px increments tbScrollOffset by 1
+
+- **Type**: integration (DUT)
+- **Feature(s)**: taskbar-scroll-001
+- **Objective**: A 50 px / 10-step upward drag on the taskbar. LP-smoothed displacement ≈ 42.5 px
+  > TASKBAR_SLOT_H (40), so exactly 1 slot step is triggered. offset++ (mod N).
+- **Preconditions**: Common preconditions above. `tbScrollOffset = baseline` (any).
+- **Steps**:
+  1. Record `baseline = get tbScrollOffset`.
+  2. `drag 297 110 297 60 10` — 50 px upward drag (y 110→60, dy = −50).
+  3. `get tbScrollOffset` — assert `(baseline + 1) % 8`.
+- **Expected result**: tbScrollOffset advanced by 1 (mod 8). LP-smoothed ≈ 42.5 px clears
+  TASKBAR_SLOT_H threshold; single slot step confirmed.
+- **Harness**: `run_serialdbg_tests.py --tests T163`. Owner: VE.
+- **Status**: written (2026-06-05).
+
+### T164 — [taskbar-scroll-001] Drag-down ≥50 px decrements tbScrollOffset by 1
+
+- **Type**: integration (DUT)
+- **Feature(s)**: taskbar-scroll-001
+- **Objective**: A 50 px / 10-step downward drag decrements offset by 1 (non-wrap path).
+  Precondition offset=1 so result is 0 without wrap.
+- **Preconditions**: Common preconditions above. `tbScrollOffset = 1`.
+- **Steps**:
+  1. Set `tbScrollOffset = 1` via prior drag-up.
+  2. `drag 297 60 297 110 10` — 50 px downward drag (y 60→110, dy = +50).
+  3. `get tbScrollOffset` — assert 0.
+- **Expected result**: tbScrollOffset 1→0. Non-wrap decrement confirmed.
+- **Harness**: `run_serialdbg_tests.py --tests T164`. Owner: VE.
+- **Status**: written (2026-06-05).
+
+### T165 — [taskbar-scroll-001] Wrap-around down: offset=0, drag-down → offset=7
+
+- **Type**: integration (DUT)
+- **Feature(s)**: taskbar-scroll-001
+- **Objective**: When `tbScrollOffset = 0`, a downward drag that would produce offset = −1
+  wraps to N−1 = 7 via the modular arithmetic in `tbGestureContinue`.
+  *(Revised from original spec — no clamp; wrap-around used in all directions.)*
+- **Preconditions**: Common preconditions above. `tbScrollOffset = 0`.
+- **Steps**:
+  1. `get tbScrollOffset` — assert 0.
+  2. `drag 297 60 297 110 10` — 50 px downward drag.
+  3. `get tbScrollOffset` — assert 7.
+- **Expected result**: tbScrollOffset 0→7. Wrap-around confirmed.
+  `newOffset = ((0 + (−1)) % 8 + 8) % 8 = 7`.
+- **Harness**: `run_serialdbg_tests.py --tests T165`. Owner: VE.
+- **Status**: written (2026-06-05).
+
+### T166 — [taskbar-scroll-001] Wrap-around up: offset=7, drag-up → offset=0
+
+- **Type**: integration (DUT)
+- **Feature(s)**: taskbar-scroll-001
+- **Objective**: When `tbScrollOffset = N−1 = 7`, an upward drag that would produce offset = 8
+  wraps to 0. Mirror of T165.
+- **Preconditions**: Common preconditions above. `tbScrollOffset = 7`.
+- **Steps**:
+  1. Set `tbScrollOffset = 7` via 7 drag-up gestures.
+  2. `drag 297 110 297 60 10` — 50 px upward drag.
+  3. `get tbScrollOffset` — assert 0.
+- **Expected result**: tbScrollOffset 7→0. Wrap-around confirmed.
+  `newOffset = ((7 + 1) % 8 + 8) % 8 = 0`.
+- **Harness**: `run_serialdbg_tests.py --tests T166`. Owner: VE.
+- **Status**: written (2026-06-05).
+
+### T167 — [taskbar-scroll-001] *(retired)*
+
+- **Status**: retired — duplicate of revised T165. No separate test required.
+
+### T168 — [taskbar-scroll-001] Active indicator follows app, not slot [manual]
+
+- **Type**: manual DUT
+- **Feature(s)**: taskbar-scroll-001
+- **Objective**: After scrolling the taskbar (offset = k), the 3 px active-indicator bar must
+  render at the visual slot containing `currentAppId`, not at the raw `(int)currentAppId` slot.
+  Expected visual slot = `(currentAppId − offset + N) % N`.
+- **Preconditions**: DUT flashed with `cyd2usb_winamp_debug`, booted.
+- **Steps**:
+  1. Switch to Spotify (appId = 0).
+  2. Drag taskbar up to `tbScrollOffset = 3`.
+  3. Observe taskbar: the active indicator should be at visual slot 5 (`(0 − 3 + 8) % 8 = 5`),
+     not at slot 0.
+  4. Tap the slot where the indicator is visible — confirm appId stays Spotify (no spurious switch).
+- **Expected result**: Active bar at visual slot 5. Tap does not switch app.
 - **Harness**: manual — no automation. Owner: VE.
 - **Status**: planned.
 
