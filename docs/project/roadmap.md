@@ -490,8 +490,8 @@ Fix:
 2. Update `CHART_BUDGET_B` in `test_yahoo_finance_api.py` from 8192 to 16384 to match the firmware's `DynamicJsonDocument(16384)` for chart fetches. Add cross-reference comment citing the firmware source line.
 3. Add a capacity safety-factor note (≥ 1.5×) to the host budget check explaining why raw payload bytes ≠ doc capacity.
 
-**Status**: open
-**ADR**: ADR-034 (proposed)
+**Status**: done (4c3cb05/f57f6d0/c4ab771 — stock quote+chart on getStream(); weather/crypto reverted to getString() — chunked encoding, no Content-Length, HTTPClient on espressif32@6.9.0 can't dechunk via getStream(); ADR-034 amended; T186–T188 PASS; budget constants superseded by filter-before-parse approach)
+**ADR**: ADR-034 (accepted)
 **Triggered by**: QM audit LL-040 (2026-05-29)
 **Deps**: M-MULTIAPP (dataTask in tree)
 
@@ -506,7 +506,7 @@ Fix:
 2. Add a focused rapid-switch phase (D1↔Ytd alternating, 4–6 cycles with queue-drain waits) to test the back-to-back allocation pattern under real pressure.
 3. Add a `Dut` class docstring noting the serial stream is not thread-safe; document fire-and-forget + drain-phase as the canonical pattern for async log capture (avoids the ACK-theft failure mode from T186 iteration 2).
 
-**Status**: open
+**Status**: done (T204 added — 3-cycle D1↔Ytd alternating stress, counter-drain pattern; all 3 steps complete: T188 per-range sequential, T204 rapid-switch stress, Dut thread-safety docstring)
 **Triggered by**: QM audit LL-041 / LL-042 (2026-05-29)
 **Deps**: M-DATATASK-STREAM-PARSE (fix the bug first, then verify the fix holds under stress)
 

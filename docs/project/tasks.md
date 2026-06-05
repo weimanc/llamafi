@@ -4,7 +4,11 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
-
+> **PM sync 2026-06-05** — 2 milestones closed this session:
+> - M-DATATASK-STREAM-PARSE: done (cross-checked git history; all 3 steps confirmed landed in 4c3cb05/f57f6d0/c4ab771; roadmap status was stale → updated)
+> - M-STOCK-VE-STRESS: done (T204 D1↔Ytd×3 rapid-switch stress added; `_wait_chart_complete` hardened against transient DUT TimeoutError during fetch startup; T204 DUT PASS confirmed)
+>
+> All roadmap milestones now done or superseded. Open work: TASK-078 only.
 
 ### TASK-078 — Design: PLEDIT content-area drag UX improvements
 **Owner**: Architect (whiteboard), then Developer

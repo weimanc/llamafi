@@ -2104,7 +2104,11 @@ def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0) -> bool
     from fetchOkCount before the triggering tap/command. Returns True on success."""
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        current = _stock_ok_count(dut)
+        try:
+            current = _stock_ok_count(dut)
+        except TimeoutError:
+            time.sleep(1.0)
+            continue
         if current > before:
             return True
         time.sleep(1.0)
@@ -2738,6 +2742,60 @@ def t188(dut: Dut):
 
     _restore_from_stock(dut)
     pass_("T188", "all 4 ranges (D1/D5/Mo1/Ytd) fetched without -99 — getStream() fix confirmed")
+
+
+# ── T204 — M-STOCK-VE-STRESS: D1↔Ytd rapid alternating stress ────────────────
+# Step 2 of M-STOCK-VE-STRESS. T188 verified each range sequentially; T204 drives
+# D1↔Ytd alternation (3 cycles = 6 fetches) to exercise back-to-back
+# DynamicJsonDocument(16384) alloc/free under heap pressure (ADR-034).
+# Counter observation between taps proves queue drains — no blind sleeps.
+
+def t204(dut: Dut):
+    """T204: D1↔Ytd rapid alternating stress — back-to-back alloc/free under heap pressure."""
+    print("T204  D1↔Ytd rapid alternating stress (M-STOCK-VE-STRESS)", flush=True)
+    if not _switch_to_stock(dut):
+        skip("T204", "could not switch to Stock")
+        _restore_from_stock(dut)
+        return
+    dut.cmd("set fetchFailed 0", timeout=3.0)
+    dut.cmd("set fetchErrorCode 0", timeout=3.0)
+    if _stock_get(dut, "stockSubView").get("val") == "chart":
+        dut.set_cooldown_zero()
+        dut.cmd("tap 10 7", timeout=5.0)   # back to list
+        time.sleep(0.5)
+    dut.set_cooldown_zero()
+    dut.cmd("tap 137 36", timeout=5.0)     # drill AAPL
+    time.sleep(1.0)
+    if _stock_get(dut, "stockSubView").get("val") != "chart":
+        skip("T204", "could not drill into chart view")
+        _restore_from_stock(dut)
+        return
+
+    stress_tabs = [(_TAB_XY[3], "Ytd"), (_TAB_XY[0], "D1")] * 3  # 3 cycles, 6 taps
+
+    for (tx, ty), tab_name in stress_tabs:
+        before = _stock_ok_count(dut)
+        dut.set_cooldown_zero()
+        dut.cmd(f"tap {tx} {ty}", timeout=5.0)
+        print(f"  [T204] {tab_name} tapped (fetchOkCount={before}); waiting…", flush=True)
+        if not _wait_chart_complete(dut, before, timeout_s=45.0):
+            dut.cmd("set fetchFailed 0", timeout=3.0)
+            dut.cmd("set fetchErrorCode 0", timeout=3.0)
+            _restore_from_stock(dut)
+            fail("T204", f"fetchOkCount did not advance on {tab_name} — heap pressure failure?")
+            return
+        r_ff   = _stock_get(dut, "fetchFailed", timeout=8.0)
+        r_code = _stock_get(dut, "fetchErrorCode", timeout=8.0)
+        if r_ff.get("val") == "1" or r_ff.get("val") is True:
+            dut.cmd("set fetchFailed 0", timeout=3.0)
+            dut.cmd("set fetchErrorCode 0", timeout=3.0)
+            _restore_from_stock(dut)
+            fail("T204", f"fetchFailed=1 errorCode={r_code.get('val')} on {tab_name} — alloc/free stress failure")
+            return
+        print(f"  [T204] {tab_name} ok", flush=True)
+
+    _restore_from_stock(dut)
+    pass_("T204", "D1↔Ytd × 3 cycles — no fetchFailed; getStream() alloc/free stable under stress")
 
 
 # ── M-TOUCH-UX suite (TASK-118) ───────────────────────────────────────────────
@@ -4667,6 +4725,8 @@ ALL_TESTS = {
     "T201": t201,
     "T202": t202,
     "T203": t203,
+    # M-STOCK-VE-STRESS (step 2)
+    "T204": t204,
     # M-TOUCH-UX (TASK-118)
     "T-BUSY-01":  t_busy_01,
     "T-BUSY-01b": t_busy_01b,

@@ -1490,6 +1490,24 @@ Common preconditions for all DUT tests below:
 
 ---
 
+## Suite M-STOCK-VE-STRESS — Rapid D1↔Ytd alloc/free stress (T204)
+
+### T204 — [stock-001] D1↔Ytd rapid alternating stress: 3 cycles no fetchFailed (SERIALDBG)
+
+- **Type**: integration (DUT, SERIALDBG build)
+- **Feature(s)**: stock-001
+- **Objective**: Verify the `getStream()` fix (ADR-034) holds under repeated back-to-back `DynamicJsonDocument(16384)` alloc/free cycles. Alternates Ytd↔D1 3 times (6 fetches); `fetchFailed` must remain 0 throughout. T188 proved each range passes sequentially; T204 proves the heap recovers cleanly across rapid alternation between the largest (Ytd) and smallest (D1) payloads.
+- **Preconditions**: Stock app reachable via `switchApp 7`, WiFi connected, AAPL drillable (Yahoo Finance responsive), `fetchFailed=0`.
+- **Steps**:
+  1. `switchApp 7` → `set fetchFailed 0` → `set fetchErrorCode 0`.
+  2. Drill AAPL from list view (tap 137 36) → assert `stockSubView=chart`.
+  3. For each of [Ytd, D1, Ytd, D1, Ytd, D1]: snapshot `fetchOkCount` before → tap range tab → poll `fetchOkCount` until it advances (timeout 45 s) → `get fetchFailed` → assert `"0"`.
+- **Pass**: All 6 polls succeed; `fetchFailed=0` at every step.
+- **Fail**: `fetchFailed=1` (errorCode typically -91..-95 or -99) on any cycle, or poll timeout (heap allocation failure or Yahoo Finance unavailable).
+- **Status**: planned. Harness: `run_serialdbg_tests.py --tests T204`. Owner: VE.
+
+---
+
 ## Suite: serialdbg-audit-001 — Test quality fix pass (TASK-112)
 
 **Triggered by**: QM audit 2026-05-30 — 18/78 serialdbg tests have limited or no signal.
