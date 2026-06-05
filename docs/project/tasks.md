@@ -157,11 +157,8 @@ All 8 must pass before TASK-141 can be marked done.
    scroll) is crude. A proper discriminator would consider gesture velocity and/or
    total travel time: short fast → tap; slow long → scroll. Avoids mis-fires when
    the user intends a firm tap but moves slightly.
-   **Blocked by T149–T154 pass**: velocity = dy/elapsed_ms; both values are only accurate
-   after capture is verified. A leaky sample stream (finger drifts outside hitbox mid-swipe
-   → Move samples dropped → artificially small dy) misclassifies deliberate swipes as
-   taps. Also requires `_dragStartMs` timestamp added at `D_PLEDIT_SCROLL` Press entry
-   (one-liner; can be included in TASK-101 or as a follow-up).
+   Requires `_dragStartMs` timestamp added at `D_PLEDIT_SCROLL` Press entry
+   (one-liner). Capture now verified (T149–T154 PASS), so dy/elapsed_ms is accurate.
 
 2. ~~**Full-screen gesture capture**~~ — **RESOLVED by TASK-101** (M-TOUCH-CAPTURE
    DragState-first dispatch covers all four sliders including PLEDIT content swipe).
@@ -171,10 +168,7 @@ All 8 must pass before TASK-141 can be marked done.
    regardless of gesture speed or length. A fast or long swipe should scroll 2–3
    rows. Simple model: `delta = max(1, abs(dy) / ROW_H)` — proportional to travel in
    row-heights. Cap at PLEDIT_ROW_COUNT to avoid jumping past all visible rows.
-   **Blocked by T149–T154 pass**: `abs(dy)` must measure full gesture travel. Without capture
-   verified, dropped Move samples could make dy artificially small.
-
-Points 1 and 3 blocked on T149–T154 pass. Implement and verify only after TASK-102 completes.
+   Capture now verified (T149–T154 PASS); `abs(dy)` accurately measures full gesture travel.
 
 ---
 

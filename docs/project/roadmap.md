@@ -312,7 +312,42 @@ Work sequence:
 
 ---
 
+### M-STOCK-POC — StockApp list, chart, and heatmap
+
+Standalone stock market viewer app: ticker list (8 symbols, price + change%), chart detail (line graph, 4 range tabs), and heatmap treemap view (market sectors, colour-coded by change%). TLS via ADR-029. Integrated into multi-app shell.
+
+**Status:** done (2026-05-29 — TASK-109 `27bd86b`; TASK-119 heatmap `cf98180`; VE suites T170–T221; TASK-138 TLS yield reliability 3/3 PASS)
+**Design:** `docs/architecture/designs/M-MULTIAPP/stock.md` · `stock-list.md` · `stock-chart.md` · ADR-036/037
+
+---
+
+### M-TOUCH-UX — Touch UX layer (hitbox, debounce, busy indicator)
+
+Formal touch event pipeline: `Rect` hitbox primitive, debounce activation gate (cool-down), shell-busy amber indicator, `hasPendingAsync()` ABC contract. Three implementation phases: foundation, shell infrastructure, app integration.
+
+**Status:** done (2026-05-31 — TASK-114–118; phases 1–3 shipped; VE T-BUSY/T-CDWN pass; retrospective LL-044/045)
+**Design:** `docs/architecture/designs/M-TOUCH-UX.md` · ADR-035
+
+---
+
 ## Outstanding
+
+### M-SETTINGS-STUB — Settings app navigation shell
+
+Implement the `SettingsApp` navigation skeleton: category list (6 entries with chevron rows),
+header bar with `< back`, 3-level back logic (appSubmenu → section → previous app via
+`g_previousAppId`), stub placeholder for each section. No live section implementations.
+Applications section supports 2-level drill (app list → per-app stub rows).
+
+Full per-section implementations (WiFi flow, display, LED, touch-cal, time, Application
+sub-menus with SPIFFS persistence) are **not** in scope here — each will be a separate
+milestone once the stub is verified.
+
+**Status:** in progress — TASK-141 implemented (check_build.sh 4/4); DUT smoke (TASK-141d) + VE suite T-SET-01..08 (TASK-142) pending
+**Design:** [M-MULTIAPP/settings.md](../architecture/designs/M-MULTIAPP/settings.md)
+**Deps:** M-MULTIAPP (done), M-TASKBAR-SCROLL (done)
+
+---
 
 ### M-TOUCH-CAPTURE — Slider input capture
 
@@ -320,8 +355,7 @@ Pointer capture for all four interactive sliders (POSBAR, VOLUME, PLEDIT scrollb
 PLEDIT content swipe). Mid-gesture drift outside a hitbox no longer drops events or mis-routes
 to another handler. POSBAR commits seek on Release from a cached position (not release coords).
 
-**Status:** implemented (2026-05-25 — TASK-101 committed b253eb8; check_build passes)
-**Pending:** VE suite T149–T154 (TASK-102) execution on DUT
+**Status:** done (2026-06-05 — TASK-101 `b253eb8`; VE T149/T150/T151/T153/T154 PASS; T152 SKIP [CONDITIONAL] queue < 6)
 **Design:** [M-TOUCH-CAPTURE-slider-input-capture.md](../architecture/designs/M-TOUCH-CAPTURE-slider-input-capture.md)
 
 ---
@@ -333,7 +367,7 @@ offset from the press anchor maps to scroll speed (rows/s). Holding the finger s
 nonzero offset scrolls continuously. Dead-zone-only tap discrimination. Integer `scrollOffset`
 preserved. Architecture pre-wired for Phase 2 fling momentum.
 
-**Status:** open — TASK-103 (implementation), TASK-104 (VE suite T155–T161)
+**Status:** done (2026-05-25 — TASK-103 `abf4722`; VE T155–T161 TASK-104 `aaf8009`)
 **ADR:** ADR-030 (accepted 2026-05-25)
 **Design:** [M-LIST-v4-velocity-scroll.md](../architecture/designs/M-LIST-v4-velocity-scroll.md)
 **VE review:** [velocity-scroll-ve-review.md](../verification/regression_suite/velocity-scroll-ve-review.md)
@@ -365,9 +399,9 @@ Stub registration of Settings (AppId 6) and Stock (AppId 7) is included in TASK-
 bringing `AppId::COUNT` to 8 immediately so the scroll is visually exercisable on DUT
 without waiting for full app implementations.
 
-**Status:** open — TASK-105 (implementation), TASK-106 (VE suite T162–T168)
+**Status:** done (2026-05-26 — TASK-105 `d205ad0`; VE T162–T166 PASS, TASK-106 `ee43831`)
 **Design:** [M-MULTIAPP/taskbar.md §Scroll model](../architecture/designs/M-MULTIAPP/taskbar.md)
-**Deps:** M-MULTIAPP (done), M-TOUCH-CAPTURE (TASK-101 done — DragState pattern established)
+**Deps:** M-MULTIAPP (done), M-TOUCH-CAPTURE (done)
 
 ---
 
@@ -400,11 +434,15 @@ Work (all changes local to `aquariumApp.h`):
 Expected `.bss` reduction: **~18.7 KB**. Combined with M-AQUARIUM-OPT pool right-sizing,
 total aquarium `.bss` drops from ~24 KB to ~2.6 KB. No heap lifecycle changes needed.
 
-**Status:** open
+**Status:** done (2026-05-28/29 — TASK-132–137; P1–P5 + CPU-opt VE ADR-038 accepted)
+- P1 gradient x-tile: `f839a61` (~17.5 KB .bss freed)
+- P2 seaweed inline + phase hoisting: `78462b9`
+- P3 fish glyph subsystem: `e975f03`
+- P4 fish struct packing: `59d6b8e`
+- P5 pool right-sizing: `4d61760`
+- ADR-033 (gradient heap migration) superseded by P1.
 **Design:** [M-AQUARIUM/demoscene-opt.md](../architecture/designs/M-AQUARIUM/demoscene-opt.md)
 **Deps:** M-AQUARIUM (done)
-**Note:** ADR-033 (gradient heap migration) is superseded by Change 1 of this milestone.
-Update ADR-033 to `Status: superseded` when this ships.
 
 ---
 
@@ -434,8 +472,8 @@ Expected outcome: `.bss` reduced by ~22 KB; heap headroom when aquarium is suspe
 from ~100 KB to ~122 KB, giving mbedTLS single-handshake peaks (~40 KB) comfortable margin.
 ADR-032 heap arbitration (SSL yield protocol) is independent and may proceed in parallel.
 
-**Status:** open
-**ADR:** ADR-033 (gradient cache heap migration)
+**Status:** superseded by M-AQUARIUM-DEMOSCENE — P1 (gradient x-tile) and P5 (pool right-sizing) delivered the same .bss reductions without heap lifecycle complexity. ADR-033 status: superseded.
+**ADR:** ADR-033 (superseded)
 **Design:** [M-AQUARIUM/memory-opt.md](../architecture/designs/M-AQUARIUM/memory-opt.md)
 **Deps:** M-AQUARIUM (done — aquariumApp.h in tree)
 
@@ -497,7 +535,7 @@ Work (all changes in `app/src/aquarium/aquariumApp.h`):
 3. Wire into `init()`, `tick()`, and `renderFrame()`.
 4. Build + DUT verify.
 
-**Status**: open — TASK-111
+**Status**: done (2026-05-28 — TASK-111 `1d77e96`; DUT verified; CRAB-FIX-001–014 applied)
 **Design**: [M-AQUARIUM/crab.md](../architecture/designs/M-AQUARIUM/crab.md)
 **Deps**: M-AQUARIUM (done — `aquariumApp.h` in tree)
 
