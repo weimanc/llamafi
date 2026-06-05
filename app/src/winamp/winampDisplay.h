@@ -287,7 +287,8 @@ public:
       if (dragState == D_PLEDIT_SCROLL) {
         const int dy = _dragCurrentY - _dragStartY;
         LOG_D("touch", "PLEDIT drag end: dy=%d startY=%d curY=%d", dy, _dragStartY, _dragCurrentY);
-        const bool isTap = abs(dy) < SCROLL_DEAD_ZONE_PX;
+        const unsigned long elapsed = (unsigned long)(millis() - _dragStartMs);
+        const bool isTap = abs(dy) < PLEDIT_TAP_PX && elapsed < PLEDIT_TAP_MS;
         _scrollAccum    = 0.0f;
         _scrollVelocity = 0.0f;
         if (isTap) {
@@ -302,6 +303,16 @@ public:
           }
           touchScreenCoolDownTime = millis() + 300;
         } else {
+          if (elapsed < PLEDIT_TAP_MS) {
+            // Quick swipe: tickScroll accumulated ~0 rows (brief dt); apply guaranteed delta
+            // from start offset so the gesture always registers at least 1 row.
+            const int delta  = max(1, abs(dy) / PLEDIT_ROW_H);
+            const int dir    = (dy <= 0) ? 1 : -1;
+            const int maxOff = max(0, (int)lastCount - PLEDIT_ROW_COUNT);
+            scrollOffset       = max(0, min(maxOff, _dragStartScrollOffset + dir * delta));
+            _pleditScrollDirty = true;
+          }
+          // Slow drag (elapsed >= PLEDIT_TAP_MS): velocity model already applied rows.
           touchScreenCoolDownTime = millis() + 150;
         }
         dragState = D_IDLE;
@@ -444,10 +455,12 @@ public:
                  x >= originX + PLEDIT_CONTENT_X && x < originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W) {
         const int row = (py - PLEDIT_ROWS_Y) / PLEDIT_ROW_H;
         if (dragState == D_IDLE) {
-          dragState     = D_PLEDIT_SCROLL;
-          _dragStartY   = y;
-          _dragCurrentY = y;
-          _dragStartRow = row;
+          dragState              = D_PLEDIT_SCROLL;
+          _dragStartY            = y;
+          _dragCurrentY          = y;
+          _dragStartRow          = row;
+          _dragStartMs           = millis();
+          _dragStartScrollOffset = scrollOffset;
           LOG_D("touch", "PLEDIT drag start: startY=%d row=%d", y, row);
         }
         consumed = true;
@@ -572,12 +585,16 @@ private:
   int _dragStartY = 0;    // screen Y at start of D_PLEDIT_SCROLL
   int _dragCurrentY = 0;  // most recent screen Y during D_PLEDIT_SCROLL
   int _dragStartRow = 0;  // row index at drag-start (tap fallback)
+  unsigned long _dragStartMs           = 0;   // millis() at D_PLEDIT_SCROLL press
+  int           _dragStartScrollOffset = 0;   // scrollOffset at D_PLEDIT_SCROLL press
   long _posbarDragCurrentMs = 0;
   float _scrollVelocity = 0.0f;
   float _scrollAccum    = 0.0f;
   float _scrollSpeedK   = SCROLL_SPEED_K_DEFAULT;
-  static constexpr int   SCROLL_DEAD_ZONE_PX    = 1;
-  static constexpr float SCROLL_SPEED_K_DEFAULT = 0.1667f;  // linear: 2 rows/s at 1-row travel
+  static constexpr int          SCROLL_DEAD_ZONE_PX    = 1;
+  static constexpr float        SCROLL_SPEED_K_DEFAULT = 0.1667f;  // linear: 2 rows/s at 1-row travel
+  static constexpr int          PLEDIT_TAP_PX           = 6;       // < PLEDIT_ROW_H/2; distance threshold for tap
+  static constexpr unsigned long PLEDIT_TAP_MS          = 250;     // gesture duration threshold (ms)
   bool _pleditScrollDirty = false;  // force drawScrollThumbOnly bypass of rate-limit
   // Taskbar scroll (M-TASKBAR-SCROLL, TASK-105b)
   int   _tbScrollOffset = 0;

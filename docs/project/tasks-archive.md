@@ -6,6 +6,27 @@ Completed, closed, cancelled, and superseded tasks. Active tasks are in [tasks.m
 
 ---
 
+### TASK-078 — PLEDIT content-area drag UX improvements
+**Owner**: Developer
+**Feature**: playlist-002, touch-002
+**Status**: done (2026-06-05)
+**Git ref**: (commit follows this archive entry)
+**Notes**: Implemented two remaining points:
+- **Point 1** (tap discrimination): replaced `abs(dy) < 1` with dual-condition
+  `abs(dy) < PLEDIT_TAP_PX(6) && elapsed < PLEDIT_TAP_MS(250ms)`. Tap requires
+  both small movement AND short duration — prevents slow drifts from triggering
+  playback, and quick flicks (≥6px) from being eaten as taps.
+- **Point 3** (swipe momentum): quick swipes (< 250ms) now apply
+  `delta = max(1, abs(dy) / PLEDIT_ROW_H)` rows from `_dragStartScrollOffset`,
+  fixing the zero-scroll problem caused by float accumulation truncation in
+  `tickScroll()` during brief gestures. Slow held drags (≥ 250ms) continue to
+  use the velocity model unchanged.
+- Point 2 was resolved earlier by TASK-101 (M-TOUCH-CAPTURE).
+- DUT-verified: tap, quick 1-row swipe, quick 2-row swipe, slow drag, long-hold
+  all behaved correctly.
+
+---
+
 ### TASK-141 — M-SETTINGS: SettingsApp navigation stub
 **Owner**: Developer
 **Feature**: settings-001
