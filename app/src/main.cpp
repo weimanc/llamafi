@@ -846,6 +846,7 @@ constexpr int16_t HM_T3_H = 20, HM_T3_W = 40;
 constexpr int16_t HM_T4_H = 18, HM_T4_W = 40;
 constexpr int16_t HM_T5_H = 10, HM_T5_W = 20;
 constexpr int16_t HM_T6_MIN_W = 8;           // minimum tile width for rotated text
+constexpr int16_t HM_T6_SEP   = 2;           // gap (px) between sym and pct in rotated sprite
 
 #define ST_CANVAS_Y           0
 #define ST_CANVAS_H         240
@@ -1381,18 +1382,30 @@ private:
         tft.drawString(sym, cx, cy - 5, 1);
         tft.drawString(pb,  cx, cy + 5, 1);
       } else if (t.h >= HM_T4_H && t.w >= HM_T4_W) {
-        tft.drawString(sym, cx, cy, 2);
+        tft.drawString(sym, cx, cy - 5, 1);
+        tft.drawString(pb,  cx, cy + 5, 1);
       } else if (t.h >= HM_T5_H && t.w >= HM_T5_W && (size_t)(strlen(sym) * 6) <= (size_t)t.w) {
         tft.drawString(sym, cx, cy, 1);
       } else if (t.w >= HM_T6_MIN_W) {
         TFT_eSprite spr(&tft);
-        uint8_t slen = (uint8_t)strlen(sym);
-        uint16_t sprW = slen * 6;
+        uint8_t  slen = (uint8_t)strlen(sym);
+        uint8_t  plen = (uint8_t)strlen(pb);
+        uint16_t symW = (uint16_t)slen * 6;
+        uint16_t pctW = (uint16_t)plen * 6;
+        // After -90° rotation sprite-left→screen-bottom, sprite-right→screen-top.
+        // Layout [pct|SEP|sym] so sym lands above pct on screen.
+        bool showRotPct = (t.h >= (int16_t)(symW + HM_T6_SEP + pctW));
+        uint16_t sprW   = showRotPct ? (pctW + HM_T6_SEP + symW) : symW;
         if (spr.createSprite(sprW, 8)) {
           spr.fillSprite(col);
           spr.setTextFont(1);
           spr.setTextColor(TFT_WHITE, col);
-          spr.drawString(sym, 0, 0, 1);
+          if (showRotPct) {
+            spr.drawString(pb,  0,                0, 1);
+            spr.drawString(sym, pctW + HM_T6_SEP, 0, 1);
+          } else {
+            spr.drawString(sym, 0, 0, 1);
+          }
           spr.setPivot(sprW / 2, 4);
           tft.setViewport(t.x, t.y, t.w, t.h);
           tft.setPivot(cx, cy);
