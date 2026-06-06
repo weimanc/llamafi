@@ -138,20 +138,49 @@ private:
         }
     }
 
+    static void fmtUtcOffset(char* buf, int len, int8_t h, uint8_t m) {
+        if (m == 0)
+            snprintf(buf, len, "%+3d", (int)h);
+        else
+            snprintf(buf, len, "%+d:%02d", (int)h, (int)m);
+    }
+
     void _repaintPicker() {
         _drawScrollbar();
         int y = S_CONTENT_Y;
         uint8_t end = (uint8_t)min((int)_cityOffset + kPickerRows, (int)kCityCount);
         for (uint8_t i = _cityOffset; i < end; i++) {
-            bool cur = (strncmp(kCities[i].city, g_settings.city,
+            const CityEntry& c = kCities[i];
+            bool cur = (strncmp(c.city, g_settings.city,
                                 sizeof(g_settings.city) - 1) == 0);
+
+            // Group separator: 1px line above first city in each UTC offset group
+            if (c.groupBreak && i > 0) {
+                tft.drawFastHLine(8, y, 249, S_SEP);
+            }
+
             int mid = y + S_ROW_H / 2;
+
+            // UTC offset column (right-aligned at x=50)
+            char utcBuf[8];
+            fmtUtcOffset(utcBuf, sizeof(utcBuf), c.utcHours, c.utcMins);
+            tft.setTextDatum(MR_DATUM);
+            tft.setTextColor(S_VALUE_OFF);
+            tft.drawString(utcBuf, 50, mid, 2);
+
+            // Vertical separator
+            tft.drawFastVLine(54, y, S_ROW_H, S_SEP);
+
+            // City name (left-aligned at x=58)
             tft.setTextDatum(ML_DATUM);
-            tft.setTextColor(S_LABEL);
-            tft.drawString(kCities[i].city, S_COL_LABEL, mid, 2);
+            tft.setTextColor(cur ? S_VALUE_ON : S_LABEL);
+            tft.drawString(c.city, 58, mid, 2);
+
+            // Country code (right-aligned at x=246, before scrollbar at 257)
             tft.setTextDatum(MR_DATUM);
             tft.setTextColor(cur ? S_VALUE_ON : S_VALUE_OFF);
-            tft.drawString(kCities[i].country, kRowW - 4, mid, 2);
+            tft.drawString(c.country, 246, mid, 2);
+
             tft.setTextDatum(TL_DATUM);
             y += S_ROW_H;
         }

@@ -1700,6 +1700,7 @@ void setup()
   // tft.init() (inside displaySetup above) uses digitalWrite(TFT_BL, HIGH) —
   // no LEDC channel is configured. Take over GPIO21 now so ledcWrite() works.
   SettingsStorage::load();
+  analogReadResolution(12);        // TASK-151: ensure 12-bit ADC for LDR on GPIO34
   ledcSetup(0, 5000, 8);           // 5 kHz, 8-bit — channel 0 matches TFT_LEDC_CHANNEL
   ledcAttachPin(TFT_BL, 0);        // redirect GPIO21 from digital to LEDC
   {

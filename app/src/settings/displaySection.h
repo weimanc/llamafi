@@ -13,6 +13,7 @@ public:
     void enter() override {
         _slider.init(1, 10, g_settings.dispLevel);
         _ldrRaw       = (int16_t)analogRead(LDR_PIN);
+        Serial.printf("[disp] analogRead(%d) raw = %d\n", LDR_PIN, (int)_ldrRaw);
         _ldrUpdateMs  = millis();
         _lastAutoLevel = -1;
         repaint();
@@ -98,9 +99,16 @@ private:
         snprintf(bufLive, sizeof(bufLive), "%d", (int)_ldrRaw);
         snprintf(bufLow,  sizeof(bufLow),  "%d", (int)g_settings.ldrLow);
         snprintf(bufHigh, sizeof(bufHigh), "%d", (int)g_settings.ldrHigh);
-        tft.fillRect(0, S_CONTENT_Y + 2 * S_ROW_H, S_CANVAS_W, 3 * S_ROW_H, S_BG);
-        drawRow(S_CONTENT_Y + 2 * S_ROW_H, { "LDR",      bufLive, S_LABEL, S_VALUE     });
-        drawRow(S_CONTENT_Y + 3 * S_ROW_H, { "LDR Low",  bufLow,  S_LABEL, S_VALUE_OFF });
-        drawRow(S_CONTENT_Y + 4 * S_ROW_H, { "LDR High", bufHigh, S_LABEL, S_VALUE_OFF });
+        // ldr_live(26) + subhdr(22) + dark(26) + bright(26) = 100px
+        tft.fillRect(0, S_CONTENT_Y + 2 * S_ROW_H, S_CANVAS_W, 3 * S_ROW_H + S_ROW_HDR_H, S_BG);
+        drawRow(S_CONTENT_Y + 2 * S_ROW_H, { "LDR", bufLive, S_LABEL, S_VALUE });
+        int subY = S_CONTENT_Y + 3 * S_ROW_H;
+        tft.setTextDatum(TL_DATUM);
+        tft.setTextColor(S_SUBHDR);
+        tft.drawString("Auto range", S_COL_LABEL, subY + 4, 2);
+        tft.drawFastHLine(S_COL_LABEL, subY + S_ROW_HDR_H - 1, S_CANVAS_W - S_COL_LABEL, S_SEP);
+        int calY = subY + S_ROW_HDR_H;
+        drawRow(calY,           { "Dark floor",     bufLow,  S_LABEL, S_VALUE_OFF });
+        drawRow(calY + S_ROW_H, { "Bright ceiling", bufHigh, S_LABEL, S_VALUE_OFF });
     }
 };
