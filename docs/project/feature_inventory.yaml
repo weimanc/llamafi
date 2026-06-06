@@ -952,21 +952,23 @@ features:
       execute T-CDWN-01.
 
   - id: settings-001
-    name: SettingsApp — shell, base infrastructure, SPIFFS storage
+    name: SettingsApp — shell, base infrastructure, SPIFFS storage, section impls
     description: |
-      Full settings infrastructure delivered in two commits (8005297, 2661e4a).
+      Full settings infrastructure delivered in two commits (8005297, 2661e4a), extended
+      2026-06-06 with four section implementations wired into SettingsApp.
       (a) SettingsApp navigation shell: category list (6 entries) with chevron rows,
-      header bar with `< back`, 3-level back logic (appSubmenu → section → previous app
-      via g_previousAppId). Applications section supports 2-level drill. Stub section
-      placeholders; per-section implementations are separate features.
+      header bar with `< back`, back logic (section → previous app via g_previousAppId).
+      _activeSection pointer pattern: SettingsApp delegates tick/handleInput/repaint to
+      active SettingsSection subclass; SectionResult::GoBack signals pop.
       (b) settingsStorage: AppSettings struct persisted to /settings.json on SPIFFS;
       per-key defaults applied on missing/corrupt file. Covers time, display, LED, stock,
       crypto, aquarium, matrix, life settings.
       (c) SettingsSection abstract base: shared chrome (header bar, row rendering,
-      hit-testing via hitbox.h) for all section implementations. enter/leave/tick/repaint/
-      handleInput/title contract; SliderWidget horizontal drag widget for brightness rows.
-      UI elements (SliderWidget, signal bars) fold into this feature — they only serve
-      SettingsApp sections and do not cross-cut independently.
+      hit-testing via hitbox.h). SliderWidget horizontal drag widget.
+      (d) Section implementations (2026-06-06): DisplaySection (brightness + LDR auto),
+      TimeSection (city picker, 12/24h, date format, configTzTime), AppsSection
+      (per-app rows: Stock 7 tickers + view, Crypto 6 coins + ccy, Aquarium, Matrix,
+      Life). WifiSection (Phase 1) wired in (section 0). Touch-Cal and LED remain stubs.
     status: in_progress
     git_ref: "8005297, 2661e4a"
     files:
@@ -975,41 +977,47 @@ features:
       - app/src/settingsStorage.cpp
       - app/src/settings/settingsSection.h
       - app/src/settings/sliderWidget.h
+      - app/src/settings/wifiSection.h
+      - app/src/settings/displaySection.h
+      - app/src/settings/timeSection.h
+      - app/src/settings/appsSection.h
+      - app/src/settings/cities.h
       - app/tools/run_serialdbg_tests.py
     cross_features: [app-interface-001, taskbar-001, touch-004, cfg-001]
-    test_ids: [T-SET-01, T-SET-02, T-SET-03, T-SET-04, T-SET-05, T-SET-06, T-SET-07, T-SET-08]
+    test_ids: [T-SET-01, T-SET-02, T-SET-03, T-SET-04, T-SET-05, T-SET-06, T-SET-07, T-SET-08,
+               T-DISP-01, T-DISP-02, T-DISP-03, T-DISP-04, T-DISP-05,
+               T-TIME-01, T-TIME-02, T-TIME-03, T-TIME-04, T-TIME-05,
+               T-APPS-01, T-APPS-02, T-APPS-03, T-APPS-04, T-APPS-05, T-APPS-06,
+               T-APPS-07, T-APPS-08]
     notes: |
-      TASK-141/142 done (2026-06-05). Design: docs/architecture/designs/M-MULTIAPP/settings.md.
-      Constants defined locally in main.cpp (not gen/shell_layout.h — avoids golden hash
-      invalidation). g_previousAppId in main.cpp; switchApp() updated to capture it.
-      cmdTap fixed: Settings dispatch arm added (non-Spotify apps beyond Stock were falling
-      to hit=CLOCK stub without calling handleInput).
-      Status in_progress: nav shell done; per-section implementations (WiFi, Display, LED,
-      Time, Touch-Cal, Applications) are follow-on features. KeyboardWidget (Phase 2 of
-      settings-wifi) may warrant its own entry if shared across sections.
+      TASK-141/142 done (2026-06-05). Section impls wired 2026-06-06.
+      T-SET-03 and T-SET-07 STALE: settingsAppSubmenu debug var removed when AppsSection
+      extracted; superseded by T-APPS-07. T-SET-06 updated to remove stale step.
+      SettingsRow default member initializers removed (C++11 aggregate fix).
+      Remaining stubs: Touch Calibration (section 2), LED (section 4).
+      Design: docs/architecture/designs/M-MULTIAPP/settings.md.
 
   - id: settings-wifi
     name: WiFi settings section — scan, select, connect (WifiSection)
     description: |
       WifiSection : SettingsSection implements the WiFi tab within SettingsApp (ADR-040).
-      Phase 1 (read-only PoC, 2026-06-05): STATUS view shows live connection info (SSID,
+      Phase 1 (wired 2026-06-06): STATUS view shows live connection info (SSID,
       IP, signal bars); async SCANNING with 4-frame spinner via WiFi.scanNetworks(true);
       LIST of up to 8 networks sorted by RSSI with encrypted [E] marker and signal bars.
       LIST tap is a no-op placeholder in Phase 1.
       Phase 2 (planned): KeyboardWidget password entry, WiFi.begin() + WiFi.persistent(true)
       NVS-backed connect, CONNECTING + RESULT(fail) states, "Forget network" action,
       removal of WiFiManager + DoubleResetDetector from lib_deps (retires wifi-001).
-    status: planned
+    status: in_progress
     git_ref: ""
     files:
       - app/src/settings/wifiSection.h
       - docs/architecture/designs/M-MULTIAPP/wifi-settings.md
     cross_features: [settings-001, wifi-001, io-001, cfg-001]
-    test_ids: []
+    test_ids: [T-WIFI-01, T-WIFI-02, T-WIFI-03, T-WIFI-04, T-WIFI-05, T-WIFI-06]
     notes: |
-      Phase 1 code written 2026-06-05; not yet wired into SettingsApp (no SettingsApp
-      section-push mechanism yet). Phase 2 removes wifi-001 entirely (X013).
-      Scan ↔ Spotify TLS conflict flagged as X014 — not yet DUT-tested.
+      Phase 1 wired into SettingsApp 2026-06-06 (section 0). Phase 2 removes wifi-001 (X013).
+      Scan ↔ Spotify TLS conflict flagged as X014 — DUT validation pending (T-WIFI-06).
       Design: docs/architecture/designs/M-MULTIAPP/wifi-settings.md. ADR-040.
 
   - id: tooling-001

@@ -2031,7 +2031,7 @@ Common preconditions for all T-SET tests:
   9. `get settingsSection` — assert `section == -1`.
 - **Expected result**: `settingsSection==5`, `settingsAppSubmenu==0`, then both reset to -1 after two backs (C2b).
 - **Harness**: `run_serialdbg_tests.py --tests T-SET-03`. Owner: VE.
-- **Status**: passing [SERIALDBG]. DUT run 2026-06-05.
+- **Status**: failing [STALE — `settingsAppSubmenu` debug var removed 2026-06-06 when AppsSection extracted to own class. Steps 3/5/7 no longer valid. Superseded by T-APPS-07.]
 
 ---
 
@@ -2072,20 +2072,20 @@ Common preconditions for all T-SET tests:
 
 - **Type**: integration (DUT)
 - **Feature(s)**: settings-001
-- **Objective**: `suspend()` resets `section=-1` and `appSubmenu=-1`; returning to Settings always starts at the top level.
+- **Objective**: `suspend()` resets `section=-1`; returning to Settings always starts at the top level.
 - **Preconditions**: DUT running Spotify.
 - **Steps**:
   1. `switchApp 6` (Settings).
   2. `tap 137 171` (Applications, row 5).
-  3. `tap 137 41` (Stock, row 0 within Applications).
-  4. `get settingsAppSubmenu` — assert `submenu == 0`.
+  3. `tap 137 41` (Stock row within Applications — enters Stock submenu).
+  4. Visual: Stock per-app rows visible (Ticker 1..7 + Default view).
   5. `switchApp 0` (Spotify — triggers `suspend()`).
   6. `switchApp 6` (Settings — triggers `resume()`).
   7. `get settingsSection` — assert `section == -1`.
-  8. `get settingsAppSubmenu` — assert `submenu == -1`.
-- **Expected result**: Both vars reset to -1 after suspend/resume cycle (C5).
-- **Harness**: `run_serialdbg_tests.py --tests T-SET-06`. Owner: VE.
-- **Status**: passing [SERIALDBG]. DUT run 2026-06-05.
+  8. Visual: category list shows 6 rows with chevrons.
+- **Expected result**: `section == -1` after suspend/resume; category list renders (C5).
+- **Harness**: `run_serialdbg_tests.py --tests T-SET-06` (steps 1–3, 5–7). Step 4/8 manual visual. Owner: VE.
+- **Status**: planned [updated 2026-06-06 — removed stale `settingsAppSubmenu` step; step 4 now visual].
 
 ---
 
@@ -2106,7 +2106,7 @@ Common preconditions for all T-SET tests:
   8. `get settingsSection` — assert `section == -1` (at category list).
 - **Expected result**: Two back taps unwind both levels correctly (C6).
 - **Harness**: `run_serialdbg_tests.py --tests T-SET-07`. Owner: VE.
-- **Status**: passing [SERIALDBG]. DUT run 2026-06-05.
+- **Status**: failing [STALE — `settingsAppSubmenu` debug var removed 2026-06-06. Steps 4/6 no longer valid. Superseded by T-APPS-07.]
 
 ---
 
@@ -2126,6 +2126,439 @@ Common preconditions for all T-SET tests:
 - **Expected result**: `appId` returns to Crypto, confirming `g_previousAppId` tracking in `switchApp()`.
 - **Harness**: `run_serialdbg_tests.py --tests T-SET-08`. Owner: VE.
 - **Status**: passing [SERIALDBG]. DUT run 2026-06-05.
+
+---
+
+## Suite: settings-sections-001 — Section implementations (WiFi Ph1, Display, Time, Apps)
+
+Tests for four section classes wired into SettingsApp: `WifiSection` (Phase 1),
+`DisplaySection`, `TimeSection`, `AppsSection`. Added 2026-06-06.
+
+Design docs: `wifi-settings.md` (C1–C1d), `display-settings.md` (C1–C5),
+`time-settings.md` (C1–C7), `settings.md` §Applications (C6, C8).
+
+Serial debug surface: `get settingsSection` confirms section index. Section-internal
+state (Display level, Time format, Apps submenu) is not exposed via serial —
+content verified visually unless noted.
+
+**Tap Y reference (category list):** WiFi=41, Time=67, Touch-Cal=93, Display=119, LED=145, Applications=171.
+
+**DUT required for all tests.** Flash `cyd2usb_winamp_debug`. Enter Settings: `switchApp 6`.
+
+---
+
+### T-WIFI-01 — [settings-wifi] WiFi Status view shows live connection info
+
+- **Type**: integration (DUT) — visual + serial
+- **Feature(s)**: settings-wifi, settings-001
+- **Objective**: STATUS view renders connected state, SSID, IP, signal bars (C1a).
+- **Preconditions**: DUT connected to WiFi.
+- **Steps**:
+  1. `switchApp 6` → `tap 137 41` (WiFi row).
+  2. `get settingsSection` — assert `section == 0`.
+  3. Visual: "Connected Yes" (green), SSID row, IP row (non-zero), signal bars (≥1 filled bar).
+- **Expected result**: STATUS view populated with live data (C1a).
+- **Harness**: step 2 serial; step 3 manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-WIFI-02 — [settings-wifi] Scan networks triggers async scan and spinner
+
+- **Type**: integration (DUT) — visual
+- **Feature(s)**: settings-wifi
+- **Objective**: Tapping "Scan networks" transitions to SCANNING view with animated spinner (C1).
+- **Preconditions**: DUT at WiFi STATUS view.
+- **Steps**:
+  1. Tap "Scan networks" row (y varies: ~54 if not connected, ~140 if connected with SSID/IP/Signal rows).
+  2. Visual: header shows "Scanning...", content shows "Scanning for networks..." text, spinner glyph cycles (|/−\).
+  3. Wait up to 5 s.
+- **Expected result**: SCANNING view renders; spinner advances each ~200 ms; transitions to LIST when scan completes (C1).
+- **Harness**: manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-WIFI-03 — [settings-wifi] LIST populates within 5 s, sorted by RSSI
+
+- **Type**: integration (DUT) — visual
+- **Feature(s)**: settings-wifi
+- **Objective**: After scan completes, LIST shows ≥1 network; networks sorted best-signal first; [E] marker on encrypted networks; signal bars accurate (C1b).
+- **Preconditions**: Continuation of T-WIFI-02 (scan in progress or complete).
+- **Steps**:
+  1. After T-WIFI-02 scan triggers, wait ≤5 s.
+  2. Visual: LIST view renders; header shows "Select network"; ≥1 row with SSID text and signal bars.
+  3. Visual: first-listed network has strongest signal bars; [E] present for encrypted networks.
+- **Expected result**: LIST populated within 5 s; signal-sorted; encrypted marker correct (C1b).
+- **Harness**: manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-WIFI-04 — [settings-wifi] Back from STATUS → category list
+
+- **Type**: integration (DUT)
+- **Feature(s)**: settings-wifi, settings-001
+- **Objective**: `< back` from STATUS view returns to Settings category list (C1c).
+- **Preconditions**: DUT at WiFi STATUS view (entered via T-WIFI-01).
+- **Steps**:
+  1. `tap 30 14` (back zone).
+  2. `get settingsSection` — assert `section == -1`.
+  3. Visual: category list (6 rows) renders.
+- **Expected result**: `section == -1`, category list visible (C1c).
+- **Harness**: `run_serialdbg_tests.py` step 2; step 3 manual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-WIFI-05 — [settings-wifi] Back from SCANNING/LIST returns to STATUS
+
+- **Type**: integration (DUT) — visual
+- **Feature(s)**: settings-wifi
+- **Objective**: `< back` from SCANNING or LIST view goes to STATUS, not the category list (C1c).
+- **Preconditions**: DUT at WiFi STATUS view.
+- **Steps**:
+  1. Tap "Scan networks" row → SCANNING view.
+  2. `tap 30 14` (back) during or after scan (before tapping a network).
+  3. Visual: STATUS view renders (header "WiFi", Connected row visible).
+  4. Repeat from LIST: trigger scan again, wait for LIST, tap back.
+  5. Visual: STATUS view again.
+- **Expected result**: Back from SCANNING and LIST both return to STATUS view, not category list (C1c).
+- **Harness**: manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-WIFI-06 — [settings-wifi, X014] Spotify scan coexistence — no session crash
+
+- **Type**: integration (DUT) — cross-feature
+- **Feature(s)**: settings-wifi, io-001
+- **Interaction**: X014
+- **Objective**: Async WiFi scan while spotifyTask holds a live TLS session does not crash or permanently break Spotify polling (X014 — medium risk).
+- **Preconditions**: DUT playing Spotify (active poll interval), WiFi connected.
+- **Steps**:
+  1. Confirm Spotify polling active (track metadata updates normally).
+  2. `switchApp 6` → `tap 137 41` (WiFi) → tap "Scan networks".
+  3. Wait for scan to complete (LIST view appears, ≤5 s).
+  4. `switchApp 0` (back to Spotify).
+  5. Wait two poll intervals (~60 s). Observe: track metadata continues updating; no crash/reboot.
+- **Expected result**: Spotify recovers within one missed poll; no watchdog reset (X014 acceptable risk: single missed poll).
+- **Harness**: manual. Flag if watchdog reset observed — apply heatmapPause() pattern. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-DISP-01 — [settings-001] Manual brightness slider changes backlight duty
+
+- **Type**: integration (DUT) — visual + hardware
+- **Feature(s)**: settings-001
+- **Objective**: Dragging Level slider 1→10 visibly changes backlight brightness; `ledcWrite(0, duty)` applied immediately (C1).
+- **Preconditions**: DUT at Settings, `dispAuto = false`.
+- **Steps**:
+  1. `switchApp 6` → `tap 137 119` (Display row, y=119).
+  2. `get settingsSection` — assert `section == 3`.
+  3. Visual/touch: Level row slider visible at y=54. Drag from left (level 1, x≈75) to right (level 10, x≈241).
+  4. Visual: backlight noticeably brighter after drag.
+  5. Drag back to level 3. Visual: backlight dims.
+- **Expected result**: Backlight duty tracks slider position; live preview during drag (C1).
+- **Harness**: step 2 serial; steps 3–5 manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-DISP-02 — [settings-001] Auto-brightness: LDR coverage dims display
+
+- **Type**: integration (DUT) — visual + hardware
+- **Feature(s)**: settings-001
+- **Objective**: Enabling Auto-brightness links backlight to LDR ADC34; covering sensor dims display; uncovering brightens (C2).
+- **Preconditions**: DUT at Display section. LDR (GPIO34) accessible.
+- **Steps**:
+  1. Tap "Auto" row (y=41). Visual: row shows "On" in green.
+  2. Cover LDR (block ambient light). Wait ≤1 s.
+  3. Visual: backlight dims relative to uncovered state.
+  4. Uncover LDR. Wait ≤1 s.
+  5. Visual: backlight returns to brighter level.
+  6. Tap "Auto" row again. Visual: row shows "Off"; backlight returns to stored manual level.
+- **Expected result**: Backlight tracks ambient light when auto=On; restores manual level on disable (C2).
+- **Harness**: manual visual/hardware. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-DISP-03 — [settings-001] LDR row live-updates without full repaint
+
+- **Type**: integration (DUT) — visual
+- **Feature(s)**: settings-001
+- **Objective**: "LDR" row (row 2) value updates live in ≤1 s when ambient light changes; other rows do not flicker (C3).
+- **Preconditions**: DUT at Display section, auto=On or Off (both valid).
+- **Steps**:
+  1. Note current "LDR" row value on screen.
+  2. Cover LDR with hand.
+  3. Within 1 s: visual — LDR row value decreases; "Auto", "Level" rows are stable (no flicker).
+  4. Uncover: LDR value increases.
+- **Expected result**: LDR readout updates in-place; no full-screen clear visible (C3).
+- **Harness**: manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-DISP-04 — [settings-001] Brightness level persists across restart
+
+- **Type**: integration (DUT)
+- **Feature(s)**: settings-001, cfg-001
+- **Objective**: Stored `dispLevel` survives `ESP.restart()`; boot applies it before first frame — no brightness flash (C4).
+- **Preconditions**: DUT at Display section, auto=Off.
+- **Steps**:
+  1. Set Level to 3 (drag slider left, ~x=111, y=54). Visual: backlight dim.
+  2. `tap 30 14` (back to category list).
+  3. Physical reset or `set restart 1` (if serial restart command available).
+  4. After boot, before entering Settings: visual — backlight is at dim level 3, not full brightness.
+  5. `switchApp 6` → `tap 137 119` (Display). Visual: Level slider positioned at 3.
+- **Expected result**: Backlight at level 3 on boot; slider synced to stored value (C4).
+- **Harness**: steps 1–2 manual; step 3 physical reset; steps 4–5 manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-DISP-05 — [settings-001] Level row greyed and non-interactive when Auto=On
+
+- **Type**: integration (DUT) — visual
+- **Feature(s)**: settings-001
+- **Objective**: When auto=On, Level slider renders greyed; drag has no effect on backlight (C5).
+- **Preconditions**: DUT at Display section.
+- **Steps**:
+  1. Tap "Auto" row → "On".
+  2. Visual: Level row renders in grey (disabled colours).
+  3. Drag on Level row (y=54). Visual: no change in slider position or backlight.
+- **Expected result**: Level row greyed; taps/drags ignored while auto=On (C5).
+- **Harness**: manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-TIME-01 — [settings-001] City select updates timezone and clock immediately
+
+- **Type**: integration (DUT) — visual
+- **Feature(s)**: settings-001
+- **Objective**: Selecting a city writes posixTz, tzName, lat, lon to SPIFFS and calls `configTzTime()` live; Clock app reflects new timezone without reboot (time-settings C1).
+- **Preconditions**: DUT at Settings. NTP synced (clock shows plausible UTC time).
+- **Steps**:
+  1. `switchApp 6` → `tap 137 67` (Time & Location row, y=67).
+  2. `get settingsSection` — assert `section == 1`.
+  3. Tap City row (y=63). Visual: city picker opens, header shows "Select city".
+  4. Scroll to and tap a UTC+offset city, e.g. Tokyo (UTC+9). Tap its row.
+  5. Visual: Main view returns; Timezone row shows "Asia/Tokyo".
+  6. `tap 30 14` (back) → `switchApp 1` (Clock).
+  7. Visual: clock displays local Tokyo time (UTC+9 offset from known UTC reference).
+- **Expected result**: Timezone visible in Time section; Clock app offset matches city (C1).
+- **Harness**: step 2 serial; steps 3–7 manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-TIME-02 — [settings-001] 12h mode: AM/PM label visible, digits 1–12
+
+- **Type**: integration (DUT) — visual
+- **Feature(s)**: settings-001
+- **Objective**: Setting Clock=12h displays hours as 1–12 with AM/PM; no overlap with digit area (time-settings C3).
+- **Preconditions**: DUT at Time section, fmt24h=true (default).
+- **Steps**:
+  1. Tap "Clock" row (y=141). Visual: row shows "12h" in cyan.
+  2. `tap 30 14` → `switchApp 1` (Clock app).
+  3. Visual: time shows e.g. "2:34 PM" — hour 1–12, AM/PM label in top-right of time cell.
+  4. Verify digits and AM/PM label do not overlap.
+- **Expected result**: 12h format with AM/PM; no pixel overlap (C3).
+- **Harness**: manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-TIME-03 — [settings-001] Date format cycles through all three variants
+
+- **Type**: integration (DUT) — visual
+- **Feature(s)**: settings-001
+- **Objective**: Tapping Date row cycles DMY→MDY→YMD→DMY; Clock app date display matches (time-settings C5).
+- **Preconditions**: DUT at Time section.
+- **Steps**:
+  1. Note current Date row value. Should be "DD/MM/YYYY" (default).
+  2. Tap Date row (y=167). Visual: row shows "MM/DD/YYYY".
+  3. Tap again. Visual: "YYYY-MM-DD".
+  4. Tap again. Visual: "DD/MM/YYYY" (wraps).
+  5. Leave on MDY. `switchApp 1` (Clock). Visual: date shows MM/DD/YYYY format.
+- **Expected result**: All three cycle correctly; Clock app format matches (C5).
+- **Harness**: manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-TIME-04 — [settings-001] Time and date settings persist across restart
+
+- **Type**: integration (DUT)
+- **Feature(s)**: settings-001, cfg-001
+- **Objective**: posixTz, fmt24h, dateFmt survive `ESP.restart()`; `configTzTime()` re-applied on boot (time-settings C6).
+- **Preconditions**: DUT at Time section.
+- **Steps**:
+  1. Select city "London" (Europe/London). Set Clock=12h. Set Date=MM/DD/YYYY.
+  2. Physical reset.
+  3. After boot: `switchApp 6` → `tap 137 67` (Time section).
+  4. Visual: Timezone="Europe/London"; Clock="12h"; Date="MM/DD/YYYY".
+  5. `switchApp 1` (Clock). Visual: time in 12h format with AM/PM.
+- **Expected result**: All three settings preserved; timezone applies on boot (C6).
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-TIME-05 — [settings-001] Default state: UTC, 24h, DMY
+
+- **Type**: integration (DUT)
+- **Feature(s)**: settings-001
+- **Objective**: Fresh SPIFFS (no settings.json) boots to UTC/24h/DMY defaults, matching current firmware behaviour (time-settings C7).
+- **Preconditions**: SPIFFS erased (`pio run -t erase` or `uploadfs` with empty data/).
+- **Steps**:
+  1. Erase SPIFFS, flash firmware. Boot.
+  2. `switchApp 6` → `tap 137 67`.
+  3. Visual: City="None"; Timezone="UTC"; Clock="24h"; Date="DD/MM/YYYY".
+  4. `switchApp 1` (Clock). Visual: time matches UTC (compare to known reference).
+- **Expected result**: All defaults correct; behaviour identical to pre-settings firmware (C7).
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-APPS-01 — [settings-001] Stock tickers cycle through predefined pool
+
+- **Type**: integration (DUT) — visual
+- **Feature(s)**: settings-001
+- **Objective**: Tapping Ticker N row advances to next symbol in the 20-entry predefined pool; wraps at end (settings.md Applications).
+- **Preconditions**: DUT at Settings category list. Default tickers: AAPL, AMD, AMZN, ARM, AVGO, GOOG, META, MSFT.
+- **Steps**:
+  1. `tap 137 171` (Applications) → `tap 137 41` (Stock).
+  2. Visual: Ticker 1 row shows "AAPL" (default).
+  3. Tap Ticker 1 row (y=41). Visual: shows "AMD".
+  4. Tap again. Visual: shows "AMZN". (Next in pool.)
+  5. Tap Ticker 2 row (y=67). Visual: advances from "AMD" to next entry.
+- **Expected result**: Each tap advances ticker; pool cycles correctly; `saveSettings()` called on each change.
+- **Harness**: manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-APPS-02 — [settings-001] Stock default view cycles list/chart/heatmap
+
+- **Type**: integration (DUT) — visual
+- **Feature(s)**: settings-001
+- **Objective**: "Default view" row (row 7 of Stock submenu, y=210) cycles list→chart→heatmap→list.
+- **Preconditions**: DUT at Stock submenu.
+- **Steps**:
+  1. Scroll to "Default view" row (y≈210+13=223 midpoint). Tap.
+  2. Visual: shows "chart".
+  3. Tap again. Visual: "heatmap".
+  4. Tap again. Visual: "list" (wraps).
+- **Expected result**: Cycles all three values; persists (verified via T-APPS-08). Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-APPS-03 — [settings-001] Crypto coin and currency cycle
+
+- **Type**: integration (DUT) — visual
+- **Feature(s)**: settings-001
+- **Objective**: Coin rows cycle through 12-entry predefined pool; Currency toggles USD↔EUR.
+- **Preconditions**: DUT at Crypto submenu (Applications → Crypto).
+- **Steps**:
+  1. Tap Coin 1 row (y=41). Default "BTC" → "ETH".
+  2. Tap again: "SOL".
+  3. Tap Currency row (y=184). "USD" → "EUR".
+  4. Tap again. "EUR" → "USD".
+- **Expected result**: Coins advance through pool; Currency toggles correctly.
+- **Harness**: manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-APPS-04 — [settings-001] Aquarium fish count and speed cycle
+
+- **Type**: integration (DUT) — visual
+- **Feature(s)**: settings-001
+- **Objective**: Fish count cycles 4→8→12→16→4; Speed cycles slow→normal→fast.
+- **Preconditions**: DUT at Aquarium submenu.
+- **Steps**:
+  1. Tap "Fish count" row (y=41). Note value. Tap 4× to confirm wrap (4→8→12→16→4).
+  2. Tap "Speed" row (y=67). Note value. Tap 3× to confirm wrap (slow→normal→fast→slow).
+- **Expected result**: Fish count and speed cycle with correct wrap-around.
+- **Harness**: manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-APPS-05 — [settings-001] Matrix color and speed cycle
+
+- **Type**: integration (DUT) — visual
+- **Feature(s)**: settings-001
+- **Objective**: Color cycles green→white→amber→green; Speed cycles slow→normal→fast.
+- **Preconditions**: DUT at Matrix submenu.
+- **Steps**:
+  1. Tap "Color" row (y=41). Tap 3× to confirm cycle (green→white→amber→green).
+  2. Tap "Speed" row (y=67). Tap 3× to confirm cycle.
+- **Expected result**: Both cycle and wrap correctly.
+- **Harness**: manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-APPS-06 — [settings-001] Life speed and colors cycle
+
+- **Type**: integration (DUT) — visual
+- **Feature(s)**: settings-001
+- **Objective**: Speed cycles slow→normal→fast; Colors cycles rainbow→mono→rainbow.
+- **Preconditions**: DUT at Life submenu.
+- **Steps**:
+  1. Tap "Speed" (y=41). 3× taps confirm wrap.
+  2. Tap "Colors" (y=67). 2× taps confirm wrap (rainbow→mono→rainbow).
+- **Expected result**: Both cycle and wrap.
+- **Harness**: manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-APPS-07 — [settings-001] Applications 2-level navigation (replaces T-SET-03, T-SET-07)
+
+- **Type**: integration (DUT)
+- **Feature(s)**: settings-001
+- **Objective**: Applications section shows app list at L1; tapping app opens L2 rows; two back taps return to category list. Replaces stale T-SET-03 and T-SET-07 (no longer rely on `settingsAppSubmenu` debug var).
+- **Preconditions**: DUT at Settings category list.
+- **Steps**:
+  1. `tap 137 171` (Applications row).
+  2. `get settingsSection` — assert `section == 5`.
+  3. Visual: 5 app rows (Stock/Crypto/Aquarium/Matrix/Life) with chevrons.
+  4. `tap 137 93` (Aquarium row, y=80+13=93).
+  5. Visual: header shows "Aquarium"; rows show "Fish count" and "Speed".
+  6. `get settingsSection` — assert `section == 5` (still within Applications).
+  7. `tap 30 14` (back). Visual: app list (5 rows with chevrons) renders.
+  8. `get settingsSection` — assert `section == 5` (still in Applications at app list).
+  9. `tap 30 14` (back). `get settingsSection` — assert `section == -1`.
+- **Expected result**: Full 3-level unwind works; section stays 5 while inside L2; returns to -1 after two backs (C6 depth).
+- **Harness**: serial steps 2/6/8/9; visual steps 3/5/7. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-APPS-08 — [settings-001] App settings persist across restart (C8)
+
+- **Type**: integration (DUT)
+- **Feature(s)**: settings-001, cfg-001
+- **Objective**: App preference changes (Aquarium + Matrix used as proxies) survive `ESP.restart()` and are reloaded from `/settings.json` (C8).
+- **Preconditions**: DUT at Settings.
+- **Steps**:
+  1. Set Aquarium fish=12 (tap Fish count 3×), speed=fast (tap Speed 2×).
+  2. Set Matrix color=amber (tap Color 2×).
+  3. Physical reset.
+  4. After boot: `switchApp 6` → Applications → Aquarium. Visual: Fish count=12, Speed=fast.
+  5. Back → Matrix. Visual: Color=amber.
+- **Expected result**: All three values preserved in `/settings.json`; loaded at boot (C8).
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
 
 ---
 

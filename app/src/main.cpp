@@ -690,29 +690,60 @@ static LifeApp g_lifeApp;
 #define SETTINGS_VALUE_COLOR    0x07FF
 #define SETTINGS_CHEVRON_COLOR  0x4208
 
+#include "settings/wifiSection.h"
+#include "settings/timeSection.h"
+#include "settings/displaySection.h"
+#include "settings/appsSection.h"
+
 class SettingsApp : public App {
 public:
-  void init()    override { repaintCategoryList(); }
-  void resume()  override { repaint(); }
-  void suspend() override { _s.section = -1; _s.appSubmenu = -1; }
-  void tick()    override {}
+  void init() override {
+    _sections[0] = &_wifi;
+    _sections[1] = &_time;
+    _sections[2] = nullptr;   // Touch Calibration — not yet implemented
+    _sections[3] = &_disp;
+    _sections[4] = nullptr;   // LED — not yet implemented
+    _sections[5] = &_apps;
+    repaintCategoryList();
+  }
+
+  void resume() override {
+    if (_activeSection) _activeSection->repaint();
+    else repaintCategoryList();
+  }
+
+  void suspend() override {
+    if (_activeSection) { _activeSection->leave(); _activeSection = nullptr; }
+    _s.section = -1;
+  }
+
+  void tick() override {
+    if (_activeSection) _activeSection->tick();
+  }
+
   bool handleInput(TouchPhase phase, int x, int y) override {
+    if (_activeSection) {
+      SectionResult r = _activeSection->handleInput(phase, x, y);
+      if (r == SectionResult::GoBack) _popSection();
+      return true;
+    }
+    if (_s.section >= 0) {
+      // stub section (Touch Cal / LED) — honour back tap only
+      if (phase == TouchPhase::Release && y < SETTINGS_HEADER_H && x < 60)
+        _popSection();
+      return true;
+    }
     if (phase != TouchPhase::Release) return false;
-    if (y < SETTINGS_HEADER_H && x < 60) { goBack(); return true; }
+    if (y < SETTINGS_HEADER_H && x < 60) { switchApp(g_previousAppId); return true; }
     int row = (y - SETTINGS_HEADER_H) / SETTINGS_ROW_H;
-    if (row < 0) return false;
-    if (_s.section == -1) onCategoryTap(row);
-    else                  onRowTap(row);
+    if (row >= 0) _onCategoryTap(row);
     return true;
   }
+
 #ifdef SERIAL_DEBUG
   bool dbgGet(const char* var, char* buf, int len) const {
     if (strcmp(var, "settingsSection") == 0) {
       snprintf(buf, len, "\"var\":\"settingsSection\",\"section\":%d,\"last\":true", _s.section);
-      return true;
-    }
-    if (strcmp(var, "settingsAppSubmenu") == 0) {
-      snprintf(buf, len, "\"var\":\"settingsAppSubmenu\",\"submenu\":%d,\"last\":true", _s.appSubmenu);
       return true;
     }
     return false;
@@ -720,11 +751,30 @@ public:
 #endif
 
 private:
-  struct State { int8_t section = -1; int8_t appSubmenu = -1; } _s;
+  struct State { int8_t section = -1; } _s;
 
-  void repaint() {
-    if (_s.section == -1) repaintCategoryList();
-    else                  repaintSection();
+  WifiSection      _wifi;
+  TimeSection      _time;
+  DisplaySection   _disp;
+  AppsSection      _apps;
+  SettingsSection* _sections[SETTINGS_CAT_COUNT];
+  SettingsSection* _activeSection = nullptr;
+
+  void _popSection() {
+    if (_activeSection) { _activeSection->leave(); _activeSection = nullptr; }
+    _s.section = -1;
+    repaintCategoryList();
+  }
+
+  void _onCategoryTap(int idx) {
+    if (idx < 0 || idx >= SETTINGS_CAT_COUNT) return;
+    _s.section = (int8_t)idx;
+    if (_sections[idx]) {
+      _activeSection = _sections[idx];
+      _activeSection->enter();
+    } else {
+      _repaintStub();
+    }
   }
 
   void repaintHeader(const char* title) {
@@ -758,73 +808,17 @@ private:
     tft.setTextDatum(TL_DATUM);
   }
 
-  void repaintSection() {
-    static const char* kSectionLabels[SETTINGS_CAT_COUNT] = {
+  void _repaintStub() {
+    static const char* kLabels[SETTINGS_CAT_COUNT] = {
       "WiFi", "Time & Location", "Touch Calibration",
       "Display", "LED", "Applications"
     };
-    if (_s.section == 5) {
-      repaintSectionApps();
-      return;
-    }
-    repaintHeader(kSectionLabels[_s.section]);
+    repaintHeader(kLabels[_s.section]);
     tft.fillRect(0, SETTINGS_CONTENT_Y, 275, SETTINGS_CONTENT_H, SETTINGS_BG_RGB565);
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(SETTINGS_SEP_COLOR);
     tft.drawString("(not implemented)", 137, 120, 2);
     tft.setTextDatum(TL_DATUM);
-  }
-
-  void repaintSectionApps() {
-    if (_s.appSubmenu >= 0) { repaintSectionAppSubmenu(); return; }
-    static const char* kAppLabels[] = { "Stock", "Crypto", "Aquarium", "Matrix", "Life" };
-    repaintHeader("Applications");
-    tft.fillRect(0, SETTINGS_CONTENT_Y, 275, SETTINGS_CONTENT_H, SETTINGS_BG_RGB565);
-    for (int i = 0; i < 5; i++) {
-      int y   = SETTINGS_CONTENT_Y + i * SETTINGS_ROW_H;
-      int mid = y + SETTINGS_ROW_H / 2;
-      tft.setTextDatum(ML_DATUM);
-      tft.setTextColor(SETTINGS_LABEL_COLOR);
-      tft.drawString(kAppLabels[i], SETTINGS_ROW_COL_LABEL, mid, 2);
-      tft.setTextDatum(MR_DATUM);
-      tft.setTextColor(SETTINGS_CHEVRON_COLOR);
-      tft.drawString(">", SETTINGS_ROW_COL_VALUE, mid, 2);
-    }
-    tft.setTextDatum(TL_DATUM);
-  }
-
-  void repaintSectionAppSubmenu() {
-    static const char* kAppNames[] = { "Stock", "Crypto", "Aquarium", "Matrix", "Life" };
-    repaintHeader(kAppNames[_s.appSubmenu]);
-    tft.fillRect(0, SETTINGS_CONTENT_Y, 275, SETTINGS_CONTENT_H, SETTINGS_BG_RGB565);
-    int mid = SETTINGS_CONTENT_Y + SETTINGS_ROW_H / 2;
-    tft.setTextDatum(ML_DATUM);
-    tft.setTextColor(SETTINGS_LABEL_COLOR);
-    tft.drawString("(stub)", SETTINGS_ROW_COL_LABEL, mid, 2);
-    tft.setTextDatum(MR_DATUM);
-    tft.setTextColor(SETTINGS_VALUE_COLOR);
-    tft.drawString("coming soon", SETTINGS_ROW_COL_VALUE, mid, 2);
-    tft.setTextDatum(TL_DATUM);
-  }
-
-  void goBack() {
-    if (_s.appSubmenu >= 0) { _s.appSubmenu = -1; repaintSectionApps(); }
-    else if (_s.section >= 0) { _s.section = -1; repaintCategoryList(); }
-    else switchApp(g_previousAppId);
-  }
-
-  void onCategoryTap(int idx) {
-    if (idx < 0 || idx >= SETTINGS_CAT_COUNT) return;
-    _s.section = idx;
-    repaintSection();
-  }
-
-  void onRowTap(int row) {
-    if (_s.section != 5) return;
-    if (_s.appSubmenu == -1 && row >= 0 && row < 5) {
-      _s.appSubmenu = row;
-      repaintSectionApps();
-    }
   }
 };
 static SettingsApp g_settingsApp;

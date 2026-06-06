@@ -62,8 +62,8 @@ static constexpr uint16_t S_CHEVRON     = 0x4208;   // > chevron (grey)
 struct SettingsRow {
     const char* label;
     const char* value;
-    uint16_t    labelColor = S_LABEL;
-    uint16_t    valueColor = S_VALUE;
+    uint16_t    labelColor;
+    uint16_t    valueColor;
 };
 
 // ============================================================================

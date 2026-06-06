@@ -224,7 +224,7 @@ interactions:
       DUT validation. If DUT confirms disruption, apply the heatmapPause() pattern:
       pause spotifyTask before scan, resume after WiFi.scanDelete().
     risk: medium
-    test_coverage: []
+    test_coverage: [T-WIFI-06]
     notes: |
       Added 2026-06-05 (Architect). Scan is user-triggered (not automatic) so the
       conflict window is narrow and low-frequency. Phase 2 auto-connect does not
