@@ -2266,7 +2266,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
   5. Drag back to level 3. Visual: backlight dims.
 - **Expected result**: Backlight duty tracks slider position; live preview during drag (C1).
 - **Harness**: step 2 serial; steps 3–5 manual visual. Owner: VE.
-- **Status**: partial — serial step 2 PASS (2026-06-06 DUT `section==3`); steps 3–5 visual pending.
+- **Status**: partial — serial step 2 PASS (2026-06-06 DUT `section==3`; re-confirmed firmware ad7d104); steps 3–5 visual pending.
 
 ---
 
@@ -2285,7 +2285,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
   6. Tap "Auto" row again. Visual: row shows "Off"; backlight returns to stored manual level.
 - **Expected result**: Backlight tracks ambient light when auto=On; restores manual level on disable (C2).
 - **Harness**: manual visual/hardware. Owner: VE.
-- **Status**: planned.
+- **Status**: blocked — TASK-151 probe (`[disp] analogRead(34) raw = 0`) confirms LDR always reads 0 on DUT (2026-06-06 firmware ad7d104). Root cause unresolved; T-DISP-02 and T-DISP-03 cannot pass until ADC reads non-zero under varying ambient. Hardware investigation required (GPIO34 wiring, LDR circuit polarity).
 
 ---
 
@@ -2302,7 +2302,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
   4. Uncover: LDR value increases.
 - **Expected result**: LDR readout updates in-place; no full-screen clear visible (C3).
 - **Harness**: manual visual. Owner: VE.
-- **Status**: planned.
+- **Status**: blocked — see T-DISP-02. LDR reads 0; dead-band (|fresh − _ldrRaw| > 20) never fires. Unblocks when T-DISP-02 passes.
 
 ---
 
@@ -2356,7 +2356,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
   7. Visual: clock displays local Tokyo time (UTC+9 offset from known UTC reference).
 - **Expected result**: Timezone visible in Time section; Clock app offset matches city (C1).
 - **Harness**: step 2 serial; steps 3–7 manual visual. Owner: VE.
-- **Status**: partial — serial step 2 PASS (2026-06-06 DUT `section==1`); steps 3–7 visual pending.
+- **Status**: partial — serial step 2 PASS (2026-06-06 DUT `section==1`; re-confirmed firmware ad7d104); city picker open/close navigation confirmed (tap city row opens picker, back×2 returns section==-1); steps 4–7 visual pending.
 
 ---
 
@@ -2426,6 +2426,44 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
   4. `switchApp 1` (Clock). Visual: time matches UTC (compare to known reference).
 - **Expected result**: All defaults correct; behaviour identical to pre-settings firmware (C7).
 - **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-CITY-DRAG-01 — [settings-001] City picker scrollbar drag scrolls proportionally
+
+- **Type**: integration (DUT) — visual
+- **Feature(s)**: settings-001, settings-time
+- **Objective**: Dragging the scrollbar thumb scrolls the city list proportionally; release commits the offset; city tap still selects correctly after drag (TASK-153 / time-settings OQ4 resolved).
+- **Preconditions**: DUT at Settings. City picker not yet open.
+- **Steps**:
+  1. `switchApp 6` → `tap 137 67` → `tap 137 63` (City row). Visual: picker opens, Auckland at top.
+  2. Press and hold in scrollbar track zone (x=265, y=80). Visual: thumb captured.
+  3. Drag down to y=160. Visual: city list scrolls ~50% down (~40 of 78 cities).
+  4. Release. City list stays at dragged position (not snapping back).
+  5. Tap a visible city row. Visual: main Time view returns; Timezone row shows selected city.
+- **Expected result**: Drag moves list proportionally; release commits offset; city tap still selects correctly (TASK-153).
+- **Harness**: manual visual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-CITY-OFFSET-01 — [settings-001] City picker UTC offset column and group separators
+
+- **Type**: integration (DUT) — visual
+- **Feature(s)**: settings-001, settings-time
+- **Objective**: City picker shows UTC offset prefix column for every row; horizontal group-separator lines mark each UTC offset transition; half-hour offsets formatted correctly (TASK-154).
+- **Preconditions**: DUT at Settings. City picker not yet open.
+- **Steps**:
+  1. `switchApp 6` → `tap 137 67` → `tap 137 63` (City row). Visual: picker opens.
+  2. Visual: UTC offset right-aligned in left column (x≈8–50), e.g. `+12` for Auckland, ` +9` for Tokyo.
+  3. Visual: vertical separator line at x≈54 between offset column and city name.
+  4. Visual: thin 1px horizontal line above each first-city-of-group (above Noumea [UTC+11], above Sydney [UTC+10], above Adelaide [UTC+9:30], etc.).
+  5. Scroll through several pages; verify offset column and separators consistent throughout.
+  6. Find Adelaide (UTC+9:30) row. Visual: `+9:30` visible in offset column; group separator above the row.
+  7. Tap Adelaide. Visual: main view; Timezone = "Australia/Adelaide"; City = "Adelaide".
+- **Expected result**: Offset column visible per row; half-hour shown as `+H:MM`; group-break lines at every UTC offset transition; city selection unchanged (TASK-154).
+- **Harness**: manual visual. Owner: VE.
 - **Status**: planned.
 
 ---

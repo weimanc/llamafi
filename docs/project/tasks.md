@@ -43,7 +43,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-151 — Investigate LDR: always reads 0 on DUT
 - **Feature:** settings-001 / display-settings
 - **Priority:** P2
-- **Status:** open
+- **Status:** partial — probe implemented; root cause unresolved
 - **Opened:** 2026-06-06 (DUT feedback)
 - **Symptoms:** Display section "LDR" row always shows 0. Covering/uncovering the
   sensor has no effect on the displayed value.
@@ -68,7 +68,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-152 — Rename LDR calibration rows; clarify purpose
 - **Feature:** settings-001 / display-settings
 - **Priority:** P3 (UX clarity)
-- **Status:** open
+- **Status:** implemented — check_build.sh PASS; visual DUT check pending
 - **Opened:** 2026-06-06 (DUT feedback — "what is LDR Low High for?")
 - **Change:** In `_repaintLdrRows()`:
   - Add an "Auto range" sub-section header above the two calibration rows
@@ -119,7 +119,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-154 — City picker: UTC offset prefix column + group separators
 - **Feature:** settings-001 / time-settings
 - **Priority:** P2 (UX — user can't tell offset at a glance)
-- **Status:** open
+- **Status:** implemented — check_build.sh PASS; serial navigation PASS (ad7d104); T-CITY-OFFSET-01 visual DUT check pending
 - **Opened:** 2026-06-06 (DUT feedback)
 - **Design changes required:**
 
