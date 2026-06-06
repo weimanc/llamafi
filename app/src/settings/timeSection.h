@@ -29,23 +29,30 @@ public:
     }
 
     SectionResult handleInput(TouchPhase phase, int x, int y) override {
-        if (phase != TouchPhase::Release) return SectionResult::Continue;
-        if (isBackTap(x, y)) {
+        if (phase == TouchPhase::Release && isBackTap(x, y)) {
             if (_view == TimeView::CityPicker) {
+                _sbDragging = false;
                 _view = TimeView::Main;
                 repaint();
                 return SectionResult::Continue;
             }
             return SectionResult::GoBack;
         }
-        if (_view == TimeView::Main) _handleMainTap(x, y);
-        else                          _handlePickerTap(x, y);
+        if (_view == TimeView::Main) {
+            if (phase != TouchPhase::Release) return SectionResult::Continue;
+            _handleMainTap(x, y);
+        } else {
+            _handlePickerInput(phase, x, y);
+        }
         return SectionResult::Continue;
     }
 
 private:
     TimeView _view       = TimeView::Main;
     uint8_t  _cityOffset = 0;
+    bool    _sbDragging         = false;
+    int16_t _sbDragAnchorY      = 0;
+    uint8_t _sbDragAnchorOffset = 0;
 
     static constexpr uint8_t  kPickerRows = 6;
     static constexpr int16_t  kSbX        = 257;
@@ -150,18 +157,45 @@ private:
         }
     }
 
-    void _handlePickerTap(int px, int py) {
-        if (px >= kSbX) {
-            if (py >= kSbUpY0 && py < kSbUpY1 && _cityOffset > 0) {
-                _cityOffset--;
-                repaint();
-            } else if (py >= kSbDnY0 && py < kSbDnY1 &&
-                       _cityOffset + kPickerRows < kCityCount) {
-                _cityOffset++;
-                repaint();
+    void _handlePickerInput(TouchPhase phase, int px, int py) {
+        // Scrollbar zone (px >= kSbX)
+        if (px >= kSbX || _sbDragging) {
+            if (phase == TouchPhase::Press && px >= kSbX
+                    && py > kSbUpY1 && py < kSbDnY0) {
+                // Start drag on thumb track
+                _sbDragging         = true;
+                _sbDragAnchorY      = (int16_t)py;
+                _sbDragAnchorOffset = _cityOffset;
+            } else if (phase == TouchPhase::Move && _sbDragging) {
+                int trackH   = kSbDnY0 - kSbUpY1 - 4;
+                int maxOff   = (int)kCityCount - kPickerRows;
+                if (maxOff > 0 && trackH > 0) {
+                    int delta  = ((py - _sbDragAnchorY) * maxOff + trackH / 2) / trackH;
+                    int newOff = constrain((int)_sbDragAnchorOffset + delta, 0, maxOff);
+                    if (newOff != (int)_cityOffset) {
+                        _cityOffset = (uint8_t)newOff;
+                        repaint();
+                    }
+                }
+            } else if (phase == TouchPhase::Release) {
+                _sbDragging = false;
+                if (px >= kSbX) {
+                    // Button taps (only on Release, not after a drag)
+                    if (py >= kSbUpY0 && py < kSbUpY1 && _cityOffset > 0) {
+                        _cityOffset--;
+                        repaint();
+                    } else if (py >= kSbDnY0 && py < kSbDnY1
+                               && _cityOffset + kPickerRows < kCityCount) {
+                        _cityOffset++;
+                        repaint();
+                    }
+                }
             }
             return;
         }
+
+        // City row tap — Release only
+        if (phase != TouchPhase::Release) return;
         int row = (py - S_CONTENT_Y) / S_ROW_H;
         if (row < 0 || row >= kPickerRows) return;
         uint8_t idx = _cityOffset + (uint8_t)row;

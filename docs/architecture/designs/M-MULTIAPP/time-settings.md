@@ -533,8 +533,12 @@ private:
 3. **Offline timezone apply** — `configTzTime()` can be called before NTP
    sync; the tz rule applies to whatever time is currently set (build-epoch
    fallback). Correct behaviour — no guard needed.
-4. **Scrollbar thumb drag** — Phase 1 uses ▲/▼ button taps only. Drag on
-   the thumb track is a no-op. Add in a follow-up if 50-city scroll feels slow.
+4. ~~**Scrollbar thumb drag**~~ RESOLVED 2026-06-06: Drag implemented via
+   pointer-capture pattern (TASK-153). Press on thumb track (y between `kSbUpY1`
+   and `kSbDnY0`) captures; Move updates `_cityOffset` proportionally with
+   rounding; Release commits and clears drag. ▲/▼ button taps still work on
+   Release. `_sbDragging` flag ensures Move events captured even if finger
+   drifts left of scrollbar strip.
 
 ---
 

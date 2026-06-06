@@ -1696,6 +1696,17 @@ void setup()
   }
   Serial.println("\r\nInitialisation done.");
 
+  // settings-001: load persisted settings, then set up backlight PWM.
+  // tft.init() (inside displaySetup above) uses digitalWrite(TFT_BL, HIGH) —
+  // no LEDC channel is configured. Take over GPIO21 now so ledcWrite() works.
+  SettingsStorage::load();
+  ledcSetup(0, 5000, 8);           // 5 kHz, 8-bit — channel 0 matches TFT_LEDC_CHANNEL
+  ledcAttachPin(TFT_BL, 0);        // redirect GPIO21 from digital to LEDC
+  {
+    int duty = map(constrain((int)g_settings.dispLevel, 1, 10), 1, 10, 25, 255);
+    ledcWrite(0, (uint32_t)duty);   // apply stored brightness before first frame
+  }
+
   refreshToken[0] = '\0';
   if (!fetchConfigFile(refreshToken, clientId, clientSecret))
   {

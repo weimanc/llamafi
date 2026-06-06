@@ -359,9 +359,11 @@ Raise the floor in integration if level 1 is too dim (see Open question 2).
 2. **Minimum duty** — level 1 → duty 25 (~10%). If the backlight dims too
    aggressively and becomes unreadable, raise the floor (e.g. duty 50 = ~20%).
    Adjust in implementation after visual testing.
-3. **ledc channel conflict** — TFT_eSPI uses channel 0 for `TFT_BL`. Confirm
-   no other ledc channel assignments clash. If a conflict exists, reconfigure
-   TFT_eSPI to use a different channel via `TFT_BL_CHANNEL` build flag.
+3. ~~**ledc channel conflict**~~ RESOLVED 2026-06-06: TFT_eSPI for this build
+   config (`TFT_BL` + `TFT_BACKLIGHT_ON` flags, no `LEDC_CHANNEL` define) uses
+   `digitalWrite(TFT_BL, HIGH)` — plain digital, no LEDC setup. Firmware must
+   call `ledcSetup(0,5000,8)` + `ledcAttachPin(TFT_BL,0)` after `tft.init()`
+   and before first `ledcWrite`. Done in `setup()` after `SPIFFS.begin()`.
 
 ---
 
