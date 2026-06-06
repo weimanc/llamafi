@@ -490,9 +490,12 @@ private:
     void _drawTapMarker(int i) const {
         if (i >= _tapsDone) return;
         int ex = kCalTX[i], ey = kCalTY[i];
-        // Map recorded raw through current calibration to screen coords
-        int ax = (int)map(_rawX[i], g_calData.xMin, g_calData.xMax, 0, 274);
-        int ay = (int)map(_rawY[i], g_calData.yMin, g_calData.yMax, 0, 239);
+        // Replicate convertRawXY (rotation=1): (raw - min) * sizeXY_px / range.
+        // sizeX_px=320, sizeY_px=240 — must match CYD28_TouchR constructor args.
+        int32_t xRange = (int32_t)g_calData.xMax - g_calData.xMin;
+        int32_t yRange = (int32_t)g_calData.yMax - g_calData.yMin;
+        int ax = (xRange > 0) ? (int)(((int32_t)(_rawX[i] - g_calData.xMin) * 320) / xRange) : 0;
+        int ay = (yRange > 0) ? (int)(((int32_t)(_rawY[i] - g_calData.yMin) * 240) / yRange) : 0;
         ax = constrain(ax, 0, 274);
         ay = constrain(ay, 0, 239);
 
