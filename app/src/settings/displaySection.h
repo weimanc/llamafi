@@ -30,7 +30,7 @@ public:
                 _repaintLdrRows();
             }
         }
-        if (g_settings.dispAuto) {
+        if (g_settings.dispAuto && g_settings.ldrHigh > g_settings.ldrLow) {
             int16_t raw = constrain(_ldrRaw, g_settings.ldrLow, g_settings.ldrHigh);
             int level = map(raw, g_settings.ldrLow, g_settings.ldrHigh, 1, 10);
             if (abs(level - _lastAutoLevel) >= 1) {
