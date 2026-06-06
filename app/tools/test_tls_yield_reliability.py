@@ -39,6 +39,7 @@ import pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
 from run_serialdbg_tests import Dut
+from app_ids_gen import APP_SLOT
 from ve_suite_base import (
     RESULTS, pass_, fail, skip, flake,
     make_arg_parser, run_suite, print_results,
@@ -47,9 +48,9 @@ from ve_suite_base import (
 
 # ── shared helpers ────────────────────────────────────────────────────────────
 
-_WEATHER_APP_ID = 2   # AppId::Weather
-_CRYPTO_APP_ID  = 3   # AppId::Crypto
-_STOCK_APP_ID   = 7   # AppId::Stock
+_WEATHER_APP_ID = APP_SLOT["Weather"]
+_CRYPTO_APP_ID  = APP_SLOT["Crypto"]
+_STOCK_APP_ID   = APP_SLOT["Stock"]
 
 _STOCK_TICKERS = ["AAPL", "AMD", "AMZN", "ARM", "GOOG", "META", "MSFT", "NVDA"]
 
@@ -61,7 +62,7 @@ def _parse_maxblk_kb(line: str) -> int | None:
 
 
 def _restore_to_spotify(dut: Dut, timeout: float = 5.0) -> bool:
-    r = dut.cmd("switchApp 0", timeout=timeout)
+    r = dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=timeout)
     if not r.get("ok"):
         return False
     time.sleep(0.3)

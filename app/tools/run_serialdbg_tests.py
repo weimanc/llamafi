@@ -38,6 +38,7 @@ from typing import Optional
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import coords as _c
+from app_ids_gen import APP_SLOT, APP_COUNT
 
 try:
     import serial
@@ -1199,13 +1200,14 @@ def t135(dut: Dut):
 # ── shared drag helper (T136–T140) ────────────────────────────────────────────
 
 def _restore_spotify(dut: Dut, timeout: float = 3.0) -> bool:
-    """Ensure currentAppId == Spotify; tap taskbar slot 0 if not. Returns True on success."""
+    """Ensure currentAppId == Spotify; resets scroll then taps Spotify slot if needed."""
     import time
     r = dut.cmd("get appId", timeout=timeout)
     if r.get("name") == "Spotify":
         return True
+    _tb_set_offset(dut, 0)
     dut.set_cooldown_zero()
-    sx, sy = _c.tap_taskbar_slot(0)
+    sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=timeout)
     time.sleep(0.3)
     r2 = dut.cmd("get appId", timeout=timeout)
@@ -1376,7 +1378,7 @@ def t147(dut: Dut):
         return
     # Tap the Clock slot in the taskbar.
     dut.set_cooldown_zero()
-    cx, cy = _c.tap_taskbar_slot(1)
+    cx, cy = _c.tap_taskbar_slot(APP_SLOT["Clock"])
     dut.cmd(f"tap {cx} {cy}", timeout=3.0)
     time.sleep(0.3)  # repaintChrome ~60 ms; 300 ms headroom
     r2 = dut.cmd("get appId", timeout=3.0)
@@ -1384,12 +1386,12 @@ def t147(dut: Dut):
         fail("T147", f"did not switch to Clock: got appId={r2.get('name')!r}")
         # Attempt restore before failing.
         dut.set_cooldown_zero()
-        dut.cmd(f"tap {_c.tap_taskbar_slot(0)[0]} {_c.tap_taskbar_slot(0)[1]}", timeout=3.0)
+        dut.cmd(f"tap {_c.tap_taskbar_slot(APP_SLOT["Spotify"])[0]} {_c.tap_taskbar_slot(APP_SLOT["Spotify"])[1]}", timeout=3.0)
         time.sleep(0.3)
         return
     # Switch back to Spotify to leave DUT in known state for subsequent tests.
     dut.set_cooldown_zero()
-    sx, sy = _c.tap_taskbar_slot(0)
+    sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     time.sleep(0.3)
     r3 = dut.cmd("get appId", timeout=3.0)
@@ -1404,7 +1406,7 @@ def t148(dut: Dut):
     import time
     # Switch to Clock.
     dut.set_cooldown_zero()
-    cx, cy = _c.tap_taskbar_slot(1)
+    cx, cy = _c.tap_taskbar_slot(APP_SLOT["Clock"])
     dut.cmd(f"tap {cx} {cy}", timeout=3.0)
     time.sleep(0.3)
     r_pre = dut.cmd("get appId", timeout=3.0)
@@ -1419,7 +1421,7 @@ def t148(dut: Dut):
     action = r.get("action", "")
     # Restore to Spotify before asserting (so subsequent tests start clean).
     dut.set_cooldown_zero()
-    sx, sy = _c.tap_taskbar_slot(0)
+    sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     time.sleep(0.3)
     if hit not in ("CLOCK", "NON_SPOTIFY"):
@@ -1444,12 +1446,12 @@ def t_bi_01(dut: Dut):
     r = dut.cmd("get appId", timeout=3.0)
     if not r.get("ok") or r.get("name") != "Spotify":
         dut.set_cooldown_zero()
-        sx, sy = _c.tap_taskbar_slot(0)
+        sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
         dut.cmd(f"tap {sx} {sy}", timeout=3.0)
         time.sleep(0.4)
     # Switch to Clock; wait 2 s (ensures rate-limit window clears; seqno may change).
     dut.set_cooldown_zero()
-    cx, cy = _c.tap_taskbar_slot(1)
+    cx, cy = _c.tap_taskbar_slot(APP_SLOT["Clock"])
     dut.cmd(f"tap {cx} {cy}", timeout=3.0)
     time.sleep(2.0)
     # Note t_before.
@@ -1460,7 +1462,7 @@ def t_bi_01(dut: Dut):
     t_before = r_before.get("ms", 0)
     # Switch back to Spotify — resume() calls invalidatePlaylist().
     dut.set_cooldown_zero()
-    sx, sy = _c.tap_taskbar_slot(0)
+    sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     # Poll until lastPlaylistDraw advances (drawPlaylist fired in tick()), timeout 2 s.
     deadline = time.monotonic() + 2.0
@@ -1496,13 +1498,13 @@ def t_bi_02(dut: Dut):
     dut.cmd(f"tap {px} {py}", timeout=3.0)
     # Immediately tap taskbar Clock slot — shell must handle it, not Winamp.
     dut.set_cooldown_zero()
-    cx, cy = _c.tap_taskbar_slot(1)
+    cx, cy = _c.tap_taskbar_slot(APP_SLOT["Clock"])
     r_switch = dut.cmd(f"tap {cx} {cy}", timeout=3.0)
     time.sleep(0.2)  # past the 80 ms pendingReleaseAt window
     r_app = dut.cmd("get appId", timeout=3.0)
     # Restore to Spotify before asserting.
     dut.set_cooldown_zero()
-    sx, sy = _c.tap_taskbar_slot(0)
+    sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     time.sleep(0.3)
     hit    = r_switch.get("hit", "")
@@ -1528,7 +1530,7 @@ def t_bi_03(dut: Dut):
     r = dut.cmd("get appId", timeout=3.0)
     if not r.get("ok") or r.get("name") != "Spotify":
         dut.set_cooldown_zero()
-        sx, sy = _c.tap_taskbar_slot(0)
+        sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
         dut.cmd(f"tap {sx} {sy}", timeout=3.0)
         time.sleep(0.4)
     # Reset scrollOffset to 0 first.
@@ -1549,7 +1551,7 @@ def t_bi_03(dut: Dut):
         return
     # Switch to Clock — suspend() → resetDragState().
     dut.set_cooldown_zero()
-    cx, cy = _c.tap_taskbar_slot(1)
+    cx, cy = _c.tap_taskbar_slot(APP_SLOT["Clock"])
     dut.cmd(f"tap {cx} {cy}", timeout=3.0)
     time.sleep(0.3)
     r_clock = dut.cmd("get appId", timeout=3.0)
@@ -1559,7 +1561,7 @@ def t_bi_03(dut: Dut):
     time.sleep(0.5)
     # Switch back to Spotify — resume() → invalidatePlaylist().
     dut.set_cooldown_zero()
-    sx, sy = _c.tap_taskbar_slot(0)
+    sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     time.sleep(0.4)
     # Check dragState is D_IDLE (resetDragState was called by suspend()).
@@ -1602,10 +1604,13 @@ def t_bi_04(dut: Dut):
 
 # ── multiapp helpers ─────────────────────────────────────────────────────────
 
-def _switch_to(dut: Dut, app_name: str, slot: int, timeout: float = 3.0) -> bool:
-    """Tap taskbar slot, wait 400 ms, verify appId == app_name. Returns True on success."""
+def _switch_to(dut: Dut, app_name: str, timeout: float = 3.0) -> bool:
+    """Reset scroll to 0, tap the app's taskbar slot, verify appId == app_name."""
+    if app_name not in APP_SLOT:
+        return False
+    _tb_set_offset(dut, 0)
     dut.set_cooldown_zero()
-    x, y = _c.tap_taskbar_slot(slot)
+    x, y = _c.tap_taskbar_slot(APP_SLOT[app_name])
     dut.cmd(f"tap {x} {y}", timeout=timeout)
     time.sleep(0.4)
     r = dut.cmd("get appId", timeout=timeout)
@@ -1640,7 +1645,7 @@ def t_ma_01(dut: Dut):
         skip("T_MA_01", "precondition: could not restore Spotify")
         return
     # Switch to Matrix.
-    if not _switch_to(dut, "Matrix", 4):
+    if not _switch_to(dut, "Matrix"):
         fail("T_MA_01", "did not switch to Matrix")
         _restore_spotify(dut)
         return
@@ -1656,7 +1661,7 @@ def t_ma_01(dut: Dut):
 def t_ma_02(dut: Dut):
     """T_MA_02: Canvas tap while Matrix active returns hit=CLOCK (Winamp zones bypassed)."""
     print("T_MA_02  Matrix BUG-1 guard")
-    if not _switch_to(dut, "Matrix", 4):
+    if not _switch_to(dut, "Matrix"):
         skip("T_MA_02", "could not switch to Matrix")
         _restore_spotify(dut)
         return
@@ -1677,14 +1682,14 @@ def t_ma_02(dut: Dut):
 def t_ma_03(dut: Dut):
     """T_MA_03: Spotify renders correctly (lastPlaylistDraw advances) after Matrix switch-back."""
     print("T_MA_03  Matrix→Spotify canvas residue")
-    if not _switch_to(dut, "Matrix", 4):
+    if not _switch_to(dut, "Matrix"):
         skip("T_MA_03", "could not switch to Matrix")
         _restore_spotify(dut)
         return
     time.sleep(0.15)  # allow one or two Matrix ticks
     # Switch back to Spotify.
     dut.set_cooldown_zero()
-    sx, sy = _c.tap_taskbar_slot(0)
+    sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     time.sleep(0.1)
     if not _check_residue(dut, "T_MA_03"):
@@ -1699,7 +1704,7 @@ def t_gol_01(dut: Dut):
     if not _restore_spotify(dut):
         skip("T_GOL_01", "precondition: could not restore Spotify")
         return
-    if not _switch_to(dut, "Life", 5):
+    if not _switch_to(dut, "Life"):
         fail("T_GOL_01", "did not switch to Life")
         _restore_spotify(dut)
         return
@@ -1714,7 +1719,7 @@ def t_gol_01(dut: Dut):
 def t_gol_02(dut: Dut):
     """T_GOL_02: Canvas tap while GoL active returns hit=CLOCK (Winamp zones bypassed)."""
     print("T_GOL_02  GoL BUG-1 guard")
-    if not _switch_to(dut, "Life", 5):
+    if not _switch_to(dut, "Life"):
         skip("T_GOL_02", "could not switch to Life")
         _restore_spotify(dut)
         return
@@ -1733,13 +1738,13 @@ def t_gol_02(dut: Dut):
 def t_gol_03(dut: Dut):
     """T_GOL_03: Spotify renders correctly after GoL switch-back."""
     print("T_GOL_03  GoL→Spotify canvas residue")
-    if not _switch_to(dut, "Life", 5):
+    if not _switch_to(dut, "Life"):
         skip("T_GOL_03", "could not switch to Life")
         _restore_spotify(dut)
         return
     time.sleep(0.2)  # allow GoL to tick
     dut.set_cooldown_zero()
-    sx, sy = _c.tap_taskbar_slot(0)
+    sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     time.sleep(0.1)
     if not _check_residue(dut, "T_GOL_03"):
@@ -1751,7 +1756,7 @@ def t_gol_03(dut: Dut):
 def t_gol_04(dut: Dut):
     """T_GOL_04: golAlive > 0 after GoL ticks — confirms cells are alive and stepGeneration ran."""
     print("T_GOL_04  GoL alive count > 0")
-    if not _switch_to(dut, "Life", 5):
+    if not _switch_to(dut, "Life"):
         skip("T_GOL_04", "could not switch to Life")
         _restore_spotify(dut)
         return
@@ -1776,7 +1781,7 @@ def t_wx_01(dut: Dut):
     if not _restore_spotify(dut):
         skip("T_WX_01", "precondition: could not restore Spotify")
         return
-    if not _switch_to(dut, "Weather", 2):
+    if not _switch_to(dut, "Weather"):
         fail("T_WX_01", "did not switch to Weather")
         _restore_spotify(dut)
         return
@@ -1791,7 +1796,7 @@ def t_wx_01(dut: Dut):
 def t_wx_02(dut: Dut):
     """T_WX_02: Canvas tap while Weather active returns hit=CLOCK (Winamp zones bypassed)."""
     print("T_WX_02  Weather BUG-1 guard")
-    if not _switch_to(dut, "Weather", 2):
+    if not _switch_to(dut, "Weather"):
         skip("T_WX_02", "could not switch to Weather")
         _restore_spotify(dut)
         return
@@ -1810,13 +1815,13 @@ def t_wx_02(dut: Dut):
 def t_wx_03(dut: Dut):
     """T_WX_03: Spotify renders correctly after Weather switch-back."""
     print("T_WX_03  Weather→Spotify canvas residue")
-    if not _switch_to(dut, "Weather", 2):
+    if not _switch_to(dut, "Weather"):
         skip("T_WX_03", "could not switch to Weather")
         _restore_spotify(dut)
         return
     time.sleep(0.15)
     dut.set_cooldown_zero()
-    sx, sy = _c.tap_taskbar_slot(0)
+    sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     time.sleep(0.1)
     if not _check_residue(dut, "T_WX_03"):
@@ -1839,7 +1844,7 @@ def t_wx_04(dut: Dut):
              "pre-fetch state no longer observable")
         return
     # Switch to Weather; check immediately (before 60s fetch interval).
-    _switch_to(dut, "Weather", 2)
+    _switch_to(dut, "Weather")
     r_imm = dut.cmd("get weatherReady", timeout=3.0)
     _restore_spotify(dut)
     if not r_imm.get("ok"):
@@ -1857,7 +1862,7 @@ def t_wx_04(dut: Dut):
 def t_wx_05(dut: Dut):
     """T_WX_05: weatherReady becomes true within 30 s of switching to WeatherApp."""
     print("T_WX_05  Weather data arrives")
-    if not _switch_to(dut, "Weather", 2):
+    if not _switch_to(dut, "Weather"):
         skip("T_WX_05", "could not switch to Weather")
         _restore_spotify(dut)
         return
@@ -1884,7 +1889,7 @@ def t_cx_01(dut: Dut):
     if not _restore_spotify(dut):
         skip("T_CX_01", "precondition: could not restore Spotify")
         return
-    if not _switch_to(dut, "Crypto", 3):
+    if not _switch_to(dut, "Crypto"):
         fail("T_CX_01", "did not switch to Crypto")
         _restore_spotify(dut)
         return
@@ -1899,7 +1904,7 @@ def t_cx_01(dut: Dut):
 def t_cx_02(dut: Dut):
     """T_CX_02: Canvas tap while Crypto active returns hit=CLOCK (Winamp zones bypassed)."""
     print("T_CX_02  Crypto BUG-1 guard")
-    if not _switch_to(dut, "Crypto", 3):
+    if not _switch_to(dut, "Crypto"):
         skip("T_CX_02", "could not switch to Crypto")
         _restore_spotify(dut)
         return
@@ -1918,13 +1923,13 @@ def t_cx_02(dut: Dut):
 def t_cx_03(dut: Dut):
     """T_CX_03: Spotify renders correctly after Crypto switch-back."""
     print("T_CX_03  Crypto→Spotify canvas residue")
-    if not _switch_to(dut, "Crypto", 3):
+    if not _switch_to(dut, "Crypto"):
         skip("T_CX_03", "could not switch to Crypto")
         _restore_spotify(dut)
         return
     time.sleep(0.15)
     dut.set_cooldown_zero()
-    sx, sy = _c.tap_taskbar_slot(0)
+    sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     time.sleep(0.1)
     if not _check_residue(dut, "T_CX_03"):
@@ -1945,7 +1950,7 @@ def t_cx_04(dut: Dut):
              "cryptoReady already true — Crypto fetched data earlier this session; "
              "pre-fetch state no longer observable")
         return
-    _switch_to(dut, "Crypto", 3)
+    _switch_to(dut, "Crypto")
     r_imm = dut.cmd("get cryptoReady", timeout=3.0)
     _restore_spotify(dut)
     if not r_imm.get("ok"):
@@ -1962,7 +1967,7 @@ def t_cx_04(dut: Dut):
 def t_cx_05(dut: Dut):
     """T_CX_05: cryptoReady becomes true within 30 s of switching to CryptoApp."""
     print("T_CX_05  Crypto data arrives")
-    if not _switch_to(dut, "Crypto", 3):
+    if not _switch_to(dut, "Crypto"):
         skip("T_CX_05", "could not switch to Crypto")
         _restore_spotify(dut)
         return
@@ -1990,11 +1995,11 @@ def t_x07_01(dut: Dut):
         skip("T_X07_01", "precondition: could not restore Spotify")
         return
     sequence = [
-        ("Weather", 2),
-        ("Crypto",  3),
-        ("Weather", 2),
-        ("Crypto",  3),
-        ("Spotify", 0),
+        ("Weather", APP_SLOT["Weather"]),
+        ("Crypto",  APP_SLOT["Crypto"]),
+        ("Weather", APP_SLOT["Weather"]),
+        ("Crypto",  APP_SLOT["Crypto"]),
+        ("Spotify", APP_SLOT["Spotify"]),
     ]
     for app_name, slot in sequence:
         dut.set_cooldown_zero()
@@ -2037,7 +2042,7 @@ def t_x07_01(dut: Dut):
 #   Back tap: (10, 7)   Chart tabs (x,7): 1D=148, 5D=184, 1M=220, YTD=256
 #   Plot area: y 18..213   Footer: y=214
 
-_STOCK_APP_ID = 7  # AppId::Stock
+_STOCK_APP_ID = APP_SLOT["Stock"]
 
 
 def _switch_to_stock(dut: Dut, timeout: float = 5.0) -> bool:
@@ -2052,7 +2057,7 @@ def _switch_to_stock(dut: Dut, timeout: float = 5.0) -> bool:
 
 def _restore_from_stock(dut: Dut, timeout: float = 5.0) -> bool:
     """Switch back to Spotify from Stock."""
-    r = dut.cmd("switchApp 0", timeout=timeout)
+    r = dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=timeout)
     if not r.get("ok"):
         return False
     time.sleep(0.3)
@@ -2212,7 +2217,7 @@ def t173(dut: Dut):
         _restore_from_stock(dut)
         return
     # Switch away and quickly back.
-    dut.cmd("switchApp 0", timeout=3.0)
+    dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=3.0)
     time.sleep(2.0)
     if not _switch_to_stock(dut):
         fail("T173", "could not switch back to Stock")
@@ -2496,7 +2501,7 @@ def t182(dut: Dut):
         _restore_from_stock(dut)
         return
     # Switch away via switchApp.
-    dut.cmd("switchApp 0", timeout=3.0)
+    dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=3.0)
     time.sleep(0.3)
     # Switch back via taskbar scroll + slot tap (real UI path).
     dut.set_cooldown_zero()
@@ -2508,7 +2513,11 @@ def t182(dut: Dut):
         dut.cmd("drag 297 100 297 200 10", timeout=3.0)  # reset scroll
         return
     dut.set_cooldown_zero()
-    sx, sy = _c.tap_taskbar_slot(5)   # slot 5 at offset 2 = AppId (2+5)%9 = 7 = Stock
+    # Physical slot 5 at scrollOffset=2 → AppId (2+5)%APP_COUNT == Stock.
+    # NOTE: this test intentionally uses physical-slot arithmetic, not APP_SLOT.
+    # It breaks if the app order changes — update the drag offset and slot together.
+    _stock_physical_slot = (APP_SLOT["Stock"] - 2) % APP_COUNT
+    sx, sy = _c.tap_taskbar_slot(_stock_physical_slot)
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     time.sleep(0.4)
     r_app = dut.cmd("get appId", timeout=3.0)
@@ -2803,8 +2812,8 @@ def t204(dut: Dut):
 # Firmware prerequisites: get shellBusy, get visMode, cmdTap g_shellBusy check.
 # All tests require cyd2usb_winamp_debug build.
 
-_SPOTIFY_APP_ID = 0
-_CLOCK_APP_ID   = 1
+_SPOTIFY_APP_ID = APP_SLOT["Spotify"]
+_CLOCK_APP_ID   = APP_SLOT["Clock"]
 
 
 def _poll_shell_busy(dut: Dut, expected: bool, timeout_ms: int = 500,
@@ -2960,15 +2969,11 @@ def t_busy_02(dut: Dut):
 def t_busy_03(dut: Dut):
     """T-BUSY-03: Clock/Weather/Crypto/Matrix/Life/Aquarium canvas taps → shellBusy false."""
     print("T-BUSY-03  Passive apps — no amber on canvas tap")
-    # Use switchApp <id> for all — avoids taskbar scroll issues and Aquarium (AppId 8)
-    # which is out of the default visible taskbar range.
+    # Use switchApp <id> for all — avoids taskbar scroll issues.
     PASSIVE_APPS = [
-        ("Clock",    1),
-        ("Weather",  2),
-        ("Crypto",   3),
-        ("Matrix",   4),
-        ("Life",     5),
-        ("Aquarium", 8),
+        (name, APP_SLOT[name])
+        for name in ["Clock", "Weather", "Crypto", "Matrix", "Life", "Aquarium"]
+        if name in APP_SLOT
     ]
     # Apps that do network fetches on first activation need a longer settle time.
     _FETCH_APPS = {"Weather", "Crypto"}
@@ -3765,7 +3770,7 @@ def t160(dut: Dut):
 # T168 is MANUAL — active-indicator rendering cannot be verified via serial.
 
 _TB_X = _c.TASKBAR_X + _c.TASKBAR_W // 2   # 297
-_TB_N = 8                                    # AppId::COUNT
+_TB_N = APP_COUNT - 1                        # AppId::COUNT - 1
 
 
 def _tb_get_offset(dut: Dut) -> "int | None":
@@ -3815,7 +3820,7 @@ def t162(dut: Dut):
     if not _tb_precondition(dut, "T162"):
         return
     baseline = _tb_get_offset(dut)
-    cx, cy = _c.tap_taskbar_slot(1)   # Clock slot
+    cx, cy = _c.tap_taskbar_slot(APP_SLOT["Clock"])   # Clock slot
     dut.cmd(f"tap {cx} {cy}", timeout=3.0)
     time.sleep(0.2)
     r_app = dut.cmd("get appId", timeout=3.0)
@@ -4423,8 +4428,8 @@ def t194(dut: Dut):
 
 # ── Settings nav stub — T-SET-01..08 (TASK-142) ─────────────────────────────
 
-_SETTINGS_APP_ID = 6   # AppId::Settings
-_CRYPTO_APP_ID   = 3   # AppId::Crypto
+_SETTINGS_APP_ID = APP_SLOT["Settings"]
+_CRYPTO_APP_ID   = APP_SLOT["Crypto"]
 
 
 def _switch_to_settings(dut: Dut, timeout: float = 3.0) -> bool:

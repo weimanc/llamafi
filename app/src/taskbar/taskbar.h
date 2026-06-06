@@ -30,7 +30,12 @@ inline void renderTaskbar(TFT_eSPI& tft, AppId activeApp,
                            int scrollOffset, int totalApps, bool busy = false) {
     tft.fillRect(TASKBAR_X, 0, TASKBAR_W, 240, TASKBAR_BG_RGB565);
 
-    const char icons[] = {'S', 'C', 'W', '$', 'M', 'G', '=', 'K', '~'};
+#define APP_X(Name, icon, cfg) icon,
+    const char icons[] = {
+#include "appRegistry.h"
+    };
+#undef APP_X
+    static_assert(sizeof(icons) == (int)AppId::COUNT, "icons[] out of sync with appRegistry.h");
 
     for (int i = 0; i < TASKBAR_SLOT_COUNT; ++i) {
         int appIdx = (scrollOffset + i) % totalApps;

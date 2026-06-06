@@ -1,11 +1,11 @@
 #pragma once
 #include "settingsSection.h"
+#include "gen/configurable_apps.h"
 
 class AppsSection : public SettingsSection {
 public:
     const char* title() const override {
-        static const char* kNames[] = { "Stock","Crypto","Aquarium","Matrix","Life" };
-        return (_sub < 0) ? "Applications" : kNames[_sub];
+        return (_sub < 0) ? "Applications" : kConfigurableApps[_sub].name;
     }
 
     void enter() override { _sub = -1; repaint(); }
@@ -26,7 +26,7 @@ public:
         }
         if (_sub < 0) {
             int row = tapToRow(y);
-            if (row >= 0 && row < 5) { _sub = (int8_t)row; repaint(); }
+            if (row >= 0 && row < CONFIGURABLE_APP_COUNT) { _sub = (int8_t)row; repaint(); }
         } else {
             _handleAppTap(tapToRow(y));
         }
@@ -37,18 +37,21 @@ private:
     int8_t _sub = -1;
 
     void _repaintAppList() {
-        static const char* kNames[] = { "Stock","Crypto","Aquarium","Matrix","Life" };
         int y = S_CONTENT_Y;
-        for (int i = 0; i < 5; i++) { drawChevronRow(y, kNames[i]); y += S_ROW_H; }
+        for (int i = 0; i < CONFIGURABLE_APP_COUNT; i++) {
+            drawChevronRow(y, kConfigurableApps[i].name);
+            y += S_ROW_H;
+        }
     }
 
     void _repaintAppRows() {
-        switch (_sub) {
-            case 0: _repaintStock();    break;
-            case 1: _repaintCrypto();   break;
-            case 2: _repaintAquarium(); break;
-            case 3: _repaintMatrix();   break;
-            case 4: _repaintLife();     break;
+        switch (kConfigurableApps[_sub].id) {
+            case AppId::Stock:    _repaintStock();    break;
+            case AppId::Crypto:   _repaintCrypto();   break;
+            case AppId::Aquarium: _repaintAquarium(); break;
+            case AppId::Matrix:   _repaintMatrix();   break;
+            case AppId::Life:     _repaintLife();     break;
+            default: break;
         }
     }
 
@@ -99,12 +102,13 @@ private:
 
     void _handleAppTap(int row) {
         if (row < 0) return;
-        switch (_sub) {
-            case 0: _cycleStock(row);    break;
-            case 1: _cycleCrypto(row);   break;
-            case 2: _cycleAquarium(row); break;
-            case 3: _cycleMatrix(row);   break;
-            case 4: _cycleLife(row);     break;
+        switch (kConfigurableApps[_sub].id) {
+            case AppId::Stock:    _cycleStock(row);    break;
+            case AppId::Crypto:   _cycleCrypto(row);   break;
+            case AppId::Aquarium: _cycleAquarium(row); break;
+            case AppId::Matrix:   _cycleMatrix(row);   break;
+            case AppId::Life:     _cycleLife(row);     break;
+            default: break;
         }
     }
 

@@ -20,16 +20,10 @@ struct App {
 };
 
 enum class AppId : uint8_t {
-    Spotify  = 0,
-    Clock    = 1,
-    Weather  = 2,
-    Crypto   = 3,
-    Matrix   = 4,
-    Life     = 5,
-    Settings = 6,
-    Stock    = 7,
-    Aquarium = 8,
-    COUNT    = 9,
+#define APP_X(Name, icon, cfg) Name,
+#include "appRegistry.h"
+#undef APP_X
+    COUNT,
 };
 
 extern AppId currentAppId;

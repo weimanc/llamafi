@@ -225,7 +225,7 @@ public:
     return winampDisplay.handleWinampInput(phase, x, y);
   }
 };
-static SpotifyApp g_spotifyApp;
+static SpotifyApp g_SpotifyApp;
 #endif // WINAMP_DISPLAY
 
 // ── ClockApp (TASK-090e) ───────────────────────────────────────────────
@@ -297,7 +297,7 @@ private:
     }
   }
 };
-static ClockApp g_clockApp;
+static ClockApp g_ClockApp;
 
 // ── VE instrumentation statics (consumed by SERIAL_DEBUG cmdGet) ─────────────
 static bool s_wxDataReady   = false;   // set true when WeatherApp receives first fetch
@@ -369,7 +369,7 @@ private:
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
   }
 };
-static MatrixApp g_matrixApp;
+static MatrixApp g_MatrixApp;
 
 // ── WeatherApp (weather.md) ───────────────────────────────────────────
 #define WEATHER_FETCH_MS  60000UL
@@ -466,7 +466,7 @@ private:
     repaintWeatherTime();
   }
 };
-static WeatherApp g_weatherApp;
+static WeatherApp g_WeatherApp;
 
 // ── CryptoApp (crypto.md) ─────────────────────────────────────────────
 #define CRYPTO_FETCH_MS   60000UL
@@ -548,7 +548,7 @@ private:
     }
   }
 };
-static CryptoApp g_cryptoApp;
+static CryptoApp g_CryptoApp;
 
 // ── LifeApp (gol.md) ──────────────────────────────────────────────────
 #define GOL_GRID_W       55
@@ -672,7 +672,7 @@ private:
   }
 };
 uint8_t LifeApp::s_nextGrid[GOL_GRID_W][GOL_GRID_H];
-static LifeApp g_lifeApp;
+static LifeApp g_LifeApp;
 
 // ── SettingsApp constants (TASK-141a) ─────────────────────────────────
 #define SETTINGS_HEADER_H         28
@@ -821,9 +821,9 @@ private:
     tft.setTextDatum(TL_DATUM);
   }
 };
-static SettingsApp g_settingsApp;
+static SettingsApp g_SettingsApp;
 #ifdef SERIAL_DEBUG
-static bool settingsDbgGet(const char* v, char* b, int l) { return g_settingsApp.dbgGet(v, b, l); }
+static bool settingsDbgGet(const char* v, char* b, int l) { return g_SettingsApp.dbgGet(v, b, l); }
 #endif
 
 // ── StockApp (stock.md) ───────────────────────────────────────────────
@@ -1493,26 +1493,20 @@ private:
     }
   }
 };
-static StockApp g_stockApp;
-static bool stockDbgGet(const char* v, char* b, int l) { return g_stockApp.dbgGet(v, b, l); }
-static bool stockDbgSet(const char* v, const char* val) { return g_stockApp.dbgSet(v, val); }
+static StockApp g_StockApp;
+static bool stockDbgGet(const char* v, char* b, int l) { return g_StockApp.dbgGet(v, b, l); }
+static bool stockDbgSet(const char* v, const char* val) { return g_StockApp.dbgSet(v, val); }
 
 #include "aquarium/aquariumApp.h"
-static AquariumApp g_aquariumApp;
+static AquariumApp g_AquariumApp;
 
 // ── App registry + shell gesture state (TASK-090f) ────────────────────
 
 #ifdef WINAMP_DISPLAY
 App* g_apps[(int)AppId::COUNT] = {
-  &g_spotifyApp,    // AppId::Spotify   = 0
-  &g_clockApp,      // AppId::Clock     = 1
-  &g_weatherApp,    // AppId::Weather   = 2
-  &g_cryptoApp,     // AppId::Crypto    = 3
-  &g_matrixApp,     // AppId::Matrix    = 4
-  &g_lifeApp,       // AppId::Life      = 5
-  &g_settingsApp,   // AppId::Settings  = 6
-  &g_stockApp,      // AppId::Stock     = 7
-  &g_aquariumApp,   // AppId::Aquarium  = 8
+#define APP_X(Name, icon, cfg) &g_##Name##App,
+#include "appRegistry.h"
+#undef APP_X
 };
 #else
 App* g_apps[(int)AppId::COUNT] = {};
@@ -2086,16 +2080,13 @@ static void cmdGet(const char *args) {
   char buf[256]; buf[0] = '\0';
   // appId — shell-owned; WinampDisplay cannot reference currentAppId.
   if (strcmp(args, "appId") == 0) {
-    const char* nm = currentAppId == AppId::Spotify ? "Spotify"
-                   : currentAppId == AppId::Clock   ? "Clock"
-                   : currentAppId == AppId::Weather ? "Weather"
-                   : currentAppId == AppId::Crypto  ? "Crypto"
-                   : currentAppId == AppId::Matrix  ? "Matrix"
-                   : currentAppId == AppId::Life     ? "Life"
-                   : currentAppId == AppId::Settings ? "Settings"
-                   : currentAppId == AppId::Stock    ? "Stock"
-                   : currentAppId == AppId::Aquarium ? "Aquarium"
-                   : "Unknown";
+#define APP_X(Name, icon, cfg) #Name,
+    static const char* kAppNames[] = {
+#include "appRegistry.h"
+    };
+#undef APP_X
+    const char* nm = ((int)currentAppId < (int)AppId::COUNT)
+                   ? kAppNames[(int)currentAppId] : "Unknown";
     Serial.printf("{\"ok\":true,\"cmd\":\"get\","
                   "\"var\":\"appId\",\"id\":%d,\"name\":\"%s\",\"last\":true}\n",
                   (int)currentAppId, nm);
