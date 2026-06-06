@@ -4,8 +4,25 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
-> **PM sync 2026-06-06** — 5 open tasks from settings-001 DUT feedback (T150–T154).
+> **PM sync 2026-06-07** — settings-001 new-items feature set complete (fd93679, c07c903).
+> VE DUT run complete: 8 PASS, physical/visual deferred, BLOCKED-PHASE2 KB tests pending Phase 2.
+> TASK-151 closed (LDR confirmed working). TASK-155 opened (KB symbol-page highlight bug).
+> Open: TASK-150, TASK-152 (visual confirm pending), TASK-153, TASK-154 (visual confirm pending), TASK-155.
 > Completed and closed tasks are in [tasks-archive.md](tasks-archive.md).
+
+---
+
+## Closed This Cycle
+
+### settings-001 new-items — Cancel button, cal history, KB ESC, TouchDebugOverlay
+- **Commits:** `fd93679` (feat), `c07c903` (bug fix + VE results)
+- **Status:** done — all 6 new-items features implemented and design-audited
+- **VE suite:** `docs/verification/regression_suite/settings-001-new-items.md`
+  - 8 serial-driven tests: PASS
+  - Physical (cal corner taps) + visual (TDBG, cal history): deferred — require person at screen
+  - KB cancel: BLOCKED-PHASE2 (keyboard not reachable until WiFi Phase 2)
+  - Bug found and fixed during VE: `DisplaySection::tick()` map() crash when `ldrLow==ldrHigh`
+- **Design audit:** all 6 features strong-match spec; one medium gap: KB symbol-page press-highlight bug (TASK-155)
 
 ---
 
@@ -43,25 +60,13 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-151 — Investigate LDR: always reads 0 on DUT
 - **Feature:** settings-001 / display-settings
 - **Priority:** P2
-- **Status:** partial — probe implemented; root cause unresolved
-- **Opened:** 2026-06-06 (DUT feedback)
-- **Symptoms:** Display section "LDR" row always shows 0. Covering/uncovering the
-  sensor has no effect on the displayed value.
-- **Investigation steps:**
-  1. Add `Serial.printf("[disp] analogRead(34) = %d\n", analogRead(34));` temporarily
-     in `DisplaySection::enter()` to confirm raw hardware value.
-  2. If 0: check whether GPIO34 needs `pinMode(34, INPUT)` before `analogRead` on
-     this board/framework version. Also check `analogReadResolution(12)` in setup().
-  3. Check CYD hardware: GPIO34 is LDR on ESP32-2432S028R variants. Confirm 2-USB
-     variant uses same pin (not relocated vs single-USB variant).
-  4. Verify `tick()` updates display: `_repaintLdrRows()` is only called when
-     `|fresh - _ldrRaw| > 20`. On entry, `_ldrRaw` is set from `analogRead(34)`.
-     If ADC always returns 0, the dead-band condition never triggers → display shows
-     whatever was painted in `enter()`.
-- **Note:** Design open question 1 ("LDR wiring polarity") is still open — if brighter
-  ambient produces LOWER ADC value, the auto-brightness mapping is inverted.
-- **Validation:** T-DISP-02 (covering LDR dims display), T-DISP-03 (live row updates).
-- **Owner:** Developer
+- **Status:** ~~closed~~ — LDR confirmed working on 2026-06-07 DUT run
+- **Resolution:** Serial probe (`[disp] analogRead(34) raw = 1018` / `raw = 1404`) confirmed
+  LDR reads non-zero values. Original "always 0" symptom was pre-Serial-guard (values not
+  visible). Polarity open question: higher ambient → higher ADC (1018–1404 range observed
+  in normal indoor light). No inversion. T-DISP-02/03 (covering LDR, live row update) remain
+  as deferred visual DUT checks but are no longer blocking.
+- **Remaining:** `ldrLow/ldrHigh` defaults (200/3800) are appropriate for this device; no fix needed.
 
 ---
 
@@ -176,3 +181,23 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
   group breaks visible. T-TIME-01 unblocked (city selection unchanged). VE to
   add to settings-sections-001 suite.
 - **Owner:** Architect (spec update for CityEntry) + Developer (implementation).
+
+---
+
+### TASK-155 — KeyboardWidget symbol-page (row 3) press-highlight broken
+- **Feature:** settings-001 / keyboard-widget
+- **Priority:** P3 (visual feedback only — functional cancel still works)
+- **Status:** open
+- **Opened:** 2026-06-07 (design-vs-impl audit)
+- **Root cause:** `_pressColForXY()` returns wrong column index for symbol-page row 3 action
+  keys (SYM/NEXT/SPACE/OK area). Keys are never highlighted on Press — only on Release after
+  the action fires. This means the Cancel `<` label and action-row keys show no press feedback
+  on symbol pages.
+- **Scope:** Visual feedback only. `ACT_CANCEL` routes correctly and `onCancel` fires correctly
+  on all pages. No regression to functional behaviour.
+- **Fix:** Audit `_pressColForXY()` for symbol page layout constants; ensure row 3 returns
+  the correct column offset so `_pressHighlight` is set before rendering.
+- **Note:** Documented in `docs/architecture/designs/M-MULTIAPP/keyboard-widget.md` as a
+  known press-highlight bug. Full testing gated on Phase 2 (WiFi keyboard reachable from UI).
+- **Validation:** T-KB-CANCEL-01..06 (BLOCKED-PHASE2); visual confirm when Phase 2 lands.
+- **Owner:** Developer

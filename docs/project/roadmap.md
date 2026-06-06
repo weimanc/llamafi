@@ -351,6 +351,26 @@ milestone once the stub is verified.
 
 ---
 
+### M-SETTINGS-001 — Settings section implementations + new-items
+
+All 6 live settings section implementations (WiFi, Time & Location, Touch Calibration, Display, LED, Applications) plus a second feature batch: cancel button with snapshot-restore, CalibrationFlow back-tap cancel and history display, KeyboardWidget cancel button, TouchDebugOverlay, DisplaySection Serial.printf guard.
+
+**Status:** done (2026-06-06/07 — fd93679, c07c903)
+- WiFi, Time, Touch Cal, Display, LED, Apps sections: implemented; DUT-verified (2026-06-06)
+- Cancel button + snapshot-restore: 7/7 serial tests PASS (2026-06-07)
+- Cal back-tap cancel: T-CAL-BTAP-01/06 PASS; T-02..05 deferred (require physical corner taps)
+- Cal history display: implemented; visual DUT check deferred
+- KeyboardWidget ACT_CANCEL: implemented; BLOCKED-PHASE2 for full VE
+- TouchDebugOverlay: implemented; visual DUT check deferred
+- DisplaySection map() bug fixed: guard `ldrHigh > ldrLow` (c07c903)
+- Design-vs-impl audit: 6/6 features strong-match spec (2026-06-07)
+- Open polish: TASK-150 (backlight LEDC), TASK-152/154 (visual confirm), TASK-153 (scrollbar drag), TASK-155 (KB highlight)
+**Design:** [M-MULTIAPP/settings.md](../architecture/designs/M-MULTIAPP/settings.md) and sibling design docs
+**VE suite:** [settings-001-new-items.md](../verification/regression_suite/settings-001-new-items.md)
+**Deps:** M-SETTINGS-STUB (done)
+
+---
+
 ### M-TOUCH-CAPTURE — Slider input capture
 
 Pointer capture for all four interactive sliders (POSBAR, VOLUME, PLEDIT scrollbar strip,
