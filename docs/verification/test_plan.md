@@ -2604,6 +2604,424 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
 
 ---
 
+## LED Section (led-001)
+
+### T-LED-01 — [led-001] LED category row navigates to List view
+- **Type**: e2e
+- **Feature(s)**: led-001, settings-001
+- **Objective**: Tapping "LED" in the Settings category list enters LedSection List view.
+- **Preconditions**: DUT booted, Settings app active, category list visible.
+- **Steps**:
+  1. Tap "LED" row.
+- **Expected result**: Screen shows LED section header; two rows: "Mode" (current mode name) and "Color" with chevron. No artefacts.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-LED-02 — [led-001] Off mode disables all LED channels
+- **Type**: e2e
+- **Feature(s)**: led-001
+- **Objective**: Selecting Off mode drives all LEDC channels to 0 duty (common-anode: ledcWrite(ch, 255)).
+- **Preconditions**: LED section open, current mode not Off.
+- **Steps**:
+  1. Tap Mode row until "Off" is selected (or open Picker, tap OFF button, SAVE).
+  2. Observe RGB LED on hardware.
+- **Expected result**: LED extinguished; no colour bleed from any channel. Mode row shows "Off".
+- **Harness**: manual DUT inspection. Owner: VE.
+- **Status**: planned.
+
+### T-LED-03 — [led-001] Static mode holds fixed colour
+- **Type**: e2e
+- **Feature(s)**: led-001
+- **Objective**: Static mode applies stored HSV once and holds it — no animation.
+- **Preconditions**: LED picker has been used to set a distinctive colour (e.g. red, H=0 S=255 V=200).
+- **Steps**:
+  1. Set mode Static via Picker → SAVE.
+  2. Wait 5 s.
+- **Expected result**: LED colour unchanged after SAVE; no fade or pulse.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-LED-04 — [led-001] Pulse mode breathes at ~2 s cycle
+- **Type**: e2e
+- **Feature(s)**: led-001
+- **Objective**: Pulse mode varies brightness sinusoidally via lut_sin; cycle ≈ 2 s.
+- **Preconditions**: LED set to a visible colour with S=255 V=200.
+- **Steps**:
+  1. Set mode Pulse via Picker → SAVE.
+  2. Observe LED for ≥4 s.
+- **Expected result**: LED brightness rises and falls smoothly; two complete cycles visible in 4 s.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-LED-05 — [led-001] Clock mode hue advances with hour
+- **Type**: e2e
+- **Feature(s)**: led-001
+- **Objective**: Clock mode maps hour (0–23) to hue (0–255); colour shifts as hour changes.
+- **Preconditions**: NTP synced; current hour known.
+- **Steps**:
+  1. Set mode Clock via Picker → SAVE.
+  2. Note LED colour.
+  3. Retrieve expected hue: `hue = (hour * 255) / 23`.
+- **Expected result**: LED hue matches formula (visually approximate; verify with hour transition if near hour boundary).
+- **Harness**: manual + serial log (`[ledFlow] clock hue=` if debug enabled). Owner: VE.
+- **Status**: planned.
+
+### T-LED-06 — [led-001] Tapping "Color" opens Picker and pauses LedFlow
+- **Type**: e2e
+- **Feature(s)**: led-001
+- **Objective**: Picker view opens on "Color" tap; LedFlow animation pauses during Picker (no contention).
+- **Preconditions**: LED section List view, mode = Pulse.
+- **Steps**:
+  1. Tap "Color" row.
+  2. Observe LED and screen.
+- **Expected result**: Picker screen renders (button bar + SV square + hue strip). LED stops pulsing — holds fixed colour at current SV/hue values. No flicker.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-LED-07 — [led-001] SV square drag updates preview in real-time
+- **Type**: e2e
+- **Feature(s)**: led-001
+- **Objective**: Dragging within the SV square updates the working RGB immediately without committing.
+- **Preconditions**: Picker view open. LED is Off or Static so change is visible.
+- **Steps**:
+  1. Drag finger across SV square from corner to corner.
+  2. Observe LED hardware and SAVE button.
+- **Expected result**: LED colour changes continuously during drag. SAVE button highlighted (dirty). Original stored values not yet changed (cancel and re-enter → LED reverts to pre-drag colour).
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-LED-08 — [led-001] Hue strip drag updates hue in real-time
+- **Type**: e2e
+- **Feature(s)**: led-001
+- **Objective**: Dragging the hue strip changes hue across the 0–255 range.
+- **Preconditions**: Picker view open, S=255 V=200 (saturated, visible colour).
+- **Steps**:
+  1. Drag from top to bottom of hue strip.
+- **Expected result**: LED hue sweeps full spectrum (red → yellow → green → cyan → blue → magenta → red). SAVE dirty.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-LED-09 — [led-001] SAVE commits and resumes LedFlow
+- **Type**: e2e
+- **Feature(s)**: led-001
+- **Objective**: SAVE button writes working hue/sat/val/mode and resumes animation.
+- **Preconditions**: Picker open, SV/hue changed from stored value, mode = Pulse.
+- **Steps**:
+  1. Adjust hue to a noticeably different value.
+  2. Tap SAVE.
+- **Expected result**: Picker closes, List view shown. LED resumes Pulse at new hue. `/settings.json` contains updated ledHue (verify via serial `get snapshot` or reboot test T-LED-11).
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-LED-10 — [led-001] OFF button in Picker sets mode Off
+- **Type**: e2e
+- **Feature(s)**: led-001
+- **Objective**: Tapping OFF in the Picker button bar immediately extinguishes the preview LED.
+- **Preconditions**: Picker open, LED currently lit.
+- **Steps**:
+  1. Tap OFF button.
+  2. Observe LED (before SAVE).
+- **Expected result**: LED goes dark. SAVE dirty. Tapping SAVE returns to List; Mode row shows "Off".
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-LED-11 — [led-001] LED settings persist across restart
+- **Type**: e2e
+- **Feature(s)**: led-001, settings-001
+- **Objective**: ledMode/ledHue/ledSat/ledVal survive SPIFFS write and reload on boot.
+- **Preconditions**: LED set to Static H=120 (green-ish) S=200 V=180 via Picker → SAVE.
+- **Steps**:
+  1. Save distinctive settings.
+  2. Hard-reset DUT.
+  3. Boot without SPIFFS uploadfs.
+  4. Observe LED after boot.
+- **Expected result**: LED lights at the saved colour immediately after boot (LedFlow.applyMode() called in setup()).
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+---
+
+## Keyboard Widget (keyboard-001)
+
+### T-KB-01 — [keyboard-001] show() renders input field, prompt and key rows
+- **Type**: e2e
+- **Feature(s)**: keyboard-001
+- **Objective**: Calling show() paints the complete keyboard UI.
+- **Preconditions**: Keyboard not currently shown. (Use WifiSection Phase-2 or inject via debug command when available.)
+- **Steps**:
+  1. Trigger keyboard show with prompt "SSID" and empty initial value.
+- **Expected result**: Full-screen keyboard: prompt text visible in input bar, cursor blinking, QWERTY row 1 visible, row 2 below, row 3 + space bar, action row with OK. No pixel artefacts.
+- **Harness**: manual / serial tap injection (when wired). Owner: VE.
+- **Status**: planned.
+
+### T-KB-02 — [keyboard-001] Alpha key tap appends character
+- **Type**: e2e
+- **Feature(s)**: keyboard-001
+- **Objective**: Tapping an alphabetic key appends the lowercase character to the input buffer.
+- **Preconditions**: Keyboard open, mode=Full, page=lower, buffer empty.
+- **Steps**:
+  1. Tap 'H' key.
+  2. Tap 'i' key.
+- **Expected result**: Input field shows "hi". Cursor follows.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-KB-03 — [keyboard-001] Shift: one-shot uppercase then reverts
+- **Type**: e2e
+- **Feature(s)**: keyboard-001
+- **Objective**: Single SHIFT tap shifts next char only; page auto-reverts to lower.
+- **Preconditions**: Keyboard open, lower page.
+- **Steps**:
+  1. Tap ⇧ (SHIFT).
+  2. Observe key labels → should show uppercase.
+  3. Tap 'A'.
+  4. Observe page after tap.
+- **Expected result**: 'A' (uppercase) appended. Page immediately reverts to lowercase layout without another SHIFT tap.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-KB-04 — [keyboard-001] Backspace removes last character
+- **Type**: e2e
+- **Feature(s)**: keyboard-001
+- **Objective**: ⌫ (backspace) decrements buffer length by 1.
+- **Preconditions**: Buffer contains "Hello".
+- **Steps**:
+  1. Tap ⌫ once.
+- **Expected result**: Input shows "Hell". Cursor moves left. Buffer length = 4.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-KB-05 — [keyboard-001] SYM/ABC page cycling
+- **Type**: e2e
+- **Feature(s)**: keyboard-001
+- **Objective**: SYM key advances to symbol pages; ABC returns to alpha lower.
+- **Preconditions**: Keyboard open, lower page.
+- **Steps**:
+  1. Tap SYM → observe page 2 (sym1) key layout.
+  2. Tap SYM → observe page 3 (sym2) key layout (different symbols).
+  3. Tap ABC → observe lower alpha layout restored.
+- **Expected result**: Each page shows distinct symbol sets. ABC always returns to page 0.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-KB-06 — [keyboard-001] OK invokes onSubmit with buffer
+- **Type**: e2e
+- **Feature(s)**: keyboard-001
+- **Objective**: Tapping OK calls the registered onSubmit callback with exact buffer content.
+- **Preconditions**: Buffer contains "test123". onSubmit callback logs or stores value.
+- **Steps**:
+  1. Verify buffer shows "test123".
+  2. Tap OK.
+- **Expected result**: onSubmit called with "test123". Keyboard dismissed. No crash.
+- **Harness**: manual + serial log (callback prints). Owner: VE.
+- **Status**: planned.
+
+### T-KB-07 — [keyboard-001] Cancel invokes onCancel without submit
+- **Type**: e2e
+- **Feature(s)**: keyboard-001
+- **Objective**: Tapping Cancel calls onCancel and does not invoke onSubmit.
+- **Preconditions**: Buffer non-empty.
+- **Steps**:
+  1. Tap Cancel (or back equivalent).
+- **Expected result**: onCancel called, onSubmit not called. Keyboard dismissed. Original value unchanged.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-KB-08 — [keyboard-001] maxLen enforcement — no chars past limit
+- **Type**: e2e
+- **Feature(s)**: keyboard-001
+- **Objective**: Buffer never exceeds maxLen characters.
+- **Preconditions**: Keyboard open with maxLen=5.
+- **Steps**:
+  1. Type 6 characters.
+- **Expected result**: Only first 5 accepted. 6th tap produces no change to buffer or display. No overflow.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-KB-09 — [keyboard-001] Cursor blinks at ~500 ms
+- **Type**: e2e
+- **Feature(s)**: keyboard-001
+- **Objective**: Cursor visibility toggles at ~500 ms interval via tick().
+- **Preconditions**: Keyboard open, no key taps for 2 s.
+- **Steps**:
+  1. Observe cursor for 2 s.
+- **Expected result**: Cursor visible ~500 ms, hidden ~500 ms, repeat. Approximately 4 toggles in 2 s.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-KB-10 — [keyboard-001] UpperAlpha mode shows only A-Z, no SYM
+- **Type**: e2e
+- **Feature(s)**: keyboard-001
+- **Objective**: Mode::UpperAlpha renders uppercase alpha layout only; no SYM, SHIFT, or symbol pages.
+- **Preconditions**: Keyboard invoked with mode=UpperAlpha.
+- **Steps**:
+  1. Observe key layout.
+  2. Look for SYM and SHIFT keys.
+- **Expected result**: Only A-Z keys visible plus Backspace, Space, OK. No SYM key. No SHIFT. All letters uppercase.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-KB-11 — [keyboard-001] Space key appends space character
+- **Type**: e2e
+- **Feature(s)**: keyboard-001
+- **Objective**: Space bar inserts a space into the buffer.
+- **Preconditions**: Buffer = "hello".
+- **Steps**:
+  1. Tap Space.
+  2. Tap 'w', 'o', 'r', 'l', 'd'.
+- **Expected result**: Buffer = "hello world".
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-KB-12 — [keyboard-001] Empty initial value starts with cursor only
+- **Type**: e2e
+- **Feature(s)**: keyboard-001
+- **Objective**: show() with empty initial value renders empty input field with cursor at position 0.
+- **Preconditions**: Keyboard shown with initial="".
+- **Steps**:
+  1. Observe input bar immediately after show().
+- **Expected result**: Input bar shows only blinking cursor. No phantom characters. Buffer length = 0.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+---
+
+## Touch Calibration (cal-001)
+
+### T-CAL-01 — [cal-001] Idle screen shows current cal values and source
+- **Type**: e2e
+- **Feature(s)**: cal-001, settings-001
+- **Objective**: Entering Touch Calibration shows current xMin/xMax/yMin/yMax and whether source is SPIFFS or factory default.
+- **Preconditions**: Settings app open, category list visible. No prior user calibration (or one present).
+- **Steps**:
+  1. Tap "Touch Calibration".
+- **Expected result**: Idle screen: shows xMin/xMax/yMin/yMax values; source label "factory default" or "SPIFFS". "Start" button in header right. "< back" left.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-CAL-02 — [cal-001] Start advances to TL step; crosshair at top-left
+- **Type**: e2e
+- **Feature(s)**: cal-001
+- **Objective**: Tapping Start transitions to TL step with crosshair at (20, 48).
+- **Preconditions**: Idle screen.
+- **Steps**:
+  1. Tap "Start" (header right side, y < 28, x > 220).
+- **Expected result**: Screen header updates to "Tap top-left". Green crosshair renders at x=20, y=48. No other crosshairs.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-CAL-03 — [cal-001] All 4 corners collected → Review screen
+- **Type**: e2e
+- **Feature(s)**: cal-001
+- **Objective**: Tapping each corner target in sequence TL→TR→BR→BL transitions to Review screen.
+- **Preconditions**: TL step active.
+- **Steps**:
+  1. Tap near top-left target (20, 48). Observe TR step.
+  2. Tap near top-right target (254, 48). Observe BR step.
+  3. Tap near bottom-right target (254, 219). Observe BL step.
+  4. Tap near bottom-left target (20, 219). Observe Review screen.
+- **Expected result**: Step header advances after each tap. Review screen shows new xMin/xMax/yMin/yMax with delta vs. current. Accept button enabled (assuming reasonable taps). Tap markers at each corner.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-CAL-04 — [cal-001] Accept saves cal and applies to driver immediately
+- **Type**: e2e
+- **Feature(s)**: cal-001, touch-004
+- **Objective**: Tapping Accept writes /cal.json and calls ts.setCalibration() in the same tick.
+- **Preconditions**: Review screen, sanity checks passed (Accept enabled).
+- **Steps**:
+  1. Tap Accept.
+  2. Observe transition (Saving → Idle).
+  3. Test touch accuracy with a known tap target.
+  4. Verify `/cal.json` via SPIFFS read (serial `get snapshot` or reboot check).
+- **Expected result**: Idle screen returns. LED/tick continues. Touch accuracy reflects new calibration immediately (no reboot needed). `/cal.json` contains `current.xMin/xMax/yMin/yMax` matching displayed values.
+- **Harness**: manual + optional serial readback. Owner: VE.
+- **Status**: planned.
+
+### T-CAL-05 — [cal-001] Cal persists across reboot
+- **Type**: e2e
+- **Feature(s)**: cal-001
+- **Objective**: Calibration loaded from /cal.json in setup(); ts.setCalibration() called before first touch event.
+- **Preconditions**: Cal accepted in T-CAL-04; /cal.json written.
+- **Steps**:
+  1. Hard-reset DUT.
+  2. Tap a corner of the screen after boot.
+- **Expected result**: Touch mapped accurately using saved cal (not factory defaults). Serial log shows `TouchCalStorage: loaded xMin=... xMax=... yMin=... yMax=...` at boot.
+- **Harness**: manual + serial log. Owner: VE.
+- **Status**: planned.
+
+### T-CAL-06 — [cal-001] Retry restarts from TL step
+- **Type**: e2e
+- **Feature(s)**: cal-001
+- **Objective**: Tapping Retry on the Review screen discards pending cal and restarts from TL.
+- **Preconditions**: Review screen visible (after T-CAL-03 sequence).
+- **Steps**:
+  1. Tap Retry button.
+- **Expected result**: Step reverts to TL. Header = "Tap top-left". Green crosshair at (20, 48). Previous raw corner data discarded.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-CAL-07 — [cal-001] Cancel on Review discards and returns to Idle
+- **Type**: e2e
+- **Feature(s)**: cal-001
+- **Objective**: Tapping Cancel discards pending cal; returns to Idle without writing /cal.json.
+- **Preconditions**: Review screen.
+- **Steps**:
+  1. Note current cal values on Idle screen (before Start).
+  2. Complete 4 taps → Review.
+  3. Tap Cancel.
+- **Expected result**: Idle screen returns. xMin/xMax/yMin/yMax unchanged from step 1. /cal.json unchanged (timestamp not updated).
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-CAL-08 — [cal-001] Sanity fail: Accept dimmed, error message shown
+- **Type**: e2e
+- **Feature(s)**: cal-001
+- **Objective**: If 4 taps produce span < 1000 raw units (e.g. all taps in center), Accept is disabled.
+- **Preconditions**: Calibration step TL active.
+- **Steps**:
+  1. Tap all 4 corners in the very center of the screen (small raw spread).
+- **Expected result**: Review screen shows "Bad reading" header and "Span too small - tap Retry" message. Accept button dimmed. Retry and Cancel still active.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-CAL-09 — [cal-001] Raw touch accumulates multiple samples per corner
+- **Type**: integration
+- **Feature(s)**: cal-001
+- **Objective**: handleInputRaw accumulates raw samples while finger held down; averages on release.
+- **Preconditions**: Calibration at TL step (stepping() == true). Serial debug enabled.
+- **Steps**:
+  1. Hold finger on TL target for ~1 s (many tick cycles).
+  2. Release.
+  3. Check serial: `_rawCount` should be > 1 when averaged.
+- **Expected result**: Corner raw value is average of multiple samples (smoother than single read). Step advances to TR after release.
+- **Harness**: serial log / unit analysis. Owner: VE.
+- **Status**: planned.
+
+### T-CAL-10 — [cal-001] Back from Idle returns to Settings category list
+- **Type**: e2e
+- **Feature(s)**: cal-001, settings-001
+- **Objective**: "< back" from Idle returns to category list (GoBack signal).
+- **Preconditions**: Touch Calibration Idle screen.
+- **Steps**:
+  1. Tap "< back" (y < 28, x < 60).
+- **Expected result**: Category list reappears. No section state leaked.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+### T-CAL-11 — [cal-001] Back during stepping() is a no-op (raw path active)
+- **Type**: e2e
+- **Feature(s)**: cal-001
+- **Objective**: During corner-tap steps the normal scaled handleInput is bypassed; stray taps don't navigate away.
+- **Preconditions**: TL step active (stepping() == true).
+- **Steps**:
+  1. Tap top-left header area (< back region) without touching the crosshair zone.
+- **Expected result**: handleInput returns Continue (ignores back area during step). Step remains TL. No navigation.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+---
+
 ## Entry Format
 
 ```

@@ -988,13 +988,20 @@ features:
                T-DISP-01, T-DISP-02, T-DISP-03, T-DISP-04, T-DISP-05,
                T-TIME-01, T-TIME-02, T-TIME-03, T-TIME-04, T-TIME-05,
                T-APPS-01, T-APPS-02, T-APPS-03, T-APPS-04, T-APPS-05, T-APPS-06,
-               T-APPS-07, T-APPS-08]
+               T-APPS-07, T-APPS-08,
+               T-LED-01, T-LED-02, T-LED-03, T-LED-04, T-LED-05, T-LED-06,
+               T-LED-07, T-LED-08, T-LED-09, T-LED-10, T-LED-11,
+               T-KB-01, T-KB-02, T-KB-03, T-KB-04, T-KB-05, T-KB-06,
+               T-KB-07, T-KB-08, T-KB-09, T-KB-10, T-KB-11, T-KB-12,
+               T-CAL-01, T-CAL-02, T-CAL-03, T-CAL-04, T-CAL-05, T-CAL-06,
+               T-CAL-07, T-CAL-08, T-CAL-09, T-CAL-10, T-CAL-11]
     notes: |
       TASK-141/142 done (2026-06-05). Section impls wired 2026-06-06.
+      LedSection (section 4) and CalibrationFlow (section 2) implemented 2026-06-06 — all 6
+      sections now wired. KeyboardWidget global available for Phase-2 WifiSection.
       T-SET-03 and T-SET-07 STALE: settingsAppSubmenu debug var removed when AppsSection
       extracted; superseded by T-APPS-07. T-SET-06 updated to remove stale step.
       SettingsRow default member initializers removed (C++11 aggregate fix).
-      Remaining stubs: Touch Calibration (section 2), LED (section 4).
       Design: docs/architecture/designs/M-MULTIAPP/settings.md.
 
   - id: settings-wifi
@@ -1019,6 +1026,84 @@ features:
       Phase 1 wired into SettingsApp 2026-06-06 (section 0). Phase 2 removes wifi-001 (X013).
       Scan ↔ Spotify TLS conflict flagged as X014 — DUT validation pending (T-WIFI-06).
       Design: docs/architecture/designs/M-MULTIAPP/wifi-settings.md. ADR-040.
+
+  - id: led-001
+    name: LedSection + LedFlow — RGB LED settings and animation
+    description: |
+      LedSection : SettingsSection implements the LED tab in SettingsApp (section 4).
+      Two views: List (mode row + Color row) and Picker (HSV colour picker with SV square,
+      hue strip, and OFF/ON/SAVE button bar).
+      LedFlow global animator: Off (channels off), Static (fixed HSV), Pulse (sine-breathing
+      via lut_sin), Clock (hour→hue mapping). Runs continuously in appTick(); paused when
+      Picker is open (enter/leave hooks). Common-anode LED inversion: LED_WRITE(ch, duty)
+      maps 0=off, 255=full-on via ledcWrite(ch, 255-duty).
+      LEDC channels: ch1=R/GPIO4, ch2=G/GPIO16 (guarded by !NFC_ENABLED), ch3=B/GPIO17.
+      hsvToRgb() integer-only conversion in mathUtil.h. Settings persist in /settings.json
+      via settingsStorage (ledMode, ledHue, ledSat, ledVal).
+    status: implemented
+    git_ref: ""
+    files:
+      - app/src/settings/ledSection.h
+      - app/src/main.cpp
+      - app/src/util/mathUtil.h
+      - app/src/settingsStorage.h
+    cross_features: [settings-001, io-001]
+    test_ids: [T-LED-01, T-LED-02, T-LED-03, T-LED-04, T-LED-05, T-LED-06,
+               T-LED-07, T-LED-08, T-LED-09, T-LED-10, T-LED-11]
+    notes: |
+      Implemented 2026-06-06. SV square row-by-row render (168×168, stack buf per row).
+      NFC_ENABLED guard protects green channel share with PN532.
+
+  - id: keyboard-001
+    name: KeyboardWidget — full-screen on-screen QWERTY keyboard
+    description: |
+      KeyboardWidget modal full-screen keyboard (275×240 canvas). Two modes: Full (QWERTY
+      with alpha lower/upper + 2 symbol pages, 4 pages total) and UpperAlpha (A-Z only).
+      show(prompt, initial, mode, maxLen, onSubmit, onCancel, ctx) — raw function pointers.
+      Key features: cursor blink (500ms toggle), press highlight, one-shot SHIFT (auto-revert
+      to lower after one char), backspace, space, SYM/ABC page cycling, maxLen enforcement.
+      Hit-testing via hitTestCol(Rect, colW, x) from hitbox.h.
+      Not yet wired to WifiSection (Phase-2 placeholder).
+    status: implemented
+    git_ref: ""
+    files:
+      - app/src/settings/keyboardWidget.h
+      - app/src/main.cpp
+    cross_features: [settings-001, settings-wifi]
+    test_ids: [T-KB-01, T-KB-02, T-KB-03, T-KB-04, T-KB-05, T-KB-06,
+               T-KB-07, T-KB-08, T-KB-09, T-KB-10, T-KB-11, T-KB-12]
+    notes: |
+      Implemented 2026-06-06. Integrated as global g_keyboard; tick() called from appTick().
+      WifiSection Phase-2 will call g_keyboard.show() for password entry.
+
+  - id: cal-001
+    name: CalibrationFlow — XPT2046 runtime touch calibration
+    description: |
+      CalibrationFlow : SettingsSection (section 2) guides user through 4-corner tap
+      sequence to calibrate XPT2046 resistive touch. Raw touch path: SettingsApp::tick()
+      polls ts.getPointRaw() when stepping() is true, accumulates samples on Press, averages
+      on Release per corner. _computeCalibration() linear-fits 4 corners → xMin/xMax/yMin/yMax,
+      sanity-checks span>1000 and range 0..4095. Accepted cal saved to /cal.json (SPIFFS),
+      ts.setCalibration() called immediately (PATCH-002). Boot: TouchCalStorage::load() in
+      setup(), ts.setCalibration() if g_calData.valid.
+      TouchCalData persisted as JSON; factory anchor always preserved in history array.
+      Idle view: shows current values + source (SPIFFS/factory default).
+      Review view: new vs. current delta; Accept/Retry/Cancel buttons; Accept dimmed on
+      sanity failure.
+    status: implemented
+    git_ref: ""
+    files:
+      - app/src/settings/calibrationFlow.h
+      - app/src/settingsCalStorage.cpp
+      - app/src/main.cpp
+      - Spotify-Diy-Thing/SpotifyDiyThing/CYD28_TouchscreenR.h
+      - Spotify-Diy-Thing/SpotifyDiyThing/CYD28_TouchscreenR.cpp
+    cross_features: [settings-001, touch-004]
+    test_ids: [T-CAL-01, T-CAL-02, T-CAL-03, T-CAL-04, T-CAL-05, T-CAL-06,
+               T-CAL-07, T-CAL-08, T-CAL-09, T-CAL-10, T-CAL-11]
+    notes: |
+      Implemented 2026-06-06 (PATCH-002). CalStep::BotR used (not BR) — Xtensa specreg.h
+      defines BR=4 causing enum collision.
 
   - id: tooling-001
     name: Host-side tool-script smoke gate

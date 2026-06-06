@@ -694,15 +694,18 @@ static LifeApp g_LifeApp;
 #include "settings/timeSection.h"
 #include "settings/displaySection.h"
 #include "settings/appsSection.h"
+#include "settings/ledSection.h"
+#include "settings/keyboardWidget.h"
+#include "settings/calibrationFlow.h"
 
 class SettingsApp : public App {
 public:
   void init() override {
     _sections[0] = &_wifi;
     _sections[1] = &_time;
-    _sections[2] = nullptr;   // Touch Calibration — not yet implemented
+    _sections[2] = &_cal;
     _sections[3] = &_disp;
-    _sections[4] = nullptr;   // LED — not yet implemented
+    _sections[4] = &_led;
     _sections[5] = &_apps;
     repaintCategoryList();
   }
@@ -718,7 +721,24 @@ public:
   }
 
   void tick() override {
-    if (_activeSection) _activeSection->tick();
+    if (_activeSection) {
+      _activeSection->tick();
+      if (_activeSection == &_cal && _cal.justSaved()) {
+        _cal.clearJustSaved();
+        ts.setCalibration(g_calData.xMin, g_calData.xMax,
+                          g_calData.yMin, g_calData.yMax);
+      }
+      if (_activeSection == &_cal && _cal.stepping()) {
+        CYD28_TS_Point raw = ts.getPointRaw();
+        bool pressed    = (raw.z > CAL_Z_THRESHOLD);
+        bool wasPressed = (_lastCalZ > CAL_Z_THRESHOLD);
+        _lastCalZ = raw.z;
+        if (pressed)
+          _cal.handleInputRaw(TouchPhase::Press, raw.x, raw.y);
+        else if (wasPressed)
+          _cal.handleInputRaw(TouchPhase::Release, raw.x, raw.y);
+      }
+    }
   }
 
   bool handleInput(TouchPhase phase, int x, int y) override {
@@ -753,10 +773,13 @@ public:
 private:
   struct State { int8_t section = -1; } _s;
 
-  WifiSection      _wifi;
-  TimeSection      _time;
-  DisplaySection   _disp;
-  AppsSection      _apps;
+  WifiSection        _wifi;
+  TimeSection        _time;
+  CalibrationFlow    _cal;
+  DisplaySection     _disp;
+  AppsSection        _apps;
+  LedSection         _led;
+  int16_t            _lastCalZ = 0;
   SettingsSection* _sections[SETTINGS_CAT_COUNT];
   SettingsSection* _activeSection = nullptr;
 
@@ -822,6 +845,8 @@ private:
   }
 };
 static SettingsApp g_SettingsApp;
+LedFlow      g_ledFlow;
+KeyboardWidget g_keyboard;
 #ifdef SERIAL_DEBUG
 static bool settingsDbgGet(const char* v, char* b, int l) { return g_SettingsApp.dbgGet(v, b, l); }
 #endif
@@ -1624,6 +1649,8 @@ void appHandleInput(AppId) {
 }
 
 void appTick(AppId id) {
+  g_ledFlow.tick();
+  g_keyboard.tick();
   if (g_apps[(int)id]) g_apps[(int)id]->tick();
 }
 
@@ -1694,6 +1721,9 @@ void setup()
   // tft.init() (inside displaySetup above) uses digitalWrite(TFT_BL, HIGH) —
   // no LEDC channel is configured. Take over GPIO21 now so ledcWrite() works.
   SettingsStorage::load();
+  TouchCalStorage::load();
+  if (g_calData.valid)
+    ts.setCalibration(g_calData.xMin, g_calData.xMax, g_calData.yMin, g_calData.yMax);
   analogReadResolution(12);        // TASK-151: ensure 12-bit ADC for LDR on GPIO34
   ledcSetup(0, 5000, 8);           // 5 kHz, 8-bit — channel 0 matches TFT_LEDC_CHANNEL
   ledcAttachPin(TFT_BL, 0);        // redirect GPIO21 from digital to LEDC
@@ -1701,6 +1731,13 @@ void setup()
     int duty = map(constrain((int)g_settings.dispLevel, 1, 10), 1, 10, 25, 255);
     ledcWrite(0, (uint32_t)duty);   // apply stored brightness before first frame
   }
+  // RGB LED channels (ch1=R/GPIO4, ch2=G/GPIO16, ch3=B/GPIO17).
+  ledcSetup(LED_R_CH, 5000, 8); ledcAttachPin(LED_R_PIN, LED_R_CH);
+#if !NFC_ENABLED
+  ledcSetup(LED_G_CH, 5000, 8); ledcAttachPin(LED_G_PIN, LED_G_CH);
+#endif
+  ledcSetup(LED_B_CH, 5000, 8); ledcAttachPin(LED_B_PIN, LED_B_CH);
+  g_ledFlow.applyMode();
 
   refreshToken[0] = '\0';
   if (!fetchConfigFile(refreshToken, clientId, clientSecret))
