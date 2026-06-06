@@ -346,9 +346,16 @@ private:
         float xSlope = (float)(rxR - rxL) / screenW;
         float ySlope = (float)(ryB - ryT) / screenH;
 
+        // Extrapolate to the full 320×240 physical screen, matching sizeX_px/sizeY_px in
+        // CYD28_TouchR (ts is constructed with CYD28_DISPLAY_HOR_RES_MAX=320, _VER_=240).
+        // Left corner is at x=CAL_INSET_X=20  → extend 20px left  to x=0.
+        // Right corner is at x=254           → extend 65px right to x=319  (319-254=65).
+        // Top corner is at y=CAL_INSET_Y=48  → extend 48px up    to y=0.
+        // Bottom corner is at y=219          → extend 20px down  to y=239.
+        static const int16_t kRightExtend = 319 - (S_CANVAS_W - 1 - CAL_INSET_X); // = 65
         _pending.xMin = (int16_t)(rxL - CAL_INSET_X * xSlope);
-        _pending.xMax = (int16_t)(rxR + CAL_INSET_X * xSlope);
-        _pending.yMin = (int16_t)(ryT - 20.0f * ySlope);
+        _pending.xMax = (int16_t)(rxR + kRightExtend  * xSlope);
+        _pending.yMin = (int16_t)(ryT - CAL_INSET_Y   * ySlope);
         _pending.yMax = (int16_t)(ryB + (CAL_INSET_Y - CAL_HEADER_H) * ySlope);
 
         // Sanity checks
