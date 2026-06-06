@@ -2,7 +2,7 @@
 
 > Owner: Architect
 > Status: draft
-> Date: 2026-05-25 (updated 2026-06-04 — class sketch; list-row pattern; list-navigation model replacing tab bar)
+> Date: 2026-05-25 (updated 2026-06-04 — class sketch; list-row pattern; list-navigation model replacing tab bar; updated 2026-06-06 — OQ4/OQ5 resolved; C8 persistence EC added)
 > Part of: [overview.md](overview.md)
 > See also: [taskbar.md](taskbar.md), [app-lifecycle.md](app-lifecycle.md), [layout.md](layout.md), [stock.md](stock.md)
 
@@ -481,8 +481,14 @@ Row height is a shared convention (26 px), not enforced by a base class.
 1. ~~**App access mechanism**~~ — **resolved 2026-05-25**: slot 6, taskbar scrolls (40 px cells preserved, M-TASKBAR-SCROLL).
 2. ~~**Shared base class with StockApp list view**~~ — **resolved 2026-06-04**: no base class. See ADR-039.
 3. ~~**Navigation model**~~ — **resolved 2026-06-04**: vertical category list (6 entries), no tab bar. `section` index drives content panel. Tab-based model rejected.
-4. **Persistence** — `/settings.json` on SPIFFS alongside `/spotify_diy_config.json`. Schema draft in §Per-section content; finalise per section as implemented.
-5. **UX for value selection** — predefined cycle-on-tap (resistive touch friendly) chosen as default. Text entry via `KeyboardWidget` for WiFi password and ticker/coin entry.
+4. ~~**Persistence**~~ — **resolved 2026-06-06.** `/settings.json` on SPIFFS
+   alongside `/spotify_diy_config.json`. Schema finalised per section: LED
+   fields in [led-settings.md §Persistence schema](led-settings.md); cal values
+   in `/cal.json` (separate file per [touch-calibration.md §Storage](touch-calibration.md));
+   all other section values (display, app prefs) under `/settings.json`.
+5. ~~**UX for value selection**~~ — **resolved 2026-06-06.** Cycle-on-tap
+   confirmed for all enum/list values (resistive-touch friendly). `KeyboardWidget`
+   used only where free text is unavoidable: WiFi password, custom ticker/coin entry.
 6. **Category list scroll** — 6 entries × 26 px = 156 px; fits within 212 px content panel. No scroll needed at current count. If entries grow beyond 8 (208 px), add scroll arrows.
 
 ---
@@ -496,3 +502,4 @@ Row height is a shared convention (26 px), not enforced by a base class.
 - **C5** — `suspend()` resets `section=-1`, `appSubmenu=-1`; returning to Settings always lands on the category list.
 - **C6** — Applications section: tapping an app name opens its per-app row list; back returns to Applications list; back again returns to category list.
 - **C7** — `WifiFlow` and `CalibrationFlow` take over full content panel when active; returning from them via back restores the parent section.
+- **C8** — All settings values (LED mode/HSV, display brightness, app prefs) survive `ESP.restart()`; loaded from `/settings.json` at boot before first `tick()` runs.

@@ -2,7 +2,7 @@
 
 > Owner: Architect
 > Status: draft
-> Date: 2026-06-04 (updated 2026-06-05 — colour picker replaces predefined swatches; HSV storage)
+> Date: 2026-06-04 (updated 2026-06-05 — colour picker replaces predefined swatches; HSV storage; updated 2026-06-06 — common-anode confirmed; NFC/GPIO16 conflict handling)
 > Part of: M-MULTIAPP Settings (`led` tab)
 > See also: [settings.md](settings.md), [settingsSection.h](../../../app/src/settings/settingsSection.h)
 
@@ -10,7 +10,7 @@
 
 ## Hardware
 
-The CYD (ESP32-2432S028R) has an onboard RGB LED wired as a common-cathode
+The CYD (ESP32-2432S028R) has an onboard RGB LED wired as a **common-anode**
 device on three GPIO pins:
 
 | Channel | GPIO | ledc channel |
@@ -19,15 +19,30 @@ device on three GPIO pins:
 | Green | 16 | 2 |
 | Blue | 17 | 3 |
 
-**Active low (common cathode):** the cathode is tied to GND. Writing a PWM
-duty of 255 drives the anode high — LED ON at full brightness. Duty 0 = LED OFF.
+**Active low (common anode — confirmed on DUT):** the anode is tied to 3.3 V.
+GPIO cathodes must be pulled LOW to light a channel. With no LED control code,
+GPIO 4 defaults LOW → red lights at boot. This confirmed common-anode polarity.
 
-Verify polarity on the DUT: `digitalWrite(4, HIGH)` should light the red
-channel. If the LED is instead common-anode (anode tied to 3.3 V), invert:
-duty 0 = ON, duty 255 = OFF. See §Open questions.
+All `ledcWrite` values are **inverted**: duty 0 = full brightness (cathode at GND),
+duty 255 = OFF (cathode pulled to 3.3 V, no current). A helper macro centralises this:
+
+```c
+#define LED_WRITE(ch, duty)  ledcWrite((ch), 255 - (duty))
+```
+
+Use `LED_WRITE` everywhere instead of raw `ledcWrite` for LED channels.
 
 Each channel: `ledcSetup(ch, 5000, 8)` + `ledcAttachPin(gpio, ch)` during
-`setup()`. Write colour with `ledcWrite(ch, duty)`.
+`setup()`. Initial state after attach: duty 0 → LED ON (common-anode default).
+Immediately call `applyMode()` after setup to drive to the persisted state.
+
+### NFC / GPIO 16 conflict
+
+When `NFC_ENABLED` is defined, GPIO 16 is claimed by the PN532 HSPI MISO line
+and **must not** be driven by ledc. The green channel is therefore unavailable.
+
+Current DUT has no NFC hardware — not a blocker. The LED section handles this
+at compile time and runtime; see §NFC conflict handling below.
 
 ---
 
@@ -202,9 +217,9 @@ initial write.
 ```cpp
 void applyStatic() {
     auto [r, g, b] = hsvToRgb(g_settings.ledHue, g_settings.ledSat, g_settings.ledVal);
-    ledcWrite(LED_R_CH, r);
-    ledcWrite(LED_G_CH, g);
-    ledcWrite(LED_B_CH, b);
+    LED_WRITE(LED_R_CH, r);
+    LED_WRITE(LED_G_CH, g);
+    LED_WRITE(LED_B_CH, b);
 }
 ```
 
@@ -221,9 +236,9 @@ if (_phase > TWO_PI) _phase -= TWO_PI;
 float env = (sinf(_phase) + 1.0f) * 0.5f;    // 0.0 .. 1.0
 uint8_t val = (uint8_t)(g_settings.ledVal * env);
 auto [r, g, b] = hsvToRgb(g_settings.ledHue, g_settings.ledSat, val);
-ledcWrite(LED_R_CH, r);
-ledcWrite(LED_G_CH, g);
-ledcWrite(LED_B_CH, b);
+LED_WRITE(LED_R_CH, r);
+LED_WRITE(LED_G_CH, g);
+LED_WRITE(LED_B_CH, b);
 ```
 
 `tick()` uses `lut_sin` (from `mathUtil.h`, ADR-038). Phase step is
@@ -241,9 +256,9 @@ struct tm t;
 if (!getLocalTime(&t)) return;
 uint8_t hue = (uint8_t)((t.tm_hour * 256) / 24);
 auto [r,g,b] = hsvToRgb(hue, 255, 255);
-ledcWrite(LED_R_CH, r);
-ledcWrite(LED_G_CH, g);
-ledcWrite(LED_B_CH, b);
+LED_WRITE(LED_R_CH, r);
+LED_WRITE(LED_G_CH, g);
+LED_WRITE(LED_B_CH, b);
 ```
 
 ---
@@ -317,6 +332,9 @@ Constants (append to `gen/shell_layout.h` or define in led section header):
 #define LED_R_CH   1    // ledc channels (0 = TFT_BL, reserved)
 #define LED_G_CH   2
 #define LED_B_CH   3
+
+// Common-anode: invert duty so 0=ON, 255=OFF from the caller's perspective.
+#define LED_WRITE(ch, duty)  ledcWrite((ch), 255 - (uint8_t)(duty))
 ```
 
 ---
@@ -601,43 +619,84 @@ inline void LedSection::hueFromTouch(int py) {
 }
 
 inline void LedSection::applyLed() const {
-    // Convert working HSV to RGB and write to ledc channels.
-    // Off mode: all channels to 0 regardless of colour.
     if (_mode == LedMode::Off) {
-        ledcWrite(LED_R_CH, 0);
-        ledcWrite(LED_G_CH, 0);
-        ledcWrite(LED_B_CH, 0);
+        LED_WRITE(LED_R_CH, 0);
+        LED_WRITE(LED_G_CH, 0);
+        LED_WRITE(LED_B_CH, 0);
         return;
     }
     auto [r, g, b] = hsvToRgb(_hue, _sat, _val);
-    ledcWrite(LED_R_CH, r);
-    ledcWrite(LED_G_CH, g);
-    ledcWrite(LED_B_CH, b);
+    LED_WRITE(LED_R_CH, r);
+#if NFC_ENABLED
+    (void)g;   // GPIO 16 owned by PN532 HSPI MISO — do not drive
+#else
+    LED_WRITE(LED_G_CH, g);
+#endif
+    LED_WRITE(LED_B_CH, b);
 }
 ```
 
 ---
 
+## NFC conflict handling
+
+When `NFC_ENABLED` is defined the PN532 HSPI MISO line is wired to GPIO 16
+(green channel). The LED section must not initialise or write that ledc channel.
+
+**At setup:** skip `ledcSetup(LED_G_CH, …)` and `ledcAttachPin(LED_G_PIN, …)`:
+
+```cpp
+ledcSetup(LED_R_CH, 5000, 8); ledcAttachPin(LED_R_PIN, LED_R_CH);
+#if !NFC_ENABLED
+ledcSetup(LED_G_CH, 5000, 8); ledcAttachPin(LED_G_PIN, LED_G_CH);
+#endif
+ledcSetup(LED_B_CH, 5000, 8); ledcAttachPin(LED_B_PIN, LED_B_CH);
+```
+
+**In `applyLed()`:** guard the green write (already reflected in class sketch above).
+
+**Colour picker UI — limited palette when NFC active:** the SV square and hue
+strip render normally, but when the user releases a drag the selected colour is
+re-mapped so that the green component is zeroed before being applied. The picker
+shows a one-line notice at the bottom of the button bar:
+
+```
+  NFC active — green channel unavailable
+```
+
+Rendered in `S_VALUE_OFF` (grey), 12 pt, centred in the 8 px gap between the
+button bar and the SV square (y=56..60 — extend gap to 16 px when NFC_ENABLED,
+or render inside the button bar right-side dead space).
+
+The picker hue strip and SV square still render in full colour as a colour
+reference; only the physical LED output is limited. This avoids a confusing
+experience where moving the hue strip produces no colour change at certain hues.
+
+Current DUT has no NFC hardware — `NFC_ENABLED` is 0. This path is compile-time
+dead code for now; no functional impact.
+
+---
+
 ## Open questions
 
-1. **Common-cathode vs common-anode** — assumed common-cathode (duty 255 = ON).
-   Verify with `ledcWrite(LED_R_CH, 255)` on DUT. If the LED doesn't light,
-   the board is common-anode; flip all `ledcWrite` values to `255 - duty`.
-   If confirmed common-anode, add `#define LED_ACTIVE_LOW 1` and invert in
-   `applyStatic()`.
-2. **SV square render cost** — 168×168 px scanline loop is ~50–80 ms as a
-   one-shot paint on enter and on hue change. Acceptable. If too slow, cache
-   the square as a 16-bit sprite (168×168 × 2 bytes = 56 KB) — likely too
-   large for ESP32 SRAM; stick with per-paint.
-3. **Pulse sine cost** — `lut_sin` once per frame (~30 Hz). Negligible. If
-   `mathUtil.h` unavailable (ADR-038 pending), use triangle wave fallback.
-4. **Clock mode update frequency** — gate update: compare `t.tm_hour` to
-   `_lastHour`; skip `ledcWrite` if unchanged.
-5. **Interaction with NFC** — `nfc.h` may use GPIO16 (LED green channel) for
-   PN532 HSPI MISO. Check pin assignment when `NFC_ENABLED` is defined.
-6. **Hue strip cursor contrast** — white 3 px bar is visible against all hues
-   except near-white (hue=any, low saturation is not on the strip since strip
-   is always S=255, V=255). No contrast issue on the strip itself.
+1. ~~**Common-cathode vs common-anode**~~ — **resolved 2026-06-06.** DUT is
+   **common-anode**. GPIO 4 defaults LOW at boot → red lights without any LED
+   code. All writes use `LED_WRITE(ch, duty)` macro which inverts to `255-duty`.
+2. ~~**SV square render cost**~~ — **resolved 2026-06-06.** 50–80 ms acceptable
+   as a one-shot paint on enter and on hue change. Sprite cache (168×168 × 2 B
+   = 56 KB) too large for ESP32 SRAM; stick with per-paint.
+3. ~~**Pulse sine cost**~~ — **resolved 2026-06-06.** `lut_sin` once per frame
+   (~30 Hz) is negligible. If `mathUtil.h` unavailable (ADR-038 not yet
+   merged), use triangle wave fallback in `tick()`.
+4. ~~**Clock mode update frequency**~~ — **resolved 2026-06-06.** Gate on
+   `_lastHour` compare in `tick()`; skip `ledcWrite` if `t.tm_hour` unchanged.
+5. ~~**Interaction with NFC**~~ — **resolved 2026-06-06.** Current DUT has no
+   NFC. When `NFC_ENABLED` is defined: skip GPIO 16 ledc init; guard green
+   write in `applyLed()`; show "NFC active — green channel unavailable" notice
+   in the picker. See §NFC conflict handling.
+6. ~~**Hue strip cursor contrast**~~ — **resolved 2026-06-06.** White 3 px bar
+   visible against all hues on the strip (strip is always S=255, V=255 — no
+   near-white region). No contrast issue.
 
 ---
 

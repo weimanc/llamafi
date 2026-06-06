@@ -2,7 +2,7 @@
 
 > Owner: Architect
 > Status: draft
-> Date: 2026-06-04
+> Date: 2026-06-04 (updated 2026-06-06 — page 4 eliminated; OQ2/OQ3 resolved; implementation sketches; reusable elements noted)
 > Part of: M-MULTIAPP
 > Consumers: [wifi-settings.md](wifi-settings.md), settings `app` tab (stock/crypto ticker entry)
 > See also: [settings.md](settings.md), [touch-calibration.md](touch-calibration.md)
@@ -57,8 +57,12 @@ private:
     uint8_t _maxLen;
     char    _buf[65];   // maxLen ≤ 64 + NUL
     uint8_t _len;
-    uint8_t _page;      // 0 = alpha/lower, 1 = alpha/upper, 2 = symbols/numbers
-    bool    _dirty;
+    uint8_t  _page;      // 0 = alpha/lower, 1 = alpha/upper, 2..3 = symbol pages
+    bool     _dirty;
+    bool     _oneShot;          // auto-revert page 1→0 after one char
+    bool     _blinkVisible;     // cursor blink state
+    uint32_t _blinkMs;          // millis() timestamp of last blink toggle
+    bool     _pressHighlight;   // true for one tick after a key press
     void (*_onSubmit)(const char*, void*);
     void (*_onCancel)(void*);
     void*   _ctx;
@@ -102,7 +106,7 @@ y=200 +-----------------------------------+
 y=240 +-----------------------------------+
 ```
 
-**Symbol pages (2/3/4):**
+**Symbol pages (2/3):**
 ```
 y=0   +-----------------------------------+
       |  input bar  (h=40)                |
@@ -173,8 +177,8 @@ layout: [⇧ 40][Z][X][C][V][B][N][M][⌫ 40]  = 40 + 7×28 + 40 = 276 ≈ 275
 [ABC 40px][NEXT 40px][   SPACE 100px   ][⌫ 35px][OK 60px]  = 275px ✓
 ```
 
-`NEXT` label cycles: `"#+="`  on page 2, `"~\`"` on page 3, `"123"` on page 4
-(wraps back to page 2). `ABC` always returns to page 0.
+`NEXT` label: `"#+="`  on page 2 (→ page 3), `"123"` on page 3 (wraps → page 2).
+`ABC` always returns to page 0.
 
 `⌫` is in the action row for symbol pages because the uniform symbol grid has
 no dedicated backspace key (unlike the alpha layout's row 3).
@@ -193,7 +197,7 @@ Row 3 (y=120): -  _  =  +  [  ]  {  }  \  |
 Row 4 (y=200): (empty — dark fill)
 ```
 
-**Page 3** (`"#+="`  → 20 keys across rows 1–2):
+**Page 3** (`"#+="`  → 12 keys across rows 1–2):
 
 ```
 Row 1 (y= 40): ;  :  '  "  ,  .  /  <  >  ?
@@ -202,21 +206,13 @@ Row 3 (y=120): (empty)
 Row 4 (y=200): (empty)
 ```
 
-**Page 4** (`"~\`"` → 2 keys, rest empty):
-
-```
-Row 1 (y= 40): ~  `  (8 empty slots)
-Row 2 (y= 80): (empty)
-Row 3 (y=120): (empty)
-Row 4 (y=200): (empty)
-```
-
-Page 4 exists to make `~` and `` ` `` reachable without squeezing them into an
-already-full page. Empty key cells are filled with the background colour and
-are non-interactive (hit test returns no character).
+Empty key cells are filled with the background colour and are non-interactive
+(hit test returns no character).
 
 **Full coverage:** all 42 non-alpha characters (`0`–`9` + 32 ASCII punct) are
-reachable within 3 SYM taps from the alpha page.
+reachable within 2 SYM/NEXT taps from the alpha page (page 2 → page 3 → page 2).
+Page 3 Row 2 holds the two remaining punctuation chars (`~` `` ` ``) after the
+10-key rows on page 2 exhaust the first 30 non-alpha chars.
 
 ---
 
@@ -236,8 +232,8 @@ x=0 x=8                              x=240      x=248 x=275
 - `⌫` in top-right (27px wide) — alternative backspace touch zone for
   users who find row-3 ⌫ hard to reach
 
-Background: `KB_INPUT_BG = 0x2104` (match settings background).
-Input text color: `0xFFFF`. Prompt color: `0x7BEF` (grey).
+Background: `S_BG` (`0x2104`) from `settingsSection.h` — same canvas; no separate constant needed.
+Input text color: `S_HDR_TXT` (`0xFFFF`). Prompt color: `S_VALUE_OFF` (`0x7BEF`).
 
 ---
 
@@ -247,9 +243,8 @@ Input text color: `0xFFFF`. Prompt color: `0x7BEF` (grey).
 |---------|-------|------|----------------|
 | 0 | Lowercase | a–z | `"123"` |
 | 1 | Uppercase | A–Z | `"123"` |
-| 2 | Digits + punct batch 1 | `1–0 ! @ # … \ |` | `"#+="`  |
-| 3 | Punct batch 2 | `; : ' " , . / < > ? ~ \`` | `"~\`"` |
-| 4 | Misc / rare | `~ \`` (sparse) | `"123"` → wraps to page 2 |
+| 2 | Digits + punct batch 1 | `1–0 ! @ # … \ |` (30 keys) | `"#+="`  |
+| 3 | Punct batch 2 | `; : ' " , . / < > ? ~ \`` (12 keys) | `"123"` → wraps to page 2 |
 
 **Page transitions:**
 
@@ -257,8 +252,7 @@ Input text color: `0xFFFF`. Prompt color: `0x7BEF` (grey).
 ⇧ tap              → toggle page 0 ↔ 1
 SYM tap (page 0/1) → go to page 2
 NEXT tap (page 2)  → go to page 3
-NEXT tap (page 3)  → go to page 4
-NEXT tap (page 4)  → go to page 2  (wrap)
+NEXT tap (page 3)  → go to page 2  (wrap)
 ABC  tap (any sym) → go to page 0
 ```
 
@@ -323,14 +317,197 @@ bypass `_dirty` and call their draw routines directly.
 
 ---
 
+## Reusable elements from existing code
+
+| Element | Source | How keyboard uses it |
+|---------|--------|---------------------|
+| `Rect`, `hitTest()`, `hitTestCol()` | `touch/hitbox.h` | Input bar / action zone bounds; uniform 10-key symbol grid column lookup — one `hitTestCol()` call per row replaces manual division |
+| `S_BG`, `S_SEP`, `S_HDR_TXT`, `S_VALUE_OFF`, `S_VALUE_ON` | `settings/settingsSection.h` | Full palette — keyboard overlays same 275×240 canvas; earlier `KB_INPUT_BG` was a duplicate of `S_BG` (removed) |
+| `SliderWidget` press-capture pattern | `settings/sliderWidget.h:44` | Press → set `_pressHighlight`, repaint key cell; on next `tick()` clear `_pressHighlight` and revert cell — identical idiom |
+| `millis()` delta for spinner | `settings/wifiSection.h:72` | Cursor blink at 500 ms — same `uint32_t now = millis(); if (now - _blinkMs >= 500)` pattern |
+| `TouchPhase` | `touchPhase.h` | Already in interface; keyboard consumes Press and Release only (Move unused) |
+
+---
+
+## Implementation sketches
+
+### Symbol page data
+
+```cpp
+// Per-row key tables for alpha layout
+static constexpr char kRow1[10] = {'Q','W','E','R','T','Y','U','I','O','P'};
+static constexpr char kRow2[9]  = {'A','S','D','F','G','H','J','K','L'};
+static constexpr char kRow3[7]  = {'Z','X','C','V','B','N','M'};
+
+// kSym[page-2][row][col]; '\0' = empty / non-interactive cell
+static constexpr char kSym[2][4][10] = {
+    {   // page 2
+        {'1','2','3','4','5','6','7','8','9','0'},
+        {'!','@','#','$','%','^','&','*','(',')'},
+        {'-','_','=','+','[',']','{','}','\\','|'},
+        {'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0'},
+    },
+    {   // page 3
+        {';',':','\'','"',',','.','/','>','<','?'},
+        {'~','`','\0','\0','\0','\0','\0','\0','\0','\0'},
+        {'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0'},
+        {'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0'},
+    },
+};
+```
+
+### Hit testing
+
+`hitTestCol()` from `hitbox.h` handles the uniform 10-key grid — no manual math needed:
+
+```cpp
+bool KeyboardWidget::hitTest(int x, int y, char* outChar, uint8_t* outAction) {
+    if (y < KB_INPUT_H) {
+        if (x >= 248) { *outAction = ACT_BACKSPACE; return true; }
+        return false;
+    }
+    int row = (y - KB_INPUT_H) / KB_ROW_H;   // 0=row1 .. 4=sym-row4
+    if (row < 0 || row > 4) return false;
+
+    if (_page <= 1) {
+        if (row == 0) {
+            Rect g = { 0, (int16_t)KB_INPUT_H, S_CANVAS_W, KB_ROW_H };
+            int col = hitTestCol(g, S_CANVAS_W / 10, x);
+            if (col < 0) return false;
+            char c = kRow1[col];
+            *outChar = (_page == 0) ? (char)tolower(c) : c;
+            return true;
+        }
+        if (row == 1) {
+            int x0 = (S_CANVAS_W - 9 * KB_KEY_W) / 2;
+            if (x < x0 || x >= x0 + 9 * KB_KEY_W) return false;
+            char c = kRow2[(x - x0) / KB_KEY_W];
+            *outChar = (_page == 0) ? (char)tolower(c) : c;
+            return true;
+        }
+        if (row == 2) {
+            if (x < 40)         { *outAction = ACT_SHIFT;     return true; }
+            if (x >= 40 + 7*28) { *outAction = ACT_BACKSPACE; return true; }
+            char c = kRow3[(x - 40) / 28];
+            *outChar = (_page == 0) ? (char)tolower(c) : c;
+            return true;
+        }
+        // row == 3 — action row: [SYM 46][SPACE 156][OK 73]
+        if (x < 46)  { *outAction = ACT_SYM;   return true; }
+        if (x < 202) { *outAction = ACT_SPACE;  return true; }
+        *outAction = ACT_OK; return true;
+
+    } else {
+        // Symbol pages — uniform 10-key grid rows 0-3
+        if (row <= 3) {
+            Rect g = { 0, (int16_t)(KB_INPUT_H + row * KB_ROW_H), S_CANVAS_W, KB_ROW_H };
+            int col = hitTestCol(g, S_CANVAS_W / 10, x);
+            if (col < 0) return false;
+            char c = kSym[_page - 2][row][col];
+            if (c == '\0') return false;
+            *outChar = c; return true;
+        }
+        // row == 4 — sym action row: [ABC 40][NEXT 40][SPACE 100][⌫ 35][OK 60]
+        if (x < 40)  { *outAction = ACT_ABC;       return true; }
+        if (x < 80)  { *outAction = ACT_NEXT;      return true; }
+        if (x < 180) { *outAction = ACT_SPACE;     return true; }
+        if (x < 215) { *outAction = ACT_BACKSPACE; return true; }
+        *outAction = ACT_OK; return true;
+    }
+    return false;
+}
+```
+
+### Input bar repaint
+
+```cpp
+void KeyboardWidget::repaintInputBar() {
+    tft.fillRect(0, 0, S_CANVAS_W, KB_INPUT_H, S_BG);
+    int cy = KB_INPUT_H / 2;
+    tft.setTextDatum(ML_DATUM);
+    tft.setTextColor(S_VALUE_OFF);
+    tft.drawString(_prompt, 8, cy, 2);
+    tft.setTextDatum(MR_DATUM);
+    tft.setTextColor(S_HDR_TXT);
+    tft.drawString(_buf, 238, cy, 2);
+    if (_blinkVisible) {
+        tft.setTextDatum(ML_DATUM);
+        tft.drawString("|", 240, cy, 2);
+    }
+    // Backspace shortcut — top-right (x 248..274)
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(S_SEP);
+    tft.drawString("\xe2\x8c\xab", 261, cy, 2);   // ⌫ UTF-8
+    tft.setTextDatum(TL_DATUM);
+    tft.drawFastHLine(0, KB_INPUT_H - 1, S_CANVAS_W, S_SEP);
+}
+```
+
+### Tick — cursor blink and press feedback
+
+```cpp
+void KeyboardWidget::tick() {
+    if (!_active) return;
+    // Cursor blink — same millis()-delta idiom as wifiSection.h:72
+    uint32_t now = millis();
+    if (now - _blinkMs >= 500) {
+        _blinkMs      = now;
+        _blinkVisible = !_blinkVisible;
+        repaintInputBar();   // partial repaint — key rows unchanged
+    }
+    // Press-highlight: revert key cell on the tick after the press
+    if (_pressHighlight) {
+        _pressHighlight = false;
+        repaintKeys();
+    }
+}
+```
+
+### Input helpers
+
+```cpp
+void KeyboardWidget::appendChar(char c) {
+    if (_len < _maxLen) _buf[_len++] = c;
+    _buf[_len] = '\0';
+    if (_oneShot && _page == 1) { _page = 0; _dirty = true; }
+    _oneShot = false;
+    repaintInputBar();
+    if (_dirty) repaintKeys();
+}
+
+void KeyboardWidget::backspace() {
+    if (_len > 0) _buf[--_len] = '\0';
+    repaintInputBar();
+}
+
+void KeyboardWidget::submit() {
+    if (_len == 0) return;
+    hide();
+    if (_onSubmit) _onSubmit(_buf, _ctx);
+}
+
+void KeyboardWidget::cancel() {
+    hide();
+    if (_onCancel) _onCancel(_ctx);
+}
+```
+
+---
+
 ## Open questions
 
-1. ~~**Symbol page layout**~~ — **resolved**: Option A — 3 symbol pages (2/3/4),
-   each with full 40px key rows. All 42 non-alpha chars covered.
-2. **Auto-shift after one uppercase** — pleasant UX but adds state; optional,
-   implement as `_oneShot` flag.
-3. **Cursor blink** — `tick()` toggles blink state at 500ms interval.
-   Requires `millis()` delta tracking; low cost, confirm not annoying on device.
+1. ~~**Symbol page layout**~~ — **resolved**: 2 symbol pages (2/3), each with full
+   40px key rows. Page 2: 30 keys (digits + punct batch 1). Page 3: 12 keys (punct
+   batch 2 incl. `~` `` ` ``). All 42 non-alpha chars covered. Page 4 eliminated
+   2026-06-06 — was a redundant copy of page 3 row 2.
+2. ~~**Auto-shift after one uppercase**~~ — **resolved 2026-06-06.** Implement
+   `_oneShot`: set on ⇧ tap; cleared after one char appended on page 1 (reverts
+   to page 0). `_dirty = true` triggers `repaintKeys()`. Already named in class
+   sketch; see `appendChar()` in §Implementation sketches.
+3. ~~**Cursor blink**~~ — **resolved 2026-06-06.** `tick()` toggles `_blinkVisible`
+   at 500 ms using `millis()` delta — same idiom as `wifiSection.h:72`. Partial
+   repaint (`repaintInputBar()` only; key rows unchanged). Members `_blinkMs` and
+   `_blinkVisible` added to class sketch.
 4. **Swipe-to-delete** — left swipe on input bar clears whole field. Deferred;
    not needed for MVP.
 
@@ -348,3 +525,5 @@ bypass `_dirty` and call their draw routines directly.
 - **C7** — No pixels drawn outside x:0..274 / y:0..239 (taskbar untouched).
 - **C8** — `WifiFlow` password entry: submitted string passed verbatim to
   `WiFi.begin(ssid, pass)` (no truncation, no extra NUL issues).
+- **C9** — `UpperAlpha` mode: action row renders as `[SPACE 202px][OK 73px]`; no SYM,
+  NEXT, or ⇧ key visible; `_page` locked at 1; no symbol pages reachable from any tap.

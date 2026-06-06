@@ -2,7 +2,7 @@
 
 > Owner: Architect
 > Status: draft
-> Date: 2026-06-04
+> Date: 2026-06-04 (updated 2026-06-05 — full class sketch; constants; rendering sketches; SettingsApp integration; resolved OQ1/OQ2/OQ3; active()/stepping() split; header overlap fix)
 > Part of: M-MULTIAPP Settings (`cal` tab)
 > See also: [settings.md](settings.md), [upstream-patches.md](upstream-patches.md)
 
@@ -83,27 +83,83 @@ if (g_calData.valid)
 ## Architecture — CalibrationFlow as a SettingsApp component
 
 Calibration is **not** a separate `AppId`. It is a full-canvas component owned
-by `SettingsApp`, activated when the user enters the `cal` tab. Pattern follows
-the "keyboard is a widget" precedent from [settings.md §Keyboard is a widget](settings.md).
+by `SettingsApp`, activated when the user enters the Touch Calibration category.
+Pattern follows the "keyboard is a widget" precedent from
+[settings.md §Keyboard is a widget](settings.md).
 
 When `_calFlow.active()` is true, `SettingsApp::tick()` and
 `SettingsApp::handleInput()` fully delegate to `_calFlow`. The taskbar is still
 rendered; only the 275×240 left canvas is taken over.
 
+`SettingsApp` holds `CalibrationFlow _calFlow;` and `int16_t _lastCalZ = 0;`
+as members.
+
+---
+
+## CalibrationFlow class sketch
+
 ```cpp
+enum class CalStep : uint8_t { Idle, TL, TR, BR, BL, Review, Saving };
+
+struct CalibrationFlowState {
+    CalStep  step      = CalStep::Idle;
+    int16_t  rawX[4], rawY[4];   // measured raw values — corners TL=0..BL=3
+    uint8_t  tapsDone  = 0;      // 0..4
+    bool     sanityFailed = false;
+    TouchCalData pending;        // computed values waiting for Accept
+};
+
 class CalibrationFlow {
 public:
-    void start();          // called when user enters cal tab
-    bool active() const;   // true while calibration in progress
-    void tick();           // called by SettingsApp::tick() when active
-    bool handleInput(TouchPhase phase, int x, int y);
-    // x/y here are RAW values, not scaled — see §Raw input during calibration
+    // Called by SettingsApp::onCategoryTap(2) — enters the cal section, shows Idle view.
+    void start();
+
+    // True whenever the cal section owns the screen (including Idle).
+    // SettingsApp delegates handleInput() here while active().
+    bool active() const { return _open; }
+
+    // True only while collecting corner taps (STEP_TL..STEP_BL).
+    // SettingsApp::tick() uses this — not active() — to guard the raw poll.
+    bool stepping() const {
+        return _s.step >= CalStep::TL && _s.step <= CalStep::BL;
+    }
+
+    // Called every tick by SettingsApp::tick() when active().
+    // Handles the Saving state (writes to SPIFFS, then resets).
+    void tick();
+
+    // Scaled touch input — Idle and Review button taps.
+    // Returns true if the event was consumed.
+    bool handleInput(TouchPhase phase, int scaledX, int scaledY);
+
+    // Raw XPT2046 input — STEP_* states only.
+    // Called from SettingsApp::tick() via ts.getPointRaw() when stepping().
+    // Accumulates samples while pressed; latches averaged values on Release.
+    // Returns true when a tap is recorded (step advances).
+    bool handleInputRaw(TouchPhase phase, int16_t rawX, int16_t rawY);
+
 private:
-    // ... state machine + rendering (see below)
+    CalibrationFlowState _s;
+    bool    _open    = false;  // true from start() until reset()
+
+    // Running-average accumulators for raw tap (OQ5)
+    int32_t _rawSumX = 0, _rawSumY = 0;
+    int16_t _rawCount = 0;
+
+    // Rendering
+    void repaintIdle();
+    void repaintStep();     // renders current corner target + completed dots
+    void repaintReview();
+    void repaintHeader(const char* title);
+    void drawCrosshair(int x, int y, uint16_t color);
+    void drawTapMarker(int cornerIdx);  // expected dot + actual dot + offset vector
+
+    // Logic
+    bool computeCalibration();  // fills _s.pending; returns false on sanity fail
+    void doSave();              // writes _s.pending to TouchCalStorage + g_calData
+    void reset();               // clears _open + _s; called on cancel or post-save
 };
 ```
-
-`SettingsApp` holds `CalibrationFlow _calFlow;` as a member.
 
 ---
 
@@ -186,18 +242,96 @@ dots (greyed).
 
 ---
 
-## Raw input during calibration
+## Constants
 
-During the STEP_* states, `CalibrationFlow::handleInput()` must receive **raw**
-XPT2046 values, not calibrated screen coordinates. The existing touch pipeline
-delivers scaled values; calibration flow needs the unscaled path.
+```c
+// Geometry
+#define CAL_HEADER_H        28     // mirrors SETTINGS_HEADER_H
+#define CAL_CONTENT_Y       28
+#define CAL_INSET_X         20
+#define CAL_INSET_Y         48     // CAL_HEADER_H + 20 px margin
+#define CAL_CROSSHAIR_ARM   24     // arm half-length (px)
+#define CAL_Z_THRESHOLD    400     // raw Z pressure threshold — tap vs lift
 
-Option: add a `handleInputRaw(TouchPhase, int rawX, int rawY)` overload, called
-by a separate poll in `SettingsApp::tick()` using `ts.getPointRaw()` when
-`_calFlow.active()` is true. The normal `handleInput(phase, scaledX, scaledY)`
-path is bypassed for the cal flow's STEP_* states.
+// Review-state button geometry (bottom of content area)
+#define CAL_BTN_Y          210     // vertical centre of button row
+#define CAL_BTN_H           26
+#define CAL_BTN_W           78
+#define CAL_BTN_ACCEPT_X     4     // left-edge x for Accept box
+#define CAL_BTN_RETRY_X     95     // left-edge x for Retry box
+#define CAL_BTN_CANCEL_X   186     // left-edge x for Cancel box
 
-IDLE and REVIEW states use scaled input normally (tapping UI buttons).
+// Colours
+#define CAL_BG_COLOR          0x2104  // same as SETTINGS_BG_RGB565
+#define CAL_SEP_COLOR         0x4208
+#define CAL_HEADER_COLOR      0xFFFF
+#define CAL_SECTION_COLOR     0xFFE0  // yellow — section headers
+#define CAL_VALUE_COLOR       0x07FF  // cyan — calibration values
+#define CAL_DIM_COLOR         0x7BEF  // grey — source / history labels
+#define CAL_CROSSHAIR_ACTIVE  0x07E0  // Spotify green — active target
+#define CAL_CROSSHAIR_DONE    0x4208  // grey — completed corner dot
+#define CAL_MARKER_OK         0x07E0  // actual tap ≤4 px from expected
+#define CAL_MARKER_NEAR       0xFFE0  // 4–8 px offset
+#define CAL_MARKER_FAR        0xF800  // >8 px offset
+#define CAL_BTN_COLOR         0x07E0  // button label colour
+#define CAL_ERROR_COLOR       0xF800  // sanity-fail error text
+```
+
+---
+
+## SettingsApp integration
+
+Two separate input paths keep scaled and raw coordinate spaces clean:
+
+| State | Input path | Guard | Called from |
+|-------|-----------|-------|-------------|
+| Idle, Review | `handleInput(phase, scaledX, scaledY)` | `active()` | `SettingsApp::handleInput()` |
+| STEP_TL..STEP_BL | `handleInputRaw(phase, rawX, rawY)` | `stepping()` | `SettingsApp::tick()` |
+
+`_calFlow.start()` is called from `SettingsApp::onCategoryTap(2)` (the Touch
+Calibration row). It sets `_open = true` and renders the Idle view.
+
+### SettingsApp::tick() delegation
+
+```cpp
+void SettingsApp::tick() {
+    if (_calFlow.active()) {
+        _calFlow.tick();  // handles Saving state
+
+        // Raw poll — only during corner-tap steps
+        if (_calFlow.stepping()) {
+            CYD28_TS_Point raw = ts.getPointRaw();
+            bool pressed    = (raw.z > CAL_Z_THRESHOLD);
+            bool wasPressed = (_lastCalZ > CAL_Z_THRESHOLD);
+            _lastCalZ = raw.z;
+
+            TouchPhase phase = pressed    ? TouchPhase::Press
+                             : wasPressed ? TouchPhase::Release
+                             :              TouchPhase::None;
+            if (phase != TouchPhase::None)
+                _calFlow.handleInputRaw(phase, raw.x, raw.y);
+        }
+    }
+}
+```
+
+`ts.getPointRaw()` is available in the existing driver without PATCH-002.
+`besttwoavg()` averaging is not available on the raw path; `handleInputRaw()`
+accumulates samples while pressed and latches the average on Release.
+
+### SettingsApp::handleInput() delegation
+
+```cpp
+bool SettingsApp::handleInput(TouchPhase phase, int x, int y) {
+    if (_calFlow.active())
+        return _calFlow.handleInput(phase, x, y);
+    // ... existing category-list / section dispatch
+}
+```
+
+`CalibrationFlow::handleInput()` returns `false` when step is `TL..BL` —
+those taps are handled exclusively by the raw path. Idle and Review consume
+their button taps and return `true`.
 
 ---
 
@@ -345,18 +479,195 @@ namespace TouchCalStorage {
 
 ---
 
-## State struct
+## Rendering sketches
+
+Screen coordinates for corner targets (indexed TL=0..BL=3):
 
 ```cpp
-enum class CalStep : uint8_t { Idle, TL, TR, BR, BL, Review, Saving };
+static const int16_t kTX[4] = { CAL_INSET_X, 274 - CAL_INSET_X,
+                                 274 - CAL_INSET_X, CAL_INSET_X };
+static const int16_t kTY[4] = { CAL_INSET_Y, CAL_INSET_Y,
+                                 239 - 20, 239 - 20 };
+```
 
-struct CalibrationFlowState {
-    CalStep   step = CalStep::Idle;
-    int16_t   rawX[4], rawY[4];   // measured raw values, indexed by corner (TL=0..BL=3)
-    uint8_t   tapsDone;           // 0..4
-    bool      sanityFailed;       // true if computed spans fail checks
-    TouchCalData pending;         // computed values before accept
-};
+### repaintHeader
+
+```cpp
+void CalibrationFlow::repaintHeader(const char* title) {
+    tft.fillRect(0, 0, 275, CAL_HEADER_H, CAL_BG_COLOR);
+    tft.setTextDatum(ML_DATUM);
+    tft.setTextColor(CAL_HEADER_COLOR);
+    tft.drawString("< back", 4, CAL_HEADER_H / 2, 2);
+    tft.setTextDatum(MR_DATUM);
+    tft.drawString(title, 271, CAL_HEADER_H / 2, 2);
+    tft.drawFastHLine(0, CAL_HEADER_H - 1, 275, CAL_SEP_COLOR);
+    tft.setTextDatum(TL_DATUM);
+}
+```
+
+### repaintIdle
+
+The Idle header is a special case: `"< back"` on the left, `"Start"` button
+on the right. There is no centre title — the section is identified by the
+category list that brought the user here. Do **not** call `repaintHeader()`
+from `repaintIdle()`; draw the header inline.
+
+`"Start"` tap zone: `x > 220 && y < CAL_HEADER_H`.
+
+```cpp
+void CalibrationFlow::repaintIdle() {
+    // Custom header — back left, Start right (no centre title)
+    tft.fillRect(0, 0, 275, CAL_HEADER_H, CAL_BG_COLOR);
+    tft.setTextDatum(ML_DATUM);
+    tft.setTextColor(CAL_HEADER_COLOR);
+    tft.drawString("< back", 4, CAL_HEADER_H / 2, 2);
+    tft.setTextDatum(MR_DATUM);
+    tft.setTextColor(CAL_BTN_COLOR);
+    tft.drawString("Start", 271, CAL_HEADER_H / 2, 2);
+    tft.drawFastHLine(0, CAL_HEADER_H - 1, 275, CAL_SEP_COLOR);
+    tft.setTextDatum(TL_DATUM);
+
+    tft.fillRect(0, CAL_CONTENT_Y, 275, 240 - CAL_CONTENT_Y, CAL_BG_COLOR);
+
+    int y = CAL_CONTENT_Y + 6;
+    char buf[48];
+
+    tft.setTextColor(CAL_SECTION_COLOR);
+    tft.drawString("Current cal", 8, y, 2); y += 20;
+
+    tft.setTextColor(CAL_VALUE_COLOR);
+    snprintf(buf, sizeof(buf), "xMin %4d   xMax %4d", g_calData.xMin, g_calData.xMax);
+    tft.drawString(buf, 8, y, 2); y += 16;
+    snprintf(buf, sizeof(buf), "yMin %4d   yMax %4d", g_calData.yMin, g_calData.yMax);
+    tft.drawString(buf, 8, y, 2); y += 16;
+
+    tft.setTextColor(CAL_DIM_COLOR);
+    const char* src = g_calData.valid ? "SPIFFS" : "factory default";
+    snprintf(buf, sizeof(buf), "Source: %s", src);
+    tft.drawString(buf, 8, y, 2); y += 20;
+
+    tft.drawFastHLine(8, y, 259, CAL_SEP_COLOR); y += 8;
+
+    tft.setTextColor(CAL_SECTION_COLOR);
+    tft.drawString("History", 8, y, 2); y += 18;
+    // iterate history loaded from /cal.json in start(); format: "[N] date  x/x/y/y"
+}
+```
+
+### repaintStep
+
+```cpp
+void CalibrationFlow::repaintStep() {
+    static const char* kLabels[4] = {
+        "Tap top-left", "Tap top-right", "Tap bottom-right", "Tap bottom-left"
+    };
+    int cornerIdx = (int)_s.step - (int)CalStep::TL;
+    repaintHeader(kLabels[cornerIdx]);
+    tft.fillRect(0, CAL_CONTENT_Y, 275, 240 - CAL_CONTENT_Y, CAL_BG_COLOR);
+
+    // Completed corners: grey crosshair + tap-marker
+    for (int i = 0; i < cornerIdx; i++) {
+        drawCrosshair(kTX[i], kTY[i], CAL_CROSSHAIR_DONE);
+        drawTapMarker(i);
+    }
+    // Active corner: green crosshair
+    drawCrosshair(kTX[cornerIdx], kTY[cornerIdx], CAL_CROSSHAIR_ACTIVE);
+}
+```
+
+### drawCrosshair
+
+```cpp
+void CalibrationFlow::drawCrosshair(int x, int y, uint16_t color) {
+    tft.drawFastHLine(x - CAL_CROSSHAIR_ARM, y, CAL_CROSSHAIR_ARM * 2, color);
+    tft.drawFastVLine(x, y - CAL_CROSSHAIR_ARM, CAL_CROSSHAIR_ARM * 2, color);
+    tft.fillRect(x - 2, y - 2, 4, 4, color);
+}
+```
+
+### drawTapMarker
+
+Maps recorded raw values through the **current** calibration to screen
+coordinates, computes the pixel offset from the target, colours accordingly.
+
+```cpp
+void CalibrationFlow::drawTapMarker(int i) {
+    // Expected screen position
+    int ex = kTX[i], ey = kTY[i];
+    // Map raw sample through current calibration
+    int ax = map(_s.rawX[i], g_calData.xMin, g_calData.xMax, 0, 274);
+    int ay = map(_s.rawY[i], g_calData.yMin, g_calData.yMax, 0, 239);
+    ax = constrain(ax, 0, 274);
+    ay = constrain(ay, 0, 239);
+
+    int dist = (int)sqrtf((ax-ex)*(ax-ex) + (ay-ey)*(ay-ey));
+    uint16_t markerColor = (dist <= 4) ? CAL_MARKER_OK
+                         : (dist <= 8) ? CAL_MARKER_NEAR
+                         :               CAL_MARKER_FAR;
+
+    tft.fillCircle(ex, ey, 4, CAL_CROSSHAIR_DONE);  // expected (grey)
+    if (ax != ex || ay != ey)
+        tft.drawLine(ex, ey, ax, ay, markerColor);
+    tft.fillCircle(ax, ay, 4, markerColor);           // actual
+
+    char buf[16];
+    snprintf(buf, sizeof(buf), "x:%d y:%d", _s.rawX[i], _s.rawY[i]);
+    tft.setTextColor(CAL_DIM_COLOR);
+    tft.drawString(buf, constrain(ax - 12, 0, 210), ay + 6, 1);
+}
+```
+
+### repaintReview
+
+```cpp
+void CalibrationFlow::repaintReview() {
+    repaintHeader(_s.sanityFailed ? "Bad reading" : "Review calibration");
+    tft.fillRect(0, CAL_CONTENT_Y, 275, 240 - CAL_CONTENT_Y, CAL_BG_COLOR);
+
+    for (int i = 0; i < 4; i++) drawTapMarker(i);
+
+    if (_s.sanityFailed) {
+        tft.setTextColor(CAL_ERROR_COLOR);
+        tft.drawString("Span too small — tap Retry", 8, 150, 2);
+    } else {
+        char buf[48];
+        int y = 120;
+        tft.setTextColor(CAL_SECTION_COLOR);
+        tft.drawString("New:", 8, y, 2);
+        tft.setTextColor(CAL_VALUE_COLOR);
+        snprintf(buf, sizeof(buf), "xMin %4d  xMax %4d",
+                 _s.pending.xMin, _s.pending.xMax);
+        tft.drawString(buf, 48, y, 2); y += 16;
+        snprintf(buf, sizeof(buf), "yMin %4d  yMax %4d",
+                 _s.pending.yMin, _s.pending.yMax);
+        tft.drawString(buf, 48, y, 2); y += 16;
+
+        tft.setTextColor(CAL_DIM_COLOR);
+        snprintf(buf, sizeof(buf), "\xce\x94 xMin%+d  xMax%+d",
+                 _s.pending.xMin - g_calData.xMin,
+                 _s.pending.xMax - g_calData.xMax);
+        tft.drawString(buf, 48, y, 2); y += 16;
+        snprintf(buf, sizeof(buf), "  yMin%+d  yMax%+d",
+                 _s.pending.yMin - g_calData.yMin,
+                 _s.pending.yMax - g_calData.yMax);
+        tft.drawString(buf, 48, y, 2);
+    }
+
+    tft.drawFastHLine(0, CAL_BTN_Y - 4, 275, CAL_SEP_COLOR);
+
+    // Buttons
+    auto drawBtn = [](int lx, const char* label, bool enabled) {
+        uint16_t c = enabled ? CAL_BTN_COLOR : CAL_DIM_COLOR;
+        tft.drawRect(lx, CAL_BTN_Y - CAL_BTN_H / 2, CAL_BTN_W, CAL_BTN_H, c);
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextColor(c);
+        tft.drawString(label, lx + CAL_BTN_W / 2, CAL_BTN_Y, 2);
+        tft.setTextDatum(TL_DATUM);
+    };
+    drawBtn(CAL_BTN_ACCEPT_X, "Accept", !_s.sanityFailed);
+    drawBtn(CAL_BTN_RETRY_X,  "Retry",  true);
+    drawBtn(CAL_BTN_CANCEL_X, "Cancel", true);
+}
 ```
 
 ---
@@ -365,20 +676,23 @@ struct CalibrationFlowState {
 
 1. **PATCH-002 scope** — `setCalibration()` patch to `CYD28_TouchscreenR.h/cpp`
    needs to be filed in `upstream-patches.md` and tracked as a prerequisite task
-   before any cal implementation begins.
-2. **Timestamp source** — NTP-synced `time()` or `millis()`-based epoch? NTP may
-   not be available on first boot. Use `time()` with fallback to 0 if not synced;
-   display as "no clock" in the history view.
-3. **Factory anchor** — should the factory `#define` values be pushed to history
-   on first save so the user can always see the baseline? Recommended yes (see
-   storage schema `src: "factory"`), but confirm when implementing.
+   before any cal implementation begins. (`ts.getPointRaw()` already exists in
+   the driver — confirmed 2026-06-05; no driver change needed for the raw read
+   path.)
+2. ~~**Timestamp source**~~ — **resolved**: use `time()` with fallback to `0`
+   if NTP not yet synced. Display as `"no clock"` in the history view when
+   `ts == 0` and `src != "factory"`.
+3. ~~**Factory anchor**~~ — **resolved yes**: on first `doSave()`, push the
+   compile-time `#define` defaults as `{ts:0, src:"factory"}` into `history[0]`
+   before inserting the new session. This ensures the baseline is always visible.
+   Already reflected in the storage schema above.
 4. **Per-unit variance** — resistive touch drift is per-unit. Consider prompting
    re-calibration if > N days since last cal (future enhancement; not in scope).
-5. **Raw input plumbing** — `handleInputRaw()` call from `SettingsApp::tick()`
-   using `ts.getPointRaw()` needs careful debouncing. XPT2046 raw reads are
-   noisy; the existing `besttwoavg()` filter in `update()` handles averaging,
-   but release detection (`zraw < threshold`) must still be checked to avoid
-   double-registering a single tap.
+5. **Raw tap debounce** — `handleInputRaw()` latches on `Release` only (pen-up
+   transition: `wasPressed && !pressed`). Raw XPT2046 values while pressed are
+   accumulated in a running average (`rawSumX`, `rawSumY`, `rawCount`) and the
+   average is recorded on release. This avoids reliance on `besttwoavg()` and
+   prevents double-registering a single tap.
 
 ---
 
@@ -391,3 +705,4 @@ struct CalibrationFlowState {
 - **C5** — History shows up to 3 entries; 4th entry drops oldest non-factory entry.
 - **C6** — Cancel at any step returns to Settings `cal` tab with no change to stored values.
 - **C7** — Live feedback marker renders within 275×240 canvas; no pixel bleeds into taskbar strip.
+- **C8** — `_calFlow.active()` returns true for all states Idle→Saving; `_calFlow.stepping()` returns true only for TL→BL. `SettingsApp::tick()` raw poll fires only when `stepping()`; `SettingsApp::handleInput()` delegates scaled coords only when `active()`. Neither path fires outside these guards.
