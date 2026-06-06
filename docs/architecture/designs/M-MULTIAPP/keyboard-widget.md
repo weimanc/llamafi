@@ -2,7 +2,7 @@
 
 > Owner: Architect
 > Status: draft
-> Date: 2026-06-04 (updated 2026-06-06 — page 4 eliminated; OQ2/OQ3 resolved; implementation sketches; reusable elements noted)
+> Date: 2026-06-04 (updated 2026-06-06 — page 4 eliminated; OQ2/OQ3 resolved; implementation sketches; reusable elements noted; implementation audit 2026-06-06)
 > Part of: M-MULTIAPP
 > Consumers: [wifi-settings.md](wifi-settings.md), settings `app` tab (stock/crypto ticker entry)
 > See also: [settings.md](settings.md), [touch-calibration.md](touch-calibration.md)
@@ -527,3 +527,20 @@ void KeyboardWidget::cancel() {
   `WiFi.begin(ssid, pass)` (no truncation, no extra NUL issues).
 - **C9** — `UpperAlpha` mode: action row renders as `[SPACE 202px][OK 73px]`; no SYM,
   NEXT, or ⇧ key visible; `_page` locked at 1; no symbol pages reachable from any tap.
+
+---
+
+## Implementation Status (audit 2026-06-06)
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Full / UpperAlpha modes, all pages | ✅ DONE | |
+| Key tables `kRow1/2/3`, `kSym[2][4][10]` | ✅ DONE | Byte-identical to spec |
+| Canvas geometry, row heights, action row widths | ✅ DONE | |
+| Page transitions (⇧, SYM, NEXT, ABC, _oneShot) | ✅ DONE | |
+| `appendChar`, `backspace`, `submit`, `maxLen` | ✅ DONE | `submit()` adds safety copy before callback |
+| OK greyed when empty, cursor blink | ✅ DONE | |
+| C5 — `onCancel` / cancel button | ❌ NOT IMPLEMENTED | `ACT_CANCEL` not defined; no cancel touch target on any page; `onCancel` callback is unreachable |
+| Symbol-page action-row press-highlight | 🐛 BUG | `_pressColForXY()` returns wrong column for row 3 on symbol pages (impl line 433-444); ABC/NEXT/SPACE/Bksp/OK never highlight on press |
+| Backspace glyph | ⚠ DIVERGED | Impl uses `"<x"` ASCII; spec says `⌫` (UTF-8 \xe2\x8c\xab) |
+| `KB_KEY_GAP` macro | ⚠ DIVERGED | Applied as `w-1` inline; named macro absent |

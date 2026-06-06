@@ -13,7 +13,9 @@ public:
     void enter() override {
         _slider.init(1, 10, g_settings.dispLevel);
         _ldrRaw       = (int16_t)analogRead(LDR_PIN);
+#ifdef SERIAL_DEBUG
         Serial.printf("[disp] analogRead(%d) raw = %d\n", LDR_PIN, (int)_ldrRaw);
+#endif
         _ldrUpdateMs  = millis();
         _lastAutoLevel = -1;
         repaint();

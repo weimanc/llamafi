@@ -2,7 +2,7 @@
 
 > Owner: Architect
 > Status: draft
-> Date: 2026-06-04 (updated 2026-06-05 — whiteboard decisions applied)
+> Date: 2026-06-04 (updated 2026-06-05 — whiteboard decisions applied; updated 2026-06-06 — implementation audit; naming, sort order, picker layout corrected to match impl)
 > Part of: M-MULTIAPP Settings (`time` tab)
 > See also: [settings.md](settings.md)
 
@@ -87,17 +87,20 @@ struct CityEntry {
     float       lon;       //  -0.1278
     const char* posixTz;   // "GMT0BST,M3.5.0/1,M10.5.0"
     const char* tzName;    // "Europe/London"
+    int8_t      utcHours;  //  0  (UTC offset hours, signed)
+    int8_t      utcMins;   //  0  (UTC offset minutes, 0 or 30 or 45)
+    bool        groupBreak;// true = draw separator above this row in picker
 };
 
-extern const CityEntry g_cities[];
-extern const uint8_t   g_cityCount;   // ~50
+static const CityEntry kCities[];       // defined in cities.h (flash)
+static const uint8_t   kCityCount;      // derived from array size (~82 cities)
 ```
 
 Selecting a city in the city picker auto-fills **all three**: lat, lon, and
 timezone. The user can manually override lat/lon afterwards (e.g. to use their
 exact coordinates rather than the city centre) without changing the timezone.
 
-Memory: 50 cities × ~80 bytes = ~4 KB in flash. Acceptable.
+Memory: ~82 cities × ~100 bytes ≈ 8–10 KB in flash. Acceptable.
 
 ---
 
@@ -127,17 +130,22 @@ City row has `>` chevron. Timezone row is read-only display (no chevron, no tap)
 ## City picker (secondary view)
 
 Replaces the content panel while active. Header shows "Select city" + `< back`.
-Sorted alphabetically. Current city highlighted with `S_VALUE_ON` on the right.
+Sorted **east-to-west by UTC offset** (UTC+12 first, UTC−10 last); within each
+UTC group, by population. A 1px separator line (`S_SEP`) divides UTC groups
+(`groupBreak` field). Current city highlighted in `S_VALUE_ON`. UTC offset
+column (e.g. `"+9"`, `"-5:30"`) rendered left of a vertical separator at x=50;
+city name at x=58; country at x=246.
 
 ```
-+-------------------------------+--+
-|  Amsterdam   NL               |▲ |   scrollbar strip (x=257..274)
-|  Berlin      DE               |  |
-|  London      GB     (current) |░░|   thumb proportional to list position
-|  Los Angeles US               |  |
-|  New York    US               |  |
-|  Paris       FR               |▼ |
-+-------------------------------+--+
++----+------------------------------+--+
+| +9 | Tokyo        JP   (current) |▲ |   scrollbar strip (x=257..274)
+|    | Seoul        KR              |  |
+├────┼──────────────────────────────┤  |   groupBreak separator
+| +8 | Beijing      CN              |░░|   thumb proportional to list position
+|    | Singapore    SG              |  |
+|    | Perth        AU              |  |
+|    |                              |▼ |
++----+------------------------------+--+
 ```
 
 **Scrollbar geometry** (right strip, x=257..274, 18 px wide):
@@ -152,7 +160,7 @@ Sorted alphabetically. Current city highlighted with `S_VALUE_ON` on the right.
 City row width clipped to x=0..256 to leave room for scrollbar.
 
 On city tap:
-1. Copy `city`, `posixTz`, `tzName`, `lat`, `lon` from `g_cities[i]` into `g_settings`.
+1. Copy `city`, `posixTz`, `tzName`, `lat`, `lon` from `kCities[i]` into `g_settings`.
 2. Call `configTzTime(g_settings.posixTz, "pool.ntp.org", "time.google.com", "time.cloudflare.com")`.
 3. `saveSettings()`.
 4. Return to Main view.
@@ -431,17 +439,17 @@ private:
     void repaintCityPicker() {
         _drawScrollbar();
         int y = S_CONTENT_Y;
-        uint8_t end = min((int)_cityOffset + kPickerRows, (int)g_cityCount);
+        uint8_t end = min((int)_cityOffset + kPickerRows, (int)kCityCount);
         for (uint8_t i = _cityOffset; i < end; i++) {
-            bool current = (strncmp(g_cities[i].city, g_settings.city,
+            bool current = (strncmp(kCities[i].city, g_settings.city,
                                     sizeof(g_settings.city)) == 0);
             tft.setTextDatum(ML_DATUM);
             tft.setTextColor(S_LABEL);
             // clip text to kRowW to avoid overwriting scrollbar
-            tft.drawString(g_cities[i].city, S_COL_LABEL, y + S_ROW_H / 2, 2);
+            tft.drawString(kCities[i].city, S_COL_LABEL, y + S_ROW_H / 2, 2);
             tft.setTextDatum(MR_DATUM);
             tft.setTextColor(current ? S_VALUE_ON : S_VALUE_OFF);
-            tft.drawString(g_cities[i].country, kRowW - 4, y + S_ROW_H / 2, 2);
+            tft.drawString(kCities[i].country, kRowW - 4, y + S_ROW_H / 2, 2);
             tft.setTextDatum(TL_DATUM);
             y += S_ROW_H;
         }
@@ -454,7 +462,7 @@ private:
                 _cityOffset--;
                 repaintCityPicker();
             } else if (py >= kSbDnY0 && py < kSbDnY1 &&
-                       _cityOffset + kPickerRows < g_cityCount) {
+                       _cityOffset + kPickerRows < kCityCount) {
                 _cityOffset++;
                 repaintCityPicker();
             }
@@ -465,17 +473,17 @@ private:
         int row = (py - S_CONTENT_Y) / S_ROW_H;
         if (row < 0 || row >= kPickerRows) return;
         uint8_t idx = _cityOffset + (uint8_t)row;
-        if (idx >= g_cityCount) return;
+        if (idx >= kCityCount) return;
 
         _selectCity(idx);
     }
 
     void _selectCity(uint8_t idx) {
-        strlcpy(g_settings.city,     g_cities[idx].city,     sizeof(g_settings.city));
-        strlcpy(g_settings.tzName,   g_cities[idx].tzName,   sizeof(g_settings.tzName));
-        strlcpy(g_settings.posixTz,  g_cities[idx].posixTz,  sizeof(g_settings.posixTz));
-        g_settings.lat = g_cities[idx].lat;
-        g_settings.lon = g_cities[idx].lon;
+        strlcpy(g_settings.city,     kCities[idx].city,     sizeof(g_settings.city));
+        strlcpy(g_settings.tzName,   kCities[idx].tzName,   sizeof(g_settings.tzName));
+        strlcpy(g_settings.posixTz,  kCities[idx].posixTz,  sizeof(g_settings.posixTz));
+        g_settings.lat = kCities[idx].lat;
+        g_settings.lon = kCities[idx].lon;
         configTzTime(g_settings.posixTz,
                      "pool.ntp.org", "time.google.com", "time.cloudflare.com");
         saveSettings();
@@ -503,10 +511,10 @@ private:
         // Thumb (proportional, skips arrow zones)
         int trackY0 = kSbUpY1 + 2;
         int trackH  = kSbDnY0 - trackY0 - 2;
-        if (g_cityCount > kPickerRows && trackH > 0) {
-            int thumbH = max(8, trackH * kPickerRows / g_cityCount);
+        if (kCityCount > kPickerRows && trackH > 0) {
+            int thumbH = max(8, trackH * kPickerRows / kCityCount);
             int thumbY = trackY0 + (_cityOffset * (trackH - thumbH))
-                         / (g_cityCount - kPickerRows);
+                         / (kCityCount - kPickerRows);
             tft.fillRect(kSbX + 3, thumbY, kSbW - 6, thumbH, S_VALUE);
         }
     }
@@ -517,9 +525,9 @@ private:
 
 - **Single file, two views.** `TimeView::Main` and `TimeView::CityPicker` are internal sub-views. `< back` from CityPicker returns to Main (not GoBack) — the section is never truly dismissed from the picker.
 - **Tap Y math in `_handleMainTap`.** Row positions are derived from the same y-accumulation as `repaintMain()` — no `tapToRow()` because the layout has mixed-height elements (section headers 22 px, rows 26 px, sep 4 px). Explicit y-range checks are used instead.
-- **Scrollbar hides when list fits.** `_drawScrollbar()` draws the thumb only when `g_cityCount > kPickerRows`. ▲/▼ buttons always draw but `_handlePickerTap` clamps offsets so they're no-ops at the limits.
+- **Scrollbar hides when list fits.** `_drawScrollbar()` draws the thumb only when `kCityCount > kPickerRows`. ▲/▼ buttons always draw but `_handlePickerTap` clamps offsets so they're no-ops at the limits.
 - **`configTzTime()` side effect.** Calling it at runtime changes the active tz immediately — `getLocalTime()` in ClockApp will reflect the new timezone on the next tick. No reboot needed.
-- **`g_cityCount` / `g_cities[]`** are declared `extern` in a `cities.h` header (see §City / timezone data). The array lives in flash (`PROGMEM` if needed for size).
+- **`kCityCount` / `kCities[]`** are declared `extern` in a `cities.h` header (see §City / timezone data). The array lives in flash (`PROGMEM` if needed for size).
 
 ## Open questions
 
@@ -559,3 +567,20 @@ private:
   boot from persisted `posixTz`.
 - **C7** — Default (no SPIFFS entry): UTC, 24h, DMY — identical to current
   behaviour.
+
+---
+
+## Implementation Status (audit 2026-06-06)
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Main view (Location/Clock sections, all rows) | ✅ DONE | |
+| City picker: 6-row scroll, scrollbar, ▲/▼ | ✅ DONE | |
+| City picker: thumb drag (TASK-153) | ✅ DONE | `_sbDragging` flag + pointer capture |
+| `_selectCity()` writes all fields + `configTzTime()` | ✅ DONE | |
+| 12h/24h cycle, date format DMY/MDY/YMD cycle | ✅ DONE | |
+| Naming: `kCities[]` / `kCityCount` | ✅ DONE | Spec updated — was `g_cities`/`g_cityCount` |
+| Sort order: east-to-west by UTC offset | ✅ DONE | Spec updated — was alphabetical |
+| UTC offset column + group separators | ✅ DONE | Spec updated — additive enhancement |
+| C3/C4 — 12h display in `drawTime()` | ⚠ UNVERIFIED | Lives in `main.cpp`; not in `timeSection.h` |
+| C6/C7 — boot-time `configTzTime()` | ⚠ UNVERIFIED | Lives in `main.cpp::setup()` |

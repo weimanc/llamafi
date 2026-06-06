@@ -2,7 +2,7 @@
 
 > Owner: Architect
 > Status: draft
-> Date: 2026-06-04 (updated 2026-06-05 — full class sketch; constants; rendering sketches; SettingsApp integration; resolved OQ1/OQ2/OQ3; active()/stepping() split; header overlap fix; updated 2026-06-06 — OQ2/3/5 resolved; C8 guard EC; touch debug overlay section added)
+> Date: 2026-06-04 (updated 2026-06-05 — full class sketch; constants; rendering sketches; SettingsApp integration; resolved OQ1/OQ2/OQ3; active()/stepping() split; header overlap fix; updated 2026-06-06 — OQ2/3/5 resolved; C8 guard EC; touch debug overlay section added; updated 2026-06-06 — implementation audit; formula corrected; overlay marked NOT YET IMPLEMENTED)
 > Part of: M-MULTIAPP Settings (`cal` tab)
 > See also: [settings.md](settings.md), [upstream-patches.md](upstream-patches.md)
 
@@ -365,13 +365,16 @@ Let:
   ry_T = (raw_TL.y + raw_TR.y) / 2   // average raw Y for top-side taps
   ry_B = (raw_BL.y + raw_BR.y) / 2   // average raw Y for bottom-side taps
 
-  // Extrapolate to screen edges (accounting for CAL_INSET):
-  float xSlope = (rx_R - rx_L) / (float)(275 - 2 * CAL_INSET_X)
-  float ySlope = (ry_B - ry_T) / (float)(240 - CAL_INSET_Y - 20)
+  // Extrapolate to full 320×240 driver range (not 275-px canvas).
+  // kRightExtend = 319 - (274 - CAL_INSET_X) = 319 - 254 = 65
+  // kBottomExtend = CAL_INSET_Y = 48  (header h=28 + 20px gap)
+  // Corrected in commits 008fd3a / 65c16f0 to match driver formula ×320/×240.
+  float xSlope = (rx_R - rx_L) / (float)(274 - 2 * CAL_INSET_X)
+  float ySlope = (ry_B - ry_T) / (float)(239 - CAL_INSET_Y - 20)
 
   xMin_new = (int16_t)(rx_L - CAL_INSET_X * xSlope)
-  xMax_new = (int16_t)(rx_R + CAL_INSET_X * xSlope)
-  yMin_new = (int16_t)(ry_T - 20 * ySlope)          // 20 = bottom inset
+  xMax_new = (int16_t)(rx_R + 65 * xSlope)          // 65 = 319 - right target x
+  yMin_new = (int16_t)(ry_T - CAL_INSET_Y * ySlope) // top extension = full header gap
   yMax_new = (int16_t)(ry_B + (CAL_INSET_Y - 28) * ySlope)
 ```
 
@@ -702,14 +705,20 @@ void CalibrationFlow::repaintReview() {
 - **C2** — Computed xMin/xMax span > 1000 ADC counts for a valid calibration.
 - **C3** — Accepted values written to `/cal.json`; file survives SPIFFS remount.
 - **C4** — On next boot, `TouchCalStorage::load()` reads values and `ts.setCalibration()` is called before first touch event.
-- **C5** — History shows up to 3 entries; 4th entry drops oldest non-factory entry.
-- **C6** — Cancel at any step returns to Settings `cal` tab with no change to stored values.
+- **C5** — History shows up to 3 entries; 4th entry drops oldest non-factory entry. *(Storage implemented; history display in `repaintIdle()` NOT YET IMPLEMENTED — renders only "Tap Start to calibrate".)*
+- **C6** — Cancel at Review returns to Settings `cal` tab with no change to stored values. *(Back tap during active stepping states TL→BL has no effect — mid-sequence cancel NOT IMPLEMENTED.)*
 - **C7** — Live feedback marker renders within 275×240 canvas; no pixel bleeds into taskbar strip.
-- **C8** — `_calFlow.active()` returns true for all states Idle→Saving; `_calFlow.stepping()` returns true only for TL→BL. `SettingsApp::tick()` raw poll fires only when `stepping()`; `SettingsApp::handleInput()` delegates scaled coords only when `active()`. Neither path fires outside these guards.
+- **C8** — `_calFlow.stepping()` returns true only for TL→BL; raw poll fires only then. Scaled coords delegated when section is active. *(Note: `active()` method does not exist on `CalibrationFlow` — guard is `_activeSection == &_cal`; same semantics, different API.)*
 
 ---
 
 ## Touch debug overlay (`TOUCH_DEBUG_OVERLAY`)
+
+> **NOT YET IMPLEMENTED.** The class, header, integration hook, and
+> `platformio.ini` flag below are design artefacts only. No code exists at
+> `app/src/debug/touchDebugOverlay.h`. Exit criteria D1–D4 cannot be verified.
+> Implement before the next DUT debug session that requires touch coordinate
+> tracing.
 
 Compile-time debug feature. Stamps the last touch position on screen after every
 touch event, across all active apps. Disabled in production; enabled by adding
@@ -840,3 +849,22 @@ before the loop starts (no runtime UI needed for a debug tool).
   regardless of which app is active.
 - **D4** — Build without `TOUCH_DEBUG_OVERLAY` compiles cleanly; no overlay symbols
   present in the binary.
+
+---
+
+## Implementation Status (audit 2026-06-06)
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Core calibration flow (TL→TR→BotR→BL→Review→Saving) | ✅ DONE | `CalStep::BR` renamed `BotR` in impl |
+| PATCH-002 driver `setCalibration()` | ✅ DONE | |
+| TouchCalStorage load/save + ring buffer | ✅ DONE | |
+| Boot integration (C4) | ✅ DONE | |
+| drawTapMarker colour thresholds | ✅ DONE | |
+| Extrapolation formula | ✅ DONE (corrected) | Spec updated 2026-06-06 to match commits 008fd3a/65c16f0 |
+| History display in `repaintIdle()` (C5 display) | ❌ NOT IMPLEMENTED | Storage write correct; read-back display absent |
+| Back tap cancel during active stepping (C6 mid-seq) | ❌ NOT IMPLEMENTED | Back tap no-op during TL→BL |
+| `TOUCH_DEBUG_OVERLAY` (D1–D4) | ❌ NOT IMPLEMENTED | File `app/src/debug/touchDebugOverlay.h` does not exist |
+| `active()` method by name (C8 literal) | ⚠ DIVERGED | Guard is `_activeSection == &_cal`; same semantics |
+| Review header wording | ⚠ DIVERGED | Impl: `"Review calibration"`; spec: `"Review — tap Accept to save"` |
+| Delta symbol | ⚠ DIVERGED | Impl uses `"d"` (TFT font 2 lacks UTF-8 Δ) |

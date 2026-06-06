@@ -57,6 +57,7 @@ public:
     static constexpr uint8_t ACT_OK        = 5;
     static constexpr uint8_t ACT_ABC       = 6;
     static constexpr uint8_t ACT_NEXT      = 7;
+    static constexpr uint8_t ACT_CANCEL    = 8;
 
     // ---- Public interface ---------------------------------------------------
 
@@ -219,8 +220,12 @@ private:
             tft.drawString("|", 240, cy, 2);
         }
 
-        // Backspace shortcut zone (x=248..274) — draw "<" as backspace indicator
+        // Cancel zone (x=0..39, left) — escape the keyboard
         tft.setTextDatum(MC_DATUM);
+        tft.setTextColor(S_VALUE_OFF);
+        tft.drawString("<", 20, cy, 2);
+
+        // Backspace shortcut zone (x=248..274) — draw "<x" as backspace indicator
         tft.setTextColor(S_SEP);
         tft.drawString("<x", 261, cy, 2);
 
@@ -406,7 +411,7 @@ private:
     // Returns a virtual column ID for press-highlight tracking.
     // Non-negative = letter grid column; negative = action key sentinel.
     int _pressColForXY(int x, int y) const {
-        if (y < KB_INPUT_H) return -1;
+        if (y < KB_INPUT_H) return (x < 40) ? -20 : -1;   // -20 = cancel sentinel
         int row = (y - KB_INPUT_H) / KB_ROW_H;
         if (_page <= 1) {
             switch (row) {
@@ -449,9 +454,10 @@ private:
         *outChar   = '\0';
         *outAction = 0;
 
-        // Input bar backspace zone
+        // Input bar zones
         if (y < KB_INPUT_H) {
-            if (x >= 248) { *outAction = ACT_BACKSPACE; return true; }
+            if (x < 40)    { *outAction = ACT_CANCEL;    return true; }
+            if (x >= 248)  { *outAction = ACT_BACKSPACE;  return true; }
             return false;
         }
 
@@ -609,6 +615,9 @@ private:
                 _page  = (_page == 2) ? 3 : 2;
                 _dirty = true;
                 repaintKeys();
+                break;
+            case ACT_CANCEL:
+                cancel();
                 break;
             default:
                 break;

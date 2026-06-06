@@ -2,7 +2,7 @@
 
 > Owner: Architect
 > Status: draft
-> Date: 2026-06-04 (updated 2026-06-05 — WifiSection base-class adoption; phase split)
+> Date: 2026-06-04 (updated 2026-06-05 — WifiSection base-class adoption; phase split; updated 2026-06-06 — implementation audit)
 > Part of: M-MULTIAPP Settings (`wifi` tab)
 > See also: [settings.md](settings.md), [keyboard-widget.md](keyboard-widget.md), ADR-040
 
@@ -274,7 +274,7 @@ Scrolling deferred — if > 8 networks, show top 8 by signal strength.
 +-----------------------------------+
 ```
 
-Lock icon: small 8×10 px bitmap for `encryptionType != WIFI_AUTH_OPEN`.
+Encrypted marker: `[E]` text string for `encryptionType != WIFI_AUTH_OPEN` (ASCII fallback; 8×10 bitmap was original intent but not implemented).
 
 Row tap:
 - Open network → jump to CONNECTING state directly (`WiFi.begin(ssid)`)
@@ -458,6 +458,20 @@ struct WifiNet {
 - **C1c** — `< back` from Status → SettingsApp category list. `< back` from
   Scanning or List → Status.
 - **C1d** — `check_build.sh` passes; no new link errors.
+
+---
+
+## Implementation Status (audit 2026-06-06)
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Phase 1: STATUS / SCANNING / LIST views | ✅ DONE | |
+| Async scan, spinner, signal bars | ✅ DONE | |
+| `[E]` encrypted marker | ✅ DONE | Spec body corrected (was "8×10 bitmap") |
+| "Forget network" row render | ✅ DONE | Renders greyed when not connected |
+| "Forget network" tap handler | ❌ STUB | No-op; marked Phase 2 in impl |
+| Phase 2 (connect, keyboard, NVS) | ❌ NOT STARTED | |
+| `title()` for Status step | ⚠ DIVERGED | Impl returns `"WiFi"`; spec table says `"Status"` |
 
 ### Phase 2
 

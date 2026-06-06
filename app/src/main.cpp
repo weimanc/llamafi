@@ -135,6 +135,11 @@ WiFiClientSecure client;
 AppId currentAppId = AppId::Spotify;
 static AppId g_previousAppId = AppId::Spotify;
 
+#ifdef TOUCH_DEBUG_OVERLAY
+#include "debug/touchDebugOverlay.h"
+TouchDebugOverlay g_touchDebug;
+#endif
+
 // ----------------------------
 // Display Handling Code
 // ----------------------------
@@ -689,6 +694,7 @@ static LifeApp g_LifeApp;
 #define SETTINGS_LABEL_COLOR    0xFFFF
 #define SETTINGS_VALUE_COLOR    0x07FF
 #define SETTINGS_CHEVRON_COLOR  0x4208
+#define SETTINGS_CANCEL_COLOR   0xC8A0
 
 #include "settings/wifiSection.h"
 #include "settings/timeSection.h"
@@ -711,6 +717,7 @@ public:
   }
 
   void resume() override {
+    _snapshot = g_settings;
     if (_activeSection) _activeSection->repaint();
     else repaintCategoryList();
   }
@@ -755,6 +762,8 @@ public:
     }
     if (phase != TouchPhase::Release) return false;
     if (y < SETTINGS_HEADER_H && x < 60) { switchApp(g_previousAppId); return true; }
+    int cancelRowTop = SETTINGS_CONTENT_Y + SETTINGS_CAT_COUNT * SETTINGS_ROW_H + 1;
+    if (y >= cancelRowTop && y < cancelRowTop + SETTINGS_ROW_H) { _cancel(); return true; }
     int row = (y - SETTINGS_HEADER_H) / SETTINGS_ROW_H;
     if (row >= 0) _onCategoryTap(row);
     return true;
@@ -780,6 +789,7 @@ private:
   AppsSection        _apps;
   LedSection         _led;
   int16_t            _lastCalZ = 0;
+  AppSettings        _snapshot;
   SettingsSection* _sections[SETTINGS_CAT_COUNT];
   SettingsSection* _activeSection = nullptr;
 
@@ -787,6 +797,12 @@ private:
     if (_activeSection) { _activeSection->leave(); _activeSection = nullptr; }
     _s.section = -1;
     repaintCategoryList();
+  }
+
+  void _cancel() {
+    g_settings = _snapshot;
+    SettingsStorage::save();
+    switchApp(g_previousAppId);
   }
 
   void _onCategoryTap(int idx) {
@@ -828,6 +844,12 @@ private:
       tft.setTextColor(SETTINGS_CHEVRON_COLOR);
       tft.drawString(">", SETTINGS_ROW_COL_VALUE, mid, 2);
     }
+    int sepY = SETTINGS_CONTENT_Y + SETTINGS_CAT_COUNT * SETTINGS_ROW_H;
+    tft.drawFastHLine(0, sepY, S_CANVAS_W, SETTINGS_SEP_COLOR);
+    int cancelMid = sepY + 1 + SETTINGS_ROW_H / 2;
+    tft.setTextDatum(ML_DATUM);
+    tft.setTextColor(SETTINGS_CANCEL_COLOR);
+    tft.drawString("Cancel", SETTINGS_ROW_COL_LABEL, cancelMid, 2);
     tft.setTextDatum(TL_DATUM);
   }
 
@@ -1621,12 +1643,18 @@ void appHandleInput(AppId) {
         if (consumed) s_cooldownMs = millis() + 200;
         if (!g_shellBusy && g_apps[(int)currentAppId]->hasPendingAsync())
           shell::setBusy(true);
+#ifdef TOUCH_DEBUG_OVERLAY
+        g_touchDebug.onTouch(p.x, p.y);
+#endif
       }
     } else {
       if (g_apps[(int)currentAppId]) {
         g_apps[(int)currentAppId]->handleInput(TouchPhase::Move, p.x, p.y);
         if (!g_shellBusy && g_apps[(int)currentAppId]->hasPendingAsync())
           shell::setBusy(true);
+#ifdef TOUCH_DEBUG_OVERLAY
+        g_touchDebug.onTouch(p.x, p.y);
+#endif
       }
     }
   } else {

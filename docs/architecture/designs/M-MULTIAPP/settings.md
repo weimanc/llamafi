@@ -2,7 +2,7 @@
 
 > Owner: Architect
 > Status: draft
-> Date: 2026-05-25 (updated 2026-06-04 — class sketch; list-row pattern; list-navigation model replacing tab bar; updated 2026-06-06 — OQ4/OQ5 resolved; C8 persistence EC added)
+> Date: 2026-05-25 (updated 2026-06-04 — class sketch; list-row pattern; list-navigation model replacing tab bar; updated 2026-06-06 — OQ4/OQ5 resolved; C8 persistence EC added; implementation audit 2026-06-06; cancel button design added 2026-06-06)
 > Part of: [overview.md](overview.md)
 > See also: [taskbar.md](taskbar.md), [app-lifecycle.md](app-lifecycle.md), [layout.md](layout.md), [stock.md](stock.md)
 
@@ -44,12 +44,14 @@ or previous app) and the current view title on the right. Background
 
 ## Category list
 
-The top-level view is a vertical list of six categories. Each row has a label
-on the left and a `>` chevron on the right indicating it navigates deeper.
+The top-level view is a vertical list of six category rows plus a Cancel row.
+Category rows have a label on the left and a `>` chevron on the right indicating
+they navigate deeper. The Cancel row has no chevron and uses a distinct muted red
+colour to signal destructive intent.
 
 ```
 +-----------------------------------+
-|  ⚙  Settings                     |   header (h=28) — back returns to prev app
+|  ⚙  Settings                     |   header (h=28) — back = exit (keep changes)
 +-----------------------------------+
 |  WiFi              >              |
 |  Time & Location   >              |
@@ -57,10 +59,18 @@ on the left and a `>` chevron on the right indicating it navigates deeper.
 |  Display           >              |
 |  LED               >              |
 |  Applications      >              |
+|  ─────────────────────────────── |   separator (1 px, S_SEP colour)
+|  Cancel                           |   muted red — discard all changes + exit
 +-----------------------------------+
 ```
 
-6 rows × 26px = 156px. Remaining 56px is dark fill — no scroll needed.
+6 category rows × 26px = 156px. Separator (1px) + Cancel row (26px) = 183px total.
+Remaining 29px is dark fill — fits within 212px content panel.
+
+**Back (`< back`) from category list:** exits to `g_previousAppId` with all changes
+saved (same as current behaviour — "keep changes and leave").
+
+**Cancel row:** discards all changes made during this Settings session and exits.
 
 | Index | Category label | Section doc |
 |-------|---------------|-------------|
@@ -199,7 +209,7 @@ and city selection. See §Open questions and [stock.md](stock.md) for UX options
 class SettingsApp : public App {
 public:
     void init()    override;      // one-time setup; no persisted state needed
-    void resume()  override { repaint(); }
+    void resume()  override { _snapshot = g_settings; repaint(); }
     void suspend() override { _s.section = -1; _s.appSubmenu = -1; }
     void tick()    override;      // delegates to active flow (wifi/cal) when running
     bool handleInput(TouchPhase phase, int x, int y) override;
@@ -209,6 +219,8 @@ private:
         int8_t section   = -1;   // -1 = category list; 0..5 = section index
         int8_t appSubmenu = -1;  // -1 = app list; ≥0 = per-app rows (section 5 only)
     } _s;
+
+    AppSettings _snapshot;   // g_settings captured on resume(); restored by cancel()
 
     void repaint();
     void repaintHeader(const char* title);
@@ -221,11 +233,13 @@ private:
     void onCategoryTap(int idx);
     void onRowTap(int row);
     void goBack();
+    void cancel();           // restore snapshot + save + exit
 };
 ```
 
 **Lifecycle notes:**
 
+- `resume()` snapshots `g_settings` into `_snapshot` before any sections run.
 - `suspend()` resets to category list — user always re-enters at the top level.
 - `tick()` delegates to `g_wifiFlow` / `g_calFlow` when those are active
   (they need ticking for scan spinner / connecting spinner).
@@ -267,6 +281,12 @@ bool SettingsApp::handleInput(TouchPhase phase, int x, int y) {
     if (row < 0) return false;
 
     if (_s.section == -1) {
+        // Cancel row is one row below the 6 category rows (after 1px separator)
+        int cancelRowTop = SETTINGS_CONTENT_Y + SETTINGS_CAT_COUNT * SETTINGS_ROW_H + 1;
+        if (y >= cancelRowTop && y < cancelRowTop + SETTINGS_ROW_H) {
+            cancel();
+            return true;
+        }
         onCategoryTap(row);   // category list
     } else {
         onRowTap(row);        // section content or app submenu
@@ -277,7 +297,13 @@ bool SettingsApp::handleInput(TouchPhase phase, int x, int y) {
 void SettingsApp::goBack() {
     if (_s.appSubmenu >= 0)  { _s.appSubmenu = -1; repaintSectionApps(); }
     else if (_s.section >= 0){ _s.section    = -1; repaintCategoryList(); }
-    else                       switchApp(g_previousAppId);
+    else                       switchApp(g_previousAppId);  // exits — keeps all saved changes
+}
+
+void SettingsApp::cancel() {
+    g_settings = _snapshot;    // restore all AppSettings to state at resume()
+    saveSettings();            // write the restored values back to SPIFFS
+    switchApp(g_previousAppId);
 }
 ```
 
@@ -298,6 +324,7 @@ void SettingsApp::goBack() {
 #define SETTINGS_HEADER_COLOR     0xFFFF
 #define SETTINGS_CAT_COLOR        0xFFFF  // category label colour
 #define SETTINGS_CHEVRON_COLOR    0x4208  // > glyph colour
+#define SETTINGS_CANCEL_COLOR     0xC8A0  // muted red — RGB565 ~(199,17,0)
 ```
 
 ---
@@ -333,9 +360,59 @@ void SettingsApp::repaintCategoryList() {
         tft.setTextColor(SETTINGS_CHEVRON_COLOR);
         tft.drawString(">", SETTINGS_ROW_COL_VALUE, mid, 2);
     }
+    // Separator + Cancel row
+    int sepY    = SETTINGS_CONTENT_Y + SETTINGS_CAT_COUNT * SETTINGS_ROW_H;
+    int cancelY = sepY + 1;
+    int cancelMid = cancelY + SETTINGS_ROW_H / 2;
+    tft.drawFastHLine(0, sepY, 275, SETTINGS_SEP_COLOR);
+    tft.setTextDatum(ML_DATUM);
+    tft.setTextColor(SETTINGS_CANCEL_COLOR);
+    tft.drawString("Cancel", SETTINGS_ROW_COL_LABEL, cancelMid, 2);
     tft.setTextDatum(TL_DATUM);
 }
 ```
+
+---
+
+## Cancel — discard all changes
+
+### Semantics
+
+All sections currently call `saveSettings()` immediately on each change (live
+persistence). Cancel does not intercept those writes — it works by **restoring a
+snapshot** taken at `resume()` time and writing that snapshot back to SPIFFS.
+
+```
+User enters Settings → resume() snapshots g_settings
+  → makes changes (each calls saveSettings() live)
+  → taps Cancel
+      → g_settings = _snapshot
+      → saveSettings()           ← writes original values back
+      → switchApp(g_previousAppId)
+```
+
+**Net effect:** SPIFFS ends up with the values that were there before Settings was
+opened. Sections see `g_settings` restored the next time they `enter()`.
+
+### What is and is not covered
+
+| Area | Covered by cancel? | Notes |
+|------|--------------------|-------|
+| LED mode/HSV, display brightness | ✅ yes | Part of `AppSettings` struct |
+| Clock format, date format, city/timezone | ✅ yes | Part of `AppSettings` struct |
+| App preferences (Stock, Crypto, etc.) | ✅ yes | Part of `AppSettings` struct |
+| WiFi Phase 1 (read-only) | ✅ yes (no-op) | Phase 1 makes no writes |
+| Touch calibration (`/cal.json`) | ❌ excluded | CalibrationFlow has its own Accept/Cancel; a completed calibration is deliberate. Cancel from Settings does not undo it. |
+| WiFi Phase 2 (connect/NVS) | ❌ TBD | Phase 2 not yet designed; its cancel semantics are a Phase 2 concern |
+
+### UX contract
+
+- `< back` from the category list **keeps all changes** and exits (same as today).
+- Tapping **Cancel** from the category list **discards all changes** and exits.
+- Cancel is only reachable from the category list — not from inside any section.
+  Users must navigate back to the category list first.
+- There is no confirmation dialog — the resistive-touch tap target is small and
+  distinct enough that accidental taps are unlikely.
 
 ---
 
@@ -503,3 +580,24 @@ Row height is a shared convention (26 px), not enforced by a base class.
 - **C6** — Applications section: tapping an app name opens its per-app row list; back returns to Applications list; back again returns to category list.
 - **C7** — `WifiFlow` and `CalibrationFlow` take over full content panel when active; returning from them via back restores the parent section.
 - **C8** — All settings values (LED mode/HSV, display brightness, app prefs) survive `ESP.restart()`; loaded from `/settings.json` at boot before first `tick()` runs.
+- **C9** — Cancel row visible in category list with `SETTINGS_CANCEL_COLOR`. Tapping it restores all `AppSettings` to the values present when Settings was entered, writes them to SPIFFS, and returns to the previous app. Calibration data (`/cal.json`) is unaffected.
+- **C10** — `< back` from the category list exits without restoring the snapshot; all in-session changes are kept.
+
+---
+
+## Implementation Status (audit 2026-06-06)
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Category list (6 rows, colours, geometry) | ✅ DONE | |
+| SettingsSection base class + storage | ✅ DONE | |
+| All 6 sections wired (`_sections[]`) | ✅ DONE | |
+| C5 — `suspend()` resets to category list | ✅ DONE | `appSubmenu` reset delegated to `AppsSection::leave()`; functionally equivalent |
+| C6 — Applications 3-level navigation | ✅ DONE | |
+| C8 — persistence survives restart | ✅ DONE | |
+| C9 — Cancel button (snapshot-restore) | ❌ NOT IMPLEMENTED | Designed 2026-06-06 |
+| C10 — back keeps changes | ❌ NOT IMPLEMENTED | Dependent on C9 |
+| Stock tickers: 8 stored, 7 displayed | ⚠ DIVERGED | `stockTickers[7]` (NVDA) stored and saved but invisible in Settings UI; loop is `i < 7`. Spec says ×8. Silent overflow resolution for `S_MAX_ROWS=8`. |
+| Applications submenu row order | ⚠ DIVERGED | Spec: Stock/Crypto/Aquarium/Matrix/Life. Impl (`configurable_apps.h`): Crypto/Matrix/Life/Stock/Aquarium |
+| `g_previousAppId` placement | ⚠ DIVERGED | Spec says `appShell.h`. Impl: `static` in `main.cpp` only; not accessible to other TUs |
+| `State.appSubmenu` field | ⚠ DIVERGED | Not in `SettingsApp::_s`; tracked as `AppsSection::_sub` |

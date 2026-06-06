@@ -2,7 +2,7 @@
 
 > Owner: Architect
 > Status: draft
-> Date: 2026-06-04
+> Date: 2026-06-04 (updated 2026-06-06 — implementation audit; tab layout labels corrected)
 > Part of: M-MULTIAPP Settings (`disp` tab)
 > See also: [settings.md](settings.md)
 
@@ -50,10 +50,10 @@ without `adc1_config_*` when using Arduino `analogRead`.
 |  Auto            Off              |   → cycle: Off ↔ On
 |  Level           7                |   → cycle 1–10 (greyed when auto=On)
 |  ─────────────────────────────── |
-|  Sensor                           |   section header
-|  LDR reading     1842             |   live value, updated each tick (read-only)
-|  LDR low         200              |   → cycle: dark-room floor (100–600, step 50)
-|  LDR high        3800             |   → cycle: bright-room ceiling (2000–4000, step 100)
+|  Auto range                       |   section header (sub-header with separator line)
+|  LDR             1842             |   live value, updated each tick (read-only)
+|  Dark floor      200              |   read-only display of ldrLow floor value
+|  Bright ceiling  3800             |   read-only display of ldrHigh ceiling value
 +-----------------------------------+
 ```
 
@@ -376,3 +376,18 @@ Raise the floor in integration if level 1 is too dim (see Open question 2).
 - **C4** — Persisted level survives `ESP.restart()`; boot applies it before
   first frame render (no brightness flash at startup).
 - **C5** — "Level" row visually greyed when auto=On; tap does nothing.
+
+---
+
+## Implementation Status (audit 2026-06-06)
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Auto toggle, manual brightness slider | ✅ DONE | Slider applies live on drag (not just Release) |
+| LDR live readout every 500 ms | ✅ DONE | |
+| Auto-brightness with hysteresis | ✅ DONE | |
+| Tab layout labels | ✅ DONE (corrected) | Spec updated: "Sensor"→"Auto range", "LDR low"→"Dark floor", "LDR high"→"Bright ceiling" |
+| C2 — slew rate ≤2 levels per poll | ⚠ NOT ENFORCED | Impl uses hysteresis (≥1 level change to apply); no max-2-level ramp cap |
+| 8-sample LDR smoothing buffer | ⚠ DEFERRED | Spec notes it as optional; not implemented |
+| `Serial.printf` in `enter()` | ⚠ UNGUARDED | Should be wrapped in `#ifdef SERIAL_DEBUG` |
+| C4 — boot brightness before first frame | ⚠ UNVERIFIED | Depends on `main.cpp::setup()` call order |

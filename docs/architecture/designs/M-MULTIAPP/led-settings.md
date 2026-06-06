@@ -2,7 +2,7 @@
 
 > Owner: Architect
 > Status: draft
-> Date: 2026-06-04 (updated 2026-06-05 — colour picker replaces predefined swatches; HSV storage; updated 2026-06-06 — common-anode confirmed; NFC/GPIO16 conflict handling)
+> Date: 2026-06-04 (updated 2026-06-05 — colour picker replaces predefined swatches; HSV storage; updated 2026-06-06 — common-anode confirmed; NFC/GPIO16 conflict handling; implementation audit 2026-06-06)
 > Part of: M-MULTIAPP Settings (`led` tab)
 > See also: [settings.md](settings.md), [settingsSection.h](../../../app/src/settings/settingsSection.h)
 
@@ -721,3 +721,17 @@ dead code for now; no functional impact.
 - **C12** — Off mode: all three channels at duty 0; no `tick()` CPU cost.
 - **C13** — Pulse: LED breathes smoothly; peak brightness matches stored `ledVal`.
 - **C14** — Clock: colour matches expected hue for current hour; updates within 1 minute of boundary.
+
+---
+
+## Implementation Status (audit 2026-06-06)
+
+| Area | Status | Notes |
+|------|--------|-------|
+| LedFlow (Off/Static/Pulse/Clock + NFC guard) | ✅ DONE | `pause()`/`resume()` added (unspecced; correct) |
+| List view: Mode cycle, swatch, greying | ✅ DONE | |
+| HSV colour picker: SV square, hue strip, drag, buttons | ✅ DONE | |
+| SAVE commit + 100ms visual confirmation | ✅ DONE | |
+| Back-from-picker discards working copy | ✅ DONE | |
+| NFC active UI notice in picker | ❌ NOT IMPLEMENTED | Spec requires text notice; impl has write-guard only. Moot on current DUT (`NFC_ENABLED=0`) |
+| Colour row: always navigable per spec | ⚠ DIVERGED | Impl only opens picker when mode=Static or Pulse; Off/Clock tap is no-op. Consistent with greyed UI state |

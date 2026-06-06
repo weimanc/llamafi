@@ -195,6 +195,7 @@ public:
         _sanityFailed = false;
         _rawSumX = _rawSumY = 0;
         _rawCount = 0;
+        _loadHistory();
         repaint();
     }
 
@@ -266,7 +267,14 @@ public:
             }
         }
 
-        // During STEP_* — raw path handles taps; scaled input is ignored
+        // During STEP_* — allow back-tap to cancel to Idle
+        if (stepping() && isBackTap(x, y)) {
+            _step     = CalStep::Idle;
+            _tapsDone = 0;
+            repaint();
+            return SectionResult::Continue;
+        }
+
         return SectionResult::Continue;
     }
 
@@ -315,6 +323,36 @@ public:
     void clearJustSaved()  { _justSaved = false; }
 
 private:
+    struct HistEntry {
+        int16_t  xMin, xMax, yMin, yMax;
+        uint32_t ts;
+        bool     factory;
+    };
+    HistEntry _hist[3];
+    uint8_t   _histCount = 0;
+
+    void _loadHistory() {
+        _histCount = 0;
+        if (!SPIFFS.exists(TouchCalStorage::kFile)) return;
+        File f = SPIFFS.open(TouchCalStorage::kFile, "r");
+        if (!f) return;
+        DynamicJsonDocument doc(1024);
+        if (deserializeJson(doc, f) != DeserializationError::Ok) { f.close(); return; }
+        f.close();
+        if (!doc.containsKey("history")) return;
+        for (JsonObjectConst h : doc["history"].as<JsonArrayConst>()) {
+            if (_histCount >= 3) break;
+            HistEntry& e = _hist[_histCount++];
+            e.xMin    = h["xMin"] | 0;
+            e.xMax    = h["xMax"] | 0;
+            e.yMin    = h["yMin"] | 0;
+            e.yMax    = h["yMax"] | 0;
+            e.ts      = h["ts"]   | 0u;
+            const char* src = h["src"] | "";
+            e.factory = (strcmp(src, "factory") == 0);
+        }
+    }
+
     CalStep   _step         = CalStep::Idle;
     uint8_t   _tapsDone     = 0;
     bool      _sanityFailed = false;
@@ -412,7 +450,32 @@ private:
         tft.drawFastHLine(8, y, 259, CAL_SEP_COLOR); y += 8;
 
         tft.setTextColor(CAL_SECTION_COLOR);
-        tft.drawString("Tap Start to calibrate", 8, y, 2);
+        tft.drawString("Tap Start to calibrate", 8, y, 2); y += 20;
+
+        // History entries
+        if (_histCount > 0) {
+            tft.drawFastHLine(8, y, 259, CAL_SEP_COLOR); y += 6;
+            tft.setTextColor(CAL_SECTION_COLOR);
+            tft.drawString("History", 8, y, 2); y += 18;
+            for (uint8_t i = 0; i < _histCount; i++) {
+                const HistEntry& e = _hist[i];
+                char line[48];
+                if (e.factory) {
+                    snprintf(line, sizeof(line), "[%d] factory  %d/%d/%d/%d",
+                             i + 1, e.xMin, e.xMax, e.yMin, e.yMax);
+                } else {
+                    struct tm t;
+                    time_t ts = (time_t)e.ts;
+                    localtime_r(&ts, &t);
+                    snprintf(line, sizeof(line), "[%d] %02d-%02d  %d/%d/%d/%d",
+                             i + 1, t.tm_mon + 1, t.tm_mday,
+                             e.xMin, e.xMax, e.yMin, e.yMax);
+                }
+                tft.setTextColor(CAL_DIM_COLOR);
+                tft.drawString(line, 8, y, 1); y += 14;
+                if (y > 230) break;
+            }
+        }
     }
 
     void _repaintStep() {
