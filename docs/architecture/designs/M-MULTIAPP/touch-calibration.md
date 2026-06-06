@@ -2,7 +2,7 @@
 
 > Owner: Architect
 > Status: draft
-> Date: 2026-06-04 (updated 2026-06-05 — full class sketch; constants; rendering sketches; SettingsApp integration; resolved OQ1/OQ2/OQ3; active()/stepping() split; header overlap fix)
+> Date: 2026-06-04 (updated 2026-06-05 — full class sketch; constants; rendering sketches; SettingsApp integration; resolved OQ1/OQ2/OQ3; active()/stepping() split; header overlap fix; updated 2026-06-06 — OQ2/3/5 resolved; C8 guard EC; touch debug overlay section added)
 > Part of: M-MULTIAPP Settings (`cal` tab)
 > See also: [settings.md](settings.md), [upstream-patches.md](upstream-patches.md)
 
@@ -706,3 +706,137 @@ void CalibrationFlow::repaintReview() {
 - **C6** — Cancel at any step returns to Settings `cal` tab with no change to stored values.
 - **C7** — Live feedback marker renders within 275×240 canvas; no pixel bleeds into taskbar strip.
 - **C8** — `_calFlow.active()` returns true for all states Idle→Saving; `_calFlow.stepping()` returns true only for TL→BL. `SettingsApp::tick()` raw poll fires only when `stepping()`; `SettingsApp::handleInput()` delegates scaled coords only when `active()`. Neither path fires outside these guards.
+
+---
+
+## Touch debug overlay (`TOUCH_DEBUG_OVERLAY`)
+
+Compile-time debug feature. Stamps the last touch position on screen after every
+touch event, across all active apps. Disabled in production; enabled by adding
+`-DTOUCH_DEBUG_OVERLAY` to `build_flags` in a debug env.
+
+**Overdraw strategy** — the overlay only writes pixels; it never reads or restores
+the background. When the underlying app repaints, it naturally clears the cursor
+marks. No explicit erase required; previous cursor position stays until overdrawn.
+
+---
+
+### Cursor styles
+
+| Style | Shape | Colour | Bounding box |
+|-------|-------|--------|-------------|
+| `Diamond` | Centre + N/E/S/W at ±1 px (5 pixels total) | Red `0xF800` | 3×3 |
+| `Crosshair` | Full-width H line + full-height V line | Grey `0x4208` (`S_SEP`) | 275×240 |
+
+**Diamond** — 5 `drawPixel` calls:
+
+```cpp
+tft.drawPixel(x,     y,     0xF800);   // centre
+tft.drawPixel(x,     y - 1, 0xF800);   // N
+tft.drawPixel(x,     y + 1, 0xF800);   // S
+tft.drawPixel(x - 1, y,     0xF800);   // W
+tft.drawPixel(x + 1, y,     0xF800);   // E
+```
+
+**Crosshair** — two lines spanning the full left canvas (does not enter taskbar strip):
+
+```cpp
+tft.drawFastHLine(0, y, 275, 0x4208);   // horizontal — x:0..274
+tft.drawFastVLine(x, 0, 240, 0x4208);   // vertical   — y:0..239
+```
+
+---
+
+### Class sketch
+
+```cpp
+// app/src/debug/touchDebugOverlay.h
+#pragma once
+#ifdef TOUCH_DEBUG_OVERLAY
+
+#include <TFT_eSPI.h>
+extern TFT_eSPI tft;
+
+enum class DbgCursorStyle : uint8_t { Diamond, Crosshair };
+
+class TouchDebugOverlay {
+public:
+    bool           enabled = true;
+    DbgCursorStyle style   = DbgCursorStyle::Diamond;
+
+    // Stamp cursor at scaled screen coords (x, y). Overdraw — no erase.
+    // Called from touch dispatch after the event reaches the active app.
+    void onTouch(int x, int y) {
+        if (!enabled) return;
+        if (style == DbgCursorStyle::Diamond) drawDiamond(x, y);
+        else                                  drawCrosshair(x, y);
+    }
+
+private:
+    void drawDiamond(int x, int y) {
+        tft.drawPixel(x,     y,     0xF800);
+        tft.drawPixel(x,     y - 1, 0xF800);
+        tft.drawPixel(x,     y + 1, 0xF800);
+        tft.drawPixel(x - 1, y,     0xF800);
+        tft.drawPixel(x + 1, y,     0xF800);
+    }
+
+    void drawCrosshair(int x, int y) {
+        tft.drawFastHLine(0, y, 275, 0x4208);
+        tft.drawFastVLine(x, 0, 240, 0x4208);
+    }
+};
+
+extern TouchDebugOverlay g_touchDebug;   // defined in main.cpp inside same guard
+
+#endif // TOUCH_DEBUG_OVERLAY
+```
+
+---
+
+### Integration point
+
+Inserted in the touch dispatch path in `appShell` / `main.cpp` **after** the event
+is delivered to the active app, so the cursor always appears on top:
+
+```cpp
+// After app / CalibrationFlow receives the touch event:
+#ifdef TOUCH_DEBUG_OVERLAY
+    if (phase != TouchPhase::None)
+        g_touchDebug.onTouch(x, y);
+#endif
+```
+
+Uses **scaled (post-calibration) coordinates** only. The raw XPT2046 path in
+`CalibrationFlow::handleInputRaw()` is not overlaid — raw ADC values (0..4095)
+are not screen coordinates.
+
+---
+
+### Enabling
+
+`platformio.ini` — add to the existing `cyd2usb_winamp_debug` env:
+
+```ini
+[env:cyd2usb_winamp_debug]
+build_flags =
+    ${cyd2usb_winamp.build_flags}
+    -DSERIAL_DEBUG
+    -DTOUCH_DEBUG_OVERLAY
+```
+
+Style is set at compile time by changing `g_touchDebug.style` in `main.cpp`
+before the loop starts (no runtime UI needed for a debug tool).
+
+---
+
+### Exit criteria (debug overlay)
+
+- **D1** — Diamond: exactly 5 red pixels appear at the last touched position; no
+  pixels outside the 3×3 bounding box.
+- **D2** — Crosshair: one full-width grey line at touch Y and one full-height grey
+  line at touch X; no pixels bleed into the taskbar strip (x ≥ 275).
+- **D3** — Overlay fires on every `TouchPhase::Press` and `TouchPhase::Move` event
+  regardless of which app is active.
+- **D4** — Build without `TOUCH_DEBUG_OVERLAY` compiles cleanly; no overlay symbols
+  present in the binary.
