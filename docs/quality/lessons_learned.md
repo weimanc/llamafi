@@ -1025,6 +1025,108 @@ The compounding error: once in `startConfigPortal()`, `drd->stop()` has already 
 
 ---
 
+## Retrospective — 2026-06-06 — settings-001 DUT validation (LedSection / KeyboardWidget / CalibrationFlow)
+
+Triggering work: implementation and first DUT validation of the three new settings sections and PATCH-002. Human observer flagged the validation session as "amateur hours." Below: what went wrong, the waste, and what to fix.
+
+---
+
+### LL-052 — 2026-06-06 — USB port discovery done manually every session
+
+**Context**: Every validation session required a separate `ls /dev/ttyUSB*` invocation to confirm the port before flashing or monitoring. Port varied between `ttyUSB0` and `ttyUSB1` across sessions with no explanation.
+
+**Observation**: Three separate port-lookup commands were issued across the session. Each command produced output that had to be read and threaded into the next command. The `run_serialdbg_tests.py` error message even suggested the wrong port (`/dev/ttyUSB0`) while the real device was on `/dev/ttyUSB1`.
+
+**Root cause**: No canonical "what port is the DUT?" helper exists. The CH340 USB-serial adapter for this board always has VID:PID `1A86:7523`; that fact is documented in CLAUDE.md but no command uses it.
+
+**Suggested improvement**: Add a one-liner to `app/tools/dut_port.sh` that resolves the port by VID:PID and prints it:
+```sh
+#!/usr/bin/env bash
+# Resolves the CYD2USB CH340 serial port by USB VID:PID 1A86:7523.
+port=$(ls /dev/ttyUSB* 2>/dev/null | while read p; do
+  udevadm info -q property "$p" 2>/dev/null | grep -q "ID_VENDOR_ID=1a86" && echo "$p" && break
+done)
+[ -n "$port" ] && echo "$port" || { echo "ERROR: DUT not found" >&2; exit 1; }
+```
+All other tools (`flash.sh`, monitor alias, test harness) call `$(dut_port.sh)` instead of hardcoding the port. Document in `docs/process/dut_workflow.md`.
+
+**Status**: open — BP candidate (BP-019)
+
+---
+
+### LL-053 — 2026-06-06 — Monitor session not killed before flash; two serial-port collisions
+
+**Context**: `run_serialdbg_tests.py` was called while the tmux `spotify-mon` session held `/dev/ttyUSB1`. The test harness received `SerialException: device reports readiness to read but returned no data` and died. A second attempt failed because the wrong firmware (production, not `SERIAL_DEBUG`) was running.
+
+**Observation**: Three separate attempts were needed before a test run succeeded: (1) port busy → error, (2) debug firmware not flashed → `RuntimeError`, (3) success. Each attempt wasted ~30-60s of iteration.
+
+**Root cause**: No pre-validation checklist. The steps "kill monitor → flash debug build → run tests" exist in CLAUDE.md piecemeal but not as a single ordered procedure with guards.
+
+**Suggested improvement**: Codify a `validate.sh` wrapper (or section in `docs/process/dut_workflow.md`) that enforces the sequence:
+```
+1. kill tmux spotify-mon  (idempotent)
+2. flash cyd2usb_winamp_debug
+3. sleep 8                (boot + WiFi settle)
+4. run_serialdbg_tests.py [--filter <ids>]
+5. flash cyd2usb_winamp   (restore prod)
+6. restart tmux spotify-mon
+```
+A `--filter` flag already exists (or should); targeted test runs for new features avoid the full 10-minute suite during development.
+
+**Status**: open — BP candidate (BP-020)
+
+---
+
+### LL-054 — 2026-06-06 — Test harness is a black box; no targeted new-feature run
+
+**Context**: After implementing three new sections, the full 100+ test suite was launched. The settings-specific tests (T-SET-01..08) are at the very end of the suite, so ~8 minutes of stock/crypto/weather/GoL tests ran before reaching the relevant tests.
+
+**Observation**: The new code's test coverage (T-SET-01/02/08 pass; T-LED, T-KB, T-CAL all manual-only) was visible only after the full suite completed. Time wasted on pre-existing failures and Spotify-not-playing skips that have nothing to do with the new feature.
+
+**Root cause**: The harness has no documented way to run a named subset. The LLM agent launched the full suite without knowing a filter existed or could be added.
+
+**Suggested improvement**:
+1. Document `run_serialdbg_tests.py --run T-SET-01,T-SET-02,T-SET-08` (or add this flag if not present) in `docs/process/dut_workflow.md` under "Targeted feature validation."
+2. Each VE test plan entry should cross-reference which harness test ID covers it (or mark "manual only — no harness test").
+3. Add a "smoke" preset: a minimal fast-passing subset (T080/T083/T091/T092/T147/T162/T-SET-01/02/08) that confirms basic shell health in <2 min.
+
+**Status**: open — BP candidate (BP-021)
+
+---
+
+### LL-055 — 2026-06-06 — Two separate calibration bugs found only at DUT runtime
+
+**Context**: The calibration `_computeCalibration()` had two bugs: (1) xMax extrapolated to x=274 instead of x=319 (45px short), (2) `_drawTapMarker` mapped raw to 0..274 instead of 0..319, compressing every marker leftward. Both required a DUT flash cycle to diagnose.
+
+**Observation**: Both bugs were pure arithmetic, detectable by desk-check or unit test without hardware:
+- The extrapolation targets (x=274 vs x=319) could be verified by comparing `S_CANVAS_W` (275), `sizeX_px` (320), and `kCalTX[]` values on paper.
+- The marker formula `map(..., 0, 274)` vs `(raw - min)*320/range` is a one-line discrepancy visible in code review.
+
+**Root cause**: No code review pass was done before flash. The audit after LED+Keyboard (Task 4) was not extended to CalibrationFlow; it was called complete before the flash cycle. The design doc did not state the driver's `sizeX_px=320` constraint explicitly, so the implementation assumed canvas-width (275).
+
+**Suggested improvement**:
+1. CalibrationFlow design doc (or inline in the header): explicitly state "driver maps raw → 0..(sizeX_px-1); sizeX_px=320; all extrapolation targets must use 319, not 274 (= S_CANVAS_W-1)."
+2. Pre-flash arithmetic check for any calibration-related change: write out the four edge targets and verify they equal 0, 319, 0, 239.
+3. Code review checklist item: "any `map(raw, calMin, calMax, 0, X)` — confirm X matches driver sizeXY_px."
+
+**Status**: open — BP candidate (BP-022)
+
+---
+
+### LL-056 — 2026-06-06 — Process documentation is scattered; no single workflow reference
+
+**Context**: CLAUDE.md documents commands for build, flash, monitor, SPIFFS, and serialdbg tests, but as disconnected snippets across a long file. The LLM agent had to re-derive the correct sequence each session from memory or re-read the file.
+
+**Observation**: A first-time operator (or agent starting cold) has no single page that says: "to validate a new feature, do steps 1-N." Setup (WiFi, Spotify keys), build variants, SPIFFS management, debug vs production firmware, and test harness operation are all described in different sections.
+
+**Root cause**: Documentation grew organically alongside the codebase. No process-level document was ever written.
+
+**Suggested improvement**: Create `docs/process/dut_workflow.md` as the single DUT operations reference covering: first-time setup, build variants, flash (with/without SPIFFS), serial monitor, targeted feature validation, regression suite, and how to interpret results. See new file created alongside this retrospective.
+
+**Status**: open — adopted (dut_workflow.md created this session)
+
+---
+
 ## Entry Format
 
 ```

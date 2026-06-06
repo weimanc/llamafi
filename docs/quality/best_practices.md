@@ -186,6 +186,46 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-019 — Resolve DUT serial port by USB VID:PID, never hardcode
+
+**Adopted from**: LL-052
+**Date adopted**: 2026-06-06 (pending human sign-off)
+**Rule**: Use `app/tools/dut_port.sh` (resolves CH340 by VID:PID `1A86:7523`) wherever a port is needed. Never hardcode `/dev/ttyUSB0` or `/dev/ttyUSB1` in commands, scripts, or agent briefings.
+**Rationale**: The port number is non-deterministic across sessions and hardware configurations. Re-discovering it manually costs time every session and introduces copy-paste errors (wrong port in flash command after looking it up for monitor). A VID:PID lookup is deterministic and self-documenting.
+**Applies to**: VE (all `pio run -t upload`, `pio device monitor`, `run_serialdbg_tests.py` invocations), Developer (flash helpers), All agents (substitute `$(app/tools/dut_port.sh)` in every port argument)
+
+---
+
+### BP-020 — Pre-validation sequence: kill monitor → debug flash → test → prod flash → restart monitor
+
+**Adopted from**: LL-053
+**Date adopted**: 2026-06-06 (pending human sign-off)
+**Rule**: Before any serialdbg test run, execute in order: (1) `tmux kill-session -t spotify-mon`, (2) `pio run -e cyd2usb_winamp_debug -t upload`, (3) `sleep 8`, (4) `run_serialdbg_tests.py`, (5) `pio run -e cyd2usb_winamp -t upload`, (6) restart monitor. Never skip step 1 (port collision) or step 2 (harness will immediately reject production firmware). Document this sequence in `docs/process/dut_workflow.md`.
+**Rationale**: Two of the three failed launch attempts in the 2026-06-06 session were caused by skipping steps 1 and 2 respectively. Each failure consumed a serial-port-open + Python startup + error-read cycle (~30-60s each). The full 5-step sequence takes ~60s total; three failed attempts took ~3 minutes.
+**Applies to**: VE (mandatory pre-run checklist), All agents (treat this as an atomic operation — do not split across turns)
+
+---
+
+### BP-021 — Use targeted test IDs for new-feature validation; reserve full suite for regression
+
+**Adopted from**: LL-054
+**Date adopted**: 2026-06-06 (pending human sign-off)
+**Rule**: When validating newly implemented features, run only the relevant test IDs: `run_serialdbg_tests.py --run T-SET-01,T-SET-02,T-SET-08` (example). Run the full suite only for regression checks after refactors or cross-cutting changes. Maintain a documented "smoke" preset (< 2 min, always-passing subset) for quick health checks.
+**Rationale**: The full suite takes 8-10 minutes; settings tests are near the end. Launching the full suite after implementing settings sections made the agent wait through stock/crypto/weather/GoL tests before seeing any relevant output. Targeted runs give signal in < 30s.
+**Applies to**: VE (document filter presets in `docs/process/dut_workflow.md`: smoke, settings, stock, per-feature), PM (schedule full regression suite only at milestone boundaries, not after every feature)
+
+---
+
+### BP-022 — Calibration arithmetic: desk-check extrapolation targets before flash; state sizeX/Y_px explicitly
+
+**Adopted from**: LL-055
+**Date adopted**: 2026-06-06 (pending human sign-off)
+**Rule**: Any calibration computation that extrapolates from tap targets to screen edges must state the driver's `sizeX_px` / `sizeY_px` values (320/240) explicitly in a comment, and must be desk-checked: verify that each of the four extrapolated edges equals 0, 319, 0, 239. Any `map(raw, calMin, calMax, 0, X)` where X ≠ sizeX_px (or sizeY_px) is a bug.
+**Rationale**: Two separate calibration bugs (xMax extrapolation and marker mapping) both stemmed from using 274 (canvas width − 1) instead of 319 (screen width − 1). Both were detectable without hardware. Neither was caught before flash because no desk-check step existed.
+**Applies to**: Developer (calibration or coordinate-transform code: comment the driver contract, desk-check the four edge values), VE (code review checklist: check any `map(raw, ...)` against driver sizeXY)
+
+---
+
 ## Entry Format
 
 ```
