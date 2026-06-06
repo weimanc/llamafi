@@ -1846,6 +1846,7 @@ static void cmdSet(const char *);
 static void cmdSwitchApp(const char *);
 static void cmdInfo(const char *);
 static void cmdHelp(const char *);
+static void cmdReboot(const char *);
 #endif
 
 static const SerialCmd kCmds[] = {
@@ -1858,7 +1859,8 @@ static const SerialCmd kCmds[] = {
   { "set",  cmdSet,  "write debug state",               "<backoff|cooldown> <val>"            },
   { "switchApp", cmdSwitchApp, "switch active app by id", "<appId 0..8>"                      },
   { "info", cmdInfo, "git+elf+build+snapshot summary",  ""                                   },
-  { "help", cmdHelp, "list commands",                   ""                                   },
+  { "help",   cmdHelp,   "list commands",                   ""                                   },
+  { "reboot", cmdReboot, "software reset (ESP.restart)",   ""                                   },
 #endif
 };
 static constexpr int kNumCmds = sizeof(kCmds) / sizeof(kCmds[0]);
@@ -2197,6 +2199,13 @@ static void cmdInfo(const char *) {
     snap.shuffleState ? "true" : "false",
     (int)snap.repeatState,
     spotifyTask::dbg_getFailureCount());
+}
+
+static void cmdReboot(const char *) {
+  Serial.println("{\"ok\":true,\"cmd\":\"reboot\"}");
+  Serial.flush();
+  delay(50);
+  ESP.restart();
 }
 
 static void cmdHelp(const char *) {

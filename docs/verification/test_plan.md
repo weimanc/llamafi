@@ -2085,7 +2085,7 @@ Common preconditions for all T-SET tests:
   8. Visual: category list shows 6 rows with chevrons.
 - **Expected result**: `section == -1` after suspend/resume; category list renders (C5).
 - **Harness**: `run_serialdbg_tests.py --tests T-SET-06` (steps 1–3, 5–7). Step 4/8 manual visual. Owner: VE.
-- **Status**: planned [updated 2026-06-06 — removed stale `settingsAppSubmenu` step; step 4 now visual].
+- **Status**: partial — serial steps 1–3/5–7 PASS (2026-06-06 DUT; also tested suspend mid-L2: `section==-1`); step 4/8 visual pending.
 
 ---
 
@@ -2141,6 +2141,10 @@ Serial debug surface: `get settingsSection` confirms section index. Section-inte
 state (Display level, Time format, Apps submenu) is not exposed via serial —
 content verified visually unless noted.
 
+**Reboot command:** `reboot` serial command added 2026-06-06 (calls `ESP.restart()`, emits
+`{"ok":true,"cmd":"reboot"}` before reset). Required for T-DISP-04, T-TIME-04, T-APPS-08
+persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit).
+
 **Tap Y reference (category list):** WiFi=41, Time=67, Touch-Cal=93, Display=119, LED=145, Applications=171.
 
 **DUT required for all tests.** Flash `cyd2usb_winamp_debug`. Enter Settings: `switchApp 6`.
@@ -2159,7 +2163,7 @@ content verified visually unless noted.
   3. Visual: "Connected Yes" (green), SSID row, IP row (non-zero), signal bars (≥1 filled bar).
 - **Expected result**: STATUS view populated with live data (C1a).
 - **Harness**: step 2 serial; step 3 manual visual. Owner: VE.
-- **Status**: planned.
+- **Status**: partial — serial step 2 PASS (2026-06-06 DUT `section==0`); step 3 visual pending.
 
 ---
 
@@ -2207,7 +2211,7 @@ content verified visually unless noted.
   3. Visual: category list (6 rows) renders.
 - **Expected result**: `section == -1`, category list visible (C1c).
 - **Harness**: `run_serialdbg_tests.py` step 2; step 3 manual. Owner: VE.
-- **Status**: planned.
+- **Status**: partial — serial step 2 PASS (2026-06-06 DUT `section==-1`); step 3 visual pending.
 
 ---
 
@@ -2262,7 +2266,7 @@ content verified visually unless noted.
   5. Drag back to level 3. Visual: backlight dims.
 - **Expected result**: Backlight duty tracks slider position; live preview during drag (C1).
 - **Harness**: step 2 serial; steps 3–5 manual visual. Owner: VE.
-- **Status**: planned.
+- **Status**: partial — serial step 2 PASS (2026-06-06 DUT `section==3`); steps 3–5 visual pending.
 
 ---
 
@@ -2315,8 +2319,8 @@ content verified visually unless noted.
   4. After boot, before entering Settings: visual — backlight is at dim level 3, not full brightness.
   5. `switchApp 6` → `tap 137 119` (Display). Visual: Level slider positioned at 3.
 - **Expected result**: Backlight at level 3 on boot; slider synced to stored value (C4).
-- **Harness**: steps 1–2 manual; step 3 physical reset; steps 4–5 manual visual. Owner: VE.
-- **Status**: planned.
+- **Harness**: steps 1–2 manual; step 3 `reboot` serial command (added 2026-06-06); steps 4–5 manual visual. Owner: VE.
+- **Status**: partial — `reboot` serial cmd PASS (2026-06-06 DUT; clean boot + `section==-1` on re-entry confirmed); brightness visual check pending.
 
 ---
 
@@ -2352,7 +2356,7 @@ content verified visually unless noted.
   7. Visual: clock displays local Tokyo time (UTC+9 offset from known UTC reference).
 - **Expected result**: Timezone visible in Time section; Clock app offset matches city (C1).
 - **Harness**: step 2 serial; steps 3–7 manual visual. Owner: VE.
-- **Status**: planned.
+- **Status**: partial — serial step 2 PASS (2026-06-06 DUT `section==1`); steps 3–7 visual pending.
 
 ---
 
@@ -2404,8 +2408,8 @@ content verified visually unless noted.
   4. Visual: Timezone="Europe/London"; Clock="12h"; Date="MM/DD/YYYY".
   5. `switchApp 1` (Clock). Visual: time in 12h format with AM/PM.
 - **Expected result**: All three settings preserved; timezone applies on boot (C6).
-- **Harness**: manual. Owner: VE.
-- **Status**: planned.
+- **Harness**: manual + `reboot` serial cmd. Owner: VE.
+- **Status**: partial — `reboot` + clean re-entry PASS (2026-06-06 DUT); city/fmt/date visual check pending.
 
 ---
 
@@ -2540,7 +2544,7 @@ content verified visually unless noted.
   9. `tap 30 14` (back). `get settingsSection` — assert `section == -1`.
 - **Expected result**: Full 3-level unwind works; section stays 5 while inside L2; returns to -1 after two backs (C6 depth).
 - **Harness**: serial steps 2/6/8/9; visual steps 3/5/7. Owner: VE.
-- **Status**: planned.
+- **Status**: partial — serial steps 2/6/8/9 PASS (2026-06-06 DUT: L1 entry `section==5`, L2 back stays 5, L1 back→`-1`); visual steps 3/5/7 pending.
 
 ---
 
