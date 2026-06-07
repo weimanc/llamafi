@@ -1141,6 +1141,20 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 
 ---
 
+### LL-058 — 2026-06-07 — run/test-sync mislabeled "host-only"; requires DUT
+
+**Context**: `run/test-sync` was written and documented as "host-only sync tests (no DUT required)" in CLAUDE.md, `project_run_scripts.md`, and `dut_workflow.md`. VE no-DUT validation caught the error: `run_sync_tests.py` opens the serial port immediately on startup and fails with `SerialException` if no device is connected. Every test function in the file takes a `Dut` object — there is no host-only mode.
+
+**Observation**: The mislabeling would have caused an agent to invoke `./run/test-sync` expecting it to complete without hardware, receive a crash, and misdiagnose the failure as a script or environment issue rather than a missing device.
+
+**Root cause**: The label "sync tests" refers to the test suite name (sync-001/drift-001/playlist-001), not to DUT independence. The author assumed "sync" implied host-side only without verifying the runner's actual startup behavior.
+
+**Suggested improvement**: Before labeling any test script "host-only" or "no DUT required", verify by running it without the device connected. A script that calls `serial.Serial().open()` at module load or `__init__` time is never host-only regardless of what the tests themselves do.
+
+**Status**: adopted — `run/test-sync` rewritten with full 6-step validation loop; "host-only" label removed from all three docs in the same session before the commit landed.
+
+---
+
 ## Entry Format
 
 ```
