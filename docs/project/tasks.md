@@ -4,10 +4,10 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
-> **PM sync 2026-06-07** — settings-001 new-items feature set complete (fd93679, c07c903).
-> VE DUT run complete: 8 PASS, physical/visual deferred, BLOCKED-PHASE2 KB tests pending Phase 2.
-> TASK-151 closed (LDR confirmed working). TASK-155 opened (KB symbol-page highlight bug).
-> Open: TASK-150, TASK-152 (visual confirm pending), TASK-153, TASK-154 (visual confirm pending), TASK-155.
+> **PM sync 2026-06-07 (rev 2)** — TASK-150/153/155 investigated; TASK-155 fixed (3962903).
+> TASK-150 and TASK-153 confirmed already implemented — DUT visual verify only remaining.
+> TASK-155 done: KB cancel highlight bug fixed (input-bar repaint path, not _pressColForXY).
+> Open (DUT verify only): TASK-150, TASK-152, TASK-153, TASK-154.
 > Completed and closed tasks are in [tasks-archive.md](tasks-archive.md).
 
 ---
@@ -22,7 +22,12 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
   - Physical (cal corner taps) + visual (TDBG, cal history): deferred — require person at screen
   - KB cancel: BLOCKED-PHASE2 (keyboard not reachable until WiFi Phase 2)
   - Bug found and fixed during VE: `DisplaySection::tick()` map() crash when `ldrLow==ldrHigh`
-- **Design audit:** all 6 features strong-match spec; one medium gap: KB symbol-page press-highlight bug (TASK-155)
+- **Design audit:** all 6 features strong-match spec
+
+### TASK-155 — KB cancel `<` press-highlight
+- **Commit:** `3962903`
+- **Status:** done — input-bar repaint path fixed; `cancelPressed` check added to `repaintInputBar()`
+- **Validation:** BLOCKED-PHASE2 (full visual confirm when keyboard reachable)
 
 ---
 
@@ -182,21 +187,3 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
   add to settings-sections-001 suite.
 - **Owner:** Architect (spec update for CityEntry) + Developer (implementation).
 
----
-
-### TASK-155 — KeyboardWidget cancel `<` press-highlight missing
-- **Feature:** settings-001 / keyboard-widget
-- **Priority:** P3 (visual feedback only — functional cancel still works)
-- **Status:** done — fixed 2026-06-07
-- **Opened:** 2026-06-07 (design-vs-impl audit)
-- **Root cause (corrected):** Not `_pressColForXY()` — symbol-page action row was already
-  correct. Actual bug: `repaintInputBar()` never checked `_pressHighlight`, and the Press
-  handler only called `repaintKeys()` (repaints y ≥ KB_INPUT_H), so a press on the cancel
-  `<` zone (x<40, y<40) never triggered a visual highlight.
-- **Fix (commit TBD):**
-  - `handleInput` Press: add `if (_pressRow < 0) repaintInputBar()` after `repaintKeys()`
-  - `tick()` highlight reset: add `if (wasInputBar) repaintInputBar()` after `repaintKeys()`
-  - `repaintInputBar()`: check `cancelPressed = (_pressHighlight && _pressRow < 0 && _pressCol == -20)`; draw `<` in `S_HDR_TXT` when pressed, `S_VALUE_OFF` otherwise
-- **Build:** cyd2usb_winamp_debug SUCCESS
-- **Validation:** T-KB-CANCEL-01 (BLOCKED-PHASE2 — visual confirm when Phase 2 lands)
-- **Owner:** Developer
