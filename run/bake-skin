@@ -1,10 +1,30 @@
 #!/usr/bin/env bash
-# run/bake-skin — bake Winamp skin assets into gen/
-# Usage: ./run/bake-skin
+# run/bake-skin — bake a Winamp 2.x .wsz skin into gen/
+# Usage:
+#   ./run/bake-skin                        # uses app/skins/base-2.91.wsz (default)
+#   ./run/bake-skin path/to/other.wsz      # any Winamp 2.x skin
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
-echo "[bake-skin] baking skins/base-2.91.wsz → app/gen/"
+
+WSZ="${1:-$PIO_DIR/skins/base-2.91.wsz}"
+
+if [ ! -f "$WSZ" ]; then
+  echo "[bake-skin] ERROR: skin file not found: $WSZ" >&2
+  echo "" >&2
+  echo "  The Winamp base skin is not included in this repo (licensing)." >&2
+  echo "  Download any Winamp 2.x .wsz skin and place it at:" >&2
+  echo "" >&2
+  echo "    app/skins/base-2.91.wsz" >&2
+  echo "" >&2
+  echo "  The Winamp Skin Museum has thousands of skins:" >&2
+  echo "    https://skins.webamp.org" >&2
+  echo "" >&2
+  echo "  Or pass a path explicitly: ./run/bake-skin path/to/skin.wsz" >&2
+  exit 1
+fi
+
+echo "[bake-skin] baking $(basename "$WSZ") → app/gen/"
 "$VENV_PY" "$PIO_DIR/tools/bake_skin.py" \
-  -i "$PIO_DIR/skins/base-2.91.wsz" \
+  -i "$WSZ" \
   -o "$PIO_DIR/gen"
 echo "[bake-skin] done — verify: cd app/gen && sha256sum -c golden.sha256"

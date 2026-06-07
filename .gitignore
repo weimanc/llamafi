@@ -1,5 +1,10 @@
 cspot/
 Spotify-Diy-Thing/
 resource/*
-!resource/ASCII_Aquarium/
 .claude/
+app/skins/*.wsz
+app/skins/*/
+# secret files — never commit
+**/wifi_creds.h
+app/data/spotify_diy_config.json
+app/data/host_overrides.json

@@ -563,6 +563,33 @@ Work (all changes in `app/src/aquarium/aquariumApp.h`):
 
 ---
 
+### M-SKIN-SELECT — Configurable bake-time skin
+
+Allow users to build firmware with any Winamp 2.x skin, not only the default
+`base-2.91.wsz`. The Winamp base skin is not redistributable; users must supply
+their own `.wsz` file. The bake tool already accepts any conformant Winamp 2.x
+skin via `-i`; this milestone exposes that as a proper user-facing workflow.
+
+Work:
+1. **`run/bake-skin`** — already accepts `$1` as optional skin path (done,
+   2026-06-07). Default falls back to `app/skins/base-2.91.wsz` with a clear
+   error and link to <https://skins.webamp.org> if the file is absent.
+2. **Build flag** — add `WINAMP_SKIN_WSZ` (or similar) to `platformio.ini`
+   `extra_scripts` pre-build hook so `pio run` auto-bakes when the flag points
+   at a non-default skin. (Optional; manual `./run/bake-skin skin.wsz` is
+   sufficient for now.)
+3. **README** — document the skin workflow: download a `.wsz`, place it under
+   `app/skins/`, run `./run/bake-skin`, then flash.
+4. **`golden.sha256`** — note that the checksum is skin-specific; users baking
+   a different skin should regenerate it with
+   `cd app/gen && sha256sum skin_assets.c skin_layout.h > golden.sha256`.
+
+**Status**: partial — `run/bake-skin` argument + missing-file guard done. Steps 2–4 outstanding.  
+**Deps**: none  
+**Note**: runtime skin swap remains out of scope (ADR-003).
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.
