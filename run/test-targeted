@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# run/test-targeted — targeted DUT validation loop (BP-021)
+# Usage: ./run/test-targeted T080,T083,T091
+#        TESTS=T080,T083 ./run/test-targeted
+#        BOOT_WAIT=12 ./run/test-targeted T-SET-01,T-SET-02
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+TESTS="${TESTS:-${1:-}}"
+[ -n "$TESTS" ] || {
+  echo "Usage: $0 T080,T083  OR  TESTS=T080,T083 $0" >&2
+  exit 1
+}
+PORT=$(resolve_port)
+
+_TEST_RC=0
+_cleanup() {
+  local rc=$_TEST_RC
+  echo ""
+  echo "[test-targeted] step 5/6 — restoring $ENV_PROD (rc=$rc so far)"
+  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT") || {
+    echo "ERROR [test-targeted]: prod restore failed" >&2
+    rc=99
+  }
+  echo "[test-targeted] step 6/6 — restarting monitor"
+  tmux new-session -d -s "$SESSION" \
+    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'" \
+    2>/dev/null || true
+  exit "$rc"
+}
+trap _cleanup EXIT INT TERM
+
+echo "[test-targeted] running: $TESTS"
+
+echo "[test-targeted] step 1/6 — killing monitor"
+tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+
+echo "[test-targeted] step 2/6 — flashing $ENV_DEBUG to $PORT"
+(cd "$PIO_DIR" && "$PIO" run -e "$ENV_DEBUG" -t upload --upload-port "$PORT")
+
+echo "[test-targeted] step 3/6 — waiting ${BOOT_WAIT}s for boot + WiFi"
+sleep "$BOOT_WAIT"
+
+echo "[test-targeted] step 4/6 — running tests: $TESTS"
+(cd "$PIO_DIR" && "$VENV_PY" tools/run_serialdbg_tests.py --port "$PORT" --run "$TESTS") \
+  || _TEST_RC=$?

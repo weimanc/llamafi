@@ -81,15 +81,31 @@ Arduino sketch (`SpotifyDiyThing/SpotifyDiyThing.ino`) that polls the Spotify We
 - **Serial port:** `/dev/ttyUSB0`, CH340 (USB VID:PID `1A86:7523`).
 - **Platform pin:** `platformio.ini` pins `platform = espressif32@6.9.0` (Arduino-ESP32 2.0.17). The repo's original unpinned line broke against current PlatformIO because the bundled WiFi lib in newer cores expects `Network.h`, which the install didn't ship. Don't bump above 6.9.x without checking the WiFi/Network split.
 
-### Build / flash / monitor
+### Run scripts (use these — do not issue raw pio/tmux commands)
+
+All build, flash, monitor, and test operations have named scripts in `run/`. Always use these instead of raw `pio` or `tmux` commands — the scripts handle port resolution, monitor lifecycle, and DUT safety automatically.
 
 ```sh
-cd app
-~/.platformio/penv/bin/pio run -e cyd2usb_winamp                           # build — production target
-~/.platformio/penv/bin/pio run -e cyd2usb_winamp -t upload --upload-port /dev/ttyUSB0
-~/.platformio/penv/bin/pio run -e cyd2usb_winamp -t uploadfs --upload-port /dev/ttyUSB0   # SPIFFS only
-~/.platformio/penv/bin/pio run -e cyd2usb_winamp_debug                     # debug build (SERIAL_DEBUG)
+./run/port                    # resolve + print CH340 serial port
+./run/build                   # compile production firmware
+./run/build-debug             # compile debug firmware
+./run/flash                   # flash production (kills + restores monitor)
+./run/flash-debug             # flash debug firmware (monitor stays down for test harness)
+./run/flash-fs                # upload SPIFFS only
+./run/monitor-start           # start tmux serial monitor
+./run/monitor-stop            # kill monitor (idempotent)
+./run/monitor-read [N]        # dump last N lines (default 200)
+./run/test                    # full DUT validation loop (BP-020, trap-guarded)
+./run/test-targeted T1,T2     # targeted loop for a specific feature
+./run/test-smoke              # smoke preset < 2 min
+./run/test-sync               # sync/drift/playlist suite T097-T116 (requires DUT)
+./run/check                   # 5-gate build check (check_build.sh)
+./run/bake-skin               # bake Winamp skin assets
 ```
+
+Full reference: `docs/process/project_run_scripts.md`. Rationale and failure modes: `docs/process/dut_workflow.md`.
+
+Port is resolved automatically by VID:PID. Override: `PORT=/dev/ttyUSB1 ./run/flash`.
 
 Other envs in `platformio.ini` (don't use on this board): `cyd` (single-USB CYD, inversion off), `trinity` (HUB75 matrix). Env selects display via `-DYELLOW_DISPLAY` vs `-DMATRIX_DISPLAY`. The `cyd*` envs bake the full TFT_eSPI `User_Setup.h` into `build_flags` — the library's bundled User_Setup is ignored.
 
@@ -97,49 +113,37 @@ Other envs in `platformio.ini` (don't use on this board): `cyd` (single-USB CYD,
 
 ### Build check (run before/after structural changes)
 
-`check_build.sh` at the project root compiles both firmware targets and verifies the golden hash. Run it before and after any refactor, file move, or `#include` change:
-
 ```sh
-./check_build.sh   # 3 checks: cyd2usb_winamp, cyd2usb_winamp_debug, golden.sha256
+./run/check   # 5 gates: cyd2usb_winamp, cyd2usb_winamp_debug, golden.sha256, smoke, app registry
 ```
 
-Exit 0 = all pass. This is the minimum safety gate before committing structural changes (see BP-008).
+Exit 0 = all pass. Minimum safety gate before committing structural changes (see BP-008).
 
 ### Skin asset bake (M2)
 
 Host-side bake of `skins/base-2.91.wsz` → `app/gen/skin_assets.c` + `skin_layout.h`. Run on demand (not a PIO pre-build hook):
 
-### Python venv
-
-**Project venv:** `~/proj/esp/venv` — use this for all host-side Python tools.
-
 ```sh
-~/proj/esp/venv/bin/python3 app/tools/bake_skin.py ...
-~/proj/esp/venv/bin/python3 app/tools/preview_layout.py ...
-~/proj/esp/venv/bin/python3 app/tools/run_serialdbg_tests.py ...
-~/proj/esp/venv/bin/python3 app/tools/run_sync_tests.py ...
-```
-
-Installed packages: `Pillow`, `numpy`, `pygame`, `pyserial`.
-
-```sh
-cd app/tools
-~/proj/esp/venv/bin/python3 bake_skin.py -i ../skins/base-2.91.wsz -o ../gen
+./run/bake-skin
 # determinism check (T025): re-bake should be byte-identical to committed gen/
-cd ../gen && sha256sum -c golden.sha256
+cd app/gen && sha256sum -c golden.sha256
 ```
 
 Deps: `python3-pillow` and **ImageMagick CLI** (`magick` on PATH). Pillow's `BI_RLE8` BMP decoder fails on Winamp's `TEXT.BMP`; the tool shells out to `magick` as a fallback. Without ImageMagick the font atlas step raises. See ADR-008.
 
-### Serial monitor via tmux
+### Python venv
 
-The monitor holds the port exclusive, blocking flashes. Run it in a detached tmux session so it can be killed/restarted around uploads:
+**Project venv:** `~/proj/esp/venv` — use this for all host-side Python tools (invoked internally by `run/` scripts). Direct invocation when needed:
 
 ```sh
-tmux new-session -d -s spotify-mon "cd ~/proj/esp_spotify/app && ~/.platformio/penv/bin/pio device monitor -e cyd2usb_winamp -p /dev/ttyUSB0"
-tmux capture-pane -t spotify-mon -p -S -500     # read last ~500 lines
-tmux kill-session -t spotify-mon                # before flashing
+~/proj/esp/venv/bin/python3 app/tools/preview_layout.py ...
 ```
+
+Installed packages: `Pillow`, `numpy`, `pygame`, `pyserial`.
+
+### Serial monitor via tmux
+
+Use `./run/monitor-start`, `./run/monitor-stop`, `./run/monitor-read`. The monitor holds the port exclusively — all `run/flash*` and `run/test*` scripts kill it automatically before using the port and restart it afterward.
 
 `Ctrl-C` inside the pane kills the whole session (it's the only process); recreate with `tmux new-session` after upload.
 

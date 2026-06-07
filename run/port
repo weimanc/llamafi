@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# run/port — resolve and print the DUT CH340 serial port
+# Usage: ./run/port
+#        PORT=$( ./run/port )
+#        PORT=/dev/ttyUSB1 ./run/flash   # override
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+resolve_port

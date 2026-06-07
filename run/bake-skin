@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# run/bake-skin — bake Winamp skin assets into gen/
+# Usage: ./run/bake-skin
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+echo "[bake-skin] baking skins/base-2.91.wsz → app/gen/"
+"$VENV_PY" "$PIO_DIR/tools/bake_skin.py" \
+  -i "$PIO_DIR/skins/base-2.91.wsz" \
+  -o "$PIO_DIR/gen"
+echo "[bake-skin] done — verify: cd app/gen && sha256sum -c golden.sha256"

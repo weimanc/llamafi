@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# run/check — 5-gate build check (thin wrapper around check_build.sh)
+set -euo pipefail
+PROJ_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+exec "$PROJ_ROOT/check_build.sh"

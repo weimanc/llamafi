@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# run/monitor-stop — kill tmux serial monitor (idempotent)
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+tmux kill-session -t "$SESSION" 2>/dev/null || true
+echo "[monitor-stop] done"

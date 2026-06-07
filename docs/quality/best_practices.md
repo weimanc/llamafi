@@ -190,9 +190,9 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 **Adopted from**: LL-052
 **Date adopted**: 2026-06-06 (pending human sign-off)
-**Rule**: Use `app/tools/dut_port.sh` (resolves CH340 by VID:PID `1A86:7523`) wherever a port is needed. Never hardcode `/dev/ttyUSB0` or `/dev/ttyUSB1` in commands, scripts, or agent briefings.
+**Rule**: Use `./run/port` to print the resolved port, or `PORT=/dev/ttyUSBn ./run/<script>` to override. All `run/` scripts resolve the port automatically via `run/lib.sh::resolve_port()` (CH340 VID:PID `1A86:7523`). Never hardcode `/dev/ttyUSB0` or `/dev/ttyUSB1` in commands, scripts, or agent briefings.
 **Rationale**: The port number is non-deterministic across sessions and hardware configurations. Re-discovering it manually costs time every session and introduces copy-paste errors (wrong port in flash command after looking it up for monitor). A VID:PID lookup is deterministic and self-documenting.
-**Applies to**: VE (all `pio run -t upload`, `pio device monitor`, `run_serialdbg_tests.py` invocations), Developer (flash helpers), All agents (substitute `$(app/tools/dut_port.sh)` in every port argument)
+**Applies to**: All agents and humans — use `./run/<script>` and port resolution is automatic. Only use `./run/port` directly when you need to inspect or log the port value.
 
 ---
 
@@ -200,8 +200,8 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 **Adopted from**: LL-053
 **Date adopted**: 2026-06-06 (pending human sign-off)
-**Rule**: Before any serialdbg test run, execute in order: (1) `tmux kill-session -t spotify-mon`, (2) `pio run -e cyd2usb_winamp_debug -t upload`, (3) `sleep 8`, (4) `run_serialdbg_tests.py`, (5) `pio run -e cyd2usb_winamp -t upload`, (6) restart monitor. Never skip step 1 (port collision) or step 2 (harness will immediately reject production firmware). Document this sequence in `docs/process/dut_workflow.md`.
-**Rationale**: Two of the three failed launch attempts in the 2026-06-06 session were caused by skipping steps 1 and 2 respectively. Each failure consumed a serial-port-open + Python startup + error-read cycle (~30-60s each). The full 5-step sequence takes ~60s total; three failed attempts took ~3 minutes.
+**Rule**: Use `./run/test` (full suite) or `./run/test-targeted T1,T2,...` (feature-specific). These scripts enforce the 6-step sequence atomically with a `trap EXIT` restore guarantee — do not issue the raw steps manually. If the `run/` scripts are unavailable, the manual sequence is: (1) `tmux kill-session -t spotify-mon`, (2) `pio run -e cyd2usb_winamp_debug -t upload`, (3) `sleep 8`, (4) `run_serialdbg_tests.py`, (5) `pio run -e cyd2usb_winamp -t upload`, (6) restart monitor. Never skip steps 1 or 2.
+**Rationale**: Two of the three failed launch attempts in the 2026-06-06 session were caused by skipping steps 1 and 2 respectively. Each failure consumed a serial-port-open + Python startup + error-read cycle (~30-60s each). The `run/test` trap ensures prod firmware is restored even on Ctrl-C or mid-step failure.
 **Applies to**: VE (mandatory pre-run checklist), All agents (treat this as an atomic operation — do not split across turns)
 
 ---
@@ -210,7 +210,7 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 **Adopted from**: LL-054
 **Date adopted**: 2026-06-06 (pending human sign-off)
-**Rule**: When validating newly implemented features, run only the relevant test IDs: `run_serialdbg_tests.py --run T-SET-01,T-SET-02,T-SET-08` (example). Run the full suite only for regression checks after refactors or cross-cutting changes. Maintain a documented "smoke" preset (< 2 min, always-passing subset) for quick health checks.
+**Rule**: When validating newly implemented features, run only the relevant test IDs: `./run/test-targeted T-SET-01,T-SET-02,T-SET-08` (example). For the always-passing smoke preset: `./run/test-smoke`. Run `./run/test` (full suite) only for regression checks after refactors or cross-cutting changes.
 **Rationale**: The full suite takes 8-10 minutes; settings tests are near the end. Launching the full suite after implementing settings sections made the agent wait through stock/crypto/weather/GoL tests before seeing any relevant output. Targeted runs give signal in < 30s.
 **Applies to**: VE (document filter presets in `docs/process/dut_workflow.md`: smoke, settings, stock, per-feature), PM (schedule full regression suite only at milestone boundaries, not after every feature)
 

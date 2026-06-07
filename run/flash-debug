@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# run/flash-debug — kill monitor, flash debug firmware (no monitor restart)
+# Usage: ./run/flash-debug
+#        PORT=/dev/ttyUSB1 ./run/flash-debug
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+PORT=$(resolve_port)
+
+echo "[flash-debug] 1/2 — killing monitor"
+tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+
+echo "[flash-debug] 2/2 — flashing $ENV_DEBUG to $PORT"
+(cd "$PIO_DIR" && "$PIO" run -e "$ENV_DEBUG" -t upload --upload-port "$PORT")
+echo "[flash-debug] done (monitor NOT restarted — port free for test harness)"

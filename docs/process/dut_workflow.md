@@ -6,26 +6,25 @@
 
 This is the single reference for all DUT operations. Read this before issuing any flash, monitor, or test command.
 
+For executable entry points (the `run/` scripts that implement every operation described here), see [`project_run_scripts.md`](project_run_scripts.md).
+
 ---
 
 ## 0. Resolve the Serial Port
 
-The CH340 port is non-deterministic (`ttyUSB0`, `ttyUSB1`, …). Always resolve by VID:PID:
+The CH340 port is non-deterministic (`ttyUSB0`, `ttyUSB1`, …). All `run/` scripts resolve it automatically — you never need to look it up manually for normal operations.
 
 ```sh
-# One-shot lookup (CH340 VID:PID 1A86:7523)
-ls /dev/ttyUSB* | while read p; do
-  udevadm info -q property "$p" 2>/dev/null | grep -q "ID_VENDOR_ID=1a86" && echo "$p" && break
-done
+./run/port          # print the resolved port
 ```
 
-Substitute the result as `PORT` in every command below. Never hardcode `/dev/ttyUSB0` or `/dev/ttyUSB1` — it changes between sessions. (BP-019)
+To inspect or override: `PORT=/dev/ttyUSB1 ./run/flash`. Never hardcode `/dev/ttyUSB0` or `/dev/ttyUSB1` — it changes between sessions. (BP-019)
 
+**Implementation detail** (used internally by `run/lib.sh::resolve_port()`):
 ```sh
-PORT=$(ls /dev/ttyUSB* | while read p; do
+for p in /dev/ttyUSB*; do
   udevadm info -q property "$p" 2>/dev/null | grep -q "ID_VENDOR_ID=1a86" && echo "$p" && break
-done)
-echo "DUT on $PORT"
+done
 ```
 
 ---
@@ -67,17 +66,9 @@ Then upload SPIFFS (see §3b). This survives future firmware reflashes.
 ## 2. Build
 
 ```sh
-cd app
-
-# Production build (target for flashing and monitoring)
-~/.platformio/penv/bin/pio run -e cyd2usb_winamp
-
-# Debug build (required for serialdbg test harness)
-~/.platformio/penv/bin/pio run -e cyd2usb_winamp_debug
-
-# Build check (5 gates: prod compile, debug compile, golden hash, smoke, app registry)
-cd ..
-./check_build.sh
+./run/build          # production firmware (cyd2usb_winamp)
+./run/build-debug    # debug firmware (cyd2usb_winamp_debug) — required for test harness
+./run/check          # 5-gate check: prod compile, debug compile, golden hash, smoke, app registry
 ```
 
 **Do not bump `platform = espressif32` above 6.9.x** — newer cores split `WiFi`/`Network` headers in a way the installed libs don't support. (CLAUDE.md)
@@ -89,25 +80,19 @@ cd ..
 ### 3a. Firmware only
 
 ```sh
-# Kill monitor first — it holds the port exclusively
-tmux kill-session -t spotify-mon 2>/dev/null
-
-cd app
-~/.platformio/penv/bin/pio run -e cyd2usb_winamp -t upload --upload-port $PORT
+./run/flash          # production firmware (kills monitor, flashes, restarts monitor)
+./run/flash-debug    # debug firmware (kills monitor; does NOT restart — port free for test harness)
 ```
 
-For debug firmware (needed for test harness):
-```sh
-~/.platformio/penv/bin/pio run -e cyd2usb_winamp_debug -t upload --upload-port $PORT
-```
+Port is resolved automatically. Override: `PORT=/dev/ttyUSB1 ./run/flash`.
 
 ### 3b. SPIFFS only (credentials / host overrides)
 
 SPIFFS is a separate partition — reflashing firmware does NOT touch it, and `uploadfs` does NOT touch firmware.
 
 ```sh
-# Populate data/ first, then:
-~/.platformio/penv/bin/pio run -e cyd2usb_winamp -t uploadfs --upload-port $PORT
+# Populate app/data/ first, then:
+./run/flash-fs
 ```
 
 Files in `app/data/` (symlinked from `Spotify-Diy-Thing/data/`):
@@ -129,17 +114,13 @@ Files in `app/data/` (symlinked from `Spotify-Diy-Thing/data/`):
 
 ## 4. Serial Monitor
 
-The monitor holds the port exclusively. Run it in a detached tmux session:
+The monitor holds the port exclusively — all `run/flash*` and `run/test*` scripts kill it automatically. Manual control:
 
 ```sh
-tmux new-session -d -s spotify-mon \
-  "cd ~/proj/esp_spotify/app && ~/.platformio/penv/bin/pio device monitor -e cyd2usb_winamp -p $PORT"
-
-# Read last ~200 lines
-tmux capture-pane -t spotify-mon -p -S -200
-
-# Kill before flashing or running tests
-tmux kill-session -t spotify-mon
+./run/monitor-start       # start detached tmux session (session: spotify-mon)
+./run/monitor-stop        # kill session — idempotent, safe when not running
+./run/monitor-read        # dump last 200 lines
+./run/monitor-read 500    # dump last 500 lines
 ```
 
 ---
@@ -148,56 +129,35 @@ tmux kill-session -t spotify-mon
 
 ### 5a. Pre-run checklist (BP-020)
 
-Always execute in this exact order — skipping any step causes the next to fail:
+Use `./run/test` — it enforces the 6-step sequence atomically with a `trap EXIT` restore guarantee (production firmware always restored, even on Ctrl-C or mid-step failure):
 
 ```sh
-# 1. Kill monitor (releases port)
-tmux kill-session -t spotify-mon 2>/dev/null
-
-# 2. Flash debug firmware (harness rejects production build immediately)
-cd app
-~/.platformio/penv/bin/pio run -e cyd2usb_winamp_debug -t upload --upload-port $PORT
-
-# 3. Wait for boot + WiFi settle
-sleep 8
-
-# 4. Run tests (see §5b / §5c)
-~/proj/esp/venv/bin/python3 tools/run_serialdbg_tests.py --port $PORT
-
-# 5. Restore production firmware
-~/.platformio/penv/bin/pio run -e cyd2usb_winamp -t upload --upload-port $PORT
-
-# 6. Restart monitor
-tmux new-session -d -s spotify-mon \
-  "cd ~/proj/esp_spotify/app && ~/.platformio/penv/bin/pio device monitor -e cyd2usb_winamp -p $PORT"
+./run/test
 ```
+
+The script executes internally: kill monitor → flash debug → wait 8s → run suite → restore prod → restart monitor. Never split these steps manually. The 8s wait is overridable: `BOOT_WAIT=12 ./run/test`.
 
 ### 5b. Targeted feature validation (BP-021)
 
-After implementing a specific feature, run only its tests — do not launch the full suite:
+After implementing a specific feature, run only its tests:
 
 ```sh
-# Example: validate settings shell + new sections only
-~/proj/esp/venv/bin/python3 tools/run_serialdbg_tests.py --port $PORT \
-    --run T-SET-01,T-SET-02,T-SET-03,T-SET-06,T-SET-07,T-SET-08
-
-# Example: validate stock app
-~/proj/esp/venv/bin/python3 tools/run_serialdbg_tests.py --port $PORT \
-    --run T169,T170,T173,T174,T175,T176,T177,T183,T184,T185,T186,T187,T188,T196
+./run/test-targeted T-SET-01,T-SET-02,T-SET-08   # settings example
+./run/test-targeted T169,T170,T173,T174           # stock app example
+TESTS=T169,T170 ./run/test-targeted               # env-var form
 ```
 
-**Quick smoke preset** (< 2 min, always-passing, confirms basic shell health):
+Quick smoke preset (< 2 min, always-passing, confirms basic shell health):
 ```sh
-~/proj/esp/venv/bin/python3 tools/run_serialdbg_tests.py --port $PORT \
-    --run T080,T083,T091,T092,T133,T147,T148,T162,T-SET-01,T-SET-02,T-SET-08
+./run/test-smoke
 ```
 
 ### 5c. Regression suite
 
-Run the full suite only at milestone boundaries or after cross-cutting refactors:
+Full suite only at milestone boundaries or after cross-cutting refactors:
 
 ```sh
-~/proj/esp/venv/bin/python3 tools/run_serialdbg_tests.py --port $PORT
+./run/test
 ```
 
 **Expected baseline (2026-06-06 post-settings-001):** 59 pass / 20 fail / 28 skip / 1 flake.
@@ -231,21 +191,16 @@ For manual tests: consult `docs/verification/test_plan.md` for exact steps and e
 
 ## 6. Python Tooling
 
-All host-side Python tools use the project venv:
-
 ```sh
-# Skin bake
-~/proj/esp/venv/bin/python3 app/tools/bake_skin.py -i app/skins/base-2.91.wsz -o app/gen
+./run/bake-skin      # bake Winamp skin assets → app/gen/ (no DUT)
 
-# Preview layout
+# Preview layout has no run/ wrapper — invoke directly (no DUT):
 ~/proj/esp/venv/bin/python3 app/tools/preview_layout.py
-
-# Serialdbg tests
-~/proj/esp/venv/bin/python3 app/tools/run_serialdbg_tests.py --port $PORT
-
-# Sync tests (host-only, no DUT)
-~/proj/esp/venv/bin/python3 app/tools/run_sync_tests.py
 ```
+
+Note: `./run/test-sync` runs the sync/drift/playlist suite (T097-T116) via `run_sync_tests.py` — it **requires DUT** and follows the same 6-step validation loop as `./run/test`.
+
+All tools use the project venv at `~/proj/esp/venv`. The `run/` scripts source `run/lib.sh` for the venv path — do not hardcode it elsewhere.
 
 ---
 

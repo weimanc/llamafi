@@ -1127,6 +1127,20 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 
 ---
 
+### LL-057 — 2026-06-07 — run/ scripts invisible to cold-start agents; CLAUDE.md still had raw commands
+
+**Context**: `run/` folder created with 15 scripts implementing the full DUT workflow. QM audit found that a cold-start agent reading CLAUDE.md would see the original raw `pio`/`tmux` command blocks and have no indication that `run/` existed — it would bypass the safety `trap` in `run/test` and issue raw commands with no restore guarantee.
+
+**Observation**: Three layers of documentation (CLAUDE.md, dut_workflow.md, best_practices.md BP-020/021) all still referenced raw commands after `run/` was implemented. `dut_workflow.md` cross-ref pointed to the proposal file, not the live quick-reference. CLAUDE.md had zero mention of `run/`.
+
+**Root cause**: New tooling was implemented without updating the primary agent entry point (CLAUDE.md). Agent discoverability depends entirely on what CLAUDE.md surfaces — if it isn't there, agents won't find it regardless of how well-documented the tool is internally.
+
+**Suggested improvement**: Any new `run/` script or process document must include a CLAUDE.md update in the same commit. Rule: "if CLAUDE.md doesn't mention it, it doesn't exist to agents."
+
+**Status**: adopted — CLAUDE.md updated (raw commands replaced with `run/` references), dut_workflow.md cross-ref fixed, BP-020/021 updated to cite `./run/test` and `./run/test-targeted`.
+
+---
+
 ## Entry Format
 
 ```

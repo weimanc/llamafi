@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# run/monitor-start — start detached tmux serial monitor
+# Usage: ./run/monitor-start
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+PORT=$(resolve_port)
+tmux kill-session -t "$SESSION" 2>/dev/null || true
+tmux new-session -d -s "$SESSION" \
+  "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'"
+echo "[monitor-start] session '$SESSION' started on $PORT"

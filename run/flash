@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# run/flash — kill monitor, flash production firmware, restart monitor
+# Usage: ./run/flash
+#        PORT=/dev/ttyUSB1 ./run/flash
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+PORT=$(resolve_port)
+
+echo "[flash] 1/3 — killing monitor"
+tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+
+echo "[flash] 2/3 — flashing $ENV_PROD to $PORT"
+(cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT")
+
+echo "[flash] 3/3 — restarting monitor"
+tmux new-session -d -s "$SESSION" \
+  "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'"
+echo "[flash] done"

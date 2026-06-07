@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# run/test-smoke — smoke preset (< 2 min), confirms basic shell health
+# Runs the always-passing subset. Use after any refactor as a quick sanity check.
+set -euo pipefail
+SMOKE="T080,T083,T091,T092,T133,T147,T148,T162,T-SET-01,T-SET-02,T-SET-08"
+TESTS="$SMOKE" exec "$(dirname "$0")/test-targeted" "$@"

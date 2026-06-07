@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# run/test — full DUT validation loop (BP-020)
+# Runs full serialdbg suite. Always restores prod firmware + monitor on exit.
+# Usage: ./run/test
+#        BOOT_WAIT=12 ./run/test
+#        PORT=/dev/ttyUSB1 ./run/test
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+PORT=$(resolve_port)
+
+_TEST_RC=0
+_cleanup() {
+  local rc=$_TEST_RC
+  echo ""
+  echo "[test] step 5/6 — restoring $ENV_PROD (rc=$rc so far)"
+  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT") || {
+    echo "ERROR [test]: prod restore failed — DUT still running debug firmware" >&2
+    rc=99
+  }
+  echo "[test] step 6/6 — restarting monitor"
+  tmux new-session -d -s "$SESSION" \
+    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'" \
+    2>/dev/null || echo "WARN [test]: monitor start failed" >&2
+  exit "$rc"
+}
+trap _cleanup EXIT INT TERM
+
+echo "[test] step 1/6 — killing monitor"
+tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+
+echo "[test] step 2/6 — flashing $ENV_DEBUG to $PORT"
+(cd "$PIO_DIR" && "$PIO" run -e "$ENV_DEBUG" -t upload --upload-port "$PORT")
+
+echo "[test] step 3/6 — waiting ${BOOT_WAIT}s for boot + WiFi"
+sleep "$BOOT_WAIT"
+
+echo "[test] step 4/6 — running full test suite"
+(cd "$PIO_DIR" && "$VENV_PY" tools/run_serialdbg_tests.py --port "$PORT") \
+  || _TEST_RC=$?
+
+# EXIT trap fires here: steps 5 and 6 run unconditionally

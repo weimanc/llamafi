@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# run/flash-fs — kill monitor, upload SPIFFS partition, restart monitor
+# Usage: ./run/flash-fs
+#        PORT=/dev/ttyUSB1 ./run/flash-fs
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+PORT=$(resolve_port)
+
+echo "[flash-fs] 1/3 — killing monitor"
+tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+
+echo "[flash-fs] 2/3 — uploading SPIFFS to $PORT"
+(cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t uploadfs --upload-port "$PORT")
+
+echo "[flash-fs] 3/3 — restarting monitor"
+tmux new-session -d -s "$SESSION" \
+  "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'"
+echo "[flash-fs] done"
