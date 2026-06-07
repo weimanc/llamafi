@@ -125,8 +125,10 @@ public:
 
         // Press-highlight: revert key cell on the tick after the press
         if (_pressHighlight) {
+            bool wasInputBar = (_pressRow < 0);
             _pressHighlight = false;
             repaintKeys();
+            if (wasInputBar) repaintInputBar();
         }
     }
 
@@ -139,7 +141,8 @@ public:
             _pressRow       = (y >= KB_INPUT_H) ? (y - KB_INPUT_H) / KB_ROW_H : -1;
             _pressCol       = _pressColForXY(x, y);
             _pressHighlight = true;
-            repaintKeys();      // draw highlight immediately
+            repaintKeys();
+            if (_pressRow < 0) repaintInputBar();   // cancel / bksp shortcut zones
             return true;
         }
 
@@ -222,7 +225,8 @@ private:
 
         // Cancel zone (x=0..39, left) — escape the keyboard
         tft.setTextDatum(MC_DATUM);
-        tft.setTextColor(S_VALUE_OFF);
+        bool cancelPressed = (_pressHighlight && _pressRow < 0 && _pressCol == -20);
+        tft.setTextColor(cancelPressed ? S_HDR_TXT : S_VALUE_OFF);
         tft.drawString("<", 20, cy, 2);
 
         // Backspace shortcut zone (x=248..274) — draw "<x" as backspace indicator

@@ -31,7 +31,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-150 — Fix backlight PWM: LEDC channel setup
 - **Feature:** settings-001 / display-settings
 - **Priority:** P1 — blocker (Level slider completely non-functional)
-- **Status:** open
+- **Status:** ~~implemented~~ — already in codebase (confirmed 2026-06-07); DUT visual verify pending
 - **Opened:** 2026-06-06 (DUT feedback)
 - **Root cause:** Design spec assumed TFT_eSPI sets up LEDC channel 0 for GPIO21
   (TFT_BL). Actual TFT_eSPI build (`TFT_BL + TFT_BACKLIGHT_ON` flags, no `LEDC_CHANNEL`
@@ -93,7 +93,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-153 — City picker: scrollbar drag gesture
 - **Feature:** settings-001 / time-settings
 - **Priority:** P2 (UX — 78 cities, 13 pages via button-only is slow)
-- **Status:** open
+- **Status:** ~~implemented~~ — already in codebase (confirmed 2026-06-07); DUT visual verify pending
 - **Opened:** 2026-06-06 (DUT feedback)
 - **Scope:** Phase 1 design explicitly deferred drag (open question 4 in
   `time-settings.md`). Promote to in-scope based on DUT feedback.
@@ -184,20 +184,19 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ---
 
-### TASK-155 — KeyboardWidget symbol-page (row 3) press-highlight broken
+### TASK-155 — KeyboardWidget cancel `<` press-highlight missing
 - **Feature:** settings-001 / keyboard-widget
 - **Priority:** P3 (visual feedback only — functional cancel still works)
-- **Status:** open
+- **Status:** done — fixed 2026-06-07
 - **Opened:** 2026-06-07 (design-vs-impl audit)
-- **Root cause:** `_pressColForXY()` returns wrong column index for symbol-page row 3 action
-  keys (SYM/NEXT/SPACE/OK area). Keys are never highlighted on Press — only on Release after
-  the action fires. This means the Cancel `<` label and action-row keys show no press feedback
-  on symbol pages.
-- **Scope:** Visual feedback only. `ACT_CANCEL` routes correctly and `onCancel` fires correctly
-  on all pages. No regression to functional behaviour.
-- **Fix:** Audit `_pressColForXY()` for symbol page layout constants; ensure row 3 returns
-  the correct column offset so `_pressHighlight` is set before rendering.
-- **Note:** Documented in `docs/architecture/designs/M-MULTIAPP/keyboard-widget.md` as a
-  known press-highlight bug. Full testing gated on Phase 2 (WiFi keyboard reachable from UI).
-- **Validation:** T-KB-CANCEL-01..06 (BLOCKED-PHASE2); visual confirm when Phase 2 lands.
+- **Root cause (corrected):** Not `_pressColForXY()` — symbol-page action row was already
+  correct. Actual bug: `repaintInputBar()` never checked `_pressHighlight`, and the Press
+  handler only called `repaintKeys()` (repaints y ≥ KB_INPUT_H), so a press on the cancel
+  `<` zone (x<40, y<40) never triggered a visual highlight.
+- **Fix (commit TBD):**
+  - `handleInput` Press: add `if (_pressRow < 0) repaintInputBar()` after `repaintKeys()`
+  - `tick()` highlight reset: add `if (wasInputBar) repaintInputBar()` after `repaintKeys()`
+  - `repaintInputBar()`: check `cancelPressed = (_pressHighlight && _pressRow < 0 && _pressCol == -20)`; draw `<` in `S_HDR_TXT` when pressed, `S_VALUE_OFF` otherwise
+- **Build:** cyd2usb_winamp_debug SUCCESS
+- **Validation:** T-KB-CANCEL-01 (BLOCKED-PHASE2 — visual confirm when Phase 2 lands)
 - **Owner:** Developer
