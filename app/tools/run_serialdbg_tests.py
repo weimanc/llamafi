@@ -2850,6 +2850,7 @@ def t_busy_01b(dut: Dut):
     # the cache fresh and drillToChart() skips the enqueue, leaving _pendingAsync false.
     dut.cmd("set triggerFetch 1", timeout=2.0)
     # Drill to AAPL chart; guaranteed fetch now (stale flag set above).
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     drill_before = _stock_ok_count(dut)
     dut.cmd("tap 137 36", timeout=10.0)
     time.sleep(0.3)
