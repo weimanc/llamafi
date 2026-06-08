@@ -762,6 +762,7 @@ def t090(dut: Dut):
 
 def t091(dut: Dut):
     print("T091  `reconnect` clears consecutiveFailures")
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     r_set = dut.cmd("set backoff 3", timeout=3.0)
     if not r_set.get("ok"):
         flake("T091", f"set backoff 3 failed: {r_set}"); return
