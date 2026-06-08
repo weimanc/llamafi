@@ -4,14 +4,11 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
-> **PM sync 2026-06-08** — ADR-042 implemented and DUT-validated (bfe6320, 60767ad).
-> T-UART-01, T-BGPOLL-01/02/03 all PASS. New open: TASK-156 (E3 harness refactor),
-> TASK-157 (E1 retry cleanup), TASK-158 (taskbar scroll firmware), TASK-159 (settings nav firmware).
-> Still open from previous cycle (DUT verify only): TASK-150, TASK-152, TASK-153, TASK-154.
-> **Update 2026-06-08** — TASK-156 done: all 6 tests refactored to `_bgpoll_suspended`, 5/5 DUT runs clean.
-> TASK-157 done: T169 and T-BUSY-03 retry loops removed; T-BUSY-03 PASS, T169 SKIP (no track playing, expected).
-> TASK-158 done: two fixes (drainInjectionQueue gesture routing + _injectingDrag guard); stale _TB_N corrected;
->   T162–T166 all PASS. TASK-159 done: settingsAppSubmenu added; T-SET-03/T-SET-07 PASS.
+> **PM sync 2026-06-08 (end of session)** — ADR-042 cycle complete. Commit 50b962f closes
+> TASK-156/157/158/159. All ADR-042 exit criteria met: E1 log suppression, E2 bgPoll primitive,
+> E3 harness refactor (6 tests), retry dead-code removed (T169/T-BUSY-03), taskbar scroll gesture
+> injection fixed (T162–T166 PASS), settings nav serial query added (T-SET-03/T-SET-07 PASS).
+> Open (DUT visual verify only): TASK-150, TASK-152, TASK-153, TASK-154.
 > Completed and closed tasks are in [tasks-archive.md](tasks-archive.md).
 
 ---
