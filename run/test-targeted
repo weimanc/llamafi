@@ -41,5 +41,5 @@ echo "[test-targeted] step 3/6 — waiting ${BOOT_WAIT}s for boot + WiFi"
 sleep "$BOOT_WAIT"
 
 echo "[test-targeted] step 4/6 — running tests: $TESTS"
-(cd "$PIO_DIR" && "$VENV_PY" tools/run_serialdbg_tests.py --port "$PORT" --run "$TESTS") \
+(cd "$PIO_DIR" && "$VENV_PY" tools/run_serialdbg_tests.py --port "$PORT" --tests "$TESTS") \
   || _TEST_RC=$?

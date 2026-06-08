@@ -220,7 +220,7 @@ class Dut:
                 "  ~/.platformio/penv/bin/pio run -e cyd2usb_winamp_debug \\\n"
                 "      -t upload --upload-port /dev/ttyUSB0\n"
                 "  tmux new-session -d -s spotify-mon \\\n"
-                "      'cd ~/proj/esp_spotify/app && \\\n"
+                "      'cd app && \\\n"
                 "       ~/.platformio/penv/bin/pio device monitor \\\n"
                 "       -e cyd2usb_winamp -p /dev/ttyUSB0'\n"
             )
@@ -2419,24 +2419,34 @@ def t180(dut: Dut):
         skip("T180", "could not switch to Stock")
         _restore_from_stock(dut)
         return
-    # First: drill, change range, go back, re-drill — verify range resets.
+    # Normalize to list view — prior tests (e.g. T178) may leave Stock in chart view.
+    if _stock_get(dut, "stockSubView").get("val") == "chart":
+        _wait_shell_not_busy(dut, timeout_s=10.0)
+        dut.set_cooldown_zero()
+        dut.cmd("tap 10 7", timeout=3.0)
+        time.sleep(0.2)
+    # Drill, change range, go back, re-drill — verify range resets.
     dut.set_cooldown_zero()
-    dut.cmd("tap 137 36", timeout=3.0)   # AAPL
+    r_drill1 = dut.cmd("tap 137 36", timeout=3.0)   # AAPL
     time.sleep(0.3)
-    if _stock_get(dut, "stockSubView").get("val") != "chart":
+    sv1 = _stock_get(dut, "stockSubView").get("val")
+    if sv1 != "chart":
         skip("T180", "first drill-in failed")
         _restore_from_stock(dut)
         return
+    # Wait for D1 fetch before changing tab (g_shellBusy must clear).
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.set_cooldown_zero()
     dut.cmd("tap 184 7", timeout=3.0)    # change to 5D
-    time.sleep(0.2)
-    # Back to list.
+    # Wait for D5 fetch before navigating back.
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.set_cooldown_zero()
-    dut.cmd("tap 10 7", timeout=3.0)
+    dut.cmd("tap 10 7", timeout=3.0)    # back to list
     time.sleep(0.2)
-    # Re-drill same row.
+    # Wait for any quote refresh triggered by returning to list view.
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.set_cooldown_zero()
-    dut.cmd("tap 137 36", timeout=3.0)
+    dut.cmd("tap 137 36", timeout=3.0)   # re-drill AAPL
     time.sleep(0.3)
     r_rng = _stock_get(dut, "stockChartRange")
     _restore_from_stock(dut)
