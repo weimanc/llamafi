@@ -4633,6 +4633,115 @@ def t_set_08(dut: Dut):
     pass_("T-SET-08", "goBack() from category list → Crypto confirmed (g_previousAppId tracking works)")
 
 
+# ── ADR-042 validation tests ──────────────────────────────────────────────────
+
+def t_uart_01(dut: Dut):
+    """T-UART-01: No JSON garbling during concurrent Core 0 HTTPClient activity.
+    Switches to Stock (triggers chart fetch on Core 0), then fires 20 rapid
+    get heap commands. All must parse cleanly — validates ADR-042 E1 log suppression.
+    """
+    print("T-UART-01  JSON integrity under Core 0 HTTPClient load (ADR-042 E1)")
+    if not _switch_to_stock(dut):
+        skip("T-UART-01", "could not switch to StockApp")
+        return
+    dut.set_cooldown_zero()
+    # Tap AAPL row to trigger chart fetch (Core 0 HTTPClient activity)
+    dut.cmd("tap 137 36", timeout=2.0)
+    # Immediately hammer 20 get heap commands while Core 0 is busy
+    errors = []
+    for i in range(20):
+        try:
+            r = dut.cmd("get heap", timeout=3.0)
+            if not r.get("ok"):
+                errors.append(f"cmd {i}: ok=false {r}")
+        except (TimeoutError, ValueError) as e:
+            errors.append(f"cmd {i}: {type(e).__name__}: {e}")
+        time.sleep(0.05)
+    _restore_from_stock(dut)
+    if errors:
+        fail("T-UART-01", f"{len(errors)}/20 responses garbled: {errors[:3]}")
+    else:
+        pass_("T-UART-01", "20/20 get heap responses clean during chart fetch — no Core 0 interleave")
+
+
+def t_bgpoll_01(dut: Dut):
+    """T-BGPOLL-01: set bgPoll 0 suspends self-polls; get bgPoll returns enabled:0."""
+    print("T-BGPOLL-01  bgPoll suspend — self-polls halt (ADR-042 E2)")
+    # Ensure we start in a clean state
+    dut.cmd("set bgPoll 1", timeout=2.0)
+    r = dut.cmd("set bgPoll 0", timeout=2.0)
+    if not r.get("ok"):
+        fail("T-BGPOLL-01", f"set bgPoll 0 failed: {r}")
+        return
+    r2 = dut.cmd("get bgPoll", timeout=2.0)
+    if not r2.get("ok") or r2.get("enabled") != 0:
+        dut.cmd("set bgPoll 1", timeout=2.0)
+        fail("T-BGPOLL-01", f"get bgPoll expected enabled:0, got {r2}")
+        return
+    print("  [T-BGPOLL-01] bgPoll suspended; monitoring shellBusy for 5 s…", flush=True)
+    # Monitor for 5 s — no self-initiated polls should fire
+    busy_fires = 0
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        sb = _get_shell_busy(dut)
+        if sb:
+            busy_fires += 1
+        time.sleep(0.5)
+    dut.cmd("set bgPoll 1", timeout=2.0)
+    if busy_fires > 0:
+        fail("T-BGPOLL-01", f"shellBusy fired {busy_fires} times during bgPoll suspend — self-poll not gated")
+    else:
+        pass_("T-BGPOLL-01", "shellBusy=false throughout 5 s bgPoll suspend — self-polls halted")
+
+
+def t_bgpoll_02(dut: Dut):
+    """T-BGPOLL-02: reconnect resets bgPoll to enabled:1 (recovery invariant)."""
+    print("T-BGPOLL-02  reconnect resets bgPoll to 1 (ADR-042 E2 invariant)")
+    dut.cmd("set bgPoll 0", timeout=2.0)
+    r = dut.cmd("get bgPoll", timeout=2.0)
+    if r.get("enabled") != 0:
+        fail("T-BGPOLL-02", f"pre-condition failed: bgPoll not suspended (got {r})")
+        return
+    # reconnect should reset s_bgPollEnabled = 1
+    dut.cmd("reconnect", timeout=3.0)
+    time.sleep(1.0)  # allow TLS reset + reconnect to process
+    r2 = dut.cmd("get bgPoll", timeout=2.0)
+    if not r2.get("ok") or r2.get("enabled") != 1:
+        fail("T-BGPOLL-02", f"reconnect did not reset bgPoll: got {r2}")
+    else:
+        pass_("T-BGPOLL-02", "reconnect reset bgPoll to enabled:1 — recovery invariant holds")
+
+
+def t_bgpoll_03(dut: Dut):
+    """T-BGPOLL-03: ACT_FORCE_POLL tap completes fetch while bgPoll suspended; flag stays 0."""
+    print("T-BGPOLL-03  ACT_FORCE_POLL bypasses bgPoll suspend (ADR-042 E2)")
+    # Ensure Spotify app
+    r = dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=3.0)
+    if not r.get("ok"):
+        skip("T-BGPOLL-03", "could not switch to Spotify app")
+        return
+    time.sleep(0.3)
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    with _bgpoll_suspended(dut):
+        # Confirm suspended
+        r2 = dut.cmd("get bgPoll", timeout=2.0)
+        if r2.get("enabled") != 0:
+            fail("T-BGPOLL-03", f"bgPoll not suspended: {r2}")
+            return
+        dut.set_cooldown_zero()
+        # Tap DEADZONE (162, 85) — dispatches ACT_FORCE_POLL in WinampDisplay
+        dut.cmd("tap 162 85", timeout=2.0)
+        print("  [T-BGPOLL-03] force-poll tap sent; waiting for shellBusy cycle…", flush=True)
+        # Wait for the force-poll fetch to complete
+        _wait_shell_not_busy(dut, timeout_s=15.0)
+        # bgPoll flag must still be 0 (not self-resumed by force-poll path)
+        r3 = dut.cmd("get bgPoll", timeout=2.0)
+        if r3.get("enabled") != 0:
+            fail("T-BGPOLL-03", f"bgPoll self-resumed during force-poll: {r3}")
+            return
+    pass_("T-BGPOLL-03", "ACT_FORCE_POLL fetch completed with bgPoll suspended; flag unchanged at 0")
+
+
 ALL_TESTS = {
     "T077": t077,
     "T078": t078,
@@ -4759,6 +4868,11 @@ ALL_TESTS = {
     "T-SET-07": t_set_07,
     "T-SET-08": t_set_08,
     # T-SET-04 manual visual; T-SET-05 manual visual
+    # ADR-042 validation (T-UART-01, T-BGPOLL-01/02/03)
+    "T-UART-01":    t_uart_01,
+    "T-BGPOLL-01":  t_bgpoll_01,
+    "T-BGPOLL-02":  t_bgpoll_02,
+    "T-BGPOLL-03":  t_bgpoll_03,
 }
 
 def main():
