@@ -4,10 +4,10 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
-> **PM sync 2026-06-07 (rev 2)** — TASK-150/153/155 investigated; TASK-155 fixed (3962903).
-> TASK-150 and TASK-153 confirmed already implemented — DUT visual verify only remaining.
-> TASK-155 done: KB cancel highlight bug fixed (input-bar repaint path, not _pressColForXY).
-> Open (DUT verify only): TASK-150, TASK-152, TASK-153, TASK-154.
+> **PM sync 2026-06-08** — ADR-042 implemented and DUT-validated (bfe6320, 60767ad).
+> T-UART-01, T-BGPOLL-01/02/03 all PASS. New open: TASK-156 (E3 harness refactor),
+> TASK-157 (E1 retry cleanup), TASK-158 (taskbar scroll firmware), TASK-159 (settings nav firmware).
+> Still open from previous cycle (DUT verify only): TASK-150, TASK-152, TASK-153, TASK-154.
 > Completed and closed tasks are in [tasks-archive.md](tasks-archive.md).
 
 ---
@@ -28,6 +28,66 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - **Commit:** `3962903`
 - **Status:** done — input-bar repaint path fixed; `cancelPressed` check added to `repaintInputBar()`
 - **Validation:** BLOCKED-PHASE2 (full visual confirm when keyboard reachable)
+
+---
+
+## Open Tasks — ADR-042 Harness & Firmware Follow-on
+
+### TASK-156 — E3 harness refactor: wrap affected tests in `_bgpoll_suspended`, cut sleep budget
+- **Related:** ADR-042 E3, `docs/process/harness_sync_contract.md`
+- **Priority:** P1 — remaining ADR-042 exit criterion
+- **Status:** open
+- **Opened:** 2026-06-08
+- **Scope:** Six tests still use the old stacked-wait / retry approach despite E2 firmware now providing `_bgpoll_suspended`. Refactor them to use the new primitive, remove retry loops, and verify the ≤ 4 s combined sleep budget criterion.
+
+  | Test | Current pattern | Target |
+  |---|---|---|
+  | T-WX-01 | 3× retry loop + 3 s blind sleep | `_bgpoll_suspended` + remove retry |
+  | T-CX-01 | 3× retry loop + 3 s blind sleep | `_bgpoll_suspended` + remove retry |
+  | T-BUSY-01b | 3× stacked `_wait_shell_not_busy` + drill retry | `_bgpoll_suspended` + single precondition wait |
+  | T-BUSY-05 | 2× stacked waits + 3× retry loop + 2 s sleep | `_bgpoll_suspended` + single precondition wait |
+  | T-CDWN-03 | 2× stacked waits + drill retry | `_bgpoll_suspended` + explicit precondition |
+  | T-CDWN-02 | skip fallback (warm-conn untestable) | Attempt re-enable with `_bgpoll_suspended` — bgPoll isolation may make it testable |
+
+- **Exit criterion:** Combined `time.sleep` budget across T-BUSY-01, T-BUSY-01b, T-CDWN-02, T169 ≤ 4 s (static grep). All six pass 5 consecutive targeted runs without retry triggering.
+- **Owner:** Developer (harness) / VE (verify run)
+
+---
+
+### TASK-157 — Remove E1-redundant retry loops: T169, T-BUSY-03
+- **Related:** ADR-042 E1, commit bfe6320
+- **Priority:** P2 — dead-code cleanup; E1 log suppression makes these loops unnecessary
+- **Status:** open
+- **Opened:** 2026-06-08
+- **Scope:**
+  - **T169**: 3× retry loop + 3 s back-off was added because "serial flooding buries switchApp response" (Core 0 / Core 1 UART race). E1 suppresses Core 0 output; garbling should no longer occur. Remove the retry loop; convert to single-attempt with `_bgpoll_suspended`.
+  - **T-BUSY-03**: 3 s blind sleep + retry after garbled `switchApp` response. Same root cause. Simplify to direct command sequence.
+- **Verification:** Run `./run/test-targeted T169,T-BUSY-03` 10× — must pass every run with no retry branch taken (add a print/counter to confirm retry path never fires before removing it).
+- **Owner:** Developer
+
+---
+
+### TASK-158 — Firmware investigation: taskbar scroll failures (T163, T165)
+- **Priority:** P1 — stable test failures, regression suite floor at ≥2 fails
+- **Status:** open
+- **Opened:** 2026-06-08
+- **Symptoms:**
+  - T163: taskbar drag gesture not working correctly
+  - T165: taskbar wrap-around not working correctly
+- **Next step:** Read T163 and T165 test bodies to understand exact failure mode; read taskbar implementation; identify whether it is a rendering, hit-test, or state-machine defect. Architect to determine if a design doc is needed before Developer touches the code.
+- **Owner:** Developer (investigation) → Architect (if cross-cutting) → VE (re-run after fix)
+
+---
+
+### TASK-159 — Firmware investigation: settings navigation failures (T-SET-03, T-SET-07)
+- **Priority:** P1 — stable test failures
+- **Status:** open
+- **Opened:** 2026-06-08
+- **Symptoms:**
+  - T-SET-03: settings navigation failure (exact mode TBD — read test body)
+  - T-SET-07: settings navigation failure (exact mode TBD — read test body)
+- **Next step:** Read T-SET-03 and T-SET-07 test bodies and failure output. Cross-reference against settings-001 design docs and feature inventory. Determine if these are regressions from the ADR-042 refactor session or pre-existing.
+- **Owner:** Developer (investigation) → VE (confirm after fix)
 
 ---
 
