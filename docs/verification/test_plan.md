@@ -1739,11 +1739,11 @@ Common preconditions for DUT tests below:
   DUT output after both TASK-122 and TASK-123 fixes. Guards against regression in either fix.
   This is the primary algorithmic correctness gate for TASK-123 — the PoC is the reference
   implementation.
-- **Preconditions**: Python venv available (`~/proj/esp/venv`). `preview_heatmap.py` in tree.
+- **Preconditions**: Python 3 + Pillow available. `preview_heatmap.py` in tree.
   TASK-122 and TASK-123 fixes applied to `main.cpp`. No display required (`--no-fetch` uses
   synthetic data and does not open a pygame window when run headlessly).
 - **Steps**:
-  1. Run `~/proj/esp/venv/bin/python3 app/tools/preview_heatmap.py --no-fetch` to confirm the
+  1. Run `python3 app/tools/preview_heatmap.py --no-fetch` to confirm the
      PoC renders without error. Note the first tile dimensions printed at quit (Phase 2 report).
   2. Extract the expected layout from the PoC: the first tile (largest market cap) should be a
      tall vertical column on the left (wide canvas, so `w > h * bias` → vertical strip), not a

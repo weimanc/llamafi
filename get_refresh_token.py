@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Fetch a Spotify refresh token via the Authorization Code flow using a
-loopback redirect URI (the only non-HTTPS form Spotify still allows).
+Fetch a Spotify refresh token and write app/data/spotify_diy_config.json.
 
 Prereqs in the Spotify Developer Dashboard for your app:
   Redirect URIs -> add exactly:  http://127.0.0.1:8888/callback/
@@ -11,13 +10,12 @@ Usage:
   ./get_refresh_token.py <CLIENT_ID> <CLIENT_SECRET>
   # or
   SPOTIFY_CLIENT_ID=... SPOTIFY_CLIENT_SECRET=... ./get_refresh_token.py
-
-Paste the printed refresh token into the WiFiManager "Refresh Token"
-field on the device.
 """
 import base64
 import http.server
+import json
 import os
+import pathlib
 import sys
 import threading
 import urllib.parse
@@ -27,6 +25,11 @@ import webbrowser
 REDIRECT_URI = "http://127.0.0.1:8888/callback/"
 SCOPE = "user-read-playback-state user-modify-playback-state"
 PORT = 8888
+
+# Config file lives at app/data/ relative to this script's directory.
+REPO_ROOT = pathlib.Path(__file__).parent.resolve()
+DATA_DIR = REPO_ROOT / "app" / "data"
+CONFIG_FILE = DATA_DIR / "spotify_diy_config.json"
 
 received = {}
 
@@ -52,6 +55,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(f"Error: {received}".encode())
 
 
+def ensure_data_dir():
+    """Create app/data/ as a real directory, replacing a broken symlink if present."""
+    if DATA_DIR.is_symlink() and not DATA_DIR.exists():
+        DATA_DIR.unlink()
+        DATA_DIR.mkdir(parents=True)
+    elif not DATA_DIR.exists():
+        DATA_DIR.mkdir(parents=True)
+
+
+def write_config(client_id, client_secret, refresh_token):
+    ensure_data_dir()
+    config = {
+        "clientId": client_id,
+        "clientSecret": client_secret,
+        "refreshToken": refresh_token,
+    }
+    CONFIG_FILE.write_text(json.dumps(config, indent=2) + "\n")
+    print(f"\nConfig written to {CONFIG_FILE.relative_to(REPO_ROOT)}")
+    print("Next steps:  ./run/flash  &&  ./run/flash-fs")
+
+
 def main():
     if len(sys.argv) >= 3:
         client_id, client_secret = sys.argv[1], sys.argv[2]
@@ -59,7 +83,7 @@ def main():
         client_id = os.environ.get("SPOTIFY_CLIENT_ID", "")
         client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET", "")
     if not client_id or not client_secret:
-        sys.exit("need CLIENT_ID and CLIENT_SECRET (args or env)")
+        sys.exit("usage: ./get_refresh_token.py <CLIENT_ID> <CLIENT_SECRET>")
 
     auth_url = "https://accounts.spotify.com/authorize?" + urllib.parse.urlencode({
         "client_id": client_id,
@@ -71,7 +95,8 @@ def main():
     server = http.server.HTTPServer(("127.0.0.1", PORT), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
-    print("Opening browser. If it doesn't open, visit:\n", auth_url, "\n")
+    print("Opening browser for Spotify auth...")
+    print("If it doesn't open, visit:\n ", auth_url, "\n")
     try:
         webbrowser.open(auth_url)
     except Exception:
@@ -98,12 +123,10 @@ def main():
             "Content-Type": "application/x-www-form-urlencoded",
         },
     )
-    import json
     with urllib.request.urlopen(req) as r:
         tok = json.loads(r.read())
 
-    print("\nRefresh token (paste into device):\n")
-    print(tok["refresh_token"])
+    write_config(client_id, client_secret, tok["refresh_token"])
 
 
 if __name__ == "__main__":

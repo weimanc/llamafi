@@ -240,7 +240,7 @@ sleep "$BOOT_WAIT"
 An agent (or human) running the full validation cycle issues exactly:
 
 ```sh
-cd /home/weiman/proj/esp_spotify && ./run/test.sh
+cd <repo-root> && ./run/test.sh
 ```
 
 For targeted validation after implementing a single feature:

@@ -177,6 +177,7 @@ these are snapshots for offline reference.
 | 7 | Review `.gitignore` — confirm `wifi_creds.h`, `spotify_diy_config.json` excluded | ✅ Done (2026-06-07) — explicit guards added |
 | 8 | Scrub git history for any accidentally committed secrets | ✅ Done (2026-06-07) — no secret files in history; tool files use variable names only |
 | 9 | Run a license scanner (e.g. ScanCode Toolkit) on committed files | ❌ TODO |
+| 10 | Fix `app/data` broken symlink — points to gitignored `Spotify-Diy-Thing/data/`; new users get a broken symlink on clone. Replace with a real directory or a setup script. | ✅ Done (2026-06-08) — `get_refresh_token.py` detects broken symlink, removes it, creates real dir |
 
 ---
 

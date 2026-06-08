@@ -195,12 +195,12 @@ For manual tests: consult `docs/verification/test_plan.md` for exact steps and e
 ./run/bake-skin      # bake Winamp skin assets → app/gen/ (no DUT)
 
 # Preview layout has no run/ wrapper — invoke directly (no DUT):
-~/proj/esp/venv/bin/python3 app/tools/preview_layout.py
+python3 app/tools/preview_layout.py
 ```
 
 Note: `./run/test-sync` runs the sync/drift/playlist suite (T097-T116) via `run_sync_tests.py` — it **requires DUT** and follows the same 6-step validation loop as `./run/test`.
 
-All tools use the project venv at `~/proj/esp/venv`. The `run/` scripts source `run/lib.sh` for the venv path — do not hardcode it elsewhere.
+All tools use the project venv when available. The `run/` scripts source `run/lib.sh` which auto-detects the venv; override with `VENV_PY=/path/to/python3`.
 
 ---
 

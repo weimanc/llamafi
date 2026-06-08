@@ -474,7 +474,7 @@ T185 — dep: T183 (error state established)
 | T_SF_06 | same | Rate limiting / error response handled gracefully |
 | T_SF_07 | same | All 4 range types (D1/D5/1M/YTD) return valid data |
 
-Run before DUT work: `~/proj/esp/venv/bin/python3 app/tools/test_yahoo_finance_api.py`.
+Run before DUT work: `python3 app/tools/test_yahoo_finance_api.py`.
 
 ### DUT-required (serial debug interface)
 

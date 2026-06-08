@@ -11,9 +11,9 @@ Screen geometry matches firmware exactly:
     320×240 total | taskbar x=275..319 (45 px) | app canvas x=0..274, y=0..239
 
 Usage:
-    ~/proj/esp/venv/bin/python3 app/tools/preview_heatmap.py
-    ~/proj/esp/venv/bin/python3 app/tools/preview_heatmap.py --scale 3
-    ~/proj/esp/venv/bin/python3 app/tools/preview_heatmap.py --no-fetch
+    python3 app/tools/preview_heatmap.py
+    python3 app/tools/preview_heatmap.py --scale 3
+    python3 app/tools/preview_heatmap.py --no-fetch
 
 Keyboard / mouse:
     click [List] or [Heat] header buttons  — toggle List ↔ Heatmap

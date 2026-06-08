@@ -6,7 +6,8 @@ set -euo pipefail
 
 PROJ_ROOT="$(cd "$(dirname "$0")" && pwd)"
 PIO="$HOME/.platformio/penv/bin/pio"
-VENV_PY="$HOME/proj/esp/venv/bin/python3"
+_venv_default="$HOME/proj/esp/venv/bin/python3"
+VENV_PY="${VENV_PY:-$([ -x "$_venv_default" ] && echo "$_venv_default" || command -v python3)}"
 PIO_DIR="$PROJ_ROOT/app"
 GEN_DIR="$PROJ_ROOT/app/gen"
 

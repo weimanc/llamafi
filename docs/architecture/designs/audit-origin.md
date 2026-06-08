@@ -32,9 +32,9 @@ No hardware state is involved. A DUT run adds board noise without additional ass
 ### CLI
 
 ```sh
-~/proj/esp/venv/bin/python3 tools/audit_origin.py            # T141–T146 text
-~/proj/esp/venv/bin/python3 tools/audit_origin.py --visual   # + gen/origin_audit.png
-~/proj/esp/venv/bin/python3 tools/audit_origin.py --grep-only # T141 only
+python3 tools/audit_origin.py            # T141–T146 text
+python3 tools/audit_origin.py --visual   # + gen/origin_audit.png
+python3 tools/audit_origin.py --grep-only # T141 only
 ```
 
 Exit 0 = all checks pass. Exit non-zero + failure list otherwise.

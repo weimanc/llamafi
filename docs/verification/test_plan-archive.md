@@ -1532,9 +1532,9 @@ required** — T141–T146 all run on the PC via `tools/audit_origin.py` (TASK-0
 See design doc `docs/architecture/designs/audit-origin.md`.
 
 ```sh
-~/proj/esp/venv/bin/python3 tools/audit_origin.py            # all tests
-~/proj/esp/venv/bin/python3 tools/audit_origin.py --visual   # + gen/origin_audit.png
-~/proj/esp/venv/bin/python3 tools/audit_origin.py --grep-only # T141 only
+python3 tools/audit_origin.py            # all tests
+python3 tools/audit_origin.py --visual   # + gen/origin_audit.png
+python3 tools/audit_origin.py --grep-only # T141 only
 ```
 
 ### T141 — [shell-layout-001] Static audit: no bare absolute X in tft draw calls
