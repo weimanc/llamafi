@@ -226,6 +226,46 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-023 — Write a harness sync contract before the first test that uses a new sync mechanism
+
+**Adopted from**: LL-059
+**Date adopted**: 2026-06-08
+**Rule**: Before writing any test that relies on a new harness synchronisation mechanism (polling flag, fetch counter, context manager, sleep margin), write a two-sentence contract: "this mechanism proves X; it is unreliable when Y." Commit the contract alongside the mechanism.
+**Rationale**: The regression harness accumulated 8 fix commits on 4 tests because the sync assumptions were never written down. Locally-working tests with invisible assumptions are fragile; the contract makes failure modes explicit so later authors know when they can and cannot rely on the mechanism.
+**Applies to**: VE (contract author), Developer (must not merge sync mechanism without contract)
+
+---
+
+### BP-024 — VE authors a debug variable spec before implementation; Developer ships it with the feature
+
+**Adopted from**: LL-060
+**Date adopted**: 2026-06-08
+**Rule**: For each new feature, VE authors a debug variable spec before implementation begins, stating: what state must be readable (`get`), what state must be writable (`set`), what events must be emitted. Developer implements `dbgGet`/`dbgSet` handlers as part of the feature — not as a follow-up task.
+**Rationale**: Every "missing debug var" bug in this project was caused by shipping firmware without a matching observability interface, then backfilling it when a test needed it. Backfilling always introduces a gap period where the feature is untestable. Front-loading the spec closes this gap at zero extra cost.
+**Applies to**: VE (spec author, gate on testability before feature is marked done), Developer (debug interface is part of the feature, not optional)
+
+---
+
+### BP-025 — A suppression flag and its consuming guard are one atomic commit
+
+**Adopted from**: LL-062
+**Date adopted**: 2026-06-08
+**Rule**: Never commit a suppression flag (`_injectingDrag`, `_skipXxx`, etc.) without also committing the guard that reads it in the same PR/commit. If the guard cannot be written yet, leave the flag out entirely.
+**Rationale**: `_injectingDrag` was dead state for the entire period between its introduction and TASK-158. The `!touched` branch kept firing `tbGestureEnd` during serial drag injection, producing wrong scroll offsets. The flag conveyed false confidence that the problem was handled. Dead state is actively harmful — it misleads readers and masks bugs.
+**Applies to**: Developer (never ship the writer without the reader), VE (flag-without-guard is a code review finding)
+
+---
+
+### BP-026 — Express count-derived test constants symbolically; never hardcode a numeric value when the count can change
+
+**Adopted from**: LL-063
+**Date adopted**: 2026-06-08
+**Rule**: Any test constant derived from `APP_COUNT`, `AppId::COUNT`, or a similar registry-driven count must be written as `APP_COUNT` (or `APP_COUNT - k` with a comment explaining which items are excluded and why). Never substitute the current numeric value — it will silently diverge the next time an app is added or removed.
+**Rationale**: `_TB_N = APP_COUNT - 1` preserved the value 8 when APP_COUNT became 9, causing T165 to expect wrap-at-8 while the firmware wrapped at 9. The fix was one character (`APP_COUNT` instead of `APP_COUNT - 1`), but the bug survived multiple DUT runs undetected because the numeric form looked plausible.
+**Applies to**: VE (write `APP_COUNT` not `8`; grep for hardcoded count values when appRegistry.h changes), Developer (same; announce appRegistry.h changes to VE)
+
+---
+
 ## Entry Format
 
 ```

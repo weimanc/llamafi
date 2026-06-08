@@ -928,7 +928,7 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 - QM: present LL-059, LL-060, LL-062, LL-063 as BP candidates to human (done this session).
 - Developer: no new tasks filed; LL-061/062/063 are process lessons, not open code gaps.
 
-**Resolution**: open — BP promotion pending human sign-off.
+**Resolution**: closed — BP-023/024/025/026 promoted 2026-06-08 on human sign-off. LL-059/060/062/063 marked adopted.
 
 ---
 

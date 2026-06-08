@@ -1167,7 +1167,7 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 
 **Suggested improvement**: When introducing any harness mechanism that depends on DUT state (polling, counters, flags), write a two-sentence contract before writing the first test that uses it: "this mechanism proves X; it is unreliable when Y." Commit the contract alongside the mechanism. See `docs/process/harness_sync_contract.md` (ADR-042 E3 deliverable) as the retroactive baseline.
 
-**Status**: open — BP candidate
+**Status**: adopted — BP-023 (2026-06-08)
 
 ---
 
@@ -1181,7 +1181,7 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 
 **Suggested improvement**: For each new feature, VE authors a debug variable spec *before* implementation begins — answering: what state must be readable, what state must be writable, what events must be emitted. Developer implements the debug interface as part of the feature (not as a follow-up). This closes the gap without requiring a dedicated testability milestone.
 
-**Status**: open — BP candidate
+**Status**: adopted — BP-024 (2026-06-08)
 
 ---
 
@@ -1209,7 +1209,7 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 
 **Suggested improvement**: A suppression flag and its consuming guard are a single atomic unit of change. Never commit the writer without the reader. If the reader cannot be implemented in the same commit, leave the flag out entirely — dead state is actively harmful.
 
-**Status**: open — BP candidate
+**Status**: adopted — BP-025 (2026-06-08)
 
 ---
 
@@ -1223,7 +1223,7 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 
 **Suggested improvement**: Test constants that are derived from a count (APP_COUNT, AppId::COUNT) should always be expressed symbolically as `APP_COUNT` (or `APP_COUNT - k` with a documented reason for k). Never preserve a numeric value when the underlying count changes — update the expression to stay truthful. If `k != 0`, the comment must explain which app is excluded and why.
 
-**Status**: open — BP candidate
+**Status**: adopted — BP-026 (2026-06-08)
 
 ## Entry Format
 
