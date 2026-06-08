@@ -28,6 +28,7 @@ M-MULTIAPP changes WINDOW_W (no literal edits required in this file).
 """
 
 import argparse
+from contextlib import contextmanager
 import json
 import pathlib
 import re
@@ -224,6 +225,26 @@ class Dut:
                 "       ~/.platformio/penv/bin/pio device monitor \\\n"
                 "       -e cyd2usb_winamp -p /dev/ttyUSB0'\n"
             )
+
+        # ADR-042 E1 gate: verify elf hash matches the compiled debug build.
+        _fw = pathlib.Path(__file__).parent.parent / ".pio" / "build" / "cyd2usb_winamp_debug" / "firmware.bin"
+        if _fw.exists():
+            _fw_bytes = _fw.read_bytes()
+            _expected_elf = _fw_bytes[176:180].hex()
+            _info = self.cmd("info", timeout=3.0)
+            if _info.get("ok") and _info.get("elf") and _info["elf"] != _expected_elf:
+                raise RuntimeError(
+                    f"\n"
+                    f"╔══════════════════════════════════════════════════════════╗\n"
+                    f"║  FIRMWARE ELF MISMATCH — wrong debug build flashed       ║\n"
+                    f"╚══════════════════════════════════════════════════════════╝\n"
+                    f"  Flashed elf: {_info['elf']}\n"
+                    f"  Expected:    {_expected_elf}\n"
+                    f"Reflash the debug build before running tests:\n"
+                    f"  cd app\n"
+                    f"  ~/.platformio/penv/bin/pio run -e cyd2usb_winamp_debug \\\n"
+                    f"      -t upload --upload-port /dev/ttyUSB0\n"
+                )
 
     def _assert_owner(self):
         if threading.current_thread() is not self._owner_thread:
@@ -3916,6 +3937,20 @@ def _wait_shell_not_busy(dut: Dut, timeout_s: float = 45.0) -> bool:
             pass
         time.sleep(1.0)
     return False
+
+
+
+@contextmanager
+def _bgpoll_suspended(dut: "Dut"):
+    """Suspend background Spotify polls for the duration of the block.
+    Guarantees bgPoll resumes even if the test body raises.
+    Pre-conditions (e.g. _wait_shell_not_busy) are the caller's responsibility.
+    """
+    dut.cmd("set bgPoll 0", timeout=2.0)
+    try:
+        yield
+    finally:
+        dut.cmd("set bgPoll 1", timeout=2.0)
 
 
 def _ensure_stock_list_view(dut: Dut) -> bool:

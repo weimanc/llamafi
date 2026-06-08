@@ -56,6 +56,7 @@ bool writeContextToNfc = true;
 #include "SPIFFS.h"
 #include <time.h>     // configTime(), time(); needed for NTP sync at boot (time-001)
 #include <esp_ota_ops.h>  // esp_ota_get_app_description() for serialdbg-001 boot banner (Arduino-ESP32 2.0.x; esp-idf 5.x renames this to <esp_app_desc.h>)
+#include <esp_log.h>      // esp_log_level_set() for ADR-042 E1 HTTPClient log suppression
 
 // ----------------------------
 // Additional Libraries - each one of these will need to be installed.
@@ -1707,6 +1708,11 @@ void setup()
         elf, __DATE__, __TIME__);
   }
 
+#ifdef SERIAL_DEBUG
+  // ADR-042 E1: suppress verbose HTTPClient log that garbles serial JSON responses.
+  esp_log_level_set("HTTPClient",  ESP_LOG_NONE);
+  esp_log_level_set("HTTP_CLIENT", ESP_LOG_NONE);
+#endif
   logsink::begin();
 
   bool forceConfig = false;

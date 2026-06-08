@@ -57,6 +57,12 @@ static volatile unsigned int s_consecutiveFailures = 0;
 // A single bool write is atomic on ESP32 Xtensa (aligned word store).
 static volatile bool s_resetTlsPending = false;
 
+#ifdef SERIAL_DEBUG
+// ADR-042 E2: background poll inhibit. 1 = normal, 0 = suspended.
+// Set/cleared by dbg_set("bgPoll", ...). Reset to 1 by resetTls() (recovery invariant).
+static volatile uint8_t s_bgPollEnabled = 1;
+#endif
+
 // TASK-131: TLS yield — dataTask requests Spotify TLS stop so it can
 // allocate its own session from the freed heap. s_tlsYieldReq is set
 // by tlsYield(); taskBody calls client.stop() then gives the semaphore
@@ -271,6 +277,9 @@ static void taskBody(void *) {
 
     if (got == pdFALSE) {
       s_actionPending = false;     // queue drained — no user actions in flight
+#ifdef SERIAL_DEBUG
+      if (!s_bgPollEnabled) continue;  // bgPoll suspended — skip cadence poll
+#endif
       req.action = ACT_POLL;       // self-issue cadence poll
       req.param  = 0;
     } else {
@@ -443,6 +452,9 @@ bool isHealthy() {
 void resetTls() {
   s_consecutiveFailures = 0;
   s_resetTlsPending = true;
+#ifdef SERIAL_DEBUG
+  s_bgPollEnabled = 1;  // ADR-042: reconnect always restores full operational state
+#endif
 }
 
 void tlsYield() {
@@ -590,12 +602,22 @@ bool dbg_get(const char* var, char* buf, int len) {
     }
     return true;
   }
+  if (strcmp(var, "bgPoll") == 0) {
+    snprintf(buf, len,
+             "\"var\":\"bgPoll\",\"enabled\":%u,\"last\":true",
+             (unsigned)s_bgPollEnabled);
+    return true;
+  }
   return false;
 }
 
 bool dbg_set(const char* var, const char* val) {
   if (strcmp(var, "backoff") == 0) {
     s_consecutiveFailures = (unsigned)atoi(val);
+    return true;
+  }
+  if (strcmp(var, "bgPoll") == 0) {
+    s_bgPollEnabled = (atoi(val) != 0) ? 1 : 0;
     return true;
   }
   return false;

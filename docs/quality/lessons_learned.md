@@ -1155,6 +1155,34 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 
 ---
 
+---
+
+### LL-059 — 2026-06-08 — Harness sync model grew by trial-and-error; no contract at inception
+
+**Context**: The regression harness's state-synchronisation approach — `shellBusy` polling, `fetchOkCount` counters, `time.sleep` margins — was never formally specified. Each test was written and tuned locally until it passed, then committed.
+
+**Observation**: Over 30 commits, 8 fix commits targeted the same four tests (T-BUSY-*, T-CDWN-02, T169), each fix stacking additional waits or retries on top of the last. The underlying race conditions (background poll contamination, UART garbling) were never surfaced as root causes — only their symptoms were patched. The problem was identified only by an external audit, not by the team's own process.
+
+**Root cause**: No synchronisation contract was written when the harness was first built. Without a spec, tests had no shared reference for "which mechanism proves what." Trial-and-error produced locally-working tests whose assumptions were invisible and fragile.
+
+**Suggested improvement**: When introducing any harness mechanism that depends on DUT state (polling, counters, flags), write a two-sentence contract before writing the first test that uses it: "this mechanism proves X; it is unreliable when Y." Commit the contract alongside the mechanism. See `docs/process/harness_sync_contract.md` (ADR-042 E3 deliverable) as the retroactive baseline.
+
+**Status**: open — BP candidate
+
+---
+
+### LL-060 — 2026-06-08 — Debug interface was retrofit, not designed-in; observability gaps discovered during testing
+
+**Context**: The serial debug interface (M-SERIALDBG, ADR-021) was added to enable testing of an already-implemented firmware. Variables were added to `get`/`set` as tests needed them. No master inventory of observable state was ever defined.
+
+**Observation**: VE's DFT readiness review (2026-06-08) identified four gaps: no fixture/reset command, no event channel, incomplete debug var inventory, no DFT-first process for new features. All four gaps are symptoms of a debug interface designed around what tests happened to ask for, not around the firmware's full observable state space.
+
+**Root cause**: "Design For Testing" was not a gate for feature implementation. Features shipped, then the debug interface was backfilled by whoever needed to test them.
+
+**Suggested improvement**: For each new feature, VE authors a debug variable spec *before* implementation begins — answering: what state must be readable, what state must be writable, what events must be emitted. Developer implements the debug interface as part of the feature (not as a follow-up). This closes the gap without requiring a dedicated testability milestone.
+
+**Status**: open — BP candidate
+
 ## Entry Format
 
 ```
