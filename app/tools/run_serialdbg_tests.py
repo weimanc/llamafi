@@ -1666,10 +1666,19 @@ def t_wx_01(dut: Dut):
     if not _restore_spotify(dut):
         skip("T_WX_01", "precondition: could not restore Spotify")
         return
-    # Prior stock/crypto async fetches can still be in flight; wait before switching.
+    # Prior stock/crypto async fetches or Spotify background polls can flood serial;
+    # wait for idle, then retry the switch if the first attempt is buried in log spam.
     _wait_shell_not_busy(dut, timeout_s=10.0)
-    if not _switch_to(dut, "Weather", timeout=10.0):
-        fail("T_WX_01", "did not switch to Weather")
+    switched = False
+    for _attempt in range(3):
+        try:
+            switched = _switch_to(dut, "Weather", timeout=15.0)
+            if switched:
+                break
+        except TimeoutError:
+            time.sleep(3.0)
+    if not switched:
+        fail("T_WX_01", "did not switch to Weather after 3 attempts")
         _restore_spotify(dut)
         return
     if not _restore_spotify(dut):
@@ -2816,13 +2825,15 @@ def t_busy_01b(dut: Dut):
     # Ensure list view
     dut.cmd("tap 10 7", timeout=2.0)
     time.sleep(0.3)
+    # tap-to-list triggers a quote refresh; wait for it to settle before issuing more commands.
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     # Force stale cache BEFORE drill-in so the drill always triggers a fresh fetch.
     # Without this, a recent T-BUSY-01 fetch (< STOCK_CHART_FETCH_D1 = 60 s ago) keeps
     # the cache fresh and drillToChart() skips the enqueue, leaving _pendingAsync false.
     dut.cmd("set triggerFetch 1", timeout=2.0)
     # Drill to AAPL chart; guaranteed fetch now (stale flag set above).
     drill_before = _stock_ok_count(dut)
-    dut.cmd("tap 137 36", timeout=2.0)
+    dut.cmd("tap 137 36", timeout=5.0)
     time.sleep(0.3)
     if not _wait_chart_complete(dut, drill_before, timeout_s=45.0):
         _restore_from_stock(dut)
@@ -2944,13 +2955,15 @@ def t_busy_05(dut: Dut):
     _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.cmd("tap 10 7", timeout=2.0)
     time.sleep(0.3)
+    # tap-to-list triggers a quote refresh; wait for it to settle before drill.
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     # Force stale cache so drill-in triggers a new async fetch.
     dut.cmd("set triggerFetch 1", timeout=2.0)
-    dut.cmd("tap 137 36", timeout=2.0)
-    busy_seen = _poll_shell_busy(dut, True, timeout_ms=500)
+    dut.cmd("tap 137 36", timeout=5.0)
+    busy_seen = _poll_shell_busy(dut, True, timeout_ms=5000, cmd_timeout=1.0)
     if not busy_seen:
         _restore_from_stock(dut)
-        fail("T-BUSY-05", "shellBusy=true not observed within 500 ms — cannot exercise switch-while-busy path")
+        fail("T-BUSY-05", "shellBusy=true not observed within 5 s — cannot exercise switch-while-busy path")
         return
     # Switch to Spotify while busy
     dut.cmd(f"switchApp {_SPOTIFY_APP_ID}", timeout=3.0)
@@ -3046,6 +3059,8 @@ def t_cdwn_02(dut: Dut):
         return
     dut.cmd("tap 10 7", timeout=2.0)
     time.sleep(0.3)
+    # tap-to-list triggers a quote refresh; wait for it before issuing more commands.
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     # Force stale cache so drill-in triggers a new async fetch.
     dut.cmd("set triggerFetch 1", timeout=2.0)
     dut.cmd("set fetchErrCount 0", timeout=2.0)
@@ -3056,12 +3071,12 @@ def t_cdwn_02(dut: Dut):
         return
     # Tap 1 — drill to chart, triggers async fetch
     _wait_shell_not_busy(dut, timeout_s=10.0)
-    dut.cmd("tap 137 36", timeout=2.0)
-    # Poll until busy (ensures gate is live before second tap)
-    busy_seen = _poll_shell_busy(dut, True, timeout_ms=500)
+    dut.cmd("tap 137 36", timeout=5.0)
+    # Poll until busy — use 5 s window / 1 s per-cmd to ride through serial floods.
+    busy_seen = _poll_shell_busy(dut, True, timeout_ms=5000, cmd_timeout=1.0)
     if not busy_seen:
         _restore_from_stock(dut)
-        fail("T-CDWN-02", "shellBusy=true not seen within 500 ms — gate may not be active for second tap")
+        fail("T-CDWN-02", "shellBusy=true not seen within 5 s — gate may not be active for second tap")
         return
     # Tap 2 — PRIMARY ASSERTION: cmdTap must return skipped:true (g_shellBusy gate active).
     tap2_r = dut.cmd("tap 137 36", timeout=8.0)
@@ -3111,14 +3126,16 @@ def t_cdwn_03(dut: Dut):
         return
     dut.cmd("tap 10 7", timeout=2.0)
     time.sleep(0.3)
+    # tap-to-list triggers a quote refresh; wait for it before issuing more commands.
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     # Force stale cache so drill-in triggers a new async fetch.
     dut.cmd("set triggerFetch 1", timeout=2.0)
     _wait_shell_not_busy(dut, timeout_s=10.0)
-    dut.cmd("tap 137 36", timeout=2.0)
-    busy_seen = _poll_shell_busy(dut, True, timeout_ms=500)
+    dut.cmd("tap 137 36", timeout=5.0)
+    busy_seen = _poll_shell_busy(dut, True, timeout_ms=5000, cmd_timeout=1.0)
     if not busy_seen:
         _restore_from_stock(dut)
-        fail("T-CDWN-03", "shellBusy=true not seen — cannot verify taskbar tap while busy")
+        fail("T-CDWN-03", "shellBusy=true not seen within 5 s — cannot verify taskbar tap while busy")
         return
     # Taskbar Clock tap (slot 1)
     tx, ty = _c.tap_taskbar_slot(_CLOCK_APP_ID)
