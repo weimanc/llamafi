@@ -903,6 +903,35 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 
 ---
 
+### Audit — 2026-06-08 — ADR-042 follow-on retrospective (TASK-156/157/158/159)
+**Triggered by**: PM (post-milestone)
+**Areas checked**:
+- [x] Feature inventory completeness
+- [x] Test coverage per feature
+- [x] Cross-feature test coverage
+- [x] Documentation currency
+
+**Findings**:
+
+1. **Doc currency — test_plan.md T-SET-03/T-SET-07 stale status**: Both tests were marked "failing [STALE — superseded by T-APPS-07]" but the `settingsAppSubmenu` debug var was re-implemented (TASK-159) and both now PASS. Status corrected in this session.
+
+2. **Design gap — injection dispatcher missed when taskbar gesture API added (LL-061)**: `drainInjectionQueue` was not updated when `tbGesturePress/Continue/End` replaced direct touch handling in the taskbar zone. Gap existed from M-TASKBAR-SCROLL commit to TASK-158 fix. No existing process required updating the injection path when a new touch zone is added.
+
+3. **Design gap — `_injectingDrag` flag written without consuming guard (LL-062)**: Flag was `#ifdef SERIAL_DEBUG` dead state. No test verified the suppression behavior, so the gap survived multiple DUT runs undetected.
+
+4. **Test maintenance gap — `_TB_N` preserved at numeric value instead of updated symbolically (LL-063)**: When Aquarium was added (APP_COUNT 8→9), `_TB_N` was preserved at 8 via `APP_COUNT - 1`. Correct value was `APP_COUNT`. Pattern: count-derived constants should be symbolic, not numeric.
+
+5. **Open BP candidates not yet promoted**: LL-059 and LL-060 (from prior session) remain at "open — BP candidate". New candidates from this session: LL-062 and LL-063.
+
+**Actions assigned**:
+- VE: test_plan.md T-SET-03/T-SET-07 status corrected (done this session).
+- QM: present LL-059, LL-060, LL-062, LL-063 as BP candidates to human (done this session).
+- Developer: no new tasks filed; LL-061/062/063 are process lessons, not open code gaps.
+
+**Resolution**: open — BP promotion pending human sign-off.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:

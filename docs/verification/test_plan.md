@@ -2031,7 +2031,7 @@ Common preconditions for all T-SET tests:
   9. `get settingsSection` — assert `section == -1`.
 - **Expected result**: `settingsSection==5`, `settingsAppSubmenu==0`, then both reset to -1 after two backs (C2b).
 - **Harness**: `run_serialdbg_tests.py --tests T-SET-03`. Owner: VE.
-- **Status**: failing [STALE — `settingsAppSubmenu` debug var removed 2026-06-06 when AppsSection extracted to own class. Steps 3/5/7 no longer valid. Superseded by T-APPS-07.]
+- **Status**: PASS — `settingsAppSubmenu` re-implemented in AppsSection (TASK-159, commit 50b962f, 2026-06-08). All steps valid and passing. T-APPS-07 remains as a complementary higher-level test (uses `settingsSection` only, adds visual steps).
 
 ---
 
@@ -2106,7 +2106,7 @@ Common preconditions for all T-SET tests:
   8. `get settingsSection` — assert `section == -1` (at category list).
 - **Expected result**: Two back taps unwind both levels correctly (C6).
 - **Harness**: `run_serialdbg_tests.py --tests T-SET-07`. Owner: VE.
-- **Status**: failing [STALE — `settingsAppSubmenu` debug var removed 2026-06-06. Steps 4/6 no longer valid. Superseded by T-APPS-07.]
+- **Status**: PASS — `settingsAppSubmenu` re-implemented in AppsSection (TASK-159, commit 50b962f, 2026-06-08). All steps valid and passing.
 
 ---
 

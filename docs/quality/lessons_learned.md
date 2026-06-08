@@ -1183,6 +1183,48 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 
 **Status**: open — BP candidate
 
+---
+
+### LL-061 — 2026-06-08 — Touch injection path not updated when second touch consumer (taskbar gesture API) was added
+
+**Context**: TASK-158 investigation into T163/T165 failures. `cmdDrag` was originally implemented during M-SERIALDBG when `handleWinampInput` was the only touch consumer. Later, M-TASKBAR-SCROLL added a separate gesture state machine (`tbGesturePress/Continue/End`) for the taskbar zone. `drainInjectionQueue` was never updated.
+
+**Observation**: All injected touch samples routed through `handleWinampInput` regardless of x-coordinate. Taskbar-zone samples (`sx >= TASKBAR_X`) never reached the gesture API, so `cmdDrag` on the taskbar had no effect. The bug was invisible until T163 exercised it.
+
+**Root cause**: Adding a new touch zone with its own state machine is a compound change: the gesture API, the physical touch dispatcher, and the injection dispatcher must all be updated together. The last site was missed.
+
+**Suggested improvement**: When adding a new touch zone that owns its own state machine, treat the injection dispatcher (`drainInjectionQueue`) as a required update site alongside the physical dispatcher (`appHandleInput`). Checklist: physical dispatcher updated? injection dispatcher updated?
+
+**Status**: open
+
+---
+
+### LL-062 — 2026-06-08 — Suppression flag added without the consuming guard
+
+**Context**: TASK-158, bug 2. `_injectingDrag` was added to suppress premature `tbGestureEnd` during serial drag injection. The flag was set in `drainInjectionQueue` and cleared on release, but the guard `!winampDisplay._injectingDrag` was never written into `appHandleInput`'s `!touched` branch.
+
+**Observation**: The flag was dead state for the entire period between M-TASKBAR-SCROLL and TASK-158. The `!touched` branch fired `tbGestureEnd` on every physical scan cycle where `touched == false` during a serial drag, cancelling the gesture. T165 exposed this (scroll offset wrong after wrap).
+
+**Root cause**: "Add suppression flag" was treated as a complete unit of work. It is not — the flag has no effect until the guard that reads it is also implemented. Without a test for the guarded behavior, the gap was invisible.
+
+**Suggested improvement**: A suppression flag and its consuming guard are a single atomic unit of change. Never commit the writer without the reader. If the reader cannot be implemented in the same commit, leave the flag out entirely — dead state is actively harmful.
+
+**Status**: open — BP candidate
+
+---
+
+### LL-063 — 2026-06-08 — Test constant preserved at hardcoded value instead of symbolic expression when APP_COUNT changed
+
+**Context**: TASK-158, bug 3. When Aquarium was added (APP_COUNT 8 → 9), the test constant `_TB_N` was updated from `8` to `APP_COUNT - 1` — preserving the numeric value 8 while updating the expression. The comment also changed from `# AppId::COUNT` to `# AppId::COUNT - 1`, which was wrong.
+
+**Observation**: `_TB_N = APP_COUNT - 1 = 8` caused T165 to expect `tbScrollOffset = 7` (wrap-down from 0 mod 8), but firmware wraps mod 9, giving 8. The test failed; the firmware was correct.
+
+**Root cause**: The updater's intent was to keep `_TB_N = 8`. The correct update was `_TB_N = APP_COUNT` (letting it grow to 9). The `- 1` was cargo-culted from the idea that "this excluded the 9th app" — but no app is excluded from the taskbar scroll.
+
+**Suggested improvement**: Test constants that are derived from a count (APP_COUNT, AppId::COUNT) should always be expressed symbolically as `APP_COUNT` (or `APP_COUNT - k` with a documented reason for k). Never preserve a numeric value when the underlying count changes — update the expression to stay truthful. If `k != 0`, the comment must explain which app is excluded and why.
+
+**Status**: open — BP candidate
+
 ## Entry Format
 
 ```
