@@ -8,6 +8,8 @@ public:
         return (_sub < 0) ? "Applications" : kConfigurableApps[_sub].name;
     }
 
+    int submenu() const { return (int)_sub; }
+
     void enter() override { _sub = -1; repaint(); }
     void leave() override { _sub = -1; }
 

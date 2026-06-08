@@ -776,6 +776,10 @@ public:
       snprintf(buf, len, "\"var\":\"settingsSection\",\"section\":%d,\"last\":true", _s.section);
       return true;
     }
+    if (strcmp(var, "settingsAppSubmenu") == 0) {
+      snprintf(buf, len, "\"var\":\"settingsAppSubmenu\",\"submenu\":%d,\"last\":true", _apps.submenu());
+      return true;
+    }
     return false;
   }
 #endif
@@ -1659,7 +1663,11 @@ void appHandleInput(AppId) {
       }
     }
   } else {
-    if (winampDisplay.tbIsDragging()) {
+    if (winampDisplay.tbIsDragging()
+#ifdef SERIAL_DEBUG
+        && !winampDisplay._injectingDrag
+#endif
+    ) {
       int appIdx = (int)currentAppId;
       if (winampDisplay.tbGestureEnd(s_lastTouchY, (int)AppId::COUNT, &appIdx))
         if (appIdx != (int)currentAppId) switchApp(static_cast<AppId>(appIdx));
@@ -1949,7 +1957,15 @@ static inline void drainInjectionQueue() {
   InjectionStep &step = s_injectQueue[s_injectHead % 64];
 #ifdef WINAMP_DISPLAY
   if (step.release) {
-    winampDisplay.handleWinampInput(TouchPhase::Release, 0, 0);
+    if (winampDisplay.tbIsDragging()) {
+      // Taskbar drag release: end gesture (scroll path — y unused for non-tap).
+      int appIdx = (int)currentAppId;
+      if (winampDisplay.tbGestureEnd(s_lastTouchY, (int)AppId::COUNT, &appIdx))
+        if (appIdx != (int)currentAppId) switchApp(static_cast<AppId>(appIdx));
+      renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), (int)AppId::COUNT);
+    } else {
+      winampDisplay.handleWinampInput(TouchPhase::Release, 0, 0);
+    }
     winampDisplay._injectingDrag = false;
     s_dragPending = false;
     Serial.printf("{\"ok\":true,\"cmd\":\"drag\","
@@ -1959,7 +1975,16 @@ static inline void drainInjectionQueue() {
   } else {
     LOG_D("serial", "inject sample %d/%d sx=%d sy=%d",
           s_injectHead + 1, s_injectTotal - 1, step.sx, step.sy);
-    if (s_injectIsFirst) {
+    if (step.sx >= TASKBAR_X) {
+      // Taskbar zone: route to gesture handlers, not handleWinampInput.
+      s_lastTouchY = step.sy;
+      if (!winampDisplay.tbIsDragging()) {
+        winampDisplay.tbGesturePress(step.sy);
+      } else {
+        if (winampDisplay.tbGestureContinue(step.sy, (int)AppId::COUNT))
+          renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), (int)AppId::COUNT);
+      }
+    } else if (s_injectIsFirst) {
       winampDisplay.handleWinampInput(TouchPhase::Press, step.sx, step.sy);
       s_injectIsFirst = false;
     } else {

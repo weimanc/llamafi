@@ -1688,19 +1688,11 @@ def t_wx_01(dut: Dut):
     if not _restore_spotify(dut):
         skip("T_WX_01", "precondition: could not restore Spotify")
         return
-    # Prior stock/crypto async fetches or Spotify background polls can flood serial;
-    # wait for idle, then retry the switch if the first attempt is buried in log spam.
     _wait_shell_not_busy(dut, timeout_s=10.0)
-    switched = False
-    for _attempt in range(3):
-        try:
-            switched = _switch_to(dut, "Weather", timeout=15.0)
-            if switched:
-                break
-        except TimeoutError:
-            time.sleep(3.0)
+    with _bgpoll_suspended(dut):
+        switched = _switch_to(dut, "Weather", timeout=15.0)
     if not switched:
-        fail("T_WX_01", "did not switch to Weather after 3 attempts")
+        fail("T_WX_01", "did not switch to Weather")
         _restore_spotify(dut)
         return
     if not _restore_spotify(dut):
@@ -1807,17 +1799,11 @@ def t_cx_01(dut: Dut):
     if not _restore_spotify(dut):
         skip("T_CX_01", "precondition: could not restore Spotify")
         return
-    # Background Spotify polls can flood serial; retry switch on TimeoutError.
-    switched = False
-    for _attempt in range(3):
-        try:
-            switched = _switch_to(dut, "Crypto", timeout=15.0)
-            if switched:
-                break
-        except TimeoutError:
-            time.sleep(3.0)
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    with _bgpoll_suspended(dut):
+        switched = _switch_to(dut, "Crypto", timeout=15.0)
     if not switched:
-        fail("T_CX_01", "did not switch to Crypto after 3 attempts")
+        fail("T_CX_01", "did not switch to Crypto")
         _restore_spotify(dut)
         return
     if not _restore_spotify(dut):
@@ -2056,16 +2042,10 @@ def t169(dut: Dut):
         skip("T169", "precondition: could not restore Spotify")
         return
     _wait_shell_not_busy(dut, timeout_s=10.0)
-    switched = False
-    for _attempt in range(3):
-        try:
-            switched = _switch_to_stock(dut)
-            if switched:
-                break
-        except TimeoutError:
-            time.sleep(3.0)
+    with _bgpoll_suspended(dut):
+        switched = _switch_to_stock(dut)
     if not switched:
-        fail("T169", "switchApp 7 did not switch to Stock after 3 attempts")
+        fail("T169", "switchApp did not switch to Stock")
         _restore_from_stock(dut)
         return
     r = _stock_get(dut, "stockSubView")
@@ -2859,36 +2839,28 @@ def t_busy_01b(dut: Dut):
     if not _switch_to_stock(dut):
         skip("T-BUSY-01b", "could not switch to StockApp")
         return
-    # Wait for any prior async work to settle before the timing-sensitive drill sequence.
     _wait_shell_not_busy(dut, timeout_s=10.0)
-    # Ensure list view
-    dut.cmd("tap 10 7", timeout=2.0)
-    time.sleep(0.3)
-    # tap-to-list triggers a quote refresh; wait for it to settle before issuing more commands.
-    _wait_shell_not_busy(dut, timeout_s=10.0)
-    # Force stale cache BEFORE drill-in so the drill always triggers a fresh fetch.
-    # Without this, a recent T-BUSY-01 fetch (< STOCK_CHART_FETCH_D1 = 60 s ago) keeps
-    # the cache fresh and drillToChart() skips the enqueue, leaving _pendingAsync false.
-    dut.cmd("set triggerFetch 1", timeout=2.0)
-    # Drill to AAPL chart; guaranteed fetch now (stale flag set above).
-    _wait_shell_not_busy(dut, timeout_s=10.0)
-    drill_before = _stock_ok_count(dut)
-    dut.cmd("tap 137 36", timeout=10.0)
-    time.sleep(0.3)
-    if not _wait_chart_complete(dut, drill_before, timeout_s=45.0):
-        _restore_from_stock(dut)
-        skip("T-BUSY-01b", "initial chart fetch did not complete — cannot test tab-range path")
-        return
-    time.sleep(0.1)
-    # Snapshot fetchOkCount BEFORE 5D tap — 5D tab always triggers a new fetch (unconditional).
-    before5d = _stock_ok_count(dut)
-    dut.cmd("tap 184 7", timeout=2.0)
-    busy_seen = _poll_shell_busy(dut, True, timeout_ms=5000, cmd_timeout=1.0)
-    # Let this fetch settle before leaving.
-    _wait_chart_complete(dut, before5d, timeout_s=45.0)
+    with _bgpoll_suspended(dut):
+        dut.cmd("tap 10 7", timeout=2.0)
+        time.sleep(0.3)
+        # tap-to-list triggers a quote refresh; wait for it to settle.
+        _wait_shell_not_busy(dut, timeout_s=10.0)
+        # Force stale cache BEFORE drill-in so the drill always triggers a fresh fetch.
+        dut.cmd("set triggerFetch 1", timeout=2.0)
+        drill_before = _stock_ok_count(dut)
+        dut.cmd("tap 137 36", timeout=10.0)
+        time.sleep(0.3)
+        if not _wait_chart_complete(dut, drill_before, timeout_s=45.0):
+            _restore_from_stock(dut)
+            skip("T-BUSY-01b", "initial chart fetch did not complete — cannot test tab-range path")
+            return
+        time.sleep(0.1)
+        before5d = _stock_ok_count(dut)
+        dut.cmd("tap 184 7", timeout=2.0)
+        busy_seen = _poll_shell_busy(dut, True, timeout_ms=5000, cmd_timeout=1.0)
+        _wait_chart_complete(dut, before5d, timeout_s=45.0)
     _restore_from_stock(dut)
     if not busy_seen:
-        # Warm Yahoo Finance connection can complete the 5D fetch before the poll window.
         skip("T-BUSY-01b", "shellBusy=true not observed within 5 s after 5D tap — warm fetch too fast")
         return
     pass_("T-BUSY-01b", "shellBusy=true observed after 5D range tab tap")
@@ -2931,47 +2903,20 @@ def t_busy_03(dut: Dut):
     _FETCH_APPS = {"Weather", "Crypto"}
     errors = []
     for app_name, app_id in PASSIVE_APPS:
-        # When the DUT switches to a network-active app (Weather/Crypto), HTTPClient debug
-        # output from Core 0 races with the switchApp response from Core 1, splitting the
-        # JSON across two lines (UART not mutex-protected between cores). The switchApp
-        # command DOES execute; only the response is garbled. Recover by waiting for HTTP
-        # activity to settle, then verifying via get appId.
-        dut.ser.reset_input_buffer()
-        switch_confirmed = False
-        try:
+        _wait_shell_not_busy(dut, timeout_s=10.0)
+        with _bgpoll_suspended(dut):
             r = dut.cmd(f"switchApp {app_id}", timeout=3.0)
-            if r.get("ok"):
-                switch_confirmed = True
-        except TimeoutError:
-            pass  # garbled response — command executed; verify below
-        if not switch_confirmed:
-            # HTTP activity may have split the response. Wait, flush, re-verify.
-            time.sleep(3.0)
-            dut.ser.reset_input_buffer()
-            try:
-                r_v = dut.cmd("get appId", timeout=5.0)
-                if r_v.get("ok") and r_v.get("name") == app_name:
-                    switch_confirmed = True
-                else:
-                    errors.append(f"{app_name}: switch unconfirmed (appId={r_v.get('name')!r})")
-                    continue
-            except TimeoutError:
-                errors.append(f"{app_name}: switchApp timed out and appId verify also timed out")
+            if not r.get("ok"):
+                errors.append(f"{app_name}: switchApp failed: {r}")
                 continue
-        settle = 3.0 if app_name in _FETCH_APPS else 0.5
-        time.sleep(settle)
-        # Flush after settle to discard HTTP log lines that could split or precede the tap response.
-        dut.ser.reset_input_buffer()
-        try:
+            settle = 3.0 if app_name in _FETCH_APPS else 0.5
+            time.sleep(settle)
             r_tap = dut.cmd("tap 137 120", timeout=5.0)
-        except TimeoutError:
-            errors.append(f"{app_name}: tap timed out (serial flood from network init)")
-            continue
-        if not r_tap.get("ok"):
-            errors.append(f"{app_name}: tap failed: {r_tap}")
-            continue
-        time.sleep(0.1)
-        busy = _get_shell_busy(dut)
+            if not r_tap.get("ok"):
+                errors.append(f"{app_name}: tap failed: {r_tap}")
+                continue
+            time.sleep(0.1)
+            busy = _get_shell_busy(dut)
         if busy is None:
             errors.append(f"{app_name}: get shellBusy failed")
         elif busy:
@@ -2993,47 +2938,33 @@ def t_busy_05(dut: Dut):
     if not _switch_to_stock(dut):
         skip("T-BUSY-05", "could not switch to StockApp")
         return
-    # Retry drill-in: a concurrent shellBusy (quote refresh or Spotify poll) can skip the
-    # tap; confirm entry to chart view before proceeding.
-    drilled = False
-    for _attempt in range(3):
-        _wait_shell_not_busy(dut, timeout_s=10.0)
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    with _bgpoll_suspended(dut):
         dut.cmd("tap 10 7", timeout=2.0)
         time.sleep(0.3)
         _wait_shell_not_busy(dut, timeout_s=10.0)
         dut.cmd("set triggerFetch 1", timeout=2.0)
-        try:
-            r_d = dut.cmd("tap 137 36", timeout=5.0)
-        except TimeoutError:
-            time.sleep(2.0)
-            continue
-        if r_d.get("skipped"):
-            continue
-        sv = dut.cmd("get stockSubView", timeout=3.0).get("val")
-        if sv == "chart":
-            drilled = True
-            break
-    if not drilled:
-        skip("T-BUSY-05", "could not drill to chart after 3 attempts (concurrent shellBusy race)")
-        _restore_from_stock(dut)
-        return
-    busy_seen = _poll_shell_busy(dut, True, timeout_ms=5000, cmd_timeout=1.0)
-    if not busy_seen:
-        _restore_from_stock(dut)
-        skip("T-BUSY-05", "shellBusy=true not observed within 5 s — warm connection completed fetch too fast")
-        return
-    # Switch to Spotify while busy
-    dut.cmd(f"switchApp {_SPOTIFY_APP_ID}", timeout=3.0)
-    time.sleep(0.05)
-    # Poll 3× at 20 ms intervals — all must be false
-    results = []
-    for _ in range(3):
-        results.append(_get_shell_busy(dut))
-        time.sleep(0.02)
-    # Wait for any in-flight fetch to settle before cleanup
-    _poll_shell_busy(dut, False, timeout_ms=5000)
+        r_d = dut.cmd("tap 137 36", timeout=5.0)
+        drilled = (not r_d.get("skipped")) and (
+            dut.cmd("get stockSubView", timeout=3.0).get("val") == "chart"
+        )
+        if not drilled:
+            _restore_from_stock(dut)
+            skip("T-BUSY-05", "could not drill to chart (tap skipped or wrong subView)")
+            return
+        busy_seen = _poll_shell_busy(dut, True, timeout_ms=5000, cmd_timeout=1.0)
+        if not busy_seen:
+            _restore_from_stock(dut)
+            skip("T-BUSY-05", "shellBusy=true not observed within 5 s — warm connection completed fetch too fast")
+            return
+        dut.cmd(f"switchApp {_SPOTIFY_APP_ID}", timeout=3.0)
+        time.sleep(0.05)
+        results = []
+        for _ in range(3):
+            results.append(_get_shell_busy(dut))
+            time.sleep(0.02)
+        _poll_shell_busy(dut, False, timeout_ms=5000)
     if any(b is not True for b in results):
-        # None means get failed; True means still busy
         bad = [str(r) for r in results if r is not False]
         if bad:
             fail("T-BUSY-05", f"shellBusy not false after switchApp: {results}")
@@ -3114,63 +3045,49 @@ def t_cdwn_02(dut: Dut):
     if not _switch_to_stock(dut):
         skip("T-CDWN-02", "could not switch to StockApp")
         return
-    # Retry drill-in: a concurrent shellBusy (quote refresh or Spotify poll) can skip the
-    # tap; check tap1.skipped to detect concurrent shellBusy, then send tap2 immediately
-    # (no subView check delay — a get stockSubView round-trip adds ~200 ms, enough for a
-    # warm Yahoo Finance fetch to complete and clear shellBusy before tap2 arrives).
-    n = -1
-    gate_confirmed = False
-    for _attempt in range(3):
-        _wait_shell_not_busy(dut, timeout_s=10.0)  # settle before tap-to-list
-        dut.cmd("tap 10 7", timeout=5.0)   # ensure list view
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    with _bgpoll_suspended(dut):
+        dut.cmd("tap 10 7", timeout=5.0)
         time.sleep(0.3)
         # tap-to-list triggers a quote refresh; wait for it before issuing more commands.
         _wait_shell_not_busy(dut, timeout_s=10.0)
-        # Force stale cache so drill-in triggers a new async fetch.
         dut.cmd("set triggerFetch 1", timeout=2.0)
         dut.cmd("set fetchErrCount 0", timeout=2.0)
         n = _stock_ok_count(dut)
         if n < 0:
-            continue
-        # Drill tap — must NOT be skipped by a concurrent shellBusy.
-        _wait_shell_not_busy(dut, timeout_s=10.0)
+            _restore_from_stock(dut)
+            skip("T-CDWN-02", "get fetchOkCount failed")
+            return
         r_d = dut.cmd("tap 137 36", timeout=5.0)
         if r_d.get("skipped"):
-            continue  # concurrent shellBusy blocked drill; retry
+            _restore_from_stock(dut)
+            skip("T-CDWN-02", "drill tap skipped — shell still busy after precondition wait")
+            return
         # tap1 processed → send tap2 IMMEDIATELY (no subView check adds no delay).
         tap2_r = dut.cmd("tap 137 36", timeout=8.0)
         tap2_skipped = tap2_r.get("skipped", False) if isinstance(tap2_r, dict) else False
-        print(f"  [T-CDWN-02] attempt {_attempt+1} tap2 response: {tap2_r}", flush=True)
-        if tap2_skipped:
-            gate_confirmed = True
-            break
-        # tap2 not skipped: warm connection completed fetch before tap2 arrived;
-        # wait for DUT to settle and retry with fresh stale flag.
-        _wait_shell_not_busy(dut, timeout_s=10.0)
-    if not gate_confirmed:
+        print(f"  [T-CDWN-02] tap2 response: {tap2_r}", flush=True)
+        if not tap2_skipped:
+            _restore_from_stock(dut)
+            skip("T-CDWN-02", "tap2 not skipped — warm connection completed fetch before tap2 arrived")
+            return
+        print(f"  [T-CDWN-02] gate confirmed (skipped:true); waiting up to 60 s for fetch to resolve…", flush=True)
+        deadline = time.monotonic() + 60.0
+        fetch_ok = n
+        fetch_err = 0
+        while time.monotonic() < deadline:
+            try:
+                cur_ok = _stock_ok_count(dut)
+                cur_err_r = dut.cmd("get fetchErrCount", timeout=5.0)
+                cur_err = cur_err_r.get("val", 0) if isinstance(cur_err_r, dict) else 0
+                if cur_ok > n or cur_err > 0:
+                    fetch_ok  = cur_ok
+                    fetch_err = cur_err
+                    break
+            except TimeoutError:
+                pass  # DUT busy with TLS fetch — retry
+            time.sleep(1.0)
         _restore_from_stock(dut)
-        skip("T-CDWN-02", "tap2 not skipped after 3 attempts — warm connection completes fetch before tap2 arrives")
-        return
-    # Secondary assertion: wait for exactly one fetch to resolve (ok or err). Cold ESP32
-    # TLS to Yahoo Finance can take 30–40 s; use 60 s deadline. fetchErrCount was reset
-    # above so any increment means the enqueued fetch (not a prior stale result) resolved.
-    print(f"  [T-CDWN-02] gate confirmed (skipped:true); waiting up to 60 s for fetch to resolve…", flush=True)
-    deadline = time.monotonic() + 60.0
-    fetch_ok = n
-    fetch_err = 0
-    while time.monotonic() < deadline:
-        try:
-            cur_ok = _stock_ok_count(dut)
-            cur_err_r = dut.cmd("get fetchErrCount", timeout=5.0)
-            cur_err = cur_err_r.get("val", 0) if isinstance(cur_err_r, dict) else 0
-            if cur_ok > n or cur_err > 0:
-                fetch_ok  = cur_ok
-                fetch_err = cur_err
-                break
-        except TimeoutError:
-            pass  # DUT busy with TLS fetch — retry
-        time.sleep(1.0)
-    _restore_from_stock(dut)
     total = (fetch_ok - n) + fetch_err
     if total == 0:
         flake("T-CDWN-02", "gate confirmed (skipped:true) but fetch never resolved within 60 s (network unavailable)")
@@ -3189,27 +3106,23 @@ def t_cdwn_03(dut: Dut):
     if not _switch_to_stock(dut):
         skip("T-CDWN-03", "could not switch to StockApp")
         return
-    dut.cmd("tap 10 7", timeout=2.0)
-    time.sleep(0.3)
-    # tap-to-list triggers a quote refresh; wait for it before issuing more commands.
     _wait_shell_not_busy(dut, timeout_s=10.0)
-    # Force stale cache so drill-in triggers a new async fetch.
-    dut.cmd("set triggerFetch 1", timeout=2.0)
-    _wait_shell_not_busy(dut, timeout_s=10.0)
-    dut.cmd("tap 137 36", timeout=5.0)
-    # By the time the host receives the drill response and sends the taskbar tap, DUT has
-    # set shellBusy=true (hasPendingAsync check runs in same loop iter as handleSerialCommands).
-    # No explicit busy poll needed — taskbar tap arrives while fetch is in-flight.
-    # Taskbar Clock tap (slot 1)
-    tx, ty = _c.tap_taskbar_slot(_CLOCK_APP_ID)
-    dut.cmd(f"tap {tx} {ty}", timeout=2.0)
-    time.sleep(0.3)
-    r_app = dut.cmd("get appId", timeout=3.0)
-    app_name = r_app.get("name") if r_app.get("ok") else None
-    busy_after = _get_shell_busy(dut)
-    # Restore to Spotify before asserting
-    dut.cmd(f"switchApp {_SPOTIFY_APP_ID}", timeout=3.0)
-    time.sleep(0.3)
+    with _bgpoll_suspended(dut):
+        dut.cmd("tap 10 7", timeout=2.0)
+        time.sleep(0.3)
+        # tap-to-list triggers a quote refresh; wait for it before issuing more commands.
+        _wait_shell_not_busy(dut, timeout_s=10.0)
+        dut.cmd("set triggerFetch 1", timeout=2.0)
+        dut.cmd("tap 137 36", timeout=5.0)
+        # Taskbar Clock tap arrives while fetch is in-flight (shellBusy=true).
+        tx, ty = _c.tap_taskbar_slot(_CLOCK_APP_ID)
+        dut.cmd(f"tap {tx} {ty}", timeout=2.0)
+        time.sleep(0.3)
+        r_app = dut.cmd("get appId", timeout=3.0)
+        app_name = r_app.get("name") if r_app.get("ok") else None
+        busy_after = _get_shell_busy(dut)
+        dut.cmd(f"switchApp {_SPOTIFY_APP_ID}", timeout=3.0)
+        time.sleep(0.3)
     if app_name != "Clock":
         fail("T-CDWN-03", f"appId={app_name!r} after taskbar tap — expected 'Clock'")
         return
@@ -3743,7 +3656,7 @@ def t160(dut: Dut):
 # Taskbar geometry (shell_layout.h):
 #   TASKBAR_X=275, TASKBAR_W=45, TASKBAR_SLOT_H=40
 #   x centre = 297;  slot n y-centre = n*40+20
-#   N_APPS = 8  (AppId::COUNT)
+#   N_APPS = 9  (AppId::COUNT)
 #
 # Drag parameters for reliable 1-slot step:
 #   50 px / 10 steps → LP-smoothed ≈ 42.5 px > TASKBAR_SLOT_H(40) → exactly 1 slot
@@ -3753,7 +3666,7 @@ def t160(dut: Dut):
 # T168 is MANUAL — active-indicator rendering cannot be verified via serial.
 
 _TB_X = _c.TASKBAR_X + _c.TASKBAR_W // 2   # 297
-_TB_N = APP_COUNT - 1                        # AppId::COUNT - 1
+_TB_N = APP_COUNT                            # AppId::COUNT (all 9 apps in taskbar)
 
 
 def _tb_get_offset(dut: Dut) -> "int | None":
