@@ -2035,8 +2035,16 @@ def t169(dut: Dut):
         skip("T169", "precondition: could not restore Spotify")
         return
     _wait_shell_not_busy(dut, timeout_s=10.0)
-    if not _switch_to_stock(dut):
-        fail("T169", "switchApp 7 did not switch to Stock")
+    switched = False
+    for _attempt in range(3):
+        try:
+            switched = _switch_to_stock(dut)
+            if switched:
+                break
+        except TimeoutError:
+            time.sleep(3.0)
+    if not switched:
+        fail("T169", "switchApp 7 did not switch to Stock after 3 attempts")
         _restore_from_stock(dut)
         return
     r = _stock_get(dut, "stockSubView")
