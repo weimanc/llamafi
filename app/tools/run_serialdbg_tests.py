@@ -771,7 +771,9 @@ def t091(dut: Dut):
     r_rc = dut.cmd("reconnect", timeout=3.0)
     if not r_rc.get("ok"):
         flake("T091", f"reconnect failed: {r_rc}"); return
-    r_get2 = dut.cmd("get backoff", timeout=3.0)
+    # reconnect triggers a TLS reset which floods serial for ~1-2 s; wait before querying.
+    time.sleep(2.0)
+    r_get2 = dut.cmd("get backoff", timeout=5.0)
     cf = r_get2.get("consecutiveFailures", -1)
     if cf != 0:
         flake("T091", f"consecutiveFailures={cf} after reconnect (expected 0)")
@@ -1664,6 +1666,8 @@ def t_wx_01(dut: Dut):
     if not _restore_spotify(dut):
         skip("T_WX_01", "precondition: could not restore Spotify")
         return
+    # Prior stock/crypto async fetches can still be in flight; wait before switching.
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     if not _switch_to(dut, "Weather", timeout=10.0):
         fail("T_WX_01", "did not switch to Weather")
         _restore_spotify(dut)
@@ -2011,6 +2015,7 @@ def t169(dut: Dut):
     if not _restore_spotify(dut):
         skip("T169", "precondition: could not restore Spotify")
         return
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     if not _switch_to_stock(dut):
         fail("T169", "switchApp 7 did not switch to Stock")
         _restore_from_stock(dut)
@@ -2806,6 +2811,8 @@ def t_busy_01b(dut: Dut):
     if not _switch_to_stock(dut):
         skip("T-BUSY-01b", "could not switch to StockApp")
         return
+    # Wait for any prior async work to settle before the timing-sensitive drill sequence.
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     # Ensure list view
     dut.cmd("tap 10 7", timeout=2.0)
     time.sleep(0.3)
@@ -2934,6 +2941,7 @@ def t_busy_05(dut: Dut):
     if not _switch_to_stock(dut):
         skip("T-BUSY-05", "could not switch to StockApp")
         return
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.cmd("tap 10 7", timeout=2.0)
     time.sleep(0.3)
     # Force stale cache so drill-in triggers a new async fetch.
@@ -3047,6 +3055,7 @@ def t_cdwn_02(dut: Dut):
         fail("T-CDWN-02", "get fetchOkCount failed at baseline")
         return
     # Tap 1 — drill to chart, triggers async fetch
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.cmd("tap 137 36", timeout=2.0)
     # Poll until busy (ensures gate is live before second tap)
     busy_seen = _poll_shell_busy(dut, True, timeout_ms=500)
@@ -3104,6 +3113,7 @@ def t_cdwn_03(dut: Dut):
     time.sleep(0.3)
     # Force stale cache so drill-in triggers a new async fetch.
     dut.cmd("set triggerFetch 1", timeout=2.0)
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.cmd("tap 137 36", timeout=2.0)
     busy_seen = _poll_shell_busy(dut, True, timeout_ms=500)
     if not busy_seen:
@@ -3912,6 +3922,7 @@ def t200(dut: Dut):
         skip("T200", "could not normalize to list view")
         _restore_from_stock(dut)
         return
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.set_cooldown_zero()
     dut.cmd("tap 220 10", timeout=3.0)
     time.sleep(0.3)
