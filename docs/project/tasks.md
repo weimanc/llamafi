@@ -254,7 +254,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 - VE: confirm build clean; DUT boots and connects normally without the file.
 
 **Priority:** P2  
-**Status:** not started  
+**Status:** done — `dnsOverride.h` removed, `refresh_host_overrides.sh` deleted, gitignore entries dropped, CLAUDE.md §DNS override removed. Build PASS.  
 **Opened:** 2026-06-09  
 **Owner:** Developer  
 

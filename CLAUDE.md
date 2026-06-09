@@ -183,27 +183,6 @@ Workaround used here: `get_refresh_token.py` (repo root) runs the Authorization 
 
 Reflash app to apply (creds compile in). On connect timeout (30s) it falls through to the normal WiFiManager portal flow.
 
-### DNS override (cellular / restrictive networks)
-
-Some upstreams (notably AT&T cellular when tethered) block DNS — both the carrier proxy and outbound queries to public resolvers (1.1.1.1, 8.8.8.8 over UDP+TCP). The DUT can't resolve `*.spotify.com`, `pool.ntp.org`, etc.
-
-Workaround: `dnsOverride.h` runs a tiny `AsyncUDP` resolver on the DUT itself. Reads `/host_overrides.json` from SPIFFS, answers queries from the table, NXDOMAIN otherwise. lwip's resolver is repointed at the DUT's own IP.
-
-Refresh loop (no app reflash):
-
-```sh
-cd app
-tools/refresh_host_overrides.sh                                    # regenerates data/host_overrides.json via dig
-~/.platformio/penv/bin/pio run -e cyd2usb_winamp -t uploadfs --upload-port /dev/ttyUSB0
-```
-
-JSON schema:
-
-```json
-{ "hosts": { "api.spotify.com": "35.186.224.24", ... } }
-```
-
-`data/host_overrides.json` is gitignored — site/network specific. CDN GSLB IPs rotate every few hours/days, so this is a development-only hack, not durable. NTP is a separate problem on these networks (UDP/123 also blocked); resolving `pool.ntp.org` doesn't help if the NTP packets themselves are dropped.
 
 ### Touch input (CYD)
 

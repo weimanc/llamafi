@@ -4,9 +4,6 @@
 # Spotify creds — never commit.
 data/spotify_diy_config.json
 
-# DNS override table — site/network specific.
-data/host_overrides.json
-
 # Hardcoded WiFi creds (opt-in shim).
 src/wifi_creds.h
 

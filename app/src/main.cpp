@@ -109,8 +109,6 @@ WiFiClientSecure client;
 
 #include "WifiManagerHandler.h"
 
-#include "dnsOverride.h"
-
 #include "httpsDate.h"
 
 #include "logSink.h"
@@ -1794,9 +1792,7 @@ void setup()
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
-  // dns-override: optional, no-op if /host_overrides.json is missing.
-  // Workaround for upstreams that block DNS for tethered clients.
-  dnsOverrideSetup();
+
 
   // time-001: SNTP sync before any TLS. ESP32 has no RTC; without this the
   // clock starts ~1970 and mbedTLS rejects current Spotify certs (notBefore
