@@ -289,7 +289,7 @@ Confirmed working via live DUT dump (2026-06-09):
 **Docs to update:** `project_run_scripts.md`, `CLAUDE.md`, `dut_workflow.md`, `README.md`.
 
 **Priority:** P1 — blocks M-SETUP-WIZARD implementation (setup wizard must not wipe cal/settings)  
-**Status:** not started  
+**Status:** done — `run/spiffs` implemented and DUT-tested (`ls` confirmed 5 files). CLAUDE.md + project_run_scripts.md updated.  
 **Opened:** 2026-06-09  
 **Deps:** TASK-160 (retire host_overrides path before designing the managed file set)  
 **Owner:** Developer  

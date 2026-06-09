@@ -91,7 +91,11 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
 ./run/build-debug             # compile debug firmware
 ./run/flash                   # flash production (kills + restores monitor)
 ./run/flash-debug             # flash debug firmware (monitor stays down for test harness)
-./run/flash-fs                # upload SPIFFS only
+./run/flash-fs                # upload SPIFFS — full format/rewrite (destructive; use run/spiffs push instead)
+./run/spiffs ls               # list files on device
+./run/spiffs pull [file]      # extract all → app/data/spiffs-dump/, or single file → stdout
+./run/spiffs push [file]      # write single file or merge app/data/ (non-destructive, no format)
+./run/spiffs rm <file>        # remove single file from device
 ./run/monitor-start           # start tmux serial monitor
 ./run/monitor-stop            # kill monitor (idempotent)
 ./run/monitor-read [N]        # dump last N lines (default 200)

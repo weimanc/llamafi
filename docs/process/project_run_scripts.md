@@ -19,7 +19,11 @@ All scripts live in `run/` at the project root. Run from the project root.
 ./run/build-debug             # compile debug firmware
 ./run/flash                   # flash production firmware (kills + restores monitor)
 ./run/flash-debug             # flash debug firmware (kills monitor, does NOT restart)
-./run/flash-fs                # upload SPIFFS only (kills + restores monitor)
+./run/flash-fs                # upload SPIFFS only — full format/rewrite (use run/spiffs push instead)
+./run/spiffs ls               # list files on device (non-destructive)
+./run/spiffs pull [file]      # extract all files → app/data/spiffs-dump/, or single file → stdout
+./run/spiffs push [file]      # write single file or merge app/data/ — read-modify-write, no format
+./run/spiffs rm <file>        # remove single file from device
 ./run/check                   # 5-gate build check (compile, hash, smoke, registry)
 ./run/bake-skin               # bake Winamp skin assets into app/gen/
 ./run/test-sync               # sync/drift/playlist suite T097-T116 (requires DUT)
@@ -83,7 +87,8 @@ PORT=/dev/ttyUSB1 ./run/test-targeted T080,T083
 |--------|-----------|
 | `run/port` | §0 Resolve the Serial Port |
 | `run/flash` | §3a Firmware only |
-| `run/flash-fs` | §3b SPIFFS only |
+| `run/flash-fs` | §3b SPIFFS only (full format — escape hatch) |
+| `run/spiffs` | §3b SPIFFS non-destructive read/modify/write |
 | `run/monitor-start/stop/read` | §4 Serial Monitor |
 | `run/test` | §5a Pre-run checklist (BP-020) |
 | `run/test-targeted` | §5b Targeted feature validation (BP-021) |

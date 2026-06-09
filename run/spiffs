@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# run/spiffs — non-destructive SPIFFS file manager
+#
+# Subcommands:
+#   ls                list files on device
+#   pull              extract all files → app/data/spiffs-dump/
+#   pull <file>       extract single file → stdout
+#   push <file>       update single file on device (all others preserved)
+#   push              merge app/data/ into live SPIFFS (no format)
+#   rm <file>         remove single file from device
+#
+# Override port: PORT=/dev/ttyUSB1 ./run/spiffs <cmd>
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+
+MKSPIFFS="$HOME/.platformio/packages/tool-mkspiffs/mkspiffs_espressif32_arduino"
+ESPTOOL="$HOME/.platformio/penv/bin/esptool.py"
+
+# SPIFFS partition: confirmed 2026-06-09 via live DUT dump
+SPIFFS_ADDR="0x290000"
+SPIFFS_SIZE="0x160000"  # 1441792 bytes
+
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR"' EXIT
+
+IMG="$WORK_DIR/spiffs.bin"
+UNPACKED="$WORK_DIR/fs"
+
+_kill_monitor() {
+  tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+}
+
+_start_monitor() {
+  tmux new-session -d -s "$SESSION" \
+    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'"
+}
+
+_read_flash() {
+  local port="$1"
+  echo "[spiffs] reading flash from $port ..." >&2
+  "$ESPTOOL" --chip esp32 --port "$port" --baud 921600 \
+    read_flash "$SPIFFS_ADDR" "$SPIFFS_SIZE" "$IMG" >&2
+}
+
+_unpack() {
+  mkdir -p "$UNPACKED"
+  "$MKSPIFFS" -u "$UNPACKED" -s "$SPIFFS_SIZE" "$IMG" >&2
+}
+
+_pack() {
+  "$MKSPIFFS" -c "$UNPACKED" -s "$SPIFFS_SIZE" "$IMG" >&2
+}
+
+_write_flash() {
+  local port="$1"
+  echo "[spiffs] writing flash to $port ..." >&2
+  "$ESPTOOL" --chip esp32 --port "$port" --baud 921600 \
+    write_flash "$SPIFFS_ADDR" "$IMG" >&2
+}
+
+PORT=$(resolve_port)
+CMD="${1:-}"
+
+case "$CMD" in
+
+  ls)
+    _kill_monitor
+    _read_flash "$PORT"
+    echo "[spiffs] files on device:" >&2
+    "$MKSPIFFS" -l -s "$SPIFFS_SIZE" "$IMG"
+    _start_monitor
+    ;;
+
+  pull)
+    FILE="${2:-}"
+    _kill_monitor
+    _read_flash "$PORT"
+    _unpack
+    if [ -n "$FILE" ]; then
+      # strip leading slash
+      FILE="${FILE#/}"
+      if [ -f "$UNPACKED/$FILE" ]; then
+        cat "$UNPACKED/$FILE"
+      else
+        echo "ERROR: '$FILE' not found in SPIFFS" >&2
+        _start_monitor
+        exit 1
+      fi
+    else
+      DUMP="$PIO_DIR/data/spiffs-dump"
+      mkdir -p "$DUMP"
+      cp -r "$UNPACKED/." "$DUMP/"
+      echo "[spiffs] extracted to $DUMP" >&2
+    fi
+    _start_monitor
+    ;;
+
+  push)
+    FILE="${2:-}"
+    _kill_monitor
+    _read_flash "$PORT"
+    _unpack
+    if [ -n "$FILE" ]; then
+      # Push single file
+      FILE="${FILE#/}"
+      SRC="$PIO_DIR/data/$FILE"
+      [ -f "$SRC" ] || { echo "ERROR: $SRC not found" >&2; _start_monitor; exit 1; }
+      cp "$SRC" "$UNPACKED/$FILE"
+      echo "[spiffs] updating /$FILE" >&2
+    else
+      # Merge app/data/ into unpacked fs (skip .gitkeep)
+      for f in "$PIO_DIR"/data/*; do
+        [ -f "$f" ] || continue
+        name="$(basename "$f")"
+        [ "$name" = ".gitkeep" ] && continue
+        cp "$f" "$UNPACKED/$name"
+        echo "[spiffs] merging /$name" >&2
+      done
+    fi
+    _pack
+    _write_flash "$PORT"
+    _start_monitor
+    echo "[spiffs] push done" >&2
+    ;;
+
+  rm)
+    FILE="${2:?Usage: ./run/spiffs rm <file>}"
+    FILE="${FILE#/}"
+    _kill_monitor
+    _read_flash "$PORT"
+    _unpack
+    if [ -f "$UNPACKED/$FILE" ]; then
+      rm "$UNPACKED/$FILE"
+      echo "[spiffs] removed /$FILE" >&2
+    else
+      echo "ERROR: '$FILE' not found in SPIFFS" >&2
+      _start_monitor
+      exit 1
+    fi
+    _pack
+    _write_flash "$PORT"
+    _start_monitor
+    echo "[spiffs] rm done" >&2
+    ;;
+
+  *)
+    echo "Usage: ./run/spiffs <ls|pull [file]|push [file]|rm <file>>" >&2
+    exit 1
+    ;;
+esac
