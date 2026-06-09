@@ -8,23 +8,124 @@
 
 ## Problem
 
-First-time setup requires two manual steps that are fiddly and undiscoverable:
+First-time setup requires two separate manual steps that are undiscoverable:
 
-1. **WiFi** — user must hand-edit `Spotify-Diy-Thing/SpotifyDiyThing/wifi_creds.h`
-   with the right `#define` syntax, then reflash firmware.
-2. **Spotify** — user must run `get_refresh_token.py` directly, understand that
-   it opens a browser, and know to `./run/flash-fs` afterwards.
+1. **WiFi** — user must hand-edit `wifi_creds.h` with `#define` syntax, then reflash firmware. This is a compile-time path from upstream; our project should not promote it as the default.
+2. **Spotify** — user must invoke `get_refresh_token.py` directly and remember to `./run/flash-fs` afterward.
 
-Neither step is linked from a single entry point. New users navigate three README
-sections plus a separate Python script to get a working device.
+No single entry point exists. New users navigate three README sections to get a working device.
 
 ---
 
 ## Solution
 
-`run/setup` — a bare terminal wizard. Single entry point for all first-time
-credential setup. Requires no additional Python packages beyond the project venv
-(`Pillow`, `pyserial` already present).
+`run/setup` — bare terminal wizard. Writes both credential files to `app/data/`, then offers a single `./run/flash-fs` to upload both to SPIFFS.
+
+---
+
+## Credential storage — SPIFFS as primary path
+
+Both credential files live in `app/data/` on the host and in the SPIFFS partition on the device.
+
+| File (host) | SPIFFS path | Content |
+|---|---|---|
+| `app/data/wifi_creds.json` | `/wifi_creds.json` | `{"ssid": "...", "pass": "..."}` |
+| `app/data/spotify_diy_config.json` | `/spotify_diy_config.json` | `{"clientId": "...", "clientSecret": "...", "refreshToken": "..."}` |
+
+Single `./run/flash-fs` uploads both. No firmware recompile needed for credential changes.
+
+### WiFi priority chain (after PATCH-003)
+
+```
+1. wifi_creds.h compile-time defines   ← upstream dev-shortcut; untouched; highest priority
+2. SPIFFS /wifi_creds.json             ← our primary user path (PATCH-003)
+3. WiFiManager captive portal          ← fallback
+```
+
+The compile-time path stays exactly as upstream wrote it. Our project promotes SPIFFS and does not document `wifi_creds.h` as the recommended user workflow.
+
+---
+
+## PATCH-003 — `WifiManagerHandler.h`
+
+**File:** `Spotify-Diy-Thing/SpotifyDiyThing/WifiManagerHandler.h`  
+**Rationale:** Upstream has no runtime credential path. Compile-time `wifi_creds.h` requires a firmware reflash on every credential change and is unsuitable as the default user workflow.
+
+Insert a SPIFFS-read block inside `setupWiFiManager()`, **after** the `#ifdef HARDCODED_WIFI_SSID` block, **before** the `WiFiManager wm;` line:
+
+```cpp
+// PATCH-003: Read WiFi credentials from SPIFFS /wifi_creds.json.
+// Promoted as the default user path by run/setup; avoids firmware recompile.
+// Priority: wifi_creds.h (compile-time) > SPIFFS > WiFiManager portal.
+#ifndef HARDCODED_WIFI_SSID
+if (!forceConfig) {
+    SPIFFS.begin(true);
+    if (SPIFFS.exists("/wifi_creds.json")) {
+        File f = SPIFFS.open("/wifi_creds.json", "r");
+        if (f) {
+            StaticJsonDocument<256> doc;
+            if (deserializeJson(doc, f) == DeserializationError::Ok) {
+                const char* ssid = doc["ssid"] | "";
+                const char* pass = doc["pass"] | "";
+                if (strlen(ssid) > 0) {
+                    WiFi.persistent(true);
+                    WiFi.mode(WIFI_STA);
+                    WiFi.begin(ssid, pass);
+                    Serial.print("[wifi] Connecting from SPIFFS: ");
+                    Serial.println(ssid);
+                    unsigned long deadline = millis() + 30000;
+                    while (WiFi.status() != WL_CONNECTED && millis() < deadline) {
+                        delay(250);
+                        Serial.print(".");
+                    }
+                    Serial.println();
+                    if (WiFi.status() == WL_CONNECTED) {
+                        f.close();
+                        drd->stop();
+                        return;
+                    }
+                    Serial.println("[wifi] SPIFFS connect failed — falling through to portal.");
+                }
+            }
+            f.close();
+        }
+    }
+}
+#endif
+```
+
+**Notes:**
+- Guarded by `#ifndef HARDCODED_WIFI_SSID` so the compile-time path still takes full priority.
+- `SPIFFS.begin(true)` is idempotent if already mounted (called later by `configFile.h`).
+- `StaticJsonDocument<256>` fits the schema comfortably; no heap allocation.
+- Must be registered in `upstream-patches.md` as PATCH-003 before merging.
+
+---
+
+## `.gitignore` update
+
+Replace named per-file entries with a directory-level rule so any future credential file in `app/data/` is covered automatically:
+
+```gitignore
+# app/data/ — runtime credentials and overrides; never commit
+app/data/*
+!app/data/.gitkeep
+```
+
+Remove the existing named entries:
+```gitignore
+# remove these:
+app/data/spotify_diy_config.json
+app/data/host_overrides.json
+```
+
+Add `app/data/.gitkeep` to keep the directory tracked in git (empty placeholder).
+
+---
+
+## File permissions
+
+`run/setup` calls `os.chmod(path, 0o600)` after writing each file. Standard practice for secret files (mirrors `~/.ssh/id_rsa`, `~/.aws/credentials`). Owner read/write only.
 
 ---
 
@@ -43,9 +144,7 @@ What would you like to configure?
 Choice [1/2/3]: 3
 ```
 
-Sections run in order: WiFi first, Spotify second. Each ends with an offer to
-flash the relevant partition. User can Ctrl-C at any point — partial writes are
-not committed (temp file + rename).
+Sections run in order: WiFi first, Spotify second. Ctrl-C at any point leaves existing files untouched (write via temp file + `os.replace()`).
 
 ---
 
@@ -55,34 +154,14 @@ not committed (temp file + rename).
 === WiFi Credentials ===
 
 SSID: MyNetwork
-Password: (hidden, getpass)
-Confirm:  (hidden, getpass)
+Password: (hidden)
+Confirm:  (hidden)
 
-Writing Spotify-Diy-Thing/SpotifyDiyThing/wifi_creds.h ... done.
-
-WiFi credentials are compiled into the firmware.
-Flash firmware now? [Y/n]:
+Writing app/data/wifi_creds.json ... done. (chmod 600)
 ```
 
-**Output file:** `Spotify-Diy-Thing/SpotifyDiyThing/wifi_creds.h`
-
-```c
-#pragma once
-// Generated by run/setup — do not edit by hand.
-#define HARDCODED_WIFI_SSID "..."
-#define HARDCODED_WIFI_PASS "..."
-```
-
-**Flash offer:** runs `./run/flash` (firmware only). If the user declines, prints
-a reminder:
-```
-Remember to run ./run/flash before first boot.
-```
-
-**SSID validation:** non-empty, ≤ 32 chars.  
-**Password validation:** non-empty, ≥ 8 chars. Confirmed by second prompt.  
-**Existing file:** if `wifi_creds.h` already exists, show current SSID and ask
-`Overwrite? [y/N]:` before proceeding.
+Validation: SSID non-empty ≤ 32 chars; password non-empty ≥ 8 chars, confirmed.  
+Existing file: shows current SSID, prompts `Overwrite? [y/N]:`.
 
 ---
 
@@ -92,95 +171,62 @@ Remember to run ./run/flash before first boot.
 === Spotify API Keys ===
 
 Client ID:     (input)
-Client Secret: (hidden, getpass)
+Client Secret: (hidden)
 
 Opening browser for Spotify authorisation...
-If the browser didn't open, visit:
-  https://accounts.spotify.com/authorize?...
-
-Waiting for OAuth callback on http://127.0.0.1:8888/callback/ ...
+Waiting for callback on http://127.0.0.1:8888/callback/ ...
 
 ✓ Refresh token obtained.
-Writing app/data/spotify_diy_config.json ... done.
-
-Upload config to device (SPIFFS)? [Y/n]:
+Writing app/data/spotify_diy_config.json ... done. (chmod 600)
 ```
 
-**OAuth implementation:** inline reuse of the `get_refresh_token.py` logic
-(import as module, or copy the minimal HTTP server + token exchange into
-`run/setup`). No new dependencies.
-
-**Output file:** `app/data/spotify_diy_config.json`
-
-```json
-{
-  "clientId": "...",
-  "clientSecret": "...",
-  "refreshToken": "..."
-}
-```
-
-**Flash offer:** runs `./run/flash-fs` (SPIFFS only). If declined:
-```
-Remember to run ./run/flash-fs before first boot.
-```
-
-**Existing file:** if `spotify_diy_config.json` already exists and has a
-`refreshToken`, show masked Client ID and ask `Overwrite? [y/N]:`.
+OAuth implementation: inline reuse of `get_refresh_token.py` logic (no new deps).  
+Existing file: shows masked Client ID, prompts `Overwrite? [y/N]:`.
 
 ---
 
-## End summary
-
-After all sections complete:
+## End summary + flash offer
 
 ```
-=== Setup complete ===
+=== Done ===
 
-  WiFi:    wifi_creds.h written  [firmware flashed ✓ / pending ./run/flash]
-  Spotify: spotify_diy_config.json written  [SPIFFS uploaded ✓ / pending ./run/flash-fs]
+  WiFi:    app/data/wifi_creds.json written
+  Spotify: app/data/spotify_diy_config.json written
 
-Next: ./run/monitor-start  — watch boot output
+Upload both to device now? (./run/flash-fs) [Y/n]:
 ```
+
+Single `./run/flash-fs` uploads the full `app/data/` directory to SPIFFS.  
+If declined: `Remember to run ./run/flash-fs before first boot.`
 
 ---
 
 ## Implementation
 
-**Language:** Python 3 (shebang `#!/usr/bin/env python3`). Placed directly in
-`run/setup` (no `.py` extension, consistent with other run/ scripts). Executable
-bit set.
-
-**Modules used:** `getpass`, `http.server`, `threading`, `urllib`, `json`,
-`pathlib`, `os`, `sys`, `subprocess` — all stdlib. No venv required.
-
-**Flash calls:** `subprocess.run(["./run/flash"])` / `subprocess.run(["./run/flash-fs"])`,
-inheriting stdout/stderr so progress is visible inline.
-
-**Atomicity:** write to `<file>.tmp`, then `os.replace()` on success. On
-exception the original file is untouched.
-
-**Path resolution:** all paths derived from `REPO_ROOT = Path(__file__).parent.parent`
-(script is `run/setup`, two levels up = repo root). No hardcoded paths.
+- **Language:** Python 3, shebang `#!/usr/bin/env python3`, placed at `run/setup`
+- **Modules:** `getpass`, `http.server`, `threading`, `urllib`, `json`, `pathlib`, `os`, `sys`, `subprocess` — all stdlib, no venv required
+- **Flash call:** `subprocess.run(["./run/flash-fs"])`, stdout/stderr inherited
+- **Atomicity:** write `<file>.tmp` → `os.replace()` on success
+- **Paths:** all derived from `REPO_ROOT = Path(__file__).parent.parent`
 
 ---
 
 ## Relationship to `get_refresh_token.py`
 
-`get_refresh_token.py` stays as a standalone tool — useful for scripted/headless
-re-auth without the wizard. `run/setup` inlines the same OAuth logic rather than
-calling the script as a subprocess (avoids venv activation complexity).
+Stays as a standalone tool for scripted/headless re-auth. `run/setup` inlines the same OAuth logic rather than shelling out (avoids venv activation complexity in a subprocess).
 
 ---
 
 ## Docs to update
 
 | File | Change |
-|------|--------|
-| `README.md` | Replace steps 4 + 7 with a single `./run/setup` step; keep the manual fallbacks in a collapsible "Manual setup" section |
-| `docs/process/project_run_scripts.md` | Add `run/setup` row to the common-operations table |
-| `CLAUDE.md` | Add `./run/setup` to the run/ scripts list |
-| `docs/process/dut_workflow.md` | Add §1 "First-time setup" pointing to `run/setup` before §0 port resolution |
+|---|---|
+| `README.md` | Replace steps 4 + 7 with single `./run/setup` step; move manual paths to a collapsible note |
+| `docs/process/project_run_scripts.md` | Add `run/setup` row |
+| `CLAUDE.md` | Add `./run/setup` to run/ scripts list |
+| `docs/process/dut_workflow.md` | New §1 "First-time setup" pointing to `run/setup` before §0 port resolution |
+| `docs/architecture/designs/M-MULTIAPP/upstream-patches.md` | Register PATCH-003 |
+| `.gitignore` | Replace named `app/data/` entries with `app/data/*` + `!app/data/.gitkeep` |
 
 ---
 
@@ -188,12 +234,13 @@ calling the script as a subprocess (avoids venv activation complexity).
 
 | # | Criterion |
 |---|-----------|
-| E1 | `./run/setup` selecting WiFi writes correct `wifi_creds.h`; firmware compiles |
-| E2 | `./run/setup` selecting Spotify completes OAuth and writes valid `spotify_diy_config.json` |
-| E3 | Both sections offer flash; accepting runs the correct `run/flash*` script |
-| E4 | Overwrite guard prompts when existing files are present |
+| E1 | WiFi section writes valid `wifi_creds.json`; PATCH-003 firmware reads it and connects |
+| E2 | Spotify section completes OAuth and writes valid `spotify_diy_config.json` |
+| E3 | Single `./run/flash-fs` offer at end uploads both files |
+| E4 | Overwrite guard prompts when existing files present |
 | E5 | Ctrl-C at any point leaves existing files untouched |
-| E6 | All four docs updated; README "Getting Started" is one `./run/setup` command |
+| E6 | `wifi_creds.h` compile-time path still works (PATCH-003 is `#ifndef`-guarded) |
+| E7 | All six docs updated |
 
 ---
 
@@ -201,5 +248,5 @@ calling the script as a subprocess (avoids venv activation complexity).
 
 | # | Question |
 |---|----------|
-| OQ-1 | Should `run/setup` absorb `get_refresh_token.py` entirely, or keep both? Current answer: keep both (different audiences). Revisit if `get_refresh_token.py` becomes confusing in the repo root. |
-| OQ-2 | WiFi-only setup currently requires a full firmware flash. If on-device WiFi settings (M-SETTINGS-001 Phase 2) ships, the compile-time `wifi_creds.h` path may be superseded. `run/setup` should warn if Phase 2 is available. Not in scope for this milestone. |
+| OQ-1 | Should `run/setup` absorb `get_refresh_token.py` eventually? Current answer: keep both. |
+| OQ-2 | When M-SETTINGS WiFi Phase 2 ships (on-device WiFi selection), SPIFFS `/wifi_creds.json` becomes writable from the device too. `run/setup` and the on-device flow will share the same file — no conflict, but worth noting. |
