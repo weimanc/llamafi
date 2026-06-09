@@ -19,8 +19,8 @@ static void applyDefaults() {
     // Display
     g_settings.dispAuto  = false;
     g_settings.dispLevel = 7;
-    g_settings.ldrLow    = 200;
-    g_settings.ldrHigh   = 3800;
+    g_settings.ldrLow    =   0;    // this hardware: ambient ≈ 0 ADC
+    g_settings.ldrHigh   = 120;   // this hardware: fully covered ≈ 140 ADC
 
     // LED
     g_settings.ledMode = LedMode::Off;
@@ -165,6 +165,10 @@ void SettingsStorage::load() {
         if (l.containsKey("speed"))  g_settings.lifeSpeed  = strToEnum<AppSpeed>(l["speed"] | "normal", kSpeedStr, AppSpeed::Normal);
         if (l.containsKey("colors")) g_settings.lifeColors = strToEnum<LifeColors>(l["colors"] | "rainbow", kLifeColorsStr, LifeColors::Rainbow);
     }
+
+    // Migrate: ldrHigh==0 means uncalibrated (old save or user wiped it).
+    if (g_settings.ldrHigh == 0)
+        g_settings.ldrHigh = 120;
 
     Serial.println("SettingsStorage: loaded");
 }

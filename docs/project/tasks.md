@@ -107,29 +107,23 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ### TASK-150 — Fix backlight PWM: LEDC channel setup
 - **Feature:** settings-001 / display-settings
-- **Priority:** P1 — blocker (Level slider completely non-functional)
-- **Status:** ~~implemented~~ — already in codebase (confirmed 2026-06-07); DUT visual verify pending
+- **Priority:** P1
+- **Status:** done — T-DISP-01 PASS (2026-06-09 DUT). Slider controls brightness ✓.
 - **Opened:** 2026-06-06 (DUT feedback)
-- **Root cause:** Design spec assumed TFT_eSPI sets up LEDC channel 0 for GPIO21
-  (TFT_BL). Actual TFT_eSPI build (`TFT_BL + TFT_BACKLIGHT_ON` flags, no `LEDC_CHANNEL`
-  define) uses `digitalWrite(TFT_BL, HIGH)` — plain digital, no LEDC setup.
-  `ledcWrite(0, duty)` in `DisplaySection::_applyBrightness()` writes to an
-  unattached channel → no effect on display brightness.
-- **Fix:** In `main.cpp::setup()`, after `tft.init()` and before first `_applyBrightness`
-  call, add:
-  ```cpp
-  ledcSetup(0, 5000, 8);          // 5 kHz, 8-bit PWM
-  ledcAttachPin(TFT_BL, 0);       // take over GPIO21 from TFT_eSPI digital hold
-  ```
-  This is idempotent if called once. Consider a named constant `BACKLIGHT_LEDC_CH = 0`.
-  Also apply stored brightness immediately after:
-  ```cpp
-  ledcWrite(0, map(constrain(g_settings.dispLevel,1,10),1,10,25,255));
-  ```
-- **Spec update:** Close open question 3 in `display-settings.md`; correct the
-  "TFT_eSPI claims ledc channel 0 at init" assumption.
-- **Validation:** T-DISP-01 (drag slider → visible brightness change), T-DISP-04
-  (persisted level applied at boot — no startup flash).
+- **VE results (2026-06-09):**
+  - T-DISP-01: slider drag changes backlight duty — PASS
+  - T-DISP-04 (boot persistence): deferred — requires physical reset sit
+  - Auto-brightness (T-DISP-02/03): confirmed functional on DUT ✓ (see additional fixes below)
+- **Additional fixes applied 2026-06-09 during DUT session:**
+  1. LDR polarity inverted — this hardware reads low ADC in ambient, high ADC when covered.
+     `map(..., 1, 10)` changed to `map(..., 10, 1)` in auto tick.
+  2. Hardware-correct defaults: `ldrLow=0`, `ldrHigh=120` (was 200/3800 — wrong for this device).
+  3. Settings migration: old saves with `ldrHigh==0` reset to 120 on load.
+  4. Auto-brightness now maps LDR directly to 8-bit PWM duty (25–255), bypassing
+     the 10-step slider abstraction. Hysteresis threshold: 3 PWM units.
+  5. Cal rows changed from read-only to tap-to-capture:
+     `Cal: bright` (tap in ambient) → stores ldrLow; `Cal: dark` (tap while covering) → stores ldrHigh.
+     Guard prevents Cal: dark storing an invalid low reading.
 - **Owner:** Developer
 
 ---
@@ -137,33 +131,19 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-151 — Investigate LDR: always reads 0 on DUT
 - **Feature:** settings-001 / display-settings
 - **Priority:** P2
-- **Status:** ~~closed~~ — LDR confirmed working on 2026-06-07 DUT run
-- **Resolution:** Serial probe (`[disp] analogRead(34) raw = 1018` / `raw = 1404`) confirmed
-  LDR reads non-zero values. Original "always 0" symptom was pre-Serial-guard (values not
-  visible). Polarity open question: higher ambient → higher ADC (1018–1404 range observed
-  in normal indoor light). No inversion. T-DISP-02/03 (covering LDR, live row update) remain
-  as deferred visual DUT checks but are no longer blocking.
-- **Remaining:** `ldrLow/ldrHigh` defaults (200/3800) are appropriate for this device; no fix needed.
+- **Status:** closed — resolved in TASK-150 DUT session (2026-06-09)
+- **Resolution (corrected 2026-06-09):** Previous note (2026-06-07: "1018/1404, no inversion")
+  was wrong — likely measured under different firmware/conditions. Actual hardware behaviour:
+  ambient light → ADC ≈ 0; fully covered → ADC ≈ 140+. Polarity IS inverted (low ADC = bright).
+  All fixes applied in TASK-150.
 
 ---
 
 ### TASK-152 — Rename LDR calibration rows; clarify purpose
 - **Feature:** settings-001 / display-settings
 - **Priority:** P3 (UX clarity)
-- **Status:** implemented — check_build.sh PASS; visual DUT check pending
+- **Status:** done — DUT confirmed 2026-06-09. Labels "Cal: bright" / "Cal: dark", sub-header "Calibration" visible. Rows are tap-to-capture (implemented as part of TASK-150 LDR fixes).
 - **Opened:** 2026-06-06 (DUT feedback — "what is LDR Low High for?")
-- **Change:** In `_repaintLdrRows()`:
-  - Add an "Auto range" sub-section header above the two calibration rows
-    (draw at `S_CONTENT_Y + 2*S_ROW_H` using `tft.drawString(S_SUBHDR)` + rule).
-  - Rename "LDR Low" → "Dark floor" and "LDR High" → "Bright ceiling".
-  - Move LDR live reading to a row labelled "LDR" under its own line, visible
-    always (current impl already has this row; just ensure it's labelled clearly).
-  - Adjust row-count math: sub-header adds S_ROW_HDR_H (22px) above the two
-    calibration rows — total height is still within 212px panel
-    (row0 26 + row1 26 + ldr_live 26 + subhdr 22 + dark 26 + bright 26 = 152px ✓).
-- **Validation:** Visual — DUT Display section clearly communicates row purpose.
-  No serial test needed; check_build.sh must pass.
-- **Owner:** Developer
 
 ---
 

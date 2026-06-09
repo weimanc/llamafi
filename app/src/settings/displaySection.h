@@ -16,8 +16,8 @@ public:
 #ifdef SERIAL_DEBUG
         Serial.printf("[disp] analogRead(%d) raw = %d\n", LDR_PIN, (int)_ldrRaw);
 #endif
-        _ldrUpdateMs  = millis();
-        _lastAutoLevel = -1;
+        _ldrUpdateMs   = millis();
+        _lastAutoDuty  = -1;
         repaint();
     }
 
@@ -31,11 +31,11 @@ public:
             }
         }
         if (g_settings.dispAuto && g_settings.ldrHigh > g_settings.ldrLow) {
-            int16_t raw = constrain(_ldrRaw, g_settings.ldrLow, g_settings.ldrHigh);
-            int level = map(raw, g_settings.ldrLow, g_settings.ldrHigh, 1, 10);
-            if (abs(level - _lastAutoLevel) >= 1) {
-                _lastAutoLevel = level;
-                _applyBrightness(level);
+            int16_t raw  = constrain(_ldrRaw, g_settings.ldrLow, g_settings.ldrHigh);
+            int     duty = (int)map(raw, g_settings.ldrLow, g_settings.ldrHigh, 255, 25);
+            if (abs(duty - _lastAutoDuty) >= 3) {
+                _lastAutoDuty = duty;
+                ledcWrite(TFT_LEDC_CHANNEL, (uint32_t)duty);
             }
         }
     }
@@ -81,6 +81,23 @@ public:
                 if (!g_settings.dispAuto) _applyBrightness(g_settings.dispLevel);
                 repaint();
             }
+            // Cal rows: tap to capture current LDR reading as calibration point.
+            // Cal:bright (ldrLow) = expected low ADC in bright room.
+            // Cal:dark   (ldrHigh) = expected high ADC in dark room.
+            const int calY = S_CONTENT_Y + 3 * S_ROW_H + S_ROW_HDR_H;
+            if (y >= calY && y < calY + S_ROW_H) {
+                g_settings.ldrLow = _ldrRaw;
+                saveSettings();
+                _repaintLdrRows();
+            } else if (y >= calY + S_ROW_H && y < calY + 2 * S_ROW_H) {
+                // Only store if reading is above the bright calibration — prevents
+                // accidentally wiping cal by tapping in ambient (ldrRaw ≈ 0).
+                if (_ldrRaw > g_settings.ldrLow + 10) {
+                    g_settings.ldrHigh = _ldrRaw;
+                    saveSettings();
+                    _repaintLdrRows();
+                }
+            }
         }
 
         return SectionResult::Continue;
@@ -90,7 +107,7 @@ private:
     SliderWidget  _slider;
     int16_t       _ldrRaw        = 0;
     unsigned long _ldrUpdateMs   = 0;
-    int           _lastAutoLevel = -1;
+    int           _lastAutoDuty  = -1;
 
     void _applyBrightness(int level) {
         ledcWrite(TFT_LEDC_CHANNEL, (uint32_t)map(constrain(level, 1, 10), 1, 10, 25, 255));
@@ -107,10 +124,10 @@ private:
         int subY = S_CONTENT_Y + 3 * S_ROW_H;
         tft.setTextDatum(TL_DATUM);
         tft.setTextColor(S_SUBHDR);
-        tft.drawString("Auto range", S_COL_LABEL, subY + 4, 2);
+        tft.drawString("Calibration", S_COL_LABEL, subY + 4, 2);
         tft.drawFastHLine(S_COL_LABEL, subY + S_ROW_HDR_H - 1, S_CANVAS_W - S_COL_LABEL, S_SEP);
         int calY = subY + S_ROW_HDR_H;
-        drawRow(calY,           { "Dark floor",     bufLow,  S_LABEL, S_VALUE_OFF });
-        drawRow(calY + S_ROW_H, { "Bright ceiling", bufHigh, S_LABEL, S_VALUE_OFF });
+        drawRow(calY,           { "Cal: bright", bufLow,  S_LABEL, S_VALUE });
+        drawRow(calY + S_ROW_H, { "Cal: dark",   bufHigh, S_LABEL, S_VALUE });
     }
 };
