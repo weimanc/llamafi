@@ -63,6 +63,7 @@ Decorative two-bar VU synthesised from Spotify poll envelope; green/yellow/red g
 Replace ad-hoc Serial prints with esp_log tags/levels, RAM ringbuffer, `/log` pull, mbedTLS decoder, secret redactor.
 **Status:** tier 1 shipped 2026-05-07 (ADR-010 + DUT-verified); tier 2/3 deferred
 **Deps:** cross-cutting
+**Design:** [logging-rethink.md](../architecture/designs/logging-rethink.md)
 
 ---
 
@@ -132,7 +133,17 @@ Wire artist name into marquee (`Artist - Title`); restore skin background in VU 
 Tap-cycling visualizer replacing fixed VU: Atlas (baked from Winamp screengrab) → WaveAtlas → VU → Blank.
 **Status:** done (2026-05-16/17 — TASK-050a-c + M-VIS-ATLAS TASK-052a-f; tap cycle Atlas→WaveAtlas→VU→Blank; DUT sign-off "looks great"; 52.9% flash)
 **Deps:** M6, M-UI-POLISH (TASK-049)
-**Design:** [M-VIS-visualization.md](../architecture/designs/M-VIS-visualization.md)
+**Design:** [M-VIS-visualization.md](../architecture/designs/M-VIS-visualization.md) · [M-VIS-ATLAS-vis-atlas.md](../architecture/designs/M-VIS-ATLAS-vis-atlas.md)
+
+---
+
+### M-WAVE-ATLAS — Waveform oscilloscope atlas
+
+Extract per-column waveform Y positions from a Winamp screengrab video into a baked C atlas (`gen/wave_atlas.c`); wire as `VIS_WAVE_ATLAS` in the firmware tap-cycle (Atlas → WaveAtlas → VU → Blank). Freeze-fix applied to lead-in frames.
+
+**Status:** done (2026-05-17 — TASK-053/055a–d; ccc1bde; DUT-verified)
+**Deps:** M-VIS (tickWave firmware in tree), M-VIS-ATLAS (bake pipeline pattern)
+**Design:** [M-WAVE-ATLAS-wave-atlas.md](../architecture/designs/M-WAVE-ATLAS-wave-atlas.md) · [M-WAVE-ATLAS-firmware-playback.md](../architecture/designs/M-WAVE-ATLAS-firmware-playback.md)
 
 ---
 
@@ -202,6 +213,16 @@ Inactive title bars on disconnect; serial `reconnect` command; Winamp logo tap �
 
 ---
 
+### M-CONN-HTTP11 — HTTP/1.1 keep-alive + dechunker
+
+Promote the `api.spotify.com` connection to HTTP/1.1 persistent keep-alive; add a chunked-transfer dechunker so `getQueue()` responses can stream without buffering the full body.
+
+**Status:** done (2026-05-21 — TASK-062/063; 943ccf3; DUT-verified)
+**Deps:** M-IO (async Spotify task), M-CONN (connection health)
+**Design:** [M-CONN-http11-keepalive.md](../architecture/designs/M-CONN-http11-keepalive.md)
+
+---
+
 ### M-NOART — Remove album-art path and JPEG decoder
 
 The `WinampDisplay` renderer does not use album art; the CYD panel has no space for it.
@@ -221,6 +242,7 @@ Work:
 
 **Status:** done (2026-05-21 — commit 1411a3e; `lib_ignore = JPEGDEC` in winamp env, album-art path gated behind `#ifndef WINAMP_DISPLAY`, `processImageInfo` override removed)
 **Deps:** M3 (winamp renderer in tree)
+**Design:** [M-NOART-remove-album-art.md](../architecture/designs/M-NOART-remove-album-art.md)
 
 ---
 
@@ -309,6 +331,16 @@ Work sequence:
 - TASK-097–100: VE suites T_MA/T_GOL/T_WX/T_CX/T_X07 (18 automated + 9 manual-planned) — 2026-05-25
 **Deps:** M3 (done), M-NOART (done), M-RESTRUCTURE (gates step 2), M-SHELL-LAYOUT (taskbar constants header, gates steps 3–4)
 **Design:** [M-MULTIAPP/overview.md](../architecture/designs/M-MULTIAPP/overview.md)
+
+---
+
+### M-APP-REGISTRY — Single-source app registry
+
+X-macro table (`appRegistry.h`) as the single canonical definition of app order, taskbar icons, and configurability. Six previously-scattered sites (appShell, taskbar, main, appsSection, Python test harness) are now derived from one file via `gen_app_registry.py`. ADR-041.
+
+**Status:** done (2026-06-06 — 801f378)
+**Deps:** M-MULTIAPP (AppId enum, taskbar, dispatch table in tree)
+**Design:** [M-APP-REGISTRY.md](../architecture/designs/M-APP-REGISTRY.md)
 
 ---
 
@@ -424,6 +456,16 @@ without waiting for full app implementations.
 **Status:** done (2026-05-26 — TASK-105 `d205ad0`; VE T162–T166 PASS, TASK-106 `ee43831`)
 **Design:** [M-MULTIAPP/taskbar.md §Scroll model](../architecture/designs/M-MULTIAPP/taskbar.md)
 **Deps:** M-MULTIAPP (done), M-TOUCH-CAPTURE (done)
+
+---
+
+### M-AQUARIUM — ASCII Aquarium app
+
+Port ASCII Aquarium into the multi-app shell as a full-canvas (275×240) animated demoscene: fish, bubbles, seaweed, food flakes. Dynamic heap-sized sprite; full-height canvas (sand strip removed); hybrid strip renderer halves heap cost (33 KB vs 66 KB).
+
+**Status:** done (2026-05-26/29 — 276bbba, 2e8c705, 4d61760; DUT-verified)
+**Deps:** M-MULTIAPP (app shell in tree)
+**Design:** [M-AQUARIUM/overview.md](../architecture/designs/M-AQUARIUM/overview.md) · [M-AQUARIUM/fullheight.md](../architecture/designs/M-AQUARIUM/fullheight.md) · [M-AQUARIUM/hybrid-strip.md](../architecture/designs/M-AQUARIUM/hybrid-strip.md)
 
 ---
 
