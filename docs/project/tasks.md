@@ -256,3 +256,80 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
   add to settings-sections-001 suite.
 - **Owner:** Architect (spec update for CityEntry) + Developer (implementation).
 
+---
+
+## Open Tasks — SPIFFS hygiene
+
+### TASK-160 — Retire `host_overrides.json` DNS-override path
+
+`dnsOverride.h` + `host_overrides.json` was a one-off field hack (AT&T cellular tether, Marriott portal, 2026-05-05/06). It was never regression-tested; the VE backlog item was never closed. The IPs in the current SPIFFS dump are stale (CDN GSLB rotates every few hours/days). The path is dev-only and has no place in a production or published project.
+
+- Remove `dnsOverride.h` from `app/src/` and its `#include` from `main.cpp`.
+- Remove `tools/refresh_host_overrides.sh`.
+- Remove `app/data/host_overrides.json` (gitignored, but document removal).
+- Update `.gitignore`: drop `app/data/host_overrides.json` entry (will be covered by `app/data/*` wildcard once TASK-161 lands).
+- Update `CLAUDE.md` §DNS override section — replace with a brief note: removed, was dev-only hack.
+- VE: confirm build clean; DUT boots and connects normally without the file.
+
+**Priority:** P2  
+**Status:** not started  
+**Opened:** 2026-06-09  
+**Owner:** Developer  
+
+---
+
+### TASK-161 — `run/spiffs`: non-destructive SPIFFS file manager
+
+Current `run/flash-fs` formats the entire SPIFFS partition before writing, silently wiping runtime-written files (`/settings.json`, `/cal.json`, `/drd.dat`). This is unacceptable once users have configured settings or performed touch calibration.
+
+Replace the blanket-upload model with a read–inspect–selective-write workflow using `esptool.py` (already in PlatformIO) and `mkspiffs_espressif32_arduino` (already in PlatformIO).
+
+Confirmed working via live DUT dump (2026-06-09):
+- Partition: `spiffs` at `0x290000`, size `0x160000`
+- `mkspiffs` default params match the device (no `-b`/`-p` flags needed)
+- 5 files on device: `spotify_diy_config.json`, `host_overrides.json`, `cal.json`, `settings.json`, `drd.dat`
+
+**Subcommands:**
+
+```sh
+./run/spiffs ls               # list all files on device with sizes
+./run/spiffs pull             # extract all files → app/data/spiffs-dump/ (read-only, non-destructive)
+./run/spiffs pull <file>      # extract single file → stdout or app/data/spiffs-dump/<file>
+./run/spiffs push <file>      # read-modify-write: update single file, all others preserved
+./run/spiffs push             # merge app/data/ into live SPIFFS (read-modify-write, no format)
+./run/spiffs rm <file>        # remove single file from SPIFFS (read-modify-write)
+```
+
+**Implementation:** shell script wrapping `esptool.py read_flash` → `mkspiffs -u` → modify → `mkspiffs -c` → `esptool.py write_flash`. Resolves port via `run/lib.sh`. Kills/restores monitor.
+
+**`run/flash-fs` fate:** deprecate in favour of `run/spiffs push`; keep as escape hatch for corrupted filesystem (add a `--format` flag or separate `run/spiffs format`).
+
+**Docs to update:** `project_run_scripts.md`, `CLAUDE.md`, `dut_workflow.md`, `README.md`.
+
+**Priority:** P1 — blocks M-SETUP-WIZARD implementation (setup wizard must not wipe cal/settings)  
+**Status:** not started  
+**Opened:** 2026-06-09  
+**Deps:** TASK-160 (retire host_overrides path before designing the managed file set)  
+**Owner:** Developer  
+
+---
+
+### TASK-162 — Update `.gitignore`: `app/data/*` wildcard + `.gitkeep`
+
+Currently `.gitignore` names credential files individually (`app/data/spotify_diy_config.json`, `app/data/host_overrides.json`). Any new credential or runtime file needs a manual entry — a silent footgun.
+
+Replace with a directory-level wildcard:
+```gitignore
+# app/data/ — runtime credentials and data; never commit
+app/data/*
+!app/data/.gitkeep
+```
+
+Add `app/data/.gitkeep` to keep the directory tracked on a clean clone.
+Remove the now-redundant named entries.
+
+**Priority:** P2  
+**Status:** not started  
+**Opened:** 2026-06-09  
+**Deps:** TASK-160 (retire host_overrides so we're not gitignoring a removed file)  
+**Owner:** Developer  
