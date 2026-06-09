@@ -632,6 +632,18 @@ Work:
 
 ---
 
+### M-SETUP-WIZARD — `run/setup` first-time credential wizard
+
+Single terminal wizard replacing the manual `wifi_creds.h` edit and bare `get_refresh_token.py` invocation. User selects WiFi, Spotify, or both. WiFi section writes `wifi_creds.h` and offers `./run/flash`; Spotify section runs OAuth and writes `spotify_diy_config.json`, then offers `./run/flash-fs`. Bare terminal UI — no extra dependencies.
+
+Docs to update: `README.md` (collapse steps 4+7 into one), `project_run_scripts.md`, `CLAUDE.md`, `dut_workflow.md` (new §1 first-time setup).
+
+**Status**: not started  
+**Deps**: none  
+**Design:** [M-SETUP-WIZARD.md](../architecture/designs/M-SETUP-WIZARD.md)
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.
