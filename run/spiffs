@@ -21,18 +21,26 @@ SPIFFS_ADDR="0x290000"
 SPIFFS_SIZE="0x160000"  # 1441792 bytes
 
 WORK_DIR="$(mktemp -d)"
-trap 'rm -rf "$WORK_DIR"' EXIT
+_MONITOR_KILLED=0
+
+_cleanup() {
+  rm -rf "$WORK_DIR"
+  [ "$_MONITOR_KILLED" = "1" ] && _start_monitor || true
+}
+trap '_cleanup' EXIT
 
 IMG="$WORK_DIR/spiffs.bin"
 UNPACKED="$WORK_DIR/fs"
 
 _kill_monitor() {
   tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+  _MONITOR_KILLED=1
 }
 
 _start_monitor() {
   tmux new-session -d -s "$SESSION" \
     "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'"
+  _MONITOR_KILLED=0
 }
 
 _read_flash() {

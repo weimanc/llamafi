@@ -20,7 +20,7 @@ Requirements:
     DUT flashed with cyd2usb_winamp_debug, booted, WiFi up, Spotify creds valid.
     Active Spotify Connect device playing a track (required for most tests).
     T_WX_05, T_CX_05, T_X07_01 require network access to api.open-meteo.com /
-    api.coingecko.com (or a current host_overrides.json on SPIFFS).
+    api.coingecko.com.
 
 All tap/drag screen coordinates are derived at import time from
 gen/skin_layout.h via tools/coords.py. originX shifts automatically when

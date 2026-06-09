@@ -315,3 +315,68 @@ Remove the now-redundant named entries.
 **Opened:** 2026-06-09  
 **Deps:** TASK-160 (retire host_overrides so we're not gitignoring a removed file)  
 **Owner:** Developer  
+
+---
+
+## Open Tasks — TASK-161 VE follow-up (audit 2026-06-09)
+
+### TASK-163 — Fix EXIT trap in `run/spiffs`: restore monitor on implicit failure
+
+`run/spiffs` uses `set -euo pipefail`. The EXIT trap is `rm -rf "$WORK_DIR"` only. If `_read_flash`, `_unpack`, `_pack`, or `_write_flash` fail after `_kill_monitor` has already run, the monitor is left dead — breaking all subsequent serial-debug tests in the same session.
+
+Fix: add `_start_monitor` to the EXIT trap (or a dedicated cleanup function), guarded so it doesn't double-start if the happy path already called it.
+
+**Priority:** P1 — ESCALATION-161-1; error-path VE tests (T-SPIFFS-07, T-SPIFFS-09) cannot run safely until resolved  
+**Status:** done — `_MONITOR_KILLED` flag added; EXIT trap calls `_start_monitor` if flag set; `_kill_monitor`/`_start_monitor` clear/set the flag.  
+**Opened:** 2026-06-09  
+**Deps:** none  
+**Owner:** Developer  
+
+---
+
+### TASK-164 — Update `M-SETUP-WIZARD.md`: replace `run/flash-fs` with `run/spiffs push`
+
+`M-SETUP-WIZARD.md` references `./run/flash-fs` in 7 places (lines 14, 22, 35, 196, 199, 200, 208, and exit criterion E3). TASK-161 deprecated `run/flash-fs` in favour of `run/spiffs push`. If the wizard is implemented from the current design doc it will wipe `cal.json`/`settings.json` on every credential update — the opposite of TASK-161's goal.
+
+Update all occurrences to `./run/spiffs push`. Update E3 to read: "Single `./run/spiffs push` offer at end uploads both files non-destructively."
+
+**Priority:** P1 — ESCALATION-SETUP-2; blocks M-SETUP-WIZARD implementation  
+**Status:** done — all 7 occurrences updated; E3 updated; subprocess call updated to `["./run/spiffs", "push"]`.  
+**Opened:** 2026-06-09  
+**Deps:** TASK-161 (run/spiffs must exist before the design doc references it — done)  
+**Owner:** Developer  
+
+---
+
+### TASK-165 — VE: run T-SPIFFS suite against DUT; add test_plan.md entries; re-close TASK-161
+
+TASK-161 was closed on "ls confirmed 5 files." The core safety invariants were never verified:
+- T-SPIFFS-05: `push <file>` updates only the target; all other files preserved byte-identically
+- T-SPIFFS-06: `push` (merge) preserves device-only files (`cal.json`, `settings.json`, `drd.dat`)
+- T-SPIFFS-10: mkspiffs round-trip fidelity — no-op push leaves all files byte-identical
+
+Full suite T-SPIFFS-01–12 defined in VE review (2026-06-09). Add all 12 as `planned` entries to `docs/verification/test_plan.md`, then run against DUT. TASK-161 is not truly closed until T-SPIFFS-05, T-SPIFFS-06, and T-SPIFFS-10 pass.
+
+**Priority:** P1 — verifies TASK-161 safety claim  
+**Status:** not started  
+**Opened:** 2026-06-09  
+**Deps:** TASK-163 (trap fix required before error-path tests T-SPIFFS-07/09 can run safely)  
+**Owner:** VE  
+
+---
+
+### TASK-166 — VE: DUT boot confirm for TASK-160 (GAP-160-2)
+
+TASK-160 required "VE: confirm build clean; DUT boots and connects normally without the file." Build PASS was noted but DUT boot was not confirmed. `dnsOverride.h` had an active DNS intercept during Spotify polling — a missed regression here would be silent.
+
+Steps:
+1. Flash current firmware to DUT.
+2. Monitor boot log — confirm no crash, WiFi connects, Spotify poll succeeds (HTTP 200 or `isPlaying` visible).
+
+Stale docstring in `app/tools/run_serialdbg_tests.py:23` already fixed (host_overrides.json reference removed).
+
+**Priority:** P2  
+**Status:** not started (docstring fix done)  
+**Opened:** 2026-06-09  
+**Deps:** none  
+**Owner:** VE  

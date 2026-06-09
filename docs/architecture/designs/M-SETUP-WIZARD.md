@@ -11,7 +11,7 @@
 First-time setup requires two separate manual steps that are undiscoverable:
 
 1. **WiFi** — user must hand-edit `wifi_creds.h` with `#define` syntax, then reflash firmware. This is a compile-time path from upstream; our project should not promote it as the default.
-2. **Spotify** — user must invoke `get_refresh_token.py` directly and remember to `./run/flash-fs` afterward.
+2. **Spotify** — user must invoke `get_refresh_token.py` directly and remember to `./run/spiffs push` afterward.
 
 No single entry point exists. New users navigate three README sections to get a working device.
 
@@ -19,7 +19,7 @@ No single entry point exists. New users navigate three README sections to get a 
 
 ## Solution
 
-`run/setup` — bare terminal wizard. Writes both credential files to `app/data/`, then offers a single `./run/flash-fs` to upload both to SPIFFS.
+`run/setup` — bare terminal wizard. Writes both credential files to `app/data/`, then offers a single `./run/spiffs push` to upload both to SPIFFS non-destructively.
 
 ---
 
@@ -32,7 +32,7 @@ Both credential files live in `app/data/` on the host and in the SPIFFS partitio
 | `app/data/wifi_creds.json` | `/wifi_creds.json` | `{"ssid": "...", "pass": "..."}` |
 | `app/data/spotify_diy_config.json` | `/spotify_diy_config.json` | `{"clientId": "...", "clientSecret": "...", "refreshToken": "..."}` |
 
-Single `./run/flash-fs` uploads both. No firmware recompile needed for credential changes.
+Single `./run/spiffs push` uploads both non-destructively. No firmware recompile needed for credential changes.
 
 ### WiFi priority chain (after PATCH-003)
 
@@ -193,11 +193,11 @@ Existing file: shows masked Client ID, prompts `Overwrite? [y/N]:`.
   WiFi:    app/data/wifi_creds.json written
   Spotify: app/data/spotify_diy_config.json written
 
-Upload both to device now? (./run/flash-fs) [Y/n]:
+Upload both to device now? (./run/spiffs push) [Y/n]:
 ```
 
-Single `./run/flash-fs` uploads the full `app/data/` directory to SPIFFS.  
-If declined: `Remember to run ./run/flash-fs before first boot.`
+Single `./run/spiffs push` uploads `app/data/` into SPIFFS non-destructively.  
+If declined: `Remember to run ./run/spiffs push before first boot.`
 
 ---
 
@@ -205,7 +205,7 @@ If declined: `Remember to run ./run/flash-fs before first boot.`
 
 - **Language:** Python 3, shebang `#!/usr/bin/env python3`, placed at `run/setup`
 - **Modules:** `getpass`, `http.server`, `threading`, `urllib`, `json`, `pathlib`, `os`, `sys`, `subprocess` — all stdlib, no venv required
-- **Flash call:** `subprocess.run(["./run/flash-fs"])`, stdout/stderr inherited
+- **Flash call:** `subprocess.run(["./run/spiffs", "push"])`, stdout/stderr inherited
 - **Atomicity:** write `<file>.tmp` → `os.replace()` on success
 - **Paths:** all derived from `REPO_ROOT = Path(__file__).parent.parent`
 
@@ -236,7 +236,7 @@ Stays as a standalone tool for scripted/headless re-auth. `run/setup` inlines th
 |---|-----------|
 | E1 | WiFi section writes valid `wifi_creds.json`; PATCH-003 firmware reads it and connects |
 | E2 | Spotify section completes OAuth and writes valid `spotify_diy_config.json` |
-| E3 | Single `./run/flash-fs` offer at end uploads both files |
+| E3 | Single `./run/spiffs push` offer at end uploads both files non-destructively (cal.json/settings.json preserved) |
 | E4 | Overwrite guard prompts when existing files present |
 | E5 | Ctrl-C at any point leaves existing files untouched |
 | E6 | `wifi_creds.h` compile-time path still works (PATCH-003 is `#ifndef`-guarded) |
