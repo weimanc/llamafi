@@ -46,7 +46,8 @@ _start_monitor() {
 _read_flash() {
   local port="$1"
   echo "[spiffs] reading flash from $port ..." >&2
-  "$ESPTOOL" --chip esp32 --port "$port" --baud 921600 \
+  # CH340 is unreliable at 921600 for reads; cap at 460800
+  "$ESPTOOL" --chip esp32 --port "$port" --baud 460800 \
     read_flash "$SPIFFS_ADDR" "$SPIFFS_SIZE" "$IMG" >&2
 }
 

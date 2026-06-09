@@ -289,7 +289,7 @@ Confirmed working via live DUT dump (2026-06-09):
 **Docs to update:** `project_run_scripts.md`, `CLAUDE.md`, `dut_workflow.md`, `README.md`.
 
 **Priority:** P1 — blocks M-SETUP-WIZARD implementation (setup wizard must not wipe cal/settings)  
-**Status:** done — `run/spiffs` implemented and DUT-tested (`ls` confirmed 5 files). CLAUDE.md + project_run_scripts.md updated.  
+**Status:** done — `run/spiffs` implemented and VE-verified (TASK-165, 2026-06-09). T-SPIFFS-01–10, T-SPIFFS-12 passing. Safety invariants confirmed: push/rm preserve untargeted files byte-identically; mkspiffs round-trip clean.  
 **Opened:** 2026-06-09  
 **Deps:** TASK-160 (retire host_overrides path before designing the managed file set)  
 **Owner:** Developer  
@@ -358,7 +358,7 @@ TASK-161 was closed on "ls confirmed 5 files." The core safety invariants were n
 Full suite T-SPIFFS-01–12 defined in VE review (2026-06-09). Add all 12 as `planned` entries to `docs/verification/test_plan.md`, then run against DUT. TASK-161 is not truly closed until T-SPIFFS-05, T-SPIFFS-06, and T-SPIFFS-10 pass.
 
 **Priority:** P1 — verifies TASK-161 safety claim  
-**Status:** not started  
+**Status:** done — T-SPIFFS-01–10, T-SPIFFS-12 passing (DUT 2026-06-09). T-SPIFFS-11 deferred (DUT was connected). Additional fix: `_read_flash` baud reduced to 460800 (CH340 drops bytes at 921600 for reads; writes are unaffected). All 12 entries in test_plan.md.  
 **Opened:** 2026-06-09  
 **Deps:** TASK-163 (trap fix required before error-path tests T-SPIFFS-07/09 can run safely)  
 **Owner:** VE  
@@ -376,7 +376,7 @@ Steps:
 Stale docstring in `app/tools/run_serialdbg_tests.py:23` already fixed (host_overrides.json reference removed).
 
 **Priority:** P2  
-**Status:** not started (docstring fix done)  
+**Status:** done — firmware flashed (2026-06-09); WiFi up, token POST 200, Spotify polls 200/204 no crash. No dnsOverride trace in boot log. Docstring fix previously committed.  
 **Opened:** 2026-06-09  
 **Deps:** none  
 **Owner:** VE  

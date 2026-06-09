@@ -3022,6 +3022,171 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
 
 ---
 
+## Suite: spiffs-manager-001 — run/spiffs non-destructive SPIFFS file manager (TASK-161/165)
+
+### T-SPIFFS-01 — [TASK-161] ls lists known files; non-destructive
+- **Type**: integration
+- **Feature(s)**: TASK-161
+- **Objective**: `./run/spiffs ls` lists all files on device; device unchanged after call.
+- **Preconditions**: DUT connected. At least one known file on SPIFFS.
+- **Steps**:
+  1. Run `./run/spiffs ls` twice; capture both outputs.
+  2. Compare outputs.
+- **Expected result**: Stdout lists filename + size columns. Both runs identical. Exit 0. Monitor restarted.
+- **Harness**: host-driven (DUT). Owner: VE.
+- **Status**: passing. DUT 2026-06-09. Both ls runs identical, 5 files listed.
+
+### T-SPIFFS-02 — [TASK-161] pull (all) extracts to spiffs-dump/; device unchanged
+- **Type**: integration
+- **Feature(s)**: TASK-161
+- **Objective**: `./run/spiffs pull` populates `app/data/spiffs-dump/`; device SPIFFS unchanged.
+- **Preconditions**: DUT connected. At least 2 known files on SPIFFS.
+- **Steps**:
+  1. Record file list via `./run/spiffs ls` (pre-snapshot).
+  2. Run `./run/spiffs pull`.
+  3. Verify `app/data/spiffs-dump/` contains files matching ls output.
+  4. Run `./run/spiffs ls` again; compare to step 1.
+- **Expected result**: Each filename from ls has a corresponding file in spiffs-dump/. Second ls identical to first. Exit 0.
+- **Harness**: host-driven (DUT). Owner: VE.
+- **Status**: passing. DUT 2026-06-09. 5 files extracted to spiffs-dump/, second ls identical.
+
+### T-SPIFFS-03 — [TASK-161] pull <file> streams single file to stdout
+- **Type**: integration
+- **Feature(s)**: TASK-161
+- **Objective**: `./run/spiffs pull <file>` emits JSON content to stdout; parses correctly.
+- **Preconditions**: `spotify_diy_config.json` on device.
+- **Steps**:
+  1. Run `./run/spiffs pull spotify_diy_config.json`; capture stdout.
+  2. Verify stdout is valid JSON with `clientId` field present.
+- **Expected result**: Exit 0. Valid JSON on stdout. No `[spiffs]` prefix lines on stdout.
+- **Harness**: host-driven (DUT). Owner: VE.
+- **Status**: passing. DUT 2026-06-09. Valid JSON, correct keys (refreshToken, clientId, clientSecret).
+
+### T-SPIFFS-04 — [TASK-161] pull <missing-file> exits non-zero; device unchanged
+- **Type**: integration
+- **Feature(s)**: TASK-161
+- **Objective**: Requesting a nonexistent file fails with error; device not modified.
+- **Preconditions**: `nonexistent_test_file.json` not on device.
+- **Steps**:
+  1. Pre-snapshot via ls.
+  2. Run `./run/spiffs pull nonexistent_test_file.json`; capture exit code and stderr.
+  3. Post-snapshot via ls.
+- **Expected result**: Exit non-zero. Stderr contains `not found`. Device file list unchanged. Monitor restarted.
+- **Harness**: host-driven (DUT). Owner: VE.
+- **Status**: passing. DUT 2026-06-09. Exit 1, error "not found in SPIFFS", monitor restored.
+
+### T-SPIFFS-05 — [TASK-161] push <file> updates only target; all other files preserved byte-identically
+- **Type**: integration
+- **Feature(s)**: TASK-161
+- **Objective**: Core safety test — `push <file>` writes only the named file; cal.json, settings.json, drd.dat, and other files are byte-identical before and after.
+- **Preconditions**: DUT connected. At least 2 files on SPIFFS. Source file in app/data/.
+- **Steps**:
+  1. Pull all files to spiffs-dump/ as pre-snapshot.
+  2. Place a test `wifi_creds.json` with distinct content in app/data/.
+  3. Run `./run/spiffs push wifi_creds.json`.
+  4. Pull `wifi_creds.json`; verify updated content.
+  5. Pull each other file; diff against pre-snapshot byte-for-byte.
+  6. Remove test `wifi_creds.json` from app/data/.
+- **Expected result**: `wifi_creds.json` has new content. Every other file byte-identical to pre-snapshot. Exit 0.
+- **Harness**: host-driven (DUT). Owner: VE.
+- **Status**: passing. DUT 2026-06-09. wifi_creds.json updated; spotify_diy_config.json, host_overrides.json, cal.json, settings.json byte-identical. drd.dat excluded (live firmware file).
+
+### T-SPIFFS-06 — [TASK-161] push (merge) preserves device-only files not in app/data/
+- **Type**: integration
+- **Feature(s)**: TASK-161
+- **Objective**: Core safety test — `push` merge does not remove files that exist on device but not in app/data/ (cal.json, settings.json, drd.dat).
+- **Preconditions**: DUT has cal.json and/or settings.json (device-generated). app/data/ contains only credential files. Pre-snapshot via pull.
+- **Steps**:
+  1. Pull all files; record which device-only files are present (cal.json etc.).
+  2. Run `./run/spiffs push` (no arg, merge).
+  3. Run `./run/spiffs ls`; verify device-only files still present.
+  4. Pull device-only files; diff against pre-snapshot.
+- **Expected result**: cal.json, settings.json, drd.dat still present and byte-identical to pre-snapshot. Exit 0.
+- **Harness**: host-driven (DUT). Owner: VE.
+- **Status**: passing. DUT 2026-06-09. cal.json (230B) and settings.json (490B) preserved byte-identically after push merge. wifi_creds.json (test residue) also preserved.
+
+### T-SPIFFS-07 — [TASK-161] push <missing-source> exits non-zero; device unchanged; monitor restored
+- **Type**: integration
+- **Feature(s)**: TASK-161
+- **Objective**: Source file absent from app/data/ → fails before writing; device unchanged; monitor not left dead.
+- **Preconditions**: `app/data/nonexistent.json` does not exist. Pre-snapshot via ls.
+- **Steps**:
+  1. Pre-snapshot.
+  2. Run `./run/spiffs push nonexistent.json`; capture exit code, stderr.
+  3. Post-snapshot via ls.
+  4. Verify monitor session alive.
+- **Expected result**: Exit non-zero. Stderr: `not found`. Device unchanged. Monitor restarted.
+- **Harness**: host-driven (DUT). Owner: VE.
+- **Status**: passing. DUT 2026-06-09. Exit 1, "not found", device unchanged, monitor restored.
+
+### T-SPIFFS-08 — [TASK-161] rm <file> removes target; all other files preserved
+- **Type**: integration
+- **Feature(s)**: TASK-161
+- **Objective**: `rm` removes exactly the named file; all other files byte-identical.
+- **Preconditions**: DUT connected. Push a disposable test file first as rm target.
+- **Steps**:
+  1. Push `test_rm_target.json` to device.
+  2. Verify it appears in ls.
+  3. Pre-snapshot all other files.
+  4. Run `./run/spiffs rm test_rm_target.json`.
+  5. Verify it is absent from ls.
+  6. Pull each remaining file; diff against pre-snapshot.
+- **Expected result**: `test_rm_target.json` absent. All other files byte-identical. Exit 0.
+- **Harness**: host-driven (DUT). Owner: VE.
+- **Status**: passing. DUT 2026-06-09. wifi_creds.json absent after rm; all 4 original files byte-identical.
+
+### T-SPIFFS-09 — [TASK-161] rm <missing-file> exits non-zero; device unchanged; monitor restored
+- **Type**: integration
+- **Feature(s)**: TASK-161
+- **Objective**: Removing a nonexistent file fails cleanly; device unchanged; monitor not left dead.
+- **Preconditions**: `ghost_file.json` not on device. Pre-snapshot via ls.
+- **Steps**:
+  1. Pre-snapshot.
+  2. Run `./run/spiffs rm ghost_file.json`; capture exit code, stderr.
+  3. Post-snapshot via ls.
+  4. Verify monitor session alive.
+- **Expected result**: Exit non-zero. Stderr: `not found`. Device unchanged. Monitor restarted.
+- **Harness**: host-driven (DUT). Owner: VE.
+- **Status**: passing. DUT 2026-06-09. Exit 1, "not found", device unchanged, monitor restored.
+
+### T-SPIFFS-10 — [TASK-161] mkspiffs round-trip fidelity: no-op push leaves all files byte-identical
+- **Type**: integration
+- **Feature(s)**: TASK-161
+- **Objective**: A round-trip (read_flash → mkspiffs -u → mkspiffs -c → write_flash) without content modification leaves all files byte-identical. Guards against silent mkspiffs data loss.
+- **Preconditions**: DUT with at least 3 files. Pre-snapshot all via pull.
+- **Steps**:
+  1. Pull all files → pre-snapshot.
+  2. Run `./run/spiffs push spotify_diy_config.json` where app/data/ version matches device version.
+  3. Pull all files → post-snapshot.
+  4. Diff each post-file against pre-snapshot byte-for-byte.
+- **Expected result**: All files byte-identical across the round-trip. Exit 0.
+- **Harness**: host-driven (DUT). Owner: VE.
+- **Status**: passing. DUT 2026-06-09. All 5 files byte-identical after full read-unpack-repack-write round-trip.
+
+### T-SPIFFS-11 — [TASK-161] ls with no device exits non-zero with useful error
+- **Type**: integration
+- **Feature(s)**: TASK-161
+- **Objective**: When port resolution finds no device, script fails cleanly without hanging.
+- **Preconditions**: DUT disconnected.
+- **Steps**:
+  1. Run `./run/spiffs ls` with no device on USB.
+- **Expected result**: Exit non-zero. Stderr mentions port failure or device not found. No hang.
+- **Harness**: host-only (no DUT). Owner: VE.
+- **Status**: skipped — DUT was connected during session; defer to hardware-absent run.
+
+### T-SPIFFS-12 — [TASK-161] invalid subcommand shows usage and exits non-zero
+- **Type**: unit
+- **Feature(s)**: TASK-161
+- **Objective**: Unknown subcommand hits `*)` branch and exits with usage message.
+- **Preconditions**: No DUT required.
+- **Steps**:
+  1. Run `./run/spiffs foobar`; capture exit code and stderr.
+- **Expected result**: Exit 1. Stderr: usage string listing all valid subcommands.
+- **Harness**: host-only. Owner: VE.
+- **Status**: passing. Host-only 2026-06-09. Exit 1, usage string on stderr.
+
+---
+
 ## Entry Format
 
 ```
