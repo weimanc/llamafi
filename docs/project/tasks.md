@@ -9,9 +9,8 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 > primary WiFi path, PATCH-003 registered in upstream-patches.md (not yet applied).
 > SPIFFS hygiene: live DUT dump confirmed partition layout + file inventory; TASK-160/161/162
 > filed. TASK-161 (`run/spiffs` non-destructive manager) is P1 blocker for M-SETUP-WIZARD.
-> DUT visual verify batch still pending: TASK-150 (backlight PWM), TASK-152 (LDR row rename),
-> TASK-153 (city picker drag), TASK-154 (UTC offset column) — all implemented, need one DUT
-> sitting to close.
+> DUT visual verify batch closed 2026-06-09: TASK-150 (backlight PWM) PASS, TASK-152 (LDR row
+> rename) PASS, TASK-153 (city picker drag) PASS, TASK-154 (UTC offset column) PASS.
 > Completed and closed tasks are in [tasks-archive.md](tasks-archive.md).
 
 ---
@@ -150,7 +149,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-153 — City picker: scrollbar drag gesture
 - **Feature:** settings-001 / time-settings
 - **Priority:** P2 (UX — 78 cities, 13 pages via button-only is slow)
-- **Status:** ~~implemented~~ — already in codebase (confirmed 2026-06-07); DUT visual verify pending
+- **Status:** done — T-CITY-DRAG-01 PASS (2026-06-09 DUT). Scrollbar drag scrolls city list proportionally ✓.
 - **Opened:** 2026-06-06 (DUT feedback)
 - **Scope:** Phase 1 design explicitly deferred drag (open question 4 in
   `time-settings.md`). Promote to in-scope based on DUT feedback.
@@ -181,7 +180,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 ### TASK-154 — City picker: UTC offset prefix column + group separators
 - **Feature:** settings-001 / time-settings
 - **Priority:** P2 (UX — user can't tell offset at a glance)
-- **Status:** implemented — check_build.sh PASS; serial navigation PASS (ad7d104); T-CITY-OFFSET-01 visual DUT check pending
+- **Status:** done — T-CITY-OFFSET-01 PASS (2026-06-09 DUT). UTC offset column + group separators visible ✓.
 - **Opened:** 2026-06-06 (DUT feedback)
 - **Design changes required:**
 
