@@ -4,11 +4,14 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
-> **PM sync 2026-06-08 (end of session)** — ADR-042 cycle complete. Commit 50b962f closes
-> TASK-156/157/158/159. All ADR-042 exit criteria met: E1 log suppression, E2 bgPoll primitive,
-> E3 harness refactor (6 tests), retry dead-code removed (T169/T-BUSY-03), taskbar scroll gesture
-> injection fixed (T162–T166 PASS), settings nav serial query added (T-SET-03/T-SET-07 PASS).
-> Open (DUT visual verify only): TASK-150, TASK-152, TASK-153, TASK-154.
+> **PM sync 2026-06-09 (end of session)** — Roadmap retrofitted (6 missing milestones added,
+> 3 superseded proposal docs deleted). M-SETUP-WIZARD designed: `run/setup` wizard, SPIFFS
+> primary WiFi path, PATCH-003 registered in upstream-patches.md (not yet applied).
+> SPIFFS hygiene: live DUT dump confirmed partition layout + file inventory; TASK-160/161/162
+> filed. TASK-161 (`run/spiffs` non-destructive manager) is P1 blocker for M-SETUP-WIZARD.
+> DUT visual verify batch still pending: TASK-150 (backlight PWM), TASK-152 (LDR row rename),
+> TASK-153 (city picker drag), TASK-154 (UTC offset column) — all implemented, need one DUT
+> sitting to close.
 > Completed and closed tasks are in [tasks-archive.md](tasks-archive.md).
 
 ---
