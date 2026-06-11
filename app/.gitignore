@@ -1,8 +1,11 @@
 .pio/
 .vscode/
 
-# Spotify creds — never commit.
-data/spotify_diy_config.json
+# Runtime credentials and data — never commit.
+# data/ is symlinked to Spotify-Diy-Thing/data/ (gitignored at root),
+# but wildcard here covers any future credential file if symlink changes.
+data/*
+!data/.gitkeep
 
 # Hardcoded WiFi creds (opt-in shim).
 src/wifi_creds.h

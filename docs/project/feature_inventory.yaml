@@ -190,19 +190,17 @@ features:
 
   - id: dev-001
     name: Hostile-network development shims
-    description: Three opt-in mitigations for testing the DUT on networks that interfere with the default flow. (a) wifi_creds.h __has_include shim short-circuits WiFiManager portal with hardcoded SSID/PASS. (b) dnsOverride.h runs an AsyncUDP resolver on the DUT bound to :53, reading /host_overrides.json from SPIFFS and repointing lwip via dns_setserver(). tools/refresh_host_overrides.sh regenerates the table via dig. (c) httpsDate.h plain-HTTP Date-header time bootstrap with __DATE__/__TIME__ build-epoch last resort. All three are no-op when the relevant input is absent.
+    description: Two opt-in mitigations for testing the DUT on networks that interfere with the default flow. (a) wifi_creds.h __has_include shim short-circuits WiFiManager portal with hardcoded SSID/PASS. (b) httpsDate.h plain-HTTP Date-header time bootstrap with __DATE__/__TIME__ build-epoch last resort. Both are no-op when the relevant input is absent. (dnsOverride.h / refresh_host_overrides.sh were retired in TASK-160, 2026-06-09 — dev-only hack with stale IPs, never regression-tested.)
     status: implemented
     git_ref: Spotify-Diy-Thing@bf5d5ca
     files:
       - Spotify-Diy-Thing/SpotifyDiyThing/WifiManagerHandler.h
-      - Spotify-Diy-Thing/SpotifyDiyThing/dnsOverride.h
       - Spotify-Diy-Thing/SpotifyDiyThing/httpsDate.h
-      - Spotify-Diy-Thing/tools/refresh_host_overrides.sh
     cross_features: [wifi-001, time-001]
     test_ids: []
     notes: |
       Validated against AT&T tethered hotspot (DNS+TCP blocked, fail expected) and Marriott guest captive portal (works after MAC pre-auth via portal — separate workflow).
-      gitignored: SpotifyDiyThing/wifi_creds.h, data/host_overrides.json — site/network specific.
+      gitignored: SpotifyDiyThing/wifi_creds.h — site/network specific.
       Not on the milestone roadmap. Dev-environment infra; expected to stay opt-in indefinitely.
 
   - id: log-001
@@ -1121,3 +1119,35 @@ features:
     notes: |
       TASK-089. Smoke test covers coords + bake_skin imports and bake_wave.sh --help.
       preview_layout.py stale SpotifyDiyThing/gen paths fixed in same commit.
+
+  - id: tooling-002
+    name: Non-destructive SPIFFS file manager (run/spiffs)
+    description: |
+      Shell script wrapping esptool.py read_flash → mkspiffs -u → modify → mkspiffs -c → write_flash.
+      Replaces run/flash-fs (full format) for routine credential updates. Subcommands: ls, pull [file],
+      push [file], push (merge app/data/), rm <file>. All write subcommands are read-modify-write —
+      untargeted files preserved byte-identically. read baud capped at 460800 (CH340 reliability).
+      EXIT trap restores serial monitor on any failure path (TASK-163).
+    status: implemented
+    git_ref: "53f8b7f (TASK-161), ea1b0d7 (TASK-163 trap fix)"
+    files:
+      - run/spiffs
+    cross_features: []
+    test_ids:
+      - T-SPIFFS-01
+      - T-SPIFFS-02
+      - T-SPIFFS-03
+      - T-SPIFFS-04
+      - T-SPIFFS-05
+      - T-SPIFFS-06
+      - T-SPIFFS-07
+      - T-SPIFFS-08
+      - T-SPIFFS-09
+      - T-SPIFFS-10
+      - T-SPIFFS-11
+      - T-SPIFFS-12
+    notes: |
+      TASK-161/163/165. VE-verified 2026-06-09: T-SPIFFS-01..10, T-SPIFFS-12 passing on DUT.
+      T-SPIFFS-11 (no-device exit) deferred — requires DUT disconnected.
+      Blocks M-SETUP-WIZARD (wizard must not wipe cal.json/settings.json on credential update).
+      run/flash-fs retained as escape hatch for corrupted filesystem only.

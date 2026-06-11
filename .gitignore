@@ -6,4 +6,9 @@ app/skins/*.wsz
 app/skins/*/
 # secret files — never commit
 **/wifi_creds.h
-app/data/spotify_diy_config.json
+
+# app/data/ is a symlink into Spotify-Diy-Thing/ (fully gitignored above),
+# so these entries are belt-and-suspenders for if the symlink is ever replaced
+# with a real directory. Wildcard covers any future credential file automatically.
+app/data/*
+!app/data/.gitkeep

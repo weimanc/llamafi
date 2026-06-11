@@ -311,7 +311,7 @@ Add `app/data/.gitkeep` to keep the directory tracked on a clean clone.
 Remove the now-redundant named entries.
 
 **Priority:** P2  
-**Status:** not started  
+**Status:** done — `app/data/*` wildcard + comment in both `.gitignore` and `app/.gitignore`. Note: `.gitkeep` skipped — `app/data` is a tracked symlink, not an empty directory; symlink itself keeps the path present on clone.  
 **Opened:** 2026-06-09  
 **Deps:** TASK-160 (retire host_overrides so we're not gitignoring a removed file)  
 **Owner:** Developer  
