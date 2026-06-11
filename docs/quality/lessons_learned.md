@@ -1230,7 +1230,7 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 **Observation**: A VE challenge review (triggered the same session by human) identified the gap. Three recovery tasks were required: TASK-163 (trap fix), TASK-164 (design doc correction), TASK-165 (full T-SPIFFS suite). All were completed on DUT.  
 **Root cause**: The closing agent treated "happy path exercised" as equivalent to "safety claim verified." The feature spec explicitly used the word "non-destructive" — that word is a testability signal that was not recognised as requiring a preservation test.  
 **Suggested improvement**: When a feature's spec, description, or task body contains a safety-property word (non-destructive, preserving, atomic, idempotent, safe, clean), the VE exit criteria must include at minimum: (1) one test that verifies the property under normal use, and (2) one test that verifies correct behaviour when the target does not exist. A happy-path smoke test does not satisfy a safety-property claim.  
-**Status**: open — BP candidate, awaiting human sign-off
+**Status**: adopted — BP-027 (2026-06-11)
 
 ## Entry Format
 

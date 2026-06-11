@@ -266,6 +266,16 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-027 — Safety-property claims require a preservation test and a missing-target test at feature close
+
+**Adopted from**: LL-064  
+**Date adopted**: 2026-06-11  
+**Rule**: When a feature's spec, description, or task body contains a safety-property word — *non-destructive, preserving, atomic, idempotent, safe, clean* — the VE exit criteria must include (1) a test that verifies the property holds under normal use, and (2) a test that verifies correct behaviour when the target does not exist. A happy-path smoke test does not satisfy a safety-property claim.  
+**Rationale**: TASK-161 (`run/spiffs`) was closed after `ls` returned 5 filenames. The feature's primary claim was "non-destructive." That claim was never tested. An EXIT trap defect (monitor not restored on failure) also existed at closure. Three recovery tasks (TASK-163/164/165) were required.  
+**Applies to**: VE (write the required tests before approving closure), Developer (do not close a safety-property feature without VE sign-off on preservation test), PM (reject closure if VE sign-off absent on safety-property features)
+
+---
+
 ## Entry Format
 
 ```
