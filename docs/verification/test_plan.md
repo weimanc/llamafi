@@ -3172,7 +3172,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
   1. Run `./run/spiffs ls` with no device on USB.
 - **Expected result**: Exit non-zero. Stderr mentions port failure or device not found. No hang.
 - **Harness**: host-only (no DUT). Owner: VE.
-- **Status**: skipped — DUT was connected during session; defer to hardware-absent run.
+- **Status**: passing. Host-only 2026-06-11. Exit 1, stderr `ERROR: CH340 device not found (VID:PID 1A86:7523)`, no hang.
 
 ### T-SPIFFS-12 — [TASK-161] invalid subcommand shows usage and exits non-zero
 - **Type**: unit
