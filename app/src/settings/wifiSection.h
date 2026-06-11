@@ -373,9 +373,15 @@ private:
 
     // Static keyboard callbacks (function pointer — not lambda).
     static void _onPasswordSubmit(const char* pass, void* ctx) {
+#ifdef SERIAL_DEBUG
+        Serial.printf("[wifi] kb:submit pass_len=%u\n", (unsigned)strlen(pass));
+#endif
         static_cast<WifiSection*>(ctx)->_startConnect(pass);
     }
     static void _onPasswordCancel(void* ctx) {
+#ifdef SERIAL_DEBUG
+        Serial.println("[wifi] kb:cancel");
+#endif
         WifiSection* self = static_cast<WifiSection*>(ctx);
         self->_step = WifiStep::List;
         self->repaint();

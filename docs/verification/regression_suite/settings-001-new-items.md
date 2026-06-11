@@ -441,6 +441,7 @@
 
 > DUT run: 2026-06-07. Build: cyd2usb_winamp_debug Jun 7 2026-00:36:45. Port: /dev/ttyUSB1.
 > Bug fixed before run: DisplaySection `map(ldrLow,ldrHigh)` min==max crash guarded with `ldrHigh>ldrLow`.
+> T-KB-CANCEL update: 2026-06-11. Build: cyd2usb_winamp_debug Jun 11 2026-15:20:54. BLOCKED-PHASE2 → all 6 PASS. Instrumented via `[wifi] kb:cancel` / `kb:submit` serial prints (SERIAL_DEBUG gate, wifiSection.h callbacks).
 
 | Test ID | Feature | Serial-driveable? | Status | Notes |
 |---------|---------|-------------------|--------|-------|
@@ -455,12 +456,12 @@
 | T-CAL-HIST-03 | Ring buffer cap | visual + physical | SKIP-PHYSICAL | needs 3 user calibrations |
 | T-CAL-HIST-04 | ts=0 → factory label | visual only | SKIP-VISUAL | |
 | T-CAL-HIST-05 | No /cal.json → no section | visual only | SKIP-VISUAL | no crash seen; content unverifiable |
-| T-KB-CANCEL-01 | Cancel label visible | BLOCKED-PHASE2 | BLOCKED-PHASE2 | |
-| T-KB-CANCEL-02 | Cancel fires onCancel | BLOCKED-PHASE2 | BLOCKED-PHASE2 | |
-| T-KB-CANCEL-03 | Cancel on sym page 2 | BLOCKED-PHASE2 | BLOCKED-PHASE2 | |
-| T-KB-CANCEL-04 | Cancel on sym page 3 | BLOCKED-PHASE2 | BLOCKED-PHASE2 | |
-| T-KB-CANCEL-05 | OK regression | BLOCKED-PHASE2 | BLOCKED-PHASE2 | |
-| T-KB-CANCEL-06 | Empty buffer cancel | BLOCKED-PHASE2 | BLOCKED-PHASE2 | |
+| T-KB-CANCEL-01 | Cancel label visible | yes | **PASS** | cancel zone (x<40,y<40) fires `kb:cancel` — confirms `<` label is interactive |
+| T-KB-CANCEL-02 | Cancel fires onCancel | yes | **PASS** | `[wifi] kb:cancel` in serial; no WiFi connect attempt |
+| T-KB-CANCEL-03 | Cancel on sym page 2 | yes | **PASS** | SYM then `tap 20 20` → `[wifi] kb:cancel` |
+| T-KB-CANCEL-04 | Cancel on sym page 3 | yes | **PASS** | SYM → NEXT then `tap 20 20` → `[wifi] kb:cancel` |
+| T-KB-CANCEL-05 | OK regression | yes | **PASS** | `[wifi] kb:submit pass_len=1` on OK tap; no `kb:cancel` |
+| T-KB-CANCEL-06 | Empty buffer cancel | yes | **PASS** | immediate `tap 20 20` → `[wifi] kb:cancel` |
 | T-DISP-GUARD-01 | Debug emits [disp] | yes | **PASS** | `[disp] analogRead(34) raw = 1018` seen; no map() flood |
 | T-DISP-GUARD-02 | Prod silent | build check | DEFERRED | needs prod flash |
 | T-SET-CANCEL-01 | Cancel row renders | yes | **PASS** | cancel tap consumed → switchApp; row exists |

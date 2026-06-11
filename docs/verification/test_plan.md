@@ -2825,7 +2825,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
   1. Tap Cancel (or back equivalent).
 - **Expected result**: onCancel called, onSubmit not called. Keyboard dismissed. Original value unchanged.
 - **Harness**: manual. Owner: VE.
-- **Status**: planned.
+- **Status**: passing. DUT 2026-06-11. `[wifi] kb:cancel` in serial, no WiFi connect attempt. See T-KB-CANCEL-02.
 
 ### T-KB-08 — [keyboard-001] maxLen enforcement — no chars past limit
 - **Type**: e2e
