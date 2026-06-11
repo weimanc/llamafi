@@ -409,7 +409,7 @@ Replace the WiFiManager + DoubleResetDetector boot flow with a native NVS/SPIFFS
 sequence and an on-device connect UI in WifiSection (Keyboard → Connecting → Result states).
 WiFiManager and DoubleResetDetector libs removed from build.
 
-**Status:** done — build PASS 2026-06-11 (TASK-168). DUT verification pending (T-WIFI-P2 suite).
+**Status:** done — build PASS + DUT verified 2026-06-11 (TASK-168). T-WIFI-P2-01..06 all passing.
 - Boot sequence: NVS reconnect → SPIFFS wifi_creds.json → open WiFi settings
 - WifiSection: Keyboard/Connecting/Result states + PATCH-004 (spotifyDisplay.h, cheapYellowLCD.h)
 - WifiManagerHandler.h retired; PATCH-003 superseded

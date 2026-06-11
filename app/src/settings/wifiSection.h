@@ -76,37 +76,8 @@ public:
     }
 
     void tick() override {
-        if (_step == WifiStep::Scanning) {
-            unsigned long now = millis();
-            if (now - _lastSpin >= 200) {
-                _lastSpin = now;
-                _spinFrame = (_spinFrame + 1) & 3;
-                _drawSpinner();
-            }
-            int16_t n = WiFi.scanComplete();
-            if (n == WIFI_SCAN_RUNNING) return;
-            if (n == WIFI_SCAN_FAILED)  { _step = WifiStep::Status; repaint(); return; }
-
-            _netCount = 0;
-            for (int16_t i = 0; i < n && _netCount < 16; i++) {
-                int32_t rssi = WiFi.RSSI(i);
-                uint8_t pos = _netCount;
-                while (pos > 0 && _nets[pos - 1].rssi < rssi) {
-                    if (pos < 16) _nets[pos] = _nets[pos - 1];
-                    pos--;
-                }
-                if (pos < 16) {
-                    strlcpy(_nets[pos].ssid, WiFi.SSID(i).c_str(), sizeof(_nets[0].ssid));
-                    _nets[pos].rssi      = rssi;
-                    _nets[pos].encrypted = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
-                    _netCount++;
-                }
-            }
-            WiFi.scanDelete();
-            _step = WifiStep::List;
-            repaint();
-            return;
-        }
+        // Scanning: synchronous scan runs in _startScan(); tick() is a no-op here.
+        if (_step == WifiStep::Scanning) return;
 
         if (_step == WifiStep::Connecting) {
             wl_status_t st = WiFi.status();
@@ -411,11 +382,32 @@ private:
     }
 
     void _startScan() {
-        _step      = WifiStep::Scanning;
-        _spinFrame = 0;
-        _lastSpin  = millis();
+        _step        = WifiStep::Scanning;
+        _spinFrame   = 0;
+        _lastSpin    = millis();
         repaint();
-        WiFi.scanNetworks(/*async=*/true);
+        // Synchronous scan: blocks ~2-3s but immune to async-scan cancellation
+        // by concurrent Spotify task socket attempts on the same core.
+        int16_t n = WiFi.scanNetworks(/*async=*/false);
+        if (n < 0) { _step = WifiStep::Status; repaint(); return; }
+        _netCount = 0;
+        for (int16_t i = 0; i < n && _netCount < 16; i++) {
+            int32_t rssi = WiFi.RSSI(i);
+            uint8_t pos = _netCount;
+            while (pos > 0 && _nets[pos - 1].rssi < rssi) {
+                if (pos < 16) _nets[pos] = _nets[pos - 1];
+                pos--;
+            }
+            if (pos < 16) {
+                strlcpy(_nets[pos].ssid, WiFi.SSID(i).c_str(), sizeof(_nets[0].ssid));
+                _nets[pos].rssi      = rssi;
+                _nets[pos].encrypted = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
+                _netCount++;
+            }
+        }
+        WiFi.scanDelete();
+        _step = WifiStep::List;
+        repaint();
     }
 
     // ---- Utility -------------------------------------------------------------

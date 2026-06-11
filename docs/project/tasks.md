@@ -418,7 +418,7 @@ Changes:
 - `docs/architecture/designs/M-MULTIAPP/upstream-patches.md`: PATCH-002 status corrected (applied); PATCH-003 retired; PATCH-004 added.
 
 **Priority:** P1 — replaces first-run WiFi setup path  
-**Status:** done — build PASS (2026-06-11). DUT verification pending (T-WIFI-P2 suite).  
+**Status:** done — build PASS + DUT verified (2026-06-11). T-WIFI-P2-01..06 all passing. Bug found and fixed: async `WiFi.scanNetworks()` cancelled by concurrent Spotify task socket calls on same core; switched to synchronous scan.  
 **Opened:** 2026-06-11  
 **Deps:** TASK-167, TASK-161  
 **Owner:** Developer  

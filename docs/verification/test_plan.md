@@ -3350,6 +3350,89 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
 
 ---
 
+## Suite: wifi-p2-001 — M-SETTINGS WiFi Phase 2: on-device connect UI
+
+### T-WIFI-P2-01 — [M-SETTINGS-WIFI-P2] NVS reconnect on boot
+- **Type**: integration
+- **Feature(s)**: M-SETTINGS-WIFI-P2
+- **Objective**: Device reconnects from NVS credentials without any intervention.
+- **Preconditions**: DUT previously connected (NVS has valid creds). No `wifi_creds.h`. No `/wifi_creds.json` on SPIFFS (or stale).
+- **Steps**:
+  1. Flash Phase 2 firmware: `./run/flash`.
+  2. Monitor boot log.
+- **Expected result**: Boot log shows `IP address: <ip>` within ~10s. No `[wifi] no credentials` line. No Settings auto-switch.
+- **Harness**: host-driven. Owner: VE.
+- **Status**: passing. DUT 2026-06-11. `IP address: 192.168.1.126` in boot log; Spotify polling healthy.
+
+### T-WIFI-P2-02 — [M-SETTINGS-WIFI-P2] Encrypted network connect via keyboard
+- **Type**: e2e (manual)
+- **Feature(s)**: M-SETTINGS-WIFI-P2, KeyboardWidget
+- **Objective**: Tap an encrypted network in WiFi list → keyboard appears → enter password → CONNECTING → success.
+- **Preconditions**: DUT booted with no NVS WiFi creds (run `./run/spiffs rm wifi_creds.json` then NVS clear, or use a fresh device). Settings → WiFi section open and scan complete (LIST state).
+- **Steps**:
+  1. Open Settings → WiFi section. Wait for scan to complete (LIST).
+  2. Tap an encrypted (lock icon) network.
+  3. Keyboard appears with "Password" prompt.
+  4. Type the correct password, press OK.
+  5. Screen transitions to CONNECTING (spinner + SSID name).
+  6. Wait ≤15 s.
+- **Expected result**: CONNECTING transitions to Spotify app (connected). Serial shows `IP address:`. WiFi section closed.
+- **Harness**: manual DUT. Owner: VE.
+- **Status**: passing. DUT 2026-06-11. Keyboard appeared on encrypted tap; correct password submitted; `wifi=rssi(-61)` in heartbeat; Spotify polling live. Note: scan uses synchronous `WiFi.scanNetworks(false)` — async scan was cancelled by concurrent Spotify task socket calls on same core.
+
+### T-WIFI-P2-03 — [M-SETTINGS-WIFI-P2] Wrong password shows RESULT view with Retry/Cancel
+- **Type**: e2e (manual)
+- **Feature(s)**: M-SETTINGS-WIFI-P2
+- **Objective**: Wrong password → CONNECTING times out → RESULT view with fail reason and Retry/Cancel buttons.
+- **Preconditions**: DUT at LIST state (scan complete). Target encrypted network visible.
+- **Steps**:
+  1. Tap encrypted network, enter a deliberately wrong password, press OK.
+  2. Screen shows CONNECTING + spinner.
+  3. Wait up to 15 s for timeout.
+- **Expected result**: RESULT view appears showing fail reason (e.g. `4WAY_HANDSHAKE_TIMEOUT`) + "Retry" and "Cancel" buttons. Tapping Cancel returns to STATUS.
+- **Harness**: manual DUT + serialdbg. Owner: VE.
+- **Status**: passing. DUT 2026-06-11. Wrong password submitted via `tap`; 15s timeout elapsed; "Timed out" + Retry/Cancel visible on screen. Cancel → STATUS confirmed.
+
+### T-WIFI-P2-04 — [M-SETTINGS-WIFI-P2] Successful connect persists to NVS (survives reboot)
+- **Type**: integration (manual)
+- **Feature(s)**: M-SETTINGS-WIFI-P2
+- **Objective**: After T-WIFI-P2-02, reboot device — reconnects from NVS without opening WiFi settings.
+- **Preconditions**: Successful connect from T-WIFI-P2-02 (NVS populated by `WiFi.persistent(true)` in `_startConnect()`).
+- **Steps**:
+  1. After successful connect in T-WIFI-P2-02, press RST on DUT.
+  2. Monitor boot log.
+- **Expected result**: Boot log: `IP address:` within ~10s, no Settings auto-switch, Spotify polling starts.
+- **Harness**: manual DUT. Owner: VE.
+- **Status**: passing. DUT 2026-06-11. `wifi=rssi(-62)` at uptime 6s; Spotify polling started; no Settings nav.
+
+### T-WIFI-P2-05 — [M-SETTINGS-WIFI-P2] Forget network clears NVS and restarts
+- **Type**: e2e (manual)
+- **Feature(s)**: M-SETTINGS-WIFI-P2
+- **Objective**: Tapping "Forget" in WiFi STATUS view calls `WiFi.disconnect(false,true)`, removes `/wifi_creds.json` if present, restarts device.
+- **Preconditions**: DUT connected (NVS has creds). Settings → WiFi section at STATUS view.
+- **Steps**:
+  1. Open Settings → WiFi → STATUS view.
+  2. Tap the "Forget" row.
+  3. Device restarts.
+  4. Monitor boot log.
+- **Expected result**: After restart: `[wifi] no credentials — will open WiFi settings after init`. Device switches to Settings → WiFi section automatically.
+- **Harness**: manual DUT. Owner: VE.
+- **Status**: passing. DUT 2026-06-11. Forget tapped; device restarted; WiFi settings menu appeared on screen; `wifi=rssi(0)` confirmed no connection.
+
+### T-WIFI-P2-06 — [M-SETTINGS-WIFI-P2] No credentials → auto-switch to WiFi settings on boot
+- **Type**: integration (manual)
+- **Feature(s)**: M-SETTINGS-WIFI-P2
+- **Objective**: When no NVS creds and no SPIFFS `/wifi_creds.json`, boot auto-navigates to Settings → WiFi section.
+- **Preconditions**: Fresh/cleared NVS (via T-WIFI-P2-05 Forget, or manual NVS erase).
+- **Steps**:
+  1. After T-WIFI-P2-05 (device restarted with no creds).
+  2. Observe screen and boot log.
+- **Expected result**: Boot log: `[wifi] no credentials — will open WiFi settings after init`. Screen shows Settings → WiFi section (scan in progress or STATUS). No Spotify app.
+- **Harness**: manual DUT. Owner: VE.
+- **Status**: passing. DUT 2026-06-11. `[wifi] no credentials` + `[shell] entered 6` in boot log; WiFi settings menu shown on screen.
+
+---
+
 ## Entry Format
 
 ```

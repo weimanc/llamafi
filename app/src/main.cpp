@@ -1804,6 +1804,11 @@ void setup()
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
   } else {
+    // Leave WiFi in a clean disconnected STA state so WifiSection scan works.
+    // WiFi.begin() (NVS attempt above) leaves auto-reconnect armed; disable it
+    // so the subsequent scanNetworks() call is not blocked by a reconnect loop.
+    WiFi.setAutoReconnect(false);
+    WiFi.disconnect(false);
     Serial.println("[wifi] no credentials — will open WiFi settings after init");
   }
 
