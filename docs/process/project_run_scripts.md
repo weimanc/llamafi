@@ -11,6 +11,7 @@ All scripts live in `run/` at the project root. Run from the project root.
 ## Common operations
 
 ```sh
+./run/setup                   # first-time setup wizard (WiFi + Spotify credentials → app/data/)
 ./run/port                    # print resolved CH340 port
 ./run/monitor-start           # start tmux serial monitor
 ./run/monitor-stop            # kill monitor (releases port)

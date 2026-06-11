@@ -89,6 +89,7 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
 ./run/port                    # resolve + print CH340 serial port
 ./run/build                   # compile production firmware
 ./run/build-debug             # compile debug firmware
+./run/setup                   # first-time setup wizard (WiFi + Spotify credentials)
 ./run/flash                   # flash production (kills + restores monitor)
 ./run/flash-debug             # flash debug firmware (monitor stays down for test harness)
 ./run/flash-fs                # upload SPIFFS — full format/rewrite (destructive; use run/spiffs push instead)

@@ -31,35 +31,35 @@ done
 
 ## 1. First-Time Setup
 
-### 1a. WiFi credentials
+Run the setup wizard:
+```sh
+./run/setup
+```
+Prompts for WiFi credentials and Spotify API keys, handles the OAuth flow, and offers `./run/spiffs push` at the end. No manual file editing needed.
 
-WiFi is stored in NVS (survives firmware reflash). Two options:
+Prereq in the Spotify Developer Dashboard: add `http://127.0.0.1:8888/callback/` to the app's Redirect URIs.
 
-**Option A — Hardcoded (dev boards, recommended):**
-Create `Spotify-Diy-Thing/SpotifyDiyThing/wifi_creds.h` (gitignored):
+### Manual / fallback paths
+
+**WiFi — compile-time hardcode (dev boards):**
+Create `Spotify-Diy-Thing/SpotifyDiyThing/wifi_creds.h` (gitignored, highest priority):
 ```c
 #define HARDCODED_WIFI_SSID "YourSSID"
 #define HARDCODED_WIFI_PASS "YourPass"
 ```
-Rebuild and reflash firmware. On connect timeout (30s) it falls through to captive portal.
+Rebuild and reflash. Fallback: SPIFFS `/wifi_creds.json` (written by `run/setup`), then captive portal.
 
-**Option B — Captive portal:**
-On first boot (or double-press RST within 10s) device broadcasts SSID `SpotifyDIY` / pw `thing123`. Join it, navigate to the router IP. Use **"Configure WiFi"** page (not "Info") — only that page shows the Client ID / Secret / Refresh Token fields. See warning below.
+**WiFi — captive portal:**
+On first boot (or double-press RST within 10s) device broadcasts SSID `SpotifyDIY` / pw `thing123`. Use **"Configure WiFi"** page (not "Info").
 
 > **DRD trap**: Never open the serial port and immediately press RST. Opening the port triggers a DTR reset; a second RST within 10s triggers the captive portal. Wait ≥12s after port open before any reset. (BP-018)
 
-### 1b. Spotify credentials
-
-Get a refresh token on the host (device's LAN IP redirect is no longer accepted by Spotify as of Apr 2025):
+**Spotify — headless re-auth:**
 ```sh
-# Requires http://127.0.0.1:8888/callback/ added to your Spotify app's Redirect URIs
-python3 get_refresh_token.py
+# Requires http://127.0.0.1:8888/callback/ in Redirect URIs
+./get_refresh_token.py <CLIENT_ID> <CLIENT_SECRET>
+./run/spiffs push spotify_diy_config.json
 ```
-Copy the printed token into `app/data/spotify_diy_config.json`:
-```json
-{ "refreshToken": "...", "clientId": "...", "clientSecret": "..." }
-```
-Then upload SPIFFS (see §3b). This survives future firmware reflashes.
 
 ---
 

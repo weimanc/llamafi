@@ -73,7 +73,7 @@ def write_config(client_id, client_secret, refresh_token):
     }
     CONFIG_FILE.write_text(json.dumps(config, indent=2) + "\n")
     print(f"\nConfig written to {CONFIG_FILE.relative_to(REPO_ROOT)}")
-    print("Next steps:  ./run/flash  &&  ./run/flash-fs")
+    print("Next step:  ./run/spiffs push spotify_diy_config.json")
 
 
 def main():

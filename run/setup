@@ -1,0 +1,272 @@
+#!/usr/bin/env python3
+"""
+run/setup — ESP32 Spotify Display first-time setup wizard.
+
+Writes WiFi and/or Spotify credentials to app/data/, then offers
+./run/spiffs push to upload them non-destructively to the device.
+
+No venv required — stdlib only.
+Redirect URI required in Spotify dashboard: http://127.0.0.1:8888/callback/
+"""
+import base64
+import getpass
+import http.server
+import json
+import os
+import pathlib
+import subprocess
+import sys
+import threading
+import time
+import urllib.parse
+import urllib.request
+import webbrowser
+
+REDIRECT_URI = "http://127.0.0.1:8888/callback/"
+SCOPE = "user-read-playback-state user-modify-playback-state"
+PORT = 8888
+
+REPO_ROOT = pathlib.Path(__file__).parent.parent.resolve()
+DATA_DIR = REPO_ROOT / "app" / "data"
+WIFI_FILE = DATA_DIR / "wifi_creds.json"
+SPOTIFY_FILE = DATA_DIR / "spotify_diy_config.json"
+
+
+# ---------------------------------------------------------------------------
+# OAuth callback server
+# ---------------------------------------------------------------------------
+
+_received = {}
+
+
+class _OAuthHandler(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *_):
+        pass
+
+    def do_GET(self):
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path != "/callback/":
+            self.send_response(404)
+            self.end_headers()
+            return
+        qs = urllib.parse.parse_qs(parsed.query)
+        _received.update({k: v[0] for k, v in qs.items()})
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.end_headers()
+        if "code" in _received:
+            self.wfile.write(b"Got the code. You can close this tab.")
+        else:
+            self.wfile.write(f"Error: {_received}".encode())
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _ensure_data_dir():
+    if DATA_DIR.is_symlink() and not DATA_DIR.exists():
+        DATA_DIR.unlink()
+        DATA_DIR.mkdir(parents=True)
+    elif not DATA_DIR.exists():
+        DATA_DIR.mkdir(parents=True)
+
+
+def _write_atomic(path, content):
+    """Write content to path atomically; chmod 600."""
+    tmp = pathlib.Path(str(path) + ".tmp")
+    tmp.write_text(content)
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+
+
+def _cleanup_tmp():
+    for f in (WIFI_FILE, SPOTIFY_FILE):
+        tmp = pathlib.Path(str(f) + ".tmp")
+        if tmp.exists():
+            tmp.unlink()
+
+
+# ---------------------------------------------------------------------------
+# WiFi section
+# ---------------------------------------------------------------------------
+
+def section_wifi():
+    print("\n=== WiFi Credentials ===\n")
+
+    if WIFI_FILE.exists():
+        try:
+            existing = json.loads(WIFI_FILE.read_text())
+            print(f"  Current SSID: {existing.get('ssid', '(unknown)')}")
+        except Exception:
+            print("  Existing file present (unreadable).")
+        if input("  Overwrite? [y/N]: ").strip().lower() != "y":
+            print("  Skipped.")
+            return False
+
+    while True:
+        ssid = input("SSID: ").strip()
+        if not ssid:
+            print("  SSID cannot be empty.")
+            continue
+        if len(ssid) > 32:
+            print("  SSID must be ≤ 32 characters.")
+            continue
+        break
+
+    while True:
+        pw = getpass.getpass("Password: ")
+        if len(pw) < 8:
+            print("  Password must be ≥ 8 characters.")
+            continue
+        if getpass.getpass("Confirm:  ") != pw:
+            print("  Passwords do not match.")
+            continue
+        break
+
+    _ensure_data_dir()
+    _write_atomic(WIFI_FILE, json.dumps({"ssid": ssid, "pass": pw}, indent=2) + "\n")
+    print(f"\n  Writing {WIFI_FILE.relative_to(REPO_ROOT)} ... done. (chmod 600)")
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Spotify section
+# ---------------------------------------------------------------------------
+
+def section_spotify():
+    print("\n=== Spotify API Keys ===\n")
+    print("  Prereq: add  http://127.0.0.1:8888/callback/  to your Spotify app's Redirect URIs.\n")
+
+    if SPOTIFY_FILE.exists():
+        try:
+            existing = json.loads(SPOTIFY_FILE.read_text())
+            cid = existing.get("clientId", "")
+            masked = cid[:4] + "…" + cid[-4:] if len(cid) >= 8 else "(set)"
+            print(f"  Current Client ID: {masked}")
+        except Exception:
+            print("  Existing file present (unreadable).")
+        if input("  Overwrite? [y/N]: ").strip().lower() != "y":
+            print("  Skipped.")
+            return False
+
+    client_id = input("Client ID:     ").strip()
+    if not client_id:
+        print("  Client ID cannot be empty. Skipped.")
+        return False
+
+    client_secret = getpass.getpass("Client Secret: ")
+    if not client_secret:
+        print("  Client Secret cannot be empty. Skipped.")
+        return False
+
+    auth_url = "https://accounts.spotify.com/authorize?" + urllib.parse.urlencode({
+        "client_id": client_id,
+        "response_type": "code",
+        "redirect_uri": REDIRECT_URI,
+        "scope": SCOPE,
+    })
+
+    _received.clear()
+    server = http.server.HTTPServer(("127.0.0.1", PORT), _OAuthHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    print("\n  Opening browser for Spotify authorisation...")
+    print(f"  If it doesn't open, visit:\n    {auth_url}\n")
+    try:
+        webbrowser.open(auth_url)
+    except Exception:
+        pass
+
+    print("  Waiting for callback on http://127.0.0.1:8888/callback/ ...")
+    while "code" not in _received and "error" not in _received:
+        time.sleep(0.05)
+    server.shutdown()
+
+    if "error" in _received:
+        print(f"\n  Auth failed: {_received['error']}")
+        return False
+
+    basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    body = urllib.parse.urlencode({
+        "grant_type": "authorization_code",
+        "code": _received["code"],
+        "redirect_uri": REDIRECT_URI,
+    }).encode()
+    req = urllib.request.Request(
+        "https://accounts.spotify.com/api/token",
+        data=body,
+        headers={
+            "Authorization": f"Basic {basic}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req) as r:
+            tok = json.loads(r.read())
+    except Exception as e:
+        print(f"\n  Token exchange failed: {e}")
+        return False
+
+    _ensure_data_dir()
+    _write_atomic(SPOTIFY_FILE, json.dumps({
+        "clientId": client_id,
+        "clientSecret": client_secret,
+        "refreshToken": tok["refresh_token"],
+    }, indent=2) + "\n")
+    print(f"\n  Refresh token obtained.")
+    print(f"  Writing {SPOTIFY_FILE.relative_to(REPO_ROOT)} ... done. (chmod 600)")
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main():
+    print("\nESP32 Spotify Display — Setup Wizard\n")
+    print("What would you like to configure?")
+    print("  1. WiFi credentials")
+    print("  2. Spotify API keys")
+    print("  3. Both\n")
+
+    while True:
+        choice = input("Choice [1/2/3]: ").strip()
+        if choice in ("1", "2", "3"):
+            break
+        print("  Enter 1, 2, or 3.")
+
+    wifi_written = False
+    spotify_written = False
+
+    if choice in ("1", "3"):
+        wifi_written = section_wifi()
+
+    if choice in ("2", "3"):
+        spotify_written = section_spotify()
+
+    if not wifi_written and not spotify_written:
+        print("\nNothing written.")
+        return
+
+    print("\n=== Done ===\n")
+    if wifi_written:
+        print(f"  WiFi:    {WIFI_FILE.relative_to(REPO_ROOT)} written")
+    if spotify_written:
+        print(f"  Spotify: {SPOTIFY_FILE.relative_to(REPO_ROOT)} written")
+
+    print()
+    ans = input("Upload to device now? (./run/spiffs push) [Y/n]: ").strip().lower()
+    if ans in ("", "y"):
+        subprocess.run([str(REPO_ROOT / "run" / "spiffs"), "push"], check=False)
+    else:
+        print("\nRemember to run ./run/spiffs push before first boot.")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        _cleanup_tmp()
+        print("\n\nInterrupted — no files written.")
+        sys.exit(0)

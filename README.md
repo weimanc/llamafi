@@ -63,19 +63,33 @@ cd your-repo
 
 ---
 
-### 4. Get a Spotify refresh token + write config
-
-Run the helper script — it opens a browser, handles the OAuth flow, and writes
-`app/data/spotify_diy_config.json` automatically:
+### 4. Run the setup wizard
 
 ```sh
-./get_refresh_token.py <CLIENT_ID> <CLIENT_SECRET>
+./run/setup
 ```
 
-That's it. The script creates `app/data/` if needed and writes all three values
-(client ID, client secret, refresh token) into the config file.
+The wizard prompts for WiFi credentials and Spotify API keys, handles the OAuth
+flow, writes both credential files to `app/data/`, and offers to upload them to
+the device in one step.
 
-> `app/data/spotify_diy_config.json` is gitignored — it will never be committed.
+> Both credential files are gitignored — they will never be committed.
+
+<details>
+<summary>Manual alternative (headless / scripted re-auth)</summary>
+
+```sh
+# Spotify only — writes app/data/spotify_diy_config.json
+./get_refresh_token.py <CLIENT_ID> <CLIENT_SECRET>
+
+# WiFi — create app/data/wifi_creds.json manually:
+# {"ssid": "YourNetwork", "pass": "YourPassword"}
+
+# Then upload both:
+./run/spiffs push
+```
+
+</details>
 
 ---
 
@@ -103,21 +117,7 @@ Then bake the skin into C arrays for the firmware:
 
 ---
 
-### 7. (Optional) Hardcode WiFi credentials
-
-If you want the device to connect to WiFi without the first-boot captive portal,
-create `Spotify-Diy-Thing/SpotifyDiyThing/wifi_creds.h`:
-
-```c
-#define HARDCODED_WIFI_SSID "your_ssid"
-#define HARDCODED_WIFI_PASS "your_password"
-```
-
-> This file is gitignored. Skip this step if you prefer the captive portal.
-
----
-
-### 8. Flash
+### 7. Flash
 
 Flash the firmware and upload the SPIFFS partition (config file):
 
@@ -163,6 +163,7 @@ DUT safety automatically.
 
 | Script | What it does |
 |---|---|
+| `./run/setup` | First-time setup wizard (WiFi + Spotify credentials) |
 | `./run/build` | Compile production firmware |
 | `./run/flash` | Flash production firmware |
 | `./run/spiffs push [file]` | Upload credential file(s) to SPIFFS non-destructively |
