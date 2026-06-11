@@ -26,7 +26,9 @@ upstream ref:    6eb95ffd546482423c88f647a527b89de633059d  (origin/main as of 20
 | `SpotifyDiyThing/cheapYellowLCD.h` | PATCH-001 | M-NOART: gate JPEGDEC album-art path behind `#ifndef WINAMP_DISPLAY` | JPEGDEC causes `JPEGPutMCU22 LoadProhibited` crash during track playback under `cyd2usb_winamp` build. No upstream fix available. Crash confirmed on DUT 2026-05-20. |
 | `SpotifyDiyThing/CYD28_TouchscreenR.h` | PATCH-002 | Add `setCalibration()` public method + private `_cal*` members for runtime touch calibration override | Upstream bakes `CYD28_TouchR_CAL_*` constants into `convertRawXY()`; no runtime override path. Required by M-MULTIAPP Settings touch calibration flow. |
 | `SpotifyDiyThing/CYD28_TouchscreenR.cpp` | PATCH-002 | Replace `CYD28_TouchR_CAL_*` macro references in `convertRawXY()` with `_cal*` member variables | Same as above — C++ side of the patch. |
-| `SpotifyDiyThing/WifiManagerHandler.h` | PATCH-003 | Add SPIFFS `/wifi_creds.json` read path inside `setupWiFiManager()`, between the compile-time `wifi_creds.h` block and the WiFiManager portal fallback | Upstream has no runtime credential path; compile-time `wifi_creds.h` requires a firmware recompile on every credential change. SPIFFS path promoted as default by `run/setup`. |
+| `SpotifyDiyThing/WifiManagerHandler.h` | PATCH-003 | *(retired — file deleted; WiFi logic moved into `app/src/main.cpp` boot sequence and `app/src/settings/wifiSection.h`)* | Superseded by M-SETTINGS WiFi Phase 2. |
+| `SpotifyDiyThing/spotifyDisplay.h` | PATCH-004 | Remove `drawWifiManagerMessage(WiFiManager*)` pure virtual — WiFiManager removed from build | WiFiManager retired in M-SETTINGS Phase 2; type reference would cause compile error without the lib. |
+| `SpotifyDiyThing/cheapYellowLCD.h` | PATCH-004 | Remove `drawWifiManagerMessage(WiFiManager*)` implementation — WiFiManager removed from build | Same as above — concrete implementation in `CheapYellowDisplay`. |
 
 ## PATCH-001 detail
 
@@ -54,16 +56,26 @@ with the corresponding `_cal*` member variables.
 **Prerequisite for**: M-MULTIAPP Settings → Touch Calibration section (`CalibrationFlow`).
 Must be applied before any cal implementation work begins.  
 **Design ref**: [touch-calibration.md §Integration prerequisite — PATCH-002](touch-calibration.md).  
-**Status**: **not yet applied** — pending implementation of touch calibration section.
+**Status**: applied.
 
 ## PATCH-003 detail
 
 **File:** `Spotify-Diy-Thing/SpotifyDiyThing/WifiManagerHandler.h`  
-**Upstream status:** no runtime credential path — only compile-time `wifi_creds.h` shim and WiFiManager portal.  
-**Our change:** insert a SPIFFS-read block inside `setupWiFiManager()`, guarded by `#ifndef HARDCODED_WIFI_SSID`, between the existing compile-time block and the `WiFiManager wm;` line. Reads `/wifi_creds.json` (`{"ssid":"...","pass":"..."}`), calls `WiFi.begin()`, returns early on success. Falls through to portal on failure or missing file.  
-**Priority chain after patch:** `wifi_creds.h` compile-time → SPIFFS `/wifi_creds.json` → WiFiManager portal.  
-**Status:** not yet applied — pending M-SETUP-WIZARD implementation.  
+**Status:** **retired** — file deleted 2026-06-11 as part of M-SETTINGS WiFi Phase 2.  
+The SPIFFS `/wifi_creds.json` read path and NVS reconnect logic were folded into
+`app/src/main.cpp`'s boot sequence (replacing `setupWiFiManager()`). WiFiManager
+and DoubleResetDetector libs removed from `app/platformio.ini` lib_deps.  
+WiFi connect UI moved to `app/src/settings/wifiSection.h`.  
 **Design ref:** [M-SETUP-WIZARD.md](../M-SETUP-WIZARD.md).
+
+## PATCH-004 detail
+
+**Files:** `Spotify-Diy-Thing/SpotifyDiyThing/spotifyDisplay.h` and `cheapYellowLCD.h`  
+**Upstream status:** both files reference `WiFiManager*` in `drawWifiManagerMessage()`.  
+**Our change:** removed the pure virtual declaration from `spotifyDisplay.h` and the
+concrete implementation from `cheapYellowLCD.h`. Without this patch, the build fails
+at include time because WiFiManager is no longer in `lib_deps`.  
+**Introduced:** 2026-06-11, M-SETTINGS WiFi Phase 2.
 
 ---
 

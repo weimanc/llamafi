@@ -40,11 +40,6 @@
 bool writeContextToNfc = true;
 
 // ----------------------------
-// Library Defines - Need to be defined before library import
-// ----------------------------
-
-#define ESP_DRD_USE_SPIFFS true
-
 // ----------------------------
 // Standard Libraries
 // ----------------------------
@@ -59,20 +54,8 @@ bool writeContextToNfc = true;
 #include <esp_log.h>      // esp_log_level_set() for ADR-042 E1 HTTPClient log suppression
 
 // ----------------------------
-// Additional Libraries - each one of these will need to be installed.
+// Additional Libraries
 // ----------------------------
-
-#include <WiFiManager.h>
-// Captive portal for configuring the WiFi
-
-// If installing from the library manager (Search for "WifiManager")
-// https://github.com/tzapu/WiFiManager
-
-#include <ESP_DoubleResetDetector.h>
-// A library for checking if the reset button has been pressed twice
-// Can be used to enable config mode
-// Can be installed from the library manager (Search for "ESP_DoubleResetDetector")
-// https://github.com/khoih-prog/ESP_DoubleResetDetector
 
 #include <SpotifyArduino.h>
 
@@ -98,6 +81,8 @@ WiFiClientSecure client;
 // Internal includes
 // ----------------------------
 #include "refreshToken.h"
+char clientId[200];
+char clientSecret[200];
 
 #include "spotifyDisplay.h"
 
@@ -107,7 +92,6 @@ WiFiClientSecure client;
 
 #include "serialPrint.h"
 
-#include "WifiManagerHandler.h"
 
 #include "httpsDate.h"
 
@@ -172,11 +156,6 @@ SpotifyDisplay *spotifyDisplay = &matrixDisplay;
 #ifdef SPIKE_MODE
 #include "spikeMode.h"
 #endif
-
-void drawWifiManagerMessage(WiFiManager *myWiFiManager)
-{
-  spotifyDisplay->drawWifiManagerMessage(myWiFiManager);
-}
 
 // ── App dispatch (M-MULTIAPP, TASK-087c/d) ─────────────────────────────
 
@@ -746,6 +725,8 @@ public:
       }
     }
   }
+
+  void openSection(int idx) { _onCategoryTap(idx); }
 
   bool handleInput(TouchPhase phase, int x, int y) override {
     if (_activeSection) {
@@ -1721,15 +1702,6 @@ void setup()
 #endif
   logsink::begin();
 
-  bool forceConfig = false;
-
-  drd = new DoubleResetDetector(DRD_TIMEOUT, DRD_ADDRESS);
-  if (drd->detectDoubleReset())
-  {
-    Serial.println(F("Forcing config mode as there was a Double reset detected"));
-    forceConfig = true;
-  }
-
   spotifyDisplay->displaySetup(&spotify);
 
 #ifdef NFC_ENABLED
@@ -1743,17 +1715,12 @@ void setup()
   }
 #endif
 
-  // Initialise SPIFFS, if this fails try .begin(true)
-  // NOTE: I believe this formats it though it will erase everything on
-  // spiffs already! In this example that is not a problem.
-  // I have found once I used the true flag once, I could use it
-  // without the true flag after that.
   bool spiffsInitSuccess = SPIFFS.begin(false) || SPIFFS.begin(true);
   if (!spiffsInitSuccess)
   {
     Serial.println("SPIFFS initialisation failed!");
     while (1)
-      yield(); // Stay here twiddling thumbs waiting
+      yield();
   }
   Serial.println("\r\nInitialisation done.");
 
@@ -1780,17 +1747,65 @@ void setup()
   g_ledFlow.applyMode();
 
   refreshToken[0] = '\0';
-  if (!fetchConfigFile(refreshToken, clientId, clientSecret))
-  {
-    // Failed to fetch config file, need to launch Wifi Manager
-    forceConfig = true;
+  fetchConfigFile(refreshToken, clientId, clientSecret);
+
+  // WiFi boot: NVS credentials → SPIFFS wifi_creds.json → open WiFi settings.
+  // Priority chain mirrors WifiSection connect flow (C4: NVS-backed persist).
+  bool wifiConnected = false;
+#ifdef HARDCODED_WIFI_SSID
+  WiFi.persistent(true);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(HARDCODED_WIFI_SSID, HARDCODED_WIFI_PASS);
+  Serial.print("Connecting to hardcoded SSID " HARDCODED_WIFI_SSID);
+  { unsigned long dl = millis() + 30000;
+    while (WiFi.status() != WL_CONNECTED && millis() < dl) { delay(250); Serial.print("."); }
+    Serial.println(); }
+  wifiConnected = (WiFi.status() == WL_CONNECTED);
+  if (!wifiConnected) Serial.println("[wifi] hardcoded connect failed, trying NVS");
+#endif
+  if (!wifiConnected) {
+    WiFi.persistent(true);
+    WiFi.mode(WIFI_STA);
+    WiFi.begin();  // reconnect from NVS (no args)
+    { unsigned long dl = millis() + 10000;
+      while (WiFi.status() != WL_CONNECTED && millis() < dl) delay(100); }
+    wifiConnected = (WiFi.status() == WL_CONNECTED);
+  }
+  if (!wifiConnected && SPIFFS.exists("/wifi_creds.json")) {
+    File f = SPIFFS.open("/wifi_creds.json", "r");
+    if (f) {
+      StaticJsonDocument<256> doc;
+      if (deserializeJson(doc, f) == DeserializationError::Ok) {
+        const char* ssid = doc["ssid"] | "";
+        const char* pass = doc["pass"] | "";
+        if (strlen(ssid) > 0) {
+          Serial.printf("[wifi] Connecting from SPIFFS: %s\n", ssid);
+          WiFi.persistent(false);  // don't corrupt NVS if creds are wrong (TASK-167)
+          WiFi.mode(WIFI_STA);
+          WiFi.begin(ssid, pass);
+          { unsigned long dl = millis() + 30000;
+            while (WiFi.status() != WL_CONNECTED && millis() < dl) { delay(250); Serial.print("."); }
+            Serial.println(); }
+          wifiConnected = (WiFi.status() == WL_CONNECTED);
+          if (wifiConnected) {
+            WiFi.persistent(true);
+            WiFi.begin(ssid, pass);  // persist verified creds to NVS
+            Serial.println("[wifi] SPIFFS credentials saved to NVS");
+          } else {
+            Serial.println("[wifi] SPIFFS connect failed");
+          }
+        }
+      }
+      f.close();
+    }
   }
 
-  setupWiFiManager(forceConfig, refreshToken, &saveConfigFile, &drawWifiManagerMessage);
-
-  // If we are here we should be connected to the Wifi
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
+  if (wifiConnected) {
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("[wifi] no credentials — will open WiFi settings after init");
+  }
 
 
 
@@ -1855,8 +1870,7 @@ void setup()
 
   spotifyRefreshToken(refreshToken);
 
-  // Onboarding (WiFiManager portal + refreshToken.h flow) is done; both
-  // would have held port 80. Stand up the permanent /log server now.
+  // refreshToken.h flow would have held port 80. Stand up permanent /log server now.
   logsink::serverBegin();
 
   // ADR-012 / TASK-031a: spawn the async Spotify HTTP task. Skeleton at
@@ -1873,6 +1887,10 @@ void setup()
     spotifyDisplay->showDefaultScreen();
   }
   renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), (int)AppId::COUNT);
+  if (!wifiConnected) {
+    switchApp(AppId::Settings);
+    g_SettingsApp.openSection(0);
+  }
   buildMathLUT();
 
 #ifdef SPIKE_MODE
@@ -2320,7 +2338,6 @@ void loop()
 {
   unsigned long _loopStart = millis();
 
-  drd->loop();
   drainInjectionQueue();   // serialdbg-001: pops one injection step per iter (TASK-056e)
   handleSerialCommands();
   logsink::serverLoop();

@@ -49,10 +49,10 @@ Create `Spotify-Diy-Thing/SpotifyDiyThing/wifi_creds.h` (gitignored, highest pri
 ```
 Rebuild and reflash. Fallback: SPIFFS `/wifi_creds.json` (written by `run/setup`), then captive portal.
 
-**WiFi — captive portal:**
-On first boot (or double-press RST within 10s) device broadcasts SSID `SpotifyDIY` / pw `thing123`. Use **"Configure WiFi"** page (not "Info").
-
-> **DRD trap**: Never open the serial port and immediately press RST. Opening the port triggers a DTR reset; a second RST within 10s triggers the captive portal. Wait ≥12s after port open before any reset. (BP-018)
+**WiFi — on-device settings UI:**
+If no credentials are found at boot (no `wifi_creds.json`, no NVS entry), the device
+automatically switches to the Settings app → WiFi section. Select a network from the
+scan list, enter the password, and connect. Credentials are saved to NVS on success.
 
 **Spotify — headless re-auth:**
 ```sh
@@ -100,9 +100,9 @@ SPIFFS is a separate partition — reflashing firmware does NOT touch it, and SP
 
 Files in `app/data/` (symlinked from `Spotify-Diy-Thing/data/`):
 - `spotify_diy_config.json` — Spotify keys + refresh token (gitignored)
+- `wifi_creds.json` — WiFi SSID + password (gitignored, written by `run/setup`)
 - `cal.json` — touch calibration (written by CalibrationFlow at runtime; do not hand-edit)
 - `settings.json` — app settings (written by SettingsStorage at runtime; do not hand-edit)
-- `drd.dat` — double-reset detector state (written at runtime; do not hand-edit)
 
 ### 3c. When to update SPIFFS
 

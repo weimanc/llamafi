@@ -403,6 +403,20 @@ All 6 live settings section implementations (WiFi, Time & Location, Touch Calibr
 
 ---
 
+### M-SETTINGS-WIFI-P2 — WiFi section Phase 2: on-device connect + remove WiFiManager
+
+Replace the WiFiManager + DoubleResetDetector boot flow with a native NVS/SPIFFS reconnect
+sequence and an on-device connect UI in WifiSection (Keyboard → Connecting → Result states).
+WiFiManager and DoubleResetDetector libs removed from build.
+
+**Status:** done — build PASS 2026-06-11 (TASK-168). DUT verification pending (T-WIFI-P2 suite).
+- Boot sequence: NVS reconnect → SPIFFS wifi_creds.json → open WiFi settings
+- WifiSection: Keyboard/Connecting/Result states + PATCH-004 (spotifyDisplay.h, cheapYellowLCD.h)
+- WifiManagerHandler.h retired; PATCH-003 superseded
+**Deps:** M-SETTINGS-001 (done), M-SETUP-WIZARD (done)
+
+---
+
 ### M-TOUCH-CAPTURE — Slider input capture
 
 Pointer capture for all four interactive sliders (POSBAR, VOLUME, PLEDIT scrollbar strip,

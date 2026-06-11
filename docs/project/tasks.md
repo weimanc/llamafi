@@ -396,3 +396,29 @@ Fix: change `WiFi.persistent(true)` to `WiFi.persistent(false)` in the PATCH-003
 **Opened:** 2026-06-11  
 **Deps:** none  
 **Owner:** Developer  
+
+---
+
+## Open Tasks — M-SETTINGS WiFi Phase 2 (2026-06-11)
+
+### TASK-168 — M-SETTINGS WiFi Phase 2: remove WiFiManager/DRD, add on-device connect UI
+
+Replace the WiFiManager + DoubleResetDetector boot flow with:
+- NVS reconnect (`WiFi.begin()` no-args) → SPIFFS `/wifi_creds.json` read → open WiFi settings.
+- On-device `WifiSection` UI: scan → tap network → keyboard (encrypted) / direct connect (open) → CONNECTING poll → RESULT (retry/cancel).
+- If boot reaches `!wifiConnected`: auto-switch to Settings app → WiFi section.
+
+Changes:
+- `app/src/main.cpp`: replaced WiFiManager/DRD boot sequence; removed `drd->loop()`; added `clientId[200]`/`clientSecret[200]` globals; added post-init nav.
+- `app/platformio.ini`: removed `khoih-prog/ESP_DoubleResetDetector` and `wnatth3/WiFiManager` from lib_deps.
+- `app/src/settings/wifiSection.h`: Phase 2 rewrite (Keyboard, Connecting, Result states).
+- `Spotify-Diy-Thing/SpotifyDiyThing/spotifyDisplay.h`: PATCH-004 — removed `drawWifiManagerMessage` pure virtual.
+- `Spotify-Diy-Thing/SpotifyDiyThing/cheapYellowLCD.h`: PATCH-004 — removed `drawWifiManagerMessage` implementation.
+- `Spotify-Diy-Thing/SpotifyDiyThing/WifiManagerHandler.h`: retired (deleted).
+- `docs/architecture/designs/M-MULTIAPP/upstream-patches.md`: PATCH-002 status corrected (applied); PATCH-003 retired; PATCH-004 added.
+
+**Priority:** P1 — replaces first-run WiFi setup path  
+**Status:** done — build PASS (2026-06-11). DUT verification pending (T-WIFI-P2 suite).  
+**Opened:** 2026-06-11  
+**Deps:** TASK-167, TASK-161  
+**Owner:** Developer  
