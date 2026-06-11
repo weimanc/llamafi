@@ -131,9 +131,13 @@ Override with `PORT=/dev/ttyUSB1 ./run/flash` if needed.
 
 ---
 
-### 9. First boot — WiFi setup
+### 9. First boot — WiFi
 
-If you did not hardcode WiFi credentials:
+If you ran `./run/setup` and accepted the spiffs push offer, the device reads
+`wifi_creds.json` from SPIFFS and connects automatically — no portal needed.
+
+If WiFi credentials are not configured (fresh device, no `wifi_creds.json` on
+SPIFFS, no `wifi_creds.h`), the device falls back to a captive portal:
 
 1. The device broadcasts a hotspot: **SSID `SpotifyDIY`**, password `thing123`.
 2. Connect your phone to it.

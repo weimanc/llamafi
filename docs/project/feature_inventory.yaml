@@ -1151,3 +1151,43 @@ features:
       T-SPIFFS-11 (no-device exit) deferred — requires DUT disconnected.
       Blocks M-SETUP-WIZARD (wizard must not wipe cal.json/settings.json on credential update).
       run/flash-fs retained as escape hatch for corrupted filesystem only.
+
+  - id: setup-wizard-001
+    name: First-time setup wizard (run/setup + PATCH-003)
+    description: |
+      Python 3 stdlib-only interactive wizard at run/setup. Handles three flows: WiFi only,
+      Spotify only, or both. WiFi section: SSID (≤32 chars) + password (≥8, confirmed);
+      writes app/data/wifi_creds.json. Spotify section: Client ID + Secret + OAuth Authorization
+      Code flow (loopback server on 127.0.0.1:8888); writes app/data/spotify_diy_config.json.
+      Both files written atomically (tmp + os.replace()) with chmod 600. Overwrite guard when
+      files already exist. Ctrl-C at any point cleans .tmp and exits without modifying existing
+      files. End-of-wizard offer runs ./run/spiffs push non-destructively.
+      PATCH-003: WifiManagerHandler.h reads /wifi_creds.json from SPIFFS before falling through
+      to WiFiManager portal. Priority chain: wifi_creds.h (compile-time) > SPIFFS > portal.
+      WiFi.persistent(false) guards against NVS corruption if SPIFFS creds are bad (TASK-167).
+    status: implemented
+    git_ref: "463ba0b (M-SETUP-WIZARD implementation)"
+    files:
+      - run/setup
+      - Spotify-Diy-Thing/SpotifyDiyThing/WifiManagerHandler.h  # PATCH-003
+      - app/data/wifi_creds.json  # gitignored runtime file
+      - app/data/spotify_diy_config.json  # gitignored runtime file
+    cross_features:
+      - tooling-002  # run/spiffs push used at end of wizard
+    test_ids:
+      - T-SETUP-01
+      - T-SETUP-02
+      - T-SETUP-03
+      - T-SETUP-04
+      - T-SETUP-05
+      - T-SETUP-06
+      - T-SETUP-07
+      - T-SETUP-08
+      - T-SETUP-09
+      - T-SETUP-10
+    notes: |
+      TASK-162/164/167. VE-verified 2026-06-11: T-SETUP-07..10 passing on DUT (PATCH-003 paths).
+      T-SETUP-01..06 manual (wizard CLI + OAuth require human interaction).
+      Bug found during VE: WiFi.persistent(true) in PATCH-003 corrupted NVS on bad SPIFFS creds
+      — fixed to WiFi.persistent(false) (TASK-167, 2026-06-11).
+      PATCH-003 registered in docs/architecture/designs/M-MULTIAPP/upstream-patches.md.

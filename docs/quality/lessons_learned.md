@@ -1225,6 +1225,20 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 
 **Status**: adopted — BP-026 (2026-06-08)
 
+### LL-065 — 2026-06-11 — Design doc code snippet copied to production without reviewing side effects
+
+**Context**: M-SETUP-WIZARD design doc (`M-SETUP-WIZARD.md`) contained a PATCH-003 pseudocode snippet using `WiFi.persistent(true)`. The snippet was copied directly into `WifiManagerHandler.h` during implementation. `WiFi.persistent(true)` causes `WiFi.begin()` to write credentials to NVS before the connection attempt succeeds. When SPIFFS credentials are wrong, the NVS is overwritten with bad credentials, destroying the device's prior saved WiFi state.
+
+**Observation**: The bug was not caught at design review or implementation — it was found during VE (T-SETUP-10). The test device's NVS was corrupted during testing, requiring a recovery flash with `wifi_creds.h`. The fix (change to `WiFi.persistent(false)`) was one line but required an extra DUT cycle.
+
+**Root cause**: Design doc code snippets are treated as illustrative pseudocode during design review, but are often copied verbatim during implementation. The reviewer and implementer may have different mental models of which review standard applies. Side effects that are invisible in happy-path tests (NVS corruption only manifests when credentials are wrong) bypass normal build and smoke verification.
+
+**Suggested improvement**: Any code snippet in a design doc that is likely to be copied verbatim into production should be reviewed with the same rigour as production code — specifically: identify all side effects, check whether those effects are conditional on success or unconditional. If a snippet cannot be reviewed to that standard at design time, annotate it explicitly as "pseudocode — do not copy; verify side effects at implementation."
+
+**Status**: adopted — BP-028 (2026-06-11)
+
+---
+
 ### LL-064 — 2026-06-11 — Happy-path smoke test accepted as proof of safety-property claim
 **Context**: TASK-161 (`run/spiffs` non-destructive SPIFFS manager) was closed by an LLM agent after `./run/spiffs ls` returned 5 filenames. The feature's primary claim — that push and rm operations are non-destructive (untargeted files preserved byte-identically) — was never tested. An EXIT trap defect (monitor not restored on implicit `set -e` failure) also existed at closure.  
 **Observation**: A VE challenge review (triggered the same session by human) identified the gap. Three recovery tasks were required: TASK-163 (trap fix), TASK-164 (design doc correction), TASK-165 (full T-SPIFFS suite). All were completed on DUT.  

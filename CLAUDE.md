@@ -163,11 +163,13 @@ Two persistence layers, both survive reflashing the firmware partition:
   ```
   Keys are `clientId`/`clientSecret`, lowercase 'd'. The WiFiManager param labels (`WM_CLIENT_ID_LABEL = "clientID"` etc., `WifiManagerHandler.h:9`) differ but are only used as form-field IDs.
 
-Two ways to populate the config:
+Three ways to populate the config:
 
-1. **Captive portal (interactive).** First boot or double-press reset within ~10s (`DoubleResetDetector`, `DRD_TIMEOUT=10`, SPIFFS-backed via `ESP_DRD_USE_SPIFFS=true`). Phone joins SSID `SpotifyDIY` / pw `thing123`. **Must use the "Configure WiFi" page**, not "Info" — only the configure page exposes the Client ID / Secret / Refresh Token text fields. If you save from the wifi-only page, those fields are written as empty strings and the OAuth URL renders with `client_id=` blank.
+1. **`./run/setup` wizard (primary path).** Interactive wizard handles WiFi credentials and Spotify OAuth, writes `app/data/wifi_creds.json` and `app/data/spotify_diy_config.json`, and offers `./run/spiffs push` at the end. See `README.md` step 4.
 
-2. **Pre-baked SPIFFS image (preferred when reflashing dev boards).** Put a fully-filled `Spotify-Diy-Thing/data/spotify_diy_config.json` (also accessible as `app/data/spotify_diy_config.json` via symlink) and run `pio run -e cyd2usb_winamp -t uploadfs` from `app/`. Bypasses the portal entirely — wifi must still be configured separately the first time, but creds + refresh token are already there.
+2. **Pre-baked SPIFFS files (preferred for dev boards / scripted re-auth).** Put a fully-filled `app/data/spotify_diy_config.json` and/or `app/data/wifi_creds.json` and run `./run/spiffs push`. Bypasses the portal entirely.
+
+3. **Captive portal (interactive fallback).** First boot or double-press reset within ~10s (`DoubleResetDetector`, `DRD_TIMEOUT=10`, SPIFFS-backed via `ESP_DRD_USE_SPIFFS=true`). Phone joins SSID `SpotifyDIY` / pw `thing123`. **Must use the "Configure WiFi" page**, not "Info" — only the configure page exposes the Client ID / Secret / Refresh Token text fields. If you save from the wifi-only page, those fields are written as empty strings and the OAuth URL renders with `client_id=` blank.
 
 After SPIFFS has client ID + secret but no refresh token, the device enters "Refresh Token Mode" and serves a small auth-helper page on its LAN IP (`refreshToken.h`).
 
@@ -175,18 +177,18 @@ After SPIFFS has client ID + secret but no refresh token, the device enters "Ref
 
 As of Apr 2025 (all apps by Nov 2025), Spotify only accepts redirect URIs that are HTTPS, **except** loopback HTTP: `http://127.0.0.1:PORT/...` or `http://[::1]:PORT/...`. `localhost` and LAN IPs (`http://192.168.x.x/...`) are rejected at dashboard save time. The device's built-in flow uses its LAN IP, so it cannot complete the dashboard side anymore.
 
-Workaround used here: `get_refresh_token.py` (repo root) runs the Authorization Code flow on the host using `http://127.0.0.1:8888/callback/` (must be added to the Spotify app's Redirect URIs), prints the refresh token. Bake that into `Spotify-Diy-Thing/data/spotify_diy_config.json` and run `uploadfs` from `app/`.
+Workaround used here: `get_refresh_token.py` (repo root) runs the Authorization Code flow on the host using `http://127.0.0.1:8888/callback/` (must be added to the Spotify app's Redirect URIs), prints the refresh token. Bake that into `app/data/spotify_diy_config.json` and run `./run/spiffs push spotify_diy_config.json`.
 
 ### Hardcoded station WiFi (bypass captive portal)
 
-`Spotify-Diy-Thing/SpotifyDiyThing/wifi_creds.h` (gitignored) opt-in shim. If present, `WifiManagerHandler.h` sees it via `__has_include` and short-circuits to `WiFi.begin(SSID, PASS)` before falling back to the portal. Format:
+`Spotify-Diy-Thing/SpotifyDiyThing/wifi_creds.h` (gitignored) opt-in shim. If present, `WifiManagerHandler.h` sees it via `__has_include` and short-circuits to `WiFi.begin(SSID, PASS)`. Format:
 
 ```c
 #define HARDCODED_WIFI_SSID "..."
 #define HARDCODED_WIFI_PASS "..."
 ```
 
-Reflash app to apply (creds compile in). On connect timeout (30s) it falls through to the normal WiFiManager portal flow.
+Reflash app to apply (creds compile in). Priority chain: `wifi_creds.h` (highest) → SPIFFS `/wifi_creds.json` (PATCH-003, written by `./run/setup`) → WiFiManager captive portal. Each level falls through to the next on timeout or missing file.
 
 
 ### Touch input (CYD)

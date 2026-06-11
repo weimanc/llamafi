@@ -88,7 +88,7 @@ Port is resolved automatically. Override: `PORT=/dev/ttyUSB1 ./run/flash`.
 
 ### 3b. SPIFFS only (credentials)
 
-SPIFFS is a separate partition — reflashing firmware does NOT touch it, and `uploadfs` does NOT touch firmware.
+SPIFFS is a separate partition — reflashing firmware does NOT touch it, and SPIFFS writes do NOT touch firmware.
 
 ```sh
 # Populate app/data/ first, then:
@@ -213,6 +213,6 @@ All tools use the project venv when available. The `run/` scripts source `run/li
 | `SerialException: device reports readiness but returned no data` | Monitor holds the port | `tmux kill-session -t spotify-mon` |
 | `RuntimeError: PRODUCTION FIRMWARE DETECTED` | Debug build not flashed | Flash `cyd2usb_winamp_debug` |
 | DUT stuck in captive portal after test run | Double-reset within 10s | Close port, wait 20s, single physical RST press |
-| `TouchCalStorage: loaded` missing from boot log | No `/cal.json` on SPIFFS | Run CalibrationFlow in settings, or `uploadfs` with a pre-baked file |
+| `TouchCalStorage: loaded` missing from boot log | No `/cal.json` on SPIFFS | Run CalibrationFlow in settings, or `./run/spiffs push cal.json` with a pre-baked file |
 | Touch maps to wrong position on right side | Old calibration (pre-fix) in SPIFFS | Open Settings → Touch Calibration → Start, redo 4 corners |
 | Flash fails with permission error | User not in `dialout` group | `sudo usermod -aG dialout $USER` then re-login |

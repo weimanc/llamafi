@@ -634,12 +634,10 @@ Work:
 
 ### M-SETUP-WIZARD — `run/setup` first-time credential wizard
 
-Single terminal wizard replacing the manual `wifi_creds.h` edit and bare `get_refresh_token.py` invocation. User selects WiFi, Spotify, or both. WiFi section writes `wifi_creds.h` and offers `./run/flash`; Spotify section runs OAuth and writes `spotify_diy_config.json`, then offers `./run/flash-fs`. Bare terminal UI — no extra dependencies.
+Single terminal wizard replacing the manual `wifi_creds.h` edit and bare `get_refresh_token.py` invocation. Writes `app/data/wifi_creds.json` (SPIFFS) and `app/data/spotify_diy_config.json`; handles OAuth inline; offers `./run/spiffs push` at the end. PATCH-003 in `WifiManagerHandler.h` reads `/wifi_creds.json` from SPIFFS before falling through to the captive portal (`WiFi.persistent(false)` guards NVS — TASK-167).
 
-Docs to update: `README.md` (collapse steps 4+7 into one), `project_run_scripts.md`, `CLAUDE.md`, `dut_workflow.md` (new §1 first-time setup).
-
-**Status**: not started  
-**Deps**: none  
+**Status**: done (2026-06-11 — commit 463ba0b; TASK-167 fix flashed same session; T-SETUP-07/08/09/10 passing on DUT; E1–E7 verified)
+**Deps**: tooling-002 (run/spiffs)
 **Design:** [M-SETUP-WIZARD.md](../architecture/designs/M-SETUP-WIZARD.md)
 
 ---

@@ -3187,6 +3187,169 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
 
 ---
 
+## Suite: setup-wizard-001 — M-SETUP-WIZARD: run/setup wizard + PATCH-003
+
+### T-SETUP-01 — [M-SETUP-WIZARD] WiFi section writes valid wifi_creds.json
+- **Type**: e2e
+- **Feature(s)**: M-SETUP-WIZARD
+- **Objective**: `run/setup` WiFi section produces a correctly-structured `app/data/wifi_creds.json` with owner-only permissions.
+- **Preconditions**: No existing `app/data/wifi_creds.json`. `run/setup` available and executable.
+- **Steps**:
+  1. Run `./run/setup`, choose option 1 (WiFi only).
+  2. Enter a valid SSID (1–32 chars) and password (≥8 chars, confirmed).
+  3. After wizard completes, inspect `app/data/wifi_creds.json`.
+  4. Check file permissions: `stat -c '%a' app/data/wifi_creds.json`.
+- **Expected result**: File contains `{"ssid": "<entered>", "pass": "<entered>"}`. Permissions `600`.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-SETUP-02 — [M-SETUP-WIZARD] Overwrite guard prompts when wifi_creds.json already exists
+- **Type**: e2e
+- **Feature(s)**: M-SETUP-WIZARD
+- **Objective**: Wizard does not silently overwrite an existing credential file.
+- **Preconditions**: `app/data/wifi_creds.json` already present with known content.
+- **Steps**:
+  1. Note existing file content.
+  2. Run `./run/setup`, choose option 1 (WiFi only).
+  3. When prompted about existing file, choose to keep it.
+  4. Verify file content unchanged.
+  5. Re-run setup, choose to overwrite; enter new values.
+  6. Verify file updated to new values.
+- **Expected result**: Step 3: wizard prints overwrite prompt; on "keep", file unchanged. Step 5: on "overwrite", file updated.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-SETUP-03 — [M-SETUP-WIZARD] Ctrl-C during WiFi section leaves no .tmp file
+- **Type**: e2e
+- **Feature(s)**: M-SETUP-WIZARD
+- **Objective**: KeyboardInterrupt at any prompt leaves no `.tmp` debris and does not write a partial file.
+- **Preconditions**: No existing `app/data/wifi_creds.json`.
+- **Steps**:
+  1. Run `./run/setup`, choose option 1.
+  2. Enter SSID, then press Ctrl-C before password prompt completes.
+  3. Check for `app/data/wifi_creds.json` and `app/data/wifi_creds.json.tmp`.
+- **Expected result**: Neither file exists. Wizard prints "Interrupted — no files written." Exit non-zero.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-SETUP-04 — [M-SETUP-WIZARD] Ctrl-C after file written leaves original intact (overwrite path)
+- **Type**: e2e
+- **Feature(s)**: M-SETUP-WIZARD
+- **Objective**: Atomic write ensures Ctrl-C during a second run leaves the original file intact (`.tmp` + `os.replace()` pattern).
+- **Preconditions**: `app/data/wifi_creds.json` already present with known content (from T-SETUP-01).
+- **Steps**:
+  1. Run `./run/setup`, choose option 1, choose overwrite.
+  2. Enter SSID but press Ctrl-C mid-password.
+  3. Verify original file content unchanged. No `.tmp` file.
+- **Expected result**: Original `wifi_creds.json` content intact. No `.tmp` file.
+- **Harness**: manual. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-SETUP-05 — [M-SETUP-WIZARD] spiffs push offer at end uploads both files non-destructively
+- **Type**: integration
+- **Feature(s)**: M-SETUP-WIZARD
+- **Objective**: End-of-wizard offer runs `./run/spiffs push`; cal.json/settings.json on device are preserved.
+- **Preconditions**: DUT connected. `cal.json` and `settings.json` present on SPIFFS. Both credential files in `app/data/`.
+- **Steps**:
+  1. Snapshot SPIFFS via `./run/spiffs ls` + pull.
+  2. Run `./run/setup`, choose option 3 (both), accept spiffs push offer.
+  3. After completion, snapshot SPIFFS again.
+  4. Compare `cal.json` and `settings.json` byte-for-byte.
+- **Expected result**: `wifi_creds.json` and `spotify_diy_config.json` present on device. `cal.json` and `settings.json` byte-identical to pre-push snapshots.
+- **Harness**: manual + DUT. Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-SETUP-06 — [M-SETUP-WIZARD] Spotify section writes valid spotify_diy_config.json
+- **Type**: e2e
+- **Feature(s)**: M-SETUP-WIZARD
+- **Objective**: `run/setup` Spotify section writes a correctly-structured config with valid field names and chmod 600.
+- **Preconditions**: Valid Spotify Developer app with `http://127.0.0.1:8888/callback/` in Redirect URIs.
+- **Steps**:
+  1. Run `./run/setup`, choose option 2 (Spotify only).
+  2. Enter Client ID and Client Secret.
+  3. Complete OAuth browser flow.
+  4. Inspect `app/data/spotify_diy_config.json` and permissions.
+- **Expected result**: File contains `clientId`, `clientSecret`, `refreshToken` fields (correct case). Permissions `600`. `refreshToken` non-empty.
+- **Harness**: manual (requires real Spotify account + browser). Owner: VE.
+- **Status**: planned.
+
+---
+
+### T-SETUP-07 — [M-SETUP-WIZARD] PATCH-003: firmware reads wifi_creds.json from SPIFFS and connects (E1)
+
+- **Type**: integration
+- **Feature(s)**: M-SETUP-WIZARD, PATCH-003
+- **Objective**: PATCH-003 firmware path — device reads `/wifi_creds.json` from SPIFFS and connects to WiFi without captive portal or compile-time hardcode.
+- **Preconditions**: DUT connected. Firmware built with PATCH-003 (current build). No `wifi_creds.h` present. Valid `app/data/wifi_creds.json` with known-good SSID/pass.
+- **Steps**:
+  1. Ensure `wifi_creds.h` does not exist: `ls Spotify-Diy-Thing/SpotifyDiyThing/wifi_creds.h` → not found.
+  2. Push credentials: `./run/spiffs push wifi_creds.json`.
+  3. Flash current firmware: `./run/flash`.
+  4. Monitor boot log: `./run/monitor-read 100`.
+- **Expected result**: Boot log contains `[wifi] Connecting from SPIFFS: <ssid>` followed by `WL_CONNECTED`. No captive portal launch. Spotify polling begins normally.
+- **Harness**: host-driven (DUT). Owner: VE.
+- **Status**: passing. DUT 2026-06-11. `[wifi] Connecting from SPIFFS: yellowbrickroad` → STA_CONNECTED → STA_GOT_IP → token POST 200, Spotify polling normally.
+
+---
+
+### T-SETUP-08 — [M-SETUP-WIZARD] PATCH-003: compile-time wifi_creds.h still takes priority (E6)
+- **Type**: integration
+- **Feature(s)**: M-SETUP-WIZARD, PATCH-003
+- **Objective**: When `wifi_creds.h` is present, the `#ifdef HARDCODED_WIFI_SSID` branch fires and the SPIFFS path is skipped (`#ifndef HARDCODED_WIFI_SSID` guard).
+- **Preconditions**: DUT connected. `wifi_creds.json` on SPIFFS with a **different** SSID than `wifi_creds.h`.
+- **Steps**:
+  1. Create `Spotify-Diy-Thing/SpotifyDiyThing/wifi_creds.h` with real SSID/PASS.
+  2. Push a `wifi_creds.json` with a fake/different SSID via `./run/spiffs push wifi_creds.json`.
+  3. Rebuild and flash: `./run/build && ./run/flash`.
+  4. Monitor boot log.
+  5. Remove `wifi_creds.h`, rebuild and reflash to restore normal state.
+- **Expected result**: Step 4 boot log: `Connecting to hardcoded SSID <real-ssid>` and `WL_CONNECTED`. No `[wifi] Connecting from SPIFFS:` line — SPIFFS path not entered.
+- **Harness**: host-driven (DUT). Owner: VE.
+- **Status**: passing. DUT 2026-06-11. `Connecting to hardcoded SSID yellowbrickroad` → STA_CONNECTED. No SPIFFS path entered. fake-ssid SPIFFS file ignored.
+
+---
+
+### T-SETUP-09 — [M-SETUP-WIZARD] PATCH-003: SPIFFS fallthrough to portal when wifi_creds.json missing
+- **Type**: integration
+- **Feature(s)**: M-SETUP-WIZARD, PATCH-003
+- **Objective**: When no `wifi_creds.json` exists on SPIFFS and no `wifi_creds.h`, device falls through to WiFiManager portal.
+- **Preconditions**: DUT connected. No `wifi_creds.h`. `wifi_creds.json` removed from SPIFFS.
+- **Steps**:
+  1. Remove `wifi_creds.json` from SPIFFS: `./run/spiffs rm wifi_creds.json`.
+  2. Flash current firmware: `./run/flash`.
+  3. Monitor boot log for portal launch.
+- **Expected result**: Device broadcasts `SpotifyDIY` AP. Boot log does not contain `[wifi] Connecting from SPIFFS:`. Portal launched normally.
+- **Harness**: host-driven (DUT). Owner: VE.
+- **Status**: passing. DUT 2026-06-11. No `[wifi] Connecting from SPIFFS:` in log. WiFiManager.autoConnect() took over; connected via NVS-saved creds (expected on non-fresh device). On a fresh device (no NVS), portal would launch. PATCH-003 bypass confirmed.
+
+---
+
+### T-SETUP-10 — [M-SETUP-WIZARD] PATCH-003: SPIFFS fallthrough to portal when SPIFFS connect fails
+- **Type**: integration
+- **Feature(s)**: M-SETUP-WIZARD, PATCH-003
+- **Objective**: When `wifi_creds.json` exists but credentials are wrong, PATCH-003 falls through to portal gracefully.
+- **Preconditions**: DUT connected. No `wifi_creds.h`. SPIFFS has `wifi_creds.json` with an intentionally wrong password.
+- **Steps**:
+  1. Create `app/data/wifi_creds.json` with correct SSID but wrong password.
+  2. `./run/spiffs push wifi_creds.json`.
+  3. Flash current firmware: `./run/flash`.
+  4. Monitor boot log; wait ~35s for connect timeout.
+- **Expected result**: Boot log: `[wifi] Connecting from SPIFFS: <ssid>`, then dots, then `[wifi] SPIFFS connect failed — falling through to portal.`. Device broadcasts `SpotifyDIY` AP.
+- **Harness**: host-driven (DUT). Owner: VE.
+- **Status**: passing. DUT 2026-06-11. PATCH-003 entered SPIFFS path with bad password; 4WAY_HANDSHAKE_TIMEOUT loop; fell through. Portal launched (`*wm:StartAP with SSID: SpotifyDIY`). Bug found and fixed: `WiFi.persistent(true)` in PATCH-003 wrote bad creds to NVS, causing WiFiManager autoConnect to also fail. Fixed to `WiFi.persistent(false)` (TASK-167).
+
+---
+
 ## Entry Format
 
 ```

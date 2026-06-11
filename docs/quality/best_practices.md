@@ -276,6 +276,16 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-028 — Design doc code snippets intended for direct use must be reviewed for unconditional side effects before implementation
+
+**Adopted from**: LL-065
+**Date adopted**: 2026-06-11
+**Rule**: Any code snippet in a design doc that is likely to be copied verbatim into production must be reviewed for unconditional side effects at design time. If it cannot be reviewed to that standard, annotate it explicitly: *"pseudocode — do not copy; verify side effects at implementation."* The implementer must then treat the snippet as a starting point, not a ready-to-paste solution.
+**Rationale**: The PATCH-003 snippet in `M-SETUP-WIZARD.md` used `WiFi.persistent(true)`. Copied verbatim, this flag writes credentials to NVS unconditionally — before the connection attempt succeeds. A wrong SPIFFS password silently destroyed the device's saved WiFi state. The bug was invisible to build checks and happy-path tests; only a deliberate bad-credentials VE test (T-SETUP-10) caught it. Fix was one word (`false`), but required a recovery flash.
+**Applies to**: Architect (annotate design doc snippets that cannot be fully reviewed at design time), Developer (treat design doc code as a starting point; audit side effects before committing), VE (include an error-path test whenever implementation was driven by a design doc code snippet)
+
+---
+
 ## Entry Format
 
 ```

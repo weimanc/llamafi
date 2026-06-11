@@ -379,4 +379,20 @@ Stale docstring in `app/tools/run_serialdbg_tests.py:23` already fixed (host_ove
 **Status:** done — firmware flashed (2026-06-09); WiFi up, token POST 200, Spotify polls 200/204 no crash. No dnsOverride trace in boot log. Docstring fix previously committed.  
 **Opened:** 2026-06-09  
 **Deps:** none  
-**Owner:** VE  
+**Owner:** VE
+
+---
+
+## Open Tasks — M-SETUP-WIZARD VE follow-up (2026-06-11)
+
+### TASK-167 — Fix PATCH-003: WiFi.persistent(false) to avoid NVS corruption on bad SPIFFS creds
+
+Found during T-SETUP-10 (2026-06-11): PATCH-003 calls `WiFi.persistent(true)` before `WiFi.begin(ssid, pass)`. If `wifi_creds.json` contains a wrong password, the bad credentials are written to NVS. WiFiManager's subsequent `autoConnect()` then also fails (it loads the now-corrupted NVS), causing a 60s delay before the portal instead of ~30s. On a device that previously had valid NVS creds, this silently destroys them.
+
+Fix: change `WiFi.persistent(true)` to `WiFi.persistent(false)` in the PATCH-003 block of `WifiManagerHandler.h`. SPIFFS credentials should be tried transiently — NVS is WiFiManager's responsibility, not PATCH-003's.
+
+**Priority:** P1 — correctness bug; bad SPIFFS creds corrupt device NVS  
+**Status:** done — `WiFi.persistent(false)` applied to PATCH-003 block in `WifiManagerHandler.h` (2026-06-11). Build + DUT verified (T-SETUP-07 re-baseline shows no regression).  
+**Opened:** 2026-06-11  
+**Deps:** none  
+**Owner:** Developer  

@@ -959,7 +959,70 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 - Developer: add `run/spiffs` entry to `feature_inventory.yaml`
 - VE: close T-SPIFFS-11 at next hardware-absent opportunity
 
-**Resolution**: pending Developer inventory updates and T-SPIFFS-11 closure.
+**Resolution**: closed 2026-06-11 — `dev-001` inventory updated (deleted files removed), `tooling-002` entry added with T-SPIFFS-01..12. T-SPIFFS-11 remains deferred (host-only, DUT-disconnected; not a blocker).
+
+---
+
+### Audit — 2026-06-11 — M-SETUP-WIZARD milestone retrospective
+**Triggered by**: PM (post-milestone)
+**Areas checked**:
+- [x] Feature inventory completeness
+- [x] Test coverage per feature
+- [x] Cross-feature test coverage
+- [x] Documentation currency
+
+**Findings**:
+
+1. **GREEN — Exit criteria coverage**: All 7 exit criteria (E1–E7) verified. E1/E6 DUT-confirmed (T-SETUP-07/08 passing). E3/E4/E5/E7 confirmed by implementation review. E2 manually testable only (real Spotify account + browser; permanent manual status, not a gap).
+
+2. **GREEN — Feature inventory**: `setup-wizard-001` entry added this session with full test_ids, cross-feature ref to tooling-002, PATCH-003 file reference. No inventory lag.
+
+3. **GREEN — Documentation currency**: All six doc targets updated in implementation commit (README.md, CLAUDE.md, project_run_scripts.md, dut_workflow.md, get_refresh_token.py, upstream-patches.md). No lag detected.
+
+4. **GREEN — PATCH-003 upstream registration**: Registered in `upstream-patches.md` before implementation, as required by design spec. No process gap.
+
+5. **AMBER — Design doc pseudocode not reviewed as production code**: The PATCH-003 snippet in `M-SETUP-WIZARD.md` used `WiFi.persistent(true)`. This was copied directly into `WifiManagerHandler.h`. The NVS side-effect — that a failed `WiFi.begin()` with `persistent(true)` overwrites NVS with bad credentials — was not caught at design time or implementation time. It was found during VE (T-SETUP-10). Fix was straightforward (`persistent(false)`, TASK-167), but it required an extra DUT cycle and corrupted the test device's NVS during the test. No prior LL or BP covers this pattern.
+
+6. **GREEN — VE process**: T-SETUP suite defined before DUT testing began. Bug found and fixed within the same VE session. Recovery was orderly — no new escalations or additional recovery tasks beyond TASK-167.
+
+7. **GREEN — Safety-property discipline (BP-027)**: PATCH-003 fallthrough claims were tested with both the missing-file case (T-SETUP-09) and the bad-credentials case (T-SETUP-10). BP-027 applied correctly.
+
+**Actions assigned**:
+- QM: present finding 5 (design doc code review) to human as LL candidate.
+
+**Resolution**: closed — one LL candidate (finding 5) presented to human below.
+
+---
+
+### Audit — 2026-06-11 — SETUP consistency sweep (post M-SETUP-WIZARD VE close)
+**Triggered by**: human
+**Areas checked**:
+- [x] Feature inventory completeness
+- [x] Test coverage per feature
+- [x] Cross-feature test coverage
+- [x] Documentation currency
+
+**Findings**:
+
+1. **AMBER → fixed — Roadmap M-SETUP-WIZARD status stale**: Entry read "not started"; description referenced `wifi_creds.h` write and `run/flash-fs`. Both wrong. Updated to "done (2026-06-11)" with correct implementation summary. Fixed this session.
+
+2. **AMBER → fixed — README.md step 9 misrepresented portal as primary path**: "If you did not hardcode WiFi credentials" framed the captive portal as the normal first-boot flow. With PATCH-003, users who ran `./run/setup` connect automatically via SPIFFS. Step 9 rewritten to present SPIFFS as primary, portal as fallback. Fixed this session.
+
+3. **AMBER → fixed — CLAUDE.md "Runtime configuration" omitted `./run/setup`**: Section listed two ways to populate config (portal, raw `pio uploadfs`). `./run/setup` was absent. `pio run ... uploadfs` replaced with `./run/spiffs push`. Updated to three ways with wizard as primary. Fixed this session.
+
+4. **AMBER → fixed — CLAUDE.md "Hardcoded station WiFi" priority chain incomplete**: Described fallback as "compile-time → portal", omitting the SPIFFS intermediate step (PATCH-003). Updated to full chain: `wifi_creds.h` → SPIFFS → portal. Fixed this session.
+
+5. **AMBER → fixed — CLAUDE.md / dut_workflow.md stale `uploadfs` references**: `get_refresh_token.py` "next steps" still said `uploadfs from app/`; dut_workflow.md failure-modes table said `uploadfs with a pre-baked file`; dut_workflow.md §3b said `uploadfs does NOT touch firmware`. All updated to `./run/spiffs push` or genericised. Fixed this session.
+
+6. **GREEN — Test coverage**: T-SETUP-01..10 in test_plan.md. T-SETUP-07..10 passing on DUT. T-SETUP-01..06 correctly marked manual (wizard CLI + OAuth require human interaction). No coverage gaps relative to implemented features.
+
+7. **GREEN — Feature inventory**: `setup-wizard-001` entry present with T-SETUP-01..10 test IDs, cross-feature ref to tooling-002, PATCH-003 file reference. No inventory lag.
+
+8. **GREEN — BP compliance**: BP-027 (safety-property tests) and BP-028 (design doc code review) both applied in this session. LL-065 → BP-028 promoted same session.
+
+**Actions assigned**: all fixed inline (findings 1–5).
+
+**Resolution**: closed — all findings resolved this session.
 
 ---
 
