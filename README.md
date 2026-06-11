@@ -122,8 +122,8 @@ create `Spotify-Diy-Thing/SpotifyDiyThing/wifi_creds.h`:
 Flash the firmware and upload the SPIFFS partition (config file):
 
 ```sh
-./run/flash       # flash firmware
-./run/flash-fs    # upload SPIFFS (config + overrides)
+./run/flash              # flash firmware
+./run/spiffs push        # upload credentials to SPIFFS (non-destructive)
 ```
 
 The board's serial port is detected automatically via USB VID:PID.
@@ -165,7 +165,11 @@ DUT safety automatically.
 |---|---|
 | `./run/build` | Compile production firmware |
 | `./run/flash` | Flash production firmware |
-| `./run/flash-fs` | Upload SPIFFS (config + host overrides) |
+| `./run/spiffs push [file]` | Upload credential file(s) to SPIFFS non-destructively |
+| `./run/spiffs ls` | List files on device |
+| `./run/spiffs pull [file]` | Extract all files → `app/data/spiffs-dump/`, or single file → stdout |
+| `./run/spiffs rm <file>` | Remove a single file from device |
+| `./run/flash-fs` | Full SPIFFS format + rewrite (escape hatch; use `run/spiffs push` instead) |
 | `./run/bake-skin [skin.wsz]` | Bake Winamp skin → `app/gen/` |
 | `./run/monitor-start` | Start serial monitor (tmux) |
 | `./run/monitor-read [N]` | Dump last N lines (default 200) |

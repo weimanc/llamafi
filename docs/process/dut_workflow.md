@@ -86,28 +86,30 @@ Then upload SPIFFS (see §3b). This survives future firmware reflashes.
 
 Port is resolved automatically. Override: `PORT=/dev/ttyUSB1 ./run/flash`.
 
-### 3b. SPIFFS only (credentials / host overrides)
+### 3b. SPIFFS only (credentials)
 
 SPIFFS is a separate partition — reflashing firmware does NOT touch it, and `uploadfs` does NOT touch firmware.
 
 ```sh
 # Populate app/data/ first, then:
-./run/flash-fs
+./run/spiffs push           # non-destructive: updates only files present in app/data/
+./run/spiffs push <file>    # update a single file; all others preserved
 ```
 
-Files in `app/data/` (symlinked from `Spotify-Diy-Thing/data/`):
-- `spotify_diy_config.json` — Spotify keys + refresh token
-- `host_overrides.json` — DNS override table (gitignored; regenerate with `tools/refresh_host_overrides.sh`)
-- `cal.json` — touch calibration (written by CalibrationFlow; do not hand-edit)
-- `settings.json` — app settings (written by SettingsStorage; do not hand-edit)
+`./run/flash-fs` (full format + rewrite) is the escape hatch for a corrupted filesystem — avoid for routine credential updates as it wipes `cal.json` and `settings.json`.
 
-### 3c. When to reflash SPIFFS
+Files in `app/data/` (symlinked from `Spotify-Diy-Thing/data/`):
+- `spotify_diy_config.json` — Spotify keys + refresh token (gitignored)
+- `cal.json` — touch calibration (written by CalibrationFlow at runtime; do not hand-edit)
+- `settings.json` — app settings (written by SettingsStorage at runtime; do not hand-edit)
+- `drd.dat` — double-reset detector state (written at runtime; do not hand-edit)
+
+### 3c. When to update SPIFFS
 
 | Scenario | Action |
 |----------|--------|
-| New Spotify refresh token | Edit `data/spotify_diy_config.json`, `uploadfs` |
-| New DNS overrides | Run `tools/refresh_host_overrides.sh`, `uploadfs` |
-| Wipe calibration | Delete `cal.json` from data/, `uploadfs` |
+| New Spotify refresh token | Edit `data/spotify_diy_config.json`, `./run/spiffs push spotify_diy_config.json` |
+| Wipe calibration | `./run/spiffs rm cal.json` |
 | Touch calibration via UI | No action — CalibrationFlow writes it at runtime |
 
 ---
