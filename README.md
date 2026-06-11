@@ -38,6 +38,7 @@ WiFi credentials and time zone are configured entirely on the device via touch. 
 - **[witnessmenow/Spotify-Diy-Thing](https://github.com/witnessmenow/Spotify-Diy-Thing)** — the base project this grew out of. Spotify Web API client, CYD display driver, and touch input all originate here.
 - **[Winamp 2.x skin format](https://skins.webamp.org)** — the Winamp Skin Museum and the webamp project were invaluable references for decoding the `.wsz` format and layout.
 - **[POWER-PILL/ASCII-Aquarium](https://github.com/POWER-PILL/ASCII-Aquarium)** — inspiration for the aquarium app.
+- **[Hacktuber](https://www.youtube.com/@Hacktuber)** — the multi-app shell concept originated from Hacktuber's [5in1 Cyber Deck for ESP32 CYD](https://youtu.be/qM6bYuTQb-I). The idea of running multiple apps on a single CYD device, switchable from a launcher, came directly from that project.
 
 ---
 
