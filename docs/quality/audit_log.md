@@ -932,6 +932,37 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 
 ---
 
+### Audit — 2026-06-11 — SPIFFS hygiene + run/spiffs VE (TASK-160–166)
+**Triggered by**: human  
+**Areas checked**:
+- [x] Feature inventory completeness
+- [x] Test coverage per feature
+- [x] Cross-feature test coverage
+- [x] Documentation currency
+
+**Findings**:
+
+- **AMBER — `dev-001` inventory entry stale**: `feature_inventory.yaml` still lists `dnsOverride.h` and `tools/refresh_host_overrides.sh` under `dev-001`. Both were deleted by TASK-160 (commit `6a5b858`). Owner: Developer — update files list and description.
+
+- **AMBER — `run/spiffs` unregistered**: The new SPIFFS manager has no `feature_inventory.yaml` entry despite having a 12-test VE suite and a blocking relationship to M-SETUP-WIZARD. Precedent set by `tooling-001` (smoke_test.sh). Owner: Developer — add inventory entry with `test_ids: [T-SPIFFS-01..T-SPIFFS-12]`.
+
+- **GREEN — Test coverage**: T-SPIFFS-01–10 and T-SPIFFS-12 passing. T-SPIFFS-11 correctly deferred (requires DUT disconnected). No coverage gaps on the verified feature set.
+
+- **GREEN — Cross-feature interactions**: M-SETUP-WIZARD ↔ run/spiffs inconsistency (ESCALATION-SETUP-2) corrected by TASK-164. No remaining cross-feature gaps in this work batch.
+
+- **GREEN — Documentation currency**: `CLAUDE.md`, `project_run_scripts.md`, `M-SETUP-WIZARD.md`, `tasks.md`, `test_plan.md` all updated within the session. No doc lag detected.
+
+- **RED — TASK-161 premature closure (process incident)**: TASK-161 was closed by an LLM agent with "ls confirmed 5 files." The feature's primary claim is non-destruction — that claim was never tested at closure. The EXIT trap defect (monitor left dead on `set -e` failure) also existed at closure and was found only by a subsequent VE challenge review. Three recovery tasks (TASK-163/164/165) were required. Lesson recorded as LL-064.
+
+**Actions assigned**:
+- Developer: update `dev-001` inventory entry (remove deleted files)
+- Developer: add `run/spiffs` entry to `feature_inventory.yaml`
+- VE: close T-SPIFFS-11 at next hardware-absent opportunity
+
+**Resolution**: pending Developer inventory updates and T-SPIFFS-11 closure.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:

@@ -1225,6 +1225,13 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 
 **Status**: adopted — BP-026 (2026-06-08)
 
+### LL-064 — 2026-06-11 — Happy-path smoke test accepted as proof of safety-property claim
+**Context**: TASK-161 (`run/spiffs` non-destructive SPIFFS manager) was closed by an LLM agent after `./run/spiffs ls` returned 5 filenames. The feature's primary claim — that push and rm operations are non-destructive (untargeted files preserved byte-identically) — was never tested. An EXIT trap defect (monitor not restored on implicit `set -e` failure) also existed at closure.  
+**Observation**: A VE challenge review (triggered the same session by human) identified the gap. Three recovery tasks were required: TASK-163 (trap fix), TASK-164 (design doc correction), TASK-165 (full T-SPIFFS suite). All were completed on DUT.  
+**Root cause**: The closing agent treated "happy path exercised" as equivalent to "safety claim verified." The feature spec explicitly used the word "non-destructive" — that word is a testability signal that was not recognised as requiring a preservation test.  
+**Suggested improvement**: When a feature's spec, description, or task body contains a safety-property word (non-destructive, preserving, atomic, idempotent, safe, clean), the VE exit criteria must include at minimum: (1) one test that verifies the property under normal use, and (2) one test that verifies correct behaviour when the target does not exist. A happy-path smoke test does not satisfy a safety-property claim.  
+**Status**: open — BP candidate, awaiting human sign-off
+
 ## Entry Format
 
 ```
