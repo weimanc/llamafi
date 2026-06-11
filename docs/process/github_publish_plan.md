@@ -1,10 +1,54 @@
 # GitHub Publish Plan
 
-> Status: DRAFT  
-> Started: 2026-06-07
+> Status: READY TO PUBLISH  
+> Started: 2026-06-07  
+> Updated: 2026-06-11
 
 Plan for publishing this project to a public GitHub repository. Covers license
 compliance, attribution obligations, and pre-publish checklist.
+
+---
+
+## 5. Publish Strategy
+
+**Project name:** `llamafi`
+
+**History:** Option A — squash to a single commit. No dev history published.
+Future syncs: re-squash and force-push the public repo on each milestone.
+
+**`docs/`:** Published as-is. License scan clean; no sensitive content found.
+
+**Steps:**
+
+```sh
+# 1. Create orphan branch in private repo
+git checkout --orphan llamafi-pub
+git add -A
+git commit -m "feat: initial llamafi release"
+
+# 2. Create the llamafi repo on GitHub (via web UI or gh CLI)
+gh repo create llamafi --public
+
+# 3. Push
+git remote add public https://github.com/weimanchim/llamafi.git
+git push public llamafi-pub:main
+
+# 4. Return to master
+git checkout master
+git branch -D llamafi-pub
+```
+
+Future milestone sync:
+```sh
+git checkout --orphan llamafi-pub
+git add -A
+git commit -m "feat: <milestone name>"
+git push public llamafi-pub:main --force
+git checkout master
+git branch -D llamafi-pub
+```
+
+**After publishing:** delete `docs/process/github_publish_plan.md` from the private repo — internal process doc, not needed once live.
 
 ---
 
@@ -57,8 +101,8 @@ rewrite; it was never committed.
 |---|---|---|
 | `bblanchon/ArduinoJson` | MIT | PlatformIO registry |
 | `bodmer/TFT_eSPI` | MIT | PlatformIO registry |
-| `wnatth3/WiFiManager` | MIT | PlatformIO registry |
-| `khoih-prog/ESP_DoubleResetDetector` | MIT | PlatformIO registry |
+| ~~`wnatth3/WiFiManager`~~ | — | Removed (TASK-168) |
+| ~~`khoih-prog/ESP_DoubleResetDetector`~~ | — | Removed (TASK-168) |
 | `witnessmenow/Seeed_Arduino_NFC` | MIT | GitHub |
 | `bitbank2/JPEGDEC` | Apache 2.0 | PlatformIO registry |
 
@@ -169,14 +213,14 @@ these are snapshots for offline reference.
 | # | Item | Status |
 |---|---|---|
 | 1 | Remove / gitignore `app/skins/base-2.91.wsz` + `app/skins/base-2.91/` | ✅ Done (2026-06-07) |
-| 2 | Update README with skin download instructions | ❌ TODO |
+| 2 | Update README with skin download instructions | ✅ Done (2026-06-07) — README §6 |
 | 3 | Resolve `resource/ASCII_Aquarium/ASCII_Aquarium_CYD.ino` (remove or get license) | ✅ Done (2026-06-07) — removed from git; upstream: https://github.com/POWER-PILL/ASCII-Aquarium |
 | 4 | Delete local `cspot/` directory | ✅ Done (2026-06-07) |
 | 5 | Verify MIT copyright headers intact in `app/lib/SpotifyArduino/src/` | ✅ Done (2026-06-07) — headers present in both `.h` and `.cpp` |
 | 6 | Add top-level `LICENSE` file declaring project's own license | ✅ Done (2026-06-07) — MIT |
 | 7 | Review `.gitignore` — confirm `wifi_creds.h`, `spotify_diy_config.json` excluded | ✅ Done (2026-06-07) — explicit guards added |
 | 8 | Scrub git history for any accidentally committed secrets | ✅ Done (2026-06-07) — no secret files in history; tool files use variable names only |
-| 9 | Run a license scanner (e.g. ScanCode Toolkit) on committed files | ❌ TODO |
+| 9 | Run a license scanner (e.g. ScanCode Toolkit) on committed files | ✅ Done (2026-06-11) — ScanCode 32.5.0 on all committed project files; 6 hits, all expected or false positives (markdown list `(c)` labels); no unlicensed third-party code in tree |
 | 10 | Fix `app/data` broken symlink — points to gitignored `Spotify-Diy-Thing/data/`; new users get a broken symlink on clone. Replace with a real directory or a setup script. | ✅ Done (2026-06-08) — `get_refresh_token.py` detects broken symlink, removes it, creates real dir |
 
 ---

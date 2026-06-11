@@ -1,6 +1,54 @@
-# ESP32 Spotify Display
+# llamafi
 
-A Winamp-style Spotify "now playing" display for the ESP32 Cheap Yellow Display (CYD). Shows track, artist, progress bar, VU meter, playlist, and playback controls rendered with a classic Winamp 2.x skin.
+A Winamp-style Spotify "now playing" display for the ESP32 Cheap Yellow Display (CYD), with a multi-app shell that keeps things interesting between tracks.
+
+> Vibecoded with [Claude Code](https://claude.ai/code) 🦙
+
+---
+
+## What's inside
+
+### Spotify — the main event
+
+The Spotify app renders a pixel-faithful Winamp 2.x skin on the CYD's 320×240 display. Bake any `.wsz` skin you like and it shows up on hardware. Track title, artist, album art region, progress bar, playlist panel, and a synthesised VU meter that bounces to the music envelope. Full playback controls via touch — play/pause, next, previous, seek, volume slider. Position interpolates smoothly between ~1 Hz Spotify polls so the seek bar feels live.
+
+### Multi-app shell
+
+Eight more apps live alongside Spotify, switchable via a scrolling taskbar:
+
+| App | What it does |
+|---|---|
+| **Clock** | Full-screen clock |
+| **Weather** | Current conditions + forecast |
+| **Crypto** | Cryptocurrency price ticker |
+| **Stock** | Stock quotes, line charts, and a heatmap view |
+| **Matrix** | Matrix rain effect |
+| **Life** | Conway's Game of Life |
+| **Aquarium** | ASCII aquarium with fish, bubbles, and a crab |
+| **Settings** | On-device WiFi setup, display brightness, time zone, and more |
+
+### Settings — on device, no portal
+
+WiFi credentials and time zone are configured entirely on the device via touch. No captive portal, no phone app. The settings app has a city picker (78 cities), LDR-based auto-brightness calibration, and a scrollable app registry.
+
+---
+
+## Inspiration
+
+- **[witnessmenow/Spotify-Diy-Thing](https://github.com/witnessmenow/Spotify-Diy-Thing)** — the base project this grew out of. Spotify Web API client, CYD display driver, and touch input all originate here.
+- **[Winamp 2.x skin format](https://skins.webamp.org)** — the Winamp Skin Museum and the webamp project were invaluable references for decoding the `.wsz` format and layout.
+- **[POWER-PILL/ASCII-Aquarium](https://github.com/POWER-PILL/ASCII-Aquarium)** — inspiration for the aquarium app.
+
+---
+
+## Where the time went
+
+Most of the development effort went into four areas:
+
+- **Winamp display** — skin baking pipeline (`.wsz` → C arrays), pixel-perfect sprite atlas, layout engine, VU meter synthesis, and the full touch hit-zone map.
+- **Aquarium** — demoscene-style optimisation to hit smooth framerates on ESP32 PSRAM, plus a procedurally animated crab creature.
+- **Stock app** — async data fetching, candlestick/line chart renderer, and a portfolio heatmap.
+- **Settings** — on-device WiFi connect flow (scan → keyboard → connect), LDR auto-brightness calibration, city picker with UTC offset column, and the on-screen keyboard widget used across the whole shell.
 
 ---
 
@@ -43,8 +91,8 @@ sudo apt install imagemagick   # Debian/Ubuntu
 ### 2. Clone
 
 ```sh
-git clone https://github.com/your-username/your-repo.git
-cd your-repo
+git clone https://github.com/weimanc/llamafi.git
+cd llamafi
 ```
 
 ---
@@ -93,7 +141,7 @@ the device in one step.
 
 ---
 
-### 6. Get a Winamp skin
+### 5. Get a Winamp skin
 
 The Winamp base skin is not included (licensing). Download any Winamp 2.x `.wsz`
 skin and place it at `app/skins/`:
@@ -117,7 +165,7 @@ Then bake the skin into C arrays for the firmware:
 
 ---
 
-### 7. Flash
+### 6. Flash
 
 Flash the firmware and upload the SPIFFS partition (config file):
 
@@ -131,25 +179,24 @@ Override with `PORT=/dev/ttyUSB1 ./run/flash` if needed.
 
 ---
 
-### 9. First boot — WiFi
+### 7. First boot — WiFi
 
 If you ran `./run/setup` and accepted the spiffs push offer, the device reads
 `wifi_creds.json` from SPIFFS and connects automatically — no portal needed.
 
 If WiFi credentials are not configured (fresh device, no `wifi_creds.json` on
-SPIFFS, no `wifi_creds.h`), the device falls back to a captive portal:
+SPIFFS, no `wifi_creds.h`), the device opens the WiFi Settings screen
+automatically on boot:
 
-1. The device broadcasts a hotspot: **SSID `SpotifyDIY`**, password `thing123`.
-2. Connect your phone to it.
-3. A captive portal opens — tap **"Configure WiFi"** (not "Info").
-4. Enter your WiFi SSID and password and save.
-
-The device connects, loads the Spotify config from SPIFFS, and starts displaying
-the currently playing track.
+1. A list of nearby networks appears on the display.
+2. Tap a network name to select it.
+3. For a password-protected network, an on-screen keyboard appears — type the
+   password and confirm.
+4. The device connects and starts displaying the currently playing track.
 
 ---
 
-### 10. Monitor serial output
+### 8. Monitor serial output
 
 ```sh
 ./run/monitor-start          # start serial monitor in a tmux session

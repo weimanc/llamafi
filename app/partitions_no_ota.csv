@@ -1,0 +1,14 @@
+# Custom partition table — drops the OTA `app1` slot to give app0 the
+# combined 2.56 MB. Per tasks.md TASK-035: hit the M-CHROME tier-2 flash
+# wall when adding the SHUFREP atlas + shuffle/repeat overrides; the
+# default 1.28 MB app0 was too tight (firmware.bin overflowed app0 by
+# ~2.6 KB and the loader bootlooped). We don't OTA, so app1 is dead
+# weight. SPIFFS + coredump kept at their original offsets so existing
+# user data + nvs + otadata partitions remain unchanged.
+#
+# Name,    Type, SubType,  Offset,   Size,    Flags
+nvs,       data, nvs,      0x9000,   0x5000,
+otadata,   data, ota,      0xe000,   0x2000,
+app0,      app,  ota_0,    0x10000,  0x280000,
+spiffs,    data, spiffs,   0x290000, 0x160000,
+coredump,  data, coredump, 0x3F0000, 0x10000,
