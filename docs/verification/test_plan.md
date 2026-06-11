@@ -3376,7 +3376,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
   4. Type the correct password, press OK.
   5. Screen transitions to CONNECTING (spinner + SSID name).
   6. Wait ≤15 s.
-- **Expected result**: CONNECTING transitions to Spotify app (connected). Serial shows `IP address:`. WiFi section closed.
+- **Expected result**: CONNECTING transitions to STATUS (connected info: SSID + IP). Serial shows `IP address:`. User navigates away manually (no auto-navigate to Spotify app — TASK-169).
 - **Harness**: manual DUT. Owner: VE.
 - **Status**: passing. DUT 2026-06-11. Keyboard appeared on encrypted tap; correct password submitted; `wifi=rssi(-61)` in heartbeat; Spotify polling live. Note: scan uses synchronous `WiFi.scanNetworks(false)` — async scan was cancelled by concurrent Spotify task socket calls on same core.
 

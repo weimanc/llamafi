@@ -47,7 +47,7 @@ Create `Spotify-Diy-Thing/SpotifyDiyThing/wifi_creds.h` (gitignored, highest pri
 #define HARDCODED_WIFI_SSID "YourSSID"
 #define HARDCODED_WIFI_PASS "YourPass"
 ```
-Rebuild and reflash. Fallback: SPIFFS `/wifi_creds.json` (written by `run/setup`), then captive portal.
+Rebuild and reflash. Fallback: NVS (saved by prior connect), then SPIFFS `/wifi_creds.json` (written by `run/setup`), then WiFi settings UI on device.
 
 **WiFi — on-device settings UI:**
 If no credentials are found at boot (no `wifi_creds.json`, no NVS entry), the device
@@ -212,7 +212,7 @@ All tools use the project venv when available. The `run/` scripts source `run/li
 |---------|-------|-----|
 | `SerialException: device reports readiness but returned no data` | Monitor holds the port | `tmux kill-session -t spotify-mon` |
 | `RuntimeError: PRODUCTION FIRMWARE DETECTED` | Debug build not flashed | Flash `cyd2usb_winamp_debug` |
-| DUT stuck in captive portal after test run | Double-reset within 10s | Close port, wait 20s, single physical RST press |
+| DUT opens WiFi settings unexpectedly after test run | NVS credentials were cleared or not written | Re-enter credentials via on-device WiFi settings UI, or `./run/spiffs push wifi_creds.json` |
 | `TouchCalStorage: loaded` missing from boot log | No `/cal.json` on SPIFFS | Run CalibrationFlow in settings, or `./run/spiffs push cal.json` with a pre-baked file |
 | Touch maps to wrong position on right side | Old calibration (pre-fix) in SPIFFS | Open Settings → Touch Calibration → Start, redo 4 corners |
 | Flash fails with permission error | User not in `dialout` group | `sudo usermod -aG dialout $USER` then re-login |

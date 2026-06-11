@@ -1026,6 +1026,45 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 
 ---
 
+### Audit — 2026-06-11 — M-SETTINGS-WIFI-P2 (TASK-168)
+
+**Triggered by**: human (post-milestone QM request).
+
+**Scope**: M-SETTINGS WiFi Phase 2 — WiFiManager/DRD removal + on-device connect UI. Commits since `463ba0b` (M-SETUP-WIZARD) to `ddf6433` (M-SETTINGS-WIFI-P2 close). Files: `app/src/main.cpp`, `app/src/settings/wifiSection.h`, `app/platformio.ini`, upstream-patches (disk-only), docs.
+
+**Areas checked**:
+- [x] Implementation completeness vs TASK-168 spec
+- [x] DUT verification coverage (T-WIFI-P2 suite)
+- [x] Documentation currency (CLAUDE.md, dut_workflow.md, test_plan.md, tasks.md, roadmap.md)
+- [x] Bug introduced and fixed (async scan root cause)
+- [x] BP / LL recurrence
+
+**Findings**:
+
+1. **AMBER → fixed — CLAUDE.md §Runtime configuration: WiFiManager NVS reference**: Line 159 said "written by WiFiManager into ESP32 NVS". Updated to "written by `WiFi.begin()` into ESP32 NVS on intentional user connect via on-device WiFi settings UI". Also removed stale `WM_CLIENT_ID_LABEL` / `WifiManagerHandler.h:9` sentence. Fixed this session.
+
+2. **AMBER → fixed — CLAUDE.md §Runtime configuration: captive portal option**: Method 3 described the full captive portal flow (DRD, SSID `SpotifyDIY`, `ESP_DRD_USE_SPIFFS=true`, "Configure WiFi" page caveat). Replaced with on-device WiFi settings UI description. Fixed this session.
+
+3. **AMBER → fixed — CLAUDE.md §Hardcoded station WiFi: section heading + priority chain**: Heading said "bypass captive portal"; body referenced `WifiManagerHandler.h`; priority chain ended "→ WiFiManager captive portal". Updated heading, body reference (`main.cpp`), and chain (NVS + WiFi settings UI). Fixed this session.
+
+4. **AMBER → fixed — dut_workflow.md §1 WiFi compile-time fallback**: Line 50 said "then captive portal". Updated to "then WiFi settings UI on device". Fixed this session.
+
+5. **AMBER → fixed — dut_workflow.md §7 failure table**: Row "DUT stuck in captive portal after test run" with DRD-specific cause/fix. Replaced with WiFi settings UI equivalent. Fixed this session.
+
+6. **AMBER → fixed — test_plan.md T-WIFI-P2-02 expected result**: Said "CONNECTING transitions to Spotify app (connected). WiFi section closed." — wrong on both counts. Actual: transitions to STATUS (connected info). User navigates manually. Fixed this session; TASK-169 filed for the UX gap.
+
+7. **GREEN — Build gate clean**: `./run/check` passed all 5 gates post-implementation.
+
+8. **GREEN — DUT verification coverage**: T-WIFI-P2-01..06 all passing (2026-06-11). Covers: boot-to-settings nav, encrypted connect, wrong password, NVS persist across reboot, forget-network, open network.
+
+9. **BP CANDIDATE — synchronous WiFi scan when Spotify task running**: `WiFi.scanNetworks(async=true)` is silently cancelled by concurrent `WiFiClientSecure::connect()` calls from the Spotify FreeRTOS task when both are pinned to core 1. Use synchronous scan (`WiFi.scanNetworks(false)`) in this architecture. Presenting to human for BP promotion.
+
+**Actions assigned**: findings 1–6 fixed inline. TASK-169 filed (finding 6 UX gap). BP candidate 9 presented to human.
+
+**Resolution**: closed — all doc findings resolved this session. TASK-169 open for UX follow-up.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:

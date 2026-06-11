@@ -421,4 +421,13 @@ Changes:
 **Status:** done — build PASS + DUT verified (2026-06-11). T-WIFI-P2-01..06 all passing. Bug found and fixed: async `WiFi.scanNetworks()` cancelled by concurrent Spotify task socket calls on same core; switched to synchronous scan.  
 **Opened:** 2026-06-11  
 **Deps:** TASK-167, TASK-161  
+
+### TASK-169 — UX: auto-navigate to previous app after successful WiFi connect
+
+After a successful WiFi connect in WifiSection (`_startConnect()` → RESULT state shows success), the user must navigate back manually. The device should automatically return to the app that was active before Settings was opened (or to the Spotify app if navigating from boot).
+
+**Priority:** P2 — UX improvement; device is functional without it  
+**Status:** open  
+**Opened:** 2026-06-11  
+**Deps:** TASK-168  
 **Owner:** Developer  
