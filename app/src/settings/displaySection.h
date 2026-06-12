@@ -21,7 +21,7 @@ public:
         repaint();
     }
 
-    void tick() override {
+    SectionResult tick() override {
         if (millis() - _ldrUpdateMs >= 500) {
             _ldrUpdateMs = millis();
             int16_t fresh = (int16_t)analogRead(LDR_PIN);
@@ -38,6 +38,7 @@ public:
                 ledcWrite(TFT_LEDC_CHANNEL, (uint32_t)duty);
             }
         }
+        return SectionResult::Continue;
     }
 
     void repaint() override {

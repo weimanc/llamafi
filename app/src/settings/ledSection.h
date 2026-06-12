@@ -122,7 +122,7 @@ public:
         g_ledFlow.resume();
     }
 
-    void tick() override {}   // LedFlow drives animation; picker live-previews on drag
+    SectionResult tick() override { return SectionResult::Continue; }   // LedFlow drives animation; picker live-previews on drag
 
     void repaint() override {
         drawHeader();

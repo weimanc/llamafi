@@ -203,7 +203,7 @@ public:
         _step = CalStep::Idle;
     }
 
-    void tick() override {
+    SectionResult tick() override {
         if (_step == CalStep::Saving) {
             TouchCalStorage::save(_pending);
             g_calData   = _pending;
@@ -212,6 +212,7 @@ public:
             _step       = CalStep::Idle;
             repaint();
         }
+        return SectionResult::Continue;
     }
 
     // True while the cal section owns the screen (Idle through Saving).

@@ -24,8 +24,8 @@ public:
         else          _repaintAppRows();
     }
 
-    void tick() override {
-        if (_editPhase != StockEditPhase::Validating) return;
+    SectionResult tick() override {
+        if (_editPhase != StockEditPhase::Validating) return SectionResult::Continue;
         dataTask::StockChartResult r;
         if (dataTask::pollStockChart(&r)) {
             if (r.ok && r.len > 0) {
@@ -41,6 +41,7 @@ public:
             _editPhase = StockEditPhase::Error;
             repaint();
         }
+        return SectionResult::Continue;
     }
 
     bool isValidating() const { return _editPhase == StockEditPhase::Validating; }

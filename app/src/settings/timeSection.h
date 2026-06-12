@@ -19,7 +19,7 @@ public:
     }
 
     void leave() override {}
-    void tick()  override {}
+    SectionResult tick() override { return SectionResult::Continue; }
 
     void repaint() override {
         drawHeader();

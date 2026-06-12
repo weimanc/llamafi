@@ -75,17 +75,23 @@ public:
         }
     }
 
-    void tick() override {
+    SectionResult tick() override {
         // Scanning: synchronous scan runs in _startScan(); tick() is a no-op here.
-        if (_step == WifiStep::Scanning) return;
+        if (_step == WifiStep::Scanning) return SectionResult::Continue;
+
+        if (_navHomeAt && millis() >= _navHomeAt) {
+            _navHomeAt = 0;
+            return SectionResult::NavigateHome;
+        }
 
         if (_step == WifiStep::Connecting) {
             wl_status_t st = WiFi.status();
             if (st == WL_CONNECTED) {
                 _connectOk = true;
                 _step      = WifiStep::Status;
+                _navHomeAt = millis() + 1500;  // show "Connected: Yes" briefly, then return
                 repaint();
-                return;
+                return SectionResult::Continue;
             }
             if (millis() - _connectStart > 15000 ||
                 st == WL_CONNECT_FAILED || st == WL_NO_SSID_AVAIL) {
@@ -95,6 +101,7 @@ public:
                 repaint();
             }
         }
+        return SectionResult::Continue;
     }
 
     void repaint() override {
@@ -152,6 +159,7 @@ private:
     // Phase 2
     char          _pendingSsid[33]  = {};
     unsigned long _connectStart     = 0;
+    unsigned long _navHomeAt        = 0;    // non-zero: millis() target to auto-return after connect
     wl_status_t   _failReason       = WL_IDLE_STATUS;
     bool          _connectOk        = false;
 

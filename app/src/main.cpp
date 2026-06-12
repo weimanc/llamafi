@@ -838,7 +838,14 @@ public:
 
   void tick() override {
     if (_activeSection) {
-      _activeSection->tick();
+      SectionResult tr = _activeSection->tick();
+      if (tr == SectionResult::NavigateHome) {
+        _activeSection->leave();
+        _activeSection = nullptr;
+        _s.section = -1;
+        switchApp(g_previousAppId);
+        return;
+      }
       if (_activeSection == &_cal && _cal.justSaved()) {
         _cal.clearJustSaved();
         ts.setCalibration(g_calData.xMin, g_calData.xMax,

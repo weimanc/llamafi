@@ -534,7 +534,8 @@ Extend the `volatile int8_t` progress pattern to three remaining fetch functions
 After a successful WiFi connect in WifiSection (`_startConnect()` → RESULT state shows success), the user must navigate back manually. The device should automatically return to the app that was active before Settings was opened (or to the Spotify app if navigating from boot).
 
 **Priority:** P2 — UX improvement; device is functional without it  
-**Status:** open  
+**Status:** done — 2026-06-12. 1.5 s auto-navigate after connect: `_navHomeAt` timer in `WifiSection::tick()` returns `SectionResult::NavigateHome`; SettingsApp dispatches to `switchApp(g_previousAppId)`. `tick()` base signature changed to `SectionResult` across all 6 section subclasses.  
 **Opened:** 2026-06-11  
+**Closed:** 2026-06-12  
 **Deps:** TASK-168  
 **Owner:** Developer  

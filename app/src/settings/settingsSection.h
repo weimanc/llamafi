@@ -71,8 +71,9 @@ struct SettingsRow {
 // ============================================================================
 
 enum class SectionResult : uint8_t {
-    Continue,   // stay in this section
-    GoBack,     // SettingsApp should pop this section
+    Continue,       // stay in this section
+    GoBack,         // SettingsApp should pop this section
+    NavigateHome,   // exit Settings entirely and return to g_previousAppId
 };
 
 // ============================================================================
@@ -88,8 +89,8 @@ public:
     virtual void leave()  {}
 
     // Called each shell tick (for spinner, live sensor readout, etc.).
-    // Override only if the section needs periodic updates.
-    virtual void tick()   {}
+    // Return NavigateHome to exit Settings and return to the previous app.
+    virtual SectionResult tick() { return SectionResult::Continue; }
 
     // Called on every touch event (Press / Move / Release) inside the 275×240 canvas.
     // Must return GoBack if the section wants to dismiss itself (typically on back tap).
