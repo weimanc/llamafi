@@ -83,4 +83,13 @@ bool pollHeatmapQuote(HeatmapQuoteResult *out);
 void configureStockTickers(const char tickers[8][8]);
 void configureCrypto(const char ids[6][16], const char* ccy);
 
+// Live progress indicators — safe to read from any core without locking.
+// -1 = idle (function not running), 0..N = step currently in progress.
+// stockQuoteProgress: ticker index 0-7 currently being fetched.
+// weatherFetchPhase / cryptoFetchPhase / stockChartProgress: 0=TLS, 1=GET, 2=parse.
+int8_t stockQuoteProgress();
+int8_t weatherFetchPhase();
+int8_t cryptoFetchPhase();
+int8_t stockChartProgress();
+
 }  // namespace dataTask

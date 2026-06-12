@@ -2380,6 +2380,26 @@ static void cmdGet(const char *args) {
                   "\"val\":%d,\"last\":true}\n", dataTask::lastCryptoHttpCode());
     return;
   }
+  if (strcmp(args, "stockQuoteProgress") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\","
+                  "\"val\":%d,\"last\":true}\n", (int)dataTask::stockQuoteProgress());
+    return;
+  }
+  if (strcmp(args, "weatherFetchPhase") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherFetchPhase\","
+                  "\"val\":%d,\"last\":true}\n", (int)dataTask::weatherFetchPhase());
+    return;
+  }
+  if (strcmp(args, "cryptoFetchPhase") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"cryptoFetchPhase\","
+                  "\"val\":%d,\"last\":true}\n", (int)dataTask::cryptoFetchPhase());
+    return;
+  }
+  if (strcmp(args, "stockChartProgress") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\","
+                  "\"val\":%d,\"last\":true}\n", (int)dataTask::stockChartProgress());
+    return;
+  }
   if (strcmp(args, "golAlive") == 0) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"golAlive\","
                   "\"count\":%d,\"last\":true}\n", s_golAliveCount);

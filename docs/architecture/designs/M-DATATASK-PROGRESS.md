@@ -1,7 +1,7 @@
 # M-DATATASK-PROGRESS — Live dataTask progress indicators for long-running fetches
 
 > Owner: Architect  
-> Status: design  
+> Status: implemented (TASK-173 + TASK-174, 2026-06-12)  
 > Created: 2026-06-12
 
 ---

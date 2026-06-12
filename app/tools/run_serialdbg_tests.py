@@ -1784,10 +1784,15 @@ def t_wx_05(dut: Dut):
             ready = True
             break
         time.sleep(2.0)
-    _restore_spotify(dut)
     if not ready:
-        fail("T_WX_05", "weatherReady still false after 30 s — dataTask fetch did not complete")
+        r_prog = dut.cmd("get weatherFetchPhase", timeout=3.0)
+        phase = r_prog.get("val") if r_prog.get("ok") else "?"
+        phase_name = _CHART_PHASE_NAMES.get(phase, "idle" if phase == -1 else "unknown")
+        _restore_spotify(dut)
+        fail("T_WX_05", f"weatherReady still false after 30 s — "
+                        f"weatherFetchPhase={phase} ({phase_name})")
         return
+    _restore_spotify(dut)
     pass_("T_WX_05", "weatherReady=true — WeatherApp received live data from dataTask")
 
 
@@ -1895,8 +1900,12 @@ def t_cx_05(dut: Dut):
     if not ready:
         r_code = dut.cmd("get cryptoHttpCode", timeout=3.0)
         http_code = r_code.get("val", "?") if r_code.get("ok") else "?"
+        r_prog = dut.cmd("get cryptoFetchPhase", timeout=3.0)
+        phase = r_prog.get("val") if r_prog.get("ok") else "?"
+        phase_name = _CHART_PHASE_NAMES.get(phase, "idle" if phase == -1 else "unknown")
         _restore_spotify(dut)
-        fail("T_CX_05", f"cryptoReady still false after 30 s — last HTTP code: {http_code}")
+        fail("T_CX_05", f"cryptoReady still false after 30 s — "
+                        f"cryptoFetchPhase={phase} ({phase_name}), HTTP code: {http_code}")
         return
     _restore_spotify(dut)
     pass_("T_CX_05", "cryptoReady=true — CryptoApp received live data from dataTask")
@@ -2019,10 +2028,15 @@ def _stock_quote_ok_count(dut: Dut) -> int:
     return -1
 
 
-def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0) -> bool:
+_CHART_PHASE_NAMES = {0: "TLS/connect", 1: "GET/response", 2: "JSON-parse"}
+
+
+def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0,
+                         test_id: str = "") -> bool:
     """Wait until fetchOkCount advances past `before` — proves a chart fetch completed
     (HTTP + parse), not just that it was enqueued (LL-041). `before` must be snapshotted
-    from fetchOkCount before the triggering tap/command. Returns True on success."""
+    from fetchOkCount before the triggering tap/command. Returns True on success.
+    On timeout prints stockChartProgress phase to aid diagnosis."""
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         try:
@@ -2033,6 +2047,12 @@ def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0) -> bool
         if current > before:
             return True
         time.sleep(1.0)
+    r_prog = dut.cmd("get stockChartProgress", timeout=3.0)
+    phase = r_prog.get("val") if r_prog.get("ok") else "?"
+    phase_name = _CHART_PHASE_NAMES.get(phase, "idle" if phase == -1 else "unknown")
+    prefix = f"[{test_id}] " if test_id else ""
+    print(f"  {prefix}_wait_chart_complete timed out — stockChartProgress={phase} ({phase_name})",
+          flush=True)
     return False
 
 
@@ -2068,6 +2088,9 @@ def t169(dut: Dut):
 
 # ── T170 — Pre-fetch placeholders ─────────────────────────────────────────────
 
+_DEFAULT_TICKERS = ["AAPL", "AMD", "AMZN", "ARM", "GOOG", "META", "MSFT", "NVDA"]
+
+
 def t170(dut: Dut):
     """T170 (L2): quote fetch completes after Stock switch-in; quoteOkCount advances within 65 s."""
     print("T170  Quote fetch completes after switch-in")
@@ -2079,17 +2102,33 @@ def t170(dut: Dut):
     print(f"  [T170] switched to Stock (quoteOkCount={before}); waiting for quote fetch…", flush=True)
     deadline = time.monotonic() + 65.0
     advanced = False
+    last_progress = None
+    last_progress_time = time.monotonic()
     while time.monotonic() < deadline:
         current = _stock_quote_ok_count(dut)
         if current > before:
             advanced = True
             break
+        r_prog = _stock_get(dut, "stockQuoteProgress", timeout=3.0)
+        prog = r_prog.get("val") if r_prog.get("ok") else None
+        if prog != last_progress:
+            last_progress = prog
+            last_progress_time = time.monotonic()
+        elif prog is not None and prog != -1 and time.monotonic() - last_progress_time > 20.0:
+            ticker_name = _DEFAULT_TICKERS[prog] if isinstance(prog, int) and 0 <= prog < 8 else "?"
+            _restore_from_stock(dut)
+            fail("T170", f"stockQuoteProgress stuck at ticker {prog} ({ticker_name}) for >20 s")
+            return
         time.sleep(2.0)
     if not advanced:
+        r_prog = _stock_get(dut, "stockQuoteProgress", timeout=3.0)
+        ticker_idx = r_prog.get("val") if r_prog.get("ok") else "?"
+        ticker_name = _DEFAULT_TICKERS[ticker_idx] if isinstance(ticker_idx, int) and 0 <= ticker_idx < 8 else "?"
         r_ff   = _stock_get(dut, "fetchFailed",    timeout=3.0)
         r_code = _stock_get(dut, "fetchErrorCode", timeout=3.0)
         _restore_from_stock(dut)
         fail("T170", f"quoteOkCount did not advance within 65 s — "
+                     f"stuck on ticker {ticker_idx} ({ticker_name}), "
                      f"fetchFailed={r_ff.get('val')!r} fetchErrorCode={r_code.get('val')!r}")
         return
     _restore_from_stock(dut)

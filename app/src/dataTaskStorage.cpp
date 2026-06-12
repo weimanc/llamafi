@@ -54,6 +54,14 @@ static portMUX_TYPE    s_stockChartMux    = portMUX_INITIALIZER_UNLOCKED;
 static StockChartResult s_stockChartResult;
 static bool             s_stockChartNew   = false;
 
+// Progress indicators — written by Core 0 (dataTask), read by Core 1 (serial handler).
+// volatile int8_t is a single byte; byte writes on Xtensa LX6 are atomic, no lock needed.
+// -1=idle, 0..N-1=phase/step currently in progress.
+static volatile int8_t s_stockQuoteProgress = -1;  // ticker index 0-7 in flight
+static volatile int8_t s_weatherFetchPhase  = -1;  // 0=TLS, 1=GET, 2=parse
+static volatile int8_t s_cryptoFetchPhase   = -1;  // 0=TLS, 1=GET, 2=parse
+static volatile int8_t s_stockChartProgress = -1;  // 0=TLS, 1=GET, 2=parse
+
 static portMUX_TYPE       s_heatmapMux    = portMUX_INITIALIZER_UNLOCKED;
 static HeatmapQuoteResult s_heatmapResult;
 static bool               s_heatmapNew    = false;
@@ -87,6 +95,7 @@ static const char  HEATMAP_URL[] =
 // --- fetch functions ---------------------------------------------------------
 
 static void fetchWeather() {
+    s_weatherFetchPhase = 0;  // TLS + http.begin
     LOG_HEAP("dataTask.weather");
     WiFiClientSecure tls;
     tls.setCACert(OPEN_METEO_ROOT_CA);
@@ -94,8 +103,10 @@ static void fetchWeather() {
     http.useHTTP10(true);   // force Connection:close so http.end() frees TLS
     if (!http.begin(tls, WEATHER_URL)) {
         LOG_W("dataTask.weather", "http.begin failed");
+        s_weatherFetchPhase = -1;
         return;
     }
+    s_weatherFetchPhase = 1;  // GET in flight
     unsigned long t0 = millis();
     int code = http.GET();
     LOG_D("dataTask.weather", "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
@@ -105,6 +116,7 @@ static void fetchWeather() {
     http.end();             // TLS freed here (HTTP/1.0 close)
     LOG_HEAP("dataTask.weather");
     if (code == 200) {
+        s_weatherFetchPhase = 2;  // JSON parse
         DynamicJsonDocument doc(1024);
         DeserializationError err = deserializeJson(doc, body);
         if (!err) {
@@ -123,6 +135,7 @@ static void fetchWeather() {
             LOG_W("dataTask.weather", "JSON parse error: %s", err.c_str());
         }
     }
+    s_weatherFetchPhase = -1;
 }
 
 static void fetchCrypto() {
@@ -149,6 +162,7 @@ static void fetchCrypto() {
     cryptoUrl += ccy;
     cryptoUrl += "&include_24hr_change=true";
 
+    s_cryptoFetchPhase = 0;  // TLS + http.begin
     LOG_HEAP("dataTask.crypto");
     WiFiClientSecure tls;
     tls.setCACert(COINGECKO_ROOT_CA);
@@ -156,9 +170,11 @@ static void fetchCrypto() {
     http.useHTTP10(true);   // force Connection:close so http.end() frees TLS
     if (!http.begin(tls, cryptoUrl)) {
         LOG_W("dataTask.crypto", "http.begin failed");
+        s_cryptoFetchPhase = -1;
         spotifyTask::tlsResume();
         return;
     }
+    s_cryptoFetchPhase = 1;  // GET in flight
     unsigned long t0 = millis();
     int code = http.GET();
     s_cryptoLastCode = code;
@@ -170,6 +186,7 @@ static void fetchCrypto() {
     spotifyTask::tlsResume();
     LOG_HEAP("dataTask.crypto");
     if (code == 200) {
+        s_cryptoFetchPhase = 2;  // JSON parse
         DynamicJsonDocument doc(2048);
         DeserializationError err = deserializeJson(doc, body);
         if (!err) {
@@ -191,6 +208,7 @@ static void fetchCrypto() {
             LOG_W("dataTask.crypto", "JSON parse error: %s", err.c_str());
         }
     }
+    s_cryptoFetchPhase = -1;
 }
 
 static void fetchStockQuote() {
@@ -203,6 +221,7 @@ static void fetchStockQuote() {
     StockQuoteResult r;
     r.ok = true;
     for (int i = 0; i < 8 && r.ok; i++) {
+        s_stockQuoteProgress = (int8_t)i;  // which ticker is currently being fetched
         String url = String(STOCK_URL_BASE) + tickers[i] + "?interval=1d&range=1d";
         WiFiClientSecure tls;
         tls.setCACert(YAHOO_FINANCE_ROOT_CA);
@@ -244,6 +263,7 @@ static void fetchStockQuote() {
         r.prices[i]     = price;
         r.changePct[i]  = (prev != 0.0f) ? (price - prev) / prev * 100.0f : 0.0f;
     }
+    s_stockQuoteProgress = -1;  // idle
     portENTER_CRITICAL_SAFE(&s_stockQuoteMux);
     s_stockQuoteResult = r;
     s_stockQuoteNew    = true;
@@ -268,6 +288,7 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
           (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)          / 1024),
           (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024));
     StockChartResult r;
+    s_stockChartProgress = 0;  // TLS + http.begin
     WiFiClientSecure tls;
     tls.setCACert(YAHOO_FINANCE_ROOT_CA);
     HTTPClient http;
@@ -277,6 +298,7 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
     } else {
         http.addHeader("User-Agent", "Mozilla/5.0");
         http.useHTTP10(true);
+        s_stockChartProgress = 1;  // GET in flight
         unsigned long t0 = millis();
         int code = http.GET();
         LOG_D("dataTask.stock", "chart GET %s range=%s %d elapsed=%lums",
@@ -294,6 +316,7 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
             // the Spotify keep-alive connection. Filter reduces pool to <2 KB.
             // Tree: chart→result[0]→indicators→quote[0]→close, 5 levels × 1 leaf, ~56B min.
             // HOST TEST: test_yahoo_finance_api.py T_SF_06 CHART_MAX_POINTS=110.
+            s_stockChartProgress = 2;  // JSON parse (streaming)
             StaticJsonDocument<128> filter;
             filter["chart"]["result"][0]["indicators"]["quote"][0]["close"] = true;
             StaticJsonDocument<2048> doc;
@@ -327,6 +350,7 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
             }
         }
     }
+    s_stockChartProgress = -1;  // idle
     portENTER_CRITICAL_SAFE(&s_stockChartMux);
     s_stockChartResult = r;
     s_stockChartNew    = true;
@@ -434,6 +458,7 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
                  + "?interval=" + STOCK_INTERVAL_STR[rangeIdx]
                  + "&range="    + STOCK_RANGE_STR[rangeIdx];
     StockChartResult r;
+    s_stockChartProgress = 0;  // TLS + http.begin
     LOG_HEAP("dataTask.stock");
     WiFiClientSecure tls;
     tls.setCACert(YAHOO_FINANCE_ROOT_CA);
@@ -444,6 +469,7 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
     } else {
         http.addHeader("User-Agent", "Mozilla/5.0");
         http.useHTTP10(true);
+        s_stockChartProgress = 1;  // GET in flight
         unsigned long t0 = millis();
         int code = http.GET();
         LOG_D("dataTask.stock", "chart-sym GET %s %d elapsed=%lums",
@@ -452,6 +478,7 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
             r.ok = false; r.errorCode = code;
             http.end();
         } else {
+            s_stockChartProgress = 2;  // JSON parse (streaming)
             StaticJsonDocument<128> filter;
             filter["chart"]["result"][0]["indicators"]["quote"][0]["close"] = true;
             StaticJsonDocument<2048> doc;
@@ -479,6 +506,7 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
             }
         }
     }
+    s_stockChartProgress = -1;  // idle
     portENTER_CRITICAL_SAFE(&s_stockChartMux);
     s_stockChartResult = r;
     s_stockChartNew    = true;
@@ -632,5 +660,10 @@ void configureCrypto(const char ids[6][16], const char* ccy) {
     strlcpy(s_cryptoCcy, ccy, 4);
     portEXIT_CRITICAL_SAFE(&s_cryptoConfigMux);
 }
+
+int8_t stockQuoteProgress() { return s_stockQuoteProgress; }
+int8_t weatherFetchPhase()  { return s_weatherFetchPhase; }
+int8_t cryptoFetchPhase()   { return s_cryptoFetchPhase; }
+int8_t stockChartProgress() { return s_stockChartProgress; }
 
 }  // namespace dataTask

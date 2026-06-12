@@ -488,7 +488,7 @@ Add `volatile int8_t s_stockQuoteProgress` (-1=idle, 0–7=ticker index) to `fet
 4. `run_serialdbg_tests.py` T170 — query `stockQuoteProgress` on timeout; report "stuck on ticker N (SYM)"
 
 **Priority:** P2  
-**Status:** open  
+**Status:** done — 2026-06-12 (build clean, both envs)  
 **Opened:** 2026-06-12  
 **Design:** [M-DATATASK-PROGRESS.md](../architecture/designs/M-DATATASK-PROGRESS.md)  
 **Milestone:** M-DATATASK-PROGRESS  
@@ -507,7 +507,7 @@ Extend the `volatile int8_t` progress pattern to three remaining fetch functions
 3. `fetchStockChart()` — `s_stockChartProgress`; expose as `get stockChartProgress`; update `_wait_chart_complete` failure path (affects T176, T185, T188, T192, T193, T194, T204, T-BUSY-01b, T-CDWN-02)
 
 **Priority:** P2  
-**Status:** open — blocked on TASK-173 (pattern validation)  
+**Status:** done — 2026-06-12 (build clean, both envs)  
 **Opened:** 2026-06-12  
 **Design:** [M-DATATASK-PROGRESS.md](../architecture/designs/M-DATATASK-PROGRESS.md)  
 **Milestone:** M-DATATASK-PROGRESS  
