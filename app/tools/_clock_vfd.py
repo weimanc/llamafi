@@ -364,8 +364,8 @@ class VFDRenderer:
 
     def __init__(self) -> None:
         self._theme_idx  = 0
-        self._bloom_r    = 2.0    # GaussianBlur radius (px)
-        self._bloom_scale = 0.55  # bloom layer intensity multiplier
+        self._bloom_r     = 4.0   # GaussianBlur radius (px)
+        self._bloom_scale = 1.2   # bloom layer intensity multiplier
         self._contrast   = 0      # 0=standard 1=high 2=low
         self._bg         = (0, 5, 18)
         self._font_fb    = _fallback_font(14)
@@ -376,11 +376,11 @@ class VFDRenderer:
         """Return (C_ON, C_OFF, C_DATE)."""
         _, c_on = _THEMES[self._theme_idx]
         if self._contrast == 0:
-            off_f = 0.17
+            off_f = 0.06   # dark gaps — bloom fills them; this is standard VFD look
         elif self._contrast == 1:
-            off_f = 0.0
+            off_f = 0.0    # fully black gaps, maximum bloom contrast
         else:
-            off_f = 0.27
+            off_f = 0.14   # more visible grid, less dramatic bloom
         c_off  = tuple(min(255, int(v * off_f)) for v in c_on)
         c_date = tuple(min(255, int(v * 0.68))  for v in c_on)
         return c_on, c_off, c_date
@@ -469,18 +469,107 @@ class VFDRenderer:
         }
 
 
-# ── standalone test ───────────────────────────────────────────────────────────
+# ── standalone debug ──────────────────────────────────────────────────────────
+
+def _debug_render(r: VFDRenderer, t: _time.struct_time) -> None:
+    """Run render pipeline step-by-step, save all three layers, print pixel probes."""
+    import numpy as np
+
+    C_ON, C_OFF, C_DATE = r._palette()
+
+    # ── Step 1: sharp grid ────────────────────────────────────────────────────
+    sharp = Image.new("RGB", (CANVAS_W, CANVAS_H), r._bg)
+    d     = ImageDraw.Draw(sharp)
+    h1, h2 = t.tm_hour // 10, t.tm_hour % 10
+    m1, m2 = t.tm_min  // 10, t.tm_min  % 10
+    _rasterize_digit(d, h1, _X_H1, DIGIT_TOP_Y, C_ON, C_OFF)
+    _rasterize_digit(d, h2, _X_H2, DIGIT_TOP_Y, C_ON, C_OFF)
+    _rasterize_digit(d, m1, _X_M1, DIGIT_TOP_Y, C_ON, C_OFF)
+    _rasterize_digit(d, m2, _X_M2, DIGIT_TOP_Y, C_ON, C_OFF)
+    _rasterize_colon(d, t.tm_sec % 2 == 0, C_ON, C_OFF)
+
+    # ── Step 2: bloom ─────────────────────────────────────────────────────────
+    bloom_raw   = sharp.filter(ImageFilter.GaussianBlur(radius=r._bloom_r))
+    bloom_scaled = bloom_raw.point(lambda x: int(x * r._bloom_scale))
+
+    # ── Step 3: additive composite ────────────────────────────────────────────
+    out = ImageChops.add(sharp, bloom_scaled)
+
+    # ── save all three layers (3× nearest-neighbour scale) ────────────────────
+    S = 3
+    sz = (CANVAS_W * S, CANVAS_H * S)
+    sharp.resize(sz, Image.NEAREST).save("/tmp/vfd_1_sharp.png")
+    bloom_raw.resize(sz, Image.NEAREST).save("/tmp/vfd_2_bloom_raw.png")
+    bloom_scaled.resize(sz, Image.NEAREST).save("/tmp/vfd_2_bloom_scaled.png")
+    out.resize(sz, Image.NEAREST).save("/tmp/vfd_3_out.png")
+
+    # ── pixel probes ──────────────────────────────────────────────────────────
+    # Pick three meaningful points inside digit H2 (the "0" at x=67):
+    #   A — centre of an active dot  (should be C_ON in sharp, brighter in out)
+    #   B — the 1-px gap between two adjacent active dots  (C_OFF in sharp, lit up by bloom)
+    #   C — background far from any digit  (C_BG in sharp, tiny bloom spill in out)
+
+    # "0" glyph: row 4 of glyph (matrix row 6) is "X.........X"
+    # col 0 of glyph → matrix col 1 → pixel x = _X_H2 + 1*TS = 67+5 = 72
+    # matrix row 6  → pixel y = DIGIT_TOP_Y + 6*TS = 10+30 = 40
+    # Centre of that dot: (72+1, 40+1) = (73, 41)
+    px_A = (73, 41)
+
+    # Gap pixel: one pixel to the right of that dot's right edge
+    # dot right edge at x = 72 + TC - 1 = 75; gap pixel at x = 76
+    px_B = (76, 41)
+
+    # Background pixel far from all digits: bottom-left corner
+    px_C = (10, 220)
+
+    def probe(img, label, px):
+        pixel = img.getpixel(px)
+        g_val = max(pixel)   # max channel = "brightness"
+        return f"  {label} {px}: RGB{pixel}  max={g_val}"
+
+    print("=" * 60)
+    print(f"Bloom params: radius={r._bloom_r}  scale={r._bloom_scale}")
+    print(f"C_ON={C_ON}  C_OFF={C_OFF}  C_BG={r._bg}")
+    print()
+    print("Probe A — centre of active dot (expect C_ON in sharp, ≥C_ON in out):")
+    print(probe(sharp,        "sharp      ", px_A))
+    print(probe(bloom_scaled, "bloom      ", px_A))
+    print(probe(out,          "out        ", px_A))
+    print()
+    print("Probe B — gap pixel beside active dot (expect C_OFF in sharp, lit up in out):")
+    print(probe(sharp,        "sharp      ", px_B))
+    print(probe(bloom_scaled, "bloom      ", px_B))
+    print(probe(out,          "out        ", px_B))
+    print()
+    print("Probe C — background far from digits (expect C_BG in sharp, tiny spill in out):")
+    print(probe(sharp,        "sharp      ", px_C))
+    print(probe(bloom_scaled, "bloom      ", px_C))
+    print(probe(out,          "out        ", px_C))
+    print()
+
+    # ── channel stats via numpy ───────────────────────────────────────────────
+    def stats(img, name):
+        a = np.array(img)
+        return (f"  {name:20s}  "
+                f"min={a.min():3d}  max={a.max():3d}  "
+                f"mean={a.mean():.1f}  "
+                f"nonzero={np.count_nonzero(a):6d} px-channels")
+
+    print("Image stats (all channels):")
+    print(stats(sharp,        "sharp"))
+    print(stats(bloom_raw,    "bloom_raw"))
+    print(stats(bloom_scaled, "bloom_scaled"))
+    print(stats(out,          "out"))
+    print()
+    print("Saved:")
+    print("  /tmp/vfd_1_sharp.png        ← pure rasterized grid, no glow")
+    print("  /tmp/vfd_2_bloom_raw.png    ← blurred grid (before scale)")
+    print("  /tmp/vfd_2_bloom_scaled.png ← blurred grid (after ×scale)")
+    print("  /tmp/vfd_3_out.png          ← final additive composite")
+    print("=" * 60)
+
 
 if __name__ == "__main__":
-    t   = _time.struct_time((2026, 6, 13, 10, 34, 1, 4, 164, 1))
-    r   = VFDRenderer()
-    img = Image.new("RGB", (CANVAS_W, CANVAS_H))
-    r.render(img, t)
-    out = "/tmp/vfd_test.png"
-    img.save(out)
-    # 3× scaled for inspection
-    img.resize((CANVAS_W * 3, CANVAS_H * 3), Image.NEAREST).save("/tmp/vfd_test_3x.png")
-    print(f"VFDRenderer OK  →  {out}  (3x: /tmp/vfd_test_3x.png)")
-    print(f"Digit: {DIGIT_W}×{DIGIT_H} px  stride={TS}  grid={T_COLS}×{T_ROWS}")
-    print(f"Bloom: radius={r._bloom_r}  scale={r._bloom_scale}")
-    print(f"Params: {r.param_dict()}")
+    t = _time.struct_time((2026, 6, 13, 10, 34, 1, 4, 164, 1))
+    r = VFDRenderer()
+    _debug_render(r, t)
