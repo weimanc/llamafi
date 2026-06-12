@@ -342,12 +342,12 @@ class FlipRenderer(ClockRenderer):
 
     def _draw_date(self, draw: ImageDraw.ImageDraw, t: _time.struct_time) -> None:
         cx = 137
-        days   = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        days   = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
-        day_name  = days[t.tm_wday]
-        date_str  = f"{day_name} {t.tm_mday:02d} {months[t.tm_mon]} {t.tm_year + 1900}"
+        day_name  = days[t.tm_wday % 7]
+        date_str  = f"{day_name} {t.tm_mday:02d} {months[t.tm_mon - 1]} {t.tm_year}"
 
         draw.text((cx, 160), day_name,  font=self._font_day,  fill=self._C_TEXT, anchor="mm")
         draw.text((cx, 190), date_str,  font=self._font_date, fill=self._C_TEXT, anchor="mm")
