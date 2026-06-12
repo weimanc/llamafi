@@ -3433,6 +3433,247 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
 
 ---
 
+## Suite: app-settings-wire-001 — M-SETTINGS-APP-WIRE per-app settings wiring (TASK-172)
+
+Full suite: `docs/verification/regression_suite/app-settings-wire-001.md`
+
+**Pre-implementation blockers:** Developer must add `dbgGet` for MatrixApp
+(`matrixColor`, `matrixTickMs`), LifeApp (`lifeColors`, `lifeTickMs`), AquariumApp
+(`aquariumFish`), StockApp (`stockTicker0`–`7`), CryptoApp (`cryptoCoin0`–`5`,
+`cryptoCcy`), and a dataTask fetch log line for crypto. These gate all SERIALDBG
+tests. Visual (MANUAL) tests have no blockers.
+
+### T222 — [app-settings-wire-001] Matrix color propagates on resume
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Feature(s)**: app-settings-wire-001
+- **Objective**: Settings → Applications → Matrix → Color tap changes `_headColor`/`_tailColor`; change visible via `get matrixColor` after switchApp.
+- **Preconditions**: Debug build. `get matrixColor` returns `"green"`.
+- **Steps**: Settings→Applications→Matrix→Color tap×1; exit Settings; `switchApp 4`; `get matrixColor`.
+- **Expected result**: `val == "white"`.
+- **Status**: planned
+
+### T223 — [app-settings-wire-001] Matrix tick interval matches speed setting
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: `_tickMs` reflects slow=40/normal=25/fast=15 ms after resume.
+- **Preconditions**: Default `get matrixTickMs` == `"25"`.
+- **Steps**: Cycle speed to slow; exit; `switchApp 4`; `get matrixTickMs` → `"40"`. Repeat for fast → `"15"`.
+- **Expected result**: Tick intervals 40 / 25 / 15 match slow / normal / fast.
+- **Status**: planned
+
+### T224 — [app-settings-wire-001] Matrix amber color renders on DUT [MANUAL]
+
+- **Type**: integration (DUT, MANUAL)
+- **Objective**: Amber color shows orange/yellow tails, not green.
+- **Preconditions**: Color set to amber via Settings.
+- **Steps**: `switchApp 4`; observe ≥ 5 s.
+- **Expected result**: Falling tails are amber-yellow.
+- **Status**: planned
+
+### T225 — [app-settings-wire-001] Life tick interval matches speed setting
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: `lifeTickMs` reflects slow=200/normal=100/fast=50 ms.
+- **Preconditions**: Default `get lifeTickMs` == `"100"`.
+- **Steps**: Cycle speed fast; exit; `switchApp 5`; `get lifeTickMs` → `"50"`. Cycle slow → `"200"`.
+- **Expected result**: Tick intervals match setting.
+- **Status**: planned
+
+### T226 — [app-settings-wire-001] Life colors=mono propagates to app
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: `lifeColors` dbgGet reflects Setting value after resume.
+- **Preconditions**: Default `get lifeColors` == `"rainbow"`.
+- **Steps**: Settings→Life→Colors tap×1; exit; `switchApp 5`; `get lifeColors`.
+- **Expected result**: `val == "mono"`.
+- **Status**: planned
+
+### T227 — [app-settings-wire-001] Life mono renders single-color cells [MANUAL]
+
+- **Type**: integration (DUT, MANUAL)
+- **Objective**: LifeColors::Mono renders all alive cells in one colour.
+- **Preconditions**: `lifeColors` = mono.
+- **Steps**: `switchApp 5`; observe cells.
+- **Expected result**: All alive cells are single green. No rainbow gradient.
+- **Status**: planned
+
+### T228 — [app-settings-wire-001] Aquarium fish count propagates on resume
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: `_activeFish` changes on resume without full init.
+- **Preconditions**: Default `get aquariumFish` == `"16"`.
+- **Steps**: Settings→Aquarium→Fish count tap×1 (16→4); exit; `switchApp 8`; `get aquariumFish`.
+- **Expected result**: `val == "4"`.
+- **Status**: planned
+
+### T229 — [app-settings-wire-001] Aquarium fish count 4 shows sparse school [MANUAL]
+
+- **Type**: integration (DUT, MANUAL)
+- **Preconditions**: Fish count = 4.
+- **Steps**: `switchApp 8`; observe ≥ 10 s.
+- **Expected result**: ~4 fish visible; sparse.
+- **Status**: planned
+
+### T230 — [app-settings-wire-001] Aquarium fish count 16 shows full school [MANUAL]
+
+- **Type**: integration (DUT, MANUAL)
+- **Preconditions**: Fish count = 16.
+- **Steps**: `switchApp 8`; observe ≥ 10 s.
+- **Expected result**: Dense school of ~16 fish.
+- **Status**: planned
+
+### T231 — [app-settings-wire-001] Aquarium speed slow/fast visually distinct [MANUAL]
+
+- **Type**: integration (DUT, MANUAL)
+- **Objective**: Speed multiplier affects fish swim pace.
+- **Steps**: Observe normal, then fast, then slow. Compare swim pace.
+- **Expected result**: Fast noticeably quicker; slow noticeably slower than normal.
+- **Status**: planned
+
+### T232 — [app-settings-wire-001] Stock: keyboard opens on ticker row tap
+
+- **Type**: integration (DUT, MANUAL+SERIALDBG)
+- **Objective**: Tapping a Ticker row opens KeyboardWidget (UpperAlpha), not a cycle value.
+- **Preconditions**: Settings → Applications → Stock submenu open.
+- **Steps**: `tap 137 41` (Ticker 1 row).
+- **Expected result**: Keyboard canvas renders; prompt "Ticker 1"; current ticker pre-filled.
+- **Status**: planned
+
+### T233 — [app-settings-wire-001] Stock: valid ticker validates and saves [SLOW]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Keyboard → OK → chart validation oracle → `g_settings` updated.
+- **Preconditions**: Ticker 1 = `"AAPL"`.
+- **Steps**: Open keyboard for Ticker 1; type `"TSLA"`; OK; poll `get stockTicker0` ≤ 25 s.
+- **Expected result**: `val == "TSLA"`. Validating screen shown during wait.
+- **Status**: planned
+
+### T246 — [app-settings-wire-001] Stock: invalid ticker shows error screen [SLOW]
+
+- **Type**: integration (DUT, SERIALDBG+MANUAL)
+- **Objective**: Unknown symbol → error screen; g_settings unchanged.
+- **Steps**: Open keyboard; type `"ZZZZZZ"`; OK; wait ≤ 22 s; `get stockTicker0`.
+- **Expected result**: Error screen shown. `val` unchanged (still old ticker).
+- **Status**: planned
+
+### T247 — [app-settings-wire-001] Stock: error retry re-opens keyboard pre-filled [MANUAL]
+
+- **Type**: integration (DUT, MANUAL)
+- **Objective**: Content-area tap on error screen re-opens keyboard with failed symbol.
+- **Steps**: From error screen, tap content area (not back).
+- **Expected result**: Keyboard opens with `"ZZZZZZ"` pre-filled.
+- **Status**: planned
+
+### T248 — [app-settings-wire-001] Stock: ticker change triggers immediate re-fetch [SLOW]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: `StockApp::resume()` detects changed tickers → enqueues quote immediately.
+- **Preconditions**: `Q0 = get quoteOkCount`. Ticker changed to `"TSLA"` via T233.
+- **Steps**: Exit Settings; `switchApp 7`; poll `get quoteOkCount` ≤ 90 s.
+- **Expected result**: `quoteOkCount > Q0`. `fetchFailed == false`.
+- **Status**: planned
+
+### T234 — [app-settings-wire-001] Stock stockMode seeds subView on cold init [REBOOT]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: `init()` uses g_settings.stockMode; verified after reboot.
+- **Steps**: Set Default view to `"chart"`; `reboot`; `switchApp 7`; `get stockSubView`.
+- **Expected result**: `val == "chart"`.
+- **Status**: planned
+
+### T235 — [app-settings-wire-001] Stock resume does not override active session view
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: `resume()` does not re-seed subView from stockMode.
+- **Preconditions**: StockApp in chart view. `g_settings.stockMode == "list"`.
+- **Steps**: `switchApp 6`; `switchApp 7`; `get stockSubView`.
+- **Expected result**: `val == "chart"` (not `"list"`).
+- **Status**: planned
+
+### T236 — [app-settings-wire-001] Crypto coin change updates app state
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: `cryptoCoin0` dbgGet reflects cycled coin after resume.
+- **Preconditions**: Default `get cryptoCoin0` == `"bitcoin"`.
+- **Steps**: Settings→Crypto→Coin 1 tap×1; exit; `switchApp 3`; `get cryptoCoin0`.
+- **Expected result**: `val` is next pool coin (e.g. `"ethereum"`).
+- **Status**: planned
+
+### T237 — [app-settings-wire-001] Crypto currency change updates app state
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Preconditions**: Default `get cryptoCcy` == `"usd"`.
+- **Steps**: Settings→Crypto→Currency tap×1; exit; `switchApp 3`; `get cryptoCcy`.
+- **Expected result**: `val == "eur"`.
+- **Status**: planned
+
+### T238 — [app-settings-wire-001] dataTask fetch log includes coin IDs and currency [SLOW]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: `configureCrypto()` path verified via log line from fetchCrypto().
+- **Preconditions**: Coin 1 = `"dogecoin"`, currency = `"eur"`.
+- **Steps**: `switchApp 3`; monitor serial ≤ 90 s.
+- **Expected result**: Log line contains `"dogecoin"` and `"eur"` (per CHALLENGE-2 requirement).
+- **Status**: planned
+
+### T239 — [app-settings-wire-001] Crypto display shows short name not word ID [MANUAL]
+
+- **Type**: integration (DUT, MANUAL)
+- **Objective**: `cgIdToDisplay("bitcoin")` → `"BTC"` shown in CryptoApp row.
+- **Steps**: `switchApp 3`; observe first row label.
+- **Expected result**: `"BTC"` visible, not `"bitcoin"`.
+- **Status**: planned
+
+### T240 — [app-settings-wire-001] Crypto small-price coin uses 4 decimal places [MANUAL]
+
+- **Type**: integration (DUT, MANUAL)
+- **Objective**: Magnitude-based `formatCryptoPrice()` gives 4 dp for sub-$1 prices.
+- **Preconditions**: At least one coin < $1.00 in the active list.
+- **Steps**: `switchApp 3`; observe price for sub-$1 coin.
+- **Expected result**: 4 decimal places shown (e.g. `"0.4523"`).
+- **Status**: planned
+
+### T241 — [app-settings-wire-001] Settings Cancel restores Matrix color
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Snapshot-restore path covers per-app settings.
+- **Preconditions**: `get matrixColor` == `"green"`.
+- **Steps**: Change color to white; exit to category list; `switchApp 4`; verify white. Re-enter Settings; tap Cancel; `switchApp 4`; `get matrixColor`.
+- **Expected result**: `val == "green"` after cancel.
+- **Status**: planned
+
+### T242 — [app-settings-wire-001] Settings Cancel restores Stock ticker
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Preconditions**: `get stockTicker0` == `"AAPL"`.
+- **Steps**: Change Ticker 1; verify change; Cancel; `switchApp 7`; `get stockTicker0`.
+- **Expected result**: `val == "AAPL"`.
+- **Status**: planned
+
+### T243 — [app-settings-wire-001] Matrix color survives reboot [REBOOT]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Steps**: Set color to white; `reboot`; `switchApp 4`; `get matrixColor`.
+- **Expected result**: `val == "white"`.
+- **Status**: planned
+
+### T244 — [app-settings-wire-001] Stock tickers survive reboot [REBOOT]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Steps**: Change Ticker 1; note value N; `reboot`; `switchApp 7`; `get stockTicker0`.
+- **Expected result**: `val == N`.
+- **Status**: planned
+
+### T245 — [app-settings-wire-001] Crypto currency survives reboot [REBOOT]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Steps**: Set currency to EUR; `reboot`; `switchApp 3`; `get cryptoCcy`.
+- **Expected result**: `val == "eur"`.
+- **Status**: planned
+
+---
+
 ## Entry Format
 
 ```

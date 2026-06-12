@@ -444,6 +444,39 @@ Write `app/tools/gen_taskbar_icons.py` bake script; update `taskbar.h` to use `p
 
 ---
 
+### TASK-172 — M-SETTINGS-APP-WIRE: wire per-app settings to app behaviour
+
+Implement ADR-043. Connect `g_settings` per-app fields to Matrix, Life, Aquarium,
+Stock, and Crypto app behaviour. Nine work items (W1–W9); see design doc.
+
+**Work items:**
+
+| ID | Area | Change | File(s) |
+|----|------|--------|---------|
+| W1 | Matrix | `resume()` seeds `_headColor`/`_tailColor`/`_tickMs`; speed-range in `initMatrixState()` | `main.cpp` |
+| W2 | Life | `resume()` seeds `_tickMs`/color mode; color branch in render/step | `main.cpp` |
+| W3 | Aquarium | `resume()` seeds `_activeFish`/`_speedMult`; loops use `_activeFish` | `aquariumApp.h` |
+| W4 | Stock-settings | Replace `_cycleStock()` with keyboard+validation; `StockEditPhase`; `tick()` polls chart; error+retry | `appsSection.h` |
+| W4b | Stock-app | `init()`/`resume()` seed `_s.tickers` from `g_settings`; re-fetch on change; `hasPendingAsync()` | `main.cpp` |
+| W5 | Stock-dataTask | `configureStockTickers()` + `s_stockTickers` runtime array under spinlock | `dataTask.h`, `dataTaskStorage.cpp` |
+| W6 | Crypto-storage | `cryptoCoins[6][8]→[16]`; defaults to word IDs; load/save updated | `settingsStorage.h`, `settingsStorageStorage.cpp` |
+| W7 | Crypto-app | `cgIdToDisplay()`; `repaintCrypto()` uses it; `init()`/`resume()` call `configureCrypto()` | `main.cpp` |
+| W8 | Crypto-settings | `_cycleCrypto()` pool → word IDs; value column uses `cgIdToDisplay()` | `appsSection.h` |
+| W9 | Crypto-dataTask | `configureCrypto()` + dynamic URL + JSON key from ID + magnitude price format | `dataTask.h`, `dataTaskStorage.cpp` |
+
+**Priority:** P2  
+**Status:** open  
+**Opened:** 2026-06-12  
+**Design:** [M-SETTINGS-APP-WIRE.md](../architecture/designs/M-SETTINGS-APP-WIRE.md)  
+**ADR:** ADR-043 (accepted)  
+**Deps:** M-SETTINGS-001 (done)  
+**Owner:** Developer  
+**VE scope:** T222–T245 (24 tests: 16 SERIALDBG, 6 MANUAL, 5 REBOOT, 2 SLOW)  
+**VE suite:** `docs/verification/regression_suite/app-settings-wire-001.md`  
+**VE pre-implementation blockers:** Developer must implement `dbgGet` for MatrixApp, LifeApp, AquariumApp, StockApp (`stockTicker0–7`), CryptoApp, and a dataTask crypto fetch log line. See suite §Required dbgGet surface.
+
+---
+
 ### TASK-169 — UX: auto-navigate to previous app after successful WiFi connect
 
 After a successful WiFi connect in WifiSection (`_startConnect()` → RESULT state shows success), the user must navigate back manually. The device should automatically return to the app that was active before Settings was opened (or to the Spotify app if navigating from boot).

@@ -364,6 +364,62 @@ Formal touch event pipeline: `Rect` hitbox primitive, debounce activation gate (
 
 ## Outstanding
 
+### M-SETTINGS-APP-WIRE — Wire per-app settings to app behaviour
+
+Connect the five per-app setting groups stored in `g_settings` to the apps that own
+them. Currently the Settings UI saves preferences (Matrix color/speed, Life speed/colors,
+Aquarium fish/speed, Stock tickers/default view, Crypto coins/currency) but every app
+ignores `g_settings` and uses hardcoded defaults.
+
+Scope: Matrix, Life, Aquarium, Stock — pull-on-resume model. Crypto deferred (coin
+symbol→CoinGeckoId mapping + dynamic URL required; separate milestone M-SETTINGS-CRYPTO).
+Stock also requires a `configureStockTickers()` path to `dataTaskStorage.cpp` so the
+network layer fetches the user-configured symbols.
+
+**Status:** not started — design accepted 2026-06-12  
+**Design:** [M-SETTINGS-APP-WIRE.md](../architecture/designs/M-SETTINGS-APP-WIRE.md)  
+**ADR:** [ADR-043](../architecture/decisions/ADR-043.md) (accepted)  
+**Deps:** M-SETTINGS-001 (done)
+
+---
+
+### M-CLOCK-STYLES — Clock style variants + MM position fix
+
+Fix the blinking-colon MM spacing jump and add three new clock face styles
+(Flip, Nixie Tube, VFD) selectable at runtime via Settings > Applications > Clock.
+
+Work:
+0. **Concept phase** — `preview_clock.py` host-side pygame renderer; iterate all
+   four styles interactively (colours, glow, segment geometry, flip timing) before
+   any firmware is written; record approved constants in design doc. Human sign-off
+   required before Phase 3 begins.
+1. **Bug fix** — split digit rendering: draw HH and MM at fixed absolute x positions
+   with separate colon drawn/erased at centre; eliminates the glyph-width shift that
+   causes MM to jump on every blink toggle. Ships independently of concept phase.
+2. **`ClockStyle` enum + storage** — add `enum class ClockStyle : uint8_t` and
+   `ClockStyle clockStyle` to `AppSettings`; default `Digital`; persist via `settings.json`.
+3. **`ClockApp` style dispatch** — replace the flat `drawTime()` with a virtual-style
+   dispatch on `g_settings.clockStyle`; each renderer (`drawDigital`, `drawFlip`,
+   `drawNixie`, `drawVFD`) lives in a self-contained private method block.
+4. **Sub-second tick** — change tick gate from 1 000 ms to 100 ms while a flip
+   animation is in-flight; otherwise 1 000 ms (no regression for non-Flip styles).
+5. **Flip renderer** — per-digit `FlipState` struct; 5-frame split-card animation;
+   Phase 0 approved palette.
+6. **Nixie renderer** — per-digit oval "tube" chrome; outer/inner glow layers;
+   Phase 0 approved colours.
+7. **VFD renderer** — 7-segment primitives (H-bar + V-bar); active / inactive
+   segment colours; Phase 0 approved geometry.
+8. **Settings wiring** — `appRegistry.h`: Clock `configurable=1`; re-run
+   `gen_app_registry.py`; add `_repaintClock` / `_cycleClock` to `appsSection.h`.
+9. **VE suite** — T_CLK_01–14 (style cycle, blink stability, flip animation,
+   Nixie/VFD bounds, settings persistence, app-switch style preservation).
+
+**Status:** not started — design 2026-06-12  
+**Design:** [M-CLOCK-STYLES.md](../architecture/designs/M-CLOCK-STYLES.md)  
+**Deps:** M-SETTINGS-001 (done), M-APP-REGISTRY (done)
+
+---
+
 ### M-SETTINGS-STUB — Settings app navigation shell
 
 Implement the `SettingsApp` navigation skeleton: category list (6 entries with chevron rows),
