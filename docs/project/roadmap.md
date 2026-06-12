@@ -398,7 +398,7 @@ symbol→CoinGeckoId mapping + dynamic URL required; separate milestone M-SETTIN
 Stock also requires a `configureStockTickers()` path to `dataTaskStorage.cpp` so the
 network layer fetches the user-configured symbols.
 
-**Status:** not started — design accepted 2026-06-12  
+**Status:** done (2026-06-12 — TASK-172; W1–W9 all shipped; T-SET-01..08 PASS on DUT)  
 **Design:** [M-SETTINGS-APP-WIRE.md](../architecture/designs/M-SETTINGS-APP-WIRE.md)  
 **ADR:** [ADR-043](../architecture/decisions/ADR-043.md) (accepted)  
 **Deps:** M-SETTINGS-001 (done)
