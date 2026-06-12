@@ -477,6 +477,46 @@ Stock, and Crypto app behaviour. Nine work items (W1–W9); see design doc.
 
 ---
 
+### TASK-173 — M-DATATASK-PROGRESS phase 1: stockQuoteProgress indicator
+
+Add `volatile int8_t s_stockQuoteProgress` (-1=idle, 0–7=ticker index) to `fetchStockQuote()` in `dataTaskStorage.cpp`. Update at the start of each ticker loop iteration. Expose via `dataTask::stockQuoteProgress()` + `get stockQuoteProgress` global serial handler. Update T170 failure path to report the stalled ticker index and name.
+
+**Work items:**
+1. `dataTaskStorage.cpp` — add `s_stockQuoteProgress`; set to ticker index at loop top, -1 on exit
+2. `dataTask.h` — add `int8_t stockQuoteProgress()` declaration
+3. `main.cpp` — add `get stockQuoteProgress` to global serial handler
+4. `run_serialdbg_tests.py` T170 — query `stockQuoteProgress` on timeout; report "stuck on ticker N (SYM)"
+
+**Priority:** P2  
+**Status:** open  
+**Opened:** 2026-06-12  
+**Design:** [M-DATATASK-PROGRESS.md](../architecture/designs/M-DATATASK-PROGRESS.md)  
+**Milestone:** M-DATATASK-PROGRESS  
+**Owner:** Developer  
+**VE scope:** T170 (improved failure message); no new tests required for phase 1
+
+---
+
+### TASK-174 — M-DATATASK-PROGRESS phase 2: fetchWeather, fetchCrypto, fetchStockChart progress indicators
+
+Extend the `volatile int8_t` progress pattern to three remaining fetch functions. Each uses phase values 0=TLS, 1=GET, 2=parse (stream-read for StockChart), -1=idle.
+
+**Work items:**
+1. `fetchWeather()` — `s_weatherFetchPhase`; expose as `get weatherFetchPhase`; update T_WX_05 failure path
+2. `fetchCrypto()` — `s_cryptoFetchPhase`; expose as `get cryptoFetchPhase`; update T_CX_05 failure path
+3. `fetchStockChart()` — `s_stockChartProgress`; expose as `get stockChartProgress`; update `_wait_chart_complete` failure path (affects T176, T185, T188, T192, T193, T194, T204, T-BUSY-01b, T-CDWN-02)
+
+**Priority:** P2  
+**Status:** open — blocked on TASK-173 (pattern validation)  
+**Opened:** 2026-06-12  
+**Design:** [M-DATATASK-PROGRESS.md](../architecture/designs/M-DATATASK-PROGRESS.md)  
+**Milestone:** M-DATATASK-PROGRESS  
+**Deps:** TASK-173  
+**Owner:** Developer  
+**VE scope:** improved failure messages on 10 existing tests; no new tests required
+
+---
+
 ### TASK-169 — UX: auto-navigate to previous app after successful WiFi connect
 
 After a successful WiFi connect in WifiSection (`_startConnect()` → RESULT state shows success), the user must navigate back manually. The device should automatically return to the app that was active before Settings was opened (or to the Spotify app if navigating from boot).
