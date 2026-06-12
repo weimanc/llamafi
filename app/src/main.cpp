@@ -240,12 +240,18 @@ private:
   void drawTime() {
     struct tm t;
     if (!getLocalTime(&t)) return;
-    char tBuf[16];
-    if (t.tm_sec % 2 == 0) snprintf(tBuf, sizeof(tBuf), "%02d:%02d", t.tm_hour, t.tm_min);
-    else                    snprintf(tBuf, sizeof(tBuf), "%02d %02d", t.tm_hour, t.tm_min);
-    tft.setTextDatum(MC_DATUM);
+    char hBuf[4], mBuf[4];
+    snprintf(hBuf, sizeof(hBuf), "%02d", t.tm_hour);
+    snprintf(mBuf, sizeof(mBuf), "%02d", t.tm_min);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.drawString(tBuf, 137, 45, 6);
+    tft.setTextDatum(MR_DATUM);
+    tft.drawString(hBuf, 129, 45, 6);
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor((t.tm_sec % 2 == 0) ? TFT_WHITE : TFT_BLACK, TFT_BLACK);
+    tft.drawString(":", 137, 45, 6);
+    tft.setTextDatum(ML_DATUM);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.drawString(mBuf, 145, 45, 6);
     tft.setTextDatum(TL_DATUM);
   }
   void drawSecondsBar() {
