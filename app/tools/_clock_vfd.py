@@ -273,38 +273,47 @@ _THEMES = [
 
 # ── drawing helpers ───────────────────────────────────────────────────────────
 
-def _dot_time(
-    draw: ImageDraw.ImageDraw,
-    px: int, py: int,
-    active: bool,
-    C_ON: tuple, C_GLOW: tuple, C_OFF: tuple,
-) -> None:
-    """Draw one 4×4 time dot at pixel top-left (px, py)."""
-    if active:
-        draw.rectangle([px - 1, py - 1, px + TC, py + TC], fill=C_GLOW)  # 1-px glow fringe
-        draw.rectangle([px,     py,     px + TC - 1, py + TC - 1], fill=C_ON)
-    else:
-        draw.rectangle([px, py, px + TC - 1, py + TC - 1], fill=C_OFF)
-
-
 def _draw_digit(
     draw: ImageDraw.ImageDraw,
     digit: int,
     dx: int, dy: int,
-    C_ON: tuple, C_GLOW: tuple, C_OFF: tuple,
+    C_ON: tuple, C_G1: tuple, C_G2: tuple, C_G3: tuple, C_OFF: tuple,
 ) -> None:
-    """Render one digit at top-left (dx, dy) using the 13×24 dot matrix."""
-    glyph = _GLYPHS[digit % 10]  # list of 20 ints
+    """Render one digit at top-left (dx, dy) using the 13×24 dot matrix.
+
+    Two-pass: halos first so off-dots don't overwrite neighbouring glow.
+    Three glow layers: C_G1 (1px, brightest) → C_G2 (2px) → C_G3 (3px, dimmest).
+    """
+    glyph = _GLYPHS[digit % 10]
+
+    def _active(mat_row: int, mat_col: int) -> bool:
+        gr = mat_row - 2
+        if not (0 <= gr < 20):
+            return False
+        gc = mat_col - 1
+        if not (0 <= gc < 11):
+            return False
+        return bool(glyph[gr] & (1 << (10 - gc)))
+
+    # Pass 1 — glow halos (outer → inner) for active dots
     for mat_row in range(T_ROWS):
-        gr = mat_row - 2  # map matrix row → glyph row (top 2 = margin)
-        row_bits = glyph[gr] if 0 <= gr < 20 else 0
         for mat_col in range(T_COLS):
-            gc = mat_col - 1  # map matrix col → glyph col (left 1 = margin)
-            active = bool(row_bits & (1 << (10 - gc))) if 0 <= gc < 11 else False
-            _dot_time(draw,
-                      dx + mat_col * TS,
-                      dy + mat_row * TS,
-                      active, C_ON, C_GLOW, C_OFF)
+            if _active(mat_row, mat_col):
+                px = dx + mat_col * TS
+                py = dy + mat_row * TS
+                draw.rectangle([px - 3, py - 3, px + TC + 2, py + TC + 2], fill=C_G3)
+                draw.rectangle([px - 2, py - 2, px + TC + 1, py + TC + 1], fill=C_G2)
+                draw.rectangle([px - 1, py - 1, px + TC,     py + TC    ], fill=C_G1)
+
+    # Pass 2 — cores (active bright, inactive dim)
+    for mat_row in range(T_ROWS):
+        for mat_col in range(T_COLS):
+            px = dx + mat_col * TS
+            py = dy + mat_row * TS
+            if _active(mat_row, mat_col):
+                draw.rectangle([px, py, px + TC - 1, py + TC - 1], fill=C_ON)
+            else:
+                draw.rectangle([px, py, px + TC - 1, py + TC - 1], fill=C_OFF)
 
 
 # ── Font1 date rendering ──────────────────────────────────────────────────────
@@ -342,7 +351,7 @@ def _draw_date_str(
     draw: ImageDraw.ImageDraw,
     text: str,
     x0: int, y0: int,
-    C_ON: tuple, C_GLOW: tuple, C_OFF: tuple,
+    C_ON: tuple, C_G1: tuple, C_G2: tuple, C_OFF: tuple,
     font_fallback: ImageFont.FreeTypeFont,
 ) -> None:
     """Render a date/day string as 2×2 dot cells (Font1) or PIL fallback."""
@@ -358,7 +367,8 @@ def _draw_date_str(
                 px = cx + c * DS
                 py = y0 + r * DS
                 if lit:
-                    draw.rectangle([px - 1, py - 1, px + DC, py + DC], fill=C_GLOW)
+                    draw.rectangle([px - 2, py - 2, px + DC + 1, py + DC + 1], fill=C_G2)
+                    draw.rectangle([px - 1, py - 1, px + DC,     py + DC    ], fill=C_G1)
                     draw.rectangle([px, py, px + DC - 1, py + DC - 1], fill=C_ON)
                 else:
                     draw.rectangle([px, py, px + DC - 1, py + DC - 1], fill=C_OFF)
@@ -386,7 +396,7 @@ class VFDRenderer:
 
     def __init__(self) -> None:
         self._theme_idx = 0
-        self._glow_scale = 0.24   # fraction of C_ON for glow
+        self._glow_scale = 0.45   # fraction of C_ON for nearest glow layer
         self._contrast   = 0      # 0=standard 1=high 2=low
         self._bg         = (0, 5, 18)
         self._font_fb    = _fallback_font(14)
@@ -394,26 +404,38 @@ class VFDRenderer:
     # ── palette ───────────────────────────────────────────────────────────────
 
     def _palette(self):
-        """Return (C_ON, C_GLOW, C_OFF, C_DATE)."""
+        """Return (C_ON, C_G1, C_G2, C_G3, C_OFF, C_DATE).
+
+        Three glow layers scaled from glow_scale:
+          C_G1 = 1px fringe  (glow_scale × 1.0)   brightest
+          C_G2 = 2px fringe  (glow_scale × 0.42)
+          C_G3 = 3px fringe  (glow_scale × 0.17)  dimmest
+        """
         _, c_on, _ = _THEMES[self._theme_idx]
+        gs = self._glow_scale
 
-        c_glow = tuple(min(255, int(v * self._glow_scale)) for v in c_on)
+        def _scale(f):
+            return tuple(min(255, int(v * f)) for v in c_on)
 
-        if self._contrast == 0:     # standard
+        c_g1 = _scale(gs)
+        c_g2 = _scale(gs * 0.42)
+        c_g3 = _scale(gs * 0.17)
+
+        if self._contrast == 0:
             off_f = 0.17
-        elif self._contrast == 1:   # high contrast
+        elif self._contrast == 1:
             off_f = 0.0
-        else:                        # low contrast
+        else:
             off_f = 0.27
-        c_off  = tuple(min(255, int(v * off_f)) for v in c_on)
-        c_date = tuple(min(255, int(v * 0.68))  for v in c_on)
-        return c_on, c_glow, c_off, c_date
+        c_off  = _scale(off_f)
+        c_date = _scale(0.68)
+        return c_on, c_g1, c_g2, c_g3, c_off, c_date
 
     # ── render ────────────────────────────────────────────────────────────────
 
     def render(self, img: Image.Image, t: _time.struct_time) -> None:
         draw   = ImageDraw.Draw(img)
-        C_ON, C_GLOW, C_OFF, C_DATE = self._palette()
+        C_ON, C_G1, C_G2, C_G3, C_OFF, C_DATE = self._palette()
 
         draw.rectangle([0, 0, CANVAS_W - 1, CANVAS_H - 1], fill=self._bg)
 
@@ -421,18 +443,22 @@ class VFDRenderer:
         h1, h2 = t.tm_hour // 10, t.tm_hour % 10
         m1, m2 = t.tm_min  // 10, t.tm_min  % 10
 
-        _draw_digit(draw, h1, _X_H1, DIGIT_TOP_Y, C_ON, C_GLOW, C_OFF)
-        _draw_digit(draw, h2, _X_H2, DIGIT_TOP_Y, C_ON, C_GLOW, C_OFF)
-        _draw_digit(draw, m1, _X_M1, DIGIT_TOP_Y, C_ON, C_GLOW, C_OFF)
-        _draw_digit(draw, m2, _X_M2, DIGIT_TOP_Y, C_ON, C_GLOW, C_OFF)
+        _draw_digit(draw, h1, _X_H1, DIGIT_TOP_Y, C_ON, C_G1, C_G2, C_G3, C_OFF)
+        _draw_digit(draw, h2, _X_H2, DIGIT_TOP_Y, C_ON, C_G1, C_G2, C_G3, C_OFF)
+        _draw_digit(draw, m1, _X_M1, DIGIT_TOP_Y, C_ON, C_G1, C_G2, C_G3, C_OFF)
+        _draw_digit(draw, m2, _X_M2, DIGIT_TOP_Y, C_ON, C_G1, C_G2, C_G3, C_OFF)
 
-        # ── colon (8×8 px dots, blinking) ────────────────────────────────────
-        c_colon = C_ON if (t.tm_sec % 2 == 0) else C_OFF
+        # ── colon (8×8 px dots, blinking, 3-layer glow) ──────────────────────
+        lit = (t.tm_sec % 2 == 0)
+        cx  = _COL_DOT_X
         for cy in (_COL_DOT_Y1, _COL_DOT_Y2):
-            draw.rectangle([_COL_DOT_X - 1, cy - 1,
-                            _COL_DOT_X + 8, cy + 8], fill=C_GLOW if t.tm_sec % 2 == 0 else self._bg)
-            draw.rectangle([_COL_DOT_X, cy,
-                            _COL_DOT_X + 7, cy + 7], fill=c_colon)
+            if lit:
+                draw.rectangle([cx - 3, cy - 3, cx + 10, cy + 10], fill=C_G3)
+                draw.rectangle([cx - 2, cy - 2, cx +  9, cy +  9], fill=C_G2)
+                draw.rectangle([cx - 1, cy - 1, cx +  8, cy +  8], fill=C_G1)
+                draw.rectangle([cx,     cy,     cx +  7, cy +  7], fill=C_ON)
+            else:
+                draw.rectangle([cx, cy, cx + 7, cy + 7], fill=C_OFF)
 
         # ── date block (2×2 dot Font1) ────────────────────────────────────────
         _MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN",
@@ -442,25 +468,23 @@ class VFDRenderer:
         day_str  = _DAYS[t.tm_wday]
         date_str = f"{t.tm_mday:02d} {_MONTHS[t.tm_mon - 1]} {t.tm_year}"
 
-        # Char height at 2×2 dot scale: 7 rows × DC + 6 gaps × DG = 14+6 = 20 px
         CHAR_H_DOT = _F1.GLYPH_H * DS - DG if _HAS_F1 else 16
 
-        # Two lines centred vertically in the remaining space below digits
-        block_top = DIGIT_TOP_Y + DIGIT_H + 12   # 10+119+12 = 141
+        block_top = DIGIT_TOP_Y + DIGIT_H + 12
         line_gap  = 10
         day_y     = block_top
         date_y    = block_top + CHAR_H_DOT + line_gap
 
-        _draw_date_str(draw, day_str,  _centre_x(day_str),  day_y,  C_DATE, C_GLOW, C_OFF, self._font_fb)
-        _draw_date_str(draw, date_str, _centre_x(date_str), date_y, C_DATE, C_GLOW, C_OFF, self._font_fb)
+        _draw_date_str(draw, day_str,  _centre_x(day_str),  day_y,  C_DATE, C_G1, C_G2, C_OFF, self._font_fb)
+        _draw_date_str(draw, date_str, _centre_x(date_str), date_y, C_DATE, C_G1, C_G2, C_OFF, self._font_fb)
 
     # ── key handler ───────────────────────────────────────────────────────────
 
     def on_key(self, key: str) -> bool:
         if key == "g":
-            self._glow_scale = min(0.55, round(self._glow_scale + 0.04, 2))
+            self._glow_scale = min(0.80, round(self._glow_scale + 0.05, 2))
         elif key == "G" or key == "shift+g":
-            self._glow_scale = max(0.08, round(self._glow_scale - 0.04, 2))
+            self._glow_scale = max(0.08, round(self._glow_scale - 0.05, 2))
         elif key == "s":
             self._contrast = (self._contrast + 1) % 3
         elif key == "c":
@@ -476,13 +500,15 @@ class VFDRenderer:
         return "g/G=glow  s=contrast  c=colour theme (teal/amber/blue/green)  b=bg blue"
 
     def param_dict(self) -> dict:
-        C_ON, C_GLOW, C_OFF, C_DATE = self._palette()
+        C_ON, C_G1, C_G2, C_G3, C_OFF, C_DATE = self._palette()
         return {
             "theme":       _THEMES[self._theme_idx][0],
             "contrast":    ["standard","high","low"][self._contrast],
             "C_BG":        self._bg,
             "C_ON":        C_ON,
-            "C_GLOW":      C_GLOW,
+            "C_G1":        C_G1,
+            "C_G2":        C_G2,
+            "C_G3":        C_G3,
             "C_OFF":       C_OFF,
             "C_DATE":      C_DATE,
             "glow_scale":  self._glow_scale,
