@@ -131,7 +131,15 @@ The weather and crypto cases are simpler (1 connection) but the phase indicator 
 
 Implement only `fetchStockQuote()` progress — this is the confirmed pain point. Use it to validate the pattern and refine the test-side polling idiom before applying it elsewhere.
 
-Phase 2 (if the pattern proves useful in VE): extend to `fetchWeather()` and `fetchCrypto()` using the same `volatile int8_t` primitive and the same serialdbg exposure pattern.
+Phase 2 (if the pattern proves useful in VE): extend to the following functions using the same `volatile int8_t` primitive and serialdbg exposure pattern.
+
+| Function | Indicator name | Phase values | Affected tests |
+|---|---|---|---|
+| `fetchWeather()` | `weatherFetchPhase` | 0=TLS, 1=GET, 2=parse, -1=idle | T_WX_05 |
+| `fetchCrypto()` | `cryptoFetchPhase` | 0=TLS, 1=GET, 2=parse, -1=idle | T_CX_05 |
+| `fetchStockChart()` | `stockChartProgress` | 0=TLS, 1=stream-read, 2=parse, -1=idle | T176, T185, T188, T192, T193, T194, T204, T-BUSY-01b, T-CDWN-02 (9 tests) |
+
+`fetchStockChart()` is the largest single beneficiary: 9 tests call `_wait_chart_complete(timeout_s=45.0)` and currently receive no phase information on timeout. Adding `stockChartProgress` turns every one of those blind 45 s waits into a specific "hung at TLS / stream-read / parse" failure message.
 
 ---
 
