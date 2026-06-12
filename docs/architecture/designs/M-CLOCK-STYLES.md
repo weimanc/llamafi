@@ -13,7 +13,7 @@
 | Phase | What | Gating condition |
 |-------|------|-----------------|
 | **0 — Concept** | `preview_clock.py` host-side renderer; iterate all 4 styles interactively; record approved constants | Human sign-off: "looks right on screen" |
-| **1 — Bug fix** | Fixed-position digit rendering in `drawDigital()` | Phase 0 not required; can ship independently |
+| **1 — Bug fix** | Fixed-position digit rendering in `drawDigital()` ✓ done 77de8d6 | Phase 0 not required; can ship independently |
 | **2 — Storage + dispatch** | `ClockStyle` enum, `AppSettings.clockStyle`, style-dispatch shell in `ClockApp` | Phase 1 done |
 | **3 — Renderers** | Implement Flip, Nixie, VFD using Phase 0 approved constants | Phase 0 sign-off + Phase 2 done |
 | **4 — Settings wiring** | `appRegistry.h` configurable=1, `appsSection.h` Clock rows | Phase 2 done |

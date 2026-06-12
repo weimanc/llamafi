@@ -415,9 +415,7 @@ Work:
    four styles interactively (colours, glow, segment geometry, flip timing) before
    any firmware is written; record approved constants in design doc. Human sign-off
    required before Phase 3 begins.
-1. **Bug fix** — split digit rendering: draw HH and MM at fixed absolute x positions
-   with separate colon drawn/erased at centre; eliminates the glyph-width shift that
-   causes MM to jump on every blink toggle. Ships independently of concept phase.
+1. **Bug fix** ✓ done (77de8d6) — split digit rendering: HH at MR_DATUM x=129, MM at ML_DATUM x=145, colon drawn/erased at MC_DATUM x=137. MM no longer jumps on blink toggle.
 2. **`ClockStyle` enum + storage** — add `enum class ClockStyle : uint8_t` and
    `ClockStyle clockStyle` to `AppSettings`; default `Digital`; persist via `settings.json`.
 3. **`ClockApp` style dispatch** — replace the flat `drawTime()` with a virtual-style
