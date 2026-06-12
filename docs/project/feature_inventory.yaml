@@ -1191,3 +1191,28 @@ features:
       Bug found during VE: WiFi.persistent(true) in PATCH-003 corrupted NVS on bad SPIFFS creds
       — fixed to WiFi.persistent(false) (TASK-167, 2026-06-11).
       PATCH-003 registered in docs/architecture/designs/M-MULTIAPP/upstream-patches.md.
+
+- id: taskbar-icons-001
+  name: Baked taskbar icon sprites
+  milestone: M-TASKBAR-ICONS
+  status: implemented
+  description: |
+    Replace ASCII-character taskbar glyphs with per-app RGB565 icon sprites.
+    Inactive (B&W) and active (coloured) variant per app, 24×24 px.
+    Baked at host time via gen_taskbar_icons.py into app/gen/taskbar_icons.{cpp,h}.
+    taskbar.h uses tft.pushImage() with kTaskbarIcons[] lookup table.
+  files:
+    - app/icons/taskbar/          # source PNGs (18 icons × 2 variants)
+    - app/tools/gen_taskbar_icons.py
+    - app/gen/taskbar_icons.cpp
+    - app/gen/taskbar_icons.h
+    - app/src/taskbar/taskbar.h
+    - run/bake-icons
+  cross_features:
+    - app-registry-001            # AppId enum drives kTaskbarIcons[] index
+    - shell-layout-001            # TASKBAR_ICON_W/H sourced from shell_layout.h
+  test_ids: []
+  notes: |
+    TASK-170/171. DUT-verified 2026-06-12 (flashed, visual inspect).
+    No automated VE tests — icon rendering is visual-only.
+    Re-bake with ./run/bake-icons when icons change; update golden.sha256 afterward.

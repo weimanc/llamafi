@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# run/bake-icons — bake app/icons/taskbar/*.png → app/gen/taskbar_icons.{cpp,h}
+# Usage:
+#   ./run/bake-icons
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+
+echo "[bake-icons] baking taskbar icons → app/gen/"
+"$VENV_PY" "$PIO_DIR/tools/gen_taskbar_icons.py" \
+  --icons-dir "$PIO_DIR/icons/taskbar" \
+  --out-dir "$PIO_DIR/gen" \
+  --layout "$PIO_DIR/gen/shell_layout.h"
+echo "[bake-icons] done"

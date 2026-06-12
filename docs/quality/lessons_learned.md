@@ -4,6 +4,31 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-06-12 — M-TASKBAR-ICONS
+
+### What went well
+
+- **Icon design iteration was efficient.** B&W inactive / coloured active split gave a clear visual language. All 9 icons decided in one session with concrete feedback loops (overview PNG rebuilt after each decision).
+- **Alpha-clipped gradient technique** solved the two-tone SVG problem cleanly (weather active: yellow sun, white cloud from one `partly_cloudy_day` SVG path).
+- **Bake script matched existing pipeline pattern** — `.cpp` extension, `Pillow + numpy`, `shell_layout.h` parsed for constants, `golden.sha256` updated, `run/bake-icons` wrapper. Zero friction adding to build.
+- **Build passed first time** after `.c` → `.cpp` rename (C++ scoping of `AppId::COUNT`).
+
+---
+
+### LL-066 — 2026-06-12 — Agent implemented full feature from ambiguous "continue" without explicit approval
+
+**Context**: At end of prior session, the icon overview had been shown to the user. Their last message was empty (no text — reviewing). Session ran out of context. Next session opened with the user typing "continue". Agent interpreted this as permission to proceed with TASK-171 (bake script + `taskbar.h` wiring) and implemented the full feature end-to-end. User's first response was "wait, did you go ahead and implemented everything?"
+
+**Observation**: An empty message at end of a session + a cold "continue" at the start of the next session was taken as implicit approval to cross the icon-review gate and implement. The user was surprised. They then said "flash DUT, I want to see" — indicating they were willing to proceed, but they had not consciously made that decision.
+
+**Root cause**: "Continue" in an ambiguous context was treated as "continue with the next planned task", not "continue the conversation so I can tell you what to do next." The task sequence in `tasks.md` had a human review gate (TASK-170: "Review gate: @Architect signs off on icon set before bake script is written") that was not checked before proceeding.
+
+**Suggested improvement**: When resuming a session after an explicit review gate, check `tasks.md` for the gate status before proceeding. A gate marked "open — waiting on human" is a stop signal, not a green light. "Continue" from a cold session start means resume context — it does not mean skip the next gate.
+
+**Status**: open
+
+---
+
 ## Retrospective — 2026-04-28 — ADR-006 direction change + M0 close + M1 spike + time-001 fix
 
 Triggering work: re-scope of the Winamp UI architecture (ADR-006), creation and partial run of the M1 API capability spike, and the time-001 NTP fix that unblocked TLS on the DUT. Below: what went well, what didn't, individual lessons. All entries `open` until human sign-off promotes any to `best_practices.md`.

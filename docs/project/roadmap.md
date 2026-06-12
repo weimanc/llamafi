@@ -656,6 +656,29 @@ Single terminal wizard replacing the manual `wifi_creds.h` edit and bare `get_re
 
 ---
 
+### M-TASKBAR-ICONS — Baked RGB565 icon sprites for taskbar
+
+Replace the single ASCII-character glyphs (`S`, `C`, `W`, `$`, …) in `taskbar.h` with proper per-app icon sprites baked at host time into `app/gen/taskbar_icons.c` + `taskbar_icons.h`.
+
+**Slot dimensions:** 45×40 px (1 px separator at bottom → 39 px drawable height). Practical icon size: **32×32 px** (≈6-7 px horizontal padding each side, ≈3-4 px vertical).
+
+**Asset pipeline** (mirrors `vis_atlas` / `wave_atlas` pattern):
+1. Source PNGs: `app/icons/taskbar/<app_name>.png` (20×20, RGBA).  
+   One file per entry in `appRegistry.h`: `spotify`, `clock`, `weather`, `crypto`, `matrix`, `life`, `settings`, `stock`, `aquarium`.
+2. Bake script: `app/tools/gen_taskbar_icons.py` → `app/gen/taskbar_icons.c` + `taskbar_icons.h`.  
+   Outputs one `uint16_t[400]` RGB565 array per app, plus a lookup table indexed by `AppId`.
+3. `taskbar.h` — replace `tft.drawChar()` call with `tft.pushImage()` using the baked array.
+
+**Icon sourcing (human step first):**  
+Candidate source: [Material Symbols](https://fonts.google.com/icons) or [Simple Icons](https://simpleicons.org/) (SVG/PNG, no-attribution licences). Place candidate PNGs in `app/icons/taskbar/` for @Architect review before bake script is written. See TASK-170.
+
+**Status:** done (2026-06-12 — TASK-170/171; icons sourced + baked; `taskbar.h` updated to `pushImage()`; DUT flashed and verified)  
+- 9 inactive (B&W) + 9 active (coloured) icons, all 24×24 baked RGB565  
+- `run/bake-icons` + `app/tools/gen_taskbar_icons.py`; `golden.sha256` updated  
+**Deps:** M-MULTIAPP (done)  
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.

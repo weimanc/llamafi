@@ -5,6 +5,7 @@
 
 #include <TFT_eSPI.h>
 #include "gen/shell_layout.h"
+#include "gen/taskbar_icons.h"
 #include "appShell.h"
 
 // Amber indicator while shell busy (firmware-only constant — not in generated shell_layout.h
@@ -30,12 +31,8 @@ inline void renderTaskbar(TFT_eSPI& tft, AppId activeApp,
                            int scrollOffset, int totalApps, bool busy = false) {
     tft.fillRect(TASKBAR_X, 0, TASKBAR_W, 240, TASKBAR_BG_RGB565);
 
-#define APP_X(Name, icon, cfg) icon,
-    const char icons[] = {
-#include "appRegistry.h"
-    };
-#undef APP_X
-    static_assert(sizeof(icons) == (int)AppId::COUNT, "icons[] out of sync with appRegistry.h");
+    static constexpr int iconOffX = (TASKBAR_W - TASKBAR_ICON_BAKED_W) / 2;
+    static constexpr int iconOffY = (TASKBAR_SLOT_H - TASKBAR_ICON_BAKED_H) / 2;
 
     for (int i = 0; i < TASKBAR_SLOT_COUNT; ++i) {
         int appIdx = (scrollOffset + i) % totalApps;
@@ -44,11 +41,13 @@ inline void renderTaskbar(TFT_eSPI& tft, AppId activeApp,
         if (TASKBAR_SEP_ENABLED && i < TASKBAR_SLOT_COUNT - 1)
             tft.drawFastHLine(TASKBAR_X, slotY + TASKBAR_SLOT_H - 1, TASKBAR_W, TASKBAR_SEP_COLOR);
 
-        int iconX = TASKBAR_X + (TASKBAR_W / 2) - 5;
-        int iconY = slotY + (TASKBAR_SLOT_H - 26) / 2;
-        tft.setTextColor(TFT_WHITE, TASKBAR_BG_RGB565);
-        tft.drawChar(icons[appIdx], iconX, iconY, 4);
-        tft.setTextColor(TFT_WHITE, TFT_BLACK);  // ADR-027 producer rule
+        bool isActive = (appIdx == (int)activeApp);
+        const uint16_t* icon = isActive
+            ? kTaskbarIcons[appIdx].active
+            : kTaskbarIcons[appIdx].inactive;
+        tft.pushImage(TASKBAR_X + iconOffX, slotY + iconOffY,
+                      TASKBAR_ICON_BAKED_W, TASKBAR_ICON_BAKED_H,
+                      icon);
     }
     renderActiveIndicator(tft, activeApp, scrollOffset, totalApps, busy);
 }

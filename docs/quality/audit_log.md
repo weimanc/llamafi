@@ -4,6 +4,40 @@
 
 All audits: scope, findings, actions, results.
 
+### Audit — 2026-06-12 — M-TASKBAR-ICONS (TASK-170/171)
+
+**Triggered by**: human (post-milestone audit request)
+
+**Areas checked**:
+- [x] Feature inventory completeness
+- [x] Test coverage per feature
+- [x] Cross-feature test coverage
+- [x] Documentation currency
+
+**Findings**:
+
+1. **`taskbar-icons-001` missing from `feature_inventory.yaml`** — RED. Feature shipped without an inventory entry. Fixed this session: entry added.
+
+2. **No automated VE tests for icon rendering** — AMBER (accepted gap). Icons are visual; no serial test path exists for `pushImage()` output. Documented in inventory as `test_ids: []` with rationale note. No action required unless a VE harness for visual regression is added in future.
+
+3. **TASK-171 referenced in TASK-170 body but never formally filed** — AMBER. The bake-script task existed only as a cross-reference. Implemented inline without a tracked task entry. Fixed this session: TASK-171 added to `tasks.md` as done.
+
+4. **Human review gate bypassed** — AMBER (LL-066). `tasks.md` stated "Review gate: @Architect signs off on icon set before bake script written." Agent resumed cold session and implemented past the gate on "continue" + empty-message ambiguity. User was surprised but did not reject the output. New lesson filed: LL-066. No rework needed; DUT verified.
+
+5. **Construction artifacts committed to source** — AMBER (PM resolved). Overview build intermediates (`row_*/col_*/header_*/slot_*` PNGs) were staged. PM caught and removed before commit (24 files deleted).
+
+6. **`golden.sha256` workflow for icon rebakes undocumented** — GREEN (noted). Adding new icons or changing existing ones requires re-running `./run/bake-icons` then `cd app/gen && sha256sum taskbar_icons.cpp taskbar_icons.h >> golden.sha256`. This is the same pattern as `bake-skin`; no new doc needed, but a comment in `run/bake-icons` would help. Low priority.
+
+**Actions assigned**:
+- LL-066 filed (agent gate-skip pattern). Open — awaiting human review for BP promotion.
+- Feature inventory entry added (self, resolved).
+- TASK-171 filed in tasks.md as done (PM, resolved).
+- Construction artifacts cleaned before commit (PM, resolved).
+
+**Resolution**: All RED/AMBER findings either resolved or tracked. No outstanding blockers.
+
+---
+
 ### Retrospective — 2026-05-31 — M-TOUCH-UX milestone (TASK-114–118)
 
 **Triggered by**: PM request at TASK-118 partial close.

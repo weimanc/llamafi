@@ -422,6 +422,28 @@ Changes:
 **Opened:** 2026-06-11  
 **Deps:** TASK-167, TASK-161  
 
+### TASK-170 — M-TASKBAR-ICONS: source + place candidate icon PNGs for review
+
+Source one 32×32 px PNG per app (9 total: Spotify, Clock, Weather, Crypto, Matrix, Life, Settings, Stock, Aquarium) and place them in `app/icons/taskbar/`.
+
+**Priority:** P2  
+**Status:** done (2026-06-12) — 9 inactive + 9 active icons designed and placed in `app/icons/taskbar/`. B&W for inactive, coloured for active.  
+**Opened:** 2026-06-11  
+**Owner:** human (icon design) + Developer (generation)
+
+---
+
+### TASK-171 — M-TASKBAR-ICONS: bake script + taskbar.h update
+
+Write `app/tools/gen_taskbar_icons.py` bake script; update `taskbar.h` to use `pushImage()` from baked arrays.
+
+**Priority:** P2  
+**Status:** done (2026-06-12) — `gen_taskbar_icons.py` written; `app/gen/taskbar_icons.{cpp,h}` generated; `taskbar.h` updated; `run/bake-icons` script added; `golden.sha256` updated; DUT flashed and verified.  
+**Opened:** 2026-06-12  
+**Owner:** Developer
+
+---
+
 ### TASK-169 — UX: auto-navigate to previous app after successful WiFi connect
 
 After a successful WiFi connect in WifiSection (`_startConnect()` → RESULT state shows success), the user must navigate back manually. The device should automatically return to the app that was active before Settings was opened (or to the Spotify app if navigating from boot).
