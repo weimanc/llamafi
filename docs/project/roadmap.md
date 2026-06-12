@@ -373,16 +373,15 @@ can observe in-progress state on Core 1 without waiting for a committed result.
 Phase 1: `fetchStockQuote()` — `stockQuoteProgress` (int8_t, -1=idle, 0–7=ticker index).
 Turns T170 timeout failures from "quoteOkCount did not advance" into "stuck on ticker N (SYM)".
 
-Phase 2 (pending phase-1 validation): extend to `fetchWeather()`, `fetchCrypto()`, `fetchHeatmapQuote()` using the same `volatile int8_t` + getter pattern.
+Phase 2: extended to `fetchWeather()`, `fetchCrypto()`, `fetchStockChart()`, `fetchStockChartBySym()` — `weatherFetchPhase`, `cryptoFetchPhase`, `stockChartProgress` (0=TLS, 1=GET, 2=parse, -1=idle).
 
 No timeout introduced — diagnostic only. No queue restructuring — orthogonal to any
 future per-ticker queue-split refactor.
 
-**Status:** design  
+**Status:** done (2026-06-12 — TASK-173/174; commit 95d6a93; T170/T_WX_05/T_CX_05 PASS on DUT)  
 **Design:** [M-DATATASK-PROGRESS.md](../architecture/designs/M-DATATASK-PROGRESS.md)  
 **Owner:** Developer  
 **Priority:** P2  
-**Open question:** Where else does this pattern apply? See design doc §Open question.  
 **Cross-feature:** X015 (dataTask Core 0 ↔ serialdbg Core 1 observability)
 
 ---

@@ -4,6 +4,14 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
+> **PM sync 2026-06-12 (end of session)** — Major close-out: all "Open Tasks" sections
+> from ADR-042 follow-on, settings-001 polish, SPIFFS hygiene, M-SETUP-WIZARD VE, M-SETTINGS
+> WiFi Phase 2, M-TASKBAR-ICONS, M-SETTINGS-APP-WIRE, and M-DATATASK-PROGRESS are now done.
+> TASK-173/174 (volatile progress indicators for all long-running dataTask fetches) implemented
+> and DUT-verified (T170, T_WX_05, T_CX_05 all PASS). Roadmap milestone M-DATATASK-PROGRESS
+> closed. Sole open task: TASK-169 (UX auto-navigate after WiFi connect).
+> Completed and closed tasks are in [tasks-archive.md](tasks-archive.md).
+>
 > **PM sync 2026-06-09 (end of session)** — Roadmap retrofitted (6 missing milestones added,
 > 3 superseded proposal docs deleted). M-SETUP-WIZARD designed: `run/setup` wizard, SPIFFS
 > primary WiFi path, PATCH-003 registered in upstream-patches.md (not yet applied).
@@ -34,7 +42,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ---
 
-## Open Tasks — ADR-042 Harness & Firmware Follow-on
+## Closed — ADR-042 Harness & Firmware Follow-on
 
 ### TASK-156 — E3 harness refactor: wrap affected tests in `_bgpoll_suspended`, cut sleep budget
 - **Related:** ADR-042 E3, `docs/process/harness_sync_contract.md`
@@ -102,7 +110,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ---
 
-## Open Tasks — settings-001 DUT Bugs & Polish
+## Closed — settings-001 DUT Bugs & Polish
 
 ### TASK-150 — Fix backlight PWM: LEDC channel setup
 - **Feature:** settings-001 / display-settings
@@ -240,7 +248,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ---
 
-## Open Tasks — SPIFFS hygiene
+## Closed — SPIFFS hygiene
 
 ### TASK-160 — Retire `host_overrides.json` DNS-override path
 
@@ -318,7 +326,7 @@ Remove the now-redundant named entries.
 
 ---
 
-## Open Tasks — TASK-161 VE follow-up (audit 2026-06-09)
+## Closed — TASK-161 VE follow-up (audit 2026-06-09)
 
 ### TASK-163 — Fix EXIT trap in `run/spiffs`: restore monitor on implicit failure
 
@@ -383,7 +391,7 @@ Stale docstring in `app/tools/run_serialdbg_tests.py:23` already fixed (host_ove
 
 ---
 
-## Open Tasks — M-SETUP-WIZARD VE follow-up (2026-06-11)
+## Closed — M-SETUP-WIZARD VE follow-up (2026-06-11)
 
 ### TASK-167 — Fix PATCH-003: WiFi.persistent(false) to avoid NVS corruption on bad SPIFFS creds
 
@@ -399,7 +407,7 @@ Fix: change `WiFi.persistent(true)` to `WiFi.persistent(false)` in the PATCH-003
 
 ---
 
-## Open Tasks — M-SETTINGS WiFi Phase 2 (2026-06-11)
+## Closed — M-SETTINGS WiFi Phase 2 (2026-06-11)
 
 ### TASK-168 — M-SETTINGS WiFi Phase 2: remove WiFiManager/DRD, add on-device connect UI
 
@@ -421,6 +429,8 @@ Changes:
 **Status:** done — build PASS + DUT verified (2026-06-11). T-WIFI-P2-01..06 all passing. Bug found and fixed: async `WiFi.scanNetworks()` cancelled by concurrent Spotify task socket calls on same core; switched to synchronous scan.  
 **Opened:** 2026-06-11  
 **Deps:** TASK-167, TASK-161  
+
+## Closed — M-TASKBAR-ICONS, M-SETTINGS-APP-WIRE, M-DATATASK-PROGRESS (2026-06-12)
 
 ### TASK-170 — M-TASKBAR-ICONS: source + place candidate icon PNGs for review
 
@@ -516,6 +526,8 @@ Extend the `volatile int8_t` progress pattern to three remaining fetch functions
 **VE scope:** improved failure messages on 10 existing tests; no new tests required
 
 ---
+
+## Open Tasks
 
 ### TASK-169 — UX: auto-navigate to previous app after successful WiFi connect
 
