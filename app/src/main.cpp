@@ -537,6 +537,7 @@ public:
         const_cast<const char(*)[16]>(g_settings.cryptoCoins),
         g_settings.cryptoCcy);
     repaintCrypto();
+    _s.lastCryptoFetch = 0;  // force fresh fetch on next tick
   }
   void suspend() override {}
   void tick()    override { cryptoTick(); }
@@ -608,6 +609,11 @@ public:
     if (strcmp(var, "cryptoLastFetch") == 0) {
       snprintf(buf, len, "\"var\":\"cryptoLastFetch\",\"val\":%lu,\"last\":true",
                _s.lastCryptoFetch);
+      return true;
+    }
+    if (strcmp(var, "cryptoHttpCode") == 0) {
+      snprintf(buf, len, "\"var\":\"cryptoHttpCode\",\"val\":%d,\"last\":true",
+               dataTask::lastCryptoHttpCode());
       return true;
     }
     return false;
@@ -2367,6 +2373,11 @@ static void cmdGet(const char *args) {
   if (strcmp(args, "cryptoReady") == 0) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"cryptoReady\","
                   "\"ready\":%s,\"last\":true}\n", s_cxDataReady ? "true" : "false");
+    return;
+  }
+  if (strcmp(args, "cryptoHttpCode") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"cryptoHttpCode\","
+                  "\"val\":%d,\"last\":true}\n", dataTask::lastCryptoHttpCode());
     return;
   }
   if (strcmp(args, "golAlive") == 0) {

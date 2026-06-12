@@ -41,9 +41,10 @@ static portMUX_TYPE  s_weatherMux  = portMUX_INITIALIZER_UNLOCKED;
 static WeatherResult s_weatherResult;
 static bool          s_weatherNew  = false;
 
-static portMUX_TYPE  s_cryptoMux   = portMUX_INITIALIZER_UNLOCKED;
+static portMUX_TYPE  s_cryptoMux       = portMUX_INITIALIZER_UNLOCKED;
 static CryptoResult  s_cryptoResult;
-static bool          s_cryptoNew   = false;
+static bool          s_cryptoNew        = false;
+static int           s_cryptoLastCode   = 0;
 
 static portMUX_TYPE    s_stockQuoteMux    = portMUX_INITIALIZER_UNLOCKED;
 static StockQuoteResult s_stockQuoteResult;
@@ -160,6 +161,7 @@ static void fetchCrypto() {
     }
     unsigned long t0 = millis();
     int code = http.GET();
+    s_cryptoLastCode = code;
     LOG_D("dataTask.crypto", "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
     String body;
     if (code == 200) body = http.getString();
@@ -555,6 +557,8 @@ bool pollCrypto(CryptoResult *out) {
     portEXIT_CRITICAL_SAFE(&s_cryptoMux);
     return got;
 }
+
+int lastCryptoHttpCode() { return s_cryptoLastCode; }
 
 void enqueueStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
     if (!s_queue) return;

@@ -75,6 +75,7 @@ void enqueueStockChartBySym(const char* symbol, uint8_t rangeIdx);
 // Caller must supply a valid pointer. Thread-safe (spinlock).
 bool pollWeather(WeatherResult *out);
 bool pollCrypto(CryptoResult *out);
+int  lastCryptoHttpCode();  // last HTTP response code from CoinGecko (0 = never fetched)
 bool pollStockQuote(StockQuoteResult *out);
 bool pollStockChart(StockChartResult *out);
 bool pollHeatmapQuote(HeatmapQuoteResult *out);

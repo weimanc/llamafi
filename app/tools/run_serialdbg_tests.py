@@ -1892,10 +1892,13 @@ def t_cx_05(dut: Dut):
             ready = True
             break
         time.sleep(2.0)
-    _restore_spotify(dut)
     if not ready:
-        fail("T_CX_05", "cryptoReady still false after 30 s — dataTask fetch did not complete")
+        r_code = dut.cmd("get cryptoHttpCode", timeout=3.0)
+        http_code = r_code.get("val", "?") if r_code.get("ok") else "?"
+        _restore_spotify(dut)
+        fail("T_CX_05", f"cryptoReady still false after 30 s — last HTTP code: {http_code}")
         return
+    _restore_spotify(dut)
     pass_("T_CX_05", "cryptoReady=true — CryptoApp received live data from dataTask")
 
 
