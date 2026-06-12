@@ -372,6 +372,7 @@ private:
   }
 
 #ifdef SERIAL_DEBUG
+public:
   bool dbgGet(const char* var, char* buf, int len) const {
     static const char* kC[] = {"green","white","amber"};
     if (strcmp(var, "matrixColor") == 0) {
@@ -589,6 +590,7 @@ private:
   }
 
 #ifdef SERIAL_DEBUG
+public:
   bool dbgGet(const char* var, char* buf, int len) const {
     for (int i = 0; i < 6; i++) {
       char key[16]; snprintf(key, sizeof(key), "cryptoCoin%d", i);
@@ -760,6 +762,7 @@ private:
   }
 
 #ifdef SERIAL_DEBUG
+public:
   bool dbgGet(const char* var, char* buf, int len) const {
     if (strcmp(var, "lifeColors") == 0) {
       snprintf(buf, len, "\"var\":\"lifeColors\",\"val\":\"%s\",\"last\":true",

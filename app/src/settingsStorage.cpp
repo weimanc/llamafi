@@ -128,7 +128,9 @@ void SettingsStorage::load() {
             int i = 0;
             for (JsonVariantConst v : s["tickers"].as<JsonArrayConst>()) {
                 if (i >= 8) break;
-                strlcpy(g_settings.stockTickers[i++], v | "", 8);
+                const char* t = v | "";
+                if (t[0]) strlcpy(g_settings.stockTickers[i], t, 8);
+                i++;
             }
         }
         if (s.containsKey("mode")) g_settings.stockMode = strToEnum<StockViewMode>(s["mode"] | "list", kStockModeStr, StockViewMode::List);
@@ -141,16 +143,21 @@ void SettingsStorage::load() {
             int i = 0;
             for (JsonVariantConst v : c["coins"].as<JsonArrayConst>()) {
                 if (i >= 6) break;
-                strlcpy(g_settings.cryptoCoins[i++], v | "", 16);
+                const char* coin = v | "";
+                if (coin[0]) strlcpy(g_settings.cryptoCoins[i], coin, 16);
+                i++;
             }
         }
-        if (c.containsKey("ccy")) strlcpy(g_settings.cryptoCcy, c["ccy"] | "USD", sizeof(g_settings.cryptoCcy));
+        if (c.containsKey("ccy")) {
+            const char* ccy = c["ccy"] | "";
+            if (ccy[0]) strlcpy(g_settings.cryptoCcy, ccy, sizeof(g_settings.cryptoCcy));
+        }
     }
 
     // Aquarium
     if (doc.containsKey("aquarium")) {
         auto a = doc["aquarium"];
-        if (a.containsKey("fish"))  g_settings.aquariumFish  = a["fish"]  | 8;
+        if (a.containsKey("fish"))  { uint8_t f = a["fish"] | 8; if (f) g_settings.aquariumFish = f; }
         if (a.containsKey("speed")) g_settings.aquariumSpeed = strToEnum<AppSpeed>(a["speed"] | "normal", kSpeedStr, AppSpeed::Normal);
     }
 
