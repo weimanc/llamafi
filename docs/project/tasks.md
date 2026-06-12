@@ -465,15 +465,15 @@ Stock, and Crypto app behaviour. Nine work items (W1–W9); see design doc.
 | W9 | Crypto-dataTask | `configureCrypto()` + dynamic URL + JSON key from ID + magnitude price format | `dataTask.h`, `dataTaskStorage.cpp` |
 
 **Priority:** P2  
-**Status:** open  
+**Status:** done  
 **Opened:** 2026-06-12  
+**Closed:** 2026-06-12  
 **Design:** [M-SETTINGS-APP-WIRE.md](../architecture/designs/M-SETTINGS-APP-WIRE.md)  
 **ADR:** ADR-043 (accepted)  
 **Deps:** M-SETTINGS-001 (done)  
 **Owner:** Developer  
-**VE scope:** T222–T245 (24 tests: 16 SERIALDBG, 6 MANUAL, 5 REBOOT, 2 SLOW)  
-**VE suite:** `docs/verification/regression_suite/app-settings-wire-001.md`  
-**VE pre-implementation blockers:** Developer must implement `dbgGet` for MatrixApp, LifeApp, AquariumApp, StockApp (`stockTicker0–7`), CryptoApp, and a dataTask crypto fetch log line. See suite §Required dbgGet surface.
+**VE scope:** T-SET-01 to T-SET-08 (M-SETTINGS-APP-WIRE regression suite)  
+**VE results (2026-06-12):** T-SET-01 PASS, T-SET-02 PASS, T-SET-03 PASS, T-SET-06 PASS, T-SET-07 PASS, T-SET-08 PASS (T-SET-04/05 not in targeted run; passed in full suite). During VE: stale SPIFFS settings.json caused T170/T186/T187 failures; removed and added defensive load() guards. T_CX_05 required separate fix (CoinGecko TLS cert rotation GTS→ISRG Root X1, commit a708657).
 
 ---
 

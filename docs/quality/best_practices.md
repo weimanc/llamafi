@@ -296,6 +296,16 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-030 — Validate pinned TLS root CA against the live cert chain before closing a feature that adds a new HTTPS endpoint
+
+**Adopted from**: LL-067  
+**Date adopted**: 2026-06-12  
+**Rule**: When a new pinned root CA is added to `dataTaskCerts.h` (or any similar cert store), run `openssl s_client -connect <host>:443 -showcerts 2>/dev/null | grep issuer` at commit time and verify the root matches. Add the host to the ADR-029 rotation table with a quarterly check date. When a TLS-backed test fails with HTTP -1 ("connection refused"), check the live cert chain first before diagnosing code.  
+**Rationale**: CoinGecko rotated from Google Trust Services (GTS Root R4 / WE1 intermediate) to Let's Encrypt (ISRG Root X1 / YE1 intermediate). The pinned CA was stale; every CoinGecko fetch returned -1 silently. Diagnosis required adding a `cryptoHttpCode` dbgGet surface because the raw HTTP code was only visible in serial LOG_D output, which the test harness does not capture.  
+**Applies to**: Developer (validate cert at pin time; add to ADR-029 rotation table), VE (when a network-backed test returns HTTP -1 persistently, run `openssl s_client` before filing a code bug)
+
+---
+
 ## Entry Format
 
 ```

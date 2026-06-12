@@ -1273,6 +1273,26 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 
 ## Entry Format
 
+---
+
+### LL-067 — 2026-06-12 — Pinned TLS root CA became stale when CoinGecko rotated from GTS to Let's Encrypt
+**Context**: TASK-172 VE run. T_CX_05 (CryptoApp receives live data within 30 s) failed persistently. CoinGecko API returned HTTP -1 (ESP32 WiFiClientSecure "connection refused") from `http.GET()`. `COINGECKO_ROOT_CA` in `dataTaskCerts.h` was GTS Root R4. Live cert chain (`openssl s_client`) showed CoinGecko had rotated to Let's Encrypt YE1 / ISRG Root X1.  
+**Observation**: The test failure presented as "fetch never completes" with no visible error — the only diagnostic was the raw LOG_D serial line (`GET -1 elapsed=…`) which the test harness does not capture. Diagnosis required adding a `cryptoHttpCode` dbgGet surface.  
+**Root cause**: TLS root CA was pinned by copy-pasting the cert in force at the time the code was written. No mechanism exists to detect CA rotation before it causes failures in production or test.  
+**Suggested improvement**: (1) When a TLS endpoint starts returning -1 and the API URL is otherwise valid, check the live cert chain first (`openssl s_client` or `curl -vI`). (2) The ADR-029 rotation table should include a periodic validation step (e.g., quarterly `openssl s_client` check for each pinned host). (3) `lastCryptoHttpCode()` diagnostic (now exposed via `get cryptoHttpCode` serial command) should be checked when T_CX_05 fails.  
+**Status**: open — propose BP-030 on TLS cert rotation check cadence (see best_practices.md)
+
+---
+
+### LL-068 — 2026-06-12 — App `resume()` must reset fetch timer so re-entry always triggers a fresh request
+**Context**: TASK-172 VE. CryptoApp `init()` enqueued a fetch and set `_s.lastCryptoFetch = millis()`. T_CX_04 briefly switched to CryptoApp then switched away. T_CX_05 switched back (calling `resume()`). `resume()` did not reset `_s.lastCryptoFetch`, so `cryptoTick()` calculated elapsed time from the `init()` call and skipped the enqueue for ~60 s. If the `init()` fetch failed (as it did here — wrong root CA), no retry occurred within the 30 s test window.  
+**Observation**: The fix was one line: `_s.lastCryptoFetch = 0` in `resume()`. Without it, re-entering an app feels broken even when the underlying API is healthy, because the user may wait up to CRYPTO_FETCH_MS (60 s) for a refresh.  
+**Root cause**: `resume()` was designed to restore display state cheaply. The assumption was that a fetch already in-flight from `init()` would complete. That assumption breaks when (a) the fetch failed, (b) the app was exited before the result arrived, or (c) the prior result was consumed by `pollCrypto()` before re-entry.  
+**Suggested improvement**: Apps with a periodic fetch timer should reset the timer to 0 in `resume()` so the first `tick()` after re-entry always enqueues. This is low cost (one extra fetch) and prevents the "stale for up to 60 s" experience.  
+**Status**: adopted — applied in `CryptoApp::resume()` (commit a708657)
+
+## Entry Format
+
 ```
 ### LL-001 — [YYYY-MM-DD] — [Topic]
 **Context**: What was happening at the time
