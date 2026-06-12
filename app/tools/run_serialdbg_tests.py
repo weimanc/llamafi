@@ -2085,10 +2085,14 @@ def t170(dut: Dut):
             advanced = True
             break
         time.sleep(2.0)
-    _restore_from_stock(dut)
     if not advanced:
-        fail("T170", "quoteOkCount did not advance within 65 s — quote fetch may not have completed")
+        r_ff   = _stock_get(dut, "fetchFailed",    timeout=3.0)
+        r_code = _stock_get(dut, "fetchErrorCode", timeout=3.0)
+        _restore_from_stock(dut)
+        fail("T170", f"quoteOkCount did not advance within 65 s — "
+                     f"fetchFailed={r_ff.get('val')!r} fetchErrorCode={r_code.get('val')!r}")
         return
+    _restore_from_stock(dut)
     pass_("T170", f"quoteOkCount advanced past {before} — quote fetch completed")
 
 
@@ -2663,10 +2667,13 @@ def t188(dut: Dut):
         dut.cmd(f"tap {tx} {ty}", timeout=5.0)
         print(f"  [T188] {tab_name} tapped (fetchOkCount={before}); waiting for completion…", flush=True)
         if not _wait_chart_complete(dut, before, timeout_s=45.0):
+            r_ff   = _stock_get(dut, "fetchFailed",    timeout=3.0)
+            r_code = _stock_get(dut, "fetchErrorCode", timeout=3.0)
             dut.cmd("set fetchFailed 0", timeout=3.0)
             dut.cmd("set fetchErrorCode 0", timeout=3.0)
             _restore_from_stock(dut)
-            fail("T188", f"fetchOkCount did not advance on {tab_name} — fetch may not have completed")
+            fail("T188", f"fetchOkCount did not advance on {tab_name} — "
+                         f"fetchFailed={r_ff.get('val')!r} fetchErrorCode={r_code.get('val')!r}")
             return
         r_ff   = _stock_get(dut, "fetchFailed", timeout=8.0)
         r_code = _stock_get(dut, "fetchErrorCode", timeout=8.0)

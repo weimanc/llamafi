@@ -235,6 +235,40 @@ interactions:
 # - id: X001
 #   feature_a: auth-001
 #   feature_b: api-001
+  - id: X015
+    feature_a: dataTask (Core 0 fetch functions)
+    feature_b: serialdbg (Core 1 serial handler)
+    interaction_type: shared_state
+    description: |
+      dataTask fetch functions (fetchStockQuote, fetchCrypto, fetchWeather,
+      fetchHeatmapQuote) run on Core 0 and publish committed results atomically via
+      spinlock-protected result structs. Core 1's serialdbg handler can query app-layer
+      state (quoteOkCount, fetchErrorCode, cryptoReady, etc.) but only sees the last
+      committed result — not in-progress state. If a fetch hangs mid-execution, all
+      Core 1 diagnostics reflect default/stale values with no indication of where the
+      hang occurred.
+
+      M-DATATASK-PROGRESS addresses this gap by adding volatile int8_t progress atoms
+      updated per-step in each fetch function. These are readable from Core 1 at any
+      time without a lock (single-byte write, ESP32 byte writes are atomic). The pattern
+      is applicable to any multi-step Core 0 function that can take >5 s and has
+      distinct observable phases.
+
+      Confirmed pain point: T170 / T188 fail in full-suite runs with fetchFailed=False,
+      fetchErrorCode=None — indicating fetchStockQuote() never completed, not that it
+      failed. Without a progress indicator, the hung ticker (0–7) is invisible to tests.
+
+      Open question (see M-DATATASK-PROGRESS §Open question): which other fetch functions
+      benefit from phase-level progress indicators? Candidates include fetchWeather
+      (TLS/GET/parse phases), fetchCrypto (TLS/GET/parse), fetchHeatmapQuote (TLS/stream).
+    risk: medium
+    test_coverage: [T170, T188]
+    notes: |
+      Diagnosed 2026-06-12 during T170/T188 root-cause investigation. Added fetchErrorCode
+      diagnostic to T170/T188 failure path (commit pending); result was fetchFailed=False,
+      fetchErrorCode=None — confirming hang rather than error. Design in
+      docs/architecture/designs/M-DATATASK-PROGRESS.md.
+
 #   interaction_type: shared_state | dependency | conflict | overlap
 #   description: ""
 #   risk: low | medium | high
