@@ -1,50 +1,50 @@
 """_clock_vfd.py — VFD Dot-Matrix Clock Renderer.
 
-Dot-matrix phosphor display. Time digits: 13×24 dot matrix, 4×4 px cells,
-1 px gap (5 px stride) → 64×119 px per digit. Date: Font1 5×7 glyphs rendered
-as 2×2 dot cells with 1 px gap (3 px stride). No seconds bar.
+Rendering model: rasterize-then-blur.
+  1. Grid pass  — paint every dot as a flat C_ON / C_OFF rectangle.  No glow.
+  2. Bloom pass — GaussianBlur(sharp_grid, radius) × BLOOM_SCALE.
+  3. Composite  — ImageChops.add(sharp, bloom).  Additive: adjacent lit dots
+                  accumulate stronger glow at their shared boundary.
 
-Canvas layout (275 px wide):
-  3 | H1(64) | H2(64) | colon(13) | M1(64) | M2(64) | 3   = 275 px
-Digit top y = 10.  Date block y ≈ 145..210.
+Canvas: 275×240 px app canvas.
+Dot geometry: 4×4 px cells, 1 px gap → 5 px stride, 13×24 matrix per digit.
+Layout: 3 | H1(64) | H2(64) | colon(13) | M1(64) | M2(64) | 3 = 275 px.
 
-Imported by preview_clock.py as `_clock_vfd`; exposes `VFDRenderer`.
+Imported by preview_clock.py; exposes VFDRenderer.
 Standalone test: python3 _clock_vfd.py → /tmp/vfd_test.png
 """
 from __future__ import annotations
 
 import pathlib
 import time as _time
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageChops, ImageFilter
 
 # ── canvas ────────────────────────────────────────────────────────────────────
 
 CANVAS_W = 275
 CANVAS_H = 240
-CENTRE_X = 137
 
-# ── time dot-matrix geometry ──────────────────────────────────────────────────
+# ── dot-matrix geometry ───────────────────────────────────────────────────────
 
-TC = 4    # time cell size (px)
-TG = 1    # time gap (px)
-TS = 5    # time stride  TC + TG
+TC = 4    # dot cell size (px)
+TG = 1    # gap between dots (px)
+TS = 5    # stride = TC + TG
 
-T_COLS = 13                                 # dot columns per digit
-T_ROWS = 24                                 # dot rows per digit
+T_COLS = 13
+T_ROWS = 24
 DIGIT_W = T_COLS * TC + (T_COLS - 1) * TG  # 64 px
 DIGIT_H = T_ROWS * TC + (T_ROWS - 1) * TG  # 119 px
 
-DIGIT_TOP_Y = 10   # y of digit top edge
+DIGIT_TOP_Y = 10
 
-# Horizontal x origins (left edge of each digit matrix)
-_X_H1    =   3
-_X_H2    =  67   # _X_H1 + 64
-_X_COL   = 131   # _X_H2 + 64  → 13-px colon column
-_X_M1    = 144   # _X_COL + 13
-_X_M2    = 208   # _X_M1 + 64
-# right edge: 208+64=272, margin=3  ✓  total=3+64+64+13+64+64+3=275
+_X_H1  =   3
+_X_H2  =  67   # 3 + 64
+_X_COL = 131   # 3 + 64 + 64  → 13-px colon column
+_X_M1  = 144   # 131 + 13
+_X_M2  = 208   # 144 + 64
+# right margin: 208 + 64 = 272, +3 = 275  ✓
 
-# Colon dots: 8×8 px, centred in the 13-px column
+# Colon: two 8×8 px dots centred in the 13-px colon column
 _COL_DOT_X  = _X_COL + (_X_M1 - _X_COL - 8) // 2   # = 133
 _COL_DOT_Y1 = DIGIT_TOP_Y + 32
 _COL_DOT_Y2 = DIGIT_TOP_Y + 79
@@ -53,20 +53,15 @@ _COL_DOT_Y2 = DIGIT_TOP_Y + 79
 
 DC = 2    # date cell size (px)
 DG = 1    # date gap (px)
-DS = 3    # date stride  DC + DG
+DS = 3    # date stride = DC + DG
 
-# ── 11×20 dot-matrix glyphs for digits 0–9 ───────────────────────────────────
+# ── digit glyphs (11 cols × 20 rows, 16 active + 4 padding) ──────────────────
 #
-# Inner content: 11 cols × 16 active rows, padded to 20 rows (rows 16-19 = off).
-# Placed inside the 13×24 matrix with 1-dot margin left/right, 2-dot margin top/bottom:
-#   glyph col c  ↔  matrix col (c + 1)
-#   glyph row r  ↔  matrix row (r + 2)
-#
-# Each row is an 11-bit integer: bit 10 = leftmost column (col 0), bit 0 = rightmost (col 10).
+# Placed inside the 13×24 matrix with 1-dot L/R margin, 2-dot top/bottom margin.
+# Each row is an 11-bit integer: bit 10 = col 0 (left), bit 0 = col 10 (right).
 
 def _b(s: str) -> int:
-    """'X'/'.' string (11 chars) → 11-bit integer."""
-    assert len(s) == 11, f"Expected 11 chars, got {len(s)!r}"
+    assert len(s) == 11
     v = 0
     for i, c in enumerate(s):
         if c == "X":
@@ -74,12 +69,11 @@ def _b(s: str) -> int:
     return v
 
 def _g(rows_16: list[str]) -> list[int]:
-    """16 row-strings → 20-int glyph (padded with 4 trailing off-rows)."""
-    assert len(rows_16) == 16, f"need 16 rows, got {len(rows_16)}"
+    assert len(rows_16) == 16
     return [_b(r) for r in rows_16] + [0] * 4
 
 _GLYPHS: list[list[int]] = [
-    _g([  # 0 — oval
+    _g([  # 0
         "...XXXXX...",
         "..X.....X..",
         ".X.......X.",
@@ -97,7 +91,7 @@ _GLYPHS: list[list[int]] = [
         "...XXXXX...",
         "...........",
     ]),
-    _g([  # 1 — centred stem with base
+    _g([  # 1
         ".....X.....",
         "....XX.....",
         ".....X.....",
@@ -115,7 +109,7 @@ _GLYPHS: list[list[int]] = [
         "...XXXXX...",
         "...........",
     ]),
-    _g([  # 2 — top-right to bottom-left sweep
+    _g([  # 2
         "...XXXXX...",
         "..X.....X..",
         ".X.......X.",
@@ -133,7 +127,7 @@ _GLYPHS: list[list[int]] = [
         "XXXXXXXXXXX",
         "...........",
     ]),
-    _g([  # 3 — two-loop form
+    _g([  # 3
         "...XXXXX...",
         "..X.....X..",
         ".X.......X.",
@@ -151,7 +145,7 @@ _GLYPHS: list[list[int]] = [
         "...XXXXX...",
         "...........",
     ]),
-    _g([  # 4 — vertical strokes + horizontal bar
+    _g([  # 4
         "X.........X",
         "X.........X",
         "X.........X",
@@ -169,7 +163,7 @@ _GLYPHS: list[list[int]] = [
         "..........X",
         "...........",
     ]),
-    _g([  # 5 — top horizontal, mid-bar, lower loop
+    _g([  # 5
         "XXXXXXXXXXX",
         "X..........",
         "X..........",
@@ -187,7 +181,7 @@ _GLYPHS: list[list[int]] = [
         "...XXXXX...",
         "...........",
     ]),
-    _g([  # 6 — top cap, open right side, lower oval
+    _g([  # 6
         "...XXXXX...",
         "..X.....X..",
         ".X.........",
@@ -205,7 +199,7 @@ _GLYPHS: list[list[int]] = [
         "...XXXXX...",
         "...........",
     ]),
-    _g([  # 7 — top bar, diagonal drop
+    _g([  # 7
         "XXXXXXXXXXX",
         "..........X",
         "..........X",
@@ -223,7 +217,7 @@ _GLYPHS: list[list[int]] = [
         ".....X.....",
         "...........",
     ]),
-    _g([  # 8 — double oval
+    _g([  # 8
         "...XXXXX...",
         "..X.....X..",
         ".X.......X.",
@@ -241,7 +235,7 @@ _GLYPHS: list[list[int]] = [
         "...XXXXX...",
         "...........",
     ]),
-    _g([  # 9 — top oval, descender
+    _g([  # 9
         "...XXXXX...",
         "..X.....X..",
         ".X.......X.",
@@ -264,59 +258,13 @@ _GLYPHS: list[list[int]] = [
 # ── colour themes ─────────────────────────────────────────────────────────────
 
 _THEMES = [
-    # name,  C_ON,              glow_ratio (0..1)
-    ("teal",  (0,  210, 230),   0.24),
-    ("amber", (230, 160,   0),  0.24),
-    ("blue",  (60,  120, 255),  0.22),
-    ("green", (0,  220,  80),   0.22),
+    ("teal",  (0,  210, 230)),
+    ("amber", (230, 160,   0)),
+    ("blue",  (60,  120, 255)),
+    ("green", (0,  220,  80)),
 ]
 
-# ── drawing helpers ───────────────────────────────────────────────────────────
-
-def _draw_digit(
-    draw: ImageDraw.ImageDraw,
-    digit: int,
-    dx: int, dy: int,
-    C_ON: tuple, C_G1: tuple, C_G2: tuple, C_G3: tuple, C_OFF: tuple,
-) -> None:
-    """Render one digit at top-left (dx, dy) using the 13×24 dot matrix.
-
-    Two-pass: halos first so off-dots don't overwrite neighbouring glow.
-    Three glow layers: C_G1 (1px, brightest) → C_G2 (2px) → C_G3 (3px, dimmest).
-    """
-    glyph = _GLYPHS[digit % 10]
-
-    def _active(mat_row: int, mat_col: int) -> bool:
-        gr = mat_row - 2
-        if not (0 <= gr < 20):
-            return False
-        gc = mat_col - 1
-        if not (0 <= gc < 11):
-            return False
-        return bool(glyph[gr] & (1 << (10 - gc)))
-
-    # Pass 1 — glow halos (outer → inner) for active dots
-    for mat_row in range(T_ROWS):
-        for mat_col in range(T_COLS):
-            if _active(mat_row, mat_col):
-                px = dx + mat_col * TS
-                py = dy + mat_row * TS
-                draw.rectangle([px - 3, py - 3, px + TC + 2, py + TC + 2], fill=C_G3)
-                draw.rectangle([px - 2, py - 2, px + TC + 1, py + TC + 1], fill=C_G2)
-                draw.rectangle([px - 1, py - 1, px + TC,     py + TC    ], fill=C_G1)
-
-    # Pass 2 — cores (active bright, inactive dim)
-    for mat_row in range(T_ROWS):
-        for mat_col in range(T_COLS):
-            px = dx + mat_col * TS
-            py = dy + mat_row * TS
-            if _active(mat_row, mat_col):
-                draw.rectangle([px, py, px + TC - 1, py + TC - 1], fill=C_ON)
-            else:
-                draw.rectangle([px, py, px + TC - 1, py + TC - 1], fill=C_OFF)
-
-
-# ── Font1 date rendering ──────────────────────────────────────────────────────
+# ── Font1 date support ────────────────────────────────────────────────────────
 
 try:
     import sys as _sys
@@ -339,64 +287,85 @@ def _fallback_font(size: int) -> ImageFont.FreeTypeFont:
             return ImageFont.truetype(p, size)
     return ImageFont.load_default(size=size)
 
-
 def _date_char_width() -> int:
-    """Pixel advance of one date character (Font1 at 3-px stride)."""
     if _HAS_F1:
-        return _F1.CHAR_W * DS   # 6 × 3 = 18 px
-    return 14   # approx for fallback font
+        return _F1.CHAR_W * DS
+    return 14
+
+def _centre_x(text: str) -> int:
+    w = len(text) * _date_char_width() - (DG if _HAS_F1 else 0)
+    return max(0, (CANVAS_W - w) // 2)
+
+# ── rasterizers (Step 1 — flat color, no glow) ────────────────────────────────
+
+def _rasterize_digit(
+    draw: ImageDraw.ImageDraw,
+    digit: int,
+    dx: int, dy: int,
+    C_ON: tuple, C_OFF: tuple,
+) -> None:
+    glyph = _GLYPHS[digit % 10]
+    for mat_row in range(T_ROWS):
+        gr = mat_row - 2
+        row_bits = glyph[gr] if 0 <= gr < 20 else 0
+        for mat_col in range(T_COLS):
+            gc = mat_col - 1
+            active = bool(row_bits & (1 << (10 - gc))) if 0 <= gc < 11 else False
+            px = dx + mat_col * TS
+            py = dy + mat_row * TS
+            draw.rectangle([px, py, px + TC - 1, py + TC - 1],
+                           fill=C_ON if active else C_OFF)
 
 
-def _draw_date_str(
+def _rasterize_colon(
+    draw: ImageDraw.ImageDraw,
+    lit: bool,
+    C_ON: tuple, C_OFF: tuple,
+) -> None:
+    colour = C_ON if lit else C_OFF
+    for cy in (_COL_DOT_Y1, _COL_DOT_Y2):
+        draw.rectangle([_COL_DOT_X, cy, _COL_DOT_X + 7, cy + 7], fill=colour)
+
+
+def _rasterize_date_str(
     draw: ImageDraw.ImageDraw,
     text: str,
     x0: int, y0: int,
-    C_ON: tuple, C_G1: tuple, C_G2: tuple, C_OFF: tuple,
+    C_FG: tuple, C_OFF: tuple,
     font_fallback: ImageFont.FreeTypeFont,
 ) -> None:
-    """Render a date/day string as 2×2 dot cells (Font1) or PIL fallback."""
     if not _HAS_F1:
-        draw.text((x0, y0), text, font=font_fallback, fill=C_ON)
+        draw.text((x0, y0), text, font=font_fallback, fill=C_FG)
         return
-
     cx = x0
     for ch in text:
-        bm = _F1._glyph(ord(ch))   # 7 rows × 5 cols booleans
+        bm = _F1._glyph(ord(ch))
         for r, row in enumerate(bm):
             for c, lit in enumerate(row):
                 px = cx + c * DS
                 py = y0 + r * DS
-                if lit:
-                    draw.rectangle([px - 2, py - 2, px + DC + 1, py + DC + 1], fill=C_G2)
-                    draw.rectangle([px - 1, py - 1, px + DC,     py + DC    ], fill=C_G1)
-                    draw.rectangle([px, py, px + DC - 1, py + DC - 1], fill=C_ON)
-                else:
-                    draw.rectangle([px, py, px + DC - 1, py + DC - 1], fill=C_OFF)
+                draw.rectangle([px, py, px + DC - 1, py + DC - 1],
+                               fill=C_FG if lit else C_OFF)
         cx += _F1.CHAR_W * DS
-
-
-def _centre_x(text: str) -> int:
-    """Return left x to centre text in 275-px canvas."""
-    w = len(text) * _date_char_width() - (DG if _HAS_F1 else 0)
-    return max(0, (CANVAS_W - w) // 2)
-
 
 # ── VFDRenderer ───────────────────────────────────────────────────────────────
 
 class VFDRenderer:
-    """VFD dot-matrix clock renderer.
+    """VFD dot-matrix clock.
 
-    Time: 13×24 dot matrix per digit, 4×4 px cells, 1 px gap.
-    Date: Font1 5×7 rendered as 2×2 dot cells, 1 px gap.
-    Glow: 1 px teal fringe on active dots.
+    Pipeline each frame:
+      1. Rasterize all dots to a sharp grid (no glow).
+      2. GaussianBlur(sharp, BLOOM_R) × BLOOM_SCALE  → bloom layer.
+      3. ImageChops.add(sharp, bloom)  → additive composite.
     """
 
     CANVAS_W = CANVAS_W
     CANVAS_H = CANVAS_H
 
     def __init__(self) -> None:
-        self._theme_idx = 0
-        self._glow_scale = 0.45   # fraction of C_ON for nearest glow layer
+        self._theme_idx  = 0
+        self._bloom_r    = 2.0    # GaussianBlur radius (px)
+        self._bloom_scale = 0.55  # bloom layer intensity multiplier
         self._contrast   = 0      # 0=standard 1=high 2=low
         self._bg         = (0, 5, 18)
         self._font_fb    = _fallback_font(14)
@@ -404,87 +373,70 @@ class VFDRenderer:
     # ── palette ───────────────────────────────────────────────────────────────
 
     def _palette(self):
-        """Return (C_ON, C_G1, C_G2, C_G3, C_OFF, C_DATE).
-
-        Three glow layers scaled from glow_scale:
-          C_G1 = 1px fringe  (glow_scale × 1.0)   brightest
-          C_G2 = 2px fringe  (glow_scale × 0.42)
-          C_G3 = 3px fringe  (glow_scale × 0.17)  dimmest
-        """
-        _, c_on, _ = _THEMES[self._theme_idx]
-        gs = self._glow_scale
-
-        def _scale(f):
-            return tuple(min(255, int(v * f)) for v in c_on)
-
-        c_g1 = _scale(gs)
-        c_g2 = _scale(gs * 0.42)
-        c_g3 = _scale(gs * 0.17)
-
+        """Return (C_ON, C_OFF, C_DATE)."""
+        _, c_on = _THEMES[self._theme_idx]
         if self._contrast == 0:
             off_f = 0.17
         elif self._contrast == 1:
             off_f = 0.0
         else:
             off_f = 0.27
-        c_off  = _scale(off_f)
-        c_date = _scale(0.68)
-        return c_on, c_g1, c_g2, c_g3, c_off, c_date
+        c_off  = tuple(min(255, int(v * off_f)) for v in c_on)
+        c_date = tuple(min(255, int(v * 0.68))  for v in c_on)
+        return c_on, c_off, c_date
 
     # ── render ────────────────────────────────────────────────────────────────
 
     def render(self, img: Image.Image, t: _time.struct_time) -> None:
-        draw   = ImageDraw.Draw(img)
-        C_ON, C_G1, C_G2, C_G3, C_OFF, C_DATE = self._palette()
+        C_ON, C_OFF, C_DATE = self._palette()
 
-        draw.rectangle([0, 0, CANVAS_W - 1, CANVAS_H - 1], fill=self._bg)
+        # ── Step 1: rasterize all dots as flat rectangles ─────────────────────
+        sharp = Image.new("RGB", (CANVAS_W, CANVAS_H), self._bg)
+        d     = ImageDraw.Draw(sharp)
 
-        # ── time digits ──────────────────────────────────────────────────────
         h1, h2 = t.tm_hour // 10, t.tm_hour % 10
         m1, m2 = t.tm_min  // 10, t.tm_min  % 10
+        _rasterize_digit(d, h1, _X_H1, DIGIT_TOP_Y, C_ON, C_OFF)
+        _rasterize_digit(d, h2, _X_H2, DIGIT_TOP_Y, C_ON, C_OFF)
+        _rasterize_digit(d, m1, _X_M1, DIGIT_TOP_Y, C_ON, C_OFF)
+        _rasterize_digit(d, m2, _X_M2, DIGIT_TOP_Y, C_ON, C_OFF)
+        _rasterize_colon(d, t.tm_sec % 2 == 0, C_ON, C_OFF)
 
-        _draw_digit(draw, h1, _X_H1, DIGIT_TOP_Y, C_ON, C_G1, C_G2, C_G3, C_OFF)
-        _draw_digit(draw, h2, _X_H2, DIGIT_TOP_Y, C_ON, C_G1, C_G2, C_G3, C_OFF)
-        _draw_digit(draw, m1, _X_M1, DIGIT_TOP_Y, C_ON, C_G1, C_G2, C_G3, C_OFF)
-        _draw_digit(draw, m2, _X_M2, DIGIT_TOP_Y, C_ON, C_G1, C_G2, C_G3, C_OFF)
-
-        # ── colon (8×8 px dots, blinking, 3-layer glow) ──────────────────────
-        lit = (t.tm_sec % 2 == 0)
-        cx  = _COL_DOT_X
-        for cy in (_COL_DOT_Y1, _COL_DOT_Y2):
-            if lit:
-                draw.rectangle([cx - 3, cy - 3, cx + 10, cy + 10], fill=C_G3)
-                draw.rectangle([cx - 2, cy - 2, cx +  9, cy +  9], fill=C_G2)
-                draw.rectangle([cx - 1, cy - 1, cx +  8, cy +  8], fill=C_G1)
-                draw.rectangle([cx,     cy,     cx +  7, cy +  7], fill=C_ON)
-            else:
-                draw.rectangle([cx, cy, cx + 7, cy + 7], fill=C_OFF)
-
-        # ── date block (2×2 dot Font1) ────────────────────────────────────────
         _MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN",
                    "JUL","AUG","SEP","OCT","NOV","DEC"]
         _DAYS   = ["MON","TUE","WED","THU","FRI","SAT","SUN"]
-
         day_str  = _DAYS[t.tm_wday]
         date_str = f"{t.tm_mday:02d} {_MONTHS[t.tm_mon - 1]} {t.tm_year}"
 
-        CHAR_H_DOT = _F1.GLYPH_H * DS - DG if _HAS_F1 else 16
+        CHAR_H_DOT = (_F1.GLYPH_H * DS - DG) if _HAS_F1 else 16
+        block_top  = DIGIT_TOP_Y + DIGIT_H + 12   # 141 px
+        line_gap   = 10
+        _rasterize_date_str(d, day_str,
+                            _centre_x(day_str),  block_top,
+                            C_DATE, C_OFF, self._font_fb)
+        _rasterize_date_str(d, date_str,
+                            _centre_x(date_str), block_top + CHAR_H_DOT + line_gap,
+                            C_DATE, C_OFF, self._font_fb)
 
-        block_top = DIGIT_TOP_Y + DIGIT_H + 12
-        line_gap  = 10
-        day_y     = block_top
-        date_y    = block_top + CHAR_H_DOT + line_gap
+        # ── Step 2: bloom (blur + scale) ──────────────────────────────────────
+        bloom = sharp.filter(ImageFilter.GaussianBlur(radius=self._bloom_r))
+        bloom = bloom.point(lambda x: int(x * self._bloom_scale))
 
-        _draw_date_str(draw, day_str,  _centre_x(day_str),  day_y,  C_DATE, C_G1, C_G2, C_OFF, self._font_fb)
-        _draw_date_str(draw, date_str, _centre_x(date_str), date_y, C_DATE, C_G1, C_G2, C_OFF, self._font_fb)
+        # ── Step 3: additive composite ────────────────────────────────────────
+        out = ImageChops.add(sharp, bloom)
+        img.paste(out, (0, 0))
 
     # ── key handler ───────────────────────────────────────────────────────────
 
     def on_key(self, key: str) -> bool:
         if key == "g":
-            self._glow_scale = min(0.80, round(self._glow_scale + 0.05, 2))
-        elif key == "G" or key == "shift+g":
-            self._glow_scale = max(0.08, round(self._glow_scale - 0.05, 2))
+            self._bloom_scale = min(1.2, round(self._bloom_scale + 0.05, 2))
+        elif key in ("G", "shift+g"):
+            self._bloom_scale = max(0.0, round(self._bloom_scale - 0.05, 2))
+        elif key == "r":
+            self._bloom_r = min(6.0, round(self._bloom_r + 0.2, 1))
+        elif key in ("R", "shift+r"):
+            self._bloom_r = max(0.2, round(self._bloom_r - 0.2, 1))
         elif key == "s":
             self._contrast = (self._contrast + 1) % 3
         elif key == "c":
@@ -497,42 +449,38 @@ class VFDRenderer:
         return True
 
     def help_text(self) -> str:
-        return "g/G=glow  s=contrast  c=colour theme (teal/amber/blue/green)  b=bg blue"
+        return ("g/G=bloom scale  r/R=bloom radius  "
+                "s=contrast  c=colour theme  b=bg blue")
 
     def param_dict(self) -> dict:
-        C_ON, C_G1, C_G2, C_G3, C_OFF, C_DATE = self._palette()
+        C_ON, C_OFF, C_DATE = self._palette()
         return {
-            "theme":       _THEMES[self._theme_idx][0],
-            "contrast":    ["standard","high","low"][self._contrast],
-            "C_BG":        self._bg,
-            "C_ON":        C_ON,
-            "C_G1":        C_G1,
-            "C_G2":        C_G2,
-            "C_G3":        C_G3,
-            "C_OFF":       C_OFF,
-            "C_DATE":      C_DATE,
-            "glow_scale":  self._glow_scale,
-            "TC":          TC,
-            "TG":          TG,
-            "T_COLS":      T_COLS,
-            "T_ROWS":      T_ROWS,
-            "DIGIT_W":     DIGIT_W,
-            "DIGIT_H":     DIGIT_H,
-            "DC":          DC,
-            "DG":          DG,
+            "theme":        _THEMES[self._theme_idx][0],
+            "contrast":     ["standard", "high", "low"][self._contrast],
+            "C_BG":         self._bg,
+            "C_ON":         C_ON,
+            "C_OFF":        C_OFF,
+            "C_DATE":       C_DATE,
+            "BLOOM_R":      self._bloom_r,
+            "BLOOM_SCALE":  self._bloom_scale,
+            "TC": TC, "TG": TG, "T_COLS": T_COLS, "T_ROWS": T_ROWS,
+            "DIGIT_W": DIGIT_W, "DIGIT_H": DIGIT_H,
+            "DC": DC, "DG": DG,
         }
 
 
 # ── standalone test ───────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    t = _time.struct_time((2026, 6, 12, 10, 34, 45, 3, 163, 1))
-    r = VFDRenderer()
+    t   = _time.struct_time((2026, 6, 13, 10, 34, 1, 4, 164, 1))
+    r   = VFDRenderer()
     img = Image.new("RGB", (CANVAS_W, CANVAS_H))
     r.render(img, t)
     out = "/tmp/vfd_test.png"
     img.save(out)
-    print(f"VFDRenderer OK  →  {out}")
-    print(f"Digit: {DIGIT_W}×{DIGIT_H} px  (TC={TC} TG={TG} → stride={TS}  cols={T_COLS} rows={T_ROWS})")
-    print(f"Date:  DC={DC} DG={DG} → stride={DS}  font={'Font1 (exact)' if _HAS_F1 else 'PIL fallback'}")
+    # 3× scaled for inspection
+    img.resize((CANVAS_W * 3, CANVAS_H * 3), Image.NEAREST).save("/tmp/vfd_test_3x.png")
+    print(f"VFDRenderer OK  →  {out}  (3x: /tmp/vfd_test_3x.png)")
+    print(f"Digit: {DIGIT_W}×{DIGIT_H} px  stride={TS}  grid={T_COLS}×{T_ROWS}")
+    print(f"Bloom: radius={r._bloom_r}  scale={r._bloom_scale}")
     print(f"Params: {r.param_dict()}")
