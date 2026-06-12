@@ -137,6 +137,7 @@ static void fetchCrypto() {
     memcpy(ids, s_cryptoIds, sizeof(ids));
     strlcpy(ccy, s_cryptoCcy, sizeof(ccy));
     portEXIT_CRITICAL_SAFE(&s_cryptoConfigMux);
+    for (char* p = ccy; *p; p++) *p = tolower((unsigned char)*p);
 
     String cryptoUrl = "https://api.coingecko.com/api/v3/simple/price?ids=";
     for (int i = 0; i < 6; i++) {

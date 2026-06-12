@@ -202,8 +202,8 @@ private:
             for (uint8_t i = 0; i < kSz; i++) if (strcmp(kPool[i], cur) == 0) { idx = i; break; }
             strlcpy(settings().cryptoCoins[row], kPool[(idx + 1) % kSz], 16);
         } else if (row == 6) {
-            if (strcmp(settings().cryptoCcy, "USD") == 0) strlcpy(settings().cryptoCcy, "EUR", 4);
-            else strlcpy(settings().cryptoCcy, "USD", 4);
+            if (strcmp(settings().cryptoCcy, "usd") == 0) strlcpy(settings().cryptoCcy, "eur", 4);
+            else strlcpy(settings().cryptoCcy, "usd", 4);
         } else return;
         saveSettings(); repaint();
     }

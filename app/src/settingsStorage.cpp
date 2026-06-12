@@ -42,7 +42,7 @@ static void applyDefaults() {
     };
     for (int i = 0; i < 6; i++)
         strlcpy(g_settings.cryptoCoins[i], kDefCoins[i], 16);
-    strlcpy(g_settings.cryptoCcy, "USD", sizeof(g_settings.cryptoCcy));
+    strlcpy(g_settings.cryptoCcy, "usd", sizeof(g_settings.cryptoCcy));
 
     // Aquarium
     g_settings.aquariumFish  = 8;
