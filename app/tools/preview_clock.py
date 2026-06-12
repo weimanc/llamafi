@@ -30,6 +30,11 @@ import time as _time
 from abc import ABC, abstractmethod
 from typing import Optional
 
+import sys as _sys
+import pathlib as _pathlib
+_sys.path.insert(0, str(_pathlib.Path(__file__).parent))
+import dut_fonts as _dut_fonts
+
 from PIL import Image, ImageDraw, ImageFont
 
 # ── geometry (mirrors firmware) ───────────────────────────────────────────────
@@ -71,6 +76,7 @@ _FONT_PATHS = [
 ]
 
 def find_font(size: int) -> ImageFont.FreeTypeFont:
+    """System TrueType fallback — used for taskbar labels only."""
     for p in _FONT_PATHS:
         if pathlib.Path(p).exists():
             return ImageFont.truetype(p, size)
@@ -106,13 +112,18 @@ class ClockRenderer(ABC):
 class DigitalRenderer(ClockRenderer):
     """Firmware Digital style with the MM-jump bug fixed.
 
-    HH and MM are drawn at absolute x anchors so the colon blink never
-    shifts the minute digits left/right (the firmware bug this milestone fixes).
+    Uses exact TFT_eSPI bitmap fonts parsed from the library source:
+      Font6 (48px) for HH:MM — same as setTextFont(6) on DUT
+      Font4 (26px) for day/date — same as setTextFont(4) on DUT
+
+    Positions mirror firmware exactly:
+      HH  MR_DATUM at (129, 45)   colon MC_DATUM at (137, 45)   MM ML_DATUM at (145, 45)
+      day MC_DATUM at (137, 170)  date  MC_DATUM at (137, 200)
     """
 
     def __init__(self):
-        self._font_time = find_font(48)
-        self._font_date = find_font(22)
+        self._font_time = _dut_fonts.Font6()
+        self._font_date = _dut_fonts.Font4()
 
     def help_text(self) -> str:
         return "(no style keys — demonstrating fixed-position MM)"
@@ -126,25 +137,15 @@ class DigitalRenderer(ClockRenderer):
         draw.rounded_rectangle([5,  88, 270, 135], radius=10, outline=(0, 255, 255),   width=2)
         draw.rounded_rectangle([5, 138, 270, 235], radius=10, outline=(255, 255, 0),   width=2)
 
-        # fixed-position HH / colon / MM  ← the fix
+        # HH / colon / MM — exact firmware anchors: MR@129, MC@137, ML@145, cy=45
         hh = f"{t.tm_hour:02d}"
         mm = f"{t.tm_min:02d}"
         show_colon = (t.tm_sec % 2 == 0)
 
-        col_w = draw.textlength(":", font=self._font_time)
-        hh_w  = draw.textlength(hh,  font=self._font_time)
-        bb    = draw.textbbox((0, 0), "0", font=self._font_time)
-        ch    = bb[3] - bb[1]
-
-        hh_x = CENTRE_X - col_w / 2 - hh_w
-        col_x = CENTRE_X - col_w / 2
-        mm_x  = CENTRE_X + col_w / 2
-        ty    = TIME_CY - ch // 2
-
-        draw.text((hh_x, ty), hh, font=self._font_time, fill=(255, 255, 255))
-        draw.text((mm_x, ty), mm, font=self._font_time, fill=(255, 255, 255))
+        self._font_time.draw_right(draw, 129, TIME_CY, hh,  fg=(255, 255, 255))
+        self._font_time.draw_left( draw, 145, TIME_CY, mm,  fg=(255, 255, 255))
         if show_colon:
-            draw.text((col_x, ty), ":", font=self._font_time, fill=(255, 255, 255))
+            self._font_time.draw_centered(draw, 137, TIME_CY, ":", fg=(255, 255, 255))
 
         # seconds bar
         for i in range(60):
@@ -152,13 +153,11 @@ class DigitalRenderer(ClockRenderer):
             c = rainbow_color(i) if i < t.tm_sec else (0, 80, 80)
             draw.rectangle([x, SEC_BAR_Y, x + 1, SEC_BAR_Y + SEC_BAR_H - 1], fill=c)
 
-        # date
+        # day / date — MC_DATUM at (137, 170) and (137, 200)
         days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-        draw.text((CENTRE_X, DATE_DAY_Y), days[t.tm_wday],
-                  font=self._font_date, fill=(255, 255, 255), anchor="mm")
-        ds = f"{t.tm_mday:02d}/{t.tm_mon + 1:02d}/{t.tm_year + 1900}"
-        draw.text((CENTRE_X, DATE_DATE_Y), ds,
-                  font=self._font_date, fill=(255, 255, 255), anchor="mm")
+        self._font_date.draw_centered(draw, 137, DATE_DAY_Y,  days[t.tm_wday], fg=(255, 255, 255))
+        ds = f"{t.tm_mday:02d}/{t.tm_mon:02d}/{t.tm_year}"
+        self._font_date.draw_centered(draw, 137, DATE_DATE_Y, ds,              fg=(255, 255, 255))
 
     def on_key(self, key: str) -> bool:
         return False
@@ -168,27 +167,57 @@ class DigitalRenderer(ClockRenderer):
 
 # ── Taskbar stub ──────────────────────────────────────────────────────────────
 
-_TASKBAR_LABELS = list("SCWM$MG=K~")   # rough slot labels (S=Spotify, C=Clock …)
-_TASKBAR_LABEL  = ["S", "C", "W", "$", "M", "G"]
+# App order matches appRegistry.h: Spotify(0) Clock(1) Weather(2) Crypto(3) Matrix(4) Life(5)
+# Settings(6) Stock(7) Aquarium(8). Taskbar shows first 6 slots (TASKBAR_SLOT_COUNT=6).
+_ICONS_DIR = pathlib.Path(__file__).parent.parent / "icons" / "taskbar"
+_APP_NAMES  = ["spotify", "clock", "weather", "crypto", "matrix", "life",
+               "settings", "stock", "aquarium"]
+_TASKBAR_SLOT_COUNT = 6
+_TASKBAR_SLOT_H     = 40
+_TASKBAR_ICON_W     = 24
+_TASKBAR_ICON_H     = 24
+_TASKBAR_BG         = (32, 32, 32)   # 0x2104 RGB565 → ~(32,32,32)
+_TASKBAR_ACTIVE_COL = (0, 255, 0)   # 0x07E0 = green
+_TASKBAR_SEP_COL    = (64, 64, 64)  # 0x4208 RGB565 → ~(64,64,64)
 
-def _draw_taskbar(img: Image.Image, active_slot: int) -> None:
-    draw   = ImageDraw.Draw(img)
-    SLOT_H = 40
-    font   = find_font(13)
-    draw.rectangle([TASKBAR_X, 0, SCREEN_W - 1, SCREEN_H - 1], fill=(10, 10, 22))
-    for i, lbl in enumerate(_TASKBAR_LABEL):
-        y0 = i * SLOT_H
-        y1 = y0 + SLOT_H - 1
-        if i == active_slot:
-            draw.rectangle([TASKBAR_X, y0, SCREEN_W - 1, y1], fill=(28, 28, 55))
-            draw.rectangle([TASKBAR_X, y0, TASKBAR_X + 2, y1], fill=(0, 200, 255))
-        cx = TASKBAR_X + TASKBAR_W // 2
-        cy = y0 + SLOT_H // 2
-        draw.text((cx, cy), lbl, font=font,
-                  fill=(220, 220, 220) if i == active_slot else (120, 120, 140),
-                  anchor="mm")
-        if i < len(_TASKBAR_LABEL) - 1:
-            draw.line([TASKBAR_X, y1 + 1, SCREEN_W - 1, y1 + 1], fill=(28, 28, 50))
+
+def _load_icon(name: str, active: bool) -> Optional[Image.Image]:
+    suffix = "_active" if active else ""
+    path   = _ICONS_DIR / f"{name}{suffix}.png"
+    if not path.exists():
+        return None
+    ico = Image.open(path).convert("RGBA")
+    if ico.size != (_TASKBAR_ICON_W, _TASKBAR_ICON_H):
+        ico = ico.resize((_TASKBAR_ICON_W, _TASKBAR_ICON_H), Image.LANCZOS)
+    return ico
+
+
+def _draw_taskbar(img: Image.Image, active_slot: int,
+                  scroll_offset: int = 0) -> None:
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([TASKBAR_X, 0, SCREEN_W - 1, SCREEN_H - 1], fill=_TASKBAR_BG)
+
+    icon_off_x = (TASKBAR_W - _TASKBAR_ICON_W) // 2
+    icon_off_y = (_TASKBAR_SLOT_H - _TASKBAR_ICON_H) // 2
+
+    for i in range(_TASKBAR_SLOT_COUNT):
+        app_idx = (scroll_offset + i) % len(_APP_NAMES)
+        y0      = i * _TASKBAR_SLOT_H
+        y1      = y0 + _TASKBAR_SLOT_H - 1
+        is_active = (app_idx == active_slot)
+
+        # separator line
+        if i < _TASKBAR_SLOT_COUNT - 1:
+            draw.line([TASKBAR_X, y1 + 1, SCREEN_W - 1, y1 + 1], fill=_TASKBAR_SEP_COL)
+
+        # icon
+        ico = _load_icon(_APP_NAMES[app_idx], is_active)
+        if ico:
+            img.paste(ico, (TASKBAR_X + icon_off_x, y0 + icon_off_y), mask=ico)
+
+        # active indicator: 3px green bar on left edge
+        if is_active:
+            draw.rectangle([TASKBAR_X, y0, TASKBAR_X + 2, y1], fill=_TASKBAR_ACTIVE_COL)
 
 # ── renderer registry ─────────────────────────────────────────────────────────
 

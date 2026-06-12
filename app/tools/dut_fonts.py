@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
-"""dut_fonts.py — PIL renderers for TFT_eSPI Font1 (GLCD 5×7) and Font2 (16px).
+"""dut_fonts.py — PIL renderers for TFT_eSPI fonts 1, 2, 4, 6.
 
 Parses font bitmap data directly from the TFT_eSPI library source files so the
 host-side preview matches DUT rendering exactly — no TrueType approximation.
 
 Fonts:
-    Font1  setTextFont(1) — GLCD 5×7 Adafruit GFX font, 6×8 cell (5px + 1gap, 7px + 1gap)
+    Font1  setTextFont(1) — GLCD 5×7 Adafruit GFX font, 6×8 cell
     Font2  setTextFont(2) — Font16, variable-width 16px, baseline row 13
+    Font4  setTextFont(4) — Font32rle, variable-width 26px, baseline row 19
+    Font6  setTextFont(6) — Font64rle, variable-width 48px, baseline row 36
+                            (digits/colon/dot/dash only; others render as space)
 
 Usage:
     import dut_fonts
     f1, f2 = dut_fonts.load()         # auto-locate from __file__ → project root
+    f4 = dut_fonts.Font4()
+    f6 = dut_fonts.Font6()
     f2.draw(draw, 5, 10, "NVDA", fg=(255,255,255))
-    f1.draw_centered(draw, cx, cy, "+3.2%", fg=(0,200,0))
+    f6.draw_centered(draw, 137, 45, "12:34", fg=(255,255,255))
 """
 from __future__ import annotations
 
@@ -244,6 +249,157 @@ class Font2:
 
     def text_height(self) -> int:
         return self.CHAR_H
+
+
+# ── _RleFont — shared base for Font4 (Font32rle) and Font6 (Font64rle) ───────
+
+class _RleFont:
+    """Base for TFT_eSPI 8-bit RLE bitmap fonts.
+
+    RLE encoding per byte:
+        byte & 0x80 → foreground run,  count = (byte & 0x7F) + 1
+        else        → background run,  count = byte + 1
+    Data is linearised across all rows (no per-row reset).
+    Advance = glyph_width (no inter-character gap, unlike Font2).
+    """
+    _file:   str   # e.g. "Font32rle.c"
+    _prefix: str   # e.g. "f32"
+    CHAR_H:   int
+    BASELINE: int
+
+    def __init__(self, font_dir: pathlib.Path = _FONT_DIR):
+        path = font_dir / self._file
+        text = path.read_text()
+        self._widths   = self._parse_widths(text)
+        self._rle_data = self._parse_glyphs(text)
+
+    def _parse_widths(self, text: str) -> list[int]:
+        m = re.search(
+            rf'widtbl_{self._prefix}\[96\][^{{]*\{{([^}}]+)\}}', text, re.DOTALL
+        )
+        if not m:
+            raise ValueError(f"Cannot parse widtbl_{self._prefix}")
+        body = re.sub(r'//[^\n]*', '', m.group(1))
+        return [int(v) for v in re.findall(r'\d+', body)][:96]
+
+    def _parse_glyphs(self, text: str) -> dict[int, bytes]:
+        glyphs: dict[int, bytes] = {}
+        for m in re.finditer(
+            rf'chr_{self._prefix}_([0-9A-Fa-f]+)\[\d*\][^{{]*\{{([^}}]+)\}}',
+            text, re.DOTALL
+        ):
+            code = int(m.group(1), 16)
+            data = bytes(int(v, 16)
+                         for v in re.findall(r'0x([0-9A-Fa-f]{2})', m.group(2)))
+            glyphs[code] = data
+        return glyphs
+
+    def _decode_rle(self, code: int) -> list[list[bool]]:
+        """Return height×width bool grid for ASCII code, or empty if no glyph."""
+        idx = code - 32
+        if idx < 0 or idx >= 96:
+            return []
+        w    = self._widths[idx]
+        data = self._rle_data.get(code)
+        if data is None:
+            return []
+        pixels: list[bool] = []
+        for b in data:
+            if b & 0x80:
+                pixels.extend([True]  * ((b & 0x7F) + 1))
+            else:
+                pixels.extend([False] * (b + 1))
+        h = self.CHAR_H
+        rows = []
+        for row in range(h):
+            start = row * w
+            rows.append(pixels[start: start + w] if start + w <= len(pixels)
+                        else [False] * w)
+        return rows
+
+    # ── drawing ───────────────────────────────────────────────────────────
+
+    def draw(self, draw, x: int, y: int, text: str,
+             fg: tuple, bg: Optional[tuple] = None) -> int:
+        """Draw string top-left at (x, y). Returns x after last character."""
+        fg_pts: list[tuple[int,int]] = []
+        bg_pts: list[tuple[int,int]] = []
+        cx = x
+        for ch in text:
+            code = ord(ch)
+            idx  = code - 32
+            if idx < 0 or idx >= 96:
+                idx = 0; code = 32   # treat as space
+            w    = self._widths[idx]
+            rows = self._decode_rle(code)
+            for row_i, row in enumerate(rows):
+                for col_i, lit in enumerate(row):
+                    pt = (cx + col_i, y + row_i)
+                    if lit:
+                        fg_pts.append(pt)
+                    elif bg is not None:
+                        bg_pts.append(pt)
+            cx += w
+        if bg_pts:
+            draw.point(bg_pts, fill=bg)
+        if fg_pts:
+            draw.point(fg_pts, fill=fg)
+        return cx
+
+    def draw_centered(self, draw, cx: int, cy: int, text: str,
+                      fg: tuple, bg: Optional[tuple] = None) -> None:
+        """Draw string horizontally and vertically centered at (cx, cy)."""
+        x = cx - self.text_width(text) // 2
+        y = cy - self.CHAR_H // 2
+        self.draw(draw, x, y, text, fg, bg)
+
+    def draw_right(self, draw, rx: int, cy: int, text: str,
+                   fg: tuple, bg: Optional[tuple] = None) -> None:
+        """Draw string right-aligned at x=rx, vertically centered at cy."""
+        x = rx - self.text_width(text)
+        y = cy - self.CHAR_H // 2
+        self.draw(draw, x, y, text, fg, bg)
+
+    def draw_left(self, draw, lx: int, cy: int, text: str,
+                  fg: tuple, bg: Optional[tuple] = None) -> None:
+        """Draw string left-aligned at x=lx, vertically centered at cy."""
+        y = cy - self.CHAR_H // 2
+        self.draw(draw, lx, y, text, fg, bg)
+
+    def text_width(self, text: str) -> int:
+        total = 0
+        for ch in text:
+            idx = ord(ch) - 32
+            if 0 <= idx < 96:
+                total += self._widths[idx]
+        return total
+
+    def text_height(self) -> int:
+        return self.CHAR_H
+
+
+class Font4(_RleFont):
+    """TFT_eSPI Font4 — 26px, variable-width, full ASCII 32-127.
+
+    setTextFont(4) → Font32rle.c, height=26, baseline row 19.
+    """
+    _file    = "Font32rle.c"
+    _prefix  = "f32"
+    CHAR_H   = 26
+    BASELINE = 19
+
+
+class Font6(_RleFont):
+    """TFT_eSPI Font6 — 48px, digits + limited chars.
+
+    setTextFont(6) → Font64rle.c, height=48, baseline row 36.
+    Only [space] 0-9 : - . a p m | are defined; all others advance as space
+    with no pixels drawn (matches firmware behaviour).
+    """
+    _file    = "Font64rle.c"
+    _prefix  = "f64"
+    CHAR_H   = 48
+    BASELINE = 36
 
 
 # ── convenience loader ────────────────────────────────────────────────────────
