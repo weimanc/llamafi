@@ -67,16 +67,14 @@ static const char WEATHER_URL[] =
     "&current=temperature_2m,relative_humidity_2m,wind_speed_10m"
     "&timezone=Europe/London";
 
-static const char CRYPTO_URL[] =
-    "https://api.coingecko.com/api/v3/simple/price"
-    "?ids=bitcoin,ethereum,binancecoin,solana,ripple,cardano"
-    "&vs_currencies=usd&include_24hr_change=true";
-
-static const char* CRYPTO_IDS[] = {
+static char        s_cryptoIds[6][16] = {
     "bitcoin","ethereum","binancecoin","solana","ripple","cardano"
 };
+static char        s_cryptoCcy[4]     = "usd";
+static portMUX_TYPE s_cryptoConfigMux = portMUX_INITIALIZER_UNLOCKED;
 
-static const char* STOCK_TICKERS[8]      = {"AAPL","AMD","AMZN","ARM","GOOG","META","MSFT","NVDA"};
+static char        s_stockTickers[8][8]  = {"AAPL","AMD","AMZN","ARM","GOOG","META","MSFT","NVDA"};
+static portMUX_TYPE s_stockTickersMux    = portMUX_INITIALIZER_UNLOCKED;
 static const char* STOCK_RANGE_STR[4]    = {"1d","5d","1mo","ytd"};
 static const char* STOCK_INTERVAL_STR[4] = {"5m","60m","1d","1wk"};
 static const char  STOCK_URL_BASE[]      = "https://query1.finance.yahoo.com/v8/finance/chart/";
@@ -132,12 +130,29 @@ static void fetchCrypto() {
     // Pause Spotify TLS first (same mechanism as heatmap) to give the alloc clean
     // contiguous heap. HTTP/1.0 ensures http.end() frees TLS before JSON parse.
     spotifyTask::tlsYield();
+
+    char ids[6][16];
+    char ccy[4];
+    portENTER_CRITICAL_SAFE(&s_cryptoConfigMux);
+    memcpy(ids, s_cryptoIds, sizeof(ids));
+    strlcpy(ccy, s_cryptoCcy, sizeof(ccy));
+    portEXIT_CRITICAL_SAFE(&s_cryptoConfigMux);
+
+    String cryptoUrl = "https://api.coingecko.com/api/v3/simple/price?ids=";
+    for (int i = 0; i < 6; i++) {
+        if (i > 0) cryptoUrl += ',';
+        cryptoUrl += ids[i];
+    }
+    cryptoUrl += "&vs_currencies=";
+    cryptoUrl += ccy;
+    cryptoUrl += "&include_24hr_change=true";
+
     LOG_HEAP("dataTask.crypto");
     WiFiClientSecure tls;
     tls.setCACert(COINGECKO_ROOT_CA);
     HTTPClient http;
     http.useHTTP10(true);   // force Connection:close so http.end() frees TLS
-    if (!http.begin(tls, CRYPTO_URL)) {
+    if (!http.begin(tls, cryptoUrl)) {
         LOG_W("dataTask.crypto", "http.begin failed");
         spotifyTask::tlsResume();
         return;
@@ -158,14 +173,17 @@ static void fetchCrypto() {
             CryptoResult r;
             r.ok = true;
             for (int i = 0; i < 6; i++) {
-                r.prices[i]  = doc[CRYPTO_IDS[i]]["usd"].as<float>();
-                r.changes[i] = doc[CRYPTO_IDS[i]]["usd_24h_change"].as<float>();
+                char changeKey[24];
+                snprintf(changeKey, sizeof(changeKey), "%s_24h_change", ccy);
+                r.prices[i]  = doc[ids[i]][ccy].as<float>();
+                r.changes[i] = doc[ids[i]][changeKey].as<float>();
             }
             portENTER_CRITICAL_SAFE(&s_cryptoMux);
             s_cryptoResult = r;
             s_cryptoNew    = true;
             portEXIT_CRITICAL_SAFE(&s_cryptoMux);
-            LOG_D("dataTask.crypto", "ok btc=%.0f eth=%.0f", r.prices[0], r.prices[1]);
+            LOG_D("dataTask.crypto", "ok %s=%.2f %s=%.2f ids=%s ccy=%s",
+                  ids[0], r.prices[0], ids[1], r.prices[1], ids[0], ccy);
         } else {
             LOG_W("dataTask.crypto", "JSON parse error: %s", err.c_str());
         }
@@ -175,15 +193,19 @@ static void fetchCrypto() {
 static void fetchStockQuote() {
     spotifyTask::tlsYield();         // free Spotify TLS before 8 consecutive Yahoo handshakes
     LOG_HEAP("dataTask.stock");   // before 8-ticker TLS loop
+    char tickers[8][8];
+    portENTER_CRITICAL_SAFE(&s_stockTickersMux);
+    memcpy(tickers, s_stockTickers, sizeof(tickers));
+    portEXIT_CRITICAL_SAFE(&s_stockTickersMux);
     StockQuoteResult r;
     r.ok = true;
     for (int i = 0; i < 8 && r.ok; i++) {
-        String url = String(STOCK_URL_BASE) + STOCK_TICKERS[i] + "?interval=1d&range=1d";
+        String url = String(STOCK_URL_BASE) + tickers[i] + "?interval=1d&range=1d";
         WiFiClientSecure tls;
         tls.setCACert(YAHOO_FINANCE_ROOT_CA);
         HTTPClient http;
         if (!http.begin(tls, url)) {
-            LOG_W("dataTask.stock", "http.begin failed sym=%s", STOCK_TICKERS[i]);
+            LOG_W("dataTask.stock", "http.begin failed sym=%s", tickers[i]);
             r.ok = false; r.errorCode = -100;
             break;
         }
@@ -192,7 +214,7 @@ static void fetchStockQuote() {
         unsigned long t0 = millis();
         int code = http.GET();
         LOG_D("dataTask.stock", "quote GET %s %d elapsed=%lums",
-              STOCK_TICKERS[i], code, (unsigned long)(millis() - t0));
+              tickers[i], code, (unsigned long)(millis() - t0));
         if (code != 200) {
             r.ok = false; r.errorCode = code;
             http.end();
@@ -209,7 +231,7 @@ static void fetchStockQuote() {
                                        DeserializationOption::Filter(filter));
         http.end();
         if (err) {
-            LOG_W("dataTask.stock", "JSON err sym=%s: %s", STOCK_TICKERS[i], err.c_str());
+            LOG_W("dataTask.stock", "JSON err sym=%s: %s", tickers[i], err.c_str());
             r.ok = false; r.errorCode = -90 - (int)err.code();
             break;
         }
@@ -230,12 +252,16 @@ static void fetchStockQuote() {
 
 static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
     if (tickerIdx >= 8 || rangeIdx >= 4) return;
+    char tickers[8][8];
+    portENTER_CRITICAL_SAFE(&s_stockTickersMux);
+    memcpy(tickers, s_stockTickers, sizeof(tickers));
+    portEXIT_CRITICAL_SAFE(&s_stockTickersMux);
     spotifyTask::tlsYield();
-    String url = String(STOCK_URL_BASE) + STOCK_TICKERS[tickerIdx]
+    String url = String(STOCK_URL_BASE) + tickers[tickerIdx]
                  + "?interval=" + STOCK_INTERVAL_STR[rangeIdx]
                  + "&range="    + STOCK_RANGE_STR[rangeIdx];
     LOG_D("dataTask.stock", "chart START %s range=%s heap free=%uk maxBlk=%uk",
-          STOCK_TICKERS[tickerIdx], STOCK_RANGE_STR[rangeIdx],
+          tickers[tickerIdx], STOCK_RANGE_STR[rangeIdx],
           (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)          / 1024),
           (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024));
     StockChartResult r;
@@ -251,7 +277,7 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
         unsigned long t0 = millis();
         int code = http.GET();
         LOG_D("dataTask.stock", "chart GET %s range=%s %d elapsed=%lums",
-              STOCK_TICKERS[tickerIdx], STOCK_RANGE_STR[rangeIdx],
+              tickers[tickerIdx], STOCK_RANGE_STR[rangeIdx],
               code, (unsigned long)(millis() - t0));
         if (code != 200) {
             r.ok = false; r.errorCode = code;
@@ -585,6 +611,21 @@ bool pollHeatmapQuote(HeatmapQuoteResult *out) {
     }
     portEXIT_CRITICAL_SAFE(&s_heatmapMux);
     return got;
+}
+
+void configureStockTickers(const char tickers[8][8]) {
+    portENTER_CRITICAL_SAFE(&s_stockTickersMux);
+    for (int i = 0; i < 8; i++)
+        strlcpy(s_stockTickers[i], tickers[i], 8);
+    portEXIT_CRITICAL_SAFE(&s_stockTickersMux);
+}
+
+void configureCrypto(const char ids[6][16], const char* ccy) {
+    portENTER_CRITICAL_SAFE(&s_cryptoConfigMux);
+    for (int i = 0; i < 6; i++)
+        strlcpy(s_cryptoIds[i], ids[i], 16);
+    strlcpy(s_cryptoCcy, ccy, 4);
+    portEXIT_CRITICAL_SAFE(&s_cryptoConfigMux);
 }
 
 }  // namespace dataTask

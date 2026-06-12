@@ -114,6 +114,7 @@ char clientSecret[200];
 #include "appShell.h"
 #include "taskbar/taskbar.h"
 #include "dataTask.h"
+#include "settingsStorage.h"
 
 AppId currentAppId = AppId::Spotify;
 static AppId g_previousAppId = AppId::Spotify;
@@ -301,6 +302,7 @@ public:
     repaintMatrix();
   }
   void resume() override {
+    _applyMatrixSettings();
     repaintMatrix();
   }
   void suspend() override {}
@@ -316,6 +318,23 @@ public:
 private:
   MatrixAppState _s;
   unsigned long  _lastTickMs = 0;
+  uint16_t      _headColor = TFT_WHITE;
+  uint16_t      _tailColor = TFT_GREEN;
+  unsigned long _tickMs    = MATRIX_TICK_MS;
+
+  void _applyMatrixSettings() {
+    switch (g_settings.matrixColor) {
+      case MatrixColor::White: _tailColor = 0xBDF7; break;
+      case MatrixColor::Amber: _tailColor = 0xFD20; break;
+      default:                 _tailColor = TFT_GREEN; break;
+    }
+    _headColor = TFT_WHITE;
+    switch (g_settings.matrixSpeed) {
+      case AppSpeed::Slow: _tickMs = 60; break;
+      case AppSpeed::Fast: _tickMs = 10; break;
+      default:             _tickMs = MATRIX_TICK_MS; break;
+    }
+  }
 
   void initMatrixState() {
     for (int i = 0; i < MATRIX_STREAMS; i++) {
@@ -334,13 +353,13 @@ private:
 
   void matrixTick() {
     unsigned long now = millis();
-    if (now - _lastTickMs < MATRIX_TICK_MS) return;
+    if (now - _lastTickMs < _tickMs) return;
     _lastTickMs = now;
     for (int i = 0; i < MATRIX_STREAMS; i++) {
-      tft.setTextColor(TFT_WHITE, TFT_BLACK);
+      tft.setTextColor(_headColor, TFT_BLACK);
       char hC = random(33, 126);
       tft.drawChar(hC, _s.rain[i].x, (int)_s.rain[i].y, 2);
-      tft.setTextColor(TFT_GREEN, TFT_BLACK);
+      tft.setTextColor(_tailColor, TFT_BLACK);
       tft.drawChar(_s.rain[i].lastChar, _s.rain[i].x, (int)_s.rain[i].y - 20, 2);
       tft.fillRect(_s.rain[i].x, (int)_s.rain[i].y - (_s.rain[i].length * 20),
                    20, 20, TFT_BLACK);
@@ -349,8 +368,24 @@ private:
       if (_s.rain[i].y > MATRIX_CANVAS_H + (_s.rain[i].length * 20))
         _s.rain[i].y = -20.0f;
     }
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextColor(_headColor, TFT_BLACK);
   }
+
+#ifdef SERIAL_DEBUG
+  bool dbgGet(const char* var, char* buf, int len) const {
+    static const char* kC[] = {"green","white","amber"};
+    if (strcmp(var, "matrixColor") == 0) {
+      snprintf(buf, len, "\"var\":\"matrixColor\",\"val\":\"%s\",\"last\":true",
+               kC[(uint8_t)g_settings.matrixColor % 3]);
+      return true;
+    }
+    if (strcmp(var, "matrixTickMs") == 0) {
+      snprintf(buf, len, "\"var\":\"matrixTickMs\",\"val\":%lu,\"last\":true", _tickMs);
+      return true;
+    }
+    return false;
+  }
+#endif
 };
 static MatrixApp g_MatrixApp;
 
@@ -464,22 +499,44 @@ static WeatherApp g_WeatherApp;
 #define CX_COL_PRC    55
 #define CX_COL_CHG   270
 
-static const char* CRYPTO_SYMBOLS[CRYPTO_COIN_COUNT] =
-    {"BTC","ETH","BNB","SOL","XRP","ADA"};
+static const char* cgIdToDisplay(const char* id) {
+  if (strcmp(id, "bitcoin")      == 0) return "BTC";
+  if (strcmp(id, "ethereum")     == 0) return "ETH";
+  if (strcmp(id, "binancecoin")  == 0) return "BNB";
+  if (strcmp(id, "solana")       == 0) return "SOL";
+  if (strcmp(id, "ripple")       == 0) return "XRP";
+  if (strcmp(id, "cardano")      == 0) return "ADA";
+  if (strcmp(id, "dogecoin")     == 0) return "DOGE";
+  if (strcmp(id, "avalanche-2")  == 0) return "AVAX";
+  if (strcmp(id, "matic-network")== 0) return "MATIC";
+  if (strcmp(id, "chainlink")    == 0) return "LINK";
+  if (strcmp(id, "polkadot")     == 0) return "DOT";
+  if (strcmp(id, "litecoin")     == 0) return "LTC";
+  return id;
+}
 
-static String formatCryptoPrice(const char* sym, float price) {
-  if (strcmp(sym,"XRP")==0 || strcmp(sym,"ADA")==0) return String(price, 4);
-  return (price >= 1000.0f) ? String((int)price) : String(price, 2);
+static String formatCryptoPrice(float price) {
+  if (price < 1.0f)     return String(price, 4);
+  if (price < 1000.0f)  return String(price, 2);
+  return String((int)price);
 }
 
 class CryptoApp : public App {
 public:
   void init() override {
+    dataTask::configureCrypto(
+        const_cast<const char(*)[16]>(g_settings.cryptoCoins),
+        g_settings.cryptoCcy);
     repaintCrypto();
     dataTask::enqueue(dataTask::DATA_FETCH_CRYPTO);
     _s.lastCryptoFetch = millis();
   }
-  void resume()  override { repaintCrypto(); }
+  void resume() override {
+    dataTask::configureCrypto(
+        const_cast<const char(*)[16]>(g_settings.cryptoCoins),
+        g_settings.cryptoCcy);
+    repaintCrypto();
+  }
   void suspend() override {}
   void tick()    override { cryptoTick(); }
   bool handleInput(TouchPhase, int, int) override { return false; }
@@ -496,9 +553,9 @@ private:
     int yPos = CX_ROW_Y0;
     for (int i = 0; i < CRYPTO_COIN_COUNT; i++) {
       tft.setTextColor(0xFFFF);
-      tft.drawString(CRYPTO_SYMBOLS[i], CX_COL_SYM, yPos + 11, 2);
+      tft.drawString(cgIdToDisplay(g_settings.cryptoCoins[i]), CX_COL_SYM, yPos + 11, 2);
       tft.setTextColor(0x07FF);
-      tft.drawString(_s.lastCryptoFetch ? formatCryptoPrice(CRYPTO_SYMBOLS[i], _s.prices[i])
+      tft.drawString(_s.lastCryptoFetch ? formatCryptoPrice(_s.prices[i])
                                         : String("---"), CX_COL_PRC, yPos + 11, 2);
       if (!_s.lastCryptoFetch) {
         tft.setTextColor(0x7BEF);
@@ -530,6 +587,30 @@ private:
       repaintCrypto();
     }
   }
+
+#ifdef SERIAL_DEBUG
+  bool dbgGet(const char* var, char* buf, int len) const {
+    for (int i = 0; i < 6; i++) {
+      char key[16]; snprintf(key, sizeof(key), "cryptoCoin%d", i);
+      if (strcmp(var, key) == 0) {
+        snprintf(buf, len, "\"var\":\"%s\",\"val\":\"%s\",\"last\":true",
+                 key, g_settings.cryptoCoins[i]);
+        return true;
+      }
+    }
+    if (strcmp(var, "cryptoCcy") == 0) {
+      snprintf(buf, len, "\"var\":\"cryptoCcy\",\"val\":\"%s\",\"last\":true",
+               g_settings.cryptoCcy);
+      return true;
+    }
+    if (strcmp(var, "cryptoLastFetch") == 0) {
+      snprintf(buf, len, "\"var\":\"cryptoLastFetch\",\"val\":%lu,\"last\":true",
+               _s.lastCryptoFetch);
+      return true;
+    }
+    return false;
+  }
+#endif
 };
 static CryptoApp g_CryptoApp;
 
@@ -548,6 +629,7 @@ public:
   void init() override { spawnLife(_s); resume(); }
 
   void resume() override {
+    _applyLifeSettings();
     tft.fillRect(0, 0, GOL_GRID_W * GOL_CELL_PX, GOL_GRID_H * GOL_CELL_PX, TFT_BLACK);
     repaintLife(_s);
   }
@@ -568,7 +650,18 @@ public:
 private:
   LifeAppState  _s;
   unsigned long _lastTickMs = 0;
+  unsigned long _tickMs    = GOL_TICK_MS;
+  bool          _monoColor = false;
   static uint8_t s_nextGrid[GOL_GRID_W][GOL_GRID_H];
+
+  void _applyLifeSettings() {
+    switch (g_settings.lifeSpeed) {
+      case AppSpeed::Slow: _tickMs = 200; break;
+      case AppSpeed::Fast: _tickMs =  40; break;
+      default:             _tickMs = GOL_TICK_MS; break;
+    }
+    _monoColor = (g_settings.lifeColors == LifeColors::Mono);
+  }
 
   void spawnLife(LifeAppState &s) {
     for (int x = 0; x < GOL_GRID_W; x++)
@@ -585,11 +678,17 @@ private:
     for (int x = 0; x < GOL_GRID_W; x++) {
       for (int y = 0; y < GOL_GRID_H; y++) {
         if (s.grid[x][y] > 0) {
-          uint8_t r = (x * 4 + s.hueShift) % 255;
-          uint8_t g = (y * 2 + s.hueShift / 2) % 255;
+          uint16_t cellColor;
+          if (_monoColor) {
+            cellColor = TFT_WHITE;
+          } else {
+            uint8_t r = (x * 4 + s.hueShift) % 255;
+            uint8_t g = (y * 2 + s.hueShift / 2) % 255;
+            cellColor = tft.color565(r, g, 255 - r);
+          }
           tft.fillRect(x * GOL_CELL_PX, y * GOL_CELL_PX,
                        GOL_CELL_FILL, GOL_CELL_FILL,
-                       tft.color565(r, g, 255 - r));
+                       cellColor);
         }
       }
     }
@@ -617,11 +716,17 @@ private:
       for (int y = 0; y < GOL_GRID_H; y++) {
         if (s.grid[x][y] != s_nextGrid[x][y]) {
           if (s_nextGrid[x][y] > 0) {
-            uint8_t r = (x * 4 + s.hueShift) % 255;
-            uint8_t g = (y * 2 + s.hueShift / 2) % 255;
+            uint16_t cellColor;
+            if (_monoColor) {
+              cellColor = TFT_WHITE;
+            } else {
+              uint8_t r = (x * 4 + s.hueShift) % 255;
+              uint8_t g = (y * 2 + s.hueShift / 2) % 255;
+              cellColor = tft.color565(r, g, 255 - r);
+            }
             tft.fillRect(x * GOL_CELL_PX, y * GOL_CELL_PX,
                          GOL_CELL_FILL, GOL_CELL_FILL,
-                         tft.color565(r, g, 255 - r));
+                         cellColor);
           } else {
             tft.fillRect(x * GOL_CELL_PX, y * GOL_CELL_PX,
                          GOL_CELL_FILL, GOL_CELL_FILL, TFT_BLACK);
@@ -649,10 +754,25 @@ private:
 
   void golTick() {
     unsigned long now = millis();
-    if (now - _lastTickMs < GOL_TICK_MS) return;
+    if (now - _lastTickMs < _tickMs) return;
     _lastTickMs = now;
     stepGeneration(_s);
   }
+
+#ifdef SERIAL_DEBUG
+  bool dbgGet(const char* var, char* buf, int len) const {
+    if (strcmp(var, "lifeColors") == 0) {
+      snprintf(buf, len, "\"var\":\"lifeColors\",\"val\":\"%s\",\"last\":true",
+               _monoColor ? "mono" : "rainbow");
+      return true;
+    }
+    if (strcmp(var, "lifeTickMs") == 0) {
+      snprintf(buf, len, "\"var\":\"lifeTickMs\",\"val\":%lu,\"last\":true", _tickMs);
+      return true;
+    }
+    return false;
+  }
+#endif
 };
 uint8_t LifeApp::s_nextGrid[GOL_GRID_W][GOL_GRID_H];
 static LifeApp g_LifeApp;
@@ -699,6 +819,8 @@ public:
     if (_activeSection) _activeSection->repaint();
     else repaintCategoryList();
   }
+
+  bool hasPendingAsync() const override { return _apps.isValidating(); }
 
   void suspend() override {
     if (_activeSection) { _activeSection->leave(); _activeSection = nullptr; }
@@ -922,10 +1044,10 @@ class StockApp : public App {
 public:
   bool hasPendingAsync() const override { return _pendingAsync; }
   void init() override {
-    strcpy(_s.tickers[0], "AAPL"); strcpy(_s.tickers[1], "AMD");
-    strcpy(_s.tickers[2], "AMZN"); strcpy(_s.tickers[3], "ARM");
-    strcpy(_s.tickers[4], "GOOG"); strcpy(_s.tickers[5], "META");
-    strcpy(_s.tickers[6], "MSFT"); strcpy(_s.tickers[7], "NVDA");
+    for (int i = 0; i < 8; i++)
+      strlcpy(_s.tickers[i], g_settings.stockTickers[i], 8);
+    dataTask::configureStockTickers(
+        const_cast<const char(*)[8]>(g_settings.stockTickers));
     _s.subView     = StockSubView::List;
     _s.prevSubView = StockSubView::List;
     repaintList();
@@ -934,6 +1056,18 @@ public:
   }
 
   void resume() override {
+    bool changed = false;
+    for (int i = 0; i < 8; i++) {
+      if (strcmp(_s.tickers[i], g_settings.stockTickers[i]) != 0) {
+        strlcpy(_s.tickers[i], g_settings.stockTickers[i], 8);
+        changed = true;
+      }
+    }
+    if (changed) {
+      dataTask::configureStockTickers(
+          const_cast<const char(*)[8]>(g_settings.stockTickers));
+      _s.lastQuoteFetch = 0;
+    }
     switch (_s.subView) {
       case StockSubView::List:          repaintList();    break;
       case StockSubView::ChartDetail:   repaintChart();   break;
@@ -1057,6 +1191,14 @@ public:
       snprintf(buf, len, "\"var\":\"heatmapCount\",\"val\":%u,\"last\":true",
                _s.heatmapData.count);
       return true;
+    }
+    for (int i = 0; i < 8; i++) {
+      char key[16]; snprintf(key, sizeof(key), "stockTicker%d", i);
+      if (strcmp(var, key) == 0) {
+        snprintf(buf, len, "\"var\":\"%s\",\"val\":\"%s\",\"last\":true",
+                 key, _s.tickers[i]);
+        return true;
+      }
     }
     return false;
   }
@@ -1530,6 +1672,13 @@ static bool stockDbgSet(const char* v, const char* val) { return g_StockApp.dbgS
 
 #include "aquarium/aquariumApp.h"
 static AquariumApp g_AquariumApp;
+
+#ifdef SERIAL_DEBUG
+static bool matrixDbgGet(const char* v, char* b, int l)   { return g_MatrixApp.dbgGet(v, b, l); }
+static bool lifeDbgGet(const char* v, char* b, int l)     { return g_LifeApp.dbgGet(v, b, l); }
+static bool cryptoDbgGet(const char* v, char* b, int l)   { return g_CryptoApp.dbgGet(v, b, l); }
+static bool aquariumDbgGet(const char* v, char* b, int l) { return g_AquariumApp.dbgGet(v, b, l); }
+#endif
 
 // ── App registry + shell gesture state (TASK-090f) ────────────────────
 
@@ -2253,6 +2402,24 @@ static void cmdGet(const char *args) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
     return;
   }
+#ifdef SERIAL_DEBUG
+  if (matrixDbgGet(args, buf, sizeof(buf))) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
+    return;
+  }
+  if (lifeDbgGet(args, buf, sizeof(buf))) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
+    return;
+  }
+  if (cryptoDbgGet(args, buf, sizeof(buf))) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
+    return;
+  }
+  if (aquariumDbgGet(args, buf, sizeof(buf))) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
+    return;
+  }
+#endif
   Serial.printf("{\"ok\":false,\"cmd\":\"get\","
                 "\"error\":\"unknown var\",\"var\":\"%s\"}\n", args);
 }

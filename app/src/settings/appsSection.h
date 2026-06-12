@@ -1,6 +1,10 @@
 #pragma once
 #include "settingsSection.h"
 #include "gen/configurable_apps.h"
+#include "keyboardWidget.h"
+#include "dataTask.h"
+
+const char* cgIdToDisplay(const char* id);
 
 class AppsSection : public SettingsSection {
 public:
@@ -20,6 +24,27 @@ public:
         else          _repaintAppRows();
     }
 
+    void tick() override {
+        if (_editPhase != StockEditPhase::Validating) return;
+        dataTask::StockChartResult r;
+        if (dataTask::pollStockChart(&r)) {
+            if (r.ok && r.len > 0) {
+                strlcpy(settings().stockTickers[_editRow], _pendingTicker, 8);
+                saveSettings();
+                _editPhase = StockEditPhase::None;
+                repaint();
+            } else {
+                _editPhase = StockEditPhase::Error;
+                repaint();
+            }
+        } else if (millis() - _validateStartMs > kValidateTimeoutMs) {
+            _editPhase = StockEditPhase::Error;
+            repaint();
+        }
+    }
+
+    bool isValidating() const { return _editPhase == StockEditPhase::Validating; }
+
     SectionResult handleInput(TouchPhase phase, int x, int y) override {
         if (phase != TouchPhase::Release) return SectionResult::Continue;
         if (isBackTap(x, y)) {
@@ -36,7 +61,14 @@ public:
     }
 
 private:
-    int8_t _sub = -1;
+    enum class StockEditPhase : uint8_t { None, Validating, Error };
+
+    int8_t          _sub             = -1;
+    StockEditPhase  _editPhase       = StockEditPhase::None;
+    int8_t          _editRow         = -1;
+    char            _pendingTicker[8]= {};
+    unsigned long   _validateStartMs = 0;
+    static constexpr unsigned long kValidateTimeoutMs = 20000;
 
     void _repaintAppList() {
         int y = S_CONTENT_Y;
@@ -47,6 +79,12 @@ private:
     }
 
     void _repaintAppRows() {
+        if (kConfigurableApps[_sub].id == AppId::Stock &&
+            _editPhase == StockEditPhase::Error) {
+            drawHeader();
+            _repaintStockError();
+            return;
+        }
         switch (kConfigurableApps[_sub].id) {
             case AppId::Stock:    _repaintStock();    break;
             case AppId::Crypto:   _repaintCrypto();   break;
@@ -69,11 +107,21 @@ private:
         drawRow(y, { "Default view", kV[m], S_LABEL, S_VALUE });
     }
 
+    void _repaintStockError() {
+        clearContent();
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextColor(0xF800, TFT_BLACK);
+        tft.drawString("INVALID TICKER", 137, 100, 2);
+        tft.setTextColor(0xFFFF, TFT_BLACK);
+        tft.drawString("[tap to retry]", 137, 130, 2);
+        tft.setTextDatum(TL_DATUM);
+    }
+
     void _repaintCrypto() {
         int y = S_CONTENT_Y;
         for (int i = 0; i < 6; i++) {
             char lbl[8]; snprintf(lbl, sizeof(lbl), "Coin %d", i + 1);
-            drawRow(y, { lbl, settings().cryptoCoins[i], S_LABEL, S_VALUE });
+            drawRow(y, { lbl, cgIdToDisplay(settings().cryptoCoins[i]), S_LABEL, S_VALUE });
             y += S_ROW_H;
         }
         drawRow(y, { "Currency", settings().cryptoCcy, S_LABEL, S_VALUE });
@@ -102,10 +150,38 @@ private:
         drawRow(y, { "Colors", kSc[lc], S_LABEL, S_VALUE });
     }
 
+    static void _onTickerSubmit(const char* sym, void* ctx) {
+        AppsSection* self = static_cast<AppsSection*>(ctx);
+        if (!sym || sym[0] == '\0') { self->_editPhase = StockEditPhase::None; return; }
+        strlcpy(self->_pendingTicker, sym, 8);
+        self->_editPhase = StockEditPhase::Validating;
+        dataTask::enqueueStockChartBySym(sym, 0);
+        self->_validateStartMs = millis();
+    }
+
+    void _openStockKeyboard(int row) {
+        strlcpy(_pendingTicker, settings().stockTickers[row], 8);
+        _editRow = (int8_t)row;
+        char prompt[12]; snprintf(prompt, sizeof(prompt), "Ticker %d", row + 1);
+        g_keyboard.show(prompt, _pendingTicker, KeyboardWidget::Mode::UpperAlpha, 7,
+            _onTickerSubmit, nullptr, this);
+    }
+
     void _handleAppTap(int row) {
         if (row < 0) return;
         switch (kConfigurableApps[_sub].id) {
-            case AppId::Stock:    _cycleStock(row);    break;
+            case AppId::Stock:
+                if (_editPhase == StockEditPhase::Error) {
+                    _editPhase = StockEditPhase::None;
+                    _openStockKeyboard(_editRow);
+                    return;
+                }
+                if (row >= 0 && row < 7) { _openStockKeyboard(row); return; }
+                if (row == 7) {
+                    settings().stockMode = (StockViewMode)(((uint8_t)settings().stockMode + 1) % 3);
+                    saveSettings(); repaint();
+                }
+                break;
             case AppId::Crypto:   _cycleCrypto(row);   break;
             case AppId::Aquarium: _cycleAquarium(row); break;
             case AppId::Matrix:   _cycleMatrix(row);   break;
@@ -114,33 +190,17 @@ private:
         }
     }
 
-    void _cycleStock(int row) {
-        static const char* kPool[] = {
-            "AAPL","AMD","AMZN","ARM","AVGO","GOOG","META","MSFT",
-            "NVDA","NFLX","TSLA","SPY","QQQ","JPM","V","MA","DIS","INTC","UBER","SPOT"
-        };
-        static const uint8_t kSz = 20;
-        if (row < 7) {
-            const char* cur = settings().stockTickers[row];
-            int idx = 0;
-            for (uint8_t i = 0; i < kSz; i++) if (strcmp(kPool[i], cur) == 0) { idx = i; break; }
-            strlcpy(settings().stockTickers[row], kPool[(idx + 1) % kSz], 8);
-        } else if (row == 7) {
-            settings().stockMode = (StockViewMode)(((uint8_t)settings().stockMode + 1) % 3);
-        } else return;
-        saveSettings(); repaint();
-    }
-
     void _cycleCrypto(int row) {
         static const char* kPool[] = {
-            "BTC","ETH","SOL","BNB","XRP","DOGE","ADA","AVAX","MATIC","LINK","DOT","LTC"
+            "bitcoin","ethereum","solana","binancecoin","ripple","cardano",
+            "dogecoin","avalanche-2","matic-network","chainlink","polkadot","litecoin"
         };
         static const uint8_t kSz = 12;
         if (row < 6) {
             const char* cur = settings().cryptoCoins[row];
             int idx = 0;
             for (uint8_t i = 0; i < kSz; i++) if (strcmp(kPool[i], cur) == 0) { idx = i; break; }
-            strlcpy(settings().cryptoCoins[row], kPool[(idx + 1) % kSz], 8);
+            strlcpy(settings().cryptoCoins[row], kPool[(idx + 1) % kSz], 16);
         } else if (row == 6) {
             if (strcmp(settings().cryptoCcy, "USD") == 0) strlcpy(settings().cryptoCcy, "EUR", 4);
             else strlcpy(settings().cryptoCcy, "USD", 4);

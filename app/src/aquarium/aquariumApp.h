@@ -9,6 +9,7 @@
 #include <cstring>
 #include <cmath>
 #include "appShell.h"
+#include "settingsStorage.h"
 #include "util/mathUtil.h"
 
 extern TFT_eSPI tft;
@@ -47,6 +48,7 @@ public:
     }
 
     void resume() override {
+        _applyAquariumSettings();
         _retryShown  = false;
         _lastRetryMs = 0;
         _canvas.setColorDepth(8);
@@ -170,6 +172,17 @@ public:
         }
         return false;
     }
+
+#ifdef SERIAL_DEBUG
+    bool dbgGet(const char* var, char* buf, int len) const {
+        if (strcmp(var, "aquariumFish") == 0) {
+            snprintf(buf, len, "\"var\":\"aquariumFish\",\"val\":%u,\"last\":true",
+                     (unsigned)_activeFish);
+            return true;
+        }
+        return false;
+    }
+#endif
 
 private:
     // ── Constants ──────────────────────────────────────────────────────────
@@ -359,6 +372,8 @@ private:
     bool          _retryShown         = false;
     unsigned long _lastTickMs         = 0;
     unsigned long _lastRetryMs        = 0;
+    uint8_t _activeFish  = 8;
+    float   _speedMult   = 1.0f;
     unsigned long _aquariumNowMs      = 0;
     unsigned long _lastClockUpdateMs  = 0;
     int           _clockHour       = 0;
@@ -489,6 +504,17 @@ private:
     }
 
     // ── Fish population ───────────────────────────────────────────────────────
+    void _applyAquariumSettings() {
+        _activeFish = g_settings.aquariumFish;
+        if (_activeFish < 1)  _activeFish = 1;
+        if (_activeFish > AQ_FISH_POOL_MAX) _activeFish = AQ_FISH_POOL_MAX;
+        switch (g_settings.aquariumSpeed) {
+            case AppSpeed::Slow:   _speedMult = 0.6f; break;
+            case AppSpeed::Fast:   _speedMult = 1.7f; break;
+            default:               _speedMult = 1.0f; break;
+        }
+    }
+
     void _activateFish(Fish& f, bool on) {
         f.active = on;
         if (!on) return;
@@ -506,7 +532,7 @@ private:
         f.y = _frand(20.0f, float(AQ_CANVAS_H) - 30.0f);
         f.vx = _frand(-1.0f, 1.0f);
         f.vy = _frand(-0.5f, 0.5f);
-        f.speed = uint8_t(_frand(14.0f, 30.0f));
+        f.speed = uint8_t(_frand(14.0f, 30.0f) * _speedMult);
         f.phase = _frand(0.0f, 6.28318f);
         f.wanderBias = _frand(0.4f, 1.3f);
         f.fleeUntilMs = 0;
@@ -514,7 +540,7 @@ private:
 
     void applyFishPopulation() {
         for (int i = 0; i < AQ_FISH_POOL_MAX; ++i) {
-            bool want = (i < AQ_FISH_COUNT);
+            bool want = (i < _activeFish);
             if (want  && !_fishPool[i].active) _activateFish(_fishPool[i], true);
             if (!want &&  _fishPool[i].active) _fishPool[i].active = false;
         }
@@ -523,7 +549,7 @@ private:
     bool _spawnClear(int idx, float x, float y, float gx, float gy) {
         float cx = x + _fishPool[idx].visualWidth * 0.5f;
         float cy = y + FISH_CENTER_Y_OFFSET;
-        for (int i = 0; i < AQ_FISH_COUNT; ++i) {
+        for (int i = 0; i < _activeFish; ++i) {
             if (i == idx || !_fishPool[i].active) continue;
             float ox = _fishPool[i].x + _fishPool[i].visualWidth * 0.5f;
             float oy = _fishPool[i].y + FISH_CENTER_Y_OFFSET;
@@ -534,7 +560,7 @@ private:
 
     void spreadInitialFishLayout() {
         float gx = FISH_AVOID_RADIUS_X * 0.92f, gy = FISH_AVOID_RADIUS_Y * 1.05f;
-        for (int i = 0; i < AQ_FISH_COUNT; ++i) {
+        for (int i = 0; i < _activeFish; ++i) {
             Fish& f = _fishPool[i];
             if (!f.active) continue;
             float bx = f.x, by = f.y;
@@ -683,13 +709,13 @@ private:
         const float t = _timeSec();
         uint32_t now = millis();
         float cx[AQ_FISH_POOL_MAX], cy[AQ_FISH_POOL_MAX];
-        for (int i = 0; i < AQ_FISH_COUNT; ++i) {
+        for (int i = 0; i < _activeFish; ++i) {
             Fish& f = _fishPool[i];
             cx[i] = f.active ? f.x + f.visualWidth*0.5f : 0.0f;
             cy[i] = f.active ? f.y + FISH_CENTER_Y_OFFSET : 0.0f;
         }
 
-        for (int i = 0; i < AQ_FISH_COUNT; ++i) {
+        for (int i = 0; i < _activeFish; ++i) {
             Fish& f = _fishPool[i];
             if (!f.active) continue;
 
@@ -1062,7 +1088,7 @@ private:
         static const float kSin = lut_sin(FISH_SWIM_WAVE_SPACING);
         static const float kCos = lut_cos(FISH_SWIM_WAVE_SPACING);
         const int fontH = (int)_canvas.fontHeight();
-        for (int i = 0; i < AQ_FISH_COUNT; ++i) {
+        for (int i = 0; i < _activeFish; ++i) {
             Fish& f = _fishPool[i];
             if (!f.active) continue;
             const char*    right   = _species()[f.type].right;

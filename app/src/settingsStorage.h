@@ -48,7 +48,7 @@ struct AppSettings {
     StockViewMode stockMode;
 
     // --- Crypto ---
-    char    cryptoCoins[6][8];
+    char    cryptoCoins[6][16];
     char    cryptoCcy[4];               // "USD" | "EUR"
 
     // --- Aquarium ---

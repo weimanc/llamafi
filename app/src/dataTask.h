@@ -79,4 +79,7 @@ bool pollStockQuote(StockQuoteResult *out);
 bool pollStockChart(StockChartResult *out);
 bool pollHeatmapQuote(HeatmapQuoteResult *out);
 
+void configureStockTickers(const char tickers[8][8]);
+void configureCrypto(const char ids[6][16], const char* ccy);
+
 }  // namespace dataTask

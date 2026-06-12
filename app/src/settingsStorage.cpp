@@ -37,9 +37,11 @@ static void applyDefaults() {
     g_settings.stockMode = StockViewMode::List;
 
     // Crypto
-    static const char* kDefCoins[6] = {"BTC","ETH","SOL","BNB","XRP","DOGE"};
+    static const char* kDefCoins[6] = {
+        "bitcoin","ethereum","solana","binancecoin","ripple","cardano"
+    };
     for (int i = 0; i < 6; i++)
-        strlcpy(g_settings.cryptoCoins[i], kDefCoins[i], 8);
+        strlcpy(g_settings.cryptoCoins[i], kDefCoins[i], 16);
     strlcpy(g_settings.cryptoCcy, "USD", sizeof(g_settings.cryptoCcy));
 
     // Aquarium
@@ -139,7 +141,7 @@ void SettingsStorage::load() {
             int i = 0;
             for (JsonVariantConst v : c["coins"].as<JsonArrayConst>()) {
                 if (i >= 6) break;
-                strlcpy(g_settings.cryptoCoins[i++], v | "", 8);
+                strlcpy(g_settings.cryptoCoins[i++], v | "", 16);
             }
         }
         if (c.containsKey("ccy")) strlcpy(g_settings.cryptoCcy, c["ccy"] | "USD", sizeof(g_settings.cryptoCcy));
