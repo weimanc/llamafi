@@ -286,6 +286,16 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-029 — "Continue" on a cold session resume does not skip a pending human gate
+
+**Adopted from**: LL-066  
+**Date adopted**: 2026-06-12  
+**Rule**: Before proceeding with the next planned task at session start, check `tasks.md` for any gate marked *"waiting on human"*, *"review gate"*, or *"human step"*. If one exists, surface it to the human before implementing — do not treat "continue" or a resumption prompt as implicit approval to cross the gate.  
+**Rationale**: At end of M-TASKBAR-ICONS, the icon overview had been shown and the user sent an empty message (reviewing). Session ran out of context. Next session the user typed "continue" — the agent implemented the full bake script and `taskbar.h` wiring past an explicit review gate in `tasks.md`. The user was surprised. The work was acceptable, but the decision was the user's to make, not the agent's to infer.  
+**Applies to**: All agents (read `tasks.md` at session start before the first tool call on a new task), PM (mark gates explicitly with the word "gate" or "waiting on human" so they are unambiguous stop signals)
+
+---
+
 ## Entry Format
 
 ```

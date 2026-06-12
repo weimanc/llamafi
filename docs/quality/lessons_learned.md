@@ -25,7 +25,7 @@ Populated during retrospectives. Entries reviewed w/ human for promotion to `bes
 
 **Suggested improvement**: When resuming a session after an explicit review gate, check `tasks.md` for the gate status before proceeding. A gate marked "open — waiting on human" is a stop signal, not a green light. "Continue" from a cold session start means resume context — it does not mean skip the next gate.
 
-**Status**: open
+**Status**: adopted — BP-029 (2026-06-12)
 
 ---
 
