@@ -362,70 +362,169 @@ Date box and seconds box borders suppressed; date text and seconds dot arc rende
 
 ### Visual concept
 
-Classic VFD calculator / cassette deck display. Dark navy background,
-teal-green 7-segment digits with visible inactive segments.
+Classic VFD calculator / cassette deck display (think Pioneer stereo, Denon
+deck). Dark navy background. Teal-green phosphor dot-matrix digits. All dots
+visible at all times — active dots emit strongly, inactive dots show faint
+ambient phosphor. Light from emitting dots bleeds softly onto neighbours:
+adjacent active dots produce *stronger* combined glow at their shared boundary
+(additive accumulation), not competing independent halos.
+
+---
+
+### Rendering model — the fundamental constraint
+
+> **The display is a continuous rasterized phosphor surface, not a set of
+> isolated glowing dots.** Every rendering decision follows from this.
+
+The wrong approach (what the previous `_clock_vfd.py` did): draw each active
+dot with its own per-dot glow halo. This creates halos that overwrite each
+other, produces non-uniform brightness at adjacent active dots, and looks
+artificial.
+
+The correct approach: **rasterize first, blur second, composite additively.**
+
+```
+Frame render pipeline:
+
+  Step 1 — Grid pass (rasterize)
+    Allocate sharp_buf (RGBA or RGB, canvas size).
+    Fill with C_BG.
+    For every dot cell (col, row) in every digit:
+      if active:  paint C_ON  flat rectangle  (no glow yet)
+      if inactive: paint C_OFF flat rectangle
+    → sharp_buf is a clean, sharp dot grid.  No glow.
+
+  Step 2 — Bloom pass
+    bloom_src = copy of sharp_buf
+    bloom_layer = GaussianBlur(bloom_src, radius=BLOOM_R)
+    bloom_layer = bloom_layer scaled by BLOOM_SCALE  (0.0 .. 1.0)
+
+  Step 3 — Composite (additive)
+    output = ImageChops.add(sharp_buf, bloom_layer)
+    → bright clusters accumulate MORE glow than isolated dots  ✓
+    → off-dot areas receive spill from adjacent on-dots        ✓
+    → sharp dot cores remain visible above the bloom           ✓
+```
+
+**Why additive, not alpha-composite?**
+Real phosphor emits light. Emission adds. `ImageChops.add` (capped at 255) is
+the correct blend mode. Alpha-composite would darken the source; screen blend
+is acceptable but add is cleaner for a dark-background emissive display.
+
+**Why blur the whole grid, not just active dots?**
+Off-dots are `C_OFF` (very dim). Their blur contribution is negligible (< 5
+counts at the fringe). Blurring the full grid is simpler and slightly warmer —
+even inactive dots emit a faint ambient glow, which is correct for phosphor.
+
+**Tunable parameters** (to be approved in Phase 0 concept session):
+
+| Param | Meaning | Start value |
+|-------|---------|-------------|
+| `BLOOM_R` | Gaussian blur radius (px) | 2.0 |
+| `BLOOM_SCALE` | Bloom layer intensity (0..1) | 0.55 |
+| `C_BG` | Background colour | `(0, 5, 18)` |
+| `C_ON` | Active dot colour | `(0, 210, 230)` teal |
+| `C_OFF` | Inactive dot colour | `(0, 35, 39)` dim teal |
+
+The `g`/`G` keys in the concept tool control `BLOOM_SCALE`. A separate key
+controls `BLOOM_R`. Approved values go into the Approved Constants block above.
+
+---
+
+### Dot-matrix geometry
+
+Each digit is a 13-column × 24-row grid of 4×4 px dots with 1 px gaps.
+
+```
+TC = 4   (dot cell size, px)
+TG = 1   (gap between dots, px)
+TS = 5   (stride = TC + TG)
+
+Digit width  = 13 × TC + 12 × TG = 52 + 12 = 64 px
+Digit height = 24 × TC + 23 × TG = 96 + 23 = 119 px
+
+Canvas layout (275 px):
+  3 | H1(64) | H2(64) | colon-col(13) | M1(64) | M2(64) | 3
+  3 + 64 + 64 + 13 + 64 + 64 + 3 = 275  ✓
+
+Digit top y = 10 px.
+```
+
+Glyph content occupies an 11-col × 16-row inner region within each 13×24 cell:
+- 1-dot left/right margin (col 0, col 12 = always off)
+- 2-dot top/bottom margin (rows 0–1, rows 20–23 = always off, rows 16–19 = spacer)
+
+The 10 digit glyphs (0–9) are defined as 11-col × 16-row bitmaps. See
+`_clock_vfd.py` `_GLYPHS` for the current bitmaps; refine in Phase 0 as needed.
+
+**Colon:** two 8×8 px filled dots centred in the 13-px colon column, at
+y = DIGIT_TOP_Y + 32 and y = DIGIT_TOP_Y + 79. Blinks at 0.5 Hz with seconds.
+Because the colon dots are large relative to the grid dots they are drawn as
+plain rectangles into sharp_buf before the bloom pass — the blur will naturally
+spread them.
+
+**Date line:** two lines of Font1 (5×7 GLCD) rendered as 2×2 px dot cells at
+3 px stride, centred below the digit block (y ≈ 141, 171). These are also
+rasterised into sharp_buf before the bloom pass.
+
+---
+
+### Rendering implementation (host / PIL)
+
+```python
+from PIL import Image, ImageDraw, ImageChops, ImageFilter
+
+def render(img, t):
+    # Step 1 — sharp grid
+    sharp = Image.new("RGB", (CANVAS_W, CANVAS_H), C_BG)
+    d = ImageDraw.Draw(sharp)
+    _rasterize_digits(d, t)   # paint all dot cells, no glow
+    _rasterize_colon(d, t)
+    _rasterize_date(d, t)
+
+    # Step 2 — bloom
+    bloom = sharp.filter(ImageFilter.GaussianBlur(radius=BLOOM_R))
+    bloom = bloom.point(lambda x: min(255, int(x * BLOOM_SCALE)))
+
+    # Step 3 — additive composite
+    out = ImageChops.add(sharp, bloom)
+    img.paste(out, (0, 0))
+```
+
+`_rasterize_digits` iterates each digit's 13×24 matrix and paints `C_ON` or
+`C_OFF` rectangles — nothing else. No glow rectangles, no fringe, no halos.
+
+---
+
+### Firmware note (Phase 3)
+
+TFT_eSPI has no Gaussian blur. Options for firmware VFD:
+
+1. **Pre-bake glow**: for each of the 10 glyphs, pre-compute a `uint16_t[]`
+   sprite (64×119) with the bloom already burned in. Store in flash, `pushImage`
+   to screen. One sprite per digit, ~15 KB for all 10. Feasible with PSRAM.
+2. **Approximate per-row halo**: after drawing the sharp grid, iterate only the
+   rows adjacent to each active dot and paint a dim neighbour rectangle. One
+   pass, O(rows × cols). Cheaper but less accurate.
+3. **Accept no bloom**: ship the VFD style on firmware with sharp dots only
+   (still authentic — some real VFDs have minimal bloom). The concept tool
+   shows the ideal; firmware is a budget approximation.
+
+Decision deferred to Phase 3. The concept tool (Phase 0) uses the full PIL
+pipeline without compromise.
+
+---
 
 ### Palette
 
-```cpp
-constexpr uint16_t VFD_BG        = 0x000C;  // very dark navy
-constexpr uint16_t VFD_SEG_ON    = 0x07FF;  // bright teal (full segment)
-constexpr uint16_t VFD_SEG_GLOW  = 0x03DF;  // mid teal (segment body)
-constexpr uint16_t VFD_SEG_OFF   = 0x0290;  // dark teal (inactive segment)
+```python
+C_BG   = (0,   5,  18)   # dark navy
+C_ON   = (0, 210, 230)   # bright teal
+C_OFF  = (0,  35,  39)   # dim teal  (~17% of C_ON)
+C_DATE = (0, 142, 156)   # date text (~68% of C_ON, slightly dimmer)
 ```
 
-### 7-segment geometry
-
-Each segment character occupies a 40×60 px cell.
-
-```
-Segment layout (classic 7-seg):
-   aaa
-  f   b
-  f   b
-   ggg
-  e   c
-  e   c
-   ddd
-
-a: (x+5, y+2,  w=30, h=5)   top horizontal
-b: (x+35, y+5, w=5,  h=24)  top-right vertical
-c: (x+35, y+31,w=5,  h=24)  bot-right vertical
-d: (x+5, y+53, w=30, h=5)   bot horizontal
-e: (x+0, y+31, w=5,  h=24)  bot-left vertical
-f: (x+0, y+5,  w=5,  h=24)  top-left vertical
-g: (x+5, y+27, w=30, h=5)   middle horizontal
-
-SEGMENTS_ON[10] = bitmask per digit (0..9):
-  0: a b c d e f     = 0b0111111
-  1:     b c         = 0b0000110
-  2: a b   d e   g   = 0b1011011
-  3: a b c d     g   = 0b1001111
-  4:   b c   f g     = 0b1100110
-  5: a   c d f   g   = 0b1101101
-  6: a   c d e f g   = 0b1111101
-  7: a b c           = 0b0000111
-  8: a b c d e f g   = 0b1111111
-  9: a b c d f   g   = 0b1101111
-```
-
-Draw each segment: if bit set → `VFD_SEG_ON` fill + 1 px centre highlight (`VFD_SEG_GLOW`);
-if bit clear → `VFD_SEG_OFF` fill.
-
-### Layout
-
-```
-Digit cell 40×60. Positions (left x, top y=10 inside time box area):
-  H1: x=10   H2: x=54   colon: x=98   M1: x=108  M2: x=152
-Total span: 10..192; slight left-of-centre (intentional retro asymmetry)
-```
-
-Colon: two 5×5 filled squares in `VFD_SEG_ON` at x=100, y=24 and y=44.
-
-Seconds strip (replaces coloured bar): 60 dots, 3 px dia, across y=82.
-Lit: `VFD_SEG_ON`. Unlit: `VFD_SEG_OFF`. No coloured rainbow — green only.
-
-Background fill on `repaint()`: `tft.fillRect(0, 0, TASKBAR_X, 240, VFD_BG)`.
+Four colour themes for concept exploration: teal (default), amber, blue, green.
 
 ---
 
