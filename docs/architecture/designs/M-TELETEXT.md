@@ -142,9 +142,16 @@ Matches the existing weather/crypto/stock pattern exactly. No new task.
 
 ### DS-4: TLS root CA
 
-`teletekst-data.nos.nl` is served by DigiCert (same CA family as Spotify and
-Open-Meteo). Exact root CA to be confirmed by `openssl s_client` against the
-live endpoint. PEM added to `dataTaskCerts.h` alongside existing certs.
+**Confirmed** (`openssl s_client`, 2026-06-13).
+
+Chain: leaf → Sectigo Public Server Authentication CA DV R36 (intermediate) →
+Sectigo Public Server Authentication Root R46 (cross-signed intermediate) →
+**USERTrust RSA Certification Authority** (self-signed root, valid 2010–2038).
+
+This is **not** DigiCert or ISRG. Add `TELETEXT_NOS_ROOT_CA` (USERTrust RSA
+Certification Authority PEM) to `dataTaskCerts.h`. The same root also signs
+`comodoca.com` and other Sectigo customers — it may serve future country entries
+without a separate cert add.
 
 ---
 
@@ -168,27 +175,30 @@ them immediately — consistent with the pull-on-resume model (ADR-043).
 
 ### DS-6: Multi-country future path
 
-**Research question (R&D item):** which active teletext services expose a
-similar wire format to NOS (`plain text, ISO-8859-1, 25×40 pre block, control
-codes 0x01–0x17`)?
+**R&D spike completed 2026-06-13.** None of the five candidate services is a
+drop-in NOS clone. Findings:
 
-Candidates ranked by known API accessibility:
+| Country | Service | Format | Compat | Notes |
+|---------|---------|--------|--------|-------|
+| NL | NOS Teletekst | `<pre>` 25×40, ISO-8859-1, control codes 0x01–0x17 | ✓ native | Confirmed; ~1.1 KB/page |
+| AT | ORF Teletext | Vue.js SPA — no data without JS | ✗ blocked | No public JSON API found; needs reverse-engineered XHR |
+| DE | ARD Text | HTML `div.ardtext_classic`, CSS color classes, UTF-8 | ✗ scrape | CDN blocks direct fetch; no control codes |
+| SE | SVT Text | JSON via `texttv.nu` API; `content_plain` ~1–2 KB, 23 rows, UTF-8 | ~ JSON | 25–30 KB total response; ESP32 must stream-discard or extract field only |
+| IT | RAI Televideo | PNG image only (720×456 px) | ✗ hard no | No text path without OCR |
+| FI | YLE Teksti-TV | `<pre>` on web page BUT 150–200 KB page; JSON API needs `app_id`+`app_key` | ~ gated | JSON API has `text` content type at comparable size; requires key registration |
 
-| Country | Service | URL pattern | Format known? |
-|---------|---------|-------------|--------------|
-| NL | NOS Teletekst | `teletekst-data.nos.nl/page/{N}` | ✓ confirmed |
-| AT | ORF Teletext | `teletext.orf.at/…` | ✗ needs spike |
-| DE | ARD Text | `ard-text.de/…` | ✗ needs spike |
-| SE | SVT Text | `svt.se/svttext/…` | ✗ needs spike |
-| IT | RAI Televideo | `televideo.rai.it/…` | ✗ needs spike |
-| FI | YLE Teksti-TV | `yle.fi/…` | ✗ needs spike |
+**Implications for `teletextCountry` enum:**
 
-**If another service uses the same 25×40 pre-block format**, adding it is a
-config change (URL template + country code enum). If it requires HTML scraping
-or a different encoding, it may be a separate fetch path.
+- `0 = NOS (NL)` — implemented in MVP, native `<pre>` parser.
+- `1 = SVT (SE)` — feasible as a second entry; requires a separate JSON fetch path
+  (texttv.nu `GET /api/get/{N}?includePlainTextContent=1`, extract `content_plain`
+  key). UTF-8 — no control codes; colour-stripping not needed.
+- ORF / ARD — blocked unless a host proxy normalises them to the NOS format.
+- RAI — incompatible.
+- YLE — possible via API key; defer until key is obtained.
 
-The `teletextCountry` settings field is reserved now; the enum expands as
-services are validated.
+The `teletextCountry` settings field remains reserved; enable SVT entry in the
+UI once the JSON fetch path is implemented and tested.
 
 ---
 
@@ -200,16 +210,28 @@ services are validated.
 
 ## Open questions
 
-1. **Right-strip font**: can TFT_eSPI Font1 render ▲/▼ glyphs, or do we use
-   filled triangles via `fillTriangle()`?  Lean: `fillTriangle()` — no font
+All resolved 2026-06-13.
+
+1. **Right-strip font** ✓ — Font1/GLCD covers ASCII 0x00–0xFF but has **no
+   ▲/▼ glyphs** (0x1E/0x1F render diamond patterns). **Decision: `fillTriangle()`**
+   — confirmed via font table inspection in
+   `Spotify-Diy-Thing/.pio/libdeps/…/TFT_eSPI/Fonts/glcdfont.c`. No font
    dependency.
-2. **History stack location**: SRAM on the app struct (10 × `uint16_t` = 20 B)
-   or implicit (only prev/current). Lean: 10-entry ring.
-3. **Subpage auto-advance**: cycle through subpages automatically (like a
-   broadcast carousel)?  Defer to settings; off by default.
-4. **Multi-country API spike**: assigned to R&D; must complete before
-   `teletextCountry` setting is enabled in the Settings UI.
-5. **Root CA cert**: confirm via `openssl s_client` before implementation.
+
+2. **History stack location** ✓ — 10 × `uint16_t` (20 B) on `TeletextAppState`
+   as a member array. Consistent with all existing apps (static per-app state
+   structs). 20 B is trivial vs LifeAppState (2,651 B) or StockAppState (~1 KB).
+
+3. **Subpage auto-advance** ✓ — Off by default; add `teletextAutoAdvance` bool
+   to Settings. No firmware action needed before MVP.
+
+4. **Multi-country API spike** ✓ — See DS-6 above. SVT (SE) via texttv.nu JSON
+   is the viable second entry; ORF/ARD blocked; RAI incompatible; YLE gated.
+   `teletextCountry` stays greyed out until SVT fetch path lands.
+
+5. **Root CA cert** ✓ — **USERTrust RSA Certification Authority** (self-signed,
+   2010–2038). See DS-4. Add `TELETEXT_NOS_ROOT_CA` to `dataTaskCerts.h` before
+   first DUT flash.
 
 ---
 
