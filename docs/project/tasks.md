@@ -4,6 +4,22 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
+> **PM sync 2026-06-13 (sign-off + team review session)** — Major close-out.
+> Preview signed off (TASK-175), ADR-044 accepted (TASK-185). P1 firmware gate cleared.
+> Parallel team review (Architect/VE/Developer/QM) produced 10 document fixes and 7 new tasks
+> (TASK-185–191). Key fixes: 6-zone strip table in ADR-044, scan range corrected to
+> tap-column model (conclusive fix for two-column index pages 600/800), TeletextState
+> struct spec added to DS-3, TASK-177 step 6 corrected (teletextAutoAdvance added),
+> TASK-181 dep relaxed. Test plan: G3 resolved, T249–T251 → ready to run, T261
+> updated with concrete tap coords, T269–T271 added.
+> TASK-179 closed (teletext.png/active icons baked to slot 9).
+> TASK-181 closed (app/gen/teletext_layout.h — all strip zone constants locked).
+> TASK-182 closed (dedicated ◄◄ back zone, even spacing).
+> Architect proposes TELETEXT_ENABLED build flag (5 touch-points; single knob) — not
+> yet filed as a task, pending human scheduling decision.
+> Open: TASK-177 (firmware — now unblocked), TASK-180/183/184/186/187/188/189/190/191.
+> Completed and closed tasks are in [tasks-archive.md](tasks-archive.md).
+>
 > **PM sync 2026-06-13 (design follow-up)** — M-TELETEXT open questions resolved.
 > All 5 design open questions (OQ1–OQ5) closed via parallel research: fillTriangle()
 > confirmed for right-strip arrows (Font1 has no ▲/▼); 10-entry uint16_t history ring
