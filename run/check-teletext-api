@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+# run/check-teletext-api — NOS Teletekst API stability canary
+#
+# Validates that the undocumented NOS Teletekst API still returns the format
+# expected by TeletextApp:
+#   - a <pre>...</pre> block whose content is exactly 1000 bytes
+#     (25 rows × 40 columns, no newlines)
+#   - at least one navigation metadata line of the form pn=<value>
+#
+# Usage:
+#   ./run/check-teletext-api
+#
+# Exits 0 on success, 1 on any assertion failure or network error.
+
+import sys
+import re
+import urllib.request
+
+URL = "https://teletekst-data.nos.nl/page/101"
+EXPECTED_PRE_BYTES = 1000
+TIMEOUT_S = 15
+
+
+def fail(msg: str) -> None:
+    print(f"FAIL  {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def main() -> None:
+    print(f"Fetching {URL} ...")
+    try:
+        req = urllib.request.Request(
+            URL,
+            headers={"User-Agent": "esp-spotify-canary/1.0"},
+        )
+        with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
+            raw = resp.read()
+    except Exception as exc:
+        fail(f"network error: {exc}")
+
+    body = raw.decode("iso-8859-1")
+    print(f"OK    received {len(raw)} raw bytes")
+
+    # --- assert 1: <pre> block present and exactly 1000 bytes ---------------
+    m = re.search(r"<pre>(.*?)</pre>", body, re.DOTALL)
+    if not m:
+        fail("<pre>...</pre> block not found in response")
+
+    pre_content = m.group(1)
+    pre_bytes = len(pre_content.encode("iso-8859-1"))
+    if pre_bytes != EXPECTED_PRE_BYTES:
+        fail(
+            f"<pre> block is {pre_bytes} bytes; expected {EXPECTED_PRE_BYTES} "
+            f"(25 rows × 40 cols)"
+        )
+    print(f"OK    <pre> block is {pre_bytes} bytes (25 × 40)")
+
+    # --- assert 2: navigation metadata key pn= present ----------------------
+    # Metadata lines precede <pre> and are KEY=VALUE lines not starting with '<'
+    pn_lines = [
+        line for line in body.splitlines()
+        if line.startswith("pn=")
+    ]
+    if not pn_lines:
+        fail("no navigation metadata lines (pn=...) found")
+    print(f"OK    found {len(pn_lines)} pn= metadata line(s): {pn_lines[:3]}")
+
+    print("PASS  NOS Teletekst API format looks correct")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

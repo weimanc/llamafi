@@ -1,8 +1,8 @@
 #pragma once
-// dataTask.h — async HTTP fetch task for Weather and Crypto apps (M-MULTIAPP).
+// dataTask.h — async HTTP fetch task for Weather, Crypto, Stock, and Teletext apps.
 // FreeRTOS task queues fetch requests; results written under spinlock.
 // Apps call enqueue() when cache is stale; poll*() to consume new data.
-// TLS: WiFiClientSecure + hardcoded root CA PEMs per ADR-029.
+// TLS: WiFiClientSecure + hardcoded root CA PEMs per ADR-029 / ADR-044.
 
 #include <Arduino.h>
 
@@ -15,6 +15,7 @@ enum FetchType : uint8_t {
     DATA_FETCH_STOCK_CHART      = 3,
     DATA_FETCH_HEATMAP_QUOTE    = 4,
     DATA_FETCH_STOCK_CHART_BY_SYM = 5,
+    DATA_FETCH_TELETEXT_PAGE    = 6,
 };
 
 struct WeatherResult {
@@ -56,6 +57,21 @@ struct HeatmapQuoteResult {
     float   marketCap[20]   = {};
 };
 
+// TeletextState — written by fetchTeletext(), read by TeletextApp::tick() via pollTeletext().
+// cells[25][40] stores raw ISO-8859-1 bytes from the <pre> block; decoded by the renderer.
+struct TeletextState {
+    bool     ready              = false; // true after first successful fetch
+    uint16_t page               = 101;  // current page (from metadata or request)
+    uint16_t prevPage           = 0;    // pn=p_ (0 if absent)
+    uint16_t nextPage           = 0;    // pn=n_ (0 if absent)
+    uint16_t subpageNext        = 0;    // pn=ns (0 if absent)
+    uint16_t subpagePrev        = 0;    // pn=ps (0 if absent)
+    uint16_t ftlTargets[4]      = {};   // fast-text link page numbers
+    char     ftlLabels[4][12]   = {};   // fast-text row-24 label text (trimmed)
+    uint8_t  cells[25][40]      = {};   // raw cell bytes (ISO-8859-1)
+    int      lastHttpCode       = 0;    // last http.GET() return value
+};
+
 // Spawn the FreeRTOS task. Call once in setup(), after WiFi is connected.
 void begin();
 
@@ -71,6 +87,9 @@ void enqueueHeatmapQuote();
 // Post a chart fetch by symbol string (for heatmap drill-through). Non-blocking.
 void enqueueStockChartBySym(const char* symbol, uint8_t rangeIdx);
 
+// Post a teletext page fetch. Non-blocking (drops if queue full).
+void enqueueTeletextPage(uint16_t page);
+
 // Copy latest result into *out; returns true if new data since last poll.
 // Caller must supply a valid pointer. Thread-safe (spinlock).
 bool pollWeather(WeatherResult *out);
@@ -79,6 +98,8 @@ int  lastCryptoHttpCode();  // last HTTP response code from CoinGecko (0 = never
 bool pollStockQuote(StockQuoteResult *out);
 bool pollStockChart(StockChartResult *out);
 bool pollHeatmapQuote(HeatmapQuoteResult *out);
+bool pollTeletext(TeletextState *out);
+int  lastTeletextHttpCode(); // last HTTP response code from teletekst-data.nos.nl
 
 void configureStockTickers(const char tickers[8][8]);
 void configureCrypto(const char ids[6][16], const char* ccy);

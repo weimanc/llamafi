@@ -361,6 +361,170 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
 // Pre-allocated at startup (unfragmented heap) and reused per fetch cycle to avoid
 // malloc failure after long-uptime TLS cycling (PROP-004 / EXP-003).
 // Capacity: 20 symbols × ~120 B each ≈ 2.4 kB peak usage; 2560 gives headroom.
+static portMUX_TYPE   s_teletextMux    = portMUX_INITIALIZER_UNLOCKED;
+static TeletextState  s_teletextState;
+static bool           s_teletextNew    = false;
+
+static const char TELETEXT_URL_BASE[] = "https://teletekst-data.nos.nl/page/";
+
+// Parse a 3-digit page ref string (e.g. "101", "601") into uint16_t. Returns 0 on fail.
+static uint16_t parsePage(const char* s) {
+    if (!s || !s[0]) return 0;
+    int v = atoi(s);
+    return (v >= 100 && v <= 899) ? (uint16_t)v : 0;
+}
+
+static void fetchTeletext(uint16_t page) {
+    char url[64];
+    snprintf(url, sizeof(url), "%s%u", TELETEXT_URL_BASE, page);
+    LOG_HEAP("dataTask.teletext");
+    WiFiClientSecure tls;
+    tls.setCACert(TELETEXT_NOS_ROOT_CA);
+    HTTPClient http;
+    http.useHTTP10(true);
+    if (!http.begin(tls, url)) {
+        LOG_W("dataTask.teletext", "http.begin failed page=%u", page);
+        portENTER_CRITICAL_SAFE(&s_teletextMux);
+        s_teletextState.lastHttpCode = -1;
+        portEXIT_CRITICAL_SAFE(&s_teletextMux);
+        return;
+    }
+    unsigned long t0 = millis();
+    int code = http.GET();
+    LOG_D("dataTask.teletext", "GET page=%u %d elapsed=%lums", page, code, (unsigned long)(millis() - t0));
+    String body;
+    if (code == 200) body = http.getString();
+    else             LOG_W("dataTask.teletext", "http %d page=%u", code, page);
+    http.end();
+    LOG_HEAP("dataTask.teletext");
+
+    TeletextState st = {};
+    st.lastHttpCode = code;
+
+    if (code != 200) {
+        portENTER_CRITICAL_SAFE(&s_teletextMux);
+        s_teletextState.lastHttpCode = code;
+        portEXIT_CRITICAL_SAFE(&s_teletextMux);
+        return;
+    }
+
+    st.page = page;
+
+    // --- Parse navigation metadata (lines before <pre> of form KEY=VALUE) ---
+    {
+        uint16_t ftlIdx = 0;
+        int lineStart = 0;
+        int blen = body.length();
+        for (int i = 0; i <= blen; i++) {
+            char c = (i < blen) ? body[i] : '\n';
+            if (c == '\n' || c == '\r') {
+                if (i > lineStart) {
+                    // Check if line starts with '<' (HTML) — skip those
+                    char first = body[lineStart];
+                    if (first != '<') {
+                        // Find '=' delimiter
+                        int eq = -1;
+                        for (int j = lineStart; j < i; j++) {
+                            if (body[j] == '=') { eq = j; break; }
+                        }
+                        if (eq > lineStart) {
+                            char key[8] = {}; char val[32] = {};
+                            int klen = eq - lineStart;
+                            if (klen < 8) {
+                                body.substring(lineStart, eq).toCharArray(key, sizeof(key));
+                                body.substring(eq+1, i).toCharArray(val, sizeof(val));
+                                // Trim leading/trailing whitespace from key and val
+                                char *kp = key; while (*kp == ' ') kp++;
+                                char *vp = val; while (*vp == ' ') vp++;
+                            }
+                            char *kp = key; while (*kp == ' ') kp++;
+                            char *vp = val; while (*vp == ' ') vp++;
+
+                            if (strcmp(kp, "pn") == 0) {
+                                if (strncmp(vp, "p_", 2) == 0) st.prevPage    = parsePage(vp+2);
+                                if (strncmp(vp, "n_", 2) == 0) st.nextPage    = parsePage(vp+2);
+                                if (strncmp(vp, "ns", 2) == 0) st.subpageNext = parsePage(vp+2);
+                                if (strncmp(vp, "ps", 2) == 0) st.subpagePrev = parsePage(vp+2);
+                            } else if (strcmp(kp, "ftl") == 0 && ftlIdx < 4) {
+                                // Format: "101-p" → extract page number before '-'
+                                char pgstr[8] = {};
+                                for (int k = 0; vp[k] && vp[k] != '-' && k < 7; k++) pgstr[k] = vp[k];
+                                st.ftlTargets[ftlIdx] = parsePage(pgstr);
+                                ftlIdx++;
+                            }
+                        }
+                    }
+                    // Stop parsing metadata once we hit <pre>
+                    if (body[lineStart] == '<' && body.indexOf("<pre>", lineStart) == lineStart) break;
+                }
+                lineStart = i + 1;
+            }
+        }
+    }
+
+    // --- Extract <pre>...</pre> content (1000 bytes) ---
+    int preStart = body.indexOf("<pre>");
+    int preEnd   = (preStart >= 0) ? body.indexOf("</pre>", preStart + 5) : -1;
+    if (preStart < 0 || preEnd < 0) {
+        LOG_W("dataTask.teletext", "no <pre> block page=%u", page);
+        portENTER_CRITICAL_SAFE(&s_teletextMux);
+        s_teletextState.lastHttpCode = code;
+        portEXIT_CRITICAL_SAFE(&s_teletextMux);
+        return;
+    }
+    int contentStart = preStart + 5;
+    int contentLen   = preEnd - contentStart;
+    // Fill cells row by row (clamp to 25×40)
+    for (int r = 0; r < 25; r++) {
+        for (int ci = 0; ci < 40; ci++) {
+            int idx = r * 40 + ci;
+            st.cells[r][ci] = (idx < contentLen)
+                ? (uint8_t)(body[contentStart + idx]) : 0x20;
+        }
+    }
+
+    // --- Extract fast-text labels from row 24 ---
+    // Scan row 24 for colored text segments; map color index to ftl button order [1,2,3,6]
+    {
+        static const uint8_t kFtlColors[4] = { 1, 2, 3, 6 };  // red, green, yellow, cyan
+        char segBuf[48] = {};
+        int segIdx = 0;
+        uint8_t curFg = 7;
+        uint8_t row24[40];
+        memcpy(row24, st.cells[24], 40);
+
+        for (int i = 0; i < 4; i++) {
+            char lblBuf[12] = {};
+            int llen = 0;
+            curFg = 7;
+            for (int ci = 0; ci < 40; ci++) {
+                uint8_t c = row24[ci];
+                if (c >= 0x01 && c <= 0x07) { curFg = c; continue; }
+                if (c >= 0x10 && c <= 0x17) { curFg = c & 0x07; continue; }
+                if (c < 0x20) continue;
+                if (curFg == kFtlColors[i] && llen < 11) lblBuf[llen++] = (char)c;
+            }
+            // Trim
+            while (llen > 0 && lblBuf[llen-1] == ' ') llen--;
+            lblBuf[llen] = '\0';
+            strlcpy(st.ftlLabels[i], lblBuf, sizeof(st.ftlLabels[i]));
+        }
+    }
+
+    st.ready = true;
+    LOG_D("dataTask.teletext", "ok page=%u prev=%u next=%u ftl=%u/%u/%u/%u",
+          st.page, st.prevPage, st.nextPage,
+          st.ftlTargets[0], st.ftlTargets[1], st.ftlTargets[2], st.ftlTargets[3]);
+
+    portENTER_CRITICAL_SAFE(&s_teletextMux);
+    s_teletextState = st;
+    s_teletextNew   = true;
+    portEXIT_CRITICAL_SAFE(&s_teletextMux);
+}
+
+// Pre-allocated at startup (unfragmented heap) and reused per fetch cycle to avoid
+// malloc failure after long-uptime TLS cycling (PROP-004 / EXP-003).
+// Capacity: 20 symbols × ~120 B each ≈ 2.4 kB peak usage; 2560 gives headroom.
 static DynamicJsonDocument s_heatmapDoc(2560);
 
 static void fetchHeatmapQuote() {
@@ -530,6 +694,11 @@ static void taskBody(void *) {
             case DATA_FETCH_STOCK_CHART:      fetchStockChart(req.param0, req.param1); break;
             case DATA_FETCH_HEATMAP_QUOTE:    fetchHeatmapQuote(); break;
             case DATA_FETCH_STOCK_CHART_BY_SYM: fetchStockChartBySym(req.symbol, req.param1); break;
+            case DATA_FETCH_TELETEXT_PAGE: {
+                uint16_t pg = ((uint16_t)req.param0 << 8) | req.param1;
+                fetchTeletext(pg ? pg : 101);
+                break;
+            }
             default: break;
         }
     }
@@ -665,5 +834,35 @@ int8_t stockQuoteProgress() { return s_stockQuoteProgress; }
 int8_t weatherFetchPhase()  { return s_weatherFetchPhase; }
 int8_t cryptoFetchPhase()   { return s_cryptoFetchPhase; }
 int8_t stockChartProgress() { return s_stockChartProgress; }
+
+void enqueueTeletextPage(uint16_t page) {
+    if (!s_queue) return;
+    Request req = {};
+    req.type   = DATA_FETCH_TELETEXT_PAGE;
+    req.param0 = (uint8_t)(page >> 8);
+    req.param1 = (uint8_t)(page & 0xFF);
+    if (xQueueSend(s_queue, &req, 0) != pdTRUE)
+        LOG_W("dataTask", "queue full — dropped teletext page=%u", page);
+}
+
+bool pollTeletext(TeletextState *out) {
+    bool got = false;
+    portENTER_CRITICAL_SAFE(&s_teletextMux);
+    if (s_teletextNew) {
+        *out         = s_teletextState;
+        s_teletextNew = false;
+        got           = true;
+    }
+    portEXIT_CRITICAL_SAFE(&s_teletextMux);
+    return got;
+}
+
+int lastTeletextHttpCode() {
+    int code;
+    portENTER_CRITICAL_SAFE(&s_teletextMux);
+    code = s_teletextState.lastHttpCode;
+    portEXIT_CRITICAL_SAFE(&s_teletextMux);
+    return code;
+}
 
 }  // namespace dataTask

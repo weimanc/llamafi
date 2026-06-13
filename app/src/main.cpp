@@ -1695,6 +1695,11 @@ static bool stockDbgSet(const char* v, const char* val) { return g_StockApp.dbgS
 #include "aquarium/aquariumApp.h"
 static AquariumApp g_AquariumApp;
 
+#include "teletextApp.h"
+static TeletextApp g_TeletextApp;
+static bool teletextDbgGet(const char* v, char* b, int l) { return g_TeletextApp.dbgGet(v, b, l); }
+static bool teletextDbgSet(const char* v, const char* val) { return g_TeletextApp.dbgSet(v, val); }
+
 #ifdef SERIAL_DEBUG
 static bool matrixDbgGet(const char* v, char* b, int l)   { return g_MatrixApp.dbgGet(v, b, l); }
 static bool lifeDbgGet(const char* v, char* b, int l)     { return g_LifeApp.dbgGet(v, b, l); }
@@ -2271,6 +2276,12 @@ static void cmdTap(const char *args) {
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                     "\"hit\":\"SETTINGS\",\"action\":\"%s\",\"skipped\":false}\n",
                     x, y, consumed ? "CONSUMED" : "NONE");
+    } else if (currentAppId == AppId::Teletext && g_apps[(int)AppId::Teletext]) {
+      g_apps[(int)AppId::Teletext]->handleInput(TouchPhase::Press, x, y);
+      bool consumed = g_apps[(int)AppId::Teletext]->handleInput(TouchPhase::Release, x, y);
+      Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                    "\"hit\":\"TELETEXT\",\"action\":\"%s\",\"skipped\":false}\n",
+                    x, y, consumed ? "CONSUMED" : "NONE");
     } else {
       winampDisplay.lastTouchResult = { "CLOCK", -1, "NONE", 0, -1, false };
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
@@ -2467,6 +2478,10 @@ static void cmdGet(const char *args) {
     return;
   }
 #endif
+  if (teletextDbgGet(args, buf, sizeof(buf))) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
+    return;
+  }
   Serial.printf("{\"ok\":false,\"cmd\":\"get\","
                 "\"error\":\"unknown var\",\"var\":\"%s\"}\n", args);
 }
@@ -2484,6 +2499,11 @@ static void cmdSet(const char *args) {
     return;
   }
   if (stockDbgSet(var, val)) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\","
+                  "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
+    return;
+  }
+  if (teletextDbgSet(var, val)) {
     Serial.printf("{\"ok\":true,\"cmd\":\"set\","
                   "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
     return;

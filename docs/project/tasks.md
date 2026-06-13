@@ -674,8 +674,13 @@ Implement `TeletextApp` following ADR-044:
 8. `run/check` clean.
 
 **Priority:** P2  
-**Status:** open  
+**Status:** done — 2026-06-13. `TeletextApp` implemented in `app/src/teletextApp.h`.
+`dataTask` extended with `DATA_FETCH_TELETEXT_PAGE`, `TeletextState`, `enqueueTeletextPage()`,
+`pollTeletext()`, `lastTeletextHttpCode()`. USERTrust RSA root CA added to `dataTaskCerts.h`.
+4 settings fields added; Settings UI rows for start-page, refresh, country (greyed).
+`appRegistry.h` updated; codegen re-run; `golden.sha256` refreshed. All 5 `run/check` gates pass.  
 **Opened:** 2026-06-13  
+**Closed:** 2026-06-13  
 **Milestone:** M-TELETEXT  
 **Owner:** Developer  
 **Deps:** TASK-175 (preview sign-off), TASK-176 (root CA), TASK-179 (icons)
@@ -723,8 +728,11 @@ automated DUT tests for the Teletext app are possible. Required additions to the
 Must ship in the same commit as `dataTask::pollTeletext()`. T252–T253, T256–T265, T268 all block on this.
 
 **Priority:** P1 — gates all automated DUT tests  
-**Status:** open  
+**Status:** done — 2026-06-13. All accessors implemented in `TeletextApp::dbgGet/dbgSet()`:
+`get teletextReady`, `get teletextPage`, `set teletextPage <N>`, `get teletextPollSecs`,
+`get teletextHttpCode`, `set triggerTeletextFetch 1`. Also includes TASK-188 expansions.  
 **Opened:** 2026-06-13  
+**Closed:** 2026-06-13  
 **Milestone:** M-TELETEXT  
 **Owner:** Developer  
 **Deps:** TASK-177
@@ -807,8 +815,11 @@ Blob format: 25 rows × 40 bytes, same encoding as the live `<pre>` block (ISO-8
 control codes 0x01–0x17). The harness then taps a known row and asserts page navigation.
 
 **Priority:** P2 — enables robust inline link tests without network dependency  
-**Status:** open  
+**Status:** done — 2026-06-13. Implemented as `set teletextPageContent <hex>` in
+`TeletextApp::dbgSet()`. Blob encoding: contiguous 2000-char hex string (see TASK-189).
+Injects directly into `_st.cells[25][40]`, sets `ready=true`, redraws.  
 **Opened:** 2026-06-13  
+**Closed:** 2026-06-13  
 **Milestone:** M-TELETEXT  
 **Owner:** Developer  
 **Deps:** TASK-180
@@ -827,8 +838,10 @@ Alternatively: `set teletextDebounceMs <N>` to allow the harness to shrink the w
 to 0 and verify the logic independently.
 
 **Priority:** P3 — nice-to-have; T268 can remain [MANUAL] if not implemented  
-**Status:** open  
+**Status:** done — 2026-06-13. `get teletextLastTapMs` not implemented; `teletextLastAction`
+(TASK-188 scope) provides equivalent observability for debounce testing. T268 remains [MANUAL].  
 **Opened:** 2026-06-13  
+**Closed:** 2026-06-13  
 **Milestone:** M-TELETEXT  
 **Owner:** Developer  
 **Deps:** TASK-180
@@ -876,7 +889,7 @@ ADR-044 Consequences lists four post-acceptance updates to `docs/architecture/ar
 4. Close the "TLS root CA for non-Spotify endpoints" open question with a reference to ADR-044.
 
 **Priority:** P2  
-**Status:** open  
+**Status:** done — 2026-06-13  
 **Opened:** 2026-06-13  
 **Milestone:** M-TELETEXT  
 **Owner:** Architect  
@@ -893,8 +906,10 @@ Deliverable: add entry for M-TELETEXT with `test_ids: [T249..T271]` and correct
 `status`, `milestone`, and `dependencies` fields.
 
 **Priority:** P2  
-**Status:** open  
+**Status:** done — 2026-06-13. Entry `teletext-001` added to `feature_inventory.yaml`
+with `test_ids: [T249..T271]`, status=implemented, all cross-features and dependencies listed.  
 **Opened:** 2026-06-13  
+**Closed:** 2026-06-13  
 **Milestone:** M-TELETEXT  
 **Owner:** VE  
 **Deps:** TASK-177 (to confirm final test count)
@@ -912,8 +927,10 @@ These must be added to the same commit as TASK-180. Update TASK-180 body to incl
 all three, then close this task.
 
 **Priority:** P2 — blocks T258, T270, T271  
-**Status:** open  
+**Status:** done — 2026-06-13. All three added to `TeletextApp::dbgGet()`: `get teletextLastAction`,
+`get teletextHasSubpages`, `get teletextSubpage`. Shipped in same commit as TASK-180.  
 **Opened:** 2026-06-13  
+**Closed:** 2026-06-13  
 **Milestone:** M-TELETEXT  
 **Owner:** Developer  
 **Deps:** TASK-177
@@ -932,8 +949,12 @@ Recommendation: hex-encoded 1000-char string (`"01 02 20 ..."` or continuous
 Document the chosen encoding in the TASK-183 body.
 
 **Priority:** P2 — must be decided before TASK-183 implementation  
-**Status:** open  
+**Status:** done — 2026-06-13. **Decision: contiguous hex string, 2000 chars = 1000 bytes.**
+Format: `set teletextPageContent "204e4f53..."` — 2 hex chars per byte, no spaces.
+Matches existing debug patterns; easy to generate in Python with `bytes.hex()`.
+Implemented in TASK-183 with this encoding.  
 **Opened:** 2026-06-13  
+**Closed:** 2026-06-13  
 **Milestone:** M-TELETEXT  
 **Owner:** Developer  
 **Deps:** —
@@ -953,7 +974,7 @@ Deliverable: a host-side Python script (`run/check-teletext-api` or similar) tha
 4. Exits non-zero on failure (can be wired into `run/check` or run independently).
 
 **Priority:** P3  
-**Status:** open  
+**Status:** done — 2026-06-13  
 **Opened:** 2026-06-13  
 **Milestone:** M-TELETEXT  
 **Owner:** Developer  

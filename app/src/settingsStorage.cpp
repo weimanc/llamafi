@@ -55,6 +55,12 @@ static void applyDefaults() {
     // Life
     g_settings.lifeSpeed  = AppSpeed::Normal;
     g_settings.lifeColors = LifeColors::Rainbow;
+
+    // Teletext
+    g_settings.teletextPage        = 101;
+    g_settings.teletextPollSecs    = 60;
+    g_settings.teletextCountry     = 0;
+    g_settings.teletextAutoAdvance = false;
 }
 
 // ---- Enum string tables (order must match enum values) --------------------
@@ -175,6 +181,15 @@ void SettingsStorage::load() {
         if (l.containsKey("colors")) g_settings.lifeColors = strToEnum<LifeColors>(l["colors"] | "rainbow", kLifeColorsStr, LifeColors::Rainbow);
     }
 
+    // Teletext
+    if (doc.containsKey("teletext")) {
+        auto tt = doc["teletext"];
+        if (tt.containsKey("page"))        g_settings.teletextPage        = tt["page"]        | 101;
+        if (tt.containsKey("pollSecs"))    g_settings.teletextPollSecs    = tt["pollSecs"]    | 60;
+        if (tt.containsKey("country"))     g_settings.teletextCountry     = tt["country"]     | 0;
+        if (tt.containsKey("autoAdvance")) g_settings.teletextAutoAdvance = tt["autoAdvance"] | false;
+    }
+
     // Migrate: ldrHigh==0 means uncalibrated (old save or user wiped it).
     if (g_settings.ldrHigh == 0)
         g_settings.ldrHigh = 120;
@@ -229,6 +244,12 @@ void SettingsStorage::save() {
     auto lf = doc.createNestedObject("life");
     lf["speed"]  = kSpeedStr[(uint8_t)g_settings.lifeSpeed];
     lf["colors"] = kLifeColorsStr[(uint8_t)g_settings.lifeColors];
+
+    auto tt = doc.createNestedObject("teletext");
+    tt["page"]        = g_settings.teletextPage;
+    tt["pollSecs"]    = g_settings.teletextPollSecs;
+    tt["country"]     = g_settings.teletextCountry;
+    tt["autoAdvance"] = g_settings.teletextAutoAdvance;
 
     File f = SPIFFS.open(SETTINGS_JSON, "w");
     if (!f) { Serial.println("SettingsStorage: failed to open for write"); return; }

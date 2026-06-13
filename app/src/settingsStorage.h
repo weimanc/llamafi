@@ -62,6 +62,12 @@ struct AppSettings {
     // --- Life ---
     AppSpeed   lifeSpeed;
     LifeColors lifeColors;
+
+    // --- Teletext (ADR-044) ---
+    uint16_t teletextPage;        // starting page on resume (default 101)
+    uint8_t  teletextPollSecs;    // refresh cadence: 30/60/120 s (default 60)
+    uint8_t  teletextCountry;     // 0 = NOS/NL; reserved until multi-country lands
+    bool     teletextAutoAdvance; // reserved; no UI until subpage auto-advance implemented
 };
 
 extern AppSettings g_settings;

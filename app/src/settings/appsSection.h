@@ -92,6 +92,7 @@ private:
             case AppId::Aquarium: _repaintAquarium(); break;
             case AppId::Matrix:   _repaintMatrix();   break;
             case AppId::Life:     _repaintLife();     break;
+            case AppId::Teletext: _repaintTeletext(); break;
             default: break;
         }
     }
@@ -187,6 +188,7 @@ private:
             case AppId::Aquarium: _cycleAquarium(row); break;
             case AppId::Matrix:   _cycleMatrix(row);   break;
             case AppId::Life:     _cycleLife(row);     break;
+            case AppId::Teletext: _cycleTeletext(row); break;
             default: break;
         }
     }
@@ -232,6 +234,38 @@ private:
         if (row == 0) settings().lifeSpeed = _cycleSpeed(settings().lifeSpeed);
         else if (row == 1) settings().lifeColors = (LifeColors)(((uint8_t)settings().lifeColors + 1) % 2);
         else return;
+        saveSettings(); repaint();
+    }
+
+    void _repaintTeletext() {
+        int y = S_CONTENT_Y;
+        static const char* kPages[] = { "101 News", "601 Sport", "702 Weather", "800 Football" };
+        static const uint16_t kPageVals[] = { 101, 601, 702, 800 };
+        const char* pageLbl = kPages[0];
+        for (int i = 0; i < 4; i++) {
+            if (kPageVals[i] == settings().teletextPage) { pageLbl = kPages[i]; break; }
+        }
+        drawRow(y, { "Start page", pageLbl, S_LABEL, S_VALUE }); y += S_ROW_H;
+        char pbuf[8];
+        snprintf(pbuf, sizeof(pbuf), "%us", settings().teletextPollSecs);
+        drawRow(y, { "Refresh", pbuf, S_LABEL, S_VALUE }); y += S_ROW_H;
+        drawRow(y, { "Country", "NL (NOS)", S_LABEL, 0x7BEF });  // greyed-out
+    }
+
+    void _cycleTeletext(int row) {
+        if (row == 0) {
+            static const uint16_t kPages[] = { 101, 601, 702, 800 };
+            uint16_t cur = settings().teletextPage;
+            uint8_t next = 0;
+            for (int i = 0; i < 4; i++) if (kPages[i] == cur) { next = (i+1)%4; break; }
+            settings().teletextPage = kPages[next];
+        } else if (row == 1) {
+            static const uint8_t kPoll[] = { 30, 60, 120 };
+            uint8_t cur = settings().teletextPollSecs;
+            uint8_t next = 1;
+            for (int i = 0; i < 3; i++) if (kPoll[i] == cur) { next = (i+1)%3; break; }
+            settings().teletextPollSecs = kPoll[next];
+        } else { return; }
         saveSettings(); repaint();
     }
 

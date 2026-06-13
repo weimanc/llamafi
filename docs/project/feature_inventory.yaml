@@ -1216,3 +1216,56 @@ features:
     TASK-170/171. DUT-verified 2026-06-12 (flashed, visual inspect).
     No automated VE tests — icon rendering is visual-only.
     Re-bake with ./run/bake-icons when icons change; update golden.sha256 afterward.
+
+- id: teletext-001
+  name: NOS Teletekst live reader
+  milestone: M-TELETEXT
+  status: implemented
+  description: |
+    10th app in appRegistry.h (slot 9, AppId::Teletext, configurable=1).
+    Fetches NOS Teletekst pages from teletekst-data.nos.nl/page/{N} via dataTask.
+    Renders 25×40 teletext grid (6×8 px/cell, Font1 text mode, fillRect mosaic mode)
+    in the 275×240 app canvas. Right-strip nav (6 zones), fast-text bar (4 coloured
+    buttons), inline row-tap hyperlinks with 10-entry history ring.
+    Settings: start page (101/601/702/800 cycle), refresh interval (30/60/120s),
+    country (greyed-out "NL (NOS)").
+    TLS: USERTrust RSA CA (TELETEXT_NOS_ROOT_CA in dataTaskCerts.h), weather pattern.
+    Serial debug: get teletextReady/teletextPage/teletextPollSecs/teletextHttpCode/
+    teletextLastAction/teletextHasSubpages/teletextSubpage; set teletextPage/
+    triggerTeletextFetch/teletextPageContent (hex-encoded 2000-char blob).
+  files:
+    - app/src/teletextApp.h
+    - app/src/appRegistry.h
+    - app/src/dataTask.h
+    - app/src/dataTaskStorage.cpp
+    - app/src/dataTaskCerts.h
+    - app/src/settingsStorage.h
+    - app/src/settingsStorage.cpp
+    - app/src/settings/appsSection.h
+    - app/src/main.cpp
+    - app/gen/teletext_layout.h
+    - app/gen/configurable_apps.h
+    - app/icons/taskbar/teletext.png
+    - app/icons/taskbar/teletext_active.png
+    - app/tools/preview_teletext.py
+    - run/check-teletext-api
+    - docs/architecture/designs/M-TELETEXT.md
+    - docs/architecture/decisions/ADR-044.md
+  cross_features:
+    - app-registry-001
+    - data-task-001
+    - settings-001
+    - taskbar-icons-001
+  test_ids: [T249, T250, T251, T252, T253, T254, T255, T256, T257, T258, T259, T260, T261, T262, T263, T264, T265, T266, T267, T268, T269, T270, T271]
+  dependencies:
+    - data-task-001
+    - settings-001
+    - taskbar-icons-001
+  notes: |
+    TASK-177 (firmware) + TASK-180/183/184/188/189 (serial debug) all implemented 2026-06-13.
+    TASK-175 (preview sign-off), TASK-176 (root CA), TASK-179 (icons), TASK-181 (layout header),
+    TASK-182 (back-nav), TASK-185 (ADR-044 sign-off), TASK-186 (arch.md), TASK-187 (this entry),
+    TASK-190 (canary script) all done 2026-06-13.
+    TASK-178 R&D spike done; teletextCountry reserved (SVT SE = viable future entry, separate ADR).
+    TASK-191 (TLS heap contention test) open; P3, follow-up milestone.
+    ADR-044 accepted. run/check 5/5 clean post-implementation.
