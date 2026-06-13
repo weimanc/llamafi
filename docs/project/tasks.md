@@ -656,6 +656,120 @@ viable second entry (separate JSON fetch path required). RAI incompatible
 
 ---
 
+### TASK-180 — M-TELETEXT: serial debug accessors for TeletextApp [VE gap G1]
+
+VE design review (2026-06-13) identified that without serial debug accessors, no
+automated DUT tests for the Teletext app are possible. Required additions to the
+`SERIAL_DEBUG` command surface (same pattern as `get weatherReady`, `get cryptoReady`,
+`set triggerHeatmap 1`):
+
+- `get teletextReady` → `{"ok":true,"ready":bool}` — true after first successful fetch
+- `get teletextPage` → `{"ok":true,"page":uint16}` — current page in `TeletextState`
+- `set teletextPage <N>` → `{"ok":true,"page":N}` — writes `g_settings.teletextPage` transiently
+- `get teletextPollSecs` → `{"ok":true,"pollSecs":uint8}`
+- `get teletextHttpCode` → last HTTP response code from `fetchTeletext()` (pattern from `get cryptoHttpCode`)
+- `set triggerTeletextFetch 1` → force immediate `FETCH_TELETEXT_PAGE` enqueue
+
+Must ship in the same commit as `dataTask::pollTeletext()`. T252–T253, T256–T265, T268 all block on this.
+
+**Priority:** P1 — gates all automated DUT tests  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT  
+**Owner:** Developer  
+**Deps:** TASK-177
+
+---
+
+### TASK-181 — M-TELETEXT: publish pixel-exact touch zone constants [VE gap G2]
+
+VE review found that touch zone coordinates in M-TELETEXT.md are approximate (e.g.,
+right-strip y-values marked "y=50 approx"). The DUT tap harness requires pixel-exact
+values before any tap test can be written.
+
+Deliverable: a constants block (in `app/gen/teletext_layout.h` or equivalent, following
+the `skin_layout.h` pattern) defining:
+- Right-strip zone boundaries: `TTXT_STRIP_SUBUP_Y0/Y1`, `TTXT_STRIP_PAGENUM_Y0/Y1`,
+  `TTXT_STRIP_PREV_Y0/Y1`, `TTXT_STRIP_NEXT_Y0/Y1`, `TTXT_STRIP_SUBDN_Y0/Y1`
+- Fast-text bar x-boundaries: `TTXT_FTL0_X0/X1` … `TTXT_FTL3_X0/X1`
+- Fast-text bar y-range: `TTXT_BAR_Y0` (=200), `TTXT_BAR_Y1` (=239)
+- Grid origin: `TTXT_GRID_X`, `TTXT_GRID_Y`, `TTXT_CHAR_W` (=6), `TTXT_CHAR_H` (=8)
+
+Applications submenu row order must also be confirmed (Teletext is configurable=1;
+VE must know the order to audit T-SET-03 / T-SET-07 regression risk — see TASK-177).
+
+**Priority:** P1 — gates all tap tests (T254–T262)  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT  
+**Owner:** Developer  
+**Deps:** TASK-177
+
+---
+
+### TASK-182 — M-TELETEXT: specify back-navigation mechanism [VE gap G3]
+
+DS-2 (inline hyperlinks) describes a 10-entry page-history ring and enables back
+navigation, but M-TELETEXT.md and ADR-044 do not specify the UI gesture for "go back."
+The VE cannot write T261 (history back navigation) until the mechanism is designed.
+
+Options: (a) dedicated back-button in the right-strip (replaces one of the 5 nav zones);
+(b) long-press on current page number display; (c) swipe gesture; (d) fast-text button
+if one target is always blank. Each has different tap-zone implications.
+
+Architect to decide and update M-TELETEXT §DS-2 + ADR-044 item 5 with the chosen
+mechanism. Once decided, Developer adds the zone to `teletext_layout.h` (TASK-181).
+
+**Priority:** P2 — blocks T261; does not block MVP render  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT  
+**Owner:** Architect  
+**Deps:** —
+
+---
+
+### TASK-183 — M-TELETEXT: set teletextPageContent debug stub [VE gap G4]
+
+Inline row-link tests (T259–T260) are network-content-dependent: the correct
+3-digit page reference must be at a known column/row in the fetched page. Using live
+page 101 is fragile (NOS could change layout). Preferred approach: a
+`set teletextPageContent "<blob>"` debug accessor that injects a synthetic 1000-byte
+page into `TeletextState`, bypassing the network, so harness tests control the exact
+content.
+
+Blob format: 25 rows × 40 bytes, same encoding as the live `<pre>` block (ISO-8859-1,
+control codes 0x01–0x17). The harness then taps a known row and asserts page navigation.
+
+**Priority:** P2 — enables robust inline link tests without network dependency  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT  
+**Owner:** Developer  
+**Deps:** TASK-180
+
+---
+
+### TASK-184 — M-TELETEXT: 300ms debounce serial accessor [VE gap G5]
+
+T268 (debounce test) requires the app-level 300 ms debounce in `TeletextApp::handleInput()`
+to be observable via serial. The existing `set cooldown <ms>` only arms the hardware
+touch-screen gate — not the application-layer debounce.
+
+Minimum: add `get teletextLastTapMs` (returns `millis()` of last accepted tap) so the
+harness can assert that a second tap within 300 ms did not update the timestamp.
+Alternatively: `set teletextDebounceMs <N>` to allow the harness to shrink the window
+to 0 and verify the logic independently.
+
+**Priority:** P3 — nice-to-have; T268 can remain [MANUAL] if not implemented  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT  
+**Owner:** Developer  
+**Deps:** TASK-180
+
+---
+
 ### TASK-179 — M-TELETEXT: source teletext taskbar icons
 
 Source or create `teletext.png` + `teletext_active.png` (24×24, RGBA) for the

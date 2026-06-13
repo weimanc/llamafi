@@ -3674,6 +3674,194 @@ tests. Visual (MANUAL) tests have no blockers.
 
 ---
 
+## M-TELETEXT — Teletext App Suite (T249–T268)
+
+> Added 2026-06-13 after Architect + VE design review.
+> Tests blocked on G1 require `get teletextReady` / `get teletextPage` / `set triggerTeletextFetch` serial accessors (TASK-180).
+> Tests blocked on G2 require pixel-exact touch zone constants published in `teletext_layout.h` (TASK-181).
+> Tests blocked on G3 require back-navigation mechanism specified (TASK-182).
+> Tests blocked on G4 require `set teletextPageContent` debug stub (TASK-183).
+
+### T249 — [M-TELETEXT] T-TTX-01: App switch round-trip
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Feature(s)**: M-TELETEXT
+- **Objective**: Spotify→Teletext→Spotify completes without crash; `get appId` confirms each leg.
+- **Preconditions**: DUT running, WiFi connected.
+- **Steps**: 1. `switchApp Teletext`; 2. `get appId` → assert `"Teletext"`; 3. `switchApp Spotify`; 4. `get appId` → assert `"Spotify"`.
+- **Expected result**: Both IDs confirmed. No crash. No black screen residue.
+- **Status**: planned
+
+### T250 — [M-TELETEXT] T-TTX-02: Canvas tap routes correctly while Teletext active
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Tap on the clock hotspot while Teletext is active returns `hit="CLOCK"` (BUG-1 guard — same as T_WX_02 pattern).
+- **Preconditions**: Teletext app active.
+- **Steps**: `tap 137 120`; `get lastHit`.
+- **Expected result**: `lastHit == "CLOCK"` (or equivalent non-Teletext app hit response).
+- **Status**: planned
+
+### T251 — [M-TELETEXT] T-TTX-03: Canvas residue clears on Teletext→Spotify switch
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: `lastPlaylistDraw` counter advances after switch away from Teletext (no frozen canvas).
+- **Preconditions**: Teletext active; `D0 = get lastPlaylistDraw`.
+- **Steps**: `switchApp Spotify`; poll `get lastPlaylistDraw` ≤ 30 s.
+- **Expected result**: `lastPlaylistDraw > D0`.
+- **Status**: planned
+
+### T252 — [M-TELETEXT] T-TTX-04: dataTask delivers teletextReady [NETWORK] [Blocked: G1]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: `FETCH_TELETEXT_PAGE` fires after app switch-in; `teletextReady` becomes true within 30 s.
+- **Preconditions**: WiFi connected. `get teletextReady` accessor present (TASK-180).
+- **Steps**: `switchApp Teletext`; poll `get teletextReady` ≤ 30 s.
+- **Expected result**: `ready == true`. `teletextPage == 101` (default).
+- **Status**: planned
+
+### T253 — [M-TELETEXT] T-TTX-05: teletextPage accessor round-trip [Blocked: G1]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: `set teletextPage` / `get teletextPage` round-trips correctly; value persists in `g_settings`.
+- **Preconditions**: `get teletextPage` and `set teletextPage` accessors present (TASK-180).
+- **Steps**: 1. `set teletextPage 601`; 2. `get teletextPage` → assert 601; 3. `set teletextPage 101`; 4. `get teletextPage` → assert 101.
+- **Expected result**: Each `get` reflects the last `set` value.
+- **Status**: planned
+
+### T254 — [M-TELETEXT] T-TTX-06: Fast-text bar — 4 button hit zones [Blocked: G2]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Each of 4 fast-text buttons returns correct FTL target action when tapped.
+- **Preconditions**: Teletext active. Pixel-exact x-boundaries published in `teletext_layout.h` (TASK-181). `set cooldown 0`.
+- **Steps**: For each button band: `tap <x_centre> <y_centre_bar>`; `get teletextLastAction` → assert `FTL_N`.
+- **Expected result**: 4/4 buttons return correct fast-text target index.
+- **Status**: planned
+
+### T255 — [M-TELETEXT] T-TTX-07: Fast-text bar boundary — 1 px above bar top
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Tap at y=199 (1 px above bar top at y=200) returns deadzone or grid action — not a fast-text hit.
+- **Preconditions**: Teletext active.
+- **Steps**: `tap 137 199`; `get teletextLastAction`.
+- **Expected result**: `action != "FASTTEXT"`.
+- **Status**: planned
+
+### T256 — [M-TELETEXT] T-TTX-08: Right-strip PREV_PAGE zone [Blocked: G2]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Tap in PREV_PAGE zone of the right-strip navigates to previous page.
+- **Preconditions**: `get teletextPage` accessor present (TASK-180). Pixel-exact y-boundary for PREV_PAGE zone confirmed (TASK-181). `set cooldown 0`.
+- **Steps**: `P0 = get teletextPage`; `tap 257 <prev_page_y>`; `get teletextPage` → assert `== P_prev` (from `pn=p_` metadata).
+- **Expected result**: `teletextPage` changes to the previous page number.
+- **Status**: planned
+
+### T257 — [M-TELETEXT] T-TTX-09: Right-strip NEXT_PAGE zone [Blocked: G2]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Tap in NEXT_PAGE zone navigates to next page.
+- **Preconditions**: Same as T256.
+- **Steps**: `P0 = get teletextPage`; `tap 257 <next_page_y>`; `get teletextPage` → assert `== P_next`.
+- **Expected result**: `teletextPage` changes to next page number.
+- **Status**: planned
+
+### T258 — [M-TELETEXT] T-TTX-10: Right-strip inactive zone — no subpages [Blocked: G2]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Tap subpage-up/down zones when the current page has no subpages → no page change.
+- **Preconditions**: Current page has no subpages (verifiable from `teletextHasSubpages` accessor or known page).
+- **Steps**: `P0 = get teletextPage`; `tap 257 <subpage_up_y>`; `get teletextPage` → assert `== P0`.
+- **Expected result**: `teletextPage` unchanged.
+- **Status**: planned
+
+### T259 — [M-TELETEXT] T-TTX-11: Inline row link — tap navigates to page ref [NETWORK] [Blocked: G1, G4]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Tap on a grid row containing a 3-digit page ref at cols 35–39 navigates to that page.
+- **Preconditions**: `get teletextPage` present (TASK-180). Preferred: `set teletextPageContent` stub to inject synthetic content with known page-ref at row N (TASK-183). Fallback: use page 101 with known stable index layout.
+- **Steps**: Inject content with page ref `601` at row 5; `tap <col_centre_x> <row5_y>`; `get teletextPage` → assert 601.
+- **Expected result**: `teletextPage == 601`.
+- **Status**: planned
+
+### T260 — [M-TELETEXT] T-TTX-12: Inline row link — no digit → no navigation [Blocked: G4]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Tap on a row with no 3-digit page ref at cols 35–39 does not change `teletextPage`.
+- **Preconditions**: `set teletextPageContent` stub present (TASK-183). Content injected with row N having no page ref.
+- **Steps**: `P0 = get teletextPage`; `tap <col_centre_x> <rowN_y>`; `get teletextPage` → assert `== P0`.
+- **Expected result**: `teletextPage` unchanged.
+- **Status**: planned
+
+### T261 — [M-TELETEXT] T-TTX-13: History back navigation [Blocked: G1, G3]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Forward navigation pushes page onto history ring; back tap returns to prior page.
+- **Preconditions**: `get teletextPage` present (TASK-180). Back-navigation mechanism specified (TASK-182).
+- **Steps**: `P0 = get teletextPage`; navigate forward to page 601; `get teletextPage` → assert 601; tap back-button zone; `get teletextPage` → assert `== P0`.
+- **Expected result**: Returns to original page.
+- **Status**: planned
+
+### T262 — [M-TELETEXT] T-TTX-14: Settings drill — Applications → Teletext submenu
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Settings → Applications → Teletext row opens the Teletext submenu correctly.
+- **Preconditions**: Applications submenu row order confirmed (TASK-181 / TASK-177). `get settingsAppSubmenu` accessor present.
+- **Steps**: Navigate to Settings → Applications; `tap <teletext_row_y>`; `get settingsAppSubmenu` → assert Teletext submenu index.
+- **Expected result**: Submenu opens at the Teletext section.
+- **Status**: planned
+
+### T263 — [M-TELETEXT] T-TTX-15: teletextPollSecs cycles via settings tap [Blocked: G1]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Tap on the poll interval row in Settings → Teletext cycles 30→60→120→30.
+- **Preconditions**: `get teletextPollSecs` accessor present (TASK-180). Submenu row y-coordinate published (TASK-181).
+- **Steps**: Navigate to Settings → Teletext; `tap <pollSecs_row_y>` × 3; assert cycle: 60→120→30.
+- **Expected result**: Values cycle as specified.
+- **Status**: planned
+
+### T264 — [M-TELETEXT] T-TTX-16: teletextPage persists via pull-on-resume (ADR-043) [Blocked: G1]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: `set teletextPage 601`; switch away and back; `get teletextPage` returns 601 (ADR-043 pull-on-resume).
+- **Preconditions**: `set/get teletextPage` accessors present (TASK-180).
+- **Steps**: `set teletextPage 601`; `switchApp Spotify`; `switchApp Teletext`; `get teletextPage` → assert 601.
+- **Expected result**: `teletextPage == 601`.
+- **Status**: planned
+
+### T265 — [M-TELETEXT] T-TTX-17: Full canvas coverage — no black half [MANUAL]
+
+- **Type**: manual (DUT, visual)
+- **Objective**: Verify full 275×240 canvas is painted; no solid-black half; mosaic and text rows visible.
+- **Steps**: Switch to Teletext; observe screen. Cross-reference against `preview_teletext.py` at 3× zoom.
+- **Expected result**: 25 rows of teletext content visible in grid area; right-strip and fast-text bar rendered.
+- **Status**: planned
+
+### T266 — [M-TELETEXT] T-TTX-18: Text/mosaic render correctness [MANUAL]
+
+- **Type**: manual (DUT, visual)
+- **Objective**: Mosaic characters render as 2×3 graphic blocks; text rows render as characters in correct colours.
+- **Steps**: Navigate to a page with known mosaic content (e.g., page 888 — subtitles or graphics page); observe cells.
+- **Expected result**: Mosaic pixels visible; colour-coding matches preview tool output.
+- **Status**: planned
+
+### T267 — [M-TELETEXT] T-TTX-19: run/check 5-gate passes after 10th-app registry update
+
+- **Type**: host automated
+- **Objective**: `gen_app_registry.py` re-run after Teletext added to `appRegistry.h`; all 5 gates pass.
+- **Steps**: `gen_app_registry.py`; `./run/check`.
+- **Expected result**: Exit 0. Gate [5/5] passes (staleness check clean).
+- **Status**: planned
+
+### T268 — [M-TELETEXT] T-TTX-20: 300 ms debounce blocks rapid double-tap [Blocked: G5]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Second tap within 300 ms on the same row does not fire a second navigation.
+- **Preconditions**: `set teletextDebounceMs <N>` or `get teletextLastTapMs` accessor present (TASK-184).
+- **Steps**: `tap <row_y>`; wait 100 ms; `tap <row_y>`; assert `teletextPage` changed exactly once.
+- **Expected result**: Only one navigation event fired.
+- **Status**: planned
+
+---
+
 ## Entry Format
 
 ```
