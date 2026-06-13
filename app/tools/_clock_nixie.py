@@ -1,321 +1,365 @@
-"""_clock_nixie.py — Nixie Tube clock renderer for preview_clock.py.
+"""_clock_nixie.py — Nixie Tube renderer for preview_clock.py.
 
-Imported by preview_clock.py as _clock_nixie; exposes NixieRenderer.
-PIL only (no pygame). Standalone — no project imports.
+Vacuum-tube Nixie simulation (per M-CLOCK-NIXIE.md):
+  - Each digit inside a tall dark rounded-rect tube with hex mesh anode texture.
+  - Thin wire cathode glyph (Roboto-Thin) at near-white warm base colour.
+  - Three-pass additive bloom: tight corona + orange cloud + wide ambient.
+  - Outer glow bleeds past the tube glass onto the black canvas.
+  - Ghost cathodes (all inactive digits dim) toggled with 'h'.
 
-Test:
-    python3 app/tools/_clock_nixie.py   →  /tmp/nixie_test.png
+Imported by preview_clock.py as:
+    from _clock_nixie import NixieRenderer
 """
 from __future__ import annotations
 
 import pathlib
-import random
 import time as _time
-from typing import Tuple
+from abc import ABC, abstractmethod
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
-# ── colour palette ────────────────────────────────────────────────────────────
+# ── font helpers ───────────────────────────────────────────────────────────────
 
-C_BG          = (0, 0, 0)
-C_GLOW_OUTER  = (40, 10, 0)
-C_GLOW_MID    = (80, 20, 0)
-C_TUBE_BORDER = (200, 100, 20)
-C_TUBE_FILL   = (8, 3, 0)
-C_DIGIT       = (255, 230, 160)
-C_COLON       = (200, 120, 30)
-C_DATE        = (200, 130, 40)
-C_DATE_SUB    = (160, 100, 30)
-
-# Tube border colour presets cycled by 'c'
-_BORDER_PRESETS: list[Tuple[int, int, int]] = [
-    (200, 100,  20),   # amber
-    (220,  60,  10),   # orange-red
-    (200, 170,  20),   # gold
-    (230, 200, 160),   # warm white
+_WIRE_FONT_PATHS = [
+    "/usr/share/fonts/google-roboto/Roboto-Thin.ttf",
+    "/usr/share/fonts/google-roboto/Roboto-Light.ttf",
+    "/usr/share/fonts/google-noto/NotoSans-Light.ttf",
+    "/usr/share/fonts/abattis-cantarell-fonts/Cantarell-Thin.otf",
 ]
-
-# Background presets cycled by 'b'
-_BG_PRESETS: list[Tuple[int, int, int]] = [
-    (0,   0,   0),    # black
-    (8,   4,   0),    # very dark brown
-    (0,   0,  12),    # very dark navy
-]
-
-# ── font loader ───────────────────────────────────────────────────────────────
-
-_FONT_PATHS = [
-    "/usr/share/fonts/liberation-mono-fonts/LiberationMono-Bold.ttf",
-    "/usr/share/fonts/google-noto/NotoSansMono-ExtraBold.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
+_DATE_FONT_PATHS = [
+    "/usr/share/fonts/google-roboto/Roboto-Thin.ttf",
+    "/usr/share/fonts/google-roboto/Roboto-Light.ttf",
+    "/usr/share/fonts/google-noto/NotoSans-Light.ttf",
 ]
 
 
-def _load_font(size: int) -> ImageFont.FreeTypeFont:
-    for p in _FONT_PATHS:
+def _load_font(paths: list, size: int) -> ImageFont.FreeTypeFont:
+    for p in paths:
         if pathlib.Path(p).exists():
             return ImageFont.truetype(p, size)
     return ImageFont.load_default(size=size)
 
 
-# ── rainbow helper ────────────────────────────────────────────────────────────
+# ── ClockRenderer stub ─────────────────────────────────────────────────────────
 
-def rainbow_color(i: int, total: int = 60) -> Tuple[int, int, int]:
-    h = int(i * 255 / total)
-    if h < 85:
-        return (255 - h * 3, h * 3, 0)
-    elif h < 170:
-        h -= 85
-        return (0, 255 - h * 3, h * 3)
-    else:
-        h -= 170
-        return (h * 3, 0, 255 - h * 3)
+class ClockRenderer(ABC):
+    CANVAS_W = 275
+    CANVAS_H = 240
+
+    def help_text(self) -> str:
+        return "(no style-specific keys)"
+
+    @abstractmethod
+    def render(self, img: Image.Image, t: _time.struct_time) -> None: ...
+
+    @abstractmethod
+    def on_key(self, key: str) -> bool: ...
+
+    @abstractmethod
+    def param_dict(self) -> dict: ...
 
 
-# ── layout constants ──────────────────────────────────────────────────────────
+# ── colour themes ──────────────────────────────────────────────────────────────
 
-CANVAS_W = 275
-CANVAS_H = 240
+_THEMES = [
+    {"name": "amber", "C_WIRE": (255, 125,   8)},   # warm orange — matches concept
+    {"name": "red",   "C_WIRE": (255,  45,  10)},
+    {"name": "green", "C_WIRE": ( 50, 255,  80)},
+    {"name": "blue",  "C_WIRE": ( 70, 150, 255)},
+]
 
-TUBE_W  = 48
-TUBE_H  = 70
-TUBE_R  = 24   # corner radius (makes it oval-like)
+# ── layout constants ───────────────────────────────────────────────────────────
 
-# Tube top-y: centres the 70px tube in a 80px time area with 5px top margin
-TUBE_TOP_Y = (80 - TUBE_H) // 2 + 5    # = 10
+TUBE_W = 48
+TUBE_H = 110
+TUBE_R = 18
 
-# Tube left-x positions
-TUBE_X: dict[str, int] = {
-    "H1": 34,
-    "H2": 86,
-    "M1": 141,
-    "M2": 193,
-}
+TUBE_Y = 8
 
-COLON_X = 137   # x of colon dots
-COLON_Y1 = 33
-COLON_Y2 = 57
+_TUBE_GAP   = 6
+_COLON_W    = 22
+_MARGIN_X   = (275 - 4 * TUBE_W - 2 * _TUBE_GAP - _COLON_W) // 2  # 24
 
-SEC_DOT_Y   = 94   # vertical centre of seconds dots
-SEC_DOT_X0  =  8
-SEC_DOT_X1  = 263
-SEC_DOT_SPAN = SEC_DOT_X1 - SEC_DOT_X0   # 255 px for 59 gaps
+TUBE_XS = [
+    _MARGIN_X,                                          # H1 = 24
+    _MARGIN_X + TUBE_W + _TUBE_GAP,                    # H2 = 78
+    _MARGIN_X + 2 * TUBE_W + _TUBE_GAP + _COLON_W,    # M1 = 148
+    _MARGIN_X + 3 * TUBE_W + 2 * _TUBE_GAP + _COLON_W, # M2 = 202
+]
+COLON_CX = TUBE_XS[1] + TUBE_W + _COLON_W // 2        # 137
 
-DATE_DAY_Y  = 155
-DATE_DATE_Y = 185
+DATE_Y = TUBE_Y + TUBE_H + 22   # 124
 
-DAYS_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+# Bloom defaults (tunable via keys)
+_BLOOM_R1 = 2.5   # tight corona
+_BLOOM_R2 = 8.0   # orange cloud
+_BLOOM_R3 = 18.0  # wide ambient
+_BLOOM_S1 = 1.8
+_BLOOM_S2 = 1.2
+_BLOOM_S3 = 0.7
+_BLEED_R  = 10.0
+_BLEED_S  = 0.45
+
+
+# ── tube mask ──────────────────────────────────────────────────────────────────
+
+def _build_tube_mask(w: int, h: int, r: int) -> Image.Image:
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, w - 1, h - 1], radius=r, fill=255)
+    return mask
+
+
+_TUBE_MASK = _build_tube_mask(TUBE_W, TUBE_H, TUBE_R)
+
+
+# ── hex mesh texture ───────────────────────────────────────────────────────────
+
+def _build_mesh(w: int, h: int, c_wire: tuple) -> Image.Image:
+    mesh = Image.new("RGB", (w, h), (0, 0, 0))
+    d    = ImageDraw.Draw(mesh)
+    mc   = tuple(max(1, int(v * 0.075)) for v in c_wire)
+    cell = 4
+    dot  = 1
+    for row in range(h // cell + 2):
+        for col in range(w // cell + 2):
+            ox = (row % 2) * (cell // 2)
+            cx = col * cell + ox
+            cy = row * cell
+            d.rectangle([cx - dot, cy - dot, cx + dot, cy + dot], fill=mc)
+    return mesh
 
 
 # ── NixieRenderer ─────────────────────────────────────────────────────────────
 
-class NixieRenderer:
-    """Warm vintage Nixie Tube clock, PIL-only, for preview_clock.py."""
-
-    CANVAS_W = CANVAS_W
-    CANVAS_H = CANVAS_H
+class NixieRenderer(ClockRenderer):
+    """Vacuum-tube Nixie clock concept renderer."""
 
     def __init__(self) -> None:
-        self._font_digit = _load_font(42)
-        self._font_day   = _load_font(20)
-        self._font_date  = _load_font(18)
+        self._theme_idx  = 0
+        self._wire_size  = 88
+        self._font_wire  = _load_font(_WIRE_FONT_PATHS, self._wire_size)
+        self._font_date  = _load_font(_DATE_FONT_PATHS, 13)
+        self._ghost      = False
 
-        # mutable palette state
-        self._c_bg          = _BG_PRESETS[0]
-        self._c_glow_outer  = C_GLOW_OUTER
-        self._c_glow_mid    = list(C_GLOW_MID)    # list so R is mutable
-        self._c_tube_border = _BORDER_PRESETS[0]
-        self._c_tube_fill   = C_TUBE_FILL
-        self._c_digit       = list(C_DIGIT)
+        self._bloom_r1   = _BLOOM_R1
+        self._bloom_r2   = _BLOOM_R2
+        self._bloom_r3   = _BLOOM_R3
+        self._bloom_s2   = _BLOOM_S2
+        self._bleed_r    = _BLEED_R
+        self._bleed_s    = _BLEED_S
 
-        self._border_preset_idx = 0
-        self._bg_preset_idx     = 0
-
-        self._flicker_on = True
-        self._flicker: float = 1.0
-
-    # ── public interface ──────────────────────────────────────────────────────
+    # ── public interface ───────────────────────────────────────────────────────
 
     def help_text(self) -> str:
-        return (
-            "g/G=glow up/down  c=cycle tube colour  "
-            "v=toggle flicker  b=cycle background"
-        )
-
-    def render(self, img: Image.Image, t: _time.struct_time) -> None:
-        """Fill 275×240 canvas with Nixie tube clock for time t."""
-        draw = ImageDraw.Draw(img)
-
-        # background
-        draw.rectangle([0, 0, CANVAS_W - 1, CANVAS_H - 1], fill=self._c_bg)
-
-        # flicker update
-        if self._flicker_on:
-            self._flicker = 0.9 + random.random() * 0.15
-        else:
-            self._flicker = 1.0
-
-        # tubes
-        digits = [
-            ("H1", f"{t.tm_hour:02d}"[0]),
-            ("H2", f"{t.tm_hour:02d}"[1]),
-            ("M1", f"{t.tm_min:02d}"[0]),
-            ("M2", f"{t.tm_min:02d}"[1]),
-        ]
-        for slot, ch in digits:
-            self._draw_tube(draw, TUBE_X[slot], TUBE_TOP_Y, ch)
-
-        # colon
-        R = 4
-        draw.ellipse([COLON_X - R, COLON_Y1 - R, COLON_X + R, COLON_Y1 + R],
-                     fill=C_COLON)
-        draw.ellipse([COLON_X - R, COLON_Y2 - R, COLON_X + R, COLON_Y2 + R],
-                     fill=C_COLON)
-
-        # seconds dot arc
-        for i in range(60):
-            x = SEC_DOT_X0 + int(i * (SEC_DOT_SPAN / 59))
-            lit = i < t.tm_sec
-            c = (200, 100, 20) if lit else (40, 15, 0)
-            draw.ellipse([x - 1, SEC_DOT_Y - 1, x + 1, SEC_DOT_Y + 1], fill=c)
-
-        # date area
-        centre_x = CANVAS_W // 2   # 137
-
-        # day name
-        day_name = DAYS_LONG[t.tm_wday]
-        draw.text(
-            (centre_x, DATE_DAY_Y),
-            day_name,
-            font=self._font_day,
-            fill=C_DATE,
-            anchor="mm",
-        )
-
-        # date string e.g. "12 Jun 2026"
-        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-        date_str = f"{t.tm_mday:02d} {months[t.tm_mon - 1]} {t.tm_year}"
-        draw.text(
-            (centre_x, DATE_DATE_Y),
-            date_str,
-            font=self._font_date,
-            fill=C_DATE_SUB,
-            anchor="mm",
-        )
-
-    def on_key(self, key: str) -> bool:
-        """Handle a style-specific keypress.  Return True if redraw needed."""
-        if key == "g":
-            self._c_glow_mid[0] = min(150, self._c_glow_mid[0] + 10)
-            return True
-        elif key == "G":
-            self._c_glow_mid[0] = max(20, self._c_glow_mid[0] - 10)
-            return True
-        elif key == "c":
-            self._border_preset_idx = (self._border_preset_idx + 1) % len(_BORDER_PRESETS)
-            self._c_tube_border = _BORDER_PRESETS[self._border_preset_idx]
-            return True
-        elif key == "v":
-            self._flicker_on = not self._flicker_on
-            return True
-        elif key == "b":
-            self._bg_preset_idx = (self._bg_preset_idx + 1) % len(_BG_PRESETS)
-            self._c_bg = _BG_PRESETS[self._bg_preset_idx]
-            return True
-        return False
+        return "c=theme  h=ghost  g/G=cloud±  b/B=cloud bright  r/R=ambient±"
 
     def param_dict(self) -> dict:
+        t = _THEMES[self._theme_idx]
         return {
-            "c_bg":           self._c_bg,
-            "c_glow_outer":   tuple(self._c_glow_outer),
-            "c_glow_mid":     tuple(self._c_glow_mid),
-            "c_tube_border":  self._c_tube_border,
-            "c_tube_fill":    self._c_tube_fill,
-            "c_digit":        tuple(self._c_digit),
-            "flicker_on":     self._flicker_on,
-            "border_preset":  self._border_preset_idx,
-            "bg_preset":      self._bg_preset_idx,
+            "TUBE_W": TUBE_W, "TUBE_H": TUBE_H, "TUBE_R": TUBE_R,
+            "TUBE_Y": TUBE_Y, "TUBE_XS": TUBE_XS, "DATE_Y": DATE_Y,
+            "theme": t["name"], "C_WIRE": t["C_WIRE"],
+            "wire_size": self._wire_size,
+            "bloom_r1": self._bloom_r1,
+            "bloom_r2": self._bloom_r2, "bloom_s2": self._bloom_s2,
+            "bloom_r3": self._bloom_r3,
+            "bleed_r":  self._bleed_r,  "bleed_s":  self._bleed_s,
         }
 
-    # ── private helpers ───────────────────────────────────────────────────────
+    def on_key(self, key: str) -> bool:
+        if key == "c":
+            self._theme_idx = (self._theme_idx + 1) % len(_THEMES)
+            return True
+        if key == "h":
+            self._ghost = not self._ghost
+            return True
+        if key == "g":
+            self._bloom_r2 = min(24.0, self._bloom_r2 + 1.0);  return True
+        if key in ("G", "shift+g"):
+            self._bloom_r2 = max(2.0,  self._bloom_r2 - 1.0);  return True
+        if key == "b":
+            self._bloom_s2 = min(3.0,  self._bloom_s2 + 0.05); return True
+        if key in ("B", "shift+b"):
+            self._bloom_s2 = max(0.2,  self._bloom_s2 - 0.05); return True
+        if key == "r":
+            self._bloom_r3 = min(40.0, self._bloom_r3 + 2.0);  return True
+        if key in ("R", "shift+r"):
+            self._bloom_r3 = max(4.0,  self._bloom_r3 - 2.0);  return True
+        return False
 
-    def _draw_tube(
-        self,
-        draw: ImageDraw.ImageDraw,
-        x: int,
-        y: int,
-        ch: str,
-    ) -> None:
-        """Draw a single Nixie tube with digit ch at top-left (x, y)."""
-        # bounding rect
-        x0, y0 = x, y
-        x1, y1 = x + TUBE_W - 1, y + TUBE_H - 1
-        cx = x0 + TUBE_W // 2
-        cy = y0 + TUBE_H // 2
+    # ── render ─────────────────────────────────────────────────────────────────
 
-        # Layer 0: outer dark halo (expanded 4 px each side)
-        draw.rounded_rectangle(
-            [x0 - 4, y0 - 4, x1 + 4, y1 + 4],
-            radius=TUBE_R + 4,
-            fill=tuple(self._c_glow_outer),
-        )
+    def render(self, img: Image.Image, t: _time.struct_time) -> None:
+        c_wire = _THEMES[self._theme_idx]["C_WIRE"]
+        c_bg   = tuple(max(int(v * 0.02), 3 if i == 0 else 0)
+                       for i, v in enumerate(c_wire))
 
-        # Layer 1: glow ring (expanded 2 px)
-        draw.rounded_rectangle(
-            [x0 - 2, y0 - 2, x1 + 2, y1 + 2],
-            radius=TUBE_R + 2,
-            fill=tuple(self._c_glow_mid),
-        )
+        draw = ImageDraw.Draw(img)
+        draw.rectangle([0, 0, self.CANVAS_W - 1, self.CANVAS_H - 1], fill=(0, 0, 0))
 
-        # Layer 2: tube border + fill
-        draw.rounded_rectangle(
-            [x0, y0, x1, y1],
-            radius=TUBE_R,
-            outline=self._c_tube_border,
-            width=2,
-            fill=self._c_tube_fill,
-        )
+        digits = [
+            t.tm_hour // 10, t.tm_hour % 10,
+            t.tm_min  // 10, t.tm_min  % 10,
+        ]
+        mesh = _build_mesh(TUBE_W, TUBE_H, c_wire)
 
-        # Layer 3: digit text with flicker
-        f = self._flicker
-        dc = (
-            int(self._c_digit[0] * f),
-            int(self._c_digit[1] * f),
-            int(self._c_digit[2] * f),
-        )
-        # clamp to valid range
-        dc = (min(255, dc[0]), min(255, dc[1]), min(255, dc[2]))
+        for digit, tx in zip(digits, TUBE_XS):
+            self._draw_tube(img, tx, TUBE_Y, digit, c_wire, c_bg, mesh)
 
-        draw.text(
-            (cx, cy),
-            ch,
-            font=self._font_digit,
-            fill=dc,
-            anchor="mm",
-        )
+        self._draw_colon(img, c_wire)
+        self._draw_date(img, t, c_wire)
 
-        # pin shadow: two narrow dark rects at tube bottom-inside
-        shadow_y0 = y1 - 8
-        shadow_y1 = y1 - 4
-        shadow_c  = (4, 1, 0)
-        draw.rectangle([cx - 8, shadow_y0, cx - 6, shadow_y1], fill=shadow_c)
-        draw.rectangle([cx + 6, shadow_y0, cx + 8, shadow_y1], fill=shadow_c)
+    # ── tube ───────────────────────────────────────────────────────────────────
+
+    def _draw_tube(self, canvas: Image.Image, tx: int, ty: int,
+                   digit: int, c_wire: tuple, c_bg: tuple,
+                   mesh: Image.Image) -> None:
+
+        # 1. tube background + mesh
+        tube = Image.new("RGB", (TUBE_W, TUBE_H), c_bg)
+        tube = ImageChops.add(tube, mesh)
+
+        # 2. wire glyph buffer
+        wire = Image.new("RGB", (TUBE_W, TUBE_H), (0, 0, 0))
+        if self._ghost:
+            self._draw_ghost_digits(wire, digit, c_wire)
+        self._draw_wire_digit(wire, digit, c_wire)
+
+        # 3. bloom
+        bloom = self._make_bloom(wire)
+
+        # 4. composite, clip to tube mask
+        tube = ImageChops.add(tube, ImageChops.add(bloom, wire))
+        tube.paste(Image.new("RGB", (TUBE_W, TUBE_H), (0, 0, 0)),
+                   mask=ImageChops.invert(_TUBE_MASK))
+
+        # 5. outer bleed — paste before tube so glass sits on top
+        bleed = tube.filter(ImageFilter.GaussianBlur(radius=self._bleed_r))
+        bleed = bleed.point(lambda x: min(255, int(x * self._bleed_s)))
+        pad = max(1, int(self._bleed_r * 1.5))
+        # blit bleed additively, clamped to canvas bounds
+        bx0, by0 = max(0, tx - pad), max(0, ty - pad)
+        bx1, by1 = min(canvas.width, tx + TUBE_W + pad), min(canvas.height, ty + TUBE_H + pad)
+        region = canvas.crop((bx0, by0, bx1, by1))
+        bleed_crop = bleed.crop((bx0 - (tx - pad), by0 - (ty - pad),
+                                 bx0 - (tx - pad) + (bx1 - bx0),
+                                 by0 - (ty - pad) + (by1 - by0)))
+        canvas.paste(ImageChops.add(region, bleed_crop), (bx0, by0))
+
+        # 6. paste tube
+        canvas.paste(tube, (tx, ty), mask=_TUBE_MASK)
+
+        # 7. glass outline + pin shadow
+        d = ImageDraw.Draw(canvas)
+        d.rounded_rectangle([tx, ty, tx + TUBE_W - 1, ty + TUBE_H - 1],
+                            radius=TUBE_R, outline=(50, 22, 5), width=1)
+        px = tx + TUBE_W // 2
+        py = ty + TUBE_H
+        d.rectangle([px - 7, py, px - 5, py + 2], fill=(8, 3, 0))
+        d.rectangle([px + 4, py, px + 6, py + 2], fill=(8, 3, 0))
+
+    # ── glyph helpers ──────────────────────────────────────────────────────────
+
+    def _draw_wire_digit(self, buf: Image.Image, digit: int,
+                         c_wire: tuple, scale: float = 1.0) -> None:
+        d    = ImageDraw.Draw(buf)
+        text = str(digit)
+        bb   = d.textbbox((0, 0), text, font=self._font_wire)
+        tw, th = bb[2] - bb[0], bb[3] - bb[1]
+        tx = (TUBE_W - tw) // 2 - bb[0]
+        ty = (TUBE_H - th) // 2 - bb[1]
+        fill = tuple(min(255, int(v * scale)) for v in c_wire)
+        d.text((tx, ty), text, font=self._font_wire, fill=fill)
+
+    def _draw_ghost_digits(self, buf: Image.Image, active: int,
+                           c_wire: tuple) -> None:
+        for d in range(10):
+            if d != active:
+                self._draw_wire_digit(buf, d, c_wire, scale=0.04)
+
+    # ── bloom ──────────────────────────────────────────────────────────────────
+
+    def _make_bloom(self, wire: Image.Image) -> Image.Image:
+        def _pass(r: float, s: float) -> Image.Image:
+            b = wire.filter(ImageFilter.GaussianBlur(radius=r))
+            return b.point(lambda x: min(255, int(x * s)))
+
+        p1 = _pass(self._bloom_r1, _BLOOM_S1)
+        p2 = _pass(self._bloom_r2, self._bloom_s2)
+        p3 = _pass(self._bloom_r3, _BLOOM_S3)
+        return ImageChops.add(p1, ImageChops.add(p2, p3))
+
+    # ── colon ──────────────────────────────────────────────────────────────────
+
+    def _draw_colon(self, canvas: Image.Image, c_wire: tuple) -> None:
+        r    = 5
+        cy1  = TUBE_Y + TUBE_H // 3
+        cy2  = TUBE_Y + 2 * TUBE_H // 3
+
+        for cy in (cy1, cy2):
+            # render dot + bloom on a small buffer, paste additively
+            bsize = 60
+            dot_buf = Image.new("RGB", (bsize, bsize), (0, 0, 0))
+            dc = ImageDraw.Draw(dot_buf)
+            mid = bsize // 2
+            dc.ellipse([mid - r, mid - r, mid + r, mid + r], fill=c_wire)
+            bloom = self._make_bloom(dot_buf)
+            composite = ImageChops.add(dot_buf, bloom)
+
+            px = COLON_CX - bsize // 2
+            py = cy - bsize // 2
+            # additive paste onto canvas
+            bx0, by0 = max(0, px), max(0, py)
+            bx1, by1 = min(canvas.width, px + bsize), min(canvas.height, py + bsize)
+            reg  = canvas.crop((bx0, by0, bx1, by1))
+            comp_crop = composite.crop((bx0 - px, by0 - py,
+                                        bx0 - px + (bx1 - bx0),
+                                        by0 - py + (by1 - by0)))
+            canvas.paste(ImageChops.add(reg, comp_crop), (bx0, by0))
+
+    # ── date ───────────────────────────────────────────────────────────────────
+
+    def _draw_date(self, canvas: Image.Image, t: _time.struct_time,
+                   c_wire: tuple) -> None:
+        _DAYS   = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+        _MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+                   "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+        s = f"{_DAYS[t.tm_wday]}  {t.tm_mday:02d} {_MONTHS[t.tm_mon - 1]} {t.tm_year}"
+        c_date = tuple(int(v * 0.60) for v in c_wire)
+
+        d = ImageDraw.Draw(canvas)
+        d.text((137, DATE_Y), s, font=self._font_date, fill=c_date, anchor="mt")
+
+        # flanking bullet dots
+        bb = d.textbbox((0, 0), s, font=self._font_date)
+        hw = (bb[2] - bb[0]) // 2 + 10
+        mh = (bb[3] - bb[1]) // 2
+        c_dot = tuple(int(v * 0.32) for v in c_wire)
+        for sx in (-hw, hw):
+            d.ellipse([137 + sx - 2, DATE_Y + mh - 2,
+                       137 + sx + 2, DATE_Y + mh + 2], fill=c_dot)
 
 
-# ── standalone test ───────────────────────────────────────────────────────────
+# ── standalone sanity test ─────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    import time
+    import sys
 
-    r = NixieRenderer()
+    renderer = NixieRenderer()
+    img = Image.new("RGB", (275, 240), (0, 0, 0))
+    t   = _time.struct_time((2026, 6, 13, 8, 42, 0, 4, 164, 1))
+    renderer.render(img, t)
 
-    # Use a representative time: 10:08:37 on a Thursday
-    t = time.struct_time((2026, 6, 12, 10, 8, 37, 3, 163, 1))
-
-    img = Image.new("RGB", (CANVAS_W, CANVAS_H), (0, 0, 0))
-    r.render(img, t)
-    out = "/tmp/nixie_test.png"
+    out = pathlib.Path("/tmp/nixie_test.png")
     img.save(out)
-    print(f"NixieRenderer OK  →  {out}")
+    print(f"NixieRenderer OK — saved to {out}")
+
+    assert renderer.on_key("c") is True
+    assert renderer.on_key("h") is True
+    assert renderer.on_key("g") is True
+    assert renderer.on_key("x") is False
+    print("on_key OK")
+    d = renderer.param_dict()
+    assert "TUBE_W" in d and "theme" in d
+    print("param_dict OK")
+    sys.exit(0)
