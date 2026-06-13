@@ -1,10 +1,10 @@
 # Design — M-TELETEXT: NOS Teletekst App
 
 > Owner: Architect
-> Status: draft
+> Status: final
 > Date: 2026-06-13
 > Feeds: ADR-044
-> Tracked-as: (TBD — pending PM scheduling)
+> Tracked-as: TASK-175–TASK-191 (M-TELETEXT milestone)
 
 ---
 
@@ -110,7 +110,8 @@ The 3-digit page ref occupies columns ~36–38 on headline rows, preceded by dot
 **Option A — Row-tap hyperlink (chosen lean)**
 
 - On tap in the grid area: compute `row = y / CHAR_H`.
-- Scan columns 35–39 of that row for 3 contiguous digit characters.
+- Scan columns 33–39 of that row for 3 contiguous digit characters (expanded from
+  35 after PoC found refs beginning at col 34 on several NOS pages).
 - If found: navigate to that page (push current page onto history stack).
 - No visible underline — the colour highlight (cyan text) serves as the cue.
 
@@ -147,6 +148,27 @@ Matches the existing weather/crypto/stock pattern exactly. No new task.
 120 s cadence. Task overhead not justified.
 
 **Lean: Option A.**
+
+**`TeletextState` minimum field spec** (spinlock-guarded, written by `fetchTeletext()`,
+read by `pollTeletext()`):
+
+```cpp
+struct TeletextState {
+    bool     ready;          // true after first successful fetch
+    uint16_t page;           // current page number (from metadata)
+    uint16_t prevPage;       // pn=p_ (0 if absent)
+    uint16_t nextPage;       // pn=n_ (0 if absent)
+    uint16_t subpageNext;    // pn=ns (0 if absent)
+    uint16_t subpagePrev;    // pn=ps (0 if absent)
+    uint16_t ftlTargets[4];  // fast-text link page numbers
+    char     ftlLabels[4][12]; // fast-text row 24 labels (trimmed)
+    uint8_t  cells[25][40];  // raw cell bytes after ISO-8859-1 decode
+    int      lastHttpCode;   // last http.GET() return value
+};
+```
+
+History ring (`uint16_t history[10]`, depth counter) lives on `TeletextAppState`
+(per-app struct), not `TeletextState` — consistent with all existing apps.
 
 ---
 

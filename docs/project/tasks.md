@@ -619,7 +619,9 @@ Implement `TeletextApp` following ADR-044:
    renders), `handleInput()` (fast-text bar, right-strip, row-tap links, history).
 5. Renderer: 6×8 cells, Font1 for text mode, `fillRect` for mosaic mode.
 6. Extend `AppSettings` with `teletextPage`, `teletextPollSecs`,
-   `teletextCountry`; add Settings UI rows under Applications → Teletext.
+   `teletextCountry`, `teletextAutoAdvance` (all four fields per ADR-044 item 6);
+   add Settings UI rows under Applications → Teletext: start-page tap-cycle,
+   poll-interval tap-cycle, country row (greyed-out, shows "NL (NOS)" only).
 7. Source + bake teletext taskbar icons (TASK-179).
 8. `run/check` clean.
 
@@ -689,8 +691,14 @@ values before any tap test can be written.
 
 Deliverable: a constants block (in `app/gen/teletext_layout.h` or equivalent, following
 the `skin_layout.h` pattern) defining:
-- Right-strip zone boundaries: `TTXT_STRIP_SUBUP_Y0/Y1`, `TTXT_STRIP_PAGENUM_Y0/Y1`,
-  `TTXT_STRIP_PREV_Y0/Y1`, `TTXT_STRIP_NEXT_Y0/Y1`, `TTXT_STRIP_SUBDN_Y0/Y1`
+- Right-strip zone boundaries — values are firm from `preview_teletext.py` (no firmware
+  needed to know these; only the Applications submenu order requires TASK-177):
+  - `TTXT_STRIP_SUBUP_Y0=0`,  `TTXT_STRIP_SUBUP_Y1=33`
+  - `TTXT_STRIP_PAGE_Y0=34`,  `TTXT_STRIP_PAGE_Y1=66`   (page num / keypad)
+  - `TTXT_STRIP_BACK_Y0=67`,  `TTXT_STRIP_BACK_Y1=99`   (◄◄ back)
+  - `TTXT_STRIP_PREV_Y0=100`, `TTXT_STRIP_PREV_Y1=132`
+  - `TTXT_STRIP_NEXT_Y0=133`, `TTXT_STRIP_NEXT_Y1=165`
+  - `TTXT_STRIP_SUBDN_Y0=166`,`TTXT_STRIP_SUBDN_Y1=199`
 - Fast-text bar x-boundaries: `TTXT_FTL0_X0/X1` … `TTXT_FTL3_X0/X1`
 - Fast-text bar y-range: `TTXT_BAR_Y0` (=200), `TTXT_BAR_Y1` (=239)
 - Grid origin: `TTXT_GRID_X`, `TTXT_GRID_Y`, `TTXT_CHAR_W` (=6), `TTXT_CHAR_H` (=8)
@@ -698,12 +706,15 @@ the `skin_layout.h` pattern) defining:
 Applications submenu row order must also be confirmed (Teletext is configurable=1;
 VE must know the order to audit T-SET-03 / T-SET-07 regression risk — see TASK-177).
 
+The strip zone header can be authored and committed **before** TASK-177 (values are
+already known). Only the submenu-row section requires TASK-177 to be complete first.
+
 **Priority:** P1 — gates all tap tests (T254–T262)  
 **Status:** open  
 **Opened:** 2026-06-13  
 **Milestone:** M-TELETEXT  
 **Owner:** Developer  
-**Deps:** TASK-177
+**Deps:** TASK-177 (submenu row order only — strip zone header can precede firmware)
 
 ---
 
@@ -787,3 +798,137 @@ active). Re-run `run/bake-icons`; update `golden.sha256`.
 **Milestone:** M-TELETEXT  
 **Owner:** Developer  
 **Deps:** —
+
+---
+
+### TASK-185 — M-TELETEXT: accept ADR-044 (human sign-off)
+
+ADR-044 is still "proposed." Firmware (TASK-177) begins against an unaccepted ADR.
+Human operator reviews ADR-044 and promotes status to "accepted." Should happen at
+the same time as TASK-175 preview sign-off — both are the same conversation.
+
+**Priority:** P1 — gates firmware start  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT  
+**Owner:** Human → Architect  
+**Deps:** TASK-175
+
+---
+
+### TASK-186 — M-TELETEXT: apply 4 architecture.md update triggers from ADR-044
+
+ADR-044 Consequences lists four post-acceptance updates to `docs/architecture/architecture.md`:
+1. Add `teletekst-data.nos.nl` / USERTrust RSA CA to the TLS endpoint inventory.
+2. Document the `dataTask` pattern in the Data Flow section (currently Spotify-path only).
+3. Note `dataTaskCerts.h` as the cert registry for all non-Spotify HTTPS endpoints.
+4. Close the "TLS root CA for non-Spotify endpoints" open question with a reference to ADR-044.
+
+**Priority:** P2  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT  
+**Owner:** Architect  
+**Deps:** TASK-185
+
+---
+
+### TASK-187 — M-TELETEXT: add feature_inventory.yaml entry
+
+`feature_inventory.yaml` has no M-TELETEXT entry. Per BP-005/BP-010, the feature
+cannot be declared done at roadmap level without an inventory entry linking to test IDs.
+
+Deliverable: add entry for M-TELETEXT with `test_ids: [T249..T271]` and correct
+`status`, `milestone`, and `dependencies` fields.
+
+**Priority:** P2  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT  
+**Owner:** VE  
+**Deps:** TASK-177 (to confirm final test count)
+
+---
+
+### TASK-188 — M-TELETEXT: expand TASK-180 serial accessor scope
+
+Three accessors required by tests are missing from TASK-180's defined list:
+- `get teletextLastAction` — required by T254, T255, T271 (last strip/bar action taken)
+- `get teletextHasSubpages` — required by T258 preconditions
+- `get teletextSubpage` — required by T270 (subpage active-case test)
+
+These must be added to the same commit as TASK-180. Update TASK-180 body to include
+all three, then close this task.
+
+**Priority:** P2 — blocks T258, T270, T271  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT  
+**Owner:** Developer  
+**Deps:** TASK-177
+
+---
+
+### TASK-189 — M-TELETEXT: specify blob encoding for set teletextPageContent (TASK-183)
+
+TASK-183 defines a `set teletextPageContent "<blob>"` debug accessor but does not
+specify how the blob is encoded over the serial command channel. Raw bytes (some
+non-printable, 0x01–0x17 control codes) cannot be passed as a plain string argument.
+
+Decision needed before TASK-183 is implemented: raw bytes / hex-escaped / base64.
+Recommendation: hex-encoded 1000-char string (`"01 02 20 ..."` or continuous
+`"0102200720..."`) — matches existing debug patterns and is easy to generate in Python.
+Document the chosen encoding in the TASK-183 body.
+
+**Priority:** P2 — must be decided before TASK-183 implementation  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT  
+**Owner:** Developer  
+**Deps:** —
+
+---
+
+### TASK-190 — M-TELETEXT: NOS API stability canary script
+
+The NOS Teletekst API (`teletekst-data.nos.nl/page/{N}`) is undocumented and
+reverse-engineered. A format change would cause `TeletextApp` to silently render
+garbage with no alert.
+
+Deliverable: a host-side Python script (`run/check-teletext-api` or similar) that:
+1. Fetches page 101.
+2. Asserts response contains a `<pre>` block of exactly 1000 bytes.
+3. Asserts at least one navigation metadata key (`pn=`) is present.
+4. Exits non-zero on failure (can be wired into `run/check` or run independently).
+
+**Priority:** P3  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT  
+**Owner:** Developer  
+**Deps:** —
+
+---
+
+### TASK-191 — M-TELETEXT: TLS heap contention test (spotifyTask + fetchTeletext concurrent)
+
+ADR-044 item 9 defers to "revisit if TLS heap pressure testing reveals contention."
+No test exercises simultaneous `spotifyTask` TLS session + `dataTask fetchTeletext()`
+TLS spike. On-device: both can overlap if a teletext poll fires while Spotify is
+actively streaming.
+
+Deliverable: a DUT test that:
+1. Starts Spotify playback (active TLS session in spotifyTask).
+2. Forces an immediate `set triggerTeletextFetch 1`.
+3. Asserts `get teletextReady` becomes true within 30 s (fetch completed without OOM/watchdog).
+4. Asserts Spotify playback did not drop (monitor `lastPlaylistDraw`).
+
+If the test reveals contention, apply `tlsYield()` / `tlsResume()` around
+`fetchTeletext()` (same pattern as stock app).
+
+**Priority:** P3  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT  
+**Owner:** Developer  
+**Deps:** TASK-180

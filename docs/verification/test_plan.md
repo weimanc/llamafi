@@ -3677,10 +3677,11 @@ tests. Visual (MANUAL) tests have no blockers.
 ## M-TELETEXT — Teletext App Suite (T249–T268)
 
 > Added 2026-06-13 after Architect + VE design review.
-> Tests blocked on G1 require `get teletextReady` / `get teletextPage` / `set triggerTeletextFetch` serial accessors (TASK-180).
-> Tests blocked on G2 require pixel-exact touch zone constants published in `teletext_layout.h` (TASK-181).
-> Tests blocked on G3 require back-navigation mechanism specified (TASK-182).
+> Tests blocked on G1 require `get teletextReady` / `get teletextPage` / `set triggerTeletextFetch` / `get teletextLastAction` / `get teletextHasSubpages` / `get teletextSubpage` serial accessors (TASK-180, TASK-188).
+> Tests blocked on G2 require pixel-exact touch zone constants published in `teletext_layout.h` (TASK-181). Strip zone y-values are now firm; only the submenu row section awaits TASK-177.
+> G3 — back-navigation mechanism — **resolved 2026-06-13** (TASK-182 closed): dedicated ◄◄ zone at x=240..274, y=67..99.
 > Tests blocked on G4 require `set teletextPageContent` debug stub (TASK-183).
+> Tests blocked on G5 require debounce serial accessor (TASK-184).
 
 ### T249 — [M-TELETEXT] T-TTX-01: App switch round-trip
 
@@ -3690,7 +3691,7 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Preconditions**: DUT running, WiFi connected.
 - **Steps**: 1. `switchApp Teletext`; 2. `get appId` → assert `"Teletext"`; 3. `switchApp Spotify`; 4. `get appId` → assert `"Spotify"`.
 - **Expected result**: Both IDs confirmed. No crash. No black screen residue.
-- **Status**: planned
+- **Status**: ready to run
 
 ### T250 — [M-TELETEXT] T-TTX-02: Canvas tap routes correctly while Teletext active
 
@@ -3699,7 +3700,7 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Preconditions**: Teletext app active.
 - **Steps**: `tap 137 120`; `get lastHit`.
 - **Expected result**: `lastHit == "CLOCK"` (or equivalent non-Teletext app hit response).
-- **Status**: planned
+- **Status**: ready to run
 
 ### T251 — [M-TELETEXT] T-TTX-03: Canvas residue clears on Teletext→Spotify switch
 
@@ -3708,7 +3709,7 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Preconditions**: Teletext active; `D0 = get lastPlaylistDraw`.
 - **Steps**: `switchApp Spotify`; poll `get lastPlaylistDraw` ≤ 30 s.
 - **Expected result**: `lastPlaylistDraw > D0`.
-- **Status**: planned
+- **Status**: ready to run
 
 ### T252 — [M-TELETEXT] T-TTX-04: dataTask delivers teletextReady [NETWORK] [Blocked: G1]
 
@@ -3778,7 +3779,7 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Type**: integration (DUT, SERIALDBG)
 - **Objective**: Tap on a grid row containing a 3-digit page ref at cols 35–39 navigates to that page.
 - **Preconditions**: `get teletextPage` present (TASK-180). Preferred: `set teletextPageContent` stub to inject synthetic content with known page-ref at row N (TASK-183). Fallback: use page 101 with known stable index layout.
-- **Steps**: Inject content with page ref `601` at row 5; `tap <col_centre_x> <row5_y>`; `get teletextPage` → assert 601.
+- **Steps**: Inject content with page ref `601` at row 5 (at cols 33–39); `tap <col_centre_x> <row5_y>`; `get teletextPage` → assert 601.
 - **Expected result**: `teletextPage == 601`.
 - **Status**: planned
 
@@ -3787,17 +3788,18 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Type**: integration (DUT, SERIALDBG)
 - **Objective**: Tap on a row with no 3-digit page ref at cols 35–39 does not change `teletextPage`.
 - **Preconditions**: `set teletextPageContent` stub present (TASK-183). Content injected with row N having no page ref.
-- **Steps**: `P0 = get teletextPage`; `tap <col_centre_x> <rowN_y>`; `get teletextPage` → assert `== P0`.
+- **Steps**: Inject content with row N containing no 3-digit ref in cols 33–39; `P0 = get teletextPage`; `tap <col_centre_x> <rowN_y>`; `get teletextPage` → assert `== P0`.
 - **Expected result**: `teletextPage` unchanged.
 - **Status**: planned
 
-### T261 — [M-TELETEXT] T-TTX-13: History back navigation [Blocked: G1, G3]
+### T261 — [M-TELETEXT] T-TTX-13: History back navigation [Blocked: G1]
 
 - **Type**: integration (DUT, SERIALDBG)
-- **Objective**: Forward navigation pushes page onto history ring; back tap returns to prior page.
-- **Preconditions**: `get teletextPage` present (TASK-180). Back-navigation mechanism specified (TASK-182).
-- **Steps**: `P0 = get teletextPage`; navigate forward to page 601; `get teletextPage` → assert 601; tap back-button zone; `get teletextPage` → assert `== P0`.
-- **Expected result**: Returns to original page.
+- **Objective**: Forward navigation pushes page onto history ring; ◄◄ back zone tap returns to prior page.
+- **Preconditions**: `get teletextPage` present (TASK-180). Back zone: `tap 257 83` (centre of BACK zone x=240..274, y=67..99).
+- **Steps**: `P0 = get teletextPage`; navigate forward to page 601 (`tap 257 149` NEXT_PAGE or inline link); `get teletextPage` → assert 601; `tap 257 83`; `get teletextPage` → assert `== P0`.
+- **Assert also**: before forward nav, `tap 257 83` with empty history → `teletextPage` unchanged (◄◄ zone inert when history empty; see T-TTX-21).
+- **Expected result**: Returns to original page. ◄◄ zone dim before first nav, cyan-tinted after.
 - **Status**: planned
 
 ### T262 — [M-TELETEXT] T-TTX-14: Settings drill — Applications → Teletext submenu
@@ -3858,6 +3860,37 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Preconditions**: `set teletextDebounceMs <N>` or `get teletextLastTapMs` accessor present (TASK-184).
 - **Steps**: `tap <row_y>`; wait 100 ms; `tap <row_y>`; assert `teletextPage` changed exactly once.
 - **Expected result**: Only one navigation event fired.
+- **Status**: planned
+
+### T269 — [M-TELETEXT] T-TTX-21: ◄◄ back zone inert when history empty [Blocked: G1, G2]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Tap the ◄◄ back zone when the history ring is empty → no navigation.
+- **Preconditions**: `get teletextPage` present (TASK-180). Freshly switched into Teletext (no forward navigation performed). `set cooldown 0`.
+- **Steps**: `switchApp Teletext`; `P0 = get teletextPage`; `tap 257 83`; `get teletextPage` → assert `== P0`.
+- **Expected result**: `teletextPage` unchanged. No navigation event.
+- **Status**: planned
+
+### T270 — [M-TELETEXT] T-TTX-22: Subpage ▲/▼ zones active when subpages present [NETWORK] [Blocked: G1, G2]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Tap SUBPAGE_UP/DN when the page has subpages → subpage changes.
+- **Preconditions**: `get teletextPage` and `get teletextSubpage` present (TASK-188). Current page known to have subpages (e.g. page 101 on some days — or inject via `set teletextPageContent` if TASK-183 done). `set cooldown 0`.
+- **Steps**: `S0 = get teletextSubpage`; `tap 257 16` (SUBPAGE_UP centre); `get teletextSubpage` → assert `!= S0` (or wraps).
+- **Expected result**: Subpage counter changes.
+- **Status**: planned
+
+### T271 — [M-TELETEXT] T-TTX-23: ◄◄ back zone 1-px boundary [Blocked: G2]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Objective**: Verify ◄◄ zone y-boundaries are pixel-exact (y=67 hits BACK, y=66 hits PAGE_NUM, y=100 hits PREV_PAGE).
+- **Preconditions**: `get teletextLastAction` present (TASK-188). History ring non-empty. `set cooldown 0`.
+- **Steps**:
+  1. `tap 257 66` → `get teletextLastAction` → assert `KEYPAD_OPEN` (not BACK)
+  2. `tap 257 67` → `get teletextLastAction` → assert `BACK`
+  3. `tap 257 99` → `get teletextLastAction` → assert `BACK`
+  4. `tap 257 100` → `get teletextLastAction` → assert `PREV_PAGE` (not BACK)
+- **Expected result**: All 4 boundary assertions pass.
 - **Status**: planned
 
 ---
