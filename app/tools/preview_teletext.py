@@ -29,6 +29,7 @@ Mouse:
 import pathlib
 import re
 import sys
+import urllib.error
 import urllib.request
 
 import pygame
@@ -549,8 +550,9 @@ def main():
 
     screen = make_screen(ZOOM_LEVELS[zoom_idx])
 
-    history = []   # 10-entry page history ring
-    keypad  = Keypad()
+    history  = []   # 10-entry page history ring
+    keypad   = Keypad()
+    fetch_err = [None]  # [str | None] — shown in title bar, cleared on next nav
 
     def load(pg):
         raw = fetch(pg)
@@ -559,12 +561,21 @@ def main():
 
     def nav_to(pg, push=True):
         nonlocal current_page, grid, prev, next_, ns, ps, btns, link_rows
+        try:
+            new_grid, new_prev, new_next, new_ns, new_ps, new_btns = load(pg)
+        except urllib.error.HTTPError as e:
+            fetch_err[0] = f'p{pg}: HTTP {e.code}'
+            return
+        except Exception as e:
+            fetch_err[0] = f'p{pg}: {e}'
+            return
+        fetch_err[0] = None
         if push:
             history.append(current_page)
             if len(history) > 10:
                 history.pop(0)
         current_page = pg
-        grid, prev, next_, ns, ps, btns = load(current_page)
+        grid, prev, next_, ns, ps, btns = new_grid, new_prev, new_next, new_ns, new_ps, new_btns
         link_rows = scan_links(grid)
 
     def go_back():
@@ -665,8 +676,12 @@ def main():
 
         draw_page(screen, font, grid, btns, current_page,
                   prev, next_, ns, ps, history, link_rows, keypad, zoom)
-        hint = '[keypad] 0-9 digit  Esc dismiss' if keypad.visible else \
-               '←→ page  ↑↓ subpg  1-4 ftl  0-9 goto  Bksp back  +/- zoom'
+        if fetch_err[0]:
+            hint = f'ERROR: {fetch_err[0]}'
+        elif keypad.visible:
+            hint = '[keypad] 0-9 digit  Esc dismiss'
+        else:
+            hint = '←→ page  ↑↓ subpg  1-4 ftl  0-9 goto  Bksp back  +/- zoom'
         pygame.display.set_caption(
             f'NOS Teletekst  p:{current_page}  hist:{len(history)}   {hint}'
         )
