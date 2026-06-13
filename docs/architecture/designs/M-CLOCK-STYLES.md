@@ -81,24 +81,43 @@ accuracy.
 
 ### Approved constants
 
-> **Not yet filled in.** This section is populated during Phase 0.
-> Delete the placeholder block and paste the `p`-key output here after sign-off.
+> Partially approved. VFD date rendering signed off 2026-06-13.
+> Time digit geometry and glyph designs still under iteration.
 
-```
-# ── PLACEHOLDER — replace after Phase 0 sign-off ────────────────────────────
-FLIP_CARD_W           = 46       # proposal only
-FLIP_CARD_H           = 62
-FLIP_ANIM_FRAME_MS    = 80
-FLIP_BG               = 0x2945
-FLIP_TEXT             = 0xFFF0
-NIXIE_TUBE_W          = 52
-NIXIE_TUBE_H          = 70
-NIXIE_OUTER_GLOW      = 0x8000
-NIXIE_INNER_GLOW      = 0xFC00
-NIXIE_BORDER          = 0xFE60
-VFD_BG                = 0x000C
-VFD_SEG_ON            = 0x07FF
-VFD_SEG_OFF           = 0x0290
+```python
+# ── VFD date — APPROVED 2026-06-13 ───────────────────────────────────────────
+# Font: Font1 (5×7 GLCD bitmap, exact TFT_eSPI Font1 bitmaps from dut_fonts.py)
+# Rendering: each character on its own 5×7 dot grid; cells are 2×2 px; gaps 1 px
+# Inter-char advance: CHAR_W (6) × DS (3) = 18 px per character (includes 1-dot spacing)
+# Two lines centred on 275 px canvas, below time digits
+
+VFD_DATE_DC           = 2        # date dot cell size (px)
+VFD_DATE_DG           = 1        # date dot gap (px)
+VFD_DATE_DS           = 3        # date stride DC+DG
+VFD_DATE_FONT         = "Font1"  # 5×7 GLCD — exact TFT_eSPI Font1
+VFD_DATE_BLOCK_TOP_Y  = 141      # DIGIT_TOP_Y(10) + DIGIT_H(119) + gap(12)
+VFD_DATE_LINE_GAP     = 10       # px between day and date lines
+
+# ── VFD time digits — PENDING sign-off ───────────────────────────────────────
+# Geometry locked; glyph designs still under iteration.
+VFD_TIME_TC           = 4        # time dot cell size (px)
+VFD_TIME_TG           = 1        # time dot gap (px)
+VFD_TIME_TS           = 5        # time stride TC+TG
+VFD_TIME_T_COLS       = 13       # dot columns per digit
+VFD_TIME_T_ROWS       = 24       # dot rows per digit
+VFD_TIME_DIGIT_W      = 64       # px  (13×4 + 12×1)
+VFD_TIME_DIGIT_H      = 119      # px  (24×4 + 23×1)
+VFD_TIME_DIGIT_TOP_Y  = 10       # px from canvas top
+
+# ── VFD bloom — PENDING sign-off ─────────────────────────────────────────────
+VFD_BLOOM_R           = 4.0      # GaussianBlur radius (px)
+VFD_BLOOM_SCALE       = 1.2      # additive bloom layer multiplier
+
+# ── VFD palette — PENDING sign-off ───────────────────────────────────────────
+VFD_BG                = (0,   5,  18)
+VFD_C_ON              = (0, 210, 230)   # teal theme
+VFD_C_OFF_FRAC        = 0.06           # off-dot brightness relative to C_ON
+VFD_C_DATE_FRAC       = 0.68           # date brightness relative to C_ON
 # ─────────────────────────────────────────────────────────────────────────────
 ```
 
