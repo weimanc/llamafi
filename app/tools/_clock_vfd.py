@@ -57,8 +57,8 @@ GRID_Y0   = 10   # top of time matrix (px)
 
 # Glyph inner dimensions within the unified grid
 GLYPH_W          = 11   # active glyph columns
-GLYPH_H          = 16   # active glyph rows
-GLYPH_ROW_OFFSET =  2   # grid rows before glyph top (top dead margin)
+GLYPH_H          = 22   # active glyph rows  (1-row margin top + bottom = 24)
+GLYPH_ROW_OFFSET =  1   # grid rows before glyph top (1-dot top margin)
 
 # Digit glyph start columns
 _H1_COL = 2
@@ -81,204 +81,88 @@ DC = 2    # date cell size (px)
 DG = 1    # date gap (px)
 DS = 3    # date stride = DC + DG
 
-# ── digit glyphs (11 cols × 20 rows, 16 active + 4 padding) ──────────────────
+# ── digit glyphs — Dexter v2 ─────────────────────────────────────────────────
 #
-# Placed inside the 13×24 matrix with 1-dot L/R margin, 2-dot top/bottom margin.
-# Each row is an 11-bit integer: bit 10 = col 0 (left), bit 0 = col 10 (right).
+# Design system (all derived from W=11, H=22, S=2):
+#   T  bar:  rows  0-1,  cols 2-8   (inset, 7 wide)
+#   M  bar:  rows 10-11, cols 2-8
+#   B  bar:  rows 20-21, cols 2-8
+#   UL vert: rows  0-11, cols 0-1   (2 wide)
+#   UR vert: rows  0-11, cols 9-10  (2 wide)
+#   LL vert: rows 10-21, cols 0-1   (2 wide)
+#   LR vert: rows 10-14, cols 9-10  (2 wide, upper section)
+#            rows 15-21, cols 8-10  (3 wide, bottom 7 rows — lopsided flare)
+#
+#   Chamfer: single dot removed at each outer 90° corner (TL TR BL BR).
+#   Row bit format: bit 10 = col 0 (left), bit 0 = col 10 (right).
 
-def _b(s: str) -> int:
-    assert len(s) == 11
-    v = 0
-    for i, c in enumerate(s):
-        if c == "X":
-            v |= 1 << (10 - i)
-    return v
+_W = 11; _H = 22
+_LR_SPLIT = _H - 7   # row 15 — LR widens from 2→3 dots below this row
 
-def _g(rows_16: list[str]) -> list[int]:
-    assert len(rows_16) == 16
-    return [_b(r) for r in rows_16] + [0] * 4
+def _blank_grid():
+    return [[False] * _W for _ in range(_H)]
+
+def _fill(g, r0, r1, c0, c1):
+    for r in range(r0, r1 + 1):
+        for c in range(c0, c1 + 1):
+            g[r][c] = True
+
+def _grid_to_rows(g):
+    out = []
+    for row in g:
+        v = 0
+        for i, lit in enumerate(row):
+            if lit:
+                v |= 1 << (10 - i)
+        out.append(v)
+    return out
+
+def _dex(segs: str) -> list[int]:
+    s = set(segs.split())
+    g = _blank_grid()
+    if "T"  in s: _fill(g,  0,  1,  2,  8)
+    if "M"  in s: _fill(g, 10, 11,  2,  8)
+    if "B"  in s: _fill(g, 20, 21,  2,  8)
+    if "UL" in s: _fill(g,  0, 11,  0,  1)
+    if "UR" in s: _fill(g,  0, 11,  9, 10)
+    if "LL" in s: _fill(g, 10, 21,  0,  1)
+    if "LR" in s:
+        _fill(g, 10, _LR_SPLIT - 1, 9, 10)   # upper LR: 2 wide
+        _fill(g, _LR_SPLIT, 21,     8, 10)    # lower LR: 3 wide (flare)
+    if "T" in s and "UL" in s: g[0][0]  = False   # TL chamfer
+    if "T" in s and "UR" in s: g[0][10] = False   # TR chamfer
+    if "B" in s and "LL" in s: g[21][0] = False   # BL chamfer
+    if "B" in s and "LR" in s: g[21][10]= False   # BR chamfer
+    return _grid_to_rows(g)
+
+def _dex_one() -> list[int]:
+    g = _blank_grid()
+    for c in range(2, 6): g[0][c] = True          # serif
+    for r in range(1, 20): g[r][4] = g[r][5] = True  # 2-wide stem
+    _fill(g, 20, 21, 2, 8)                         # base
+    return _grid_to_rows(g)
+
+def _dex_seven() -> list[int]:
+    g = _blank_grid()
+    _fill(g, 0, 1, 2, 8)                           # T bar
+    _fill(g, 0, 11, 9, 10)                          # UR 2-wide
+    g[0][10] = False                                # TR chamfer
+    for r in range(11, 14): _fill(g, r, r, 7, 10)  # diagonal step (4-wide)
+    _fill(g, 13, _LR_SPLIT - 1, 7, 8)              # upper lower: 2-wide
+    _fill(g, _LR_SPLIT, 21,     6, 8)              # bottom 7 rows: 3-wide
+    return _grid_to_rows(g)
 
 _GLYPHS: list[list[int]] = [
-    _g([  # 0
-        "...XXXXX...",
-        "..X.....X..",
-        ".X.......X.",
-        ".X.......X.",
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        ".X.......X.",
-        ".X.......X.",
-        "..X.....X..",
-        "...XXXXX...",
-        "...........",
-    ]),
-    _g([  # 1
-        ".....X.....",
-        "....XX.....",
-        ".....X.....",
-        ".....X.....",
-        ".....X.....",
-        ".....X.....",
-        ".....X.....",
-        ".....X.....",
-        ".....X.....",
-        ".....X.....",
-        ".....X.....",
-        ".....X.....",
-        ".....X.....",
-        "....XXX....",
-        "...XXXXX...",
-        "...........",
-    ]),
-    _g([  # 2
-        "...XXXXX...",
-        "..X.....X..",
-        ".X.......X.",
-        "X.........X",
-        "..........X",
-        "..........X",
-        ".........X.",
-        "........X..",
-        "......XX...",
-        "....XX.....",
-        "...X.......",
-        "..X........",
-        ".X.........",
-        "X..........",
-        "XXXXXXXXXXX",
-        "...........",
-    ]),
-    _g([  # 3
-        "...XXXXX...",
-        "..X.....X..",
-        ".X.......X.",
-        "X.........X",
-        "..........X",
-        "..........X",
-        "...XXXXXXX.",
-        "..........X",
-        "..........X",
-        "..........X",
-        "..........X",
-        "X.........X",
-        ".X.......X.",
-        "..X.....X..",
-        "...XXXXX...",
-        "...........",
-    ]),
-    _g([  # 4
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        "XXXXXXXXXXX",
-        "..........X",
-        "..........X",
-        "..........X",
-        "..........X",
-        "..........X",
-        "..........X",
-        "..........X",
-        "...........",
-    ]),
-    _g([  # 5
-        "XXXXXXXXXXX",
-        "X..........",
-        "X..........",
-        "X..........",
-        "X..........",
-        "XXXXXXXXXX.",
-        "..........X",
-        "..........X",
-        "..........X",
-        "..........X",
-        "..........X",
-        "X.........X",
-        ".X.......X.",
-        "..X.....X..",
-        "...XXXXX...",
-        "...........",
-    ]),
-    _g([  # 6
-        "...XXXXX...",
-        "..X.....X..",
-        ".X.........",
-        "X..........",
-        "X..........",
-        "XXXXXXXXXX.",
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        ".X.......X.",
-        "..X.....X..",
-        "...XXXXX...",
-        "...........",
-    ]),
-    _g([  # 7
-        "XXXXXXXXXXX",
-        "..........X",
-        "..........X",
-        ".........X.",
-        ".........X.",
-        "........X..",
-        "........X..",
-        ".......X...",
-        ".......X...",
-        "......X....",
-        "......X....",
-        ".....X.....",
-        ".....X.....",
-        ".....X.....",
-        ".....X.....",
-        "...........",
-    ]),
-    _g([  # 8
-        "...XXXXX...",
-        "..X.....X..",
-        ".X.......X.",
-        "X.........X",
-        "X.........X",
-        ".X.......X.",
-        "..XXXXXXX..",
-        ".X.......X.",
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        ".X.......X.",
-        "..X.....X..",
-        "...XXXXX...",
-        "...........",
-    ]),
-    _g([  # 9
-        "...XXXXX...",
-        "..X.....X..",
-        ".X.......X.",
-        "X.........X",
-        "X.........X",
-        "X.........X",
-        ".X.......X.",
-        "..XXXXXXXX.",
-        "..........X",
-        "..........X",
-        "..........X",
-        "..........X",
-        "X.........X",
-        ".X.......X.",
-        "..XXXXXXX..",
-        "...........",
-    ]),
+    _dex("T UL UR LL LR B"),       # 0
+    _dex_one(),                     # 1  centred stem + serif + base
+    _dex("T UR M LL B"),           # 2
+    _dex("T UR M LR B"),           # 3
+    _dex("UL UR M LR"),            # 4
+    _dex("T UL M LR B"),           # 5
+    _dex("T UL M LL LR B"),        # 6
+    _dex_seven(),                   # 7  diagonal step + lopsided lower
+    _dex("T UL UR M LL LR B"),     # 8
+    _dex("T UL UR M LR B"),        # 9
 ]
 
 # ── colour themes ─────────────────────────────────────────────────────────────
