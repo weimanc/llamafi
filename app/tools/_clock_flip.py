@@ -273,6 +273,8 @@ class FlipRenderer(ClockRenderer):
             [cx + 1, mid_y, cx + W - 2, mid_y + G - 1], fill=_C_SPLIT_GAP)
 
         # ── 2. Bottom plate (always new digit, static once anim starts) ───────
+        # Digit centered across the FULL card height so the split lands at the
+        # digit's natural midpoint — only the bottom half is clipped in.
         if bot_h > 0:
             bot_y0 = mid_y + G
             bot_y1 = bot_y0 + HH - 1
@@ -281,11 +283,13 @@ class FlipRenderer(ClockRenderer):
                 [cx + 1, reveal_top, cx + W - 2, bot_y1], fill=self._C_BOT)
             self._draw_digit_clipped(
                 draw, bot_digit,
-                cx, bot_y0, W, HH, self._C_BOT,
+                cx, cy, W, H, self._C_BOT,   # ref = full card
                 clip_y0=reveal_top, clip_y1=bot_y1,
             )
 
         # ── 3. Top flap (falls from full → 0, then new digit rises) ──────────
+        # Same full-card reference so the top half of the digit aligns with the
+        # bottom half above.
         if top_h > 0:
             flap_y0 = cy
             flap_y1 = cy + top_h - 1
@@ -293,7 +297,7 @@ class FlipRenderer(ClockRenderer):
                 [cx + 1, flap_y0, cx + W - 2, flap_y1], fill=self._C_TOP)
             self._draw_digit_clipped(
                 draw, top_digit,
-                cx, cy, W, HH, self._C_TOP,
+                cx, cy, W, H, self._C_TOP,   # ref = full card
                 clip_y0=flap_y0, clip_y1=flap_y1,
             )
 
