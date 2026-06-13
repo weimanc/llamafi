@@ -4,7 +4,19 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
-> **PM sync 2026-06-13 (end of session)** — M-TELETEXT proof-of-concept session.
+> **PM sync 2026-06-13 (design follow-up)** — M-TELETEXT open questions resolved.
+> All 5 design open questions (OQ1–OQ5) closed via parallel research: fillTriangle()
+> confirmed for right-strip arrows (Font1 has no ▲/▼); 10-entry uint16_t history ring
+> on TeletextAppState; subpage auto-advance off by default; root CA confirmed as
+> USERTrust RSA Certification Authority (not DigiCert — TASK-176 done); R&D spike
+> EXP-004 filed (TASK-178 done) — SVT (SE) viable second entry, RAI incompatible,
+> ORF/ARD blocked on-device, YLE needs API key.
+> M-TELETEXT.md and ADR-044 updated with confirmed decisions. EXP-004 at
+> `docs/rnd/reports/EXP-004-teletext-multi-country-spike.md`.
+> Open: TASK-175 (preview iteration — P1 gate), TASK-177 (firmware), TASK-179 (icons).
+> Completed and closed tasks are in [tasks-archive.md](tasks-archive.md).
+>
+> **PM sync 2026-06-13 (PoC session)** — M-TELETEXT proof-of-concept session.
 > TASK-169 (WiFi auto-navigate) closed — done 2026-06-12.
 > New milestone M-TELETEXT opened: NOS Teletekst live reader as the 10th multiapp slot.
 > PoC validated entirely on-host before firmware: NOS API reverse-engineered, teletext
@@ -12,8 +24,6 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 > (`app/tools/preview_teletext.py`) built with full 320×240 canvas + taskbar + live
 > navigation. Resource impact assessed (1.1 KB/fetch, fits dataTask pattern, ~4 KB SRAM).
 > Design doc M-TELETEXT.md written; ADR-044 proposed; roadmap entry added.
-> Open: TASK-175 (preview iteration — gate before firmware), TASK-176 (root CA),
-> TASK-177 (firmware), TASK-178 (R&D spike multi-country), TASK-179 (icons).
 > Completed and closed tasks are in [tasks-archive.md](tasks-archive.md).
 >
 > **PM sync 2026-06-12 (end of session)** — Major close-out: all "Open Tasks" sections
@@ -584,8 +594,13 @@ the root CA, extract the PEM, and add it to `dataTaskCerts.h` alongside the
 existing ISRG Root X1 / GTS Root R4 entries.
 
 **Priority:** P1 — gates firmware start  
-**Status:** open  
+**Status:** done — 2026-06-13. Chain confirmed: leaf → Sectigo Public Server
+Authentication CA DV R36 → Sectigo Public Server Authentication Root R46 →
+**USERTrust RSA Certification Authority** (self-signed root, 2010–2038). Not
+DigiCert. PEM extracted. Add `TELETEXT_NOS_ROOT_CA` to `dataTaskCerts.h` as
+part of TASK-177. DS-4 in M-TELETEXT.md updated (commit 8ed7be6).  
 **Opened:** 2026-06-13  
+**Closed:** 2026-06-13  
 **Milestone:** M-TELETEXT  
 **Owner:** Developer  
 **Deps:** —
@@ -622,13 +637,19 @@ Implement `TeletextApp` following ADR-044:
 Probe the wire format of active teletext services in AT, DE, SE, IT, FI to
 determine which share the NOS format (ISO-8859-1, 25×40 `<pre>` block, same
 control codes). Services to probe: ORF (AT), ARD/ZDF (DE), SVT (SE), RAI (IT),
-YLE (FI). Write a short report to `docs/rnd/reports/teletext-countries.md`.
+YLE (FI). Write a short report to `docs/rnd/reports/`.
 If at least one matches: propose a multi-country design. If none match: document
 why and close the `teletextCountry` settings field as permanently inert.
 
 **Priority:** P3 — future enhancement; does not block M-TELETEXT v1  
-**Status:** open  
+**Status:** done — 2026-06-13. EXP-004 filed at
+`docs/rnd/reports/EXP-004-teletext-multi-country-spike.md` (commit 875bb32).
+No service is drop-in compatible with NOS. SVT (SE) via texttv.nu JSON is the
+viable second entry (separate JSON fetch path required). RAI incompatible
+(PNG-only). ORF/ARD blocked on-device (need proxy). YLE gated (API key).
+`teletextCountry` stays reserved; DS-6 in M-TELETEXT.md updated with full findings.  
 **Opened:** 2026-06-13  
+**Closed:** 2026-06-13  
 **Milestone:** M-TELETEXT (future)  
 **Owner:** R&D  
 **Deps:** —
