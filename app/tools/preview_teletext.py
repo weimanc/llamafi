@@ -56,11 +56,12 @@ NAV_H  = APP_H - GRID_H  # 40 — bottom fast-text bar
 STRIP_X = GRID_W          # 240
 STRIP_W = TASKBAR_X - GRID_W  # 35
 
-STRIP_SUBUP_Y0 =   0;  STRIP_SUBUP_Y1 =  49   # subpage ▲
-STRIP_BACK_Y0  =  50;  STRIP_BACK_Y1  =  89   # page number / ◄ back
-STRIP_PREV_Y0  =  90;  STRIP_PREV_Y1  = 119   # prev page ◄
-STRIP_NEXT_Y0  = 120;  STRIP_NEXT_Y1  = 149   # next page ►
-STRIP_SUBDN_Y0 = 150;  STRIP_SUBDN_Y1 = 199   # subpage ▼
+STRIP_SUBUP_Y0 =   0;  STRIP_SUBUP_Y1 =  33   # subpage ▲    (34 px)
+STRIP_PAGE_Y0  =  34;  STRIP_PAGE_Y1  =  66   # page number   (33 px)
+STRIP_BACK_Y0  =  67;  STRIP_BACK_Y1  =  99   # ◄◄ back       (33 px)
+STRIP_PREV_Y0  = 100;  STRIP_PREV_Y1  = 132   # prev page ◄   (33 px)
+STRIP_NEXT_Y0  = 133;  STRIP_NEXT_Y1  = 165   # next page ►   (33 px)
+STRIP_SUBDN_Y0 = 166;  STRIP_SUBDN_Y1 = 199   # subpage ▼    (34 px)
 
 ZOOM_LEVELS = [1, 2, 3]
 
@@ -428,48 +429,50 @@ def draw_strip(canvas, font, current_page, prev, next_, ns, ps, history, keypad_
     pygame.draw.line(canvas, _STRIP_SEP, (STRIP_X, 0), (STRIP_X, GRID_H - 1))
 
     # Zone separators
-    for y in (STRIP_BACK_Y0, STRIP_PREV_Y0, STRIP_NEXT_Y0, STRIP_SUBDN_Y0):
+    for y in (STRIP_PAGE_Y0, STRIP_BACK_Y0, STRIP_PREV_Y0, STRIP_NEXT_Y0, STRIP_SUBDN_Y0):
         pygame.draw.line(canvas, _STRIP_SEP, (STRIP_X + 2, y), (STRIP_X + STRIP_W - 1, y))
 
-    # ── Subpage UP ▲ (y=0..49) ──────────────────────────────────────────────
+    # ── Subpage UP ▲ (y=0..33) ───────────────────────────────────────────────
     mid = (STRIP_SUBUP_Y0 + STRIP_SUBUP_Y1) // 2
     col = _STRIP_ACTIVE if ps else _STRIP_DIM
-    _triangle(canvas, col, cx, mid, 9, 'up')
+    _triangle(canvas, col, cx, mid, 8, 'up')
 
-    # ── Page number / keypad trigger (y=50..89) ──────────────────────────────
-    # Always shows page number. Cyan background when keypad is open.
-    # Dim cyan tint when history is available (hinting Backspace goes back).
-    mid = (STRIP_BACK_Y0 + STRIP_BACK_Y1) // 2
-    zone_h = STRIP_BACK_Y1 - STRIP_BACK_Y0
+    # ── Page number / keypad trigger (y=34..66) ───────────────────────────────
+    mid = (STRIP_PAGE_Y0 + STRIP_PAGE_Y1) // 2
     if keypad_open:
         pygame.draw.rect(canvas, (0, 60, 60),
-                         (STRIP_X + 1, STRIP_BACK_Y0, STRIP_W - 2, zone_h))
-    elif history:
-        pygame.draw.rect(canvas, (0, 30, 30),
-                         (STRIP_X + 1, STRIP_BACK_Y0, STRIP_W - 2, zone_h))
-
+                         (STRIP_X + 1, STRIP_PAGE_Y0, STRIP_W - 2, STRIP_PAGE_Y1 - STRIP_PAGE_Y0))
     pg_str = str(current_page).zfill(3)
-    pg_col = (0, 220, 220) if keypad_open else (_STRIP_BACK if history else _STRIP_PAGENUM)
+    pg_col = (0, 220, 220) if keypad_open else _STRIP_PAGENUM
     for i, ch in enumerate(pg_str):
         glyph = font.render(ch, False, pg_col)
         glyph = pygame.transform.scale(glyph, (CHAR_W, CHAR_H))
         x_off = STRIP_X + (STRIP_W - CHAR_W * 3) // 2 + i * CHAR_W
         canvas.blit(glyph, (x_off, mid - CHAR_H // 2))
 
-    # ── Prev page ◄ (y=90..119) ─────────────────────────────────────────────
+    # ── Back ◄◄ (y=67..99) — double arrow distinguishes from prev ◄ ──────────
+    mid = (STRIP_BACK_Y0 + STRIP_BACK_Y1) // 2
+    if history:
+        pygame.draw.rect(canvas, (0, 30, 30),
+                         (STRIP_X + 1, STRIP_BACK_Y0, STRIP_W - 2, STRIP_BACK_Y1 - STRIP_BACK_Y0))
+    col = _STRIP_BACK if history else _STRIP_DIM
+    _triangle(canvas, col, cx - 4, mid, 6, 'left')
+    _triangle(canvas, col, cx + 4, mid, 6, 'left')
+
+    # ── Prev page ◄ (y=100..132) ─────────────────────────────────────────────
     mid = (STRIP_PREV_Y0 + STRIP_PREV_Y1) // 2
     col = _STRIP_ACTIVE if prev else _STRIP_DIM
     _triangle(canvas, col, cx, mid, 8, 'left')
 
-    # ── Next page ► (y=120..149) ─────────────────────────────────────────────
+    # ── Next page ► (y=133..165) ─────────────────────────────────────────────
     mid = (STRIP_NEXT_Y0 + STRIP_NEXT_Y1) // 2
     col = _STRIP_ACTIVE if next_ else _STRIP_DIM
     _triangle(canvas, col, cx, mid, 8, 'right')
 
-    # ── Subpage DOWN ▼ (y=150..199) ──────────────────────────────────────────
+    # ── Subpage DOWN ▼ (y=166..199) ──────────────────────────────────────────
     mid = (STRIP_SUBDN_Y0 + STRIP_SUBDN_Y1) // 2
     col = _STRIP_ACTIVE if ns else _STRIP_DIM
-    _triangle(canvas, col, cx, mid, 9, 'down')
+    _triangle(canvas, col, cx, mid, 8, 'down')
 
 def draw_page(surf, font, grid, nav_btns, current_page,
               prev, next_, ns, ps, history, link_rows, keypad, zoom):
@@ -529,6 +532,7 @@ def strip_hit(cx, cy):
     if not (STRIP_X <= cx < TASKBAR_X and 0 <= cy < GRID_H):
         return None
     if cy <= STRIP_SUBUP_Y1:  return 'subup'
+    if cy <= STRIP_PAGE_Y1:   return 'page'
     if cy <= STRIP_BACK_Y1:   return 'back'
     if cy <= STRIP_PREV_Y1:   return 'prev'
     if cy <= STRIP_NEXT_Y1:   return 'next'
@@ -665,12 +669,12 @@ def main():
                 # ── keypad closed: strip / grid / nav bar ────────────────────
                 else:
                     action = strip_hit(cx_raw, cy_raw)
-                    if action == 'back':
-                        keypad.show()                      # page-number zone → keypad
-                    elif action == 'subup' and ps:  nav_to(ps)
-                    elif action == 'prev'  and prev: nav_to(prev)
-                    elif action == 'next'  and next_: nav_to(next_)
-                    elif action == 'subdn' and ns:  nav_to(ns)
+                    if action == 'page':                    keypad.show()
+                    elif action == 'back':                  go_back()
+                    elif action == 'subup' and ps:          nav_to(ps)
+                    elif action == 'prev'  and prev:        nav_to(prev)
+                    elif action == 'next'  and next_:       nav_to(next_)
+                    elif action == 'subdn' and ns:          nav_to(ns)
                     elif cy_raw >= GRID_H and cx_raw < APP_W:
                         nav_bw = APP_W // 4
                         btn_idx = cx_raw // nav_bw

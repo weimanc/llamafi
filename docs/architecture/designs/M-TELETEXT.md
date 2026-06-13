@@ -70,17 +70,21 @@ Open design questions being iterated in the preview tool:
 
 ```
 ┌──────┐  y=0
-│  ▲   │  subpage up (if exists)  — tap zone ~50 px tall
-├──────┤  y=50
-│ 101  │  current page number (3 chars, centred)
-├──────┤  y=90
-│  ◄   │  prev page — tap zone ~30 px
-├──────┤  y=120
-│  ►   │  next page — tap zone ~30 px
-├──────┤  y=150
-│  ▼   │  subpage down (if exists) — tap zone ~50 px tall
+│  ▲   │  subpage up (if exists)  — 34 px
+├──────┤  y=34
+│ 101  │  current page number — opens keypad — 33 px
+├──────┤  y=67
+│ ◄◄   │  back (history) — 33 px; ◄◄ glyph; dim when empty
+├──────┤  y=100
+│  ◄   │  prev page — 33 px
+├──────┤  y=133
+│  ►   │  next page — 33 px
+├──────┤  y=166
+│  ▼   │  subpage down (if exists) — 34 px
 └──────┘  y=200
 ```
+
+All 6 zones evenly spaced (34/33/33/33/33/34 px, symmetric).
 
 Renders as simple coloured rects with white arrow glyphs.
 Active (has target) = bright; inactive = dim grey.
@@ -119,6 +123,12 @@ navigation affordance of index pages.
 **Lean: Option A.** Tap target is an 8 px tall row — manageable on the CYD
 resistive touch. History stack (depth ≤ 10) enables back navigation.
 Debounce to 300 ms to avoid double-fires on resistive touch.
+
+**Back-navigation mechanism (TASK-182, resolved 2026-06-13):** Dedicated back zone
+at y=67..99 with `◄◄` double-arrow glyph (distinguishes from single `◄` prev-page).
+- Cyan tint + active glyph when history non-empty; dim when empty.
+- Page-number zone (y=34..66) is solely the keypad trigger.
+All 6 strip zones evenly spaced (34/33/33/33/33/34 px).
 
 ---
 

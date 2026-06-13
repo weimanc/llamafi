@@ -720,8 +720,13 @@ if one target is always blank. Each has different tap-zone implications.
 Architect to decide and update M-TELETEXT §DS-2 + ADR-044 item 5 with the chosen
 mechanism. Once decided, Developer adds the zone to `teletext_layout.h` (TASK-181).
 
+**Resolution:** Dedicated ◄◄ back zone (y=67..99) between page-number and prev-page.
+All 6 strip zones evenly spaced (34/33/33/33/33/34 px). ◄◄ double-arrow distinguishes
+back from single ◄ prev. Cyan tint when history available, dim otherwise.
+Page-number zone (y=34..66) solely triggers keypad. Preview tool updated 2026-06-13.
+
 **Priority:** P2 — blocks T261; does not block MVP render  
-**Status:** open  
+**Status:** closed — 2026-06-13  
 **Opened:** 2026-06-13  
 **Milestone:** M-TELETEXT  
 **Owner:** Architect  
