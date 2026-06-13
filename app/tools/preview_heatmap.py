@@ -38,16 +38,16 @@ import urllib.request
 from typing import Optional
 
 import dut_fonts as _dut_fonts
+from preview_common import (
+    SCREEN_W, SCREEN_H, TASKBAR_X, TASKBAR_W, APP_W, APP_H,
+    TASKBAR_SLOT_H, TASKBAR_SLOT_COUNT,
+    TASKBAR_BG, TASKBAR_ACTIVE_COL, TASKBAR_SEP_COL,
+    APP_ORDER, load_icon_pil, draw_taskbar_pil, PreviewWindow,
+)
 
 
 # ── screen / firmware geometry ────────────────────────────────────────────────
 
-SCREEN_W  = 320
-SCREEN_H  = 240
-TASKBAR_X = 275
-TASKBAR_W = 45
-APP_W     = 275   # x: 0..274
-APP_H     = 240   # y: 0..239
 HEADER_H  = 18    # shared header strip, y: 0..17
 
 # list-view geometry (mirrors firmware constants in main.cpp)
@@ -70,10 +70,6 @@ TOGGLE_HEAT_X1, TOGGLE_HEAT_X2 = 233, 274
 
 # chart back zone
 BACK_X2 = 30
-
-# taskbar
-TASKBAR_SLOT_H     = 40
-TASKBAR_SLOT_COUNT = 6
 
 # label visibility threshold (mirrors ADR-036 D6)
 LABEL_MIN_W = 40
@@ -98,8 +94,6 @@ C_RED         = (175, 25,  25)
 C_NEUTRAL     = (30,  30,  42)
 C_TOGGLE_ON   = (50,  85,  120)
 C_TOGGLE_OFF  = (22,  22,  34)
-C_TASKBAR_BG  = (14,  14,  28)
-C_TASKBAR_SEP = (35,  35,  55)
 C_BACK_BG     = (35,  35,  60)
 C_CHART_LINE  = (0,   175, 215)
 C_CHART_BG    = (8,   8,   18)
@@ -444,7 +438,7 @@ class HeatmapPoc:
         elif view == "chart":
             self._render_chart(draw, tickers, chart_sym, chart_prices, chart_loading)
 
-        self._render_taskbar(draw)
+        draw_taskbar_pil(canvas, "Stock", scroll_offset=2)
         return canvas
 
     def _render_header(self, draw, title: str, active_view: str):
@@ -583,30 +577,6 @@ class HeatmapPoc:
         self._f1.draw(draw, 3, chart_y0 + 2, f"{hi:.2f}", fg=C_TEXT_DIM)
         self._f1.draw_right(draw, APP_W - 3, chart_y1 - 5, "1D", fg=C_TEXT_DIM)
 
-    def _render_taskbar(self, draw):
-        draw.rectangle([TASKBAR_X, 0, SCREEN_W - 1, SCREEN_H - 1],
-                       fill=C_TASKBAR_BG)
-        labels = ["S", "C", "W", "$", "M", "St"]
-        active_slot = 5   # Stock = last slot (index 5, AppId=7)
-        for s in range(TASKBAR_SLOT_COUNT):
-            sy = s * TASKBAR_SLOT_H
-            if s < TASKBAR_SLOT_COUNT - 1:
-                draw.line(
-                    [(TASKBAR_X, sy + TASKBAR_SLOT_H - 1),
-                     (SCREEN_W - 1, sy + TASKBAR_SLOT_H - 1)],
-                    fill=C_TASKBAR_SEP,
-                )
-            if s == active_slot:
-                draw.rectangle(
-                    [TASKBAR_X, sy, TASKBAR_X + 2, sy + TASKBAR_SLOT_H - 1],
-                    fill=C_GREEN,
-                )
-            self._f1.draw_centered(
-                draw,
-                TASKBAR_X + TASKBAR_W // 2, sy + TASKBAR_SLOT_H // 2,
-                labels[s], fg=C_TEXT_DIM,
-            )
-
     # ── interaction ───────────────────────────────────────────────────────
 
     def handle_click(self, lx: int, ly: int):
@@ -726,57 +696,36 @@ class HeatmapPoc:
 
     def run(self):
         try:
-            import pygame
+            win = PreviewWindow(
+                "StockApp Heatmap POC — click=[List]/[Heat] toggle  r=refresh  q=quit",
+                scale=self.scale,
+            )
         except ImportError:
             sys.exit("pip install pygame  (required for interactive preview)")
 
-        pygame.init()
-        pygame.display.set_caption(
-            "StockApp Heatmap POC — click=[List]/[Heat] toggle  r=refresh  q=quit"
-        )
-        scale  = self.scale
-        screen = pygame.display.set_mode((SCREEN_W * scale, SCREEN_H * scale))
-        clock  = pygame.time.Clock()
-
+        import pygame
+        clock = pygame.time.Clock()
         self.refresh()
 
-        running = True
-        while running:
+        while True:
             for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-                elif event.type == pygame.KEYDOWN:
+                if win.handle_event(event):   # handles QUIT, q/Q, +/-
+                    continue
+                if event.type == pygame.KEYDOWN:
                     k = event.key
-                    if k == pygame.K_q:
-                        running = False
-                    elif k == pygame.K_r:
+                    if k == pygame.K_r:
                         self.refresh()
-                    elif k in (pygame.K_PLUS, pygame.K_EQUALS, pygame.K_KP_PLUS):
-                        scale = min(4, scale + 1)
-                        screen = pygame.display.set_mode(
-                            (SCREEN_W * scale, SCREEN_H * scale))
-                    elif k in (pygame.K_MINUS, pygame.K_KP_MINUS):
-                        scale = max(1, scale - 1)
-                        screen = pygame.display.set_mode(
-                            (SCREEN_W * scale, SCREEN_H * scale))
                     elif k == pygame.K_RIGHTBRACKET:
                         self.set_ticker_count(self.ticker_count + 1)
                     elif k == pygame.K_LEFTBRACKET:
                         self.set_ticker_count(self.ticker_count - 1)
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     mx, my = event.pos
-                    self.handle_click(mx // scale, my // scale)
+                    self.handle_click(mx // win.scale, my // win.scale)
 
-            frame = self.render()
-            surf  = pygame.image.fromstring(frame.tobytes(), frame.size, "RGB")
-            if scale > 1:
-                surf = pygame.transform.scale(
-                    surf, (SCREEN_W * scale, SCREEN_H * scale))
-            screen.blit(surf, (0, 0))
-            pygame.display.flip()
+            win.blit_pil(self.render())
+            win.flip()
             clock.tick(30)
-
-        pygame.quit()
         self.print_phase2()
         self.print_phase3()
 

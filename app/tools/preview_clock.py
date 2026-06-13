@@ -39,12 +39,13 @@ from PIL import Image, ImageDraw, ImageFont
 
 # ── geometry (mirrors firmware) ───────────────────────────────────────────────
 
-SCREEN_W  = 320
-SCREEN_H  = 240
-TASKBAR_X = 275
-TASKBAR_W = 45
-APP_W     = 275
-APP_H     = 240
+from preview_common import (
+    SCREEN_W, SCREEN_H, TASKBAR_X, TASKBAR_W, APP_W, APP_H,
+    TASKBAR_SLOT_H, TASKBAR_SLOT_COUNT, TASKBAR_ICON_W, TASKBAR_ICON_H,
+    TASKBAR_BG, TASKBAR_ACTIVE_COL, TASKBAR_SEP_COL,
+    APP_ORDER, load_icon_pil, draw_taskbar_pil, PreviewWindow,
+)
+
 CENTRE_X  = 137   # horizontal centre of app canvas
 
 # Standard Digital clock layout  (all styles may deviate)
@@ -165,60 +166,6 @@ class DigitalRenderer(ClockRenderer):
     def param_dict(self) -> dict:
         return {"style": "digital"}
 
-# ── Taskbar stub ──────────────────────────────────────────────────────────────
-
-# App order matches appRegistry.h: Spotify(0) Clock(1) Weather(2) Crypto(3) Matrix(4) Life(5)
-# Settings(6) Stock(7) Aquarium(8). Taskbar shows first 6 slots (TASKBAR_SLOT_COUNT=6).
-_ICONS_DIR = pathlib.Path(__file__).parent.parent / "icons" / "taskbar"
-_APP_NAMES  = ["spotify", "clock", "weather", "crypto", "matrix", "life",
-               "settings", "stock", "aquarium"]
-_TASKBAR_SLOT_COUNT = 6
-_TASKBAR_SLOT_H     = 40
-_TASKBAR_ICON_W     = 24
-_TASKBAR_ICON_H     = 24
-_TASKBAR_BG         = (32, 32, 32)   # 0x2104 RGB565 → ~(32,32,32)
-_TASKBAR_ACTIVE_COL = (0, 255, 0)   # 0x07E0 = green
-_TASKBAR_SEP_COL    = (64, 64, 64)  # 0x4208 RGB565 → ~(64,64,64)
-
-
-def _load_icon(name: str, active: bool) -> Optional[Image.Image]:
-    suffix = "_active" if active else ""
-    path   = _ICONS_DIR / f"{name}{suffix}.png"
-    if not path.exists():
-        return None
-    ico = Image.open(path).convert("RGBA")
-    if ico.size != (_TASKBAR_ICON_W, _TASKBAR_ICON_H):
-        ico = ico.resize((_TASKBAR_ICON_W, _TASKBAR_ICON_H), Image.LANCZOS)
-    return ico
-
-
-def _draw_taskbar(img: Image.Image, active_slot: int,
-                  scroll_offset: int = 0) -> None:
-    draw = ImageDraw.Draw(img)
-    draw.rectangle([TASKBAR_X, 0, SCREEN_W - 1, SCREEN_H - 1], fill=_TASKBAR_BG)
-
-    icon_off_x = (TASKBAR_W - _TASKBAR_ICON_W) // 2
-    icon_off_y = (_TASKBAR_SLOT_H - _TASKBAR_ICON_H) // 2
-
-    for i in range(_TASKBAR_SLOT_COUNT):
-        app_idx = (scroll_offset + i) % len(_APP_NAMES)
-        y0      = i * _TASKBAR_SLOT_H
-        y1      = y0 + _TASKBAR_SLOT_H - 1
-        is_active = (app_idx == active_slot)
-
-        # separator line
-        if i < _TASKBAR_SLOT_COUNT - 1:
-            draw.line([TASKBAR_X, y1 + 1, SCREEN_W - 1, y1 + 1], fill=_TASKBAR_SEP_COL)
-
-        # icon
-        ico = _load_icon(_APP_NAMES[app_idx], is_active)
-        if ico:
-            img.paste(ico, (TASKBAR_X + icon_off_x, y0 + icon_off_y), mask=ico)
-
-        # active indicator: 3px green bar on left edge
-        if is_active:
-            draw.rectangle([TASKBAR_X, y0, TASKBAR_X + 2, y1], fill=_TASKBAR_ACTIVE_COL)
-
 # ── renderer registry ─────────────────────────────────────────────────────────
 
 STYLE_NAMES = {1: "Digital", 2: "Flip", 3: "Nixie", 4: "VFD"}
@@ -271,19 +218,16 @@ def main() -> None:
 
     screenshot_dir = pathlib.Path(args.screenshot)
 
-    try:
-        import pygame
-    except ImportError:
-        sys.exit("pip install pygame  (required for interactive preview)")
-
     renderers = _load_renderers()
     renderer  = renderers.get(style_key, renderers[1])
 
-    pygame.init()
-    pygame.display.set_caption(f"preview_clock — {STYLE_NAMES[style_key]}")
-    scale  = args.scale
-    screen = pygame.display.set_mode((SCREEN_W * scale, SCREEN_H * scale))
-    clock  = pygame.time.Clock()
+    try:
+        win = PreviewWindow(f"preview_clock — {STYLE_NAMES[style_key]}", scale=args.scale)
+    except ImportError:
+        sys.exit("pip install pygame  (required for interactive preview)")
+
+    import pygame
+    clock = pygame.time.Clock()
 
     print(__doc__)
     print(f"Loaded styles: {[STYLE_NAMES[k] for k in sorted(renderers)]}")
@@ -293,29 +237,19 @@ def main() -> None:
         t_now = frozen or _time.localtime()
 
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit(); return
+            if win.handle_event(event):   # handles QUIT, q/Q, +/-
+                continue
 
-            elif event.type == pygame.KEYDOWN:
+            if event.type == pygame.KEYDOWN:
                 k = event.key
 
-                if k == pygame.K_q:
-                    pygame.quit(); return
-
-                elif k in (pygame.K_PLUS, pygame.K_EQUALS, pygame.K_KP_PLUS):
-                    scale = min(4, scale + 1)
-                    screen = pygame.display.set_mode((SCREEN_W*scale, SCREEN_H*scale))
-
-                elif k in (pygame.K_MINUS, pygame.K_KP_MINUS):
-                    scale = max(1, scale - 1)
-                    screen = pygame.display.set_mode((SCREEN_W*scale, SCREEN_H*scale))
-
-                elif k in (pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4):
+                if k in (pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4):
                     new_key = k - pygame.K_0
                     if new_key in renderers:
                         style_key = new_key
                         renderer  = renderers[style_key]
-                        pygame.display.set_caption(f"preview_clock — {STYLE_NAMES[style_key]}")
+                        pygame.display.set_caption(
+                            f"preview_clock — {STYLE_NAMES[style_key]}")
                         print(f"\n[style] {STYLE_NAMES[style_key]}  "
                               f"keys: {renderer.help_text()}")
 
@@ -328,11 +262,11 @@ def main() -> None:
                 elif k == pygame.K_s:
                     screenshot_dir.mkdir(parents=True, exist_ok=True)
                     ts    = _time.strftime("%Y%m%d_%H%M%S")
-                    name  = f"{STYLE_NAMES.get(style_key,'?').lower()}_{ts}.png"
-                    fpath = screenshot_dir / name
+                    sname = f"{STYLE_NAMES.get(style_key,'?').lower()}_{ts}.png"
+                    fpath = screenshot_dir / sname
                     img   = Image.new("RGB", (SCREEN_W, SCREEN_H), (0, 0, 0))
                     renderer.render(img, t_now)
-                    _draw_taskbar(img, active_slot=style_key - 1)
+                    draw_taskbar_pil(img, "Clock")
                     img.save(fpath)
                     print(f"[screenshot] {fpath}")
 
@@ -342,16 +276,10 @@ def main() -> None:
         # render
         img = Image.new("RGB", (SCREEN_W, SCREEN_H), (0, 0, 0))
         renderer.render(img, t_now)
-        _draw_taskbar(img, active_slot=style_key - 1)
-
-        surf = pygame.image.fromstring(img.tobytes(), img.size, "RGB")
-        if scale > 1:
-            surf = pygame.transform.scale(surf, (SCREEN_W * scale, SCREEN_H * scale))
-        screen.blit(surf, (0, 0))
-        pygame.display.flip()
+        draw_taskbar_pil(img, "Clock")
+        win.blit_pil(img)
+        win.flip()
         clock.tick(30)
-
-    pygame.quit()
 
 
 if __name__ == "__main__":

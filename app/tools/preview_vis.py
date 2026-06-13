@@ -50,6 +50,7 @@ import time
 
 import numpy as np
 from PIL import Image
+from preview_common import SCREEN_W, SCREEN_H, write_gif
 
 # ── firmware geometry (mirrors ESP32 implementation exactly) ──────────────────
 
@@ -64,8 +65,6 @@ def _parse_skin_layout(path):
 _skin = _parse_skin_layout(
     pathlib.Path(__file__).parent / "../gen/skin_layout.h")
 
-SCREEN_W   = 320
-SCREEN_H   = 240
 WINDOW_W   = int(_skin["WINDOW_W"])   # from gen/skin_layout.h
 WINDOW_H   = int(_skin["WINDOW_H"])
 
@@ -303,23 +302,6 @@ def boost_heights(bar_h: np.ndarray, factor: float) -> np.ndarray:
     return np.clip(np.round(bar_h.astype(float) * factor), 0, VIS_H).astype(int)
 
 
-# ── animated GIF output ───────────────────────────────────────────────────────
-
-def write_gif(frames: list[Image.Image], out_path: pathlib.Path,
-              fps: int = FPS) -> None:
-    duration_ms = round(1000 / fps)
-    quantized = [f.quantize(colors=256, method=Image.Quantize.MEDIANCUT)
-                 for f in frames]
-    quantized[0].save(
-        out_path,
-        save_all=True,
-        append_images=quantized[1:],
-        loop=0,
-        duration=duration_ms,
-        optimize=False,
-    )
-    print(f"Wrote {out_path} ({out_path.stat().st_size // 1024} KB, "
-          f"{len(frames)} frames @ {fps} fps)")
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
@@ -426,31 +408,30 @@ def _write_gif(renderer: VisRenderer, atlas: np.ndarray | None, mode: str,
 
 def _run_live(renderer: VisRenderer, atlas: np.ndarray | None, mode: str,
               boost: float = 1.0, show_peaks: bool = True) -> None:
+    from preview_common import PreviewWindow
     try:
         import pygame
     except ImportError:
         print("ERROR: pygame not installed. Run: pip install pygame", file=sys.stderr)
         sys.exit(1)
 
-    base = renderer._base
-    w, h = base.width, base.height
-
-    pygame.init()
-    screen = pygame.display.set_mode((w, h))
-    pygame.display.set_caption(f"vis preview — {mode} — originX={ORIGIN_X} visX={VIS_X},Y={VIS_Y}")
+    win = PreviewWindow(
+        f"vis preview — {mode} — originX={ORIGIN_X} visX={VIS_X},Y={VIS_Y}",
+        scale=1,
+    )
     clock = pygame.time.Clock()
 
     synth     = SyntheticVis() if mode == "synthetic" else None
     tracker   = AtlasPeakTracker() if (mode == "atlas" and show_peaks) else None
     frame_idx = 0
-    running   = True
 
-    while running:
+    while True:
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                running = False
+            if win.handle_event(event):   # handles QUIT, q/Q, +/-
+                continue
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                pygame.quit()
+                sys.exit(0)
 
         if mode == "atlas" and atlas is not None:
             bar_h = boost_heights(atlas[frame_idx % len(atlas)], boost)
@@ -461,12 +442,9 @@ def _run_live(renderer: VisRenderer, atlas: np.ndarray | None, mode: str,
             peaks = synth.peaks
 
         img_pil = renderer.render(bar_h, peaks)
-        surf = pygame.image.fromstring(img_pil.tobytes(), img_pil.size, "RGB")
-        screen.blit(surf, (0, 0))
-        pygame.display.flip()
+        win.blit_pil(img_pil)
+        win.flip()
         clock.tick(FPS)
-
-    pygame.quit()
 
 
 if __name__ == "__main__":

@@ -24,11 +24,10 @@ import sys
 
 import numpy as np
 from PIL import Image
+from preview_common import SCREEN_W, SCREEN_H, write_gif
 
 # ── firmware geometry (mirrors preview_vis.py / vuMeter.h) ────────────────────
 
-SCREEN_W = 320
-SCREEN_H = 240
 WINDOW_W = 275
 ORIGIN_X = (SCREEN_W - WINDOW_W) // 2   # = 22 (device only; preview uses skin coords)
 
@@ -45,25 +44,6 @@ VIS_WAVE_COLOR = (255, 255, 255)   # VISCOLOR[18] = white; firmware VIS_WAVE_COL
 
 FPS = 20
 ZOOM = 6
-
-
-# ── GIF writer ────────────────────────────────────────────────────────────────
-
-def write_gif(frames: list[Image.Image], out_path: pathlib.Path,
-              fps: int = FPS) -> None:
-    duration_ms = round(1000 / fps)
-    quantized = [f.quantize(colors=256, method=Image.Quantize.MEDIANCUT)
-                 for f in frames]
-    quantized[0].save(
-        out_path,
-        save_all=True,
-        append_images=quantized[1:],
-        loop=0,
-        duration=duration_ms,
-        optimize=False,
-    )
-    size_kb = out_path.stat().st_size // 1024
-    print(f"Wrote {out_path} ({size_kb} KB, {len(frames)} frames @ {fps} fps)")
 
 
 # ── wave renderer ─────────────────────────────────────────────────────────────

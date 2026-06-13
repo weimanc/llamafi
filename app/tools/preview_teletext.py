@@ -26,21 +26,18 @@ Mouse:
     Click grid row                                 follow inline page-ref link
     Click right strip (other zones)               navigate prev/next/subpage
     Click bottom nav bar                           fast-text links"""
-import pathlib
 import re
 import sys
 import urllib.error
 import urllib.request
 
 import pygame
-
-# ── device geometry (mirrors firmware) ───────────────────────────────────────
-SCREEN_W   = 320
-SCREEN_H   = 240
-TASKBAR_X  = 275
-TASKBAR_W  = 45
-APP_W      = 275
-APP_H      = 240
+from preview_common import (
+    SCREEN_W, SCREEN_H, TASKBAR_X, TASKBAR_W, APP_W, APP_H,
+    TASKBAR_SLOT_H, TASKBAR_SLOT_COUNT, TASKBAR_ICON_W, TASKBAR_ICON_H,
+    TASKBAR_BG, TASKBAR_ACTIVE_COL, TASKBAR_SEP_COL,
+    APP_ORDER, load_icon_pygame, draw_taskbar_pygame, PreviewWindow,
+)
 
 # ── teletext cell geometry: 6×8 fits 40 cols in 240px ────────────────────────
 CHAR_W = 6
@@ -66,19 +63,10 @@ STRIP_SUBDN_Y0 = 166;  STRIP_SUBDN_Y1 = 199   # subpage ▼    (34 px)
 ZOOM_LEVELS = [1, 2, 3]
 
 # ── taskbar ───────────────────────────────────────────────────────────────────
-_SLOT_H       = 40
-_SLOT_COUNT   = 6
-_ICON_W       = 24
-_ICON_H       = 24
-_TB_BG        = (32,  32,  32)
-_TB_ACTIVE    = (0,  255,   0)
-_TB_SEP       = (64,  64,  64)
-_ICONS_DIR    = pathlib.Path(__file__).parent.parent / "icons" / "taskbar"
-
-_APP_NAMES = ["spotify", "clock", "weather", "crypto", "matrix", "life",
-              "settings", "stock", "aquarium", "teletext"]
-_TELETEXT_IDX = _APP_NAMES.index("teletext")
-_TB_SCROLL    = _TELETEXT_IDX - (_SLOT_COUNT - 1)  # scroll so teletext is last visible
+# Teletext not yet in appRegistry.h — append manually until it lands.
+_APP_ORDER    = APP_ORDER + ["Teletext"]
+_TELETEXT_IDX = _APP_ORDER.index("Teletext")
+_TB_SCROLL    = _TELETEXT_IDX - (TASKBAR_SLOT_COUNT - 1)  # scroll so Teletext is last visible
 
 # ── teletext colour palette ───────────────────────────────────────────────────
 TT_COLORS = [
@@ -383,35 +371,6 @@ def scan_links(grid):
 
 # ── rendering ─────────────────────────────────────────────────────────────────
 
-_icon_cache: dict = {}
-
-def _load_icon(name: str, active: bool):
-    key = (name, active)
-    if key not in _icon_cache:
-        suffix = "_active" if active else ""
-        path = _ICONS_DIR / f"{name}{suffix}.png"
-        if path.exists():
-            ico = pygame.image.load(str(path)).convert_alpha()
-            _icon_cache[key] = pygame.transform.scale(ico, (_ICON_W, _ICON_H))
-        else:
-            _icon_cache[key] = None
-    return _icon_cache[key]
-
-def draw_taskbar(canvas):
-    pygame.draw.rect(canvas, _TB_BG, (TASKBAR_X, 0, TASKBAR_W, SCREEN_H))
-    icon_x = TASKBAR_X + (TASKBAR_W - _ICON_W) // 2
-    for i in range(_SLOT_COUNT):
-        app_idx  = (_TB_SCROLL + i) % len(_APP_NAMES)
-        y0       = i * _SLOT_H
-        is_active = (app_idx == _TELETEXT_IDX)
-        if i < _SLOT_COUNT - 1:
-            pygame.draw.line(canvas, _TB_SEP,
-                             (TASKBAR_X, y0 + _SLOT_H), (SCREEN_W - 1, y0 + _SLOT_H))
-        ico = _load_icon(_APP_NAMES[app_idx], is_active)
-        if ico:
-            canvas.blit(ico, (icon_x, y0 + (_SLOT_H - _ICON_H) // 2))
-        if is_active:
-            pygame.draw.rect(canvas, _TB_ACTIVE, (TASKBAR_X, y0, 3, _SLOT_H))
 
 def _triangle(canvas, color, cx, cy, size, direction):
     """Draw a filled triangle arrow. direction: 'up','down','left','right'."""
@@ -532,7 +491,8 @@ def draw_page(surf, font, grid, nav_btns, current_page,
             tw  = txt.get_width()
             canvas.blit(txt, (nx + (nav_bw - tw) // 2, GRID_H + (NAV_H - CHAR_H) // 2))
 
-    draw_taskbar(canvas)
+    draw_taskbar_pygame(canvas, active_app="Teletext",
+                        scroll_offset=_TB_SCROLL, app_order=_APP_ORDER)
 
     if zoom == 1:
         surf.blit(canvas, (0, 0))
@@ -555,10 +515,9 @@ def strip_hit(cx, cy):
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    page     = sys.argv[1] if len(sys.argv) > 1 else '101'
-    zoom_idx = 1  # default 2×
+    page = sys.argv[1] if len(sys.argv) > 1 else '101'
 
-    pygame.init()
+    win = PreviewWindow("NOS Teletekst", scale=ZOOM_LEVELS[1])
 
     font = None
     for candidate in _UNSCII_CANDIDATES:
@@ -569,11 +528,6 @@ def main():
             pass
     if font is None:
         font = pygame.font.SysFont('monospace', 8)
-
-    def make_screen(zoom):
-        return pygame.display.set_mode((SCREEN_W * zoom, SCREEN_H * zoom))
-
-    screen = make_screen(ZOOM_LEVELS[zoom_idx])
 
     history  = []   # 10-entry page history ring
     keypad   = Keypad()
@@ -615,14 +569,13 @@ def main():
     running = True
 
     while running:
-        zoom = ZOOM_LEVELS[zoom_idx]
+        zoom = win.scale
         for ev in pygame.event.get():
-            if ev.type == pygame.QUIT:
-                running = False
-
-            elif ev.type == pygame.KEYDOWN:
-                # ── keypad open: digits route to keypad ─────────────────────
+            if ev.type == pygame.KEYDOWN:
+                # ── keypad open: digits route to keypad; +/-/q handled by PreviewWindow ──
                 if keypad.visible:
+                    if win.handle_event(ev):   # +/-: resize; q: quit
+                        continue
                     if ev.key == pygame.K_ESCAPE:
                         keypad.hide()
                     elif ev.key == pygame.K_BACKSPACE:
@@ -639,21 +592,17 @@ def main():
                         if pg:
                             nav_to(pg)
 
-                # ── keypad closed: normal navigation keys ────────────────────
+                # ── keypad closed: navigation + PreviewWindow events ─────────
                 else:
-                    if ev.key in (pygame.K_q, pygame.K_ESCAPE):
+                    if win.handle_event(ev):   # +/-: resize; q/Q: quit
+                        continue
+                    if ev.key == pygame.K_ESCAPE:
                         running = False
                     elif ev.key == pygame.K_RIGHT and next_:   nav_to(next_)
                     elif ev.key == pygame.K_LEFT  and prev:    nav_to(prev)
                     elif ev.key == pygame.K_UP    and ns:      nav_to(ns)
                     elif ev.key == pygame.K_DOWN  and ps:      nav_to(ps)
                     elif ev.key == pygame.K_BACKSPACE:         go_back()
-                    elif ev.key in (pygame.K_PLUS, pygame.K_EQUALS, pygame.K_KP_PLUS):
-                        zoom_idx = min(zoom_idx + 1, len(ZOOM_LEVELS) - 1)
-                        screen = make_screen(ZOOM_LEVELS[zoom_idx])
-                    elif ev.key in (pygame.K_MINUS, pygame.K_KP_MINUS):
-                        zoom_idx = max(zoom_idx - 1, 0)
-                        screen = make_screen(ZOOM_LEVELS[zoom_idx])
                     elif ev.key in (pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4):
                         idx = ev.key - pygame.K_1
                         if idx < len(btns) and btns[idx][2]: nav_to(btns[idx][2])
@@ -662,6 +611,9 @@ def main():
                         keypad.show()
                         pg = keypad.push(chr(ev.key))
                         if pg: nav_to(pg)
+
+            elif win.handle_event(ev):   # handles QUIT for non-KEYDOWN events
+                continue
 
             elif ev.type == pygame.MOUSEBUTTONDOWN:
                 mx, my = ev.pos
@@ -700,7 +652,7 @@ def main():
                         pg_ref = find_row_link(grid, row, tap_col)
                         if pg_ref: nav_to(pg_ref)
 
-        draw_page(screen, font, grid, btns, current_page,
+        draw_page(pygame.display.get_surface(), font, grid, btns, current_page,
                   prev, next_, ns, ps, history, link_rows, keypad, zoom)
         if fetch_err[0]:
             hint = f'ERROR: {fetch_err[0]}'
@@ -711,7 +663,7 @@ def main():
         pygame.display.set_caption(
             f'NOS Teletekst  p:{current_page}  hist:{len(history)}   {hint}'
         )
-        pygame.display.flip()
+        win.flip()
         clock.tick(10)
 
     pygame.quit()

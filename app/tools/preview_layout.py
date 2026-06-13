@@ -36,19 +36,11 @@ from PIL import Image, ImageDraw
 # Reuse bake_skin's BI_RLE8-aware BMP loader (TEXT.BMP needs it).
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from bake_skin import load_bmp, open_skin
-
-# ── constants ─────────────────────────────────────────────────────────────────
-
-SCREEN_W = 320
-SCREEN_H = 240
-
-# Taskbar geometry — fixed by ADR-025 / shell-layout.md.
-TASKBAR_X          = 275
-TASKBAR_W          = 45
-TASKBAR_SLOT_COUNT = 6
-TASKBAR_SLOT_H     = 40   # 6 × 40 == 240
-TASKBAR_ICON_W     = 24
-TASKBAR_ICON_H     = 24
+from preview_common import (
+    SCREEN_W, SCREEN_H, TASKBAR_X, TASKBAR_W,
+    TASKBAR_SLOT_H, TASKBAR_SLOT_COUNT, TASKBAR_ICON_W, TASKBAR_ICON_H,
+    TASKBAR_BG, TASKBAR_ACTIVE_COL, TASKBAR_SEP_COL,
+)
 
 # Winamp 5×6 glyph dimensions.
 GLYPH_W = 5

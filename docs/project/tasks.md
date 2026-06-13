@@ -61,6 +61,32 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ---
 
+### TASK-192 — M-PREVIEW-FRAMEWORK: implement preview_common.py and port 6 tools
+
+Retroactive task — implementation completed in session 2026-06-13 before task was filed.
+
+Deliverables (all done):
+1. `app/tools/preview_common.py` created — full public API: constants, `APP_ORDER`,
+   `load_icon_pil`, `load_icon_pygame`, `draw_taskbar_pil`, `draw_taskbar_pygame`,
+   `write_gif`, `PreviewWindow`.
+2. Six tools ported — no tool defines `SCREEN_W`, taskbar constants, or `write_gif` locally.
+3. `preview_heatmap.py` taskbar upgraded: PNG icons, canonical `(32,32,32)` palette,
+   `scroll_offset=2` so Stock is in last visible slot with active indicator.
+4. `preview_clock.py` taskbar call changed to `draw_taskbar_pil(img, "Clock")`.
+5. `preview_teletext.py` uses `_APP_ORDER = APP_ORDER + ["Teletext"]` extension pattern.
+6. Verify pass: all imports clean, all render paths exercised headlessly. One bug found
+   and fixed (`pygame.K_Q` → `pg.K_q` in `PreviewWindow.handle_event`).
+
+**Priority:** P2
+**Status:** done
+**Opened:** 2026-06-13 (retroactive)
+**Closed:** 2026-06-13
+**Milestone:** M-PREVIEW-FRAMEWORK
+**Owner:** Developer
+**Deps:** M-APP-REGISTRY, M-TASKBAR-ICONS
+
+---
+
 ## Closed This Cycle
 
 ### settings-001 new-items — Cancel button, cal history, KB ESC, TouchDebugOverlay

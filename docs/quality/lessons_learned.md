@@ -4,6 +4,43 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-06-13 — M-PREVIEW-FRAMEWORK
+
+### What went well
+
+- **Design doc was the right input.** The design was thorough — duplication map with exact line numbers, per-tool migration table, scroll-offset invariants — and implementation followed it exactly. No scope ambiguity mid-flight.
+- **Verify skill caught a real crash.** `PreviewWindow.handle_event` referenced `pygame.K_Q`, which does not exist in pygame. Would have crashed on any keypress. Caught and fixed before commit.
+- **Headless test strategy was sound.** Running each tool's render pipeline without a display (dummy SDL driver + proper sequencing after `pygame.display.set_mode()`) gave real signal. The first test run exposed the display-not-initialized problem and guided the correct assertion order.
+- **Heatmap pixel invariants verified.** scroll_offset=2 computation, active indicator at (275,201), canonical palette — all confirmed in-process.
+
+### What could have been better
+
+- **No tasks filed before implementation.** Work was done directly from the design doc without creating tasks. TASK-192 is retroactive. PM flag.
+- **Design doc exit criteria had a pixel off-by-one.** Spec said separator at y=39; both reference implementations (and this one) draw at y=40. Typo in the doc that would have caused a false-fail if someone automated the pixel check literally.
+- **`pygame.K_Q` error is a class of bug.** The implementation and design doc both assumed `K_Q` exists. Pygame only has lowercase key constants. Neither code review nor the design caught it — only runtime exercise did.
+
+---
+
+### LL-069 — 2026-06-13 — Tasks not filed before milestone implementation
+
+**Context**: M-PREVIEW-FRAMEWORK implemented in a single session directly from the design doc without creating tasks first.
+**Observation**: TASK-192 is retroactive. If the session had been interrupted mid-implementation, there would be no tracked state of what was in progress.
+**Root cause**: Design doc was immediately available and scope was unambiguous; the task-creation step was skipped as "overhead."
+**Suggested improvement**: Even for single-session milestones, file a task stub (status: in_progress) before writing code. The overhead is one paragraph; the benefit is recoverable mid-flight state.
+**Status**: open
+
+---
+
+### LL-070 — 2026-06-13 — Runtime exercise caught a crash that code review missed
+
+**Context**: `PreviewWindow.handle_event` used `pygame.K_Q`, which is not a valid pygame constant. Design doc and code both contained the error.
+**Observation**: The verify step (headless render + handle_event exercise) found the `AttributeError` immediately. Would have crashed the clock, heatmap, teletext, and vis live tools on any keypress.
+**Root cause**: pygame key constants are all lowercase (`K_q`, not `K_Q`). Easy assumption error; not caught by reading because the typo looks plausible.
+**Suggested improvement**: When implementing a new event-handling class, explicitly test each key branch at the surface (not just import). A five-line test covering `+`, `-`, `q`, unhandled is enough.
+**Status**: open
+
+---
+
 ## Retrospective — 2026-06-12 — M-TASKBAR-ICONS
 
 ### What went well

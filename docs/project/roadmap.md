@@ -846,6 +846,27 @@ Spotify and web radio via the existing taskbar.
 
 ---
 
+### M-PREVIEW-FRAMEWORK — Common preview tool framework
+
+Extract shared geometry constants, taskbar rendering, app-registry integration,
+GIF writer, and pygame window management from the six `app/tools/preview_*.py`
+tools into `app/tools/preview_common.py`.
+
+Work:
+1. Write `preview_common.py` (constants, `draw_taskbar_pil`, `draw_taskbar_pygame`,
+   `load_icon_pil`, `load_icon_pygame`, `write_gif`, `PreviewWindow`).
+2. Port each of the six tools to import from `preview_common`:
+   `preview_layout.py`, `preview_clock.py`, `preview_vis.py`, `preview_wave.py`,
+   `preview_heatmap.py`, `preview_teletext.py`.
+3. Verify each tool still launches and renders correctly (manual smoke test per tool).
+
+**Status:** done
+**Design:** [M-PREVIEW-FRAMEWORK.md](../architecture/designs/M-PREVIEW-FRAMEWORK.md)
+**Deps:** M-APP-REGISTRY (done — app_ids_gen.py is canonical source), M-TASKBAR-ICONS (done — PNG icons exist)
+**Note:** TASK-192 (retroactive). Verify caught one bug: `pygame.K_Q` does not exist; fixed to `pg.K_q` in `PreviewWindow.handle_event`. Design doc exit-criteria pixel for separator is off by one (spec says y=39, actual y=40); implementation follows reference, not the spec typo.
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.

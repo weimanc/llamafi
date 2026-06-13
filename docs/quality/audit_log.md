@@ -4,6 +4,38 @@
 
 All audits: scope, findings, actions, results.
 
+### Audit — 2026-06-13 — M-PREVIEW-FRAMEWORK (TASK-192)
+
+**Triggered by**: human (post-milestone sign-off request)
+
+**Areas checked**:
+- [x] Feature inventory completeness
+- [x] Test coverage per feature
+- [x] Cross-feature test coverage
+- [x] Documentation currency
+
+**Findings**:
+
+1. **No `feature_inventory.yaml` entry for M-PREVIEW-FRAMEWORK** — AMBER. This is a host-side tooling refactor, not a firmware feature, so its absence is defensible; however the inventory has no note explaining scope. No action required unless team decides to track host tools in inventory.
+
+2. **No VE test plan for preview_common** — AMBER (accepted gap). Host-only Python module; no serial/DUT test path applies. Verify step exercised all public API functions and render pipelines headlessly. Documented in TASK-192.
+
+3. **No tasks filed before implementation** — AMBER (LL-069 filed). TASK-192 is retroactive. State would have been unrecoverable on interrupt.
+
+4. **`pygame.K_Q` crash** — RED at implementation time; resolved. Found by verify step before commit. `PreviewWindow.handle_event` would have crashed every tool using keyboard input. Fixed to `pg.K_q`. LL-070 filed.
+
+5. **Design doc exit-criteria pixel off-by-one** — AMBER. Spec says separator at y=39; implementation and both reference tools draw at y=40. Doc should be corrected to `(275, 40)` to prevent future false-fail if test is automated. Action: Developer to update M-PREVIEW-FRAMEWORK.md exit criterion line.
+
+6. **Design doc status not updated** — AMBER. Still reads "reviewed — pending Architect revision pass." Needs update to "done" now that implementation is verified. Action: Architect to update.
+
+7. **Roadmap updated** — GREEN. M-PREVIEW-FRAMEWORK status changed from "not started" to "done" this session.
+
+**Actions assigned**:
+- Developer: correct `(275, 39)` → `(275, 40)` in M-PREVIEW-FRAMEWORK.md exit criteria
+- Architect: update M-PREVIEW-FRAMEWORK.md status to "done — implemented 2026-06-13"
+
+**Resolution**: closed — both doc corrections applied this session (separator pixel y=39→y=40; design doc status updated to "done").
+
 ### Audit — 2026-06-12 — M-TASKBAR-ICONS (TASK-170/171)
 
 **Triggered by**: human (post-milestone audit request)
