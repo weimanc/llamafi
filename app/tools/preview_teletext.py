@@ -348,29 +348,37 @@ class Keypad:
             ky += self.KEY_H + self.GAP
 
 
-def find_row_link(grid, row):
-    """Scan cols 33–39 for an isolated 3-digit NOS page ref (100–899).
+def find_row_link(grid, row, tap_col=None):
+    """Find an isolated 3-digit NOS page ref (100–899) in a grid row.
 
-    Expanded to col 33 (was 35) — some refs start at col 34.
-    Scans the whole window first, then searches, to avoid the reset-on-
-    non-digit bug where '666  ' would accumulate '666' then reset to ''
-    before the regex ran.  Handles 'NNN/subpage' notation correctly
-    because '/' is non-digit, so (?<!\\d) / (?!\\d) boundaries work.
+    Two NOS layout patterns exist:
+      - Right-edge index (101, 601): ref at cols 33-39
+      - Two-column index (600, 800): refs at cols 1 and 21
+
+    When tap_col is given, returns the ref whose digits are within 3 cols
+    of tap_col — works for any column position without special-casing.
+    When tap_col is None (used by scan_links), returns the first ref found
+    anywhere in the row (to mark the row as interactive).
     """
     if row >= len(grid):
         return None
     chars = ''
-    for ci in range(33, min(40, len(grid[row]))):
+    for ci in range(COLS):
         _, _, payload, is_mosaic = grid[row][ci]
         chars += (payload if (not is_mosaic and payload) else ' ')
     for m in re.finditer(r'(?<!\d)(\d{3})(?!\d)', chars):
         pg = int(m.group(1))
-        if 100 <= pg <= 899:
+        if not (100 <= pg <= 899):
+            continue
+        if tap_col is None:
+            return m.group(1)                          # scan mode: first match
+        ref_start, ref_end = m.start(), m.start() + 2
+        if ref_start - 3 <= tap_col <= ref_end + 3:   # tap within ±3 of any digit
             return m.group(1)
     return None
 
 def scan_links(grid):
-    """Return set of row indices that contain an inline page link."""
+    """Return set of row indices that contain any inline page link."""
     return {ri for ri in range(ROWS) if find_row_link(grid, ri)}
 
 # ── rendering ─────────────────────────────────────────────────────────────────
@@ -495,11 +503,17 @@ def draw_page(surf, font, grid, nav_btns, current_page,
                 glyph = pygame.transform.scale(glyph, (CHAR_W, CHAR_H))
                 canvas.blit(glyph, (x, y))
 
-        # Subtle link-row indicator: dim cyan tint on cols 35–39
+        # Subtle link-row indicator: dim cyan tint over each ref's 3 chars
         if ri in link_rows:
-            tint = pygame.Surface((CHAR_W * 5, CHAR_H), pygame.SRCALPHA)
-            tint.fill((0, 200, 200, 35))
-            canvas.blit(tint, (35 * CHAR_W, ri * CHAR_H))
+            chars = ''
+            for ci in range(COLS):
+                _, _, payload, is_mosaic = grid[ri][ci]
+                chars += (payload if (not is_mosaic and payload) else ' ')
+            tint = pygame.Surface((CHAR_W * 3, CHAR_H), pygame.SRCALPHA)
+            tint.fill((0, 200, 200, 50))
+            for m in re.finditer(r'(?<!\d)(\d{3})(?!\d)', chars):
+                if 100 <= int(m.group(1)) <= 899:
+                    canvas.blit(tint, (m.start() * CHAR_W, ri * CHAR_H))
 
     # Right-strip nav panel
     draw_strip(canvas, font, current_page, prev, next_, ns, ps, history, keypad.visible)
@@ -682,7 +696,8 @@ def main():
                             nav_to(btns[btn_idx][2])
                     elif cx_raw < GRID_W and cy_raw < GRID_H:
                         row = cy_raw // CHAR_H
-                        pg_ref = find_row_link(grid, row)
+                        tap_col = cx_raw // CHAR_W
+                        pg_ref = find_row_link(grid, row, tap_col)
                         if pg_ref: nav_to(pg_ref)
 
         draw_page(screen, font, grid, btns, current_page,

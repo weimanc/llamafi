@@ -110,10 +110,14 @@ The 3-digit page ref occupies columns ~36–38 on headline rows, preceded by dot
 **Option A — Row-tap hyperlink (chosen lean)**
 
 - On tap in the grid area: compute `row = y / CHAR_H`.
-- Scan columns 33–39 of that row for 3 contiguous digit characters (expanded from
-  35 after PoC found refs beginning at col 34 on several NOS pages).
+- Compute `tap_col = x / CHAR_W` from the touch x coordinate.
+- Scan the full 40-column row for isolated 3-digit refs (100–899); accept a ref
+  whose digits are within ±3 cols of `tap_col`. Works for all NOS index layouts:
+  - Right-edge (101, 601): ref at cols 33–39 → tap near right edge
+  - Two-column (600, 800): refs at cols 1 and 21 → tap on either column's number
+- Cyan tint rendered at each ref's actual column position (3 chars wide).
 - If found: navigate to that page (push current page onto history stack).
-- No visible underline — the colour highlight (cyan text) serves as the cue.
+- No visible underline — the colour highlight (cyan text) + tint serve as the cue.
 
 **Option B — Explicit highlighted link boxes**: draw a coloured rect under
 detected link rows. Adds clutter; not authentic to teletext style.

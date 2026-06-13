@@ -574,12 +574,18 @@ Pre-firmware gate (per ADR-044). Implement two remaining UI elements in
 1. **Right-strip nav** (35 × 200 px, right of the teletext grid): subpage ▲,
    current page number, prev ◄ / next ► page, subpage ▼. Arrows as coloured
    triangles; dim when target unavailable.
-2. **Inline row-tap links**: tap in grid area → compute row → scan cols 35–39
-   for 3-digit page ref → navigate. Show visual feedback (brief row highlight).
-3. **History**: back navigation (10-entry ring, keyboard `Backspace` in preview).
+2. **Inline row-tap links**: tap in grid area → compute row + tap column → search
+   for 3-digit page ref within ±3 cols of tap point → navigate. Works for both
+   right-edge index layout (101, 601) and two-column layout (600, 800). Cyan tint
+   rendered at actual ref column positions.
+3. **History**: back navigation (10-entry ring; ◄◄ strip zone + keyboard Backspace).
+4. **Keypad**: numeric page-entry overlay; page-number zone in strip triggers it.
+
+**Signed off:** 2026-06-13 — human approval. All 7 checkpoints passed.
+Link detection upgraded to tap-column model (conclusive fix, not whack-a-mole).
 
 **Priority:** P1 — gates firmware start  
-**Status:** open  
+**Status:** closed — 2026-06-13  
 **Opened:** 2026-06-13  
 **Milestone:** M-TELETEXT  
 **Owner:** Developer  
@@ -808,7 +814,7 @@ Human operator reviews ADR-044 and promotes status to "accepted." Should happen 
 the same time as TASK-175 preview sign-off — both are the same conversation.
 
 **Priority:** P1 — gates firmware start  
-**Status:** open  
+**Status:** closed — 2026-06-13. ADR-044 accepted by human operator.  
 **Opened:** 2026-06-13  
 **Milestone:** M-TELETEXT  
 **Owner:** Human → Architect  
