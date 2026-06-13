@@ -341,43 +341,32 @@ tft.fillRect(118, 50, 5, 5, 0xFFF0);
 
 ## Style 2 — Nixie Tube
 
+> Render physics, tube housing geometry, wire glyph system, three-pass bloom
+> pipeline, ghost cathode model, colour themes, and firmware options:
+> **[M-CLOCK-NIXIE.md](M-CLOCK-NIXIE.md)**. The sections below are retained
+> for milestone cross-reference; see that doc for implementation detail.
+
 ### Visual concept
 
-Vacuum-tube Nixie display. Each digit lives inside an oval "tube" with a warm
-orange/amber glow. Background black. No seconds box chrome; small dot arc instead.
+Vacuum-tube Nixie display. Four digit tubes + colon on a black background.
+Each tube has a hexagonal mesh interior and a warm orange multi-layer glow.
+Thin wire cathode strokes; bloom fills the tube with ambient orange fog.
+Date below in dim thin text. No seconds bar.
 
-### Layout
-
-Four tubes + colon dots, all inside the time box area (y:5..85).
-
-```
-Tube dimensions: w=52 px, h=70 px, corner radius 26 (oval-ish)
-Tube positions (left edge, top y = (80-70)/2 + 5 = 10):
-  H1: x=6    H2: x=62   colon gap: x=118  M1: x=128  M2: x=184
-Total span: 6..236, centred in 275 px
-```
-
-### Per-tube rendering
+### Layout (starting values — tune in Phase 0)
 
 ```
-1. Black fill inside tube rect             (erase)
-2. Outer glow: drawRoundRect at offset ±2, colour 0x8000 (dim red-orange)
-3. Inner glow: drawRoundRect at offset ±1, colour 0xFC00 (orange)
-4. Tube border: drawRoundRect,             colour 0xFE60 (amber yellow)
-5. Digit: MC_DATUM font 4, colour 0xFFFF (white), centred in tube
-6. Subtle pin shadows: two 1×4 px dark rects at tube bottom
+TUBE_W=48  TUBE_H=90  TUBE_R=14  TUBE_Y=12
+H1: x=24   H2: x=78   colon_cx=137   M1: x=148   M2: x=202
+DATE_Y = TUBE_Y + TUBE_H + 22 = 124
 ```
 
-Colon: two 4×4 filled squares at x=119..122 (tube gap centre), y=28 and y=50.
-Colour: `0xFE60` (amber). No blink — Nixie tubes do not blink.
-
-Seconds indicator: 60 small dots in an arc below the tube row (y=82, r=3 px),
-drawn within seconds box area. Lit dots: `0xFC60`. Unlit: `0x4000`.
+Full geometry derivation and Phase 0 approved values: M-CLOCK-NIXIE.md.
 
 ### Chrome
 
-No box borders in this style. Background: `TFT_BLACK`.
-Date box and seconds box borders suppressed; date text and seconds dot arc render directly.
+Background `(0, 0, 0)`. No box borders. Tube glass outline drawn per-tube.
+Colon: two circular dots, no blink. Date: Roboto-Thin centred below tubes.
 
 ---
 
