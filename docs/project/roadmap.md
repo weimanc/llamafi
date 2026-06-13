@@ -755,6 +755,63 @@ Candidate source: [Material Symbols](https://fonts.google.com/icons) or [Simple 
 
 ---
 
+### M-TELETEXT — NOS Teletekst live reader app
+
+10th app in the multiapp shell. Fetches live teletext pages from NOS
+(`teletekst-data.nos.nl`) and renders them on the 275×240 app canvas.
+
+**Proof of concept (2026-06-13):** fully validated on-host before any firmware
+was written — a deliberate practice from lessons learned.
+
+- NOS API reverse-engineered: `https://teletekst-data.nos.nl/page/{N}`,
+  ISO-8859-1, 1000-byte 25×40 grid in a `<pre>` block, no JSON.
+- Teletext control codes decoded: text mode (0x01–0x07) vs mosaic graphics mode
+  (0x10–0x17); mosaic 2×3 pixel patterns rendered as `fillRect` blocks.
+- Navigation metadata parsed: prev/next page, prev/next subpage, 4 fast-text
+  coloured button targets + labels from row 24.
+- Preview tool: `app/tools/preview_teletext.py` — live NOS fetch, full 320×240
+  canvas with taskbar, 1×/2×/3× zoom, keyboard + mouse navigation.
+- Resource impact assessed: ~1.1 KB per fetch (smallest in the project); fits
+  into existing `dataTask` HTTPS pattern; ~4 KB persistent SRAM.
+
+**Canvas layout** (ADR-044):
+
+```
+┌──────────────────────────────────────────────┬──────┬─────────┐
+│  40 cols × 6 px  ×  25 rows × 8 px          │nav   │ taskbar │
+│  240 × 200 px teletext grid                  │strip │  45 px  │
+│                                              │35 px │         │
+├──────────────────────────────────────────────┤      │         │
+│  40 px fast-text bar (red/grn/yel/cyn btns)  │      │         │
+└──────────────────────────────────────────────┴──────┴─────────┘
+```
+
+**Navigation model:**
+- **Fast-text bar** (bottom 40 px): 4 coloured buttons — section shortcuts.
+- **Right-strip** (35 × 200 px): subpage ▲, current page number, prev ◄ / next ►
+  page, subpage ▼. Arrows via `fillTriangle()`.
+- **Inline row links**: tap a news-index row → scan cols 35–39 for 3-digit page
+  ref → navigate. 10-entry history ring enables back navigation.
+
+**Settings** (Settings → Applications → Teletext):
+- **Start page**: News 101 / Sport 601 / Weather 702 / Football 800
+- **Refresh**: 30 s / 60 s / 120 s
+- **Country**: NL (NOS) — label only until multi-country R&D spike completes
+
+**Open items before firmware:**
+1. Finalise right-strip layout + inline links in `preview_teletext.py`.
+2. Confirm root CA for `teletekst-data.nos.nl` via `openssl s_client`.
+3. Source `teletext.png` + `teletext_active.png` icons (24×24) for taskbar bake.
+4. R&D spike: which other active teletext services share the NOS wire format?
+   Candidates: ORF (AT), ARD (DE), SVT (SE), RAI (IT), YLE (FI).
+
+**Status:** proof-of-concept done; design proposed (ADR-044); firmware not started  
+**Deps:** M-MULTIAPP (done), M-TASKBAR-ICONS (done)  
+**Design:** [M-TELETEXT.md](../architecture/designs/M-TELETEXT.md)  
+**ADR:** ADR-044 (proposed)
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.

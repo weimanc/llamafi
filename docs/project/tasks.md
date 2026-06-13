@@ -4,6 +4,18 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
+> **PM sync 2026-06-13 (end of session)** — M-TELETEXT proof-of-concept session.
+> TASK-169 (WiFi auto-navigate) closed — done 2026-06-12.
+> New milestone M-TELETEXT opened: NOS Teletekst live reader as the 10th multiapp slot.
+> PoC validated entirely on-host before firmware: NOS API reverse-engineered, teletext
+> control codes (text vs mosaic graphics modes) decoded, preview tool
+> (`app/tools/preview_teletext.py`) built with full 320×240 canvas + taskbar + live
+> navigation. Resource impact assessed (1.1 KB/fetch, fits dataTask pattern, ~4 KB SRAM).
+> Design doc M-TELETEXT.md written; ADR-044 proposed; roadmap entry added.
+> Open: TASK-175 (preview iteration — gate before firmware), TASK-176 (root CA),
+> TASK-177 (firmware), TASK-178 (R&D spike multi-country), TASK-179 (icons).
+> Completed and closed tasks are in [tasks-archive.md](tasks-archive.md).
+>
 > **PM sync 2026-06-12 (end of session)** — Major close-out: all "Open Tasks" sections
 > from ADR-042 follow-on, settings-001 polish, SPIFFS hygiene, M-SETUP-WIZARD VE, M-SETTINGS
 > WiFi Phase 2, M-TASKBAR-ICONS, M-SETTINGS-APP-WIRE, and M-DATATASK-PROGRESS are now done.
@@ -527,7 +539,7 @@ Extend the `volatile int8_t` progress pattern to three remaining fetch functions
 
 ---
 
-## Open Tasks
+## Closed — TASK-169 + M-TELETEXT PoC (2026-06-13)
 
 ### TASK-169 — UX: auto-navigate to previous app after successful WiFi connect
 
@@ -538,4 +550,100 @@ After a successful WiFi connect in WifiSection (`_startConnect()` → RESULT sta
 **Opened:** 2026-06-11  
 **Closed:** 2026-06-12  
 **Deps:** TASK-168  
+**Owner:** Developer
+
+---
+
+## Open Tasks
+
+### TASK-175 — M-TELETEXT: preview iteration — right-strip nav + inline row links
+
+Pre-firmware gate (per ADR-044). Implement two remaining UI elements in
+`app/tools/preview_teletext.py` so the layout can be signed off before firmware:
+
+1. **Right-strip nav** (35 × 200 px, right of the teletext grid): subpage ▲,
+   current page number, prev ◄ / next ► page, subpage ▼. Arrows as coloured
+   triangles; dim when target unavailable.
+2. **Inline row-tap links**: tap in grid area → compute row → scan cols 35–39
+   for 3-digit page ref → navigate. Show visual feedback (brief row highlight).
+3. **History**: back navigation (10-entry ring, keyboard `Backspace` in preview).
+
+**Priority:** P1 — gates firmware start  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT  
 **Owner:** Developer  
+**Deps:** —
+
+---
+
+### TASK-176 — M-TELETEXT: confirm root CA for teletekst-data.nos.nl
+
+Run `openssl s_client -connect teletekst-data.nos.nl:443 -showcerts` to identify
+the root CA, extract the PEM, and add it to `dataTaskCerts.h` alongside the
+existing ISRG Root X1 / GTS Root R4 entries.
+
+**Priority:** P1 — gates firmware start  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT  
+**Owner:** Developer  
+**Deps:** —
+
+---
+
+### TASK-177 — M-TELETEXT: firmware implementation
+
+Implement `TeletextApp` following ADR-044:
+
+1. Add `Teletext` to `appRegistry.h` (slot 10, configurable=1); re-run codegen.
+2. Extend `dataTask` with `FETCH_TELETEXT_PAGE`, `TeletextState` struct,
+   `pollTeletext()` accessor, `enqueueTeletextPage(uint16_t page)`.
+3. Add root CA (TASK-176) to `dataTaskCerts.h`.
+4. `TeletextApp`: `init()`, `resume()` (reads settings), `tick()` (polls +
+   renders), `handleInput()` (fast-text bar, right-strip, row-tap links, history).
+5. Renderer: 6×8 cells, Font1 for text mode, `fillRect` for mosaic mode.
+6. Extend `AppSettings` with `teletextPage`, `teletextPollSecs`,
+   `teletextCountry`; add Settings UI rows under Applications → Teletext.
+7. Source + bake teletext taskbar icons (TASK-179).
+8. `run/check` clean.
+
+**Priority:** P2  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT  
+**Owner:** Developer  
+**Deps:** TASK-175 (preview sign-off), TASK-176 (root CA), TASK-179 (icons)
+
+---
+
+### TASK-178 — M-TELETEXT R&D spike: multi-country teletext API compatibility
+
+Probe the wire format of active teletext services in AT, DE, SE, IT, FI to
+determine which share the NOS format (ISO-8859-1, 25×40 `<pre>` block, same
+control codes). Services to probe: ORF (AT), ARD/ZDF (DE), SVT (SE), RAI (IT),
+YLE (FI). Write a short report to `docs/rnd/reports/teletext-countries.md`.
+If at least one matches: propose a multi-country design. If none match: document
+why and close the `teletextCountry` settings field as permanently inert.
+
+**Priority:** P3 — future enhancement; does not block M-TELETEXT v1  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT (future)  
+**Owner:** R&D  
+**Deps:** —
+
+---
+
+### TASK-179 — M-TELETEXT: source teletext taskbar icons
+
+Source or create `teletext.png` + `teletext_active.png` (24×24, RGBA) for the
+taskbar slot. Style: consistent with existing icons (B&W inactive, coloured
+active). Re-run `run/bake-icons`; update `golden.sha256`.
+
+**Priority:** P2 — needed before DUT flash of TASK-177  
+**Status:** open  
+**Opened:** 2026-06-13  
+**Milestone:** M-TELETEXT  
+**Owner:** Developer  
+**Deps:** —
