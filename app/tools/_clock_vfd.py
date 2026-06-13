@@ -1,14 +1,18 @@
 """_clock_vfd.py — VFD Dot-Matrix Clock Renderer.
 
 Rendering model: rasterize-then-blur.
-  1. Grid pass  — paint every dot as a flat C_ON / C_OFF rectangle.  No glow.
+  1. Grid pass  — one unified GRID_COLS×GRID_ROWS matrix covers the full time
+                  area.  Every cell is painted C_ON (active) or C_OFF (inactive).
+                  HH:MM glyphs are placed at specific column offsets within this
+                  single grid — inter-digit gaps are ordinary off-dot columns.
   2. Bloom pass — GaussianBlur(sharp_grid, radius) × BLOOM_SCALE.
-  3. Composite  — ImageChops.add(sharp, bloom).  Additive: adjacent lit dots
-                  accumulate stronger glow at their shared boundary.
+  3. Composite  — ImageChops.add(sharp, bloom).  Adjacent lit dots accumulate
+                  stronger glow at their shared boundary.
 
 Canvas: 275×240 px app canvas.
-Dot geometry: 4×4 px cells, 1 px gap → 5 px stride, 13×24 matrix per digit.
-Layout: 3 | H1(64) | H2(64) | colon(13) | M1(64) | M2(64) | 3 = 275 px.
+Dot geometry: TC=4 px cells, TG=1 px gap, TS=5 px stride.
+Unified time grid: 54 cols × 24 rows, 3 px margin each side = 275 px.
+  col layout:  2 | H1(11) | 1 | H2(11) | 4-colon | M1(11) | 1 | M2(11) | 2
 
 Imported by preview_clock.py; exposes VFDRenderer.
 Standalone test: python3 _clock_vfd.py → /tmp/vfd_test.png
@@ -24,30 +28,52 @@ from PIL import Image, ImageDraw, ImageFont, ImageChops, ImageFilter
 CANVAS_W = 275
 CANVAS_H = 240
 
-# ── dot-matrix geometry ───────────────────────────────────────────────────────
+# ── dot geometry ─────────────────────────────────────────────────────────────
 
 TC = 4    # dot cell size (px)
 TG = 1    # gap between dots (px)
 TS = 5    # stride = TC + TG
 
-T_COLS = 13
-T_ROWS = 24
-DIGIT_W = T_COLS * TC + (T_COLS - 1) * TG  # 64 px
-DIGIT_H = T_ROWS * TC + (T_ROWS - 1) * TG  # 119 px
+# ── unified time matrix ───────────────────────────────────────────────────────
+#
+# One 54×24 grid covers the full time area.
+# 3 px margin + 54 cols × 5 px stride − 1 px + 3 px margin = 275 px  ✓
+#
+# Column layout (glyph = 11 active cols, no built-in margins):
+#   cols  0- 1  left margin (2 off-cols)
+#   cols  2-12  H1 glyph
+#   col  13     gap  ← visible separation between H1 and H2
+#   cols 14-24  H2 glyph
+#   cols 25-28  colon area (dots at col 26, rows 7-8 and 15-16)
+#   cols 29-39  M1 glyph
+#   col  40     gap  ← visible separation between M1 and M2
+#   cols 41-51  M2 glyph
+#   cols 52-53  right margin (2 off-cols)
 
-DIGIT_TOP_Y = 10
+GRID_COLS = 54
+GRID_ROWS = 24
+GRID_X0   = 3    # left margin (px); right margin = 275 − (3 + 54×5 − 1) = 3 px  ✓
+GRID_Y0   = 10   # top of time matrix (px)
 
-_X_H1  =   3
-_X_H2  =  67   # 3 + 64
-_X_COL = 131   # 3 + 64 + 64  → 13-px colon column
-_X_M1  = 144   # 131 + 13
-_X_M2  = 208   # 144 + 64
-# right margin: 208 + 64 = 272, +3 = 275  ✓
+# Glyph inner dimensions within the unified grid
+GLYPH_W          = 11   # active glyph columns
+GLYPH_H          = 16   # active glyph rows
+GLYPH_ROW_OFFSET =  2   # grid rows before glyph top (top dead margin)
 
-# Colon: two 8×8 px dots centred in the 13-px colon column
-_COL_DOT_X  = _X_COL + (_X_M1 - _X_COL - 8) // 2   # = 133
-_COL_DOT_Y1 = DIGIT_TOP_Y + 32
-_COL_DOT_Y2 = DIGIT_TOP_Y + 79
+# Digit glyph start columns
+_H1_COL = 2
+_H2_COL = 14
+_M1_COL = 29
+_M2_COL = 41
+
+# Colon: 2×2-cell dots (each 2 cols × 2 rows = 9×9 px) at grid col 26
+_COLON_CELLS = frozenset([
+    (7, 26), (7, 27), (8, 26), (8, 27),    # upper colon dot
+    (15, 26), (15, 27), (16, 26), (16, 27), # lower colon dot
+])
+
+# DIGIT_H kept for date block positioning below the matrix
+DIGIT_H = GRID_ROWS * TC + (GRID_ROWS - 1) * TG  # 119 px
 
 # ── date dot-matrix geometry ──────────────────────────────────────────────────
 
@@ -298,33 +324,40 @@ def _centre_x(text: str) -> int:
 
 # ── rasterizers (Step 1 — flat color, no glow) ────────────────────────────────
 
-def _rasterize_digit(
+def _rasterize_time_matrix(
     draw: ImageDraw.ImageDraw,
-    digit: int,
-    dx: int, dy: int,
+    h1: int, h2: int, m1: int, m2: int,
+    colon_on: bool,
     C_ON: tuple, C_OFF: tuple,
 ) -> None:
-    glyph = _GLYPHS[digit % 10]
-    for mat_row in range(T_ROWS):
-        gr = mat_row - 2
-        row_bits = glyph[gr] if 0 <= gr < 20 else 0
-        for mat_col in range(T_COLS):
-            gc = mat_col - 1
-            active = bool(row_bits & (1 << (10 - gc))) if 0 <= gc < 11 else False
-            px = dx + mat_col * TS
-            py = dy + mat_row * TS
+    """Rasterize the unified 54×24 time grid in a single pass.
+
+    Every cell is C_ON (active glyph dot or colon dot) or C_OFF (everything
+    else — background, margins, inter-digit gaps).  No separate matrices.
+    """
+    digit_slots = ((_H1_COL, h1), (_H2_COL, h2), (_M1_COL, m1), (_M2_COL, m2))
+
+    for grid_row in range(GRID_ROWS):
+        for grid_col in range(GRID_COLS):
+            active = False
+
+            # Check digit glyph slots
+            for start_col, digit in digit_slots:
+                gc = grid_col - start_col
+                if 0 <= gc < GLYPH_W:
+                    gr = grid_row - GLYPH_ROW_OFFSET
+                    if 0 <= gr < GLYPH_H:
+                        active = bool(_GLYPHS[digit % 10][gr] & (1 << (10 - gc)))
+                    break  # cell belongs to this digit's column range; stop checking
+
+            # Check colon (only if not already claimed by a digit)
+            if not active and colon_on and (grid_row, grid_col) in _COLON_CELLS:
+                active = True
+
+            px = GRID_X0 + grid_col * TS
+            py = GRID_Y0 + grid_row * TS
             draw.rectangle([px, py, px + TC - 1, py + TC - 1],
                            fill=C_ON if active else C_OFF)
-
-
-def _rasterize_colon(
-    draw: ImageDraw.ImageDraw,
-    lit: bool,
-    C_ON: tuple, C_OFF: tuple,
-) -> None:
-    colour = C_ON if lit else C_OFF
-    for cy in (_COL_DOT_Y1, _COL_DOT_Y2):
-        draw.rectangle([_COL_DOT_X, cy, _COL_DOT_X + 7, cy + 7], fill=colour)
 
 
 def _rasterize_date_str(
@@ -396,11 +429,7 @@ class VFDRenderer:
 
         h1, h2 = t.tm_hour // 10, t.tm_hour % 10
         m1, m2 = t.tm_min  // 10, t.tm_min  % 10
-        _rasterize_digit(d, h1, _X_H1, DIGIT_TOP_Y, C_ON, C_OFF)
-        _rasterize_digit(d, h2, _X_H2, DIGIT_TOP_Y, C_ON, C_OFF)
-        _rasterize_digit(d, m1, _X_M1, DIGIT_TOP_Y, C_ON, C_OFF)
-        _rasterize_digit(d, m2, _X_M2, DIGIT_TOP_Y, C_ON, C_OFF)
-        _rasterize_colon(d, t.tm_sec % 2 == 0, C_ON, C_OFF)
+        _rasterize_time_matrix(d, h1, h2, m1, m2, t.tm_sec % 2 == 0, C_ON, C_OFF)
 
         _MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN",
                    "JUL","AUG","SEP","OCT","NOV","DEC"]
@@ -409,7 +438,7 @@ class VFDRenderer:
         date_str = f"{t.tm_mday:02d} {_MONTHS[t.tm_mon - 1]} {t.tm_year}"
 
         CHAR_H_DOT = (_F1.GLYPH_H * DS - DG) if _HAS_F1 else 16
-        block_top  = DIGIT_TOP_Y + DIGIT_H + 12   # 141 px
+        block_top  = GRID_Y0 + DIGIT_H + 12   # 141 px
         line_gap   = 10
         _rasterize_date_str(d, day_str,
                             _centre_x(day_str),  block_top,
@@ -482,11 +511,7 @@ def _debug_render(r: VFDRenderer, t: _time.struct_time) -> None:
     d     = ImageDraw.Draw(sharp)
     h1, h2 = t.tm_hour // 10, t.tm_hour % 10
     m1, m2 = t.tm_min  // 10, t.tm_min  % 10
-    _rasterize_digit(d, h1, _X_H1, DIGIT_TOP_Y, C_ON, C_OFF)
-    _rasterize_digit(d, h2, _X_H2, DIGIT_TOP_Y, C_ON, C_OFF)
-    _rasterize_digit(d, m1, _X_M1, DIGIT_TOP_Y, C_ON, C_OFF)
-    _rasterize_digit(d, m2, _X_M2, DIGIT_TOP_Y, C_ON, C_OFF)
-    _rasterize_colon(d, t.tm_sec % 2 == 0, C_ON, C_OFF)
+    _rasterize_time_matrix(d, h1, h2, m1, m2, t.tm_sec % 2 == 0, C_ON, C_OFF)
 
     # ── Step 2: bloom ─────────────────────────────────────────────────────────
     bloom_raw   = sharp.filter(ImageFilter.GaussianBlur(radius=r._bloom_r))
@@ -504,20 +529,14 @@ def _debug_render(r: VFDRenderer, t: _time.struct_time) -> None:
     out.resize(sz, Image.NEAREST).save("/tmp/vfd_3_out.png")
 
     # ── pixel probes ──────────────────────────────────────────────────────────
-    # Pick three meaningful points inside digit H2 (the "0" at x=67):
-    #   A — centre of an active dot  (should be C_ON in sharp, brighter in out)
-    #   B — the 1-px gap between two adjacent active dots  (C_OFF in sharp, lit up by bloom)
-    #   C — background far from any digit  (C_BG in sharp, tiny bloom spill in out)
+    # A — active dot in H2 (digit "0", glyph col 0, grid row 6)
+    #     grid col = _H2_COL + 0 = 14  →  px = GRID_X0 + 14*TS = 3+70 = 73
+    #     grid row 6  →  py = GRID_Y0 + 6*TS = 10+30 = 40
+    px_A = (73, 41)   # centre of that dot
 
-    # "0" glyph: row 4 of glyph (matrix row 6) is "X.........X"
-    # col 0 of glyph → matrix col 1 → pixel x = _X_H2 + 1*TS = 67+5 = 72
-    # matrix row 6  → pixel y = DIGIT_TOP_Y + 6*TS = 10+30 = 40
-    # Centre of that dot: (72+1, 40+1) = (73, 41)
-    px_A = (73, 41)
-
-    # Gap pixel: one pixel to the right of that dot's right edge
-    # dot right edge at x = 72 + TC - 1 = 75; gap pixel at x = 76
-    px_B = (76, 41)
+    # B — inter-digit gap col (col 13, between H1 and H2) at same y
+    #     px = GRID_X0 + 13*TS = 3+65 = 68
+    px_B = (68, 41)
 
     # Background pixel far from all digits: bottom-left corner
     px_C = (10, 220)
