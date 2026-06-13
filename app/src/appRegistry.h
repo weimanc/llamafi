@@ -7,7 +7,7 @@
 //
 // Columns:  Name       icon  configurable (1 = appears in Settings > Applications)
 APP_X( Spotify,   'S',   0 )
-APP_X( Clock,     'C',   0 )
+APP_X( Clock,     'C',   1 )
 APP_X( Weather,   'W',   0 )
 APP_X( Crypto,    '$',   1 )
 APP_X( Matrix,    'M',   1 )

@@ -61,6 +61,36 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ---
 
+### TASK-193 — M-CLOCK-STYLES: phases 2–4 firmware implementation
+
+Implement ClockStyle enum + storage (Phase 2), Flip/Nixie/VFD renderers (Phase 3), and
+Settings wiring (Phase 4) for the M-CLOCK-STYLES milestone.
+
+Deliverables (all done):
+1. `ClockStyle` enum added to `settingsStorage.h` (Digital/Flip/Nixie/VFD).
+2. `clockStyle` field added to `AppSettings`; default Digital; load/save under `"clock"` JSON key.
+3. `app/src/clockApp.h` created — full ClockApp with all four renderers:
+   - `_drawDigital()` — existing fixed-position HH/colon/MM (Phase 1 bug fix preserved).
+   - `_drawFlip()` — 5-frame split-flap animation; FlipDigit struct; 30ms tick gate while animating.
+   - `_drawNixie()` — four round-rect tubes with inner/outer glow; amber colon dots; blinking.
+   - `_drawVFD()` — Dexter v2 dot-matrix glyphs (kVFDGlyphs[10][22]); teal ON/OFF palette;
+     date lines at y=148/166 in 2× Font1; no bloom (option 3 from firmware note in M-CLOCK-VFD.md).
+4. `main.cpp` — inline ClockApp (~75 lines) replaced with `#include "clockApp.h"`.
+5. `appRegistry.h` — Clock configurable flag 0 → 1.
+6. `gen_app_registry.py` re-run → `configurable_apps.h` CONFIGURABLE_APP_COUNT 6 → 7.
+7. `appsSection.h` — `_repaintClock()` (single "Style" row) + `_cycleClock()` + dispatch cases.
+8. `run/check` 5/5 gates pass. Flash 55.6% (+2.7% for VFD glyph table + new renderers).
+
+**Priority:** P2
+**Status:** done
+**Opened:** 2026-06-13
+**Closed:** 2026-06-13
+**Milestone:** M-CLOCK-STYLES
+**Owner:** Developer
+**Deps:** TASK-192 (preview framework pattern used for concept tools)
+
+---
+
 ### TASK-192 — M-PREVIEW-FRAMEWORK: implement preview_common.py and port 6 tools
 
 Retroactive task — implementation completed in session 2026-06-13 before task was filed.

@@ -212,81 +212,8 @@ public:
 static SpotifyApp g_SpotifyApp;
 #endif // WINAMP_DISPLAY
 
-// ── ClockApp (TASK-090e) ───────────────────────────────────────────────
-class ClockApp : public App {
-public:
-  void init()    override { repaint(); }
-  void resume()  override { repaint(); }
-  void suspend() override { tft.setTextDatum(TL_DATUM); }
-  void tick() override {
-    if (millis() - s_lastTickMs < 1000) return;
-    s_lastTickMs = millis();
-    drawTime();
-    drawSecondsBar();
-    drawDate();
-    drawRssi();
-  }
-  bool handleInput(TouchPhase, int, int) override { return false; }
-private:
-  unsigned long s_lastTickMs = 0;
-  void repaint() {
-    tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK);
-    tft.drawRoundRect(5,   5, 265,  80, 10, 0xF81F);
-    tft.drawRoundRect(5,  88, 265,  47, 10, 0x07FF);
-    tft.drawRoundRect(5, 138, 265,  97, 10, 0xFFE0);
-    s_lastTickMs = 0;
-    tick();
-  }
-  void drawTime() {
-    struct tm t;
-    if (!getLocalTime(&t)) return;
-    char hBuf[4], mBuf[4];
-    snprintf(hBuf, sizeof(hBuf), "%02d", t.tm_hour);
-    snprintf(mBuf, sizeof(mBuf), "%02d", t.tm_min);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.setTextDatum(MR_DATUM);
-    tft.drawString(hBuf, 129, 45, 6);
-    tft.setTextDatum(MC_DATUM);
-    tft.setTextColor((t.tm_sec % 2 == 0) ? TFT_WHITE : TFT_BLACK, TFT_BLACK);
-    tft.drawString(":", 137, 45, 6);
-    tft.setTextDatum(ML_DATUM);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.drawString(mBuf, 145, 45, 6);
-    tft.setTextDatum(TL_DATUM);
-  }
-  void drawSecondsBar() {
-    struct tm t;
-    if (!getLocalTime(&t)) return;
-    for (int i = 0; i < 60; ++i) {
-      uint16_t c = (i < t.tm_sec) ? tft.color565(
-          (int)(sinf((float)i / 60.0f * TWO_PI)                   * 127 + 128),
-          (int)(sinf((float)i / 60.0f * TWO_PI + TWO_PI / 3.0f)  * 127 + 128),
-          (int)(sinf((float)i / 60.0f * TWO_PI + 2*TWO_PI / 3.0f)* 127 + 128)
-      ) : (uint16_t)0x07FF;
-      tft.fillRect(8 + (int)((float)i * 4.3f), 100, 2, 25, c);
-    }
-  }
-  void drawDate() {
-    struct tm t;
-    if (!getLocalTime(&t)) return;
-    const char* days[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
-    tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.drawString(days[t.tm_wday], 137, 170, 4);
-    char dBuf[16];
-    snprintf(dBuf, sizeof(dBuf), "%02d/%02d/%04d", t.tm_mday, t.tm_mon + 1, t.tm_year + 1900);
-    tft.drawString(dBuf, 137, 200, 4);
-    tft.setTextDatum(TL_DATUM);
-  }
-  void drawRssi() {
-    int rssi = WiFi.RSSI();
-    int bars = (rssi > -55) ? 4 : (rssi > -65) ? 3 : (rssi > -75) ? 2 : 1;
-    for (int i = 0; i < 4; ++i) {
-      uint16_t c = (i < bars) ? TFT_GREEN : (uint16_t)0x4208;
-      tft.fillRect(240 + i * 7, 228 - (i + 1) * 5, 5, (i + 1) * 5, c);
-    }
-  }
-};
+// ── ClockApp (M-CLOCK-STYLES) ─────────────────────────────────────────
+#include "clockApp.h"
 static ClockApp g_ClockApp;
 
 // ── VE instrumentation statics (consumed by SERIAL_DEBUG cmdGet) ─────────────

@@ -1,7 +1,7 @@
 # M-CLOCK-STYLES — Clock style variants + MM position fix
 
 > Owner: Architect  
-> Status: design — not started  
+> Status: phases 2–4 implemented (2026-06-13 — TASK-193); phase 5 VE open  
 > Date: 2026-06-12  
 > Part of: [overview.md](M-MULTIAPP/overview.md)  
 > See also: [clock.md](M-MULTIAPP/clock.md), [settings.md](M-MULTIAPP/settings.md), [M-SETTINGS-APP-WIRE.md](M-SETTINGS-APP-WIRE.md)

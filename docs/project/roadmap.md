@@ -434,7 +434,7 @@ Work:
 9. **VE suite** — T_CLK_01–14 (style cycle, blink stability, flip animation,
    Nixie/VFD bounds, settings persistence, app-switch style preservation).
 
-**Status:** not started — design 2026-06-12  
+**Status:** phases 0 (partial — VFD date approved, flip iterated), 1, 2, 3, 4 done (2026-06-13 — TASK-193); phase 5 (VE T_CLK_01–14) open  
 **Design:** [M-CLOCK-STYLES.md](../architecture/designs/M-CLOCK-STYLES.md)  
 **Deps:** M-SETTINGS-001 (done), M-APP-REGISTRY (done)
 

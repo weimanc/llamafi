@@ -56,6 +56,9 @@ static void applyDefaults() {
     g_settings.lifeSpeed  = AppSpeed::Normal;
     g_settings.lifeColors = LifeColors::Rainbow;
 
+    // Clock
+    g_settings.clockStyle = ClockStyle::Digital;
+
     // Teletext
     g_settings.teletextPage        = 101;
     g_settings.teletextPollSecs    = 60;
@@ -71,6 +74,7 @@ static const char* kSpeedStr[]       = {"slow","normal","fast"};
 static const char* kStockModeStr[]   = {"list","chart","heatmap"};
 static const char* kMatrixColorStr[] = {"green","white","amber"};
 static const char* kLifeColorsStr[]  = {"rainbow","mono"};
+static const char* kClockStyleStr[]  = {"digital","flip","nixie","vfd"};
 
 template<typename E, int N>
 static E strToEnum(const char* s, const char* (&table)[N], E def) {
@@ -181,6 +185,12 @@ void SettingsStorage::load() {
         if (l.containsKey("colors")) g_settings.lifeColors = strToEnum<LifeColors>(l["colors"] | "rainbow", kLifeColorsStr, LifeColors::Rainbow);
     }
 
+    // Clock
+    if (doc.containsKey("clock")) {
+        auto ck = doc["clock"];
+        if (ck.containsKey("style")) g_settings.clockStyle = strToEnum<ClockStyle>(ck["style"] | "digital", kClockStyleStr, ClockStyle::Digital);
+    }
+
     // Teletext
     if (doc.containsKey("teletext")) {
         auto tt = doc["teletext"];
@@ -244,6 +254,9 @@ void SettingsStorage::save() {
     auto lf = doc.createNestedObject("life");
     lf["speed"]  = kSpeedStr[(uint8_t)g_settings.lifeSpeed];
     lf["colors"] = kLifeColorsStr[(uint8_t)g_settings.lifeColors];
+
+    auto ck = doc.createNestedObject("clock");
+    ck["style"] = kClockStyleStr[(uint8_t)g_settings.clockStyle];
 
     auto tt = doc.createNestedObject("teletext");
     tt["page"]        = g_settings.teletextPage;

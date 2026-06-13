@@ -92,6 +92,7 @@ private:
             case AppId::Aquarium: _repaintAquarium(); break;
             case AppId::Matrix:   _repaintMatrix();   break;
             case AppId::Life:     _repaintLife();     break;
+            case AppId::Clock:    _repaintClock();    break;
             case AppId::Teletext: _repaintTeletext(); break;
             default: break;
         }
@@ -188,6 +189,7 @@ private:
             case AppId::Aquarium: _cycleAquarium(row); break;
             case AppId::Matrix:   _cycleMatrix(row);   break;
             case AppId::Life:     _cycleLife(row);     break;
+            case AppId::Clock:    _cycleClock(row);    break;
             case AppId::Teletext: _cycleTeletext(row); break;
             default: break;
         }
@@ -235,6 +237,19 @@ private:
         else if (row == 1) settings().lifeColors = (LifeColors)(((uint8_t)settings().lifeColors + 1) % 2);
         else return;
         saveSettings(); repaint();
+    }
+
+    void _repaintClock() {
+        static const char* kS[] = { "digital", "flip", "nixie", "vfd" };
+        uint8_t cs = (uint8_t)settings().clockStyle % 4;
+        drawRow(S_CONTENT_Y, { "Style", kS[cs], S_LABEL, S_VALUE });
+    }
+
+    void _cycleClock(int row) {
+        if (row != 0) return;
+        settings().clockStyle = (ClockStyle)(((uint8_t)settings().clockStyle + 1) % 4);
+        saveSettings();
+        repaint();
     }
 
     void _repaintTeletext() {
