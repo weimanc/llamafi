@@ -348,18 +348,25 @@ class Keypad:
 
 
 def find_row_link(grid, row):
-    """Scan cols 35–39 for 3 contiguous digit chars; return page str or None."""
+    """Scan cols 33–39 for an isolated 3-digit NOS page ref (100–899).
+
+    Expanded to col 33 (was 35) — some refs start at col 34.
+    Scans the whole window first, then searches, to avoid the reset-on-
+    non-digit bug where '666  ' would accumulate '666' then reset to ''
+    before the regex ran.  Handles 'NNN/subpage' notation correctly
+    because '/' is non-digit, so (?<!\\d) / (?!\\d) boundaries work.
+    """
     if row >= len(grid):
         return None
     chars = ''
-    for ci in range(35, min(40, len(grid[row]))):
+    for ci in range(33, min(40, len(grid[row]))):
         _, _, payload, is_mosaic = grid[row][ci]
-        if not is_mosaic and payload and payload.isdigit():
-            chars += payload
-        else:
-            chars = ''
-    m = re.search(r'\d{3}', chars)
-    return m.group(0) if m else None
+        chars += (payload if (not is_mosaic and payload) else ' ')
+    for m in re.finditer(r'(?<!\d)(\d{3})(?!\d)', chars):
+        pg = int(m.group(1))
+        if 100 <= pg <= 899:
+            return m.group(1)
+    return None
 
 def scan_links(grid):
     """Return set of row indices that contain an inline page link."""
