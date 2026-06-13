@@ -716,7 +716,8 @@ The strip zone header can be authored and committed **before** TASK-177 (values 
 already known). Only the submenu-row section requires TASK-177 to be complete first.
 
 **Priority:** P1 — gates all tap tests (T254–T262)  
-**Status:** open  
+**Status:** closed — 2026-06-13. Strip zone header written at `app/gen/teletext_layout.h`.
+Submenu row coordinates remain TBD (comment in header, populated by TASK-177).  
 **Opened:** 2026-06-13  
 **Milestone:** M-TELETEXT  
 **Owner:** Developer  
@@ -799,7 +800,9 @@ taskbar slot. Style: consistent with existing icons (B&W inactive, coloured
 active). Re-run `run/bake-icons`; update `golden.sha256`.
 
 **Priority:** P2 — needed before DUT flash of TASK-177  
-**Status:** open  
+**Status:** closed — 2026-06-13. `teletext.png` + `teletext_active.png` (40×40 RGBA,
+page-outline with 4 text-row lines) created in `app/icons/taskbar/`. Baked into
+`app/gen/taskbar_icons.h/.cpp` at slot 9 (`AppId::Teletext`).  
 **Opened:** 2026-06-13  
 **Milestone:** M-TELETEXT  
 **Owner:** Developer  
