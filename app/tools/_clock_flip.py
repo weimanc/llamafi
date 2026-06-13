@@ -23,11 +23,26 @@ from PIL import Image, ImageDraw, ImageFont
 # ── font helpers ──────────────────────────────────────────────────────────────
 
 _FONT_PATHS = [
+    "/usr/share/fonts/google-roboto/Roboto-Black.ttf",        # preferred — bold, clean 0
+    "/usr/share/fonts/google-noto/NotoSans-ExtraBold.ttf",
+    "/usr/share/fonts/liberation-sans-fonts/LiberationSans-Bold.ttf",
     "/usr/share/fonts/liberation-mono-fonts/LiberationMono-Bold.ttf",
-    "/usr/share/fonts/google-noto/NotoSansMono-ExtraBold.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
 ]
+
+_DATE_FONT_PATHS = [
+    "/usr/share/fonts/google-roboto/Roboto-Regular.ttf",      # lighter weight for date
+    "/usr/share/fonts/open-sans/OpenSans-Regular.ttf",
+    "/usr/share/fonts/google-noto/NotoSans-Regular.ttf",
+    "/usr/share/fonts/liberation-sans-fonts/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/liberation-mono-fonts/LiberationMono-Bold.ttf",
+]
+
+
+def _load_date_font(size: int) -> ImageFont.FreeTypeFont:
+    for p in _DATE_FONT_PATHS:
+        if pathlib.Path(p).exists():
+            return ImageFont.truetype(p, size)
+    return ImageFont.load_default(size=size)
 
 
 def _load_font(size: int) -> ImageFont.FreeTypeFont:
@@ -78,10 +93,6 @@ _C_SPLIT_EDGE_BOT = (72, 72, 84)    # 1px highlight at crown of bottom plate
 _C_TEXT_DEFAULT   = (242, 242, 235)  # warm white
 _C_COLON_DEFAULT  = (230, 230, 222)  # bright warm white — prominent dots
 
-# Seconds indicator
-_C_SEC_LIT  = (75, 75, 85)
-_C_SEC_OFF  = (28, 28, 32)
-
 # ── layout constants ──────────────────────────────────────────────────────────
 
 _CARD_W       = 56    # card width (px)
@@ -95,27 +106,18 @@ _CARD_XS  = [13, 73, 147, 207]   # left-x of H1, H2, M1, M2
 _COLON_CX = (73 + 56 + 147) // 2   # x-centre of colon gap → 138
 _COLON_R  = 8   # half-side of colon dot square (16×16 px dots)
 
-# Vertical centre of time panel
-_TIME_CY  = 52
-_CARD_Y   = _TIME_CY - _CARD_TOTAL_H // 2   # 12
+# Cards sit near the top; date centred in the lower half
+_CARD_Y   = 8
 
 # Colon dots centred in each card half
 _COLON_Y1 = _CARD_Y + _CARD_HALF_H // 2
 _COLON_Y2 = _CARD_Y + _CARD_HALF_H + _CARD_GAP + _CARD_HALF_H // 2
 
-# Date text
-_DATE_Y   = _CARD_Y + _CARD_TOTAL_H + 20
+# Date text — pushed into the lower third of the canvas for visual balance
+_DATE_Y   = 155
 
-# Seconds bar
-_SEC_Y    = _CARD_Y + _CARD_TOTAL_H + 9
-_SEC_DOTS = 60
-_SEC_DOT_W = 3
-_SEC_DOT_GAP = 1
-_SEC_TOTAL_W = _SEC_DOTS * (_SEC_DOT_W + _SEC_DOT_GAP) - _SEC_DOT_GAP  # 239
-_SEC_X0   = (275 - _SEC_TOTAL_W) // 2
-
-# Font size for card digits
-_DIGIT_FONT_SIZE = 36
+# Font size for card digits — Roboto-Black is compact; 40pt fills the half-card well
+_DIGIT_FONT_SIZE = 40
 
 # Frame animation table: (top_flap_h, top_shows_next, bot_h)
 _FRAME_TABLE = [
@@ -134,7 +136,7 @@ class FlipRenderer(ClockRenderer):
 
     def __init__(self) -> None:
         self._font_digit = _load_font(_DIGIT_FONT_SIZE)
-        self._font_date  = _load_font(14)
+        self._font_date  = _load_date_font(14)
 
         # Per-card animation state
         self._digits: list[dict] = [
@@ -211,9 +213,6 @@ class FlipRenderer(ClockRenderer):
                  _COLON_CX + _COLON_R - 1, cy + _COLON_R - 1],
                 fill=self._C_COLON,
             )
-
-        # Seconds bar
-        self._draw_seconds_bar(draw, t.tm_sec)
 
         # Date line
         self._draw_date(draw, t)
@@ -352,19 +351,14 @@ class FlipRenderer(ClockRenderer):
 
     # ── secondary elements ────────────────────────────────────────────────────
 
-    def _draw_seconds_bar(self, draw: ImageDraw.ImageDraw, sec: int) -> None:
-        for i in range(_SEC_DOTS):
-            x = _SEC_X0 + i * (_SEC_DOT_W + _SEC_DOT_GAP)
-            c = _C_SEC_LIT if i < sec else _C_SEC_OFF
-            draw.rectangle([x, _SEC_Y, x + _SEC_DOT_W - 1, _SEC_Y + 1], fill=c)
-
     def _draw_date(self, draw: ImageDraw.ImageDraw, t: _time.struct_time) -> None:
         _DAYS   = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
         _MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
                    "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
         s = f"{_DAYS[t.tm_wday]}  {t.tm_mday:02d} {_MONTHS[t.tm_mon - 1]} {t.tm_year}"
+        c_date = tuple(int(v * 0.82) for v in self._C_TEXT)  # ~18% dimmer than digits
         draw.text((137, _DATE_Y), s, font=self._font_date,
-                  fill=self._C_TEXT, anchor="mt")
+                  fill=c_date, anchor="mt")
 
 
 # ── standalone sanity test ────────────────────────────────────────────────────
