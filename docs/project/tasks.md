@@ -91,6 +91,30 @@ Deliverables (all done):
 
 ---
 
+### TASK-194 — M-CLOCK-STYLES: VE suite T_CLK_01–14
+
+Serial-driven DUT verification of the clock style system.
+
+Deliverables (all done):
+1. `get clockStyle` / `set clockStyle` serial commands added to main.cpp cmdGet/cmdSet.
+2. 14 test functions added to `run_serialdbg_tests.py` (t_clk_01..t_clk_14).
+3. `docs/verification/regression_suite/m-clock-styles.md` created.
+4. All 14 tests pass: style cycle, persistence, app-switch preservation, heap stability,
+   device responsiveness during Flip animation, response format, error rejection.
+5. Visual criteria C1/C4/C5/C6/C8 deferred to operator physical screen review.
+
+Result: **14/14 PASS**. Heap leak=0B across 8 style switches.
+
+**Priority:** P2
+**Status:** done
+**Opened:** 2026-06-13
+**Closed:** 2026-06-13
+**Milestone:** M-CLOCK-STYLES
+**Owner:** VE
+**Deps:** TASK-193
+
+---
+
 ### TASK-192 — M-PREVIEW-FRAMEWORK: implement preview_common.py and port 6 tools
 
 Retroactive task — implementation completed in session 2026-06-13 before task was filed.

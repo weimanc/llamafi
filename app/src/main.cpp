@@ -2409,6 +2409,13 @@ static void cmdGet(const char *args) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
     return;
   }
+  if (strcmp(args, "clockStyle") == 0) {
+    static const char* kSN[] = {"digital","flip","nixie","vfd"};
+    uint8_t cs = (uint8_t)g_settings.clockStyle % 4;
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"clockStyle\","
+                  "\"val\":%d,\"name\":\"%s\",\"last\":true}\n", cs, kSN[cs]);
+    return;
+  }
   Serial.printf("{\"ok\":false,\"cmd\":\"get\","
                 "\"error\":\"unknown var\",\"var\":\"%s\"}\n", args);
 }
@@ -2433,6 +2440,23 @@ static void cmdSet(const char *args) {
   if (teletextDbgSet(var, val)) {
     Serial.printf("{\"ok\":true,\"cmd\":\"set\","
                   "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
+    return;
+  }
+  if (strcmp(var, "clockStyle") == 0) {
+    static const char* kSN[] = {"digital","flip","nixie","vfd"};
+    int idx = -1;
+    for (int i = 0; i < 4; i++) if (strcmp(val, kSN[i]) == 0) { idx = i; break; }
+    if (idx < 0) { char tmp[2]; if (sscanf(val, "%d", &idx) != 1 || idx < 0 || idx > 3) idx = -1; }
+    if (idx < 0) {
+      Serial.printf("{\"ok\":false,\"cmd\":\"set\","
+                    "\"error\":\"bad val — use 0-3 or digital/flip/nixie/vfd\"}\n");
+      return;
+    }
+    g_settings.clockStyle = (ClockStyle)idx;
+    SettingsStorage::save();
+    if (currentAppId == AppId::Clock) g_ClockApp.resume();
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\","
+                  "\"var\":\"clockStyle\",\"val\":%d,\"name\":\"%s\"}\n", idx, kSN[idx]);
     return;
   }
   Serial.printf("{\"ok\":false,\"cmd\":\"set\","
