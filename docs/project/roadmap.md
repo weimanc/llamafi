@@ -812,6 +812,40 @@ was written — a deliberate practice from lessons learned.
 
 ---
 
+### M-WEBRADIO — International Web Radio App
+
+11th app in the multiapp shell. Browse and play internet radio stations from
+**radio-browser.info**, categorised by country. The Winamp main-unit UI is
+reused with adapted semantics: station name in the title marquee, stream buffer
+health in the seek bar, prev/next mapped to station navigation. Toggle between
+Spotify and web radio via the existing taskbar.
+
+**High-level requirements:**
+- **UI**: Winamp skin reused; controls remapped to radio semantics.
+- **Toggle**: switch apps via taskbar — no special mechanism needed.
+- **Settings**: country/region selector (Settings → Applications → Web Radio).
+- **Playlist**: scrollable station list fetched by country (radio-browser.info);
+  sorted by popularity; capped at 100 entries.
+- **UX controls**: play/stop, prev/next station, station name marquee, ICY
+  now-playing metadata in title area.
+
+**R&D pre-requisites (EXP-005 spike, blocks firmware design):**
+1. **radio-browser.info API**: HTTPS reachability from ESP32, response format,
+   station URL reliability, rate limits.
+2. **CYD audio path**: GPIO 25/26 internal DAC vs I2S; pinout conflicts with
+   TFT_eSPI on this CYD revision; acceptable quality.
+3. **ESP32-audioI2S library**: footprint, compat with `espressif32@6.9.0`,
+   MP3 CPU load, peak-level API (VU meter feed).
+4. **ICY metadata**: `StreamTitle` surfaced via ESP32-audioI2S callback for
+   now-playing display.
+
+**Status:** design draft; R&D spike (EXP-005) complete 2026-06-13; pending PM scheduling  
+**Deps:** M-MULTIAPP (done), M-TASKBAR-ICONS (done), EXP-005 (done)  
+**Design:** [M-WEBRADIO.md](../architecture/designs/M-WEBRADIO.md)  
+**R&D:** [EXP-005](../rnd/reports/EXP-005-webradio-spike.md)
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.
