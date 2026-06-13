@@ -3,6 +3,12 @@
 Mechanical split-flap display simulation.  Four digit cards (H1 H2 : M1 M2),
 5-frame flip animation driven by wall-clock time.
 
+Rendering model (per M-CLOCK-FLIP.md):
+  - Each card has a top half and bottom half separated by a thin split line.
+  - Bottom plate always shows the *new* digit (swapped at animation start).
+  - Top flap falls (shrinks toward centre) then new top rises.
+  - Cards: dark-grey rounded rectangles; top half slightly lighter than bottom.
+
 Imported by preview_clock.py as:
     from _clock_flip import FlipRenderer
 """
@@ -20,6 +26,7 @@ _FONT_PATHS = [
     "/usr/share/fonts/liberation-mono-fonts/LiberationMono-Bold.ttf",
     "/usr/share/fonts/google-noto/NotoSansMono-ExtraBold.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
 ]
 
 
@@ -28,20 +35,6 @@ def _load_font(size: int) -> ImageFont.FreeTypeFont:
         if pathlib.Path(p).exists():
             return ImageFont.truetype(p, size)
     return ImageFont.load_default(size=size)
-
-
-# ── rainbow helper ────────────────────────────────────────────────────────────
-
-def rainbow_color(i: int, total: int = 60) -> tuple[int, int, int]:
-    h = int(i * 255 / total)
-    if h < 85:
-        return (255 - h * 3, h * 3, 0)
-    elif h < 170:
-        h -= 85
-        return (0, 255 - h * 3, h * 3)
-    else:
-        h -= 170
-        return (h * 3, 0, 255 - h * 3)
 
 
 # ── minimal ClockRenderer stub (mirrors preview_clock.ClockRenderer) ──────────
@@ -63,58 +56,75 @@ class ClockRenderer(ABC):
     def param_dict(self) -> dict: ...
 
 
-# ── colour palette (initial) ──────────────────────────────────────────────────
+# ── colour palette ────────────────────────────────────────────────────────────
 
-_PALETTE_BG_LEVELS = [
-    (15, 10, 5),     # dark
-    (8, 5, 2),       # darker
-    (2, 1, 0),       # very dark
+# Background levels (b key cycles)
+_BG_LEVELS = [
+    (10, 10, 12),   # near-black housing (default) — cards stand out clearly
+    (18, 18, 20),   # dark charcoal
+    (28, 26, 24),   # warm dark
 ]
 
-_TEXT_WARM = (255, 248, 200)   # cream
-_TEXT_COOL = (240, 245, 255)   # cool white
+# Card colours — noticeably lighter than the housing
+_C_TOP_DEFAULT     = (55, 55, 62)   # top half
+_C_BOT_DEFAULT     = (40, 40, 46)   # bottom half — slightly darker for depth
+_C_OUTLINE_DEFAULT = (75, 75, 88)   # card border
+# Split: hinge groove is the darkest element — shadowed recess between the two flaps
+_C_SPLIT_EDGE_TOP = (18, 18, 20)    # 1px shadow at base of top flap
+_C_SPLIT_GAP      = ( 5,  5,  6)    # very dark groove — clearly different from BG
+_C_SPLIT_EDGE_BOT = (72, 72, 84)    # 1px highlight at crown of bottom plate
+
+# Text / colon
+_C_TEXT_DEFAULT   = (242, 242, 235)  # warm white
+_C_COLON_DEFAULT  = (230, 230, 222)  # bright warm white — prominent dots
+
+# Seconds indicator
+_C_SEC_LIT  = (75, 75, 85)
+_C_SEC_OFF  = (28, 28, 32)
 
 # ── layout constants ──────────────────────────────────────────────────────────
 
-# Card dimensions
-_CARD_W      = 46
-_CARD_HALF_H = 30   # height of each card half
-_CARD_GAP    = 2    # gap between top and bottom halves
-_CARD_TOTAL_H = _CARD_HALF_H * 2 + _CARD_GAP   # 62
+_CARD_W       = 56    # card width (px)
+_CARD_HALF_H  = 38    # height of each card half (px)
+_CARD_GAP     = 2     # hinge gap (px)
+_CARD_TOTAL_H = _CARD_HALF_H * 2 + _CARD_GAP   # 78
+_CARD_R       = 6     # corner radius
 
-# Time box occupies y 5..85 (height=80).  Centre cards vertically in that zone.
-_TIME_BOX_Y  = 5
-_TIME_BOX_H  = 80
-_CARD_TOP_Y  = (_TIME_BOX_H - _CARD_TOTAL_H) // 2 + _TIME_BOX_Y  # 14
+# 4 × 56 + inner gaps(4 px × 2) + colon gutter(18) = 250 px; margins 12 px each side
+_CARD_XS  = [13, 73, 147, 207]   # left-x of H1, H2, M1, M2
+_COLON_CX = (73 + 56 + 147) // 2   # x-centre of colon gap → 138
+_COLON_R  = 8   # half-side of colon dot square (16×16 px dots)
 
-# Card left-x positions: H1, H2, [gap 129..144], M1, M2
-_CARD_XS = [37, 83, 145, 191]
+# Vertical centre of time panel
+_TIME_CY  = 52
+_CARD_Y   = _TIME_CY - _CARD_TOTAL_H // 2   # 12
 
-# Colon dots (two 5×5 squares)
-_COLON_X  = 135
-_COLON_Y1 = 27
-_COLON_Y2 = 49
+# Colon dots centred in each card half
+_COLON_Y1 = _CARD_Y + _CARD_HALF_H // 2
+_COLON_Y2 = _CARD_Y + _CARD_HALF_H + _CARD_GAP + _CARD_HALF_H // 2
 
-# Seconds strip
-_SEC_STRIP_Y0 = 95
-_SEC_STRIP_Y1 = 110
+# Date text
+_DATE_Y   = _CARD_Y + _CARD_TOTAL_H + 20
 
-_SEC_OFF = (25, 20, 10)
+# Seconds bar
+_SEC_Y    = _CARD_Y + _CARD_TOTAL_H + 9
+_SEC_DOTS = 60
+_SEC_DOT_W = 3
+_SEC_DOT_GAP = 1
+_SEC_TOTAL_W = _SEC_DOTS * (_SEC_DOT_W + _SEC_DOT_GAP) - _SEC_DOT_GAP  # 239
+_SEC_X0   = (275 - _SEC_TOTAL_W) // 2
 
-# Frame animation: (top_h, bottom_h, top_digit_is_next)
-#   True  → top shows "next"
-#   False → top shows "current"
+# Font size for card digits
+_DIGIT_FONT_SIZE = 36
+
+# Frame animation table: (top_flap_h, top_shows_next, bot_h)
 _FRAME_TABLE = [
-    # frame: (top_h, top_is_next, bot_h)
-    (30, False, 30),   # 0 = stable
-    (22, False, 30),   # 1
-    (14, False, 30),   # 2
-    ( 7, False, 30),   # 3
-    (30, True,  22),   # 4
+    (38, False, 38),   # 0 = stable
+    (27, False, 38),   # 1 — flap falling, old top
+    (14, False, 38),   # 2
+    ( 4, False, 38),   # 3 — near edge-on
+    (38, True,  27),   # 4 — new top rising
 ]
-
-# Font size for digits
-_DIGIT_FONT_SIZE = 26
 
 
 # ── FlipRenderer ─────────────────────────────────────────────────────────────
@@ -124,39 +134,39 @@ class FlipRenderer(ClockRenderer):
 
     def __init__(self) -> None:
         self._font_digit = _load_font(_DIGIT_FONT_SIZE)
-        self._font_day   = _load_font(20)
-        self._font_date  = _load_font(18)
+        self._font_date  = _load_font(14)
 
-        # Animation state for each of the 4 digit cards
+        # Per-card animation state
         self._digits: list[dict] = [
             {"current": 0, "next": 0, "frame": 0, "last_flip_t": 0.0}
             for _ in range(4)
         ]
 
         self._frame_ms: int = 80
+        self._bg_idx: int   = 0
 
-        self._bg_level: int = 0       # index into _PALETTE_BG_LEVELS
-        self._warm_text: bool = True  # True = cream, False = cool white
-
-        # Colour palette (will be refreshed from bg_level / warm_text)
-        self._C_BG      = _PALETTE_BG_LEVELS[0]
-        self._C_TOP     = (52, 36, 18)
-        self._C_BOT     = (35, 24, 12)
-        self._C_TEXT    = _TEXT_WARM
-        self._C_OUTLINE = (80, 55, 25)
-        self._C_COLON   = (200, 160, 60)
+        self._C_BG      = _BG_LEVELS[0]
+        self._C_TOP     = _C_TOP_DEFAULT
+        self._C_BOT     = _C_BOT_DEFAULT
+        self._C_OUTLINE = _C_OUTLINE_DEFAULT
+        # split line colours are module-level constants, not instance state
+        self._C_TEXT    = _C_TEXT_DEFAULT
+        self._C_COLON   = _C_COLON_DEFAULT
 
     # ── public interface ──────────────────────────────────────────────────────
 
     def help_text(self) -> str:
-        return "f/F=frame speed  b=bg darkness  w=warm/cool text"
+        return "f/F=frame speed  b=bg darkness"
 
     def param_dict(self) -> dict:
         return {
+            "CARD_W": _CARD_W, "CARD_HALF_H": _CARD_HALF_H,
+            "CARD_GAP": _CARD_GAP, "CARD_R": _CARD_R,
             "frame_ms": self._frame_ms,
             "C_BG":     self._C_BG,
             "C_TOP":    self._C_TOP,
             "C_BOT":    self._C_BOT,
+            "C_OUTLINE": self._C_OUTLINE,
             "C_TEXT":   self._C_TEXT,
             "C_COLON":  self._C_COLON,
         }
@@ -165,192 +175,196 @@ class FlipRenderer(ClockRenderer):
         if key == "f":
             self._frame_ms = max(20, self._frame_ms - 10)
             return True
-        if key == "F":
+        if key in ("F", "shift+f"):
             self._frame_ms = min(200, self._frame_ms + 10)
             return True
         if key == "b":
-            self._bg_level = (self._bg_level + 1) % len(_PALETTE_BG_LEVELS)
-            self._C_BG = _PALETTE_BG_LEVELS[self._bg_level]
-            return True
-        if key == "w":
-            self._warm_text = not self._warm_text
-            self._C_TEXT = _TEXT_WARM if self._warm_text else _TEXT_COOL
+            self._bg_idx = (self._bg_idx + 1) % len(_BG_LEVELS)
+            self._C_BG   = _BG_LEVELS[self._bg_idx]
             return True
         return False
+
+    # ── render ────────────────────────────────────────────────────────────────
 
     def render(self, img: Image.Image, t: _time.struct_time) -> None:
         draw = ImageDraw.Draw(img)
         now  = _time.time()
 
         # Background
-        draw.rectangle([0, 0, self.CANVAS_W - 1, self.CANVAS_H - 1], fill=self._C_BG)
+        draw.rectangle([0, 0, self.CANVAS_W - 1, self.CANVAS_H - 1],
+                       fill=self._C_BG)
 
-        # Determine target digits from current time
-        h1 = t.tm_hour // 10
-        h2 = t.tm_hour % 10
-        m1 = t.tm_min  // 10
-        m2 = t.tm_min  % 10
-        targets = [h1, h2, m1, m2]
+        # Resolve target digits
+        targets = [t.tm_hour // 10, t.tm_hour % 10,
+                   t.tm_min  // 10, t.tm_min  % 10]
 
-        # Advance animation state
         self._update_animation(targets, now)
 
-        # Draw flip cards
-        for i, (card_x, ds) in enumerate(zip(_CARD_XS, self._digits)):
-            self._draw_card(draw, card_x, _CARD_TOP_Y, ds)
+        # Draw cards
+        for card_x, ds in zip(_CARD_XS, self._digits):
+            self._draw_card(draw, card_x, _CARD_Y, ds)
 
-        # Colon dots (static, no blink)
-        csize = 5
-        draw.rectangle(
-            [_COLON_X, _COLON_Y1, _COLON_X + csize - 1, _COLON_Y1 + csize - 1],
-            fill=self._C_COLON,
-        )
-        draw.rectangle(
-            [_COLON_X, _COLON_Y2, _COLON_X + csize - 1, _COLON_Y2 + csize - 1],
-            fill=self._C_COLON,
-        )
+        # Colon dots
+        for cy in (_COLON_Y1, _COLON_Y2):
+            draw.rectangle(
+                [_COLON_CX - _COLON_R, cy - _COLON_R,
+                 _COLON_CX + _COLON_R - 1, cy + _COLON_R - 1],
+                fill=self._C_COLON,
+            )
 
-        # Seconds strip
-        self._draw_seconds_strip(draw, t.tm_sec)
+        # Seconds bar
+        self._draw_seconds_bar(draw, t.tm_sec)
 
-        # Date area
+        # Date line
         self._draw_date(draw, t)
 
-    # ── internal helpers ──────────────────────────────────────────────────────
+    # ── animation ─────────────────────────────────────────────────────────────
 
     def _update_animation(self, targets: list[int], now: float) -> None:
-        """Kick off or advance flip animation for each digit card."""
         frame_s = self._frame_ms / 1000.0
-
         for i, ds in enumerate(self._digits):
             if ds["frame"] == 0:
-                # Stable — check if this digit needs to change
                 if ds["current"] != targets[i]:
                     ds["next"]        = targets[i]
                     ds["frame"]       = 1
                     ds["last_flip_t"] = now
             else:
-                # Animating — advance if enough time has elapsed
                 if (now - ds["last_flip_t"]) >= frame_s:
                     ds["frame"] += 1
                     ds["last_flip_t"] = now
                     if ds["frame"] >= len(_FRAME_TABLE):
-                        # Animation done — commit
                         ds["current"] = ds["next"]
                         ds["frame"]   = 0
 
-    def _draw_card(
-        self,
-        draw: ImageDraw.ImageDraw,
-        card_x: int,
-        card_top: int,
-        ds: dict,
-    ) -> None:
-        """Render one flip card (top half + gap + bottom half)."""
+    # ── card drawing ──────────────────────────────────────────────────────────
+
+    def _draw_card(self, draw: ImageDraw.ImageDraw,
+                   cx: int, cy: int, ds: dict) -> None:
+        """Render one flip card according to M-CLOCK-FLIP.md pipeline."""
         frame   = ds["frame"]
         current = ds["current"]
         nxt     = ds["next"] if frame > 0 else current
 
         top_h, top_is_next, bot_h = _FRAME_TABLE[frame]
-
         top_digit = nxt if top_is_next else current
         bot_digit = nxt
 
-        card_mid = card_top + _CARD_HALF_H       # y where split line lives
+        W  = _CARD_W
+        H  = _CARD_TOTAL_H
+        HH = _CARD_HALF_H
+        G  = _CARD_GAP
+        R  = _CARD_R
+        mid_y = cy + HH  # y of the hinge gap top edge
 
-        # ── top half ──────────────────────────────────────────────────────────
-        if top_h > 0:
-            # Fill downward from card_top (fold-down animation clips from bottom)
-            ty0 = card_top
-            ty1 = card_top + top_h - 1
-            draw.rectangle([card_x, ty0, card_x + _CARD_W - 1, ty1], fill=self._C_TOP)
-            # Thin outline
-            draw.rectangle(
-                [card_x, ty0, card_x + _CARD_W - 1, ty1],
-                outline=self._C_OUTLINE,
-            )
-            # Digit text centred in the full 46×30 area (card_top … card_mid-1)
-            self._draw_digit_in_rect(
-                draw, top_digit,
-                card_x, card_top, _CARD_W, _CARD_HALF_H,
-                clip_bottom=ty1,
-            )
+        # ── 1. Card background ────────────────────────────────────────────────
+        # Top half: TL + TR rounded, BR + BL square (flat at split)
+        draw.rounded_rectangle(
+            [cx, cy, cx + W - 1, mid_y - 1], radius=R, fill=self._C_TOP,
+            corners=(True, True, False, False))
+        # Bottom half: BL + BR rounded, TL + TR square (flat at split)
+        draw.rounded_rectangle(
+            [cx, mid_y + G, cx + W - 1, cy + H - 1], radius=R, fill=self._C_BOT,
+            corners=(False, False, True, True))
+        # Card border — full card outline (drawn before gap so gap shows inside it)
+        draw.rounded_rectangle(
+            [cx, cy, cx + W - 1, cy + H - 1],
+            radius=R, outline=self._C_OUTLINE, width=1)
+        # Hinge gap: inset 1px so the card outline remains visible on left/right edges
+        draw.rectangle(
+            [cx + 1, mid_y, cx + W - 2, mid_y + G - 1], fill=_C_SPLIT_GAP)
 
-        # ── gap line ──────────────────────────────────────────────────────────
-        draw.line(
-            [card_x, card_mid, card_x + _CARD_W, card_mid + 1],
-            fill=(0, 0, 0),
-        )
-
-        # ── bottom half ───────────────────────────────────────────────────────
-        bot_y0 = card_mid + _CARD_GAP
+        # ── 2. Bottom plate (always new digit, static once anim starts) ───────
         if bot_h > 0:
-            # Fill upward from (bot_y0 + _CARD_HALF_H - 1) (rise animation)
-            # Rise: bottom_h shrinks from 30 → smaller → card appears from bottom
-            rise_y0 = bot_y0 + (_CARD_HALF_H - bot_h)
-            rise_y1 = bot_y0 + _CARD_HALF_H - 1
+            bot_y0 = mid_y + G
+            bot_y1 = bot_y0 + HH - 1
+            reveal_top = bot_y1 - bot_h + 1
             draw.rectangle(
-                [card_x, rise_y0, card_x + _CARD_W - 1, rise_y1],
-                fill=self._C_BOT,
-            )
-            draw.rectangle(
-                [card_x, rise_y0, card_x + _CARD_W - 1, rise_y1],
-                outline=self._C_OUTLINE,
-            )
-            # Digit text centred in the full 46×30 area (bot_y0 … bot_y0+29)
-            self._draw_digit_in_rect(
+                [cx + 1, reveal_top, cx + W - 2, bot_y1], fill=self._C_BOT)
+            self._draw_digit_clipped(
                 draw, bot_digit,
-                card_x, bot_y0, _CARD_W, _CARD_HALF_H,
-                clip_top=rise_y0,
+                cx, bot_y0, W, HH, self._C_BOT,
+                clip_y0=reveal_top, clip_y1=bot_y1,
             )
 
-    def _draw_digit_in_rect(
+        # ── 3. Top flap (falls from full → 0, then new digit rises) ──────────
+        if top_h > 0:
+            flap_y0 = cy
+            flap_y1 = cy + top_h - 1
+            draw.rectangle(
+                [cx + 1, flap_y0, cx + W - 2, flap_y1], fill=self._C_TOP)
+            self._draw_digit_clipped(
+                draw, top_digit,
+                cx, cy, W, HH, self._C_TOP,
+                clip_y0=flap_y0, clip_y1=flap_y1,
+            )
+
+        # ── 4. Drop shadow on bottom plate (phase 1 — flap falling) ──────────
+        if frame > 0 and not top_is_next and top_h > 0:
+            shadow_h  = max(2, top_h // 4)
+            shadow_y0 = mid_y + G
+            shadow_y1 = min(shadow_y0 + shadow_h, cy + H - 1)
+            draw.rectangle(
+                [cx + 1, shadow_y0, cx + W - 2, shadow_y1], fill=(0, 0, 0))
+
+        # ── 5. Layered split — inset 1px to keep card outline on left/right ─────
+        # shadow at base of top flap
+        draw.rectangle([cx + 1, mid_y - 1, cx + W - 2, mid_y - 1],
+                       fill=_C_SPLIT_EDGE_TOP)
+        # groove fill
+        draw.rectangle([cx + 1, mid_y,     cx + W - 2, mid_y + G - 1],
+                       fill=_C_SPLIT_GAP)
+        # highlight at crown of bottom plate
+        draw.rectangle([cx + 1, mid_y + G - 1, cx + W - 2, mid_y + G - 1],
+                       fill=_C_SPLIT_EDGE_BOT)
+
+    def _draw_digit_clipped(
         self,
         draw: ImageDraw.ImageDraw,
         digit: int,
-        rx: int,
-        ry: int,
-        rw: int,
-        rh: int,
-        clip_top: int | None = None,
-        clip_bottom: int | None = None,
+        rect_x: int, rect_y: int, rect_w: int, rect_h: int,
+        bg_colour: tuple,
+        clip_y0: int, clip_y1: int,
     ) -> None:
-        """Draw digit centred in the rect (rx,ry,rw,rh).
+        """Draw digit centred in (rect_x, rect_y, rect_w, rect_h), clipped to clip_y0..clip_y1."""
+        if clip_y1 < clip_y0:
+            return
 
-        clip_top / clip_bottom are absolute y coordinates that restrict drawing
-        (used to simulate the folding/rising motion clipping).
-        """
         text = str(digit)
-        bb = draw.textbbox((0, 0), text, font=self._font_digit)
-        tw = bb[2] - bb[0]
-        th = bb[3] - bb[1]
+        bb   = draw.textbbox((0, 0), text, font=self._font_digit)
+        tw   = bb[2] - bb[0]
+        th   = bb[3] - bb[1]
+        tx   = rect_x + (rect_w - tw) // 2 - bb[0]
+        ty   = rect_y + (rect_h - th) // 2 - bb[1]
 
-        tx = rx + (rw - tw) // 2 - bb[0]
-        ty = ry + (rh - th) // 2 - bb[1]
+        tmp   = Image.new("RGB", (rect_w, rect_h), bg_colour)
+        tmp_d = ImageDraw.Draw(tmp)
+        tmp_d.text((tx - rect_x, ty - rect_y), text,
+                   font=self._font_digit, fill=self._C_TEXT)
 
-        # We rely on PIL's normal clipping via the image boundary.
-        # For sub-card clipping we just check if the text anchor falls
-        # within the visible region — good enough for 1-digit glyphs.
-        draw.text((tx, ty), text, font=self._font_digit, fill=self._C_TEXT)
+        src_y0 = max(0, clip_y0 - rect_y)
+        src_y1 = min(rect_h - 1, clip_y1 - rect_y)
+        if src_y1 < src_y0:
+            return
 
-    def _draw_seconds_strip(self, draw: ImageDraw.ImageDraw, sec: int) -> None:
-        for i in range(60):
-            x  = 8 + int(i * 4.3)
-            lit = i < sec
-            c  = rainbow_color(i) if lit else _SEC_OFF
-            draw.rectangle([x, _SEC_STRIP_Y0, x + 1, _SEC_STRIP_Y1], fill=c)
+        strip = tmp.crop((0, src_y0, rect_w, src_y1 + 1))
+        img   = draw._image  # type: ignore[attr-defined]
+        img.paste(strip, (rect_x, rect_y + src_y0))
+
+    # ── secondary elements ────────────────────────────────────────────────────
+
+    def _draw_seconds_bar(self, draw: ImageDraw.ImageDraw, sec: int) -> None:
+        for i in range(_SEC_DOTS):
+            x = _SEC_X0 + i * (_SEC_DOT_W + _SEC_DOT_GAP)
+            c = _C_SEC_LIT if i < sec else _C_SEC_OFF
+            draw.rectangle([x, _SEC_Y, x + _SEC_DOT_W - 1, _SEC_Y + 1], fill=c)
 
     def _draw_date(self, draw: ImageDraw.ImageDraw, t: _time.struct_time) -> None:
-        cx = 137
-        days   = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
-        day_name  = days[t.tm_wday % 7]
-        date_str  = f"{day_name} {t.tm_mday:02d} {months[t.tm_mon - 1]} {t.tm_year}"
-
-        draw.text((cx, 160), day_name,  font=self._font_day,  fill=self._C_TEXT, anchor="mm")
-        draw.text((cx, 190), date_str,  font=self._font_date, fill=self._C_TEXT, anchor="mm")
+        _DAYS   = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+        _MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+                   "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+        s = f"{_DAYS[t.tm_wday]}  {t.tm_mday:02d} {_MONTHS[t.tm_mon - 1]} {t.tm_year}"
+        draw.text((137, _DATE_Y), s, font=self._font_date,
+                  fill=self._C_TEXT, anchor="mt")
 
 
 # ── standalone sanity test ────────────────────────────────────────────────────
@@ -359,26 +373,20 @@ if __name__ == "__main__":
     import sys
 
     renderer = FlipRenderer()
-
-    # Render a stable frame (no animation)
     img = Image.new("RGB", (275, 240), (0, 0, 0))
-    # struct_time tm_year is years-since-1900; 126 = 2026
-    t   = _time.struct_time((126, 6, 12, 12, 34, 45, 4, 163, 1))
+    t   = _time.localtime()
     renderer.render(img, t)
 
     out = pathlib.Path("/tmp/flip_test.png")
     img.save(out)
     print(f"FlipRenderer OK — saved to {out}")
 
-    # Quick key-handler smoke test
-    assert renderer.on_key("f")   is True
-    assert renderer.on_key("F")   is True
-    assert renderer.on_key("b")   is True
-    assert renderer.on_key("w")   is True
-    assert renderer.on_key("x")   is False
+    assert renderer.on_key("f")  is True
+    assert renderer.on_key("F")  is True
+    assert renderer.on_key("b")  is True
+    assert renderer.on_key("x")  is False
     print("on_key OK")
 
-    # param_dict check
     d = renderer.param_dict()
     assert "frame_ms" in d and "C_BG" in d
     print("param_dict OK")
