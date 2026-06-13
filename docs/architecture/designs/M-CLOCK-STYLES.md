@@ -241,6 +241,10 @@ Palette: `TFT_BLACK` bg, `TFT_WHITE` digits, `0xF81F` pink box, `0x07FF` cyan bo
 
 ## Style 1 — Flip Clock
 
+> Render physics, layer model, flap formula, frame table, and parameter table:
+> **[M-CLOCK-FLIP.md](M-CLOCK-FLIP.md)**. The sections below summarise layout
+> and struct; see that doc for implementation detail.
+
 ### Visual concept
 
 Mechanical split-flap display. Each digit rendered as two rectangular "cards"
@@ -378,6 +382,11 @@ Date box and seconds box borders suppressed; date text and seconds dot arc rende
 ---
 
 ## Style 3 — VFD (Vacuum Fluorescent Display)
+
+> Render physics, grid geometry, Dexter v2 glyph system, bloom pipeline, colour
+> themes, and firmware options: **[M-CLOCK-VFD.md](M-CLOCK-VFD.md)**. The
+> sections below are retained for milestone cross-reference; see that doc for
+> implementation detail.
 
 ### Visual concept
 
