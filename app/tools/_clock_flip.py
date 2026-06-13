@@ -116,8 +116,8 @@ _COLON_Y2 = _CARD_Y + _CARD_HALF_H + _CARD_GAP + _CARD_HALF_H // 2
 # Date text — pushed into the lower third of the canvas for visual balance
 _DATE_Y   = 155
 
-# Font size for card digits — Roboto-Black is compact; 40pt fills the half-card well
-_DIGIT_FONT_SIZE = 40
+# Font size for card digits — Roboto-Black at 84pt: max glyph 49×61 px in a 56×78 card
+_DIGIT_FONT_SIZE = 84
 
 # Frame animation table: (top_flap_h, top_shows_next, bot_h)
 _FRAME_TABLE = [
