@@ -191,8 +191,11 @@ public:
             return true;
         }
         if (strcmp(var, "teletextSubpage") == 0) {
-            snprintf(buf, len, "\"var\":\"teletextSubpage\",\"next\":%u,\"prev\":%u,\"last\":true",
-                     (unsigned)_st.subpageNext, (unsigned)_st.subpagePrev);
+            snprintf(buf, len,
+                     "\"var\":\"teletextSubpage\","
+                     "\"next\":%u,\"nextSub\":%u,\"prev\":%u,\"prevSub\":%u,\"last\":true",
+                     (unsigned)_st.subpageNext, (unsigned)_st.subpageNextSub,
+                     (unsigned)_st.subpagePrev, (unsigned)_st.subpagePrevSub);
             return true;
         }
         return false;
@@ -211,6 +214,25 @@ public:
         if (strcmp(var, "triggerTeletextFetch") == 0 && strcmp(val, "1") == 0) {
             _lastFetch = _forceNow();
             _pendingFetch = false;  // allow tick() to enqueue even if prior fetch pending
+            return true;
+        }
+        if (strcmp(var, "teletextSubpageNext") == 0) {
+            // Format: "617-2" sets subpageNext=617 subpageNextSub=2; "0" clears.
+            int pg = atoi(val);
+            const char* dash = strchr(val, '-');
+            uint8_t sub = (dash && dash[1]) ? (uint8_t)atoi(dash + 1) : 0;
+            _st.subpageNext    = (pg >= 100 && pg <= 899) ? (uint16_t)pg : 0;
+            _st.subpageNextSub = _st.subpageNext ? sub : 0;
+            _drawStrip();
+            return true;
+        }
+        if (strcmp(var, "teletextSubpagePrev") == 0) {
+            int pg = atoi(val);
+            const char* dash = strchr(val, '-');
+            uint8_t sub = (dash && dash[1]) ? (uint8_t)atoi(dash + 1) : 0;
+            _st.subpagePrev    = (pg >= 100 && pg <= 899) ? (uint16_t)pg : 0;
+            _st.subpagePrevSub = _st.subpagePrev ? sub : 0;
+            _drawStrip();
             return true;
         }
         if (strcmp(var, "teletextPageContent") == 0) {

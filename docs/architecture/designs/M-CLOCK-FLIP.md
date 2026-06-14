@@ -1,8 +1,8 @@
 # M-CLOCK-FLIP — Flip Clock Renderer Physics
 
 > Owner: Architect  
-> Status: design — not started  
-> Date: 2026-06-13  
+> Status: design — in progress (preview tool validated; firmware not started)  
+> Date: 2026-06-14  
 > Part of: [M-CLOCK-STYLES.md](M-CLOCK-STYLES.md) — Style 1  
 > See also: [clock.md](M-MULTIAPP/clock.md)
 
@@ -172,18 +172,52 @@ is the authoritative tuning session — approved values replace these.
 
 ---
 
-## Colon separator
+## Colon separator — flip-dot style
 
-Two filled squares, fixed, no blink (split-flap displays do not blank the
-colon). Positioned in the gutter between the HH and MM pairs.
+The colon uses **animated flip-dot discs**, not static squares. Each dot is a
+circular disc that rotates on a 45° diagonal axis, showing a cream-white front
+face when ON and a near-black back face when OFF. The blink cadence is
+**500 ms ON / 500 ms OFF** (matches a mechanical flip-dot display rhythm).
+
+### Geometry
 
 ```
-Square size: 5 × 5 px
-Colour: C_DIGIT (0xFFF0)
-Position: centred horizontally in colon gutter
-  top dot:    y = panel_top + 12
+Disc radius:     5 px  (10 px diameter — fits the 18 px colon gutter)
+Rotation axis:   45° diagonal
+Animation:       80 ms mechanical flip (cos-based foreshortening)
+Position:        centred horizontally in colon gutter (cx ≈ 138)
+  top dot:    y = panel_top + 16
   bottom dot: y = panel_top + 44
 ```
+
+### Flip-dot animation
+
+The disc is rendered as a foreshortened ellipse. At rotation angle `θ` (0 =
+front face, π = back face):
+
+```
+semi_a = DOT_R                       # constant — horizontal extent
+semi_b = |cos(θ)| × DOT_R           # collapses to 0 at θ = π/2 (edge-on)
+```
+
+When `semi_b < 1 px` (edge-on), draw only the 45° hairline axis in rim colour.
+Otherwise draw a filled polygon with 48 vertices, colour = front or back face
+depending on sign of `cos(θ)`.
+
+```
+ON  transition (back → front):  θ: π → 0  over COLON_FLIP_MS
+OFF transition (front → back):  θ: 0 → π  over COLON_FLIP_MS
+```
+
+### Colour constants (approved from preview_clock.py)
+
+| Symbol | RGB | Notes |
+|--------|-----|-------|
+| `C_COLON_FRONT` | (232, 224, 208) | Disc front face — cream white |
+| `C_COLON_BACK`  | (30, 29, 36)    | Disc back face — near black |
+| `C_COLON_RIM`   | (88, 84, 100)   | Disc rim / edge-on hairline |
+| `COLON_DOT_R`   | 5 px            | Disc radius |
+| `COLON_FLIP_MS` | 80 ms           | Mechanical flip duration |
 
 ---
 

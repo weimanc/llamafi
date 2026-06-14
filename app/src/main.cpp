@@ -2206,6 +2206,8 @@ static void cmdTap(const char *args) {
     } else if (currentAppId == AppId::Teletext && g_apps[(int)AppId::Teletext]) {
       g_apps[(int)AppId::Teletext]->handleInput(TouchPhase::Press, x, y);
       bool consumed = g_apps[(int)AppId::Teletext]->handleInput(TouchPhase::Release, x, y);
+      if (!g_shellBusy && g_apps[(int)AppId::Teletext]->hasPendingAsync())
+        shell::setBusy(true);
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                     "\"hit\":\"TELETEXT\",\"action\":\"%s\",\"skipped\":false}\n",
                     x, y, consumed ? "CONSUMED" : "NONE");

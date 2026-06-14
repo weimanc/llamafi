@@ -14,6 +14,7 @@ Imported by preview_clock.py as:
 """
 from __future__ import annotations
 
+import math
 import pathlib
 import time as _time
 from abc import ABC, abstractmethod
@@ -89,9 +90,15 @@ _C_SPLIT_EDGE_TOP = (18, 18, 20)    # 1px shadow at base of top flap
 _C_SPLIT_GAP      = ( 5,  5,  6)    # very dark groove — clearly different from BG
 _C_SPLIT_EDGE_BOT = (72, 72, 84)    # 1px highlight at crown of bottom plate
 
-# Text / colon
+# Text
 _C_TEXT_DEFAULT   = (242, 242, 235)  # warm white
-_C_COLON_DEFAULT  = (230, 230, 222)  # bright warm white — prominent dots
+
+# Flip-dot colon
+_COLON_DOT_R      = 5                # radius px — 10px diameter fits 18px gap
+_COLON_FLIP_MS    = 80               # mechanical flip duration (ms)
+_C_COLON_FRONT    = (232, 224, 208)  # disc front face — cream white
+_C_COLON_BACK     = (30, 29, 36)     # disc back face — near black
+_C_COLON_RIM      = (88, 84, 100)    # disc rim
 
 # ── layout constants ──────────────────────────────────────────────────────────
 
@@ -104,7 +111,6 @@ _CARD_R       = 6     # corner radius
 # 4 × 56 + inner gaps(4 px × 2) + colon gutter(18) = 250 px; margins 12 px each side
 _CARD_XS  = [13, 73, 147, 207]   # left-x of H1, H2, M1, M2
 _COLON_CX = (73 + 56 + 147) // 2   # x-centre of colon gap → 138
-_COLON_R  = 8   # half-side of colon dot square (16×16 px dots)
 
 # Cards sit near the top; date centred in the lower half
 _CARD_Y   = 8
@@ -151,9 +157,12 @@ class FlipRenderer(ClockRenderer):
         self._C_TOP     = _C_TOP_DEFAULT
         self._C_BOT     = _C_BOT_DEFAULT
         self._C_OUTLINE = _C_OUTLINE_DEFAULT
-        # split line colours are module-level constants, not instance state
         self._C_TEXT    = _C_TEXT_DEFAULT
-        self._C_COLON   = _C_COLON_DEFAULT
+
+        # Flip-dot colon state
+        self._colon_on         = True
+        self._colon_theta      = 0.0   # 0=front face, π=back face
+        self._colon_flip_start = 0.0
 
     # ── public interface ──────────────────────────────────────────────────────
 
@@ -169,8 +178,9 @@ class FlipRenderer(ClockRenderer):
             "C_TOP":    self._C_TOP,
             "C_BOT":    self._C_BOT,
             "C_OUTLINE": self._C_OUTLINE,
-            "C_TEXT":   self._C_TEXT,
-            "C_COLON":  self._C_COLON,
+            "C_TEXT":        self._C_TEXT,
+            "COLON_DOT_R":   _COLON_DOT_R,
+            "COLON_FLIP_MS": _COLON_FLIP_MS,
         }
 
     def on_key(self, key: str) -> bool:
@@ -206,13 +216,10 @@ class FlipRenderer(ClockRenderer):
         for card_x, ds in zip(_CARD_XS, self._digits):
             self._draw_card(draw, card_x, _CARD_Y, ds)
 
-        # Colon dots
+        # Flip-dot colon
+        self._update_colon(now)
         for cy in (_COLON_Y1, _COLON_Y2):
-            draw.rectangle(
-                [_COLON_CX - _COLON_R, cy - _COLON_R,
-                 _COLON_CX + _COLON_R - 1, cy + _COLON_R - 1],
-                fill=self._C_COLON,
-            )
+            self._draw_flipdot(draw, _COLON_CX, cy, self._colon_theta)
 
         # Date line
         self._draw_date(draw, t)
@@ -352,6 +359,55 @@ class FlipRenderer(ClockRenderer):
         strip = tmp.crop((0, src_y0, rect_w, src_y1 + 1))
         img   = draw._image  # type: ignore[attr-defined]
         img.paste(strip, (rect_x, rect_y + src_y0))
+
+    # ── flip-dot colon ────────────────────────────────────────────────────────
+
+    def _update_colon(self, now: float) -> None:
+        """Pure mechanical blink: ON first 500 ms of each second, OFF second half."""
+        colon_on = (now % 1.0) < 0.5
+        if colon_on != self._colon_on:
+            self._colon_on         = colon_on
+            self._colon_flip_start = now
+
+        elapsed_ms = (now - self._colon_flip_start) * 1000.0
+        frac       = min(1.0, elapsed_ms / _COLON_FLIP_MS)
+
+        if colon_on:
+            self._colon_theta = math.pi * (1.0 - frac)   # π → 0  (back → front)
+        else:
+            self._colon_theta = math.pi * frac            # 0 → π  (front → back)
+
+    def _flipdot_poly(self, cx: int, cy: int, theta: float) -> list:
+        """Polygon points for the foreshortened flip-dot ellipse."""
+        c   = math.cos(theta)
+        a   = _COLON_DOT_R
+        b   = abs(c) * _COLON_DOT_R
+        phi = math.pi / 4   # 45° diagonal rotation axis
+        pts = []
+        for i in range(48):
+            t = 2 * math.pi * i / 48
+            x = cx + a * math.cos(t) * math.cos(phi) - b * math.sin(t) * math.sin(phi)
+            y = cy + a * math.cos(t) * math.sin(phi) + b * math.sin(t) * math.cos(phi)
+            pts.append((round(x), round(y)))
+        return pts
+
+    def _draw_flipdot(self, draw: ImageDraw.ImageDraw,
+                      cx: int, cy: int, theta: float) -> None:
+        c = math.cos(theta)
+        b = abs(c) * _COLON_DOT_R
+
+        if b < 0.8:
+            # edge-on: draw the diagonal axis as a hairline
+            r   = _COLON_DOT_R
+            phi = math.pi / 4
+            draw.line([(cx - r * math.cos(phi), cy - r * math.sin(phi)),
+                       (cx + r * math.cos(phi), cy + r * math.sin(phi))],
+                      fill=_C_COLON_RIM, width=1)
+            return
+
+        color = _C_COLON_FRONT if c >= 0 else _C_COLON_BACK
+        pts   = self._flipdot_poly(cx, cy, theta)
+        draw.polygon(pts, fill=color, outline=_C_COLON_RIM)
 
     # ── secondary elements ────────────────────────────────────────────────────
 
