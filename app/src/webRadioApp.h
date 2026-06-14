@@ -21,12 +21,13 @@ extern WinampDisplay    winampDisplay;
 // ── Play state ───────────────────────────────────────────────────────────────
 
 enum class WRPlayState : uint8_t {
-    STOPPED          = 0,
-    CONNECTING       = 1,
-    PLAYING          = 2,
-    ERROR_WIFI       = 3,
-    ERROR_STALL      = 4,
+    STOPPED           = 0,
+    CONNECTING        = 1,
+    PLAYING           = 2,
+    ERROR_WIFI        = 3,
+    ERROR_STALL       = 4,
     ERROR_UNREACHABLE = 5,
+    ERROR_BLOCKED     = 6,  // HTTP 403/451 — geo-blocked or DMCA-blocked station
 };
 
 // ── ICY metadata queue ───────────────────────────────────────────────────────
@@ -87,13 +88,20 @@ public:
         _dirty           = true;
         _icyTitle[0]     = '\0';
         _bufPct          = 0;
+        _lastHeapLogMs   = 0;
 
         if (!s_icyTitleQueue)
             s_icyTitleQueue = xQueueCreate(1, sizeof(char) * 104);
 
         wrAudio().setVolume(g_settings.webRadioMaxVolume);
 
+        // TASK-208: heap watermark — app launch baseline
+        LOG_I("webradio", "HEAP init free=%u min=%u",
+              (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap());
+
         // Kick off station list fetch
+        LOG_I("webradio", "HEAP pre-fetch free=%u min=%u",
+              (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap());
         dataTask::enqueueWebRadioStations(g_settings.webRadioCountry);
         _pendingStations = true;
 
@@ -130,6 +138,9 @@ public:
             dataTask::WebRadioStationsResult result;
             if (dataTask::pollWebRadioStations(&result)) {
                 _pendingStations = false;
+                // TASK-208: heap watermark — post-fetch (TLS torn down)
+                LOG_I("webradio", "HEAP post-fetch free=%u min=%u",
+                      (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap());
                 if (result.ok && result.count > 0) {
                     _stationCount = result.count;
                     memcpy(_stations, result.stations,
@@ -147,6 +158,16 @@ public:
 
         // Audio loop — keeps I2S DMA buffer filled from HTTP stream
         if (s_wr_audio) s_wr_audio->loop();
+
+        // TASK-208: periodic heap watermark every 30 s during playback
+        if (_state == WRPlayState::PLAYING) {
+            uint32_t now = millis();
+            if (now - _lastHeapLogMs >= 30000u) {
+                _lastHeapLogMs = now;
+                LOG_I("webradio", "HEAP play free=%u min=%u",
+                      (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap());
+            }
+        }
 
         if (_dirty) {
             _drawFull();
@@ -228,6 +249,15 @@ public:
     }
 
     bool dbgSet(const char* var, const char* val) {
+        // T_WR_ERR_01–04: force playState for synthetic error injection (TASK-212)
+        if (strcmp(var, "wrState") == 0) {
+            int s = atoi(val);
+            if (s >= 0 && s <= (int)WRPlayState::ERROR_BLOCKED) {
+                _state = (WRPlayState)s;
+                _dirty = true;
+            }
+            return true;
+        }
         // T_WR_EJECT_02: serial-inject eject action
         if (strcmp(var, "wrEject") == 0) {
             _stopAudio();
@@ -247,6 +277,15 @@ public:
         }
         if (strcmp(var, "wrNext") == 0) { _nextStation(); return true; }
         if (strcmp(var, "wrPrev") == 0) { _prevStation(); return true; }
+        // T_WR_VOL_01–03 (TASK-209): runtime volume setter for calibration
+        if (strcmp(var, "wrVol") == 0) {
+            int v = atoi(val);
+            if (v >= 0 && v <= 21) {
+                wrAudio().setVolume((uint8_t)v);
+                LOG_I("webradio", "vol set=%d", v);
+            }
+            return true;
+        }
         return false;
     }
 
@@ -262,6 +301,7 @@ private:
     bool        _dirty           = false;
     uint8_t     _bufPct          = 0;
     char        _icyTitle[104]   = {};
+    uint32_t    _lastHeapLogMs   = 0;
     dataTask::WebRadioStation _stations[100];
 
     // ── Audio control ──────────────────────────────────────────────────────
@@ -293,6 +333,9 @@ private:
               idx, _stations[idx].name, _stations[idx].url);
 
         wrAudio().setVolume(g_settings.webRadioMaxVolume);
+        // TASK-208: heap watermark at connecttohost (audio buffer alloc point)
+        LOG_I("webradio", "HEAP pre-connect free=%u min=%u",
+              (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap());
         if (wrAudio().connecttohost(_stations[idx].url)) {
             _state = WRPlayState::PLAYING;
         } else {
@@ -355,11 +398,13 @@ private:
                 case WRPlayState::CONNECTING:
                     tft.drawString("Connecting...", TITLE_X, TITLE_Y, 1); break;
                 case WRPlayState::ERROR_UNREACHABLE:
-                    tft.drawString("ERROR: host unreachable", TITLE_X, TITLE_Y, 1); break;
+                    tft.drawString("Station unreachable", TITLE_X, TITLE_Y, 1); break;
                 case WRPlayState::ERROR_STALL:
-                    tft.drawString("ERROR: stream stalled", TITLE_X, TITLE_Y, 1); break;
+                    tft.drawString("Stream stalled", TITLE_X, TITLE_Y, 1); break;
                 case WRPlayState::ERROR_WIFI:
-                    tft.drawString("ERROR: WiFi lost", TITLE_X, TITLE_Y, 1); break;
+                    tft.drawString("WiFi lost", TITLE_X, TITLE_Y, 1); break;
+                case WRPlayState::ERROR_BLOCKED:
+                    tft.drawString("Station blocked", TITLE_X, TITLE_Y, 1); break;
                 default:
                     tft.drawString(_stations[_currentIdx].name, TITLE_X, TITLE_Y, 1); break;
             }

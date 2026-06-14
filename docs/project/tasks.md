@@ -494,11 +494,12 @@ VE test cases (to be added to m-webradio regression suite):
   assert `currentAppId == AppId::Spotify` after switch.
 
 **Priority:** P1 — gates VE suite for eject toggle
-**Status:** open
+**Status:** done — 2026-06-14
 **Opened:** 2026-06-14
 **Milestone:** M-WEBRADIO
 **Owner:** Developer (accessor) + VE (test cases)
 **Deps:** M-WEBRADIO firmware hitTestEject implemented
+**Sign-off:** hitTestEject→lastTouchResult="EJECT" in winampDisplay.h:891; "EJECT" in action comment line 538; tap 136 89 triggers path; wrEject dbgGet/Set wired. VE test cases T_WR_EJECT_01/02 in regression_suite/m-webradio-eject-errors.md.
 
 ---
 
@@ -524,11 +525,12 @@ Deliverables:
    - `T_WR_ERR_04`: inject `CONNECTING` → assert POSBAR animates (thumb moves).
 
 **Priority:** P2 — required for VE suite completeness before milestone close
-**Status:** open
+**Status:** done — 2026-06-14
 **Opened:** 2026-06-14
 **Milestone:** M-WEBRADIO
 **Owner:** Developer (injection command) + VE (test cases)
 **Deps:** M-WEBRADIO firmware error state machine implemented
+**Sign-off:** ERROR_BLOCKED=6 added to WRPlayState enum; set wrState <int> wired in dbgSet; error display strings updated ("Station blocked", "Station unreachable", "WiFi lost"). VE test cases T_WR_ERR_01–04 in regression_suite/m-webradio-eject-errors.md. DUT run pending.
 
 ---
 
