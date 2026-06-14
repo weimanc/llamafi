@@ -12,6 +12,7 @@ Imported by preview_clock.py as:
 """
 from __future__ import annotations
 
+import math
 import pathlib
 import time as _time
 from abc import ABC, abstractmethod
@@ -100,6 +101,10 @@ _BLOOM_S3 = 0.7
 _BLEED_R  = 10.0
 _BLEED_S  = 0.45
 
+# Colon afterglow: fast ramp-up, slow exponential decay
+_COLON_RAMP_MS  = 80    # ms to reach full brightness on turn-on
+_COLON_DECAY_MS = 500   # ms time constant tau for exponential decay on turn-off
+
 
 # ── tube mask ──────────────────────────────────────────────────────────────────
 
@@ -147,6 +152,11 @@ class NixieRenderer(ClockRenderer):
         self._bloom_s2   = _BLOOM_S2
         self._bleed_r    = _BLEED_R
         self._bleed_s    = _BLEED_S
+
+        # Colon afterglow state
+        self._colon_level    = 1.0   # current brightness 0.0–1.0
+        self._colon_was_on   = True
+        self._colon_change_t = _time.time()
 
     # ── public interface ───────────────────────────────────────────────────────
 
@@ -206,7 +216,9 @@ class NixieRenderer(ClockRenderer):
         for digit, tx in zip(digits, TUBE_XS):
             self._draw_tube(img, tx, TUBE_Y, digit, c_wire, c_bg, mesh)
 
-        self._draw_colon(img, c_wire)
+        self._update_colon_afterglow()
+        c_colon = tuple(int(v * self._colon_level) for v in c_wire)
+        self._draw_colon(img, c_colon)
         self._draw_date(img, t, c_wire)
 
     # ── tube ───────────────────────────────────────────────────────────────────
@@ -289,10 +301,33 @@ class NixieRenderer(ClockRenderer):
         p3 = _pass(self._bloom_r3, _BLOOM_S3)
         return ImageChops.add(p1, ImageChops.add(p2, p3))
 
+    # ── colon afterglow ────────────────────────────────────────────────────────
+
+    def _update_colon_afterglow(self) -> None:
+        """Compute colon glow level: fast ramp-up, exponential phosphor decay."""
+        now     = _time.time()
+        frac    = now % 1.0
+        colon_on = frac < 0.5   # on for first half-second, off for second half
+
+        if colon_on != self._colon_was_on:
+            self._colon_change_t = now
+            self._colon_was_on   = colon_on
+
+        elapsed_ms = (now - self._colon_change_t) * 1000.0
+
+        if colon_on:
+            # linear ramp: 0 → 1 over _COLON_RAMP_MS
+            self._colon_level = min(1.0, elapsed_ms / _COLON_RAMP_MS)
+        else:
+            # exponential decay: tau = _COLON_DECAY_MS
+            self._colon_level = math.exp(-elapsed_ms / _COLON_DECAY_MS)
+
     # ── colon ──────────────────────────────────────────────────────────────────
 
     def _draw_colon(self, canvas: Image.Image, c_wire: tuple) -> None:
-        r    = 5
+        if max(c_wire) < 2:
+            return   # fully decayed — skip bloom computation
+        r    = 3
         cy1  = TUBE_Y + TUBE_H // 3
         cy2  = TUBE_Y + 2 * TUBE_H // 3
 
