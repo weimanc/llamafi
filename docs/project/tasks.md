@@ -289,41 +289,19 @@ Human signs off on layout before firmware work starts — avoids coordinate rewo
 after first flash.
 
 **Priority:** P2
-**Status:** in-progress — 2026-06-14. Initial version written but rejected (naive PIL font + synthetic
-chrome rectangles). Targeted fix in progress — Developer reviewed and confirmed safe (session 5):
+**Status:** done — 2026-06-14. T275 human sign-off obtained after targeted fix. All T273–T282 passing.
 
-Implementation plan (concrete API calls, ~100-120 lines added to existing script):
+Five bugs caught during T275 sign-off and fixed before gate cleared:
+1. Text overflow past TITLE_W — `composite_text` not truncating; fixed with `[:TITLE_W//(GLYPH_W+1)]`.
+2. POSBAR used a synthetic blue fill-rect — firmware uses `POSBAR_BG blit + POSBAR_THUMB_N at position`; fixed to match.
+3. PLEDIT title bar had a preview-invented text overlay ("10 stations • NL") — no firmware counterpart; removed.
+4. Row `fillRect` used `SCREEN_W-1` (319) instead of `PLEDIT_DISPLAY_W-1` (274) — overwrote the taskbar strip.
+5. ICY StreamTitle rendered as a second LED row — DUT has one scrolling row only (`drawTitleText`); collapsed to single combined string mirroring `lastTitle` construction.
 
-1. Add `--wsz skins/base-2.91.wsz` arg (default `pathlib.Path(__file__).parent / "../../skins/base-2.91.wsz"`).
-   Open wsz using `z, prefix = open_skin(wsz_path)` (import from `bake_skin`).
-2. Extract sprites once at startup:
-   - `text_bmp = load_bmp(z, prefix, "TEXT.BMP")` → PIL Image (custom RLE8 decoder in bake_skin handles it; no magick needed)
-   - `posbar_bmp = load_bmp(z, prefix, "POSBAR.BMP")` → PIL Image
-   - `pledit_raw = load_bmp(z, prefix, "PLEDIT.BMP")` → PIL Image
-   - `pledit_atlas = build_pledit_atlas(pledit_raw)` → 275×58 PIL (title 20px + bottom 38px chrome)
-3. LED font: do NOT reimplement — call existing `composite_text(img, text_bmp, text, x, y)` from bake_skin directly. It mirrors `drawTitleText()` glyph-by-glyph.
-4. POSBAR chrome: `img.paste(posbar_bmp.crop((0,0,248,10)), (POSBAR_X, POSBAR_Y))` before drawing fill bar.
-5. PLEDIT chrome: paste `pledit_atlas.crop((0,0,275,20))` at `(0, PLEDIT_Y)` for title bar; paste `pledit_atlas.crop((0,20,275,58))` at `(0, PLEDIT_BOTTOM_Y)` for bottom bar. Also crop and tile PLEDIT side tiles (left `(0,42,12,71)`, right `(32,42,51,71)` from `pledit_raw`) over the rows area.
-
-Imports needed: `from bake_skin import open_skin, load_bmp, composite_text, build_pledit_atlas, POSBAR_LAYOUT, GLYPH_W, GLYPH_H` — confirmed safe (no side effects at import time).
-
-**Step 6 — Remove country badge** (Architect: no firmware counterpart; overlays Winamp skin chrome):
-Delete `_draw_country_badge()` and all call sites. Remove `COUNTRY_X/Y/W/H` constants.
-
-**Step 7 — Functional PLEDIT scrollbar** (Architect audit 2026-06-14 — exact firmware spec):
-- Rail tile: `pledit_raw.crop((32, 42, 51, 71))` (19×29) — tile vertically over y=136..200 at x=256.
-- Thumb: `pledit_raw.crop((52, 54, 61, 71))` (9×17) — transparent key RGB(0,198,255) / tolerance 30.
-- Thumb X (abs): `PLEDIT_CONTENT_X + PLEDIT_CONTENT_W + PLEDIT_THUMB_X_INSET` = 12+244+5 = **261**.
-- Thumb Y: `PLEDIT_ROWS_Y + scroll_offset * 48 // max(1, len(stations)-5)`.
-- Thumb only rendered when `len(stations) > PLEDIT_ROW_COUNT` (5). Rail always rendered.
-- Replace current synthetic scrollbar rectangle entirely.
-
-See `M-WEBRADIO.md §PLEDIT scrollbar` for the PIL implementation code.
-
-T275 human sign-off gate still applies after fix. Prior T275 sign-off (on pre-fix PNGs with PIL font + synthetic chrome + country badge) is void — gate must be re-executed on post-fix snapshots.
-
-VE filed T279-T282 (wsz error handling, LED font pixel check, POSBAR sprite check, --wsz arg coverage). T273/T274/T275/T278 updated to reflect wsz dependency and bake_skin whitelist.
+Country badge and "buf" label also removed (no firmware counterpart).
+Architect added `§Firmware rendering notes` to M-WEBRADIO.md (commit 572379c).
 **Opened:** 2026-06-14
+**Closed:** 2026-06-14
 **Milestone:** M-WEBRADIO
 **Owner:** Developer + human sign-off
 **Deps:** TASK-199 (pass first)

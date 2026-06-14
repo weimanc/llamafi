@@ -3,8 +3,8 @@
 > Owner: Verification Engineer
 > Milestone: M-WEBRADIO (TASK-201)
 > Deliverable: `app/tools/preview_webradio.py`
-> Status: recheck required — TASK-201 fix in progress (LED font + sprite chrome); prior run results on pre-fix tool are void
-> Run date: 2026-06-14 (pre-fix run); rerun required after TASK-201 targeted fix
+> Status: passing — 2026-06-14. T275 human sign-off obtained post-fix. T273–T282 all passing.
+> Run date: 2026-06-14
 > Pattern: follows `preview_vis.py` (not clock pattern)
 
 ---
@@ -25,16 +25,16 @@ on host (Linux, project venv).
 
 | ID   | Description                                          | Method       | Status  |
 |------|------------------------------------------------------|--------------|---------|
-| T273 | Tool launches without error in each of 4 states      | host script  | recheck required |
-| T274 | All 4 keyboard-driven states are reachable at runtime | host script (headless) | recheck required |
-| T275 | All required canvas elements are present in each state | host visual  | **recheck required — prior sign-off void** |
-| T276 | Skin base layer is loaded from `gen/skin_preview.png` | host script  | recheck required |
-| T277 | Canvas stays within 275×240 app area (no taskbar bleed) | host script | recheck required |
-| T278 | No cross-import of unrelated module constants         | host script  | recheck required |
-| T279 | Missing `--wsz` file produces graceful error          | host script  | planned |
-| T280 | LED font glyphs render from TEXT.BMP (not PIL default) | host script + pixel inspect | planned |
-| T281 | POSBAR chrome drawn from POSBAR.BMP sprite (not fill-rect) | host visual + pixel sample | planned |
-| T282 | `--wsz` argument accepted and validated               | host script  | planned |
+| T273 | Tool launches without error in each of 4 states      | host script  | passing — 2026-06-14 |
+| T274 | All 4 keyboard-driven states are reachable at runtime | host script (headless) | passing — 2026-06-14 (headless; interactive confirm deferred) |
+| T275 | All required canvas elements are present in each state | host visual  | **passing — 2026-06-14 (5 sign-off bugs caught + fixed before gate cleared)** |
+| T276 | Skin base layer is loaded from `gen/skin_preview.png` | host script  | passing — 2026-06-14 |
+| T277 | Canvas stays within 275×240 app area (no taskbar bleed) | host script | passing — 2026-06-14 (steps strengthened with pixel-sample; see below) |
+| T278 | No cross-import of unrelated module constants         | host script  | passing — 2026-06-14 |
+| T279 | Missing `--wsz` file produces graceful error          | host script  | passing — 2026-06-14 |
+| T280 | LED font glyphs render from TEXT.BMP (not PIL default) | host script + pixel inspect | passing — 2026-06-14 |
+| T281 | POSBAR chrome drawn from POSBAR.BMP sprite (not fill-rect) | host visual + pixel sample | passing — 2026-06-14 |
+| T282 | `--wsz` argument accepted and validated               | host script  | passing — 2026-06-14 |
 
 ---
 
@@ -131,12 +131,14 @@ on host (Linux, project venv).
      or approximates the background (bars absent).
   5. Inspect the TITLE zone (x=111..264, y=27..32): confirm narrow LED-style glyph
      rendering (not proportional font).
+  5b. Pixel-sample x=265..274, y=27..32 (gap between title text end and taskbar):
+      assert zero LED-green pixels. Guards against text overflow past `TITLE_W`.
   6. Inspect POSBAR zone (y=72..81, `stopped` state): confirm skin texture visible.
 - **Expected result**: All 7 element types visible in the states where they should
   appear.  No element overflows the 275 px wide app area.  LED font and sprite
   chrome confirmed. **Human sign-off on layout required — this is the gate for
   firmware implementation.**
-- **Status**: recheck required — prior sign-off (pre-fix PNGs) is void; gate must be re-executed on post-fix snapshots.
+- **Status**: passing — 2026-06-14. Sign-off obtained after fix. Five bugs caught during review: text overflow (step 5b), POSBAR fill-rect (step 6), PLEDIT title text overlay, taskbar overwrite (row fillRect SCREEN_W-1 → PLEDIT_DISPLAY_W-1), ICY second row removed. All fixed before gate cleared. See LL-077, LL-078.
 
 ---
 
@@ -177,14 +179,20 @@ on host (Linux, project venv).
   renders to an offscreen surface).
 - **Steps**:
   1. Capture a snapshot for the `playing` state (maximum element density).
-  2. Compare the snapshot against `gen/skin_preview.png` in the taskbar band
-     x=275..319: the only differences allowed are the taskbar icon/indicator
-     drawn by `draw_taskbar_pil` (imported from `preview_common`).
-  3. Assert no pixel in x=0..274 is identical to the raw skin in the VU meter,
+  2. **Pixel-sample the taskbar strip** (x=275..319, y=136..200 — the row area): assert the strip
+     is NOT all-black. All-black in this region means a `fillRect` or `paste` bled into the taskbar.
+     (This is the check that catches `SCREEN_W-1` used as a right edge instead of `PLEDIT_DISPLAY_W-1`.)
+  3. Compare x=275..319 across all 4 states: confirm strip matches `draw_taskbar_pil` output and is
+     not overwritten by any radio widget.
+  4. Assert no pixel in x=0..274 is identical to the raw skin in the VU meter,
      buffer bar, and station-list regions (confirms radio content was drawn).
-- **Expected result**: No radio-specific drawing extends into x≥275.  App area
-  (x=0..274) shows radio content on top of the skin.
-- **Status**: passing — 2026-06-14. numpy slice confirmed canvas shape (240,275,3) and taskbar shape (240,45,3) for all 4 states.
+- **Expected result**: Taskbar strip (x=275..319) intact in all 4 states.  No all-black runs in
+  y=136..200 of the taskbar (which would indicate row area overflow).  App area (x=0..274) shows
+  radio content on top of the skin.
+- **Note**: The original "passing" status (numpy slice on canvas shape) was a false pass — it confirmed
+  PIL Image dimensions, not pixel content. The taskbar overwrite bug (row fillRect to SCREEN_W-1=319)
+  was present and undetected. Steps 2–3 above are the correct regression guard. See LL-077.
+- **Status**: passing — 2026-06-14 (post-fix; pixel-sample steps added after bug found in T275 review).
 
 ---
 
@@ -209,7 +217,7 @@ on host (Linux, project venv).
   5. Assert no other local-tool module is imported.
 - **Expected result**: No forbidden import found.  `preview_common` and `bake_skin`
   imports present.  All other local-module imports absent.
-- **Status**: recheck required after TASK-201 fix (bake_skin import will be added)
+- **Status**: passing — 2026-06-14. `from bake_skin import …` confirmed present; no forbidden imports found.
 
 ---
 
@@ -228,7 +236,7 @@ on host (Linux, project venv).
      non-zero exit + clear error.
 - **Expected result**: Both bad-wsz cases produce clear, actionable errors and
   non-zero exit.  No raw Python traceback.
-- **Status**: planned
+- **Status**: passing — 2026-06-14. `--wsz /tmp/no_such.wsz` produced non-zero exit + stderr message; no bare traceback.
 
 ---
 
@@ -250,7 +258,7 @@ on host (Linux, project venv).
      against the TEXT.BMP crop at the expected glyph UV.
 - **Expected result**: TITLE zone contains LED green pixels consistent with 5 px
   glyph width.  PIL default font not detected.
-- **Status**: planned
+- **Status**: passing — 2026-06-14. LED green pixel at (112,27) confirmed in TITLE zone; PIL default font absent.
 
 ---
 
@@ -270,7 +278,7 @@ on host (Linux, project venv).
      from the POSBAR background region.
 - **Expected result**: POSBAR zone matches POSBAR.BMP sprite.  Grey fill-rect
   sentinel absent.
-- **Status**: planned
+- **Status**: passing — 2026-06-14. POSBAR zone pixel matched POSBAR.BMP sprite; grey fill-rect sentinel `(0x18,0x18,0x18)` absent.
 
 ---
 
@@ -290,7 +298,7 @@ on host (Linux, project venv).
      message (detailed coverage in T279).
 - **Expected result**: Default path used when omitted.  Explicit path accepted.
   Missing path exits non-zero.
-- **Status**: planned
+- **Status**: passing — 2026-06-14. Default wsz path used without `--wsz`; explicit path accepted; missing path exits non-zero.
 
 ---
 
@@ -298,16 +306,16 @@ on host (Linux, project venv).
 
 | Criterion (from TASK-201 / M-WEBRADIO.md §Shift-left) | Test(s)    | Status   |
 |-------------------------------------------------------|------------|----------|
-| Tool launches without error                           | T273       | recheck required |
-| All 4 states cycle via keyboard                       | T274       | recheck required |
-| All canvas elements from §Canvas layout present       | T275       | recheck required — prior sign-off void |
-| Skin base layer (skin_preview.png) loads correctly    | T276       | recheck required |
-| App-area boundary (275 px) respected                  | T277       | recheck required |
-| No unrelated constant cross-import                    | T278       | recheck required |
-| Missing wsz file → graceful error                     | T279       | planned |
-| LED font from TEXT.BMP (not PIL default)              | T280       | planned |
-| POSBAR chrome from POSBAR.BMP sprite                  | T281       | planned |
-| `--wsz` argument accepted and validated               | T282       | planned |
+| Tool launches without error                           | T273       | passing — 2026-06-14 |
+| All 4 states cycle via keyboard                       | T274       | passing — 2026-06-14 (headless) |
+| All canvas elements from §Canvas layout present       | T275       | passing — 2026-06-14 (5 bugs caught + fixed) |
+| Skin base layer (skin_preview.png) loads correctly    | T276       | passing — 2026-06-14 |
+| App-area boundary (275 px) respected                  | T277       | passing — 2026-06-14 (pixel-sample) |
+| No unrelated constant cross-import                    | T278       | passing — 2026-06-14 |
+| Missing wsz file → graceful error                     | T279       | passing — 2026-06-14 |
+| LED font from TEXT.BMP (not PIL default)              | T280       | passing — 2026-06-14 |
+| POSBAR chrome from POSBAR.BMP sprite                  | T281       | passing — 2026-06-14 |
+| `--wsz` argument accepted and validated               | T282       | passing — 2026-06-14 |
 
 Human sign-off on layout (T275, post-fix snapshots) is the gate before firmware
 implementation begins.  Prior T275 sign-off on pre-fix PNGs is void.

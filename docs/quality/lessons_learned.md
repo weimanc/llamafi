@@ -4,6 +4,38 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-06-14 — M-WEBRADIO TASK-201 preview sign-off
+
+Five bugs caught during T275 human sign-off that automated tests missed.
+
+### LL-077 — 2026-06-14 — Boundary test verified code intent, not pixel output
+
+**Context**: T277 ("canvas stays within 275×240 app area") passed a "numpy slice confirmed canvas shape (240,275,3)" check before TASK-201 sign-off. The check confirmed the PIL Image had the right dimensions. Meanwhile, `_draw_station_list` used `SCREEN_W - 1` (319) as the right edge of the row `fillRect`, overwriting the 45 px taskbar strip with black.
+
+**Observation**: The test verified that no radio-drawing *function* explicitly targeted x≥275. It did not pixel-sample the rendered output at x=275..319 to confirm the taskbar was intact. The fillRect overflow was invisible to a shape check and invisible to a code-intent check.
+
+**Root cause**: The test was written as a structural assertion ("canvas shape is 240×320") rather than a behavioral assertion ("taskbar pixels after render match expected taskbar content"). These are different claims; only the second one catches accidental overflow from a too-wide rectangle.
+
+**Suggested improvement**: Any "no overflow" boundary test must pixel-sample the actual rendered output in the boundary zone, not just inspect canvas dimensions or code logic. Concretely: render all states, compare x=275..319 strip before and after radio drawing; assert the strip differs only where `draw_taskbar_pil` is known to write. A shape check does not substitute for this.
+
+**Status**: candidate for BP — awaiting human sign-off
+
+---
+
+### LL-078 — 2026-06-14 — Preview-invented elements masked firmware rendering contract
+
+**Context**: `preview_webradio.py` originally drew a second LED text row (ICY StreamTitle at y=36) and a "10 stations • NL" text overlay on the PLEDIT title bar. Neither element has a firmware counterpart. The POSBAR showed a synthetic blue fill-rect rather than the `POSBAR_BG blit + POSBAR_THUMB_N at position` sequence the firmware uses.
+
+**Observation**: T275 is the layout sign-off gate before firmware implementation. If the preview shows elements the firmware will not render, sign-off approves a canvas that doesn't match the product. The ICY second row and title-bar text were only caught because the human sign-off reviewer asked "does the DUT actually draw this?", triggering a winampDisplay.h audit. The POSBAR fill-rect was caught because the reviewer recognised it was not a skin sprite.
+
+**Root cause**: The preview was built iteratively and convenience overlays (labels, extra text rows) accumulated without being checked against the firmware rendering path. No process step required "compare every preview element to a concrete firmware call before T275."
+
+**Suggested improvement**: Before T275 sign-off, require the Developer or Architect to produce a render element table: each element in the preview mapped to a concrete firmware call (or explicitly marked "preview-only / not in firmware"). Any "preview-only" entry that is not explicitly approved is a defect. The M-WEBRADIO.md §Firmware rendering notes section (added 2026-06-14) is the correct home for this contract.
+
+**Status**: candidate for BP — awaiting human sign-off
+
+---
+
 ## Retrospective — 2026-06-14 — M-TELETEXT post-ship DUT review
 
 Three defects surfaced in first DUT use after milestone close (TASK-177–191, retrospective 2026-06-13/14). All three were invisible to the serial-debug test suite and only caught by manual use.
