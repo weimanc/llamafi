@@ -1,7 +1,7 @@
 # M-CLOCK-NIXIE — Nixie Tube Clock Renderer Physics
 
 > Owner: Architect  
-> Status: Phase 0 POC done — visual sign-off pending  
+> Status: Phase 0 POC — digit mechanism approved, clock/date layout open for iteration  
 > Date: 2026-06-14  
 > Part of: [M-CLOCK-STYLES.md](M-CLOCK-STYLES.md) — Style 2  
 > See also: [clock.md](M-MULTIAPP/clock.md), [M-SETTINGS-APP-WIRE.md](M-SETTINGS-APP-WIRE.md)
@@ -18,6 +18,7 @@
 | Glyph system | **Done** — Roboto-Thin 88 pt; ghost cathodes implemented (off by default) |
 | Colour themes | **Done in POC** — 4 themes, `c` key cycles; settings wiring pending |
 | Colon afterglow | **Done** — 1 Hz blink, 80 ms ramp-up, 500 ms exponential decay |
+| Clock/date layout | **Open — iteration needed** — see open items below |
 | Firmware renderer | Not started |
 
 ---
@@ -418,6 +419,60 @@ Glass effect layers (drawn after compositing, on the canvas):
    `TUBE_Y + TUBE_H - TUBE_R` — simulates reflected room light on glass.
 3. **Pin shadow**: two 1×3 px dark rects at tube bottom centre — represents
    the wire pins at the base of a real Nixie tube envelope.
+
+---
+
+## Open items — design iteration needed
+
+> The core digit mechanism (bloom pipeline, hex mesh, ghost cathodes, colon
+> afterglow) is considered approved at Phase 0. The following areas are
+> **not yet signed off** and require further visual iteration before Phase 1
+> (firmware) can begin.
+
+### OI-1 — Overall clock composition
+
+The current preview establishes the tube rendering correctly but the
+**full-canvas composition** has not been iterated. Open questions:
+
+- Tube vertical position and canvas weight — do the tubes sit too high?
+  Should they be vertically centred, or offset toward the top third to
+  leave breathing room for date elements below?
+- Inter-tube spacing — the 6 px gap creates visible cross-bleed between
+  adjacent digits. The aesthetic consequence (authentic inter-tube glow
+  vs. unwanted light pollution) needs a design decision.
+- Canvas background treatment — pure black `(0,0,0)` is the current
+  default. A very dark warm-black `(4, 2, 0)` may better complement the
+  amber glow without appearing as a solid colour.
+
+### OI-2 — Date area design
+
+The date line is currently a minimal placeholder:
+`"THU  12 JUN 2026"` in Roboto-Thin 13 pt at `C_WIRE × 0.60`.
+
+Open questions:
+- Font size and weight — 13 pt may be too small; a slightly heavier
+  weight (Roboto-Light) at 14–15 pt may read better at device scale.
+- Layout format — single-line vs. two-line (day name / numeric date)?
+  The concept reference shows a single compact line; explore alternatives.
+- Vertical placement — `DATE_Y = 140` leaves ~100 px of canvas below the
+  tubes unused. Consider whether additional elements (seconds indicator,
+  ambient decoration) belong in that space, or whether the empty canvas
+  is intentional (visual rest).
+- Glow treatment — current date text has no bloom pass. A single soft
+  blur `(r=3, scale=0.5)` may give it the same phosphor character as the
+  tubes without competing with the digit glow.
+- Flanking bullet dots — currently two small dim dots flank the date
+  string. Size, brightness, and whether they should also have a micro-bloom
+  are undecided.
+
+### OI-3 — Seconds indicator
+
+The concept reference shows no explicit seconds indicator. Options:
+- None (clean, matches concept) — current state
+- Subtle dot arc below the tubes (60 dots, lit = elapsed seconds)
+- Thin progress bar in the canvas bottom margin
+
+**No decision made.** Raise with designer before implementing.
 
 ---
 
