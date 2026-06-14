@@ -23,12 +23,13 @@ GPIO26; quality is acceptable for web radio.
 
 ## Goals
 
-- 11th app in `appRegistry.h` (slot after Teletext).
+- 11th app in `appRegistry.h` (slot after Teletext); **no taskbar slot** — entered
+  via the Winamp eject button, not taskbar scroll.
 - Browse and play internet radio stations, categorised by country.
 - Winamp skin reused; controls remapped to radio semantics.
 - Country/region settable in Settings → Applications → Web Radio.
 - Station list fetched from **radio-browser.info** REST API (MP3 only).
-- Toggle Spotify ↔ Web Radio via taskbar (existing mechanism).
+- Toggle Spotify ↔ Web Radio via the **eject button** (screen pos 136, 89).
 
 ---
 
@@ -44,17 +45,80 @@ GPIO26; quality is acceptable for web radio.
 ## App lifecycle
 
 ```
+// Entry: eject button tap in Spotify/Winamp context
+hitTestEject(x, y) → ACT_EJECT → switchApp(AppId::WebRadio)
+
 switchApp(AppId::WebRadio)
   → appTick() calls webRadioTick()
        first tick: trigger dataTask fetch of station list for selected country
        on list ready: render playlist view
        on user selects station: audio.connecttohost(url)
-switchApp(AppId::Spotify)  [or any other app]
+
+// Exit: eject button tap in WebRadio context
+hitTestEject(x, y) → ACT_EJECT → switchApp(AppId::Spotify)
+
+switchApp(AppId::Spotify)  [or any other app via taskbar]
   → webRadioSuspend(): audio.stopSong(); release I2S-DAC handle
 ```
 
 When WebRadio is not active, the audio task is suspended and Spotify polling
 resumes normally. Modes are mutually exclusive via `switchApp`.
+
+WebRadio is **not reachable via taskbar scroll** — the Winamp/Spotify taskbar
+slot stays as-is. The eject button is the sole entry/exit point.
+
+---
+
+## Eject button toggle
+
+The Winamp eject button is the sole entry/exit point for WebRadio.
+
+### Current state (pre-M-WEBRADIO)
+
+`bake_skin.py` pastes the eject sprite statically onto `MAIN_BG` at bake time
+(line ~768: `main_bg.paste(eject, (136, 89))`). No touch handler exists. The
+bake comment: *"eject has no Spotify equivalent"* — now it does.
+
+### Required changes
+
+**`bake_skin.py`:**
+- Remove the static eject paste from `MAIN_BG`.
+- Emit `SKIN_EJECT_N` (normal) and `SKIN_EJECT_P` (pressed) sprite constants
+  from `CBUTTONS.BMP` UV `(114, 0, 22, 16)` / `(114, 18, 22, 16)` respectively.
+
+**`winampDisplay.h`:**
+- Add `hitTestEject(sx, sy)` at `(originX+136, originY+89, 22, 16)`, mirroring
+  `hitTestLogo()`.
+- On hit: blit `SKIN_EJECT_P` (pressed state), set 100 ms cooldown, return
+  `ACT_EJECT` in `lastTouchResult`.
+
+**`main.cpp`:**
+
+```cpp
+// In Spotify app tick / input handler:
+case ACT_EJECT:
+    switchApp(AppId::WebRadio);
+    break;
+
+// In WebRadio app tick / input handler:
+case ACT_EJECT:
+    switchApp(AppId::Spotify);
+    break;
+```
+
+**`appRegistry.h`:**
+- Add `APP_X(WebRadio, 'R', 0)` — `AppId` entry exists, but the app is **not**
+  added to `gen_taskbar_icons.py`'s `APPS` list and carries no taskbar icon.
+
+### Sprite geometry
+
+| Constant | Source UV | Size | Screen pos |
+|----------|-----------|------|-----------|
+| `SKIN_EJECT_N` | `CBUTTONS.BMP (114, 0, 22, 16)` | 22×16 | `(136, 89)` |
+| `SKIN_EJECT_P` | `CBUTTONS.BMP (114, 18, 22, 16)` | 22×16 | `(136, 89)` |
+
+The pressed-state blit is shown for one frame on tap, then `repaintChrome()`
+restores the normal state on the next display tick.
 
 ---
 
@@ -632,6 +696,8 @@ Buffer dropout and coexistence are back-to-back empirical checks — one session
 5. ~~**Amp volume ceiling**~~ — **resolved by design**: `HW Mod Installed` bool +
    `Max Volume` int exposed in settings. Stock default 10; mod default 18. Soft
    cap enforced in code when HW Mod = false. Reference mod: hexeguitar/ESP32_TFT_PIO.
-6. **Source taskbar icons** — `radio.png` / `radio_active.png` (24×24 RGBA).
+6. ~~**Source taskbar icons**~~ — **resolved by design (2026-06-14)**: WebRadio has
+   no taskbar slot. Toggle is via the Winamp **eject button** (pos 136, 89, 22×16 px).
+   No `radio.png` / `radio_active.png` required. See §Eject button toggle.
 7. ~~**Country list**~~ — **resolved (TASK-202, 2026-06-14)**: 65 entries, 0
    coverage gaps; `app/gen/webradio_countries.h` generated.

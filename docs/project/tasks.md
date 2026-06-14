@@ -331,6 +331,104 @@ Coverage gaps (codes with few stations) noted — may inform filtering defaults.
 
 ---
 
+## Open — M-WEBRADIO DUT phase (pending firmware implementation)
+
+> These tasks run in a single DUT session after the firmware implementation is
+> functionally complete. None can be resolved on host. All three are back-to-back
+> empirical checks — schedule as one session.
+
+### TASK-207 — M-WEBRADIO: touch + audio coexistence check (open item 4)
+
+With WebRadio firmware flashed and a station playing, verify that XPT2046 touch
+(SPI SCK on GPIO25) and I2S-DAC audio (GPIO26 → SC8002B) operate simultaneously
+without electrical interference on this board revision.
+
+Procedure:
+1. Flash M-WEBRADIO firmware. Connect 8 Ω speaker to SPEAK header.
+2. Start a station; confirm audio is playing (audible + VU meter animating).
+3. While audio plays, repeatedly tap prev/next station touch zones.
+4. Observe: audio must not glitch, stutter, or drop out on touch events.
+5. Observe: touch must register correctly — station changes must fire.
+6. Run for ≥ 2 minutes of continuous playback + touch interaction.
+
+Pass criteria: no audio dropout correlated with touch events; touch response
+unaffected by audio playback. Fail = audio or touch degraded during concurrent
+operation → file hardware conflict issue, consider SPI rate reduction workaround.
+
+Note: peripheral buses are independent (SPI vs internal DAC) — electrical risk
+is low but this board's routing is unverified for this combination.
+
+**Priority:** P1 — blocking M-WEBRADIO ship
+**Status:** open — pending firmware implementation
+**Opened:** 2026-06-14
+**Milestone:** M-WEBRADIO
+**Owner:** VE + human operator (physical board required)
+**Deps:** M-WEBRADIO firmware functionally complete
+
+---
+
+### TASK-208 — M-WEBRADIO: heap watermark under audio decode + TLS spike
+
+Measure actual SRAM pressure during the two peak moments: (a) station-list TLS
+fetch, and (b) sustained audio playback. Confirm the non-overlap assumption in
+M-WEBRADIO.md §Memory envelope holds on real hardware.
+
+Procedure:
+1. Add heap instrumentation to `webRadioTick()`:
+   - Log `ESP.getFreeHeap()` + `ESP.getMinFreeHeap()` at: app launch, just before
+     `dataTask` station-list fetch, just after fetch completes (TLS torn down),
+     at first `connecttohost()` call, and every 30 s during playback.
+   - Log via existing `LOG_I("webradio", ...)` — visible in `./run/monitor-read`.
+2. Flash, connect to a 96 kbps station (default cap), run for 5 minutes.
+3. Record `minFreeHeap` at each phase.
+
+Pass criteria:
+- TLS spike phase: `minFreeHeap` ≥ 30 KB (leaves margin above zero)
+- Audio decode phase: `minFreeHeap` ≥ 40 KB (40–60 KB in use, 320 KB total SRAM)
+- No heap panic / stack overflow logged
+
+Fail = heap too low → reduce `MAX_STATIONS`, tune ArduinoJson filter, or reduce
+audio ring buffer chunks (library compile-time constant).
+
+**Priority:** P1 — blocking M-WEBRADIO ship
+**Status:** open — pending firmware implementation
+**Opened:** 2026-06-14
+**Milestone:** M-WEBRADIO
+**Owner:** Developer + VE
+**Deps:** M-WEBRADIO firmware functionally complete
+
+---
+
+### TASK-209 — M-WEBRADIO: SC8002B volume ceiling calibration
+
+Determine the safe `audio.setVolume()` ceiling for stock hardware (no HW mod).
+M-WEBRADIO.md §Audio hardware path documents ≤ 10/21 as the design default;
+this task confirms it empirically and sets the soft cap in code.
+
+Procedure:
+1. Flash M-WEBRADIO firmware. Connect 8 Ω speaker.
+2. Start a 96 kbps MP3 station with consistent audio level.
+3. Step `audio.setVolume()` from 1 → 21 via a serial command or settings slider,
+   pausing 5 s at each step.
+4. Note the first level at which clipping / distortion is audible.
+5. Subtract 2 steps as headroom → this is the `kMaxVolumeStock` constant.
+6. With HW mod installed (if available): repeat from step 3 to confirm full
+   0–21 range is clean.
+
+Pass criteria: `kMaxVolumeStock` determined; value matches design estimate of
+≈ 10 (±2 steps acceptable). Hard cap enforced in firmware at this value when
+`settings.webRadio.hwModInstalled == false`.
+
+**Priority:** P2 — can ship with design estimate (10/21) if DUT session is
+delayed; cap can be refined in a follow-on reflash
+**Status:** open — pending firmware implementation
+**Opened:** 2026-06-14
+**Milestone:** M-WEBRADIO
+**Owner:** Developer + human operator (subjective listening required)
+**Deps:** M-WEBRADIO firmware functionally complete; TASK-208 (same DUT session)
+
+---
+
 ### TASK-193 — M-CLOCK-STYLES: phases 2–4 firmware implementation
 
 Implement ClockStyle enum + storage (Phase 2), Flip/Nixie/VFD renderers (Phase 3), and
