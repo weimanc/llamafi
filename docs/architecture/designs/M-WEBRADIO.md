@@ -255,14 +255,48 @@ starts. Empirical validation needed — run heap watermark logging on DUT.
 
 ---
 
+## Shift-left pre-implementation plan
+
+Risk is front-loaded: burn down unknowns on host before any DUT flash. ~70% of
+pre-implementation risk is host-resolvable. DUT sessions become targeted and
+short.
+
+### Host-only phase (TASK-199 – TASK-202, no DUT required)
+
+| Task | Deliverable | De-risks |
+|------|-------------|----------|
+| **TASK-199** Flash budget gate | Add `esphome/ESP32-audioI2S` to `platformio.ini`; run `pio run -e cyd2usb_winamp`; report binary size | Only blocking gate. If budget fails, re-scope before any UI work. |
+| **TASK-200** API probe + TLS cert | `test_radiobrowser_api.py` (JSON shape, response size, mirror fallback, TLS cert issuer); Python ICY metadata probe against a live stream | Root CA for `dataTaskCerts.h`; confirms API contract before firmware parser is written; confirms ICY `StreamTitle` format |
+| **TASK-201** Canvas layout preview | `preview_webradio.py` — loads `gen/skin_preview.png` as base; draws radio content on top: PL list, marquee, buffer bar, bitrate, VU meter, country badge; keyboard to cycle states. **Implementation constraint:** `skin_preview.png` is the main-window background only — POSBAR chrome and PLEDIT title/bottom chrome are runtime sprite blits in firmware and are NOT baked into the PNG. Preview must extract TEXT.BMP from `.wsz` and render LED font glyphs via `build_glyph_table()` from `bake_skin.py` (5×6 px glyph crop+paste, mirrors `drawTitleText()` in `winampDisplay.h`); paste POSBAR.BMP at `(POSBAR_X=16, POSBAR_Y=72)` and PLEDIT.BMP chrome at `(0, PLEDIT_Y=116)`. PIL default font and synthetic fill-rectangles for chrome are not acceptable — they produce visually incorrect output that cannot serve as a layout sign-off gate. | Layout locked before firmware; avoids coordinate rework post-flash |
+| **TASK-202** Country list generator | Host script: deduplicate `kCities[].country` from `cities.h`; cross-check against radio-browser.info `countrycode` availability; output static `kWebRadioCountries[]` `{code, name}` array | Country enum ready to paste into firmware; coverage gaps known before implementation |
+
+Execute in order: TASK-199 first (gate). TASK-200–202 can run in parallel once
+TASK-199 passes.
+
+### DUT-only phase (after host phase clears)
+
+| Item | Why host cannot cover it |
+|------|--------------------------|
+| Open item 2 — Buffer dropout | Real WiFi throughput + SRAM decode buffers at 128 kbps |
+| Open item 3 — Touch + audio coexistence | GPIO25/26 electrical interaction, board-specific |
+| Heap watermark | ESP32 SRAM envelope under real audio decode + TLS spike |
+| Volume ceiling calibration | SC8002B + speaker output — empirical, subjective |
+
+Schedule DUT session after firmware implementation is functionally complete.
+Buffer dropout and coexistence are back-to-back empirical checks — one session.
+
+---
+
 ## Open items before implementation
 
 1. **Flash budget gate** — add `esphome/ESP32-audioI2S` to `platformio.ini`,
-   run `pio run -e cyd2usb_winamp`, confirm binary fits partition. Blocking.
+   run `pio run -e cyd2usb_winamp`, confirm binary fits partition. **Blocking.
+   → TASK-199.**
 2. **Buffer dropout test** — on-DUT: play 128 kbps stream; measure drop rate;
-   decide if 96 kbps cap should be enforced in API query.
+   decide if 96 kbps cap should be enforced in API query. → DUT phase.
 3. **Touch + audio coexistence** — XPT2046 SPI (GPIO25) and I2S-DAC (GPIO26)
    active simultaneously; verify no electrical interference on this board rev.
+   → DUT phase.
 4. ~~**Amp volume ceiling**~~ — **resolved by design**: `HW Mod Installed` bool +
    `Max Volume` int exposed in settings. Stock default 10; mod default 18. Soft
    cap enforced in code when HW Mod = false. Reference mod: hexeguitar/ESP32_TFT_PIO.
@@ -270,4 +304,4 @@ starts. Empirical validation needed — run heap watermark logging on DUT.
 6. ~~**Country list**~~ — **resolved by design**: derive from `kCities[]` in
    `settings/cities.h` (deduplicate `country` ISO field, ~40–50 entries). Add
    static name mapping. Country picker uses `KeyboardWidget` (Full mode) for
-   search-by-name filtering.
+   search-by-name filtering. → TASK-202.

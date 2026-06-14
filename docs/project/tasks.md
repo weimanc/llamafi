@@ -4,6 +4,31 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
+> **PM sync 2026-06-14 (session 5)** — M-HOST-WINAMP deferred; TASK-201 targeted fix approved.
+> Architect review: M-HOST-WINAMP is correct long-term but 6–7 dev-days before WebRadio preview is
+> usable. Two concrete misses in preview_webradio.py: (1) PIL default font instead of Winamp LED
+> bitmap font (TEXT.BMP glyphs); (2) synthetic grey rectangles instead of POSBAR/PLEDIT skin sprites.
+> Coordinates are correct — originX=0, skin_layout.h constants are pixel-accurate. Root fix:
+> add `--wsz` arg, import `build_glyph_table` from bake_skin.py, implement `_draw_led_text()` via
+> TEXT.BMP glyph crop+paste, and restore POSBAR/PLEDIT chrome from actual skin BMP sprites.
+> ~100-120 lines added to existing script; no WinampRenderer.py needed for this gate.
+> M-HOST-WINAMP deferred to post-M-WEBRADIO-ship as a long-term preview framework.
+> TASK-203–206 deferred. TASK-201 reopened as in-progress.
+>
+> **PM sync 2026-06-14 (session 4)** — M-WEBRADIO preview blocked; pivot to host Winamp renderer.
+> TASK-199 done (flash gate clear). TASK-200 done (API + ICY probes). TASK-202 done (country list, 65 entries, 0 gaps).
+> TASK-201 (preview_webradio.py) produced a naive PIL overlay — rejected. Root cause: no Python port of
+> WinampDisplay.h exists. Preview tools cannot composite correctly without the actual sprite blitting logic.
+> New milestone M-HOST-WINAMP opened. TASK-203 (sprite/font inventory), TASK-204 (WinampRenderer.py),
+> TASK-205 (Spotify host preview sign-off), TASK-206 (WebRadio preview v2 on WinampRenderer) filed.
+> TASK-201 downgraded to blocked — reopens after TASK-205 sign-off.
+>
+> **PM sync 2026-06-14 (session 3)** — M-WEBRADIO scheduled (shift-left phase).
+> Design draft complete (M-WEBRADIO.md). R&D done (EXP-005 + EXP-006). Open items 4+6 resolved by design.
+> Shift-left pre-implementation plan captured in M-WEBRADIO.md. TASK-199–202 opened.
+> TASK-199 (flash budget gate) is the sole P1 blocker — must pass before firmware work.
+> TASK-200–202 unblock in parallel once TASK-199 clears.
+>
 > **PM sync 2026-06-14 (session 2)** — M-CLOCK-STYLES + M-PREVIEW-FRAMEWORK close-out.
 > TASK-192 (preview_common.py + 6-tool migration) done. TASK-193 (ClockStyle enum, Flip/Nixie/VFD
 > renderers, Settings wiring) done. TASK-194 (T_CLK_01–14 VE suite) done, 14/14 PASS.
@@ -76,6 +101,227 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 > DUT visual verify batch closed 2026-06-09: TASK-150 (backlight PWM) PASS, TASK-152 (LDR row
 > rename) PASS, TASK-153 (city picker drag) PASS, TASK-154 (UTC offset column) PASS.
 > Completed and closed tasks are in [tasks-archive.md](tasks-archive.md).
+
+---
+
+## Deferred — M-HOST-WINAMP (backburner — see session-5 note above)
+
+> TASK-203–206 deferred 2026-06-14 (session 5). M-HOST-WINAMP is the correct long-term
+> preview framework but costs 6–7 dev-days before the WebRadio preview gate (T275) can clear.
+> Decision: fix TASK-201 with targeted sprite extraction instead. Reopen M-HOST-WINAMP
+> after M-WEBRADIO ships.
+
+### TASK-203 — M-HOST-WINAMP: sprite + font inventory (research complete, document pending)
+
+Trace the full pipeline from `.wsz` → `bake_skin.py` → `gen/skin_assets.c` + `gen/skin_layout.h`
+→ `WinampDisplay.h` blitSprite calls. Produce a single reference document at
+`docs/architecture/designs/M-HOST-WINAMP.md` covering:
+
+1. **Bake pipeline** — which BMP files from the .wsz are extracted, what C arrays they become,
+   and their dimensions.
+2. **Sprite blit table** — for every visual element in the Winamp UI: source atlas, UV rect,
+   screen position, which WinampDisplay method controls it.
+3. **Font inventory** — distinguish between the Winamp LED bitmap font (TEXT.BMP → SKIN_FONT /
+   SKIN_GLYPH) and TFT_eSPI system fonts (Font 1 in PLEDIT rows; Font 2+ in other apps).
+4. **Computed elements** — elements with no sprite atlas: VU bars (computed colour gradient),
+   PLEDIT row fill (fillRect), PLEDIT row text (Font 1).
+5. **Feature element map** — table of every visible Winamp UI element with its method, atlas,
+   and whether it is relevant to the WebRadio remap.
+
+Research is largely complete from code reading (2026-06-14). Document needs authoring.
+
+**Priority:** P1 — gates TASK-204 (can't implement renderer without the map)
+**Status:** deferred — M-HOST-WINAMP on backburner per 2026-06-14 session-5 decision
+**Opened:** 2026-06-14
+**Milestone:** M-HOST-WINAMP
+**Owner:** Architect + Developer
+**Deps:** —
+
+---
+
+### TASK-204 — M-HOST-WINAMP: WinampRenderer.py — Python port of WinampDisplay.h
+
+Create `app/tools/winamp_renderer.py`: a Python class that mirrors `WinampDisplay.h`
+sprite-for-sprite, using PIL instead of TFT_eSPI `pushImage`.
+
+**Architecture:**
+- Re-use extraction functions already in `bake_skin.py` to read sprites from the `.wsz`
+  into PIL Image objects (not RGB565 C arrays — keep as RGBA/RGB PIL for host rendering).
+- One method per WinampDisplay method: `blit_main_bg()`, `draw_transport_buttons(pressed=-1)`,
+  `draw_title_text(text, scroll_offset=0)`, `draw_time_digits(seconds)`,
+  `draw_status_indicator(playing)`, `draw_posbar(pct)`, `draw_volume(pct)`,
+  `draw_vu(l_level, r_level)`, `draw_playlist(rows, active_idx, scroll_offset)`.
+- Coordinate system: same as firmware (originX=0, originY=0; PLEDIT_Y=116 etc. from skin_layout.h).
+- Output: a PIL Image (320×240 RGB) that matches what the DUT renders pixel-accurately.
+- Uses `app/gen/skin_layout.h` constants (parsed via regex, same as `preview_vis.py` pattern).
+
+**Not in scope:** interaction / touch / animation — static render only.
+
+**Priority:** P1 — gates TASK-205 and TASK-206
+**Status:** deferred — M-HOST-WINAMP on backburner per 2026-06-14 session-5 decision
+**Opened:** 2026-06-14
+**Milestone:** M-HOST-WINAMP
+**Owner:** Developer
+**Deps:** TASK-203
+
+---
+
+### TASK-205 — M-HOST-WINAMP: preview_spotify.py — full Spotify state preview (human sign-off gate)
+
+Create `app/tools/preview_spotify.py`: interactive pygame preview of the Spotify/Winamp app
+using `WinampRenderer` from TASK-204.
+
+Mock data to show in the playing state:
+- Track: "BIRDS OF A FEATHER" by "Billie Eilish", 3:14
+- Playlist: 5 entries, entry 0 active
+- Progress: 1:23 / 3:14 (seek thumb at ~43%)
+- Volume: 72%
+- Shuffle: off, Repeat: off
+- VU: active sine envelope
+
+Keyboard: P=playing, S=stopped, Q=quit. Taskbar drawn via `draw_taskbar_pil`.
+
+**Gate:** Human looks at the preview and compares it to a DUT screenshot or `skin_hitzones.png`.
+If all elements land in the right zones, TASK-206 is unblocked.
+
+**Priority:** P1 — gates TASK-206 and TASK-201 reopen
+**Status:** deferred — M-HOST-WINAMP on backburner per 2026-06-14 session-5 decision
+**Opened:** 2026-06-14
+**Milestone:** M-HOST-WINAMP
+**Owner:** Developer + human sign-off
+**Deps:** TASK-204
+
+---
+
+### TASK-206 — M-HOST-WINAMP / M-WEBRADIO: preview_webradio.py v2 on WinampRenderer
+
+Rewrite `app/tools/preview_webradio.py` using `WinampRenderer` from TASK-204.
+
+WebRadio remaps:
+- `draw_title_text()` → station name marquee (line 1)
+- New `draw_icy_title()` helper → ICY StreamTitle in the 7px gap (y=33..42) between title and VU
+- `draw_posbar()` replaced by `draw_buffer_bar(fill_pct)` at same POSBAR zone
+- `draw_vu()` → unchanged (audio.getVUlevel() feeds same zone)
+- `draw_playlist()` → station list (PLEDIT rows, PLEDIT chrome)
+- New `draw_country_badge()` → small label in top-right of main area
+
+Transport buttons, volume, shuffle/repeat: rendered from skin but labelled/ignored for radio
+(tap targets will be remapped in firmware; preview just shows them as they are).
+
+States: stopped / connecting / playing / error (same keyboard as TASK-205).
+
+**Priority:** P2 — unblocks after TASK-205 human sign-off
+**Status:** deferred — M-HOST-WINAMP on backburner per 2026-06-14 session-5 decision
+**Opened:** 2026-06-14
+**Milestone:** M-WEBRADIO
+**Owner:** Developer + human sign-off (T275 gate)
+**Deps:** TASK-205
+
+---
+
+## Open — M-WEBRADIO shift-left phase (2026-06-14)
+
+### TASK-199 — M-WEBRADIO: flash budget gate
+
+Add `esphome/ESP32-audioI2S` to `lib_deps` in `platformio.ini` (under the
+`cyd2usb_winamp` env). Run `pio run -e cyd2usb_winamp`. Report binary size vs
+partition budget. If it fits: gate clears, unblock TASK-200–202 and firmware
+implementation. If tight: evaluate stripped MP3-only fork before scheduling
+firmware work.
+
+**Priority:** P1 — sole blocking gate for M-WEBRADIO
+**Status:** done — 2026-06-14. Build SUCCESS at 55.6% flash (1,458,409 / 2,621,440 bytes). Library
+compiles clean with two workarounds baked into `cyd2usb_winamp` env: `-DAUDIO_NO_SD_FS` (suppresses
+SD/MMC/FS/SPIFFS/FFat includes in Audio.h — we only need WiFi streaming) + `SD_MMC` added to
+`lib_ignore` (prevents `deep+` mode from auto-compiling framework SD_MMC, which has an FS.h include-path
+issue). Linker dead-strips unused Audio symbols; actual flash delta measurable only when WebRadio app
+is wired. At EXP-005 estimated 500 KB peak, projected ceiling ~75% — budget safe. Gate clears.
+**Opened:** 2026-06-14
+**Closed:** 2026-06-14
+**Milestone:** M-WEBRADIO
+**Owner:** Developer
+**Deps:** —
+
+---
+
+### TASK-200 — M-WEBRADIO: radio-browser.info API probe + TLS cert + ICY metadata probe
+
+Two host-only validations:
+
+1. `app/tools/test_radiobrowser_api.py` (follow `test_yahoo_finance_api.py` pattern):
+   - Confirm HTTPS + print TLS cert issuer → root CA for `dataTaskCerts.h`
+   - Validate JSON shape: `name`, `url_resolved`, `bitrate`, `votes` present in 100-station response
+   - Measure raw response body size (expect ~220–240 KB); confirm ArduinoJson filter reduces to budget
+   - Test `de1` → `nl1` → `at1` mirror fallback
+   - Spot-check 5 country codes from the baked list
+
+2. Python ICY metadata probe: connect to a live MP3 stream with `Icy-MetaData: 1`
+   header, parse and print `StreamTitle` from the inline metadata — confirms format
+   before the ESP32-side parser is written.
+
+Deliverable: TLS root CA identified; API contract and ICY format confirmed on host.
+
+**Priority:** P2
+**Status:** done — 2026-06-14. TLS root CA: Let's Encrypt R13 (ISRG Root X1 chain); body 109.5 KB for 100 NL stations; ICY format confirmed — `StreamTitle='Artist - Title';` at metaint=64000, via NPO Radio 2.
+**Opened:** 2026-06-14
+**Closed:** 2026-06-14
+**Milestone:** M-WEBRADIO
+**Owner:** Developer
+**Deps:** TASK-199 (pass first)
+
+---
+
+### TASK-201 — M-WEBRADIO: preview_webradio.py canvas layout
+
+New pygame preview tool following the `preview_vis.py` pattern (not clock — web
+radio reuses the Winamp skin frame). Takes `--skin gen/skin_preview.png` as the
+base layer (baked 320×240 chrome); draws radio-specific content on top:
+
+- PL panel: station list rows + scroll indicator
+- Station name marquee (line 1) + ICY `StreamTitle` (line 2)
+- Buffer bar (replaces seek bar) + bitrate field
+- VU meter (mocked envelope)
+- Country badge (top-right of title area)
+- Keyboard shortcuts to cycle states: stopped / connecting / playing / error
+
+Requires `./run/bake-skin` to have been run (produces `gen/skin_preview.png`).
+Human signs off on layout before firmware work starts — avoids coordinate rework
+after first flash.
+
+**Priority:** P2
+**Status:** in-progress — 2026-06-14. Initial version written but rejected (naive PIL font + synthetic
+chrome rectangles). Targeted fix in progress: add `--wsz skins/base-2.91.wsz` arg; implement
+`_draw_led_text()` using `build_glyph_table()` from bake_skin.py + TEXT.BMP glyph crop+paste (5×6 px,
+mirrors `drawTitleText()` in winampDisplay.h); restore POSBAR chrome from POSBAR.BMP sprite; restore
+PLEDIT title/bottom chrome from PLEDIT.BMP sprite. No WinampRenderer.py required.
+T275 human sign-off gate still applies after fix.
+**Opened:** 2026-06-14
+**Milestone:** M-WEBRADIO
+**Owner:** Developer + human sign-off
+**Deps:** TASK-199 (pass first)
+
+---
+
+### TASK-202 — M-WEBRADIO: country list generator
+
+Host script that:
+1. Reads `kCities[]` from `app/src/settings/cities.h`
+2. Deduplicates the `country` ISO 3166-1 alpha-2 field → unique country code list
+3. Cross-checks each code against radio-browser.info's available `countrycode` values
+   (one API call); flags any cities.h codes with zero stations
+4. Outputs a static `kWebRadioCountries[]` C array of `{code, displayName}` pairs,
+   sorted and ready to paste into firmware
+
+Deliverable: `app/tools/gen_webradio_countries.py` + generated array block.
+Coverage gaps (codes with few stations) noted — may inform filtering defaults.
+
+**Priority:** P3
+**Status:** done — 2026-06-14. gen_webradio_countries.py written; app/gen/webradio_countries.h generated with 65 entries; 0 codes had zero stations (full coverage — all 65 codes from cities.h are live on radio-browser.info). Notable finding: IN (India) was present in cities.h but missing from the initial COUNTRY_NAMES dict — caught by the script's warning and fixed before final output.
+**Opened:** 2026-06-14
+**Closed:** 2026-06-14
+**Milestone:** M-WEBRADIO
+**Owner:** Developer
+**Deps:** TASK-200 (API reachable confirmed)
 
 ---
 
