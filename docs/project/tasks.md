@@ -4,6 +4,15 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
+> **PM sync 2026-06-14 (session 6)** — M-WEBRADIO design complete; firmware implementation task filed.
+> Team review (Architect/VE/Developer/QM) surfaced 5 design doc gaps and 3 missing tasks. All resolved:
+> design amended (TouchResult spec, SKIN_EJECT UV offsets, streaming JSON, BP-031 call-out, BP-036
+> checklist); TASK-210 (bake_skin sign-off), TASK-211 (ACT_EJECT serial accessor), TASK-212 (error
+> state injection) filed. Gap confirmed: no firmware implementation task existed. TASK-213 filed —
+> full WebRadio firmware (app class, dataTask fetcher, hitTestEject, error state machine, settings,
+> serial accessors). TASK-210 is the sole unblocked P1 — can start immediately (host only, no DUT).
+> Execution order: TASK-210 → TASK-213 → TASK-211/212 (serial surface) → TASK-207/208/209 (DUT).
+>
 > **PM sync 2026-06-14 (session 5)** — M-HOST-WINAMP deferred; TASK-201 targeted fix approved.
 > Architect review: M-HOST-WINAMP is correct long-term but 6–7 dev-days before WebRadio preview is
 > usable. Two concrete misses in preview_webradio.py: (1) PIL default font instead of Winamp LED
@@ -517,6 +526,79 @@ Deliverables:
 **Milestone:** M-WEBRADIO
 **Owner:** Developer (injection command) + VE (test cases)
 **Deps:** M-WEBRADIO firmware error state machine implemented
+
+---
+
+## Open — M-WEBRADIO firmware implementation
+
+### TASK-213 — M-WEBRADIO: firmware implementation
+
+Full WebRadio app firmware. Deps on TASK-210 (bake_skin.py eject sign-off) before
+starting eject work; rest can proceed in parallel.
+
+**Deliverables:**
+
+1. **`app/src/webRadioApp.h`** — WebRadio app class:
+   - `resume()`: enqueue station-list fetch if list is stale (BP-032: unsigned
+     underflow pattern, not `_lastFetch = 0`).
+   - `suspend()`: `audio.stopSong()`; release I2S-DAC handle.
+   - `tick()`: poll ICY queue, update marquee + POSBAR buffer health, VU meter;
+     dispatch error state machine.
+   - `handleInput()`: eject tap → `switchApp(AppId::Spotify)`; prev/next/stop/play
+     → station navigation + `audio.connecttohost()`.
+   - `hasPendingAsync()`: return `true` while station-list fetch is in flight
+     (BP-036 checklist item 1).
+
+2. **`dataTaskStorage.cpp` — `fetchWebRadioStations()`:**
+   - `spotifyTask::tlsYield()` before `WiFiClientSecure`; `tlsResume()` in all
+     exit paths (BP-031 — mandatory, see §Data flow parser note in M-WEBRADIO.md).
+   - Streaming ArduinoJson parse: `StaticJsonDocument<128>` filter (name,
+     url_resolved, bitrate, votes) + `StaticJsonDocument<8192>` doc via
+     `http.getStream()`.
+   - Mirror fallback: `de1` → `nl1` → `at1`; retry next on connection failure.
+   - Root CA: Let's Encrypt ISRG Root X1 (confirmed TASK-200).
+
+3. **`winampDisplay.h` — `hitTestEject()`:**
+   - Hit zone: `(originX+136, originY+89, 22, 16)`.
+   - On hit: blit `SKIN_CBUTTONS` pressed crop, 100 ms cooldown, populate
+     `lastTouchResult = { "EJECT", -1, "EJECT", 0, -1, false }`.
+   - Add `"EJECT"` to action-string enum comment (line 537).
+   - **Deps: TASK-210 sign-off first** (bake_skin.py must remove static eject
+     paste before firmware blits it at runtime).
+
+4. **`main.cpp`:**
+   - `ACT_EJECT` in Spotify input handler → `switchApp(AppId::WebRadio)`.
+   - WebRadio tick + input dispatch wired into `appTick()` / `appHandleInput()`.
+
+5. **`appRegistry.h`:**
+   - `APP_X(WebRadio, 'R', 0)` — AppId entry; NOT added to
+     `gen_taskbar_icons.py` APPS list (no taskbar slot by design).
+
+6. **Settings wiring** (`settingsStorage.h`, `appsSection.h`):
+   - Country (enum, default NL), Autoplay (bool, false), Bitrate cap (enum,
+     default 96 kbps), Auto-skip on stall (bool, false), HW Mod Installed
+     (bool, false), Max Volume (int, default 10/18).
+
+7. **Error state machine** per §Error states in M-WEBRADIO.md:
+   - States: STOPPED / CONNECTING / BUFFERING / PLAYING / ERROR_WIFI /
+     ERROR_BLOCKED / ERROR_STALL / ERROR_UNREACHABLE.
+   - Auto-retry and auto-skip policy per settings.
+
+8. **Serial `dbgGet`/`dbgSet`** (BP-036 checklist item 3):
+   - `get webRadioState` → current playState enum string.
+   - `set webRadioState <state>` → synthetic injection (TASK-212).
+   - `get touchResult` already returns `lastTouchResult`; ensure "EJECT" path
+     covered (TASK-211).
+
+9. **`run/check`** 5/5 gates pass before marking done.
+
+**Priority:** P1 — core milestone deliverable; blocks TASK-207/208/209/211/212
+**Status:** open
+**Opened:** 2026-06-14
+**Milestone:** M-WEBRADIO
+**Owner:** Developer
+**Deps:** TASK-210 (sign-off required before hitTestEject blit); TASK-199–202
+done (host phase complete — all gate inputs available)
 
 ---
 
