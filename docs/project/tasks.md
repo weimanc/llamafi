@@ -4,6 +4,24 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
+> **PM sync 2026-06-14 (session 2)** — M-CLOCK-STYLES + M-PREVIEW-FRAMEWORK close-out.
+> TASK-192 (preview_common.py + 6-tool migration) done. TASK-193 (ClockStyle enum, Flip/Nixie/VFD
+> renderers, Settings wiring) done. TASK-194 (T_CLK_01–14 VE suite) done, 14/14 PASS.
+> M-CLOCK-STYLES milestone complete. Visual criteria C1/C4/C5/C6/C8 deferred (require person at screen).
+> M-PREVIEW-FRAMEWORK milestone complete.
+> No open tasks remain. Next: M-WEBRADIO (pending PM scheduling).
+>
+> **PM sync 2026-06-14 (session 1)** — M-TELETEXT complete close-out.
+> TASK-191 (P3 TLS heap contention test) closed. T272 PASS. Three bugs surfaced and
+> fixed during execution: (1) `fetchTeletext()` missing `tlsYield()`/`tlsResume()` —
+> TLS heap contention confirmed, fixed (ADR-044 item 9 revised); (2) `_lastFetch=0`
+> early-boot no-enqueue bug in TeletextApp — fixed via `_forceNow()` unsigned-underflow
+> helper; (3) null-byte parser bug — NOS body contains `\x00\x00` before `</pre>`,
+> breaking `String::indexOf()` via `strstr()` — fixed with null-safe `memcmp` scan.
+> No open tasks remain. M-TELETEXT milestone complete.
+> Roadmap M-TELETEXT status updated to done.
+> Next: M-WEBRADIO (design draft; R&D spike EXP-005 done; pending PM scheduling).
+>
 > **PM sync 2026-06-13 (sign-off + team review session)** — Major close-out.
 > Preview signed off (TASK-175), ADR-044 accepted (TASK-185). P1 firmware gate cleared.
 > Parallel team review (Architect/VE/Developer/QM) produced 10 document fixes and 7 new tasks

@@ -805,10 +805,10 @@ was written — a deliberate practice from lessons learned.
 4. R&D spike: which other active teletext services share the NOS wire format?
    Candidates: ORF (AT), ARD (DE), SVT (SE), RAI (IT), YLE (FI).
 
-**Status:** proof-of-concept done; design proposed (ADR-044); firmware not started  
+**Status:** done (2026-06-13/14 — TASK-177–191; firmware implemented, icons baked, VE suite T249 ready-to-run, T272 PASS; ADR-044 accepted; 3 bugs fixed during T272: tlsYield gap, early-boot no-enqueue, null-byte parser)  
 **Deps:** M-MULTIAPP (done), M-TASKBAR-ICONS (done)  
 **Design:** [M-TELETEXT.md](../architecture/designs/M-TELETEXT.md)  
-**ADR:** ADR-044 (proposed)
+**ADR:** ADR-044 (accepted 2026-06-13)
 
 ---
 

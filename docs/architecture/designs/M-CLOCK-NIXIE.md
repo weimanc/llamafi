@@ -1,8 +1,8 @@
 # M-CLOCK-NIXIE — Nixie Tube Clock Renderer Physics
 
 > Owner: Architect  
-> Status: Concept analysed — Phase 0 (POC) not started  
-> Date: 2026-06-13  
+> Status: Phase 0 POC done — visual sign-off pending  
+> Date: 2026-06-14  
 > Part of: [M-CLOCK-STYLES.md](M-CLOCK-STYLES.md) — Style 2  
 > See also: [clock.md](M-MULTIAPP/clock.md), [M-SETTINGS-APP-WIRE.md](M-SETTINGS-APP-WIRE.md)
 
@@ -13,10 +13,11 @@
 | Layer | State |
 |-------|-------|
 | Concept analysis | **Done** — physics doc from `resource/nixieclock_concept.jpg.png` |
-| Host renderer | Not started — `app/tools/_clock_nixie.py` (`NixieRenderer`) |
-| Preview tool | Not started — `app/tools/preview_clock.py --style nixie` |
-| Glyph system | Not started — thin wire font selection TBD |
-| Colour themes | Defined below — pending Phase 0 visual sign-off |
+| Host renderer | **Done** — `app/tools/_clock_nixie.py` (`NixieRenderer`) |
+| Preview tool | **Done** — `app/tools/preview_clock.py --style nixie` |
+| Glyph system | **Done** — Roboto-Thin 88 pt; ghost cathodes implemented (off by default) |
+| Colour themes | **Done in POC** — 4 themes, `c` key cycles; settings wiring pending |
+| Colon afterglow | **Done** — 1 Hz blink, 80 ms ramp-up, 500 ms exponential decay |
 | Firmware renderer | Not started |
 
 ---
@@ -52,7 +53,7 @@ soft cloud that fills much of the tube interior.
                near-black bg  (0, 0, 0)
 ```
 
-Default colour theme: **amber** — wire core `(255, 180, 40)`, bloom tint orange.
+Default colour theme: **amber** — wire core `(255, 125, 8)`, bloom tint deep orange.
 
 ---
 
@@ -113,11 +114,12 @@ feel without being a full pill (which would obscure digit area).
 
 ```
 TUBE_W  = 48    (px — tube outer width)
-TUBE_H  = 90    (px — tube outer height)
-TUBE_R  = 14    (px — corner radius; tunable in Phase 0)
+TUBE_H  = 110   (px — tube outer height)   ← Phase 0 approved
+TUBE_R  = 18    (px — corner radius)        ← Phase 0 approved
+TUBE_Y  =  8    (px — top of tubes on canvas)
 ```
 
-Aspect ratio: 48:90 ≈ 1:1.9, matching the reference concept.
+Aspect ratio: 48:110 ≈ 1:2.3 — tall capsule matching reference concept.
 
 ### Canvas layout (four tubes + colon)
 
@@ -138,13 +140,13 @@ Tube left-x values:
 Colon centre-x: 78 + TUBE_W + COLON_W//2 = 78 + 48 + 11 = 137
 
 Tube top-y:
-  TUBE_Y = 12   (near canvas top; date occupies lower canvas)
-  Tube bottom: TUBE_Y + TUBE_H = 102
+  TUBE_Y =  8   (near canvas top; date occupies lower canvas)
+  Tube bottom: TUBE_Y + TUBE_H = 118
 
-Date baseline-y: 130  (below tubes, upper-middle of remaining canvas)
+Date baseline-y: DATE_Y = TUBE_Y + TUBE_H + 22 = 140
 ```
 
-All values are Phase 0 starting points; `p` key prints approved constants.
+Phase 0 approved — `p` key in preview tool prints full param dict.
 
 ### Hex mesh texture
 
@@ -181,15 +183,16 @@ At thin weight, the rasterized stroke is 1–3 px wide — the bloom
 builds the apparent body of the digit from these hairlines.
 
 ```
-WIRE_FONT_SIZE = 72    (Phase 0 starting point — tune with p key)
+WIRE_FONT_SIZE = 88    (Phase 0 approved)
 ```
 
 Font path priority list:
 ```python
 _WIRE_FONT_PATHS = [
     "/usr/share/fonts/google-roboto/Roboto-Thin.ttf",
-    "/usr/share/fonts/google-noto/NotoSans-Thin.ttf",
-    "/usr/share/fonts/liberation-sans-fonts/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/google-roboto/Roboto-Light.ttf",
+    "/usr/share/fonts/google-noto/NotoSans-Light.ttf",
+    "/usr/share/fonts/abattis-cantarell-fonts/Cantarell-Thin.otf",
 ]
 ```
 
@@ -200,7 +203,7 @@ tint it. At the core the wire appears white-hot; the bloom produces
 the orange envelope.
 
 ```
-C_WIRE = (255, 220, 130)    # near-white warm — bloom tints to orange
+C_WIRE = (255, 125, 8)    # deep warm orange — Phase 0 approved (amber theme)
 ```
 
 ### Ghost cathodes (optional layer)
@@ -213,8 +216,9 @@ GHOST_ALPHA = 0.04    # fraction of C_WIRE for inactive digits
 ```
 
 Render all 10 digits at `C_WIRE × GHOST_ALPHA` before rendering the
-active digit. This is a tunable option; default **off** in Phase 0
-(adds per-frame cost; revisit if feedback requests it).
+active digit. Implemented and toggleable via `h` key in the preview tool.
+Default **off** — ghost cathodes are visually striking but add per-frame
+bloom cost for 9 extra glyphs.
 
 ---
 
@@ -233,7 +237,7 @@ Outer tube bleed:
 | Symbol | Default | Effect |
 |--------|---------|--------|
 | `BLEED_R` | 10 px | Blur radius for outer spill |
-| `BLEED_S` | 0.4 | Scale applied to bleed layer |
+| `BLEED_S` | 0.45 | Scale applied to bleed layer |
 
 Phase 0 key controls:
 - `g` / `G` — step BLOOM_R2 ±1 px (adjust cloud size)
@@ -252,10 +256,10 @@ image), not from `tube_buf`. Tinting to orange comes naturally from
 
 | Index | Name | C_WIRE (core) | Character |
 |-------|------|--------------|-----------|
-| 0 | amber (default) | `(255, 180, 40)` | Classic Nixie orange |
-| 1 | red | `(255, 60, 20)` | High-voltage neon |
-| 2 | green | `(60, 255, 100)` | Rare Nixie / oscilloscope |
-| 3 | blue | `(80, 160, 255)` | Cold modern look |
+| 0 | amber (default) | `(255, 125, 8)` | Classic Nixie deep orange |
+| 1 | red | `(255, 45, 10)` | High-voltage neon |
+| 2 | green | `(50, 255, 80)` | Rare Nixie / oscilloscope |
+| 3 | blue | `(70, 150, 255)` | Cold modern look |
 
 All derived colours (mesh, ghost, tube bg) scale from C_WIRE at runtime.
 
@@ -329,15 +333,53 @@ Two circular dots centred in the colon column, vertically aligned with
 the upper and lower thirds of the tube height.
 
 ```
-COLON_CX = 137                       (canvas x)
-COLON_DOT_R = 5                      (dot radius, px)
-COLON_Y1 = TUBE_Y + TUBE_H // 3     (upper dot)
-COLON_Y2 = TUBE_Y + 2 * TUBE_H // 3 (lower dot)
+COLON_CX    = 137                        (canvas x)
+COLON_DOT_R = 3                          (dot radius px — Phase 0 approved)
+COLON_Y1    = TUBE_Y + TUBE_H // 3      (upper dot)
+COLON_Y2    = TUBE_Y + 2 × TUBE_H // 3  (lower dot)
 ```
 
-Each dot gets the same bloom treatment as the wire glyph: render a
-filled circle at `C_WIRE` then bloom with the same three-pass parameters.
-Nixie colon does **not blink** — steady glow is authentic.
+Each dot gets the same three-pass bloom as the wire glyph: render a
+filled circle at `C_WIRE × colon_level`, bloom, paste additively.
+
+### Blink + phosphor afterglow
+
+The colon blinks at 1 Hz with a realistic phosphor afterglow — fast
+ignition, slow decay — matching the gas-discharge character of real
+Nixie tubes.
+
+```
+Blink:   ON  for t % 1.0 < 0.5   (first half-second)
+         OFF for t % 1.0 ≥ 0.5   (second half-second)
+
+Turn-on  (ramp):  colon_level = min(1.0, elapsed_ms / COLON_RAMP_MS)
+Turn-off (decay): colon_level = exp(−elapsed_ms / COLON_DECAY_MS)
+
+COLON_RAMP_MS  =  80   (ms — snappy ignition strike)
+COLON_DECAY_MS = 500   (ms — tau of exponential phosphor tail)
+```
+
+Decay profile at key elapsed times:
+| Elapsed | Level |
+|---------|-------|
+| 0 ms | 1.00 (full on) |
+| 100 ms | 0.82 |
+| 250 ms | 0.61 |
+| 500 ms | 0.37 |
+| 1000 ms | 0.14 |
+| 1500 ms | 0.05 |
+
+The bloom computation is skipped when `colon_level × max(C_WIRE) < 2`
+to avoid wasted GPU/CPU time at the tail end of decay.
+
+### Inter-tube bleed note
+
+The colon sits 11 px from both H2 (left) and M1 (right). Each
+neighbour's outer bleed (`BLEED_R=10`) falls on the colon region,
+creating asymmetric ambient light proportional to the active glyph
+mass distribution in each adjacent digit. This is physically authentic
+and is **not corrected** — it is consistent with how real Nixie panels
+illuminate each other.
 
 ---
 
@@ -389,8 +431,8 @@ For each of the 10 digits × 4 colour themes: pre-compute a
 `uint16_t[]` sprite (48×90 px, RGB565) with all three bloom passes
 burned in. Store in flash.
 
-Flash cost: 10 × 4 × 48 × 90 × 2 bytes = 345.6 KB.
-Acceptable with PSRAM; without PSRAM limit to active theme only (~35 KB).
+Flash cost: 10 × 4 × 48 × 110 × 2 bytes = 422.4 KB.
+Acceptable with PSRAM; without PSRAM limit to active theme only (~42 KB).
 
 Outer bleed and glass outline are cheap runtime draws. Mesh texture
 is also cheap runtime (nested loop, no blur).
