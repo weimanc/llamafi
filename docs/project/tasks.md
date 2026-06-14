@@ -429,6 +429,97 @@ delayed; cap can be refined in a follow-on reflash
 
 ---
 
+## Open — M-WEBRADIO pre-firmware gates (2026-06-14)
+
+### TASK-210 — M-WEBRADIO: bake_skin.py eject change — human sign-off gate
+
+`bake_skin.py` currently pastes the eject button sprite statically onto `MAIN_BG`
+at bake time (line ~768). M-WEBRADIO requires removing this static paste and
+instead emitting UV-offset constants (`SKIN_EJECT_N_X/Y`, `SKIN_EJECT_P_X/Y`,
+`SKIN_EJECT_W/H`) so firmware can blit normal/pressed state at runtime.
+
+This changes the visual output of `run/bake-skin` — the eject area of `MAIN_BG`
+will be blank (background colour) instead of showing the baked sprite.
+
+Deliverable:
+1. Modify `bake_skin.py`: remove static eject paste; emit the six UV constants
+   to `skin_layout.h` (follow the `CBUTTON_POSITIONS` emit pattern).
+2. Run `run/bake-skin` — verify `gen/skin_assets.c` and `gen/skin_layout.h`
+   regenerate cleanly.
+3. Visually inspect `gen/skin_preview.png`: eject zone should be background
+   colour (black at that position). Main chrome otherwise unchanged.
+4. Human operator signs off that the skin preview looks correct — this is the
+   gate before firmware implements `hitTestEject`.
+5. Update `golden.sha256` with new checksums.
+
+**Priority:** P1 — gates firmware eject implementation
+**Status:** open
+**Opened:** 2026-06-14
+**Milestone:** M-WEBRADIO
+**Owner:** Developer + human sign-off
+**Deps:** —
+
+---
+
+### TASK-211 — M-WEBRADIO: serial accessor for ACT_EJECT (VE testability)
+
+VE cannot verify the eject toggle via serial without `lastTouchResult` surfacing
+`"EJECT"` as the action string. Currently `winampDisplay.h:537` action enum
+comment lists: `"PREV","PLAY","PAUSE","STOP","NEXT","SEEK","VOLUME","SHUFFLE",
+"REPEAT","VIS","TLS_RESET","FORCE_POLL","NONE"` — `"EJECT"` is absent.
+
+Deliverables (firmware side, part of firmware implementation task):
+1. `hitTestEject` populates `lastTouchResult = { "EJECT", -1, "EJECT", 0, -1, false }`.
+2. Add `"EJECT"` to the action string enum comment at line 537.
+3. `get touchResult` serial command (existing) returns the new struct correctly.
+4. `injectTouch(136+originX, 89+originY)` synthetic path triggers eject hit-test
+   (same synthetic injection mechanism as transport buttons — TASK-056d).
+
+VE test cases (to be added to m-webradio regression suite):
+- `T_WR_EJECT_01`: while in Spotify, inject eject tap → assert `action=="EJECT"`;
+  assert `currentAppId == AppId::WebRadio` after switch.
+- `T_WR_EJECT_02`: while in WebRadio, inject eject tap → assert `action=="EJECT"`;
+  assert `currentAppId == AppId::Spotify` after switch.
+
+**Priority:** P1 — gates VE suite for eject toggle
+**Status:** open
+**Opened:** 2026-06-14
+**Milestone:** M-WEBRADIO
+**Owner:** Developer (accessor) + VE (test cases)
+**Deps:** M-WEBRADIO firmware hitTestEject implemented
+
+---
+
+### TASK-212 — M-WEBRADIO: synthetic injection for error states
+
+`ERROR_BLOCKED` (HTTP 403/451) and `ERROR_UNREACHABLE` (DNS/TCP timeout) cannot
+be induced reliably on DUT without broken stations. A synthetic injection path
+is needed for VE coverage — following the T272 TLS contention injection pattern.
+
+Deliverables:
+1. `set webRadioState <state>` serial command that forces `WebRadioState::playState`
+   to a given enum value (`STOPPED`, `CONNECTING`, `BUFFERING`, `PLAYING`,
+   `ERROR_WIFI`, `ERROR_BLOCKED`, `ERROR_STALL`, `ERROR_UNREACHABLE`).
+2. Display tick reads `playState` and renders the correct POSBAR + marquee title
+   per the §Error states table — synthetic injection verifies this render path
+   without needing a live broken station.
+3. VE test cases:
+   - `T_WR_ERR_01`: inject `ERROR_BLOCKED` → assert marquee shows "Station blocked",
+     POSBAR thumb at left (0%).
+   - `T_WR_ERR_02`: inject `ERROR_UNREACHABLE` → assert marquee shows
+     "Station unreachable", POSBAR at left.
+   - `T_WR_ERR_03`: inject `ERROR_WIFI` → assert marquee shows "WiFi lost".
+   - `T_WR_ERR_04`: inject `CONNECTING` → assert POSBAR animates (thumb moves).
+
+**Priority:** P2 — required for VE suite completeness before milestone close
+**Status:** open
+**Opened:** 2026-06-14
+**Milestone:** M-WEBRADIO
+**Owner:** Developer (injection command) + VE (test cases)
+**Deps:** M-WEBRADIO firmware error state machine implemented
+
+---
+
 ### TASK-193 — M-CLOCK-STYLES: phases 2–4 firmware implementation
 
 Implement ClockStyle enum + storage (Phase 2), Flip/Nixie/VFD renderers (Phase 3), and

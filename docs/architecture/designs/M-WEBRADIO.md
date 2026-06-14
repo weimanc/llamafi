@@ -82,15 +82,31 @@ bake comment: *"eject has no Spotify equivalent"* — now it does.
 ### Required changes
 
 **`bake_skin.py`:**
-- Remove the static eject paste from `MAIN_BG`.
-- Emit `SKIN_EJECT_N` (normal) and `SKIN_EJECT_P` (pressed) sprite constants
-  from `CBUTTONS.BMP` UV `(114, 0, 22, 16)` / `(114, 18, 22, 16)` respectively.
+- Remove the static eject paste from `MAIN_BG` (currently line ~768).
+- Emit two UV-offset constants into `skin_layout.h` — **not** separate pixel
+  arrays; both are crops of the existing `SKIN_CBUTTONS` atlas:
+
+```c
+// In skin_layout.h (emitted by bake_skin.py):
+#define SKIN_EJECT_N_X  114   // UV x in SKIN_CBUTTONS, normal state
+#define SKIN_EJECT_N_Y    0
+#define SKIN_EJECT_P_X  114   // UV x in SKIN_CBUTTONS, pressed state
+#define SKIN_EJECT_P_Y   18   // bottom row (SKIN_CBUTTONS_H=36, 2×18 rows)
+#define SKIN_EJECT_W     22
+#define SKIN_EJECT_H     16
+```
+
+Firmware blits via `tft.pushImage(originX+136, originY+89, SKIN_EJECT_W,
+SKIN_EJECT_H, SKIN_CBUTTONS + SKIN_EJECT_N_Y*SKIN_CBUTTONS_W + SKIN_EJECT_N_X)`.
 
 **`winampDisplay.h`:**
 - Add `hitTestEject(sx, sy)` at `(originX+136, originY+89, 22, 16)`, mirroring
-  `hitTestLogo()`.
-- On hit: blit `SKIN_EJECT_P` (pressed state), set 100 ms cooldown, return
-  `ACT_EJECT` in `lastTouchResult`.
+  `hitTestLogo()`. Fires in both Spotify and WebRadio contexts — both use the
+  same `WinampDisplay::handleWinampInput` path since WebRadio reuses the Winamp
+  skin frame.
+- On hit: blit pressed-state crop of `SKIN_CBUTTONS`, set 100 ms cooldown,
+  populate `lastTouchResult` as `{ "EJECT", -1, "EJECT", 0, -1, false }`.
+- Add `"EJECT"` to the action-string enum comment at line 537.
 
 **`main.cpp`:**
 
@@ -412,9 +428,26 @@ GET https://de1.api.radio-browser.info/json/stations/search
 → store in WebRadioState::stations[MAX_STATIONS=100]
 ```
 
-**Parser note (critical):** 100-station response is ~220–240 KB. Must use
-`ArduinoJson` with a `StaticJsonDocument` filter that keeps only the four
-needed fields. Do not buffer the full response body.
+**Parser note (critical):** 100-station response is ~220–240 KB (TASK-200
+measured 109.5 KB for 100 NL stations). Must use `ArduinoJson` streaming parse
+— **never** buffer into a `String`. Follow the existing dataTask pattern:
+
+```cpp
+StaticJsonDocument<128> filter;
+filter[0]["name"]         = true;
+filter[0]["url_resolved"] = true;
+filter[0]["bitrate"]      = true;
+filter[0]["votes"]        = true;
+StaticJsonDocument<8192> doc;
+deserializeJson(doc, http.getStream(),
+                DeserializationOption::Filter(filter));
+```
+
+**BP-031 (tlsYield) required:** This fetch is a new HTTPS session in `dataTask`.
+Call `spotifyTask::tlsYield()` before `WiFiClientSecure client` and
+`spotifyTask::tlsResume()` after `http.end()` in all exit paths — including
+error returns. Omitting this caused a confirmed crash in `fetchTeletext()`
+(T272, LL-071). Not optional.
 
 `url_resolved` is pre-resolved server-side — no redirect following needed.
 
@@ -433,6 +466,10 @@ audio.stopSong();                              // on app switch / user stop
 
 The audio task runs independently of `dataTask`. Station-list fetches complete
 before playback starts (TLS heap spikes do not overlap with decode buffer).
+
+`ESP32-audioI2S` creates its audio task at **priority 2** (above spotifyTask /
+dataTask priority 1). This is intentional — audio must not be preempted by
+polling tasks. Spotify polling is already suspended while WebRadio is active.
 
 ### ICY metadata → display (FreeRTOS queue)
 
@@ -635,8 +672,23 @@ starts. Empirical validation needed — run heap watermark logging on DUT.
 ## Dependencies
 
 - M-MULTIAPP (done) — AppId enum, appRegistry, switchApp, dataTask
-- M-TASKBAR-ICONS (done) — `radio.png` + `radio_active.png` icons needed (24×24)
+- M-TASKBAR-ICONS (done) — no new icons required; eject toggle eliminates need
+  for `radio.png` / `radio_active.png` (open item 6 resolved)
 - EXP-005 R&D spike — **done** (2026-06-13)
+
+---
+
+## BP-036 new-app integration checklist
+
+Required per BP-036. Developer must satisfy all three before milestone close:
+
+| Integration | Requirement | WebRadio note |
+|-------------|-------------|---------------|
+| `hasPendingAsync()` | Return `true` while station-list dataTask fetch is in flight | WebRadio enqueues async work from tick; default `false` is wrong |
+| `tlsYield()` / `tlsResume()` | Wrap every new HTTPS fetch in dataTask (BP-031) | Station-list fetcher; required — see §Data flow parser note |
+| Serial `dbgGet` / `dbgSet` | Surface `playState`, `stationIdx`, `lastTouchResult` for VE testability | Needed for TASK-211 ACT_EJECT accessor and error-state injection (TASK-212) |
+
+QM audits this checklist at M-WEBRADIO retrospective.
 
 ---
 
