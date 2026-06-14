@@ -16,6 +16,7 @@ enum FetchType : uint8_t {
     DATA_FETCH_HEATMAP_QUOTE    = 4,
     DATA_FETCH_STOCK_CHART_BY_SYM = 5,
     DATA_FETCH_TELETEXT_PAGE    = 6,
+    DATA_FETCH_WEBRADIO_STATIONS = 7,
 };
 
 struct WeatherResult {
@@ -57,6 +58,21 @@ struct HeatmapQuoteResult {
     float   marketCap[20]   = {};
 };
 
+// WebRadioStation / WebRadioStationsResult — written by fetchWebRadioStations(),
+// read by WebRadioApp::tick() via pollWebRadioStations().
+struct WebRadioStation {
+    char     name[48];   // station display name (truncated)
+    char     url[104];   // url_resolved (pre-resolved direct stream URL)
+    uint16_t bitrate;    // kbps (0 = unknown)
+};
+struct WebRadioStationsResult {
+    bool    ok           = false;
+    int     lastHttpCode = 0;
+    uint8_t count        = 0;
+    char    countryCode[4] = {};
+    WebRadioStation stations[100];
+};
+
 // TeletextState — written by fetchTeletext(), read by TeletextApp::tick() via pollTeletext().
 // cells[25][40] stores raw ISO-8859-1 bytes from the <pre> block; decoded by the renderer.
 struct TeletextState {
@@ -93,6 +109,10 @@ void enqueueStockChartBySym(const char* symbol, uint8_t rangeIdx);
 // Non-blocking (drops if queue full).
 void enqueueTeletextPage(uint16_t page, uint8_t sub = 0);
 
+// Set country code for station list fetch, then enqueue the fetch.
+// countryCode: ISO 3166-1 alpha-2, e.g. "NL". Non-blocking.
+void enqueueWebRadioStations(const char* countryCode);
+
 // Copy latest result into *out; returns true if new data since last poll.
 // Caller must supply a valid pointer. Thread-safe (spinlock).
 bool pollWeather(WeatherResult *out);
@@ -103,6 +123,8 @@ bool pollStockChart(StockChartResult *out);
 bool pollHeatmapQuote(HeatmapQuoteResult *out);
 bool pollTeletext(TeletextState *out);
 int  lastTeletextHttpCode(); // last HTTP response code from teletekst-data.nos.nl
+
+bool pollWebRadioStations(WebRadioStationsResult *out);
 
 void configureStockTickers(const char tickers[8][8]);
 void configureCrypto(const char ids[6][16], const char* ccy);

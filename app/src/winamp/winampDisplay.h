@@ -133,6 +133,7 @@ public:
       tft.pushImage(originX + 268, originY + 1, 4, 4, kDriftPip);
     }
     drawTransportButtons(/*pressedIndex*/ -1);
+    drawEjectButton(/*pressed*/ false);
     drawStatusIndicator(currentStatusUv);
     blitSprite(originX + POSBAR_X, originY + POSBAR_Y, SKIN_POSBAR, SKIN_POSBAR_W, POSBAR_BG);
     if (lastThumbPx >= 0) {
@@ -532,9 +533,9 @@ public:
   // branch in checkForInput() during multi-step synthetic injection.
   bool _injectingDrag = false;
   struct TouchResult {
-    const char *region;          // "TRANSPORT","POSBAR","VOLUME","SHUFFLE","REPEAT","VIS","LOGO","DEADZONE","NONE"
+    const char *region;          // "TRANSPORT","POSBAR","VOLUME","SHUFFLE","REPEAT","VIS","LOGO","EJECT","DEADZONE","NONE"
     int         transportPressed; // 0-4 for TRANSPORT; -1 otherwise
-    const char *action;          // "PREV","PLAY","PAUSE","STOP","NEXT","SEEK","VOLUME","SHUFFLE","REPEAT","VIS","TLS_RESET","FORCE_POLL","NONE"
+    const char *action;          // "PREV","PLAY","PAUSE","STOP","NEXT","SEEK","VOLUME","SHUFFLE","REPEAT","VIS","TLS_RESET","FORCE_POLL","EJECT","NONE"
     long        seekMs;          // for POSBAR hits; 0 otherwise
     long        volumePct;       // for VOLUME hits; -1 otherwise
     bool        skipped;         // true when cooldown gate blocked this tap
@@ -816,6 +817,25 @@ private:
   }
 
 public:
+  // M-WEBRADIO: draw eject button from CBUTTONS atlas. pressed=true for depressed state.
+  void drawEjectButton(bool pressed) {
+    const SkinUV uv = pressed ? CB_EJECT_P : CB_EJECT_N;
+    tft.startWrite();
+    blitSprite(originX + CB_EJECT_X, originY + CB_EJECT_Y, SKIN_CBUTTONS, SKIN_CBUTTONS_W, uv);
+    tft.endWrite();
+  }
+
+  // Returns true when (sx, sy) falls within the eject button hit zone.
+  bool hitTestEject(int sx, int sy) {
+    return sx >= originX + CB_EJECT_X &&
+           sx <  originX + CB_EJECT_X + CB_EJECT_W &&
+           sy >= originY + CB_EJECT_Y &&
+           sy <  originY + CB_EJECT_Y + CB_EJECT_H;
+  }
+
+  // M-WEBRADIO: public transport hit-test for apps other than SpotifyApp.
+  int hitTestTransportPublic(int sx, int sy) { return hitTestTransport(sx, sy); }
+
 #ifdef SERIAL_DEBUG
   // TASK-056d — synthetic touch injection (ADR-021 AC-2 resolution).
   // Mirrors the ts.touched() hit-test branch in checkForInput() but
@@ -867,6 +887,8 @@ public:
         const int row = (py - PLEDIT_ROWS_Y) / PLEDIT_ROW_H;
         const char *act = (prevDragState == D_IDLE) ? "DRAG_START" : "DRAG_MOVE";
         lastTouchResult = { "PLEDIT", row, act, (long)(sy - _dragStartY), -1, false };
+      } else if (hitTestEject(sx, sy)) {
+        lastTouchResult = { "EJECT", -1, "EJECT", 0, -1, false };
       } else if (hitTestLogo(sx, sy)) {
         // Only report TLS_RESET if logoTapCooldownMs advanced (cooldown was not active).
         if (logoTapCooldownMs != prevLogoCooldown) {

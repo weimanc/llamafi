@@ -206,6 +206,11 @@ public:
       perf::record("display.bar", millis() - _t); }
   }
   bool handleInput(TouchPhase phase, int x, int y) override {
+    // M-WEBRADIO: eject button → switch to WebRadio (intercept before winampDisplay).
+    if (phase == TouchPhase::Release && winampDisplay.hitTestEject(x, y)) {
+        switchApp(AppId::WebRadio);
+        return true;
+    }
     return winampDisplay.handleWinampInput(phase, x, y);
   }
 };
@@ -1627,6 +1632,13 @@ static TeletextApp g_TeletextApp;
 static bool teletextDbgGet(const char* v, char* b, int l) { return g_TeletextApp.dbgGet(v, b, l); }
 static bool teletextDbgSet(const char* v, const char* val) { return g_TeletextApp.dbgSet(v, val); }
 
+#ifdef WINAMP_DISPLAY
+#include "webRadioApp.h"
+static WebRadioApp g_WebRadioApp;
+static bool webRadioDbgGet(const char* v, char* b, int l) { return g_WebRadioApp.dbgGet(v, b, l); }
+static bool webRadioDbgSet(const char* v, const char* val) { return g_WebRadioApp.dbgSet(v, val); }
+#endif
+
 #ifdef SERIAL_DEBUG
 static bool matrixDbgGet(const char* v, char* b, int l)   { return g_MatrixApp.dbgGet(v, b, l); }
 static bool lifeDbgGet(const char* v, char* b, int l)     { return g_LifeApp.dbgGet(v, b, l); }
@@ -2411,6 +2423,12 @@ static void cmdGet(const char *args) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
     return;
   }
+#ifdef WINAMP_DISPLAY
+  if (webRadioDbgGet(args, buf, sizeof(buf))) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
+    return;
+  }
+#endif
   if (strcmp(args, "clockStyle") == 0) {
     static const char* kSN[] = {"digital","flip","nixie","vfd"};
     uint8_t cs = (uint8_t)g_settings.clockStyle % 4;
@@ -2444,6 +2462,13 @@ static void cmdSet(const char *args) {
                   "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
     return;
   }
+#ifdef WINAMP_DISPLAY
+  if (webRadioDbgSet(var, val)) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\","
+                  "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
+    return;
+  }
+#endif
   if (strcmp(var, "clockStyle") == 0) {
     static const char* kSN[] = {"digital","flip","nixie","vfd"};
     int idx = -1;

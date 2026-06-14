@@ -66,7 +66,7 @@ static portMUX_TYPE       s_heatmapMux    = portMUX_INITIALIZER_UNLOCKED;
 static HeatmapQuoteResult s_heatmapResult;
 static bool               s_heatmapNew    = false;
 
-constexpr UBaseType_t kStackBytes  = 10 * 1024;
+constexpr UBaseType_t kStackBytes  = 12 * 1024;
 constexpr UBaseType_t kPriority    = 1;
 constexpr BaseType_t  kPinnedCpu   = APP_CPU_NUM;
 
@@ -555,6 +555,23 @@ static void fetchTeletext(uint16_t page, uint8_t sub) {
 // Capacity: 20 symbols × ~120 B each ≈ 2.4 kB peak usage; 2560 gives headroom.
 static DynamicJsonDocument s_heatmapDoc(2560);
 
+// --- webradio state ----------------------------------------------------------
+
+static portMUX_TYPE           s_webRadioMux        = portMUX_INITIALIZER_UNLOCKED;
+static WebRadioStationsResult s_webRadioResult;
+static bool                   s_webRadioNew         = false;
+static char                   s_pendingCountry[4]   = "NL";
+static portMUX_TYPE           s_pendingCountryMux   = portMUX_INITIALIZER_UNLOCKED;
+
+// Pre-allocated: 100 stations × ~115 B filtered JSON ≈ 11.5 kB; 14336 gives headroom.
+static DynamicJsonDocument s_webRadioDoc(14336);
+
+static const char* kRadioBrowserMirrors[3] = {
+    "de1.api.radio-browser.info",
+    "nl1.api.radio-browser.info",
+    "at1.api.radio-browser.info",
+};
+
 static void fetchHeatmapQuote() {
     // TASK-131: stop Spotify's TLS connection before allocating our own.
     // Spotify's persistent session holds ~40 k of heap; at steady state
@@ -707,6 +724,92 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
     spotifyTask::tlsResume();
 }
 
+static void fetchWebRadioStations() {
+    char country[4];
+    portENTER_CRITICAL_SAFE(&s_pendingCountryMux);
+    strlcpy(country, s_pendingCountry, sizeof(country));
+    portEXIT_CRITICAL_SAFE(&s_pendingCountryMux);
+
+    spotifyTask::tlsYield();
+    LOG_HEAP("dataTask.webradio");
+
+    // Reset result in-place; dataTask is sole writer — no lock needed for the fill.
+    s_webRadioResult        = WebRadioStationsResult{};
+    strlcpy(s_webRadioResult.countryCode, country, sizeof(s_webRadioResult.countryCode));
+
+    bool fetchDone = false;
+    for (int mi = 0; mi < 3 && !fetchDone; mi++) {
+        char url[128];
+        snprintf(url, sizeof(url),
+            "https://%s/json/stations/search"
+            "?countrycode=%s&codec=MP3&hidebroken=true&order=votes&limit=100",
+            kRadioBrowserMirrors[mi], country);
+
+        WiFiClientSecure tls;
+        tls.setCACert(RADIO_BROWSER_ROOT_CA);
+        HTTPClient http;
+        http.useHTTP10(true);
+        if (!http.begin(tls, url)) {
+            LOG_W("dataTask.webradio", "http.begin failed mirror=%d", mi);
+            s_webRadioResult.lastHttpCode = -1;
+            continue;
+        }
+        http.addHeader("User-Agent", "ESPSpotify/1.0");
+        unsigned long t0 = millis();
+        int code = http.GET();
+        s_webRadioResult.lastHttpCode = code;
+        LOG_D("dataTask.webradio", "GET mirror=%d %d elapsed=%lums",
+              mi, code, (unsigned long)(millis() - t0));
+        if (code != 200) {
+            LOG_W("dataTask.webradio", "http %d mirror=%d", code, mi);
+            http.end();
+            continue;
+        }
+
+        // Filter: extract only 3 fields per array element.
+        // [0]["field"]=true pattern applies to all array elements in ArduinoJson v6.
+        StaticJsonDocument<128> filter;
+        filter[0]["name"]         = true;
+        filter[0]["url_resolved"] = true;
+        filter[0]["bitrate"]      = true;
+        s_webRadioDoc.clear();
+        DeserializationError err = deserializeJson(s_webRadioDoc, http.getStream(),
+                                       DeserializationOption::Filter(filter));
+        http.end();
+        if (err) {
+            LOG_W("dataTask.webradio", "JSON err mirror=%d: %s", mi, err.c_str());
+            continue;
+        }
+
+        s_webRadioResult.count = 0;
+        for (JsonVariantConst entry : s_webRadioDoc.as<JsonArrayConst>()) {
+            if (s_webRadioResult.count >= 100) break;
+            const char* name = entry["name"].as<const char*>();
+            const char* urlr = entry["url_resolved"].as<const char*>();
+            if (!name || !urlr || !urlr[0]) continue;
+            uint8_t idx = s_webRadioResult.count;
+            strlcpy(s_webRadioResult.stations[idx].name, name,
+                    sizeof(s_webRadioResult.stations[0].name));
+            strlcpy(s_webRadioResult.stations[idx].url,  urlr,
+                    sizeof(s_webRadioResult.stations[0].url));
+            s_webRadioResult.stations[idx].bitrate = entry["bitrate"].as<uint16_t>();
+            s_webRadioResult.count++;
+        }
+        s_webRadioResult.ok = true;
+        fetchDone = true;
+        LOG_D("dataTask.webradio", "ok mirror=%d country=%s count=%u",
+              mi, country, s_webRadioResult.count);
+    }
+
+    // Brief spinlock — only marks the flag, not the 15 kB struct copy.
+    portENTER_CRITICAL_SAFE(&s_webRadioMux);
+    s_webRadioNew = true;
+    portEXIT_CRITICAL_SAFE(&s_webRadioMux);
+
+    spotifyTask::tlsResume();
+    LOG_HEAP("dataTask.webradio");
+}
+
 // --- task body ---------------------------------------------------------------
 
 static void taskBody(void *) {
@@ -728,6 +831,7 @@ static void taskBody(void *) {
                 fetchTeletext(pg ? pg : 101, sub);
                 break;
             }
+            case DATA_FETCH_WEBRADIO_STATIONS: fetchWebRadioStations(); break;
             default: break;
         }
     }
@@ -893,6 +997,29 @@ int lastTeletextHttpCode() {
     code = s_teletextState.lastHttpCode;
     portEXIT_CRITICAL_SAFE(&s_teletextMux);
     return code;
+}
+
+void enqueueWebRadioStations(const char* countryCode) {
+    if (!s_queue || !countryCode || !countryCode[0]) return;
+    portENTER_CRITICAL_SAFE(&s_pendingCountryMux);
+    strlcpy(s_pendingCountry, countryCode, sizeof(s_pendingCountry));
+    portEXIT_CRITICAL_SAFE(&s_pendingCountryMux);
+    Request req = {}; req.type = DATA_FETCH_WEBRADIO_STATIONS;
+    if (xQueueSend(s_queue, &req, 0) != pdTRUE)
+        LOG_W("dataTask", "queue full — dropped webradio stations country=%s", countryCode);
+}
+
+bool pollWebRadioStations(WebRadioStationsResult *out) {
+    bool got = false;
+    portENTER_CRITICAL_SAFE(&s_webRadioMux);
+    got = s_webRadioNew;
+    if (got) s_webRadioNew = false;
+    portEXIT_CRITICAL_SAFE(&s_webRadioMux);
+    // Copy outside critical section — 15 kB copy under spinlock would
+    // disable Core 1 interrupts for ~1 ms (unacceptable for touch/display).
+    // Sole writer (dataTask) never refills mid-poll in practice.
+    if (got) *out = s_webRadioResult;
+    return got;
 }
 
 }  // namespace dataTask

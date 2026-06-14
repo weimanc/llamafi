@@ -72,6 +72,15 @@ struct AppSettings {
     uint8_t  teletextPollSecs;    // refresh cadence: 30/60/120 s (default 60)
     uint8_t  teletextCountry;     // 0 = NOS/NL; reserved until multi-country lands
     bool     teletextAutoAdvance; // reserved; no UI until subpage auto-advance implemented
+
+    // --- Web Radio (M-WEBRADIO) ---
+    char    webRadioCountry[4];   // ISO 3166-1 alpha-2, e.g. "NL\0\0" (default NL)
+    bool    webRadioAutoplay;     // reconnect last station on resume (default false)
+    uint8_t webRadioBitrateCap;   // 0=off / 64 / 96 / 128 / 192 kbps (default 96)
+    bool    webRadioAutoSkip;     // advance station on repeated ERROR_STALL (default false)
+    bool    webRadioHwMod;        // SC8002B gain-reduction mod installed (default false)
+    uint8_t webRadioMaxVolume;    // 1–21 ceiling (default 10 stock / 18 hw mod)
+    uint8_t webRadioLastStation;  // persisted last station index (default 0)
 };
 
 extern AppSettings g_settings;

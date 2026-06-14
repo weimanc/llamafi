@@ -7,6 +7,8 @@
 //                       covers api.open-meteo.com via R13 intermediate
 // COINGECKO_ROOT_CA   — ISRG Root X1 (Let's Encrypt root, expires 2035-06-04)
 //                       covers api.coingecko.com via YE1 intermediate (rotated from GTS/WE1)
+// RADIO_BROWSER_ROOT_CA — ISRG Root X1 (same cert); covers *.api.radio-browser.info
+//                         via R13 intermediate (confirmed TASK-200, 2026-06-14)
 //
 // Update trigger: see ADR-029 rotation table. Remediation = update PEM + reflash.
 
@@ -153,3 +155,6 @@ mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d
 emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
 -----END CERTIFICATE-----
 )EOF";
+
+// radio-browser.info uses same ISRG Root X1 — alias avoids duplicating 1.5 KB PEM.
+#define RADIO_BROWSER_ROOT_CA OPEN_METEO_ROOT_CA

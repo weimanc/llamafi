@@ -64,6 +64,15 @@ static void applyDefaults() {
     g_settings.teletextPollSecs    = 60;
     g_settings.teletextCountry     = 0;
     g_settings.teletextAutoAdvance = false;
+
+    // Web Radio
+    strlcpy(g_settings.webRadioCountry, "NL", sizeof(g_settings.webRadioCountry));
+    g_settings.webRadioAutoplay      = false;
+    g_settings.webRadioBitrateCap    = 96;
+    g_settings.webRadioAutoSkip      = false;
+    g_settings.webRadioHwMod         = false;
+    g_settings.webRadioMaxVolume     = 10;
+    g_settings.webRadioLastStation   = 0;
 }
 
 // ---- Enum string tables (order must match enum values) --------------------
@@ -200,6 +209,18 @@ void SettingsStorage::load() {
         if (tt.containsKey("autoAdvance")) g_settings.teletextAutoAdvance = tt["autoAdvance"] | false;
     }
 
+    // Web Radio
+    if (doc.containsKey("webRadio")) {
+        auto wr = doc["webRadio"];
+        if (wr.containsKey("country"))     strlcpy(g_settings.webRadioCountry, wr["country"] | "NL", sizeof(g_settings.webRadioCountry));
+        if (wr.containsKey("autoplay"))    g_settings.webRadioAutoplay    = wr["autoplay"]    | false;
+        if (wr.containsKey("bitrateCap"))  g_settings.webRadioBitrateCap  = wr["bitrateCap"]  | 96;
+        if (wr.containsKey("autoSkip"))    g_settings.webRadioAutoSkip    = wr["autoSkip"]    | false;
+        if (wr.containsKey("hwMod"))       g_settings.webRadioHwMod       = wr["hwMod"]       | false;
+        if (wr.containsKey("maxVolume"))   g_settings.webRadioMaxVolume   = wr["maxVolume"]   | 10;
+        if (wr.containsKey("lastStation")) g_settings.webRadioLastStation = wr["lastStation"] | 0;
+    }
+
     // Migrate: ldrHigh==0 means uncalibrated (old save or user wiped it).
     if (g_settings.ldrHigh == 0)
         g_settings.ldrHigh = 120;
@@ -263,6 +284,15 @@ void SettingsStorage::save() {
     tt["pollSecs"]    = g_settings.teletextPollSecs;
     tt["country"]     = g_settings.teletextCountry;
     tt["autoAdvance"] = g_settings.teletextAutoAdvance;
+
+    auto wr = doc.createNestedObject("webRadio");
+    wr["country"]     = g_settings.webRadioCountry;
+    wr["autoplay"]    = g_settings.webRadioAutoplay;
+    wr["bitrateCap"]  = g_settings.webRadioBitrateCap;
+    wr["autoSkip"]    = g_settings.webRadioAutoSkip;
+    wr["hwMod"]       = g_settings.webRadioHwMod;
+    wr["maxVolume"]   = g_settings.webRadioMaxVolume;
+    wr["lastStation"] = g_settings.webRadioLastStation;
 
     File f = SPIFFS.open(SETTINGS_JSON, "w");
     if (!f) { Serial.println("SettingsStorage: failed to open for write"); return; }
