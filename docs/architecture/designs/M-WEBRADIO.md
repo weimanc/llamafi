@@ -79,8 +79,8 @@ Winamp main-unit geometry reused with adapted semantics:
 > **Architect note (2026-06-14):** The `[COUNTRY]` badge shown in earlier drafts
 > has no counterpart in `winampDisplay.h` and would overwrite Winamp skin chrome
 > at that position. It is **removed from the design**. The active country is
-> surfaced via the Settings entry point and the PLEDIT title bar text (see §PLEDIT
-> scrollbar below) — not via an overlay on the main window.
+> surfaced via the Settings entry point only — not via any overlay on the main
+> window or PLEDIT title bar (see §Firmware rendering notes).
 
 **Control mapping**
 
@@ -95,6 +95,126 @@ Winamp main-unit geometry reused with adapted semantics:
 | title line 1   | "Artist — Title" | station name (`evt_name`) |
 | title line 2   | album            | ICY `StreamTitle` (`evt_streamtitle`) |
 | PL panel       | playlist         | station list for selected country |
+
+---
+
+## Firmware rendering notes
+
+Authoritative contract between `preview_webradio.py` and firmware implementors.
+All constants from `app/gen/skin_layout.h`; all rendering from
+`app/src/winamp/winampDisplay.h`.
+
+### a. POSBAR ("seek bar" / "buffer bar")
+
+The POSBAR is rendered in two sprite blits — **no fill rectangle is used**:
+
+```cpp
+// repaintChrome() — always draw background first:
+blitSprite(originX + POSBAR_X, originY + POSBAR_Y,
+           SKIN_POSBAR, SKIN_POSBAR_W, POSBAR_BG);      // full 248×10 groove
+
+// then draw thumb at position (when thumb has been set):
+blitSprite(originX + POSBAR_X + lastThumbPx, originY + POSBAR_Y,
+           SKIN_POSBAR, SKIN_POSBAR_W, POSBAR_THUMB_N); // 29×10 thumb sprite
+```
+
+| Constant | Value | Role |
+|----------|-------|------|
+| `POSBAR_X` | 16 | Left edge of groove (window coords) |
+| `POSBAR_Y` | 72 | Top edge of groove |
+| `POSBAR_BG` | `{0, 0, 248, 10}` | Full groove sprite (SkinUV into SKIN_POSBAR) |
+| `POSBAR_THUMB_N` | `{248, 0, 29, 10}` | Normal-state thumb sprite |
+| Thumb travel | `POSBAR_BG.w − POSBAR_THUMB_N.w = 219 px` | |
+
+**For WebRadio:** `inBufferFilled()` (0–100 %) drives `thumb_px` exactly as
+`displayTrackProgress()` drives it for Spotify:
+
+```cpp
+const int travel = POSBAR_BG.w - POSBAR_THUMB_N.w;  // 219
+int thumb_px = map(bufferHealthPct, 0, 100, 0, travel);
+// then blitSprite at POSBAR_X + thumb_px as above
+```
+
+The groove background is NOT partially filled — only the thumb position changes.
+A buffer at 100 % shows the thumb at the rightmost position; an empty buffer
+shows it at the leftmost position (or hidden if `thumb_px < 0`).
+
+---
+
+### b. PLEDIT title bar
+
+Line 1112 of `drawPlaylist()`:
+
+```cpp
+tft.pushImage(originX, PLEDIT_Y, SKIN_PLEDIT_BG_W, PLEDIT_TITLE_H, SKIN_PLEDIT_BG);
+```
+
+This blits the **top `PLEDIT_TITLE_H` (20) rows of the `SKIN_PLEDIT_BG` atlas** —
+pure skin chrome, pixel-perfect. **No text is drawn over the title bar** in any
+code path. The firmware never calls `drawString` or any glyph blit in this region.
+
+Implication for WebRadio: the active country name cannot be displayed on the
+PLEDIT title bar. Country is surfaced via Settings only.
+
+| Constant | Value |
+|----------|-------|
+| `PLEDIT_Y` | 116 — top of the entire PLEDIT frame |
+| `PLEDIT_TITLE_H` | 20 — rows consumed by the title bar blit |
+| `SKIN_PLEDIT_BG_W` | 275 — atlas width (= PLEDIT_W) |
+| Health-inactive variant | `SKIN_PLEDIT_TITLE_INACTIVE` (275×20) blitted instead when `!isHealthy()` |
+
+---
+
+### c. PLEDIT scrollbar thumb
+
+See §PLEDIT scrollbar below for full geometry. Key rendering call (line 1129):
+
+```cpp
+tft.pushImage(thumb_x, thumb_y,
+              SKIN_PLEDIT_THUMB_W, SKIN_PLEDIT_THUMB_H,
+              SKIN_PLEDIT_THUMB, PLEDIT_TRANSPARENT_RGB565);
+```
+
+- `thumb_x = originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W + PLEDIT_THUMB_X_INSET`
+  = 0 + 12 + 244 + 5 = **261 px** (absolute screen x)
+- `thumb_y = PLEDIT_ROWS_Y + scrollOffset * travel / max(1, count − PLEDIT_ROW_COUNT)`
+- Transparent colour key: `PLEDIT_TRANSPARENT_RGB565 = 0x063F` (RGB 0, 198, 255)
+- Only drawn when `count > PLEDIT_ROW_COUNT` (i.e. more stations than visible rows)
+
+---
+
+### d. Country badge
+
+**Removed from design.** There is no firmware rendering for a country badge and
+no atlas slot for one. Adding an overlay at any main-window position would
+overwrite baked Winamp skin chrome. Country is surfaced only via the Settings
+entry point (Settings → Applications → Web Radio → Country).
+
+---
+
+### e. PLEDIT bottom bar
+
+Line 1200-1201 of `drawPlaylist()`:
+
+```cpp
+const uint16_t *bottom = SKIN_PLEDIT_BG + (uint32_t)SKIN_PLEDIT_BG_W * PLEDIT_TITLE_H;
+tft.pushImage(originX, PLEDIT_BOTTOM_Y, SKIN_PLEDIT_BG_W, PLEDIT_BOTTOM_H, bottom);
+```
+
+The bottom bar is the **second band of the `SKIN_PLEDIT_BG` atlas**, starting at
+row `PLEDIT_TITLE_H` (20). It is not a separate sprite — it is an offset pointer
+into the same array.
+
+| Constant | Value |
+|----------|-------|
+| `PLEDIT_BOTTOM_Y` | 201 — top of bottom bar (screen px) |
+| `PLEDIT_BOTTOM_H` | 38 — height of bottom bar |
+| Atlas offset | `SKIN_PLEDIT_BG + SKIN_PLEDIT_BG_W * PLEDIT_TITLE_H` |
+| `SKIN_PLEDIT_BG_H` | 58 = `PLEDIT_TITLE_H (20) + PLEDIT_BOTTOM_H (38)` |
+
+Total playlist time is rendered on top of the bottom bar using the Winamp LED
+bitmap font (`SKIN_FONT` / `SKIN_GLYPH`), left-aligned at
+`(originX + 127 + GLYPH_W, PLEDIT_BOTTOM_Y + 10)`.
 
 ---
 
