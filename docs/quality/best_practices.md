@@ -306,6 +306,39 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-031 — All dataTask HTTPS fetchers call tlsYield/tlsResume; omitting either requires measured justification
+
+**Adopted from**: LL-071
+**Date adopted**: 2026-06-14
+**Rule**: Every new HTTPS fetch added to `dataTaskStorage.cpp` must call `spotifyTask::tlsYield()` before allocating `WiFiClientSecure` and `spotifyTask::tlsResume()` after `http.end()` (and in every early-return path). Omitting either call requires a measured, ADR-recorded justification — "small fetch" or "fast fetch" is not sufficient.
+**Rationale**: TLS contention is about concurrent open sessions, not response size. Spotify's persistent session holds ~40 k contiguous heap. A new TLS handshake for any host needs ~50–70 k contiguous. If Spotify's session is open simultaneously, the new connection will fail under heap fragmentation — regardless of how small or fast the intended transfer is. T272 confirmed real contention for `fetchTeletext()` (the smallest fetch in the project, 1.1 KB) after ADR-044 explicitly said it was safe to omit tlsYield. The pattern is already established by `fetchWeather`, `fetchCrypto`, `fetchHeatmap`, `fetchStockChart` — new fetchers must match it by default.
+**How to apply**: Before `WiFiClientSecure client; HTTPClient http;` → call `spotifyTask::tlsYield();`. After `http.end();` (and in any early-return or error path) → call `spotifyTask::tlsResume();`. If the code path exits via multiple branches, add tlsResume to every exit point before the function returns.
+**Applies to**: Developer (implementation default for any new `fetchXxx()` in dataTaskStorage), Architect (any ADR that proposes omitting tlsYield for a new fetcher must include measured maxAlloc evidence)
+
+---
+
+### BP-032 — Use unsigned underflow to force an immediate fetch on app entry; never assign `_lastFetch = 0`
+
+**Adopted from**: LL-072
+**Date adopted**: 2026-06-14
+**Rule**: To make a periodic-fetch app enqueue immediately on `init()` or `resume()`, assign: `_lastFetch = millis() - (unsigned long)_pollSecs * 1000UL;`. Never assign `_lastFetch = 0` with the intent of forcing an immediate fetch.
+**Rationale**: `_lastFetch = 0` means "last fetch happened at device boot (millis≈0)." The fetch condition `millis() - _lastFetch >= pollSecs*1000` is only satisfied after the device has been running for `pollSecs` seconds — if the device just booted and uptime < pollSecs, the condition is false and no fetch is enqueued. The unsigned underflow form sets `_lastFetch` such that `millis() - _lastFetch = pollSecs*1000` exactly at any uptime, guaranteeing the condition is true on the very next `tick()`. `TeletextApp` used `_lastFetch = 0` in three places (including `resume()` with an explicit "force immediate fetch" comment) and failed to enqueue within the first 60s — diagnosed only by T272. Apps to audit: any `init()` or `resume()` that assigns `_lastFetch = 0`, `_lastWeatherFetch = 0`, or similar.
+**How to apply**: Use a `_forceNow()` inline helper: `unsigned long _forceNow() const { return millis() - (unsigned long)_pollSecs * 1000UL; }`. Call `_lastFetch = _forceNow();` in `init()`, `resume()`, and any trigger path that must force an immediate fetch.
+**Applies to**: Developer (required pattern for all periodic-fetch apps; audit existing apps with `_lastFetch = 0` pattern), VE (test that switching to an app immediately enqueues a fetch within 5 s, not only after the first full poll interval)
+
+---
+
+### BP-033 — Use memchr/memcmp for HTTP response bodies that may contain null bytes; never String::indexOf()
+
+**Adopted from**: LL-073
+**Date adopted**: 2026-06-14
+**Rule**: Any HTTP response body in a non-ASCII or binary-capable encoding (ISO-8859-1, Latin-1, Windows-1252, protocol with embedded control codes) must be parsed using `memchr()`/`memcmp()` over the raw buffer (`body.c_str()` + `body.length()` bound). Never use `String::indexOf()`, `String::lastIndexOf()`, `strstr()`, or `strchr()` on such bodies.
+**Rationale**: Arduino `String::indexOf()` delegates to `strstr()`, which treats `\0` as a C-string terminator. ISO-8859-1 teletext content legitimately uses bytes 0x00–0x1F as color and mode control codes. The NOS Teletekst response body has `\x00\x00` at positions 1065–1066, immediately before `</pre>` at 1067. `body.indexOf("</pre>")` returned -1; the parse failed silently with "no `<pre>` block" despite a successful HTTP 200 fetch. The failure is silent (returns -1, not an exception) and is indistinguishable from a format change in the API — making it especially difficult to diagnose. Sister rule to BP-015 (test the actual firmware constraint) and LL-017 (a library that produces output is more dangerous than one that errors).
+**How to apply**: After `http.getString()`, work via raw pointer: `const char* raw = body.c_str(); int rawLen = (int)body.length();`. Search for a tag: `for (int i = 0; i <= rawLen - tagLen; i++) if (memcmp(raw + i, tag, tagLen) == 0) { found = i; break; }`. Document the encoding in a comment alongside the parse code.
+**Applies to**: Developer (any new HTTP response parser: check the server's `Content-Type` encoding and apply this rule if ISO-8859-1 or binary is possible), Architect (ADRs introducing new API endpoints must note the response encoding and flag if memcmp is required)
+
+---
+
 ## Entry Format
 
 ```

@@ -4,6 +4,73 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-06-13/14 — M-TELETEXT (TASK-177–191)
+
+Triggering work: full M-TELETEXT milestone — NOS Teletekst live reader (10th multiapp slot). Firmware implemented across TASK-177–191. TASK-191 (T272 TLS heap contention test) closed last; three bugs surfaced and fixed during that single test run.
+
+### What went well
+
+- **Full on-host PoC before any firmware was written.** NOS API reverse-engineered, teletext control codes decoded, `preview_teletext.py` built with full 320×240 render + navigation, resource impact assessed — all before a single line of firmware was written. No rendering approach was discovered on hardware. This was the deliberate practice established from prior lessons.
+- **T272 was well-designed and found the thing it was testing.** The test was scoped to confirm TLS heap contention under concurrent Spotify + teletext load. It confirmed real contention in debug build (`maxAlloc` 39–51 k, below the ~50 k TLS floor needed for a new NOS handshake while Spotify holds its session). Test design was correct and paid off.
+- **T272 caught two additional bugs not in its original scope.** The early-boot no-enqueue bug and the null-byte parser bug were both found during T272 execution — not during a separate debugging session. Good test design creates free spillover coverage.
+- **All three bugs fixed before anything shipped.** Nothing reached the user in a broken state. The test-then-fix sequence worked as intended.
+- **tlsYield fix was mechanical.** < 10 lines; matched the existing pattern in `fetchWeather`, `fetchCrypto`, `fetchHeatmap` exactly. Well-established pattern absorbed the fix without architecture rework.
+- **ADR-044 item 9 revised to match post-test reality.** The ADR did not stay stale; the test result drove a correction to the architecture record.
+
+### What could have been better
+
+- **ADR-044 item 9 was wrong at design time.** The design said "fetchTeletext follows weather pattern (no tlsYield)" — a reasoning error (see LL-071 below). The test had to correct the architecture.
+- **`_lastFetch = 0` pattern was used in three places with a misleading comment.** `resume()` comment said "force immediate fetch" but the code did not deliver that guarantee during the first 60s of uptime (see LL-072 below).
+- **Null-byte content was not anticipated.** ISO-8859-1 teletext content with binary control codes is a documented format; the parser used `String::indexOf()` which stops at null bytes (see LL-073 below).
+
+---
+
+### LL-071 — 2026-06-13 — Any new dataTask HTTPS fetcher should use tlsYield by default, not by exception
+
+**Context**: ADR-044 item 9 stated that `fetchTeletext()` follows the "weather pattern (no tlsYield)" — the reasoning being that the fetch is small (1.1 KB, the smallest in the project) and fast, so TLS heap contention is unlikely. T272 confirmed real contention: debug build `maxAlloc` ranged 39–51 k while Spotify's persistent session held ~40 k; a new NOS TLS handshake needs ~50–70 k contiguous, which the fragmented heap could not satisfy.
+
+**Observation**: Response body size is irrelevant to tlsYield necessity. TLS contention is about *concurrent open sessions*, not response duration. Spotify's session is held across its 60 s poll cycle. Any new TLS connection initiated while that session is open competes for the same ~40 k contiguous block — regardless of how quickly the new connection would complete once established.
+
+**Root cause**: The design reasoning conflated "small response = fast fetch = low contention risk." The actual contention axis is "Spotify session open simultaneously with new handshake", which is always true while the Spotify task is running.
+
+**Suggested improvement**: Any new HTTPS fetch in `dataTaskStorage.cpp` should match the `tlsYield()`/`tlsResume()` pattern already used by `fetchWeather`, `fetchCrypto`, `fetchHeatmap`, and `fetchStockChart`. The burden of proof should be on *removing* `tlsYield` (with measured evidence), not on *adding* it. "Small fetch" or "fast fetch" is not sufficient justification to omit it. ADR-044 item 9 has been corrected; this generalises to all future fetchers.
+
+**Status**: adopted → BP-031 (2026-06-14)
+
+---
+
+### LL-072 — 2026-06-13 — `_lastFetch = 0` does not force an immediate fetch during the first `pollSecs` seconds of uptime
+
+**Context**: `TeletextApp::init()` and `resume()` set `_lastFetch = 0`. `resume()`'s comment explicitly said "force immediate fetch." T272 triggered `set triggerTeletextFetch 1` at ~30s uptime with `_pollSecs = 60`. The fetch condition `millis() - _lastFetch >= pollSecs * 1000` was false at 30s (`30000 - 0 < 60000`). No fetch was enqueued within the test's 30s window; T272 failed.
+
+**Observation**: `millis()` starts near 0 at boot. Setting `_lastFetch = 0` means "last fetch happened at the epoch" — not "last fetch happened a long time ago." The condition `now - _lastFetch >= pollSecs*1000` is only satisfied once `millis() >= pollSecs*1000`, i.e., after the first full interval has elapsed since boot. Within the first 60s, the intent ("fetch immediately") and the behavior ("not yet") are mismatched.
+
+**Root cause**: The `_lastFetch = 0` idiom is only correct as an "immediate fetch" signal after the device has been running for at least `pollSecs` seconds. This is a semantic mismatch between intent and behavior during early uptime that is invisible to code review — zero looks like a "force-reset" sentinel but is actually "boot time."
+
+**Fix**: `_lastFetch = millis() - (unsigned long)_pollSecs * 1000UL`. When `millis() < pollSecs*1000`, unsigned subtraction wraps to a large value; `now - _lastFetch = pollSecs*1000` exactly, satisfying the condition immediately at any uptime.
+
+**Suggested improvement**: Any app with a periodic fetch timer that wants "fetch immediately on next tick" must use the `_forceNow()` helper pattern (or inline equivalent), not `_lastFetch = 0`. The `0` assignment silently fails during early boot and passes code review without a flag. Other apps that set fetch timers to `0` with the same intent should be audited (CryptoApp, WeatherApp `init()` paths).
+
+**Status**: adopted → BP-032 (2026-06-14)
+
+---
+
+### LL-073 — 2026-06-13 — `String::indexOf()` stops at null bytes; binary or ISO-8859-1 bodies require `memcmp` scan
+
+**Context**: NOS Teletekst response body (ISO-8859-1 encoding, ~1.1 KB) contains `\x00\x00` at byte positions 1065–1066 — teletext color/mode control codes — immediately before `</pre>` at position 1067. `body.indexOf("</pre>", preStart + 5)` returned -1. The body was fetched successfully (HTTP 200, full length); the parse step failed with "no `</pre>` block."
+
+**Observation**: Arduino `String::indexOf()` delegates to `strstr()`, which treats `\0` as a C-string terminator. The search stopped at position 1065. ISO-8859-1 teletext content legitimately uses bytes 0x00–0x1F as control codes (text color, mosaic graphics mode, character set switching). These are content bytes, not terminators — but `strstr()` cannot distinguish them.
+
+**Root cause**: The parser assumed the response body was a C-string–compatible format. It is not: it is a byte stream from an ISO-8859-1 document with embedded control bytes. Any function that wraps `strstr()`, `strchr()`, `strlen()`, or `String::indexOf()` will silently truncate or misreport on such content.
+
+**Fix**: Null-safe `memcmp` scan: `for (int i = start; i <= rawLen - 6; i++) if (memcmp(raw + i, "</pre>", 6) == 0) { preEnd = i; break; }` over `body.c_str()` with `body.length()` as the length guard.
+
+**Suggested improvement**: Any HTTP response body that could contain null bytes — binary content, legacy encodings (ISO-8859-1, Latin-1, Windows-1252), protocols that use 0x00 as a control code — is incompatible with Arduino `String::indexOf()`, `lastIndexOf()`, `strstr()`, `strchr()`, and anything built on C-string semantics. For such bodies: hold the raw buffer pointer via `body.c_str()` and use `memchr()`/`memcmp()` with the `body.length()` bound. Document the content type in the comment. Sister lesson to LL-017 ("a library that produces output is more dangerous than one that errors"): `String::indexOf()` returned -1 silently, not a crash, with no indication that the search stopped early.
+
+**Status**: adopted → BP-033 (2026-06-14)
+
+---
+
 ## Retrospective — 2026-06-13 — M-PREVIEW-FRAMEWORK
 
 ### What went well
@@ -523,6 +590,9 @@ Per AGENTS.md, QM does not self-promote. Below are LL items that look durable en
 - **LL-049** → "ArduinoJson filtered parses have two separately-sized documents: the filter doc and the data doc. Both must be sized deliberately and documented. The host test's budget check only validates the data doc; filter doc truncation is a separate failure mode invisible to the test. Extend BP-015 to require: compute minimum filter doc capacity from path depth × leaf count; record it as a comment alongside every `StaticJsonDocument<N> filter` declaration." Process rule, applies to Developer (sizing + documentation at introduction) and VE (extend host-test scope). Concrete incident: `StaticJsonDocument<64>` for a 5-level/2-leaf filter tree silently dropped both fields; DUT returned zeros. Host test passed. No gate existed between 64B declaration and DUT observation.
 - **LL-026** → "Reference image used → paired visual validation item required. Any element rendered from a reference image must have a VE/audit item that validates the rendered output against that image. No reference image consumed without a closing verification step." Strong promotion case: directly addresses a recurring human frustration; cost of the check is low (side-by-side screenshot); cost of skipping is 4+ wasted sessions. Applies to Developer (spec completeness) + VE (validation item creation).
 - **LL-029** → "Structural refactors must include a grep-for-old-paths step on moved files, plus a tool-script smoke-test gate (e.g. `python3 -c 'import coords'`) before close. A file move that does not update internal path strings is an incomplete migration. BP candidate — applicable to any project with host-side Python/shell tooling."
+- **LL-071** → adopted → **BP-031** (2026-06-14)
+- **LL-072** → adopted → **BP-032** (2026-06-14)
+- **LL-073** → adopted → **BP-033** (2026-06-14)
 - **LL-032** → adopted → **BP-010** (2026-05-25)
 - **LL-033** → adopted → **BP-011** (2026-05-25)
 - **LL-034** → adopted → **BP-012** (2026-05-25)

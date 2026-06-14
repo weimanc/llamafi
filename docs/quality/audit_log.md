@@ -4,6 +4,45 @@
 
 All audits: scope, findings, actions, results.
 
+### Retrospective — 2026-06-14 — M-TELETEXT (TASK-177–191)
+
+**Triggered by**: human (post-milestone retrospective request)
+
+**Scope**: Full M-TELETEXT milestone — NOS Teletekst firmware implementation (TASK-177–191), icons (TASK-179), VE suite (T249 planned, T272 executed), ADR-044 accepted.
+
+**Areas checked**:
+- [x] Design process quality (PoC before firmware)
+- [x] Bug classes introduced and found
+- [x] Test coverage
+- [x] ADR accuracy post-test
+- [x] Pattern reuse and gaps
+
+**Findings**:
+
+1. **On-host PoC before firmware was executed** — GREEN. `preview_teletext.py`, NOS API reverse-engineering, resource impact assessment all completed before TASK-177 (firmware) began. Practice applied from prior lessons. No rendering surprises on first DUT flash.
+
+2. **ADR-044 item 9 was architecturally wrong at design time** — RED (resolved). Design stated "fetchTeletext follows weather pattern (no tlsYield)." T272 confirmed real TLS heap contention. ADR-044 item 9 revised post-test. LL-071 filed: default for all dataTask HTTPS fetchers should be *with* tlsYield; omitting it requires measured justification.
+
+3. **`_lastFetch = 0` silently fails as "force immediate fetch" during early uptime** — AMBER (resolved). Used in three places in teletextApp.h; `resume()` comment explicitly promised "force immediate fetch" but the condition was unsatisfied within first 60s. Fixed by `_forceNow()` unsigned-underflow helper. LL-072 filed: `_lastFetch = 0` idiom is an early-boot footgun.
+
+4. **`String::indexOf()` null-unsafe; NOS body has embedded null bytes** — RED at test time (resolved). ISO-8859-1 teletext control codes include `\x00\x00` at positions 1065–1066, before `</pre>` at 1067. `strstr()` stopped at null; `indexOf()` returned -1. Fixed with null-safe `memcmp` scan. LL-073 filed.
+
+5. **Three bugs found in single T272 run; none reached production** — GREEN (quality outcome). T272 was designed for TLS contention; it also surfaced two unrelated bugs. All three fixed in-session before commit.
+
+6. **T249–T271 planned but not executed** — AMBER (known gap). VE suite has 23 planned/ready-to-run tests beyond T272. Blocked on test harness gaps or marked manual. Not a blocker for milestone close; filed as known gap in test_plan.md.
+
+7. **tlsResume() missing from two early-return paths** — RED at code review time (resolved). After adding `tlsYield()` at function entry, the `http.begin` failure path and the "no `<pre>` block" early-return path were missing the matching `tlsResume()`. Would have permanently suspended Spotify's TLS session on any fetch failure. Fixed in same session.
+
+**Actions assigned**:
+- LL-071 filed (tlsYield default for all dataTask fetchers). Open — BP candidate.
+- LL-072 filed (`_lastFetch = 0` early-boot footgun). Open — BP candidate.
+- LL-073 filed (String::indexOf null-unsafe). Open — BP candidate.
+- Audit remaining apps for `_lastFetch = 0` with "force immediate fetch" intent — CryptoApp, WeatherApp init() paths. (Developer handoff — not scheduled.)
+
+**Resolution**: All RED findings resolved same session. Milestone complete. Three LL entries open for human BP promotion.
+
+---
+
 ### Audit — 2026-06-13 — M-PREVIEW-FRAMEWORK (TASK-192)
 
 **Triggered by**: human (post-milestone sign-off request)
