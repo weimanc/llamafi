@@ -596,9 +596,23 @@ starting eject work; rest can proceed in parallel.
 9. **`run/check`** 5/5 gates pass before marking done.
 
 **Priority:** P1 — core milestone deliverable; blocks TASK-207/208/209/211/212
-**Status:** open
+**Status:** done — commit e6c02ed (2026-06-14)
 **Opened:** 2026-06-14
+**Closed:** 2026-06-14
 **Milestone:** M-WEBRADIO
+
+**Delivered:**
+- `webRadioApp.h`: WRPlayState, Audio internal DAC GPIO26, ICY queue, PLEDIT station list,
+  POSBAR buffer bar, full App interface (init/resume/suspend/tick/handleInput/hasPendingAsync
+  /dbgGet/dbgSet with wrState/wrCount/wrIdx/wrIcy/wrEject/wrPlay/wrStop/wrNext/wrPrev).
+- `dataTaskStorage.cpp`: fetchWebRadioStations — tlsYield/tlsResume, de1→nl1→at1 mirrors,
+  streaming filter, pre-allocated DynamicJsonDocument(14336), stack bumped to 12 KB.
+- `winampDisplay.h`: drawEjectButton(bool), hitTestEject, hitTestTransportPublic public;
+  repaintChrome calls drawEjectButton(false); EJECT in TouchResult comment.
+- `main.cpp`: SpotifyApp intercepts hitTestEject → switchApp(WebRadio); webRadio dbg shims.
+- `appRegistry.h`: APP_X(WebRadio,'R',0). 5/5 check gates pass. RAM 37.2% / Flash 62.4%.
+
+**Notes:** TASK-211 (serial ACT_EJECT test) and TASK-212 (error state injection) remain open.
 **Owner:** Developer
 **Deps:** TASK-210 (sign-off required before hitTestEject blit); TASK-199–202
 done (host phase complete — all gate inputs available)
