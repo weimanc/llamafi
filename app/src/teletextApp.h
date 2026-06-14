@@ -116,6 +116,8 @@ public:
         }
     }
 
+    bool hasPendingAsync() const override { return _pendingFetch; }
+
     bool handleInput(TouchPhase phase, int x, int y) override {
         if (phase != TouchPhase::Release) return false;
 
@@ -248,7 +250,7 @@ private:
         if (_histDepth < 10) _history[_histDepth++] = _st.page;
         _st.page   = page;
         _lastFetch = _forceNow();
-        _pendingFetch = false;
+        _pendingFetch = true;
         dataTask::enqueueTeletextPage(page);
     }
 
@@ -256,7 +258,7 @@ private:
         if (_histDepth == 0) return;
         _st.page   = _history[--_histDepth];
         _lastFetch = _forceNow();
-        _pendingFetch = false;
+        _pendingFetch = true;
         dataTask::enqueueTeletextPage(_st.page);
     }
 

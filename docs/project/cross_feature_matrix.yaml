@@ -269,6 +269,30 @@ interactions:
       fetchErrorCode=None — confirming hang rather than error. Design in
       docs/architecture/designs/M-DATATASK-PROGRESS.md.
 
+  - id: X016
+    feature_a: teletext-001
+    feature_b: touch-004
+    interaction_type: dependency
+    description: |
+      TeletextApp::hasPendingAsync() returns `_pendingFetch`, which is true from the
+      moment a page fetch is enqueued (via _navigate(), _goBack(), or tick() periodic
+      poll) until pollTeletext() returns a result. Shell polls hasPendingAsync() after
+      every touch event and every tick(); while true, setBusy(true) fires, painting the
+      taskbar active-slot indicator amber and blocking further touch input via the
+      g_shellBusy gate in appHandleInput().
+
+      Critical: _navigate() and _goBack() direct-enqueue via dataTask::enqueueTeletextPage()
+      AND set _pendingFetch = true. tick() guards its own enqueue path with !_pendingFetch,
+      so these two paths are mutually exclusive — exactly one fetch is in flight at any time.
+      After poll success tick() sets _pendingFetch = false, shell clears busy to green.
+    risk: low
+    test_coverage: [T-BUSY-01, T-BUSY-02, T-BUSY-03]
+    notes: |
+      Wired 2026-06-14. Before this, TeletextApp did not override hasPendingAsync()
+      (default false), so the busy indicator never fired for teletext navigation.
+      _navigate()/_goBack() also previously set _pendingFetch = false immediately after
+      direct-enqueueing, which would have caused a double-enqueue on the next tick().
+
 #   interaction_type: shared_state | dependency | conflict | overlap
 #   description: ""
 #   risk: low | medium | high

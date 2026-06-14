@@ -908,7 +908,7 @@ features:
       `hasPendingAsync() const` (default false). Shell polls each loop; auto-clears after
       `SHELL_BUSY_TIMEOUT_MS = 3000` ms as fallback. `switchApp()` always clears busy
       before painting the new active slot. Classic "sand-glass" equivalent for a touch UI.
-    status: proposed
+    status: implemented
     git_ref: ""
     files:
       - app/gen/shell_layout.h
@@ -917,14 +917,17 @@ features:
       - app/src/main.cpp
       - app/src/winamp/winampDisplay.h
       - app/src/spotifyTask.h
-    cross_features: [touch-005, app-interface-001, taskbar-001, stock-001]
+      - app/src/teletextApp.h
+    cross_features: [touch-005, app-interface-001, taskbar-001, stock-001, teletext-001]
     test_ids: [T-BUSY-01, T-BUSY-02, T-BUSY-03, T-BUSY-04, T-BUSY-05]
     notes: |
       ADR-035 Decision 4. Design: docs/architecture/designs/M-TOUCH-UX.md Part 2.
       SpotifyApp: `_actionDispatched && spotifyTask::hasPendingActions()` (mutable flag,
       volatile _actionPending in spotifyTask for thread safety). StockApp: `bool _pendingAsync`
-      set on enqueue, cleared on pollStockChart() resolve. Developer deliverable: `get shellBusy`
-      in SERIAL_DEBUG cmdGet() before VE can execute T-BUSY suite.
+      set on enqueue, cleared on pollStockChart() resolve. TeletextApp: `_pendingFetch` flag
+      set true in `_navigate()`/`_goBack()` (direct enqueue) and in tick() periodic enqueue;
+      cleared when `pollTeletext()` succeeds. hasPendingAsync() returns `_pendingFetch`.
+      Developer deliverable: `get shellBusy` in SERIAL_DEBUG cmdGet() before VE can execute T-BUSY suite.
 
   - id: touch-005
     name: Debounce activation — touchScreenCoolDownTime Phase 2 check + g_shellBusy gate
@@ -1256,6 +1259,7 @@ features:
     - data-task-001
     - settings-001
     - taskbar-icons-001
+    - touch-004
   test_ids: [T249, T250, T251, T252, T253, T254, T255, T256, T257, T258, T259, T260, T261, T262, T263, T264, T265, T266, T267, T268, T269, T270, T271]
   dependencies:
     - data-task-001
