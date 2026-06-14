@@ -216,6 +216,31 @@ Total playlist time is rendered on top of the bottom bar using the Winamp LED
 bitmap font (`SKIN_FONT` / `SKIN_GLYPH`), left-aligned at
 `(originX + 127 + GLYPH_W, PLEDIT_BOTTOM_Y + 10)`.
 
+### f. Live kbps display
+
+The kbps and kHz fields at `(110, 43)` and `(156, 43)` on `MAIN_BG` are baked
+statically by `bake_skin.py` as `"192"` / `"44"` (ADR-014).  WebRadio is the
+**first app to carry a live bitrate value** (`evt_bitrate` callback), so it
+must overdraw those baked digits after `blitMainBackground()`.
+
+**Erase + redraw contract:**
+
+1. Fill the kbps zone `(110, 43, 18, 6)` with solid background colour
+   `MAIN_BG_DARK` (`0x0000` in RGB565 — the pixel colour of that region in
+   `MAIN.BMP`).  Three digits × 6 px glyph pitch = 18 px wide.
+2. Render new digits left-aligned at `(110, 43)` using `SKIN_GLYPH` (the
+   TEXT.BMP sprite already baked into `skin_layout.h`).  One digit per
+   `drawGlyph(x, 43, ch)` call, advancing `x` by `GLYPH_W + 1 = 6` px.
+3. Update on `evt_bitrate` only — not on every display tick.  Cache last
+   rendered value; skip redraw if unchanged.
+
+The kHz field (`"44"` at `(156, 43)`) stays baked for MVP.  Most MP3 streams
+are 44.1 kHz; `evt_info` carries sample rate if live kHz becomes wanted later.
+
+`MONO/STEREO` indicator stays baked as `STEREO` for MVP (the SC8002B path is
+mono but the indicator requires re-introducing the MONOSTER atlas — not worth
+it for this milestone).
+
 ---
 
 ## PLEDIT scrollbar — exact firmware behaviour
@@ -410,9 +435,84 @@ Breaking I2S v2 change only affects Arduino-ESP32 3.x — not a risk here.
 `pio run` output with library added before implementation is scheduled. If
 budget is tight, a stripped MP3-only fork reduces footprint.
 
-**SRAM without PSRAM:** 6.25 KB input buffer → ~400 ms at 128 kbps. Prefer
-64–96 kbps stations (filter with `bitrate` field from station list). Display
-`inBufferFilled()` in the buffer bar as a user-visible health indicator.
+**SRAM / ring buffer:** `esphome/ESP32-audioI2S` default ring buffer is
+**25 chunks × 1 600 B = 40 000 B** (≈ 2.5 s at 128 kbps, ≈ 1.0 s at 320 kbps).
+The EXP-005 "6.25 KB" estimate was the socket receive buffer, not the audio
+ring buffer.  Prefer stations ≤ 96 kbps for maximum stall tolerance (3.3 s
+drain time vs 2.5 s at 128 kbps).  Display `inBufferFilled()` in the POSBAR
+as a real-time health indicator; see §POSBAR buffer health below.
+
+---
+
+## Error states
+
+### Detection logic
+
+Checked when `audio.isRunning()` returns false or `inBufferFilled()` reaches 0:
+
+```
+audio stops or fails to start
+    │
+    ├─ WiFi.status() != WL_CONNECTED
+    │       state → ERROR_WIFI       title "WiFi lost"
+    │       recovery: poll WiFi.status(); reconnect; retry same station
+    │
+    ├─ WiFi connected + HTTP 403 / 451 (from audio_info callback)
+    │       state → ERROR_BLOCKED    title "Station blocked"
+    │       recovery: auto-skip if setting on; else remain on station
+    │
+    ├─ WiFi connected + HTTP 200 + buffer drains to 0
+    │       state → ERROR_STALL      title "Buffering…" → "Stream stall"
+    │       POSBAR shows drain live; retry connecttohost() once;
+    │       if still drains → auto-skip if setting on
+    │
+    └─ WiFi connected + connect failed (DNS / TCP timeout)
+            state → ERROR_UNREACHABLE  title "Station unreachable"
+            recovery: retry once; then move to next station
+```
+
+The `audio_info(const char* info)` callback carries the HTTP status line
+(`"HTTP/1.1 403 Forbidden"`, etc.) so 403/451 is detectable before audio
+decode begins.  The stall case is visible from `inBufferFilled()` approaching
+zero with `WiFi.status() == WL_CONNECTED`.
+
+### State / title mapping
+
+| State | POSBAR | Marquee title text |
+|-------|--------|--------------------|
+| STOPPED | left (0%) | station name |
+| CONNECTING | animated fill | "Connecting…" |
+| BUFFERING | draining, < 20% | "Buffering…" |
+| PLAYING | live fill level | station name → ICY StreamTitle |
+| ERROR_WIFI | left (0%) | "WiFi lost" |
+| ERROR_BLOCKED | left (0%) | "Station blocked" |
+| ERROR_STALL | left (0%) | "Stream stall" |
+| ERROR_UNREACHABLE | left (0%) | "Station unreachable" |
+
+### POSBAR buffer health
+
+```cpp
+// Called on each display tick while PLAYING or BUFFERING:
+uint32_t filled = audio.inBufferFilled();
+uint32_t free_  = audio.inBufferFree();
+float    frac   = (float)filled / max(1u, filled + free_);
+int      thumb  = (int)(frac * POSBAR_TRAVEL);  // POSBAR_TRAVEL = 219 px
+// blitSprite(POSBAR_BG) then blitSprite(POSBAR_THUMB_N at thumb_px)
+```
+
+Left (thumb = 0) = buffer empty; right (thumb = 219) = buffer full.
+Same two-blit POSBAR contract as existing firmware — only `thumb_px` source
+changes (buffer fraction instead of playback position).
+
+### Auto-retry and auto-skip policy
+
+| Event | With Auto-skip OFF | With Auto-skip ON |
+|-------|-------------------|-------------------|
+| ERROR_STALL (once) | retry same station | retry same station |
+| ERROR_STALL (twice) | show error, wait | advance to next station |
+| ERROR_BLOCKED | show error, wait | advance to next station |
+| ERROR_UNREACHABLE | retry once, show error | retry once, advance |
+| ERROR_WIFI | wait for WiFi | wait for WiFi (no skip) |
 
 ---
 
@@ -424,6 +524,8 @@ Settings → Applications → Web Radio:
 |---------|------|---------|-------|
 | Country | enum (ISO 3166-1 alpha-2) | `NL` | Drives station list fetch; searchable via KeyboardWidget |
 | Autoplay | bool | false | Reconnect last station on app launch |
+| Bitrate cap | enum (kbps) | 96 | API query `?bitrate_max=N`; limits drain rate so 40 KB buffer lasts ≥ 3.3 s; options: 64 / 96 / 128 / 192 / off |
+| Auto-skip on stall | bool | false | Advance to next station when `ERROR_STALL` repeats; see §Error states auto-retry policy |
 | HW Mod Installed | bool | false | SC8002B gain-reduction mod applied (see §Audio hardware path); unlocks Max Volume above 10 |
 | Max Volume | int 1–21 | 10 (stock) / 18 (HW mod) | Ceiling passed to `audio.setVolume()`; default auto-raised when HW Mod toggled on |
 | Last station idx | int | 0 | Persisted in `settings.json` (SPIFFS); internal |
@@ -508,19 +610,28 @@ Buffer dropout and coexistence are back-to-back empirical checks — one session
 
 ## Open items before implementation
 
-1. **Flash budget gate** — add `esphome/ESP32-audioI2S` to `platformio.ini`,
-   run `pio run -e cyd2usb_winamp`, confirm binary fits partition. **Blocking.
-   → TASK-199.**
-2. **Buffer dropout test** — on-DUT: play 128 kbps stream; measure drop rate;
-   decide if 96 kbps cap should be enforced in API query. → DUT phase.
-3. **Touch + audio coexistence** — XPT2046 SPI (GPIO25) and I2S-DAC (GPIO26)
+1. ~~**Flash budget gate**~~ — **resolved (TASK-199, 2026-06-14)**: build at 55.6%
+   flash with `esphome/ESP32-audioI2S` + `-DAUDIO_NO_SD_FS` + `SD_MMC` in
+   `lib_ignore`.  Gate cleared.
+2. ~~**Buffer dropout / bitrate cap**~~ — **resolved by host probe
+   (`test_stream_buffer.py`, 2026-06-14)**: ring buffer is 40 KB (not 6.25 KB
+   as stated in EXP-005); 26% of 280 probed stations show real network stalls
+   (≥ 1.2 s pause).  Bitrate cap of **96 kbps** added to Settings (default);
+   gives 3.3 s drain tolerance vs 2.5 s at 128 kbps.  Firmware must also
+   implement retry-on-stall; see §Error states.
+3. ~~**Geo-lock**~~ — **resolved by host probe (`test_stream_geo.py`,
+   2026-06-14)**: 90% of 300 probed stations across 15 countries are
+   accessible from local IP.  6 blocked (HTTP 403/451), 1 playlist URL.
+   Firmware must detect and surface these as distinct error states; see
+   §Error states.  Playlist URLs (`.m3u`/`.pls`) are out of MVP scope —
+   firmware skips them with "Unsupported format" title.
+4. **Touch + audio coexistence** — XPT2046 SPI (GPIO25) and I2S-DAC (GPIO26)
    active simultaneously; verify no electrical interference on this board rev.
-   → DUT phase.
-4. ~~**Amp volume ceiling**~~ — **resolved by design**: `HW Mod Installed` bool +
+   → DUT phase.  Peripheral buses are independent (SPI vs internal DAC); low
+   electrical risk but requires empirical confirmation.
+5. ~~**Amp volume ceiling**~~ — **resolved by design**: `HW Mod Installed` bool +
    `Max Volume` int exposed in settings. Stock default 10; mod default 18. Soft
    cap enforced in code when HW Mod = false. Reference mod: hexeguitar/ESP32_TFT_PIO.
-5. **Source taskbar icons** — `radio.png` / `radio_active.png` (24×24 RGBA).
-6. ~~**Country list**~~ — **resolved by design**: derive from `kCities[]` in
-   `settings/cities.h` (deduplicate `country` ISO field, ~40–50 entries). Add
-   static name mapping. Country picker uses `KeyboardWidget` (Full mode) for
-   search-by-name filtering. → TASK-202.
+6. **Source taskbar icons** — `radio.png` / `radio_active.png` (24×24 RGBA).
+7. ~~**Country list**~~ — **resolved (TASK-202, 2026-06-14)**: 65 entries, 0
+   coverage gaps; `app/gen/webradio_countries.h` generated.
