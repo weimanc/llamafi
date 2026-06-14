@@ -451,8 +451,9 @@ private:
                 tft.setTextDatum(TL_DATUM);
             }
         }
-        // Fill right strip bar area (between grid and taskbar, below grid)
-        tft.fillRect(TTXT_STRIP_X, TTXT_BAR_Y0, TTXT_STRIP_W, TTXT_BAR_H, kStripBg);
+        // Fill the 3-pixel gap at x=272..274 not reached by any button (4*68=272)
+        tft.fillRect(4 * TTXT_FTL_BTN_W, TTXT_BAR_Y0,
+                     TTXT_STRIP_X + TTXT_STRIP_W - 4 * TTXT_FTL_BTN_W, TTXT_BAR_H, 0x0000);
     }
 
     // ── Arrow glyph helpers (fillTriangle) ───────────────────────────────────
