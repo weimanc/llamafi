@@ -60,6 +60,15 @@ extern const uint16_t SKIN_FONT[];
 #define CB_NEXT_W 22
 #define CB_NEXT_H 18
 
+// Eject button — runtime blit (M-WEBRADIO toggle). Same CBUTTONS atlas.
+// Normal state: top row (y=0); pressed state: bottom row (y=18).
+#define CB_EJECT_N (SkinUV){ 114,  0, 22, 16 }
+#define CB_EJECT_P (SkinUV){ 114, 18, 22, 16 }
+#define CB_EJECT_X 136
+#define CB_EJECT_Y  89
+#define CB_EJECT_W  22
+#define CB_EJECT_H  16
+
 // Title/marquee region on main window (Winamp standard).
 #define TITLE_X 111
 #define TITLE_Y 27

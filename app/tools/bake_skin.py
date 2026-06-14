@@ -758,16 +758,9 @@ def composite_static_decoration(main_bg: Image.Image, sources: dict, log: list =
         record("shufrep_pl_on", "SHUFREP.BMP", "(23, 73, 23, 12)",
                "(242, 58, 23, 12)", pl_on)
 
-    # Eject button — decorative bake from CBUTTONS.BMP. Same atlas the
-    # transport buttons live in. Static composite rather than runtime
-    # blit because eject has no Spotify equivalent (the closest semantic
-    # would be "transferPlayback to a non-Spotify device" — not useful).
-    if "CBUTTONS.BMP" in sources:
-        cb = sources["CBUTTONS.BMP"]
-        eject = cb.crop((114, 0, 114 + 22, 16)).convert("RGB")
-        main_bg.paste(eject, (136, 89))
-        record("eject_decorative", "CBUTTONS.BMP", "(114, 0, 22, 16)",
-               "(136, 89, 22, 16)", eject)
+    # Eject button — formerly baked statically onto MAIN_BG. Now a runtime
+    # blit (M-WEBRADIO: eject toggles Spotify ↔ WebRadio). UV constants
+    # emitted to skin_layout.h; firmware blits normal/pressed state directly.
 
 
 def parse_shell_layout(path="gen/shell_layout.h") -> dict:
@@ -821,6 +814,15 @@ def emit_layout_header(out_dir: pathlib.Path, main: Image.Image, cbut: Image.Ima
         for name, _x_uv, w, h in CBUTTON_SPRITES:
             f.write(f"#define CB_{name}_W {w}\n")
             f.write(f"#define CB_{name}_H {h}\n")
+
+        f.write("\n// Eject button — runtime blit (M-WEBRADIO toggle). Same CBUTTONS atlas.\n")
+        f.write("// Normal state: top row (y=0); pressed state: bottom row (y=18).\n")
+        f.write("#define CB_EJECT_N (SkinUV){ 114,  0, 22, 16 }\n")
+        f.write("#define CB_EJECT_P (SkinUV){ 114, 18, 22, 16 }\n")
+        f.write("#define CB_EJECT_X 136\n")
+        f.write("#define CB_EJECT_Y  89\n")
+        f.write("#define CB_EJECT_W  22\n")
+        f.write("#define CB_EJECT_H  16\n")
 
         f.write("\n// Title/marquee region on main window (Winamp standard).\n")
         f.write("#define TITLE_X 111\n#define TITLE_Y 27\n#define TITLE_W 154\n#define TITLE_H 6\n\n")

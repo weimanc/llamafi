@@ -462,8 +462,11 @@ Deliverable:
 5. Update `golden.sha256` with new checksums.
 
 **Priority:** P1 — gates firmware eject implementation
-**Status:** open
+**Status:** done — 2026-06-14. Static eject paste removed from MAIN_BG; CB_EJECT_N/P/X/Y/W/H
+constants emitted to skin_layout.h (UV offsets into SKIN_CBUTTONS atlas). run/check 5/5 pass.
+golden.sha256 updated. Human sign-off obtained.
 **Opened:** 2026-06-14
+**Closed:** 2026-06-14
 **Milestone:** M-WEBRADIO
 **Owner:** Developer + human sign-off
 **Deps:** —
