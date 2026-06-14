@@ -307,7 +307,20 @@ Implementation plan (concrete API calls, ~100-120 lines added to existing script
 
 Imports needed: `from bake_skin import open_skin, load_bmp, composite_text, build_pledit_atlas, POSBAR_LAYOUT, GLYPH_W, GLYPH_H` — confirmed safe (no side effects at import time).
 
-T275 human sign-off gate still applies after fix. Prior T275 sign-off (on pre-fix PNGs with PIL font + synthetic chrome) is void — gate must be re-executed on post-fix snapshots.
+**Step 6 — Remove country badge** (Architect: no firmware counterpart; overlays Winamp skin chrome):
+Delete `_draw_country_badge()` and all call sites. Remove `COUNTRY_X/Y/W/H` constants.
+
+**Step 7 — Functional PLEDIT scrollbar** (Architect audit 2026-06-14 — exact firmware spec):
+- Rail tile: `pledit_raw.crop((32, 42, 51, 71))` (19×29) — tile vertically over y=136..200 at x=256.
+- Thumb: `pledit_raw.crop((52, 54, 61, 71))` (9×17) — transparent key RGB(0,198,255) / tolerance 30.
+- Thumb X (abs): `PLEDIT_CONTENT_X + PLEDIT_CONTENT_W + PLEDIT_THUMB_X_INSET` = 12+244+5 = **261**.
+- Thumb Y: `PLEDIT_ROWS_Y + scroll_offset * 48 // max(1, len(stations)-5)`.
+- Thumb only rendered when `len(stations) > PLEDIT_ROW_COUNT` (5). Rail always rendered.
+- Replace current synthetic scrollbar rectangle entirely.
+
+See `M-WEBRADIO.md §PLEDIT scrollbar` for the PIL implementation code.
+
+T275 human sign-off gate still applies after fix. Prior T275 sign-off (on pre-fix PNGs with PIL font + synthetic chrome + country badge) is void — gate must be re-executed on post-fix snapshots.
 
 VE filed T279-T282 (wsz error handling, LED font pixel check, POSBAR sprite check, --wsz arg coverage). T273/T274/T275/T278 updated to reflect wsz dependency and bake_skin whitelist.
 **Opened:** 2026-06-14

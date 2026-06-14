@@ -66,15 +66,21 @@ Winamp main-unit geometry reused with adapted semantics:
 ┌──────────────────────────────────────────────────────┬─────────┐
 │  [⏮]  [⏹] [▶/⏸]  [⏭]   EQ  PL        clkwdgt      │         │
 │  ────────────────────────────────────────────────    │taskbar  │
-│  Station name (scrolling marquee)  ••  [COUNTRY]     │  45 px  │
+│  Station name (scrolling marquee)                    │  45 px  │
 │  ICY StreamTitle (artist — title)                    │         │
 │  [buffer bar replaces seek bar]   bitrate  kbps      │         │
 │  ════════════════════════════════════════════════    │         │
 │  ▌▌▌▌▌▌▌  VU meter (getVUlevel())  ▌▌▌▌▌▌▌           │         │
 │  ────────────────────────────────────────────────    │         │
-│  [PL panel: station list]  scroll indicator          │         │
+│  [PL panel: station list]         [▐ scroll rail ▌]  │         │
 └──────────────────────────────────────────────────────┴─────────┘
 ```
+
+> **Architect note (2026-06-14):** The `[COUNTRY]` badge shown in earlier drafts
+> has no counterpart in `winampDisplay.h` and would overwrite Winamp skin chrome
+> at that position. It is **removed from the design**. The active country is
+> surfaced via the Settings entry point and the PLEDIT title bar text (see §PLEDIT
+> scrollbar below) — not via an overlay on the main window.
 
 **Control mapping**
 
@@ -89,6 +95,99 @@ Winamp main-unit geometry reused with adapted semantics:
 | title line 1   | "Artist — Title" | station name (`evt_name`) |
 | title line 2   | album            | ICY `StreamTitle` (`evt_streamtitle`) |
 | PL panel       | playlist         | station list for selected country |
+
+---
+
+## PLEDIT scrollbar — exact firmware behaviour
+
+> Source: `winampDisplay.h` `drawPlaylist()` lines 1114-1131,
+> `drawScrollThumbOnly()` lines 1040-1056.  Sprite source: `bake_skin.py`
+> lines 339-348.
+
+### Geometry (all values from `skin_layout.h`)
+
+| Constant | Value | Meaning |
+|----------|-------|---------|
+| `PLEDIT_ROWS_Y` | 136 | Top of rows area (screen px) |
+| `PLEDIT_ROW_COUNT` | 5 | Visible rows |
+| `PLEDIT_ROW_H` | 13 | Row height px |
+| `PLEDIT_CONTENT_X` | 12 | Left frame rail width |
+| `PLEDIT_CONTENT_W` | 244 | Content width between rails |
+| `PLEDIT_SIDE_RIGHT_W` | 19 | Right rail tile width |
+| `PLEDIT_SIDE_H_SRC` | 29 | Right rail tile height (tiled vertically) |
+| `SKIN_PLEDIT_THUMB_W` | 9 | Scrollbar thumb width |
+| `SKIN_PLEDIT_THUMB_H` | 17 | Scrollbar thumb height |
+| `PLEDIT_THUMB_X_INSET` | 5 | Thumb x offset inside rail |
+
+**Derived:**
+- `track_h = 5 × 13 = 65 px` (rows area height)
+- `travel = track_h − THUMB_H = 65 − 17 = 48 px` (thumb travel range)
+- `thumb_x (abs) = PLEDIT_CONTENT_X + PLEDIT_CONTENT_W + PLEDIT_THUMB_X_INSET = 12 + 244 + 5 = 261`
+
+### Sprite sources (from PLEDIT.BMP in the .wsz)
+
+| Sprite | BMP crop | Size |
+|--------|----------|------|
+| Right rail tile | `(32, 42, 51, 71)` | 19 × 29 |
+| Scrollbar thumb | `(52, 54, 61, 71)` | 9 × 17 |
+
+Transparent key: **RGB (0, 198, 255)** / RGB565 `0x063F` (standard Winamp skin
+transparency colour). Pixels matching this key must be masked out when blitting
+the thumb — the firmware passes it as the colour-key argument to `pushImage`.
+
+### Thumb position formula
+
+```cpp
+// from drawPlaylist() line 1125-1128
+constexpr int travel = track_h - SKIN_PLEDIT_THUMB_H;   // 48 px
+const int denom      = max(1, (int)count - PLEDIT_ROW_COUNT);
+const int thumb_y    = PLEDIT_ROWS_Y + scrollOffset * travel / denom;
+```
+
+`scrollOffset` is the index of the first visible row (0 = top).
+
+### Visibility condition
+
+The thumb (and rail-blit step) is only performed when `count > PLEDIT_ROW_COUNT`
+(more stations than fit on screen). When `count ≤ 5` the right-side position
+still shows the tiled `SKIN_PLEDIT_RIGHT_SIDE` rail (always drawn), but no thumb
+is blitted on top.
+
+### Fast scroll path
+
+`drawScrollThumbOnly()` retiles the rail and reblits the thumb at the new
+`scrollOffset` without redrawing rows. Called during `D_PLEDIT_SCROLL_DIRECT`
+drag state. Row text uses `TFT_eSPI` **Font 1** (fixed 6×8 px), not the Winamp
+LED bitmap font — this is the same font used for PLEDIT rows in Spotify mode.
+
+### Preview implementation (TASK-201 fix)
+
+```python
+# Crop sprites from pledit_raw (loaded once from wsz)
+rail_tile  = pledit_raw.crop((32, 42, 51, 71))   # 19×29
+thumb_img  = pledit_raw.crop((52, 54, 61, 71))   # 9×17, has transparent pixels
+
+# Tile rail over rows area (y=136..200)
+rows_h = 5 * 13  # 65 px
+for sy in range(PLEDIT_ROWS_Y, PLEDIT_ROWS_Y + rows_h, 29):
+    h = min(29, PLEDIT_ROWS_Y + rows_h - sy)
+    img.paste(rail_tile.crop((0, 0, 19, h)), (PLEDIT_CONTENT_X + PLEDIT_CONTENT_W, sy))
+
+# Blit thumb when station count > 5
+if len(stations) > 5:
+    travel  = rows_h - 17   # 48
+    denom   = len(stations) - 5
+    thumb_y = PLEDIT_ROWS_Y + scroll_offset * travel // denom
+    # Mask transparency key (0,198,255) with tolerance 30
+    mask = thumb_img.convert("RGBA")
+    px   = mask.load()
+    for y in range(mask.height):
+        for x in range(mask.width):
+            r, g, b, _ = px[x, y]
+            if abs(r-0) < 30 and abs(g-198) < 30 and abs(b-255) < 30:
+                px[x, y] = (r, g, b, 0)
+    img.paste(thumb_img.convert("RGB"), (261, thumb_y), mask.split()[3])
+```
 
 ---
 
@@ -267,7 +366,7 @@ short.
 |------|-------------|----------|
 | **TASK-199** Flash budget gate | Add `esphome/ESP32-audioI2S` to `platformio.ini`; run `pio run -e cyd2usb_winamp`; report binary size | Only blocking gate. If budget fails, re-scope before any UI work. |
 | **TASK-200** API probe + TLS cert | `test_radiobrowser_api.py` (JSON shape, response size, mirror fallback, TLS cert issuer); Python ICY metadata probe against a live stream | Root CA for `dataTaskCerts.h`; confirms API contract before firmware parser is written; confirms ICY `StreamTitle` format |
-| **TASK-201** Canvas layout preview | `preview_webradio.py` — loads `gen/skin_preview.png` as base; draws radio content on top: PL list, marquee, buffer bar, bitrate, VU meter, country badge; keyboard to cycle states. **Implementation constraint:** `skin_preview.png` is the main-window background only — POSBAR chrome and PLEDIT title/bottom chrome are runtime sprite blits in firmware and are NOT baked into the PNG. Preview must extract TEXT.BMP from `.wsz` and render LED font glyphs via `build_glyph_table()` from `bake_skin.py` (5×6 px glyph crop+paste, mirrors `drawTitleText()` in `winampDisplay.h`); paste POSBAR.BMP at `(POSBAR_X=16, POSBAR_Y=72)` and PLEDIT.BMP chrome at `(0, PLEDIT_Y=116)`. PIL default font and synthetic fill-rectangles for chrome are not acceptable — they produce visually incorrect output that cannot serve as a layout sign-off gate. | Layout locked before firmware; avoids coordinate rework post-flash |
+| **TASK-201** Canvas layout preview | `preview_webradio.py` — loads `gen/skin_preview.png` as base; draws radio content on top: PL list, marquee, buffer bar, bitrate, VU meter, functional scrollbar; keyboard to cycle states. **No country badge** (removed — see §Canvas layout note). **Implementation constraints:** `skin_preview.png` is the main-window background only — POSBAR chrome, PLEDIT chrome, and scrollbar rail/thumb are all runtime sprite blits in firmware, not baked into the PNG. Preview must: (1) extract TEXT.BMP from `.wsz` and call `composite_text()` from `bake_skin.py` for LED font glyphs; (2) paste POSBAR.BMP crop at `(POSBAR_X=16, POSBAR_Y=72)`; (3) blit PLEDIT chrome via `build_pledit_atlas()`; (4) tile right-side rail (19×29 from PLEDIT.BMP at (32,42,51,71)) and blit scrollbar thumb (9×17 from PLEDIT.BMP at (52,54,61,71)) with RGB(0,198,255) transparency masking — see §PLEDIT scrollbar for exact formula. PIL default font and synthetic fill-rectangles are not acceptable. | Layout locked before firmware; scrollbar geometry and transparency masking confirmed before sprite atlas is wired into firmware |
 | **TASK-202** Country list generator | Host script: deduplicate `kCities[].country` from `cities.h`; cross-check against radio-browser.info `countrycode` availability; output static `kWebRadioCountries[]` `{code, name}` array | Country enum ready to paste into firmware; coverage gaps known before implementation |
 
 Execute in order: TASK-199 first (gate). TASK-200–202 can run in parallel once
