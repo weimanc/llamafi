@@ -38,6 +38,28 @@ static const int8_t kMosaicRect[6][4] = {  // { dx, dy, w, h }
 // ── Fast-text bar colours (red/green/yellow/cyan) ────────────────────────────
 static const uint16_t kFtlBarColors[4] = { 0xF800, 0x07E0, 0xFFE0, 0x07FF };
 
+// ── ISO-8859-1 extended → nearest ASCII printable ────────────────────────────
+// Font1 (GLCD) only covers 0x20..0x7E. Characters 0x80..0xFF are mapped to
+// their base ASCII letter so the cell background is always drawn and text is
+// readable (ë→e, ü→u, etc.) rather than showing stale pixels.
+static const uint8_t kLatin1Ascii[128] PROGMEM = {
+    // 0x80..0x9F  C1 controls
+    ' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',
+    ' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',
+    // 0xA0..0xAF
+    ' ','!','c','L','$','Y','|','p','"','c','a','"','~','-','R','-',
+    // 0xB0..0xBF
+    'o','+','2','3','\'','u','P','*',',','1','o','"','?','?','?','?',
+    // 0xC0..0xCF  À Á Â Ã Ä Å Æ Ç È É Ê Ë Ì Í Î Ï
+    'A','A','A','A','A','A','A','C','E','E','E','E','I','I','I','I',
+    // 0xD0..0xDF  Ð Ñ Ò Ó Ô Õ Ö × Ø Ù Ú Û Ü Ý Þ ß
+    'D','N','O','O','O','O','O','x','O','U','U','U','U','Y','P','B',
+    // 0xE0..0xEF  à á â ã ä å æ ç è é ê ë ì í î ï
+    'a','a','a','a','a','a','a','c','e','e','e','e','i','i','i','i',
+    // 0xF0..0xFF  ð ñ ò ó ô õ ö ÷ ø ù ú û ü ý þ ÿ
+    'd','n','o','o','o','o','o','/','o','u','u','u','u','y','p','y',
+};
+
 // ── Strip UI colours ─────────────────────────────────────────────────────────
 static const uint16_t kStripBg      = 0x1082;  // dark grey ≈ (28,28,28)
 static const uint16_t kStripActive  = 0xDEFB;  // light grey ≈ (220,220,220)
@@ -225,7 +247,7 @@ private:
         if (!page || page < 100 || page > 899) return;
         if (_histDepth < 10) _history[_histDepth++] = _st.page;
         _st.page   = page;
-        _lastFetch = 0;  // force fetch
+        _lastFetch = _forceNow();
         _pendingFetch = false;
         dataTask::enqueueTeletextPage(page);
     }
@@ -233,7 +255,7 @@ private:
     void _goBack() {
         if (_histDepth == 0) return;
         _st.page   = _history[--_histDepth];
-        _lastFetch = 0;
+        _lastFetch = _forceNow();
         _pendingFetch = false;
         dataTask::enqueueTeletextPage(_st.page);
     }
@@ -359,8 +381,10 @@ private:
                         }
                     }
                 } else {
-                    // Text mode: draw char with fg/bg (Font1 = 6×8 GLCD)
-                    tft.drawChar(px, py, (char)c, kTTColors[fg], kTTColors[bg], 1);
+                    // Text mode: Font1 covers 0x20..0x7E; map extended Latin-1 to ASCII base
+                    uint8_t ch = (c <= 0x7E) ? c
+                                             : (uint8_t)pgm_read_byte(&kLatin1Ascii[c - 0x80]);
+                    tft.drawChar(px, py, (char)ch, kTTColors[fg], kTTColors[bg], 1);
                 }
             }
         }

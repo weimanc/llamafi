@@ -19,7 +19,7 @@
 #define TTXT_BAR_Y0     200    // top edge of fast-text bar
 #define TTXT_BAR_Y1     239    // bottom edge of fast-text bar (inclusive)
 #define TTXT_BAR_H       40    // bar height (px)
-#define TTXT_FTL_BTN_W   68    // button width (275 // 4); button i: x = i*68..(i+1)*68-1
+#define TTXT_FTL_BTN_W   60    // button width (GRID_W/4=240/4); buttons span x=0..239 only
 
 // Side strip position (right of grid, left of taskbar)
 #define TTXT_STRIP_X    240    // left edge of nav strip
