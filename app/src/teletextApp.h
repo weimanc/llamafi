@@ -56,7 +56,7 @@ public:
         _st.page = g_settings.teletextPage;
         _histDepth = 0;
         _lastTapMs = 0;
-        _lastFetch = 0;
+        _lastFetch = _forceNow();
         _pendingFetch = false;
         _lastAction[0] = '\0';
         _injectedContent = false;
@@ -65,7 +65,7 @@ public:
     void resume() override {
         _st.page   = g_settings.teletextPage;
         _pollSecs  = g_settings.teletextPollSecs;
-        _lastFetch = 0;  // force immediate fetch
+        _lastFetch = _forceNow();  // force immediate fetch
         _pendingFetch = false;
         _injectedContent = false;
         _draw();
@@ -165,12 +165,13 @@ public:
             if (pg >= 100 && pg <= 899) {
                 _st.page = (uint16_t)pg;
                 g_settings.teletextPage = _st.page;
-                _lastFetch = 0;
+                _lastFetch = _forceNow();
             }
             return true;
         }
         if (strcmp(var, "triggerTeletextFetch") == 0 && strcmp(val, "1") == 0) {
-            _lastFetch = 0;
+            _lastFetch = _forceNow();
+            _pendingFetch = false;  // allow tick() to enqueue even if prior fetch pending
             return true;
         }
         if (strcmp(var, "teletextPageContent") == 0) {
@@ -211,6 +212,13 @@ private:
     bool     _pendingFetch    = false;
     bool     _injectedContent = false;
     char     _lastAction[16]  = {};
+
+    // Returns a _lastFetch sentinel that makes tick()'s elapsed check immediately
+    // true regardless of millis() value (handles early-boot case where millis() <
+    // pollSecs*1000 and a plain 0 would not trigger the condition).
+    unsigned long _forceNow() const {
+        return millis() - (unsigned long)_pollSecs * 1000UL;
+    }
 
     // ── Navigation helpers ────────────────────────────────────────────────────
     void _navigate(uint16_t page) {

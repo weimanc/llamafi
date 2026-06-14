@@ -377,6 +377,10 @@ static uint16_t parsePage(const char* s) {
 static void fetchTeletext(uint16_t page) {
     char url[64];
     snprintf(url, sizeof(url), "%s%u", TELETEXT_URL_BASE, page);
+    // T272 confirmed TLS heap contention: spotifyTask holds ~40k at steady state,
+    // leaving maxAlloc<50k — insufficient for a new TLS handshake. Same fix as
+    // fetchCrypto/fetchStockQuote/fetchHeatmapQuote. Supersedes ADR-044 item 9.
+    spotifyTask::tlsYield();
     LOG_HEAP("dataTask.teletext");
     WiFiClientSecure tls;
     tls.setCACert(TELETEXT_NOS_ROOT_CA);
@@ -387,6 +391,7 @@ static void fetchTeletext(uint16_t page) {
         portENTER_CRITICAL_SAFE(&s_teletextMux);
         s_teletextState.lastHttpCode = -1;
         portEXIT_CRITICAL_SAFE(&s_teletextMux);
+        spotifyTask::tlsResume();
         return;
     }
     unsigned long t0 = millis();
@@ -396,6 +401,7 @@ static void fetchTeletext(uint16_t page) {
     if (code == 200) body = http.getString();
     else             LOG_W("dataTask.teletext", "http %d page=%u", code, page);
     http.end();
+    spotifyTask::tlsResume();
     LOG_HEAP("dataTask.teletext");
 
     TeletextState st = {};
@@ -463,13 +469,23 @@ static void fetchTeletext(uint16_t page) {
     }
 
     // --- Extract <pre>...</pre> content (1000 bytes) ---
-    int preStart = body.indexOf("<pre>");
-    int preEnd   = (preStart >= 0) ? body.indexOf("</pre>", preStart + 5) : -1;
+    // String::indexOf uses strstr() which stops at '\0'. The NOS response body
+    // contains null bytes (teletext control codes), so use null-safe memcmp for </pre>.
+    const char* raw    = body.c_str();
+    int         rawLen = (int)body.length();
+    int preStart = body.indexOf("<pre>");  // <pre> always before any null bytes
+    int preEnd   = -1;
+    if (preStart >= 0) {
+        for (int i = preStart + 5; i <= rawLen - 6; i++) {
+            if (memcmp(raw + i, "</pre>", 6) == 0) { preEnd = i; break; }
+        }
+    }
     if (preStart < 0 || preEnd < 0) {
         LOG_W("dataTask.teletext", "no <pre> block page=%u", page);
         portENTER_CRITICAL_SAFE(&s_teletextMux);
         s_teletextState.lastHttpCode = code;
         portEXIT_CRITICAL_SAFE(&s_teletextMux);
+        spotifyTask::tlsResume();
         return;
     }
     int contentStart = preStart + 5;
@@ -479,7 +495,7 @@ static void fetchTeletext(uint16_t page) {
         for (int ci = 0; ci < 40; ci++) {
             int idx = r * 40 + ci;
             st.cells[r][ci] = (idx < contentLen)
-                ? (uint8_t)(body[contentStart + idx]) : 0x20;
+                ? (uint8_t)(raw[contentStart + idx]) : 0x20;
         }
     }
 

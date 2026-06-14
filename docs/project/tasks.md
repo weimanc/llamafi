@@ -1053,8 +1053,14 @@ If the test reveals contention, apply `tlsYield()` / `tlsResume()` around
 `fetchTeletext()` (same pattern as stock app).
 
 **Priority:** P3  
-**Status:** open  
+**Status:** complete  
 **Opened:** 2026-06-13  
+**Closed:** 2026-06-14  
 **Milestone:** M-TELETEXT  
 **Owner:** Developer  
 **Deps:** TASK-180
+
+**Result:** T272 PASS. Two bugs found and fixed during implementation:
+1. **TLS heap contention confirmed** — `fetchTeletext()` lacked `tlsYield()`/`tlsResume()`; debug build maxAlloc ~39–51k < 50k TLS floor. Fixed: `tlsYield()` before TLS alloc, `tlsResume()` after `http.end()`. ADR-044 item 9 revised.
+2. **`_lastFetch=0` early-boot bug** — `init()`/`resume()`/`triggerTeletextFetch` set `_lastFetch=0`; when `millis()<pollSecs*1000` (first 60 s after boot), the poll condition `now-_lastFetch>=pollSecs*1000` was false, so no fetch was enqueued. Fixed via `_forceNow()` helper using unsigned underflow arithmetic.
+3. **Null-byte parser bug** — NOS response body contains `\x00\x00` before `</pre>` (teletext control codes); `String::indexOf("</pre>")` (via `strstr`) stopped at the null, returning -1 → `no <pre> block`. Fixed: null-safe `memcmp` scan for `</pre>`.

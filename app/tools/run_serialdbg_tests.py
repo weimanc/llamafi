@@ -4940,6 +4940,85 @@ def t_clk_14(dut: Dut):
     pass_(tid, f"response has val=2 name=nixie last=true")
 
 
+# ── T272 — TLS heap contention: fetchTeletext + spotifyTask concurrent ────────
+
+def t272(dut: Dut):
+    """T272: fetchTeletext completes without OOM while spotifyTask holds a TLS session.
+
+    ADR-044 item 9 asserts teletext follows the weather pattern (no tlsYield). This
+    test exercises both tasks concurrently to validate that assumption. Failure (timeout
+    or DUT crash) indicates heap contention → apply tlsYield/tlsResume to fetchTeletext.
+    TASK-191.
+    """
+    tid = "T272"
+    print(f"{tid}  TLS heap contention — fetchTeletext concurrent with spotifyTask")
+
+    # Baseline: confirm Spotify is rendering (spotifyTask has an active TLS session)
+    r0 = dut.cmd("get lastPlaylistDraw", timeout=3.0)
+    if not r0.get("ok"):
+        skip(tid, "get lastPlaylistDraw failed — Spotify not active?")
+        return
+    draw0 = r0.get("ms", 0)
+
+    # Switch to Teletext: triggers resume() which sets _lastFetch=0, forcing immediate enqueue
+    r = dut.cmd(f"switchApp {APP_SLOT['Teletext']}", timeout=5.0)
+    if not r.get("ok"):
+        skip(tid, "switchApp Teletext failed — app not registered?")
+        _restore_spotify(dut)
+        return
+
+    # Force a second enqueue in case the app was already ready from a prior run
+    dut.cmd("set triggerTeletextFetch 1", timeout=3.0)
+
+    # Poll teletextReady up to 30s — failure implies OOM/watchdog/network error
+    deadline = time.monotonic() + 30.0
+    ready = False
+    while time.monotonic() < deadline:
+        try:
+            r = dut.cmd("get teletextReady", timeout=2.0)
+            if r.get("ok") and r.get("ready") is True:
+                ready = True
+                break
+        except TimeoutError:
+            break  # DUT stopped responding — likely crash
+        time.sleep(0.5)
+
+    _restore_spotify(dut)
+    time.sleep(0.3)
+
+    if not ready:
+        # Distinguish network failure from firmware crash
+        try:
+            r_http = dut.cmd("get teletextHttpCode", timeout=2.0)
+            http_code = r_http.get("val", 0) if r_http.get("ok") else 0
+        except TimeoutError:
+            http_code = 0
+        if http_code != 0 and http_code != 200:
+            skip(tid, f"teletextReady false — HTTP {http_code} (network, not contention)")
+        else:
+            fail(tid, "teletextReady not true within 30s — OOM/watchdog/crash or persistent network error")
+        return
+
+    # Assert Spotify playback survived (lastPlaylistDraw must advance within 10s)
+    deadline2 = time.monotonic() + 10.0
+    draw_advanced = False
+    while time.monotonic() < deadline2:
+        try:
+            r = dut.cmd("get lastPlaylistDraw", timeout=2.0)
+            if r.get("ok") and r.get("ms", 0) > draw0:
+                draw_advanced = True
+                break
+        except TimeoutError:
+            break
+        time.sleep(0.5)
+
+    if not draw_advanced:
+        fail(tid, f"lastPlaylistDraw did not advance after Teletext fetch (baseline={draw0}ms) — Spotify stalled")
+        return
+
+    pass_(tid, "teletextReady=true within 30s; lastPlaylistDraw advanced — no TLS contention")
+
+
 ALL_TESTS = {
     "T077": t077,
     "T078": t078,
@@ -5086,6 +5165,8 @@ ALL_TESTS = {
     "T_CLK_12": t_clk_12,
     "T_CLK_13": t_clk_13,
     "T_CLK_14": t_clk_14,
+    # M-TELETEXT TLS contention (TASK-191)
+    "T272": t272,
 }
 
 def main():

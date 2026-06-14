@@ -3893,6 +3893,24 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Expected result**: All 4 boundary assertions pass.
 - **Status**: planned
 
+### T272 — [M-TELETEXT] T-TTX-24: TLS heap contention — fetchTeletext concurrent with spotifyTask [NETWORK]
+
+- **Type**: integration (DUT, SERIALDBG)
+- **Feature(s)**: M-TELETEXT, ADR-044 item 9
+- **Objective**: Verify `fetchTeletext()` (no `tlsYield`) completes without OOM/watchdog while `spotifyTask` holds an active TLS session. Validates ADR-044's "weather pattern" assumption for teletext. If this test fails (timeout or DUT crash), apply `tlsYield()`/`tlsResume()` around `fetchTeletext()`.
+- **Preconditions**: DUT flashed `cyd2usb_winamp_debug`. WiFi connected. Active Spotify session (spotifyTask TLS polling at ~5s intervals).
+- **Steps**:
+  1. `get lastPlaylistDraw` → record baseline `D0` (confirms spotifyTask active).
+  2. `switchApp 9` (Teletext) → triggers `resume()` + immediate `enqueueTeletextPage()`.
+  3. `set triggerTeletextFetch 1` → forces a second enqueue even if already ready.
+  4. Poll `get teletextReady` ≤ 30 s → assert `ready == true`.
+  5. `switchApp 0` (Spotify).
+  6. Poll `get lastPlaylistDraw` ≤ 10 s → assert `ms > D0`.
+- **Expected result**: `teletextReady=true` within 30 s; `lastPlaylistDraw` advances after return. No OOM, no watchdog, no crash.
+- **Pass criteria**: PASS if both asserts hold. SKIP if HTTP non-200 (network unavailable). FAIL if DUT unresponsive or 30 s elapsed with `ready=false` (crash/OOM implies contention → apply fix).
+- **Harness**: `run_serialdbg_tests.py --tests T272`
+- **Status**: passing — three bugs found and fixed: (1) missing `tlsYield()`/`tlsResume()` in `fetchTeletext()` (TLS contention confirmed, ADR-044 item 9 revised); (2) `_lastFetch=0` early-boot bug causing no-enqueue within first 60 s (fixed via `_forceNow()` helper); (3) null-byte parser bug — NOS body contains `\x00\x00` before `</pre>` so `String::indexOf("</pre>")` returned -1 (fixed with null-safe `memcmp` scan). T272 PASS [SERIALDBG]
+
 ---
 
 ## Entry Format
