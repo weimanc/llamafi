@@ -82,6 +82,8 @@ public:
         _pendingFetch = false;
         _lastAction[0] = '\0';
         _injectedContent = false;
+        _numpadActive = false;
+        _numpadCount  = 0;
     }
 
     void resume() override {
@@ -90,6 +92,8 @@ public:
         _lastFetch = _forceNow();  // force immediate fetch
         _pendingFetch = false;
         _injectedContent = false;
+        _numpadActive = false;
+        _numpadCount  = 0;
         _draw();
     }
 
@@ -129,9 +133,20 @@ public:
         }
         _lastTapMs = now;
 
+        // Strip is always live (back, nav) even when numpad is active
         if (x >= TTXT_STRIP_X && x < TTXT_STRIP_X + TTXT_STRIP_W && y < TTXT_BAR_Y0) {
             return _handleStrip(y);
         }
+
+        if (_numpadActive) {
+            if (y >= TTXT_BAR_Y0 && y <= TTXT_BAR_Y1) {
+                // Fast-text tap while numpad open: dismiss numpad, navigate
+                _numpadActive = false; _numpadCount = 0;
+                return _handleBar(x);
+            }
+            return _handleNumpad(x, y);
+        }
+
         if (y >= TTXT_BAR_Y0 && y <= TTXT_BAR_Y1) {
             return _handleBar(x);
         }
@@ -236,6 +251,9 @@ private:
     bool     _pendingFetch    = false;
     bool     _injectedContent = false;
     char     _lastAction[16]  = {};
+    bool     _numpadActive    = false;
+    uint8_t  _numpadDigits[3] = {};
+    uint8_t  _numpadCount     = 0;
 
     // Returns a _lastFetch sentinel that makes tick()'s elapsed check immediately
     // true regardless of millis() value (handles early-boot case where millis() <
@@ -245,13 +263,13 @@ private:
     }
 
     // ── Navigation helpers ────────────────────────────────────────────────────
-    void _navigate(uint16_t page) {
+    void _navigate(uint16_t page, uint8_t sub = 0) {
         if (!page || page < 100 || page > 899) return;
         if (_histDepth < 10) _history[_histDepth++] = _st.page;
         _st.page   = page;
         _lastFetch = _forceNow();
         _pendingFetch = true;
-        dataTask::enqueueTeletextPage(page);
+        dataTask::enqueueTeletextPage(page, sub);
     }
 
     void _goBack() {
@@ -266,22 +284,23 @@ private:
     bool _handleStrip(int y) {
         if (y >= TTXT_STRIP_SUBUP_Y0 && y <= TTXT_STRIP_SUBUP_Y1) {
             strlcpy(_lastAction, "STRIP_SUBUP", sizeof(_lastAction));
-            if (_st.subpagePrev) _navigate(_st.subpagePrev);
+            if (_st.subpagePrev) _navigate(_st.subpagePrev, _st.subpagePrevSub);
             return true;
         }
         if (y >= TTXT_STRIP_PAGE_Y0 && y <= TTXT_STRIP_PAGE_Y1) {
             strlcpy(_lastAction, "STRIP_PAGE", sizeof(_lastAction));
-            // Keypad not yet implemented — cycle through presets as fallback
-            uint8_t next = 0;
-            for (uint8_t i = 0; i < 4; i++) {
-                if (kPagePresets[i] == _st.page) { next = (i + 1) % 4; break; }
-            }
-            _navigate(kPagePresets[next]);
+            _numpadActive = !_numpadActive;
+            _numpadCount  = 0;
+            if (_numpadActive) _drawNumpad(); else _draw();
             return true;
         }
         if (y >= TTXT_STRIP_BACK_Y0 && y <= TTXT_STRIP_BACK_Y1) {
             strlcpy(_lastAction, "STRIP_BACK", sizeof(_lastAction));
-            if (_histDepth > 0) _goBack();
+            if (_numpadActive) {
+                _numpadActive = false; _numpadCount = 0; _draw();
+            } else if (_histDepth > 0) {
+                _goBack();
+            }
             return true;
         }
         if (y >= TTXT_STRIP_PREV_Y0 && y <= TTXT_STRIP_PREV_Y1) {
@@ -296,7 +315,7 @@ private:
         }
         if (y >= TTXT_STRIP_SUBDN_Y0 && y <= TTXT_STRIP_SUBDN_Y1) {
             strlcpy(_lastAction, "STRIP_SUBDN", sizeof(_lastAction));
-            if (_st.subpageNext) _navigate(_st.subpageNext);
+            if (_st.subpageNext) _navigate(_st.subpageNext, _st.subpageNextSub);
             return true;
         }
         strlcpy(_lastAction, "NONE", sizeof(_lastAction));
@@ -338,6 +357,98 @@ private:
         }
         strlcpy(_lastAction, "GRID_NONE", sizeof(_lastAction));
         return false;
+    }
+
+    // ── Numpad overlay ────────────────────────────────────────────────────────
+    // Layout: 3×4 grid of 74×39 px buttons starting at (9, 35).
+    // Row 0: 1 2 3  Row 1: 4 5 6  Row 2: 7 8 9  Row 3: DEL 0 GO
+    static constexpr int kNpBtnW = 74, kNpBtnH = 39, kNpBtnGap = 1;
+    static constexpr int kNpX0   = 9,  kNpY0   = 35, kNpRowH   = 40;
+
+    void _drawNumpad() {
+        tft.fillRect(0, 0, TTXT_GRID_W, TTXT_BAR_Y0, 0x1082);
+
+        // Input display — three digit slots
+        static const uint16_t kEntered = 0xFFE0;  // yellow
+        static const uint16_t kEmpty   = 0x7BEF;  // light grey
+        int sy = 17;
+        for (int i = 0; i < 3; i++) {
+            int sx = 60 + i * 40;
+            if (i < (int)_numpadCount) {
+                char ch[2] = { (char)('0' + _numpadDigits[i]), '\0' };
+                tft.setTextColor(kEntered, 0x1082);
+                tft.setTextDatum(MC_DATUM);
+                tft.drawString(ch, sx, sy, 4);
+            } else {
+                tft.drawFastHLine(sx - 8, sy + 12, 16, kEmpty);
+            }
+        }
+
+        // Buttons
+        static const char* const kLabels[12] = {
+            "1","2","3","4","5","6","7","8","9","DEL","0","GO"
+        };
+        bool canGo = (_numpadCount == 3);
+        for (int i = 0; i < 12; i++) {
+            int col = i % 3, row = i / 3;
+            int bx = kNpX0 + col * (kNpBtnW + kNpBtnGap);
+            int by = kNpY0 + row * kNpRowH;
+            uint16_t bg;
+            if      (i == 9)  bg = 0x8000;                        // DEL: dark red
+            else if (i == 11) bg = canGo ? 0x07E0 : 0x0320;       // GO: bright/dim green
+            else              bg = 0x3186;                          // digit: dark grey
+            tft.fillRoundRect(bx, by, kNpBtnW, kNpBtnH, 3, bg);
+            tft.setTextColor(0xFFFF, bg);
+            tft.setTextDatum(MC_DATUM);
+            tft.drawString(kLabels[i], bx + kNpBtnW / 2, by + kNpBtnH / 2, 2);
+        }
+        _drawStrip();
+    }
+
+    bool _handleNumpad(int x, int y) {
+        if (y >= TTXT_BAR_Y0) { strlcpy(_lastAction, "NONE", sizeof(_lastAction)); return false; }
+        int col = (x - kNpX0) / (kNpBtnW + kNpBtnGap);
+        int row = (y - kNpY0) / kNpRowH;
+        if (col < 0 || col > 2 || row < 0 || row > 3 || x >= kNpX0 + 3 * (kNpBtnW + kNpBtnGap)) {
+            // Tap outside grid — dismiss
+            _numpadActive = false; _numpadCount = 0;
+            _draw();
+            strlcpy(_lastAction, "NUMPAD_DISMISS", sizeof(_lastAction));
+            return true;
+        }
+        static const int8_t kMap[12] = { 1,2,3, 4,5,6, 7,8,9, -1,0,-2 };
+        int8_t val = kMap[row * 3 + col];
+        if (val == -1) {  // DEL
+            if (_numpadCount > 0) _numpadCount--;
+            _drawNumpad();
+            strlcpy(_lastAction, "NUMPAD_DEL", sizeof(_lastAction));
+        } else if (val == -2) {  // GO
+            strlcpy(_lastAction, "NUMPAD_GO", sizeof(_lastAction));
+            _numpadGo();
+        } else {
+            if (_numpadCount < 3) {
+                _numpadDigits[_numpadCount++] = (uint8_t)val;
+                _drawNumpad();
+                char act[16]; snprintf(act, sizeof(act), "NUMPAD_%d", (int)val);
+                strlcpy(_lastAction, act, sizeof(_lastAction));
+                if (_numpadCount == 3) _numpadGo();
+            }
+        }
+        return true;
+    }
+
+    void _numpadGo() {
+        if (_numpadCount < 3) return;
+        uint16_t pg = (uint16_t)_numpadDigits[0] * 100
+                    + (uint16_t)_numpadDigits[1] * 10
+                    + (uint16_t)_numpadDigits[2];
+        _numpadActive = false;
+        _numpadCount  = 0;
+        if (pg >= 100 && pg <= 899) {
+            _navigate(pg);
+        } else {
+            _draw();  // invalid page — just dismiss numpad
+        }
     }
 
     // ── Renderer ──────────────────────────────────────────────────────────────

@@ -367,16 +367,28 @@ static bool           s_teletextNew    = false;
 
 static const char TELETEXT_URL_BASE[] = "https://teletekst-data.nos.nl/page/";
 
-// Parse a 3-digit page ref string (e.g. "101", "601") into uint16_t. Returns 0 on fail.
+// Parse a 3-digit page ref string (e.g. "101", "617-2") into page number. Returns 0 on fail.
 static uint16_t parsePage(const char* s) {
     if (!s || !s[0]) return 0;
     int v = atoi(s);
     return (v >= 100 && v <= 899) ? (uint16_t)v : 0;
 }
 
-static void fetchTeletext(uint16_t page) {
+// Parse subpage index from "617-2" → 2. Returns 0 if no dash suffix.
+static uint8_t parseSubpage(const char* s) {
+    if (!s) return 0;
+    const char* dash = strchr(s, '-');
+    if (!dash || !dash[1]) return 0;
+    int sub = atoi(dash + 1);
+    return (sub >= 1 && sub <= 15) ? (uint8_t)sub : 0;
+}
+
+static void fetchTeletext(uint16_t page, uint8_t sub) {
     char url[64];
-    snprintf(url, sizeof(url), "%s%u", TELETEXT_URL_BASE, page);
+    if (sub > 0)
+        snprintf(url, sizeof(url), "%s%u-%u", TELETEXT_URL_BASE, page, (unsigned)sub);
+    else
+        snprintf(url, sizeof(url), "%s%u", TELETEXT_URL_BASE, page);
     // T272 confirmed TLS heap contention: spotifyTask holds ~40k at steady state,
     // leaving maxAlloc<50k — insufficient for a new TLS handshake. Same fix as
     // fetchCrypto/fetchStockQuote/fetchHeatmapQuote. Supersedes ADR-044 item 9.
@@ -449,8 +461,8 @@ static void fetchTeletext(uint16_t page) {
                             if (strcmp(kp, "pn") == 0) {
                                 if (strncmp(vp, "p_", 2) == 0) st.prevPage    = parsePage(vp+2);
                                 if (strncmp(vp, "n_", 2) == 0) st.nextPage    = parsePage(vp+2);
-                                if (strncmp(vp, "ns", 2) == 0) st.subpageNext = parsePage(vp+2);
-                                if (strncmp(vp, "ps", 2) == 0) st.subpagePrev = parsePage(vp+2);
+                                if (strncmp(vp, "ns", 2) == 0) { st.subpageNext = parsePage(vp+2); st.subpageNextSub = parseSubpage(vp+2); }
+                                if (strncmp(vp, "ps", 2) == 0) { st.subpagePrev = parsePage(vp+2); st.subpagePrevSub = parseSubpage(vp+2); }
                             } else if (strcmp(kp, "ftl") == 0 && ftlIdx < 4) {
                                 // Format: "101-p" → extract page number before '-'
                                 char pgstr[8] = {};
@@ -711,8 +723,9 @@ static void taskBody(void *) {
             case DATA_FETCH_HEATMAP_QUOTE:    fetchHeatmapQuote(); break;
             case DATA_FETCH_STOCK_CHART_BY_SYM: fetchStockChartBySym(req.symbol, req.param1); break;
             case DATA_FETCH_TELETEXT_PAGE: {
-                uint16_t pg = ((uint16_t)req.param0 << 8) | req.param1;
-                fetchTeletext(pg ? pg : 101);
+                uint16_t pg  = ((uint16_t)(req.param0 & 0x0F) << 8) | req.param1;
+                uint8_t  sub = req.param0 >> 4;
+                fetchTeletext(pg ? pg : 101, sub);
                 break;
             }
             default: break;
@@ -851,14 +864,15 @@ int8_t weatherFetchPhase()  { return s_weatherFetchPhase; }
 int8_t cryptoFetchPhase()   { return s_cryptoFetchPhase; }
 int8_t stockChartProgress() { return s_stockChartProgress; }
 
-void enqueueTeletextPage(uint16_t page) {
+void enqueueTeletextPage(uint16_t page, uint8_t sub) {
     if (!s_queue) return;
     Request req = {};
     req.type   = DATA_FETCH_TELETEXT_PAGE;
-    req.param0 = (uint8_t)(page >> 8);
+    // High nibble of param0 = sub (0-15); low nibble = page high byte (0-3 for pages 100-899)
+    req.param0 = (uint8_t)((sub << 4) | ((page >> 8) & 0x0F));
     req.param1 = (uint8_t)(page & 0xFF);
     if (xQueueSend(s_queue, &req, 0) != pdTRUE)
-        LOG_W("dataTask", "queue full — dropped teletext page=%u", page);
+        LOG_W("dataTask", "queue full — dropped teletext page=%u sub=%u", page, (unsigned)sub);
 }
 
 bool pollTeletext(TeletextState *out) {

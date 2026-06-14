@@ -64,8 +64,10 @@ struct TeletextState {
     uint16_t page               = 101;  // current page (from metadata or request)
     uint16_t prevPage           = 0;    // pn=p_ (0 if absent)
     uint16_t nextPage           = 0;    // pn=n_ (0 if absent)
-    uint16_t subpageNext        = 0;    // pn=ns (0 if absent)
-    uint16_t subpagePrev        = 0;    // pn=ps (0 if absent)
+    uint16_t subpageNext        = 0;    // pn=ns page (0 if absent)
+    uint16_t subpagePrev        = 0;    // pn=ps page (0 if absent)
+    uint8_t  subpageNextSub     = 0;    // pn=ns subpage index e.g. "617-2" → 2
+    uint8_t  subpagePrevSub     = 0;    // pn=ps subpage index
     uint16_t ftlTargets[4]      = {};   // fast-text link page numbers
     char     ftlLabels[4][12]   = {};   // fast-text row-24 label text (trimmed)
     uint8_t  cells[25][40]      = {};   // raw cell bytes (ISO-8859-1)
@@ -87,8 +89,9 @@ void enqueueHeatmapQuote();
 // Post a chart fetch by symbol string (for heatmap drill-through). Non-blocking.
 void enqueueStockChartBySym(const char* symbol, uint8_t rangeIdx);
 
-// Post a teletext page fetch. Non-blocking (drops if queue full).
-void enqueueTeletextPage(uint16_t page);
+// Post a teletext page fetch. sub=0 for base page, 1-15 for subpage (e.g. 617-2).
+// Non-blocking (drops if queue full).
+void enqueueTeletextPage(uint16_t page, uint8_t sub = 0);
 
 // Copy latest result into *out; returns true if new data since last poll.
 // Caller must supply a valid pointer. Thread-safe (spinlock).
