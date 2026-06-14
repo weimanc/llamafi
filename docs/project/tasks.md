@@ -678,7 +678,7 @@ After a successful WiFi connect in WifiSection (`_startConnect()` → RESULT sta
 
 ---
 
-## Open Tasks
+## Closed — M-TELETEXT firmware + VE prep (2026-06-13)
 
 ### TASK-175 — M-TELETEXT: preview iteration — right-strip nav + inline row links
 
@@ -1082,3 +1082,81 @@ If the test reveals contention, apply `tlsYield()` / `tlsResume()` around
 1. **TLS heap contention confirmed** — `fetchTeletext()` lacked `tlsYield()`/`tlsResume()`; debug build maxAlloc ~39–51k < 50k TLS floor. Fixed: `tlsYield()` before TLS alloc, `tlsResume()` after `http.end()`. ADR-044 item 9 revised.
 2. **`_lastFetch=0` early-boot bug** — `init()`/`resume()`/`triggerTeletextFetch` set `_lastFetch=0`; when `millis()<pollSecs*1000` (first 60 s after boot), the poll condition `now-_lastFetch>=pollSecs*1000` was false, so no fetch was enqueued. Fixed via `_forceNow()` helper using unsigned underflow arithmetic.
 3. **Null-byte parser bug** — NOS response body contains `\x00\x00` before `</pre>` (teletext control codes); `String::indexOf("</pre>")` (via `strstr`) stopped at the null, returning -1 → `no <pre> block`. Fixed: null-safe `memcmp` scan for `</pre>`.
+
+---
+
+## Closed — M-TELETEXT post-ship DUT fixes + QM retrospective (2026-06-14)
+
+Three defects found in first manual DUT use after M-TELETEXT milestone close (LL-074/075/076).
+
+### TASK-195 — M-TELETEXT post-ship: taskbar busy indicator + subpage nav + numpad
+
+Three defects fixed in one session:
+
+1. **Busy indicator not wired** — `TeletextApp` defaulted `hasPendingAsync()` to `false`. Fixed: override returns `_pendingFetch`. Also fixed latent double-enqueue: `_navigate()`/`_goBack()` now set `_pendingFetch=true` (not `false`) after direct-enqueue, so `tick()` correctly skips re-enqueue while a fetch is in flight. `touch-004` status updated to `implemented`. X016 added to cross_feature_matrix.yaml.
+2. **Subpage navigation broken** — `parsePage("617-2")` via `atoi` returned `617`, dropping the `-2` sub-index. Every subpage tap re-navigated to page 617 subpage 1. Fixed: `parseSubpage()` helper extracts the dash-suffix; `TeletextState` gains `subpageNextSub`/`subpagePrevSub` fields; `enqueueTeletextPage(page, sub)` encodes sub in high nibble of `param0`; `fetchTeletext` builds URL as `617-2` when `sub>0`. `_handleStrip` SUBUP/SUBDN pass the sub index through `_navigate()`.
+3. **Numpad not implemented** — strip PAGE zone cycled presets with a comment "not yet implemented." Fixed: tapping the page-number zone now opens a 3×4 digit-entry overlay (1-9 / DEL / 0 / GO). Auto-navigates on 3rd digit. Strip nav stays live during numpad; back button and fast-text tap dismiss it.
+
+**Priority:** P1 (blocking DUT usability)
+**Status:** closed — 2026-06-14
+**Commits:** 728a278 (busy indicator), 3633cf6 (subpage nav + numpad)
+**Opened:** 2026-06-14
+**Closed:** 2026-06-14
+**Milestone:** M-TELETEXT
+**Owner:** Developer
+**Deps:** —
+
+---
+
+### TASK-196 — QM retrospective: M-TELETEXT post-ship (LL-074/075/076 + BP-034/035/036)
+
+QM retrospective on three post-ship defects. LL-074/075/076 filed and adopted. BP-034/035/036 promoted with human sign-off.
+
+**Priority:** P2
+**Status:** closed — 2026-06-14
+**Commits:** 8f071be (retrospective), 1bb0420 (BP sign-off)
+**Opened:** 2026-06-14
+**Closed:** 2026-06-14
+**Owner:** QM
+**Deps:** TASK-195
+
+---
+
+## Open Tasks
+
+### TASK-197 — M-TELETEXT: synthetic injection path for T270 (subpage nav) and T271 (numpad boundary)
+
+Per BP-034 (LL-074): blocked tests with no synthetic fallback are coverage gaps. T270 (subpage ▲/▼ active when subpages present) and T271 (numpad boundary px check) are both blocked `[NETWORK][G1,G2]` with no injection alternative.
+
+Deliverables:
+
+1. **T270 synthetic variant** — Use `set teletextPageContent <hex>` to inject a page body that contains `pn=ns617-2` and `pn=ps617-1` metadata headers. Tap SUBDN zone; assert `get teletextPage` changes and `get teletextSubpage` next/prev values update. This tests the subpage parse + navigate path without live network.
+
+2. **T271 harness implementation** — Now that `get teletextLastAction` is available (TASK-188) and numpad is implemented, T271's boundary checks (`tap 257 66` → `STRIP_PAGE`, `tap 257 67` → `STRIP_BACK`) can be automated. Update T271 status from `planned` to harness-runnable; add to `run_serialdbg_tests.py`.
+
+**Priority:** P2 — closes BP-034 gap for teletext
+**Status:** open
+**Opened:** 2026-06-14
+**Milestone:** M-TELETEXT (VE follow-up)
+**Owner:** VE + Developer
+**Deps:** TASK-183 (injection accessor — done), TASK-181 (layout constants — done), TASK-188 (lastAction accessor — done)
+
+---
+
+### TASK-198 — Developer: new-app cross-cutting integration checklist (BP-036)
+
+Per BP-036 (LL-076): when a new app is registered, Developer must verify it satisfies all active cross-cutting shell integrations. Currently this check is implicit and untracked.
+
+Deliverable: a short checklist block added to `docs/architecture/designs/` (or as a comment block in `appRegistry.h`) listing required per-app integrations:
+
+1. `hasPendingAsync()` — override if app enqueues async work from `handleInput()`
+2. `tlsYield()`/`tlsResume()` — required for any new dataTask HTTPS fetcher (BP-031)
+3. Serial debug `dbgGet`/`dbgSet` surface for VE testability (BP implicit from LL-060)
+
+Checklist must be referenced at milestone close for any future app additions.
+
+**Priority:** P3 — process hygiene; no new app is pending
+**Status:** open
+**Opened:** 2026-06-14
+**Owner:** Developer / Architect
+**Deps:** —
