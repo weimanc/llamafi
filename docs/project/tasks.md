@@ -290,11 +290,26 @@ after first flash.
 
 **Priority:** P2
 **Status:** in-progress — 2026-06-14. Initial version written but rejected (naive PIL font + synthetic
-chrome rectangles). Targeted fix in progress: add `--wsz skins/base-2.91.wsz` arg; implement
-`_draw_led_text()` using `build_glyph_table()` from bake_skin.py + TEXT.BMP glyph crop+paste (5×6 px,
-mirrors `drawTitleText()` in winampDisplay.h); restore POSBAR chrome from POSBAR.BMP sprite; restore
-PLEDIT title/bottom chrome from PLEDIT.BMP sprite. No WinampRenderer.py required.
-T275 human sign-off gate still applies after fix.
+chrome rectangles). Targeted fix in progress — Developer reviewed and confirmed safe (session 5):
+
+Implementation plan (concrete API calls, ~100-120 lines added to existing script):
+
+1. Add `--wsz skins/base-2.91.wsz` arg (default `pathlib.Path(__file__).parent / "../../skins/base-2.91.wsz"`).
+   Open wsz using `z, prefix = open_skin(wsz_path)` (import from `bake_skin`).
+2. Extract sprites once at startup:
+   - `text_bmp = load_bmp(z, prefix, "TEXT.BMP")` → PIL Image (custom RLE8 decoder in bake_skin handles it; no magick needed)
+   - `posbar_bmp = load_bmp(z, prefix, "POSBAR.BMP")` → PIL Image
+   - `pledit_raw = load_bmp(z, prefix, "PLEDIT.BMP")` → PIL Image
+   - `pledit_atlas = build_pledit_atlas(pledit_raw)` → 275×58 PIL (title 20px + bottom 38px chrome)
+3. LED font: do NOT reimplement — call existing `composite_text(img, text_bmp, text, x, y)` from bake_skin directly. It mirrors `drawTitleText()` glyph-by-glyph.
+4. POSBAR chrome: `img.paste(posbar_bmp.crop((0,0,248,10)), (POSBAR_X, POSBAR_Y))` before drawing fill bar.
+5. PLEDIT chrome: paste `pledit_atlas.crop((0,0,275,20))` at `(0, PLEDIT_Y)` for title bar; paste `pledit_atlas.crop((0,20,275,58))` at `(0, PLEDIT_BOTTOM_Y)` for bottom bar. Also crop and tile PLEDIT side tiles (left `(0,42,12,71)`, right `(32,42,51,71)` from `pledit_raw`) over the rows area.
+
+Imports needed: `from bake_skin import open_skin, load_bmp, composite_text, build_pledit_atlas, POSBAR_LAYOUT, GLYPH_W, GLYPH_H` — confirmed safe (no side effects at import time).
+
+T275 human sign-off gate still applies after fix. Prior T275 sign-off (on pre-fix PNGs with PIL font + synthetic chrome) is void — gate must be re-executed on post-fix snapshots.
+
+VE filed T279-T282 (wsz error handling, LED font pixel check, POSBAR sprite check, --wsz arg coverage). T273/T274/T275/T278 updated to reflect wsz dependency and bake_skin whitelist.
 **Opened:** 2026-06-14
 **Milestone:** M-WEBRADIO
 **Owner:** Developer + human sign-off

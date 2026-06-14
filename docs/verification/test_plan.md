@@ -3913,6 +3913,114 @@ tests. Visual (MANUAL) tests have no blockers.
 
 ---
 
+## Suite: M-WEBRADIO-PREVIEW — preview_webradio.py canvas layout tool (TASK-201)
+
+> Added 2026-06-14 — host-only validation plan.  No DUT required.
+> Full suite: `docs/verification/regression_suite/m-webradio-preview.md`
+> Gate: human sign-off on T275 layout snapshots before firmware work starts.
+
+### T273 — [M-WEBRADIO-PREVIEW] Tool launches without error in each of 4 states
+
+- **Type**: host automated
+- **Feature(s)**: M-WEBRADIO preview tool (TASK-201)
+- **Objective**: `preview_webradio.py` imports cleanly and renders one frame per state (stopped / connecting / playing / error) without raising an exception.
+- **Preconditions**: `gen/skin_preview.png` present. `skins/base-2.91.wsz` present (required for TEXT.BMP/POSBAR.BMP/PLEDIT.BMP sprite extraction). Project venv active.
+- **Steps**: In headless context (`SDL_VIDEODRIVER=offscreen`), call the per-state render function for each of the 4 states; assert no exception; assert returned image is non-None.
+- **Expected result**: All 4 render calls return without error. No `FileNotFoundError`, `ImportError`, or `AttributeError`.
+- **Status**: recheck required after TASK-201 fix
+
+### T274 — [M-WEBRADIO-PREVIEW] All 4 states reachable via keyboard shortcuts
+
+- **Type**: host manual (interactive)
+- **Feature(s)**: M-WEBRADIO preview tool (TASK-201)
+- **Objective**: Keyboard shortcuts cycle through stopped → connecting → playing → error.  Window title or canvas label updates at each transition.
+- **Preconditions**: `DISPLAY` available. `gen/skin_preview.png` present. `skins/base-2.91.wsz` present.
+- **Steps**: Launch tool (`python3 preview_webradio.py --skin ../gen/skin_preview.png --wsz ../../skins/base-2.91.wsz`); press documented state-cycle keys in sequence; confirm each state shows a visually distinct frame; confirm no crash on any transition.
+- **Expected result**: All 4 states reachable. Canvas/title updates correctly. No crash.
+- **Status**: recheck required after TASK-201 fix
+
+### T275 — [M-WEBRADIO-PREVIEW] All required canvas elements present in each state [MANUAL]
+
+- **Type**: host visual (manual, with pixel-sample assist)
+- **Feature(s)**: M-WEBRADIO preview tool (TASK-201)
+- **Objective**: Every element from `M-WEBRADIO.md` §Canvas layout is drawn: PL panel (station rows + scroll indicator), station-name marquee (line 1), ICY StreamTitle (line 2), buffer bar (seek-bar region), bitrate field, VU meter, country badge (top-right title area). **Font must be TEXT.BMP LED glyphs (5×6 px); POSBAR and PLEDIT chrome must be actual skin sprites — not PIL default font or fill-rects.**
+- **Preconditions**: Tool can produce a static PNG snapshot per state. `skins/base-2.91.wsz` and `gen/skin_preview.png` present.
+- **Steps**: Render PNG for each of 4 states; visually inspect against §Canvas layout ASCII diagram; pixel-sample VU meter area in `playing` (bars present) and `stopped` (bars absent); confirm title text uses narrow 5×6 px LED glyphs (not proportional PIL font); confirm POSBAR zone shows skin texture (not flat grey); confirm PLEDIT title/bottom bars show skin chrome.
+- **Expected result**: All 7 element types visible where specified. No element overflows the 275 px app area. LED font and sprite chrome visible. **Human sign-off on layout required — this is the gate for firmware implementation. Any sign-off obtained on pre-fix (PIL font / grey rect) snapshots is void; gate must be re-executed on post-fix snapshots.**
+- **Status**: recheck required after TASK-201 fix — prior sign-off void
+
+### T276 — [M-WEBRADIO-PREVIEW] Skin base layer loaded from `gen/skin_preview.png`
+
+- **Type**: host automated
+- **Feature(s)**: M-WEBRADIO preview tool (TASK-201)
+- **Objective**: Tool loads `gen/skin_preview.png` (320×240) as base and does not ship a hardcoded fallback. Mirrors `preview_vis.py` pattern — `--skin` required; missing/wrong-dimension skin produces a non-zero exit and stderr message.
+- **Preconditions**: `gen/skin_preview.png` present. A dummy 1×1 `bad.png` available.
+- **Steps**: (1) Load correct skin — assert 320×240. (2) Missing path — assert non-zero exit + stderr. (3) `bad.png` — assert non-zero exit or clear error raised.
+- **Expected result**: Correct skin confirmed 320×240. Bad inputs produce clear, actionable errors.
+- **Status**: planned
+
+### T277 — [M-WEBRADIO-PREVIEW] Canvas stays within 275×240 app area (no taskbar bleed)
+
+- **Type**: host automated
+- **Feature(s)**: M-WEBRADIO preview tool (TASK-201)
+- **Objective**: All radio-specific drawing targets x=0..274. Pixels at x=275..319 are only touched by `draw_taskbar_pil` / `draw_taskbar_pygame` from `preview_common`.
+- **Preconditions**: Tool renders into a PIL Image or offscreen surface.
+- **Steps**: Capture `playing` state snapshot. Compare x=275..319 band against skin_preview.png: only taskbar-drawn differences allowed. Assert x=0..274 shows radio content (VU, buffer bar, station list) on top of skin.
+- **Expected result**: No radio widget overflows into x≥275. App area shows radio content.
+- **Status**: planned
+
+### T278 — [M-WEBRADIO-PREVIEW] No cross-import of unrelated module constants
+
+- **Type**: host automated (import inspection)
+- **Feature(s)**: M-WEBRADIO preview tool (TASK-201)
+- **Objective**: `preview_webradio.py` does not import from `preview_vis`, `bake_vis`, `preview_teletext`, or `preview_layout`, and does not pull in VIS geometry names (`RECT_X`, `LEFT_Y`, `VIS_H`, `SPEC_BARS`, `SPEC_BAR_W`, `SPEC_BAR_STEP`). Shared geometry must come from `preview_common`; skin sprite extraction must come from `bake_skin` only.
+- **Preconditions**: Tool source at `app/tools/preview_webradio.py`.
+- **Steps**: Parse import block (`ast.parse` or grep). Assert no forbidden module or name found. Assert `from preview_common import …` present. Assert `from bake_skin import …` is the only other local-tool import (whitelist: `bake_skin`, `preview_common`).
+- **Expected result**: No forbidden import. `preview_common` and `bake_skin` imports confirmed. All other local-module imports absent.
+- **Status**: recheck required after TASK-201 fix
+
+### T279 — [M-WEBRADIO-PREVIEW] Missing `--wsz` file produces graceful error
+
+- **Type**: host automated
+- **Feature(s)**: M-WEBRADIO preview tool (TASK-201)
+- **Objective**: When `--wsz` points to a non-existent file, the tool exits non-zero and prints a descriptive error to stderr. Must not expose a bare `FileNotFoundError` traceback or silently fall back to PIL default font.
+- **Preconditions**: `gen/skin_preview.png` present.
+- **Steps**: (1) Launch with `--wsz /tmp/no_such.wsz`. Assert non-zero exit. Assert stderr contains the bad path and a human-readable message. (2) Launch with `--wsz` pointing to a non-zip file (e.g. a text file). Assert non-zero exit + clear error.
+- **Expected result**: Both bad-wsz cases produce clear, actionable errors and non-zero exit. No raw traceback.
+- **Status**: planned
+
+### T280 — [M-WEBRADIO-PREVIEW] LED font glyphs render from TEXT.BMP (not PIL default)
+
+- **Type**: host automated (pixel inspection)
+- **Feature(s)**: M-WEBRADIO preview tool (TASK-201)
+- **Objective**: Station name in the TITLE zone uses 5×6 px glyphs from TEXT.BMP, not PIL's proportional default font. Guards against regression to `ImageFont.load_default()`.
+- **Preconditions**: `skins/base-2.91.wsz` and `gen/skin_preview.png` present.
+- **Steps**: (1) Render `playing` state snapshot. (2) Sample TITLE zone (x=111..264, y=27..32) — assert at least one pixel has LED green value `(0x00, 0xE8, 0x00)`. (3) Assert no pixel in the TITLE zone has a value consistent with PIL proportional font rendering at larger pitch. Alternative: render a known single character `"A"` and compare the 5×6 glyph region pixel-for-pixel against the TEXT.BMP crop.
+- **Expected result**: TITLE zone contains LED green pixels consistent with 5 px glyph width. PIL default font (proportional, ~7–8 px wide characters) not detected.
+- **Status**: planned
+
+### T281 — [M-WEBRADIO-PREVIEW] POSBAR chrome drawn from POSBAR.BMP sprite (not fill-rect)
+
+- **Type**: host visual (manual, with pixel sample)
+- **Feature(s)**: M-WEBRADIO preview tool (TASK-201)
+- **Objective**: The POSBAR zone (y=72..81) shows pixels from the POSBAR.BMP skin sprite, not the rejected synthetic `(0x18, 0x18, 0x18)` fill-rect.
+- **Preconditions**: `skins/base-2.91.wsz` and `gen/skin_preview.png` present.
+- **Steps**: (1) Extract POSBAR.BMP from the wsz as a reference crop. (2) Render `stopped` state snapshot (buffer bar empty — POSBAR background fully visible). (3) Sample POSBAR zone; compare to reference crop. Assert pixel content matches sprite. Assert grey sentinel `(0x18, 0x18, 0x18)` absent from POSBAR background.
+- **Expected result**: POSBAR zone matches POSBAR.BMP. Grey fill-rect sentinel absent.
+- **Status**: planned
+
+### T282 — [M-WEBRADIO-PREVIEW] `--wsz` argument accepted and validated (parallel to T276 for `--skin`)
+
+- **Type**: host automated
+- **Feature(s)**: M-WEBRADIO preview tool (TASK-201)
+- **Objective**: `--wsz` is a first-class CLI argument with a default path and explicit-path override. Parallel to T276's coverage of `--skin`.
+- **Preconditions**: `skins/base-2.91.wsz` present.
+- **Steps**: (1) Launch without `--wsz` — confirm default `skins/base-2.91.wsz` is used (exits 0 when present). (2) Launch with `--wsz <explicit_path>` — confirm that path is opened. (3) Launch with `--wsz /tmp/missing.wsz` — confirm non-zero exit + error (covered in detail by T279).
+- **Expected result**: Default path used when omitted. Explicit path accepted. Missing path exits non-zero.
+- **Status**: planned
+
+---
+
 ## Entry Format
 
 ```
