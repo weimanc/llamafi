@@ -337,6 +337,37 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 **How to apply**: After `http.getString()`, work via raw pointer: `const char* raw = body.c_str(); int rawLen = (int)body.length();`. Search for a tag: `for (int i = 0; i <= rawLen - tagLen; i++) if (memcmp(raw + i, tag, tagLen) == 0) { found = i; break; }`. Document the encoding in a comment alongside the parse code.
 **Applies to**: Developer (any new HTTP response parser: check the server's `Content-Type` encoding and apply this rule if ISO-8859-1 or binary is possible), Architect (ADRs introducing new API endpoints must note the response encoding and flag if memcmp is required)
 
+### BP-034 — A blocked test that covers a DUT behaviour must have a synthetic injection fallback; "blocked" is not coverage
+
+**Adopted from**: LL-074
+**Date adopted**: 2026-06-14
+**Rule**: When a VE test is blocked by infrastructure prerequisites (live network G1, touch inject G2, etc.), a synthetic injection-based alternative must be designed that exercises the same code path before the parent feature milestone closes.
+**Rationale**: T270 (subpage navigation) was correctly designed and would have caught the `parsePage("617-2")` data-loss bug. It was blocked on live network data with no fallback path using `set teletextPageContent` injection — the injection mechanism already existed. The bug persisted until first human DUT use. A test marked `[Blocked: G1]` with no alternative is a coverage gap masquerading as a plan.
+**How to apply**: For any test blocked on G1/G2, ask: "Can I inject a synthetic response that exercises this code path?" If yes, design the injection variant as a sibling test and mark the G1/G2 variant as `[NETWORK]` optional. Injection interfaces (`set teletextPageContent`, `set cryptoPrice`, `dbgSet` variants) exist specifically to enable this. If no injection path is possible, flag the gap explicitly in the test plan and in the feature's `notes:` in feature_inventory.yaml.
+**Applies to**: VE (required at test plan authoring time), Developer (must expose injection interfaces for any new complex input format at feature implementation time)
+
+---
+
+### BP-035 — Every "not yet implemented" placeholder in shipped code must be backed by a filed task
+
+**Adopted from**: LL-075
+**Date adopted**: 2026-06-14
+**Rule**: Any code comment containing "not yet implemented", "TODO", "fallback", or "stub" must reference a filed task (`// TODO(TASK-NNN):`) before the feature milestone closes. Comments without a task reference are not tracked and will not be discovered by any process step.
+**Rationale**: `_handleStrip()` shipped with `// Keypad not yet implemented — cycle through presets as fallback`. No task was filed. The feature_inventory did not flag it as partial. T271 expected `KEYPAD_OPEN` from VE's design — the correct test existed — but the implementation gap was invisible to the milestone close checklist. The placeholder was only caught by human DUT use. A comment is a note to self; a task is a commitment the PM and QM can track.
+**How to apply**: At milestone close, `grep -r "not yet\|TODO\|FIXME\|fallback\|stub" app/src/` over changed files. Any hit that is not `TODO(TASK-NNN):` format must either (a) be replaced with a filed task reference before close, or (b) be explicitly marked `// intentional — no task needed` with a reason. QM includes this grep in post-milestone audits.
+**Applies to**: Developer (at implementation time and milestone close), PM (milestone close gate), QM (post-milestone audit)
+
+---
+
+### BP-036 — When a new app is registered, verify it satisfies all active cross-cutting shell integrations
+
+**Adopted from**: LL-076
+**Date adopted**: 2026-06-14
+**Rule**: When a new app is added to appRegistry.h, the Developer must check every cross-cutting shell integration that requires an app-side override and confirm the new app satisfies it (or explicitly defers with a filed task).
+**Rationale**: `TeletextApp` was the 10th app added. It did not override `hasPendingAsync()` (default: `false`). `touch-004` was correctly marked `proposed` in feature_inventory but no new-app checklist enforced the connection. Missing `hasPendingAsync()` compiles cleanly and produces no visible failure at test level — the amber indicator simply never fires. The gap was only caught by DUT use. Silent default-returning overrides are the most dangerous kind of missing integration: they produce no error, no warning, no test failure.
+**How to apply**: Maintain a short checklist in `docs/architecture/designs/` (or appRegistry.h comment) of required per-app integrations. Current list: (1) `hasPendingAsync()` — override if the app enqueues async work from `handleInput()`; (2) `tlsYield()`/`tlsResume()` — required for any new dataTask HTTPS fetcher (BP-031); (3) serial debug `dbgGet`/`dbgSet` surface for VE testability (BP implicit from LL-060). Add to this list as new cross-cutting mechanisms are introduced. QM audits the list against new apps at each milestone retrospective.
+**Applies to**: Developer (at new-app integration time), Architect (must update checklist when new cross-cutting mechanisms are introduced), QM (retrospective audit)
+
 ---
 
 ## Entry Format

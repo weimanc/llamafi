@@ -32,7 +32,7 @@ Three defects surfaced in first DUT use after milestone close (TASK-177–191, r
 
 **Suggested improvement**: For any navigation test that requires live network data, design a synthetic fallback using the injection interface (`set teletextPageContent`). Inject a page body that contains the relevant `pn=ns…`/`pn=ps…` metadata, then exercise the zone. The injection mechanism already exists (TASK-183). A blocked test with no synthetic path is a test gap, not a blocked test.
 
-**Status**: open
+**Status**: adopted → BP-034 (2026-06-14)
 
 ---
 
@@ -46,7 +46,7 @@ Three defects surfaced in first DUT use after milestone close (TASK-177–191, r
 
 **Suggested improvement**: Any placeholder with "not yet implemented" must be backed by a filed task in `tasks.md` before the milestone closes. Alternatively, include a `// TODO(TASK-NNN):` reference so the gap is machine-traceable. A comment without a task is a wish, not a plan.
 
-**Status**: open
+**Status**: adopted → BP-035 (2026-06-14)
 
 ---
 
@@ -60,7 +60,7 @@ Three defects surfaced in first DUT use after milestone close (TASK-177–191, r
 
 **Suggested improvement**: Add a Developer checklist item: when a new app is registered, review all `proposed`/`implemented` cross-cutting features and confirm the new app satisfies them (or explicitly defers). Candidates at this point: `hasPendingAsync()` for any app with async input, `touch-004` busy indicator, TLS yield for any dataTask fetcher.
 
-**Status**: open
+**Status**: adopted → BP-036 (2026-06-14)
 
 ---
 

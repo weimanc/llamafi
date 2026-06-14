@@ -1191,7 +1191,7 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 - Developer: add new-app cross-cutting integration checklist to milestone close procedure — Owner: Developer / PM
 - QM: propose BP candidates from LL-074, LL-075, LL-076 to human for sign-off
 
-**Resolution**: LL-074, LL-075, LL-076 filed in lessons_learned.md. Three defects fixed (commits 728a278, 3633cf6). BP candidates to be reviewed with human.
+**Resolution**: LL-074, LL-075, LL-076 filed and adopted. Three defects fixed (commits 728a278, 3633cf6). BP-034, BP-035, BP-036 promoted with human sign-off (2026-06-14).
 
 ---
 
