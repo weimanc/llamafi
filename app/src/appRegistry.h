@@ -5,6 +5,10 @@
 //   ~/proj/esp/venv/bin/python3 app/tools/gen_app_registry.py
 // Then run check_build.sh — step [5/5] enforces staleness.
 //
+// NEW APP? Run the integration checklist before closing the milestone:
+//   docs/architecture/designs/NEW-APP-CHECKLIST.md
+// Key checks: hasPendingAsync(), tlsYield/tlsResume, dbgGet/dbgSet, cmdTap busy propagation.
+//
 // Columns:  Name       icon  configurable (1 = appears in Settings > Applications)
 APP_X( Spotify,   'S',   0 )
 APP_X( Clock,     'C',   1 )

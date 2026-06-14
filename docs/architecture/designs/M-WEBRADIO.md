@@ -118,7 +118,7 @@ failure. Cache station list; refresh only on country change or explicit reload.
 ```cpp
 Audio audio(true, I2S_DAC_CHANNEL_LEFT_EN);   // GPIO26 → SC8002B amp
 audio.setAudioTaskCore(1);                     // core 1; display stays on core 0
-audio.setVolume(10);                           // ≤10/21 — avoid amp clipping
+audio.setVolume(settings.webRadio.maxVolume);  // ceiling from settings (default 10; 18 with HW mod)
 audio.connecttohost(url_resolved);             // streams MP3, follows redirects
 audio.stopSong();                              // on app switch / user stop
 ```
@@ -171,7 +171,9 @@ ESP32 I2S-DAC → GPIO26 → SC8002B amp (~14.5× gain) → SPEAK header → 8 �
 - GPIO26 is dedicated to the on-board amp; no TFT or other peripheral conflict.
 - 8-bit, mono, up to 44.1 kHz sample rate. Acceptable for radio.
 - **External 8 Ω speaker required** — nothing on-board.
-- Keep `audio.setVolume()` ≤ 10/21 to avoid SC8002B clipping + excess current.
+- Stock: keep `audio.setVolume()` ≤ 10/21 (hard DAC overload + clipping above this).
+- With gain-reduction HW mod: full 0–21 range usable; default ceiling 18.
+- See §Settings for the HW Mod Installed / Max Volume settings pair.
 
 ---
 
@@ -201,11 +203,32 @@ Settings → Applications → Web Radio:
 
 | Setting | Type | Default | Notes |
 |---------|------|---------|-------|
-| Country | enum (ISO 3166-1 alpha-2) | `NL` | Drives station list fetch |
+| Country | enum (ISO 3166-1 alpha-2) | `NL` | Drives station list fetch; searchable via KeyboardWidget |
 | Autoplay | bool | false | Reconnect last station on app launch |
-| Last station idx | int | 0 | Persisted in `settings.json` (SPIFFS) |
+| HW Mod Installed | bool | false | SC8002B gain-reduction mod applied (see §Audio hardware path); unlocks Max Volume above 10 |
+| Max Volume | int 1–21 | 10 (stock) / 18 (HW mod) | Ceiling passed to `audio.setVolume()`; default auto-raised when HW Mod toggled on |
+| Last station idx | int | 0 | Persisted in `settings.json` (SPIFFS); internal |
 
-Country enum baked at compile time (~40 active entries). Not runtime-fetched.
+### Country picker
+
+Country list is derived at compile time from `kCities[]` in `settings/cities.h` —
+deduplicate the `country` ISO 3166-1 alpha-2 field. Yields ~40–50 entries; good
+coverage for radio-browser.info. Not runtime-fetched.
+
+The picker renders as a scrollable list. Tapping the search icon opens
+`KeyboardWidget` (Full mode); typed characters filter the list by country name
+(static name mapping alongside each code). Clearing the input resets the filter.
+
+### HW Mod and Max Volume interaction
+
+```
+HW Mod = false → Max Volume default = 10; soft cap at 12 (code enforces)
+HW Mod = true  → Max Volume default = 18; cap removed (user can set 1–21)
+```
+
+The mod replaces resistors around the SC8002B to lower the ~14.5× gain and
+raise input impedance. Without it the 8-bit DAC output is overloaded and clips
+above ~10/21. Reference: https://github.com/hexeguitar/ESP32_TFT_PIO#audio-amp-gain-mod
 
 ---
 
@@ -240,7 +263,11 @@ starts. Empirical validation needed — run heap watermark logging on DUT.
    decide if 96 kbps cap should be enforced in API query.
 3. **Touch + audio coexistence** — XPT2046 SPI (GPIO25) and I2S-DAC (GPIO26)
    active simultaneously; verify no electrical interference on this board rev.
-4. **Amp volume ceiling** — calibrate max `audio.setVolume()` below distortion.
+4. ~~**Amp volume ceiling**~~ — **resolved by design**: `HW Mod Installed` bool +
+   `Max Volume` int exposed in settings. Stock default 10; mod default 18. Soft
+   cap enforced in code when HW Mod = false. Reference mod: hexeguitar/ESP32_TFT_PIO.
 5. **Source taskbar icons** — `radio.png` / `radio_active.png` (24×24 RGBA).
-6. **Country list** — compile the baked ~40-entry enum from radio-browser country
-   coverage data.
+6. ~~**Country list**~~ — **resolved by design**: derive from `kCities[]` in
+   `settings/cities.h` (deduplicate `country` ISO field, ~40–50 entries). Add
+   static name mapping. Country picker uses `KeyboardWidget` (Full mode) for
+   search-by-name filtering.

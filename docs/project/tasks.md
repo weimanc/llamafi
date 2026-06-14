@@ -1122,7 +1122,7 @@ QM retrospective on three post-ship defects. LL-074/075/076 filed and adopted. B
 
 ---
 
-## Open Tasks
+## Closed — M-TELETEXT TASK-197 synthetic tests + busy fix (2026-06-14)
 
 ### TASK-197 — M-TELETEXT: synthetic injection path for T270 (subpage nav) and T271 (numpad boundary)
 
@@ -1156,7 +1156,7 @@ Deliverable: a short checklist block added to `docs/architecture/designs/` (or a
 Checklist must be referenced at milestone close for any future app additions.
 
 **Priority:** P3 — process hygiene; no new app is pending
-**Status:** open
+**Status:** done — `docs/architecture/designs/NEW-APP-CHECKLIST.md` created; pointer comment added to `appRegistry.h` (2026-06-14)
 **Opened:** 2026-06-14
 **Owner:** Developer / Architect
 **Deps:** —
