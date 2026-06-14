@@ -40,6 +40,7 @@ from preview_common import (
     SCREEN_W, SCREEN_H, TASKBAR_X, TASKBAR_W,
     TASKBAR_SLOT_H, TASKBAR_SLOT_COUNT, TASKBAR_ICON_W, TASKBAR_ICON_H,
     TASKBAR_BG, TASKBAR_ACTIVE_COL, TASKBAR_SEP_COL,
+    PreviewWindow,
 )
 
 # Winamp 5×6 glyph dimensions.
@@ -230,7 +231,6 @@ def main() -> None:
         "sep_enabled":    True,
         "sep_color":      _SEP_COLORS[0],
         "active_slot":    0,
-        "scale":          args.scale,
         # palette indices for cycling
         "_bg_idx":        0,
         "_ic_idx":        0,
@@ -247,40 +247,25 @@ def main() -> None:
     except ImportError:
         sys.exit("pip install pygame  (required for interactive mode)")
 
-    pygame.init()
-    pygame.display.set_caption("M-MULTIAPP Shell Layout Preview  —  e=export  q=quit")
-
-    scale  = params["scale"]
-    screen = pygame.display.set_mode((SCREEN_W * scale, SCREEN_H * scale))
-    clock  = pygame.time.Clock()
+    win   = PreviewWindow("M-MULTIAPP Shell Layout Preview  —  e=export  q=quit",
+                          scale=args.scale)
+    clock = pygame.time.Clock()
 
     def redraw():
         strip  = _render_taskbar(font_bmp, params)
         canvas = _composite(skin_preview, strip)
-        # Nearest-neighbour scale
-        scaled = canvas.resize((SCREEN_W * params["scale"],
-                                 SCREEN_H * params["scale"]),
-                                Image.NEAREST)
-        surf = pygame.image.fromstring(scaled.tobytes(), scaled.size, "RGB")
-        screen.blit(surf, (0, 0))
-        pygame.display.flip()
-
-    def resize_window():
-        nonlocal screen
-        s = params["scale"]
-        screen = pygame.display.set_mode((SCREEN_W * s, SCREEN_H * s))
+        win.blit_pil(canvas)
+        win.flip()
 
     redraw()
-    running = True
-    while running:
+    while True:
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
+            if win.handle_event(event):   # handles QUIT, q, +/-
+                print(f"  scale → {win.scale}")
+                redraw()
             elif event.type == pygame.KEYDOWN:
                 k = event.key
-                if k == pygame.K_q:
-                    running = False
-                elif k == pygame.K_b:
+                if k == pygame.K_b:
                     params["_bg_idx"] = (params["_bg_idx"] + 1) % len(_BG_PALETTE)
                     params["bg"] = _BG_PALETTE[params["_bg_idx"]]
                     print(f"  bg → 0x{params['bg']:04X}")
@@ -301,14 +286,6 @@ def main() -> None:
                 elif k == pygame.K_RIGHTBRACKET:
                     params["active_slot"] = (params["active_slot"] + 1) % TASKBAR_SLOT_COUNT
                     print(f"  active slot → {params['active_slot']}")
-                elif k == pygame.K_PLUS or k == pygame.K_EQUALS:
-                    params["scale"] = min(4, params["scale"] + 1)
-                    resize_window()
-                    print(f"  scale → {params['scale']}")
-                elif k == pygame.K_MINUS:
-                    params["scale"] = max(1, params["scale"] - 1)
-                    resize_window()
-                    print(f"  scale → {params['scale']}")
                 elif k == pygame.K_e:
                     path = _export(params, gen_dir)
                     print(f"  Exported → {path}")
@@ -316,8 +293,6 @@ def main() -> None:
                     _print_args(params)
                 redraw()
         clock.tick(60)
-
-    pygame.quit()
 
 
 if __name__ == "__main__":
