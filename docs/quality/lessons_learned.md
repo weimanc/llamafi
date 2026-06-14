@@ -4,6 +4,66 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-06-14 — M-TELETEXT post-ship DUT review
+
+Three defects surfaced in first DUT use after milestone close (TASK-177–191, retrospective 2026-06-13/14). All three were invisible to the serial-debug test suite and only caught by manual use.
+
+### What went wrong
+
+- **Subpage navigation silently broken.** `parsePage("617-2")` via `atoi` returned 617, dropping the sub-index. Tapping SUBUP/SUBDN re-navigated to page 617 subpage 1 in a loop.
+- **Numpad never implemented.** Code had an explicit comment "Keypad not yet implemented — cycle through presets as fallback." No task, no feature_inventory gap flag, no known-incomplete note in the test plan. Shipped as if complete.
+- **Busy indicator not wired to TeletextApp.** `touch-004` was `proposed` in feature_inventory; TeletextApp never overrode `hasPendingAsync()`. Amber indicator never fired.
+
+### Why the test suite didn't catch them
+
+- **T270 (subpage nav)** existed but was blocked: `[NETWORK]` + `[Blocked: G1, G2]`. No injection-based alternative was designed to run synthetically.
+- **T271 (numpad)** expected `KEYPAD_OPEN` in `teletextLastAction` — the test would have caught the gap — but was never executed (also blocked G2).
+- **T-BUSY** suite (touch-004) was a pending Developer deliverable; never ran for TeletextApp.
+
+---
+
+### LL-074 — 2026-06-14 — Blocked test with no synthetic fallback = no coverage
+
+**Context**: T270 (subpage navigation) and T271 (numpad boundary) were written but blocked by G1 (live network) and G2 (touch inject infrastructure). Neither had a synthetic injection-based path that could run without those preconditions.
+
+**Observation**: The subpage parsing bug — `parsePage("617-2")` drops the sub-index via `atoi` — would have been caught by T270 if it could run. But "planned" + "blocked" effectively means "not tested." The gap persisted until first real DUT use.
+
+**Root cause**: Tests that require live network data (G1) have no fallback path using `set teletextPageContent` injection to simulate the scenario synthetically. When infrastructure prerequisites are missing, the test is skipped, not approximated.
+
+**Suggested improvement**: For any navigation test that requires live network data, design a synthetic fallback using the injection interface (`set teletextPageContent`). Inject a page body that contains the relevant `pn=ns…`/`pn=ps…` metadata, then exercise the zone. The injection mechanism already exists (TASK-183). A blocked test with no synthetic path is a test gap, not a blocked test.
+
+**Status**: open
+
+---
+
+### LL-075 — 2026-06-14 — "Not yet implemented" comment in code = invisible tech debt
+
+**Context**: `_handleStrip()` PAGE zone contained: `// Keypad not yet implemented — cycle through presets as fallback`. No task filed. `feature_inventory.yaml` did not flag the keypad zone as partial. No note in the test plan. The milestone closed and the feature shipped.
+
+**Observation**: T271 expected `KEYPAD_OPEN` in `teletextLastAction` — the VE had correctly designed a test that would have caught the absence — but neither the code comment nor the missing implementation triggered a stop. The comment was invisible to the milestone close checklist.
+
+**Root cause**: "Not yet implemented" in source code is not surfaced by any process step (feature_inventory review, audit, milestone gate). Code comments are not tracked artifacts. The placeholder behavior (preset cycling) was functional enough to pass all tests that could run, so the milestone appeared clean.
+
+**Suggested improvement**: Any placeholder with "not yet implemented" must be backed by a filed task in `tasks.md` before the milestone closes. Alternatively, include a `// TODO(TASK-NNN):` reference so the gap is machine-traceable. A comment without a task is a wish, not a plan.
+
+**Status**: open
+
+---
+
+### LL-076 — 2026-06-14 — Cross-cutting shell integration not audited when a new app ships
+
+**Context**: `touch-004` (shell busy indicator, `hasPendingAsync()`) was designed as a cross-cutting mechanism that each app must opt into by overriding `hasPendingAsync()`. `TeletextApp` was the 10th app added. It did not override the method (default: `false`). `touch-004` remained `proposed` in feature_inventory — correctly flagged, but not connected to any new-app checklist.
+
+**Observation**: The pattern "new app added → check cross-cutting integrations" does not exist. TLS yield (`tlsYield`/`tlsResume`) is checked because it's a compile-time pattern (you add the calls or the fetch has contention). `hasPendingAsync()` is silent — a missing override compiles cleanly, returns `false`, and nothing breaks at the test level.
+
+**Root cause**: No checklist item at new-app integration time. cross_feature_matrix.yaml had no entry for teletext-001 × touch-004 until this session. The gap was structural: the connection was implied by the design but not enforced.
+
+**Suggested improvement**: Add a Developer checklist item: when a new app is registered, review all `proposed`/`implemented` cross-cutting features and confirm the new app satisfies them (or explicitly defers). Candidates at this point: `hasPendingAsync()` for any app with async input, `touch-004` busy indicator, TLS yield for any dataTask fetcher.
+
+**Status**: open
+
+---
+
 ## Retrospective — 2026-06-13/14 — M-TELETEXT (TASK-177–191)
 
 Triggering work: full M-TELETEXT milestone — NOS Teletekst live reader (10th multiapp slot). Firmware implemented across TASK-177–191. TASK-191 (T272 TLS heap contention test) closed last; three bugs surfaced and fixed during that single test run.

@@ -1170,6 +1170,31 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 
 ---
 
+### Audit — 2026-06-14 — M-TELETEXT post-ship DUT defect retrospective
+**Triggered by**: human ("how did we miss these?") after 3 defects found in first DUT use
+**Areas checked**:
+- [x] Feature inventory completeness
+- [x] Test coverage per feature
+- [x] Cross-feature test coverage
+- [x] Documentation currency
+
+**Findings**:
+1. **Subpage nav broken (silent data loss)** — `parsePage("617-2")` via `atoi` returned 617, dropping sub-index. T270 covered this case but was blocked `[NETWORK][G1,G2]` with no synthetic injection fallback. Gap: no `set teletextPageContent` path to simulate a subpage-bearing response.
+2. **Numpad placeholder shipped as complete** — `_handleStrip()` contained `// Keypad not yet implemented`. No task filed, no feature_inventory partial flag, no known-gap note in test plan. T271 expected `KEYPAD_OPEN` but was blocked and never run.
+3. **touch-004 not wired to TeletextApp** — `hasPendingAsync()` defaulted to `false`. `touch-004` correctly marked `proposed` in feature_inventory but no new-app checklist enforces the integration. T-BUSY suite was pending Developer deliverable; never run against TeletextApp.
+
+**Root cause pattern**: All three were "planned but not enforced." Tests existed (T270, T271, T-BUSY) but were blocked or pending. No process step at milestone close verified that blocked tests had synthetic alternatives or that cross-cutting integrations were satisfied.
+
+**Actions assigned**:
+- Developer: file tasks for injection-based subpage nav test (T270 synthetic alternative) — Owner: Developer
+- Developer: adopt `// TODO(TASK-NNN):` convention for any "not yet implemented" placeholder — Owner: Developer
+- Developer: add new-app cross-cutting integration checklist to milestone close procedure — Owner: Developer / PM
+- QM: propose BP candidates from LL-074, LL-075, LL-076 to human for sign-off
+
+**Resolution**: LL-074, LL-075, LL-076 filed in lessons_learned.md. Three defects fixed (commits 728a278, 3633cf6). BP candidates to be reviewed with human.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:
