@@ -66,7 +66,8 @@ static portMUX_TYPE       s_heatmapMux    = portMUX_INITIALIZER_UNLOCKED;
 static HeatmapQuoteResult s_heatmapResult;
 static bool               s_heatmapNew    = false;
 
-constexpr UBaseType_t kStackBytes  = 12 * 1024;
+// Bumped 12→20 KB: fetchWebRadioStations TLS + streaming ArduinoJson overflowed 12 KB (TASK-208 DUT).
+constexpr UBaseType_t kStackBytes  = 20 * 1024;
 constexpr UBaseType_t kPriority    = 1;
 constexpr BaseType_t  kPinnedCpu   = APP_CPU_NUM;
 
@@ -730,6 +731,11 @@ static void fetchWebRadioStations() {
     strlcpy(country, s_pendingCountry, sizeof(country));
     portEXIT_CRITICAL_SAFE(&s_pendingCountryMux);
 
+    // tlsYield() stops spotifyTask and waits up to 90 s for its ack. With
+    // Spotify's SO_RCVTIMEO capped at 15 s, worst-case blocking is 60 s
+    // (two API calls each with one retry). After the ack the shared TLS
+    // session is freed (~50 KB), giving the local WiFiClientSecure below
+    // enough contiguous heap for its own handshake.
     spotifyTask::tlsYield();
     LOG_HEAP("dataTask.webradio");
 

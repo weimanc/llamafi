@@ -52,6 +52,7 @@ bool writeContextToNfc = true;
 #include <time.h>     // configTime(), time(); needed for NTP sync at boot (time-001)
 #include <esp_ota_ops.h>  // esp_ota_get_app_description() for serialdbg-001 boot banner (Arduino-ESP32 2.0.x; esp-idf 5.x renames this to <esp_app_desc.h>)
 #include <esp_log.h>      // esp_log_level_set() for ADR-042 E1 HTTPClient log suppression
+#include <esp_task_wdt.h> // esp_task_wdt_init() — extended timeout for dataTask TLS
 
 // ----------------------------
 // Additional Libraries
@@ -1787,6 +1788,15 @@ void appTick(AppId id) {
 
 void setup()
 {
+  // Extend TWDT from 5→15s: dataTask TLS handshakes (webradio station list,
+  // stock quotes) can take 6-10s on cold start and starve the CPU0 idle task.
+  // SpotifyTask avoids this via tlsYield(), but dataTask has no such mechanism.
+  // esp_task_wdt_init() is a no-op when already initialized; must deinit first.
+  esp_task_wdt_deinit();
+  esp_task_wdt_init(15, true);
+  esp_task_wdt_add(NULL);  // re-subscribe loopTask (current task)
+  esp_task_wdt_add(xTaskGetIdleTaskHandleForCPU(0));  // re-subscribe CPU0 idle
+
   Serial.begin(115200);
 
   // serialdbg-001 (TASK-056b): unconditional boot banner. Carved out of the
@@ -2223,6 +2233,15 @@ static void cmdTap(const char *args) {
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                     "\"hit\":\"TELETEXT\",\"action\":\"%s\",\"skipped\":false}\n",
                     x, y, consumed ? "CONSUMED" : "NONE");
+    } else if (currentAppId == AppId::WebRadio && g_apps[(int)AppId::WebRadio]) {
+      // WebRadio: injectTouch populates lastTouchResult for the response;
+      // WebRadioApp::handleInput executes the action (eject/transport/PLEDIT).
+      winampDisplay.injectTouch(x, y);
+      g_apps[(int)AppId::WebRadio]->handleInput(TouchPhase::Release, x, y);
+      const auto &wr = winampDisplay.lastTouchResult;
+      Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                    "\"hit\":\"%s\",\"action\":\"%s\",\"skipped\":false}\n",
+                    x, y, wr.region, wr.action);
     } else {
       winampDisplay.lastTouchResult = { "CLOCK", -1, "NONE", 0, -1, false };
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
@@ -2232,6 +2251,11 @@ static void cmdTap(const char *args) {
   }
   winampDisplay.injectTouch(x, y);
   winampDisplay.injectRelease();
+  // Eject: injectTouch only sets lastTouchResult; SpotifyApp::handleInput must
+  // be called directly to execute switchApp(AppId::WebRadio).
+  if (strcmp(winampDisplay.lastTouchResult.action, "EJECT") == 0) {
+    g_apps[(int)AppId::Spotify]->handleInput(TouchPhase::Release, x, y);
+  }
   if (!g_shellBusy && g_apps[(int)AppId::Spotify]->hasPendingAsync())
     shell::setBusy(true);
   const auto &r = winampDisplay.lastTouchResult;
@@ -2559,6 +2583,7 @@ void loop()
   handleSerialCommands();
   logsink::serverLoop();
   heartbeat::tick();
+  esp_task_wdt_reset();   // WDT safety: reset after serial+logsink, before appTick
 #ifdef SCREEN_LOG
   { unsigned long _t = millis(); screenlog::tick(spotifyDisplay);
     perf::record("screenlog.tick", millis() - _t); }
@@ -2570,6 +2595,7 @@ void loop()
 
   { unsigned long _t = millis(); appHandleInput(currentAppId);
     perf::record("display.input", millis() - _t); }
+  esp_task_wdt_reset();   // WDT safety before appTick
 
   { unsigned long _t = millis(); appTick(currentAppId);
     perf::record("app.tick", millis() - _t); }

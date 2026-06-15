@@ -181,6 +181,7 @@ static void doFetchQueue() {
   LOG_D("spotify.queue", "status=%d elapsed=%lums", status, (unsigned long)(millis() - t0));
   s_queueRefreshNeeded = false;
   s_lastQueueFetchMs   = millis();
+  if (status < 0) client.stop();  // prevent fd leak: same reason as doPoll
 }
 
 // Issues a single poll. Updates backoff + heartbeat counters + (on
@@ -228,6 +229,9 @@ static void doPoll() {
       } else {
         LOG_W("spotify.tls", "after -1: lastError=0 — see [lib] line for cause");
       }
+      // Close the stale socket so the next reconnect starts fresh; without
+      // this, start_ssl_client() leaks the old fd and errno=11 accumulates.
+      client.stop();
     }
   }
   if (s_consecutiveFailures > 0) {
@@ -259,6 +263,16 @@ const char *actionName(uint8_t a) {
 static void taskBody(void *) {
   LOG_I("spotify.task", "task started; pinned core=%d stack=%uB period=%ums",
         (int)kPinnedCpu, (unsigned)kStackBytes, (unsigned)kPollPeriodMs);
+  // Cap SO_RCVTIMEO (per-recv) to 15 s and TLS handshake timeout to 30 s.
+  // Without these, the default 120 s handshake timeout means a single
+  // stalled connect can block for 240 s (two attempts). With 15 s recv
+  // and 30 s handshake, worst-case per API call is 75 s (30 s handshake +
+  // 15 s recv × 2 attempts); two API calls cap at 150 s — within tlsYield().
+  client.setTimeout(15);
+  client.setHandshakeTimeout(30);
+  // Clear any stale socket left by setup()'s failed auth attempt so the
+  // first getCurrentlyPlaying() starts with a clean client.
+  client.stop();
 
   for (;;) {
     // TASK-053b: hard TLS reset requested by loop task (logo tap or serial
@@ -287,9 +301,9 @@ static void taskBody(void *) {
             actionName(req.action), (long)req.param);
     }
 
-    // TASK-131: TLS yield — stop Spotify TLS so dataTask can allocate its
-    // own session from the freed heap (~40 k). Runs after xQueueReceive so
-    // any in-flight API call has already completed before we touch the client.
+    // TASK-131: TLS yield — stop Spotify TLS so dataTask can reuse the client
+    // for its own fetch (shared-client approach avoids double-TLS-context OOM).
+    // Runs after xQueueReceive so any in-flight API call has already completed.
     // Spins (20 ms ticks) until tlsResume() clears the flag; discards the
     // current queued request (the wake-up ACT_POLL) via continue.
     if (s_tlsYieldReq) {
@@ -459,12 +473,17 @@ void resetTls() {
 
 void tlsYield() {
   if (!s_tlsYieldedSem || !reqQueue) return;
+  // Drain any orphaned give from a previous timed-out yield (avoids the race
+  // where the semaphore is already available from a prior cycle, making the
+  // next xSemaphoreTake return immediately before spotifyTask actually stops).
+  xSemaphoreTake(s_tlsYieldedSem, 0);
   s_tlsYieldReq = true;
-  // wake the task if it is blocked in xQueueReceive
+  // Wake the task if it is blocked in xQueueReceive
   Request r{ACT_POLL, 0};
   xQueueSendToFront(reqQueue, &r, 0);
-  // wait for task ack (up to 5 s — covers any in-flight Spotify API call)
-  xSemaphoreTake(s_tlsYieldedSem, pdMS_TO_TICKS(5000));
+  // Wait for task ack (up to 150 s — covers worst-case 2 API calls × 75 s
+  // each = 150 s, with 30 s handshake + 15 s recv × 2 per call).
+  xSemaphoreTake(s_tlsYieldedSem, pdMS_TO_TICKS(150000));
 }
 
 void tlsResume() {

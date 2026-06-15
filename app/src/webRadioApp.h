@@ -7,6 +7,7 @@
 #include <TFT_eSPI.h>
 #include <Audio.h>
 #include <freertos/queue.h>
+#include "esp_task_wdt.h"
 #include "appShell.h"
 #include "dataTask.h"
 #include "settingsStorage.h"
@@ -93,11 +94,16 @@ public:
         if (!s_icyTitleQueue)
             s_icyTitleQueue = xQueueCreate(1, sizeof(char) * 104);
 
-        wrAudio().setVolume(g_settings.webRadioMaxVolume);
+        // Defer Audio creation to _play() — Audio(internalDAC) constructor
+        // runs i2s_driver_install which can exceed 5s and trigger WDT when
+        // init() is called synchronously from cmdTap (serial context).
+        if (s_wr_audio) s_wr_audio->setVolume(g_settings.webRadioMaxVolume);
 
         // TASK-208: heap watermark — app launch baseline
+        _heapInitFree = ESP.getFreeHeap();
+        _heapInitMin  = ESP.getMinFreeHeap();
         LOG_I("webradio", "HEAP init free=%u min=%u",
-              (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap());
+              (unsigned)_heapInitFree, (unsigned)_heapInitMin);
 
         // Kick off station list fetch
         LOG_I("webradio", "HEAP pre-fetch free=%u min=%u",
@@ -105,12 +111,13 @@ public:
         dataTask::enqueueWebRadioStations(g_settings.webRadioCountry);
         _pendingStations = true;
 
-        _drawFull();
+        // _dirty=true; tick() handles first paint — init() must return fast
+        // (called synchronously from cmdTap context; _drawFull here risks WDT).
     }
 
     void resume() override {
         _dirty = true;
-        _drawFull();
+        // Defer paint to tick() — resume() can also run from cmdTap context.
 
         if (g_settings.webRadioAutoplay && _stationCount > 0 &&
             _state == WRPlayState::STOPPED) {
@@ -139,8 +146,10 @@ public:
             if (dataTask::pollWebRadioStations(&result)) {
                 _pendingStations = false;
                 // TASK-208: heap watermark — post-fetch (TLS torn down)
+                _heapFetchFree = ESP.getFreeHeap();
+                _heapFetchMin  = ESP.getMinFreeHeap();
                 LOG_I("webradio", "HEAP post-fetch free=%u min=%u",
-                      (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap());
+                      (unsigned)_heapFetchFree, (unsigned)_heapFetchMin);
                 if (result.ok && result.count > 0) {
                     _stationCount = result.count;
                     memcpy(_stations, result.stations,
@@ -170,6 +179,8 @@ public:
         }
 
         if (_dirty) {
+            // WDT: _drawFull (repaintChrome) can be slow; reset before painting.
+            esp_task_wdt_reset();
             _drawFull();
             _dirty = false;
         }
@@ -226,7 +237,8 @@ public:
         }
         if (strcmp(var, "wrCount") == 0) {
             snprintf(buf, len,
-                     "\"var\":\"wrCount\",\"count\":%u,\"last\":true", (unsigned)_stationCount);
+                     "\"var\":\"wrCount\",\"count\":%u,\"pending\":%u,\"last\":true",
+                     (unsigned)_stationCount, (unsigned)_pendingStations);
             return true;
         }
         if (strcmp(var, "wrIdx") == 0) {
@@ -243,6 +255,16 @@ public:
         if (strcmp(var, "wrEject") == 0) {
             snprintf(buf, len,
                      "\"var\":\"wrEject\",\"wired\":true,\"last\":true");
+            return true;
+        }
+        // T_WR_HEAP_01/02: heap snapshots queryable without relying on log capture
+        if (strcmp(var, "wrHeap") == 0) {
+            snprintf(buf, len,
+                     "\"var\":\"wrHeap\","
+                     "\"initFree\":%u,\"initMin\":%u,"
+                     "\"fetchFree\":%u,\"fetchMin\":%u,\"last\":true",
+                     (unsigned)_heapInitFree, (unsigned)_heapInitMin,
+                     (unsigned)_heapFetchFree, (unsigned)_heapFetchMin);
             return true;
         }
         return false;
@@ -303,6 +325,11 @@ private:
     char        _icyTitle[104]   = {};
     uint32_t    _lastHeapLogMs   = 0;
     dataTask::WebRadioStation _stations[100];
+    // Heap snapshots for serial debug surface (set in init() and after fetch)
+    uint32_t    _heapInitFree   = 0;
+    uint32_t    _heapInitMin    = 0;
+    uint32_t    _heapFetchFree  = 0;
+    uint32_t    _heapFetchMin   = 0;
 
     // ── Audio control ──────────────────────────────────────────────────────
 
