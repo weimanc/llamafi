@@ -16,7 +16,7 @@ Populated during retrospectives. Entries reviewed w/ human for promotion to `bes
 
 **Suggested improvement**: When writing a test helper for a group of tests, check each caller's actual requirements against every guard in the helper. A guard appropriate for "play a station" is not automatically appropriate for "inject a state." Alternatively: split into `_webradio_enter()` (just switches app) and `_webradio_enter_with_stations()` (switches + requires count≥1), and have callers choose the minimum-sufficient helper.
 
-**Status**: open — BP candidate (see also BP-034)
+**Status**: adopted — BP-037 (2026-06-15)
 
 ---
 
@@ -30,7 +30,7 @@ Populated during retrospectives. Entries reviewed w/ human for promotion to `bes
 
 **Suggested improvement**: When tests skip or fail, the first diagnostic step must be: read the test's spec doc and verify the test implementation matches the intent. Only after confirming the test logic is correct should the agent investigate firmware or infrastructure. A 2-minute spec read before any DUT diagnosis is not optional. This is especially critical in auto mode where there is no human check-in to redirect misdiagnosis.
 
-**Status**: open — BP candidate
+**Status**: adopted — BP-038 (2026-06-15)
 
 ---
 

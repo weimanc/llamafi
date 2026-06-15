@@ -370,6 +370,28 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-037 — Use the minimum-sufficient helper: don't inherit live-data gates for injection-only tests
+
+**Adopted from**: LL-081
+**Date adopted**: 2026-06-15
+**Rule**: A test that exercises state injection (`set wrState`, `set cryptoPrice`, etc.) must not call a helper that gates on live data (`count >= 1`, `get cryptoPrice > 0`). The helper must match the minimum precondition the test actually needs.
+**Rationale**: T_WR_ERR_01–04 skipped on every run because `_webradio_enter_with_stations()` required `count >= 1`. The tests only needed the WebRadio app to be active; no station data was read. The gate was inherited by copy-paste from station-dependent tests without checking applicability.
+**How to apply**: Before using a shared entry-point helper in a new test, list the helper's guards and verify each one is load-bearing for that specific test. If a guard is unnecessary, either use a leaner helper or extract one. Name helpers to make the distinction obvious: `_enter_app()` vs `_enter_app_with_stations()`.
+**Applies to**: VE
+
+---
+
+### BP-038 — Read the test spec before diagnosing infrastructure
+
+**Adopted from**: LL-082
+**Date adopted**: 2026-06-15
+**Rule**: When a test skips or fails, the first action is to read the test's spec doc and verify the implementation matches the stated preconditions and steps. Infrastructure or firmware diagnosis comes only after the test logic is confirmed correct.
+**Rationale**: T_WR_ERR_01–04 skipped with "station list unavailable." The agent diagnosed radio-browser.info connectivity across two sessions before the user intervened. The actual fault was a wrong precondition in the test script — visible in under 2 minutes by reading `m-webradio-eject-errors.md`. The same observable symptom (SKIP) can indicate either a correct gate or a wrong gate; only the spec distinguishes them.
+**How to apply**: On any unexpected SKIP or FAIL: (1) open the corresponding regression suite doc, (2) check each precondition against the test implementation, (3) check each assertion against what the firmware command actually does. Only proceed to DUT/network diagnosis if the test logic is confirmed correct.
+**Applies to**: VE, Developer, All (especially in auto mode where human check-ins are absent)
+
+---
+
 ## Entry Format
 
 ```
