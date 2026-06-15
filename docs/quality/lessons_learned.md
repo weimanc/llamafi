@@ -4,6 +4,36 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-06-15 — M-WEBRADIO TASK-211/212 test session
+
+### LL-081 — 2026-06-15 — State-injection test given a live-data precondition
+
+**Context**: T_WR_ERR_01–04 test `set wrState N` — a serial debug command that directly assigns `_state` on the WebRadio app object. The implementation called `_webradio_enter_with_stations()` and skipped with "station list unavailable" whenever `get wrCount` returned `count=0`. The radio-browser.info API was returning 0 stations on the DUT (network/TLS issue unrelated to the feature under test), so all 4 tests skipped on every run.
+
+**Observation**: The precondition `count >= 1` was copied from the helper used by station-dependent tests (COEX, HEAP_03/04, VOL_03). It has no logical connection to `set wrState`: the command sets a local enum field on the active app object. No station data is read or required. The test plan doc (`m-webradio-eject-errors.md`) states the precondition as "WebRadio app active" — not "stations loaded." The implementation diverged from the spec.
+
+**Root cause**: The VE author reused `_webradio_enter_with_stations()` as a convenience entry point without checking whether its `count >= 1` gate was appropriate for injection-only tests. The helper name describes a superset of what ERR tests need.
+
+**Suggested improvement**: When writing a test helper for a group of tests, check each caller's actual requirements against every guard in the helper. A guard appropriate for "play a station" is not automatically appropriate for "inject a state." Alternatively: split into `_webradio_enter()` (just switches app) and `_webradio_enter_with_stations()` (switches + requires count≥1), and have callers choose the minimum-sufficient helper.
+
+**Status**: open — BP candidate (see also BP-034)
+
+---
+
+### LL-082 — 2026-06-15 — Agent diagnosed the network when the bug was in the test precondition
+
+**Context**: Session began with 4 passed / 10 skipped on the WebRadio DUT suite. The 10 skips included T_WR_ERR_01–04 (state injection) and T_WR_COEX/HEAP_03/04/VOL_03 (live playback). The agent in auto mode diagnosed the skips by chasing why radio-browser.info returned 0 stations on the DUT: live API tests from host, openssl cert chain inspection, socket exhaustion analysis, TLS handshake theory, passive serial watch attempts across multiple sessions.
+
+**Observation**: The ERR tests were skipping due to a wrong precondition in the test script, not due to a network or firmware bug. The fix was ~10 lines. The diagnosis consumed the bulk of two sessions — an estimated 90%+ of tokens spent — before the user intervened and asked "are we converging or in a silly debug loop?" Reading `m-webradio-eject-errors.md` at the start of the session would have surfaced the discrepancy in under 2 minutes.
+
+**Root cause**: The agent treated all test failures as firmware or infrastructure bugs. It did not distinguish between "test is blocked on network" (correct SKIP) and "test has wrong precondition" (fixable in the test script). The observable symptom was the same in both cases (SKIP with "station list unavailable"), so the agent chased the symptom rather than validating the test's own logic against the spec first. Auto mode removed the human interaction point that would have triggered a re-read of the spec.
+
+**Suggested improvement**: When tests skip or fail, the first diagnostic step must be: read the test's spec doc and verify the test implementation matches the intent. Only after confirming the test logic is correct should the agent investigate firmware or infrastructure. A 2-minute spec read before any DUT diagnosis is not optional. This is especially critical in auto mode where there is no human check-in to redirect misdiagnosis.
+
+**Status**: open — BP candidate
+
+---
+
 ## Retrospective — 2026-06-14 — M-WEBRADIO TASK-201 preview sign-off
 
 Five bugs caught during T275 human sign-off that automated tests missed.
