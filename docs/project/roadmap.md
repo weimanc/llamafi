@@ -835,7 +835,7 @@ Spotify and web radio via the existing taskbar.
 3. **ESP32-audioI2S library** — 55.6% flash at build (gate cleared TASK-199).
 4. **ICY metadata** — `StreamTitle` confirmed via NPO Radio 2 probe (TASK-200).
 
-**Status:** in progress — host phase complete (TASK-199–202 done); firmware next (TASK-213)  
+**Status:** in progress — firmware complete (TASK-213 signed off 2026-06-14); eject + error injection VE done (TASK-211/212, 8/14 tests PASS); blocked on radio-browser.info DUT reachability (TASK-214) before TASK-207/208/209 DUT session  
 **Deps:** M-MULTIAPP (done), M-TASKBAR-ICONS (done), EXP-005 (done)  
 **Design:** [M-WEBRADIO.md](../architecture/designs/M-WEBRADIO.md)  
 **R&D:** [EXP-005](../rnd/reports/EXP-005-webradio-spike.md)

@@ -340,11 +340,36 @@ Coverage gaps (codes with few stations) noted — may inform filtering defaults.
 
 ---
 
-## Open — M-WEBRADIO DUT phase (pending firmware implementation)
+## Open — M-WEBRADIO DUT phase
 
-> These tasks run in a single DUT session after the firmware implementation is
-> functionally complete. None can be resolved on host. All three are back-to-back
-> empirical checks — schedule as one session.
+> Firmware complete. TASK-207/208/209 are blocked on one root cause: radio-browser.info
+> returns 0 stations on the DUT (TASK-214). Resolve TASK-214 first; then run all three
+> DUT tasks in a single session.
+
+### TASK-214 — M-WEBRADIO: diagnose radio-browser.info 0-station result on DUT
+
+**Background:** DUT `get wrCount` returns `count=0, pending=0` after every station
+fetch. Host `curl` reaches `de1.api.radio-browser.info` successfully (100 NL stations,
+11 KB filtered JSON — fits within `s_webRadioDoc` 14 KB). The fetch completes on DUT
+(HEAP post-fetch fires, `fetchMin=40 KB` confirming TLS handshake attempt), but count=0.
+HTTP error code never surfaced — it is consumed by the test harness before it can be read.
+
+**Deliverable:** Expose `lastHttpCode` from `s_webRadioResult` via a `get wrLastHttp`
+serial command (one line in `webRadioApp.h::dbgGet`). Rebuild debug firmware, switch to
+WebRadio, query `get wrLastHttp` — the code identifies whether the failure is TLS (-1),
+HTTP 4xx/5xx, or a parse error.
+
+**Pass criteria:** Root cause identified; if fixable (cert rotation, HTTP error),
+fix applied and `get wrCount` returns `count ≥ 1` on DUT.
+
+**Priority:** P1 — unblocks TASK-207/208/209 and M-WEBRADIO milestone close
+**Status:** open
+**Opened:** 2026-06-15
+**Milestone:** M-WEBRADIO
+**Owner:** Developer
+**Deps:** none
+
+---
 
 ### TASK-207 — M-WEBRADIO: touch + audio coexistence check (open item 4)
 
@@ -368,11 +393,11 @@ Note: peripheral buses are independent (SPI vs internal DAC) — electrical risk
 is low but this board's routing is unverified for this combination.
 
 **Priority:** P1 — blocking M-WEBRADIO ship
-**Status:** open — pending firmware implementation
+**Status:** open — firmware done; blocked on radio-browser.info reachability from DUT (T_WR_COEX_01/02/04 SKIP — no stations load). Requires live station playback + speaker.
 **Opened:** 2026-06-14
 **Milestone:** M-WEBRADIO
 **Owner:** VE + human operator (physical board required)
-**Deps:** M-WEBRADIO firmware functionally complete
+**Deps:** radio-browser.info reachable from DUT (see blocker filed 2026-06-15)
 
 ---
 
@@ -400,11 +425,11 @@ Fail = heap too low → reduce `MAX_STATIONS`, tune ArduinoJson filter, or reduc
 audio ring buffer chunks (library compile-time constant).
 
 **Priority:** P1 — blocking M-WEBRADIO ship
-**Status:** open — pending firmware implementation
+**Status:** partial — TLS phase done (T_WR_HEAP_01 PASS: init free=43k min=42k ≥30 KB; T_WR_HEAP_02 PASS: post-fetch free=92k min=42k ≥30 KB). Audio phase blocked: T_WR_HEAP_03/04 SKIP — no stations load from DUT (same blocker as TASK-207).
 **Opened:** 2026-06-14
 **Milestone:** M-WEBRADIO
 **Owner:** Developer + VE
-**Deps:** M-WEBRADIO firmware functionally complete
+**Deps:** radio-browser.info reachable from DUT
 
 ---
 
@@ -430,11 +455,11 @@ Pass criteria: `kMaxVolumeStock` determined; value matches design estimate of
 
 **Priority:** P2 — can ship with design estimate (10/21) if DUT session is
 delayed; cap can be refined in a follow-on reflash
-**Status:** open — pending firmware implementation
+**Status:** open — firmware done; T_WR_VOL_03 SKIP (no stations); VOL_01/02 require speaker + human ears. Blocked same as TASK-207/208.
 **Opened:** 2026-06-14
 **Milestone:** M-WEBRADIO
 **Owner:** Developer + human operator (subjective listening required)
-**Deps:** M-WEBRADIO firmware functionally complete; TASK-208 (same DUT session)
+**Deps:** radio-browser.info reachable from DUT; TASK-208 (same DUT session)
 
 ---
 
@@ -530,7 +555,7 @@ Deliverables:
 **Milestone:** M-WEBRADIO
 **Owner:** Developer (injection command) + VE (test cases)
 **Deps:** M-WEBRADIO firmware error state machine implemented
-**Sign-off:** ERROR_BLOCKED=6 added to WRPlayState enum; set wrState <int> wired in dbgSet; error display strings updated ("Station blocked", "Station unreachable", "WiFi lost"). VE test cases T_WR_ERR_01–04 in regression_suite/m-webradio-eject-errors.md. DUT run pending.
+**Sign-off:** ERROR_BLOCKED=6 added to WRPlayState enum; set wrState <int> wired in dbgSet; error display strings updated ("Station blocked", "Station unreachable", "WiFi lost"). VE test cases T_WR_ERR_01–04 in regression_suite/m-webradio-eject-errors.md. DUT run 2026-06-15: T_WR_ERR_01–04 all PASS (8/14 WebRadio tests pass; 6 skip pending radio-browser reachability).
 
 ---
 
