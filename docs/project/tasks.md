@@ -362,8 +362,17 @@ HTTP 4xx/5xx, or a parse error.
 **Pass criteria:** Root cause identified; if fixable (cert rotation, HTTP error),
 fix applied and `get wrCount` returns `count ≥ 1` on DUT.
 
+**Progress (2026-06-19, commit `dafa4a4`):** Root cause found — radio-browser.info
+omits the R13 intermediate from the TLS handshake, so `setCACert(RADIO_BROWSER_ROOT_CA)`
+can't build the chain. Fix: `tls.setInsecure()` for this fetch + `get wrLastHttp`
+(http code, ok flag, count, json parse error) + `jsonErr` capture landed and build-clean
+(5/5 gates). **Not yet DUT-verified** — pass criteria (`count ≥ 1` on real hardware)
+unmet. Also note: `setInsecure()` is the option ADR-029 rejected categorically for
+non-Spotify endpoints; needs an ADR-029 amendment or Architect sign-off before this is
+architecturally closed, not just code-closed.
+
 **Priority:** P1 — unblocks TASK-207/208/209 and M-WEBRADIO milestone close
-**Status:** open
+**Status:** open — fix committed, awaiting DUT verification + ADR-029 amendment
 **Opened:** 2026-06-15
 **Milestone:** M-WEBRADIO
 **Owner:** Developer

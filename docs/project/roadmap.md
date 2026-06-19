@@ -830,12 +830,14 @@ Spotify and web radio via the existing taskbar.
   now-playing metadata in title area.
 
 **R&D pre-requisites (EXP-005 spike — all done):**
-1. **radio-browser.info API** — confirmed; TLS root CA: ISRG Root X1.
+1. **radio-browser.info API** — confirmed; TLS: server omits R13 intermediate from the
+   handshake, so pinned-CA `setCACert()` can't build the chain — uses `setInsecure()`
+   instead (TASK-214, deviates from ADR-029, pending amendment).
 2. **CYD audio path** — GPIO26 internal DAC → SC8002B; GPIO25 reserved (touch).
 3. **ESP32-audioI2S library** — 55.6% flash at build (gate cleared TASK-199).
 4. **ICY metadata** — `StreamTitle` confirmed via NPO Radio 2 probe (TASK-200).
 
-**Status:** in progress — firmware complete (TASK-213 signed off 2026-06-14); eject + error injection VE done (TASK-211/212, 8/14 tests PASS); blocked on radio-browser.info DUT reachability (TASK-214) before TASK-207/208/209 DUT session  
+**Status:** in progress — firmware complete (TASK-213 signed off 2026-06-14); eject + error injection VE done (TASK-211/212, 8/14 tests PASS); TASK-214 root cause found + fix committed 2026-06-19 (`dafa4a4`, not yet DUT-verified) — TASK-207/208/209 DUT session still blocked pending verification  
 **Deps:** M-MULTIAPP (done), M-TASKBAR-ICONS (done), EXP-005 (done)  
 **Design:** [M-WEBRADIO.md](../architecture/designs/M-WEBRADIO.md)  
 **R&D:** [EXP-005](../rnd/reports/EXP-005-webradio-spike.md)
