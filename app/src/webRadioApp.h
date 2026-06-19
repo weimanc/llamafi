@@ -14,6 +14,7 @@
 #include "gen/skin_layout.h"
 #include "gen/webradio_countries.h"
 #include "logSink.h"
+#include "spotifyTask.h"
 #include "winamp/winampDisplay.h"
 
 extern TFT_eSPI         tft;
@@ -53,9 +54,8 @@ void audio_showstreamtitle(const char *info) {
 static Audio* s_wr_audio = nullptr;
 
 static Audio& wrAudio() {
-    if (!s_wr_audio) {
+    if (!s_wr_audio)
         s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
-    }
     return *s_wr_audio;
 }
 
@@ -158,8 +158,11 @@ public:
                     LOG_I("webradio", "stations loaded count=%u country=%s",
                           _stationCount, result.countryCode);
                 } else {
-                    LOG_W("webradio", "station fetch failed ok=%d http=%d",
-                          result.ok, result.lastHttpCode);
+                    _lastHttpCode = result.lastHttpCode;
+                    _lastOk       = result.ok;
+                    strlcpy(_lastJsonErr, result.jsonErr, sizeof(_lastJsonErr));
+                    LOG_W("webradio", "station fetch failed ok=%d http=%d jsonErr=%s",
+                          result.ok, result.lastHttpCode, result.jsonErr);
                 }
                 _dirty = true;
             }
@@ -257,6 +260,13 @@ public:
                      "\"var\":\"wrEject\",\"wired\":true,\"last\":true");
             return true;
         }
+        if (strcmp(var, "wrLastHttp") == 0) {
+            snprintf(buf, len,
+                     "\"var\":\"wrLastHttp\",\"http\":%d,\"ok\":%d,\"count\":%u,"
+                     "\"jsonErr\":\"%s\",\"last\":true",
+                     _lastHttpCode, (int)_lastOk, (unsigned)_stationCount, _lastJsonErr);
+            return true;
+        }
         // T_WR_HEAP_01/02: heap snapshots queryable without relying on log capture
         if (strcmp(var, "wrHeap") == 0) {
             snprintf(buf, len,
@@ -322,6 +332,10 @@ private:
     bool        _pendingStations = false;
     bool        _dirty           = false;
     uint8_t     _bufPct          = 0;
+    int         _lastHttpCode    = 0;
+    bool        _lastOk          = false;
+    bool        _spotifyYielded  = false;
+    char        _lastJsonErr[24] = {};
     char        _icyTitle[104]   = {};
     uint32_t    _lastHeapLogMs   = 0;
     dataTask::WebRadioStation _stations[100];
@@ -336,11 +350,16 @@ private:
     void _stopAudio() {
         if (s_wr_audio) s_wr_audio->stopSong();
         _state = WRPlayState::STOPPED;
+        // Resume Spotify TLS if we yielded it for playback
+        if (_spotifyYielded) {
+            spotifyTask::tlsResume();
+            _spotifyYielded = false;
+        }
     }
 
     void _play(uint8_t idx) {
         if (idx >= _stationCount) return;
-        _stopAudio();
+        _stopAudio();  // stops current + resumes TLS if it was yielded
 
         _currentIdx = idx;
         g_settings.webRadioLastStation = idx;
@@ -359,15 +378,30 @@ private:
         LOG_I("webradio", "play idx=%u name=%s url=%s",
               idx, _stations[idx].name, _stations[idx].url);
 
+        // Yield Spotify TLS for the duration of playback.
+        // Both new Audio() and connecttohost() need ~50 KB contiguous heap;
+        // Spotify's active TLS session fragments the heap enough to fail.
+        // TLS stays yielded while playing; _stopAudio() resumes it.
+        spotifyTask::tlsYield();
+        _spotifyYielded = true;
+        esp_task_wdt_reset();
+
+        if (!s_wr_audio)
+            s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
+
         wrAudio().setVolume(g_settings.webRadioMaxVolume);
         // TASK-208: heap watermark at connecttohost (audio buffer alloc point)
         LOG_I("webradio", "HEAP pre-connect free=%u min=%u",
               (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap());
         if (wrAudio().connecttohost(_stations[idx].url)) {
             _state = WRPlayState::PLAYING;
+            // _spotifyYielded stays true; TLS resumes in _stopAudio()
         } else {
             _state = WRPlayState::ERROR_UNREACHABLE;
             LOG_W("webradio", "connecttohost failed idx=%u", idx);
+            // resume TLS now — we won't be streaming
+            spotifyTask::tlsResume();
+            _spotifyYielded = false;
         }
         _dirty = true;
     }

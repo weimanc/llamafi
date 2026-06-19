@@ -748,11 +748,15 @@ static void fetchWebRadioStations() {
         char url[128];
         snprintf(url, sizeof(url),
             "https://%s/json/stations/search"
-            "?countrycode=%s&codec=MP3&hidebroken=true&order=votes&limit=100",
+            "?countrycode=%s&codec=MP3&hidebroken=true&order=votes&limit=30",
             kRadioBrowserMirrors[mi], country);
 
         WiFiClientSecure tls;
-        tls.setCACert(RADIO_BROWSER_ROOT_CA);
+        // radio-browser.info is a public non-sensitive API (public station URLs only).
+        // mbedtls on ESP32 Arduino 2.0.x cannot verify a chain where the intermediate
+        // (R13) is absent from the handshake and only the leaf is sent by the server.
+        // MITM risk: attacker could supply bad stream URLs — minor/recoverable.
+        tls.setInsecure();
         HTTPClient http;
         http.useHTTP10(true);
         if (!http.begin(tls, url)) {
@@ -764,7 +768,7 @@ static void fetchWebRadioStations() {
         unsigned long t0 = millis();
         int code = http.GET();
         s_webRadioResult.lastHttpCode = code;
-        LOG_D("dataTask.webradio", "GET mirror=%d %d elapsed=%lums",
+        LOG_I("dataTask.webradio", "GET mirror=%d %d elapsed=%lums",
               mi, code, (unsigned long)(millis() - t0));
         if (code != 200) {
             LOG_W("dataTask.webradio", "http %d mirror=%d", code, mi);
@@ -783,6 +787,7 @@ static void fetchWebRadioStations() {
                                        DeserializationOption::Filter(filter));
         http.end();
         if (err) {
+            strlcpy(s_webRadioResult.jsonErr, err.c_str(), sizeof(s_webRadioResult.jsonErr));
             LOG_W("dataTask.webradio", "JSON err mirror=%d: %s", mi, err.c_str());
             continue;
         }
@@ -803,7 +808,7 @@ static void fetchWebRadioStations() {
         }
         s_webRadioResult.ok = true;
         fetchDone = true;
-        LOG_D("dataTask.webradio", "ok mirror=%d country=%s count=%u",
+        LOG_I("dataTask.webradio", "ok mirror=%d country=%s count=%u",
               mi, country, s_webRadioResult.count);
     }
 

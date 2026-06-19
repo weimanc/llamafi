@@ -70,6 +70,7 @@ struct WebRadioStationsResult {
     int     lastHttpCode = 0;
     uint8_t count        = 0;
     char    countryCode[4] = {};
+    char    jsonErr[24]  = {};
     WebRadioStation stations[100];
 };
 
