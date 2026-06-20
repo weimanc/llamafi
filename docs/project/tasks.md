@@ -415,7 +415,7 @@ hardware, which path actually fires; that result is what the Architect needs
 before deciding whether ADR-029 needs amending at all.
 
 **Priority:** P1 — unblocks TASK-207/208/209 and M-WEBRADIO milestone close
-**Status:** open — re-scoped fix committed, awaiting DUT verification (T_WR_TLS_01) before any ADR-029 decision
+**Status:** open — re-scoped fix *committed, not verified* (committed ≠ fixed). Awaiting DUT run of T_WR_TLS_01 to confirm `count ≥ 1` on real hardware AND to record which TLS path fires, before any ADR-029 decision. Architect interim-acceptance of the conditional `setInsecure()` fallback pending that evidence: see ADR-029 amendment note (2026-06-20).
 **Opened:** 2026-06-15
 **Milestone:** M-WEBRADIO
 **Owner:** Developer
@@ -465,9 +465,8 @@ in `m-webradio-dut.md` with steps/expected/fail criteria, added to the suite's
 "How to run" command block and exit-criteria table.
 
 **Priority:** P1 — gates TASK-214's ADR-029 decision and TASK-208's heap re-validation
-**Status:** done — 2026-06-20. Both tests written and registered; `./run/test-targeted T_WR_TLS_01,T_WR_SPOTIFY_RESUME_01` ready to run. Not yet executed — no DUT this session.
+**Status:** implemented — unverified (2026-06-20). Both tests written, registered in `ALL_TESTS`, documented; `./run/test-targeted T_WR_TLS_01,T_WR_SPOTIFY_RESUME_01` is ready. **Not run** — no DUT this session. A test is not "done" until it has gone green at least once; calling it done before that is the same diagnosis-ahead-of-verification habit this whole session exists to correct (see LL-083). T_WR_SPOTIFY_RESUME_01's liveness probe was strengthened post-review: the original `get touchResult` check is serviced by the loop task and can't prove spotifyTask resumed; it now forces a Spotify poll (DEADZONE→FORCE_POLL) with bgPoll suspended and asserts a full shellBusy rise→clear cycle.
 **Opened:** 2026-06-20
-**Closed:** 2026-06-20
 **Milestone:** M-WEBRADIO
 **Owner:** VE
 **Deps:** TASK-214 re-scoped fix (for T_WR_TLS_01 to be meaningful)
