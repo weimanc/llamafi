@@ -837,7 +837,7 @@ Spotify and web radio via the existing taskbar.
 3. **ESP32-audioI2S library** — 55.6% flash at build (gate cleared TASK-199).
 4. **ICY metadata** — `StreamTitle` confirmed via NPO Radio 2 probe (TASK-200).
 
-**Status:** in progress — firmware complete (TASK-213 signed off 2026-06-14); eject + error injection VE done (TASK-211/212, 8/14 tests PASS); TASK-214 root cause found + fix committed 2026-06-19 (`dafa4a4`, not yet DUT-verified) — TASK-207/208/209 DUT session still blocked pending verification  
+**Status:** in progress — firmware complete (TASK-213 signed off 2026-06-14); eject + error injection VE done (TASK-211/212, 8/14 tests PASS); TASK-214 fix re-scoped 2026-06-20 (try setCACert() first, setInsecure() fallback only on verify failure — host re-check disputes the original "intermediate omitted" diagnosis for at least one mirror, see TASK-217) — still not DUT-verified. T_WR_TLS_01 + T_WR_SPOTIFY_RESUME_01 authored (TASK-216) and ready for the next DUT session, which now also resolves TASK-207/208/209 (TASK-208 thresholds provisional, TASK-215)  
 **Deps:** M-MULTIAPP (done), M-TASKBAR-ICONS (done), EXP-005 (done)  
 **Design:** [M-WEBRADIO.md](../architecture/designs/M-WEBRADIO.md)  
 **R&D:** [EXP-005](../rnd/reports/EXP-005-webradio-spike.md)

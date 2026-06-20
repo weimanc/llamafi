@@ -4,6 +4,21 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
+> **PM sync 2026-06-20** — M-WEBRADIO downtime work: VE review + TASK-214 re-scope (no DUT this session).
+> User has no DUT access right now; used the downtime for three things instead of waiting.
+> (1) VE review (TASK-215) of the TASK-207/208/209 DUT plan found two doc gaps: no test
+> exercised the TASK-214 fix itself, and TASK-208's heap thresholds predate `dafa4a4`'s
+> Spotify-TLS-yield-for-playback change. (2) Authored T_WR_TLS_01 and T_WR_SPOTIFY_RESUME_01
+> to close those gaps (TASK-216) — implemented in `run_serialdbg_tests.py`, registered,
+> documented, ready to run next session. (3) Built `run/check-datatask-certs` (TASK-217), a
+> host-side TLS chain preflight replicating mbedTLS's strict offline verify — running it
+> against `de1.api.radio-browser.info` (the mirror tried first) shows a complete, verifying
+> chain *right now* from this network, directly disputing TASK-214's "server omits R13
+> intermediate" root cause. Re-scoped TASK-214's fix from unconditional `setInsecure()` to
+> try-`setCACert()`-first-then-fallback, recording which path fires via a new `tlsInsecure`
+> field. Build-clean, 5/5 gates. **None of this is DUT-verified** — T_WR_TLS_01 is the test
+> that settles it, and it needs hardware. Do not amend ADR-029 until that result is in.
+>
 > **PM sync 2026-06-14 (session 6)** — M-WEBRADIO design complete; firmware implementation task filed.
 > Team review (Architect/VE/Developer/QM) surfaced 5 design doc gaps and 3 missing tasks. All resolved:
 > design amended (TouchResult spec, SKIN_EJECT UV offsets, streaming JSON, BP-031 call-out, BP-036
@@ -343,8 +358,14 @@ Coverage gaps (codes with few stations) noted — may inform filtering defaults.
 ## Open — M-WEBRADIO DUT phase
 
 > Firmware complete. TASK-207/208/209 are blocked on one root cause: radio-browser.info
-> returns 0 stations on the DUT (TASK-214). Resolve TASK-214 first; then run all three
-> DUT tasks in a single session.
+> returns 0 stations on the DUT (TASK-214). TASK-214's fix is now re-scoped (try
+> setCACert() first, fall back to setInsecure() only on verify failure) per TASK-217's
+> host re-check, which disputes the original "intermediate omitted" diagnosis for at
+> least one mirror/vantage point. TASK-215/216 added two DUT tests (T_WR_TLS_01,
+> T_WR_SPOTIFY_RESUME_01) authored during this downtime, ready to run first in the next
+> DUT session — their result is what the Architect needs before any ADR-029 decision.
+> Then run TASK-207/208/209 in the same session (TASK-208's heap thresholds are
+> provisional — see TASK-215).
 
 ### TASK-214 — M-WEBRADIO: diagnose radio-browser.info 0-station result on DUT
 
@@ -371,9 +392,115 @@ unmet. Also note: `setInsecure()` is the option ADR-029 rejected categorically f
 non-Spotify endpoints; needs an ADR-029 amendment or Architect sign-off before this is
 architecturally closed, not just code-closed.
 
+**Progress (2026-06-20, downtime work — no DUT available):** VE review of the
+TASK-207/208/209 plan surfaced two doc gaps (no test exercised the TASK-214 fix
+itself; TASK-208 heap thresholds didn't account for the new Spotify-TLS-yield-for-
+playback-duration change) — both filed below as TASK-215/216. Separately, the
+above root cause was re-checked from the host (`./run/check-datatask-certs`,
+TASK-217) using the strict offline chain-build mbedTLS actually performs
+(`openssl -CAfile isrg-root-x1.pem -verify_return_error`), not just an issuer
+print. Result: `de1.api.radio-browser.info` (mirror[0], tried first) currently
+presents a **complete, verifying chain** (leaf → R13 → ISRG Root X1) from this
+network — directly contradicting "server omits R13 intermediate." Given
+`nl1`/`at1` are independently-run community mirrors, chain completeness may
+still differ by mirror/edge/time, so this doesn't prove the original diagnosis
+was wrong everywhere — but it's strong enough to not commit to a permanent
+ADR-029 exception on it. Re-scoped the fix: `fetchOneMirror()` now tries
+`setCACert(RADIO_BROWSER_ROOT_CA)` first per mirror and only falls back to
+`setInsecure()` on a connection/verify-level failure (negative HTTPClient code),
+recording which path fired in a new `tlsInsecure` field (`dataTask.h`,
+surfaced via `wrLastHttp`). Build-clean, 5/5 gates pass. **Still not
+DUT-verified** — T_WR_TLS_01 (TASK-216) is the test that will tell us, on real
+hardware, which path actually fires; that result is what the Architect needs
+before deciding whether ADR-029 needs amending at all.
+
 **Priority:** P1 — unblocks TASK-207/208/209 and M-WEBRADIO milestone close
-**Status:** open — fix committed, awaiting DUT verification + ADR-029 amendment
+**Status:** open — re-scoped fix committed, awaiting DUT verification (T_WR_TLS_01) before any ADR-029 decision
 **Opened:** 2026-06-15
+**Milestone:** M-WEBRADIO
+**Owner:** Developer
+**Deps:** none
+
+---
+
+### TASK-215 — M-WEBRADIO: TASK-207/208/209 plan gaps found in VE review (no DUT)
+
+VE review of `m-webradio-dut.md` (requested while DUT is unavailable) found two
+gaps independent of hardware access:
+
+1. No test exercised the TASK-214 fix itself — the suite assumed station loading
+   "just works" and started from there.
+2. TASK-208's heap pass criteria (TLS spike vs. audio decode non-overlapping)
+   predate `dafa4a4`'s `spotifyTask::tlsYield()`-for-the-whole-playback-duration
+   change — the assumption they were written under no longer holds.
+
+**Deliverable:** Document the gaps in `m-webradio-dut.md` (done); new test cases
+filed as TASK-216.
+
+**Priority:** P2
+**Status:** done — 2026-06-20. Gaps documented in `m-webradio-dut.md` notes section; TASK-208 row marked provisional pending re-validation.
+**Opened:** 2026-06-20
+**Closed:** 2026-06-20
+**Milestone:** M-WEBRADIO
+**Owner:** VE
+**Deps:** none
+
+---
+
+### TASK-216 — M-WEBRADIO: author T_WR_TLS_01 + T_WR_SPOTIFY_RESUME_01
+
+Close the TASK-215 gaps with two new DUT test cases, ready to run as soon as
+hardware is available — no need to design them mid-session.
+
+- **T_WR_TLS_01** — switch to WebRadio, let the fetch resolve, read `wrLastHttp`,
+  record `tlsInsecure` (which TLS path fired). Either value is a legitimate PASS
+  for "station list loaded"; the point is capturing the data point for TASK-214.
+- **T_WR_SPOTIFY_RESUME_01** — play a station (holding the yielded Spotify TLS
+  session), eject back to Spotify mid-playback, confirm Spotify's serial surface
+  (`get touchResult`) responds — not just that `appId` flipped and nothing crashed.
+
+**Deliverable:** Both implemented in `app/tools/run_serialdbg_tests.py`
+(`t_wr_tls_01`, `t_wr_spotify_resume_01`), registered in `ALL_TESTS`, documented
+in `m-webradio-dut.md` with steps/expected/fail criteria, added to the suite's
+"How to run" command block and exit-criteria table.
+
+**Priority:** P1 — gates TASK-214's ADR-029 decision and TASK-208's heap re-validation
+**Status:** done — 2026-06-20. Both tests written and registered; `./run/test-targeted T_WR_TLS_01,T_WR_SPOTIFY_RESUME_01` ready to run. Not yet executed — no DUT this session.
+**Opened:** 2026-06-20
+**Closed:** 2026-06-20
+**Milestone:** M-WEBRADIO
+**Owner:** VE
+**Deps:** TASK-214 re-scoped fix (for T_WR_TLS_01 to be meaningful)
+
+---
+
+### TASK-217 — M-WEBRADIO/framework: host-side TLS chain preflight script
+
+ADR-029's quarterly check (BP-030) only greps the cert *issuer* string from
+`openssl s_client -showcerts` — it never confirms the server's handshake
+actually carries a chain mbedTLS can build offline (single pinned root, no AIA
+fetching). That blind spot is what let TASK-214's "intermediate omitted"
+diagnosis go to production without a host-side check that could have disputed
+or confirmed it before any DUT time was spent.
+
+**Deliverable:** `run/check-datatask-certs` — parses root CA PEMs directly out
+of `app/src/dataTaskCerts.h` (so it can't drift from what firmware ships), then
+runs `openssl s_client -CAfile <root> -verify_return_error` against every
+pinned endpoint (open-meteo, yahoo finance, coingecko, NOS teletext, and all 3
+radio-browser mirrors) — the exact verification mbedTLS's `setCACert()` performs.
+Distinguishes verify FAIL from network-unreachable ERROR so a sandboxed/offline
+run doesn't get misread as a broken chain.
+
+**Result of first run (2026-06-20):** `api.coingecko.com` and
+`de1.api.radio-browser.info` PASS (chain verifies clean). `api.open-meteo.com`,
+`query1.finance.yahoo.com`, `teletekst-data.nos.nl` timed out and `nl1`/`at1`
+radio-browser mirrors didn't resolve — from *this* sandboxed environment only;
+re-run from an unrestricted network before treating those as chain problems.
+
+**Priority:** P2 — quarterly-check hardening, not a release blocker
+**Status:** done — 2026-06-20. Script written, executable, runs clean against reachable endpoints. **Follow-up:** fold into BP-030's quarterly check (currently issuer-grep only) — propose to QM at next retrospective.
+**Opened:** 2026-06-20
+**Closed:** 2026-06-20
 **Milestone:** M-WEBRADIO
 **Owner:** Developer
 **Deps:** none
