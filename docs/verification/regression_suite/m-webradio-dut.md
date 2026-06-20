@@ -77,9 +77,9 @@
   3. Select and play any station (`set wrPlay 0` or tap a PLEDIT row); confirm `get wrState` = `state:2` (PLAYING).
   4. `tap 136 89` again — eject back to Spotify.
   5. Confirm Spotify's display repaints with current track info (not stale/frozen).
-  6. Tap a transport button (e.g. next track) and confirm Spotify responds normally.
-- **Expected**: Spotify polling/playback resumes with no visible delay or stuck state; transport controls work immediately after eject.
-- **Fail**: Spotify display frozen, transport unresponsive, or a crash/reboot on eject — indicates `spotifyTask::tlsResume()` did not actually restore a usable session.
+  6. **spotifyTask liveness probe (decisive):** with `bgPoll` suspended (so it's the only possible source of `shellBusy`), tap the DEADZONE (162, 85) to dispatch `ACT_FORCE_POLL`; assert the tap returns `action=FORCE_POLL`, then assert `shellBusy` is observed `true` (poll started on spotifyTask) and then clears (poll completed). A `get touchResult`-style check is **not** sufficient — that command is serviced by the loop/display task and would respond even if spotifyTask stayed wedged.
+- **Expected**: `appId=Spotify` after eject; forced poll produces a full `shellBusy` rise→clear cycle — proving spotifyTask resumed, not just the display loop.
+- **Fail**: `shellBusy` never rises (spotifyTask didn't run the poll → polling didn't resume), or stays stuck true (poll hung), or a crash/reboot on eject — any of these indicates `spotifyTask::tlsResume()` did not restore a usable session.
 
 ---
 

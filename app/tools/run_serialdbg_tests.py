@@ -5698,16 +5698,41 @@ def t_wr_spotify_resume_01(dut: Dut):
     if r2.get("name") != "Spotify":
         fail("T_WR_SPOTIFY_RESUME_01", f"appId={r2.get('name')!r} after eject (expected Spotify)")
         return
-    try:
-        dut.cmd("get touchResult", timeout=5.0)
-    except TimeoutError:
-        fail("T_WR_SPOTIFY_RESUME_01",
-             "Spotify unresponsive on serial after eject (get touchResult timed out) — "
-             "tlsResume() may not have restored a usable session")
-        return
+
+    # Liveness proof that spotifyTask ITSELF resumed — not just the display/main
+    # loop. get touchResult (the earlier check) is serviced by the loop task and
+    # would respond even if spotifyTask stayed wedged after tlsResume(), so it
+    # can't actually prove polling came back. Instead force a Spotify HTTP poll:
+    # a DEADZONE tap dispatches ACT_FORCE_POLL to spotifyTask, which raises
+    # shellBusy and clears it only when the poll completes. FORCE_POLL bypasses
+    # bgPoll suspension (T-BGPOLL-03), so we suspend bgPoll first to isolate the
+    # signal — with background polls off, the only thing that can raise shellBusy
+    # is our forced poll. If spotifyTask did not resume, the poll never runs and
+    # shellBusy never rises.
+    with _bgpoll_suspended(dut):
+        _wait_shell_not_busy(dut, timeout_s=15.0)   # settle any residual busy first
+        dut.set_cooldown_zero()
+        r3 = dut.cmd("tap 162 85", timeout=5.0)      # DEADZONE → ACT_FORCE_POLL
+        if r3.get("action") != "FORCE_POLL":
+            fail("T_WR_SPOTIFY_RESUME_01",
+                 f"deadzone tap did not dispatch FORCE_POLL after eject: action={r3.get('action')!r}")
+            return
+        # Rising edge is the decisive signal: spotifyTask picked up the poll request.
+        if not _poll_shell_busy(dut, expected=True, timeout_ms=4000):
+            fail("T_WR_SPOTIFY_RESUME_01",
+                 "shellBusy never rose after FORCE_POLL — spotifyTask did not run a poll "
+                 "after tlsResume() (polling did not resume)")
+            return
+        # And it must complete (busy clears); stuck-true means the poll hung.
+        if not _wait_shell_not_busy(dut, timeout_s=20.0):
+            fail("T_WR_SPOTIFY_RESUME_01",
+                 "shellBusy stuck true after FORCE_POLL — Spotify poll started but did not "
+                 "complete after tlsResume()")
+            return
     pass_("T_WR_SPOTIFY_RESUME_01",
-          "appId=Spotify after eject from PLAYING WebRadio; serial surface responsive "
-          "(tlsResume() restored a usable session); visual track-info repaint needs human confirmation")
+          "appId=Spotify after eject from PLAYING WebRadio; forced Spotify poll ran a full "
+          "shellBusy rise+clear cycle (spotifyTask resumed after tlsResume()); visual "
+          "track-info repaint still needs human confirmation")
 
 
 ALL_TESTS = {
