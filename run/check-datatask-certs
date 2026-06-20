@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+# run/check-datatask-certs — dataTask TLS chain preflight
+#
+# ADR-029's quarterly check (BP-030) only greps the cert *issuer* string, which
+# doesn't tell you whether the server actually sends a chain mbedTLS can build
+# offline (no AIA fetching, single pinned root). That gap let TASK-214's
+# "radio-browser.info omits the R13 intermediate" diagnosis go unverified on
+# host before landing setInsecure() as a permanent fix.
+#
+# This script replicates the exact verification ESP32 WiFiClientSecure::
+# setCACert() performs: strict, offline, single-root chain build against
+# whatever cert(s) the server actually presents in the handshake — via
+#   openssl s_client -CAfile <root-only> -verify_return_error
+# for every (endpoint, root CA) pair this firmware pins. Root CA PEMs are
+# parsed directly out of app/src/dataTaskCerts.h so this can never drift from
+# what firmware actually ships.
+#
+# Usage:
+#   ./run/check-datatask-certs
+#
+# Exits 0 if every endpoint's chain verifies; 1 if any fails or errors.
+
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+PROJ_ROOT = Path(__file__).resolve().parent.parent
+CERTS_H = PROJ_ROOT / "app" / "src" / "dataTaskCerts.h"
+TIMEOUT_S = 10
+
+# (display host, root CA constant name as used in dataTaskStorage.cpp)
+ENDPOINTS = [
+    ("api.open-meteo.com", "OPEN_METEO_ROOT_CA"),
+    ("query1.finance.yahoo.com", "YAHOO_FINANCE_ROOT_CA"),
+    ("api.coingecko.com", "COINGECKO_ROOT_CA"),
+    ("teletekst-data.nos.nl", "TELETEXT_NOS_ROOT_CA"),
+    ("de1.api.radio-browser.info", "RADIO_BROWSER_ROOT_CA"),
+    ("nl1.api.radio-browser.info", "RADIO_BROWSER_ROOT_CA"),
+    ("at1.api.radio-browser.info", "RADIO_BROWSER_ROOT_CA"),
+]
+
+BLOCK_RE = re.compile(
+    r'static const char (\w+)\[\]\s*=\s*R"EOF\((.*?)\)EOF";', re.DOTALL
+)
+ALIAS_RE = re.compile(r"^#define\s+(\w+_ROOT_CA)\s+(\w+)\s*$", re.MULTILINE)
+
+
+def load_certs():
+    text = CERTS_H.read_text()
+    certs = {name: pem.strip() + "\n" for name, pem in BLOCK_RE.findall(text)}
+    for alias, target in ALIAS_RE.findall(text):
+        if target in certs:
+            certs[alias] = certs[target]
+    return certs
+
+
+def strict_verify(host: str, pem: str) -> tuple[str, str]:
+    """Returns (status, detail). status in {PASS, FAIL, ERROR}."""
+    with tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False) as f:
+        f.write(pem)
+        ca_path = f.name
+    try:
+        proc = subprocess.run(
+            [
+                "openssl", "s_client",
+                "-connect", f"{host}:443",
+                "-servername", host,
+                "-CAfile", ca_path,
+                "-verify_return_error",
+            ],
+            input="",
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        return "ERROR", "timed out"
+    except FileNotFoundError:
+        return "ERROR", "openssl not on PATH"
+    finally:
+        Path(ca_path).unlink(missing_ok=True)
+
+    out = proc.stdout + proc.stderr
+    if "Name or service not known" in out or "Connection refused" in out:
+        return "ERROR", "network unreachable from this host"
+    m = re.search(r"Verify return code: (\d+) \(([^)]+)\)", out)
+    if not m:
+        return "ERROR", "no verify result in openssl output"
+    code, msg = m.group(1), m.group(2)
+    if code == "0":
+        return "PASS", msg
+    return "FAIL", f"verify code {code} ({msg})"
+
+
+def main() -> int:
+    if not CERTS_H.exists():
+        print(f"FAIL  cert header not found: {CERTS_H}", file=sys.stderr)
+        return 1
+
+    certs = load_certs()
+    results = []
+    for host, cert_name in ENDPOINTS:
+        pem = certs.get(cert_name)
+        if not pem:
+            results.append((host, cert_name, "ERROR", f"{cert_name} not found in {CERTS_H.name}"))
+            continue
+        status, detail = strict_verify(host, pem)
+        results.append((host, cert_name, status, detail))
+        print(f"{status:5s} {host:32s} ({cert_name}) — {detail}")
+
+    failures = [r for r in results if r[2] != "PASS"]
+    print()
+    if failures:
+        print(f"FAIL  {len(failures)}/{len(results)} endpoint(s) did not verify cleanly against the pinned root.")
+        print("      A FAIL here means firmware's setCACert() path will not work as-is for that")
+        print("      endpoint right now — either the chain is genuinely incomplete server-side,")
+        print("      or the pinned root/constant is wrong. An ERROR may just mean this network")
+        print("      can't reach the host (sandboxed/offline) — re-run from an unrestricted network")
+        print("      before concluding the chain itself is broken.")
+        return 1
+
+    print(f"PASS  all {len(results)} endpoint(s) verify cleanly against their pinned root CA.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
