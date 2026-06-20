@@ -71,6 +71,8 @@ struct WebRadioStationsResult {
     uint8_t count        = 0;
     char    countryCode[4] = {};
     char    jsonErr[24]  = {};
+    bool    tlsInsecure  = false;  // true if setCACert() chain build failed and the
+                                    // fetch fell back to setInsecure() (TASK-214)
     WebRadioStation stations[100];
 };
 

@@ -7,8 +7,14 @@
 //                       covers api.open-meteo.com via R13 intermediate
 // COINGECKO_ROOT_CA   — ISRG Root X1 (Let's Encrypt root, expires 2035-06-04)
 //                       covers api.coingecko.com via YE1 intermediate (rotated from GTS/WE1)
-// RADIO_BROWSER_ROOT_CA — alias only; fetch uses setInsecure() (TASK-214).
-//                         Server omits R13 intermediate; mbedtls chain fails.
+// RADIO_BROWSER_ROOT_CA — ISRG Root X1 (same cert, alias). fetchWebRadioStations()
+//                         tries setCACert() with this first; radio-browser.info is
+//                         a federation of independently-run mirrors and chain
+//                         completeness is not guaranteed on every backend, so a
+//                         setInsecure() fallback fires only on verify failure
+//                         (TASK-214). See the alias comment below for the
+//                         host-side evidence this is mirror/edge-dependent, not
+//                         universal.
 //
 // Update trigger: see ADR-029 rotation table. Remediation = update PEM + reflash.
 
@@ -156,9 +162,15 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
 -----END CERTIFICATE-----
 )EOF";
 
-// radio-browser.info: server sends only the leaf cert; R13 intermediate is absent
-// from the handshake.  mbedtls on ESP32 Arduino 2.0.x cannot build the chain
-// leaf→R13→ISRG_Root_X1 without R13 in the handshake or in a custom verify
-// callback.  fetchWebRadioStations() uses setInsecure() instead (TASK-214).
-// Alias retained so the symbol compiles; it is no longer passed to setCACert().
+// radio-browser.info: TASK-214 originally diagnosed "server omits R13 intermediate"
+// and switched unconditionally to setInsecure(). Host re-check (2026-06-20) via
+// `openssl s_client -CAfile isrg-root-x1.pem -verify_return_error` against de1
+// (mirror[0], tried first) shows a complete, verifying chain (leaf -> R13 ->
+// ISRG Root X1) *right now* from this network — contradicting that root cause,
+// at least for this mirror/vantage point/time. radio-browser.info is a loose
+// federation of independently-run boxes, so chain completeness can plausibly
+// differ by mirror or backend instance even under one hostname. Until that's
+// resolved with certainty, fetchWebRadioStations() tries setCACert() with this
+// constant first and only falls back to setInsecure() on verify/handshake
+// failure — see ./run/check-datatask-certs for the standing host-side check.
 #define RADIO_BROWSER_ROOT_CA OPEN_METEO_ROOT_CA

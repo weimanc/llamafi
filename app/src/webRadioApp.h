@@ -164,6 +164,9 @@ public:
                     LOG_W("webradio", "station fetch failed ok=%d http=%d jsonErr=%s",
                           result.ok, result.lastHttpCode, result.jsonErr);
                 }
+                // Record regardless of outcome — T_WR_TLS_01 needs this on both
+                // success and failure to confirm which TLS path actually fired.
+                _lastTlsInsecure = result.tlsInsecure;
                 _dirty = true;
             }
         }
@@ -263,8 +266,9 @@ public:
         if (strcmp(var, "wrLastHttp") == 0) {
             snprintf(buf, len,
                      "\"var\":\"wrLastHttp\",\"http\":%d,\"ok\":%d,\"count\":%u,"
-                     "\"jsonErr\":\"%s\",\"last\":true",
-                     _lastHttpCode, (int)_lastOk, (unsigned)_stationCount, _lastJsonErr);
+                     "\"jsonErr\":\"%s\",\"tlsInsecure\":%d,\"last\":true",
+                     _lastHttpCode, (int)_lastOk, (unsigned)_stationCount, _lastJsonErr,
+                     (int)_lastTlsInsecure);
             return true;
         }
         // T_WR_HEAP_01/02: heap snapshots queryable without relying on log capture
@@ -335,6 +339,7 @@ private:
     int         _lastHttpCode    = 0;
     bool        _lastOk          = false;
     bool        _spotifyYielded  = false;
+    bool        _lastTlsInsecure = false;  // T_WR_TLS_01 — which path the last fetch used
     char        _lastJsonErr[24] = {};
     char        _icyTitle[104]   = {};
     uint32_t    _lastHeapLogMs   = 0;

@@ -725,6 +725,61 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
     spotifyTask::tlsResume();
 }
 
+// Issues one GET against a single mirror with the given TLS mode and, on HTTP
+// 200, parses the response into s_webRadioDoc. Returns the HTTP code, or a
+// negative HTTPClient connection/handshake/verify error code, or -100 on a
+// JSON parse error after a successful 200.
+static int fetchOneMirror(const char* mirror, const char* country, bool insecure) {
+    char url[128];
+    snprintf(url, sizeof(url),
+        "https://%s/json/stations/search"
+        "?countrycode=%s&codec=MP3&hidebroken=true&order=votes&limit=30",
+        mirror, country);
+
+    WiFiClientSecure tls;
+    if (insecure) {
+        // Fallback only — fires when setCACert() below failed to verify.
+        // radio-browser.info station list is a public, non-sensitive API
+        // (public station URLs only); MITM risk here is a bad stream URL,
+        // minor/recoverable. See dataTaskCerts.h for why this exists.
+        tls.setInsecure();
+    } else {
+        tls.setCACert(RADIO_BROWSER_ROOT_CA);
+    }
+    HTTPClient http;
+    http.useHTTP10(true);
+    if (!http.begin(tls, url)) {
+        LOG_W("dataTask.webradio", "http.begin failed mirror=%s insecure=%d", mirror, (int)insecure);
+        return -1;
+    }
+    http.addHeader("User-Agent", "ESPSpotify/1.0");
+    unsigned long t0 = millis();
+    int code = http.GET();
+    LOG_I("dataTask.webradio", "GET mirror=%s insecure=%d code=%d elapsed=%lums",
+          mirror, (int)insecure, code, (unsigned long)(millis() - t0));
+    if (code != 200) {
+        http.end();
+        return code;
+    }
+
+    // Filter: extract only 3 fields per array element.
+    // [0]["field"]=true pattern applies to all array elements in ArduinoJson v6.
+    StaticJsonDocument<128> filter;
+    filter[0]["name"]         = true;
+    filter[0]["url_resolved"] = true;
+    filter[0]["bitrate"]      = true;
+    s_webRadioDoc.clear();
+    DeserializationError err = deserializeJson(s_webRadioDoc, http.getStream(),
+                                   DeserializationOption::Filter(filter));
+    http.end();
+    if (err) {
+        strlcpy(s_webRadioResult.jsonErr, err.c_str(), sizeof(s_webRadioResult.jsonErr));
+        LOG_W("dataTask.webradio", "JSON err mirror=%s: %s", mirror, err.c_str());
+        return -100;
+    }
+    return 200;
+}
+
 static void fetchWebRadioStations() {
     char country[4];
     portENTER_CRITICAL_SAFE(&s_pendingCountryMux);
@@ -745,50 +800,25 @@ static void fetchWebRadioStations() {
 
     bool fetchDone = false;
     for (int mi = 0; mi < 3 && !fetchDone; mi++) {
-        char url[128];
-        snprintf(url, sizeof(url),
-            "https://%s/json/stations/search"
-            "?countrycode=%s&codec=MP3&hidebroken=true&order=votes&limit=30",
-            kRadioBrowserMirrors[mi], country);
+        const char* mirror = kRadioBrowserMirrors[mi];
 
-        WiFiClientSecure tls;
-        // radio-browser.info is a public non-sensitive API (public station URLs only).
-        // mbedtls on ESP32 Arduino 2.0.x cannot verify a chain where the intermediate
-        // (R13) is absent from the handshake and only the leaf is sent by the server.
-        // MITM risk: attacker could supply bad stream URLs — minor/recoverable.
-        tls.setInsecure();
-        HTTPClient http;
-        http.useHTTP10(true);
-        if (!http.begin(tls, url)) {
-            LOG_W("dataTask.webradio", "http.begin failed mirror=%d", mi);
-            s_webRadioResult.lastHttpCode = -1;
-            continue;
+        // Try the pinned root CA first (ADR-029). Only on a connection/handshake/
+        // verify-level failure (negative code) — not a clean HTTP error like
+        // 403/404 — retry the *same* mirror with setInsecure(). A clean HTTP
+        // error means TLS already succeeded, so there's nothing insecure mode
+        // would fix; move on to the next mirror instead. (TASK-214)
+        int code = fetchOneMirror(mirror, country, /*insecure=*/false);
+        bool usedInsecure = false;
+        if (code < 0) {
+            LOG_W("dataTask.webradio", "strict TLS failed mirror=%s code=%d — retrying insecure",
+                  mirror, code);
+            code = fetchOneMirror(mirror, country, /*insecure=*/true);
+            usedInsecure = true;
         }
-        http.addHeader("User-Agent", "ESPSpotify/1.0");
-        unsigned long t0 = millis();
-        int code = http.GET();
         s_webRadioResult.lastHttpCode = code;
-        LOG_I("dataTask.webradio", "GET mirror=%d %d elapsed=%lums",
-              mi, code, (unsigned long)(millis() - t0));
+        s_webRadioResult.tlsInsecure  = usedInsecure;
         if (code != 200) {
-            LOG_W("dataTask.webradio", "http %d mirror=%d", code, mi);
-            http.end();
-            continue;
-        }
-
-        // Filter: extract only 3 fields per array element.
-        // [0]["field"]=true pattern applies to all array elements in ArduinoJson v6.
-        StaticJsonDocument<128> filter;
-        filter[0]["name"]         = true;
-        filter[0]["url_resolved"] = true;
-        filter[0]["bitrate"]      = true;
-        s_webRadioDoc.clear();
-        DeserializationError err = deserializeJson(s_webRadioDoc, http.getStream(),
-                                       DeserializationOption::Filter(filter));
-        http.end();
-        if (err) {
-            strlcpy(s_webRadioResult.jsonErr, err.c_str(), sizeof(s_webRadioResult.jsonErr));
-            LOG_W("dataTask.webradio", "JSON err mirror=%d: %s", mi, err.c_str());
+            LOG_W("dataTask.webradio", "mirror=%s failed code=%d insecure=%d", mirror, code, (int)usedInsecure);
             continue;
         }
 
@@ -808,8 +838,8 @@ static void fetchWebRadioStations() {
         }
         s_webRadioResult.ok = true;
         fetchDone = true;
-        LOG_I("dataTask.webradio", "ok mirror=%d country=%s count=%u",
-              mi, country, s_webRadioResult.count);
+        LOG_I("dataTask.webradio", "ok mirror=%s country=%s count=%u insecure=%d",
+              mirror, country, s_webRadioResult.count, (int)usedInsecure);
     }
 
     // Brief spinlock — only marks the flag, not the 15 kB struct copy.
