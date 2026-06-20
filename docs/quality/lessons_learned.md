@@ -4,6 +4,24 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-06-20 — M-WEBRADIO TASK-214 root-cause re-check (downtime session)
+
+### LL-083 — 2026-06-20 — A TLS root cause was accepted and committed without a host-side strict-verify
+
+**Context**: TASK-214's DUT symptom was `get wrCount` returning 0 after every station fetch. Commit `dafa4a4` (2026-06-19) diagnosed the cause as "radio-browser.info omits the R13 intermediate from the TLS handshake, so `setCACert()` can't build the chain to ISRG Root X1," and landed an unconditional `tls.setInsecure()` fix — a path ADR-029 rejects categorically for non-Spotify endpoints. The commit message itself flagged "Not yet DUT-verified."
+
+**Observation**: A downtime host re-check (`openssl s_client -connect de1.api.radio-browser.info:443 -CAfile <ISRG-Root-X1-only> -verify_return_error` — the exact strict offline build `setCACert()` performs) returned `Verify return code: 0 (ok)` against a **complete** chain (leaf → R13 → ISRG Root X1). The server *was* sending the intermediate, at least for `de1` (mirror[0], tried first) from this network. The committed root cause was contradicted in about two minutes by a check that could have been run before the fix was written. The original TASK-200 host probe *had* the right tool (`openssl s_client -showcerts`) but only read the issuer string and chain depth from it — never the strict offline verify result.
+
+**Root cause**: The diagnosis relied on reasoning about mbedtls behaviour ("can't build the chain") without reproducing the failing verification on the host first. `openssl -showcerts` shows what the server *sends*; only `-CAfile <root> -verify_return_error` reproduces what `setCACert()` actually *does*. The two were conflated. This is the same diagnosis-ahead-of-verification pattern as LL-082 (chasing the network before reading the test spec) and LL-001 (TLS failures blamed on certs before checking the clock) — a recurring M-WEBRADIO habit of treating a plausible cause as a confirmed one.
+
+**Caveat (kept honest)**: radio-browser.info is a federation of independently-run mirrors; chain completeness can legitimately differ by mirror/edge/time, and `nl1`/`at1` were not reachable from the sandbox to compare. So the original diagnosis is *disputed*, not *disproven*. The point of the lesson is not "the fix was wrong" — it is "a categorical-ADR-violating fix shipped on an unverified cause that a 2-minute host check would have challenged." The fix was re-scoped to try-`setCACert()`-first-then-fallback and `run/check-datatask-certs` was written so the strict check is now a standing, repeatable artifact rather than an ad-hoc command.
+
+**Suggested improvement**: Promote to BP — a TLS/cert root cause is not accepted (and certainly not shipped as a verification-disabling fix) until reproduced on the host with the strict offline verify that mirrors on-device behaviour, not an issuer/`-showcerts` grep. ADR-029's quarterly check (BP-030) inherits the same blind spot and should adopt `run/check-datatask-certs`.
+
+**Status**: adopted — BP-039 (2026-06-20, human-approved this session). Architect engaged on the ADR-029 governance consequence (conditional `setInsecure()` path) — see ADR-029 amendment note 2026-06-20.
+
+---
+
 ## Retrospective — 2026-06-15 — M-WEBRADIO TASK-211/212 test session
 
 ### LL-081 — 2026-06-15 — State-injection test given a live-data precondition

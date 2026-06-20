@@ -392,6 +392,17 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-039 — Reproduce a TLS/cert root cause with a host-side strict offline verify before accepting or shipping a fix
+
+**Adopted from**: LL-083
+**Date adopted**: 2026-06-20
+**Rule**: A TLS or certificate-chain root cause is not accepted — and must never be shipped as a verification-disabling fix (`setInsecure()`, pin removal, etc.) — until it is reproduced on the host with the strict offline verification that mirrors on-device `setCACert()` behaviour: `openssl s_client -connect HOST:443 -servername HOST -CAfile <root-only.pem> -verify_return_error`. An issuer string or `-showcerts` chain-depth read is **not** sufficient — it shows what the server *sends*, not whether the pinned root *verifies*. Use `run/check-datatask-certs`, which runs this against every pinned endpoint using PEMs parsed from `dataTaskCerts.h`.
+**Rationale**: TASK-214 shipped an unconditional `setInsecure()` (which ADR-029 rejects categorically) on the diagnosis that radio-browser.info omitted an intermediate cert. A 2-minute host strict-verify against the same root already pinned in firmware showed the chain verifying clean — contradicting the committed root cause. `-showcerts` (used in the original TASK-200 probe) had been available all along, but only its issuer/depth output was read, never the verify result. Only an offline strict verify reproduces what mbedtls does on the device.
+**How to apply**: On any HTTP -1 / TLS handshake / "chain can't build" symptom: (1) run `run/check-datatask-certs` (or raw `openssl … -CAfile <root> -verify_return_error` for a one-off); (2) only if it genuinely fails to verify is a chain/cert change warranted; (3) if a verification-disabling fallback is truly unavoidable, make it conditional on the strict path failing, record which path fired (e.g. a `tlsInsecure` flag surfaced over serial), and escalate to the Architect for the ADR consequence before merge. Fold this check into ADR-029's quarterly cert review (supersedes the issuer-grep step in BP-030).
+**Applies to**: Developer, VE, Architect, All
+
+---
+
 ## Entry Format
 
 ```
