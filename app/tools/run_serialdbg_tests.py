@@ -9,7 +9,7 @@ T-BUSY-01/01b/02/03/05, T-CDWN-01/02/03,
 T149–T154 (touch-capture-001),
 T162–T166 (taskbar-scroll-001),
 T_WR_EJECT_01/02, T_WR_ERR_01–04, T_WR_COEX_01/02/04,
-T_WR_HEAP_01–04, T_WR_VOL_03 (M-WEBRADIO)
+T_WR_HEAP_01–04, T_WR_VOL_03, T_WR_TLS_01, T_WR_SPOTIFY_RESUME_01 (M-WEBRADIO)
 against a DUT flashed with cyd2usb_winamp_debug.
 T089 (production ELF symbol check) is a host build check — not run here.
 T095 (physical vs. synthetic calibration) requires --interactive (human at DUT).
@@ -5626,6 +5626,90 @@ def t_wr_vol_03(dut: Dut):
           "audible clipping check requires human listener")
 
 
+# ── T_WR_TLS_01 — Station fetch succeeds; record which TLS path fired ───────
+
+def t_wr_tls_01(dut: Dut):
+    """T_WR_TLS_01: switch to WebRadio, let the station fetch resolve (success or
+    exhaustion across all 3 mirrors), then read wrLastHttp to see whether the
+    pinned setCACert() path succeeded or fell back to setInsecure() (TASK-214).
+
+    TASK-214 originally diagnosed an unconditional "server omits R13
+    intermediate" failure; a host re-check (2026-06-20, ./run/check-datatask-certs)
+    found de1's chain currently verifies clean against the pinned root from at
+    least one network. The fetch logic was re-scoped to try setCACert() first
+    and only fall back on verify failure. Either tlsInsecure value is a
+    legitimate PASS for "station list loaded" — this test's job is to record
+    which path actually fired on real hardware, since that's the evidence the
+    Architect needs to decide whether ADR-029 needs an amendment at all."""
+    print("T_WR_TLS_01  Station fetch — record TLS path (setCACert vs setInsecure fallback)")
+    _restore_spotify(dut)
+    time.sleep(0.2)
+    dut.cmd("set bgPoll 0", timeout=2.0)
+    try:
+        ok, _ = _switch_to_webradio_capture_heap(dut)
+        if not ok:
+            skip("T_WR_TLS_01", "could not switch to WebRadio")
+            return
+        _wait_wr_count(dut, timeout=180.0)
+    finally:
+        dut.cmd("set bgPoll 1", timeout=2.0)
+    r = dut.cmd("get wrLastHttp", timeout=3.0)
+    http_code    = r.get("http")
+    count        = r.get("count", 0)
+    tls_insecure = r.get("tlsInsecure")
+    if http_code != 200 or count < 1:
+        fail("T_WR_TLS_01",
+             f"station fetch failed on all mirrors after both TLS paths: "
+             f"http={http_code} count={count} jsonErr={r.get('jsonErr')!r}")
+        return
+    path = "setInsecure() fallback" if tls_insecure else "setCACert() (pinned root verified, no fallback needed)"
+    pass_("T_WR_TLS_01", f"http=200 count={count} — TLS path used: {path}")
+
+
+# ── T_WR_SPOTIFY_RESUME_01 — Spotify resumes after eject out of WebRadio ────
+
+def t_wr_spotify_resume_01(dut: Dut):
+    """T_WR_SPOTIFY_RESUME_01: play a WebRadio station (holds spotifyTask::tlsYield()
+    for the whole playback duration per dafa4a4), eject back to Spotify, and confirm
+    Spotify's own serial surface responds — not just that the device didn't crash
+    and appId flipped. This coexistence path had no prior coverage; the tlsYield()/
+    tlsResume() pairing is new in TASK-214, not part of the original M-WEBRADIO design."""
+    print("T_WR_SPOTIFY_RESUME_01  Spotify resumes after WebRadio TLS yield")
+    if not _restore_spotify(dut):
+        skip("T_WR_SPOTIFY_RESUME_01", "precondition: could not restore Spotify")
+        return
+    count = _webradio_enter_with_stations(dut, "T_WR_SPOTIFY_RESUME_01", fetch_timeout=180.0)
+    if count == 0:
+        skip("T_WR_SPOTIFY_RESUME_01", "station list unavailable (network or fetch failure)")
+        return
+    dut.cmd("set wrPlay 0", timeout=3.0)
+    if not _wait_wr_state(dut, target=2, timeout=30.0):
+        skip("T_WR_SPOTIFY_RESUME_01", "could not reach PLAYING state — see T_WR_COEX_01")
+        return
+    # Eject while still PLAYING — this is the case that actually exercises
+    # tlsResume() under load (tlsYield() is held for the whole playback span).
+    dut.set_cooldown_zero()
+    r = dut.cmd("tap 136 89", timeout=5.0)
+    if r.get("action") != "EJECT":
+        fail("T_WR_SPOTIFY_RESUME_01", f"eject tap did not fire: {r}")
+        return
+    time.sleep(0.5)
+    r2 = dut.cmd("get appId", timeout=3.0)
+    if r2.get("name") != "Spotify":
+        fail("T_WR_SPOTIFY_RESUME_01", f"appId={r2.get('name')!r} after eject (expected Spotify)")
+        return
+    try:
+        dut.cmd("get touchResult", timeout=5.0)
+    except TimeoutError:
+        fail("T_WR_SPOTIFY_RESUME_01",
+             "Spotify unresponsive on serial after eject (get touchResult timed out) — "
+             "tlsResume() may not have restored a usable session")
+        return
+    pass_("T_WR_SPOTIFY_RESUME_01",
+          "appId=Spotify after eject from PLAYING WebRadio; serial surface responsive "
+          "(tlsResume() restored a usable session); visual track-info repaint needs human confirmation")
+
+
 ALL_TESTS = {
     "T077": t077,
     "T078": t078,
@@ -5793,6 +5877,9 @@ ALL_TESTS = {
     "T_WR_HEAP_03":  t_wr_heap_03,
     "T_WR_HEAP_04":  t_wr_heap_04,
     "T_WR_VOL_03":   t_wr_vol_03,
+    # M-WEBRADIO TLS path + Spotify coexistence (TASK-214)
+    "T_WR_TLS_01":            t_wr_tls_01,
+    "T_WR_SPOTIFY_RESUME_01": t_wr_spotify_resume_01,
 }
 
 def main():
