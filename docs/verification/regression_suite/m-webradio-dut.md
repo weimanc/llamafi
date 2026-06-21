@@ -37,7 +37,7 @@
   - **Buffer-health POSBAR now IS driven (TASK-220a, landed 2026-06-21)** — expect it to fill/drain with `inBufferFilled()`. If it stays flat-empty during healthy playback, that's a 220a regression worth flagging (host-unverified visual).
   - **Stream-death detection is now guarded but DUT-unverified (TASK-218, landed 2026-06-21).** A dead/dropped stream should now auto-stop after ~5 s (`isRunning()` false for `WR_STREAM_DEAD_MS`) → `wrState` goes to `ERROR_STALL` and Spotify TLS resumes. **Two things to watch on the 5-min runs (T_WR_HEAP_03/04):** (1) *false positive* — a healthy stream must NOT get stopped at the 5 s mark (would mean `isRunning()` reads false during normal underrun and the grace value needs raising); (2) *true positive* — if a stream genuinely drops, confirm `wrState`→4 and that Spotify resumes on eject (it no longer wedges). Either way the heap/coex numbers are only valid across a span with no stall event — note any stall and re-run.
 - **T_WR_COEX_03** requires human operator with 8 Ω speaker on SPEAK header — serial alone cannot confirm absence of audible glitch.
-- **T_WR_COEX_02**: use `tap <x> <y>` to inject touch events; PREV zone x<120, NEXT zone x>200 in CYD coordinate space at any y in touch area (~y=100–230).
+- **T_WR_COEX_02 — transport tap coordinates (CORRECTED 2026-06-21):** WebRadio reuses the **narrow Winamp transport row** (`hitTestTransportPublic`), not a full-height zone. Use `tap_button()` from `coords.py` as the source of truth: **PREV = `tap 27 97`**, **NEXT = `tap 119 97`** (STOP=`96 97`, PLAY=`50 97`). ⚠ Do **not** tap at y≈160 — that is below the transport row (y 88–106) and lands on a **PLEDIT station row**, which *plays/selects a station* instead of skipping. The earlier guidance ("x<120 / x>200 at any y") was wrong and would silently pass on the wrong element.
 - **T_WR_HEAP_01–04**: heap values appear in `./run/monitor-read` output as `LOG_I("webradio", "HEAP ...")` lines logged at: app launch, pre-fetch, post-fetch (TLS torn down), first `connecttohost()`, and every 30 s during playback.
 - **`set wrVol <n>`** is a raw calibration bypass — it calls `wrAudio().setVolume(n)` directly, intentionally bypassing `webRadioMaxVolume`. Use this for TASK-209 sweep. **Do not** confuse with normal operation where `_play()` applies the `webRadioMaxVolume` cap.
 - **T_WR_VOL_03**: normal `_play()` path uses `wrAudio().setVolume(g_settings.webRadioMaxVolume)` — verify by issuing `set wrStop 1`, then `set wrPlay 0`, then `set wrVol 21`, then `set wrStop 1`, `set wrPlay 0` again — the re-play should reset volume to maxVolume (default 10), not 21.
@@ -107,9 +107,9 @@
 - **Steps**:
   1. Confirm `get wrState` = `state:2` (PLAYING).
   2. Record current `get wrIdx`.
-  3. Send `tap 240 160` (NEXT zone).
+  3. Send `tap 119 97` (NEXT — Winamp transport row, `coords.py tap_button("NEXT")`).
   4. Assert `get wrIdx` incremented (or wrapped).
-  5. Repeat with `tap 60 160` (PREV zone).
+  5. Repeat with `tap 27 97` (PREV — `tap_button("PREV")`).
   6. Assert `get wrIdx` decremented.
 - **Expected**: Station index changes on each tap; serial confirms touch registered.
 
@@ -121,7 +121,7 @@
 - **Task**: TASK-207
 - **Steps**:
   1. Confirm playing (`get wrState` = 2).
-  2. Every ~10 s, send `tap 240 160` or `tap 60 160` — total ≥ 12 taps over 2 min.
+  2. Every ~10 s, send `tap 119 97` (NEXT) or `tap 27 97` (PREV) — total ≥ 12 taps over 2 min.
   3. Confirm no ERROR state (`get wrState` stays 2 throughout).
   4. Listen for audio glitches, stutters, or dropouts correlated with taps.
 - **Expected**: `wrState` = 2 throughout. No audible dropout on tap events.
@@ -133,7 +133,7 @@
 - **Type**: DUT serial
 - **Task**: TASK-207
 - **Steps**:
-  1. While playing, send `tap 240 160` and time the serial response (approximate).
+  1. While playing, send `tap 119 97` (NEXT) and time the serial response (approximate).
   2. Assert response arrives promptly (< 500 ms subjective estimate from CLI).
   3. Confirm `get wrIdx` matches expectation.
 - **Expected**: Serial tap response and station change happen without perceptible lag.
@@ -267,8 +267,8 @@ tap 136 89          # eject back to Spotify
 # TASK-207 — Touch + audio coexistence
 tap 136 89          # switch to WebRadio
 get wrState         # assert state:2 (PLAYING)
-tap 240 160         # NEXT
-tap 60 160          # PREV
+tap 119 97          # NEXT (Winamp transport row — NOT y=160, that hits a PLEDIT row)
+tap 27 97           # PREV
 # repeat taps every ~10 s for ≥ 2 min while listening
 
 # TASK-208 — Heap watermark
