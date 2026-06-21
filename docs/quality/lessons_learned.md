@@ -4,6 +4,22 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-06-21 — Codebase-quality audit (DUT downtime, parallel sub-agents)
+
+### LL-084 — 2026-06-21 — A promoted BP cited existing code as conforming evidence that was never audited
+
+**Context**: BP-031 (tlsYield/tlsResume on every dataTask HTTPS fetcher) was adopted from LL-071. Its rationale text names `fetchWeather`, `fetchCrypto`, `fetchHeatmap`, `fetchStockChart` as fetchers that "already established the pattern." A code-quality audit (TASK-222) found `fetchWeather()` calls **neither** `tlsYield()` nor `tlsResume()` — it never conformed — and `fetchHeatmapQuote()` skipped `tlsResume()` on its `http.begin()` early-return path, which BP-031's own "how to apply" explicitly requires.
+
+**Observation**: The BP was written and promoted citing four functions as positive examples without verifying all four. Two of the four cited/implied conformant fetchers were actually in violation. Worse, the act of adopting the BP did not trigger a sweep of the *existing* fetchers it governed — only new fetchers got scrutiny, so the pre-existing gaps survived from 2026-06-14 until this audit. The violations are real heap-contention/starvation hazards (the heatmap one is the same class as TASK-218).
+
+**Root cause**: Two compounding habits. (1) A best-practice rationale asserted conformance of named code as supporting evidence without running the check — the same assert-without-verifying pattern BP-039 was promoted against, here inside the BP-promotion process itself. (2) Promoting a rule was treated as forward-looking only; no back-fill audit of the code already in scope was scheduled, so the rule documented an aspiration as if it were the current state.
+
+**Suggested improvement**: (a) When a BP's rationale cites specific existing code as conforming, that conformance is part of the claim and must be verified at promotion time — ideally with a grep/command captured in the BP. (b) Promoting a BP that governs a known set of existing call sites should file a one-time back-fill audit task to bring the existing set into compliance, not just guard new additions. A standing check would help here: a host grep that lists every `fetchXxx()` in `dataTaskStorage.cpp` and flags any lacking balanced `tlsYield`/`tlsResume` on all exit paths (cf. `run/check-datatask-certs` for the cert analogue).
+
+**Status**: open — improvement (a)+(b) proposed to QM/human; TASK-222 fixed the two violations; back-fill grep not yet built.
+
+---
+
 ## Retrospective — 2026-06-20 — M-WEBRADIO TASK-214 root-cause re-check (downtime session)
 
 ### LL-083 — 2026-06-20 — A TLS root cause was accepted and committed without a host-side strict-verify
