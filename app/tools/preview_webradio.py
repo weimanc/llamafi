@@ -271,12 +271,15 @@ STATES = ["stopped", "connecting", "playing", "error"]
 
 
 def run_headless(skin_path: str):
+    # Anchor output to this script's dir, not the CWD — running from the repo
+    # root otherwise sprays orphan preview_webradio_*.png there (cleaned 2026-06-21).
+    out_dir = os.path.dirname(os.path.abspath(__file__))
     for state in STATES:
         img = render(state, skin_path, frame=15)
-        out = f"preview_webradio_{state}.png"
+        out = os.path.join(out_dir, f"preview_webradio_{state}.png")
         img.save(out)
         print(f"Wrote {out}")
-    print("Headless render complete.")
+    print(f"Headless render complete → {out_dir}")
 
 
 # ── interactive pygame window ─────────────────────────────────────────────────
