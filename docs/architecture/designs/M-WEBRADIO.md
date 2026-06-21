@@ -547,6 +547,38 @@ as a real-time health indicator; see §POSBAR buffer health below.
 
 ## Error states
 
+> **Architect scope decision — 2026-06-21 (TASK-219).** This section is split by
+> *why each part exists*; only Tier 1 is M-WEBRADIO MVP scope. Tiers 2–3 are
+> **deferred post-MVP** (tracked as TASK-219).
+>
+> - **Tier 1 — MVP-mandatory (correctness, implemented):** a single catch-all
+>   "playback stopped unexpectedly → resume the yielded Spotify TLS → show *an*
+>   error" path. This is load-bearing for the TLS-yield coexistence design, not
+>   UX polish: without it a stream death silently starves Spotify (the TASK-218
+>   regression). Implemented as the debounced `isRunning()` watchdog in
+>   `webRadioApp.h::tick()` (`WR_STREAM_DEAD_MS`), which catches *every* root
+>   cause below — all manifest as `isRunning()==false` — and lands in
+>   `ERROR_STALL`. `ERROR_UNREACHABLE` on synchronous connect-fail also stays.
+>   *Status: implemented, DUT-verification pending (TASK-218).*
+> - **Tier 2 — DEFERRED: root-cause classification.** Distinguishing
+>   `ERROR_WIFI` / `ERROR_BLOCKED` / `ERROR_STALL` as distinct titles needs
+>   `WiFi.status()` polling + HTTP-status parsing from `audio_info`. This is UX
+>   precision on top of a recovery that already works. The detection rows below
+>   describe the *target* design, not shipped MVP behaviour.
+> - **Tier 3 — DEFERRED: auto-retry / auto-skip automation** (the §Auto-retry and
+>   auto-skip policy table). Convenience only. `webRadioAutoSkip` is config-file
+>   only (no on-device UI), so deferring leaves no dead toggle. MVP behaviour: on
+>   any error the stream stops and the user re-selects manually.
+>
+> **MVP exit criterion:** M-WEBRADIO closes when Tier 1 is DUT-verified. Tiers
+> 2–3 do **not** gate close. The synthetic injection tests (T_WR_ERR_01–04,
+> TASK-212) verify error-state *rendering* and remain valid; they do not assert
+> detection, which is exactly the Tier-2 gap they will exercise when it lands.
+>
+> Adjacent finding (not the error machine): `webRadioBitrateCap` is likewise
+> stored but never applied to the radio-browser query (`bitrate_max` absent) —
+> also config-only/inert. Flagged for the same reconciliation pass.
+
 ### Detection logic
 
 Checked when `audio.isRunning()` returns false or `inBufferFilled()` reaches 0:
