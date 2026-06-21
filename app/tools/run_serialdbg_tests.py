@@ -4694,8 +4694,10 @@ def t_bgpoll_03(dut: Dut):
             fail("T-BGPOLL-03", f"bgPoll not suspended: {r2}")
             return
         dut.set_cooldown_zero()
-        # Tap DEADZONE (162, 85) — dispatches ACT_FORCE_POLL in WinampDisplay
-        dut.cmd("tap 162 85", timeout=2.0)
+        # Tap DEADZONE gap (posbar bottom ↔ transport top midpoint) — dispatches
+        # ACT_FORCE_POLL in WinampDisplay
+        _dx, _dy = _c.tap_deadzone_gap()
+        dut.cmd(f"tap {_dx} {_dy}", timeout=2.0)
         print("  [T-BGPOLL-03] force-poll tap sent; waiting for shellBusy cycle…", flush=True)
         # Wait for the force-poll fetch to complete
         _wait_shell_not_busy(dut, timeout_s=15.0)
@@ -5261,7 +5263,8 @@ def t_wr_eject_01(dut: Dut):
         skip("T_WR_EJECT_01", "precondition: could not restore Spotify")
         return
     dut.set_cooldown_zero()
-    r = dut.cmd("tap 136 89", timeout=5.0)
+    _ex, _ey = _c.tap_eject()
+    r = dut.cmd(f"tap {_ex} {_ey}", timeout=5.0)
     hit    = r.get("hit", "")
     action = r.get("action", "")
     if hit != "EJECT":
@@ -5293,7 +5296,8 @@ def t_wr_eject_02(dut: Dut):
         return
     _wait_shell_not_busy(dut, timeout_s=5.0)
     dut.set_cooldown_zero()
-    r = dut.cmd("tap 136 89", timeout=5.0)
+    _ex, _ey = _c.tap_eject()
+    r = dut.cmd(f"tap {_ex} {_ey}", timeout=5.0)
     hit    = r.get("hit", "")
     action = r.get("action", "")
     if hit != "EJECT":
@@ -5689,7 +5693,8 @@ def t_wr_spotify_resume_01(dut: Dut):
     # Eject while still PLAYING — this is the case that actually exercises
     # tlsResume() under load (tlsYield() is held for the whole playback span).
     dut.set_cooldown_zero()
-    r = dut.cmd("tap 136 89", timeout=5.0)
+    _ex, _ey = _c.tap_eject()
+    r = dut.cmd(f"tap {_ex} {_ey}", timeout=5.0)
     if r.get("action") != "EJECT":
         fail("T_WR_SPOTIFY_RESUME_01", f"eject tap did not fire: {r}")
         return
@@ -5712,7 +5717,8 @@ def t_wr_spotify_resume_01(dut: Dut):
     with _bgpoll_suspended(dut):
         _wait_shell_not_busy(dut, timeout_s=15.0)   # settle any residual busy first
         dut.set_cooldown_zero()
-        r3 = dut.cmd("tap 162 85", timeout=5.0)      # DEADZONE → ACT_FORCE_POLL
+        _dx, _dy = _c.tap_deadzone_gap()
+        r3 = dut.cmd(f"tap {_dx} {_dy}", timeout=5.0)   # DEADZONE → ACT_FORCE_POLL
         if r3.get("action") != "FORCE_POLL":
             fail("T_WR_SPOTIFY_RESUME_01",
                  f"deadzone tap did not dispatch FORCE_POLL after eject: action={r3.get('action')!r}")

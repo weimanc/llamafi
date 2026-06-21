@@ -30,11 +30,24 @@ SCREEN_W = 320
 SCREEN_H = 240
 ORIGIN_X = 0   # M-RESTRUCTURE step 5 set originX=0; M-SHELL-LAYOUT will drive this from shell_layout.h
 
-# VIS area constants — from vuMeter.h (not in skin_layout.h).
-_VIS_RECT_X = 24
-_VIS_RECT_W = 76
-_VIS_LEFT_Y = 43
-_VIS_H      = 16
+# VIS area constants — parsed from vuMeter.h's vu:: constexpr ints (not in skin_layout.h).
+_VUMETER = pathlib.Path(__file__).parent / "../src/winamp/vuMeter.h"
+
+
+def _parse_cpp_constexpr_int(path):
+    d = {}
+    for line in open(path):
+        m = re.match(r'\s*constexpr\s+int\s+(\w+)\s*=\s*(-?\d+)\s*;', line)
+        if m:
+            d[m.group(1)] = m.group(2)
+    return d
+
+
+_VU = _parse_cpp_constexpr_int(_VUMETER)
+_VIS_RECT_X = int(_VU["RECT_X"])
+_VIS_RECT_W = int(_VU["RECT_W"])
+_VIS_LEFT_Y = int(_VU["LEFT_Y"])
+_VIS_H      = int(_VU["VIS_H"])
 
 
 def tap_button(name: str) -> tuple[int, int]:
@@ -79,6 +92,13 @@ def tap_vis() -> tuple[int, int]:
             _VIS_LEFT_Y + _VIS_H // 2)
 
 
+def tap_eject() -> tuple[int, int]:
+    """Screen centre of the EJECT button (CB_EJECT_*), so a skin shift can't push
+    the tap outside the box."""
+    return (ORIGIN_X + int(S["CB_EJECT_X"]) + int(S["CB_EJECT_W"]) // 2,
+            int(S["CB_EJECT_Y"]) + int(S["CB_EJECT_H"]) // 2)
+
+
 def tap_posbar() -> tuple[int, int]:
     return (ORIGIN_X + int(S["POSBAR_X"]) + int(S["POSBAR_W"]) // 2,
             int(S["POSBAR_Y"]) + int(S["POSBAR_H"]) // 2)
@@ -102,6 +122,18 @@ def posbar_bounds() -> tuple[int, int, int, int]:
     y0 = int(S["POSBAR_Y"])
     y1 = y0 + int(S["POSBAR_H"]) - 1
     return x0, x1, y0, y1
+
+
+def tap_deadzone_gap() -> tuple[int, int]:
+    """A tap in the dead-zone gap row between the POSBAR and the transport row.
+    y = midpoint between posbar_bounds() bottom and CB_PREV_Y (mirrors T088's
+    _gap_y derivation); x = POSBAR x-centre, which is in-window on either side
+    of that gap regardless of skin geometry.
+    """
+    _pbx0, _pbx1, _pby0, _pby1 = posbar_bounds()
+    x, _ = tap_posbar()
+    y = _pby1 + 1 + (int(S["CB_PREV_Y"]) - _pby1 - 1) // 2
+    return x, y
 
 
 def vol_bounds() -> tuple[int, int, int, int]:
