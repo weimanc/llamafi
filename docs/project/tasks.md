@@ -679,7 +679,7 @@ dropping the sprite frame border, scrollbar thumb, and skin-font bottom bar that
 `winampDisplay.h::drawPlaylist()` already renders — a layering violation that also
 makes WebRadio's playlist visually inconsistent with Spotify's in the same skin.
 Reuse/parameterise the chrome-layer renderer instead.
-**Priority:** P2 · **Status:** open · **Owner:** Developer + Architect (shared-renderer API) · **Deps:** none
+**Priority:** P2 · **Status:** implemented — unverified (2026-06-21). Did NOT need a DUT to do (host C++ refactor; the correct visual target is already rendered by `preview_webradio.py`). Architect API call: extract `WinampDisplay::drawPleditFrame(scroll, count)` (gutters/title/side-tiles/scrollbar-thumb/bottom-bar — geometry+count only, no app state). `drawPlaylist()` now calls it — **op-for-op identical** extraction (verified by diff; Spotify row/health-title/total-time paths untouched; bottom-bar reorder is into a disjoint region). WebRadio's `_drawPledit()` calls the same helper, rows now fill content-area-only (don't paint over the side tiles), and the non-conformant "N stations" title-bar text dropped (design §PLEDIT = no title text). 5/5 gates, +~150 B flash. **DUT visual sign-off still owed** — confirm WebRadio shows proper frame/thumb/bottom chrome AND Spotify's playlist is unchanged. · **Owner:** Developer + Architect · **Deps:** none
 
 ---
 
