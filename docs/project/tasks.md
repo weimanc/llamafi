@@ -506,6 +506,122 @@ re-run from an unrestricted network before treating those as chain problems.
 
 ---
 
+## Open — M-WEBRADIO firmware gaps found in host audit (2026-06-20)
+
+> Static audit of `webRadioApp.h` (the paths the pending DUT session exercises),
+> done during DUT downtime. Three gaps confirmed by absence of code — grep shows
+> `isRunning()`, `inBufferFilled()`, and `getVUlevel()` are called **nowhere** in
+> firmware. TASK-218 is the one with a functional regression; 219/220 are
+> TASK-213 completeness gaps. Surfaced before the DUT session specifically so it
+> tests what it's meant to instead of chasing misattributed symptoms (BP-038).
+
+### TASK-218 — M-WEBRADIO: stream death during PLAYING permanently starves Spotify TLS
+
+**Severity:** HIGH — functional regression introduced by `dafa4a4`.
+
+`_play()` sets `_state=PLAYING` and `_spotifyYielded=true`; `spotifyTask`'s TLS
+session is resumed **only** in `_stopAudio()`. But `tick()` has **no runtime
+stream-health detection** — no `audio.isRunning()`, `inBufferFilled()`, or
+`WiFi.status()` check (grep-confirmed). So when a stream ends naturally or the
+network drops mid-playback, `_state` stays `PLAYING` and `_spotifyYielded` stays
+`true` **indefinitely**. Spotify polling is starved until the user manually
+stops/ejects/skips. Pre-`dafa4a4` this was a cosmetic frozen-UI bug; the
+yield-for-whole-playback change escalated it to a functional one.
+
+**DUT-session impact:** confounds T_WR_HEAP_03/04 (5-min playback) and
+T_WR_COEX_03 — any mid-test stream drop wedges Spotify and pollutes the heap/coex
+readings. Worth fixing (or at least understanding) before that session.
+
+**Fix shape:** in `tick()`, when `_state==PLAYING && s_wr_audio && !s_wr_audio->isRunning()`,
+call `_stopAudio()` (resumes TLS) and set an error/stopped state. **Caution:**
+`isRunning()` semantics during initial buffering/underrun are unverified — a naive
+check could prematurely kill normal playback. Ties into TASK-219.
+
+**Guarded fix implemented (2026-06-21):** debounced stream-death detection in
+`tick()`'s PLAYING block — `isRunning()` must stay false for
+`WR_STREAM_DEAD_MS` (5 s) before declaring the stream dead; `_lastRunningMs` is
+seeded at PLAYING entry so initial buffering sits inside the grace window. On
+trip: `_stopAudio()` (resumes the yielded Spotify TLS) → `ERROR_STALL`. This is
+the minimum subset of TASK-219's error machine needed to remove the starvation;
+no auto-retry/skip. Build-clean, 5/5 gates, +8 B RAM / +0.4 KB flash. **Not
+DUT-verified** — the 5 s grace and `isRunning()`-during-underrun behaviour must
+be confirmed on hardware before close (T_WR_HEAP_03/04 are the natural vehicle:
+watch for premature stops on a healthy 5-min stream). Per BP-039/LL-083 this is
+*implemented, not done.*
+
+**Priority:** P1 — blocks M-WEBRADIO ship (silent Spotify starvation in normal use)
+**Status:** implemented — unverified (guarded fix 2026-06-21; needs DUT confirmation of `isRunning()` transient semantics + the 5 s grace value)
+**Opened:** 2026-06-20
+**Milestone:** M-WEBRADIO
+**Owner:** Developer
+**Deps:** none (but see TASK-219)
+
+---
+
+### TASK-219 — M-WEBRADIO: runtime error-state machine (design §Error states) is unimplemented
+
+`M-WEBRADIO.md` §Error states specifies detection (`isRunning`/`inBufferFilled`/
+`WiFi.status()` → `ERROR_STALL`/`ERROR_WIFI`/`ERROR_BLOCKED`), auto-retry, and
+auto-skip policy. **None of it exists in firmware.** The `ERROR_*` enum values are
+set only by (a) `_play()` connecttohost-fail → `ERROR_UNREACHABLE`, and (b)
+synthetic `set wrState` injection (test-only). So TASK-212's T_WR_ERR_01–04 pass
+(injection works) but the states they inject are **never reached in real
+operation** — the tests verify rendering, not detection. This is the inverse of
+LL-074: synthetic injection masking missing detection.
+
+**Decision needed (Developer + Architect):** is the full error/retry/skip state
+machine in M-WEBRADIO MVP scope, or explicitly deferred post-MVP? If deferred,
+M-WEBRADIO.md §Error states and §Auto-retry must be marked "post-MVP" and the
+design's control-mapping reconciled. TASK-218's safety fix is the minimum subset
+that must ship regardless of this decision.
+
+**Priority:** P2 — scope/completeness decision; gates honest milestone close
+**Status:** open — found 2026-06-20
+**Opened:** 2026-06-20
+**Milestone:** M-WEBRADIO
+**Owner:** Developer + Architect
+**Deps:** none
+
+---
+
+### TASK-220 — M-WEBRADIO: buffer-health POSBAR never driven (DONE); VU meter is a design reconciliation (220b)
+
+Two distinct issues; the second is *not* the simple poll the original finding
+assumed (corrected after reading the VU path — BP-039 discipline).
+
+**220a — buffer-health POSBAR (DONE 2026-06-21):** `_bufPct` was only ever
+assigned `0`, so the POSBAR buffer bar (§POSBAR buffer health) stayed empty. Now
+driven in `tick()`'s PLAYING block from `inBufferFilled()/(filled+free)`, with a
+15-point hysteresis so it repaints only on meaningful movement. Build-clean, 5/5
+gates. Not DUT-visual-confirmed but low-risk (reuses the known-good full-repaint
+path). **Status: implemented — unverified.**
+
+**220b — VU meter (OPEN, needs Architect):** original finding said "wire up
+`getVUlevel()`." That is wrong twice: (1) the VU meter is **synthetic by design**
+(ADR-009 — "decoration, not real audio"), not level-driven; (2) `vu::tick()` is
+called **only** from the Spotify app's tick and is gated on Spotify's
+`snap.isPlaying`, which is false while WebRadio holds the TLS yield. So WebRadio
+animates nothing, and the correct fix is a design call, not a poll: either
+(a) call `vu::tick()` from `WebRadioApp::tick()` and extend the synthetic
+envelope's gating to accept an external "playing" signal (touches a shared
+visualizer used by Spotify — Architect interface change), or (b) deliberately
+leave the VU static during WebRadio and reconcile `M-WEBRADIO.md` (which says
+`getVUlevel()`) against ADR-009.
+
+**DUT-session impact (both):** T_WR_COEX_01's "VU meter animates" human step
+**will fail for a non-coexistence reason** until 220b lands. Without this note the
+failure looks like an audio/touch coexistence bug and invites the network-chasing
+misdiagnosis BP-038/LL-082 warns against. DUT suite annotated to pre-empt this.
+
+**Priority:** P2 — visible feature gap; not a crash/starvation risk
+**Status:** 220a implemented (unverified) 2026-06-21; 220b open — Architect design call (ADR-009 vs M-WEBRADIO §VU)
+**Opened:** 2026-06-20
+**Milestone:** M-WEBRADIO
+**Owner:** Developer (220a) + Architect (220b)
+**Deps:** none
+
+---
+
 ### TASK-207 — M-WEBRADIO: touch + audio coexistence check (open item 4)
 
 With WebRadio firmware flashed and a station playing, verify that XPT2046 touch
