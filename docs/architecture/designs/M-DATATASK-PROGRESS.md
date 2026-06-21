@@ -1,7 +1,13 @@
 # M-DATATASK-PROGRESS — Live dataTask progress indicators for long-running fetches
 
 > Owner: Architect  
-> Status: implemented (TASK-173 + TASK-174, 2026-06-12)  
+> Status: implemented — Phase 1 (TASK-173 + TASK-174, 2026-06-12) **and**
+> Phase 2 (`weatherFetchPhase`, `cryptoFetchPhase`, `stockChartProgress`) are
+> all shipped. Confirmed in `app/src/dataTaskStorage.cpp` (progress atoms +
+> accessors) and `app/src/main.cpp` serial handler (`get weatherFetchPhase` /
+> `get cryptoFetchPhase` / `get stockChartProgress`). See "Scope" section
+> below — its "Phase 2 (if the pattern proves useful)" framing is stale; the
+> pattern proved useful and Phase 2 was completed.  
 > Created: 2026-06-12
 
 ---
@@ -103,20 +109,21 @@ while time.monotonic() < deadline:
 
 ---
 
-## Open question: where else does this pattern apply?
+## Where else this pattern applies — outcome
 
-This pattern is valuable anywhere a Core 0 dataTask function has multiple discrete steps that Core 1 tests or apps may want to observe in real time. Candidates:
+This pattern is valuable anywhere a Core 0 dataTask function has multiple discrete steps that Core 1 tests or apps may want to observe in real time. Candidates considered, and what happened to each:
 
-| Function | Steps | Progress indicator candidates |
-|---|---|---|
-| `fetchStockQuote()` | 8 ticker fetches | `stockQuoteProgress` (ticker index 0–7) |
-| `fetchWeather()` | 1 HTTP + 1 JSON parse | `weatherFetchPhase` (0=TLS, 1=GET, 2=parse, -1=idle) |
-| `fetchCrypto()` | 1 HTTP + 1 JSON parse | `cryptoFetchPhase` |
-| `fetchHeatmapQuote()` | 1 HTTP + streaming parse | `heatmapFetchPhase` |
-| dataTask queue depth | N items waiting | `dataTaskQueueDepth` (already partially addressable via `get` commands) |
-| SPIFFS load at boot | multi-file read | not a dataTask item but same principle |
+| Function | Steps | Progress indicator | Status |
+|---|---|---|---|
+| `fetchStockQuote()` | 8 ticker fetches | `stockQuoteProgress` (ticker index 0–7) | **Shipped** — Phase 1 (TASK-173/174) |
+| `fetchWeather()` | 1 HTTP + 1 JSON parse | `weatherFetchPhase` (0=TLS, 1=GET, 2=parse, -1=idle) | **Shipped** — `dataTaskStorage.cpp:61,116,126,141,160`; exposed via `main.cpp:2377-2380` |
+| `fetchCrypto()` | 1 HTTP + 1 JSON parse | `cryptoFetchPhase` (0=TLS, 1=GET, 2=parse, -1=idle) | **Shipped** — `dataTaskStorage.cpp:62,188,196,200,212,234`; exposed via `main.cpp:2382-2385` |
+| `fetchStockChart()` | 1 HTTP + streaming parse | `stockChartProgress` (0=TLS, 1=GET, 2=parse, -1=idle) | **Shipped** — `dataTaskStorage.cpp:63,314/695 etc.`; exposed via `main.cpp:2387-2390` |
+| `fetchHeatmapQuote()` | 1 HTTP + streaming parse | `heatmapFetchPhase` | Not implemented — no candidate progress atom exists for this function |
+| dataTask queue depth | N items waiting | `dataTaskQueueDepth` | Not implemented beyond existing partial `get` command coverage |
+| SPIFFS load at boot | multi-file read | — | Not implemented; not a dataTask item |
 
-The weather and crypto cases are simpler (1 connection) but the phase indicator is still valuable: "TLS handshake vs read vs parse" tells you whether a -1 is a connectivity failure or a JSON issue.
+The weather and crypto cases are simpler (1 connection) but the phase indicator proved valuable in practice: "TLS handshake vs read vs parse" tells you whether a -1 is a connectivity failure or a JSON issue.
 
 **Broader principle:** any firmware function that:
 1. Runs on a different thread/core from the serial handler, AND
@@ -127,11 +134,11 @@ The weather and crypto cases are simpler (1 connection) but the phase indicator 
 
 ---
 
-## Scope for initial implementation (M-DATATASK-PROGRESS phase 1)
+## Scope — Phase 1 and Phase 2 (both shipped)
 
-Implement only `fetchStockQuote()` progress — this is the confirmed pain point. Use it to validate the pattern and refine the test-side polling idiom before applying it elsewhere.
+Phase 1 implemented only `fetchStockQuote()` progress — the confirmed pain point — to validate the pattern and refine the test-side polling idiom before applying it elsewhere.
 
-Phase 2 (if the pattern proves useful in VE): extend to the following functions using the same `volatile int8_t` primitive and serialdbg exposure pattern.
+Phase 2 extended the same `volatile int8_t` primitive and serialdbg exposure pattern to the functions below. **The pattern proved useful in VE and Phase 2 is shipped**, not a hypothetical:
 
 | Function | Indicator name | Phase values | Affected tests |
 |---|---|---|---|
@@ -139,7 +146,7 @@ Phase 2 (if the pattern proves useful in VE): extend to the following functions 
 | `fetchCrypto()` | `cryptoFetchPhase` | 0=TLS, 1=GET, 2=parse, -1=idle | T_CX_05 |
 | `fetchStockChart()` | `stockChartProgress` | 0=TLS, 1=stream-read, 2=parse, -1=idle | T176, T185, T188, T192, T193, T194, T204, T-BUSY-01b, T-CDWN-02 (9 tests) |
 
-`fetchStockChart()` is the largest single beneficiary: 9 tests call `_wait_chart_complete(timeout_s=45.0)` and currently receive no phase information on timeout. Adding `stockChartProgress` turns every one of those blind 45 s waits into a specific "hung at TLS / stream-read / parse" failure message.
+`fetchStockChart()` was the largest single beneficiary: 9 tests call `_wait_chart_complete(timeout_s=45.0)` and previously received no phase information on timeout. `stockChartProgress` turns every one of those blind 45 s waits into a specific "hung at TLS / stream-read / parse" failure message.
 
 ---
 

@@ -1,7 +1,13 @@
 # M-CLOCK-NIXIE — Nixie Tube Clock Renderer Physics
 
 > Owner: Architect  
-> Status: Phase 0 POC — digit mechanism approved, clock/date layout open for iteration  
+> Status: shipped (TASK-193, 2026-06-13 — `ClockApp::_drawNixie()` in
+> `app/src/clockApp.h`). Firmware ships a simplified single-pass renderer:
+> flat tube fill + outer/inner glow outline + border + plain digit text + pin
+> shadows — **not** the wire-glyph / multi-pass-bloom / hex-mesh model
+> described below, and shipped tube geometry (52×70, r26) differs from the
+> Phase 0 approved values (48×110, r18). See "Firmware reality" note after
+> the tube geometry section.  
 > Date: 2026-06-14  
 > Part of: [M-CLOCK-STYLES.md](M-CLOCK-STYLES.md) — Style 2  
 > See also: [clock.md](M-MULTIAPP/clock.md), [M-SETTINGS-APP-WIRE.md](M-SETTINGS-APP-WIRE.md)
@@ -15,11 +21,11 @@
 | Concept analysis | **Done** — physics doc from `resource/nixieclock_concept.jpg.png` |
 | Host renderer | **Done** — `app/tools/_clock_nixie.py` (`NixieRenderer`) |
 | Preview tool | **Done** — `app/tools/preview_clock.py --style nixie` |
-| Glyph system | **Done** — Roboto-Thin 88 pt; ghost cathodes implemented (off by default) |
-| Colour themes | **Done in POC** — 4 themes, `c` key cycles; settings wiring pending |
-| Colon afterglow | **Done** — 1 Hz blink, 80 ms ramp-up, 500 ms exponential decay |
-| Clock/date layout | **Open — iteration needed** — see open items below |
-| Firmware renderer | Not started |
+| Glyph system | **Done (host renderer only)** — Roboto-Thin 88 pt; ghost cathodes implemented (off by default). Firmware uses plain `tft.drawString` digits, not the wire-glyph model. |
+| Colour themes | **Done in POC (host renderer only)** — 4 themes, `c` key cycles. **NOT implemented in firmware** — no `nixieTheme` field exists; see "Settings wiring" below. |
+| Colon afterglow | **Done (host renderer only)** — 1 Hz blink, 80 ms ramp-up, 500 ms exponential decay. Firmware colon is a plain 2-frame blink (on/off), no ramp or decay. |
+| Clock/date layout | Superseded by shipped firmware layout — see "Firmware reality" note |
+| Firmware renderer | **Shipped** (TASK-193) — simplified single-pass version; bloom/mesh/wire-glyph pipeline below was not carried into firmware |
 
 ---
 
@@ -115,12 +121,24 @@ feel without being a full pill (which would obscure digit area).
 
 ```
 TUBE_W  = 48    (px — tube outer width)
-TUBE_H  = 110   (px — tube outer height)   ← Phase 0 approved
-TUBE_R  = 18    (px — corner radius)        ← Phase 0 approved
+TUBE_H  = 110   (px — tube outer height)   ← Phase 0 approved (host renderer / preview tool)
+TUBE_R  = 18    (px — corner radius)        ← Phase 0 approved (host renderer / preview tool)
 TUBE_Y  =  8    (px — top of tubes on canvas)
 ```
 
 Aspect ratio: 48:110 ≈ 1:2.3 — tall capsule matching reference concept.
+
+> **Firmware reality (TASK-193):** shipped `ClockApp::_drawNixie()`
+> (`app/src/clockApp.h:262-263`) uses different, flatter tube geometry —
+> `kTw=52, kTh=70, kTr=26` (52×70, corner radius 26) at `kTy=10`, tube x
+> positions `{6, 62, 128, 184}`. This was a Phase 3 firmware-budget decision,
+> not a Phase 0 re-approval: the tall 48×110 r18 capsule above is what the
+> host renderer/preview tool still produces and was never updated to match.
+> Treat the 48×110/r18 values as the **host-tool / concept-art geometry**, and
+> 52×70/r26 as the **shipped firmware geometry** — known, accepted cosmetic
+> deviation. Do not "fix" firmware to match this doc without a design pass;
+> do not edit this doc's host-tool constants to match firmware (they describe
+> different code paths).
 
 ### Canvas layout (four tubes + colon)
 
@@ -251,7 +269,7 @@ image), not from `tube_buf`. Tinting to orange comes naturally from
 
 ---
 
-## Colour themes
+## Colour themes (host renderer / preview tool only)
 
 **Amber is the default** (authentic to most historical Nixie tubes).
 
@@ -269,16 +287,33 @@ C_TUBE_BG = (max(C_WIRE[0]×0.02, 5), C_WIRE[1]×0.015, C_WIRE[2]×0.01)
            ≈ (5, 2, 0) for amber default
 ```
 
-### Settings wiring
+These four themes exist only in `app/tools/_clock_nixie.py` /
+`preview_clock.py --style nixie`. Shipped firmware always renders the single
+fixed Nixie palette baked into `ClockApp::_drawNixie()` (warm orange glow
+colours `0x8000`/`0xFC00`/`0xFE60`) — there is no per-theme selection on
+device.
 
-Colour theme is exposed in Settings > Applications > Clock
+---
+
+## Future / post-MVP — theme picker (DOCUMENTED, NOT IMPLEMENTED)
+
+> **DOCUMENTED, NOT IMPLEMENTED — no firmware, no settings field.**
+> The section below describes a settings-exposed colour-theme picker that was
+> designed but never built. `app/src/settingsStorage.h` has no `nixieTheme`
+> field, and `app/src/settings/appsSection.h`'s Clock section exposes only a
+> single "Style" cycle row (Digital/Flip/Nixie/VFD) — no per-style theme row
+> exists for any style. Do not assume this works; do not implement it without
+> a new task. Retained here as a candidate post-MVP enhancement only.
+
+Colour theme would be exposed in Settings > Applications > Clock
 (visible when `clockStyle == Nixie`):
 
 ```cpp
 uint8_t nixieTheme;  // 0=amber 1=red 2=green 3=blue
 ```
 
-`appsSection.h` cycles `nixieTheme` on tap, same pattern as `vfdTheme`.
+`appsSection.h` would cycle `nixieTheme` on tap, same pattern as the
+(also not implemented) `vfdTheme`.
 
 ---
 
@@ -422,12 +457,20 @@ Glass effect layers (drawn after compositing, on the canvas):
 
 ---
 
-## Open items — design iteration needed
+## Open items — design iteration needed (host renderer; superseded for firmware)
 
 > The core digit mechanism (bloom pipeline, hex mesh, ghost cathodes, colon
-> afterglow) is considered approved at Phase 0. The following areas are
-> **not yet signed off** and require further visual iteration before Phase 1
-> (firmware) can begin.
+> afterglow) is considered approved at Phase 0 **for the host renderer /
+> preview tool**. The following areas were **not yet signed off** at the time
+> this doc was written and would have required further visual iteration
+> before a Phase 1 firmware that implemented this full pipeline could begin.
+>
+> In practice, TASK-193 shipped a simplified firmware Nixie renderer
+> (`ClockApp::_drawNixie()`) without resolving OI-1/OI-2/OI-3 below — firmware
+> uses its own geometry and composition (see "Firmware reality" note near the
+> top of this doc) rather than waiting on this iteration. OI-1 through OI-3
+> remain open only with respect to the host-renderer/concept-art pipeline; they
+> do not block or describe the shipped firmware.
 
 ### OI-1 — Overall clock composition
 
@@ -476,11 +519,19 @@ The concept reference shows no explicit seconds indicator. Options:
 
 ---
 
-## Firmware renderer (Phase 3)
+## Firmware renderer (Phase 3) — superseded by shipped TASK-193 implementation
 
-TFT_eSPI has no Gaussian blur. Same three options as VFD:
+> This section describes the bloom-pipeline options that were under
+> consideration for firmware. **None of them were taken.** TASK-193 shipped
+> `ClockApp::_drawNixie()` using a 4th, much cheaper approach not listed
+> here: per-tube `drawRoundRect` outer/inner glow outlines (2 strokes) plus a
+> plain `tft.drawString` digit and two small pin-shadow rects — no sprites,
+> no rings, no Gaussian blur, no flash cost. Retained below for historical
+> context / in case a higher-fidelity Nixie pass is revisited later.
 
-### Option A — Pre-baked glyph sprites (recommended)
+TFT_eSPI has no Gaussian blur. Three options were considered, same as VFD:
+
+### Option A — Pre-baked glyph sprites (recommended at the time; not used)
 
 For each of the 10 digits × 4 colour themes: pre-compute a
 `uint16_t[]` sprite (48×90 px, RGB565) with all three bloom passes
@@ -492,19 +543,22 @@ Acceptable with PSRAM; without PSRAM limit to active theme only (~42 KB).
 Outer bleed and glass outline are cheap runtime draws. Mesh texture
 is also cheap runtime (nested loop, no blur).
 
-### Option B — Concentric ring approximation
+### Option B — Concentric ring approximation (not used)
 
 After drawing the sharp wire glyph, draw the same glyph multiple times
 at increasing `drawRoundRect` / `drawLine` offsets with decreasing
 brightness. Three rings, O(digit_strokes × 3). Coarser but zero RAM.
 
-### Option C — Sharp wire only
+### Option C — Sharp wire only (closest in spirit to what shipped, but still not used as-is)
 
 Authenticate the thin-wire look without bloom. Works well if the
 hardware cannot afford Option A or B. The tube housing and mesh texture
 still distinguish this from the plain Digital style.
 
-**Decision**: defer to Phase 3. Option A preferred if PSRAM available.
+**Decision (historical)**: defer to Phase 3. Option A preferred if PSRAM
+available. **Actual outcome (TASK-193):** none of A/B/C were implemented;
+firmware shipped the simpler outline+plain-text approach described in the
+note at the top of this section.
 
 ---
 

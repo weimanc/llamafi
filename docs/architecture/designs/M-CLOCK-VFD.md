@@ -1,7 +1,10 @@
 # M-CLOCK-VFD — VFD Dot-Matrix Clock Renderer Physics
 
 > Owner: Architect  
-> Status: POC done — Phase 3 (firmware) not started  
+> Status: shipped (TASK-193, 2026-06-13 — `ClockApp::_drawVFD()` in
+> `app/src/clockApp.h`). Firmware ships a sharp-dots-only renderer (Option C
+> below) — no Gaussian bloom, single fixed teal palette, no theme picker. See
+> "Firmware reality" note in the Bloom parameters section.  
 > Date: 2026-06-13  
 > Part of: [M-CLOCK-STYLES.md](M-CLOCK-STYLES.md) — Style 3  
 > See also: [clock.md](M-MULTIAPP/clock.md), [M-SETTINGS-APP-WIRE.md](M-SETTINGS-APP-WIRE.md)
@@ -14,9 +17,9 @@
 |-------|-------|
 | Host renderer | **Done** — `app/tools/_clock_vfd.py` (`VFDRenderer`) |
 | Preview tool | **Done** — `app/tools/preview_clock.py --style vfd` |
-| Glyph system | **Done** — Dexter v2 (`_dex()` + `_GLYPHS`) |
-| Colour themes | **Done in POC** — 4 themes, `c` key cycles; settings wiring pending |
-| Firmware renderer | Not started |
+| Glyph system | **Done** — Dexter v2 (`_dex()` + `_GLYPHS`); firmware uses the same Dexter v2 bitmaps via `kVFDGlyphs` in `clockApp.h` |
+| Colour themes | **Done in POC (host renderer only)** — 4 themes, `c` key cycles. **NOT implemented in firmware** — no `vfdTheme` field exists; see "Future / post-MVP" section below |
+| Firmware renderer | **Shipped** (TASK-193) — sharp-dots-only grid, no bloom pass (Option C of the three options below) |
 
 ---
 
@@ -220,9 +223,15 @@ receive visible spill. This matches real VFD phosphor behaviour.
 
 Phase 0 key controls: `g`/`G` steps BLOOM_SCALE ±0.05; `r`/`R` steps BLOOM_R ±0.2.
 
+> **Firmware reality (TASK-193):** `ClockApp::_drawVFD()` (`app/src/clockApp.h`)
+> implements Option C below (sharp dots only) — there is no Gaussian blur or
+> bloom pass in firmware. Each dot is painted directly as `0x069C` (on) or
+> `0x0061` (off) with no glow accumulation. `BLOOM_R`/`BLOOM_SCALE` apply only
+> to the host renderer/preview tool.
+
 ---
 
-## Colour themes
+## Colour themes (host renderer / preview tool only)
 
 Four themes are implemented in the POC. **Teal is the default.**
 
@@ -248,16 +257,33 @@ Contrast modes (secondary setting, optional exposure):
 | high | 0.00 | Fully black gaps, maximum bloom drama |
 | low | 0.14 | Visible grid texture, less bloom drama |
 
-### Settings wiring
+These themes and contrast modes exist only in `app/tools/_clock_vfd.py` /
+`preview_clock.py --style vfd`. Shipped firmware always renders the single
+fixed palette baked into `ClockApp::_drawVFD()` (`0x0022` bg, `0x069C` on,
+`0x0061` off, `0x0473` date text) — there is no per-theme or per-contrast-mode
+selection on device.
 
-Colour theme is exposed as a user-selectable option in Settings > Applications > Clock.
+---
+
+## Future / post-MVP — VFD colour theme picker (DOCUMENTED, NOT IMPLEMENTED)
+
+> **DOCUMENTED, NOT IMPLEMENTED — no firmware, no settings field.**
+> The section below describes a settings-exposed colour-theme picker that was
+> designed but never built. `app/src/settingsStorage.h` has no `vfdTheme`
+> field, and `app/src/settings/appsSection.h`'s Clock section exposes only a
+> single "Style" cycle row (Digital/Flip/Nixie/VFD) — no per-style theme row
+> exists for any style. Do not assume this works; do not implement it without
+> a new task. Retained here as a candidate post-MVP enhancement only.
+
+Colour theme would be exposed as a user-selectable option in Settings >
+Applications > Clock.
 
 Add to `AppSettings`:
 ```cpp
 uint8_t vfdTheme;   // 0=teal 1=amber 2=blue 3=green
 ```
 
-`appsSection.h` cycles `vfdTheme` on tap (only visible when `clockStyle == VFD`):
+`appsSection.h` would cycle `vfdTheme` on tap (only visible when `clockStyle == VFD`):
 ```cpp
 void _repaintVFDTheme() {
     static const char* kT[] = { "teal","amber","blue","green" };
@@ -270,7 +296,7 @@ void _cycleVFDTheme() {
 }
 ```
 
-Contrast mode is **not** exposed to the user in v1. Ship standard mode only;
+Contrast mode is **not** exposed to the user. Ship standard mode only;
 revisit if there is feedback.
 
 ---
@@ -304,7 +330,13 @@ python3 app/tools/_clock_vfd.py   # → /tmp/vfd_{1_sharp,2_bloom,3_out}.png
 
 ---
 
-## Firmware renderer (Phase 3)
+## Firmware renderer (Phase 3) — shipped as Option C
+
+> **Outcome (TASK-193):** Option C shipped, not the recommended Option A.
+> `ClockApp::_drawVFD()` paints sharp `0x069C`/`0x0061` dot rectangles directly
+> from the `kVFDGlyphs` Dexter v2 bitmap table — no sprite cache, no flash
+> cost beyond the glyph table itself, no per-row halo, no theme switching at
+> runtime. Sections below are retained for historical context.
 
 TFT_eSPI has no Gaussian blur. Three options, in preference order:
 
@@ -325,15 +357,15 @@ After the sharp grid pass, iterate each row. For each active dot, paint dim
 `C_OFF_HALO` rectangles into the four adjacent cells. One pass, O(rows × cols).
 Cheaper but less uniform than Option A.
 
-### Option C — Sharp dots only (minimal)
+### Option C — Sharp dots only (minimal) — this is what shipped
 
 Ship without bloom. Authentic to some real VFD hardware (Sony Watchman,
 early Casio calculators had minimal bloom). The concept tool shows the ideal;
 firmware is a budget approximation.
 
-**Decision**: defer to Phase 3. Option A preferred if PSRAM available.
-Emit `gen/vfd_sprites_<theme>.h` from `app/tools/gen_vfd_sprites.py`
-(to be written); sprites are build artefacts, not checked in.
+**Decision (historical)**: defer to Phase 3. Option A preferred if PSRAM
+available. **Actual outcome (TASK-193):** Option C shipped instead — no
+sprite cache, no `gen_vfd_sprites.py` tool was written, no theme switching.
 
 ---
 

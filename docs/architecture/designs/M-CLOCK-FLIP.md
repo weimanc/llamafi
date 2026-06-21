@@ -1,7 +1,9 @@
 # M-CLOCK-FLIP — Flip Clock Renderer Physics
 
 > Owner: Architect  
-> Status: design — in progress (preview tool validated; firmware not started)  
+> Status: shipped (TASK-193, 2026-06-13 — `ClockApp::_drawFlip()` in `app/src/clockApp.h`).
+> Firmware colon is **static squares**, not the animated flip-dot disc
+> described below — see "Colon (shipped)" note after the proposed geometry.  
 > Date: 2026-06-14  
 > Part of: [M-CLOCK-STYLES.md](M-CLOCK-STYLES.md) — Style 1  
 > See also: [clock.md](M-MULTIAPP/clock.md)
@@ -172,7 +174,16 @@ is the authoritative tuning session — approved values replace these.
 
 ---
 
-## Colon separator — flip-dot style
+## Colon separator — flip-dot style (proposed; NOT shipped)
+
+> **Known accepted cosmetic deviation.** This section describes the original
+> animated-disc design. Shipped firmware (`ClockApp::_drawFlip()`,
+> `app/src/clockApp.h:197-199`) draws two **static** `5×5` filled squares at
+> fixed positions, colour `kFpDigit` (`0xFFF0`) — no rotation, no blink, no
+> ON/OFF cadence. The animated flip-dot disc below was never implemented in
+> firmware; TASK-193 shipped the simpler static colon and the milestone was
+> closed without revisiting this section. Retained here as a documented future
+> enhancement, not a description of current behaviour.
 
 The colon uses **animated flip-dot discs**, not static squares. Each dot is a
 circular disc that rotates on a 45° diagonal axis, showing a cream-white front

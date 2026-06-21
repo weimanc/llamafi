@@ -89,6 +89,13 @@ velocity  = direction * speed                 // rows/second, signed
 | `SCROLL_DEAD_ZONE_PX` | `8` | Half a row; prevents jitter on firm press |
 | `SCROLL_SPEED_K_DEFAULT` | `0.088f` | 5 rows/s at 57 px effective travel |
 
+> **Tuning drift (doc is draft, this is expected):** shipped values in
+> `app/src/winamp/winampDisplay.h:595-596` differ from the proposal above —
+> `SCROLL_DEAD_ZONE_PX = 1` and `SCROLL_SPEED_K_DEFAULT = 0.1667f` ("linear: 2
+> rows/s at 1-row travel"), not `8`/`0.088f`. Shipped firmware also adds
+> `PLEDIT_TAP_PX = 6` and `PLEDIT_TAP_MS = 250` (see Release-logic correction
+> above), which this proposal did not anticipate retaining.
+
 `SCROLL_DEAD_ZONE_PX` is `static constexpr int` (no runtime calibration needed).
 
 `_scrollSpeedK` is a **non-const `float` member** initialised to `SCROLL_SPEED_K_DEFAULT`.
@@ -159,8 +166,26 @@ _scrollVelocity = 0.0f
 dragState = D_IDLE
 ```
 
-The TASK-078 point 1 two-axis tap check (`elapsed + dy`) is superseded. Dead zone is the
-sole discriminator. `_dragStartMs` becomes unused — see §`_dragStartMs` removal below.
+> **Correction (shipped reality):** the design intent below — dead zone as the
+> *sole* tap discriminator, with `_dragStartMs` removed — was **not** what
+> shipped. `app/src/winamp/winampDisplay.h` (`handleWinampInput`, around line
+> 291-316) still gates on **both** `PLEDIT_TAP_PX` (distance) and
+> `PLEDIT_TAP_MS` (elapsed time, 250 ms) when classifying Release as a tap:
+> `isTap = abs(dy) < PLEDIT_TAP_PX && elapsed < PLEDIT_TAP_MS`. `_dragStartMs`
+> is still set on Press (line ~463) and read on Release — it was never
+> removed. The elapsed-time check is also reused for a second purpose: a
+> "quick swipe" branch (`elapsed < PLEDIT_TAP_MS` but outside the dead zone)
+> applies a guaranteed minimum 1-row delta so brief fast swipes aren't
+> swallowed by the velocity model's small `dt`. Both the distance and
+> elapsed-time discriminators are load-bearing in shipped firmware; the
+> §`_dragStartMs` removal section below was never executed and its
+> preconditions were apparently never revisited. Treat this section as
+> describing original *intent*, not current behaviour.
+
+The TASK-078 point 1 two-axis tap check (`elapsed + dy`) was proposed to be superseded
+by dead-zone-only discrimination, but this was not carried through to firmware — see
+the correction above. `_dragStartMs` remains in active use; the removal in
+§`_dragStartMs` removal below did not happen.
 
 ---
 
@@ -237,10 +262,18 @@ assert float(get("scrollVelocity")) == approx(1.93, rel=0.05)  # (30-8)*0.088
 
 ---
 
-## `_dragStartMs` removal (VE-C4)
+## `_dragStartMs` removal (VE-C4) — NOT DONE, still load-bearing in shipped firmware
+
+> **Status correction:** this removal did not happen. `_dragStartMs`,
+> `PLEDIT_TAP_MS`, and `PLEDIT_TAP_PX` are all present and actively used in
+> `app/src/winamp/winampDisplay.h` (member declarations ~line 589/597-598;
+> set on Press ~line 463; read on Release ~line 291-316). Whether the
+> preconditions below were ever evaluated is undocumented. Do not assume
+> dead-zone-only discrimination is what's running on device.
 
 `_dragStartMs` was introduced in TASK-078 point 1 for elapsed-time tap discrimination.
-The velocity model supersedes it. **Removal preconditions** (both required before delete):
+The velocity model was proposed to supersede it, but shipped firmware kept both.
+**Removal preconditions** (both required before delete — still outstanding):
 
 1. `grep -r "_dragStartMs\|elapsed.*150\|150.*elapsed" app/ docs/verification/` returns no
    test assertions against the elapsed-time arm.
@@ -304,7 +337,9 @@ static constexpr float SCROLL_SPEED_K_DEFAULT   = 0.088f;
 // Phase 2: float _flingVelocity = 0.0f;
 ```
 
-Remove after DUT validation (VE-C4):
+Proposed for removal after DUT validation (VE-C4) — **not removed in shipped
+firmware**; `_dragStartMs` is still a live member alongside `PLEDIT_TAP_PX`/
+`PLEDIT_TAP_MS` (see correction in §`_dragStartMs` removal above):
 - `unsigned long _dragStartMs`
 
 No change to `scrollOffset` type (stays `int`).
