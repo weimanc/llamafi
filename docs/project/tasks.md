@@ -569,17 +569,55 @@ synthetic `set wrState` injection (test-only). So TASK-212's T_WR_ERR_01–04 pa
 operation** — the tests verify rendering, not detection. This is the inverse of
 LL-074: synthetic injection masking missing detection.
 
-**Decision needed (Developer + Architect):** is the full error/retry/skip state
-machine in M-WEBRADIO MVP scope, or explicitly deferred post-MVP? If deferred,
-M-WEBRADIO.md §Error states and §Auto-retry must be marked "post-MVP" and the
-design's control-mapping reconciled. TASK-218's safety fix is the minimum subset
-that must ship regardless of this decision.
+**Architect scope decision (2026-06-21): DEFERRED post-MVP, with a Tier-1
+correctness carve-out that is already implemented.** The "error state machine" is
+not one thing:
+- **Tier 1 (MVP-mandatory, done):** catch-all unexpected-stop detection that
+  resumes Spotify TLS + shows an error — load-bearing for the TLS-yield design,
+  not polish. Implemented as TASK-218's `isRunning()` watchdog (covers all root
+  causes → `ERROR_STALL`); `ERROR_UNREACHABLE` on connect-fail also present.
+  Pending only DUT verification (TASK-218).
+- **Tier 2 (deferred):** root-cause classification into distinct
+  `ERROR_WIFI`/`ERROR_BLOCKED`/`ERROR_STALL` titles (needs `WiFi.status()` +
+  `audio_info` HTTP-status parse). UX precision, not correctness.
+- **Tier 3 (deferred):** auto-retry / auto-skip automation. Convenience;
+  `webRadioAutoSkip` is config-only (no UI), so deferral leaves no dead toggle.
 
-**Priority:** P2 — scope/completeness decision; gates honest milestone close
-**Status:** open — found 2026-06-20
+**MVP exit criterion:** M-WEBRADIO closes on Tier-1 DUT verification; Tiers 2–3
+do not gate close. Recorded in `M-WEBRADIO.md` §Error states (Architect note
+2026-06-21). This task now tracks the **deferred Tier 2+3 work** as a post-MVP
+follow-on.
+
+**Priority:** P3 — deferred post-MVP (was P2 as a scope question; now resolved)
+**Status:** deferred — Tier 1 carve-out done (TASK-218); Tier 2+3 post-MVP
 **Opened:** 2026-06-20
-**Milestone:** M-WEBRADIO
+**Milestone:** M-WEBRADIO (post-MVP follow-on)
 **Owner:** Developer + Architect
+**Deps:** none
+
+---
+
+### TASK-221 — M-WEBRADIO: webRadioBitrateCap setting is inert (never applied to query)
+
+Adjacent finding from the TASK-219 scope review. `g_settings.webRadioBitrateCap`
+(default 96) is persisted to/from `settings.json` but **never applied** to the
+radio-browser fetch — the URL in `fetchOneMirror()` has no `bitrate_max` param.
+The design (§Settings, §Library "prefer ≤ 96 kbps for stall tolerance") assumes
+the cap limits drain rate; right now it does nothing, so stations of any bitrate
+load and the 40 KB ring buffer gets less stall margin than the design intends.
+
+Like the auto-skip settings, it is config-file-only (no on-device UI), so there
+is no dead toggle — but the design doc implies behaviour that does not exist.
+
+**Fix shape:** append `&bitrate_max=%u` (or `&bitrateMax=`, per radio-browser
+API) to the query in `fetchOneMirror()` when `webRadioBitrateCap > 0`; verify the
+param name against the API (host probe — `test_radiobrowser_api.py`).
+
+**Priority:** P3 — stall-margin refinement; not a crash/correctness risk
+**Status:** open — found 2026-06-21 (TASK-219 scope review)
+**Opened:** 2026-06-21
+**Milestone:** M-WEBRADIO (post-MVP follow-on)
+**Owner:** Developer
 **Deps:** none
 
 ---
