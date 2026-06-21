@@ -981,6 +981,7 @@ static String formatStockPrice(float price) {
 
 class StockApp : public App {
   bool _pendingAsync = false;
+  StockViewMode _appliedMode = StockViewMode::List;  // TASK-231: last launch-view applied
 public:
   bool hasPendingAsync() const override { return _pendingAsync; }
   void init() override {
@@ -990,9 +991,9 @@ public:
         const_cast<const char(*)[8]>(g_settings.stockTickers));
     _s.subView     = StockSubView::List;
     _s.prevSubView = StockSubView::List;
-    repaintList();
     dataTask::enqueue(dataTask::DATA_FETCH_STOCK_QUOTE);
     _s.lastQuoteFetch = millis();
+    _applyLaunchView();   // TASK-231: honour Settings → Stock mode (was: repaintList())
   }
 
   void resume() override {
@@ -1008,10 +1009,36 @@ public:
           const_cast<const char(*)[8]>(g_settings.stockTickers));
       _s.lastQuoteFetch = 0;
     }
+    // TASK-231: if the launch-view setting changed since we last applied it
+    // (e.g. the user just changed it in Settings), honour it now; otherwise
+    // preserve whatever sub-view the user navigated to in-session.
+    if (g_settings.stockMode != _appliedMode) {
+      _applyLaunchView();
+      return;
+    }
     switch (_s.subView) {
       case StockSubView::List:          repaintList();    break;
       case StockSubView::ChartDetail:   repaintChart();   break;
       case StockSubView::HeatmapDetail: repaintHeatmap(); break;
+    }
+  }
+
+  // TASK-231: enter the view configured by Settings → Stock "mode". Chart and
+  // Heatmap have preconditions (a selected ticker / a fetched dataset) that only
+  // the drill/enter helpers set up, so reuse them rather than just assigning
+  // _s.subView — that is why init() previously hardcoded List. List is the
+  // back-navigation base for both detail views.
+  void _applyLaunchView() {
+    _appliedMode = g_settings.stockMode;
+    switch (g_settings.stockMode) {
+      case StockViewMode::Chart:   drillToChart(0); break;   // first configured ticker
+      case StockViewMode::Heatmap: enterHeatmap();  break;
+      case StockViewMode::List:
+      default:
+        _s.subView     = StockSubView::List;
+        _s.prevSubView = StockSubView::List;
+        repaintList();
+        break;
     }
   }
 
