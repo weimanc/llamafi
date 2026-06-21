@@ -58,6 +58,13 @@ struct HeatmapQuoteResult {
     float   marketCap[20]   = {};
 };
 
+// TASK-224: station list cap. limit=30 in the radio-browser.info query is an
+// intentional heap mitigation (commit dafa4a4, TLS+Spotify heap coexistence),
+// not a bug — this constant drives the query limit, the result array sizes
+// (here and in webRadioApp.h's _stations[]), and the fill-loop bound so all
+// four stay in agreement.
+static constexpr uint8_t WR_MAX_STATIONS = 30;
+
 // WebRadioStation / WebRadioStationsResult — written by fetchWebRadioStations(),
 // read by WebRadioApp::tick() via pollWebRadioStations().
 struct WebRadioStation {
@@ -73,7 +80,7 @@ struct WebRadioStationsResult {
     char    jsonErr[24]  = {};
     bool    tlsInsecure  = false;  // true if setCACert() chain build failed and the
                                     // fetch fell back to setInsecure() (TASK-214)
-    WebRadioStation stations[100];
+    WebRadioStation stations[WR_MAX_STATIONS];
 };
 
 // TeletextState — written by fetchTeletext(), read by TeletextApp::tick() via pollTeletext().

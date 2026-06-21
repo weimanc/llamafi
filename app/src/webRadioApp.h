@@ -41,6 +41,14 @@ enum class WRPlayState : uint8_t {
 // unconfirmed on hardware — tune this against real behaviour (TASK-218). ***
 static constexpr uint32_t WR_STREAM_DEAD_MS = 5000;
 
+// TASK-224: ICY StreamTitle buffer length, used consistently across the audio
+// callback, the queue's element size, tick()'s receive buffer, and _icyTitle.
+static constexpr size_t WR_ICY_TITLE_LEN = 104;
+
+// TASK-224: volume ceiling (matches settingsStorage.h's webRadioMaxVolume
+// "1-21" comment / ESP32-audioI2S's setVolume() range).
+static constexpr uint8_t WR_VOLUME_MAX = 21;
+
 // ── ICY metadata queue ───────────────────────────────────────────────────────
 // Written from ESP32-audioI2S callback (Core 0/audio task); read in tick() (Core 1).
 // Depth 1 + overwrite: old unread title is replaced by the newest one.
@@ -51,7 +59,7 @@ static QueueHandle_t s_icyTitleQueue = nullptr;
 // Defined with external linkage; safe since webRadioApp.h is included only from main.cpp.
 void audio_showstreamtitle(const char *info) {
     if (!s_icyTitleQueue || !info) return;
-    char buf[104];
+    char buf[WR_ICY_TITLE_LEN];
     strlcpy(buf, info, sizeof(buf));
     xQueueOverwrite(s_icyTitleQueue, buf);
 }
@@ -101,7 +109,7 @@ public:
         _lastHeapLogMs   = 0;
 
         if (!s_icyTitleQueue)
-            s_icyTitleQueue = xQueueCreate(1, sizeof(char) * 104);
+            s_icyTitleQueue = xQueueCreate(1, sizeof(char) * WR_ICY_TITLE_LEN);
 
         // Defer Audio creation to _play() — Audio(internalDAC) constructor
         // runs i2s_driver_install which can exceed 5s and trigger WDT when
@@ -141,7 +149,7 @@ public:
     void tick() override {
         // Poll ICY metadata from audio callback queue
         {
-            char buf[104];
+            char buf[WR_ICY_TITLE_LEN];
             if (s_icyTitleQueue && xQueueReceive(s_icyTitleQueue, buf, 0) == pdTRUE) {
                 strlcpy(_icyTitle, buf, sizeof(_icyTitle));
                 _drawIcyLine();
@@ -360,7 +368,7 @@ public:
         // T_WR_VOL_01–03 (TASK-209): runtime volume setter for calibration
         if (strcmp(var, "wrVol") == 0) {
             int v = atoi(val);
-            if (v >= 0 && v <= 21) {
+            if (v >= 0 && v <= (int)WR_VOLUME_MAX) {
                 wrAudio().setVolume((uint8_t)v);
                 LOG_I("webradio", "vol set=%d", v);
             }
@@ -387,9 +395,9 @@ private:
     bool        _spotifyYielded  = false;
     bool        _lastTlsInsecure = false;  // T_WR_TLS_01 — which path the last fetch used
     char        _lastJsonErr[24] = {};
-    char        _icyTitle[104]   = {};
+    char        _icyTitle[WR_ICY_TITLE_LEN] = {};
     uint32_t    _lastHeapLogMs   = 0;
-    dataTask::WebRadioStation _stations[100];
+    dataTask::WebRadioStation _stations[dataTask::WR_MAX_STATIONS];
     // Heap snapshots for serial debug surface (set in init() and after fetch)
     uint32_t    _heapInitFree   = 0;
     uint32_t    _heapInitMin    = 0;

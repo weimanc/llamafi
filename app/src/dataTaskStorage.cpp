@@ -17,6 +17,7 @@
 #include <freertos/queue.h>
 #include <freertos/task.h>
 #include <esp_heap_caps.h>
+#include <climits>
 
 namespace dataTask {
 
@@ -94,6 +95,27 @@ static const char  HEATMAP_URL[] =
     "?scrIds=ms_technology&count=20&formatted=false";
 
 // --- fetch functions ---------------------------------------------------------
+
+// TASK-223: shared TLS+HTTP open-and-GET boilerplate. Pins the root CA (or
+// falls back to setInsecure() when insecure=true), forces HTTP/1.0 so
+// http.end() actually frees the TLS session, opens the connection, and issues
+// the GET. Returns OPENHTTPS_BEGIN_FAILED if http.begin() fails, else the
+// GET() result code (NB: HTTPClient's own HTTPC_ERROR_* codes are small
+// negatives, -1..-11, so a plain -1 sentinel here would be indistinguishable
+// from a real HTTPC_ERROR_CONNECTION_REFUSED from GET() after a *successful*
+// begin() — callers need to tell those apart to decide whether http.end() is
+// needed (begin failed → nothing to end; GET failed post-begin → must end()).
+// INT_MIN can't collide with any HTTPClient return value.
+static constexpr int OPENHTTPS_BEGIN_FAILED = INT_MIN;
+
+static int openHttps(WiFiClientSecure& tls, HTTPClient& http, const char* url,
+                      const char* rootCA, bool insecure) {
+    if (insecure) tls.setInsecure();
+    else          tls.setCACert(rootCA);
+    http.useHTTP10(true);   // force Connection:close so http.end() frees TLS
+    if (!http.begin(tls, url)) return OPENHTTPS_BEGIN_FAILED;
+    return http.GET();
+}
 
 static void fetchWeather() {
     s_weatherFetchPhase = 0;  // TLS + http.begin
@@ -403,10 +425,10 @@ static void fetchTeletext(uint16_t page, uint8_t sub) {
     spotifyTask::tlsYield();
     LOG_HEAP("dataTask.teletext");
     WiFiClientSecure tls;
-    tls.setCACert(TELETEXT_NOS_ROOT_CA);
     HTTPClient http;
-    http.useHTTP10(true);
-    if (!http.begin(tls, url)) {
+    unsigned long t0 = millis();
+    int code = openHttps(tls, http, url, TELETEXT_NOS_ROOT_CA, /*insecure=*/false);
+    if (code == OPENHTTPS_BEGIN_FAILED) {
         LOG_W("dataTask.teletext", "http.begin failed page=%u", page);
         portENTER_CRITICAL_SAFE(&s_teletextMux);
         s_teletextState.lastHttpCode = -1;
@@ -414,8 +436,6 @@ static void fetchTeletext(uint16_t page, uint8_t sub) {
         spotifyTask::tlsResume();
         return;
     }
-    unsigned long t0 = millis();
-    int code = http.GET();
     LOG_D("dataTask.teletext", "GET page=%u %d elapsed=%lums", page, code, (unsigned long)(millis() - t0));
     String body;
     if (code == 200) body = http.getString();
@@ -571,8 +591,10 @@ static bool                   s_webRadioNew         = false;
 static char                   s_pendingCountry[4]   = "NL";
 static portMUX_TYPE           s_pendingCountryMux   = portMUX_INITIALIZER_UNLOCKED;
 
-// Pre-allocated: 100 stations × ~115 B filtered JSON ≈ 11.5 kB; 14336 gives headroom.
-static DynamicJsonDocument s_webRadioDoc(14336);
+// Pre-allocated: WR_MAX_STATIONS (30) stations × ~115 B filtered JSON ≈ 3.45 kB;
+// 5120 gives headroom. Shrunk from 14336 (sized for 100 stations) when the
+// array caps were reconciled to the already-intentional limit=30 (TASK-224).
+static DynamicJsonDocument s_webRadioDoc(5120);
 
 static const char* kRadioBrowserMirrors[3] = {
     "de1.api.radio-browser.info",
@@ -740,10 +762,13 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
 // JSON parse error after a successful 200.
 static int fetchOneMirror(const char* mirror, const char* country, bool insecure) {
     char url[128];
+    // limit= is an intentional heap mitigation (commit dafa4a4), not a bug —
+    // driven by WR_MAX_STATIONS (TASK-224) so the query, the result arrays,
+    // and the fill-loop bound below all agree.
     snprintf(url, sizeof(url),
         "https://%s/json/stations/search"
-        "?countrycode=%s&codec=MP3&hidebroken=true&order=votes&limit=30",
-        mirror, country);
+        "?countrycode=%s&codec=MP3&hidebroken=true&order=votes&limit=%u",
+        mirror, country, (unsigned)WR_MAX_STATIONS);
 
     WiFiClientSecure tls;
     if (insecure) {
@@ -833,7 +858,7 @@ static void fetchWebRadioStations() {
 
         s_webRadioResult.count = 0;
         for (JsonVariantConst entry : s_webRadioDoc.as<JsonArrayConst>()) {
-            if (s_webRadioResult.count >= 100) break;
+            if (s_webRadioResult.count >= WR_MAX_STATIONS) break;
             const char* name = entry["name"].as<const char*>();
             const char* urlr = entry["url_resolved"].as<const char*>();
             if (!name || !urlr || !urlr[0]) continue;
