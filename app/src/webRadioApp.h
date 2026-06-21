@@ -32,6 +32,15 @@ enum class WRPlayState : uint8_t {
     ERROR_BLOCKED     = 6,  // HTTP 403/451 — geo-blocked or DMCA-blocked station
 };
 
+// TASK-218: a stream that ends/drops mid-playback otherwise leaves _state stuck
+// at PLAYING with Spotify's TLS held yielded forever. isRunning() can blip false
+// during a transient underrun, so we require it to stay false this long before
+// declaring the stream dead and resuming Spotify TLS. Conservative (favours a
+// few seconds of silence over a false-positive kill of healthy playback).
+// *** DUT-VERIFY: isRunning() transient semantics during normal underrun are
+// unconfirmed on hardware — tune this against real behaviour (TASK-218). ***
+static constexpr uint32_t WR_STREAM_DEAD_MS = 5000;
+
 // ── ICY metadata queue ───────────────────────────────────────────────────────
 // Written from ESP32-audioI2S callback (Core 0/audio task); read in tick() (Core 1).
 // Depth 1 + overwrite: old unread title is replaced by the newest one.
@@ -174,13 +183,48 @@ public:
         // Audio loop — keeps I2S DMA buffer filled from HTTP stream
         if (s_wr_audio) s_wr_audio->loop();
 
-        // TASK-208: periodic heap watermark every 30 s during playback
         if (_state == WRPlayState::PLAYING) {
             uint32_t now = millis();
+
+            // TASK-208: periodic heap watermark every 30 s during playback
             if (now - _lastHeapLogMs >= 30000u) {
                 _lastHeapLogMs = now;
                 LOG_I("webradio", "HEAP play free=%u min=%u",
                       (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap());
+            }
+
+            if (s_wr_audio) {
+                // TASK-220: drive the POSBAR buffer-health bar from real buffer
+                // occupancy. Repaint only when it moves a meaningful amount
+                // (hysteresis) so we don't trigger a full chrome repaint every tick.
+                uint32_t filled = s_wr_audio->inBufferFilled();
+                uint32_t freeB  = s_wr_audio->inBufferFree();
+                uint32_t total  = filled + freeB;
+                _bufPct = total ? (uint8_t)((uint32_t)filled * 100u / total) : 0;
+                int delta = (int)_bufPct - (int)_bufPctDrawn;
+                if (delta < 0) delta = -delta;
+                if (delta >= 15) {
+                    _bufPctDrawn = _bufPct;
+                    _dirty = true;
+                }
+
+                // TASK-218 (guarded): a stream that ends or drops mid-playback
+                // otherwise leaves _state at PLAYING with Spotify TLS held yielded
+                // forever (silent Spotify starvation). Debounced: isRunning() must
+                // stay false for WR_STREAM_DEAD_MS before we act, so a transient
+                // underrun doesn't kill healthy playback. _lastRunningMs is seeded
+                // at PLAYING entry, so the initial buffer fill sits inside the grace
+                // window. *** isRunning() transient semantics unverified on DUT. ***
+                if (s_wr_audio->isRunning()) {
+                    _lastRunningMs = now;
+                } else if (now - _lastRunningMs >= WR_STREAM_DEAD_MS) {
+                    LOG_W("webradio",
+                          "stream dead (isRunning=0 for %lums) — stop + resume Spotify TLS",
+                          (unsigned long)(now - _lastRunningMs));
+                    _stopAudio();                       // resumes the yielded Spotify TLS
+                    _state = WRPlayState::ERROR_STALL;  // _stopAudio() set STOPPED; show stall
+                    _dirty = true;
+                }
             }
         }
 
@@ -336,6 +380,8 @@ private:
     bool        _pendingStations = false;
     bool        _dirty           = false;
     uint8_t     _bufPct          = 0;
+    uint8_t     _bufPctDrawn     = 0;       // TASK-220: last buffer % painted (hysteresis)
+    uint32_t    _lastRunningMs   = 0;       // TASK-218: last tick isRunning() was true
     int         _lastHttpCode    = 0;
     bool        _lastOk          = false;
     bool        _spotifyYielded  = false;
@@ -400,6 +446,8 @@ private:
               (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap());
         if (wrAudio().connecttohost(_stations[idx].url)) {
             _state = WRPlayState::PLAYING;
+            _lastRunningMs = millis();  // TASK-218: seed grace window for stream-death detection
+            _bufPctDrawn   = 0;         // TASK-220: force a buffer-bar repaint on first fill
             // _spotifyYielded stays true; TLS resumes in _stopAudio()
         } else {
             _state = WRPlayState::ERROR_UNREACHABLE;
