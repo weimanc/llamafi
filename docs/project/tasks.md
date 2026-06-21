@@ -721,9 +721,14 @@ fix the misleading default comment.
 "reserved"), `webRadioAutoSkip` (TASK-219), `webRadioBitrateCap` (TASK-221), and a
 **new finding → TASK-231: `stockMode`** (UI-visible but never read — a silently
 broken toggle, higher severity). `webRadioMaxVolume` "18 with HW mod" comment
-confirmed fiction (no conditional logic exists). The *fix* (remove vs implement
-each) needs a product call — see per-field recommendations.
-**Priority:** P3 · **Status:** open — audit complete, remove/implement decisions pending (per field) · **Owner:** Developer + human (product call) · **Deps:** none
+confirmed fiction (no conditional logic exists).
+**Partial 2026-06-21:** misleading code comments fixed in `settingsStorage.h` — inert
+fields annotated with tracking tasks (`TODO(TASK-221/219/228)`, BP-035), and the false
+`webRadioMaxVolume` "18 with HW mod" default corrected to note `applyDefaults()` always
+sets 10. Field **removal** (JSON-schema migration impact) still needs a product call;
+`teletextCountry`/`teletextAutoAdvance` are intentional self-documented "reserved"
+placeholders — leave as-is.
+**Priority:** P3 · **Status:** open — comments fixed; field remove/implement decisions pending · **Owner:** Developer + human (product call) · **Deps:** none
 
 ---
 
@@ -735,7 +740,7 @@ logic was removed; it's still load-bearing (`winampDisplay.h:589`). (b)
 `main.cpp` stub-section branch + `_repaintStub()` (all 6 sections wired) and the
 never-called `serialPrint.h::printCurrentlyPlayingToSerial` — verify unreachable,
 then remove. (d) clock cosmetic doc contradictions (flip-colon, nixie geometry).
-**Priority:** P3 · **Status:** partial 2026-06-21 — **(a)(b)(d) docs DONE** (M-LIST-v4 false "removed" claim corrected; M-DATATASK-PROGRESS phase-2 marked shipped; clock cosmetic deviations annotated). **(c) dead-code removal still OPEN** — held from the parallel round (needs a second concurrent firmware builder); `serialPrint.h` dead-ness re-confirmed by the logging audit. Do next (host build). · **Owner:** Developer (dead code) · **Deps:** none
+**Priority:** P3 · **Status:** done 2026-06-21 — **(a)(b)(d) docs** reconciled (parallel round); **(c) dead code removed** (this round): deleted `app/src/serialPrint.h` (legacy upstream debug, zero callers) + its `main.cpp` include, and removed the unreachable `_repaintStub()` + its `else` branch (all 6 `_sections[0..5]` are wired in the ctor, so it could never fire — kept the null-guard as cheap defence). 5/5 gates. · **Owner:** Developer · **Deps:** none
 
 ---
 
@@ -771,7 +776,14 @@ config keys).
 **Fix shape:** seed `_s.subView` from `g_settings.stockMode` in `StockApp::init()`
 /`resume()` (map `StockViewMode::{List,Chart,Heatmap}` → `StockSubView`), OR remove
 the field + its UI row + JSON key if "always start on List" is the product intent.
-**Priority:** P2 — user-visible broken UI · **Status:** open — needs product call (wire up vs remove) · **Owner:** Developer + human · **Deps:** none
+**Investigated 2026-06-21 (NOT a clean wire-up):** `ChartDetail`/`HeatmapDetail`
+have preconditions — a selected `_s.chartSymbol` and a completed fetch — that only
+exist after in-app navigation (`main.cpp:1322-1361`); that is almost certainly why
+`init()` hardcodes `List`. Seeding `subView` from `stockMode` at launch would render
+Chart with an empty symbol. So the real options are (1) implement launch-into-Chart/
+Heatmap with proper precondition handling (needs DUT visual verify), or (2) remove the
+toggle. Not blind-wired. Genuine product+design call.
+**Priority:** P2 — user-visible broken UI · **Status:** open — needs product call (implement-with-preconditions vs remove); not a 2-line fix · **Owner:** Developer + human · **Deps:** none
 
 ---
 

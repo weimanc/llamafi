@@ -76,10 +76,10 @@ struct AppSettings {
     // --- Web Radio (M-WEBRADIO) ---
     char    webRadioCountry[4];   // ISO 3166-1 alpha-2, e.g. "NL\0\0" (default NL)
     bool    webRadioAutoplay;     // reconnect last station on resume (default false)
-    uint8_t webRadioBitrateCap;   // 0=off / 64 / 96 / 128 / 192 kbps (default 96)
-    bool    webRadioAutoSkip;     // advance station on repeated ERROR_STALL (default false)
-    bool    webRadioHwMod;        // SC8002B gain-reduction mod installed (default false)
-    uint8_t webRadioMaxVolume;    // 1–21 ceiling (default 10 stock / 18 hw mod)
+    uint8_t webRadioBitrateCap;   // 0=off / 64 / 96 / 128 / 192 kbps. INERT — not applied to the query yet, see TODO(TASK-221)
+    bool    webRadioAutoSkip;     // advance station on repeated ERROR_STALL. INERT — no consumer until TODO(TASK-219) Tier-3 lands
+    bool    webRadioHwMod;        // SC8002B gain-reduction mod. DEAD — no consumer/UI, see TODO(TASK-228)
+    uint8_t webRadioMaxVolume;    // 1–21 ceiling (default 10). NB: HW-mod conditional default is NOT implemented — applyDefaults() always sets 10 (TASK-228)
     uint8_t webRadioLastStation;  // persisted last station index (default 0)
 };
 
