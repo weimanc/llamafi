@@ -552,21 +552,16 @@ private:
     }
 
     void _drawPledit() {
-        // Title bar
-        tft.fillRect(0, PLEDIT_Y, PLEDIT_W, PLEDIT_TITLE_H, (uint16_t)PLEDIT_BODY_BG);
-        {
-            char header[64];
-            if (_pendingStations) {
-                snprintf(header, sizeof(header), "Loading stations...");
-            } else {
-                snprintf(header, sizeof(header), "%u stations \xe2\x80\x94 %s",
-                         (unsigned)_stationCount, g_settings.webRadioCountry);
-            }
-            tft.setTextColor((uint16_t)PLEDIT_FG_NORMAL, (uint16_t)PLEDIT_BODY_BG);
-            tft.drawString(header, PLEDIT_CONTENT_X, PLEDIT_Y + 4, 1);
-        }
+        // TASK-225: reuse the real Winamp PLEDIT sprite chrome (frame border,
+        // scrollbar thumb, bottom bar) instead of the old flat fillRect panel,
+        // so WebRadio's station list matches Spotify's playlist in the same skin.
+        // The skin title bar carries no text by design (§PLEDIT title bar — the
+        // active country is surfaced via Settings, not an overlay), so the old
+        // "N stations — country" header is dropped here too.
+        winampDisplay.drawPleditFrame(_scrollOffset, (int)_stationCount);
 
-        // Station rows
+        // Station rows — fill the CONTENT area only; the side frame tiles drawn
+        // by drawPleditFrame() must not be painted over.
         for (int row = 0; row < PLEDIT_ROW_COUNT; row++) {
             int    idx  = _scrollOffset + row;
             int    rowY = PLEDIT_ROWS_Y + row * PLEDIT_ROW_H;
@@ -575,7 +570,7 @@ private:
             uint16_t fg  = isCur ? (uint16_t)0xFFFFU
                                  : (uint16_t)PLEDIT_FG_NORMAL;
             uint16_t bg  = (uint16_t)PLEDIT_BODY_BG;
-            tft.fillRect(0, rowY, PLEDIT_W, PLEDIT_ROW_H, bg);
+            tft.fillRect(PLEDIT_CONTENT_X, rowY, PLEDIT_CONTENT_W, PLEDIT_ROW_H, bg);
             if (idx >= 0 && idx < (int)_stationCount) {
                 tft.setTextColor(fg, bg);
                 tft.drawString(_stations[idx].name, PLEDIT_CONTENT_X, rowY + 2, 1);
@@ -588,9 +583,5 @@ private:
                 }
             }
         }
-
-        // Bottom bar
-        tft.fillRect(0, PLEDIT_BOTTOM_Y, PLEDIT_W, PLEDIT_BOTTOM_H,
-                     (uint16_t)PLEDIT_BODY_BG);
     }
 };

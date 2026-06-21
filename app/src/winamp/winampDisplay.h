@@ -1080,6 +1080,48 @@ public:
   // ADR-018 TASK-047c — Winamp PLEDIT playlist editor chrome.
   // Call unconditionally from the main loop; returns immediately if the
   // snapshot seqno hasn't changed.
+  // Draw the PLEDIT frame chrome — gutters, title bar, side tiles, scrollbar
+  // thumb, and bottom bar — for a list of `count` rows scrolled to `scroll`.
+  // Everything except the rows themselves and any app-specific overlay (e.g.
+  // Spotify's total-time readout). Depends only on PLEDIT geometry + scroll/
+  // count, so it is shared by drawPlaylist() (Spotify) and
+  // WebRadioApp::_drawPledit() (TASK-225). Caller owns startWrite()/endWrite().
+  void drawPleditFrame(int scroll, int count) {
+    // Gutters outside the 275px chrome window — match the startup fillScreen.
+    const int rightEdge = originX + PLEDIT_W;
+    if (originX > 0)
+      tft.fillRect(0, PLEDIT_Y, originX, PLEDIT_H, TFT_BLACK);
+    if (rightEdge < TASKBAR_X)
+      tft.fillRect(rightEdge, PLEDIT_Y, TASKBAR_X - rightEdge, PLEDIT_H, TFT_BLACK);
+
+    // Title bar — top PLEDIT_TITLE_H rows of SKIN_PLEDIT_BG atlas.
+    tft.pushImage(originX, PLEDIT_Y, SKIN_PLEDIT_BG_W, PLEDIT_TITLE_H, SKIN_PLEDIT_BG);
+
+    // Frame side tiles — always full height (fixed PLEDIT dimensions).
+    const int rowsH = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
+    for (int sy = PLEDIT_ROWS_Y; sy < PLEDIT_ROWS_Y + rowsH; sy += PLEDIT_SIDE_H_SRC) {
+      const int h = min((int)PLEDIT_SIDE_H_SRC, PLEDIT_ROWS_Y + rowsH - sy);
+      tft.pushImage(originX,                                        sy, PLEDIT_SIDE_LEFT_W,  h, SKIN_PLEDIT_LEFT_SIDE);
+      tft.pushImage(originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W, sy, PLEDIT_SIDE_RIGHT_W, h, SKIN_PLEDIT_RIGHT_SIDE);
+    }
+
+    // Scrollbar thumb — sprite blit when the list exceeds the visible rows.
+    if (count > PLEDIT_ROW_COUNT) {
+      constexpr int track_h = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;   // 65 px
+      constexpr int travel  = track_h - SKIN_PLEDIT_THUMB_H;      // 48 px
+      const int denom   = max(1, count - PLEDIT_ROW_COUNT);
+      const int thumb_x = originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W + PLEDIT_THUMB_X_INSET;
+      const int thumb_y = PLEDIT_ROWS_Y + scroll * travel / denom;
+      tft.pushImage(thumb_x, thumb_y,
+                    SKIN_PLEDIT_THUMB_W, SKIN_PLEDIT_THUMB_H,
+                    SKIN_PLEDIT_THUMB, PLEDIT_TRANSPARENT_RGB565);
+    }
+
+    // Bottom bar — second band of the SKIN_PLEDIT_BG atlas.
+    const uint16_t *bottom = SKIN_PLEDIT_BG + (uint32_t)SKIN_PLEDIT_BG_W * PLEDIT_TITLE_H;
+    tft.pushImage(originX, PLEDIT_BOTTOM_Y, SKIN_PLEDIT_BG_W, PLEDIT_BOTTOM_H, bottom);
+  }
+
   void drawPlaylist() {
     // TASK-053c: repaint chrome + PLEDIT title bar if health state changed.
     bool healthy = spotifyTask::isHealthy();
@@ -1122,36 +1164,11 @@ public:
 
     tft.startWrite();
 
-    // Gutters outside the 275px chrome window — match the fillScreen(TFT_BLACK)
-    // that drawChrome() issued at startup so no seam appears at y=PLEDIT_Y.
-    const int rightEdge = originX + PLEDIT_W;
-    if (originX > 0)
-      tft.fillRect(0, PLEDIT_Y, originX, PLEDIT_H, TFT_BLACK);
-    if (rightEdge < TASKBAR_X)
-      tft.fillRect(rightEdge, PLEDIT_Y, TASKBAR_X - rightEdge, PLEDIT_H, TFT_BLACK);
-
-    // Title bar — top PLEDIT_TITLE_H rows of SKIN_PLEDIT_BG atlas.
-    tft.pushImage(originX, PLEDIT_Y, SKIN_PLEDIT_BG_W, PLEDIT_TITLE_H, SKIN_PLEDIT_BG);
-
-    // Frame side tiles — always full height (fixed PLEDIT dimensions).
-    const int rowsH = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
-    for (int sy = PLEDIT_ROWS_Y; sy < PLEDIT_ROWS_Y + rowsH; sy += PLEDIT_SIDE_H_SRC) {
-      const int h = min((int)PLEDIT_SIDE_H_SRC, PLEDIT_ROWS_Y + rowsH - sy);
-      tft.pushImage(originX,                                        sy, PLEDIT_SIDE_LEFT_W,  h, SKIN_PLEDIT_LEFT_SIDE);
-      tft.pushImage(originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W, sy, PLEDIT_SIDE_RIGHT_W, h, SKIN_PLEDIT_RIGHT_SIDE);
-    }
-
-    // Scrollbar thumb — sprite blit when queue exceeds visible rows (TASK-051e).
-    if (qs.count > PLEDIT_ROW_COUNT) {
-      constexpr int track_h = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;   // 65 px
-      constexpr int travel  = track_h - SKIN_PLEDIT_THUMB_H;      // 48 px
-      const int denom   = max(1, (int)qs.count - PLEDIT_ROW_COUNT);
-      const int thumb_x = originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W + PLEDIT_THUMB_X_INSET;
-      const int thumb_y = PLEDIT_ROWS_Y + scrollOffset * travel / denom;
-      tft.pushImage(thumb_x, thumb_y,
-                    SKIN_PLEDIT_THUMB_W, SKIN_PLEDIT_THUMB_H,
-                    SKIN_PLEDIT_THUMB, PLEDIT_TRANSPARENT_RGB565);
-    }
+    // Frame chrome (gutters, title bar, side tiles, scrollbar thumb, bottom bar)
+    // — shared with WebRadio's _drawPledit() via drawPleditFrame() (TASK-225).
+    // The bottom bar is drawn here too; it sits below the rows area so order
+    // versus the rows below is irrelevant (disjoint regions).
+    drawPleditFrame(scrollOffset, (int)qs.count);
 
     // Rows: flat fillRect (Audacious playlist-widget.cc) + Font 1 track text.
     // Font 1 glyph height = 8px; TEXT_VOFF centres it in the 13px row.
@@ -1218,9 +1235,7 @@ public:
       tft.drawString(dur, durX, textY);
     }
 
-    // Bottom bar — always at fixed PLEDIT_BOTTOM_Y (dimensions unchanged).
-    const uint16_t *bottom = SKIN_PLEDIT_BG + (uint32_t)SKIN_PLEDIT_BG_W * PLEDIT_TITLE_H;
-    tft.pushImage(originX, PLEDIT_BOTTOM_Y, SKIN_PLEDIT_BG_W, PLEDIT_BOTTOM_H, bottom);
+    // Bottom bar now drawn by drawPleditFrame() above (TASK-225).
 
     // Total playlist time — left-aligned in the scrollbar track (dark LCD area, top
     // row of the right section, x=127 in PLEDIT frame, y+4 in bottom bar).
