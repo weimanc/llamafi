@@ -91,9 +91,6 @@ char clientSecret[200];
 
 #include "configFile.h"
 
-#include "serialPrint.h"
-
-
 #include "httpsDate.h"
 
 #include "logSink.h"
@@ -869,11 +866,11 @@ private:
   void _onCategoryTap(int idx) {
     if (idx < 0 || idx >= SETTINGS_CAT_COUNT) return;
     _s.section = (int8_t)idx;
+    // All SETTINGS_CAT_COUNT sections are wired in the ctor (_sections[0..5]),
+    // so this is always non-null; the guard is kept as cheap defence only.
     if (_sections[idx]) {
       _activeSection = _sections[idx];
       _activeSection->enter();
-    } else {
-      _repaintStub();
     }
   }
 
@@ -914,18 +911,6 @@ private:
     tft.setTextDatum(TL_DATUM);
   }
 
-  void _repaintStub() {
-    static const char* kLabels[SETTINGS_CAT_COUNT] = {
-      "WiFi", "Time & Location", "Touch Calibration",
-      "Display", "LED", "Applications"
-    };
-    repaintHeader(kLabels[_s.section]);
-    tft.fillRect(0, SETTINGS_CONTENT_Y, 275, SETTINGS_CONTENT_H, SETTINGS_BG_RGB565);
-    tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(SETTINGS_SEP_COLOR);
-    tft.drawString("(not implemented)", 137, 120, 2);
-    tft.setTextDatum(TL_DATUM);
-  }
 };
 static SettingsApp g_SettingsApp;
 LedFlow      g_ledFlow;
