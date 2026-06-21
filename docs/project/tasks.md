@@ -622,6 +622,126 @@ param name against the API (host probe — `test_radiobrowser_api.py`).
 
 ---
 
+## Open — codebase-quality audit follow-ups (2026-06-21)
+
+> From three parallel read-only audits (firmware quality / test brittleness /
+> repo hygiene) run during DUT downtime. TASK-222 and the doc/orphan fixes were
+> done this session; the rest are filed for triage. Verdicts: firmware is good
+> code, dominant issue is duplication not correctness; the test suite is solid on
+> app-order coupling (build-gated) and mostly good on coordinates, with isolated
+> hand-maintained-literal fragility.
+
+### TASK-222 — dataTask: fix two BP-031 (tlsYield/tlsResume) violations
+
+**DONE 2026-06-21.** Audit confirmed two real violations of BP-031 (the project's
+own documented rule, which even cited weather as conforming):
+- `fetchHeatmapQuote()` skipped `tlsResume()` on the `http.begin()` early-return
+  → left Spotify TLS yielded = **permanently paused** (same starvation class as
+  TASK-218). HIGH.
+- `fetchWeather()` had **no** `tlsYield`/`tlsResume` at all (latent NoMemory under
+  heap contention; `fetchCrypto` right below documents the exact hazard).
+Both fixed; build-clean 5/5, +40 B flash. **firmware behaviour change — not
+DUT-verified** (matches the verified crypto/heatmap pattern). See LL-084.
+**Priority:** P1 · **Status:** done — implemented, DUT-verify with the heap suite · **Owner:** Developer
+
+---
+
+### TASK-223 — dataTask: extract the shared HTTPS-fetch helper (duplication)
+
+The TLS-setup / HTTP-GET / filtered-`deserializeJson` / teardown sequence is
+copy-pasted ~verbatim across **7** fetchers in `dataTaskStorage.cpp` (~90+ dup
+lines). Extract `httpsGetFiltered(url, rootCA, insecure, filter, out, tag)` (or a
+smaller `openHttps()` that does begin+GET) so each fetcher supplies only
+URL/CA/filter/result-mapping. Highest-value refactor — would shrink the file ~⅓
+and make the next TASK-214-style TLS fix land in one place not seven. Also folds
+in the duplicated `StaticJsonDocument<128>`/`<256>` filter sizes and the bare
+mirror-count `3` literal.
+**Priority:** P2 · **Status:** open · **Owner:** Developer · **Deps:** none
+
+---
+
+### TASK-224 — M-WEBRADIO: reconcile station-count constants (limit=30 vs [100] vs 14336 B)
+
+`fetchOneMirror()` queries `limit=30`, but `WebRadioStation stations[100]`, the
+fill-loop bound `count >= 100`, and the `s_webRadioDoc(14336)` sizing comment all
+assume 100. Either `30` is an undocumented heap mitigation (then shrink the array
++ buffer + fix the comment) or it's an under-fetch bug. Drive all four from one
+`WR_MAX_STATIONS` constant. Also name the ICY-title `104` (used 4×) and the
+volume ceiling `21`.
+**Priority:** P2 · **Status:** open · **Owner:** Developer · **Deps:** none
+
+---
+
+### TASK-225 — M-WEBRADIO: `_drawPledit()` reimplements a degraded `drawPlaylist()`
+
+`webRadioApp.h::_drawPledit()` redraws the PLEDIT panel with flat `fillRect`s,
+dropping the sprite frame border, scrollbar thumb, and skin-font bottom bar that
+`winampDisplay.h::drawPlaylist()` already renders — a layering violation that also
+makes WebRadio's playlist visually inconsistent with Spotify's in the same skin.
+Reuse/parameterise the chrome-layer renderer instead.
+**Priority:** P2 · **Status:** open · **Owner:** Developer + Architect (shared-renderer API) · **Deps:** none
+
+---
+
+### TASK-226 — tests: harden coordinate single-source-of-truth (eject/deadzone/VIS)
+
+`coords.py` correctly derives most coords from `skin_layout.h`, but: eject taps
+hardcode `136 89` (3 sites) and deadzone `162 85` (2 sites) instead of a
+`coords.py` helper; and `coords.py` VIS constants are **hand-copied** from
+`vuMeter.h` with no codegen/gate (silent-stale risk). Add `tap_eject()` /
+`tap_deadzone_gap()` helpers; move VIS rect constants into `skin_layout.h` (or a
+generated header) so there is one ingestion path. (App-order coupling is already
+build-gated — no action.)
+**Priority:** P3 · **Status:** open · **Owner:** VE · **Deps:** none
+
+---
+
+### TASK-227 — docs: clock design docs contradict shipped firmware
+
+`M-CLOCK-FLIP/NIXIE/VFD.md` say firmware "not started" while `clockApp.h` ships
+working `_drawFlip/_drawNixie/_drawVFD` (and the parent `M-CLOCK-STYLES.md` says
+"done, 14/14 PASS") — internally contradictory, would mislead a dev into
+re-scoping shipped work. Also `vfdTheme`/`nixieTheme` settings pickers are
+documented but never implemented (only `clockStyle` exists). Reconcile status
+headers; implement-or-strike the theme pickers.
+**Priority:** P2 · **Status:** open · **Owner:** Architect (docs) + Developer · **Deps:** none
+
+---
+
+### TASK-228 — settings: sweep + reconcile inert config fields
+
+`webRadioHwMod` is fully dead (no consumer, no UI) and the `webRadioMaxVolume`
+"default 18 with HW mod" comment describes conditional-default logic that
+`settingsStorage.cpp` never implements. Joins the known inert set
+(`webRadioAutoSkip` TASK-219, `webRadioBitrateCap` TASK-221). Audit every
+`settingsStorage.h` field for a real consumer; remove or implement each dead one;
+fix the misleading default comment.
+**Priority:** P3 · **Status:** open · **Owner:** Developer · **Deps:** none
+
+---
+
+### TASK-229 — docs + dead code: misc drift batch
+
+(a) `M-LIST-v4-velocity-scroll.md` claims the `_dragStartMs` tap-discrimination
+logic was removed; it's still load-bearing (`winampDisplay.h:589`). (b)
+`M-DATATASK-PROGRESS.md` frames shipped phase-2 work as future. (c) Dead code:
+`main.cpp` stub-section branch + `_repaintStub()` (all 6 sections wired) and the
+never-called `serialPrint.h::printCurrentlyPlayingToSerial` — verify unreachable,
+then remove. (d) clock cosmetic doc contradictions (flip-colon, nixie geometry).
+**Priority:** P3 · **Status:** open · **Owner:** Architect (docs) + Developer (dead code) · **Deps:** none
+
+---
+
+### TASK-230 — logging: `Serial.printf("[tag]…")` bypassing the LOG_* sink
+
+6+ recently-touched files use raw `Serial.printf` instead of the `LOG_*`
+macros/log sink, so those lines skip the log server/decode stack. QM
+best-practice candidate (consistency), not a one-off. Sweep and convert; consider
+a BP.
+**Priority:** P3 · **Status:** open · **Owner:** Developer + QM · **Deps:** none
+
+---
+
 ### TASK-220 — M-WEBRADIO: buffer-health POSBAR never driven (DONE); VU meter is a design reconciliation (220b)
 
 Two distinct issues; the second is *not* the simple poll the original finding
