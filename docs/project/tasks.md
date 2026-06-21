@@ -656,7 +656,7 @@ URL/CA/filter/result-mapping. Highest-value refactor — would shrink the file ~
 and make the next TASK-214-style TLS fix land in one place not seven. Also folds
 in the duplicated `StaticJsonDocument<128>`/`<256>` filter sizes and the bare
 mirror-count `3` literal.
-**Priority:** P2 · **Status:** open · **Owner:** Developer · **Deps:** none
+**Priority:** P2 · **Status:** done 2026-06-21 — `openHttps()` helper added (begin+useHTTP10+GET; `INT_MIN` begin-fail sentinel to avoid colliding with HTTPClient's `-1`). Conservatively folded in **fetchTeletext only**; weather/crypto kept their own sequence (progress-phase split would be lost) and the stock/heatmap/webradio fetchers kept theirs (need `addHeader` between begin/GET). BP-031 balance preserved + verified. 5/5 gates. · **Owner:** Developer · **Deps:** none
 
 ---
 
@@ -668,7 +668,7 @@ assume 100. Either `30` is an undocumented heap mitigation (then shrink the arra
 + buffer + fix the comment) or it's an under-fetch bug. Drive all four from one
 `WR_MAX_STATIONS` constant. Also name the ICY-title `104` (used 4×) and the
 volume ceiling `21`.
-**Priority:** P2 · **Status:** open · **Owner:** Developer · **Deps:** none
+**Priority:** P2 · **Status:** done 2026-06-21 — confirmed `limit=30` is the intentional `dafa4a4` heap mitigation. `WR_MAX_STATIONS=30` in `dataTask.h` now drives the query, both station arrays, and the fill-loop bound; `s_webRadioDoc` shrunk 14336→5120 B; `WR_ICY_TITLE_LEN=104` and `WR_VOLUME_MAX=21` named. **−21.5 KB RAM** (the array shrink), +8 B flash. 5/5 gates. · **Owner:** Developer · **Deps:** none
 
 ---
 
@@ -692,7 +692,7 @@ hardcode `136 89` (3 sites) and deadzone `162 85` (2 sites) instead of a
 `tap_deadzone_gap()` helpers; move VIS rect constants into `skin_layout.h` (or a
 generated header) so there is one ingestion path. (App-order coupling is already
 build-gated — no action.)
-**Priority:** P3 · **Status:** open · **Owner:** VE · **Deps:** none
+**Priority:** P3 · **Status:** done 2026-06-21 — `tap_eject()` (box centre, robust to skin shift) and `tap_deadzone_gap()` (shares T088's exact `_gap_y` formula) added; all 5 literal sites parameterised. VIS constants now **parsed from `vuMeter.h`** via a regex ingestion path (better than moving them — `vuMeter.h` is the real owner, not skin_layout.h). Verified: helpers reproduce the prior hit zones; `import coords` + `py_compile` clean; 0 stale literals. · **Owner:** VE · **Deps:** none
 
 ---
 
@@ -704,7 +704,7 @@ working `_drawFlip/_drawNixie/_drawVFD` (and the parent `M-CLOCK-STYLES.md` says
 re-scoping shipped work. Also `vfdTheme`/`nixieTheme` settings pickers are
 documented but never implemented (only `clockStyle` exists). Reconcile status
 headers; implement-or-strike the theme pickers.
-**Priority:** P2 · **Status:** open · **Owner:** Architect (docs) + Developer · **Deps:** none
+**Priority:** P2 · **Status:** done 2026-06-21 — all three clock-doc status headers reconciled to "shipped (TASK-193)" against `clockApp.h`; `vfdTheme`/`nixieTheme` pickers **struck** (marked "DOCUMENTED, NOT IMPLEMENTED", moved to a future/post-MVP heading — not built speculatively); shipped-vs-doc geometry/render-option deviations annotated as accepted. Verified against firmware. · **Owner:** Architect · **Deps:** none
 
 ---
 
@@ -716,7 +716,14 @@ headers; implement-or-strike the theme pickers.
 (`webRadioAutoSkip` TASK-219, `webRadioBitrateCap` TASK-221). Audit every
 `settingsStorage.h` field for a real consumer; remove or implement each dead one;
 fix the misleading default comment.
-**Priority:** P3 · **Status:** open · **Owner:** Developer · **Deps:** none
+**Audit done 2026-06-21** (all 31 fields swept). Dead/inert set: `webRadioHwMod`
+(dead), `teletextCountry` + `teletextAutoAdvance` (dead, self-documented
+"reserved"), `webRadioAutoSkip` (TASK-219), `webRadioBitrateCap` (TASK-221), and a
+**new finding → TASK-231: `stockMode`** (UI-visible but never read — a silently
+broken toggle, higher severity). `webRadioMaxVolume` "18 with HW mod" comment
+confirmed fiction (no conditional logic exists). The *fix* (remove vs implement
+each) needs a product call — see per-field recommendations.
+**Priority:** P3 · **Status:** open — audit complete, remove/implement decisions pending (per field) · **Owner:** Developer + human (product call) · **Deps:** none
 
 ---
 
@@ -728,7 +735,7 @@ logic was removed; it's still load-bearing (`winampDisplay.h:589`). (b)
 `main.cpp` stub-section branch + `_repaintStub()` (all 6 sections wired) and the
 never-called `serialPrint.h::printCurrentlyPlayingToSerial` — verify unreachable,
 then remove. (d) clock cosmetic doc contradictions (flip-colon, nixie geometry).
-**Priority:** P3 · **Status:** open · **Owner:** Architect (docs) + Developer (dead code) · **Deps:** none
+**Priority:** P3 · **Status:** partial 2026-06-21 — **(a)(b)(d) docs DONE** (M-LIST-v4 false "removed" claim corrected; M-DATATASK-PROGRESS phase-2 marked shipped; clock cosmetic deviations annotated). **(c) dead-code removal still OPEN** — held from the parallel round (needs a second concurrent firmware builder); `serialPrint.h` dead-ness re-confirmed by the logging audit. Do next (host build). · **Owner:** Developer (dead code) · **Deps:** none
 
 ---
 
@@ -738,7 +745,33 @@ then remove. (d) clock cosmetic doc contradictions (flip-colon, nixie geometry).
 macros/log sink, so those lines skip the log server/decode stack. QM
 best-practice candidate (consistency), not a one-off. Sweep and convert; consider
 a BP.
-**Priority:** P3 · **Status:** open · **Owner:** Developer + QM · **Deps:** none
+**Audit done 2026-06-21 — closed as not-worth-a-sweep.** Of ~99 raw `Serial.*`
+sites, ~half are the DUT command-response JSON protocol (`handleSerialCommands`
+/ dbg-get — must **never** be converted), most of the rest are `SERIAL_DEBUG`-
+gated or one-shot boot banners explicitly carved out by ADR-010. Genuine
+SHOULD-CONVERT set is only **~8 sites** (hand-rolled `[D][tag]` lines in
+`winampDisplay.h` ×2, `aquariumApp.h` ×4, `calibrationFlow.h` ×3) that mimic
+LOG_ output while bypassing the sink. Recommendation: convert-when-touched (per
+ADR-010's existing policy) + a **narrow BP candidate** for QM/human sign-off:
+*"don't hand-roll a `[D][tag]` log prefix — use the LOG_* macro."* No standalone
+task warranted.
+**Priority:** P3 · **Status:** closed — audit done; convert-when-touched + BP candidate flagged to QM · **Owner:** QM (BP call) · **Deps:** none
+
+---
+
+### TASK-231 — Stock: `stockMode` is a silently broken Settings toggle
+
+Found during the TASK-228 settings audit — **highest-severity** of that sweep
+because it's user-visible. Settings → Applications → Stock exposes a
+List/Chart/Heatmap "mode" cycle bound to `g_settings.stockMode`
+(`appsSection.h:109,184`), but `StockApp::init()` (`main.cpp:1006`) unconditionally
+sets `subView = List` and **never reads `stockMode`** — so toggling it does
+nothing. Reads as a broken control to a user (worse than the invisible dead
+config keys).
+**Fix shape:** seed `_s.subView` from `g_settings.stockMode` in `StockApp::init()`
+/`resume()` (map `StockViewMode::{List,Chart,Heatmap}` → `StockSubView`), OR remove
+the field + its UI row + JSON key if "always start on List" is the product intent.
+**Priority:** P2 — user-visible broken UI · **Status:** open — needs product call (wire up vs remove) · **Owner:** Developer + human · **Deps:** none
 
 ---
 
