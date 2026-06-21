@@ -783,7 +783,7 @@ exist after in-app navigation (`main.cpp:1322-1361`); that is almost certainly w
 Chart with an empty symbol. So the real options are (1) implement launch-into-Chart/
 Heatmap with proper precondition handling (needs DUT visual verify), or (2) remove the
 toggle. Not blind-wired. Genuine product+design call.
-**Priority:** P2 — user-visible broken UI · **Status:** open — needs product call (implement-with-preconditions vs remove); not a 2-line fix · **Owner:** Developer + human · **Deps:** none
+**Priority:** P2 — user-visible broken UI · **Status:** implemented — unverified (2026-06-21). Product call: **implement** (wire it up). New `_applyLaunchView()` honours `g_settings.stockMode` by reusing the existing `drillToChart(0)` / `enterHeatmap()` entry helpers (so the Chart selected-ticker + fetch and the Heatmap fetch preconditions are set up exactly as in-app navigation does — Chart launches on the first configured ticker). Honoured on first `init()` and on `resume()` **only when the setting changed since last applied** (`_appliedMode` cache), so the toggle now takes effect on the realistic flow (change in Settings → reopen Stock) while preserving in-session drill nav otherwise. Default-List users see zero change. 5/5 gates. **DUT visual sign-off owed**: confirm launching into Chart/Heatmap renders correctly (esp. before data arrives) and the back-nav base is List. · **Owner:** Developer · **Deps:** none
 
 ---
 
