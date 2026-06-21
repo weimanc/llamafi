@@ -97,6 +97,11 @@ static const char  HEATMAP_URL[] =
 
 static void fetchWeather() {
     s_weatherFetchPhase = 0;  // TLS + http.begin
+    // BP-031: yield Spotify's TLS before our own handshake — contention is about
+    // concurrent open sessions, not response size (LL-071/T272). Matches crypto
+    // below. Was previously omitted here despite BP-031 citing weather as
+    // conforming — fixed 2026-06-21 (TASK-222).
+    spotifyTask::tlsYield();
     LOG_HEAP("dataTask.weather");
     WiFiClientSecure tls;
     tls.setCACert(OPEN_METEO_ROOT_CA);
@@ -105,6 +110,7 @@ static void fetchWeather() {
     if (!http.begin(tls, WEATHER_URL)) {
         LOG_W("dataTask.weather", "http.begin failed");
         s_weatherFetchPhase = -1;
+        spotifyTask::tlsResume();  // BP-031: every exit path
         return;
     }
     s_weatherFetchPhase = 1;  // GET in flight
@@ -137,6 +143,7 @@ static void fetchWeather() {
         }
     }
     s_weatherFetchPhase = -1;
+    spotifyTask::tlsResume();  // BP-031: release Spotify task to reconnect
 }
 
 static void fetchCrypto() {
@@ -591,6 +598,8 @@ static void fetchHeatmapQuote() {
         portENTER_CRITICAL_SAFE(&s_heatmapMux);
         s_heatmapResult = r; s_heatmapNew = true;
         portEXIT_CRITICAL_SAFE(&s_heatmapMux);
+        spotifyTask::tlsResume();  // BP-031: resume on the early-return path too,
+                                   // else a begin() failure leaves Spotify paused
         return;
     }
     // Screener endpoint requires a browser-like User-Agent; without it the
