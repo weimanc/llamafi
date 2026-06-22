@@ -723,12 +723,24 @@ fix the misleading default comment.
 broken toggle, higher severity). `webRadioMaxVolume` "18 with HW mod" comment
 confirmed fiction (no conditional logic exists).
 **Partial 2026-06-21:** misleading code comments fixed in `settingsStorage.h` — inert
-fields annotated with tracking tasks (`TODO(TASK-221/219/228)`, BP-035), and the false
-`webRadioMaxVolume` "18 with HW mod" default corrected to note `applyDefaults()` always
-sets 10. Field **removal** (JSON-schema migration impact) still needs a product call;
-`teletextCountry`/`teletextAutoAdvance` are intentional self-documented "reserved"
-placeholders — leave as-is.
-**Priority:** P3 · **Status:** open — comments fixed; field remove/implement decisions pending · **Owner:** Developer + human (product call) · **Deps:** none
+fields annotated with tracking tasks (BP-035), and the false `webRadioMaxVolume`
+"18 with HW mod" default corrected to note `applyDefaults()` always sets 10.
+
+**Correction 2026-06-22 — `webRadioHwMod` is NOT dead.** Re-checked against the design:
+`M-WEBRADIO.md` §HW Mod and Max Volume interaction (lines 676-685) + §Settings fully
+specify it as the **anti-clipping volume-ceiling input** (stock → soft-cap 12; mod →
+default 18, range to 21). It's an **unimplemented designed feature**, not dead weight —
+and its enforcement is already TASK-209's deliverable (*"Hard cap enforced in firmware …
+when `hwModInstalled == false`"*, needs DUT to calibrate the stock ceiling). Reclassified:
+`webRadioHwMod` + `webRadioMaxVolume` clamp → **owned by TASK-209** (deferred to DUT), NOT
+a removal candidate. Decision (2026-06-22): leave the feature under TASK-209; do not
+implement the clamp standalone. `settingsStorage.h` comments updated to point at TASK-209.
+
+Remaining 228 scope is now small: `teletextCountry`/`teletextAutoAdvance` are intentional
+self-documented "reserved" placeholders (leave as-is); `webRadioAutoSkip`/`webRadioBitrateCap`
+tracked by TASK-219/221; `stockMode` → TASK-231 (done). No genuinely-orphaned dead field
+remains, so no JSON-schema removal is pending.
+**Priority:** P3 · **Status:** done 2026-06-22 — every field now classified + correctly tracked; no removal needed (webRadioHwMod is a deferred feature, owned by TASK-209) · **Owner:** Developer · **Deps:** none
 
 ---
 
@@ -907,9 +919,20 @@ Pass criteria: `kMaxVolumeStock` determined; value matches design estimate of
 ≈ 10 (±2 steps acceptable). Hard cap enforced in firmware at this value when
 `settings.webRadio.hwModInstalled == false`.
 
+**Scope note (2026-06-22):** this task **owns the `webRadioHwMod` consumption and the
+§HW Mod clamp** (M-WEBRADIO.md lines 676-685), reclassified here from the TASK-228
+settings sweep. ⚠ Correction to the status below: the firmware does **not** currently
+read `webRadioHwMod` or clamp at all — `setVolume(webRadioMaxVolume)` is unclamped
+(`webRadioApp.h:117,451`), so the §HW Mod interaction (stock soft-cap 12 / mod default
+18 / range-to-21) is entirely unimplemented, not merely uncalibrated. Implementation
+work for this task: (a) read `webRadioHwMod` and clamp `setVolume()` accordingly,
+(b) auto-raise the `webRadioMaxVolume` default to 18 when HW mod on, (c) optionally a
+Settings UI toggle (no WebRadio settings section exists yet). The DUT calibrates the
+exact stock value; the clamp *structure* could land on host first if desired.
+
 **Priority:** P2 — can ship with design estimate (10/21) if DUT session is
 delayed; cap can be refined in a follow-on reflash
-**Status:** open — firmware done; T_WR_VOL_03 SKIP (no stations); VOL_01/02 require speaker + human ears. Blocked same as TASK-207/208.
+**Status:** open — clamp/HW-mod logic NOT YET IMPLEMENTED (was wrongly noted "firmware done"); T_WR_VOL_03 SKIP (no stations); VOL_01/02 require speaker + human ears. Blocked same as TASK-207/208.
 **Opened:** 2026-06-14
 **Milestone:** M-WEBRADIO
 **Owner:** Developer + human operator (subjective listening required)
