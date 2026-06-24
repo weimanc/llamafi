@@ -1019,9 +1019,28 @@ makes any decoder+16 KB-buffer test pass trivially (proves nothing). **Needs the
 account actively playing music**, then: re-flash debug, enlarge the input buffer (`setBufsize`
 ~16 KB), play a station, and check on DUT — (a) decoder still allocates at ~78 KB − 11 KB reclaim
 headroom, (b) underruns drop / station holds ≥ 60 s. External dependency, not a code blocker.
-**Priority:** P1 — settles the M-WEBRADIO viability question · **Status:** **blocked — needs Spotify actively playing** (TASK-239/240 done)
+**Provisional PASS (2026-06-24) — final confirmation blocked on device Spotify auth.**
+Synthetic-pressure test (debug-only `set heappressure`, 16 KB `setBufsize`, audio_info hook).
+Decisive data point, fresh decoder after boot: **with the 16 KB input buffer + the ~11 KB
+reclaim, the MP3 decoder allocates OK at `preConnFree=89236`** (`MP3Decoder has been initialized`,
+no OOM). Compare EXP-007: 16 KB buffer, *no* reclaim, decoder **failed** at the Spotify-playing
+tight baseline `preConnFree≈78 K`. The reclaim lifts the baseline 78 K → 89 K (78 + 11), and the
+decoder demonstrably allocates at 89 K → **the bigger buffer and the decoder can coexist with the
+reclaim.** Strong evidence stable no-PSRAM playback is achievable.
+
+**Why provisional, not final:** (1) the 89 K point was Spotify-*idle*; the exact Spotify-*playing*
+fragmentation at the true tight condition couldn't be reproduced — **the device's Spotify auth is
+broken** (`isPlaying` stuck false, `lastPollAgeMs` climbs, "startup poll failed"; token expired
+since EXP-007). (2) The clean fresh-decoder threshold sweep and the underrun-reduction half (does
+the 16 KB buffer hold streams ≥ 60 s) were both blocked because the broken Spotify makes
+`tlsYield()` hang during WebRadio `_play()` after a reboot. (3) Per Architect, the `setBufsize`
+change is NOT shipped before the gate conclusively passes — reverted; only the reclaim (239/240)
+is committed. **To finalise:** fix device Spotify auth (re-run `get_refresh_token.py` →
+`./run/spiffs push`), then re-test with a track playing — confirm decoder alloc (already strongly
+indicated) + station holds ≥ 60 s with fewer dropouts. Feeds the ADR-045 amendment.
+**Priority:** P1 — settles the M-WEBRADIO viability question · **Status:** **provisional PASS — final confirmation needs device Spotify re-auth** (TASK-239/240 done)
 **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO · **Owner:** Developer + Architect (decision)
-**Deps:** TASK-239 (done), TASK-240 (done), + Spotify-active test condition
+**Deps:** TASK-239 (done), TASK-240 (done), + working device Spotify auth for the final run
 
 ---
 
