@@ -947,8 +947,13 @@ station fetch) and `s_heatmapDoc` (2.5 KB, `:584` — only live when the Stock h
 Frees ~7.5 KB of resident heap during WebRadio playback. **Fragmentation caveat (Architect review,
 see below):** free `s_webRadioDoc` *before* the audio path allocates and avoid alloc/free churn at
 the fetch→playback boundary, since contiguous-block availability is the core problem.
-**Priority:** P2 · **Status:** open · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
-**Owner:** Developer · **Deps:** none (but see Architect note)
+**Architect ruling (ADR-045 amendment 2026-06-24):** free `s_webRadioDoc` immediately after
+`appendHttpStations()` copies stations out — before `tlsResume()`, never held across playback;
+`s_heatmapDoc` alloc/free within the heatmap fetch only; both frees must complete before the
+audio path's first alloc; verify via the existing `HEAP pre-connect` log (free/maxAlloc must
+actually rise at decode time).
+**Priority:** P2 · **Status:** **ready** (Architect sequencing ruling in) · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
+**Owner:** Developer · **Deps:** none — unblocked
 
 ### TASK-240 — M-WEBRADIO: measure + trim dataTask/spotifyTask stacks
 
@@ -959,8 +964,13 @@ recovers ~6 KB; spotifyTask is tighter — mbedTLS handshake needs 6–8 KB). **
 (Architect/VE):** dataTask is shared by 5 fetchers (weather/crypto/stock/teletext/webradio); the
 worst-case stack path may not be webradio, so the high-water must be measured while exercising the
 deepest fetcher, not just a WebRadio fetch.
-**Priority:** P2 · **Status:** open · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
-**Owner:** Developer + VE (worst-case path) · **Deps:** none
+**Architect ruling (ADR-045 amendment 2026-06-24):** measure `uxTaskGetStackHighWaterMark` after
+one session exercising **every** fetcher (weather, crypto, stock quote, stock chart, teletext
+worst-case page, WebRadio full multi-page); trim only to `(stack − min headroom) + ≥ 2 KB margin`
+rounded up to 1 KB. Must-hit deepest paths: teletext grid parse + WebRadio paging. spotifyTask:
+leave ≥ 3 KB margin (mbedTLS handshake 6–8 KB) or skip. VE confirms coverage.
+**Priority:** P2 · **Status:** **ready** (Architect path ruling in) · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
+**Owner:** Developer + VE (worst-case path) · **Deps:** none — unblocked
 
 ### TASK-241 — M-WEBRADIO: re-run input-buffer experiment with RAM reclaimed (DECISION GATE)
 
@@ -971,7 +981,11 @@ still allocate reliably, and (b) do the "slow stream, dropouts" underruns drop /
 Feeds an ADR-045 amendment/supersede either way. Pass → revise ADR-045 from "best-effort,
 ceiling-bound" toward "stable with reclaim"; fail → the 38.9 KB caps-restricted dead block is the
 wall, ADR-045 stands, stop.
-**Priority:** P1 — settles the M-WEBRADIO viability question · **Status:** open
+**Architect (ADR-045 amendment 2026-06-24):** sanctioned as a decision gate that may supersede
+ADR-045 — PASS → "stable via targeted reclaim"; FAIL → 38.9 KB caps-restricted block is the wall,
+ADR-045 stands. Do NOT ship buffer-size changes before this gate. Verify the reclaim raised
+free/maxAlloc at decode time, not just nominally freed memory.
+**Priority:** P1 — settles the M-WEBRADIO viability question · **Status:** blocked on TASK-239/240
 **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO · **Owner:** Developer + Architect (decision)
 **Deps:** TASK-239, TASK-240
 
