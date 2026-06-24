@@ -768,14 +768,31 @@ best-effort feature** — not declared unsupported, not promised reliable. Three
 **New MVP exit criterion (ADR-045):** stable PLAYING (holds ≥ 60 s) within ≤ 6 auto-skips on
 ≥ 90 % of cold-entry attempts.
 
+**Spike resolved the direction (TASK-235 / EXP-007, 2026-06-24).** Move 3 narrowed by data:
+- Decoder demand 22.7 KB; the 38.9 KB `maxAlloc` block is a **caps-restricted dead region** no
+  audio alloc uses. Effective audio heap ≈ `free − 38.9 KB` ≈ **28 KB**, of which the decoder
+  needs 22.7 KB → ~5 KB margin (hence intermittent).
+- Input buffer ⟷ decoder are **zero-sum**: growing the input buffer to 16 KB made the decoder
+  fail every time. So the underrun problem (the dominant slow-stream death mode) is **unfixable**
+  on no-PSRAM, and general stable playback is **NO-GO**.
+- **Remaining scope of this task = the one GO item:** free `s_webRadioDoc` (5 KB static
+  `DynamicJsonDocument`) after the station fill — roughly doubles the decoder's ~5 KB margin →
+  fewer decoder-alloc failures → more stations reach PLAYING first try. Startup reliability only;
+  does nothing for underruns. Do **not** grow the input buffer; do **not** PSRAM-gate (fast
+  streams work — auto-skip tunes to one).
+
+**Note on the ADR-045 exit criterion (TASK-238):** the ≥ 90 % / ≤ 6-skip bar may be unmeetable
+for slow streams given the ceiling — realistic target is "reliably reaches a stable *fast* station."
+Re-baseline with the Architect at milestone close once the 5 KB reclaim lands.
+
 **Priority:** P1 — M-WEBRADIO MVP blocker
-**Status:** **direction decided (ADR-045).** Now a tracking parent: TASK-234 (auto-skip MVP) +
-TASK-235 (measurement spike) carry the work; this closes once both land and the new exit
-criterion is DUT-verified.
+**Status:** **direction set + measured.** Remaining work = the 5 KB `s_webRadioDoc` startup-margin
+reclaim (this task); auto-skip (TASK-234) done; spike (TASK-235) done. Closes when the reclaim
+lands and is DUT-checked.
 **Opened:** 2026-06-24
 **Milestone:** M-WEBRADIO
-**Owner:** Architect (decided) → Developer/VE (TASK-234/235)
-**Deps:** TASK-232 (done — exposed this)
+**Owner:** Developer
+**Deps:** TASK-232 (done), TASK-235 (done — EXP-007)
 
 ---
 
@@ -877,9 +894,21 @@ point so we know whether direction "free more RAM" can ever reach reliable margi
 
 **Deliverable:** a short measurement report (rnd/reports or inline in TASK-233) with the numbers
 + a go/no-go on direction "free more RAM" vs escalate to PSRAM-gating.
-**Priority:** P2 — gates the TASK-233 heavy work but auto-skip (TASK-234) ships independently
-**Status:** open · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
-**Owner:** Developer / R&D · **Deps:** TASK-232 (done)
+
+**Done 2026-06-24 — see `docs/rnd/reports/EXP-007-webradio-nopsram-heap-spike.md`.** Numbers:
+Helix decoder demand = **22.7 KB** (9 allocs, largest 8.5 KB). `maxAlloc` pinned at **38 900 in
+both the 8 KB- and 16 KB-input-buffer runs** → that block is a **caps-restricted dead region** no
+audio alloc can use; effective audio heap = `free − 38 900`. With the default 8 KB buffer the
+decoder has **~5 KB margin** (28.1 KB usable − 22.7 KB) → usually succeeds, intermittent.
+Enlarging the input buffer to 16 KB dropped usable to 20.6 KB → **decoder fails every time**
+(measured). So input buffer ⟷ decoder are **zero-sum**; the buffer can't grow (the only lever for
+underrun tolerance) without starving the decoder. **Go/no-go:** NO-GO on general stable playback
+(slow-stream underruns are unfixable on no-PSRAM); NO-GO on PSRAM-gating (fast streams work, keep
+it); **GO on a small ~5 KB startup-margin reclaim only** (free `s_webRadioDoc` after fill) — folds
+into TASK-233, improves decoder-alloc reliability, does nothing for underruns. Net: best-effort,
+ceiling-bound (ADR-045 framing confirmed by data).
+**Priority:** P2 · **Status:** **done — 2026-06-24** (report EXP-007) · **Opened:** 2026-06-24 · **Closed:** 2026-06-24
+**Milestone:** M-WEBRADIO · **Owner:** Developer / R&D · **Deps:** TASK-232 (done)
 
 ---
 
