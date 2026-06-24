@@ -1686,7 +1686,7 @@ void setBusy(bool busy) {
     g_shellBusy = busy;
     if (busy) g_shellBusySetMs = millis();
     renderActiveIndicator(tft, currentAppId,
-                          winampDisplay.tbScrollOffset(), (int)AppId::COUNT, busy);
+                          winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT, busy);
 }
 }
 
@@ -1719,7 +1719,7 @@ void switchApp(AppId next) {
     (unsigned long)ESP.getMaxAllocHeap(),
     (unsigned long)ESP.getMinFreeHeap());
 #endif
-  renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), (int)AppId::COUNT);
+  renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT);
 }
 
 void appHandleInput(AppId) {
@@ -1737,9 +1737,9 @@ void appHandleInput(AppId) {
       }
       s_lastTouchY = p.y;  // track for release
       if (winampDisplay.tbIsDragging()) {
-        if (winampDisplay.tbGestureContinue(p.y, (int)AppId::COUNT))
+        if (winampDisplay.tbGestureContinue(p.y, TASKBAR_APP_COUNT))
           renderTaskbar(tft, currentAppId,
-                        winampDisplay.tbScrollOffset(), (int)AppId::COUNT);
+                        winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT);
       } else {
         winampDisplay.tbGesturePress(p.y);
       }
@@ -1776,7 +1776,7 @@ void appHandleInput(AppId) {
 #endif
     ) {
       int appIdx = (int)currentAppId;
-      if (winampDisplay.tbGestureEnd(s_lastTouchY, (int)AppId::COUNT, &appIdx))
+      if (winampDisplay.tbGestureEnd(s_lastTouchY, TASKBAR_APP_COUNT, &appIdx))
         if (appIdx != (int)currentAppId) switchApp(static_cast<AppId>(appIdx));
       s_cooldownMs = millis() + 300;
     } else if (s_inGesture) {
@@ -2028,7 +2028,7 @@ void setup()
   } else {
     spotifyDisplay->showDefaultScreen();
   }
-  renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), (int)AppId::COUNT);
+  renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT);
   if (!wifiConnected) {
     switchApp(AppId::Settings);
     g_SettingsApp.openSection(0);
@@ -2116,9 +2116,9 @@ static inline void drainInjectionQueue() {
     if (winampDisplay.tbIsDragging()) {
       // Taskbar drag release: end gesture (scroll path — y unused for non-tap).
       int appIdx = (int)currentAppId;
-      if (winampDisplay.tbGestureEnd(s_lastTouchY, (int)AppId::COUNT, &appIdx))
+      if (winampDisplay.tbGestureEnd(s_lastTouchY, TASKBAR_APP_COUNT, &appIdx))
         if (appIdx != (int)currentAppId) switchApp(static_cast<AppId>(appIdx));
-      renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), (int)AppId::COUNT);
+      renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT);
     } else {
       winampDisplay.handleWinampInput(TouchPhase::Release, 0, 0);
     }
@@ -2137,8 +2137,8 @@ static inline void drainInjectionQueue() {
       if (!winampDisplay.tbIsDragging()) {
         winampDisplay.tbGesturePress(step.sy);
       } else {
-        if (winampDisplay.tbGestureContinue(step.sy, (int)AppId::COUNT))
-          renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), (int)AppId::COUNT);
+        if (winampDisplay.tbGestureContinue(step.sy, TASKBAR_APP_COUNT))
+          renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT);
       }
     } else if (s_injectIsFirst) {
       winampDisplay.handleWinampInput(TouchPhase::Press, step.sx, step.sy);
@@ -2207,7 +2207,7 @@ static void cmdTap(const char *args) {
   // Taskbar handled at shell level — WinampDisplay must not reference switchApp.
   if (x >= TASKBAR_X) {
     int slot   = (int)y / TASKBAR_SLOT_H;
-    int appIdx = (winampDisplay.tbScrollOffset() + slot) % (int)AppId::COUNT;
+    int appIdx = (winampDisplay.tbScrollOffset() + slot) % TASKBAR_APP_COUNT;
     switchApp(static_cast<AppId>(appIdx));
     winampDisplay.lastTouchResult = { "TASKBAR", -1, "APP_SWITCH", 0, -1, false };
     Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"

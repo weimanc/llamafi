@@ -4,6 +4,42 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-06-24 — WebRadio taskbar crash (latent, shipped)
+
+### LL-085 — 2026-06-24 — A design constraint with no enforcing mechanism + a test that bypassed the crash path
+
+**What happened.** WebRadio (the 11th `AppId`) was designed as a taskbar-*hidden* app — entered only
+via the Winamp eject toggle (M-WEBRADIO §). But the taskbar derived its slot count from `AppId::COUNT`,
+so WebRadio leaked into the scroll cycle. Its `kTaskbarIcons[10]` entry was never baked (zero-filled
+to null), so scrolling the taskbar to the WebRadio slot did `pushImage(nullptr)` → hard crash. Latent
+for ~10 days; surfaced only when a user scrolled the taskbar there.
+
+**Why it wasn't caught — three compounding gaps:**
+1. **The "no taskbar slot" rule was prose, not code.** No `TASKBAR_APP_COUNT` distinct from the total
+   app count; nothing enforced the exclusion, so it defaulted to leaking in.
+2. **The test exercised a path that structurally can't crash.** The serialdbg harness entered WebRadio
+   via `tap_taskbar_slot(WebRadio)`, which computes an *off-screen* y (420 > 240) that the tap handler
+   maps via modulo to appId 10 → `switchApp` — entering WebRadio **without ever rendering its taskbar
+   slot**. The crash lives in the *render* path (user scroll/gesture), which the tests never ran. The
+   tests "passed" against a path that shouldn't exist (taskbar entry contradicts the eject-only design).
+3. **No gate / checklist.** `run/check` didn't verify icon↔app-count conformance; NEW-APP-CHECKLIST had
+   no taskbar item; the icon generator silently produced a short initializer (C++ zero-fill, no error).
+
+**How to apply.**
+- A design constraint (X is excluded / hidden / mutually-exclusive) is not done until there is a
+  **mechanism** (a constant, a `static_assert`, a gate) that makes violating it fail loudly. Prose in a
+  design doc enforces nothing.
+- Tests must exercise the **user-reachable path**, not whatever the harness finds convenient. A harness
+  shortcut (off-screen tap → modulo) that bypasses the rendering/interaction the user actually performs
+  is worse than no test — it manufactures false confidence. (Compounds [[LL-064]]: happy-path-as-proof.)
+- A "missing asset" for a new integration point should be a **compile error**, not a runtime null.
+  Fixed here via `static_assert(TASKBAR_ICON_COUNT == TASKBAR_APP_COUNT)` + NEW-APP-CHECKLIST §6.
+
+**Corrective actions (TASK-242):** `TASKBAR_APP_COUNT` excludes WebRadio at all taskbar call sites;
+null-guard in `renderTaskbar` (defense-in-depth); two `static_assert`s (WebRadio stays last; icon count
+== taskbar app count); NEW-APP-CHECKLIST §6; VE to switch the harness to eject-entry + add a
+taskbar-scroll-cycle test.
+
 ## Retrospective — 2026-06-21 — Codebase-quality audit (DUT downtime, parallel sub-agents)
 
 ### LL-084 — 2026-06-21 — A promoted BP cited existing code as conforming evidence that was never audited

@@ -7,6 +7,7 @@
 #define TASKBAR_ICON_BAKED_W 24
 #define TASKBAR_ICON_BAKED_H 24
 #define TASKBAR_ICON_BAKED_PX (24 * 24)
+#define TASKBAR_ICON_COUNT 10
 
 struct TaskbarIconPair {
     const uint16_t* inactive;

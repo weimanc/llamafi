@@ -1044,6 +1044,43 @@ indicated) + station holds ≥ 60 s with fewer dropouts. Feeds the ADR-045 amend
 
 ---
 
+## Done — TASK-242: WebRadio taskbar crash (latent, shipped) — 2026-06-24
+
+### TASK-242 — taskbar crash on the WebRadio slot (null icon) + design-conformance gap
+
+**Severity: HIGH — shipped crash on core navigation.** Reported by user: "using the taskbar
+triggers a crash." Backtrace: `Guru Meditation (LoadProhibited) … pushImage(...) ← renderTaskbar`,
+`EXCVADDR=0x0` — a **null icon pointer**.
+
+**Root cause (chain, see LL-085):** WebRadio (11th `AppId`) is designed as taskbar-*hidden*
+(eject-entry only, M-WEBRADIO §). But the taskbar derived its slot count from `AppId::COUNT` (11),
+so WebRadio leaked into the scroll cycle; its `kTaskbarIcons[10]` entry was never baked
+(zero-filled → null) → scrolling to its slot did `pushImage(nullptr)` → crash. Latent ~10 days.
+Missed because: (1) the "no taskbar slot" rule was prose with no enforcing mechanism; (2) the VE
+harness entered WebRadio via `tap_taskbar_slot(WebRadio)` — an off-screen coordinate that the tap
+handler mapped via modulo, **never rendering the slot**, so the crashing path was never tested;
+(3) no gate/checklist verified icon↔app-count conformance.
+
+**Fix (all landed, DUT-checked, 5/5 gates):**
+- `TASKBAR_APP_COUNT = (int)AppId::WebRadio` used at all taskbar render + gesture call sites
+  instead of `AppId::COUNT` — WebRadio is never a taskbar slot. DUT: full scroll cycle, no crash.
+- Null-guard in `renderTaskbar` (defense-in-depth — a null icon renders blank, never crashes).
+- Two compile-time `static_assert`s in `taskbar.h`: WebRadio stays last; `TASKBAR_ICON_COUNT ==
+  TASKBAR_APP_COUNT` (a taskbar app missing its baked icon now **fails the build**, via the new
+  generator-emitted `TASKBAR_ICON_COUNT`). This is the gate that makes the bug class impossible.
+- VE: harness now enters WebRadio via the **eject button** (design path); `_TB_N` corrected to
+  exclude WebRadio; new regression test **T242** scrolls the taskbar a full cycle and asserts no
+  crash + WebRadio never a slot. (Re-validation of the full WebRadio suite pending device Spotify
+  re-auth — see TASK-241.)
+- QM: NEW-APP-CHECKLIST §6 (taskbar visibility + icon); lessons-learned **LL-085**.
+
+**Priority:** P1 (shipped crash) · **Status:** **done — fix DUT-verified (no crash on scroll), 5/5
+gates.** T242 + full WebRadio suite re-run owed once device Spotify auth is fixed.
+**Opened:** 2026-06-24 · **Closed:** 2026-06-24 · **Milestone:** M-WEBRADIO / M-MULTIAPP
+**Owner:** Developer (fix) + VE (test) + QM (checklist/lesson)
+
+---
+
 ## Open — codebase-quality audit follow-ups (2026-06-21)
 
 > From three parallel read-only audits (firmware quality / test brittleness /

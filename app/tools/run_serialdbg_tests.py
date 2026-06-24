@@ -3718,7 +3718,10 @@ def t160(dut: Dut):
 # T168 is MANUAL — active-indicator rendering cannot be verified via serial.
 
 _TB_X = _c.TASKBAR_X + _c.TASKBAR_W // 2   # 297
-_TB_N = APP_COUNT                            # AppId::COUNT (all 9 apps in taskbar)
+# TASK-242: the taskbar cycles through apps BEFORE WebRadio — WebRadio is
+# eject-entered only, no taskbar slot. Must match firmware TASKBAR_APP_COUNT
+# (= (int)AppId::WebRadio), NOT APP_COUNT, or scroll-wrap tests mismatch.
+_TB_N = APP_SLOT["WebRadio"]                  # = 10 (Spotify..Teletext)
 
 
 def _tb_get_offset(dut: Dut) -> "int | None":
@@ -3855,6 +3858,39 @@ def t166(dut: Dut):
         fail("T166", f"tbScrollOffset={post} after wrap-up from {_TB_N - 1}; expected 0")
         return
     pass_("T166", f"tbScrollOffset {baseline}→{post} (wrap-around up confirmed)")
+
+
+def t242(dut: Dut):
+    """T242 (TASK-242/LL-085): WebRadio must NOT be reachable via the taskbar — it
+    is eject-entered only. Regression for the latent crash where WebRadio leaked
+    into the taskbar (totalApps=AppId::COUNT) and its un-baked icon rendered
+    pushImage(nullptr). Scroll a FULL cycle (the user path the old tests bypassed)
+    and assert (a) no crash — DUT stays responsive, (b) no taskbar slot ever
+    selects WebRadio."""
+    print("T242  Taskbar excludes WebRadio (full scroll cycle, no crash)")
+    if not _tb_precondition(dut, "T242"):
+        return
+    # Full scroll cycle: a crash on the WebRadio slot reboots the DUT, so
+    # get appId stops responding at the offending offset.
+    for off in range(_TB_N + 1):              # +1 exercises the wrap
+        target = off % _TB_N
+        if not _tb_set_offset(dut, target):
+            fail("T242", f"could not reach scrollOffset={target} (DUT crash/reboot?)")
+            return
+        if not dut.cmd("get appId", timeout=3.0).get("name"):
+            fail("T242", f"DUT unresponsive at scrollOffset={target} — taskbar render crash")
+            return
+    # Tap the top slot at a few offsets; the selected app must never be WebRadio.
+    for target in (0, _TB_N // 2, _TB_N - 1):
+        _tb_set_offset(dut, target)
+        dut.set_cooldown_zero()
+        x, y = _c.tap_taskbar_slot(0)         # top visible slot → appIdx=target
+        dut.cmd(f"tap {x} {y}", timeout=5.0)
+        if dut.cmd("get appId", timeout=3.0).get("name") == "WebRadio":
+            fail("T242", f"taskbar tap at offset {target} selected WebRadio — must be eject-only")
+            return
+    _restore_spotify(dut)
+    pass_("T242", f"full scroll cycle ({_TB_N} offsets) — no crash; WebRadio never a taskbar slot")
 
 
 # ── stock-002 suite (TASK-120) ────────────────────────────────────────────────
@@ -5228,13 +5264,17 @@ def _webradio_enter_with_stations(dut: Dut, tid: str,
 
 
 def _switch_to_webradio_capture_heap(dut: Dut) -> tuple[bool, dict]:
-    """Switch to WebRadio via taskbar; capture HEAP log lines emitted DURING init().
+    """Enter WebRadio via the Winamp EJECT button — its design entry path. WebRadio
+    has NO taskbar slot (TASK-242/LL-085); the old tap_taskbar_slot(WebRadio) only
+    "worked" by an off-screen-coordinate modulo accident and never exercised the
+    real path. Capture HEAP log lines emitted DURING init().
     Returns (switched_ok, heap_dict) where heap_dict keys are e.g. 'init', 'pre-fetch'.
     HEAP lines are logged before the JSON tap response, so we must read raw serial."""
     heap = {}
-    _tb_set_offset(dut, 0)
+    if not _restore_spotify(dut):  # eject button lives in the Spotify/Winamp UI
+        return False, heap
     dut.set_cooldown_zero()
-    x, y = _c.tap_taskbar_slot(APP_SLOT["WebRadio"])
+    x, y = _c.tap_eject()
     dut.send(f"tap {x} {y}")
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
@@ -5511,9 +5551,8 @@ def t_wr_heap_02(dut: Dut):
     _restore_spotify(dut)
     time.sleep(0.2)
     dut.cmd("set bgPoll 0", timeout=2.0)
-    _tb_set_offset(dut, 0)
     dut.set_cooldown_zero()
-    wx, wy = _c.tap_taskbar_slot(APP_SLOT["WebRadio"])
+    wx, wy = _c.tap_eject()  # TASK-242: WebRadio is eject-entered, not a taskbar slot
     dut.send(f"tap {wx} {wy}")
     print("    T_WR_HEAP_02  draining log for HEAP post-fetch line (up to 180s)…")
     lines = dut.drain_log_lines(r"webradio.*HEAP post-fetch free=", count=1, timeout=180.0)
@@ -5858,6 +5897,7 @@ ALL_TESTS = {
     "T164": t164,
     "T165": t165,
     "T166": t166,
+    "T242": t242,
     # T167 retired (duplicate of T165); T168 manual (rendering — no serial observable)
     # settings-nav-stub-001 (TASK-142)
     "T-SET-01": t_set_01,

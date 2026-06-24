@@ -83,6 +83,27 @@ Precedents: Stock (line ~2195), Teletext (line ~2209), Spotify (line ~2221).
 
 ---
 
+### 6. Taskbar visibility + icon (TASK-242 / LL-085)
+
+**Required for**: every `AppId` row. Decide up front whether the app is reachable from the taskbar.
+**Symptom of omission**: the taskbar derives its slot count from the app count; an app that is *meant*
+to be taskbar-hidden leaks into the scroll cycle, and an app with no baked icon renders
+`pushImage(nullptr)` → **hard crash** (this was WebRadio: a hidden, eject-entered app that leaked in
+and crashed because its `kTaskbarIcons` entry was zero-filled).
+
+- [ ] **Taskbar-visible app?** Bake an icon: add `app/icons/taskbar/<app>.png` + `<app>_active.png`,
+  add `"<app>"` to `gen_taskbar_icons.py` APPS, run `./run/bake-icons`. The compile-time
+  `static_assert(TASKBAR_ICON_COUNT == TASKBAR_APP_COUNT)` in `taskbar.h` enforces this — a missing
+  icon now fails the build instead of crashing at runtime.
+- [ ] **Taskbar-hidden app** (entered via a button/toggle, like WebRadio's eject)? It must be the
+  **last** `AppId(s)`, excluded from `TASKBAR_APP_COUNT` (= `(int)AppId::<first-hidden-app>`). The
+  `static_assert` that the hidden app stays last guards against a later app re-leaking it in.
+- [ ] **VE**: a test must scroll the taskbar a full cycle and assert (a) no crash, (b) hidden apps
+  never appear as a slot — exercise the **user scroll/gesture path**, not a harness shortcut that taps
+  an off-screen slot coordinate (that bypasses the render path where the crash lives — the WebRadio gap).
+
+---
+
 ## Deferral policy
 
 If a checklist item is explicitly deferred (e.g. no async work planned for v1), note the deferral in the

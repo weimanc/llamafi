@@ -177,6 +177,9 @@ def main():
         f"#define TASKBAR_ICON_BAKED_W {icon_w}",
         f"#define TASKBAR_ICON_BAKED_H {icon_h}",
         f"#define TASKBAR_ICON_BAKED_PX ({icon_w} * {icon_h})",
+        # TASK-242: number of baked icon pairs — taskbar.h static_asserts this
+        # equals TASKBAR_APP_COUNT so a taskbar app can never be missing an icon.
+        f"#define TASKBAR_ICON_COUNT {len(APPS)}",
         "",
         "struct TaskbarIconPair {",
         "    const uint16_t* inactive;",
