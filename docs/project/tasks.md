@@ -796,10 +796,6 @@ the device must tune past dead stations rather than park on `ERROR_STALL`.
 - Also covers `ERROR_UNREACHABLE` on connect-fail (skip forward) so the dead-HTTPS-equivalent
   case self-heals too.
 
-**Pass criteria (= ADR-045 MVP exit):** cold entry reaches stable PLAYING (≥ 60 s) within ≤ 6
-auto-skips on ≥ 90 % of attempts on the no-PSRAM DUT; the skip loop provably terminates after
-one pass when no station is playable. VE owns the bound test.
-
 **Implemented + DUT-verified 2026-06-24.** Tick-driven (non-recursive) bounded retry→skip in
 `webRadioApp.h`: `_onPlaybackFailed()` sets a deferred `_pendingAction` (RETRY_SAME / SKIP_NEXT)
 that `tick()` dispatches one attempt per tick; `_play()` gained `userInitiated` (resets the scan
@@ -813,11 +809,56 @@ idx=5` → idx=6 → retry → **PLAYING**; a 2-skip case `auto-skip 1/30 … 2/
 (bound counter increments correctly); a retry-recovers-then-settles case (idx=13, tried reset to
 0, settled=1); Spotify TLS resumed on every death. Verified: retry-once, skip-on-2nd-stall,
 bound counter, tune-to-playable, settled-reset, default ON.
-**Still owed to VE:** the *terminal* one-pass-exhaustion case (all 30 dead → stop, no loop) —
-the bound arithmetic is proven by the 1/30→2/30 increments but full exhaustion wasn't forced on
-hardware (would need an all-dead list). Belongs in the VE TASK-234 regression test.
-**Priority:** P1 — M-WEBRADIO MVP blocker · **Status:** implemented — DUT-verified (terminal-exhaustion case owed to VE) · **Opened:** 2026-06-24
-**Milestone:** M-WEBRADIO · **Owner:** Developer (impl done) + VE (bound/exit test) · **Deps:** TASK-218 (done), ADR-045
+**Two test items split out of this task (neither gates the code, which is verified):**
+- **TASK-237** — terminal one-pass-exhaustion *bound* regression test (VE; needs a dead-URL
+  injection hook to be deterministic). Defense-in-depth for the no-infinite-loop invariant.
+- **TASK-238** — ADR-045 *exit-criterion* statistical test (≤ 6 skips → stable PLAYING ≥ 90 %).
+  A milestone-close gate, **not** a TASK-234 code gate, and deps TASK-235 (memory reduction will
+  move the success rate, so measuring before it lands just gets re-taken).
+**Priority:** P1 — M-WEBRADIO MVP blocker · **Status:** **done — implemented + DUT-verified 2026-06-24** (core mechanism: retry-once, skip-on-2nd-stall, bound counter, tune-to-playable, settled-reset, default ON). Follow-on tests are TASK-237/238. · **Opened:** 2026-06-24 · **Closed:** 2026-06-24
+**Milestone:** M-WEBRADIO · **Owner:** Developer (done) · **Deps:** TASK-218 (done), ADR-045
+
+---
+
+### TASK-237 — M-WEBRADIO: auto-skip terminal-bound regression test (+ dead-URL hook)
+
+Split from TASK-234. The auto-skip scan is bounded to one list pass (`_autoSkipTried + 1 <
+_stationCount` → terminal `ACT_NONE`); a runaway skip loop would be worse than a stall (ADR-045),
+so the bound is safety-relevant. DUT-observed correct up to the increments (`1/30 → 2/30`) but
+the *terminal* transition (all stations dead → stop, no loop) was not forced — real dead streams
+are intermittent and `set wrState` injection bypasses `_onPlaybackFailed()`.
+
+**Why it needs a hook:** to be deterministic the test must make every station fail. Add a
+debug-only serial hook (e.g. `set wrDeadUrls 1`) that swaps the station URLs for a guaranteed-
+unreachable host (or forces `connecttohost` to fail), then assert: from a user play, the device
+skips exactly `_stationCount` times, `wrSkip.tried` saturates at the bound, lands terminal
+(no further `pending` action), and never loops. Also assert auto-skip OFF parks on the first
+stall (no skip).
+
+**Scope:** defense-in-depth regression test, not a correctness blocker (the bound is sound by
+construction + partially observed). File under the VE regression suite.
+**Priority:** P2 · **Status:** open · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
+**Owner:** VE (test) + Developer (dead-URL hook) · **Deps:** TASK-234 (done)
+
+---
+
+### TASK-238 — M-WEBRADIO: ADR-045 exit-criterion test (milestone-close gate)
+
+Split from TASK-234. The ADR-045 MVP exit criterion: from cold entry on the no-PSRAM DUT,
+WebRadio reaches a stable PLAYING state (holds ≥ 60 s) within ≤ 6 auto-skips on ≥ 90 % of
+attempts. This is a **statistical milestone-close gate for M-WEBRADIO, not a TASK-234 code
+gate** — it measures the feature-level outcome over many cold-entry trials.
+
+**Sequencing:** **deps TASK-235.** Run *after* the heap-measurement spike and any memory
+reduction it green-lights — freeing RAM raises first-station decode success, which changes the
+skip count and the pass rate. Measuring before TASK-235 lands produces a number that gets
+re-taken. If TASK-235 escalates to PSRAM-gating instead, this criterion is moot on no-PSRAM
+hardware (WebRadio hidden there) and applies only to the PSRAM target.
+
+**Deliverable:** a repeatable VE harness that runs N cold entries, records skips-to-stable and
+hold time, and reports the pass rate against the ≤ 6 / ≥ 90 % bar. Gates M-WEBRADIO MVP close.
+**Priority:** P2 — milestone-close gate · **Status:** open (blocked on TASK-235) · **Opened:** 2026-06-24
+**Milestone:** M-WEBRADIO · **Owner:** VE · **Deps:** TASK-235, TASK-234 (done)
 
 ---
 
