@@ -175,15 +175,18 @@ public:
                     LOG_I("webradio", "stations loaded count=%u country=%s",
                           _stationCount, result.countryCode);
                 } else {
-                    _lastHttpCode = result.lastHttpCode;
-                    _lastOk       = result.ok;
-                    strlcpy(_lastJsonErr, result.jsonErr, sizeof(_lastJsonErr));
                     LOG_W("webradio", "station fetch failed ok=%d http=%d jsonErr=%s",
                           result.ok, result.lastHttpCode, result.jsonErr);
                 }
-                // Record regardless of outcome — T_WR_TLS_01 needs this on both
-                // success and failure to confirm which TLS path actually fired.
+                // Record regardless of outcome — T_WR_TLS_01 needs the http code,
+                // ok flag and TLS path on both success and failure (a successful
+                // fetch still has to confirm http=200 and which path fired). result
+                // carries the right values for both outcomes (ok=true/jsonErr=""
+                // on success), so the accessor stays consistent either way.
+                _lastOk          = result.ok;
+                _lastHttpCode    = result.lastHttpCode;
                 _lastTlsInsecure = result.tlsInsecure;
+                strlcpy(_lastJsonErr, result.jsonErr, sizeof(_lastJsonErr));
                 _dirty = true;
             }
         }
@@ -449,9 +452,12 @@ private:
             s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
 
         wrAudio().setVolume(g_settings.webRadioMaxVolume);
-        // TASK-208: heap watermark at connecttohost (audio buffer alloc point)
-        LOG_I("webradio", "HEAP pre-connect free=%u min=%u",
-              (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap());
+        // TASK-208: heap watermark at connecttohost (audio buffer alloc point).
+        // maxAlloc = largest contiguous block — the figure that actually governs
+        // whether the MP3 decoder / TLS buffers can be allocated (TASK-233).
+        LOG_I("webradio", "HEAP pre-connect free=%u min=%u maxAlloc=%u",
+              (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap(),
+              (unsigned)ESP.getMaxAllocHeap());
         if (wrAudio().connecttohost(_stations[idx].url)) {
             _state = WRPlayState::PLAYING;
             _lastRunningMs = millis();  // TASK-218: seed grace window for stream-death detection

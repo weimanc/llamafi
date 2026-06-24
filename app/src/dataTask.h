@@ -65,6 +65,15 @@ struct HeatmapQuoteResult {
 // four stay in agreement.
 static constexpr uint8_t WR_MAX_STATIONS = 30;
 
+// TASK-232: the radio-browser list is HTTPS-dominated (~73% for NL), but HTTPS
+// audio streams can't be played on this no-PSRAM board — the audio-stream mbedTLS
+// handshake hits SSL mem-alloc failure (~40 KB contiguous unavailable). So the
+// fetch keeps only http:// streams and pages through the votes-ordered list
+// (page size = WR_MAX_STATIONS, which fits the 5 KB s_webRadioDoc) until it has
+// WR_MAX_STATIONS playable stations or it has scanned WR_FETCH_MAX_PAGES pages.
+// ~27% HTTP means ~4 pages to fill 30; 5 gives margin without unbounded fetching.
+static constexpr uint8_t WR_FETCH_MAX_PAGES = 5;
+
 // WebRadioStation / WebRadioStationsResult — written by fetchWebRadioStations(),
 // read by WebRadioApp::tick() via pollWebRadioStations().
 struct WebRadioStation {

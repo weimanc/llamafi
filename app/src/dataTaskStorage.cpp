@@ -760,15 +760,17 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
 // 200, parses the response into s_webRadioDoc. Returns the HTTP code, or a
 // negative HTTPClient connection/handshake/verify error code, or -100 on a
 // JSON parse error after a successful 200.
-static int fetchOneMirror(const char* mirror, const char* country, bool insecure) {
-    char url[128];
+static int fetchOneMirror(const char* mirror, const char* country, bool insecure,
+                          unsigned offset) {
+    char url[160];
     // limit= is an intentional heap mitigation (commit dafa4a4), not a bug —
     // driven by WR_MAX_STATIONS (TASK-224) so the query, the result arrays,
-    // and the fill-loop bound below all agree.
+    // and the fill-loop bound below all agree. It also bounds one page to what
+    // the 5 KB s_webRadioDoc holds; offset pages through the list (TASK-232).
     snprintf(url, sizeof(url),
         "https://%s/json/stations/search"
-        "?countrycode=%s&codec=MP3&hidebroken=true&order=votes&limit=%u",
-        mirror, country, (unsigned)WR_MAX_STATIONS);
+        "?countrycode=%s&codec=MP3&hidebroken=true&order=votes&limit=%u&offset=%u",
+        mirror, country, (unsigned)WR_MAX_STATIONS, offset);
 
     WiFiClientSecure tls;
     if (insecure) {
@@ -814,6 +816,31 @@ static int fetchOneMirror(const char* mirror, const char* country, bool insecure
     return 200;
 }
 
+// Appends the http:// stations from the just-parsed s_webRadioDoc page into
+// s_webRadioResult (up to WR_MAX_STATIONS total). https:// streams are skipped:
+// they can't be played on this no-PSRAM board (TASK-232). Returns the number of
+// raw entries seen in this page — the caller uses a short page (< WR_MAX_STATIONS)
+// as the signal that the list is exhausted and stops paging.
+static unsigned appendHttpStations() {
+    unsigned seen = 0;
+    for (JsonVariantConst entry : s_webRadioDoc.as<JsonArrayConst>()) {
+        seen++;
+        if (s_webRadioResult.count >= WR_MAX_STATIONS) continue;  // keep counting 'seen'
+        const char* name = entry["name"].as<const char*>();
+        const char* urlr = entry["url_resolved"].as<const char*>();
+        if (!name || !urlr || !urlr[0]) continue;
+        if (strncasecmp(urlr, "http://", 7) != 0) continue;  // skip https:// (and anything else)
+        uint8_t idx = s_webRadioResult.count;
+        strlcpy(s_webRadioResult.stations[idx].name, name,
+                sizeof(s_webRadioResult.stations[0].name));
+        strlcpy(s_webRadioResult.stations[idx].url,  urlr,
+                sizeof(s_webRadioResult.stations[0].url));
+        s_webRadioResult.stations[idx].bitrate = entry["bitrate"].as<uint16_t>();
+        s_webRadioResult.count++;
+    }
+    return seen;
+}
+
 static void fetchWebRadioStations() {
     char country[4];
     portENTER_CRITICAL_SAFE(&s_pendingCountryMux);
@@ -832,48 +859,50 @@ static void fetchWebRadioStations() {
     s_webRadioResult        = WebRadioStationsResult{};
     strlcpy(s_webRadioResult.countryCode, country, sizeof(s_webRadioResult.countryCode));
 
-    bool fetchDone = false;
-    for (int mi = 0; mi < 3 && !fetchDone; mi++) {
+    s_webRadioResult.count = 0;
+    for (int mi = 0; mi < 3; mi++) {
         const char* mirror = kRadioBrowserMirrors[mi];
 
-        // Try the pinned root CA first (ADR-029). Only on a connection/handshake/
-        // verify-level failure (negative code) — not a clean HTTP error like
-        // 403/404 — retry the *same* mirror with setInsecure(). A clean HTTP
-        // error means TLS already succeeded, so there's nothing insecure mode
-        // would fix; move on to the next mirror instead. (TASK-214)
-        int code = fetchOneMirror(mirror, country, /*insecure=*/false);
+        // Page through the votes-ordered list on this mirror, accumulating only
+        // playable (http://) stations until we have WR_MAX_STATIONS or run out
+        // (TASK-232). The TLS path is decided once, on page 0: try the pinned
+        // root CA first (ADR-029); only on a connection/handshake/verify-level
+        // failure (negative code) — not a clean HTTP error like 403/404, where
+        // TLS already succeeded — fall back to setInsecure() for this mirror.
         bool usedInsecure = false;
-        if (code < 0) {
-            LOG_W("dataTask.webradio", "strict TLS failed mirror=%s code=%d — retrying insecure",
-                  mirror, code);
-            code = fetchOneMirror(mirror, country, /*insecure=*/true);
-            usedInsecure = true;
-        }
-        s_webRadioResult.lastHttpCode = code;
-        s_webRadioResult.tlsInsecure  = usedInsecure;
-        if (code != 200) {
-            LOG_W("dataTask.webradio", "mirror=%s failed code=%d insecure=%d", mirror, code, (int)usedInsecure);
-            continue;
+        bool mirrorOk     = false;
+        for (uint8_t page = 0; page < WR_FETCH_MAX_PAGES; page++) {
+            unsigned offset = (unsigned)page * WR_MAX_STATIONS;
+            int code = fetchOneMirror(mirror, country, usedInsecure, offset);
+            if (code < 0 && page == 0 && !usedInsecure) {
+                LOG_W("dataTask.webradio", "strict TLS failed mirror=%s code=%d — retrying insecure",
+                      mirror, code);
+                usedInsecure = true;
+                code = fetchOneMirror(mirror, country, /*insecure=*/true, offset);
+            }
+            s_webRadioResult.lastHttpCode = code;
+            s_webRadioResult.tlsInsecure  = usedInsecure;
+            if (code != 200) {
+                if (page == 0)
+                    LOG_W("dataTask.webradio", "mirror=%s failed code=%d insecure=%d",
+                          mirror, code, (int)usedInsecure);
+                break;  // page 0 → try next mirror; later page → stop, keep what we have
+            }
+            mirrorOk = true;
+            unsigned seen = appendHttpStations();
+            if (s_webRadioResult.count >= WR_MAX_STATIONS) break;  // list full
+            if (seen < WR_MAX_STATIONS) break;                     // last page reached
         }
 
-        s_webRadioResult.count = 0;
-        for (JsonVariantConst entry : s_webRadioDoc.as<JsonArrayConst>()) {
-            if (s_webRadioResult.count >= WR_MAX_STATIONS) break;
-            const char* name = entry["name"].as<const char*>();
-            const char* urlr = entry["url_resolved"].as<const char*>();
-            if (!name || !urlr || !urlr[0]) continue;
-            uint8_t idx = s_webRadioResult.count;
-            strlcpy(s_webRadioResult.stations[idx].name, name,
-                    sizeof(s_webRadioResult.stations[0].name));
-            strlcpy(s_webRadioResult.stations[idx].url,  urlr,
-                    sizeof(s_webRadioResult.stations[0].url));
-            s_webRadioResult.stations[idx].bitrate = entry["bitrate"].as<uint16_t>();
-            s_webRadioResult.count++;
+        if (mirrorOk) {
+            // The mirrors serve the same list, so once one responds we've seen the
+            // real data — stop here regardless of how many http stations it yielded
+            // rather than re-paging an equivalent mirror.
+            s_webRadioResult.ok = (s_webRadioResult.count > 0);
+            LOG_I("dataTask.webradio", "ok mirror=%s country=%s count=%u insecure=%d",
+                  mirror, country, s_webRadioResult.count, (int)usedInsecure);
+            break;
         }
-        s_webRadioResult.ok = true;
-        fetchDone = true;
-        LOG_I("dataTask.webradio", "ok mirror=%s country=%s count=%u insecure=%d",
-              mirror, country, s_webRadioResult.count, (int)usedInsecure);
     }
 
     // Brief spinlock — only marks the flag, not the 15 kB struct copy.
