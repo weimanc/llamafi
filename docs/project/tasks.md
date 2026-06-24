@@ -952,8 +952,23 @@ the fetch→playback boundary, since contiguous-block availability is the core p
 `s_heatmapDoc` alloc/free within the heatmap fetch only; both frees must complete before the
 audio path's first alloc; verify via the existing `HEAP pre-connect` log (free/maxAlloc must
 actually rise at decode time).
-**Priority:** P2 · **Status:** **ready** (Architect sequencing ruling in) · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
-**Owner:** Developer · **Deps:** none — unblocked
+**Done (s_webRadioDoc) 2026-06-24.** `s_webRadioDoc` is now a fetch-scoped local
+`DynamicJsonDocument webRadioDoc(WR_DOC_CAP)` in `fetchWebRadioStations()`, passed by ref to
+`fetchOneMirror()`/`appendHttpStations()`, freed at a scope brace **before `tlsResume()`** per the
+Architect ruling. Its 5 KB pool is no longer heap-resident across playback (the pool was always
+heap, allocated at static-init — so this shows as runtime free-heap gain, not a static-RAM drop).
+Build-clean. **DUT-verify with TASK-241** that `HEAP pre-connect free/maxAlloc` actually rises.
+
+**s_heatmapDoc DEFERRED — EXP-003 conflict (flag to Architect/QM).** The naive Architect ruling
+("alloc/free within the heatmap fetch") collides with PROP-004/EXP-003: `s_heatmapDoc` is
+allocated at `dataTaskStorage.cpp:654` *while the Yahoo TLS session is still open* (fragmented
+heap) — the exact malloc-failure condition it was made static to avoid. Reclaiming its 2.5 KB
+safely needs the alloc moved to post-`tlsYield()`/pre-TLS-open with a scoped free before
+`tlsResume()`, plus EXP-003 re-validation. Not worth a Stock-app regression risk now; the 5 KB
+webRadioDoc + ~6 KB stack (TASK-240) carry the plan. Revisit only if TASK-241 needs the extra
+2.5 KB.
+**Priority:** P2 · **Status:** **done (webRadioDoc); heatmapDoc deferred (EXP-003)** · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
+**Owner:** Developer · **Deps:** none
 
 ### TASK-240 — M-WEBRADIO: measure + trim dataTask/spotifyTask stacks
 
@@ -969,8 +984,17 @@ one session exercising **every** fetcher (weather, crypto, stock quote, stock ch
 worst-case page, WebRadio full multi-page); trim only to `(stack − min headroom) + ≥ 2 KB margin`
 rounded up to 1 KB. Must-hit deepest paths: teletext grid parse + WebRadio paging. spotifyTask:
 leave ≥ 3 KB margin (mbedTLS handshake 6–8 KB) or skip. VE confirms coverage.
-**Priority:** P2 · **Status:** **ready** (Architect path ruling in) · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
-**Owner:** Developer + VE (worst-case path) · **Deps:** none — unblocked
+
+**Done + DUT-verified 2026-06-24.** Added `get stacks` serial surface +
+`{spotify,data}Task::stackHighWaterBytes()/stackSizeBytes()`. Measured high-water across all
+fetchers on DUT: **dataTask worst-case = 8984 B** (the WebRadio multi-page fetch; weather/crypto/
+stock peak ~6000 B), **spotifyTask = 6272 B**. **Trimmed dataTask 20 KB → 14 KB (reclaim 6 KB)** —
+re-validated under the WebRadio fetch at 8892 B used / 14336 (5.4 KB / 38 % margin), no overflow,
+fetch returns count=30. **spotifyTask SKIPPED** (6272/10240 → only ~1 KB trimmable, mbedTLS
+handshake needs the margin). The old 12 KB-overflow comment was stale (pre-streaming code);
+current streaming parse peaks at ~9 KB.
+**Priority:** P2 · **Status:** **done — DUT-verified (6 KB reclaim)** · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
+**Owner:** Developer + VE · **Deps:** none
 
 ### TASK-241 — M-WEBRADIO: re-run input-buffer experiment with RAM reclaimed (DECISION GATE)
 

@@ -67,8 +67,13 @@ static portMUX_TYPE       s_heatmapMux    = portMUX_INITIALIZER_UNLOCKED;
 static HeatmapQuoteResult s_heatmapResult;
 static bool               s_heatmapNew    = false;
 
-// Bumped 12→20 KB: fetchWebRadioStations TLS + streaming ArduinoJson overflowed 12 KB (TASK-208 DUT).
-constexpr UBaseType_t kStackBytes  = 20 * 1024;
+// TASK-240 (2026-06-24): trimmed 20→14 KB after measuring high-water across ALL
+// fetchers on DUT (Architect ruling, ADR-045 amendment). Worst case is the
+// WebRadio multi-page fetch at 8984 B used (weather/crypto/stock peak ~6000 B);
+// 14 KB leaves a 5.4 KB / 60% margin and still sits above the historical 12 KB
+// overflow point (old non-streaming code, the reason for the original 12→20 bump).
+// Reclaims 6 KB of resident heap. Watermark queryable via `get stacks`.
+constexpr UBaseType_t kStackBytes  = 14 * 1024;
 constexpr UBaseType_t kPriority    = 1;
 constexpr BaseType_t  kPinnedCpu   = APP_CPU_NUM;
 
@@ -591,10 +596,14 @@ static bool                   s_webRadioNew         = false;
 static char                   s_pendingCountry[4]   = "NL";
 static portMUX_TYPE           s_pendingCountryMux   = portMUX_INITIALIZER_UNLOCKED;
 
-// Pre-allocated: WR_MAX_STATIONS (30) stations × ~115 B filtered JSON ≈ 3.45 kB;
-// 5120 gives headroom. Shrunk from 14336 (sized for 100 stations) when the
-// array caps were reconciled to the already-intentional limit=30 (TASK-224).
-static DynamicJsonDocument s_webRadioDoc(5120);
+// WebRadio station-page parse-buffer capacity. WR_MAX_STATIONS (30) stations ×
+// ~115 B filtered JSON ≈ 3.45 kB; 5120 gives headroom. Shrunk from 14336 (sized
+// for 100 stations) when the array caps were reconciled to limit=30 (TASK-224).
+// TASK-239 (ADR-045 amendment): the doc is now a per-fetch LOCAL in
+// fetchWebRadioStations() — allocated after tlsYield() (maxAlloc ≥ 50 KB) and
+// freed before tlsResume(), not held resident — reclaiming ~5 KB during WebRadio
+// playback. Freeing before the audio path's first alloc is the whole point.
+static constexpr size_t WR_DOC_CAP = 5120;
 
 static const char* kRadioBrowserMirrors[3] = {
     "de1.api.radio-browser.info",
@@ -757,16 +766,16 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
 }
 
 // Issues one GET against a single mirror with the given TLS mode and, on HTTP
-// 200, parses the response into s_webRadioDoc. Returns the HTTP code, or a
+// 200, parses the response into the caller-supplied parse doc. Returns the HTTP code, or a
 // negative HTTPClient connection/handshake/verify error code, or -100 on a
 // JSON parse error after a successful 200.
 static int fetchOneMirror(const char* mirror, const char* country, bool insecure,
-                          unsigned offset) {
+                          unsigned offset, JsonDocument& doc) {
     char url[160];
     // limit= is an intentional heap mitigation (commit dafa4a4), not a bug —
     // driven by WR_MAX_STATIONS (TASK-224) so the query, the result arrays,
     // and the fill-loop bound below all agree. It also bounds one page to what
-    // the 5 KB s_webRadioDoc holds; offset pages through the list (TASK-232).
+    // the 5 KB parse doc holds; offset pages through the list (TASK-232).
     snprintf(url, sizeof(url),
         "https://%s/json/stations/search"
         "?countrycode=%s&codec=MP3&hidebroken=true&order=votes&limit=%u&offset=%u",
@@ -804,8 +813,8 @@ static int fetchOneMirror(const char* mirror, const char* country, bool insecure
     filter[0]["name"]         = true;
     filter[0]["url_resolved"] = true;
     filter[0]["bitrate"]      = true;
-    s_webRadioDoc.clear();
-    DeserializationError err = deserializeJson(s_webRadioDoc, http.getStream(),
+    doc.clear();
+    DeserializationError err = deserializeJson(doc, http.getStream(),
                                    DeserializationOption::Filter(filter));
     http.end();
     if (err) {
@@ -816,14 +825,14 @@ static int fetchOneMirror(const char* mirror, const char* country, bool insecure
     return 200;
 }
 
-// Appends the http:// stations from the just-parsed s_webRadioDoc page into
+// Appends the http:// stations from the just-parsed page in `doc` into
 // s_webRadioResult (up to WR_MAX_STATIONS total). https:// streams are skipped:
 // they can't be played on this no-PSRAM board (TASK-232). Returns the number of
 // raw entries seen in this page — the caller uses a short page (< WR_MAX_STATIONS)
 // as the signal that the list is exhausted and stops paging.
-static unsigned appendHttpStations() {
+static unsigned appendHttpStations(JsonDocument& doc) {
     unsigned seen = 0;
-    for (JsonVariantConst entry : s_webRadioDoc.as<JsonArrayConst>()) {
+    for (JsonVariantConst entry : doc.as<JsonArrayConst>()) {
         seen++;
         if (s_webRadioResult.count >= WR_MAX_STATIONS) continue;  // keep counting 'seen'
         const char* name = entry["name"].as<const char*>();
@@ -860,6 +869,12 @@ static void fetchWebRadioStations() {
     strlcpy(s_webRadioResult.countryCode, country, sizeof(s_webRadioResult.countryCode));
 
     s_webRadioResult.count = 0;
+    // TASK-239: the 5 KB parse buffer lives only for the fill loop — allocated
+    // here (just after tlsYield(), when maxAlloc ≥ 50 KB so the malloc is safe)
+    // and freed at the closing brace below, BEFORE tlsResume() and long before
+    // any _play(). Not held resident across playback.
+    {
+    DynamicJsonDocument webRadioDoc(WR_DOC_CAP);
     for (int mi = 0; mi < 3; mi++) {
         const char* mirror = kRadioBrowserMirrors[mi];
 
@@ -873,12 +888,12 @@ static void fetchWebRadioStations() {
         bool mirrorOk     = false;
         for (uint8_t page = 0; page < WR_FETCH_MAX_PAGES; page++) {
             unsigned offset = (unsigned)page * WR_MAX_STATIONS;
-            int code = fetchOneMirror(mirror, country, usedInsecure, offset);
+            int code = fetchOneMirror(mirror, country, usedInsecure, offset, webRadioDoc);
             if (code < 0 && page == 0 && !usedInsecure) {
                 LOG_W("dataTask.webradio", "strict TLS failed mirror=%s code=%d — retrying insecure",
                       mirror, code);
                 usedInsecure = true;
-                code = fetchOneMirror(mirror, country, /*insecure=*/true, offset);
+                code = fetchOneMirror(mirror, country, /*insecure=*/true, offset, webRadioDoc);
             }
             s_webRadioResult.lastHttpCode = code;
             s_webRadioResult.tlsInsecure  = usedInsecure;
@@ -889,7 +904,7 @@ static void fetchWebRadioStations() {
                 break;  // page 0 → try next mirror; later page → stop, keep what we have
             }
             mirrorOk = true;
-            unsigned seen = appendHttpStations();
+            unsigned seen = appendHttpStations(webRadioDoc);
             if (s_webRadioResult.count >= WR_MAX_STATIONS) break;  // list full
             if (seen < WR_MAX_STATIONS) break;                     // last page reached
         }
@@ -904,6 +919,7 @@ static void fetchWebRadioStations() {
             break;
         }
     }
+    }  // webRadioDoc freed here (TASK-239) — before tlsResume() and before playback
 
     // Brief spinlock — only marks the flag, not the 15 kB struct copy.
     portENTER_CRITICAL_SAFE(&s_webRadioMux);
@@ -1071,6 +1087,12 @@ int8_t stockQuoteProgress() { return s_stockQuoteProgress; }
 int8_t weatherFetchPhase()  { return s_weatherFetchPhase; }
 int8_t cryptoFetchPhase()   { return s_cryptoFetchPhase; }
 int8_t stockChartProgress() { return s_stockChartProgress; }
+
+// TASK-240: stack instrumentation (uxTaskGetStackHighWaterMark returns words).
+size_t stackHighWaterBytes() {
+    return s_taskHandle ? (size_t)uxTaskGetStackHighWaterMark(s_taskHandle) * sizeof(StackType_t) : 0;
+}
+size_t stackSizeBytes() { return (size_t)kStackBytes; }
 
 void enqueueTeletextPage(uint16_t page, uint8_t sub) {
     if (!s_queue) return;

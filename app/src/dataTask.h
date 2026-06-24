@@ -157,4 +157,9 @@ int8_t weatherFetchPhase();
 int8_t cryptoFetchPhase();
 int8_t stockChartProgress();
 
+// TASK-240: stack instrumentation. stackHighWaterBytes = minimum free stack ever
+// seen (the watermark); stackSizeBytes = configured size. used = size - highWater.
+size_t stackHighWaterBytes();
+size_t stackSizeBytes();
+
 }  // namespace dataTask

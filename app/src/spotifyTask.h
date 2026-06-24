@@ -135,6 +135,10 @@ bool isHealthy();
 // backoff counter so the recovery poll fires immediately.
 void resetTls();
 
+// TASK-240: stack instrumentation — minimum free stack ever (watermark) + size.
+size_t stackHighWaterBytes();
+size_t stackSizeBytes();
+
 // TASK-131: stop Spotify TLS so a dataTask fetch can allocate its own
 // session from the freed heap (~40 k released). Blocks until the spotify
 // task acks (up to 5 s). Must be followed by tlsResume(); the task spins

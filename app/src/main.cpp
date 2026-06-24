@@ -2366,6 +2366,21 @@ static void cmdGet(const char *args) {
                   (int)currentAppId, nm);
     return;
   }
+  if (strcmp(args, "stacks") == 0) {
+    // TASK-240: report each task's configured stack size + watermark (min free
+    // ever). used = size - free; trim target = used + margin. Also include the
+    // current free heap + largest block so a fetch session can be correlated.
+    size_t dF = dataTask::stackHighWaterBytes(),  dS = dataTask::stackSizeBytes();
+    size_t sF = spotifyTask::stackHighWaterBytes(), sS = spotifyTask::stackSizeBytes();
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"stacks\","
+                  "\"dataSize\":%u,\"dataFree\":%u,\"dataUsed\":%u,"
+                  "\"spotSize\":%u,\"spotFree\":%u,\"spotUsed\":%u,"
+                  "\"heapFree\":%u,\"heapMaxAlloc\":%u,\"last\":true}\n",
+                  (unsigned)dS,(unsigned)dF,(unsigned)(dS-dF),
+                  (unsigned)sS,(unsigned)sF,(unsigned)(sS-sF),
+                  (unsigned)ESP.getFreeHeap(),(unsigned)ESP.getMaxAllocHeap());
+    return;
+  }
   if (strcmp(args, "weatherReady") == 0) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\","
                   "\"ready\":%s,\"last\":true}\n", s_wxDataReady ? "true" : "false");

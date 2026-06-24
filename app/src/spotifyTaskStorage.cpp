@@ -446,6 +446,12 @@ void resetBackoff() {
   s_consecutiveFailures = 0;
 }
 
+// TASK-240: stack instrumentation (uxTaskGetStackHighWaterMark returns words).
+size_t stackHighWaterBytes() {
+  return g_taskHandle ? (size_t)uxTaskGetStackHighWaterMark(g_taskHandle) * sizeof(StackType_t) : 0;
+}
+size_t stackSizeBytes() { return (size_t)kStackBytes; }
+
 uint32_t lastSuccessfulPollAgeMs() {
   uint32_t t = s_lastSuccessfulPollMs;
   return (t == 0) ? 0 : (uint32_t)(millis() - t);
