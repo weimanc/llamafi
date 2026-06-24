@@ -1009,9 +1009,19 @@ wall, ADR-045 stands, stop.
 ADR-045 — PASS → "stable via targeted reclaim"; FAIL → 38.9 KB caps-restricted block is the wall,
 ADR-045 stands. Do NOT ship buffer-size changes before this gate. Verify the reclaim raised
 free/maxAlloc at decode time, not just nominally freed memory.
-**Priority:** P1 — settles the M-WEBRADIO viability question · **Status:** blocked on TASK-239/240
+
+**BLOCKED on a valid test condition (2026-06-24).** TASK-239/240 done (~11 KB reclaimed,
+verified). But the decisive test requires the **tight ~78 KB playback heap** EXP-007 measured —
+and that only exists when **Spotify is actively playing a track** (full resident footprint: TLS
+session + album art + metadata + fragmentation). The DUT currently shows Spotify *configured but
+idle* (`isPlaying:false`); idle → webradio play `tlsYield()` frees Spotify → ~130 KB free, which
+makes any decoder+16 KB-buffer test pass trivially (proves nothing). **Needs the user's Spotify
+account actively playing music**, then: re-flash debug, enlarge the input buffer (`setBufsize`
+~16 KB), play a station, and check on DUT — (a) decoder still allocates at ~78 KB − 11 KB reclaim
+headroom, (b) underruns drop / station holds ≥ 60 s. External dependency, not a code blocker.
+**Priority:** P1 — settles the M-WEBRADIO viability question · **Status:** **blocked — needs Spotify actively playing** (TASK-239/240 done)
 **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO · **Owner:** Developer + Architect (decision)
-**Deps:** TASK-239, TASK-240
+**Deps:** TASK-239 (done), TASK-240 (done), + Spotify-active test condition
 
 ---
 
