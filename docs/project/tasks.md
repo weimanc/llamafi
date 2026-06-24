@@ -623,7 +623,10 @@ do not gate close. Recorded in `M-WEBRADIO.md` §Error states (Architect note
 follow-on.
 
 **Priority:** P3 — deferred post-MVP (was P2 as a scope question; now resolved)
-**Status:** deferred — Tier 1 carve-out done (TASK-218); Tier 2+3 post-MVP
+**Status:** **superseded in part by ADR-045 (2026-06-24).** Tier 1 done (TASK-218, verified).
+**Tier 3 (auto-skip) graduated from deferred → MVP** — the no-PSRAM decode-failure finding
+(TASK-233) made it load-bearing; now tracked as **TASK-234**. Tier 2 (root-cause classification)
+remains deferred post-MVP and is all this task still tracks.
 **Opened:** 2026-06-20
 **Milestone:** M-WEBRADIO (post-MVP follow-on)
 **Owner:** Developer + Architect
@@ -708,7 +711,7 @@ next no-PSRAM wall surfaced: the Helix MP3 decoder's buffer allocation fails int
 ~5 s (watchdog → ERROR_STALL). Distinct root cause; new task.
 
 **Priority:** P1 — M-WEBRADIO MVP blocker
-**Status:** **done (scope: HTTPS blocker) — DUT-verified 2026-06-24.** Multi-page HTTP fetch lands stations in PLAYING. ADR-029 amendment for cleartext media still owed to Architect. Sustained-playback stability tracked separately as TASK-233.
+**Status:** **done (scope: HTTPS blocker) — DUT-verified 2026-06-24.** Multi-page HTTP fetch lands stations in PLAYING. ADR-029 cleartext-media amendment **written (ADR-029 §(5), 2026-06-24)** — media-stream transport ruled out of ADR-029's API-endpoint scope; `http://`-only accepted. Sustained-playback stability tracked separately as TASK-233 (direction set by ADR-045).
 **Opened:** 2026-06-24
 **Closed:** 2026-06-24
 **Milestone:** M-WEBRADIO
@@ -751,12 +754,87 @@ skipped automatically rather than parked in ERROR_STALL; (d) declare WebRadio un
 no-PSRAM hardware. Needs measurement of the achievable post-trim `maxAlloc` vs the decoder's
 real peak demand before committing.
 
+**Architect decision (ADR-045, 2026-06-24):** WebRadio **stays in MVP scope on no-PSRAM as a
+best-effort feature** — not declared unsupported, not promised reliable. Three ordered moves:
+1. **UX now:** graduate auto-skip-on-stall (TASK-219 Tier 3) to MVP, default ON — tune past dead
+   stations instead of parking on a stall. → **TASK-234**.
+2. **Measure before RAM surgery:** spike the exact free/`maxAlloc` at `MP3Decoder_AllocateBuffers`
+   + the 9 Helix buffer sizes, to tell a total-headroom gap (fixable by freeing RAM) from a
+   single-block/contiguity wall (not). → **TASK-235**.
+3. **Conditional (gated on the spike):** if the gap is small, free resident internal RAM during
+   playback (`s_webRadioDoc` after fill, Spotify-side buffers while WebRadio owns the screen);
+   if unbridgeable, gate the app behind a runtime PSRAM check (PSRAM-only). Reordering Helix
+   allocs rejected (library fork).
+**New MVP exit criterion (ADR-045):** stable PLAYING (holds ≥ 60 s) within ≤ 6 auto-skips on
+≥ 90 % of cold-entry attempts.
+
 **Priority:** P1 — M-WEBRADIO MVP blocker
-**Status:** open — root-caused with DUT evidence 2026-06-24; awaiting Architect/product decision
+**Status:** **direction decided (ADR-045).** Now a tracking parent: TASK-234 (auto-skip MVP) +
+TASK-235 (measurement spike) carry the work; this closes once both land and the new exit
+criterion is DUT-verified.
 **Opened:** 2026-06-24
 **Milestone:** M-WEBRADIO
-**Owner:** Architect (direction) → Developer (implementation)
+**Owner:** Architect (decided) → Developer/VE (TASK-234/235)
 **Deps:** TASK-232 (done — exposed this)
+
+---
+
+### TASK-234 — M-WEBRADIO: auto-skip-on-stall (Tier 3, graduated to MVP)
+
+Per ADR-045, the already-designed §Auto-retry/auto-skip policy (M-WEBRADIO.md §Error states)
+is now MVP-mandatory on no-PSRAM hardware: the MP3 decoder fails intermittently (TASK-233), so
+the device must tune past dead stations rather than park on `ERROR_STALL`.
+
+**Scope (the bounded retry→skip subset only — *not* Tier 2 classification):**
+- On `ERROR_STALL` (TASK-218 watchdog trip): retry the same station once; on a second stall,
+  advance to the next station.
+- Bound it: stop after one full pass over the list (no infinite skip loop — a runaway skip is
+  worse than a stall), landing on the first station that holds, else a terminal "no playable
+  station" error.
+- `webRadioAutoSkip` **defaults ON** (was config-only/false). On-device toggle optional, not
+  required for MVP.
+- Also covers `ERROR_UNREACHABLE` on connect-fail (skip forward) so the dead-HTTPS-equivalent
+  case self-heals too.
+
+**Pass criteria (= ADR-045 MVP exit):** cold entry reaches stable PLAYING (≥ 60 s) within ≤ 6
+auto-skips on ≥ 90 % of attempts on the no-PSRAM DUT; the skip loop provably terminates after
+one pass when no station is playable. VE owns the bound test.
+**Priority:** P1 — M-WEBRADIO MVP blocker · **Status:** open · **Opened:** 2026-06-24
+**Milestone:** M-WEBRADIO · **Owner:** Developer (impl) + VE (bound/exit test) · **Deps:** TASK-218 (done), ADR-045
+
+---
+
+### TASK-235 — M-WEBRADIO: heap measurement spike (gates TASK-233 memory reduction)
+
+Per ADR-045 move 2 — measure before any RAM surgery. Instrument the **exact** decode-failure
+point so we know whether direction "free more RAM" can ever reach reliable margin:
+- Log free heap **and** `maxAlloc` (largest contiguous block) immediately before and after
+  `MP3Decoder_AllocateBuffers()` (not just at pre-connect — the `maxAlloc` pre-connect log is
+  already in `webRadioApp.h`).
+- Capture the size of each of the 9 Helix buffers (`sizeof` the structs) and which alloc fails
+  first → distinguishes a **total-headroom** gap (addressable) from a **single-block/contiguity**
+  wall (not addressable by freeing total RAM).
+- Quantify what's freeable during playback: measure heap after freeing `s_webRadioDoc` and after
+  releasing Spotify-side display/response buffers, to size the realistic gain vs the gap.
+
+**Deliverable:** a short measurement report (rnd/reports or inline in TASK-233) with the numbers
++ a go/no-go on direction "free more RAM" vs escalate to PSRAM-gating.
+**Priority:** P2 — gates the TASK-233 heavy work but auto-skip (TASK-234) ships independently
+**Status:** open · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
+**Owner:** Developer / R&D · **Deps:** TASK-232 (done)
+
+---
+
+### TASK-236 — M-WEBRADIO: remove the now-dead radio-browser `setInsecure()` fallback
+
+ADR-029's §(3) decision gate resolved at T_WR_TLS_01 on 2026-06-24: `tlsInsecure:0` — the pinned
+`setCACert()` path verified, the `setInsecure()` fallback in `fetchOneMirror()` **never fired**.
+Per the gate (and ADR-029 §(5)), the fallback is dead code and should be removed. Keep the
+`tlsInsecure` field/`get wrLastHttp` surface (quarterly-check observability) but drop the actual
+`setInsecure()` retry branch in `fetchWebRadioStations()`. Low risk; do alongside TASK-234's
+fetch-path work to avoid a separate DUT cycle.
+**Priority:** P3 · **Status:** open · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
+**Owner:** Developer · **Deps:** none (TASK-214 closed this gate)
 
 ---
 

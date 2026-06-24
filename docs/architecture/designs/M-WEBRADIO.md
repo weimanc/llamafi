@@ -565,13 +565,21 @@ as a real-time health indicator; see §POSBAR buffer health below.
 >   `WiFi.status()` polling + HTTP-status parsing from `audio_info`. This is UX
 >   precision on top of a recovery that already works. The detection rows below
 >   describe the *target* design, not shipped MVP behaviour.
-> - **Tier 3 — DEFERRED: auto-retry / auto-skip automation** (the §Auto-retry and
->   auto-skip policy table). Convenience only. `webRadioAutoSkip` is config-file
->   only (no on-device UI), so deferring leaves no dead toggle. MVP behaviour: on
->   any error the stream stops and the user re-selects manually.
+> - **Tier 3 — ~~DEFERRED~~ GRADUATED TO MVP for no-PSRAM hardware (ADR-045, 2026-06-24):**
+>   auto-retry / auto-skip automation (the §Auto-retry and auto-skip policy table).
+>   Re-classified from "convenience" to **load-bearing** by the TASK-233 DUT finding:
+>   on this no-PSRAM board the MP3 decoder fails to allocate intermittently, so many
+>   stations enter PLAYING then die in ~5 s (`ERROR_STALL`). Without auto-skip the UI
+>   parks on a dead station; *with* it the device tunes past dead stations to a playable
+>   one. The bounded retry→skip subset (retry once, then advance, stop after one pass
+>   over the list) is now MVP-mandatory and `webRadioAutoSkip` **defaults ON**. Tracked
+>   as TASK-234. (Tier 2 root-cause classification stays deferred.)
 >
-> **MVP exit criterion:** M-WEBRADIO closes when Tier 1 is DUT-verified. Tiers
-> 2–3 do **not** gate close. The synthetic injection tests (T_WR_ERR_01–04,
+> **MVP exit criterion (revised by ADR-045 for no-PSRAM hardware):** supersedes the
+> Tier-1-only criterion below. M-WEBRADIO closes when, from cold entry on the no-PSRAM
+> DUT, WebRadio reaches a stable PLAYING state (holds ≥ 60 s) within ≤ 6 auto-skips on
+> ≥ 90 % of attempts — i.e. Tier 1 (watchdog) **and** Tier 3 (auto-skip) both DUT-verified.
+> Tier 2 does **not** gate close. The synthetic injection tests (T_WR_ERR_01–04,
 > TASK-212) verify error-state *rendering* and remain valid; they do not assert
 > detection, which is exactly the Tier-2 gap they will exercise when it lands.
 >
