@@ -799,8 +799,25 @@ the device must tune past dead stations rather than park on `ERROR_STALL`.
 **Pass criteria (= ADR-045 MVP exit):** cold entry reaches stable PLAYING (≥ 60 s) within ≤ 6
 auto-skips on ≥ 90 % of attempts on the no-PSRAM DUT; the skip loop provably terminates after
 one pass when no station is playable. VE owns the bound test.
-**Priority:** P1 — M-WEBRADIO MVP blocker · **Status:** open · **Opened:** 2026-06-24
-**Milestone:** M-WEBRADIO · **Owner:** Developer (impl) + VE (bound/exit test) · **Deps:** TASK-218 (done), ADR-045
+
+**Implemented + DUT-verified 2026-06-24.** Tick-driven (non-recursive) bounded retry→skip in
+`webRadioApp.h`: `_onPlaybackFailed()` sets a deferred `_pendingAction` (RETRY_SAME / SKIP_NEXT)
+that `tick()` dispatches one attempt per tick; `_play()` gained `userInitiated` (resets the scan
+on a user pick); `_autoSkipTried` bounds the scan to one list pass; `WR_SETTLED_MS`=12 s resets
+the scan once a station holds; `_stopAudio()` cancels a pending action (user stop/eject wins).
+`webRadioAutoSkip` default flipped ON. New `get wrSkip` serial surface (autoSkip/tried/retries/
+settled/pending) for the VE bound test. 5/5 gates; +~0.4 KB flash.
+
+**DUT evidence (serial log):** `stall idx=5 — retrying once` → retry → `auto-skip 1/30 from
+idx=5` → idx=6 → retry → **PLAYING**; a 2-skip case `auto-skip 1/30 … 2/30` → idx=11 PLAYING
+(bound counter increments correctly); a retry-recovers-then-settles case (idx=13, tried reset to
+0, settled=1); Spotify TLS resumed on every death. Verified: retry-once, skip-on-2nd-stall,
+bound counter, tune-to-playable, settled-reset, default ON.
+**Still owed to VE:** the *terminal* one-pass-exhaustion case (all 30 dead → stop, no loop) —
+the bound arithmetic is proven by the 1/30→2/30 increments but full exhaustion wasn't forced on
+hardware (would need an all-dead list). Belongs in the VE TASK-234 regression test.
+**Priority:** P1 — M-WEBRADIO MVP blocker · **Status:** implemented — DUT-verified (terminal-exhaustion case owed to VE) · **Opened:** 2026-06-24
+**Milestone:** M-WEBRADIO · **Owner:** Developer (impl done) + VE (bound/exit test) · **Deps:** TASK-218 (done), ADR-045
 
 ---
 

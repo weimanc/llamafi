@@ -69,7 +69,7 @@ static void applyDefaults() {
     strlcpy(g_settings.webRadioCountry, "NL", sizeof(g_settings.webRadioCountry));
     g_settings.webRadioAutoplay      = false;
     g_settings.webRadioBitrateCap    = 96;
-    g_settings.webRadioAutoSkip      = false;
+    g_settings.webRadioAutoSkip      = true;   // TASK-234/ADR-045: default ON
     g_settings.webRadioHwMod         = false;
     g_settings.webRadioMaxVolume     = 10;
     g_settings.webRadioLastStation   = 0;
@@ -215,7 +215,7 @@ void SettingsStorage::load() {
         if (wr.containsKey("country"))     strlcpy(g_settings.webRadioCountry, wr["country"] | "NL", sizeof(g_settings.webRadioCountry));
         if (wr.containsKey("autoplay"))    g_settings.webRadioAutoplay    = wr["autoplay"]    | false;
         if (wr.containsKey("bitrateCap"))  g_settings.webRadioBitrateCap  = wr["bitrateCap"]  | 96;
-        if (wr.containsKey("autoSkip"))    g_settings.webRadioAutoSkip    = wr["autoSkip"]    | false;
+        if (wr.containsKey("autoSkip"))    g_settings.webRadioAutoSkip    = wr["autoSkip"]    | true;
         if (wr.containsKey("hwMod"))       g_settings.webRadioHwMod       = wr["hwMod"]       | false;
         if (wr.containsKey("maxVolume"))   g_settings.webRadioMaxVolume   = wr["maxVolume"]   | 10;
         if (wr.containsKey("lastStation")) g_settings.webRadioLastStation = wr["lastStation"] | 0;

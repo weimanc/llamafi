@@ -41,6 +41,12 @@ enum class WRPlayState : uint8_t {
 // unconfirmed on hardware — tune this against real behaviour (TASK-218). ***
 static constexpr uint32_t WR_STREAM_DEAD_MS = 5000;
 
+// TASK-234 (ADR-045): a station that holds PLAYING this long is "settled" — past
+// the decode-alloc-failure window (WR_STREAM_DEAD_MS) by a comfortable margin — so
+// the auto-skip scan counter resets and a *later* death starts a fresh hunt rather
+// than counting against the original scan's bound.
+static constexpr uint32_t WR_SETTLED_MS = 12000;
+
 // TASK-224: ICY StreamTitle buffer length, used consistently across the audio
 // callback, the queue's element size, tick()'s receive buffer, and _icyTitle.
 static constexpr size_t WR_ICY_TITLE_LEN = 104;
@@ -147,6 +153,22 @@ public:
     }
 
     void tick() override {
+        // TASK-234 (ADR-045): process a deferred retry / auto-skip from a prior
+        // tick's playback failure. Done here (not inline at the failure site) so
+        // the connecttohost() blocking call never recurses — one attempt per tick.
+        if (_pendingAction != ACT_NONE) {
+            uint8_t act = _pendingAction;
+            _pendingAction = ACT_NONE;
+            if (act == ACT_RETRY_SAME) {
+                _play(_currentIdx, /*userInitiated=*/false);
+            } else {  // ACT_SKIP_NEXT
+                _stallRetries = 0;  // fresh station gets its own retry budget
+                uint8_t n = (_currentIdx + 1 >= _stationCount) ? 0 : _currentIdx + 1;
+                _play(n, /*userInitiated=*/false);
+            }
+            return;  // let the next tick handle the outcome / paint
+        }
+
         // Poll ICY metadata from audio callback queue
         {
             char buf[WR_ICY_TITLE_LEN];
@@ -228,6 +250,14 @@ public:
                 // window. *** isRunning() transient semantics unverified on DUT. ***
                 if (s_wr_audio->isRunning()) {
                     _lastRunningMs = now;
+                    // TASK-234: once a station has held long enough to be past the
+                    // decode-failure window, reset the auto-skip scan so a later
+                    // death starts a fresh hunt instead of hitting the old bound.
+                    if (!_settled && now - _playingSinceMs >= WR_SETTLED_MS) {
+                        _settled       = true;
+                        _autoSkipTried = 0;
+                        _stallRetries  = 0;
+                    }
                 } else if (now - _lastRunningMs >= WR_STREAM_DEAD_MS) {
                     LOG_W("webradio",
                           "stream dead (isRunning=0 for %lums) — stop + resume Spotify TLS",
@@ -235,6 +265,7 @@ public:
                     _stopAudio();                       // resumes the yielded Spotify TLS
                     _state = WRPlayState::ERROR_STALL;  // _stopAudio() set STOPPED; show stall
                     _dirty = true;
+                    _onPlaybackFailed(/*connectFail=*/false);  // TASK-234: retry / auto-skip
                 }
             }
         }
@@ -326,6 +357,16 @@ public:
                      (int)_lastTlsInsecure);
             return true;
         }
+        // TASK-234: auto-skip scan state — lets VE assert the bound (one list pass)
+        // and the settled-reset without a logic analyser.
+        if (strcmp(var, "wrSkip") == 0) {
+            snprintf(buf, len,
+                     "\"var\":\"wrSkip\",\"autoSkip\":%d,\"tried\":%u,\"retries\":%u,"
+                     "\"settled\":%d,\"pending\":%u,\"last\":true",
+                     (int)g_settings.webRadioAutoSkip, (unsigned)_autoSkipTried,
+                     (unsigned)_stallRetries, (int)_settled, (unsigned)_pendingAction);
+            return true;
+        }
         // T_WR_HEAP_01/02: heap snapshots queryable without relying on log capture
         if (strcmp(var, "wrHeap") == 0) {
             snprintf(buf, len,
@@ -393,6 +434,13 @@ private:
     uint8_t     _bufPct          = 0;
     uint8_t     _bufPctDrawn     = 0;       // TASK-220: last buffer % painted (hysteresis)
     uint32_t    _lastRunningMs   = 0;       // TASK-218: last tick isRunning() was true
+    // TASK-234 (ADR-045): auto-skip-on-stall. Bounded retry-once-then-advance so a
+    // no-PSRAM decode failure (TASK-233) tunes past dead stations instead of parking.
+    uint32_t    _playingSinceMs  = 0;       // millis() when current PLAYING began
+    uint8_t     _autoSkipTried   = 0;       // stations advanced in the current failure scan
+    uint8_t     _stallRetries    = 0;       // stalls on the current station (retry once, then skip)
+    bool        _settled         = false;   // current station survived WR_SETTLED_MS
+    enum : uint8_t { ACT_NONE = 0, ACT_RETRY_SAME, ACT_SKIP_NEXT } _pendingAction = ACT_NONE;
     int         _lastHttpCode    = 0;
     bool        _lastOk          = false;
     bool        _spotifyYielded  = false;
@@ -412,6 +460,7 @@ private:
     void _stopAudio() {
         if (s_wr_audio) s_wr_audio->stopSong();
         _state = WRPlayState::STOPPED;
+        _pendingAction = ACT_NONE;  // TASK-234: a stop/eject cancels any deferred retry/skip
         // Resume Spotify TLS if we yielded it for playback
         if (_spotifyYielded) {
             spotifyTask::tlsResume();
@@ -419,10 +468,13 @@ private:
         }
     }
 
-    void _play(uint8_t idx) {
+    // userInitiated=true (user picked this station) resets the auto-skip scan;
+    // the auto-skip/retry dispatch passes false so the scan bound is preserved.
+    void _play(uint8_t idx, bool userInitiated = true) {
         if (idx >= _stationCount) return;
         _stopAudio();  // stops current + resumes TLS if it was yielded
 
+        if (userInitiated) { _autoSkipTried = 0; _stallRetries = 0; }
         _currentIdx = idx;
         g_settings.webRadioLastStation = idx;
         _icyTitle[0] = '\0';
@@ -460,8 +512,10 @@ private:
               (unsigned)ESP.getMaxAllocHeap());
         if (wrAudio().connecttohost(_stations[idx].url)) {
             _state = WRPlayState::PLAYING;
-            _lastRunningMs = millis();  // TASK-218: seed grace window for stream-death detection
-            _bufPctDrawn   = 0;         // TASK-220: force a buffer-bar repaint on first fill
+            _lastRunningMs  = millis();  // TASK-218: seed grace window for stream-death detection
+            _playingSinceMs = _lastRunningMs;  // TASK-234: settled-timer start
+            _settled        = false;
+            _bufPctDrawn    = 0;         // TASK-220: force a buffer-bar repaint on first fill
             // _spotifyYielded stays true; TLS resumes in _stopAudio()
         } else {
             _state = WRPlayState::ERROR_UNREACHABLE;
@@ -469,8 +523,35 @@ private:
             // resume TLS now — we won't be streaming
             spotifyTask::tlsResume();
             _spotifyYielded = false;
+            _onPlaybackFailed(/*connectFail=*/true);  // TASK-234: skip a dead host
         }
         _dirty = true;
+    }
+
+    // TASK-234 (ADR-045): decide what to do after a station fails to play. A stall
+    // (decode/stream death) retries the same station once — the no-PSRAM decoder
+    // failure is fragmentation-dependent, so a retry often lands — then advances.
+    // A connect failure skips straight on (re-dialling a dead host rarely helps).
+    // Advancing is bounded to one pass over the list so a fully-dead list can't
+    // loop forever; the action is deferred to the next tick (no recursion).
+    void _onPlaybackFailed(bool connectFail) {
+        if (!connectFail && _stallRetries == 0) {
+            _stallRetries  = 1;
+            _pendingAction = ACT_RETRY_SAME;
+            LOG_I("webradio", "stall idx=%u — retrying once", _currentIdx);
+            return;
+        }
+        if (g_settings.webRadioAutoSkip && _stationCount > 1 &&
+            _autoSkipTried + 1 < _stationCount) {
+            _autoSkipTried++;
+            _pendingAction = ACT_SKIP_NEXT;
+            LOG_I("webradio", "auto-skip %u/%u from idx=%u",
+                  _autoSkipTried, _stationCount, _currentIdx);
+        } else {
+            _pendingAction = ACT_NONE;  // terminal — leave the error state on screen
+            if (g_settings.webRadioAutoSkip)
+                LOG_W("webradio", "auto-skip exhausted — no playable station");
+        }
     }
 
     void _togglePlay() {
