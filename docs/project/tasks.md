@@ -4,6 +4,38 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
+> **PM sync 2026-06-24 (DUT session — M-WEBRADIO TLS verified; playback blocker found)** —
+> First DUT session since the 06-20 downtime work. Ran the queued WebRadio tests + a manual
+> station-by-station playback probe. Results:
+> - **TASK-214 / T_WR_TLS_01: PASS, DUT-verified.** Station fetch returns `count=30` via the
+>   **`setCACert()` pinned-root path — the `setInsecure()` fallback never fired** (`tlsInsecure=0`).
+>   This settles the ADR-029 question: radio-browser's chain verifies against the pinned root on
+>   real hardware, so **no ADR-029 exception is needed** and the original "server omits R13
+>   intermediate" diagnosis does not hold here. (Found + fixed a `wrLastHttp` reporting bug en
+>   route: http/ok/jsonErr were only recorded on the failure branch, so a successful fetch
+>   reported `http=0`; the test failed on that before the fix. Now recorded regardless of outcome.)
+> - **NEW BLOCKER (TASK-232): WebRadio playback is broken on this no-PSRAM DUT.** The manual probe
+>   played stations 0–7. All **HTTPS** streams (the majority of the votes-ordered list) fail
+>   `connecttohost()` immediately with `ssl_client … (-32512) SSL - Memory allocation failed` —
+>   `PSRAM not found`, so the audio-stream mbedTLS handshake can't get its ~40 KB contiguous block
+>   even with Spotify TLS yielded (free heap ~69 KB, fragmented). The two **HTTP** streams tested
+>   connected fine but the upstreams dropped within 5 s. This blocks T_WR_SPOTIFY_RESUME_01,
+>   T_WR_COEX_*, and the heap suite (TASK-207/208/209) — none can reach a stable PLAYING state.
+> - **TASK-218 (stream-death watchdog): verified behaving correctly.** The library sets `m_f_running`
+>   true on connect (not on first audio) and clears it only on a real stop, so the seeded 5 s grace
+>   won't false-trip healthy buffering; the watchdog fired only on genuinely dead decodes/streams.
+>
+> **Follow-on, same session (user: "proceed with TASK-232"):**
+> - **TASK-232 fix landed + DUT-verified (multi-page HTTP fetch).** WebRadio now filters out the
+>   unplayable HTTPS streams and pages the votes list for `http://` ones (≤ 5 pages). The list fills
+>   `count=30` all-HTTP and stations **reach PLAYING** (0 were reachable before). Closes the HTTPS-SSL
+>   blocker. ADR-029 amendment for cleartext-media acceptance owed to Architect.
+> - **NEW BLOCKER TASK-233: MP3 decoder heap exhaustion.** With HTTPS gone, the next no-PSRAM wall
+>   appeared — `MP3Decoder_AllocateBuffers(): not enough memory` (Helix needs ~29 KB; largest
+>   contiguous block ~39 KB pre-connect, fragmented below that by decode time). Most HTTP streams
+>   connect then die in ~5 s; a few play on fragmentation luck. Whether WebRadio is viable on
+>   no-PSRAM CYD hardware at all is now an open product question. Root-caused with DUT evidence.
+>
 > **PM sync 2026-06-20** — M-WEBRADIO downtime work: VE review + TASK-214 re-scope (no DUT this session).
 > User has no DUT access right now; used the downtime for three things instead of waiting.
 > (1) VE review (TASK-215) of the TASK-207/208/209 DUT plan found two doc gaps: no test
@@ -415,8 +447,9 @@ hardware, which path actually fires; that result is what the Architect needs
 before deciding whether ADR-029 needs amending at all.
 
 **Priority:** P1 — unblocks TASK-207/208/209 and M-WEBRADIO milestone close
-**Status:** open — re-scoped fix *committed, not verified* (committed ≠ fixed). Awaiting DUT run of T_WR_TLS_01 to confirm `count ≥ 1` on real hardware AND to record which TLS path fires, before any ADR-029 decision. Architect interim-acceptance of the conditional `setInsecure()` fallback pending that evidence: see ADR-029 amendment note (2026-06-20).
+**Status:** **done — DUT-verified 2026-06-24.** T_WR_TLS_01 PASS: `http=200 count=30`, `tlsInsecure=0` — the `setCACert()` pinned-root path verified and the `setInsecure()` fallback **never fired**. Conclusion: **no ADR-029 exception needed**; the "server omits R13 intermediate" diagnosis does not hold on this hardware/network. The conditional fallback stays as defensive code but is dormant. (Also fixed a `wrLastHttp` reporting bug — http/ok/jsonErr were only set on the failure branch, so a successful fetch reported `http=0`; now recorded regardless of outcome, alongside `tlsInsecure`.) NOTE: this verifies the station-list *fetch* only — *playback* is separately broken, see TASK-232.
 **Opened:** 2026-06-15
+**Closed:** 2026-06-24
 **Milestone:** M-WEBRADIO
 **Owner:** Developer
 **Deps:** none
@@ -465,7 +498,8 @@ in `m-webradio-dut.md` with steps/expected/fail criteria, added to the suite's
 "How to run" command block and exit-criteria table.
 
 **Priority:** P1 — gates TASK-214's ADR-029 decision and TASK-208's heap re-validation
-**Status:** implemented — unverified (2026-06-20). Both tests written, registered in `ALL_TESTS`, documented; `./run/test-targeted T_WR_TLS_01,T_WR_SPOTIFY_RESUME_01` is ready. **Not run** — no DUT this session. A test is not "done" until it has gone green at least once; calling it done before that is the same diagnosis-ahead-of-verification habit this whole session exists to correct (see LL-083). T_WR_SPOTIFY_RESUME_01's liveness probe was strengthened post-review: the original `get touchResult` check is serviced by the loop task and can't prove spotifyTask resumed; it now forces a Spotify poll (DEADZONE→FORCE_POLL) with bgPoll suspended and asserts a full shellBusy rise→clear cycle.
+**Status (2026-06-24, DUT run):** **T_WR_TLS_01 PASS** (drove TASK-214 to closed). **T_WR_SPOTIFY_RESUME_01 SKIP — blocked by TASK-232**: it needs a stable PLAYING state, and no station reaches one on this no-PSRAM DUT (HTTPS streams fail the SSL handshake; the HTTP streams tested dropped within 5 s). The test itself is sound — re-run once TASK-232 yields a playable stream. The test harness correctly reported SKIP rather than a false PASS.
+**Was:** implemented — unverified (2026-06-20). Both tests written, registered in `ALL_TESTS`, documented; `./run/test-targeted T_WR_TLS_01,T_WR_SPOTIFY_RESUME_01` is ready. A test is not "done" until it has gone green at least once; calling it done before that is the same diagnosis-ahead-of-verification habit this whole session exists to correct (see LL-083). T_WR_SPOTIFY_RESUME_01's liveness probe was strengthened post-review: the original `get touchResult` check is serviced by the loop task and can't prove spotifyTask resumed; it now forces a Spotify poll (DEADZONE→FORCE_POLL) with bgPoll suspended and asserts a full shellBusy rise→clear cycle.
 **Opened:** 2026-06-20
 **Milestone:** M-WEBRADIO
 **Owner:** VE
@@ -550,7 +584,7 @@ watch for premature stops on a healthy 5-min stream). Per BP-039/LL-083 this is
 *implemented, not done.*
 
 **Priority:** P1 — blocks M-WEBRADIO ship (silent Spotify starvation in normal use)
-**Status:** implemented — unverified (guarded fix 2026-06-21; needs DUT confirmation of `isRunning()` transient semantics + the 5 s grace value)
+**Status:** implemented — **partially DUT-verified 2026-06-24**. The `isRunning()` semantics caution is resolved: the audio library sets `m_f_running=true` on connect success (Audio.cpp:488), *not* on first decoded audio, so the 5 s grace seeded at PLAYING entry will not false-trip normal initial buffering. Observed on DUT: two HTTP streams that genuinely dropped mid-connect tripped the watchdog correctly (→ ERROR_STALL) and resumed Spotify TLS. **Still owed:** confirmation that a *healthy* 5-min stream does NOT trip it — blocked on TASK-232 (no playable stream on this no-PSRAM board yet).
 **Opened:** 2026-06-20
 **Milestone:** M-WEBRADIO
 **Owner:** Developer
@@ -619,6 +653,110 @@ param name against the API (host probe — `test_radiobrowser_api.py`).
 **Milestone:** M-WEBRADIO (post-MVP follow-on)
 **Owner:** Developer
 **Deps:** none
+
+---
+
+### TASK-232 — M-WEBRADIO: HTTPS stream playback fails on no-PSRAM hardware (MVP blocker)
+
+**Severity:** HIGH — blocks M-WEBRADIO MVP close. Found in the 2026-06-24 DUT session.
+
+**Symptom:** On the production DUT (ESP32-2432S028R, **no PSRAM**), playing any HTTPS radio
+stream fails `connecttohost()` *immediately* with, from the audio library:
+```
+[W][audio] PSRAM not found, inputBufferSize: 6399 bytes
+[E][ssl_client.cpp] start_ssl_client(): (-32512) SSL - Memory allocation failed
+[W][audio] Request https://radio.mixstream.nl/classics.mp3 failed!
+```
+→ `_state = ERROR_UNREACHABLE`. The audio-stream mbedTLS handshake needs a large (~40 KB)
+contiguous allocation that does not exist on this board even with `spotifyTask::tlsYield()`
+already done (free heap ~69 KB but fragmented; no PSRAM to fall back on). Confirmed not a
+timeout (failure is instant; bumping the lib SSL timeout to 8 s changed nothing) and not a
+cert problem (mem-alloc, not verify). The station-list *fetch* TLS succeeds because it runs
+with no audio buffers allocated and only one TLS session live; the *stream* TLS is the
+second concurrent session and it's the audio DMA/decoder buffers + framebuffer that leave no
+contiguous block for it.
+
+**Impact:** radio-browser's `order=votes` list is dominated by HTTPS stations, so WebRadio is
+effectively unplayable on this hardware as shipped. HTTP (`http://…`) streams connect fine
+(no SSL alloc) — the two tested dropped upstream within 5 s, but that's per-station, not a
+device limit. This is the root reason T_WR_SPOTIFY_RESUME_01, T_WR_COEX_*, and the heap suite
+(TASK-207/208/209) cannot reach a stable PLAYING state on the DUT.
+
+**Decision needed (Architect / ADR-029):** the design assumed HTTPS streams. On a no-PSRAM
+board that assumption is invalid. Options to weigh — (a) filter/order the radio-browser query
+to surface HTTP-playable stations (audio streams are low-sensitivity public URLs; this is a
+different risk class than the API endpoints ADR-029 governs); (b) document WebRadio as
+HTTP-stream-only on no-PSRAM hardware; (c) reduce resident memory before the stream handshake
+(unlikely to free 40 KB contiguous on this board). Needs an Architect call + ADR-029 amendment
+before any code lands. Do NOT pick (a) silently — it's an ADR-029-adjacent security decision.
+
+**Verification owed:** once a fix yields a reliably playable station, this unblocks the full
+heap/coex suite and TASK-218's healthy-stream confirmation.
+
+**Fix implemented + DUT-verified 2026-06-24 (multi-page HTTP fetch).** Per user decision,
+WebRadio now keeps only `http://` streams and pages the votes-ordered list (page size =
+WR_MAX_STATIONS, offset paging, ≤ `WR_FETCH_MAX_PAGES`=5 pages) until it has 30 playable
+stations. `fetchOneMirror()` gained an `offset` param; `appendHttpStations()` filters
+`https://` out. DUT-verified: station list now fills `count=30` all-HTTP and stations **reach
+PLAYING state** (was 0 reachable before). 5/5 gates. **This closes the HTTPS-SSL-handshake
+blocker this task was opened for.** ADR-029 amendment owed (cleartext-media-stream acceptance);
+the API-endpoint TLS policy is unchanged. NOTE the kept `maxAlloc` heap-log addition for TASK-233.
+
+**…but sustained playback is still blocked — see TASK-233.** With HTTPS out of the way, the
+next no-PSRAM wall surfaced: the Helix MP3 decoder's buffer allocation fails intermittently
+(`MP3Decoder_AllocateBuffers(): not enough memory`), so most streams connect then die within
+~5 s (watchdog → ERROR_STALL). Distinct root cause; new task.
+
+**Priority:** P1 — M-WEBRADIO MVP blocker
+**Status:** **done (scope: HTTPS blocker) — DUT-verified 2026-06-24.** Multi-page HTTP fetch lands stations in PLAYING. ADR-029 amendment for cleartext media still owed to Architect. Sustained-playback stability tracked separately as TASK-233.
+**Opened:** 2026-06-24
+**Closed:** 2026-06-24
+**Milestone:** M-WEBRADIO
+**Owner:** Architect (ADR note) / Developer (done)
+**Deps:** none
+
+---
+
+### TASK-233 — M-WEBRADIO: MP3 decoder buffer alloc fails on no-PSRAM → unstable playback
+
+**Severity:** HIGH — M-WEBRADIO MVP blocker (surfaced once TASK-232 made stations reach PLAYING).
+
+**Symptom:** After TASK-232, HTTP streams connect and enter PLAYING, but most drop within
+~5 s. Serial shows the real cause:
+```
+[I][webradio] HEAP pre-connect free=78040 min=47548 maxAlloc=38900
+[I][webradio] HEAP play     free=67312
+[E][mp3_decoder.cpp:1555] MP3Decoder_AllocateBuffers(): not enough memory to allocate mp3decoder buffers
+[W][webradio] stream dead (isRunning=0 for 5000ms) — stop + resume Spotify TLS
+```
+The Helix MP3 decoder allocates ~29 KB across 9 buffers when the first MP3 frame arrives. On
+this **no-PSRAM** board the largest contiguous block is only ~39 KB *pre-connect* and the
+input buffer + socket fragment it further by decoder-alloc time, so the allocation fails. It
+**sometimes succeeds** (fragmentation-dependent — ~3 of 16 stations held ≥14 s in one scan,
+and the *same* station that held in one run died at 10 s in another), confirming it's right at
+the heap boundary, not per-station deadness. The TASK-218 watchdog is behaving correctly here
+(the library only clears `m_f_running` on a real stop, and no audio ever decodes), so it
+faithfully reports a genuinely dead decode — not a false trip.
+
+**This is the same no-PSRAM root-cause family as TASK-232's HTTPS-SSL failure.** Two heap walls
+now stand between WebRadio and stable playback on this hardware. Whether WebRadio is viable as
+an MVP feature on a no-PSRAM CYD at all is now a live product question for the Architect/human.
+
+**Possible directions (Architect call needed):** (a) cut resident internal RAM before playback
+(free Spotify-side display/JSON buffers, shrink `s_webRadioDoc`, etc.) to leave the decoder its
+~29 KB — uncertain it can reach reliable margin; (b) pre-allocate / order decoder allocation
+while the heap is least fragmented (needs library cooperation); (c) accept WebRadio as
+best-effort with auto-skip-on-stall (ties into TASK-219 Tier 3) so dead-decode stations are
+skipped automatically rather than parked in ERROR_STALL; (d) declare WebRadio unsupported on
+no-PSRAM hardware. Needs measurement of the achievable post-trim `maxAlloc` vs the decoder's
+real peak demand before committing.
+
+**Priority:** P1 — M-WEBRADIO MVP blocker
+**Status:** open — root-caused with DUT evidence 2026-06-24; awaiting Architect/product decision
+**Opened:** 2026-06-24
+**Milestone:** M-WEBRADIO
+**Owner:** Architect (direction) → Developer (implementation)
+**Deps:** TASK-232 (done — exposed this)
 
 ---
 
