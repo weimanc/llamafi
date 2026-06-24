@@ -925,6 +925,58 @@ fetch-path work to avoid a separate DUT cycle.
 
 ---
 
+## Open — M-WEBRADIO RAM-recovery investigation (PM plan, 2026-06-24)
+
+> **PM sync 2026-06-24 (RAM recovery).** A technique survey + inline code audit (subagents died
+> on a session limit; run inline) found the firmware is already RAM-disciplined — skin atlas is
+> `const`→flash, the Winamp renderer uses no sprite framebuffer, aquarium frees its sprite in
+> `suspend()`. So no fat app-buffer reclaim exists. But ~**14 KB IS reclaimable**: `s_webRadioDoc`
+> (5 KB, lazy), `s_heatmapDoc` (2.5 KB, lazy), and a `dataTask` stack trim (20 KB → ~14 KB, ~6 KB,
+> pending high-water measurement). This **materially challenges EXP-007/ADR-045's "ceiling-bound,
+> don't do memory surgery" conclusion**: EXP-007 measured the budget *as-is*. The decoder needs
+> free ≈ 65 KB to allocate; the failed 16 KB-buffer run had 59.5 KB. Reclaiming ~14 KB → ~73 KB →
+> the bigger input buffer (the underrun fix) and the decoder could coexist. Plan: do the low-risk
+> reclaims, measure, then **re-run the 16 KB-buffer experiment as the decision gate** (TASK-241).
+> This investigation could supersede ADR-045 — Architect input needed on two points (see below).
+
+### TASK-239 — M-WEBRADIO: lazy-allocate s_webRadioDoc + s_heatmapDoc (low-risk reclaim)
+
+Make the two persistent static `DynamicJsonDocument`s heap-alloc-on-use / free-after-use instead
+of file-scope-resident: `s_webRadioDoc` (5 KB, `dataTaskStorage.cpp:597` — only live during the
+station fetch) and `s_heatmapDoc` (2.5 KB, `:584` — only live when the Stock heatmap fetches).
+Frees ~7.5 KB of resident heap during WebRadio playback. **Fragmentation caveat (Architect review,
+see below):** free `s_webRadioDoc` *before* the audio path allocates and avoid alloc/free churn at
+the fetch→playback boundary, since contiguous-block availability is the core problem.
+**Priority:** P2 · **Status:** open · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
+**Owner:** Developer · **Deps:** none (but see Architect note)
+
+### TASK-240 — M-WEBRADIO: measure + trim dataTask/spotifyTask stacks
+
+`dataTask` reserves a **20 KB** stack (`dataTaskStorage.cpp:71`), `spotifyTask` 10 KB
+(`spotifyTaskStorage.cpp:38`) — both heap-resident for life. Instrument
+`uxTaskGetStackHighWaterMark` on both and trim to high-water + safety margin (dataTask likely
+recovers ~6 KB; spotifyTask is tighter — mbedTLS handshake needs 6–8 KB). **Cross-feature
+(Architect/VE):** dataTask is shared by 5 fetchers (weather/crypto/stock/teletext/webradio); the
+worst-case stack path may not be webradio, so the high-water must be measured while exercising the
+deepest fetcher, not just a WebRadio fetch.
+**Priority:** P2 · **Status:** open · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
+**Owner:** Developer + VE (worst-case path) · **Deps:** none
+
+### TASK-241 — M-WEBRADIO: re-run input-buffer experiment with RAM reclaimed (DECISION GATE)
+
+After TASK-239/240, re-run the EXP-007 experiment: enlarge the audio input buffer
+(`setBufsize`, ~16 KB) *with* the ~14 KB reclaimed, and measure on DUT — (a) does the MP3 decoder
+still allocate reliably, and (b) do the "slow stream, dropouts" underruns drop / do stations hold
+≥ 60 s. **This is the go/no-go that decides whether stable WebRadio is achievable on no-PSRAM.**
+Feeds an ADR-045 amendment/supersede either way. Pass → revise ADR-045 from "best-effort,
+ceiling-bound" toward "stable with reclaim"; fail → the 38.9 KB caps-restricted dead block is the
+wall, ADR-045 stands, stop.
+**Priority:** P1 — settles the M-WEBRADIO viability question · **Status:** open
+**Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO · **Owner:** Developer + Architect (decision)
+**Deps:** TASK-239, TASK-240
+
+---
+
 ## Open — codebase-quality audit follow-ups (2026-06-21)
 
 > From three parallel read-only audits (firmware quality / test brittleness /
