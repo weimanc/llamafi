@@ -3044,8 +3044,19 @@ Deliverables:
 
 2. **T271 harness implementation** — Now that `get teletextLastAction` is available (TASK-188) and numpad is implemented, T271's boundary checks (`tap 257 66` → `STRIP_PAGE`, `tap 257 67` → `STRIP_BACK`) can be automated. Update T271 status from `planned` to harness-runnable; add to `run_serialdbg_tests.py`.
 
+**Done — DUT-verified 2026-06-25 (T270 PASS, T271 PASS; 2 passed / 0 failed / 0 skipped).**
+- **T270:** the deliverable-1 mechanism (inject `pn=ns/ps` headers via `set teletextPageContent`)
+  is **not buildable as written** — that accessor injects only the decoded 25×40 cell grid, while
+  the `pn=ns`/`pn=ps` parse runs on the *raw HTTP body* in `fetchTeletext()` (network-only, no
+  injection hook). Implemented the faithful equivalent instead: `set teletextSubpageNext 617-2` /
+  `set teletextSubpagePrev 617-1` set the exact fields the parser writes, then SUBDN tap (y=182)
+  asserts `teletextLastAction==STRIP_SUBDN` + `shellBusy` (i.e. `_navigate(617,2)` fired). Covers
+  the **navigate** path; the raw `pn=` line-dispatch remains network-only (lower-value gap, noted).
+- **T271:** four pixel-exact strip boundaries verified (y=66→STRIP_PAGE, 67/99→STRIP_BACK,
+  100→STRIP_PREV) via `get teletextLastAction`.
+- Both registered in `run_serialdbg_tests.py` (ALL_TESTS); ran green on DUT via `./run/test-targeted`.
 **Priority:** P2 — closes BP-034 gap for teletext
-**Status:** open
+**Status:** done — DUT-verified 2026-06-25
 **Opened:** 2026-06-14
 **Milestone:** M-TELETEXT (VE follow-up)
 **Owner:** VE + Developer
