@@ -658,6 +658,13 @@ bool dbg_set(const char* var, const char* val) {
     s_bgPollEnabled = (atoi(val) != 0) ? 1 : 0;
     return true;
   }
+  // TASK-245: inject the last poll HTTP status so VE can synthesise authError()
+  // deterministically (set lastHttp 403 + set backoff 2 → true) without relying
+  // on a real account 403. Overwritten by the next real poll.
+  if (strcmp(var, "lastHttp") == 0) {
+    s_lastHttpStatus = atoi(val);
+    return true;
+  }
   return false;
 }
 

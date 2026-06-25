@@ -5780,6 +5780,71 @@ def t_wr_spotify_resume_01(dut: Dut):
           "track-info repaint still needs human confirmation")
 
 
+# ── app-error-signal-001 (TASK-245 / ADR-046) ────────────────────────────────
+# Red taskbar active-bar on a sustained app error. The bar colour itself is not
+# serial-observable (no pixel readback) — that's the manual T-ERR-03 sign-off.
+# These automate the state machine behind it via the `get activeError` getter
+# and deterministic injection: `set lastHttp 403` + `set backoff 2` synthesises
+# spotifyTask::authError() without depending on a real account 403; bgPoll is
+# suspended so a real cadence poll can't overwrite the injected status mid-test.
+
+def _get_active_error(dut: Dut):
+    """Returns the `get activeError` dict: {active, spotifyAuthError}."""
+    return dut.cmd("get activeError", timeout=3.0)
+
+def t_err_01(dut: Dut):
+    """T-ERR-01 (X020): Spotify 403 → activeError true; recovered poll → clears to false."""
+    print("T-ERR-01  Spotify authError detection + self-clear")
+    if not _restore_spotify(dut):
+        skip("T-ERR-01", "could not restore Spotify"); return
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    with _bgpoll_suspended(dut):
+        # Baseline: healthy poll → no error.
+        dut.cmd("set lastHttp 200"); dut.cmd("set backoff 0")
+        base = _get_active_error(dut)
+        # Inject a persistent 403 (>=2 consecutive) → authError true.
+        dut.cmd("set lastHttp 403"); dut.cmd("set backoff 2")
+        err = _get_active_error(dut)
+        # Simulate a recovered poll (backoff reset) → self-clears.
+        dut.cmd("set backoff 0")
+        cleared = _get_active_error(dut)
+        # Leave a clean status behind.
+        dut.cmd("set lastHttp 200")
+    ok = (base.get("active") is False and base.get("spotifyAuthError") is False
+          and err.get("active") is True and err.get("spotifyAuthError") is True
+          and cleared.get("active") is False and cleared.get("spotifyAuthError") is False)
+    if ok:
+        pass_("T-ERR-01", "base=clean, 403→active+auth true, backoff-reset→clear")
+    else:
+        fail("T-ERR-01", f"base={base} err={err} cleared={cleared}")
+
+def t_err_02(dut: Dut):
+    """T-ERR-02 (X018+X019): error owned by app — hidden while another app is active
+    (active-only limitation), restored on return to the errored app."""
+    print("T-ERR-02  authError active-only (X018) + survives switch away/back (X019)")
+    if not _restore_spotify(dut):
+        skip("T-ERR-02", "could not restore Spotify"); return
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    with _bgpoll_suspended(dut):
+        dut.cmd("set lastHttp 403"); dut.cmd("set backoff 2")
+        before = _get_active_error(dut)        # Spotify active → active true
+        dut.cmd("switchApp 1")                 # Clock (offline, hasError()==false)
+        time.sleep(0.4)
+        away = _get_active_error(dut)          # active false, but spotifyAuthError still true
+        dut.cmd("switchApp 0")                 # back to Spotify
+        time.sleep(0.4)
+        back = _get_active_error(dut)          # active true again (state survived)
+        dut.cmd("set backoff 0"); dut.cmd("set lastHttp 200")
+    _restore_spotify(dut)
+    ok = (before.get("active") is True
+          and away.get("active") is False and away.get("spotifyAuthError") is True
+          and back.get("active") is True)
+    if ok:
+        pass_("T-ERR-02", "Spotify red while active; hidden on Clock (auth still set); red on return")
+    else:
+        fail("T-ERR-02", f"before={before} away={away} back={back}")
+
+
 ALL_TESTS = {
     "T077": t077,
     "T078": t078,
@@ -5951,6 +6016,9 @@ ALL_TESTS = {
     # M-WEBRADIO TLS path + Spotify coexistence (TASK-214)
     "T_WR_TLS_01":            t_wr_tls_01,
     "T_WR_SPOTIFY_RESUME_01": t_wr_spotify_resume_01,
+    # app-error-signal-001 — red taskbar active-bar (TASK-245 / ADR-046)
+    "T-ERR-01": t_err_01,
+    "T-ERR-02": t_err_02,
 }
 
 def main():

@@ -305,8 +305,8 @@ interactions:
       indicator re-render (setShellBusy / app switch / tick poll). NB busy is shell-global
       (g_shellBusy) while hasError() is per-active-app; both colour the same 3px bar.
     risk: medium
-    test_coverage: []
-    notes: Added 2026-06-25 (ADR-046). VE must cover error+busy → red (not amber). TASK-245.
+    test_coverage: [T-ERR-03]
+    notes: Added 2026-06-25 (ADR-046). Precedence/colour is visual — T-ERR-03 is manual (no pixel readback). TASK-245.
 
   - id: X018
     feature_a: app-error-signal-001
@@ -320,10 +320,11 @@ interactions:
       in ADR-046 for cost. renderActiveIndicator returns after the active slot; non-active
       slots render icon-only regardless of their hasError().
     risk: low
-    test_coverage: []
+    test_coverage: [T-ERR-02]
     notes: |
       Added 2026-06-25 (ADR-046). Document the limitation as expected behaviour, not a defect.
-      Emergent upside: each app shows its OWN red when active and its own op hard-fails. TASK-245.
+      Emergent upside: each app shows its OWN red when active and its own op hard-fails.
+      T-ERR-02 step 2 asserts active:false on Clock while spotifyAuthError stays true. TASK-245.
 
   - id: X019
     feature_a: app-error-signal-001
@@ -335,8 +336,8 @@ interactions:
       same latched condition; switchApp() must call renderActiveIndicator with the current
       hasError() so the red is repainted on return (it is not a one-shot on error onset).
     risk: low
-    test_coverage: []
-    notes: Added 2026-06-25 (ADR-046). VE — switch away during error, return → still red. TASK-245.
+    test_coverage: [T-ERR-02]
+    notes: Added 2026-06-25 (ADR-046). T-ERR-02 step 3 asserts active:true again after switch away/back. TASK-245.
 
   - id: X020
     feature_a: app-error-signal-001
@@ -348,10 +349,10 @@ interactions:
       the red must drop back to green/amber on the next 200/204 poll. Sticky-set on persistent
       403; cleared when poll-001 reports success. Same 403 signal hardened by TASK-244.
     risk: medium
-    test_coverage: []
+    test_coverage: [T-ERR-01]
     notes: |
-      Added 2026-06-25 (ADR-046). VE: 403 → red, then 200/204 → clears. Status code only — the
-      "no Premium" reason body is discarded by the vendored lib (ADR-046 rejected option). TASK-245.
+      Added 2026-06-25 (ADR-046). T-ERR-01 asserts 403→true then backoff-reset→clears. Status code
+      only — the "no Premium" reason body is discarded by the vendored lib (ADR-046 rejected option). TASK-245.
 
 #   interaction_type: shared_state | dependency | conflict | overlap
 #   description: ""

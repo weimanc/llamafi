@@ -4021,6 +4021,41 @@ tests. Visual (MANUAL) tests have no blockers.
 
 ---
 
+### T-ERR-01 — [app-error-signal-001, TASK-245] Spotify 403 → activeError true; recovered poll clears it
+
+- **Type**: integration
+- **Feature(s)**: app-error-signal-001
+- **Interaction**: X020
+- **Objective**: `SpotifyApp::hasError()` (via `spotifyTask::authError()`) trips on a persistent 403 and self-clears on the next successful poll, driving the active-slot indicator state.
+- **Preconditions**: DUT on `cyd2usb_winamp_debug`; Spotify is the active app; bgPoll suspended (so a real cadence poll cannot overwrite the injected status mid-test).
+- **Steps**: (1) `set lastHttp 200` + `set backoff 0`; `get activeError` → baseline. (2) `set lastHttp 403` + `set backoff 2` (synthesises a persistent 403); `get activeError`. (3) `set backoff 0` (simulates a recovered poll); `get activeError`. (4) `set lastHttp 200`; resume bgPoll.
+- **Expected result**: baseline `{active:false, spotifyAuthError:false}`; after injection `{active:true, spotifyAuthError:true}`; after reset `{active:false, spotifyAuthError:false}`.
+- **Status**: passing
+
+### T-ERR-02 — [app-error-signal-001, TASK-245] Error is active-only and survives app-switch away/back
+
+- **Type**: integration
+- **Feature(s)**: app-error-signal-001
+- **Interaction**: X018, X019
+- **Objective**: The error state is owned by the app instance: it is *not* surfaced as the active error while another app is active (the ADR-046 §4 active-only limitation), and it is still set when the errored app is reactivated (survives the round-trip).
+- **Preconditions**: DUT on `cyd2usb_winamp_debug`; Spotify active; bgPoll suspended.
+- **Steps**: (1) `set lastHttp 403` + `set backoff 2`; `get activeError` (Spotify active). (2) `switchApp 1` (Clock — offline, `hasError()==false`); `get activeError`. (3) `switchApp 0` (back to Spotify); `get activeError`. (4) clear (`set backoff 0` + `set lastHttp 200`); resume bgPoll.
+- **Expected result**: step 1 `active:true`; step 2 `active:false` while `spotifyAuthError:true` (error hidden, not lost); step 3 `active:true` again (state survived the switch).
+- **Status**: passing
+
+### T-ERR-03 — [app-error-signal-001, TASK-245] Red bar renders + precedence error > busy > idle [MANUAL]
+
+- **Type**: e2e (manual / visual)
+- **Feature(s)**: app-error-signal-001
+- **Interaction**: X017
+- **Objective**: The active-slot indicator actually paints **red** on a sustained error, and red wins over amber when the app is simultaneously busy (precedence error > busy > idle). Not serial-automatable — no pixel readback.
+- **Preconditions**: DUT (prod or debug); a real or injected Spotify 403 (e.g. `set lastHttp 403` + `set backoff 2` on debug), Spotify the active app.
+- **Steps**: (1) Observe the Spotify slot's 3 px active bar with an error present. (2) Trigger a user action (busy) while the error holds and observe the bar. (3) Clear the error (recovered poll / `set backoff 0`) and observe.
+- **Expected result**: (1) bar is **red** while errored; (2) bar **stays red** during busy (red > amber); (3) bar returns to **green** (or amber if still busy) once the error clears.
+- **Status**: planned (owed — needs human visual sign-off; clear-on-recovery on a real account is gated on TASK-243)
+
+---
+
 ## Entry Format
 
 ```

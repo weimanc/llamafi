@@ -1235,10 +1235,17 @@ TASK-244 (Spotify 403 detection), app-registry-001 / taskbar-icons-001
 - Spotify consumer: `SpotifyApp::hasError()` → new `spotifyTask::authError()`
   (`s_lastHttpStatus == 403 && consecutiveFailures >= 2`; self-clears on next 200/204).
 - Debug getter `get activeError` → `{active, spotifyAuthError}` for VE assertions.
+- Synthetic injection for deterministic VE: `set lastHttp 403` + `set backoff 2` synthesises
+  `authError()` without a real account 403 (`spotifyTask::dbg_set`).
 - **DUT (live 403):** `get activeError` → `active:true, spotifyAuthError:true` while Spotify
-  active; `run/check` 5/5. **Owed:** human/VE visual confirm the bar renders red + clears to
-  green on a recovered poll (needs a non-403 account — gated on TASK-243), and VE test entries
-  (test_ids currently empty).
+  active; `run/check` 5/5.
+
+**VE (TASK-245, 2026-06-25):** test_plan T-ERR-01/02/03 + serialdbg `t_err_01`/`t_err_02`.
+- **T-ERR-01** (X020) detection + self-clear — **PASS** on DUT.
+- **T-ERR-02** (X018 active-only + X019 survives switch) — **PASS** on DUT.
+- **T-ERR-03** (X017 red render + precedence) — **MANUAL**, planned: no pixel readback, needs
+  human visual sign-off; clear-on-recovery on a real account gated on TASK-243.
+**Remaining owed:** only the T-ERR-03 visual sign-off.
 
 ---
 
