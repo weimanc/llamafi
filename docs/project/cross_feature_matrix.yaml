@@ -376,8 +376,10 @@ interactions:
     test_coverage: [T-ERR-06]
     notes: |
       Added 2026-06-25 (TASK-245, extending ADR-046's connecting state to network apps). DUT-verified:
-      Weather/Crypto/Stock/Teletext report connecting:true on entry, →false once data arrives
-      (slower under the TASK-244 Spotify-403 starvation, which holds the shared tlsYield). T-ERR-06
+      Weather/Crypto/Stock/Teletext report connecting:true on entry, →false once data arrives.
+      The connecting state initially surfaced the TASK-244 starvation as "stuck on amber" (Spotify
+      403 hammering every 5–20 s monopolised the shared tlsYield); TASK-244 (nextWaitMs hard-backoff
+      to 60 s on the 403 latch) fixed it — teletext now amber→green in ~2 s on DUT. T-ERR-06
       automates the offline-default invariant (Clock/Matrix connecting:false).
 
 #   interaction_type: shared_state | dependency | conflict | overlap

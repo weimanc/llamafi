@@ -1184,10 +1184,25 @@ device already records — over a generic failure counter; (1) is the general ro
 (3) is an optional UX nicety gated on a lib change.
 
 **Priority:** P2 — robustness; only bites when Spotify poll is failing (today: TASK-243),
-but then it degrades *every* other app · **Status:** open
+but then it degrades *every* other app · **Status:** implemented — DUT-verified 2026-06-25
 **Opened:** 2026-06-25 · **Milestone:** infra / dataTask
 **Owner:** Architect (design call) → Developer · **Deps:** relates to TASK-243 (the trigger),
 TASK-131 (the shared-TLS design being hardened)
+
+**Implementation (2026-06-25) — `nextWaitMs()` hard-backoff on 403.** Chose the safe variant of
+option 2: rather than letting the dataTask skip `tlsYield()` (OOM risk — Spotify's TLS still
+holds ~40 KB), make the *Spotify* poll back off hard when the 403 latch is set
+(`s_authErrorLatched`, from TASK-245). `nextWaitMs()` returns `kBackoffMaxMs` (60 s) immediately
+on a 403 instead of climbing 5→10→20→40 s, so Spotify idles between polls and the dataTask gets
+prompt yield windows. Also immune to `resetBackoff()` (a touch can't restart the fast-poll
+storm — the latch holds). Recovery still detected within one 60 s interval once the account is
+fixed.
+**Trigger / why now:** surfaced visibly as "network apps stuck on amber" (TASK-245 connecting
+state) — teletext/weather/crypto/stock couldn't get a TLS window while Spotify hammered 403s
+every 5–20 s.
+**DUT result:** before — teletext amber for tens of s to minutes; after — **amber→green in ~2 s**,
+heartbeat `next_poll_in_ms≈36 s` (Spotify in 60 s backoff, not hammering). T-ERR-01/02/04/05/06
+re-run PASS; `run/check` 5/5.
 
 ---
 

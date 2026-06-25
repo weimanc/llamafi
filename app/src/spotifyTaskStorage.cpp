@@ -150,6 +150,16 @@ static void onCurrentlyPlaying(CurrentlyPlaying cp) {
 // Computes the next xQueueReceive timeout from the current backoff
 // state. Resets to the base period after a success.
 static uint32_t nextWaitMs() {
+  // TASK-244: a 403 auth-error (owner-account Premium lapse, TASK-243) will not
+  // recover by fast-retrying — it takes hours — and hammering it every 5–20 s
+  // keeps the spotify task holding the shared TLS, starving every dataTask
+  // fetcher (weather/crypto/stock/teletext) behind tlsYield() (the visible
+  // "stuck on amber" symptom). Jump straight to the max backoff so Spotify idles
+  // between polls and the dataTask gets prompt yield windows; recovery is still
+  // detected within one max-backoff interval once the account is fixed. Also
+  // immune to resetBackoff() (touch zeroes s_consecutiveFailures, but the 403
+  // latch holds), so a tap can't restart the fast-poll storm.
+  if (s_authErrorLatched) return kBackoffMaxMs;
   unsigned int shift = s_consecutiveFailures > 6 ? 6 : s_consecutiveFailures;
   uint32_t interval = kPollPeriodMs << shift;
   if (interval > kBackoffMaxMs) interval = kBackoffMaxMs;
