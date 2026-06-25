@@ -349,11 +349,13 @@ interactions:
       the red must drop back to green/amber on the next 200/204 poll. Sticky-set on persistent
       403; cleared when poll-001 reports success. Same 403 signal hardened by TASK-244.
     risk: medium
-    test_coverage: [T-ERR-01, T-ERR-04]
+    test_coverage: [T-ERR-01, T-ERR-04, T-ERR-05]
     notes: |
-      Added 2026-06-25 (ADR-046). T-ERR-01 asserts 403→true then backoff-reset→clears; T-ERR-04
-      asserts connecting (boot amber) → green on first success (ADR-046 amendment). Status code
-      only — the "no Premium" reason body is discarded by the vendored lib (ADR-046 rejected option). TASK-245.
+      Added 2026-06-25 (ADR-046). authError() is a sticky 403 latch (set on 403, cleared on
+      200/204; touch-immune, no flap — ADR-046 amendment 2). T-ERR-01 asserts 403→true / 200→clear;
+      T-ERR-04 connecting (boot amber) → green on first success; T-ERR-05 latch survives backoff
+      reset (touch). Status code only — the "no Premium" reason body is discarded by the vendored
+      lib (ADR-046 rejected option). TASK-245.
 
 #   interaction_type: shared_state | dependency | conflict | overlap
 #   description: ""

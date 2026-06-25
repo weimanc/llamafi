@@ -5793,23 +5793,21 @@ def _get_active_error(dut: Dut):
     return dut.cmd("get activeError", timeout=3.0)
 
 def t_err_01(dut: Dut):
-    """T-ERR-01 (X020): Spotify 403 → activeError true; recovered poll → clears to false."""
+    """T-ERR-01 (X020): a 403 poll → activeError true; recovered (200) poll → clears to false."""
     print("T-ERR-01  Spotify authError detection + self-clear")
     if not _restore_spotify(dut):
         skip("T-ERR-01", "could not restore Spotify"); return
     _wait_shell_not_busy(dut, timeout_s=10.0)
     with _bgpoll_suspended(dut):
         # Baseline: healthy poll → no error.
-        dut.cmd("set lastHttp 200"); dut.cmd("set backoff 0")
-        base = _get_active_error(dut)
-        # Inject a persistent 403 (>=2 consecutive) → authError true.
-        dut.cmd("set lastHttp 403"); dut.cmd("set backoff 2")
-        err = _get_active_error(dut)
-        # Simulate a recovered poll (backoff reset) → self-clears.
-        dut.cmd("set backoff 0")
-        cleared = _get_active_error(dut)
-        # Leave a clean status behind.
         dut.cmd("set lastHttp 200")
+        base = _get_active_error(dut)
+        # A 403 poll → authError true (one 403 is enough; not coupled to backoff).
+        dut.cmd("set lastHttp 403")
+        err = _get_active_error(dut)
+        # A recovered (200) poll → self-clears.
+        dut.cmd("set lastHttp 200")
+        cleared = _get_active_error(dut)
     ok = (base.get("active") is False and base.get("spotifyAuthError") is False
           and err.get("active") is True and err.get("spotifyAuthError") is True
           and cleared.get("active") is False and cleared.get("spotifyAuthError") is False)
@@ -5826,7 +5824,7 @@ def t_err_02(dut: Dut):
         skip("T-ERR-02", "could not restore Spotify"); return
     _wait_shell_not_busy(dut, timeout_s=10.0)
     with _bgpoll_suspended(dut):
-        dut.cmd("set lastHttp 403"); dut.cmd("set backoff 2")
+        dut.cmd("set lastHttp 403")            # 403 poll → Spotify error
         before = _get_active_error(dut)        # Spotify active → active true
         dut.cmd("switchApp 1")                 # Clock (offline, hasError()==false)
         time.sleep(0.4)
@@ -5834,7 +5832,7 @@ def t_err_02(dut: Dut):
         dut.cmd("switchApp 0")                 # back to Spotify
         time.sleep(0.4)
         back = _get_active_error(dut)          # active true again (state survived)
-        dut.cmd("set backoff 0"); dut.cmd("set lastHttp 200")
+        dut.cmd("set lastHttp 200")            # restore
     _restore_spotify(dut)
     ok = (before.get("active") is True
           and away.get("active") is False and away.get("spotifyAuthError") is True
@@ -5864,6 +5862,28 @@ def t_err_04(dut: Dut):
         pass_("T-ERR-04", "connecting true at boot (amber), false after first success (green)")
     else:
         fail("T-ERR-04", f"boot={boot} connected={conn}")
+
+def t_err_05(dut: Dut):
+    """T-ERR-05 (regression): a touch must not clear the 403 error. authError is keyed on the
+    last HTTP status, not s_consecutiveFailures, so resetBackoff() (called on every touch via
+    appHandleInput) must NOT knock the red bar back to amber."""
+    print("T-ERR-05  authError survives backoff reset (touch decoupling)")
+    if not _restore_spotify(dut):
+        skip("T-ERR-05", "could not restore Spotify"); return
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    with _bgpoll_suspended(dut):
+        dut.cmd("set lastHttp 403")
+        err = _get_active_error(dut)
+        # `set backoff 0` is exactly what a touch does (resetBackoff()).
+        dut.cmd("set backoff 0")
+        after_reset = _get_active_error(dut)
+        dut.cmd("set lastHttp 200")   # restore
+    ok = (err.get("spotifyAuthError") is True
+          and after_reset.get("spotifyAuthError") is True)
+    if ok:
+        pass_("T-ERR-05", "403 error held across backoff reset (touch-immune)")
+    else:
+        fail("T-ERR-05", f"err={err} after_reset={after_reset}")
 
 
 ALL_TESTS = {
@@ -6041,6 +6061,7 @@ ALL_TESTS = {
     "T-ERR-01": t_err_01,
     "T-ERR-02": t_err_02,
     "T-ERR-04": t_err_04,
+    "T-ERR-05": t_err_05,
 }
 
 def main():

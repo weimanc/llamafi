@@ -1307,7 +1307,7 @@ features:
       - app-registry-001
       - taskbar-icons-001
       - poll-001
-    test_ids: [T-ERR-01, T-ERR-02, T-ERR-03, T-ERR-04]
+    test_ids: [T-ERR-01, T-ERR-02, T-ERR-03, T-ERR-04, T-ERR-05]
     dependencies:
       - app-registry-001
     notes: |

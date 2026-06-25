@@ -4026,10 +4026,10 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Type**: integration
 - **Feature(s)**: app-error-signal-001
 - **Interaction**: X020
-- **Objective**: `SpotifyApp::hasError()` (via `spotifyTask::authError()`) trips on a persistent 403 and self-clears on the next successful poll, driving the active-slot indicator state.
+- **Objective**: `SpotifyApp::hasError()` (via `spotifyTask::authError()`) trips on a 403 poll (one is enough) and self-clears on the next successful (200/204) poll, driving the active-slot indicator state.
 - **Preconditions**: DUT on `cyd2usb_winamp_debug`; Spotify is the active app; bgPoll suspended (so a real cadence poll cannot overwrite the injected status mid-test).
-- **Steps**: (1) `set lastHttp 200` + `set backoff 0`; `get activeError` → baseline. (2) `set lastHttp 403` + `set backoff 2` (synthesises a persistent 403); `get activeError`. (3) `set backoff 0` (simulates a recovered poll); `get activeError`. (4) `set lastHttp 200`; resume bgPoll.
-- **Expected result**: baseline `{active:false, spotifyAuthError:false}`; after injection `{active:true, spotifyAuthError:true}`; after reset `{active:false, spotifyAuthError:false}`.
+- **Steps**: (1) `set lastHttp 200`; `get activeError` → baseline. (2) `set lastHttp 403`; `get activeError`. (3) `set lastHttp 200` (recovered poll); `get activeError`. (4) resume bgPoll.
+- **Expected result**: baseline `{active:false, spotifyAuthError:false}`; after 403 `{active:true, spotifyAuthError:true}`; after 200 `{active:false, spotifyAuthError:false}`.
 - **Status**: passing
 
 ### T-ERR-02 — [app-error-signal-001, TASK-245] Error is active-only and survives app-switch away/back
@@ -4063,6 +4063,17 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Preconditions**: DUT on `cyd2usb_winamp_debug`; Spotify active; bgPoll suspended.
 - **Steps**: (1) `set lastHttp 200` + `set backoff 0` + `set lastOkMs 0` (no error, no success yet = boot); `get activeError`. (2) `set lastOkMs 1` (first success); `get activeError`. (3) restore: resume bgPoll.
 - **Expected result**: step 1 `{connecting:true, spotifyAuthError:false}` (amber at boot); step 2 `{connecting:false}` (green once connected).
+- **Status**: passing
+
+### T-ERR-05 — [app-error-signal-001, TASK-245] A touch must not clear the 403 error (backoff decoupling)
+
+- **Type**: integration
+- **Feature(s)**: app-error-signal-001
+- **Interaction**: X020
+- **Objective**: `authError()` is keyed on the last HTTP status, not `s_consecutiveFailures`, so `resetBackoff()` — called on every touch via `appHandleInput` — must not knock the red bar back to amber. Regression guard for the touch-coupling bug found 2026-06-25.
+- **Preconditions**: DUT on `cyd2usb_winamp_debug`; Spotify active; bgPoll suspended.
+- **Steps**: (1) `set lastHttp 403`; `get activeError`. (2) `set backoff 0` (exactly what a touch's `resetBackoff()` does); `get activeError`. (3) `set lastHttp 200` (restore); resume bgPoll.
+- **Expected result**: `spotifyAuthError:true` in both step 1 and step 2 (error held across the backoff reset).
 - **Status**: passing
 
 ---

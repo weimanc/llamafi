@@ -1249,13 +1249,22 @@ Precedence is now **error (red) > busy|connecting (amber) > idle (green)**; busy
 collapse to amber (no new constant). Loop re-render + `get activeError` extended for connecting.
 ADR-046 amended. DUT (live 403): boot `connecting:true` (amber) → `authError:true` (red).
 
-**VE (TASK-245, 2026-06-25):** test_plan T-ERR-01/02/03/04 + serialdbg
-`t_err_01`/`t_err_02`/`t_err_04` (`set lastHttp` / `set lastOkMs` injectors for determinism).
-- **T-ERR-01** (X020) detection + self-clear — **PASS** on DUT.
+**Amendment 2 (2026-06-25) — responsiveness + flap/touch fixes (DUT-driven).** Measured the
+original `authError = lastHttpStatus==403 && consecutiveFailures>=2`: red took **~31 s** AND a
+touch (`resetBackoff()` zeroes `consecutiveFailures`) knocked it back to amber. A first retry
+keyed on instantaneous `lastHttpStatus==403` **flapped** (a wedged session alternates 403/-1).
+Final: a sticky `s_authErrorLatched` — set on any 403 poll, cleared only on a real 200/204,
+untouched by -1 blips and by `resetBackoff()`. DUT: clean amber → red at **~13 s**, stable red,
+touch-immune (the `set lastHttp` injector applies the same latch rule).
+
+**VE (TASK-245, 2026-06-25):** test_plan T-ERR-01/02/03/04/05 + serialdbg
+`t_err_01/02/04/05` (`set lastHttp` / `set lastOkMs` injectors for determinism).
+- **T-ERR-01** (X020) 403 → red, 200 → clear — **PASS** on DUT.
 - **T-ERR-02** (X018 active-only + X019 survives switch) — **PASS** on DUT.
 - **T-ERR-03** (X017 red render + precedence + boot-amber) — **MANUAL**, planned: no pixel
   readback, needs human visual sign-off; clear-on-recovery on a real account gated on TASK-243.
 - **T-ERR-04** (boot connecting → green on first success) — **PASS** on DUT.
+- **T-ERR-05** (403 held across backoff reset — touch-immune regression guard) — **PASS** on DUT.
 **Remaining owed:** only the T-ERR-03 visual sign-off.
 
 ---

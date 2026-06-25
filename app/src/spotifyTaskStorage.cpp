@@ -51,9 +51,13 @@ static volatile bool s_actionPending = false;
 // TASK-056f: volatile matches s_resetTlsPending pattern — single aligned
 // 32-bit store from the loop task (dbg_set "backoff") is atomic on Xtensa.
 static volatile unsigned int s_consecutiveFailures = 0;
-// TASK-245: last poll HTTP status (set in doPoll). Read by authError() to
-// drive the red taskbar error bar. Single aligned 32-bit store, atomic on Xtensa.
+// TASK-245: last poll HTTP status (set in doPoll). Single aligned 32-bit store,
+// atomic on Xtensa.
 static volatile int s_lastHttpStatus = 0;
+// TASK-245: sticky auth-error (403) latch — set on a 403 poll, cleared on a
+// 200/204. Read by authError(). Held through transient -1 blips; touch-immune
+// (not coupled to s_consecutiveFailures). See doPoll() / dbg_set("lastHttp").
+static volatile bool s_authErrorLatched = false;
 // TASK-053b: pending TLS reset flag. Set by resetTls() (loop task); read
 // and cleared at the top of each taskBody iteration (spotify task). The
 // volatile ensures the compiler does not hoist the check out of the loop.
@@ -198,14 +202,23 @@ static void doPoll() {
   heartbeat::recordPoll(status == 200 || status == 204, status);
   heartbeat::recordBlock(elapsed);
   s_lastHttpStatus = status;   // TASK-245: feed authError()
+  // TASK-245: latch the auth-error (403) state. Sticky — set on a 403, held
+  // through transient -1/timeout blips (which are NOT auth refusals), cleared
+  // only on a real success below. Keying authError() on this latch rather than
+  // the instantaneous status avoids the red bar flapping when failed polls
+  // alternate 403 / -1, and decouples it from s_consecutiveFailures (which a
+  // touch zeroes via resetBackoff()).
+  if (status == 403) s_authErrorLatched = true;
 
   if (status == 200) {
     s_consecutiveFailures = 0;
     s_lastSuccessfulPollMs = millis();
+    s_authErrorLatched = false;
     LOG_D("spotify.poll", "ok %s", httpErr(status));
   } else if (status == 204) {
     s_consecutiveFailures = 0;
     s_lastSuccessfulPollMs = millis();
+    s_authErrorLatched = false;
     songStartMillis = 0;       // 204 no track — disable interpolator
     LOG_D("spotify.poll", "204 no track");
     // TASK-043: 204 means no active device. Reset volumePercent to the -1
@@ -473,13 +486,18 @@ bool isHealthy() {
   return s_consecutiveFailures < 2;
 }
 
-// TASK-245 / ADR-046: true when the poll is in a persistent 403 state —
-// authorization refused (e.g. owner-account Premium lapsed, TASK-243). The
-// >=2 consecutive-failure guard ignores a one-off 403 so the red bar doesn't
-// flash on a transient blip. Self-clears: the next 200/204 resets
-// s_consecutiveFailures to 0. Surfaced via SpotifyApp::hasError().
+// TASK-245 / ADR-046: true while in a 403 auth-error state (e.g. owner-account
+// Premium lapsed, TASK-243). Reads the sticky s_authErrorLatched, NOT the
+// instantaneous status or s_consecutiveFailures:
+//   (a) one 403 is enough — it's a definitive auth refusal, not a transient
+//       blip (~13 s to red vs ~31 s for the old >=2-consecutive rule).
+//   (b) held through transient -1/timeout polls (which alternate with 403s on
+//       a wedged session) — keying on the live status would flap red↔green.
+//   (c) touch-immune — resetBackoff() (every touch) zeroes s_consecutiveFailures
+//       but not this latch.
+// Cleared only on a real success (200/204) in doPoll(). Via SpotifyApp::hasError().
 bool authError() {
-  return s_lastHttpStatus == 403 && s_consecutiveFailures >= 2;
+  return s_authErrorLatched;
 }
 
 // TASK-245 amendment / ADR-046: true until the *first* successful poll (200/204).
@@ -667,11 +685,15 @@ bool dbg_set(const char* var, const char* val) {
     s_bgPollEnabled = (atoi(val) != 0) ? 1 : 0;
     return true;
   }
-  // TASK-245: inject the last poll HTTP status so VE can synthesise authError()
-  // deterministically (set lastHttp 403 + set backoff 2 → true) without relying
-  // on a real account 403. Overwritten by the next real poll.
+  // TASK-245: inject a poll HTTP status so VE can drive authError()
+  // deterministically without a real account 403. Applies the same latch rule
+  // as a real poll (403 → set, 200/204 → clear), so `set lastHttp 403` → red,
+  // `set lastHttp 200` → clear. Overwritten by the next real poll.
   if (strcmp(var, "lastHttp") == 0) {
-    s_lastHttpStatus = atoi(val);
+    int s = atoi(val);
+    s_lastHttpStatus = s;
+    if (s == 403) s_authErrorLatched = true;
+    else if (s == 200 || s == 204) s_authErrorLatched = false;
     return true;
   }
   // TASK-245 amendment: inject the last-successful-poll timestamp so VE can drive
