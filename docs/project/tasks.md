@@ -934,7 +934,13 @@ Per the gate (and ADR-029 §(5)), the fallback is dead code and should be remove
 `tlsInsecure` field/`get wrLastHttp` surface (quarterly-check observability) but drop the actual
 `setInsecure()` retry branch in `fetchWebRadioStations()`. Low risk; do alongside TASK-234's
 fetch-path work to avoid a separate DUT cycle.
-**Priority:** P3 · **Status:** open · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
+**Done 2026-06-25.** Removed the `insecure` param from `fetchOneMirror()` (now `setCACert()`-only)
+and the page-0 retry branch in `fetchWebRadioStations()`; a verify/handshake failure now skips the
+mirror instead of downgrading. `tlsInsecure` field + `get wrLastHttp` surface **kept** (always
+false now; observability per the gate). Stale fallback comments in `dataTaskCerts.h` reconciled to
+the T_WR_TLS_01 finding. Host-only change (no behaviour difference on the verifying mirrors); 5/5
+gates. No DUT cycle needed — the removed path provably never executed.
+**Priority:** P3 · **Status:** done 2026-06-25 · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
 **Owner:** Developer · **Deps:** none (TASK-214 closed this gate)
 
 ---

@@ -8,13 +8,14 @@
 // COINGECKO_ROOT_CA   — ISRG Root X1 (Let's Encrypt root, expires 2035-06-04)
 //                       covers api.coingecko.com via YE1 intermediate (rotated from GTS/WE1)
 // RADIO_BROWSER_ROOT_CA — ISRG Root X1 (same cert, alias). fetchWebRadioStations()
-//                         tries setCACert() with this first; radio-browser.info is
-//                         a federation of independently-run mirrors and chain
-//                         completeness is not guaranteed on every backend, so a
-//                         setInsecure() fallback fires only on verify failure
-//                         (TASK-214). See the alias comment below for the
-//                         host-side evidence this is mirror/edge-dependent, not
-//                         universal.
+//                         pins setCACert() with this. radio-browser.info is a
+//                         federation of independently-run mirrors; the historical
+//                         worry was incomplete chains on some backend, so an
+//                         setInsecure() fallback existed (TASK-214). The
+//                         T_WR_TLS_01 gate proved it never fired across the live
+//                         mirrors, so TASK-236 removed it — a verify failure now
+//                         skips the mirror instead of downgrading. See the alias
+//                         comment below for the host-side evidence.
 //
 // Update trigger: see ADR-029 rotation table. Remediation = update PEM + reflash.
 
@@ -169,8 +170,10 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
 // ISRG Root X1) *right now* from this network — contradicting that root cause,
 // at least for this mirror/vantage point/time. radio-browser.info is a loose
 // federation of independently-run boxes, so chain completeness can plausibly
-// differ by mirror or backend instance even under one hostname. Until that's
-// resolved with certainty, fetchWebRadioStations() tries setCACert() with this
-// constant first and only falls back to setInsecure() on verify/handshake
-// failure — see ./run/check-datatask-certs for the standing host-side check.
+// differ by mirror or backend instance even under one hostname. The T_WR_TLS_01
+// gate (2026-06-24) observed the pinned setCACert() path verify on every live
+// mirror — the fallback never fired — so TASK-236 removed it: a verify/handshake
+// failure now skips the mirror rather than downgrading to an unverified session.
+// See ./run/check-datatask-certs for the standing host-side chain check that
+// guards against a mirror silently regressing.
 #define RADIO_BROWSER_ROOT_CA OPEN_METEO_ROOT_CA

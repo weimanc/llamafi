@@ -790,7 +790,7 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
 // 200, parses the response into the caller-supplied parse doc. Returns the HTTP code, or a
 // negative HTTPClient connection/handshake/verify error code, or -100 on a
 // JSON parse error after a successful 200.
-static int fetchOneMirror(const char* mirror, const char* country, bool insecure,
+static int fetchOneMirror(const char* mirror, const char* country,
                           unsigned offset, JsonDocument& doc) {
     char url[160];
     // limit= is an intentional heap mitigation (commit dafa4a4), not a bug —
@@ -803,26 +803,22 @@ static int fetchOneMirror(const char* mirror, const char* country, bool insecure
         mirror, country, (unsigned)WR_MAX_STATIONS, offset);
 
     WiFiClientSecure tls;
-    if (insecure) {
-        // Fallback only — fires when setCACert() below failed to verify.
-        // radio-browser.info station list is a public, non-sensitive API
-        // (public station URLs only); MITM risk here is a bad stream URL,
-        // minor/recoverable. See dataTaskCerts.h for why this exists.
-        tls.setInsecure();
-    } else {
-        tls.setCACert(RADIO_BROWSER_ROOT_CA);
-    }
+    // Pinned root only (ADR-029). The setInsecure() fallback was removed in
+    // TASK-236 after the T_WR_TLS_01 gate proved it never fired — a verify
+    // failure now surfaces as a connection error and the mirror is skipped,
+    // rather than being silently downgraded to an unverified session.
+    tls.setCACert(RADIO_BROWSER_ROOT_CA);
     HTTPClient http;
     http.useHTTP10(true);
     if (!http.begin(tls, url)) {
-        LOG_W("dataTask.webradio", "http.begin failed mirror=%s insecure=%d", mirror, (int)insecure);
+        LOG_W("dataTask.webradio", "http.begin failed mirror=%s", mirror);
         return -1;
     }
     http.addHeader("User-Agent", "ESPSpotify/1.0");
     unsigned long t0 = millis();
     int code = http.GET();
-    LOG_I("dataTask.webradio", "GET mirror=%s insecure=%d code=%d elapsed=%lums",
-          mirror, (int)insecure, code, (unsigned long)(millis() - t0));
+    LOG_I("dataTask.webradio", "GET mirror=%s code=%d elapsed=%lums",
+          mirror, code, (unsigned long)(millis() - t0));
     if (code != 200) {
         http.end();
         return code;
@@ -901,27 +897,18 @@ static void fetchWebRadioStations() {
 
         // Page through the votes-ordered list on this mirror, accumulating only
         // playable (http://) stations until we have WR_MAX_STATIONS or run out
-        // (TASK-232). The TLS path is decided once, on page 0: try the pinned
-        // root CA first (ADR-029); only on a connection/handshake/verify-level
-        // failure (negative code) — not a clean HTTP error like 403/404, where
-        // TLS already succeeded — fall back to setInsecure() for this mirror.
-        bool usedInsecure = false;
-        bool mirrorOk     = false;
+        // (TASK-232). TLS is the pinned root CA only (ADR-029); a verify/handshake
+        // failure (negative code) skips the mirror — the setInsecure() fallback was
+        // removed in TASK-236 (never fired at the T_WR_TLS_01 gate).
+        bool mirrorOk = false;
+        s_webRadioResult.tlsInsecure = false;  // always false now; kept for observability
         for (uint8_t page = 0; page < WR_FETCH_MAX_PAGES; page++) {
             unsigned offset = (unsigned)page * WR_MAX_STATIONS;
-            int code = fetchOneMirror(mirror, country, usedInsecure, offset, webRadioDoc);
-            if (code < 0 && page == 0 && !usedInsecure) {
-                LOG_W("dataTask.webradio", "strict TLS failed mirror=%s code=%d — retrying insecure",
-                      mirror, code);
-                usedInsecure = true;
-                code = fetchOneMirror(mirror, country, /*insecure=*/true, offset, webRadioDoc);
-            }
+            int code = fetchOneMirror(mirror, country, offset, webRadioDoc);
             s_webRadioResult.lastHttpCode = code;
-            s_webRadioResult.tlsInsecure  = usedInsecure;
             if (code != 200) {
                 if (page == 0)
-                    LOG_W("dataTask.webradio", "mirror=%s failed code=%d insecure=%d",
-                          mirror, code, (int)usedInsecure);
+                    LOG_W("dataTask.webradio", "mirror=%s failed code=%d", mirror, code);
                 break;  // page 0 → try next mirror; later page → stop, keep what we have
             }
             mirrorOk = true;
@@ -935,8 +922,8 @@ static void fetchWebRadioStations() {
             // real data — stop here regardless of how many http stations it yielded
             // rather than re-paging an equivalent mirror.
             s_webRadioResult.ok = (s_webRadioResult.count > 0);
-            LOG_I("dataTask.webradio", "ok mirror=%s country=%s count=%u insecure=%d",
-                  mirror, country, s_webRadioResult.count, (int)usedInsecure);
+            LOG_I("dataTask.webradio", "ok mirror=%s country=%s count=%u",
+                  mirror, country, s_webRadioResult.count);
             break;
         }
     }

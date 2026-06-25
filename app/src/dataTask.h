@@ -87,8 +87,11 @@ struct WebRadioStationsResult {
     uint8_t count        = 0;
     char    countryCode[4] = {};
     char    jsonErr[24]  = {};
-    bool    tlsInsecure  = false;  // true if setCACert() chain build failed and the
-                                    // fetch fell back to setInsecure() (TASK-214)
+    bool    tlsInsecure  = false;  // always false since TASK-236 removed the setInsecure()
+                                    // fallback (ADR-029 gate at T_WR_TLS_01 proved it never
+                                    // fired). Field kept as a quarterly-check observability
+                                    // surface (get wrLastHttp) — flips only if pinning ever
+                                    // regresses, which it can no longer silently do.
     WebRadioStation stations[WR_MAX_STATIONS];
 };
 
