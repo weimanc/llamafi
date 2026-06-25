@@ -1661,7 +1661,18 @@ exist after in-app navigation (`main.cpp:1322-1361`); that is almost certainly w
 Chart with an empty symbol. So the real options are (1) implement launch-into-Chart/
 Heatmap with proper precondition handling (needs DUT visual verify), or (2) remove the
 toggle. Not blind-wired. Genuine product+design call.
-**Priority:** P2 — user-visible broken UI · **Status:** implemented — unverified (2026-06-21). Product call: **implement** (wire it up). New `_applyLaunchView()` honours `g_settings.stockMode` by reusing the existing `drillToChart(0)` / `enterHeatmap()` entry helpers (so the Chart selected-ticker + fetch and the Heatmap fetch preconditions are set up exactly as in-app navigation does — Chart launches on the first configured ticker). Honoured on first `init()` and on `resume()` **only when the setting changed since last applied** (`_appliedMode` cache), so the toggle now takes effect on the realistic flow (change in Settings → reopen Stock) while preserving in-session drill nav otherwise. Default-List users see zero change. 5/5 gates. **DUT visual sign-off owed**: confirm launching into Chart/Heatmap renders correctly (esp. before data arrives) and the back-nav base is List. · **Owner:** Developer · **Deps:** none
+**Priority:** P2 — user-visible broken UI · **Status:** implemented — unverified (2026-06-21). Product call: **implement** (wire it up). New `_applyLaunchView()` honours `g_settings.stockMode` by reusing the existing `drillToChart(0)` / `enterHeatmap()` entry helpers (so the Chart selected-ticker + fetch and the Heatmap fetch preconditions are set up exactly as in-app navigation does — Chart launches on the first configured ticker). Honoured on first `init()` and on `resume()` **only when the setting changed since last applied** (`_appliedMode` cache), so the toggle now takes effect on the realistic flow (change in Settings → reopen Stock) while preserving in-session drill nav otherwise. Default-List users see zero change. 5/5 gates. · **Owner:** Developer · **Deps:** none
+
+**DONE — DUT-verified 2026-06-25 (T231 PASS; 1 passed / 0 failed / 0 skipped).** New regression test
+**T231** (`run_serialdbg_tests.py`) drives `set stockMode 1/2/0`, re-enters Stock, and asserts the
+launch sub-view each time: **Chart launches with a non-empty ticker** (`AAPL` — directly retires the
+"Chart with empty symbol" concern that the investigation flagged), **Heatmap launches**, **List
+launches**, and **List is the back-nav base** for both detail views (chart back `(10,7)` → list;
+heatmap back `(260,7)` → list). Spotify-independent (switchApp + in-RAM `stockMode` only), so it runs
+green without Premium. The remaining "renders correctly before data arrives" is now covered in
+substance — entering Chart/Heatmap pre-fetch no longer crashes and the precondition (ticker/dataset)
+is set — so no separate human visual sign-off is owed.
+**Status:** done — DUT-verified 2026-06-25 (was implemented-unverified)
 
 ---
 

@@ -2584,6 +2584,107 @@ def t184(dut: Dut):
     pass_("T184", "back tap works while fetchFailed=1 in chart view; returned to list")
 
 
+# ── T231 — Settings → Stock "mode" launch view (TASK-231) ─────────────────────
+
+def _enter_stock_no_force(dut: Dut, timeout: float = 5.0) -> bool:
+    """switchApp → Stock WITHOUT forcing stockMode (unlike _switch_to_stock, which
+    pins mode 0). Lets resume()/_applyLaunchView() honour the mode set just prior."""
+    r = dut.cmd(f"switchApp {_STOCK_APP_ID}", timeout=timeout)
+    if not r.get("ok"):
+        return False
+    time.sleep(0.4)  # let resume() → _applyLaunchView() run + first paint
+    r2 = dut.cmd("get appId", timeout=timeout)
+    return r2.get("ok", False) and r2.get("name") == "Stock"
+
+
+def t231(dut: Dut):
+    """T231: Settings → Stock "mode" (List/Chart/Heatmap) is honoured at launch.
+
+    Regression for the wired-up _applyLaunchView() (was: init() hardcoded List, so
+    the Settings toggle did nothing). Drives stockMode 1/2/0 then re-enters Stock
+    and asserts the launch sub-view. Also asserts the launch-into-Chart symbol is
+    non-empty (the original concern: Chart launched with an empty ticker) and that
+    List is the back-navigation base for both detail views. No Spotify/network
+    needed — switchApp + in-RAM stockMode only. TASK-231 / BP-034.
+    """
+    tid = "T231"
+    print(f"{tid}  Settings → Stock mode launch view (List/Chart/Heatmap)")
+
+    # Clean List baseline (this also init()s the app and sets _appliedMode=List).
+    if not _switch_to_stock(dut):
+        skip(tid, "could not switch to Stock for baseline")
+        _restore_from_stock(dut)
+        return
+
+    # ── Chart launch ──────────────────────────────────────────────────────────
+    _restore_from_stock(dut)                     # leave on List → go to Spotify
+    dut.cmd("set stockMode 1", timeout=3.0)      # Chart
+    if not _enter_stock_no_force(dut):
+        fail(tid, "switchApp Stock failed (Chart case)")
+        return
+    sv = _stock_get(dut, "stockSubView").get("val")
+    if sv != "chart":
+        fail(tid, f"stockMode=Chart but launched stockSubView={sv!r} (expected chart)")
+        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=3.0)
+        return
+    tk = _stock_get(dut, "stockChartTicker").get("val", "")
+    if not tk:
+        fail(tid, "Chart launched with EMPTY ticker — drillToChart(0) precondition not met")
+        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=3.0)
+        return
+    print(f"  [T231] Chart launch ✓ (ticker={tk!r})")
+    # back-nav base must be List
+    dut.set_cooldown_zero()
+    dut.cmd("tap 10 7", timeout=3.0)             # chart back zone
+    time.sleep(0.25)
+    sv = _stock_get(dut, "stockSubView").get("val")
+    if sv != "list":
+        fail(tid, f"Chart back-nav base = {sv!r} (expected list)")
+        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=3.0)
+        return
+    print(f"  [T231] Chart → back → list ✓")
+
+    # ── Heatmap launch ────────────────────────────────────────────────────────
+    _restore_from_stock(dut)                     # leave on List
+    dut.cmd("set stockMode 2", timeout=3.0)      # Heatmap
+    if not _enter_stock_no_force(dut):
+        fail(tid, "switchApp Stock failed (Heatmap case)")
+        return
+    sv = _stock_get(dut, "stockSubView").get("val")
+    if sv != "heatmap":
+        fail(tid, f"stockMode=Heatmap but launched stockSubView={sv!r} (expected heatmap)")
+        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=3.0)
+        return
+    print(f"  [T231] Heatmap launch ✓")
+    dut.set_cooldown_zero()
+    dut.cmd("tap 260 7", timeout=3.0)            # heatmap back zone (x>190, y<ST_LIST_RULE_Y=22)
+    time.sleep(0.25)
+    sv = _stock_get(dut, "stockSubView").get("val")
+    if sv != "list":
+        fail(tid, f"Heatmap back-nav base = {sv!r} (expected list)")
+        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=3.0)
+        return
+    print(f"  [T231] Heatmap → back → list ✓")
+
+    # ── List launch (explicit, no-op default) ─────────────────────────────────
+    _restore_from_stock(dut)
+    dut.cmd("set stockMode 0", timeout=3.0)      # List
+    if not _enter_stock_no_force(dut):
+        fail(tid, "switchApp Stock failed (List case)")
+        return
+    sv = _stock_get(dut, "stockSubView").get("val")
+    if sv != "list":
+        fail(tid, f"stockMode=List but launched stockSubView={sv!r} (expected list)")
+        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=3.0)
+        return
+    print(f"  [T231] List launch ✓")
+
+    # Restore default + leave Stock.
+    dut.cmd("set stockMode 0", timeout=3.0)
+    _restore_from_stock(dut)
+    pass_(tid, "stockMode honoured at launch: Chart(ticker set)/Heatmap/List; List is back-nav base")
+
+
 # ── T185 — Error clears on successful fetch ───────────────────────────────────
 
 def t185(dut: Dut):
@@ -6005,6 +6106,7 @@ ALL_TESTS = {
     "T182": t182,
     "T183": t183,
     "T184": t184,
+    "T231": t231,   # TASK-231: Settings → Stock mode launch view
     "T185": t185,
     "T186": t186,
     "T187": t187,
