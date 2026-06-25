@@ -135,6 +135,10 @@ bool isHealthy();
 // the next successful (200/204) poll. Safe to call from the loop task.
 bool authError();
 
+// TASK-245 amendment / ADR-046: true until the first successful poll — drives the
+// amber "connecting" taskbar state at boot. Latches false on first 200/204.
+bool connecting();
+
 // TASK-053b: schedule a hard TLS reset. Sets a pending flag; the spotify
 // task detects it at the top of its next iteration and calls client.stop()
 // on its own stack (avoids cross-task mbedTLS races). Also zeroes the

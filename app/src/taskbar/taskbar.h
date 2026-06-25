@@ -42,10 +42,11 @@ static_assert(TASKBAR_ICON_COUNT == TASKBAR_APP_COUNT,
 // Call when busy state changes; renderTaskbar() delegates to this internally.
 inline void renderActiveIndicator(TFT_eSPI& tft, AppId activeApp,
                                   int scrollOffset, int totalApps, bool busy,
-                                  bool error = false) {
-    // TASK-245 / ADR-046: tri-state precedence — error (red) > busy (amber) > idle (green).
+                                  bool error = false, bool connecting = false) {
+    // TASK-245 / ADR-046: precedence error (red) > busy|connecting (amber) > idle (green).
+    // busy and connecting both read amber (work in flight / not yet resolved).
     uint16_t col = error ? TASKBAR_ERR_COLOR
-                         : (busy ? TASKBAR_BUSY_COLOR : TASKBAR_ACTIVE_COLOR);
+                         : ((busy || connecting) ? TASKBAR_BUSY_COLOR : TASKBAR_ACTIVE_COLOR);
     for (int i = 0; i < TASKBAR_SLOT_COUNT; ++i) {
         int appIdx = (scrollOffset + i) % totalApps;
         if (appIdx == (int)activeApp) {
@@ -58,7 +59,7 @@ inline void renderActiveIndicator(TFT_eSPI& tft, AppId activeApp,
 
 inline void renderTaskbar(TFT_eSPI& tft, AppId activeApp,
                            int scrollOffset, int totalApps, bool busy = false,
-                           bool error = false) {
+                           bool error = false, bool connecting = false) {
     tft.fillRect(TASKBAR_X, 0, TASKBAR_W, 240, TASKBAR_BG_RGB565);
 
     static constexpr int iconOffX = (TASKBAR_W - TASKBAR_ICON_BAKED_W) / 2;
@@ -84,5 +85,5 @@ inline void renderTaskbar(TFT_eSPI& tft, AppId activeApp,
                           TASKBAR_ICON_BAKED_W, TASKBAR_ICON_BAKED_H,
                           icon);
     }
-    renderActiveIndicator(tft, activeApp, scrollOffset, totalApps, busy, error);
+    renderActiveIndicator(tft, activeApp, scrollOffset, totalApps, busy, error, connecting);
 }

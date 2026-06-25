@@ -20,9 +20,16 @@ struct App {
     // (an auth/HTTP failure that won't self-heal by retrying — e.g. a Spotify 403).
     // Sticky: the app sets it on detection and clears it on the next success; the
     // shell does no latching, it only reads this to colour the taskbar active-slot
-    // indicator red (precedence error > busy > idle). Safe default = false, so
-    // offline apps need not override.
+    // indicator red (precedence error > busy/connecting > idle). Safe default =
+    // false, so offline apps need not override.
     virtual bool hasError() const { return false; }
+    // TASK-245 amendment / ADR-046: return true while the app is establishing its
+    // data connection and has no result yet (e.g. before the first Spotify poll
+    // resolves). Renders the active-slot indicator amber (working) — so the bar
+    // reads amber at boot rather than green (false "all-good") until we know the
+    // state. Amber here collapses with the busy state; error (red) still wins.
+    // Safe default = false.
+    virtual bool isConnecting() const { return false; }
     virtual ~App() = default;
 };
 

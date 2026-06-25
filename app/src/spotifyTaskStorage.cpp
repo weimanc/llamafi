@@ -482,6 +482,15 @@ bool authError() {
   return s_lastHttpStatus == 403 && s_consecutiveFailures >= 2;
 }
 
+// TASK-245 amendment / ADR-046: true until the *first* successful poll (200/204).
+// Drives the amber "connecting" taskbar state at boot, so the bar reads amber
+// (working) rather than green (all-good) before we know the connection state.
+// Latches false on the first success and stays false (subsequent failures show
+// red via authError(), recoveries show green — never amber-connecting again).
+bool connecting() {
+  return s_lastSuccessfulPollMs == 0;
+}
+
 void resetTls() {
   s_consecutiveFailures = 0;
   s_resetTlsPending = true;
@@ -663,6 +672,13 @@ bool dbg_set(const char* var, const char* val) {
   // on a real account 403. Overwritten by the next real poll.
   if (strcmp(var, "lastHttp") == 0) {
     s_lastHttpStatus = atoi(val);
+    return true;
+  }
+  // TASK-245 amendment: inject the last-successful-poll timestamp so VE can drive
+  // connecting() deterministically (set lastOkMs 0 → connecting true [boot amber];
+  // set lastOkMs 1 → connecting false [connected]). Overwritten by the next real poll.
+  if (strcmp(var, "lastOkMs") == 0) {
+    s_lastSuccessfulPollMs = (unsigned long)strtoul(val, nullptr, 10);
     return true;
   }
   return false;

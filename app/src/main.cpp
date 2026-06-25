@@ -187,6 +187,11 @@ public:
   bool hasError() const override {
     return spotifyTask::authError();
   }
+  // TASK-245 amendment / ADR-046: amber "connecting" bar at boot until the first
+  // poll resolves (then green on success, red on persistent 403).
+  bool isConnecting() const override {
+    return spotifyTask::connecting();
+  }
   void tick() override {
     {
       static unsigned long _lastScrollMs = 0;
@@ -1688,10 +1693,15 @@ static constexpr unsigned long SHELL_BUSY_TIMEOUT_MS = 3000;
 
 namespace shell {
 // TASK-245 / ADR-046: error state of the currently-active app — drives the red
-// active-bar (precedence error > busy > idle). Owned by the app instance, so it
-// survives app switch and is re-read on every repaint.
+// active-bar (precedence error > busy/connecting > idle). Owned by the app
+// instance, so it survives app switch and is re-read on every repaint.
 inline bool activeError() {
     return g_apps[(int)currentAppId] && g_apps[(int)currentAppId]->hasError();
+}
+// TASK-245 amendment / ADR-046: connecting state of the active app — amber bar
+// until the app's first data result resolves (boot reads amber, not green).
+inline bool activeConnecting() {
+    return g_apps[(int)currentAppId] && g_apps[(int)currentAppId]->isConnecting();
 }
 // Sets busy flag and immediately repaints only the active-slot indicator.
 void setBusy(bool busy) {
@@ -1699,7 +1709,7 @@ void setBusy(bool busy) {
     if (busy) g_shellBusySetMs = millis();
     renderActiveIndicator(tft, currentAppId,
                           winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
-                          busy, activeError());
+                          busy, activeError(), activeConnecting());
 }
 }
 
@@ -1733,7 +1743,7 @@ void switchApp(AppId next) {
     (unsigned long)ESP.getMinFreeHeap());
 #endif
   renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
-                false, shell::activeError());
+                false, shell::activeError(), shell::activeConnecting());
 }
 
 void appHandleInput(AppId) {
@@ -1754,7 +1764,7 @@ void appHandleInput(AppId) {
         if (winampDisplay.tbGestureContinue(p.y, TASKBAR_APP_COUNT))
           renderTaskbar(tft, currentAppId,
                         winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
-                        false, shell::activeError());
+                        false, shell::activeError(), shell::activeConnecting());
       } else {
         winampDisplay.tbGesturePress(p.y);
       }
@@ -2044,7 +2054,7 @@ void setup()
     spotifyDisplay->showDefaultScreen();
   }
   renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
-                false, shell::activeError());
+                false, shell::activeError(), shell::activeConnecting());
   if (!wifiConnected) {
     switchApp(AppId::Settings);
     g_SettingsApp.openSection(0);
@@ -2135,7 +2145,7 @@ static inline void drainInjectionQueue() {
       if (winampDisplay.tbGestureEnd(s_lastTouchY, TASKBAR_APP_COUNT, &appIdx))
         if (appIdx != (int)currentAppId) switchApp(static_cast<AppId>(appIdx));
       renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
-                false, shell::activeError());
+                false, shell::activeError(), shell::activeConnecting());
     } else {
       winampDisplay.handleWinampInput(TouchPhase::Release, 0, 0);
     }
@@ -2156,7 +2166,7 @@ static inline void drainInjectionQueue() {
       } else {
         if (winampDisplay.tbGestureContinue(step.sy, TASKBAR_APP_COUNT))
           renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
-                false, shell::activeError());
+                false, shell::activeError(), shell::activeConnecting());
       }
     } else if (s_injectIsFirst) {
       winampDisplay.handleWinampInput(TouchPhase::Press, step.sx, step.sy);
@@ -2385,13 +2395,18 @@ static void cmdGet(const char *args) {
     return;
   }
   if (strcmp(args, "activeError") == 0) {
-    // TASK-245 / ADR-046: active app's error state (drives red active-bar) +
-    // the Spotify auth-error source so VE can assert the 403 → red path.
+    // TASK-245 / ADR-046: active app's error + connecting state (drive the
+    // red / amber active-bar) + the Spotify sources so VE can assert the
+    // boot-amber → green/red path.
     bool ae = g_apps[(int)currentAppId] && g_apps[(int)currentAppId]->hasError();
+    bool ac = g_apps[(int)currentAppId] && g_apps[(int)currentAppId]->isConnecting();
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\","
-                  "\"active\":%s,\"spotifyAuthError\":%s,\"last\":true}\n",
+                  "\"active\":%s,\"connecting\":%s,"
+                  "\"spotifyAuthError\":%s,\"spotifyConnecting\":%s,\"last\":true}\n",
                   ae ? "true" : "false",
-                  spotifyTask::authError() ? "true" : "false");
+                  ac ? "true" : "false",
+                  spotifyTask::authError() ? "true" : "false",
+                  spotifyTask::connecting() ? "true" : "false");
     return;
   }
   if (strcmp(args, "stacks") == 0) {
@@ -2664,18 +2679,22 @@ void loop()
       shell::setBusy(false);
 
   // TASK-245 / ADR-046: repaint the active-slot indicator when the active app's
-  // error state changes asynchronously (e.g. a Spotify 403 arriving between taps,
-  // or clearing on a recovered poll). Edge-triggered to avoid per-frame redraws;
-  // precedence error > busy > idle is resolved inside renderActiveIndicator.
+  // error OR connecting state changes asynchronously (e.g. a Spotify 403 arriving
+  // between taps, or the first poll resolving boot amber → green). Edge-triggered
+  // to avoid per-frame redraws; precedence error > busy/connecting > idle is
+  // resolved inside renderActiveIndicator.
   {
-    static bool  s_errShown = false;
-    static AppId s_errApp   = AppId::COUNT;
-    bool err = shell::activeError();
-    if (err != s_errShown || currentAppId != s_errApp) {
-      s_errShown = err;
-      s_errApp   = currentAppId;
+    static bool  s_errShown  = false;
+    static bool  s_connShown = false;
+    static AppId s_errApp    = AppId::COUNT;
+    bool err  = shell::activeError();
+    bool conn = shell::activeConnecting();
+    if (err != s_errShown || conn != s_connShown || currentAppId != s_errApp) {
+      s_errShown  = err;
+      s_connShown = conn;
+      s_errApp    = currentAppId;
       renderActiveIndicator(tft, currentAppId, winampDisplay.tbScrollOffset(),
-                            TASKBAR_APP_COUNT, g_shellBusy, err);
+                            TASKBAR_APP_COUNT, g_shellBusy, err, conn);
     }
   }
 

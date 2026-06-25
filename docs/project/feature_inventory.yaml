@@ -1284,12 +1284,15 @@ features:
       renderActiveIndicator) shows green (TASKBAR_ACTIVE_COLOR 0x07E0, idle) or amber
       (TASKBAR_BUSY_COLOR 0xFD20, g_shellBusy). This adds red (TASKBAR_ERR_COLOR 0xF800,
       firmware-only #define — NOT in shell_layout.h, to preserve the check_build golden hash)
-      for a sustained error state, with precedence error > busy > idle.
-      Endpoint: virtual bool App::hasError() const { return false; } (appShell.h), sibling of
-      hasPendingAsync(). Sticky — app sets on error, clears on next success; shell does no
-      latching. First/only consumer at mechanism stage: SpotifyApp::hasError() on a persistent
-      403 poll status (lastHttpRef() / spotifyTaskStorage.cpp:193-195). All other apps wired in
-      the TASK-246 fan-out; offline apps keep default false.
+      for a sustained error state, plus an amber "connecting" state at boot (ADR-046 amendment),
+      with precedence error (red) > busy|connecting (amber) > idle (green).
+      Endpoints (both sibling of hasPendingAsync(), default false): virtual bool App::hasError()
+      and virtual bool App::isConnecting() (appShell.h). Sticky — app sets on error, clears on
+      next success; shell does no latching. First/only consumer at mechanism stage:
+      SpotifyApp::hasError() on a persistent 403 (spotifyTask::authError()) and
+      SpotifyApp::isConnecting() until the first poll resolves (spotifyTask::connecting(),
+      s_lastSuccessfulPollMs==0). All other apps wired in the TASK-246 fan-out; offline apps
+      keep both defaults false.
       Accepted limitation (ADR-046 §4): recolours the ACTIVE app's bar only — an app's error is
       visible only while it is the active app (no persistent per-slot dot). 403 starvation
       (TASK-244) makes other apps slow not failed, so they go red only on a genuine fetch error.
@@ -1304,7 +1307,7 @@ features:
       - app-registry-001
       - taskbar-icons-001
       - poll-001
-    test_ids: [T-ERR-01, T-ERR-02, T-ERR-03]
+    test_ids: [T-ERR-01, T-ERR-02, T-ERR-03, T-ERR-04]
     dependencies:
       - app-registry-001
     notes: |

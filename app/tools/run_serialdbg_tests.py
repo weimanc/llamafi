@@ -5844,6 +5844,27 @@ def t_err_02(dut: Dut):
     else:
         fail("T-ERR-02", f"before={before} away={away} back={back}")
 
+def t_err_04(dut: Dut):
+    """T-ERR-04 (boot amber): connecting true before the first poll resolves, false
+    after the first success — independent of error state."""
+    print("T-ERR-04  connecting (boot amber) latches false on first success")
+    if not _restore_spotify(dut):
+        skip("T-ERR-04", "could not restore Spotify"); return
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    with _bgpoll_suspended(dut):
+        # No error, no successful poll yet → boot/connecting.
+        dut.cmd("set lastHttp 200"); dut.cmd("set backoff 0"); dut.cmd("set lastOkMs 0")
+        boot = _get_active_error(dut)
+        # Simulate the first successful poll → connected.
+        dut.cmd("set lastOkMs 1")
+        conn = _get_active_error(dut)
+    ok = (boot.get("connecting") is True and boot.get("spotifyAuthError") is False
+          and conn.get("connecting") is False)
+    if ok:
+        pass_("T-ERR-04", "connecting true at boot (amber), false after first success (green)")
+    else:
+        fail("T-ERR-04", f"boot={boot} connected={conn}")
+
 
 ALL_TESTS = {
     "T077": t077,
@@ -6019,6 +6040,7 @@ ALL_TESTS = {
     # app-error-signal-001 — red taskbar active-bar (TASK-245 / ADR-046)
     "T-ERR-01": t_err_01,
     "T-ERR-02": t_err_02,
+    "T-ERR-04": t_err_04,
 }
 
 def main():

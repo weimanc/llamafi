@@ -4051,8 +4051,19 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Objective**: The active-slot indicator actually paints **red** on a sustained error, and red wins over amber when the app is simultaneously busy (precedence error > busy > idle). Not serial-automatable — no pixel readback.
 - **Preconditions**: DUT (prod or debug); a real or injected Spotify 403 (e.g. `set lastHttp 403` + `set backoff 2` on debug), Spotify the active app.
 - **Steps**: (1) Observe the Spotify slot's 3 px active bar with an error present. (2) Trigger a user action (busy) while the error holds and observe the bar. (3) Clear the error (recovered poll / `set backoff 0`) and observe.
-- **Expected result**: (1) bar is **red** while errored; (2) bar **stays red** during busy (red > amber); (3) bar returns to **green** (or amber if still busy) once the error clears.
+- **Expected result**: (1) bar is **red** while errored; (2) bar **stays red** during busy (red > amber); (3) bar returns to **green** (or amber if still busy) once the error clears. Also confirm at **boot** the bar is **amber** (connecting), not green, until the first poll resolves (see T-ERR-04).
 - **Status**: planned (owed — needs human visual sign-off; clear-on-recovery on a real account is gated on TASK-243)
+
+### T-ERR-04 — [app-error-signal-001, TASK-245] Connecting (boot amber) latches false on first success
+
+- **Type**: integration
+- **Feature(s)**: app-error-signal-001
+- **Interaction**: X020
+- **Objective**: `SpotifyApp::isConnecting()` (via `spotifyTask::connecting()`) is true until the first successful poll — so the active bar reads **amber** at boot rather than green — and latches false on the first 200/204.
+- **Preconditions**: DUT on `cyd2usb_winamp_debug`; Spotify active; bgPoll suspended.
+- **Steps**: (1) `set lastHttp 200` + `set backoff 0` + `set lastOkMs 0` (no error, no success yet = boot); `get activeError`. (2) `set lastOkMs 1` (first success); `get activeError`. (3) restore: resume bgPoll.
+- **Expected result**: step 1 `{connecting:true, spotifyAuthError:false}` (amber at boot); step 2 `{connecting:false}` (green once connected).
+- **Status**: passing
 
 ---
 

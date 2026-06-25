@@ -1240,11 +1240,22 @@ TASK-244 (Spotify 403 detection), app-registry-001 / taskbar-icons-001
 - **DUT (live 403):** `get activeError` → `active:true, spotifyAuthError:true` while Spotify
   active; `run/check` 5/5.
 
-**VE (TASK-245, 2026-06-25):** test_plan T-ERR-01/02/03 + serialdbg `t_err_01`/`t_err_02`.
+**Amendment (2026-06-25) — boot reads amber, not green.** DUT showed the bar **green** at boot
+until the first ≥2 403s tripped `hasError()` (poll latency + backoff) — a false "all-good"
+before the connection state is known. Added a **connecting** state (amber) via a second
+base-class endpoint `App::isConnecting()` (default false); `SpotifyApp::isConnecting()` →
+`spotifyTask::connecting()` (`s_lastSuccessfulPollMs == 0`, latches false on first 200/204).
+Precedence is now **error (red) > busy|connecting (amber) > idle (green)**; busy+connecting
+collapse to amber (no new constant). Loop re-render + `get activeError` extended for connecting.
+ADR-046 amended. DUT (live 403): boot `connecting:true` (amber) → `authError:true` (red).
+
+**VE (TASK-245, 2026-06-25):** test_plan T-ERR-01/02/03/04 + serialdbg
+`t_err_01`/`t_err_02`/`t_err_04` (`set lastHttp` / `set lastOkMs` injectors for determinism).
 - **T-ERR-01** (X020) detection + self-clear — **PASS** on DUT.
 - **T-ERR-02** (X018 active-only + X019 survives switch) — **PASS** on DUT.
-- **T-ERR-03** (X017 red render + precedence) — **MANUAL**, planned: no pixel readback, needs
-  human visual sign-off; clear-on-recovery on a real account gated on TASK-243.
+- **T-ERR-03** (X017 red render + precedence + boot-amber) — **MANUAL**, planned: no pixel
+  readback, needs human visual sign-off; clear-on-recovery on a real account gated on TASK-243.
+- **T-ERR-04** (boot connecting → green on first success) — **PASS** on DUT.
 **Remaining owed:** only the T-ERR-03 visual sign-off.
 
 ---
