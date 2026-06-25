@@ -43,6 +43,12 @@ import urllib.request
 SYMBOLS = ["AAPL", "AMD", "AMZN", "ARM", "GOOG", "META", "MSFT", "NVDA"]
 
 CHART_URL_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/"
+SPARK_URL_BASE = "https://query1.finance.yahoo.com/v8/finance/spark?symbols="
+
+# TASK-249: the list view fetches ALL tickers in one multi-symbol spark request
+# (was 8 sequential chart GETs ≈ 16 s → 1 ≈ 2 s). Firmware filters {chartPreviousClose,
+# close} per symbol into StaticJsonDocument<1536>; price = last non-null close[].
+SPARK_DOC_BYTES = 1536  # dataTaskStorage.cpp fetchStockQuote() spark doc
 
 # Quote doc limit — dataTaskStorage.cpp fetchStockQuote() uses a JSON filter that
 # extracts only regularMarketPrice + chartPreviousClose before ArduinoJson allocates
@@ -230,6 +236,42 @@ def check_chart_ranges(chart_symbol):
     return all_ok_04 and all_ok_05 and all_ok_06
 
 
+def check_spark_multisymbol():
+    """T_SF_08 — multi-symbol spark: one request returns price+prevClose for every
+    ticker, all fields present, filtered output fits the firmware doc budget."""
+    print("\nT_SF_08  Multi-symbol spark (one request for all tickers, TASK-249)")
+    url = SPARK_URL_BASE + ",".join(SYMBOLS) + "&interval=1d&range=1d"
+    status, body = _get(url)
+    if status != 200:
+        _fail("T_SF_08", f"HTTP {status}")
+        return False
+    try:
+        d = json.loads(body)
+    except Exception as e:
+        _fail("T_SF_08", f"JSON parse: {e}")
+        return False
+    ok = True
+    filt = {}
+    for s in SYMBOLS:
+        e = d.get(s)
+        closes = [c for c in (e or {}).get("close", []) if c is not None] if e else []
+        prev = (e or {}).get("chartPreviousClose")
+        if not e or not closes or prev is None:
+            _fail("T_SF_08", f"{s}: incomplete (price={closes[-1] if closes else None} prev={prev})")
+            ok = False
+            continue
+        filt[s] = {"chartPreviousClose": prev, "close": e["close"]}
+    if ok:
+        _ok("T_SF_08", f"{len(SYMBOLS)} symbols in 1 request, raw {len(body)} B")
+    filtered = len(json.dumps(filt))
+    if filtered <= SPARK_DOC_BYTES:
+        _ok("T_SF_08", f"filtered ~{filtered} B <= StaticJsonDocument<{SPARK_DOC_BYTES}>")
+    else:
+        _fail("T_SF_08", f"filtered {filtered} B exceeds <{SPARK_DOC_BYTES}>")
+        ok = False
+    return ok
+
+
 def check_tls(skip):
     """T_SF_07 — print full cert chain for TASK-109c root CA pinning (never fails).
 
@@ -321,13 +363,16 @@ def main():
     if not check_chart_ranges(args.chart_symbol):
         failures.append("T_SF_04/05/06")
 
+    if not check_spark_multisymbol():
+        failures.append("T_SF_08")
+
     check_tls(args.no_tls)
 
     print()
     if failures:
         print(f"FAIL — {len(failures)} check(s) failed: {', '.join(failures)}")
         sys.exit(1)
-    print("PASS — all checks passed (T_SF_01–T_SF_07)")
+    print("PASS — all checks passed (T_SF_01–T_SF_08)")
     sys.exit(0)
 
 

@@ -95,6 +95,10 @@ static portMUX_TYPE s_stockTickersMux    = portMUX_INITIALIZER_UNLOCKED;
 static const char* STOCK_RANGE_STR[4]    = {"1d","5d","1mo","ytd"};
 static const char* STOCK_INTERVAL_STR[4] = {"5m","60m","1d","1wk"};
 static const char  STOCK_URL_BASE[]      = "https://query1.finance.yahoo.com/v8/finance/chart/";
+// TASK-249: multi-symbol spark endpoint — one request returns price+prevClose for
+// all tickers (replaces the 8 sequential per-ticker chart GETs). Response is keyed
+// by symbol: { "AAPL": {chartPreviousClose, close:[...]}, ... }.
+static const char  STOCK_SPARK_URL[]     = "https://query1.finance.yahoo.com/v8/finance/spark?symbols=";
 
 static const char  HEATMAP_URL[] =
     "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved"
@@ -248,64 +252,80 @@ static void fetchCrypto() {
 }
 
 static void fetchStockQuote() {
-    spotifyTask::tlsYield();         // free Spotify TLS before 8 consecutive Yahoo handshakes
-    LOG_HEAP("dataTask.stock");   // before 8-ticker TLS loop
+    spotifyTask::tlsYield();      // free Spotify TLS before the Yahoo handshake
+    LOG_HEAP("dataTask.stock");
     char tickers[8][8];
     portENTER_CRITICAL_SAFE(&s_stockTickersMux);
     memcpy(tickers, s_stockTickers, sizeof(tickers));
     portEXIT_CRITICAL_SAFE(&s_stockTickersMux);
+
+    // TASK-249: ONE multi-symbol spark request replaces the old 8 sequential
+    // per-ticker chart GETs — 8 TLS handshakes (~16 s) → 1 (~2 s). Validated on
+    // host (test_yahoo_finance_api.py T_SF_08). Response is keyed by symbol:
+    //   { "AAPL": {chartPreviousClose, close:[...]}, ... }
+    // price = last non-null close; changePct from chartPreviousClose.
+    String syms;
+    for (int i = 0; i < 8; i++)
+        if (tickers[i][0]) { if (syms.length()) syms += ','; syms += tickers[i]; }
+
     StockQuoteResult r;
-    r.ok = true;
-    for (int i = 0; i < 8 && r.ok; i++) {
-        s_stockQuoteProgress = (int8_t)i;  // which ticker is currently being fetched
-        String url = String(STOCK_URL_BASE) + tickers[i] + "?interval=1d&range=1d";
+    s_stockQuoteProgress = 0;
+    if (syms.length() == 0) {
+        r.ok = true;                 // nothing configured — succeed empty
+    } else {
+        String url = String(STOCK_SPARK_URL) + syms + "&interval=1d&range=1d";
         WiFiClientSecure tls;
         tls.setCACert(YAHOO_FINANCE_ROOT_CA);
         HTTPClient http;
         if (!http.begin(tls, url)) {
-            LOG_W("dataTask.stock", "http.begin failed sym=%s", tickers[i]);
+            LOG_W("dataTask.stock", "spark http.begin failed");
             r.ok = false; r.errorCode = -100;
-            break;
+        } else {
+            http.addHeader("User-Agent", "Mozilla/5.0");
+            http.useHTTP10(true);    // identity encoding so getStream() yields clean JSON
+            unsigned long t0 = millis();
+            int code = http.GET();
+            LOG_D("dataTask.stock", "spark GET %d elapsed=%lums",
+                  code, (unsigned long)(millis() - t0));
+            if (code != 200) {
+                r.ok = false; r.errorCode = code;
+                http.end();
+            } else {
+                // Wildcard filter: keep {chartPreviousClose, close} for every symbol key.
+                // Filtered payload ~614 B for 8 symbols; <1536> doc gives headroom.
+                StaticJsonDocument<96> filter;
+                filter["*"]["chartPreviousClose"] = true;
+                filter["*"]["close"]              = true;
+                StaticJsonDocument<1536> doc;
+                DeserializationError err = deserializeJson(doc, http.getStream(),
+                                               DeserializationOption::Filter(filter));
+                http.end();
+                if (err) {
+                    LOG_W("dataTask.stock", "spark JSON err: %s", err.c_str());
+                    r.ok = false; r.errorCode = -90 - (int)err.code();
+                } else {
+                    r.ok = true;
+                    for (int i = 0; i < 8; i++) {
+                        if (!tickers[i][0]) { r.prices[i] = 0; r.changePct[i] = 0; continue; }
+                        JsonVariantConst e = doc[tickers[i]];
+                        float prev  = e["chartPreviousClose"] | 0.0f;
+                        float price = 0.0f;
+                        for (JsonVariantConst v : e["close"].as<JsonArrayConst>())
+                            if (!v.isNull()) price = v.as<float>();   // last non-null = current
+                        r.prices[i]    = price;
+                        r.changePct[i] = (prev != 0.0f) ? (price - prev) / prev * 100.0f : 0.0f;
+                    }
+                }
+            }
         }
-        http.addHeader("User-Agent", "Mozilla/5.0");
-        http.useHTTP10(true);
-        unsigned long t0 = millis();
-        int code = http.GET();
-        LOG_D("dataTask.stock", "quote GET %s %d elapsed=%lums",
-              tickers[i], code, (unsigned long)(millis() - t0));
-        if (code != 200) {
-            r.ok = false; r.errorCode = code;
-            http.end();
-            break;
-        }
-        // Filter tree: chart→result[0]→meta→{regularMarketPrice,chartPreviousClose}
-        // 5-level path × 2 leaves; ArduinoJson ~80B minimum; <128> gives headroom.
-        // HOST TEST: test_yahoo_finance_api.py T_SF_03 QUOTE_DOC_BYTES=256.
-        StaticJsonDocument<128> filter;
-        filter["chart"]["result"][0]["meta"]["regularMarketPrice"] = true;
-        filter["chart"]["result"][0]["meta"]["chartPreviousClose"] = true;
-        StaticJsonDocument<256> doc;
-        DeserializationError err = deserializeJson(doc, http.getStream(),
-                                       DeserializationOption::Filter(filter));
-        http.end();
-        if (err) {
-            LOG_W("dataTask.stock", "JSON err sym=%s: %s", tickers[i], err.c_str());
-            r.ok = false; r.errorCode = -90 - (int)err.code();
-            break;
-        }
-        auto meta       = doc["chart"]["result"][0]["meta"];
-        float price     = meta["regularMarketPrice"].as<float>();
-        float prev      = meta["chartPreviousClose"].as<float>();
-        r.prices[i]     = price;
-        r.changePct[i]  = (prev != 0.0f) ? (price - prev) / prev * 100.0f : 0.0f;
     }
     s_stockQuoteProgress = -1;  // idle
     portENTER_CRITICAL_SAFE(&s_stockQuoteMux);
     s_stockQuoteResult = r;
     s_stockQuoteNew    = true;
     portEXIT_CRITICAL_SAFE(&s_stockQuoteMux);
-    if (r.ok) LOG_D("dataTask.stock", "quote ok aapl=%.2f msft=%.2f", r.prices[0], r.prices[1]);
-    LOG_HEAP("dataTask.stock");   // after 8-ticker TLS loop
+    if (r.ok) LOG_D("dataTask.stock", "spark ok aapl=%.2f msft=%.2f", r.prices[0], r.prices[1]);
+    LOG_HEAP("dataTask.stock");
     spotifyTask::tlsResume();
 }
 

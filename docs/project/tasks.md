@@ -1399,19 +1399,30 @@ warnings/errors, so the 48-line ring doesn't wrap and the CH340 isn't flooded. T
 
 ---
 
-### TASK-249 — (proposed) Cut fetch latency via TLS session reuse / fewer round-trips
+### TASK-249 — Cut stock-list fetch latency: 8 GETs → 1 multi-symbol spark request
 
-From TASK-248 data: per-request TLS handshake (~2 s) dominates fetch time — stock quote pays it
-8× (~16 s), crypto ~7.5 s. ADR-029 deliberately uses a fresh per-fetch `WiFiClientSecure` (no
-persistent client) for heap reasons on the no-PSRAM board. **Proposal:** revisit for the
-multi-GET fetchers — reuse one TLS session across the 8 stock-ticker GETs (keep-alive or a single
-held client for the batch), which could cut stock list ~16 s → ~3 s. Needs an Architect call
-(ADR-029 amendment) weighing the heap cost of a held TLS session vs the latency win, and DUT
-heap-headroom validation. Also consider whether Yahoo supports a multi-symbol endpoint to replace
-8 GETs with 1.
+From TASK-248 data: per-request TLS handshake (~2 s) dominated — the stock list paid it **8×**
+(8 sequential per-ticker `v8/finance/chart` GETs ≈ **16 s**). ADR-029 stack-allocates a fresh
+per-fetch `WiFiClientSecure` (no persistent client) for heap reasons on the no-PSRAM board, so the
+TLS-session-reuse option would have needed an ADR-029 amendment + heap-tradeoff ruling.
 
-**Priority:** P2 · **Status:** proposed (needs Architect ruling) · **Owner:** Architect → Developer
-· **Deps:** TASK-248 (data), ADR-029 (the per-fetch-TLS decision being revisited)
+**Resolution — the multi-symbol endpoint, no ADR-029 change needed.** Yahoo's
+`v8/finance/spark?symbols=A,B,…&interval=1d&range=1d` returns price (`close[]` last non-null) +
+`chartPreviousClose` for **all** tickers in **one** request. So `fetchStockQuote` now does a
+single spark GET instead of 8 chart GETs — keeps the fresh-per-fetch client (no persistent
+TLS / no heap reversal) and stays HTTP/1.0 (no chunked-encoding risk). Response is keyed by
+symbol; parsed with a wildcard filter `filter["*"]["chartPreviousClose"|"close"]` into
+`StaticJsonDocument<1536>` (~478–614 B filtered for 8 symbols).
+
+**DUT result:** stock list quote **~16 s → ~1.9 s** (one `spark GET 200 elapsed≈1935ms`, valid
+prices). Host-validated: `test_yahoo_finance_api.py` **T_SF_08** (1.3 KB raw, all 8 symbols,
+fits budget). VE: T169/T170 (launch + quoteOkCount advances) PASS; T-ERR-01/07 PASS; run/check 5/5.
+
+**Note:** crypto's single GET is ~7.5 s (CoinGecko handshake+payload) — separate, lower priority;
+no multi-request fan-out to collapse there.
+
+**Priority:** P2 · **Status:** **implemented — DUT-verified 2026-06-25** · **Owner:** Developer
+· **Deps:** TASK-248 (data), ADR-029 (sidestepped — kept fresh-per-fetch client)
 
 ---
 
