@@ -189,8 +189,20 @@ def main():
     except Exception:
         pass
     st = Stats()
+    # TASK-248: quiet the log firehose so the CH340 doesn't stall and the 48-line
+    # ring doesn't wrap — keep only dataTask fetch lines + all warnings/errors
+    # (so TLS errors / http-fails are still caught). Runtime; resets on reboot.
+    dut.send("set logLevel w"); time.sleep(0.2)
+    dut.send("set logKeep dataTask"); time.sleep(0.2)
+    # Suspend the Spotify poll for the soak: this test measures the FETCHERS' TLS
+    # reliability + latency in isolation. A 403-wedged Spotify otherwise hogs the
+    # shared TLS in overdue-poll bursts (esp. after a long stock batch) and starves
+    # weather/crypto/heatmap past the window — that contention is characterised
+    # separately (TASK-244). Re-enabled implicitly on the prod reflash after the soak.
+    dut.send("set bgPoll 0"); time.sleep(0.2)
     plan = phases()
-    print(f"[stress] soaking {args.minutes} min over {len(plan)} fetch phases…", flush=True)
+    print(f"[stress] soaking {args.minutes} min over {len(plan)} fetch phases "
+          f"(logs: dataTask + W/E only)…", flush=True)
     t_start = time.monotonic()
     t_end = t_start + args.minutes * 60
     cyc = 0

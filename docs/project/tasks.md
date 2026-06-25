@@ -1376,15 +1376,26 @@ prod, unattended). Drives each fetcher via debug triggers, parses the shared
   it 8× (16 s); crypto's single GET is ~7.5 s (CoinGecko handshake+payload). **→ the fetch-time
   lever is TLS session reuse / fewer round-trips (proposed TASK-249).**
 
-**Open / limitations:**
-- Continuous-soak driving samples stock/quote + teletext reliably; weather/crypto/heatmap
-  fetch fine individually (verified by raw capture) but sample inconsistently in the back-to-back
-  soak — the CH340 USB-serial bridge stalls under heavy soak traffic (device stays responsive;
-  not a firmware crash). Harness now degrades to a partial report instead of hanging; harden
-  driving (or add weather/crypto debug triggers) as follow-up.
+**Runtime log-volume control added (TASK-248).** LOG_x macros (`logsink::logLine`) previously
+had NO level gate — they always emit; `esp_log_level_set` only affects vendored esp_log tags.
+Added a runtime gate: `set logLevel <d|i|w|e>` (min severity) + `set logKeep <prefix>` (tags
+always kept regardless of level; `-` clears). Default 0 = emit everything (prod unchanged). The
+soak uses `set logLevel w` + `set logKeep dataTask` → ring/serial carry only fetch results +
+warnings/errors, so the 48-line ring doesn't wrap and the CH340 isn't flooded. The harness also
+`set bgPoll 0` to measure fetchers in isolation from Spotify-403 TLS contention.
 
-**Priority:** P2 · **Status:** harness delivered + baseline findings captured (2026-06-25);
-driving-robustness follow-up open · **Owner:** VE · **Deps:** TASK-244 (starvation, fixed)
+**Open / limitations:**
+- Soak samples stock/quote + teletext reliably (0 TLS errors, latency captured). weather/crypto/
+  heatmap still sample 0 in the continuous soak — **NOT the CH340** (quieting logs + suspending
+  bgPoll did not fix it) and **NOT a harness artdefact** (a raw script reproduces it). Root cause
+  is a device-side bug → **TASK-250**: a stock **quote batch** (8 sequential GETs) poisons the
+  *next* app's fetch — switching stock→weather/crypto/heatmap produces no fetch for >30 s, then
+  recovers by the next cycle. (From idle, all three fetch fine: weather 1.9 s, crypto 7.5 s,
+  heatmap 2.3 s — verified by raw capture.) The harness is otherwise complete; full multi-app
+  soak coverage is gated on TASK-250.
+
+**Priority:** P2 · **Status:** harness + log-level control delivered + baseline findings captured
+(2026-06-25); full coverage gated on TASK-250 · **Owner:** VE · **Deps:** TASK-244 (starvation, fixed)
 
 ---
 
@@ -1401,6 +1412,34 @@ heap-headroom validation. Also consider whether Yahoo supports a multi-symbol en
 
 **Priority:** P2 · **Status:** proposed (needs Architect ruling) · **Owner:** Architect → Developer
 · **Deps:** TASK-248 (data), ADR-029 (the per-fetch-TLS decision being revisited)
+
+---
+
+### TASK-250 — A stock quote batch poisons the next app's fetch (>30 s no-fetch)
+
+**Found by the TASK-248 stress effort (2026-06-25).** After a stock **list quote** fetch (the
+8-ticker sequential batch, `fetchStockQuote`), switching to Weather / Crypto / Stock-heatmap does
+**not** produce a fetch for >30 s — the new app's `init()` runs and enqueues, but no
+`dataTask.<app>` GET ever logs; it recovers by the next cycle (~90 s later). From a cold/idle
+state (no prior stock batch) all three fetch fine — weather ~1.9 s, crypto ~7.5 s, heatmap ~2.3 s
+(raw capture). Reproduced with a **raw serial script** (not the harness) and persists with
+`bgPoll 0` (Spotify suspended) and quieted logs — so it is **neither** a CH340/serial artifact
+**nor** Spotify-403 TLS contention.
+
+**Suspects (not yet root-caused):** dataTask state left by the 8-GET batch — e.g. the request
+queue (depth 4), the single shared `WiFiClientSecure` lifecycle across the 8 sequential
+opens, or the tlsYield/tlsResume accounting after a multi-GET fetch — stalling the next
+`tlsYield()`/fetch. Teletext (which precedes stock each cycle) is unaffected, and the path
+recovers, so it is not a permanent hang.
+
+**Why it matters:** likely user-visible — open Stock (list), then switch to Weather/Crypto and
+its data won't refresh for ~30 s+. The TASK-245 connecting bar surfaces it as prolonged amber.
+
+**Repro:** `set bgPoll 0; set stockMode 0; switchApp 7; set triggerFetch 1` (wait for 8 quote
+GETs) → `switchApp 2` → observe no `dataTask.weather` GET for 30 s.
+
+**Priority:** P2 · **Status:** open — needs focused investigation · **Owner:** Developer
+· **Deps:** relates to TASK-248 (found it), ADR-029 (per-fetch TLS lifecycle)
 
 ---
 

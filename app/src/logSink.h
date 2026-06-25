@@ -94,6 +94,19 @@ inline int vprintfHook(const char *fmt, va_list args) {
   return n;
 }
 
+// TASK-248: runtime volume gate for our own LOG_x macros (esp_log_level_set only
+// affects vendored esp_log tags, not logLine). Default 0 = emit everything, so
+// normal/prod behaviour is unchanged. A higher minLevel drops lower-severity
+// lines UNLESS their tag starts with keepPrefix — so a stress run can do e.g.
+// `set logLevel w` + `set logKeep dataTask` to carry only warnings/errors plus
+// the dataTask fetch results, keeping the 48-line ring from wrapping and the
+// CH340 unloaded. Rank: D=0 I=1 W=2 E=3.
+inline int &logMinLevel()        { static int v = 0; return v; }
+inline char *logKeepPrefix()     { static char p[24] = {0}; return p; }
+inline int logRank(char lvl) {
+  switch (lvl) { case 'E': return 3; case 'W': return 2; case 'I': return 1; default: return 0; }
+}
+
 // Direct-to-ring logging macros (TASK-018b-bis, 2026-05-07).
 // Arduino-ESP32 redefines ESP_LOGx to use its own log_x macros that go
 // through printf, NOT esp_log_writev — so our vprintfHook sees almost
@@ -103,6 +116,11 @@ inline void logLine(const char *level, const char *tag, const char *fmt, ...)
     __attribute__((format(printf, 3, 4)));
 
 inline void logLine(const char *level, const char *tag, const char *fmt, ...) {
+  // TASK-248: runtime gate — drop below-minLevel lines unless the tag is kept.
+  if (logRank(level[0]) < logMinLevel()) {
+    const char *k = logKeepPrefix();
+    if (!k[0] || strncmp(tag, k, strlen(k)) != 0) return;
+  }
   char buf[RING_LINE_MAX];
   int prefix = snprintf(buf, sizeof(buf), "[%s][%s] ", level, tag);
   if (prefix < 0 || prefix >= (int)sizeof(buf)) return;

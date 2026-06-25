@@ -2586,6 +2586,20 @@ static void cmdSet(const char *args) {
     Serial.println("{\"ok\":false,\"cmd\":\"set\",\"error\":\"bad args\"}");
     return;
   }
+  // TASK-248: runtime log-volume control (for stress soaks). `set logLevel <d|i|w|e>`
+  // sets the min severity emitted by LOG_x; `set logKeep <prefix>` always keeps tags
+  // matching the prefix regardless of level (e.g. logKeep dataTask). `set logKeep -`
+  // clears the keep filter.
+  if (strcmp(var, "logLevel") == 0) {
+    logsink::logMinLevel() = logsink::logRank(toupper((unsigned char)val[0]));
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"logLevel\",\"val\":\"%s\"}\n", val);
+    return;
+  }
+  if (strcmp(var, "logKeep") == 0) {
+    strlcpy(logsink::logKeepPrefix(), (val[0] == '-') ? "" : val, 24);
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"logKeep\",\"val\":\"%s\"}\n", val);
+    return;
+  }
   if ((spotifyDisplay && spotifyDisplay->dbgSet(var, val))
       || spotifyTask::dbg_set(var, val)) {
     Serial.printf("{\"ok\":true,\"cmd\":\"set\","
