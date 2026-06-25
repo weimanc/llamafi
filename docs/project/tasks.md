@@ -1120,14 +1120,17 @@ handler mapped via modulo, **never rendering the slot**, so the crashing path wa
   re-auth — see TASK-241.)
 - QM: NEW-APP-CHECKLIST §6 (taskbar visibility + icon); lessons-learned **LL-085**.
 
-**Priority:** P1 (shipped crash) · **Status:** **fix done + DUT-verified** (no crash on full taskbar
-scroll, by construction + static_asserts + 5/5 gates). **BUT the test/harness changes are
-implemented-unverified:** the new T242 regression test, the eject-entry harness change, and the
-`_TB_N` correction have **not been run green on DUT** — blocked by **TASK-243** (the harness needs a
-live Spotify session to restore state between tests). Per LL-083/LL-085 these are *not done* until
-green. So: crash fix = closed; test coverage = implemented-unverified, gated on TASK-243.
+**DONE — fully DUT-verified 2026-06-25 (T242 + T_WR_EJECT_01/02 PASS; 3 passed / 0 failed / 0 skipped).**
+The earlier "blocked on TASK-243" note was **wrong**: the harness's `_restore_spotify()` is a plain
+app-switch (UI), which works regardless of the Spotify 403 — no *live* session is needed to restore
+state between these tests. Verified on DUT: **T242** full taskbar scroll cycle (10 offsets) — no crash,
+WebRadio never a taskbar slot; **T_WR_EJECT_01/02** eject Spotify↔WebRadio both routes. The eject-entry
+harness change and `_TB_N` correction are exercised by these. So the test-coverage portion is now green;
+both halves (crash fix + tests) closed. (Lesson: don't assume a Spotify-app test needs Premium — only
+tests that read live *playback state* do; UI/nav tests don't.)
+**Priority:** P1 (shipped crash) · **Status:** **DONE — crash fix + test coverage both DUT-verified 2026-06-25**
 **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO / M-MULTIAPP
-**Owner:** Developer (fix done) + VE (test — unverified) + QM (checklist/lesson done)
+**Owner:** Developer (fix done) + VE (test — DUT-green) + QM (checklist/lesson done)
 
 ---
 
