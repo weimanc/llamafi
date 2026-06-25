@@ -293,6 +293,66 @@ interactions:
       _navigate()/_goBack() also previously set _pendingFetch = false immediately after
       direct-enqueueing, which would have caused a double-enqueue on the next tick().
 
+  - id: X017
+    feature_a: app-error-signal-001
+    feature_b: touch-004
+    interaction_type: conflict
+    description: |
+      Active-slot indicator precedence when an app is simultaneously errored AND busy.
+      taskbar.h:renderActiveIndicator currently picks busy(amber) vs idle(green). ADR-046
+      adds error(red) with precedence error > busy > idle: hasError() red wins even while
+      g_shellBusy is true. The shell must evaluate hasError() before the busy branch on every
+      indicator re-render (setShellBusy / app switch / tick poll). NB busy is shell-global
+      (g_shellBusy) while hasError() is per-active-app; both colour the same 3px bar.
+    risk: medium
+    test_coverage: []
+    notes: Added 2026-06-25 (ADR-046). VE must cover error+busy → red (not amber). TASK-245.
+
+  - id: X018
+    feature_a: app-error-signal-001
+    feature_b: app-registry-001
+    interaction_type: overlap
+    description: |
+      Accepted limitation (ADR-046 §4): the bar recolours the ACTIVE app's slot only, so an
+      app's red is visible only while it is the active app. With taskbar scroll + multi-app
+      registry, an errored non-active app (e.g. Spotify 403 while the user is in Stock) shows
+      NO red on its slot. There is no persistent per-slot health dot — deliberately rejected
+      in ADR-046 for cost. renderActiveIndicator returns after the active slot; non-active
+      slots render icon-only regardless of their hasError().
+    risk: low
+    test_coverage: []
+    notes: |
+      Added 2026-06-25 (ADR-046). Document the limitation as expected behaviour, not a defect.
+      Emergent upside: each app shows its OWN red when active and its own op hard-fails. TASK-245.
+
+  - id: X019
+    feature_a: app-error-signal-001
+    feature_b: app-registry-001
+    interaction_type: shared_state
+    description: |
+      Error state must survive app-switch away and back. hasError() is owned by the app
+      instance (sticky member state), not the shell, so switchApp() away → back re-reads the
+      same latched condition; switchApp() must call renderActiveIndicator with the current
+      hasError() so the red is repainted on return (it is not a one-shot on error onset).
+    risk: low
+    test_coverage: []
+    notes: Added 2026-06-25 (ADR-046). VE — switch away during error, return → still red. TASK-245.
+
+  - id: X020
+    feature_a: app-error-signal-001
+    feature_b: poll-001
+    interaction_type: dependency
+    description: |
+      SpotifyApp::hasError() (first consumer) derives from the poll-001 HTTP status —
+      lastHttpRef() / status at spotifyTaskStorage.cpp:193-195 (the 403). Clear-on-recovery:
+      the red must drop back to green/amber on the next 200/204 poll. Sticky-set on persistent
+      403; cleared when poll-001 reports success. Same 403 signal hardened by TASK-244.
+    risk: medium
+    test_coverage: []
+    notes: |
+      Added 2026-06-25 (ADR-046). VE: 403 → red, then 200/204 → clears. Status code only — the
+      "no Premium" reason body is discarded by the vendored lib (ADR-046 rejected option). TASK-245.
+
 #   interaction_type: shared_state | dependency | conflict | overlap
 #   description: ""
 #   risk: low | medium | high

@@ -1138,6 +1138,120 @@ spending any DUT time — this host check is the cheap gate that should precede 
 
 ---
 
+### TASK-244 — Harden tlsYield: a failing Spotify poll loop starves all dataTask fetchers
+
+**Found while diagnosing a "Stock app can't pull data" report (2026-06-25).** Not a stock
+bug — a secondary symptom of the TASK-243 403. The stock/heatmap data path is healthy
+(host Yahoo probe + screener all 200; pinned intermediate cert still valid; device fetch
+returns `heatmap GET 200 count=20` with **valid** data). The problem is *latency from
+starvation*: the fetch never arrives within any usable window.
+
+**Mechanism (TASK-131 shared-TLS design).** Every dataTask fetcher — `fetchHeatmapQuote`,
+stock quote/chart, weather, crypto, teletext, webradio — opens with
+`spotifyTask::tlsYield()` (`dataTaskStorage.cpp:620`), which blocks until the Spotify
+FreeRTOS task calls `client.stop()`. The Spotify task only checks `s_tlsYieldReq` *between*
+polls (`spotifyTaskStorage.cpp:309`); `tlsYield()` itself waits up to **150 s** for the ack
+(`spotifyTaskStorage.cpp:492`). When the account 403s, `doPoll()` runs slow, back-to-back
+(`poll=0/6 last=403`, `next_poll_in_ms=0`), so the yield is starved.
+
+**Measured on DUT (debug build, 2026-06-25):** heatmap triggered at t=0; `tlsYield()`
+returned only at **t+84 s**, then the fetch immediately succeeded. Any app (weather/crypto/
+teletext/webradio too) is equally affected — the single shared yield is the choke point.
+
+**Fix shape (options for Architect/Developer):**
+1. **Bound the yield** to a few seconds and have the fetcher fail fast (return a distinct
+   "TLS busy" error code) rather than blocking up to 150 s — let the app retry on its own
+   cadence and keep the UI responsive.
+2. **Short-circuit `tlsYield()` on a 403 poll status** — the device already has the exact
+   HTTP status in hand (`spotifyTaskStorage.cpp:193-195`; surfaced as `last=403`). A 403 is
+   an authorization refusal that won't self-heal by retrying, unlike a transient `-1` (TLS
+   reset) or `429` (rate-limit) which DO recover — so keying on the 403 status is sharper
+   and safer than a generic "N consecutive failures" counter (which would false-trip on
+   recoverable blips). Trigger on the 403 (optionally require 1–2 consecutive to ignore a
+   one-off); when set, let dataTask proceed without yielding — a Premium-lapsed Spotify
+   session isn't making progress and shouldn't hold the shared TLS hostage.
+3. Surface a precise "Spotify: no active Premium" hint in-app. NOTE: the definitive reason
+   string ("Active premium subscription required for the owner of the app") is in the 403
+   **body**, which the vendored `SpotifyArduino` discards on non-200 (`getCurrentlyPlaying`
+   returns only the int status). A user-facing reason needs a small lib patch to capture the
+   error body; the bare 403 *status* (already available) is enough for the yield short-circuit.
+   Caveat: 403 status alone isn't uniquely "no Premium" in general (audio-features/analysis
+   also 403 under quota policy — TASK-010), but persistent 403 on the *player poll* endpoint
+   effectively is the owner-Premium-lapse case.
+
+Prefer (2) as the targeted fix for the observed failure — keyed on the 403 status, which the
+device already records — over a generic failure counter; (1) is the general robustness win;
+(3) is an optional UX nicety gated on a lib change.
+
+**Priority:** P2 — robustness; only bites when Spotify poll is failing (today: TASK-243),
+but then it degrades *every* other app · **Status:** open
+**Opened:** 2026-06-25 · **Milestone:** infra / dataTask
+**Owner:** Architect (design call) → Developer · **Deps:** relates to TASK-243 (the trigger),
+TASK-131 (the shared-TLS design being hardened)
+
+---
+
+### TASK-245 — Per-app error-state endpoint + red taskbar active-bar signal (mechanism)
+
+Add a generic per-app error signal and surface it as a **red** taskbar active-slot bar.
+Design ruling: **ADR-046**. The taskbar indicator today has two states (green idle /
+amber `g_shellBusy`); this adds a third for a sustained error condition.
+
+**Scope (mechanism only — wire Spotify as the sole first consumer):**
+1. **Base class** — add `virtual bool hasError() const { return false; }` to `struct App`
+   (`appShell.h:9`), sibling to `hasPendingAsync()` (`appShell.h:18`). Sticky; app sets on
+   error, clears on next success; shell does no latching of its own.
+2. **Render** — tri-state precedence **error (red) > busy (amber) > idle (green)** in
+   `renderActiveIndicator` (`taskbar/taskbar.h:37`). New firmware-only constant
+   `#define TASKBAR_ERR_COLOR 0xF800` in `taskbar.h` — **NOT** in generated
+   `shell_layout.h` (preserve the `check_build.sh` golden hash, same rationale as
+   `TASKBAR_BUSY_COLOR`). Re-render on the existing busy/switch/tick triggers.
+3. **Spotify consumer** — `SpotifyApp::hasError()` returns true on a (persistent) 403 poll
+   status; source is `lastHttpRef()` / the `status` at `spotifyTaskStorage.cpp:193-195`.
+   Ties to **TASK-244** (same 403 signal). All other apps keep the default `false` for now.
+4. **feature_inventory.yaml** — entry `app-error-signal-001`.
+5. **cross_feature_matrix.yaml** — capture the combinations (X017–X020): `hasError × busy`
+   (precedence), `hasError × not-active-slot` (the accepted active-only limitation),
+   `hasError × app-switch away/back`, `hasError × clears-on-recovery`.
+6. **VE** — tests for the tri-state precedence + Spotify 403 → red + clear-on-recovery.
+
+**Accepted limitation (ADR-046 §4):** recolours the *active* app's bar only — an app's error
+shows only while it is the active app (no persistent per-slot dot). Spotify 403 is therefore
+red only while Spotify is active. Note the 403 *starvation* case (TASK-244) makes other apps
+*slow* not *failed*, so they go red only on a genuine fetch error.
+
+**Priority:** P2 · **Status:** open · **Opened:** 2026-06-25 · **Milestone:** M-MULTIAPP / UI
+**Owner:** Developer (consult Architect — base-class contract change) · **Deps:** ADR-046,
+TASK-244 (Spotify 403 detection), app-registry-001 / taskbar-icons-001
+
+---
+
+### TASK-246 — Audit + wire every app's error state into `hasError()` (fan-out)
+
+Breadth-first audit: for each app, define what constitutes a sustained error, where it is
+detected, and how/when it latches and clears — then implement `hasError()`. Gated on TASK-245
+(mechanism + Spotify consumer must land and be VE-verified first).
+
+**Per-app starting points:**
+- **Stock** — already has `fetchFailed` / `fetchErrorCode` / `fetchOkCount` (`appShell.h:104-108`);
+  likely a thin wrapper. Decide list-vs-chart-vs-heatmap granularity.
+- **Weather / Crypto** — track `lastDataFetch` / `lastCryptoFetch` but have **no explicit error
+  flag** (`appShell.h:53-62`); needs a fetch-error field added to their state + dataTask result.
+- **Teletext** — has `teletextHttpCode` / `lastHttpCode` plumbing already.
+- **WebRadio** — has `_lastHttpCode` / `_lastOk` (`webRadioApp.h`); map fetch failure (and
+  decode-stall? — decide) to error. NB eject-only, not a taskbar app (TASK-242) — confirm how
+  its error surfaces, if at all.
+- **Clock / Matrix / Life / Aquarium** — offline; confirm they keep the default `false`.
+
+Each app's latch/clear rules to be reviewed by Architect against the ADR-046 contract; VE adds
+per-app red-on-error / clear-on-recovery coverage; update feature_inventory + cross_feature_matrix
+as new per-app interactions surface.
+
+**Priority:** P3 · **Status:** open · **Opened:** 2026-06-25 · **Milestone:** M-MULTIAPP / UI
+**Owner:** Developer (per-app) + Architect (per-app semantics review) · **Deps:** TASK-245
+
+---
+
 ## Open — codebase-quality audit follow-ups (2026-06-21)
 
 > From three parallel read-only audits (firmware quality / test brittleness /
