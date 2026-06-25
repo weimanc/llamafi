@@ -4,6 +4,20 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
+> **PM sync 2026-06-25 (honest state — WebRadio verification PAUSED on external blocker)** —
+> Stop-and-assess. **Solid & committed:** TASK-232 (http fetch), TASK-234 (auto-skip), TASK-239/240
+> (~11 KB reclaim) — all DUT-verified; TASK-242 (taskbar null-icon crash) — fix DUT-verified + a
+> `static_assert` gate so the bug class can't recur. **Honest downgrades:** TASK-241 (no-PSRAM
+> stability) → *implemented-unverified* — its "provisional PASS" leaned on an EXP-007 baseline that
+> TASK-243 shows was never a live Spotify session; TASK-242's T242 test + eject-harness change →
+> *implemented-unverified* (never run green on DUT). **Root blocker filed (TASK-243):** the Spotify
+> Web API returns 403 *"Active premium subscription required for the owner of the app"* — host
+> `spotify_state.py` reproduces it from the laptop, so it's categorically not the device/firmware/
+> token. **Decision: PAUSE WebRadio verification** — every open verification item is gated on
+> TASK-243 (owner-account Premium, external, multi-hour re-enable). No more DUT cycles until the
+> host API check is green. Process lessons (this session): host-validate an external API path
+> *before* touching the device (LL-085 reinforced); don't cite an unconfirmed baseline as a result.
+>
 > **PM sync 2026-06-24 (DUT session — M-WEBRADIO TLS verified; playback blocker found)** —
 > First DUT session since the 06-20 downtime work. Ran the queued WebRadio tests + a manual
 > station-by-station playback probe. Results:
@@ -1038,9 +1052,16 @@ change is NOT shipped before the gate conclusively passes — reverted; only the
 is committed. **To finalise:** fix device Spotify auth (re-run `get_refresh_token.py` →
 `./run/spiffs push`), then re-test with a track playing — confirm decoder alloc (already strongly
 indicated) + station holds ≥ 60 s with fewer dropouts. Feeds the ADR-045 amendment.
-**Priority:** P1 — settles the M-WEBRADIO viability question · **Status:** **provisional PASS — final confirmation needs device Spotify re-auth** (TASK-239/240 done)
+**DOWNGRADED to implemented-unverified (2026-06-25).** The earlier "provisional PASS" leaned on
+EXP-007's ~78 K "Spotify-playing" baseline — which TASK-243 shows was almost certainly **never a
+live Spotify session** (owner-account Premium had lapsed; host reproduces the 403). So the
+tight-condition comparison rests on an unconfirmed baseline and must be **re-taken**, not cited.
+The reclaim itself (TASK-239/240) is real and verified; whether it makes playback *stable* is
+**not yet proven**. Blocked on **TASK-243** — no valid tight-heap test is possible without a live
+Spotify session. When unblocked: host-confirm the API is live, then run the tight-condition test.
+**Priority:** P1 — settles the M-WEBRADIO viability question · **Status:** **implemented-unverified — blocked on TASK-243** (was "provisional PASS"; baseline invalid)
 **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO · **Owner:** Developer + Architect (decision)
-**Deps:** TASK-239 (done), TASK-240 (done), + working device Spotify auth for the final run
+**Deps:** TASK-239 (done), TASK-240 (done), TASK-243 (blocker)
 
 ---
 
@@ -1074,10 +1095,46 @@ handler mapped via modulo, **never rendering the slot**, so the crashing path wa
   re-auth — see TASK-241.)
 - QM: NEW-APP-CHECKLIST §6 (taskbar visibility + icon); lessons-learned **LL-085**.
 
-**Priority:** P1 (shipped crash) · **Status:** **done — fix DUT-verified (no crash on scroll), 5/5
-gates.** T242 + full WebRadio suite re-run owed once device Spotify auth is fixed.
-**Opened:** 2026-06-24 · **Closed:** 2026-06-24 · **Milestone:** M-WEBRADIO / M-MULTIAPP
-**Owner:** Developer (fix) + VE (test) + QM (checklist/lesson)
+**Priority:** P1 (shipped crash) · **Status:** **fix done + DUT-verified** (no crash on full taskbar
+scroll, by construction + static_asserts + 5/5 gates). **BUT the test/harness changes are
+implemented-unverified:** the new T242 regression test, the eject-entry harness change, and the
+`_TB_N` correction have **not been run green on DUT** — blocked by **TASK-243** (the harness needs a
+live Spotify session to restore state between tests). Per LL-083/LL-085 these are *not done* until
+green. So: crash fix = closed; test coverage = implemented-unverified, gated on TASK-243.
+**Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO / M-MULTIAPP
+**Owner:** Developer (fix done) + VE (test — unverified) + QM (checklist/lesson done)
+
+---
+
+### TASK-243 — BLOCKER: Spotify Web API 403 — owner account lacks active Premium
+
+**This blocks all remaining WebRadio verification** (TASK-241 tight-condition test, the WebRadio
+serialdbg suite, and TASK-242's T242 + eject-harness validation) and any device feature that reads
+Spotify playback state.
+
+**Definitive root cause (host-confirmed, not device).** `app/tools/spotify_state.py` and a raw
+host call reproduce the device's exact 403 from the laptop with the same creds — token refresh
+succeeds (correct scope), but `/v1/me`, `/v1/me/player`, and `/v1/me/player/currently-playing` all
+return **403** with body:
+> *"Active premium subscription required for the owner of the app. When the subscription status
+> changes, it can take a few hours before requests are allowed again."*
+
+Spotify now requires the **app owner** (clientId `db2ff3…`) to hold active Premium for Web API
+access; that lapsed. **Not** the device, firmware, token, scope, or dev-mode allowlist — re-auth +
+`spiffs push` were done and are correct; they'll just start working once Premium is restored.
+
+**Knock-on:** EXP-007's "78 K pre-connect = Spotify playing" baseline was almost certainly never a
+live session (Premium already lapsed), so TASK-241's provisional numbers rest on an unconfirmed
+baseline — re-take once the API is live.
+
+**Resolution (user/owner action — external):** restore active Premium on the owning Spotify
+account, then wait the few hours Spotify mentions. **Verify-first procedure when back:** run
+`./run/… spotify_state.py` (host) and confirm `ok:true` / `isPlaying` tracks playback *before*
+spending any DUT time — this host check is the cheap gate that should precede device work
+(process lesson from this session: host-validate the API path first).
+**Priority:** P1 — external blocker · **Status:** open (blocked on owner-account Premium)
+**Opened:** 2026-06-25 · **Milestone:** M-WEBRADIO / infra
+**Owner:** Human (Spotify account) · **Deps:** none (external)
 
 ---
 
