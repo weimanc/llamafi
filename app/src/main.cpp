@@ -355,6 +355,8 @@ public:
   void suspend() override {}
   void tick()    override { weatherTick(); }
   bool handleInput(TouchPhase, int, int) override { return false; }
+  // TASK-245 / ADR-046: amber "connecting" bar until the first weather fetch lands.
+  bool isConnecting() const override { return !s_wxDataReady; }
 
 private:
   WeatherAppState _s   = {};
@@ -489,6 +491,8 @@ public:
   void suspend() override {}
   void tick()    override { cryptoTick(); }
   bool handleInput(TouchPhase, int, int) override { return false; }
+  // TASK-245 / ADR-046: amber "connecting" bar until the first crypto fetch lands.
+  bool isConnecting() const override { return !s_cxDataReady; }
 
 private:
   CryptoAppState _s = {};
@@ -992,9 +996,13 @@ static String formatStockPrice(float price) {
 
 class StockApp : public App {
   bool _pendingAsync = false;
+  bool _everHadData  = false;  // TASK-245: any successful fetch (quote/chart/heatmap) yet?
   StockViewMode _appliedMode = StockViewMode::List;  // TASK-231: last launch-view applied
 public:
   bool hasPendingAsync() const override { return _pendingAsync; }
+  // TASK-245 / ADR-046: amber "connecting" bar until the first successful fetch
+  // (any sub-view) lands; green thereafter (red on error is the TASK-246 fan-out).
+  bool isConnecting() const override { return !_everHadData; }
   void init() override {
     for (int i = 0; i < 8; i++)
       strlcpy(_s.tickers[i], g_settings.stockTickers[i], 8);
@@ -1575,6 +1583,7 @@ private:
       if (r.ok) {
         _s.heatmapData        = r;
         _s.heatmapLayoutDirty = true;
+        _everHadData = true;   // TASK-245: first data → bar leaves amber
       } else if (!_s.heatmapData.ok) {
         // No good data yet — propagate error so screen shows it
         _s.heatmapData        = r;
@@ -1604,6 +1613,7 @@ private:
         _s.fetchFailed    = false;
         _s.fetchErrorCode = 0;
         _s.quoteOkCount++;
+        _everHadData = true;   // TASK-245: first data → bar leaves amber
       } else {
         _s.fetchFailed    = true;
         _s.fetchErrorCode = r.errorCode;
@@ -1635,6 +1645,7 @@ private:
         _s.fetchFailed    = false;
         _s.fetchErrorCode = 0;
         _s.fetchOkCount++;
+        _everHadData = true;   // TASK-245: first data → bar leaves amber
       } else {
         _s.fetchFailed    = true;
         _s.fetchErrorCode = r.errorCode;

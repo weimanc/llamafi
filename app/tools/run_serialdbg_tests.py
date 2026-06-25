@@ -5885,6 +5885,23 @@ def t_err_05(dut: Dut):
     else:
         fail("T-ERR-05", f"err={err} after_reset={after_reset}")
 
+def t_err_06(dut: Dut):
+    """T-ERR-06: offline apps never report connecting. Network apps (Weather/Crypto/Stock/
+    Teletext) wire isConnecting() to their first-fetch; offline apps (Clock/Matrix) keep the
+    default false — guards the 'offline apps stay default-false' invariant."""
+    print("T-ERR-06  offline apps report connecting=false")
+    def conn(app_id):
+        dut.cmd(f"switchApp {app_id}"); time.sleep(0.5)
+        return dut.cmd("get activeError").get("connecting")
+    clock  = conn(1)   # Clock — offline
+    matrix = conn(4)   # Matrix — offline
+    _restore_spotify(dut)
+    ok = (clock is False and matrix is False)
+    if ok:
+        pass_("T-ERR-06", "Clock + Matrix connecting=false (offline default held)")
+    else:
+        fail("T-ERR-06", f"clock={clock} matrix={matrix} (expected both False)")
+
 
 ALL_TESTS = {
     "T077": t077,
@@ -6062,6 +6079,7 @@ ALL_TESTS = {
     "T-ERR-02": t_err_02,
     "T-ERR-04": t_err_04,
     "T-ERR-05": t_err_05,
+    "T-ERR-06": t_err_06,
 }
 
 def main():

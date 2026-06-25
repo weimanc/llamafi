@@ -1291,8 +1291,12 @@ features:
       next success; shell does no latching. First/only consumer at mechanism stage:
       SpotifyApp::hasError() on a persistent 403 (spotifyTask::authError()) and
       SpotifyApp::isConnecting() until the first poll resolves (spotifyTask::connecting(),
-      s_lastSuccessfulPollMs==0). All other apps wired in the TASK-246 fan-out; offline apps
-      keep both defaults false.
+      s_lastSuccessfulPollMs==0).
+      isConnecting() is also wired for every NETWORK taskbar app (each to its own first-data
+      signal): Weather (!s_wxDataReady), Crypto (!s_cxDataReady), Stock (!_everHadData — first
+      successful quote/chart/heatmap), Teletext (!_st.ready) — amber on entry → green when data
+      lands. hasError() (red) for those apps remains the TASK-246 fan-out. Offline apps
+      (Clock/Matrix/Life/Aquarium/Settings) and eject-only WebRadio keep both defaults false.
       Accepted limitation (ADR-046 §4): recolours the ACTIVE app's bar only — an app's error is
       visible only while it is the active app (no persistent per-slot dot). 403 starvation
       (TASK-244) makes other apps slow not failed, so they go red only on a genuine fetch error.
@@ -1302,12 +1306,14 @@ features:
       - app/src/main.cpp
       - app/src/spotifyTask.h
       - app/src/spotifyTaskStorage.cpp
+      - app/src/teletextApp.h
       - docs/architecture/decisions/ADR-046.md
     cross_features:
       - app-registry-001
       - taskbar-icons-001
       - poll-001
-    test_ids: [T-ERR-01, T-ERR-02, T-ERR-03, T-ERR-04, T-ERR-05]
+      - data-task-001
+    test_ids: [T-ERR-01, T-ERR-02, T-ERR-03, T-ERR-04, T-ERR-05, T-ERR-06]
     dependencies:
       - app-registry-001
     notes: |

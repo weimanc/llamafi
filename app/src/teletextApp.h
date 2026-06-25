@@ -99,6 +99,9 @@ public:
 
     void suspend() override {}
 
+    // TASK-245 / ADR-046: amber "connecting" bar until the first page renders.
+    bool isConnecting() const override { return !_st.ready; }
+
     void tick() override {
         unsigned long now = millis();
 

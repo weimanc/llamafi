@@ -4076,6 +4076,17 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Expected result**: `spotifyAuthError:true` in both step 1 and step 2 (error held across the backoff reset).
 - **Status**: passing
 
+### T-ERR-06 — [app-error-signal-001, TASK-245] Network apps connect amber; offline apps stay green
+
+- **Type**: integration
+- **Feature(s)**: app-error-signal-001
+- **Interaction**: X021
+- **Objective**: The four network taskbar apps (Weather/Crypto/Stock/Teletext) wire `isConnecting()` to their first-fetch (amber bar on entry until data arrives); offline apps (Clock/Matrix/Life/Aquarium/Settings) keep the default `false`. Guards the offline-default invariant.
+- **Preconditions**: DUT on `cyd2usb_winamp_debug`.
+- **Steps**: (1) `switchApp 1` (Clock); `get activeError` → `connecting`. (2) `switchApp 4` (Matrix); `get activeError` → `connecting`. (3) (manual/DUT) `switchApp 2/3/7/9` on a fresh entry → `connecting:true` until that app's first fetch lands, then false.
+- **Expected result**: Clock and Matrix report `connecting:false`. Network apps report `connecting:true` on entry before first data (DUT-observed; gated by data arrival, slower under Spotify-403 starvation — TASK-244).
+- **Status**: passing (offline invariant automated; network-app amber→green is DUT-observed)
+
 ---
 
 ## Entry Format
