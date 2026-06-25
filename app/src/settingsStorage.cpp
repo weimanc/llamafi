@@ -71,6 +71,9 @@ static void applyDefaults() {
     g_settings.webRadioBitrateCap    = 96;
     g_settings.webRadioAutoSkip      = true;   // TASK-234/ADR-045: default ON
     g_settings.webRadioHwMod         = false;
+    // TASK-209 / §HW Mod: stock default 10 (soft-capped to 12 at playback); the
+    // HW-mod default of 18 is applied in load() when hwMod is set with no explicit
+    // maxVolume. webRadioApp::wrEffectiveVolume() enforces the hardware ceiling.
     g_settings.webRadioMaxVolume     = 10;
     g_settings.webRadioLastStation   = 0;
 }
@@ -217,7 +220,10 @@ void SettingsStorage::load() {
         if (wr.containsKey("bitrateCap"))  g_settings.webRadioBitrateCap  = wr["bitrateCap"]  | 96;
         if (wr.containsKey("autoSkip"))    g_settings.webRadioAutoSkip    = wr["autoSkip"]    | true;
         if (wr.containsKey("hwMod"))       g_settings.webRadioHwMod       = wr["hwMod"]       | false;
-        if (wr.containsKey("maxVolume"))   g_settings.webRadioMaxVolume   = wr["maxVolume"]   | 10;
+        // TASK-209 / §HW Mod: explicit maxVolume wins; otherwise default 18 with the
+        // HW mod, 10 stock (hwMod is parsed just above, so it's current here). The
+        // playback clamp (wrEffectiveVolume) still bounds whatever value lands.
+        g_settings.webRadioMaxVolume = wr["maxVolume"] | (uint8_t)(g_settings.webRadioHwMod ? 18 : 10);
         if (wr.containsKey("lastStation")) g_settings.webRadioLastStation = wr["lastStation"] | 0;
     }
 

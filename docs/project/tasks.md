@@ -1807,9 +1807,22 @@ work for this task: (a) read `webRadioHwMod` and clamp `setVolume()` accordingly
 Settings UI toggle (no WebRadio settings section exists yet). The DUT calibrates the
 exact stock value; the clamp *structure* could land on host first if desired.
 
-**Priority:** P2 — can ship with design estimate (10/21) if DUT session is
-delayed; cap can be refined in a follow-on reflash
-**Status:** open — clamp/HW-mod logic NOT YET IMPLEMENTED (was wrongly noted "firmware done"); T_WR_VOL_03 SKIP (no stations); VOL_01/02 require speaker + human ears. Blocked same as TASK-207/208.
+**Clamp/HW-mod logic DONE — DUT-verified 2026-06-25 (T_WR_VOL_CLAMP PASS, 8/8).** Implemented the
+§HW Mod ceiling that was entirely missing: `webRadioApp::wrEffectiveVolume()` is now the single
+source of truth feeding every production `setVolume()` site (init + `_play()`) — stock (hwMod=false)
+soft-caps at `WR_VOLUME_SOFT_CAP_STOCK=12`, the HW mod passes the full 1–21. The `wrVol` debug setter
+stays **unclamped** (so VOL_01/02 calibration can still drive past the cap to find the clip point).
+Default auto-raise wired in `settingsStorage` load (`maxVolume` defaults 18 with HW mod / 10 stock).
+New `get wrEffectiveVol` accessor + `set wrHwMod`/`wrMaxVol` make the clamp verifiable without audio;
+new playback-free regression test **T_WR_VOL_CLAMP** asserts all 8 (hwMod × ceiling) cases on DUT.
+Stale `settingsStorage.h` comments reconciled. 5/5 gates.
+
+**Still owed (subjective, needs speaker + human ears):** the *exact* stock clip point — confirm 12 is
+safe (or refine ±2) by ear via `set wrVol` stepping (VOL_01/02), and confirm the HW-mod full range is
+clean if the mod is installed. The clamp *structure* + its enforcement are done and tested; only the
+empirical dB number remains, and it can be refined in a follow-on reflash without code-structure change.
+**Priority:** P2 — clamp shipped at design estimate 12; exact value refinable in a follow-on reflash
+**Status:** clamp logic done + DUT-verified 2026-06-25 (T_WR_VOL_CLAMP); subjective dB calibration (VOL_01/02) still needs speaker + ears (deferred, not blocking the clamp)
 **Opened:** 2026-06-14
 **Milestone:** M-WEBRADIO
 **Owner:** Developer + human operator (subjective listening required)

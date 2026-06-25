@@ -5775,6 +5775,64 @@ def t_wr_vol_03(dut: Dut):
           "audible clipping check requires human listener")
 
 
+# ── T_WR_VOL_CLAMP — HW-mod volume ceiling clamp logic (TASK-209) ────────────
+
+def t_wr_vol_clamp(dut: Dut):
+    """T_WR_VOL_CLAMP: wrEffectiveVolume() enforces the §HW Mod ceiling.
+
+    Drives the HW-mod flag + configured ceiling and reads back the clamped value
+    actually fed to setVolume() (`get wrEffectiveVol`). Stock (hwMod=false) must
+    soft-cap at 12; with the mod the full 1–21 range passes through. Pure clamp
+    logic — no playback, network, speaker, or Spotify needed. Complements the
+    audible T_WR_VOL_01/02 (human ears) and T_WR_VOL_03 (live play). TASK-209.
+    """
+    tid = "T_WR_VOL_CLAMP"
+    print(f"{tid}  HW-mod volume ceiling clamp (wrEffectiveVolume)")
+
+    # Enter WebRadio via its design entry path — the Winamp EJECT button (no taskbar
+    # slot; TASK-242). Suspend bgPoll so init()'s station-fetch tlsYield() doesn't
+    # stall on the failing Spotify poll. No stations/playback needed: the clamp reads
+    # g_settings only, we just need WebRadio active so the wr* dbg vars route to it.
+    dut.cmd("set bgPoll 0", timeout=2.0)
+    ok, _ = _switch_to_webradio_capture_heap(dut)
+    if not ok:
+        dut.cmd("set bgPoll 1", timeout=2.0)
+        skip(tid, "could not enter WebRadio via eject")
+        return
+
+    try:
+        # (hwMod, maxVol, expected effective)
+        cases = [
+            (0, 21, 12, "stock + max 21 → soft-cap 12"),
+            (0, 15, 12, "stock + 15 → soft-cap 12"),
+            (0, 12, 12, "stock + 12 → 12 (at cap)"),
+            (0, 10, 10, "stock + 10 → 10 (below cap, default)"),
+            (0,  5,  5, "stock + 5 → 5 (below cap)"),
+            (1, 21, 21, "HW mod + 21 → 21 (full range)"),
+            (1, 18, 18, "HW mod + 18 → 18 (mod default)"),
+            (1, 12, 12, "HW mod + 12 → 12 (passthrough)"),
+        ]
+        for hw, mx, exp, desc in cases:
+            dut.cmd(f"set wrHwMod {hw}", timeout=3.0)
+            dut.cmd(f"set wrMaxVol {mx}", timeout=3.0)
+            r = dut.cmd("get wrEffectiveVol", timeout=3.0)
+            if not r.get("ok"):
+                fail(tid, f"get wrEffectiveVol failed ({desc}): {r}")
+                return
+            eff, mv, hwb = r.get("eff"), r.get("maxVol"), r.get("hwMod")
+            if eff != exp or mv != mx or bool(hwb) != bool(hw):
+                fail(tid, f"{desc}: got eff={eff} maxVol={mv} hwMod={hwb}, expected eff={exp}")
+                return
+            print(f"  [{tid}] {desc}: eff={eff} ✓")
+        pass_(tid, "soft-cap 12 enforced on stock; full 1–21 with HW mod (8/8 cases)")
+    finally:
+        # Restore stock defaults (in-RAM only; not persisted) + leave WebRadio.
+        dut.cmd("set wrHwMod 0", timeout=3.0)
+        dut.cmd("set wrMaxVol 10", timeout=3.0)
+        dut.cmd("set bgPoll 1", timeout=2.0)
+        _restore_spotify(dut)
+
+
 # ── T_WR_TLS_01 — Station fetch succeeds; record which TLS path fired ───────
 
 def t_wr_tls_01(dut: Dut):
@@ -6195,6 +6253,7 @@ ALL_TESTS = {
     "T_WR_HEAP_03":  t_wr_heap_03,
     "T_WR_HEAP_04":  t_wr_heap_04,
     "T_WR_VOL_03":   t_wr_vol_03,
+    "T_WR_VOL_CLAMP": t_wr_vol_clamp,
     # M-WEBRADIO TLS path + Spotify coexistence (TASK-214)
     "T_WR_TLS_01":            t_wr_tls_01,
     "T_WR_SPOTIFY_RESUME_01": t_wr_spotify_resume_01,

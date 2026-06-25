@@ -55,6 +55,21 @@ static constexpr size_t WR_ICY_TITLE_LEN = 104;
 // "1-21" comment / ESP32-audioI2S's setVolume() range).
 static constexpr uint8_t WR_VOLUME_MAX = 21;
 
+// TASK-209 / M-WEBRADIO §HW Mod: without the SC8002B gain-reduction mod the 8-bit
+// internal-DAC output overloads and clips above ~12/21, so stock hardware is
+// soft-capped here. With the mod installed the full 1–21 range is usable.
+static constexpr uint8_t WR_VOLUME_SOFT_CAP_STOCK = 12;
+
+// The volume actually fed to audio.setVolume(): the user's configured ceiling
+// (webRadioMaxVolume) clamped to the hardware-safe range — soft cap on stock,
+// full range with the HW mod. Single source of truth for all production setVolume
+// sites (the wrVol debug setter stays unclamped so calibration can reach the clip
+// point). Free function so settingsStorage's g_settings is the only dependency.
+static inline uint8_t wrEffectiveVolume() {
+    uint8_t hi = g_settings.webRadioHwMod ? WR_VOLUME_MAX : WR_VOLUME_SOFT_CAP_STOCK;
+    return g_settings.webRadioMaxVolume > hi ? hi : g_settings.webRadioMaxVolume;
+}
+
 // ── ICY metadata queue ───────────────────────────────────────────────────────
 // Written from ESP32-audioI2S callback (Core 0/audio task); read in tick() (Core 1).
 // Depth 1 + overwrite: old unread title is replaced by the newest one.
@@ -120,7 +135,7 @@ public:
         // Defer Audio creation to _play() — Audio(internalDAC) constructor
         // runs i2s_driver_install which can exceed 5s and trigger WDT when
         // init() is called synchronously from cmdTap (serial context).
-        if (s_wr_audio) s_wr_audio->setVolume(g_settings.webRadioMaxVolume);
+        if (s_wr_audio) s_wr_audio->setVolume(wrEffectiveVolume());  // TASK-209: HW-mod clamp
 
         // TASK-208: heap watermark — app launch baseline
         _heapInitFree = ESP.getFreeHeap();
@@ -344,6 +359,17 @@ public:
                      "\"var\":\"wrIcy\",\"title\":\"%s\",\"last\":true", _icyTitle);
             return true;
         }
+        // TASK-209: report the configured ceiling, the HW-mod flag, and the
+        // hardware-clamped value actually fed to setVolume() (T_WR_VOL_03).
+        if (strcmp(var, "wrEffectiveVol") == 0) {
+            snprintf(buf, len,
+                     "\"var\":\"wrEffectiveVol\",\"maxVol\":%u,\"hwMod\":%s,"
+                     "\"eff\":%u,\"last\":true",
+                     (unsigned)g_settings.webRadioMaxVolume,
+                     g_settings.webRadioHwMod ? "true" : "false",
+                     (unsigned)wrEffectiveVolume());
+            return true;
+        }
         // T_WR_EJECT_01 surface — reports that eject is wired
         if (strcmp(var, "wrEject") == 0) {
             snprintf(buf, len,
@@ -410,13 +436,26 @@ public:
         }
         if (strcmp(var, "wrNext") == 0) { _nextStation(); return true; }
         if (strcmp(var, "wrPrev") == 0) { _prevStation(); return true; }
-        // T_WR_VOL_01–03 (TASK-209): runtime volume setter for calibration
+        // T_WR_VOL_01–02 (TASK-209): runtime volume setter for *subjective* clip-point
+        // calibration — intentionally UNCLAMPED so a human can drive past the soft cap
+        // to find the clipping level. Production playback uses wrEffectiveVolume().
         if (strcmp(var, "wrVol") == 0) {
             int v = atoi(val);
             if (v >= 0 && v <= (int)WR_VOLUME_MAX) {
                 wrAudio().setVolume((uint8_t)v);
                 LOG_I("webradio", "vol set=%d", v);
             }
+            return true;
+        }
+        // TASK-209: drive the HW-mod flag + configured ceiling so the clamp logic
+        // (wrEffectiveVolume / T_WR_VOL_03) is verifiable on DUT without a speaker.
+        if (strcmp(var, "wrHwMod") == 0) {
+            g_settings.webRadioHwMod = val && strcmp(val, "0") != 0;
+            return true;
+        }
+        if (strcmp(var, "wrMaxVol") == 0) {
+            int v = atoi(val);
+            if (v >= 0 && v <= (int)WR_VOLUME_MAX) g_settings.webRadioMaxVolume = (uint8_t)v;
             return true;
         }
         return false;
@@ -504,7 +543,7 @@ private:
         if (!s_wr_audio)
             s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
 
-        wrAudio().setVolume(g_settings.webRadioMaxVolume);
+        wrAudio().setVolume(wrEffectiveVolume());  // TASK-209: HW-mod clamp
         // TASK-208: heap watermark at connecttohost (audio buffer alloc point).
         // maxAlloc = largest contiguous block — the figure that actually governs
         // whether the MP3 decoder / TLS buffers can be allocated (TASK-233).
