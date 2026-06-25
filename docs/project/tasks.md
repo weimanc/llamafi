@@ -1353,6 +1353,57 @@ if List load time matters.
 
 ---
 
+### TASK-248 — Multi-app fetch stress/soak harness + fetch-reliability findings
+
+**Why:** user wants out of the manual debug loop for fetch reliability/latency. We had a
+heatmap-only soak (`test_heatmap_reliability.py`) and per-app tlsYield checks
+(`test_tls_yield_reliability.py`) but no unified harness exercising **every** dataTask fetcher
+with a latency + TLS-error report.
+
+**Delivered:** `app/tools/test_fetch_stress.py` + `run/stress` (flash debug → soak → restore
+prod, unattended). Drives each fetcher via debug triggers, parses the shared
+`dataTask.<app> … <code> elapsed=<ms>ms` log shape, and reports per-fetcher latency
+(min/med/p95/max), HTTP outcome histogram, failure counts, and a global TLS-error tally.
+
+**Findings (DUT, 2026-06-25, under the live Spotify 403):**
+- **Zero TLS errors** across all soak runs *and* individual fetcher captures. The TLS path is
+  reliable — there is no TLS error to "resolve" right now; earlier slowness was starvation
+  (TASK-244) + handshake cost, not TLS faults.
+- **Latency (per fetch):** teletext ~1.2 s, weather ~1.9 s, heatmap ~2.3 s, **crypto ~7.5 s**,
+  **stock quote ~16 s** (8 tickers × ~2.1 s sequential). All 200.
+- **Root cost = per-request TLS handshake.** ADR-029 stack-allocates a fresh `WiFiClientSecure`
+  per fetch (no session reuse / keep-alive), so each GET pays a full ~2 s handshake. Stock pays
+  it 8× (16 s); crypto's single GET is ~7.5 s (CoinGecko handshake+payload). **→ the fetch-time
+  lever is TLS session reuse / fewer round-trips (proposed TASK-249).**
+
+**Open / limitations:**
+- Continuous-soak driving samples stock/quote + teletext reliably; weather/crypto/heatmap
+  fetch fine individually (verified by raw capture) but sample inconsistently in the back-to-back
+  soak — the CH340 USB-serial bridge stalls under heavy soak traffic (device stays responsive;
+  not a firmware crash). Harness now degrades to a partial report instead of hanging; harden
+  driving (or add weather/crypto debug triggers) as follow-up.
+
+**Priority:** P2 · **Status:** harness delivered + baseline findings captured (2026-06-25);
+driving-robustness follow-up open · **Owner:** VE · **Deps:** TASK-244 (starvation, fixed)
+
+---
+
+### TASK-249 — (proposed) Cut fetch latency via TLS session reuse / fewer round-trips
+
+From TASK-248 data: per-request TLS handshake (~2 s) dominates fetch time — stock quote pays it
+8× (~16 s), crypto ~7.5 s. ADR-029 deliberately uses a fresh per-fetch `WiFiClientSecure` (no
+persistent client) for heap reasons on the no-PSRAM board. **Proposal:** revisit for the
+multi-GET fetchers — reuse one TLS session across the 8 stock-ticker GETs (keep-alive or a single
+held client for the batch), which could cut stock list ~16 s → ~3 s. Needs an Architect call
+(ADR-029 amendment) weighing the heap cost of a held TLS session vs the latency win, and DUT
+heap-headroom validation. Also consider whether Yahoo supports a multi-symbol endpoint to replace
+8 GETs with 1.
+
+**Priority:** P2 · **Status:** proposed (needs Architect ruling) · **Owner:** Architect → Developer
+· **Deps:** TASK-248 (data), ADR-029 (the per-fetch-TLS decision being revisited)
+
+---
+
 ## Open — codebase-quality audit follow-ups (2026-06-21)
 
 > From three parallel read-only audits (firmware quality / test brittleness /
