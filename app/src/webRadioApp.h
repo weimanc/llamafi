@@ -131,7 +131,8 @@ public:
         // Kick off station list fetch
         LOG_I("webradio", "HEAP pre-fetch free=%u min=%u",
               (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap());
-        dataTask::enqueueWebRadioStations(g_settings.webRadioCountry);
+        dataTask::enqueueWebRadioStations(g_settings.webRadioCountry,
+                                          g_settings.webRadioBitrateCap);
         _pendingStations = true;
 
         // _dirty=true; tick() handles first paint — init() must return fast

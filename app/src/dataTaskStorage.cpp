@@ -615,6 +615,7 @@ static portMUX_TYPE           s_webRadioMux        = portMUX_INITIALIZER_UNLOCKE
 static WebRadioStationsResult s_webRadioResult;
 static bool                   s_webRadioNew         = false;
 static char                   s_pendingCountry[4]   = "NL";
+static uint8_t                s_pendingBitrateCap   = 0;   // TASK-221: bitrateMax kbps (0=off)
 static portMUX_TYPE           s_pendingCountryMux   = portMUX_INITIALIZER_UNLOCKED;
 
 // WebRadio station-page parse-buffer capacity. WR_MAX_STATIONS (30) stations ×
@@ -790,17 +791,22 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
 // 200, parses the response into the caller-supplied parse doc. Returns the HTTP code, or a
 // negative HTTPClient connection/handshake/verify error code, or -100 on a
 // JSON parse error after a successful 200.
-static int fetchOneMirror(const char* mirror, const char* country,
+static int fetchOneMirror(const char* mirror, const char* country, uint8_t bitrateCap,
                           unsigned offset, JsonDocument& doc) {
-    char url[160];
+    char url[192];
     // limit= is an intentional heap mitigation (commit dafa4a4), not a bug —
     // driven by WR_MAX_STATIONS (TASK-224) so the query, the result arrays,
     // and the fill-loop bound below all agree. It also bounds one page to what
     // the 5 KB parse doc holds; offset pages through the list (TASK-232).
-    snprintf(url, sizeof(url),
+    int n = snprintf(url, sizeof(url),
         "https://%s/json/stations/search"
         "?countrycode=%s&codec=MP3&hidebroken=true&order=votes&limit=%u&offset=%u",
         mirror, country, (unsigned)WR_MAX_STATIONS, offset);
+    // TASK-221: cap drain rate for the small ring buffer. radio-browser's param
+    // is camelCase bitrateMax (host-verified — snake_case bitrate_max is ignored).
+    // bitrate=0 (unknown) still passes the server filter, which is acceptable here.
+    if (bitrateCap > 0 && n > 0 && n < (int)sizeof(url))
+        snprintf(url + n, sizeof(url) - n, "&bitrateMax=%u", (unsigned)bitrateCap);
 
     WiFiClientSecure tls;
     // Pinned root only (ADR-029). The setInsecure() fallback was removed in
@@ -868,9 +874,11 @@ static unsigned appendHttpStations(JsonDocument& doc) {
 }
 
 static void fetchWebRadioStations() {
-    char country[4];
+    char    country[4];
+    uint8_t bitrateCap;
     portENTER_CRITICAL_SAFE(&s_pendingCountryMux);
     strlcpy(country, s_pendingCountry, sizeof(country));
+    bitrateCap = s_pendingBitrateCap;
     portEXIT_CRITICAL_SAFE(&s_pendingCountryMux);
 
     // tlsYield() stops spotifyTask and waits up to 90 s for its ack. With
@@ -904,7 +912,7 @@ static void fetchWebRadioStations() {
         s_webRadioResult.tlsInsecure = false;  // always false now; kept for observability
         for (uint8_t page = 0; page < WR_FETCH_MAX_PAGES; page++) {
             unsigned offset = (unsigned)page * WR_MAX_STATIONS;
-            int code = fetchOneMirror(mirror, country, offset, webRadioDoc);
+            int code = fetchOneMirror(mirror, country, bitrateCap, offset, webRadioDoc);
             s_webRadioResult.lastHttpCode = code;
             if (code != 200) {
                 if (page == 0)
@@ -1145,10 +1153,13 @@ int lastTeletextHttpCode() {
     return code;
 }
 
-void enqueueWebRadioStations(const char* countryCode) {
+void enqueueWebRadioStations(const char* countryCode, uint8_t bitrateCap) {
     if (!s_queue || !countryCode || !countryCode[0]) return;
+    // Snapshot the request params on the caller's task (which owns g_settings)
+    // under the mux — dataTask reads them back the same way (matches country).
     portENTER_CRITICAL_SAFE(&s_pendingCountryMux);
     strlcpy(s_pendingCountry, countryCode, sizeof(s_pendingCountry));
+    s_pendingBitrateCap = bitrateCap;
     portEXIT_CRITICAL_SAFE(&s_pendingCountryMux);
     Request req = {}; req.type = DATA_FETCH_WEBRADIO_STATIONS;
     if (xQueueSend(s_queue, &req, 0) != pdTRUE)

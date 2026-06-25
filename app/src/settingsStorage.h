@@ -76,7 +76,7 @@ struct AppSettings {
     // --- Web Radio (M-WEBRADIO) ---
     char    webRadioCountry[4];   // ISO 3166-1 alpha-2, e.g. "NL\0\0" (default NL)
     bool    webRadioAutoplay;     // reconnect last station on resume (default false)
-    uint8_t webRadioBitrateCap;   // 0=off / 64 / 96 / 128 / 192 kbps. INERT — not applied to the query yet, see TODO(TASK-221)
+    uint8_t webRadioBitrateCap;   // 0=off / 64 / 96 / 128 / 192 kbps. Applied as the radio-browser bitrateMax query filter (TASK-221)
     bool    webRadioAutoSkip;     // TASK-234/ADR-045: retry-once-then-advance past dead stations on ERROR_STALL/ERROR_UNREACHABLE, bounded to one list pass. Default ON (no-PSRAM decode failures are common; see TASK-233)
     bool    webRadioHwMod;        // SC8002B gain-reduction mod installed. Designed volume-cap input (M-WEBRADIO §HW Mod): gates the anti-clipping ceiling. UNIMPLEMENTED — enforcement deferred to TODO(TASK-209) (needs DUT to calibrate the stock cap)
     uint8_t webRadioMaxVolume;    // 1–21 ceiling → setVolume() (currently UNCLAMPED). Per §HW Mod: stock soft-cap 12 / mod default 18 — not yet enforced; applyDefaults() always sets 10. See TODO(TASK-209)

@@ -664,8 +664,17 @@ is no dead toggle — but the design doc implies behaviour that does not exist.
 API) to the query in `fetchOneMirror()` when `webRadioBitrateCap > 0`; verify the
 param name against the API (host probe — `test_radiobrowser_api.py`).
 
+**Done 2026-06-25.** Host probe against `de1.api.radio-browser.info` settled the param-name
+uncertainty: **`bitrateMax`** (camelCase) filters correctly (`&bitrateMax=96` → all results ≤ 96,
+0=unknown still passes); the snake_case `bitrate_max` cited in old comments is **silently ignored**
+(returned 320/192 kbps). `enqueueWebRadioStations()` now takes a `bitrateCap`, snapshotted under the
+existing mux next to `country` (caller `webRadioApp.h` passes `g_settings.webRadioBitrateCap`);
+`fetchOneMirror()` appends `&bitrateMax=%u` when cap > 0. Fixed the inert-field comment in
+`settingsStorage.h` and the wrong `bitrate_max` hints in `test_stream_buffer.py`. 5/5 gates.
+No on-device UI exists for the field (config-file only), so no UX change — DUT effect is fewer
+high-bitrate stations in the list, observable but not a behaviour gate.
 **Priority:** P3 — stall-margin refinement; not a crash/correctness risk
-**Status:** open — found 2026-06-21 (TASK-219 scope review)
+**Status:** done 2026-06-25 — `bitrateMax` query filter wired (host-verified param name)
 **Opened:** 2026-06-21
 **Milestone:** M-WEBRADIO (post-MVP follow-on)
 **Owner:** Developer

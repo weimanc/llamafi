@@ -133,7 +133,9 @@ void enqueueTeletextPage(uint16_t page, uint8_t sub = 0);
 
 // Set country code for station list fetch, then enqueue the fetch.
 // countryCode: ISO 3166-1 alpha-2, e.g. "NL". Non-blocking.
-void enqueueWebRadioStations(const char* countryCode);
+// bitrateCap: radio-browser bitrateMax kbps filter (0 = no cap). TASK-221 — the
+// design prefers ≤ 96 kbps streams for stall tolerance on the small ring buffer.
+void enqueueWebRadioStations(const char* countryCode, uint8_t bitrateCap);
 
 // Copy latest result into *out; returns true if new data since last poll.
 // Caller must supply a valid pointer. Thread-safe (spinlock).

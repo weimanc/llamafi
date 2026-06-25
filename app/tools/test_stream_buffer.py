@@ -476,13 +476,13 @@ def run_probe(workers, stream_secs):
     elif pct_stall_risky < 0.15:
         verdict = "CAP-RECOMMENDED"
         print(f"  → CAP-RECOMMENDED: {pct_stall_risky:.0%} of stations stall.")
-        print(f"    Add ?bitrate_max=192 to API query to exclude 320 kbps outliers.")
+        print(f"    Add &bitrateMax=192 to API query to exclude 320 kbps outliers.")
         print(f"    Implement retry-on-stall + BUFFERING state in firmware.")
         rc = 1
     else:
         verdict = "HIGH-RISK"
         print(f"  → HIGH-RISK: {pct_stall_risky:.0%} of stations have real network stalls.")
-        print(f"    Add ?bitrate_max=128 to API query. Consider increasing ring buffer")
+        print(f"    Add &bitrateMax=128 to API query. Consider increasing ring buffer")
         print(f"    via audio.setBufsize() if heap allows.")
         rc = 1
 
