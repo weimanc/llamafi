@@ -2427,6 +2427,13 @@ static void cmdTick(const char *args) {
 static void cmdGet(const char *args) {
   char buf[256]; buf[0] = '\0';
   // appId — shell-owned; WinampDisplay cannot reference currentAppId.
+  if (strcmp(args, "ip") == 0) {
+    // TASK-248: LAN IP so the stress harness can read logs over the /log HTTP ring
+    // (off the CH340 serial bottleneck) while keeping commands on serial.
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"ip\",\"ip\":\"%s\",\"last\":true}\n",
+                  WiFi.localIP().toString().c_str());
+    return;
+  }
   if (strcmp(args, "appId") == 0) {
 #define APP_X(Name, icon, cfg) #Name,
     static const char* kAppNames[] = {

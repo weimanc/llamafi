@@ -1384,18 +1384,21 @@ soak uses `set logLevel w` + `set logKeep dataTask` → ring/serial carry only f
 warnings/errors, so the 48-line ring doesn't wrap and the CH340 isn't flooded. The harness also
 `set bgPoll 0` to measure fetchers in isolation from Spotify-403 TLS contention.
 
-**Open / limitations:**
-- Soak samples stock/quote + teletext reliably (0 TLS errors, latency captured). weather/crypto/
-  heatmap still sample 0 in the continuous soak — **NOT the CH340** (quieting logs + suspending
-  bgPoll did not fix it) and **NOT a harness artdefact** (a raw script reproduces it). Root cause
-  is a device-side bug → **TASK-250**: a stock **quote batch** (8 sequential GETs) poisons the
-  *next* app's fetch — switching stock→weather/crypto/heatmap produces no fetch for >30 s, then
-  recovers by the next cycle. (From idle, all three fetch fine: weather 1.9 s, crypto 7.5 s,
-  heatmap 2.3 s — verified by raw capture.) The harness is otherwise complete; full multi-app
-  soak coverage is gated on TASK-250.
+**Full multi-app coverage achieved (2026-06-25).** Two follow-on fixes closed the gap:
+- **TASK-250** (dataTask fetch coalescing) removed the duplicate-stock-quote queue saturation
+  that was starving the next app's fetch.
+- **HTTP `/log` reader** — the soak now reads the high-volume logs over the device's `/log`
+  HTTP ring (commands stay on serial), so the flaky CH340 no longer stalls/hangs the run.
+  Added `get ip` (serial) for discovery; per phase the harness clears the ring, fires the
+  trigger, then polls `/log?n=48` feeding only new lines (ring emptied at phase start under the
+  `logLevel w`/`logKeep dataTask` filter → no wrap, no dedup). `--serial-log` forces the old path.
 
-**Priority:** P2 · **Status:** harness + log-level control delivered + baseline findings captured
-(2026-06-25); full coverage gated on TASK-250 · **Owner:** VE · **Deps:** TASK-244 (starvation, fixed)
+**Final soak result (4 min, HTTP `/log`):** all five fetchers sampled, **0 TLS errors** —
+teletext ~1.2 s, weather ~1.9 s, stock/quote ~2.1 s (TASK-249 spark), stock/heatmap ~2.1 s,
+crypto ~6.8 s.
+
+**Priority:** P2 · **Status:** **done — full multi-app soak via HTTP /log, DUT-verified 2026-06-25**
+· **Owner:** VE · **Deps:** TASK-244 / TASK-250 (starvation + saturation, both fixed)
 
 ---
 

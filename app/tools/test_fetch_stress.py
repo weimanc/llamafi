@@ -34,6 +34,7 @@ import sys
 import time
 import pathlib
 import statistics
+import urllib.request
 from collections import defaultdict, Counter
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
@@ -50,7 +51,7 @@ RE_TLS  = re.compile(r"ssl_client|SSL - Memory|MbedTLS|mbedtls|alloc.*fail|after
 def _label(app: str, line: str) -> str:
     """Derive a fetcher label (app + sub-view) from the log line."""
     if app == "stock":
-        if "quote" in line:   return "stock/quote"
+        if "spark" in line or "quote" in line: return "stock/quote"  # TASK-249: spark = list quote
         if "heatmap" in line: return "stock/heatmap"
         if "chart" in line:   return "stock/chart"
         return "stock/?"
@@ -93,6 +94,7 @@ class Stats:
 
 
 def drain(dut: Dut, secs: float, st: Stats):
+    """Serial-log fallback path: drain serial for `secs`, feeding each line to Stats."""
     orig = dut.ser.timeout
     dut.ser.timeout = 0.4
     end = time.monotonic() + secs
@@ -102,6 +104,30 @@ def drain(dut: Dut, secs: float, st: Stats):
             continue
         st.feed(raw.decode("utf-8", "replace").rstrip())
     dut.ser.timeout = orig
+
+
+# ── HTTP /log path (TASK-248) ─────────────────────────────────────────────────
+# Read the high-volume logs over the device's /log HTTP ring instead of draining
+# serial — keeps the flaky CH340 carrying only the tiny outbound commands.
+def http_log(ip: str, query: str, timeout: float = 4.0) -> str:
+    try:
+        with urllib.request.urlopen(f"http://{ip}/log{query}", timeout=timeout) as r:
+            return r.read().decode("utf-8", "replace")
+    except Exception as e:
+        return f"__HTTPERR__ {e}"
+
+def get_device_ip(dut: Dut) -> str:
+    try:
+        dut.ser.reset_input_buffer()   # flush stale set-ACKs so we read the get-ip reply
+    except Exception:
+        pass
+    for _ in range(3):
+        r = dut.cmd("get ip", timeout=4.0)
+        ip = r.get("ip", "") if isinstance(r, dict) else ""
+        if ip and ip != "0.0.0.0":
+            return ip
+        time.sleep(0.3)
+    return ""
 
 
 # Fetches are enqueued by the ACTIVE app's tick(), and the single dataTask serialises
@@ -179,6 +205,8 @@ def main():
     ap = make_arg_parser([], "Multi-app fetch stress / soak (TASK-248)")
     ap.add_argument("--minutes", type=float, default=10.0)
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--serial-log", action="store_true",
+                    help="force reading logs over serial instead of the /log HTTP ring")
     args = ap.parse_args()
     global VERBOSE
     VERBOSE = args.verbose
@@ -192,17 +220,24 @@ def main():
     # TASK-248: quiet the log firehose so the CH340 doesn't stall and the 48-line
     # ring doesn't wrap — keep only dataTask fetch lines + all warnings/errors
     # (so TLS errors / http-fails are still caught). Runtime; resets on reboot.
-    dut.send("set logLevel w"); time.sleep(0.2)
-    dut.send("set logKeep dataTask"); time.sleep(0.2)
+    dut.cmd("set logLevel w"); dut.cmd("set logKeep dataTask")
     # Suspend the Spotify poll for the soak: this test measures the FETCHERS' TLS
     # reliability + latency in isolation. A 403-wedged Spotify otherwise hogs the
     # shared TLS in overdue-poll bursts (esp. after a long stock batch) and starves
     # weather/crypto/heatmap past the window — that contention is characterised
     # separately (TASK-244). Re-enabled implicitly on the prod reflash after the soak.
-    dut.send("set bgPoll 0"); time.sleep(0.2)
+    dut.cmd("set bgPoll 0")
+
+    # TASK-248: read logs over the /log HTTP ring (off the flaky CH340) when we can
+    # get the device IP; commands still go over serial. Per phase: clear the ring,
+    # fire the trigger, then poll /log (only NEW lines since clear are fed — no
+    # dedup needed because the ring is emptied at phase start and stays small under
+    # the logLevel/logKeep filter). Falls back to serial drain if no IP / forced.
+    ip = "" if args.serial_log else get_device_ip(dut)
+    mode = f"HTTP /log @ {ip}" if ip else "serial drain (CH340 — may stall)"
     plan = phases()
     print(f"[stress] soaking {args.minutes} min over {len(plan)} fetch phases "
-          f"(logs: dataTask + W/E only)…", flush=True)
+          f"(logs: dataTask + W/E only; via {mode})…", flush=True)
     t_start = time.monotonic()
     t_end = t_start + args.minutes * 60
     cyc = 0
@@ -210,14 +245,26 @@ def main():
         while time.monotonic() < t_end:
             for label, fire, want_gets, max_wait in plan:
                 before = sum(st.codes[label].values())
+                if ip:
+                    http_log(ip, "?clear=1")   # empty ring so only post-trigger lines remain
                 cmds = fire()
                 if VERBOSE:
                     print(f"  >> phase {label}: {cmds}", flush=True)
                 for cmd in cmds:
                     dut.send(cmd); time.sleep(0.2)
                 deadline = min(time.monotonic() + max_wait, t_end)
+                fed = 0
                 while time.monotonic() < deadline:
-                    drain(dut, 1.5, st)
+                    if ip:
+                        txt = http_log(ip, "?n=48")
+                        if not txt.startswith("__HTTPERR__"):
+                            lines = txt.splitlines()
+                            for line in lines[fed:]:
+                                st.feed(line)
+                            fed = len(lines)
+                        time.sleep(1.2)
+                    else:
+                        drain(dut, 1.5, st)
                     if sum(st.codes[label].values()) - before >= want_gets:
                         break   # this fetch's result(s) landed — next phase
             cyc += 1
@@ -226,9 +273,7 @@ def main():
     except KeyboardInterrupt:
         print("\n[stress] interrupted — reporting partial results", flush=True)
     except Exception as e:
-        # CH340 serial can stall under heavy soak traffic and surface as a read/write
-        # error — degrade gracefully (report what we have) rather than hang.
-        print(f"\n[stress] serial error ({e}) — reporting partial results", flush=True)
+        print(f"\n[stress] error ({e}) — reporting partial results", flush=True)
     finally:
         dut.close()
     ok = report(st, args.minutes)
