@@ -51,6 +51,9 @@ static volatile bool s_actionPending = false;
 // TASK-056f: volatile matches s_resetTlsPending pattern — single aligned
 // 32-bit store from the loop task (dbg_set "backoff") is atomic on Xtensa.
 static volatile unsigned int s_consecutiveFailures = 0;
+// TASK-245: last poll HTTP status (set in doPoll). Read by authError() to
+// drive the red taskbar error bar. Single aligned 32-bit store, atomic on Xtensa.
+static volatile int s_lastHttpStatus = 0;
 // TASK-053b: pending TLS reset flag. Set by resetTls() (loop task); read
 // and cleared at the top of each taskBody iteration (spotify task). The
 // volatile ensures the compiler does not hoist the check out of the loop.
@@ -194,6 +197,7 @@ static void doPoll() {
   unsigned long elapsed = millis() - t0;
   heartbeat::recordPoll(status == 200 || status == 204, status);
   heartbeat::recordBlock(elapsed);
+  s_lastHttpStatus = status;   // TASK-245: feed authError()
 
   if (status == 200) {
     s_consecutiveFailures = 0;
@@ -467,6 +471,15 @@ uint32_t nextPollInMs() {
 
 bool isHealthy() {
   return s_consecutiveFailures < 2;
+}
+
+// TASK-245 / ADR-046: true when the poll is in a persistent 403 state —
+// authorization refused (e.g. owner-account Premium lapsed, TASK-243). The
+// >=2 consecutive-failure guard ignores a one-off 403 so the red bar doesn't
+// flash on a transient blip. Self-clears: the next 200/204 resets
+// s_consecutiveFailures to 0. Surfaced via SpotifyApp::hasError().
+bool authError() {
+  return s_lastHttpStatus == 403 && s_consecutiveFailures >= 2;
 }
 
 void resetTls() {

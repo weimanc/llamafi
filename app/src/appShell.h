@@ -16,6 +16,13 @@ struct App {
     // Self-clears when the work completes. Shell polls this after every tick().
     // Non-pure: apps with no async input need not override (safe default = false).
     virtual bool hasPendingAsync() const { return false; }
+    // TASK-245 / ADR-046: return true while the app is in a sustained error state
+    // (an auth/HTTP failure that won't self-heal by retrying — e.g. a Spotify 403).
+    // Sticky: the app sets it on detection and clears it on the next success; the
+    // shell does no latching, it only reads this to colour the taskbar active-slot
+    // indicator red (precedence error > busy > idle). Safe default = false, so
+    // offline apps need not override.
+    virtual bool hasError() const { return false; }
     virtual ~App() = default;
 };
 

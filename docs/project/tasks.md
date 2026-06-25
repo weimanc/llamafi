@@ -1220,9 +1220,25 @@ shows only while it is the active app (no persistent per-slot dot). Spotify 403 
 red only while Spotify is active. Note the 403 *starvation* case (TASK-244) makes other apps
 *slow* not *failed*, so they go red only on a genuine fetch error.
 
-**Priority:** P2 · **Status:** open · **Opened:** 2026-06-25 · **Milestone:** M-MULTIAPP / UI
+**Priority:** P2 · **Status:** implemented — DUT logic-verified 2026-06-25 (visual red-bar
+sign-off owed) · **Opened:** 2026-06-25 · **Milestone:** M-MULTIAPP / UI
 **Owner:** Developer (consult Architect — base-class contract change) · **Deps:** ADR-046,
 TASK-244 (Spotify 403 detection), app-registry-001 / taskbar-icons-001
+
+**Implementation (2026-06-25):**
+- `App::hasError()` added to base class (`appShell.h`); default false.
+- `TASKBAR_ERR_COLOR 0xF800` + `error` param with precedence error>busy>idle in
+  `renderActiveIndicator` / `renderTaskbar` (`taskbar/taskbar.h`); firmware-only #define
+  (golden hash unaffected — verified `run/check` gate 3).
+- `shell::activeError()` threads the active app's error into every taskbar repaint;
+  edge-triggered re-render in the main loop catches async onset/clear (`main.cpp`).
+- Spotify consumer: `SpotifyApp::hasError()` → new `spotifyTask::authError()`
+  (`s_lastHttpStatus == 403 && consecutiveFailures >= 2`; self-clears on next 200/204).
+- Debug getter `get activeError` → `{active, spotifyAuthError}` for VE assertions.
+- **DUT (live 403):** `get activeError` → `active:true, spotifyAuthError:true` while Spotify
+  active; `run/check` 5/5. **Owed:** human/VE visual confirm the bar renders red + clears to
+  green on a recovered poll (needs a non-403 account — gated on TASK-243), and VE test entries
+  (test_ids currently empty).
 
 ---
 

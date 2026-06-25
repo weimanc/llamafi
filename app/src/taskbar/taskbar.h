@@ -12,6 +12,12 @@
 // to avoid invalidating check_build.sh golden hash).
 #define TASKBAR_BUSY_COLOR 0xFD20
 
+// TASK-245 / ADR-046: red indicator when the active app reports a sustained error
+// (App::hasError()). Firmware-only constant — kept OUT of generated shell_layout.h
+// for the same golden-hash reason as TASKBAR_BUSY_COLOR. Precedence in
+// renderActiveIndicator is error > busy > idle.
+#define TASKBAR_ERR_COLOR 0xF800
+
 // TASK-242: number of apps the taskbar cycles through. WebRadio (the last AppId)
 // is entered ONLY via the Winamp eject button — it has NO taskbar slot
 // (M-WEBRADIO design §Eject button toggle). The taskbar must therefore iterate
@@ -35,8 +41,11 @@ static_assert(TASKBAR_ICON_COUNT == TASKBAR_APP_COUNT,
 // Repaints only the 3 px active indicator for the slot showing activeApp.
 // Call when busy state changes; renderTaskbar() delegates to this internally.
 inline void renderActiveIndicator(TFT_eSPI& tft, AppId activeApp,
-                                  int scrollOffset, int totalApps, bool busy) {
-    uint16_t col = busy ? TASKBAR_BUSY_COLOR : TASKBAR_ACTIVE_COLOR;
+                                  int scrollOffset, int totalApps, bool busy,
+                                  bool error = false) {
+    // TASK-245 / ADR-046: tri-state precedence — error (red) > busy (amber) > idle (green).
+    uint16_t col = error ? TASKBAR_ERR_COLOR
+                         : (busy ? TASKBAR_BUSY_COLOR : TASKBAR_ACTIVE_COLOR);
     for (int i = 0; i < TASKBAR_SLOT_COUNT; ++i) {
         int appIdx = (scrollOffset + i) % totalApps;
         if (appIdx == (int)activeApp) {
@@ -48,7 +57,8 @@ inline void renderActiveIndicator(TFT_eSPI& tft, AppId activeApp,
 }
 
 inline void renderTaskbar(TFT_eSPI& tft, AppId activeApp,
-                           int scrollOffset, int totalApps, bool busy = false) {
+                           int scrollOffset, int totalApps, bool busy = false,
+                           bool error = false) {
     tft.fillRect(TASKBAR_X, 0, TASKBAR_W, 240, TASKBAR_BG_RGB565);
 
     static constexpr int iconOffX = (TASKBAR_W - TASKBAR_ICON_BAKED_W) / 2;
@@ -74,5 +84,5 @@ inline void renderTaskbar(TFT_eSPI& tft, AppId activeApp,
                           TASKBAR_ICON_BAKED_W, TASKBAR_ICON_BAKED_H,
                           icon);
     }
-    renderActiveIndicator(tft, activeApp, scrollOffset, totalApps, busy);
+    renderActiveIndicator(tft, activeApp, scrollOffset, totalApps, busy, error);
 }

@@ -1277,7 +1277,7 @@ features:
   - id: app-error-signal-001
     name: Per-app error state + red taskbar active-bar signal
     milestone: M-MULTIAPP
-    status: planned
+    status: implemented
     description: |
       Generic per-app error endpoint on the App base class, surfaced as a third taskbar
       active-slot indicator state. Today the 3px active-slot bar (taskbar/taskbar.h:
@@ -1297,6 +1297,8 @@ features:
       - app/src/appShell.h
       - app/src/taskbar/taskbar.h
       - app/src/main.cpp
+      - app/src/spotifyTask.h
+      - app/src/spotifyTaskStorage.cpp
       - docs/architecture/decisions/ADR-046.md
     cross_features:
       - app-registry-001
@@ -1309,4 +1311,9 @@ features:
       Design: ADR-046 (accepted 2026-06-25). Split into TASK-245 (mechanism + Spotify consumer
       + matrices + VE) and TASK-246 (audit + wire every app's error state; gated on TASK-245).
       Ties to TASK-244 (same Spotify 403 signal). cross_feature_matrix combinations X017-X020.
-      status: planned — no firmware landed yet.
+      TASK-245 mechanism implemented 2026-06-25: App::hasError(), red TASKBAR_ERR_COLOR with
+      precedence error>busy>idle, shell::activeError() + edge-triggered async re-render,
+      SpotifyApp::hasError() via spotifyTask::authError() (persistent 403). Debug getter
+      `get activeError`. DUT logic-verified on a live 403 (active:true, spotifyAuthError:true);
+      run/check 5/5. Owed: visual red-bar sign-off + clear-on-recovery (gated on TASK-243) and
+      VE test_ids. Per-app fan-out remains TASK-246 (status there still open).

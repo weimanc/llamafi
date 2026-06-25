@@ -129,6 +129,12 @@ uint32_t nextPollInMs();
 // (fewer than 2 consecutive poll failures). Safe to call from any task.
 bool isHealthy();
 
+// TASK-245 / ADR-046: returns true when the poll is in a persistent 403 state
+// (authorization refused — e.g. owner-account Premium lapsed). Drives the red
+// taskbar active-bar error signal via SpotifyApp::hasError(). Self-clears on
+// the next successful (200/204) poll. Safe to call from the loop task.
+bool authError();
+
 // TASK-053b: schedule a hard TLS reset. Sets a pending flag; the spotify
 // task detects it at the top of its next iteration and calls client.stop()
 // on its own stack (avoids cross-task mbedTLS races). Also zeroes the
