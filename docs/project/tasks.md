@@ -1325,6 +1325,34 @@ the "stuck amber = failed or still trying?" ambiguity that motivated this. Offli
 
 ---
 
+### TASK-247 — Stock Heatmap/Chart launch wastes ~16 s on an unused list-quote fetch
+
+**Found 2026-06-25** chasing a user report ("stock → heatmap takes very long; teletext stuck on
+amber while typing"). DUT capture: `switchApp 7` (mode=Heatmap) ran the **8-ticker list quote
+batch** — 8 sequential ~2 s Yahoo GETs ≈ **16 s** — *before* `_applyLaunchView()` switched to
+Heatmap, and the heatmap screener GET queued *behind* it. So Heatmap/Chart launches paid the full
+List cost they never display (and, via the single shared dataTask, blocked whatever the user
+opened next, e.g. Teletext).
+
+**Root cause:** `StockApp::init()` unconditionally enqueued `DATA_FETCH_STOCK_QUOTE` then called
+`_applyLaunchView()` (TASK-231). The quote is only needed for the List view.
+
+**Fix:** moved the quote enqueue into `_applyLaunchView()`'s List branch — Heatmap launches now do
+a single screener GET, Chart a single chart GET. Added a `set stockMode <0|1|2>` debug setter
+(in-RAM, non-persisted) and made `_switch_to_stock` force List (0) so the list-centric VE suite is
+deterministic regardless of the device's saved mode (it previously silently assumed List).
+
+**DUT result:** Heatmap-mode launch **~18 s → ~2.5 s** (one `heatmap GET 200 elapsed≈2096ms`, no
+quote batch). T169/T170 (list launch) PASS via forced List mode; T-ERR-01/06/07 PASS; `run/check`
+5/5. **Note (not fixed here):** the List view itself is still ~16 s (8 sequential per-ticker Yahoo
+GETs, fresh TLS each per ADR-029) — inherent; a future optimisation (batching / fewer round-trips)
+if List load time matters.
+
+**Priority:** P2 · **Status:** implemented — DUT-verified 2026-06-25 · **Opened:** 2026-06-25
+· **Milestone:** stock-002 / M-MULTIAPP · **Owner:** Developer · **Deps:** TASK-231 (launch view), TASK-245 (connecting bar made the cost visible)
+
+---
+
 ## Open — codebase-quality audit follow-ups (2026-06-21)
 
 > From three parallel read-only audits (firmware quality / test brittleness /

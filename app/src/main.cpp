@@ -1029,9 +1029,11 @@ public:
         const_cast<const char(*)[8]>(g_settings.stockTickers));
     _s.subView     = StockSubView::List;
     _s.prevSubView = StockSubView::List;
-    dataTask::enqueue(dataTask::DATA_FETCH_STOCK_QUOTE);
-    _s.lastQuoteFetch = millis();
-    _applyLaunchView();   // TASK-231: honour Settings → Stock mode (was: repaintList())
+    // TASK-247: do NOT blindly fetch the 8-ticker list quote here — when launching
+    // into Heatmap/Chart mode that ~16 s batch (8 sequential Yahoo GETs) is wasted
+    // and queues *ahead* of the view's real fetch. _applyLaunchView() enqueues only
+    // what the launch view needs (List → quote, Heatmap → screener, Chart → chart).
+    _applyLaunchView();   // TASK-231: honour Settings → Stock mode
   }
 
   void resume() override {
@@ -1075,6 +1077,8 @@ public:
       default:
         _s.subView     = StockSubView::List;
         _s.prevSubView = StockSubView::List;
+        dataTask::enqueue(dataTask::DATA_FETCH_STOCK_QUOTE);  // TASK-247: only when List is the launch view
+        _s.lastQuoteFetch = millis();
         repaintList();
         break;
     }
@@ -1211,6 +1215,15 @@ public:
   bool dbgSet(const char* var, const char* val) {
     if (strcmp(var, "fetchFailed") == 0) {
       _s.fetchFailed = val && strcmp(val, "0") != 0;
+      return true;
+    }
+    // TASK-247: force the launch-view mode so VE can deterministically exercise
+    // List (0) / Chart (1) / Heatmap (2) regardless of persisted settings. Takes
+    // effect on the next Stock launch/resume (resume() re-applies on mode change).
+    if (strcmp(var, "stockMode") == 0) {
+      int m = val ? atoi(val) : 0;
+      if (m < 0 || m > 2) return false;
+      g_settings.stockMode = (StockViewMode)m;
       return true;
     }
     if (strcmp(var, "fetchErrorCode") == 0) {

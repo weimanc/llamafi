@@ -1974,7 +1974,12 @@ _STOCK_APP_ID = APP_SLOT["Stock"]
 
 
 def _switch_to_stock(dut: Dut, timeout: float = 5.0) -> bool:
-    """Switch to StockApp via the serial switchApp command."""
+    """Switch to StockApp via the serial switchApp command.
+    TASK-247: force List launch view first (in-RAM only, not persisted) so the
+    list-centric suite is deterministic regardless of the device's saved stockMode
+    (e.g. a user-configured Heatmap default), and so the heatmap/chart launch no
+    longer pre-fetches the unused list quote."""
+    dut.cmd("set stockMode 0", timeout=timeout)
     r = dut.cmd(f"switchApp {_STOCK_APP_ID}", timeout=timeout)
     if not r.get("ok"):
         return False
