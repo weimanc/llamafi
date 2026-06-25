@@ -5833,6 +5833,95 @@ def t_wr_vol_clamp(dut: Dut):
         _restore_spotify(dut)
 
 
+# ── T237 — auto-skip terminal bound on an all-dead list (TASK-237) ───────────
+
+def _wr_skip_tried(dut: Dut) -> int:
+    r = dut.cmd("get wrSkip", timeout=3.0)
+    return int(r.get("tried", -1)) if r.get("ok") else -1
+
+
+def t237(dut: Dut):
+    """T237: auto-skip-on-stall is bounded to one list pass and lands terminal.
+
+    Uses the TASK-237 debug hook `set wrDeadUrls N` to synthesize N unreachable
+    stations + force every connect to fail deterministically (no network). Asserts:
+    with auto-skip ON, a user play skips exactly N-1 times (tried saturates at N-1),
+    lands terminal (ERROR_UNREACHABLE, no further action) and never loops; with
+    auto-skip OFF, it parks on the first failure (no skip). Spotify-independent.
+    Regression for the ADR-045 runaway-skip safety bound. TASK-237 / BP-034.
+    """
+    tid = "T237"
+    print(f"{tid}  auto-skip terminal bound (all-dead synthetic list)")
+
+    dut.cmd("set bgPoll 0", timeout=2.0)
+    ok, _ = _switch_to_webradio_capture_heap(dut)
+    if not ok:
+        dut.cmd("set bgPoll 1", timeout=2.0)
+        skip(tid, "could not enter WebRadio via eject")
+        return
+
+    N = 4
+    try:
+        # ── auto-skip ON: bounded scan → terminal, no loop ──────────────────
+        dut.cmd("set wrStop 1", timeout=3.0)
+        dut.cmd("set wrAutoSkip 1", timeout=3.0)
+        dut.cmd(f"set wrDeadUrls {N}", timeout=3.0)   # synthesize N dead + arm fail
+        rc = dut.cmd("get wrCount", timeout=3.0)
+        if rc.get("count") != N:
+            fail(tid, f"wrDeadUrls {N} did not yield count={N}: {rc}")
+            return
+        dut.cmd("set wrPlay 0", timeout=3.0)          # user-initiated play
+
+        # Poll until tried saturates at N-1 (one skip per tick).
+        deadline = time.monotonic() + 12.0
+        tried = -1
+        while time.monotonic() < deadline:
+            tried = _wr_skip_tried(dut)
+            if tried >= N - 1:
+                break
+            time.sleep(0.3)
+        if tried != N - 1:
+            fail(tid, f"auto-skip ON: tried={tried}, expected saturation at {N-1}")
+            return
+        print(f"  [{tid}] auto-skip ON: tried saturated at {tried} (=N-1) ✓")
+
+        # Terminal + no loop: tried must stay at N-1 and state be a terminal error.
+        time.sleep(1.5)
+        tried2 = _wr_skip_tried(dut)
+        if tried2 != N - 1:
+            fail(tid, f"runaway/loop: tried moved {N-1}→{tried2} after saturation")
+            return
+        st = dut.cmd("get wrState", timeout=3.0).get("state")
+        if st != 5:  # ERROR_UNREACHABLE
+            fail(tid, f"expected terminal ERROR_UNREACHABLE(5), got state={st}")
+            return
+        print(f"  [{tid}] terminal: tried stable at {tried2}, state=ERROR_UNREACHABLE, no loop ✓")
+
+        # ── auto-skip OFF: park on first failure, no skip ───────────────────
+        dut.cmd("set wrStop 1", timeout=3.0)
+        dut.cmd("set wrAutoSkip 0", timeout=3.0)
+        dut.cmd(f"set wrDeadUrls {N}", timeout=3.0)   # re-arm (resets tried=0)
+        dut.cmd("set wrPlay 0", timeout=3.0)
+        time.sleep(1.5)
+        tried_off = _wr_skip_tried(dut)
+        idx_off = dut.cmd("get wrIdx", timeout=3.0).get("idx")
+        if tried_off != 0:
+            fail(tid, f"auto-skip OFF: tried={tried_off}, expected 0 (parked, no skip)")
+            return
+        if idx_off != 0:
+            fail(tid, f"auto-skip OFF: parked on idx={idx_off}, expected 0")
+            return
+        print(f"  [{tid}] auto-skip OFF: parked on idx 0, tried=0 (no skip) ✓")
+
+        pass_(tid, f"auto-skip ON bounded to {N-1} skips → terminal, no loop; OFF parks on first fail")
+    finally:
+        dut.cmd("set wrDeadUrls 0", timeout=3.0)   # disable hook + clear synthetic list
+        dut.cmd("set wrAutoSkip 1", timeout=3.0)   # restore default ON
+        dut.cmd("set wrStop 1", timeout=3.0)
+        dut.cmd("set bgPoll 1", timeout=2.0)
+        _restore_spotify(dut)
+
+
 # ── T_WR_TLS_01 — Station fetch succeeds; record which TLS path fired ───────
 
 def t_wr_tls_01(dut: Dut):
@@ -6254,6 +6343,7 @@ ALL_TESTS = {
     "T_WR_HEAP_04":  t_wr_heap_04,
     "T_WR_VOL_03":   t_wr_vol_03,
     "T_WR_VOL_CLAMP": t_wr_vol_clamp,
+    "T237":          t237,   # TASK-237: auto-skip terminal bound (dead-URL hook)
     # M-WEBRADIO TLS path + Spotify coexistence (TASK-214)
     "T_WR_TLS_01":            t_wr_tls_01,
     "T_WR_SPOTIFY_RESUME_01": t_wr_spotify_resume_01,

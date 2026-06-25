@@ -877,7 +877,17 @@ stall (no skip).
 
 **Scope:** defense-in-depth regression test, not a correctness blocker (the bound is sound by
 construction + partially observed). File under the VE regression suite.
-**Priority:** P2 · **Status:** open · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
+
+**DONE — DUT-verified 2026-06-25 (T237 PASS; 1 passed / 0 failed / 0 skipped).** Added the debug-only
+dead-URL hook `set wrDeadUrls N`: synthesizes N unreachable stations and arms `_debugForceConnFail`, so
+every `_play()` fails the connect deterministically **before** the network/audio path (no real dead
+stream, no tlsYield). Added `set wrAutoSkip 0|1` (no on-device UI exists) to drive both branches. New
+regression test **T237** asserts: auto-skip **ON** → exactly N-1 skips (`wrSkip.tried` saturates at
+N-1), lands **terminal** (ERROR_UNREACHABLE), and **never loops** (tried stable across a settle); auto-
+skip **OFF** → parks on idx 0, no skip. Spotify/network-independent (eject entry + synthetic list).
+This closes the gap the task was opened for — the *terminal* transition (all-dead → stop, no loop) is
+now forced and observed, not just the increments. 5/5 gates.
+**Priority:** P2 · **Status:** done — DUT-verified 2026-06-25 · **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO
 **Owner:** VE (test) + Developer (dead-URL hook) · **Deps:** TASK-234 (done)
 
 ---
@@ -1661,7 +1671,7 @@ exist after in-app navigation (`main.cpp:1322-1361`); that is almost certainly w
 Chart with an empty symbol. So the real options are (1) implement launch-into-Chart/
 Heatmap with proper precondition handling (needs DUT visual verify), or (2) remove the
 toggle. Not blind-wired. Genuine product+design call.
-**Priority:** P2 — user-visible broken UI · **Status:** implemented — unverified (2026-06-21). Product call: **implement** (wire it up). New `_applyLaunchView()` honours `g_settings.stockMode` by reusing the existing `drillToChart(0)` / `enterHeatmap()` entry helpers (so the Chart selected-ticker + fetch and the Heatmap fetch preconditions are set up exactly as in-app navigation does — Chart launches on the first configured ticker). Honoured on first `init()` and on `resume()` **only when the setting changed since last applied** (`_appliedMode` cache), so the toggle now takes effect on the realistic flow (change in Settings → reopen Stock) while preserving in-session drill nav otherwise. Default-List users see zero change. 5/5 gates. · **Owner:** Developer · **Deps:** none
+**Priority:** P2 — user-visible broken UI · **Implementation (2026-06-21):** Product call: **implement** (wire it up). New `_applyLaunchView()` honours `g_settings.stockMode` by reusing the existing `drillToChart(0)` / `enterHeatmap()` entry helpers (so the Chart selected-ticker + fetch and the Heatmap fetch preconditions are set up exactly as in-app navigation does — Chart launches on the first configured ticker). Honoured on first `init()` and on `resume()` **only when the setting changed since last applied** (`_appliedMode` cache), so the toggle now takes effect on the realistic flow (change in Settings → reopen Stock) while preserving in-session drill nav otherwise. Default-List users see zero change. 5/5 gates. · **Owner:** Developer · **Deps:** none
 
 **DONE — DUT-verified 2026-06-25 (T231 PASS; 1 passed / 0 failed / 0 skipped).** New regression test
 **T231** (`run_serialdbg_tests.py`) drives `set stockMode 1/2/0`, re-enters Stock, and asserts the

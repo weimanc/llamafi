@@ -436,6 +436,43 @@ public:
         }
         if (strcmp(var, "wrNext") == 0) { _nextStation(); return true; }
         if (strcmp(var, "wrPrev") == 0) { _prevStation(); return true; }
+        // TASK-237: synthesize N unreachable stations + arm forced connect-fail, so
+        // the auto-skip terminal bound (skip ≤ N-1, land terminal, never loop) is
+        // deterministically testable without a real dead stream. `0` disables and
+        // clears the synthetic list. Debug-only.
+        if (strcmp(var, "wrDeadUrls") == 0) {
+            int n = atoi(val);
+            if (n <= 0) {
+                _debugForceConnFail = false;
+                _stationCount = 0;
+                _currentIdx = 0;
+                _pendingAction = ACT_NONE;
+                _autoSkipTried = 0;
+                _stallRetries  = 0;
+                return true;
+            }
+            if (n > dataTask::WR_MAX_STATIONS) n = dataTask::WR_MAX_STATIONS;
+            for (int i = 0; i < n; i++) {
+                snprintf(_stations[i].name, sizeof(_stations[i].name), "DEAD-%d", i);
+                strlcpy(_stations[i].url, "http://127.0.0.1:1/dead",
+                        sizeof(_stations[i].url));
+                _stations[i].bitrate = 0;
+            }
+            _stationCount       = (uint8_t)n;
+            _currentIdx         = 0;
+            _pendingAction      = ACT_NONE;
+            _autoSkipTried      = 0;
+            _stallRetries       = 0;
+            _debugForceConnFail = true;
+            _dirty = true;
+            return true;
+        }
+        // TASK-237: drive the auto-skip setting (no on-device UI exists) so both
+        // ON (skip past dead stations) and OFF (park on first stall) are testable.
+        if (strcmp(var, "wrAutoSkip") == 0) {
+            g_settings.webRadioAutoSkip = val && strcmp(val, "0") != 0;
+            return true;
+        }
         // T_WR_VOL_01–02 (TASK-209): runtime volume setter for *subjective* clip-point
         // calibration — intentionally UNCLAMPED so a human can drive past the soft cap
         // to find the clipping level. Production playback uses wrEffectiveVolume().
@@ -480,6 +517,7 @@ private:
     uint8_t     _autoSkipTried   = 0;       // stations advanced in the current failure scan
     uint8_t     _stallRetries    = 0;       // stalls on the current station (retry once, then skip)
     bool        _settled         = false;   // current station survived WR_SETTLED_MS
+    bool        _debugForceConnFail = false; // TASK-237: debug `set wrDeadUrls` — every _play() fails the connect deterministically (no network) so the auto-skip terminal bound is testable
     enum : uint8_t { ACT_NONE = 0, ACT_RETRY_SAME, ACT_SKIP_NEXT } _pendingAction = ACT_NONE;
     int         _lastHttpCode    = 0;
     bool        _lastOk          = false;
@@ -531,6 +569,18 @@ private:
 
         LOG_I("webradio", "play idx=%u name=%s url=%s",
               idx, _stations[idx].name, _stations[idx].url);
+
+        // TASK-237: deterministic dead-host injection. Treat the connect as failed
+        // without touching the network/audio path (so the auto-skip terminal bound
+        // is testable without a real dead stream). Placed AFTER the userInitiated
+        // _autoSkipTried/_stallRetries reset above so skip-counting is exercised.
+        if (_debugForceConnFail) {
+            _state = WRPlayState::ERROR_UNREACHABLE;
+            LOG_W("webradio", "play idx=%u — forced connect-fail (debug wrDeadUrls)", idx);
+            _onPlaybackFailed(/*connectFail=*/true);
+            _dirty = true;
+            return;
+        }
 
         // Yield Spotify TLS for the duration of playback.
         // Both new Audio() and connecttohost() need ~50 KB contiguous heap;
