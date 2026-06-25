@@ -37,6 +37,7 @@ struct Request { uint8_t type; uint8_t param0; uint8_t param1; char symbol[8]; }
 
 static QueueHandle_t s_queue       = nullptr;
 static TaskHandle_t  s_taskHandle  = nullptr;
+static volatile uint32_t s_pendingMask = 0;   // TASK-250: in-flight/queued fetch-type bits
 
 static portMUX_TYPE  s_weatherMux  = portMUX_INITIALIZER_UNLOCKED;
 static WeatherResult s_weatherResult;
@@ -954,6 +955,7 @@ static void taskBody(void *) {
             case DATA_FETCH_WEBRADIO_STATIONS: fetchWebRadioStations(); break;
             default: break;
         }
+        s_pendingMask &= ~(1u << req.type);   // TASK-250: fetch done — allow re-enqueue
     }
 }
 
@@ -976,12 +978,23 @@ void begin() {
     }
 }
 
+// TASK-250: coalesce duplicate param-less fetches. A stock quote is a ~16 s
+// batch (8 sequential Yahoo GETs); without this, a List launch + a triggerFetch
+// (or a re-enqueue while one is in flight) stacked multiple in the depth-4 queue,
+// each ~16 s, starving every other app's fetch behind them. Bit set on a
+// successful enqueue, cleared when the fetcher completes (dispatch loop). Only
+// the param-less generic enqueue() dedups — chart/teletext carry params and must
+// not coalesce different requests.
 void enqueue(FetchType type) {
     if (!s_queue) return;
+    uint32_t bit = 1u << (uint8_t)type;
+    if (s_pendingMask & bit) return;   // already queued or in flight — coalesce
     Request req = { (uint8_t)type };
     if (xQueueSend(s_queue, &req, 0) != pdTRUE) {
         LOG_W("dataTask", "queue full — dropped type=%d", (int)type);
+        return;
     }
+    s_pendingMask |= bit;
 }
 
 bool pollWeather(WeatherResult *out) {

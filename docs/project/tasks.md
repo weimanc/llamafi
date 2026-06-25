@@ -1426,20 +1426,36 @@ state (no prior stock batch) all three fetch fine — weather ~1.9 s, crypto ~7.
 `bgPoll 0` (Spotify suspended) and quieted logs — so it is **neither** a CH340/serial artifact
 **nor** Spotify-403 TLS contention.
 
-**Suspects (not yet root-caused):** dataTask state left by the 8-GET batch — e.g. the request
-queue (depth 4), the single shared `WiFiClientSecure` lifecycle across the 8 sequential
-opens, or the tlsYield/tlsResume accounting after a multi-GET fetch — stalling the next
-`tlsYield()`/fetch. Teletext (which precedes stock each cycle) is unaffected, and the path
-recovers, so it is not a permanent hang.
+**ROOT CAUSE (instrumented, 2026-06-25) — NOT a tlsYield deadlock.** The yield/resume handshake
+is clean (instrumentation showed correct `tls resume → dispatch → resumed → yield` cycles). The
+real cause: **multiple `DATA_FETCH_STOCK_QUOTE` requests were stacked in the depth-4 dataTask
+queue.** A List launch (TASK-247: `switchApp 7` enqueues a quote) **plus** `set triggerFetch 1`
+(or the app's 60 s re-enqueue while one is in flight) queued 2+ quote batches; each is a ~16 s
+8-GET batch, so the next app's fetch (weather/crypto/heatmap) sat behind ~16–32 s of stock work.
+The dataTask dispatch log showed `type=2` (stock quote) firing back-to-back, then `type=0`
+(weather) only after they drained. (The `triggerFetch`-after-launch double-enqueue was largely a
+stress-harness artifact; in normal use the stock app enqueues one quote / 60 s.)
 
-**Why it matters:** likely user-visible — open Stock (list), then switch to Weather/Crypto and
-its data won't refresh for ~30 s+. The TASK-245 connecting bar surfaces it as prolonged amber.
+**Fix (committed):** dataTask now **coalesces duplicate param-less fetches** — `s_pendingMask`
+bit per fetch-type, set on a successful `enqueue()`, cleared when the fetcher completes; a
+duplicate `enqueue()` of an already-pending/in-flight type is skipped. So a List launch +
+triggerFetch (or a re-enqueue during a slow fetch) collapses to **one** batch instead of stacking.
+**Verified (clean manual run):** stock quote = one 8-GET batch (was 16), then `switchApp 2` →
+`dataTask.weather GET 200` in **1.7 s** (was >30 s). Chart/teletext keep their own param'd
+enqueue paths (must not coalesce different pages/tickers).
 
-**Repro:** `set bgPoll 0; set stockMode 0; switchApp 7; set triggerFetch 1` (wait for 8 quote
-GETs) → `switchApp 2` → observe no `dataTask.weather` GET for 30 s.
+**Repro (pre-fix):** `set bgPoll 0; set stockMode 0; switchApp 7; set triggerFetch 1` → `switchApp 2`
+→ weather GET delayed >30 s. Post-fix: weather GET in ~2 s.
 
-**Priority:** P2 · **Status:** open — needs focused investigation · **Owner:** Developer
-· **Deps:** relates to TASK-248 (found it), ADR-029 (per-fetch TLS lifecycle)
+**Priority:** P2 · **Status:** **fixed — DUT-verified 2026-06-25** (dataTask fetch coalescing)
+· **Owner:** Developer · **Deps:** relates to TASK-248 (found it), TASK-247 (the launch enqueue),
+ADR-029 (per-fetch TLS lifecycle)
+
+**NB (TASK-248 harness):** the multi-app *soak* still samples weather/crypto/heatmap
+inconsistently — but that is now isolated to **CH340 serial flakiness** under long bidirectional
+soak traffic (intermittent stalls/hangs, run-to-run variable), independent of this device fix.
+The proper harness fix is to read logs over the existing `/log` HTTP ring (off the CH340) —
+deferred under TASK-248.
 
 ---
 
