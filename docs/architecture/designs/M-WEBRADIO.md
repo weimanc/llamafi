@@ -150,7 +150,7 @@ Winamp main-unit geometry reused with adapted semantics:
 │  ICY StreamTitle (artist — title)                    │         │
 │  [buffer bar replaces seek bar]   bitrate  kbps      │         │
 │  ════════════════════════════════════════════════    │         │
-│  ▌▌▌▌▌▌▌  VU meter (getVUlevel())  ▌▌▌▌▌▌▌           │         │
+│  ▌▌▌▌▌▌▌  VU meter (static in MVP — see §VU)  ▌▌▌▌    │         │
 │  ────────────────────────────────────────────────    │         │
 │  [PL panel: station list]         [▐ scroll rail ▌]  │         │
 └──────────────────────────────────────────────────────┴─────────┘
@@ -501,8 +501,35 @@ server sends no metadata, `evt_streamtitle` simply never fires — no error.
 
 ### VU meter
 
-`audio.getVUlevel()` — polled from `webRadioTick()`. Feeds the existing VU
-meter envelope directly. Option A confirmed viable (EXP-005 RQ-3).
+> **RECONCILED — TASK-220b (Architect decision, 2026-06-25).** The original spec
+> below (`audio.getVUlevel()` polled from `webRadioTick()`) was **never implemented
+> and is deferred**. Two facts make it premature for the MVP:
+>
+> 1. **Architecture mismatch.** The shipped VU (`winamp/vuMeter.h`) is a *synthetic*
+>    envelope per **ADR-009** ("decoration, not visualisation") and `vu::tick()` is
+>    called only from the Spotify app, gated on `snap.isPlaying`. There is no
+>    real-audio data path into the renderer — wiring `getVUlevel()` in is a new
+>    interface, not a poll. (`getVUlevel()` *is* genuinely available on WebRadio,
+>    unlike Spotify — this is the one place a *real* VU is technically possible.)
+> 2. **No stable signal to visualise.** WebRadio playback is best-effort and
+>    unstable on this no-PSRAM hardware (TASK-233 decoder-alloc failures; TASK-241
+>    decision gate). A real-audio VU is moot while audio drops within seconds.
+>
+> **MVP decision:** the VU is **not driven during WebRadio** — it stays static
+> (or shows the Spotify-side synthetic state if entered mid-track). This is
+> *expected behaviour*, not a coexistence bug: the DUT suite's "VU animates" human
+> step (T_WR_COEX_01) must be read against this decision, per BP-038/LL-082.
+>
+> **Future enhancement (when WebRadio playback is stable — e.g. PSRAM hardware):**
+> a real-audio VU via `audio.getVUlevel()` is the right path. Interface sketch:
+> `vu::tick()` gains an optional external-level source (`lLvl`/`rLvl` supplied by
+> the caller) so `WebRadioApp::tick()` can feed decoded levels while Spotify keeps
+> the synthetic envelope — additive, no change to the Spotify path. Tracked as the
+> 220b follow-on; not in MVP scope.
+
+~~`audio.getVUlevel()` — polled from `webRadioTick()`. Feeds the existing VU
+meter envelope directly. Option A confirmed viable (EXP-005 RQ-3).~~ *(superseded —
+see reconciliation above.)*
 
 ---
 

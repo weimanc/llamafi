@@ -1705,8 +1705,19 @@ leave the VU static during WebRadio and reconcile `M-WEBRADIO.md` (which says
 failure looks like an audio/touch coexistence bug and invites the network-chasing
 misdiagnosis BP-038/LL-082 warns against. DUT suite annotated to pre-empt this.
 
+**220b RESOLVED — Architect decision 2026-06-25 (option b + doc reconciliation).** Decided: the VU is
+**not driven during WebRadio** in the MVP. Rationale: (1) the shipped VU is a *synthetic* envelope
+(ADR-009) called only from the Spotify app — there is no real-audio path into the renderer, so
+`getVUlevel()` would be a new interface, not a poll; (2) WebRadio playback is best-effort/unstable on
+no-PSRAM (TASK-233/241), so there is no stable signal to visualise yet. A static VU during WebRadio is
+**expected, not a coexistence bug** — the DUT suite's "VU animates" step (T_WR_COEX_01) is annotated
+accordingly (pre-empts the BP-038/LL-082 misdiagnosis). `M-WEBRADIO.md §VU` reconciled against ADR-009
+(the `getVUlevel()` spec struck as never-implemented/deferred); the ASCII layout label updated. The
+real-audio VU (`audio.getVUlevel()` feeding an external-level `vu::tick()` overload — additive, no
+change to the Spotify path) is captured as a **future enhancement gated on stable WebRadio playback**
+(PSRAM hardware), not MVP scope.
 **Priority:** P2 — visible feature gap; not a crash/starvation risk
-**Status:** 220a implemented (unverified) 2026-06-21; 220b open — Architect design call (ADR-009 vs M-WEBRADIO §VU)
+**Status:** 220a implemented (unverified) 2026-06-21; **220b resolved 2026-06-25 (decision: VU static in WebRadio MVP; docs reconciled)**
 **Opened:** 2026-06-20
 **Milestone:** M-WEBRADIO
 **Owner:** Developer (220a) + Architect (220b)
