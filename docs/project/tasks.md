@@ -1305,8 +1305,23 @@ Each app's latch/clear rules to be reviewed by Architect against the ADR-046 con
 per-app red-on-error / clear-on-recovery coverage; update feature_inventory + cross_feature_matrix
 as new per-app interactions surface.
 
-**Priority:** P3 · **Status:** open · **Opened:** 2026-06-25 · **Milestone:** M-MULTIAPP / UI
+**Priority:** P3 · **Status:** implemented — DUT-verified 2026-06-25 · **Opened:** 2026-06-25
+· **Milestone:** M-MULTIAPP / UI
 **Owner:** Developer (per-app) + Architect (per-app semantics review) · **Deps:** TASK-245
+
+**Implementation (2026-06-25).** `hasError()` wired for the four network taskbar apps as a
+set-on-failed-fetch / clear-on-success latch, reading each app's result-consume:
+- **Weather** `_wxErr` — also fixed the consume to honour `r.ok` (it previously used the result
+  unconditionally, showing 0/0/0 on a failed fetch).
+- **Crypto** `_cxErr` — consume restructured to handle the `!r.ok` branch.
+- **Stock** `_s.fetchFailed` (existing for list/chart) — extended to the heatmap branch (red when
+  a heatmap fetch fails with no good data to fall back on).
+- **Teletext** `_ttErr` — set when `pollTeletext()` returns a non-ready result.
+Precedence error(red) > connecting(amber): a failed *first* fetch shows red, not amber — closing
+the "stuck amber = failed or still trying?" ambiguity that motivated this. Offline apps
+(Clock/Matrix/Life/Aquarium/Settings) + eject-only WebRadio keep the default `false` (T-ERR-06).
+**VE:** T-ERR-07 (Stock fetchFailed → red, representative of all four latches via `set fetchFailed`)
+**PASS**; T-ERR-01/02/04/05/06 re-run PASS; `run/check` 5/5. ADR-046/test_plan/matrix/inventory updated.
 
 ---
 

@@ -1292,11 +1292,15 @@ features:
       SpotifyApp::hasError() on a persistent 403 (spotifyTask::authError()) and
       SpotifyApp::isConnecting() until the first poll resolves (spotifyTask::connecting(),
       s_lastSuccessfulPollMs==0).
-      isConnecting() is also wired for every NETWORK taskbar app (each to its own first-data
-      signal): Weather (!s_wxDataReady), Crypto (!s_cxDataReady), Stock (!_everHadData — first
-      successful quote/chart/heatmap), Teletext (!_st.ready) — amber on entry → green when data
-      lands. hasError() (red) for those apps remains the TASK-246 fan-out. Offline apps
-      (Clock/Matrix/Life/Aquarium/Settings) and eject-only WebRadio keep both defaults false.
+      isConnecting() is wired for every NETWORK taskbar app (each to its own first-data signal):
+      Weather (!s_wxDataReady), Crypto (!s_cxDataReady), Stock (!_everHadData — first successful
+      quote/chart/heatmap), Teletext (!_st.ready) — amber on entry → green when data lands.
+      hasError() (red) is also wired for all four (TASK-246): a failed fetch latches red, cleared
+      on the next success — Weather _wxErr, Crypto _cxErr, Stock _s.fetchFailed (incl. heatmap),
+      Teletext _ttErr. Precedence error(red) > connecting(amber), so a failed first fetch shows
+      red not amber. (Weather consume also fixed to honour r.ok — was showing 0s on failure.)
+      Offline apps (Clock/Matrix/Life/Aquarium/Settings) and eject-only WebRadio keep all
+      defaults false.
       Accepted limitation (ADR-046 §4): recolours the ACTIVE app's bar only — an app's error is
       visible only while it is the active app (no persistent per-slot dot). 403 starvation
       (TASK-244) makes other apps slow not failed, so they go red only on a genuine fetch error.
@@ -1313,7 +1317,7 @@ features:
       - taskbar-icons-001
       - poll-001
       - data-task-001
-    test_ids: [T-ERR-01, T-ERR-02, T-ERR-03, T-ERR-04, T-ERR-05, T-ERR-06]
+    test_ids: [T-ERR-01, T-ERR-02, T-ERR-03, T-ERR-04, T-ERR-05, T-ERR-06, T-ERR-07]
     dependencies:
       - app-registry-001
     notes: |

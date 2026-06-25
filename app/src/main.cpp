@@ -357,10 +357,13 @@ public:
   bool handleInput(TouchPhase, int, int) override { return false; }
   // TASK-245 / ADR-046: amber "connecting" bar until the first weather fetch lands.
   bool isConnecting() const override { return !s_wxDataReady; }
+  // TASK-246: red bar when the last weather fetch failed (cleared on next success).
+  bool hasError() const override { return _wxErr; }
 
 private:
   WeatherAppState _s   = {};
   int             _lsec = -1;
+  bool            _wxErr = false;
 
   void weatherDrawChrome() {
     tft.drawRoundRect(0,   0,   137, 120, 5, 0xF81F);  // TIME,     top-left
@@ -426,10 +429,15 @@ private:
     }
     dataTask::WeatherResult r;
     if (dataTask::pollWeather(&r)) {
-      _s.cTemp = r.cTemp; _s.cHum = r.cHum; _s.cWind = r.cWind;
       _s.lastDataFetch = millis();
-      s_wxDataReady = true;
-      repaintWeatherValues();
+      if (r.ok) {                       // TASK-246: only consume valid data
+        _s.cTemp = r.cTemp; _s.cHum = r.cHum; _s.cWind = r.cWind;
+        s_wxDataReady = true;
+        _wxErr = false;
+        repaintWeatherValues();
+      } else {
+        _wxErr = true;                  // failed fetch → red bar (was silently shown as 0s)
+      }
     }
     repaintWeatherTime();
   }
@@ -493,9 +501,12 @@ public:
   bool handleInput(TouchPhase, int, int) override { return false; }
   // TASK-245 / ADR-046: amber "connecting" bar until the first crypto fetch lands.
   bool isConnecting() const override { return !s_cxDataReady; }
+  // TASK-246: red bar when the last crypto fetch failed (cleared on next success).
+  bool hasError() const override { return _cxErr; }
 
 private:
   CryptoAppState _s = {};
+  bool           _cxErr = false;
 
   void repaintCrypto() {
     tft.fillRect(0, CX_CANVAS_Y, 275, CX_CANVAS_H, TFT_BLACK);
@@ -530,14 +541,19 @@ private:
       _s.lastCryptoFetch = now;
     }
     dataTask::CryptoResult r;
-    if (dataTask::pollCrypto(&r) && r.ok) {
-      for (int i = 0; i < CRYPTO_COIN_COUNT; i++) {
-        _s.prices[i]  = r.prices[i];
-        _s.changes[i] = r.changes[i];
-      }
+    if (dataTask::pollCrypto(&r)) {
       _s.lastCryptoFetch = now;
-      s_cxDataReady = true;
-      repaintCrypto();
+      if (r.ok) {
+        for (int i = 0; i < CRYPTO_COIN_COUNT; i++) {
+          _s.prices[i]  = r.prices[i];
+          _s.changes[i] = r.changes[i];
+        }
+        s_cxDataReady = true;
+        _cxErr = false;
+        repaintCrypto();
+      } else {
+        _cxErr = true;   // TASK-246: failed fetch → red bar
+      }
     }
   }
 
@@ -1001,8 +1017,11 @@ class StockApp : public App {
 public:
   bool hasPendingAsync() const override { return _pendingAsync; }
   // TASK-245 / ADR-046: amber "connecting" bar until the first successful fetch
-  // (any sub-view) lands; green thereafter (red on error is the TASK-246 fan-out).
+  // (any sub-view) lands; green thereafter.
   bool isConnecting() const override { return !_everHadData; }
+  // TASK-246: red bar when the last fetch failed (_s.fetchFailed; set on a failed
+  // quote/chart/heatmap result, cleared on success).
+  bool hasError() const override { return _s.fetchFailed; }
   void init() override {
     for (int i = 0; i < 8; i++)
       strlcpy(_s.tickers[i], g_settings.stockTickers[i], 8);
@@ -1584,12 +1603,15 @@ private:
         _s.heatmapData        = r;
         _s.heatmapLayoutDirty = true;
         _everHadData = true;   // TASK-245: first data → bar leaves amber
+        _s.fetchFailed = false; // TASK-246: clear red on success
       } else if (!_s.heatmapData.ok) {
         // No good data yet — propagate error so screen shows it
         _s.heatmapData        = r;
         _s.heatmapLayoutDirty = true;
+        _s.fetchFailed = true;  // TASK-246: failed heatmap fetch, no good data → red
       }
       // else: keep last good data on screen; transient fetch error is silently retried
+      // (no red — we still have valid data to show)
     }
     if (_s.heatmapLayoutDirty) {
       computeHeatmapLayout();

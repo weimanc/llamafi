@@ -4087,6 +4087,17 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Expected result**: Clock and Matrix report `connecting:false`. Network apps report `connecting:true` on entry before first data (DUT-observed; gated by data arrival, slower under Spotify-403 starvation — TASK-244).
 - **Status**: passing (offline invariant automated; network-app amber→green is DUT-observed)
 
+### T-ERR-07 — [app-error-signal-001, TASK-246] Network-app failed fetch → red
+
+- **Type**: integration
+- **Feature(s)**: app-error-signal-001
+- **Interaction**: X021
+- **Objective**: A network app's `hasError()` drives the red bar on a failed fetch and clears on success. Stock (`hasError() = _s.fetchFailed`) is the representative consumer, driven via the existing `set fetchFailed` injector; Weather/Crypto/Teletext use the same set-on-fail/clear-on-success latch (`_wxErr`/`_cxErr`/`_ttErr`).
+- **Preconditions**: DUT on `cyd2usb_winamp_debug`.
+- **Steps**: (1) `switchApp 7` (Stock). (2) `set fetchFailed 1`; `get activeError` → `active`. (3) `set fetchFailed 0`; `get activeError` → `active`. (4) restore Spotify.
+- **Expected result**: `active:true` (red) after `fetchFailed 1`; `active:false` after `fetchFailed 0`. Precedence error(red) > connecting(amber): a failed *first* fetch shows red, not amber.
+- **Status**: passing
+
 ---
 
 ## Entry Format

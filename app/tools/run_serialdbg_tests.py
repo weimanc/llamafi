@@ -5902,6 +5902,23 @@ def t_err_06(dut: Dut):
     else:
         fail("T-ERR-06", f"clock={clock} matrix={matrix} (expected both False)")
 
+def t_err_07(dut: Dut):
+    """T-ERR-07 (TASK-246): a network app's failed fetch → red. Stock hasError() = _s.fetchFailed,
+    driven via the existing `set fetchFailed` injector; clears on success. Representative of the
+    Weather/Crypto/Teletext error latches (same set-on-fail / clear-on-success pattern)."""
+    print("T-ERR-07  network-app hasError → red (Stock fetchFailed)")
+    dut.cmd("switchApp 7"); time.sleep(0.5)   # Stock
+    dut.cmd("set fetchFailed 1"); time.sleep(0.2)
+    err = dut.cmd("get activeError")
+    dut.cmd("set fetchFailed 0"); time.sleep(0.2)
+    cleared = dut.cmd("get activeError")
+    _restore_spotify(dut)
+    ok = (err.get("active") is True and cleared.get("active") is False)
+    if ok:
+        pass_("T-ERR-07", "Stock active(red)=true on fetchFailed, false on clear")
+    else:
+        fail("T-ERR-07", f"err={err} cleared={cleared}")
+
 
 ALL_TESTS = {
     "T077": t077,
@@ -6080,6 +6097,7 @@ ALL_TESTS = {
     "T-ERR-04": t_err_04,
     "T-ERR-05": t_err_05,
     "T-ERR-06": t_err_06,
+    "T-ERR-07": t_err_07,
 }
 
 def main():

@@ -101,6 +101,8 @@ public:
 
     // TASK-245 / ADR-046: amber "connecting" bar until the first page renders.
     bool isConnecting() const override { return !_st.ready; }
+    // TASK-246: red bar when the last page fetch failed (cleared on next success).
+    bool hasError() const override { return _ttErr; }
 
     void tick() override {
         unsigned long now = millis();
@@ -118,7 +120,10 @@ public:
             _pendingFetch = false;
             if (result.ready) {
                 _st = result;
+                _ttErr = false;   // TASK-246: success clears red
                 _draw();
+            } else {
+                _ttErr = true;    // TASK-246: fetch returned but page not parsed → red
             }
         }
     }
@@ -274,6 +279,7 @@ private:
     unsigned long _lastFetch  = 0;
     unsigned long _lastTapMs  = 0;
     bool     _pendingFetch    = false;
+    bool     _ttErr           = false;  // TASK-246: last fetch failed → red bar
     bool     _injectedContent = false;
     char     _lastAction[16]  = {};
     bool     _numpadActive    = false;
