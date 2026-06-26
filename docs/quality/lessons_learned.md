@@ -4,6 +4,22 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-06-26 — M-WEBRADIO-SPOTIFY-DISABLE design review (5-agent panel)
+
+### LL-086 — 2026-06-26 — An experiment hypothesis must be checked against the prior experiment's measured findings before it is scheduled
+
+**Context**: The `M-WEBRADIO-SPOTIFY-DISABLE` design (a `-DDISABLE_SPOTIFY` experiment to free no-PSRAM RAM for WebRadio playback) went through a 2-round, 5-agent panel review. Its rev1 hypothesis was: "not creating `spotifyTask` reduces TLS-session fragmentation → enlarges the largest contiguous DMA-capable block (`maxAlloc`), which is the wall the MP3 decoder hits." The immediately-prior experiment, **EXP-007 / TASK-233**, had already *measured* the opposite: `maxAllocHeap` was **pinned at 38,900 bytes in both the 8 KB and 16 KB input-buffer runs** — it is a caps-restricted region the audio allocator cannot use, and growing/shrinking allocations did not move it. The real lever EXP-007 identified was the *usable pool* (`free − 38.9 KB`) against the decoder's 22.7 KB demand.
+
+**Observation**: The new experiment was built on a mechanism (`maxAlloc` is the wall and fragmentation drives it) that the prior experiment's own numbers contradicted. Had the panel not caught it, the experiment would have been scheduled to measure and optimise the wrong metric — and worse, a PASS or FAIL would have been *uninterpretable* because the predicted lever (`maxAlloc` rising) was one the prior data said is constant. R&D's round-1 challenge forced the correction to the usable-pool mechanism, which then yielded a falsifiable quantified prediction (+~8 KB margin) and a cheap, correct kill gate (`usable < decoder + buffer → abort`). The defect was a reasoning error sitting on top of available, contradicting measurements — not a lack of data.
+
+**Root cause**: The follow-on experiment's hypothesis was written from a plausible first-principles intuition ("less fragmentation → bigger contiguous block") without cross-checking it against the measured outcome of the experiment it directly builds on. EXP-007's pinned-`maxAlloc` finding was in the report and in ADR-045's context, but it was not used as the gate the new hypothesis had to pass. This is the same family as LL-009 (architecture assumed an API surface without testing it), LL-071 (a "small fetch = low contention" intuition contradicted by measurement), and LL-084 (a BP rationale asserted conformance of code that was never checked): an intuition presented as a mechanism without reconciling it against the data already on hand.
+
+**Suggested improvement**: When a design proposes a follow-on experiment or a memory/perf hypothesis that builds on a prior measured result, the hypothesis must explicitly state the prior experiment's relevant *measured* numbers and show the new mechanism is consistent with them (or explain why the prior measurement does not apply). The design-review panel treats "hypothesis contradicts the prior experiment's data" as a blocking finding. Concretely for this project: any M-WEBRADIO-NOPSRAM follow-on must reconcile against EXP-007's `maxAllocHeap`-pinned / usable-pool finding before scheduling. (Pairs with the experiment-lifecycle candidate BP-040: a scheduled experiment must name its gate; this lesson adds that the gate's *mechanism* must be consistent with prior measurements.)
+
+**Status**: open — candidate; brought to human alongside BP-040/BP-041. Quality win recorded in audit_log 2026-06-26.
+
+---
+
 ## Retrospective — 2026-06-24 — WebRadio taskbar crash (latent, shipped)
 
 ### LL-085 — 2026-06-24 — A design constraint with no enforcing mechanism + a test that bypassed the crash path

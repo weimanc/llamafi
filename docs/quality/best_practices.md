@@ -403,6 +403,31 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+## Candidates — proposed, pending human adoption
+
+> These entries are **NOT yet adopted**. Per QM discipline ("QM brings best-practice
+> candidates to human — never self-promotes"), they are recorded here in proposed form
+> awaiting explicit human sign-off before being assigned a final BP number and promoted
+> above this line. The latest **adopted** BP is BP-039.
+
+### BP-040 (PROPOSED) — An experiment/spike names its decision gate, FAIL artefact-disposition, and cleanup-task id before it is scheduled
+
+**Status**: **proposed — pending human adoption** (do not treat as accepted)
+**Originating context**: M-WEBRADIO-NOPSRAM design-review cycle (`docs/architecture/designs/M-WEBRADIO-SPOTIFY-DISABLE.md`, 5-agent panel, 2026-06-26). QM round-1 blocker B1: the FAIL branch of the experiment was under-specified for teardown.
+**Proposed rule**: Any task tagged R&D / experiment / spike must, before it is scheduled, name (a) its decision gate (the measurable PASS/FAIL condition), (b) the artefact disposition on FAIL — branch abandoned / guards reverted / env removed, and (c) the cleanup-task id that executes (b) if any artefact already reached the trunk. A prose "it will be shelved" is not a disposition.
+**Proposed rationale**: An experiment without a teardown mechanism rots into a half-supported second code path. This is the same failure class as LL-085 (an under-exercised path that drifted into a latent crash) and the "prose-with-no-owner" pattern behind BP-003/BP-035 — a caveat in a doc has no owner and no trigger to act. Naming the cleanup task at schedule time gives the FAIL branch a deadline and an owner instead of leaving a dormant env/flag on the trunk.
+**Proposed applies to**: PM (require the three items before scheduling an experiment), Architect (state them in the experiment design doc), R&D (own the EXP report and the branch disposition), QM (audit for orphaned experiment branches/envs at retrospective).
+
+### BP-041 (PROPOSED) — A `-D`-flag build variant kept past its experiment is added to `run/check` in the same change, or the flag is removed
+
+**Status**: **proposed — pending human adoption** (do not treat as accepted)
+**Originating context**: M-WEBRADIO-NOPSRAM design-review cycle (same as BP-040). QM round-1 candidate M2 (build-flag-variant rot).
+**Proposed rule**: Any compile-time `-D` build variant (e.g. a new `[env:...]` with a distinguishing `build_flags` define) that is kept beyond its experiment must be added to the `./run/check` build-check gates in the same change that promotes it. If it is not added to the check, the variant and its flag must be removed. A build variant with no CI/check gate is not maintained.
+**Proposed rationale**: The two-variant build matrix is a maintenance liability that silently rots without a gate exercising it. LL-085 is the canonical instance: an under-exercised second path (the WebRadio taskbar slot) drifted for ~10 days into a latent null-pointer crash because nothing exercised it. The project already runs a multi-gate `run/check`; a flag-guarded variant that is not one of those gates will diverge from the default build the next time the shared code changes. The rule deliberately forces a binary choice — gate it or delete it — so a half-supported second firmware cannot linger.
+**Proposed applies to**: Developer (add the 6th gate in the same change that promotes a variant, or remove the flag), Architect (any design that introduces a build-flag variant states its gate-or-remove disposition), QM (audit `platformio.ini` envs against `run/check` gates at retrospective).
+
+---
+
 ## Entry Format
 
 ```

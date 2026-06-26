@@ -4,6 +4,88 @@
 
 All audits: scope, findings, actions, results.
 
+### Audit — 2026-06-26 — M-WEBRADIO-SPOTIFY-DISABLE design-review cycle (5-agent panel)
+
+**Triggered by**: human ("do the rest" of quality follow-ups for the consensus-approved design)
+
+**Scope**: Quality review of the multi-round design-review process for
+`docs/architecture/designs/M-WEBRADIO-SPOTIFY-DISABLE.md` (M-WEBRADIO-NOPSRAM — a
+`-DDISABLE_SPOTIFY` / `cyd2usb_webradio` experiment to free no-PSRAM RAM for WebRadio
+playback and sidestep the TASK-243 Premium blocker). This row records the **review cycle
+itself as a quality event**, not a feature/code audit — no firmware shipped; the design is
+scheduled as an `rnd/webradio-nopsram` experiment (EXP-008), not yet implemented.
+
+**Areas checked**:
+- [x] Process adherence (design-before-code; R&D-on-branch per AGENTS.md; ADR supersede path)
+- [x] BP/LL conformance of the proposal (BP-031, BP-016, BP-024, LL-006, LL-084, LL-085)
+- [x] Experiment lifecycle (kill criterion + FAIL artefact disposition)
+- [x] Review-process effectiveness (did the panel catch real defects before scheduling?)
+
+**Process record**:
+- **5-agent panel**: PM, Developer, VE, QM, R&D. Two rounds.
+- **Round 1** (rev1): 4× NEEDS-CHANGES + 1× AGREE-WITH-NITS. QM verdict: NEEDS-CHANGES
+  (2 blocking — B1 no kill/cleanup criterion on FAIL; B2 `tlsYield` no-op not reconciled
+  with the human-approved BP-031 invariant).
+- **Round 2** (rev2/rev3): consensus — Developer AGREE; PM/VE/QM/R&D AGREE-WITH-NITS.
+  Both QM blockers resolved (§Step-1 hard-kill pre-gate + §Process FAIL disposition;
+  §Approach BP-031 reconciliation paragraph + per-site `// DISABLE_SPOTIFY: …BP-031 n/a`
+  comment convention guarding against the LL-084 mislead). rev1 → rev3.
+
+**Findings**:
+
+1. **Review process caught a load-bearing hypothesis error — GREEN (decisive quality win).**
+   rev1's mechanism claim was "removing the TLS session reduces fragmentation → enlarges the
+   contiguous block (`maxAlloc`)." This **directly contradicted EXP-007's measured finding**
+   that `maxAllocHeap` is *pinned at 38,900 bytes* in both the 8 KB and 16 KB input-buffer
+   runs (caps-restricted, not the audio allocator's source). R&D's round-1 challenge forced a
+   correction to the defensible **usable-pool** mechanism (`usable = free − dead_block`), which
+   in turn produced a falsifiable quantified prediction (+~8 KB margin vs the 22.7 KB decoder
+   demand) and a cheap measurable kill gate. Had the panel rubber-stamped rev1, the experiment
+   would have measured the wrong metric and produced an uninterpretable result. This is the
+   single strongest argument for the multi-role review discipline in recent memory: an
+   experiment hypothesis was checked against the *prior* experiment's measured data and found
+   inconsistent **before** any DUT time was spent. Captured as LL-086.
+
+2. **FAIL kill/cleanup criterion was absent in rev1, resolved in rev3 — AMBER (resolved).**
+   QM B1. rev3 §Measurement now has a hard-kill Step-1 pre-gate (abort on `usable < decoder +
+   buffer`) and §Process states the disposition: branch abandoned, env+guards never merged to
+   trunk → nothing to clean; cleanup-task placeholder named at scheduling. Generalised as
+   BP-040 (PROPOSED).
+
+3. **BP-031 invariant reconciliation was missing in rev1, resolved in rev3 — AMBER (resolved).**
+   QM B2. Making `tlsYield`/`tlsResume` global no-ops in the variant risked misleading a future
+   BP-031 auditor (cf. LL-084, where BP-031's own cited evidence was unverified). rev3 adds the
+   default-governed / disabled-variant-vacuous reconciliation + per-site comment convention.
+
+4. **Two new BP candidates surfaced — recorded as PROPOSED, NOT adopted.** BP-040 (experiment
+   names gate + FAIL disposition + cleanup-task id before scheduling) and BP-041 (build-flag
+   variant gated in `run/check` or removed; cf. LL-085 rot). Both in `best_practices.md`
+   under "Candidates — proposed, pending human adoption." Latest adopted remains BP-039.
+
+5. **Process adherence — GREEN.** Design-before-code honoured (no code written; experiment
+   scheduled on an `rnd/` branch per AGENTS.md). Supersede path for ADR-045 correctly
+   anticipated and correctly *narrowed* in rev3 from "supersede" to "amend" (a PASS proves
+   no-PSRAM WebRadio is viable *in a Spotify-free build*, not for the default Spotify-enabled
+   board — avoids the over-claim). The supersede/amend ADR reconciles two predecessors
+   (ADR-045 and the ADR-029 cleartext-media amendment), correctly flagged to Architect.
+
+**Actions assigned**:
+- QM: record BP-040 + BP-041 as PROPOSED candidates (self — done this session).
+- QM: file LL-086 (experiment hypothesis must be checked against the prior experiment's
+  measured findings before scheduling) — done this session.
+- human: review BP-040 / BP-041 for adoption; review LL-086 for promotion.
+- R&D: EXP-008 method must specify *how* the caps-restricted dead-block is re-measured on the
+  disabled build (do not assume 38,900 transfers) — QM non-gating nit, handoff to R&D.
+- Developer: `T_WR_PLAY_SUSTAIN` queryable PLAYING-duration is a Developer deliverable, not a
+  VE assumption (BP-024) — to be listed as a Developer sub-item at scheduling (PM owns
+  tasks.md; flagged, not filed here).
+
+**Resolution**: review cycle closed at consensus (rev3). Quality docs updated this session
+(BP-040/041 proposed, LL-086 filed, this audit row). Experiment not yet implemented; no
+firmware/feature audit applies until EXP-008 runs. tasks.md scheduling owned by PM (parallel).
+
+---
+
 ### Retrospective — 2026-06-14 — M-TELETEXT (TASK-177–191)
 
 **Triggered by**: human (post-milestone retrospective request)
