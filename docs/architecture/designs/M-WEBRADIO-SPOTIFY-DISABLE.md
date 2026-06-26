@@ -79,6 +79,59 @@ default, and WebRadio's eject target keep working) — it simply renders a dorma
 - **(D) Regression surface.** The two guards must be `#ifdef`-isolated so the default
   multi-app build is byte-unchanged; `./run/check` must still pass for `cyd2usb_winamp`.
 
+## Verification
+
+> Drafted by Architect for **@VE** to formalise into `test_plan.md` + the regression suite.
+> The build flag creates a **two-variant matrix** — every claim must hold in *both*
+> `cyd2usb_winamp` (Spotify enabled, default) and `cyd2usb_webradio` (disabled).
+
+### V1 — Build matrix + default-build isolation (host, gated)
+- Both envs compile and pass `./run/check`. Add `cyd2usb_webradio` to the build-check
+  envs (a 6th gate) so the disabled variant can't silently rot.
+- **Default build byte-unchanged (risk D):** the `#ifdef DISABLE_SPOTIFY` guards must not
+  alter `cyd2usb_winamp`. Gate: build `cyd2usb_winamp` before/after the patch and assert
+  the firmware `.bin` sha256 is identical (or, if build metadata perturbs it, that the
+  `.elf` text/data sections are). This is the cheapest regression guard.
+
+### V2 — Conditional-compile assertions (DUT, `cyd2usb_webradio`)
+- **Task absent:** `get stacks` reports no `spotifyTask` (or its stack bytes = 0). Confirms
+  the 10 KB is never allocated.
+- **`tlsYield` is a no-op:** WebRadio entry does **not** stall on the yield ack (in the
+  enabled build this can block up to 150 s with the 403). Assert WebRadio reaches its
+  station fetch within a few seconds with `bgPoll` irrelevant (there is no poll).
+- **Heap delta (the decision-gate metric):** capture `get heap` (`free`, `min`, `maxAlloc`)
+  + `get stacks` at boot and at WebRadio entry; diff against the same captures from
+  `cyd2usb_winamp`. **`maxAlloc` (contiguous block), not just `free`, is the pass signal**
+  (risk B).
+
+### V3 — Functional parity (DUT, `cyd2usb_webradio`)
+- **WebRadio:** enters, fetches stations (`wrCount ≥ 1`), reaches PLAYING — the TASK-241
+  experiment proper.
+- **Other dataTask fetchers still work without a TLS session to yield:** weather / crypto /
+  stock / teletext each fetch successfully (their `tlsYield`/`tlsResume` are now no-ops —
+  must not regress). Reuse the existing per-app fetch tests.
+- **Dormant Spotify stub:** the Spotify app renders without crashing and shows a
+  disconnected state (no poll); switching to it and back via eject works.
+
+### V4 — Regression on the enabled build (DUT, `cyd2usb_winamp`)
+- The full serialdbg suite still passes — the guards must leave the Spotify path untouched.
+
+### V5 — Test-harness adaptation (**VE testability flag — blocks V2/V3**)
+`run_serialdbg_tests.py::Dut._wait_for_ready()` currently blocks until the **first
+successful Spotify poll**. In `cyd2usb_webradio` that poll **never happens** (no
+`spotifyTask`), so the harness would hang on connect. Required before any DUT run on the
+disabled variant:
+- a build-variant-aware readiness signal — e.g. a `get build` / `get variant` command that
+  reports `spotify:off`, and a `_wait_for_ready` path that keys on **WiFi-up + shell-ready**
+  instead of a Spotify poll when the variant is `spotify:off`; and
+- harness helpers that assume Spotify (`_restore_spotify`, eject-entry) must tolerate the
+  dormant stub (they should already, since they are app-switches — confirm).
+
+### Pass/fail wiring
+V1+V5 are prerequisites. V2 (`maxAlloc` rose) is the cheap pre-gate before spending DUT time
+on V3. The M-WEBRADIO-NOPSRAM decision gate (≥ 60 s stable / ≤ 6 skips / ≥ 90 %) is asserted
+in V3 and recorded against TASK-241 / ADR-045.
+
 ## Out of scope
 
 Runtime (non-build) Spotify toggle; removing the Spotify app from the registry; any
