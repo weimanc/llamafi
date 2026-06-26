@@ -3129,3 +3129,48 @@ Checklist must be referenced at milestone close for any future app additions.
 **Opened:** 2026-06-14
 **Owner:** Developer / Architect
 **Deps:** —
+
+---
+
+### TASK-251 — origin_audit.png is stale + gitignored (advisory, not gated)
+
+Architect note (2026-06-26): `app/gen/origin_audit.png` is a **gitignored build artifact** generated
+by `audit_origin.py --visual` from `gen/skin_layout.h`. The local copy went stale (regenerating
+changes it; the drift was the transport-row zone band at y≈89–105) and shows BOTH `originX=22`
+(legacy) and `originX=0` (current) panels — misleading when read as current. The audit's boxes come
+from `skin_layout.h` (authoritative) **except** the VIS rect (hand-mirrored from `vuMeter.h`); PLEDIT
+uses absolute screen-Y per the documented TASK-080 mismatch. Verified: in current geometry **no zone
+exceeds the 275px chrome** (LOGO 243–274, PLEDIT-Z2 256–274 sit flush at the last column, by design),
+and the PLEDIT thumb draw math is **clean** (bottom-aligns at max scroll). So the apparent
+right-overflow / off-by-1 were stale-artifact effects, not firmware bugs.
+**Deliverable:** make the audit regenerate-before-read (a `run/` wrapper or a `--check` staleness
+gate), and/or drop the legacy `originX=22` panel now that the migration is complete. Parse the VIS
+rect from `vuMeter.h` to kill the last hand-mirrored-constant drift.
+**Priority:** P3 — tooling hygiene · **Status:** open · **Opened:** 2026-06-26 · **Owner:** VE/Architect · **Deps:** —
+
+---
+
+### TASK-252 — WebRadio title zone: reuse drawTitleText (LED font + marquee)
+
+Architect ruling (2026-06-26): drop WebRadio's `_drawTitleZone` (plain GFX font on a black fill) and
+reuse the shared `WinampDisplay::drawTitleText(offset)` — the authentic Winamp LED bitmap font with a
+scroll offset, restoring the slot from `SKIN_MAIN_BG`. Wins: visual consistency with Spotify, a free
+scrolling marquee for long station names (currently truncated), −~24 lines. Requires a public
+`setTitle()`/`lastTitle` setter and WebRadio driving the scroll offset (or 0 for static); the
+connecting/error strings render in the LED font too. Caveat: `TITLE_H=6` is tight — verify the state
+strings fit. Prototype in `preview_webradio.py` first (it already uses the real `composite_text`).
+**Priority:** P3 — visual consistency · **Status:** open · **Opened:** 2026-06-26 · **Owner:** Developer + Architect · **Deps:** —
+
+---
+
+### TASK-253 — WebRadio posbar: health-tinted gradient buffer bar
+
+Replace the flat-green `fillRect` buffer bar (ugly) with a horizontal gradient stretched to the buffer
+fill width, tinted **amber(low)→green(high)** by fill level so the colour signals stream health
+(variant B, user-chosen 2026-06-26). The shared renderer gained `WinampDisplay::drawBufferBar(pct)` —
+it owns the `SKIN_POSBAR` groove, so it restores the groove (handling a *shrinking* buffer, which the
+old fillRect left stale) then draws the gradient; WebRadio's `_drawPosbar` just delegates.
+`preview_webradio.py::_draw_buffer_bar` mirrors it exactly (reconciling a prior mock/firmware
+divergence — the mock had drawn a seek-bar thumb). Prototyped + self-verified in the host incl.
+**RGB565 quantization** (gradient survives the panel, no banding); 5/5 gates.
+**Priority:** P3 — visual polish · **Status:** implemented — mock+RGB565-verified 2026-06-26; **DUT visual sign-off owed** · **Opened:** 2026-06-26 · **Owner:** Developer + Architect · **Deps:** —

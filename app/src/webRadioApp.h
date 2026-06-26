@@ -678,13 +678,10 @@ private:
     }
 
     void _drawPosbar() {
-        // POSBAR used as buffer-health bar. Background already drawn by repaintChrome.
-        // Overdraw with green fill proportional to buffer percentage.
-        if (_bufPct > 0) {
-            int fillW = (int)((uint32_t)_bufPct * POSBAR_W / 100);
-            if (fillW > POSBAR_W) fillW = POSBAR_W;
-            tft.fillRect(POSBAR_X, POSBAR_Y, fillW, POSBAR_H, 0x07E0U);
-        }
+        // TASK-253: buffer-health gradient bar. The shared renderer owns the POSBAR
+        // groove sprite, so it restores the groove (handling a shrinking buffer) and
+        // draws the amber→green health-tinted gradient stretched to _bufPct.
+        winampDisplay.drawBufferBar(_bufPct);
     }
 
     void _drawTitleZone() {

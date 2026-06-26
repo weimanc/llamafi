@@ -162,6 +162,36 @@ public:
     g_lastRenderMs = millis();  // TASK-059: mark full chrome repaint time
   }
 
+  // TASK-253 — WebRadio buffer-health bar. The POSBAR groove (a seek bar for
+  // Spotify) is repurposed: restore the groove sprite, then draw a horizontal
+  // gradient stretched to the buffer fill width (pct 0..100), tinted amber(low)→
+  // green(high) by fill level so the colour signals stream health, not just amount.
+  // WebRadio-only (Spotify uses the groove + thumb). The renderer owns SKIN_POSBAR,
+  // so it restores the groove here → a shrinking buffer reveals it (no stale fill).
+  // Mirrors app/tools/preview_webradio.py::_draw_buffer_bar (same endpoints + lerp).
+  void drawBufferBar(uint8_t pct) {
+    if (pct > 100) pct = 100;
+    tft.startWrite();
+    blitSprite(originX + POSBAR_X, originY + POSBAR_Y, SKIN_POSBAR, SKIN_POSBAR_W, POSBAR_BG);
+    if (pct > 0) {
+      const int fillW = (int)pct * POSBAR_W / 100;
+      // Health tip colour: amber (0xF0,0x90,0x10) → green (0x30,0xE0,0x20) by fill %.
+      const int tr = 0xF0 + (0x30 - 0xF0) * pct / 100;
+      const int tg = 0x90 + (0xE0 - 0x90) * pct / 100;
+      const int tb = 0x10 + (0x20 - 0x10) * pct / 100;
+      const int den = (fillW > 1) ? fillW - 1 : 1;
+      for (int x = 0; x < fillW; x++) {
+        // within-bar gradient: dark tip (×0.4, left) → full tip (right)
+        const int r = tr * 4 / 10 + (tr - tr * 4 / 10) * x / den;
+        const int g = tg * 4 / 10 + (tg - tg * 4 / 10) * x / den;
+        const int b = tb * 4 / 10 + (tb - tb * 4 / 10) * x / den;
+        tft.drawFastVLine(originX + POSBAR_X + x, originY + POSBAR_Y, POSBAR_H,
+                          tft.color565((uint8_t)r, (uint8_t)g, (uint8_t)b));
+      }
+    }
+    tft.endWrite();
+  }
+
   // TASK-041 / ADR-014 A1.5 — VOLUME slider renderer.
   // percent: 0..100 → KEYFRAME_0..KEYFRAME_4; <0 → KEYFRAME_NONE.
   // Always blits + updates the cache; caller dedup not required (the
