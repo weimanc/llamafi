@@ -252,10 +252,9 @@ def render(state: str, skin_path: str, frame: int = 0) -> Image.Image:
         t = frame / 30.0
         l_lvl = max(0.0, 0.55 + 0.35 * math.sin(t * 2.7))
         r_lvl = max(0.0, 0.50 + 0.35 * math.sin(t * 1.9 + 1.1))
-        # Firmware (TASK-252): LED-font title = station name (marquee). The ICY
-        # StreamTitle display is unsettled (its y=36 line collides with the baked
-        # kbps/kHz badge) — see TASK-254; omitted here pending that decision.
-        _draw_title(img, STATIONS[0])
+        # Firmware (TASK-254): combined Spotify-style marquee — station name + ICY
+        # StreamTitle in one scrolling LED line ("STATION - SONG"), no separate row.
+        _draw_title(img, f"{STATIONS[0]} - {ICY_TITLE}")
         _draw_buffer_bar(img, 0.65)
         _draw_vu(draw, l_lvl, r_lvl)
         _draw_station_list(img, 0, state)

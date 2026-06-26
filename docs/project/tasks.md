@@ -3184,7 +3184,15 @@ recommendation:** fold the ICY into the title as a combined Spotify-style marque
 no collision, max Spotify consistency; this is what the mock originally assumed). Alternative: clip ICY
 to the ~44px gap before the badge (cramped). User UX call before implementing. The mock omits the ICY
 line pending this decision.
-**Priority:** P3 — visual/layout · **Status:** open · **Opened:** 2026-06-26 · **Owner:** Architect + Developer (user UX call) · **Deps:** TASK-252 (done)
+
+**DONE — combined marquee (user-chosen 2026-06-26); mock-verified.** Folded the ICY into the title:
+`_drawTitleZone` composes `"STATION - SONG   "` when `_icyTitle` is set (else station only) and calls
+`setTitle()`; the ICY tick handler recomposes the title instead of drawing a separate line. Removed
+`_drawIcyLine()`, its `_drawFull()` call, and the now-dead `WR_ICY_X/Y/W/H` constants (`WR_ICY_TITLE_LEN`
+kept). Result: one scrolling LED line, and the **kbps/kHz badge is no longer overdrawn** (the old
+separate line's black fillRect had covered it). Mock mirrors it (`"STATION - ICY"`). Self-verified in
+host; 5/5 gates. DUT sign-off batched with TASK-252/253.
+**Priority:** P3 — visual/layout · **Status:** done — combined marquee, mock-verified 2026-06-26; DUT sign-off batched with 252/253 · **Opened:** 2026-06-26 · **Owner:** Architect + Developer · **Deps:** TASK-252 (done)
 
 ---
 

@@ -99,11 +99,8 @@ static Audio& wrAudio() {
 
 // ── Display constants (mirrors preview_webradio.py zone map) ─────────────────
 
-// ICY StreamTitle line (between Winamp title and VU):
-static constexpr int WR_ICY_X = TITLE_X;
-static constexpr int WR_ICY_Y = 36;
-static constexpr int WR_ICY_W = TITLE_W;
-static constexpr int WR_ICY_H = 6;
+// TASK-254: the ICY StreamTitle is now folded into the title marquee (no separate
+// line), so the old WR_ICY_X/Y/W/H zone constants were removed.
 
 // Country badge (top-right, over the bitrate-legend area):
 static constexpr int WR_BADGE_X = 241;
@@ -193,7 +190,7 @@ public:
             char buf[WR_ICY_TITLE_LEN];
             if (s_icyTitleQueue && xQueueReceive(s_icyTitleQueue, buf, 0) == pdTRUE) {
                 strlcpy(_icyTitle, buf, sizeof(_icyTitle));
-                _drawIcyLine();
+                _drawTitleZone();  // TASK-254: ICY now folds into the title marquee
                 LOG_D("webradio", "ICY: %s", _icyTitle);
             }
         }
@@ -684,8 +681,7 @@ private:
     void _drawFull() {
         winampDisplay.repaintChrome();
         _drawPosbar();
-        _drawTitleZone();
-        _drawIcyLine();
+        _drawTitleZone();   // TASK-254: title now carries the ICY StreamTitle inline
         _drawCountryBadge();
         _drawPledit();
     }
@@ -699,8 +695,9 @@ private:
 
     void _drawTitleZone() {
         // TASK-252: reuse the shared Winamp LED-font marquee (consistent with
-        // Spotify's title, scrolls long station names) instead of the plain GFX
-        // font. setTitle() redraws only on change; tick() drives the scroll.
+        // Spotify's title, scrolls long names) instead of the plain GFX font.
+        // setTitle() redraws only on change; tick() drives the scroll.
+        char buf[48 + WR_ICY_TITLE_LEN];
         const char* t;
         if (_pendingStations) {
             t = "Loading...";
@@ -711,20 +708,24 @@ private:
                 case WRPlayState::ERROR_STALL:       t = "Stream stalled"; break;
                 case WRPlayState::ERROR_WIFI:        t = "WiFi lost"; break;
                 case WRPlayState::ERROR_BLOCKED:     t = "Station blocked"; break;
-                default:                             t = _stations[_currentIdx].name; break;
+                default:
+                    // TASK-254: combined Spotify-style marquee — fold the ICY
+                    // StreamTitle into the title ("STATION - SONG   ") so it
+                    // scrolls in the one LED line instead of a separate row that
+                    // collided with the baked kbps/kHz badge.
+                    if (_icyTitle[0]) {
+                        snprintf(buf, sizeof(buf), "%s - %s   ",
+                                 _stations[_currentIdx].name, _icyTitle);
+                        t = buf;
+                    } else {
+                        t = _stations[_currentIdx].name;
+                    }
+                    break;
             }
         } else {
             t = "No stations";
         }
         winampDisplay.setTitle(t);
-    }
-
-    void _drawIcyLine() {
-        tft.fillRect(WR_ICY_X, WR_ICY_Y, WR_ICY_W, WR_ICY_H, TFT_BLACK);
-        if (_icyTitle[0]) {
-            tft.setTextColor(TFT_WHITE, TFT_BLACK);
-            tft.drawString(_icyTitle, WR_ICY_X, WR_ICY_Y, 1);
-        }
     }
 
     void _drawCountryBadge() {
