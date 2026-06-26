@@ -3146,7 +3146,15 @@ right-overflow / off-by-1 were stale-artifact effects, not firmware bugs.
 **Deliverable:** make the audit regenerate-before-read (a `run/` wrapper or a `--check` staleness
 gate), and/or drop the legacy `originX=22` panel now that the migration is complete. Parse the VIS
 rect from `vuMeter.h` to kill the last hand-mirrored-constant drift.
-**Priority:** P3 — tooling hygiene · **Status:** open · **Opened:** 2026-06-26 · **Owner:** VE/Architect · **Deps:** —
+
+**DONE 2026-06-26.** All three: (1) `render_visual` now emits a **single panel** of the shipped layout
+(`originX=0`) — the legacy centered `originX=22` panel is dropped (the firmware left-aligns the window,
+taskbar on the right, so 22 was never a real config). (2) `load_vis_rect()` parses RECT_X/LEFT_Y/RECT_W/
+VIS_H from `vuMeter.h` (its real owner) instead of hand-mirroring → no silent drift; raises if a const
+goes missing. (3) New **`run/audit-origin`** wrapper always regenerates the PNG from current sources
+(it's gitignored, so reading it after a regen is never stale); documented in `project_run_scripts.md`.
+All `audit_origin.py` checks (T141–T146) still pass.
+**Priority:** P3 — tooling hygiene · **Status:** done 2026-06-26 · **Opened:** 2026-06-26 · **Owner:** VE/Architect · **Deps:** —
 
 ---
 

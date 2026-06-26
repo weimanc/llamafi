@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# run/audit-origin — origin-relative render/hit-test audit (TASK-082 / TASK-251)
+# Always regenerates app/gen/origin_audit.png from the CURRENT skin_layout.h +
+# vuMeter.h, so the image you open is never stale (it is a gitignored build
+# artifact). Single panel = the shipped layout (originX=0).
+#   ./run/audit-origin            # run checks + (re)write the visual PNG
+#   ./run/audit-origin --grep-only  # static-grep check only, no PNG
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+
+if [ "${1:-}" = "--grep-only" ]; then
+  exec "$VENV_PY" "$PIO_DIR/tools/audit_origin.py" --grep-only
+fi
+
+"$VENV_PY" "$PIO_DIR/tools/audit_origin.py" --visual
+echo "[audit-origin] fresh visual → $PIO_DIR/gen/origin_audit.png"

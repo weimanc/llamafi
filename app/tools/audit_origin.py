@@ -28,10 +28,26 @@ GEN_DIR   = APP_DIR / "gen"
 SRC_DIR   = APP_DIR / "src"
 WINAMP_H  = SRC_DIR / "winamp" / "winampDisplay.h"
 LAYOUT_H  = GEN_DIR / "skin_layout.h"
+VUMETER_H = SRC_DIR / "winamp" / "vuMeter.h"
 
 SCREEN_W, SCREEN_H = 320, 240
-# VIS area — from vuMeter.h, not emitted to skin_layout.h
-VIS_RECT_X, VIS_LEFT_Y, VIS_RECT_W, VIS_H = 24, 43, 76, 16
+
+
+# TASK-251: parse the VIS rect from vuMeter.h (its real owner) rather than
+# hand-mirroring it here — kills the last silent-drift constant in this audit.
+def load_vis_rect(path=VUMETER_H):
+    want = {"RECT_X": None, "LEFT_Y": None, "RECT_W": None, "VIS_H": None}
+    for line in open(path):
+        m = re.match(r'\s*constexpr\s+int\s+(\w+)\s*=\s*(\d+)', line)
+        if m and m.group(1) in want:
+            want[m.group(1)] = int(m.group(2))
+    missing = [k for k, v in want.items() if v is None]
+    if missing:
+        raise SystemExit(f"audit_origin: VIS const(s) not found in {path}: {missing}")
+    return want["RECT_X"], want["LEFT_Y"], want["RECT_W"], want["VIS_H"]
+
+
+VIS_RECT_X, VIS_LEFT_Y, VIS_RECT_W, VIS_H = load_vis_rect()
 
 
 # ── Layout ────────────────────────────────────────────────────────────────────
@@ -243,14 +259,16 @@ def t145_margin_failures(S, ox_current, ox_zero=0):
 # ── Visual ────────────────────────────────────────────────────────────────────
 
 def render_visual(S, out_path=GEN_DIR / "origin_audit.png"):
-    """Two-panel 640×240 PNG: left = originX current, right = originX=0.
-    Zone outlines (magenta) + green/red dots for boundary pass/fail."""
+    """Single 320×240 PNG of the shipped layout (originX=0). Zone outlines (magenta)
+    from skin_layout.h + green/red dots for boundary pass/fail. TASK-251: the legacy
+    centered originX=22 panel was dropped — the firmware left-aligns the window
+    (originX=0, taskbar on the right), so 22 was never a real config."""
     from PIL import Image, ImageDraw
 
-    ox_vals  = [calc_origin_x(S), 0]
+    ox_vals  = [0]
     skin_src = GEN_DIR / "skin_preview.png"
     skin     = Image.open(skin_src).convert("RGB") if skin_src.exists() else None
-    canvas   = Image.new("RGB", (SCREEN_W * 2, SCREEN_H), (20, 20, 20))
+    canvas   = Image.new("RGB", (SCREEN_W, SCREEN_H), (20, 20, 20))
     draw     = ImageDraw.Draw(canvas)
 
     for i, ox in enumerate(ox_vals):

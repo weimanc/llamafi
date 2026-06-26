@@ -27,6 +27,7 @@ All scripts live in `run/` at the project root. Run from the project root.
 ./run/spiffs rm <file>        # remove single file from device
 ./run/check                   # 5-gate build check (compile, hash, smoke, registry)
 ./run/bake-skin               # bake Winamp skin assets into app/gen/
+./run/audit-origin            # (re)generate the origin/hit-test audit PNG (never stale)
 ./run/test-sync               # sync/drift/playlist suite T097-T116 (requires DUT)
 ```
 
