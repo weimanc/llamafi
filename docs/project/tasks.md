@@ -3177,7 +3177,7 @@ title; reconciled its content to station-name-only (it had combined "station - I
 host: "RADIO 1 NL" renders in the authentic LED font, kbps/kHz badge clear. 5/5 gates. **Surfaced
 TASK-254** (the separate ICY line collides with the kbps/kHz badge — a pre-existing issue, out of this
 task's scope).
-**Priority:** P3 — visual consistency · **Status:** implemented — mock-verified 2026-06-26; **DUT sign-off owed** · **Opened:** 2026-06-26 · **Owner:** Developer + Architect · **Deps:** —
+**Priority:** P3 — visual consistency · **Status:** **done — DUT-verified 2026-06-26** (LED-font title confirmed on panel) · **Opened:** 2026-06-26 · **Owner:** Developer + Architect · **Deps:** —
 
 ---
 
@@ -3200,7 +3200,7 @@ line pending this decision.
 kept). Result: one scrolling LED line, and the **kbps/kHz badge is no longer overdrawn** (the old
 separate line's black fillRect had covered it). Mock mirrors it (`"STATION - ICY"`). Self-verified in
 host; 5/5 gates. DUT sign-off batched with TASK-252/253.
-**Priority:** P3 — visual/layout · **Status:** done — combined marquee, mock-verified 2026-06-26; DUT sign-off batched with 252/253 · **Opened:** 2026-06-26 · **Owner:** Architect + Developer · **Deps:** TASK-252 (done)
+**Priority:** P3 — visual/layout · **Status:** **done — DUT-verified 2026-06-26** (combined "STATION - SONG" marquee + clean kbps/kHz badge confirmed on panel) · **Opened:** 2026-06-26 · **Owner:** Architect + Developer · **Deps:** TASK-252 (done)
 
 ---
 
@@ -3215,4 +3215,4 @@ over the same `travel = POSBAR_BG.w − POSBAR_THUMB_N.w` the seek bar uses. The
 WebRadio's `_drawPosbar` delegates. `preview_webradio.py::_draw_buffer_bar` mirrors it (this is also the
 mock's original approach — the gradient detour is fully reverted). Self-verified in host across 0–100%;
 5/5 gates.
-**Priority:** P3 — visual polish · **Status:** implemented — mock-verified 2026-06-26 (thumb-position; gradient reverted); **DUT visual sign-off owed** · **Opened:** 2026-06-26 · **Owner:** Developer + Architect · **Deps:** —
+**Priority:** P3 — visual polish · **Status:** **done — DUT-verified 2026-06-26** (thumb-position confirmed travelling 0–100% on panel; gradient reverted; +smoothness fix b2ea220 cutting the 15-pt full-repaint hysteresis to a 2-pt targeted blit) · **Opened:** 2026-06-26 · **Owner:** Developer + Architect · **Deps:** —
