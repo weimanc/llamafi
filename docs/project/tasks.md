@@ -3159,7 +3159,32 @@ scrolling marquee for long station names (currently truncated), −~24 lines. Re
 `setTitle()`/`lastTitle` setter and WebRadio driving the scroll offset (or 0 for static); the
 connecting/error strings render in the LED font too. Caveat: `TITLE_H=6` is tight — verify the state
 strings fit. Prototype in `preview_webradio.py` first (it already uses the real `composite_text`).
-**Priority:** P3 — visual consistency · **Status:** open · **Opened:** 2026-06-26 · **Owner:** Developer + Architect · **Deps:** —
+
+**Implemented 2026-06-26 (mock-verified; DUT sign-off owed).** Added public `WinampDisplay::setTitle()`
+(redraw-on-change + reset-scroll + hold, extracted op-for-op from `printCurrentlyPlayingToScreen`,
+which now calls it) and `tickMarquee()`. WebRadio's `_drawTitleZone` now composes the station/state
+string and calls `setTitle()`; `tick()` drives `tickMarquee()` for long-name scroll. The baked
+`SKIN_GLYPH` folds lowercase→uppercase, so no manual uppercasing. Mock already rendered the LED-font
+title; reconciled its content to station-name-only (it had combined "station - ICY"). Self-verified in
+host: "RADIO 1 NL" renders in the authentic LED font, kbps/kHz badge clear. 5/5 gates. **Surfaced
+TASK-254** (the separate ICY line collides with the kbps/kHz badge — a pre-existing issue, out of this
+task's scope).
+**Priority:** P3 — visual consistency · **Status:** implemented — mock-verified 2026-06-26; **DUT sign-off owed** · **Opened:** 2026-06-26 · **Owner:** Developer + Architect · **Deps:** —
+
+---
+
+### TASK-254 — WebRadio ICY StreamTitle line collides with the kbps/kHz badge
+
+Surfaced while reconciling the mock for TASK-252. `_drawIcyLine()` draws the ICY StreamTitle as a
+separate white GFX line at `WR_ICY_Y=36`, but the baked "192 kbps / 44 kHz / mono-stereo" cluster lives
+in that same row (x≳155), so a non-trivial ICY title overflows into it (and `drawString` isn't clipped
+to `WR_ICY_W`). There is no collision-free space for a full second text line there. **Architect
+recommendation:** fold the ICY into the title as a combined Spotify-style marquee — `setTitle("STATION
+- SONG   ")` recomposed when ICY arrives — and drop the separate `_drawIcyLine` (one scrolling LED line,
+no collision, max Spotify consistency; this is what the mock originally assumed). Alternative: clip ICY
+to the ~44px gap before the badge (cramped). User UX call before implementing. The mock omits the ICY
+line pending this decision.
+**Priority:** P3 — visual/layout · **Status:** open · **Opened:** 2026-06-26 · **Owner:** Architect + Developer (user UX call) · **Deps:** TASK-252 (done)
 
 ---
 

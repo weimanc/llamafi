@@ -192,6 +192,22 @@ public:
     tft.endWrite();
   }
 
+  // TASK-252 — set the marquee title (shared: Spotify track + WebRadio station/
+  // state). Redraws only on change; resets scroll + holds before scrolling. The
+  // baked SKIN_GLYPH folds lowercase→uppercase, so callers needn't uppercase.
+  void setTitle(const char* text) {
+    if (strcmp(lastTitle, text) == 0) return;
+    strncpy(lastTitle, text, sizeof(lastTitle) - 1);
+    lastTitle[sizeof(lastTitle) - 1] = '\0';
+    titleScrollOffset   = 0;
+    titleScrollDeadline = millis() + TITLE_SCROLL_HOLD_MS;
+    drawTitleText(0);
+  }
+
+  // TASK-252 — drive the title marquee scroll (WebRadio calls from its tick();
+  // Spotify drives it internally via _tickMarquee in its own tick/input paths).
+  void tickMarquee() { _tickMarquee(); }
+
   // TASK-041 / ADR-014 A1.5 — VOLUME slider renderer.
   // percent: 0..100 → KEYFRAME_0..KEYFRAME_4; <0 → KEYFRAME_NONE.
   // Always blits + updates the cache; caller dedup not required (the
@@ -283,13 +299,7 @@ public:
     } else {
       snprintf(composed, sizeof(composed), "%s   ", title);
     }
-    if (strcmp(lastTitle, composed) != 0) {
-      strncpy(lastTitle, composed, sizeof(lastTitle) - 1);
-      lastTitle[sizeof(lastTitle) - 1] = '\0';
-      titleScrollOffset = 0;
-      titleScrollDeadline = millis() + TITLE_SCROLL_HOLD_MS;
-      drawTitleText(0);
-    }
+    setTitle(composed);  // TASK-252: shared title primitive (redraw-on-change + scroll)
     currentStatusUv = PP_PLAY;
     drawStatusIndicator(currentStatusUv);
   }

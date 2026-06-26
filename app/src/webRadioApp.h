@@ -169,6 +169,9 @@ public:
     }
 
     void tick() override {
+        // TASK-252: scroll the LED-font title marquee (long station names).
+        winampDisplay.tickMarquee();
+
         // TASK-234 (ADR-045): process a deferred retry / auto-skip from a prior
         // tick's playback failure. Done here (not inline at the failure site) so
         // the connecttohost() blocking call never recurses — one attempt per tick.
@@ -685,28 +688,25 @@ private:
     }
 
     void _drawTitleZone() {
-        tft.fillRect(TITLE_X, TITLE_Y, TITLE_W, TITLE_H, TFT_BLACK);
-        tft.setTextColor(0x07E0U, TFT_BLACK);
+        // TASK-252: reuse the shared Winamp LED-font marquee (consistent with
+        // Spotify's title, scrolls long station names) instead of the plain GFX
+        // font. setTitle() redraws only on change; tick() drives the scroll.
+        const char* t;
         if (_pendingStations) {
-            tft.drawString("Loading...", TITLE_X, TITLE_Y, 1);
+            t = "Loading...";
         } else if (_stationCount > 0 && _currentIdx < _stationCount) {
             switch (_state) {
-                case WRPlayState::CONNECTING:
-                    tft.drawString("Connecting...", TITLE_X, TITLE_Y, 1); break;
-                case WRPlayState::ERROR_UNREACHABLE:
-                    tft.drawString("Station unreachable", TITLE_X, TITLE_Y, 1); break;
-                case WRPlayState::ERROR_STALL:
-                    tft.drawString("Stream stalled", TITLE_X, TITLE_Y, 1); break;
-                case WRPlayState::ERROR_WIFI:
-                    tft.drawString("WiFi lost", TITLE_X, TITLE_Y, 1); break;
-                case WRPlayState::ERROR_BLOCKED:
-                    tft.drawString("Station blocked", TITLE_X, TITLE_Y, 1); break;
-                default:
-                    tft.drawString(_stations[_currentIdx].name, TITLE_X, TITLE_Y, 1); break;
+                case WRPlayState::CONNECTING:        t = "Connecting..."; break;
+                case WRPlayState::ERROR_UNREACHABLE: t = "Station unreachable"; break;
+                case WRPlayState::ERROR_STALL:       t = "Stream stalled"; break;
+                case WRPlayState::ERROR_WIFI:        t = "WiFi lost"; break;
+                case WRPlayState::ERROR_BLOCKED:     t = "Station blocked"; break;
+                default:                             t = _stations[_currentIdx].name; break;
             }
         } else {
-            tft.drawString("No stations", TITLE_X, TITLE_Y, 1);
+            t = "No stations";
         }
+        winampDisplay.setTitle(t);
     }
 
     void _drawIcyLine() {
