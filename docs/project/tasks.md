@@ -1084,9 +1084,9 @@ tight-condition comparison rests on an unconfirmed baseline and must be **re-tak
 The reclaim itself (TASK-239/240) is real and verified; whether it makes playback *stable* is
 **not yet proven**. Blocked on **TASK-243** — no valid tight-heap test is possible without a live
 Spotify session. When unblocked: host-confirm the API is live, then run the tight-condition test.
-**Priority:** P1 — settles the M-WEBRADIO viability question · **Status:** **implemented-unverified — blocked on TASK-243** (was "provisional PASS"; baseline invalid)
+**Priority:** P1 — settles the M-WEBRADIO viability question · **Status:** **implemented-unverified — deferred-behind-TASK-243** (was "provisional PASS"; baseline invalid). **TASK-255 (Spotify-disabled build) is now the active no-PSRAM viability gate** — a parallel lane that runs *now* without Premium, answering "is no-PSRAM WebRadio viable at all." TASK-255 does **not** supersede this: the two answer different questions (TASK-255: Spotify-*free* viability; TASK-241: multi-app-reclaim viability) and a TASK-255 PASS does **not** overturn ADR-045 for the multi-app board. This task resumes when TASK-243 (owner Premium) clears, to take the valid tight-heap baseline.
 **Opened:** 2026-06-24 · **Milestone:** M-WEBRADIO · **Owner:** Developer + Architect (decision)
-**Deps:** TASK-239 (done), TASK-240 (done), TASK-243 (blocker)
+**Deps:** TASK-239 (done), TASK-240 (done), TASK-243 (blocker) · **Parallel lane:** TASK-255
 
 ---
 
@@ -3216,3 +3216,85 @@ WebRadio's `_drawPosbar` delegates. `preview_webradio.py::_draw_buffer_bar` mirr
 mock's original approach — the gradient detour is fully reverted). Self-verified in host across 0–100%;
 5/5 gates.
 **Priority:** P3 — visual polish · **Status:** **done — DUT-verified 2026-06-26** (thumb-position confirmed travelling 0–100% on panel; gradient reverted; +smoothness fix b2ea220 cutting the 15-pt full-repaint hysteresis to a 2-pt targeted blit) · **Opened:** 2026-06-26 · **Owner:** Developer + Architect · **Deps:** —
+
+---
+
+### TASK-255 — M-WEBRADIO-NOPSRAM: no-PSRAM viability via Spotify-disabled build
+
+Build-time experiment to settle the open M-WEBRADIO blocker (stable no-PSRAM MP3 playback) on a
+**faster lane that needs no Spotify auth** — sidestepping the external TASK-243 Premium blocker that
+has frozen TASK-241's tight-heap re-test. A `cyd2usb_webradio` PlatformIO env adds `-DDISABLE_SPOTIFY`,
+which (single functional guard) skips `spotifyTask::begin()` so the task's **~10 KB resident stack** is
+never allocated; with `reqQueue`/`s_tlsYieldedSem` null, all 34 `tlsYield`/`tlsResume` call sites
+early-return with **no source edit**. Per EXP-007 the limiter is **usable heap** (`free − 38.9 KB
+caps-restricted dead block`), *not* `maxAlloc` (which is pinned): EXP-007 failed at usable ≈ 20.6 KB <
+22.7 KB decoder demand. Removing the ~10 KB stack predicts ~30.6 KB usable (+8 KB margin) — enough for
+the decoder *and* a larger input buffer. The Spotify app stays a dormant, provably-inert stub (no
+`AppId` surgery; shows a permanent amber "connecting" bar per ADR-046).
+
+**Panel-consensus design (rev3):** [M-WEBRADIO-SPOTIFY-DISABLE.md](../architecture/designs/M-WEBRADIO-SPOTIFY-DISABLE.md).
+Round-1 PM blockers (V0 critical path / hard kill / supersede-vs-parallel) resolved; AGREE-WITH-NITS.
+
+**HARD KILL (the abort point) — Measurement Step-1 / cheap pre-gate:** on `cyd2usb_webradio` at
+WebRadio `_play()` entry, capture `get stacks` (`heapFree`/`heapMin`/`heapMaxAlloc`), **re-measure the
+caps-restricted dead-block on THIS build** (do not assume EXP-007's 38,900 transfers — removing
+`spotifyTask` may relayout caps), compute `usable = heapFree − dead_block`. **If `usable < 22.7 KB
+decoder + target input buffer` → STOP. Do NOT spend DUT playback time.** Record FAIL against
+TASK-241/ADR-045, shelve the branch. Pass signal is **usable headroom, NOT maxAlloc rising**.
+
+**Two-threshold result split (a valid partial is OK):** the design records (a) **startup-reliability**
+(decoder allocates first try, more stations reach PLAYING) vs (b) **underrun-tolerance** (16 KB input
+buffer holds slow streams ≥ 60 s). An **(a)-only partial** — startup improves but underruns persist —
+is a valid, recordable result, not a failure of the experiment.
+
+**Definition of Done** (from design §Process & lifecycle):
+- `cyd2usb_webradio` env builds; **default `cyd2usb_winamp` `.elf` `.text`/`.rodata`/`.data` section
+  hashes unchanged** before/after the patch (V1 — robust gate; raw `.bin` may differ on build
+  timestamp).
+- **V0 lands green** (the harness + variant-signal prerequisite; critical path — see handoff).
+- **Step-1 usable-headroom captured** at `_play()` entry on the disabled build.
+- **PASS** (Step-1 clears AND V3 sustained-playback gate met: stable PLAYING ≥ 60 s within ≤ 6
+  auto-skips on ≥ 90 % of cold-boot entries, fixed station set × ≥ 3 trials, network-flake entries
+  excluded per the T169 carve-out, measured by the new `T_WR_PLAY_SUSTAIN` test) → write **EXP-008**
+  + an **ADR-045 amendment** ("viable with Spotify disabled" — does **not** overturn ADR-045 for the
+  multi-app board) + graduate Open-A (dormant stub vs boot-direct-to-WebRadio shipped variant) to a
+  **PROP / follow-on milestone**. The 6th `./run/check` gate for `cyd2usb_webradio` lands only on that
+  promotion, not here (PM N3).
+- **FAIL** → ADR-045 stands unchanged; branch shelved; result recorded against TASK-241.
+
+**Ordered handoff:** **Developer** (firmware variant signal: boot-log token `[boot] spotify=off` +
+`get variant`; `get wrPlaying` PLAYING-duration query for `T_WR_PLAY_SUSTAIN`; the single
+`#ifndef DISABLE_SPOTIFY` guard; **null-safety audit of every unconditional `spotifyTask::` accessor**
+— `stackHighWaterBytes`/`stackSizeBytes`/`activeError`/`dbgGet`/`dbgSet`/`cmdReconnect` — so the
+disabled build doesn't crash on the first `get stacks`) → **VE** (V0 harness: `_wait_for_ready` variant
+branch keyed on the boot token = WiFi-up + shell-ready, skipping the never-emitted Spotify poll-wait;
+**gated — task #1, before ANY DUT run**) → **DUT Step-1 kill gate** → **conditional V3** (sustained
+playback + inverse per-fetcher `tlsYield`-no-op check + eject round-trip into the dormant stub) →
+**Architect** (ADR verdict). Add the `cross_feature_matrix.yaml` row *DISABLE_SPOTIFY × {weather,
+crypto, stock, teletext, heatmap, webradio}* **before** V3 runs.
+
+**Cleanup placeholder:** **TASK-256** — revert `cyd2usb_webradio` env + the `DISABLE_SPOTIFY` guard if
+any of it was merged before a FAIL verdict (per the QM lifecycle BP candidate: every experiment names
+its FAIL artefact-disposition + cleanup task id before scheduling). No-op if nothing merged (the design
+keeps env/guards on the branch until PASS + the promotion milestone).
+
+**Priority:** P1 — settles "is no-PSRAM WebRadio viable at all," on a lane that runs *now* without
+Premium · **Status:** **scheduled — ready to start (V0 is task #1)** · **Opened:** 2026-06-26
+**Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/webradio-nopsram` · **Experiment record:** EXP-008
+**Owner:** Developer (guard + variant signal) → VE (V0 harness) → Architect (ADR verdict)
+**Deps:** M-WEBRADIO (firmware complete); **prereq-done:** TASK-239/240 (~11 KB reclaim); **sidesteps:**
+TASK-243 (Premium); **baseline:** EXP-007 · **Cleanup:** TASK-256
+
+---
+
+### TASK-256 — Cleanup placeholder: revert Spotify-disabled env/guards on TASK-255 FAIL
+
+Lifecycle placeholder for TASK-255 (per QM BP candidate: an experiment names its cleanup task id up
+front). **Action on TASK-255 FAIL/shelve:** if the `cyd2usb_webradio` env or the `-DDISABLE_SPOTIFY`
+guard was merged to trunk at any point, revert it (env stanza in `platformio.ini`, the single
+`#ifndef DISABLE_SPOTIFY` guard, the variant-signal additions, the `cross_feature_matrix.yaml` row);
+also remove any `cyd2usb_webradio` entry from `./run/check`. **No-op if nothing merged** — the design
+keeps all of it on `rnd/webradio-nopsram` until PASS + the promotion milestone, so the expected steady
+state is "nothing to clean."
+**Priority:** P3 — lifecycle hygiene · **Status:** **dormant — fires only on TASK-255 FAIL-after-merge**
+· **Opened:** 2026-06-26 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** Developer · **Deps:** TASK-255
