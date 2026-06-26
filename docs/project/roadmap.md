@@ -844,6 +844,33 @@ Spotify and web radio via the existing taskbar.
 
 ---
 
+### M-WEBRADIO-NOPSRAM — No-PSRAM playback viability via Spotify-disabled build
+
+Build-time experiment to settle the open M-WEBRADIO milestone-blocker (stable MP3
+playback on the no-PSRAM CYD). Hypothesis: not creating `spotifyTask` frees its
+**~10 KB stack** (resident for life — `tlsYield` does *not* reclaim it) **and**
+removes the ~50 KB TLS session's heap fragmentation, enlarging the contiguous
+DMA-capable block the MP3 decoder needs — the actual wall per EXP-007/TASK-233. A
+bigger reclaim than TASK-239/240's ~11 KB, which already gave TASK-241 a provisional
+pass. **Bonus:** a Spotify-disabled build needs no auth, so it **sidesteps the
+TASK-243 Premium blocker** that has stalled the TASK-241 viability test.
+
+**Approach (see design doc):** a `cyd2usb_webradio` PlatformIO env with
+`-DDISABLE_SPOTIFY` that guards `spotifyTask::begin()` and no-ops `tlsYield`/
+`tlsResume`; the Spotify app UI stays as a dormant stub (no `AppId::Spotify` surgery).
+Measure `get heap`/`get stacks` delta vs the multi-app build, then re-run the TASK-241
+input-buffer experiment under the reclaimed budget.
+
+**Decision gate:** PASS (stable ≥ 60 s playback + underruns drop) → supersede ADR-045's
+"stable no-PSRAM playback = NO-GO" and consider a shipped WebRadio-focused variant;
+FAIL → the 38.9 KB caps-restricted block is the hard wall, ADR-045 stands.
+
+**Status:** proposed — Architect 2026-06-26; PM to schedule (R&D-flavoured, runs on a branch per AGENTS.md).  
+**Deps:** M-WEBRADIO; feeds TASK-241 / TASK-233 / ADR-045; unblocks around TASK-243.  
+**Design:** [M-WEBRADIO-SPOTIFY-DISABLE.md](../architecture/designs/M-WEBRADIO-SPOTIFY-DISABLE.md)
+
+---
+
 ### M-PREVIEW-FRAMEWORK — Common preview tool framework
 
 Extract shared geometry constants, taskbar rendering, app-registry integration,
