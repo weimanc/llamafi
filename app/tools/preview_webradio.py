@@ -153,30 +153,16 @@ def _draw_vu(draw, l_level: float, r_level: float):
 
 
 def _draw_buffer_bar(img: Image.Image, fill_pct: float):
-    """Buffer-health bar (TASK-253) — a horizontal gradient stretched to the buffer
-    fill width, tinted amber(low)→green(high) by fill level so the colour signals
-    stream health, not just amount. Mirrors firmware _drawPosbar() exactly (same
-    endpoints + lerp); groove BG painted first by repaintChrome equivalent."""
+    """Buffer-fullness bar (TASK-253) — reuses the POSBAR exactly as Spotify uses its
+    seek bar: groove sprite + the POSBAR thumb, whose POSITION marks buffer fullness
+    (left=empty, right=full). Mirrors firmware WinampDisplay::drawBufferBar()."""
     bg_x, bg_y, bg_w, bg_h = POSBAR_LAYOUT["POSBAR_BG"]
     img.paste(_posbar_bmp.crop((bg_x, bg_y, bg_x + bg_w, bg_y + bg_h)), (POSBAR_X, POSBAR_Y))
-    if fill_pct <= 0:
-        return
-    pct = max(0.0, min(1.0, fill_pct))
-    fillw = int(pct * POSBAR_W)
-
-    def lerp(a, b, t):
-        return int(a + (b - a) * t)
-
-    # Health tip colour: amber (low buffer) → green (healthy), by fill level.
-    tr, tg, tb = lerp(0xF0, 0x30, pct), lerp(0x90, 0xE0, pct), lerp(0x10, 0x20, pct)
-    px = img.load()
-    for x in range(fillw):
-        t = x / max(1, fillw - 1)               # within-bar: dark tip → full tip
-        r = lerp(int(tr * 0.4), tr, t)
-        g = lerp(int(tg * 0.4), tg, t)
-        b = lerp(int(tb * 0.4), tb, t)
-        for y in range(POSBAR_H):
-            px[POSBAR_X + x, POSBAR_Y + y] = (r, g, b)
+    tn_x, tn_y, tn_w, tn_h = POSBAR_LAYOUT["POSBAR_THUMB_N"]
+    travel = bg_w - tn_w
+    thumb_px = int(max(0.0, min(1.0, fill_pct)) * travel)
+    img.paste(_posbar_bmp.crop((tn_x, tn_y, tn_x + tn_w, tn_y + tn_h)),
+              (POSBAR_X + thumb_px, POSBAR_Y))
 
 
 def _draw_title(img: Image.Image, text: str):

@@ -3188,14 +3188,15 @@ line pending this decision.
 
 ---
 
-### TASK-253 — WebRadio posbar: health-tinted gradient buffer bar
+### TASK-253 — WebRadio posbar: thumb-position buffer-fullness bar
 
-Replace the flat-green `fillRect` buffer bar (ugly) with a horizontal gradient stretched to the buffer
-fill width, tinted **amber(low)→green(high)** by fill level so the colour signals stream health
-(variant B, user-chosen 2026-06-26). The shared renderer gained `WinampDisplay::drawBufferBar(pct)` —
-it owns the `SKIN_POSBAR` groove, so it restores the groove (handling a *shrinking* buffer, which the
-old fillRect left stale) then draws the gradient; WebRadio's `_drawPosbar` just delegates.
-`preview_webradio.py::_draw_buffer_bar` mirrors it exactly (reconciling a prior mock/firmware
-divergence — the mock had drawn a seek-bar thumb). Prototyped + self-verified in the host incl.
-**RGB565 quantization** (gradient survives the panel, no banding); 5/5 gates.
-**Priority:** P3 — visual polish · **Status:** implemented — mock+RGB565-verified 2026-06-26; **DUT visual sign-off owed** · **Opened:** 2026-06-26 · **Owner:** Developer + Architect · **Deps:** —
+Replace the flat-green `fillRect` buffer bar (ugly). **Design history:** first tried a health-tinted
+amber→green gradient (host-prototyped, RGB565-verified) but the user rejected the look 2026-06-26.
+**Final design (user-chosen):** reuse the POSBAR exactly as Spotify uses its **seek bar** — the groove
+sprite + the POSBAR thumb, whose **position** marks buffer fullness (left=empty, right=full), pct mapped
+over the same `travel = POSBAR_BG.w − POSBAR_THUMB_N.w` the seek bar uses. The shared renderer gained
+`WinampDisplay::drawBufferBar(pct)` (owns `SKIN_POSBAR`, restores groove + blits the thumb at position);
+WebRadio's `_drawPosbar` delegates. `preview_webradio.py::_draw_buffer_bar` mirrors it (this is also the
+mock's original approach — the gradient detour is fully reverted). Self-verified in host across 0–100%;
+5/5 gates.
+**Priority:** P3 — visual polish · **Status:** implemented — mock-verified 2026-06-26 (thumb-position; gradient reverted); **DUT visual sign-off owed** · **Opened:** 2026-06-26 · **Owner:** Developer + Architect · **Deps:** —
