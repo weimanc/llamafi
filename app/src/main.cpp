@@ -2089,7 +2089,17 @@ void setup()
   // ADR-012 / TASK-031a: spawn the async Spotify HTTP task. Skeleton at
   // this stage — task dequeues + logs but doesn't issue API calls yet.
   // 031b/c migrate the actual calls in.
+#ifndef DISABLE_SPOTIFY
   spotifyTask::begin(&spotify);
+#else
+  // TASK-255 (M-WEBRADIO-NOPSRAM): the SOLE functional guard. Skipping begin()
+  // means reqQueue / s_tlsYieldedSem stay null, so tlsYield()/tlsResume() (and
+  // every spotifyTask:: accessor) no-op via their existing null-guards — no
+  // session to free → BP-031 n/a in this variant (default build unchanged; see
+  // docs/architecture/designs/M-WEBRADIO-SPOTIFY-DISABLE.md). Frees the ~10 KB
+  // task stack + ~50 KB TLS for the no-PSRAM WebRadio decoder.
+  Serial.println("[boot] spotify=off");   // V0 readiness token (harness scrapes pre-shell)
+#endif
   dataTask::begin();
 
   // Boot: init the Spotify app via the App interface, then draw taskbar.
@@ -2426,6 +2436,18 @@ static void cmdTick(const char *args) {
 
 static void cmdGet(const char *args) {
   char buf[256]; buf[0] = '\0';
+  // TASK-255 (M-WEBRADIO-NOPSRAM): build-variant query (V0). Lets the harness pick a
+  // Spotify-poll-free readiness path and lets V2 assert the variant.
+  if (strcmp(args, "variant") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"variant\",\"spotify\":\"%s\",\"last\":true}\n",
+#ifdef DISABLE_SPOTIFY
+                  "off"
+#else
+                  "on"
+#endif
+                  );
+    return;
+  }
   // appId — shell-owned; WinampDisplay cannot reference currentAppId.
   if (strcmp(args, "ip") == 0) {
     // TASK-248: LAN IP so the stress harness can read logs over the /log HTTP ring

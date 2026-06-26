@@ -396,6 +396,16 @@ public:
                      (unsigned)_stallRetries, (int)_settled, (unsigned)_pendingAction);
             return true;
         }
+        // TASK-255 (M-WEBRADIO-NOPSRAM, V0): PLAYING-hold duration in ms (0 when not
+        // PLAYING) — the ≥60 s decision-gate signal T_WR_PLAY_SUSTAIN needs
+        // (wrSkip.settled only proves WR_SETTLED_MS=12 s; _playingSinceMs was private).
+        if (strcmp(var, "wrPlaying") == 0) {
+            uint32_t ms = (_state == WRPlayState::PLAYING && _playingSinceMs)
+                          ? (uint32_t)(millis() - _playingSinceMs) : 0u;
+            snprintf(buf, len, "\"var\":\"wrPlaying\",\"ms\":%u,\"playing\":%d,\"last\":true",
+                     (unsigned)ms, (int)(_state == WRPlayState::PLAYING));
+            return true;
+        }
         // T_WR_HEAP_01/02: heap snapshots queryable without relying on log capture
         if (strcmp(var, "wrHeap") == 0) {
             snprintf(buf, len,
