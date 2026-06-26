@@ -243,18 +243,20 @@ public:
             }
 
             if (s_wr_audio) {
-                // TASK-220: drive the POSBAR buffer-health bar from real buffer
-                // occupancy. Repaint only when it moves a meaningful amount
-                // (hysteresis) so we don't trigger a full chrome repaint every tick.
+                // TASK-220/253: drive the POSBAR buffer bar from real buffer occupancy.
+                // drawBufferBar() is a cheap targeted blit (groove + thumb), NOT a full
+                // chrome repaint, so update it directly on small moves for a smooth thumb
+                // (was a 15-pt hysteresis → _dirty full repaint, which made the thumb jump
+                // ~33 px at a time). A tiny 2-pt threshold just skips no-op repaints.
                 uint32_t filled = s_wr_audio->inBufferFilled();
                 uint32_t freeB  = s_wr_audio->inBufferFree();
                 uint32_t total  = filled + freeB;
                 _bufPct = total ? (uint8_t)((uint32_t)filled * 100u / total) : 0;
                 int delta = (int)_bufPct - (int)_bufPctDrawn;
                 if (delta < 0) delta = -delta;
-                if (delta >= 15) {
+                if (delta >= 2) {
                     _bufPctDrawn = _bufPct;
-                    _dirty = true;
+                    _drawPosbar();   // targeted POSBAR blit only — no full repaint
                 }
 
                 // TASK-218 (guarded): a stream that ends or drops mid-playback
@@ -484,8 +486,17 @@ public:
             }
             return true;
         }
-        // TASK-253: drive the buffer-health bar without real playback so the
-        // amber→green gradient is visually checkable on DUT.
+        // TASK-254: inject an ICY StreamTitle (single token — cmdSet splits on
+        // space) so the combined "STATION - SONG" marquee is checkable on DUT
+        // without real playback. `set wrIcy -` clears it.
+        if (strcmp(var, "wrIcy") == 0) {
+            strlcpy(_icyTitle, (val && val[0] == '-' && !val[1]) ? "" : (val ? val : ""),
+                    sizeof(_icyTitle));
+            _drawTitleZone();
+            return true;
+        }
+        // TASK-253: drive the buffer bar without real playback so the thumb
+        // position is visually checkable on DUT.
         if (strcmp(var, "wrBufPct") == 0) {
             int p = atoi(val);
             if (p < 0) p = 0;
