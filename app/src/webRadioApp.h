@@ -487,6 +487,16 @@ public:
             }
             return true;
         }
+        // TASK-253: drive the buffer-health bar without real playback so the
+        // amber→green gradient is visually checkable on DUT.
+        if (strcmp(var, "wrBufPct") == 0) {
+            int p = atoi(val);
+            if (p < 0) p = 0;
+            if (p > 100) p = 100;
+            _bufPct = (uint8_t)p;
+            _drawPosbar();
+            return true;
+        }
         // TASK-209: drive the HW-mod flag + configured ceiling so the clamp logic
         // (wrEffectiveVolume / T_WR_VOL_03) is verifiable on DUT without a speaker.
         if (strcmp(var, "wrHwMod") == 0) {
