@@ -8,6 +8,7 @@
 #include <Audio.h>
 #include <freertos/queue.h>
 #include "esp_task_wdt.h"
+#include <esp_heap_caps.h> // T_MB_PROBE_00: caps-split for CP1/CP2 (TASK-261 Phase 0)
 #include "appShell.h"
 #include "dataTask.h"
 #include "settingsStorage.h"
@@ -83,6 +84,24 @@ void audio_showstreamtitle(const char *info) {
     char buf[WR_ICY_TITLE_LEN];
     strlcpy(buf, info, sizeof(buf));
     xQueueOverwrite(s_icyTitleQueue, buf);
+}
+
+// T_MB_PROBE_00 CP2 (TASK-261 Phase 0): decoder-init capture point.
+// audio_info is the ESP32-audioI2S broad info callback; fires on decoder init
+// ("MP3Decoder ... initialized") — AFTER InBuff calloc + Helix alloc, so this
+// is the moment both big allocations have landed and heap drop is measurable.
+void audio_info(const char *info) {
+    if (!info) return;
+    // Surface all audio_info lines through LOG so they appear in the monitor.
+    LOG_I("webradio", "audio_info: %s", info);
+    // CP2: emit caps-split on decoder-init line (the gate metric for Phase 1).
+    if (strstr(info, "MP3Decoder") || strstr(info, "AACDecoder")) {
+        Serial.printf("[membudget] CP2-decoder-init freeInt=%u lfbInt=%u freeDma=%u lfbDma=%u\n",
+            (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+            (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+            (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
+            (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
+    }
 }
 
 // ── Audio singleton ──────────────────────────────────────────────────────────
@@ -625,12 +644,19 @@ private:
             s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
 
         wrAudio().setVolume(wrEffectiveVolume());  // TASK-209: HW-mod clamp
-        // TASK-208: heap watermark at connecttohost (audio buffer alloc point).
-        // maxAlloc = largest contiguous block — the figure that actually governs
-        // whether the MP3 decoder / TLS buffers can be allocated (TASK-233).
+        // TASK-208 / TASK-261 CP1: heap watermark at connecttohost (audio buffer alloc point).
+        // Extended with caps-split (T_MB_PROBE_00) for Phase 0: freeInt/lfbInt distinguish
+        // INTERNAL pool contiguity from total free. Also tagged with auto-skip count so
+        // post-skip fragmentation is visible vs first-play (Developer suggestion 3).
         LOG_I("webradio", "HEAP pre-connect free=%u min=%u maxAlloc=%u",
               (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap(),
               (unsigned)ESP.getMaxAllocHeap());
+        Serial.printf("[membudget] CP1-pre-connect skip=%u freeInt=%u lfbInt=%u freeDma=%u lfbDma=%u\n",
+              (unsigned)_autoSkipTried,
+              (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+              (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+              (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
+              (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
         if (wrAudio().connecttohost(_stations[idx].url)) {
             _state = WRPlayState::PLAYING;
             _lastRunningMs  = millis();  // TASK-218: seed grace window for stream-death detection

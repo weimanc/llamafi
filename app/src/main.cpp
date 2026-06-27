@@ -53,6 +53,7 @@ bool writeContextToNfc = true;
 #include <esp_ota_ops.h>  // esp_ota_get_app_description() for serialdbg-001 boot banner (Arduino-ESP32 2.0.x; esp-idf 5.x renames this to <esp_app_desc.h>)
 #include <esp_log.h>      // esp_log_level_set() for ADR-042 E1 HTTPClient log suppression
 #include <esp_task_wdt.h> // esp_task_wdt_init() — extended timeout for dataTask TLS
+#include <esp_heap_caps.h> // T_MB_PROBE_00: caps-split heap probes (TASK-261 Phase 0)
 
 // ----------------------------
 // Additional Libraries
@@ -160,6 +161,18 @@ SpotifyDisplay *spotifyDisplay = &matrixDisplay;
 #ifdef SPIKE_MODE
 #include "spikeMode.h"
 #endif
+
+// ── T_MB_PROBE_00: caps-split heap probe (TASK-261 Phase 0) ──────────────
+// Unconditional (no SERIAL_DEBUG gate) — these fire at boot milestones so the
+// DUT log captures them without needing a serial command.
+static void mb_heap_probe(const char *tag) {
+    Serial.printf("[membudget] %s freeInt=%u lfbInt=%u freeDma=%u lfbDma=%u\n",
+        tag,
+        (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+        (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+        (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
+        (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
+}
 
 // ── App dispatch (M-MULTIAPP, TASK-087c/d) ─────────────────────────────
 
@@ -2035,8 +2048,7 @@ void setup()
     WiFi.disconnect(false);
     Serial.println("[wifi] no credentials — will open WiFi settings after init");
   }
-
-
+  mb_heap_probe("post-wifi");  // TASK-261 Phase 0 milestone M1
 
   // time-001: SNTP sync before any TLS. ESP32 has no RTC; without this the
   // clock starts ~1970 and mbedTLS rejects current Spotify certs (notBefore
@@ -2116,7 +2128,9 @@ void setup()
   // task stack + ~50 KB TLS for the no-PSRAM WebRadio decoder.
   Serial.println("[boot] spotify=off");   // V0 readiness token (harness scrapes pre-shell)
 #endif
+  mb_heap_probe("post-spotifyTask");  // TASK-261 Phase 0 milestone M2
   dataTask::begin();
+  mb_heap_probe("post-dataTask");     // TASK-261 Phase 0 milestone M3
 
   // Boot: init the Spotify app via the App interface, then draw taskbar.
   if (g_apps[(int)AppId::Spotify]) {
@@ -2131,6 +2145,7 @@ void setup()
     switchApp(AppId::Settings);
     g_SettingsApp.openSection(0);
   }
+  mb_heap_probe("post-init-idle");    // TASK-261 Phase 0 milestone M4 (steady idle)
   buildMathLUT();
 
 #ifdef SPIKE_MODE
@@ -2194,7 +2209,7 @@ static const SerialCmd kCmds[] = {
   { "tap",  cmdTap,  "inject touch point",              "<x> <y>"                            },
   { "drag", cmdDrag, "inject touch drag (queue-drain)", "<x1> <y1> <x2> <y2> <steps>"        },
   { "tick", cmdTick, "inject synthetic scroll ticks",   "[n=1] [dtMs=20]"                    },
-  { "get",  cmdGet,  "read internal state",             "<snapshot|backoff|heap|cooldown>"    },
+  { "get",  cmdGet,  "read internal state",             "<snapshot|backoff|heap|stacks|cooldown>"    },
   { "set",  cmdSet,  "write debug state",               "<backoff|cooldown> <val>"            },
   { "switchApp", cmdSwitchApp, "switch active app by id", "<appId 0..8>"                      },
   { "info", cmdInfo, "git+elf+build+snapshot summary",  ""                                   },
@@ -2515,6 +2530,19 @@ static void cmdGet(const char *args) {
                   (unsigned)dS,(unsigned)dF,(unsigned)(dS-dF),
                   (unsigned)sS,(unsigned)sF,(unsigned)(sS-sF),
                   (unsigned)ESP.getFreeHeap(),(unsigned)ESP.getMaxAllocHeap());
+    return;
+  }
+  // T_MB_PROBE_00 (TASK-261 Phase 0): caps-split heap query — internal vs DMA pool,
+  // free + largest_free_block each. Distinguishes the two pools so fragmentation in
+  // the INTERNAL (large) pool is visible separately from the scarce DMA pool.
+  if (strcmp(args, "heap") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\","
+                  "\"freeInt\":%u,\"lfbInt\":%u,"
+                  "\"freeDma\":%u,\"lfbDma\":%u,\"last\":true}\n",
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
+                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
     return;
   }
   if (strcmp(args, "weatherReady") == 0) {
