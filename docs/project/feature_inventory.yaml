@@ -1324,6 +1324,53 @@ features:
       Design: ADR-046 (accepted 2026-06-25). Split into TASK-245 (mechanism + Spotify consumer
       + matrices + VE) and TASK-246 (audit + wire every app's error state; gated on TASK-245).
       Ties to TASK-244 (same Spotify 403 signal). cross_feature_matrix combinations X017-X020.
+
+  - id: player-state-001
+    name: Player mode as persisted, user-editable state (Spotify | WebRadio)
+    milestone: M-PLAYER-STATE
+    status: partial
+    description: |
+      The "player" is one slot with two mutually-exclusive modes {Spotify | WebRadio}; eject
+      toggles the mode and the taskbar player slot restores the last-active one (instead of always
+      Spotify). WebRadio stays its own eject-only AppId (taskbar-excluded — TASK-242/LL-085
+      invariant preserved); the mode field only selects which the player slot resolves to.
+      PART 1 (implemented, TASK-259, RAM-only, commit a825521): g_lastPlayerMode tracked in
+      switchApp() when the player enters Spotify or WebRadio; resolvePlayerSlot() redirects a
+      taskbar tap on the player slot (AppId::Spotify — the only mode a taskbar tap can surface,
+      WebRadio being eject-only) to the remembered mode, wired at both taskbar gesture-end sites.
+      Eject already toggled both ways (Spotify->WebRadio at the eject handler; WebRadio->Spotify
+      at webRadioApp.h:309); settings-back already restored via g_previousAppId — unchanged.
+      PART 2 (designed, not yet implemented — this feature's remaining scope): persist the mode to
+      SPIFFS settings.json (collapse g_lastPlayerMode into g_settings.playerMode, single source of
+      truth; new top-level "player" object) so it survives reboot; and a Settings -> Applications
+      -> Player show/edit/toggle row (flip Spotify appRegistry cfg 0->1, regenerate
+      gen/configurable_apps.h via gen_app_registry.py, add _repaintPlayer/_cyclePlayer to
+      appsSection.h). Cold-boot stays on the Spotify view for v1 (boot-into-mode is deferred and
+      composes with the existing webRadioAutoplay knob).
+    files:
+      - app/src/main.cpp
+      - app/src/webRadioApp.h
+      - app/src/settingsStorage.h
+      - app/src/settingsStorage.cpp
+      - app/src/appRegistry.h
+      - app/src/gen/configurable_apps.h
+      - app/src/settings/appsSection.h
+      - docs/architecture/designs/M-PLAYER-STATE.md
+    cross_features:
+      - taskbar-001
+      - app-interface-001
+      - settings-001
+    test_ids: []
+    dependencies:
+      - taskbar-001
+      - settings-001
+    notes: |
+      Design: docs/architecture/designs/M-PLAYER-STATE.md. PART 1 = TASK-259 (done, RAM-only,
+      DUT-verify pending). PART 2 (persistence + settings UI) is OQ4 + the user's settings-toggle
+      request — designed, awaiting implementation. Open: OQ-LABEL (show "Spotify" vs a "Player"
+      display-name codegen column), OQ-BOOT (cold-boot-into-mode v2, deferred), OQ-WEAR
+      (immediate-save w/ unchanged-skip — chosen). Couples M-MEMBUDGET (the mode mutual-exclusion
+      the overlay-arena budget leans on). cross_feature_matrix: X022-X024.
       TASK-245 mechanism implemented 2026-06-25: App::hasError(), red TASKBAR_ERR_COLOR with
       precedence error>busy>idle, shell::activeError() + edge-triggered async re-render,
       SpotifyApp::hasError() via spotifyTask::authError() (persistent 403). Debug getter

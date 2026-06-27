@@ -111,9 +111,10 @@ ADR-045 unchanged, recorded — cheaply, before the fork on a Phase-1 kill.
 
 ## Task topology (PM — to file when directed)
 
-- **TASK-260** — M-MEMBUDGET spike (P1), phased with the gates above; **EXP-010** record; branch
-  `rnd/membudget`. **Cleanup id: TASK-261** (revert vendored lib + arena + flags + any env if merged before a
-  fail — BP-040/041). Phase 3 **couples TASK-259** (player mode-state). Phase 2 is gated behind a Phase-1 PASS.
+- **TASK-261** — M-MEMBUDGET spike (P1), phased with the gates above; **EXP-010** record; branch
+  `rnd/membudget`. **Cleanup id: TASK-262** (revert vendored lib + arena + flags + any env if merged before a
+  fail — BP-040/041). Phase 3 **couples TASK-259/260** (player mode-state). Phase 2 is gated behind a Phase-1
+  PASS. (TASK-260 is taken by M-PLAYER-STATE PART 2.)
 - TASK-259 may proceed in parallel (it is a standalone UX/state change), but Phase 3 depends on it.
 
 ## Out of scope

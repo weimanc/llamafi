@@ -382,6 +382,64 @@ interactions:
       to 60 s on the 403 latch) fixed it — teletext now amber→green in ~2 s on DUT. T-ERR-06
       automates the offline-default invariant (Clock/Matrix connecting:false).
 
+  - id: X022
+    feature_a: player-state-001
+    feature_b: taskbar-001
+    interaction_type: shared_state
+    description: |
+      player-state-001 redirects a taskbar tap on the player slot through resolvePlayerSlot():
+      taskbar-001's gesture-end maps a tap to an AppId and calls switchApp(); player-state-001
+      intercepts the result so AppId::Spotify resolves to the last-active player mode (Spotify or
+      WebRadio). Relies on taskbar-001's invariant that WebRadio is excluded from the taskbar
+      (eject-only — TASK-242/LL-085), so a taskbar tap can only ever surface AppId::Spotify; if
+      WebRadio were ever added to the taskbar this redirect would double-count and the eject-only
+      invariant would break. switchApp() also tracks the mode (writes g_settings.playerMode when the
+      player enters either mode), so the two are coupled at both the read (resolve) and write (track)
+      sides.
+    risk: medium
+    test_coverage: []
+    notes: |
+      PART 1 implemented TASK-259 (a825521). Both wired at the two taskbar gesture-end sites
+      (touch + serial-driven). DUT-verify owed: eject→other app→player slot returns to WebRadio.
+
+  - id: X023
+    feature_a: player-state-001
+    feature_b: settings-001
+    interaction_type: dependency
+    description: |
+      PART 2 persists the player mode in settings-001's SPIFFS store (g_settings.playerMode, new
+      top-level "player" object in settings.json) and adds a Settings → Applications → Player
+      toggle. Depends on settings-001's load/save mapping and the configurable-apps codegen path
+      (appRegistry.h cfg flag → gen_app_registry.py → gen/configurable_apps.h, consumed by
+      appsSection.h). Flipping Spotify cfg 0→1 makes the player appear in the Applications list;
+      the generated file MUST be regenerated + committed or run/check [5/5] codegen-staleness fails.
+      Save policy: immediate saveSettings() on eject/toggle with unchanged-value skip (flash-wear).
+    risk: medium
+    test_coverage: []
+    notes: |
+      PART 2 designed (M-PLAYER-STATE §3/§4/§5), not yet implemented. Settings round-trip is
+      offline-verifiable (run/spiffs pull settings.json → inspect player.mode). OQ-LABEL: show
+      "Spotify" vs add a "Player" display-name codegen column.
+
+  - id: X024
+    feature_a: player-state-001
+    feature_b: webradio-eject
+    interaction_type: shared_state
+    description: |
+      Eject is the mode toggle: the Spotify handler ejects to WebRadio and webRadioApp.h:309 ejects
+      back to Spotify. PART 2 makes each eject write g_settings.playerMode (+ persist), so the
+      toggle source-of-truth is the settings field, not a separate runtime global. Boot composes
+      with the existing webRadioAutoplay knob (reconnect-last-station-on-resume): v1 cold-boots to
+      the Spotify view regardless of persisted mode, so webRadioAutoplay (not playerMode) governs
+      whether radio actually auto-starts. Boot-into-persisted-mode (v2, M-PLAYER-STATE OQ-BOOT) is
+      where the two would directly interact and is deferred.
+    risk: low
+    test_coverage: []
+    notes: |
+      webradio-eject is the eject-toggle behaviour in webRadioApp.h / the Spotify handler (no
+      dedicated feature_inventory id yet — pre-existing gap). v2 boot-into-mode couples with
+      M-MEMBUDGET (the Option-A-lite boot-direct-to-WebRadio appliance).
+
 #   interaction_type: shared_state | dependency | conflict | overlap
 #   description: ""
 #   risk: low | medium | high

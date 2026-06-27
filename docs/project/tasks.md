@@ -3407,7 +3407,39 @@ the mode across reboot (OQ4 — RAM-only resets to Spotify on boot).
 **DUT-verification owed (when DUT returns):** enter WebRadio via eject → switch to another taskbar app →
 tap the player slot → confirm it returns to WebRadio (not Spotify); and the inverse from Spotify.
 
-**Priority:** P2 — UX fix + enabler for M-MEMBUDGET · **Status:** **implemented (RAM-only) — DUT-verify
+This is **PART 1** of M-PLAYER-STATE (runtime toggle). **PART 2** (SPIFFS persistence + Settings UI toggle,
+OQ4 + the user's settings request) is split out as **TASK-260**, designed in
+[M-PLAYER-STATE.md](../architecture/designs/M-PLAYER-STATE.md). Feature: `player-state-001`.
+
+**Priority:** P2 — UX fix + enabler for M-MEMBUDGET · **Status:** **PART 1 implemented (RAM-only) — DUT-verify
 pending** · **Opened:** 2026-06-27 · **Milestone:** M-PLAYER-STATE
 **Owner:** Developer · **Deps:** none · **couples with** M-MEMBUDGET (the mutual-exclusion it formalises)
+· **Design:** M-PLAYER-STATE.md · **Follow-on:** TASK-260 (PART 2)
 · **Related:** TASK-242 (taskbar eject-only invariant), ADR-046 (Spotify dormant-stub bar)
+
+---
+
+### TASK-260 — M-PLAYER-STATE PART 2: persist player mode to SPIFFS + Settings → Applications → Player toggle
+
+PART 2 of M-PLAYER-STATE (PART 1 = TASK-259). Make the player mode `{Spotify | WebRadio}` a **persisted,
+user-editable setting**. Designed in [M-PLAYER-STATE.md](../architecture/designs/M-PLAYER-STATE.md).
+Two pieces:
+- **Persist (OQ4):** collapse TASK-259's runtime `g_lastPlayerMode` into `g_settings.playerMode` (single
+  source of truth); add a new top-level `player` object to `settings.json` (defaults/load/save in
+  `settingsStorage.{h,cpp}`); restore at boot. Save policy: immediate `saveSettings()` on eject/toggle with
+  an **unchanged-value skip** (flash-wear, §4).
+- **Settings UI (§5):** flip Spotify `appRegistry.h` cfg `0→1`, **regenerate** `gen/configurable_apps.h` via
+  `app/tools/gen_app_registry.py` (the `run/check` [5/5] staleness gate enforces this), and add
+  `_repaintPlayer`/`_cyclePlayer` to `settings/appsSection.h` (single "Mode" toggle row, mirroring Clock).
+
+**Open (decide before/at impl):** OQ-LABEL (show "Spotify" vs add a "Player" display-name codegen column —
+design recommends the latter); OQ-BOOT (cold-boot-into-mode is **v2/deferred** — v1 boots to Spotify view,
+`webRadioAutoplay` governs actual radio auto-start).
+
+**DoD:** `run/check` 5/5 (incl. codegen-staleness + golden); settings round-trip verified offline
+(`run/spiffs pull … settings.json` shows `player.mode`); DUT: set mode → reboot → player slot restores it.
+
+**Priority:** P2 — completes M-PLAYER-STATE; persistence the user asked for · **Status:** **open — designed,
+ready to implement** · **Opened:** 2026-06-27 · **Milestone:** M-PLAYER-STATE
+**Owner:** Developer · **Design:** M-PLAYER-STATE.md · **Deps:** TASK-259 (PART 1, done), `settings-001`,
+`taskbar-001` · **Feature:** `player-state-001` (PART 2) · **Matrix:** X022–X024
