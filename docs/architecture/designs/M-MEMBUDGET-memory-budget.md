@@ -41,7 +41,17 @@ Total internal SRAM ≈ **320 K** usable heap pool (after ~57.5 K static, per EX
 | Aquarium sprite | `AQ_W×AQ_STRIP_H×1B` (m, 8-bit) | any | yes | per-app-entry | yes — on app exit |
 | Marquee sprite (`main.cpp:1584`) | `sprW×8×?` (m, small) | any | yes | transient | yes |
 | ~~Album-art JPEG decode~~ | **REMOVED** | — | — | — | — |
-| **WebRadio audio path** (only when active) | **~41 K** (m): InBuff ~8 K + Helix 22.7 K + conn | **DMA-internal, contiguous** | **yes — the wall** | dynamic (play→stop) | yes |
+| **WebRadio audio path** (only when active) | **~41 K** (m): InBuff ~8 K + Helix 22.7 K + conn | **INTERNAL contiguous** (InBuff+decoder) — see caps note | **yes — the wall** | dynamic (play→stop) | yes |
+| └ I2S DMA ring | ~8 K (m: `16×512`) | **DMA-capable** but **512-B chunks** (driver-owned) | per-buffer 512 B only | dynamic | yes |
+
+### Caps refinement (confirmed in code — drives feasibility)
+
+The ~40 K we'd reserve needs only **`MALLOC_CAP_INTERNAL` (8-bit), NOT DMA-capable.** The I2S DMA ring is
+allocated by `i2s_driver_install()` (`Audio.cpp:209`, `dma_buf_count=16 × dma_buf_len=512`) as sixteen 512-B
+DMA chunks — trivially satisfiable even fragmented, and driver-owned. The two big allocations we redirect
+(InBuff `calloc` `Audio.cpp:59`; Helix decoder `__malloc_heap_psram` → `INTERNAL` on no-PSRAM) are plain
+internal RAM. **So we reserve from the large internal pool, not the scarce DMA pool** — materially easier than
+this sketch's first framing. Verified by PROP-membudget-spike Phase 0.
 
 ### Challenge resolved: album-art JPEG is a phantom (Q1 — CLOSED)
 
@@ -153,18 +163,21 @@ The two numbers the spike must produce: **(A)** does a `heap_caps_malloc(40K, MA
 MALLOC_CAP_INTERNAL)` succeed at boot and stay contiguous, and **(B)** does the system still run the full app
 set with that 40 K removed (with Spotify torn down when in WebRadio mode).
 
-## 6. What must be measured (R&D spike — proposed, for PM to schedule)
+## 6. What must be measured — the spike plan
 
-1. Boot-reserve 40 K `MALLOC_CAP_DMA|MALLOC_CAP_INTERNAL`; confirm success + contiguity; confirm the other
-   apps still boot/run.
-2. Fork-redirect the 2 allocation sites into a bump arena over the reservation; confirm decoder + InBuff land
-   in it and WebRadio holds ≥ 60 s **on the multi-app build** (not bare).
-3. Measure the resident short-list precisely (fill the `(e)` rows) so the budget table is real.
-4. Couple with TASK-259 mode-state + Q3 teardown; confirm Spotify reconnect latency on toggle is acceptable.
+Full phased plan with kill-gates: **[PROP-membudget-spike](../../rnd/proposals/PROP-membudget-spike.md)**
+(runs in-project on the multi-app build, DUT, branch `rnd/membudget`; → EXP-010 / candidate ADR-047). Summary:
 
-A PASS here is the evidence base for an **ADR-047** ("reserved DMA arena + 2-site library fork makes WebRadio
-deterministic on the multi-app no-PSRAM board") and would reframe the product decision from "Option B by
-default" to "Option A-lite is real."
+| Phase | What | Gate |
+|---|---|---|
+| **0 — Baseline** (cheap) | caps-split heap probes at boot milestones + CP1/new-CP2; fill the `(e)` rows; confirm audio path is INTERNAL not DMA | none — measurement only |
+| **1 — Reservation** (KILL GATE, cheap) | boot-reserve ~40 K `MALLOC_CAP_INTERNAL`; confirm contiguous + full app set still runs 40 K short | fail → **Option A-lite dead, Option B stands, ADR-045 unchanged** — *before* any fork |
+| **2 — 2-site fork** (M-effort) | vendor lib, redirect decoder macro + InBuff calloc into a reset-on-stop bump arena; WebRadio holds ≥ 60 s **on multi-app build**, ≥ 3 trials | pass ≥ 90 % → **ADR-047 candidate** |
+| **3 — Overlay** (conditional) | only if always-held 40 K too tight (OQ3): TASK-259 mode-state + Q3 `spotifyTask` teardown finances the arena; measure Spotify reconnect latency | — |
+
+The design lever: **measure cheaply, kill cheaply.** Phase 1 settles feasibility with ~one boot alloc + a soak,
+so we never sink the Phase-2 fork effort into a reservation that can't exist. A Phase-1+2 PASS reframes the
+product decision from "Option B by default" to "Option A-lite is real."
 
 ## 7. Open questions / deferred decisions
 
