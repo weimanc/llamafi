@@ -6,6 +6,80 @@
 > Tracked-as: M-WEBRADIO-NOPSRAM (roadmap); experiment record → **EXP-008**; feeds TASK-241 / TASK-233 / ADR-045.
 > Deps: M-WEBRADIO (firmware complete); **prereq-done:** TASK-239/240 (~11 KB reclaim); **sidesteps:** TASK-243 (Premium); **baseline:** EXP-007.
 
+---
+
+## PIVOT (2026-06-27, post-Step-1) — the Spotify-disable was too narrow; go headless
+
+> Architect sketch, **not yet implemented**. The Spotify-disable experiment ran and **failed its
+> Step-1 kill gate — but it tested the wrong build.** This section reframes the experiment around the
+> real lever (the whole 11-app footprint, not just `spotifyTask`) and adds two parallel R&D lanes the
+> user raised. The original Spotify-disable plan below is **subsumed** as one input to Lane A.
+
+### What Step-1 actually showed (EXP-008 partial, full multi-app disabled build)
+
+| Point | free | maxAlloc | usable = free − maxAlloc | decoder |
+|---|---|---|---|---|
+| Boot | 107,652 | 59,380 | — | — |
+| WebRadio `_play()` entry | **59,976** | **38,900** | **21,076** | **FAIL** (needs 22,700; short ~1.6 KB) |
+
+- The ~10 KB `spotifyTask` reclaim **is visible at boot (107 K) but does NOT survive to `_play()`** —
+  play-entry `usable` converges to ~21 K (≈ EXP-007's 20.6 K failing baseline). On the **full 11-app
+  build**, disabling one task is noise against the resident footprint of the shell + 10 other apps +
+  the audio path. **Verdict: tested the wrong build.**
+- The **38,900 caps-restricted dead-block is confirmed unchanged** on the disabled build (R&D's
+  relayout concern resolved — it did not shift). `usable = free − maxAlloc` is the right metric and the
+  measured decoder failure confirms it.
+
+### Two corrections that change the conclusion (so ADR-045's "NO-GO" is too strong)
+
+1. **The input buffer is NOT PSRAM-gated.** `AudioBuffer::setBufsize(ram, psram)` (Audio.cpp:38)
+   sets the **RAM** buffer directly; default `m_buffSizeRAM = 1600*5 = 8000 B` (the "6399" we see is
+   8000 − 1600 reserve). A bigger RAM buffer is **heap-gated, not silicon-gated** — EXP-007's 16 KB
+   attempt failed only because 16 KB + 22.7 KB didn't fit *at the full-build budget*, not because the
+   library refuses it. So **freeing enough RAM could fund the decoder AND the underrun-fix buffer.**
+2. **Existence proof.** ESP32-audioI2S (the library we already ship) runs internet radio on **bare
+   no-PSRAM ESP32s** in its own examples, with the 8 KB default RAM buffer. **The hardware is capable;
+   our footprint is the wall** — exactly the user's point. ADR-045's "stable no-PSRAM playback = NO-GO"
+   was measured under the *full multi-app* footprint, never the achievable minimum.
+
+### The revised plan — three lanes
+
+**Lane A (primary) — Headless WebRadio build = the true RAM ceiling.** Strip the app registry to
+**WebRadio only** (+ Settings for country config), boot directly into WebRadio, no taskbar/eject. This
+is the maximum-RAM build the user described. Reuses the existing branch foundation (`DISABLE_SPOTIFY`
+guard, V0 harness, `get wrPlaying`). Measure `usable` at `_play()`:
+- clears **(a) 22.7 KB** reliably → startup decoder-alloc fixed;
+- with the headroom, `setBufsize(~16 KB)` and re-measure for **(b)** decoder + buffer coexisting →
+  the underrun fix. **This is the decisive ceiling test Step-1 should have been.**
+- *Coupling to resolve (the real work):* WebRadio as boot default; the hardcoded `AppId::Spotify`
+  references (boot init, eject target, `hasPendingAsync` poll); taskbar/eject become no-ops or compile
+  out. Bounded but more invasive than the single Spotify guard — hence this sketch before code.
+
+**Lane B (cheap, informs A) — Survey existing no-PSRAM ESP32 radio projects.** What footprint
+techniques do the established builds use (buffer sizing, decoder/codec choice, display strategy,
+`setBufsize` values)? Start with the ESP32-audioI2S radio examples + the well-known DIY internet-radio
+projects. A half-day of reading that de-risks Lane A and may hand us the exact buffer/codec config.
+
+**Lane C (parallel) — Decoder / codec alternatives.** Helix MP3 is ~22.7 KB across 9 buffers. Evaluate:
+lower-bitrate-only station filtering (already have `bitrateMax`), **AAC vs MP3 decoder memory**, whether
+a streaming/partial-decode config lowers the peak, and whether any codec path on this library needs
+less than 22.7 KB. May reduce the demand side rather than only growing the supply side.
+
+### Decision gate (unchanged in spirit, retargeted to the bare build)
+The bare build is the **true ceiling**. If even headless cannot clear (a) 22.7 KB, **then ADR-045 stands
+definitively** (the decoder demand exceeds the silicon, period). If headless clears (a) — and ideally
+(b) with `setBufsize` — the product answer is a **shipped WebRadio-focused build variant**, and ADR-045
+is *superseded* for that variant (not the multi-app board). EXP-008 records the bare-build numbers next
+to the full-build 21 K and EXP-007's 20.6 K.
+
+### Process
+This pivot **broadens** the experiment; PM to re-scope TASK-255 (or split: TASK-255 = headless-strip
+build, with Lanes B/C as sub-investigations). Re-review by the panel recommended before Lane A code,
+since the registry-strip coupling is new surface the round-1/2 review did not cover. The existing branch
+(`rnd/webradio-nopsram`) carries the reusable foundation + the EXP-008 Step-1 datapoint.
+
+---
+
 ## Problem
 
 WebRadio MP3 playback is unstable on the production no-PSRAM CYD. Per **EXP-007 / TASK-233**
