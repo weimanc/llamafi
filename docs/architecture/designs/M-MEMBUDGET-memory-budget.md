@@ -64,18 +64,60 @@ art/JPEG in the shipped firmware.** Removed from the budget. (The album-art remo
 ## 2. App × mode cross — what is resident vs reclaimable
 
 The inventory's important shape: **most app memory is transient or app-scoped** (JSON docs, sprites — freed
-on app switch). The genuinely *resident, hard-to-free* consumers are a short list:
+on app switch). The genuinely *resident, hard-to-free* consumers are a short list.
 
-| Resident block | Size | Reclaim mechanism if we want it back |
-|---|---|---|
-| WiFi/LWIP/TLS system | tens of K | none (system) |
-| Spotify task (stack + its TLS working set) | 10 K + TLS | tear the task down (Q3) |
-| dataTask (stack) | 11–14 K | tear the task down (Q2) |
-| Heatmap static doc | 2.56 K | make transient (Q4) |
+### 2a. Component × app matrix (roster from `appRegistry.h` — 11 apps)
 
-Everything else is already overlay-friendly (it comes and goes with the active app). So the budget question
-reduces to: **how much of the resident short-list can we reclaim when WebRadio is the active mode**, and is
-that enough — combined with a boot-reserved arena — to guarantee the ~41 K contiguous DMA-internal path.
+Shared-resident across **every** app (never varies, omitted from the grid): **TFT_eSPI display** (incl. the
+shared **title marquee** — a direct-draw scrolling-text primitive, **0 RAM**, shared by Spotify + WebRadio per
+TASK-252/254, *not* a sprite), **app shell/registry**, **WiFi/LWIP/TLS stack**. The grid shows only the
+**variable** components — the ones that decide the budget:
+
+| Variable component | Spotify | Clock | Weather | Crypto | Matrix | Life | Settings | Stock | Aquarium | Teletext | WebRadio |
+|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| **spotifyTask** 10 K + TLS | ● | — | — | — | — | — | — | — | — | — | — |
+| **dataTask** 11–14 K | — | — | ● | ● | — | — | — | ● | — | ● | ◐¹ |
+| **WR audio arena** ~40 K int | — | — | — | — | — | — | — | — | — | — | ● |
+| heatmap static doc 2.5 K | — | — | — | — | — | — | — | ● | — | — | — |
+| JSON fetch doc *(transient)* | — | — | ○ | ○ | — | — | — | ○ | — | ○ | ○ |
+| sprite/canvas *(transient)* | — | — | — | — | — | — | — | ○² | ○³ | — | — |
+
+● = resident while app active · ◐ = needed transiently · ○ = transient (alloc/free with the app) · — = none
+¹ WebRadio uses dataTask **only to fetch its station list**, then never again — needed briefly, not during play.
+² Stock/heatmap narrow-tile rotated label (`main.cpp:1584`) — `createSprite`→`deleteSprite` on the spot.
+³ Aquarium strip canvas (`aquariumApp.h`) — created on entry, freed on exit.
+(Correction vs the first draft: there is **no "Spotify marquee sprite"** — the scrolling title is the shared
+0-RAM direct-draw marquee above; the only real `TFT_eSprite`s belong to Stock/heatmap and Aquarium.)
+
+### 2b. Resident short-list + reclaim
+
+The genuinely *resident, hard-to-free* consumers (everything else is overlay-friendly — comes and goes with
+the active app):
+
+| Resident block | Size | Used by | Reclaim mechanism | Reclaim when WebRadio active |
+|---|---|---|---|---|
+| WiFi/LWIP/TLS system | tens of K | all networked | none (system) | — |
+| Spotify task (stack + TLS working set) | 10 K + TLS | **1 app** (Spotify) | tear the task down (Q3) — best candidate | **~10 K + TLS** |
+| dataTask (stack) | 11–14 K | 5 apps (fetchers) | create-on-data-app / destroy-on-leave (Q2) — churn risk | **~11–14 K** (after station fetch) |
+| Heatmap static doc | 2.5 K | 1 app (Stock) | make transient like the other fetchers (Q4) — trivial | **2.5 K** |
+
+### 2c. The overlay arithmetic (finances the arena — OQ3 / Phase 3)
+
+Sum the mutually-exclusive resident blocks reclaimable **when WebRadio is the active mode**:
+
+```
+spotifyTask stack + TLS       ~10 K + TLS working set   (Q3 — single app, high value)
+dataTask (post-station-fetch)   11–14 K                 (Q2 — needs fetch-then-teardown sequencing)
+heatmap static doc               2.5 K                  (Q4 — trivial)
+──────────────────────────────────────────────────────
+reclaimable in WebRadio mode  ≈ 24–27 K + TLS
+```
+
+So the 40 K arena is **not pure dead weight**: the overlay hands ~24–27 K (+ the TLS working set) back exactly
+when WebRadio needs it. **Net steady-state cost to the other apps ≈ ~15 K, not 40 K** — which sharpens Phase 1's
+gate from "tolerate losing 40 K" to "tolerate ~15 K net" (PROP-membudget-spike §Phase 1). The budget question
+reduces to: can the system tolerate ~15 K net, and does a boot-reserved 40 K *internal* arena guarantee the
+~41 K audio path (InBuff + decoder internal; I2S ring driver-owned — see §1 caps refinement).
 
 ## 3. Open questions raised against the inventory
 
