@@ -78,6 +78,54 @@ build, with Lanes B/C as sub-investigations). Re-review by the panel recommended
 since the registry-strip coupling is new surface the round-1/2 review did not cover. The existing branch
 (`rnd/webradio-nopsram`) carries the reusable foundation + the EXP-008 Step-1 datapoint.
 
+### Round-3 panel synthesis (2026-06-27) — UNANIMOUS NEEDS-CHANGES before Lane A code
+
+All five reviewers approved the *direction* but blocked Lane A code pending the changes below. **Lane C-1
+has none of these blockers and runs now.** Required revisions (Architect to fold into a Lane-A sub-spec
+before code):
+
+1. **REORDER — Lane C-1 (library A/B) first** (PM, R&D B4, QM). It's *hours not days*, orthogonal
+   (demand-side), and could obviate Lane A entirely: if v2.0.6/PLSousa cuts the Helix footprint or fixes
+   no-PSRAM handling, the *full* build may clear the line and the registry surgery is unnecessary.
+   Cheapest gate first — the same logic that made Step-1 the abort point. → new **TASK-257** (P1, now).
+2. **Lane A scope = registry strip + dataTask TRIM** (Developer B1, R&D). The registry strips app
+   *objects* (cheap PROGMEM statics); the **real RAM lever is `dataTask`'s 14 KB stack + the 6 resident
+   fetch/result structs** (`dataTaskStorage.cpp:43-68,77`), the framebuffer, and WiFi/TLS — none gated by
+   the registry. WebRadio fetches *through* dataTask, so it can't be removed, only **trimmed to a
+   WebRadio-only fetch profile** (compile out other `fetch*` + result structs; shrink the stack). A
+   registry-only strip will under-reclaim and risk another "tested the wrong thing."
+3. **Staged/additive ablation, not a single 10-app jump** (R&D B1): measure `usable`-at-`_play()` at ≥3
+   intermediate registry sizes so the footprint wall is *attributable* (a curve), not just "less = more."
+4. **Don't extrapolate the 163 K bare figure** (R&D B2, VE): it's an upper bound on a *different, minimal*
+   system. Derive a predicted headless `usable` from *our* stripped components and **measure**; 163 K is
+   report context, not Lane A's predicted delta. **Re-probe the dead-block on the headless image** (R&D
+   B3, PM) — a 10-app relayout may shift it.
+5. **Build-flag-gated alternate registry — do NOT mutate committed `appRegistry.h`/`gen/`** (VE B-L1,
+   Developer, PM BL-2). A registry edit regenerates `app_ids_gen.py` → breaks `check_build.sh` step 5 +
+   every harness test using `APP_SLOT["Spotify"]`. Use `-DWEBRADIO_ONLY` + a variant registry fed through
+   the existing `gen_app_registry.py` codegen (Developer's recommended path). **Branch-only; the default
+   `cyd2usb_winamp` `.elf`-section gate (V1) must still pass.** Also fix `TASKBAR_APP_COUNT` ordering
+   coupling (`taskbar.h:30` assumes WebRadio is the last enum row). *(Doc fix: the second "eject target"
+   at webRadioApp.h:425 is `dbgSet`/`WRPlayState`, not an AppId — only :309 is real.)*
+6. **Rewrite the V-section for headless** (VE B-L1/2): no eject/taskbar/Spotify-stub — WebRadio is the
+   *boot* app, driven directly (`set wrPlay`/`get wrPlaying`/`get stacks`). Distinct `get variant` token
+   (`build:headless`) so the harness picks the no-eject entry path. Drop the now-meaningless eject-stub
+   test. Re-run the link-safety + LL-085 dormant-app audit against the *stripped registry* (QM B3).
+   `setBufsize` becomes a **swept** variable (add a `set wrBufsize <n>` knob) so the (b) underrun test
+   *measures* the largest coexisting buffer instead of guessing 16 KB (VE N-L2).
+7. **Per-lane kill criteria + FAIL-disposition + cleanup-task** in §Process & lifecycle (QM B1, PM BL-1) —
+   the lifecycle contract still describes only the narrow Spotify-disable guard. **Lane C-1 dependency
+   discipline** (QM B2): pin the exact PLSousa fork commit, branch-only, default `.elf` unchanged,
+   measured A/B (not vibes), per the protocol in VE's review.
+8. **Pre-commit the likely partial:** the 163 K existence proof makes an (a)-pass near-certain, so the
+   real open question is (b) underrun tolerance — an **(a)-pass / (b)-fail headless result still graduates
+   the shipped-variant PROP** (best-effort-but-reliable-startup), not a non-result (PM).
+
+**Applied now (non-gating, independent of outcome):** the ESP32-audioI2S **pinned-dependency note** in
+`platformio.ini` (do-not-bump-to-v3.x; v2.0.6 last no-PSRAM line) — a latent production-bricking risk
+regardless of the experiment (QM). **New lesson candidate LL-087** (measure an ablation on the *minimal*
+build that isolates the variable, not the full build that masks it) — QM to bring to human with BP-040/041.
+
 ---
 
 ## Problem
