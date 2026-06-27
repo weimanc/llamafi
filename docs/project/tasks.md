@@ -4,6 +4,16 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
+> **PM sync 2026-06-27b (direction decided + design batch panel-reviewed)** — Human chose **Gated A-lite**
+> for no-PSRAM WebRadio (ADR-047 ACCEPTED): pursue the reserved-arena coexistence **conditional on the spike's
+> Phase-1 kill-gate**. Filed **TASK-261** (spike, DUT-blocked; Phase-0 instrumentation can land offline) +
+> **TASK-262** (cleanup, BP-040). The design batch (M-MEMBUDGET, M-RECLAIM, M-PLAYER-STATE, PROP, ADR-047)
+> passed a 3-agent panel review **unanimous PROCEED-WITH-NITS** — the review caught a real allocator
+> correctness bug (bump→free-list, 2→3 fork sites; `c11b87f`) before any code. Process lesson LL-089
+> ("design outrunning the product decision") filed; M-RECLAIM Q3-b/Q2 capped at sketch depth until the gate.
+> **TASK-259/260 (player mode) proceed regardless** of the WebRadio direction. DUT still unavailable — the
+> spike + the TASK-259 round-trip verify are queued for its return.
+>
 > **PM sync 2026-06-27 (bottom-up bare-rig settles the hardware question)** — Pivoted the no-PSRAM
 > viability question from top-down strip (TASK-255) to a bottom-up bare control (TASK-258 → EXP-009).
 > **Both bare configs PASS:** the no-PSRAM CYD plays MP3 radio bare *and* with the full CYD TFT_eSPI
@@ -3442,3 +3452,46 @@ design recommends the latter); OQ-BOOT (cold-boot-into-mode is **v2/deferred** �
 ready to implement** · **Opened:** 2026-06-27 · **Milestone:** M-PLAYER-STATE
 **Owner:** Developer · **Design:** M-PLAYER-STATE.md · **Deps:** TASK-259 (PART 1, done), `settings-001`,
 `taskbar-001` · **Feature:** `player-state-001` (PART 2) · **Matrix:** X022–X024
+
+---
+
+### TASK-261 — M-MEMBUDGET spike: reserved-arena WebRadio coexistence (Gated A-lite, ADR-047)
+
+The measurement spike that decides whether **Option A-lite** (reliable WebRadio on the multi-app no-PSRAM
+board) is real. Human direction 2026-06-27 (ADR-047 ACCEPTED — Gated A-lite): pursue A-lite **conditional on
+the Phase-1 kill-gate**. Plan: [PROP-membudget-spike](../rnd/proposals/PROP-membudget-spike.md) (panel-reviewed
+`c11b87f`). Branch `rnd/membudget` → **EXP-010**.
+
+**Phases (cheap-kill-first):**
+- **Phase 0** — add the caps-split `get heap` probe (`freeInt/lfbInt/freeDma/lfbDma`; T_MB_PROBE_00, the
+  Phase-1-gating instrumentation) + baseline the resident short-list. *(Instrumentation is firmware — codeable
+  + build-checkable offline now; the measurement needs DUT.)*
+- **Phase 1 (KILL GATE)** — boot-reserve ~40 K `MALLOC_CAP_INTERNAL|8BIT`, confirm contiguous + the full app
+  set still runs ~15 K net short. FAIL → **A-lite dead, Option B stands, ADR-045 unchanged** (no fork spent).
+- **Phase 2 (M-effort, gated on Phase-1 PASS)** — vendor ESP32-audioI2S, **3-site fork** (decoder alloc macro
+  + matching decoder free + InBuff) into a **fixed-slot free-list allocator** (NOT bump — auto-skip churn).
+  Phase 2a auto-skip churn test via `wrDeadUrls`. Viability: PLAYING ≥ 60 s on the multi-app build, ≥3 trials.
+- **Phase 3 (conditional)** — overlay financing via TASK-259/260 + M-RECLAIM Q3-a teardown if always-held 40 K
+  too tight.
+
+**DoD:** Phase-1 captured + verdict recorded; on PASS → EXP-010 + ADR-047 re-issued with numbers + M-RECLAIM
+Q3-a/Q4 become tasks. **BP-042 check:** confirm the *project* `platformio.ini` audio-dep pin carries the
+why-not-newer note before Phase 2 vendors the lib.
+
+**Priority:** P1 — settles the M-WEBRADIO no-PSRAM viability question · **Status:** **scheduled — DUT-blocked**
+(DUT unavailable; Phase-0 instrumentation can land offline meanwhile) · **Opened:** 2026-06-27
+**Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget` · **Experiment:** EXP-010 · **Owner:** R&D →
+Developer (Phase 2) · **Deps:** none to start; **decision:** ADR-047 · **Cleanup:** TASK-262
+
+---
+
+### TASK-262 — Cleanup placeholder: revert TASK-261 spike artefacts on FAIL/shelve
+
+Lifecycle placeholder for TASK-261 (BP-040: an experiment names its cleanup id before scheduling; filed in the
+same change as TASK-261). **Action on a Phase-1 FAIL or a shelve:** if any spike artefact reached trunk (the
+vendored `lib/ESP32-audioI2S` fork, the reserved-arena allocator, the caps-split probe if deemed not worth
+keeping, any `[env:]`/`-D` flag, the `cross_feature_matrix` rows), revert it; remove any `run/check` entry.
+**No-op if nothing merged** — the design keeps the fork/arena on `rnd/membudget` until a Phase-2 PASS, so the
+expected steady state is "nothing to clean" (the caps-split probe may be worth keeping regardless — decide at
+closeout). **Priority:** P3 — lifecycle hygiene · **Status:** **dormant — fires only on TASK-261 FAIL-after-merge**
+· **Opened:** 2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** Developer · **Deps:** TASK-261
