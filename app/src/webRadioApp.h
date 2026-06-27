@@ -8,7 +8,10 @@
 #include <Audio.h>
 #include <freertos/queue.h>
 #include "esp_task_wdt.h"
-#include <esp_heap_caps.h> // T_MB_PROBE_00: caps-split for CP1/CP2 (TASK-261 Phase 0)
+#include <esp_heap_caps.h> // T_MB_PROBE_00: caps-split for CP1/CP2 (TASK-261 Phase 0+2)
+#ifdef MEMBUDGET_PHASE1
+#include "mb_arena.h"  // Phase 2: arena HWM reporting at CP2
+#endif
 #include "appShell.h"
 #include "dataTask.h"
 #include "settingsStorage.h"
@@ -95,13 +98,16 @@ void audio_info(const char *info) {
     // Surface all audio_info lines through LOG so they appear in the monitor.
     LOG_I("webradio", "audio_info: %s", info);
     // CP2: emit caps-split on decoder-init line (the gate metric for Phase 1).
+#ifdef MEMBUDGET_PHASE1
     if (strstr(info, "MP3Decoder") || strstr(info, "AACDecoder")) {
-        Serial.printf("[membudget] CP2-decoder-init freeInt=%u lfbInt=%u freeDma=%u lfbDma=%u\n",
+        Serial.printf("[membudget] CP2-decoder-init freeInt=%u lfbInt=%u freeDma=%u lfbDma=%u arenaHWM=%u\n",
             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
             (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
-            (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
+            (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA),
+            (unsigned)mb_arena_hwm());
     }
+#endif
 }
 
 // ── Audio singleton ──────────────────────────────────────────────────────────
@@ -651,12 +657,14 @@ private:
         LOG_I("webradio", "HEAP pre-connect free=%u min=%u maxAlloc=%u",
               (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap(),
               (unsigned)ESP.getMaxAllocHeap());
+#ifdef MEMBUDGET_PHASE1
         Serial.printf("[membudget] CP1-pre-connect skip=%u freeInt=%u lfbInt=%u freeDma=%u lfbDma=%u\n",
               (unsigned)_autoSkipTried,
               (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
               (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
               (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
               (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
+#endif
         if (wrAudio().connecttohost(_stations[idx].url)) {
             _state = WRPlayState::PLAYING;
             _lastRunningMs  = millis();  // TASK-218: seed grace window for stream-death detection
