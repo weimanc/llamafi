@@ -1324,6 +1324,12 @@ features:
       Design: ADR-046 (accepted 2026-06-25). Split into TASK-245 (mechanism + Spotify consumer
       + matrices + VE) and TASK-246 (audit + wire every app's error state; gated on TASK-245).
       Ties to TASK-244 (same Spotify 403 signal). cross_feature_matrix combinations X017-X020.
+      TASK-245 mechanism implemented 2026-06-25: App::hasError(), red TASKBAR_ERR_COLOR with
+      precedence error>busy>idle, shell::activeError() + edge-triggered async re-render,
+      SpotifyApp::hasError() via spotifyTask::authError() (persistent 403). Debug getter
+      `get activeError`. DUT logic-verified on a live 403 (active:true, spotifyAuthError:true);
+      run/check 5/5. Owed: visual red-bar sign-off + clear-on-recovery (gated on TASK-243) and
+      VE test_ids. Per-app fan-out remains TASK-246 (status there still open).
 
   - id: player-state-001
     name: Player mode as persisted, user-editable state (Spotify | WebRadio)
@@ -1371,9 +1377,70 @@ features:
       display-name codegen column), OQ-BOOT (cold-boot-into-mode v2, deferred), OQ-WEAR
       (immediate-save w/ unchanged-skip — chosen). Couples M-MEMBUDGET (the mode mutual-exclusion
       the overlay-arena budget leans on). cross_feature_matrix: X022-X024.
-      TASK-245 mechanism implemented 2026-06-25: App::hasError(), red TASKBAR_ERR_COLOR with
-      precedence error>busy>idle, shell::activeError() + edge-triggered async re-render,
-      SpotifyApp::hasError() via spotifyTask::authError() (persistent 403). Debug getter
-      `get activeError`. DUT logic-verified on a live 403 (active:true, spotifyAuthError:true);
-      run/check 5/5. Owed: visual red-bar sign-off + clear-on-recovery (gated on TASK-243) and
-      VE test_ids. Per-app fan-out remains TASK-246 (status there still open).
+
+  - id: webradio-001
+    name: WebRadio — eject-only MP3 internet-radio player
+    milestone: M-WEBRADIO
+    status: partial
+    description: |
+      Backfill entry (the feature shipped across M-WEBRADIO without a dedicated inventory row).
+      11th app in appRegistry.h (AppId::WebRadio, the LAST AppId, configurable=0). Eject-only:
+      entered from the Winamp player slot via the eject button (Spotify<->WebRadio toggle), NOT a
+      taskbar app — WebRadio is excluded from the taskbar (TASKBAR_APP_COUNT < AppId::COUNT;
+      taskbar uses no WebRadio icon). Leaking it into the taskbar caused the TASK-242 null-icon
+      crash (LL-085); the eject-only invariant is load-bearing.
+      STATION LIST: fetched via dataTask from the radio-browser.info API. HTTPS streams cannot be
+      played on no-PSRAM (TLS handshake needs ~40 KB contiguous — TASK-232), so the fetch filters
+      to http:// streams and pages the votes-ordered list (<=5 pages x 30) until 30 playable
+      stations. Country + bitrate-cap filters applied as radio-browser query params. TLS to the
+      API uses setCACert() pinned ISRG Root X1 (RADIO_BROWSER_ROOT_CA; the setInsecure() fallback
+      never fires — TASK-214/T_WR_TLS_01, so no ADR-029 exception needed).
+      PLAYBACK: ESP32-audioI2S v2.3.0 (pinned — BP-042) + Helix MP3 decoder, internal DAC GPIO26
+      (I2S_DAC_CHANNEL_LEFT_EN; GPIO25 reserved for touch). Stream-death watchdog (TASK-218);
+      auto-skip-on-stall retry-once-then-advance past dead stations, default ON (TASK-234/ADR-045).
+      Volume soft-cap 12 stock / full 1-21 with SC8002B HW mod, via wrEffectiveVolume() (TASK-209).
+      ICY StreamTitle folded into the shared 0-RAM title marquee (TASK-252/254). Buffer-fullness
+      shown on the posbar.
+      SETTINGS (AppSettings, settings.json "webRadio" object): country, autoplay, bitrateCap,
+      autoSkip, hwMod, maxVolume, lastStation. (No settings-UI section yet — set via serial.)
+      SERIAL DEBUG: get wrPlaying/wrState/wrIdx/wrCount/wrIcy/wrBufPct/wrHeap/wrLastHttp/wrSkip/
+      wrDeadUrls/wrVol/wrEffectiveVol/wrMaxVol/wrHwMod/wrAutoSkip; set wrPlay/wrStop/wrNext/wrPrev/
+      wrEject/wrVol/wrIcy.
+    files:
+      - app/src/webRadioApp.h
+      - app/src/appRegistry.h
+      - app/src/dataTask.h
+      - app/src/dataTaskStorage.cpp
+      - app/src/dataTaskCerts.h
+      - app/src/settingsStorage.h
+      - app/src/settingsStorage.cpp
+      - app/src/winamp/winampDisplay.h
+      - app/src/taskbar/taskbar.h
+      - app/src/main.cpp
+      - app/gen/webradio_countries.h
+      - platformio.ini
+      - docs/architecture/designs/M-WEBRADIO.md
+      - docs/architecture/decisions/ADR-029.md
+      - docs/architecture/decisions/ADR-045.md
+    cross_features:
+      - app-registry-001
+      - data-task-001
+      - settings-001
+      - app-interface-001
+      - player-state-001
+    test_ids: [T_WR_TLS_01, T_WR_EJECT_01, T_WR_EJECT_02, T_WR_VOL_01, T_WR_VOL_02, T_WR_VOL_03, T_WR_HEAP_01, T_WR_HEAP_02, T_WR_HEAP_03, T_WR_HEAP_04, T_WR_ERR_01, T_WR_ERR_02, T_WR_ERR_03, T_WR_ERR_04, T_WR_COEX_01, T_WR_COEX_02, T_WR_COEX_03, T_WR_COEX_04, T_WR_SPOTIFY_RESUME_01]
+    dependencies:
+      - app-registry-001
+      - data-task-001
+      - settings-001
+    notes: |
+      Backfilled 2026-06-27 (gap found while filing player-state-001). status=partial: station
+      FETCH + UI + eject toggle + settings + TLS are implemented and DUT-verified (TASK-214/232/
+      234/236 etc.); but SUSTAINED no-PSRAM PLAYBACK is best-effort/open — the Helix decoder OOMs
+      on the fragmented heap (TASK-233), which ADR-045 accepts as "no-PSRAM playback = best-effort,
+      not promised reliable." The viability question is the live thread: EXP-007/008 (top-down),
+      EXP-009/TASK-258 (bottom-up bare rig — hardware PROVED capable; the wall is resident
+      footprint, not silicon), feeding M-MEMBUDGET (reserved-arena coexistence) + TASK-241.
+      ADR-029 (cleartext-media transport accepted; http-only stations), ADR-045 (best-effort).
+      Tests live in docs/verification (T_WR_* suite; playback-dependent ones gated on Premium /
+      a no-PSRAM playback fix — TASK-243/233). Eject toggle is shared with player-state-001 (X024).

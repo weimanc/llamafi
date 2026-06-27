@@ -423,7 +423,7 @@ interactions:
 
   - id: X024
     feature_a: player-state-001
-    feature_b: webradio-eject
+    feature_b: webradio-001
     interaction_type: shared_state
     description: |
       Eject is the mode toggle: the Spotify handler ejects to WebRadio and webRadioApp.h:309 ejects
@@ -436,9 +436,9 @@ interactions:
     risk: low
     test_coverage: []
     notes: |
-      webradio-eject is the eject-toggle behaviour in webRadioApp.h / the Spotify handler (no
-      dedicated feature_inventory id yet — pre-existing gap). v2 boot-into-mode couples with
-      M-MEMBUDGET (the Option-A-lite boot-direct-to-WebRadio appliance).
+      The eject-toggle behaviour lives in webRadioApp.h:309 (WebRadio->Spotify) + the Spotify
+      handler (Spotify->WebRadio), now covered by webradio-001 (backfilled 2026-06-27). v2
+      boot-into-mode couples with M-MEMBUDGET (the Option-A-lite boot-direct-to-WebRadio appliance).
 
 #   interaction_type: shared_state | dependency | conflict | overlap
 #   description: ""
