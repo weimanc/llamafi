@@ -3368,3 +3368,34 @@ across the v2.x line and the lever is resident footprint, not library version �
 **Priority:** P3 — optional confirmation; not on any critical path · **Status:** **open — optional, deferred**
 · **Opened:** 2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Rig:** `~/proj/webradio-bare/`
 **Owner:** R&D · **Deps:** TASK-258 (done) · **Parent:** TASK-258 step 4
+
+---
+
+### TASK-259 — M-PLAYER-STATE: eject becomes a persisted sub-state toggle, not a one-shot app switch
+
+**Behaviour change requested (user, 2026-06-27).** Today the Winamp "player" slot and WebRadio are modelled
+as two separate things: eject does a momentary `switchApp(AppId::Spotify → AppId::WebRadio)`
+(`main.cpp:2352` → `SpotifyApp::handleInput`), and the player↔radio choice is **not remembered** across a
+taskbar app-switch. Desired model:
+- The player slot has an internal **mode state**: `{ Spotify | WebRadio }`, persisted in RAM (and likely in
+  `settings` so it survives a reboot — TBD with Architect).
+- **Eject is a toggle** of that mode (Spotify ⇄ WebRadio), not a navigation to a separate app.
+- **Returning to the player app** from the taskbar restores whichever mode it was last left in (don't force
+  back to Spotify).
+
+**Why it matters beyond UX:** this state model is the *precondition* for the memory work — Spotify and
+WebRadio being **mutually exclusive runtime modes of one slot** is exactly what makes the memory-overlay /
+reserved-arena design (M-MEMBUDGET) safe: only one of {Spotify task+TLS, WebRadio decoder+arena} need be
+resident at a time. So this is not only cosmetic — it formalises the mutual-exclusion the budget design
+leans on. Couples with the "make spotifyTask / dataTask dynamic" open questions in M-MEMBUDGET (tearing the
+Spotify task down on toggle-to-WebRadio is the mechanism that frees its ~10 KB stack + TLS for the arena).
+
+**Scope to settle with Architect:** AppId topology (does WebRadio stop being its own `AppId` and become a
+mode of the player? — interacts with the taskbar-excludes-WebRadio invariant, LL-085/TASK-242), where the
+mode is persisted, what happens to the *other* mode's resources on toggle (stop vs keep-warm), and the
+boot-default mode.
+
+**Priority:** P2 — UX fix + enabler for M-MEMBUDGET · **Status:** **open — needs Architect design (couples
+with M-MEMBUDGET)** · **Opened:** 2026-06-27 · **Milestone:** M-PLAYER-STATE
+**Owner:** Architect (state model) → Developer (impl) · **Deps:** none to start; **couples with** M-MEMBUDGET
+design · **Related:** TASK-242 (taskbar eject-only invariant), ADR-046 (Spotify dormant-stub bar)
