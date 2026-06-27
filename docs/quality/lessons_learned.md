@@ -4,6 +4,20 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-06-27 — M-MEMBUDGET design-batch panel review (3-agent)
+
+### LL-089 — 2026-06-27 — Mechanism designed ahead of the gate that decides whether it is needed (design outrunning the product decision)
+
+**Context**: A single session produced three design docs (M-MEMBUDGET, M-RECLAIM, M-PLAYER-STATE) + a spike PROP + ADR-047, for a feature (no-PSRAM WebRadio coexistence) whose product go/no-go is *still pending human direction* — ADR-047 is PROPOSED and its entire purpose is the unmade A-lite-vs-B call. M-RECLAIM in particular designed the Q3-b (vTaskDelete + null-safety audit) and Q2 (dataTask ref-count sequencing) mechanisms in full, while the batch's own ordering says those are "second priority, only if the spike's Phase 1 shows a shortfall after Q4 + Q3-a." The independent QM and PM both flagged the same shape.
+
+**Observation**: This is design investment ahead of two gates: (1) the human product decision (ADR-047), and (2) the cheap Phase-1 measurement that determines whether the deeper reclaim (Q3-b/Q2) is even needed. It is *partly* justified — the ADR needs enough design detail to quantify A-lite's cost honestly, and the player-mode work (TASK-259/260) proceeds regardless of direction. But elaborating Q3-b/Q2 mechanism before the measurement that gates them is effort that the gate may render moot, and it is the same over-design shape the team has paid for before. The panel review itself was high-value (it caught a real allocator correctness bug), so the design depth was not wasted — but the *reclaim-mechanism* depth specifically was ahead of its gate.
+
+**Root cause**: Momentum. Exploratory design is productive and the operator was driving it, so each "what about X" produced a full mechanism sketch rather than stopping at "X is gated on the spike — sketch only until then." There was no explicit depth-cap tied to the decision/measurement gates.
+
+**Suggested improvement**: When an ADR exists specifically to tee up an unmade human go/no-go, **cap upstream design depth to what the decision needs**; defer mechanism-level design of anything gated on a *later* measurement until that measurement runs. Concretely applied this session: M-RECLAIM now carries a "scope discipline" note keeping Q3-b/Q2 at sketch depth until the spike's Phase 1 shows a shortfall. Candidate rule for the human: *"Design to the depth the next gate needs, not the depth the idea allows."*
+
+**Status**: open — candidate; brought to human this retrospective (QM, alongside the panel-review dispositions). Note: independently corroborated by the PM state-assessment the same session.
+
 ## Retrospective — 2026-06-27 — Bottom-up bare-rig settles the no-PSRAM ceiling (TASK-258 / EXP-009)
 
 ### LL-087 — 2026-06-27 — Measure the hardware ceiling bottom-up with a bare control before grinding a top-down strip

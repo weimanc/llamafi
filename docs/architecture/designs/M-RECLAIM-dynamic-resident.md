@@ -93,7 +93,11 @@ contiguous than deep mid-fetch), hold it for the app's active lifetime, free it 
 - **preserves** the anti-fragmentation property — the doc is allocated once on entry and reused across fetches
   while Stock is active, never malloc'd mid-fetch.
 
-Trivial code, but the design point is: **own it by app lifetime, do not make it per-fetch.**
+Trivial code, but the design point is: **own it by app lifetime, do not make it per-fetch.** **Allocator
+caveat (Developer N6):** if Q4 later draws from the M-MEMBUDGET overlay arena (M-MEMBUDGET §4a), note that
+`DynamicJsonDocument` grows by **`reallocate`** mid-parse — the arena allocator backing it must support
+realloc, not just alloc/free (same constraint as the audio decoder's free-list; a pure bump allocator is
+insufficient). For the plain app-lifetime version (general heap), no change.
 
 ## Ordering & dependencies
 
@@ -101,6 +105,12 @@ Trivial code, but the design point is: **own it by app lifetime, do not make it 
 2. **Q3-a** next (highest value, low risk; trigger wired to TASK-259 mode-state).
 3. **Q3-b / Q2** only if the spike's Phase 1 shows Q4 + Q3-a leave us short — both carry real cost
    (null-safety audit; churn sequencing) for incremental reclaim.
+
+> **Scope discipline (QM 2026-06-27 — design-ahead-of-gate, LL candidate):** Q3-b and Q2 are *mechanism*
+> designed ahead of the measurement that decides whether they're needed. This doc deliberately keeps them at
+> **sketch depth only** — do NOT elaborate the Q3-b null-safety implementation or the Q2 ref-count sequencing
+> further until the spike's Phase 1 shows a shortfall after Q4 + Q3-a. Q4 + Q3-a are the only parts cleared to
+> proceed to implementation detail.
 
 Hard dependency: **Q3 trigger = TASK-259** (the Spotify⇄WebRadio mode-state). Q4 and the Q2 mechanism are
 independent of TASK-259.

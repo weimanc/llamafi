@@ -1366,7 +1366,7 @@ features:
       - taskbar-001
       - app-interface-001
       - settings-001
-    test_ids: []
+    test_ids: [T_PS_PERSIST_01, T_PS_PERSIST_02, T_PS_SETTINGS_01, T_PS_NOOP_01, T_PS_NAV_01, T_PS_TASKBAR_01]
     dependencies:
       - taskbar-001
       - settings-001

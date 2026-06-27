@@ -1,8 +1,8 @@
 # M-PLAYER-STATE — Player mode as persisted, user-editable state
 
 > Owner: Architect · Status: **DESIGN** · 2026-06-27
-> Scope: TASK-259 (runtime mode toggle — **implemented**, RAM-only) + this design's additions: **SPIFFS
-> persistence** of the player mode and a **Settings → Applications → Player** toggle to show/edit it (OQ4).
+> Scope: TASK-259 (runtime mode toggle — **implemented, RAM-only, DUT-verify pending**) + this design's
+> additions: **SPIFFS persistence** + a **Settings → Applications → Player** toggle to show/edit it (OQ4).
 > Couples: M-MEMBUDGET (mode mutual-exclusion the budget leans on). Feature: `player-state-001`.
 
 ## 1. Context & goal
@@ -55,7 +55,7 @@ telemetry ever shows excessive eject churn, fall back to a coalesced/dirty-flag 
 ## 5. Settings UI — Settings → Applications → Player
 
 The configurable-apps list is **codegen**: `appRegistry.h` column 3 (`configurable`, `1 = appears in Settings
-> Applications`) → `gen_app_registry.py` → `app/src/gen/configurable_apps.h`, consumed by
+> Applications`) → `gen_app_registry.py` → `app/gen/configurable_apps.h`, consumed by
 `settings/appsSection.h`. Spotify is `cfg=0` today.
 
 **Changes:**
@@ -93,12 +93,18 @@ should the device **cold-boot into WebRadio**?
 | `app/src/settingsStorage.cpp` | defaults / load / save mapping (new `player` object) |
 | `app/src/main.cpp` | replace `g_lastPlayerMode` with `g_settings.playerMode` in `switchApp()` tracking + `resolvePlayerSlot()`; init implicit (loaded before first app) |
 | `app/src/appRegistry.h` | Spotify `cfg` 0→1 (+ optional display-name column) |
-| `app/src/gen/configurable_apps.h` (+ siblings) | **regenerated** by `gen_app_registry.py` |
+| `app/gen/configurable_apps.h` (+ siblings) | **regenerated** by `gen_app_registry.py` |
 | `app/src/settings/appsSection.h` | `_repaintPlayer` / `_cyclePlayer` + dispatch cases |
 | eject sites (`main.cpp` Spotify handler, `webRadioApp.h:309`) | write `g_settings.playerMode` + persist on toggle |
+| serial dbg | **add `get playerMode`** (VE ask) — turns the persistence/settings tests from MANUAL into agent-driven (the CHALLENGE-1 pattern from the last settings milestone) |
 
 ## 8. Verification
 
+- **Test ids (VE B2 — required for sign-off):** `T_PS_PERSIST_01` (eject→reboot→slot restores mode),
+  `T_PS_PERSIST_02` (settings toggle → `player.mode:1` in JSON), `T_PS_SETTINGS_01` (Player row renders +
+  `_cyclePlayer` toggles, agent-driven via `get playerMode`), `T_PS_NOOP_01` (unchanged-value skips the save),
+  `T_PS_NAV_01` (regression: other apps' Applications tap-Y still correct after the Spotify `cfg=1` insertion —
+  the settings-nav coordinate-drift hazard), `T_PS_TASKBAR_01` (regression: WebRadio still absent from taskbar).
 - **Offline / build:** `run/check` 5/5 — critically [5/5] codegen-staleness (the `appRegistry` edit must have
   its gen regenerated and committed) and golden.sha256.
 - **Settings round-trip (offline-ish):** toggle in Settings → `saveSettings()` writes `player.mode` to
@@ -116,6 +122,6 @@ should the device **cold-boot into WebRadio**?
 
 ## 10. Links
 
-TASK-259 (runtime toggle, done — `a825521`) · M-MEMBUDGET §2c/4a (mode mutual-exclusion) · `settings-001`
+TASK-259 (runtime toggle, implemented/DUT-verify-pending — `a825521`) · M-MEMBUDGET §2c/4a · `settings-001`
 (SettingsApp + SPIFFS) · `taskbar-001` (app-shell dispatch / `switchApp`) · `app-interface-001`
 (init/resume/suspend) · ADR-046 (Spotify dormant-stub bar) · NEW-APP-CHECKLIST (codegen-staleness gate).

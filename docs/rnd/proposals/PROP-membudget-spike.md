@@ -34,13 +34,18 @@ de-risk vs the design sketch's original "DMA-internal" framing — and Phase 0 v
 
 ## Phased plan with kill-gates (cheap measurement before M-effort)
 
-### Phase 0 — Baseline measurement (cheap, no code beyond instrumentation; no kill)
+### Phase 0 — Baseline measurement + the gating instrumentation (cheap; no kill)
 
 Goal: fill the design sketch's `(e)` rows and confirm the caps refinement, on the unmodified multi-app build.
-- Add caps-split heap probes at boot milestones: **post-WiFi**, **post-`spotifyTask` create**, **post-`dataTask`
-  create**, **steady idle**, **CP1** (`webRadioApp.h:621` `_play()` entry — already instrumented), and a new
-  **CP2** emit at decoder-init in the `audio_info` hook (carry-over from the EXP-009 PROP VE B2 — needed for
-  apples-to-apples).
+**Gating note (VE B1):** the existing harness exposes only single-pool `ESP.getFreeHeap`/`getMaxAllocHeap` —
+there is **no caps-split probe today**. The caps-split probe is **net-new instrumentation and is a hard
+prerequisite for Phase 1** (Phase 1's "contiguous" gate is not measurable without `largest_free_block(INTERNAL)`).
+So Phase 0's first deliverable is that probe, verified before any later phase (test `T_MB_PROBE_00`).
+- Add a `get heap` handler emitting caps-split `freeInt / lfbInt / freeDma / lfbDma`, and emit them at boot
+  milestones: **post-WiFi**, **post-`spotifyTask` create**, **post-`dataTask` create**, **steady idle**, **CP1**
+  (`webRadioApp.h:621` `_play()` entry — already instrumented), a new **CP2** at decoder-init (`audio_info`
+  hook), and **at `connecttohost` re-entry after ≥3 auto-skips** (Developer suggestion 3 — the fragmentation
+  that bites the allocator shows up *after* skips, not at first `_play()`).
 - Capture at each: `free(INTERNAL)`, `largest_free_block(INTERNAL)`, `free(DMA)`, `largest_free_block(DMA)`.
 - **Deliverables:** (1) the real resident short-list (WiFi/TLS cost, per-task deltas) → fills M-MEMBUDGET §1/§5;
   (2) **confirms the audio path's big allocations are INTERNAL** (caps refinement); (3) the actual
@@ -59,20 +64,33 @@ Goal: can we even reserve the arena, and does the system survive losing it.
     **STOP. Option A-lite is dead.** Record against ADR-045 (stands), M-MEMBUDGET verdict = "reservation
     infeasible," product decision defaults to **Option B**. No fork effort spent. (Cheap terminal kill.)
 
-### Phase 2 — The 2-site library fork (M-effort; only if Phase 1 passes)
+### Phase 2 — The 3-site library fork (M-effort; only if Phase 1 passes)
 
 Goal: deterministic placement + the real viability number on the multi-app build.
-- Vendor ESP32-audioI2S into `lib/` (BP-042 already freezes us on v2.3.0 → low maintenance cost). Patch **two**
-  sites, PATCH-marked, to draw from a **reset-on-stop bump allocator** over the Phase-1 reservation:
-  - decoder macro `__malloc_heap_psram` (`mp3_decoder.cpp:1533`) — covers all 9 Helix buffers;
-  - InBuff `calloc` (`Audio.cpp:59`).
+- Vendor ESP32-audioI2S into `lib/` (BP-042 already freezes us on v2.3.0 → low maintenance cost). Patch
+  **THREE** sites (panel-corrected), PATCH-marked, to draw from a **fixed-slot free-list allocator** (NOT a
+  bump arena — see below) over the Phase-1 reservation:
+  - decoder *alloc* macro `__malloc_heap_psram` (`mp3_decoder.cpp:1533`) — covers all 9 Helix buffers;
+  - decoder *free* `MP3Decoder_FreeBuffers()` (`mp3_decoder.cpp:1578+`) — MUST be intercepted too (else arena
+    pointers reach libc `free()` → heap corruption);
+  - InBuff `calloc`/free (`Audio.cpp:59`).
+  **Why free-list not bump:** the decoder is freed + re-allocated inside `setDefaults()` on every
+  `connecttohost()` (`Audio.cpp:436`) — i.e. every auto-skip (default ON). `stopSong()` does not free, so
+  there is no bump-reset anchor; a bump allocator walks off the end after a few skips. The 9 decoder buffers
+  are fixed-size/identical each session → a trivial fixed-slot pool handles the churn.
 - Instrument arena high-water; confirm decoder + InBuff **land in the arena** (general-heap CP2 no longer
   drops by ~31 K).
+- **Phase 2a — auto-skip churn test (the actual failure mode; Developer suggestion 2):** before the hold run,
+  force ≥ 3–4 auto-skips via the existing `wrDeadUrls` debug hook (`webRadioApp.h:551`) and confirm the
+  free-list allocator survives the decoder free/re-alloc cycling (arena does not exhaust). The plain hold run
+  would PASS on a clean first station and never exercise this — it must be tested explicitly.
 - **Viability run:** WebRadio reaches PLAYING and **holds ≥ 60 s on the multi-app build**, ≥ 3 cold-boot
-  trials × the fixed SomaFM HTTP station set, **T169 network-flake carve-out** (entries with no decode line
-  in N s excluded from the hold denominator).
+  trials × the fixed SomaFM HTTP station set. **Network-flake carve-out (VE N2):** an entry is excluded from
+  the hold denominator if no decoder-init line (`audio_info` "MP3Decoder ... initialized") appears within
+  **N = WR_STREAM_DEAD_MS (≈ 5 s)** of `connecttohost` — that log token is the objective "decode started"
+  signal; pin both so the denominator is reproducible.
 - **GATE:** holds ≥ 60 s on ≥ 90 % of cold-boot entries → **PASS** → evidence base for **ADR-047** ("reserved
-  internal arena + 2-site fork makes WebRadio deterministic on the multi-app no-PSRAM board"). Partial (plays
+  internal arena + 3-site fork makes WebRadio deterministic on the multi-app no-PSRAM board"). Partial (plays
   but underruns) → recordable partial per the EXP-008 two-threshold split, not a clean pass.
 
 ### Phase 3 — Overlay financing (CONDITIONAL; only if Phase-1 always-held 40 K is too tight — OQ3)
@@ -113,8 +131,15 @@ ADR-045 unchanged, recorded — cheaply, before the fork on a Phase-1 kill.
 
 - **TASK-261** — M-MEMBUDGET spike (P1), phased with the gates above; **EXP-010** record; branch
   `rnd/membudget`. **Cleanup id: TASK-262** (revert vendored lib + arena + flags + any env if merged before a
-  fail — BP-040/041). Phase 3 **couples TASK-259/260** (player mode-state). Phase 2 is gated behind a Phase-1
-  PASS. (TASK-260 is taken by M-PLAYER-STATE PART 2.)
+  fail — BP-040/041). Phase 3 **couples the M-PLAYER-STATE pair (TASK-259 + TASK-260)**. Phase 2 is gated
+  behind a Phase-1 PASS. **PM gate (QM B2):** file TASK-262 in the *same change* as TASK-261 (the BP-040
+  cleanup-id-before-scheduling rule, mirroring TASK-255→256).
+- **BP-041 disposition (QM N2):** the reserved arena is **unconditional / always-on** on a PASS — it is NOT a
+  new `-D` build variant, so no `run/check` gate is owed. If any `-D` flag (e.g. `ARENA_BYTES`) is introduced
+  and kept, it enters `run/check` in the same change or is removed.
+- **BP-042 check (QM N3) — TASK-261 DoD:** before Phase 2 vendors the lib, verify the **project**
+  `platformio.ini` audio-dep pin carries the why-not-newer note inline (EXP-009 added it only to the throwaway
+  rig; the "low-maintenance because frozen" claim must rest on the project pin, not the rig's).
 - TASK-259 may proceed in parallel (it is a standalone UX/state change), but Phase 3 depends on it.
 
 ## Out of scope

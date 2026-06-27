@@ -176,16 +176,26 @@ Three mechanisms, increasing determinism:
 1. **Reserve + JIT-release (no library change).** Hold a ~40 K DMA-internal contiguous block from boot;
    free it the instant before `connecttohost()` so the library's own mallocs land in the guaranteed hole.
    Fragile (timing/placement not guaranteed), but zero fork.
-2. **Reserve + library fork (deterministic).** Vendor ESP32-audioI2S; redirect its **two** big allocation
-   sites into a fixed-pool allocator over the reserved arena:
-   - decoder: the single macro `__malloc_heap_psram` (`mp3_decoder.cpp:1533`) funnels **all 9** Helix
+2. **Reserve + library fork (deterministic).** Vendor ESP32-audioI2S; redirect its big allocations into a
+   **fixed-slot free-list allocator** over the reserved arena. **Fork surface ≈ 3 sites** (panel-corrected —
+   Developer review 2026-06-27):
+   - decoder *alloc*: the single macro `__malloc_heap_psram` (`mp3_decoder.cpp:1533`) funnels **all 9** Helix
      buffers — one redirect places the whole 22.7 K;
-   - input ring: the `calloc(m_buffSize…)` at `Audio.cpp:52/59` — one redirect.
-   The dozens of other `malloc()`s are small transient strings → leave on the general heap. **Fork surface ≈
-   2 sites.** Maintenance cost is unusually low because **BP-042 already freezes us on v2.3.0** (v3.x bricks
-   no-PSRAM), so we were never tracking upstream. Allocator: a **reset-on-stop bump arena** likely suffices
-   (decoder allocates-once-per-session / frees-on-stop, and our station filter is MP3-only so no out-of-order
-   codec-switch frees); keep a small TLSF-style free-list as the fallback.
+   - decoder *free*: `MP3Decoder_FreeBuffers()` (`mp3_decoder.cpp:1578+`) currently calls libc `free()` — it
+     **must** be intercepted too, or arena pointers get passed to the wrong free and corrupt the heap;
+   - input ring: the `calloc(m_buffSize…)` at `Audio.cpp:59` (+ its matching free) — one redirect.
+   The dozens of other `malloc()`s are small transient strings → leave on the general heap. Maintenance cost
+   is unusually low because **BP-042 already freezes us on v2.3.0** (v3.x bricks no-PSRAM), so we were never
+   tracking upstream.
+   **Allocator must be a free-list, NOT a bump arena (panel-corrected).** The earlier "reset-on-stop bump"
+   assumption is **false**: the decoder is freed + re-allocated inside `setDefaults()` on **every**
+   `connecttohost()` (`Audio.cpp:436`), including **every auto-skip** to a new station (the default no-PSRAM
+   path, `webRadioAutoSkip` ON) — and `stopSong()` does **not** free, so there is no "stop" event to anchor a
+   bump reset. A pure bump allocator walks off the end after a few skips. Mitigation is cheap: the 9 decoder
+   buffers are **fixed-size and identical every session**, so a trivial **fixed-slot pool** (free + re-alloc
+   the same slots) is immune to the auto-skip churn. (Same lesson applies to the ArduinoJson heatmap tenant —
+   `DynamicJsonDocument` grows by **reallocate** mid-parse, so the arena allocator must support realloc, not
+   just alloc/free.)
 3. **Overlay via mode-state (TASK-259) + Q3 teardown.** Make Spotify and WebRadio mutually-exclusive modes;
    on toggle-to-WebRadio, tear down the Spotify task (Q3) and reset borrow-arena (Q2 transient scratch),
    then own the reserved arena. This is the *overlay* that makes the reservation affordable — the arena's RAM
@@ -286,9 +296,10 @@ Note the 40 K is the **shared foreground-scratch arena** (§4a), not WebRadio-on
 is offset by the foreground buffers (heatmap doc, sprites, JSON docs) that no longer allocate from the general
 heap, plus the §2c background-task reclaim (~24–27 K + TLS) when WebRadio is active.
 
-The two numbers the spike must produce: **(A)** does a `heap_caps_malloc(40K, MALLOC_CAP_DMA |
-MALLOC_CAP_INTERNAL)` succeed at boot and stay contiguous, and **(B)** does the system still run the full app
-set with that 40 K removed (with Spotify torn down when in WebRadio mode).
+The two numbers the spike must produce: **(A)** does a `heap_caps_malloc(40K, MALLOC_CAP_INTERNAL |
+MALLOC_CAP_8BIT)` succeed at boot and stay contiguous (INTERNAL, **not** DMA — per the §1 caps refinement;
+the I2S ring is driver-owned), and **(B)** does the system still run the full app set with that 40 K removed
+(with Spotify torn down when in WebRadio mode).
 
 ## 6. What must be measured — the spike plan
 
