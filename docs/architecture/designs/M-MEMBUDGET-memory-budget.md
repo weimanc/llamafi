@@ -194,6 +194,48 @@ Three mechanisms, increasing determinism:
 **Recommended sketch:** combine **(2) + (3)** — deterministic placement via the 2-site fork, financed by the
 mode-overlay so the ~40 K reservation is not pure dead weight. (1) is the fallback if forking is rejected.
 
+### 4a. Refinement — one *shared foreground-scratch overlay arena*, not a WebRadio-only reservation
+
+The reservation is best modelled not as "WebRadio's 40 K that other apps borrow" but as a **single shared
+foreground-scratch arena, sized to the largest single tenant**, that every *foreground* app's working buffer
+overlays onto. This follows from a property of the device: it is single-screen, so **exactly one app is
+foreground at a time → every foreground working-set is mutually exclusive with every other.**
+
+**The key property — sized to MAX, not SUM.** Because mutually-exclusive tenants never need the region at the
+same time, one region of `max(per-tenant peak)` serves all of them. The largest tenant is WebRadio's
+~40 K audio path; so the **heatmap doc (2.5 K), Aquarium strip sprite, Stock chart buffer, per-fetch JSON
+docs, etc. all ride inside that same 40 K for free** — no per-tenant addition. Concretely this **dissolves
+the Q4 dilemma**: the heatmap doc was static *because* a mid-fetch `DynamicJsonDocument` alloc could fail on a
+fragmented heap (`dataTaskStorage.cpp:684`); overlaid onto the reserved arena its allocation is
+**fragmentation-proof by construction**, so it can be reclaimed (non-resident when Stock is inactive) *without*
+regressing that property.
+
+**Reframes the cost story.** The 40 K stops being WebRadio overhead and becomes **shared infrastructure sized
+by the heaviest app** — "the foreground app always has a guaranteed-contiguous 40 K to work in." That is a
+cleaner budget claim than "WebRadio takes 40 K the others must fund."
+
+**What makes it safe:**
+- **Strict mutual-exclusion + reset-on-exit.** Each tenant fully releases the region on app-switch *before*
+  the next claims it; the `App::suspend()/init()` hooks (M-RECLAIM) enforce it. A **bump allocator reset on
+  exit** also gives zero *internal* fragmentation — each tenant gets a clean region.
+- **Single-owner token** — one owner at a time; the next claimant asserts the region is free (catches a tenant
+  that crashed mid-hold).
+- **Foreground only — background tasks excluded.** This clean overlay covers **foreground app buffers**
+  (sprites, docs, the audio arena) because the screen enforces one-at-a-time. It does **NOT** cover the
+  **background tasks** (`spotifyTask`, `dataTask`) — they keep running while another app is foreground, so
+  they are *not* auto-exclusive and still need M-RECLAIM's **explicit lifecycle teardown** (Q2/Q3). Keep the
+  two mechanisms distinct: **overlay arena** for foreground buffers, **explicit teardown** for background tasks.
+
+**Integration-cost asymmetry (informs sequencing):**
+- **Heatmap doc → no fork.** ArduinoJson supports a bring-your-own allocator
+  (`BasicJsonDocument<TAllocator>`), so the heatmap doc points its allocator at the arena directly. Clean —
+  and an **easy first tenant that validates the arena pattern** before the hard one.
+- **Audio arena → still needs the 2-site library fork** (§4 option 2; the lib calls its own `malloc`).
+
+So the arena work can land incrementally: stand up the shared arena + ArduinoJson-allocator heatmap tenant
+first (no fork, low risk), then add the forked audio tenant. Both are exercised by PROP-membudget-spike
+(Phase 0/1 measure the reservation; the heatmap tenant is a cheap early proof; Phase 2 adds the audio tenant).
+
 ## 5. Budget arithmetic (provisional — to confirm by spike)
 
 ```
@@ -203,9 +245,13 @@ pool (heap)                         ≈ 320 K (m)
 − resident app/static (heatmap, tables) ≈   ?? K (e)
 ────────────────────────────────────────────────
 = free with Spotify mode torn down  ≈  ?? K
-reserve DMA-internal arena              40 K  ← must succeed at boot, contiguous
+reserve INTERNAL overlay arena          40 K  ← shared foreground-scratch (§4a); succeed at boot, contiguous
 = remaining general heap            ≈  ?? K   ← MUST still run the other ~10 apps
 ```
+
+Note the 40 K is the **shared foreground-scratch arena** (§4a), not WebRadio-only — its steady-state net cost
+is offset by the foreground buffers (heatmap doc, sprites, JSON docs) that no longer allocate from the general
+heap, plus the §2c background-task reclaim (~24–27 K + TLS) when WebRadio is active.
 
 The two numbers the spike must produce: **(A)** does a `heap_caps_malloc(40K, MALLOC_CAP_DMA |
 MALLOC_CAP_INTERNAL)` succeed at boot and stay contiguous, and **(B)** does the system still run the full app
@@ -233,9 +279,11 @@ product decision from "Option B by default" to "Option A-lite is real."
   DMA ring + alignment slack).
 - **OQ2:** allocator type — bump-reset-on-stop vs TLSF free-list (depends on whether any mid-session
   out-of-order free occurs; MP3-only filter likely lets bump win).
-- **OQ3:** is the 40 K reservation *always* held (simplest, costs the other apps 40 K permanently) or
-  borrow-lent via Q2/Q3 overlay (recovers it when WebRadio is off, more code)? Decide after the spike shows
-  whether the always-held case still fits.
+- **OQ3:** the 40 K is reframed (§4a) as an **always-held shared foreground-scratch overlay arena** — its net
+  cost is offset by the foreground buffers that no longer hit the general heap + the §2c background reclaim,
+  so "always held" is the model, not a liability. Remaining question: is that net cost low enough that the
+  other ~10 apps still fit (the spike's Phase 1 gate, ≈ ~15 K net)? Background-task reclaim (Q2/Q3) is the
+  *separate* mechanism, not an alternative to holding the arena.
 - **OQ4:** persistence of player mode-state (TASK-259) — RAM-only vs `settings`-persisted across reboot.
 - **OQ5:** AppId topology — does WebRadio stop being its own `AppId` (becoming a mode of the player slot)?
   Interacts with the taskbar-excludes-WebRadio invariant (LL-085 / TASK-242). Resolve jointly with TASK-259.
