@@ -162,9 +162,16 @@ SpotifyDisplay *spotifyDisplay = &matrixDisplay;
 #include "spikeMode.h"
 #endif
 
-// ── T_MB_PROBE_00: caps-split heap probe (TASK-261 Phase 0) ──────────────
-// Unconditional (no SERIAL_DEBUG gate) — these fire at boot milestones so the
-// DUT log captures them without needing a serial command.
+// ── TASK-261 Phase 0/1 spike instrumentation (caps-split probe + 40 K arena) ──
+// GATED on MEMBUDGET_PHASE1 (defined ONLY in the cyd2usb_winamp_debug env, NOT in
+// production cyd2usb_winamp). The arena reservation permanently holds 40 K and must
+// NOT ship — it is a measurement artefact until the Phase 2 fork lands. When the
+// flag is undefined the helpers are no-ops, so the boot call sites compile clean
+// in production with zero runtime cost. (BP-041/TASK-262: spike code is debug-only
+// until a Phase-2 PASS promotes it.)
+#ifdef MEMBUDGET_PHASE1
+// T_MB_PROBE_00: caps-split heap probe — fires at boot milestones so the DUT log
+// captures them without needing a serial command.
 static void mb_heap_probe(const char *tag) {
     Serial.printf("[membudget] %s freeInt=%u lfbInt=%u freeDma=%u lfbDma=%u\n",
         tag,
@@ -173,18 +180,11 @@ static void mb_heap_probe(const char *tag) {
         (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
         (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
 }
-
-// ── TASK-261 Phase 1: boot-time internal arena reservation (kill gate) ───────
-// Reserve a contiguous MALLOC_CAP_INTERNAL block at the earliest point in setup()
-// so it lands before WiFi/TLS/task-stack allocations fragment the heap.
-// ~40 K = InBuff (~8 K) + Helix decoder (~22.7 K) + I2S DMA ring (~8 K) + slack.
-// Held forever (ptr never freed) — this is the feasibility gate: if the app set
-// still runs normally with this hole in the heap, Option A-lite is viable.
-// Gated on MEMBUDGET_PHASE1 (set in cyd2usb_winamp_debug build_flags for this
-// branch run; NOT kept on trunk — see BP-041/TASK-262 cleanup).
+// Phase 1: reserve a contiguous MALLOC_CAP_INTERNAL block at the earliest point in
+// setup() (before WiFi/TLS/task-stacks fragment the heap). ~40 K = InBuff (~8 K) +
+// Helix (~22.7 K) + slack. Held forever — the feasibility gate.
 static void* s_mb_arena = nullptr;
-static constexpr size_t MB_ARENA_BYTES = 40 * 1024;  // 40 K internal INTERNAL reservation
-
+static constexpr size_t MB_ARENA_BYTES = 40 * 1024;
 static void mb_arena_reserve() {
     size_t lfb = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
     s_mb_arena = heap_caps_malloc(MB_ARENA_BYTES, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
@@ -192,6 +192,10 @@ static void mb_arena_reserve() {
         (unsigned)MB_ARENA_BYTES, s_mb_arena, (unsigned)lfb,
         s_mb_arena ? "OK" : "FAIL");
 }
+#else
+static inline void mb_heap_probe(const char *) {}   // no-op in production
+static inline void mb_arena_reserve() {}            // no-op in production — NO 40 K hold
+#endif
 
 // ── App dispatch (M-MULTIAPP, TASK-087c/d) ─────────────────────────────
 

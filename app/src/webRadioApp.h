@@ -94,6 +94,7 @@ void audio_info(const char *info) {
     if (!info) return;
     // Surface all audio_info lines through LOG so they appear in the monitor.
     LOG_I("webradio", "audio_info: %s", info);
+#ifdef MEMBUDGET_PHASE1
     // CP2: emit caps-split on decoder-init line (the gate metric for Phase 1).
     if (strstr(info, "MP3Decoder") || strstr(info, "AACDecoder")) {
         Serial.printf("[membudget] CP2-decoder-init freeInt=%u lfbInt=%u freeDma=%u lfbDma=%u\n",
@@ -102,6 +103,7 @@ void audio_info(const char *info) {
             (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
     }
+#endif
 }
 
 // ── Audio singleton ──────────────────────────────────────────────────────────
@@ -651,12 +653,14 @@ private:
         LOG_I("webradio", "HEAP pre-connect free=%u min=%u maxAlloc=%u",
               (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap(),
               (unsigned)ESP.getMaxAllocHeap());
+#ifdef MEMBUDGET_PHASE1
         Serial.printf("[membudget] CP1-pre-connect skip=%u freeInt=%u lfbInt=%u freeDma=%u lfbDma=%u\n",
               (unsigned)_autoSkipTried,
               (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
               (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
               (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
               (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
+#endif
         if (wrAudio().connecttohost(_stations[idx].url)) {
             _state = WRPlayState::PLAYING;
             _lastRunningMs  = millis();  // TASK-218: seed grace window for stream-death detection
