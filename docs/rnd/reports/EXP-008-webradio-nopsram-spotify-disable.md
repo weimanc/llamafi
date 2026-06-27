@@ -103,6 +103,29 @@ enum/codegen/`APP_SLOT`/`check_build` step-5 intact); `#ifdef WEBRADIO_ONLY` out
 objects** + g_apps[] entries + dataTask fetchers/structs/dispatch (with stub poll-fns so the apps still
 compile) + shrink the stack. WebRadio is the boot app; the harness drives it directly.
 
+## Part 5 — Lane A staged measurement (step 1: dataTask stack trim) — model refinement
+
+`-DWEBRADIO_ONLY` + dataTask stack 14 KB → 11 KB, measured on DUT:
+
+| | heapFree @ `_play()` | maxAlloc | usable | decoder |
+|---|---|---|---|---|
+| Full build (Part 1) | 59,976 | 38,900 | 21,076 | FAIL |
+| **+ stack trim** | **63,036** | 38,900 | **24,136** | **STILL FAIL** |
+
+The trim landed exactly as predicted (+3,060 → usable clears the nominal 22.7 KB (a) threshold), **but the
+decoder still failed.** **Refinement to EXP-007's model:** `usable = free − maxAlloc` is **necessary but
+not sufficient.** Two reasons the nominal clear isn't real headroom: (1) the `(free − maxAlloc)` pool is
+**fragmented** — the decoder's 9 separate buffers need contiguous chunks, not just total bytes; (2) the
+**8 KB input buffer is allocated at connect-time, *after*** the `HEAP pre-connect` measurement point, so
+decoder-time free is ~8 KB lower than measured. So the real bar is higher than 22.7 KB-of-nominal-usable.
+
+**Consequence for the prediction:** the Part-4 derived ~37 K (full strip) is now **less reassuring** — it
+clears the *nominal* threshold by margin but, per this finding, nominal-clear ≠ decoder-success. The full
+strip is still worth measuring (more real headroom helps; the bare 163 K radio succeeds), but a PASS is
+**no longer likely — it's genuinely a coin-flip**, and an (a)-fail-even-headless result would make ADR-045
+stand definitively. Next: implement the full app-object + dataTask-fetcher strip (~30 `#ifdef` sites) and
+measure at ~37 K; capture the dead-block + the *post-input-buffer* free, not just pre-connect.
+
 ## Recommendation
 
 1. **Lane A (primary):** build a headless WebRadio-only variant (strip the registry to WebRadio +
