@@ -226,6 +226,39 @@ cleaner budget claim than "WebRadio takes 40 K the others must fund."
   they are *not* auto-exclusive and still need M-RECLAIM's **explicit lifecycle teardown** (Q2/Q3). Keep the
   two mechanisms distinct: **overlay arena** for foreground buffers, **explicit teardown** for background tasks.
 
+### 4b. INVARIANT — scratch goes in the arena, state does not (apps warm-resume, never cold-boot on switch)
+
+**The overlay arena holds only *regenerable scratch*. Persistent app state must live in the app's own resident
+member/static storage, never in the arena.** This is a hard design rule, not a guideline — violating it is the
+one way the overlay can silently break app behaviour.
+
+Why it holds: `switchApp()` (`main.cpp:1777-1782`) runs `init()` **once ever** per app (guarded by
+`g_appLaunched[]`) and `resume()` on **every** re-entry. So the framework already models cold-init vs
+warm-resume; an app returning from a switch is a *warm resume*, not a cold boot. The arena reset on exit
+discards that app's scratch slice — which is fine **iff** the slice held only regenerable data.
+
+Memory classification each app must make:
+
+| Class | Examples | Where it lives | On app-switch |
+|---|---|---|---|
+| **Persistent state** | selection / scroll offset / current station idx / teletext page / last-rendered values / `g_settings` / the `*AppState` structs (`appShell.h`) | resident **member/static** storage | **survives** untouched |
+| **Regenerable scratch** | parse buffers (heatmap JSON doc), render sprites/canvases, per-fetch JSON docs | **overlay arena** | released on `suspend()`, re-acquired on `resume()` |
+
+**Worked example (this is already how the code is structured):** the heatmap `s_heatmapDoc` is a *parse
+buffer* — `.clear()`'d every fetch — while the parsed result is copied out into a small persistent
+**`HeatmapQuoteResult`** struct. The doc is throwaway; the displayed data is kept. Overlaying the doc changes
+nothing the user sees persist. Apps follow this split today; the arena just formalises it.
+
+**Consequence (acceptable, must be designed for):** on `resume()` an app's large buffer is empty, so it
+re-renders from retained state (cheap) or, for a data app, re-fetches (a network round-trip before fresh data
+shows). State (what it was doing) is retained → warm restart. If instant redraw matters, an app may keep a
+small **resident digest** of last-rendered values (a few hundred bytes) and repaint immediately while the
+fresh fetch lands — a deliberate state/RAM trade, kept resident, never in the arena.
+
+**Enforcement:** `suspend()` = "release scratch slice"; `resume()` = "re-acquire scratch slice + repaint from
+resident state"; `init()` = cold first-run only. A new app that puts genuine state in the arena would
+cold-boot on every switch — caught in review against this invariant + the NEW-APP-CHECKLIST.
+
 **Integration-cost asymmetry (informs sequencing):**
 - **Heatmap doc → no fork.** ArduinoJson supports a bring-your-own allocator
   (`BasicJsonDocument<TAllocator>`), so the heatmap doc points its allocator at the arena directly. Clean —
