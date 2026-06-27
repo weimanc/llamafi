@@ -174,6 +174,25 @@ static void mb_heap_probe(const char *tag) {
         (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
 }
 
+// ── TASK-261 Phase 1: boot-time internal arena reservation (kill gate) ───────
+// Reserve a contiguous MALLOC_CAP_INTERNAL block at the earliest point in setup()
+// so it lands before WiFi/TLS/task-stack allocations fragment the heap.
+// ~40 K = InBuff (~8 K) + Helix decoder (~22.7 K) + I2S DMA ring (~8 K) + slack.
+// Held forever (ptr never freed) — this is the feasibility gate: if the app set
+// still runs normally with this hole in the heap, Option A-lite is viable.
+// Gated on MEMBUDGET_PHASE1 (set in cyd2usb_winamp_debug build_flags for this
+// branch run; NOT kept on trunk — see BP-041/TASK-262 cleanup).
+static void* s_mb_arena = nullptr;
+static constexpr size_t MB_ARENA_BYTES = 40 * 1024;  // 40 K internal INTERNAL reservation
+
+static void mb_arena_reserve() {
+    size_t lfb = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+    s_mb_arena = heap_caps_malloc(MB_ARENA_BYTES, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    Serial.printf("[membudget] Phase1-reserve arena=%uB ptr=%p lfbBefore=%u %s\n",
+        (unsigned)MB_ARENA_BYTES, s_mb_arena, (unsigned)lfb,
+        s_mb_arena ? "OK" : "FAIL");
+}
+
 // ── App dispatch (M-MULTIAPP, TASK-087c/d) ─────────────────────────────
 
 bool g_appLaunched[(int)AppId::COUNT] = {};
@@ -1910,6 +1929,12 @@ void setup()
   esp_task_wdt_add(xTaskGetIdleTaskHandleForCPU(0));  // re-subscribe CPU0 idle
 
   Serial.begin(115200);
+
+  // TASK-261 Phase 1 kill-gate: reserve INTERNAL arena at the earliest boot point,
+  // before WiFi/TLS/task-stack allocations fragment the heap. Held forever.
+  mb_heap_probe("pre-reserve");   // baseline before reservation
+  mb_arena_reserve();             // allocate the 40 K hole
+  mb_heap_probe("post-reserve");  // confirm reservation effect
 
   // serialdbg-001 (TASK-056b): unconditional boot banner. Carved out of the
   // SERIAL_DEBUG gate per ADR-021 Decision 4 as a production-safe diagnostic
