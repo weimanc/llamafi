@@ -45,12 +45,28 @@ headroom the allocator needs to avoid fragmentation failure.
 Bare firmware static = **57,500 B** (17.5 % of 327,680) → ~270 K heap pool. Our 11-app build's resident
 footprint is the entire gap.
 
-## Next: Config B (+TFT) — budget anchor
+## Config B (+TFT) — PASS (budget anchor)
 
-Pending: add the CYD TFT_eSPI driver/framebuffer (our `User_Setup` build_flags + `tft.init()`) and re-measure
-CP1/CP2. Only config-B's number is a valid in-project budget (our product always carries the display). Then
-`usable_bare(B) − the ~41 K audio path` = the headroom a stripped in-project variant must preserve, stated as
-a bounded claim (our path-dependent heap pays a fragmentation tax the pristine bare heap doesn't).
+CYD TFT_eSPI driver added (our `User_Setup` build_flags + `tft.init()` + `fillScreen`). Single cold-boot trial:
+
+| Capture point | free | maxAlloc / deadblk(8-bit) |
+|---|---|---|
+| boot (pre-wifi) | 257,072 | 110,580 |
+| boot (post-wifi) | 206,684 | 110,580 |
+| **CP1 pre-connect** | 206,676 | 110,580 |
+| **CP2 decoder-init** | **165,404** | 102,388 |
+| settle query | 167,780 | 102,388 |
+
+- `connecttohost=1`; `MP3Decoder has been initialized, free Heap: 165404`; `StreamTitle` flowed → **plays.**
+- **The TFT driver costs ~0 heap.** CP1: config A 207,300 vs config B 206,676 = **~600 B**. CP2: 166,056 vs
+  165,404 = ~650 B. **TFT_eSPI is direct-draw (no full framebuffer)** — it draws straight to the panel over
+  SPI, so it does not hold a 240×320×2 = 150 K backbuffer. The display is **not** the heap problem.
+- Audio path cost ≈ 41 K, unchanged from config A (TFT is orthogonal to the audio path).
+
+**Budget anchor:** a radio+display appliance starts at **~207 K free @ connect** and lands the decoder at
+**~165 K free**, holding. The headroom an in-project stripped variant must preserve is bounded by this minus
+the resident footprint of whatever app/dataTask/UI machinery it keeps — paying a fragmentation tax the
+pristine bare heap doesn't (R&D B3 / QM N2). The lever is **resident footprint, not the display.**
 
 ## Rig config (for reproducibility — rig is throwaway)
 
@@ -61,6 +77,9 @@ streams, ~40-line serial rig (`heap`/`play`/`stop` + `audio_info` CP2 capture). 
 
 ## Verdict
 
-**Config A PASS → hardware capable; ADR-045's NO-GO is footprint-bound, not silicon-bound.** This re-frames
-TASK-255 from "coin-flip, is it even possible" to a quantified budget problem ("get our resident footprint
-down so ~≥ the bare threshold of free heap survives to `_play()`"). Config B will pin the budget number.
+**Config A + B both PASS → hardware capable; ADR-045's NO-GO is footprint-bound, not silicon-bound.** The
+display is not the problem — TFT_eSPI is direct-draw, ~0 heap. This re-frames TASK-255 from "coin-flip, is it
+even possible" to a quantified budget problem: a radio+display appliance has ~207 K free @ connect and lands
+the decoder at ~165 K; our 11-app build fails only because its ~147 K resident footprint leaves ~60 K — too
+tight for the ~41 K audio path + fragmentation headroom. The lever is **resident footprint** (drop apps /
+dataTask structs), not RAM, not the silicon, not the display.
