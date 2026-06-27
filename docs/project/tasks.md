@@ -4,6 +4,19 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
+> **PM sync 2026-06-27 (bottom-up bare-rig settles the hardware question)** — Pivoted the no-PSRAM
+> viability question from top-down strip (TASK-255) to a bottom-up bare control (TASK-258 → EXP-009).
+> **Both bare configs PASS:** the no-PSRAM CYD plays MP3 radio bare *and* with the full CYD TFT_eSPI
+> display (decoder inits ~165 K free; TFT costs ~600 B — direct-draw, no framebuffer). **ADR-045's
+> "no-PSRAM playback = NO-GO" is footprint-bound, not silicon-bound** — the hardware and the display
+> are both fine; our 11-app build fails only because its ~147 K resident footprint leaves ~60 K, too
+> tight for the ~41 K audio path. The lever is **resident footprint, not RAM/silicon/display.**
+> **Actions:** TASK-258 DONE (→ EXP-009); **TASK-255 parked** (`parked-pending-TASK-258`, superseded —
+> branch artefacts kept); **TASK-257** filed (optional Lane C-1 library A/B, re-homed on the bare rig).
+> Open product decision (not yet a task): pursue a stripped boot-direct-to-WebRadio variant vs accept
+> ADR-045 stands for the multi-app board. Process lesson: measure the ceiling bottom-up before grinding
+> a top-down strip (LL-087); never read `usable = free − maxAlloc` as a fixed budget (LL-088).
+>
 > **PM sync 2026-06-25 (honest state — WebRadio verification PAUSED on external blocker)** —
 > Stop-and-assess. **Solid & committed:** TASK-232 (http fetch), TASK-234 (auto-skip), TASK-239/240
 > (~11 KB reclaim) — all DUT-verified; TASK-242 (taskbar null-icon crash) — fix DUT-verified + a
@@ -3279,11 +3292,15 @@ its FAIL artefact-disposition + cleanup task id before scheduling). No-op if not
 keeps env/guards on the branch until PASS + the promotion milestone).
 
 **Priority:** P1 — settles "is no-PSRAM WebRadio viable at all," on a lane that runs *now* without
-Premium · **Status:** **scheduled — ready to start (V0 is task #1)** · **Opened:** 2026-06-26
+Premium · **Status:** **parked — `parked-pending-TASK-258`** (2026-06-27). The bottom-up bare-rig
+(TASK-258 / EXP-009) overtook this top-down strip: it proved the **hardware plays** (both bare and +TFT)
+and that the lever is **resident footprint, not RAM/silicon/display** — re-framing this task from "is it
+possible" to "drop ~90 K of resident footprint." Keep the branch's V0 harness / `get wrPlaying` /
+EXP-008 datapoint — reusable if/when a stripped in-project variant is pursued. · **Opened:** 2026-06-26
 **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/webradio-nopsram` · **Experiment record:** EXP-008
 **Owner:** Developer (guard + variant signal) → VE (V0 harness) → Architect (ADR verdict)
 **Deps:** M-WEBRADIO (firmware complete); **prereq-done:** TASK-239/240 (~11 KB reclaim); **sidesteps:**
-TASK-243 (Premium); **baseline:** EXP-007 · **Cleanup:** TASK-256
+TASK-243 (Premium); **baseline:** EXP-007 · **Cleanup:** TASK-256 · **Superseded-by:** TASK-258
 
 ---
 
@@ -3298,3 +3315,56 @@ keeps all of it on `rnd/webradio-nopsram` until PASS + the promotion milestone, 
 state is "nothing to clean."
 **Priority:** P3 — lifecycle hygiene · **Status:** **dormant — fires only on TASK-255 FAIL-after-merge**
 · **Opened:** 2026-06-26 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** Developer · **Deps:** TASK-255
+
+---
+
+### TASK-258 — M-WEBRADIO-NOPSRAM: bottom-up bare-rig no-PSRAM ceiling measurement
+
+Bottom-up pivot from TASK-255's top-down strip (panel-approved PROP rev2, unanimous). Instead of stripping
+our 11-app build down toward headless (a confirmed ~25–30 `#ifdef`-site grind for a coin-flip), build the
+**bare ESP32-audioI2S radio on our actual hardware** as a true control and measure the no-PSRAM ceiling
+directly. Throwaway rig at `~/proj/webradio-bare/` (out-of-tree, own git repo, not in `run/check`, WiFi in
+gitignored `secrets.h`). Full parity: `espressif32@6.9.0`, `esp32dev`, ESP32-audioI2S v2.3.0, internal DAC
+GPIO26 (`I2S_DAC_CHANNEL_LEFT_EN`, GPIO25 left for touch). Two configs: (A) no-display = hardware ceiling /
+kill test; (B) +CYD TFT_eSPI = realistic budget anchor. CP1 pre-connect / CP2 decoder-init (gate metric) /
+CP3 low-water, + caps dead-block re-probed per build.
+
+**Result — both configs PASS (DUT-verified 2026-06-27):**
+- **Config A (no-TFT):** decoder inits at **166,056 free**, `connecttohost=1`, `StreamTitle` changed across
+  a track, heap held ≥ ~45 s → **plays.**
+- **Config B (+TFT):** decoder inits at **165,404 free** → **plays.** **TFT_eSPI costs ~600 B** (direct-draw,
+  no framebuffer) — the display is **not** the heap problem.
+- **Headline:** the no-PSRAM CYD hardware **can** play MP3 radio. ADR-045's "no-PSRAM playback = NO-GO" is
+  **footprint-bound, not silicon-bound.** Budget anchor: ~207 K free @ connect, ~165 K at decoder; audio path
+  ≈ 41 K (8 K input + 22.7 K Helix + connection). Our 11-app build fails only because its ~147 K resident
+  footprint leaves ~60 K — too tight for the 41 K path + fragmentation headroom. **The lever is resident
+  footprint, not RAM, not the display.**
+- **Model correction:** the "38,900 dead block" was never fixed — it was the *fragmented 11-app* largest free
+  block; bare it's 110,580. The `usable = free − maxAlloc` framing (EXP-007/008) was a misread.
+
+**Bounded-claim caveat (R2/LL-086):** a bare PASS proves *hardware + library*, sets the *budget/ceiling* — it
+does **NOT** prove our app fits. EXP-009 never states "WebRadio is viable," only the ceiling.
+
+**Priority:** P1 — settles the M-WEBRADIO viability question at the hardware level · **Status:** **DONE —
+both configs PASS, written up** · **Opened:** 2026-06-27 · **Closed:** 2026-06-27
+**Milestone:** M-WEBRADIO-NOPSRAM · **Rig:** `~/proj/webradio-bare/` (out-of-tree, commit `1c25982`)
+**Experiment record:** [EXP-009](../rnd/reports/EXP-009-webradio-bare-rig.md) · **Proposal:**
+[PROP-webradio-bare-rig](../rnd/proposals/PROP-webradio-bare-rig.md) · **Owner:** R&D
+**Deps:** none (out-of-tree) · **Supersedes:** TASK-255 (parked) · **Feeds:** TASK-241 / ADR-045
+**Follow-on:** TASK-257 (optional Lane C-1 library A/B)
+
+---
+
+### TASK-257 — Lane C-1: ESP32-audioI2S v2.3.0 ↔ v2.0.6 decoder-footprint A/B (optional)
+
+Re-homed onto the TASK-258 bare rig (was a TASK-255 sub-item). Optional, low-priority: on the bare rig, swap
+**only** `lib_deps` v2.3.0 ↔ v2.0.6 (fresh `.pio/libdeps`, reflash), same station/buffer/CP2 capture, ≥ 3
+trials/arm; signal = Δ `usable`@CP2. Don't swap the core toolchain too (second variable — the EXP-008 trap).
+**Mostly answered already:** EXP-009's bottom-up result shows the Helix decoder is vendored ~identically
+across the v2.x line and the lever is resident footprint, not library version — so this A/B is now a
+*confirmation nicety*, not a decision input. Prior attempt hit `SD_MMC.h: No such file` (v2.0.6 predates
+`AUDIO_NO_SD_FS`) — needs the build-config shim before it can run.
+
+**Priority:** P3 — optional confirmation; not on any critical path · **Status:** **open — optional, deferred**
+· **Opened:** 2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Rig:** `~/proj/webradio-bare/`
+**Owner:** R&D · **Deps:** TASK-258 (done) · **Parent:** TASK-258 step 4

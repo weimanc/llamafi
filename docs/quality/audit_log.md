@@ -4,6 +4,34 @@
 
 All audits: scope, findings, actions, results.
 
+### Audit — 2026-06-27 — TASK-258 / EXP-009 bottom-up bare-rig (no-PSRAM ceiling)
+
+**Triggered by**: human ("QM: LL-087/088 + the platformio.ini pin note → human")
+
+**Scope**: Quality close-out of the bottom-up bare-rig experiment that settled the no-PSRAM
+WebRadio hardware question. Records the experiment + its process wins as a quality event. The
+rig is out-of-tree (`~/proj/webradio-bare/`, own throwaway git repo `1c25982`); no project
+firmware shipped. Both bare configs (no-display, +CYD TFT) PASS — hardware plays MP3 radio;
+ADR-045's NO-GO is footprint-bound, not silicon-bound.
+
+**Areas checked**:
+- [x] Process adherence (PROP rev2 panel-approved before execution; R&D out-of-tree rig per AGENTS.md; EXP report written; PM task topology updated)
+- [x] Hygiene per PROP R3 / LL-002/003 / LL-007 — rig outside the repo, `.gitignore` excludes `secrets.h` + `.pio/`, `git ls-files` confirms only 3 files tracked (no creds), not added to `run/check`, EXP-009 + commits contain no WiFi creds (the `192.168.1.181` in the log is the device DHCP LAN IP, not a secret)
+- [x] Measurement discipline — caps dead-block re-probed per build (caught the 38,900-is-not-fixed misread → LL-088); CP1/CP2/CP3 capture matched the PROP
+
+**Findings**:
+- LL-087 (measure the hardware ceiling bottom-up with a bare control before grinding a top-down strip) and LL-088 (a state-dependent `usable = free − maxAlloc` figure was read as a fixed constant) filed this retrospective.
+- BP-042 (PROPOSED) filed: a defensive dependency pin carries an inline why-not-newer note (version that breaks / failure mode / safe range). Originates from the bare rig's `ESP32-audioI2S@2.3.0` pin-note, whose value was proven by the v2.0.6 `SD_MMC.h` swap failure.
+- No hygiene defects. Task topology correctly updated: TASK-258 DONE, TASK-255 parked (superseded), TASK-257 filed (optional Lane C-1).
+
+**Actions assigned**:
+- QM: bring LL-087, LL-088, and BP-042 (PROPOSED) to human for sign-off. ← this row.
+- PM/Architect (downstream, not this audit): the product decision (stripped boot-direct-to-WebRadio variant vs ADR-045 stands for the multi-app board) is open and unowned — flag to human as a decision, not yet a task.
+
+**Resolution**: (pending human sign-off on LL-087/LL-088/BP-042)
+
+---
+
 ### Audit — 2026-06-26 — M-WEBRADIO-SPOTIFY-DISABLE design-review cycle (5-agent panel)
 
 **Triggered by**: human ("do the rest" of quality follow-ups for the consensus-approved design)

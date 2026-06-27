@@ -4,6 +4,32 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-06-27 — Bottom-up bare-rig settles the no-PSRAM ceiling (TASK-258 / EXP-009)
+
+### LL-087 — 2026-06-27 — Measure the hardware ceiling bottom-up with a bare control before grinding a top-down strip
+
+**Context**: The no-PSRAM WebRadio viability question (does ADR-045's "no-PSRAM playback = NO-GO" hold?) was being pursued **top-down**: strip our 11-app build toward headless (`-DDISABLE_SPOTIFY`, then a full app strip) and re-measure free heap at `_play()`. EXP-008 showed this was a confirmed ~25–30 `#ifdef`-site M-effort grind whose outcome was a coin-flip — and each strip step left the *interpretation* confounded (a FAIL could be footprint, fragmentation, or a port artefact). The pivot was to build the **bare ESP32-audioI2S radio on our actual hardware** (same platform/board/library/DAC) as a true control — outside the repo, throwaway — and measure the ceiling directly.
+
+**Observation**: The bare control answered in **one afternoon** what the top-down strip had not in several sessions: both configs (no-display and +full-CYD-TFT) **play** — decoder inits at ~165 K free and holds. That is decisive and confound-free: there is no app shell, no dataTask, no Spotify TLS to blame, so a PASS cleanly attributes "hardware + library work" and a FAIL would have cleanly killed the milestone. The top-down strip could never produce that clean attribution because every intermediate build still carried most of the confounds. It also corrected a measurement misread that had survived two prior experiments (see LL-088).
+
+**Root cause**: We started from the artefact we had (our complex multi-app build) and tried to subtract our way down to the answer, because that build was in front of us. The cheaper, more decisive move was to *add up* from zero on the same hardware — a bare existence-proof control — which isolates the variable under test (the silicon/library ceiling) from the variable we actually care about reducing (our resident footprint). Same family as LL-082 (diagnosed the network when the bug was in the precondition): reaching for the complicated path when a minimal isolating control was available and cheaper.
+
+**Suggested improvement**: When the open question is "can the hardware/library do X at all" (a ceiling/existence question) and the production artefact is a confound-heavy strip target, build a **minimal bare control on the real hardware first** — out-of-tree, throwaway, parity-pinned (same platform/board/lib/pinout) — and measure the ceiling bottom-up. Only spend strip effort once the bare control proves the ceiling exists *and* quantifies the budget the strip must hit. Reserve the top-down strip for the *fit* question (does our app fit under the bare budget), which is a different question (LL-086 / R2 bounded-claim: a bare PASS sets the budget, it does not prove our app fits).
+
+### LL-088 — 2026-06-27 — A derived "budget" metric (usable = free − maxAlloc) was read as a fixed quantity when it was a state-dependent artefact
+
+**Context**: EXP-007/008 framed the no-PSRAM decoder gate as `usable = free − 38,900`, where 38,900 was the `maxAllocHeap` / caps-restricted dead-block observed on our fragmented 11-app build, treated as a fixed hardware constant the audio path must clear. The bare-rig control (EXP-009) re-probed `heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)` on the *bare* build and got **110,580**, not 38,900 — the "dead block" was never a fixed quantity, it was the largest free block *of our fragmented heap state*. The real gate is total free heap at connect plus contiguity for the ~41 K audio path.
+
+**Observation**: A number that was actually an *output of a particular heap state* (fragmentation under 11 live apps) was carried forward across two experiments as an *input constant of the hardware*. Decisions (budget math, the `usable < demand → abort` kill gate) were built on it. Because the bare control re-measured the metric from scratch instead of inheriting the figure, it exposed the misread; had it assumed "38,900 transfers," it would have computed a wrong budget and possibly mis-killed the milestone. (The PROP had explicitly flagged "re-probe the caps dead-block per build — do not assume EXP-007's 38,900 transfers," which is why it was caught.)
+
+**Root cause**: A state-dependent measurement was promoted to a named constant ("the 38.9 K dead block") and the name made it feel fixed; subsequent reasoning used the name, not the measurement-in-context. Same family as LL-086 (a hypothesis built on a prior number without reconciling its meaning) — here the failure is one level down: the number was real but its *scope of validity* (this heap state only) was dropped when it was given a durable label.
+
+**Suggested improvement**: Any heap/perf figure that is a function of runtime state (fragmentation, allocation order, which tasks are live) must be labelled with the state it was measured under, and **re-measured, never inherited, when the state changes** (different build, different live-app set). Treat `largest-free-block` / `maxAlloc` / "usable" as per-build observations, not constants. When carrying a number across experiments, restate the conditions it was measured under in the same sentence as the number. Pairs with LL-086 (reconcile a follow-on hypothesis against prior measurements) and the platformio.ini pinned-dep BP candidate below.
+
+**Status (LL-087 + LL-088)**: open — candidates; brought to human this retrospective. Quality win recorded in audit_log 2026-06-27.
+
+---
+
 ## Retrospective — 2026-06-26 — M-WEBRADIO-SPOTIFY-DISABLE design review (5-agent panel)
 
 ### LL-086 — 2026-06-26 — An experiment hypothesis must be checked against the prior experiment's measured findings before it is scheduled
