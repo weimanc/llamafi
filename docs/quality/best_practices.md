@@ -403,36 +403,47 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-040 — An experiment/spike names its decision gate, FAIL artefact-disposition, and cleanup-task id before it is scheduled
+
+**Adopted from**: M-WEBRADIO-NOPSRAM design-review cycle (QM blocker B1)
+**Date adopted**: 2026-06-27
+**Rule**: Any task tagged R&D / experiment / spike must, before it is scheduled, name (a) its decision gate (the measurable PASS/FAIL condition), (b) the artefact disposition on FAIL — branch abandoned / guards reverted / env removed, and (c) the cleanup-task id that executes (b) if any artefact already reached the trunk. A prose "it will be shelved" is not a disposition.
+**Rationale**: An experiment without a teardown mechanism rots into a half-supported second code path. This is the same failure class as LL-085 (an under-exercised path that drifted into a latent crash) and the "prose-with-no-owner" pattern behind BP-003/BP-035 — a caveat in a doc has no owner and no trigger to act. Naming the cleanup task at schedule time gives the FAIL branch a deadline and an owner instead of leaving a dormant env/flag on the trunk. (Validated in practice: TASK-255 named TASK-256 as its cleanup id up front; when TASK-255 was parked/superseded, the incomplete `#ifndef WEBRADIO_ONLY` dispatch guard had a clear disposition and was reverted off trunk cleanly.)
+**How to apply**: PM requires the three items before scheduling an experiment; Architect states them in the experiment design doc; R&D owns the EXP report and the branch disposition; QM audits for orphaned experiment branches/envs at retrospective. Pairs with BP-042 (the gate's *mechanism* must also be consistent with prior measurements — LL-086).
+**Applies to**: PM, Architect, R&D, QM
+
+---
+
+### BP-041 — A `-D`-flag build variant kept past its experiment is added to `run/check` in the same change, or the flag is removed
+
+**Adopted from**: M-WEBRADIO-NOPSRAM design-review cycle (QM candidate M2)
+**Date adopted**: 2026-06-27
+**Rule**: Any compile-time `-D` build variant (e.g. a new `[env:...]` with a distinguishing `build_flags` define) that is kept beyond its experiment must be added to the `./run/check` build-check gates in the same change that promotes it. If it is not added to the check, the variant and its flag must be removed. A build variant with no CI/check gate is not maintained. **Escape hatch:** a deliberately short-lived variant may instead be registered in a tracked exceptions list with an explicit expiry/owner — but the default is gate-it-or-delete-it.
+**Rationale**: The two-variant build matrix is a maintenance liability that silently rots without a gate exercising it. LL-085 is the canonical instance: an under-exercised second path (the WebRadio taskbar slot) drifted for ~10 days into a latent null-pointer crash because nothing exercised it. The project already runs a multi-gate `run/check`; a flag-guarded variant that is not one of those gates will diverge from the default build the next time the shared code changes. The rule forces a binary choice — gate it or delete it — so a half-supported second firmware cannot linger.
+**How to apply**: Developer adds the gate in the same change that promotes a variant, or removes the flag; Architect — any design that introduces a build-flag variant states its gate-or-remove disposition; QM audits `platformio.ini` envs against `run/check` gates at retrospective. (The `cyd2usb_webradio` env stays on its branch under TASK-255/256 precisely so it is not an ungated trunk variant.)
+**Applies to**: Developer, Architect, QM
+
+---
+
+### BP-042 — A dependency pin that exists to dodge a known-bad version carries an inline note stating the version, the failure, and the safe range
+
+**Adopted from**: TASK-258 / EXP-009 bare-rig
+**Date adopted**: 2026-06-27
+**Rule**: When a dependency (`lib_deps` / `platform` / toolchain) is pinned **specifically to avoid a known-bad version** (not just for general stability), the pin carries an inline comment in the same file stating: (a) the version/range that breaks, (b) the concrete failure mode (the error or the resource it blows), and (c) the known-safe range or the last-good version. A bare pin with no note is treated as incomplete — the next maintainer cannot tell a deliberate dodge from an arbitrary freeze and will bump it.
+**Rationale**: A version number alone records *what* but not *why-not-newer*; the prohibition lives only in someone's memory or a buried experiment report. This is the "prose-with-no-owner / caveat-with-no-trigger" family (BP-003/BP-035, and the gate-or-remove logic of BP-041): the constraint must travel with the artefact it constrains. The project has already paid for this twice — the `espressif32@6.9.0` `Network.h` split *was* documented and saved a bump; the audio-lib v3.x boot-alloc was *not* until the EXP-009 rig added the note, and its value was promptly proven when a v2.0.6 swap failed on `SD_MMC.h: No such file` (v2.0.6 predates `AUDIO_NO_SD_FS`).
+**How to apply**: Developer writes the note on any defensive pin and checks it before bumping; Architect — any design that pins a dep to dodge a version states the three items; QM audits pinned deps for bare-number pins lacking a why-not-newer note at retrospective.
+**Applies to**: Developer, Architect, QM
+
+---
+
 ## Candidates — proposed, pending human adoption
 
 > These entries are **NOT yet adopted**. Per QM discipline ("QM brings best-practice
 > candidates to human — never self-promotes"), they are recorded here in proposed form
 > awaiting explicit human sign-off before being assigned a final BP number and promoted
-> above this line. The latest **adopted** BP is BP-039.
+> above this line. The latest **adopted** BP is BP-042.
 
-### BP-040 (PROPOSED) — An experiment/spike names its decision gate, FAIL artefact-disposition, and cleanup-task id before it is scheduled
-
-**Status**: **proposed — pending human adoption** (do not treat as accepted)
-**Originating context**: M-WEBRADIO-NOPSRAM design-review cycle (`docs/architecture/designs/M-WEBRADIO-SPOTIFY-DISABLE.md`, 5-agent panel, 2026-06-26). QM round-1 blocker B1: the FAIL branch of the experiment was under-specified for teardown.
-**Proposed rule**: Any task tagged R&D / experiment / spike must, before it is scheduled, name (a) its decision gate (the measurable PASS/FAIL condition), (b) the artefact disposition on FAIL — branch abandoned / guards reverted / env removed, and (c) the cleanup-task id that executes (b) if any artefact already reached the trunk. A prose "it will be shelved" is not a disposition.
-**Proposed rationale**: An experiment without a teardown mechanism rots into a half-supported second code path. This is the same failure class as LL-085 (an under-exercised path that drifted into a latent crash) and the "prose-with-no-owner" pattern behind BP-003/BP-035 — a caveat in a doc has no owner and no trigger to act. Naming the cleanup task at schedule time gives the FAIL branch a deadline and an owner instead of leaving a dormant env/flag on the trunk.
-**Proposed applies to**: PM (require the three items before scheduling an experiment), Architect (state them in the experiment design doc), R&D (own the EXP report and the branch disposition), QM (audit for orphaned experiment branches/envs at retrospective).
-
-### BP-041 (PROPOSED) — A `-D`-flag build variant kept past its experiment is added to `run/check` in the same change, or the flag is removed
-
-**Status**: **proposed — pending human adoption** (do not treat as accepted)
-**Originating context**: M-WEBRADIO-NOPSRAM design-review cycle (same as BP-040). QM round-1 candidate M2 (build-flag-variant rot).
-**Proposed rule**: Any compile-time `-D` build variant (e.g. a new `[env:...]` with a distinguishing `build_flags` define) that is kept beyond its experiment must be added to the `./run/check` build-check gates in the same change that promotes it. If it is not added to the check, the variant and its flag must be removed. A build variant with no CI/check gate is not maintained.
-**Proposed rationale**: The two-variant build matrix is a maintenance liability that silently rots without a gate exercising it. LL-085 is the canonical instance: an under-exercised second path (the WebRadio taskbar slot) drifted for ~10 days into a latent null-pointer crash because nothing exercised it. The project already runs a multi-gate `run/check`; a flag-guarded variant that is not one of those gates will diverge from the default build the next time the shared code changes. The rule deliberately forces a binary choice — gate it or delete it — so a half-supported second firmware cannot linger.
-**Proposed applies to**: Developer (add the 6th gate in the same change that promotes a variant, or remove the flag), Architect (any design that introduces a build-flag variant states its gate-or-remove disposition), QM (audit `platformio.ini` envs against `run/check` gates at retrospective).
-
-### BP-042 (PROPOSED) — A dependency pin that exists to dodge a known-bad version carries an inline note stating the version, the failure, and the safe range
-
-**Status**: **proposed — pending human adoption** (do not treat as accepted)
-**Originating context**: TASK-258 / EXP-009 bare-rig (2026-06-27) and the existing `platformio.ini` `platform = espressif32@6.9.0` pin (CLAUDE.md already documents *why* the platform is pinned: newer cores expect `Network.h` the install didn't ship). The bare rig's `platformio.ini` carries `esphome/ESP32-audioI2S@2.3.0` with an inline note: "DO NOT bump to v3.x — ~704 KB boot alloc bricks no-PSRAM; v2.0.6 is the last no-PSRAM-tuned line." The value of that note was proven when a Lane C-1 swap to v2.0.6 failed on `SD_MMC.h: No such file` (v2.0.6 predates `AUDIO_NO_SD_FS`) — the note's "safe range" boundary was real and a future bump would have re-hit it blind.
-**Proposed rule**: When a dependency (`lib_deps` / `platform` / toolchain) is pinned **specifically to avoid a known-bad version** (not just for general stability), the pin carries an inline comment in the same file stating: (a) the version/range that breaks, (b) the concrete failure mode (the error or the resource it blows), and (c) the known-safe range or the last-good version. A bare pin with no note is treated as incomplete — the next maintainer cannot tell a deliberate dodge from an arbitrary freeze and will bump it.
-**Proposed rationale**: A version number alone records *what* but not *why-not-newer*; the prohibition lives only in someone's memory or a buried experiment report. This is the "prose-with-no-owner / caveat-with-no-trigger" family (BP-003/BP-035, and the gate-or-remove logic of BP-041): the constraint must travel with the artefact it constrains. The project has already paid for this twice (the `espressif32@6.9.0` `Network.h` split *was* documented and saved a bump; the audio-lib v3.x boot-alloc was *not* until this rig added the note). An inline pin-note turns "tribal knowledge about a bad version" into a check the next editor reads before bumping.
-**Proposed applies to**: Developer (write the note on any defensive pin; check it before bumping), Architect (any design that pins a dep to dodge a version states the three items), QM (audit pinned deps for bare-number pins lacking a why-not-newer note at retrospective).
+_(No candidates currently pending. BP-040/041/042 were adopted 2026-06-27.)_
 
 ---
 

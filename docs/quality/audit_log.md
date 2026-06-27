@@ -28,7 +28,7 @@ ADR-045's NO-GO is footprint-bound, not silicon-bound.
 - QM: bring LL-087, LL-088, and BP-042 (PROPOSED) to human for sign-off. ← this row.
 - PM/Architect (downstream, not this audit): the product decision (stripped boot-direct-to-WebRadio variant vs ADR-045 stands for the multi-app board) is open and unowned — flag to human as a decision, not yet a task.
 
-**Resolution**: (pending human sign-off on LL-087/LL-088/BP-042)
+**Resolution**: Human sign-off 2026-06-27 — **BP-040, BP-041, BP-042 all adopted** (final numbers assigned, promoted above the candidates line; latest adopted BP is now BP-042). BP-041 adopted with an added escape hatch (a short-lived variant may instead be registered in a tracked exceptions list with explicit expiry/owner). LL-087/LL-088 retained as standing lessons (no separate BP). Candidates section now empty.
 
 ---
 

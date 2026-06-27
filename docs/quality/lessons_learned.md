@@ -26,7 +26,7 @@ Populated during retrospectives. Entries reviewed w/ human for promotion to `bes
 
 **Suggested improvement**: Any heap/perf figure that is a function of runtime state (fragmentation, allocation order, which tasks are live) must be labelled with the state it was measured under, and **re-measured, never inherited, when the state changes** (different build, different live-app set). Treat `largest-free-block` / `maxAlloc` / "usable" as per-build observations, not constants. When carrying a number across experiments, restate the conditions it was measured under in the same sentence as the number. Pairs with LL-086 (reconcile a follow-on hypothesis against prior measurements) and the platformio.ini pinned-dep BP candidate below.
 
-**Status (LL-087 + LL-088)**: open — candidates; brought to human this retrospective. Quality win recorded in audit_log 2026-06-27.
+**Status (LL-087 + LL-088)**: reviewed with human 2026-06-27. **BP-042 adopted** (the pin-note rule, from the LL-088 / EXP-009 thread). LL-087 and LL-088 retained as standing lessons (no separate BP — they are reasoning-discipline lessons that inform BP-040's "gate mechanism must be consistent with prior measurements" clause rather than a new mechanical rule). Quality win recorded in audit_log 2026-06-27.
 
 ---
 
