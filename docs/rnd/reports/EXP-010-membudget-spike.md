@@ -11,11 +11,16 @@
 **Phase 1 PASS — proceed to Phase 2 fork.**
 
 A 40 K `MALLOC_CAP_INTERNAL` reservation succeeds at boot (question A ✓) and the full 11-app multi-app
-build runs stably against it (question B ✓). The reservation leaves lfbInt = **38,900 B** in the general
-heap — just below the audio path's ~33 K arena-bound allocation, which **confirms the Phase 2 fork is
-required (not optional)**: the audio library's InBuff + Helix decoder must be redirected into the reserved
-arena or they will fail to allocate from the 38.9 K general-heap block. Nothing prevents Phase 2 from
-doing that. Option A-lite is viable; proceed to the 3-site fork.
+build runs stably against it (question B ✓). The reservation leaves lfbInt = **38,900 B** as the largest
+free block in the general heap — below the **total ~41 K audio path**, and (the decisive point) a *held*
+reservation cannot be used by the library without redirection, since the lib's own `malloc` lands in the
+general heap, not the reserved block. So the Phase 2 **3-site fork is required, not optional**: only
+redirecting InBuff + Helix into the reserved arena guarantees the audio allocation lands in contiguous
+space, independent of how fragmented the general heap is at the real `_play()` moment (the JIT-release
+alternative is ruled out for the same reason). Option A-lite is viable; proceed to the 3-site fork.
+(Caveat — see §"What this does NOT prove": WebRadio did not actually play here; the at-`_play()` numbers
+CP1/CP2 were blocked by the Spotify 403 / fetch starvation, so the fork necessity is inferred from the
+budget, not measured at the point of truth.)
 
 ---
 
@@ -96,7 +101,7 @@ Pointer held in `s_mb_arena` (file-scope static, never freed). Probe lines emitt
 
 ### Key derived findings
 
-**lfbInt = 38,900 B < audio path ~33–41 K arena-bound need**
+**lfbInt = 38,900 B (general-heap largest free) < total audio path ~41 K — and a held block can't be used without the fork**
 
 The Phase 2 fork is **required, not optional**. With lfbInt = 38.9 K in the general heap:
 - Audio path if placed in general heap: would fail (lfbInt < total audio alloc ~41 K including DMA ring that is NOT in arena)
