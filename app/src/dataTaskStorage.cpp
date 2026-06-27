@@ -74,7 +74,13 @@ static bool               s_heatmapNew    = false;
 // 14 KB leaves a 5.4 KB / 60% margin and still sits above the historical 12 KB
 // overflow point (old non-streaming code, the reason for the original 12→20 bump).
 // Reclaims 6 KB of resident heap. Watermark queryable via `get stacks`.
+#ifdef WEBRADIO_ONLY
+// TASK-255 Lane A: WebRadio is the only fetcher (others compiled out), high-water
+// 8.9 KB (TASK-240) → trim to 11 KB; frees ~3 KB heap toward the no-PSRAM decoder.
+constexpr UBaseType_t kStackBytes  = 11 * 1024;
+#else
 constexpr UBaseType_t kStackBytes  = 14 * 1024;
+#endif
 constexpr UBaseType_t kPriority    = 1;
 constexpr BaseType_t  kPinnedCpu   = APP_CPU_NUM;
 
