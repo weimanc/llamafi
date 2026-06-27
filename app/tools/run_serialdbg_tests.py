@@ -143,6 +143,25 @@ class Dut:
         if not ip_seen:
             self.ser.timeout = orig_timeout
             raise RuntimeError("DUT WiFi not connected — check serial output")
+        # TASK-255 (M-WEBRADIO-NOPSRAM V0): variant-aware readiness. On the
+        # Spotify-disabled build there is no spotifyTask, so the first-poll wait
+        # below never completes (it would hang ~120 s). The shell is responsive once
+        # WiFi is up, so probe `get variant`; on spotify=off, skip the poll wait.
+        self.ser.reset_input_buffer()
+        self.ser.write(b"get variant\n"); self.ser.flush()
+        variant_off = False
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            line = self.ser.readline().decode(errors="replace").strip()
+            if '"var":"variant"' in line:
+                variant_off = '"spotify":"off"' in line
+                break
+        if variant_off:
+            time.sleep(0.5)
+            self.ser.timeout = orig_timeout
+            self.ser.reset_input_buffer()
+            print("  [Dut] DUT ready (spotify=off variant — poll wait skipped).", flush=True)
+            return
         # Wait for first successful Spotify poll (ok 200) AND queue fetch completion.
         # 60s window covers backoff after a failed startup poll.
         poll_ok = False
