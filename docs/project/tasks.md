@@ -3411,8 +3411,7 @@ This is **PART 1** of M-PLAYER-STATE (runtime toggle). **PART 2** (SPIFFS persis
 OQ4 + the user's settings request) is split out as **TASK-260**, designed in
 [M-PLAYER-STATE.md](../architecture/designs/M-PLAYER-STATE.md). Feature: `player-state-001`.
 
-**Priority:** P2 — UX fix + enabler for M-MEMBUDGET · **Status:** **PART 1 implemented (RAM-only) — DUT-verify
-pending** · **Opened:** 2026-06-27 · **Milestone:** M-PLAYER-STATE
+**Priority:** P2 — UX fix + enabler for M-MEMBUDGET · **Status:** **DONE — PART 1 implemented (RAM-only); DUT-verified 2026-06-27 (player slot restores WebRadio after app-switch PASS; crash during WDT/TASK-233 playback, not a regression)** · **Opened:** 2026-06-27 · **Milestone:** M-PLAYER-STATE
 **Owner:** Developer · **Deps:** none · **couples with** M-MEMBUDGET (the mutual-exclusion it formalises)
 · **Design:** M-PLAYER-STATE.md · **Follow-on:** TASK-260 (PART 2)
 · **Related:** TASK-242 (taskbar eject-only invariant), ADR-046 (Spotify dormant-stub bar)
