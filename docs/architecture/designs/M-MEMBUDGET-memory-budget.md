@@ -121,6 +121,12 @@ reduces to: can the system tolerate ~15 K net, and does a boot-reserved 40 K *in
 
 ## 3. Open questions raised against the inventory
 
+> **Design for Q2/Q3/Q4 is now worked out in
+> [M-RECLAIM-dynamic-resident](M-RECLAIM-dynamic-resident.md)** (mechanism: lifecycle-scope the three resident
+> consumers via the existing `App::init/resume/suspend` hooks; Q3 split into a light TLS-drop vs full
+> task-delete; Q4 owned by Stock app-lifetime to preserve its anti-fragmentation rationale). The summaries
+> below are retained as the originating rationale.
+
 ### Q2 — dataTask: not the OS; can it be dynamic?
 
 **Fact:** dataTask is *our* FreeRTOS task (`dataTaskStorage.cpp:992` `xTaskCreatePinnedToCore`), not part of
