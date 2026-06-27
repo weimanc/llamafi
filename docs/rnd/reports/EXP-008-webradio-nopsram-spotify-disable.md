@@ -79,6 +79,30 @@ as the real takeaway from the library investigation.
 unlikely to reduce decoder demand; a quick `sizeof` check would confirm before any effort. Demand-side
 relief is more likely from **bitrate-cap filtering** (already shipped, `bitrateMax`) than codec choice.
 
+## Part 4 — Lane A Step-0: component-derived prediction (NOT the bare-radio extrapolation)
+
+Per R&D B2 (round 3), the headless reclaim is **derived from our own component sizes** (ELF `.bss`/`.data`
+symbols on `cyd2usb_webradio`), not extrapolated from the 163 K bare example:
+
+| Reclaimable on a WebRadio+Settings headless strip | Bytes | Type |
+|---|---|---|
+| App objects (Aquarium 4836, Life 2672, Stock 1248, Teletext 1136, Matrix 300, Weather/Crypto/Clock/Spotify) | **10,309** | static (.bss/.data) |
+| dataTask non-WebRadio result structs (teletextState 1076, stockChart 460, heatmap 412, …) | **~2,297** | static |
+| dataTask stack trim (14 KB → ~11 KB WebRadio-only profile, TASK-240 high-water 8.9 KB) | **~3,000** | heap |
+| **Total reclaim** | **~15.6 KB** | — |
+
+Static reclaim enlarges the heap pool → raises `heapFree` at `_play()` 1:1. **Predicted headless
+`usable ≈ 21,076 + 15,600 ≈ 36,700 (~37 KB)`** (assuming the 38,900 dead-block holds — re-probe per R&D B3):
+- **(a) startup, 22.7 KB → CLEARS by ~14 KB → PASS predicted.**
+- **(b) underrun, decoder + 16 KB buffer ≈ 37 KB → right at the line → marginal; `setBufsize` sweep decides.**
+
+**This justifies implementing Lane A** (the full headless strip + dataTask trim) to get the *measured*
+confirmation — the derived number says startup is fixed with large margin and underruns are a coin-flip.
+**Implementation note (sidesteps VE's codegen/harness blocker):** do NOT edit `appRegistry.h` (keep the
+enum/codegen/`APP_SLOT`/`check_build` step-5 intact); `#ifdef WEBRADIO_ONLY` out the non-WebRadio **app
+objects** + g_apps[] entries + dataTask fetchers/structs/dispatch (with stub poll-fns so the apps still
+compile) + shrink the stack. WebRadio is the boot app; the harness drives it directly.
+
 ## Recommendation
 
 1. **Lane A (primary):** build a headless WebRadio-only variant (strip the registry to WebRadio +
