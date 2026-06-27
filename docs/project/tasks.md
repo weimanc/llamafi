@@ -3395,7 +3395,19 @@ mode of the player? — interacts with the taskbar-excludes-WebRadio invariant, 
 mode is persisted, what happens to the *other* mode's resources on toggle (stop vs keep-warm), and the
 boot-default mode.
 
-**Priority:** P2 — UX fix + enabler for M-MEMBUDGET · **Status:** **open — needs Architect design (couples
-with M-MEMBUDGET)** · **Opened:** 2026-06-27 · **Milestone:** M-PLAYER-STATE
-**Owner:** Architect (state model) → Developer (impl) · **Deps:** none to start; **couples with** M-MEMBUDGET
-design · **Related:** TASK-242 (taskbar eject-only invariant), ADR-046 (Spotify dormant-stub bar)
+**Implemented (RAM-only) 2026-06-27, build-gated — `run/check` 5/5 PASS, DUT-verification pending.** Minimal
+landing keeps the AppId topology unchanged (WebRadio stays its own eject-only AppId, OQ5 resolved the
+least-invasive way): added `g_lastPlayerMode` (`main.cpp`), tracked in `switchApp()` whenever the player
+enters Spotify or WebRadio, and a `resolvePlayerSlot()` redirect at the two taskbar gesture-end sites so the
+player slot restores the last mode instead of always Spotify. Eject already toggled both ways
+(Spotify→WebRadio at the eject handler; WebRadio→Spotify at `webRadioApp.h:309`); settings-back already
+restored correctly via `g_previousAppId` — so no change needed there. **Deferred:** settings-persistence of
+the mode across reboot (OQ4 — RAM-only resets to Spotify on boot).
+
+**DUT-verification owed (when DUT returns):** enter WebRadio via eject → switch to another taskbar app →
+tap the player slot → confirm it returns to WebRadio (not Spotify); and the inverse from Spotify.
+
+**Priority:** P2 — UX fix + enabler for M-MEMBUDGET · **Status:** **implemented (RAM-only) — DUT-verify
+pending** · **Opened:** 2026-06-27 · **Milestone:** M-PLAYER-STATE
+**Owner:** Developer · **Deps:** none · **couples with** M-MEMBUDGET (the mutual-exclusion it formalises)
+· **Related:** TASK-242 (taskbar eject-only invariant), ADR-046 (Spotify dormant-stub bar)

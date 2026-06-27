@@ -116,6 +116,11 @@ char clientSecret[200];
 
 AppId currentAppId = AppId::Spotify;
 static AppId g_previousAppId = AppId::Spotify;
+// TASK-259: the "player" is one slot with two modes {Spotify | WebRadio}. Eject
+// toggles the mode; this remembers the last-active one so returning to the player
+// from the taskbar restores it instead of always landing on Spotify. RAM-only
+// (resets to Spotify on boot — settings-persistence is OQ4, deferred).
+static AppId g_lastPlayerMode = AppId::Spotify;
 
 #ifdef TOUCH_DEBUG_OVERLAY
 #include "debug/touchDebugOverlay.h"
@@ -1759,6 +1764,13 @@ void setBusy(bool busy) {
 }
 }
 
+// TASK-259: the taskbar "player" slot (AppId::Spotify) restores whichever player
+// mode (Spotify | WebRadio) was last active. WebRadio is eject-only / excluded
+// from the taskbar, so a taskbar tap can only ever surface AppId::Spotify here.
+static AppId resolvePlayerSlot(AppId tapped) {
+  return (tapped == AppId::Spotify) ? g_lastPlayerMode : tapped;
+}
+
 void switchApp(AppId next) {
   if (next == currentAppId) return;
 #ifdef SERIAL_DEBUG
@@ -1773,6 +1785,8 @@ void switchApp(AppId next) {
   tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK);
   if (next == AppId::Settings) g_previousAppId = currentAppId;
   currentAppId = next;
+  // TASK-259: track the last-active player mode for the taskbar player-slot restore.
+  if (next == AppId::Spotify || next == AppId::WebRadio) g_lastPlayerMode = next;
   if (g_apps[(int)next]) {
     if (!g_appLaunched[(int)next]) {
       g_appLaunched[(int)next] = true;
@@ -1847,8 +1861,10 @@ void appHandleInput(AppId) {
 #endif
     ) {
       int appIdx = (int)currentAppId;
-      if (winampDisplay.tbGestureEnd(s_lastTouchY, TASKBAR_APP_COUNT, &appIdx))
-        if (appIdx != (int)currentAppId) switchApp(static_cast<AppId>(appIdx));
+      if (winampDisplay.tbGestureEnd(s_lastTouchY, TASKBAR_APP_COUNT, &appIdx)) {
+        AppId target = resolvePlayerSlot(static_cast<AppId>(appIdx));  // TASK-259
+        if (target != currentAppId) switchApp(target);
+      }
       s_cooldownMs = millis() + 300;
     } else if (s_inGesture) {
       s_inGesture = false;
@@ -2198,8 +2214,10 @@ static inline void drainInjectionQueue() {
     if (winampDisplay.tbIsDragging()) {
       // Taskbar drag release: end gesture (scroll path — y unused for non-tap).
       int appIdx = (int)currentAppId;
-      if (winampDisplay.tbGestureEnd(s_lastTouchY, TASKBAR_APP_COUNT, &appIdx))
-        if (appIdx != (int)currentAppId) switchApp(static_cast<AppId>(appIdx));
+      if (winampDisplay.tbGestureEnd(s_lastTouchY, TASKBAR_APP_COUNT, &appIdx)) {
+        AppId target = resolvePlayerSlot(static_cast<AppId>(appIdx));  // TASK-259
+        if (target != currentAppId) switchApp(target);
+      }
       renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
                 false, shell::activeError(), shell::activeConnecting());
     } else {
