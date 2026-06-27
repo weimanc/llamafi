@@ -1444,3 +1444,75 @@ features:
       ADR-029 (cleartext-media transport accepted; http-only stations), ADR-045 (best-effort).
       Tests live in docs/verification (T_WR_* suite; playback-dependent ones gated on Premium /
       a no-PSRAM playback fix — TASK-243/233). Eject toggle is shared with player-state-001 (X024).
+
+  - id: app-registry-001
+    name: App registry + AppId/dispatch codegen (X-macro)
+    milestone: M-MULTIAPP
+    status: implemented
+    description: |
+      Backfill entry (referenced as a cross-feature by many app rows + the matrix without its own
+      definition). The canonical app list is app/src/appRegistry.h — one APP_X(Name, icon,
+      configurable) row per app; comment a row out to disable that app at build time. The X-macro
+      expands in appShell.h (enum class AppId { ... , COUNT }) and main.cpp (the g_apps[] dispatch
+      array), so adding/removing an app is a single-line registry edit. Column 3 (configurable, 1 =
+      appears in Settings > Applications) drives the codegen of app/src/gen/configurable_apps.h via
+      app/tools/gen_app_registry.py (also app/tools/app_ids_gen.py). check_build.sh step [5/5]
+      regenerates and diffs the output — any staleness fails the build, so an appRegistry.h edit
+      MUST be followed by re-running the codegen and committing the result. Invariants: WebRadio is
+      the LAST AppId and configurable=0 (eject-only, taskbar-excluded — TASK-242/LL-085). New apps
+      follow docs/architecture/designs/NEW-APP-CHECKLIST.md.
+    files:
+      - app/src/appRegistry.h
+      - app/src/appShell.h
+      - app/src/main.cpp
+      - app/tools/gen_app_registry.py
+      - app/tools/app_ids_gen.py
+      - app/src/gen/configurable_apps.h
+      - check_build.sh
+      - docs/architecture/designs/NEW-APP-CHECKLIST.md
+    cross_features:
+      - taskbar-001
+      - app-interface-001
+    test_ids: []
+    dependencies:
+      - app-interface-001
+    notes: |
+      Backfilled 2026-06-27 (was referenced by teletext-001, webradio-001, taskbar-icons-001,
+      app-error-signal-001, player-state-001 + matrix X018/X019/X023 without a definition). Part of
+      M-MULTIAPP (the app-shell milestone). The [5/5] codegen-staleness gate is the load-bearing
+      enforcement — it's why player-state-001 PART 2 (flipping Spotify configurable 0->1) must
+      regenerate configurable_apps.h. No standalone tests; exercised indirectly by every app row.
+
+  - id: data-task-001
+    name: dataTask — shared async HTTP/TLS fetch task (Core 0)
+    milestone: M-DATATASK
+    status: implemented
+    description: |
+      Backfill entry (referenced widely as a cross-feature without its own definition). A single
+      FreeRTOS task (xTaskCreatePinnedToCore, kPinnedCpu = APP_CPU_NUM) that owns all network
+      data-fetching off the UI core, fronted by a depth-4 request queue. API (dataTask.h):
+      enqueue()/enqueueStockChart/enqueueHeatmapQuote/enqueueStockChartBySym/enqueueTeletextPage/
+      enqueueWebRadioStations + poll*() result accessors (non-blocking, app polls in tick()).
+      Fetchers in dataTaskStorage.cpp: weather, crypto, stock quote/chart, heatmap, teletext,
+      webradio stations. TLS uses pinned roots (dataTaskCerts.h, setCACert per endpoint). On
+      no-PSRAM the TLS heap is shared with spotifyTask: dataTask brackets each fetch with
+      spotifyTask::tlsYield()/tlsResume() (BP-031, every exit path) to serialize the ~contiguous
+      TLS allocation. Stack 11 KB (WEBRADIO_ONLY) / 14 KB (full build).
+    files:
+      - app/src/dataTask.h
+      - app/src/dataTaskStorage.cpp
+      - app/src/dataTaskCerts.h
+    cross_features:
+      - app-interface-001
+      - app-registry-001
+    test_ids: []
+    dependencies:
+      - app-interface-001
+    notes: |
+      Backfilled 2026-06-27 (referenced by teletext-001, webradio-001, app-error-signal-001 +
+      matrix X021 without a definition). Design: docs/architecture/designs/M-DATATASK-PROGRESS.md.
+      Recent work: TASK-249 (multi-symbol spark endpoint, 8 GETs -> 1), TASK-250 (coalesce
+      duplicate dataTask fetches), TASK-248 (runtime log-volume control + multi-app fetch
+      stress/soak harness). The shared tlsYield is also the no-PSRAM contention point — a Spotify
+      403 starves every fetcher via it (project memory: tlsYield starvation; fixed by TASK-244's
+      hard-backoff). data-task-001's resident stack is M-MEMBUDGET's Q2 dynamic-reclaim candidate.
