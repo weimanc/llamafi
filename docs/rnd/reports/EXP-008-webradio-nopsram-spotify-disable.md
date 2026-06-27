@@ -53,6 +53,32 @@ same silicon — the ~100 KB gap is *our resident footprint*, not the hardware.
 untested. AAC's decoder memory profile vs Helix MP3's ~22.7 KB is worth measuring — could cut the
 *demand* side.
 
+## Part 3 — Lane C-1 result (library version A/B): NOT the lever
+
+Attempted the v2.3.0 → v2.0.6 A/B (branch-only `lib_deps` override). **Result: blocked + reasoned-out as
+a dead end** (no RAM measurement needed):
+
+1. **v2.0.6 is not a drop-in swap.** It predates the `AUDIO_NO_SD_FS` option and **hard-`#include`s
+   `SD_MMC.h`** (`Audio.h:29`), which our build `lib_ignore`s → `fatal error: SD_MMC.h: No such file`.
+   The `#2.0.6` ref also mis-resolved (`2.0.0+sha.ed150bd`). Using it would mean un-ignoring SD_MMC
+   (adds RAM/flash → confounds the very measurement) or patching the old library — not "hours."
+2. **The Helix MP3 decoder is version-independent.** ESP32-audioI2S *vendors* the decoder
+   (`src/mp3_decoder/`, `aac_decoder/`, `flac_decoder/`); its ~22.7 KB demand (EXP-007 `sizeof`) does not
+   change with the audioI2S wrapper version. A library swap cannot shrink the decoder's allocation.
+3. **We don't have the problem v2.0.6 solves.** "v2.0.6 = last no-PSRAM version" refers to avoiding
+   v3.x's unconditional **704 KB boot alloc**. Our v2.3.0 **already boots fine** on no-PSRAM and fails
+   only at decoder-alloc — i.e. we are *past* the boot-alloc issue. The version difference is boot
+   behaviour, not decoder footprint.
+
+**Conclusion: the library version is not the RAM lever for our case.** The lever is our resident
+**footprint** (Lane A — and specifically the `dataTask` 14 KB stack + result structs, per the round-3
+Developer review), not the audio library. The pinned-dependency note (do-not-bump-to-v3.x) is retained
+as the real takeaway from the library investigation.
+
+*Lane C-2 (AAC) caveat:* Helix AAC is generally **larger**, not smaller, than Helix MP3 — so AAC is
+unlikely to reduce decoder demand; a quick `sizeof` check would confirm before any effort. Demand-side
+relief is more likely from **bitrate-cap filtering** (already shipped, `bitrateMax`) than codec choice.
+
 ## Recommendation
 
 1. **Lane A (primary):** build a headless WebRadio-only variant (strip the registry to WebRadio +
