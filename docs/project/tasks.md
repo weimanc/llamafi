@@ -11,8 +11,11 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 > passed a 3-agent panel review **unanimous PROCEED-WITH-NITS** — the review caught a real allocator
 > correctness bug (bump→free-list, 2→3 fork sites; `c11b87f`) before any code. Process lesson LL-089
 > ("design outrunning the product decision") filed; M-RECLAIM Q3-b/Q2 capped at sketch depth until the gate.
-> **TASK-259/260 (player mode) proceed regardless** of the WebRadio direction. DUT still unavailable — the
-> spike + the TASK-259 round-trip verify are queued for its return.
+> **TASK-259/260 (player mode) proceed regardless** of the WebRadio direction. **Update:** a parallel session
+> DUT-verified TASK-259 PART 1 (`13f701d` — player slot restores WebRadio after app-switch PASS; a WDT crash
+> *during playback* is pre-existing TASK-233, not a regression). So the DUT was available; confirm the window
+> before scheduling the TASK-261 spike. The playback WDT crash is the same TASK-233 wall the spike's Phase 2
+> targets — a useful datapoint for it.
 >
 > **PM sync 2026-06-27 (bottom-up bare-rig settles the hardware question)** — Pivoted the no-PSRAM
 > viability question from top-down strip (TASK-255) to a bottom-up bare control (TASK-258 → EXP-009).
@@ -3478,8 +3481,9 @@ the Phase-1 kill-gate**. Plan: [PROP-membudget-spike](../rnd/proposals/PROP-memb
 Q3-a/Q4 become tasks. **BP-042 check:** confirm the *project* `platformio.ini` audio-dep pin carries the
 why-not-newer note before Phase 2 vendors the lib.
 
-**Priority:** P1 — settles the M-WEBRADIO no-PSRAM viability question · **Status:** **scheduled — DUT-blocked**
-(DUT unavailable; Phase-0 instrumentation can land offline meanwhile) · **Opened:** 2026-06-27
+**Priority:** P1 — settles the M-WEBRADIO no-PSRAM viability question · **Status:** **scheduled — needs a DUT
+window** (DUT was available 2026-06-27 for the TASK-259 verify; confirm availability before Phase 1. Phase-0
+instrumentation can land offline meanwhile) · **Opened:** 2026-06-27
 **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget` · **Experiment:** EXP-010 · **Owner:** R&D →
 Developer (Phase 2) · **Deps:** none to start; **decision:** ADR-047 · **Cleanup:** TASK-262
 

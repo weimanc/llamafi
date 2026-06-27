@@ -1,7 +1,7 @@
 # M-PLAYER-STATE — Player mode as persisted, user-editable state
 
 > Owner: Architect · Status: **DESIGN** · 2026-06-27
-> Scope: TASK-259 (runtime mode toggle — **implemented, RAM-only, DUT-verify pending**) + this design's
+> Scope: TASK-259 (runtime mode toggle — **implemented, RAM-only, DUT-verified 2026-06-27**) + this design's
 > additions: **SPIFFS persistence** + a **Settings → Applications → Player** toggle to show/edit it (OQ4).
 > Couples: M-MEMBUDGET (mode mutual-exclusion the budget leans on). Feature: `player-state-001`.
 
@@ -122,6 +122,6 @@ should the device **cold-boot into WebRadio**?
 
 ## 10. Links
 
-TASK-259 (runtime toggle, implemented/DUT-verify-pending — `a825521`) · M-MEMBUDGET §2c/4a · `settings-001`
+TASK-259 (runtime toggle, DUT-verified 2026-06-27 — `a825521`) · M-MEMBUDGET §2c/4a · `settings-001`
 (SettingsApp + SPIFFS) · `taskbar-001` (app-shell dispatch / `switchApp`) · `app-interface-001`
 (init/resume/suspend) · ADR-046 (Spotify dormant-stub bar) · NEW-APP-CHECKLIST (codegen-staleness gate).

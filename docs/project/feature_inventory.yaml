@@ -1371,8 +1371,8 @@ features:
       - taskbar-001
       - settings-001
     notes: |
-      Design: docs/architecture/designs/M-PLAYER-STATE.md. PART 1 = TASK-259 (done, RAM-only,
-      DUT-verify pending). PART 2 (persistence + settings UI) is OQ4 + the user's settings-toggle
+      Design: docs/architecture/designs/M-PLAYER-STATE.md. PART 1 = TASK-259 (DONE, DUT-verified 2026-06-27,
+      DUT-verified). PART 2 (persistence + settings UI) is OQ4 + the user's settings-toggle
       request — designed, awaiting implementation. Open: OQ-LABEL (show "Spotify" vs a "Player"
       display-name codegen column), OQ-BOOT (cold-boot-into-mode v2, deferred), OQ-WEAR
       (immediate-save w/ unchanged-skip — chosen). Couples M-MEMBUDGET (the mode mutual-exclusion

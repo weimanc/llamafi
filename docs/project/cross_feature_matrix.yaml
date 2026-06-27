@@ -400,7 +400,7 @@ interactions:
     test_coverage: []
     notes: |
       PART 1 implemented TASK-259 (a825521). Both wired at the two taskbar gesture-end sites
-      (touch + serial-driven). DUT-verify owed: eject→other app→player slot returns to WebRadio.
+      (touch + serial-driven). DUT-VERIFIED 2026-06-27 (13f701d): eject→other app→player slot returns to WebRadio PASS.
 
   - id: X023
     feature_a: player-state-001
