@@ -18,6 +18,7 @@
 #ifdef MEMBUDGET_PHASE1
 
 #include <Arduino.h>  // log_e
+#include "esp_heap_caps.h"  // TASK-267: heap_caps_malloc/free + largest-free-block
 
 #define MB_ARENA_MAX_SLOTS 16
 
@@ -43,6 +44,34 @@ void mb_arena_init(void* buf, size_t size) {
     memset(s_slots, 0, sizeof(s_slots));
     Serial.printf("[membudget] arena init base=%p cap=%u\n", buf, (unsigned)size);
 }
+
+// TASK-267 / ADR-047 Amendment 1: the arena block is owned here and acquired at
+// _play() (not boot), so the station-fetch TLS is not starved. heap_caps_free on
+// release. The Helix decoder is freed (via mb_arena_free) before release happens
+// (WebRadioApp::suspend() deletes the Audio object first), so no dangling slots.
+static void* s_owned = nullptr;
+
+bool mb_arena_acquire(void) {
+    if (s_owned) return true;  // idempotent — already held this session
+    size_t lfb = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+    s_owned = heap_caps_malloc(MB_ARENA_BYTES, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    Serial.printf("[membudget] TASK-267 arena acquire=%uB lfbBefore=%u %s\n",
+        (unsigned)MB_ARENA_BYTES, (unsigned)lfb, s_owned ? "OK" : "FAIL→libc-fallback");
+    if (!s_owned) return false;  // mb_arena_alloc falls back to libc (best-effort)
+    mb_arena_init(s_owned, MB_ARENA_BYTES);
+    return true;
+}
+
+void mb_arena_release(void) {
+    if (!s_owned) return;
+    heap_caps_free(s_owned);
+    s_owned = nullptr;
+    s_base = nullptr; s_cap = 0; s_bump = 0; s_hwm = 0; s_nslots = 0;
+    memset(s_slots, 0, sizeof(s_slots));
+    Serial.println("[membudget] TASK-267 arena released");
+}
+
+bool mb_arena_active(void) { return s_base != nullptr; }
 
 void* mb_arena_alloc(size_t size) {
     if (!s_base) {

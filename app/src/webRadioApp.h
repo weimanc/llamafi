@@ -188,6 +188,17 @@ public:
 
     void suspend() override {
         _stopAudio();
+#ifdef MEMBUDGET_PHASE1
+        // TASK-267: release the JIT arena when leaving WebRadio so the next entry's
+        // station fetch has full heap. Destroy the Audio object FIRST — its decoder
+        // buffers live in the arena, so they must be freed (via ~Audio → mb_arena_free,
+        // while the arena is still valid) before we free the backing block. Safe even
+        // if ~Audio doesn't free them: release frees the whole block and nothing
+        // references the arena afterwards (Audio is gone; a fresh one is built on
+        // re-entry). Gated to MEMBUDGET_PHASE1 so production behaviour is unchanged.
+        if (s_wr_audio) { delete s_wr_audio; s_wr_audio = nullptr; }
+        mb_arena_release();
+#endif
     }
 
     void tick() override {
@@ -699,6 +710,15 @@ private:
         esp_task_wdt_reset();
 
 #ifdef MEMBUDGET_PHASE1
+        // TASK-267 / ADR-047 Amd 1: acquire the arena HERE (JIT, after the overlay
+        // freed Spotify + before the decoder allocs), NOT at boot — so the station
+        // fetch ran with full heap. The probe is the validation metric: does 24 K
+        // contiguous survive to _play()? (≥3 trials; PASS = acquire OK + plays.)
+        Serial.printf("[membudget] TASK-267 _play pre-acquire lfbInt=%u freeInt=%u\n",
+            (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+            (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+        bool arenaOk = mb_arena_acquire();   // idempotent; on FAIL → libc fallback
+        (void)arenaOk;
         if (!s_wr_audio) {
             Serial.printf("[membudget] CP0-pre-audio-init freeDma=%u lfbDma=%u\n",
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),

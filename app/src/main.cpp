@@ -187,24 +187,12 @@ static void mb_heap_probe(const char *tag) {
         (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
         (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
 }
-// Phase 1+2: reserve a contiguous MALLOC_CAP_INTERNAL block at the earliest point
-// in setup() then hand it to the Phase 2 arena allocator.
-static void* s_mb_arena = nullptr;
-static constexpr size_t MB_ARENA_BYTES = 24 * 1024;  // Helix-only: 23,216 B + slack
-static void mb_arena_reserve() {
-    size_t lfb = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-    s_mb_arena = heap_caps_malloc(MB_ARENA_BYTES, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    Serial.printf("[membudget] Phase1-reserve arena=%uB ptr=%p lfbBefore=%u %s\n",
-        (unsigned)MB_ARENA_BYTES, s_mb_arena, (unsigned)lfb,
-        s_mb_arena ? "OK" : "FAIL");
-    if (s_mb_arena) {
-        // Phase 2: initialise the free-list arena for the 3-site fork.
-        mb_arena_init(s_mb_arena, MB_ARENA_BYTES);
-    }
-}
+// TASK-267 / ADR-047 Amendment 1: the arena is NO LONGER reserved at boot — it is
+// acquired JIT in WebRadioApp::_play() and released in ::suspend() (see mb_arena.*),
+// so the station-fetch TLS (~40 K) is not starved (TASK-265 finding). The boot
+// caps-split probes below stay (Phase-0 baseline), but no block is held at boot.
 #else
 static inline void mb_heap_probe(const char *) {}   // no-op in production
-static inline void mb_arena_reserve() {}            // no-op in production — NO 40 K hold
 #endif
 
 // ── App dispatch (M-MULTIAPP, TASK-087c/d) ─────────────────────────────
@@ -1949,11 +1937,9 @@ void setup()
 
   Serial.begin(115200);
 
-  // TASK-261 Phase 1 kill-gate: reserve INTERNAL arena at the earliest boot point,
-  // before WiFi/TLS/task-stack allocations fragment the heap. Held forever.
-  mb_heap_probe("pre-reserve");   // baseline before reservation
-  mb_arena_reserve();             // allocate the 40 K hole
-  mb_heap_probe("post-reserve");  // confirm reservation effect
+  // TASK-267: arena is acquired JIT in WebRadioApp::_play(), NOT at boot (so the
+  // station fetch isn't starved — TASK-265). Keep one boot baseline probe.
+  mb_heap_probe("boot-baseline");
 
   // serialdbg-001 (TASK-056b): unconditional boot banner. Carved out of the
   // SERIAL_DEBUG gate per ADR-021 Decision 4 as a production-safe diagnostic
