@@ -3644,11 +3644,21 @@ the fetch window** (fetch always precedes play) and re-acquire — faces the sam
 question; (c) **reduce the fetch's mbedtls buffers** (the station GET is tiny JSON — it doesn't need 16 K TLS
 records; `MBEDTLS_SSL_IN/OUT_CONTENT_LEN` ↓ saves ~24 K) so fetch + arena coexist — but mbedtls config is
 global (affects Spotify/audio TLS), assess blast radius; (d) fetch-before-reserve at boot with a cached list.
-**DoD:** an ADR-047 amendment / short design doc picking the approach with the measurement that backs it, then
-implement + DUT-verify fetch→play with the arena.
-**Priority:** P1 — promotion blocker · **Status:** **open — Architect design** · **Opened:** 2026-06-28
-**Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget` · **Owner:** Architect → Developer
-· **Deps:** TASK-265 (finding), couples TASK-264 (overlay) · **Gates:** TASK-262 (promotion)
+**DESIGN DECIDED (2026-06-28) — ADR-047 Amendment 1: Option (a), JIT-reserve at `_play()`.** The fetch
+(`init()`) and the decoder arena (`_play()`) are sequential + disjoint, so:
+- **Move `mb_arena_reserve()` from `setup()` → the top of `_play()`** (before the `Audio` construct /
+  decoder alloc); **`mb_arena_free()` in `_stopAudio()`/stop** so the arena is held only during playback.
+  `mb_arena_init()` follows a successful reserve; on a *failed* reserve, leave the arena null →
+  `mb_arena_alloc` already falls back to libc (`mb_arena.h`) → best-effort, never a crash.
+- The fetch at `init()` now runs with no arena held → ~55 K contiguous → SSL succeeds.
+- TASK-264's overlay (Spotify torn down on WebRadio entry) makes the heap fresh at `_play()`.
+**Measurement (the validation that retires the fragmentation risk):** add an `lfbInt` probe right before the
+`_play()` reserve; ≥ 3 cold-boot trials × (enter WebRadio → fetch count>0 → play) on `cyd2usb_webradio`.
+**PASS = fetch succeeds AND JIT reserve succeeds (`lfbInt ≥ 24 K`, arena non-null) AND playback holds.** FAIL →
+fall back to option (c) (scoped mbedtls reduction) or a smaller arena (re-open ADR-047 Amendment 1).
+**Priority:** P1 — promotion blocker · **Status:** **designed (ADR-047 Amd 1) — ready to implement + DUT-verify**
+· **Opened:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget` · **Owner:**
+Developer · **Deps:** TASK-265 (finding), TASK-264 (overlay, done) · **Gates:** TASK-262 (promotion)
 
 ---
 
