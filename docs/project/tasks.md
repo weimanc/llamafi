@@ -3534,9 +3534,12 @@ validation) green, TASK-264 (M-RECLAIM Q3-a overlay) green, TASK-265 (live fetch
 (Premium) cleared** for the Spotify-active coexistence validation. Until all green, the fork stays branch-only.
 **Priority:** P2 — promotion gate · **Status:** **blocked — gated ONLY on TASK-243 (Premium)** — all design/
 engineering de-risk complete: TASK-263 (halved DMA) ✅, TASK-264 (overlay Q3-a) ✅, TASK-265 (fetch finding)
-✅, **TASK-267 (fetch-vs-arena fix) DUT-verified PASS 2026-06-28** ✅. Remaining for promotion: TASK-243
-(Premium) clears → validate Spotify-active coexistence on the multi-app build, then merge `rnd/membudget` →
-master + ungate `MEMBUDGET_PHASE1` for production (+ dedup `ef8e32c`, land the dead-mirror fix on master) · **Opened:** 2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:**
+✅, **TASK-267 (fetch-vs-arena fix) DUT-verified PASS 2026-06-28** ✅. **Mainlined 2026-06-28 (`adeab7c`)** — `rnd/membudget` merged to master with A-lite **gated**
+(`MEMBUDGET_PHASE1`); production `cyd2usb_winamp` byte-clean (count 0), `run/check` 5/5. The dead-mirror fix +
+TASK-259 player-mode + all records are now on master; the `ef8e32c` divergence + a doubled-`#ifdef` auto-merge
+artifact were resolved. **Remaining for promotion (the only un-done step):** TASK-243 (Premium) clears →
+validate Spotify-active coexistence on the full multi-app build → **ungate `MEMBUDGET_PHASE1` for production**
+(flip it on in `cyd2usb_winamp`). Not pushed to remote yet. · **Opened:** 2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:**
 Developer/PM · **Deps:** TASK-261 (done), ~~TASK-263~~, ~~TASK-264~~, ~~TASK-265 (done→TASK-267)~~,
 **TASK-267**, TASK-243
 
