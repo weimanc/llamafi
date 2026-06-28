@@ -633,11 +633,16 @@ static portMUX_TYPE           s_pendingCountryMux   = portMUX_INITIALIZER_UNLOCK
 // playback. Freeing before the audio path's first alloc is the whole point.
 static constexpr size_t WR_DOC_CAP = 5120;
 
-static const char* kRadioBrowserMirrors[3] = {
+// TASK-265 (2026-06-28): nl1/at1 are decommissioned (no DNS records); de1 + the
+// all.api round-robin alias both resolve to IPv4 (91.98.4.78) and verify against
+// the pinned ISRG Root X1, so an IPv4-only ESP32 can reach them. Keeping the two
+// live hosts. (Production fix — also belongs on master, not just the arena branch.)
+static const char* kRadioBrowserMirrors[] = {
     "de1.api.radio-browser.info",
-    "nl1.api.radio-browser.info",
-    "at1.api.radio-browser.info",
+    "all.api.radio-browser.info",
 };
+static constexpr int WR_MIRROR_COUNT =
+    (int)(sizeof(kRadioBrowserMirrors) / sizeof(kRadioBrowserMirrors[0]));
 
 static void fetchHeatmapQuote() {
     // TASK-131: stop Spotify's TLS connection before allocating our own.
@@ -906,7 +911,7 @@ static void fetchWebRadioStations() {
     // any _play(). Not held resident across playback.
     {
     DynamicJsonDocument webRadioDoc(WR_DOC_CAP);
-    for (int mi = 0; mi < 3; mi++) {
+    for (int mi = 0; mi < WR_MIRROR_COUNT; mi++) {
         const char* mirror = kRadioBrowserMirrors[mi];
 
         // Page through the votes-ordered list on this mirror, accumulating only

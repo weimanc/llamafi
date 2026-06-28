@@ -164,12 +164,19 @@ SpotifyDisplay *spotifyDisplay = &matrixDisplay;
 
 // ── TASK-261 Phase 0/1 spike instrumentation (caps-split probe + 40 K arena) ──
 // GATED on MEMBUDGET_PHASE1 (defined ONLY in the cyd2usb_winamp_debug env, NOT in
-// production cyd2usb_winamp). The arena reservation permanently holds 40 K and must
-// NOT ship — it is a measurement artefact until the Phase 2 fork lands. When the
+// production cyd2usb_winamp). The arena reservation permanently holds MB_ARENA_BYTES and
+// must NOT ship — it is a measurement artefact until Phase 2 fork lands. When the
 // flag is undefined the helpers are no-ops, so the boot call sites compile clean
 // in production with zero runtime cost. (BP-041/TASK-262: spike code is debug-only
 // until a Phase-2 PASS promotes it.)
+//
+// Size rationale (TASK-261 Phase 2 DUT finding): 40 K exhausted DMA pool on first
+// connecttohost() — i2s_alloc_dma_buffer failed (16 DMA bufs × 512 B = 8 K needed).
+// Reduced to 24 K: covers Helix-only (9 structs, 23,216 B aligned) with 1.4 K slack;
+// InBuff (6.4 K) reverted to regular calloc (allocated once per session — no churn).
 #ifdef MEMBUDGET_PHASE1
+// Phase 2: arena allocator header (3-site fork in vendored ESP32-audioI2S).
+#include "mb_arena.h"
 // T_MB_PROBE_00: caps-split heap probe — fires at boot milestones so the DUT log
 // captures them without needing a serial command.
 static void mb_heap_probe(const char *tag) {
@@ -180,21 +187,12 @@ static void mb_heap_probe(const char *tag) {
         (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
         (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
 }
-// Phase 1: reserve a contiguous MALLOC_CAP_INTERNAL block at the earliest point in
-// setup() (before WiFi/TLS/task-stacks fragment the heap). ~40 K = InBuff (~8 K) +
-// Helix (~22.7 K) + slack. Held forever — the feasibility gate.
-static void* s_mb_arena = nullptr;
-static constexpr size_t MB_ARENA_BYTES = 40 * 1024;
-static void mb_arena_reserve() {
-    size_t lfb = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-    s_mb_arena = heap_caps_malloc(MB_ARENA_BYTES, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    Serial.printf("[membudget] Phase1-reserve arena=%uB ptr=%p lfbBefore=%u %s\n",
-        (unsigned)MB_ARENA_BYTES, s_mb_arena, (unsigned)lfb,
-        s_mb_arena ? "OK" : "FAIL");
-}
+// TASK-267 / ADR-047 Amendment 1: the arena is NO LONGER reserved at boot — it is
+// acquired JIT in WebRadioApp::_play() and released in ::suspend() (see mb_arena.*),
+// so the station-fetch TLS (~40 K) is not starved (TASK-265 finding). The boot
+// caps-split probes below stay (Phase-0 baseline), but no block is held at boot.
 #else
 static inline void mb_heap_probe(const char *) {}   // no-op in production
-static inline void mb_arena_reserve() {}            // no-op in production — NO 40 K hold
 #endif
 
 // ── App dispatch (M-MULTIAPP, TASK-087c/d) ─────────────────────────────
@@ -1823,6 +1821,11 @@ void switchApp(AppId next) {
   currentAppId = next;
   // TASK-259: track the last-active player mode for the taskbar player-slot restore.
   if (next == AppId::Spotify || next == AppId::WebRadio) g_lastPlayerMode = next;
+  // TASK-264 (Q3-a): drop Spotify TLS when WebRadio is active (reclaims ~50 K arena).
+  // Non-blocking — setWebRadioActive() only sets flags, never calls tlsYield().
+#ifndef DISABLE_SPOTIFY
+  spotifyTask::setWebRadioActive(next == AppId::WebRadio);
+#endif
   if (g_apps[(int)next]) {
     if (!g_appLaunched[(int)next]) {
       g_appLaunched[(int)next] = true;
@@ -1934,11 +1937,9 @@ void setup()
 
   Serial.begin(115200);
 
-  // TASK-261 Phase 1 kill-gate: reserve INTERNAL arena at the earliest boot point,
-  // before WiFi/TLS/task-stack allocations fragment the heap. Held forever.
-  mb_heap_probe("pre-reserve");   // baseline before reservation
-  mb_arena_reserve();             // allocate the 40 K hole
-  mb_heap_probe("post-reserve");  // confirm reservation effect
+  // TASK-267: arena is acquired JIT in WebRadioApp::_play(), NOT at boot (so the
+  // station fetch isn't starved — TASK-265). Keep one boot baseline probe.
+  mb_heap_probe("boot-baseline");
 
   // serialdbg-001 (TASK-056b): unconditional boot banner. Carved out of the
   // SERIAL_DEBUG gate per ADR-021 Decision 4 as a production-safe diagnostic
@@ -2301,7 +2302,7 @@ static inline void drainInjectionQueue() {
 }
 
 static void handleSerialCommands() {
-  static char buf[64];
+  static char buf[160];  // widened: 64 was too small for long-URL commands (wrUrl, wrDeadUrls)
   static int  len = 0;
   while (Serial.available()) {
     char c = (char)Serial.read();
@@ -2685,8 +2686,8 @@ static void cmdGet(const char *args) {
 }
 
 static void cmdSet(const char *args) {
-  char var[32], val[32];
-  if (sscanf(args, "%31s %31s", var, val) != 2) {
+  char var[32], val[128];  // val widened to 128 to accommodate wrUrl (104-byte station URLs)
+  if (sscanf(args, "%31s %127s", var, val) != 2) {
     Serial.println("{\"ok\":false,\"cmd\":\"set\",\"error\":\"bad args\"}");
     return;
   }

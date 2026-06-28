@@ -145,6 +145,13 @@ bool connecting();
 // backoff counter so the recovery poll fires immediately.
 void resetTls();
 
+// TASK-264 (Q3-a): notify the task that WebRadio is now the active player.
+// active == true: drops TLS connection (via s_resetTlsPending) and idles
+//   until cleared — reclaims the ~50 K TLS working set for the WebRadio arena.
+// active == false: resumes normal poll/reconnect on the next iteration.
+// Non-blocking — safe to call from the Arduino loop task.
+void setWebRadioActive(bool active);
+
 // TASK-240: stack instrumentation — minimum free stack ever (watermark) + size.
 size_t stackHighWaterBytes();
 size_t stackSizeBytes();

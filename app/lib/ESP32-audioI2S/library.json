@@ -1,0 +1,7 @@
+{
+  "name": "ESP32-audioI2S",
+  "version": "2.3.0",
+  "description": "ESP32-audioI2S vendored v2.3.0 (esphome fork) — TASK-261 Phase 2 fork. DO NOT bump: v3.x allocates ~704 KB at boot, crashing no-PSRAM CYD. See EXP-008/EXP-009/BP-042.",
+  "frameworks": "arduino",
+  "platforms": "espressif32"
+}

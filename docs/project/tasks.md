@@ -4,6 +4,16 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
+> **PM sync 2026-06-28 (A-lite PROVEN — spike all-phases PASS)** — TASK-261 Phase 0/1/2 all PASS
+> (EXP-010, branch `rnd/membudget`): the no-PSRAM CYD plays MP3 WebRadio on the multi-app build with the
+> Helix decoder forked into a 24 K free-list arena (88/103/129.7 s × 3 trials, churn-safe, production ELF
+> byte-clean). **The M-WEBRADIO no-PSRAM viability question — open since the start of the milestone — is
+> answered: YES, via the reserved-arena fork.** ADR-047's kill-gate cleared. **Open decision: production
+> promotion (TASK-262/human)** — gated on M-RECLAIM Q3-a (Spotify overlay), validation of the halved I2S DMA
+> (PATCH-MEMBUDGET-4) at higher bitrate, live station-fetch, and Spotify-active (TASK-243 Premium). The fork
+> stays branch-only (BP-040) until that decision. Process note: 3 fresh-agent spike runs (Phase 0/1, Phase 2)
+> each stopped at their gate for human review — the cheap-kill-first discipline (LL-087) held end-to-end.
+>
 > **PM sync 2026-06-27b (direction decided + design batch panel-reviewed)** — Human chose **Gated A-lite**
 > for no-PSRAM WebRadio (ADR-047 ACCEPTED): pursue the reserved-arena coexistence **conditional on the spike's
 > Phase-1 kill-gate**. Filed **TASK-261** (spike, DUT-blocked; Phase-0 instrumentation can land offline) +
@@ -3481,11 +3491,30 @@ the Phase-1 kill-gate**. Plan: [PROP-membudget-spike](../rnd/proposals/PROP-memb
 Q3-a/Q4 become tasks. **BP-042 check:** confirm the *project* `platformio.ini` audio-dep pin carries the
 why-not-newer note before Phase 2 vendors the lib.
 
-**Priority:** P1 — settles the M-WEBRADIO no-PSRAM viability question · **Status:** **scheduled — needs a DUT
-window** (DUT was available 2026-06-27 for the TASK-259 verify; confirm availability before Phase 1. Phase-0
-instrumentation can land offline meanwhile) · **Opened:** 2026-06-27
-**Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget` · **Experiment:** EXP-010 · **Owner:** R&D →
-Developer (Phase 2) · **Deps:** none to start; **decision:** ADR-047 · **Cleanup:** TASK-262
+**RESULT — ALL PHASES PASS (DUT-verified 2026-06-28, branch `rnd/membudget` commit `d20c269`).**
+- **Phase 0/1:** caps-split baseline + 40 K reservation kill-gate PASS (EXP-010).
+- **Phase 2:** vendored ESP32-audioI2S into `app/lib/`, forked the Helix decoder alloc+free into a 16-slot
+  fixed-size free-list over a **24 K** arena (refined down from 40 K — Helix HWM = 23,216 B exact; InBuff
+  reverted to general heap, fits the 38,900 lfbInt). **WebRadio played 88/103/129.7 s across 3 cold-boot
+  trials**, survived 4 auto-skip churn cycles (free-list reuses the same 9 slots, zero fragmentation —
+  lfbInt 38,900 constant). **Production `cyd2usb_winamp` ELF byte-clean (0 membudget symbols, nm-verified);
+  all spike code `#ifdef MEMBUDGET_PHASE1`.**
+- **A-lite is technically PROVEN.** ADR-047's kill-gate is cleared.
+
+**Promotion caveats (shape the TASK-262 decision — NOT regressions, but un-validated for shipping):**
+1. **PATCH-MEMBUDGET-4 — I2S DMA halved** (16×512 → 8×256, 32 K → 8 K) under MEMBUDGET_PHASE1: the 24 K
+   INTERNAL arena squeezed the shared DMA pool until `i2s_driver_install()` crashed; halving the ring fixed
+   it. Plays clean at **56 kbps** — but the reduced buffering needs validation at higher bitrate / under
+   network jitter (underrun resilience).
+2. **Station fetch not live-tested** — radio-browser HTTPS mirrors were unreachable from the test network;
+   streams were injected via a `set wrUrl` debug path. End-to-end fetch→play unproven here.
+3. **Spotify-active coexistence (overlay) untested** — needs M-RECLAIM Q3-a + TASK-259/260 mode-state, and
+   live validation gated on TASK-243 (owner Premium).
+
+**Priority:** P1 — settles the M-WEBRADIO no-PSRAM viability question · **Status:** **DONE — all phases PASS;
+A-lite proven; promotion decision = TASK-262 / human** · **Opened:** 2026-06-27 · **Closed:** 2026-06-28
+**Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget` (fork branch-only until promotion) ·
+**Experiment:** EXP-010 (Phase 0/1/2) · **Owner:** R&D → Developer · **decision:** ADR-047 · **Next:** TASK-262
 
 ---
 
@@ -3496,6 +3525,163 @@ same change as TASK-261). **Action on a Phase-1 FAIL or a shelve:** if any spike
 vendored `lib/ESP32-audioI2S` fork, the reserved-arena allocator, the caps-split probe if deemed not worth
 keeping, any `[env:]`/`-D` flag, the `cross_feature_matrix` rows), revert it; remove any `run/check` entry.
 **No-op if nothing merged** — the design keeps the fork/arena on `rnd/membudget` until a Phase-2 PASS, so the
-expected steady state is "nothing to clean" (the caps-split probe may be worth keeping regardless — decide at
-closeout). **Priority:** P3 — lifecycle hygiene · **Status:** **dormant — fires only on TASK-261 FAIL-after-merge**
-· **Opened:** 2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** Developer · **Deps:** TASK-261
+expected steady state is "nothing to clean."
+
+**UPDATE 2026-06-28 — spike PASSED, so the FAIL-cleanup branch is moot; this task is REPURPOSED as the A-lite
+PROMOTION gate** (human chose "de-risk then promote"). Promotion = merge `rnd/membudget` → master + ungate
+(make the arena/fork production, not `MEMBUDGET_PHASE1`-only). **Gated on ALL of:** TASK-263 (halved-DMA
+validation) green, TASK-264 (M-RECLAIM Q3-a overlay) green, TASK-265 (live fetch) green, **and TASK-243
+(Premium) cleared** for the Spotify-active coexistence validation. Until all green, the fork stays branch-only.
+**Priority:** P2 — promotion gate · **Status:** **blocked — gated ONLY on TASK-243 (Premium)** — all design/
+engineering de-risk complete: TASK-263 (halved DMA) ✅, TASK-264 (overlay Q3-a) ✅, TASK-265 (fetch finding)
+✅, **TASK-267 (fetch-vs-arena fix) DUT-verified PASS 2026-06-28** ✅. Remaining for promotion: TASK-243
+(Premium) clears → validate Spotify-active coexistence on the multi-app build, then merge `rnd/membudget` →
+master + ungate `MEMBUDGET_PHASE1` for production (+ dedup `ef8e32c`, land the dead-mirror fix on master) · **Opened:** 2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:**
+Developer/PM · **Deps:** TASK-261 (done), ~~TASK-263~~, ~~TASK-264~~, ~~TASK-265 (done→TASK-267)~~,
+**TASK-267**, TASK-243
+
+---
+
+### TASK-263 — Validate halved I2S DMA (PATCH-MEMBUDGET-4) at higher bitrate + under jitter
+
+The Phase-2 fork halved the I2S DMA ring (16×512 → 8×256, 32 K → 8 K, gated `MEMBUDGET_PHASE1`) because the
+24 K INTERNAL arena squeezed the shared DMA pool until `i2s_driver_install()` crashed. It plays clean at
+**56 kbps** (BBC World Service), but the reduced buffering depth is **unvalidated at higher bitrate / under
+network jitter** — the underrun-resilience risk. **The decisive quality gate for whether A-lite is shippable,
+not just demoable.**
+
+**Executable spec (instrumentation landed `414d32b`):**
+- **Metric:** `get wrUnderruns` → `{underruns, minBufPct, bufPct, playMs}` (gated MEMBUDGET_PHASE1).
+  `underruns` = input-buffer-empty edge events while PLAYING; `minBufPct` = session low-water. Reset on each
+  PLAYING entry. (Empty input buffer is the right proxy for the 8 K ring: it becomes an audible gap far faster
+  than with 32 K. Operator should still confirm by ear — the counter is the quantified gate.)
+- **NOT an A/B vs stock 16×512** — that config *with the arena* is exactly what crashed `i2s_driver_install`,
+  so it can't be run. This is an **absolute** soak test.
+- **Build:** `cyd2usb_webradio` (disable-Spotify + MEMBUDGET_PHASE1 + the fork — avoids the 403 fetch
+  starvation). Inject a **≥128 kbps HTTP MP3** stream via `set wrUrl <url>` (radio-browser mirrors were
+  unreachable in Phase 2; a hardcoded high-bitrate URL is the test input).
+- **Pass threshold (proposal):** ≥ 128 kbps, ≥ 120 s continuous, **underruns == 0** (or a tiny agreed N),
+  `minBufPct` stays > 0, no stall/auto-skip, no Guru/WDT. **Fail** → arena/DMA split needs rework (smaller
+  arena, or accept best-effort at high bitrate → that would re-open the promotion calculus).
+- Deterministic jitter injection isn't feasible on-DUT; the honest proxy is a sustained soak on a real
+  variable high-bitrate stream + repeat ≥ 3 trials.
+
+**RESULT — PASS-with-caveat (DUT-verified 2026-06-28, commit `501c791`).** 3 trials × 128 kbps HTTP MP3
+(SomaFM groovesalad/dronezone): held **124–138 s continuous, no stall / Guru / WDT**. `underruns = 1` on
+every trial — but **all three fire at T < 5 s (initial buffer fill, before the decoder thread catches up) and
+never recur**; post-fill bufPct sits at 93–100 % (trials 1–2). `minBufPct = 0` reflects only that startup dip.
+**Verdict (PM/Architect):** the halved 8 K DMA ring is **NOT undersized** — it sustains 128 kbps with margin;
+the lone underrun is a **connect-time firmware artifact**, not a ring-sizing failure. **The shippability
+quality gate is cleared.** The startup glitch (one ≤1-frame gap at connect) is a minor UX issue → follow-up
+**TASK-266** (not a promotion blocker). The strict `underruns==0` gate was conservative-by-design (agent can't
+listen); **recurrent** underruns == 0 is the real result.
+
+**Priority:** P1 — quality gate · **Status:** **DONE — PASS-with-caveat; gate cleared, startup glitch → TASK-266**
+· **Opened:** 2026-06-28 · **Closed:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:**
+`rnd/membudget` · **Owner:** R&D/Developer · **Deps:** TASK-261 · **Gates:** TASK-262 (promotion — now clear of 263)
+
+---
+
+### TASK-264 — M-RECLAIM Q3-a: tear down Spotify (TLS-drop) when WebRadio mode is active
+
+Graduates M-RECLAIM Q3-a from design to implementation (ADR-047: "M-RECLAIM Q3-a/Q4 become real tasks on a
+PASS"). For production, the 24 K WebRadio arena and Spotify's ~50 K TLS working set must not coexist — the
+overlay tears Spotify down when the player is in WebRadio mode. **Q3-a (light, recommended v1):** keep the
+spotifyTask object, drop its TLS connection (`client.stop()`/`resetTls()`) on toggle-to-WebRadio; reclaims the
+TLS working set without the vTaskDelete null-safety audit. Trigger = the TASK-259/260 player mode-state.
+Design: [M-RECLAIM-dynamic-resident.md](../architecture/designs/M-RECLAIM-dynamic-resident.md) §Q3-a.
+**Priority:** P1 — required for Spotify coexistence (promotion) · **Status:** **DONE — implemented `f37b92a`**
+(s_webRadioActive flag; setWebRadioActive() hooks switchApp(); 500 ms idle guard in task loop; run/check 5/5)
+· **Opened:** 2026-06-28 · **Closed:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** Developer
+· **Deps:** TASK-259/260 (mode-state), TASK-261 · **Gates:** TASK-262 (promotion) · **Design:** M-RECLAIM §Q3-a
+
+---
+
+### TASK-265 — Live station-fetch validation (radio-browser end-to-end)
+
+Phase 2 injected streams via `set wrUrl` because the station fetch failed. **Host check (2026-06-28)
+diagnosed why:** the firmware's mirror list `nl1`/`at1` are **decommissioned** (no DNS — the "DNS fails"), and
+`de1` (the live one) **is reachable** (IPv4 91.98.4.78, HTTPS 200) — so its "SSL alloc fail" points to
+**TLS-heap-vs-arena**, not the network. **Mirror list fixed** (`de1` + `all.api`, both IPv4; commit below).
+
+**Reframed — this is now a fetch-TLS-vs-arena coexistence test, not just a fetch demo.** The real question:
+can the ~40 K station-fetch TLS handshake allocate **with the 24 K arena held**? Build `cyd2usb_webradio`
+(disable-Spotify → no 403 starvation; MEMBUDGET_PHASE1 → arena+fork active). Three distinguishable outcomes
+the agent MUST report:
+- **fetch succeeds** (count > 0, plays a fetched station) → carve-out closed, gate clears;
+- **fetch fails SSL-alloc on a reachable mirror** → **the TLS-heap-vs-arena finding** (promotion-relevant):
+  the arena starves the fetch handshake → needs sequencing (fetch *before* `mb_arena_reserve()`, or release
+  the arena during fetch, or shrink it). Capture `wrLastHttp` + the mbedtls error.
+- **DNS fail** → should not happen now (mirror fix); flag if it does.
+**RESULT — FINDING (DUT-verified 2026-06-28, commit `dd8ff84`): the always-held arena starves the station
+fetch.** Both mirrors reachable (TCP connect 83–162 ms), but the mbedtls SSL context alloc fails `-32512`
+(`MBEDTLS_ERR_SSL_ALLOC_FAILED`) immediately after TCP connect. At fetch time, with the 24 K arena held since
+boot + dataTask's 11 K stack + WiFiClientSecure locals, `lfbInt ≈ 35 K` — below the ~40 K the mbedtls context
+needs. `wrCount=0`, `wrLastHttp=-1`, reproducible across 2 cold boots. **The fetch and the always-held arena
+cannot coexist.** → fix is **TASK-267** (Architect design — NOT a TASK-262 cleanup item; it reverses the
+boot-reservation decision and must be designed, not patched).
+
+**Priority:** P2 — surfaced the real promotion blocker · **Status:** **DONE — finding recorded; fix = TASK-267**
+· **Opened:** 2026-06-28 · **Closed:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:**
+`rnd/membudget` · **Owner:** R&D · **Deps:** TASK-261 · **Surfaced:** TASK-267 (the fix)
+
+---
+
+### TASK-267 — Resolve the fetch-TLS-vs-arena heap conflict (Architect design)
+
+TASK-265 proved the always-held 24 K boot-reservation starves the ~40 K station-fetch mbedtls handshake
+(fetch `lfbInt ≈ 35 K` < ~40 K). **This is a genuine design fork, not a patch** — it pits two constraints the
+design already balanced:
+- **Boot-reserve** (current): guarantees 24 K contiguous for the decoder regardless of `_play()`-time
+  fragmentation (the EXP-008 problem Phase 1 solved) — **but starves the fetch.**
+- **JIT-reserve at `_play()`** (the agent's proposal): fetch at `init()` sees full heap → SSL succeeds; the
+  fetch TLS frees before play → reserve 24 K then. **But re-introduces the `_play()`-time fragmentation risk
+  boot-reservation was built to avoid** — needs proof that 24 K contiguous reliably survives to `_play()`
+  (likely only true once TASK-264's overlay frees Spotify's ~50 K; measure it, don't assume).
+
+**Options for the Architect to weigh** (don't pre-pick): (a) JIT-reserve at `_play()` financed by the
+overlay + a Phase-1-style contiguity measurement at `_play()`; (b) reserve at boot but **release the arena for
+the fetch window** (fetch always precedes play) and re-acquire — faces the same re-acquire contiguity
+question; (c) **reduce the fetch's mbedtls buffers** (the station GET is tiny JSON — it doesn't need 16 K TLS
+records; `MBEDTLS_SSL_IN/OUT_CONTENT_LEN` ↓ saves ~24 K) so fetch + arena coexist — but mbedtls config is
+global (affects Spotify/audio TLS), assess blast radius; (d) fetch-before-reserve at boot with a cached list.
+**DESIGN DECIDED (2026-06-28) — ADR-047 Amendment 1: Option (a), JIT-reserve at `_play()`.** The fetch
+(`init()`) and the decoder arena (`_play()`) are sequential + disjoint, so:
+- **Move `mb_arena_reserve()` from `setup()` → the top of `_play()`** (before the `Audio` construct /
+  decoder alloc); **`mb_arena_free()` in `_stopAudio()`/stop** so the arena is held only during playback.
+  `mb_arena_init()` follows a successful reserve; on a *failed* reserve, leave the arena null →
+  `mb_arena_alloc` already falls back to libc (`mb_arena.h`) → best-effort, never a crash.
+- The fetch at `init()` now runs with no arena held → ~55 K contiguous → SSL succeeds.
+- TASK-264's overlay (Spotify torn down on WebRadio entry) makes the heap fresh at `_play()`.
+**Measurement (the validation that retires the fragmentation risk):** add an `lfbInt` probe right before the
+`_play()` reserve; ≥ 3 cold-boot trials × (enter WebRadio → fetch count>0 → play) on `cyd2usb_webradio`.
+**PASS = fetch succeeds AND JIT reserve succeeds (`lfbInt ≥ 24 K`, arena non-null) AND playback holds.** FAIL →
+fall back to option (c) (scoped mbedtls reduction) or a smaller arena (re-open ADR-047 Amendment 1).
+**IMPLEMENTED 2026-06-28 (`04171ba`, build-gated `run/check` 5/5).** Arena moved boot→`_play()` JIT-acquire +
+`suspend()` release (delete Audio first → frees decoder from arena → then release, avoiding dangling the live
+decoder buffers `stopSong` doesn't free). `mb_arena_acquire/release/active` added to `mb_arena.*`; failed
+acquire → libc fallback (best-effort). Production byte-clean (no arena behaviour). **DUT-verify owed:** the
+ADR-047-Amd-1 measurement — ≥3 cold-boot trials × (enter WebRadio → **fetch count>0** → **acquire OK**
+(`lfbInt ≥ 24 K`) → **plays ≥ 60 s**) on `cyd2usb_webradio`. The `[membudget] TASK-267 _play pre-acquire lfbInt=`
+line is the validation signal.
+**DUT-VERIFIED PASS 2026-06-28** (3 cold-boot trials, `cyd2usb_webradio`): fetch **count=16** every trial
+(vs 0 pre-fix), JIT acquire **OK** with `lfbInt` = 61–63 K (~2.5× the 24 K — fragmentation risk decisively
+unfounded), plays > 60 s. EXP-010 §TASK-267. The fetch-vs-arena conflict is resolved; **A-lite fully
+de-risked.**
+**Priority:** P1 — promotion blocker · **Status:** **DONE — DUT-verified PASS** · **Closed:** 2026-06-28
+· **Opened:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget` · **Owner:**
+Developer · **Deps:** TASK-265 (finding), TASK-264 (overlay, done) · **Gates:** TASK-262 (promotion)
+
+---
+
+### TASK-266 — WebRadio connect-time underrun (startup buffer glitch)
+
+Surfaced by TASK-263: at WebRadio play start the input buffer starves for ~1 frame (`underruns=1`, `bufPct`
+dips to 0 at T < 5 s) **before the decoder thread catches up with the stream** — one ≤1-frame audio gap at
+connect, then clean for minutes. Independent of DMA-ring size (occurs at 128 kbps with the halved ring; it's a
+firmware buffering-order issue, not a sizing issue). **Fix candidates:** pre-fill the input buffer to
+`isPlayable()`/`m_maxBlockSize` before un-muting / starting I2S output at connect; or seed the DMA. **Also
+refine the `wrUnderruns` metric** to exclude the initial-fill window (count only post-settled underruns) so a
+re-run reads a clean `recurrent underruns == 0`. **Priority:** P3 — minor UX polish, NOT a promotion blocker
+· **Status:** **open — backlog** · **Opened:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:**
+`rnd/membudget` · **Owner:** Developer · **Deps:** TASK-263 (surfaced it)

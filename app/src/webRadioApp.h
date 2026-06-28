@@ -8,7 +8,10 @@
 #include <Audio.h>
 #include <freertos/queue.h>
 #include "esp_task_wdt.h"
-#include <esp_heap_caps.h> // T_MB_PROBE_00: caps-split for CP1/CP2 (TASK-261 Phase 0)
+#include <esp_heap_caps.h> // T_MB_PROBE_00: caps-split for CP1/CP2 (TASK-261 Phase 0+2)
+#ifdef MEMBUDGET_PHASE1
+#include "mb_arena.h"  // Phase 2: arena HWM reporting at CP2
+#endif
 #include "appShell.h"
 #include "dataTask.h"
 #include "settingsStorage.h"
@@ -97,11 +100,12 @@ void audio_info(const char *info) {
 #ifdef MEMBUDGET_PHASE1
     // CP2: emit caps-split on decoder-init line (the gate metric for Phase 1).
     if (strstr(info, "MP3Decoder") || strstr(info, "AACDecoder")) {
-        Serial.printf("[membudget] CP2-decoder-init freeInt=%u lfbInt=%u freeDma=%u lfbDma=%u\n",
+        Serial.printf("[membudget] CP2-decoder-init freeInt=%u lfbInt=%u freeDma=%u lfbDma=%u arenaHWM=%u\n",
             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
             (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
-            (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
+            (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA),
+            (unsigned)mb_arena_hwm());
     }
 #endif
 }
@@ -184,6 +188,17 @@ public:
 
     void suspend() override {
         _stopAudio();
+#ifdef MEMBUDGET_PHASE1
+        // TASK-267: release the JIT arena when leaving WebRadio so the next entry's
+        // station fetch has full heap. Destroy the Audio object FIRST — its decoder
+        // buffers live in the arena, so they must be freed (via ~Audio → mb_arena_free,
+        // while the arena is still valid) before we free the backing block. Safe even
+        // if ~Audio doesn't free them: release frees the whole block and nothing
+        // references the arena afterwards (Audio is gone; a fresh one is built on
+        // re-entry). Gated to MEMBUDGET_PHASE1 so production behaviour is unchanged.
+        if (s_wr_audio) { delete s_wr_audio; s_wr_audio = nullptr; }
+        mb_arena_release();
+#endif
     }
 
     void tick() override {
@@ -273,6 +288,16 @@ public:
                 uint32_t freeB  = s_wr_audio->inBufferFree();
                 uint32_t total  = filled + freeB;
                 _bufPct = total ? (uint8_t)((uint32_t)filled * 100u / total) : 0;
+#ifdef MEMBUDGET_PHASE1
+                // TASK-263: objective halved-DMA underrun metric — edge-count input
+                // buffer empties + track low-water while PLAYING.
+                if (_state == WRPlayState::PLAYING) {
+                    if (_bufPct < _minBufPct) _minBufPct = _bufPct;
+                    bool empty = (filled == 0);
+                    if (empty && !_wasEmpty) { _underrunCount++; _lastUnderrunMs = now; }
+                    _wasEmpty = empty;
+                }
+#endif
                 int delta = (int)_bufPct - (int)_bufPctDrawn;
                 if (delta < 0) delta = -delta;
                 if (delta >= 2) {
@@ -437,6 +462,23 @@ public:
                      (unsigned)_heapFetchFree, (unsigned)_heapFetchMin);
             return true;
         }
+#ifdef MEMBUDGET_PHASE1
+        // TASK-263: halved-DMA (PATCH-MEMBUDGET-4) underrun metric. underruns =
+        // input-buffer-empty events while PLAYING (objective proxy for audible gaps;
+        // with the 8K DMA ring an empty input buffer becomes a gap far faster than
+        // with the stock 32K). minBufPct = session low-water. Reset on each PLAYING
+        // entry. Operator should still confirm by ear; this is the quantified gate.
+        if (strcmp(var, "wrUnderruns") == 0) {
+            uint32_t playMs = (_state == WRPlayState::PLAYING && _playingSinceMs)
+                              ? (uint32_t)(millis() - _playingSinceMs) : 0u;
+            snprintf(buf, len,
+                     "\"var\":\"wrUnderruns\",\"underruns\":%u,\"minBufPct\":%u,"
+                     "\"bufPct\":%u,\"playMs\":%u,\"last\":true",
+                     (unsigned)_underrunCount, (unsigned)_minBufPct,
+                     (unsigned)_bufPct, (unsigned)playMs);
+            return true;
+        }
+#endif
         return false;
     }
 
@@ -473,6 +515,25 @@ public:
         // the auto-skip terminal bound (skip ≤ N-1, land terminal, never loop) is
         // deterministically testable without a real dead stream. `0` disables and
         // clears the synthetic list. Debug-only.
+        // TASK-261 Phase 2 debug: inject a direct stream URL as a synthetic single
+        // station and start playback immediately. Bypasses radio-browser API fetch
+        // so arena allocation can be tested when the API is unreachable. Debug-only.
+        // Usage: set wrUrl http://IP:PORT/mount
+        if (strcmp(var, "wrUrl") == 0) {
+            if (!val || !val[0]) return true;
+            strlcpy(_stations[0].name, "INJECTED", sizeof(_stations[0].name));
+            strlcpy(_stations[0].url, val, sizeof(_stations[0].url));
+            _stations[0].bitrate = 0;
+            _stationCount = 1;
+            _currentIdx   = 0;
+            _debugForceConnFail = false;
+            _pendingAction = ACT_NONE;
+            _autoSkipTried = 0;
+            _stallRetries  = 0;
+            _dirty = true;
+            _play(0);
+            return true;
+        }
         if (strcmp(var, "wrDeadUrls") == 0) {
             int n = atoi(val);
             if (n <= 0) {
@@ -562,6 +623,12 @@ private:
     bool        _dirty           = false;
     uint8_t     _bufPct          = 0;
     uint8_t     _bufPctDrawn     = 0;       // TASK-220: last buffer % painted (hysteresis)
+#ifdef MEMBUDGET_PHASE1
+    uint32_t    _underrunCount   = 0;       // TASK-263: input-buffer-empty events while PLAYING
+    uint8_t     _minBufPct       = 100;     // TASK-263: session low-water buffer %
+    bool        _wasEmpty        = false;   // TASK-263: edge-detect for underrun count
+    uint32_t    _lastUnderrunMs  = 0;       // TASK-263: millis() of last underrun
+#endif
     uint32_t    _lastRunningMs   = 0;       // TASK-218: last tick isRunning() was true
     // TASK-234 (ADR-045): auto-skip-on-stall. Bounded retry-once-then-advance so a
     // no-PSRAM decode failure (TASK-233) tunes past dead stations instead of parking.
@@ -642,6 +709,22 @@ private:
         _spotifyYielded = true;
         esp_task_wdt_reset();
 
+#ifdef MEMBUDGET_PHASE1
+        // TASK-267 / ADR-047 Amd 1: acquire the arena HERE (JIT, after the overlay
+        // freed Spotify + before the decoder allocs), NOT at boot — so the station
+        // fetch ran with full heap. The probe is the validation metric: does 24 K
+        // contiguous survive to _play()? (≥3 trials; PASS = acquire OK + plays.)
+        Serial.printf("[membudget] TASK-267 _play pre-acquire lfbInt=%u freeInt=%u\n",
+            (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+            (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+        bool arenaOk = mb_arena_acquire();   // idempotent; on FAIL → libc fallback
+        (void)arenaOk;
+        if (!s_wr_audio) {
+            Serial.printf("[membudget] CP0-pre-audio-init freeDma=%u lfbDma=%u\n",
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
+                (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
+        }
+#endif
         if (!s_wr_audio)
             s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
 
@@ -667,6 +750,11 @@ private:
             _playingSinceMs = _lastRunningMs;  // TASK-234: settled-timer start
             _settled        = false;
             _bufPctDrawn    = 0;         // TASK-220: force a buffer-bar repaint on first fill
+#ifdef MEMBUDGET_PHASE1
+            _underrunCount  = 0;         // TASK-263: fresh underrun count per PLAYING session
+            _minBufPct      = 100;
+            _wasEmpty       = false;
+#endif
             // _spotifyYielded stays true; TLS resumes in _stopAudio()
         } else {
             _state = WRPlayState::ERROR_UNREACHABLE;

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# run/flash-webradio — flash cyd2usb_webradio (-DDISABLE_SPOTIFY -DWEBRADIO_ONLY)
+# Used for TASK-261 Phase 2 DUT testing: avoids Spotify 403 starvation (TASK-243)
+# so WebRadio can run the arena fork without being blocked by tlsYield contention.
+# Monitor is NOT restarted so the test harness can attach.
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+PORT=$(resolve_port)
+
+echo "[flash-webradio] 1/2 — killing monitor"
+tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+
+echo "[flash-webradio] 2/2 — flashing cyd2usb_webradio to $PORT"
+(cd "$PIO_DIR" && "$PIO" run -e cyd2usb_webradio -t upload --upload-port "$PORT")
+echo "[flash-webradio] done (monitor NOT restarted — port free for test harness)"

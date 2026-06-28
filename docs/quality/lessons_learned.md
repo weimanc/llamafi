@@ -1646,6 +1646,24 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 **Suggested improvement**: Apps with a periodic fetch timer should reset the timer to 0 in `resume()` so the first `tick()` after re-entry always enqueues. This is low cost (one extra fetch) and prevents the "stale for up to 60 s" experience.  
 **Status**: adopted — applied in `CryptoApp::resume()` (commit a708657)
 
+---
+
+### LL-069 — 2026-06-28 — Sensor-blind gate criteria need a startup-transient definition
+**Context**: TASK-263 DUT validation of the halved I2S DMA ring (8×256) at 128 kbps. Gate was `underruns == 0`. All 3 trials returned `underruns = 1` — a single event at T < 5 s during initial buffer fill, never recurring. The spec acknowledged "agent can't listen; counter is the quantified gate" but left the startup-transient boundary undefined, forcing a PARTIAL verdict requiring human interpretation to clear the gate.  
+**Observation**: The gate ambiguity cost one human decision cycle. The data was unambiguous in hindsight (single event at connect time, counter frozen for 120+ s), but the spec gave no rule for distinguishing it from a recurrent failure.  
+**Root cause**: The spec author deferred the "what counts as recurrent" definition to execution time because the underrun pattern wasn't known in advance. When underruns fired (even just once), the written gate couldn't distinguish a transient from a real failure.  
+**Suggested improvement**: For any sensor-blind gate (agent cannot hear audio, see a display, etc.), the spec must pre-define a startup grace window, e.g. "underruns occurring within the first 10 s of PLAYING entry are startup transients and excluded from the gate count." Conservative values are fine — the point is that the agent can render a verdict without escalating.  
+**Status**: open
+
+---
+
+### LL-070 — 2026-06-28 — Fresh agent handover prompts must require an explicit commit
+**Context**: TASK-264 (Q3-a TLS-drop). The implementation was correct, run/check 5/5 green, but the fresh agent left all three changed files uncommitted. PM caught it via `git status` and committed manually. This is the second recorded occurrence of this pattern.  
+**Observation**: The handover prompt specified files to read, the implementation approach, constraints, and verification steps — but said nothing about committing. Agents complete and verify code then stop; committing feels like an optional follow-on unless explicitly required.  
+**Root cause**: Handover prompt templates do not include a commit step. The omission is systematic, not task-specific — any prompt that lacks "commit your changes" reproduces this gap.  
+**Suggested improvement**: Every fresh-agent handover prompt for an implementation task must include an explicit final step: "Commit all changes on `<branch>` with a conventional commit message referencing the task ID." One line; eliminates the gap reliably.  
+**Status**: adopted → BP-043
+
 ## Entry Format
 
 ```
