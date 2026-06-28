@@ -347,9 +347,87 @@ The halved DMA ring does **not** underrun during sustained 128 kbps playback.
 
 ---
 
+## TASK-265 — Fetch-vs-arena (2026-06-28)
+
+> Gate question: can the radio-browser HTTPS station fetch succeed WITH the 24 K arena held?
+> Context: Phase 2 used `set wrUrl` injection (bypassing the API fetch) because radio-browser mirrors were
+> unreachable at test time. TASK-265 retested with the fixed mirror list (de1/all.api, IPv4-verified from
+> host on 2026-06-28). Build: `cyd2usb_webradio` (`MEMBUDGET_PHASE1` + `DISABLE_SPOTIFY`).
+
+### Outcome: TLS-HEAP-VS-ARENA FINDING
+
+**FETCH FAILS with `MBEDTLS_ERR_SSL_ALLOC_FAILED (-32512)` on BOTH mirrors. Mirrors ARE reachable (TCP
+handshakes complete in 83–162 ms); the failure is an SSL context heap alloc failure, not a DNS or routing
+failure.**
+
+### Key numbers (2 cold-boot trials, identical)
+
+| Measurement | Trial 1 | Trial 2 |
+|---|---|---|
+| Heap at idle (post-boot, pre-WebRadio entry) | freeInt=85,824 B, lfbInt=38,900 B | freeInt=85,820 B, lfbInt=38,900 B |
+| maxAlloc at WebRadio entry (shell log) | 38,900 B | 38,900 B |
+| Heap at fetch time (dataTask probe, pre-SSL) | freeInt=44K, lfbInt (maxBlk)=35K | freeInt=44K, lfbInt (maxBlk)=35K |
+| SSL error | -32512 (`MBEDTLS_ERR_SSL_ALLOC_FAILED`) | -32512 (`MBEDTLS_ERR_SSL_ALLOC_FAILED`) |
+| Mirror 1 (de1.api.radio-browser.info) | code=-1, elapsed=141 ms | code=-1, elapsed=162 ms |
+| Mirror 2 (all.api.radio-browser.info) | code=-1, elapsed=101 ms | code=-1, elapsed=83 ms |
+| wrCount | 0 | 0 |
+| wrLastHttp | -1 | -1 |
+| Heap at idle (post-fetch) | freeInt=84,904 B, lfbInt=38,900 B | freeInt=84,892 B, lfbInt=38,900 B |
+
+### Root cause
+
+The 24 K arena reservation (`mb_arena_reserve()`, called in `setup()` before any other allocation) holds a
+contiguous 24,576 B block of `MALLOC_CAP_INTERNAL` heap for the entire session. This leaves `lfbInt = 38,900 B`
+at idle — below the `~40 K+` contiguous block that mbedtls `start_ssl_client()` requires to allocate its SSL
+context.
+
+By the time `dataTask` runs `fetchWebRadioStations()` and `WiFiClientSecure` attempts its SSL context alloc,
+the largest available contiguous block has dropped further to **~35 K** (dataTask's 11 K stack frame is live;
+`WiFiClientSecure` constructor has placed locals on the stack). mbedtls cannot fit its context → -32512
+immediately after TCP connect, before the TLS handshake starts.
+
+This is not a Phase 2 regression — Phase 2 didn't test the live fetch path (mirrors were unreachable at
+test time; streams were injected via `set wrUrl`). The arena-vs-fetch conflict was a known carve-out.
+
+The elapsed times (83–162 ms) confirm TCP connection succeeds before SSL alloc fails. Both mirrors
+(de1.api.radio-browser.info, all.api.radio-browser.info) are reachable and IPv4-verified; the failure is
+purely a heap constraint.
+
+### Recommended fix: JIT arena reserve at play time (Option A)
+
+**Move `mb_arena_reserve()` from `setup()` to `_play()`.**
+
+Current: `setup()` → `mb_arena_reserve()` (24 K held for entire session, including during fetch).
+Fixed:   `setup()` has no reservation; `_play()` calls `mb_arena_reserve()` just before `connecttohost()`.
+
+Rationale:
+- The fetch fires in `WebRadioApp::init()`, which is always called before any `_play()`. With no arena held at
+  fetch time, `lfbInt ≈ 55 K` (measured: lfbInt would increase by ~16 K from the 24 K reservation removal,
+  from 38,900 → ~55 K). This gives mbedtls enough contiguous space for its SSL context.
+- Between fetch return and the first `_play()` call, the user browses the station list. During this window the
+  freed SSL context (~40 K) has returned to the heap — a 24 K JIT reservation at play time will succeed
+  (the freed SSL context block is larger than 24 K).
+- In production overlay mode (TASK-264 Q3-a active), Spotify TLS is already freed via
+  `setWebRadioActive(true)` before `_play()` is reached. The JIT alloc at `_play()` sees the full
+  post-overlay heap.
+- On stop: keep the arena reserved (free-list is valid, churn test PASS; re-reserving on each play risks
+  fragmentation). On WebRadio exit: release or retain (TASK-262 cleanup decision).
+
+Alternative — Option B (release-during-fetch): free `s_mb_arena` at the start of `fetchWebRadioStations()`
+and re-alloc after. More complex (two extra 24 K alloc/free cycles; re-alloc not guaranteed to return same
+block). Option A is strictly simpler.
+
+### Impact on promotion gate (TASK-262)
+
+The gate does NOT clear automatically from this finding. The sequencing fix (JIT reserve) is required before
+promotion. No code change in this commit — this section documents the finding and the fix path. Implementation
+is a TASK-262 / cleanup-phase item.
+
+---
+
 ## Links
 
 ADR-047 (Gated A-lite, this gate feeds) · M-MEMBUDGET (budget design) · PROP-membudget-spike (full plan)
 · EXP-009 (bare-rig ceiling PASS — prior basis) · TASK-261 (this spike) · TASK-262 (cleanup / promotion)
-· TASK-263 (halved-DMA validation — this section)
+· TASK-263 (halved-DMA validation — this section) · TASK-265 (fetch-vs-arena — this section)
 · Branch: `rnd/membudget`, commits `6639997` (Phase 0) + `afbd5c3` (Phase 1) + `f36152b` (Phase 2 vendor) + working-tree changes (Phase 2 fork, refinements, DUT test).
