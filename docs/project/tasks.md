@@ -3717,7 +3717,35 @@ behaviour change). Phase 1 emits the header; nothing consumes it at runtime yet.
 **DoD:** manifest + planner + gate landed, `run/check` green, golden-hash stable; OQ1 recorded (EXP-011 or
 EXP-010 extension) + resolved in M-MEMPLAN §10; Phase 1 marked done. Branch `rnd/memplan`, NOT merged.
 
-**Priority:** P2 — formalizes the memory architecture; foundation is risk-free (declarative) · **Status:**
-**open — handover written, ready for a fresh agent** · **Opened:** 2026-06-28 · **Milestone:** M-MEMPLAN
-**Branch:** `rnd/memplan` · **Owner:** R&D/Developer → Architect (OQ1 verdict) · **Deps:** none (foundation is
-standalone) · **Design:** M-MEMPLAN · **Inputs:** EXP-010 numbers, `gen_app_registry.py` pattern
+**DONE 2026-06-28 (`da3e6f7`, branch `rnd/memplan`).** Manifest (4 buffers) + `gen_mem_layout.py` planner +
+`check_build.sh` [6/6] (staleness + WCMU budget) + golden-hash; `run/check` 6/6. Budget INTERNAL = 29,616
+overlay + 60,000 headroom = 89,616 / 290,000 ceiling ✓. BSS impact zero (unused statics optimized away;
+Phase 2 wiring makes them real). **OQ1 RESOLVED — confirmed the Architect prediction:** static-decoder
+(23,216 B BSS) drops fetch maxBlk to **37 K < 40 K TLS → `-32512`, count 0** (= TASK-265 redux); **decoder
+stays runtime-JIT**, manifest `placement: runtime` (planner budgets its size within headroom, no static
+region). Baseline JIT: maxBlk 57 K, fetch OK, count 16.
+**Priority:** P2 — formalizes the memory architecture · **Status:** **DONE — Phase 1 complete, OQ1 resolved**
+· **Opened:** 2026-06-28 · **Closed:** 2026-06-28 · **Milestone:** M-MEMPLAN · **Branch:** `rnd/memplan`
+(branch-only until promotion) · **Owner:** R&D/Developer · **Design:** M-MEMPLAN · **Follow-on:** TASK-269 (Phase 2)
+
+---
+
+### TASK-269 — M-MEMPLAN Phase 2: wire low-risk tenants to the planned overlay
+
+Phase 2 of M-MEMPLAN (Phase 1 = TASK-268, done). Repoint real buffers at the planner-emitted `MEM_<name>`
+locations — the first runtime behaviour change, so **human-reviewed, low-risk-first** (per the agent's
+Phase-1 recommendation + M-MEMPLAN §8).
+- **Start with the no-TLS-tension tenants:** `heatmap_doc` (ArduinoJson BYO-allocator → `MEM_heatmap_doc`,
+  no fork needed) and `aquarium_strip` (`TFT_eSprite` pointed at `MEM_aquarium_strip`). These validate the
+  planner end-to-end on safe buffers + make the BSS regions real.
+- **Decoder/InBuff: NOT in Phase 2** — OQ1 settled they stay runtime-JIT (`placement: runtime`); they're
+  budgeted by the planner but not statically placed.
+- Verify: the overlaid `ANY/foreground` region is correctly shared (heatmap when Stock active, sprite when
+  Aquarium active — mutually exclusive); no corruption on app-switch; `run/check` green; BSS now reflects the
+  real region (nm). Confirm the §4b scratch-vs-state invariant holds (these are scratch, regenerated on entry).
+
+**DoD:** heatmap + aquarium use `MEM_*`; DUT-verify app-switch round-trips (Stock↔Aquarium↔others) with no
+corruption; budget gate still green. Then assess whether to migrate further foreground scratch.
+**Priority:** P3 — incremental hardening; not blocking anything · **Status:** **open — Phase 1 prerequisite
+done** · **Opened:** 2026-06-28 · **Milestone:** M-MEMPLAN · **Branch:** `rnd/memplan` · **Owner:** Developer
+· **Deps:** TASK-268 (done) · **Design:** M-MEMPLAN §8
