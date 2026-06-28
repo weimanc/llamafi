@@ -3597,11 +3597,21 @@ Design: [M-RECLAIM-dynamic-resident.md](../architecture/designs/M-RECLAIM-dynami
 
 ### TASK-265 — Live station-fetch validation (radio-browser end-to-end)
 
-Phase 2 injected streams via the `set wrUrl` debug path because radio-browser HTTPS mirrors were unreachable
-from the test network (SSL alloc fail / DNS fail). The end-to-end **fetch → list → play** path is therefore
-unproven with the arena/fork active. **Test (when a network with reachable mirrors is available, or with the
-disable-Spotify build to avoid 403 fetch starvation):** WebRadio fetches the station list and plays a fetched
-station with the fork+arena. **Priority:** P2 — closes a Phase-2 carve-out · **Status:** **open — DUT +
+Phase 2 injected streams via `set wrUrl` because the station fetch failed. **Host check (2026-06-28)
+diagnosed why:** the firmware's mirror list `nl1`/`at1` are **decommissioned** (no DNS — the "DNS fails"), and
+`de1` (the live one) **is reachable** (IPv4 91.98.4.78, HTTPS 200) — so its "SSL alloc fail" points to
+**TLS-heap-vs-arena**, not the network. **Mirror list fixed** (`de1` + `all.api`, both IPv4; commit below).
+
+**Reframed — this is now a fetch-TLS-vs-arena coexistence test, not just a fetch demo.** The real question:
+can the ~40 K station-fetch TLS handshake allocate **with the 24 K arena held**? Build `cyd2usb_webradio`
+(disable-Spotify → no 403 starvation; MEMBUDGET_PHASE1 → arena+fork active). Three distinguishable outcomes
+the agent MUST report:
+- **fetch succeeds** (count > 0, plays a fetched station) → carve-out closed, gate clears;
+- **fetch fails SSL-alloc on a reachable mirror** → **the TLS-heap-vs-arena finding** (promotion-relevant):
+  the arena starves the fetch handshake → needs sequencing (fetch *before* `mb_arena_reserve()`, or release
+  the arena during fetch, or shrink it). Capture `wrLastHttp` + the mbedtls error.
+- **DNS fail** → should not happen now (mirror fix); flag if it does.
+**Priority:** P2 — closes a Phase-2 carve-out + answers a real promotion question · **Status:** **open — DUT +
 network** · **Opened:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget`
 · **Owner:** R&D · **Deps:** TASK-261 · **Gates:** TASK-262 (promotion)
 
