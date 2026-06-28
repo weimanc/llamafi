@@ -1,6 +1,6 @@
 # M-MEMPLAN — Static app-memory overlay planner (single source of truth, build-time)
 
-> Owner: Architect · Status: **Phase 1 DONE** · 2026-06-28 (Phase 1 implemented on `rnd/memplan`)
+> Owner: Architect · Status: **Phase 2 DONE** · 2026-06-28 (Phase 2 implemented on `rnd/memplan`, commit `241adf8`)
 > Formalizes M-MEMBUDGET (the ad-hoc 24 K runtime arena) into a declarative, build-time-planned memory
 > **overlay** with a **single source of truth** and a **worst-case budget gate**. Mirrors the
 > `gen_app_registry.py` codegen pattern. Successor to the runtime `mb_arena_*` machinery (migration in §8).
@@ -136,6 +136,14 @@ Incremental, no rip-and-replace:
    the fetch (the WCMU gate decides). This is the key open question (OQ1).
 3. **Migrate the easy tenants first** (heatmap doc via ArduinoJson allocator → static region; sprites) — they
    have no TLS tension, so they go fully static immediately and validate the planner on low-risk buffers.
+
+   **Phase 2 DONE (TASK-269, 2026-06-28, commit `241adf8`):** `s_heatmapDoc` (Stock, 2560 B) and
+   `fetchCrypto()`'s local `doc` (Crypto, 2048 B) converted to `BasicJsonDocument<StaticRegionAllocator>`
+   backed by `MEM_heatmap_doc` / `MEM_crypto_doc` in BSS. `StaticRegionAllocator` is a trivially-copyable
+   single-slot allocator (allocate → return buf, deallocate → no-op). BSS region confirmed real via `nm`
+   (`_ZL24s_overlay_any_foreground` @ `0x3ffc6b50`; Phase 1 had it dead-stripped as unused). DUT validation:
+   T220 (Crypto) `GET 200` + no `NoMemory` → allocator served the region correctly. T219/T220 maxBlk < 50k
+   failures are pre-existing TASK-243 starvation, not overlay regressions. run/check 6/6.
 
 ## 9. Invariants & risks
 
