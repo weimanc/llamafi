@@ -3532,10 +3532,11 @@ PROMOTION gate** (human chose "de-risk then promote"). Promotion = merge `rnd/me
 (make the arena/fork production, not `MEMBUDGET_PHASE1`-only). **Gated on ALL of:** TASK-263 (halved-DMA
 validation) green, TASK-264 (M-RECLAIM Q3-a overlay) green, TASK-265 (live fetch) green, **and TASK-243
 (Premium) cleared** for the Spotify-active coexistence validation. Until all green, the fork stays branch-only.
-**Priority:** P2 — promotion gate · **Status:** **blocked — gated on TASK-267 + TASK-243** (TASK-263
-**cleared**: halved DMA, startup-glitch → TASK-266; TASK-264 **cleared** `f37b92a`: Q3-a TLS-drop, DUT
-coexistence pending TASK-243; TASK-265 **done** but surfaced **TASK-267** — the fetch-vs-arena heap conflict,
-now the key design blocker) · **Opened:** 2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:**
+**Priority:** P2 — promotion gate · **Status:** **blocked — gated ONLY on TASK-243 (Premium)** — all design/
+engineering de-risk complete: TASK-263 (halved DMA) ✅, TASK-264 (overlay Q3-a) ✅, TASK-265 (fetch finding)
+✅, **TASK-267 (fetch-vs-arena fix) DUT-verified PASS 2026-06-28** ✅. Remaining for promotion: TASK-243
+(Premium) clears → validate Spotify-active coexistence on the multi-app build, then merge `rnd/membudget` →
+master + ungate `MEMBUDGET_PHASE1` for production (+ dedup `ef8e32c`, land the dead-mirror fix on master) · **Opened:** 2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:**
 Developer/PM · **Deps:** TASK-261 (done), ~~TASK-263~~, ~~TASK-264~~, ~~TASK-265 (done→TASK-267)~~,
 **TASK-267**, TASK-243
 
@@ -3663,7 +3664,11 @@ acquire → libc fallback (best-effort). Production byte-clean (no arena behavio
 ADR-047-Amd-1 measurement — ≥3 cold-boot trials × (enter WebRadio → **fetch count>0** → **acquire OK**
 (`lfbInt ≥ 24 K`) → **plays ≥ 60 s**) on `cyd2usb_webradio`. The `[membudget] TASK-267 _play pre-acquire lfbInt=`
 line is the validation signal.
-**Priority:** P1 — promotion blocker · **Status:** **implemented — DUT-verify pending (the Amd-1 measurement)**
+**DUT-VERIFIED PASS 2026-06-28** (3 cold-boot trials, `cyd2usb_webradio`): fetch **count=16** every trial
+(vs 0 pre-fix), JIT acquire **OK** with `lfbInt` = 61–63 K (~2.5× the 24 K — fragmentation risk decisively
+unfounded), plays > 60 s. EXP-010 §TASK-267. The fetch-vs-arena conflict is resolved; **A-lite fully
+de-risked.**
+**Priority:** P1 — promotion blocker · **Status:** **DONE — DUT-verified PASS** · **Closed:** 2026-06-28
 · **Opened:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget` · **Owner:**
 Developer · **Deps:** TASK-265 (finding), TASK-264 (overlay, done) · **Gates:** TASK-262 (promotion)
 

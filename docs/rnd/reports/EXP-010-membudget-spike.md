@@ -425,6 +425,34 @@ is a TASK-262 / cleanup-phase item.
 
 ---
 
+## TASK-267 — fetch-vs-arena fix, DUT-verified PASS (2026-06-28, commit `04171ba`)
+
+**ADR-047 Amendment 1 implemented + validated.** The arena is no longer reserved at boot — it is JIT-acquired
+in `WebRadioApp::_play()` and released in `suspend()` (delete the Audio object first → frees the decoder from
+the arena → then `heap_caps_free` the block). So the station fetch at `init()` runs with the full heap.
+
+**3 cold-boot trials on `cyd2usb_webradio`** (enter WebRadio → fetch → play 0 → hold ~65 s → reboot):
+
+| trial | wrCount (fetch) | lfbInt @ `_play()` | arena acquire | played | maxPlayMs | underruns |
+|---|---|---|---|---|---|---|
+| 1 | **16** | 61,428 | **OK** | ✓ | 63,287 | 1 |
+| 2 | **16** | 61,428 | **OK** | ✓ | 63,278 | 1 |
+| 3 | **16** | 63,476 | **OK** | ✓ | 63,488 | 1 |
+
+- **Fetch resolved:** `GET de1.api.radio-browser.info code=200`, 16 stations — vs `count=0` / `-32512`
+  pre-fix. The boot-reservation starvation is gone.
+- **JIT reserve has huge margin:** `lfbInt` at `_play()` = **61–63 K**, ~2.5× the 24 K arena. The
+  boot-vs-`_play()` fragmentation risk (EXP-008) is **decisively unfounded** here — the overlay (Spotify
+  torn down on entry) + fresh app-entry leave the heap clean at play time. ADR-047 Amendment 1's measurement
+  PASSES with wide headroom.
+- **Plays > 60 s** every trial. `underruns=1` is the known connect-time startup transient (TASK-266), not a
+  regression.
+
+**TASK-267 PASS → A-lite is fully de-risked.** Promotion (TASK-262) is now gated only on TASK-243 (Premium /
+Spotify-active validation + the `rnd/membudget` → master merge).
+
+---
+
 ## Links
 
 ADR-047 (Gated A-lite, this gate feeds) · M-MEMBUDGET (budget design) · PROP-membudget-spike (full plan)
