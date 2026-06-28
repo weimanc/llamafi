@@ -3751,11 +3751,19 @@ locations — the first runtime behaviour change, so **human-reviewed, low-risk-
   no corruption, results render correctly; `run/check` green; BSS now reflects the real region (nm). §4b holds
   (both scratch, regenerated on entry).
 
-**DoD:** heatmap + aquarium use `MEM_*`; DUT-verify app-switch round-trips (Stock↔Aquarium↔others) with no
+**DoD:** heatmap + crypto use `MEM_*`; DUT-verify app-switch round-trips (Stock↔Crypto↔others) with no
 corruption; budget gate still green. Then assess whether to migrate further foreground scratch.
-**Priority:** P3 — incremental hardening; not blocking anything · **Status:** **open — Phase 1 prerequisite
-done** · **Opened:** 2026-06-28 · **Milestone:** M-MEMPLAN · **Branch:** `rnd/memplan` · **Owner:** Developer
-· **Deps:** TASK-268 (done) · **Design:** M-MEMPLAN §8
+**Priority:** P3 — incremental hardening; not blocking anything · **Status:** **DONE — Phase 2 implemented
+`241adf8` + closed `c0f3902` (rnd/memplan); `run/check` 6/6 (re-verified); BSS region now real
+(nm: `s_overlay_any_foreground @ 0x3ffc6b50`, was dead-stripped in Phase 1); DUT T220 (Crypto) GET 200 + no
+NoMemory — overlay buffer served through a full parse. T219/T220 maxBlk<50k is pre-existing TASK-243
+starvation, not an overlay bug.** · **Opened:** 2026-06-28 · **Closed:** 2026-06-28 · **Milestone:** M-MEMPLAN
+· **Branch:** `rnd/memplan` (not merged) · **Owner:** Developer · **Deps:** TASK-268 (done) · **Design:**
+M-MEMPLAN §8
+> **Follow-on (VE, QM-2):** no dedicated regression test gates the overlay yet — validation leaned on
+> Premium-blocked T219/T220. File a targeted Stock→Crypto→Stock round-trip test (results distinct, no
+> cross-corruption) once TASK-243 clears, or a host-side assert that both tenants resolve to
+> `s_overlay_any_foreground+0`.
 
 ---
 
@@ -3771,6 +3779,9 @@ for now** (small benefit, real maintenance cost — BP-042 lineage). Alternative
 sprite on the heap (it's per-app, freed on exit — already fine); (b) overlay only if/when a *second* big
 TFT_eSprite tenant appears that shares the region (then the fork pays for two). Keep `aquarium_strip` out of
 the manifest until decided.
-**Priority:** P3 — optional; gated on a fork cost/benefit call · **Status:** **open — needs decision (Architect/
-human), not implementation** · **Opened:** 2026-06-28 · **Milestone:** M-MEMPLAN · **Owner:** Architect
-· **Deps:** TASK-268 · **Design:** M-MEMPLAN §6 (the placeable-vs-not boundary)
+**Priority:** P3 — optional; gated on a fork cost/benefit call · **Status:** **DEFERRED (parked) — PM
+scheduling call 2026-06-28: not now. Standing recommendation = no TFT_eSPI fork for an 11 K per-app sprite
+(BP-042 lineage); revisit only if a *second* big TFT_eSprite tenant appears that shares the region (then the
+fork pays for two). `aquarium_strip` stays out of the manifest until then. The architecture call itself
+(Architect/human) remains open if/when a tenant arrives.** · **Opened:** 2026-06-28 · **Milestone:** M-MEMPLAN
+· **Owner:** Architect · **Deps:** TASK-268 · **Design:** M-MEMPLAN §6 (the placeable-vs-not boundary)
