@@ -3525,6 +3525,54 @@ same change as TASK-261). **Action on a Phase-1 FAIL or a shelve:** if any spike
 vendored `lib/ESP32-audioI2S` fork, the reserved-arena allocator, the caps-split probe if deemed not worth
 keeping, any `[env:]`/`-D` flag, the `cross_feature_matrix` rows), revert it; remove any `run/check` entry.
 **No-op if nothing merged** — the design keeps the fork/arena on `rnd/membudget` until a Phase-2 PASS, so the
-expected steady state is "nothing to clean" (the caps-split probe may be worth keeping regardless — decide at
-closeout). **Priority:** P3 — lifecycle hygiene · **Status:** **dormant — fires only on TASK-261 FAIL-after-merge**
-· **Opened:** 2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** Developer · **Deps:** TASK-261
+expected steady state is "nothing to clean."
+
+**UPDATE 2026-06-28 — spike PASSED, so the FAIL-cleanup branch is moot; this task is REPURPOSED as the A-lite
+PROMOTION gate** (human chose "de-risk then promote"). Promotion = merge `rnd/membudget` → master + ungate
+(make the arena/fork production, not `MEMBUDGET_PHASE1`-only). **Gated on ALL of:** TASK-263 (halved-DMA
+validation) green, TASK-264 (M-RECLAIM Q3-a overlay) green, TASK-265 (live fetch) green, **and TASK-243
+(Premium) cleared** for the Spotify-active coexistence validation. Until all green, the fork stays branch-only.
+**Priority:** P2 — promotion gate · **Status:** **blocked — gated on TASK-263/264/265 + TASK-243**
+· **Opened:** 2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** Developer/PM · **Deps:** TASK-261
+(done), TASK-263, TASK-264, TASK-265, TASK-243
+
+---
+
+### TASK-263 — Validate halved I2S DMA (PATCH-MEMBUDGET-4) at higher bitrate + under jitter
+
+The Phase-2 fork halved the I2S DMA ring (16×512 → 8×256, 32 K → 8 K, gated `MEMBUDGET_PHASE1`) because the
+24 K INTERNAL arena squeezed the shared DMA pool until `i2s_driver_install()` crashed. It plays clean at
+**56 kbps** (BBC World Service), but the reduced buffering depth is **unvalidated at higher bitrate / under
+network jitter** — the underrun-resilience risk. **Test:** ≥ 128 kbps MP3 streams, sustained playback +
+deliberate network stress, compare underrun/stall rate vs the stock 16×512 ring. If the halved ring underruns
+unacceptably, the arena/DMA split needs rework (e.g. smaller arena, or accept best-effort at high bitrate).
+**The decisive quality gate for whether A-lite is shippable, not just demoable.**
+**Priority:** P1 — quality gate blocking promotion · **Status:** **open — DUT** · **Opened:** 2026-06-28
+**Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget` · **Owner:** R&D/Developer · **Deps:** TASK-261
+· **Gates:** TASK-262 (promotion)
+
+---
+
+### TASK-264 — M-RECLAIM Q3-a: tear down Spotify (TLS-drop) when WebRadio mode is active
+
+Graduates M-RECLAIM Q3-a from design to implementation (ADR-047: "M-RECLAIM Q3-a/Q4 become real tasks on a
+PASS"). For production, the 24 K WebRadio arena and Spotify's ~50 K TLS working set must not coexist — the
+overlay tears Spotify down when the player is in WebRadio mode. **Q3-a (light, recommended v1):** keep the
+spotifyTask object, drop its TLS connection (`client.stop()`/`resetTls()`) on toggle-to-WebRadio; reclaims the
+TLS working set without the vTaskDelete null-safety audit. Trigger = the TASK-259/260 player mode-state.
+Design: [M-RECLAIM-dynamic-resident.md](../architecture/designs/M-RECLAIM-dynamic-resident.md) §Q3-a.
+**Priority:** P1 — required for Spotify coexistence (promotion) · **Status:** **open — designed (Q3-a)**
+· **Opened:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** Developer · **Deps:** TASK-259/260
+(mode-state), TASK-261 · **Gates:** TASK-262 (promotion) · **Design:** M-RECLAIM §Q3-a
+
+---
+
+### TASK-265 — Live station-fetch validation (radio-browser end-to-end)
+
+Phase 2 injected streams via the `set wrUrl` debug path because radio-browser HTTPS mirrors were unreachable
+from the test network (SSL alloc fail / DNS fail). The end-to-end **fetch → list → play** path is therefore
+unproven with the arena/fork active. **Test (when a network with reachable mirrors is available, or with the
+disable-Spotify build to avoid 403 fetch starvation):** WebRadio fetches the station list and plays a fetched
+station with the fork+arena. **Priority:** P2 — closes a Phase-2 carve-out · **Status:** **open — DUT +
+network** · **Opened:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget`
+· **Owner:** R&D · **Deps:** TASK-261 · **Gates:** TASK-262 (promotion)
