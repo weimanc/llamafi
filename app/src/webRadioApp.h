@@ -277,6 +277,16 @@ public:
                 uint32_t freeB  = s_wr_audio->inBufferFree();
                 uint32_t total  = filled + freeB;
                 _bufPct = total ? (uint8_t)((uint32_t)filled * 100u / total) : 0;
+#ifdef MEMBUDGET_PHASE1
+                // TASK-263: objective halved-DMA underrun metric — edge-count input
+                // buffer empties + track low-water while PLAYING.
+                if (_state == WRPlayState::PLAYING) {
+                    if (_bufPct < _minBufPct) _minBufPct = _bufPct;
+                    bool empty = (filled == 0);
+                    if (empty && !_wasEmpty) { _underrunCount++; _lastUnderrunMs = now; }
+                    _wasEmpty = empty;
+                }
+#endif
                 int delta = (int)_bufPct - (int)_bufPctDrawn;
                 if (delta < 0) delta = -delta;
                 if (delta >= 2) {
@@ -441,6 +451,23 @@ public:
                      (unsigned)_heapFetchFree, (unsigned)_heapFetchMin);
             return true;
         }
+#ifdef MEMBUDGET_PHASE1
+        // TASK-263: halved-DMA (PATCH-MEMBUDGET-4) underrun metric. underruns =
+        // input-buffer-empty events while PLAYING (objective proxy for audible gaps;
+        // with the 8K DMA ring an empty input buffer becomes a gap far faster than
+        // with the stock 32K). minBufPct = session low-water. Reset on each PLAYING
+        // entry. Operator should still confirm by ear; this is the quantified gate.
+        if (strcmp(var, "wrUnderruns") == 0) {
+            uint32_t playMs = (_state == WRPlayState::PLAYING && _playingSinceMs)
+                              ? (uint32_t)(millis() - _playingSinceMs) : 0u;
+            snprintf(buf, len,
+                     "\"var\":\"wrUnderruns\",\"underruns\":%u,\"minBufPct\":%u,"
+                     "\"bufPct\":%u,\"playMs\":%u,\"last\":true",
+                     (unsigned)_underrunCount, (unsigned)_minBufPct,
+                     (unsigned)_bufPct, (unsigned)playMs);
+            return true;
+        }
+#endif
         return false;
     }
 
@@ -585,6 +612,12 @@ private:
     bool        _dirty           = false;
     uint8_t     _bufPct          = 0;
     uint8_t     _bufPctDrawn     = 0;       // TASK-220: last buffer % painted (hysteresis)
+#ifdef MEMBUDGET_PHASE1
+    uint32_t    _underrunCount   = 0;       // TASK-263: input-buffer-empty events while PLAYING
+    uint8_t     _minBufPct       = 100;     // TASK-263: session low-water buffer %
+    bool        _wasEmpty        = false;   // TASK-263: edge-detect for underrun count
+    uint32_t    _lastUnderrunMs  = 0;       // TASK-263: millis() of last underrun
+#endif
     uint32_t    _lastRunningMs   = 0;       // TASK-218: last tick isRunning() was true
     // TASK-234 (ADR-045): auto-skip-on-stall. Bounded retry-once-then-advance so a
     // no-PSRAM decode failure (TASK-233) tunes past dead stations instead of parking.
@@ -697,6 +730,11 @@ private:
             _playingSinceMs = _lastRunningMs;  // TASK-234: settled-timer start
             _settled        = false;
             _bufPctDrawn    = 0;         // TASK-220: force a buffer-bar repaint on first fill
+#ifdef MEMBUDGET_PHASE1
+            _underrunCount  = 0;         // TASK-263: fresh underrun count per PLAYING session
+            _minBufPct      = 100;
+            _wasEmpty       = false;
+#endif
             // _spotifyYielded stays true; TLS resumes in _stopAudio()
         } else {
             _state = WRPlayState::ERROR_UNREACHABLE;
