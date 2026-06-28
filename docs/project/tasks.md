@@ -3532,11 +3532,12 @@ PROMOTION gate** (human chose "de-risk then promote"). Promotion = merge `rnd/me
 (make the arena/fork production, not `MEMBUDGET_PHASE1`-only). **Gated on ALL of:** TASK-263 (halved-DMA
 validation) green, TASK-264 (M-RECLAIM Q3-a overlay) green, TASK-265 (live fetch) green, **and TASK-243
 (Premium) cleared** for the Spotify-active coexistence validation. Until all green, the fork stays branch-only.
-**Priority:** P2 — promotion gate · **Status:** **blocked — gated on TASK-265 + TASK-243** (TASK-263
-**cleared** 2026-06-28: halved DMA, startup-glitch → TASK-266, option A; TASK-264 **cleared** 2026-06-28:
-Q3-a TLS-drop implemented `f37b92a`; DUT coexistence validation pending TASK-243 Premium) · **Opened:**
-2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** Developer/PM
-· **Deps:** TASK-261 (done), ~~TASK-263 (done)~~, ~~TASK-264 (done)~~, TASK-265, TASK-243
+**Priority:** P2 — promotion gate · **Status:** **blocked — gated on TASK-267 + TASK-243** (TASK-263
+**cleared**: halved DMA, startup-glitch → TASK-266; TASK-264 **cleared** `f37b92a`: Q3-a TLS-drop, DUT
+coexistence pending TASK-243; TASK-265 **done** but surfaced **TASK-267** — the fetch-vs-arena heap conflict,
+now the key design blocker) · **Opened:** 2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:**
+Developer/PM · **Deps:** TASK-261 (done), ~~TASK-263~~, ~~TASK-264~~, ~~TASK-265 (done→TASK-267)~~,
+**TASK-267**, TASK-243
 
 ---
 
@@ -3611,9 +3612,43 @@ the agent MUST report:
   the arena starves the fetch handshake → needs sequencing (fetch *before* `mb_arena_reserve()`, or release
   the arena during fetch, or shrink it). Capture `wrLastHttp` + the mbedtls error.
 - **DNS fail** → should not happen now (mirror fix); flag if it does.
-**Priority:** P2 — closes a Phase-2 carve-out + answers a real promotion question · **Status:** **open — DUT +
-network** · **Opened:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget`
-· **Owner:** R&D · **Deps:** TASK-261 · **Gates:** TASK-262 (promotion)
+**RESULT — FINDING (DUT-verified 2026-06-28, commit `dd8ff84`): the always-held arena starves the station
+fetch.** Both mirrors reachable (TCP connect 83–162 ms), but the mbedtls SSL context alloc fails `-32512`
+(`MBEDTLS_ERR_SSL_ALLOC_FAILED`) immediately after TCP connect. At fetch time, with the 24 K arena held since
+boot + dataTask's 11 K stack + WiFiClientSecure locals, `lfbInt ≈ 35 K` — below the ~40 K the mbedtls context
+needs. `wrCount=0`, `wrLastHttp=-1`, reproducible across 2 cold boots. **The fetch and the always-held arena
+cannot coexist.** → fix is **TASK-267** (Architect design — NOT a TASK-262 cleanup item; it reverses the
+boot-reservation decision and must be designed, not patched).
+
+**Priority:** P2 — surfaced the real promotion blocker · **Status:** **DONE — finding recorded; fix = TASK-267**
+· **Opened:** 2026-06-28 · **Closed:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:**
+`rnd/membudget` · **Owner:** R&D · **Deps:** TASK-261 · **Surfaced:** TASK-267 (the fix)
+
+---
+
+### TASK-267 — Resolve the fetch-TLS-vs-arena heap conflict (Architect design)
+
+TASK-265 proved the always-held 24 K boot-reservation starves the ~40 K station-fetch mbedtls handshake
+(fetch `lfbInt ≈ 35 K` < ~40 K). **This is a genuine design fork, not a patch** — it pits two constraints the
+design already balanced:
+- **Boot-reserve** (current): guarantees 24 K contiguous for the decoder regardless of `_play()`-time
+  fragmentation (the EXP-008 problem Phase 1 solved) — **but starves the fetch.**
+- **JIT-reserve at `_play()`** (the agent's proposal): fetch at `init()` sees full heap → SSL succeeds; the
+  fetch TLS frees before play → reserve 24 K then. **But re-introduces the `_play()`-time fragmentation risk
+  boot-reservation was built to avoid** — needs proof that 24 K contiguous reliably survives to `_play()`
+  (likely only true once TASK-264's overlay frees Spotify's ~50 K; measure it, don't assume).
+
+**Options for the Architect to weigh** (don't pre-pick): (a) JIT-reserve at `_play()` financed by the
+overlay + a Phase-1-style contiguity measurement at `_play()`; (b) reserve at boot but **release the arena for
+the fetch window** (fetch always precedes play) and re-acquire — faces the same re-acquire contiguity
+question; (c) **reduce the fetch's mbedtls buffers** (the station GET is tiny JSON — it doesn't need 16 K TLS
+records; `MBEDTLS_SSL_IN/OUT_CONTENT_LEN` ↓ saves ~24 K) so fetch + arena coexist — but mbedtls config is
+global (affects Spotify/audio TLS), assess blast radius; (d) fetch-before-reserve at boot with a cached list.
+**DoD:** an ADR-047 amendment / short design doc picking the approach with the measurement that backs it, then
+implement + DUT-verify fetch→play with the arena.
+**Priority:** P1 — promotion blocker · **Status:** **open — Architect design** · **Opened:** 2026-06-28
+**Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget` · **Owner:** Architect → Developer
+· **Deps:** TASK-265 (finding), couples TASK-264 (overlay) · **Gates:** TASK-262 (promotion)
 
 ---
 
