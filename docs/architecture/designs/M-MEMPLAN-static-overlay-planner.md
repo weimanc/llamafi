@@ -1,6 +1,6 @@
 # M-MEMPLAN — Static app-memory overlay planner (single source of truth, build-time)
 
-> Owner: Architect · Status: **DESIGN (proposal)** · 2026-06-28
+> Owner: Architect · Status: **Phase 1 DONE** · 2026-06-28 (Phase 1 implemented on `rnd/memplan`)
 > Formalizes M-MEMBUDGET (the ad-hoc 24 K runtime arena) into a declarative, build-time-planned memory
 > **overlay** with a **single source of truth** and a **worst-case budget gate**. Mirrors the
 > `gen_app_registry.py` codegen pattern. Successor to the runtime `mb_arena_*` machinery (migration in §8).
@@ -153,10 +153,15 @@ Incremental, no rip-and-replace:
 
 ## 10. Open questions
 
-- **OQ1:** decoder region — static-always (simpler layout, but must fit fetch TLS) vs keep runtime-JIT (proven,
-  but not "fully planned"). The WCMU budget answers it.
-- **OQ2:** manifest format — YAML (proposed, matches `feature_inventory`) vs extend the `appRegistry.h`
-  X-macro. YAML is richer; the planner can still cross-check ownership against `appRegistry`.
+- **OQ1 — RESOLVED (EXP-011, 2026-06-28):** decoder must stay **runtime-JIT**. Static BSS 23,216 B →
+  maxBlk at fetch = 37 K < 40 K TLS → `MBEDTLS_ERR_SSL_ALLOC_FAILED (-32512)` → `wrCount=0`. Identical
+  failure mode to TASK-265. TASK-267 JIT path (acquire at `_play()`, after fetch TLS frees) is the only
+  viable approach. Manifest treatment: keep `kind: scratch` with a note that the planner does **not** emit
+  a static region for the decoder — it only budgets its size within `headroom.INTERNAL`. Phase 2 migration
+  will keep the JIT `mb_arena_acquire()` lifecycle but eventually point the arena at `MEM_webradio_decoder`
+  (planned static region) only after the fetch-TLS-vs-arena tension is resolved (e.g. via Spotify overlay /
+  Q3 teardown freeing enough contiguous heap at `_play()` time, which TASK-267 already proves).
+- **OQ2 — RESOLVED:** YAML chosen (matches `feature_inventory`, richer than X-macros). Phase 1 implemented.
 - **OQ3:** do background tasks (spotifyTask/dataTask stacks) enter the manifest as `headroom` line-items or as
   `kind: state` non-overlaid regions? (They're resident, not overlay-eligible — M-MEMBUDGET §2c.)
 

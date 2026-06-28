@@ -1,0 +1,14 @@
+ceiling:                     # RAM pool available to overlays + headroom, per caps class
+  INTERNAL: 290000           # bytes — EXP-009 ~320 K pool minus ~30 K WiFi/LWIP always-resident (estimate)
+  DMA:      48000
+headroom:                    # reserved for transient heap the planner does NOT place (TLS, system)
+  INTERNAL: 60000            # ~40 K mbedtls fetch context + margin; EXP-010 TASK-267 lfbInt=61 K confirms bound
+buffers:
+  - { name: webradio_decoder, app: WebRadio, caps: INTERNAL, group: foreground, size: 23216, kind: scratch }
+  # EXP-010 Phase 2: arenaHWM = 23216 B (exact sum of 9 Helix structs); see EXP-010 §Phase 2
+  - { name: webradio_inbuf,   app: WebRadio, caps: INTERNAL, group: foreground, size: 6400,  kind: scratch }
+  # Audio.cpp:59 calloc(m_buffSize); boot log: 6399 B, rounded; currently in general heap (Phase 2 reverted Site 3)
+  - { name: heatmap_doc,      app: Stock,    caps: ANY,      group: foreground, size: 2560,  kind: scratch }
+  # dataTaskStorage.cpp:616 — static DynamicJsonDocument s_heatmapDoc(2560)
+  - { name: aquarium_strip,   app: Aquarium, caps: ANY,      group: foreground, size: 11000, kind: scratch }
+  # aquariumApp.h:189,191 — AQ_CANVAS_W=275 x AQ_STRIP_H=40 x 1 B (8-bpp); createSprite(275,40)

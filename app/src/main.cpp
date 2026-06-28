@@ -108,6 +108,11 @@ char clientSecret[200];
 #include "util/mathUtil.h"
 
 // ----------------------------
+// Memory overlay layout (Phase 1: declarative budget only — no buffers wired yet)
+// ----------------------------
+#include "gen/mem_layout.h"
+
+// ----------------------------
 // App shell
 // ----------------------------
 #include "appShell.h"
@@ -1936,6 +1941,12 @@ void setup()
   esp_task_wdt_add(xTaskGetIdleTaskHandleForCPU(0));  // re-subscribe CPU0 idle
 
   Serial.begin(115200);
+
+#if defined(MEMBUDGET_PHASE1) && defined(MEMPLAN_STATIC_DECODER)
+  // OQ1 experiment (rnd/memplan): init 24 K static BSS arena at boot.
+  // Measures whether static-always decoder leaves enough heap for fetch TLS.
+  mb_arena_init_static();
+#endif
 
   // TASK-267: arena is acquired JIT in WebRadioApp::_play(), NOT at boot (so the
   // station fetch isn't starved — TASK-265). Keep one boot baseline probe.

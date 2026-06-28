@@ -18,9 +18,17 @@
 // starved (TASK-265 / ADR-047 Amendment 1). Acquire is idempotent. On a failed
 // acquire the arena stays inactive and mb_arena_alloc falls back to libc malloc
 // (best-effort playback, never a crash). Sized to the Helix HWM (23,216 B) + slack.
+//
+// MEMPLAN_STATIC_DECODER (OQ1 experiment, rnd/memplan branch only):
+// arena is a static BSS array present from boot — acquire/release are no-ops.
+// Call mb_arena_init_static() in setup() before any fetch to activate.
+// Measures whether static-always decoder competes with fetch TLS.
 static const size_t MB_ARENA_BYTES = 24 * 1024;
 bool   mb_arena_acquire(void);
 void   mb_arena_release(void);
+#ifdef MEMPLAN_STATIC_DECODER
+void   mb_arena_init_static(void);  // called from setup() to wire static BSS block
+#endif
 bool   mb_arena_active(void);
 
 // Initialise the arena over an already-allocated block (used internally by
