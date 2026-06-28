@@ -4,6 +4,16 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
+> **PM sync 2026-06-28 (A-lite PROVEN — spike all-phases PASS)** — TASK-261 Phase 0/1/2 all PASS
+> (EXP-010, branch `rnd/membudget`): the no-PSRAM CYD plays MP3 WebRadio on the multi-app build with the
+> Helix decoder forked into a 24 K free-list arena (88/103/129.7 s × 3 trials, churn-safe, production ELF
+> byte-clean). **The M-WEBRADIO no-PSRAM viability question — open since the start of the milestone — is
+> answered: YES, via the reserved-arena fork.** ADR-047's kill-gate cleared. **Open decision: production
+> promotion (TASK-262/human)** — gated on M-RECLAIM Q3-a (Spotify overlay), validation of the halved I2S DMA
+> (PATCH-MEMBUDGET-4) at higher bitrate, live station-fetch, and Spotify-active (TASK-243 Premium). The fork
+> stays branch-only (BP-040) until that decision. Process note: 3 fresh-agent spike runs (Phase 0/1, Phase 2)
+> each stopped at their gate for human review — the cheap-kill-first discipline (LL-087) held end-to-end.
+>
 > **PM sync 2026-06-27b (direction decided + design batch panel-reviewed)** — Human chose **Gated A-lite**
 > for no-PSRAM WebRadio (ADR-047 ACCEPTED): pursue the reserved-arena coexistence **conditional on the spike's
 > Phase-1 kill-gate**. Filed **TASK-261** (spike, DUT-blocked; Phase-0 instrumentation can land offline) +
@@ -3481,11 +3491,30 @@ the Phase-1 kill-gate**. Plan: [PROP-membudget-spike](../rnd/proposals/PROP-memb
 Q3-a/Q4 become tasks. **BP-042 check:** confirm the *project* `platformio.ini` audio-dep pin carries the
 why-not-newer note before Phase 2 vendors the lib.
 
-**Priority:** P1 — settles the M-WEBRADIO no-PSRAM viability question · **Status:** **scheduled — needs a DUT
-window** (DUT was available 2026-06-27 for the TASK-259 verify; confirm availability before Phase 1. Phase-0
-instrumentation can land offline meanwhile) · **Opened:** 2026-06-27
-**Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget` · **Experiment:** EXP-010 · **Owner:** R&D →
-Developer (Phase 2) · **Deps:** none to start; **decision:** ADR-047 · **Cleanup:** TASK-262
+**RESULT — ALL PHASES PASS (DUT-verified 2026-06-28, branch `rnd/membudget` commit `d20c269`).**
+- **Phase 0/1:** caps-split baseline + 40 K reservation kill-gate PASS (EXP-010).
+- **Phase 2:** vendored ESP32-audioI2S into `app/lib/`, forked the Helix decoder alloc+free into a 16-slot
+  fixed-size free-list over a **24 K** arena (refined down from 40 K — Helix HWM = 23,216 B exact; InBuff
+  reverted to general heap, fits the 38,900 lfbInt). **WebRadio played 88/103/129.7 s across 3 cold-boot
+  trials**, survived 4 auto-skip churn cycles (free-list reuses the same 9 slots, zero fragmentation —
+  lfbInt 38,900 constant). **Production `cyd2usb_winamp` ELF byte-clean (0 membudget symbols, nm-verified);
+  all spike code `#ifdef MEMBUDGET_PHASE1`.**
+- **A-lite is technically PROVEN.** ADR-047's kill-gate is cleared.
+
+**Promotion caveats (shape the TASK-262 decision — NOT regressions, but un-validated for shipping):**
+1. **PATCH-MEMBUDGET-4 — I2S DMA halved** (16×512 → 8×256, 32 K → 8 K) under MEMBUDGET_PHASE1: the 24 K
+   INTERNAL arena squeezed the shared DMA pool until `i2s_driver_install()` crashed; halving the ring fixed
+   it. Plays clean at **56 kbps** — but the reduced buffering needs validation at higher bitrate / under
+   network jitter (underrun resilience).
+2. **Station fetch not live-tested** — radio-browser HTTPS mirrors were unreachable from the test network;
+   streams were injected via a `set wrUrl` debug path. End-to-end fetch→play unproven here.
+3. **Spotify-active coexistence (overlay) untested** — needs M-RECLAIM Q3-a + TASK-259/260 mode-state, and
+   live validation gated on TASK-243 (owner Premium).
+
+**Priority:** P1 — settles the M-WEBRADIO no-PSRAM viability question · **Status:** **DONE — all phases PASS;
+A-lite proven; promotion decision = TASK-262 / human** · **Opened:** 2026-06-27 · **Closed:** 2026-06-28
+**Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget` (fork branch-only until promotion) ·
+**Experiment:** EXP-010 (Phase 0/1/2) · **Owner:** R&D → Developer · **decision:** ADR-047 · **Next:** TASK-262
 
 ---
 
