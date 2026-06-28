@@ -3534,7 +3534,9 @@ validation) green, TASK-264 (M-RECLAIM Q3-a overlay) green, TASK-265 (live fetch
 (Premium) cleared** for the Spotify-active coexistence validation. Until all green, the fork stays branch-only.
 **Priority:** P2 — promotion gate · **Status:** **blocked — gated on TASK-264/265 + TASK-243** (TASK-263
 **cleared** 2026-06-28: halved DMA validated for sustained 128 kbps; startup-glitch follow-up TASK-266 is NOT
-a promotion blocker) · **Opened:** 2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** Developer/PM
+a promotion blocker — **option A chosen**: TASK-266 will pre-fill the input buffer before I2S start to
+eliminate the connect-time underrun, not a gate requirement for promotion) · **Opened:** 2026-06-27
+· **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** Developer/PM
 · **Deps:** TASK-261 (done), ~~TASK-263 (done)~~, TASK-264, TASK-265, TASK-243
 
 ---
