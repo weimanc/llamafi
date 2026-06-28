@@ -1833,6 +1833,11 @@ void switchApp(AppId next) {
   currentAppId = next;
   // TASK-259: track the last-active player mode for the taskbar player-slot restore.
   if (next == AppId::Spotify || next == AppId::WebRadio) g_lastPlayerMode = next;
+  // TASK-264 (Q3-a): drop Spotify TLS when WebRadio is active (reclaims ~50 K arena).
+  // Non-blocking — setWebRadioActive() only sets flags, never calls tlsYield().
+#ifndef DISABLE_SPOTIFY
+  spotifyTask::setWebRadioActive(next == AppId::WebRadio);
+#endif
   if (g_apps[(int)next]) {
     if (!g_appLaunched[(int)next]) {
       g_appLaunched[(int)next] = true;

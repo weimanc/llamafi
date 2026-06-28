@@ -63,6 +63,9 @@ static volatile bool s_authErrorLatched = false;
 // volatile ensures the compiler does not hoist the check out of the loop.
 // A single bool write is atomic on ESP32 Xtensa (aligned word store).
 static volatile bool s_resetTlsPending = false;
+// TASK-264 (Q3-a): set by setWebRadioActive(); suppresses TLS reconnect
+// while WebRadio holds the arena.
+static volatile bool s_webRadioActive = false;
 
 #ifdef SERIAL_DEBUG
 // ADR-042 E2: background poll inhibit. 1 = normal, 0 = suspended.
@@ -312,6 +315,14 @@ static void taskBody(void *) {
       client.stop();
     }
 
+    // TASK-264 (Q3-a): keep TLS stopped while WebRadio holds the arena.
+    // client.stop() is idempotent; 500 ms idle prevents tight-looping.
+    if (s_webRadioActive) {
+      client.stop();
+      vTaskDelay(pdMS_TO_TICKS(500));
+      continue;
+    }
+
     Request req;
     uint32_t waitMs = nextWaitMs();
     BaseType_t got = xQueueReceive(reqQueue, &req, pdMS_TO_TICKS(waitMs));
@@ -525,6 +536,14 @@ void resetTls() {
 #ifdef SERIAL_DEBUG
   s_bgPollEnabled = 1;  // ADR-042: reconnect always restores full operational state
 #endif
+}
+
+// TASK-264 (Q3-a): signal the task that WebRadio is now the active player.
+// When active, kicks an immediate client.stop() via s_resetTlsPending and then
+// suppresses all TLS reconnects until cleared. Non-blocking.
+void setWebRadioActive(bool active) {
+  s_webRadioActive = active;
+  if (active) s_resetTlsPending = true;
 }
 
 void tlsYield() {
