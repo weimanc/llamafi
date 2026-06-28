@@ -3656,7 +3656,14 @@ global (affects Spotify/audio TLS), assess blast radius; (d) fetch-before-reserv
 `_play()` reserve; ≥ 3 cold-boot trials × (enter WebRadio → fetch count>0 → play) on `cyd2usb_webradio`.
 **PASS = fetch succeeds AND JIT reserve succeeds (`lfbInt ≥ 24 K`, arena non-null) AND playback holds.** FAIL →
 fall back to option (c) (scoped mbedtls reduction) or a smaller arena (re-open ADR-047 Amendment 1).
-**Priority:** P1 — promotion blocker · **Status:** **designed (ADR-047 Amd 1) — ready to implement + DUT-verify**
+**IMPLEMENTED 2026-06-28 (`04171ba`, build-gated `run/check` 5/5).** Arena moved boot→`_play()` JIT-acquire +
+`suspend()` release (delete Audio first → frees decoder from arena → then release, avoiding dangling the live
+decoder buffers `stopSong` doesn't free). `mb_arena_acquire/release/active` added to `mb_arena.*`; failed
+acquire → libc fallback (best-effort). Production byte-clean (no arena behaviour). **DUT-verify owed:** the
+ADR-047-Amd-1 measurement — ≥3 cold-boot trials × (enter WebRadio → **fetch count>0** → **acquire OK**
+(`lfbInt ≥ 24 K`) → **plays ≥ 60 s**) on `cyd2usb_webradio`. The `[membudget] TASK-267 _play pre-acquire lfbInt=`
+line is the validation signal.
+**Priority:** P1 — promotion blocker · **Status:** **implemented — DUT-verify pending (the Amd-1 measurement)**
 · **Opened:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget` · **Owner:**
 Developer · **Deps:** TASK-265 (finding), TASK-264 (overlay, done) · **Gates:** TASK-262 (promotion)
 
