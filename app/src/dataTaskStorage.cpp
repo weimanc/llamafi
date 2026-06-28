@@ -18,6 +18,7 @@
 #include <freertos/task.h>
 #include <esp_heap_caps.h>
 #include <climits>
+#include "gen/mem_layout.h"
 
 namespace dataTask {
 
@@ -32,6 +33,25 @@ namespace dataTask {
 // --- internal types ----------------------------------------------------------
 
 struct Request { uint8_t type; uint8_t param0; uint8_t param1; char symbol[8]; };
+
+// M-MEMPLAN §8: allocator that backs a BasicJsonDocument with a static overlay
+// region from mem_layout.h. allocate() returns the pre-assigned buffer once;
+// deallocate()/reallocate() are no-ops / in-place — the region is never freed.
+struct StaticRegionAllocator {
+    void* buf;
+    size_t cap;
+    void* allocate(size_t n) {
+        if (n <= cap) return buf;
+        LOG_E("memplan", "overlay alloc overflow: need %u cap %u", (unsigned)n, (unsigned)cap);
+        return nullptr;
+    }
+    void deallocate(void*) {}
+    void* reallocate(void* p, size_t n) {
+        if (n <= cap) return p;
+        LOG_E("memplan", "overlay realloc overflow: need %u cap %u", (unsigned)n, (unsigned)cap);
+        return nullptr;
+    }
+};
 
 // --- module state ------------------------------------------------------------
 
@@ -233,7 +253,9 @@ static void fetchCrypto() {
     LOG_HEAP("dataTask.crypto");
     if (code == 200) {
         s_cryptoFetchPhase = 2;  // JSON parse
-        DynamicJsonDocument doc(2048);
+        // M-MEMPLAN §8 (TASK-269): backed by MEM_crypto_doc (same overlay region).
+        BasicJsonDocument<StaticRegionAllocator> doc(
+            2048, StaticRegionAllocator{MEM_crypto_doc, 2048u});
         DeserializationError err = deserializeJson(doc, body);
         if (!err) {
             CryptoResult r;
@@ -613,7 +635,11 @@ static void fetchTeletext(uint16_t page, uint8_t sub) {
 // Pre-allocated at startup (unfragmented heap) and reused per fetch cycle to avoid
 // malloc failure after long-uptime TLS cycling (PROP-004 / EXP-003).
 // Capacity: 20 symbols × ~120 B each ≈ 2.4 kB peak usage; 2560 gives headroom.
-static DynamicJsonDocument s_heatmapDoc(2560);
+// M-MEMPLAN §8 (TASK-269): backed by the static overlay region MEM_heatmap_doc
+// (s_overlay_any_foreground[2560] in BSS). Allocator returns the fixed buffer;
+// deallocate is a no-op. Safe because heatmap and crypto parses are serial.
+static BasicJsonDocument<StaticRegionAllocator> s_heatmapDoc(
+    2560, StaticRegionAllocator{MEM_heatmap_doc, 2560u});
 
 // --- webradio state ----------------------------------------------------------
 

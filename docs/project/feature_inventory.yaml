@@ -1516,3 +1516,60 @@ features:
       stress/soak harness). The shared tlsYield is also the no-PSRAM contention point — a Spotify
       403 starves every fetcher via it (project memory: tlsYield starvation; fixed by TASK-244's
       hard-backoff). data-task-001's resident stack is M-MEMBUDGET's Q2 dynamic-reclaim candidate.
+
+  - id: memplan-001
+    name: Static app-memory overlay planner (build-time memory budgeting)
+    milestone: M-MEMPLAN
+    status: partial
+    description: |
+      Build-time memory architecture: a single declarative manifest of every app's RAM needs +
+      an offline (host) planner that computes a static OVERLAY layout (mutually-exclusive apps
+      SHARE one region, sized to MAX working-set not SUM), assigns deterministic region+offset,
+      and GATES the build against a per-caps RAM ceiling (WCMU — worst-case memory usage, the
+      WCET sibling). Mirrors the gen_app_registry.py codegen+golden pattern. Formalizes the ad-hoc
+      runtime arena (M-MEMBUDGET / mb_arena, A-lite, ADR-047) into a reviewed, build-checked
+      resource.
+      MANIFEST: app/mem_manifest.yaml — authoritative {name, app, caps, group, size, kind,
+      placement} per buffer. kind:scratch|state enforces the §4b invariant (only regenerable
+      scratch may overlay; state rejected from multi-app groups). placement:runtime (OQ1) =
+      BUDGETED against the ceiling but NOT statically placed (decoder/InBuff stay runtime-JIT in
+      WebRadioApp::_play() — static BSS re-fails the fetch TLS, EXP-011).
+      PLANNER: app/tools/gen_mem_layout.py -> app/gen/mem_layout.h (static overlay arrays + MEM_*
+      macros + budget consts) + app/gen/mem_layout.py (test mirror). Deterministic -> golden-hashed
+      (app/gen/golden.sha256). HARD non-zero exit on budget overflow.
+      GATE: check_build.sh [6/6] = mem_layout staleness (re-gen diffs clean) + WCMU budget assert.
+      PHASE 2 (TASK-269): two ArduinoJson parse buffers (heatmap_doc/Stock, crypto_doc/Crypto)
+      repointed at the shared MEM_* overlay region s_overlay_any_foreground[2560] via a
+      BasicJsonDocument BYO-allocator (StaticRegionAllocator) — NO library fork. Safe: dataTask is
+      serial + Stock/Crypto are foreground -> never concurrent; both pure scratch (result copied to
+      a separate struct). Validates the overlay-sharing mechanism end-to-end.
+    files:
+      - app/mem_manifest.yaml
+      - app/tools/gen_mem_layout.py
+      - app/gen/mem_layout.h
+      - app/gen/mem_layout.py
+      - app/gen/golden.sha256
+      - app/src/dataTaskStorage.cpp
+      - tools/check_build.sh
+      - docs/architecture/designs/M-MEMPLAN-static-overlay-planner.md
+      - docs/architecture/decisions/ADR-047.md
+    cross_features:
+      - app-registry-001
+      - data-task-001
+      - webradio-001
+      - player-state-001
+    test_ids: []
+    dependencies:
+      - app-registry-001
+    notes: |
+      Backfilled 2026-06-28 (QM-3 audit: the whole memory-budgeting subsystem had no inventory row,
+      only oblique refs in player-state-001 notes + matrix X022-X024). status=partial: Phase 1
+      (TASK-268, planner foundation + OQ1) is DONE on master (95bd298); Phase 2 (TASK-269, the two
+      tenants) is DONE on branch rnd/memplan (241adf8) NOT yet merged. The runtime mb_arena (A-lite,
+      ADR-047 + Amd 1) is the related runtime-overlay mechanism this planner succeeds — currently
+      gated behind MEMBUDGET_PHASE1, mainlined-gated (master adeab7c), ungate blocked on TASK-243.
+      OPEN: TASK-270 (aquarium TFT_eSprite overlay — deferred, needs a fork). TEST GAP (QM-2): no
+      dedicated regression test gates the overlay — Phase 2 validation leaned on Premium-blocked
+      DUT T219/T220; file a Stock->Crypto round-trip test (results distinct, no cross-corruption)
+      once TASK-243 clears. test_ids stays [] until then. Developer: review/refine this row — it was
+      authored by PM/QM to close the audit gap.

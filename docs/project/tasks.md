@@ -3717,7 +3717,71 @@ behaviour change). Phase 1 emits the header; nothing consumes it at runtime yet.
 **DoD:** manifest + planner + gate landed, `run/check` green, golden-hash stable; OQ1 recorded (EXP-011 or
 EXP-010 extension) + resolved in M-MEMPLAN §10; Phase 1 marked done. Branch `rnd/memplan`, NOT merged.
 
-**Priority:** P2 — formalizes the memory architecture; foundation is risk-free (declarative) · **Status:**
-**open — handover written, ready for a fresh agent** · **Opened:** 2026-06-28 · **Milestone:** M-MEMPLAN
-**Branch:** `rnd/memplan` · **Owner:** R&D/Developer → Architect (OQ1 verdict) · **Deps:** none (foundation is
-standalone) · **Design:** M-MEMPLAN · **Inputs:** EXP-010 numbers, `gen_app_registry.py` pattern
+**DONE 2026-06-28 (`da3e6f7`, branch `rnd/memplan`).** Manifest (4 buffers) + `gen_mem_layout.py` planner +
+`check_build.sh` [6/6] (staleness + WCMU budget) + golden-hash; `run/check` 6/6. Budget INTERNAL = 29,616
+overlay + 60,000 headroom = 89,616 / 290,000 ceiling ✓. BSS impact zero (unused statics optimized away;
+Phase 2 wiring makes them real). **OQ1 RESOLVED — confirmed the Architect prediction:** static-decoder
+(23,216 B BSS) drops fetch maxBlk to **37 K < 40 K TLS → `-32512`, count 0** (= TASK-265 redux); **decoder
+stays runtime-JIT**, manifest `placement: runtime` (planner budgets its size within headroom, no static
+region). Baseline JIT: maxBlk 57 K, fetch OK, count 16.
+**Priority:** P2 — formalizes the memory architecture · **Status:** **DONE — Phase 1 complete, OQ1 resolved**
+· **Opened:** 2026-06-28 · **Closed:** 2026-06-28 · **Milestone:** M-MEMPLAN · **Branch:** `rnd/memplan`
+(branch-only until promotion) · **Owner:** R&D/Developer · **Design:** M-MEMPLAN · **Follow-on:** TASK-269 (Phase 2)
+
+---
+
+### TASK-269 — M-MEMPLAN Phase 2: wire low-risk tenants to the planned overlay
+
+Phase 2 of M-MEMPLAN (Phase 1 = TASK-268, done). Repoint real buffers at the planner-emitted `MEM_<name>`
+locations — the first runtime behaviour change, so **human-reviewed, low-risk-first** (M-MEMPLAN §8).
+**Re-scoped 2026-06-28** after a code check found the original tenants wrong (see below).
+- **The two tenants — both fork-free ArduinoJson parse buffers, both DUT-confirmed clean scratch (result
+  copied to a separate struct):** `heatmap_doc` (Stock; `s_heatmapDoc` → result `s_heatmapResult`) and
+  `crypto_doc` (Crypto; `fetchCrypto` `doc(2048)` → result `s_cryptoResult`). Both → the shared
+  `MEM_heatmap_doc`/`MEM_crypto_doc` (offset 0 of `s_overlay_any_foreground[2560]`) via a `BasicJsonDocument`
+  BYO-allocator. They're mutually exclusive (dataTask is serial; Stock/Crypto are foreground) → this
+  **validates the overlay sharing** end-to-end with **no library fork**.
+- **`aquarium_strip` DROPPED from Phase 2 → TASK-270** — `TFT_eSprite::createSprite` mallocs internally with
+  no external-buffer API; overlaying it would need a TFT_eSPI fork (a cost/benefit decision, not low-risk).
+- **Manifest/planner already corrected (this re-scope, committed):** decoder+InBuff marked
+  `placement: runtime` (OQ1) — the planner now **budgets** them without emitting a static region (the agent's
+  Phase 1 had left them statically placed, which OQ1 proved breaks the fetch); aquarium swapped for crypto.
+  `run/check` 6/6.
+- Verify (Phase 2 impl): on app-switch Stock↔Crypto↔others the shared 2560 B region holds the right tenant,
+  no corruption, results render correctly; `run/check` green; BSS now reflects the real region (nm). §4b holds
+  (both scratch, regenerated on entry).
+
+**DoD:** heatmap + crypto use `MEM_*`; DUT-verify app-switch round-trips (Stock↔Crypto↔others) with no
+corruption; budget gate still green. Then assess whether to migrate further foreground scratch.
+**Priority:** P3 — incremental hardening; not blocking anything · **Status:** **DONE — Phase 2 implemented
+`241adf8` + closed `c0f3902` (rnd/memplan); `run/check` 6/6 (re-verified); BSS region now real
+(nm: `s_overlay_any_foreground @ 0x3ffc6b50`, was dead-stripped in Phase 1); DUT T220 (Crypto) GET 200 + no
+NoMemory — overlay buffer served through a full parse. T219/T220 maxBlk<50k is pre-existing TASK-243
+starvation, not an overlay bug.** · **Opened:** 2026-06-28 · **Closed:** 2026-06-28 · **Milestone:** M-MEMPLAN
+· **Branch:** `rnd/memplan` (not merged) · **Owner:** Developer · **Deps:** TASK-268 (done) · **Design:**
+M-MEMPLAN §8
+> **Follow-on (VE, QM-2):** no dedicated regression test gates the overlay yet — validation leaned on
+> Premium-blocked T219/T220. File a targeted Stock→Crypto→Stock round-trip test (results distinct, no
+> cross-corruption) once TASK-243 clears, or a host-side assert that both tenants resolve to
+> `s_overlay_any_foreground+0`.
+
+---
+
+### TASK-270 — M-MEMPLAN: overlay the Aquarium sprite (needs a TFT_eSPI fork — decision first)
+
+Deferred from TASK-269. The Aquarium strip sprite (`aquariumApp.h`, ~11 K, 275×40×1 B) was assumed an easy
+overlay tenant, but `TFT_eSprite::createSprite` **mallocs internally** (`callocSprite`) and exposes **no
+external-buffer API** — only `getPointer()` (read). Pointing it at `MEM_aquarium_strip` requires **vendoring +
+forking TFT_eSPI** (add a `setBuffer()` path), a second library fork on top of ESP32-audioI2S.
+
+**Decision needed before any work:** is overlaying an 11 K sprite worth owning a TFT_eSPI fork? Likely **no
+for now** (small benefit, real maintenance cost — BP-042 lineage). Alternatives: (a) leave the aquarium
+sprite on the heap (it's per-app, freed on exit — already fine); (b) overlay only if/when a *second* big
+TFT_eSprite tenant appears that shares the region (then the fork pays for two). Keep `aquarium_strip` out of
+the manifest until decided.
+**Priority:** P3 — optional; gated on a fork cost/benefit call · **Status:** **DEFERRED (parked) — PM
+scheduling call 2026-06-28: not now. Standing recommendation = no TFT_eSPI fork for an 11 K per-app sprite
+(BP-042 lineage); revisit only if a *second* big TFT_eSprite tenant appears that shares the region (then the
+fork pays for two). `aquarium_strip` stays out of the manifest until then. The architecture call itself
+(Architect/human) remains open if/when a tenant arrives.** · **Opened:** 2026-06-28 · **Milestone:** M-MEMPLAN
+· **Owner:** Architect · **Deps:** TASK-268 · **Design:** M-MEMPLAN §6 (the placeable-vs-not boundary)

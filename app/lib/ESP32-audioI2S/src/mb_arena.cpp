@@ -51,6 +51,39 @@ void mb_arena_init(void* buf, size_t size) {
 // (WebRadioApp::suspend() deletes the Audio object first), so no dangling slots.
 static void* s_owned = nullptr;
 
+#ifdef MEMPLAN_STATIC_DECODER
+// OQ1 experiment (rnd/memplan branch): 24 K static BSS region, always present.
+// This makes the region equivalent to a linker-placed static array — it subtracts
+// from the heap pool at boot and competes with fetch TLS during station fetch.
+// mb_arena_init_static() wires it; acquire/release are no-ops.
+// Sized to exact Helix HWM (23,216 B) — smaller than MB_ARENA_BYTES (24 K) to fit linker DRAM.
+static uint8_t s_static_decoder_buf[23216] __attribute__((aligned(4)));
+
+void mb_arena_init_static(void) {
+    Serial.printf("[membudget] OQ1 static decoder init: buf=%p size=%u lfbInt=%u freeInt=%u\n",
+        (void*)s_static_decoder_buf, (unsigned)sizeof(s_static_decoder_buf),
+        (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+        (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+    mb_arena_init(s_static_decoder_buf, sizeof(s_static_decoder_buf));
+    s_owned = s_static_decoder_buf;  // mark as active so active() returns true
+}
+
+bool mb_arena_acquire(void) {
+    // static path: arena already init'd at boot; no heap alloc; no-op here
+    Serial.printf("[membudget] OQ1 static acquire (no-op) lfbInt=%u\n",
+        (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+    return s_owned != nullptr;
+}
+
+void mb_arena_release(void) {
+    // static path: cannot free BSS; only reset slot table so decoder re-allocates clean
+    s_bump = 0; s_hwm = 0; s_nslots = 0;
+    memset(s_slots, 0, sizeof(s_slots));
+    Serial.println("[membudget] OQ1 static arena reset (BSS block retained)");
+}
+
+#else  // normal JIT path
+
 bool mb_arena_acquire(void) {
     if (s_owned) return true;  // idempotent — already held this session
     size_t lfb = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
@@ -70,6 +103,8 @@ void mb_arena_release(void) {
     memset(s_slots, 0, sizeof(s_slots));
     Serial.println("[membudget] TASK-267 arena released");
 }
+
+#endif  // MEMPLAN_STATIC_DECODER
 
 bool mb_arena_active(void) { return s_base != nullptr; }
 

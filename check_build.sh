@@ -21,7 +21,7 @@ echo "=== Build check ==="
 echo
 
 # ── 1. Firmware build: production target ─────────────────────────────────────
-echo "[1/5] pio build cyd2usb_winamp"
+echo "[1/6] pio build cyd2usb_winamp"
 if (cd "$PIO_DIR" && "$PIO" run -e cyd2usb_winamp --silent 2>&1); then
     ok "cyd2usb_winamp compiles"
 else
@@ -29,7 +29,7 @@ else
 fi
 
 # ── 2. Firmware build: debug target (used for DUT tests) ─────────────────────
-echo "[2/5] pio build cyd2usb_winamp_debug"
+echo "[2/6] pio build cyd2usb_winamp_debug"
 if (cd "$PIO_DIR" && "$PIO" run -e cyd2usb_winamp_debug --silent 2>&1); then
     ok "cyd2usb_winamp_debug compiles"
 else
@@ -37,7 +37,7 @@ else
 fi
 
 # ── 3. Golden hash: generated assets unchanged ───────────────────────────────
-echo "[3/5] golden.sha256"
+echo "[3/6] golden.sha256"
 if (cd "$GEN_DIR" && sha256sum -c golden.sha256 --quiet 2>&1); then
     ok "golden.sha256 clean"
 else
@@ -45,7 +45,7 @@ else
 fi
 
 # ── 4. Tool-script smoke test ────────────────────────────────────────────────
-echo "[4/5] tools/smoke_test.sh"
+echo "[4/6] tools/smoke_test.sh"
 if (cd "$PROJ_ROOT/app/tools" && bash smoke_test.sh 2>&1); then
     ok "smoke_test.sh passed"
 else
@@ -53,7 +53,7 @@ else
 fi
 
 # ── 5. app registry staleness check ──────────────────────────────────────────
-echo "[5/5] gen_app_registry staleness check"
+echo "[5/6] gen_app_registry staleness check"
 TMPDIR_REG=$(mktemp -d)
 if "$VENV_PY" "$PROJ_ROOT/app/tools/gen_app_registry.py" --out-dir "$TMPDIR_REG" > /dev/null 2>&1; then
     if diff -q "$TMPDIR_REG/app_ids_gen.py" "$PROJ_ROOT/app/tools/app_ids_gen.py" > /dev/null 2>&1 && \
@@ -66,6 +66,21 @@ else
     fail "gen_app_registry.py failed to run"
 fi
 rm -rf "$TMPDIR_REG"
+
+# ── 6. mem_layout staleness + budget check ────────────────────────────────────
+echo "[6/6] gen_mem_layout staleness + budget check"
+TMPDIR_MEM=$(mktemp -d)
+if "$VENV_PY" "$PROJ_ROOT/app/tools/gen_mem_layout.py" --out-dir "$TMPDIR_MEM" > /dev/null 2>&1; then
+    if diff -q "$TMPDIR_MEM/mem_layout.h" "$PROJ_ROOT/app/gen/mem_layout.h" > /dev/null 2>&1 && \
+       diff -q "$TMPDIR_MEM/mem_layout.py" "$PROJ_ROOT/app/gen/mem_layout.py" > /dev/null 2>&1; then
+        ok "mem_layout files are up to date and budget passes"
+    else
+        fail "mem_layout.h or mem_layout.py is stale — re-run gen_mem_layout.py"
+    fi
+else
+    fail "gen_mem_layout.py failed (budget overflow or manifest error)"
+fi
+rm -rf "$TMPDIR_MEM"
 
 echo
 echo "=== Results: $PASS passed, $FAIL failed ==="
