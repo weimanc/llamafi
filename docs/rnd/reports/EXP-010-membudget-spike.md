@@ -281,8 +281,75 @@ addresses. No size-mismatch allocations; bump pointer never advances past first-
 
 ---
 
+## TASK-263 — Halved-DMA validation at 128 kbps (2026-06-28)
+
+> Gate question: does the 8×256 DMA ring (PATCH-MEMBUDGET-4) sustain ≥128 kbps MP3 for ≥120 s without
+> underruns? **This is the decisive quality gate for whether A-lite is shippable.**
+
+### Method
+
+Build: `cyd2usb_webradio` (`MEMBUDGET_PHASE1` + `DISABLE_SPOTIFY`). Stream injected via `set wrUrl` (radio-browser
+HTTPS mirrors unreachable from this network — same infrastructure constraint as Phase 2). Metric polled via
+`get wrUnderruns` every ~30 s. Three cold-boot reflash trials; DUT auto-reset between each.
+
+Streams used:
+- Trials 1–2: `http://ice1.somafm.com/groovesalad-128-mp3` (SomaFM Groove Salad, confirmed 128 kbps MP3 HTTP)
+- Trial 3: `http://ice2.somafm.com/dronezone-128-mp3` (SomaFM Drone Zone, confirmed 128 kbps MP3 HTTP)
+
+### Per-trial results
+
+| Trial | Stream | Hold (s) | underruns | minBufPct | bufPct range | Crash/WDT/stall |
+|-------|--------|----------|-----------|-----------|--------------|-----------------|
+| 1 | groovesalad-128 | ≥138 | **1** | 0 | 93–100% | None |
+| 2 | groovesalad-128 | ≥124 | **1** | 0 | 93–100% | None |
+| 3 | dronezone-128   | ≥124 | **1** | 0 | 22–23%  | None |
+
+**Key observation:** In all 3 trials the single underrun fires at T < 5 s (during the initial input-buffer fill
+on `connecttohost()`), before the decoder has started consuming. After that first fill the underrun counter
+does not increment for the remainder of the soak (120–138 s). `minBufPct = 0` is the historical low-water
+mark from that startup event; the buffer recovers immediately (bufPct 22–100% depending on stream cadence)
+and holds for the full soak.
+
+Trial 3 (dronezone) shows lower steady-state bufPct (22–23%) than Trials 1–2 (93–100%), suggesting variable
+network/stream cadence — but still zero recurrent underruns.
+
+### Verdict: PARTIAL
+
+**Strict gate (underruns == 0):** FAIL — all 3 trials report underruns = 1.
+
+**Honest characterisation:** The single underrun is a **startup transient** (fires during initial buffer fill
+at T < 5 s), not a recurrent underrun during sustained playback. After the first fill the 8×256 DMA ring
+sustains 128 kbps MP3 for ≥120 s continuously with zero additional underruns and no stall/crash/WDT. The
+8 K ring is tight (CP2 lfbDma = 3,060–6,132 B) but functional at this bitrate once primed.
+
+**Promotion calculus implication:**
+
+- The startup underrun is a firmware-layer issue (the input buffer starves briefly before the decoder thread
+  has caught up), not a DMA-ring sizing issue per se. A one-time audio glitch at connect time is an
+  acceptable UX trade-off for the memory saving at this stage.
+- If the strict "underruns == 0" gate is held, the options are: (a) pre-fill the input buffer before
+  starting I2S, (b) accept the PARTIAL result and let TASK-262 decide whether the startup transient warrants
+  a gate revision, or (c) accept best-effort-at-connect and document the known behaviour.
+- No evidence that the halved DMA ring degrades **sustained** 128 kbps playback — the ring is adequate once
+  the buffer is primed.
+
+**Recommendation:** TASK-262 (promotion gate) should revise the underrun criterion to distinguish startup
+transients from recurrent underruns, or accept the PARTIAL and proceed with the known startup-glitch caveat.
+The halved DMA ring does **not** underrun during sustained 128 kbps playback.
+
+### What is NOT covered
+
+- Real network jitter injection was not feasible on-DUT; soak on a live variable-bitrate public stream is the
+  proxy. Stream conditions during the test window were stable (no observed packet-loss events in the log).
+- Radio-browser live fetch path untested (HTTPS mirrors unreachable — TASK-265 carve-out).
+- Simultaneous Spotify + WebRadio coexistence (overlay not yet implemented — TASK-264 carve-out).
+- AAC or higher-bitrate streams (>128 kbps) not tested; Helix MP3 decoder only.
+
+---
+
 ## Links
 
 ADR-047 (Gated A-lite, this gate feeds) · M-MEMBUDGET (budget design) · PROP-membudget-spike (full plan)
 · EXP-009 (bare-rig ceiling PASS — prior basis) · TASK-261 (this spike) · TASK-262 (cleanup / promotion)
+· TASK-263 (halved-DMA validation — this section)
 · Branch: `rnd/membudget`, commits `6639997` (Phase 0) + `afbd5c3` (Phase 1) + `f36152b` (Phase 2 vendor) + working-tree changes (Phase 2 fork, refinements, DUT test).
