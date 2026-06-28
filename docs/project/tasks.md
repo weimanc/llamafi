@@ -3688,3 +3688,36 @@ refine the `wrUnderruns` metric** to exclude the initial-fill window (count only
 re-run reads a clean `recurrent underruns == 0`. **Priority:** P3 — minor UX polish, NOT a promotion blocker
 · **Status:** **open — backlog** · **Opened:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:**
 `rnd/membudget` · **Owner:** Developer · **Deps:** TASK-263 (surfaced it)
+
+---
+
+### TASK-268 — M-MEMPLAN Phase 1: static overlay planner foundation + OQ1
+
+Pursue M-MEMPLAN (human direction 2026-06-28) — formalize memory budgeting + the app-union overlay into a
+declarative, build-time-planned system. Design:
+[M-MEMPLAN-static-overlay-planner.md](../architecture/designs/M-MEMPLAN-static-overlay-planner.md).
+
+**Phase 1 scope (declarative foundation + the one empirical question — NO production runtime change):**
+- **Single source of truth:** author `app/mem_manifest.yaml` (every app buffer: name/app/size/caps/group/kind),
+  seeded from real numbers (EXP-010: decoder 23,216, InBuff 6,400; heatmap doc 2,560; sprites/JSON docs from
+  code; honest `ceiling`/`headroom`).
+- **Offline planner:** `app/tools/gen_mem_layout.py` (mirrors `gen_app_registry.py`) — M-MEMPLAN §4 algorithm
+  (region = MAX-over-apps-of-SUM; per-app offsets; **WCMU budget assertion = hard build failure** on
+  overflow); emits `app/gen/mem_layout.h` + `.py`. Enforces the §4b invariant (`kind: state` rejected from
+  multi-app groups). Deterministic → golden-hashable.
+- **Gate:** 6th `check_build.sh` step (staleness + budget). `run/check` green.
+- **OQ1 (DUT):** static-decoder variant (`static uint8_t[24K]`, no JIT acquire) on `cyd2usb_webradio` →
+  measure `wrCount` + fetch `lfbInt`. Decides the decoder's manifest treatment (statically-placed vs
+  `placement: runtime`). Architect prediction: static-always re-fails the fetch (~37 K < ~40 K) → decoder
+  stays runtime-JIT, planner budgets size + headroom only. Confirm/refute.
+
+**Out of scope (Phase 2, separate + human-reviewed):** repointing real buffers at `MEM_<name>` (the runtime
+behaviour change). Phase 1 emits the header; nothing consumes it at runtime yet.
+
+**DoD:** manifest + planner + gate landed, `run/check` green, golden-hash stable; OQ1 recorded (EXP-011 or
+EXP-010 extension) + resolved in M-MEMPLAN §10; Phase 1 marked done. Branch `rnd/memplan`, NOT merged.
+
+**Priority:** P2 — formalizes the memory architecture; foundation is risk-free (declarative) · **Status:**
+**open — handover written, ready for a fresh agent** · **Opened:** 2026-06-28 · **Milestone:** M-MEMPLAN
+**Branch:** `rnd/memplan` · **Owner:** R&D/Developer → Architect (OQ1 verdict) · **Deps:** none (foundation is
+standalone) · **Design:** M-MEMPLAN · **Inputs:** EXP-010 numbers, `gen_app_registry.py` pattern
