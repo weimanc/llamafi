@@ -3543,13 +3543,28 @@ validation) green, TASK-264 (M-RECLAIM Q3-a overlay) green, TASK-265 (live fetch
 The Phase-2 fork halved the I2S DMA ring (16×512 → 8×256, 32 K → 8 K, gated `MEMBUDGET_PHASE1`) because the
 24 K INTERNAL arena squeezed the shared DMA pool until `i2s_driver_install()` crashed. It plays clean at
 **56 kbps** (BBC World Service), but the reduced buffering depth is **unvalidated at higher bitrate / under
-network jitter** — the underrun-resilience risk. **Test:** ≥ 128 kbps MP3 streams, sustained playback +
-deliberate network stress, compare underrun/stall rate vs the stock 16×512 ring. If the halved ring underruns
-unacceptably, the arena/DMA split needs rework (e.g. smaller arena, or accept best-effort at high bitrate).
-**The decisive quality gate for whether A-lite is shippable, not just demoable.**
-**Priority:** P1 — quality gate blocking promotion · **Status:** **open — DUT** · **Opened:** 2026-06-28
-**Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget` · **Owner:** R&D/Developer · **Deps:** TASK-261
-· **Gates:** TASK-262 (promotion)
+network jitter** — the underrun-resilience risk. **The decisive quality gate for whether A-lite is shippable,
+not just demoable.**
+
+**Executable spec (instrumentation landed `414d32b`):**
+- **Metric:** `get wrUnderruns` → `{underruns, minBufPct, bufPct, playMs}` (gated MEMBUDGET_PHASE1).
+  `underruns` = input-buffer-empty edge events while PLAYING; `minBufPct` = session low-water. Reset on each
+  PLAYING entry. (Empty input buffer is the right proxy for the 8 K ring: it becomes an audible gap far faster
+  than with 32 K. Operator should still confirm by ear — the counter is the quantified gate.)
+- **NOT an A/B vs stock 16×512** — that config *with the arena* is exactly what crashed `i2s_driver_install`,
+  so it can't be run. This is an **absolute** soak test.
+- **Build:** `cyd2usb_webradio` (disable-Spotify + MEMBUDGET_PHASE1 + the fork — avoids the 403 fetch
+  starvation). Inject a **≥128 kbps HTTP MP3** stream via `set wrUrl <url>` (radio-browser mirrors were
+  unreachable in Phase 2; a hardcoded high-bitrate URL is the test input).
+- **Pass threshold (proposal):** ≥ 128 kbps, ≥ 120 s continuous, **underruns == 0** (or a tiny agreed N),
+  `minBufPct` stays > 0, no stall/auto-skip, no Guru/WDT. **Fail** → arena/DMA split needs rework (smaller
+  arena, or accept best-effort at high bitrate → that would re-open the promotion calculus).
+- Deterministic jitter injection isn't feasible on-DUT; the honest proxy is a sustained soak on a real
+  variable high-bitrate stream + repeat ≥ 3 trials.
+
+**Priority:** P1 — quality gate blocking promotion · **Status:** **ready — DUT (instrumentation landed)**
+· **Opened:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget` · **Owner:**
+R&D/Developer · **Deps:** TASK-261 · **Gates:** TASK-262 (promotion)
 
 ---
 
