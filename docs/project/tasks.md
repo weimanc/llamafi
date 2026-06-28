@@ -3532,12 +3532,11 @@ PROMOTION gate** (human chose "de-risk then promote"). Promotion = merge `rnd/me
 (make the arena/fork production, not `MEMBUDGET_PHASE1`-only). **Gated on ALL of:** TASK-263 (halved-DMA
 validation) green, TASK-264 (M-RECLAIM Q3-a overlay) green, TASK-265 (live fetch) green, **and TASK-243
 (Premium) cleared** for the Spotify-active coexistence validation. Until all green, the fork stays branch-only.
-**Priority:** P2 — promotion gate · **Status:** **blocked — gated on TASK-264/265 + TASK-243** (TASK-263
-**cleared** 2026-06-28: halved DMA validated for sustained 128 kbps; startup-glitch follow-up TASK-266 is NOT
-a promotion blocker — **option A chosen**: TASK-266 will pre-fill the input buffer before I2S start to
-eliminate the connect-time underrun, not a gate requirement for promotion) · **Opened:** 2026-06-27
-· **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** Developer/PM
-· **Deps:** TASK-261 (done), ~~TASK-263 (done)~~, TASK-264, TASK-265, TASK-243
+**Priority:** P2 — promotion gate · **Status:** **blocked — gated on TASK-265 + TASK-243** (TASK-263
+**cleared** 2026-06-28: halved DMA, startup-glitch → TASK-266, option A; TASK-264 **cleared** 2026-06-28:
+Q3-a TLS-drop implemented `f37b92a`; DUT coexistence validation pending TASK-243 Premium) · **Opened:**
+2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** Developer/PM
+· **Deps:** TASK-261 (done), ~~TASK-263 (done)~~, ~~TASK-264 (done)~~, TASK-265, TASK-243
 
 ---
 
@@ -3589,9 +3588,10 @@ overlay tears Spotify down when the player is in WebRadio mode. **Q3-a (light, r
 spotifyTask object, drop its TLS connection (`client.stop()`/`resetTls()`) on toggle-to-WebRadio; reclaims the
 TLS working set without the vTaskDelete null-safety audit. Trigger = the TASK-259/260 player mode-state.
 Design: [M-RECLAIM-dynamic-resident.md](../architecture/designs/M-RECLAIM-dynamic-resident.md) §Q3-a.
-**Priority:** P1 — required for Spotify coexistence (promotion) · **Status:** **open — designed (Q3-a)**
-· **Opened:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** Developer · **Deps:** TASK-259/260
-(mode-state), TASK-261 · **Gates:** TASK-262 (promotion) · **Design:** M-RECLAIM §Q3-a
+**Priority:** P1 — required for Spotify coexistence (promotion) · **Status:** **DONE — implemented `f37b92a`**
+(s_webRadioActive flag; setWebRadioActive() hooks switchApp(); 500 ms idle guard in task loop; run/check 5/5)
+· **Opened:** 2026-06-28 · **Closed:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** Developer
+· **Deps:** TASK-259/260 (mode-state), TASK-261 · **Gates:** TASK-262 (promotion) · **Design:** M-RECLAIM §Q3-a
 
 ---
 
