@@ -3733,19 +3733,44 @@ region). Baseline JIT: maxBlk 57 K, fetch OK, count 16.
 ### TASK-269 — M-MEMPLAN Phase 2: wire low-risk tenants to the planned overlay
 
 Phase 2 of M-MEMPLAN (Phase 1 = TASK-268, done). Repoint real buffers at the planner-emitted `MEM_<name>`
-locations — the first runtime behaviour change, so **human-reviewed, low-risk-first** (per the agent's
-Phase-1 recommendation + M-MEMPLAN §8).
-- **Start with the no-TLS-tension tenants:** `heatmap_doc` (ArduinoJson BYO-allocator → `MEM_heatmap_doc`,
-  no fork needed) and `aquarium_strip` (`TFT_eSprite` pointed at `MEM_aquarium_strip`). These validate the
-  planner end-to-end on safe buffers + make the BSS regions real.
-- **Decoder/InBuff: NOT in Phase 2** — OQ1 settled they stay runtime-JIT (`placement: runtime`); they're
-  budgeted by the planner but not statically placed.
-- Verify: the overlaid `ANY/foreground` region is correctly shared (heatmap when Stock active, sprite when
-  Aquarium active — mutually exclusive); no corruption on app-switch; `run/check` green; BSS now reflects the
-  real region (nm). Confirm the §4b scratch-vs-state invariant holds (these are scratch, regenerated on entry).
+locations — the first runtime behaviour change, so **human-reviewed, low-risk-first** (M-MEMPLAN §8).
+**Re-scoped 2026-06-28** after a code check found the original tenants wrong (see below).
+- **The two tenants — both fork-free ArduinoJson parse buffers, both DUT-confirmed clean scratch (result
+  copied to a separate struct):** `heatmap_doc` (Stock; `s_heatmapDoc` → result `s_heatmapResult`) and
+  `crypto_doc` (Crypto; `fetchCrypto` `doc(2048)` → result `s_cryptoResult`). Both → the shared
+  `MEM_heatmap_doc`/`MEM_crypto_doc` (offset 0 of `s_overlay_any_foreground[2560]`) via a `BasicJsonDocument`
+  BYO-allocator. They're mutually exclusive (dataTask is serial; Stock/Crypto are foreground) → this
+  **validates the overlay sharing** end-to-end with **no library fork**.
+- **`aquarium_strip` DROPPED from Phase 2 → TASK-270** — `TFT_eSprite::createSprite` mallocs internally with
+  no external-buffer API; overlaying it would need a TFT_eSPI fork (a cost/benefit decision, not low-risk).
+- **Manifest/planner already corrected (this re-scope, committed):** decoder+InBuff marked
+  `placement: runtime` (OQ1) — the planner now **budgets** them without emitting a static region (the agent's
+  Phase 1 had left them statically placed, which OQ1 proved breaks the fetch); aquarium swapped for crypto.
+  `run/check` 6/6.
+- Verify (Phase 2 impl): on app-switch Stock↔Crypto↔others the shared 2560 B region holds the right tenant,
+  no corruption, results render correctly; `run/check` green; BSS now reflects the real region (nm). §4b holds
+  (both scratch, regenerated on entry).
 
 **DoD:** heatmap + aquarium use `MEM_*`; DUT-verify app-switch round-trips (Stock↔Aquarium↔others) with no
 corruption; budget gate still green. Then assess whether to migrate further foreground scratch.
 **Priority:** P3 — incremental hardening; not blocking anything · **Status:** **open — Phase 1 prerequisite
 done** · **Opened:** 2026-06-28 · **Milestone:** M-MEMPLAN · **Branch:** `rnd/memplan` · **Owner:** Developer
 · **Deps:** TASK-268 (done) · **Design:** M-MEMPLAN §8
+
+---
+
+### TASK-270 — M-MEMPLAN: overlay the Aquarium sprite (needs a TFT_eSPI fork — decision first)
+
+Deferred from TASK-269. The Aquarium strip sprite (`aquariumApp.h`, ~11 K, 275×40×1 B) was assumed an easy
+overlay tenant, but `TFT_eSprite::createSprite` **mallocs internally** (`callocSprite`) and exposes **no
+external-buffer API** — only `getPointer()` (read). Pointing it at `MEM_aquarium_strip` requires **vendoring +
+forking TFT_eSPI** (add a `setBuffer()` path), a second library fork on top of ESP32-audioI2S.
+
+**Decision needed before any work:** is overlaying an 11 K sprite worth owning a TFT_eSPI fork? Likely **no
+for now** (small benefit, real maintenance cost — BP-042 lineage). Alternatives: (a) leave the aquarium
+sprite on the heap (it's per-app, freed on exit — already fine); (b) overlay only if/when a *second* big
+TFT_eSprite tenant appears that shares the region (then the fork pays for two). Keep `aquarium_strip` out of
+the manifest until decided.
+**Priority:** P3 — optional; gated on a fork cost/benefit call · **Status:** **open — needs decision (Architect/
+human), not implementation** · **Opened:** 2026-06-28 · **Milestone:** M-MEMPLAN · **Owner:** Architect
+· **Deps:** TASK-268 · **Design:** M-MEMPLAN §6 (the placeable-vs-not boundary)

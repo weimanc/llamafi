@@ -50,9 +50,19 @@ def plan(manifest: dict) -> dict:
     ceiling = manifest.get("ceiling", {})
     headroom = manifest.get("headroom", {})
 
-    # group buffers by (caps, group) — sorted
-    groups: dict[tuple, list] = defaultdict(list)
+    # placement: 'runtime' buffers (decoder/InBuff — OQ1/TASK-268) are BUDGETED but NOT
+    # statically placed: they overlay heap-resident TLS, which the planner can't place
+    # (M-MEMPLAN §6/§10). They count against the ceiling like headroom; no region / MEM_
+    # macro is emitted. Default placement is 'static' (planner-placed).
+    placed = [b for b in buffers if b.get("placement", "static") != "runtime"]
+    runtime_by_caps: dict[str, int] = defaultdict(int)
     for b in buffers:
+        if b.get("placement", "static") == "runtime":
+            runtime_by_caps[b["caps"]] += b["size"]
+
+    # group placed buffers by (caps, group) — sorted
+    groups: dict[tuple, list] = defaultdict(list)
+    for b in placed:
         groups[(b["caps"], b["group"])].append(b)
 
     # §4b invariant: kind=state rejected from multi-app groups
@@ -97,22 +107,25 @@ def plan(manifest: dict) -> dict:
         }
         budget_by_caps[caps] += region_size
 
-    # WCMU budget gate
+    # WCMU budget gate — placed overlay regions + runtime-budgeted buffers + headroom
     for caps in sorted(ceiling.keys()):
-        used = budget_by_caps.get(caps, 0)
+        placed_used = budget_by_caps.get(caps, 0)
+        rt_used = runtime_by_caps.get(caps, 0)
         head = headroom.get(caps, 0)
         cap = ceiling[caps]
-        if used + head > cap:
+        total = placed_used + rt_used + head
+        if total > cap:
             sys.exit(
-                f"ERROR: WCMU budget overflow — {caps} overlay {used} B + "
-                f"headroom {head} B = {used + head} B > ceiling {cap} B "
-                f"(overflow by {used + head - cap} B). "
+                f"ERROR: WCMU budget overflow — {caps} placed {placed_used} B + "
+                f"runtime {rt_used} B + headroom {head} B = {total} B > ceiling {cap} B "
+                f"(overflow by {total - cap} B). "
                 "Reduce a buffer size or raise the ceiling in app/mem_manifest.yaml."
             )
 
     return {
         "region_layout": region_layout,
         "budget_by_caps": dict(budget_by_caps),
+        "runtime_by_caps": dict(runtime_by_caps),
         "ceiling": ceiling,
         "headroom": headroom,
     }

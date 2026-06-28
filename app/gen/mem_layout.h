@@ -4,17 +4,11 @@
 #pragma once
 #include <stdint.h>
 
-/* region: ANY / foreground — 11000 B (max of Aquarium 11000 B) */
-static uint8_t s_overlay_any_foreground[11000] __attribute__((aligned(4), unused));
-/* mutually exclusive overlay: Aquarium @ [0, 11000), Stock @ [0, 2560) */
-#define MEM_aquarium_strip (s_overlay_any_foreground + 0)
+/* region: ANY / foreground — 2560 B (max of Stock 2560 B) */
+static uint8_t s_overlay_any_foreground[2560] __attribute__((aligned(4), unused));
+/* mutually exclusive overlay: Crypto @ [0, 2048), Stock @ [0, 2560) */
+#define MEM_crypto_doc (s_overlay_any_foreground + 0)
 #define MEM_heatmap_doc (s_overlay_any_foreground + 0)
 
-/* region: INTERNAL / foreground — 29616 B (max of WebRadio 29616 B) */
-static uint8_t s_overlay_internal_foreground[29616] __attribute__((aligned(4), unused));
-#define MEM_webradio_decoder (s_overlay_internal_foreground + 0)
-#define MEM_webradio_inbuf (s_overlay_internal_foreground + 23216)
-
 /* budget summary */
-#define MEM_BUDGET_ANY_USED 11000
-#define MEM_BUDGET_INTERNAL_USED 29616
+#define MEM_BUDGET_ANY_USED 2560
