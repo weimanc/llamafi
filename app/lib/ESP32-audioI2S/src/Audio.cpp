@@ -12,8 +12,11 @@
 #include "mp3_decoder/mp3_decoder.h"
 #include "aac_decoder/aac_decoder.h"
 #include "flac_decoder/flac_decoder.h"
-// PATCH-MEMBUDGET-3 (TASK-261 Phase 2 Site 3): arena alloc/free for InBuff.
-#include "mb_arena.h"
+// PATCH-MEMBUDGET-3 REVERTED (TASK-261 Phase 2 DUT finding): 40 K arena exhausted
+// the DMA pool leaving nothing for i2s_alloc_dma_buffer. InBuff (6.4 K) reverts to
+// regular calloc — it's allocated once per session with no churn, so heap fragmentation
+// is not a risk. Only Helix decoder (mp3_decoder.cpp Sites 1+2) uses the arena now.
+// Arena reduced to 24 K to cover Helix (23.2 K) with slack. See EXP-010 Phase 2.
 
 #include <soc/soc.h>
 #include <soc/io_mux_reg.h>
@@ -33,7 +36,7 @@ AudioBuffer::AudioBuffer(size_t maxBlockSize) {
 
 AudioBuffer::~AudioBuffer() {
     if(m_buffer)
-        mb_arena_free(m_buffer);  // PATCH-MEMBUDGET-3 Site 3 free (destructor)
+        free(m_buffer);
     m_buffer = NULL;
 }
 
@@ -45,22 +48,18 @@ void AudioBuffer::setBufsize(int ram, int psram) {
 }
 
 size_t AudioBuffer::init() {
-    if(m_buffer) mb_arena_free(m_buffer);  // PATCH-MEMBUDGET-3 Site 3 free (re-init)
+    if(m_buffer) free(m_buffer);
     m_buffer = NULL;
     if(psramInit() && m_buffSizePSRAM > 0) {
-        // PSRAM found, AudioBuffer will be allocated in PSRAM (not arena path)
         m_f_psram = true;
         m_buffSize = m_buffSizePSRAM;
         m_buffer = (uint8_t*) ps_calloc(m_buffSize, sizeof(uint8_t));
         m_buffSize = m_buffSizePSRAM - m_resBuffSizePSRAM;
     }
     if(m_buffer == NULL) {
-        // PSRAM not found — redirect InBuff into the reserved arena.
-        // PATCH-MEMBUDGET-3 Site 3 alloc: mb_arena_alloc replaces calloc here.
         m_f_psram = false;
         m_buffSize = m_buffSizeRAM;
-        m_buffer = (uint8_t*) mb_arena_alloc(m_buffSize * sizeof(uint8_t));
-        if(m_buffer) memset(m_buffer, 0, m_buffSize * sizeof(uint8_t));  // calloc semantics
+        m_buffer = (uint8_t*) calloc(m_buffSize, sizeof(uint8_t));
         m_buffSize = m_buffSizeRAM - m_resBuffSizeRAM;
     }
     if(!m_buffer)
@@ -185,8 +184,19 @@ Audio::Audio(bool internalDAC /* = false */, uint8_t channelEnabled /* = I2S_DAC
     m_i2s_config.bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT;
     m_i2s_config.channel_format       = I2S_CHANNEL_FMT_RIGHT_LEFT;
     m_i2s_config.intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1; // interrupt priority
+    // PATCH-MEMBUDGET-4 (TASK-261 Phase 2): under MEMBUDGET_PHASE1 the 24K arena
+    // reservation reduces lfbDma to ~36K. Stock config (16×512×4B stereo=32K DMA)
+    // leaves only 4K slack, which the SSL handshake for the radio-browser fetch
+    // consumes, leaving nothing for i2s_realloc_dma_buffer. Halve the DMA footprint
+    // (8×256×4B = 8K) so there's ample room. This is experiment-only — production
+    // (cyd2usb_winamp without MEMBUDGET_PHASE1) keeps the original 16/512 settings.
+#ifdef MEMBUDGET_PHASE1
+    m_i2s_config.dma_buf_count        = 8;
+    m_i2s_config.dma_buf_len          = 256;
+#else
     m_i2s_config.dma_buf_count        = 16;
     m_i2s_config.dma_buf_len          = 512;
+#endif
     m_i2s_config.use_apll             = APLL_DISABLE; // must be disabled in V2.0.1-RC1
     m_i2s_config.tx_desc_auto_clear   = true;   // new in V1.0.1
     m_i2s_config.fixed_mclk           = I2S_PIN_NO_CHANGE;

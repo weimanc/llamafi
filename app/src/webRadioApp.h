@@ -477,6 +477,25 @@ public:
         // the auto-skip terminal bound (skip ≤ N-1, land terminal, never loop) is
         // deterministically testable without a real dead stream. `0` disables and
         // clears the synthetic list. Debug-only.
+        // TASK-261 Phase 2 debug: inject a direct stream URL as a synthetic single
+        // station and start playback immediately. Bypasses radio-browser API fetch
+        // so arena allocation can be tested when the API is unreachable. Debug-only.
+        // Usage: set wrUrl http://IP:PORT/mount
+        if (strcmp(var, "wrUrl") == 0) {
+            if (!val || !val[0]) return true;
+            strlcpy(_stations[0].name, "INJECTED", sizeof(_stations[0].name));
+            strlcpy(_stations[0].url, val, sizeof(_stations[0].url));
+            _stations[0].bitrate = 0;
+            _stationCount = 1;
+            _currentIdx   = 0;
+            _debugForceConnFail = false;
+            _pendingAction = ACT_NONE;
+            _autoSkipTried = 0;
+            _stallRetries  = 0;
+            _dirty = true;
+            _play(0);
+            return true;
+        }
         if (strcmp(var, "wrDeadUrls") == 0) {
             int n = atoi(val);
             if (n <= 0) {
@@ -646,6 +665,13 @@ private:
         _spotifyYielded = true;
         esp_task_wdt_reset();
 
+#ifdef MEMBUDGET_PHASE1
+        if (!s_wr_audio) {
+            Serial.printf("[membudget] CP0-pre-audio-init freeDma=%u lfbDma=%u\n",
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
+                (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
+        }
+#endif
         if (!s_wr_audio)
             s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
 

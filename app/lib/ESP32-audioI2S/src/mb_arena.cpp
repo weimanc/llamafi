@@ -54,6 +54,12 @@ void* mb_arena_alloc(size_t size) {
     // Align to 4 bytes (ESP32 requirement for safe dereference of any type)
     size = (size + 3u) & ~3u;
 
+    // Log first alloc to confirm arena is live (removed after Phase 2 validation)
+    if (s_nslots == 0 && s_bump == 0) {
+        Serial.printf("[mbdbg] arena FIRST alloc: base=%p cap=%u req=%u\n",
+                      s_base, (unsigned)s_cap, (unsigned)size);
+    }
+
     // First-fit: reuse a free slot with the exact size
     for (int i = 0; i < s_nslots; i++) {
         if (!s_slots[i].in_use && s_slots[i].size == size) {
