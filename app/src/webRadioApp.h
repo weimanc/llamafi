@@ -97,7 +97,7 @@ void audio_info(const char *info) {
     if (!info) return;
     // Surface all audio_info lines through LOG so they appear in the monitor.
     LOG_I("webradio", "audio_info: %s", info);
-#ifdef MEMBUDGET_PHASE1
+#if defined(MEMBUDGET_PHASE1) && defined(SERIAL_DEBUG)
     // CP2: emit caps-split on decoder-init line (the gate metric for Phase 1).
     if (strstr(info, "MP3Decoder") || strstr(info, "AACDecoder")) {
         Serial.printf("[membudget] CP2-decoder-init freeInt=%u lfbInt=%u freeDma=%u lfbDma=%u arenaHWM=%u\n",
@@ -714,18 +714,22 @@ private:
 #ifdef MEMBUDGET_PHASE1
         // TASK-267 / ADR-047 Amd 1: acquire the arena HERE (JIT, after the overlay
         // freed Spotify + before the decoder allocs), NOT at boot — so the station
-        // fetch ran with full heap. The probe is the validation metric: does 24 K
-        // contiguous survive to _play()? (≥3 trials; PASS = acquire OK + plays.)
+        // fetch ran with full heap. Ships in production (TASK-262 promotion); the
+        // [membudget] probes around it are debug-only.
+#ifdef SERIAL_DEBUG
         Serial.printf("[membudget] TASK-267 _play pre-acquire lfbInt=%u freeInt=%u\n",
             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+#endif
         bool arenaOk = mb_arena_acquire();   // idempotent; on FAIL → libc fallback
         (void)arenaOk;
+#ifdef SERIAL_DEBUG
         if (!s_wr_audio) {
             Serial.printf("[membudget] CP0-pre-audio-init freeDma=%u lfbDma=%u\n",
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
         }
+#endif
 #endif
         if (!s_wr_audio)
             s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
@@ -738,7 +742,7 @@ private:
         LOG_I("webradio", "HEAP pre-connect free=%u min=%u maxAlloc=%u",
               (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap(),
               (unsigned)ESP.getMaxAllocHeap());
-#ifdef MEMBUDGET_PHASE1
+#if defined(MEMBUDGET_PHASE1) && defined(SERIAL_DEBUG)
         Serial.printf("[membudget] CP1-pre-connect skip=%u freeInt=%u lfbInt=%u freeDma=%u lfbDma=%u\n",
               (unsigned)_autoSkipTried,
               (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),

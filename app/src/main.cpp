@@ -168,21 +168,16 @@ SpotifyDisplay *spotifyDisplay = &matrixDisplay;
 #include "spikeMode.h"
 #endif
 
-// ── TASK-261 Phase 0/1 spike instrumentation (caps-split probe + 40 K arena) ──
-// GATED on MEMBUDGET_PHASE1 (defined ONLY in the cyd2usb_winamp_debug env, NOT in
-// production cyd2usb_winamp). The arena reservation permanently holds MB_ARENA_BYTES and
-// must NOT ship — it is a measurement artefact until Phase 2 fork lands. When the
-// flag is undefined the helpers are no-ops, so the boot call sites compile clean
-// in production with zero runtime cost. (BP-041/TASK-262: spike code is debug-only
-// until a Phase-2 PASS promotes it.)
+// ── TASK-261/267 A-lite heap probes (caps-split diagnostic) ──
+// The mb_arena itself ships in production (TASK-262 promotion — MEMBUDGET_PHASE1 now in
+// cyd2usb_winamp; arena acquired JIT in WebRadioApp::_play(), released in ::suspend()).
+// These verbose boot/CP probes are pure diagnostics, so they are SERIAL_DEBUG-gated —
+// they do NOT ship in production (the call sites become no-ops, zero runtime cost).
 //
-// Size rationale (TASK-261 Phase 2 DUT finding): 40 K exhausted DMA pool on first
-// connecttohost() — i2s_alloc_dma_buffer failed (16 DMA bufs × 512 B = 8 K needed).
-// Reduced to 24 K: covers Helix-only (9 structs, 23,216 B aligned) with 1.4 K slack;
-// InBuff (6.4 K) reverted to regular calloc (allocated once per session — no churn).
-#ifdef MEMBUDGET_PHASE1
-// Phase 2: arena allocator header (3-site fork in vendored ESP32-audioI2S).
-#include "mb_arena.h"
+// Arena size (TASK-261 Phase 2 DUT finding): 24 K covers Helix-only (9 structs,
+// 23,216 B aligned) with 1.4 K slack; 40 K exhausted the DMA pool on first
+// connecttohost(). InBuff (6.4 K) uses regular calloc (allocated once/session, no churn).
+#if defined(MEMBUDGET_PHASE1) && defined(SERIAL_DEBUG)
 // T_MB_PROBE_00: caps-split heap probe — fires at boot milestones so the DUT log
 // captures them without needing a serial command.
 static void mb_heap_probe(const char *tag) {
@@ -193,12 +188,8 @@ static void mb_heap_probe(const char *tag) {
         (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
         (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
 }
-// TASK-267 / ADR-047 Amendment 1: the arena is NO LONGER reserved at boot — it is
-// acquired JIT in WebRadioApp::_play() and released in ::suspend() (see mb_arena.*),
-// so the station-fetch TLS (~40 K) is not starved (TASK-265 finding). The boot
-// caps-split probes below stay (Phase-0 baseline), but no block is held at boot.
 #else
-static inline void mb_heap_probe(const char *) {}   // no-op in production
+static inline void mb_heap_probe(const char *) {}   // no-op (production / non-debug)
 #endif
 
 // ── App dispatch (M-MULTIAPP, TASK-087c/d) ─────────────────────────────
@@ -1957,14 +1948,8 @@ void setup()
 
   Serial.begin(115200);
 
-#if defined(MEMBUDGET_PHASE1) && defined(MEMPLAN_STATIC_DECODER)
-  // OQ1 experiment (rnd/memplan): init 24 K static BSS arena at boot.
-  // Measures whether static-always decoder leaves enough heap for fetch TLS.
-  mb_arena_init_static();
-#endif
-
   // TASK-267: arena is acquired JIT in WebRadioApp::_play(), NOT at boot (so the
-  // station fetch isn't starved — TASK-265). Keep one boot baseline probe.
+  // station fetch isn't starved — TASK-265). Boot baseline probe (debug-only).
   mb_heap_probe("boot-baseline");
 
   // serialdbg-001 (TASK-056b): unconditional boot banner. Carved out of the

@@ -42,7 +42,9 @@ void mb_arena_init(void* buf, size_t size) {
     s_hwm    = 0;
     s_nslots = 0;
     memset(s_slots, 0, sizeof(s_slots));
+#ifdef SERIAL_DEBUG
     Serial.printf("[membudget] arena init base=%p cap=%u\n", buf, (unsigned)size);
+#endif
 }
 
 // TASK-267 / ADR-047 Amendment 1: the arena block is owned here and acquired at
@@ -88,8 +90,12 @@ bool mb_arena_acquire(void) {
     if (s_owned) return true;  // idempotent — already held this session
     size_t lfb = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
     s_owned = heap_caps_malloc(MB_ARENA_BYTES, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+#ifdef SERIAL_DEBUG
     Serial.printf("[membudget] TASK-267 arena acquire=%uB lfbBefore=%u %s\n",
         (unsigned)MB_ARENA_BYTES, (unsigned)lfb, s_owned ? "OK" : "FAIL→libc-fallback");
+#else
+    (void)lfb;
+#endif
     if (!s_owned) return false;  // mb_arena_alloc falls back to libc (best-effort)
     mb_arena_init(s_owned, MB_ARENA_BYTES);
     return true;
@@ -101,7 +107,9 @@ void mb_arena_release(void) {
     s_owned = nullptr;
     s_base = nullptr; s_cap = 0; s_bump = 0; s_hwm = 0; s_nslots = 0;
     memset(s_slots, 0, sizeof(s_slots));
+#ifdef SERIAL_DEBUG
     Serial.println("[membudget] TASK-267 arena released");
+#endif
 }
 
 #endif  // MEMPLAN_STATIC_DECODER
@@ -118,11 +126,13 @@ void* mb_arena_alloc(size_t size) {
     // Align to 4 bytes (ESP32 requirement for safe dereference of any type)
     size = (size + 3u) & ~3u;
 
-    // Log first alloc to confirm arena is live (removed after Phase 2 validation)
+#ifdef SERIAL_DEBUG
+    // Log first alloc to confirm arena is live (debug-only diagnostic)
     if (s_nslots == 0 && s_bump == 0) {
         Serial.printf("[mbdbg] arena FIRST alloc: base=%p cap=%u req=%u\n",
                       s_base, (unsigned)s_cap, (unsigned)size);
     }
+#endif
 
     // First-fit: reuse a free slot with the exact size
     for (int i = 0; i < s_nslots; i++) {
