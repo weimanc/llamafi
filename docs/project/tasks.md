@@ -844,14 +844,40 @@ best-effort feature** — not declared unsupported, not promised reliable. Three
 for slow streams given the ceiling — realistic target is "reliably reaches a stable *fast* station."
 Re-baseline with the Architect at milestone close once the 5 KB reclaim lands.
 
-**Priority:** P1 — M-WEBRADIO MVP blocker
-**Status:** **direction set + measured.** Remaining work = the 5 KB `s_webRadioDoc` startup-margin
-reclaim (this task); auto-skip (TASK-234) done; spike (TASK-235) done. Closes when the reclaim
-lands and is DUT-checked.
+**RECONCILIATION 2026-06-29 — the EXP-007 model above is superseded; the acute blocker is resolved.**
+Two later findings overtake this task's original "NO-GO" framing (kept above for history):
+1. **TASK-258 / EXP-009 (bare rig) corrected the heap model.** The "38,900 B caps-restricted dead region"
+   this task built on was **not real** — it was just the *fragmented 11-app* largest-free block (bare it's
+   110,580). The `usable = free − maxAlloc` framing was a misread. The bare radio plays reliably at ~165 K
+   free; the audio path is ~41 K (8 K input + 22.7 K Helix + connection). **The wall is resident footprint
+   (~147 K, leaving ~60 K), not silicon** — "no-PSRAM = NO-GO" is footprint-bound, not silicon-bound.
+2. **A-lite arena (TASK-261/262, promoted to production) resolved the acute decoder-alloc failure.** The
+   arena reserves the decoder its 24 K at the least-fragmented moment (after TASK-264 drops Spotify TLS,
+   freeing ~50 K). **TASK-271 soak: 0 acquire-FAILs over 48 cycles, the decoder always gets its block,
+   playback reaches ~12 s** (vs the ~5 s OOM death this task reported). The "MP3Decoder_AllocateBuffers: not
+   enough memory" symptom is gone in the promoted build.
+
+**Residual (the standing no-PSRAM ceiling):** slow-stream **underruns** — the 8 K input buffer (halved to
+fit) starves on slow streams (~12 s best-effort, TASK-271 quantified it). This is the one TASK-233 finding
+that holds: it is **footprint-bound** (a bigger input buffer needs deeper resident-footprint cuts, per
+TASK-258's lever), not a silicon limit.
+
+**The 5 KB `s_webRadioDoc` reclaim is DE-PRIORITISED (optional).** It targeted *startup margin* — which the
+arena now provides reliably (0 acquire-FAILs), so its value is largely overtaken. Freeing 5 K resident during
+playback would still marginally help underrun headroom, but it is **not worth blocking on**; fold it into any
+future resident-footprint pass (the real lever) rather than as a standalone task.
+
+**Priority:** ~~P1 blocker~~ → **P3 (resolved as best-effort; residual is the documented footprint ceiling)**
+**Status:** **RESOLVED as best-effort (2026-06-29).** Acute decoder-OOM blocker fixed by the A-lite arena
+(TASK-262, production); heap model corrected by TASK-258. Stable **fast-stream** playback works; slow-stream
+underruns are the known footprint-bound ceiling (TASK-271 quantifies ~12 s). The 5 K `s_webRadioDoc` reclaim
+is optional/de-prioritised. No further work blocks here — reliable-anything playback is a PSRAM-hardware or
+deeper-footprint decision (TASK-258 lever), tracked there, not here.
 **Opened:** 2026-06-24
 **Milestone:** M-WEBRADIO
 **Owner:** Developer
-**Deps:** TASK-232 (done), TASK-235 (done — EXP-007)
+**Deps:** TASK-232 (done), TASK-235 (done — EXP-007) · **Superseded-by:** TASK-258 (EXP-009 model correction),
+TASK-262 (A-lite arena, acute fix), TASK-271 (soak — residual quantified)
 
 ---
 
@@ -3846,3 +3872,33 @@ scheduling call 2026-06-28: not now. Standing recommendation = no TFT_eSPI fork 
 fork pays for two). `aquarium_strip` stays out of the manifest until then. The architecture call itself
 (Architect/human) remains open if/when a tenant arrives.** · **Opened:** 2026-06-28 · **Milestone:** M-MEMPLAN
 · **Owner:** Architect · **Deps:** TASK-268 · **Design:** M-MEMPLAN §6 (the placeable-vs-not boundary)
+
+---
+
+### TASK-271 — WebRadio playback + A-lite arena-churn soak harness
+
+Follow-on to TASK-262 (A-lite promoted to production). The one-shot promotion validation proved the arena
+acquires/plays/releases over a handful of cycles; nothing soaks the **play → leave** cycle to surface what
+only time shows. Now that the arena does a JIT `heap_caps_malloc(24K)`/`free` on **every** `_play()`/`suspend()`
+in production, an unattended churn soak is the production-hardening evidence: arena fragmentation creep,
+acquire-FAIL (24K no longer contiguous), acquire/release leak, sustained-playback distribution (quantifies the
+TASK-233 best-effort claim), underruns.
+
+**Delivered:** `app/tools/test_webradio_soak.py` + `run/wr-soak` (flash `cyd2usb_webradio` → soak → restore
+prod, trap-guarded; BP-020). Runs on the Spotify-disabled build (no TASK-243 403 fetch starvation; arena code
+is identical to production — both `-DMEMBUDGET_PHASE1`). Each cycle: enter WebRadio → `wrPlay` (arena acquire) →
+hold N s sampling `wrPlaying`/`wrUnderruns` → `switchApp 0` (suspend → arena release) → re-enter. Parses the
+`[membudget] arena acquire=…lfbBefore=…OK|FAIL` / `arena released` logs. PASS = ≥3 cycles, acquire==release,
+zero acquire-FAIL, `min(lfbBefore) ≥ 24576`. Self-contained serial wrapper (NOT `Dut` — its ELF-hash gate
+rejects the webradio build).
+
+**DUT-validated 2026-06-29 (harness self-test, 2 min / 15 s-per-station):** 7 cycles, acquire==release==7
+(no leak), **0 acquire-FAILs**, lfbBefore 61428→49140 (20% drift, **plateaued**, ≫24576 throughout),
+sustained playback median **12.1 s** (reached PLAYING 7/7), 0 error/skip. A 48-cycle rapid run held the same:
+0 FAILs, lfb floor 38900. **The arena is churn-safe in the promoted config** — no fragmentation collapse, no
+leak. The ~9–12 s playback ceiling is the TASK-233 no-PSRAM best-effort reality, now quantified rather than
+asserted.
+
+**Priority:** P3 — production hardening / VE tooling · **Status:** **done — harness delivered + DUT-validated
+2026-06-29** · **Opened:** 2026-06-29 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** VE/Developer · **Deps:**
+TASK-262 (promotion), TASK-248 (fetch-soak harness pattern) · **Branch:** `feature/task-271-webradio-soak`

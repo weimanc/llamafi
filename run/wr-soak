@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# run/wr-soak — unattended WebRadio playback + A-lite arena-churn soak (TASK-271)
+# Flashes the Spotify-DISABLED build (cyd2usb_webradio — no TASK-243 403 fetch
+# starvation, so stations actually load + play), soaks the play/leave cycle to churn
+# the JIT decoder arena, prints an arena-fragmentation + playback report, then restores
+# production firmware + monitor. The arena code is identical to production
+# (both -DMEMBUDGET_PHASE1); only Spotify differs.
+#
+# Usage: ./run/wr-soak            # 10-min soak (default)
+#        ./run/wr-soak 5          # 5-min soak
+#        MINUTES=20 PLAY_SECS=30 ./run/wr-soak
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+MINUTES="${MINUTES:-${1:-10}}"
+PLAY_SECS="${PLAY_SECS:-20}"
+ENV_SOAK="cyd2usb_webradio"     # Spotify-disabled; same MEMBUDGET_PHASE1 arena as prod
+PORT=$(resolve_port)
+
+_RC=0
+_cleanup() {
+  local rc=$_RC
+  echo ""
+  echo "[wr-soak] restoring $ENV_PROD (rc=$rc so far)"
+  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT") || {
+    echo "ERROR [wr-soak]: prod restore failed" >&2; rc=99; }
+  echo "[wr-soak] restarting monitor"
+  tmux new-session -d -s "$SESSION" \
+    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'" \
+    2>/dev/null || true
+  exit "$rc"
+}
+trap _cleanup EXIT INT TERM
+
+echo "[wr-soak] 1/4 — killing monitor"
+tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+
+echo "[wr-soak] 2/4 — flashing $ENV_SOAK to $PORT"
+(cd "$PIO_DIR" && "$PIO" run -e "$ENV_SOAK" -t upload --upload-port "$PORT")
+
+echo "[wr-soak] 3/4 — waiting ${BOOT_WAIT}s for boot + WiFi"
+sleep "$BOOT_WAIT"
+
+echo "[wr-soak] 4/4 — soaking ${MINUTES} min (${PLAY_SECS}s/station)"
+(cd "$PIO_DIR" && "$VENV_PY" tools/test_webradio_soak.py \
+    --port "$PORT" --minutes "$MINUTES" --play-secs "$PLAY_SECS") \
+  || _RC=$?
