@@ -869,6 +869,11 @@ TASK-271 *churn-soak window*, NOT a death point — corrected.) The residual is 
 *slow* streams underrun, and auto-skip (TASK-234, default ON) tunes past them to a stable one. Net user
 experience: WebRadio reliably lands on and holds a playable station indefinitely.
 
+**Possible shrink of the residual — [EXP-012](../rnd/reports/EXP-012-input-ring-16k.md) (planned):** the
+input ring was shrunk to 8 K because EXP-007 found 16 K starved the decoder — but that was *before* A-lite
+isolated the decoder in its own arena, so that zero-sum is likely obsolete. EXP-012 re-tests growing the input
+ring 8 K → 16 K to absorb more jitter on slow streams. GO/NO-GO gated on the decoder still allocating.
+
 **The 5 KB `s_webRadioDoc` reclaim is DE-PRIORITISED (optional).** It targeted *startup margin* — which the
 arena now provides reliably (0 acquire-FAILs), so its value is largely overtaken. Freeing 5 K resident during
 playback would still marginally help underrun headroom, but it is **not worth blocking on**; fold it into any
