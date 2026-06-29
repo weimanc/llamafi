@@ -59,6 +59,9 @@ static void applyDefaults() {
     // Clock
     g_settings.clockStyle = ClockStyle::Digital;
 
+    // Player slot (M-PLAYER-STATE / TASK-260)
+    g_settings.playerMode = (uint8_t)PlayerMode::Spotify;
+
     // Teletext
     g_settings.teletextPage        = 101;
     g_settings.teletextPollSecs    = 60;
@@ -203,6 +206,13 @@ void SettingsStorage::load() {
         if (ck.containsKey("style")) g_settings.clockStyle = strToEnum<ClockStyle>(ck["style"] | "digital", kClockStyleStr, ClockStyle::Digital);
     }
 
+    // Player slot (M-PLAYER-STATE / TASK-260): top-level object — the mode spans both
+    // Spotify and WebRadio, so it is not nested under "webRadio". Clamp to {0,1}.
+    if (doc.containsKey("player")) {
+        uint8_t pm = doc["player"]["mode"] | 0;
+        g_settings.playerMode = (pm > (uint8_t)PlayerMode::WebRadio) ? (uint8_t)PlayerMode::Spotify : pm;
+    }
+
     // Teletext
     if (doc.containsKey("teletext")) {
         auto tt = doc["teletext"];
@@ -284,6 +294,9 @@ void SettingsStorage::save() {
 
     auto ck = doc.createNestedObject("clock");
     ck["style"] = kClockStyleStr[(uint8_t)g_settings.clockStyle];
+
+    // Player slot (M-PLAYER-STATE / TASK-260)
+    doc.createNestedObject("player")["mode"] = g_settings.playerMode;
 
     auto tt = doc.createNestedObject("teletext");
     tt["page"]        = g_settings.teletextPage;

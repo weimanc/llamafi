@@ -117,7 +117,9 @@ should the device **cold-boot into WebRadio**?
 ## 9. Open questions
 
 - **OQ-LABEL** (§5): show `"Spotify"` vs add a `"Player"`/`"Winamp"` display-name column to the codegen.
-- **OQ-BOOT** (§6): cold-boot-into-mode (v2) vs taskbar-restore-only (v1). Recommend v1.
+- **OQ-BOOT** (§6): cold-boot-into-mode (v2) vs taskbar-restore-only (v1). **RESOLVED 2026-06-29 → v2**
+  (user choice): cold-boot enters the persisted mode via a `switchApp(WebRadio)` at the end of `setup()`;
+  auto-play still governed by `webRadioAutoplay`. Implemented + DUT-verified in TASK-260.
 - **OQ-WEAR** (§4): immediate-save (recommended) vs deferred — revisit only on observed churn.
 
 ## 10. Links

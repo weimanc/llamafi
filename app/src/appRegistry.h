@@ -9,15 +9,18 @@
 //   docs/architecture/designs/NEW-APP-CHECKLIST.md
 // Key checks: hasPendingAsync(), tlsYield/tlsResume, dbgGet/dbgSet, cmdTap busy propagation.
 //
-// Columns:  Name       icon  configurable (1 = appears in Settings > Applications)
-APP_X( Spotify,   'S',   0 )
-APP_X( Clock,     'C',   1 )
-APP_X( Weather,   'W',   0 )
-APP_X( Crypto,    '$',   1 )
-APP_X( Matrix,    'M',   1 )
-APP_X( Life,      'G',   1 )
-APP_X( Settings,  '=',   0 )
-APP_X( Stock,     'K',   1 )
-APP_X( Aquarium,  '~',   1 )
-APP_X( Teletext,  'T',   1 )
-APP_X( WebRadio,  'R',   0 )
+// Columns:  Name       icon  configurable (1 = appears in Settings > Applications)  display-name
+// display-name (col 4): the label shown in Settings > Applications. Usually the same
+// as Name; differs for the player slot — AppId stays Spotify, but the slot hosts both
+// Spotify and WebRadio modes (M-PLAYER-STATE / TASK-260), so it shows as "Winamp".
+APP_X( Spotify,   'S',   1, "Winamp"   )
+APP_X( Clock,     'C',   1, "Clock"    )
+APP_X( Weather,   'W',   0, "Weather"  )
+APP_X( Crypto,    '$',   1, "Crypto"   )
+APP_X( Matrix,    'M',   1, "Matrix"   )
+APP_X( Life,      'G',   1, "Life"     )
+APP_X( Settings,  '=',   0, "Settings" )
+APP_X( Stock,     'K',   1, "Stock"    )
+APP_X( Aquarium,  '~',   1, "Aquarium" )
+APP_X( Teletext,  'T',   1, "Teletext" )
+APP_X( WebRadio,  'R',   0, "WebRadio" )

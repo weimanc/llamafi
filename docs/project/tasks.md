@@ -3461,8 +3461,44 @@ design recommends the latter); OQ-BOOT (cold-boot-into-mode is **v2/deferred** �
 **DoD:** `run/check` 5/5 (incl. codegen-staleness + golden); settings round-trip verified offline
 (`run/spiffs pull … settings.json` shows `player.mode`); DUT: set mode → reboot → player slot restores it.
 
-**Priority:** P2 — completes M-PLAYER-STATE; persistence the user asked for · **Status:** **open — designed,
-ready to implement** · **Opened:** 2026-06-27 · **Milestone:** M-PLAYER-STATE
+**OQ resolutions (at impl):** OQ-LABEL = **(b) "Winamp"** display-name column added to the app-registry
+codegen (4th `APP_X` arg); OQ-BOOT = **v2** (user choice 2026-06-29 — cold-boot enters the persisted mode;
+auto-play still governed by `webRadioAutoplay`); OQ-WEAR = **immediate-save + unchanged-skip**
+(`persistPlayerMode()` §4).
+
+**Implemented + DUT-VERIFIED 2026-06-29 (v2) — `run/check` 6/6; 14/14 DUT checks PASS.**
+Key decisions:
+- **State model:** removed TASK-259's runtime `g_lastPlayerMode`; single source of truth is
+  `g_settings.playerMode` (`PlayerMode{Spotify=0,WebRadio=1}`), new top-level `player.mode` in `settings.json`.
+- **Writers = the deliberate toggles only** (eject in both directions: `main.cpp` Spotify handler +
+  `webRadioApp.h` touch-eject & serial `wrEject`; plus the Settings `_cyclePlayer`). The `switchApp()`
+  navigation-tracking write was **removed** — keeping it would clobber the persisted mode at boot (v1 boots to
+  the Spotify view). `resolvePlayerSlot()` is the sole reader.
+- **Codegen:** `APP_X` grew a 4th display-name column → all 3 expansion sites (`appShell.h`, `main.cpp` ×2) +
+  `gen_app_registry.py` (emits `kConfigurableApps[].display` + python `DISPLAY`); Spotify flipped `cfg 0→1`,
+  shows as "Winamp". Settings list/title now use `.display`.
+- **v2 boot-into-mode:** at the end of `setup()` (after the Spotify app's boot `init()`), if
+  `g_settings.playerMode==WebRadio` and WiFi is up, `switchApp(AppId::WebRadio)`. `SpotifyApp::suspend()` is
+  just `resetDragState()` so tearing it down at boot is safe. Offline still diverts to WiFi settings.
+- **VE instrumentation:** `get playerMode` + `set playerMode <0|1|spotify|webradio>` serial commands added
+  (`set` is pure persist — no app switch — so a reboot exercises the v2 boot path).
+- **Nav-drift (T_PS_NAV_01):** Winamp inserted at configurable-app row 0 shifts the others +1. DUT settings
+  tests (T-SET-03/06/07) are index-based (assert `submenu==tapped-row`, not app identity) and the taskbar
+  harness imports only `APP_SLOT`/`APP_COUNT` (unchanged) — so no test logic breaks; only stale row-comments.
+
+**DUT validation 2026-06-29 (cyd2usb_winamp_debug, /dev/ttyUSB0) — 14/14 checks PASS:**
+- set/get playerMode both directions + numeric + reject-bad value;
+- **no-op skip (§4):** a value *change* logs `SettingsStorage: saved`; an unchanged repeat does **not** (T_PS_NOOP_01);
+- **v2 cold-boot-into-mode:** persist WebRadio → reset → boots into WebRadio; persist Spotify → reset → boots into Spotify;
+- **eject writers persist:** tap-eject Spotify→WebRadio writes WebRadio; tap-eject WebRadio→Spotify (after the
+  station fetch settles past the CANVAS/`g_shellBusy` gate) writes Spotify; serial `set wrEject 1` ditto.
+  (Two initial harness-only artifacts — a tap gated mid-fetch and a missing `set` value arg — were test bugs, not firmware.)
+- VE follow-up: fold these into the regression suite as the formal T_PS_* ids; offline
+  `run/spiffs pull settings.json` shows `"player":{"mode":N}`.
+
+**Priority:** P2 — completes M-PLAYER-STATE; persistence the user asked for · **Status:** **DONE — v2
+implemented + DUT-verified 2026-06-29 (14/14); `run/check` 6/6** · **Opened:** 2026-06-27 · **Closed:**
+2026-06-29 · **Milestone:** M-PLAYER-STATE · **Branch:** `feature/task-260-player-state-part2`
 **Owner:** Developer · **Design:** M-PLAYER-STATE.md · **Deps:** TASK-259 (PART 1, done), `settings-001`,
 `taskbar-001` · **Feature:** `player-state-001` (PART 2) · **Matrix:** X022–X024
 
