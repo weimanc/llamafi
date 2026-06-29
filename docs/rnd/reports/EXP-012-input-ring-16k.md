@@ -1,6 +1,6 @@
 # EXP-012 — Input-ring 8 K → 16 K: slow-stream underrun fix, post-arena (TASK-233 residual)
 
-> Owner: R&D · 2026-06-29 · **Status: PLANNED (not yet executed)** · DUT: ESP32-2432S028R (no PSRAM, `cyd2usb_webradio`)
+> Owner: R&D · 2026-06-29 · **Status: PHASE 0 DONE — GO for Phase 1/2** · DUT: ESP32-2432S028R (no PSRAM, `cyd2usb_webradio`)
 > Feeds: TASK-233 (no-PSRAM playback residual — slow-stream underruns) · TASK-262 (A-lite arena, promoted)
 > Prior art: EXP-007 (heap spike — the "16 K input → decoder OOM" finding this re-tests) · TASK-258/EXP-009
 > (footprint-lever correction) · TASK-271 (soak harness + long single-stream soak: fast streams STABLE)
@@ -91,18 +91,56 @@ post-fetch. `run/check` 6/6.
 
 ## Results
 
-_PENDING EXECUTION._ Estimated DUT time ~30–40 min (2 flashes; baseline + trial soaks).
+### Phase 0 — DONE 2026-06-29 (16 stations surveyed, arena held, auto-skip OFF)
+
+**Decoder-init headroom (CP2, after arena 24 K + current 8 K InBuff allocated):**
+
+| Metric | min | max | Reading |
+|---|---|---|---|
+| `freeInt` | 43,344 | 52,800 | total free INTERNAL |
+| **`lfbInt`** | **38,900** | **38,900** | **largest contiguous INTERNAL block — the room the input ring grows into** |
+| `freeDma` | 3,344 | 12,800 | total free DMA |
+| `lfbDma` | 2,292 | 10,740 | I2S DMA ring headroom — **tight** |
+
+**→ INTERNAL headroom is ample.** `lfbInt` = **38,900 B** at decoder-init *with* the current 8 K InBuff
+already allocated. Growing the input ring +8 K (→16 K) consumes 8 K more general heap, leaving ~31 K contiguous
+— and the decoder is in its own 24 K arena, so it is untouched. **H1 strongly supported: there is clear room
+for a 16 K input ring.** (At InBuff-alloc time the block is even larger, ~47 K, so the 16 K alloc itself fits
+trivially.)
+
+**→ DMA is the genuinely tight pool** (`lfbDma` 2.3–10.7 K) — confirms the input ring (INTERNAL) is the right
+lever and the I2S DMA ring (8 K) has little room to grow (separate question, likely NO budget).
+
+**Slow-station shortlist (the `buf%` low-water at end of an 18 s hold is the discriminator — `minBufPct` is
+startup-dominated so it reads 0 for all):**
+
+| Station | sustained | end `buf%` | Read |
+|---|---|---|---|
+| **st10** | 2.0 s | 0% | died fast — genuinely slow/dead |
+| **st7** | 16 s | **22%** | playing but buffer chronically draining → underrun-prone |
+| **st5** | 16 s | **23%** | same |
+| **st3** | 16 s | **32%** | borderline |
+| st0/1/9/11/13/15 … | 16 s | 90–100% | healthy/fast (buffer full) |
+| st6 | — | dead | never reached PLAYING |
+
+**EXP-012 baseline targets = st5, st7 (chronic ~22% buffer), st10 (2 s death).** These are real slow streams
+to measure the 16 K ring against.
+
+**Phase 0 verdict: GO.** Both prerequisites met — (a) ~38.9 K INTERNAL headroom to grow the ring into, (b)
+slow stations exist to measure. Proceed to Phase 1/2 (build 16 K trial, re-test decoder-alloc + slow-station
+underruns).
+
+### Phases 1–3 — pending
 
 | Phase | Metric | 8 K (baseline) | 16 K (trial) |
 |---|---|---|---|
-| 0/2.1 | `lfbInt` at decoder-init | _tbd_ | _tbd_ |
-| 0/2.1 | decoder alloc OK (10+ stations) | _tbd_ | _tbd_ |
-| 0/2.2 | slow-station `underruns/min` | _tbd_ | _tbd_ |
-| 0/2.2 | slow-station `minBufPct` | _tbd_ | _tbd_ |
-| 0/2.2 | slow-station sustained `playMs` | _tbd_ | _tbd_ |
+| 0 | `lfbInt` at decoder-init | **38,900** | _tbd_ (expect ~30.9 K) |
+| 2.1 | decoder alloc OK (10+ stations) | yes (0 OOM, Phase 0) | _tbd_ (the H1 test) |
+| 2.2 | st5/st7 end `buf%` / underruns | 22–23% | _tbd_ |
+| 2.2 | st5/st7 sustained | 16 s (capped) | _tbd_ (longer hold) |
 | 3 | fast-stream soak (regression) | STABLE (TASK-271) | _tbd_ |
-| 3 | `lfbDma` at decoder-init | _tbd_ | _tbd_ |
+| 3 | `lfbDma` at decoder-init | 2.3–10.7 K | _tbd_ |
 
 ## Verdict
 
-_PENDING._
+_Phase 0: **GO.** Phases 1–3 pending._
