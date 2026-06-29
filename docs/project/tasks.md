@@ -858,9 +858,16 @@ Two later findings overtake this task's original "NO-GO" framing (kept above for
    enough memory" symptom is gone in the promoted build.
 
 **Residual (the standing no-PSRAM ceiling):** slow-stream **underruns** — the 8 K input buffer (halved to
-fit) starves on slow streams (~12 s best-effort, TASK-271 quantified it). This is the one TASK-233 finding
-that holds: it is **footprint-bound** (a bigger input buffer needs deeper resident-footprint cuts, per
-TASK-258's lever), not a silicon limit.
+fit) starves on *slow* streams. This is the one TASK-233 finding that holds: it is **footprint-bound** (a
+bigger input buffer needs deeper resident-footprint cuts, per TASK-258's lever), not a silicon limit.
+
+**Long single-stream soak (2026-06-29, cyd2usb_webradio, auto-skip OFF):** a *fast* station (idx 0) held
+**STABLE for the full 7 min** — `playMs` climbed linearly to 420,338 ms with **0 session drops, 0 new
+underruns** (just the 1 startup blip), buffer pinned at 95–100% throughout. So a good stream is
+**genuinely stable, not best-effort-flaky** — well past ADR-045's ≥60 s bar. (Earlier "~12 s" figures were the
+TASK-271 *churn-soak window*, NOT a death point — corrected.) The residual is therefore **narrow**: only
+*slow* streams underrun, and auto-skip (TASK-234, default ON) tunes past them to a stable one. Net user
+experience: WebRadio reliably lands on and holds a playable station indefinitely.
 
 **The 5 KB `s_webRadioDoc` reclaim is DE-PRIORITISED (optional).** It targeted *startup margin* — which the
 arena now provides reliably (0 acquire-FAILs), so its value is largely overtaken. Freeing 5 K resident during
