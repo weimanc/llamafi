@@ -9,7 +9,7 @@ const char* cgIdToDisplay(const char* id);
 class AppsSection : public SettingsSection {
 public:
     const char* title() const override {
-        return (_sub < 0) ? "Applications" : kConfigurableApps[_sub].name;
+        return (_sub < 0) ? "Applications" : kConfigurableApps[_sub].display;
     }
 
     int submenu() const { return (int)_sub; }
@@ -74,7 +74,7 @@ private:
     void _repaintAppList() {
         int y = S_CONTENT_Y;
         for (int i = 0; i < CONFIGURABLE_APP_COUNT; i++) {
-            drawChevronRow(y, kConfigurableApps[i].name);
+            drawChevronRow(y, kConfigurableApps[i].display);
             y += S_ROW_H;
         }
     }
@@ -94,6 +94,7 @@ private:
             case AppId::Life:     _repaintLife();     break;
             case AppId::Clock:    _repaintClock();    break;
             case AppId::Teletext: _repaintTeletext(); break;
+            case AppId::Spotify:  _repaintPlayer();   break;
             default: break;
         }
     }
@@ -191,6 +192,7 @@ private:
             case AppId::Life:     _cycleLife(row);     break;
             case AppId::Clock:    _cycleClock(row);    break;
             case AppId::Teletext: _cycleTeletext(row); break;
+            case AppId::Spotify:  _cyclePlayer(row);   break;
             default: break;
         }
     }
@@ -248,6 +250,24 @@ private:
     void _cycleClock(int row) {
         if (row != 0) return;
         settings().clockStyle = (ClockStyle)(((uint8_t)settings().clockStyle + 1) % 4);
+        saveSettings();
+        repaint();
+    }
+
+    // M-PLAYER-STATE / TASK-260: the player slot (AppId::Spotify, shown as "Winamp")
+    // hosts two modes — Spotify | WebRadio. One "Mode" row toggles the persisted
+    // g_settings.playerMode. The change applies on next entry to the player slot (the
+    // settings screen is a different app, so no live app-switch is forced from here).
+    void _repaintPlayer() {
+        bool radio = settings().playerMode == (uint8_t)PlayerMode::WebRadio;
+        drawRow(S_CONTENT_Y, { "Mode", radio ? "WebRadio" : "Spotify", S_LABEL, S_VALUE });
+    }
+
+    void _cyclePlayer(int row) {
+        if (row != 0) return;
+        settings().playerMode = (settings().playerMode == (uint8_t)PlayerMode::WebRadio)
+                              ? (uint8_t)PlayerMode::Spotify
+                              : (uint8_t)PlayerMode::WebRadio;
         saveSettings();
         repaint();
     }

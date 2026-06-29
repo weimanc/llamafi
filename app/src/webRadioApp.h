@@ -352,6 +352,7 @@ public:
         // Eject → back to Spotify
         if (winampDisplay.hitTestEject(x, y)) {
             _stopAudio();
+            persistPlayerMode((uint8_t)PlayerMode::Spotify);   // TASK-260
             switchApp(AppId::Spotify);
             return true;
         }
@@ -495,6 +496,7 @@ public:
         // T_WR_EJECT_02: serial-inject eject action
         if (strcmp(var, "wrEject") == 0) {
             _stopAudio();
+            persistPlayerMode((uint8_t)PlayerMode::Spotify);   // TASK-260
             switchApp(AppId::Spotify);
             return true;
         }

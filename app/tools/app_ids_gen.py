@@ -3,5 +3,6 @@
 
 APP_ORDER = ['Spotify', 'Clock', 'Weather', 'Crypto', 'Matrix', 'Life', 'Settings', 'Stock', 'Aquarium', 'Teletext', 'WebRadio']
 APP_SLOT  = {name: i for i, name in enumerate(APP_ORDER)}
-CONFIGURABLE = {"Aquarium", "Clock", "Crypto", "Life", "Matrix", "Stock", "Teletext"}
+CONFIGURABLE = {"Aquarium", "Clock", "Crypto", "Life", "Matrix", "Spotify", "Stock", "Teletext"}
+DISPLAY = {'Spotify': 'Winamp', 'Clock': 'Clock', 'Weather': 'Weather', 'Crypto': 'Crypto', 'Matrix': 'Matrix', 'Life': 'Life', 'Settings': 'Settings', 'Stock': 'Stock', 'Aquarium': 'Aquarium', 'Teletext': 'Teletext', 'WebRadio': 'WebRadio'}
 APP_COUNT = 11

@@ -3461,8 +3461,31 @@ design recommends the latter); OQ-BOOT (cold-boot-into-mode is **v2/deferred** �
 **DoD:** `run/check` 5/5 (incl. codegen-staleness + golden); settings round-trip verified offline
 (`run/spiffs pull … settings.json` shows `player.mode`); DUT: set mode → reboot → player slot restores it.
 
-**Priority:** P2 — completes M-PLAYER-STATE; persistence the user asked for · **Status:** **open — designed,
-ready to implement** · **Opened:** 2026-06-27 · **Milestone:** M-PLAYER-STATE
+**OQ resolutions (at impl):** OQ-LABEL = **(b) "Winamp"** display-name column added to the app-registry
+codegen (4th `APP_X` arg); OQ-BOOT = **v1** (boot lands on the Spotify view; taskbar-restore + Settings use
+the persisted mode); OQ-WEAR = **immediate-save + unchanged-skip** (`persistPlayerMode()` §4).
+
+**Implemented 2026-06-29 — `run/check` 6/6 (incl. [5/6] codegen-staleness + [3/6] golden); DUT-verify owed.**
+Key decisions:
+- **State model:** removed TASK-259's runtime `g_lastPlayerMode`; single source of truth is
+  `g_settings.playerMode` (`PlayerMode{Spotify=0,WebRadio=1}`), new top-level `player.mode` in `settings.json`.
+- **Writers = the deliberate toggles only** (eject in both directions: `main.cpp` Spotify handler +
+  `webRadioApp.h` touch-eject & serial `wrEject`; plus the Settings `_cyclePlayer`). The `switchApp()`
+  navigation-tracking write was **removed** — keeping it would clobber the persisted mode at boot (v1 boots to
+  the Spotify view). `resolvePlayerSlot()` is the sole reader.
+- **Codegen:** `APP_X` grew a 4th display-name column → all 3 expansion sites (`appShell.h`, `main.cpp` ×2) +
+  `gen_app_registry.py` (emits `kConfigurableApps[].display` + python `DISPLAY`); Spotify flipped `cfg 0→1`,
+  shows as "Winamp". Settings list/title now use `.display`.
+- **VE instrumentation:** `get playerMode` serial command added (agent-driven persist/settings tests).
+- **Nav-drift (T_PS_NAV_01):** Winamp inserted at configurable-app row 0 shifts the others +1. DUT settings
+  tests (T-SET-03/06/07) are index-based (assert `submenu==tapped-row`, not app identity) and the taskbar
+  harness imports only `APP_SLOT`/`APP_COUNT` (unchanged) — so no test logic breaks; only stale row-comments.
+- **DUT-verify owed (no DUT now):** T_PS_PERSIST_01/02, T_PS_SETTINGS_01, T_PS_NOOP_01, T_PS_NAV_01,
+  T_PS_TASKBAR_01 (VE). Offline `run/spiffs pull settings.json` should show `"player":{"mode":N}` after a save.
+
+**Priority:** P2 — completes M-PLAYER-STATE; persistence the user asked for · **Status:** **implemented —
+build-gated `run/check` 6/6; DUT-verify owed (T_PS_* suite)** · **Opened:** 2026-06-27 · **Milestone:**
+M-PLAYER-STATE · **Branch:** `feature/task-260-player-state-part2`
 **Owner:** Developer · **Design:** M-PLAYER-STATE.md · **Deps:** TASK-259 (PART 1, done), `settings-001`,
 `taskbar-001` · **Feature:** `player-state-001` (PART 2) · **Matrix:** X022–X024
 
