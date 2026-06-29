@@ -1573,9 +1573,12 @@ features:
       Backfilled 2026-06-28 (QM-3 audit: the whole memory-budgeting subsystem had no inventory row,
       only oblique refs in player-state-001 notes + matrix X022-X024). status=partial: Phase 1
       (TASK-268, planner foundation + OQ1) is DONE on master (95bd298); Phase 2 (TASK-269, the two
-      tenants) is DONE on branch rnd/memplan (241adf8) NOT yet merged. The runtime mb_arena (A-lite,
-      ADR-047 + Amd 1) is the related runtime-overlay mechanism this planner succeeds — currently
-      gated behind MEMBUDGET_PHASE1, mainlined-gated (master adeab7c), ungate blocked on TASK-243.
+      tenants) is DONE (Phase 1+2 merged to master 7548ab7). The runtime mb_arena (A-lite, ADR-047 + Amd 1)
+      is the related runtime-overlay mechanism this planner succeeds — PROMOTED to production 2026-06-29
+      (TASK-262, branch feature/task-262-promote-alite): MEMBUDGET_PHASE1 now in cyd2usb_winamp, verbose
+      probes re-gated SERIAL_DEBUG, arena DUT-validated (real 24K acquire + decoder allocates from it +
+      PLAYING). Provisional: residual Spotify-render-under-arena check owed on TASK-243 (nil risk). Rollback =
+      TASK-256.
       OPEN: TASK-270 (aquarium TFT_eSprite overlay — deferred, needs a fork). TEST GAP (QM-2): no
       dedicated regression test gates the overlay — Phase 2 validation leaned on Premium-blocked
       DUT T219/T220; file a Stock->Crypto round-trip test (results distinct, no cross-corruption)

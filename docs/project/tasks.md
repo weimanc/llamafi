@@ -3575,9 +3575,34 @@ engineering de-risk complete: TASK-263 (halved DMA) ✅, TASK-264 (overlay Q3-a)
 TASK-259 player-mode + all records are now on master; the `ef8e32c` divergence + a doubled-`#ifdef` auto-merge
 artifact were resolved. **Remaining for promotion (the only un-done step):** TASK-243 (Premium) clears →
 validate Spotify-active coexistence on the full multi-app build → **ungate `MEMBUDGET_PHASE1` for production**
-(flip it on in `cyd2usb_winamp`). Not pushed to remote yet. · **Opened:** 2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:**
+(flip it on in `cyd2usb_winamp`).
+
+**PROMOTED 2026-06-29 (provisional, without Premium) — branch `feature/task-262-promote-alite`.** Decision
+(human): the TASK-243 gate is belt-and-suspenders — `MEMBUDGET_PHASE1` gates **only WebRadio-exclusive code**
+(JIT `mb_arena`, halved-DMA fork, decoder→`mb_arena_alloc` routing), and this device outputs **no audio for
+Spotify** (display/control only — no I2S/DMA path), so flipping it on changes **zero Spotify runtime
+behaviour**. The TASK-264 TLS-drop coexistence mechanism was already in production (gated by `DISABLE_SPOTIFY`,
+not the budget flag). What changed:
+- `-DMEMBUDGET_PHASE1` moved from `cyd2usb_winamp_debug` → **`cyd2usb_winamp` (production)**; debug inherits it.
+- The verbose `[membudget]`/`[mbdbg]` probes (CP0/CP1/CP2, `mb_heap_probe`, arena acquire/release/first-alloc,
+  helix-alloc) re-gated `MEMBUDGET_PHASE1 && SERIAL_DEBUG` → **ship silent** in production.
+- Dropped the dead `MEMPLAN_STATIC_DECODER` OQ1 experiment; arena `mb_arena_acquire()` call made unconditional
+  (libc-fallback when flag absent). `run/check` 6/6 (production now compiles **with** the arena).
+
+**DUT validation 2026-06-29:** arena code proven on the equivalent build (`cyd2usb_webradio`, same
+`MEMBUDGET_PHASE1`, no 403 starvation) — `arena acquire=24576B lfbBefore=61428 **OK**` (real 24 K internal
+block, not libc-fallback), `arena FIRST alloc ... cap=24576` (Helix decoder allocates **from** the arena),
+`wrState=2 wrPlaying=1` (**PLAYING**), idempotent re-acquire — **6/6**. Production `cyd2usb_winamp` boots clean
+(heap=134k/maxAlloc=47k idle), runs steady, **no probe spam**, no panic.
+
+**Residual (the only thing Premium would add):** confirming Spotify *renders a playing track* under the
+promoted build — nil risk, since the promoted build changes no Spotify code path; and the WebRadio station
+fetch on the Spotify-enabled build is itself starved by the TASK-243 403 (project memory: tlsYield
+starvation). **Rollback:** TASK-256 (revert `-DMEMBUDGET_PHASE1` from `cyd2usb_winamp`). · **Status:**
+**PROMOTED — provisional, DUT-validated 2026-06-29; residual Spotify-render check owed on TASK-243** ·
+**Opened:** 2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:**
 Developer/PM · **Deps:** TASK-261 (done), ~~TASK-263~~, ~~TASK-264~~, ~~TASK-265 (done→TASK-267)~~,
-**TASK-267**, TASK-243
+**TASK-267**, TASK-243 (residual only)
 
 ---
 

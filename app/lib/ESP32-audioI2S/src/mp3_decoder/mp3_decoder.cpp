@@ -1557,7 +1557,7 @@ bool MP3Decoder_AllocateBuffers(void) {
     if(!m_SubbandInfo)      {m_SubbandInfo   = (SubbandInfo_t*)   __malloc_heap_psram(sizeof(SubbandInfo_t)  );}
     if(!m_MP3FrameInfo)     {m_MP3FrameInfo  = (MP3FrameInfo_t*)  __malloc_heap_psram(sizeof(MP3FrameInfo_t) );}
 
-#ifdef MEMBUDGET_PHASE1
+#if defined(MEMBUDGET_PHASE1) && defined(SERIAL_DEBUG)
     Serial.printf("[mbdbg] helix alloc: DecInfo=%p(%u) FHdr=%p(%u) SI=%p(%u) SFJS=%p(%u) Huff=%p(%u) Deq=%p(%u) IMDCT=%p(%u) Sub=%p(%u) FInfo=%p(%u)\n",
         m_MP3DecInfo,    (unsigned)sizeof(MP3DecInfo_t),
         m_FrameHeader,   (unsigned)sizeof(FrameHeader_t),
