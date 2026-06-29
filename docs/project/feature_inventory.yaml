@@ -1372,15 +1372,17 @@ features:
       - settings-001
     notes: |
       Design: docs/architecture/designs/M-PLAYER-STATE.md. PART 1 = TASK-259 (DONE, DUT-verified 2026-06-27).
-      PART 2 = TASK-260 (persistence + settings UI): IMPLEMENTED 2026-06-29 on branch
-      feature/task-260-player-state-part2, build-gated (run/check 6/6), DUT-verify owed (T_PS_* suite).
-      Single source of truth is g_settings.playerMode (PlayerMode{Spotify=0,WebRadio=1}) persisted as the
-      top-level player.mode in settings.json; the TASK-259 runtime g_lastPlayerMode was removed. Writers are
-      the eject toggles (both directions) + the Settings "Mode" row (_cyclePlayer); resolvePlayerSlot reads it;
-      the switchApp() nav-tracking write was removed so boot (v1, lands on Spotify view) doesn't clobber the
-      persisted mode. OQ resolutions: OQ-LABEL = (b) "Winamp" display-name codegen column (4th APP_X arg;
-      Spotify cfg 0->1); OQ-BOOT = v1 (taskbar-restore + settings use the mode, boot stays Spotify view);
-      OQ-WEAR = immediate-save + unchanged-skip. Serial `get playerMode` added for agent-driven tests.
+      PART 2 = TASK-260 (persistence + settings UI): DONE — v2 implemented + DUT-verified 2026-06-29 (14/14
+      checks) on branch feature/task-260-player-state-part2, run/check 6/6. Single source of truth is
+      g_settings.playerMode (PlayerMode{Spotify=0,WebRadio=1}) persisted as the top-level player.mode in
+      settings.json; the TASK-259 runtime g_lastPlayerMode was removed. Writers are the eject toggles (both
+      directions) + the Settings "Mode" row (_cyclePlayer); resolvePlayerSlot reads it; the switchApp()
+      nav-tracking write was removed so navigation doesn't clobber the persisted mode. OQ resolutions:
+      OQ-LABEL = (b) "Winamp" display-name codegen column (4th APP_X arg; Spotify cfg 0->1); OQ-BOOT = v2
+      (cold-boot enters the persisted mode via a switchApp at the end of setup(); auto-play still governed by
+      webRadioAutoplay); OQ-WEAR = immediate-save + unchanged-skip. Serial get/set playerMode added for
+      agent-driven tests. DUT-verified: set/get both ways, no-op skip (§4), v2 boot-into-mode both ways, and
+      eject-writer persistence both directions.
       Couples M-MEMBUDGET (the mode mutual-exclusion the overlay-arena budget leans on). cross_feature_matrix:
       X022-X024.
 

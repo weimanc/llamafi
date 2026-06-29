@@ -70,8 +70,8 @@ struct AppSettings {
 
     // --- Player slot (M-PLAYER-STATE / TASK-260) ---
     // The Winamp "player" slot is one slot with two mutually-exclusive modes. Persisted
-    // so the taskbar player-slot restore + Settings display survive a reboot. Stored as
-    // uint8_t (PlayerMode). v1: boot still lands on the Spotify view (OQ-BOOT deferred).
+    // so the taskbar player-slot restore + Settings display + cold-boot survive a reboot.
+    // Stored as uint8_t (PlayerMode). v2 (OQ-BOOT): boot enters the persisted mode.
     uint8_t playerMode;      // PlayerMode: Spotify=0 | WebRadio=1
 
     // --- Teletext (ADR-044) ---

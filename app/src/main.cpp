@@ -126,7 +126,8 @@ static AppId g_previousAppId = AppId::Spotify;
 // toggles the mode; returning to the player from the taskbar restores the last-active
 // one instead of always landing on Spotify. The mode is the persisted single source of
 // truth g_settings.playerMode (TASK-260) — written by the eject toggles + Settings UI,
-// read by resolvePlayerSlot. v1 boot still lands on the Spotify view (OQ-BOOT deferred).
+// read by resolvePlayerSlot. v2 boot (OQ-BOOT): cold-boot enters the persisted mode (see
+// the boot-into-mode redirect at the end of setup()); auto-play is the webRadioAutoplay knob.
 
 #ifdef TOUCH_DEBUG_OVERLAY
 #include "debug/touchDebugOverlay.h"
@@ -2200,6 +2201,14 @@ void setup()
     switchApp(AppId::Settings);
     g_SettingsApp.openSection(0);
   }
+  // TASK-260 v2 (OQ-BOOT): cold-boot directly into the persisted player mode. After the
+  // Spotify app's boot init() above (so switchApp's suspend() tears it down cleanly),
+  // enter WebRadio if that was the last-active mode. Whether a station then auto-plays is
+  // governed by the existing webRadioAutoplay knob — these compose. Skipped when offline
+  // (no network for the station fetch; we're already heading to the WiFi settings screen).
+  else if (g_settings.playerMode == (uint8_t)PlayerMode::WebRadio) {
+    switchApp(AppId::WebRadio);
+  }
   mb_heap_probe("post-init-idle");    // TASK-261 Phase 0 milestone M4 (steady idle)
   buildMathLUT();
 
@@ -2775,6 +2784,24 @@ static void cmdSet(const char *args) {
     if (currentAppId == AppId::Clock) g_ClockApp.resume();
     Serial.printf("{\"ok\":true,\"cmd\":\"set\","
                   "\"var\":\"clockStyle\",\"val\":%d,\"name\":\"%s\"}\n", idx, kSN[idx]);
+    return;
+  }
+  if (strcmp(var, "playerMode") == 0) {   // TASK-260 (VE: agent-driven persist/boot tests)
+    int idx = -1;
+    if      (strcasecmp(val, "spotify")  == 0) idx = 0;
+    else if (strcasecmp(val, "webradio") == 0) idx = 1;
+    else if (sscanf(val, "%d", &idx) != 1 || idx < 0 || idx > 1) idx = -1;
+    if (idx < 0) {
+      Serial.printf("{\"ok\":false,\"cmd\":\"set\","
+                    "\"error\":\"bad val — use 0/1 or spotify/webradio\"}\n");
+      return;
+    }
+    // Pure persist (no app switch): sets + saves the mode so a reboot exercises the v2
+    // boot-into-mode path. Use the eject toggle to actually switch the live player slot.
+    persistPlayerMode((uint8_t)idx);
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\","
+                  "\"var\":\"playerMode\",\"val\":%d,\"name\":\"%s\"}\n",
+                  idx, idx ? "WebRadio" : "Spotify");
     return;
   }
   Serial.printf("{\"ok\":false,\"cmd\":\"set\","
