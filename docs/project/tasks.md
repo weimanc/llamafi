@@ -3846,3 +3846,33 @@ scheduling call 2026-06-28: not now. Standing recommendation = no TFT_eSPI fork 
 fork pays for two). `aquarium_strip` stays out of the manifest until then. The architecture call itself
 (Architect/human) remains open if/when a tenant arrives.** · **Opened:** 2026-06-28 · **Milestone:** M-MEMPLAN
 · **Owner:** Architect · **Deps:** TASK-268 · **Design:** M-MEMPLAN §6 (the placeable-vs-not boundary)
+
+---
+
+### TASK-271 — WebRadio playback + A-lite arena-churn soak harness
+
+Follow-on to TASK-262 (A-lite promoted to production). The one-shot promotion validation proved the arena
+acquires/plays/releases over a handful of cycles; nothing soaks the **play → leave** cycle to surface what
+only time shows. Now that the arena does a JIT `heap_caps_malloc(24K)`/`free` on **every** `_play()`/`suspend()`
+in production, an unattended churn soak is the production-hardening evidence: arena fragmentation creep,
+acquire-FAIL (24K no longer contiguous), acquire/release leak, sustained-playback distribution (quantifies the
+TASK-233 best-effort claim), underruns.
+
+**Delivered:** `app/tools/test_webradio_soak.py` + `run/wr-soak` (flash `cyd2usb_webradio` → soak → restore
+prod, trap-guarded; BP-020). Runs on the Spotify-disabled build (no TASK-243 403 fetch starvation; arena code
+is identical to production — both `-DMEMBUDGET_PHASE1`). Each cycle: enter WebRadio → `wrPlay` (arena acquire) →
+hold N s sampling `wrPlaying`/`wrUnderruns` → `switchApp 0` (suspend → arena release) → re-enter. Parses the
+`[membudget] arena acquire=…lfbBefore=…OK|FAIL` / `arena released` logs. PASS = ≥3 cycles, acquire==release,
+zero acquire-FAIL, `min(lfbBefore) ≥ 24576`. Self-contained serial wrapper (NOT `Dut` — its ELF-hash gate
+rejects the webradio build).
+
+**DUT-validated 2026-06-29 (harness self-test, 2 min / 15 s-per-station):** 7 cycles, acquire==release==7
+(no leak), **0 acquire-FAILs**, lfbBefore 61428→49140 (20% drift, **plateaued**, ≫24576 throughout),
+sustained playback median **12.1 s** (reached PLAYING 7/7), 0 error/skip. A 48-cycle rapid run held the same:
+0 FAILs, lfb floor 38900. **The arena is churn-safe in the promoted config** — no fragmentation collapse, no
+leak. The ~9–12 s playback ceiling is the TASK-233 no-PSRAM best-effort reality, now quantified rather than
+asserted.
+
+**Priority:** P3 — production hardening / VE tooling · **Status:** **done — harness delivered + DUT-validated
+2026-06-29** · **Opened:** 2026-06-29 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** VE/Developer · **Deps:**
+TASK-262 (promotion), TASK-248 (fetch-soak harness pattern) · **Branch:** `feature/task-271-webradio-soak`

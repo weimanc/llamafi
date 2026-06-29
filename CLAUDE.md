@@ -104,6 +104,8 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
 ./run/test-targeted T1,T2     # targeted loop for a specific feature
 ./run/test-smoke              # smoke preset < 2 min
 ./run/test-sync               # sync/drift/playlist suite T097-T116 (requires DUT)
+./run/stress [min]            # multi-app fetch stress/soak (TASK-248; flash debug → soak → restore prod)
+./run/wr-soak [min]           # WebRadio playback + A-lite arena-churn soak (TASK-271; flash webradio build → soak → restore prod)
 ./run/check                   # 5-gate build check (check_build.sh)
 ./run/bake-skin               # bake Winamp skin assets
 ```
