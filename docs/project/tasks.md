@@ -987,11 +987,23 @@ hardware (WebRadio hidden there) and applies only to the PSRAM target.
 
 **Deliverable:** a repeatable VE harness that runs N cold entries, records skips-to-stable and
 hold time, and reports the pass rate against the ≤ 6 / ≥ 90 % bar. Gates M-WEBRADIO MVP close.
-**Priority:** P2 — milestone-close gate · **Status:** **open — UNBLOCKED 2026-07-02** (TASK-235 done 2026-06-24
-via EXP-007; the "memory reduction it green-lights" arc completed with the A-lite arena promotion TASK-262 —
-the heap state TASK-238 was waiting to measure against is now the production state. `app/tools/exp012_measure.py`
-+ the TASK-271 soak harness cover most of the needed cold-entry machinery.) · **Opened:** 2026-06-24
-**Milestone:** M-WEBRADIO · **Owner:** VE · **Deps:** TASK-235 (done), TASK-234 (done)
+**Harness delivered 2026-07-02:** `app/tools/test_adr045_gate.py` + `run/wr-gate` (N cold-entry trials,
+cumulative-skip tracking across the settle-reset, fetch reboot-retry, non-zero-IP boot gate, 60 s settle).
+Driving it surfaced and fixed two real defects first: TASK-272 (WiFi power-save idle-kill) and TASK-273
+(auto-skip burned the full list in <1 s during a network blip).
+
+**Gate run 4 (2026-07-02, post-fixes): 7/10 — FAIL against the ≥90 % bar, environment-attributed.**
+Per-trial: 7 passes all `skips=0, ttfp≈0.1 s, hold>60 s` (when the network is up the tuner is flawless);
+3 fails were RF outages on the DUT's AP that evening (drops every ~2–5 min): T1 11 skips (post-idle
+reassoc ~10 s) *but held 60 s*, T5 13 skips (~26 s outage) *but held 61 s*, T10 outage >32 s → list
+exhausted → terminal park (the TASK-273 follow-on candidate: no retry-from-terminal). **9/10 trials
+achieved the 60 s stable hold.** The ≤6-skip bar conflates dead-station skips with outage skips.
+**Needs: a re-run in a healthy RF window, and/or a human ruling on whether outage-skips count against
+the bar (ADR-045 owner).**
+
+**Priority:** P2 — milestone-close gate · **Status:** **open — harness done, first counted run 7/10
+(environment); awaiting healthy-RF re-run or human bar ruling** · **Opened:** 2026-06-24
+**Milestone:** M-WEBRADIO · **Owner:** VE · **Deps:** TASK-235 (done), TASK-234 (done), TASK-272/273 (done)
 
 ---
 
@@ -3956,3 +3968,28 @@ may share this cause.
 **Priority:** P1 — fix landed with TASK-238 work · **Status:** **done — fix DUT-verified 2026-07-02;
 production merge rides the TASK-238 commit (run/check 6/6)** · **Opened:** 2026-07-02 ·
 **Milestone:** M-WEBRADIO · **Owner:** Developer · **Deps:** — · **Branch:** master
+
+---
+
+### TASK-273 — Pace auto-skip/retry dispatch (network-blip immunity)
+
+Found by the TASK-238 gate + wr_debug5 probe (2026-07-02): the TASK-234 pendingAction dispatch ran every
+tick, so during a transient network outage (EHOSTUNREACH + DNS-fail while the WiFi doze/reassoc window is
+open) the auto-skip walked the ENTIRE 16-station list into terminal ERROR in **under 1 second** — 16
+instant connect-fails, one blip. A momentary hiccup at play-press produced a permanent-looking dead player.
+
+**Fix:** `WR_SKIP_PACE_MS = 2000` — dispatch a deferred retry/skip only when ≥2 s has elapsed since the
+last `_play()` attempt (`_lastAttemptMs`, stamped on every attempt). A full-list walk now takes ~32 s and
+rides out short outages; DUT-verified — gate trials that started inside an outage recovered mid-walk and
+held 60 s+ (previously: instant terminal park, 0 ms hold).
+
+**Note for VE:** TASK-237's deterministic dead-list tests (wrDeadUrls) now walk at 2 s/station — timeouts
+in that suite may need widening.
+
+**Follow-on candidate (not filed):** terminal state has NO recovery path — once the walk exhausts the list
+(e.g., outage > 32 s, gate run 4 trial 10) the player parks in ERROR even after the network returns, until
+the user re-plays. A retry-from-terminal with backoff would close the loop. PM to decide.
+
+**Priority:** P1 — landed with TASK-238 work · **Status:** **done — DUT-verified 2026-07-02 (commit
+64765df, run/check 6/6)** · **Opened:** 2026-07-02 · **Milestone:** M-WEBRADIO · **Owner:** Developer ·
+**Deps:** TASK-234 (the mechanism), TASK-272 (sibling fix) · **Branch:** master
