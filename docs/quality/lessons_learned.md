@@ -4,6 +4,46 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-07-02 — EXP-012 input-ring 16 K A/B (closed same-day, no promotion)
+
+### LL-090 — 2026-07-02 — A/B against a live external service needs a same-session paired control and stable identity keys
+
+**Context**: EXP-012 planned to compare the 16 K input-ring trial against Phase 0's baseline, captured 3 days earlier, keyed on station list indices (st5/st7/st10). At run time the list *order* happened to be identical, but individual stations flapped dead↔alive on a minutes timescale: 2 of the 3 pre-picked slow-soak targets were corpses (120 s wasted holding each), 8/16 vs 11/16 stations played in two passes 40 min apart, and the Phase 0 `buf%` figures were incomparable anyway (the metric's denominator is the ring size under test). Separately, the first pass polled `get wrCount` and proceeded at the first non-zero value, catching a partial page (4 of 16 stations) and burning a full survey.
+
+**Observation**: The experiment was recovered cleanly by (a) running an 8 K control **immediately after** the 16 K pass, same session, (b) keying station identity on **URL**, never index, (c) letting the harness auto-pick slow-soak targets from its *own* survey rather than a prior run's, and (d) waiting for the station count to **stabilize** (unchanged across 3 polls) instead of merely appear. The resulting same-day pairing gave unambiguous attribution: identical underruns, station availability noise clearly station-side.
+
+**Root cause**: The plan treated the baseline as a fixed artifact when the measurement substrate (live internet radio) drifts on an hours timescale; and "count > 0" was treated as "fetch complete" for incrementally-arriving data.
+
+**Suggested improvement**: For any experiment whose metrics ride on a live external service: (1) baseline and trial must be captured in the same session as a paired A/B; (2) identity must be keyed on a stable identifier (URL/id), never list position; (3) test targets are picked by the harness from its own survey; (4) incrementally-filled data is ready when it *stabilizes*, not when it first appears.
+
+**Status**: open — BP candidate, brought to human this retrospective
+
+### LL-091 — 2026-07-02 — Log the knob's on-wire ground truth as the first metric of any A/B trial
+
+**Context**: The 16 K trial's first captured heap metric (`lfbInt` at decoder-init) came back byte-identical to baseline (38,900), which pattern-matched "the build flag didn't take" and nearly triggered a false debug spiral. Phase 0's written prediction — `lfbInt` would drop to ~30.9 K at 16 K — was simply wrong: the allocator satisfied the ring from a different free region, leaving the big block untouched.
+
+**Observation**: The library's own `inputBufferSize: 14783 bytes` boot line settled the question in one event (16384 − 1600 reserve − 1). The harness didn't parse that line at first; it was added mid-experiment, after the ambiguity had already cost a killed run's worth of doubt.
+
+**Root cause**: The plan verified the knob by its *predicted side-effect on a proxy metric* (largest-free-block) instead of by direct observation of the applied value. Heap-proxy predictions are allocator-layout-dependent and unreliable in both directions.
+
+**Suggested improvement**: Every A/B knob experiment captures the knob's directly-observable applied value (buffer size on the wire, config echo-back, etc.) as the *first row* of the results table, before any effect metric. Proxy-metric predictions are hypotheses to test, never verification.
+
+**Status**: open — BP candidate, brought to human this retrospective
+
+### LL-092 — 2026-07-02 — A script whose numbers are cited in a committed report must be committed with the report
+
+**Context**: EXP-012 Phase 0's measurement script lived in the session scratchpad and was lost to context compaction between sessions. Phase 2 had to rebuild the harness from the report's prose plus the TASK-271 soak script — re-discovering already-solved details (the run_serialdbg `Dut` ELF-hash gate rejecting non-canonical builds) and reconstructing the survey procedure (18 s holds) from the report so the trial column would be comparable.
+
+**Observation**: The rebuild cost a meaningful slice of the session and risked silent procedure drift between the Phase 0 and Phase 2 measurements. The rebuilt harness (`app/tools/exp012_measure.py`) is now committed, so the 8 K↔16 K comparison is reproducible in minutes; the Phase 0 survey is not.
+
+**Root cause**: "Throwaway experiment script" defaulted to scratchpad. But any script that produced numbers cited in a committed EXP report is part of that experiment's reproducibility, whatever its code quality.
+
+**Suggested improvement**: Any script whose output is cited in an EXP report gets committed alongside the report (`app/tools/` or next to the report) at first run — not at promotion time.
+
+**Status**: open
+
+**What went well (recorded, no action)**: (1) The pre-registered falsifiable hypotheses + decision matrix (written in the plan, before any data) made closure *mechanical* — H1 true + H2 false landed on a predefined row ("do not promote; revert input change") with zero deliberation. (2) The default-off `-DWR_INBUF_16K` knob made trial↔baseline a single build switch with nil production risk, and stays in-tree as a zero-cost re-arm. (3) The ur=1-per-session startup artifact (LL-069's grace-window rule, TASK-266's metric refinement) was re-confirmed systematically — every station, both builds, exactly 1 — strengthening TASK-266's case for excluding the initial-fill window from `wrUnderruns`.
+
 ## Retrospective — 2026-06-27 — M-MEMBUDGET design-batch panel review (3-agent)
 
 ### LL-089 — 2026-06-27 — Mechanism designed ahead of the gate that decides whether it is needed (design outrunning the product decision)

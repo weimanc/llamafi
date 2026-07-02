@@ -987,8 +987,11 @@ hardware (WebRadio hidden there) and applies only to the PSRAM target.
 
 **Deliverable:** a repeatable VE harness that runs N cold entries, records skips-to-stable and
 hold time, and reports the pass rate against the ≤ 6 / ≥ 90 % bar. Gates M-WEBRADIO MVP close.
-**Priority:** P2 — milestone-close gate · **Status:** open (blocked on TASK-235) · **Opened:** 2026-06-24
-**Milestone:** M-WEBRADIO · **Owner:** VE · **Deps:** TASK-235, TASK-234 (done)
+**Priority:** P2 — milestone-close gate · **Status:** **open — UNBLOCKED 2026-07-02** (TASK-235 done 2026-06-24
+via EXP-007; the "memory reduction it green-lights" arc completed with the A-lite arena promotion TASK-262 —
+the heap state TASK-238 was waiting to measure against is now the production state. `app/tools/exp012_measure.py`
++ the TASK-271 soak harness cover most of the needed cold-entry machinery.) · **Opened:** 2026-06-24
+**Milestone:** M-WEBRADIO · **Owner:** VE · **Deps:** TASK-235 (done), TASK-234 (done)
 
 ---
 
