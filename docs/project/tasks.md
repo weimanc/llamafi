@@ -3923,3 +3923,36 @@ asserted.
 **Priority:** P3 — production hardening / VE tooling · **Status:** **done — harness delivered + DUT-validated
 2026-06-29** · **Opened:** 2026-06-29 · **Milestone:** M-WEBRADIO-NOPSRAM · **Owner:** VE/Developer · **Deps:**
 TASK-262 (promotion), TASK-248 (fetch-soak harness pattern) · **Branch:** `feature/task-271-webradio-soak`
+
+---
+
+### TASK-272 — WiFi modem power-save kills first TCP connect after idle (EHOSTUNREACH)
+
+Found 2026-07-02 while driving the TASK-238 gate: every gate trial read 0 plays / 15 skips, yet the same
+build had played 11/16 stations hours earlier (EXP-012). Root-caused via DUT probes
+(`scratchpad/wr_debug1-4`, evidence flow: same-entry play OK → post-cycle play EHOSTUNREACH → retry
+recovers → **inverted** by P1/P2 probe: play-after-45s-idle fails, play-immediately works → host curl
+clean → ESP-side):
+
+1. **Power-save idle-kill (the fix):** with the default `WIFI_PS_MIN_MODEM`, the first TCP connect after
+   ~30-45 s of network quiet fails `errno 118 EHOSTUNREACH` for tens of seconds. WebRadio's auto-skip then
+   fast-fails the entire station list (~3 s/station) into the terminal error state — a permanent-looking
+   failure born from a transient outage. **Fix: `WiFi.setSleep(false)` at connect time (main.cpp), all
+   builds.** Mains/USB-powered device — the ~40 mA is irrelevant. Verified on DUT: 45 s-idle connect went
+   fail-4-attempts → attempt-0 success.
+2. **Boot-window drop (environmental, documented):** this DUT/AP shows a near-deterministic WiFi drop at
+   ~35 s uptime recovering by ~60 s (heartbeat `rssi(0)` during it). Harnesses must settle past it
+   (test_adr045_gate.py waits 60 s post-station-load). Not code-fixable; suspected AP-side (mesh/steering).
+3. **Harness bug fixed en route:** boot log prints `IP address: 0.0.0.0` before the real lease; harness
+   boot_waits matching the first occurrence proceeded pre-WiFi and the app's ONE-SHOT station fetch (no
+   retry — see item 4) failed → 0/3/4-station boots. All harnesses now require a non-zero IP.
+4. **Follow-on candidate (not filed):** the station fetch is fire-once-at-init with no retry; combined with
+   radio-browser mirror flakiness (0/3/13/16-station fetches observed in one evening) a fetch-retry or
+   manual-refetch affordance would harden first-entry UX. PM to decide if it warrants a task.
+
+Also relevant to production Spotify polling (same power-save applies); some historical "poll fail" noise
+may share this cause.
+
+**Priority:** P1 — fix landed with TASK-238 work · **Status:** **done — fix DUT-verified 2026-07-02;
+production merge rides the TASK-238 commit (run/check 6/6)** · **Opened:** 2026-07-02 ·
+**Milestone:** M-WEBRADIO · **Owner:** Developer · **Deps:** — · **Branch:** master

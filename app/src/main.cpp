@@ -2079,6 +2079,13 @@ void setup()
   }
 
   if (wifiConnected) {
+    // TASK-272: disable modem power-save. With the default WIFI_PS_MIN_MODEM the
+    // radio dozes after idle periods; the first TCP connect after ~30-45 s of
+    // network quiet then fails with EHOSTUNREACH (errno 118) for tens of seconds
+    // (observed 2026-07-02 killing every WebRadio post-idle connect; TASK-238 gate
+    // read 0/10 because auto-skip burned the station list inside the outage and
+    // parked terminal). Mains/USB-powered device — the ~40 mA cost is irrelevant.
+    WiFi.setSleep(false);
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
   } else {

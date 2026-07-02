@@ -69,6 +69,8 @@ class SerialDut:
                 continue
             try:
                 r = json.loads(l)
+                if not isinstance(r, dict):
+                    continue          # bare JSON scalars (stray numbers) on serial
                 if r.get("last", True):
                     return r
             except (json.JSONDecodeError, ValueError):

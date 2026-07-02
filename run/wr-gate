@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# run/wr-gate — ADR-045 MVP exit-criterion gate for M-WEBRADIO close (TASK-238)
+# Flashes the Spotify-DISABLED build (cyd2usb_webradio — no TASK-243 403 fetch
+# starvation; identical MEMBUDGET_PHASE1 arena to production), runs N cold-entry
+# trials against the ADR-045 bar (stable PLAYING >=60s within <=6 auto-skips on
+# >=90% of attempts), then restores production firmware + monitor.
+#
+# Usage: ./run/wr-gate            # 10 trials (default)
+#        ./run/wr-gate 5          # 5 trials
+#        TRIALS=20 HOLD_SECS=60 ./run/wr-gate
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+TRIALS="${TRIALS:-${1:-10}}"
+HOLD_SECS="${HOLD_SECS:-60}"
+ENV_GATE="cyd2usb_webradio"     # Spotify-disabled; same MEMBUDGET_PHASE1 arena as prod
+PORT=$(resolve_port)
+
+_RC=0
+_cleanup() {
+  local rc=$_RC
+  echo ""
+  echo "[wr-gate] restoring $ENV_PROD (rc=$rc so far)"
+  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT") || {
+    echo "ERROR [wr-gate]: prod restore failed" >&2; rc=99; }
+  echo "[wr-gate] restarting monitor"
+  tmux new-session -d -s "$SESSION" \
+    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'" \
+    2>/dev/null || true
+  exit "$rc"
+}
+trap _cleanup EXIT INT TERM
+
+echo "[wr-gate] 1/4 — killing monitor"
+tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+
+echo "[wr-gate] 2/4 — flashing $ENV_GATE to $PORT"
+(cd "$PIO_DIR" && "$PIO" run -e "$ENV_GATE" -t upload --upload-port "$PORT")
+
+echo "[wr-gate] 3/4 — waiting ${BOOT_WAIT}s for boot + WiFi"
+sleep "$BOOT_WAIT"
+
+echo "[wr-gate] 4/4 — running ${TRIALS} cold-entry trials (hold >= ${HOLD_SECS}s)"
+(cd "$PIO_DIR" && "$VENV_PY" tools/test_adr045_gate.py \
+    --port "$PORT" --trials "$TRIALS" --hold-secs "$HOLD_SECS") \
+  || _RC=$?

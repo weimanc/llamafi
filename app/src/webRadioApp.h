@@ -50,6 +50,7 @@ static constexpr uint32_t WR_STREAM_DEAD_MS = 5000;
 // the auto-skip scan counter resets and a *later* death starts a fresh hunt rather
 // than counting against the original scan's bound.
 static constexpr uint32_t WR_SETTLED_MS = 12000;
+static constexpr uint32_t WR_SKIP_PACE_MS = 2000;  // TASK-273: min gap between auto retry/skip attempts
 
 // TASK-224: ICY StreamTitle buffer length, used consistently across the audio
 // callback, the queue's element size, tick()'s receive buffer, and _icyTitle.
@@ -221,7 +222,13 @@ public:
         // TASK-234 (ADR-045): process a deferred retry / auto-skip from a prior
         // tick's playback failure. Done here (not inline at the failure site) so
         // the connecttohost() blocking call never recurses — one attempt per tick.
-        if (_pendingAction != ACT_NONE) {
+        // TASK-273: paced, not every tick. An instant connect-fail (network blip:
+        // EHOSTUNREACH/DNS-fail during a WiFi doze/reassoc window) used to burn the
+        // ENTIRE station list into terminal ERROR in <1 s — 16 attempts in one blip.
+        // ≥2 s between attempts lets a full-list walk (~32 s) outlive short outages
+        // and land on a live station once the network returns.
+        if (_pendingAction != ACT_NONE &&
+            (uint32_t)(millis() - _lastAttemptMs) >= WR_SKIP_PACE_MS) {
             uint8_t act = _pendingAction;
             _pendingAction = ACT_NONE;
             if (act == ACT_RETRY_SAME) {
@@ -649,6 +656,7 @@ private:
     // no-PSRAM decode failure (TASK-233) tunes past dead stations instead of parking.
     uint32_t    _playingSinceMs  = 0;       // millis() when current PLAYING began
     uint8_t     _autoSkipTried   = 0;       // stations advanced in the current failure scan
+    uint32_t    _lastAttemptMs   = 0;       // TASK-273: last _play() attempt (paces auto retry/skip)
     uint8_t     _stallRetries    = 0;       // stalls on the current station (retry once, then skip)
     bool        _settled         = false;   // current station survived WR_SETTLED_MS
     bool        _debugForceConnFail = false; // TASK-237: debug `set wrDeadUrls` — every _play() fails the connect deterministically (no network) so the auto-skip terminal bound is testable
@@ -687,6 +695,7 @@ private:
         _stopAudio();  // stops current + resumes TLS if it was yielded
 
         if (userInitiated) { _autoSkipTried = 0; _stallRetries = 0; }
+        _lastAttemptMs = millis();   // TASK-273: stamp every attempt (paces auto retry/skip)
         _currentIdx = idx;
         g_settings.webRadioLastStation = idx;
         _icyTitle[0] = '\0';
