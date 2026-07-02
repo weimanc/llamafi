@@ -1,7 +1,7 @@
 # M-WIFI-DIAG — WiFi outage attribution: instrument first, then isolate
 
-> Owner: Architect · Status: **DESIGN v2 — panel-reviewed 2026-07-02** (PM/QM/VE: approve-with-changes;
-> all dispositions applied in place, see §8) · 2026-07-02
+> Owner: Architect · Status: **APPROVED 2026-07-02 (human)** — panel-reviewed (PM/QM/VE:
+> approve-with-changes, dispositions applied in place, see §8); TASK-274/275 filed · 2026-07-02
 > Trigger: TASK-238 (ADR-045 gate) blocked 7/10 by unattributed network outages; TASK-272/273 fixed the
 > two firmware defects the gate surfaced, but the *residual* outages remain unexplained.
 > Couples: TASK-238 (consumer of the verdict), TASK-272 (power-save fix), TASK-273 (skip pacing),

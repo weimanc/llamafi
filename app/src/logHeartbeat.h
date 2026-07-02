@@ -18,6 +18,7 @@
 #include "logSink.h"
 #include "perf.h"
 #include "spotifyTask.h"
+#include "wifiDiag.h"
 
 extern uint32_t g_lastRenderMs;  // TASK-059: defined in spotifyLogic.h
 
@@ -70,7 +71,14 @@ inline void tick() {
 
   char up[12];
   formatUptime(up, sizeof(up), now);
-  int rssi = WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0;
+  // TASK-274 (QM-5): "rssi(0)" ambiguously meant "not connected" — print an
+  // explicit DOWN marker instead, plus the wifiDiag disconnect counter so
+  // heartbeats bracket link flaps even when the [wifi-ev] lines are missed.
+  char wifiBuf[24];
+  if (WiFi.status() == WL_CONNECTED)
+    snprintf(wifiBuf, sizeof(wifiBuf), "rssi(%d)", (int)WiFi.RSSI());
+  else
+    snprintf(wifiBuf, sizeof(wifiBuf), "DOWN");
   uint32_t heap = ESP.getFreeHeap();
   uint32_t maxAlloc = ESP.getMaxAllocHeap();
   uint32_t blockMax = blockMaxMsRef();
@@ -88,13 +96,13 @@ inline void tick() {
                               : (uint32_t)(now - g_lastRenderMs);
 
   LOG_I("hb",
-        "display=%s wifi=rssi(%d) heap=%uk maxAlloc=%uk stack_hwm=%ub uptime=%s "
+        "display=%s wifi=%s disc=%lu heap=%uk maxAlloc=%uk stack_hwm=%ub uptime=%s "
         "poll=%u/%u last=%d block_max=%ums "
         "loop_max=%ums slow=%s:%ums "
         "last_poll_age_ms=%lu next_poll_in_ms=%lu last_render_age_ms=%lu "
         "build=%s-%s",
         displayName(),
-        rssi,
+        wifiBuf, (unsigned long)wifiDiag::discCount,
         (unsigned)(heap / 1024),
         (unsigned)(maxAlloc / 1024),
         (unsigned)stackHwm,

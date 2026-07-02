@@ -97,6 +97,7 @@ char clientSecret[200];
 #include "logSink.h"
 #include "logServer.h"
 #include "logHeartbeat.h"
+#include "wifiDiag.h"
 #include "perf.h"
 #include "spotifyTask.h"
 #ifdef SCREEN_LOG
@@ -2027,6 +2028,11 @@ void setup()
   refreshToken[0] = '\0';
   fetchConfigFile(refreshToken, clientId, clientSecret);
 
+  // TASK-274 (M-WIFI-DIAG): link-event ground truth. Must register before the
+  // first WiFi.begin() below or early events (incl. the boot-window drop E1)
+  // are missed. Ships in all builds — [wifi-ev] is a stable log contract.
+  wifiDiag::begin();
+
   // WiFi boot: NVS credentials → SPIFFS wifi_creds.json → open WiFi settings.
   // Priority chain mirrors WifiSection connect flow (C4: NVS-backed persist).
   bool wifiConnected = false;
@@ -2537,6 +2543,23 @@ static void cmdGet(const char *args) {
                   );
     return;
   }
+  // TASK-274 (M-WIFI-DIAG §3.2): WiFi ground truth for outage attribution.
+  // ms = device→host clock anchor; disc*/lastGotIpMs from the wifiDiag handler.
+  // Field set VE-gated (BP-024) — extend, don't rename.
+  if (strcmp(args, "wifi") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"wifi\","
+                  "\"ms\":%lu,\"status\":%d,\"rssi\":%d,\"ip\":\"%s\",\"ch\":%d,"
+                  "\"discCount\":%lu,\"lastDiscReason\":%u,\"lastDiscMs\":%lu,"
+                  "\"lastGotIpMs\":%lu,\"last\":true}\n",
+                  (unsigned long)millis(), (int)WiFi.status(),
+                  (WiFi.status() == WL_CONNECTED) ? (int)WiFi.RSSI() : 0,
+                  WiFi.localIP().toString().c_str(), (int)WiFi.channel(),
+                  (unsigned long)wifiDiag::discCount,
+                  (unsigned)wifiDiag::lastDiscReason,
+                  (unsigned long)wifiDiag::lastDiscMs,
+                  (unsigned long)wifiDiag::lastGotIpMs);
+    return;
+  }
   // appId — shell-owned; WinampDisplay cannot reference currentAppId.
   if (strcmp(args, "ip") == 0) {
     // TASK-248: LAN IP so the stress harness can read logs over the /log HTTP ring
@@ -2736,6 +2759,16 @@ static void cmdSet(const char *args) {
   if (strcmp(var, "logKeep") == 0) {
     strlcpy(logsink::logKeepPrefix(), (val[0] == '-') ? "" : val, 24);
     Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"logKeep\",\"val\":\"%s\"}\n", val);
+    return;
+  }
+  // TASK-274 (QM-2 positive control): force a disconnect so the [wifi-ev]
+  // sensor can be proven live before attribution-by-absence is trusted.
+  // Expect a STA_DISCONNECTED line (reason=8 ASSOC_LEAVE) then auto-reconnect.
+  if (strcmp(var, "wifiDisc") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"wifiDisc\",\"val\":\"%s\"}\n", val);
+    WiFi.disconnect();
+    delay(200);
+    WiFi.begin();   // reconnect from NVS creds
     return;
   }
   if ((spotifyDisplay && spotifyDisplay->dbgSet(var, val))

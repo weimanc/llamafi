@@ -3993,3 +3993,59 @@ the user re-plays. A retry-from-terminal with backoff would close the loop. PM t
 **Priority:** P1 — landed with TASK-238 work · **Status:** **done — DUT-verified 2026-07-02 (commit
 64765df, run/check 6/6)** · **Opened:** 2026-07-02 · **Milestone:** M-WEBRADIO · **Owner:** Developer ·
 **Deps:** TASK-234 (the mechanism), TASK-272 (sibling fix) · **Branch:** master
+
+---
+
+### TASK-274 — M-WIFI-DIAG Phase 1 firmware: [wifi-ev] logger + `get wifi` accessor
+
+Per [M-WIFI-DIAG](../architecture/designs/M-WIFI-DIAG-outage-attribution.md) §3.1/3.2 (panel-approved,
+human-approved 2026-07-02). Deliverables:
+
+1. **`[wifi-ev]` event logger — ALL builds (production included, OQ1).** One `WiFi.onEvent` handler
+   registered before `WiFi.begin()`; logs every WiFi event with `millis` + disconnect **reason code**;
+   single-write line assembly (no tearing); flap guard ~10 lines/min with `suppressed=N` summary;
+   `[wifi-ev]` prefix is a stable grep contract.
+2. **`get wifi` accessor — debug builds**, shell-owned (main.cpp):
+   `ms,status,rssi,ip,ch,discCount,lastDiscReason,lastDiscMs,lastGotIpMs`. `ms` = device→host clock
+   anchor. Counters are plain statics fed by the handler. Field set VE-gated (BP-024).
+3. **Heartbeat RSSI fix-or-remove (QM-5):** heartbeat `rssi(…)` reads 0 or real depending on path —
+   sample `WiFi.RSSI()` at heartbeat time or drop the field.
+4. **Sensor positive control (QM-2, acceptance):** debug `set wifiDisc` forcing `WiFi.disconnect()` →
+   `[wifi-ev]` line with reason code observed on DUT before any attribution-by-absence is trusted;
+   reconnect verified.
+
+**Acceptance run (2026-07-02, DUT, 6/6 PASS):** boot GOT_IP event · forced-disconnect (`set wifiDisc`)
+→ `[wifi-ev] STA_DISCONNECTED reason=8` + reconnect GOT_IP in 0.8 s (sensor proven live, QM-2) ·
+`get wifi` full field set · counters populated · heartbeat `wifi=rssi(-49)`/`wifi=DOWN disc=N`.
+
+**Bonus — first attribution data, 33 s after the sensor went live:** spontaneous
+`STA_DISCONNECTED reason=200` (**BEACON_TIMEOUT**) followed by `reason=201` (NO_AP_FOUND) retry storms,
+`disc=9` within 33 s. The DUT is losing the AP's beacons entirely — link-layer, **H-A/H-C (RF/AP side),
+NOT firmware** — matching design §5 row "link-down, beacon timeout → Phase 2 (hotspot A/B) then 4
+(bare-rig)". TASK-275's run should confirm over a full window, but the needle already points away from H-B.
+
+**Priority:** P1 — gates TASK-275/TASK-238 · **Status:** **done — DUT acceptance 6/6, 2026-07-02** ·
+**Opened:** 2026-07-02 · **Milestone:** M-WEBRADIO · **Owner:** Developer · **Deps:** design approved ·
+**Branch:** master
+
+---
+
+### TASK-275 — M-WIFI-DIAG Phase 1 harness + instrumented attribution run
+
+Per M-WIFI-DIAG §3.3/3.4. Two named parts (PM-3):
+
+**(a) Harness development:** `SerialDut` continuous-reader rework (current `reset_input_buffer()` per
+command DESTROYS async `[wifi-ev]` evidence — VE-1 blocker): one reader loop tees every line to a
+host-timestamped log; `cmd()` consumes JSON from the stream. `run/wr-gate` gains `ping -D -i 1` of the
+DUT IP (restart on IP change; exclude reboot windows; client-isolation pre-flight; host NOT on the same
+2.4 GHz cell) + a host-side upstream curl probe (QM-3). Per-poll `get wifi` sampling with millis→host
+clock mapping; re-baseline counters after DTR reboots.
+
+**(b) Instrumented run:** evening (dirty) window; exit at ≥3 captured outage windows or ~90 min on-air;
+five-class per-window attribution (link-down / IP-layer / WAN-upstream / no-link-evidence / unattributed);
+**dual-scored** against the ADR-045 bar — a clean dirty-window run closes TASK-238 (PM-2). Deliverable =
+the attribution table feeding the design §5 decision matrix. Artefact disposition (BP-040): sensor ships
+permanently; ping harness stays behind a flag; QM retrospective at close (QM-7).
+
+**Priority:** P1 — decides TASK-238 path · **Status:** open (blocked on TASK-274) · **Opened:** 2026-07-02
+· **Milestone:** M-WEBRADIO · **Owner:** VE · **Deps:** TASK-274 · **Branch:** master
