@@ -195,7 +195,7 @@ class Soak:
         time.sleep(1.0)
 
         if self.verbose:
-            print(f"  cycle {self.cycles}: idx={idx} state={st} sustained={sustained:.0f}s "
+            print(f"  cycle {self.cycles}: idx={idx} state={st2} sustained={sustained:.0f}s "
                   f"lfb={self.lfb[-1] if self.lfb else '?'} acq={self.acquires} rel={self.releases}",
                   flush=True)
 

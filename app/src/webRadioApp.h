@@ -116,9 +116,22 @@ void audio_info(const char *info) {
 
 static Audio* s_wr_audio = nullptr;
 
+// EXP-012: trial 16K input ring (default 8K = 1600*5). Must run after new Audio()
+// and before connecttohost() — InBuff is lazily allocated inside connecttohost's
+// setDefaults()/initInBuff(), so this only sets the size, no realloc.
+static inline void wrApplyInBufTrial(Audio* a) {
+#ifdef WR_INBUF_16K
+    a->setBufsize(16384, 0);
+#else
+    (void)a;
+#endif
+}
+
 static Audio& wrAudio() {
-    if (!s_wr_audio)
+    if (!s_wr_audio) {
         s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
+        wrApplyInBufTrial(s_wr_audio);
+    }
     return *s_wr_audio;
 }
 
@@ -731,8 +744,10 @@ private:
         }
 #endif
 #endif
-        if (!s_wr_audio)
+        if (!s_wr_audio) {
             s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
+            wrApplyInBufTrial(s_wr_audio);   // EXP-012: before connecttohost (InBuff not yet alloc'd)
+        }
 
         wrAudio().setVolume(wrEffectiveVolume());  // TASK-209: HW-mod clamp
         // TASK-208 / TASK-261 CP1: heap watermark at connecttohost (audio buffer alloc point).

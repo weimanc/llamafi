@@ -869,10 +869,14 @@ TASK-271 *churn-soak window*, NOT a death point — corrected.) The residual is 
 *slow* streams underrun, and auto-skip (TASK-234, default ON) tunes past them to a stable one. Net user
 experience: WebRadio reliably lands on and holds a playable station indefinitely.
 
-**Possible shrink of the residual — [EXP-012](../rnd/reports/EXP-012-input-ring-16k.md) (planned):** the
-input ring was shrunk to 8 K because EXP-007 found 16 K starved the decoder — but that was *before* A-lite
-isolated the decoder in its own arena, so that zero-sum is likely obsolete. EXP-012 re-tests growing the input
-ring 8 K → 16 K to absorb more jitter on slow streams. GO/NO-GO gated on the decoder still allocating.
+**Residual shrink attempt — [EXP-012](../rnd/reports/EXP-012-input-ring-16k.md) (CLOSED 2026-07-02, no
+promotion):** re-tested growing the input ring 8 K → 16 K post-arena. **H1 true** — the decoder allocates
+fine at 16 K (EXP-007's zero-sum is obsolete; the ring *can* grow if ever needed). **H2 false** — same-day
+8 K vs 16 K A/B on the same station list showed identical underruns (1 startup blip per session, steady-state
+≈ 0 on both), and 16 K costs 8 K heap + collapses DMA-capable headroom 20 K → 4.6 K. **Input ring stays 8 K.**
+Notably the "chronic slow-stream underrun" residual did not reproduce in 120 s holds on today's slowest
+stations — the residual is rarer than the Phase 0 buffer-low-water readings implied. Knob + harness retained
+default-off (`-DWR_INBUF_16K`, env `cyd2usb_webradio_16k`, `app/tools/exp012_measure.py`).
 
 **The 5 KB `s_webRadioDoc` reclaim is DE-PRIORITISED (optional).** It targeted *startup margin* — which the
 arena now provides reliably (0 acquire-FAILs), so its value is largely overtaken. Freeing 5 K resident during
@@ -882,7 +886,9 @@ future resident-footprint pass (the real lever) rather than as a standalone task
 **Priority:** ~~P1 blocker~~ → **P3 (resolved as best-effort; residual is the documented footprint ceiling)**
 **Status:** **RESOLVED as best-effort (2026-06-29).** Acute decoder-OOM blocker fixed by the A-lite arena
 (TASK-262, production); heap model corrected by TASK-258. Stable **fast-stream** playback works; slow-stream
-underruns are the known footprint-bound ceiling (TASK-271 quantifies ~12 s). The 5 K `s_webRadioDoc` reclaim
+underruns are the known footprint-bound ceiling — though EXP-012 (2026-07-02) could not reproduce them as a
+chronic condition (120 s clean holds on the slowest live stations), and a 16 K input ring bought nothing, so
+the ceiling is theoretical until a station demonstrates it. The 5 K `s_webRadioDoc` reclaim
 is optional/de-prioritised. No further work blocks here — reliable-anything playback is a PSRAM-hardware or
 deeper-footprint decision (TASK-258 lever), tracked there, not here.
 **Opened:** 2026-06-24

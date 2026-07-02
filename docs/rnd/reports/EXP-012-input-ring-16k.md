@@ -1,6 +1,6 @@
 # EXP-012 — Input-ring 8 K → 16 K: slow-stream underrun fix, post-arena (TASK-233 residual)
 
-> Owner: R&D · 2026-06-29 · **Status: PHASE 0 DONE — GO for Phase 1/2** · DUT: ESP32-2432S028R (no PSRAM, `cyd2usb_webradio`)
+> Owner: R&D · 2026-06-29 → 2026-07-02 · **Status: CLOSED — H1 true (decoder fine at 16 K), H2 false (no underrun benefit) → input ring stays 8 K** · DUT: ESP32-2432S028R (no PSRAM, `cyd2usb_webradio`)
 > Feeds: TASK-233 (no-PSRAM playback residual — slow-stream underruns) · TASK-262 (A-lite arena, promoted)
 > Prior art: EXP-007 (heap spike — the "16 K input → decoder OOM" finding this re-tests) · TASK-258/EXP-009
 > (footprint-lever correction) · TASK-271 (soak harness + long single-stream soak: fast streams STABLE)
@@ -130,17 +130,78 @@ to measure the 16 K ring against.
 slow stations exist to measure. Proceed to Phase 1/2 (build 16 K trial, re-test decoder-alloc + slow-station
 underruns).
 
-### Phases 1–3 — pending
+### Phase 1 — DONE 2026-07-02
 
-| Phase | Metric | 8 K (baseline) | 16 K (trial) |
-|---|---|---|---|
-| 0 | `lfbInt` at decoder-init | **38,900** | _tbd_ (expect ~30.9 K) |
-| 2.1 | decoder alloc OK (10+ stations) | yes (0 OOM, Phase 0) | _tbd_ (the H1 test) |
-| 2.2 | st5/st7 end `buf%` / underruns | 22–23% | _tbd_ |
-| 2.2 | st5/st7 sustained | 16 s (capped) | _tbd_ (longer hold) |
-| 3 | fast-stream soak (regression) | STABLE (TASK-271) | _tbd_ |
-| 3 | `lfbDma` at decoder-init | 2.3–10.7 K | _tbd_ |
+Knob built as planned: `wrApplyInBufTrial()` in `webRadioApp.h` (both `new Audio` sites — the object is
+deleted on suspend, so the trial must re-apply per construction), behind `-DWR_INBUF_16K` via a new
+experiment-only env `cyd2usb_webradio_16k` (extends `cyd2usb_webradio`). `initInBuff()` timing confirmed:
+InBuff is calloc'd inside `connecttohost()` → `setDefaults()`, after the station fetch. `run/check` 6/6.
+Ground truth on DUT: `inputBufferSize: 14783` (= 16384 − 1600 reserve − 1) vs baseline `6399`.
 
-## Verdict
+Measurement harness: `app/tools/exp012_measure.py` (survey all stations for H1 + long-hold slow-station
+soak for H2; matches stations across runs by URL — **indices are NOT stable across refetches**, which
+invalidated the Phase 0 st5/st7/st10 shortlist and forced a same-day 8 K control run instead of comparing
+against the 3-day-old Phase 0 table).
 
-_Phase 0: **GO.** Phases 1–3 pending._
+### Phase 2 — 16 K run DONE 2026-07-02 (16 stations, auto-skip OFF, 18 s survey + 120 s slow hold)
+
+- **H1 (decoder still allocates): PASS on substance** — 8/16 stations reached playback (the other 8 were
+  dead streams this fetch, station-side); **0 decoder OOM, 0 arena acquire-FAIL** across all 8. The 24 K
+  arena walls the decoder off exactly as hypothesized; EXP-007's zero-sum is obsolete.
+- `lfbInt` at decoder-init = **38,900 constant** — identical to the 8 K baseline. The 16 K ring carves
+  from a *different* free region than the big contiguous block, so INTERNAL contiguity is untouched.
+- **`lfbDma` at decoder-init: 948–3,316** (vs 2,292–10,740 at 8 K, Phase 0) — the ring is DMA-capable
+  RAM, so the +8 K comes out of the DMA pool: pre-connect `lfbDma` drops 20.5 K → 4.6 K once the ring
+  exists. Safe mid-session (I2S DMA ring installs once at first `Audio` construction with ~36 K free),
+  but this is the Phase 3 suspend→re-enter watch item.
+- Slow-station hold (st7 = `soulradio02.live-streams.nl`): **122.8 s sustained, 1 underrun (0.5/min)**,
+  end buf 9 %.
+- Caveat: `bufPct` is a fraction of the ring size (14,784 vs 6,400 B), so percentages are not comparable
+  across builds — compare byte runway and underruns/min instead.
+
+### Phase 2 — same-day 8 K control DONE 2026-07-02 (identical procedure, ring 6399 confirmed)
+
+Same 16-URL station list in the same order as the 16 K run (verified by URL — both runs same query result),
+~40 min apart. 11/16 reached playback (vs 8/16 at 16 K — stations flap minute-to-minute, availability is
+station-side noise, not ring-related). 0 decoder OOM / 0 arena FAIL, H1 gate PASS.
+
+**The head-to-head (same-day, same stations):**
+
+| Metric | 8 K (control) | 16 K (trial) |
+|---|---|---|
+| ring size on wire (`inputBufferSize`) | 6,399 | 14,783 |
+| decoder OOM / arena FAIL | 0 / 0 (11 stations) | 0 / 0 (8 stations) |
+| `lfbInt` at decoder-init | **38,900** (constant) | **38,900** (constant) |
+| `lfbDma` at decoder-init | 1,396–9,716 | 948–3,316 |
+| pre-connect `lfbDma` after ring alloc | ~20 K | ~4.6 K (**ring eats the DMA-capable pool**) |
+| 120 s slow-station hold, sustained | 121–122 s (st0, st8) | 122.8 s (st7) |
+| 120 s slow-station hold, underruns | **1/session (0.5/min)** | **1/session (0.5/min)** |
+| steady-state underruns | ~0 (the 1 is a startup artifact — every station on both builds logs exactly ur=1 per PLAYING session) | ~0 (same) |
+
+Unexplained-but-secondary: steady-state buffer *fill in bytes* did not scale with ring size (16 K often held
+*fewer* bytes than 8 K on the same station). The lib's `f_stream` start threshold is `maxFrameSize`-based,
+not ring-relative, and the two passes were 40 min apart — fill level is dominated by server pacing, so no
+clean attribution. Underruns/min is the honest H2 metric, and it is identical.
+
+### Phase 3 — not run (moot)
+
+No promotion → no regression pass needed. The `lfbDma` observation above is the recorded flag: a 16 K ring
+allocates from DMA-capable RAM and would leave <5 K DMA headroom for the suspend→re-enter path where the I2S
+DMA ring must re-install. Any future revisit must clear that wall first.
+
+## Verdict — CLOSED 2026-07-02: H1 TRUE, H2 FALSE → **do not promote; input ring stays 8 K**
+
+- **H1 confirmed:** the decoder allocates reliably at a 16 K input ring — EXP-007's "16 K input → decoder
+  OOM every time" zero-sum is **obsolete post-arena** (TASK-262). The ring *can* grow if a real need appears.
+  That knowledge is the experiment's lasting value.
+- **H2 falsified:** underruns did not drop (identical 0.5/min, both = one startup artifact per session;
+  steady-state ≈ 0 on both builds). Today's "slow" stations (chronic low buffer) played 120 s clean on 8 K.
+  The TASK-233 slow-stream underrun residual did not reproduce as a chronic condition; auto-skip remains the
+  right handling for genuinely dying streams.
+- **Costs of 16 K with no benefit:** −8 K general heap while playing, DMA-capable headroom collapses
+  20 K → 4.6 K.
+- Per the decision matrix (decoder fine + underruns unchanged): input ring is not the bottleneck. A DMA-ring
+  experiment remains *possible* future work but has no motivating symptom while steady-state underruns are ~0.
+- **Disposition of the knob:** `-DWR_INBUF_16K` + `wrApplyInBufTrial()` + env `cyd2usb_webradio_16k` stay in
+  the tree, default-off (zero cost in production builds; re-arms this experiment in minutes). Harness:
+  `app/tools/exp012_measure.py`.
