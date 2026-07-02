@@ -18,10 +18,10 @@
 | T_WR_COEX_02  | Injected tap fires while audio playing — wrIdx changes on prev/next      | serial              | **PASS 2026-07-02** — NEXT 13→14→15→0 (wraps), PREV 0→15; plus ~30 physical-touch registrations in the operator window |
 | T_WR_COEX_03  | No audio dropout correlated with touch events over ≥ 2 min              | audible + serial    | **objective half PASS 2026-07-02** — underrun counter frozen (1→1, startup blip only) through a 60 s injected-tap storm + 150 s continuous playback with taps + a 5-min physical window; audible (analog GPIO25→26 noise) half **DEFERRED — no speaker** |
 | T_WR_COEX_04  | Touch response unaffected by audio playback — tap latency normal         | serial              | **PASS 2026-07-02** — tap ack 112/185/127 ms (bar <500 ms), station change fired each time |
-| T_WR_HEAP_01  | minFreeHeap at app launch (baseline) recorded                            | serial log          | open — awaiting DUT run  |
-| T_WR_HEAP_02  | minFreeHeap at post-fetch (TLS torn down) ≥ 30 KB                       | serial log          | open — awaiting DUT run  |
-| T_WR_HEAP_03  | minFreeHeap during sustained audio decode ≥ 40 KB                       | serial log          | open — awaiting DUT run  |
-| T_WR_HEAP_04  | No heap panic / stack overflow over 5-minute playback run                | serial log          | open — awaiting DUT run  |
+| T_WR_HEAP_01  | minFreeHeap at app launch (baseline) recorded                            | serial log          | **PASS 2026-07-02** — pre-fetch free=110.1k min=68.4k (≥30 KB) |
+| T_WR_HEAP_02  | minFreeHeap at post-fetch (TLS torn down) ≥ 30 KB                       | serial log          | **PASS 2026-07-02** — post-fetch free=109.4k min=48.4k |
+| T_WR_HEAP_03  | minFreeHeap during sustained audio decode ≥ 40 KB                       | serial log          | **PASS 2026-07-02** — floor min=41.8k across 10×60 s holds (provisional bar; number recorded) |
+| T_WR_HEAP_04  | No heap panic / stack overflow over 5-minute playback run                | serial log          | **PASS 2026-07-02** — zero panic strings over ~40 min instrumented run |
 | T_WR_VOL_01   | Volumes 1–10 produce clean output; clipping level identified             | audible             | open — awaiting DUT run  |
 | T_WR_VOL_02   | kMaxVolumeStock determined = (clip − 2); matches design estimate ≈ 10 ±2 | audible             | open — awaiting DUT run  |
 | T_WR_VOL_03   | Normal play uses g_settings.webRadioMaxVolume as ceiling (not 21)        | serial              | open — awaiting DUT run  |

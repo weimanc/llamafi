@@ -1913,7 +1913,15 @@ Fail = heap too low → reduce `MAX_STATIONS`, tune ArduinoJson filter, or reduc
 audio ring buffer chunks (library compile-time constant).
 
 **Priority:** P1 — blocking M-WEBRADIO ship
-**Status:** partial — TLS phase done (T_WR_HEAP_01 PASS: init free=43k min=42k ≥30 KB; T_WR_HEAP_02 PASS: post-fetch free=92k min=42k ≥30 KB). Audio phase blocked: T_WR_HEAP_03/04 SKIP — no stations load from DUT (same blocker as TASK-207).
+**Status:** **done — completed 2026-07-02 from the TASK-275 instrumented-run logs** (build
+cyd2usb_webradio + A-lite arena — the shipping WebRadio memory model). T_WR_HEAP_01 PASS (pre-fetch
+free=110.1k min=68.4k ≥30 KB) · T_WR_HEAP_02 PASS (post-fetch free=109.4k min=48.4k ≥30 KB) ·
+T_WR_HEAP_03 PASS (decode-phase floor min=41.8k across all `HEAP play` samples over 10×60 s holds —
+clears the provisional ≥40 KB bar; actual number recorded per the suite's post-dafa4a4 note) ·
+T_WR_HEAP_04 PASS (zero panic/abort/stack-overflow/Guru strings over the full ~40 min run). Note: the
+original non-overlap question is largely superseded by the M-WEBRADIO-NOPSRAM arc (TASK-258 model +
+TASK-261/262 arena), which measured this interaction exhaustively; these numbers confirm the shipped
+configuration on real hardware.
 **Opened:** 2026-06-14
 **Milestone:** M-WEBRADIO
 **Owner:** Developer + VE
