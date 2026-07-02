@@ -4,6 +4,36 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-07-02 — TASK-275 close (M-WIFI-DIAG Phase 1 + TASK-238 gate)
+
+### LL-093 — 2026-07-02 — The instrument was also a treatment: declare probe perturbation up front
+
+**Context**: TASK-275's attribution harness added a 1 Hz host→DUT ping as the LAN-truth sensor. The gate
+run under instrumentation went 10/10 with zero link events — where the un-instrumented run 2 h earlier
+went 7/10 with beacon-timeout storms. The leading failure hypothesis was AP-side *idle* disassociation;
+a 1 Hz ping is continuous link traffic, i.e. precisely the stimulus that defeats an idle-kick. The probe
+plausibly suppressed the failure mode it was deployed to observe.
+
+**Observation**: The run was still decisive — but as *evidence*, not as the planned measurement: "outages
+vanish when the link is kept warm" + the sensor's earlier no-keepalive capture (BEACON_TIMEOUT/NO_AP_FOUND
+storms) jointly support the AP-inactivity attribution better than the planned outage table would have. The
+confound was recognized at trial 1 and recorded in TASK-238/275 closures rather than discovered post-hoc.
+Also validated this session: instrument-first paid for itself within 33 s of the sensor going live (first
+spontaneous reason=200 capture), and the pre-registered five-class taxonomy + exit rule again made closure
+mechanical (no deliberation on "does 10/10 count").
+
+**Root cause**: The design reviewed probe *mechanics* (VE-6: IP changes, client isolation, host band) but
+nobody asked whether the probe's traffic interacts with the hypothesis under test. Ping-as-keepalive is a
+known phenomenon; the miss was not connecting it to H-A's idle trigger during panel review.
+
+**Suggested improvement**: For any instrumented run, the design must state what the instrumentation
+*injects* into the system (traffic, timing, load) and check that against each live hypothesis; where the
+probe stimulus overlaps a hypothesis trigger, either add a probe-off control arm or pre-register the
+"probe-suppresses-failure" outcome as an evidence branch (as accidentally happened here). Candidate panel
+checklist item for experiment designs.
+
+**Status**: open — brought to human at TASK-275 close
+
 ## Retrospective — 2026-07-02 — EXP-012 input-ring 16 K A/B (closed same-day, no promotion)
 
 ### LL-090 — 2026-07-02 — A/B against a live external service needs a same-session paired control and stable identity keys

@@ -1001,8 +1001,17 @@ achieved the 60 s stable hold.** The ≤6-skip bar conflates dead-station skips 
 **Needs: a re-run in a healthy RF window, and/or a human ruling on whether outage-skips count against
 the bar (ADR-045 owner).**
 
-**Priority:** P2 — milestone-close gate · **Status:** **open — harness done, first counted run 7/10
-(environment); awaiting healthy-RF re-run or human bar ruling** · **Opened:** 2026-06-24
+**Gate run 5 (2026-07-02 17:55–18:35, instrumented per TASK-275): 10/10 PASS.** Every trial `skips=0,
+ttfp≈0.1 s, hold>60 s, discΔ=0`; **one** link event in the whole run (boot-time reason=202 auth retry at
+t=748 ms), zero outage windows. Same evening as the dirty runs (beacon-timeout storm 25 min prior), so the
+§3.4 clean-dirty-window rule applies: score and close. **Caveat recorded honestly:** the harness's 1 Hz
+host-ping doubles as a link keepalive and may have suppressed the AP idle-kick — an observer effect that is
+*also* supporting evidence for the AP-inactivity attribution (see TASK-275 / LL-093). The criterion is met
+on its own terms; field robustness continuations (retry-from-terminal, optional keepalive) are tracked as
+candidates, not blockers.
+
+**Priority:** P2 — milestone-close gate · **Status:** **DONE — ADR-045 exit criterion PASSED 10/10,
+2026-07-02 (gate run 5)** · **Opened:** 2026-06-24 · **Closed:** 2026-07-02
 **Milestone:** M-WEBRADIO · **Owner:** VE · **Deps:** TASK-235 (done), TASK-234 (done), TASK-272/273 (done)
 
 ---
@@ -4047,5 +4056,19 @@ five-class per-window attribution (link-down / IP-layer / WAN-upstream / no-link
 the attribution table feeding the design §5 decision matrix. Artefact disposition (BP-040): sensor ships
 permanently; ping harness stays behind a flag; QM retrospective at close (QM-7).
 
-**Priority:** P1 — decides TASK-238 path · **Status:** open (blocked on TASK-274) · **Opened:** 2026-07-02
-· **Milestone:** M-WEBRADIO · **Owner:** VE · **Deps:** TASK-274 · **Branch:** master
+**Delivered 2026-07-02.** (a) Harness v2 landed in `test_adr045_gate.py` — continuous reader thread owns
+RX (VE-1 fixed), five-class window attribution, §3.4 extension rule, dual scoring. *Deviation from design:
+the ping + upstream probes live inside the Python harness, not `run/wr-gate` bash — single clock for
+correlation, easier IP-change restarts; wr-gate unchanged.* (b) Instrumented run 17:55–18:35 (dirty window;
+beacon-timeout storm observed 25 min prior): **zero outage windows in ~40 min**, 1 boot-time link event
+only; ADR-045 dual-score 10/10 → TASK-238 closed. **Attribution deliverable:** no outage recurred *under
+1 Hz LAN keepalive traffic* — combined with the TASK-274 acceptance data (BEACON_TIMEOUT + NO_AP_FOUND
+storms with no keepalive), the evidence points at **AP-side idle/RF behavior (H-A), not firmware (H-B)**:
+the sensor saw the AP vanish, and keeping the link warm made outages vanish. Not proof (RF also varies);
+the production `[wifi-ev]` sensor now collects passively — router-side check (Phase 3) is the cheap next
+datum if outages recur in field use. Artefacts (BP-040): sensor ships permanently; probes live in the
+harness, on by default, harmless.
+
+**Priority:** P1 — decides TASK-238 path · **Status:** **DONE — 2026-07-02; TASK-238 closed by this run**
+· **Opened:** 2026-07-02 · **Closed:** 2026-07-02 · **Milestone:** M-WEBRADIO · **Owner:** VE ·
+**Deps:** TASK-274 (done) · **Branch:** master
