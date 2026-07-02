@@ -1863,12 +1863,29 @@ operation → file hardware conflict issue, consider SPI rate reduction workarou
 Note: peripheral buses are independent (SPI vs internal DAC) — electrical risk
 is low but this board's routing is unverified for this combination.
 
+**DUT run 2026-07-02 (cyd2usb_webradio, 16 stations, operator present — no speaker):**
+- **T_WR_COEX_02 PASS** — injected taps fire during playback (NEXT wraps 13→14→15→0, PREV 0→15).
+- **T_WR_COEX_04 PASS** — tap ack 112/185/127 ms (<500 ms bar), station change each time.
+- **T_WR_COEX_03 objective half PASS** — underrun counter frozen (startup blip only) through a 60 s
+  injected-tap storm during continuous playback (playMs 15 s→76 s unbroken), a 150 s clean window, and a
+  5-min **physical**-touch window with ~30 registered operator touches. Touch registration proven
+  independent of network state (touches kept landing during a live link-flap outage).
+- **T_WR_COEX_01 serial half PASS** (state:2 sustained; VU static = expected, 220b).
+- **DEFERRED (needs 8 Ω speaker):** the audible halves — analog electrical-noise check (GPIO25 touch SCK
+  → GPIO26 DAC) and by-ear dropout confirmation. The digital domain is clean by counter; the analog domain
+  is unverifiable without a speaker. Also defers TASK-209 (T_WR_VOL_01/02 volume calibration, same reason).
+- Bonus live capture: two ~30 s **terminal parks** during a sensor-attributed link-flap outage
+  (`NO_AP_FOUND` storms, discCount 15/min) — operator had to manually re-play; motivates
+  retry-from-terminal (filed TASK-276).
+
 **Priority:** P1 — blocking M-WEBRADIO ship
-**Status:** open — firmware done; blocked on radio-browser.info reachability from DUT (T_WR_COEX_01/02/04 SKIP — no stations load). Requires live station playback + speaker.
+**Status:** **substantially PASSED 2026-07-02 — all serial/objective halves green; audible halves
+DEFERRED pending speaker (re-run T_WR_COEX_01/03 audible + T_WR_VOL when hardware present). Human call
+whether the deferred analog check gates milestone close.**
 **Opened:** 2026-06-14
 **Milestone:** M-WEBRADIO
 **Owner:** VE + human operator (physical board required)
-**Deps:** radio-browser.info reachable from DUT (see blocker filed 2026-06-15)
+**Deps:** ~~radio-browser reachability~~ (resolved — 16 stations load on cyd2usb_webradio)
 
 ---
 
@@ -4072,3 +4089,25 @@ harness, on by default, harmless.
 **Priority:** P1 — decides TASK-238 path · **Status:** **DONE — 2026-07-02; TASK-238 closed by this run**
 · **Opened:** 2026-07-02 · **Closed:** 2026-07-02 · **Milestone:** M-WEBRADIO · **Owner:** VE ·
 **Deps:** TASK-274 (done) · **Branch:** master
+
+---
+
+### TASK-276 — WebRadio: retry-from-terminal (auto-recover a parked scan)
+
+Filed from the TASK-273 follow-on candidate; **unparked by attribution** (M-WIFI-DIAG §5 + TASK-207 live
+capture 2026-07-02: two ~30 s terminal parks during a sensor-attributed `NO_AP_FOUND` link-flap storm —
+operator had to manually tap PREV to recover; the outage itself healed in seconds).
+
+**Change (webRadioApp.h, tick):** when the app is active, auto-skip is ON, the player is parked in a
+retryable terminal error (`ERROR_WIFI`/`ERROR_STALL`/`ERROR_UNREACHABLE` — `ERROR_BLOCKED` excluded,
+geo-blocks don't heal), and `WR_TERMINAL_RETRY_MS` (30 s) has elapsed since the last attempt
+(`_lastAttemptMs`, the TASK-273 pacing anchor): reset the scan budget and re-arm a paced scan from the
+current station. Net behavior: a parked player self-recovers within ~30 s of the network returning,
+retrying indefinitely at 30 s + one paced list-walk per cycle — cheap, bounded, observable via the
+`terminal retry — re-arming scan` log line.
+
+**Validation:** `set wrDeadUrls 3` (synthetic all-dead list + forced connect-fail) → scan exhausts →
+terminal park → assert `terminal retry` fires on ~30 s cadence, repeatedly.
+
+**Priority:** P2 — UX robustness (post-outage self-heal) · **Status:** **done — DUT-validated 2026-07-02** (wrDeadUrls park → retries at t=41 s/101 s, bounded 60 s cycle = 30 s backoff + paced walk) · **Opened:** 2026-07-02 · **Milestone:** M-WEBRADIO · **Owner:** Developer ·
+**Deps:** TASK-273 (pacing anchor), M-WIFI-DIAG attribution · **Branch:** master

@@ -51,6 +51,7 @@ static constexpr uint32_t WR_STREAM_DEAD_MS = 5000;
 // than counting against the original scan's bound.
 static constexpr uint32_t WR_SETTLED_MS = 12000;
 static constexpr uint32_t WR_SKIP_PACE_MS = 2000;  // TASK-273: min gap between auto retry/skip attempts
+static constexpr uint32_t WR_TERMINAL_RETRY_MS = 30000;  // TASK-276: backoff before re-arming a parked scan
 
 // TASK-224: ICY StreamTitle buffer length, used consistently across the audio
 // callback, the queue's element size, tick()'s receive buffer, and _icyTitle.
@@ -227,6 +228,26 @@ public:
         // ENTIRE station list into terminal ERROR in <1 s — 16 attempts in one blip.
         // ≥2 s between attempts lets a full-list walk (~32 s) outlive short outages
         // and land on a live station once the network returns.
+        // TASK-276: retry-from-terminal. When the auto-skip scan exhausts the list
+        // during a network outage, the player used to park in ERROR_* until the
+        // user re-played — observed live 2026-07-02 (two ~30 s parks during a
+        // link-flap storm, operator had to tap PREV to recover). While the app is
+        // active, auto-skip is ON, and we're parked in a retryable error, re-arm a
+        // fresh paced scan every WR_TERMINAL_RETRY_MS. ERROR_BLOCKED is excluded
+        // (station-specific 403/451 — retrying won't change a geo-block).
+        if (g_settings.webRadioAutoSkip && _pendingAction == ACT_NONE &&
+            (_state == WRPlayState::ERROR_WIFI ||
+             _state == WRPlayState::ERROR_STALL ||
+             _state == WRPlayState::ERROR_UNREACHABLE) &&
+            _stationCount > 0 &&
+            (uint32_t)(millis() - _lastAttemptMs) >= WR_TERMINAL_RETRY_MS) {
+            LOG_I("webradio", "terminal retry — re-arming scan idx=%u", _currentIdx);
+            _autoSkipTried = 0;
+            _stallRetries  = 0;
+            _play(_currentIdx, /*userInitiated=*/false);
+            return;
+        }
+
         if (_pendingAction != ACT_NONE &&
             (uint32_t)(millis() - _lastAttemptMs) >= WR_SKIP_PACE_MS) {
             uint8_t act = _pendingAction;

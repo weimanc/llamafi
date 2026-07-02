@@ -14,10 +14,10 @@
 |---------------------|---------------------------------------------------------------------------|---------------------|--------------------------|
 | T_WR_TLS_01         | Station fetch succeeds; `wrLastHttp` reports http=200 and which TLS path fired | serial          | open — awaiting DUT run  |
 | T_WR_SPOTIFY_RESUME_01 | Spotify resumes normally after eject back out of WebRadio playback   | serial + visual      | open — awaiting DUT run  |
-| T_WR_COEX_01  | Audio plays and VU meter animates while station connected                 | serial + audible    | open — awaiting DUT run  |
-| T_WR_COEX_02  | Injected tap fires while audio playing — wrIdx changes on prev/next      | serial              | open — awaiting DUT run  |
-| T_WR_COEX_03  | No audio dropout correlated with touch events over ≥ 2 min              | audible + serial    | open — awaiting DUT run  |
-| T_WR_COEX_04  | Touch response unaffected by audio playback — tap latency normal         | serial              | open — awaiting DUT run  |
+| T_WR_COEX_01  | Audio plays and VU meter animates while station connected                 | serial + audible    | **serial half PASS 2026-07-02** (state:2 sustained; VU static = expected per 220b); audible half **DEFERRED — no speaker on site** |
+| T_WR_COEX_02  | Injected tap fires while audio playing — wrIdx changes on prev/next      | serial              | **PASS 2026-07-02** — NEXT 13→14→15→0 (wraps), PREV 0→15; plus ~30 physical-touch registrations in the operator window |
+| T_WR_COEX_03  | No audio dropout correlated with touch events over ≥ 2 min              | audible + serial    | **objective half PASS 2026-07-02** — underrun counter frozen (1→1, startup blip only) through a 60 s injected-tap storm + 150 s continuous playback with taps + a 5-min physical window; audible (analog GPIO25→26 noise) half **DEFERRED — no speaker** |
+| T_WR_COEX_04  | Touch response unaffected by audio playback — tap latency normal         | serial              | **PASS 2026-07-02** — tap ack 112/185/127 ms (bar <500 ms), station change fired each time |
 | T_WR_HEAP_01  | minFreeHeap at app launch (baseline) recorded                            | serial log          | open — awaiting DUT run  |
 | T_WR_HEAP_02  | minFreeHeap at post-fetch (TLS torn down) ≥ 30 KB                       | serial log          | open — awaiting DUT run  |
 | T_WR_HEAP_03  | minFreeHeap during sustained audio decode ≥ 40 KB                       | serial log          | open — awaiting DUT run  |
