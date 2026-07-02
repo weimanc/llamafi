@@ -377,6 +377,9 @@ Triggering work: full M-TELETEXT milestone — NOS Teletekst live reader (10th m
 ---
 
 ### LL-069 — 2026-06-13 — Tasks not filed before milestone implementation
+> ⚠ Duplicate ID (QM 2026-07-02): LL-069 was accidentally reused on 2026-06-28 for "sensor-blind gate
+> criteria". External citations of "LL-069" (BP-027 era docs, M-WIFI-DIAG) refer to the **2026-06-28
+> sensor-blind entry** unless dated otherwise. Neither entry is renumbered to avoid breaking references.
 
 **Context**: M-PREVIEW-FRAMEWORK implemented in a single session directly from the design doc without creating tasks first.
 **Observation**: TASK-192 is retroactive. If the session had been interrupted mid-implementation, there would be no tracked state of what was in progress.
