@@ -892,6 +892,55 @@ Work:
 
 ---
 
+### M-WR-PLEDIT-SCROLL — WebRadio PLEDIT drag/velocity scroll
+
+WebRadio's PLEDIT is tap-to-play only: `WebRadioApp::handleInput` reacts to `Release`
+alone, so a swipe is silently interpreted as a tap on whichever row the finger lifts
+over — no drag scroll exists (`_scrollOffset` moves only by auto-follow of the current
+station). Spotify's PLEDIT has the full M-LIST-v4 velocity-scroll gesture machine in
+`winampDisplay.h` (ADR-030). This milestone gives WebRadio the same scroll UX, ideally
+by extracting/reusing the existing gesture machine rather than duplicating it.
+
+**Status:** design (2026-07-02)
+**Design:** [M-WR-PLEDIT-SCROLL.md](../architecture/designs/M-WR-PLEDIT-SCROLL.md)
+**Deps:** M-LIST-v4 (done — the gesture machine to reuse), M-WEBRADIO (done)
+**Tracked-as:** TASK-277
+
+---
+
+### M-WR-AUDIO-TASK — WebRadio audio decode off loopTask
+
+`s_wr_audio->loop()` (ESP32-audioI2S decode + HTTP stream fill) runs inside
+`WebRadioApp::tick()` on the Arduino loopTask (core 1) — the same task that samples
+touch and drives all UI. During playback every loop iteration carries decode work,
+degrading touch latency shell-wide (taskbar included). This milestone moves audio
+servicing to a dedicated FreeRTOS task with explicit core placement, lifecycle
+(start/stop on play/eject), and locking around the shared Audio object.
+
+**Status:** design (2026-07-02)
+**Design:** [M-WR-AUDIO-TASK.md](../architecture/designs/M-WR-AUDIO-TASK.md)
+**Deps:** M-WEBRADIO (done), M-WEBRADIO-NOPSRAM (A-lite arena — heap ceiling constraint)
+**Tracked-as:** TASK-278
+
+---
+
+### M-TASKBAR-FEEDBACK — Taskbar tap feedback + switch latency
+
+Taskbar app switching feels sluggish and gives no confirmation a tap landed: the
+switch fires only on finger release (`tbGestureEnd`), there is no pressed-slot visual
+state, and `switchApp` does a full init/resume + repaint before anything changes on
+screen. (Design review: cooldowns do NOT gate taskbar taps — taskbar zone dispatches
+before the gate; the real tap-loss mechanism is sampled-touch loss during long loop
+iterations, owned by M-WR-AUDIO-TASK.) This milestone adds immediate press feedback
+and instruments `switchApp` per-phase before any speed work.
+
+**Status:** design (2026-07-02)
+**Design:** [M-TASKBAR-FEEDBACK.md](../architecture/designs/M-TASKBAR-FEEDBACK.md)
+**Deps:** M-TASKBAR-SCROLL (done — gesture layer being amended), M-TOUCH-UX (done)
+**Tracked-as:** TASK-279
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.

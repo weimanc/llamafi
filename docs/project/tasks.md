@@ -4119,3 +4119,58 @@ terminal park → assert `terminal retry` fires on ~30 s cadence, repeatedly.
 
 **Priority:** P2 — UX robustness (post-outage self-heal) · **Status:** **done — DUT-validated 2026-07-02** (wrDeadUrls park → retries at t=41 s/101 s, bounded 60 s cycle = 30 s backoff + paced walk) · **Opened:** 2026-07-02 · **Milestone:** M-WEBRADIO · **Owner:** Developer ·
 **Deps:** TASK-273 (pacing anchor), M-WIFI-DIAG attribution · **Branch:** master
+
+---
+
+## Open — touch-UX responsiveness (2026-07-02)
+
+Operator report 2026-07-02: taskbar app-switching feels sluggish with no confirmation a tap
+landed; WebRadio PLEDIT scrolling "borderline usable" vs Spotify's. Code investigation
+attributed this to three independent causes, one milestone each. Design docs first
+(parallel Architect session); implementation tasks to be split out per accepted design.
+
+### TASK-277 — M-WR-PLEDIT-SCROLL design: WebRadio PLEDIT drag/velocity scroll
+
+WebRadio PLEDIT input is Release-only tap-to-play (`webRadioApp.h` `handleInput`); no drag
+scroll exists — a swipe lands as a tap on whichever row the finger lifts over. Spotify's
+PLEDIT has the full M-LIST-v4 velocity-scroll machine in `winampDisplay.h` (ADR-030,
+`D_PLEDIT_SCROLL`/`D_PLEDIT_SCROLL_DIRECT`, `tickScroll`). Design how WebRadio gets the
+same UX: extract the gesture machine into a shared component vs. route WebRadio input
+through `winampDisplay`, plus the tap-vs-drag migration for the existing tap-to-play rows.
+
+**Priority:** P2 — UX · **Status:** design in progress · **Opened:** 2026-07-02 ·
+**Milestone:** M-WR-PLEDIT-SCROLL · **Owner:** Architect ·
+**Deps:** M-LIST-v4 (done), M-WEBRADIO (done) · **Branch:** master
+
+---
+
+### TASK-278 — M-WR-AUDIO-TASK design: WebRadio decode off loopTask
+
+`s_wr_audio->loop()` runs inside `WebRadioApp::tick()` on loopTask (core 1) — decode +
+HTTP stream fill compete with touch sampling and all UI every iteration while PLAYING.
+Design a dedicated audio FreeRTOS task: core placement (ESP32-audioI2S guidance vs. our
+WiFi-heavy core 0), task lifecycle on play/stop/eject/app-switch, locking around the
+shared `Audio` object (ICY queue already exists), stack sizing under the A-lite arena
+heap ceiling, WDT interaction, and failure modes (task starvation vs. current inline model).
+
+**Priority:** P2 — UX (shell-wide latency during playback) · **Status:** design in progress ·
+**Opened:** 2026-07-02 · **Milestone:** M-WR-AUDIO-TASK · **Owner:** Architect ·
+**Deps:** M-WEBRADIO (done), M-WEBRADIO-NOPSRAM (arena constraint) · **Branch:** master
+
+---
+
+### TASK-279 — M-TASKBAR-FEEDBACK design: taskbar tap feedback + switch latency
+
+Taskbar switch fires only on finger release with no pressed-slot visual state; `switchApp`
+full init/repaint delays any visible response further. (Design review corrected the original
+filing: taskbar-zone presses dispatch *before* the cooldown/busy gate — `s_cooldownMs` never
+drops taskbar taps. Real tap-loss mechanism is sampled-touch loss — a tap shorter than one
+loop iteration is invisible — which inflates during WebRadio playback; owned by
+M-WR-AUDIO-TASK.) Design:
+immediate pressed-slot highlight on Press, optional switch-on-press evaluation, cooldown/
+busy-gate audit, and a serialdbg-measurable latency definition (tap-inject → first repaint)
+so the improvement is quantifiable via the perf/heartbeat instrumentation.
+
+**Priority:** P2 — UX · **Status:** design in progress · **Opened:** 2026-07-02 ·
+**Milestone:** M-TASKBAR-FEEDBACK · **Owner:** Architect ·
+**Deps:** M-TASKBAR-SCROLL (done), M-TOUCH-UX (done) · **Branch:** master
