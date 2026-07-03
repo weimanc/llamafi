@@ -35,6 +35,7 @@ import statistics
 import time
 
 from run_serialdbg_tests import Dut
+from wifi_watch import WatchDut  # lenient gate: skips ELF + Spotify-poll checks
 
 # App registry order (appRegistry.h) — taskbar slot i shows app (tbScrollOffset+i) % 10.
 APP_SPOTIFY, APP_CLOCK, APP_WEATHER, APP_WEBRADIO = 0, 1, 2, 10
@@ -79,8 +80,20 @@ def enter_state(d: Dut, state: str) -> dict:
     notes: dict = {}
     d.cmd(f"switchApp {STATE_APP[state]}", 5.0)
     if state == "wr_playing":
+        # The serial-open reboot (CH341 DTR pulse) wipes the loaded station list;
+        # the re-fetch takes ~15 s. Tapping PLAY before wrCount>0 plays nothing and
+        # parks in STOPPED (the bug that lost the wr_playing row in runs 1-4,
+        # 2026-07-03). Wait for a non-zero station count FIRST.
+        for _ in range(20):
+            try:
+                if int(d.cmd("get wrCount", 5.0).get("count", 0)) > 0:
+                    break
+            except Exception:
+                pass
+            time.sleep(3.0)
+        notes["stations"] = int(d.cmd("get wrCount", 5.0).get("count", 0))
         # resume() auto-plays only with webRadioAutoplay + STOPPED; otherwise tap PLAY.
-        if not wr_wait_state(d, 2, timeout=20.0):
+        if not wr_wait_state(d, 2, timeout=10.0):
             d.cmd(f"tap {PLAY_XY[0]} {PLAY_XY[1]}", 5.0)
             ok = wr_wait_state(d, 2, timeout=60.0)
             notes["play_via_tap"] = True
@@ -165,9 +178,13 @@ def main():
     p.add_argument("--taps", type=int, default=5)
     p.add_argument("--out", default="e0_results.json")
     p.add_argument("--states", default=",".join(STATES))
+    p.add_argument("--any-firmware", action="store_true",
+                   help="skip the cyd2usb_winamp_debug ELF/Spotify-poll gate "
+                        "(for the cyd2usb_webradio DISABLE_SPOTIFY build)")
     args = p.parse_args()
 
-    d = Dut(args.port, args.baud, timeout=3.0)
+    DutClass = WatchDut if args.any_firmware else Dut
+    d = DutClass(args.port, args.baud, timeout=3.0)
     # Pre-flight WiFi gate (lesson from run 1, 2026-07-03: DUT parked link-DOWN for a
     # full 4-window session — every baseline invalid per the VE-2-1 attribution rule).
     wifi = d.cmd_drain("get wifi", 5.0)

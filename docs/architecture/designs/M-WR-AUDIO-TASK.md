@@ -352,8 +352,55 @@ taps/state). **Both link-dead — no scoreable E0 yet** (VE-2-1 attribution rule
   reconnect attempts 40+ min** — filed as **TASK-283** (link supervisor gap). PLAYING never
   entered.
 
-**Salvaged (network-idle rows, reproduced across both runs):** quiet-loop `loop_max` median 23 ms
-(max 76/137/133 idle/spotify/wr_stopped); injected taskbar tap: drain ≈100 ms, tap-to-switch-
-committed median 83.6–97.9 ms (N=5/state, spread <3 ms). These stand as the *link-idle* baseline;
-the PLAYING row and network-active rows are **blocked on TASK-282/283** (storm attribution +
-park-dead fix). `display.input` premise (VE-2-4): unjudgeable from an unloaded loop — remains open.
+**Salvaged (network-idle rows, reproduced across 3 runs):** quiet-loop `loop_max` median 23 ms
+(max 29–76); injected taskbar tap: drain ≈100 ms, tap-to-switch-committed median 83.6–97.9 ms
+(N=5/state, spread <3 ms).
+
+## E0 resolution (2026-07-03) — root cause was the AP, not the firmware
+
+The link failures were the **router**, not the design: JNAP read showed the MX5600's 2.4 GHz on
+`channel: 0` (auto-select); its channel-optimisation sweeps took the radio off-air 5–40 s every
+1–2 min, host-confirmed by an independent 2nd radio (`resource/wifi-monitor/`). Pinning 2.4 GHz
+to a fixed channel fixed it (host availability 87 % → 99 %+); residual host-confirmed blips
+persist ~1 per 8–10 min even pinned (low-rate AP defect). TASK-283 link supervisor (all builds)
+recovers wedged links; the TASK-282 promiscuous beacon watcher must NOT be left armed during a
+run (it breaks STA reconnect — Heisenberg artifact, SERIAL_DEBUG-only).
+
+**The PLAYING row also needs the `cyd2usb_webradio` (DISABLE_SPOTIFY) build.** On the prod build
+the owner-account Spotify 403 (TASK-243) starves the shared dataTask TLS via `tlsYield`
+(memory: tlsyield-starvation): the radio-browser station fetch returns `count=0/http=0` while the
+*host* reaches the same API at HTTP 200 — proven by direct A/B (prod `count=0` → webradio build
+`count=16`) minutes apart on the same DUT/network. No stations ⇒ PLAY parks in STOPPED.
+
+### Decode-loaded baseline (E0 wr_playing, cyd2usb_webradio, 10-min continuous PLAYING)
+
+`wr_state 2→2`, `playMs` 20 s→103 s (decode continuous). `--taps 0`; N=5 tap rows deferred to
+the multi-app build (see M-TASKBAR-FEEDBACK).
+
+| metric | idle baseline | **WebRadio PLAYING (decode on loopTask)** |
+|---|---|---|
+| `loop_max` median | 23 ms | **24 ms** |
+| `loop_max` max (per-hb) | 23–36 ms | **141 ms** |
+| >50 ms iterations / 10 min | 0 | **6** |
+| worst path | app.tick | **app.tick** (calls `s_wr_audio->loop()`) |
+| series | flat 23 | `25,27,28,25,23…76…23,141,27,24,25` |
+
+**Finding — the case for this milestone.** Decode barely moves the *median* iteration (23→24 ms)
+but blows the *tail*: 141 ms max, 6 spikes/10 min, worst path `app.tick` (the `Audio::loop()`
+call site). This is the touch-drop mechanism precisely: playback is smooth most iterations, then a
+decode/refill spike stalls one iteration to 76–141 ms and a touch sample landing in that window is
+lost. The problem is **tail latency, not average load** — moving `Audio::loop()` to its own task
+(this design) targets exactly the tail. E1's ≤1.5×-median bar (23→24 ms = 1.04×) would PASS on the
+median alone and is therefore the **wrong statistic**; the real regression signal is the
+>50 ms-iteration count and the per-hb max. **Amend E1 to gate on tail (max / >50 ms count), not
+median** [supersedes the median framing].
+
+**Caveats (annotated, non-invalidating).** (a) 57 in-window `[wifi-ev]`: residual router blips
+churned the window, so some of the 6 spikes may be WiFi-reconnect stalls, not decode — a calm
+10-min window is not obtainable on this AP (blips every ~8–10 min), so decode-tail and reconnect-
+tail cannot be fully separated here; the tail-stall signature is nonetheless real and the
+mechanism (app.tick worst-path) is decode-attributed. (b) Station idx 0 was a *slow stream*
+(`minBufPct 0`, 1 underrun/window) — a marginal upstream, so **underruns here are not a clean
+device baseline**; TASK-278 E2 must pick a fast station (or `./run/wr-soak` which already does).
+`display.input` premise (VE-2-4): worst path stayed `app.tick`, never `display.input`, under
+decode → **VE-2-4 refuted, E1 may drop the display.input clause.**

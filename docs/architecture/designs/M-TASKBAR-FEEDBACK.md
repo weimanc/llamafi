@@ -299,10 +299,31 @@ Reviews: [touch-ux-panel-VE-review.md](touch-ux-panel-VE-review.md) ·
 
 ## Baseline attempts (2026-07-03)
 
-Shared E0 sessions (see M-WR-AUDIO-TASK §E0 attempts): both link-dead (TASK-283 storm/park
-pattern); WebRadio-PLAYING row unmeasured. Valid network-idle rows (reproduced twice, N=5,
-spread <3 ms): tap-to-switch-committed **83.6–97.9 ms median** per state; injection drain
-≈100 ms; quiet-loop `loop_max` 23 ms. Measured via the corrected injection-ordering parser
-(`e0_baseline.py`: `[shell] entered` precedes the drag JSON in `drainInjectionQueue` — the
-tap-to-committed clock runs from command send, not from the JSON). Re-run for the PLAYING row
-once TASK-282/283 clear the link.
+Valid network-idle rows (reproduced across 3 runs 2026-07-03, N=5, spread <3 ms):
+
+| state | tap-to-switch-committed (median) | injection drain | quiet `loop_max` |
+|---|---|---|---|
+| idle_clock | 97.8 ms | ≈113 ms | 23 ms |
+| spotify | 83.5 ms | ≈99 ms | 23 ms |
+| wr_stopped | 84.4 ms | ≈100 ms | 23 ms |
+
+Measured via the corrected injection-ordering parser (`e0_baseline.py`: `[shell] entered` precedes
+the drag JSON in `drainInjectionQueue` — the tap-to-committed clock runs from command send, not
+from the JSON). The earlier "both link-dead" attempts were the **router**, now root-caused and
+fixed (see M-WR-AUDIO-TASK §E0 resolution: MX5600 2.4 GHz auto-channel, pinned via JNAP).
+
+**WebRadio-PLAYING tap row still owed.** The decode-loaded loop measurement (M-WR-AUDIO-TASK) had
+to run on the `cyd2usb_webradio` (DISABLE_SPOTIFY) build — the prod build's Spotify-403 tlsYield
+starvation blocks the station fetch, so nothing plays. That build is WEBRADIO_ONLY (no taskbar to
+tap), so the *tap-to-switch-under-decode* row cannot be taken there. It needs the multi-app build
+with a live PLAYING WebRadio — which needs Spotify not-403 (owner Premium re-auth) OR a
+WEBRADIO-in-multi-app variant. **Deferred to TASK-279 implementation time** (re-baseline rule
+already applies).
+
+**Decode-tail context (from M-WR-AUDIO-TASK E0).** Under PLAYING, `loop_max` median holds at 24 ms
+but the tail hits 141 ms with 6 >50 ms iterations / 10 min (worst path `app.tick` = the
+`Audio::loop()` site). That tail is the sampled-touch-loss mechanism this design calls out as
+out-of-scope (§6, owned by M-WR-AUDIO-TASK): a tap landing in a 141 ms iteration is simply never
+sampled. So the taskbar-feedback blits (this design) and the audio-task move (TASK-278) are
+complementary — feedback makes a *landed* tap feel instant; the audio task stops taps being
+*dropped* during playback. Neither alone fixes the WebRadio-PLAYING case.
