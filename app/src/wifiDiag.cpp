@@ -106,9 +106,12 @@ void superviseTick() {
     }
 
     const uint32_t now = millis();
-    // lastDiscMs anchors the outage start; fall back to first-seen-down.
+    // Anchor the outage start. Trust lastDiscMs only when the disconnect event
+    // is RECENT — on a fresh drop the status flips before the event fires, and
+    // a stale lastDiscMs from a previous outage makes downMs huge instantly
+    // (observed: kick=1 downMs=129095 fired the moment a fresh drop began).
     if (s_supDownSince == 0)
-        s_supDownSince = lastDiscMs ? lastDiscMs : now;
+        s_supDownSince = (lastDiscMs && now - lastDiscMs < 5000) ? lastDiscMs : now;
     if (now - s_supDownSince < WIFI_SUP_DOWN_MS) return;
     if (s_supLastKickMs && now - s_supLastKickMs < WIFI_SUP_PACE_MS) return;
     s_supLastKickMs = now;
