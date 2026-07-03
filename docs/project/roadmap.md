@@ -904,7 +904,7 @@ tuning constants hoisted to a shared header — extraction rejected for two cons
 (promotion path documented at a third scrolling list).
 
 **Status:** design panel-reviewed 2026-07-03 (VE/DEV/QM approve-with-changes ×3,
-dispositions applied) — awaiting human approval
+dispositions applied) — **approved 2026-07-03 (human)**
 **Land order (panel-pinned):** shared E0 baseline session → TASK-278 → **TASK-277**
 (feel tuning after 278 — loop cadence changes under it) → TASK-279 blits. The
 drag-injection reroute lands first as its own commit + regression sweep.
@@ -926,7 +926,7 @@ servicing to a dedicated FreeRTOS task with explicit core placement, lifecycle
 ack-then-self-delete teardown.
 
 **Status:** design panel-reviewed 2026-07-03 (VE/DEV/QM approve-with-changes ×3,
-dispositions applied) — awaiting human approval
+dispositions applied) — **approved 2026-07-03 (human)**
 **Land order (panel-pinned):** **shared E0 baseline session (one DUT session, feeds this
 design's E0 and M-TASKBAR-FEEDBACK's matrix — must run before either implementation
 merges)** → TASK-278 → TASK-277 → TASK-279 blits.
@@ -949,7 +949,7 @@ and instruments `switchApp` per-phase before any speed work. Design lean
 press-anchored slot commit, switch stays on-release.
 
 **Status:** design panel-reviewed 2026-07-03 (VE/DEV/QM approve-with-changes ×3,
-dispositions applied) — awaiting human approval
+dispositions applied) — **approved 2026-07-03 (human)**
 **Land order (panel-pinned):** shared E0 baseline session (with M-WR-AUDIO-TASK) →
 TASK-278 → TASK-277 → **TASK-279 feedback blits** (blits themselves are
 order-independent; the baseline matrix is not).

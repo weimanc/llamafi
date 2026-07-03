@@ -1,7 +1,7 @@
 # Design — WebRadio audio decode off loopTask (dedicated pump task)
 
 > Owner: Architect
-> Status: draft — panel-reviewed 2026-07-03 (VE/DEV/QM: approve-with-changes ×3); awaiting human approval
+> Status: accepted — human-approved 2026-07-03 (panel: VE/DEV/QM approve-with-changes ×3, dispositions applied)
 > Date: 2026-07-02 (dispositions applied 2026-07-03)
 > Feeds: (ADR TBD — promote the lean once Phase-1 DUT numbers land)
 > Tracked-as: TASK-278
@@ -338,3 +338,22 @@ Reviews: [touch-ux-panel-VE-review.md](touch-ux-panel-VE-review.md) ·
   Deps header) → applied in place.
 - **DEV-2-7** (stale `Audio.cpp:192` "experiment-only" comment) → no doc change; fix
   when the file is next touched (recorded here so it isn't lost).
+
+## E0 attempts (2026-07-03)
+
+Two full 4-state sessions run (`app/tools/e0_baseline.py`, debug build, 10-min windows, N=5
+taps/state). **Both link-dead — no scoreable E0 yet** (VE-2-1 attribution rule applied):
+
+- Run 1: WiFi down from t≈150 s (BEACON_TIMEOUT → NO_AP_FOUND storm → parked, disc=29); all
+  windows captured an unloaded loop (no TLS traffic, `last=-1`). WebRadio PLAYING never entered
+  (station fetch impossible).
+- Run 2: WiFi pre-flight PASSED (status 3, rssi −49), then the identical storm at t≈147 s:
+  reason=200 → 2.42 s-cadence 201 storm (disc 30→99) → reason=39 → **parked dead, zero further
+  reconnect attempts 40+ min** — filed as **TASK-283** (link supervisor gap). PLAYING never
+  entered.
+
+**Salvaged (network-idle rows, reproduced across both runs):** quiet-loop `loop_max` median 23 ms
+(max 76/137/133 idle/spotify/wr_stopped); injected taskbar tap: drain ≈100 ms, tap-to-switch-
+committed median 83.6–97.9 ms (N=5/state, spread <3 ms). These stand as the *link-idle* baseline;
+the PLAYING row and network-active rows are **blocked on TASK-282/283** (storm attribution +
+park-dead fix). `display.input` premise (VE-2-4): unjudgeable from an unloaded loop — remains open.

@@ -4141,7 +4141,7 @@ routing through `winampDisplay` (state collision) documented as non-leans; tap-v
 migration for the existing tap-to-play rows included.
 
 **Priority:** P2 — UX · **Status:** design panel-reviewed 2026-07-03 (approve-with-changes
-×3, dispositions applied) — awaiting human approval · **Opened:** 2026-07-02 ·
+×3, dispositions applied) — **approved 2026-07-03 (human)** · **Opened:** 2026-07-02 ·
 **Milestone:** M-WR-PLEDIT-SCROLL · **Owner:** Architect ·
 **Deps:** M-LIST-v4 (done), M-WEBRADIO (done) · **Branch:** master
 
@@ -4157,8 +4157,7 @@ shared `Audio` object (ICY queue already exists), stack sizing under the A-lite 
 heap ceiling, WDT interaction, and failure modes (task starvation vs. current inline model).
 
 **Priority:** P2 — UX (shell-wide latency during playback) · **Status:** design
-panel-reviewed 2026-07-03 (approve-with-changes ×3, dispositions applied) — awaiting human
-approval · **Opened:** 2026-07-02 · **Milestone:** M-WR-AUDIO-TASK · **Owner:** Architect ·
+panel-reviewed 2026-07-03 (approve-with-changes ×3, dispositions applied) — **approved 2026-07-03 (human)** · **Opened:** 2026-07-02 · **Milestone:** M-WR-AUDIO-TASK · **Owner:** Architect ·
 **Deps:** M-WEBRADIO (done), M-WEBRADIO-NOPSRAM (arena constraint), shared E0 baseline
 session (with TASK-279 — see design E0) · **Branch:** master
 
@@ -4177,7 +4176,7 @@ busy-gate audit, and a serialdbg-measurable latency definition (tap-inject → f
 so the improvement is quantifiable via the perf/heartbeat instrumentation.
 
 **Priority:** P2 — UX · **Status:** design panel-reviewed 2026-07-03 (approve-with-changes
-×3, dispositions applied) — awaiting human approval · **Opened:** 2026-07-02 ·
+×3, dispositions applied) — **approved 2026-07-03 (human)** · **Opened:** 2026-07-02 ·
 **Milestone:** M-TASKBAR-FEEDBACK · **Owner:** Architect ·
 **Deps:** M-TASKBAR-SCROLL (done), M-TOUCH-UX (done), shared E0 baseline session (with
 TASK-278 — see design §Measurement plan) · **Branch:** master
@@ -4216,3 +4215,59 @@ M-WIFI-DIAG panel and the 2026-07-02/03 touch-UX panel per the house panel-loggi
 **Priority:** P3 — QM hygiene · **Status:** open · **Opened:** 2026-07-03 ·
 **Milestone:** — (cross-cutting QM) · **Owner:** QM ·
 **Deps:** — · **Branch:** master
+
+---
+
+### TASK-282 — M-WIFI-DIAG Phase 2: frame-level instruments (beacon watcher, PS A/B, scan-on-park)
+
+Filed from operator challenge 2026-07-03 ("RF-environment escalation is hand-wavy — do a proper
+diagnosis"). Phase-1 reason codes can't split BEACON_TIMEOUT between H-A (AP/air) and H-C (CYD
+antenna/rail) — design §5 row "beacon timeout → Phase 2". Host laptop is on **5 GHz** (ch 44), so
+host-side liveness says nothing about the DUT's 2.4 GHz band; evidence must come from the DUT
+antenna.
+
+**Instruments (all SERIAL_DEBUG-gated; production Phase-1 sensor untouched):**
+1. **Beacon watcher** — `esp_wifi_set_promiscuous` mgmt-frame tap locked to the associated BSSID:
+   per-beacon RSSI + PHY `noise_floor` from `rx_ctrl`, inter-beacon gap max, `gapsOver1s` counter,
+   `otherMgmt` rx-alive control. `set beaconWatch 1` / `get beacon`; gap >1 s events printed from
+   loop context as stable-prefix `[beacon]` lines (single-write, VE-8 no-tearing rule).
+2. **Power-save A/B** — `set wifiPs 0|1` (`esp_wifi_set_ps`): TASK-272 implicates modem-sleep;
+   "ping keepalive masks flapping" is a PS signature. Protocol: two same-evening windows, flap
+   rate per hour PS-on vs PS-off.
+3. **Scan evidence** — `set wifiScan 1` (async) + `get wifiScan`: during a NO_AP_FOUND park, is
+   the BSSID on the air (all matching-SSID BSSIDs + rssi + ch)? Splits "AP off air" / "DUT deaf" /
+   "AP channel-hopped" (ch field moved 14→6 during the 2026-07-03 dead session).
+
+**Attribution map:** gap storm at antenna + host-5GHz fine → H-A/H-C (then hotspot A/B per §5
+row 2); beacons continuous but stack disconnects → H-B; flaps vanish with PS off → TASK-272-class
+fix (keepalive/PS policy task).
+
+**Priority:** P2 — unblocks trustworthy E0/E2/E3 measurement windows for TASK-278 ·
+**Status:** implemented (wifiDiag.h/.cpp + main.cpp serial surface; builds pass both envs) —
+awaiting DUT validation run · **Opened:** 2026-07-03 · **Milestone:** M-WIFI-DIAG ·
+**Owner:** Developer · **Deps:** TASK-274 (Phase-1 sensor), M-WIFI-DIAG §5 matrix · **Branch:** master
+
+---
+
+### TASK-283 — WiFi park-dead wedge: no reconnect supervisor after storm burnout
+
+Found during the E0 baseline attempts 2026-07-03 (both sessions). Sequence, twice reproduced:
+BEACON_TIMEOUT (reason=200) → NO_AP_FOUND (201) auto-reconnect storm at metronomic 2.42 s
+cadence (disc 30→99 in ~10 min) → final reason=39 (TIMEOUT) → **link parked dead**: `status=0`,
+`ip=0.0.0.0`, zero further `[wifi-ev]` events for 40+ min. Auto-reconnect stops being scheduled;
+only a reboot (or, hypothesis: a manual `WiFi.disconnect()+begin()` re-kick) recovers. Production
+builds have the same exposure: after a bad evening storm the device sits dead until power-cycle.
+Note `WiFi.setSleep(false)` was active (TASK-272) — this is NOT power-save; and
+`setAutoReconnect(false)` only runs on the boot-failed path, so auto-reconnect WAS armed when the
+storm began. The wedge is in what happens after the 201-storm burns out.
+
+**Evidence pending:** wifi_watch.py (TASK-282) REKICK probe — fires one `set wifiDisc` after
+180 s of link-down; if that recovers, the fix is a firmware link supervisor: `status != WL_CONNECTED`
+for > 60 s → bounded `WiFi.disconnect(); WiFi.begin()` re-kick loop (30 s pace, forever — mirrors
+TASK-276's retry-from-terminal philosophy at the link layer). Design consult with Architect before
+implementation (interaction with WifiSection scan flow + the boot-failed setAutoReconnect(false) path).
+
+**Priority:** P1 — production device parks dead after storms; also blocks every DUT soak/gate
+window · **Status:** open — awaiting wifi_watch REKICK evidence · **Opened:** 2026-07-03 ·
+**Milestone:** M-WIFI-DIAG · **Owner:** Developer · **Deps:** TASK-282 (probe), TASK-274 ·
+**Branch:** master

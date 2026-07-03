@@ -46,6 +46,7 @@ bool writeContextToNfc = true;
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <esp_wifi.h>   // TASK-282: esp_wifi_set_ps (wifiPs A/B toggle)
 
 #include <FS.h>
 #include "SPIFFS.h"
@@ -2560,6 +2561,50 @@ static void cmdGet(const char *args) {
                   (unsigned long)wifiDiag::lastGotIpMs);
     return;
   }
+  // TASK-282: beacon-watcher stats — evidence at the antenna. count/gapMax/
+  // gapsOver1s split BEACON_TIMEOUT into "beacons stopped arriving" (H-A/H-C)
+  // vs "beacons fine, stack timed out" (H-B). otherMgmt proves rx was alive.
+  if (strcmp(args, "beacon") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"beacon\","
+                  "\"active\":%s,\"count\":%lu,\"gapMaxMs\":%lu,\"gapsOver1s\":%lu,"
+                  "\"lastAgoMs\":%lu,\"rssi\":%ld,\"noiseFloor\":%ld,"
+                  "\"otherMgmt\":%lu,\"last\":true}\n",
+                  wifiDiag::beaconWatchActive() ? "true" : "false",
+                  (unsigned long)wifiDiag::beaconStats.count,
+                  (unsigned long)wifiDiag::beaconStats.gapMaxMs,
+                  (unsigned long)wifiDiag::beaconStats.gapsOver1s,
+                  (unsigned long)(wifiDiag::beaconStats.lastMs
+                      ? millis() - wifiDiag::beaconStats.lastMs : 0),
+                  (long)wifiDiag::beaconStats.lastRssi,
+                  (long)wifiDiag::beaconStats.noiseFloor,
+                  (unsigned long)wifiDiag::beaconStats.otherMgmt);
+    return;
+  }
+  // TASK-282: async scan result — reports every AP whose SSID matches ours
+  // (multi-BSSID roaming visible) plus total network count.
+  if (strcmp(args, "wifiScan") == 0) {
+    int16_t n = WiFi.scanComplete();
+    if (n < 0) {
+      Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"wifiScan\","
+                    "\"state\":\"%s\",\"last\":true}\n",
+                    n == WIFI_SCAN_RUNNING ? "running" : "idle");
+      return;
+    }
+    String own = WiFi.SSID();
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"wifiScan\",\"total\":%d,"
+                  "\"matches\":[", (int)n);
+    bool first = true;
+    for (int i = 0; i < n; i++) {
+      if (WiFi.SSID(i) != own) continue;
+      Serial.printf("%s{\"bssid\":\"%s\",\"rssi\":%d,\"ch\":%d}",
+                    first ? "" : ",", WiFi.BSSIDstr(i).c_str(),
+                    (int)WiFi.RSSI(i), (int)WiFi.channel(i));
+      first = false;
+    }
+    Serial.printf("],\"last\":true}\n");
+    WiFi.scanDelete();
+    return;
+  }
   // appId — shell-owned; WinampDisplay cannot reference currentAppId.
   if (strcmp(args, "ip") == 0) {
     // TASK-248: LAN IP so the stress harness can read logs over the /log HTTP ring
@@ -2761,6 +2806,31 @@ static void cmdSet(const char *args) {
     Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"logKeep\",\"val\":\"%s\"}\n", val);
     return;
   }
+  // TASK-282 (M-WIFI-DIAG Phase 2): modem power-save A/B. Beacon timeouts are
+  // classically DTIM/modem-sleep interactions (TASK-272 implicates PS; the
+  // "ping keepalive masks flapping" observation is a PS signature). 0 = PS off.
+  if (strcmp(var, "wifiPs") == 0) {
+    bool on = (val[0] == '1');
+    esp_err_t e = esp_wifi_set_ps(on ? WIFI_PS_MIN_MODEM : WIFI_PS_NONE);
+    Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"wifiPs\",\"val\":%d}\n",
+                  e == ESP_OK ? "true" : "false", on ? 1 : 0);
+    return;
+  }
+  // TASK-282: beacon watcher on/off (needs associated STA to lock BSSID).
+  if (strcmp(var, "beaconWatch") == 0) {
+    bool ok = (val[0] == '1') ? wifiDiag::beaconWatchStart()
+                              : (wifiDiag::beaconWatchStop(), true);
+    Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"beaconWatch\",\"val\":%c}\n",
+                  ok ? "true" : "false", val[0]);
+    return;
+  }
+  // TASK-282: async scan kick — poll result via `get wifiScan` (scan-on-park
+  // evidence: is the BSSID on the air when NO_AP_FOUND says it isn't?).
+  if (strcmp(var, "wifiScan") == 0) {
+    WiFi.scanNetworks(/*async=*/true);
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"wifiScan\",\"val\":1}\n");
+    return;
+  }
   // TASK-274 (QM-2 positive control): force a disconnect so the [wifi-ev]
   // sensor can be proven live before attribution-by-absence is trusted.
   // Expect a STA_DISCONNECTED line (reason=8 ASSOC_LEAVE) then auto-reconnect.
@@ -2902,6 +2972,9 @@ void loop()
   handleSerialCommands();
   logsink::serverLoop();
   heartbeat::tick();
+#ifdef SERIAL_DEBUG
+  wifiDiag::poll();        // TASK-282: drain queued [beacon] gap lines
+#endif
   esp_task_wdt_reset();   // WDT safety: reset after serial+logsink, before appTick
 #ifdef SCREEN_LOG
   { unsigned long _t = millis(); screenlog::tick(spotifyDisplay);

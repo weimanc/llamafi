@@ -2,6 +2,10 @@
 #include "wifiDiag.h"
 #include <WiFi.h>
 #include <stdio.h>
+#ifdef SERIAL_DEBUG
+#include <esp_wifi.h>
+#include <string.h>
+#endif
 
 namespace wifiDiag {
 
@@ -80,5 +84,80 @@ void begin() {
     s_winStartMs = millis();
     WiFi.onEvent(onEvent);
 }
+
+#ifdef SERIAL_DEBUG
+// ── TASK-282: promiscuous beacon watcher ─────────────────────────────────────
+
+BeaconStats beaconStats = {};
+
+static bool     s_watchActive = false;
+static uint8_t  s_bssid[6]    = {};
+// Pending gap event, written in the promiscuous callback (WiFi task), drained
+// by poll() (loop task). Single-slot latest-wins — same volatile discipline as
+// the Phase-1 counters; a lost intermediate gap line is acceptable, the
+// gapsOver1s counter never misses.
+static volatile uint32_t s_pendGapMs  = 0;
+static volatile uint32_t s_pendAtMs   = 0;
+static volatile bool     s_pendFlag   = false;
+
+static void promiscCb(void* buf, wifi_promiscuous_pkt_type_t type) {
+    if (type != WIFI_PKT_MGMT) return;
+    const wifi_promiscuous_pkt_t* p = (const wifi_promiscuous_pkt_t*)buf;
+    const uint8_t* fr = p->payload;
+    // Beacon: type/subtype 0x80 (mgmt, subtype 8). addr3 = BSSID at offset 16.
+    if (fr[0] != 0x80) return;
+    if (memcmp(fr + 16, s_bssid, 6) != 0) {
+        beaconStats.otherMgmt = beaconStats.otherMgmt + 1;
+        return;
+    }
+    const uint32_t now  = millis();
+    const uint32_t last = beaconStats.lastMs;
+    if (last != 0) {
+        const uint32_t gap = now - last;
+        if (gap > beaconStats.gapMaxMs) beaconStats.gapMaxMs = gap;
+        if (gap > 1000u) {
+            beaconStats.gapsOver1s = beaconStats.gapsOver1s + 1;
+            s_pendGapMs = gap;
+            s_pendAtMs  = now;
+            s_pendFlag  = true;
+        }
+    }
+    beaconStats.lastMs     = now;
+    beaconStats.count      = beaconStats.count + 1;
+    beaconStats.lastRssi   = p->rx_ctrl.rssi;
+    beaconStats.noiseFloor = p->rx_ctrl.noise_floor;
+}
+
+bool beaconWatchStart() {
+    if (WiFi.status() != WL_CONNECTED) return false;
+    memcpy(s_bssid, WiFi.BSSID(), 6);
+    memset((void*)&beaconStats, 0, sizeof(beaconStats));
+    s_pendFlag = false;
+    wifi_promiscuous_filter_t filt = { .filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT };
+    esp_wifi_set_promiscuous_filter(&filt);
+    esp_wifi_set_promiscuous_rx_cb(&promiscCb);
+    esp_wifi_set_promiscuous(true);
+    s_watchActive = true;
+    return true;
+}
+
+void beaconWatchStop() {
+    esp_wifi_set_promiscuous(false);
+    esp_wifi_set_promiscuous_rx_cb(nullptr);
+    s_watchActive = false;
+}
+
+bool beaconWatchActive() { return s_watchActive; }
+
+void poll() {
+    if (!s_pendFlag) return;
+    s_pendFlag = false;
+    char buf[96];
+    snprintf(buf, sizeof(buf), "[beacon] t=%lu gap=%lums rssi=%ld nf=%ld\n",
+             (unsigned long)s_pendAtMs, (unsigned long)s_pendGapMs,
+             (long)beaconStats.lastRssi, (long)beaconStats.noiseFloor);
+    Serial.print(buf);   // single write — same no-tearing rule as [wifi-ev]
+}
+#endif  // SERIAL_DEBUG
 
 }  // namespace wifiDiag

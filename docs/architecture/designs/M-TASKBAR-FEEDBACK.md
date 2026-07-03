@@ -1,7 +1,7 @@
 # Design — Taskbar tap feedback + switch latency (M-TASKBAR-FEEDBACK)
 
 > Owner: Architect
-> Status: draft — panel-reviewed 2026-07-03 (VE/DEV/QM: approve-with-changes ×3); awaiting human approval
+> Status: accepted — human-approved 2026-07-03 (panel: VE/DEV/QM approve-with-changes ×3, dispositions applied)
 > Date: 2026-07-02 (dispositions applied 2026-07-03)
 > Feeds: — (ADR when the lean is accepted)
 > Tracked-as: TASK-279
@@ -296,3 +296,13 @@ Reviews: [touch-ux-panel-VE-review.md](touch-ux-panel-VE-review.md) ·
 - **QM-3-3** (unlabelled estimates) → tagged, superseded by measurement tables.
 - **QM-3-4 + VE-3-6** (OQ4 floating; second injection divergence) → TASK-280 filed; OQ4
   references it; T-TBFB-04 documents the divergence.
+
+## Baseline attempts (2026-07-03)
+
+Shared E0 sessions (see M-WR-AUDIO-TASK §E0 attempts): both link-dead (TASK-283 storm/park
+pattern); WebRadio-PLAYING row unmeasured. Valid network-idle rows (reproduced twice, N=5,
+spread <3 ms): tap-to-switch-committed **83.6–97.9 ms median** per state; injection drain
+≈100 ms; quiet-loop `loop_max` 23 ms. Measured via the corrected injection-ordering parser
+(`e0_baseline.py`: `[shell] entered` precedes the drag JSON in `drainInjectionQueue` — the
+tap-to-committed clock runs from command send, not from the JSON). Re-run for the PLAYING row
+once TASK-282/283 clear the link.
