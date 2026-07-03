@@ -4268,6 +4268,9 @@ TASK-276's retry-from-terminal philosophy at the link layer). Design consult wit
 implementation (interaction with WifiSection scan flow + the boot-failed setAutoReconnect(false) path).
 
 **Priority:** P1 — production device parks dead after storms; also blocks every DUT soak/gate
-window · **Status:** open — awaiting wifi_watch REKICK evidence · **Opened:** 2026-07-03 ·
+window · **Status:** **implemented 2026-07-03** — `wifiDiag::superviseTick()` (all builds): armed
+after first GOT_IP, kicks `disconnect()+setAutoReconnect(true)+begin()` after 60 s continuously
+down, 30 s pace, unbounded; suppressed while Settings foreground; `kicks` counter in `get wifi`.
+Live validation pending next sustained (>60 s) outage on the cycling MX5600 · **Opened:** 2026-07-03 ·
 **Milestone:** M-WIFI-DIAG · **Owner:** Developer · **Deps:** TASK-282 (probe), TASK-274 ·
 **Branch:** master

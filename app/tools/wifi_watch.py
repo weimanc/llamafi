@@ -136,7 +136,7 @@ def main():
     rekicked = False
     end = time.monotonic() + args.hours * 3600
     while time.monotonic() < end:
-        drain_to_log(d, logf, 60.0)
+        drain_to_log(d, logf, 30.0)
         d.ser.timeout = 3.0
         w = poll_json(d, "get wifi")
         b = poll_json(d, "get beacon")
@@ -144,7 +144,8 @@ def main():
         note(logf, f"poll status={status} rssi={w.get('rssi')} disc={w.get('discCount')} "
                    f"reason={w.get('lastDiscReason')} beacons={b.get('count')} "
                    f"gapMax={b.get('gapMaxMs')} gaps1s={b.get('gapsOver1s')} "
-                   f"lastAgo={b.get('lastAgoMs')} nf={b.get('noiseFloor')}")
+                   f"lastAgo={b.get('lastAgoMs')} nf={b.get('noiseFloor')} "
+                   f"otherMgmt={b.get('otherMgmt')}")
         if status == 3:
             if down_since is not None:
                 note(logf, f"RECOVERED after {time.monotonic()-down_since:.0f}s down "
@@ -156,7 +157,7 @@ def main():
             down_since = time.monotonic()
             note(logf, f"LINK DOWN detected reason={w.get('lastDiscReason')} — storm protocol armed")
         downtime = time.monotonic() - down_since
-        if downtime > 120 and not scanned:
+        if downtime > 60 and not scanned:
             poll_json(d, "set wifiScan 1")
             time.sleep(6)
             s = poll_json(d, "get wifiScan", 8.0)
@@ -164,7 +165,7 @@ def main():
                        f"matches={json.dumps(s.get('matches'))}")
             note(logf, f"STORM-EVIDENCE beacon@{downtime:.0f}s: {json.dumps(b)}")
             scanned = True
-        if downtime > 180 and not rekicked:
+        if downtime > 120 and not rekicked:
             note(logf, f"REKICK attempting set wifiDisc at {downtime:.0f}s down (TASK-283 probe)")
             poll_json(d, "set wifiDisc 1")
             rekicked = True

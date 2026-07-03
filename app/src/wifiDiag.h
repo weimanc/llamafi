@@ -22,6 +22,19 @@ extern volatile uint32_t lastGotIpMs;     // millis() of the last GOT_IP (outage
 
 void begin();  // register the event handler — call BEFORE WiFi.begin()
 
+// TASK-283: link supervisor. The Arduino core's auto-reconnect can wedge after
+// a long AP absence (observed twice 2026-07-03: NO_AP_FOUND storm burns out →
+// reason=39 → zero further reconnect attempts for 40+ min; reboot-only
+// recovery). superviseTick() re-kicks a dead link with WiFi.disconnect()+
+// WiFi.begin() — armed only after the first GOT_IP this boot (never fights the
+// no-credentials settings-UI flow), only after WIFI_SUP_DOWN_MS continuously
+// down, paced at WIFI_SUP_PACE_MS, forever (an AP can be absent for hours —
+// the MX5600's 2.4 GHz radio proved it; no finite retry budget). Call from
+// loop(); caller suppresses it while the Settings app owns the radio.
+// Ships in ALL builds — production parks dead without it.
+extern volatile uint32_t superviseKicks;   // re-kicks issued since boot
+void superviseTick();
+
 #ifdef SERIAL_DEBUG
 // TASK-282 (M-WIFI-DIAG Phase 2): frame-level instruments for the H-A/H-C split
 // the Phase-1 reason codes can't make (BEACON_TIMEOUT is ambiguous — design §5).

@@ -85,6 +85,46 @@ void begin() {
     WiFi.onEvent(onEvent);
 }
 
+// ── TASK-283: link supervisor (all builds) ───────────────────────────────────
+
+volatile uint32_t superviseKicks = 0;
+
+static constexpr uint32_t WIFI_SUP_DOWN_MS = 60000;  // continuously down before first kick
+static constexpr uint32_t WIFI_SUP_PACE_MS = 30000;  // between kicks while still down
+
+static uint32_t s_supDownSince  = 0;
+static uint32_t s_supLastKickMs = 0;
+
+void superviseTick() {
+    // Armed only after the first GOT_IP this boot: a boot that never had
+    // credentials/link stays under the settings-UI flow's control (that path
+    // deliberately runs setAutoReconnect(false) for scanNetworks()).
+    if (lastGotIpMs == 0) return;
+    if (WiFi.status() == WL_CONNECTED) {
+        s_supDownSince = s_supLastKickMs = 0;   // next outage gets a fresh budget
+        return;
+    }
+
+    const uint32_t now = millis();
+    // lastDiscMs anchors the outage start; fall back to first-seen-down.
+    if (s_supDownSince == 0)
+        s_supDownSince = lastDiscMs ? lastDiscMs : now;
+    if (now - s_supDownSince < WIFI_SUP_DOWN_MS) return;
+    if (s_supLastKickMs && now - s_supLastKickMs < WIFI_SUP_PACE_MS) return;
+    s_supLastKickMs = now;
+    superviseKicks  = superviseKicks + 1;
+
+    char buf[80];
+    snprintf(buf, sizeof(buf), "[wifi-sup] t=%lu kick=%lu downMs=%lu\n",
+             (unsigned long)now, (unsigned long)superviseKicks,
+             (unsigned long)(now - s_supDownSince));
+    Serial.print(buf);   // single write — no tearing (VE-8)
+
+    WiFi.disconnect(false);
+    WiFi.setAutoReconnect(true);   // restore it if the wedge cleared the flag
+    WiFi.begin();                  // reconnect from NVS creds
+}
+
 #ifdef SERIAL_DEBUG
 // ── TASK-282: promiscuous beacon watcher ─────────────────────────────────────
 

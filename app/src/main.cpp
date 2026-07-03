@@ -2551,14 +2551,15 @@ static void cmdGet(const char *args) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"wifi\","
                   "\"ms\":%lu,\"status\":%d,\"rssi\":%d,\"ip\":\"%s\",\"ch\":%d,"
                   "\"discCount\":%lu,\"lastDiscReason\":%u,\"lastDiscMs\":%lu,"
-                  "\"lastGotIpMs\":%lu,\"last\":true}\n",
+                  "\"lastGotIpMs\":%lu,\"kicks\":%lu,\"last\":true}\n",
                   (unsigned long)millis(), (int)WiFi.status(),
                   (WiFi.status() == WL_CONNECTED) ? (int)WiFi.RSSI() : 0,
                   WiFi.localIP().toString().c_str(), (int)WiFi.channel(),
                   (unsigned long)wifiDiag::discCount,
                   (unsigned)wifiDiag::lastDiscReason,
                   (unsigned long)wifiDiag::lastDiscMs,
-                  (unsigned long)wifiDiag::lastGotIpMs);
+                  (unsigned long)wifiDiag::lastGotIpMs,
+                  (unsigned long)wifiDiag::superviseKicks);
     return;
   }
   // TASK-282: beacon-watcher stats — evidence at the antenna. count/gapMax/
@@ -2975,6 +2976,10 @@ void loop()
 #ifdef SERIAL_DEBUG
   wifiDiag::poll();        // TASK-282: drain queued [beacon] gap lines
 #endif
+  // TASK-283: link supervisor — re-kick a wedged link (all builds). Suppressed
+  // while Settings is foreground: WifiSection's scan flow owns the radio and
+  // deliberately runs with auto-reconnect off.
+  if (currentAppId != AppId::Settings) wifiDiag::superviseTick();
   esp_task_wdt_reset();   // WDT safety: reset after serial+logsink, before appTick
 #ifdef SCREEN_LOG
   { unsigned long _t = millis(); screenlog::tick(spotifyDisplay);
