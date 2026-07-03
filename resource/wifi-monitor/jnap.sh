@@ -16,6 +16,14 @@
 #       ./jnap.sh raw wirelessap/GetRadioInfo
 #   ./jnap.sh radio                     # GetRadioInfo (2.4/5 GHz channel+mode)
 #   ./jnap.sh check                     # verify the password works
+#   ./jnap.sh logon                     # enable the router event log (SetLogSettings)
+#   ./jnap.sh dhcplog [MAC]             # DHCP log entries (optionally filtered to one
+#                                         client MAC). A full Discover->Ack handshake =
+#                                         a fresh association after a disconnect, so this
+#                                         is a ROUTER-SIDE reconnect timestamp. The only
+#                                         readable log this firmware exposes; there is NO
+#                                         radio/system/event log (GetRadioInfo* is config
+#                                         only). DUT MAC on this bench: D4:8A:FC:C8:EE:D0.
 set -u
 
 ROUTER="${ROUTER:-192.168.1.1}"
@@ -43,6 +51,17 @@ case "${1:-}" in
 info)  jnap core/GetDeviceInfo '{}' noauth | pp ;;
 check) jnap core/CheckAdminPassword '{}' | pp ;;
 radio) jnap wirelessap/GetRadioInfo '{}' | pp ;;
+logon) jnap routerlog/SetLogSettings '{"isLoggingEnabled":true}' | pp ;;
+dhcplog)
+    out=$(jnap routerlog/GetDHCPLogEntries '{"firstEntryIndex":1,"entryCount":100}')
+    if command -v jq >/dev/null; then
+        if [ -n "${2:-}" ]; then
+            echo "$out" | jq -r --arg m "$2" \
+              '.output.entries[]? | select(.macAddress==($m|ascii_upcase)) | "\(.timestamp) \(.messageType) \(.ipAddress // "")"'
+        else
+            echo "$out" | jq -r '.output.entries[]? | "\(.timestamp) \(.messageType) \(.macAddress) \(.ipAddress // "")"'
+        fi
+    else echo "$out"; fi ;;
 raw)   jnap "$2" "${3:-{\}}" | pp ;;
 *) grep -E '^# ' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac
