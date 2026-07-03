@@ -58,9 +58,20 @@ read -rs LINKSYS_PW && export LINKSYS_PW   # admin password, silent
 # SetRadioSettings write: see git log / rebuild payload from ./jnap.sh radio
 ```
 
+**Channel choice — optimise for the WEAK client's RSSI, not neighbour count.**
+First pinned ch 11 (fewest neighbours by host survey); the ESP32 then saw the AP
+at −65 dBm and kept dropping while the *host* saw it strong (−59) and present —
+i.e. a DUT-antenna-margin problem, not the router. Re-pinned ch 6 where the
+ESP32 sits at −54 dBm (its healthy baseline). Lesson: the CYD's weak antenna
+(design H-C) is ~15 dB down from a laptop; 10 dB of RSSI margin beats avoiding
+two co-channel neighbours. Compare host `sig` vs the DUT beacon `rssi`
+(`app/tools/wifi_watch.py` `get beacon`) before committing a channel.
+
 If a firmware update later re-enables auto-channel, re-pin. If the 2.4 GHz radio
-still blackouts on a *fixed* channel, that's a hardware/firmware defect with no
-config workaround — escalate to Linksys/ISP with the outage report below.
+still blackouts on a *fixed* channel **and the host confirms it ABSENT** (not
+just the DUT), that's a hardware/firmware defect with no config workaround —
+escalate to Linksys/ISP with the outage report below. A DUT-only drop while the
+host sees the AP present is a client-side margin issue, not a router fault.
 
 ## What strengthens the complaint
 
