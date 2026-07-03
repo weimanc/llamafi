@@ -898,12 +898,18 @@ WebRadio's PLEDIT is tap-to-play only: `WebRadioApp::handleInput` reacts to `Rel
 alone, so a swipe is silently interpreted as a tap on whichever row the finger lifts
 over — no drag scroll exists (`_scrollOffset` moves only by auto-follow of the current
 station). Spotify's PLEDIT has the full M-LIST-v4 velocity-scroll gesture machine in
-`winampDisplay.h` (ADR-030). This milestone gives WebRadio the same scroll UX, ideally
-by extracting/reusing the existing gesture machine rather than duplicating it.
+`winampDisplay.h` (ADR-030). This milestone gives WebRadio the same scroll UX. Design
+lean (panel-reviewed): **pattern-copy** the ADR-030 gesture into `WebRadioApp` with
+tuning constants hoisted to a shared header — extraction rejected for two consumers
+(promotion path documented at a third scrolling list).
 
-**Status:** design (2026-07-02)
+**Status:** design panel-reviewed 2026-07-03 (VE/DEV/QM approve-with-changes ×3,
+dispositions applied) — awaiting human approval
+**Land order (panel-pinned):** shared E0 baseline session → TASK-278 → **TASK-277**
+(feel tuning after 278 — loop cadence changes under it) → TASK-279 blits. The
+drag-injection reroute lands first as its own commit + regression sweep.
 **Design:** [M-WR-PLEDIT-SCROLL.md](../architecture/designs/M-WR-PLEDIT-SCROLL.md)
-**Deps:** M-LIST-v4 (done — the gesture machine to reuse), M-WEBRADIO (done)
+**Deps:** M-LIST-v4 (done — the gesture model being copied), M-WEBRADIO (done)
 **Tracked-as:** TASK-277
 
 ---
@@ -915,9 +921,15 @@ by extracting/reusing the existing gesture machine rather than duplicating it.
 touch and drives all UI. During playback every loop iteration carries decode work,
 degrading touch latency shell-wide (taskbar included). This milestone moves audio
 servicing to a dedicated FreeRTOS task with explicit core placement, lifecycle
-(start/stop on play/eject), and locking around the shared Audio object.
+(start/stop on play/eject), and locking around the shared Audio object. Design lean
+(panel-reviewed): pump task on core 1 prio 2, Phase-1 mutex with timeout-take UI reads,
+ack-then-self-delete teardown.
 
-**Status:** design (2026-07-02)
+**Status:** design panel-reviewed 2026-07-03 (VE/DEV/QM approve-with-changes ×3,
+dispositions applied) — awaiting human approval
+**Land order (panel-pinned):** **shared E0 baseline session (one DUT session, feeds this
+design's E0 and M-TASKBAR-FEEDBACK's matrix — must run before either implementation
+merges)** → TASK-278 → TASK-277 → TASK-279 blits.
 **Design:** [M-WR-AUDIO-TASK.md](../architecture/designs/M-WR-AUDIO-TASK.md)
 **Deps:** M-WEBRADIO (done), M-WEBRADIO-NOPSRAM (A-lite arena — heap ceiling constraint)
 **Tracked-as:** TASK-278
@@ -932,12 +944,19 @@ state, and `switchApp` does a full init/resume + repaint before anything changes
 screen. (Design review: cooldowns do NOT gate taskbar taps — taskbar zone dispatches
 before the gate; the real tap-loss mechanism is sampled-touch loss during long loop
 iterations, owned by M-WR-AUDIO-TASK.) This milestone adds immediate press feedback
-and instruments `switchApp` per-phase before any speed work.
+and instruments `switchApp` per-phase before any speed work. Design lean
+(panel-reviewed): pressed-slot highlight + tap-commit amber via shared shellTb* helpers,
+press-anchored slot commit, switch stays on-release.
 
-**Status:** design (2026-07-02)
+**Status:** design panel-reviewed 2026-07-03 (VE/DEV/QM approve-with-changes ×3,
+dispositions applied) — awaiting human approval
+**Land order (panel-pinned):** shared E0 baseline session (with M-WR-AUDIO-TASK) →
+TASK-278 → TASK-277 → **TASK-279 feedback blits** (blits themselves are
+order-independent; the baseline matrix is not).
 **Design:** [M-TASKBAR-FEEDBACK.md](../architecture/designs/M-TASKBAR-FEEDBACK.md)
 **Deps:** M-TASKBAR-SCROLL (done — gesture layer being amended), M-TOUCH-UX (done)
-**Tracked-as:** TASK-279
+**Tracked-as:** TASK-279 · Follow-ups filed from panel: TASK-280 (injection/production
+dispatch alignment), TASK-281 (QM housekeeping)
 
 ---
 

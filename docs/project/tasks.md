@@ -4134,11 +4134,14 @@ attributed this to three independent causes, one milestone each. Design docs fir
 WebRadio PLEDIT input is Release-only tap-to-play (`webRadioApp.h` `handleInput`); no drag
 scroll exists — a swipe lands as a tap on whichever row the finger lifts over. Spotify's
 PLEDIT has the full M-LIST-v4 velocity-scroll machine in `winampDisplay.h` (ADR-030,
-`D_PLEDIT_SCROLL`/`D_PLEDIT_SCROLL_DIRECT`, `tickScroll`). Design how WebRadio gets the
-same UX: extract the gesture machine into a shared component vs. route WebRadio input
-through `winampDisplay`, plus the tap-vs-drag migration for the existing tap-to-play rows.
+`D_PLEDIT_SCROLL`/`D_PLEDIT_SCROLL_DIRECT`, `tickScroll`). Design outcome (lean, panel-
+reviewed): self-contained pattern-copy of the ADR-030 gesture inside `WebRadioApp` with
+constants hoisted to a shared tuning header — extraction (rejected for two consumers) and
+routing through `winampDisplay` (state collision) documented as non-leans; tap-vs-drag
+migration for the existing tap-to-play rows included.
 
-**Priority:** P2 — UX · **Status:** design in progress · **Opened:** 2026-07-02 ·
+**Priority:** P2 — UX · **Status:** design panel-reviewed 2026-07-03 (approve-with-changes
+×3, dispositions applied) — awaiting human approval · **Opened:** 2026-07-02 ·
 **Milestone:** M-WR-PLEDIT-SCROLL · **Owner:** Architect ·
 **Deps:** M-LIST-v4 (done), M-WEBRADIO (done) · **Branch:** master
 
@@ -4153,9 +4156,11 @@ WiFi-heavy core 0), task lifecycle on play/stop/eject/app-switch, locking around
 shared `Audio` object (ICY queue already exists), stack sizing under the A-lite arena
 heap ceiling, WDT interaction, and failure modes (task starvation vs. current inline model).
 
-**Priority:** P2 — UX (shell-wide latency during playback) · **Status:** design in progress ·
-**Opened:** 2026-07-02 · **Milestone:** M-WR-AUDIO-TASK · **Owner:** Architect ·
-**Deps:** M-WEBRADIO (done), M-WEBRADIO-NOPSRAM (arena constraint) · **Branch:** master
+**Priority:** P2 — UX (shell-wide latency during playback) · **Status:** design
+panel-reviewed 2026-07-03 (approve-with-changes ×3, dispositions applied) — awaiting human
+approval · **Opened:** 2026-07-02 · **Milestone:** M-WR-AUDIO-TASK · **Owner:** Architect ·
+**Deps:** M-WEBRADIO (done), M-WEBRADIO-NOPSRAM (arena constraint), shared E0 baseline
+session (with TASK-279 — see design E0) · **Branch:** master
 
 ---
 
@@ -4171,6 +4176,43 @@ immediate pressed-slot highlight on Press, optional switch-on-press evaluation, 
 busy-gate audit, and a serialdbg-measurable latency definition (tap-inject → first repaint)
 so the improvement is quantifiable via the perf/heartbeat instrumentation.
 
-**Priority:** P2 — UX · **Status:** design in progress · **Opened:** 2026-07-02 ·
+**Priority:** P2 — UX · **Status:** design panel-reviewed 2026-07-03 (approve-with-changes
+×3, dispositions applied) — awaiting human approval · **Opened:** 2026-07-02 ·
 **Milestone:** M-TASKBAR-FEEDBACK · **Owner:** Architect ·
-**Deps:** M-TASKBAR-SCROLL (done), M-TOUCH-UX (done) · **Branch:** master
+**Deps:** M-TASKBAR-SCROLL (done), M-TOUCH-UX (done), shared E0 baseline session (with
+TASK-278 — see design §Measurement plan) · **Branch:** master
+
+---
+
+### TASK-280 — Align touch injection with production dispatch (cmdTap resolvePlayerSlot + release cooldown)
+
+From the 2026-07-03 touch-UX panel (VE-3-6 / DEV review / QM-3-4). Two verified divergences
+between injected and production taskbar gestures: (1) `cmdTap`'s taskbar branch calls
+`switchApp(appIdx)` directly and skips `resolvePlayerSlot()` (`main.cpp:2390` vs `:1916`) —
+injected player-slot taps land on Spotify even when persisted mode is WebRadio, so T162's
+tap-based switch never exercises the TASK-259/260 redirect; (2) the injected taskbar release
+never sets the 300 ms post-gesture cooldown production sets (`main.cpp:1919`). Align both
+(route `cmdTap` taskbar commits through the production resolve path; set the cooldown in
+`drainInjectionQueue`'s release branch) or document them as permanent harness deltas with
+VE sign-off.
+
+**Priority:** P3 — harness fidelity · **Status:** open · **Opened:** 2026-07-03 ·
+**Milestone:** M-TASKBAR-FEEDBACK · **Owner:** Developer ·
+**Deps:** TASK-279 (design defines the shared shellTb* helpers this should reuse) ·
+**Branch:** master
+
+---
+
+### TASK-281 — QM housekeeping: duplicate LL ids + audit_log backfill
+
+From the 2026-07-03 touch-UX panel (QM review, housekeeping section). (1) `lessons_learned.md`
+carries duplicate ids for **both LL-069 and LL-070** (2026-06-13 originals vs 2026-06-28
+re-uses; the M-WIFI-DIAG panel's QM-8 flag on LL-069 was never actioned, LL-070 is a new
+find). Renumber the 2026-06-28 pair to the next free ids (LL-094/LL-095; LL-093 current max)
+and fix **BP-043's "Adopted from: LL-070"** citation, which currently resolves ambiguously.
+(2) `audit_log.md` last entry is 2026-06-27 — backfill entries for the 2026-07-02
+M-WIFI-DIAG panel and the 2026-07-02/03 touch-UX panel per the house panel-logging precedent.
+
+**Priority:** P3 — QM hygiene · **Status:** open · **Opened:** 2026-07-03 ·
+**Milestone:** — (cross-cutting QM) · **Owner:** QM ·
+**Deps:** — · **Branch:** master
