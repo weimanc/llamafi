@@ -1,6 +1,7 @@
 cspot/
 Spotify-Diy-Thing/
 resource/*
+!resource/wifi-monitor
 .claude/
 app/skins/*.wsz
 app/skins/*/

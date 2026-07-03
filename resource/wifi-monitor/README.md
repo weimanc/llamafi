@@ -1,0 +1,52 @@
+# wifi-monitor — router radio-dropout evidence collector
+
+Standalone host-side tool. No root, no monitor mode, no project dependencies —
+just `nmcli` (NetworkManager) on any Linux laptop on the same network.
+
+Born 2026-07-03: the Linksys MX5600 (FW 1.0.2.216845) was caught taking its
+**2.4 GHz radio off the air for 5–40+ second stretches** while 5 GHz stayed up.
+Confirmed by two independent observers: an ESP32 running a promiscuous-mode
+beacon watcher at the antenna (`app/tools/wifi_watch.py`, TASK-282), and this
+host's own radio via active scans. Cross-referenced evidence: M-WIFI-DIAG
+(docs/architecture/designs/M-WIFI-DIAG-outage-attribution.md), TASK-282/283.
+
+## Collect
+
+```sh
+./wifi_evidence.sh monitor                  # current SSID, 15 s samples
+./wifi_evidence.sh monitor yellowbrickroad 15
+```
+
+Runs until Ctrl-C. Appends to `logs/wifi_evidence_<SSID>.log` (gitignored).
+Leave it running for days — that's the point. For unattended collection,
+`tmux new -s wifi ./wifi_evidence.sh monitor` or a systemd user unit.
+
+An `ABSENT` verdict is only logged after an immediate confirmation rescan
+(two consecutive scan misses ~2 s apart), so single scan hiccups don't
+pollute the record.
+
+## Report (for the ISP complaint)
+
+```sh
+./wifi_evidence.sh report
+```
+
+Produces a dated outage table + availability percentage:
+
+```
+  outage  1  2026-07-03T10:03:22 -> 2026-07-03T10:04:16
+2.4 GHz: 41/312 samples absent (availability 86.9%), 7 distinct outages
+```
+
+The 5 GHz column doubles as the control: same router, same location, same
+observer — only the 2.4 GHz band drops. That's what makes it a router defect
+rather than "your WiFi environment", which is what the ISP will claim first.
+
+## What strengthens the complaint
+
+- Days of samples, not minutes (dropouts cluster in evenings here).
+- Router model + firmware version + reboot timestamps noted in the log
+  (add them: `echo "$(date +%FT%T) === NOTE router rebooted ===" >> logs/...`).
+- The 5 GHz control staying green through every 2.4 GHz outage.
+- If they ask "is it your device?": two independent radios observed the same
+  absences at the same timestamps (this tool + the ESP32 beacon watcher).
