@@ -720,6 +720,14 @@ high-bitrate stations in the list, observable but not a behaviour gate.
 
 ### TASK-232 — M-WEBRADIO: HTTPS stream playback fails on no-PSRAM hardware (MVP blocker)
 
+> **Router-confound annotation (2026-07-03, LL-096):** the HTTPS-SSL-mem-alloc failure is real and
+> reproducible (instant, memory-bound; EXP-009 bare-rig confirmed) — that diagnosis stands. BUT the
+> aside "HTTP streams dropped upstream within 5 s → per-station" was very likely the **MX5600 2.4 GHz
+> auto-channel dropout** (5–40 s off-air every 1–2 min), not station quality — a 5 s stream death is
+> indistinguishable from an AP blackout from the DUT's single vantage. The "most stations drop, few are
+> playable" impression that shaped auto-skip (TASK-234) was probably inflated by router blackouts. Re-test
+> owed: real playable-station fraction on the pinned-channel link.
+
 **Severity:** HIGH — blocks M-WEBRADIO MVP close. Found in the 2026-06-24 DUT session.
 
 **Symptom:** On the production DUT (ESP32-2432S028R, **no PSRAM**), playing any HTTPS radio
@@ -780,6 +788,15 @@ next no-PSRAM wall surfaced: the Helix MP3 decoder's buffer allocation fails int
 ---
 
 ### TASK-233 — M-WEBRADIO: MP3 decoder buffer alloc fails on no-PSRAM → unstable playback
+
+> **Router-confound annotation (2026-07-03, LL-096):** the no-PSRAM decoder-buffer heap wall is real
+> (bare-rig EXP-009 corrected the heap model; A-lite arena fixed it; a fast station held in soak) — that
+> stands. BUT "most drop within 5 s / stream dead (isRunning=0 for 5000ms)" is the *same signature* an
+> MX5600 2.4 GHz auto-channel blackout produces: TCP stall → decode starves → isRunning false. Some early
+> "genuinely dead decode" observations on this hostile link were plausibly router blackouts, not the heap.
+> The TASK-218 watchdog mechanism is correct regardless of *why* the stream died. Re-test owed: underrun
+> baseline on a fast station over the pinned-channel link (E0 idx-0 run used a slow-stream station,
+> `minBufPct 0` — not a clean device baseline; see M-WR-AUDIO-TASK §E0).
 
 **Severity:** HIGH — M-WEBRADIO MVP blocker (surfaced once TASK-232 made stations reach PLAYING).
 
@@ -900,6 +917,14 @@ TASK-262 (A-lite arena, acute fix), TASK-271 (soak — residual quantified)
 ---
 
 ### TASK-234 — M-WEBRADIO: auto-skip-on-stall (Tier 3, graduated to MVP)
+
+> **Router-confound annotation (2026-07-03, LL-096):** auto-skip-on-stall works correctly, but how
+> *aggressive* it needed to be was benchmarked on a network that was itself dropping (MX5600 2.4 GHz
+> auto-channel, now pinned). During a blackout auto-skip walks past many *good* stations and lands on one
+> when the AP returns — creating a false "most stations are dead" impression and inflating the apparent
+> skip rate. TASK-238's gate already flagged this ("conflates dead-station skips with outage skips"). The
+> mechanism is sound; its tuning should be re-evaluated on the clean link. Not a code change — a
+> measurement caveat.
 
 Per ADR-045, the already-designed §Auto-retry/auto-skip policy (M-WEBRADIO.md §Error states)
 is now MVP-mandatory on no-PSRAM hardware: the MP3 decoder fails intermittently (TASK-233), so
@@ -3973,6 +3998,16 @@ TASK-262 (promotion), TASK-248 (fetch-soak harness pattern) · **Branch:** `feat
 ---
 
 ### TASK-272 — WiFi modem power-save kills first TCP connect after idle (EHOSTUNREACH)
+
+> **Router-confound annotation (2026-07-03, LL-096) — highest re-test priority:** the signature
+> "connect-after-45 s-idle fails, connect-immediately works" was attributed to ESP32 modem power-save
+> (`WIFI_PS_MIN_MODEM`), fixed with `WiFi.setSleep(false)`. But the **MX5600 2.4 GHz auto-channel dropout**
+> (now root-caused: off-air every ~1–2 min) produces the *same* signature — a 45 s idle wait aliases into
+> a blackout window while connect-immediately catches a good moment. `setSleep(false)` verifiably helped
+> the idle test, so power-save was *at least partly* real, but the idle-correlation was plausibly the
+> router's duty cycle. **Cheap discriminator on the pinned link: `set wifiPs 1`, re-run the 45 s-idle
+> connect — still fails ⇒ power-save was real; clean ⇒ it was the router.** (This task already noted item 2
+> "suspected AP-side" — LL-096 confirms that half.)
 
 Found 2026-07-02 while driving the TASK-238 gate: every gate trial read 0 plays / 15 skips, yet the same
 build had played 11/16 stations hours earlier (EXP-012). Root-caused via DUT probes

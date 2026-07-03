@@ -4,6 +4,46 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-07-03 — M-WIFI-DIAG root cause (MX5600 auto-channel) + E0 unblock
+
+### LL-096 — 2026-07-03 — A network-correlated failure blamed on firmware for weeks was an external router defect never instrumented
+
+**Context**: The 2.4 GHz outages that plagued M-WEBRADIO (connect-fails, mid-stream stalls, "flaky
+stations", post-idle EHOSTUNREACH, the 7/10 ADR-045 gate) were finally root-caused 2026-07-03 to the
+**router**: a Linksys MX5600 with 2.4 GHz on `channel: 0` (auto-select), whose channel-optimisation
+sweeps took the radio off-air 5–40 s every 1–2 min. Proven only once a *second independent vantage*
+(a host laptop on the same LAN + a DUT promiscuous beacon watcher) observed the AP absent at the same
+timestamps, and the router's own JNAP API confirmed the auto-channel setting. Before that, individual
+failures had been attributed across ≥4 tasks to plausible on-device causes: TASK-272 (modem power-save
+idle-kill), TASK-232/233 ("per-station" stream drops / no-PSRAM heap wall), TASK-234 (station deadness
+driving auto-skip aggressiveness).
+
+**Observation**: Some of those attributions were partly real (the no-PSRAM heap wall reproduced on the
+bare rig; power-save was a genuine contributor). But the **dominant driver** — an external AP defect —
+went uninstrumented for the entire milestone because each symptom pattern-matched an on-device story
+that was accepted without a second vantage. The M-WIFI-DIAG work (TASK-274/275) correctly *suspected*
+H-A (the AP) but even it stopped at "suspected AP-side"; nobody put a second radio on the problem until
+now. This is the fourth instance of the same habit already recorded here: LL-001 (TLS blamed on certs
+before checking the clock), LL-082 (chasing the network before reading the test spec), and the
+"diagnosis-ahead-of-verification" family — *treating a plausible cause as a confirmed one*.
+
+**Root cause**: A single-vantage observer cannot distinguish "my device failed" from "the thing my
+device talks to failed." Every WebRadio failure was observed only from the DUT, which sees an AP
+dropout and a local fault identically (both present as BEACON_TIMEOUT / connect-fail / stall). Without
+an independent observer of the *shared dependency* (the AP, the API, the upstream), attribution
+defaults to the component you can see — the firmware.
+
+**Suggested improvement**: When a failure correlates with a shared external dependency (WiFi AP, a
+web API, an upstream stream), get a **second independent vantage on that dependency before attributing
+to firmware** — cheapest first: the host laptop is already on the same LAN (`resource/wifi-monitor/`
+patterns: nmcli band scan, `jnap.sh` router API, `openssl s_client` for a TLS host). A DUT-only
+symptom that the host also sees is not your bug. Candidate BP: "external-dependency failures require a
+second-vantage check before a firmware root-cause is recorded." Pairs with LL-093 (instrument
+perturbation) — the second vantage must itself not perturb (the promiscuous beacon watcher broke STA
+reconnect; the host nmcli scan did not).
+
+**Status**: open — brought to human 2026-07-03; candidate BP + retro-annotation of TASK-272/232/233/234
+
 ## Retrospective — 2026-07-02 — TASK-275 close (M-WIFI-DIAG Phase 1 + TASK-238 gate)
 
 ### LL-093 — 2026-07-02 — The instrument was also a treatment: declare probe perturbation up front
