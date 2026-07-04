@@ -52,13 +52,15 @@ change this — it's an ISP-side call (ask them for a public/static IP if you ne
 | Band | SSID | Security | Channel | Width |
 |---|---|---|---|---|
 | 2.4 GHz | `yellowbrickroad` | WPA2-Personal | **6 (pinned)** | Auto |
-| 5 GHz | `yellowbrickroad` | WPA2-Personal | auto | Auto |
+| 5 GHz | `yellowbrickroad` | WPA2-Personal | **44 (pinned)** | Auto |
 
-> The 2.4 GHz channel was manually pinned to 6 on 2026-07-03 to stop this unit's
-> auto-channel sweeps taking the radio off-air (see README.md root-cause). On a new
-> router, **pin 2.4 GHz to a fixed channel from the start** (6 tested good for the
-> ESP32's antenna here; ch 11 was worse — optimise for the weakest client's RSSI,
-> not neighbour count).
+> Both channels are manually pinned (2.4→6 on 2026-07-03, 5 GHz→44 on 2026-07-04)
+> to stop this unit's auto-channel scans taking the radios off-air. **Pin BOTH
+> bands to fixed channels on a new router** — 2.4-auto causes long blackouts, and
+> 5 GHz-auto's background scan causes short (~60 s-periodic) 2.4 blackouts; leaving
+> either on auto keeps a scan running (see README.md root-cause). Pick the 2.4
+> channel for the weakest client's RSSI, not neighbour count (6 tested good for the
+> ESP32 here; 11 was worse). 5 GHz: any non-DFS channel (44 = UNII-1, no radar scan).
 
 ## Swap procedure
 
