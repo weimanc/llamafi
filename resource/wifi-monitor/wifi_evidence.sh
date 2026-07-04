@@ -12,7 +12,14 @@
 #
 # Usage:
 #   ./wifi_evidence.sh monitor [SSID] [INTERVAL_S]   # default: current SSID, 15 s
+#   FAST24=1 sudo -E ./wifi_evidence.sh monitor ...  # 2.4-only iw mode (~1-2 s, root)
 #   ./wifi_evidence.sh report  [LOGFILE]             # outage table + availability %
+#
+# Default (nmcli) mode scans both bands; the scan itself takes ~6-8 s, which is the
+# real sampling floor (INTERVAL below ~6 just means back-to-back scans). For finer
+# resolution, FAST24=1 uses `iw` to scan 2.4 GHz only (~1-2 s) — needs root, drops
+# the 5 G control, and briefly stutters the host's own WiFi each scan. `sudo -E`
+# preserves the FAST24 env var.
 #
 # Log lives in logs/wifi_evidence_<SSID>.log (gitignored). One line per sample:
 #   2026-07-03T10:04:16 24G=present sig=82 ch=6 5G=present sig=89 ch=44 nbr24=4/71
@@ -28,7 +35,32 @@ set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"
 CMD="${1:-}"
 
+# FAST24=1 — 2.4 GHz-only mode via `iw` targeted scan (~1-2 s vs ~6-8 s dual-band).
+# REQUIRES ROOT (iw active scan needs CAP_NET_ADMIN — run the whole logger under
+# sudo). Tradeoffs: no 5 G control column (2.4-only); each scan briefly (~50-100 ms)
+# pulls the card off its own channel, so the host's own WiFi micro-stutters — fine
+# at a few-second cadence, avoid hammering. Signal is dBm here (nmcli mode is 0-100%).
+# WIFI_DEV overrides the auto-detected interface.
+scan_bands24() {  # $1=ssid -> sets G24 (present "sig ch"), NBR ("count/maxdBm"); G5=""
+    local ssid="$1" dev raw
+    dev="${WIFI_DEV:-$(nmcli -t -f DEVICE,TYPE dev | awk -F: '$2=="wifi"{print $1; exit}')}"
+    G5=""
+    raw=$(iw dev "$dev" scan freq 2412 2417 2422 2427 2432 2437 2442 2447 2452 2457 2462 2>/dev/null)
+    # Parse iw BSS blocks into "SSID<TAB>signal<TAB>freq" rows.
+    local rows
+    rows=$(echo "$raw" | awk '
+        /^BSS /            {if(s!="")print s"\t"sig"\t"fr; s="";sig="";fr=""}
+        /^[ \t]*freq:/     {fr=$2}
+        /^[ \t]*signal:/   {sig=$2}
+        /^[ \t]*SSID:/     {s=substr($0,index($0,"SSID:")+6)}
+        END                {if(s!="")print s"\t"sig"\t"fr}')
+    G24=$(echo "$rows" | awk -F'\t' -v me="$ssid" '$1==me{ch=int(($3-2407)/5); print $2"dBm "ch; exit}')
+    NBR=$(echo "$rows" | awk -F'\t' -v me="$ssid" '
+        BEGIN{c=0;mx=-200} $1!=me && $1!=""{c++; if($2+0>mx)mx=$2} END{printf "%d/%.0f", c, mx}')
+}
+
 scan_bands() {  # $1=ssid -> sets G24 G5 (empty=absent) + NBR (neighbour 2.4 control)
+    if [ "${FAST24:-0}" = 1 ]; then scan_bands24 "$1"; return; fi
     local ssid="$1" all ours
     # One scan returns every AP; extract ours + a neighbour 2.4 GHz control from it.
     all=$(nmcli -t -f SSID,BSSID,CHAN,FREQ,SIGNAL dev wifi list --rescan yes 2>/dev/null)
@@ -54,9 +86,14 @@ monitor)
     SSID="${2:-$(nmcli -t -f ACTIVE,SSID dev wifi list | awk -F: '/^yes/{print $2; exit}')}"
     INTERVAL="${3:-15}"
     [ -z "$SSID" ] && { echo "no SSID given and none active" >&2; exit 1; }
+    mode="nmcli/dual-band (~6-8 s scan floor)"
+    if [ "${FAST24:-0}" = 1 ]; then
+        [ "$(id -u)" = 0 ] || { echo "FAST24 needs root (iw active scan): run under sudo" >&2; exit 1; }
+        mode="iw/2.4-only (~1-2 s; no 5 G control; host WiFi micro-stutters per scan)"
+    fi
     LOG="$DIR/logs/wifi_evidence_${SSID}.log"
     mkdir -p "$DIR/logs"
-    echo "$(date +%FT%T) === monitor start ssid=$SSID interval=${INTERVAL}s host=$(hostname) ===" | tee -a "$LOG"
+    echo "$(date +%FT%T) === monitor start ssid=$SSID interval=${INTERVAL}s host=$(hostname) mode=$mode ===" | tee -a "$LOG"
     while true; do
         scan_bands "$SSID"
         note=""
@@ -65,7 +102,8 @@ monitor)
             [ -z "$G24" ] && note="   (confirmed by rescan)" \
                           || note=""      # first miss was a scan hiccup; G24 now set
         fi
-        echo "$(date +%FT%T) 24G=$(fmt "${G24:-}") 5G=$(fmt "${G5:-}") nbr24=${NBR:-0/0}$note" | tee -a "$LOG"
+        g5disp=$([ "${FAST24:-0}" = 1 ] && echo "n/a" || fmt "${G5:-}")
+        echo "$(date +%FT%T) 24G=$(fmt "${G24:-}") 5G=${g5disp} nbr24=${NBR:-0/0}$note" | tee -a "$LOG"
         sleep "$INTERVAL"
     done
     ;;
