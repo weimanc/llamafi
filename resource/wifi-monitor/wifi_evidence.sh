@@ -46,6 +46,10 @@ scan_bands24() {  # $1=ssid -> sets G24 (present "sig ch"), NBR ("count/maxdBm")
     dev="${WIFI_DEV:-$(nmcli -t -f DEVICE,TYPE dev | awk -F: '$2=="wifi"{print $1; exit}')}"
     G5=""
     raw=$(iw dev "$dev" scan freq 2412 2417 2422 2427 2432 2437 2442 2447 2452 2457 2462 2>/dev/null)
+    # Empty raw = scan failed (EBUSY from a concurrent scan, or transient) — NOT an
+    # outage. Signal the caller to retry instead of logging a false ABSENT.
+    if [ -z "$raw" ]; then SCAN_OK=0; G24=""; NBR="0/0"; return; fi
+    SCAN_OK=1
     # Parse iw BSS blocks into "SSID<TAB>signal<TAB>freq" rows.
     local rows
     rows=$(echo "$raw" | awk '
@@ -54,13 +58,15 @@ scan_bands24() {  # $1=ssid -> sets G24 (present "sig ch"), NBR ("count/maxdBm")
         /^[ \t]*signal:/   {sig=$2}
         /^[ \t]*SSID:/     {s=substr($0,index($0,"SSID:")+6)}
         END                {if(s!="")print s"\t"sig"\t"fr}')
-    G24=$(echo "$rows" | awk -F'\t' -v me="$ssid" '$1==me{ch=int(($3-2407)/5); print $2"dBm "ch; exit}')
+    # G24 order is "ch sig" to match fmt() (same as the nmcli path); sig in dBm.
+    G24=$(echo "$rows" | awk -F'\t' -v me="$ssid" '$1==me{ch=int(($3-2407)/5); print ch" "$2"dBm"; exit}')
     NBR=$(echo "$rows" | awk -F'\t' -v me="$ssid" '
         BEGIN{c=0;mx=-200} $1!=me && $1!=""{c++; if($2+0>mx)mx=$2} END{printf "%d/%.0f", c, mx}')
 }
 
 scan_bands() {  # $1=ssid -> sets G24 G5 (empty=absent) + NBR (neighbour 2.4 control)
     if [ "${FAST24:-0}" = 1 ]; then scan_bands24 "$1"; return; fi
+    SCAN_OK=1
     local ssid="$1" all ours
     # One scan returns every AP; extract ours + a neighbour 2.4 GHz control from it.
     all=$(nmcli -t -f SSID,BSSID,CHAN,FREQ,SIGNAL dev wifi list --rescan yes 2>/dev/null)
@@ -91,14 +97,18 @@ monitor)
         [ "$(id -u)" = 0 ] || { echo "FAST24 needs root (iw active scan): run under sudo" >&2; exit 1; }
         mode="iw/2.4-only (~1-2 s; no 5 G control; host WiFi micro-stutters per scan)"
     fi
-    LOG="$DIR/logs/wifi_evidence_${SSID}.log"
+    # FAST24 writes a SEPARATE log so it never interleaves with a default nmcli
+    # logger running against the same SSID (two writers = garbled log + colliding scans).
+    LOG="$DIR/logs/wifi_evidence_${SSID}$([ "${FAST24:-0}" = 1 ] && echo _fast24).log"
     mkdir -p "$DIR/logs"
     echo "$(date +%FT%T) === monitor start ssid=$SSID interval=${INTERVAL}s host=$(hostname) mode=$mode ===" | tee -a "$LOG"
     while true; do
         scan_bands "$SSID"
+        if [ "${SCAN_OK:-1}" = 0 ]; then sleep 1; continue; fi   # failed scan, not an outage
         note=""
         if [ -z "$G24" ]; then
             sleep 2; scan_bands "$SSID"   # confirmation rescan — two misses = ABSENT
+            [ "${SCAN_OK:-1}" = 0 ] && { sleep 1; continue; }  # rescan failed → retry, don't log
             [ -z "$G24" ] && note="   (confirmed by rescan)" \
                           || note=""      # first miss was a scan hiccup; G24 now set
         fi
