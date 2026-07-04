@@ -58,10 +58,15 @@ scan_bands24() {  # $1=ssid -> sets G24 (present "sig ch"), NBR ("count/maxdBm")
         /^[ \t]*signal:/   {sig=$2}
         /^[ \t]*SSID:/     {s=substr($0,index($0,"SSID:")+6)}
         END                {if(s!="")print s"\t"sig"\t"fr}')
-    # G24 order is "ch sig" to match fmt() (same as the nmcli path); sig in dBm.
-    G24=$(echo "$rows" | awk -F'\t' -v me="$ssid" '$1==me{ch=int(($3-2407)/5); print ch" "$2"dBm"; exit}')
+    # `iw scan` dumps the WHOLE cache (all bands), so filter to 2.4 GHz by freq
+    # (2400-2499) — else our own 5 GHz BSS (freq ~5220 -> ch 562) and 5 GHz
+    # neighbours pollute channel/signal/count. G24 order is "ch sig" to match fmt().
+    G24=$(echo "$rows" | awk -F'\t' -v me="$ssid" \
+        '$1==me && $3>=2400 && $3<2500 {ch=int(($3-2407)/5); print ch" "$2"dBm"; exit}')
     NBR=$(echo "$rows" | awk -F'\t' -v me="$ssid" '
-        BEGIN{c=0;mx=-200} $1!=me && $1!=""{c++; if($2+0>mx)mx=$2} END{printf "%d/%.0f", c, mx}')
+        BEGIN{c=0;mx=-200}
+        $1!=me && $1!="" && $3>=2400 && $3<2500 {c++; if($2+0>mx)mx=$2}
+        END{printf "%d/%.0f", c, mx}')
 }
 
 scan_bands() {  # $1=ssid -> sets G24 G5 (empty=absent) + NBR (neighbour 2.4 control)
