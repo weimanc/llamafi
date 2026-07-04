@@ -15,19 +15,34 @@
 #   ./wifi_evidence.sh report  [LOGFILE]             # outage table + availability %
 #
 # Log lives in logs/wifi_evidence_<SSID>.log (gitignored). One line per sample:
-#   2026-07-03T10:04:16 24G=present sig=82 ch=6 5G=present sig=89 ch=44
-#   2026-07-03T10:06:58 24G=ABSENT 5G=present sig=88 ch=44   (confirmed by rescan)
+#   2026-07-03T10:04:16 24G=present sig=82 ch=6 5G=present sig=89 ch=44 nbr24=4/71
+#   2026-07-03T10:06:58 24G=ABSENT 5G=present sig=88 ch=44 nbr24=4/70  (confirmed by rescan)
+# nbr24=<count>/<maxSig> = other 2.4 GHz APs seen in the SAME scan (the control:
+#   ours ABSENT while nbr24 count stays >0 = the fault is our router, not the scan).
+#
+# INTERVAL note: a forced dual-band nmcli scan takes ~6-8 s, so that is the real
+# floor — an INTERVAL below ~6 just means back-to-back scans. True 1 s sampling is
+# not possible with active scanning (would need iw single-channel or monitor mode).
 set -u
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 CMD="${1:-}"
 
-scan_bands() {  # $1=ssid -> sets G24 G5 (empty = absent)
-    local ssid="$1" scan
-    scan=$(nmcli -t -f SSID,BSSID,CHAN,FREQ,SIGNAL dev wifi list --rescan yes 2>/dev/null \
-           | grep -i "^${ssid}:")
-    G24=$(echo "$scan" | awk -F: '{n=NF; if ($(n-1) ~ /^2[0-9]{3} MHz$/) {print $(n-2)" "$NF; exit}}')
-    G5=$(echo  "$scan" | awk -F: '{n=NF; if ($(n-1) ~ /^5[0-9]{3} MHz$/) {print $(n-2)" "$NF; exit}}')
+scan_bands() {  # $1=ssid -> sets G24 G5 (empty=absent) + NBR (neighbour 2.4 control)
+    local ssid="$1" all ours
+    # One scan returns every AP; extract ours + a neighbour 2.4 GHz control from it.
+    all=$(nmcli -t -f SSID,BSSID,CHAN,FREQ,SIGNAL dev wifi list --rescan yes 2>/dev/null)
+    ours=$(echo "$all" | grep -i "^${ssid}:")
+    G24=$(echo "$ours" | awk -F: '{n=NF; if ($(n-1) ~ /^2[0-9]{3} MHz$/) {print $(n-2)" "$NF; exit}}')
+    G5=$(echo  "$ours" | awk -F: '{n=NF; if ($(n-1) ~ /^5[0-9]{3} MHz$/) {print $(n-2)" "$NF; exit}}')
+    # NBR = "<count>/<maxSignal>" of OTHER APs on 2.4 GHz in the same scan. This is
+    # the control: if ours goes ABSENT but NBR count stays >0, the scan worked and
+    # the fault is OUR router, not a host scan hiccup or general-band interference.
+    NBR=$(echo "$all" | awk -F: -v me="$ssid" '
+        BEGIN{c=0; mx=0}
+        { n=NF; if (tolower($1)!=tolower(me) && $(n-1) ~ /^2[0-9]{3} MHz$/) {
+              c++; if ($NF+0>mx) mx=$NF } }
+        END{ printf "%d/%d", c, mx }')
 }
 
 fmt() {  # $1="ch sig" or "" ; -> "present sig=N ch=N" | "ABSENT"
@@ -50,7 +65,7 @@ monitor)
             [ -z "$G24" ] && note="   (confirmed by rescan)" \
                           || note=""      # first miss was a scan hiccup; G24 now set
         fi
-        echo "$(date +%FT%T) 24G=$(fmt "${G24:-}") 5G=$(fmt "${G5:-}")$note" | tee -a "$LOG"
+        echo "$(date +%FT%T) 24G=$(fmt "${G24:-}") 5G=$(fmt "${G5:-}") nbr24=${NBR:-0/0}$note" | tee -a "$LOG"
         sleep "$INTERVAL"
     done
     ;;
