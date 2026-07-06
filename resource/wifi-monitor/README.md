@@ -75,14 +75,30 @@ periodic ACS background scan perturbs the 2.4 radio. Pinning 5 GHz to a fixed
 channel (44, non-DFS) **greatly reduced but did NOT eliminate** the blackouts.
 
 > **Correction (2026-07-06).** The initial "0 in 13 min / 302 samples" reading was
-> a quiet-spell artifact — blackouts *resumed 34 min after the 5 GHz pin* (12:35,
-> 13:23 on 2026-07-04). Honest effect: rate dropped from ~1/min (46 in 2.5 h) to
-> roughly **~1 per 30–45 min** — a large reduction, not elimination. So the 5 GHz
-> auto-channel scan is a *major contributor*, not the sole cause; a rarer residual
-> blackout source remains (another background scan, or genuine radio flakiness).
-> Lesson (LL-096 again): don't call a fix "confirmed" on a 13-minute window — a
-> periodic fault with minute-scale gaps needs hours to characterise. Still pin both
-> bands; it clearly helps.
+> a quiet-spell artifact — blackouts *resumed 34 min after the 5 GHz pin*. Two early
+> "confirmed clean" calls (13 min, then 88/113 min) were both quiet bursts that a
+> longer window disproved. Lesson (LL-096 again): a bursty periodic fault needs
+> *hours*, not minutes, to characterise — pin both bands, but don't call it fixed early.
+
+### Characterised numbers (same-instrument A/B + 5.2 h window, 2026-07-06)
+
+Clean before/after with the FAST24 logger (2.5 s, neighbour control), events =
+distinct blackouts (consecutive samples collapsed):
+
+| state | rate | worst blackout | notes |
+|---|---|---|---|
+| **AUTO** (both ch 0) | 1 per **2.1 min** | 12 s in 40 min (40 s in longer runs) | original broken state |
+| **PINNED** (both fixed) | 1 per **~13 min** avg | ~3 s | bursty: hour-scale quiet spells + active clusters (down to ~1 per 4.5 min) |
+
+So pinning both radios ≈ **6× fewer** blackouts *and* removes the *long* (5–40 s,
+DUT-killing) sweeps — the residual is short (~3 s) blips. But it is **not
+eliminated**: a persistent low-rate 2.4 twitch remains that no channel setting
+fixes (points at firmware/radio, not config). **Only the 2.4 radio drops** — the
+5 GHz radio showed **0 ABSENT vs 33 for 2.4** in the dual-band control log, i.e.
+the 2.4 radio does the off-channel background scanning; 5 GHz stays up.
+
+**Path to fully clean: firmware update or router replacement** (MX56HF FW
+1.0.2.216845, Jan 2026 — check for a newer point release; see ROUTER-SWAP.md).
 
 If a firmware update later re-enables auto-channel, re-pin (both bands). Even with
 both pinned, a low-rate 2.4 blackout residual persists — if the host confirms it
