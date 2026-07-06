@@ -75,11 +75,23 @@ static volatile uint8_t s_bgPollEnabled = 1;
 #endif
 
 // TASK-131: TLS yield — dataTask requests Spotify TLS stop so it can
-// allocate its own session from the freed heap. s_tlsYieldReq is set
-// by tlsYield(); taskBody calls client.stop() then gives the semaphore
-// and spins until tlsResume() clears the flag.
-static volatile bool     s_tlsYieldReq = false;
+// allocate its own session from the freed heap. taskBody calls client.stop()
+// then gives the semaphore and spins until every requester has resumed.
+// TASK-287: reference-counted, not a single flag — WebRadioApp::_play() and
+// a dataTask fetcher (e.g. the WebRadio station-list fetch) can both want
+// TLS yielded at once (they fire close together on WebRadio entry). A plain
+// bool let the first resume() clear the flag out from under a still-waiting
+// second requester, which then polled uselessly until another full yield
+// cycle happened to occur (functional stall, observed hanging 60s+ in DUT
+// testing). s_tlsYieldReqCount/s_tlsStopped/s_tlsYieldMux are guarded
+// together so concurrent tlsYield()/tlsResume() callers see a consistent
+// view: only the request that actually stops TLS waits on the semaphore;
+// late arrivals while already-stopped return immediately; only the last
+// tlsResume() (count back to 0) lets spotifyTask resume.
+static volatile uint8_t  s_tlsYieldReqCount = 0;  // # of outstanding tlsYield() callers
+static volatile bool     s_tlsStopped       = false;  // true once spotifyTask has ack'd for the current batch
 static SemaphoreHandle_t s_tlsYieldedSem = nullptr;
+static portMUX_TYPE       s_tlsYieldMux = portMUX_INITIALIZER_UNLOCKED;
 
 // TASK-058: poll timing — read by loop-task getters (aligned 32-bit reads; atomic on Xtensa).
 static volatile uint32_t s_lastSuccessfulPollMs = 0;  // millis() of last 200 or 204
@@ -343,13 +355,15 @@ static void taskBody(void *) {
     // TASK-131: TLS yield — stop Spotify TLS so dataTask can reuse the client
     // for its own fetch (shared-client approach avoids double-TLS-context OOM).
     // Runs after xQueueReceive so any in-flight API call has already completed.
-    // Spins (20 ms ticks) until tlsResume() clears the flag; discards the
-    // current queued request (the wake-up ACT_POLL) via continue.
-    if (s_tlsYieldReq) {
+    // TASK-287: spins until every outstanding requester has called
+    // tlsResume() (count back to 0), not just a single flag — see the
+    // s_tlsYieldReqCount comment above. Discards the current queued request
+    // (the wake-up ACT_POLL) via continue.
+    if (s_tlsYieldReqCount > 0) {
       client.stop();
       LOG_I("spotify.tls", "tls yield — client stopped");
       if (s_tlsYieldedSem) xSemaphoreGive(s_tlsYieldedSem);
-      while (s_tlsYieldReq) vTaskDelay(pdMS_TO_TICKS(20));
+      while (s_tlsYieldReqCount > 0) vTaskDelay(pdMS_TO_TICKS(20));
       LOG_I("spotify.tls", "tls yield — resumed");
       continue;
     }
@@ -549,11 +563,22 @@ void setWebRadioActive(bool active) {
 
 void tlsYield() {
   if (!s_tlsYieldedSem || !reqQueue) return;
+
+  // TASK-287: only the requester that actually flips TLS from running to
+  // stopped needs to wait — a concurrent second caller (count already >0,
+  // s_tlsStopped already true) can return immediately, TLS is already
+  // yielded for it too.
+  bool needWait;
+  portENTER_CRITICAL(&s_tlsYieldMux);
+  needWait = !s_tlsStopped;
+  s_tlsYieldReqCount++;
+  portEXIT_CRITICAL(&s_tlsYieldMux);
+  if (!needWait) return;
+
   // Drain any orphaned give from a previous timed-out yield (avoids the race
   // where the semaphore is already available from a prior cycle, making the
   // next xSemaphoreTake return immediately before spotifyTask actually stops).
   xSemaphoreTake(s_tlsYieldedSem, 0);
-  s_tlsYieldReq = true;
   // Wake the task if it is blocked in xQueueReceive
   Request r{ACT_POLL, 0};
   xQueueSendToFront(reqQueue, &r, 0);
@@ -567,13 +592,26 @@ void tlsYield() {
   constexpr uint32_t kSliceMs = 200;
   constexpr uint32_t kTotalMs = 150000;
   for (uint32_t waited = 0; waited < kTotalMs; waited += kSliceMs) {
-    if (xSemaphoreTake(s_tlsYieldedSem, pdMS_TO_TICKS(kSliceMs)) == pdTRUE) return;
+    if (xSemaphoreTake(s_tlsYieldedSem, pdMS_TO_TICKS(kSliceMs)) == pdTRUE) {
+      s_tlsStopped = true;
+      return;
+    }
+    // TASK-287: a concurrent tlsYield() call already consumed the one give()
+    // spotifyTask issues per stop event and set s_tlsStopped — stop waiting
+    // on a token that will never come again this cycle.
+    if (s_tlsStopped) return;
     esp_task_wdt_reset();
   }
 }
 
 void tlsResume() {
-  s_tlsYieldReq = false;
+  // TASK-287: only the LAST outstanding requester (count back to 0) actually
+  // lets spotifyTask resume — an earlier resume() must not clear the yield
+  // out from under a still-waiting concurrent caller.
+  portENTER_CRITICAL(&s_tlsYieldMux);
+  if (s_tlsYieldReqCount > 0) s_tlsYieldReqCount--;
+  if (s_tlsYieldReqCount == 0) s_tlsStopped = false;
+  portEXIT_CRITICAL(&s_tlsYieldMux);
 }
 
 bool enqueue(Action a, int32_t param) {

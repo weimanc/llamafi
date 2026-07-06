@@ -4529,18 +4529,42 @@ be delayed by however long a concurrently-running station-list fetch takes (wors
 mirror-retry conditions), or in the worst case block for the full 150s ceiling if nothing else
 re-triggers a yield cycle.
 
-**Suggested direction (not yet designed):** turn `s_tlsYieldReq` into a reference count (or a
-small request queue) so `tlsResume()` only actually resumes spotifyTask once every outstanding
-yield request has been resolved; alternatively, serialize station-list-fetch and playback-start so
-they structurally never overlap (e.g. don't allow `_play()` while `_pendingStations` is true).
+**Fix landed 2026-07-06:** turned the single flag into a reference count. New state in
+`spotifyTaskStorage.cpp`: `s_tlsYieldReqCount` (uint8, # of outstanding callers),
+`s_tlsStopped` (bool, true once spotifyTask has ack'd for the current batch), and
+`s_tlsYieldMux` (a `portMUX_TYPE` guarding both together, since `tlsYield()`/`tlsResume()` are
+called concurrently from different tasks/cores — a plain `count++`/`count--` isn't atomic on
+its own).
 
-**Priority:** P2 — functional stall, not a crash, but likely to reproduce in normal use (autoplay
-right after entering WebRadio, or any tap-to-play while the list is still loading) ·
-**Status:** open · **Opened:** 2026-07-06 · **Milestone:** — (candidate: M-WEBRADIO reliability) ·
-**Owner:** Developer (recommend Architect review — this is the shared TLS-handoff protocol used
-by every dataTask fetcher, not WebRadio-specific) · **Deps:** TASK-284 (raises how often the race
-window opens), TASK-286 (the fix that turned this from "crash" into "observable stall") ·
-**Branch:** master
+- `tlsYield()`: increments the count and checks `s_tlsStopped` under the critical section. If
+  already stopped (a concurrent caller already got the ack), returns immediately — no need to
+  wait, TLS is already yielded. Otherwise it's the request that needs to actually wait: drains
+  any stale semaphore give, wakes spotifyTask, then polls in 200ms slices (unchanged from
+  TASK-286's watchdog-safety fix) — but each iteration also checks `s_tlsStopped`, so if a
+  *sibling* concurrent caller wins the real semaphore token first, this caller notices within one
+  slice and returns too, instead of waiting for a token that will never come again this cycle.
+- `tlsResume()`: decrements the count under the critical section; only when it reaches 0 does it
+  clear `s_tlsStopped`, which is what lets spotifyTask's own `while (s_tlsYieldReqCount > 0)`
+  wait-loop (`spotifyTaskStorage.cpp:360-367`, updated from the old bool check) exit and resume
+  normal polling.
+- `spotifyTask`'s body: the `if (s_tlsYieldReq)` / `while (s_tlsYieldReq)` checks became
+  `if (s_tlsYieldReqCount > 0)` / `while (s_tlsYieldReqCount > 0)` — otherwise unchanged (still one
+  `client.stop()` + one semaphore `give()` per batch).
+
+**Verified on DUT:** reflashed debug firmware, repeated the exact repro that showed the stall
+(`switchApp 10` → immediate `set wrUrl <url>`, racing the station-list fetch's own yield/resume).
+`_play()` now returns from `tlsYield()` in ~50ms instead of hanging 60s+; full connect → MP3
+decode → `StreamTitle` log observed within ~3s on `icecast.omroep.nl`, and same fast resolution on
+the BBC Radio 2 URL. The concurrent station-list fetch's own mirror GETs sometimes fail under the
+resulting heap pressure (SSL context alloc failure — both operations now proceed at once instead
+of serializing on the stall) but that's a pre-existing TASK-284-adjacent resource-contention
+question, not a regression from this fix — no crash, no hang either way. `./run/check` 6/6 green.
+Production firmware restored to the DUT afterward.
+
+**Priority:** P2 · **Status:** **fixed 2026-07-06**, verified on DUT · **Opened:** 2026-07-06 ·
+**Milestone:** — (candidate: M-WEBRADIO reliability) · **Owner:** Developer · **Deps:** TASK-284
+(the resource-contention side effect noted above, if it turns out to matter in practice),
+TASK-286 (the watchdog-safety fix this builds on) · **Branch:** master
 
 ---
 
