@@ -70,17 +70,26 @@ two co-channel neighbours. Compare host `sig` vs the DUT beacon `rssi`
 **Pin BOTH radios — the 5 GHz auto-channel scan perturbs 2.4 GHz.** After pinning
 2.4 GHz, a *second*, shorter blackout remained: brief (~2–9 s) 2.4 GHz drops on a
 hard ~60 s period, invisible to the coarse ~8 s nmcli logger but caught by FAST24
-(2.5 s). Root cause: **5 GHz was still on auto-channel** (`channel: 0`), and its
-periodic ACS background scan briefly perturbs the 2.4 radio. Pinning 5 GHz to a
-fixed channel (44, non-DFS) stopped it — confirmed 2026-07-04: baseline ~1
-blackout/min → **0 in 13 min / 302 samples** after the 5 GHz pin. So pin *both*
-bands to fixed channels; leaving either on auto keeps a scan running.
+(2.5 s). Likely cause: **5 GHz was still on auto-channel** (`channel: 0`), whose
+periodic ACS background scan perturbs the 2.4 radio. Pinning 5 GHz to a fixed
+channel (44, non-DFS) **greatly reduced but did NOT eliminate** the blackouts.
 
-If a firmware update later re-enables auto-channel, re-pin (both bands). If a 2.4
-radio still blackouts on a *fixed* channel with BOTH bands pinned **and the host
-confirms it ABSENT** (not just the DUT), that's a hardware/firmware defect with no
-config workaround — escalate with the outage report below. A DUT-only drop while
-the host sees the AP present is a client-side margin issue, not a router fault.
+> **Correction (2026-07-06).** The initial "0 in 13 min / 302 samples" reading was
+> a quiet-spell artifact — blackouts *resumed 34 min after the 5 GHz pin* (12:35,
+> 13:23 on 2026-07-04). Honest effect: rate dropped from ~1/min (46 in 2.5 h) to
+> roughly **~1 per 30–45 min** — a large reduction, not elimination. So the 5 GHz
+> auto-channel scan is a *major contributor*, not the sole cause; a rarer residual
+> blackout source remains (another background scan, or genuine radio flakiness).
+> Lesson (LL-096 again): don't call a fix "confirmed" on a 13-minute window — a
+> periodic fault with minute-scale gaps needs hours to characterise. Still pin both
+> bands; it clearly helps.
+
+If a firmware update later re-enables auto-channel, re-pin (both bands). Even with
+both pinned, a low-rate 2.4 blackout residual persists — if the host confirms it
+ABSENT (not just the DUT) while neighbours stay present, that's a router
+hardware/firmware defect with no config workaround — escalate with the outage
+report below. A DUT-only drop while the host sees the AP present is a client-side
+margin issue, not a router fault.
 
 ## What strengthens the complaint
 

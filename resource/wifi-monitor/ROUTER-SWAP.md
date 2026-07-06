@@ -55,12 +55,15 @@ change this — it's an ISP-side call (ask them for a public/static IP if you ne
 | 5 GHz | `yellowbrickroad` | WPA2-Personal | **44 (pinned)** | Auto |
 
 > Both channels are manually pinned (2.4→6 on 2026-07-03, 5 GHz→44 on 2026-07-04)
-> to stop this unit's auto-channel scans taking the radios off-air. **Pin BOTH
+> to reduce this unit's auto-channel scans taking the radios off-air. **Pin BOTH
 > bands to fixed channels on a new router** — 2.4-auto causes long blackouts, and
 > 5 GHz-auto's background scan causes short (~60 s-periodic) 2.4 blackouts; leaving
 > either on auto keeps a scan running (see README.md root-cause). Pick the 2.4
 > channel for the weakest client's RSSI, not neighbour count (6 tested good for the
 > ESP32 here; 11 was worse). 5 GHz: any non-DFS channel (44 = UNII-1, no radar scan).
+> Note: pinning both **greatly reduced but did not fully eliminate** the 2.4
+> blackouts on this MX5600 (~1/min → ~1 per 30–45 min); a rarer residual persists,
+> likely a genuine radio defect — reason enough to prefer a different router.
 
 ## Swap procedure
 
