@@ -438,7 +438,7 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ### BP-043 — Fresh-agent handover prompts must include an explicit commit step
 
-**Adopted from**: LL-070  
+**Adopted from**: LL-095  
 **Date adopted**: 2026-06-28  
 **Rule**: Every handover prompt written for a fresh agent performing an implementation task must include an explicit final step: "Commit all changes on `<branch>` with a conventional commit message referencing the task ID."  
 **Rationale**: Agents complete and verify code but treat committing as optional unless instructed. The omission is systematic — any prompt without a commit step reproduces the gap. Silent uncommitted state is caught only by `git status`, not by a passing build check, and requires PM to clean up manually.  

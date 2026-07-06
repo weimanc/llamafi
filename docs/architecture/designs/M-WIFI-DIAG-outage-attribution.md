@@ -5,7 +5,7 @@
 > Trigger: TASK-238 (ADR-045 gate) blocked 7/10 by unattributed network outages; TASK-272/273 fixed the
 > two firmware defects the gate surfaced, but the *residual* outages remain unexplained.
 > Couples: TASK-238 (consumer of the verdict), TASK-272 (power-save fix), TASK-273 (skip pacing),
-> `run/wr-gate` harness. Related lessons: LL-069 (sensor-blind gates), LL-082/LL-087 (minimal isolating
+> `run/wr-gate` harness. Related lessons: LL-094 (sensor-blind gates; was LL-069 before TASK-281 renumber), LL-082/LL-087 (minimal isolating
 > control beats subtracting from the complex artifact), LL-091 (observe ground truth, don't infer it).
 
 ## 1. Context & problem statement

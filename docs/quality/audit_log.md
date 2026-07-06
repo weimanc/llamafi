@@ -1305,6 +1305,32 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 
 ---
 
+### Audit — 2026-07-02 — M-WIFI-DIAG design 3-agent panel review (PM/QM/VE)
+**Triggered by**: Architect (pre-implementation feasibility/quality panel on the outage-attribution design)
+**Areas checked**:
+- [x] Documentation currency (design vs. code claims)
+- [x] Test coverage / gate criteria (agent-executable exit rules)
+- [x] Cross-cutting process compliance (BP conformance, evidence discipline)
+
+**Findings**: PM/QM/VE returned approve-with-changes; blockers/majors applied in place (VE-1 harness-reset destroys async evidence; VE-3/QM-3 firmware bucket = absence-of-evidence; QM-1 gate not agent-executable; QM-2 sensor positive control). QM-8: duplicate LL-069 id flagged, deferred as "handled outside this doc."
+**Actions assigned**: Architect — disposition into design §7-8 (done); QM — action the duplicate-LL flag (deferred → TASK-281).
+**Resolution**: Design approved (human, 2026-07-02); TASK-274/275 filed and closed. QM-8 carried to TASK-281.
+
+---
+
+### Audit — 2026-07-03 — Touch-UX design trio 3-agent panel review (VE/DEV/QM)
+**Triggered by**: Architect (panel on M-WR-PLEDIT-SCROLL / M-WR-AUDIO-TASK / M-TASKBAR-FEEDBACK, TASK-277/278/279)
+**Areas checked**:
+- [x] Documentation currency (every code line-ref verified against tree)
+- [x] Test coverage / testability (exit criteria agent-executable via run/ + serialdbg)
+- [x] Cross-cutting process compliance (BP/LL conformance, evidence discipline)
+
+**Findings**: all three docs approve-with-changes ×3. 1 blocker (VE-1-1/DEV-1-1: injected-drag Release reroute + gesture-captures-Release), several cross-doc majors (perf MAX_PATHS silent overflow; shared-baseline sequencing; ESP32-audioI2S mutex-hold under `connecttohost`). **New find: LL-070 duplicate id** (second dup alongside the never-actioned LL-069) → both carried to TASK-281. BP-043's "Adopted from: LL-070" cite noted as ambiguous.
+**Actions assigned**: Architect — disposition all findings (done, commit 31a4b41); QM — file the duplicate-LL housekeeping (TASK-281).
+**Resolution**: Designs accepted (human, 2026-07-03). Panel reviews retained under `docs/architecture/designs/touch-ux-panel-*-review.md`.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:
