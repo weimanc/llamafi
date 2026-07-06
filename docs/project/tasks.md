@@ -4191,10 +4191,20 @@ WiFi-heavy core 0), task lifecycle on play/stop/eject/app-switch, locking around
 shared `Audio` object (ICY queue already exists), stack sizing under the A-lite arena
 heap ceiling, WDT interaction, and failure modes (task starvation vs. current inline model).
 
-**Priority:** P2 — UX (shell-wide latency during playback) · **Status:** design
-panel-reviewed 2026-07-03 (approve-with-changes ×3, dispositions applied) — **approved 2026-07-03 (human)** · **Opened:** 2026-07-02 · **Milestone:** M-WR-AUDIO-TASK · **Owner:** Architect ·
+**Priority:** P2 — UX (shell-wide latency during playback) · **Status:** **Phase 1
+implemented 2026-07-03** — `webRadioApp.h`: dedicated `wrAudio` pump task (core 1,
+prio 2, 8 KB stack, created lazily at first `_play()` after `mb_arena_acquire()`,
+torn down via ack-then-self-delete in `suspend()`); single mutex around every Audio
+method (control calls block, per-tick reads timeout-take + degrade to last snapshot);
+`get wrPump` + `get stacks` observability; `wr.connect`/`wr.pump` perf slots
+(`MAX_PATHS` 8→10); `wrVol` DEV-2-4 clamp-store-only fix. Builds clean on
+cyd2usb_winamp/_debug/_webradio; `./run/check` 6/6 (E5). **Not yet DUT-validated** —
+E1 (UI tail latency vs the 141 ms/6-spike E0 baseline), E2 (`wr-soak` underrun
+regression), E3 (state-machine + real-stream-death teardown gate), E4 (stack HWM /
+arena headroom) still open.
+panel-reviewed 2026-07-03 (approve-with-changes ×3, dispositions applied) — approved 2026-07-03 (human) · **Opened:** 2026-07-02 · **Milestone:** M-WR-AUDIO-TASK · **Owner:** Developer ·
 **Deps:** M-WEBRADIO (done), M-WEBRADIO-NOPSRAM (arena constraint), shared E0 baseline
-session (with TASK-279 — see design E0) · **Branch:** master
+session (done — see design doc) · **Branch:** master
 
 ---
 
@@ -4309,3 +4319,247 @@ down, 30 s pace, unbounded; suppressed while Settings foreground; `kicks` counte
 **DUT-validated 2026-07-03**: kick fired at exactly 60 s down (`[wifi-sup] kick=N downMs=60000`), link recovered within 1 s, both under the pre-fix cycling AP and post-fix in the clean no-promiscuous config. Anchor fix (a9a2938) confirmed — no false-instant trip · **Opened:** 2026-07-03 ·
 **Milestone:** M-WIFI-DIAG · **Owner:** Developer · **Deps:** TASK-282 (probe), TASK-274 ·
 **Branch:** master
+
+---
+
+### TASK-284 — WebRadio station-list fetch: both radio-browser.info mirrors return truncated JSON (IncompleteInput)
+
+Found 2026-07-06 attempting TASK-278 E1 DUT validation. Fresh boot, `switchApp` into WebRadio
+kicks the fetch normally, but both configured mirrors fail identically:
+```
+[I][dataTask.webradio] GET mirror=de1.api.radio-browser.info code=200 elapsed=2638ms
+[W][dataTask.webradio] JSON err mirror=de1.api.radio-browser.info: IncompleteInput
+[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=200 elapsed=2479ms
+[W][dataTask.webradio] JSON err mirror=all.api.radio-browser.info: IncompleteInput
+[W][webradio] station fetch failed ok=0 http=-100 jsonErr=IncompleteInput
+```
+HTTP 200 on both, but the JSON body is truncated before the parser completes — `wrCount` stays 0
+permanently (`pending` correctly flips 1→0, so the fetch *did* run and *did* fail, this isn't a
+stuck-pending bug). Effect: WebRadio can never leave STOPPED via the normal station-list path,
+which blocks TASK-278's E1/E2/E3 wr_playing measurement entirely (`set wrUrl` direct-station
+injection is the known workaround — used for E3's real-stream-death case already). Not caused by
+the TASK-278 diff — `dataTask`'s HTTP/JSON station-list path is untouched by that change.
+**Not yet root-caused**: could be a response-buffer-too-small truncation in the dataTask HTTP
+client, a timeout cutting the body short, or an actual upstream API change/outage on both mirrors
+simultaneously (less likely, but check by hand before assuming firmware-side).
+
+**Priority:** P2 — blocks TASK-278 DUT validation (wr_playing state unreachable normally) ·
+**Status:** open · **Opened:** 2026-07-06 · **Milestone:** M-WR-AUDIO-TASK ·
+**Owner:** Developer · **Deps:** — · **Branch:** master
+
+---
+
+### TASK-285 — `connecttohost()` can block loopTask long enough to trip task_wdt → device reboot
+
+**UPDATED 2026-07-06 — bisected, root cause reframed.** Originally filed as a one-off boot-time
+crash; reproduced **3 more times** the same session, always the same signature, always ~15s after
+a WebRadio PLAY is issued:
+```
+[I][webradio] play idx=0 name=INJECTED url=http://stream.live.vc.bbcmedia.co.uk/bbc_radio_two
+  ...~15s later...
+E (109114) task_wdt: Task watchdog got triggered — loopTask (CPU 1) did not reset in time
+abort() was called at PC 0x4012d3a8 on core 0
+Backtrace: 0x40083b91:0x3ffbffcc |<-CORRUPTED
+Rebooting...
+```
+**Bisected against unmodified pre-TASK-278 master** (`git stash` the Phase-1 diff, reflash,
+same repro: `switchApp` WebRadio → `set wrUrl` BBC Radio 2 → tap PLAY): **crash reproduces
+identically** — same ~15s timing, same signature, same station. This rules out TASK-278's
+mutex/pump-task code entirely; `wrAudio().connecttohost()` was already called synchronously from
+`_play()` on loopTask/tap-dispatch context before this diff, mutex or not.
+
+**Root cause hypothesis:** `Audio::connecttohost()` for this particular stream (BBC Radio 2's
+URL is a redirect/playlist-resolving endpoint, per DEV-2-1's note that `Audio::loop()` re-enters
+`connecttohost()` internally on redirect/reconnect/playlist paths) blocks synchronously for ~15s
+without yielding, long enough to starve the task watchdog on whichever task called it. Also
+reproduced once against a real fetched station (`Radio Stad Centraal`,
+`http://83.87.109.251:8012/listen`) — so not BBC-specific; likely any slow/redirect-chasing
+connect target trips it. The original "boot-time WiFi disconnect" framing was a red herring — no
+WebRadio call was involved in that first sighting, but the same 15s-blocking-call-starves-wdt
+mechanism could apply to more than one blocking call site; needs a symbolized backtrace to
+confirm both sightings share one root cause vs. two similar-looking ones.
+
+**UPDATE 2026-07-06 (later same day) — TASK-286's fix landed, crash still reproduced, real
+mechanism found.** After implementing TASK-286's `Audio.cpp` patch, the DUT repro (fresh debug
+build, `switchApp` WebRadio → `set wrUrl <url>` → watch) **still crashed**, identical signature,
+on all three test URLs including a known-fast/working control stream
+(`http://icecast.omroep.nl/radio2-bb-mp3`) that was never expected to be slow. Added timestamped
+probes through `WebRadioApp::_play()`; the crash consistently landed *before* the probe placed
+right after `spotifyTask::tlsYield()` ever printed — i.e. inside `tlsYield()` itself, not inside
+`connecttohost()`. See **TASK-286** for the corrected root cause and the actual fix
+(`spotifyTaskStorage.cpp`'s `tlsYield()`, now watchdog-safe). Re-verified: all three URLs
+(BBC Radio 2 hostname, Radio Stad Centraal raw-IP, icecast.omroep.nl control) now survive
+25-30s post-connect with no `task_wdt`/reboot on the patched firmware.
+
+The Audio.cpp version-guard bug (TASK-286's original finding) is real, still fixed, and worth
+keeping — it just wasn't what caused this particular crash. See TASK-287 for a newly-exposed
+concurrency issue in the shared TLS-yield protocol, and TASK-288 for an unrelated boot-time
+crash hit repeatedly during this session's DUT cycling.
+
+**Priority:** P1 · **Status:** **fixed 2026-07-06** — see TASK-286 for the landed patch;
+verified no-crash on 3 repro URLs on `cyd2usb_winamp_debug` · **Opened:** 2026-07-06 ·
+**Milestone:** — (candidate: new M-WEBRADIO reliability item) · **Owner:** Developer ·
+**Deps:** — · **Branch:** master
+
+---
+
+### TASK-286 — Fix: `Audio.cpp` version guard mis-fires on Arduino-ESP32 2.0.17, inflates connect timeout to 65s
+
+**UPDATE 2026-07-06 — this was NOT the TASK-285 crash's root cause; the real one was found and
+fixed separately (see below).** The version-guard bug described in the original write-up below is
+real and the patch was applied (`app/lib/ESP32-audioI2S/src/Audio.cpp:485-490`, gated the
+`UINT16_MAX` timeout on `IPAddress::fromString(hostwoext)` in addition to the version check). But
+DUT verification after landing that patch showed the crash **still reproduced identically**,
+including on a control URL (`icecast.omroep.nl`) with no reason to be slow — proving the guard
+bug wasn't the actual trigger for these repros.
+
+**Actual root cause (confirmed via timestamped serial probes through `WebRadioApp::_play()`,
+2026-07-06):** `spotifyTask::tlsYield()` (`app/src/spotifyTaskStorage.cpp:549-562`), called from
+`_play()` to free the shared TLS client before a WebRadio connect, did:
+```cpp
+xSemaphoreTake(s_tlsYieldedSem, pdMS_TO_TICKS(150000));  // one giant blocking take, no WDT feed
+```
+`spotifyTask` only notices the yield request (`s_tlsYieldReq`) once per its own outer-loop
+iteration — i.e. only after whatever Spotify API call it's currently in the middle of finishes.
+Every repro session had `spotifyTask` stuck retrying a failing token refresh
+(`Failed to get access tokens` / `POST /api/token -> -1`, the already-tracked **TASK-243** lapsed-
+Premium blocker). So: enter WebRadio while `spotifyTask` is wedged on a stalled Spotify call →
+`tlsYield()` blocks `loopTask` on that single semaphore take, unfed, past the runtime task-watchdog
+window (`main.cpp:1946-1949` extends it to **15s** at boot, not the 5s Kconfig default) → `task_wdt`
+abort → reboot. This explains why the crash reproduced on a fast, working control stream too — the
+block has nothing to do with the target URL or `connecttohost()` at all.
+
+**Fix landed:** `spotifyTaskStorage.cpp`'s `tlsYield()` now polls in 200ms slices (same 150s
+ceiling) with `esp_task_wdt_reset()` between each, instead of one blocking take:
+```cpp
+constexpr uint32_t kSliceMs = 200, kTotalMs = 150000;
+for (uint32_t waited = 0; waited < kTotalMs; waited += kSliceMs) {
+    if (xSemaphoreTake(s_tlsYieldedSem, pdMS_TO_TICKS(kSliceMs)) == pdTRUE) return;
+    esp_task_wdt_reset();
+}
+```
+**Verified:** rebuilt debug firmware, reflashed, reran all three repro URLs (BBC Radio 2 hostname,
+Radio Stad Centraal raw-IP, icecast.omroep.nl control) — zero crashes across multiple runs each
+(25-30s post-connect observation). `./run/check` 6/6 green with both patches in. Production
+firmware (`cyd2usb_winamp`) reflashed to the DUT afterward to restore normal state.
+
+**New follow-ups opened from this investigation:** TASK-287 (the same fix exposed a pre-existing
+race in the single-flag TLS-yield/resume protocol — concurrent yield requesters can stall each
+other, no longer a crash but a real functional delay) and TASK-288 (a separate, unrelated
+boot-time `task_wdt` crash hit repeatedly during this session's DUT cycling, tied to WiFi still
+stabilizing during the boot-time Spotify token refresh).
+
+---
+
+**Original write-up (superseded above as root cause, patch kept as a valid independent fix):**
+
+Root cause for the TASK-285 crash, confirmed 2026-07-06 by reading source (not just log inference).
+
+**Confirmed mechanism**, `app/lib/ESP32-audioI2S/src/Audio.cpp:485-488`:
+```cpp
+if(ESP_ARDUINO_VERSION_MAJOR == 2 && ESP_ARDUINO_VERSION_MINOR == 0 && ESP_ARDUINO_VERSION_PATCH >= 3){
+    m_timeout_ms_ssl = UINT16_MAX;  // bug in v2.0.3 if hostwoext is a IPaddr not a name
+    m_timeout_ms = UINT16_MAX;      // [WiFiClient.cpp:253] connect(): select returned due to timeout 250 ms for fd 48
+}
+```
+This is a narrow workaround for an **Arduino-ESP32 v2.0.3-specific** bug (IP-literal hosts only).
+The guard is `PATCH >= 3`. This project pins Arduino-ESP32 **2.0.17**
+(`~/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp_arduino_version.h`:
+`ESP_ARDUINO_VERSION_PATCH` = 17) — `17 >= 3` is true, so the guard **mis-fires on every build**,
+for every host (not just IP literals, since it doesn't actually check host type at all). Effect:
+`m_timeout_ms` goes from the intended 250ms (HTTP) / `m_timeout_ms_ssl` from 2700ms (HTTPS) to
+`UINT16_MAX` ≈ **65.5 seconds**, for every single `connecttohost()` call.
+
+That timeout is passed straight into `WiFiClient::connect()`
+(`framework-arduinoespressif32/libraries/WiFi/src/WiFiClient.cpp:254`), which blocks on **one
+single `select()` syscall** for the full duration — no yield points, no watchdog feed possible
+mid-call. Any station whose TCP handshake takes longer than the task watchdog's window (comfortably
+under the 65s ceiling — observed ~15s twice) blocks `loopTask` uninterruptibly and trips
+`task_wdt` → hard abort → reboot (TASK-285's crash log). Reproduced on both BBC Radio 2's CDN
+endpoint and a raw-IP Dutch station, and on both pre- and post-TASK-278 code — entirely inside
+this vendored library, unrelated to the M-WR-AUDIO-TASK diff.
+
+**Recommended fix (option 1 — smallest surgical patch):** tighten the guard so it only widens the
+timeout for the case it actually claims to fix — an IP-literal host, not a name — restoring the
+250ms/2700ms defaults for the normal (hostname) path on 2.0.17. Needs an `isIPAddr(hostwoext)`-
+style check (or reuse of whatever IP-string detection already exists elsewhere in this file/repo)
+gating the existing `m_timeout_ms = UINT16_MAX` assignment, rather than the version check alone.
+
+**Other options considered, not recommended for the first pass:** (2) cap the widened timeout to a
+few seconds regardless of host type — simpler but doesn't restore the original intended defaults;
+(3) move the connect off the watchdog-subscribed task entirely — correct long-term direction but a
+materially bigger change, and overlaps with TASK-278's territory (which deliberately left connect
+blocking as an accepted risk per VE-2-5 — this finding means that acceptance should be revisited
+once this task lands, since a slow connect can now be shown to crash the device, not just stall
+the UI).
+
+**Priority:** P1 · **Status:** **patch landed 2026-07-06** (valid fix for the version-guard bug
+itself; superseded as TASK-285's root cause — see update at top of this entry) ·
+**Opened:** 2026-07-06 · **Milestone:** — (candidate: new M-WEBRADIO reliability item) ·
+**Owner:** Developer · **Deps:** TASK-285 (symptom/repro) · **Branch:** master
+
+---
+
+### TASK-287 — `tlsYield()`/`tlsResume()` share a single flag/semaphore with no request-counting — concurrent callers race
+
+Discovered while verifying TASK-286's `tlsYield()` watchdog fix. `spotifyTask::tlsYield()` /
+`tlsResume()` (`app/src/spotifyTaskStorage.cpp`) coordinate handoff of the shared Spotify TLS
+client via one global `s_tlsYieldReq` bool + one binary semaphore — designed for a single
+requester at a time. In practice at least two independent callers can want it yielded
+concurrently: `WebRadioApp::init()`'s station-list fetch (`dataTaskStorage.cpp` —
+`fetchWebRadioStations()`) and `WebRadioApp::_play()` (`webRadioApp.h:944`), which fire close
+together on WebRadio entry (`switchApp 10` kicks the station fetch; an immediate `set wrUrl` /
+autoplay triggers `_play()` moments later).
+
+**Observed (DUT, post-TASK-286 fix, `icecast.omroep.nl` control run):** station-list fetch's own
+`tlsYield()`/`tlsResume()` pair completed normally (~8s, several mirror retries per TASK-284).
+Meanwhile `_play()`'s own `tlsYield()` call, issued ~0.05s after the fetch's, never returned within
+a 60s observation window — no crash (TASK-286's polling fix keeps the watchdog fed), but
+`_play()` never got past that call, i.e. WebRadio playback silently stalls. Mechanism: both
+callers set the shared `s_tlsYieldReq = true`; `spotifyTask` does exactly one `client.stop()` +
+one semaphore `give()` per request cycle; whichever caller's `xSemaphoreTake()` wins consumes the
+one token, the other keeps polling for a give that won't happen again until another full yield
+cycle is triggered. When the first caller (station fetch) finishes and calls `tlsResume()`, it
+clears the flag out from under the second caller (`_play()`), which had no way to signal "I still
+need this" — `spotifyTask` sees the flag false and resumes normal operation without ever knowing
+`_play()` was still waiting.
+
+**Impact:** not a crash (post-TASK-286), but a real functional stall — WebRadio playback-start can
+be delayed by however long a concurrently-running station-list fetch takes (worse under TASK-284's
+mirror-retry conditions), or in the worst case block for the full 150s ceiling if nothing else
+re-triggers a yield cycle.
+
+**Suggested direction (not yet designed):** turn `s_tlsYieldReq` into a reference count (or a
+small request queue) so `tlsResume()` only actually resumes spotifyTask once every outstanding
+yield request has been resolved; alternatively, serialize station-list-fetch and playback-start so
+they structurally never overlap (e.g. don't allow `_play()` while `_pendingStations` is true).
+
+**Priority:** P2 — functional stall, not a crash, but likely to reproduce in normal use (autoplay
+right after entering WebRadio, or any tap-to-play while the list is still loading) ·
+**Status:** open · **Opened:** 2026-07-06 · **Milestone:** — (candidate: M-WEBRADIO reliability) ·
+**Owner:** Developer (recommend Architect review — this is the shared TLS-handoff protocol used
+by every dataTask fetcher, not WebRadio-specific) · **Deps:** TASK-284 (raises how often the race
+window opens), TASK-286 (the fix that turned this from "crash" into "observable stall") ·
+**Branch:** master
+
+---
+
+### TASK-288 — Boot-time `task_wdt` crash during Spotify token refresh while WiFi still stabilizing
+
+Hit repeatedly (5-6 of ~9 DUT cycles) while verifying TASK-286/287 — always at the same point:
+WiFi disconnects/reconnects a few times right after boot (`STA_DISCONNECTED reason=201/202`,
+sometimes landing on an invalid `IP address: 0.0.0.0` before a real one), then `setup()`'s
+`Refreshing Access Tokens` call (Spotify token refresh, runs synchronously on `loopTask` at boot)
+blocks long enough to trip `task_wdt` → `abort()` → reboot. Same signature as TASK-285's crash
+(`loopTask` fails to reset in time) but a distinct code path — this happens before any WebRadio
+interaction, during the boot-time Spotify auth flow, and is plausibly the same class of bug as
+TASK-286 (a blocking network call with no watchdog feed) but in a different call site. Not
+investigated further this session — flagging so it isn't lost. May already be partly explained by
+the known AP-side WiFi flapping (see WiFi-flapping memory notes) making the boot-time connect
+window unusually long on this test AP; needs its own repro/bisect before assuming the fix is the
+same shape as TASK-286's.
+
+**Priority:** P2 — intermittent, tied to this test AP's WiFi flakiness, but same failure mode
+(hard reboot) as TASK-285/286 · **Status:** open, not investigated · **Opened:** 2026-07-06 ·
+**Milestone:** — · **Owner:** unassigned · **Deps:** — (possibly related to the WiFi-flapping
+AP-side work already tracked elsewhere) · **Branch:** master

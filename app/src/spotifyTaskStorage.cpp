@@ -15,6 +15,7 @@
 #include "logDecode.h"
 #include "logHeartbeat.h"
 #include "perf.h"
+#include <esp_task_wdt.h>
 
 extern WiFiClientSecure client;
 extern long             songStartMillis;  // spotifyLogic.h global
@@ -558,7 +559,17 @@ void tlsYield() {
   xQueueSendToFront(reqQueue, &r, 0);
   // Wait for task ack (up to 150 s — covers worst-case 2 API calls × 75 s
   // each = 150 s, with 30 s handshake + 15 s recv × 2 per call).
-  xSemaphoreTake(s_tlsYieldedSem, pdMS_TO_TICKS(150000));
+  // TASK-286: polled in short slices rather than one blocking 150 s take —
+  // a caller on loopTask (e.g. WebRadioApp::_play()) would otherwise never
+  // feed the TWDT while spotifyTask is stuck mid-API-call (observed with
+  // TASK-243's stalled token refresh), tripping the watchdog and hard-
+  // crashing the device well before the 150 s ceiling (TASK-285).
+  constexpr uint32_t kSliceMs = 200;
+  constexpr uint32_t kTotalMs = 150000;
+  for (uint32_t waited = 0; waited < kTotalMs; waited += kSliceMs) {
+    if (xSemaphoreTake(s_tlsYieldedSem, pdMS_TO_TICKS(kSliceMs)) == pdTRUE) return;
+    esp_task_wdt_reset();
+  }
 }
 
 void tlsResume() {
