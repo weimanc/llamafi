@@ -60,6 +60,10 @@ public:
   // Taskbar gesture API (M-TASKBAR-SCROLL) — called from appHandleInput().
   int  tbScrollOffset() const { return _tbScrollOffset; }
   bool tbIsDragging()   const { return dragState == D_TASKBAR_SCROLL; }
+  // TASK-279 (DEV-3-1): scroll-start signal for the shell's press-highlight cancel —
+  // tbGestureContinue() returns true only on ≥1-slot steps, so dead-zone-exceeded with
+  // sub-slot travel is otherwise unobservable from the shell.
+  bool tbIsScrolling()  const { return _tbIsScrolling; }
 
   void tbGesturePress(int y) {
     _tbDragStartY  = y;

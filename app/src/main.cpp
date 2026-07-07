@@ -1817,18 +1817,94 @@ void persistPlayerMode(uint8_t mode) {
   SettingsStorage::save();
 }
 
+// ── Taskbar tap feedback (M-TASKBAR-FEEDBACK / TASK-279) ──────────────────
+// Single shared helper set [VE-3-1 + DEV-3-6]: paint + stable-prefix log live here,
+// invoked from BOTH dispatch sites (appHandleInput and drainInjectionQueue) so the
+// injected path the measurement plan depends on cannot drift from production.
+// Press-anchored commit [DEV-3-2]: the slot captured at Press is also the slot the
+// tap commits — release-y is never re-resolved (resistive-panel jitter inside the
+// dead zone could otherwise highlight slot A and switch slot B).
+static int s_tbPressedSlot = -1;  // visible slot highlighted at Press; -1 = none
+static int s_tbPressedApp  = -1;  // press-anchored app index (highlight == commit)
+
+// F-a: pressed-slot highlight, same loop iteration as the Press sample.
+static void shellTbPress(int y) {
+  int slot = y / TASKBAR_SLOT_H;
+  if (slot < 0 || slot >= TASKBAR_SLOT_COUNT) return;  // y is 0..239 → 0..5, defensive
+  s_tbPressedSlot = slot;
+  s_tbPressedApp  = (winampDisplay.tbScrollOffset() + slot) % TASKBAR_APP_COUNT;
+  renderTaskbarSlot(tft, slot, currentAppId,
+                    winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
+                    g_shellBusy, shell::activeError(), shell::activeConnecting(),
+                    /*pressed=*/true);
+#ifdef SERIAL_DEBUG
+  Serial.printf("[shell] tb-press slot=%d\n", slot);
+#endif
+}
+
+// F-a: cancel the highlight — scroll-start (dead zone exceeded) or a tap that
+// resolves to the already-active app. Idempotent.
+static void shellTbCancel() {
+  if (s_tbPressedSlot < 0) return;
+  renderTaskbarSlot(tft, s_tbPressedSlot, currentAppId,
+                    winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
+                    g_shellBusy, shell::activeError(), shell::activeConnecting(),
+                    /*pressed=*/false);
+  s_tbPressedSlot = -1;
+  s_tbPressedApp  = -1;
+#ifdef SERIAL_DEBUG
+  Serial.printf("[shell] tb-press-cancel\n");
+#endif
+}
+
+// F-b: transient amber bar on the tapped (press-anchored) slot, painted BEFORE
+// switchApp()'s heavy work — never a reverse app→slot lookup [QM-3-1]:
+// resolvePlayerSlot() can return WebRadio, which deliberately has no slot (LL-085).
+// switchApp()'s final renderTaskbar overwrites it with the real state.
+static void shellTbCommit(int slot) {
+  if (slot < 0 || slot >= TASKBAR_SLOT_COUNT) return;
+  tft.fillRect(TASKBAR_X, slot * TASKBAR_SLOT_H, 3, TASKBAR_SLOT_H, TASKBAR_BUSY_COLOR);
+#ifdef SERIAL_DEBUG
+  Serial.printf("[shell] tb-commit slot=%d\n", slot);
+#endif
+}
+
+// Shared taskbar-release resolution — both dispatch sites call this so tap commit,
+// press-anchoring, and the feedback paints stay identical [VE-3-1].
+static void shellTbRelease(int releaseY) {
+  const int pressedSlot = s_tbPressedSlot;
+  const int pressedApp  = s_tbPressedApp;
+  int appIdx = (int)currentAppId;
+  if (winampDisplay.tbGestureEnd(releaseY, TASKBAR_APP_COUNT, &appIdx)) {
+    if (pressedApp >= 0) appIdx = pressedApp;  // press-anchored commit [DEV-3-2]
+    AppId target = resolvePlayerSlot(static_cast<AppId>(appIdx));  // TASK-259
+    if (target != currentAppId) {
+      s_tbPressedSlot = -1;
+      s_tbPressedApp  = -1;
+      shellTbCommit(pressedSlot);
+      switchApp(target);
+      return;
+    }
+  }
+  shellTbCancel();  // no-switch tap or scroll release: restore if still highlighted
+}
+
 void switchApp(AppId next) {
   if (next == currentAppId) return;
+  const unsigned long t0 = millis();  // TASK-279 (L-d): per-phase instrumentation
 #ifdef SERIAL_DEBUG
   Serial.printf("[shell] leaving %d  heap=%lu maxAlloc=%lu minFree=%lu\n",
     (int)currentAppId,
     (unsigned long)ESP.getFreeHeap(),
     (unsigned long)ESP.getMaxAllocHeap(),
     (unsigned long)ESP.getMinFreeHeap());
+  const int fromApp = (int)currentAppId;
 #endif
   if (g_apps[(int)currentAppId]) g_apps[(int)currentAppId]->suspend();
   shell::setBusy(false);   // clear before new taskbar paint (TASK-115e)
+  const unsigned long tSuspend = millis();
   tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK);
+  const unsigned long tWipe = millis();
   if (next == AppId::Settings) g_previousAppId = currentAppId;
   currentAppId = next;
   // TASK-260: the player mode is NOT tracked here — it is written only by the deliberate
@@ -1847,7 +1923,10 @@ void switchApp(AppId next) {
       g_apps[(int)next]->resume();
     }
   }
+  const unsigned long tInit = millis();
 #ifdef SERIAL_DEBUG
+  // Keep this line's position (before renderTaskbar): the E0/E1 tap-to-switch-committed
+  // clock is defined against it (M-TASKBAR-FEEDBACK §Measurement plan).
   Serial.printf("[shell] entered %d  heap=%lu maxAlloc=%lu minFree=%lu\n",
     (int)next,
     (unsigned long)ESP.getFreeHeap(),
@@ -1856,6 +1935,14 @@ void switchApp(AppId next) {
 #endif
   renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
                 false, shell::activeError(), shell::activeConnecting());
+  const unsigned long tEnd = millis();
+  perf::record("shell.switch", tEnd - t0);  // 10th of MAX_PATHS=10 — see perf.h budget
+#ifdef SERIAL_DEBUG
+  Serial.printf("[shell] switch %d->%d suspend=%lums wipe=%lums init=%lums "
+                "taskbar=%lums total=%lums\n",
+                fromApp, (int)next, tSuspend - t0, tWipe - tSuspend, tInit - tWipe,
+                tEnd - tInit, tEnd - t0);
+#endif
 }
 
 void appHandleInput(AppId) {
@@ -1877,8 +1964,13 @@ void appHandleInput(AppId) {
           renderTaskbar(tft, currentAppId,
                         winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
                         false, shell::activeError(), shell::activeConnecting());
+        // TASK-279 (F-a): scroll started (dead zone exceeded) → cancel the press
+        // highlight. tbIsScrolling() is the DEV-3-1 accessor; idempotent after
+        // the first cancel.
+        if (winampDisplay.tbIsScrolling()) shellTbCancel();
       } else {
         winampDisplay.tbGesturePress(p.y);
+        shellTbPress(p.y);  // TASK-279 (F-a): highlight in the same iteration
       }
       return;
     }
@@ -1912,11 +2004,7 @@ void appHandleInput(AppId) {
         && !winampDisplay._injectingDrag
 #endif
     ) {
-      int appIdx = (int)currentAppId;
-      if (winampDisplay.tbGestureEnd(s_lastTouchY, TASKBAR_APP_COUNT, &appIdx)) {
-        AppId target = resolvePlayerSlot(static_cast<AppId>(appIdx));  // TASK-259
-        if (target != currentAppId) switchApp(target);
-      }
+      shellTbRelease(s_lastTouchY);  // TASK-279: shared commit path [VE-3-1]
       s_cooldownMs = millis() + 300;
     } else if (s_inGesture) {
       s_inGesture = false;
@@ -2320,12 +2408,10 @@ static inline void drainInjectionQueue() {
 #ifdef WINAMP_DISPLAY
   if (step.release) {
     if (winampDisplay.tbIsDragging()) {
-      // Taskbar drag release: end gesture (scroll path — y unused for non-tap).
-      int appIdx = (int)currentAppId;
-      if (winampDisplay.tbGestureEnd(s_lastTouchY, TASKBAR_APP_COUNT, &appIdx)) {
-        AppId target = resolvePlayerSlot(static_cast<AppId>(appIdx));  // TASK-259
-        if (target != currentAppId) switchApp(target);
-      }
+      // Taskbar drag release — TASK-279: same shared commit path as production
+      // [VE-3-1]; the injected release still skips the production 300 ms cooldown
+      // (documented divergence, TASK-280).
+      shellTbRelease(s_lastTouchY);
       renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
                 false, shell::activeError(), shell::activeConnecting());
     } else {
@@ -2360,10 +2446,13 @@ static inline void drainInjectionQueue() {
       s_lastTouchY = step.sy;
       if (!winampDisplay.tbIsDragging()) {
         winampDisplay.tbGesturePress(step.sy);
+        shellTbPress(step.sy);  // TASK-279 (F-a): same shared paint as production
       } else {
         if (winampDisplay.tbGestureContinue(step.sy, TASKBAR_APP_COUNT))
           renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
                 false, shell::activeError(), shell::activeConnecting());
+        // TASK-279 (F-a): cancel the highlight at scroll-start [DEV-3-1].
+        if (winampDisplay.tbIsScrolling()) shellTbCancel();
       }
     } else {
       // TASK-277 reroute (VE-1-6): canvas samples go to the active app —

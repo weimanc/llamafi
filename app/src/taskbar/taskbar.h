@@ -18,6 +18,12 @@
 // renderActiveIndicator is error > busy > idle.
 #define TASKBAR_ERR_COLOR 0xF800
 
+// TASK-279 / M-TASKBAR-FEEDBACK: pressed-slot background (F-a). Brightened grey
+// (== TASKBAR_SEP_COLOR) painted behind the icon while the finger is down — the
+// opaque baked icon stays dark inside the halo (DEV-3-4 bake constraint, accepted
+// per OQ1). Firmware-only constant, same golden-hash rule as TASKBAR_BUSY_COLOR.
+#define TASKBAR_PRESSED_BG 0x4208
+
 // TASK-242: number of apps the taskbar cycles through. WebRadio (the last AppId)
 // is entered ONLY via the Winamp eject button — it has NO taskbar slot
 // (M-WEBRADIO design §Eject button toggle). The taskbar must therefore iterate
@@ -57,33 +63,54 @@ inline void renderActiveIndicator(TFT_eSPI& tft, AppId activeApp,
     }
 }
 
-inline void renderTaskbar(TFT_eSPI& tft, AppId activeApp,
-                           int scrollOffset, int totalApps, bool busy = false,
-                           bool error = false, bool connecting = false) {
-    tft.fillRect(TASKBAR_X, 0, TASKBAR_W, 240, TASKBAR_BG_RGB565);
-
+// TASK-279 / M-TASKBAR-FEEDBACK: one slot's full body — bg (pressed or normal),
+// separator, null-guarded icon, and the ADR-046 indicator when the slot is active.
+// Extracted from renderTaskbar so the pressed-slot repaint REUSES the exact guarded
+// slot body (QM-3-2) instead of reimplementing the index math that rotted into the
+// TASK-242/LL-085 crash. Pressing the active slot repaints its indicator too (DEV-3-3).
+inline void renderTaskbarSlot(TFT_eSPI& tft, int slot, AppId activeApp,
+                              int scrollOffset, int totalApps, bool busy,
+                              bool error = false, bool connecting = false,
+                              bool pressed = false) {
+    if (slot < 0 || slot >= TASKBAR_SLOT_COUNT) return;
     static constexpr int iconOffX = (TASKBAR_W - TASKBAR_ICON_BAKED_W) / 2;
     static constexpr int iconOffY = (TASKBAR_SLOT_H - TASKBAR_ICON_BAKED_H) / 2;
 
-    for (int i = 0; i < TASKBAR_SLOT_COUNT; ++i) {
-        int appIdx = (scrollOffset + i) % totalApps;
-        int slotY  = i * TASKBAR_SLOT_H;
+    int appIdx = (scrollOffset + slot) % totalApps;
+    int slotY  = slot * TASKBAR_SLOT_H;
 
-        if (TASKBAR_SEP_ENABLED && i < TASKBAR_SLOT_COUNT - 1)
-            tft.drawFastHLine(TASKBAR_X, slotY + TASKBAR_SLOT_H - 1, TASKBAR_W, TASKBAR_SEP_COLOR);
+    tft.fillRect(TASKBAR_X, slotY, TASKBAR_W, TASKBAR_SLOT_H,
+                 pressed ? TASKBAR_PRESSED_BG : TASKBAR_BG_RGB565);
 
-        bool isActive = (appIdx == (int)activeApp);
-        const uint16_t* icon = (appIdx >= 0 && appIdx < (int)AppId::COUNT)
-            ? (isActive ? kTaskbarIcons[appIdx].active
-                        : kTaskbarIcons[appIdx].inactive)
-            : nullptr;
-        // Null-safe: an un-baked icon (kTaskbarIcons entry never regenerated for a
-        // newly-added app) must render as a blank slot, never deref nullptr in
-        // pushImage() — that was a hard crash on the WebRadio slot (TASK-242).
-        if (icon)
-            tft.pushImage(TASKBAR_X + iconOffX, slotY + iconOffY,
-                          TASKBAR_ICON_BAKED_W, TASKBAR_ICON_BAKED_H,
-                          icon);
+    if (TASKBAR_SEP_ENABLED && slot < TASKBAR_SLOT_COUNT - 1)
+        tft.drawFastHLine(TASKBAR_X, slotY + TASKBAR_SLOT_H - 1, TASKBAR_W, TASKBAR_SEP_COLOR);
+
+    bool isActive = (appIdx == (int)activeApp);
+    const uint16_t* icon = (appIdx >= 0 && appIdx < (int)AppId::COUNT)
+        ? (isActive ? kTaskbarIcons[appIdx].active
+                    : kTaskbarIcons[appIdx].inactive)
+        : nullptr;
+    // Null-safe: an un-baked icon (kTaskbarIcons entry never regenerated for a
+    // newly-added app) must render as a blank slot, never deref nullptr in
+    // pushImage() — that was a hard crash on the WebRadio slot (TASK-242).
+    if (icon)
+        tft.pushImage(TASKBAR_X + iconOffX, slotY + iconOffY,
+                      TASKBAR_ICON_BAKED_W, TASKBAR_ICON_BAKED_H,
+                      icon);
+    if (isActive) {
+        uint16_t col = error ? TASKBAR_ERR_COLOR
+                             : ((busy || connecting) ? TASKBAR_BUSY_COLOR
+                                                     : TASKBAR_ACTIVE_COLOR);
+        tft.fillRect(TASKBAR_X, slotY, 3, TASKBAR_SLOT_H, col);
     }
-    renderActiveIndicator(tft, activeApp, scrollOffset, totalApps, busy, error, connecting);
+}
+
+inline void renderTaskbar(TFT_eSPI& tft, AppId activeApp,
+                           int scrollOffset, int totalApps, bool busy = false,
+                           bool error = false, bool connecting = false) {
+    // Slot bodies tile the full strip (TASKBAR_SLOT_COUNT × TASKBAR_SLOT_H == 240),
+    // each filling its own background — no separate whole-strip fill needed.
+    for (int i = 0; i < TASKBAR_SLOT_COUNT; ++i)
+        renderTaskbarSlot(tft, i, activeApp, scrollOffset, totalApps,
+                          busy, error, connecting, false);
 }
