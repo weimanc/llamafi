@@ -4,6 +4,39 @@
 
 All audits: scope, findings, actions, results.
 
+### Audit — 2026-07-07 — M-WR-AUDIO-TASK (TASK-278) milestone close-out retrospective
+
+**Triggered by**: human ("PM, QM are you happy?") after the E1-E5 exit-criteria campaign.
+
+**Scope**: Quality review of the TASK-278 close and the six-commit crash-fix chain that
+preceded it (TASK-285/286 → 287 → 288 → 289 → 290), commits `9838637..05f5a78`.
+
+**Findings**:
+1. Process adherence: every commit gated on `./run/check` 6/6; user WIP kept out of agent
+   commits via index-only staging (twice); master local-only respected. GOOD.
+2. LL-097 (new): "root-caused via source reading" granted without DUT falsification — wrong
+   twice in one day; the corrected discipline (fix must stop the original repro + include a
+   control case) is a best-practice candidate — **brought to human, not self-promoted**.
+3. LL-098 (new): `wr-soak` balance gate false-FAILs (verifier defect, TASK-292 filed to VE).
+   The E2 PASS-with-disposition override is **documented in the design doc and awaits human
+   ratification** (QM view: evidence is sufficient — diff distribution + lfb invariant).
+4. LL-099 (new): run/-wrapper bypass near-miss, self-corrected; confirming instance of an
+   existing rule, no new BP needed.
+5. E3 scored PASS on pump/mutex objectives while its literal spec text ("assert TASK-218
+   debounce fires") failed against a pre-existing detection gap (TASK-291, answers OQ5).
+   Scoping judgment disclosed in the design doc; **awaits human ratification**.
+6. Verification-tooling debt: three DUT campaign aborts were AP/boot-path environment, not
+   product code; TASK-290 fixed one class permanently. TASK-283 (link supervisor) remains
+   the biggest DUT-throughput tax.
+
+**Actions assigned**: TASK-291 (Developer, P2), TASK-292 (VE, P3) — both filed in tasks.md.
+BP candidate from LL-097 → human decision.
+
+**Resolution**: Milestone closed with all five gates green and two dispositions pending
+human sign-off (E2 override, E3 scoping). No unrecorded deviations found.
+
+---
+
 ### Audit — 2026-06-27 — TASK-258 / EXP-009 bottom-up bare-rig (no-PSRAM ceiling)
 
 **Triggered by**: human ("QM: LL-087/088 + the platformio.ini pin note → human")

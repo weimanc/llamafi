@@ -6,6 +6,33 @@ Populated during retrospectives. Entries reviewed w/ human for promotion to `bes
 
 ## Retrospective — 2026-07-03 — M-WIFI-DIAG root cause (MX5600 auto-channel) + E0 unblock
 
+### LL-097 — 2026-07-07 — "Root cause confirmed by source reading" was wrong twice; only DUT re-verification of each fix found the real chain
+**Context**: TASK-285/286. A device-rebooting `task_wdt` crash was "root-caused, confirmed via source reading" to a vendored-lib timeout guard (`Audio.cpp` version check mis-firing on 2.0.17). The fix was implemented, compiled clean, passed all static gates — and the crash reproduced identically on the original repro, including on a control URL that had no reason to be slow. Timestamped serial probes then found the actual blocker (`tlsYield()`'s unfed 150 s semaphore take), whose fix exposed a second bug (single-flag yield race, TASK-287), whose fix exposed a third (wr-idle yield-ack deadlock, TASK-289) — each found only because every fix was re-run against the original crash repro on hardware.
+**Observation**: The written root-cause analysis was internally coherent, cited real code, and was still wrong about causation. The falsifying evidence cost one 30-second DUT run. Static analysis identified *a* real bug (kept, it was worth fixing) but not *the* bug.
+**Root cause**: "Confirmed" was granted on source coherence alone. A plausible mechanism that explains the symptom is not causation until the fix demonstrably stops the original repro — and the cheap experiment that tests this (re-run the repro) was initially treated as optional verification rather than part of the root-cause claim itself.
+**Suggested improvement**: A crash/defect may be recorded as "root-caused" only after its fix stops the original repro on hardware. Until then the status is "hypothesis (source-supported)". Additionally: always include a known-good control case in the verification set — the control URL is what falsified the theory here.
+**Status**: open (BP candidate — see QM note to human)
+
+---
+
+### LL-098 — 2026-07-07 — Soak gate false-FAILs because it counts device events over a serial channel the harness itself truncates
+**Context**: TASK-278 E2. Both 30-min `wr-soak` runs printed `VERDICT: FAIL` solely on the arena acquire/release balance clause (81/77, 90/89). The verbose per-cycle trace showed the counter diff was only ever 0 or exactly 1, flipping once mid-run and never growing; lfb ended *above* its start in both runs, mathematically refuting a real 24 K leak. The harness's `cmd()` calls `reset_input_buffer()` before each send, discarding in-flight serial lines — including the counter lines it scores.
+**Observation**: A healthy gate produced a FAIL verdict twice from its own measurement channel. Disposition required per-cycle tracing plus an independent physical invariant (lfb trend) to overturn — documented in M-WR-AUDIO-TASK §E2 and filed as TASK-292.
+**Root cause**: The invariant (acquires == releases) lives on the device, but the gate counts wire-observed log lines over a deliberately-lossy read pattern. Any event-counting gate built this way false-FAILs at a rate set by serial contention, not by the property under test.
+**Suggested improvement**: Gates that count discrete events must read device-side counters (e.g. a `get arenaStats` serialdbg pair sampled at start/end), not tally log lines. Where wire-counting is unavoidable, the gate spec must state the expected loss mode and a disposition rule (here: mismatch ≤ small-N with non-decaying lfb ⇒ line loss, not leak).
+**Status**: open (fix direction filed as TASK-292, owner VE)
+
+---
+
+### LL-099 — 2026-07-07 — Bypassing the run/ wrappers to pass one extra flag cost a flash cycle; extending the wrapper cost one line
+**Context**: TASK-278 E2 rerun needed `--verbose` on the soak, which `run/wr-soak` didn't expose. The DUT lifecycle was hand-rolled (manual tmux kill + pio upload) to pass the flag; the guessed tmux session name was wrong (`cyd-monitor` vs the actual `spotify-mon`), the monitor kept the port, the flash failed in 3 s, and a `| tail` pipe masked the failure past `set -e`, cascading into a dead soak run.
+**Observation**: CLAUDE.md's "always use the run/ scripts — they handle port resolution, monitor lifecycle, and DUT safety" rule was violated and bit exactly as documented. The compliant fix was a one-line opt-in in the wrapper (`${WR_SOAK_VERBOSE:+--verbose}`), which also produced the trace that resolved LL-098.
+**Root cause**: A missing wrapper capability was treated as a reason to bypass the wrapper, rather than as a one-line wrapper gap.
+**Suggested improvement**: When a run/ wrapper lacks a needed option, extend the wrapper (env-var opt-in keeps the default path byte-identical) and keep the lifecycle guarantees. Never re-implement kill-monitor/flash/restore inline; the session name alone is a landmine.
+**Status**: adopted in practice (wrapper extended in `05f5a78`); rule already covered by CLAUDE.md — recorded as a confirming instance
+
+---
+
 ### LL-096 — 2026-07-03 — A network-correlated failure blamed on firmware for weeks was an external router defect never instrumented
 
 **Context**: The 2.4 GHz outages that plagued M-WEBRADIO (connect-fails, mid-stream stalls, "flaky
