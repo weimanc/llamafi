@@ -53,6 +53,13 @@ WIFI_EV_RE = re.compile(r"\[wifi-ev\]")
 PERF_WARN_RE = re.compile(r"\[perf\] iter=(\d+)ms")
 ENTERED_RE = re.compile(r"\[shell\] entered (\d+)")
 WR_LOG_RE = re.compile(r"\[webradio\]")
+# TASK-279 (M-TASKBAR-FEEDBACK): post-implementation observables. Additive — the
+# entered/drain clocks above are untouched, so before/after stays comparable.
+TB_PRESS_RE = re.compile(r"\[shell\] tb-press slot=(\d+)")
+TB_COMMIT_RE = re.compile(r"\[shell\] tb-commit slot=(\d+)")
+SWITCH_RE = re.compile(
+    r"\[shell\] switch (\d+)->(\d+) suspend=(?P<suspend>\d+)ms wipe=(?P<wipe>\d+)ms "
+    r"init=(?P<init>\d+)ms taskbar=(?P<taskbar>\d+)ms total=(?P<total>\d+)ms")
 
 STATES = ["idle_clock", "spotify", "wr_stopped", "wr_playing"]
 STATE_APP = {"idle_clock": APP_CLOCK, "spotify": APP_SPOTIFY,
@@ -141,11 +148,23 @@ def one_tap(d: Dut, state: str, slot: int) -> dict:
     # drag JSON. So the entered line PRECEDES the JSON; both are measured from t0.
     #   entered_ms = tap-to-switch-committed (doc 3 definition)
     #   drain_ms   = full injection drain incl. taskbar repaint + serial print
-    drain_ms = entered_ms = None
+    drain_ms = entered_ms = press_ms = commit_ms = None
+    phases = None
     deadline = time.monotonic() + 15.0
     while time.monotonic() < deadline:
         line = d.ser.readline().decode(errors="replace").strip()
         if not line:
+            continue
+        # TASK-279 lines exist only post-implementation; None on baseline firmware.
+        if TB_PRESS_RE.search(line) and press_ms is None:
+            press_ms = (time.monotonic() - t0) * 1000.0
+            continue
+        if TB_COMMIT_RE.search(line) and commit_ms is None:
+            commit_ms = (time.monotonic() - t0) * 1000.0
+            continue
+        m_sw = SWITCH_RE.search(line)
+        if m_sw and phases is None:
+            phases = {k: int(v) for k, v in m_sw.groupdict().items()}
             continue
         if ENTERED_RE.search(line) and entered_ms is None:
             entered_ms = (time.monotonic() - t0) * 1000.0
@@ -154,7 +173,10 @@ def one_tap(d: Dut, state: str, slot: int) -> dict:
             drain_ms = (time.monotonic() - t0) * 1000.0
             break
     res = {"slot": slot, "drain_ms": round(drain_ms, 1) if drain_ms else None,
-           "entered_ms": round(entered_ms, 1) if entered_ms else None}
+           "entered_ms": round(entered_ms, 1) if entered_ms else None,
+           "press_ms": round(press_ms, 1) if press_ms else None,
+           "commit_ms": round(commit_ms, 1) if commit_ms else None,
+           "switch_phases": phases}
     # restore state
     enter_state(d, state)
     settle = 12.0 if state == "wr_playing" else 5.0
@@ -220,6 +242,11 @@ def main():
                 "worst_paths": sorted({h["slow"] for h in r["window"]["hb"]}),
                 "drain_ms": med_max([t["drain_ms"] for t in r["taps"]]),
                 "entered_ms": med_max([t["entered_ms"] for t in r["taps"]]),
+                "press_ms": med_max([t["press_ms"] for t in r["taps"]]),
+                "commit_ms": med_max([t["commit_ms"] for t in r["taps"]]),
+                "switch_phases": {
+                    k: med_max([(t["switch_phases"] or {}).get(k) for t in r["taps"]])
+                    for k in ("suspend", "wipe", "init", "taskbar", "total")},
             }
             print(f"  summary: {json.dumps(r['summary'])}", flush=True)
             results[state] = r

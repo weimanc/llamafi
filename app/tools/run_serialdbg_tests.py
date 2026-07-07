@@ -4018,6 +4018,159 @@ def t242(dut: Dut):
     pass_("T242", f"full scroll cycle ({_TB_N} offsets) — no crash; WebRadio never a taskbar slot")
 
 
+# ── T_TBFB_01–04 — M-TASKBAR-FEEDBACK tap feedback (TASK-279) ─────────────────
+# Asserts the stable-prefix lines per the design's VE dbg-surface sign-off
+# (2026-07-07): [shell] tb-press slot=N / tb-press-cancel / tb-commit slot=N,
+# ordered against [shell] entered M. Presence + relative order only — the
+# [shell] switch phase numbers are recorded by e0_baseline.py, never
+# threshold-asserted here (VE-3-2 single-shot flakiness rule).
+
+def _tbfb_drag_capture(dut: Dut, x1: int, y1: int, x2: int, y2: int,
+                       steps: int, timeout: float = 10.0) -> list[str]:
+    """Send a drag and capture all raw lines through the drag-JSON terminator."""
+    dut.ser.reset_input_buffer()
+    dut.send(f"drag {x1} {y1} {x2} {y2} {steps}")
+    lines: list[str] = []
+    old_timeout = dut.ser.timeout
+    dut.ser.timeout = 0.3
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        line = dut.ser.readline().decode(errors="replace").strip()
+        if not line:
+            continue
+        lines.append(line)
+        if line.startswith("{") and '"cmd":"drag"' in line.replace(" ", ""):
+            break
+    dut.ser.timeout = old_timeout
+    return lines
+
+
+def _tbfb_idx(lines: list[str], needle: str) -> int:
+    """Index of first line containing needle, or -1."""
+    for i, ln in enumerate(lines):
+        if needle in ln:
+            return i
+    return -1
+
+
+def t_tbfb_01(dut: Dut):
+    """T_TBFB_01: taskbar drag-tap → tb-press in the Press iteration, tb-commit
+    strictly before [shell] entered (VE-3-3), switch lands on the tapped app."""
+    print("T_TBFB_01  tb-press + tb-commit ordering on a taskbar tap")
+    if not _tb_precondition(dut, "T_TBFB_01"):
+        return
+    _, y = _c.tap_taskbar_slot(APP_SLOT["Clock"])   # slot 1 centre, y=60
+    lines = _tbfb_drag_capture(dut, _TB_X, y, _TB_X, y + 1, 2)
+    i_press  = _tbfb_idx(lines, "[shell] tb-press slot=1")
+    i_commit = _tbfb_idx(lines, "[shell] tb-commit slot=1")
+    i_enter  = _tbfb_idx(lines, "[shell] entered 1 ")   # trailing space: not 10/11
+    r_app = dut.cmd("get appId", timeout=3.0)
+    _restore_spotify(dut)
+    if i_press < 0:
+        fail("T_TBFB_01", f"no '[shell] tb-press slot=1' in drain window: {lines[:6]}")
+        return
+    if i_commit < 0 or i_enter < 0:
+        fail("T_TBFB_01", f"missing tb-commit ({i_commit}) or entered ({i_enter}) line")
+        return
+    if not (i_press < i_commit < i_enter):
+        fail("T_TBFB_01", f"order wrong: press@{i_press} commit@{i_commit} entered@{i_enter}")
+        return
+    if r_app.get("name") != "Clock":
+        fail("T_TBFB_01", f"appId={r_app.get('name')!r} after tap — switch did not land")
+        return
+    pass_("T_TBFB_01", f"press@{i_press} < commit@{i_commit} < entered@{i_enter}; appId=Clock")
+
+
+def t_tbfb_02(dut: Dut):
+    """T_TBFB_02: scroll drag → tb-press then tb-press-cancel at dead-zone exceed
+    (VE-3-4); no tb-commit, no switch; offset steps by 1 (discrimination unchanged)."""
+    print("T_TBFB_02  tb-press-cancel on scroll-start; no commit")
+    if not _tb_precondition(dut, "T_TBFB_02"):
+        return
+    lines = _tbfb_drag_capture(dut, _TB_X, 110, _TB_X, 60, 10)   # 50 px up = +1 slot
+    post = _tb_get_offset(dut)
+    i_press  = _tbfb_idx(lines, "[shell] tb-press slot=2")       # 110//40 = 2
+    i_cancel = _tbfb_idx(lines, "[shell] tb-press-cancel")
+    i_commit = _tbfb_idx(lines, "[shell] tb-commit")
+    i_enter  = _tbfb_idx(lines, "[shell] entered")
+    _tb_set_offset(dut, 0)
+    if i_press < 0:
+        fail("T_TBFB_02", f"no '[shell] tb-press slot=2' in drain window: {lines[:6]}")
+        return
+    if i_cancel < 0 or i_cancel < i_press:
+        fail("T_TBFB_02", f"tb-press-cancel missing/misordered: press@{i_press} cancel@{i_cancel}")
+        return
+    if i_commit >= 0 or i_enter >= 0:
+        fail("T_TBFB_02", f"scroll produced commit@{i_commit}/entered@{i_enter} — must not switch")
+        return
+    if post != 1:
+        fail("T_TBFB_02", f"tbScrollOffset={post} after 50 px drag; expected 1 — scroll regressed")
+        return
+    pass_("T_TBFB_02", f"press@{i_press} → cancel@{i_cancel}; no commit; offset 0→1")
+
+
+def t_tbfb_03(dut: Dut):
+    """T_TBFB_03: WebRadio-player-mode case (QM-3-1) — player-slot tap with persisted
+    mode WebRadio: amber paints the TAPPED slot (tb-commit slot=0), switch resolves
+    to WebRadio via resolvePlayerSlot; no reverse app→slot lookup crash (LL-085)."""
+    print("T_TBFB_03  commit amber on press-anchored slot; WebRadio player-mode redirect")
+    if not _tb_precondition(dut, "T_TBFB_03"):
+        return
+    r_pm = dut.cmd("get playerMode", timeout=3.0)
+    if not _switch_to(dut, "Clock"):
+        skip("T_TBFB_03", "could not switch to Clock for the redirect tap")
+        return
+    dut.cmd("set playerMode 1", timeout=3.0)
+    dut.set_cooldown_zero()
+    try:
+        lines = _tbfb_drag_capture(dut, _TB_X, 20, _TB_X, 21, 2)   # slot 0 = player slot
+        i_commit = _tbfb_idx(lines, "[shell] tb-commit slot=0")
+        i_enter  = _tbfb_idx(lines, f"[shell] entered {APP_SLOT['WebRadio']}")
+        r_app = dut.cmd("get appId", timeout=5.0)
+    finally:
+        dut.cmd(f"set playerMode {r_pm.get('val', 0)}", timeout=3.0)
+        _restore_spotify(dut)
+    if i_commit < 0:
+        fail("T_TBFB_03", f"no '[shell] tb-commit slot=0' — press-anchored amber missing: {lines[:6]}")
+        return
+    if i_enter < 0 or i_enter < i_commit:
+        fail("T_TBFB_03", f"entered-WebRadio missing/misordered: commit@{i_commit} entered@{i_enter}")
+        return
+    if r_app.get("name") != "WebRadio":
+        fail("T_TBFB_03", f"appId={r_app.get('name')!r} — resolvePlayerSlot redirect did not land")
+        return
+    pass_("T_TBFB_03", f"commit slot=0 @{i_commit} < entered WebRadio @{i_enter}; redirect OK")
+
+
+def t_tbfb_04(dut: Dut):
+    """T_TBFB_04: app-canvas cooldown behaviour unchanged. A taskbar gesture never
+    touches the canvas cooldown; a consumed canvas gesture still arms it. The injected
+    taskbar release also skips the production 300 ms shell cooldown — documented
+    harness divergence (design OQ4 / TASK-280), asserted as-is."""
+    print("T_TBFB_04  canvas cooldown unaffected by taskbar gesture; still armed by canvas gesture")
+    if not _tb_precondition(dut, "T_TBFB_04"):
+        return
+    _, y = _c.tap_taskbar_slot(APP_SLOT["Clock"])
+    _tbfb_drag_capture(dut, _TB_X, y, _TB_X, y + 1, 2)            # taskbar tap → Clock
+    r_cd_tb = dut.cmd("get cooldown", timeout=3.0)
+    if not _restore_spotify(dut):
+        skip("T_TBFB_04", "could not restore Spotify for the canvas half")
+        return
+    dut.set_cooldown_zero()
+    px, py = _c.pledit_tap(0)   # PLEDIT tap always arms +300 ms (empty playlist safe)
+    _tbfb_drag_capture(dut, px, py, px, py + 1, 2)
+    r_cd_cv = dut.cmd("get cooldown", timeout=3.0)
+    rem_tb = int(r_cd_tb.get("remainingMs", -1))
+    rem_cv = int(r_cd_cv.get("remainingMs", -1))
+    if rem_tb != 0:
+        fail("T_TBFB_04", f"canvas cooldown {rem_tb}ms armed by a TASKBAR gesture — must stay 0")
+        return
+    if rem_cv <= 0:
+        fail("T_TBFB_04", f"canvas cooldown not armed by PLEDIT tap (remainingMs={rem_cv})")
+        return
+    pass_("T_TBFB_04", f"taskbar gesture: remainingMs=0; canvas PLEDIT tap: remainingMs={rem_cv}")
+
+
 # ── stock-002 suite (TASK-120) ────────────────────────────────────────────────
 # Tests the heatmap sub-view, navigation, fetch-gate, and chartSymbol guard.
 #
@@ -6325,6 +6478,11 @@ ALL_TESTS = {
     "T166": t166,
     "T242": t242,
     # T167 retired (duplicate of T165); T168 manual (rendering — no serial observable)
+    # taskbar-feedback-001 (TASK-279 / M-TASKBAR-FEEDBACK)
+    "T_TBFB_01": t_tbfb_01,
+    "T_TBFB_02": t_tbfb_02,
+    "T_TBFB_03": t_tbfb_03,
+    "T_TBFB_04": t_tbfb_04,
     # settings-nav-stub-001 (TASK-142)
     "T-SET-01": t_set_01,
     "T-SET-02": t_set_02,
