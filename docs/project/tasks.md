@@ -4252,11 +4252,11 @@ the +11–13 ms on the external clock is debug-serial wire time, attributed in t
 New numbers: wipe=27 ms constant (L-b candidate, deferred as designed); leaving playing
 WebRadio costs suspend=44 ms (pump teardown). Dispositions D1–D3 (visual confirm manual,
 2-min windows, T_TBFB_04 first-run test defect) in design §Implementation results —
-**D1 ratified (human, 2026-07-07): highlight + amber confirmed visible; visual exit
-criterion closed**.
+**D1–D3 all human-ratified 2026-07-07** (D1: highlight + amber confirmed visible;
+visual exit criterion closed). LL-101 from this campaign promoted to BP-045.
 
 **Priority:** P2 — UX · **Status:** **DONE 2026-07-07** (design approved 2026-07-03,
-panel approve-with-changes ×3; D1 human-ratified 2026-07-07, D2/D3 pending) ·
+panel approve-with-changes ×3; dispositions D1–D3 human-ratified 2026-07-07 — closed) ·
 **Opened:** 2026-07-02 · **Milestone:** M-TASKBAR-FEEDBACK · **Owner:** Architect ·
 **Deps:** M-TASKBAR-SCROLL (done), M-TOUCH-UX (done), shared E0 baseline session (with
 TASK-278 — see design §Measurement plan) · **Branch:** master

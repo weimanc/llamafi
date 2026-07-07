@@ -40,10 +40,11 @@ gate, firmware blits + instrumentation, T_TBFB suite, latency matrix, docs.
 **Actions assigned**: none new (TASK-280/281 pre-exist and stand; TASK-294 remains free).
 LL-101 discipline → human decision on BP promotion.
 
-**Resolution**: **D1 ratified (human, 2026-07-07)** — pressed highlight + amber commit
-bar confirmed visible on device; the visual exit criterion is closed and OQ1's halo
-treatment stands. Still pending: D2/D3 ratification and the LL-101 BP-candidate call.
-QM verdict: close is sound.
+**Resolution**: **All items closed (human, 2026-07-07).** D1 ratified — pressed
+highlight + amber commit bar confirmed visible on device; visual exit criterion closed,
+OQ1 halo treatment stands. D2 (2-min AFTER windows) and D3 (T_TBFB_04 in-run test fix,
+no task) ratified. **LL-101 promoted to BP-045** (internal clock alongside external
+clock in every latency before/after). Audit closed, no open items.
 
 ---
 

@@ -4,6 +4,16 @@
 
 Entries promoted from `lessons_learned.md` on explicit human approval. All agents read+apply. QM owns file, invalidates outdated practices.
 
+### BP-045 — Latency before/after comparisons record a device-internal clock alongside the external clock, in the same session
+
+**Adopted from**: LL-101  
+**Date adopted**: 2026-07-07 (human)  
+**Rule**: Any before/after latency measurement on a SERIAL_DEBUG build must record a device-internal clock (a `perf::record` slot or equivalent on-device timestamp delta) in the *same session* as the host-side external clock, and any delta that appears only on the external clock must be attributed (e.g. to serial wire time — ~0.087 ms/byte at 115200 on a saturated TX buffer) before being treated as a regression. When adding log lines inside a latency-measured region, count their bytes into the measurement plan.  
+**Rationale**: TASK-279: the instrumentation added to measure the feature was itself the largest measured "regression" — three new debug lines (~126 bytes/tap) shifted tap-to-switch-committed by +11–13 ms on the host clock. The in-session `shell.switch` internal clock (median 84–98 ms, matching the BEFORE external medians) is what proved switch cost unchanged; without it the delta would have read as real feature cost and invited a pointless optimisation hunt.  
+**Applies to**: VE (measurement-plan checklist: internal clock named before the campaign runs), Developer (a perf slot accompanies any new stable-prefix lines inside measured regions), Architect (design measurement plans specify both clocks)
+
+---
+
 ### BP-044 — No "root-caused" status without the fix stopping the original repro on hardware
 
 **Adopted from**: LL-097  
@@ -461,9 +471,10 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 > These entries are **NOT yet adopted**. Per QM discipline ("QM brings best-practice
 > candidates to human — never self-promotes"), they are recorded here in proposed form
 > awaiting explicit human sign-off before being assigned a final BP number and promoted
-> above this line. The latest **adopted** BP is BP-042.
+> above this line. The latest **adopted** BP is BP-045.
 
-_(No candidates currently pending. BP-040/041/042 were adopted 2026-06-27.)_
+_(No candidates currently pending. BP-044 adopted 2026-07-07 from LL-097; BP-045
+adopted 2026-07-07 from LL-101.)_
 
 ---
 

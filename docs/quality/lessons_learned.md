@@ -20,7 +20,7 @@ Populated during retrospectives. Entries reviewed w/ human for promotion to `bes
 **Observation**: The instrumentation added to measure the feature was itself the largest measured "regression". Without the internal clock recorded in the same session, the +13 ms would have read as a real cost of the feedback blits and invited a pointless optimisation hunt.
 **Root cause**: Serial writes on a saturated 115200 TX buffer are ~0.087 ms/byte of blocking wire time inside the measured window; any external (host-side) clock includes them. Stable-prefix lines are an interface, but they are not free inside latency-measured regions.
 **Suggested improvement**: Before/after latency comparisons on SERIAL_DEBUG builds must record a device-internal clock (perf slot) alongside the external clock in the *same* session, and attribute any external-only delta to wire bytes before treating it as regression. When adding log lines inside a measured region, count their bytes into the measurement plan.
-**Status**: open — candidate discipline for the VE measurement-plan checklist (human to decide if it graduates to a BP)
+**Status**: adopted → BP-045 (human, 2026-07-07)
 
 ---
 

@@ -448,10 +448,15 @@ designed.
 - **D2 — AFTER windows are 2 min, not E0/E1's 10 min.** The tap clocks are
   window-length-independent (taps run after the passive window); the 10-min tail numbers
   remain owned by TASK-278 E1, which this session's window does not supersede.
+  **RATIFIED (human, 2026-07-07).**
 - **D3 — T_TBFB_04 first-run false-FAIL (fixed in-run):** the canvas half tapped PLEDIT,
   which only arms the cooldown when playlist rows exist — empty under TASK-243's 403.
   Re-pointed at the VIS window (data-independent +300 ms, T-CDWN-01 precedent); PASS
-  remainingMs=278. Test defect, not firmware — no task filed.
+  remainingMs=278. Test defect, not firmware — no task filed (lesson captured as LL-100).
+  **RATIFIED (human, 2026-07-07).**
+
+All dispositions (D1–D3) are human-ratified; nothing on this milestone awaits sign-off.
+LL-101 (from this campaign) was promoted to **BP-045** the same day.
 
 ### Open-question outcomes
 
