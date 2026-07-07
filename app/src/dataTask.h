@@ -137,6 +137,14 @@ void enqueueTeletextPage(uint16_t page, uint8_t sub = 0);
 // design prefers ≤ 96 kbps streams for stall tolerance on the small ring buffer.
 void enqueueWebRadioStations(const char* countryCode, uint8_t bitrateCap);
 
+// TASK-289: abandon an in-flight (or queued) station fetch — called by
+// WebRadioApp::_play() when playback starts while the fetch is still pending.
+// Playback's arena/decoder allocations would starve the fetch's TLS handshake
+// anyway (-32512); abandoning early skips the doomed attempt and the fetch is
+// re-tried on the next resume() with a quiet heap. Non-blocking; sets a flag
+// the mirror loop checks before each handshake.
+void abortWebRadioFetch();
+
 // Copy latest result into *out; returns true if new data since last poll.
 // Caller must supply a valid pointer. Thread-safe (spinlock).
 bool pollWeather(WeatherResult *out);

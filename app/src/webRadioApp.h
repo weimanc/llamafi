@@ -195,6 +195,20 @@ public:
         _dirty = true;
         // Defer paint to tick() — resume() can also run from cmdTap context.
 
+        // TASK-289: second-chance station fetch. The list was fetched exactly
+        // once (init(), first entry); if that fetch failed — network blip,
+        // TASK-284 mirror truncation, or the -101 heap guard tripping while a
+        // debug wrUrl playback held the heap — the session showed "No stations"
+        // forever. Re-enqueue on re-entry: the heap is quiet here (suspend()
+        // freed the audio stack), and _stationCount==0 means the autoplay below
+        // can't fire, so this cannot recreate the fetch/playback race the
+        // guard exists for.
+        if (_stationCount == 0 && !_pendingStations) {
+            dataTask::enqueueWebRadioStations(g_settings.webRadioCountry,
+                                              g_settings.webRadioBitrateCap);
+            _pendingStations = true;
+        }
+
         if (g_settings.webRadioAutoplay && _stationCount > 0 &&
             _state == WRPlayState::STOPPED) {
             _play(_currentIdx);
@@ -282,7 +296,18 @@ public:
                 _heapFetchMin  = ESP.getMinFreeHeap();
                 LOG_I("webradio", "HEAP post-fetch free=%u min=%u",
                       (unsigned)_heapFetchFree, (unsigned)_heapFetchMin);
-                if (result.ok && result.count > 0) {
+                if (_deferredInject) {
+                    // TASK-289: a wrUrl inject is waiting on this result. The
+                    // injected station (slot 0) must survive, so drop the
+                    // payload regardless of outcome (usually -102/aborted
+                    // anyway) and start the deferred playback now that the
+                    // fetch's TLS is torn down and the heap is ours. The
+                    // _last* observability fields are still recorded below.
+                    _deferredInject = false;
+                    LOG_I("webradio", "deferred wrUrl play (fetch resolved http=%d)",
+                          result.lastHttpCode);
+                    _play(0);
+                } else if (result.ok && result.count > 0) {
                     _stationCount = result.count;
                     memcpy(_stations, result.stations,
                            result.count * sizeof(dataTask::WebRadioStation));
@@ -574,7 +599,20 @@ public:
             _autoSkipTried = 0;
             _stallRetries  = 0;
             _dirty = true;
-            _play(0);
+            if (_pendingStations) {
+                // TASK-289: the init()/resume() station fetch is still in
+                // flight. Playing now makes both sides race for the heap and
+                // the LOSER breaks either way: the fetch's TLS handshake dies
+                // -32512, or — worse — Audio's I2S DMA alloc fails and the
+                // unchecked vendored ctor null-derefs (observed LoadProhibited
+                // reboot). Signal the fetch to wrap up at its next checkpoint
+                // and let tick() start playback once the result lands.
+                dataTask::abortWebRadioFetch();
+                _deferredInject = true;
+                LOG_I("webradio", "wrUrl deferred until station fetch resolves");
+            } else {
+                _play(0);
+            }
             return true;
         }
         if (strcmp(var, "wrDeadUrls") == 0) {
@@ -663,6 +701,10 @@ private:
     uint8_t     _currentIdx     = 0;
     int         _scrollOffset   = 0;
     bool        _pendingStations = false;
+    // TASK-289: a wrUrl inject arrived while the station fetch was in flight —
+    // tick() starts _play(0) when the (aborted) fetch result lands, so playback
+    // never allocates concurrently with the fetch's TLS session.
+    bool        _deferredInject  = false;
     bool        _dirty           = false;
     uint8_t     _bufPct          = 0;
     uint8_t     _bufPctDrawn     = 0;       // TASK-220: last buffer % painted (hysteresis)
@@ -746,6 +788,13 @@ private:
             return;
         }
 
+        // TASK-289: playback is about to carve up the heap (arena + decoder +
+        // I2S) — a still-pending station fetch would only burn a doomed TLS
+        // handshake against it (-32512). Tell dataTask to abandon; the fetch
+        // is re-tried on the next resume() when the heap is quiet again.
+        // tick()'s poll still consumes the abandoned result (http=-102).
+        if (_pendingStations) dataTask::abortWebRadioFetch();
+
         // Yield Spotify TLS for the duration of playback.
         // Both new Audio() and connecttohost() need ~50 KB contiguous heap;
         // Spotify's active TLS session fragments the heap enough to fail.
@@ -775,6 +824,24 @@ private:
 #endif
 #endif
         if (!s_wr_audio) {
+            // TASK-289: I2S DMA-buffer floor. i2s_driver_install()'s DMA malloc
+            // failure is UNCHECKED in the vendored Audio ctor — it null-derefs
+            // (LoadProhibited, EXCVADDR 0x1c) and reboots the device. Observed
+            // failing at lfbDma 13.8 KB (concurrent TLS held the pool) and
+            // succeeding at 30+ KB; 16 KB sits just above the known-bad point
+            // without rejecting plays that fragmentation alone would allow.
+            // Degrade to the same path as a failed connect instead of crashing.
+            size_t lfbDma = heap_caps_get_largest_free_block(MALLOC_CAP_DMA);
+            if (lfbDma < 16 * 1024) {
+                LOG_E("webradio", "DMA pool too low for I2S init: lfbDma=%u — abort play",
+                      (unsigned)lfbDma);
+                _state = WRPlayState::ERROR_UNREACHABLE;
+                spotifyTask::tlsResume();
+                _spotifyYielded = false;
+                _onPlaybackFailed(/*connectFail=*/true);
+                _dirty = true;
+                return;
+            }
             s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
             wrApplyInBufTrial(s_wr_audio);   // EXP-012: before connecttohost (InBuff not yet alloc'd)
         }

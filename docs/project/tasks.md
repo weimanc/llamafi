@@ -4557,9 +4557,9 @@ its own).
 decode → `StreamTitle` log observed within ~3s on `icecast.omroep.nl`, and same fast resolution on
 the BBC Radio 2 URL. The concurrent station-list fetch's own mirror GETs sometimes fail under the
 resulting heap pressure (SSL context alloc failure — both operations now proceed at once instead
-of serializing on the stall) but that's a pre-existing TASK-284-adjacent resource-contention
-question, not a regression from this fix — no crash, no hang either way. `./run/check` 6/6 green.
-Production firmware restored to the DUT afterward.
+of serializing on the stall) — investigated and resolved as **TASK-289** (turned out worse than a
+noisy fetch failure: the race was bidirectional and could hard-reboot the device via an unchecked
+I2S DMA alloc). `./run/check` 6/6 green. Production firmware restored to the DUT afterward.
 
 **Priority:** P2 · **Status:** **fixed 2026-07-06**, verified on DUT · **Opened:** 2026-07-06 ·
 **Milestone:** — (candidate: M-WEBRADIO reliability) · **Owner:** Developer · **Deps:** TASK-284
@@ -4607,3 +4607,60 @@ afterward.
 **Opened:** 2026-07-06 · **Milestone:** — · **Owner:** Developer · **Deps:** — (unrelated to the
 AP-side WiFi flapping work — that's about *why* WiFi is slow to connect here, this is about the
 device not crashing while it does) · **Branch:** master
+
+---
+
+### TASK-289 — Fetch/playback heap race: bidirectional failure (SSL OOM one way, I2S null-deref REBOOT the other) — fixed
+
+Investigation of the side effect noted at the close of TASK-287: with the tlsYield stall gone,
+a debug `wrUrl` playback and the init()-time station fetch genuinely ran concurrently, and the
+fetch's radio-browser TLS handshake died -32512 (SSL alloc fail) under playback's heap pressure.
+
+**Characterization (2026-07-07):** the race is structurally unreachable in normal production
+flow — `_play()` needs `_stationCount > 0`, stations only exist once the init fetch completes,
+and the fetch was enqueued exactly once (init(), first entry). Only the debug `set wrUrl` path
+(fabricates a station and played immediately) could overlap them — but that's currently the
+primary test path. DUT runs then showed the race is **bidirectional and the loser breaks**:
+
+- *Fetch loses* (playback allocates first): TLS handshake dies -32512, both mirrors burned,
+  list stays empty for the whole session — there was **no retry path anywhere**.
+- *Playback loses* (fetch's TLS in flight first, holding ~43 KB incl. DMA-capable heap):
+  `i2s_driver_install()`'s DMA-buffer malloc fails (observed lfbDma 13.8 KB) and the vendored
+  Audio ctor **doesn't check it — null-deref, LoadProhibited (EXCVADDR 0x1c), device REBOOT.**
+  A crash, not just noise; also reachable in principle by plain heap fragmentation.
+
+A cooperative abort flag alone proved insufficient (mirror handshakes take 2-4 s each; "mid-
+handshake" is the common case, not the residue) — real serialization was needed.
+
+**Fixes landed (all four verified together on DUT):**
+1. `webRadioApp.h` wrUrl handler: when the fetch is still pending, defer `_play(0)` until the
+   fetch result lands (dispatched from tick()'s existing poll; injected slot-0 survives, the
+   late list payload is dropped). No concurrent allocation in either direction, ever.
+2. `dataTaskStorage.cpp`: per-mirror pre-flight contiguity guard (maxBlk < 40 KB → fail fast
+   with distinct code **-101** instead of a doomed handshake) + `abortWebRadioFetch()`
+   (**-102**, signalled by _play(), shortens the deferral wait at the next mirror boundary).
+3. `webRadioApp.h` resume(): second-chance fetch when `_stationCount == 0` — closes the
+   "empty list forever" gap for ANY failed first fetch (network blip, TASK-284 truncation,
+   heap guard). Safe: with zero stations autoplay can't fire, so no new race window.
+4. `webRadioApp.h` _play(): 16 KB DMA-floor check before `new Audio` — degrades to the normal
+   ERROR_UNREACHABLE path instead of the unchecked I2S null-deref reboot.
+
+**Bonus find — latent tlsYield deadlock in spotifyTask (fixed):** the TASK-264 WebRadio-idle
+trap (`s_webRadioActive` → stop/sleep/continue) sits BEFORE the post-dequeue yield-ack check,
+so a tlsYield() raised while WebRadio is active with no other yield outstanding was never
+acked — caller parked for the full 150 s ceiling (observed: the deferred play froze loopTask;
+serial dead for 90+ s). Pre-TASK-289 this never fired only because _play's yield always
+piggybacked on the fetch's still-held yield. Fixed by hoisting a yield-service block to the
+top of the task loop, ahead of the wr-idle trap (worst-case ack from idle: one 500 ms sleep).
+
+**Verified (DUT, cyd2usb_winamp_debug, 2026-07-07):** race repro (switchApp 10 → wrUrl at
++1 s): deferral logged, fetch completed count=16, deferred play started ≤3 s after resolve,
+`stream ready` + ICY StreamTitle, **zero -32512, zero crashes**; phase 2 (list reset →
+re-enter): resume() retry fetched on quiet heap, **stations loaded count=16** end-to-end.
+`./run/check` 6/6. Production firmware restored. NB: radio-browser mirrors returned clean
+JSON (count=16) in all of today's runs — TASK-284's truncation is intermittent, not permanent.
+
+**Priority:** P2 · **Status:** **fixed 2026-07-07**, verified on DUT · **Opened:** 2026-07-07 ·
+**Milestone:** — (candidate: M-WEBRADIO reliability) · **Owner:** Developer ·
+**Deps:** TASK-287 (exposed it), TASK-284 (mirror health affects fetch outcomes either way) ·
+**Branch:** master

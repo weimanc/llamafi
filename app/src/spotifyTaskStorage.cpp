@@ -328,6 +328,23 @@ static void taskBody(void *) {
       client.stop();
     }
 
+    // TASK-289: service TLS-yield requests BEFORE the WebRadio idle trap
+    // below — that continue-loop never reaches the post-dequeue yield check,
+    // so a tlsYield() raised while WebRadio is active (and no other yield is
+    // outstanding) would go un-acked for its full 150 s ceiling, parking the
+    // caller's task (observed: deferred wrUrl play froze loopTask — fetch
+    // resumed count→0, this task fell into wr-idle, play's fresh yield
+    // starved). Identical semantics to the post-dequeue block; worst-case
+    // ack latency from wr-idle is one 500 ms sleep.
+    if (s_tlsYieldReqCount > 0) {
+      client.stop();
+      LOG_I("spotify.tls", "tls yield — client stopped");
+      if (s_tlsYieldedSem) xSemaphoreGive(s_tlsYieldedSem);
+      while (s_tlsYieldReqCount > 0) vTaskDelay(pdMS_TO_TICKS(20));
+      LOG_I("spotify.tls", "tls yield — resumed");
+      continue;
+    }
+
     // TASK-264 (Q3-a): keep TLS stopped while WebRadio holds the arena.
     // client.stop() is idempotent; 500 ms idle prevents tight-looping.
     if (s_webRadioActive) {

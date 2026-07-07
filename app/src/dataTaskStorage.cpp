@@ -646,6 +646,10 @@ static BasicJsonDocument<StaticRegionAllocator> s_heatmapDoc(
 static portMUX_TYPE           s_webRadioMux        = portMUX_INITIALIZER_UNLOCKED;
 static WebRadioStationsResult s_webRadioResult;
 static bool                   s_webRadioNew         = false;
+// TASK-289: set by abortWebRadioFetch() (loopTask), read by the mirror loop
+// (dataTask). Cleared when a fetch begins, so an abort raised while the fetch
+// waits in tlsYield() — the common interleave — is seen before mirror 1.
+static volatile bool          s_webRadioFetchAbort  = false;
 static char                   s_pendingCountry[4]   = "NL";
 static uint8_t                s_pendingBitrateCap   = 0;   // TASK-221: bitrateMax kbps (0=off)
 static portMUX_TYPE           s_pendingCountryMux   = portMUX_INITIALIZER_UNLOCKED;
@@ -658,6 +662,13 @@ static portMUX_TYPE           s_pendingCountryMux   = portMUX_INITIALIZER_UNLOCK
 // freed before tlsResume(), not held resident — reclaiming ~5 KB during WebRadio
 // playback. Freeing before the audio path's first alloc is the whole point.
 static constexpr size_t WR_DOC_CAP = 5120;
+
+// TASK-289: minimum contiguous block for a radio-browser TLS handshake attempt.
+// Every observed successful fetch ran with maxBlk ≥ 47 KB; with WebRadio playback
+// concurrently holding the heap (arena + decoder + I2S), maxBlk sits ≤ ~38 KB and
+// every handshake is doomed to -32512 (SSL alloc fail). 40 KB cleanly splits the
+// two observed populations.
+static constexpr size_t WR_FETCH_MIN_TLS_BLOCK = 40 * 1024;
 
 // TASK-265 (2026-06-28): nl1/at1 are decommissioned (no DNS records); de1 + the
 // all.api round-robin alias both resolve to IPv4 (91.98.4.78) and verify against
@@ -918,6 +929,11 @@ static void fetchWebRadioStations() {
     bitrateCap = s_pendingBitrateCap;
     portEXIT_CRITICAL_SAFE(&s_pendingCountryMux);
 
+    // TASK-289: arm the abort window — an abortWebRadioFetch() raised any time
+    // from here on (typically while we sit in tlsYield() below) skips the
+    // mirror handshakes.
+    s_webRadioFetchAbort = false;
+
     // tlsYield() stops spotifyTask and waits up to 90 s for its ack. With
     // Spotify's SO_RCVTIMEO capped at 15 s, worst-case blocking is 60 s
     // (two API calls each with one retry). After the ack the shared TLS
@@ -939,6 +955,35 @@ static void fetchWebRadioStations() {
     DynamicJsonDocument webRadioDoc(WR_DOC_CAP);
     for (int mi = 0; mi < WR_MIRROR_COUNT; mi++) {
         const char* mirror = kRadioBrowserMirrors[mi];
+
+        // TASK-289: playback started while we were still fetching — abandon.
+        // _play() signals this explicitly (see abortWebRadioFetch()); its
+        // arena/decoder allocations would starve the handshake below anyway.
+        // -102 distinguishes "abandoned for playback" from the -101 heap guard.
+        if (s_webRadioFetchAbort) {
+            s_webRadioResult.lastHttpCode = -102;
+            LOG_I("dataTask.webradio", "fetch abandoned: playback started");
+            break;
+        }
+
+        // TASK-289: per-mirror contiguity guard. Since TASK-287 unblocked
+        // _play(), a debug wrUrl playback can allocate its arena/decoder WHILE
+        // this fetch is between tlsYield() and its first handshake — so the
+        // check must run per-attempt, not once up front (observed: maxBlk 47 KB
+        // at the post-yield probe, 14 KB by the first GET). Fail fast with a
+        // distinct code instead of burning a doomed handshake mid-decode;
+        // WebRadioApp re-enqueues on the next resume() when the heap is quiet.
+        // A guard-pass followed by a playback alloc mid-handshake can still
+        // yield -1 as before — the resume() retry covers that residue too.
+        size_t maxBlk = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+        if (maxBlk < WR_FETCH_MIN_TLS_BLOCK) {
+            s_webRadioResult.lastHttpCode = -101;
+            LOG_W("dataTask.webradio",
+                  "fetch skipped: maxBlk=%uk < %uk (TLS would OOM; playback active?)",
+                  (unsigned)(maxBlk / 1024),
+                  (unsigned)(WR_FETCH_MIN_TLS_BLOCK / 1024));
+            break;
+        }
 
         // Page through the votes-ordered list on this mirror, accumulating only
         // playable (http://) stations until we have WR_MAX_STATIONS or run out
@@ -1201,6 +1246,10 @@ void enqueueWebRadioStations(const char* countryCode, uint8_t bitrateCap) {
     Request req = {}; req.type = DATA_FETCH_WEBRADIO_STATIONS;
     if (xQueueSend(s_queue, &req, 0) != pdTRUE)
         LOG_W("dataTask", "queue full — dropped webradio stations country=%s", countryCode);
+}
+
+void abortWebRadioFetch() {
+    s_webRadioFetchAbort = true;
 }
 
 bool pollWebRadioStations(WebRadioStationsResult *out) {
