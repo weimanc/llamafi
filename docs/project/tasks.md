@@ -4175,8 +4175,21 @@ constants hoisted to a shared tuning header — extraction (rejected for two con
 routing through `winampDisplay` (state collision) documented as non-leans; tap-vs-drag
 migration for the existing tap-to-play rows included.
 
-**Priority:** P2 — UX · **Status:** design panel-reviewed 2026-07-03 (approve-with-changes
-×3, dispositions applied) — **approved 2026-07-03 (human)** · **Opened:** 2026-07-02 ·
+**Priority:** P2 — UX · **Status:** **DONE 2026-07-07** — implemented per the panel-pinned
+order (injection-reroute commit `c5fd6e5`, then the feature). Feature exit criteria
+**13/13 PASS** on DUT (drag/tap discrimination, direct-drag, release-capture over eject
+[DEV-1-1], auto-skip mid-gesture cancel via `drag … hold` [VE-1-3], `wrScroll`/`wrSpeedK`
+surface); T_WR suite **17/18** (sole fail `T_WR_TLS_01` = TASK-284 external mirror
+truncation, `wrCount=3` + IncompleteInput signature); T162-T166 **5/5** through the
+rerouted injection. **Disposition pending human sign-off:** T155-T160 SKIP —
+blocked-external (TASK-243 ≥10-item-queue precondition, un-runnable since 2026-06-25);
+compensating queue-free volume-slider drag exercised the full rerouted captured-gesture
+cycle, plus per-app smokes 9/9. Results table + campaign finds in the design doc
+§Implementation results. Campaign finds: **TASK-293** (stop-then-replay tlsYield deadlock,
+P1, fixed) and the T_WR_ERR_x harness isolation defect (fixed, see `_wr_err_test`).
+OQ4/VE-C5 second site recorded in M-LIST-v4. Feel tuning (OQ1) deferred to a human session
+per DEV-X-1 (`wrSpeedK` runtime-tunable). Design panel-reviewed 2026-07-03
+(approve-with-changes ×3) — approved 2026-07-03 (human) · **Opened:** 2026-07-02 ·
 **Milestone:** M-WR-PLEDIT-SCROLL · **Owner:** Architect ·
 **Deps:** M-LIST-v4 (done), M-WEBRADIO (done) · **Branch:** master
 
@@ -4747,3 +4760,29 @@ through (used to produce the per-cycle trace that diagnosed this).
 **Priority:** P3 — verification tooling; false-FAILs erode trust in a gate that's otherwise
 doing its job · **Status:** open · **Opened:** 2026-07-07 · **Milestone:** — ·
 **Owner:** VE · **Deps:** TASK-271 (owning tool) · **Branch:** master
+
+---
+
+### TASK-293 — tlsYield stop-then-replay deadlock: NEXT/PREV while playing parked loopTask 150 s
+
+Found by TASK-277's T_WR_COEX_02 gate; DUT-reproduced and fixed 2026-07-07 same session.
+`WebRadioApp::_play()` did `_stopAudio()` (→`tlsResume()`, count 1→0) then `tlsYield()`
+(count 0→1) within one scheduler quantum on the same task. spotifyTask's yield-service inner
+wait samples the count every 20 ms — it never observes the transient zero, stays in the OLD
+batch's wait, and never issues a fresh semaphore give; the new yield saw `s_tlsStopped`
+cleared by the resume and waits for a give that never comes. loopTask parks for the 150 s
+ceiling (watchdog-fed → silent, serial dead; no reboot). Reachable from every
+stop-then-replay path: NEXT/PREV tap while playing, tap-another-station, real auto-skip
+retry. Latent since the shared-TLS handoff design; unmasked when the station list loaded
+again (TASK-284 recovery) and T_WR_COEX_02 could actually run its NEXT tap.
+
+**Fix:** `_stopAudio(bool resumeTls=true)` — `_play()` passes false and keeps the yield held
+across the stop (skipping its own re-yield when `_spotifyYielded` is still true); the
+wrDeadUrls forced-fail early-return resumes explicitly so the held yield can't leak. No
+handshake bounce → no race window. Verified: NEXT/PREV repro instant (was: dead shell), full
+T_WR suite 17/18 (sole fail = TASK-284 external, see TASK-277 close).
+
+**Priority:** P1 (user-reachable silent 150 s UI freeze) · **Status:** fixed 2026-07-07,
+lands with the TASK-277 feature commit · **Opened:** 2026-07-07 · **Milestone:**
+M-WR-PLEDIT-SCROLL (campaign find) · **Owner:** Developer · **Deps:** TASK-287 (the
+handshake it races), TASK-276 (made the ERR-test mask visible) · **Branch:** master

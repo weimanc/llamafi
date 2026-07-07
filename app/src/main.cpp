@@ -2589,8 +2589,16 @@ static void cmdTick(const char *args) {
   if (n < 1)    n    = 1;
   if (dtMs < 1) dtMs = 20;
 #ifdef WINAMP_DISPLAY
-  for (int i = 0; i < n; ++i)
-    winampDisplay.tickScroll(dtMs * 0.001f);
+  // TASK-277 [VE-1-5]: drive the ACTIVE app's integrator when WebRadio is up.
+  // The reply's scrollOffset field stays Spotify-only — WebRadio tests assert
+  // via `get wrScroll` exclusively.
+  if (currentAppId == AppId::WebRadio) {
+    for (int i = 0; i < n; ++i)
+      g_WebRadioApp.tickScrollDebug(dtMs * 0.001f);
+  } else {
+    for (int i = 0; i < n; ++i)
+      winampDisplay.tickScroll(dtMs * 0.001f);
+  }
   char sbuf[64]; int scrollOff = 0;
   if (winampDisplay.dbgGet("scrollOffset", sbuf, sizeof(sbuf)))
     sscanf(sbuf, "\"key\":\"scrollOffset\",\"val\":%d", &scrollOff);

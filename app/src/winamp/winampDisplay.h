@@ -11,6 +11,7 @@
 #include "spotifyTask.h"
 #include "vuMeter.h"
 #include "touchPhase.h"
+#include "touch/scrollTuning.h"   // TASK-277: shared gesture tuning (see header)
 
 extern const uint16_t SKIN_MAIN_BG[];
 extern const uint16_t SKIN_CBUTTONS[];
@@ -618,10 +619,9 @@ private:
   float _scrollVelocity = 0.0f;
   float _scrollAccum    = 0.0f;
   float _scrollSpeedK   = SCROLL_SPEED_K_DEFAULT;
-  static constexpr int          SCROLL_DEAD_ZONE_PX    = 1;
-  static constexpr float        SCROLL_SPEED_K_DEFAULT = 0.1667f;  // linear: 2 rows/s at 1-row travel
-  static constexpr int          PLEDIT_TAP_PX           = 6;       // < PLEDIT_ROW_H/2; distance threshold for tap
-  static constexpr unsigned long PLEDIT_TAP_MS          = 250;     // gesture duration threshold (ms)
+  // TASK-277: SCROLL_DEAD_ZONE_PX / SCROLL_SPEED_K_DEFAULT / PLEDIT_TAP_PX /
+  // PLEDIT_TAP_MS moved to touch/scrollTuning.h (shared with webRadioApp.h's
+  // gesture copy) — same values, single definition site, zero behaviour change.
   bool _pleditScrollDirty = false;  // force drawScrollThumbOnly bypass of rate-limit
   // Taskbar scroll (M-TASKBAR-SCROLL, TASK-105b)
   int   _tbScrollOffset = 0;

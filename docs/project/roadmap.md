@@ -903,11 +903,14 @@ lean (panel-reviewed): **pattern-copy** the ADR-030 gesture into `WebRadioApp` w
 tuning constants hoisted to a shared header — extraction rejected for two consumers
 (promotion path documented at a third scrolling list).
 
-**Status:** design panel-reviewed 2026-07-03 (VE/DEV/QM approve-with-changes ×3,
-dispositions applied) — **approved 2026-07-03 (human)**
-**Land order (panel-pinned):** shared E0 baseline session → TASK-278 → **TASK-277**
-(feel tuning after 278 — loop cadence changes under it) → TASK-279 blits. The
-drag-injection reroute lands first as its own commit + regression sweep.
+**Status:** **DONE 2026-07-07** — reroute (`c5fd6e5`) + feature landed; exit criteria
+13/13, T_WR 17/18 (sole fail external TASK-284), taskbar suite 5/5 through the reroute.
+Campaign finds: TASK-293 (stop-then-replay tlsYield deadlock, P1, fixed), T_WR_ERR_x
+harness isolation defect (fixed). T155-T160 gate SKIPped blocked-external (TASK-243) —
+disposition pending human. Feel tuning (OQ1) deferred to a human DUT session
+(`wrSpeedK` runtime-tunable). Design panel-reviewed 2026-07-03 — approved (human).
+**Land order (panel-pinned):** shared E0 baseline session (done) → TASK-278 (done) →
+**TASK-277 (done)** → TASK-279 blits.
 **Design:** [M-WR-PLEDIT-SCROLL.md](../architecture/designs/M-WR-PLEDIT-SCROLL.md)
 **Deps:** M-LIST-v4 (done — the gesture model being copied), M-WEBRADIO (done)
 **Tracked-as:** TASK-277

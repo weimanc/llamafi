@@ -300,6 +300,10 @@ included in M-LIST-v4.
 **Workaround**: users tapping at-limit rows should press near the centre of the row (short
 natural drift stays in the dead zone).
 
+**Second site (recorded per M-WR-PLEDIT-SCROLL OQ4 / QM-1-5, 2026-07-07):** the TASK-277
+pattern copy in `webRadioApp.h::_gestureEnd()` inherits this defect verbatim — accepted for
+parity at implementation close. A future fix should land at both sites (grep `VE-C5`).
+
 ---
 
 ## Phase 2 — fling momentum (not in scope, design notes)

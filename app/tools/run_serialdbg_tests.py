@@ -5485,24 +5485,37 @@ def t_wr_eject_02(dut: Dut):
 # ── T_WR_ERR_* common helper ─────────────────────────────────────────────────
 
 def _wr_err_test(dut: Dut, tid: str, state_num: int) -> bool:
-    """Enter WebRadio app and inject wrState=state_num — no stations required.
-    set wrState directly sets _state on the active app; it works regardless of
-    whether a station list is loaded or a fetch is in progress."""
+    """Enter WebRadio app and inject wrState=state_num.
+
+    Isolation (found during the TASK-277 campaign; latent since TASK-276):
+    auto-skip must be OFF during state injection. With a loaded station list,
+    TASK-276's terminal-retry re-arms on an injected retryable error within
+    one tick (_lastAttemptMs==0 counts as >=30 s idle) and overwrites the
+    injected state with PLAYING — DUT-confirmed both directions 2026-07-07.
+    The old "no stations required" note here dated from the TASK-284
+    broken-fetch era, which starved the retry condition and masked this.
+    Cleanup order matters: clear the injected state BEFORE re-enabling
+    auto-skip, or the retry starts playback under the next test."""
     # Enter WebRadio if not already there
     r_id = dut.cmd("get appId", timeout=3.0)
     if r_id.get("name") != "WebRadio":
         if not _switch_to_webradio_capture_heap(dut)[0]:
             skip(tid, "could not enter WebRadio app")
             return False
-    r_set = dut.cmd(f"set wrState {state_num}", timeout=3.0)
-    if not r_set.get("ok"):
-        fail(tid, f"set wrState {state_num} returned ok=false: {r_set}")
-        return False
-    r_get = dut.cmd("get wrState", timeout=3.0)
-    if r_get.get("state") != state_num:
-        fail(tid, f"get wrState={r_get.get('state')} expected {state_num}")
-        return False
-    return True
+    dut.cmd("set wrAutoSkip 0", timeout=3.0)
+    try:
+        r_set = dut.cmd(f"set wrState {state_num}", timeout=3.0)
+        if not r_set.get("ok"):
+            fail(tid, f"set wrState {state_num} returned ok=false: {r_set}")
+            return False
+        r_get = dut.cmd("get wrState", timeout=3.0)
+        if r_get.get("state") != state_num:
+            fail(tid, f"get wrState={r_get.get('state')} expected {state_num}")
+            return False
+        return True
+    finally:
+        dut.cmd("set wrState 3", timeout=3.0)     # back to STOPPED (quiescent)
+        dut.cmd("set wrAutoSkip 1", timeout=3.0)  # restore firmware default
 
 
 # ── T_WR_ERR_01 — ERROR_BLOCKED ─────────────────────────────────────────────

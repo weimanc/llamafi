@@ -289,3 +289,67 @@ Reviews: [touch-ux-panel-VE-review.md](touch-ux-panel-VE-review.md) ·
 - **QM-1-2** (roadmap blurb says "extract/reuse", lean is pattern-copy) → roadmap blurb
   reconciled in the disposition commit; TASK-277 body likewise.
 - **DEV-X-2** (reroute is harness-wide) → #1: lands as its own commit + sweep, first.
+
+---
+
+## VE dbg-surface sign-off (BP-024) — 2026-07-07
+
+Reviewed the §Serial debug surface as specced; signed off with one addition:
+
+1. `get wrScroll` → `{"var":"wrScroll","offset":N,"drag":0|1|2,"vel":x.xxxx,"accum":x.xxxx,
+   "speedK":x.xxxx,"last":true}` — **`speedK` field added** (VE: a `set wrSpeedK` without a
+   readback is not assertable; extend-don't-rename honoured). `drag` encodes
+   WRS_IDLE=0 / WRS_SCROLL=1 / WRS_SCROLL_DIRECT=2. `offset`/`drag` asserted exact;
+   `vel`/`accum` tolerance-banded only (VE-1-4).
+2. `set wrSpeedK <float>` — clamps to (0, 10]; takes effect next tick.
+3. `drag x1 y1 x2 y2 steps hold` responds immediately with `"hold":true` (no release pop);
+   bare `release` responds `{"ok":true,"cmd":"release","x":lastX,"y":lastY}`. Both landed
+   with the injection-reroute commit and are app-agnostic.
+4. `tick n dtMs` drives the active app's scroll integrator when WebRadio is active; the
+   reply's `scrollOffset` field remains Spotify-only (VE-1-5) — WebRadio assertions go
+   through `get wrScroll` exclusively.
+
+Gate satisfied: implementation may start.
+
+---
+
+## Implementation results (2026-07-07) — exit criteria
+
+Landed in two commits per DEV-X-2: the injection reroute (`c5fd6e5`, taskbar suite 5/5 through
+the rerouted path + Spotify volume-drag & per-app smokes) and the gesture feature (this
+commit). All DUT checks on `cyd2usb_winamp_debug`, real 16-station list, live streams.
+
+| Exit criterion | Result |
+|---|---|
+| Drag scrolls live; Release stops; no play from scroll | PASS (offset 0→3 on a 50 px drag; drag=0 after release; no `play idx=` emitted) |
+| Drag released over eject/transport → captured, no eject [DEV-1-1] | PASS (appId stays WebRadio) |
+| Tap plays exactly the tapped row | PASS (`play idx=4` = press-offset 3 + row 1) |
+| Scrollbar direct-drag positional jump | PASS (offset → maxOffset=11 on a full-track drag) |
+| Auto-skip mid-gesture cancels cleanly [VE-1-3] | PASS (`drag … hold` → skip fires → `wrScroll drag:0`; next Press re-anchors) |
+| Injected drag end-to-end + `wrScroll` under `tick n dtMs` [VE-1-4 bands] | PASS (held gesture: 50×20 ms ticks → offset ≥1, vel reported) |
+| T_WR_* tap suite unchanged [VE-1-2] | PASS 17/18 — sole FAIL `T_WR_TLS_01` is TASK-284 mirror truncation (external, intermittent; `wrCount=3` + `IncompleteInput` signature), not a gesture path |
+| Spotify gate T155-T161 [QM-1-1] | T162-T166 5/5 PASS; **T155-T160 SKIP — precondition needs a ≥10-item Spotify queue, blocked-external by TASK-243 since 2026-06-25** (disposition pending human sign-off; compensating: queue-free volume-slider drag exercised the full captured-gesture cycle through the rerouted dispatch). Harness registry has no `T161` — the design's range overshoots by one. |
+| Per-app smoke drags [VE-1-6] | PASS (apps 1-9, all respond, no crash) |
+| `./run/check` | 6/6 throughout |
+| Constants single-sourced [DEV-1-6] | `touch/scrollTuning.h`, consumed by both sites; winampDisplay values compile-time identical |
+| VE dbg sign-off before implementation [QM-1-4] | Done (§VE dbg-surface sign-off above) |
+
+**OQ4 closed:** VE-C5 second site recorded in M-LIST-v4 §Known limitation.
+**OQ1 (feel tuning):** deferred to a human session per DEV-X-1 — `wrSpeedK` tunable at runtime.
+
+### Campaign finds (beyond the feature)
+
+1. **tlsYield stop-then-replay deadlock (TASK-293, fixed here):** `_play()`'s
+   `_stopAudio()`→`tlsYield()` bounce (resume then re-yield within one scheduler quantum,
+   same task) deadlocks the TLS handshake — spotifyTask's 20 ms-sampled service wait never
+   sees the transient count==0, stays in the old batch, never re-gives; the new yield waits
+   its full 150 s ceiling with loopTask parked (serial dead; DUT-reproduced via
+   NEXT-while-playing). Latent in every stop-then-replay path (NEXT/PREV while playing,
+   real auto-skip retry) since the shared-TLS design; unmasked by T_WR_COEX_02 once
+   stations loaded again. Fix: `_stopAudio(resumeTls=false)` on the replay path — the
+   yield is held across the stop, no bounce, no handshake.
+2. **T_WR_ERR_x isolation defect (harness, fixed here):** with a loaded station list,
+   TASK-276's terminal-retry overwrites injected retryable error states within one tick
+   (`_lastAttemptMs==0` counts as ≥30 s idle). Masked for 5 days by the TASK-284 broken
+   fetch starving the retry condition. `_wr_err_test` now disables auto-skip during
+   injection and clears the state before re-enabling.

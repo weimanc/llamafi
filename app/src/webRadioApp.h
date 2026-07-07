@@ -21,6 +21,7 @@
 #include "logSink.h"
 #include "perf.h"
 #include "spotifyTask.h"
+#include "touch/scrollTuning.h"   // TASK-277: shared gesture tuning with winampDisplay
 #include "winamp/winampDisplay.h"
 
 extern TFT_eSPI         tft;
@@ -348,6 +349,14 @@ public:
     }
 
     void suspend() override {
+        // TASK-277 [DEV-1-4]: cancel any live gesture (precedent:
+        // SpotifyApp::suspend() → resetDragState()) — serial switchApp /
+        // set wrEject can fire mid-gesture.
+        _wrs            = WRS_IDLE;
+        _scrollAccum    = 0.0f;
+        _scrollVelocity = 0.0f;
+        _pleditDirty    = false;
+
         _stopAudio();
 #ifdef MEMBUDGET_PHASE1
         // TASK-278: tear down the pump task BEFORE the Audio object — the
@@ -370,6 +379,24 @@ public:
     void tick() override {
         // TASK-252: scroll the LED-font title marquee (long station names).
         winampDisplay.tickMarquee();
+
+        // TASK-277: velocity-scroll integrator — placed here, BEFORE the
+        // terminal-retry / pending-action dispatch below, so those blocks'
+        // early returns cannot stall a live gesture [DEV-1-3]. dt-integrated
+        // (M-LIST-v4 OQ1): robust to variable loop cadence.
+        {
+            const unsigned long now = millis();
+            const float dt = (_lastScrollMs == 0) ? 0.0f
+                                                  : (now - _lastScrollMs) * 0.001f;
+            _lastScrollMs = now;
+            _tickScroll(dt);
+        }
+        // Scroll steps repaint the row region only — not a _dirty full repaint
+        // (§Gesture spec). A pending full repaint covers it anyway.
+        if (_pleditDirty) {
+            _pleditDirty = false;
+            if (!_dirty) _drawPledit();
+        }
 
         // TASK-234 (ADR-045): process a deferred retry / auto-skip from a prior
         // tick's playback failure. Done here (not inline at the failure site) so
@@ -557,7 +584,47 @@ public:
     // ── Input ──────────────────────────────────────────────────────────────
 
     bool handleInput(TouchPhase phase, int x, int y) override {
+        // TASK-277 (M-WR-PLEDIT-SCROLL): captured gesture — while a drag is
+        // live, Move updates it and Release is consumed by drag-end BEFORE any
+        // eject/transport hit-test [DEV-1-1 blocker]. Mirrors the donor
+        // machine's phase structure (winampDisplay.h release-first/captured).
+        if (_wrs != WRS_IDLE) {
+            if (phase == TouchPhase::Release) return _gestureEnd();
+            if (_wrs == WRS_SCROLL) _dragCurrentY = y;
+            else                    _updateScrollDirect(y);
+            return true;
+        }
+
+        // TASK-277: Press in the PLEDIT bands anchors a gesture. Press
+        // anywhere else is not consumed (eject/transport act on Release, as
+        // today).
+        if (phase == TouchPhase::Press) {
+            const int rowsY1 = PLEDIT_ROWS_Y + PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
+            if (y >= PLEDIT_ROWS_Y && y < rowsY1) {
+                if (x >= PLEDIT_CONTENT_X + PLEDIT_CONTENT_W && x < PLEDIT_W) {
+                    _wrs = WRS_SCROLL_DIRECT;         // scrollbar column
+                    _updateScrollDirect(y);
+                    return true;
+                }
+                if (x >= PLEDIT_CONTENT_X &&
+                    x < PLEDIT_CONTENT_X + PLEDIT_CONTENT_W && _stationCount > 0) {
+                    _wrs                   = WRS_SCROLL;
+                    _dragStartY            = y;
+                    _dragCurrentY          = y;
+                    _dragStartRow          = (y - PLEDIT_ROWS_Y) / PLEDIT_ROW_H;
+                    _dragStartMs           = millis();
+                    _dragStartScrollOffset = _scrollOffset;
+                    return true;
+                }
+            }
+            return false;
+        }
+
         if (phase != TouchPhase::Release) return false;
+
+        // No-anchor Release [VE-1-2]: no prior Press (exactly how cmdTap
+        // drives the T_WR_* tap surface) — today's tap-at-(x,y) path,
+        // unchanged from here down.
 
         // Eject → back to Spotify
         if (winampDisplay.hitTestEject(x, y)) {
@@ -594,6 +661,12 @@ public:
         return false;
     }
 
+#ifdef SERIAL_DEBUG
+    // TASK-277 [VE-1-5]: cmdTick drives the ACTIVE app's integrator — this is
+    // the WebRadio entry point (private _tickScroll + repaint marker intact).
+    void tickScrollDebug(float dt) { _tickScroll(dt); }
+#endif
+
     // ── Serial debug surface (BP-036) ──────────────────────────────────────
 
     bool dbgGet(const char* var, char* buf, int len) const {
@@ -611,6 +684,17 @@ public:
         if (strcmp(var, "wrIdx") == 0) {
             snprintf(buf, len,
                      "\"var\":\"wrIdx\",\"idx\":%u,\"last\":true", (unsigned)_currentIdx);
+            return true;
+        }
+        // TASK-277: gesture observability — field set VE-signed (BP-024, see
+        // design doc §VE dbg-surface sign-off). offset/drag exact; vel/accum
+        // tolerance-banded only [VE-1-4].
+        if (strcmp(var, "wrScroll") == 0) {
+            snprintf(buf, len,
+                     "\"var\":\"wrScroll\",\"offset\":%d,\"drag\":%d,\"vel\":%.4f,"
+                     "\"accum\":%.4f,\"speedK\":%.4f,\"last\":true",
+                     _scrollOffset, (int)_wrs, (double)_scrollVelocity,
+                     (double)_scrollAccum, (double)_scrollSpeedK);
             return true;
         }
         if (strcmp(var, "wrIcy") == 0) {
@@ -734,6 +818,14 @@ public:
         }
         if (strcmp(var, "wrNext") == 0) { _nextStation(); return true; }
         if (strcmp(var, "wrPrev") == 0) { _prevStation(); return true; }
+        // TASK-277: WebRadio-local speed calibration (mirrors winampDisplay's
+        // `set speedK` under the WebRadio dbg surface; shared default comes
+        // from scrollTuning.h).
+        if (strcmp(var, "wrSpeedK") == 0) {
+            float k = (float)atof(val);
+            if (k > 0.0f && k <= 10.0f) _scrollSpeedK = k;
+            return true;
+        }
         // TASK-237: synthesize N unreachable stations + arm forced connect-fail, so
         // the auto-skip terminal bound (skip ≤ N-1, land terminal, never loop) is
         // deterministically testable without a real dead stream. `0` disables and
@@ -864,6 +956,21 @@ private:
     uint8_t     _stationCount   = 0;
     uint8_t     _currentIdx     = 0;
     int         _scrollOffset   = 0;
+    // TASK-277 (M-WR-PLEDIT-SCROLL): velocity-scroll gesture state — pattern
+    // copy of the ADR-030 machine (winampDisplay.h), clamped to _stationCount.
+    // Tuning constants come from touch/scrollTuning.h (shared, single-source).
+    enum WrScrollState : uint8_t { WRS_IDLE = 0, WRS_SCROLL = 1, WRS_SCROLL_DIRECT = 2 };
+    WrScrollState _wrs            = WRS_IDLE;
+    int         _dragStartY       = 0;
+    int         _dragCurrentY     = 0;
+    int         _dragStartRow     = -1;
+    unsigned long _dragStartMs    = 0;
+    int         _dragStartScrollOffset = 0;
+    float       _scrollVelocity   = 0.0f;
+    float       _scrollAccum      = 0.0f;
+    float       _scrollSpeedK     = SCROLL_SPEED_K_DEFAULT;
+    unsigned long _lastScrollMs   = 0;     // dt tracking for _tickScroll (M-LIST-v4 OQ1)
+    bool        _pleditDirty      = false; // row-region-only repaint marker (not _dirty)
     bool        _pendingStations = false;
     // TASK-289: a wrUrl inject arrived while the station fetch was in flight —
     // tick() starts _play(0) when the (aborted) fetch result lands, so playback
@@ -923,7 +1030,16 @@ private:
         // else: mutex busy — reuse the last snapshot (already in the members).
     }
 
-    void _stopAudio() {
+    // resumeTls=false is for _play()'s stop-then-replay path ONLY: a
+    // tlsResume() followed within one scheduler quantum by a fresh tlsYield()
+    // from the same task deadlocks the handshake — spotifyTask's 20 ms-sampled
+    // service wait never observes the transient count==0, so it stays in the
+    // old batch and never re-gives the ack the new yield is waiting on
+    // (DUT-reproduced 2026-07-07 via NEXT-while-playing: loopTask parked the
+    // full 150 s ceiling, serial dead). Keeping the yield held across the
+    // stop removes the bounce entirely; _play() skips its re-yield when
+    // _spotifyYielded is still true.
+    void _stopAudio(bool resumeTls = true) {
         // TASK-278: control call — blocking take (§Locking model). Pump task
         // persists across this stop (only suspend() tears it down).
         if (s_wr_audio) {
@@ -934,7 +1050,7 @@ private:
         _state = WRPlayState::STOPPED;
         _pendingAction = ACT_NONE;  // TASK-234: a stop/eject cancels any deferred retry/skip
         // Resume Spotify TLS if we yielded it for playback
-        if (_spotifyYielded) {
+        if (_spotifyYielded && resumeTls) {
             spotifyTask::tlsResume();
             _spotifyYielded = false;
         }
@@ -944,7 +1060,17 @@ private:
     // the auto-skip/retry dispatch passes false so the scan bound is preserved.
     void _play(uint8_t idx, bool userInitiated = true) {
         if (idx >= _stationCount) return;
-        _stopAudio();  // stops current + resumes TLS if it was yielded
+        // Keep the TLS yield held across the stop (see _stopAudio comment —
+        // resume-then-reyield within one quantum deadlocks the handshake).
+        _stopAudio(/*resumeTls=*/false);
+
+        // TASK-277 [QM-1-3 — single rule]: a play starting while a gesture is
+        // live (auto-skip is tick-driven, so this CAN coincide with a finger
+        // down) cancels the gesture FIRST, then the keep-visible clamp below
+        // runs. Offset stays consistent with list state; next Press re-anchors.
+        _wrs            = WRS_IDLE;
+        _scrollAccum    = 0.0f;
+        _scrollVelocity = 0.0f;
 
         if (userInitiated) { _autoSkipTried = 0; _stallRetries = 0; }
         _lastAttemptMs = millis();   // TASK-273: stamp every attempt (paces auto retry/skip)
@@ -972,6 +1098,12 @@ private:
         if (_debugForceConnFail) {
             _state = WRPlayState::ERROR_UNREACHABLE;
             LOG_W("webradio", "play idx=%u — forced connect-fail (debug wrDeadUrls)", idx);
+            // The held-across-stop yield (see _stopAudio) must not leak on
+            // this early return — no stream is coming.
+            if (_spotifyYielded) {
+                spotifyTask::tlsResume();
+                _spotifyYielded = false;
+            }
             _onPlaybackFailed(/*connectFail=*/true);
             _dirty = true;
             return;
@@ -987,9 +1119,13 @@ private:
         // Yield Spotify TLS for the duration of playback.
         // Both new Audio() and connecttohost() need ~50 KB contiguous heap;
         // Spotify's active TLS session fragments the heap enough to fail.
-        // TLS stays yielded while playing; _stopAudio() resumes it.
-        spotifyTask::tlsYield();
-        _spotifyYielded = true;
+        // TLS stays yielded while playing; _stopAudio() resumes it. Skipped
+        // when the yield is still held from the previous session (stop-then-
+        // replay path — see _stopAudio deadlock comment).
+        if (!_spotifyYielded) {
+            spotifyTask::tlsYield();
+            _spotifyYielded = true;
+        }
         esp_task_wdt_reset();
 
 #ifdef MEMBUDGET_PHASE1
@@ -1196,6 +1332,80 @@ private:
         tft.setTextColor(TFT_WHITE, (uint16_t)PLEDIT_BODY_BG);
         tft.drawCentreString(g_settings.webRadioCountry,
                              WR_BADGE_X + WR_BADGE_W / 2, WR_BADGE_Y + 2, 1);
+    }
+
+    // ── TASK-277: gesture helpers (ADR-030 pattern copy) ───────────────────
+
+    // Release while a gesture is captured. Tap/scroll discrimination identical
+    // to the donor (winampDisplay.h drag-end): dead zone + elapsed time, with
+    // the quick-swipe min-1-row fallback verbatim.
+    bool _gestureEnd() {
+        if (_wrs == WRS_SCROLL_DIRECT) {
+            _wrs = WRS_IDLE;
+            return true;
+        }
+        const int dy = _dragCurrentY - _dragStartY;
+        const unsigned long elapsed = (unsigned long)(millis() - _dragStartMs);
+        const bool isTap = abs(dy) < PLEDIT_TAP_PX && elapsed < PLEDIT_TAP_MS;
+        _scrollAccum    = 0.0f;
+        _scrollVelocity = 0.0f;
+        _wrs = WRS_IDLE;
+        if (isTap) {
+            const int idx = _dragStartScrollOffset + _dragStartRow;
+            if (_dragStartRow >= 0 && idx >= 0 && idx < (int)_stationCount)
+                _play((uint8_t)idx);
+        } else if (elapsed < PLEDIT_TAP_MS) {
+            // Quick swipe: integrator accumulated ~0 rows (brief dt); apply a
+            // guaranteed min-1-row delta from the press-time offset.
+            const int delta  = max(1, abs(dy) / PLEDIT_ROW_H);
+            const int dir    = (dy <= 0) ? 1 : -1;
+            const int maxOff = max(0, (int)_stationCount - PLEDIT_ROW_COUNT);
+            _scrollOffset = max(0, min(maxOff, _dragStartScrollOffset + dir * delta));
+            _pleditDirty  = true;
+        }
+        // Slow drag: velocity model already applied rows during ticks.
+        return true;
+    }
+
+    // Velocity integrator — form-identical to winampDisplay::tickScroll but
+    // clamping against _stationCount. Inherits the donor's at-limit release
+    // defect (M-LIST-v4 VE-C5) — accepted for parity, recorded there (OQ4).
+    void _tickScroll(float dt) {
+        if (_wrs != WRS_SCROLL) {
+            _scrollAccum    = 0.0f;
+            _scrollVelocity = 0.0f;
+            return;
+        }
+        if (dt <= 0.0f || dt > 0.2f) return;
+        const int dy = _dragCurrentY - _dragStartY;
+        const float effective = max(0.0f, (float)abs(dy) - (float)SCROLL_DEAD_ZONE_PX);
+        _scrollVelocity = (dy <= 0 ? 1.0f : -1.0f) * (effective * _scrollSpeedK);
+        _scrollAccum += _scrollVelocity * dt;
+        const int steps = (int)_scrollAccum;
+        if (steps != 0) {
+            _scrollAccum -= (float)steps;
+            const int maxOffset = max(0, (int)_stationCount - PLEDIT_ROW_COUNT);
+            const int no = max(0, min(maxOffset, _scrollOffset + steps));
+            if (no != _scrollOffset) {
+                _scrollOffset = no;
+                _pleditDirty  = true;
+            }
+        }
+    }
+
+    // Scrollbar-column positional mapping — donor's updateScrollDirect math,
+    // WebRadio window is not movable so no origin offsets.
+    void _updateScrollDirect(int sy) {
+        const int maxOffset = max(0, (int)_stationCount - PLEDIT_ROW_COUNT);
+        if (maxOffset <= 0) return;
+        constexpr int track_h = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
+        constexpr int travel  = track_h - SKIN_PLEDIT_THUMB_H;
+        const int relY = sy - PLEDIT_ROWS_Y;
+        const int no = max(0, min(maxOffset, relY * maxOffset / travel));
+        if (no != _scrollOffset) {
+            _scrollOffset = no;
+            _pleditDirty  = true;
+        }
     }
 
     void _drawPledit() {
