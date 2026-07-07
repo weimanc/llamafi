@@ -443,6 +443,8 @@ designed.
   `renderTaskbarSlot` body `renderTaskbar` uses. **Owed: a human glance** at the pressed
   highlight/amber bar; treatment is 1-define cheap to change (`TASKBAR_PRESSED_BG`,
   OQ1 halo choice — full-slot tint would need re-baked pressed icons per DEV-3-4).
+  **RATIFIED (human, 2026-07-07): highlight + amber bar confirmed visible on device.**
+  OQ1's halo treatment stands; the visual exit criterion is closed.
 - **D2 — AFTER windows are 2 min, not E0/E1's 10 min.** The tap clocks are
   window-length-independent (taps run after the passive window); the 10-min tail numbers
   remain owned by TASK-278 E1, which this session's window does not supersede.

@@ -40,8 +40,10 @@ gate, firmware blits + instrumentation, T_TBFB suite, latency matrix, docs.
 **Actions assigned**: none new (TASK-280/281 pre-exist and stand; TASK-294 remains free).
 LL-101 discipline → human decision on BP promotion.
 
-**Resolution**: pending human sign-off on D1–D3 (design §Implementation results) and the
-LL-101 BP-candidate call. QM verdict: close is sound; D1 is a 30-second human action.
+**Resolution**: **D1 ratified (human, 2026-07-07)** — pressed highlight + amber commit
+bar confirmed visible on device; the visual exit criterion is closed and OQ1's halo
+treatment stands. Still pending: D2/D3 ratification and the LL-101 BP-candidate call.
+QM verdict: close is sound.
 
 ---
 
