@@ -4570,20 +4570,40 @@ TASK-286 (the watchdog-safety fix this builds on) · **Branch:** master
 
 ### TASK-288 — Boot-time `task_wdt` crash during Spotify token refresh while WiFi still stabilizing
 
-Hit repeatedly (5-6 of ~9 DUT cycles) while verifying TASK-286/287 — always at the same point:
-WiFi disconnects/reconnects a few times right after boot (`STA_DISCONNECTED reason=201/202`,
-sometimes landing on an invalid `IP address: 0.0.0.0` before a real one), then `setup()`'s
-`Refreshing Access Tokens` call (Spotify token refresh, runs synchronously on `loopTask` at boot)
-blocks long enough to trip `task_wdt` → `abort()` → reboot. Same signature as TASK-285's crash
-(`loopTask` fails to reset in time) but a distinct code path — this happens before any WebRadio
-interaction, during the boot-time Spotify auth flow, and is plausibly the same class of bug as
-TASK-286 (a blocking network call with no watchdog feed) but in a different call site. Not
-investigated further this session — flagging so it isn't lost. May already be partly explained by
-the known AP-side WiFi flapping (see WiFi-flapping memory notes) making the boot-time connect
-window unusually long on this test AP; needs its own repro/bisect before assuming the fix is the
-same shape as TASK-286's.
+**UPDATE 2026-07-06 — root-caused and fixed; simpler than originally framed.** Originally hit
+5-6 of ~9 DUT cycles while verifying TASK-286/287. The "Spotify token refresh" framing in the
+initial write-up was a guess from where the crash *appeared* to happen in the log, not a
+confirmed cause — investigation found the real mechanism is much more basic and doesn't involve
+Spotify at all.
 
-**Priority:** P2 — intermittent, tied to this test AP's WiFi flakiness, but same failure mode
-(hard reboot) as TASK-285/286 · **Status:** open, not investigated · **Opened:** 2026-07-06 ·
-**Milestone:** — · **Owner:** unassigned · **Deps:** — (possibly related to the WiFi-flapping
-AP-side work already tracked elsewhere) · **Branch:** master
+**Root cause (confirmed by reading `setup()` in `main.cpp`):** the three WiFi-connect wait loops
+(hardcoded-SSID, NVS-reconnect, SPIFFS-credentials fallback — `main.cpp:2040-2086`) all poll
+`WiFi.status()` via plain `delay(100)`/`delay(250)` in a `while` loop, with **zero
+`esp_task_wdt_reset()` calls** anywhere in any of them. Arduino-ESP32's `delay()` is just
+`vTaskDelay()` — it yields the CPU but does not feed the calling task's watchdog. `setup()`
+extends the TWDT to 15s and subscribes `loopTask` right at the top (`main.cpp:1946-1949`), then
+runs all of SPIFFS init, display setup, WiFi connect, NTP sync, and `spotifyRefreshToken()` with
+**no feed anywhere** in that whole stretch. These three WiFi loops can also chain (hardcoded fails
+→ falls through to NVS's 10s deadline → falls through to SPIFFS's 30s deadline), so it's the
+*cumulative* un-fed time across attempts that matters, not any single loop's own deadline — a
+flaky AP requiring a fallback attempt easily blows the 15s window well before either loop's own
+timeout is reached. Matched the observed crash logs exactly: `STA_DISCONNECTED reason=201` a few
+times during the first (NVS) loop, immediate fallthrough into the SPIFFS loop, crash a couple of
+seconds later — right at the ~15s cumulative mark.
+
+**Fix:** added `esp_task_wdt_reset()` inside all three wait-loop bodies (every ~100-250ms
+iteration), plus one more reset right after the WiFi block resolves and before NTP sync, so the
+whole boot-time network stretch stays fed regardless of how many fallback attempts it takes.
+
+**Verified on DUT:** rebuilt debug firmware, reflashed, then power-cycled the device 25 times
+back-to-back (two batches, 10 + 15 cycles) watching serial for the crash signature. **0/25
+crashes**, including several cycles where WiFi was still slow/flaky (no valid IP within a 20s
+window) — the flakiness itself isn't fixed (not in scope), but the crash no longer happens even
+when it's slow, which is exactly what the fix targets. Previously this reproduced in roughly
+5-6 of every 9 cycles. `./run/check` 6/6 green. Production firmware restored to the DUT
+afterward.
+
+**Priority:** P2 · **Status:** **fixed 2026-07-06**, verified 0/25 on DUT reboot-cycling ·
+**Opened:** 2026-07-06 · **Milestone:** — · **Owner:** Developer · **Deps:** — (unrelated to the
+AP-side WiFi flapping work — that's about *why* WiFi is slow to connect here, this is about the
+device not crashing while it does) · **Branch:** master

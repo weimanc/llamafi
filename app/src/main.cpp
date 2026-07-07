@@ -2043,7 +2043,12 @@ void setup()
   WiFi.begin(HARDCODED_WIFI_SSID, HARDCODED_WIFI_PASS);
   Serial.print("Connecting to hardcoded SSID " HARDCODED_WIFI_SSID);
   { unsigned long dl = millis() + 30000;
-    while (WiFi.status() != WL_CONNECTED && millis() < dl) { delay(250); Serial.print("."); }
+    // TASK-288: feed the TWDT every iteration — this loop's own 30s deadline
+    // already exceeds the runtime 15s watchdog window on its own, and it can
+    // also chain into the NVS/SPIFFS fallback loops below with zero resets
+    // in between, so cumulative un-fed time (not any single loop's deadline)
+    // is what was tripping task_wdt during a flaky-AP boot.
+    while (WiFi.status() != WL_CONNECTED && millis() < dl) { delay(250); Serial.print("."); esp_task_wdt_reset(); }
     Serial.println(); }
   wifiConnected = (WiFi.status() == WL_CONNECTED);
   if (!wifiConnected) Serial.println("[wifi] hardcoded connect failed, trying NVS");
@@ -2053,7 +2058,8 @@ void setup()
     WiFi.mode(WIFI_STA);
     WiFi.begin();  // reconnect from NVS (no args)
     { unsigned long dl = millis() + 10000;
-      while (WiFi.status() != WL_CONNECTED && millis() < dl) delay(100); }
+      // TASK-288: see hardcoded-SSID loop above — feed TWDT every iteration.
+      while (WiFi.status() != WL_CONNECTED && millis() < dl) { delay(100); esp_task_wdt_reset(); } }
     wifiConnected = (WiFi.status() == WL_CONNECTED);
   }
   if (!wifiConnected && SPIFFS.exists("/wifi_creds.json")) {
@@ -2069,7 +2075,8 @@ void setup()
           WiFi.mode(WIFI_STA);
           WiFi.begin(ssid, pass);
           { unsigned long dl = millis() + 30000;
-            while (WiFi.status() != WL_CONNECTED && millis() < dl) { delay(250); Serial.print("."); }
+            // TASK-288: see hardcoded-SSID loop above — feed TWDT every iteration.
+            while (WiFi.status() != WL_CONNECTED && millis() < dl) { delay(250); Serial.print("."); esp_task_wdt_reset(); }
             Serial.println(); }
           wifiConnected = (WiFi.status() == WL_CONNECTED);
           if (wifiConnected) {
@@ -2104,6 +2111,11 @@ void setup()
     Serial.println("[wifi] no credentials — will open WiFi settings after init");
   }
   mb_heap_probe("post-wifi");  // TASK-261 Phase 0 milestone M1
+  // TASK-288: fresh watchdog budget before NTP sync + spotifyRefreshToken()
+  // below — none of setup()'s WiFi-connect wait loops fed the TWDT before
+  // this fix, so a flaky AP requiring more than one fallback attempt could
+  // already have consumed most of the 15s window before reaching here.
+  esp_task_wdt_reset();
 
   // time-001: SNTP sync before any TLS. ESP32 has no RTC; without this the
   // clock starts ~1970 and mbedTLS rejects current Spotify certs (notBefore
