@@ -4181,10 +4181,11 @@ order (injection-reroute commit `c5fd6e5`, then the feature). Feature exit crite
 [DEV-1-1], auto-skip mid-gesture cancel via `drag … hold` [VE-1-3], `wrScroll`/`wrSpeedK`
 surface); T_WR suite **17/18** (sole fail `T_WR_TLS_01` = TASK-284 external mirror
 truncation, `wrCount=3` + IncompleteInput signature); T162-T166 **5/5** through the
-rerouted injection. **Disposition pending human sign-off:** T155-T160 SKIP —
+rerouted injection. **Dispositions RATIFIED (human, 2026-07-07):** T155-T160 SKIP —
 blocked-external (TASK-243 ≥10-item-queue precondition, un-runnable since 2026-06-25);
 compensating queue-free volume-slider drag exercised the full rerouted captured-gesture
-cycle, plus per-app smokes 9/9. Results table + campaign finds in the design doc
+cycle, plus per-app smokes 9/9. NOTE: T155-T160 must be re-run when TASK-243 resolves
+(standing item on that task's close-out). T_WR_TLS_01 fail = TASK-284 external, ratified. Results table + campaign finds in the design doc
 §Implementation results. Campaign finds: **TASK-293** (stop-then-replay tlsYield deadlock,
 P1, fixed) and the T_WR_ERR_x harness isolation defect (fixed, see `_wr_err_test`).
 OQ4/VE-C5 second site recorded in M-LIST-v4. Feel tuning (OQ1) deferred to a human session

@@ -353,3 +353,7 @@ commit). All DUT checks on `cyd2usb_winamp_debug`, real 16-station list, live st
    (`_lastAttemptMs==0` counts as ≥30 s idle). Masked for 5 days by the TASK-284 broken
    fetch starving the retry condition. `_wr_err_test` now disables auto-skip during
    injection and clears the state before re-enabling.
+
+**Dispositions ratified (human, 2026-07-07):** the T155-T160 blocked-external SKIP (with
+compensating volume-drag evidence) and the T_WR_TLS_01 = TASK-284 attribution are final.
+Standing item: re-run T155-T160 when TASK-243 resolves.
