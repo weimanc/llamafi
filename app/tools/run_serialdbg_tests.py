@@ -4157,7 +4157,10 @@ def t_tbfb_04(dut: Dut):
         skip("T_TBFB_04", "could not restore Spotify for the canvas half")
         return
     dut.set_cooldown_zero()
-    px, py = _c.pledit_tap(0)   # PLEDIT tap always arms +300 ms (empty playlist safe)
+    # VIS window arms +300 ms at Press, data-independent (a PLEDIT tap needs playlist
+    # rows, which TASK-243's Spotify 403 leaves empty — first run failed on that).
+    # Side effect: visMode cycles once; left as-is per T-CDWN-01 precedent.
+    px, py = _c.tap_vis()
     _tbfb_drag_capture(dut, px, py, px, py + 1, 2)
     r_cd_cv = dut.cmd("get cooldown", timeout=3.0)
     rem_tb = int(r_cd_tb.get("remainingMs", -1))
@@ -4166,9 +4169,9 @@ def t_tbfb_04(dut: Dut):
         fail("T_TBFB_04", f"canvas cooldown {rem_tb}ms armed by a TASKBAR gesture — must stay 0")
         return
     if rem_cv <= 0:
-        fail("T_TBFB_04", f"canvas cooldown not armed by PLEDIT tap (remainingMs={rem_cv})")
+        fail("T_TBFB_04", f"canvas cooldown not armed by VIS tap (remainingMs={rem_cv})")
         return
-    pass_("T_TBFB_04", f"taskbar gesture: remainingMs=0; canvas PLEDIT tap: remainingMs={rem_cv}")
+    pass_("T_TBFB_04", f"taskbar gesture: remainingMs=0; canvas VIS tap: remainingMs={rem_cv}")
 
 
 # ── stock-002 suite (TASK-120) ────────────────────────────────────────────────
