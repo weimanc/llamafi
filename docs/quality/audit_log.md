@@ -4,6 +4,47 @@
 
 All audits: scope, findings, actions, results.
 
+### Audit — 2026-07-07 — M-TASKBAR-FEEDBACK (TASK-279) milestone close-out retrospective
+
+**Triggered by**: human ("PM, QM, are you happy?") after the TASK-279 implementation campaign.
+
+**Scope**: Quality review of the five-commit TASK-279 close (`1d07433..da4deca`): BP-024
+gate, firmware blits + instrumentation, T_TBFB suite, latency matrix, docs.
+
+**Findings**:
+1. Process adherence: BP-024 honoured *as a separate commit before any code* (first time
+   the gate is cleanly visible in history); `./run/check` 6/6 before all five commits;
+   BP-043 clean (nothing left uncommitted); master local-only. GOOD.
+2. BP-044 discipline: no "root-caused" claims made. The one defect found (T_TBFB_04
+   false-FAIL) was fixed and re-verified on the DUT (PASS remainingMs=278) before merge;
+   the +11–13 ms external-clock delta is labelled *attribution* with the internal
+   `shell.switch` clock recorded in-session as the control. GOOD.
+3. LL-100 (new): data-dependent assertion surface false-failed under the standing
+   TASK-243 blocker — same family as TASK-277's T_WR_ERR_x isolation defect; pattern
+   recorded for test-authoring time.
+4. LL-101 (new): instrumentation wire-time shifted the external latency clock; internal
+   perf clock kept the before/after honest. Candidate measurement-plan discipline —
+   **brought to human, not self-promoted**.
+5. Dispositions D1–D3 properly recorded in the design doc and flagged; **D1 (human glance
+   at the highlight treatment) is the only open verification item** — the milestone's
+   headline exit criterion is visual and no serial assertion can close it (T168 precedent
+   correctly cited).
+6. Watch item (not a regression): wr_playing in-window `loop_max` median read 44.5 ms
+   (4-hb sample, different live station) vs E1's 24 ms; the gating tail statistic held
+   (max 50 ms, 0 iterations >50 ms). Re-check opportunistically at the next 10-min
+   PLAYING window; if the median holds ≥40 on a fast station, file it.
+7. DUT-throughput tax confirmed again: 3 of 6 DUT sessions aborted on boot-WiFi flakes
+   (`BOOT_WAIT=30` + rc-scoped retry recovered all); TASK-283 (link supervisor) remains
+   the standing fix, no new task warranted.
+
+**Actions assigned**: none new (TASK-280/281 pre-exist and stand; TASK-294 remains free).
+LL-101 discipline → human decision on BP promotion.
+
+**Resolution**: pending human sign-off on D1–D3 (design §Implementation results) and the
+LL-101 BP-candidate call. QM verdict: close is sound; D1 is a 30-second human action.
+
+---
+
 ### Audit — 2026-07-07 — M-WR-AUDIO-TASK (TASK-278) milestone close-out retrospective
 
 **Triggered by**: human ("PM, QM are you happy?") after the E1-E5 exit-criteria campaign.

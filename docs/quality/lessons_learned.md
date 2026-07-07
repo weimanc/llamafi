@@ -4,6 +4,26 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-07-07 — M-TASKBAR-FEEDBACK (TASK-279) close
+
+### LL-100 — 2026-07-07 — Test assertion anchored on a data-dependent surface false-failed while a standing external blocker empties that surface
+**Context**: T_TBFB_04's canvas half asserted "a consumed canvas gesture arms the cooldown" by tapping the PLEDIT playlist area. PLEDIT arms the cooldown only when playlist rows exist — and the playlist has been empty on every DUT run since 2026-06-25, because TASK-243 (Spotify Premium lapsed, 403) starves it. First DUT run: FAIL `remainingMs=0`. The fix was one line: anchor on the VIS window instead, which arms +300 ms at Press with no data dependency (T-CDWN-01 had already made this exact choice).
+**Observation**: The blocker was known, ratified, and cited elsewhere in the same test file — yet a brand-new test still picked a surface whose behaviour silently depends on it. Cost was low (one flash cycle) only because the suite run isolated it immediately.
+**Root cause**: When choosing an assertion surface, "does this control respond to touch" was checked against the code, but "does it respond *in the device state the DUT is actually parked in*" was not. Standing external blockers change the ambient device state for every future test, not just the tests that mention them.
+**Suggested improvement**: While a standing external blocker is open (grep tasks.md for blocked-external), new tests must anchor assertions on surfaces that are provably data-independent (VIS, transport sprites, taskbar) or explicitly SKIP citing the blocker. Same family as the T_WR_ERR_x isolation defect (TASK-277 retro): harness code inherits the device's ambient state, not the state the author imagines.
+**Status**: applied in-run (`2e92f01`); recorded as the pattern to check at test-authoring time
+
+---
+
+### LL-101 — 2026-07-07 — New debug log lines shifted the external latency clock by their own wire time; the internal clock was the control that kept the comparison honest
+**Context**: TASK-279's before/after table showed tap-to-switch-committed +11–13 ms in every idle state. The three new SERIAL_DEBUG lines per tap (~126 bytes) cost ≈11 ms at 115200 baud on a TX path the existing heap lines already saturate during a switch — arithmetic matching the delta. The falsifier that kept this from being hand-waving: the *device-internal* `shell.switch` clock (median 84–98 ms) landed on the BEFORE external medians (83.5–97.8 ms), showing switch cost itself unchanged; and the production build compiles none of the lines.
+**Observation**: The instrumentation added to measure the feature was itself the largest measured "regression". Without the internal clock recorded in the same session, the +13 ms would have read as a real cost of the feedback blits and invited a pointless optimisation hunt.
+**Root cause**: Serial writes on a saturated 115200 TX buffer are ~0.087 ms/byte of blocking wire time inside the measured window; any external (host-side) clock includes them. Stable-prefix lines are an interface, but they are not free inside latency-measured regions.
+**Suggested improvement**: Before/after latency comparisons on SERIAL_DEBUG builds must record a device-internal clock (perf slot) alongside the external clock in the *same* session, and attribute any external-only delta to wire bytes before treating it as regression. When adding log lines inside a measured region, count their bytes into the measurement plan.
+**Status**: open — candidate discipline for the VE measurement-plan checklist (human to decide if it graduates to a BP)
+
+---
+
 ## Retrospective — 2026-07-03 — M-WIFI-DIAG root cause (MX5600 auto-channel) + E0 unblock
 
 ### LL-097 — 2026-07-07 — "Root cause confirmed by source reading" was wrong twice; only DUT re-verification of each fix found the real chain
