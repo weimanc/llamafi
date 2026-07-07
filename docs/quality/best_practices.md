@@ -4,6 +4,16 @@
 
 Entries promoted from `lessons_learned.md` on explicit human approval. All agents read+apply. QM owns file, invalidates outdated practices.
 
+### BP-044 — No "root-caused" status without the fix stopping the original repro on hardware
+
+**Adopted from**: LL-097  
+**Date adopted**: 2026-07-07 (human)  
+**Rule**: A crash/defect may be recorded as "root-caused" only after its candidate fix demonstrably stops the *original* repro on the DUT. Until then the status is "hypothesis (source-supported)". The verification set must include at least one known-good control case (an input expected to work) — a fix that "works" only on the failing cases and a theory that never faced a control are both unfalsified.  
+**Rationale**: TASK-286: a source-reading root cause for a device-rebooting watchdog crash was internally coherent, cited real code, was written up as "confirmed" — and was wrong. The falsifying evidence cost one 30-second DUT run; the control URL (a fast, healthy stream that still crashed) is what broke the theory. The real chain (tlsYield starvation → yield refcount race → wr-idle ack deadlock) was only found because every fix was re-run against the original repro before being believed.  
+**Applies to**: Developer (status discipline in tasks.md/commit messages), VE (repro + control case in every crash verification plan), QM (challenge any "root-caused" claim lacking a repro-stopped-on-DUT citation)
+
+---
+
 ### BP-001 — Verify derived values before adopting into specs
 
 **Adopted from**: LL-020  

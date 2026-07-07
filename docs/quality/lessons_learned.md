@@ -11,7 +11,7 @@ Populated during retrospectives. Entries reviewed w/ human for promotion to `bes
 **Observation**: The written root-cause analysis was internally coherent, cited real code, and was still wrong about causation. The falsifying evidence cost one 30-second DUT run. Static analysis identified *a* real bug (kept, it was worth fixing) but not *the* bug.
 **Root cause**: "Confirmed" was granted on source coherence alone. A plausible mechanism that explains the symptom is not causation until the fix demonstrably stops the original repro — and the cheap experiment that tests this (re-run the repro) was initially treated as optional verification rather than part of the root-cause claim itself.
 **Suggested improvement**: A crash/defect may be recorded as "root-caused" only after its fix stops the original repro on hardware. Until then the status is "hypothesis (source-supported)". Additionally: always include a known-good control case in the verification set — the control URL is what falsified the theory here.
-**Status**: open (BP candidate — see QM note to human)
+**Status**: adopted → BP-044 (human, 2026-07-07)
 
 ---
 

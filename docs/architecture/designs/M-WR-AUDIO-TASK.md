@@ -487,3 +487,7 @@ after every DUT stage.
 (boot SPIFFS-path persist re-begin deauth → 0.0.0.0 boots — fixed), TASK-291 (FIN-close
 stream-death detection gap — open, P2), TASK-292 (wr-soak balance counter false-FAIL —
 open, P3).
+
+**Dispositions ratified (human, 2026-07-07):** the E2 PASS-with-disposition (harness
+false-FAIL, TASK-292) and the E3 scoped pass (TASK-291 carries the FIN-close detection gap)
+are final. LL-097 from this campaign adopted as BP-044.

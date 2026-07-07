@@ -32,8 +32,9 @@ preceded it (TASK-285/286 → 287 → 288 → 289 → 290), commits `9838637..05
 **Actions assigned**: TASK-291 (Developer, P2), TASK-292 (VE, P3) — both filed in tasks.md.
 BP candidate from LL-097 → human decision.
 
-**Resolution**: Milestone closed with all five gates green and two dispositions pending
-human sign-off (E2 override, E3 scoping). No unrecorded deviations found.
+**Resolution**: Human ratified all three items 2026-07-07: E2 PASS-with-disposition
+(verifier false-FAIL, TASK-292) and E3 scoped pass (TASK-291 carries the detection gap)
+stand as final verdicts; LL-097 adopted as **BP-044**. Audit closed, no open items.
 
 ---
 
