@@ -2660,12 +2660,24 @@ static void cmdGet(const char *args) {
     // current free heap + largest block so a fetch session can be correlated.
     size_t dF = dataTask::stackHighWaterBytes(),  dS = dataTask::stackSizeBytes();
     size_t sF = spotifyTask::stackHighWaterBytes(), sS = spotifyTask::stackSizeBytes();
+    // TASK-278: wrPump only exists while WebRadio has played at least once this
+    // session — report 0/0/0 before then (wrPumpAlive() gates the size too, so
+    // "used" doesn't read as a false full-stack allocation). webRadioApp.h is
+    // only compiled under WINAMP_DISPLAY (see include above).
+#ifdef WINAMP_DISPLAY
+    size_t wS = wrPumpAlive() ? wrPumpStackSizeBytes() : 0;
+    size_t wF = wrPumpStackHighWaterBytes();
+#else
+    size_t wS = 0, wF = 0;
+#endif
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"stacks\","
                   "\"dataSize\":%u,\"dataFree\":%u,\"dataUsed\":%u,"
                   "\"spotSize\":%u,\"spotFree\":%u,\"spotUsed\":%u,"
+                  "\"wrPumpSize\":%u,\"wrPumpFree\":%u,\"wrPumpUsed\":%u,"
                   "\"heapFree\":%u,\"heapMaxAlloc\":%u,\"last\":true}\n",
                   (unsigned)dS,(unsigned)dF,(unsigned)(dS-dF),
                   (unsigned)sS,(unsigned)sF,(unsigned)(sS-sF),
+                  (unsigned)wS,(unsigned)wF,(unsigned)(wS>wF?wS-wF:0),
                   (unsigned)ESP.getFreeHeap(),(unsigned)ESP.getMaxAllocHeap());
     return;
   }

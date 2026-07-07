@@ -925,11 +925,11 @@ servicing to a dedicated FreeRTOS task with explicit core placement, lifecycle
 (panel-reviewed): pump task on core 1 prio 2, Phase-1 mutex with timeout-take UI reads,
 ack-then-self-delete teardown.
 
-**Status:** design panel-reviewed 2026-07-03 (VE/DEV/QM approve-with-changes ×3,
-dispositions applied) — **approved 2026-07-03 (human)**
-**Land order (panel-pinned):** **shared E0 baseline session (one DUT session, feeds this
-design's E0 and M-TASKBAR-FEEDBACK's matrix — must run before either implementation
-merges)** → TASK-278 → TASK-277 → TASK-279 blits.
+**Status:** Phase 1 implemented 2026-07-03 (pending DUT validation E1–E4) — see TASK-278.
+Design panel-reviewed 2026-07-03 (VE/DEV/QM approve-with-changes ×3, dispositions
+applied) — approved 2026-07-03 (human)
+**Land order (panel-pinned):** shared E0 baseline session (done) → **TASK-278 (Phase 1
+implemented, DUT validation pending)** → TASK-277 → TASK-279 blits.
 **Design:** [M-WR-AUDIO-TASK.md](../architecture/designs/M-WR-AUDIO-TASK.md)
 **Deps:** M-WEBRADIO (done), M-WEBRADIO-NOPSRAM (A-lite arena — heap ceiling constraint)
 **Tracked-as:** TASK-278

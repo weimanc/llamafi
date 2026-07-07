@@ -7,6 +7,7 @@
 #include <TFT_eSPI.h>
 #include <Audio.h>
 #include <freertos/queue.h>
+#include <freertos/semphr.h>
 #include "esp_task_wdt.h"
 #include <esp_heap_caps.h> // T_MB_PROBE_00: caps-split for CP1/CP2 (TASK-261 Phase 0+2)
 #ifdef MEMBUDGET_PHASE1
@@ -18,6 +19,7 @@
 #include "gen/skin_layout.h"
 #include "gen/webradio_countries.h"
 #include "logSink.h"
+#include "perf.h"
 #include "spotifyTask.h"
 #include "winamp/winampDisplay.h"
 
@@ -77,7 +79,8 @@ static inline uint8_t wrEffectiveVolume() {
 }
 
 // ── ICY metadata queue ───────────────────────────────────────────────────────
-// Written from ESP32-audioI2S callback (Core 0/audio task); read in tick() (Core 1).
+// Written from ESP32-audioI2S callback — runs on the wrAudio pump task (core 1,
+// prio 2, TASK-278/M-WR-AUDIO-TASK); read in tick() (loopTask, core 1, prio 1).
 // Depth 1 + overwrite: old unread title is replaced by the newest one.
 
 static QueueHandle_t s_icyTitleQueue = nullptr;
@@ -137,6 +140,126 @@ static Audio& wrAudio() {
     return *s_wr_audio;
 }
 
+// ── Audio pump task (TASK-278 / M-WR-AUDIO-TASK, Phase 1) ────────────────────
+// Moves Audio::loop() (decode + HTTP stream fill) off loopTask onto a
+// dedicated core-1, priority-2 task, so a slow paint can no longer starve the
+// pump and a decode/refill spike can no longer stall touch sampling (E0
+// decode-loaded baseline: 141 ms max-iteration spike, worst path app.tick —
+// see docs/architecture/designs/M-WR-AUDIO-TASK.md). Phase 1 locking model:
+// one non-recursive mutex guards every Audio method call.
+//   - Control calls (connecttohost/stopSong/setVolume, from _play/_stopAudio/
+//     wrVol): blocking take — correct, since there's nothing to pump until
+//     the call returns [DEV-2-1].
+//   - Per-tick reads (inBufferFilled/Free, isRunning): short timeout-take,
+//     degrade to the last snapshot on miss — never block loopTask behind a
+//     pump that may be inside an in-loop() reconnect/redirect/playlist
+//     connect (Audio.cpp:2450-2452/3587/5255).
+// Lifecycle: created lazily at first _play() (AFTER mb_arena_acquire() —
+// the 8 KB task stack must not fragment the block the arena needs
+// [DEV-2-3]); persists across _play() churn within a session; torn down in
+// suspend() via an enforced ack-then-self-delete handshake [QM-2-1/DEV-2-6]
+// before the Audio object + arena are released.
+
+static SemaphoreHandle_t s_wrAudioMutex  = nullptr;  // guards every Audio method call
+static SemaphoreHandle_t s_wrPumpAckSem  = nullptr;  // teardown handshake
+static TaskHandle_t      s_wrPumpTask    = nullptr;
+static volatile bool     s_wrPumpStopReq = false;
+
+constexpr UBaseType_t WR_PUMP_STACK_WORDS      = (8 * 1024) / sizeof(StackType_t);
+constexpr UBaseType_t WR_PUMP_PRIORITY         = 2;  // above loopTask (prio 1) — DMA deadline
+constexpr TickType_t  WR_PUMP_CADENCE_TICKS    = pdMS_TO_TICKS(2);   // OQ1: tune on DUT
+constexpr TickType_t  WR_PUMP_READ_TIMEOUT_TICKS = pdMS_TO_TICKS(50); // per-tick reads
+// Teardown ack-wait bound. *** DUT-VERIFY (E3): must exceed the measured
+// worst-case Audio::loop() hold (redirect/reconnect/playlist connect paths,
+// DEV-2-1) — this starting value is a placeholder, not yet DUT-measured. ***
+constexpr uint32_t WR_PUMP_ACK_TIMEOUT_MS = 10000;
+
+// Pump observability (BP-036, VE-2-2) — single-producer (pump task) volatiles,
+// read by dbgGet("wrPump") / "get stacks" on the loop task. Same accepted
+// pattern as spotifyTask's volatile counters (no torn 32-bit reads on Xtensa).
+static volatile uint32_t s_wrPumpCycles         = 0;
+static volatile uint32_t s_wrPumpMaxPumpMs      = 0;
+static volatile uint32_t s_wrPumpMaxMutexWaitMs = 0;
+
+static bool wrPumpAlive() { return s_wrPumpTask != nullptr; }
+
+static size_t wrPumpStackSizeBytes() {
+    return (size_t)WR_PUMP_STACK_WORDS * sizeof(StackType_t);
+}
+static size_t wrPumpStackHighWaterBytes() {
+    return s_wrPumpTask
+           ? (size_t)uxTaskGetStackHighWaterMark(s_wrPumpTask) * sizeof(StackType_t)
+           : 0;
+}
+
+static void wrPumpTaskBody(void*) {
+    LOG_I("wrpump", "created stack=%uB prio=%u core=%d",
+          (unsigned)wrPumpStackSizeBytes(), (unsigned)WR_PUMP_PRIORITY, (int)APP_CPU_NUM);
+    for (;;) {
+        // Checked at the top of the cycle, holding no locks — the enforced
+        // teardown sequence [QM-2-1/DEV-2-6]: ack, then immediately
+        // self-delete. Never re-enters the mutex/Audio::loop() after acking.
+        if (s_wrPumpStopReq) {
+            LOG_I("wrpump", "ack");
+            xSemaphoreGive(s_wrPumpAckSem);
+            LOG_I("wrpump", "deleted");
+            vTaskDelete(NULL);
+        }
+
+        uint32_t tWait = millis();
+        xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
+        uint32_t waitMs = millis() - tWait;
+        if (waitMs > s_wrPumpMaxMutexWaitMs) s_wrPumpMaxMutexWaitMs = waitMs;
+
+        uint32_t tPump = millis();
+        if (s_wr_audio) s_wr_audio->loop();  // no-ops fast internally when !m_f_running
+        uint32_t pumpMs = millis() - tPump;
+        if (pumpMs > s_wrPumpMaxPumpMs) s_wrPumpMaxPumpMs = pumpMs;
+#ifdef SERIAL_DEBUG
+        // OQ3: cross-task perf-slot write (non-atomic registration race vs
+        // perf::reset()) — accepted as diagnostic-grade noise, SERIAL_DEBUG-only.
+        perf::record("wr.pump", pumpMs);
+#endif
+        xSemaphoreGive(s_wrAudioMutex);
+
+        s_wrPumpCycles++;
+        vTaskDelay(WR_PUMP_CADENCE_TICKS);
+    }
+}
+
+// Idempotent — the pump persists across _play() churn within a session, so
+// repeated calls after the first are no-ops. Call only AFTER mb_arena_acquire()
+// [DEV-2-3].
+static void wrEnsurePumpTask() {
+    if (s_wrPumpTask) return;
+    s_wrPumpStopReq         = false;
+    s_wrPumpCycles          = 0;
+    s_wrPumpMaxPumpMs       = 0;
+    s_wrPumpMaxMutexWaitMs  = 0;
+    BaseType_t rc = xTaskCreatePinnedToCore(
+        &wrPumpTaskBody, "wrAudio", WR_PUMP_STACK_WORDS,
+        nullptr, WR_PUMP_PRIORITY, &s_wrPumpTask, APP_CPU_NUM);
+    if (rc != pdPASS) {
+        LOG_E("wrpump", "xTaskCreatePinnedToCore failed rc=%d", (int)rc);
+        s_wrPumpTask = nullptr;
+    }
+}
+
+// Enforced teardown sequence [QM-2-1/DEV-2-6]: signal stop, wait (bounded) for
+// the pump's ack — given while it holds no locks — then reap the handle. A
+// timed-out ack is a tripwire (LOG_E), not a hard block: best-effort teardown
+// proceeds so the app never gets stuck unusable (matches this codebase's
+// "never crash, degrade" philosophy elsewhere in WebRadio).
+static void wrTeardownPumpTask() {
+    if (!s_wrPumpTask) return;
+    s_wrPumpStopReq = true;
+    if (xSemaphoreTake(s_wrPumpAckSem, pdMS_TO_TICKS(WR_PUMP_ACK_TIMEOUT_MS)) != pdTRUE) {
+        LOG_E("wrpump", "teardown ack timeout after %ums — pump may be stuck in Audio::loop()",
+              (unsigned)WR_PUMP_ACK_TIMEOUT_MS);
+    }
+    s_wrPumpTask = nullptr;
+}
+
 // ── Display constants (mirrors preview_webradio.py zone map) ─────────────────
 
 // TASK-254: the ICY StreamTitle is now folded into the title marquee (no separate
@@ -168,11 +291,20 @@ public:
 
         if (!s_icyTitleQueue)
             s_icyTitleQueue = xQueueCreate(1, sizeof(char) * WR_ICY_TITLE_LEN);
+        // TASK-278: created once, ever — reused across every suspend()/_play()
+        // cycle for the lifetime of the app (init() runs only on first entry).
+        if (!s_wrAudioMutex) s_wrAudioMutex = xSemaphoreCreateMutex();
+        if (!s_wrPumpAckSem) s_wrPumpAckSem = xSemaphoreCreateBinary();
 
         // Defer Audio creation to _play() — Audio(internalDAC) constructor
         // runs i2s_driver_install which can exceed 5s and trigger WDT when
         // init() is called synchronously from cmdTap (serial context).
-        if (s_wr_audio) s_wr_audio->setVolume(wrEffectiveVolume());  // TASK-209: HW-mod clamp
+        if (s_wr_audio) {  // TASK-209: HW-mod clamp — defensive; s_wr_audio is
+                           // always null on first init() (see comment above)
+            xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
+            s_wr_audio->setVolume(wrEffectiveVolume());
+            xSemaphoreGive(s_wrAudioMutex);
+        }
 
         // TASK-208: heap watermark — app launch baseline
         _heapInitFree = ESP.getFreeHeap();
@@ -218,6 +350,11 @@ public:
     void suspend() override {
         _stopAudio();
 #ifdef MEMBUDGET_PHASE1
+        // TASK-278: tear down the pump task BEFORE the Audio object — the
+        // enforced ack-then-self-delete handshake guarantees the pump is gone
+        // (or the timeout tripwire has fired) before anything below touches
+        // s_wr_audio again.
+        wrTeardownPumpTask();
         // TASK-267: release the JIT arena when leaving WebRadio so the next entry's
         // station fetch has full heap. Destroy the Audio object FIRST — its decoder
         // buffers live in the arena, so they must be freed (via ~Audio → mb_arena_free,
@@ -331,8 +468,9 @@ public:
             }
         }
 
-        // Audio loop — keeps I2S DMA buffer filled from HTTP stream
-        if (s_wr_audio) s_wr_audio->loop();
+        // TASK-278: Audio::loop() now runs on the dedicated wrAudio pump task
+        // (core 1, prio 2) — no longer pumped from tick(). loopTask's only
+        // remaining touch is the timeout-take snapshot read below.
 
         if (_state == WRPlayState::PLAYING) {
             uint32_t now = millis();
@@ -345,13 +483,19 @@ public:
             }
 
             if (s_wr_audio) {
+                // TASK-278: per-tick read, short timeout-take — degrades to the
+                // last snapshot on a miss (pump may be inside an in-loop()
+                // reconnect/redirect/playlist connect) rather than blocking
+                // loopTask [DEV-2-1].
+                _refreshAudioSnapshot();
+
                 // TASK-220/253: drive the POSBAR buffer bar from real buffer occupancy.
                 // drawBufferBar() is a cheap targeted blit (groove + thumb), NOT a full
                 // chrome repaint, so update it directly on small moves for a smooth thumb
                 // (was a 15-pt hysteresis → _dirty full repaint, which made the thumb jump
                 // ~33 px at a time). A tiny 2-pt threshold just skips no-op repaints.
-                uint32_t filled = s_wr_audio->inBufferFilled();
-                uint32_t freeB  = s_wr_audio->inBufferFree();
+                uint32_t filled = _snapFilled;
+                uint32_t freeB  = _snapFreeB;
                 uint32_t total  = filled + freeB;
                 _bufPct = total ? (uint8_t)((uint32_t)filled * 100u / total) : 0;
 #ifdef MEMBUDGET_PHASE1
@@ -378,7 +522,7 @@ public:
                 // underrun doesn't kill healthy playback. _lastRunningMs is seeded
                 // at PLAYING entry, so the initial buffer fill sits inside the grace
                 // window. *** isRunning() transient semantics unverified on DUT. ***
-                if (s_wr_audio->isRunning()) {
+                if (_snapRunning) {
                     _lastRunningMs = now;
                     // TASK-234: once a station has held long enough to be past the
                     // decode-failure window, reset the auto-skip scan so a later
@@ -546,6 +690,17 @@ public:
             return true;
         }
 #endif
+        // TASK-278 (VE-2-2): pump task observability — alive flag, cycle count,
+        // per-session max pump/mutex-wait times, stack headroom.
+        if (strcmp(var, "wrPump") == 0) {
+            snprintf(buf, len,
+                     "\"var\":\"wrPump\",\"alive\":%d,\"cycles\":%u,"
+                     "\"maxPumpMs\":%u,\"maxMutexWaitMs\":%u,\"stackHwm\":%u,\"last\":true",
+                     (int)wrPumpAlive(), (unsigned)s_wrPumpCycles,
+                     (unsigned)s_wrPumpMaxPumpMs, (unsigned)s_wrPumpMaxMutexWaitMs,
+                     (unsigned)wrPumpStackHighWaterBytes());
+            return true;
+        }
         return false;
     }
 
@@ -653,10 +808,19 @@ public:
         // to find the clipping level. Production playback uses wrEffectiveVolume().
         if (strcmp(var, "wrVol") == 0) {
             int v = atoi(val);
-            if (v >= 0 && v <= (int)WR_VOLUME_MAX) {
-                wrAudio().setVolume((uint8_t)v);
-                LOG_I("webradio", "vol set=%d", v);
+            if (v < 0 || v > (int)WR_VOLUME_MAX) return true;
+            if (!s_wr_audio) {
+                // DEV-2-4: no live Audio session — wrVol must NOT lazily construct
+                // one via wrAudio() (that would create an Audio with no pump task,
+                // no mutex discipline, no arena). Clamp-store-only: nothing to
+                // apply until a real _play() session exists.
+                LOG_I("webradio", "vol set=%d — no active session, not applied", v);
+                return true;
             }
+            xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
+            s_wr_audio->setVolume((uint8_t)v);
+            xSemaphoreGive(s_wrAudioMutex);
+            LOG_I("webradio", "vol set=%d", v);
             return true;
         }
         // TASK-254: inject an ICY StreamTitle (single token — cmdSet splits on
@@ -737,11 +901,36 @@ private:
     uint32_t    _heapInitMin    = 0;
     uint32_t    _heapFetchFree  = 0;
     uint32_t    _heapFetchMin   = 0;
+    // TASK-278: per-tick timeout-take snapshot of the pump-owned Audio object.
+    // Degrades to these last-known values on a mutex-take miss (§Locking model).
+    uint32_t    _snapFilled     = 0;
+    uint32_t    _snapFreeB      = 0;
+    bool        _snapRunning    = false;
 
     // ── Audio control ──────────────────────────────────────────────────────
 
+    // TASK-278: per-tick read — short timeout-take, degrade to the last
+    // snapshot on miss rather than blocking loopTask behind a pump that may
+    // be inside an in-loop() reconnect/redirect/playlist connect [DEV-2-1].
+    void _refreshAudioSnapshot() {
+        if (!s_wr_audio) { _snapFilled = 0; _snapFreeB = 0; _snapRunning = false; return; }
+        if (xSemaphoreTake(s_wrAudioMutex, WR_PUMP_READ_TIMEOUT_TICKS) == pdTRUE) {
+            _snapFilled  = s_wr_audio->inBufferFilled();
+            _snapFreeB   = s_wr_audio->inBufferFree();
+            _snapRunning = s_wr_audio->isRunning();
+            xSemaphoreGive(s_wrAudioMutex);
+        }
+        // else: mutex busy — reuse the last snapshot (already in the members).
+    }
+
     void _stopAudio() {
-        if (s_wr_audio) s_wr_audio->stopSong();
+        // TASK-278: control call — blocking take (§Locking model). Pump task
+        // persists across this stop (only suspend() tears it down).
+        if (s_wr_audio) {
+            xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
+            s_wr_audio->stopSong();
+            xSemaphoreGive(s_wrAudioMutex);
+        }
         _state = WRPlayState::STOPPED;
         _pendingAction = ACT_NONE;  // TASK-234: a stop/eject cancels any deferred retry/skip
         // Resume Spotify TLS if we yielded it for playback
@@ -845,8 +1034,15 @@ private:
             s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
             wrApplyInBufTrial(s_wr_audio);   // EXP-012: before connecttohost (InBuff not yet alloc'd)
         }
+        // TASK-278: lazily create the pump task — AFTER mb_arena_acquire() above
+        // [DEV-2-3], idempotent across churn within a session (persists until
+        // suspend()).
+        wrEnsurePumpTask();
 
+        // TASK-278: control calls — blocking take (§Locking model).
+        xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
         wrAudio().setVolume(wrEffectiveVolume());  // TASK-209: HW-mod clamp
+        xSemaphoreGive(s_wrAudioMutex);
         // TASK-208 / TASK-261 CP1: heap watermark at connecttohost (audio buffer alloc point).
         // Extended with caps-split (T_MB_PROBE_00) for Phase 0: freeInt/lfbInt distinguish
         // INTERNAL pool contiguity from total free. Also tagged with auto-skip count so
@@ -862,7 +1058,16 @@ private:
               (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
               (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
 #endif
-        if (wrAudio().connecttohost(_stations[idx].url)) {
+        // TASK-278 / OQ4: control call (blocking take) + wr.connect timing —
+        // Audio::loop() also re-enters this internally on redirect/reconnect/
+        // playlist paths (DEV-2-1), which is why the pump's own mutex hold can
+        // span seconds; this call site measures the _play()-side connect only.
+        unsigned long _tConnect = millis();
+        xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
+        bool connectOk = wrAudio().connecttohost(_stations[idx].url);
+        xSemaphoreGive(s_wrAudioMutex);
+        perf::record("wr.connect", millis() - _tConnect);
+        if (connectOk) {
             _state = WRPlayState::PLAYING;
             _lastRunningMs  = millis();  // TASK-218: seed grace window for stream-death detection
             _playingSinceMs = _lastRunningMs;  // TASK-234: settled-timer start

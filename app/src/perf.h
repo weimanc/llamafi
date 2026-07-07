@@ -25,7 +25,13 @@
 
 namespace perf {
 
-constexpr int MAX_PATHS = 8;
+// TASK-278/M-WR-AUDIO-TASK (VE-2-3): 8→10 to fit the trio's shared budget —
+// production sites were 5 (+screenlog.tick under SCREEN_LOG) before this;
+// TASK-278 adds wr.connect (unconditional) + wr.pump (SERIAL_DEBUG-only,
+// cross-task write — see webRadioApp.h OQ3). M-TASKBAR-FEEDBACK adds
+// shell.switch, landing at exactly 10 production slots. This constant is the
+// single source of truth for that budget — bump it again before adding more.
+constexpr int MAX_PATHS = 10;
 
 struct Slot {
   const char *name;     // pointer-compared (always a string literal at call sites)
