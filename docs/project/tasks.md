@@ -4240,9 +4240,23 @@ immediate pressed-slot highlight on Press, optional switch-on-press evaluation, 
 busy-gate audit, and a serialdbg-measurable latency definition (tap-inject → first repaint)
 so the improvement is quantifiable via the perf/heartbeat instrumentation.
 
-**Priority:** P2 — UX · **Status:** design panel-reviewed 2026-07-03 (approve-with-changes
-×3, dispositions applied) — **approved 2026-07-03 (human)** · **Opened:** 2026-07-02 ·
-**Milestone:** M-TASKBAR-FEEDBACK · **Owner:** Architect ·
+**Implementation (2026-07-07):** landed `d13817d` (F-a pressed-slot highlight via
+`renderTaskbarSlot` extraction + `tbIsScrolling()` accessor; F-b press-anchored amber
+commit bar; shared `shellTbPress/Cancel/Commit/Release` helpers in both dispatch sites;
+L-d `switchApp` phase breakdown + `shell.switch` perf path) + `cc92355`/`2e92f01`
+(T_TBFB_01–04, e0_baseline per-tap phase capture) after BP-024 sign-off `1d07433`.
+DUT: T162–T166 + T242 + T_TBFB_01–04 **10/10 PASS**; AFTER latency matrix taken (4 states,
+N=5): press-to-first-pixel **~14 ms** (same iteration as the Press sample; 33 ms under
+WR-PLAYING), switch cost itself unchanged (internal total 84–98 ms ≈ BEFORE medians;
+the +11–13 ms on the external clock is debug-serial wire time, attributed in the doc).
+New numbers: wipe=27 ms constant (L-b candidate, deferred as designed); leaving playing
+WebRadio costs suspend=44 ms (pump teardown). Dispositions D1–D3 (visual confirm manual,
+2-min windows, T_TBFB_04 first-run test defect) in design §Implementation results —
+**D1 human glance owed**.
+
+**Priority:** P2 — UX · **Status:** **DONE 2026-07-07** (design approved 2026-07-03,
+panel approve-with-changes ×3; dispositions D1–D3 pending human sign-off) ·
+**Opened:** 2026-07-02 · **Milestone:** M-TASKBAR-FEEDBACK · **Owner:** Architect ·
 **Deps:** M-TASKBAR-SCROLL (done), M-TOUCH-UX (done), shared E0 baseline session (with
 TASK-278 — see design §Measurement plan) · **Branch:** master
 
@@ -4260,9 +4274,13 @@ never sets the 300 ms post-gesture cooldown production sets (`main.cpp:1919`). A
 `drainInjectionQueue`'s release branch) or document them as permanent harness deltas with
 VE sign-off.
 
-**Priority:** P3 — harness fidelity · **Status:** open · **Opened:** 2026-07-03 ·
-**Milestone:** M-TASKBAR-FEEDBACK · **Owner:** Developer ·
-**Deps:** TASK-279 (design defines the shared shellTb* helpers this should reuse) ·
+**Priority:** P3 — harness fidelity · **Status:** open — TASK-279 (done 2026-07-07)
+landed the shared `shellTbRelease()` this should route `cmdTap` through; the injected
+*drag* release now exercises the redirect end-to-end (T_TBFB_03), but both filed
+divergences stand: `cmdTap`'s direct branch still skips `resolvePlayerSlot`, and the
+injected release still skips the 300 ms cooldown (documented + asserted as a divergence
+in T_TBFB_04) · **Opened:** 2026-07-03 · **Milestone:** M-TASKBAR-FEEDBACK ·
+**Owner:** Developer · **Deps:** TASK-279 (done — shared shellTb* helpers available) ·
 **Branch:** master
 
 ---

@@ -365,3 +365,100 @@ out-of-scope (§6, owned by M-WR-AUDIO-TASK): a tap landing in a 141 ms iteratio
 sampled. So the taskbar-feedback blits (this design) and the audio-task move (TASK-278) are
 complementary — feedback makes a *landed* tap feel instant; the audio task stops taps being
 *dropped* during playback. Neither alone fixes the WebRadio-PLAYING case.
+
+---
+
+## Implementation results (2026-07-07) — exit criteria
+
+Landed as `d13817d` (firmware) + `cc92355`/`2e92f01` (harness) after the BP-024 sign-off
+(`1d07433`). All DUT checks on `cyd2usb_winamp_debug` via `run/test-targeted`; latency
+matrix via `app/tools/e0_baseline.py` (extended to record `press_ms`/`commit_ms`/switch
+phases per tap — additive, the entered/drain clocks untouched). Re-baseline rule honoured:
+the BEFORE column is the TASK-278 E1 rerun (2026-07-07, same firmware lineage), not the
+2026-07-03 E0.
+
+| Exit criterion | Result |
+|---|---|
+| Press highlights slot in the same loop iteration | PASS (serialdbg: `tb-press` emitted in the Press-sample drain iteration, T_TBFB_01; **visual confirm is manual** — see disposition D1) |
+| Highlight cancels on scroll-start [VE-3-4] | PASS (T_TBFB_02: `tb-press` → `tb-press-cancel`, no commit, offset stepped 0→1) |
+| Amber bar on press-anchored slot until target paint [VE-3-3/QM-3-1] | PASS (T_TBFB_01: `tb-commit slot=N` strictly before `[shell] entered`; T_TBFB_03: player-slot tap with persisted WebRadio mode paints tapped slot 0, redirect lands, no reverse lookup) |
+| Injection and production share the paint/commit code [VE-3-1] | PASS (single `shellTbPress/Cancel/Commit/Release` set called from both dispatch sites) |
+| Tap-vs-scroll discrimination unchanged, T162–T166 re-checked [DEV-3-2] | PASS 5/5 + T242 (full wrap cycle, WebRadio never reachable) |
+| T-TBFB-04 canvas cooldown unchanged; injection divergence documented | PASS (taskbar gesture leaves canvas cooldown 0; VIS tap arms 278 ms; injected release still skips the production 300 ms shell cooldown — TASK-280 stays open as filed) |
+| `run/check` gates + golden hash | PASS 6/6 before every commit (gate count grew 5→6 since design text; `gen/golden.sha256` untouched — `TASKBAR_PRESSED_BG` is firmware-only per ADR-046 rule) |
+| Before/after latency tables (3+ states, N≥5 median+max) | Done — below; WebRadio-PLAYING row (owed since E0) taken |
+
+### Latency tables (AFTER: 2026-07-07, N=5/state, 2-min quiet windows, 0 in-window `[wifi-ev]`)
+
+New quantities (did not exist before — the feature/instrumentation creates them):
+
+| state | press-to-first-pixel (med/max) | commit paint (med/max) | switch phases suspend/wipe/init/taskbar (med) | switch total (med/max) |
+|---|---|---|---|---|
+| idle_clock | **14.3 / 14.8 ms** | 22.8 / 23.8 ms | 11 / 27 / 51 / 9 | 98 / 102 ms |
+| spotify | **14.2 / 14.8 ms** | 22.5 / 23.0 ms | 11 / 27 / 38 / 8 | 84 / 98 ms |
+| wr_stopped | **13.9 / 14.4 ms** | 22.3 / 22.3 ms | 11 / 27 / 38 / 8 | 84 / 84 ms |
+| wr_playing | **33.2 / 40.0 ms** | 61.4 / 81.8 ms | **44** / 27 / 38 / 9 | 117 / 119 ms |
+
+(`press_ms` is measured from command send, so it includes ~1 loop iteration of command
+parse + queue pop; the paint itself lands in the same iteration as the Press sample —
+the design's target. Under PLAYING, iterations are longer, hence 33 ms.)
+
+Before/after on the pre-existing clocks:
+
+| state | tap-to-switch-committed BEFORE → AFTER (med) | drain BEFORE → AFTER (med) |
+|---|---|---|
+| idle_clock | 97.8/97.9 → 109.2 ms | ~113 → 124.1 ms |
+| spotify | 83.5 → 96.5 ms | ~99 → 112.0 ms |
+| wr_stopped | 84.4 → 95.5 ms | ~100 → 110.9 ms |
+| wr_playing | 112.7 (E1) → 174.3 ms | 128.8 (E1) → 189.7 ms |
+
+**Attribution of the +11–13 ms (idle states):** the three new SERIAL_DEBUG lines per tap
+(`tb-press` ~25 B, `tb-commit` ~26 B, `switch` breakdown ~75 B) add ~126 bytes to a
+115200-baud stream whose TX buffer the existing leaving/entered heap lines already
+saturate during a switch — ≈11 ms of wire time, matching the delta. The production build
+compiles none of these lines; its only added cost is the two blits (pressed-slot repaint
++ 3 px amber bar, single-digit ms — consistent with `press_ms` − one iteration).
+`switch total` (internal clock, med 84–98 ms) is in line with the BEFORE
+tap-to-switch-committed medians (83.5–97.8 ms), i.e. **switch cost itself is unchanged**.
+
+**wr_playing row context:** this state's larger deltas are (a) the same serial artifact
+on longer iterations, and (b) `suspend=44 ms` — the audio-pump teardown ack when leaving
+a *playing* WebRadio, now measured for the first time (was invisible pre-L-d). The
+session's in-window `loop_max` (median 44.5, max 50, **0 iterations >50 ms**) holds the
+TASK-278 E1 tail bar (max ≤50, 0 >50 ms); the 44.5 median vs E1's 24 is a 4-hb-sample
+window on a different live station, not a regression signal — tail is the gating
+statistic per the E0 amendment.
+
+**L-b now has numbers (no action, recorded for the future):** the 275×240 black wipe is a
+constant 27 ms in every switch (~30% of an idle switch); init/resume 38–51 ms; suspend
+11 ms (44 ms leaving playing WebRadio). If switch latency ever needs shaving, the wipe's
+double-paint (`App::paintsFullCanvas()` idea) is the best-value candidate. Deferred as
+designed.
+
+### Dispositions (for human sign-off)
+
+- **D1 — visual confirmation is manual.** "Visibly highlights" cannot be asserted over
+  serial (T168 precedent). Compensating evidence: the paint call is in the asserted code
+  path (same helper emits the log line after the blit), and the slot painter is the same
+  `renderTaskbarSlot` body `renderTaskbar` uses. **Owed: a human glance** at the pressed
+  highlight/amber bar; treatment is 1-define cheap to change (`TASKBAR_PRESSED_BG`,
+  OQ1 halo choice — full-slot tint would need re-baked pressed icons per DEV-3-4).
+- **D2 — AFTER windows are 2 min, not E0/E1's 10 min.** The tap clocks are
+  window-length-independent (taps run after the passive window); the 10-min tail numbers
+  remain owned by TASK-278 E1, which this session's window does not supersede.
+- **D3 — T_TBFB_04 first-run false-FAIL (fixed in-run):** the canvas half tapped PLEDIT,
+  which only arms the cooldown when playlist rows exist — empty under TASK-243's 403.
+  Re-pointed at the VIS window (data-independent +300 ms, T-CDWN-01 precedent); PASS
+  remainingMs=278. Test defect, not firmware — no task filed.
+
+### Open-question outcomes
+
+- **OQ1 (pressed treatment):** brightened-bg halo (`0x4208`, = separator grey) around the
+  opaque icon — the zero-bake option; dark icon square inside the halo accepted (DEV-3-4).
+  Revisit only if the human glance (D1) finds it too subtle.
+- **OQ2 (persist vs cancel-then-amber):** highlight **persists** through the switch — the
+  release path paints the amber bar over the still-highlighted slot and `switchApp()`'s
+  final `renderTaskbar` clears both. Calmer option, no extra paint.
+- **OQ3 (300 ms canvas cooldown load-bearing?):** untouched, still parked.
+- **OQ4 (cmdTap divergence):** unchanged — TASK-280 remains open; T_TBFB_04 documents the
+  release-cooldown half of the divergence in an assertion.

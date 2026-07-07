@@ -910,7 +910,7 @@ harness isolation defect (fixed). T155-T160 gate SKIPped blocked-external (TASK-
 disposition pending human. Feel tuning (OQ1) deferred to a human DUT session
 (`wrSpeedK` runtime-tunable). Design panel-reviewed 2026-07-03 — approved (human).
 **Land order (panel-pinned):** shared E0 baseline session (done) → TASK-278 (done) →
-**TASK-277 (done)** → TASK-279 blits.
+**TASK-277 (done)** → TASK-279 blits (done 2026-07-07).
 **Design:** [M-WR-PLEDIT-SCROLL.md](../architecture/designs/M-WR-PLEDIT-SCROLL.md)
 **Deps:** M-LIST-v4 (done — the gesture model being copied), M-WEBRADIO (done)
 **Tracked-as:** TASK-277
@@ -935,7 +935,7 @@ stream-death detection gap, pre-existing), TASK-292 (soak balance-counter false-
 Design panel-reviewed 2026-07-03 (VE/DEV/QM approve-with-changes ×3, dispositions
 applied) — approved 2026-07-03 (human)
 **Land order (panel-pinned):** shared E0 baseline session (done) → **TASK-278 (done)** →
-TASK-277 → TASK-279 blits.
+TASK-277 (done) → TASK-279 blits (done 2026-07-07).
 **Design:** [M-WR-AUDIO-TASK.md](../architecture/designs/M-WR-AUDIO-TASK.md)
 **Deps:** M-WEBRADIO (done), M-WEBRADIO-NOPSRAM (A-lite arena — heap ceiling constraint)
 **Tracked-as:** TASK-278
@@ -954,11 +954,15 @@ and instruments `switchApp` per-phase before any speed work. Design lean
 (panel-reviewed): pressed-slot highlight + tap-commit amber via shared shellTb* helpers,
 press-anchored slot commit, switch stays on-release.
 
-**Status:** design panel-reviewed 2026-07-03 (VE/DEV/QM approve-with-changes ×3,
-dispositions applied) — **approved 2026-07-03 (human)**
-**Land order (panel-pinned):** shared E0 baseline session (with M-WR-AUDIO-TASK) →
-TASK-278 → TASK-277 → **TASK-279 feedback blits** (blits themselves are
-order-independent; the baseline matrix is not).
+**Status:** **DONE 2026-07-07** — feedback blits + instrumentation landed (`d13817d`);
+taskbar suite + T_TBFB_01–04 **10/10 PASS** on DUT; before/after latency tables in the
+design doc (press-to-first-pixel ~14 ms same-iteration vs first pixel only after the
+post-release switch before; switch cost itself unchanged; wipe=27 ms constant recorded
+as the L-b candidate, deferred as designed). Dispositions D1–D3 pending human sign-off
+(D1: visual glance at the highlight treatment owed). TASK-280 remains the open
+harness-fidelity follow-up. Design approved 2026-07-03 (human).
+**Land order (panel-pinned):** shared E0 baseline session (done) → TASK-278 (done) →
+TASK-277 (done) → **TASK-279 feedback blits (done)** — sequence complete.
 **Design:** [M-TASKBAR-FEEDBACK.md](../architecture/designs/M-TASKBAR-FEEDBACK.md)
 **Deps:** M-TASKBAR-SCROLL (done — gesture layer being amended), M-TOUCH-UX (done)
 **Tracked-as:** TASK-279 · Follow-ups filed from panel: TASK-280 (injection/production
