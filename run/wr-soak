@@ -42,5 +42,5 @@ sleep "$BOOT_WAIT"
 
 echo "[wr-soak] 4/4 — soaking ${MINUTES} min (${PLAY_SECS}s/station)"
 (cd "$PIO_DIR" && "$VENV_PY" tools/test_webradio_soak.py \
-    --port "$PORT" --minutes "$MINUTES" --play-secs "$PLAY_SECS") \
+    --port "$PORT" --minutes "$MINUTES" --play-secs "$PLAY_SECS" ${WR_SOAK_VERBOSE:+--verbose}) \
   || _RC=$?

@@ -2082,6 +2082,15 @@ void setup()
           if (wifiConnected) {
             WiFi.persistent(true);
             WiFi.begin(ssid, pass);  // persist verified creds to NVS
+            // TASK-290: this re-begin DEAUTHS the just-verified association
+            // (observed [wifi-ev] reason=8 ~150ms after GOT_IP) and the code
+            // below read localIP() before re-association finished — boot
+            // proceeded with "IP address: 0.0.0.0" whenever the NVS attempt
+            // missed its window and this SPIFFS path ran. Wait (bounded,
+            // TWDT-fed per TASK-288) for the re-association to settle.
+            { unsigned long dl = millis() + 15000;
+              while (WiFi.status() != WL_CONNECTED && millis() < dl) { delay(100); esp_task_wdt_reset(); } }
+            wifiConnected = (WiFi.status() == WL_CONNECTED);
             Serial.println("[wifi] SPIFFS credentials saved to NVS");
           } else {
             Serial.println("[wifi] SPIFFS connect failed");

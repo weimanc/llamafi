@@ -4191,7 +4191,13 @@ WiFi-heavy core 0), task lifecycle on play/stop/eject/app-switch, locking around
 shared `Audio` object (ICY queue already exists), stack sizing under the A-lite arena
 heap ceiling, WDT interaction, and failure modes (task starvation vs. current inline model).
 
-**Priority:** P2 — UX (shell-wide latency during playback) · **Status:** **Phase 1
+**Priority:** P2 — UX (shell-wide latency during playback) · **Status:** **DONE 2026-07-07 —
+E1-E5 exit criteria all PASS**, full results in `docs/architecture/designs/M-WR-AUDIO-TASK.md`
+§Exit-criteria results. Headline: the decode tail on loopTask is gone (per-hb loop_max
+141→50 ms max, 6→0 iterations >50 ms per 10-min PLAYING window, on the harsher
+Spotify-enabled build); ADR-045 gate 10/10; maxMutexWaitMs 258-312 ms; pump stack HWM
+headroom 4624 B; 2×30-min soaks, 0 arena failures, no TWDT. Campaign incidentals: TASK-290
+fixed, TASK-291/292 filed. Code landed as `39e6c08`. Original status for history: **Phase 1
 implemented 2026-07-03** — `webRadioApp.h`: dedicated `wrAudio` pump task (core 1,
 prio 2, 8 KB stack, created lazily at first `_play()` after `mb_arena_acquire()`,
 torn down via ack-then-self-delete in `suspend()`); single mutex around every Audio
@@ -4664,3 +4670,80 @@ JSON (count=16) in all of today's runs — TASK-284's truncation is intermittent
 **Milestone:** — (candidate: M-WEBRADIO reliability) · **Owner:** Developer ·
 **Deps:** TASK-287 (exposed it), TASK-284 (mirror health affects fetch outcomes either way) ·
 **Branch:** master
+
+---
+
+### TASK-290 — Boot WiFi: SPIFFS-path "persist to NVS" re-begin deauths the fresh association → boots with 0.0.0.0
+
+Found 2026-07-07 during TASK-278 E3 DUT runs (two identical consecutive failures). When the NVS
+reconnect attempt misses its 10 s window (AP in a slow phase) and the SPIFFS-credentials path
+connects instead, the follow-up "persist verified creds to NVS" `WiFi.begin(ssid, pass)` call
+**deauths the just-verified association** (`[wifi-ev] reason=8` ~150 ms after GOT_IP) — and the
+code below read `WiFi.localIP()` before re-association completed, so the whole boot proceeded
+with `IP address: 0.0.0.0` (Spotify/NTP/fetches all dead until something else recovered the
+link). Invisible on most boots because the NVS path usually wins; deterministic whenever the
+SPIFFS path runs.
+
+**Fix landed 2026-07-07:** bounded, TWDT-fed wait (≤15 s, same pattern as TASK-288's loops) for
+re-association after the persist re-begin, re-evaluating `wifiConnected` after. Verified on DUT
+across subsequent E3 boot cycles (SPIFFS path taken, `reason=8` blip still occurs, boot now waits
+it out and lands a valid IP).
+
+**Priority:** P2 · **Status:** fixed 2026-07-07, pending commit with the TASK-278 E-gate docs ·
+**Opened:** 2026-07-07 · **Milestone:** — · **Owner:** Developer · **Deps:** TASK-288 (same
+bug family: boot-path waits) · **Branch:** master
+
+---
+
+### TASK-291 — Stream death via server FIN never detected: `isRunning()` stays true, TASK-218 debounce never arms
+
+Found 2026-07-07 by TASK-278 E3's real-stream-death case (DEV-2-2) — and it empirically answers
+the design's standing **OQ5** (`isRunning()` transient semantics). Local host-side MP3 streamer,
+killed mid-play (clean process exit → TCP FIN to the DUT): the vendored ESP32-audioI2S keeps
+`m_f_running == true` indefinitely on the FIN-closed socket, logging `slow stream, dropouts are
+possible` forever (observed 90 s+, two independent runs). TASK-218's stream-death detection
+requires `isRunning() == false` sustained for `WR_STREAM_DEAD_MS` (5 s) — it never arms, so the
+player sits PLAYING-but-silent with Spotify TLS held yielded, exactly the state TASK-218 was
+built to prevent.
+
+**Not a TASK-278 regression** — the pump faithfully keeps calling `Audio::loop()`, same as the
+old loopTask pumping would; the gap is in the app-level detection predicate. The pump/mutex
+machinery held perfectly through 90 s of starved-stream churn (no crash, no deadlock, teardown
+clean afterward, `maxMutexWaitMs` 258-312 ms).
+
+**Suggested direction:** secondary liveness predicate alongside `isRunning()` — e.g., input
+buffer empty (`bufPct == 0` / no bytes consumed) sustained for N seconds while PLAYING → treat
+as dead. The existing TASK-263 underrun/bufPct plumbing already exposes the needed signals.
+Real-world impact: a station server restarting (systemd stop, icecast reload) FIN-closes exactly
+like this; today that means silent-until-user-intervenes.
+
+**Priority:** P2 — silent-hang UX bug on a real-world event class, with a clear fix direction ·
+**Status:** open · **Opened:** 2026-07-07 · **Milestone:** — (candidate: M-WEBRADIO
+reliability) · **Owner:** Developer · **Deps:** TASK-218 (the predicate it extends), TASK-263
+(bufPct/underrun signals) · **Branch:** master
+
+---
+
+### TASK-292 — `test_webradio_soak.py` acquire/release balance counter false-FAILs on lost serial lines
+
+Found 2026-07-07 during TASK-278 E2: both 30-min soaks printed `VERDICT: FAIL` solely on the
+acquire/release balance clause (81/77, then 90/89) while every other clause passed (0 acquire
+FAILs, lfb never below 51 K, lfb ending ABOVE its start — which mathematically refutes a real
+24 K-arena leak). The verbose per-cycle trace shows the counter diff is only ever 0 or exactly
+1, flipping once mid-run and never growing: a single `[membudget] arena released` line lost at
+a command boundary — the harness's own `cmd()` calls `reset_input_buffer()` before each send,
+discarding whatever in-flight serial (including counter lines) hasn't been read yet.
+
+**Fix direction:** count balance from the device, not the wire — e.g., add a
+`get arenaStats` serialdbg counter pair (acquires/releases maintained in `membudget`) and
+have the soak compare device-side totals at start/end; or stop using `reset_input_buffer()`
+and parse the continuous stream. Until fixed, a balance MISMATCH of ±1-4 with a healthy lfb
+trend should be read as line loss, not leak (this session's disposition — see
+M-WR-AUDIO-TASK §E2 results).
+
+Also landed alongside: `run/wr-soak` now accepts `WR_SOAK_VERBOSE=1` to pass `--verbose`
+through (used to produce the per-cycle trace that diagnosed this).
+
+**Priority:** P3 — verification tooling; false-FAILs erode trust in a gate that's otherwise
+doing its job · **Status:** open · **Opened:** 2026-07-07 · **Milestone:** — ·
+**Owner:** VE · **Deps:** TASK-271 (owning tool) · **Branch:** master

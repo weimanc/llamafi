@@ -925,11 +925,14 @@ servicing to a dedicated FreeRTOS task with explicit core placement, lifecycle
 (panel-reviewed): pump task on core 1 prio 2, Phase-1 mutex with timeout-take UI reads,
 ack-then-self-delete teardown.
 
-**Status:** Phase 1 implemented 2026-07-03 (pending DUT validation E1–E4) — see TASK-278.
+**Status:** **DONE 2026-07-07 — Phase 1 landed (`39e6c08`) + E1-E5 exit criteria all PASS**
+(decode tail on loopTask eliminated: 141→50 ms max, 6→0 iters >50 ms per 10-min PLAYING
+window; results table in the design doc). Follow-ups from the campaign: TASK-291 (FIN-close
+stream-death detection gap, pre-existing), TASK-292 (soak balance-counter false-FAIL).
 Design panel-reviewed 2026-07-03 (VE/DEV/QM approve-with-changes ×3, dispositions
 applied) — approved 2026-07-03 (human)
-**Land order (panel-pinned):** shared E0 baseline session (done) → **TASK-278 (Phase 1
-implemented, DUT validation pending)** → TASK-277 → TASK-279 blits.
+**Land order (panel-pinned):** shared E0 baseline session (done) → **TASK-278 (done)** →
+TASK-277 → TASK-279 blits.
 **Design:** [M-WR-AUDIO-TASK.md](../architecture/designs/M-WR-AUDIO-TASK.md)
 **Deps:** M-WEBRADIO (done), M-WEBRADIO-NOPSRAM (A-lite arena — heap ceiling constraint)
 **Tracked-as:** TASK-278

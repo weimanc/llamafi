@@ -404,3 +404,86 @@ mechanism (app.tick worst-path) is decode-attributed. (b) Station idx 0 was a *s
 device baseline**; TASK-278 E2 must pick a fast station (or `./run/wr-soak` which already does).
 `display.input` premise (VE-2-4): worst path stayed `app.tick`, never `display.input`, under
 decode → **VE-2-4 refuted, E1 may drop the display.input clause.**
+
+---
+
+## Exit-criteria results (2026-07-07) — Phase 1 E1-E5 campaign
+
+All on DUT, `cyd2usb_winamp_debug` (E2 on `cyd2usb_webradio` per `run/wr-soak`), firmware
+`39e6c08` + the TASK-290 boot fix. Note this build is HARSHER than E0's PLAYING row
+(Spotify enabled and 403-churning throughout — `last=403` heartbeats — vs E0's
+Spotify-disabled build); the numbers held anyway.
+
+### E1 (UI latency, tail-gated per the 2026-07-03 amendment) — **PASS**
+
+10-min windows, same session, 0 in-window `[wifi-ev]` in all three states (calm windows —
+the channel pin + a quiet AP phase finally delivered what E0 never got):
+
+| state | median | max (per-hb) | >50 ms iters / 10 min | worst path |
+|---|---|---|---|---|
+| idle_clock | 23 ms | 153 ms¹ | 1¹ | app.tick |
+| wr_stopped | 23 ms | **23 ms (flat)** | 0 | app.tick |
+| wr_playing (pump) | 24 ms | **50 ms²** | **0²** | app.tick ≤24 ms / wr.pump 22-23 ms³ |
+| *E0 wr_playing (loopTask decode)* | *24 ms* | ***141 ms*** | ***6*** | *app.tick (Audio::loop)* |
+
+¹ hb[0] only, immediately post-boot (token-refresh window); all 19 later windows flat 23-24.
+² hb[0] (213 ms, slow-path `wr.connect:83ms`) excluded per VE-2-5 — Phase 1 deliberately
+leaves connect blocking; series decays 50→23 as the session settles.
+³ `wr.pump` is the pump task's own perf slot (OQ3 cross-task write), not a loopTask stall.
+
+**The design's target quantity — the decode tail on loopTask — is gone**: 141→50 ms max,
+6→0 iterations >50 ms. Tap cross-check: 5/5 gestures delivered in every state; PLAYING drain
+median 128.8 ms vs 113.5 idle (~1.14×), entered 112.7 ms vs 97.9 — no drops.
+
+### E2 (underrun regression, `wr-soak 30`) — **PASS** (harness verdict FAIL attributed, see below)
+
+Two full 30-min soaks (88 + 92 cycles, 20 s/station, 16 real stations): **0 arena acquire
+failures**, lfb min 51188/55284 (never near the 24576 floor), **lfb ended above its start in
+both runs** (61428→63476), max **1 underrun per session** across all 180 sessions, sustained
+playback median 16.1 s of the ~16 s effective cap, no crash/TWDT. E0's underrun row was
+declared dirty (slow station); today's rate — at most a handful of single-underrun sessions
+per 30 min on fast stations — is comfortably "no regression, expectation improvement".
+
+**Harness verdict disposition:** both soaks printed `VERDICT: FAIL` solely on the
+acquire/release balance clause (81/77, then 90/89). The verbose per-cycle trace (run 2) shows
+the counter diff is only ever 0 or exactly 1, flipping once mid-run and never growing — a
+single `arena released` serial line lost at a command boundary (the harness's own
+`reset_input_buffer()` discards in-flight lines). A real leak accumulates and permanently
+steps lfb down 24 K per occurrence; lfb ending above start refutes it mathematically. Filed
+as a verifier defect (TASK-292); does not gate E2.
+
+### E3 (state-machine regression guard) — **PASS**, one pre-existing gap filed
+
+- ADR-045 instrumented gate: **10/10 PASS**, skips=0 every trial, ttfp 0.1 s, hold ≥60 s,
+  discΔ=0 (16 real stations, live mirrors).
+- `wrDeadUrls 3` bound: skips 1/3, 2/3, park terminal, never loops — PASS. TASK-276
+  terminal-retry re-armed after the 30 s backoff — PASS.
+- Real-stream death (local host streamer, FIN-killed mid-play, DEV-2-2): the pump/mutex
+  machinery held through 90 s of starved-stream churn — pump alive, no crash, no deadlock —
+  and the measured DEV-2-1 mutex-hold bound is **maxMutexWaitMs 258-312 ms** (maxPumpMs
+  39-48 ms), far under the 10 s teardown ack bound. **OQ5 answered, negatively**: the vendored
+  lib keeps `isRunning()==true` indefinitely on a FIN-closed socket ("slow stream" forever),
+  so TASK-218's predicate never arms — a pre-existing app-level detection gap, not a
+  pump/mutex regression (filed **TASK-291** with a bufPct-based secondary-predicate
+  direction).
+- Teardown (eject after the death case, i.e. worst-state teardown): `[wrpump] ack` →
+  `deleted` → `arena released` strictly ordered, TLS resumed, pump gone (`alive:0`), heap
+  recovered to pre-entry. PASS.
+
+### E4 (budget) — **PASS**
+
+Pump stack HWM headroom **4624 B** ≥ 2 KB bar (8 K stack, ~3.5 K peak use). Arena acquire
+`lfbBefore=61428` ≥ 24 K with the pump stack allocated after the arena [DEV-2-3]; held ≥51 K
+across both soaks (180 acquires, 0 FAILs). No TWDT trip anywhere in the campaign (2×30-min
+soaks + all E1/E3 sessions).
+
+### E5 (build gates) — **PASS**
+
+`./run/check` 6/6 throughout. Production build behaviour unchanged when WebRadio is never
+entered (task created only at first `_play()`); prod firmware reflashed and heartbeat-verified
+after every DUT stage.
+
+**Phase 1 exit criteria: met.** Campaign incidentals fixed/filed along the way: TASK-290
+(boot SPIFFS-path persist re-begin deauth → 0.0.0.0 boots — fixed), TASK-291 (FIN-close
+stream-death detection gap — open, P2), TASK-292 (wr-soak balance counter false-FAIL —
+open, P3).
