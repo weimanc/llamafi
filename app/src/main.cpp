@@ -2273,11 +2273,19 @@ static bool s_injectIsFirst = false;  // first non-release item → Press, rest 
 static int s_pendingDragX1, s_pendingDragY1,
            s_pendingDragX2, s_pendingDragY2, s_pendingDragSteps;
 static int s_injectTotal = 0;  // total steps for LOG_D %d/%d
+// TASK-277 (VE-1-1/DEV-1-2): the release step dispatches at the LAST sample's
+// coordinates, not (0,0) — otherwise a drag's Release lands outside every
+// hit-test region and gesture-end logic sees garbage geometry.
+static int s_lastInjectX = 0, s_lastInjectY = 0;
+// TASK-277 (VE-1-3): bare `release` command marks its sentinel so the drain
+// emits {"cmd":"release"} instead of the drag JSON.
+static bool s_bareRelease = false;
 
 // Forward declarations so kCmds[] can reference the handlers before they
 // are defined (they must appear after kCmds[] to see kNumCmds).
 static void cmdTap(const char *);
 static void cmdDrag(const char *);
+static void cmdRelease(const char *);
 static void cmdTick(const char *);
 static void cmdGet(const char *);
 static void cmdSet(const char *);
@@ -2291,7 +2299,8 @@ static const SerialCmd kCmds[] = {
   { "reconnect", cmdReconnect, "TLS reset + force poll", "" },
 #ifdef SERIAL_DEBUG
   { "tap",  cmdTap,  "inject touch point",              "<x> <y>"                            },
-  { "drag", cmdDrag, "inject touch drag (queue-drain)", "<x1> <y1> <x2> <y2> <steps>"        },
+  { "drag", cmdDrag, "inject touch drag (queue-drain)", "<x1> <y1> <x2> <y2> <steps> [hold]" },
+  { "release", cmdRelease, "end a held injected gesture", ""                                 },
   { "tick", cmdTick, "inject synthetic scroll ticks",   "[n=1] [dtMs=20]"                    },
   { "get",  cmdGet,  "read internal state",             "<snapshot|backoff|heap|stacks|cooldown>"    },
   { "set",  cmdSet,  "write debug state",               "<backoff|cooldown> <val>"            },
@@ -2320,19 +2329,34 @@ static inline void drainInjectionQueue() {
       renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
                 false, shell::activeError(), shell::activeConnecting());
     } else {
-      winampDisplay.handleWinampInput(TouchPhase::Release, 0, 0);
+      // TASK-277 reroute (VE-1-1 blocker + DEV-1-2): dispatch to the ACTIVE
+      // app's handleInput at the last sample's coordinates — previously
+      // hardwired to winampDisplay.handleWinampInput(Release, 0, 0), so an
+      // injected WebRadio drag delivered Press/Move to one machine and
+      // Release to another (gesture never ended). Documented behaviour
+      // deltas: (i) injected Releases now pass SpotifyApp's eject intercept
+      // with real coords; (ii) every app now sees injected Releases.
+      if (g_apps[(int)currentAppId])
+        g_apps[(int)currentAppId]->handleInput(TouchPhase::Release,
+                                               s_lastInjectX, s_lastInjectY);
     }
     winampDisplay._injectingDrag = false;
     s_dragPending = false;
-    Serial.printf("{\"ok\":true,\"cmd\":\"drag\","
-                  "\"x1\":%d,\"y1\":%d,\"x2\":%d,\"y2\":%d,\"steps\":%d}\n",
-                  s_pendingDragX1, s_pendingDragY1,
-                  s_pendingDragX2, s_pendingDragY2, s_pendingDragSteps);
+    if (s_bareRelease) {
+      s_bareRelease = false;
+      Serial.printf("{\"ok\":true,\"cmd\":\"release\",\"x\":%d,\"y\":%d}\n",
+                    s_lastInjectX, s_lastInjectY);
+    } else {
+      Serial.printf("{\"ok\":true,\"cmd\":\"drag\","
+                    "\"x1\":%d,\"y1\":%d,\"x2\":%d,\"y2\":%d,\"steps\":%d}\n",
+                    s_pendingDragX1, s_pendingDragY1,
+                    s_pendingDragX2, s_pendingDragY2, s_pendingDragSteps);
+    }
   } else {
     LOG_D("serial", "inject sample %d/%d sx=%d sy=%d",
           s_injectHead + 1, s_injectTotal - 1, step.sx, step.sy);
     if (step.sx >= TASKBAR_X) {
-      // Taskbar zone: route to gesture handlers, not handleWinampInput.
+      // Taskbar zone: route to gesture handlers, not app handleInput.
       s_lastTouchY = step.sy;
       if (!winampDisplay.tbIsDragging()) {
         winampDisplay.tbGesturePress(step.sy);
@@ -2341,11 +2365,17 @@ static inline void drainInjectionQueue() {
           renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
                 false, shell::activeError(), shell::activeConnecting());
       }
-    } else if (s_injectIsFirst) {
-      winampDisplay.handleWinampInput(TouchPhase::Press, step.sx, step.sy);
-      s_injectIsFirst = false;
     } else {
-      winampDisplay.handleWinampInput(TouchPhase::Move, step.sx, step.sy);
+      // TASK-277 reroute (VE-1-6): canvas samples go to the active app —
+      // Spotify's path is unchanged in effect (SpotifyApp::handleInput
+      // forwards Press/Move to handleWinampInput; eject intercept is
+      // Release-only), and every other app now receives injected drags.
+      s_lastInjectX = step.sx;
+      s_lastInjectY = step.sy;
+      TouchPhase ph = s_injectIsFirst ? TouchPhase::Press : TouchPhase::Move;
+      s_injectIsFirst = false;
+      if (g_apps[(int)currentAppId])
+        g_apps[(int)currentAppId]->handleInput(ph, step.sx, step.sy);
     }
   }
 #else
@@ -2505,10 +2535,12 @@ static void cmdTap(const char *args) {
 
 static void cmdDrag(const char *args) {
   int x1, y1, x2, y2, steps;
-  if (sscanf(args, "%d %d %d %d %d", &x1, &y1, &x2, &y2, &steps) != 5
-      || steps < 1 || steps > 62) {
+  char tail[8] = {0};
+  int n = sscanf(args, "%d %d %d %d %d %7s", &x1, &y1, &x2, &y2, &steps, tail);
+  bool hold = (n == 6 && strcmp(tail, "hold") == 0);
+  if (n < 5 || (n == 6 && !hold) || steps < 1 || steps > 62) {
     Serial.println("{\"ok\":false,\"cmd\":\"drag\","
-                   "\"error\":\"bad args — drag <x1> <y1> <x2> <y2> <steps=1..62>\"}");
+                   "\"error\":\"bad args — drag <x1> <y1> <x2> <y2> <steps=1..62> [hold]\"}");
     return;
   }
 #ifdef WINAMP_DISPLAY
@@ -2523,13 +2555,32 @@ static void cmdDrag(const char *args) {
       false
     };
   }
-  s_injectQueue[s_injectTail++ % 64] = { 0, 0, true };  // release sentinel
+  // TASK-277 (VE-1-3): `hold` suppresses the release sentinel — the gesture
+  // stays anchored so mid-gesture events (auto-skip) are agent-testable; a
+  // later bare `release` ends it. _injectingDrag stays set until that release.
+  if (!hold)
+    s_injectQueue[s_injectTail++ % 64] = { 0, 0, true };  // release sentinel
   s_pendingDragX1 = x1; s_pendingDragY1 = y1;
   s_pendingDragX2 = x2; s_pendingDragY2 = y2;
   s_pendingDragSteps = steps;
   s_injectTotal = s_injectTail;
-  s_dragPending = true;
-  // JSON response emitted by drainInjectionQueue() when release step pops.
+  s_dragPending = !hold;
+  if (hold) {
+    // No release step will pop → respond now (the normal contract emits the
+    // JSON from drainInjectionQueue at release-pop).
+    Serial.printf("{\"ok\":true,\"cmd\":\"drag\",\"hold\":true,"
+                  "\"x1\":%d,\"y1\":%d,\"x2\":%d,\"y2\":%d,\"steps\":%d}\n",
+                  x1, y1, x2, y2, steps);
+  }
+  // Non-hold: JSON response emitted by drainInjectionQueue() when release pops.
+}
+
+// TASK-277 (VE-1-3): end a held gesture — enqueue a release step dispatched at
+// the last injected sample's coordinates.
+static void cmdRelease(const char *) {
+  s_bareRelease = true;
+  s_injectQueue[s_injectTail++ % 64] = { 0, 0, true };
+  // JSON response emitted by drainInjectionQueue() when the step pops.
 }
 
 static void cmdTick(const char *args) {
