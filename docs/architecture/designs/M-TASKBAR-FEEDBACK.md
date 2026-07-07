@@ -297,6 +297,44 @@ Reviews: [touch-ux-panel-VE-review.md](touch-ux-panel-VE-review.md) ·
 - **QM-3-4 + VE-3-6** (OQ4 floating; second injection divergence) → TASK-280 filed; OQ4
   references it; T-TBFB-04 documents the divergence.
 
+## VE dbg-surface sign-off (BP-024) — 2026-07-07
+
+Reviewed the observables the lean requires; signed off as follows. All lines are
+SERIAL_DEBUG-gated, single-`printf` (VE-8 no-tearing rule), stable-prefix `[shell] `.
+
+1. `[shell] tb-press slot=N` — emitted by `shellTbPress()` in the **same loop iteration**
+   as the taskbar Press sample, *after* the pressed-slot repaint completes (the line
+   timestamp is the "first pixel done" mark for press-to-first-pixel). `N` = visible slot
+   index 0..5, not app index.
+2. `[shell] tb-press-cancel` — emitted by `shellTbCancel()` after the slot-restore repaint.
+   Primary trigger: scroll-start (dead zone exceeded, DEV-3-1 accessor). Secondary
+   trigger (documented, asserted tolerant): a tap that resolves to the already-active app
+   (no switch fires; the highlight must still be restored). Idempotent — no line when no
+   highlight is live.
+3. `[shell] tb-commit slot=N` — emitted by `shellTbCommit()` after the amber-bar paint,
+   **strictly before** `[shell] entered M` [VE-3-3]. `N` is the **press-anchored** slot
+   index [QM-3-1/DEV-3-2]. Emitted only when the tap commits an actual switch
+   (target != current).
+4. `[shell] switch F->T suspend=Xms wipe=Xms init=Xms taskbar=Xms total=Xms` — end of
+   `switchApp()`, after the final `renderTaskbar`. The pre-existing `[shell] entered T`
+   line keeps its position (between init/resume and renderTaskbar) so E0/E1
+   tap-to-switch-committed clocks stay comparable — extend-don't-move honoured.
+5. perf path `shell.switch` (production, not SERIAL_DEBUG-gated) — whole-body switch
+   duration; surfaces via the heartbeat `slow=` field. Budget: `MAX_PATHS` is already 10
+   (TASK-278 landed the VE-2-3 bump); `shell.switch` is the 10th slot — **no headroom
+   left; bump before adding an 11th path.**
+6. No new `get`/`set` variables. `get cooldown` (WinampDisplay canvas cooldown) is the
+   T-TBFB-04 assertion surface as-is.
+
+Assertion style: T-TBFB tests assert presence + relative order of the lines within one
+injected-gesture drain window; phase numbers in line 4 are recorded, never
+threshold-asserted single-shot (VE-3-2 flakiness rule — medians over N≥5 in the
+measurement tables only).
+
+Gate satisfied: implementation may start.
+
+---
+
 ## Baseline attempts (2026-07-03)
 
 Valid network-idle rows (reproduced across 3 runs 2026-07-03, N=5, spread <3 ms):
