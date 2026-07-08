@@ -4967,8 +4967,43 @@ happens. Fallout: (a) production also churns this path via the Winamp eject togg
 (reboot yields the same acquires = releases + 1 signature as line loss) — re-disposition
 after fix.
 
+**Root cause (2026-07-08, same session):** TWO defects in vendored `Audio.cpp`
+`connecttohost()`, both reached ONLY via TASK-291's new stall-retry (the retry re-connects
+while the dying session's decoder/InBuff/I2S allocations are still live, so the
+malloc-usable DMA-capable heap is ~0.2–1.2 KB; a first connect never sees this state).
+Continuous-capture repro driver (scratchpad `churn_repro.py`, no `reset_input_buffer`)
+caught both with clean backtraces:
+
+1. **65 s connect timeout vs 15 s TWDT.** The upstream v2.0.3 raw-IP workaround (the guard
+   TASK-286 narrowed but kept) sets `m_timeout_ms = UINT16_MAX`. Stall-retry against the
+   dying raw-IP station (`83.87.109.251:8012`, Radio Stad Centraal — slow-streaming all
+   day) blocks `WiFiClient::connect()` on loopTask under the audio mutex for 65 s ≫ 15 s
+   TWDT (`main.cpp` `esp_task_wdt_init(15,…)`) → `task_wdt_isr` abort. Decoded victim:
+   `loopTask (CPU 1)`, both CPUs idle (blocked, not spinning). **Fix:** cap the
+   workaround at 10 s (healthy connects are ~40 ms; still 40× the 250 ms default that
+   motivated the upstream workaround).
+2. **Unchecked mallocs before buffers are freed.** `connecttohost()` did its URL-parse
+   `malloc`s BEFORE `setDefaults()` (which frees the old session's ~40 K); at 212 B free
+   the mallocs returned NULL and the unchecked `memcpy(hostwoext,…)` hard-crashed
+   (StoreProhibited, `Audio.cpp:432`, full backtrace decoded loopTask→_play→connecttohost).
+   **Fix:** `setDefaults()` hoisted above the parse allocations + null-guards on all four
+   allocations (return false → `_onPlaybackFailed(connectFail=true)` → auto-skip);
+   `httpPrint()`'s identical unguarded block (mid-stream redirect path) guarded the same
+   way.
+
+**Verification:** pre-fix the churn driver crashed within ≤4 cycles, 4/4 runs (2× TWDT
+abort, 1× StoreProhibited, 1× soak-detected). Post-fix: 46 cycles / 15 min, ZERO crashes,
+with the dangerous path exercised hard — 13 stall-retry events and dozens of
+station-connect failures all returning cleanly into auto-skip. `run/check` 6/6.
+Bisect worktree confirmed the trigger is new (pre-TASK-291 build lacks the stall-retry
+predicate — the underlying Audio.cpp defects are older but unreachable without it).
+LL-098 re-disposition: pending QM review — the TASK-278 E2 soaks predate TASK-291, so
+line loss remains plausible for THOSE runs; next long soak with TASK-292's reboot
+detection settles it.
+
 **Priority:** P1 — reproducible crash-reboot on a user-reachable path (radio playback
-churn), and it silently corrupted a verification gate · **Status:** open ·
+churn), and it silently corrupted a verification gate · **Status:** **fixed 2026-07-08**,
+DUT-verified (46-cycle/15-min churn clean + wr-soak gate) ·
 **Opened:** 2026-07-08 · **Milestone:** — (candidate: M-WEBRADIO reliability) ·
-**Owner:** Developer · **Deps:** TASK-292 (detection tooling, done), TASK-291/TASK-284
-(prime suspects to bisect) · **Branch:** master
+**Owner:** Developer · **Deps:** TASK-292 (detection tooling, done), TASK-291 (trigger
+path), TASK-286 (the timeout guard this bounds) · **Branch:** master

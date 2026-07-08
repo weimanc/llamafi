@@ -403,14 +403,26 @@ bool Audio::connecttohost(const char* host, const char* user, const char* pwd) {
         return false;
     }
 
+    // TASK-295: free the previous session's buffers BEFORE the URL-parse
+    // allocations below. On the WebRadio stall-retry path the old decoder/
+    // InBuff/I2S allocations are still live here and the malloc-usable
+    // (DMA-capable) heap was observed as low as 212 B — the unchecked
+    // mallocs below then returned NULL and the memcpy hard-crashed
+    // (StoreProhibited). setDefaults() only resets member state, nothing
+    // the parsing depends on. (Was called after parsing, at the
+    // "Connect to new host" site below.)
+    setDefaults(); // no need to stop clients if connection is established (default is true)
+
     int idx = indexOf(host, "http");
     char* l_host = (char*)malloc(lenHost + 10);
+    if(!l_host) { AUDIO_INFO("out of memory"); return false; }  // TASK-295
     if(idx < 0){strcpy(l_host, "http://"); strcat(l_host, host); } // amend "http;//" if not found
     else       {strcpy(l_host, (host + idx));}                     // trim left if necessary
 
     char* h_host = NULL; // pointer of l_host without http:// or https://
     if(startsWith(l_host, "https")) h_host = strdup(l_host + 8);
     else                            h_host = strdup(l_host + 7);
+    if(!h_host) { AUDIO_INFO("out of memory"); free(l_host); return false; }  // TASK-295
 
     // initializationsequence
     int16_t pos_slash;                                        // position of "/" in hostname
@@ -429,16 +441,27 @@ bool Audio::connecttohost(const char* host, const char* user, const char* pwd) {
 
     if(pos_slash > 1) {
         hostwoext = (char*)malloc(pos_slash + 1);
-        memcpy(hostwoext, h_host, pos_slash);
-        hostwoext[pos_slash] = '\0';
+        if(hostwoext){  // TASK-295: guarded — was an unchecked memcpy target
+            memcpy(hostwoext, h_host, pos_slash);
+            hostwoext[pos_slash] = '\0';
+        }
         uint16_t extLen =  urlencode_expected_len(h_host + pos_slash);
         extension = (char *)malloc(extLen + 20);
-        memcpy(extension, h_host + pos_slash, extLen);
-        urlencode(extension, extLen, true);
+        if(extension){
+            memcpy(extension, h_host + pos_slash, extLen);
+            urlencode(extension, extLen, true);
+        }
     }
     else{  // url has no extension
         hostwoext = strdup(h_host);
         extension = strdup("/");
+    }
+    if(!hostwoext || !extension) {  // TASK-295
+        AUDIO_INFO("out of memory");
+        if(hostwoext) free(hostwoext);
+        if(extension) free(extension);
+        free(h_host); free(l_host);
+        return false;
     }
 
     if((pos_colon >= 0) && ((pos_ampersand == -1) || (pos_ampersand > pos_colon))){
@@ -447,7 +470,8 @@ bool Audio::connecttohost(const char* host, const char* user, const char* pwd) {
     }
 
     AUDIO_INFO("Connect to new host: \"%s\"", l_host);
-    setDefaults(); // no need to stop clients if connection is established (default is true)
+    // TASK-295: setDefaults() moved above the URL-parse allocations (top of
+    // this function) so the old session's buffers are freed before we malloc.
 
     if(startsWith(l_host, "https")) m_f_ssl = true;
     else                            m_f_ssl = false;
@@ -485,8 +509,14 @@ bool Audio::connecttohost(const char* host, const char* user, const char* pwd) {
     IPAddress hostwoextIP;
     bool hostwoextIsIP = hostwoextIP.fromString(hostwoext);
     if(ESP_ARDUINO_VERSION_MAJOR == 2 && ESP_ARDUINO_VERSION_MINOR == 0 && ESP_ARDUINO_VERSION_PATCH >= 3 && hostwoextIsIP){
-        m_timeout_ms_ssl = UINT16_MAX;  // bug in v2.0.3 if hostwoext is a IPaddr not a name
-        m_timeout_ms = UINT16_MAX;  // [WiFiClient.cpp:253] connect(): select returned due to timeout 250 ms for fd 48
+        // Upstream set UINT16_MAX here (default 250 ms select was too short for
+        // raw-IP hosts on v2.0.3+). TASK-295: connecttohost() runs on loopTask
+        // under the audio mutex, and a raw-IP station that stops accepting
+        // (WebRadio stall-retry hits exactly that) blocked connect() for 65 s —
+        // past the 15 s TWDT window → abort() reboot. 10 s is orders of
+        // magnitude above a healthy connect (~40 ms observed) and TWDT-safe.
+        m_timeout_ms_ssl = 10000;  // bug in v2.0.3 if hostwoext is a IPaddr not a name
+        m_timeout_ms = 10000;  // [WiFiClient.cpp:253] connect(): select returned due to timeout 250 ms for fd 48
     }
     bool res = true; // no need to reconnect if connection exists
 
@@ -549,6 +579,7 @@ bool Audio::httpPrint(const char* host) {
     char* h_host = NULL; // pointer of l_host without http:// or https://
     if(m_f_ssl) h_host = strdup(host + 8);
     else        h_host = strdup(host + 7);
+    if(!h_host) { AUDIO_INFO("out of memory"); return false; }  // TASK-295
 
     int16_t pos_slash;                                        // position of "/" in hostname
     int16_t pos_colon;                                        // position of ":" in hostname
@@ -566,16 +597,27 @@ bool Audio::httpPrint(const char* host) {
 
     if(pos_slash > 1) {
         hostwoext = (char*)malloc(pos_slash + 1);
-        memcpy(hostwoext, h_host, pos_slash);
-        hostwoext[pos_slash] = '\0';
+        if(hostwoext){  // TASK-295: guarded — was an unchecked memcpy target
+            memcpy(hostwoext, h_host, pos_slash);
+            hostwoext[pos_slash] = '\0';
+        }
         uint16_t extLen =  urlencode_expected_len(h_host + pos_slash);
         extension = (char *)malloc(extLen + 20);
-        memcpy(extension, h_host + pos_slash, extLen);
-        urlencode(extension, extLen, true);
+        if(extension){
+            memcpy(extension, h_host + pos_slash, extLen);
+            urlencode(extension, extLen, true);
+        }
     }
     else{  // url has no extension
         hostwoext = strdup(h_host);
         extension = strdup("/");
+    }
+    if(!hostwoext || !extension) {  // TASK-295
+        AUDIO_INFO("out of memory");
+        if(hostwoext) free(hostwoext);
+        if(extension) free(extension);
+        free(h_host);
+        return false;
     }
 
     if((pos_colon >= 0) && ((pos_ampersand == -1) || (pos_ampersand > pos_colon))){

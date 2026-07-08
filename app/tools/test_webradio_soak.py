@@ -132,7 +132,10 @@ class Soak:
 
     # ESP32 reset / panic signatures — a hit mid-soak means the DUT crashed and
     # rebooted (TASK-292: that also silently resets the arenaStats totals).
-    RE_REBOOT = re.compile(r"rst:0x|Guru Meditation|Backtrace:|abort\(\) was called|panic")
+    # task_wdt matches the TWDT report lines, which name the starved task
+    # (TASK-295 evidence: the abort() there comes from task_wdt_isr).
+    RE_REBOOT = re.compile(
+        r"rst:0x|Guru Meditation|Backtrace:|abort\(\) was called|panic|task_wdt")
 
     def _read_for(self, secs, want_substr=None):
         """Read serial for `secs`, returning all lines; early-out on want_substr."""
