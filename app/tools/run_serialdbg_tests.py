@@ -1129,11 +1129,19 @@ def t135(dut: Dut):
 # ── shared drag helper (T136–T140) ────────────────────────────────────────────
 
 def _restore_spotify(dut: Dut, timeout: float = 3.0) -> bool:
-    """Ensure currentAppId == Spotify; resets scroll then taps Spotify slot if needed."""
+    """Ensure currentAppId == Spotify; resets scroll then taps Spotify slot if needed.
+
+    TASK-280: cmdTap's taskbar branch now routes through resolvePlayerSlot(), same as
+    production — a tap on the player slot lands on WebRadio if that's the persisted
+    mode. Force playerMode=spotify first so the tap is guaranteed to land on Spotify
+    regardless of what a prior test left persisted (previously masked by the bug this
+    task fixed: cmdTap used to always land on Spotify no matter the persisted mode).
+    """
     import time
     r = dut.cmd("get appId", timeout=timeout)
     if r.get("name") == "Spotify":
         return True
+    dut.cmd("set playerMode spotify", timeout=timeout)
     _tb_set_offset(dut, 0)
     dut.set_cooldown_zero()
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
@@ -4143,10 +4151,13 @@ def t_tbfb_03(dut: Dut):
 
 
 def t_tbfb_04(dut: Dut):
-    """T_TBFB_04: app-canvas cooldown behaviour unchanged. A taskbar gesture never
-    touches the canvas cooldown; a consumed canvas gesture still arms it. The injected
-    taskbar release also skips the production 300 ms shell cooldown — documented
-    harness divergence (design OQ4 / TASK-280), asserted as-is."""
+    """T_TBFB_04: app-canvas cooldown behaviour unchanged. `get cooldown` reads
+    SpotifyApp's touchScreenCoolDownTime (TASK-052 dead-zone-tap force-poll cooldown)
+    — a taskbar gesture never touches it; a consumed canvas gesture still arms it.
+    Note this is a DIFFERENT variable from the shell-level s_cooldownMs post-gesture
+    cooldown TASK-280 fixed (main.cpp drainInjectionQueue's release branch now sets
+    it, matching production's appHandleInput) — no serial hook currently exposes
+    s_cooldownMs, so that fix isn't observable from this test."""
     print("T_TBFB_04  canvas cooldown unaffected by taskbar gesture; still armed by canvas gesture")
     if not _tb_precondition(dut, "T_TBFB_04"):
         return

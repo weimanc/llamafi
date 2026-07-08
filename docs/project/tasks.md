@@ -4275,14 +4275,39 @@ never sets the 300 ms post-gesture cooldown production sets (`main.cpp:1919`). A
 `drainInjectionQueue`'s release branch) or document them as permanent harness deltas with
 VE sign-off.
 
-**Priority:** P3 — harness fidelity · **Status:** open — TASK-279 (done 2026-07-07)
-landed the shared `shellTbRelease()` this should route `cmdTap` through; the injected
-*drag* release now exercises the redirect end-to-end (T_TBFB_03), but both filed
-divergences stand: `cmdTap`'s direct branch still skips `resolvePlayerSlot`, and the
-injected release still skips the 300 ms cooldown (documented + asserted as a divergence
-in T_TBFB_04) · **Opened:** 2026-07-03 · **Milestone:** M-TASKBAR-FEEDBACK ·
-**Owner:** Developer · **Deps:** TASK-279 (done — shared shellTb* helpers available) ·
-**Branch:** master
+**Implementation (2026-07-08):** both divergences fixed rather than documented as
+permanent deltas. (1) `cmdTap`'s taskbar branch now resolves `AppId target =
+resolvePlayerSlot(static_cast<AppId>(appIdx))` before `switchApp(target)` — a tap on
+the player slot redirects to WebRadio when that's the persisted mode, same as real taps
+and injected drags. (2) `drainInjectionQueue`'s taskbar-release branch now sets
+`s_cooldownMs = millis() + 300` after `shellTbRelease()`, mirroring
+`appHandleInput`'s real-release path — the injected release no longer skips the
+production cooldown.
+
+Fallout from (1): `run_serialdbg_tests.py`'s `_restore_spotify()` taps the Spotify
+taskbar slot to force Spotify — that only worked before because `cmdTap` ignored the
+persisted player mode. Now that it's fixed, `_restore_spotify()` calls `set playerMode
+spotify` first so the tap is guaranteed to land on Spotify regardless of leftover
+WebRadio state from a prior test. Without this, `_tb_precondition()` (used by
+T162–T166) failed with "could not restore Spotify" whenever a prior test left
+`playerMode=WebRadio` persisted.
+
+T_TBFB_04's "canvas cooldown" assertion was initially misdiagnosed as testing the
+fixed `s_cooldownMs` — `get cooldown` actually reads `touchScreenCoolDownTime`
+(SpotifyApp's unrelated TASK-052 dead-zone-tap cooldown in `winampDisplay.h`), which
+taskbar release never touched before or after this fix. Reverted to the original
+assertion after confirming via source read; docstring now notes the two "cooldown"
+variables are distinct and that no serial hook currently exposes `s_cooldownMs`
+directly, so the (1)/(2) fixes aren't independently observable from the automated
+suite — verified instead by full-suite pass with no regressions.
+
+DUT-validated 2026-07-08: T162–T166 + T_TBFB_01–04 + T242 **10/10 PASS** on
+`cyd2usb_winamp_debug`; `./run/check` 6/6 clean before flashing.
+
+**Priority:** P3 — harness fidelity · **Status:** **DONE 2026-07-08** — both filed
+divergences fixed (not just documented); DUT 10/10 · **Opened:** 2026-07-03 ·
+**Milestone:** M-TASKBAR-FEEDBACK · **Owner:** Developer · **Deps:** TASK-279 (done —
+shared shellTb* helpers available) · **Branch:** master
 
 ---
 

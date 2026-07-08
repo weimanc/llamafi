@@ -2409,9 +2409,11 @@ static inline void drainInjectionQueue() {
   if (step.release) {
     if (winampDisplay.tbIsDragging()) {
       // Taskbar drag release — TASK-279: same shared commit path as production
-      // [VE-3-1]; the injected release still skips the production 300 ms cooldown
-      // (documented divergence, TASK-280).
+      // [VE-3-1]. TASK-280: also set the same 300 ms post-gesture cooldown
+      // appHandleInput() sets after its shellTbRelease() call, so the injected
+      // path can't double-fire faster than a real gesture could.
       shellTbRelease(s_lastTouchY);
+      s_cooldownMs = millis() + 300;
       renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
                 false, shell::activeError(), shell::activeConnecting());
     } else {
@@ -2528,7 +2530,11 @@ static void cmdTap(const char *args) {
   if (x >= TASKBAR_X) {
     int slot   = (int)y / TASKBAR_SLOT_H;
     int appIdx = (winampDisplay.tbScrollOffset() + slot) % TASKBAR_APP_COUNT;
-    switchApp(static_cast<AppId>(appIdx));
+    // TASK-280: route through the production resolve path — a tap on the player
+    // slot must redirect to WebRadio when that's the persisted mode, same as
+    // shellTbRelease()/switchApp() do for real taps and injected drags.
+    AppId target = resolvePlayerSlot(static_cast<AppId>(appIdx));
+    switchApp(target);
     winampDisplay.lastTouchResult = { "TASKBAR", -1, "APP_SWITCH", 0, -1, false };
     Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                   "\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}\n", x, y);
