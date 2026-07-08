@@ -4321,8 +4321,16 @@ and fix **BP-043's "Adopted from: LL-070"** citation, which currently resolves a
 (2) `audit_log.md` last entry is 2026-06-27 — backfill entries for the 2026-07-02
 M-WIFI-DIAG panel and the 2026-07-02/03 touch-UX panel per the house panel-logging precedent.
 
-**Priority:** P3 — QM hygiene · **Status:** open · **Opened:** 2026-07-03 ·
-**Milestone:** — (cross-cutting QM) · **Owner:** QM ·
+Resolved in commit 62a96e3 (2026-07-06): 2026-06-28 reuses renumbered to LL-094/LL-095
+(next free after LL-093; LL-096 already taken by the router lesson); BP-043 "Adopted from"
+→ LL-095; LL-069 disambiguation note marked resolved; in-file + M-WIFI-DIAG design
+"sensor-blind gates" refs → LL-094; both panel audit entries backfilled. Status flip was
+deferred at commit time because tasks.md was dirty from in-flight TASK-278 work. Residual
+LL-069/LL-070 citations swept 2026-07-08: all remaining refs correctly point at the
+2026-06-13 originals or are historical panel records — no further edits needed.
+
+**Priority:** P3 — QM hygiene · **Status:** **DONE 2026-07-06** (status flip recorded
+2026-07-08) · **Opened:** 2026-07-03 · **Milestone:** — (cross-cutting QM) · **Owner:** QM ·
 **Deps:** — · **Branch:** master
 
 ---
