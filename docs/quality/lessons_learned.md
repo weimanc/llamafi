@@ -4,6 +4,24 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-07-08 — Full-suite failure investigation (TASK-296/297/298/299)
+
+### LL-103 — 2026-07-08 — A guard script built for exactly this failure class sat outside every routine gate; the failure surfaced as 7 cryptic test FAILs instead of one preflight line
+**Context**: `run/check-datatask-certs` was written 2026-06-20 to replicate mbedTLS's strict offline chain verification for every pinned dataTask endpoint — precisely to catch CA rotations like CoinGecko's ISRG→GTS flip (TASK-298). It was never wired into `run/check`, `run/test`, or any cadence. The rotation was instead diagnosed from scratch: two contaminated 40-minute suite runs, per-endpoint DUT isolation, ssl_client error capture — several hours to rediscover what the script reports in ~10 seconds.
+**Observation**: The tool was not just available but purpose-built, documented in the cert header comment, and referenced from dataTaskCerts.h. Nothing in the failure path (suite FAIL output, test names, task filing) pointed at it; it was found by reading the cert file while writing the fix.
+**Root cause**: A verification tool that isn't attached to a gate, a cadence, or the failure's diagnostic path effectively doesn't exist at diagnosis time. The house pattern exists (BP-030 quarterly cert check) but the script was never registered as that check's implementation.
+**Suggested improvement**: When a diagnostic/preflight script is created, it must be attached to something that runs: a gate (`run/check`), a harness preamble (`run/test` step 0), or a documented cadence with an owner. For this case: wire `check-datatask-certs` as a `run/test` preflight once the yahoo-pin exception (TASK-109c vs strict verify) is resolved — until then even a warn-only line would have named the cause instantly.
+**Status**: open — flagged to human as BP candidate
+
+### LL-104 — 2026-07-08 — Two independent failure causes stacked; the first plausible attribution (AP storms) nearly closed the investigation while the deterministic defect hid under it
+**Context**: TASK-298. Full-suite run 1: 10 network-test failures + a genuinely storming AP (verified: DUT parked, boot storms, host scans). Everything fit "environment outage" — the classic LL-096 network-blame direction, except this time with real supporting evidence. Only the decision to re-run in a clean window (which returned the IDENTICAL 10 failures) falsified the sufficient-cause assumption and exposed the deterministic CoinGecko cert failure underneath; per-endpoint DUT isolation then split the set into 1 cert defect + 8 environment + 1 timing flake + 1 inter-test latch (four distinct causes total).
+**Observation**: A true-but-insufficient cause is more dangerous than a wrong one — the AP storms were REAL (TASK-296 came out of them) and explained 8/10 failures, which made stopping there feel evidence-based. The identical-failure-set-across-two-runs signature is what broke the story: environment noise doesn't reproduce a 10-test set exactly.
+**Root cause**: Attribution was being done at the run level ("this run failed because of X") instead of per failure. Nothing in the process demanded that each failing test individually be consistent with the claimed cause; determinism across runs was never checked against a noise hypothesis.
+**Suggested improvement**: When attributing a multi-test failure to an environmental cause, check the reproduction signature first: re-run (or re-test the failing subset) and compare failure SETS. Identical sets ⇒ deterministic cause (at least in part) — disposition each failure individually. Also: an environmental cause explaining most failures licenses no conclusion about the rest.
+**Status**: open — flagged to human as BP candidate
+
+---
+
 ## Retrospective — 2026-07-08 — QM/PM status-currency sweep (TASK-281/294 close + reconciliation)
 
 ### LL-102 — 2026-07-08 — Deferred status flips rot: one session found five stale tracker claims, each individually rational

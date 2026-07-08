@@ -5078,15 +5078,19 @@ offline and self-heals when the AP settles. WebRadio player-mode cold-boot entry
 requires `wifiConnected` (was implicitly skipped only via the Settings branch). The
 credential-less path is byte-identical to before.
 
-**Validation:** clean-boot regression on DUT (prod build). The failure path itself needs a
-boot-time AP storm which cannot be triggered on demand — validation is opportunistic on the
-next storm (the `[wifi] connect failed with stored credentials — reconnect + supervisor
-armed` line + subsequent `[wifi-sup] kick` lines are the observables). Not simulatable
-without corrupting real creds (rejected: NVS erase nukes unrelated state).
+**Validation:** clean-boot regression on DUT (prod build), and — same afternoon — the
+storm path validated itself in the field: a debug-build boot (TASK-298 isolation run)
+hit a full-chain NO_AP_FOUND storm, printed `[wifi] connect failed with stored
+credentials — reconnect + supervisor armed`, auto-reconnect gave up ~20 s in (201
+events stop), and `[wifi-sup] t=106451 kick=1 downMs=60000` recovered the link
+**83 ms after the kick** (STA_CONNECTED t=106534 → GOT_IP → session's later fetches all
+succeeded). Under the old firmware that boot would have parked dead in Settings.
+Note for harness use: a storm boot now connects at ~(setup-end + 60 s); use
+`BOOT_WAIT=170` on stormy days (the default abort fires before the first kick).
 
 **Priority:** P1 — unattended production device requires manual power-cycle after a
-boot-time AP storm · **Status:** implemented 2026-07-08; clean-boot DUT-verified; storm
-path awaits opportunistic validation · **Opened:** 2026-07-08 · **Milestone:** M-WIFI-DIAG
+boot-time AP storm · **Status:** **DONE 2026-07-08** — clean boot AND storm path both
+DUT-verified (field validation same session) · **Opened:** 2026-07-08 · **Milestone:** M-WIFI-DIAG
 (reliability follow-on) · **Owner:** Developer · **Deps:** TASK-283 (supervisor), TASK-290
 (persist re-begin deauth — the mode-2 trigger), TASK-274 ([wifi-ev] evidence) ·
 **Branch:** master
@@ -5111,3 +5115,78 @@ making the test timing-independent. Also assert the pre-tap cooldown value to di
 **Priority:** P3 — deflakes the suite; no product defect implied · **Status:** open ·
 **Opened:** 2026-07-08 · **Milestone:** — (VE hygiene) · **Owner:** VE · **Deps:** — ·
 **Branch:** master
+
+---
+
+### TASK-298 — Full-suite fetch failures: CoinGecko CA rotated back to GTS (pin now a two-root bundle) + suite-failure disposition
+
+The 2026-07-08 full-suite runs (×2, identical results: 105 pass / 10 fail) failed every
+network-fetch test. Investigation found TWO independent causes stacked on top of each
+other — the first (AP storms) nearly closed the investigation while the second hid
+under it:
+
+1. **T_CX_05 (crypto) — REAL DEFECT, deterministic.** DUT `-9984 X509 verification
+   failed` on api.coingecko.com even on a healthy link. CoinGecko sits behind
+   Cloudflare, which load-balances edge certs between CA chains and has now flipped
+   twice: GTS→ISRG (caught + repinned 2026-06-12) and ISRG→GTS (today; served chain
+   `WE1 ← GTS Root R4`, pinned root was ISRG X1). **Fix:** `COINGECKO_ROOT_CA` is now a
+   concatenated two-root bundle (ISRG X1 + GTS Root R4, both verified against the live
+   chain host-side; mbedTLS `setCACert()` parses bundles). DUT-verified: T_CX_05 PASS,
+   live quote data.
+2. **T170/T176/T186/T187/T188/T196 (stock), T272 (teletext) — environment.** All
+   retested PASS on-device once the link held. Both suite runs crossed multi-minute AP
+   storm windows (see TASK-296 — three separate boot-time storms observed the same
+   afternoon).
+3. **T-CDWN-01 — timing margin, filed TASK-297.** Not network-attributable.
+4. **T_WR_TLS_01 — inter-test state pollution, filed TASK-299.**
+
+**Process finding:** `./run/check-datatask-certs` (built 2026-06-20 for exactly this
+failure class) is not wired into any routine gate — the rotation surfaced as 7 cryptic
+test failures instead of one preflight line. Recommendation (needs the yahoo-pin
+decision first): wire it as a `run/test` preflight. Note it currently flags
+`query1.finance.yahoo.com` (verify code 2) because that pin is intentionally the CA1
+*intermediate* (TASK-109c) — mbedTLS accepts an intermediate anchor and the DUT fetches
+Yahoo fine (spark GET 200 verified today), but strict `openssl verify` does not, and an
+intermediate pin expires/rotates sooner (CA1 expires 2030). Architect call: repin to
+DigiCert Global Root G2 (expires 2038; chain verified against it host-side today) and
+make the preflight green, or keep TASK-109c and teach the script the exception.
+
+**Full-suite gate status:** not green today. Re-run the gate after TASK-297 + TASK-299
+land, in a calm RF window. Per-failure dispositions above are complete — no unexplained
+failures remain.
+
+**Priority:** P2 — was hiding every fetch app behind a dead fetch · **Status:**
+**cert fix DONE 2026-07-08** (DUT-verified T_CX_05/T170/T272 PASS); yahoo-repin decision
++ preflight wiring open as follow-ups · **Opened:** 2026-07-08 · **Milestone:** —
+(cross-cutting reliability) · **Owner:** Developer (+Architect for the yahoo-pin call) ·
+**Deps:** — · **Branch:** master
+
+---
+
+### TASK-299 — T_WR_TLS_01 false-FAILs after any prior dataTask fetch test: eject-entry station fetch never dispatches (http=0)
+
+Isolation matrix from 2026-07-08 (all on `cyd2usb_winamp_debug`, same firmware):
+
+| Context | Result |
+|---|---|
+| Full suite ×2 (preceded by whole WR family incl. T237 terminal park) | FAIL http=0 count=0 |
+| Targeted, preceded ONLY by T_CX_05,T170,T272 (crypto/stock/teletext fetches) | FAIL http=0 count=0 |
+| Targeted, ALONE | **PASS** http=200 count=16, pinned path |
+| Manual serial repro of the exact sequence (boot → `set bgPoll 0` → `tap 147 97` eject) | **PASS** count=16 in 10 s |
+
+`http=0` is `wrLastHttp`'s never-fetched initial value — after eject entry the station
+fetch never dispatches within the test's 180 s window when ANY dataTask fetch test ran
+earlier in the harness session. The dataTask queue itself is alive right up to the
+polluting test (T272's teletext fetch completes). Suspects (unverified): a dataTask
+pending/dedup latch not cleared after harness-driven fetches; the TASK-289
+wrUrl-defers-behind-fetch interlock; something in `_switch_to_webradio_capture_heap`'s
+raw-serial window interacting with `dut.cmd`'s `reset_input_buffer`. NOT a production
+defect as far as observable: the real eject path fetches fine (manual repro), and
+suite-order entry via `switchApp` also fetches (iso runs) — but the latch, if it is
+firmware-side, could conceivably bite production multi-app fetch sequences, so the
+investigation should determine firmware-vs-harness before closing.
+
+**Priority:** P2 — poisons the full-suite gate; possible firmware latch ·
+**Status:** open — isolation complete, root cause not yet identified · **Opened:**
+2026-07-08 · **Milestone:** — (VE + Developer) · **Owner:** VE · **Deps:** TASK-289
+(suspect interlock), TASK-292 · **Branch:** master
