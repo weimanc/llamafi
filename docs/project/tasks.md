@@ -4407,9 +4407,40 @@ the TASK-278 diff — `dataTask`'s HTTP/JSON station-list path is untouched by t
 client, a timeout cutting the body short, or an actual upstream API change/outage on both mirrors
 simultaneously (less likely, but check by hand before assuming firmware-side).
 
+**Investigation (2026-07-08):** ruled out "persistent server/mirror fault" and "response-buffer-
+too-small" as the cause. Host-side `curl --http1.0` with the identical UA/URL/query params the
+firmware sends returns a complete, valid 33.7 KB JSON body from `de1.api.radio-browser.info`
+every time tried — no Content-Length (HTTP/1.0 close-delimited body), which rules out a
+firmware-side buffer-size bug (the parse doc streams via `deserializeJson(doc, Stream&)`, it
+doesn't pre-size a receive buffer). Also checked whether ArduinoJson's Stream reader silently
+truncates on a transient stall: it explicitly uses `Stream::readBytes()` (not `read()`) *because*
+`read()` ignores the client's timeout — and `WiFiClientSecure`'s default `_timeout` is 30 s (no
+explicit `setTimeout()` call was overriding it down), generous for a 33 KB TLS body. No
+deterministic firmware bug found; "both mirrors fail identically in the same attempt" reads as
+two independent transient network stalls landing back-to-back, not a systemic block — consistent
+with the intermittent field pattern already logged (comes and goes; 2026-07-07 runs were clean,
+count=16).
+
+**Fix (best-effort mitigation, 2026-07-08):** `fetchWebRadioStations()`'s per-mirror page-0 loop
+now retries the SAME mirror once with a fresh connection on a `-100` (JSON parse error, i.e.
+`IncompleteInput`) before falling through to the next mirror — cheap (one extra handshake+GET
+only on the error path) and turns a single transient stall into a non-issue instead of burning
+both configured mirrors in the same unlucky window.
+
+**Caveat — this could not be DUT-verified against the actual failure**, since the truncation
+isn't reproducible on demand (host-side requests never truncated in this session either). DUT
+regression only confirms the happy path is unaffected: `T_WR_COEX_01`/`T_WR_HEAP_01`/`02` all
+PASS post-fix (`wrCount=16`, retry path not exercised — mirror succeeded on the first try, as
+usual). `./run/check` 6/6. Leaving open rather than DONE until a live recurrence confirms the
+retry actually clears it; if it recurs with the retry landed, the next data point is whether the
+retry itself also fails (pointing at something more systemic than a one-off stall) or succeeds
+(confirming the mitigation).
+
 **Priority:** P2 — blocks TASK-278 DUT validation (wr_playing state unreachable normally) ·
-**Status:** open · **Opened:** 2026-07-06 · **Milestone:** M-WR-AUDIO-TASK ·
-**Owner:** Developer · **Deps:** — · **Branch:** master
+**Status:** open — investigated, best-effort mitigation landed (same-mirror retry-once on JSON
+parse error); awaiting a live recurrence to confirm it actually resolves the field symptom ·
+**Opened:** 2026-07-06 · **Milestone:** M-WR-AUDIO-TASK · **Owner:** Developer · **Deps:** — ·
+**Branch:** master
 
 ---
 

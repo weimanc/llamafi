@@ -995,6 +995,18 @@ static void fetchWebRadioStations() {
         for (uint8_t page = 0; page < WR_FETCH_MAX_PAGES; page++) {
             unsigned offset = (unsigned)page * WR_MAX_STATIONS;
             int code = fetchOneMirror(mirror, country, bitrateCap, offset, webRadioDoc);
+            // TASK-284: a JSON parse error (-100, observed as IncompleteInput) on
+            // page 0 is a one-off transient stall mid-body-read, not a persistent
+            // mirror fault — an identical request re-issued moments later (host
+            // curl, or a fresh DUT attempt) succeeds cleanly. Retry the SAME
+            // mirror once with a fresh connection before falling through to the
+            // next mirror; this is what previously made "both mirrors fail in
+            // the same attempt" look like a systemic outage when it was really
+            // two independent transient stalls landing back-to-back.
+            if (code == -100 && page == 0) {
+                LOG_W("dataTask.webradio", "mirror=%s JSON err on page 0 — retrying once", mirror);
+                code = fetchOneMirror(mirror, country, bitrateCap, offset, webRadioDoc);
+            }
             s_webRadioResult.lastHttpCode = code;
             if (code != 200) {
                 if (page == 0)
