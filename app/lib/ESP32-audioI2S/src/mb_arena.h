@@ -6,6 +6,7 @@
 
 #pragma once
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -43,6 +44,15 @@ void   mb_arena_free(void* ptr);
 // High-water mark (bytes) for monitoring.
 size_t mb_arena_hwm(void);
 
+// TASK-292: lifetime acquire/release/fail totals, never reset across the
+// arena's JIT lifecycle. Serial `[membudget]` lines get dropped at harness
+// command boundaries (reset_input_buffer), so leak detection must read these
+// device-side totals (`get arenaStats`) instead of counting wire lines.
+// Invariant: acquires - releases == (mb_arena_active() ? 1 : 0).
+uint32_t mb_arena_acquire_total(void);
+uint32_t mb_arena_release_total(void);
+uint32_t mb_arena_acquire_fail_total(void);
+
 #else  // !MEMBUDGET_PHASE1 — production: transparent wrappers, zero overhead
 
 static inline bool   mb_arena_acquire(void)    { return false; }
@@ -52,5 +62,8 @@ static inline void   mb_arena_init(void*, size_t) {}
 static inline void*  mb_arena_alloc(size_t sz) { return malloc(sz); }
 static inline void   mb_arena_free(void* p)    { free(p); }
 static inline size_t mb_arena_hwm(void)        { return 0; }
+static inline uint32_t mb_arena_acquire_total(void)      { return 0; }
+static inline uint32_t mb_arena_release_total(void)      { return 0; }
+static inline uint32_t mb_arena_acquire_fail_total(void) { return 0; }
 
 #endif // MEMBUDGET_PHASE1

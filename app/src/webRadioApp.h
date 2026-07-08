@@ -803,6 +803,23 @@ public:
                      (unsigned)_bufPct, (unsigned)playMs);
             return true;
         }
+        // TASK-292: device-side arena lifecycle totals. The wr-soak balance gate
+        // used to count [membudget] serial lines, which the harness's own
+        // reset_input_buffer() drops at command boundaries → false-FAILs.
+        // These counters live in mb_arena and never reset, so start/end deltas
+        // are loss-proof. Invariant: acquires - releases == active. upMs lets
+        // the harness detect a mid-soak reboot (counters reset → deltas lie).
+        if (strcmp(var, "arenaStats") == 0) {
+            snprintf(buf, len,
+                     "\"var\":\"arenaStats\",\"acquires\":%u,\"releases\":%u,"
+                     "\"fails\":%u,\"active\":%d,\"hwm\":%u,\"upMs\":%u,\"last\":true",
+                     (unsigned)mb_arena_acquire_total(),
+                     (unsigned)mb_arena_release_total(),
+                     (unsigned)mb_arena_acquire_fail_total(),
+                     (int)mb_arena_active(), (unsigned)mb_arena_hwm(),
+                     (unsigned)millis());
+            return true;
+        }
 #endif
         // TASK-278 (VE-2-2): pump task observability — alive flag, cycle count,
         // per-session max pump/mutex-wait times, stack headroom.

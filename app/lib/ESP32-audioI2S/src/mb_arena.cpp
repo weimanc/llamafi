@@ -35,6 +35,12 @@ static size_t    s_hwm     = 0;   // high-water mark (max bytes ever used)
 static MbSlot    s_slots[MB_ARENA_MAX_SLOTS] = {};
 static int       s_nslots  = 0;
 
+// TASK-292: lifetime lifecycle totals — deliberately NOT reset by
+// mb_arena_init()/mb_arena_release(), so a soak can diff start/end values.
+static uint32_t  s_acquireTotal     = 0;
+static uint32_t  s_releaseTotal     = 0;
+static uint32_t  s_acquireFailTotal = 0;
+
 void mb_arena_init(void* buf, size_t size) {
     s_base   = (uint8_t*)buf;
     s_cap    = size;
@@ -74,6 +80,7 @@ bool mb_arena_acquire(void) {
     // static path: arena already init'd at boot; no heap alloc; no-op here
     Serial.printf("[membudget] OQ1 static acquire (no-op) lfbInt=%u\n",
         (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+    if (s_owned) s_acquireTotal++; else s_acquireFailTotal++;
     return s_owned != nullptr;
 }
 
@@ -81,6 +88,7 @@ void mb_arena_release(void) {
     // static path: cannot free BSS; only reset slot table so decoder re-allocates clean
     s_bump = 0; s_hwm = 0; s_nslots = 0;
     memset(s_slots, 0, sizeof(s_slots));
+    s_releaseTotal++;
     Serial.println("[membudget] OQ1 static arena reset (BSS block retained)");
 }
 
@@ -96,7 +104,11 @@ bool mb_arena_acquire(void) {
 #else
     (void)lfb;
 #endif
-    if (!s_owned) return false;  // mb_arena_alloc falls back to libc (best-effort)
+    if (!s_owned) {
+        s_acquireFailTotal++;
+        return false;  // mb_arena_alloc falls back to libc (best-effort)
+    }
+    s_acquireTotal++;
     mb_arena_init(s_owned, MB_ARENA_BYTES);
     return true;
 }
@@ -105,6 +117,7 @@ void mb_arena_release(void) {
     if (!s_owned) return;
     heap_caps_free(s_owned);
     s_owned = nullptr;
+    s_releaseTotal++;
     s_base = nullptr; s_cap = 0; s_bump = 0; s_hwm = 0; s_nslots = 0;
     memset(s_slots, 0, sizeof(s_slots));
 #ifdef SERIAL_DEBUG
@@ -189,5 +202,9 @@ void mb_arena_free(void* ptr) {
 }
 
 size_t mb_arena_hwm(void) { return s_hwm; }
+
+uint32_t mb_arena_acquire_total(void)      { return s_acquireTotal; }
+uint32_t mb_arena_release_total(void)      { return s_releaseTotal; }
+uint32_t mb_arena_acquire_fail_total(void) { return s_acquireFailTotal; }
 
 #endif // MEMBUDGET_PHASE1

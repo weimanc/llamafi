@@ -4856,8 +4856,31 @@ M-WR-AUDIO-TASK §E2 results).
 Also landed alongside: `run/wr-soak` now accepts `WR_SOAK_VERBOSE=1` to pass `--verbose`
 through (used to produce the per-cycle trace that diagnosed this).
 
+**Close-out (2026-07-08):** device-side counters landed. `mb_arena.cpp` keeps lifetime
+`acquires/releases/fails` totals (never reset across the JIT lifecycle; invariant
+`acquires - releases == active`), surfaced via new `get arenaStats` (also `hwm`, `upMs`).
+The soak gates the balance clause on start/end deltas of those totals; wire-counted
+`[membudget]` lines are demoted to an informational cross-check. DUT-verified: a healthy
+churn run showed wire 8 acquires / 7 releases (the exact historical false-FAIL signature)
+while device counters read a balanced 7/7.
+
+Scope grew during verification: a reboot resets the totals, which would false-PASS the
+delta gate (observed live — the DUT crashed mid-soak, see TASK-295). The soak therefore
+also detects reboots two ways and forces FAIL with evidence: (a) device-elapsed
+(`upMs` delta) falling >15 s short of host-elapsed between the two snapshots — plain
+monotonicity is insufficient since post-reboot uptime can re-pass the baseline; (b) serial
+reset/panic signatures (`rst:0x`, `Guru Meditation`, `Backtrace:`, `abort()`) scanned in
+every read window and echoed into the report. DUT-verified live: caught a real
+`abort()`/SW_CPU_RESET mid-soak and returned VERDICT: FAIL with the panic lines quoted.
+NOTE for LL-098: a mid-soak reboot produces the same `acquires = releases + 1` wire
+signature as line loss (crashed session's release never prints, counters restart), so the
+TASK-278 E2 false-FAIL disposition may have been partly a masked crash — the next long
+soak with this detector will disambiguate.
+
 **Priority:** P3 — verification tooling; false-FAILs erode trust in a gate that's otherwise
-doing its job · **Status:** open · **Opened:** 2026-07-07 · **Milestone:** — ·
+doing its job · **Status:** **DONE 2026-07-08** — device counters + reboot detection,
+DUT-verified both directions (device-balance PASS path; crash → forced FAIL path) ·
+**Opened:** 2026-07-07 · **Milestone:** — ·
 **Owner:** VE · **Deps:** TASK-271 (owning tool) · **Branch:** master
 
 ---
@@ -4911,3 +4934,41 @@ regression net, not an open correctness question.
 **Priority:** P4 — QM housekeeping / verification-tooling gap · **Status:** open ·
 **Opened:** 2026-07-08 · **Milestone:** — · **Owner:** VE · **Deps:** TASK-280 (done) ·
 **Branch:** master
+
+---
+
+### TASK-295 — task-wdt abort() reboots DUT during WebRadio play/leave churn (Spotify-disabled build)
+
+Found 2026-07-08 while DUT-verifying TASK-292's reboot detection — which promptly caught
+this. During `run/wr-soak` (cyd2usb_webradio, Spotify DISABLED), the DUT crashed and
+rebooted in 3 of 3 soak runs that got a station list, always within the first ~5
+play/leave cycles. Captured live in run 5 (3-min soak, 15 s/station), immediately after a
+cycle that had PLAYED 12 s and whose `suspend()` release was never observed, during/around
+the next cycle's `set wrPlay`:
+
+    abort() was called at PC 0x4012c778 on core 0
+    Backtrace: 0x40083b91:0x3ffbffdc |<-CORRUPTED
+    rst:0xc (SW_CPU_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+
+PC decoded against the flashed cyd2usb_webradio ELF (`xtensa-esp32-elf-addr2line`):
+`0x4012c778 = task_wdt_isr` (esp_system/task_wdt.c:176), `0x40083b91 = panic_abort`.
+So this is a TASK WATCHDOG timeout escalated to abort: some task (loopTask or an IDLE
+task) starved past the TWDT window during the play → leave → replay churn. NOT the fixed
+tlsYield family (TASK-285/287/288/293): spotifyTask does not run in this build. Candidate
+suspects (unverified): suspend()/stopSong() path hanging after a played session (the
+unreleased arena points there), `connecttohost()` blocking on the next station, or the
+new TASK-291 frozen-buffer predicate / TASK-284 same-mirror retry (both landed 2026-07-07,
+adjacent code, timing fits — check whether older builds reproduce).
+
+Repro: `MINUTES=3 PLAY_SECS=15 WR_SOAK_VERBOSE=1 ./run/wr-soak` — crashed 3/3 (runs with
+stations) on 2026-07-08; the soak now prints `!! DUT RESET/PANIC:` lines and FAILs when it
+happens. Fallout: (a) production also churns this path via the Winamp eject toggle;
+(b) LL-098 / TASK-278 E2's "false-FAIL" wire imbalance may have been this crash all along
+(reboot yields the same acquires = releases + 1 signature as line loss) — re-disposition
+after fix.
+
+**Priority:** P1 — reproducible crash-reboot on a user-reachable path (radio playback
+churn), and it silently corrupted a verification gate · **Status:** open ·
+**Opened:** 2026-07-08 · **Milestone:** — (candidate: M-WEBRADIO reliability) ·
+**Owner:** Developer · **Deps:** TASK-292 (detection tooling, done), TASK-291/TASK-284
+(prime suspects to bisect) · **Branch:** master

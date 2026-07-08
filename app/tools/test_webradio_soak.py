@@ -12,6 +12,11 @@ surface what only time shows:
   - ARENA ACQUIRE FAILURE — a `FAIL` means 24K is no longer contiguous (the wall the
     whole A-lite design guards against).
   - ACQUIRE/RELEASE BALANCE — a leak detector (acquires must equal releases).
+    TASK-292: gated on device-side counters (`get arenaStats` start/end deltas), not
+    on counting [membudget] serial lines — cmd()'s reset_input_buffer() drops
+    in-flight lines at command boundaries, which false-FAILed two healthy 30-min
+    soaks (off-by-1 with a rising lfb trend). Wire counts are still printed as an
+    informational cross-check.
   - SUSTAINED-PLAYBACK DISTRIBUTION — seconds PLAYING per station, quantifying the
     TASK-233 "best-effort on no-PSRAM" claim instead of asserting it.
   - UNDERRUNS + error/skip outcomes per cycle.
@@ -24,7 +29,8 @@ cyd2usb_winamp (both -DMEMBUDGET_PHASE1); only Spotify differs. Pairs with
 Instrumentation parsed from the serial log (SERIAL_DEBUG build):
     [membudget] TASK-267 arena acquire=24576B lfbBefore=<N> OK|FAIL...
     [membudget] TASK-267 arena released
-plus serial-debug queries: get wrCount / wrState / wrPlaying / wrUnderruns.
+plus serial-debug queries: get wrCount / wrState / wrPlaying / wrUnderruns /
+arenaStats (TASK-292 device-side lifecycle totals).
 
 Usage:
     python3 test_webradio_soak.py --port /dev/ttyUSB0 --minutes 10 [--play-secs 20] [--verbose]
@@ -109,6 +115,24 @@ class Soak:
         self.underruns = 0
         self.errors = 0
         self.cycles = 0
+        # TASK-292: device-side arenaStats snapshots (set by main; None if the
+        # firmware lacks the counter — then the lossy wire count gates as before)
+        self.dev_start = None
+        self.dev_end = None
+        self.host_start = None    # time.monotonic() at each snapshot — a reboot
+        self.host_end = None      # shows as device-elapsed << host-elapsed
+        self.reboot_evidence = [] # reset/panic serial lines seen mid-soak
+
+    def arena_stats(self):
+        """Query device-side arena lifecycle totals; None if unsupported."""
+        r = self._cmd("get arenaStats", 3.0)
+        if all(k in r for k in ("acquires", "releases", "fails", "active", "upMs")):
+            return r
+        return None
+
+    # ESP32 reset / panic signatures — a hit mid-soak means the DUT crashed and
+    # rebooted (TASK-292: that also silently resets the arenaStats totals).
+    RE_REBOOT = re.compile(r"rst:0x|Guru Meditation|Backtrace:|abort\(\) was called|panic")
 
     def _read_for(self, secs, want_substr=None):
         """Read serial for `secs`, returning all lines; early-out on want_substr."""
@@ -119,7 +143,10 @@ class Soak:
             if not l:
                 continue
             lines.append(l)
-            if self.verbose and ("membudget" in l or "webradio" in l):
+            if self.RE_REBOOT.search(l):
+                self.reboot_evidence.append(l)
+                print(f"    !! DUT RESET/PANIC: {l}", flush=True)
+            elif self.verbose and ("membudget" in l or "webradio" in l):
                 print(f"    | {l}", flush=True)
             if want_substr and want_substr in l:
                 break
@@ -204,11 +231,46 @@ class Soak:
     def report(self):
         print("\n================ WebRadio soak report (TASK-271) ================", flush=True)
         print(f"cycles                : {self.cycles}", flush=True)
-        print(f"arena acquires        : {self.acquires}", flush=True)
-        print(f"arena releases        : {self.releases}", flush=True)
-        bal = (self.acquires == self.releases)
-        print(f"acquire/release balance: {'OK (no leak)' if bal else 'MISMATCH (possible leak)'}", flush=True)
-        print(f"arena acquire FAILures : {self.acquire_fail}", flush=True)
+        # TASK-292: gate on device-side deltas — the wire counts drop lines at
+        # cmd() boundaries. A live arena at either snapshot is accounted for via
+        # the `active` flag (acquires - releases == active by invariant).
+        if self.dev_start and self.dev_end:
+            d_acq  = self.dev_end["acquires"] - self.dev_start["acquires"]
+            d_rel  = self.dev_end["releases"] - self.dev_start["releases"]
+            d_held = self.dev_end["active"]   - self.dev_start["active"]
+            bal    = (d_acq - d_rel == d_held)
+            fails  = self.dev_end["fails"] - self.dev_start["fails"]
+            # A reboot resets the totals — the deltas would silently read 0/0
+            # (false PASS). Monotonic upMs is not enough (post-reboot uptime can
+            # re-pass the baseline before the end snapshot), so compare
+            # device-elapsed against host-elapsed: a reboot eats the pre-crash
+            # uptime and the device clock comes up short. 15 s slack covers
+            # sample latency; a reboot loses >= boot_wait (~10 s) + whatever ran
+            # before the crash, and in practice minutes of it.
+            dev_s  = (self.dev_end["upMs"] - self.dev_start["upMs"]) / 1000.0
+            host_s = (self.host_end - self.host_start
+                      if self.host_start and self.host_end else dev_s)
+            rebooted = (dev_s < host_s - 15.0) or bool(self.reboot_evidence)
+            if rebooted:
+                print(f"*** DEVICE REBOOTED during soak (device clock advanced "
+                      f"{dev_s:.0f}s over a {host_s:.0f}s window"
+                      f"{'; reset/panic lines seen' if self.reboot_evidence else ''}) "
+                      "— counters reset, forcing FAIL ***", flush=True)
+                for l in self.reboot_evidence[:10]:
+                    print(f"    !! {l}", flush=True)
+                bal = False
+            print(f"arena acquires        : {d_acq} [device]  (wire-observed {self.acquires}, lossy)", flush=True)
+            print(f"arena releases        : {d_rel} [device]  (wire-observed {self.releases}, lossy)", flush=True)
+            print(f"acquire/release balance: {'OK (no leak)' if bal else 'MISMATCH (possible leak)'} [device counters]", flush=True)
+            print(f"arena acquire FAILures : {fails} [device]", flush=True)
+        else:
+            print("[wr-soak] WARN: `get arenaStats` unsupported — gating on lossy wire counts", flush=True)
+            print(f"arena acquires        : {self.acquires}", flush=True)
+            print(f"arena releases        : {self.releases}", flush=True)
+            bal   = (self.acquires == self.releases)
+            fails = self.acquire_fail
+            print(f"acquire/release balance: {'OK (no leak)' if bal else 'MISMATCH (possible leak)'}", flush=True)
+            print(f"arena acquire FAILures : {fails}", flush=True)
         if self.lfb:
             print(f"lfbBefore(INTERNAL)   : first={self.lfb[0]} min={min(self.lfb)} "
                   f"last={self.lfb[-1]}  (24K arena needs >=24576)", flush=True)
@@ -223,7 +285,7 @@ class Soak:
         print(f"error/skip cycles     : {self.errors}", flush=True)
 
         # verdict
-        ok = (self.cycles >= 3 and bal and self.acquire_fail == 0)
+        ok = (self.cycles >= 3 and bal and fails == 0)
         if self.lfb:
             ok = ok and (min(self.lfb) >= 24576)   # 24K always stayed contiguous
         print("================================================================", flush=True)
@@ -262,11 +324,18 @@ def main():
           f"({args.play_secs}s/station)…", flush=True)
 
     soak = Soak(dut, args.play_secs, args.verbose)
+    soak.dev_start = soak.arena_stats()   # TASK-292 baseline (None on old firmware)
+    soak.host_start = time.monotonic()
+    if soak.dev_start is None:
+        print("[wr-soak] WARN: `get arenaStats` not answering — balance gate will "
+              "use lossy wire counts", flush=True)
     end = time.monotonic() + args.minutes * 60
     i = 0
     while time.monotonic() < end:
         soak.cycle(i % cnt)
         i += 1
+    soak.dev_end = soak.arena_stats()
+    soak.host_end = time.monotonic()
     ok = soak.report()
     sys.exit(0 if ok else 1)
 
