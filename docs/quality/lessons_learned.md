@@ -40,7 +40,8 @@ Populated during retrospectives. Entries reviewed w/ human for promotion to `bes
 **Observation**: A healthy gate produced a FAIL verdict twice from its own measurement channel. Disposition required per-cycle tracing plus an independent physical invariant (lfb trend) to overturn — documented in M-WR-AUDIO-TASK §E2 and filed as TASK-292.
 **Root cause**: The invariant (acquires == releases) lives on the device, but the gate counts wire-observed log lines over a deliberately-lossy read pattern. Any event-counting gate built this way false-FAILs at a rate set by serial contention, not by the property under test.
 **Suggested improvement**: Gates that count discrete events must read device-side counters (e.g. a `get arenaStats` serialdbg pair sampled at start/end), not tally log lines. Where wire-counting is unavoidable, the gate spec must state the expected loss mode and a disposition rule (here: mismatch ≤ small-N with non-decaying lfb ⇒ line loss, not leak).
-**Status**: open (fix direction filed as TASK-292, owner VE)
+**Re-disposition (QM, 2026-07-08, TASK-295 follow-up)**: TASK-295 found a real crash-reboot in the same churn path whose wire signature (acquires = releases + 1) is identical to line loss — raising the question whether E2's "false-FAIL" was a reboot all along. Ruled out for those runs: the crash is reachable ONLY via TASK-291's stall-retry, which postdates the E2 soaks; and both soaks completed 88/92 paced cycles with sustained-playback medians a reboot would have disrupted. E2's line-loss attribution stands. The ambiguity class itself is closed by TASK-292 (gate reads device-side `arenaStats` start/end + explicit `!! DUT RESET/PANIC` reboot detection → line loss, reboot, and real leak are no longer confoundable); the post-TASK-295 churn + wr-soak verify ran clean under the new gate.
+**Status**: adopted — TASK-292 (commit 0904684) implemented the device-counter gate; E2 attribution re-confirmed post-TASK-295
 
 ---
 

@@ -4359,9 +4359,19 @@ antenna.
 row 2); beacons continuous but stack disconnects → H-B; flaps vanish with PS off → TASK-272-class
 fix (keepalive/PS policy task).
 
+**Closed 2026-07-08 — implemented; full attribution protocol overtaken by events.** The
+instruments shipped and the serial surface was exercised during the 2026-07-03 sessions
+(TASK-283's supervisor validation ran under both the promiscuous/beacon-watch and clean
+no-promiscuous configs; `get wifi` used throughout), but the planned attribution runs
+(PS A/B windows, scan-on-park) were never needed: the outage phenomenon was root-caused
+the same day from the host-side second vantage (Linksys 2.4 GHz auto-channel sweeps;
+fixed by the JNAP channel pin — see LL-096), which answered §5's question without the
+frame-level evidence. Instruments remain in-tree, SERIAL_DEBUG-gated, for any future
+2.4 GHz attribution question.
+
 **Priority:** P2 — unblocks trustworthy E0/E2/E3 measurement windows for TASK-278 ·
-**Status:** implemented (wifiDiag.h/.cpp + main.cpp serial surface; builds pass both envs) —
-awaiting DUT validation run · **Opened:** 2026-07-03 · **Milestone:** M-WIFI-DIAG ·
+**Status:** **CLOSED 2026-07-08** — implemented + surface exercised; attribution protocol
+mooted by the LL-096 root cause · **Opened:** 2026-07-03 · **Milestone:** M-WIFI-DIAG ·
 **Owner:** Developer · **Deps:** TASK-274 (Phase-1 sensor), M-WIFI-DIAG §5 matrix · **Branch:** master
 
 ---
@@ -4786,7 +4796,8 @@ re-association after the persist re-begin, re-evaluating `wifiConnected` after. 
 across subsequent E3 boot cycles (SPIFFS path taken, `reason=8` blip still occurs, boot now waits
 it out and lands a valid IP).
 
-**Priority:** P2 · **Status:** fixed 2026-07-07, pending commit with the TASK-278 E-gate docs ·
+**Priority:** P2 · **Status:** **DONE** — fixed 2026-07-07, committed in 05f5a78 (bundled
+with the TASK-278 E-gate campaign; status flip recorded 2026-07-08) ·
 **Opened:** 2026-07-07 · **Milestone:** — · **Owner:** Developer · **Deps:** TASK-288 (same
 bug family: boot-path waits) · **Branch:** master
 
@@ -5013,9 +5024,11 @@ with the dangerous path exercised hard — 13 stall-retry events and dozens of
 station-connect failures all returning cleanly into auto-skip. `run/check` 6/6.
 Bisect worktree confirmed the trigger is new (pre-TASK-291 build lacks the stall-retry
 predicate — the underlying Audio.cpp defects are older but unreachable without it).
-LL-098 re-disposition: pending QM review — the TASK-278 E2 soaks predate TASK-291, so
-line loss remains plausible for THOSE runs; next long soak with TASK-292's reboot
-detection settles it.
+LL-098 re-disposition: **done 2026-07-08 (QM)** — the E2 soaks predate TASK-291's
+stall-retry (the only path to this crash) and completed 88/92 paced cycles a reboot
+would have disrupted, so E2's line-loss attribution stands; the ambiguity class is
+closed by TASK-292's device counters + reboot detection (post-fix churn + wr-soak ran
+clean under the new gate). LL-098 closed as adopted.
 
 **Priority:** P1 — reproducible crash-reboot on a user-reachable path (radio playback
 churn), and it silently corrupted a verification gate · **Status:** **fixed 2026-07-08**,

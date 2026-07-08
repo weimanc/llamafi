@@ -452,6 +452,12 @@ single `arena released` serial line lost at a command boundary (the harness's ow
 steps lfb down 24 K per occurrence; lfb ending above start refutes it mathematically. Filed
 as a verifier defect (TASK-292); does not gate E2.
 
+> Post-close note (2026-07-08): TASK-295 later found a crash-reboot in this churn path with
+> the same acquires = releases + 1 wire signature, but it is reachable only via TASK-291's
+> stall-retry, which postdates these soaks — the line-loss attribution above stands. TASK-292
+> (done) replaced the wire count with device-side `arenaStats` + reboot detection, closing
+> the ambiguity class. Full re-disposition: LL-098.
+
 ### E3 (state-machine regression guard) — **PASS**, one pre-existing gap filed
 
 - ADR-045 instrumented gate: **10/10 PASS**, skips=0 every trial, ttfp 0.1 s, hold ≥60 s,
