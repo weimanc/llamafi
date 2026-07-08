@@ -26,14 +26,19 @@ void begin();  // register the event handler — call BEFORE WiFi.begin()
 // a long AP absence (observed twice 2026-07-03: NO_AP_FOUND storm burns out →
 // reason=39 → zero further reconnect attempts for 40+ min; reboot-only
 // recovery). superviseTick() re-kicks a dead link with WiFi.disconnect()+
-// WiFi.begin() — armed only after the first GOT_IP this boot (never fights the
-// no-credentials settings-UI flow), only after WIFI_SUP_DOWN_MS continuously
-// down, paced at WIFI_SUP_PACE_MS, forever (an AP can be absent for hours —
-// the MX5600's 2.4 GHz radio proved it; no finite retry budget). Call from
-// loop(); caller suppresses it while the Settings app owns the radio.
-// Ships in ALL builds — production parks dead without it.
+// WiFi.begin() — armed after the first GOT_IP this boot, or explicitly via
+// superviseArm() when boot found stored credentials but its connect windows
+// expired before any GOT_IP (TASK-296: an AP storm at boot time otherwise
+// left the device parked forever). A boot with NO credentials stays unarmed
+// (never fights the no-credentials settings-UI flow). Kicks only after
+// WIFI_SUP_DOWN_MS continuously down, paced at WIFI_SUP_PACE_MS, forever (an
+// AP can be absent for hours — the MX5600's 2.4 GHz radio proved it; no
+// finite retry budget). Call from loop(); caller suppresses it while the
+// Settings app owns the radio. Ships in ALL builds — production parks dead
+// without it.
 extern volatile uint32_t superviseKicks;   // re-kicks issued since boot
 void superviseTick();
+void superviseArm();   // TASK-296: arm without a GOT_IP (creds known, boot connect failed)
 
 #ifdef SERIAL_DEBUG
 // TASK-282 (M-WIFI-DIAG Phase 2): frame-level instruments for the H-A/H-C split

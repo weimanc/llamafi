@@ -4796,8 +4796,14 @@ re-association after the persist re-begin, re-evaluating `wifiConnected` after. 
 across subsequent E3 boot cycles (SPIFFS path taken, `reason=8` blip still occurs, boot now waits
 it out and lands a valid IP).
 
+**Residual (2026-07-08, → TASK-296):** the 15 s settle-wait assumes re-association succeeds
+promptly; under a bursty-AP storm it expires and the boot then demoted to the "no
+credentials" park-dead path (observed). TASK-296 removes the demotion; the persist
+re-begin deauth itself remains — accepted, its worst case is now recoverable.
+
 **Priority:** P2 · **Status:** **DONE** — fixed 2026-07-07, committed in 05f5a78 (bundled
-with the TASK-278 E-gate campaign; status flip recorded 2026-07-08) ·
+with the TASK-278 E-gate campaign; status flip recorded 2026-07-08); residual storm-window
+exposure handled by TASK-296 ·
 **Opened:** 2026-07-07 · **Milestone:** — · **Owner:** Developer · **Deps:** TASK-288 (same
 bug family: boot-path waits) · **Branch:** master
 
@@ -5036,3 +5042,72 @@ DUT-verified (46-cycle/15-min churn clean + wr-soak gate) ·
 **Opened:** 2026-07-08 · **Milestone:** — (candidate: M-WEBRADIO reliability) ·
 **Owner:** Developer · **Deps:** TASK-292 (detection tooling, done), TASK-291 (trigger
 path), TASK-286 (the timeout guard this bounds) · **Branch:** master
+
+---
+
+### TASK-296 — Boot WiFi failure with stored credentials parks the device dead in Settings (supervisor suppressed)
+
+Found 2026-07-08 investigating the full-suite run's 10 network-test failures. The DUT was
+found parked: `wifi=DOWN`, zero reconnect attempts, for as long as left alone, twice in a
+row, while the AP was verifiably on the air (host-side scans: ch 6 pinned, signal 84–85
+throughout). Trace of the two observed park modes, both starting from a bursty-AP
+NO_AP_FOUND/AUTH_FAIL storm spanning the boot connect windows:
+
+1. **No GOT_IP at all:** hardcoded (30 s) → NVS (10 s) → SPIFFS (30 s) windows all expire
+   in the storm → boot's else branch treats it as **"no credentials"** →
+   `setAutoReconnect(false)` + `WiFi.disconnect()` + auto-open Settings. The TASK-283
+   supervisor arms only after a GOT_IP, so it never arms — **permanent park**.
+2. **GOT_IP then demotion:** SPIFFS attempt connects mid-storm (GOT_IP observed t=11.4 s)
+   → TASK-290's persist re-begin deauths the fresh association (`reason=8` +142 ms — the
+   documented signature) → the fix's 15 s settle-wait expires because the storm is still
+   running → `wifiConnected=false` → same "no credentials" demotion → Settings auto-open →
+   `superviseTick()` is suppressed while Settings is foreground (main.cpp call-site guard)
+   → **permanent park**, even though the supervisor WAS armed by the transient GOT_IP.
+
+Either way a device with **known-good stored credentials** (proven: the next manual reset
+connected in 1.4 s) needs a manual power-cycle after any boot-time AP storm. This defeated
+TASK-283's whole purpose on the boot path and is production exposure (mains-powered,
+unattended device).
+
+**Fix (implemented 2026-07-08):** track `wifiCredsKnown` across all three sources
+(hardcoded define; NVS via `esp_wifi_get_config()` non-empty SSID after `mode(WIFI_STA)`;
+SPIFFS parsed ssid). On boot-connect failure WITH creds known: leave auto-reconnect armed,
+call new `wifiDiag::superviseArm()` (arms `superviseTick()` without requiring a GOT_IP),
+do NOT auto-open Settings (only a genuinely credential-less boot does), boot proceeds
+offline and self-heals when the AP settles. WebRadio player-mode cold-boot entry now also
+requires `wifiConnected` (was implicitly skipped only via the Settings branch). The
+credential-less path is byte-identical to before.
+
+**Validation:** clean-boot regression on DUT (prod build). The failure path itself needs a
+boot-time AP storm which cannot be triggered on demand — validation is opportunistic on the
+next storm (the `[wifi] connect failed with stored credentials — reconnect + supervisor
+armed` line + subsequent `[wifi-sup] kick` lines are the observables). Not simulatable
+without corrupting real creds (rejected: NVS erase nukes unrelated state).
+
+**Priority:** P1 — unattended production device requires manual power-cycle after a
+boot-time AP storm · **Status:** implemented 2026-07-08; clean-boot DUT-verified; storm
+path awaits opportunistic validation · **Opened:** 2026-07-08 · **Milestone:** M-WIFI-DIAG
+(reliability follow-on) · **Owner:** Developer · **Deps:** TASK-283 (supervisor), TASK-290
+(persist re-begin deauth — the mode-2 trigger), TASK-274 ([wifi-ev] evidence) ·
+**Branch:** master
+
+---
+
+### TASK-297 — T-CDWN-01 second consecutive failure: 350 ms probe tap sits 50 ms from the 300 ms cooldown edge
+
+Watchlist follow-through (filed per the flaky-tests rule: 2nd consecutive occurrence).
+T-CDWN-01 FAILed in the 2026-07-08 full-suite run ("tap 3 at ~350 ms did not cycle
+visMode (stuck at 1)") — same signature as the prior run. The test taps VIS, waits
+~350 ms, and expects the 300 ms cooldown to have expired; host-side sleep jitter plus
+serial round-trip can eat the 50 ms margin, landing tap 3 inside the still-armed window.
+Not network-dependent — the 2026-07-08 WiFi outage does not explain it.
+
+**Fix direction (VE):** either widen the post-cooldown tap to ≥500 ms, or (better) poll
+the cooldown's own `remainingMs` (`get cooldown` — winampDisplay var; T_TBFB_05's
+shellCooldown pattern shows the read-until-0 approach) and tap only once it reads 0,
+making the test timing-independent. Also assert the pre-tap cooldown value to distinguish
+"tap 2 armed a longer window than expected" from "tap 3 came too early".
+
+**Priority:** P3 — deflakes the suite; no product defect implied · **Status:** open ·
+**Opened:** 2026-07-08 · **Milestone:** — (VE hygiene) · **Owner:** VE · **Deps:** — ·
+**Branch:** master

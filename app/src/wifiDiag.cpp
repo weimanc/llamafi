@@ -94,12 +94,17 @@ static constexpr uint32_t WIFI_SUP_PACE_MS = 30000;  // between kicks while stil
 
 static uint32_t s_supDownSince  = 0;
 static uint32_t s_supLastKickMs = 0;
+static bool     s_supBootArmed  = false;
+
+void superviseArm() { s_supBootArmed = true; }
 
 void superviseTick() {
-    // Armed only after the first GOT_IP this boot: a boot that never had
-    // credentials/link stays under the settings-UI flow's control (that path
-    // deliberately runs setAutoReconnect(false) for scanNetworks()).
-    if (lastGotIpMs == 0) return;
+    // Armed after the first GOT_IP this boot, or via superviseArm() when boot
+    // had stored credentials but its connect windows all expired before any
+    // GOT_IP (TASK-296). A boot with NO credentials stays under the
+    // settings-UI flow's control (that path deliberately runs
+    // setAutoReconnect(false) for scanNetworks()).
+    if (lastGotIpMs == 0 && !s_supBootArmed) return;
     if (WiFi.status() == WL_CONNECTED) {
         s_supDownSince = s_supLastKickMs = 0;   // next outage gets a fresh budget
         return;

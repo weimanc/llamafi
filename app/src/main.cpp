@@ -2124,8 +2124,13 @@ void setup()
 
   // WiFi boot: NVS credentials → SPIFFS wifi_creds.json → open WiFi settings.
   // Priority chain mirrors WifiSection connect flow (C4: NVS-backed persist).
-  bool wifiConnected = false;
+  // TASK-296: wifiCredsKnown tracks whether ANY source held credentials —
+  // "connect failed with stored creds" (AP storm at boot) must not be treated
+  // as "no credentials", or the device parks dead in the Settings screen.
+  bool wifiConnected  = false;
+  bool wifiCredsKnown = false;
 #ifdef HARDCODED_WIFI_SSID
+  wifiCredsKnown = true;
   WiFi.persistent(true);
   WiFi.mode(WIFI_STA);
   WiFi.begin(HARDCODED_WIFI_SSID, HARDCODED_WIFI_PASS);
@@ -2144,6 +2149,11 @@ void setup()
   if (!wifiConnected) {
     WiFi.persistent(true);
     WiFi.mode(WIFI_STA);
+    // TASK-296: driver is up after mode() — a non-empty stored SSID means NVS
+    // holds credentials even if the connect window below expires.
+    wifi_config_t nvsCfg;
+    if (esp_wifi_get_config(WIFI_IF_STA, &nvsCfg) == ESP_OK && nvsCfg.sta.ssid[0] != 0)
+      wifiCredsKnown = true;
     WiFi.begin();  // reconnect from NVS (no args)
     { unsigned long dl = millis() + 10000;
       // TASK-288: see hardcoded-SSID loop above — feed TWDT every iteration.
@@ -2158,6 +2168,7 @@ void setup()
         const char* ssid = doc["ssid"] | "";
         const char* pass = doc["pass"] | "";
         if (strlen(ssid) > 0) {
+          wifiCredsKnown = true;  // TASK-296
           Serial.printf("[wifi] Connecting from SPIFFS: %s\n", ssid);
           WiFi.persistent(false);  // don't corrupt NVS if creds are wrong (TASK-167)
           WiFi.mode(WIFI_STA);
@@ -2199,6 +2210,18 @@ void setup()
     WiFi.setSleep(false);
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+  } else if (wifiCredsKnown) {
+    // TASK-296: stored credentials exist but every connect window expired —
+    // seen 2026-07-08 when a bursty-AP NO_AP_FOUND/AUTH_FAIL storm spanned the
+    // whole boot chain (and once via the TASK-290 persist re-begin deauth whose
+    // 15 s settle-wait expired under the same storm). The old path demoted this
+    // to "no credentials": setAutoReconnect(false) + auto-open Settings, whose
+    // foreground suppresses superviseTick() — a permanent park needing manual
+    // reset. Instead: leave auto-reconnect armed and arm the supervisor so the
+    // link self-heals when the AP settles.
+    WiFi.setAutoReconnect(true);
+    wifiDiag::superviseArm();
+    Serial.println("[wifi] connect failed with stored credentials — reconnect + supervisor armed");
   } else {
     // Leave WiFi in a clean disconnected STA state so WifiSection scan works.
     // WiFi.begin() (NVS attempt above) leaves auto-reconnect armed; disable it
@@ -2305,7 +2328,10 @@ void setup()
   }
   renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
                 false, shell::activeError(), shell::activeConnecting());
-  if (!wifiConnected) {
+  // TASK-296: only a genuinely credential-less boot auto-opens Settings. A
+  // creds-known offline boot stays on the normal shell (supervisor owns the
+  // link; Settings foreground would suppress it — the park-dead chain).
+  if (!wifiConnected && !wifiCredsKnown) {
     switchApp(AppId::Settings);
     g_SettingsApp.openSection(0);
   }
@@ -2313,8 +2339,8 @@ void setup()
   // Spotify app's boot init() above (so switchApp's suspend() tears it down cleanly),
   // enter WebRadio if that was the last-active mode. Whether a station then auto-plays is
   // governed by the existing webRadioAutoplay knob — these compose. Skipped when offline
-  // (no network for the station fetch; we're already heading to the WiFi settings screen).
-  else if (g_settings.playerMode == (uint8_t)PlayerMode::WebRadio) {
+  // (no network for the station fetch — including the TASK-296 creds-known offline boot).
+  else if (wifiConnected && g_settings.playerMode == (uint8_t)PlayerMode::WebRadio) {
     switchApp(AppId::WebRadio);
   }
   mb_heap_probe("post-init-idle");    // TASK-261 Phase 0 milestone M4 (steady idle)
