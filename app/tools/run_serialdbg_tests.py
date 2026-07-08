@@ -4156,8 +4156,8 @@ def t_tbfb_04(dut: Dut):
     — a taskbar gesture never touches it; a consumed canvas gesture still arms it.
     Note this is a DIFFERENT variable from the shell-level s_cooldownMs post-gesture
     cooldown TASK-280 fixed (main.cpp drainInjectionQueue's release branch now sets
-    it, matching production's appHandleInput) — no serial hook currently exposes
-    s_cooldownMs, so that fix isn't observable from this test."""
+    it, matching production's appHandleInput) — that one is covered by T_TBFB_05
+    via `get shellCooldown` (TASK-294)."""
     print("T_TBFB_04  canvas cooldown unaffected by taskbar gesture; still armed by canvas gesture")
     if not _tb_precondition(dut, "T_TBFB_04"):
         return
@@ -4183,6 +4183,41 @@ def t_tbfb_04(dut: Dut):
         fail("T_TBFB_04", f"canvas cooldown not armed by VIS tap (remainingMs={rem_cv})")
         return
     pass_("T_TBFB_04", f"taskbar gesture: remainingMs=0; canvas VIS tap: remainingMs={rem_cv}")
+
+
+def t_tbfb_05(dut: Dut):
+    """T_TBFB_05 (TASK-294): shell-level post-gesture cooldown. `get shellCooldown`
+    reads main.cpp's s_cooldownMs — the variable TASK-280's drainInjectionQueue fix
+    arms on an injected taskbar release, matching production appHandleInput. Asserts
+    it reads 0 once decayed and ~300 ms immediately after an injected taskbar
+    release. NOT the same variable as T_TBFB_04's `get cooldown` (SpotifyApp's
+    TASK-052 touchScreenCoolDownTime)."""
+    print("T_TBFB_05  shellCooldown unarmed after decay; armed ~300ms by injected taskbar release")
+    if not _tb_precondition(dut, "T_TBFB_05"):
+        return
+    # The precondition's own drags arm the same 300 ms shell cooldown — let it
+    # decay so the "unarmed" half reads a settled 0, not a stale remnant.
+    time.sleep(0.5)
+    r_before = dut.cmd("get shellCooldown", timeout=3.0)
+    _, y = _c.tap_taskbar_slot(APP_SLOT["Clock"])
+    # The drag JSON terminator is emitted in the same loop iteration that arms
+    # s_cooldownMs (drainInjectionQueue release branch), so the read that follows
+    # lands well inside the 300 ms window.
+    lines = _tbfb_drag_capture(dut, _TB_X, y, _TB_X, y + 1, 2)   # taskbar tap → Clock
+    r_after = dut.cmd("get shellCooldown", timeout=3.0)
+    _restore_spotify(dut)
+    rem_before = int(r_before.get("remainingMs", -1))
+    rem_after = int(r_after.get("remainingMs", -1))
+    if rem_before != 0:
+        fail("T_TBFB_05", f"shellCooldown={rem_before}ms before the gesture — expected 0 after decay")
+        return
+    if _tbfb_idx(lines, "[shell] tb-commit slot=1") < 0:
+        fail("T_TBFB_05", f"tap did not reach the taskbar release branch (no tb-commit): {lines[:6]}")
+        return
+    if not (0 < rem_after <= 300):
+        fail("T_TBFB_05", f"shellCooldown={rem_after}ms right after injected taskbar release — expected (0, 300]")
+        return
+    pass_("T_TBFB_05", f"decayed: 0ms; armed by injected release: {rem_after}ms (≤300)")
 
 
 # ── stock-002 suite (TASK-120) ────────────────────────────────────────────────
@@ -6497,6 +6532,7 @@ ALL_TESTS = {
     "T_TBFB_02": t_tbfb_02,
     "T_TBFB_03": t_tbfb_03,
     "T_TBFB_04": t_tbfb_04,
+    "T_TBFB_05": t_tbfb_05,
     # settings-nav-stub-001 (TASK-142)
     "T-SET-01": t_set_01,
     "T-SET-02": t_set_02,

@@ -4939,9 +4939,17 @@ Low urgency — the underlying fix mirrors an already-proven code path (`appHand
 own real-release cooldown arm) and was reviewed by hand; this is about strengthening the
 regression net, not an open correctness question.
 
-**Priority:** P4 — QM housekeeping / verification-tooling gap · **Status:** open ·
-**Opened:** 2026-07-08 · **Milestone:** — · **Owner:** VE · **Deps:** TASK-280 (done) ·
-**Branch:** master
+**Done 2026-07-08:** `get shellCooldown` added to `cmdGet` (main.cpp), reporting
+`remainingMs` of `s_cooldownMs` (0 when unarmed); new harness case `T_TBFB_05` asserts
+0 after a 500 ms decay wait, then (0, 300] immediately after an injected taskbar
+release (the drag JSON terminator is emitted in the same drain iteration that arms
+the cooldown, so the read lands inside the window); `T_TBFB_04`'s "no serial hook"
+docstring note updated to point at it. `./run/check` 6/6; DUT-validated
+`T_TBFB_01–05` **5/5 PASS** (new case read 271 ms armed / 0 decayed), prod restored.
+
+**Priority:** P4 — QM housekeeping / verification-tooling gap · **Status:** **DONE
+2026-07-08** — DUT 5/5 · **Opened:** 2026-07-08 · **Milestone:** — · **Owner:** VE ·
+**Deps:** TASK-280 (done) · **Branch:** master
 
 ---
 

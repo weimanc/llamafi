@@ -2390,7 +2390,7 @@ static const SerialCmd kCmds[] = {
   { "drag", cmdDrag, "inject touch drag (queue-drain)", "<x1> <y1> <x2> <y2> <steps> [hold]" },
   { "release", cmdRelease, "end a held injected gesture", ""                                 },
   { "tick", cmdTick, "inject synthetic scroll ticks",   "[n=1] [dtMs=20]"                    },
-  { "get",  cmdGet,  "read internal state",             "<snapshot|backoff|heap|stacks|cooldown>"    },
+  { "get",  cmdGet,  "read internal state",             "<snapshot|backoff|heap|stacks|cooldown|shellCooldown>"    },
   { "set",  cmdSet,  "write debug state",               "<backoff|cooldown> <val>"            },
   { "switchApp", cmdSwitchApp, "switch active app by id", "<appId 0..8>"                      },
   { "info", cmdInfo, "git+elf+build+snapshot summary",  ""                                   },
@@ -2900,6 +2900,16 @@ static void cmdGet(const char *args) {
   if (strcmp(args, "shellBusy") == 0) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\","
                   "\"busy\":%s,\"last\":true}\n", g_shellBusy ? "true" : "false");
+    return;
+  }
+  if (strcmp(args, "shellCooldown") == 0) {
+    // TASK-294: shell-level post-gesture cooldown (s_cooldownMs) remaining.
+    // Distinct from winampDisplay's `cooldown` var (TASK-052 dead-zone-tap
+    // force-poll cooldown in SpotifyApp) despite the similar name.
+    unsigned long now = millis();
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\","
+                  "\"remainingMs\":%lu,\"last\":true}\n",
+                  (s_cooldownMs > now) ? (s_cooldownMs - now) : 0UL);
     return;
   }
   if (strcmp(args, "visMode") == 0) {
