@@ -46,6 +46,18 @@ enum class WRPlayState : uint8_t {
 // few seconds of silence over a false-positive kill of healthy playback).
 // *** DUT-VERIFY: isRunning() transient semantics during normal underrun are
 // unconfirmed on hardware — tune this against real behaviour (TASK-218). ***
+// TASK-291: isRunning() alone is not sufficient — a peer that FIN-closes the
+// socket (station server restart/reload) leaves ESP32-audioI2S's m_f_running
+// stuck true indefinitely, so the isRunning()-based check above never arms.
+// DUT-confirmed (2026-07-08, local FIN-close repro): the input buffer does NOT
+// drain to empty in this state — the lib treats it as "slow stream" and pauses
+// decode, so inBufferFilled() freezes at whatever level it held at the moment
+// of the close (observed frozen at a nonzero %, not 0) and never changes again.
+// The liveness signal is therefore "no bytes consumed" (an unchanged fill level),
+// not "empty" — on a healthy stream inBufferFilled() is continuously read down
+// and refilled at a byte-level cadence, so an exact-same reading for a full
+// WR_STREAM_DEAD_MS window doesn't happen by chance. Reuses the same debounce
+// window as the isRunning() check.
 static constexpr uint32_t WR_STREAM_DEAD_MS = 5000;
 
 // TASK-234 (ADR-045): a station that holds PLAYING this long is "settled" — past
@@ -559,10 +571,28 @@ public:
                         _autoSkipTried = 0;
                         _stallRetries  = 0;
                     }
-                } else if (now - _lastRunningMs >= WR_STREAM_DEAD_MS) {
+                }
+                // TASK-291: independent liveness signal, tracked regardless of
+                // _snapRunning — a FIN-closed peer leaves isRunning() stuck true
+                // forever, AND (DUT-confirmed) inBufferFilled() does not drain to
+                // empty either — it freezes at whatever level it held at the FIN,
+                // because the lib pauses decode ("slow stream") instead of
+                // draining. So "no bytes consumed" (an unchanged reading), not
+                // "empty", is the signal. Same debounce window/grace-seeding as
+                // the isRunning() check above.
+                if (filled != _lastSeenFilled) {
+                    _lastSeenFilled  = filled;
+                    _lastBufChangeMs = now;
+                }
+
+                bool deadByRunning = !_snapRunning && (now - _lastRunningMs   >= WR_STREAM_DEAD_MS);
+                bool deadByStall   =                   now - _lastBufChangeMs >= WR_STREAM_DEAD_MS;
+                if (deadByRunning || deadByStall) {
                     LOG_W("webradio",
-                          "stream dead (isRunning=0 for %lums) — stop + resume Spotify TLS",
-                          (unsigned long)(now - _lastRunningMs));
+                          "stream dead (isRunning=%d for %lums, bufStalled for %lums) — "
+                          "stop + resume Spotify TLS",
+                          (int)_snapRunning, (unsigned long)(now - _lastRunningMs),
+                          (unsigned long)(now - _lastBufChangeMs));
                     _stopAudio();                       // resumes the yielded Spotify TLS
                     _state = WRPlayState::ERROR_STALL;  // _stopAudio() set STOPPED; show stall
                     _dirty = true;
@@ -986,6 +1016,8 @@ private:
     uint32_t    _lastUnderrunMs  = 0;       // TASK-263: millis() of last underrun
 #endif
     uint32_t    _lastRunningMs   = 0;       // TASK-218: last tick isRunning() was true
+    uint32_t    _lastBufChangeMs = 0;       // TASK-291: last tick inBufferFilled() differed from the previous reading
+    uint32_t    _lastSeenFilled  = 0;       // TASK-291: previous tick's inBufferFilled() reading, for the above
     // TASK-234 (ADR-045): auto-skip-on-stall. Bounded retry-once-then-advance so a
     // no-PSRAM decode failure (TASK-233) tunes past dead stations instead of parking.
     uint32_t    _playingSinceMs  = 0;       // millis() when current PLAYING began
@@ -1205,8 +1237,10 @@ private:
         perf::record("wr.connect", millis() - _tConnect);
         if (connectOk) {
             _state = WRPlayState::PLAYING;
-            _lastRunningMs  = millis();  // TASK-218: seed grace window for stream-death detection
-            _playingSinceMs = _lastRunningMs;  // TASK-234: settled-timer start
+            _lastRunningMs   = millis();  // TASK-218: seed grace window for stream-death detection
+            _lastBufChangeMs = _lastRunningMs;  // TASK-291: seed grace window for the buffer-stall signal
+            _lastSeenFilled  = 0;
+            _playingSinceMs  = _lastRunningMs;  // TASK-234: settled-timer start
             _settled        = false;
             _bufPctDrawn    = 0;         // TASK-220: force a buffer-bar repaint on first fill
 #ifdef MEMBUDGET_PHASE1

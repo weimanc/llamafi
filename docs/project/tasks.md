@@ -4775,10 +4775,33 @@ as dead. The existing TASK-263 underrun/bufPct plumbing already exposes the need
 Real-world impact: a station server restarting (systemd stop, icecast reload) FIN-closes exactly
 like this; today that means silent-until-user-intervenes.
 
+**Implementation (2026-07-08):** the suggested `bufPct == 0` direction turned out to be wrong on
+real hardware — DUT-verified via a local FIN-close repro (host streamer sends ~8 s of real MP3
+audio then clean-closes the socket, same technique as the original E3 find). `inBufferFilled()`
+does **not** drain to empty after the FIN: the vendored lib treats the dead connection as a
+"slow stream" and pauses decode, so the fill level **freezes at whatever nonzero value it held**
+at the moment of the close and never changes again. Implemented the other half of the task's
+own suggested direction instead — "no bytes consumed" as a literal signal: `_lastBufChangeMs`/
+`_lastSeenFilled` track the last tick `inBufferFilled()` differed from the previous reading;
+`now - _lastBufChangeMs >= WR_STREAM_DEAD_MS` (same 5 s debounce, same grace-seeding at PLAYING
+entry as the existing `isRunning()` check) fires the same `_stopAudio()` + `ERROR_STALL` +
+`_onPlaybackFailed()` path. An exact-unchanged `inBufferFilled()` reading across a full 5 s
+window doesn't happen on a healthy stream (continuous byte-level read/refill cadence), so this
+is safe against false-positives the same way the empty-buffer version would have been, without
+the "freezes nonzero" failure mode.
+
+DUT-verified 2026-07-08 (repro above): `bufPct` froze at 24% ~0.5 s after the FIN; state left
+PLAYING at t=14.0 s (≈5.5 s after the freeze started, matching the debounce window) →
+`ERROR_UNREACHABLE` (auto-retry's reconnect attempt correctly failed against the now-closed
+test server) — TLS resumed, no more silent hang. Full `T_WR_*` regression suite (16 tests:
+ERR/EJECT/HEAP/VOL/COEX/SPOTIFY_RESUME) **16/16 PASS**, no regressions from the `tick()`
+change. `./run/check` 6/6. Prod firmware reflashed after DUT verification.
+
 **Priority:** P2 — silent-hang UX bug on a real-world event class, with a clear fix direction ·
-**Status:** open · **Opened:** 2026-07-07 · **Milestone:** — (candidate: M-WEBRADIO
-reliability) · **Owner:** Developer · **Deps:** TASK-218 (the predicate it extends), TASK-263
-(bufPct/underrun signals) · **Branch:** master
+**Status:** **DONE 2026-07-08** — DUT-verified fix (bufPct-frozen predicate, not bufPct==0);
+16/16 T_WR_* regression, 6/6 check · **Opened:** 2026-07-07 · **Milestone:** — (candidate:
+M-WEBRADIO reliability) · **Owner:** Developer · **Deps:** TASK-218 (the predicate it extends),
+TASK-263 (bufPct/underrun signals) · **Branch:** master
 
 ---
 
