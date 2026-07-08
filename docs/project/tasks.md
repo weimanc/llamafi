@@ -4831,3 +4831,29 @@ T_WR suite 17/18 (sole fail = TASK-284 external, see TASK-277 close).
 lands with the TASK-277 feature commit · **Opened:** 2026-07-07 · **Milestone:**
 M-WR-PLEDIT-SCROLL (campaign find) · **Owner:** Developer · **Deps:** TASK-287 (the
 handshake it races), TASK-276 (made the ERR-test mask visible) · **Branch:** master
+
+---
+
+### TASK-294 — No serial hook exposes shell-level s_cooldownMs
+
+QM flag from the TASK-280 close-out review. TASK-280 fixed `drainInjectionQueue`'s
+taskbar-release branch to arm `s_cooldownMs` (main.cpp) the same way `appHandleInput`
+does on a real release — but no `get` command surfaces that variable's remaining time,
+so the fix was verified by full-suite regression pass (10/10, no failures) and a source
+read, not by a test directly observing the armed cooldown. `T_TBFB_04`'s `get cooldown`
+was initially mistaken for this hook during that close-out; it actually reads
+`touchScreenCoolDownTime` in `winampDisplay.h` (SpotifyApp's unrelated TASK-052
+dead-zone-tap cooldown) — a different variable that happens to share the debug-var name
+`cooldown`.
+
+**Fix direction:** add a `get shellCooldown` (or fold into `get snapshot`) exposing
+`s_cooldownMs` remaining, mirroring the `remainingMs` pattern winampDisplay's `cooldown`/
+`optimisticVolume` vars already use. Then extend `T_TBFB_04` (or add a new case) to assert
+it's armed (~300 ms) immediately after an injected taskbar release, and unarmed before.
+Low urgency — the underlying fix mirrors an already-proven code path (`appHandleInput`'s
+own real-release cooldown arm) and was reviewed by hand; this is about strengthening the
+regression net, not an open correctness question.
+
+**Priority:** P4 — QM housekeeping / verification-tooling gap · **Status:** open ·
+**Opened:** 2026-07-08 · **Milestone:** — · **Owner:** VE · **Deps:** TASK-280 (done) ·
+**Branch:** master
