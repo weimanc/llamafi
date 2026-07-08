@@ -25,6 +25,26 @@ _cleanup() {
 }
 trap _cleanup EXIT INT TERM
 
+# Step 0 (TASK-298 / LL-103): TLS-pin preflight, WARN-ONLY. A pinned-CA rotation
+# (CoinGecko 2026-06-12 and again 2026-07-08) otherwise surfaces as a spray of
+# cryptic fetch-test FAILs 30+ minutes in. FAIL lines here name the cause up
+# front; ERROR lines (host can't reach a federation mirror) are expected noise.
+# Never gates the run — the DUT's network vantage differs from the host's.
+echo "[test] step 0/6 — TLS-pin preflight (warn-only)"
+if PREFLIGHT_OUT=$("$(dirname "$0")/check-datatask-certs" 2>&1); then
+  echo "$PREFLIGHT_OUT" | grep -E "^(PASS|FAIL|ERROR)" || true
+else
+  echo "$PREFLIGHT_OUT" | grep -E "^(PASS|FAIL|ERROR)" || true
+  if echo "$PREFLIGHT_OUT" | grep -q "^FAIL"; then
+    echo ""
+    echo "!! [test] WARNING: pinned-CA verify FAILed for endpoint(s) above."
+    echo "!!        Expect the matching fetch tests to fail on the DUT — fix"
+    echo "!!        app/src/dataTaskCerts.h first (see TASK-298) unless the"
+    echo "!!        failure is a known host-side artifact."
+    echo ""
+  fi
+fi
+
 echo "[test] step 1/6 — killing monitor"
 tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
 

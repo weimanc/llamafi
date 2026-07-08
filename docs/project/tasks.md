@@ -5155,9 +5155,17 @@ make the preflight green, or keep TASK-109c and teach the script the exception.
 land, in a calm RF window. Per-failure dispositions above are complete — no unexplained
 failures remain.
 
+**Follow-ups resolved 2026-07-08 (human approved option b):** `YAHOO_FINANCE_ROOT_CA`
+repinned as a two-cert bundle (DigiCert Global Root G2 + the original CA1 intermediate),
+superseding TASK-109c; preflight now all-PASS on reachable endpoints and wired into
+`run/test` as **step 0, warn-only** (a FAIL line prints a loud warning naming the
+endpoint; ERRORs on unreachable federation mirrors never gate). ADR-029 amendment (6)
+records the policy change: pin self-signed root(s), bundle every observed root where the
+CDN rotates chains. DUT-verified: T170 (quote) + T176 (chart) + T_CX_05 (crypto) PASS.
+
 **Priority:** P2 — was hiding every fetch app behind a dead fetch · **Status:**
-**cert fix DONE 2026-07-08** (DUT-verified T_CX_05/T170/T272 PASS); yahoo-repin decision
-+ preflight wiring open as follow-ups · **Opened:** 2026-07-08 · **Milestone:** —
+**DONE 2026-07-08** — cert bundles (coingecko + yahoo) DUT-verified; preflight wired;
+ADR-029 amended · **Opened:** 2026-07-08 · **Milestone:** —
 (cross-cutting reliability) · **Owner:** Developer (+Architect for the yahoo-pin call) ·
 **Deps:** — · **Branch:** master
 
