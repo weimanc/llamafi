@@ -4,6 +4,17 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-07-08 — QM/PM status-currency sweep (TASK-281/294 close + reconciliation)
+
+### LL-102 — 2026-07-08 — Deferred status flips rot: one session found five stale tracker claims, each individually rational
+**Context**: A housekeeping session (TASK-281, TASK-294, then "what is left to do?") found the tracker wrong in five places: TASK-281 open though its work was committed two days prior (flip deferred because tasks.md was agent-dirty); TASK-290 "pending commit" though committed in 05f5a78 (bundled into the E-gate campaign commit); TASK-282 "awaiting DUT validation run" after the LL-096 root cause mooted that validation; roadmap M-TASKBAR-FEEDBACK still carrying "D1–D3 pending human sign-off" and "TASK-280 remains open" after both were resolved; LL-098's status lagging TASK-292's landing.
+**Observation**: Every deferral had a sound local reason (dirty file, bundled commit, overtaken by events, doc not on the touch path). But the debt compounds silently: answering "what is left to do?" required git archaeology to refute the tracker, and two of the five were only found because the human happened to ask.
+**Root cause**: Status lives in three places (tasks.md, roadmap.md, quality docs) with no reconciliation step. A deferred flip is an untracked TODO — the same gap class LL-069 recorded for untracked implementation work, recurring at the tracker layer. Nothing prompts a re-read of a roadmap milestone block when its follow-up tasks close.
+**Suggested improvement**: (1) A commit that intentionally defers a status flip must name the debt in the commit message ("status flip deferred — reconcile TASK-NNN next session"), and the next session starts by clearing it. (2) Session-start PM step: diff `git log` since tasks.md was last touched against open statuses; treat any fix/feat commit naming an open task as a flag. (3) When a task closes, grep roadmap.md for its ID and re-read the enclosing milestone block.
+**Status**: open — flagged to human as a BP candidate (QM does not self-promote)
+
+---
+
 ## Retrospective — 2026-07-07 — M-TASKBAR-FEEDBACK (TASK-279) close
 
 ### LL-100 — 2026-07-07 — Test assertion anchored on a data-dependent surface false-failed while a standing external blocker empties that surface

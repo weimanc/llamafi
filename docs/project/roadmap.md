@@ -958,15 +958,16 @@ press-anchored slot commit, switch stays on-release.
 taskbar suite + T_TBFB_01–04 **10/10 PASS** on DUT; before/after latency tables in the
 design doc (press-to-first-pixel ~14 ms same-iteration vs first pixel only after the
 post-release switch before; switch cost itself unchanged; wipe=27 ms constant recorded
-as the L-b candidate, deferred as designed). Dispositions D1–D3 pending human sign-off
-(D1: visual glance at the highlight treatment owed). TASK-280 remains the open
-harness-fidelity follow-up. Design approved 2026-07-03 (human).
+as the L-b candidate, deferred as designed). Dispositions D1–D3 human-ratified
+2026-07-07 (1dc4f9a, c8808cf; LL-101 → BP-045). Follow-ups all closed: TASK-280
+(DONE 2026-07-08), TASK-281 (DONE), TASK-294 (shellCooldown hook + T_TBFB_05,
+DONE 2026-07-08). Design approved 2026-07-03 (human).
 **Land order (panel-pinned):** shared E0 baseline session (done) → TASK-278 (done) →
 TASK-277 (done) → **TASK-279 feedback blits (done)** — sequence complete.
 **Design:** [M-TASKBAR-FEEDBACK.md](../architecture/designs/M-TASKBAR-FEEDBACK.md)
 **Deps:** M-TASKBAR-SCROLL (done — gesture layer being amended), M-TOUCH-UX (done)
 **Tracked-as:** TASK-279 · Follow-ups filed from panel: TASK-280 (injection/production
-dispatch alignment), TASK-281 (QM housekeeping)
+dispatch alignment, done), TASK-281 (QM housekeeping, done)
 
 ---
 
