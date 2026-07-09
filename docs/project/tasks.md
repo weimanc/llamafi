@@ -5238,9 +5238,40 @@ Deterministic repro candidate scripted (scratchpad task299_repro.py): `reconnect
 fetch itself at `wrPhase=0`; `spAct=3` with frozen `spActMs` confirms doPoll.
 Blocked on the AP storm (day 2) for the confirming run.
 
-**Priority:** P2 — poisons the full-suite gate; possible firmware latch ·
-**Status:** open — root-cause mechanism identified (fetch serialized behind unacked
-tlsYield during in-flight Spotify poll), doPoll-confirmation + disposition pending
-a calm-RF DUT window · **Opened:** 2026-07-08 · **Milestone:** — (VE + Developer) ·
-**Owner:** VE · **Deps:** TASK-289 (suspect interlock — cleared), TASK-292 ·
-**Branch:** master
+**Root cause + fixes 2026-07-09 (three stacked defects, all dispositioned):**
+
+1. **PRIMARY — firmware deadlock (P1 class), FIXED.** spotifyTask's yield-spin
+   (`while (s_tlsYieldReqCount > 0) vTaskDelay(20)`) gives the ack semaphore once
+   per entry and samples the count every 20 ms — a `tlsResume()` followed within one
+   tick by another caller's `tlsYield()` (count 1→0→1; exactly what back-to-back
+   queued dataTask fetches produce, e.g. T272's deliberate double teletext enqueue)
+   is invisible, leaving the new waiter ack-less for its full 150 s ceiling and
+   serializing every queued fetch behind it (observed cascading: T170's quote fetch
+   starved as a bystander). This is TASK-293's "never resume-then-yield back-to-back"
+   lesson at the mechanism level — previously fixed only at one call site. **Fix:**
+   the spin now re-gives each tick while an un-acked waiter exists
+   (`count>0 && !s_tlsStopped`); the binary semaphore absorbs duplicates. Park time
+   150 s → ≤40 ms. DUT-verified: wedge state visible for exactly one 2 s sample,
+   then clears; 9/9 polluter tests green across the triple sequence.
+2. **SECONDARY — yield-ack latency behind an in-flight API call (as-designed).**
+   `doPoll()` (getCurrentlyPlaying + implicit token refresh) has no yield check —
+   ack waits up to 2×75 s of timeout ladder on a degraded link (~1.3 s healthy;
+   deterministically reproduced via `reconnect`-then-eject probe: `wrPhase=0`,
+   `spAct=3`). TASK-244 already accepted poll-bounded yield latency. **Mitigation:**
+   T_WR_TLS_01 now drains the pipeline (`get dataq` until idle) before ejecting.
+3. **RESIDUAL — TASK-284 mirror truncation, pre-existing, separate.** With the
+   stall fixed, remaining failures were `http=-1` after a successful pinned page-0
+   200 (count 3–4) — reproduces standalone with a clean pipeline. **Test criteria
+   corrected to intent:** the test records the TLS path, so `count>=1` passes
+   (truncation reported, tracked under TASK-284); all-mirror `-1` with `count=0`
+   skips per T272's network precedent; `-9984/-100/-101/-102` still FAIL.
+
+Final validation (polluted sequence ×3): T_CX_05/T170/T272 9/9 PASS,
+T_WR_TLS_01 PASS/PASS + one all-mirrors-down round (now a SKIP).
+`get dataq` observability (394eee7) is permanent.
+
+**Priority:** P2 — poisoned the full-suite gate; firmware deadlock found+fixed ·
+**Status:** **DONE 2026-07-09** — re-give fix + drain precondition + criteria fix
+DUT-validated; full-suite gate re-run still owed (see TASK-298 note) ·
+**Opened:** 2026-07-08 · **Milestone:** — (VE + Developer) · **Owner:** VE ·
+**Deps:** TASK-289 (interlock — cleared), TASK-292 · **Branch:** master

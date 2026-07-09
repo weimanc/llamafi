@@ -349,7 +349,20 @@ static void taskBody(void *) {
       LOG_I("spotify.tls", "tls yield — client stopped");
       dbgAct(1);
       if (s_tlsYieldedSem) xSemaphoreGive(s_tlsYieldedSem);
-      while (s_tlsYieldReqCount > 0) vTaskDelay(pdMS_TO_TICKS(20));
+      while (s_tlsYieldReqCount > 0) {
+        vTaskDelay(pdMS_TO_TICKS(20));
+        // TASK-299: re-ack fresh waiters. A tlsResume() followed within one
+        // 20 ms tick by another caller's tlsYield() (count 1→0→1 — exactly
+        // what back-to-back queued dataTask fetches produce) is invisible to
+        // this loop: the new waiter got no give (ours was consumed by the
+        // previous cycle) and parked for its full 150 s ceiling, serializing
+        // every queued fetch behind it (T_WR_TLS_01 false-FAILs; cascades).
+        // count>0 with s_tlsStopped still false means an un-acked waiter;
+        // the binary semaphore absorbs duplicate gives, so this is safe to
+        // repeat each tick until the waiter takes it.
+        if (s_tlsYieldReqCount > 0 && !s_tlsStopped && s_tlsYieldedSem)
+          xSemaphoreGive(s_tlsYieldedSem);
+      }
       LOG_I("spotify.tls", "tls yield — resumed");
       continue;
     }
@@ -392,7 +405,13 @@ static void taskBody(void *) {
       LOG_I("spotify.tls", "tls yield — client stopped");
       dbgAct(1);
       if (s_tlsYieldedSem) xSemaphoreGive(s_tlsYieldedSem);
-      while (s_tlsYieldReqCount > 0) vTaskDelay(pdMS_TO_TICKS(20));
+      while (s_tlsYieldReqCount > 0) {
+        vTaskDelay(pdMS_TO_TICKS(20));
+        // TASK-299: re-ack fresh waiters — see the identical top-of-loop
+        // block for the count 1→0→1 race this closes.
+        if (s_tlsYieldReqCount > 0 && !s_tlsStopped && s_tlsYieldedSem)
+          xSemaphoreGive(s_tlsYieldedSem);
+      }
       LOG_I("spotify.tls", "tls yield — resumed");
       continue;
     }
