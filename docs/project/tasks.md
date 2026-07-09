@@ -5118,9 +5118,18 @@ touchScreenCoolDownTime) until it reads 0, bounded at 2 s — tap 3 is now
 timing-independent. The first post-tap-2 read also asserts ≤300 ms, distinguishing
 "tap 2 armed a longer window than expected" from "tap 3 came too early".
 
+**DUT verification 2026-07-09:** 1 clean PASS on the DUT (15a24bc firmware-side
+unchanged; harness-only fix). The instrumentation confirmed the diagnosis: the first
+`get cooldown` read after tap 2 was already 0 ms — serial round-trips alone consume the
+300 ms window, so the old fixed-sleep tap 3 was pure jitter-roulette. Repeat runs (×3
+attempted) were blocked by a returned NO_AP_FOUND storm (LL-096 pattern; host LAN healthy,
+DUT cannot see the AP). Side product: `DUT_WIFI_WAIT` env knob (07a4260) — the harness's
+post-reset WiFi window was hardcoded 25 s and BOOT_WAIT never helped (serial open
+DTR-resets the DUT); use `DUT_WIFI_WAIT=120` on stormy days.
+
 **Priority:** P3 — deflakes the suite; no product defect implied · **Status:** open —
-fix implemented, **pending DUT verification** (board unplugged 2026-07-09; run
-`./run/test-targeted T-CDWN-01`, ideally a few repeats) ·
+fix landed + 1 DUT PASS; **close after 2–3 clean repeats in a calm RF window**
+(`DUT_WIFI_WAIT=120 ./run/test-targeted T-CDWN-01,T-CDWN-01,T-CDWN-01`) ·
 **Opened:** 2026-07-08 · **Milestone:** — (VE hygiene) · **Owner:** VE · **Deps:** — ·
 **Branch:** master
 
