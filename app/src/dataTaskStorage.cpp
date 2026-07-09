@@ -59,6 +59,16 @@ static QueueHandle_t s_queue       = nullptr;
 static TaskHandle_t  s_taskHandle  = nullptr;
 static volatile uint32_t s_pendingMask = 0;   // TASK-250: in-flight/queued fetch-type bits
 
+// TASK-299: dispatch observability — written only by dataTask (dispatch loop /
+// fetchWebRadioStations) except the wrEnqueues/wrDrops counters (caller task);
+// all read lock-free from cmdGet (single-word volatiles, staleness acceptable).
+static volatile int8_t   s_dbgInFlight   = -1;
+static volatile uint32_t s_dbgInFlightMs = 0;
+static volatile int8_t   s_dbgWrPhase    = -1;
+static volatile uint32_t s_dbgWrPhaseMs  = 0;
+static volatile uint32_t s_dbgWrEnqueues = 0;
+static volatile uint32_t s_dbgWrDrops    = 0;
+
 static portMUX_TYPE  s_weatherMux  = portMUX_INITIALIZER_UNLOCKED;
 static WeatherResult s_weatherResult;
 static bool          s_weatherNew  = false;
@@ -939,7 +949,9 @@ static void fetchWebRadioStations() {
     // (two API calls each with one retry). After the ack the shared TLS
     // session is freed (~50 KB), giving the local WiFiClientSecure below
     // enough contiguous heap for its own handshake.
+    s_dbgWrPhase = 0; s_dbgWrPhaseMs = millis();   // TASK-299: entering tlsYield
     spotifyTask::tlsYield();
+    s_dbgWrPhase = 1; s_dbgWrPhaseMs = millis();   // TASK-299: yield acked, fetching
     LOG_HEAP("dataTask.webradio");
 
     // Reset result in-place; dataTask is sole writer — no lock needed for the fill.
@@ -1037,6 +1049,7 @@ static void fetchWebRadioStations() {
     portEXIT_CRITICAL_SAFE(&s_webRadioMux);
 
     spotifyTask::tlsResume();
+    s_dbgWrPhase = 2; s_dbgWrPhaseMs = millis();   // TASK-299: fetch pass complete
     LOG_HEAP("dataTask.webradio");
 }
 
@@ -1048,6 +1061,7 @@ static void taskBody(void *) {
         Request req;
         BaseType_t got = xQueueReceive(s_queue, &req, portMAX_DELAY);
         if (got != pdTRUE) continue;
+        s_dbgInFlight = (int8_t)req.type; s_dbgInFlightMs = millis();  // TASK-299
         switch (req.type) {
             case DATA_FETCH_WEATHER:          fetchWeather(); break;
             case DATA_FETCH_CRYPTO:           fetchCrypto();  break;
@@ -1065,6 +1079,7 @@ static void taskBody(void *) {
             default: break;
         }
         s_pendingMask &= ~(1u << req.type);   // TASK-250: fetch done — allow re-enqueue
+        s_dbgInFlight = -1;                   // TASK-299: dispatch loop idle
     }
 }
 
@@ -1256,8 +1271,24 @@ void enqueueWebRadioStations(const char* countryCode, uint8_t bitrateCap) {
     s_pendingBitrateCap = bitrateCap;
     portEXIT_CRITICAL_SAFE(&s_pendingCountryMux);
     Request req = {}; req.type = DATA_FETCH_WEBRADIO_STATIONS;
-    if (xQueueSend(s_queue, &req, 0) != pdTRUE)
+    if (xQueueSend(s_queue, &req, 0) != pdTRUE) {
+        s_dbgWrDrops++;   // TASK-299: silent-drop counter — visible via get dataq
         LOG_W("dataTask", "queue full — dropped webradio stations country=%s", countryCode);
+    } else {
+        s_dbgWrEnqueues++;
+    }
+}
+
+void dbgQueueState(DbgQueueState* out) {
+    if (!out) return;
+    out->queueWaiting = s_queue ? (uint8_t)uxQueueMessagesWaiting(s_queue) : 0;
+    out->pendingMask  = s_pendingMask;
+    out->inFlight     = s_dbgInFlight;
+    out->inFlightMs   = s_dbgInFlightMs;
+    out->wrPhase      = s_dbgWrPhase;
+    out->wrPhaseMs    = s_dbgWrPhaseMs;
+    out->wrEnqueues   = s_dbgWrEnqueues;
+    out->wrDrops      = s_dbgWrDrops;
 }
 
 void abortWebRadioFetch() {

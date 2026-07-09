@@ -6191,6 +6191,24 @@ def t237(dut: Dut):
 
 # ── T_WR_TLS_01 — Station fetch succeeds; record which TLS path fired ───────
 
+def _tls01_pull_dut_log(dut: Dut):
+    """TASK-299: dump the DUT's 48-line log ring via GET /log (off-serial, so it
+    can't perturb the stalled handshake we're observing)."""
+    import urllib.request
+    try:
+        r_ip = dut.cmd("get ip", timeout=3.0)
+        ip = r_ip.get("ip")
+        if not ip:
+            print("  [T_WR_TLS_01] /log pull skipped — get ip returned no address", flush=True)
+            return
+        with urllib.request.urlopen(f"http://{ip}/log?n=48", timeout=5.0) as resp:
+            body = resp.read().decode(errors="replace")
+        for line in body.splitlines():
+            print(f"  [T_WR_TLS_01] dutlog: {line}", flush=True)
+    except Exception as e:
+        print(f"  [T_WR_TLS_01] /log pull failed: {e}", flush=True)
+
+
 def t_wr_tls_01(dut: Dut):
     """T_WR_TLS_01: switch to WebRadio, let the station fetch resolve (success or
     exhaustion across all 3 mirrors), then read wrLastHttp to see whether the
@@ -6208,12 +6226,45 @@ def t_wr_tls_01(dut: Dut):
     _restore_spotify(dut)
     time.sleep(0.2)
     dut.cmd("set bgPoll 0", timeout=2.0)
+    dataq_samples: list[dict] = []
     try:
         ok, _ = _switch_to_webradio_capture_heap(dut)
         if not ok:
             skip("T_WR_TLS_01", "could not switch to WebRadio")
             return
-        _wait_wr_count(dut, timeout=180.0)
+        # TASK-299: sample the dispatch pipeline while waiting — on the
+        # "http=0 count=0 after prior fetch tests" failure this shows whether
+        # the request was dropped (wrDrops), queued behind a wedged fetcher
+        # (queueWaiting/inFlight), or parked in tlsYield (wrPhase=0).
+        deadline = time.monotonic() + 180.0
+        log_pulled = False
+        while time.monotonic() < deadline:
+            try:
+                r_c = dut.cmd("get wrCount", timeout=3.0)
+                if r_c.get("count", 0) >= 1:
+                    break
+                if r_c.get("pending") == 0:
+                    break  # fetch resolved with no stations
+            except TimeoutError:
+                pass
+            try:
+                q = dut.cmd("get dataq", timeout=3.0)
+                if q.get("ok"):
+                    q.pop("ok", None); q.pop("cmd", None); q.pop("last", None)
+                    if not dataq_samples or q != dataq_samples[-1]:
+                        print(f"  [T_WR_TLS_01] dataq: {q}", flush=True)
+                    dataq_samples.append(q)
+                    # Stall confirmed (unacked yield for >=3 samples): pull the
+                    # DUT's /log ring over HTTP once — the spotify.tls /
+                    # dataTask.* lines show which side of the handshake is dead.
+                    if (not log_pulled and len(dataq_samples) >= 3
+                            and q.get("yieldCount", 0) > 0
+                            and not q.get("tlsStopped", True)):
+                        log_pulled = True
+                        _tls01_pull_dut_log(dut)
+            except TimeoutError:
+                pass
+            time.sleep(2.0)
     finally:
         dut.cmd("set bgPoll 1", timeout=2.0)
     r = dut.cmd("get wrLastHttp", timeout=3.0)
@@ -6221,9 +6272,11 @@ def t_wr_tls_01(dut: Dut):
     count        = r.get("count", 0)
     tls_insecure = r.get("tlsInsecure")
     if http_code != 200 or count < 1:
+        last_q = dataq_samples[-1] if dataq_samples else None
         fail("T_WR_TLS_01",
              f"station fetch failed on all mirrors after both TLS paths: "
-             f"http={http_code} count={count} jsonErr={r.get('jsonErr')!r}")
+             f"http={http_code} count={count} jsonErr={r.get('jsonErr')!r} "
+             f"dataq={last_q}")
         return
     path = "setInsecure() fallback" if tls_insecure else "setCACert() (pinned root verified, no fallback needed)"
     pass_("T_WR_TLS_01", f"http=200 count={count} — TLS path used: {path}")

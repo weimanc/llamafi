@@ -164,6 +164,17 @@ size_t stackSizeBytes();
 void tlsYield();
 void tlsResume();
 
+// TASK-299: lock-free snapshot of the yield handshake for get dataq —
+// outstanding tlsYield() callers and whether the task has acked the stop.
+// A dataq read showing wrPhase=0 with yieldCount>0 and tlsStopped=false for
+// tens of seconds means the station fetch is parked waiting for the ack.
+uint8_t tlsYieldCount();
+bool    tlsStoppedFlag();
+// Loop-position marker: -1 not started, 0 queue-wait, 1 yield-spin,
+// 2 wr-idle, 3 dispatching (doPoll / API call / token refresh).
+int8_t   taskActivity();
+uint32_t taskActivityMs();
+
 #ifdef SERIAL_DEBUG
 // TASK-056f (serialdbg-001 / ADR-021 A1) — unified owner-dispatch accessors.
 // Loop-task only (no cross-task safety for snapshot reads outside spinlock).

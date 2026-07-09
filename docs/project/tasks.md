@@ -5211,7 +5211,36 @@ suite-order entry via `switchApp` also fetches (iso runs) — but the latch, if 
 firmware-side, could conceivably bite production multi-app fetch sequences, so the
 investigation should determine firmware-vs-harness before closing.
 
+**Investigation 2026-07-09 (instrumented repro):** added `get dataq` debug surface
+(dataTask queue depth / pendingMask / in-flight type+timestamp / WR-fetch phase /
+wrEnqueues+wrDrops counters / tlsYield handshake state / spotifyTask loop-position
+marker `spAct`) and wired dataq sampling + a mid-stall `/log` HTTP pull into
+T_WR_TLS_01. First instrumented repro (polluters T_CX_05,T170,T272 all PASS, then
+T_WR_TLS_01 FAIL) caught the stall live:
+
+- `wrEnqueues=1 wrDrops=0 queueWaiting=1` — WR request enqueued fine, never dequeued
+  (queue-full/dedup-latch theories ELIMINATED; TASK-289 interlock not involved).
+- `inFlight=6` (teletext) frozen ≥80 s — dataTask wedged inside a leftover teletext
+  fetch. Source found: **T272 deliberately enqueues TWO teletext fetches**
+  (`switchApp` resume + `set triggerTeletextFetch 1`); #1 completes → T272 PASSes,
+  #2 dispatches later, right around the eject.
+- `yieldCount=1 tlsStopped=false` throughout — that fetcher's `spotifyTask::tlsYield()`
+  was never acked. 80+ s unacked EXCEEDS the max xQueueReceive sleep (60 s backoff cap,
+  403-latched), so spotifyTask wasn't sleeping — working theory: it was inside
+  `doPoll()` (getCurrentlyPlaying + implicit token refresh = up to 2×75 s timeout
+  ladder, no yield check inside), storm-degraded network burning the full ladder.
+
+Consistency check: 3 subsequent reruns with DEAD network (polluter fetches all
+http=-1 fast-fail) → T_WR_TLS_01 PASSed 3/3 — fast-failing polluters leave nothing
+in flight at the eject handoff, supporting the in-flight-poll timing theory.
+Deterministic repro candidate scripted (scratchpad task299_repro.py): `reconnect`
+(TLS reset + forced poll in flight) immediately before eject should park the WR
+fetch itself at `wrPhase=0`; `spAct=3` with frozen `spActMs` confirms doPoll.
+Blocked on the AP storm (day 2) for the confirming run.
+
 **Priority:** P2 — poisons the full-suite gate; possible firmware latch ·
-**Status:** open — isolation complete, root cause not yet identified · **Opened:**
-2026-07-08 · **Milestone:** — (VE + Developer) · **Owner:** VE · **Deps:** TASK-289
-(suspect interlock), TASK-292 · **Branch:** master
+**Status:** open — root-cause mechanism identified (fetch serialized behind unacked
+tlsYield during in-flight Spotify poll), doPoll-confirmation + disposition pending
+a calm-RF DUT window · **Opened:** 2026-07-08 · **Milestone:** — (VE + Developer) ·
+**Owner:** VE · **Deps:** TASK-289 (suspect interlock — cleared), TASK-292 ·
+**Branch:** master

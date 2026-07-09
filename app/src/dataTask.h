@@ -170,6 +170,22 @@ int8_t weatherFetchPhase();
 int8_t cryptoFetchPhase();
 int8_t stockChartProgress();
 
+// TASK-299: queue/dispatch observability (get dataq). Discriminates the three
+// "station fetch never ran" signatures: request never enqueued (queue full),
+// enqueued but never dequeued (dataTask wedged in a prior fetcher), or
+// dispatched but parked in spotifyTask::tlsYield().
+struct DbgQueueState {
+    uint8_t  queueWaiting;   // requests sitting in the queue right now
+    uint32_t pendingMask;    // TASK-250 coalescing bits (param-less fetches)
+    int8_t   inFlight;       // FetchType currently dispatched, -1 = idle
+    uint32_t inFlightMs;     // millis() when the in-flight dispatch started (0 = n/a)
+    int8_t   wrPhase;        // WR fetch: -1 idle, 0 in tlsYield, 1 fetching mirrors, 2 done
+    uint32_t wrPhaseMs;      // millis() of the last wrPhase transition (0 = never)
+    uint32_t wrEnqueues;     // enqueueWebRadioStations() calls accepted since boot
+    uint32_t wrDrops;        // enqueueWebRadioStations() calls dropped (queue full)
+};
+void dbgQueueState(DbgQueueState* out);
+
 // TASK-240: stack instrumentation. stackHighWaterBytes = minimum free stack ever
 // seen (the watermark); stackSizeBytes = configured size. used = size - highWater.
 size_t stackHighWaterBytes();

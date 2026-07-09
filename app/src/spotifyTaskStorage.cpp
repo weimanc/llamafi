@@ -89,6 +89,14 @@ static volatile uint8_t s_bgPollEnabled = 1;
 // late arrivals while already-stopped return immediately; only the last
 // tlsResume() (count back to 0) lets spotifyTask resume.
 static volatile uint8_t  s_tlsYieldReqCount = 0;  // # of outstanding tlsYield() callers
+
+// TASK-299: loop-position marker for get dataq — where is spotifyTask right
+// now? -1=not started, 0=blocked in xQueueReceive, 1=yield-spin (acked, holding
+// while callers run), 2=wr-idle bounce, 3=dispatching an action (doPoll/API
+// call, incl. token refresh). Written only by spotifyTask; read lock-free.
+static volatile int8_t   s_dbgActivity   = -1;
+static volatile uint32_t s_dbgActivityMs = 0;
+static inline void dbgAct(int8_t a) { s_dbgActivity = a; s_dbgActivityMs = millis(); }
 static volatile bool     s_tlsStopped       = false;  // true once spotifyTask has ack'd for the current batch
 static SemaphoreHandle_t s_tlsYieldedSem = nullptr;
 static portMUX_TYPE       s_tlsYieldMux = portMUX_INITIALIZER_UNLOCKED;
@@ -339,6 +347,7 @@ static void taskBody(void *) {
     if (s_tlsYieldReqCount > 0) {
       client.stop();
       LOG_I("spotify.tls", "tls yield — client stopped");
+      dbgAct(1);
       if (s_tlsYieldedSem) xSemaphoreGive(s_tlsYieldedSem);
       while (s_tlsYieldReqCount > 0) vTaskDelay(pdMS_TO_TICKS(20));
       LOG_I("spotify.tls", "tls yield — resumed");
@@ -349,12 +358,14 @@ static void taskBody(void *) {
     // client.stop() is idempotent; 500 ms idle prevents tight-looping.
     if (s_webRadioActive) {
       client.stop();
+      dbgAct(2);
       vTaskDelay(pdMS_TO_TICKS(500));
       continue;
     }
 
     Request req;
     uint32_t waitMs = nextWaitMs();
+    dbgAct(0);
     BaseType_t got = xQueueReceive(reqQueue, &req, pdMS_TO_TICKS(waitMs));
 
     if (got == pdFALSE) {
@@ -379,12 +390,14 @@ static void taskBody(void *) {
     if (s_tlsYieldReqCount > 0) {
       client.stop();
       LOG_I("spotify.tls", "tls yield — client stopped");
+      dbgAct(1);
       if (s_tlsYieldedSem) xSemaphoreGive(s_tlsYieldedSem);
       while (s_tlsYieldReqCount > 0) vTaskDelay(pdMS_TO_TICKS(20));
       LOG_I("spotify.tls", "tls yield — resumed");
       continue;
     }
 
+    dbgAct(3);
     switch (req.action) {
       case ACT_POLL:
       case ACT_FORCE_POLL:
@@ -620,6 +633,11 @@ void tlsYield() {
     esp_task_wdt_reset();
   }
 }
+
+uint8_t tlsYieldCount()  { return s_tlsYieldReqCount; }
+bool    tlsStoppedFlag() { return s_tlsStopped; }
+int8_t  taskActivity()   { return s_dbgActivity; }
+uint32_t taskActivityMs() { return s_dbgActivityMs; }
 
 void tlsResume() {
   // TASK-287: only the LAST outstanding requester (count back to 0) actually

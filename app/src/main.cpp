@@ -2763,6 +2763,31 @@ static void cmdGet(const char *args) {
                   (unsigned long)wifiDiag::superviseKicks);
     return;
   }
+  // TASK-299: dataTask queue/dispatch + tlsYield-handshake snapshot. The three
+  // "station fetch never ran" signatures read as: wrDrops advanced = request
+  // never enqueued; queueWaiting>0 with inFlight stuck on another type =
+  // wedged behind a prior fetcher; wrPhase=0 with old wrPhaseMs = parked in
+  // tlsYield (yieldCount/tlsStopped show the handshake side).
+  if (strcmp(args, "dataq") == 0) {
+    dataTask::DbgQueueState q;
+    dataTask::dbgQueueState(&q);
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":%lu,"
+                  "\"queueWaiting\":%u,\"pendingMask\":%lu,\"inFlight\":%d,"
+                  "\"inFlightMs\":%lu,\"wrPhase\":%d,\"wrPhaseMs\":%lu,"
+                  "\"wrEnqueues\":%lu,\"wrDrops\":%lu,"
+                  "\"yieldCount\":%u,\"tlsStopped\":%s,"
+                  "\"spAct\":%d,\"spActMs\":%lu,\"last\":true}\n",
+                  (unsigned long)millis(),
+                  (unsigned)q.queueWaiting, (unsigned long)q.pendingMask,
+                  (int)q.inFlight, (unsigned long)q.inFlightMs,
+                  (int)q.wrPhase, (unsigned long)q.wrPhaseMs,
+                  (unsigned long)q.wrEnqueues, (unsigned long)q.wrDrops,
+                  (unsigned)spotifyTask::tlsYieldCount(),
+                  spotifyTask::tlsStoppedFlag() ? "true" : "false",
+                  (int)spotifyTask::taskActivity(),
+                  (unsigned long)spotifyTask::taskActivityMs());
+    return;
+  }
   // TASK-282: beacon-watcher stats — evidence at the antenna. count/gapMax/
   // gapsOver1s split BEACON_TIMEOUT into "beacons stopped arriving" (H-A/H-C)
   // vs "beacons fine, stack timed out" (H-B). otherMgmt proves rx was alive.
