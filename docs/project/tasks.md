@@ -5112,7 +5112,15 @@ shellCooldown pattern shows the read-until-0 approach) and tap only once it read
 making the test timing-independent. Also assert the pre-tap cooldown value to distinguish
 "tap 2 armed a longer window than expected" from "tap 3 came too early".
 
-**Priority:** P3 — deflakes the suite; no product defect implied · **Status:** open ·
+**Fix implemented 2026-07-09** (run_serialdbg_tests.py, t_cdwn_01): the fixed 100 ms
+sleep before tap 3 replaced by polling `get cooldown` (winampDisplay's
+touchScreenCoolDownTime) until it reads 0, bounded at 2 s — tap 3 is now
+timing-independent. The first post-tap-2 read also asserts ≤300 ms, distinguishing
+"tap 2 armed a longer window than expected" from "tap 3 came too early".
+
+**Priority:** P3 — deflakes the suite; no product defect implied · **Status:** open —
+fix implemented, **pending DUT verification** (board unplugged 2026-07-09; run
+`./run/test-targeted T-CDWN-01`, ideally a few repeats) ·
 **Opened:** 2026-07-08 · **Milestone:** — (VE hygiene) · **Owner:** VE · **Deps:** — ·
 **Branch:** master
 

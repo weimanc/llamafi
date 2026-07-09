@@ -3160,7 +3160,8 @@ def t_busy_05(dut: Dut):
 # ── T-CDWN-01 — VIS Phase-2 cooldown gate (touchScreenCoolDownTime) ───────────
 
 def t_cdwn_01(dut: Dut):
-    """T-CDWN-01: VIS cycling — tap 1 cycles; tap 2 at 220 ms suppressed; tap 3 at 330 ms cycles."""
+    """T-CDWN-01: VIS cycling — tap 1 cycles; tap 2 at ~250 ms suppressed; tap 3
+    after `get cooldown` polls to 0 cycles (TASK-297: timing-independent)."""
     print("T-CDWN-01  VIS Phase-2 cooldown gate")
     if not _restore_spotify(dut):
         skip("T-CDWN-01", "could not restore Spotify app")
@@ -3201,9 +3202,35 @@ def t_cdwn_01(dut: Dut):
         fail("T-CDWN-01", f"tap 2 at ~250 ms cycled visMode ({m1}→{m_after2}); Phase-2 gate did not suppress")
         return
     print(f"  [T-CDWN-01] tap 2 suppressed: visMode still {m1}")
-    # Sleep additional 100 ms (total ~350 ms from tap 1 → cooldown elapsed)
-    time.sleep(0.10)
-    # Tap 3 — gate elapsed, should cycle
+    # TASK-297: poll the VIS cooldown itself instead of a fixed sleep. The old
+    # 100 ms sleep put tap 3 at ~350 ms — only 50 ms past the 300 ms edge — and
+    # host sleep jitter + serial round-trip could land it inside the still-armed
+    # window (two consecutive full-suite FAILs). Reading `get cooldown`
+    # (winampDisplay's touchScreenCoolDownTime) until it reports 0 makes tap 3
+    # timing-independent, and the first read distinguishes "tap 2 armed a longer
+    # window than expected" from "tap 3 came too early".
+    rem_first = None
+    deadline = time.monotonic() + 2.0
+    while True:
+        r = dut.cmd("get cooldown", timeout=2.0)
+        rem = r.get("remainingMs")
+        if rem is None:
+            fail("T-CDWN-01", f"get cooldown failed after tap 2: {r}")
+            return
+        rem = int(rem)
+        if rem_first is None:
+            rem_first = rem
+            if rem > 300:
+                fail("T-CDWN-01", f"cooldown reads {rem} ms after tap 2 — tap 2 armed a longer window than the expected 300 ms gate")
+                return
+        if rem == 0:
+            break
+        if time.monotonic() >= deadline:
+            fail("T-CDWN-01", f"cooldown never reached 0 within 2 s after tap 2 (first={rem_first} ms, last={rem} ms)")
+            return
+        time.sleep(min(rem / 1000.0, 0.1))
+    print(f"  [T-CDWN-01] cooldown after tap 2: {rem_first} ms → polled to 0")
+    # Tap 3 — gate reads 0, must cycle
     dut.cmd(f"tap {vx} {vy}", timeout=2.0)
     time.sleep(0.05)
     m2 = _get_vis_mode(dut)
@@ -3211,7 +3238,7 @@ def t_cdwn_01(dut: Dut):
         fail("T-CDWN-01", "get visMode failed after tap 3")
         return
     if m2 == m1:
-        fail("T-CDWN-01", f"tap 3 at ~350 ms did not cycle visMode (stuck at {m1})")
+        fail("T-CDWN-01", f"tap 3 did not cycle visMode (stuck at {m1}) despite cooldown reading 0")
         return
     print(f"  [T-CDWN-01] tap 3: visMode {m1}→{m2}")
     pass_("T-CDWN-01", f"Phase-2 gate confirmed: tap2 suppressed, tap3 cycled ({m0}→{m1}→{m1}→{m2})")
