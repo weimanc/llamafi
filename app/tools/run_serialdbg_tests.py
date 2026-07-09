@@ -33,6 +33,7 @@ M-MULTIAPP changes WINDOW_W (no literal edits required in this file).
 import argparse
 from contextlib import contextmanager
 import json
+import os
 import pathlib
 import re
 import sys
@@ -54,6 +55,11 @@ except ImportError:
 
 _DUT_RESET_GAP_FILE = pathlib.Path("/tmp/esp32_dut_last_reset")
 _DUT_DRD_WINDOW_S   = 12.0
+# Post-reset WiFi wait. BOOT_WAIT in run/test* does not cover this — opening
+# the serial port asserts DTR and reboots the DUT, so this window alone decides
+# how long a storm boot gets to reach GOT_IP. Raise on stormy days (LL-096):
+#   DUT_WIFI_WAIT=120 ./run/test-targeted …
+_DUT_WIFI_WAIT_S    = float(os.environ.get("DUT_WIFI_WAIT", "25"))
 _PORTAL_INDICATORS  = (
     "Forcing config mode", "configuring access point", "SpotifyDIY", "WiFiManager"
 )
@@ -112,7 +118,7 @@ class Dut:
         # Wait for WiFi, watching for portal indicators (BP-018 / LL-051)
         ip_seen = False
         portal_seen = False
-        deadline = time.monotonic() + 25.0
+        deadline = time.monotonic() + _DUT_WIFI_WAIT_S
         while time.monotonic() < deadline:
             line = self.ser.readline().decode(errors="replace").strip()
             if "IP address:" in line:
