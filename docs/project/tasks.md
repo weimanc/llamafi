@@ -5289,3 +5289,30 @@ T_WR_TLS_01 PASS/PASS + one all-mirrors-down round (now a SKIP).
 DUT-validated; full-suite gate re-run still owed (see TASK-298 note) ·
 **Opened:** 2026-07-08 · **Milestone:** — (VE + Developer) · **Owner:** VE ·
 **Deps:** TASK-289 (interlock — cleared), TASK-292 · **Branch:** master
+
+---
+
+### TASK-300 — T176 chart fetch misses its 45 s window in full-suite order (2nd consecutive); T178 fails downstream on the late arrival
+
+Filed per the flaky-tests rule (2nd consecutive full-suite occurrence: 2026-07-09 and
+2026-07-10 runs). T176 drills into a stock chart and waits 45 s for `fetchOkCount` to
+advance; both runs timed out with `stockChartProgress=-1` (idle — the fetch was not
+even in flight at the deadline). In the 07-10 run T178 then failed with `chartLen=33`
+where the post-reset placeholder expects 0 — consistent with T176's fetch completing
+LATE and landing during T178's check, i.e. one delayed fetch, two test failures.
+Both pass in isolation contexts historically.
+
+**Hypothesis (TASK-299 family):** the chart fetch's `tlsYield()` waits out an
+in-flight Spotify poll (`spAct=3`, no yield check inside `doPoll()`; suite context
+keeps bgPoll active with the 403-latch's 60 s cadence) and/or queue serialization
+behind another dataTask request. 45 s < one slow poll + fetch time.
+
+**Investigation lead:** `get dataq` (394eee7) is built for exactly this — have T176
+sample it during its wait (T_WR_TLS_01's pattern) and/or drain the pipeline before
+the drill-in tap. If dataq shows the request queued/parked, widen the window or
+drain; if it shows the fetch idle and never enqueued, the drill-in tap → enqueue
+path has its own bug.
+
+**Priority:** P3 — deflakes the suite; no product defect demonstrated yet ·
+**Status:** open · **Opened:** 2026-07-10 · **Milestone:** — (VE hygiene) ·
+**Owner:** VE · **Deps:** TASK-299 (dataq surface) · **Branch:** master

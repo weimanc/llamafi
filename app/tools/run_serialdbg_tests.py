@@ -3227,8 +3227,10 @@ def t_cdwn_01(dut: Dut):
             fail("T-CDWN-01", "get visMode failed after tap 1")
             return
         if m1 == m0:
-            fail("T-CDWN-01", f"tap 1 did not cycle visMode (stuck at {m0}) "
-                              f"with shell cooldown drained")
+            busy = dut.cmd("get shellBusy", timeout=2.0).get("busy")
+            sc = dut.cmd("get shellCooldown", timeout=2.0).get("remainingMs")
+            fail("T-CDWN-01", f"tap 1 did not cycle visMode (stuck at {m0}) — "
+                              f"post-tap gates: shellBusy={busy} shellCooldown={sc}ms")
             return
         # Tap 2 — cmd()'s shell drain holds it until ~200 ms post-release, then
         # it must land while the VIS gate (300 ms from tap 1) is still live.
@@ -3256,14 +3258,24 @@ def t_cdwn_01(dut: Dut):
         if rem > 0:
             fail("T-CDWN-01", f"VIS cooldown never reached 0 within 2 s after tap 2 (last={rem} ms)")
             return
+        # Tap 1's consumed Press arms g_shellBusy when the app has pending
+        # async (main.cpp ~1985) — in suite context the Spotify poll makes
+        # that routine, and an armed busy silently drops tap 3. No window
+        # constraint here, so wait it out.
+        if not _wait_shell_not_busy(dut, timeout_s=10.0):
+            skip("T-CDWN-01", "g_shellBusy never cleared before tap 3")
+            return
         dut.cmd(f"tap {vx} {vy}", timeout=2.0)
         m2 = _get_vis_mode(dut)
         if m2 is None:
             fail("T-CDWN-01", "get visMode failed after tap 3")
             return
         if m2 == m1:
-            fail("T-CDWN-01", f"tap 3 did not cycle visMode (stuck at {m1}) "
-                              f"with VIS gate at 0 and shell cooldown drained")
+            busy = dut.cmd("get shellBusy", timeout=2.0).get("busy")
+            sc = dut.cmd("get shellCooldown", timeout=2.0).get("remainingMs")
+            fail("T-CDWN-01", f"tap 3 did not cycle visMode (stuck at {m1}) with "
+                              f"VIS gate 0 — post-tap gates: shellBusy={busy} "
+                              f"shellCooldown={sc}ms")
             return
         print(f"  [T-CDWN-01] tap 3: visMode {m1}→{m2}")
         pass_("T-CDWN-01", f"Phase-2 gate confirmed: tap2 suppressed, tap3 cycled "
