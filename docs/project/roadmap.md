@@ -971,6 +971,32 @@ dispatch alignment, done), TASK-281 (QM housekeeping, done)
 
 ---
 
+### M-PLANERADAR — ADS-B plane radar app
+
+New taskbar app: circular sonar-style radar of live aircraft around a configured
+lat/lon, data from the free adsb.fi REST API, with range presets (5/10/15/25 km),
+heading vectors, callsign/type/altitude tags, and an optional major-airport runway
+overlay. Ported by concept from the `ESP32-Plane-Radar` reference project
+(ESP32-C3 + round GC9A01) — radar math, ADS-B field handling, and the airport-DB
+bake script carry over; fetch/TLS/config/render are rewritten on platform
+infrastructure (dataTask fixed-struct fetcher, ADR-029 cert pin, tlsYield
+bracket, settingsStorage, static-grid + symbol-redraw rendering — no full-frame
+sprite on the no-PSRAM board). Key risks: ADS-B payload heap spike next to the
+Spotify TLS session (mitigated by filtered stream-parse + fixed ~24-aircraft cap),
+flash growth from the airport DB (trimmed bake), taskbar slot-count shift
+(NEW-APP-CHECKLIST §6). **Host-first phase 0** (M-TELETEXT pattern): API probe,
+fixture capture, host-compiled ArduinoJson parse trial, `preview_planeradar.py`
+UI PoC, and airport-DB trial bake settle the API risk and the parse-heap term
+of the heap risk off-DUT before firmware starts (TLS-coexistence soak stays
+DUT-side).
+
+**Status:** proposed — Architect 2026-07-10; feasibility assessed as good fit,
+CYD + existing ESP32 remain base hardware, no new hardware. PM to schedule.
+**Deps:** M-MULTIAPP (done), M-APP-REGISTRY (done), dataTask (done), ADR-029.
+**Design:** [M-PLANERADAR-plane-radar-app.md](../architecture/designs/M-PLANERADAR-plane-radar-app.md)
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.
