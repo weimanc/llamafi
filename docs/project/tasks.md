@@ -5200,6 +5200,19 @@ Sole fail = T176 (TASK-300, tracked with hypothesis + dataq lead); flakes are th
 self-flagged reconnect/403 family (T087/T091/T092); skips are TASK-243 not-playing.
 No unexplained failures — gate owed here is discharged.
 
+**T087/T091/T092 flake family — CONFIRMED 2026-07-10, no action needed.** Root cause
+traced to `spotifyTaskStorage.cpp` `doPoll()` (:230-292): the owner-account Premium
+lapse (TASK-243) means every live poll returns 403, which falls into the generic
+failure branch — `s_consecutiveFailures` increments and the TASK-245/ADR-046 auth-error
+latch sets, and neither clears without a real 200/204. T091 zeroes the counter via
+`reconnect` but the harness's post-reconnect force-poll then hits the live 403 and
+re-increments it before the re-check, so `consecutiveFailures==0` never holds. T092/T087
+race the same reconnect→poll path (TLS-renegotiation / log-line timing, per their
+`KNOWN INTERMITTENT` comments, first observed 2026-05-25 — predates TASK-243) and are
+just consistently reproducible now because there's no 200/204 path to clear state
+mid-test. Pre-existing test races, not a product defect; will stop flaking once TASK-243
+resolves (or if the tests are given a mocked 200/204 path — not currently planned).
+
 **Follow-ups resolved 2026-07-08 (human approved option b):** `YAHOO_FINANCE_ROOT_CA`
 repinned as a two-cert bundle (DigiCert Global Root G2 + the original CA1 intermediate),
 superseding TASK-109c; preflight now all-PASS on reachable endpoints and wired into
