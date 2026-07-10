@@ -1,10 +1,10 @@
 # Design — M-PLANERADAR: ADS-B Plane Radar app
 
 > Owner: Architect
-> Status: draft — designer-review PASS 2026-07-10 (4 rounds, incl. independent re-execution of the phase-0 harness); human sign-off pending
+> Status: draft — designer-review PASS 2026-07-10 (4 rounds, incl. independent re-execution of the phase-0 harness); phase 0 complete except one open item (see Phase 0 exit status); human sign-off pending
 > Date: 2026-07-10
-> Feeds: (ADR TBD on acceptance)
-> Tracked-as: (TASK TBD — PM to schedule)
+> Feeds: ADR-048 (parse/heap lean), ADR-049 (airport-DB bake variant) — both proposed, pending human accept
+> Tracked-as: TASK-301..307 — PM breakdown 2026-07-10, see roadmap.md
 
 ## Context / pain points
 
@@ -138,6 +138,17 @@ for the active range. Lean: **(a) trimmed** — bake with a generous continental
 bounding box (build flag), runway overlay behind a Settings toggle, and defer
 (c) until flash pressure says otherwise. Open question OQ2.
 
+**Phase-0 revision (2026-07-10, measured):** confirmed via trial bake against
+real OurAirports data (`phase0-airport-db.md`). Three variants baked and
+measured: V-global (1114 airports/1707 runways, 57.4 KB), **V-europe** (240
+airports/355 runways, **12.1 KB** — the accepted variant), V-nl500 (39
+airports/70 runways, 2.2 KB). In-range check: within the 36.8 km worst-case
+fetch radius, only EHAM is ever visible (identical across all variants — zero
+loss from trimming); within a 100 km "settings changed lat/lon without a
+rebake" tolerance band, EHAM + EHRD. `medium_airport` inclusion evaluated and
+rejected (+25.5 KB for mostly military fields). Flash cost is a non-issue at
+any variant given ~62% current usage. **OQ2 closed.** Captured in ADR-049.
+
 ### D4 — Location entry
 
 Settings app has toggles/choices but no numeric lat/lon entry UI today.
@@ -201,6 +212,31 @@ Detailed sub-design docs (one per workstream):
 preview tool committed, OQ1/OQ2/OQ4 closed. Only then does firmware work start
 — at which point it is transcription, not exploration.
 
+### Phase 0 exit status (2026-07-10)
+
+D1 (parse/heap) and D3 (airport DB) leans both measured and revised with real
+numbers; fixtures + preview tool committed; OQ2 and OQ4 closed. One item
+remains open:
+
+- **OQ1 not fully closed** — one of the two required TLS chain observations
+  is done (`phase0-api-probe.md`: adsb.fi leaf ← Google Trust Services WE1 ←
+  GTS Root R4). The second, different-day observation is required before the
+  root-CA pin decision is final (TASK-298 lesson: a single observation of a
+  CDN-fronted host isn't enough — both CoinGecko and Yahoo turned out to need
+  two-root bundles after a second look). **Tracked as TASK-301.** Does not
+  block starting firmware work — GTS Root R4's PEM already exists in
+  `dataTaskCerts.h`'s CoinGecko bundle and can be reused provisionally.
+- **Taskbar icon assets don't exist yet** — `app/icons/taskbar/` has no
+  `planeradar.png`/`planeradar_active.png`. `taskbar.h`'s compile-time
+  `static_assert` (icon count vs. app count) will hard-fail the build the
+  moment `AppId::PlaneRadar` is registered without them. Already listed as
+  checklist item 9 below; **tracked as TASK-302** since it's a genuine
+  prerequisite, not just a checklist reminder.
+- **ADR-048/ADR-049 drafted, not yet human-accepted** — the D1(b′) parse lean
+  and the V-europe airport-DB variant are both decided in this doc's Results
+  sections but need the formal accept step before other agents should treat
+  them as load-bearing.
+
 ## Platform optimizations to apply (the checklist the reference lacks)
 
 1. **dataTask fetcher** — new `FetchType`, fixed `PlaneRadarResult` struct,
@@ -254,14 +290,17 @@ preview tool committed, OQ1/OQ2/OQ4 closed. Only then does firmware work start
 
 ## Open questions
 
-- **OQ1**: adsb.fi actual root CA chain + stability — verify live chain before
-  pinning (single root or bundle?).
-- **OQ2**: airport DB bounding box vs global embed — measure real flash delta
-  from a trial bake first.
+- **OQ1** (open — 1 of 2 observations done, TASK-301): adsb.fi actual root CA
+  chain + stability — verify live chain before pinning (single root or
+  bundle?).
+- **OQ2 — CLOSED** (`phase0-airport-db.md`, ADR-049): V-europe bounding box,
+  large_airport only, 12.1 KB. Zero loss vs global within the 36.8 km
+  worst-case fetch radius.
 - **OQ3**: dead-reckoning interpolation between polls (M4 pattern) — v1 or
   follow-up? (Lean: follow-up milestone, keep v1 static between polls.)
-- **OQ4**: show the device's own location label / N-S-E-W bezel letters in the
-  35 px side strip vs on-disc as reference does — preview-tool question.
+- **OQ4 — CLOSED** (`phase0-preview-ui.md`): side strip, not on-disc bezel —
+  disc variant's east-spoke range label collided with the `E` bezel letter on
+  the busy fixture. Layout constants frozen in that doc's Results.
 
 ## Exit criteria (draft — VE to challenge)
 

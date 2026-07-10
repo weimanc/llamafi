@@ -990,10 +990,18 @@ UI PoC, and airport-DB trial bake settle the API risk and the parse-heap term
 of the heap risk off-DUT before firmware starts (TLS-coexistence soak stays
 DUT-side).
 
-**Status:** proposed — Architect 2026-07-10; feasibility assessed as good fit,
-CYD + existing ESP32 remain base hardware, no new hardware. PM to schedule.
-**Deps:** M-MULTIAPP (done), M-APP-REGISTRY (done), dataTask (done), ADR-029.
+**Status:** phase 0 complete except one open item — Architect 2026-07-10;
+feasibility assessed as good fit, CYD + existing ESP32 remain base hardware,
+no new hardware. Two decisions crystallised into ADR-048 (parse lean) and
+ADR-049 (airport-DB variant), both proposed pending human accept. PM
+breakdown filed 2026-07-10: 7 tasks (TASK-301..307) — see tasks.md.
+**Deps:** M-MULTIAPP (done), M-APP-REGISTRY (done), dataTask (done), ADR-029,
+ADR-048 (accept pending), ADR-049 (accept pending).
 **Design:** [M-PLANERADAR-plane-radar-app.md](../architecture/designs/M-PLANERADAR-plane-radar-app.md)
+**Tracked-as:** TASK-301 (2nd cert observation, open, non-blocking) ·
+TASK-302 (taskbar icon assets, blocks TASK-304) · TASK-303 (dataTask fetcher) ·
+TASK-304 (app render + registration) · TASK-305 (Settings integration) ·
+TASK-306 (airport-DB bake adoption) · TASK-307 (DUT validation, gates ship)
 
 ---
 

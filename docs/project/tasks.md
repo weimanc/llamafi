@@ -5379,3 +5379,141 @@ re-run owed at the next TASK-298 cadence.
 symbol/range) · **Status:** **DONE 2026-07-10** — full-suite gate re-run owed ·
 **Opened:** 2026-07-10 · **Milestone:** — (VE hygiene + Developer) ·
 **Owner:** VE · **Deps:** TASK-299 (dataq surface) · **Branch:** master
+
+---
+
+## M-PLANERADAR — firmware kickoff (2026-07-10)
+
+PM breakdown after Architect closed phase 0 (host-only API probe, parse/heap
+trial, preview-UI PoC, airport-DB trial bake — see
+`docs/architecture/designs/M-PLANERADAR-plane-radar-app.md` and its
+`M-PLANERADAR/phase0-*.md` sub-docs). Two decisions crystallised into
+ADR-048 (parse lean) and ADR-049 (airport-DB variant), both proposed pending
+human accept. Split into 7 tasks: two small phase-0 close-out items that
+don't block starting, plus a 5-task firmware breakdown along natural
+component boundaries (fetch / render / settings / data-bake / DUT validation).
+
+### TASK-301 — M-PLANERADAR: second TLS chain observation (different day)
+
+`phase0-api-probe.md` exit criterion 6 needs the served cert chain observed on
+two different days (TASK-298 lesson: a single observation of a CDN-fronted
+host isn't enough — CoinGecko and Yahoo both turned out to need two-root
+bundles after a second look). Observation 1 done 2026-07-10: adsb.fi leaf ←
+Google Trust Services WE1 ← GTS Root R4 (cross-signed by GlobalSign Root CA).
+On a later calendar day, re-run `openssl s_client -connect opendata.adsb.fi:443
+-servername opendata.adsb.fi -showcerts </dev/null`, compare, write the
+"observation 2 of 2" Results subsection + final pin decision (ready for
+`dataTaskCerts.h`), and close OQ1 in the parent doc.
+
+**Priority:** P3 — doesn't block other M-PLANERADAR work (GTS Root R4 PEM
+already exists in `dataTaskCerts.h`'s CoinGecko bundle, reusable
+provisionally) · **Status:** OPEN · **Opened:** 2026-07-10 · **Milestone:**
+M-PLANERADAR · **Owner:** Architect · **Deps:** none · **Branch:** master
+
+---
+
+### TASK-302 — M-PLANERADAR: taskbar icon assets
+
+No `planeradar.png`/`planeradar_active.png` exist in `app/icons/taskbar/`.
+`taskbar.h`'s compile-time `static_assert` (icon count vs. app count,
+TASK-242 checklist gate) will hard-fail the build the moment `AppId::PlaneRadar`
+is registered without them. Design/draw a small radar-themed icon pair
+(normal + active state, matching the existing icon set's style — see
+`app/icons/taskbar/*.svg` for source patterns where they exist), run
+`run/bake-icons`, verify `TASKBAR_ICON_COUNT == TASKBAR_APP_COUNT`.
+
+**Priority:** P2 — blocks TASK-304 (app registry entry can't compile without
+this) · **Status:** OPEN · **Opened:** 2026-07-10 · **Milestone:**
+M-PLANERADAR · **Owner:** Developer · **Deps:** none · **Branch:** master
+
+---
+
+### TASK-303 — M-PLANERADAR: dataTask ADS-B fetcher
+
+New `FetchType` (`DATA_FETCH_PLANERADAR`), `PrAircraft`/`PlaneRadarResult`
+structs per ADR-048 (chunked per-object filtered stream parse, ~4 KB fixed
+peak heap, `PR_MAX_AIRCRAFT` = 24, nearest-first-by-`dst` truncation),
+`enqueuePlaneRadar(lat, lon, distNm)` / `pollPlaneRadar()` following the
+established dataTask recipe (5 prior fetchers: Weather, Crypto, Stock,
+Teletext, WebRadio). `tlsYield`/`tlsResume` bracket (BP-031). Root-CA pin:
+reuse GTS Root R4 PEM from `dataTaskCerts.h`'s CoinGecko bundle pending
+TASK-301's second observation. Stock-style negative error codes, including a
+distinct 429 code with skip-don't-retry backoff (phase-0 limit probe measured
+~33% 429s at 1 req/s; zero at the shipped 10s cadence, but the code path must
+exist).
+
+**Priority:** P1 — core of the feature · **Status:** OPEN · **Opened:**
+2026-07-10 · **Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:**
+ADR-048 (accept pending) · **Branch:** master
+
+---
+
+### TASK-304 — M-PLANERADAR: PlaneRadarApp render + taskbar registration
+
+Transcribe the frozen layout-constants block from `phase0-preview-ui.md`
+Results into a firmware header: strip layout (disc centre (120,120) r=118,
+strip x:240..274), ring/crosshair grid, tag placement + collision rule (c)
+drop-on-fail default, disc-rim bearing dots, runway overlay (density=all
+default), whole-degree heading rendering. Static-grid-once-on-resume +
+symbol/tag erase-redraw per update (no full-frame sprite — doesn't exist on
+this board). Touch: tap disc = cycle range preset, re-enqueue fetch
+(`hasPendingAsync` + cmdTap busy propagation, NEW-APP-CHECKLIST §1/§4).
+`AppId::PlaneRadar` registry entry (X-macro, `appRegistry.h`).
+`dbgGet`/`dbgSet` synthetic aircraft injection for VE render tests without
+live traffic (TASK-276 injected-state pattern — isolate from auto-refresh).
+
+**Priority:** P1 — core of the feature · **Status:** OPEN · **Opened:**
+2026-07-10 · **Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:**
+TASK-302 (icon, build-blocking), TASK-303 (result struct) · **Branch:** master
+
+---
+
+### TASK-305 — M-PLANERADAR: Settings integration
+
+`settingsStorage` SPIFFS json additions: lat/lon (compile-time default,
+edited via `run/spiffs push` for v1 — no numeric-entry UI, per design doc D4),
+units, runway-overlay toggle, range preset, **plus the two settings that
+came out of the preview-UI human eyeball session**: tag-collision rule
+(default: (c) drop-on-fail — a/b/c toggle) and stale-indicator style
+(default: ring-colour shift — the other two candidates, strip age-text and
+dimming sweep, were never screenshotted for comparison; render and eyeball
+before finalising the Settings UI copy/choices, see `phase0-preview-ui.md` Q5
+caveat).
+
+**Priority:** P2 · **Status:** OPEN · **Opened:** 2026-07-10 · **Milestone:**
+M-PLANERADAR · **Owner:** Developer · **Deps:** TASK-304 (app must exist to
+have settings) · **Branch:** master
+
+---
+
+### TASK-306 — M-PLANERADAR: airport-DB bake adoption
+
+Adopt `pr_airport_bake_trial.py`'s selection logic into `run/bake-airports`
+per ADR-049: V-europe bbox (lat 35..62, lon −11..30), `large_airport` class,
+`--bbox`/`--center-radius-km` parameterised with V-europe as committed
+default. `app/gen/` output + `golden.sha256` determinism gate (two-run
+byte-identity check — ADR-008 pattern, the one exit criterion phase 0
+explicitly deferred to this task since the trial bake emits no C file).
+Graceful-empty rendering outside the baked region (never garbage) is a
+correctness requirement, not optional polish.
+
+**Priority:** P2 · **Status:** OPEN · **Opened:** 2026-07-10 · **Milestone:**
+M-PLANERADAR · **Owner:** Developer · **Deps:** ADR-049 (accept pending) ·
+**Branch:** master
+
+---
+
+### TASK-307 — M-PLANERADAR: DUT validation (parent doc exit criteria 1-6)
+
+Once TASK-303/304/305/306 land: live aircraft render within one poll of app
+entry; range tap cycles 5→10→15→25 km and persists across reboot; fetch
+error → side-strip error code, app stays responsive, recovers next poll;
+**30-min foreground soak alongside Spotify playback** (R1's coexistence term
+— the one thing phase 0 could not settle off-DUT by design, zero reboots,
+heap floor within budget of pre-app baseline); taskbar full-cycle scroll test
+with the new (12th) slot (LL-085 class regression risk — R5); synthetic
+injection render test (`dbgSet` aircraft list) passes without network.
+
+**Priority:** P1 — gates ship · **Status:** OPEN (blocked) · **Opened:**
+2026-07-10 · **Milestone:** M-PLANERADAR · **Owner:** VE · **Deps:**
+TASK-303, TASK-304, TASK-305, TASK-306 · **Branch:** master
