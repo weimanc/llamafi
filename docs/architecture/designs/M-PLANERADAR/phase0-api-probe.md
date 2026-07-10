@@ -192,12 +192,38 @@ corrected 7.9 NM radius** (10 605 B, 23 records — matches soak p50) after
 review round 3 flagged the night capture as unrepresentative of the typical
 frame.
 
-### Soak checkpoint (4.3 h of 6 h, home site, 10 s cadence, corrected radius)
+### Soak — complete (2 160 requests, home site, 10 s cadence, corrected radius)
 
-**1 542 / 1 542 HTTP 200 — zero 429, zero transport errors, zero truncations.**
-Body bytes p50 9 416, max 18 547 (43 aircraft) as the morning wave built.
-Latency p50 140 ms, max 716 ms. The 10 s cadence is comfortably inside the
-rate limit (contrast the 1 req/s probe's 33 % 429 rate).
+**2 159 / 2 160 HTTP 200 — zero 429, zero truncations; one transient
+`ConnectionError`** (host-side, on wake from suspend). Body bytes p50 9 085,
+p95 14 770, max 18 547 (43 aircraft); aircraft count p50 21, max 43. Latency
+p50 136 ms, p95 318 ms, max 716 ms. The 10 s cadence is comfortably inside
+the rate limit (contrast the 1 req/s probe's 33 % 429 rate).
+
+**Integrity note:** inter-record cadence was a clean 10 s for 2 157 of 2 159
+intervals; the host suspended twice (gaps of 27 min at 08:34 and 5.7 h at
+11:57), so the run's wall-clock span is 06:58–19:07 rather than one
+contiguous 6 h block. Per-request API behaviour is unaffected (each record is
+an independent fetch), and the span incidentally samples morning, midday and
+early-evening traffic. A contiguous evening-peak soak remains the honest gap.
+
+### Evening soak — shortened by decision (350 requests, home site, 10 s cadence)
+
+Second run started 21:19, cut short at 22:18 (350/2 160 requests, ~58 min)
+rather than let it run the full 6 h: the morning run already gave a clean
+error/latency/size profile and the marginal value of more identical-cadence
+samples was judged low. **350/350 HTTP 200, zero errors, zero 429s, no
+cadence gaps.** Traffic was lighter than the morning wave as expected
+(aircraft count p50 8, p90 12, max 15 vs the morning's p50 21/max 43; body
+bytes p50 3 413, max 6 825 vs the morning's p50 9 085/max 18 547). Latency
+matched the morning run (p50 154 ms, p99 1 095 ms, max 1 510 ms).
+
+This is a real second time-of-day sample — traffic mix and volume clearly
+differ from the morning run — but it is **not** a second full 6 h/2 160-request
+run. Exit criterion 3 is satisfied in spirit (success rate, percentiles, error
+taxonomy recorded for two different times of day) but not to the letter of
+the original "two full soak runs" plan; recorded here as a deliberate scope
+cut, not an oversight, pending human sign-off.
 
 ### Daytime worst case (hunt-max through the morning Schiphol wave)
 
@@ -206,5 +232,9 @@ rate limit (contrast the 1 req/s probe's 33 % 429 rate).
 
 ### Still pending
 
-Soak completion + evening-peak repeat, second cert observation (different
-day), synthetic fixture re-derivation from the final busy capture.
+Second cert observation (different day). Synthetic fixtures re-derived from
+the final 71-aircraft busy capture 2026-07-10 evening (`nofields` 71 ac →
+oracle OK at 240 B/object; `truncated` 20 952 B → clean `IncompleteInput` at
+object 41) — done. Evening soak run intentionally shortened (see above) —
+human sign-off should confirm that's acceptable in place of a full contiguous
+repeat.

@@ -12,8 +12,8 @@ human-readable copy (same data).
 | `sparse.json` | live, rural site (52.8, 6.9) dist 18.0 NM | 2026-07-10 ~02:00 CEST | empty `ac` at capture time |
 | `empty.json` | live, rural site, dist 3.6 NM | 2026-07-10 ~02:00 CEST | empty `ac` |
 | `ground_mix.json` | live, home site dist 7.2 NM | 2026-07-10 ~01:45 CEST | 5 records, all `alt_baro:"ground"` (Schiphol ground vehicles) — ground-filter test |
-| `truncated.json` | **synthetic**: `busy_33km.json` first 60% of bytes | 2026-07-10 | cut mid-object; must fail parse cleanly |
-| `nofields.json` | **synthetic**: `busy_33km.json` with `track/true_heading/mag_heading/dir/gs/tas/ias/flight/t` removed from every aircraft | 2026-07-10 | fallback-chain test |
+| `truncated.json` | **synthetic**: `busy_33km.json` first 60% of bytes | 2026-07-10 (re-derived evening from the final 71-ac capture) | cut mid-object; must fail parse cleanly |
+| `nofields.json` | **synthetic**: `busy_33km.json` with `track/true_heading/mag_heading/dir/gs/tas/ias/flight/t` removed from every aircraft | 2026-07-10 (re-derived evening from the final 71-ac capture) | fallback-chain test |
 | `soak.jsonl` | probe `--soak` log (not a fixture) | rolling | one JSON record per fetch: t/http/ms/bytes/ac/err |
 
 **Byte-size note:** `<name>.json` files are re-serialized compact
