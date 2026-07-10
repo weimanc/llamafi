@@ -5,7 +5,7 @@
 > Date: 2026-07-10
 > Parent: [M-PLANERADAR-plane-radar-app.md](../M-PLANERADAR-plane-radar-app.md)
 > Closes: OQ2 (global embed vs bounding box), sizes R3 (flash growth)
-> Feeds: ADR-049 — the V-europe bake-variant decision is captured there, proposed pending human accept
+> Feeds: ADR-049 — the V-europe bake-variant decision is captured there, accepted 2026-07-11
 
 ## Context / pain points
 

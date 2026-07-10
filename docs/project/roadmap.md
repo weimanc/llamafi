@@ -993,10 +993,10 @@ DUT-side).
 **Status:** phase 0 complete except one open item — Architect 2026-07-10;
 feasibility assessed as good fit, CYD + existing ESP32 remain base hardware,
 no new hardware. Two decisions crystallised into ADR-048 (parse lean) and
-ADR-049 (airport-DB variant), both proposed pending human accept. PM
-breakdown filed 2026-07-10: 7 tasks (TASK-301..307) — see tasks.md.
+ADR-049 (airport-DB variant), both **accepted 2026-07-11**. PM breakdown
+filed 2026-07-10: 7 tasks (TASK-301..307) — see tasks.md.
 **Deps:** M-MULTIAPP (done), M-APP-REGISTRY (done), dataTask (done), ADR-029,
-ADR-048 (accept pending), ADR-049 (accept pending).
+ADR-048 (accepted), ADR-049 (accepted).
 **Design:** [M-PLANERADAR-plane-radar-app.md](../architecture/designs/M-PLANERADAR-plane-radar-app.md)
 **Tracked-as:** TASK-301 (2nd cert observation, open, non-blocking) ·
 TASK-302 (taskbar icon assets, blocks TASK-304) · TASK-303 (dataTask fetcher) ·

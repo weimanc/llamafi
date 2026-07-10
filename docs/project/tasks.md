@@ -5388,8 +5388,8 @@ PM breakdown after Architect closed phase 0 (host-only API probe, parse/heap
 trial, preview-UI PoC, airport-DB trial bake — see
 `docs/architecture/designs/M-PLANERADAR-plane-radar-app.md` and its
 `M-PLANERADAR/phase0-*.md` sub-docs). Two decisions crystallised into
-ADR-048 (parse lean) and ADR-049 (airport-DB variant), both proposed pending
-human accept. Split into 7 tasks: two small phase-0 close-out items that
+ADR-048 (parse lean) and ADR-049 (airport-DB variant), both **accepted
+2026-07-11**. Split into 7 tasks: two small phase-0 close-out items that
 don't block starting, plus a 5-task firmware breakdown along natural
 component boundaries (fetch / render / settings / data-bake / DUT validation).
 
@@ -5444,7 +5444,7 @@ exist).
 
 **Priority:** P1 — core of the feature · **Status:** OPEN · **Opened:**
 2026-07-10 · **Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:**
-ADR-048 (accept pending) · **Branch:** master
+ADR-048 (accepted 2026-07-11) · **Branch:** master
 
 ---
 
@@ -5498,7 +5498,7 @@ Graceful-empty rendering outside the baked region (never garbage) is a
 correctness requirement, not optional polish.
 
 **Priority:** P2 · **Status:** OPEN · **Opened:** 2026-07-10 · **Milestone:**
-M-PLANERADAR · **Owner:** Developer · **Deps:** ADR-049 (accept pending) ·
+M-PLANERADAR · **Owner:** Developer · **Deps:** ADR-049 (accepted 2026-07-11) ·
 **Branch:** master
 
 ---

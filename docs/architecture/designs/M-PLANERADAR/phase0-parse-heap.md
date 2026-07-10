@@ -5,7 +5,7 @@
 > Date: 2026-07-10
 > Parent: [M-PLANERADAR-plane-radar-app.md](../M-PLANERADAR-plane-radar-app.md)
 > Closes: R1 parse-heap term (coexistence term → parent exit criterion 4) — settles D1 lean with measured numbers
-> Feeds: ADR-048 — the D1(b′) chunked-parse lean is captured there, proposed pending human accept
+> Feeds: ADR-048 — the D1(b′) chunked-parse lean is captured there, accepted 2026-07-11
 > Depends: phase0-api-probe (fixtures, worst-case payload)
 
 ## Context / pain points

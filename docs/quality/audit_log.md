@@ -4,6 +4,73 @@
 
 All audits: scope, findings, actions, results.
 
+### Audit — 2026-07-11 — M-PLANERADAR phase 0 close-out retrospective
+
+**Triggered by**: human ("QM, PM, are you happy?") after phase 0 closed and
+ADR-048/049 were accepted.
+
+**Scope**: Quality review of the M-PLANERADAR phase-0 campaign (2026-07-10..11):
+four sub-design docs (`phase0-api-probe`, `phase0-parse-heap`,
+`phase0-preview-ui`, `phase0-airport-db`), the parent design doc, two ADRs,
+and the 7-task PM breakdown (TASK-301..307). No firmware code exists yet —
+this is a docs/tooling-only milestone.
+
+**Findings**:
+1. Designer-review discipline: 4 rounds including independent re-execution of
+   the parse harness and API oracle before anything was committed; caught a
+   ~21% fetch-radius undercount, an unmeasurable heap-allocator claim, and a
+   filter field list that would've broken the ground-speed fallback on-device
+   — all fixed pre-commit. GOOD.
+2. Deliberate scope cuts recorded honestly, not silently absorbed: the
+   shortened evening soak (350/2 160 requests) and Q5's stale-indicator
+   default (chosen without a rendered comparison) are both flagged in-doc as
+   named cuts with rationale, distinguishable from "criterion fully met."
+   Same discipline as this project's established practice around disclosed
+   gaps. GOOD.
+3. LL-105 (new): two of six preview-UI design questions (Q4 runway overlay,
+   Q6 heading precision) had "confirmed" language in the doc before the tool
+   actually exercised the claimed code path — Q4 had no runway-drawing code
+   at all (only a stray color constant), Q6 was eyeballed against full float
+   precision instead of the whole-degree rounding firmware actually ships.
+   Both caught by reading the tool's source against the specific claim, both
+   fixed and re-verified same session before being recorded as closed. Same
+   failure shape as finding 1 (measurement-technique-vs-claim mismatch),
+   recurring across this milestone.
+4. LL-106 (new): the second TLS cert-chain observation (must happen on a
+   different calendar day) was first scheduled via `CronCreate`, a
+   session-only primitive that silently stops existing if the session ends —
+   wrong tool for cross-session work. Caught by the human, not self-caught;
+   corrected to a durable `tasks.md` entry (TASK-301) before any damage (the
+   job would have just quietly never fired).
+5. ADR discipline: both crystallised decisions (D1(b′) parse lean, V-europe
+   airport-DB variant) captured as ADRs rather than left as verbal/design-doc-
+   only decisions, per the "no verbal-only decisions" rule — proposed, then
+   accepted 2026-07-11 with the human's explicit go-ahead, and every
+   cross-reference (parent doc, sub-docs, tasks.md, roadmap.md) updated in
+   the same pass rather than left to drift. GOOD.
+6. Watch item (not yet a defect): TASK-302 (taskbar icon assets) blocks
+   TASK-304 (app registration) at compile time via `taskbar.h`'s
+   `static_assert` — correctly noted as a dependency in tasks.md, but the 7
+   tasks were filed without enforced ordering beyond the `Deps:` line. If
+   implementation starts on TASK-304 before TASK-302 lands, the build breaks
+   immediately (by design, not silently) — low risk, flagging for awareness
+   only.
+7. Watch item (not yet a defect): TASK-301 is calendar-gated with no active
+   trigger now that the cron job was cancelled (finding 4) — relies on a
+   human or future session checking `tasks.md`. Same class of risk LL-102
+   already generalised ("deferred status flips rot"); no new LL warranted,
+   just a pointer to the existing one.
+
+**Actions assigned**: none new required — TASK-301/302 already stand as
+filed. LL-105/LL-106 promotion to `best_practices.md` requires human
+sign-off (QM does not self-promote).
+
+**Resolution**: Findings presented to human 2026-07-11. ADR-048/049
+acceptance already given in this session. LL-105/LL-106 promotion decision:
+**pending human response**.
+
+---
+
 ### Audit — 2026-07-07 — M-TASKBAR-FEEDBACK (TASK-279) milestone close-out retrospective
 
 **Triggered by**: human ("PM, QM, are you happy?") after the TASK-279 implementation campaign.

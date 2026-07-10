@@ -1,9 +1,9 @@
 # Design — M-PLANERADAR: ADS-B Plane Radar app
 
 > Owner: Architect
-> Status: draft — designer-review PASS 2026-07-10 (4 rounds, incl. independent re-execution of the phase-0 harness); phase 0 complete except one open item (see Phase 0 exit status); human sign-off pending
+> Status: draft — designer-review PASS 2026-07-10 (4 rounds, incl. independent re-execution of the phase-0 harness); ADR-048/049 accepted 2026-07-11, implementation may proceed (TASK-303..307); TASK-301/302 remain open but non-blocking (see Phase 0 exit status)
 > Date: 2026-07-10
-> Feeds: ADR-048 (parse/heap lean), ADR-049 (airport-DB bake variant) — both proposed, pending human accept
+> Feeds: ADR-048 (parse/heap lean), ADR-049 (airport-DB bake variant) — both accepted 2026-07-11
 > Tracked-as: TASK-301..307 — PM breakdown 2026-07-10, see roadmap.md
 
 ## Context / pain points
@@ -232,10 +232,9 @@ remains open:
   moment `AppId::PlaneRadar` is registered without them. Already listed as
   checklist item 9 below; **tracked as TASK-302** since it's a genuine
   prerequisite, not just a checklist reminder.
-- **ADR-048/ADR-049 drafted, not yet human-accepted** — the D1(b′) parse lean
-  and the V-europe airport-DB variant are both decided in this doc's Results
-  sections but need the formal accept step before other agents should treat
-  them as load-bearing.
+- ~~ADR-048/ADR-049 drafted, not yet human-accepted~~ **Resolved 2026-07-11**
+  — both accepted. The D1(b′) parse lean and V-europe airport-DB variant are
+  now load-bearing for implementation, not just design-doc prose.
 
 ## Platform optimizations to apply (the checklist the reference lacks)
 
