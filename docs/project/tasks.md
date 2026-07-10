@@ -5112,26 +5112,40 @@ shellCooldown pattern shows the read-until-0 approach) and tap only once it read
 making the test timing-independent. Also assert the pre-tap cooldown value to distinguish
 "tap 2 armed a longer window than expected" from "tap 3 came too early".
 
-**Fix implemented 2026-07-09** (run_serialdbg_tests.py, t_cdwn_01): the fixed 100 ms
-sleep before tap 3 replaced by polling `get cooldown` (winampDisplay's
-touchScreenCoolDownTime) until it reads 0, bounded at 2 s — tap 3 is now
-timing-independent. The first post-tap-2 read also asserts ≤300 ms, distinguishing
-"tap 2 armed a longer window than expected" from "tap 3 came too early".
+**Fix v1 2026-07-09** (15a24bc): tap 3 polls `get cooldown` (VIS gate) to 0 instead of
+a fixed 350 ms sleep. 1 clean DUT PASS. Side product: `DUT_WIFI_WAIT` env knob (07a4260)
+for the harness's post-reset WiFi window (BOOT_WAIT never helped — serial open DTR-resets
+the DUT).
 
-**DUT verification 2026-07-09:** 1 clean PASS on the DUT (15a24bc firmware-side
-unchanged; harness-only fix). The instrumentation confirmed the diagnosis: the first
-`get cooldown` read after tap 2 was already 0 ms — serial round-trips alone consume the
-300 ms window, so the old fixed-sleep tap 3 was pure jitter-roulette. Repeat runs (×3
-attempted) were blocked by a returned NO_AP_FOUND storm (LL-096 pattern; host LAN healthy,
-DUT cannot see the AP). Side product: `DUT_WIFI_WAIT` env knob (07a4260) — the harness's
-post-reset WiFi window was hardcoded 25 s and BOOT_WAIT never helped (serial open
-DTR-resets the DUT); use `DUT_WIFI_WAIT=120` on stormy days.
+**Timing theory FALSIFIED 2026-07-10 — real cause found.** The 07-10 full-suite run
+failed T-CDWN-01 *with the VIS gate provably at 0* ("tap 3 did not cycle despite cooldown
+reading 0"), and targeted reruns failed at tap 1 (three distinct signatures across three
+runs). The VIS 300 ms edge was never the flake. Real cause: **main.cpp's input gate
+(~:1977) silently drops a Press when EITHER the shell post-gesture cooldown
+(`s_cooldownMs`, armed +200 ms by prior drag/taskbar releases) OR `g_shellBusy` is
+armed** — no JSON marker, the tap just vanishes. Every tap in T-CDWN-01 raced both;
+host jitter picked the victim. The same mechanism failed T079 (`hit=NONE skipped=False`
+in suite order — gate never armed because the tap was shell-dropped) and T082 (drag
+Press dropped → 0 ACT_VOLUME enqueues); both pass isolated.
 
-**Priority:** P3 — deflakes the suite; no product defect implied · **Status:** open —
-fix landed + 1 DUT PASS; **close after 2–3 clean repeats in a calm RF window**
-(`DUT_WIFI_WAIT=120 ./run/test-targeted T-CDWN-01,T-CDWN-01,T-CDWN-01`) ·
-**Opened:** 2026-07-08 · **Milestone:** — (VE hygiene) · **Owner:** VE · **Deps:** — ·
-**Branch:** master
+**Fix v2 2026-07-10:** (a) harness-wide — `Dut.cmd` drains `get shellCooldown` to 0
+before every injected tap/drag (one choke point; `drain_shell_cooldown=False` opt-out
+for tests that must inject inside the window); raw-send site in
+`_switch_to_webradio_capture_heap` calls the drain explicitly. (b) T-CDWN-01 —
+`_wait_shell_not_busy` before tapping (T079's own precedent; on a fresh boot the
+403-latched poll holds `g_shellBusy` right at tap 1), the post-tap-2 VIS-gate read
+proves the suppression window was actually hit (249–255 ms live in validation), and a
+missed window retries (×3) instead of failing.
+
+**DUT-validated 2026-07-10:** T-CDWN-01 3/3 PASS (all attempt 1); T079+T082 3/3 PASS
+in the polluted-order context that failed them in the full suite.
+
+**Priority:** P3 — deflakes the suite; no product defect implied (the silent drop is
+by-design debounce; only the tests raced it) · **Status:** **DONE 2026-07-10** —
+dual-gate cause found (v1 timing theory falsified by its own instrumentation), harness
+choke-point drain + busy-wait landed, ×3 DUT-validated; full-suite confirmation run
+pending · **Opened:** 2026-07-08 · **Milestone:** — (VE hygiene) · **Owner:** VE ·
+**Deps:** — · **Branch:** master
 
 ---
 
