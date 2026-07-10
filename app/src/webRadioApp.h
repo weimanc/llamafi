@@ -543,7 +543,19 @@ public:
                 if (_state == WRPlayState::PLAYING) {
                     if (_bufPct < _minBufPct) _minBufPct = _bufPct;
                     bool empty = (filled == 0);
-                    if (empty && !_wasEmpty) { _underrunCount++; _lastUnderrunMs = now; }
+                    if (empty && !_wasEmpty) {
+                        _underrunCount++;
+                        _lastUnderrunMs = now;
+                        // TASK-266: the connect-time buffer-fill transient (isPlayable()
+                        // gates stream start on a single m_maxBlockSize, so the input
+                        // buffer runs dry again almost immediately at T<5s, before the
+                        // network catches up) reads as underruns=1 every session — not a
+                        // real playback gap. _settled only latches true after the station
+                        // has survived WR_SETTLED_MS, which is well past that window, so
+                        // gating on it here gives the "recurrent underruns" signal the
+                        // task asked for: ==0 once the connect transient is excluded.
+                        if (_settled) _recurrentUnderrunCount++;
+                    }
                     _wasEmpty = empty;
                 }
 #endif
@@ -793,14 +805,19 @@ public:
         // with the 8K DMA ring an empty input buffer becomes a gap far faster than
         // with the stock 32K). minBufPct = session low-water. Reset on each PLAYING
         // entry. Operator should still confirm by ear; this is the quantified gate.
+        // TASK-266: recurrentUnderruns excludes the connect-time initial-fill
+        // transient (edges before the station has _settled past WR_SETTLED_MS) —
+        // this is the field to gate a clean pass/fail on; `underruns` is kept as
+        // the raw total for back-compat with existing tooling (test_webradio_soak.py,
+        // exp012_measure.py) which already treats underruns=1/session as expected.
         if (strcmp(var, "wrUnderruns") == 0) {
             uint32_t playMs = (_state == WRPlayState::PLAYING && _playingSinceMs)
                               ? (uint32_t)(millis() - _playingSinceMs) : 0u;
             snprintf(buf, len,
-                     "\"var\":\"wrUnderruns\",\"underruns\":%u,\"minBufPct\":%u,"
-                     "\"bufPct\":%u,\"playMs\":%u,\"last\":true",
-                     (unsigned)_underrunCount, (unsigned)_minBufPct,
-                     (unsigned)_bufPct, (unsigned)playMs);
+                     "\"var\":\"wrUnderruns\",\"underruns\":%u,\"recurrentUnderruns\":%u,"
+                     "\"minBufPct\":%u,\"bufPct\":%u,\"playMs\":%u,\"last\":true",
+                     (unsigned)_underrunCount, (unsigned)_recurrentUnderrunCount,
+                     (unsigned)_minBufPct, (unsigned)_bufPct, (unsigned)playMs);
             return true;
         }
         // TASK-292: device-side arena lifecycle totals. The wr-soak balance gate
@@ -1028,6 +1045,9 @@ private:
     uint8_t     _bufPctDrawn     = 0;       // TASK-220: last buffer % painted (hysteresis)
 #ifdef MEMBUDGET_PHASE1
     uint32_t    _underrunCount   = 0;       // TASK-263: input-buffer-empty events while PLAYING
+    uint32_t    _recurrentUnderrunCount = 0; // TASK-266: same, but excludes the connect-time
+                                              // initial-fill transient (only counts edges once
+                                              // _settled) — the clean "recurrent underruns" signal
     uint8_t     _minBufPct       = 100;     // TASK-263: session low-water buffer %
     bool        _wasEmpty        = false;   // TASK-263: edge-detect for underrun count
     uint32_t    _lastUnderrunMs  = 0;       // TASK-263: millis() of last underrun
@@ -1261,7 +1281,8 @@ private:
             _settled        = false;
             _bufPctDrawn    = 0;         // TASK-220: force a buffer-bar repaint on first fill
 #ifdef MEMBUDGET_PHASE1
-            _underrunCount  = 0;         // TASK-263: fresh underrun count per PLAYING session
+            _underrunCount          = 0; // TASK-263: fresh underrun count per PLAYING session
+            _recurrentUnderrunCount = 0; // TASK-266: fresh per PLAYING session too
             _minBufPct      = 100;
             _wasEmpty       = false;
 #endif

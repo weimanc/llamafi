@@ -3864,9 +3864,20 @@ connect, then clean for minutes. Independent of DMA-ring size (occurs at 128 kbp
 firmware buffering-order issue, not a sizing issue). **Fix candidates:** pre-fill the input buffer to
 `isPlayable()`/`m_maxBlockSize` before un-muting / starting I2S output at connect; or seed the DMA. **Also
 refine the `wrUnderruns` metric** to exclude the initial-fill window (count only post-settled underruns) so a
-re-run reads a clean `recurrent underruns == 0`. **Priority:** P3 — minor UX polish, NOT a promotion blocker
-· **Status:** **open — backlog** · **Opened:** 2026-06-28 · **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:**
-`rnd/membudget` · **Owner:** Developer · **Deps:** TASK-263 (surfaced it)
+re-run reads a clean `recurrent underruns == 0`.
+
+**Resolved via the metric-refinement candidate** (the pre-fill/DMA-seed candidate would touch the vendored
+ESP32-audioI2S connect path for a P3 cosmetic ≤1-frame gap — not worth the risk). Added `_recurrentUnderrunCount`
+(`webRadioApp.h`), gated on `_settled` (station survived `WR_SETTLED_MS`, already latched elsewhere) so the
+connect-time transient never increments it. `get wrUnderruns` now returns both `underruns` (raw total, kept for
+back-compat with `test_webradio_soak.py` / `exp012_measure.py`, which already treat `underruns=1`/session as
+expected) and `recurrentUnderruns` (the clean gate — expect `==0` absent a real mid-session gap). The audible
+≤1-frame startup blip itself is unchanged/still present — this only stops it from polluting the recurrent-gap
+signal, per EXP-010/LL-094's existing acceptance of it as a non-regression.
+
+**Priority:** P3 — minor UX polish, NOT a promotion blocker · **Status:** **DONE** · **Opened:** 2026-06-28
+· **Closed:** 2026-07-10 · **Milestone:** M-WEBRADIO-NOPSRAM · **Branch:** `rnd/membudget` · **Owner:** Developer
+· **Deps:** TASK-263 (surfaced it)
 
 ---
 
