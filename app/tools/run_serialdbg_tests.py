@@ -2103,8 +2103,14 @@ def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0,
     """Wait until fetchOkCount advances past `before` — proves a chart fetch completed
     (HTTP + parse), not just that it was enqueued (LL-041). `before` must be snapshotted
     from fetchOkCount before the triggering tap/command. Returns True on success.
-    On timeout prints stockChartProgress phase to aid diagnosis."""
+    On timeout prints stockChartProgress phase and the last dataq sample to aid
+    diagnosis (TASK-300: distinguishes queued/parked-in-yield from never-enqueued
+    — the fetch's tlsYield() fires BEFORE stockChartProgress is set, so
+    progress=-1 alone can't tell the two apart)."""
+    prefix = f"[{test_id}] " if test_id else ""
     deadline = time.monotonic() + timeout_s
+    last_q = None
+    ticks = 0
     while time.monotonic() < deadline:
         try:
             current = _stock_ok_count(dut)
@@ -2113,13 +2119,48 @@ def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0,
             continue
         if current > before:
             return True
+        ticks += 1
+        if ticks % 3 == 0:  # sample the dispatch pipeline every ~3 s (TASK-300)
+            try:
+                q = dut.cmd("get dataq", timeout=3.0)
+                if q.get("ok"):
+                    q.pop("ok", None); q.pop("cmd", None); q.pop("last", None)
+                    if q != last_q:
+                        print(f"  {prefix}dataq: {q}", flush=True)
+                    last_q = q
+            except TimeoutError:
+                pass
         time.sleep(1.0)
     r_prog = dut.cmd("get stockChartProgress", timeout=3.0)
     phase = r_prog.get("val") if r_prog.get("ok") else "?"
     phase_name = _CHART_PHASE_NAMES.get(phase, "idle" if phase == -1 else "unknown")
-    prefix = f"[{test_id}] " if test_id else ""
-    print(f"  {prefix}_wait_chart_complete timed out — stockChartProgress={phase} ({phase_name})",
-          flush=True)
+    print(f"  {prefix}_wait_chart_complete timed out — stockChartProgress={phase} "
+          f"({phase_name}) dataq={last_q}", flush=True)
+    return False
+
+
+def _drain_data_pipeline(dut: Dut, timeout_s: float = 200.0, tag: str = "") -> bool:
+    """Wait until the dataTask/spotifyTask fetch pipeline is quiet: nothing in
+    flight or queued, no unacked tlsYield, and spotifyTask not inside an API
+    call (spAct=3 — doPoll incl. token refresh has no yield check). TASK-299/300:
+    a fetch enqueued behind a busy pipeline serializes for up to minutes —
+    firmware working as designed (TASK-244 accepted poll-bounded yield latency)
+    — so tests that measure fetch completion rather than latency under
+    contention must drain first. Returns True once quiet, False on timeout."""
+    prefix = f"[{tag}] " if tag else ""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            q = dut.cmd("get dataq", timeout=3.0)
+            if (q.get("queueWaiting", 1) == 0 and q.get("inFlight", 0) == -1
+                    and q.get("yieldCount", 1) == 0 and q.get("spAct") != 3):
+                return True
+            print(f"  {prefix}draining: inFlight={q.get('inFlight')} "
+                  f"queueWaiting={q.get('queueWaiting')} yieldCount={q.get('yieldCount')} "
+                  f"spAct={q.get('spAct')}", flush=True)
+        except TimeoutError:
+            pass
+        time.sleep(2.0)
     return False
 
 
@@ -2336,21 +2377,38 @@ def t176(dut: Dut):
         skip("T176", "could not switch to Stock")
         _restore_from_stock(dut)
         return
-    before = _stock_ok_count(dut)
-    dut.set_cooldown_zero()
-    dut.cmd("tap 137 36", timeout=3.0)  # drill into AAPL
-    time.sleep(0.3)
-    r_sv = _stock_get(dut, "stockSubView")
-    if r_sv.get("val") != "chart":
-        skip("T176", "could not enter chart view")
-        _restore_from_stock(dut)
-        return
-    print(f"  [T176] drill-in complete (fetchOkCount={before}); waiting for fetch…", flush=True)
-    if not _wait_chart_complete(dut, before, timeout_s=45.0):
-        _restore_from_stock(dut)
-        fail("T176", "fetchOkCount did not advance after 45 s — chart fetch did not complete")
-        return
+    # TASK-300: in full-suite order the drill-in's chart fetch serializes behind
+    # an in-flight Spotify poll (tlsYield has no ack path inside doPoll; the
+    # 403-latch keeps bgPoll on a 60 s cadence) and/or queued dataTask requests,
+    # blowing the 45 s window with stockChartProgress still -1. This test
+    # measures fetch COMPLETION, not latency under contention (TASK-244
+    # accepted poll-bounded yield latency) — quiet the pipeline first, same
+    # rationale as T_WR_TLS_01.
+    dut.cmd("set bgPoll 0", timeout=2.0)
+    try:
+        if not _drain_data_pipeline(dut, tag="T176"):
+            skip("T176", "fetch pipeline never drained within 200 s — "
+                         "dataTask/spotifyTask wedged (investigate via get dataq)")
+            _restore_from_stock(dut)
+            return
+        before = _stock_ok_count(dut)
+        dut.set_cooldown_zero()
+        dut.cmd("tap 137 36", timeout=3.0)  # drill into AAPL
+        time.sleep(0.3)
+        r_sv = _stock_get(dut, "stockSubView")
+        if r_sv.get("val") != "chart":
+            skip("T176", "could not enter chart view")
+            _restore_from_stock(dut)
+            return
+        print(f"  [T176] drill-in complete (fetchOkCount={before}); waiting for fetch…", flush=True)
+        fetched = _wait_chart_complete(dut, before, timeout_s=45.0, test_id="T176")
+    finally:
+        dut.cmd("set bgPoll 1", timeout=2.0)
     _restore_from_stock(dut)
+    if not fetched:
+        fail("T176", "fetchOkCount did not advance after 45 s with a drained pipeline "
+                     "and bgPoll off — drill-in → enqueue path suspect (see dataq above)")
+        return
     pass_("T176", "fetchOkCount advanced — chart data received; pixel bounds check is manual (y:18..213)")
 
 
@@ -2408,6 +2466,16 @@ def t178(dut: Dut):
         dut.set_cooldown_zero()
         dut.cmd("tap 10 7", timeout=3.0)  # back to list
         time.sleep(0.2)
+    # TASK-300: a chart fetch left in flight by a prior test (T177 only waits
+    # for the ENQUEUE; T176's fetch can arrive minutes late under poll
+    # contention) would land AFTER the reset below and flip chartLen>0 before
+    # the check (observed: chartLen=33, 2026-07-10 full-suite run). Wait for
+    # the pipeline to go quiet so the only fetch in play is our own drill-in's.
+    if not _drain_data_pipeline(dut, tag="T178"):
+        skip("T178", "fetch pipeline never drained within 200 s — "
+                     "cannot isolate placeholder state")
+        _restore_from_stock(dut)
+        return
     # Reset chart data so chartLen=0 and fetchFailed=false are reliably observable.
     dut.cmd("set triggerFetch 1", timeout=3.0)
     dut.set_cooldown_zero()
@@ -6272,22 +6340,7 @@ def t_wr_tls_01(dut: Dut):
     # is working as designed (TASK-244 accepted poll-bounded yield latency);
     # this test measures WHICH TLS PATH the fetch uses, not fetch latency
     # under contention — so eject only once the pipeline is quiet.
-    drain_deadline = time.monotonic() + 200.0
-    drained = False
-    while time.monotonic() < drain_deadline:
-        try:
-            q = dut.cmd("get dataq", timeout=3.0)
-            if (q.get("queueWaiting", 1) == 0 and q.get("inFlight", 0) == -1
-                    and q.get("yieldCount", 1) == 0 and q.get("spAct") != 3):
-                drained = True
-                break
-            print(f"  [T_WR_TLS_01] draining: inFlight={q.get('inFlight')} "
-                  f"queueWaiting={q.get('queueWaiting')} yieldCount={q.get('yieldCount')} "
-                  f"spAct={q.get('spAct')}", flush=True)
-        except TimeoutError:
-            pass
-        time.sleep(2.0)
-    if not drained:
+    if not _drain_data_pipeline(dut, tag="T_WR_TLS_01"):
         dut.cmd("set bgPoll 1", timeout=2.0)
         skip("T_WR_TLS_01", "fetch pipeline never drained within 200 s — "
                             "dataTask/spotifyTask wedged (investigate via get dataq)")

@@ -5316,6 +5316,42 @@ the drill-in tap. If dataq shows the request queued/parked, widen the window or
 drain; if it shows the fetch idle and never enqueued, the drill-in tap → enqueue
 path has its own bug.
 
-**Priority:** P3 — deflakes the suite; no product defect demonstrated yet ·
-**Status:** open · **Opened:** 2026-07-10 · **Milestone:** — (VE hygiene) ·
+**Resolution (2026-07-10):**
+
+*Test side* — T_WR_TLS_01's drain loop extracted into `_drain_data_pipeline()`;
+T176 now sets `bgPoll 0` + drains before the drill-in (it measures fetch
+COMPLETION, not latency under poll contention — TASK-244 rationale, same as
+T_WR_TLS_01) and restores bgPoll in a `finally`; T178 drains before its
+`triggerFetch` reset; `_wait_chart_complete()` samples dataq every ~3 s and
+includes the last sample + `stockChartProgress` in its timeout diagnostic.
+The drain trace live-confirmed the hypothesis on the very first DUT run:
+T176 drained past `spAct=3` (in-flight Spotify poll holding tlsYield).
+
+*Product defect found* — hypothesis's second half was real and worse than
+"late fetch": T177 only waits for the ENQUEUE, so its 5D fetch completes
+after the app has left chart view and the result PARKS in dataTask's single
+undelivered-result slot (`s_stockChartNew`) — dataq shows quiet, but the next
+drill-in's first tick pops the stale result. Run 2 reproduced it post-drain:
+`chartLen=36` (5D data) rendered in a D1 drill-in. In user terms: drill
+AAPL → back out before the fetch returns → drill TSLA shows AAPL's curve.
+`StockChartResult` had no request identity.
+
+*Firmware fix* — `StockChartResult` now carries `symbol[8]` + `rangeIdx`
+(filled by both fetch paths); `stockTickChart()` discards identity-mismatched
+results (keeps waiting for its own fetch — the staleness re-enqueue covers a
+dropped error); `AppsSection::tick()` ticker validation only accepts results
+for `_pendingTicker` (a stale parked result could previously false-validate a
+typo ticker); debug `set triggerFetch 1` also discards any parked result so
+"reset chart fetch state" is honest (needed for T178's same-identity edge:
+a late D1-AAPL result matches a fresh D1-AAPL drill).
+
+*Validation* — `./run/check` 6/6; targeted DUT runs: pre-fix T176/T177 PASS +
+T178 FAIL (chartLen=36, deterministic repro of the parked-result mechanism);
+post-fix 3/3 PASS with the same contention pattern engaged (T176 drained past
+spAct=3, T178 drained past T177's inFlight=3 leftover). Full-suite gate
+re-run owed at the next TASK-298 cadence.
+
+**Priority:** P3 → found + fixed a P3 product defect (stale chart under wrong
+symbol/range) · **Status:** **DONE 2026-07-10** — full-suite gate re-run owed ·
+**Opened:** 2026-07-10 · **Milestone:** — (VE hygiene + Developer) ·
 **Owner:** VE · **Deps:** TASK-299 (dataq surface) · **Branch:** master
