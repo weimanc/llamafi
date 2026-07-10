@@ -1274,6 +1274,11 @@ public:
       _s.lastChartFetch = 0;
       _s.chartLen       = 0;
       _s.fetchFailed    = false;
+      // TASK-300: also drop any parked (undelivered) chart result — "reset
+      // chart fetch state" must include it, or the next drill-in's first tick
+      // pops the stale result and the T178 placeholder check reads its len.
+      dataTask::StockChartResult discard;
+      dataTask::pollStockChart(&discard);
       return true;
     }
     if (strcmp(var, "fetchErrCount") == 0) {
@@ -1710,6 +1715,17 @@ private:
     }
     dataTask::StockChartResult r;
     if (dataTask::pollStockChart(&r)) {
+      // TASK-300: a result parked while nobody was in chart view (back-out
+      // before fetch returned, app switch, range change) can belong to a
+      // superseded request — rendering it here shows the wrong symbol/range.
+      // Discard on identity mismatch and keep waiting for our own fetch.
+      const char* want = _s.chartSymbol[0] ? _s.chartSymbol
+                                           : _s.tickers[_s.chartTickerIdx];
+      if (strcmp(r.symbol, want) != 0 || r.rangeIdx != (uint8_t)_s.chartRange) {
+        LOG_D("stock", "chart drop stale result sym=%s range=%u (want %s/%u)",
+              r.symbol, r.rangeIdx, want, (unsigned)_s.chartRange);
+        return;
+      }
       _pendingAsync = false;
       if (r.ok) {
         memcpy(_s.chartPoints, r.points, r.len * sizeof(float));

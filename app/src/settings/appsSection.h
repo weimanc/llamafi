@@ -28,6 +28,11 @@ public:
         if (_editPhase != StockEditPhase::Validating) return SectionResult::Continue;
         dataTask::StockChartResult r;
         if (dataTask::pollStockChart(&r)) {
+            // TASK-300: a stale chart result parked by the Stock app (fetch
+            // returned after back-out/app-switch) would false-validate any
+            // typo ticker here. Only accept the result for OUR symbol.
+            if (strcmp(r.symbol, _pendingTicker) != 0)
+                return SectionResult::Continue;  // keep waiting until timeout
             if (r.ok && r.len > 0) {
                 strlcpy(settings().stockTickers[_editRow], _pendingTicker, 8);
                 saveSettings();

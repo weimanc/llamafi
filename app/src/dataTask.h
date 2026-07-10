@@ -46,6 +46,13 @@ struct StockChartResult {
     float   lo          = 0.0f;
     float   hi          = 0.0f;
     int     errorCode   = 0;
+    // TASK-300: request identity. The result channel is a single parked slot
+    // with no consumer while Stock is out of chart view, so a late result can
+    // be popped by a LATER request's view (observed: 5D data rendered in a D1
+    // drill-in). Consumers must discard results whose identity doesn't match
+    // the request they are waiting on.
+    char    symbol[8]   = {};
+    uint8_t rangeIdx    = 0;
 };
 
 struct HeatmapQuoteResult {

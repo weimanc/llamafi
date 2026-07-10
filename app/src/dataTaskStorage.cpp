@@ -382,6 +382,8 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
           (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)          / 1024),
           (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024));
     StockChartResult r;
+    strlcpy(r.symbol, tickers[tickerIdx], sizeof(r.symbol));
+    r.rangeIdx = rangeIdx;
     s_stockChartProgress = 0;  // TLS + http.begin
     WiFiClientSecure tls;
     tls.setCACert(YAHOO_FINANCE_ROOT_CA);
@@ -788,6 +790,8 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
                  + "?interval=" + STOCK_INTERVAL_STR[rangeIdx]
                  + "&range="    + STOCK_RANGE_STR[rangeIdx];
     StockChartResult r;
+    strlcpy(r.symbol, symbol, sizeof(r.symbol));
+    r.rangeIdx = rangeIdx;
     s_stockChartProgress = 0;  // TLS + http.begin
     LOG_HEAP("dataTask.stock");
     WiFiClientSecure tls;
