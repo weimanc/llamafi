@@ -5143,9 +5143,10 @@ in the polluted-order context that failed them in the full suite.
 **Priority:** P3 — deflakes the suite; no product defect implied (the silent drop is
 by-design debounce; only the tests raced it) · **Status:** **DONE 2026-07-10** —
 dual-gate cause found (v1 timing theory falsified by its own instrumentation), harness
-choke-point drain + busy-wait landed, ×3 DUT-validated; full-suite confirmation run
-pending · **Opened:** 2026-07-08 · **Milestone:** — (VE hygiene) · **Owner:** VE ·
-**Deps:** — · **Branch:** master
+choke-point drain + busy-wait landed, ×3 DUT-validated; **full-suite confirmed
+2026-07-10: T-CDWN-01/T079/T082 all PASS in suite order** (suite 124/1/30/3, sole
+fail = TASK-300) · **Opened:** 2026-07-08 · **Milestone:** — (VE hygiene) ·
+**Owner:** VE · **Deps:** — · **Branch:** master
 
 ---
 
@@ -5182,9 +5183,11 @@ intermediate pin expires/rotates sooner (CA1 expires 2030). Architect call: repi
 DigiCert Global Root G2 (expires 2038; chain verified against it host-side today) and
 make the preflight green, or keep TASK-109c and teach the script the exception.
 
-**Full-suite gate status:** not green today. Re-run the gate after TASK-297 + TASK-299
-land, in a calm RF window. Per-failure dispositions above are complete — no unexplained
-failures remain.
+**Full-suite gate status:** ~~not green today~~ **RE-RUN COMPLETE 2026-07-10** after
+TASK-297 + TASK-299 landed: **124 pass / 1 fail / 30 skip / 3 flake** (was 105/10).
+Sole fail = T176 (TASK-300, tracked with hypothesis + dataq lead); flakes are the
+self-flagged reconnect/403 family (T087/T091/T092); skips are TASK-243 not-playing.
+No unexplained failures — gate owed here is discharged.
 
 **Follow-ups resolved 2026-07-08 (human approved option b):** `YAHOO_FINANCE_ROOT_CA`
 repinned as a two-cert bundle (DigiCert Global Root G2 + the original CA1 intermediate),
