@@ -13,6 +13,7 @@ Keys:
   l            toggle layout variant: strip | disc  (OQ4 / Q1)
   c            cycle tag-collision rule: a=reference b=+nudge c=+drop (Q2)
   r            toggle rim-dot placement: disc-rim | canvas-edge (Q3)
+  a            cycle runway label density: all | nearest | off (Q4)
   f            next fixture   F  previous fixture
   s            toggle synthetic mode        L  live fetch mode (10 s cadence)
   SPACE        advance one frame (synthetic/replay)
@@ -40,6 +41,7 @@ FIXTURES = [p for p in FIXTURES
             if not p.name.endswith(".pretty.json") and p.suffix == ".json"
             and p.name not in ("truncated.json",)]
 IMG_OUT = HERE.parent.parent / "docs" / "architecture" / "designs" / "M-PLANERADAR" / "img"
+AIRPORTS_PATH = HERE / "fixtures" / "planeradar" / "airports_preview.json"
 
 # ── palette (RGB565-safe; radar_theme.h equivalents) ──────────────────────────
 def rgb565(r, g, b):
@@ -79,6 +81,19 @@ def load_fixture(path: pathlib.Path) -> list[dict]:
         return json.loads(path.read_text()).get("ac", []) or []
     except (json.JSONDecodeError, OSError):
         return []
+
+
+def load_airports() -> list[dict]:
+    """Real large_airport runway data (EHAM + EHRD) for the Q4 overlay trial.
+    Generated from the same OurAirports source as phase0-airport-db.md's bake
+    trial (see fixtures/planeradar/README.md)."""
+    try:
+        return json.loads(AIRPORTS_PATH.read_text()).get("airports", [])
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+AIRPORTS = load_airports()
 
 
 def synthetic_frame(t: float) -> list[dict]:
@@ -128,8 +143,14 @@ def _pick(plane, keys, dflt=0.0):
     return dflt
 
 
-def nose_deg(p):  return _pick(p, ("true_heading", "mag_heading", "track", "dir"))
-def track_deg(p): return _pick(p, ("track", "true_heading", "mag_heading", "dir"))
+def nose_deg(p):
+    # Q6 / phase0-parse-heap.md:108 — firmware stores noseDeg as whole-degree
+    # int16_t; round here so the preview renders what ships, not float precision.
+    return float(round(_pick(p, ("true_heading", "mag_heading", "track", "dir"))))
+
+
+def track_deg(p):
+    return float(round(_pick(p, ("track", "true_heading", "mag_heading", "dir"))))
 def gs_knots(p):  return _pick(p, ("gs", "tas", "ias"))
 
 
@@ -160,6 +181,7 @@ class Radar:
         self.layout = "strip"
         self.collision = "b"          # Q2 default candidate
         self.rim_mode = "disc-rim"    # Q3
+        self.runway_density = "all"   # Q4 decision: label every in-range airport
         self.preset_i = 1             # 10 km
         self.center = (52.3676, 4.9041)
         self.last_fetch_age = 0.0
@@ -197,6 +219,9 @@ class Radar:
         d.line([cx, cy - r, cx, cy + r], fill=COL_RING)
         d.rectangle([cx - 1, cy - 1, cx + 1, cy + 1], fill=COL_BEZEL)
 
+        if self.runway_density != "off":
+            self._runways(d, L)
+
         if self.layout == "disc":
             F1.draw_centered(d, cx, cy - r + 6, "N", COL_BEZEL)
             F1.draw_centered(d, cx, cy + r - 6, "S", COL_BEZEL)
@@ -231,6 +256,28 @@ class Radar:
 
         pc.draw_taskbar_pil(img, active_app="")  # no planeradar icon yet — slot TBD
         return img
+
+    def _runways(self, d, L):
+        """Q4: draw runway centerlines + ICAO labels for in-range airports.
+        density: 'all' labels every in-range airport, 'nearest' labels only
+        the closest, 'off' draws nothing (caller already skips this method)."""
+        cx, cy, r = L["cx"], L["cy"], L["r"]
+        in_range = []
+        for ap in AIRPORTS:
+            ax, ay = self.project(ap["lat"], ap["lon"], L)
+            if math.hypot(ax - cx, ay - cy) <= r:
+                in_range.append((ap, ax, ay))
+        if not in_range:
+            return
+        nearest = min(in_range, key=lambda t: math.hypot(t[1] - cx, t[2] - cy))
+        for ap, ax, ay in in_range:
+            for rw in ap["runways"]:
+                lx, ly = self.project(rw["le_lat"], rw["le_lon"], L)
+                hx, hy = self.project(rw["he_lat"], rw["he_lon"], L)
+                d.line([lx, ly, hx, hy], fill=COL_RUNWAY)
+            show_label = self.runway_density == "all" or (ap, ax, ay) is nearest
+            if show_label:
+                F1.draw_centered(d, int(ax), int(ay) - 9, ap["icao"], COL_RUNWAY)
 
     def _aircraft(self, d, x, y, p):
         nose = math.radians(nose_deg(p) - 90)   # 0° = north = up
@@ -336,6 +383,19 @@ def shot_mode(argv: list[str]) -> None:
         out = IMG_OUT / f"q3_{rim}_{src}.png"
         img.save(out)
         print("wrote", out)
+    radar.rim_mode = "disc-rim"
+
+    # Q4 runway label density, strip layout, all presets that put EHAM in
+    # range (5/10/15/25 km all qualify — EHAM sits ~5.4 km from the home
+    # default) — render at 25 km (worst case: largest on-screen scale change)
+    radar.preset_i = PRESETS_KM.index(25)
+    for density in ("all", "nearest", "off"):
+        radar.runway_density = density
+        img = radar.draw(planes).resize((pc.SCREEN_W * 2, pc.SCREEN_H * 2),
+                                        Image.NEAREST)
+        out = IMG_OUT / f"q4_{density}_{src}_{radar.preset_km}km.png"
+        img.save(out)
+        print("wrote", out)
 
 
 # ── main loop ──────────────────────────────────────────────────────────────────
@@ -370,6 +430,9 @@ def main():
                 elif k == pygame.K_r:
                     radar.rim_mode = ("canvas-edge" if radar.rim_mode == "disc-rim"
                                       else "disc-rim")
+                elif k == pygame.K_a:
+                    radar.runway_density = {"all": "nearest", "nearest": "off",
+                                             "off": "all"}[radar.runway_density]
                 elif k == pygame.K_f and FIXTURES:
                     step = -1 if (ev.mod & pygame.KMOD_SHIFT) else 1
                     fix_i = (fix_i + step) % len(FIXTURES)

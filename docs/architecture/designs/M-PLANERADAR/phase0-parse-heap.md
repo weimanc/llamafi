@@ -151,9 +151,12 @@ only; that is the term D1 varies on.
   the binary-searched minimum viable capacity and post-parse
   `memoryUsage()` (transient working set = min capacity − settled usage);
   the allocator trace cannot see intra-pool behaviour.
-- Is whole-degree heading precision acceptable at 240 px disc? (Renderer
-  question; 1° ≈ sub-pixel at that radius, expected yes — preview tool
-  confirms visually.)
+- ~~Is whole-degree heading precision acceptable at 240 px disc?~~ **Resolved
+  2026-07-10** (phase0-preview-ui.md Q6): confirmed imperceptible — but only
+  after fixing the preview tool, which initially rendered full float
+  precision instead of the whole-degree rounding this doc's `noseDeg`/
+  `trackDeg` actually commit to (line 108). 204/307 200 px differ between
+  float and rounded renders, all sub-pixel shifts on speed-vector endpoints.
 
 ## Exit criteria
 

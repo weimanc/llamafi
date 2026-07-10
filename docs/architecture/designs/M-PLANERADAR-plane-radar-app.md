@@ -75,7 +75,7 @@ fetch-error code).
 | Blocking HTTP on main loop + `setPollFn` hack | `dataTask` `enqueuePlaneRadar()` / `pollPlaneRadar()` (spinlock, fixed struct) |
 | `setInsecure()` | ADR-029 root-CA pin in `dataTaskCerts.h` + `run/check-datatask-certs` + cert preflight (run/test step 0) |
 | WiFiManager captive portal | Shell WiFi (wifi_creds chain) — delete entirely |
-| NVS config | `settingsStorage` SPIFFS json (lat/lon, units, runways, range preset) |
+| NVS config | `settingsStorage` SPIFFS json (lat/lon, units, runways, range preset, tag-collision rule, stale-indicator style — the last two added per phase0-preview-ui.md Q2/Q5 decisions, 2026-07-10) |
 | BOOT button | Touch: tap radar = cycle range; Settings > Applications for the rest |
 | LovyanGFX full-frame redraw | TFT_eSPI direct draw: static grid painted once on resume, erase/redraw only aircraft symbols + tags each update (no full-frame 240×240 sprite — 115 KB @16bpp does not exist on this board) |
 | VLW smooth font | Existing baked fonts |
@@ -234,7 +234,9 @@ preview tool committed, OQ1/OQ2/OQ4 closed. Only then does firmware work start
 - CYD 275×240 canvas; radar disc 240×240; touch tap = range cycle.
 - adsb.fi v3 fetch via dataTask, pinned TLS, 10 s foreground-only cadence,
   ≤ ~24 aircraft, filtered stream parse.
-- Config: lat/lon + units + runway toggle + range persist via settingsStorage.
+- Config: lat/lon + units + runway toggle + range + tag-collision rule
+  (default: drop-on-fail) + stale-indicator style (default: ring-colour shift)
+  persist via settingsStorage.
 - No regression on: heap floor during Spotify playback, WebRadio arena churn,
   taskbar scroll cycle (new visible app shifts slot count — re-run taskbar suite;
   LL-085 class).

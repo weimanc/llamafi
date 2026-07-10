@@ -1,7 +1,7 @@
 # Design — M-PLANERADAR Phase 0: preview tool + UI layout
 
 > Owner: Architect
-> Status: draft — designer-review PASS 2026-07-10; tool built, interactive session pending (see Results)
+> Status: implemented — designer-review PASS 2026-07-10; Q1-Q6 closed, human eyeball sign-off done (see Results)
 > Date: 2026-07-10
 > Parent: [M-PLANERADAR-plane-radar-app.md](../M-PLANERADAR-plane-radar-app.md)
 > Closes: OQ4 (side strip vs on-disc bezel); freezes layout + tag-collision rule before firmware
@@ -120,9 +120,8 @@ Results.
 
 ## Results
 
-> Tool built + first render pass 2026-07-10. Interactive session with human
-> eyeball (exit criterion 5) still pending — the committed screenshots are the
-> evidence base for it.
+> 2026-07-10: all six design questions closed with human eyeball sign-off.
+> Layout constants frozen below. Doc moves to `implemented`.
 
 ### Run 1 (headless `--shot` mode, 16 PNGs in `img/`)
 
@@ -149,7 +148,120 @@ Observations for the interactive session:
 5. Rim dots (Q3 disc-rim mode) read clearly as a bearing cue on the busy
    fixture ring.
 
-### Pending
+### Q1–Q6 decisions (human eyeball, 2026-07-10)
 
-Interactive Q1–Q6 closure with screenshots per decision, layout-constants
-freeze, animation/GIF check, human sign-off.
+- **Q1 — strip.** Confirmed against `q1_strip_coll-b_busy_33km_10km.png` vs
+  `q1_disc_coll-b_busy_33km_10km.png`: disc's east-spoke `10km` label collides
+  with the `E` bezel letter as run 1 flagged; strip reads cleanly (range,
+  `Nac`, staleness all legible, no collisions). Disc geometry kept in the tool
+  for reference but dropped from the firmware plan.
+- **Q2 — collision rule, pushed to app-settings (default: c).** Run 1's
+  center-tag-pile-up finding held up: rule (b)'s nudge ladder isn't enough on
+  the busy fixture. Rather than freeze one rule, this becomes a user-facing
+  toggle (settingsStorage) — default **(c) drop-tag-keep-symbol**. Scope
+  addition vs. the original "freeze one constant" plan; parent design doc
+  updated (requirements summary + platform-infrastructure table).
+- **Q3 — disc-rim.** Confirmed against `q3_disc-rim_busy_33km.png` vs
+  `q3_canvas-edge_busy_33km.png`: disc-rim reads clearly as a bearing cue, as
+  run 1 found.
+- **Q4 — runway overlay, density = all.** Not implemented as of run 1 —
+  `preview_planeradar.py` had a `COL_RUNWAY` color constant but no runway
+  rendering at all. Closed properly rather than deferred:
+  - Real runway-endpoint data pulled from the same OurAirports source as
+    `phase0-airport-db.md`'s bake trial (large_airport class): EHAM (6
+    runways) + EHRD (1 runway), committed as
+    `fixtures/planeradar/airports_preview.json`.
+  - Feasibility checked before building: flash cost 12.1 KB (V-europe
+    variant, already characterised as a non-issue against ~62% used flash);
+    RAM cost ~0 (flash-mapped `.rodata`, same XIP pattern as other baked
+    assets); render cost trivial — at any preset ≤ 25 km (36.8 km fetch
+    radius) **EHAM is the only airport ever in range**, so worst case is 6
+    line segments + 1 label per frame.
+  - Wired in: `Radar._runways()`, `a` key to cycle all/nearest/off live, and
+    `--shot` now also emits `q4_{all,nearest,off}_busy_33km_25km.png`.
+  - Decision: **all** (label every in-range airport) — with only EHAM ever
+    in range at these presets, "all" and "nearest" are visually identical
+    today; "all" is future-proof if the DB variant or presets change.
+- **Q5 — stale-indicator style, pushed to app-settings (default: ring-colour
+  shift).** **Caveat:** unlike Q1–Q4, this was decided by spec reasoning
+  (M-DRIFT precedent: "visible but not alarming") rather than a rendered
+  comparison — the tool only ever implemented the strip-age-text style: the
+  dimming-sweep and ring-colour-shift candidates were never built or
+  screenshotted. Recorded as a known gap, same posture as the shortened
+  evening soak in phase0-api-probe.md — a deliberate, disclosed scope cut,
+  not a silent one. Whoever builds the settings toggle should render the
+  ring-colour-shift option once real firmware colors exist and eyeball it
+  before shipping the default.
+- **Q6 — whole-degree heading rendering, confirmed fine (corrected).** First
+  pass was invalid: `nose_deg()`/`track_deg()` passed fixture floats straight
+  through, so the "looks fine" call was made against full float precision,
+  not the `int16_t noseDeg/trackDeg` whole-degree storage `phase0-parse-heap.md:108`
+  actually commits to. Fixed (`preview_planeradar.py` now rounds both to the
+  nearest degree, matching what ships) and re-verified: 204/307 200 px differ
+  between float and rounded renders on the busy fixture at 25 km, all
+  sub-pixel shifts on speed-vector endpoints, none on the aircraft symbol
+  itself. Confirmed imperceptible after the fix.
+
+### Animation check (exit criterion 4)
+
+`img/anim_synthetic_check.gif` — 230-frame synthetic sequence (t = 0..138s),
+strip layout, rule (c). Verified programmatically (not just eyeballed): the
+outbound synthetic target (`OUTBW03`) crosses the outer ring at t≈113.4s,
+matching the computed distance (`outer_km` = 13.33 km at the 10 km preset,
+d₂(t) = 2 + 0.1t → t = 113.3s exactly). Frames either side of the crossing
+show a clean symbol→rim-dot switch: no ghost triangle, no duplicate tag, `Nac`
+count decrements on the same frame. Tag-flip (orbiter crossing the N/S
+meridian) and erase/redraw (every frame, by construction) also clean.
+
+**Caveat — what this does and doesn't prove:** this Python/PIL preview
+fully redraws every frame from `Image.new()`; it cannot exercise the
+firmware's actual update strategy (`erase/redraw only aircraft symbols + tags
+each update`, per the parent doc's platform-infrastructure table — targeted
+incremental erase on TFT_eSPI, not a full-frame clear). What's verified here
+is that the *transition logic* (ring-cross detection, symbol↔dot switching,
+tag placement) is bug-free across frames — a different and narrower claim
+than "no incremental-erase artifacts," which is a firmware-only risk and
+stays DUT-side, same posture as R1's TLS-coexistence term.
+
+### Exit criteria status
+
+1. ✅ Tool runs from the venv, renders fixtures + synthetic + live, exports
+   PNG/GIF (`anim_synthetic_check.gif`); committed.
+2. ✅ with one disclosed exception — Q1/Q3/Q4/Q6 each have committed
+   screenshot evidence; Q2/Q5 have decisions but became settings (no single
+   frozen render to point at) and Q5 specifically has **no** comparison
+   screenshot (see Q5 caveat above).
+3. ✅ Layout constants block frozen above.
+4. ✅ Animation check done, with the erase/redraw scope caveat noted.
+5. ✅ Human eyeball sign-off complete for all six questions, 2026-07-10.
+
+### Layout constants (frozen, strip variant — transcription-ready)
+
+```
+canvas          320×240 (APP_W 275 + taskbar 275..319)
+disc            centre (120,120), radius 118px  → x:2..238, y:2..238
+strip           x:240..274 (35px)
+  range digits    strip_x+17, y=12/22 (2 lines: "N" / "km")
+  aircraft count  strip_x+17, y=50   ("<n>ac")
+  stale age       strip_x+17, y=200  ("<age>s", COL_STALE if age>30)
+  fetch error     strip_x+17, y=220  ("E<code>", COL_ERR)
+  bezel N marker  strip_x+17, y=120  ("N^")
+rings           r × {1/4, 2/4, 3/4, 4/4}; ring 3 (3/4 r) = preset distance;
+                ring 4 (r) = outer_km = preset_km × 4/3
+tag placement   centre-side (right if x<cx else left), rule (c) default:
+                ±10/±20px vertical nudge, drop tag (keep symbol) if all fail
+                — user-configurable (Q2)
+rim dots        disc-rim: (r-2)px from centre at true bearing angle (Q3)
+runway overlay  centerlines from real lat/lon endpoints; ICAO label at
+                airport centre, y-9px offset; density=all default (Q4)
+stale indicator ring-colour shift default; strip age-text always shown
+                underneath as the numeric fallback (Q5)
+heading         whole-degree rounding (int16_t match) — confirmed
+                imperceptible at r≤118px (Q6)
+```
+
+Colors (RGB565-quantised, see `preview_planeradar.py` palette block):
+field (0,0,48) · ring (0,96,32) · ring-hi (0,140,48) · bezel (255,255,255) ·
+aircraft (255,32,32) · vector (255,0,255) · tag (200,200,200) ·
+runway (0,160,160) · strip-bg (8,8,16) · strip-text (160,255,160) ·
+stale (255,180,0) · error (255,64,64).

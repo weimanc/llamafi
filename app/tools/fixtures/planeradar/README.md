@@ -15,6 +15,8 @@ human-readable copy (same data).
 | `truncated.json` | **synthetic**: `busy_33km.json` first 60% of bytes | 2026-07-10 (re-derived evening from the final 71-ac capture) | cut mid-object; must fail parse cleanly |
 | `nofields.json` | **synthetic**: `busy_33km.json` with `track/true_heading/mag_heading/dir/gs/tas/ias/flight/t` removed from every aircraft | 2026-07-10 (re-derived evening from the final 71-ac capture) | fallback-chain test |
 | `soak.jsonl` | probe `--soak` log (not a fixture) | rolling | one JSON record per fetch: t/http/ms/bytes/ac/err |
+| `soak_evening.jsonl` | probe `--soak` log, second time-of-day sample (not a fixture) | 2026-07-10 21:19-22:18 | 350/350 HTTP 200; shortened by decision (~58 min vs 6h) — see phase0-api-probe.md |
+| `airports_preview.json` | OurAirports (davidmegginson/ourairports-data @ main), large_airport class — EHAM + EHRD only | 2026-07-10 | real runway-endpoint data for the Q4 preview-tool overlay (phase0-preview-ui.md); not an adsb.fi fixture |
 
 **Byte-size note:** `<name>.json` files are re-serialized compact
 (`json.dumps(…, separators=(",",":"))`), so their on-disk size differs
