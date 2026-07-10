@@ -46,6 +46,15 @@ while true; do
   # current connections: mac band sig rate
   cur=$(jnap networkconnections/GetNetworkConnections '{}' \
         | jq -r '.output.connections[]? | select(.wireless) | "\(.macAddress|ascii_upcase) \(.wireless.band) \(.wireless.signalDecibels) \(.negotiatedMbps)"' 2>/dev/null)
+  # Empty result = the HOST lost the router for this poll (host WiFi blip / JNAP
+  # timeout), NOT every device dropping at once. Reporting it as a mass-drop is a
+  # false positive (observed 2026-07-10 01:28: 8 devices "dropped" then all
+  # rejoined one poll later). A real all-device outage never happens — the DUT
+  # and/or host are always associated. So: skip the diff, keep prior state, note it.
+  if [ -z "$(echo "$cur" | tr -d '[:space:]')" ]; then
+    emit "POLL-SKIP (empty result — host lost router this cycle; not a device drop)"
+    sleep "$INTERVAL"; continue
+  fi
   declare -A NOW_BAND NOW_SIG
   while read -r mac band sig rate; do
     [ -z "$mac" ] && continue
