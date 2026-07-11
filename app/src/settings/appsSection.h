@@ -3,6 +3,7 @@
 #include "gen/configurable_apps.h"
 #include "keyboardWidget.h"
 #include "dataTask.h"
+#include "planeRadarConfig.h"
 
 const char* cgIdToDisplay(const char* id);
 
@@ -330,18 +331,19 @@ private:
     // posture as Teletext's Country row.
     void _repaintPlaneRadar() {
         int y = S_CONTENT_Y;
-        static const uint16_t kRangeKm[] = { 5, 10, 15, 25 };
-        char rbuf[8]; snprintf(rbuf, sizeof(rbuf), "%ukm", (unsigned)kRangeKm[settings().prRangeIdx % 4]);
+        // kPrPresetKm/PR_NUM_PRESETS shared with planeRadarApp.h (planeRadarConfig.h,
+        // TASK-310 audit finding #6 — was a locally-duplicated kRangeKm[] here).
+        char rbuf[8]; snprintf(rbuf, sizeof(rbuf), "%ukm", (unsigned)kPrPresetKm[settings().prRangeIdx % PR_NUM_PRESETS]);
         drawRow(y, { "Range", rbuf, S_LABEL, S_VALUE }); y += S_ROW_H;
 
         drawRow(y, { "Units", settings().prUnits ? "mi" : "km", S_LABEL, S_VALUE }); y += S_ROW_H;
         drawRow(y, { "Runways", settings().prRunwayOverlay ? "on" : "off", S_LABEL, S_VALUE }); y += S_ROW_H;
 
         static const char* kTagRule[]   = { "a", "b", "c (drop)" };
-        drawRow(y, { "Tag rule", kTagRule[(uint8_t)settings().prTagRule % 3], S_LABEL, S_VALUE }); y += S_ROW_H;
+        drawRow(y, { "Tag rule", kTagRule[(uint8_t)settings().prTagRule % (uint8_t)PrTagRule::Count], S_LABEL, S_VALUE }); y += S_ROW_H;
 
         static const char* kStaleStyle[] = { "ring", "text", "dim" };
-        drawRow(y, { "Stale style", kStaleStyle[(uint8_t)settings().prStaleStyle % 3], S_LABEL, S_VALUE }); y += S_ROW_H;
+        drawRow(y, { "Stale style", kStaleStyle[(uint8_t)settings().prStaleStyle % (uint8_t)PrStaleStyle::Count], S_LABEL, S_VALUE }); y += S_ROW_H;
 
         char lbuf[24]; snprintf(lbuf, sizeof(lbuf), "%.3f,%.3f", settings().prLat, settings().prLon);
         drawRow(y, { "Location", lbuf, S_LABEL, 0x7BEF });  // greyed-out (D4: run/spiffs push only)
@@ -349,15 +351,15 @@ private:
 
     void _cyclePlaneRadar(int row) {
         if (row == 0) {
-            settings().prRangeIdx = (uint8_t)((settings().prRangeIdx + 1) % 4);
+            settings().prRangeIdx = (uint8_t)((settings().prRangeIdx + 1) % PR_NUM_PRESETS);
         } else if (row == 1) {
             settings().prUnits = settings().prUnits ? 0 : 1;
         } else if (row == 2) {
             settings().prRunwayOverlay = !settings().prRunwayOverlay;
         } else if (row == 3) {
-            settings().prTagRule = (PrTagRule)(((uint8_t)settings().prTagRule + 1) % 3);
+            settings().prTagRule = (PrTagRule)(((uint8_t)settings().prTagRule + 1) % (uint8_t)PrTagRule::Count);
         } else if (row == 4) {
-            settings().prStaleStyle = (PrStaleStyle)(((uint8_t)settings().prStaleStyle + 1) % 3);
+            settings().prStaleStyle = (PrStaleStyle)(((uint8_t)settings().prStaleStyle + 1) % (uint8_t)PrStaleStyle::Count);
         } else return;   // row 5 (Location) is read-only — no-op, same as Teletext's Country
         saveSettings(); repaint();
     }

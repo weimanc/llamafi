@@ -24,14 +24,14 @@ enum class PlayerMode    : uint8_t { Spotify = 0, WebRadio = 1 };   // M-PLAYER-
 // nudge (±10/±20px), place at the un-nudged position if all four still
 // overlap (never drops). (c) default — same nudge ladder, DROP the tag (keep
 // the symbol) if all four still overlap.
-enum class PrTagRule     : uint8_t { A = 0, B = 1, C = 2 };
+enum class PrTagRule     : uint8_t { A = 0, B = 1, C = 2, Count = 3 };
 // M-PLANERADAR / phase0-preview-ui.md Q5: stale-data indicator style. Ring =
 // default, ring-3 colour shift + the always-shown strip age-text fallback.
 // Text/Dim are named per the design doc's candidate list but were never
 // prototyped in the preview tool (Q5 caveat) — both currently render
 // identically to the strip age-text fallback alone (no ring shift) until a
 // dimming-sweep visual is designed and eyeballed.
-enum class PrStaleStyle  : uint8_t { Ring = 0, Text = 1, Dim = 2 };
+enum class PrStaleStyle  : uint8_t { Ring = 0, Text = 1, Dim = 2, Count = 3 };
 
 // ---- Settings struct -------------------------------------------------------
 

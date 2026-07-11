@@ -5812,7 +5812,8 @@ Human-prompted code audit (2026-07-11, vs the reference
    debug path. Fix: extract one `_setPreset(idx)` used by both (this is the
    duplication that caused the divergence; see TASK-310).
 
-**Priority:** P1 · **Status:** OPEN · **Opened:** 2026-07-11 ·
+**Priority:** P1 · **Status:** IMPLEMENTED — DUT verification pending
+(board disconnected at implementation time) · **Opened:** 2026-07-11 ·
 **Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:** TASK-308 ·
 **Branch:** master
 
@@ -5820,6 +5821,19 @@ Human-prompted code audit (2026-07-11, vs the reference
 injected aircraft at the disc edge (distNm just inside the preset range)
 never paints past x=239, including across an erase cycle; range tap with an
 injected list redraws the aircraft immediately at the new scale.
+
+**Implementation (2026-07-11, Sonnet subagent + orchestrator review):**
+1. `PR_SYMBOL_INSET` (= nose 7 + wing 4 + 1 = 12 px, reference formula):
+   rim-dot fallback now triggers at `distPx > PR_R − PR_SYMBOL_INSET`.
+   Geometry check: triangle max reach 120+106+7+1(erase pad)=234, rim dot
+   120+116+3(erase r)=239 — nothing crosses `PR_STRIP_X`=240.
+2. `_setPreset()` re-renders `_result` immediately after the disc repaint —
+   live range tap no longer blanks aircraft for a poll interval; injected
+   lists redraw instantly.
+3. `dbgSet("prRange")` routes through the same `_setPreset()` (repaint
+   divergence closed structurally); its no-fetch-enqueue isolation kept.
+`./run/check` 6/6 PASS (twice: agent + orchestrator). **Remaining to close:**
+T_PR_01–06 on DUT once the board is reconnected.
 
 ---
 
@@ -5853,7 +5867,8 @@ TASK-309's fixes (which land via these extractions where noted):
    (tag-rule/stale-style cycling) → `PR_NUM_PRESETS` + enum `Count`
    sentinels.
 
-**Priority:** P2 · **Status:** OPEN · **Opened:** 2026-07-11 ·
+**Priority:** P2 · **Status:** IMPLEMENTED — DUT verification pending
+(board disconnected at implementation time) · **Opened:** 2026-07-11 ·
 **Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:** TASK-309
 (land together or immediately after; #3 is its fix vehicle) ·
 **Branch:** master
@@ -5861,6 +5876,21 @@ TASK-309's fixes (which land via these extractions where noted):
 **Exit criteria:** `./run/check` green; T_PR suite green on DUT; production
 ELF behaviour-identical except the TASK-309 fixes (no layout/palette drift —
 strip pixel positions unchanged).
+
+**Implementation (2026-07-11):** all 8 items landed —
+`_requestFetch()`/`_applyRangeSetting()`/`_setPreset()`/`_repaintDisc()`/
+`_stripField()` + `PR_STRIP_ROW_*_Y` constants; new shared
+`app/src/planeRadarConfig.h` (`PR_NUM_PRESETS`, `kPrPresetKm`,
+`PR_KM_PER_NM`, derived `kPrFetchNm`) replacing `appsSection.h`'s local
+`kRangeKm[]`; `PrTagRule::Count`/`PrStaleStyle::Count` sentinels replacing
+`% 3`/`% 4` literals (grep-verified: no exhaustive switches over either
+enum); `_degToRad()`/`_distPx()`/`_pxPerKm()` math helpers. Strip pixel
+positions byte-identical (fillRect/drawString coordinates unchanged, review-
+verified). Reviewer notes: `resume()` no longer touches `_lastFetch` while
+`_injected` — verified equivalent (tick() skips polling while injected;
+`prClearInject` re-seeds it). Redundant double `_redrawGridStatics()` per
+range tap (via `_repaintDisc()`+`_render()`) accepted as harmless.
+`./run/check` 6/6 PASS. **Remaining to close:** T_PR suite on DUT.
 
 ---
 
@@ -5891,10 +5921,27 @@ Same audit, remaining findings — zero behaviour change:
    deliberately; runway overlay: centre-gated unclipped vs reference's
    per-segment clip — per frozen phase0 doc).
 
-**Priority:** P2 · **Status:** OPEN · **Opened:** 2026-07-11 ·
+**Priority:** P2 · **Status:** IMPLEMENTED — DUT verification pending
+(board disconnected at implementation time) · **Opened:** 2026-07-11 ·
 **Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:** TASK-310
 (same files, sequence after to avoid churn) · **Branch:** master
 
 **Exit criteria:** `./run/check` green; `cyd2usb_winamp` ELF ideally
 byte-identical for pure renames (acceptable: identical sizes + T_PR suite
 green where constexpr folding shifts layout).
+
+**Implementation (2026-07-11):** all constants named (`PR_SCREEN_H`,
+`PR_AC_NOSE_LEN`/`PR_AC_TAIL_LEN`/`PR_AC_WING_ANGLE`/`PR_AC_RIMDOT_DRAW_R`/
+`PR_AC_RIMDOT_ERASE_R`/`PR_AC_RIM_RADIUS`, `PR_TAG_CHAR_W`/`PR_TAG_LINE_H`/
+`PR_TAG_GAP`, `PR_MI_PER_KM`, `PR_KM_PER_DEG_LON`/`_LAT`,
+`PR_RING_COUNT`/`PR_RING_HI_IDX` — used in both the grid loop and the stale
+recolour, the drift the audit flagged). `kPrFetchNm` derived per-element in
+`planeRadarConfig.h` from `kPrPresetKm · 4/3 · 118/107 / PR_KM_PER_NM` —
+sole numeric drift: 25 km preset's fetch URL 19.9→19.85 NM (accepted,
+margin heuristic). Comment fixes: vector-clip relabelled binary-search
+refinement (not "reference parity"); deliberate-divergence notes added at
+`_project()` (cos-lat corrected), vector length (true 1-min ground distance
+at active zoom), `_drawRunways()` (centre-gated unclipped). Deliberately
+left: tag-nudge ladder, ICAO `ay−9` offset, strip row-height 14 (single
+site post-TASK-310). `./run/check` 6/6 PASS. **Remaining to close:** T_PR
+suite on DUT (shared run with TASK-309/310).

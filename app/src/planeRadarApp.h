@@ -13,6 +13,7 @@
 #include "settingsStorage.h"
 #include "logSink.h"
 #include "gen/planeradar_airports.h"
+#include "planeRadarConfig.h"
 
 extern TFT_eSPI tft;
 
@@ -20,6 +21,7 @@ extern TFT_eSPI tft;
 static constexpr int PR_CX = 120, PR_CY = 120, PR_R = 118;   // disc: x:2..238, y:2..238
 static constexpr int PR_STRIP_X = 240, PR_STRIP_W = 35;      // x:240..274
 static constexpr int PR_STRIP_LABEL_X = PR_STRIP_X + 17;     // 257
+static constexpr int16_t PR_SCREEN_H = 240;                  // full display height
 
 // RGB565 palette (radar_theme.h equivalents — see preview_planeradar.py's
 // rgb565() block; values here are that same (r,g,b) set packed to RGB565).
@@ -36,14 +38,9 @@ static constexpr uint16_t PR_COL_STALE      = 0xFDA0;
 static constexpr uint16_t PR_COL_ERROR      = 0xFA08;
 static constexpr uint16_t PR_COL_RUNWAY = 0x0514;
 
-static constexpr float    PR_KM_PER_NM    = 1.852f;
-static constexpr uint8_t  PR_NUM_PRESETS  = 4;
-static constexpr uint16_t kPrPresetKm[PR_NUM_PRESETS] = {5, 10, 15, 25};
-// Fetch radius (NM) per preset — reference's fetchRadiusKm() margin factor
-// (preset_km * 4/3 * 118/107), converted NM, per phase0-api-probe.md. Wider
-// than the display range (outer_km = preset*4/3) so traffic doesn't pop in
-// right at the ring edge.
-static constexpr float kPrFetchNm[PR_NUM_PRESETS] = {4.0f, 7.9f, 11.9f, 19.9f};
+// PR_KM_PER_NM, PR_NUM_PRESETS, kPrPresetKm, kPrFetchNm live in
+// planeRadarConfig.h — shared with settings/appsSection.h (TASK-310 audit
+// finding #6).
 
 // D4 (v1): location (g_settings.prLat/prLon) is a compile-time default with
 // no numeric-entry UI — settingsStorage.cpp's applyDefaults() owns the actual
@@ -55,6 +52,46 @@ static constexpr uint32_t PR_STALE_S = 30;      // Q5 stale threshold
 
 static constexpr uint8_t PR_TAG_MAX_LINES = 3;
 static constexpr uint8_t PR_TAG_LINE_LEN  = 10;
+
+// Tag layout metrics (TASK-311 audit finding #3): font is the TFT_eSPI
+// built-in size-1 font (6px advance, 8px line height); 9px is the gap kept
+// between the aircraft symbol centre and the tag's near edge.
+static constexpr int16_t PR_TAG_CHAR_W = 6;
+static constexpr int16_t PR_TAG_LINE_H = 8;
+static constexpr int16_t PR_TAG_GAP    = 9;
+
+// Aircraft symbol geometry (TASK-311 audit finding #2; names mirror the
+// reference's kAircraftNoseLenPx etc.). Wing angle is a radian offset
+// applied directly to the heading angle, not a degrees value.
+static constexpr float   PR_AC_NOSE_LEN       = 7.0f;
+static constexpr float   PR_AC_TAIL_LEN       = 4.0f;
+static constexpr float   PR_AC_WING_ANGLE     = 2.5f;   // radians, offset from nose
+static constexpr int16_t PR_AC_RIMDOT_DRAW_R  = 2;
+static constexpr int16_t PR_AC_RIMDOT_ERASE_R = 3;
+static constexpr int16_t PR_AC_RIM_RADIUS     = PR_R - 2;
+
+// TASK-309 fix 1: symbol centroids beyond PR_R - PR_SYMBOL_INSET fall back to
+// a rim dot instead of a full triangle, so no vertex (plus the ±1px erase
+// pad _erasePrev() applies) can cross x=PR_STRIP_X=240 into the strip.
+// Mirrors the reference's kAircraftInsideRingInsetPx (nose + tail + 1px).
+static constexpr int16_t PR_SYMBOL_INSET = (int16_t)(PR_AC_NOSE_LEN + PR_AC_TAIL_LEN) + 1;  // 7+4+1=12
+
+// Grid ring geometry (TASK-311 audit finding #5): ring index 3 of 4 (the
+// "preset" ring) is both the highlighted ring in _redrawGridStatics() AND
+// the stale-recolour ring in _updateStripDynamic() — one pair of constants
+// so the two can't drift apart.
+static constexpr int16_t PR_RING_COUNT  = 4;
+static constexpr int16_t PR_RING_HI_IDX = 3;
+
+static constexpr float PR_MI_PER_KM      = 0.621371f;
+static constexpr float PR_KM_PER_DEG_LON = 111.320f;
+static constexpr float PR_KM_PER_DEG_LAT = 110.574f;
+
+// Strip dynamic-field row Y positions (TASK-310 audit finding #5).
+static constexpr int16_t PR_STRIP_ROW_RANGE_Y = 5;
+static constexpr int16_t PR_STRIP_ROW_COUNT_Y = 43;
+static constexpr int16_t PR_STRIP_ROW_AGE_Y   = 193;
+static constexpr int16_t PR_STRIP_ROW_ERR_Y   = 213;
 
 // One aircraft's on-screen geometry from the last render — kept so the next
 // update can erase exactly what it drew (static-grid-once + symbol/tag
@@ -74,7 +111,7 @@ struct PrRendered {
 class PlaneRadarApp : public App {
 public:
     void init() override {
-        _presetIdx     = (g_settings.prRangeIdx < PR_NUM_PRESETS) ? g_settings.prRangeIdx : 1;
+        _applyRangeSetting();
         _pendingFetch  = false;
         _everHadResult = false;
         _prErr         = false;
@@ -89,24 +126,13 @@ public:
     }
 
     void resume() override {
-        // Bug found 2026-07-11: every other g_settings.pr* field (units, runway
-        // toggle, tag rule, stale style) is read live at point-of-use, so a
-        // Settings-app change takes effect on the very next poll/redraw. Range
-        // is the one exception — it's cached into _presetIdx, and only init()
-        // was refreshing that cache, never resume(). Changing the range preset
-        // via Settings > Applications (necessarily done while this app is
-        // suspended) silently had no live effect until the next reboot, even
-        // though g_settings.prRangeIdx itself was correctly updated and
-        // persisted. Mirrors AquariumApp::resume()'s _applyAquariumSettings()
-        // pattern — re-apply cached settings on every resume(), not just init().
-        _presetIdx = (g_settings.prRangeIdx < PR_NUM_PRESETS) ? g_settings.prRangeIdx : 1;
-        _drawGridOnce();
-        _prevCount = 0;   // fresh grid paint — nothing on-screen to erase yet
-        _lastFetch = _forceNow();
-        if (!_injected) {
-            dataTask::enqueuePlaneRadar(g_settings.prLat, g_settings.prLon, kPrFetchNm[_presetIdx]);
-            _pendingFetch = true;
-        }
+        // Bug found 2026-07-11 (TASK-308 fix 2): range is the one g_settings.pr*
+        // field that was cached (_presetIdx) and only re-applied in init(), not
+        // resume() — see _applyRangeSetting(). Mirrors AquariumApp::resume()'s
+        // _applyAquariumSettings() pattern.
+        _applyRangeSetting();
+        _drawGridOnce();   // _repaintDisc() inside resets _prevCount — nothing on-screen to erase yet
+        if (!_injected) _requestFetch(_forceNow());
     }
 
     void suspend() override {}
@@ -121,9 +147,7 @@ public:
         unsigned long now = millis();
 
         if (!_injected && !_pendingFetch && (now - _lastFetch >= PR_POLL_MS)) {
-            dataTask::enqueuePlaneRadar(g_settings.prLat, g_settings.prLon, kPrFetchNm[_presetIdx]);
-            _lastFetch    = now;
-            _pendingFetch = true;
+            _requestFetch(now);
         }
 
         if (!_injected) {
@@ -158,28 +182,15 @@ public:
             strlcpy(_lastAction, "STRIP_NONE", sizeof(_lastAction));
             return false;   // strip is display-only (phase0-preview-ui.md)
         }
-        _presetIdx = (uint8_t)((_presetIdx + 1) % PR_NUM_PRESETS);
-        g_settings.prRangeIdx = _presetIdx;   // persists across reboot (exit criterion 2)
-        SettingsStorage::save();
+        // TASK-308 fix 5 / TASK-309 fix 2: _project()'s scale depends on
+        // _presetIdx, so a range change shifts every airport/aircraft pixel
+        // position — _setPreset() repaints the disc at the new scale (else the
+        // old-scale runway overlay ghosts) and re-renders _result immediately
+        // (else the disc sits empty of aircraft until the next poll — or,
+        // under _injected, forever).
+        _setPreset((uint8_t)((_presetIdx + 1) % PR_NUM_PRESETS));
         strlcpy(_lastAction, "DISC_RANGE", sizeof(_lastAction));
-        // Bug found 2026-07-11: _project()'s scale is PR_R / _outerKm(), which
-        // changes with _presetIdx — every airport (and aircraft) pixel position
-        // shifts on a range change. Rings/crosshair/bezel are fixed pixel
-        // geometry (unaffected), but the runway overlay was left at its OLD
-        // scale until the next poll's _render() drew the NEW scale on top
-        // without erasing the old one first — old+new runway lines/labels
-        // visibly overlapping. Full field repaint here is the same fix as a
-        // fresh resume(), scoped to just the disc (strip is handled by
-        // _updateStripDynamic() below).
-        tft.fillRect(0, 0, PR_STRIP_X, 240, PR_COL_FIELD);
-        _redrawGridStatics();
-        _prevCount = 0;   // old aircraft pixel positions are stale after a rescale
-        _updateStripDynamic(true);
-        if (!_injected) {
-            dataTask::enqueuePlaneRadar(g_settings.prLat, g_settings.prLon, kPrFetchNm[_presetIdx]);
-            _lastFetch    = millis();
-            _pendingFetch = true;
-        }
+        if (!_injected) _requestFetch(millis());
         return true;
     }
 
@@ -213,15 +224,13 @@ public:
             return true;
         }
         if (strcmp(var, "prRange") == 0) {
+            // TASK-309 fix 3: shares _setPreset() with handleInput()'s range tap
+            // (was missing the disc repaint here, reproducing the stale-scale
+            // runway-overlay overlap via the debug path). No fetch enqueue —
+            // VE injection isolation preserved.
             int km = atoi(val);
             for (uint8_t i = 0; i < PR_NUM_PRESETS; i++)
-                if (kPrPresetKm[i] == km) {
-                    _presetIdx = i;
-                    g_settings.prRangeIdx = i;
-                    SettingsStorage::save();
-                    _updateStripDynamic(true);
-                    break;
-                }
+                if (kPrPresetKm[i] == km) { _setPreset(i); break; }
             return true;
         }
         if (strcmp(var, "prClearInject") == 0 && strcmp(val, "1") == 0) {
@@ -291,14 +300,65 @@ private:
 
     unsigned long _forceNow() const { return millis() - PR_POLL_MS; }
 
-    float _outerKm() const { return (float)kPrPresetKm[_presetIdx] * 4.0f / 3.0f; }
+    // Re-seed _presetIdx from g_settings.prRangeIdx (init()/resume() — TASK-310
+    // dedup of the clamp expression whose divergence caused TASK-308 fix 2).
+    void _applyRangeSetting() {
+        _presetIdx = (g_settings.prRangeIdx < PR_NUM_PRESETS) ? g_settings.prRangeIdx : 1;
+    }
+
+    // Common enqueue+bookkeeping triple, was ×3 in resume()/tick()/handleInput()
+    // (TASK-310). Callers gate on !_injected themselves — VE injection tests
+    // rely on real fetches never firing while injected.
+    void _requestFetch(unsigned long ts) {
+        dataTask::enqueuePlaneRadar(g_settings.prLat, g_settings.prLon, kPrFetchNm[_presetIdx]);
+        _lastFetch    = ts;
+        _pendingFetch = true;
+    }
+
+    // Switch range preset: persist, repaint the disc at the new scale, and
+    // re-render the still-valid _result immediately (TASK-309 fixes 2+3) —
+    // _repaintDisc() zeroes _prevCount before _render() runs, so _render()
+    // doesn't try to erase symbols at the old scale. Shared by handleInput()'s
+    // range tap and dbgSet("prRange"); callers add their own fetch-enqueue
+    // and _lastAction bookkeeping on top (dbgSet deliberately does not enqueue
+    // a fetch — VE injection isolation).
+    void _setPreset(uint8_t idx) {
+        _presetIdx = idx;
+        g_settings.prRangeIdx = idx;   // persists across reboot
+        SettingsStorage::save();
+        _repaintDisc();
+        _render();
+        _updateStripDynamic(true);
+    }
+
+    float _outerKm() const { return (float)kPrPresetKm[_presetIdx] * PR_FETCH_RING3_TO_OUTER; }
+
+    // Disc px per km at the active preset — used by _project() and the
+    // aircraft track-vector length in _render().
+    float _pxPerKm() const { return (float)PR_R / _outerKm(); }
+
+    // Compass bearing (degrees) -> math angle (radians) for a north-up screen:
+    // the -90 rotates 0deg(north)/90deg(east) compass convention onto the
+    // atan2-style 0rad(+x)/90deg(+y) screen convention cosf/sinf expect.
+    static float _degToRad(float bearingDeg) {
+        return (bearingDeg - 90.0f) * (float)M_PI / 180.0f;
+    }
+
+    // Pixel distance from the disc centre. Every call site (aircraft inside-
+    // ring test, runway in-range gate, vector-clip threshold ×2) is a single
+    // sqrtf() > PR_R comparison — de-duped from ×4 inline copies (TASK-310).
+    static float _distPx(float dx, float dy) { return sqrtf(dx * dx + dy * dy); }
 
     // Equirectangular lat/lon → disc px (north = up). Matches
-    // preview_planeradar.py's Radar.project() exactly.
+    // preview_planeradar.py's Radar.project() exactly. Deliberate divergence
+    // from the reference: cos(lat)-corrected per-axis (PR_KM_PER_DEG_LON
+    // scaled by cosf(lat)) rather than the reference's flat 111.0 km/deg for
+    // both axes — kept because our disc spans locations where the correction
+    // is visible, not a bug to reconcile.
     void _project(float lat, float lon, int16_t* px, int16_t* py) const {
-        float dxKm = (lon - g_settings.prLon) * 111.320f * cosf(g_settings.prLat * (float)M_PI / 180.0f);
-        float dyKm = (lat - g_settings.prLat) * 110.574f;
-        float s    = (float)PR_R / _outerKm();
+        float dxKm = (lon - g_settings.prLon) * PR_KM_PER_DEG_LON * cosf(g_settings.prLat * (float)M_PI / 180.0f);
+        float dyKm = (lat - g_settings.prLat) * PR_KM_PER_DEG_LAT;
+        float s    = _pxPerKm();
         *px = (int16_t)lroundf(PR_CX + dxKm * s);
         *py = (int16_t)lroundf(PR_CY - dyKm * s);
     }
@@ -308,15 +368,15 @@ private:
     // found 2026-07-11: _erasePrev()'s per-aircraft bounding-box erase paints
     // PR_COL_FIELD over whatever static pixels happen to fall inside it —
     // rings, crosshair lines, runway centerlines/labels — with no repair.
-    // Only ring 3 had any repair (redrawn every second by
+    // Only ring PR_RING_HI_IDX had any repair (redrawn every second by
     // _updateStripDynamic()'s stale-age readout), so after enough traffic
-    // crossed the disc the other 3 rings + crosshair + runways visibly eroded
+    // crossed the disc the other rings + crosshair + runways visibly eroded
     // away, leaving what looked like "only 1 ring." Redrawing these thin
     // outlines is cheap — safe to repeat every ~10s poll, not just once.
     void _redrawGridStatics() {
-        for (int i = 1; i <= 4; i++) {
-            int rr = PR_R * i / 4;
-            tft.drawCircle(PR_CX, PR_CY, rr, (i == 3) ? PR_COL_RING_HI : PR_COL_RING);
+        for (int i = 1; i <= PR_RING_COUNT; i++) {
+            int rr = PR_R * i / PR_RING_COUNT;
+            tft.drawCircle(PR_CX, PR_CY, rr, (i == PR_RING_HI_IDX) ? PR_COL_RING_HI : PR_COL_RING);
         }
         tft.drawFastHLine(PR_CX - PR_R, PR_CY, PR_R * 2, PR_COL_RING);
         tft.drawFastVLine(PR_CX, PR_CY - PR_R, PR_R * 2, PR_COL_RING);
@@ -326,12 +386,19 @@ private:
         if (g_settings.prRunwayOverlay) _drawRunways();
     }
 
-    void _drawGridOnce() {
-        tft.fillRect(0, 0, PR_STRIP_X, 240, PR_COL_FIELD);
+    // Field fillRect + statics redraw + stale-aircraft-position reset — was
+    // duplicated in handleInput()'s range tap and _drawGridOnce() (TASK-310).
+    void _repaintDisc() {
+        tft.fillRect(0, 0, PR_STRIP_X, PR_SCREEN_H, PR_COL_FIELD);
         _redrawGridStatics();
+        _prevCount = 0;   // prior aircraft pixel positions are stale after a repaint/rescale
+    }
 
-        tft.fillRect(PR_STRIP_X, 0, PR_STRIP_W, 240, PR_COL_STRIP_BG);
-        tft.drawFastVLine(PR_STRIP_X, 0, 240, PR_COL_RING);
+    void _drawGridOnce() {
+        _repaintDisc();
+
+        tft.fillRect(PR_STRIP_X, 0, PR_STRIP_W, PR_SCREEN_H, PR_COL_STRIP_BG);
+        tft.drawFastVLine(PR_STRIP_X, 0, PR_SCREEN_H, PR_COL_RING);
         tft.setTextDatum(MC_DATUM);
         tft.setTextColor(PR_COL_STRIP_TEXT, PR_COL_STRIP_BG);
         // Unit suffix: fixed for the duration of this resume() (settings changes
@@ -351,7 +418,10 @@ private:
     // resume(); airports don't move, only the projection centre could (a
     // settings location change, which forces a fresh resume() anyway).
     // Outside the baked region this loop simply finds nothing in range —
-    // graceful-absent per ADR-049, not a special case to handle.
+    // graceful-absent per ADR-049, not a special case to handle. Deliberate
+    // divergence from the reference: gated on the airport CENTRE only and
+    // drawn unclipped (a runway can visibly cross the ring edge) rather than
+    // the reference's per-segment clip — per the frozen phase0 doc.
     void _drawRunways() {
         tft.setTextDatum(MC_DATUM);
         for (uint16_t i = 0; i < PR_AIRPORT_COUNT; i++) {
@@ -359,7 +429,7 @@ private:
             int16_t ax, ay;
             _project(ap.lat, ap.lon, &ax, &ay);
             int16_t dx = (int16_t)(ax - PR_CX), dy = (int16_t)(ay - PR_CY);
-            if (sqrtf((float)dx * dx + (float)dy * dy) > PR_R) continue;
+            if (_distPx((float)dx, (float)dy) > PR_R) continue;
             for (uint16_t r = 0; r < ap.rwCount; r++) {
                 const PrRunwayRec& rw = kPrRunways[ap.rwOffset + r];
                 int16_t lx, ly, hx, hy;
@@ -374,53 +444,52 @@ private:
         tft.setTextDatum(TL_DATUM);
     }
 
+    // One strip row: erase-then-draw at a fixed Y, MC_DATUM text 7px below the
+    // erase rect's top (was ×4 copies in _updateStripDynamic(), TASK-310).
+    // Bug found 2026-07-11: MC_DATUM (center-anchored) numeric text whose
+    // width shrinks between draws (e.g. aircraft count "12ac" -> "3ac", age
+    // "12s" -> "9s") leaves stray old digits outside the new, narrower
+    // string's bounds — setTextColor(fg,bg)'s opaque erase only covers the
+    // NEW string's bounding box, not the OLD one's. Explicit fillRect erase
+    // first, matching the pattern already used by WeatherApp's value fields —
+    // not opaque-text alone.
+    void _stripField(int16_t rowY, const char* text, uint16_t color) {
+        tft.fillRect(PR_STRIP_X + 1, rowY, PR_STRIP_W - 2, 14, PR_COL_STRIP_BG);
+        tft.setTextColor(color, PR_COL_STRIP_BG);
+        tft.drawString(text, PR_STRIP_LABEL_X, rowY + 7, 1);
+    }
+
     // Repaints the strip's dynamic fields. includeRangeAndCount also refreshes
     // the range digits + aircraft count (poll result or preset change);
     // otherwise only the once-a-second age readout (+ ring-colour stale shift).
     void _updateStripDynamic(bool includeRangeAndCount) {
         tft.setTextDatum(MC_DATUM);
-        // Bug found 2026-07-11: MC_DATUM (center-anchored) numeric text whose
-        // width shrinks between draws (e.g. aircraft count "12ac" -> "3ac",
-        // age "12s" -> "9s") leaves stray old digits outside the new, narrower
-        // string's bounds — setTextColor(fg,bg)'s opaque erase only covers the
-        // NEW string's bounding box, not the OLD one's. Explicit fillRect erase
-        // first, matching the pattern already used for the error slot below
-        // (and WeatherApp's value fields) — not opaque-text alone.
         if (includeRangeAndCount) {
-            tft.fillRect(PR_STRIP_X + 1, 5, PR_STRIP_W - 2, 14, PR_COL_STRIP_BG);
-            tft.setTextColor(PR_COL_STRIP_TEXT, PR_COL_STRIP_BG);
             unsigned rangeVal = g_settings.prUnits
-                ? (unsigned)lroundf(kPrPresetKm[_presetIdx] * 0.621371f)
+                ? (unsigned)lroundf(kPrPresetKm[_presetIdx] * PR_MI_PER_KM)
                 : (unsigned)kPrPresetKm[_presetIdx];
             char rbuf[4]; snprintf(rbuf, sizeof(rbuf), "%u", rangeVal);
-            tft.drawString(rbuf, PR_STRIP_LABEL_X, 12, 1);
+            _stripField(PR_STRIP_ROW_RANGE_Y, rbuf, PR_COL_STRIP_TEXT);
 
-            tft.fillRect(PR_STRIP_X + 1, 43, PR_STRIP_W - 2, 14, PR_COL_STRIP_BG);
-            tft.setTextColor(PR_COL_TAG, PR_COL_STRIP_BG);
             char ac[8]; snprintf(ac, sizeof(ac), "%uac", (unsigned)_result.count);
-            tft.drawString(ac, PR_STRIP_LABEL_X, 50, 1);
+            _stripField(PR_STRIP_ROW_COUNT_Y, ac, PR_COL_TAG);
         }
 
         long ageS  = _everHadResult ? (long)((millis() - _lastGoodMs) / 1000) : 0;
         bool stale = ageS > (long)PR_STALE_S;
-        tft.fillRect(PR_STRIP_X + 1, 193, PR_STRIP_W - 2, 14, PR_COL_STRIP_BG);
-        tft.setTextColor(stale ? PR_COL_STALE : PR_COL_TAG, PR_COL_STRIP_BG);
         char age[8]; snprintf(age, sizeof(age), "%lds", ageS);
-        tft.drawString(age, PR_STRIP_LABEL_X, 200, 1);
+        _stripField(PR_STRIP_ROW_AGE_Y, age, stale ? PR_COL_STALE : PR_COL_TAG);
         // Q5: ring-colour shift is the strip age-text's ADDITION, not a
         // replacement — the numeric fallback above is always shown regardless
         // of style (per the frozen doc). Text/Dim (never prototyped, Q5
         // caveat) skip the ring recolour and fall back to the same numeric-only
         // behaviour until a dimming-sweep visual is designed and eyeballed.
         bool ringShift = stale && (g_settings.prStaleStyle == PrStaleStyle::Ring);
-        tft.drawCircle(PR_CX, PR_CY, PR_R * 3 / 4, ringShift ? PR_COL_STALE : PR_COL_RING_HI);
+        tft.drawCircle(PR_CX, PR_CY, PR_R * PR_RING_HI_IDX / PR_RING_COUNT, ringShift ? PR_COL_STALE : PR_COL_RING_HI);
 
-        tft.fillRect(PR_STRIP_X + 1, 213, PR_STRIP_W - 2, 14, PR_COL_STRIP_BG);  // clear error slot
-        if (_prErr) {
-            char err[12]; snprintf(err, sizeof(err), "E%d", _lastHttp);
-            tft.setTextColor(PR_COL_ERROR, PR_COL_STRIP_BG);
-            tft.drawString(err, PR_STRIP_LABEL_X, 220, 1);
-        }
+        char err[12] = "";
+        if (_prErr) snprintf(err, sizeof(err), "E%d", _lastHttp);
+        _stripField(PR_STRIP_ROW_ERR_Y, err, PR_COL_ERROR);   // always clears the slot; text only when _prErr
         tft.setTextDatum(TL_DATUM);
     }
 
@@ -440,45 +509,54 @@ private:
             int16_t x, y;
             _project(a.lat, a.lon, &x, &y);
             int16_t dx = (int16_t)(x - PR_CX), dy = (int16_t)(y - PR_CY);
-            float distPx = sqrtf((float)dx * dx + (float)dy * dy);
+            float distPx = _distPx((float)dx, (float)dy);
 
             PrRendered rd{};
             rd.shown = true;
             rd.x = x; rd.y = y;
 
-            if (distPx > PR_R) {
+            // TASK-309 fix 1: rim-dot fallback triggers PR_SYMBOL_INSET px
+            // before the ring edge (not just past it) so no triangle vertex
+            // can reach the strip at x=PR_STRIP_X.
+            if (distPx > PR_R - PR_SYMBOL_INSET) {
                 rd.rimDot = true;
                 float ang = atan2f((float)dy, (float)dx);
-                rd.x = (int16_t)lroundf(PR_CX + (PR_R - 2) * cosf(ang));
-                rd.y = (int16_t)lroundf(PR_CY + (PR_R - 2) * sinf(ang));
-                tft.fillCircle(rd.x, rd.y, 2, PR_COL_AIRCRAFT);
+                rd.x = (int16_t)lroundf(PR_CX + PR_AC_RIM_RADIUS * cosf(ang));
+                rd.y = (int16_t)lroundf(PR_CY + PR_AC_RIM_RADIUS * sinf(ang));
+                tft.fillCircle(rd.x, rd.y, PR_AC_RIMDOT_DRAW_R, PR_COL_AIRCRAFT);
                 next[nextCount++] = rd;
                 continue;
             }
 
-            float nose = (float)(a.noseDeg - 90) * (float)M_PI / 180.0f;
-            rd.tipX = (int16_t)lroundf(x + 7 * cosf(nose));
-            rd.tipY = (int16_t)lroundf(y + 7 * sinf(nose));
-            rd.lX   = (int16_t)lroundf(x + 4 * cosf(nose + 2.5f));
-            rd.lY   = (int16_t)lroundf(y + 4 * sinf(nose + 2.5f));
-            rd.rX   = (int16_t)lroundf(x + 4 * cosf(nose - 2.5f));
-            rd.rY   = (int16_t)lroundf(y + 4 * sinf(nose - 2.5f));
+            float nose = _degToRad((float)a.noseDeg);
+            rd.tipX = (int16_t)lroundf(x + PR_AC_NOSE_LEN * cosf(nose));
+            rd.tipY = (int16_t)lroundf(y + PR_AC_NOSE_LEN * sinf(nose));
+            rd.lX   = (int16_t)lroundf(x + PR_AC_TAIL_LEN * cosf(nose + PR_AC_WING_ANGLE));
+            rd.lY   = (int16_t)lroundf(y + PR_AC_TAIL_LEN * sinf(nose + PR_AC_WING_ANGLE));
+            rd.rX   = (int16_t)lroundf(x + PR_AC_TAIL_LEN * cosf(nose - PR_AC_WING_ANGLE));
+            rd.rY   = (int16_t)lroundf(y + PR_AC_TAIL_LEN * sinf(nose - PR_AC_WING_ANGLE));
             tft.fillTriangle(rd.tipX, rd.tipY, rd.lX, rd.lY, rd.rX, rd.rY, PR_COL_AIRCRAFT);
 
             if (a.gsKnots > 0) {
+                // Deliberate divergence from the reference: this is the true
+                // 1-minute ground distance at the active zoom (gsKnots -> km/min
+                // -> px via _pxPerKm()), not the reference's fixed screen length
+                // — vector length shrinks/grows with the range preset here.
                 float kmMin = a.gsKnots * PR_KM_PER_NM / 60.0f;
-                float vecPx = kmMin * ((float)PR_R / _outerKm());
-                float tr    = (float)(a.trackDeg - 90) * (float)M_PI / 180.0f;
+                float vecPx = kmMin * _pxPerKm();
+                float tr    = _degToRad((float)a.trackDeg);
                 float ex = x + vecPx * cosf(tr), ey = y + vecPx * sinf(tr);
                 float ddx = ex - PR_CX, ddy = ey - PR_CY;
-                if (sqrtf(ddx * ddx + ddy * ddy) > PR_R) {
-                    // Binary-clip the endpoint back onto the ring (reference parity).
+                if (_distPx(ddx, ddy) > PR_R) {
+                    // Binary-search clip of the endpoint onto the ring — a
+                    // refinement of the reference's linear t-=0.05 scan, not
+                    // "parity" with it (this is NOT the same algorithm).
                     float lo = 0.0f, hi = 1.0f;
                     for (int iter = 0; iter < 12; iter++) {
                         float mid = (lo + hi) / 2;
                         float mx = x + (ex - x) * mid, my = y + (ey - y) * mid;
                         float mdx = mx - PR_CX, mdy = my - PR_CY;
-                        if (sqrtf(mdx * mdx + mdy * mdy) > PR_R) hi = mid; else lo = mid;
+                        if (_distPx(mdx, mdy) > PR_R) hi = mid; else lo = mid;
                     }
                     ex = x + (ex - x) * lo; ey = y + (ey - y) * lo;
                 }
@@ -500,7 +578,7 @@ private:
             const PrRendered& p = _prev[i];
             if (!p.shown) continue;
             if (p.rimDot) {
-                tft.fillCircle(p.x, p.y, 3, PR_COL_FIELD);
+                tft.fillCircle(p.x, p.y, PR_AC_RIMDOT_ERASE_R, PR_COL_FIELD);
                 continue;
             }
             int16_t minX = (int16_t)(min(min(p.tipX, p.lX), p.rX) - 1);
@@ -529,11 +607,11 @@ private:
 
         int16_t w = 0;
         for (uint8_t i = 0; i < nLines; i++) {
-            int16_t l = (int16_t)(strlen(lines[i]) * 6);
+            int16_t l = (int16_t)(strlen(lines[i]) * PR_TAG_CHAR_W);
             if (l > w) w = l;
         }
-        int16_t h  = (int16_t)(nLines * 8);
-        int16_t tx = (x < PR_CX) ? (int16_t)(x + 9) : (int16_t)(x - 9 - w);
+        int16_t h  = (int16_t)(nLines * PR_TAG_LINE_H);
+        int16_t tx = (x < PR_CX) ? (int16_t)(x + PR_TAG_GAP) : (int16_t)(x - PR_TAG_GAP - w);
         int16_t ty = (int16_t)(y - h / 2);
 
         auto overlaps = [&](int16_t rx, int16_t ry) {
@@ -574,6 +652,6 @@ private:
         tft.setTextDatum(TL_DATUM);
         tft.setTextColor(PR_COL_TAG, PR_COL_FIELD);
         for (uint8_t i = 0; i < nLines; i++)
-            tft.drawString(lines[i], tx, (int16_t)(bestY + i * 8), 1);
+            tft.drawString(lines[i], tx, (int16_t)(bestY + i * PR_TAG_LINE_H), 1);
     }
 };
