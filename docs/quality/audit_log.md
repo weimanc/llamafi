@@ -66,8 +66,9 @@ filed. LL-105/LL-106 promotion to `best_practices.md` requires human
 sign-off (QM does not self-promote).
 
 **Resolution**: Findings presented to human 2026-07-11. ADR-048/049
-acceptance already given in this session. LL-105/LL-106 promotion decision:
-**pending human response**.
+acceptance already given in this session. **LL-105 promoted to BP-046**
+(human, 2026-07-11) — see `best_practices.md`. LL-106 remains an open
+candidate, pending human decision.
 
 ---
 

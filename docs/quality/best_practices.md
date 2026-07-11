@@ -4,6 +4,16 @@
 
 Entries promoted from `lessons_learned.md` on explicit human approval. All agents read+apply. QM owns file, invalidates outdated practices.
 
+### BP-046 — A design doc's "the preview/PoC tool confirms X" claim must be checked against the tool's source, not just its screenshot
+
+**Adopted from**: LL-105
+**Date adopted**: 2026-07-11 (human)
+**Rule**: Before accepting a design-doc line that says a preview or PoC tool "confirms," "validates," or "closes" a specific claim (a precision choice, a data-driven overlay, a threshold), grep the tool's source for the code path the claim depends on. A rendered screenshot or a verbal eyeball proves *a* render happened, not that the render exercised the claimed, production-representative value or that the feature exists in the tool at all.
+**Rationale**: M-PLANERADAR's `phase0-preview-ui.md` closed six design questions against `preview_planeradar.py`; two didn't hold up. Q4 (runway label density) was written up as a question the tool would answer, but the tool had no runway-drawing code at all — only a stray color constant. Q6 (whole-degree heading rendering) got a human "looks fine" verdict against full float precision, not the whole-degree `int16_t` rounding the firmware design actually commits to (`phase0-parse-heap.md:108`). Both were only caught by reading the tool's source against the specific claim, after the doc already read as closed — the same failure shape the designer-review round had already caught twice earlier in the same milestone (a fetch-radius undercount, an unmeasurable heap-allocator claim).
+**Applies to**: Architect (design docs citing tool-confirmed claims), Developer (building the PoC tool itself), QM (spot-check tool-confirmed claims during doc-currency audits)
+
+---
+
 ### BP-045 — Latency before/after comparisons record a device-internal clock alongside the external clock, in the same session
 
 **Adopted from**: LL-101  
@@ -471,10 +481,15 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 > These entries are **NOT yet adopted**. Per QM discipline ("QM brings best-practice
 > candidates to human — never self-promotes"), they are recorded here in proposed form
 > awaiting explicit human sign-off before being assigned a final BP number and promoted
-> above this line. The latest **adopted** BP is BP-045.
+> above this line. The latest **adopted** BP is BP-046.
 
-_(No candidates currently pending. BP-044 adopted 2026-07-07 from LL-097; BP-045
-adopted 2026-07-07 from LL-101.)_
+**LL-106** (M-PLANERADAR, 2026-07-11) — session-scoped scheduling primitives
+(`CronCreate`) are the wrong default for work that must survive across
+sessions/days; default to a durable tracker entry instead. Proposed, awaiting
+human decision.
+
+_(BP-044 adopted 2026-07-07 from LL-097; BP-045 adopted 2026-07-07 from
+LL-101; BP-046 adopted 2026-07-11 from LL-105.)_
 
 ---
 
