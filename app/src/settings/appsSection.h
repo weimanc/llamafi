@@ -58,7 +58,8 @@ public:
             return SectionResult::GoBack;
         }
         if (_sub < 0) {
-            int row = tapToRow(y);
+            Rect area = { 0, S_CONTENT_Y, S_CANVAS_W, S_CONTENT_H };
+            int row = hitTestRow(area, _appListRowH(), y);
             if (row >= 0 && row < CONFIGURABLE_APP_COUNT) { _sub = (int8_t)row; repaint(); }
         } else {
             _handleAppTap(tapToRow(y));
@@ -76,11 +77,24 @@ private:
     unsigned long   _validateStartMs = 0;
     static constexpr unsigned long kValidateTimeoutMs = 20000;
 
+    // Shrinks below S_ROW_H only once CONFIGURABLE_APP_COUNT no longer fits
+    // S_CONTENT_H at the default row height (bug found 2026-07-11: PlaneRadar
+    // was the 9th configurable app, and 9*S_ROW_H=234 > S_CONTENT_H=212 — its
+    // row was drawn 22px below the visible/tappable content area, making the
+    // entry invisible and only reachable via a ~4px sliver at the very bottom
+    // edge). Self-scales for any future app count instead of hardcoding a fit
+    // for exactly 9.
+    int16_t _appListRowH() const {
+        int16_t fitted = (int16_t)(S_CONTENT_H / CONFIGURABLE_APP_COUNT);
+        return (fitted < S_ROW_H) ? fitted : S_ROW_H;
+    }
+
     void _repaintAppList() {
+        int16_t rowH = _appListRowH();
         int y = S_CONTENT_Y;
         for (int i = 0; i < CONFIGURABLE_APP_COUNT; i++) {
-            drawChevronRow(y, kConfigurableApps[i].display);
-            y += S_ROW_H;
+            drawChevronRow(y, kConfigurableApps[i].display, rowH);
+            y += rowH;
         }
     }
 

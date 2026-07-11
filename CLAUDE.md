@@ -106,6 +106,7 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
 ./run/test-sync               # sync/drift/playlist suite T097-T116 (requires DUT)
 ./run/stress [min]            # multi-app fetch stress/soak (TASK-248; flash debug → soak → restore prod)
 ./run/wr-soak [min]           # WebRadio playback + A-lite arena-churn soak (TASK-271; flash webradio build → soak → restore prod)
+./run/pr-soak [min]           # PlaneRadar + Spotify coexistence soak (TASK-307; flash debug → soak → restore prod)
 ./run/check                   # 5-gate build check (check_build.sh)
 ./run/bake-skin               # bake Winamp skin assets
 ```

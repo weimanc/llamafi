@@ -5641,6 +5641,260 @@ heap floor within budget of pre-app baseline); taskbar full-cycle scroll test
 with the new (12th) slot (LL-085 class regression risk — R5); synthetic
 injection render test (`dbgSet` aircraft list) passes without network.
 
-**Priority:** P1 — gates ship · **Status:** OPEN (blocked) · **Opened:**
-2026-07-10 · **Milestone:** M-PLANERADAR · **Owner:** VE · **Deps:**
+**Priority:** P1 — gates ship · **Status:** DONE · **Opened:**
+2026-07-10 · **Closed:** 2026-07-11 · **Milestone:** M-PLANERADAR · **Owner:** VE · **Deps:**
 TASK-303, TASK-304, TASK-305, TASK-306 · **Branch:** master
+
+**Resolution:** All 6 exit criteria run on DUT (`docs/verification/regression_suite/m-planeradar-dut.md`,
+`docs/verification/test_plan.md` §M-PLANERADAR). New harness tests `T_PR_01`–`T_PR_06`
+(`app/tools/run_serialdbg_tests.py`) plus a standalone soak (`./run/pr-soak`,
+`app/tools/test_planeradar_soak.py`).
+
+1. **Live render within one poll** — PASS (T_PR_02). Found and fixed a test-design bug
+   along the way: `fetchPlaneRadar()` leaves `PlaneRadarResult.errorCode` at its
+   default-constructed `0` on *success* (the raw HTTP 200 only appears in a `LOG_D`
+   line, never the result struct) — so `prLastHttp==0` is ambiguous between
+   "never fetched" and "fetched fine" and can never be waited on as `==200`. Both
+   T_PR_02 and T_PR_05 were rewritten to gate on `get activeError`'s
+   `connecting`/`active` fields (`isConnecting()`/`hasError()`) instead — the same
+   signal already proven for Stock/Teletext/Weather (T-ERR-01/04/06/07).
+2. **Range cycles + persists across reboot** — PASS (T_PR_03/T_PR_04). T_PR_03 also
+   exposed a real interaction worth recording: under the current TASK-243 (Spotify
+   Premium lapsed) condition, `handleInput()`'s per-tap re-enqueue re-arms
+   `hasPendingAsync()`/shell-busy on every tap, and with `tlsYield()` stalled behind
+   Spotify's 403 retry loop, a second tap can be shell-gated before the first fetch
+   resolves (range stuck after tap #1 on the first DUT run). Fixed by injecting a
+   synthetic aircraft first (`prInjectAircraft`) — `handleInput()`'s enqueue is
+   skipped while `_injected`, making the tap-cycle observation independent of
+   network state, which is what this exit criterion is actually about.
+3. **Fetch error → code, responsive, recovers** — SKIP (T_PR_05), network-dependent:
+   20 rapid-fire `triggerPlaneRadarFetch` attempts didn't hit adsb.fi's rate limit
+   this run. Not a gap — the latch/clear mechanism it would exercise is the same
+   ADR-046 `isConnecting()`/`hasError()` path already DUT-proven for four other apps.
+4. **30-min Spotify-coexistence soak** — PASS (`./run/pr-soak`). 81 samples,
+   baseline heap=87,672 B, min heap=82,720 B, **delta=4,952 B** — within the
+   15,000 B budget VE set for this run (the design doc's exit criterion left the
+   number unpinned) and matching ADR-048's ~4 KB fixed parse-contribution estimate
+   almost exactly. Zero reboots/crashes. Ran against a 403-retrying Spotify session
+   (TASK-243 external blocker, Premium lapsed) rather than literal playback — a
+   representative coexistence condition (the shared-TLS contention is driven by the
+   retry loop itself) but not literally "alongside playback"; re-run once TASK-243
+   clears if a playback-verified number is wanted.
+5. **Taskbar full-cycle scroll, new 12th slot** — PASS, no new test needed:
+   T162–T166/T242 already derive their cycle length from `APP_SLOT["WebRadio"]`,
+   which grew 10→11 the moment `PlaneRadar` was inserted before `WebRadio` in
+   `APP_ORDER`. 6/6 PASS, wrap-around and drag/tap correct, WebRadio never a slot.
+6. **Synthetic-injection render, no network** — PASS (T_PR_06): inject 3 → count=3;
+   clear → live polling resumes.
+
+M-PLANERADAR is feature-complete and DUT-validated (TASK-301/302 remain open but
+were already non-blocking per the design doc's phase-0 exit status).
+
+---
+
+### TASK-308 — M-PLANERADAR: post-close fixes (settings-list overflow, resume-sync, grid erosion, strip-text ghosting, runway rescale)
+
+Human spot-check after TASK-307 closed caught five implementation gaps the
+DUT-validation pass didn't (those tests exercise the serial dbg surface, not
+the Settings UI or long-run visual state). All five found, fixed, and
+DUT-verified same session.
+
+**Priority:** P1 · **Status:** DONE · **Opened:** 2026-07-11 · **Closed:**
+2026-07-11 · **Milestone:** M-PLANERADAR · **Owner:** Developer (self-review
+prompted by human) · **Deps:** TASK-304, TASK-305 · **Branch:** master
+
+**Resolution:**
+
+1. **Settings > Applications list overflow (missing PlaneRadar entry).**
+   `CONFIGURABLE_APP_COUNT` reached 9 when PlaneRadar was added, but
+   `AppsSection::_repaintAppList()` draws every row at the fixed `S_ROW_H`
+   (26 px) with no scroll/clip — 9×26=234 px against a 212 px content area,
+   so PlaneRadar's row (last, index 8) drew 22 px below the visible/tappable
+   area, leaving only a ~4 px sliver of it inside the touch hit-rect. Fixed:
+   `AppsSection::_appListRowH()` auto-shrinks the row height only once the
+   count no longer fits (`min(S_ROW_H, S_CONTENT_H / CONFIGURABLE_APP_COUNT)`
+   — 26 px unchanged at ≤8 apps, 23 px at 9), threaded through
+   `drawRow()`/`drawChevronRow()` (new optional `rowH` param, default
+   `S_ROW_H`, every other call site unaffected) and the tap hit-test (now
+   `hitTestRow()` with the same computed height instead of the generic
+   `tapToRow()`). Self-scales for any future 10th+ app instead of hardcoding
+   a fit for exactly 9. DUT-verified: `get settingsAppSubmenu` confirmed all
+   9 rows (0-8) map correctly, including row 8 → 8 (PlaneRadar).
+2. **Settings-UI range change had no live effect until reboot.** Every other
+   `g_settings.pr*` field (units, runway toggle, tag rule, stale style) is
+   read live at point-of-use, so a Settings change takes effect on the very
+   next poll/redraw — range is the one exception, cached into `_presetIdx`
+   and only refreshed in `init()`, never `resume()` (unlike
+   `AquariumApp::resume()`'s `_applyAquariumSettings()`, the precedent this
+   should have followed). Changing the preset via Settings > Applications >
+   PlaneRadar (necessarily done while the app is suspended) silently had no
+   visible effect until the next full reboot, even though
+   `g_settings.prRangeIdx` itself was correctly updated and persisted. Fixed:
+   `resume()` now re-seeds `_presetIdx` from `g_settings.prRangeIdx` (same
+   clamping expression `init()` already used). DUT-verified: a Settings-UI
+   cycle + app-switch-away-and-back (no reboot) now changes `get prRange`'s
+   value, where the identical procedure previously left it unchanged.
+3. **Ring/crosshair/runway-overlay erosion during live traffic ("preview has
+   multiple rings, implementation only has 1 ring").** `_erasePrev()` erases
+   each aircraft's previous on-screen bounding box by painting a
+   `PR_COL_FIELD` rectangle — with no awareness of what static grid pixels
+   (rings, crosshair lines, runway centerlines/labels) fall inside that
+   rectangle. Only ring 3 (the "preset" ring) had any repair mechanism
+   (redrawn every second by `_updateStripDynamic()`'s stale-age readout);
+   rings 1/2/4, the crosshair, the bezel dot, and any runway overlay had
+   none, and permanently eroded as aircraft crossed them during a session —
+   exactly reproduced by the TASK-307 30-min soak's real traffic, which is
+   almost certainly what the human was looking at. Preview-vs-firmware
+   palette was re-checked byte-for-byte (all 12 `PR_COL_*` constants vs the
+   preview tool's `rgb565()` values) and found to match exactly — not a
+   constants bug, confirming the erosion theory over a palette-mismatch one.
+   Fixed: extracted `_redrawGridStatics()` (rings + crosshair + bezel +
+   conditional runway overlay) from `_drawGridOnce()`, called from both
+   `_drawGridOnce()` (initial paint, unchanged) and `_render()` immediately
+   after `_erasePrev()` (repairs whatever the erase just chewed into) — cheap
+   thin-outline redraws at the existing 10 s poll cadence, no new state.
+4. **Strip text ghosting (found after the fix-3 reflash, human review):**
+   `_updateStripDynamic()`'s range/count/age fields use `MC_DATUM` (center-
+   anchored) numeric strings whose width shrinks between draws (count
+   "12ac"→"3ac", age "12s"→"9s") — `setTextColor(fg,bg)`'s opaque-text erase
+   only covers the NEW string's bounding box, not the OLD wider one's, so
+   stray old digits survived outside it. The error slot already avoided this
+   with an explicit `fillRect` erase before its `drawString`; the other three
+   fields didn't. Fixed: added the same explicit erase (matching the pattern
+   `WeatherApp` already uses for its own value fields) before each of the
+   three affected `drawString` calls.
+5. **Runway overlay not erased before redrawing at a new scale (found same
+   review, and self-inflicted by fix 3):** `_project()`'s scale is
+   `PR_R / _outerKm()`, which changes with `_presetIdx` — a range-cycle tap
+   shifts every airport's pixel position, but `handleInput()`'s range-change
+   branch never repainted the disc, so the OLD-scale runway lines/labels sat
+   there until the next poll's `_render()` (now, post fix-3, actually
+   redraws runways every poll) painted the NEW-scale set on top without
+   clearing the old one — visibly overlapping old+new runway geometry. Fixed:
+   the range-change handler now does the same full-field repaint a fresh
+   `resume()` would (`fillRect` the disc + `_redrawGridStatics()`), and resets
+   `_prevCount=0` since prior aircraft pixel positions are stale after a
+   rescale too.
+
+`./run/check` 6/6 PASS after each fix. Prod firmware (`cyd2usb_winamp`)
+reflashed after every DUT verification round; final reflash after fixes 4-5
+has **not yet been visually confirmed on-device** (no camera on this side —
+human to check the actual screen).
+
+---
+
+### TASK-309 — M-PLANERADAR: audit bug fixes (edge inset, range-tap blank, dbgSet range divergence)
+
+Human-prompted code audit (2026-07-11, vs the reference
+`~/proj/esp/ESP32-Plane-Radar/`) found three bug-class defects in
+`planeRadarApp.h`:
+
+1. **Missing edge inset — aircraft symbols paint into the strip.** The
+   inside-ring test is `distPx > PR_R` (`_render()`); a triangle centred at
+   distPx≈118 (x≈238) draws its nose tip to x≈245, past `PR_STRIP_X`=240 —
+   and the next frame's `_erasePrev()` bounding-box fill paints
+   `PR_COL_FIELD` over the strip background and divider. The reference keeps
+   symbol centroids inside `kGridOuterRadius − kAircraftInsideRingInsetPx`
+   (107−13). Fix: switch to rim-dot at `PR_R − inset` (inset = nose len +
+   wing half-width + 1, mirroring the reference formula) so no symbol
+   geometry or erase rect can cross the strip boundary.
+2. **Range tap blanks the disc's aircraft until the next fetch.**
+   `handleInput()`'s range branch repaints statics and zeroes `_prevCount`
+   but never re-renders the (still valid) `_result` at the new scale — live
+   mode shows an empty disc for up to a poll interval. In injected mode
+   (`_injected`, VE tests) it's worse: `tick()` never polls, so aircraft
+   never return until the next inject. Fix: call `_render()` after the
+   repaint in the range-change path.
+3. **`dbgSet("prRange")` diverged from `handleInput()`.** Both cycle the
+   preset, but the TASK-308 fix-5 disc repaint (field fill +
+   `_redrawGridStatics()` + `_prevCount = 0`) went only into `handleInput()`
+   — the stale-scale runway-overlay overlap is still reproducible via the
+   debug path. Fix: extract one `_setPreset(idx)` used by both (this is the
+   duplication that caused the divergence; see TASK-310).
+
+**Priority:** P1 · **Status:** OPEN · **Opened:** 2026-07-11 ·
+**Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:** TASK-308 ·
+**Branch:** master
+
+**Exit criteria:** `./run/check` green; T_PR_01–T_PR_06 green on DUT;
+injected aircraft at the disc edge (distNm just inside the preset range)
+never paints past x=239, including across an erase cycle; range tap with an
+injected list redraws the aircraft immediately at the new scale.
+
+---
+
+### TASK-310 — M-PLANERADAR: de-duplication refactor (audit pass 1)
+
+Same audit, duplication findings — no intended behaviour change beyond
+TASK-309's fixes (which land via these extractions where noted):
+
+1. Fetch-enqueue triple (`enqueuePlaneRadar` + `_lastFetch` +
+   `_pendingFetch`) ×3 (`resume()`, `tick()`, `handleInput()`) →
+   `_requestFetch()`.
+2. Preset-clamp expression duplicated `init()`/`resume()` (the TASK-308
+   fix-2 bug existed because of this) → `_applyRangeSetting()` called from
+   both.
+3. Range-change action duplicated `handleInput()` vs `dbgSet("prRange")` →
+   `_setPreset(idx)` (carries TASK-309 fix 3).
+4. Disc repaint pair (field `fillRect` + `_redrawGridStatics()` +
+   `_prevCount = 0`) duplicated `handleInput()` / `_drawGridOnce()` →
+   `_repaintDisc()`.
+5. Strip row pattern ×4 in `_updateStripDynamic()` (erase `fillRect` at y,
+   `drawString` at y+7, magic pairs 5/12, 43/50, 193/200, 213/220) →
+   `_stripField(rowY, text, color)` + named row-Y constants.
+6. **Cross-file:** `kRangeKm[] = {5,10,15,25}` in `appsSection.h`
+   re-states `kPrPresetKm` — a preset change would silently desync the
+   Settings UI. Single shared table (new small shared header or
+   `settingsStorage.h`).
+7. Math repeats: `(deg−90)·π/180` ×2; dist-from-center `sqrtf` pattern ×4
+   (compare squared where possible); px-per-km scale in `_project()` and
+   inline in `_render()` → `_degToRad()` / `_distPx()` / `_pxPerKm()`.
+8. Hardcoded counts: `% 4` (appsSection preset cycling/display) and `% 3`
+   (tag-rule/stale-style cycling) → `PR_NUM_PRESETS` + enum `Count`
+   sentinels.
+
+**Priority:** P2 · **Status:** OPEN · **Opened:** 2026-07-11 ·
+**Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:** TASK-309
+(land together or immediately after; #3 is its fix vehicle) ·
+**Branch:** master
+
+**Exit criteria:** `./run/check` green; T_PR suite green on DUT; production
+ELF behaviour-identical except the TASK-309 fixes (no layout/palette drift —
+strip pixel positions unchanged).
+
+---
+
+### TASK-311 — M-PLANERADAR: named constants for magic numbers + comment corrections (audit pass 1+2)
+
+Same audit, remaining findings — zero behaviour change:
+
+1. Screen height `240` raw in four `fillRect` calls → constant.
+2. Aircraft symbol geometry unnamed: nose 7, tail 4, wing angle 2.5f,
+   rim-dot draw r=2 vs erase r=3, rim radius `PR_R−2` (reference names all:
+   `kAircraftNoseLenPx` etc.).
+3. Tag metrics: 6 px char width, 8 px line height, 9 px symbol gap.
+4. `0.621371f` (mi/km) inline → `PR_MI_PER_KM`; `111.320f`/`110.574f` in
+   `_project()` → `PR_KM_PER_DEG_LON`/`PR_KM_PER_DEG_LAT`.
+5. Ring count 4 + highlight-ring index 3 appear in `_redrawGridStatics()`
+   AND `_updateStripDynamic()`'s `PR_R * 3 / 4` — changing the highlight
+   ring would silently break the stale recolour → `PR_RING_COUNT`,
+   `PR_RING_HI_IDX`.
+6. `kPrFetchNm` baked literals parallel `kPrPresetKm` (can drift) → derive
+   per-element from the documented formula
+   (`preset·4/3·(118/107)/1.852`), constexpr.
+7. Comment corrections: the vector-clip "reference parity" comment is wrong
+   (ours is a binary search, reference is a linear `t−=0.05` scan — ours is
+   a refinement, relabel); document the deliberate divergences found in
+   audit pass 2 (track-vector semantics: true 1-min ground distance at
+   active zoom vs reference's fixed screen length; projection: ours
+   cos(lat)-corrected per-axis, reference flat 111.0 — ours kept
+   deliberately; runway overlay: centre-gated unclipped vs reference's
+   per-segment clip — per frozen phase0 doc).
+
+**Priority:** P2 · **Status:** OPEN · **Opened:** 2026-07-11 ·
+**Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:** TASK-310
+(same files, sequence after to avoid churn) · **Branch:** master
+
+**Exit criteria:** `./run/check` green; `cyd2usb_winamp` ELF ideally
+byte-identical for pure renames (acceptable: identical sizes + T_PR suite
+green where constexpr folding shifts layout).

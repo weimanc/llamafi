@@ -126,8 +126,8 @@ protected:
     // ---- Row rendering -------------------------------------------------------
 
     // Single label/value row at a given screen y.
-    void drawRow(int screenY, const SettingsRow& r) const {
-        int mid = screenY + S_ROW_H / 2;
+    void drawRow(int screenY, const SettingsRow& r, int16_t rowH = S_ROW_H) const {
+        int mid = screenY + rowH / 2;
         tft.setTextDatum(ML_DATUM);
         tft.setTextColor(r.labelColor);
         tft.drawString(r.label, S_COL_LABEL, mid, 2);
@@ -158,8 +158,8 @@ protected:
     }
 
     // Row with a right-side chevron — indicates deeper navigation.
-    void drawChevronRow(int screenY, const char* label) const {
-        drawRow(screenY, { label, ">", S_LABEL, S_CHEVRON });
+    void drawChevronRow(int screenY, const char* label, int16_t rowH = S_ROW_H) const {
+        drawRow(screenY, { label, ">", S_LABEL, S_CHEVRON }, rowH);
     }
 
     // Horizontal separator line at screenY (col-aligned to S_COL_LABEL).

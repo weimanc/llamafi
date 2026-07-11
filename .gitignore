@@ -13,3 +13,6 @@ app/skins/*/
 # with a real directory. Wildcard covers any future credential file automatically.
 app/data/*
 !app/data/.gitkeep
+
+# host-side parse-trial build artifact (TASK-303 phase 0)
+app/tools/host/pr_parse_trial/pr_parse_trial

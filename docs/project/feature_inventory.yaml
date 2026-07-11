@@ -1588,7 +1588,7 @@ features:
   - id: planeradar-001
     name: ADS-B plane radar
     milestone: M-PLANERADAR
-    status: partial
+    status: implemented
     description: |
       11th app in appRegistry.h (AppId::PlaneRadar, configurable=1, inserted before
       WebRadio to keep WebRadio last per taskbar.h's static_assert). Fetches live
@@ -1619,6 +1619,31 @@ features:
       OurAirports commit d5773e18) — 240 airports/355 runways, matching the phase-0
       measurement exactly (EHAM 6 runways, EHRD 1). _drawRunways() renders real
       centerlines + ICAO labels now, gated on the settings toggle.
+      DUT-validated (TASK-307, 2026-07-11): all 6 exit criteria run —
+      T_PR_01-06 (app/tools/run_serialdbg_tests.py) + a standalone 30-min
+      Spotify-coexistence soak (run/pr-soak) — 5 PASS, 1 SKIP (fetch-error
+      criterion, network-dependent adsb.fi rate limit not hit; latch/clear
+      mechanism itself already proven for 4 other apps). Heap floor delta
+      4,952 B over the soak, matching ADR-048's ~4 KB estimate.
+      TASK-308 (2026-07-11, human spot-check post-close): fixed 3 gaps the
+      serial-dbg-driven DUT validation above didn't exercise — (a) Settings >
+      Applications list overflowed past S_CONTENT_H at 9 apps, leaving
+      PlaneRadar's row nearly untappable (AppsSection now auto-shrinks row
+      height once count exceeds fit); (b) a Settings-UI range change had no
+      live effect until reboot (resume() now re-syncs _presetIdx from
+      g_settings.prRangeIdx, matching AquariumApp's resume()-reapply
+      pattern); (c) _erasePrev()'s per-aircraft erase rectangles permanently
+      chewed into rings/crosshair/runway overlay with no repair (only ring 3
+      was redrawn periodically) — new _redrawGridStatics() repairs the
+      static layer after every erase pass, not just once on resume(); (d)
+      strip range/count/age text ghosted (MC_DATUM opaque-erase doesn't cover
+      a shrinking string's old wider bounds) — explicit fillRect erase added,
+      matching WeatherApp's value-field pattern; (e) range-cycle tap changes
+      _project()'s scale but never repainted the disc, so runway overlay's
+      old-scale lines sat until the next poll drew the new scale on top
+      unerased — handleInput() now does a full disc repaint on range change,
+      same as fresh resume(). (d)/(e) found in a follow-up human review after
+      the (a)-(c) reflash; not yet visually confirmed on-device.
     files:
       - app/src/planeRadarApp.h
       - app/src/appRegistry.h
@@ -1657,7 +1682,19 @@ features:
       - touch-004
       - tls-yield-001
       - settings-001
-    test_ids: []
+    test_ids:
+      - T_PR_01
+      - T_PR_02
+      - T_PR_03
+      - T_PR_04
+      - T_PR_05
+      - T_PR_06
+      - T162
+      - T163
+      - T164
+      - T165
+      - T166
+      - T242
     dependencies:
       - app-registry-001
       - data-task-001
@@ -1665,14 +1702,11 @@ features:
       - settings-001
     notes: |
       TASK-303 (dataTask fetcher), TASK-304 (render + registry), TASK-305
-      (settings integration), TASK-306 (airport-DB bake) all done 2026-07-11.
-      TASK-301/302 (cert 2nd observation, taskbar icons) done — no longer blocking.
-      OPEN: TASK-307 (DUT validation — parent doc exit criteria 1-6, live traffic +
-      30-min Spotify-coexistence soak + taskbar full-cycle + dbgSet synthetic
-      render test) — BLOCKED this session, no CH340 device attached (run/port
-      fails). test_ids stays [] until TASK-307 files the VE suite — no DUT
-      verification has run yet, only ./run/check 6/6 (compiles + codegen clean,
-      including the airport-DB bake's own determinism check).
+      (settings integration), TASK-306 (airport-DB bake), TASK-307 (DUT
+      validation) all done 2026-07-11. TASK-301/302 (cert 2nd observation,
+      taskbar icons) done. Milestone closed — see roadmap.md and
+      docs/verification/regression_suite/m-planeradar-dut.md for the DUT run
+      (5 PASS + 1 SKIP, network-dependent; 30-min coexistence soak PASS).
       hasPendingAsync()/tlsYield()-tlsResume()/dbgGet()-dbgSet()/cmdTap busy
       propagation/taskbar icon all wired per NEW-APP-CHECKLIST.md; cmdTap branch
       at main.cpp's PLANERADAR hit-string.

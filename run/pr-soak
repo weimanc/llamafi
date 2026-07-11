@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# run/pr-soak — PlaneRadar + Spotify coexistence soak (TASK-307 exit criterion 4)
+# Flashes the debug build (Spotify-enabled — coexistence is the point), soaks
+# PlaneRadar in the foreground while Spotify's background session keeps polling,
+# prints a heap-floor + liveness report, then restores production firmware +
+# monitor.
+#
+# Usage: ./run/pr-soak            # 30-min soak (default)
+#        ./run/pr-soak 5          # 5-min soak
+#        MINUTES=45 ./run/pr-soak
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+MINUTES="${MINUTES:-${1:-30}}"
+PORT=$(resolve_port)
+
+_RC=0
+_cleanup() {
+  local rc=$_RC
+  echo ""
+  echo "[pr-soak] restoring $ENV_PROD (rc=$rc so far)"
+  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT") || {
+    echo "ERROR [pr-soak]: prod restore failed" >&2; rc=99; }
+  echo "[pr-soak] restarting monitor"
+  tmux new-session -d -s "$SESSION" \
+    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'" \
+    2>/dev/null || true
+  exit "$rc"
+}
+trap _cleanup EXIT INT TERM
+
+echo "[pr-soak] 1/4 — killing monitor"
+tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+
+echo "[pr-soak] 2/4 — flashing $ENV_DEBUG to $PORT"
+(cd "$PIO_DIR" && "$PIO" run -e "$ENV_DEBUG" -t upload --upload-port "$PORT")
+
+echo "[pr-soak] 3/4 — waiting ${BOOT_WAIT}s for boot + WiFi"
+sleep "$BOOT_WAIT"
+
+echo "[pr-soak] 4/4 — soaking ${MINUTES} min"
+(cd "$PIO_DIR" && "$VENV_PY" tools/test_planeradar_soak.py --port "$PORT" --minutes "$MINUTES") \
+  || _RC=$?

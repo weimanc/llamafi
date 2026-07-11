@@ -4,6 +4,67 @@
 
 All audits: scope, findings, actions, results.
 
+### Audit — 2026-07-11 — M-PLANERADAR TASK-307 DUT validation / milestone close
+
+**Triggered by**: human ("QM PM happy?") after TASK-307 (DUT validation, the
+last open task) closed and the milestone was reported done.
+
+**Scope**: TASK-307's DUT run (6 exit criteria), the two new VE test-logic bugs
+found and fixed mid-session, and doc/inventory hygiene at milestone close
+(`tasks.md`, `roadmap.md`, `feature_inventory.yaml`, `test_plan.md`,
+`docs/verification/regression_suite/m-planeradar-dut.md`).
+
+**Findings**:
+1. LL-107 (new): two VE tests (T_PR_02, T_PR_05) were initially written against
+   `prLastHttp==200`/a diff of it — `fetchPlaneRadar()` never writes 200 into
+   the result struct on success (only into a log line), so `errorCode==0` is
+   ambiguous between "never fetched" and "fetched fine." Both failed on real
+   hardware (one as a false-positive "error"), diagnosed via a manual serial
+   log correlation, and rewritten to gate on `get activeError`'s
+   `connecting`/`active` fields instead (the same ADR-046 signal already
+   DUT-proven for 4 other apps). Fixed and re-verified same session.
+2. LL-108 (new): T_PR_03 (range-cycle-by-tap) stuck after tap #1 on the first
+   DUT run — `handleInput()`'s per-tap re-enqueue armed shell-busy, and with
+   TASK-243's 403-retrying Spotify holding `tlsYield()` in contention, a
+   second tap arrived before the first fetch resolved and was silently
+   dropped. Fixed by injecting synthetic aircraft first (`prInjectAircraft`)
+   so the tap-cycle test is isolated from the network side-effect entirely,
+   rather than tuning wait-timeouts to the current contention level.
+3. **Defect found + fixed**: `feature_inventory.yaml`'s `planeradar-001` entry
+   had `test_ids: []` and a `notes:` block explicitly stating "OPEN: TASK-307
+   ... BLOCKED this session, no CH340 device attached" — both stale the
+   moment TASK-307 actually ran and closed in *this* session. This is exactly
+   QM's audit dimension 2 (features `implemented` with no `test_ids`). Found
+   by re-reading the entry after adding the DUT-validation paragraph to its
+   `description:` — the `test_ids:`/`notes:` fields weren't touched in the
+   first pass. Fixed same session: `test_ids` now lists T_PR_01-06 +
+   T162-T166/T242; `notes` updated to reflect closure.
+4. `cross_features:` for `planeradar-001` was already correctly populated
+   (app-registry-001, data-task-001, taskbar-icons-001, touch-004,
+   tls-yield-001, settings-001) at TASK-303/304 time — NEW-APP-CHECKLIST §5
+   was followed correctly the first time; no finding here, noted as a GOOD
+   for contrast with finding 3.
+5. T_PR_05 (fetch-error exit criterion) is a SKIP, not a PASS — network-
+   dependent (adsb.fi rate limit not hit in 20 rapid-fire attempts this run).
+   Correctly recorded as SKIP with reasoning in both `test_plan.md` and the
+   regression suite doc, not silently upgraded to PASS or hidden. GOOD.
+6. Watch item (not yet a defect): the 30-min coexistence soak (exit
+   criterion 4) ran against a 403-retrying Spotify session (TASK-243,
+   Premium lapsed, external/still-open) rather than literal playback — a
+   representative but not literal satisfaction of "alongside Spotify
+   playback." Disclosed in-doc, not silently absorbed as a full pass. Same
+   disclosed-scope-cut discipline as the phase-0 audit's finding 2.
+
+**Actions assigned**: none new required — fixes for findings 1-3 already
+applied in-session. LL-107/LL-108 promotion to `best_practices.md` requires
+human sign-off (QM does not self-promote).
+
+**Resolution**: Findings presented to human 2026-07-11. Feature-inventory
+staleness (finding 3) corrected same session. LL-107/LL-108 remain open
+candidates pending human decision on promotion.
+
+---
+
 ### Audit — 2026-07-11 — M-PLANERADAR phase 0 close-out retrospective
 
 **Triggered by**: human ("QM, PM, are you happy?") after phase 0 closed and

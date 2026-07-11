@@ -89,6 +89,17 @@ public:
     }
 
     void resume() override {
+        // Bug found 2026-07-11: every other g_settings.pr* field (units, runway
+        // toggle, tag rule, stale style) is read live at point-of-use, so a
+        // Settings-app change takes effect on the very next poll/redraw. Range
+        // is the one exception — it's cached into _presetIdx, and only init()
+        // was refreshing that cache, never resume(). Changing the range preset
+        // via Settings > Applications (necessarily done while this app is
+        // suspended) silently had no live effect until the next reboot, even
+        // though g_settings.prRangeIdx itself was correctly updated and
+        // persisted. Mirrors AquariumApp::resume()'s _applyAquariumSettings()
+        // pattern — re-apply cached settings on every resume(), not just init().
+        _presetIdx = (g_settings.prRangeIdx < PR_NUM_PRESETS) ? g_settings.prRangeIdx : 1;
         _drawGridOnce();
         _prevCount = 0;   // fresh grid paint — nothing on-screen to erase yet
         _lastFetch = _forceNow();
@@ -151,6 +162,18 @@ public:
         g_settings.prRangeIdx = _presetIdx;   // persists across reboot (exit criterion 2)
         SettingsStorage::save();
         strlcpy(_lastAction, "DISC_RANGE", sizeof(_lastAction));
+        // Bug found 2026-07-11: _project()'s scale is PR_R / _outerKm(), which
+        // changes with _presetIdx — every airport (and aircraft) pixel position
+        // shifts on a range change. Rings/crosshair/bezel are fixed pixel
+        // geometry (unaffected), but the runway overlay was left at its OLD
+        // scale until the next poll's _render() drew the NEW scale on top
+        // without erasing the old one first — old+new runway lines/labels
+        // visibly overlapping. Full field repaint here is the same fix as a
+        // fresh resume(), scoped to just the disc (strip is handled by
+        // _updateStripDynamic() below).
+        tft.fillRect(0, 0, PR_STRIP_X, 240, PR_COL_FIELD);
+        _redrawGridStatics();
+        _prevCount = 0;   // old aircraft pixel positions are stale after a rescale
         _updateStripDynamic(true);
         if (!_injected) {
             dataTask::enqueuePlaneRadar(g_settings.prLat, g_settings.prLon, kPrFetchNm[_presetIdx]);
@@ -280,8 +303,17 @@ private:
         *py = (int16_t)lroundf(PR_CY - dyKm * s);
     }
 
-    void _drawGridOnce() {
-        tft.fillRect(0, 0, PR_STRIP_X, 240, PR_COL_FIELD);
+    // Rings + crosshair + bezel + runway overlay — the disc's static layer.
+    // Called once on resume() AND after every _erasePrev() in _render() (bug
+    // found 2026-07-11: _erasePrev()'s per-aircraft bounding-box erase paints
+    // PR_COL_FIELD over whatever static pixels happen to fall inside it —
+    // rings, crosshair lines, runway centerlines/labels — with no repair.
+    // Only ring 3 had any repair (redrawn every second by
+    // _updateStripDynamic()'s stale-age readout), so after enough traffic
+    // crossed the disc the other 3 rings + crosshair + runways visibly eroded
+    // away, leaving what looked like "only 1 ring." Redrawing these thin
+    // outlines is cheap — safe to repeat every ~10s poll, not just once.
+    void _redrawGridStatics() {
         for (int i = 1; i <= 4; i++) {
             int rr = PR_R * i / 4;
             tft.drawCircle(PR_CX, PR_CY, rr, (i == 3) ? PR_COL_RING_HI : PR_COL_RING);
@@ -292,6 +324,11 @@ private:
 
         // Runway overlay (Q4, density=all — every in-range airport labeled).
         if (g_settings.prRunwayOverlay) _drawRunways();
+    }
+
+    void _drawGridOnce() {
+        tft.fillRect(0, 0, PR_STRIP_X, 240, PR_COL_FIELD);
+        _redrawGridStatics();
 
         tft.fillRect(PR_STRIP_X, 0, PR_STRIP_W, 240, PR_COL_STRIP_BG);
         tft.drawFastVLine(PR_STRIP_X, 0, 240, PR_COL_RING);
@@ -342,13 +379,23 @@ private:
     // otherwise only the once-a-second age readout (+ ring-colour stale shift).
     void _updateStripDynamic(bool includeRangeAndCount) {
         tft.setTextDatum(MC_DATUM);
+        // Bug found 2026-07-11: MC_DATUM (center-anchored) numeric text whose
+        // width shrinks between draws (e.g. aircraft count "12ac" -> "3ac",
+        // age "12s" -> "9s") leaves stray old digits outside the new, narrower
+        // string's bounds — setTextColor(fg,bg)'s opaque erase only covers the
+        // NEW string's bounding box, not the OLD one's. Explicit fillRect erase
+        // first, matching the pattern already used for the error slot below
+        // (and WeatherApp's value fields) — not opaque-text alone.
         if (includeRangeAndCount) {
+            tft.fillRect(PR_STRIP_X + 1, 5, PR_STRIP_W - 2, 14, PR_COL_STRIP_BG);
             tft.setTextColor(PR_COL_STRIP_TEXT, PR_COL_STRIP_BG);
             unsigned rangeVal = g_settings.prUnits
                 ? (unsigned)lroundf(kPrPresetKm[_presetIdx] * 0.621371f)
                 : (unsigned)kPrPresetKm[_presetIdx];
             char rbuf[4]; snprintf(rbuf, sizeof(rbuf), "%u", rangeVal);
             tft.drawString(rbuf, PR_STRIP_LABEL_X, 12, 1);
+
+            tft.fillRect(PR_STRIP_X + 1, 43, PR_STRIP_W - 2, 14, PR_COL_STRIP_BG);
             tft.setTextColor(PR_COL_TAG, PR_COL_STRIP_BG);
             char ac[8]; snprintf(ac, sizeof(ac), "%uac", (unsigned)_result.count);
             tft.drawString(ac, PR_STRIP_LABEL_X, 50, 1);
@@ -356,6 +403,7 @@ private:
 
         long ageS  = _everHadResult ? (long)((millis() - _lastGoodMs) / 1000) : 0;
         bool stale = ageS > (long)PR_STALE_S;
+        tft.fillRect(PR_STRIP_X + 1, 193, PR_STRIP_W - 2, 14, PR_COL_STRIP_BG);
         tft.setTextColor(stale ? PR_COL_STALE : PR_COL_TAG, PR_COL_STRIP_BG);
         char age[8]; snprintf(age, sizeof(age), "%lds", ageS);
         tft.drawString(age, PR_STRIP_LABEL_X, 200, 1);
@@ -380,6 +428,7 @@ private:
     // the new geometry in _prev[] for next erase.
     void _render() {
         _erasePrev();
+        _redrawGridStatics();   // repair any grid pixels the erase above chewed into
 
         PrRendered next[dataTask::PR_MAX_AIRCRAFT];
         uint8_t    nextCount = 0;

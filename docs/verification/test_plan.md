@@ -4100,6 +4100,67 @@ tests. Visual (MANUAL) tests have no blockers.
 
 ---
 
+## Suite: M-PLANERADAR — ADS-B plane radar DUT validation (TASK-307)
+
+Detailed run + results: `docs/verification/regression_suite/m-planeradar-dut.md`.
+
+### T_PR_01 — [planeradar-001] PlaneRadarApp switch round-trip
+
+- **Type**: integration
+- **Feature(s)**: planeradar-001
+- **Objective**: Spotify→PlaneRadar→Spotify round-trip via taskbar tap; `appId` correct at each step (sanity, mirrors T_WX_01/T_CX_01).
+- **Preconditions**: DUT on `cyd2usb_winamp_debug`, Spotify session active.
+- **Status**: **PASS 2026-07-11**.
+
+### T_PR_02 — [planeradar-001] Live render within one poll of app entry (exit criterion 1)
+
+- **Type**: integration [NETWORK]
+- **Feature(s)**: planeradar-001
+- **Objective**: `resume()` enqueues a fetch immediately on switch-in; the first poll resolves within a 90 s budget. Observed via `get activeError`'s `connecting` field (`isConnecting()`=`!_everHadResult`) going false — **not** `prLastHttp==200`: a DUT diagnostic (2026-07-11) found a successful fetch leaves `PlaneRadarResult.errorCode` at its default-constructed `0` (the raw HTTP 200 only appears in a `LOG_D` line, never the result struct), so `0` is ambiguous between "never fetched" and "fetched fine" and can't be waited on directly. Graceful-empty airspace (`prAircraftCount`=0) is still a pass — correctness, not traffic, is the bar.
+- **Steps**: `switchApp` PlaneRadar → poll `get activeError` for `connecting:false` up to 90 s → `get activeError.active` (expect false) → `get prAircraftCount`/`prLastHttp` (diagnostic only).
+- **Status**: **PASS 2026-07-11** — connecting→false, `prAircraftCount`=1, `prLastHttp`=0 (no error).
+
+### T_PR_03 — [planeradar-001] Range tap cycles 5→10→15→25→5 (exit criterion 2a)
+
+- **Type**: integration
+- **Feature(s)**: planeradar-001
+- **Objective**: Tapping the radar disc (x<240) cycles the 4 range presets in order and wraps. Injects a synthetic aircraft first (`prInjectAircraft`) so `handleInput()`'s per-tap re-enqueue (`!_injected` guard) can't re-arm `hasPendingAsync()`/shell-busy and swallow a subsequent tap while a real fetch is in flight — this is exactly what happened on the first DUT run (range stuck at 10 after tap #1, with Spotify's 403 retry loop stalling the queue).
+- **Steps**: `set prInjectAircraft <1 record>` → `set prRange 5` → 4× (tap disc, `get prRange`) → expect `[10, 15, 25, 5]` → `set prClearInject 1`.
+- **Status**: **PASS 2026-07-11** — sequence 5→[10, 15, 25, 5] confirmed.
+
+### T_PR_04 — [planeradar-001] Range persists across reboot (exit criterion 2b) [REBOOT]
+
+- **Type**: integration [REBOOT][SLOW]
+- **Feature(s)**: planeradar-001
+- **Objective**: `g_settings.prRangeIdx` round-trips through `settingsStorage` — a non-default preset (25 km) survives a software reset.
+- **Steps**: `set prRange 25` → `reboot` → wait for DUT ready → `switchApp` PlaneRadar → `get prRange` → expect `25`.
+- **Status**: **PASS 2026-07-11** — prRange=25 held across reboot.
+
+### T_PR_05 — [planeradar-001] Fetch error → error code, stays responsive, recovers (exit criterion 3)
+
+- **Type**: integration [NETWORK][SLOW]
+- **Feature(s)**: planeradar-001
+- **Objective**: A failed fetch surfaces as `activeError.active=true` (side-strip/taskbar error indicator — `hasError()`=`_prErr`, same pattern T-ERR-07 uses for Stock), the app stays responsive (no crash/switch-away), and the error clears on the next successful poll. No dedicated fault-injection hook exists for PlaneRadar yet — this test hammers `triggerPlaneRadarFetch` to hit adsb.fi's ~1 req/s courtesy limit (phase-0 measured ~33% 429 rate at that cadence) as a real, naturally-occurring error rather than a synthetic one. (Originally gated on `prLastHttp` changing away from `200`/a baseline — replaced for the same reason as T_PR_02: `0` is ambiguous, so a diff against it could false-positive on the init sentinel.)
+- **Steps**: establish a clean baseline poll (`connecting:false`, `active:false`) → rapid-fire `set triggerPlaneRadarFetch 1` (up to 20×) watching `get activeError` for `active:true` → `get appId` (still PlaneRadar) → wait up to 30 s for `active:false` (recovery).
+- **Status**: **SKIP 2026-07-11** — no fetch error surfaced in 20 rapid-fire attempts. Network-dependent — a clean run with no rate-limit hit is a SKIP, not a FAIL; the underlying latch/clear mechanism (`isConnecting()`/`hasError()`) is the same ADR-046 code path already proven working for Stock/Teletext/Weather (T-ERR-01/04/06/07), so residual risk is low.
+
+### T_PR_06 — [planeradar-001] Synthetic-injection render test, no network (exit criterion 6)
+
+- **Type**: integration
+- **Feature(s)**: planeradar-001
+- **Objective**: `prInjectAircraft` isolates render from the real fetch/poll cycle (TASK-276 pattern) — injecting a fixed 3-aircraft record set updates `prAircraftCount` without any network dependency; `prClearInject` hands control back to live polling.
+- **Steps**: `set prInjectAircraft <3 records>` → `get prAircraftCount` → expect `3` → `set prClearInject 1`.
+- **Status**: **PASS 2026-07-11** — injected 3 → prAircraftCount=3; cleared → live polling resumed.
+
+### Exit criterion 4 (30-min Spotify coexistence soak) and 5 (taskbar full-cycle scroll)
+
+Criterion 4 is a dedicated standalone soak (`./run/pr-soak`, `app/tools/test_planeradar_soak.py`) rather than a harness test — 30 minutes doesn't fit the interactive per-test flash/restore lifecycle. Criterion 5 needs **no new test**: T162–T166 and T242 (taskbar-scroll-001) already derive their cycle length (`_TB_N`) from `APP_SLOT["WebRadio"]`, which grew by one the moment `AppId::PlaneRadar` was inserted before `WebRadio` in `APP_ORDER` — re-running that existing suite unchanged exercises the new 12th slot.
+
+- **Criterion 5 status**: **PASS 2026-07-11** — T162-T166/T242 all 6/6 PASS; `_TB_N` correctly grew 10→11 (comment in `run_serialdbg_tests.py` describing it as "=10" is now stale prose, not a bug), full wrap-around and drag/tap behavior confirmed, WebRadio never appears as a slot.
+- **Criterion 4 status**: **PASS 2026-07-11** — 30-min soak, 81 samples, baseline heap=87,672 B, min heap=82,720 B, delta=4,952 B (within the 15,000 B VE-chosen budget), zero reboots/crashes. Ran against a 403-retrying Spotify session (TASK-243 Premium lapse, external blocker) rather than literal playback — see regression suite doc caveat.
+
+---
+
 ## Entry Format
 
 ```

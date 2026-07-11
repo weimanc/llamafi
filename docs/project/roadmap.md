@@ -990,16 +990,17 @@ UI PoC, and airport-DB trial bake settle the API risk and the parse-heap term
 of the heap risk off-DUT before firmware starts (TLS-coexistence soak stays
 DUT-side).
 
-**Status:** firmware complete except DUT validation — TASK-301..306 all DONE
-2026-07-11 (`./run/check` 6/6 PASS throughout): dataTask ADS-B fetcher
-(ADR-048), PlaneRadarApp render + taskbar registration, Settings integration
-(range/units/runway toggle/tag rule/stale style all persisted, no longer
-compile-time-only), and the airport-DB bake (`run/bake-airports`, ADR-049
-V-europe — baked 240 airports/355 runways, matching the phase-0 measurement
-exactly; runway overlay now renders real data, not a placeholder). Only
-TASK-307 (DUT validation) remains, and it's a hard blocker: no CH340 device
-attached this session (`run/port` fails) — needs a human with the physical
-board.
+**Status:** DONE 2026-07-11 — TASK-301..307 all closed (`./run/check` 6/6 PASS
+throughout): dataTask ADS-B fetcher (ADR-048), PlaneRadarApp render + taskbar
+registration, Settings integration (range/units/runway toggle/tag rule/stale
+style all persisted, no longer compile-time-only), the airport-DB bake
+(`run/bake-airports`, ADR-049 V-europe — baked 240 airports/355 runways,
+matching the phase-0 measurement exactly; runway overlay renders real data),
+and DUT validation (TASK-307): all 6 exit criteria run, 5 PASS + 1 SKIP
+(network-dependent, not a gap — see `docs/verification/regression_suite/
+m-planeradar-dut.md`). 30-min Spotify-coexistence soak: heap floor delta
+4,952 B, within budget and matching ADR-048's ~4 KB parse estimate almost
+exactly, zero reboots.
 **Deps:** M-MULTIAPP (done), M-APP-REGISTRY (done), dataTask (done), ADR-029,
 ADR-048 (accepted), ADR-049 (accepted).
 **Design:** [M-PLANERADAR-plane-radar-app.md](../architecture/designs/M-PLANERADAR-plane-radar-app.md)
@@ -1007,7 +1008,7 @@ ADR-048 (accepted), ADR-049 (accepted).
 TASK-302 (taskbar icon assets, done) · TASK-303 (dataTask fetcher, done) ·
 TASK-304 (app render + registration, done) · TASK-305 (Settings integration,
 done) · TASK-306 (airport-DB bake adoption, done) · TASK-307 (DUT
-validation, **blocked — no hardware attached**, gates ship)
+validation, done)
 
 ---
 

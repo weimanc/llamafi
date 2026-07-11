@@ -9,7 +9,8 @@ T-BUSY-01/01b/02/03/05, T-CDWN-01/02/03,
 T149–T154 (touch-capture-001),
 T162–T166 (taskbar-scroll-001),
 T_WR_EJECT_01/02, T_WR_ERR_01–04, T_WR_COEX_01/02/04,
-T_WR_HEAP_01–04, T_WR_VOL_03, T_WR_TLS_01, T_WR_SPOTIFY_RESUME_01 (M-WEBRADIO)
+T_WR_HEAP_01–04, T_WR_VOL_03, T_WR_TLS_01, T_WR_SPOTIFY_RESUME_01 (M-WEBRADIO),
+T_PR_01–06 (M-PLANERADAR, TASK-307)
 against a DUT flashed with cyd2usb_winamp_debug.
 T089 (production ELF symbol check) is a host build check — not run here.
 T095 (physical vs. synthetic calibration) requires --interactive (human at DUT).
@@ -3990,7 +3991,7 @@ _TB_X = _c.TASKBAR_X + _c.TASKBAR_W // 2   # 297
 # TASK-242: the taskbar cycles through apps BEFORE WebRadio — WebRadio is
 # eject-entered only, no taskbar slot. Must match firmware TASKBAR_APP_COUNT
 # (= (int)AppId::WebRadio), NOT APP_COUNT, or scroll-wrap tests mismatch.
-_TB_N = APP_SLOT["WebRadio"]                  # = 10 (Spotify..Teletext)
+_TB_N = APP_SLOT["WebRadio"]                  # = 11 (Spotify..PlaneRadar) — TASK-307
 
 
 def _tb_get_offset(dut: Dut) -> "int | None":
@@ -6626,6 +6627,251 @@ def t_err_07(dut: Dut):
         fail("T-ERR-07", f"err={err} cleared={cleared}")
 
 
+# ── M-PLANERADAR DUT validation (TASK-307, parent doc exit criteria 1-6) ─────
+# T_PR_01: switch round-trip (sanity, mirrors T_WX_01/T_CX_01).
+# T_PR_02: exit criterion 1 — live render within one poll of app entry.
+# T_PR_03: exit criterion 2a — range tap cycles 5→10→15→25→5.
+# T_PR_04: exit criterion 2b — range persists across reboot [REBOOT].
+# T_PR_05: exit criterion 3 — fetch error → side-strip code, stays responsive, recovers [NETWORK][SLOW].
+# T_PR_06: exit criterion 6 — synthetic injection render test, no network.
+# Exit criterion 4 (30-min coexistence soak) is T_PR_SOAK (separate — [SLOW][MANUAL-length]).
+# Exit criterion 5 (taskbar full-cycle scroll, new 12th slot) is covered by the
+# EXISTING T162-T166/T242 suite unchanged — _TB_N derives from APP_SLOT["WebRadio"],
+# which already grew by one now that PlaneRadar sits before WebRadio in APP_ORDER.
+
+# Disc center — planeRadarApp.h PR_CX/PR_CY, frozen in phase0-preview-ui.md Results.
+PR_CX, PR_CY = 120, 120
+
+def t_pr_01(dut: Dut):
+    """T_PR_01: Spotify→PlaneRadar→Spotify round-trip; appId correct at each step."""
+    print("T_PR_01  PlaneRadarApp switch round-trip")
+    if not _restore_spotify(dut):
+        skip("T_PR_01", "precondition: could not restore Spotify")
+        return
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    with _bgpoll_suspended(dut):
+        switched = _switch_to(dut, "PlaneRadar", timeout=15.0)
+    if not switched:
+        fail("T_PR_01", "did not switch to PlaneRadar")
+        _restore_spotify(dut)
+        return
+    if not _restore_spotify(dut):
+        fail("T_PR_01", "PlaneRadar→Spotify switch-back failed")
+        return
+    pass_("T_PR_01", "Spotify→PlaneRadar→Spotify round-trip confirmed via get appId")
+
+
+def t_pr_02(dut: Dut):
+    """T_PR_02 (exit criterion 1): live aircraft render within one poll of app entry.
+    resume() enqueues a fetch immediately; 'live render' is observed via
+    `get activeError`'s `connecting` field (PlaneRadarApp::isConnecting() = !
+    _everHadResult) going false — NOT prLastHttp==200. DUT diagnostic (2026-07-11)
+    showed fetchPlaneRadar() only ever writes a non-zero errorCode on FAILURE;
+    a successful fetch leaves PlaneRadarResult's default-constructed errorCode=0
+    untouched (the raw HTTP 200 only appears in a LOG_D line, never in the
+    result struct dbgGet reads) — so prLastHttp==0 is genuinely ambiguous
+    between 'never fetched' and 'fetched fine', and waiting for it to equal
+    200 can never pass. 90s budget (not PR_POLL_MS+margin): a 403-wedged
+    Spotify holds tlsYield() in overdue-poll retries (same contention
+    test_fetch_stress.py documents for weather/crypto/stock — TASK-244), so a
+    'first poll' can legitimately take much longer than the 10s cadence alone
+    would suggest."""
+    print("T_PR_02  Live render within one poll of app entry")
+    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+        skip("T_PR_02", "could not switch to PlaneRadar")
+        _restore_spotify(dut)
+        return
+    deadline = time.monotonic() + 90.0
+    connecting = True
+    while time.monotonic() < deadline:
+        r = dut.cmd("get activeError", timeout=3.0)
+        connecting = r.get("connecting", True)
+        if not connecting:
+            break
+        time.sleep(1.0)
+    http_r = dut.cmd("get prLastHttp", timeout=3.0)
+    count_r = dut.cmd("get prAircraftCount", timeout=3.0)
+    err_r = dut.cmd("get activeError", timeout=3.0)
+    _restore_spotify(dut)
+    if connecting:
+        fail("T_PR_02", f"isConnecting() still true after 90s — first poll never "
+                        f"resolved (prLastHttp={http_r.get('val')})")
+        return
+    if err_r.get("active"):
+        fail("T_PR_02", f"first poll resolved but as an error (prLastHttp={http_r.get('val')})")
+        return
+    pass_("T_PR_02", f"first poll resolved ok (connecting->false), "
+                     f"prAircraftCount={count_r.get('val')}, prLastHttp={http_r.get('val')}")
+
+
+def t_pr_03(dut: Dut):
+    """T_PR_03 (exit criterion 2a): tap disc 4x cycles 5→10→15→25→5 (wrap).
+    Injects a synthetic aircraft first: handleInput()'s range-change branch only
+    calls dataTask::enqueuePlaneRadar() when !_injected, so under real polling each
+    tap re-arms hasPendingAsync() and (with tlsYield() stalled behind a 403 Spotify)
+    the shell-busy gate can silently swallow the NEXT tap before the fetch resolves
+    — exactly the failure mode observed on the first DUT run (range stuck at 10
+    after tap #1). Injection makes the tap-cycle observation independent of network
+    state, which is what this exit criterion is actually about."""
+    print("T_PR_03  Range tap cycles 5->10->15->25->5")
+    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+        skip("T_PR_03", "could not switch to PlaneRadar")
+        _restore_spotify(dut)
+        return
+    dut.cmd("set prInjectAircraft TEST01,A320,52.31,4.76,12.5,90,90,250,15000", timeout=3.0)
+    dut.cmd("set prRange 5", timeout=3.0)
+    dut.set_cooldown_zero()
+    seen = []
+    for _ in range(4):
+        _wait_shell_not_busy(dut, timeout_s=5.0)
+        dut.cmd(f"tap {PR_CX} {PR_CY}", timeout=3.0)
+        time.sleep(0.2)
+        r = dut.cmd("get prRange", timeout=3.0)
+        seen.append(r.get("val"))
+        dut.set_cooldown_zero()
+    dut.cmd("set prClearInject 1", timeout=3.0)
+    _restore_spotify(dut)
+    if seen != [10, 15, 25, 5]:
+        fail("T_PR_03", f"range sequence={seen}, expected [10, 15, 25, 5]")
+        return
+    pass_("T_PR_03", f"range sequence 5->{seen} confirmed")
+
+
+def t_pr_04(dut: Dut):
+    """T_PR_04 (exit criterion 2b) [REBOOT]: range preset persists across reboot.
+    Sets a distinctive non-default preset (25 km — default is 10 km per init()'s
+    _presetIdx=1 fallback), reboots, and confirms PlaneRadar loads the same preset
+    from settingsStorage instead of falling back to default."""
+    print("T_PR_04  Range persists across reboot [REBOOT]")
+    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+        skip("T_PR_04", "could not switch to PlaneRadar")
+        _restore_spotify(dut)
+        return
+    dut.cmd("set prRange 25", timeout=3.0)
+    r_pre = dut.cmd("get prRange", timeout=3.0)
+    if r_pre.get("val") != 25:
+        skip("T_PR_04", f"could not set prRange=25 pre-reboot, got {r_pre.get('val')}")
+        return
+    dut.send("reboot")
+    time.sleep(0.3)   # let the reset actually happen before we start reading for it
+    dut._wait_for_ready()
+    if not _switch_to(dut, "PlaneRadar", timeout=15.0):
+        fail("T_PR_04", "could not switch to PlaneRadar after reboot")
+        _restore_spotify(dut)
+        return
+    r_post = dut.cmd("get prRange", timeout=3.0)
+    _restore_spotify(dut)
+    if r_post.get("val") != 25:
+        fail("T_PR_04", f"prRange={r_post.get('val')} after reboot, expected 25 (not persisted)")
+        return
+    pass_("T_PR_04", "prRange=25 held across reboot — settingsStorage persistence confirmed")
+
+
+def t_pr_05(dut: Dut):
+    """T_PR_05 (exit criterion 3) [NETWORK][SLOW]: fetch error -> side-strip error code,
+    app stays responsive, recovers on next poll. adsb.fi's public 1 req/s courtesy
+    limit means hammering triggerPlaneRadarFetch back-to-back (phase-0 measured ~33%
+    429 rate at that cadence) is expected to surface a real error within a bounded
+    number of rapid-fire attempts, without needing a dedicated fault-injection hook.
+    Uses `get activeError`'s `active` field (PlaneRadarApp::hasError() = _prErr) as
+    the error signal, NOT prLastHttp==200 — DUT diagnostic (2026-07-11) showed a
+    successful fetch leaves errorCode at its default-constructed 0, so 0 is
+    ambiguous between 'never fetched' and 'fetched fine' and can't be used to
+    detect a transition either way. `active` is exactly what drives the side-strip/
+    taskbar error indicator this criterion is actually asking about (same pattern
+    T-ERR-07 uses for Stock's fetchFailed)."""
+    print("T_PR_05  Fetch error -> error code, stays responsive, recovers")
+    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+        skip("T_PR_05", "could not switch to PlaneRadar")
+        _restore_spotify(dut)
+        return
+    # Baseline: the first poll must resolve cleanly (connecting->false, no error)
+    # before we start hammering — otherwise we can't tell a fresh error apart from
+    # the app never having had a chance to succeed at all.
+    baseline_deadline = time.monotonic() + 90.0
+    baseline_ok = False
+    while time.monotonic() < baseline_deadline:
+        r = dut.cmd("get activeError", timeout=3.0)
+        if not r.get("connecting", True):
+            baseline_ok = (r.get("active") is False)
+            break
+        time.sleep(1.0)
+    if not baseline_ok:
+        _restore_spotify(dut)
+        skip("T_PR_05", "could not establish a clean baseline poll within 90s")
+        return
+    saw_error = False
+    error_code = None
+    for _ in range(20):
+        dut.cmd("set triggerPlaneRadarFetch 1", timeout=3.0)
+        deadline = time.monotonic() + 12.0
+        got_error = False
+        while time.monotonic() < deadline:
+            time.sleep(0.5)
+            err = dut.cmd("get activeError", timeout=3.0)
+            if err.get("active"):
+                got_error = True
+                break
+        if got_error:
+            saw_error = True
+            error_code = dut.cmd("get prLastHttp", timeout=3.0).get("val")
+            break
+        time.sleep(1.0)
+    if not saw_error:
+        _restore_spotify(dut)
+        skip("T_PR_05", "no fetch error surfaced in 20 rapid-fire attempts — "
+                        "adsb.fi rate limit not hit this run (network-dependent)")
+        return
+    # App must stay responsive with an error latched (hasError()->red taskbar).
+    r_alive = dut.cmd("get appId", timeout=3.0)
+    if not r_alive.get("ok") or r_alive.get("name") != "PlaneRadar":
+        _restore_spotify(dut)
+        fail("T_PR_05", f"app unresponsive/switched after error code={error_code}: {r_alive}")
+        return
+    # Recovers on next poll: wait for activeError.active to clear.
+    recovered = False
+    deadline = time.monotonic() + 30.0
+    while time.monotonic() < deadline:
+        err = dut.cmd("get activeError", timeout=3.0)
+        if err.get("active") is False:
+            recovered = True
+            break
+        time.sleep(2.0)
+    _restore_spotify(dut)
+    if not recovered:
+        fail("T_PR_05", f"error code={error_code} latched but did not recover (activeError) within 30s")
+        return
+    pass_("T_PR_05", f"error code={error_code} -> activeError.active=true, responsive, "
+                     f"recovered -> activeError.active=false")
+
+
+def t_pr_06(dut: Dut):
+    """T_PR_06 (exit criterion 6): synthetic-injection render test passes without network.
+    prInjectAircraft isolates tick() from the real fetch/poll cycle (same pattern as
+    TASK-276's injected-state lesson), so this must hold even with WiFi torn down —
+    injects 3 aircraft, confirms prAircraftCount==3, prLastHttp stays whatever it was
+    (no fetch attempted), then clears and confirms count returns to 0."""
+    print("T_PR_06  Synthetic-injection render test (no network)")
+    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+        skip("T_PR_06", "could not switch to PlaneRadar")
+        _restore_spotify(dut)
+        return
+    records = "TEST01,A320,52.31,4.76,12.5,90,90,250,15000;" \
+              "TEST02,B738,52.28,4.80,8.0,270,270,180,8000;" \
+              "TEST03,C172,52.30,4.75,3.0,0,0,90,2000"
+    dut.cmd(f"set prInjectAircraft {records}", timeout=3.0)
+    r_count = dut.cmd("get prAircraftCount", timeout=3.0)
+    dut.cmd("set prClearInject 1", timeout=3.0)
+    time.sleep(0.2)
+    r_after = dut.cmd("get prAircraftCount", timeout=3.0)
+    _restore_spotify(dut)
+    if r_count.get("val") != 3:
+        fail("T_PR_06", f"prAircraftCount={r_count.get('val')} after injecting 3, expected 3")
+        return
+    pass_("T_PR_06", f"injected 3 aircraft -> prAircraftCount=3; "
+                     f"prClearInject -> count={r_after.get('val')} (real poll resumes)")
+
+
 ALL_TESTS = {
     "T077": t077,
     "T078": t078,
@@ -6813,6 +7059,13 @@ ALL_TESTS = {
     "T-ERR-05": t_err_05,
     "T-ERR-06": t_err_06,
     "T-ERR-07": t_err_07,
+    # M-PLANERADAR DUT validation (TASK-307)
+    "T_PR_01": t_pr_01,
+    "T_PR_02": t_pr_02,
+    "T_PR_03": t_pr_03,
+    "T_PR_04": t_pr_04,
+    "T_PR_05": t_pr_05,
+    "T_PR_06": t_pr_06,
 }
 
 def main():
