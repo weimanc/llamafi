@@ -5812,10 +5812,9 @@ Human-prompted code audit (2026-07-11, vs the reference
    debug path. Fix: extract one `_setPreset(idx)` used by both (this is the
    duplication that caused the divergence; see TASK-310).
 
-**Priority:** P1 · **Status:** IMPLEMENTED — DUT verification pending
-(board disconnected at implementation time) · **Opened:** 2026-07-11 ·
-**Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:** TASK-308 ·
-**Branch:** master
+**Priority:** P1 · **Status:** DONE · **Opened:** 2026-07-11 · **Closed:**
+2026-07-12 · **Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:**
+TASK-308 · **Branch:** master
 
 **Exit criteria:** `./run/check` green; T_PR_01–T_PR_06 green on DUT;
 injected aircraft at the disc edge (distNm just inside the preset range)
@@ -5832,8 +5831,17 @@ injected list redraws the aircraft immediately at the new scale.
    lists redraw instantly.
 3. `dbgSet("prRange")` routes through the same `_setPreset()` (repaint
    divergence closed structurally); its no-fetch-enqueue isolation kept.
-`./run/check` 6/6 PASS (twice: agent + orchestrator). **Remaining to close:**
-T_PR_01–06 on DUT once the board is reconnected.
+`./run/check` 6/6 PASS (twice: agent + orchestrator).
+
+**DUT verification (2026-07-12):** `./run/test-targeted T_PR_01..06` —
+**6/6 PASS**, prod firmware restored. Bonus: T_PR_05 (SKIP in the TASK-307
+run — rate limit never hit) this time caught a real fetch error (code −92,
+parse) live: `activeError.active=true` latched, app responsive, recovered to
+`active=false` on the next poll — the ADR-046 latch/clear path is now
+DUT-proven for PlaneRadar itself, not just by precedent. Residual: the
+edge-inset fix's pixel-level effect isn't serial-observable; geometry
+verified by review (max symbol reach x=234, rim-dot erase x=239 < strip
+x=240) — human eyeball of the disc's east edge with live traffic optional.
 
 ---
 
@@ -5867,10 +5875,9 @@ TASK-309's fixes (which land via these extractions where noted):
    (tag-rule/stale-style cycling) → `PR_NUM_PRESETS` + enum `Count`
    sentinels.
 
-**Priority:** P2 · **Status:** IMPLEMENTED — DUT verification pending
-(board disconnected at implementation time) · **Opened:** 2026-07-11 ·
-**Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:** TASK-309
-(land together or immediately after; #3 is its fix vehicle) ·
+**Priority:** P2 · **Status:** DONE · **Opened:** 2026-07-11 · **Closed:**
+2026-07-12 · **Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:**
+TASK-309 (land together or immediately after; #3 is its fix vehicle) ·
 **Branch:** master
 
 **Exit criteria:** `./run/check` green; T_PR suite green on DUT; production
@@ -5890,7 +5897,9 @@ verified). Reviewer notes: `resume()` no longer touches `_lastFetch` while
 `_injected` — verified equivalent (tick() skips polling while injected;
 `prClearInject` re-seeds it). Redundant double `_redrawGridStatics()` per
 range tap (via `_repaintDisc()`+`_render()`) accepted as harmless.
-`./run/check` 6/6 PASS. **Remaining to close:** T_PR suite on DUT.
+`./run/check` 6/6 PASS. **DUT verification 2026-07-12: T_PR_01..06 6/6
+PASS** (T_PR_03 range cycling and T_PR_04 reboot persistence exercise
+`_setPreset()`/`_applyRangeSetting()` directly).
 
 ---
 
@@ -5921,10 +5930,9 @@ Same audit, remaining findings — zero behaviour change:
    deliberately; runway overlay: centre-gated unclipped vs reference's
    per-segment clip — per frozen phase0 doc).
 
-**Priority:** P2 · **Status:** IMPLEMENTED — DUT verification pending
-(board disconnected at implementation time) · **Opened:** 2026-07-11 ·
-**Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:** TASK-310
-(same files, sequence after to avoid churn) · **Branch:** master
+**Priority:** P2 · **Status:** DONE · **Opened:** 2026-07-11 · **Closed:**
+2026-07-12 · **Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:**
+TASK-310 (same files, sequence after to avoid churn) · **Branch:** master
 
 **Exit criteria:** `./run/check` green; `cyd2usb_winamp` ELF ideally
 byte-identical for pure renames (acceptable: identical sizes + T_PR suite
@@ -5943,5 +5951,7 @@ refinement (not "reference parity"); deliberate-divergence notes added at
 `_project()` (cos-lat corrected), vector length (true 1-min ground distance
 at active zoom), `_drawRunways()` (centre-gated unclipped). Deliberately
 left: tag-nudge ladder, ICAO `ay−9` offset, strip row-height 14 (single
-site post-TASK-310). `./run/check` 6/6 PASS. **Remaining to close:** T_PR
-suite on DUT (shared run with TASK-309/310).
+site post-TASK-310). `./run/check` 6/6 PASS. **DUT verification 2026-07-12:
+T_PR_01..06 6/6 PASS** (shared run with TASK-309/310; T_PR_02/05 exercise
+the derived-`kPrFetchNm` fetch URL live — real fetch + real error both
+observed).
