@@ -79,6 +79,15 @@ static void applyDefaults() {
     // maxVolume. webRadioApp::wrEffectiveVolume() enforces the hardware ceiling.
     g_settings.webRadioMaxVolume     = 10;
     g_settings.webRadioLastStation   = 0;
+
+    // Plane Radar (matches planeRadarApp.h's PR_DEFAULT_LAT/LON)
+    g_settings.prLat            = 52.3676f;
+    g_settings.prLon            = 4.9041f;
+    g_settings.prUnits          = 0;
+    g_settings.prRunwayOverlay  = true;
+    g_settings.prRangeIdx       = 1;   // 10 km
+    g_settings.prTagRule        = PrTagRule::C;
+    g_settings.prStaleStyle     = PrStaleStyle::Ring;
 }
 
 // ---- Enum string tables (order must match enum values) --------------------
@@ -90,6 +99,8 @@ static const char* kStockModeStr[]   = {"list","chart","heatmap"};
 static const char* kMatrixColorStr[] = {"green","white","amber"};
 static const char* kLifeColorsStr[]  = {"rainbow","mono"};
 static const char* kClockStyleStr[]  = {"digital","flip","nixie","vfd"};
+static const char* kPrTagRuleStr[]   = {"a","b","c"};
+static const char* kPrStaleStyleStr[]= {"ring","text","dim"};
 
 template<typename E, int N>
 static E strToEnum(const char* s, const char* (&table)[N], E def) {
@@ -108,7 +119,7 @@ void SettingsStorage::load() {
     File f = SPIFFS.open(SETTINGS_JSON, "r");
     if (!f) return;
 
-    DynamicJsonDocument doc(2048);
+    DynamicJsonDocument doc(3072);
     if (deserializeJson(doc, f) != DeserializationError::Ok) {
         f.close();
         Serial.println("SettingsStorage: parse error — using defaults");
@@ -237,6 +248,21 @@ void SettingsStorage::load() {
         if (wr.containsKey("lastStation")) g_settings.webRadioLastStation = wr["lastStation"] | 0;
     }
 
+    // Plane Radar
+    if (doc.containsKey("planeRadar")) {
+        auto pr = doc["planeRadar"];
+        if (pr.containsKey("lat"))      g_settings.prLat           = pr["lat"]      | 52.3676f;
+        if (pr.containsKey("lon"))      g_settings.prLon           = pr["lon"]      | 4.9041f;
+        if (pr.containsKey("units"))    g_settings.prUnits         = pr["units"]    | 0;
+        if (pr.containsKey("runways"))  g_settings.prRunwayOverlay = pr["runways"]  | true;
+        if (pr.containsKey("rangeIdx")) g_settings.prRangeIdx      = pr["rangeIdx"] | 1;
+        if (pr.containsKey("tagRule"))
+            g_settings.prTagRule = strToEnum<PrTagRule>(pr["tagRule"] | "c", kPrTagRuleStr, PrTagRule::C);
+        if (pr.containsKey("staleStyle"))
+            g_settings.prStaleStyle = strToEnum<PrStaleStyle>(pr["staleStyle"] | "ring", kPrStaleStyleStr, PrStaleStyle::Ring);
+    }
+    if (g_settings.prRangeIdx > 3) g_settings.prRangeIdx = 1;   // corrupt/out-of-range guard
+
     // Migrate: ldrHigh==0 means uncalibrated (old save or user wiped it).
     if (g_settings.ldrHigh == 0)
         g_settings.ldrHigh = 120;
@@ -247,7 +273,7 @@ void SettingsStorage::load() {
 // ---- Save ------------------------------------------------------------------
 
 void SettingsStorage::save() {
-    DynamicJsonDocument doc(2048);
+    DynamicJsonDocument doc(3072);
 
     auto t = doc.createNestedObject("time");
     t["posixTz"] = g_settings.posixTz;
@@ -312,6 +338,15 @@ void SettingsStorage::save() {
     wr["hwMod"]       = g_settings.webRadioHwMod;
     wr["maxVolume"]   = g_settings.webRadioMaxVolume;
     wr["lastStation"] = g_settings.webRadioLastStation;
+
+    auto pr = doc.createNestedObject("planeRadar");
+    pr["lat"]        = g_settings.prLat;
+    pr["lon"]        = g_settings.prLon;
+    pr["units"]      = g_settings.prUnits;
+    pr["runways"]    = g_settings.prRunwayOverlay;
+    pr["rangeIdx"]   = g_settings.prRangeIdx;
+    pr["tagRule"]    = kPrTagRuleStr[(uint8_t)g_settings.prTagRule];
+    pr["staleStyle"] = kPrStaleStyleStr[(uint8_t)g_settings.prStaleStyle];
 
     File f = SPIFFS.open(SETTINGS_JSON, "w");
     if (!f) { Serial.println("SettingsStorage: failed to open for write"); return; }

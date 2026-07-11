@@ -1607,32 +1607,47 @@ features:
       Serial debug: get prAircraftCount/prLastHttp/prRange/prLastAction;
       set triggerPlaneRadarFetch/prRange/prInjectAircraft (TASK-276 synthetic-injection
       pattern, isolates from auto-refresh)/prClearInject.
-      Location (lat/lon) is a compile-time default (D4 v1 lean, PR_DEFAULT_LAT/LON) —
-      settingsStorage integration (units, runway toggle, range, tag-collision rule,
-      stale-indicator style persistence) is TASK-305, not yet implemented.
-      Runway overlay (Q4, density=all) has no data source yet — TASK-306 (airport-DB
-      bake, ADR-049 V-europe bbox) hasn't landed app/gen/; _drawRunways() is a
-      documented no-op until then (graceful-absent, not a bug).
+      Location (lat/lon) is a compile-time default (D4 v1 lean, g_settings.prLat/prLon,
+      run/spiffs push only, no numeric-entry UI) — persisted via settingsStorage
+      (TASK-305), along with units (km/mi), runway-overlay toggle, range preset
+      (survives reboot), tag-collision rule (a/b/c, default c), and stale-indicator
+      style (ring/text/dim, default ring — text/dim currently fall back to the
+      numeric-only display, no dimming-sweep visual is specified anywhere). Settings
+      > Applications > PlaneRadar exposes all five as cycling rows (settings/appsSection.h).
+      Runway overlay (Q4, density=all): TASK-306 baked app/gen/planeradar_airports.{c,h}
+      via run/bake-airports (ADR-049 V-europe bbox, large_airport class, pinned
+      OurAirports commit d5773e18) — 240 airports/355 runways, matching the phase-0
+      measurement exactly (EHAM 6 runways, EHRD 1). _drawRunways() renders real
+      centerlines + ICAO labels now, gated on the settings toggle.
     files:
       - app/src/planeRadarApp.h
       - app/src/appRegistry.h
       - app/src/dataTask.h
       - app/src/dataTaskStorage.cpp
       - app/src/dataTaskCerts.h
+      - app/src/settingsStorage.h
+      - app/src/settingsStorage.cpp
+      - app/src/settings/appsSection.h
       - app/src/main.cpp
       - app/gen/configurable_apps.h
       - app/gen/taskbar_icons.cpp
       - app/gen/taskbar_icons.h
+      - app/gen/planeradar_airports.c
+      - app/gen/planeradar_airports.h
       - app/icons/taskbar/planeradar.png
       - app/icons/taskbar/planeradar_active.png
       - app/tools/preview_planeradar.py
       - app/tools/pr_adsb_probe.py
+      - app/tools/bake_airports.py
       - app/tools/host/pr_parse_trial/main.cpp
+      - app/tools/host/pr_airport_bake_trial.py
       - run/check-datatask-certs
+      - run/bake-airports
       - docs/architecture/designs/M-PLANERADAR-plane-radar-app.md
       - docs/architecture/designs/M-PLANERADAR/phase0-api-probe.md
       - docs/architecture/designs/M-PLANERADAR/phase0-parse-heap.md
       - docs/architecture/designs/M-PLANERADAR/phase0-preview-ui.md
+      - docs/architecture/designs/M-PLANERADAR/phase0-airport-db.md
       - docs/architecture/decisions/ADR-048.md
       - docs/architecture/decisions/ADR-049.md
     cross_features:
@@ -1641,19 +1656,23 @@ features:
       - taskbar-icons-001
       - touch-004
       - tls-yield-001
+      - settings-001
     test_ids: []
     dependencies:
       - app-registry-001
       - data-task-001
       - taskbar-icons-001
+      - settings-001
     notes: |
-      TASK-303 (dataTask fetcher) + TASK-304 (render + registry) done 2026-07-11.
+      TASK-303 (dataTask fetcher), TASK-304 (render + registry), TASK-305
+      (settings integration), TASK-306 (airport-DB bake) all done 2026-07-11.
       TASK-301/302 (cert 2nd observation, taskbar icons) done — no longer blocking.
-      OPEN: TASK-305 (settings integration), TASK-306 (airport-DB bake adoption),
-      TASK-307 (DUT validation — parent doc exit criteria 1-6, live traffic +
+      OPEN: TASK-307 (DUT validation — parent doc exit criteria 1-6, live traffic +
       30-min Spotify-coexistence soak + taskbar full-cycle + dbgSet synthetic
-      render test). test_ids stays [] until TASK-307 files the VE suite — no DUT
-      verification has run yet, only ./run/check 6/6 (compiles + codegen clean).
+      render test) — BLOCKED this session, no CH340 device attached (run/port
+      fails). test_ids stays [] until TASK-307 files the VE suite — no DUT
+      verification has run yet, only ./run/check 6/6 (compiles + codegen clean,
+      including the airport-DB bake's own determinism check).
       hasPendingAsync()/tlsYield()-tlsResume()/dbgGet()-dbgSet()/cmdTap busy
       propagation/taskbar icon all wired per NEW-APP-CHECKLIST.md; cmdTap branch
       at main.cpp's PLANERADAR hit-string.

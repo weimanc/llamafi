@@ -100,6 +100,7 @@ private:
             case AppId::Clock:    _repaintClock();    break;
             case AppId::Teletext: _repaintTeletext(); break;
             case AppId::Spotify:  _repaintPlayer();   break;
+            case AppId::PlaneRadar: _repaintPlaneRadar(); break;
             default: break;
         }
     }
@@ -198,6 +199,7 @@ private:
             case AppId::Clock:    _cycleClock(row);    break;
             case AppId::Teletext: _cycleTeletext(row); break;
             case AppId::Spotify:  _cyclePlayer(row);   break;
+            case AppId::PlaneRadar: _cyclePlaneRadar(row); break;
             default: break;
         }
     }
@@ -306,6 +308,43 @@ private:
             for (int i = 0; i < 3; i++) if (kPoll[i] == cur) { next = (i+1)%3; break; }
             settings().teletextPollSecs = kPoll[next];
         } else { return; }
+        saveSettings(); repaint();
+    }
+
+    // M-PLANERADAR / TASK-305. Location (lat/lon) is compile-time-default-only
+    // for v1 (D4 — no numeric-entry UI); shown greyed-out/read-only, same
+    // posture as Teletext's Country row.
+    void _repaintPlaneRadar() {
+        int y = S_CONTENT_Y;
+        static const uint16_t kRangeKm[] = { 5, 10, 15, 25 };
+        char rbuf[8]; snprintf(rbuf, sizeof(rbuf), "%ukm", (unsigned)kRangeKm[settings().prRangeIdx % 4]);
+        drawRow(y, { "Range", rbuf, S_LABEL, S_VALUE }); y += S_ROW_H;
+
+        drawRow(y, { "Units", settings().prUnits ? "mi" : "km", S_LABEL, S_VALUE }); y += S_ROW_H;
+        drawRow(y, { "Runways", settings().prRunwayOverlay ? "on" : "off", S_LABEL, S_VALUE }); y += S_ROW_H;
+
+        static const char* kTagRule[]   = { "a", "b", "c (drop)" };
+        drawRow(y, { "Tag rule", kTagRule[(uint8_t)settings().prTagRule % 3], S_LABEL, S_VALUE }); y += S_ROW_H;
+
+        static const char* kStaleStyle[] = { "ring", "text", "dim" };
+        drawRow(y, { "Stale style", kStaleStyle[(uint8_t)settings().prStaleStyle % 3], S_LABEL, S_VALUE }); y += S_ROW_H;
+
+        char lbuf[24]; snprintf(lbuf, sizeof(lbuf), "%.3f,%.3f", settings().prLat, settings().prLon);
+        drawRow(y, { "Location", lbuf, S_LABEL, 0x7BEF });  // greyed-out (D4: run/spiffs push only)
+    }
+
+    void _cyclePlaneRadar(int row) {
+        if (row == 0) {
+            settings().prRangeIdx = (uint8_t)((settings().prRangeIdx + 1) % 4);
+        } else if (row == 1) {
+            settings().prUnits = settings().prUnits ? 0 : 1;
+        } else if (row == 2) {
+            settings().prRunwayOverlay = !settings().prRunwayOverlay;
+        } else if (row == 3) {
+            settings().prTagRule = (PrTagRule)(((uint8_t)settings().prTagRule + 1) % 3);
+        } else if (row == 4) {
+            settings().prStaleStyle = (PrStaleStyle)(((uint8_t)settings().prStaleStyle + 1) % 3);
+        } else return;   // row 5 (Location) is read-only — no-op, same as Teletext's Country
         saveSettings(); repaint();
     }
 

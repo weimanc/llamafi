@@ -5527,9 +5527,10 @@ default (±10/±20 px nudge ladder, drop tag keep symbol if all four
 candidates collide) — `_placeTag()`. Stale indicator: ring-3 colour shift
 + always-on strip age-text numeric fallback (Q5), 30 s threshold. Rim dots:
 disc-rim mode (Q3) for beyond-ring traffic. Runway overlay (Q4): `_drawRunways()`
-is a documented no-op — TASK-306's baked airport DB doesn't exist yet;
-graceful-absent rendering (nothing) is the ADR-049-correct behaviour, not a
-gap. Touch: tap disc (x<240) cycles the 5/10/15/25 km preset and re-enqueues
+was a documented no-op at this task's close — TASK-306's baked airport DB
+didn't exist yet; graceful-absent rendering (nothing) was the ADR-049-correct
+behaviour, not a gap. (Since wired to real data by TASK-306, same session.)
+Touch: tap disc (x<240) cycles the 5/10/15/25 km preset and re-enqueues
 a fetch; strip (x≥240) is display-only, matching phase0-preview-ui.md.
 `AppId::PlaneRadar` inserted into `appRegistry.h` **before** WebRadio (must
 stay last per `taskbar.h`'s static_assert); `gen_taskbar_icons.py`'s `APPS`
@@ -5541,11 +5542,10 @@ refresh done (only `taskbar_icons.{cpp,h}` hashes changed). NEW-APP-CHECKLIST:
 `prInjectAircraft` is the TASK-276-pattern synthetic-injection surface for
 VE render tests, isolates from auto-refresh), `cmdTap` busy propagation, all
 wired in `main.cpp`. `./run/check` 6/6 PASS. `feature_inventory.yaml` entry
-`planeradar-001` added. **Not done here** (explicitly out of scope, tracked
-separately): TASK-305 (settings persistence — location/units/toggles are
-compile-time defaults for v1 per D4), TASK-306 (runway data), TASK-307 (DUT
-validation — no hardware exercised this session, only host-side compile +
-codegen checks).
+`planeradar-001` added. **Not done here** (tracked separately, see TASK-305):
+settingsStorage persistence — at TASK-304 close, location/units/toggles were
+still compile-time-only; TASK-305 (same session) since wires them up.
+TASK-306 (runway data) and TASK-307 (DUT validation) remain open.
 
 ---
 
@@ -5561,9 +5561,32 @@ dimming sweep, were never screenshotted for comparison; render and eyeball
 before finalising the Settings UI copy/choices, see `phase0-preview-ui.md` Q5
 caveat).
 
-**Priority:** P2 · **Status:** OPEN · **Opened:** 2026-07-10 · **Milestone:**
-M-PLANERADAR · **Owner:** Developer · **Deps:** TASK-304 (app must exist to
-have settings) · **Branch:** master
+**Priority:** P2 · **Status:** DONE · **Opened:** 2026-07-10 · **Closed:**
+2026-07-11 · **Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:**
+TASK-304 (app must exist to have settings) · **Branch:** master
+
+**Resolution:** `AppSettings` gains `prLat`/`prLon` (D4 v1 default,
+`run/spiffs push`-only, greyed-out read-only Settings row — same posture as
+Teletext's Country row), `prUnits` (km/mi), `prRunwayOverlay` (bool),
+`prRangeIdx` (0..3, now the actual source of truth `PlaneRadarApp::init()`
+reads and every range-changing path — tap, `dbgSet prRange`— writes back to,
+closing exit criterion 2's "persists across reboot"), `PrTagRule` (a/b/c,
+default c) and `PrStaleStyle` (ring/text/dim, default ring) enums.
+`settingsStorage.cpp` load()/save() follow the existing string-table +
+`strToEnum` pattern; `DynamicJsonDocument` capacity bumped 2048→3072 in both
+functions for the new nested object. `settings/appsSection.h` gets a 6-row
+`PlaneRadar` case (Range/Units/Runways/Tag rule/Stale style cycle on tap,
+Location read-only) mirroring Teletext's `_repaint`/`_cycle` shape exactly.
+`planeRadarApp.h` updated to actually consume these instead of hardcoded
+constants: `_project()` centers on `g_settings.prLat/prLon`; strip range
+number+unit-suffix convert km→mi when `prUnits=1`; `_placeTag()` now
+implements rule (a) always-place/no-nudge, (b) nudge-then-place-anyaway, (c)
+nudge-then-drop (previously only (c) existed); stale ring-recolour is gated
+on `prStaleStyle==Ring` (Text/Dim documented as falling back to the
+numeric-only display until a dimming-sweep visual exists — no such visual is
+specified anywhere in phase0-preview-ui.md's Q5 caveat, so none was
+invented); runway-overlay call is now gated on the toggle (still a no-op
+either way pending TASK-306). `./run/check` 6/6 PASS.
 
 ---
 
@@ -5578,9 +5601,32 @@ explicitly deferred to this task since the trial bake emits no C file).
 Graceful-empty rendering outside the baked region (never garbage) is a
 correctness requirement, not optional polish.
 
-**Priority:** P2 · **Status:** OPEN · **Opened:** 2026-07-10 · **Milestone:**
-M-PLANERADAR · **Owner:** Developer · **Deps:** ADR-049 (accepted 2026-07-11) ·
-**Branch:** master
+**Priority:** P2 · **Status:** DONE · **Opened:** 2026-07-10 · **Closed:**
+2026-07-11 · **Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:**
+ADR-049 (accepted 2026-07-11) · **Branch:** master
+
+**Resolution:** `app/tools/bake_airports.py` (+ `run/bake-airports` wrapper)
+ports the trial's selection logic (`is_helipad`/`runway_ok`/`haversine_km`
+verbatim) with `--bbox`/`--center-radius-km`/`--classes` args, V-europe
+(lat 35..62, lon −11..30) + `large_airport` as the committed default. Pinned
+OurAirports commit `d5773e182feeb74dcb3a34969523beea259683c4` (resolved
+2026-07-11 from `main` per the adoption plan — refreshing it is a deliberate,
+reviewed bump, never re-resolved automatically). Emits
+`app/gen/planeradar_airports.{c,h}` (ICAO-sorted, no timestamps —
+`PrAirportRec`/`PrRunwayRec` as `typedef struct` per `skin_layout.h`'s
+`SkinUV` precedent, needed because the `.c` compiles as plain C, not C++, and
+a bare struct tag isn't a type name there — first bake attempt failed on
+exactly this). **Baked count: 240 airports / 355 runways — matches
+ADR-049/phase0-airport-db.md's measured V-europe numbers exactly**, including
+EHAM (6 runways) and EHRD (1 runway). Determinism (exit criterion 5):
+verified two consecutive bakes are byte-identical, both before and after the
+typedef fix; `golden.sha256` extended with the two new files. `_drawRunways()`
+in `planeRadarApp.h` (previously a documented no-op, TASK-304) now actually
+renders from this table — centerlines + ICAO label (y-9 offset) for every
+in-range airport (Q4 density=all), gated on `g_settings.prRunwayOverlay`.
+Outside the baked region the in-range loop simply finds nothing — the
+graceful-absent behaviour ADR-049 requires falls out of the loop structure,
+not a special-cased branch. `./run/check` 6/6 PASS.
 
 ---
 

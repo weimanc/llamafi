@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# run/bake-airports — bake the OurAirports runway DB for M-PLANERADAR (ADR-049)
+# Usage:
+#   ./run/bake-airports                          # V-europe default, pinned commit
+#   ./run/bake-airports --bbox 35,62,-11,30       # override bbox
+#   ./run/bake-airports --center-radius-km 52.3676,4.9041,500
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+
+echo "[bake-airports] baking OurAirports runway DB -> app/gen/"
+"$VENV_PY" "$PIO_DIR/tools/bake_airports.py" "$@"
+echo "[bake-airports] done — verify: cd app/gen && sha256sum -c golden.sha256"

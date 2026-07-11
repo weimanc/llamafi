@@ -10,7 +10,9 @@
 #include <math.h>
 #include "appShell.h"
 #include "dataTask.h"
+#include "settingsStorage.h"
 #include "logSink.h"
+#include "gen/planeradar_airports.h"
 
 extern TFT_eSPI tft;
 
@@ -32,8 +34,7 @@ static constexpr uint16_t PR_COL_STRIP_BG   = 0x0842;
 static constexpr uint16_t PR_COL_STRIP_TEXT = 0xA7F4;
 static constexpr uint16_t PR_COL_STALE      = 0xFDA0;
 static constexpr uint16_t PR_COL_ERROR      = 0xFA08;
-// PR_COL_RUNWAY (0x0514) is unused until TASK-306 bakes the airport DB — the
-// runway overlay is a documented, disclosed scope cut (see _drawRunways()).
+static constexpr uint16_t PR_COL_RUNWAY = 0x0514;
 
 static constexpr float    PR_KM_PER_NM    = 1.852f;
 static constexpr uint8_t  PR_NUM_PRESETS  = 4;
@@ -44,10 +45,10 @@ static constexpr uint16_t kPrPresetKm[PR_NUM_PRESETS] = {5, 10, 15, 25};
 // right at the ring edge.
 static constexpr float kPrFetchNm[PR_NUM_PRESETS] = {4.0f, 7.9f, 11.9f, 19.9f};
 
-// D4 (v1): compile-time default location — settingsStorage integration is
-// TASK-305's job. Matches the reference project's kDefaultRadarLat/Lon.
-static constexpr float PR_DEFAULT_LAT = 52.3676f;
-static constexpr float PR_DEFAULT_LON = 4.9041f;
+// D4 (v1): location (g_settings.prLat/prLon) is a compile-time default with
+// no numeric-entry UI — settingsStorage.cpp's applyDefaults() owns the actual
+// default value (matches the reference project's kDefaultRadarLat/Lon);
+// edited only via `run/spiffs push` (TASK-305).
 
 static constexpr uint32_t PR_POLL_MS = 10000;  // D2 cadence, foreground-only
 static constexpr uint32_t PR_STALE_S = 30;      // Q5 stale threshold
@@ -73,7 +74,7 @@ struct PrRendered {
 class PlaneRadarApp : public App {
 public:
     void init() override {
-        _presetIdx     = 1;   // 10 km default (matches preview tool default)
+        _presetIdx     = (g_settings.prRangeIdx < PR_NUM_PRESETS) ? g_settings.prRangeIdx : 1;
         _pendingFetch  = false;
         _everHadResult = false;
         _prErr         = false;
@@ -92,7 +93,7 @@ public:
         _prevCount = 0;   // fresh grid paint — nothing on-screen to erase yet
         _lastFetch = _forceNow();
         if (!_injected) {
-            dataTask::enqueuePlaneRadar(PR_DEFAULT_LAT, PR_DEFAULT_LON, kPrFetchNm[_presetIdx]);
+            dataTask::enqueuePlaneRadar(g_settings.prLat, g_settings.prLon, kPrFetchNm[_presetIdx]);
             _pendingFetch = true;
         }
     }
@@ -109,7 +110,7 @@ public:
         unsigned long now = millis();
 
         if (!_injected && !_pendingFetch && (now - _lastFetch >= PR_POLL_MS)) {
-            dataTask::enqueuePlaneRadar(PR_DEFAULT_LAT, PR_DEFAULT_LON, kPrFetchNm[_presetIdx]);
+            dataTask::enqueuePlaneRadar(g_settings.prLat, g_settings.prLon, kPrFetchNm[_presetIdx]);
             _lastFetch    = now;
             _pendingFetch = true;
         }
@@ -147,10 +148,12 @@ public:
             return false;   // strip is display-only (phase0-preview-ui.md)
         }
         _presetIdx = (uint8_t)((_presetIdx + 1) % PR_NUM_PRESETS);
+        g_settings.prRangeIdx = _presetIdx;   // persists across reboot (exit criterion 2)
+        SettingsStorage::save();
         strlcpy(_lastAction, "DISC_RANGE", sizeof(_lastAction));
         _updateStripDynamic(true);
         if (!_injected) {
-            dataTask::enqueuePlaneRadar(PR_DEFAULT_LAT, PR_DEFAULT_LON, kPrFetchNm[_presetIdx]);
+            dataTask::enqueuePlaneRadar(g_settings.prLat, g_settings.prLon, kPrFetchNm[_presetIdx]);
             _lastFetch    = millis();
             _pendingFetch = true;
         }
@@ -189,7 +192,13 @@ public:
         if (strcmp(var, "prRange") == 0) {
             int km = atoi(val);
             for (uint8_t i = 0; i < PR_NUM_PRESETS; i++)
-                if (kPrPresetKm[i] == km) { _presetIdx = i; _updateStripDynamic(true); break; }
+                if (kPrPresetKm[i] == km) {
+                    _presetIdx = i;
+                    g_settings.prRangeIdx = i;
+                    SettingsStorage::save();
+                    _updateStripDynamic(true);
+                    break;
+                }
             return true;
         }
         if (strcmp(var, "prClearInject") == 0 && strcmp(val, "1") == 0) {
@@ -264,8 +273,8 @@ private:
     // Equirectangular lat/lon → disc px (north = up). Matches
     // preview_planeradar.py's Radar.project() exactly.
     void _project(float lat, float lon, int16_t* px, int16_t* py) const {
-        float dxKm = (lon - PR_DEFAULT_LON) * 111.320f * cosf(PR_DEFAULT_LAT * (float)M_PI / 180.0f);
-        float dyKm = (lat - PR_DEFAULT_LAT) * 110.574f;
+        float dxKm = (lon - g_settings.prLon) * 111.320f * cosf(g_settings.prLat * (float)M_PI / 180.0f);
+        float dyKm = (lat - g_settings.prLat) * 110.574f;
         float s    = (float)PR_R / _outerKm();
         *px = (int16_t)lroundf(PR_CX + dxKm * s);
         *py = (int16_t)lroundf(PR_CY - dyKm * s);
@@ -281,18 +290,17 @@ private:
         tft.drawFastVLine(PR_CX, PR_CY - PR_R, PR_R * 2, PR_COL_RING);
         tft.fillRect(PR_CX - 1, PR_CY - 1, 3, 3, PR_COL_BEZEL);
 
-        // Runway overlay (Q4, density=all default) would draw here, sourced
-        // from TASK-306's baked airport DB (ADR-049, app/gen/). That table
-        // doesn't exist yet — no-op is the correct, graceful-absent behaviour
-        // ADR-049 requires outside/before the baked region, not a gap to fill
-        // now. See _drawRunways().
-        _drawRunways();
+        // Runway overlay (Q4, density=all — every in-range airport labeled).
+        if (g_settings.prRunwayOverlay) _drawRunways();
 
         tft.fillRect(PR_STRIP_X, 0, PR_STRIP_W, 240, PR_COL_STRIP_BG);
         tft.drawFastVLine(PR_STRIP_X, 0, 240, PR_COL_RING);
         tft.setTextDatum(MC_DATUM);
         tft.setTextColor(PR_COL_STRIP_TEXT, PR_COL_STRIP_BG);
-        tft.drawString("km", PR_STRIP_LABEL_X, 22, 1);   // static suffix — never redrawn
+        // Unit suffix: fixed for the duration of this resume() (settings changes
+        // apply from the next resume — the app is necessarily suspended while
+        // the user is in the Settings app to change it).
+        tft.drawString(g_settings.prUnits ? "mi" : "km", PR_STRIP_LABEL_X, 22, 1);
         tft.setTextColor(PR_COL_BEZEL, PR_COL_STRIP_BG);
         tft.drawString("N^", PR_STRIP_LABEL_X, 120, 1);  // static bezel marker
         tft.setTextDatum(TL_DATUM);
@@ -300,10 +308,34 @@ private:
         _updateStripDynamic(true);
     }
 
-    // TASK-306 supplies the baked airport/runway table (ADR-049); until then
-    // this is a deliberate, disclosed no-op — rendering nothing is the correct
-    // "graceful absent" behaviour the ADR requires, not a placeholder bug.
-    void _drawRunways() {}
+    // Q4 (density=all): centerlines + ICAO label for every in-range airport
+    // from the ADR-049 V-europe baked DB (app/gen/planeradar_airports.{c,h},
+    // TASK-306). Static — drawn once alongside the rest of the grid in
+    // resume(); airports don't move, only the projection centre could (a
+    // settings location change, which forces a fresh resume() anyway).
+    // Outside the baked region this loop simply finds nothing in range —
+    // graceful-absent per ADR-049, not a special case to handle.
+    void _drawRunways() {
+        tft.setTextDatum(MC_DATUM);
+        for (uint16_t i = 0; i < PR_AIRPORT_COUNT; i++) {
+            const PrAirportRec& ap = kPrAirports[i];
+            int16_t ax, ay;
+            _project(ap.lat, ap.lon, &ax, &ay);
+            int16_t dx = (int16_t)(ax - PR_CX), dy = (int16_t)(ay - PR_CY);
+            if (sqrtf((float)dx * dx + (float)dy * dy) > PR_R) continue;
+            for (uint16_t r = 0; r < ap.rwCount; r++) {
+                const PrRunwayRec& rw = kPrRunways[ap.rwOffset + r];
+                int16_t lx, ly, hx, hy;
+                _project(rw.leLat, rw.leLon, &lx, &ly);
+                _project(rw.heLat, rw.heLon, &hx, &hy);
+                tft.drawLine(lx, ly, hx, hy, PR_COL_RUNWAY);
+            }
+            char icao[5]; strlcpy(icao, ap.icao, sizeof(icao));
+            tft.setTextColor(PR_COL_RUNWAY, PR_COL_FIELD);
+            tft.drawString(icao, ax, (int16_t)(ay - 9), 1);
+        }
+        tft.setTextDatum(TL_DATUM);
+    }
 
     // Repaints the strip's dynamic fields. includeRangeAndCount also refreshes
     // the range digits + aircraft count (poll result or preset change);
@@ -312,8 +344,11 @@ private:
         tft.setTextDatum(MC_DATUM);
         if (includeRangeAndCount) {
             tft.setTextColor(PR_COL_STRIP_TEXT, PR_COL_STRIP_BG);
-            char km[4]; snprintf(km, sizeof(km), "%u", (unsigned)kPrPresetKm[_presetIdx]);
-            tft.drawString(km, PR_STRIP_LABEL_X, 12, 1);
+            unsigned rangeVal = g_settings.prUnits
+                ? (unsigned)lroundf(kPrPresetKm[_presetIdx] * 0.621371f)
+                : (unsigned)kPrPresetKm[_presetIdx];
+            char rbuf[4]; snprintf(rbuf, sizeof(rbuf), "%u", rangeVal);
+            tft.drawString(rbuf, PR_STRIP_LABEL_X, 12, 1);
             tft.setTextColor(PR_COL_TAG, PR_COL_STRIP_BG);
             char ac[8]; snprintf(ac, sizeof(ac), "%uac", (unsigned)_result.count);
             tft.drawString(ac, PR_STRIP_LABEL_X, 50, 1);
@@ -324,9 +359,13 @@ private:
         tft.setTextColor(stale ? PR_COL_STALE : PR_COL_TAG, PR_COL_STRIP_BG);
         char age[8]; snprintf(age, sizeof(age), "%lds", ageS);
         tft.drawString(age, PR_STRIP_LABEL_X, 200, 1);
-        // Q5: ring-colour shift (default) alongside the always-shown strip
-        // age-text numeric fallback — ring 3 (the range ring) is the shifted one.
-        tft.drawCircle(PR_CX, PR_CY, PR_R * 3 / 4, stale ? PR_COL_STALE : PR_COL_RING_HI);
+        // Q5: ring-colour shift is the strip age-text's ADDITION, not a
+        // replacement — the numeric fallback above is always shown regardless
+        // of style (per the frozen doc). Text/Dim (never prototyped, Q5
+        // caveat) skip the ring recolour and fall back to the same numeric-only
+        // behaviour until a dimming-sweep visual is designed and eyeballed.
+        bool ringShift = stale && (g_settings.prStaleStyle == PrStaleStyle::Ring);
+        tft.drawCircle(PR_CX, PR_CY, PR_R * 3 / 4, ringShift ? PR_COL_STALE : PR_COL_RING_HI);
 
         tft.fillRect(PR_STRIP_X + 1, 213, PR_STRIP_W - 2, 14, PR_COL_STRIP_BG);  // clear error slot
         if (_prErr) {
@@ -458,15 +497,23 @@ private:
             return false;
         };
 
+        // Q2 (settings-configurable, default C): (a) reference — always place,
+        // never nudge/drop. (b) + nudge, place at the un-nudged position if all
+        // four candidates still collide (never drops). (c) same nudge ladder,
+        // DROP the tag (keep the symbol) if all four still collide.
         int16_t bestY = ty;
-        bool placed = !overlaps(tx, ty);
-        if (!placed) {
-            static const int16_t kNudges[4] = {10, -10, 20, -20};
-            for (int16_t n : kNudges) {
-                if (!overlaps(tx, (int16_t)(ty + n))) { bestY = (int16_t)(ty + n); placed = true; break; }
+        bool placed = true;
+        if (g_settings.prTagRule != PrTagRule::A) {
+            placed = !overlaps(tx, ty);
+            if (!placed) {
+                static const int16_t kNudges[4] = {10, -10, 20, -20};
+                for (int16_t n : kNudges) {
+                    if (!overlaps(tx, (int16_t)(ty + n))) { bestY = (int16_t)(ty + n); placed = true; break; }
+                }
+                if (!placed && g_settings.prTagRule == PrTagRule::B) placed = true;  // (b): place anyway, un-nudged
             }
         }
-        if (!placed) return;   // rule (c): drop tag, keep symbol
+        if (!placed) return;   // (c): drop tag, keep symbol
 
         rd.hasTag = true;
         rd.tagX = tx; rd.tagY = bestY; rd.tagW = w; rd.tagH = h;

@@ -19,6 +19,19 @@ enum class MatrixColor   : uint8_t { Green = 0, White = 1, Amber = 2 };
 enum class LifeColors    : uint8_t { Rainbow = 0, Mono = 1 };
 enum class ClockStyle    : uint8_t { Digital = 0, Flip = 1, Nixie = 2, VFD = 3 };
 enum class PlayerMode    : uint8_t { Spotify = 0, WebRadio = 1 };   // M-PLAYER-STATE / TASK-260
+// M-PLANERADAR / phase0-preview-ui.md Q2: tag-collision rule. (a) reference —
+// always place at the centre-side position, never nudge/drop. (b) + vertical
+// nudge (±10/±20px), place at the un-nudged position if all four still
+// overlap (never drops). (c) default — same nudge ladder, DROP the tag (keep
+// the symbol) if all four still overlap.
+enum class PrTagRule     : uint8_t { A = 0, B = 1, C = 2 };
+// M-PLANERADAR / phase0-preview-ui.md Q5: stale-data indicator style. Ring =
+// default, ring-3 colour shift + the always-shown strip age-text fallback.
+// Text/Dim are named per the design doc's candidate list but were never
+// prototyped in the preview tool (Q5 caveat) — both currently render
+// identically to the strip age-text fallback alone (no ring shift) until a
+// dimming-sweep visual is designed and eyeballed.
+enum class PrStaleStyle  : uint8_t { Ring = 0, Text = 1, Dim = 2 };
 
 // ---- Settings struct -------------------------------------------------------
 
@@ -88,6 +101,17 @@ struct AppSettings {
     bool    webRadioHwMod;        // SC8002B gain-reduction mod installed (M-WEBRADIO §HW Mod). Gates the anti-clipping ceiling: enforced by webRadioApp::wrEffectiveVolume() (TASK-209) — false → soft-cap 12, true → full 1–21
     uint8_t webRadioMaxVolume;    // 1–21 configured ceiling → setVolume(), clamped by wrEffectiveVolume() (TASK-209: stock soft-cap 12 / mod full range). Default 10 stock / 18 with HW mod. Exact stock clip point still needs DUT+ears calibration (T_WR_VOL_01/02)
     uint8_t webRadioLastStation;  // persisted last station index (default 0)
+
+    // --- Plane Radar (M-PLANERADAR, ADR-048/049, TASK-305) ---
+    // lat/lon: D4 (v1) — compile-time default, edited via `run/spiffs push`;
+    // no numeric-entry UI (shown greyed-out/read-only in Settings, like
+    // Teletext's Country row).
+    float        prLat, prLon;
+    uint8_t      prUnits;         // 0 = km, 1 = mi
+    bool         prRunwayOverlay; // show runway overlay when on (density=all, Q4)
+    uint8_t      prRangeIdx;      // 0..3 -> 5/10/15/25 km preset, persists across reboot
+    PrTagRule    prTagRule;       // Q2, default C
+    PrStaleStyle prStaleStyle;    // Q5, default Ring
 };
 
 extern AppSettings g_settings;
