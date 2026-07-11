@@ -990,18 +990,21 @@ UI PoC, and airport-DB trial bake settle the API risk and the parse-heap term
 of the heap risk off-DUT before firmware starts (TLS-coexistence soak stays
 DUT-side).
 
-**Status:** phase 0 complete except one open item — Architect 2026-07-10;
-feasibility assessed as good fit, CYD + existing ESP32 remain base hardware,
-no new hardware. Two decisions crystallised into ADR-048 (parse lean) and
-ADR-049 (airport-DB variant), both **accepted 2026-07-11**. PM breakdown
-filed 2026-07-10: 7 tasks (TASK-301..307) — see tasks.md.
+**Status:** firmware core landed 2026-07-11 — TASK-303 (dataTask ADS-B
+fetcher, ADR-048 chunked parse) and TASK-304 (PlaneRadarApp render + taskbar
+registration) both DONE, `./run/check` 6/6 PASS. TASK-301/302 (2nd cert
+observation, taskbar icons) done, no longer blocking. Remaining before ship:
+TASK-305 (Settings integration), TASK-306 (airport-DB bake adoption — runway
+overlay has no data yet), TASK-307 (DUT validation — no hardware exercised
+yet, host-side compile/codegen only).
 **Deps:** M-MULTIAPP (done), M-APP-REGISTRY (done), dataTask (done), ADR-029,
 ADR-048 (accepted), ADR-049 (accepted).
 **Design:** [M-PLANERADAR-plane-radar-app.md](../architecture/designs/M-PLANERADAR-plane-radar-app.md)
-**Tracked-as:** TASK-301 (2nd cert observation, open, non-blocking) ·
-TASK-302 (taskbar icon assets, blocks TASK-304) · TASK-303 (dataTask fetcher) ·
-TASK-304 (app render + registration) · TASK-305 (Settings integration) ·
-TASK-306 (airport-DB bake adoption) · TASK-307 (DUT validation, gates ship)
+**Tracked-as:** TASK-301 (2nd cert observation, done) ·
+TASK-302 (taskbar icon assets, done) · TASK-303 (dataTask fetcher, done) ·
+TASK-304 (app render + registration, done) · TASK-305 (Settings integration,
+open) · TASK-306 (airport-DB bake adoption, open) · TASK-307 (DUT
+validation, open — gates ship)
 
 ---
 

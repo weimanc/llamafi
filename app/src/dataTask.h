@@ -17,6 +17,7 @@ enum FetchType : uint8_t {
     DATA_FETCH_STOCK_CHART_BY_SYM = 5,
     DATA_FETCH_TELETEXT_PAGE    = 6,
     DATA_FETCH_WEBRADIO_STATIONS = 7,
+    DATA_FETCH_PLANERADAR       = 8,
 };
 
 struct WeatherResult {
@@ -119,6 +120,34 @@ struct TeletextState {
     int      lastHttpCode       = 0;    // last http.GET() return value
 };
 
+// PrAircraft / PlaneRadarResult — ADR-048 D1(b') chunked per-object filtered
+// parse. Fixed-size record transcribed verbatim from the phase-0 host trial
+// (app/tools/host/pr_parse_trial/main.cpp legC) — see ADR-048 for the measured
+// heap rationale (~4 KB fixed parse doc, independent of aircraft count).
+struct PrAircraft {
+    float   lat = 0.0f, lon = 0.0f;
+    float   distNm  = 0.0f;    // server 'dst' (NM) — truncation sort key
+    int16_t noseDeg = 0, trackDeg = 0;  // whole-degree (ADR-048 Q6: sub-degree not needed)
+    int16_t gsKnots = 0;
+    int32_t altFt   = 0;       // INT32_MIN = "GND", INT32_MAX = unknown
+    char    callsign[9] = {};  // flight, falls back to hex
+    char    type[5]     = {};
+};
+static constexpr uint8_t PR_MAX_AIRCRAFT = 24;
+
+// Written by fetchPlaneRadar(), read by PlaneRadarApp::tick() via pollPlaneRadar().
+// errorCode: 0 = ok; positive = raw HTTP status (e.g. 429) or a negative
+// HTTPClient library code; negative internal codes below -90 are this
+// fetcher's own (see dataTaskStorage.cpp fetchPlaneRadar() for the exact list —
+// -100 http.begin failed, -90-err.code() JSON parse error on one aircraft
+// object, -111..-115 stream-scan failures specific to the chunked parse).
+struct PlaneRadarResult {
+    bool       ok        = false;
+    int        errorCode = 0;
+    uint8_t    count     = 0;
+    PrAircraft aircraft[PR_MAX_AIRCRAFT];
+};
+
 // Spawn the FreeRTOS task. Call once in setup(), after WiFi is connected.
 void begin();
 
@@ -144,6 +173,11 @@ void enqueueTeletextPage(uint16_t page, uint8_t sub = 0);
 // design prefers ≤ 96 kbps streams for stall tolerance on the small ring buffer.
 void enqueueWebRadioStations(const char* countryCode, uint8_t bitrateCap);
 
+// Post an ADS-B fetch request for the given center + radius (NM). Non-blocking
+// (drops if queue full). lat/lon/distNm are snapshotted into a config slot
+// under spinlock, same pattern as enqueueWebRadioStations()'s country snapshot.
+void enqueuePlaneRadar(float lat, float lon, float distNm);
+
 // TASK-289: abandon an in-flight (or queued) station fetch — called by
 // WebRadioApp::_play() when playback starts while the fetch is still pending.
 // Playback's arena/decoder allocations would starve the fetch's TLS handshake
@@ -164,6 +198,7 @@ bool pollTeletext(TeletextState *out);
 int  lastTeletextHttpCode(); // last HTTP response code from teletekst-data.nos.nl
 
 bool pollWebRadioStations(WebRadioStationsResult *out);
+bool pollPlaneRadar(PlaneRadarResult *out);
 
 void configureStockTickers(const char tickers[8][8]);
 void configureCrypto(const char ids[6][16], const char* ccy);

@@ -1584,3 +1584,76 @@ features:
       DUT T219/T220; file a Stock->Crypto round-trip test (results distinct, no cross-corruption)
       once TASK-243 clears. test_ids stays [] until then. Developer: review/refine this row — it was
       authored by PM/QM to close the audit gap.
+
+  - id: planeradar-001
+    name: ADS-B plane radar
+    milestone: M-PLANERADAR
+    status: partial
+    description: |
+      11th app in appRegistry.h (AppId::PlaneRadar, configurable=1, inserted before
+      WebRadio to keep WebRadio last per taskbar.h's static_assert). Fetches live
+      traffic from opendata.adsb.fi/api/v3 via dataTask (DATA_FETCH_PLANERADAR),
+      ADR-048's chunked per-object filtered stream parse (~4 KB fixed parse-heap peak,
+      PR_MAX_AIRCRAFT=24 nearest-first truncation on server 'dst'). Renders a
+      240x240 disc (centre 120,120 r=118) + 35 px side strip (range/count/stale-age/
+      error) in the 275x240 app canvas, per phase0-preview-ui.md's frozen layout —
+      rings+crosshair+bezel dot painted once on resume(), aircraft symbols/vectors/
+      tags erase-redrawn per 10 s poll. Tag placement rule (c) drop-on-fail default
+      (Q2); stale indicator = ring-colour shift + always-on strip age-text (Q5);
+      rim dots for beyond-ring traffic (Q3, disc-rim mode). Touch: tap disc cycles
+      the 5/10/15/25 km range preset and re-enqueues a fetch.
+      Root CA: GTS Root R4 only (PLANERADAR_ROOT_CA in dataTaskCerts.h, ADR-048
+      sibling OQ1 decision — two independent-day chain observations, no bundle needed).
+      Serial debug: get prAircraftCount/prLastHttp/prRange/prLastAction;
+      set triggerPlaneRadarFetch/prRange/prInjectAircraft (TASK-276 synthetic-injection
+      pattern, isolates from auto-refresh)/prClearInject.
+      Location (lat/lon) is a compile-time default (D4 v1 lean, PR_DEFAULT_LAT/LON) —
+      settingsStorage integration (units, runway toggle, range, tag-collision rule,
+      stale-indicator style persistence) is TASK-305, not yet implemented.
+      Runway overlay (Q4, density=all) has no data source yet — TASK-306 (airport-DB
+      bake, ADR-049 V-europe bbox) hasn't landed app/gen/; _drawRunways() is a
+      documented no-op until then (graceful-absent, not a bug).
+    files:
+      - app/src/planeRadarApp.h
+      - app/src/appRegistry.h
+      - app/src/dataTask.h
+      - app/src/dataTaskStorage.cpp
+      - app/src/dataTaskCerts.h
+      - app/src/main.cpp
+      - app/gen/configurable_apps.h
+      - app/gen/taskbar_icons.cpp
+      - app/gen/taskbar_icons.h
+      - app/icons/taskbar/planeradar.png
+      - app/icons/taskbar/planeradar_active.png
+      - app/tools/preview_planeradar.py
+      - app/tools/pr_adsb_probe.py
+      - app/tools/host/pr_parse_trial/main.cpp
+      - run/check-datatask-certs
+      - docs/architecture/designs/M-PLANERADAR-plane-radar-app.md
+      - docs/architecture/designs/M-PLANERADAR/phase0-api-probe.md
+      - docs/architecture/designs/M-PLANERADAR/phase0-parse-heap.md
+      - docs/architecture/designs/M-PLANERADAR/phase0-preview-ui.md
+      - docs/architecture/decisions/ADR-048.md
+      - docs/architecture/decisions/ADR-049.md
+    cross_features:
+      - app-registry-001
+      - data-task-001
+      - taskbar-icons-001
+      - touch-004
+      - tls-yield-001
+    test_ids: []
+    dependencies:
+      - app-registry-001
+      - data-task-001
+      - taskbar-icons-001
+    notes: |
+      TASK-303 (dataTask fetcher) + TASK-304 (render + registry) done 2026-07-11.
+      TASK-301/302 (cert 2nd observation, taskbar icons) done — no longer blocking.
+      OPEN: TASK-305 (settings integration), TASK-306 (airport-DB bake adoption),
+      TASK-307 (DUT validation — parent doc exit criteria 1-6, live traffic +
+      30-min Spotify-coexistence soak + taskbar full-cycle + dbgSet synthetic
+      render test). test_ids stays [] until TASK-307 files the VE suite — no DUT
+      verification has run yet, only ./run/check 6/6 (compiles + codegen clean).
+      hasPendingAsync()/tlsYield()-tlsResume()/dbgGet()-dbgSet()/cmdTap busy
+      propagation/taskbar icon all wired per NEW-APP-CHECKLIST.md; cmdTap branch
+      at main.cpp's PLANERADAR hit-string.

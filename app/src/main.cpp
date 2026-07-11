@@ -1757,6 +1757,11 @@ static TeletextApp g_TeletextApp;
 static bool teletextDbgGet(const char* v, char* b, int l) { return g_TeletextApp.dbgGet(v, b, l); }
 static bool teletextDbgSet(const char* v, const char* val) { return g_TeletextApp.dbgSet(v, val); }
 
+#include "planeRadarApp.h"
+static PlaneRadarApp g_PlaneRadarApp;
+static bool planeRadarDbgGet(const char* v, char* b, int l) { return g_PlaneRadarApp.dbgGet(v, b, l); }
+static bool planeRadarDbgSet(const char* v, const char* val) { return g_PlaneRadarApp.dbgSet(v, val); }
+
 #ifdef WINAMP_DISPLAY
 #include "webRadioApp.h"
 static WebRadioApp g_WebRadioApp;
@@ -2613,6 +2618,14 @@ static void cmdTap(const char *args) {
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                     "\"hit\":\"TELETEXT\",\"action\":\"%s\",\"skipped\":false}\n",
                     x, y, consumed ? "CONSUMED" : "NONE");
+    } else if (currentAppId == AppId::PlaneRadar && g_apps[(int)AppId::PlaneRadar]) {
+      g_apps[(int)AppId::PlaneRadar]->handleInput(TouchPhase::Press, x, y);
+      bool consumed = g_apps[(int)AppId::PlaneRadar]->handleInput(TouchPhase::Release, x, y);
+      if (!g_shellBusy && g_apps[(int)AppId::PlaneRadar]->hasPendingAsync())
+        shell::setBusy(true);
+      Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                    "\"hit\":\"PLANERADAR\",\"action\":\"%s\",\"skipped\":false}\n",
+                    x, y, consumed ? "CONSUMED" : "NONE");
     } else if (currentAppId == AppId::WebRadio && g_apps[(int)AppId::WebRadio]) {
       // WebRadio: injectTouch populates lastTouchResult for the response;
       // WebRadioApp::handleInput executes the action (eject/transport/PLEDIT).
@@ -3027,6 +3040,10 @@ static void cmdGet(const char *args) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
     return;
   }
+  if (planeRadarDbgGet(args, buf, sizeof(buf))) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
+    return;
+  }
 #ifdef WINAMP_DISPLAY
   if (webRadioDbgGet(args, buf, sizeof(buf))) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
@@ -3118,6 +3135,11 @@ static void cmdSet(const char *args) {
     return;
   }
   if (teletextDbgSet(var, val)) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\","
+                  "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
+    return;
+  }
+  if (planeRadarDbgSet(var, val)) {
     Serial.printf("{\"ok\":true,\"cmd\":\"set\","
                   "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
     return;

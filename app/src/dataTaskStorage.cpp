@@ -18,6 +18,8 @@
 #include <freertos/task.h>
 #include <esp_heap_caps.h>
 #include <climits>
+#include <cmath>
+#include <initializer_list>
 #include "gen/mem_layout.h"
 
 namespace dataTask {
@@ -666,6 +668,19 @@ static char                   s_pendingCountry[4]   = "NL";
 static uint8_t                s_pendingBitrateCap   = 0;   // TASK-221: bitrateMax kbps (0=off)
 static portMUX_TYPE           s_pendingCountryMux   = portMUX_INITIALIZER_UNLOCKED;
 
+// --- planeradar state ---------------------------------------------------------
+
+static portMUX_TYPE      s_planeRadarMux    = portMUX_INITIALIZER_UNLOCKED;
+static PlaneRadarResult  s_planeRadarResult;
+static bool              s_planeRadarNew    = false;
+
+// Request params snapshotted by enqueuePlaneRadar() (caller's task), read back
+// by fetchPlaneRadar() (dataTask) — same pattern as s_pendingCountry above.
+static float             s_pendingPrLat     = 52.3676f;  // reference default (Amsterdam area)
+static float             s_pendingPrLon     = 4.9041f;
+static float             s_pendingPrDistNm  = 8.0f;      // ~10 km default preset
+static portMUX_TYPE      s_pendingPrMux     = portMUX_INITIALIZER_UNLOCKED;
+
 // WebRadio station-page parse-buffer capacity. WR_MAX_STATIONS (30) stations ×
 // ~115 B filtered JSON ≈ 3.45 kB; 5120 gives headroom. Shrunk from 14336 (sized
 // for 100 stations) when the array caps were reconciled to limit=30 (TASK-224).
@@ -935,6 +950,202 @@ static unsigned appendHttpStations(JsonDocument& doc) {
     return seen;
 }
 
+// --- planeradar fetch ---------------------------------------------------------
+
+static const char PLANERADAR_URL_BASE[] = "https://opendata.adsb.fi/api/v3/lat/";
+
+// One-char-pushback wrapper over an Arduino Stream: legC's scanner (below)
+// consumes the '{' that opens each aircraft object while hunting for the next
+// one, so it must be handed back to deserializeJson() along with the rest of
+// the stream. Mirrors PrependReader in
+// app/tools/host/pr_parse_trial/main.cpp exactly (ADR-048 transcription target),
+// just over Arduino's Stream interface instead of the host trial's byte-buffer shim.
+class PrStreamPrepend {
+public:
+    PrStreamPrepend(char c, Stream& s) : _c(c), _s(s) {}
+    int read() {
+        if (_has) { _has = false; return (unsigned char)_c; }
+        return _s.read();
+    }
+    size_t readBytes(char* buf, size_t n) {
+        size_t off = 0;
+        if (_has && n > 0) { buf[0] = _c; _has = false; off = 1; }
+        if (off >= n) return off;
+        return off + _s.readBytes(buf + off, n - off);
+    }
+private:
+    char    _c;
+    bool    _has = true;
+    Stream& _s;
+};
+
+// pickF/copyTrimmed/fillRecord/insertNearest below are a direct transcription of
+// app/tools/host/pr_parse_trial/main.cpp's legC helpers (ADR-048) — the phase-0
+// trial IS the design spec for this fetcher; do not re-derive the fallback
+// chains or truncation policy independently of that file.
+static float prPickF(JsonObjectConst o, std::initializer_list<const char*> keys, float dflt) {
+    for (const char* k : keys) {
+        JsonVariantConst v = o[k];
+        if (v.is<float>() || v.is<int>()) return v.as<float>();
+    }
+    return dflt;
+}
+
+static void prCopyTrimmed(JsonObjectConst o, const char* key, char* out, size_t cap) {
+    out[0] = '\0';
+    const char* s = o[key].as<const char*>();
+    if (!s) return;
+    size_t n = strnlen(s, cap - 1);
+    while (n > 0 && s[n - 1] == ' ') --n;
+    memcpy(out, s, n);
+    out[n] = '\0';
+}
+
+// showGround: pr_parse_trial's main() always calls with false — ground/taxiing
+// traffic is excluded at parse time (not just render time) so it can't crowd
+// out overflying traffic out of the PR_MAX_AIRCRAFT nearest-first cap. The
+// INT32_MIN "GND" sentinel stays part of the record shape for a future
+// showGround=true call site (e.g. a settings toggle); unreachable today.
+static bool prFillRecord(JsonObjectConst plane, PrAircraft* ac, bool showGround) {
+    if (!plane["lat"].is<float>() || !plane["lon"].is<float>()) return false;
+    const char* ab = plane["alt_baro"].as<const char*>();
+    bool ground = ab && strcmp(ab, "ground") == 0;
+    if (ground && !showGround) return false;
+
+    ac->lat    = plane["lat"].as<float>();
+    ac->lon    = plane["lon"].as<float>();
+    ac->distNm = prPickF(plane, {"dst"}, 1e9f);
+    ac->noseDeg  = (int16_t)lroundf(prPickF(plane, {"true_heading", "mag_heading", "track", "dir"}, 0));
+    ac->trackDeg = (int16_t)lroundf(prPickF(plane, {"track", "true_heading", "mag_heading", "dir"}, 0));
+    ac->gsKnots  = (int16_t)lroundf(prPickF(plane, {"gs", "tas", "ias"}, 0));
+    if (ground) {
+        ac->altFt = INT32_MIN;
+    } else if (plane["alt_baro"].is<float>() || plane["alt_baro"].is<int>()) {
+        ac->altFt = (int32_t)lroundf(plane["alt_baro"].as<float>());
+    } else if (plane["alt_geom"].is<float>() || plane["alt_geom"].is<int>()) {
+        ac->altFt = (int32_t)lroundf(plane["alt_geom"].as<float>());
+    } else {
+        ac->altFt = INT32_MAX;
+    }
+    prCopyTrimmed(plane, "flight", ac->callsign, sizeof(ac->callsign));
+    if (!ac->callsign[0]) prCopyTrimmed(plane, "hex", ac->callsign, sizeof(ac->callsign));
+    prCopyTrimmed(plane, "t", ac->type, sizeof(ac->type));
+    return true;
+}
+
+// Nearest-first replace-farthest insertion (ADR-048 truncation policy) — 'kept'
+// count is tracked by the caller (r.count); this only decides which slot to
+// (over)write once the array is full.
+static void prInsertNearest(PrAircraft* kept, uint8_t& keptCount, uint8_t cap, const PrAircraft& ac) {
+    if (keptCount < cap) { kept[keptCount++] = ac; return; }
+    uint8_t far = 0;
+    for (uint8_t i = 1; i < keptCount; i++)
+        if (kept[i].distNm > kept[far].distNm) far = i;
+    if (ac.distNm < kept[far].distNm) kept[far] = ac;
+}
+
+// ADR-048 leg C — chunked per-object filtered parse. Scans the raw stream for
+// the "ac" array, then deserializes ONE aircraft object at a time through a
+// 15-field filter into a small reused doc (docCap ~4 KB measured peak,
+// independent of aircraft count — see ADR-048). Returns 0 on success (result
+// aircraft/count filled), or a negative internal error code (see dataTask.h's
+// PlaneRadarResult comment for the code list) with 'result' left at defaults.
+static int prParseStream(Stream& stream, PlaneRadarResult& result) {
+    // Scan for "ac" key then its '['.
+    const char* pat = "\"ac\"";
+    int pi = 0, c;
+    while ((c = stream.read()) != -1) {
+        if (c == pat[pi]) { if (!pat[++pi]) break; }
+        else pi = (c == pat[0]) ? 1 : 0;
+    }
+    if (c == -1) return -111;  // no "ac" key found
+    while ((c = stream.read()) != -1 && c != '[') {
+        if (!isspace(c) && c != ':') return -112;  // bad ac value
+    }
+    if (c == -1) return -113;  // truncated before array
+
+    StaticJsonDocument<768> filter;
+    for (const char* k : {"lat", "lon", "dst", "dir", "track", "true_heading",
+                          "mag_heading", "gs", "tas", "ias", "alt_baro",
+                          "alt_geom", "flight", "hex", "t"})
+        filter[k] = true;
+    // Reused per-object doc — ADR-048's measured ~4 KB fixed peak, independent
+    // of traffic (only this doc's memory is live at any time, not the array).
+    // DynamicJsonDocument (heap-backed), not Static — matches ADR-048's spec
+    // verbatim and keeps 4 KB off this already-tight dataTask stack (TASK-240).
+    DynamicJsonDocument doc(4096);
+    uint8_t n = 0;
+    for (;;) {
+        do { c = stream.read(); } while (c != -1 && (isspace(c) || c == ','));
+        if (c == ']') break;
+        if (c == -1) return -114;      // truncated mid-array
+        if (c != '{') return -115;     // unexpected byte
+        PrStreamPrepend pr('{', stream);
+        DeserializationError err = deserializeJson(doc, pr,
+                                       DeserializationOption::Filter(filter));
+        if (err) {
+            LOG_W("dataTask.planeradar", "parse error at object %u: %s", n, err.c_str());
+            return -90 - (int)err.code();
+        }
+        PrAircraft ac{};
+        if (prFillRecord(doc.as<JsonObjectConst>(), &ac, /*showGround=*/false))
+            prInsertNearest(result.aircraft, result.count, PR_MAX_AIRCRAFT, ac);
+        n++;
+    }
+    result.ok = true;
+    return 0;
+}
+
+static void fetchPlaneRadar() {
+    float lat, lon, distNm;
+    portENTER_CRITICAL_SAFE(&s_pendingPrMux);
+    lat = s_pendingPrLat; lon = s_pendingPrLon; distNm = s_pendingPrDistNm;
+    portEXIT_CRITICAL_SAFE(&s_pendingPrMux);
+
+    spotifyTask::tlsYield();   // BP-031: free Spotify TLS before our own handshake
+    LOG_HEAP("dataTask.planeradar");
+
+    char url[128];
+    snprintf(url, sizeof(url), "%s%.4f/lon/%.4f/dist/%.1f",
+             PLANERADAR_URL_BASE, lat, lon, distNm);
+
+    PlaneRadarResult r;
+    WiFiClientSecure tls;
+    tls.setCACert(PLANERADAR_ROOT_CA);
+    HTTPClient http;
+    http.useHTTP10(true);   // identity encoding so getStream() yields clean JSON
+    if (!http.begin(tls, url)) {
+        LOG_W("dataTask.planeradar", "http.begin failed");
+        r.ok = false; r.errorCode = -100;
+    } else {
+        unsigned long t0 = millis();
+        int code = http.GET();
+        LOG_D("dataTask.planeradar", "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
+        if (code != 200) {
+            // Distinct, unmolested HTTP code (incl. 429) reaches the app — the
+            // phase-0 limit probe measured ~33% 429s at the nominal 1 req/s
+            // courtesy limit; skip-don't-retry is inherent here (single-shot
+            // fetch per enqueue, driven by the app's 10 s cadence timer, no
+            // internal retry loop to suppress).
+            r.ok = false; r.errorCode = code;
+            http.end();
+        } else {
+            int rc = prParseStream(http.getStream(), r);
+            http.end();
+            if (rc != 0) { r.ok = false; r.errorCode = rc; r.count = 0; }
+        }
+    }
+    LOG_D("dataTask.planeradar", "ok=%d errorCode=%d count=%u",
+          (int)r.ok, r.errorCode, (unsigned)r.count);
+
+    portENTER_CRITICAL_SAFE(&s_planeRadarMux);
+    s_planeRadarResult = r;
+    s_planeRadarNew    = true;
+    portEXIT_CRITICAL_SAFE(&s_planeRadarMux);
+    LOG_HEAP("dataTask.planeradar");
+    spotifyTask::tlsResume();
+}
+
 static void fetchWebRadioStations() {
     char    country[4];
     uint8_t bitrateCap;
@@ -1080,6 +1291,7 @@ static void taskBody(void *) {
                 break;
             }
             case DATA_FETCH_WEBRADIO_STATIONS: fetchWebRadioStations(); break;
+            case DATA_FETCH_PLANERADAR:        fetchPlaneRadar(); break;
             default: break;
         }
         s_pendingMask &= ~(1u << req.type);   // TASK-250: fetch done — allow re-enqueue
@@ -1281,6 +1493,30 @@ void enqueueWebRadioStations(const char* countryCode, uint8_t bitrateCap) {
     } else {
         s_dbgWrEnqueues++;
     }
+}
+
+void enqueuePlaneRadar(float lat, float lon, float distNm) {
+    if (!s_queue) return;
+    portENTER_CRITICAL_SAFE(&s_pendingPrMux);
+    s_pendingPrLat    = lat;
+    s_pendingPrLon    = lon;
+    s_pendingPrDistNm = distNm;
+    portEXIT_CRITICAL_SAFE(&s_pendingPrMux);
+    Request req = {}; req.type = DATA_FETCH_PLANERADAR;
+    if (xQueueSend(s_queue, &req, 0) != pdTRUE)
+        LOG_W("dataTask", "queue full — dropped planeradar fetch");
+}
+
+bool pollPlaneRadar(PlaneRadarResult *out) {
+    bool got = false;
+    portENTER_CRITICAL_SAFE(&s_planeRadarMux);
+    if (s_planeRadarNew) {
+        *out             = s_planeRadarResult;
+        s_planeRadarNew  = false;
+        got              = true;
+    }
+    portEXIT_CRITICAL_SAFE(&s_planeRadarMux);
+    return got;
 }
 
 void dbgQueueState(DbgQueueState* out) {

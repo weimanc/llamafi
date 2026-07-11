@@ -5407,8 +5407,16 @@ On a later calendar day, re-run `openssl s_client -connect opendata.adsb.fi:443
 
 **Priority:** P3 — doesn't block other M-PLANERADAR work (GTS Root R4 PEM
 already exists in `dataTaskCerts.h`'s CoinGecko bundle, reusable
-provisionally) · **Status:** OPEN · **Opened:** 2026-07-10 · **Milestone:**
-M-PLANERADAR · **Owner:** Architect · **Deps:** none · **Branch:** master
+provisionally) · **Status:** DONE · **Opened:** 2026-07-10 · **Closed:**
+2026-07-11 · **Milestone:** M-PLANERADAR · **Owner:** Architect · **Deps:**
+none · **Branch:** master
+
+**Resolution:** Second-day probe (2026-07-11) reproduced the identical chain
+(`adsb.fi` ← WE1 ← GTS Root R4 ← GlobalSign Root CA cross-sign) — no second
+root observed, unlike the CoinGecko/Yahoo precedent. Pin decision: **GTS Root
+R4 only**, no bundle. PEM already present in `dataTaskCerts.h`'s CoinGecko
+bundle, directly reusable. OQ1 closed; details in `phase0-api-probe.md`
+Results → "TLS chain (observation 2 of 2)".
 
 ---
 
@@ -5423,8 +5431,23 @@ is registered without them. Design/draw a small radar-themed icon pair
 `run/bake-icons`, verify `TASKBAR_ICON_COUNT == TASKBAR_APP_COUNT`.
 
 **Priority:** P2 — blocks TASK-304 (app registry entry can't compile without
-this) · **Status:** OPEN · **Opened:** 2026-07-10 · **Milestone:**
-M-PLANERADAR · **Owner:** Developer · **Deps:** none · **Branch:** master
+this) · **Status:** DONE · **Opened:** 2026-07-10 · **Closed:** 2026-07-11 ·
+**Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:** none ·
+**Branch:** master
+
+**Resolution:** Drew `planeradar.png`/`planeradar_active.png` (radar-scope
+glyph: outer ring + crosshair + two contact blips; white-on-transparent
+inactive, radar-green `#46E678` active — matches the flat-glyph, no-frame
+style of `weather`/`stock`/`clock`; color chosen distinct from existing
+actives (gold/green/cyan/red in use), thematically tied to the app's own
+disc/ring/crosshair phase-0 UI design). `run/bake-icons` re-run: still emits
+`TASKBAR_ICON_COUNT 10` (script's `APPS` list intentionally untouched —
+`planeradar` isn't wired into `appRegistry.h` yet, that's TASK-304), matching
+current `TASKBAR_APP_COUNT` — confirms no regression. `./run/check` 6/6
+PASS. Adding `planeradar` to `gen_taskbar_icons.py`'s `APPS` list and the
+`appRegistry.h` X-macro together is TASK-304's job (must land in the same
+change or the two counts diverge and the `static_assert` in `taskbar.h`
+fails the build).
 
 ---
 
@@ -5442,9 +5465,33 @@ distinct 429 code with skip-don't-retry backoff (phase-0 limit probe measured
 ~33% 429s at 1 req/s; zero at the shipped 10s cadence, but the code path must
 exist).
 
-**Priority:** P1 — core of the feature · **Status:** OPEN · **Opened:**
-2026-07-10 · **Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:**
-ADR-048 (accepted 2026-07-11) · **Branch:** master
+**Priority:** P1 — core of the feature · **Status:** DONE · **Opened:**
+2026-07-10 · **Closed:** 2026-07-11 · **Milestone:** M-PLANERADAR · **Owner:**
+Developer · **Deps:** ADR-048 (accepted 2026-07-11) · **Branch:** master
+
+**Resolution:** `DATA_FETCH_PLANERADAR` + `PrAircraft`/`PlaneRadarResult`
+added to `dataTask.h`; `fetchPlaneRadar()` in `dataTaskStorage.cpp` transcribes
+`pr_parse_trial/main.cpp`'s leg C verbatim (stream-scan to `"ac"[`, then
+per-object `DynamicJsonDocument(4096)` through the 15-field filter,
+nearest-by-`dst` truncation into `PR_MAX_AIRCRAFT`=24 records) via a
+`PrStreamPrepend` byte-pushback wrapper over `HTTPClient::getStream()`.
+`tlsYield()`/`tlsResume()` bracket the fetch (BP-031), every exit path
+covered. Root CA: added `PLANERADAR_ROOT_CA` (GTS Root R4 alone — TASK-301's
+second observation closed OQ1 with no second root needed) to
+`dataTaskCerts.h` + a `run/check-datatask-certs` row for `opendata.adsb.fi`.
+Error codes: raw HTTP code (incl. 429, no internal retry to suppress —
+cadence-gated at the app layer) on GET failure, `-100` on `http.begin()`
+failure, `-90-err.code()` on a malformed aircraft object, `-111..-115` for
+the chunked scanner's own failure modes (no "ac" key / bad value / truncated
+before or mid-array / unexpected byte) — a genuinely larger error surface
+than whole-doc parsers get, documented in `dataTask.h`'s `PlaneRadarResult`
+comment. Ground/taxiing traffic (`alt_baro:"ground"`) is excluded at parse
+time (matches the host trial's `showGround=false` call sites) so it can't
+crowd airborne traffic out of the 24-aircraft cap; the `INT32_MIN` "GND"
+sentinel stays in the struct for a possible future toggle, unreachable today.
+`enqueuePlaneRadar(lat,lon,distNm)` snapshots params under a spinlock (same
+pattern as `enqueueWebRadioStations`'s country snapshot) before queueing.
+`./run/check` 6/6 PASS (both build variants compile clean).
 
 ---
 
@@ -5462,9 +5509,43 @@ this board). Touch: tap disc = cycle range preset, re-enqueue fetch
 `dbgGet`/`dbgSet` synthetic aircraft injection for VE render tests without
 live traffic (TASK-276 injected-state pattern — isolate from auto-refresh).
 
-**Priority:** P1 — core of the feature · **Status:** OPEN · **Opened:**
-2026-07-10 · **Milestone:** M-PLANERADAR · **Owner:** Developer · **Deps:**
-TASK-302 (icon, build-blocking), TASK-303 (result struct) · **Branch:** master
+**Priority:** P1 — core of the feature · **Status:** DONE · **Opened:**
+2026-07-10 · **Closed:** 2026-07-11 · **Milestone:** M-PLANERADAR · **Owner:**
+Developer · **Deps:** TASK-302 (icon, build-blocking), TASK-303 (result
+struct) · **Branch:** master
+
+**Resolution:** `app/src/planeRadarApp.h` — layout constants transcribed
+verbatim from `phase0-preview-ui.md`'s frozen Results block (disc/strip/ring/
+tag-nudge/rim-dot/colour constants), RGB565 values matching
+`preview_planeradar.py`'s palette exactly. Static grid (rings, crosshair,
+bezel dot, strip background/divider/static labels) painted once in
+`resume()`; `tick()` erase-redraws only aircraft triangles/vectors/tags/rim
+dots per 10 s poll result via a stored-geometry `PrRendered[]` (erase = redraw
+old geometry in field/strip-bg colour, matching platform precedent — no
+full-frame sprite). Tag placement: centre-side + rule (c) drop-on-fail
+default (±10/±20 px nudge ladder, drop tag keep symbol if all four
+candidates collide) — `_placeTag()`. Stale indicator: ring-3 colour shift
++ always-on strip age-text numeric fallback (Q5), 30 s threshold. Rim dots:
+disc-rim mode (Q3) for beyond-ring traffic. Runway overlay (Q4): `_drawRunways()`
+is a documented no-op — TASK-306's baked airport DB doesn't exist yet;
+graceful-absent rendering (nothing) is the ADR-049-correct behaviour, not a
+gap. Touch: tap disc (x<240) cycles the 5/10/15/25 km preset and re-enqueues
+a fetch; strip (x≥240) is display-only, matching phase0-preview-ui.md.
+`AppId::PlaneRadar` inserted into `appRegistry.h` **before** WebRadio (must
+stay last per `taskbar.h`'s static_assert); `gen_taskbar_icons.py`'s `APPS`
+list updated to match, `run/bake-icons`-equivalent regen + `golden.sha256`
+refresh done (only `taskbar_icons.{cpp,h}` hashes changed). NEW-APP-CHECKLIST:
+`hasPendingAsync()` (`_pendingFetch`), ADR-046 `isConnecting()`/`hasError()`,
+`dbgGet`/`dbgSet` (`prAircraftCount`/`prLastHttp`/`prRange`/`prLastAction`;
+`triggerPlaneRadarFetch`/`prRange`/`prInjectAircraft`/`prClearInject` —
+`prInjectAircraft` is the TASK-276-pattern synthetic-injection surface for
+VE render tests, isolates from auto-refresh), `cmdTap` busy propagation, all
+wired in `main.cpp`. `./run/check` 6/6 PASS. `feature_inventory.yaml` entry
+`planeradar-001` added. **Not done here** (explicitly out of scope, tracked
+separately): TASK-305 (settings persistence — location/units/toggles are
+compile-time defaults for v1 per D4), TASK-306 (runway data), TASK-307 (DUT
+validation — no hardware exercised this session, only host-side compile +
+codegen checks).
 
 ---
 

@@ -23,6 +23,10 @@
 //                         mirrors, so TASK-236 removed it — a verify failure now
 //                         skips the mirror instead of downgrading. See the alias
 //                         comment below for the host-side evidence.
+// PLANERADAR_ROOT_CA  — GTS Root R4 only (single root, no bundle needed — two
+//                       independent-day observations of opendata.adsb.fi showed
+//                       the same chain both times). See TASK-301 / ADR-048 sibling
+//                       decision in phase0-api-probe.md.
 //
 // Update trigger: see ADR-029 rotation table. Remediation = update PEM + reflash.
 
@@ -226,3 +230,27 @@ p/SgguMh1YQdc4acLa/KNJvxn7kjNuK8YAOdgLOaVsjh4rsUecrNIdSUtUlD
 // See ./run/check-datatask-certs for the standing host-side chain check that
 // guards against a mirror silently regressing.
 #define RADIO_BROWSER_ROOT_CA OPEN_METEO_ROOT_CA
+
+// PLANERADAR_ROOT_CA — GTS Root R4 only, no bundle (M-PLANERADAR / ADR-048's
+// sibling OQ1 decision, phase0-api-probe.md). opendata.adsb.fi's served chain
+// (leaf <- Google Trust Services WE1 <- GTS Root R4, cross-signed by GlobalSign
+// Root CA) was observed identical across two independent-day probes
+// (2026-07-10, 2026-07-11 / TASK-301) — unlike the CoinGecko/Yahoo precedent,
+// no second root ever showed up, so a single-root pin is sufficient here. Same
+// GTS Root R4 cert bytes as the one folded into COINGECKO_ROOT_CA's bundle
+// above; kept as its own standalone constant since this endpoint pins it alone.
+static const char PLANERADAR_ROOT_CA[] = R"EOF(
+-----BEGIN CERTIFICATE-----
+MIICCTCCAY6gAwIBAgINAgPlwGjvYxqccpBQUjAKBggqhkjOPQQDAzBHMQswCQYD
+VQQGEwJVUzEiMCAGA1UEChMZR29vZ2xlIFRydXN0IFNlcnZpY2VzIExMQzEUMBIG
+A1UEAxMLR1RTIFJvb3QgUjQwHhcNMTYwNjIyMDAwMDAwWhcNMzYwNjIyMDAwMDAw
+WjBHMQswCQYDVQQGEwJVUzEiMCAGA1UEChMZR29vZ2xlIFRydXN0IFNlcnZpY2Vz
+IExMQzEUMBIGA1UEAxMLR1RTIFJvb3QgUjQwdjAQBgcqhkjOPQIBBgUrgQQAIgNi
+AATzdHOnaItgrkO4NcWBMHtLSZ37wWHO5t5GvWvVYRg1rkDdc/eJkTBa6zzuhXyi
+QHY7qca4R9gq55KRanPpsXI5nymfopjTX15YhmUPoYRlBtHci8nHc8iMai/lxKvR
+HYqjQjBAMA4GA1UdDwEB/wQEAwIBhjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQW
+BBSATNbrdP9JNqPV2Py1PsVq8JQdjDAKBggqhkjOPQQDAwNpADBmAjEA6ED/g94D
+9J+uHXqnLrmvT/aDHQ4thQEd0dlq7A/Cr8deVl5c1RxYIigL9zC2L7F8AjEA8GE8
+p/SgguMh1YQdc4acLa/KNJvxn7kjNuK8YAOdgLOaVsjh4rsUecrNIdSUtUlD
+-----END CERTIFICATE-----
+)EOF";

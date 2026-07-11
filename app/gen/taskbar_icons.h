@@ -7,7 +7,7 @@
 #define TASKBAR_ICON_BAKED_W 24
 #define TASKBAR_ICON_BAKED_H 24
 #define TASKBAR_ICON_BAKED_PX (24 * 24)
-#define TASKBAR_ICON_COUNT 10
+#define TASKBAR_ICON_COUNT 11
 
 struct TaskbarIconPair {
     const uint16_t* inactive;
@@ -34,6 +34,8 @@ extern const uint16_t taskbar_icon_aquarium[TASKBAR_ICON_BAKED_PX];
 extern const uint16_t taskbar_icon_aquarium_active[TASKBAR_ICON_BAKED_PX];
 extern const uint16_t taskbar_icon_teletext[TASKBAR_ICON_BAKED_PX];
 extern const uint16_t taskbar_icon_teletext_active[TASKBAR_ICON_BAKED_PX];
+extern const uint16_t taskbar_icon_planeradar[TASKBAR_ICON_BAKED_PX];
+extern const uint16_t taskbar_icon_planeradar_active[TASKBAR_ICON_BAKED_PX];
 
 // Indexed by (int)AppId — one pair per app.
 extern const TaskbarIconPair kTaskbarIcons[(int)AppId::COUNT];

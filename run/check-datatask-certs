@@ -39,6 +39,7 @@ ENDPOINTS = [
     ("de1.api.radio-browser.info", "RADIO_BROWSER_ROOT_CA"),
     ("nl1.api.radio-browser.info", "RADIO_BROWSER_ROOT_CA"),
     ("at1.api.radio-browser.info", "RADIO_BROWSER_ROOT_CA"),
+    ("opendata.adsb.fi", "PLANERADAR_ROOT_CA"),
 ]
 
 BLOCK_RE = re.compile(

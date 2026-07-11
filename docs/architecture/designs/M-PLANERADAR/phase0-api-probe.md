@@ -1,7 +1,8 @@
 # Design — M-PLANERADAR Phase 0: adsb.fi API probe + cert chain
 
 > Owner: Architect
-> Status: draft — designer-review PASS 2026-07-10; execution partially complete (see Results)
+> Status: draft — designer-review PASS 2026-07-10; execution complete except
+> evening-soak scope cut pending human sign-off (see Results)
 > Date: 2026-07-10
 > Parent: [M-PLANERADAR-plane-radar-app.md](../M-PLANERADAR-plane-radar-app.md)
 > Closes: R2 (API availability/rate limiting), OQ1 (cert chain); feeds D1 (parse), D2 (cadence)
@@ -182,6 +183,29 @@ lesson; GTS Root R4 PEM already exists in `dataTaskCerts.h`'s CoinGecko
 bundle. Pin lean: GTS roots bundle (R4 + likely R1), decision after the
 second-day observation per exit criterion 6.
 
+### TLS chain (observation 2 of 2, 2026-07-11) — TASK-301
+
+Re-ran the identical probe a calendar day later:
+
+```
+openssl s_client -connect opendata.adsb.fi:443 -servername opendata.adsb.fi -showcerts </dev/null
+```
+
+Identical chain to observation 1: `CN=adsb.fi` leaf ← `O=Google Trust
+Services, CN=WE1` ← `O=Google Trust Services LLC, CN=GTS Root R4` (← cross-sign
+`O=GlobalSign nv-sa, CN=GlobalSign Root CA`). Same edge IP family
+(172.67.72.239, Cloudflare-fronted). Leaf serial/validity differ from a
+literal re-fetch as expected (`NotBefore: Jun 20 2026`, `NotAfter: Sep 18
+2026` — short-lived leaf, routine rotation) but the **issuing chain is
+unchanged**. No second root observed, unlike the CoinGecko/Yahoo precedent
+(TASK-298) that motivated the two-observation rule.
+
+**Pin decision (OQ1, closed):** pin **GTS Root R4 only** — no bundle needed.
+Two independent-day observations show a single stable root; the
+CoinGecko/Yahoo multi-root case doesn't reproduce here. GTS Root R4 PEM
+already exists in `dataTaskCerts.h`'s CoinGecko bundle and is directly
+reusable for the adsb.fi entry — no new PEM to source. Exit criterion 6 met.
+
 ### Fixtures
 
 7 committed (`busy_33km, home_13km, sparse, empty, ground_mix, truncated,
@@ -232,7 +256,8 @@ cut, not an oversight, pending human sign-off.
 
 ### Still pending
 
-Second cert observation (different day). Synthetic fixtures re-derived from
+Second cert observation (different day) — **done 2026-07-11 (TASK-301)**, see
+above; OQ1 closed. Synthetic fixtures re-derived from
 the final 71-aircraft busy capture 2026-07-10 evening (`nofields` 71 ac →
 oracle OK at 240 B/object; `truncated` 20 952 B → clean `IncompleteInput` at
 object 41) — done. Evening soak run intentionally shortened (see above) —
