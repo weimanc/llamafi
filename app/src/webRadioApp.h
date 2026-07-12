@@ -623,6 +623,22 @@ public:
 
     bool hasPendingAsync() const override { return _pendingStations; }
 
+    // TASK-314 / ADR-046: amber active-slot indicator while establishing a
+    // station connection (no audio yet) — mirrors SpotifyApp/PlaneRadarApp's
+    // isConnecting() pattern, reusing _state rather than adding new tracking.
+    bool isConnecting() const override { return _state == WRPlayState::CONNECTING; }
+    // Red active-slot indicator on a sustained stream failure (dead host,
+    // stall past the auto-skip/retry budget, WiFi loss, geo/DMCA block).
+    // Self-clears the instant _play() lands PLAYING again (userInitiated
+    // retry/skip, or the terminal-retry re-arm in tick()) — same sticky/
+    // self-clearing contract as SpotifyApp::hasError()/StockApp::hasError().
+    bool hasError() const override {
+        return _state == WRPlayState::ERROR_WIFI ||
+               _state == WRPlayState::ERROR_STALL ||
+               _state == WRPlayState::ERROR_UNREACHABLE ||
+               _state == WRPlayState::ERROR_BLOCKED;
+    }
+
     // ── Input ──────────────────────────────────────────────────────────────
 
     bool handleInput(TouchPhase phase, int x, int y) override {

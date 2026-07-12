@@ -807,7 +807,21 @@ own on-screen connecting/error UI, if it tracks one — check
 `app/src/webRadioApp.h` / `app/tools/preview_webradio_*.png` states
 (stopped/connecting/playing/error) first rather than adding new state.
 
+**Fix (2026-07-12):** `WebRadioApp::isConnecting()` → `_state == CONNECTING`;
+`WebRadioApp::hasError()` → any of `ERROR_WIFI/ERROR_STALL/ERROR_UNREACHABLE/
+ERROR_BLOCKED`. No new state added — reuses the existing `WRPlayState`
+already tracked for on-screen connecting/error UI, per the sticky/self-
+clearing contract `shell::activeError()`/`activeConnecting()` expect (same
+pattern as `SpotifyApp`/`PlaneRadarApp`).
+
+**DUT-verified 2026-07-12** (debug firmware, serial dbg surface —
+`switchApp 11` into WebRadio, `set wrState N` + `get activeError`):
+`wrState=1` (CONNECTING) → `connecting=true,active=false`; `wrState=4/5/6`
+(ERROR_STALL/UNREACHABLE/BLOCKED) → `active=true,connecting=false` each;
+`wrState=2` (PLAYING) and `wrState=0` (STOPPED) → both `false` (self-clears).
+Production firmware (`cyd2usb_winamp`) reflashed and monitor restored after.
+
 **Priority:** P3 — cosmetic/observability gap, not a functional regression
-· **Status:** OPEN · **Opened:** 2026-07-12 · **Milestone:** none (post
-M-PLANERADAR taskbar-icon cleanup) · **Owner:** unassigned · **Deps:** none
-· **Branch:** master
+· **Status:** DONE · **Opened:** 2026-07-12 · **Closed:** 2026-07-12 ·
+**Milestone:** none (post M-PLANERADAR taskbar-icon cleanup) · **Owner:**
+Developer · **Deps:** none · **Branch:** master
