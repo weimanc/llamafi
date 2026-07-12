@@ -104,6 +104,26 @@ and crashed because its `kTaskbarIcons` entry was zero-filled).
 
 ---
 
+### 7. First-entry paint — `init()` vs `resume()` shell contract (BP-048 / LL-109)
+
+**Required for**: every `AppId` row that draws anything.
+**Contract**: `switchApp()` (main.cpp) calls `init()` on the app's FIRST-ever entry and `resume()` on
+every later entry, after wiping the app area to black. **Symptom of omission**: first entry shows a
+black (or partially-drawn) screen until some side effect paints — invisible to the serial-dbg test
+suite, which observes state, not pixels (PlaneRadar shipped this way through two reviews and two full
+DUT runs; TASK-312).
+
+- [ ] `init()` produces the app's COMPLETE first paint — either it paints everything itself or it
+  seeds init-only state and explicitly routes through `resume()`'s paint path (PlaneRadar's
+  `init() { ...; resume(); }` is the reference pattern).
+- [ ] Do NOT copy TeletextApp's init/resume shape blind — its `init()` paints nothing and is masked
+  only by a full-screen redraw on the first fetch; incremental renderers are not masked.
+- [ ] Any pixel-level exit criterion (paint, palette, layout, erase artifacts) in the app's tasks
+  carries an explicit **human eyeball** step that blocks DONE — serial "render verified" assertions
+  are state-level proxies.
+
+---
+
 ## Deferral policy
 
 If a checklist item is explicitly deferred (e.g. no async work planned for v1), note the deferral in the
