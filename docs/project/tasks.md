@@ -6096,3 +6096,41 @@ master
 **Exit criteria:** cause split (contention vs RF vs heap) with evidence;
 E-92 rate quantified before/after any fix over ≥1 h soak at 10 s cadence;
 fix (if any) leaves T_PR_01..06 green.
+
+**Evidence phase (2026-07-12, Sonnet agent + orchestrator review — TASK-313 stays OPEN per BP-044):**
+Two 35-min instrumented soaks (211 fetches each, 10 s cadence, debug build,
+zero crashes): A = Spotify 403-loop baseline, B = `bgPoll 0`. Parallel host
+probe (same public IP) + the external 2.4 GHz `wifi_evidence` monitor.
+Key numbers: E-92 rate 8.5% (A) vs 9.0% (B); device E429 4.7% vs 1.4%
+(tracked host-probe cadence, E-92 did not); GET phase uniformly 4.31 s
+±16 ms on device vs 0.24 s host; **E-92 body-read time equals success
+(0.21 vs 0.22 s) — prompt clean EOF, NOT a stall**, undercutting the
+raise-stream-timeout mitigation; E-92 truncation lands ~70-90% through the
+body; zero 2.4 GHz dropouts during A's 18 E-92s, and all 4
+dropout-overlapped fetches in B succeeded; Spotify was HTTP-silent within
+12 s in BOTH conditions (tlsYield discards the 403 backoff poll) — A/B was
+a null contrast, H1 unsupported rather than refuted-under-load. Heap: E-92
+at maxBlk 37-45 k, no threshold.
+Verdict-pass additions (orchestrator): `opendata.adsb.fi` is fronted by
+**Cloudflare** (`server: cloudflare`, cf-ray LHR); host mimic of the
+device's HTTP profile (HTTP/1.0, no User-Agent, close-delimited, 8×10 s)
+stayed 8/8 clean+fast — headers/HTTP-version are NOT the discriminator,
+leaving the **TLS-stack fingerprint (mbedtls JA3/JA4) as the only remaining
+client-side difference**; Cloudflare bot management keying on it fits every
+observation: imposed uniform handshake pacing, prompt early FIN mid-body,
+host-clean-same-IP, insensitivity to request rate.
+**Hypothesis state:** H4-refined (Cloudflare edge treatment of the device's
+TLS fingerprint) leads; 429s are the same edge but a separate, real,
+shared-IP rate-limit mechanism (empirically decoupled from E-92); H2 WiFi
+not today's E-92 driver (evening worst-case untested; still plausible for
+the unreproduced GET −1@120 s); H1/H3 unsupported.
+**Fix-shaped experiments (BP-044 gate — cause is confirmed only when one
+stops the repro), in cost order:** (1) single immediate retry inside
+`fetchPlaneRadar()` on parse-error only — robust to the exact edge
+mechanism, ~9%→<1% if failures are independent, +one request only on
+failure (429 budget respected); (2) UA/header tweak on device — free to
+stack, unlikely alone given the mimic result; (3) alternative ADS-B
+provider not fronted by Cloudflare — product decision, needs a phase-0-lite
+probe. Raw logs + analysis scripts in the session scratchpad
+(`condA/B.log`, `*_analysis.txt`, `evidence_notes.md`); durable numbers are
+in this entry.
