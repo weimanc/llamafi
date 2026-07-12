@@ -1538,6 +1538,20 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 
 ---
 
+### Audit — 2026-07-11/12 — M-PLANERADAR code audit vs reference + human visual review (TASK-309..312)
+**Triggered by**: human ("I suspect code duplication and magic numbers"; second pass: compare vs `~/proj/esp/ESP32-Plane-Radar/`)
+**Areas checked**:
+- [x] Code duplication (planeRadarApp.h, dataTaskStorage.cpp planeradar sections, appsSection.h)
+- [x] Magic numbers / named-constant coverage
+- [x] Behavioural parity vs reference implementation (projection, clipping, vector semantics, runway overlay, edge insets)
+- [x] Human on-device visual review (the gate no agent pass covers — see LL-109)
+
+**Findings**: 3 bug-class defects (edge-inset strip corruption; range-tap aircraft blank, permanent under injection; dbgSet/handleInput repaint divergence — a 24-hour-old fix that had diverged across duplicated sites, LL-110), 8 duplication findings (incl. a cross-file preset-table duplicate that could silently desync the Settings UI), ~8 magic-number clusters, 2 wrong/stale comments. Reference comparison: our projection is MORE accurate than the reference's (cos-lat corrected — kept, documented as deliberate divergence). Human visual review then caught what every agent pass missed: `init()` painted nothing — first-entry sequence broken since TASK-304, invisible to the serial-only T_PR suite (LL-109). Human style directives issued and implemented (uniform rings, black surround, PR_R−1 containment invariant).
+**Actions assigned**: Developer (Sonnet subagent ×2, orchestrator-reviewed) — TASK-309/310/311 (audit findings), TASK-312 (first-entry paint + style unification). QM — LL-109/LL-110 filed; T_PR_05 added to the flaky watchlist ([NETWORK]: SKIP/PASS/FAIL/PASS across 4 runs, triage recipe recorded).
+**Resolution**: All four tasks DONE 2026-07-12 (code commits `2fb504c`, `2eed48f`). `run/check` 6/6 at every gate; T_PR suite green (T_PR_05 first-run FAIL triaged environmental: host probe 200 minutes later, solo re-run PASS); human visual sign-off on TASK-312 ("looking good"). BP candidates LL-109/LL-110 await human promotion decision.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:

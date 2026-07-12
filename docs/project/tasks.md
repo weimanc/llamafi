@@ -6006,11 +6006,10 @@ preview doc where they conflict):**
    already named them; this groups them as the single style surface).
 
 **Priority:** P1 (visible on every fresh boot → first app entry) ·
-**Status:** IMPLEMENTED — build + DUT green, awaiting human visual sign-off
-(the pixel-level criterion is exactly what serial tests can't see) ·
-**Opened:** 2026-07-12 · **Milestone:** M-PLANERADAR · **Owner:** Developer ·
-**Deps:** TASK-309/310/311 (builds on the extracted helpers) ·
-**Branch:** master
+**Status:** DONE — human visual sign-off 2026-07-12 ("looking good") ·
+**Opened:** 2026-07-12 · **Closed:** 2026-07-12 · **Milestone:**
+M-PLANERADAR · **Owner:** Developer · **Deps:** TASK-309/310/311 (builds on
+the extracted helpers) · **Branch:** master
 
 **Exit criteria:** `./run/check` green; T_PR_01..06 green on DUT; human
 eyeball: first entry shows the complete styled radar immediately (black
