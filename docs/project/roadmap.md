@@ -1012,6 +1012,34 @@ validation, done)
 
 ---
 
+### M-ICON-PIXELART — Native pixel-art icon authoring at taskbar slot resolution
+
+Follow-up to M-TASKBAR-ICONS, opened while redesigning the PlaneRadar taskbar
+icon (see TASK-302/M-PLANERADAR): `gen_taskbar_icons.py` unconditionally
+LANCZOS-resizes any source PNG down to `TASKBAR_ICON_W`x`_H` (24x24), which
+caused repeated, hard-to-diagnose confusion when iterating on a
+programmatically-generated icon (scaling a shape and its canvas together is
+invisible post-bake; double-resampling through an intermediate canvas size
+overshot the intended fill ratio unpredictably). Human direction: reduce/
+remove reliance on scaling source art down to the taskbar's fixed budget —
+author icons as pixel art directly at the real slot resolution instead.
+
+Also surfaced mid-session: the 24x24 icon budget itself is self-imposed, not
+a hardware limit — it sits inside a 45x40 slot, using only 53%/60% of the
+available width/height. Whether to grow `TASKBAR_ICON_W`/`_H` to use more of
+that space is logically prior to the authoring-workflow question (status quo
+/ native-resolution for hand-authored icons only / uniform native-resolution
+for all taskbar icons including imported art), which only matters once the
+target size is settled. No lean forced on either question — needs a human
+decision given real tradeoffs on each side.
+
+**Status:** proposed — design doc drafted, awaiting human decision on
+options before an ADR is written
+**Deps:** M-TASKBAR-ICONS (done), M-PLANERADAR (done)
+**Design:** [M-ICON-PIXELART-native-icon-authoring.md](../architecture/designs/M-ICON-PIXELART-native-icon-authoring.md)
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.
