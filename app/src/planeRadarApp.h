@@ -23,11 +23,18 @@ static constexpr int PR_STRIP_X = 240, PR_STRIP_W = 35;      // x:240..274
 static constexpr int PR_STRIP_LABEL_X = PR_STRIP_X + 17;     // 257
 static constexpr int16_t PR_SCREEN_H = 240;                  // full display height
 
+// ══ radar style — single style surface (TASK-312, human directive 2026-07-12) ══
+// Palette + grid/symbol/tag geometry live together in this one block so a
+// future style pass has exactly one place to look. Layout constants above
+// (disc/strip placement) and everything below this section (timing,
+// projection scale, strip row Y positions) are geometry/behaviour, not
+// look-and-feel — deliberately left out.
+
 // RGB565 palette (radar_theme.h equivalents — see preview_planeradar.py's
 // rgb565() block; values here are that same (r,g,b) set packed to RGB565).
 static constexpr uint16_t PR_COL_FIELD      = 0x0006;
+static constexpr uint16_t PR_COL_OUTSIDE    = 0x0000;  // black surround outside the disc (TASK-312)
 static constexpr uint16_t PR_COL_RING       = 0x0304;
-static constexpr uint16_t PR_COL_RING_HI    = 0x0466;
 static constexpr uint16_t PR_COL_BEZEL      = 0xFFFF;
 static constexpr uint16_t PR_COL_AIRCRAFT   = 0xF904;
 static constexpr uint16_t PR_COL_VECTOR     = 0xF81F;
@@ -36,19 +43,15 @@ static constexpr uint16_t PR_COL_STRIP_BG   = 0x0842;
 static constexpr uint16_t PR_COL_STRIP_TEXT = 0xA7F4;
 static constexpr uint16_t PR_COL_STALE      = 0xFDA0;
 static constexpr uint16_t PR_COL_ERROR      = 0xFA08;
-static constexpr uint16_t PR_COL_RUNWAY = 0x0514;
+static constexpr uint16_t PR_COL_RUNWAY     = 0x0514;
 
-// PR_KM_PER_NM, PR_NUM_PRESETS, kPrPresetKm, kPrFetchNm live in
-// planeRadarConfig.h — shared with settings/appsSection.h (TASK-310 audit
-// finding #6).
-
-// D4 (v1): location (g_settings.prLat/prLon) is a compile-time default with
-// no numeric-entry UI — settingsStorage.cpp's applyDefaults() owns the actual
-// default value (matches the reference project's kDefaultRadarLat/Lon);
-// edited only via `run/spiffs push` (TASK-305).
-
-static constexpr uint32_t PR_POLL_MS = 10000;  // D2 cadence, foreground-only
-static constexpr uint32_t PR_STALE_S = 30;      // Q5 stale threshold
+// Grid ring geometry: ring index 3 of 4 is the ring the Q5 stale indicator
+// recolours in _updateStripDynamic() (TASK-312: the base grid no longer
+// highlights any ring — all four rings draw PR_COL_RING now; was TASK-311
+// audit finding #5's shared highlight/stale-recolour pair, before the
+// highlight was removed per the 2026-07-12 human style directive).
+static constexpr int16_t PR_RING_COUNT     = 4;
+static constexpr int16_t PR_RING_STALE_IDX = 3;
 
 static constexpr uint8_t PR_TAG_MAX_LINES = 3;
 static constexpr uint8_t PR_TAG_LINE_LEN  = 10;
@@ -68,20 +71,32 @@ static constexpr float   PR_AC_TAIL_LEN       = 4.0f;
 static constexpr float   PR_AC_WING_ANGLE     = 2.5f;   // radians, offset from nose
 static constexpr int16_t PR_AC_RIMDOT_DRAW_R  = 2;
 static constexpr int16_t PR_AC_RIMDOT_ERASE_R = 3;
-static constexpr int16_t PR_AC_RIM_RADIUS     = PR_R - 2;
+// TASK-312: PR_R-4 (was PR_R-2) so the r=3 erase circle (PR_AC_RIMDOT_ERASE_R)
+// reaches at most PR_R-1 — disc containment invariant, see _repaintDisc().
+static constexpr int16_t PR_AC_RIM_RADIUS     = PR_R - 4;
 
 // TASK-309 fix 1: symbol centroids beyond PR_R - PR_SYMBOL_INSET fall back to
 // a rim dot instead of a full triangle, so no vertex (plus the ±1px erase
 // pad _erasePrev() applies) can cross x=PR_STRIP_X=240 into the strip.
 // Mirrors the reference's kAircraftInsideRingInsetPx (nose + tail + 1px).
+// TASK-312: this same inset also satisfies the PR_R-1 disc containment
+// invariant by construction — max vertex reach is
+// (PR_R - PR_SYMBOL_INSET) + PR_AC_NOSE_LEN + 1px erase pad = 106+7+1 = 114,
+// under PR_R-1 = 117 — no change needed for the triangle path.
 static constexpr int16_t PR_SYMBOL_INSET = (int16_t)(PR_AC_NOSE_LEN + PR_AC_TAIL_LEN) + 1;  // 7+4+1=12
+// ══ end radar style ═══════════════════════════════════════════════════════════
 
-// Grid ring geometry (TASK-311 audit finding #5): ring index 3 of 4 (the
-// "preset" ring) is both the highlighted ring in _redrawGridStatics() AND
-// the stale-recolour ring in _updateStripDynamic() — one pair of constants
-// so the two can't drift apart.
-static constexpr int16_t PR_RING_COUNT  = 4;
-static constexpr int16_t PR_RING_HI_IDX = 3;
+// PR_KM_PER_NM, PR_NUM_PRESETS, kPrPresetKm, kPrFetchNm live in
+// planeRadarConfig.h — shared with settings/appsSection.h (TASK-310 audit
+// finding #6).
+
+// D4 (v1): location (g_settings.prLat/prLon) is a compile-time default with
+// no numeric-entry UI — settingsStorage.cpp's applyDefaults() owns the actual
+// default value (matches the reference project's kDefaultRadarLat/Lon);
+// edited only via `run/spiffs push` (TASK-305).
+
+static constexpr uint32_t PR_POLL_MS = 10000;  // D2 cadence, foreground-only
+static constexpr uint32_t PR_STALE_S = 30;      // Q5 stale threshold
 
 static constexpr float PR_MI_PER_KM      = 0.621371f;
 static constexpr float PR_KM_PER_DEG_LON = 111.320f;
@@ -110,19 +125,22 @@ struct PrRendered {
 
 class PlaneRadarApp : public App {
 public:
+    // TASK-312: init()-only state resets, then falls through into resume() —
+    // that's the single full-paint path for both the first-ever entry and
+    // every later resume(). Lines resume() already re-does on its own
+    // (_applyRangeSetting(), _lastFetch seeding via _requestFetch(),
+    // _prevCount via _repaintDisc()) are NOT duplicated here.
     void init() override {
-        _applyRangeSetting();
-        _pendingFetch  = false;
-        _everHadResult = false;
-        _prErr         = false;
-        _injected      = false;
-        _lastHttp      = 0;
-        _result        = dataTask::PlaneRadarResult{};
-        _prevCount     = 0;
-        _lastFetch     = _forceNow();
-        _lastGoodMs    = 0;
+        _pendingFetch   = false;
+        _everHadResult  = false;
+        _prErr          = false;
+        _injected       = false;
+        _lastHttp       = 0;
+        _result         = dataTask::PlaneRadarResult{};
+        _lastGoodMs     = 0;
         _lastAgeDrawSec = -1;
-        _lastAction[0] = '\0';
+        _lastAction[0]  = '\0';
+        resume();
     }
 
     void resume() override {
@@ -130,6 +148,9 @@ public:
         // field that was cached (_presetIdx) and only re-applied in init(), not
         // resume() — see _applyRangeSetting(). Mirrors AquariumApp::resume()'s
         // _applyAquariumSettings() pattern.
+        // TASK-312: this is also the app's one full-paint entry point — init()
+        // (above) seeds init-only state, then falls through into this same
+        // routine, so no partial-grid draw path exists on first entry.
         _applyRangeSetting();
         _drawGridOnce();   // _repaintDisc() inside resets _prevCount — nothing on-screen to erase yet
         if (!_injected) _requestFetch(_forceNow());
@@ -349,6 +370,37 @@ private:
     // sqrtf() > PR_R comparison — de-duped from ×4 inline copies (TASK-310).
     static float _distPx(float dx, float dy) { return sqrtf(dx * dx + dy * dy); }
 
+    // Binary-search clip of a segment endpoint onto radius PR_R-1, given a
+    // start point (x0,y0) known to be inside the disc — a refinement of the
+    // reference's linear t-=0.05 scan, not "parity" with it (this is NOT the
+    // same algorithm). Extracted from _render()'s track-vector clip
+    // (TASK-312) so _drawRunways()'s one-endpoint-out-of-disc case can share
+    // it rather than duplicate the loop.
+    void _clipToDisc(float x0, float y0, float* ex, float* ey) const {
+        float ex0 = *ex, ey0 = *ey;
+        float lo = 0.0f, hi = 1.0f;
+        for (int iter = 0; iter < 12; iter++) {
+            float mid = (lo + hi) / 2;
+            float mx = x0 + (ex0 - x0) * mid, my = y0 + (ey0 - y0) * mid;
+            float mdx = mx - PR_CX, mdy = my - PR_CY;
+            if (_distPx(mdx, mdy) > (float)(PR_R - 1)) hi = mid; else lo = mid;
+        }
+        *ex = x0 + (ex0 - x0) * lo; *ey = y0 + (ey0 - y0) * lo;
+    }
+
+    // True if a w×h box anchored at top-left (tlx, tly) has all four corners
+    // within radius PR_R-1 of the disc centre — the TASK-312 containment
+    // invariant, shared by tag placement (_placeTag) and the runway ICAO
+    // label (_drawRunways).
+    static bool _boxInDisc(int16_t tlx, int16_t tly, int16_t w, int16_t h) {
+        int16_t xs[2] = { tlx, (int16_t)(tlx + w) };
+        int16_t ys[2] = { tly, (int16_t)(tly + h) };
+        for (int16_t bx : xs)
+            for (int16_t by : ys)
+                if (_distPx((float)(bx - PR_CX), (float)(by - PR_CY)) > (float)(PR_R - 1)) return false;
+        return true;
+    }
+
     // Equirectangular lat/lon → disc px (north = up). Matches
     // preview_planeradar.py's Radar.project() exactly. Deliberate divergence
     // from the reference: cos(lat)-corrected per-axis (PR_KM_PER_DEG_LON
@@ -368,15 +420,19 @@ private:
     // found 2026-07-11: _erasePrev()'s per-aircraft bounding-box erase paints
     // PR_COL_FIELD over whatever static pixels happen to fall inside it —
     // rings, crosshair lines, runway centerlines/labels — with no repair.
-    // Only ring PR_RING_HI_IDX had any repair (redrawn every second by
+    // Only ring PR_RING_STALE_IDX had any repair (redrawn every second by
     // _updateStripDynamic()'s stale-age readout), so after enough traffic
     // crossed the disc the other rings + crosshair + runways visibly eroded
     // away, leaving what looked like "only 1 ring." Redrawing these thin
     // outlines is cheap — safe to repeat every ~10s poll, not just once.
+    // TASK-312: all four rings draw the same PR_COL_RING now — no per-ring
+    // colour variation in the base grid (the highlight was removed; the Q5
+    // stale indicator still recolours ring PR_RING_STALE_IDX, but as a
+    // status signal drawn in _updateStripDynamic(), not base-grid decoration).
     void _redrawGridStatics() {
         for (int i = 1; i <= PR_RING_COUNT; i++) {
             int rr = PR_R * i / PR_RING_COUNT;
-            tft.drawCircle(PR_CX, PR_CY, rr, (i == PR_RING_HI_IDX) ? PR_COL_RING_HI : PR_COL_RING);
+            tft.drawCircle(PR_CX, PR_CY, rr, PR_COL_RING);
         }
         tft.drawFastHLine(PR_CX - PR_R, PR_CY, PR_R * 2, PR_COL_RING);
         tft.drawFastVLine(PR_CX, PR_CY - PR_R, PR_R * 2, PR_COL_RING);
@@ -386,10 +442,19 @@ private:
         if (g_settings.prRunwayOverlay) _drawRunways();
     }
 
-    // Field fillRect + statics redraw + stale-aircraft-position reset — was
-    // duplicated in handleInput()'s range tap and _drawGridOnce() (TASK-310).
+    // Black surround + field-colour disc + statics redraw + stale-aircraft-
+    // position reset — was duplicated in handleInput()'s range tap and
+    // _drawGridOnce() (TASK-310). TASK-312: field colour is now confined to
+    // the disc itself (a filled circle of radius PR_R) rather than filling
+    // the whole square area — everything outside the outer ring is
+    // PR_COL_OUTSIDE (black). This paint is the ONLY place PR_COL_OUTSIDE is
+    // drawn; every dynamic pixel afterwards (symbol/rim-dot/vector/tag draws
+    // and erases) must stay inside the disc so the black surround is never
+    // damaged — see the PR_R-1 containment invariant on the rim-dot, vector,
+    // tag and runway code below.
     void _repaintDisc() {
-        tft.fillRect(0, 0, PR_STRIP_X, PR_SCREEN_H, PR_COL_FIELD);
+        tft.fillRect(0, 0, PR_STRIP_X, PR_SCREEN_H, PR_COL_OUTSIDE);
+        tft.fillCircle(PR_CX, PR_CY, PR_R, PR_COL_FIELD);
         _redrawGridStatics();
         _prevCount = 0;   // prior aircraft pixel positions are stale after a repaint/rescale
     }
@@ -418,10 +483,12 @@ private:
     // resume(); airports don't move, only the projection centre could (a
     // settings location change, which forces a fresh resume() anyway).
     // Outside the baked region this loop simply finds nothing in range —
-    // graceful-absent per ADR-049, not a special case to handle. Deliberate
-    // divergence from the reference: gated on the airport CENTRE only and
-    // drawn unclipped (a runway can visibly cross the ring edge) rather than
-    // the reference's per-segment clip — per the frozen phase0 doc.
+    // graceful-absent per ADR-049, not a special case to handle. Gated on the
+    // airport CENTRE only (> PR_R skips the whole airport, an optimisation),
+    // but TASK-312 now clips/skips each runway SEGMENT and the ICAO label
+    // against the PR_R-1 disc containment invariant individually (human
+    // directive 2026-07-12 — supersedes the frozen phase0 doc's "drawn
+    // unclipped, a runway can visibly cross the ring edge").
     void _drawRunways() {
         tft.setTextDatum(MC_DATUM);
         for (uint16_t i = 0; i < PR_AIRPORT_COUNT; i++) {
@@ -435,11 +502,25 @@ private:
                 int16_t lx, ly, hx, hy;
                 _project(rw.leLat, rw.leLon, &lx, &ly);
                 _project(rw.heLat, rw.heLon, &hx, &hy);
-                tft.drawLine(lx, ly, hx, hy, PR_COL_RUNWAY);
+                bool lIn = _distPx((float)(lx - PR_CX), (float)(ly - PR_CY)) <= (float)(PR_R - 1);
+                bool hIn = _distPx((float)(hx - PR_CX), (float)(hy - PR_CY)) <= (float)(PR_R - 1);
+                if (!lIn && !hIn) continue;   // both endpoints outside: skip the line
+                float flx = lx, fly = ly, fhx = hx, fhy = hy;
+                if (lIn && !hIn)      _clipToDisc(flx, fly, &fhx, &fhy);
+                else if (!lIn && hIn) _clipToDisc(fhx, fhy, &flx, &fly);
+                tft.drawLine((int16_t)lroundf(flx), (int16_t)lroundf(fly),
+                             (int16_t)lroundf(fhx), (int16_t)lroundf(fhy), PR_COL_RUNWAY);
             }
-            char icao[5]; strlcpy(icao, ap.icao, sizeof(icao));
-            tft.setTextColor(PR_COL_RUNWAY, PR_COL_FIELD);
-            tft.drawString(icao, ax, (int16_t)(ay - 9), 1);
+            // ICAO label box: MC_DATUM-centred at (ax, ay-9), width 4 chars.
+            // Skip entirely (rather than clip text) if any corner would exit
+            // the disc — a partially-drawn label reads worse than none.
+            int16_t lw = (int16_t)(4 * PR_TAG_CHAR_W), lh = PR_TAG_LINE_H;
+            int16_t ltlx = (int16_t)(ax - lw / 2), ltly = (int16_t)((ay - 9) - lh / 2);
+            if (_boxInDisc(ltlx, ltly, lw, lh)) {
+                char icao[5]; strlcpy(icao, ap.icao, sizeof(icao));
+                tft.setTextColor(PR_COL_RUNWAY, PR_COL_FIELD);
+                tft.drawString(icao, ax, (int16_t)(ay - 9), 1);
+            }
         }
         tft.setTextDatum(TL_DATUM);
     }
@@ -485,7 +566,7 @@ private:
         // caveat) skip the ring recolour and fall back to the same numeric-only
         // behaviour until a dimming-sweep visual is designed and eyeballed.
         bool ringShift = stale && (g_settings.prStaleStyle == PrStaleStyle::Ring);
-        tft.drawCircle(PR_CX, PR_CY, PR_R * PR_RING_HI_IDX / PR_RING_COUNT, ringShift ? PR_COL_STALE : PR_COL_RING_HI);
+        tft.drawCircle(PR_CX, PR_CY, PR_R * PR_RING_STALE_IDX / PR_RING_COUNT, ringShift ? PR_COL_STALE : PR_COL_RING);
 
         char err[12] = "";
         if (_prErr) snprintf(err, sizeof(err), "E%d", _lastHttp);
@@ -535,6 +616,9 @@ private:
             rd.lY   = (int16_t)lroundf(y + PR_AC_TAIL_LEN * sinf(nose + PR_AC_WING_ANGLE));
             rd.rX   = (int16_t)lroundf(x + PR_AC_TAIL_LEN * cosf(nose - PR_AC_WING_ANGLE));
             rd.rY   = (int16_t)lroundf(y + PR_AC_TAIL_LEN * sinf(nose - PR_AC_WING_ANGLE));
+            // TASK-312: triangle vertices already satisfy the PR_R-1 disc
+            // containment invariant by construction (see PR_SYMBOL_INSET) —
+            // no clip needed here.
             tft.fillTriangle(rd.tipX, rd.tipY, rd.lX, rd.lY, rd.rX, rd.rY, PR_COL_AIRCRAFT);
 
             if (a.gsKnots > 0) {
@@ -547,18 +631,12 @@ private:
                 float tr    = _degToRad((float)a.trackDeg);
                 float ex = x + vecPx * cosf(tr), ey = y + vecPx * sinf(tr);
                 float ddx = ex - PR_CX, ddy = ey - PR_CY;
-                if (_distPx(ddx, ddy) > PR_R) {
-                    // Binary-search clip of the endpoint onto the ring — a
-                    // refinement of the reference's linear t-=0.05 scan, not
-                    // "parity" with it (this is NOT the same algorithm).
-                    float lo = 0.0f, hi = 1.0f;
-                    for (int iter = 0; iter < 12; iter++) {
-                        float mid = (lo + hi) / 2;
-                        float mx = x + (ex - x) * mid, my = y + (ey - y) * mid;
-                        float mdx = mx - PR_CX, mdy = my - PR_CY;
-                        if (_distPx(mdx, mdy) > PR_R) hi = mid; else lo = mid;
-                    }
-                    ex = x + (ex - x) * lo; ey = y + (ey - y) * lo;
+                // TASK-312: clip threshold is PR_R-1 (was PR_R) — disc
+                // containment invariant, so the drawn+erased line never
+                // reaches the outer ring pixel. _clipToDisc() is the
+                // extracted binary-search clip, shared with _drawRunways().
+                if (_distPx(ddx, ddy) > (float)(PR_R - 1)) {
+                    _clipToDisc((float)x, (float)y, &ex, &ey);
                 }
                 rd.hasVector = true;
                 rd.vecX = (int16_t)lroundf(ex); rd.vecY = (int16_t)lroundf(ey);
@@ -595,6 +673,9 @@ private:
 
     // Q2 tag placement: centre-side, rule (c) default — ±10/±20 px vertical
     // nudge on overlap, drop tag (keep symbol) if all four candidates collide.
+    // TASK-312: in-disc containment (all four box corners within PR_R-1) is a
+    // hard constraint layered over every rule, including (a) — human style
+    // directive 2026-07-12, overrides the phase0 doc.
     void _placeTag(const dataTask::PrAircraft& a, int16_t x, int16_t y, PrRendered& rd,
                    PrRendered* occ, uint8_t& occCount) {
         char lines[PR_TAG_MAX_LINES][PR_TAG_LINE_LEN] = {};
@@ -625,22 +706,31 @@ private:
         };
 
         // Q2 (settings-configurable, default C): (a) reference — always place,
-        // never nudge/drop. (b) + nudge, place at the un-nudged position if all
-        // four candidates still collide (never drops). (c) same nudge ladder,
-        // DROP the tag (keep the symbol) if all four still collide.
+        // never nudge/drop, but still subject to the TASK-312 in-disc
+        // containment invariant below. (b) + nudge, place at the un-nudged
+        // position if all four candidates still collide (never drops) —
+        // unless even the un-nudged box is out-of-disc, in which case it
+        // drops like (c). (c) same nudge ladder, DROP the tag (keep the
+        // symbol) if all four still collide, or if no candidate fits inside
+        // the disc.
         int16_t bestY = ty;
-        bool placed = true;
-        if (g_settings.prTagRule != PrTagRule::A) {
-            placed = !overlaps(tx, ty);
+        bool placed;
+        if (g_settings.prTagRule == PrTagRule::A) {
+            placed = _boxInDisc(tx, ty, w, h);
+        } else {
+            placed = _boxInDisc(tx, ty, w, h) && !overlaps(tx, ty);
             if (!placed) {
                 static const int16_t kNudges[4] = {10, -10, 20, -20};
                 for (int16_t n : kNudges) {
-                    if (!overlaps(tx, (int16_t)(ty + n))) { bestY = (int16_t)(ty + n); placed = true; break; }
+                    int16_t ny = (int16_t)(ty + n);
+                    if (_boxInDisc(tx, ny, w, h) && !overlaps(tx, ny)) { bestY = ny; placed = true; break; }
                 }
-                if (!placed && g_settings.prTagRule == PrTagRule::B) placed = true;  // (b): place anyway, un-nudged
+                // (b): place anyway, un-nudged — only if that box is in-disc.
+                if (!placed && g_settings.prTagRule == PrTagRule::B && _boxInDisc(tx, ty, w, h))
+                    placed = true;
             }
         }
-        if (!placed) return;   // (c): drop tag, keep symbol
+        if (!placed) return;   // (c), or no in-disc candidate under any rule: drop tag, keep symbol
 
         rd.hasTag = true;
         rd.tagX = tx; rd.tagY = bestY; rd.tagW = w; rd.tagH = h;

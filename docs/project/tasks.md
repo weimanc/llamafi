@@ -5955,3 +5955,91 @@ site post-TASK-310). `./run/check` 6/6 PASS. **DUT verification 2026-07-12:
 T_PR_01..06 6/6 PASS** (shared run with TASK-309/310; T_PR_02/05 exercise
 the derived-`kPrFetchNm` fetch URL live — real fetch + real error both
 observed).
+
+---
+
+### TASK-312 — M-PLANERADAR: first-entry paint bug + radar style unification (human visual review)
+
+Human on-device review (2026-07-12) of the disc caught what the serial-only
+T_PR suite structurally cannot: on the FIRST-ever entry to the app the disc
+shows (1) a single odd-coloured circle on black, then (2) the grid on black,
+and only after a range tap (3) the intended field-coloured disc.
+
+**Root cause (bug):** `switchApp()` (main.cpp) calls `init()` on first entry
+and `resume()` thereafter — and ALL of PlaneRadar's painting lives in
+`resume()`; `init()` paints nothing. Sequence on black shell wipe: tick()'s
+once-a-second age readout draws only the ring-3 highlight circle
+(`PR_COL_RING_HI` — hence the odd colour); the first fetch's `_render()` →
+`_redrawGridStatics()` adds rings+crosshair but never the field fill
+(`_repaintDisc()` is resume-path only); the first range tap finally runs
+`_repaintDisc()`. **Class note:** TeletextApp has the identical init/resume
+shape and paints nothing in `init()` either — masked there only because its
+first fetch repaints full-screen. LL candidate: incremental-renderer apps
+MUST first-paint in `init()`, and the checklist/review should compare
+`init()` against the shell's first-entry contract, not just `resume()`.
+
+**Fix + style directives (human, 2026-07-12 — these override the phase0
+preview doc where they conflict):**
+1. ONE radar framework: `init()` seeds state then routes through the same
+   full-paint path as `resume()` (single grid/strip paint routine — no draw
+   path may exist that paints a partial grid).
+2. No minor colour variation: all four rings the same `PR_COL_RING`; the
+   ring-3 highlight (`PR_COL_RING_HI`) is removed from the base grid. The
+   Q5 stale indicator keeps recolouring ring 3, but as
+   `PR_COL_STALE`-vs-`PR_COL_RING` (status signal, not decoration).
+3. Field colour belongs INSIDE the disc only: black outside the outer ring
+   (named constant, e.g. `PR_COL_OUTSIDE` = 0x0000), `PR_COL_FIELD` as a
+   filled circle of radius `PR_R`. Consequent containment invariant — every
+   dynamic pixel (symbol, rim dot, vector, tag, and every erase of them)
+   must stay inside the disc so the black surround is painted once and
+   never damaged:
+   - rim dots: radius in from `PR_R−2` to `PR_R−4` so the r=3 erase circle
+     stays ≤ `PR_R−1`;
+   - track vectors: clip endpoint to `PR_R−1`;
+   - tags: in-disc placement constraint for ALL tag rules (nudge ladder
+     tries; drop the tag if no candidate box fits fully inside the disc);
+   - runway lines: clip the out-of-disc endpoint onto the ring (reuse the
+     binary clip); skip a line with both ends out; skip the ICAO label when
+     its text box would exit the disc.
+4. Style block: palette + grid/symbol/tag geometry gathered into one
+   clearly-delimited style section (named constants only — audit TASK-311
+   already named them; this groups them as the single style surface).
+
+**Priority:** P1 (visible on every fresh boot → first app entry) ·
+**Status:** IMPLEMENTED — build + DUT green, awaiting human visual sign-off
+(the pixel-level criterion is exactly what serial tests can't see) ·
+**Opened:** 2026-07-12 · **Milestone:** M-PLANERADAR · **Owner:** Developer ·
+**Deps:** TASK-309/310/311 (builds on the extracted helpers) ·
+**Branch:** master
+
+**Exit criteria:** `./run/check` green; T_PR_01..06 green on DUT; human
+eyeball: first entry shows the complete styled radar immediately (black
+surround, field-colour disc, uniform rings, strip) and is pixel-identical
+to the post-tap/resume state.
+
+**Implementation (2026-07-12, Sonnet subagent + orchestrator review):**
+1. `init()` seeds init-only state then falls through into `resume()` — one
+   full-paint path for first entry and every later entry.
+2. `PR_COL_RING_HI` deleted; all rings `PR_COL_RING`; `PR_RING_HI_IDX` →
+   `PR_RING_STALE_IDX` (only names the Q5 stale-recolour target now).
+3. `PR_COL_OUTSIDE` black surround + `fillCircle` field disc; containment
+   invariant at radius PR_R−1: rim dots pulled to `PR_R−4`; vector clip
+   threshold PR_R−1 with the binary clip extracted to `_clipToDisc()`
+   (shared with runways); `_boxInDisc()` corner check gates tag placement
+   under ALL Q2 rules (drop when no in-disc candidate) and the runway ICAO
+   label (skip rather than clip text); runway segments per-endpoint
+   clipped/skipped. Aircraft triangles contained by construction
+   (PR_SYMBOL_INSET, max reach 114 < 117).
+4. Style block: palette + ring/symbol/tag geometry grouped under one
+   delimited "radar style" section.
+
+**Verification:** `./run/check` 6/6 ×2 (agent + orchestrator). DUT
+T_PR_01..06: 5 PASS + T_PR_05 FAIL on first run (error −1 connect-refused
+latched, no recovery within 30 s) — triaged environmental, not regression:
+TASK-312 touches only rendering; host probe returned 200/88 ms minutes
+later; solo re-run PASS (−92 provoked → latch → recover). T_PR_05 is now
+SKIP/PASS/FAIL/PASS across four runs with no fetch-path change — inherently
+[NETWORK]-dependent (its own header says so); watchlist entry added.
+Prod firmware (with TASK-312) reflashed; device reboots into it — the next
+PlaneRadar entry exercises the fixed first-entry path for the eyeball
+check.
