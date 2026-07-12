@@ -1096,6 +1096,45 @@ static int prParseStream(Stream& stream, PlaneRadarResult& result) {
     return 0;
 }
 
+// TASK-313 fix experiment: a single fresh-connection attempt against
+// PLANERADAR_URL_BASE, filling 'r' with either a parsed result or an error
+// code. Shared by fetchPlaneRadar()'s first try and its one parse-error
+// retry (BP-047) — each call opens its own WiFiClientSecure/HTTPClient so a
+// "retry" is a genuinely new TLS connection, not a reused stream. Returns
+// the raw HTTP code (or -100 if http.begin() itself failed) so the caller
+// can gate the retry on exactly "code==200 but parse failed" without
+// inferring it from errorCode's sign (which parse errors and non-200 codes
+// can both produce).
+static int prFetchOnce(const char* url, PlaneRadarResult& r) {
+    WiFiClientSecure tls;
+    tls.setCACert(PLANERADAR_ROOT_CA);
+    HTTPClient http;
+    http.useHTTP10(true);   // identity encoding so getStream() yields clean JSON
+    if (!http.begin(tls, url)) {
+        LOG_W("dataTask.planeradar", "http.begin failed");
+        r.ok = false; r.errorCode = -100;
+        return -100;
+    }
+    unsigned long t0 = millis();
+    int code = http.GET();
+    LOG_D("dataTask.planeradar", "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
+    if (code != 200) {
+        // Distinct, unmolested HTTP code (incl. 429) reaches the app — the
+        // phase-0 limit probe measured ~33% 429s at the nominal 1 req/s
+        // courtesy limit; skip-don't-retry is inherent here (single-shot
+        // fetch per enqueue, driven by the app's 10 s cadence timer, no
+        // internal retry loop to suppress). TASK-313's retry (in the caller)
+        // is scoped to parse errors only — it never fires here.
+        r.ok = false; r.errorCode = code;
+        http.end();
+        return code;
+    }
+    int rc = prParseStream(http.getStream(), r);
+    http.end();
+    if (rc != 0) { r.ok = false; r.errorCode = rc; r.count = 0; }
+    return code;
+}
+
 static void fetchPlaneRadar() {
     float lat, lon, distNm;
     portENTER_CRITICAL_SAFE(&s_pendingPrMux);
@@ -1110,31 +1149,26 @@ static void fetchPlaneRadar() {
              PLANERADAR_URL_BASE, lat, lon, distNm);
 
     PlaneRadarResult r;
-    WiFiClientSecure tls;
-    tls.setCACert(PLANERADAR_ROOT_CA);
-    HTTPClient http;
-    http.useHTTP10(true);   // identity encoding so getStream() yields clean JSON
-    if (!http.begin(tls, url)) {
-        LOG_W("dataTask.planeradar", "http.begin failed");
-        r.ok = false; r.errorCode = -100;
-    } else {
-        unsigned long t0 = millis();
-        int code = http.GET();
-        LOG_D("dataTask.planeradar", "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
-        if (code != 200) {
-            // Distinct, unmolested HTTP code (incl. 429) reaches the app — the
-            // phase-0 limit probe measured ~33% 429s at the nominal 1 req/s
-            // courtesy limit; skip-don't-retry is inherent here (single-shot
-            // fetch per enqueue, driven by the app's 10 s cadence timer, no
-            // internal retry loop to suppress).
-            r.ok = false; r.errorCode = code;
-            http.end();
-        } else {
-            int rc = prParseStream(http.getStream(), r);
-            http.end();
-            if (rc != 0) { r.ok = false; r.errorCode = rc; r.count = 0; }
-        }
+    int code = prFetchOnce(url, r);
+
+    // TASK-313: adsb.fi (Cloudflare-fronted) prompt-clean-EOFs mid-body on
+    // ~9% of fetches (evidence phase — TLS-fingerprint edge treatment, not a
+    // stall, not rate-limit-coupled). Hypothesis: the truncation is
+    // transient per-connection, so a single immediate retry on a brand-new
+    // connection recovers it. Retry ONLY when the HTTP transaction itself
+    // succeeded (code==200) but the body failed to parse; never on a non-200
+    // code (incl. 429) or a connect/begin failure — those stay
+    // skip-don't-retry per prFetchOnce's comment.
+    if (code == 200 && !r.ok) {
+        LOG_D("dataTask.planeradar", "parse rc=%d -> retry", r.errorCode);
+        vTaskDelay(pdMS_TO_TICKS(300));
+        PlaneRadarResult retryResult;   // fresh result — no stale partial state
+        prFetchOnce(url, retryResult);
+        LOG_D("dataTask.planeradar", "retry ok=%d rc=%d",
+              (int)retryResult.ok, retryResult.errorCode);
+        r = retryResult;   // second attempt's outcome (success or error) wins
     }
+
     LOG_D("dataTask.planeradar", "ok=%d errorCode=%d count=%u",
           (int)r.ok, r.errorCode, (unsigned)r.count);
 

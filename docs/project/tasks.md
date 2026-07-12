@@ -6088,10 +6088,11 @@ FREQUENCY is a new, device-environment-specific finding.
 
 **Priority:** P2 — app degrades as designed (stale frame + error code +
 auto-recover), but a multi-per-hour error rate defeats the app's purpose ·
-**Status:** OPEN · **Opened:** 2026-07-12 · **Milestone:** M-PLANERADAR ·
+**Status:** DONE (see "FIX validated + CLOSED" below) · **Opened:**
+2026-07-12 · **Closed:** 2026-07-12 · **Milestone:** M-PLANERADAR ·
 **Owner:** Developer (+VE for the instrumented soak) · **Deps:** informed
-by TASK-243 (Spotify 403 loop is the top contention suspect) · **Branch:**
-master
+by TASK-243 (initial top suspect — exonerated by the evidence phase) ·
+**Branch:** master
 
 **Exit criteria:** cause split (contention vs RF vs heap) with evidence;
 E-92 rate quantified before/after any fix over ≥1 h soak at 10 s cadence;
@@ -6134,3 +6135,25 @@ provider not fronted by Cloudflare — product decision, needs a phase-0-lite
 probe. Raw logs + analysis scripts in the session scratchpad
 (`condA/B.log`, `*_analysis.txt`, `evidence_notes.md`); durable numbers are
 in this entry.
+
+**FIX validated + CLOSED (2026-07-12, BP-044 satisfied — the fix stopped the
+repro on hardware):** `prFetchOnce()` extracted (BP-047 — one request block,
+fresh TLS connection per call); `fetchPlaneRadar()` retries ONCE, gated
+exactly on `code==200 && !r.ok` (parse error only — non-200 incl. 429 and
+begin-failures stay skip-don't-retry), 300 ms gap, fresh result, second
+outcome wins. Validation soak (35 min, 211 cycles, no host probe):
+**first-attempt −92 rate 8.5% (18/211 — repro fully present), retry
+recovered 17/18 (94.4%), final user-visible error rate 0.47%** (the one
+double-truncation; recovered next poll). Residual matches the
+independent-per-connection prediction (0.085² ≈ 0.7%) — confirming the
+transient-per-connection mechanism. E429: zero (retry adds requests only on
+failure). GET p50 unchanged (4.36 s — the Cloudflare pacing remains; cosmetic
+only). Gates: `run/check` 6/6; T_PR_01..06 5 PASS + T_PR_05 SKIP (rate limit
+not provokable — same accepted shape as TASK-307). Reviewer note: second
+`PlaneRadarResult` (~1 KB) on the dataTask stack accepted on empirical
+evidence (soak + suite clean, heap/stack flat). **Residuals, deliberately
+out of scope:** the 4.3 s-per-GET edge pacing (harmless at 10 s cadence);
+the unreproduced one-off GET −1@120 s (plausibly a 2.4 GHz dropout — the
+ISP-documented evening worst-case was never sampled); adsb.fi per-IP 429
+budget is shared with any host-side tooling — keep host probes ≥60 s
+cadence. **Status → DONE · Closed: 2026-07-12.**
