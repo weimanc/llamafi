@@ -4,6 +4,26 @@
 
 Entries promoted from `lessons_learned.md` on explicit human approval. All agents read+apply. QM owns file, invalidates outdated practices.
 
+### BP-048 — Apps must paint completely from init(); pixel-level exit criteria carry an explicit human-eyeball gate
+
+**Adopted from**: LL-109
+**Date adopted**: 2026-07-12 (human)
+**Rule**: Two parts. (1) Every app must produce its complete first paint on the shell's FIRST-entry path: `switchApp()` calls `init()` on first entry and `resume()` thereafter, so `init()` must either paint everything or explicitly route through `resume()`'s paint path — verify against the dispatch in `switchApp()`, not just the app file's internal consistency, and do not copy TeletextApp's init/resume shape blind (it has the same latent gap, masked only by its full-screen fetch redraws). Goes on NEW-APP-CHECKLIST. (2) Any task whose exit criteria are pixel-level (paint, palette, layout, erase artifacts) must carry an explicit "human eyeball" criterion that blocks DONE — serial-dbg suites observe state, not pixels, and their "render verified" assertions silently degrade to state-level proxies.
+**Rationale**: PlaneRadar shipped with `init()` painting nothing. First entry showed a stray ring on black, then a field-less grid — broken since TASK-304. It survived the implementation review, a dedicated code audit against the reference project, a refactor review, and two full T_PR_01..06 DUT runs (T_PR_02 "verified render" by reading an aircraft count over serial while the screen was wrong). The human saw it within seconds of looking at the device (TASK-312). Where a human-eyeball criterion WAS written into the task (TASK-312's exit criteria), the gate worked exactly as designed.
+**Applies to**: Developer (new apps, NEW-APP-CHECKLIST), VE (test-plan honesty about the serial observability boundary), PM (exit-criteria wording on render tasks), QM (review-scope audits)
+
+---
+
+### BP-047 — A fix landing in duplicated logic either extracts the shared helper in the same commit or names the sibling sites
+
+**Adopted from**: LL-110
+**Date adopted**: 2026-07-12 (human)
+**Rule**: Before committing a fix, grep for other sites that duplicate the logic being fixed (same field written, same call sequence, same table). Either (a) extract the shared helper so the fix lands once, in the same commit, or (b) apply the fix to every sibling, or (c) name the unfixed siblings in the task resolution as explicitly out-of-scope. A fix silently applied to one of N copies is a divergence, not a fix.
+**Rationale**: TASK-308 fix 5 (disc repaint on range change) went into `handleInput()` while its duplicate in `dbgSet("prRange")` kept the bug — caught only by the next day's duplication audit (TASK-309 finding 3). One layer down, the `init()`/`resume()` preset-clamp duplication is what created TASK-308 fix 2 in the first place. Both divergences were created by patching one copy under time pressure; neither was findable by testing the fixed path. The audit that caught them was hunting duplication on a human hunch, not hunting bugs — periodic duplication audits are cheap relative to what this one caught (3 bug-class defects).
+**Applies to**: Developer (fix workflow), QM (retrospectives: check fresh fixes for sibling sites), PM (scheduling periodic duplication audits on mature apps)
+
+---
+
 ### BP-046 — A design doc's "the preview/PoC tool confirms X" claim must be checked against the tool's source, not just its screenshot
 
 **Adopted from**: LL-105
