@@ -6042,3 +6042,57 @@ SKIP/PASS/FAIL/PASS across four runs with no fetch-path change — inherently
 Prod firmware (with TASK-312) reflashed; device reboots into it — the next
 PlaneRadar entry exercises the fixed first-entry path for the eyeball
 check.
+
+---
+
+### TASK-313 — M-PLANERADAR: recurring E-92 (IncompleteInput) in normal operation — device-side fetch degradation, host is clean
+
+Human observed repeated `E-92` on the strip during normal untouched
+operation (10 s cadence). Monitor log (2026-07-12) shows the pattern:
+`GET 200 elapsed=3776ms → parse error at object 5: IncompleteInput`,
+`GET 200 elapsed=4480ms → object 12`, `GET 200 elapsed=10825ms → object 12`,
+and one `GET -1 elapsed=120061ms` (2-minute connect/read failure). Heap at
+fetch time: free=91k, maxBlk=43k.
+
+**Simultaneous host probe: 5/5 HTTP 200 at 96–238 ms, 12.6 KB bodies, valid
+JSON (28 aircraft)** — adsb.fi and the WAN are healthy; the degradation is
+local to the device.
+
+**This failure class never occurred in host-side phase-0 testing**: 2,509
+soak requests (2 159 + 350, 10 s cadence) had **zero truncations** and
+latency p95 318 ms / max 1.5 s (`phase0-api-probe.md` Results). The −92
+parse path itself was validated only against the synthetic `truncated.json`
+fixture (clean IncompleteInput at object 41, no partial records — by
+design). So: error HANDLING is proven (display keeps stale frame, E-92 on
+strip, recovers next poll — exactly the observed behaviour); the error
+FREQUENCY is a new, device-environment-specific finding.
+
+**Hypotheses to split** (in order of prior, per project history):
+1. On-device contention: TASK-243's Spotify 403-retry loop cycling TLS
+   handshakes (CPU-heavy mbedtls) starving dataTask's stream reads —
+   although tlsYield() brackets the fetch, so Spotify should be quiescent
+   during the GET; verify with heartbeat/`get dataq` on a debug build, and
+   compare E-92 rate with Spotify disabled (`DISABLE_SPOTIFY` build) or
+   after TASK-243 clears.
+2. WiFi RF at the device (2.4 GHz, LL-096 precedent): compare RSSI; host
+   probe from the same room ≠ same antenna/stack.
+3. Heap state: maxBlk=43k at fetch time is below the ≥47 KB every observed
+   *radio-browser* success needed (TASK-289 numbers; different host, may
+   not transfer) — smaller TLS fragments → slower reads? Measure, don't
+   assume.
+4. Mitigation candidate regardless of cause: the mid-body stall tolerance
+   is the Arduino Stream read timeout — a stall > timeout mid-object
+   becomes IncompleteInput even when bytes are still coming. Raising the
+   stream timeout for this close-delimited HTTP/1.0 fetch may ride out
+   stalls at zero cost; decide after the cause is split.
+
+**Priority:** P2 — app degrades as designed (stale frame + error code +
+auto-recover), but a multi-per-hour error rate defeats the app's purpose ·
+**Status:** OPEN · **Opened:** 2026-07-12 · **Milestone:** M-PLANERADAR ·
+**Owner:** Developer (+VE for the instrumented soak) · **Deps:** informed
+by TASK-243 (Spotify 403 loop is the top contention suspect) · **Branch:**
+master
+
+**Exit criteria:** cause split (contention vs RF vs heap) with evidence;
+E-92 rate quantified before/after any fix over ≥1 h soak at 10 s cadence;
+fix (if any) leaves T_PR_01..06 green.
