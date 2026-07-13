@@ -739,6 +739,25 @@ public:
                      (unsigned)_stationCount, (unsigned)_pendingStations);
             return true;
         }
+        // Debug: dump one loaded station by index — "get wrStation <idx>". Pair
+        // with wrCount to walk the whole list from a host script when the
+        // physical display can't be inspected directly.
+        if (strncmp(var, "wrStation", 9) == 0) {
+            int idx = -1;
+            sscanf(var + 9, "%d", &idx);
+            if (idx < 0 || idx >= (int)_stationCount) {
+                snprintf(buf, len,
+                         "\"var\":\"wrStation\",\"error\":\"idx out of range\","
+                         "\"count\":%u,\"last\":true", (unsigned)_stationCount);
+                return true;
+            }
+            snprintf(buf, len,
+                     "\"var\":\"wrStation\",\"idx\":%d,\"name\":\"%s\","
+                     "\"bitrate\":%u,\"url\":\"%s\",\"last\":true",
+                     idx, _stations[idx].name, (unsigned)_stations[idx].bitrate,
+                     _stations[idx].url);
+            return true;
+        }
         if (strcmp(var, "wrIdx") == 0) {
             snprintf(buf, len,
                      "\"var\":\"wrIdx\",\"idx\":%u,\"last\":true", (unsigned)_currentIdx);

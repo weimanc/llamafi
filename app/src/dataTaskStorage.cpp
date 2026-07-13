@@ -701,9 +701,20 @@ static constexpr size_t WR_FETCH_MIN_TLS_BLOCK = 40 * 1024;
 // all.api round-robin alias both resolve to IPv4 (91.98.4.78) and verify against
 // the pinned ISRG Root X1, so an IPv4-only ESP32 can reach them. Keeping the two
 // live hosts. (Production fix — also belongs on master, not just the arena branch.)
+//
+// 2026-07-13: all.api goes FIRST now, de1 demoted to fallback. Root-caused a
+// "wrong station list" report by adding raw-page + resolved-IP debug logging
+// (see fetchOneMirror/appendHttpStations) — de1 was returning a clean HTTP 200
+// but a stale/desynced slice of the DB (missing the actual top-voted NL
+// stations, e.g. NPO Radio 1/2, entirely) while all.api's own load-balancer
+// served the correct canonical data for the identical query at the same
+// moment. The per-mirror loop treats any 200 as final and never falls
+// through, so pinning de1 first meant a de1 sync outage silently stuck the
+// device on bad data instead of failing over. all.api exists precisely to
+// route around a single unhealthy named mirror — use it as the primary.
 static const char* kRadioBrowserMirrors[] = {
-    "de1.api.radio-browser.info",
     "all.api.radio-browser.info",
+    "de1.api.radio-browser.info",
 };
 static constexpr int WR_MIRROR_COUNT =
     (int)(sizeof(kRadioBrowserMirrors) / sizeof(kRadioBrowserMirrors[0]));
@@ -877,13 +888,17 @@ static int fetchOneMirror(const char* mirror, const char* country, uint8_t bitra
     // the 5 KB parse doc holds; offset pages through the list (TASK-232).
     int n = snprintf(url, sizeof(url),
         "https://%s/json/stations/search"
-        "?countrycode=%s&codec=MP3&hidebroken=true&order=votes&limit=%u&offset=%u",
+        "?countrycode=%s&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=%u&offset=%u",
         mirror, country, (unsigned)WR_MAX_STATIONS, offset);
     // TASK-221: cap drain rate for the small ring buffer. radio-browser's param
     // is camelCase bitrateMax (host-verified — snake_case bitrate_max is ignored).
     // bitrate=0 (unknown) still passes the server filter, which is acceptable here.
     if (bitrateCap > 0 && n > 0 && n < (int)sizeof(url))
         snprintf(url + n, sizeof(url) - n, "&bitrateMax=%u", (unsigned)bitrateCap);
+    // Log the complete query so a host curl can replicate this request exactly
+    // (must stay below the bitrateMax append — the cap silently reshapes the
+    // station list, so a log of the base URL alone is actively misleading).
+    LOG_D("dataTask.webradio", "url=%s", url);
 
     WiFiClientSecure tls;
     // Pinned root only (ADR-029). The setInsecure() fallback was removed in
