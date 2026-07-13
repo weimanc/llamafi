@@ -1,10 +1,11 @@
 # Design — M-PR-LOCATIONS: PlaneRadar location presets + geocode lookup
 
 > Owner: Architect
-> Status: draft — proposed 2026-07-13; supersedes the D4 (v1) "compile-time
-> default, no numeric-entry UI" location lean (`settingsStorage.h:106`,
-> M-PLANERADAR design D4) and the "strip is display-only" phase-0 decision
-> (`planeRadarApp.h:209`, phase0-preview-ui.md)
+> Status: draft — proposed 2026-07-13; **Q1–Q7 resolved by human same day**
+> (see Resolved questions) — ready for PM breakdown; supersedes the D4 (v1)
+> "compile-time default, no numeric-entry UI" location lean
+> (`settingsStorage.h:106`, M-PLANERADAR design D4) and the "strip is
+> display-only" phase-0 decision (`planeRadarApp.h:209`, phase0-preview-ui.md)
 > Date: 2026-07-13
 > Deps: M-PLANERADAR (done), dataTask, ADR-029, KeyboardWidget
 > (M-SETTINGS-001), Settings AppsSection
@@ -74,8 +75,8 @@ Operational facts, verified:
 
 ```cpp
 // settingsStorage.h
-static constexpr uint8_t PR_NUM_LOCS  = 4;   // Q1
-static constexpr uint8_t PR_LABEL_MAX = 5;   // chars, excl. NUL — strip-width bound, Q2
+static constexpr uint8_t PR_NUM_LOCS  = 4;   // Q1 resolved: 4
+static constexpr uint8_t PR_LABEL_MAX = 5;   // chars, excl. NUL — strip-width bound; Q2 resolved: 5
 
 struct PrLocation {
     char  label[PR_LABEL_MAX + 1];  // "" = empty slot
@@ -144,25 +145,35 @@ lat-lon row, `appsSection.h:332-357`) stay. Changes:
 - Slot editor flow (keyboard-driven, one field at a time, mirroring the
   WiFi-password and stock-ticker flows):
   1. Label (UpperAlpha, ≤5) — prefilled when editing an existing slot.
-  2. Country (UpperAlpha, ≤2) — prefilled from previous entry.
-  3. Postcode (Full mode, ≤10).
-  4. → `enqueueGeocode`; spinner row while pending (M-DATATASK-PROGRESS
-     pattern); on result show `display_name` + coords with **Save** /
-     **Retry** / **Cancel**.
+  2. Coordinate source choice (Q4 resolved): **Lookup** (default) or
+     **Manual**.
+  3. Lookup path: Country (UpperAlpha, ≤2, prefilled from previous entry) →
+     Postcode (Full mode, ≤10) → `enqueueGeocode`; spinner row while
+     pending (M-DATATASK-PROGRESS pattern); on result show `display_name` +
+     coords with **Save** / **Retry** / **Cancel**. On failure the decoded
+     error (`httpErr()` / `-96 GEOCODE_NO_MATCH`) shows with the same
+     Retry/Cancel — Cancel keeps prior coords.
+  4. Manual path: lat then lon via keyboard (numeric entry — digits,
+     `-`, `.`; add a numeric layout to KeyboardWidget if Full mode proves
+     clumsy), validated to −90..90 / −180..180, then the same Save /
+     Cancel confirm. First-class alternative to lookup, not just a
+     failure fallback: covers offline setup and locations OSM's postcode
+     data doesn't know.
   - **Delete** action on the editor screen for a non-empty slot (clears
     label → slot empty). Deleting the active slot falls back to slot 0;
     slot 0 itself is not deletable (always-defined invariant, keeps
     `prActiveLoc` trivially valid).
 - Saving a slot does NOT switch to it; switching is the radar-side gesture
-  (or tapping the active-marker column in the sub-view — Q6).
+  only (Q6 resolved: sub-view tap = edit, single-purpose).
 
 ## Radar app — strip becomes the location switcher
 
 Strip geometry today (`planeRadarApp.h:113-116`): RANGE y5, COUNT y43,
 `N^` marker y120, AGE y193, ERR y213 — free band ≈ y55..185.
 
-- Relocate the static `N^` bezel marker up next to the unit label
-  (y≈30-region) to free a contiguous band (Q3).
+- **Remove** the static `N^` bezel marker entirely (Q3 resolved: "adds no
+  value" — north-up is implicit in a fixed-orientation radar). Frees the
+  whole y55..185 band contiguously; one less static to repaint.
 - Render up to 4 label rows (font 1, MC_DATUM at `PR_STRIP_LABEL_X`,
   ~26 px pitch) in the freed band; empty slots render nothing. Active slot
   highlighted (inverse box or `PR_COL_STRIP_TEXT` vs dimmed — preview
@@ -193,6 +204,8 @@ relocation, pitch, highlight style) before firmware code.
 - T_PRL_04: migration — pre-upgrade settings.json (no prLocs key) → slot 0
   seeded from prLat/prLon, active 0.
 - T_PRL_05: same-slot tap no-op; delete-active falls back to slot 0.
+- T_PRL_06: manual lat/lon entry round-trip — out-of-range values
+  (91, -200) rejected at the editor, valid pair persists and projects.
 - Nominatim host added to the run/test step-0 cert preflight roster.
 
 ## Heap / budget note
@@ -202,25 +215,20 @@ one-shot fetch on the dataTask stack (bounded ~1 KB, well under the 14 KB
 stack's measured margins); `prLocs[4]` adds 4×(6+8) = 56 B to `AppSettings`.
 No new task, no new persistent TLS session.
 
-## Open questions
+## Resolved questions (human review 2026-07-13)
 
-- **Q1 — slot count.** 4 fits the freed strip band at readable pitch;
-  6 would need ~20 px pitch and crowd the AGE row. Lean 4.
-- **Q2 — label length.** 5 chars at font 1 is the width bound. Alternatives
-  (4 chars larger font / vertical text) look worse in a quick mental
-  preview; confirm via preview tool. Lean 5.
-- **Q3 — `N^` marker.** Relocate to the top cluster (near unit label) vs
-  bottom (above AGE). Preview decides; no functional weight.
-- **Q4 — lookup failure UX.** Editor shows `httpErr()` decode + Retry;
-  slot keeps prior coords on Cancel. Any need for an offline manual
-  lat/lon entry escape hatch? Lean no for v1 (spiffs-push dev path still
-  exists).
-- **Q5 — country picker vs 2-char entry.** v1: 2-char code. A picker could
-  reuse the country data already in `cities.h`. Defer.
-- **Q6 — switching from Settings.** Is tapping a slot in the Settings
-  sub-view also a "switch active" action, or edit-only (switch only in
-  radar)? Lean: long-term both, v1 radar-only (keeps sub-view semantics
-  single-purpose: manage slots).
-- **Q7 — shared home location.** Out of scope here; if/when a device-wide
-  localization widget lands (weather coords, tz city, webradio country),
-  slot 0 is the natural alias target. Record only.
+- **Q1 — slot count: 4.** Readable ~26 px pitch in the freed band.
+- **Q2 — label length: 5 chars** (font-1 width bound; UpperAlpha keyboard).
+- **Q3 — `N^` marker: remove entirely** ("adds no value") — not relocated.
+  North-up is implicit; drop the draw call at `planeRadarApp.h:481`.
+- **Q4 — failure UX: Retry/Cancel, plus manual lat/lon entry as a
+  first-class alternative input method** to the country+postcode lookup
+  (editor offers Lookup | Manual at the coordinate-source step) — not
+  merely a failure fallback. Covers offline setup and OSM postcode gaps.
+- **Q5 — country input: 2-char ISO code via the existing KeyboardWidget.**
+  No country picker.
+- **Q6 — switching: radar-strip only in v1.** Settings sub-view tap =
+  edit, single-purpose.
+- **Q7 — shared home location: record only.** Radar-scoped milestone;
+  slot 0 remains the natural alias target for a future device-wide
+  localization widget, nothing designed now.

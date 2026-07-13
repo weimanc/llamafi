@@ -1084,9 +1084,11 @@ written-through mirror of the active slot so all existing consumers and the
 spiffs-push dev path keep working. Preview-first for the strip layout per
 BP-048.
 
-**Status:** proposed — design doc drafted 2026-07-13, open questions Q1–Q7
-(slot count, label length, N^ marker relocation, failure UX, country picker,
-settings-side switching, shared-home-location alias) await human review
+**Status:** proposed — design doc drafted 2026-07-13; Q1–Q7 resolved by
+human same day (4 slots · 5-char labels · N^ marker removed outright ·
+manual lat/lon entry as first-class alternative to lookup · 2-char country
+entry · radar-only switching · home-alias recorded only). Ready for PM
+breakdown into tasks
 **Deps:** M-PLANERADAR (done), dataTask, ADR-029, KeyboardWidget,
 M-CERT-ERRCODE (companion, not blocking)
 **Design:** [M-PR-LOCATIONS-location-presets.md](../architecture/designs/M-PR-LOCATIONS-location-presets.md)
