@@ -1040,6 +1040,59 @@ options before an ADR is written
 
 ---
 
+### M-CERT-ERRCODE — Dedicated error code for TLS cert failures
+
+An mbedTLS certificate-verify failure (-9984 X509_CERT_VERIFY_FAILED) is
+invisible at the `errorCode` surface: Arduino HTTPClient collapses it into a
+generic `-1 CONNECTION_REFUSED`, so pin rot on any dataTask host looks like a
+dead server unless someone is watching the serial monitor (`tlsErr()` decode
+is log-only). Both coingecko root flips (TASK-298) were diagnosed that way.
+With the pin roster growing (adsb.fi; proposed Nominatim, whose chain relies
+on a droppable cross-sign), cert rot should name itself on the existing
+surfaces: hook `WiFiClientSecure::lastError()` in the shared `openHttps()`
+helper, map `-0x2700` to a new `-120 CERT_VERIFY_FAILED` sentinel (reserved
+band -120..-129), decode it in `httpErr()`, and audit the hand-rolled
+fetchers onto the same check. Host side (added same day): hook the existing
+`run/check-datatask-certs` validity test into `run/build*` warn-only (env
+knob to skip offline), add a deterministic offline expiry check on the
+pinned PEMs, and a `--propose-fix` mode that drafts the replacement PEM +
+fingerprint report for human approval — explicitly **no** auto-update of
+pins (TOFU risk; single probes lie under Cloudflare multi-chain
+load-balancing, see TASK-298). Companion to M-PR-LOCATIONS.
+
+**Status:** proposed — design doc drafted 2026-07-13
+**Deps:** ADR-029, TASK-223 (openHttps)
+**Design:** [M-CERT-ERRCODE-cert-error-sentinel.md](../architecture/designs/M-CERT-ERRCODE-cert-error-sentinel.md)
+
+---
+
+### M-PR-LOCATIONS — PlaneRadar location presets + geocode lookup
+
+Supersedes the D4 (v1) compile-time-location lean and the "strip is
+display-only" phase-0 decision. Four named location slots
+(`label ≤5 chars + lat/lon`), managed in Settings → Applications →
+PlaneRadar via a country + full-postcode geocode lookup (Nominatim
+structured search — provider matrix probed live 2026-07-13: open-meteo's
+geocoder is blind to UK postcodes; Nominatim is street-level for both NL and
+UK full postcodes and needs **no new root cert**, its chain verifies against
+the already-pinned ISRG Root X1 via a cross-sign to be flagged in
+`dataTaskCerts.h`). Slot editor: keyboard-driven label/country/postcode entry,
+one-shot dataTask geocode fetch, save/retry/cancel + delete. In the radar app
+the side strip lists the slot labels and a tap jumps the radar (repaint disc,
+re-project runways, immediate re-fetch); `prLat/prLon` stay as the
+written-through mirror of the active slot so all existing consumers and the
+spiffs-push dev path keep working. Preview-first for the strip layout per
+BP-048.
+
+**Status:** proposed — design doc drafted 2026-07-13, open questions Q1–Q7
+(slot count, label length, N^ marker relocation, failure UX, country picker,
+settings-side switching, shared-home-location alias) await human review
+**Deps:** M-PLANERADAR (done), dataTask, ADR-029, KeyboardWidget,
+M-CERT-ERRCODE (companion, not blocking)
+**Design:** [M-PR-LOCATIONS-location-presets.md](../architecture/designs/M-PR-LOCATIONS-location-presets.md)
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.
