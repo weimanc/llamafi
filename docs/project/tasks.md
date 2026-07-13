@@ -648,9 +648,17 @@ across the v2.x line and the lever is resident footprint, not library version �
 *confirmation nicety*, not a decision input. Prior attempt hit `SD_MMC.h: No such file` (v2.0.6 predates
 `AUDIO_NO_SD_FS`) — needs the build-config shim before it can run.
 
-**Priority:** P3 — optional confirmation; not on any critical path · **Status:** **open — optional, deferred**
-· **Opened:** 2026-06-27 · **Milestone:** M-WEBRADIO-NOPSRAM · **Rig:** `~/proj/webradio-bare/`
-**Owner:** R&D · **Deps:** TASK-258 (done) · **Parent:** TASK-258 step 4
+**DONE 2026-07-13 → EXP-013 (`docs/rnd/reports/EXP-013-audioI2S-version-ab.md`). CONFIRMED: version is
+not a lever.** 3 valid trials/arm on the EXP-009 rig, same station (groovesalad-128), lib_deps-only swap:
+Δ `usable`@CP2 ≈ +1.3 K mean for v2.0.6 — inside the ±2.4 K per-trial jitter both arms share; `maxAlloc`@CP2
+**byte-identical (102,388) every trial**; CP1 delta (+530 B) = its −520 B static image. Keep the v2.3.0 pin.
+The `SD_MMC.h` blocker did NOT reproduce — no shim needed (default chain LDF resolves bundled SD/FS libs;
+rig doesn't set `AUDIO_NO_SD_FS` so both arms link the same stack). Production firmware restored + verified.
+
+**Priority:** P3 — optional confirmation; not on any critical path · **Status:** **DONE 2026-07-13 —
+CONFIRMED EXP-009 (keep v2.3.0); Lane C closed** · **Opened:** 2026-06-27 · **Closed:** 2026-07-13
+· **Milestone:** M-WEBRADIO-NOPSRAM · **Rig:** `~/proj/webradio-bare/`
+**Owner:** R&D · **Deps:** TASK-258 (done) · **Parent:** TASK-258 step 4 · **Record:** EXP-013
 
 ---
 
