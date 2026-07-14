@@ -29,6 +29,9 @@
 //                       decision in phase0-api-probe.md.
 //
 // Update trigger: see ADR-029 rotation table. Remediation = update PEM + reflash.
+// A verify failure against any of these pins surfaces at runtime as errorCode
+// -120 CERT_VERIFY_FAILED (TASK-318, openHttps) — a -120 on an app error row
+// or `get dataq` means THIS file is stale, not that the endpoint is down.
 
 static const char OPEN_METEO_ROOT_CA[] = R"EOF(
 -----BEGIN CERTIFICATE-----

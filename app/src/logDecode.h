@@ -51,6 +51,9 @@ inline const char *httpErr(int code) {
     case -11: return "-11 HTTPC_READ_TIMEOUT";
     // Our sentinel: http.begin() returned false (URL/TLS setup failure)
     case -100: return "-100 HTTP_BEGIN_FAILED";
+    // Our sentinel: pinned-CA verify failure (mbedTLS -0x2700 surfaced by
+    // openHttps, TASK-318). Remediation: ADR-029 rotation, not a network fix.
+    case -120: return "-120 CERT_VERIFY_FAILED";
     // HTTP status codes
     case 200: return "200 OK";
     case 204: return "204 No Content";

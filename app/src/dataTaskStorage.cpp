@@ -156,13 +156,31 @@ static const char  HEATMAP_URL[] =
 // INT_MIN can't collide with any HTTPClient return value.
 static constexpr int OPENHTTPS_BEGIN_FAILED = INT_MIN;
 
+// TASK-318 (M-CERT-ERRCODE): pinned-CA verify failure surfaced as its own
+// errorCode. HTTPClient collapses a failed TLS handshake into a generic
+// -1 HTTPC_ERROR_CONNECTION_REFUSED; the underlying mbedTLS code survives in
+// WiFiClientSecure::_lastError. -0x2700 (X509_CERT_VERIFY_FAILED, -9984) is
+// the one code that means "the pinned root no longer builds the chain" —
+// substitute -120 so pin rot names itself on the app error row / `get dataq`
+// / heartbeat instead of masquerading as a dead host. Checked only when
+// GET() already failed AND the stored error is exactly -0x2700 (a stale or
+// different code falls through to the raw HTTPClient code as before).
+// Reserved band -120..-129: TLS-layer sentinels (see dataTask.h).
+static constexpr int CERT_VERIFY_FAILED = -120;
+
 static int openHttps(WiFiClientSecure& tls, HTTPClient& http, const char* url,
                       const char* rootCA, bool insecure) {
     if (insecure) tls.setInsecure();
     else          tls.setCACert(rootCA);
     http.useHTTP10(true);   // force Connection:close so http.end() frees TLS
     if (!http.begin(tls, url)) return OPENHTTPS_BEGIN_FAILED;
-    return http.GET();
+    int code = http.GET();
+    if (code < 0 && !insecure) {
+        char ebuf[8];   // text unused; lastError() is the int accessor
+        if (tls.lastError(ebuf, sizeof(ebuf)) == -0x2700)
+            return CERT_VERIFY_FAILED;   // begin() succeeded — caller still http.end()s
+    }
+    return code;
 }
 
 static void fetchWeather() {

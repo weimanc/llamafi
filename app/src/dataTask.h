@@ -141,6 +141,10 @@ static constexpr uint8_t PR_MAX_AIRCRAFT = 24;
 // fetcher's own (see dataTaskStorage.cpp fetchPlaneRadar() for the exact list —
 // -100 http.begin failed, -90-err.code() JSON parse error on one aircraft
 // object, -111..-115 stream-scan failures specific to the chunked parse).
+// -120..-129 is the reserved TLS-layer sentinel band (M-CERT-ERRCODE,
+// TASK-318): -120 = pinned-CA verify failure (mbedTLS -0x2700 surfaced by
+// openHttps(); remediation = ADR-029 rotation procedure), all fetchers on
+// openHttps() can return it. Do not allocate app-specific codes here.
 struct PlaneRadarResult {
     bool       ok        = false;
     int        errorCode = 0;
