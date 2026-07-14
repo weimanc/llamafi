@@ -1073,7 +1073,26 @@ for this exact reason since they were planned. Inject into the active
 keyboard's buffer + commit/cancel, following handleSerialCommands
 conventions (mind the drain-all-bytes-at-once lesson, T157-159). Unblocks
 TASK-321/322/324 here AND the parked stock editor tests.
-**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-SERIALDBG /
+
+Landed: `set kbText <text>` (verbatim rest-of-line after "kbText ", may
+contain spaces — UK postcodes; mode-filtered through the widget's own
+`injectChar`/`appendChar` path, e.g. UpperAlpha uppercases + drops digits/
+symbols exactly as the on-screen key tables would), `set kbOk` (fires the
+same `submit()` commit path/callback as tapping OK; no-op when buffer empty,
+same as the on-screen disabled state), `set kbCancel` (same `cancel()`
+path/callback as the on-screen cancel zone), and `get kb` → `{"active",
+"len","maxLen","mode"}`. All four error `{"ok":false,...}` when no keyboard
+is active. New KeyboardWidget public methods are additive only
+(`injectChar`, `injectText`, `commitFromHost`, `cancelFromHost`,
+`len`/`maxLen`/`mode` accessors) — no touch-path behaviour change.
+`docs/verification/test_plan.md` got one added note line above T232 pointing
+at the new command syntax (T232/233/246/247 are live test_plan.md entries,
+not an archived tasks list, so the "leave archive alone" fallback didn't
+apply — no separate archived task entry for these tests was found).
+`./run/check` 6/6 PASS. DUT execution of T232/233/246/247 and the VE-PRL-1
+assert deferred to the grouped TASK-324 session.
+**Status:** code landed, run/check 6/6; DUT asserts deferred to grouped
+TASK-324 session · **Opened:** 2026-07-14 · **Milestone:** M-SERIALDBG /
 M-PR-LOCATIONS · **Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** y
 
 ---

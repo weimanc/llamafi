@@ -3064,6 +3064,17 @@ static void cmdGet(const char *args) {
                   pm, pm ? "WebRadio" : "Spotify");
     return;
   }
+  if (strcmp(args, "kb") == 0) {
+    // TASK-325 (M-SERIALDBG, VE-PRL-1 blocker): cheap KeyboardWidget state
+    // dump for host assertions after kbText/kbOk/kbCancel — same diagnostic-
+    // surface role as `get dataq` / `get wrStation` elsewhere.
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"kb\","
+                  "\"active\":%s,\"len\":%d,\"maxLen\":%d,\"mode\":%d,\"last\":true}\n",
+                  g_keyboard.active() ? "true" : "false",
+                  (int)g_keyboard.len(), (int)g_keyboard.maxLen(),
+                  (int)g_keyboard.mode());
+    return;
+  }
   if (strcmp(args, "prloc") == 0) {
     // M-PR-LOCATIONS (TASK-319): per-slot dump + active index — the
     // diagnostic surface for every T_PRL test (same role `get wrStation` /
@@ -3086,6 +3097,52 @@ static void cmdGet(const char *args) {
 
 static void cmdSet(const char *args) {
   char var[32], val[128];  // val widened to 128 to accommodate wrUrl (104-byte station URLs)
+
+  // TASK-325 (M-SERIALDBG, VE-PRL-1 blocker): KeyboardWidget injection.
+  // kbText carries the full remaining string verbatim (UK postcodes etc.
+  // contain spaces) and kbOk/kbCancel take no value at all — neither fits
+  // the generic single var/val split below, so both are special-cased
+  // against the raw `args` first (same drain-all-bytes-at-once lesson as
+  // the "set prloc" reparse below: don't assume a fixed token count).
+  // Injection/commit/cancel route through KeyboardWidget's own
+  // injectText()/commitFromHost()/cancelFromHost() — same callbacks, same
+  // cleanup as a real tap (BP-047/LL-110: no duplicated logic here).
+  if (strncmp(args, "kbText", 6) == 0 && (args[6] == '\0' || args[6] == ' ')) {
+    const char *text = (args[6] == ' ') ? args + 7 : "";
+    if (!g_keyboard.active()) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"kbText\","
+                      "\"error\":\"no active keyboard\"}");
+      return;
+    }
+    g_keyboard.injectText(text);
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"kbText\","
+                  "\"len\":%d,\"maxLen\":%d}\n",
+                  (int)g_keyboard.len(), (int)g_keyboard.maxLen());
+    return;
+  }
+  if (strcmp(args, "kbOk") == 0) {
+    if (!g_keyboard.active()) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"kbOk\","
+                      "\"error\":\"no active keyboard\"}");
+      return;
+    }
+    bool wasEmpty = (g_keyboard.len() == 0);  // OK is disabled/no-op when empty on-screen too
+    g_keyboard.commitFromHost();
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"kbOk\",\"submitted\":%s}\n",
+                  wasEmpty ? "false" : "true");
+    return;
+  }
+  if (strcmp(args, "kbCancel") == 0) {
+    if (!g_keyboard.active()) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"kbCancel\","
+                      "\"error\":\"no active keyboard\"}");
+      return;
+    }
+    g_keyboard.cancelFromHost();
+    Serial.println("{\"ok\":true,\"cmd\":\"set\",\"var\":\"kbCancel\"}");
+    return;
+  }
+
   if (sscanf(args, "%31s %127s", var, val) != 2) {
     Serial.println("{\"ok\":false,\"cmd\":\"set\",\"error\":\"bad args\"}");
     return;

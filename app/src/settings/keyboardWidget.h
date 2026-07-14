@@ -163,6 +163,60 @@ public:
         return true;
     }
 
+    // ---- Host/serial injection (TASK-325 — VE-PRL-1 blocker) ---------------
+    // Routes through the SAME internal paths touch input uses (appendChar(),
+    // submit(), cancel()) — no duplicated commit/cleanup logic, per BP-047/
+    // LL-110 (don't grow a second inline copy of a primitive that already
+    // exists). Kept additive/minimal: no behaviour change for touch users.
+
+    uint8_t len()    const { return _len; }
+    uint8_t maxLen() const { return _maxLen; }
+    Mode    mode()   const { return _mode; }
+
+    // Append one character exactly as if the matching on-screen key were
+    // tapped: mode-filtered first, then through appendChar() (which owns
+    // maxLen truncation, page auto-revert and the input-bar repaint).
+    // Returns false when the character has no on-screen key in this mode —
+    // e.g. UpperAlpha has no digit/symbol keys (see kRow1..3 + _handleAction:
+    // ACT_SYM only fires for Mode::Full) — mirroring a tap that lands on
+    // nothing.
+    bool injectChar(char c) {
+        if (!_active) return false;
+        if (_mode == Mode::UpperAlpha) {
+            if (c == ' ') { appendChar(' '); return true; }
+            if (isalpha((unsigned char)c)) {
+                appendChar((char)toupper((unsigned char)c));
+                return true;
+            }
+            return false;   // no digit/symbol keys exist in this mode on-screen
+        }
+        // Full mode: letters (either case, via shift), digits and the kSym
+        // symbol pages together cover essentially all printable ASCII, so
+        // accept any printable character rather than re-deriving the exact
+        // key tables here.
+        if (!isprint((unsigned char)c)) return false;
+        appendChar(c);
+        return true;
+    }
+
+    // Inject a run of characters (`set kbText`). Characters with no on-screen
+    // equivalent in the current mode are silently dropped (same as a tap
+    // landing off any key); appendChar() silently no-ops once _maxLen is hit
+    // (same as fast-typing past the limit on-screen).
+    void injectText(const char* text) {
+        if (!_active || !text) return;
+        for (const char* p = text; *p; p++) injectChar(*p);
+    }
+
+    // Fire the same commit path as tapping OK — same _onSubmit callback,
+    // same hide()/cleanup via submit(). No-op when the buffer is empty,
+    // matching the on-screen OK key which is disabled/greyed in that state.
+    void commitFromHost() { if (_active) submit(); }
+
+    // Fire the same cancel path as tapping the cancel zone — same _onCancel
+    // callback, same hide()/cleanup via cancel().
+    void cancelFromHost() { if (_active) cancel(); }
+
 private:
     bool     _active         = false;
     Mode     _mode           = Mode::Full;

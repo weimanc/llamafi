@@ -3531,6 +3531,8 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Expected result**: Fast noticeably quicker; slow noticeably slower than normal.
 - **Status**: planned
 
+> Note (TASK-325, landed): T233/T246's "type X" SERIALDBG steps now drive via `set kbText <text>` + `set kbOk` (or `set kbCancel`) against the active KeyboardWidget — DUT execution still pending a grouped TASK-324 session.
+
 ### T232 — [app-settings-wire-001] Stock: keyboard opens on ticker row tap
 
 - **Type**: integration (DUT, MANUAL+SERIALDBG)
