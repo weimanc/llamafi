@@ -1058,3 +1058,31 @@ conventions (mind the drain-all-bytes-at-once lesson, T157-159). Unblocks
 TASK-321/322/324 here AND the parked stock editor tests.
 **Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-SERIALDBG /
 M-PR-LOCATIONS · **Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** y
+
+---
+
+## Open — M-MEMPLAN hygiene — filed 2026-07-14 (QM audit: manifest coverage gap, LL-111)
+
+### TASK-326 — M-MEMPLAN: backfill unregistered heap parse docs (weather, webradio stations) into mem_manifest
+
+Found during the LL-111 audit (PlaneRadar's 4 KB parse doc shipped
+unregistered; fixed same session — `planeradar_doc` placed in the
+ANY/foreground overlay, region 2560→4096). Sweep of `dataTaskStorage.cpp`
+shows two remaining heap docs outside the manifest:
+
+- `fetchWeather()` `DynamicJsonDocument(1024)` — pure scratch, result copied
+  to `WeatherResult`; same shape as `crypto_doc`, likely a straight
+  conversion to the overlay region (fits inside the 4096 region, no growth).
+- `fetchWebRadioStations()` `DynamicJsonDocument(WR_DOC_CAP=5120)` — NOT a
+  straight conversion: allocated deliberately after `tlsYield()` and live
+  across the mirror TLS handshakes; and as a WebRadio buffer in group
+  `foreground` it would SUM with the decoder/inbuf runtime budget
+  (M-MEMPLAN §2 coexist rule) unless modelled `sequential`. Needs Architect
+  call: placed vs `placement: runtime` budget-only entry.
+
+Stack-based `StaticJsonDocument`s (stock 2×2048, teletext 1536, filters) are
+dataTask *stack* budget (TASK-240), out of manifest scope — document that
+boundary in the manifest header comment while here.
+**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-MEMPLAN ·
+**Owner:** Developer (Architect consult on the webradio entry) · **Deps:** —
+· **Size:** S · **DUT:** n (`run/check` gate [6/6] covers)

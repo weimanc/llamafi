@@ -1552,6 +1552,18 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 
 ---
 
+### Audit — 2026-07-14 — mem_manifest coverage vs actual heap consumers (M-PLANERADAR trigger)
+**Triggered by**: human — "for the planeradar implementation, did we make use of the memory budgeting and memory python framework?"
+**Areas checked**:
+- [x] `mem_manifest.yaml` buffer list vs grep sweep of `DynamicJsonDocument`/`BasicJsonDocument`/heap allocs in `app/src/dataTaskStorage.cpp`
+- [x] M-PLANERADAR artefacts (ADR-048, phase0-parse-heap) for measured budget numbers that never reached the manifest
+
+**Findings**: PlaneRadar's chunked-parse doc (4096 B, measured to the byte in ADR-048 phase 0) never entered the manifest — the WCMU gate under-counted by 4 KB while reporting green; unregistered consumers make the budget look *better*, so the gate cannot flag its own coverage gap. Sweep found two more unregistered heap docs: weather (1024 B) and webradio stations (`WR_DOC_CAP`=5120 B) — manifest covered 2 of 5 heap parse docs. Root cause and BP candidate filed as LL-111 (registration is opt-in; no forcing function in the new-app flow).
+**Actions assigned**: Developer — register `planeradar_doc` and convert `prParseStream()` to the placed-overlay pattern (done in-session); TASK-326 filed for the weather/webradio backfill (Architect consult on the webradio entry's group/placement). QM — LL-111 filed, BP candidate flagged for human promotion decision.
+**Resolution**: `planeradar_doc` registered + placed same session (manifest, `gen_mem_layout` regen, `StaticRegionAllocator` conversion, `golden.sha256`; ANY/foreground region 2560→4096). `run/check` 6/6. TASK-326 open.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:

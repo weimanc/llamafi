@@ -1104,9 +1104,12 @@ static int prParseStream(Stream& stream, PlaneRadarResult& result) {
         filter[k] = true;
     // Reused per-object doc — ADR-048's measured ~4 KB fixed peak, independent
     // of traffic (only this doc's memory is live at any time, not the array).
-    // DynamicJsonDocument (heap-backed), not Static — matches ADR-048's spec
-    // verbatim and keeps 4 KB off this already-tight dataTask stack (TASK-240).
-    DynamicJsonDocument doc(4096);
+    // M-MEMPLAN §8: backed by the static overlay region MEM_planeradar_doc
+    // (manifest entry planeradar_doc) — off the tight dataTask stack (TASK-240)
+    // and off the heap; dataTask serialization guarantees exclusivity with the
+    // crypto/heatmap tenants of the same region.
+    BasicJsonDocument<StaticRegionAllocator> doc(
+        4096, StaticRegionAllocator{MEM_planeradar_doc, 4096u});
     uint8_t n = 0;
     for (;;) {
         do { c = stream.read(); } while (c != -1 && (isspace(c) || c == ','));

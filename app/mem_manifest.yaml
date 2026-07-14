@@ -19,3 +19,8 @@ buffers:
   # dataTaskStorage.cpp:616 — static DynamicJsonDocument s_heatmapDoc(2560); result → s_heatmapResult
   - { name: crypto_doc,       app: Crypto,   caps: ANY,      group: foreground, size: 2048,  kind: scratch }
   # dataTaskStorage.cpp:236 — DynamicJsonDocument doc(2048) in fetchCrypto(); result → s_cryptoResult
+  - { name: planeradar_doc,   app: PlaneRadar, caps: ANY,    group: foreground, size: 4096,  kind: scratch }
+  # dataTaskStorage.cpp prParseStream() — reused per-object chunked-parse doc, ~4 KB measured
+  # peak independent of traffic (ADR-048 D1(b')); result → s_planeRadarResult (fixed array).
+  # Same exclusivity argument as heatmap/crypto: dataTask is serial, doc is pure scratch.
+  # Registered late — shipped M-PLANERADAR without a manifest entry (LL-111).

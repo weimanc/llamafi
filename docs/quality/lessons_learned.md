@@ -4,6 +4,15 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-07-14 — M-PLANERADAR mem_manifest gap (post-close, human-caught)
+
+### LL-111 — 2026-07-14 — M-PLANERADAR shipped its parse buffer outside mem_manifest: the WCMU gate only budgets buffers someone remembers to declare
+**Context**: `app/mem_manifest.yaml` + `gen_mem_layout.py` (M-MEMPLAN) is the declared single source of truth for app memory, enforced by `run/check` gate [6/6] (staleness + budget). M-PLANERADAR did *more* memory rigor than any prior app — a dedicated phase-0 host trial (`phase0-parse-heap.md`) measured the chunked-parse doc at ~4 KB fixed, captured in ADR-048 — then went through design review, two code audits, and the LL-109/LL-110 retrospective arc without anyone registering that 4 KB in the manifest. The gap surfaced two days after milestone close, when the human asked "did we use the memory budgeting framework?"
+**Observation**: The miss is not ignorance — the budget number existed to the byte; the register just never got the entry. Worse, the failure mode is silent-green: the WCMU gate can only sum *declared* buffers, so every unregistered consumer makes the budget report look BETTER, not worse. A follow-up sweep found the manifest covered only 2 of 5 heap parse docs in `dataTaskStorage.cpp` (weather 1024 B and webradio stations 5120 B also unregistered).
+**Root cause**: Manifest registration is opt-in with no forcing function. M-MEMPLAN Phase 2 (TASK-269) registered the buffers that existed *at that time*; nothing in the new-app flow — NEW-APP-CHECKLIST, the design template, task exit criteria — says "new heap/static buffer ⇒ mem_manifest entry in the same commit." Structural sibling of LL-109: a gate whose observability boundary (here: declared buffers) silently excludes exactly the failure class it exists to catch (undeclared consumers).
+**Suggested improvement**: (a) NEW-APP-CHECKLIST item: any new heap allocation ≥ 1 KB or new static buffer in app/dataTask code requires a `mem_manifest.yaml` entry (placed, or `placement: runtime` budget-only) in the same commit. (b) A cheap periodic sweep — grep `DynamicJsonDocument|BasicJsonDocument|malloc|calloc` in `app/src/` against manifest names — same spirit as LL-110's duplication audit; could even become a `check_build` gate. (c) TASK-326 files the weather/webradio backfill.
+**Status**: planeradar_doc registered + converted to placed overlay in-session (ANY/foreground region 2560→4096, `run/check` 6/6); TASK-326 filed for siblings; flagged to human as BP candidate
+
 ## Retrospective — 2026-07-12 — M-PLANERADAR post-close audit arc (TASK-309..312)
 
 ### LL-109 — 2026-07-12 — An app that painted nothing in init() passed two code reviews and a full DUT suite; the human's eyes were the only gate that could catch it
