@@ -14,6 +14,8 @@ Keys:
   c            cycle tag-collision rule: a=reference b=+nudge c=+drop (Q2)
   r            toggle rim-dot placement: disc-rim | canvas-edge (Q3)
   a            cycle runway label density: all | nearest | off (Q4)
+  h            toggle location-slot highlight: inverse-box | colour-emphasis
+                (M-PR-LOCATIONS TASK-316)
   f            next fixture   F  previous fixture
   s            toggle synthetic mode        L  live fetch mode (10 s cadence)
   SPACE        advance one frame (synthetic/replay)
@@ -41,6 +43,10 @@ FIXTURES = [p for p in FIXTURES
             if not p.name.endswith(".pretty.json") and p.suffix == ".json"
             and p.name not in ("truncated.json",)]
 IMG_OUT = HERE.parent.parent / "docs" / "architecture" / "designs" / "M-PLANERADAR" / "img"
+# TASK-316 (M-PR-LOCATIONS): location-slot strip eyeball-gate PNGs live under
+# the sibling milestone's img/ dir, not M-PLANERADAR's.
+PRLOC_IMG_OUT = (HERE.parent.parent / "docs" / "architecture" / "designs"
+                 / "M-PR-LOCATIONS" / "img")
 AIRPORTS_PATH = HERE / "fixtures" / "planeradar" / "airports_preview.json"
 
 # ── palette (RGB565-safe; radar_theme.h equivalents) ──────────────────────────
@@ -66,6 +72,18 @@ COL_STRIP_BG = rgb565(8, 8, 16)
 COL_STRIP_TX = rgb565(160, 255, 160)
 COL_STALE    = rgb565(255, 180, 0)
 COL_ERR      = rgb565(255, 64, 64)
+# M-PR-LOCATIONS (TASK-316): dimmed label colour for inactive slots (colour
+# highlight variant) — no reference-project analogue, our own design call.
+COL_STRIP_DIM = rgb565(90, 90, 90)
+
+# Location-slot strip band (TASK-316 / M-PR-LOCATIONS "Radar app — strip
+# becomes the location switcher"): N^ marker removed outright (Q3) frees
+# y55..185; 4 rows (Q1) at ~26 px pitch, comfortably inside that band and
+# clear of the AGE row below (drawn at y200 in this tool's strip layout —
+# see PR_STRIP_ROW_AGE_Y=193 in planeRadarApp.h for the firmware-side value).
+PR_PREVIEW_SLOT_COUNT = 4
+PR_PREVIEW_SLOT_Y0    = 68
+PR_PREVIEW_SLOT_PITCH = 26
 
 PRESETS_KM = [5, 10, 15, 25]
 KM_PER_NM = 1.852
@@ -192,6 +210,15 @@ class Radar:
         self.center = (52.3676, 4.9041)
         self.last_fetch_age = 0.0
         self.http_err = 0
+        # M-PR-LOCATIONS (TASK-316): location-slot strip. `slots` is a
+        # length-≤4 list, `None`/falsy entries are empty slots (render
+        # nothing — Q1..Q3). `highlight` selects the active-slot treatment:
+        # "box" = inverse filled box, field-coloured text; "colour" = bright
+        # vs dimmed text + left-edge marker bar. Both are the two candidates
+        # the design doc leaves for the preview to decide between.
+        self.slots = ["HOME", "WORK", "CABIN", "AIRPT"]
+        self.active_slot = 0
+        self.highlight = "box"        # box | colour
 
     @property
     def preset_km(self):
@@ -355,12 +382,48 @@ class Radar:
         F1.draw_centered(d, sx + 17, 12, f"{self.preset_km}", COL_STRIP_TX)
         F1.draw_centered(d, sx + 17, 22, "km", COL_STRIP_TX)
         F1.draw_centered(d, sx + 17, 50, f"{n_shown}ac", COL_STRIP_TX)
+        # Q3: N^ bezel marker removed outright (not relocated) — the freed
+        # y55..185 band now holds the location-slot rows.
+        self._location_slots(d, sx)
         age = int(self.last_fetch_age)
         F1.draw_centered(d, sx + 17, 200, f"{age}s",
                          COL_STALE if age > 30 else COL_STRIP_TX)
         if self.http_err:
             F1.draw_centered(d, sx + 17, 220, f"E{self.http_err}", COL_ERR)
-        F1.draw_centered(d, sx + 17, 120, "N^", COL_BEZEL)
+
+    def _location_slots(self, d, sx):
+        """M-PR-LOCATIONS strip switcher (TASK-316). Up to
+        PR_PREVIEW_SLOT_COUNT rows, 5-char labels, centered at the same
+        strip label x as every other strip field (sx+17). Empty slots
+        (falsy entry) draw nothing — including the degenerate 1-slot case,
+        where rows 2-4 are simply absent, not placeholders."""
+        label_x = sx + 17
+        for i, label in enumerate(self.slots[:PR_PREVIEW_SLOT_COUNT]):
+            if not label:
+                continue
+            y = PR_PREVIEW_SLOT_Y0 + i * PR_PREVIEW_SLOT_PITCH
+            text = label[:5]
+            is_active = (i == self.active_slot)
+            if self.highlight == "box":
+                if is_active:
+                    # (a) inverse box: filled rect behind the label,
+                    # field-coloured text. Rect spans the strip's usable
+                    # width (34 px — strip W35 minus the x=sx border line).
+                    x0, x1 = sx + 1, pc.APP_W - 1
+                    y0, y1 = y - 5, y + 4
+                    d.rectangle([x0, y0, x1, y1], fill=COL_STRIP_TX)
+                    F1.draw_centered(d, label_x, y, text, COL_FIELD)
+                else:
+                    F1.draw_centered(d, label_x, y, text, COL_STRIP_TX)
+            else:
+                # (b) colour emphasis: bright STRIP_TX for active, dimmed
+                # grey for inactive, plus a left-edge marker bar on the
+                # active row.
+                if is_active:
+                    d.rectangle([sx + 1, y - 5, sx + 3, y + 4], fill=COL_STRIP_TX)
+                    F1.draw_centered(d, label_x, y, text, COL_STRIP_TX)
+                else:
+                    F1.draw_centered(d, label_x, y, text, COL_STRIP_DIM)
 
 
 # ── headless screenshot mode (design-doc evidence without a display) ───────────
@@ -407,6 +470,41 @@ def shot_mode(argv: list[str]) -> None:
         out = IMG_OUT / f"q4_{density}_{src}_{radar.preset_km}km.png"
         img.save(out)
         print("wrote", out)
+    radar.runway_density = "all"
+
+    # M-PR-LOCATIONS (TASK-316): location-slot strip eyeball gate. Strip
+    # layout only (the slot band has no on-disc analogue); busy fixture at
+    # 10 km, same representative scene the strip layout was originally
+    # frozen against in phase0-preview-ui.md (q1_strip_coll-*_busy_33km_10km).
+    radar.layout, radar.collision = "strip", "b"
+    radar.preset_i = PRESETS_KM.index(10)
+    PRLOC_IMG_OUT.mkdir(parents=True, exist_ok=True)
+
+    def _prloc_shot(name, slots, active_slot, highlight):
+        radar.slots = slots
+        radar.active_slot = active_slot
+        radar.highlight = highlight
+        img = radar.draw(planes).resize((pc.SCREEN_W * 2, pc.SCREEN_H * 2),
+                                        Image.NEAREST)
+        out = PRLOC_IMG_OUT / name
+        img.save(out)
+        print("wrote", out)
+
+    # 4 filled slots, both highlight variants (Q: box vs colour emphasis —
+    # this is the decision the eyeball gate exists to make).
+    _prloc_shot("strip_4slots_highlight-box.png",
+                ["HOME", "WORK", "CABIN", "AIRPT"], 1, "box")
+    _prloc_shot("strip_4slots_highlight-colour.png",
+                ["HOME", "WORK", "CABIN", "AIRPT"], 1, "colour")
+    # Empty-slot case: slots 3-4 empty, nothing drawn for them.
+    _prloc_shot("strip_2slots.png", ["HOME", "WORK", None, None], 0, "box")
+    # Single-slot degenerate case (always active, no marker collision).
+    _prloc_shot("strip_1slot.png", ["HOME", None, None, None], 0, "box")
+
+    # restore defaults for anything appended after shot_mode returns
+    radar.slots = ["HOME", "WORK", "CABIN", "AIRPT"]
+    radar.active_slot = 0
+    radar.highlight = "box"
 
 
 # ── main loop ──────────────────────────────────────────────────────────────────
@@ -444,6 +542,8 @@ def main():
                 elif k == pygame.K_a:
                     radar.runway_density = {"all": "nearest", "nearest": "off",
                                              "off": "all"}[radar.runway_density]
+                elif k == pygame.K_h:
+                    radar.highlight = "colour" if radar.highlight == "box" else "box"
                 elif k == pygame.K_f and FIXTURES:
                     step = -1 if (ev.mod & pygame.KMOD_SHIFT) else 1
                     fix_i = (fix_i + step) % len(FIXTURES)

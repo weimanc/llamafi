@@ -873,7 +873,28 @@ Extend `app/tools/preview_planeradar.py`: slot label rows (~26px pitch, 4
 slots), active-slot highlight variants, N^ marker removed, empty-slot and
 single-slot degenerate cases. Human eyeball gate (BP-048) freezes layout +
 highlight style before any planeRadarApp.h edit.
-**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Status:** awaiting eyeball gate — tool extended (N^ removed outright per
+Q3; 4 slot-label rows at y68/94/120/146 px, `_location_slots()`, both
+highlight variants wired, selectable via `radar.highlight` / `h` key in
+interactive mode); 4 gate PNGs rendered against the busy_33km fixture at
+10 km:
+  - `docs/architecture/designs/M-PR-LOCATIONS/img/strip_4slots_highlight-box.png`
+    — 4 filled slots, active = WORK, variant (a) inverse box (filled rect,
+    field-coloured text)
+  - `docs/architecture/designs/M-PR-LOCATIONS/img/strip_4slots_highlight-colour.png`
+    — same scene, variant (b) bright/dimmed text + left-edge marker bar
+  - `docs/architecture/designs/M-PR-LOCATIONS/img/strip_2slots.png` —
+    empty-slot case (slots 3-4 undefined, nothing drawn), active = HOME,
+    variant (a)
+  - `docs/architecture/designs/M-PR-LOCATIONS/img/strip_1slot.png` —
+    single-slot degenerate case, variant (a)
+  Decision needed from human: **which highlight variant ships, (a) inverse
+  box or (b) colour emphasis + marker bar** — freezes the style TASK-323
+  transcribes into `planeRadarApp.h`. Layout note: band y55..185 easily
+  fits 4 rows at 26 px pitch (rows span y68..146 incl. glyph height) with
+  ~50 px of untouched clearance down to the AGE row — no pitch/AGE
+  collision risk at this slot count.
+**Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
 **Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** n
 
 ### TASK-317 — M-PR-LOCATIONS Phase-0: preview tool — slot-editor screen-flow frames
