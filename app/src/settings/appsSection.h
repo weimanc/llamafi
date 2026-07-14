@@ -1,5 +1,6 @@
 #pragma once
 #include "settingsSection.h"
+#include "settingsWidgets.h"   // TASK-328 kit — first consumer is the TASK-321 location editor
 #include "gen/configurable_apps.h"
 #include "keyboardWidget.h"
 #include "dataTask.h"

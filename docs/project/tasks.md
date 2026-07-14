@@ -1162,7 +1162,13 @@ API proven by the first consumer (TASK-321 location editor). Preview-tool
 note: `preview_prloc_editor.py` mirrors geometry by hand — keep its
 constants in one obvious block referencing this header until a shared
 constants export exists.
-**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS
+**Status:** code landed 2026-07-14 (settings/settingsWidgets.h: SButton
+w/ Primary/Neutral/Danger/Disabled + shared 100ms flash, sButtonBar 1-3
+across @S_BTN_BAR_Y, sStackedBtnRect, SSpinner; S_BTN_H=40 per TASK-317
+gate; visual contract comment points at the frozen gate PNGs, QM note 10).
+Compile-proven via appsSection.h include, run/check 6/6. API proof +
+visual check ride TASK-321 (first consumer).
+**Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS
 / M-SETTINGS-STYLE · **Owner:** Developer · **Deps:** — (before or with
 TASK-321) · **Size:** S/M · **DUT:** n (visual check rides TASK-321's)
 
