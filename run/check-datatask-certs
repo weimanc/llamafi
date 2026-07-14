@@ -40,7 +40,23 @@ ENDPOINTS = [
     ("nl1.api.radio-browser.info", "RADIO_BROWSER_ROOT_CA"),
     ("at1.api.radio-browser.info", "RADIO_BROWSER_ROOT_CA"),
     ("opendata.adsb.fi", "PLANERADAR_ROOT_CA"),
+    # nominatim.openstreetmap.org (M-PR-LOCATIONS geocode lookup): chain
+    # verified against OPEN_METEO_ROOT_CA by TASK-315's phase-0 probe
+    # (docs/architecture/designs/M-PR-LOCATIONS/phase0-geocode-probe.md).
+    # NOMINATIM_ROOT_CA is a same-cert #define alias (radio-browser pattern)
+    # that TASK-320 (the fetcher task) adds to dataTaskCerts.h — it does not
+    # exist yet, so this row is listed as PENDING below, not ERROR/FAIL.
+    ("nominatim.openstreetmap.org", "NOMINATIM_ROOT_CA"),
 ]
+
+# Cert constants referenced above that are expected to be missing until a
+# specific future task lands them (see comment at the ENDPOINTS entry). A
+# missing constant here prints PENDING and does not fail the gate; a missing
+# constant NOT in this dict still prints ERROR as before — this only silences
+# the specific, tracked, not-yet-landed case.
+PENDING_CERTS = {
+    "NOMINATIM_ROOT_CA": "TASK-320",
+}
 
 BLOCK_RE = re.compile(
     r'static const char (\w+)\[\]\s*=\s*R"EOF\((.*?)\)EOF";', re.DOTALL
@@ -105,13 +121,19 @@ def main() -> int:
     for host, cert_name in ENDPOINTS:
         pem = certs.get(cert_name)
         if not pem:
-            results.append((host, cert_name, "ERROR", f"{cert_name} not found in {CERTS_H.name}"))
+            pending_task = PENDING_CERTS.get(cert_name)
+            if pending_task:
+                status, detail = "PENDING", f"{cert_name} not defined yet — lands with {pending_task}"
+            else:
+                status, detail = "ERROR", f"{cert_name} not found in {CERTS_H.name}"
+            results.append((host, cert_name, status, detail))
+            print(f"{status:5s} {host:32s} ({cert_name}) — {detail}")
             continue
         status, detail = strict_verify(host, pem)
         results.append((host, cert_name, status, detail))
         print(f"{status:5s} {host:32s} ({cert_name}) — {detail}")
 
-    failures = [r for r in results if r[2] != "PASS"]
+    failures = [r for r in results if r[2] not in ("PASS", "PENDING")]
     print()
     if failures:
         print(f"FAIL  {len(failures)}/{len(results)} endpoint(s) did not verify cleanly against the pinned root.")
@@ -122,7 +144,10 @@ def main() -> int:
         print("      before concluding the chain itself is broken.")
         return 1
 
-    print(f"PASS  all {len(results)} endpoint(s) verify cleanly against their pinned root CA.")
+    pending = [r for r in results if r[2] == "PENDING"]
+    verified = len(results) - len(pending)
+    suffix = f" ({len(pending)} PENDING, tracked separately — see comment)" if pending else ""
+    print(f"PASS  all {verified} verifiable endpoint(s) verify cleanly against their pinned root CA.{suffix}")
     return 0
 
 

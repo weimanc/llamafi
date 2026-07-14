@@ -855,7 +855,16 @@ buffer freeze, BP-001), HTTP/1.0 compat, UA acceptance, rate behaviour, and
 the strict cert verify with committed output (QM-2/BP-039). Same task adds
 `nominatim.openstreetmap.org` to `run/check-datatask-certs` ENDPOINTS
 (VE-PRL-12). Manual/on-demand cadence only — never wired into run/test.
-**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Result:** `app/tools/geocode_probe.py` built + run once, 9/9 checks landed
+on expected outcome (exit 0) — "full postcode" rule confirmed NL/UK/DE; max
+response 459 B, ~1 KB parse buffer frozen (not shrunk, BP-001); cert chain
+strict-verified against `OPEN_METEO_ROOT_CA`, `ISRG Root YR` cross-sign
+evidenced; a real `http.client` Host-header bug was caught and fixed in the
+probe itself. `run/check-datatask-certs` ENDPOINTS got the Nominatim row
+gated by a new `PENDING_CERTS` guard (missing `NOMINATIM_ROOT_CA` alias
+reports PENDING, not FAIL, until TASK-320 lands it). Report:
+`docs/architecture/designs/M-PR-LOCATIONS/phase0-geocode-probe.md`.
+**Status:** done · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
 **Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** n
 
 ### TASK-316 — M-PR-LOCATIONS Phase-0: preview tool — strip layout
