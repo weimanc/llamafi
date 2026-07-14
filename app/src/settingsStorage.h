@@ -33,6 +33,17 @@ enum class PrTagRule     : uint8_t { A = 0, B = 1, C = 2, Count = 3 };
 // dimming-sweep visual is designed and eyeballed.
 enum class PrStaleStyle  : uint8_t { Ring = 0, Text = 1, Dim = 2, Count = 3 };
 
+// M-PR-LOCATIONS (TASK-315..325): named location presets for PlaneRadar.
+// label[6] pads to 8 for float alignment -> 16 B/slot x PR_NUM_LOCS = 64 B
+// (M-PR-LOCATIONS design, "Heap / budget note").
+static constexpr uint8_t PR_NUM_LOCS  = 4;   // Q1 resolved: 4
+static constexpr uint8_t PR_LABEL_MAX = 5;   // chars, excl. NUL — strip-width bound; Q2 resolved: 5
+
+struct PrLocation {
+    char  label[PR_LABEL_MAX + 1];  // "" = empty slot
+    float lat, lon;
+};
+
 // ---- Settings struct -------------------------------------------------------
 
 struct AppSettings {
@@ -112,6 +123,12 @@ struct AppSettings {
     uint8_t      prRangeIdx;      // 0..3 -> 5/10/15/25 km preset, persists across reboot
     PrTagRule    prTagRule;       // Q2, default C
     PrStaleStyle prStaleStyle;    // Q5, default Ring
+    // M-PR-LOCATIONS: named presets. prLat/prLon above are now the
+    // write-through mirror of prLocs[prActiveLoc] (design "Settings storage")
+    // — every existing prLat/prLon consumer keeps working unmodified; the
+    // mirror is derived FROM the active slot, not the other way round.
+    PrLocation   prLocs[PR_NUM_LOCS];  // slot 0 always defined; "" label = empty slot
+    uint8_t      prActiveLoc;          // index into prLocs, 0..PR_NUM_LOCS-1
 };
 
 extern AppSettings g_settings;

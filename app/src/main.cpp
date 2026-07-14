@@ -3064,6 +3064,22 @@ static void cmdGet(const char *args) {
                   pm, pm ? "WebRadio" : "Spotify");
     return;
   }
+  if (strcmp(args, "prloc") == 0) {
+    // M-PR-LOCATIONS (TASK-319): per-slot dump + active index — the
+    // diagnostic surface for every T_PRL test (same role `get wrStation` /
+    // `get dataq` play elsewhere). No lastGeocode field: the geocode fetcher
+    // is TASK-320, still unimplemented — a placeholder here would just be a
+    // stub nobody can populate, so it's omitted rather than shipped half-wired.
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"prloc\","
+                  "\"active\":%d,\"locs\":[", (int)g_settings.prActiveLoc);
+    for (int i = 0; i < PR_NUM_LOCS; i++) {
+      Serial.printf("%s{\"i\":%d,\"label\":\"%s\",\"lat\":%.6f,\"lon\":%.6f}",
+                    i ? "," : "", i, g_settings.prLocs[i].label,
+                    g_settings.prLocs[i].lat, g_settings.prLocs[i].lon);
+    }
+    Serial.printf("],\"last\":true}\n");
+    return;
+  }
   Serial.printf("{\"ok\":false,\"cmd\":\"get\","
                 "\"error\":\"unknown var\",\"var\":\"%s\"}\n", args);
 }
@@ -3184,6 +3200,71 @@ static void cmdSet(const char *args) {
     Serial.printf("{\"ok\":true,\"cmd\":\"set\","
                   "\"var\":\"playerMode\",\"val\":%d,\"name\":\"%s\"}\n",
                   idx, idx ? "WebRadio" : "Spotify");
+    return;
+  }
+  if (strcmp(var, "prloc") == 0) {
+    // M-PR-LOCATIONS (TASK-319): two sub-forms sharing the "prloc" var, both
+    // carrying more tokens than the generic var/val split above captures —
+    // reparse the raw `args` past "prloc " instead of relying on the
+    // single-token `val` (drain-all-bytes-at-once lesson: don't assume a
+    // fixed token count for multi-field commands).
+    const char *rest = args + strlen(var);
+    while (*rest == ' ') rest++;
+
+    int idx;
+    if (sscanf(rest, "active %d", &idx) == 1) {
+      // "set prloc active <i>" — programmatic switch (T_PRL_02 etc.), so
+      // switch-side effects are testable independently of strip tap
+      // hit-testing. This performs only the copy-slot + write-through-mirror
+      // + save half of the strip-tap gesture (design DEV-3's _setActiveLoc).
+      // TODO(TASK-323): hook in the radar-side repaint/re-project/re-fetch +
+      // result-state reset + location-epoch bump here once planeRadarApp.h's
+      // _setActiveLoc() exists — this command must call the same shared
+      // primitive the strip tap uses, not grow a second inline copy
+      // (BP-047/LL-110 duplication shape).
+      if (idx < 0 || idx >= (int)PR_NUM_LOCS || g_settings.prLocs[idx].label[0] == '\0') {
+        Serial.printf("{\"ok\":false,\"cmd\":\"set\",\"var\":\"prloc\","
+                      "\"error\":\"bad or empty slot — active <i> needs 0..%d, non-empty\"}\n",
+                      PR_NUM_LOCS - 1);
+        return;
+      }
+      g_settings.prActiveLoc = (uint8_t)idx;
+      g_settings.prLat = g_settings.prLocs[idx].lat;
+      g_settings.prLon = g_settings.prLocs[idx].lon;
+      SettingsStorage::save();
+      Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"prloc\",\"active\":%d}\n", idx);
+      return;
+    }
+
+    char label[16]; float lat, lon;
+    if (sscanf(rest, "%d %15s %f %f", &idx, label, &lat, &lon) != 4) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"error\":"
+                      "\"bad args — set prloc <i> <label> <lat> <lon> | set prloc active <i>\"}");
+      return;
+    }
+    if (idx < 0 || idx >= (int)PR_NUM_LOCS) {
+      Serial.printf("{\"ok\":false,\"cmd\":\"set\",\"var\":\"prloc\","
+                    "\"error\":\"bad index — 0..%d\"}\n", PR_NUM_LOCS - 1);
+      return;
+    }
+    if (strlen(label) > PR_LABEL_MAX) {
+      Serial.printf("{\"ok\":false,\"cmd\":\"set\",\"var\":\"prloc\","
+                    "\"error\":\"label too long — max %d chars\"}\n", PR_LABEL_MAX);
+      return;
+    }
+    if (lat < -90.0f || lat > 90.0f || lon < -180.0f || lon > 180.0f) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"prloc\","
+                      "\"error\":\"out of range — lat -90..90, lon -180..180\"}");
+      return;
+    }
+    for (char *p = label; *p; p++) *p = (char)toupper((unsigned char)*p);
+    strlcpy(g_settings.prLocs[idx].label, label, sizeof(g_settings.prLocs[idx].label));
+    g_settings.prLocs[idx].lat = lat;
+    g_settings.prLocs[idx].lon = lon;
+    SettingsStorage::save();
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"prloc\",\"i\":%d,"
+                  "\"label\":\"%s\",\"lat\":%.6f,\"lon\":%.6f}\n",
+                  idx, g_settings.prLocs[idx].label, lat, lon);
     return;
   }
   Serial.printf("{\"ok\":false,\"cmd\":\"set\","

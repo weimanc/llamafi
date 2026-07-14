@@ -88,6 +88,18 @@ static void applyDefaults() {
     g_settings.prRangeIdx       = 1;   // 10 km
     g_settings.prTagRule        = PrTagRule::C;
     g_settings.prStaleStyle     = PrStaleStyle::Ring;
+
+    // M-PR-LOCATIONS: slot 0 seeded from the compile-time default above
+    // (matches prLat/prLon); slots 1..3 start empty.
+    strlcpy(g_settings.prLocs[0].label, "HOME", sizeof(g_settings.prLocs[0].label));
+    g_settings.prLocs[0].lat = g_settings.prLat;
+    g_settings.prLocs[0].lon = g_settings.prLon;
+    for (int i = 1; i < PR_NUM_LOCS; i++) {
+        g_settings.prLocs[i].label[0] = '\0';
+        g_settings.prLocs[i].lat      = 0.0f;
+        g_settings.prLocs[i].lon      = 0.0f;
+    }
+    g_settings.prActiveLoc = 0;
 }
 
 // ---- Enum string tables (order must match enum values) --------------------
@@ -260,8 +272,50 @@ void SettingsStorage::load() {
             g_settings.prTagRule = strToEnum<PrTagRule>(pr["tagRule"] | "c", kPrTagRuleStr, PrTagRule::C);
         if (pr.containsKey("staleStyle"))
             g_settings.prStaleStyle = strToEnum<PrStaleStyle>(pr["staleStyle"] | "ring", kPrStaleStyleStr, PrStaleStyle::Ring);
+
+        // M-PR-LOCATIONS (DEV-PRL-6): this MUST run after the lat/lon parsing
+        // above, not before — the migration branch seeds prLocs[0] from
+        // g_settings.prLat/prLon *as already resolved this call* (the file's
+        // value if present, else applyDefaults()'s compile default). Moving
+        // this ahead of the lat/lon block would silently discard a real
+        // pre-upgrade user location in favour of the Amsterdam default.
+        if (pr.containsKey("locs")) {
+            int i = 0;
+            for (JsonVariantConst v : pr["locs"].as<JsonArrayConst>()) {
+                if (i >= PR_NUM_LOCS) break;
+                strlcpy(g_settings.prLocs[i].label, v["label"] | "", sizeof(g_settings.prLocs[i].label));
+                g_settings.prLocs[i].lat = v["lat"] | 0.0f;
+                g_settings.prLocs[i].lon = v["lon"] | 0.0f;
+                i++;
+            }
+            if (pr.containsKey("activeLoc")) g_settings.prActiveLoc = pr["activeLoc"] | 0;
+        } else {
+            // Migration: pre-upgrade settings.json has no "locs" key yet.
+            strlcpy(g_settings.prLocs[0].label, "HOME", sizeof(g_settings.prLocs[0].label));
+            g_settings.prLocs[0].lat = g_settings.prLat;
+            g_settings.prLocs[0].lon = g_settings.prLon;
+            for (int i = 1; i < PR_NUM_LOCS; i++) g_settings.prLocs[i].label[0] = '\0';
+            g_settings.prActiveLoc = 0;
+        }
     }
     if (g_settings.prRangeIdx > 3) g_settings.prRangeIdx = 1;   // corrupt/out-of-range guard
+
+    // M-PR-LOCATIONS invariants (covers the loaded-array branch, the migration
+    // branch, and a corrupt file alike):
+    if (g_settings.prLocs[0].label[0] == '\0') {
+        // Slot 0 must never be empty (prActiveLoc validity depends on it).
+        strlcpy(g_settings.prLocs[0].label, "HOME", sizeof(g_settings.prLocs[0].label));
+        g_settings.prLocs[0].lat = g_settings.prLat;
+        g_settings.prLocs[0].lon = g_settings.prLon;
+    }
+    if (g_settings.prActiveLoc >= PR_NUM_LOCS ||
+        g_settings.prLocs[g_settings.prActiveLoc].label[0] == '\0')
+        g_settings.prActiveLoc = 0;
+    // Write-through mirror (design "Settings storage"): prLat/prLon are now
+    // derived FROM the active slot, every load, so every existing consumer
+    // that only reads prLat/prLon stays correct without modification.
+    g_settings.prLat = g_settings.prLocs[g_settings.prActiveLoc].lat;
+    g_settings.prLon = g_settings.prLocs[g_settings.prActiveLoc].lon;
 
     // Migrate: ldrHigh==0 means uncalibrated (old save or user wiped it).
     if (g_settings.ldrHigh == 0)
@@ -347,6 +401,14 @@ void SettingsStorage::save() {
     pr["rangeIdx"]   = g_settings.prRangeIdx;
     pr["tagRule"]    = kPrTagRuleStr[(uint8_t)g_settings.prTagRule];
     pr["staleStyle"] = kPrStaleStyleStr[(uint8_t)g_settings.prStaleStyle];
+    auto locs = pr.createNestedArray("locs");
+    for (int i = 0; i < PR_NUM_LOCS; i++) {
+        auto loc = locs.createNestedObject();
+        loc["label"] = g_settings.prLocs[i].label;
+        loc["lat"]   = g_settings.prLocs[i].lat;
+        loc["lon"]   = g_settings.prLocs[i].lon;
+    }
+    pr["activeLoc"] = g_settings.prActiveLoc;
 
     File f = SPIFFS.open(SETTINGS_JSON, "w");
     if (!f) { Serial.println("SettingsStorage: failed to open for write"); return; }

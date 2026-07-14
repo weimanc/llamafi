@@ -993,7 +993,13 @@ call #3 — hooks land with the state they inspect): `get prloc`,
 `set prloc <i> <label> <lat> <lon>`, `set prloc active <i>` (the latter
 calls the shared `_setActiveLoc()` once TASK-323 lands; until then settings
 side only).
-**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Status:** code landed, run/check 6/6; DUT asserts deferred to the grouped
+TASK-324 session — `PrLocation prLocs[4]`/`prActiveLoc` added to
+`AppSettings`, load/save + DEV-PRL-6 migration-order-safe seeding wired in
+`settingsStorage.cpp`, `get prloc` / `set prloc <i> <label> <lat> <lon>` /
+`set prloc active <i>` (settings-side only, TODO(TASK-323) marks the
+`_setActiveLoc()` hook point) added to `main.cpp`'s `cmdGet`/`cmdSet`.
+**Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
 **Owner:** Developer · **Deps:** — · **Size:** S/M · **DUT:** y
 
 ### TASK-320 — M-PR-LOCATIONS: dataTask geocode fetcher + stub injection
