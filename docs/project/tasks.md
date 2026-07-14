@@ -1061,7 +1061,29 @@ two call sites — QM-1/BP-047): guard, write-through+save, reset
 `_repaintDisc()` (runways included — no separate `_drawRunways()`),
 re-enqueue. `enqueuePlaneRadar`/`PlaneRadarResult` gain the epoch byte;
 poll discards old-epoch results (VE-PRL-6, TASK-308/309 lineage).
-**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Status:** code landed 2026-07-14, run/check 6/6 PASS. `planeRadarApp.h`:
+N^ marker removed; `_drawLocSlots()` renders the 4 label rows (font 1,
+box-variant highlight, frozen y68/94/120/146) from `_drawGridOnce()` and
+after every switch; public `_setActiveLoc(uint8_t slot)` is the single
+primitive (guard → mirror+save → result/staleness reset → epoch bump →
+`_repaintDisc()`+`_drawLocSlots()`+`_updateStripDynamic()` → re-enqueue),
+called from `handleInput()`'s strip hit-test (named `PR_STRIP_ROW_LOC0..3_Y`
++ `PR_STRIP_ROW_LOC_Y[]` array, `PR_STRIP_LOC_HIT_HALF=13` half-pitch zones,
+tiling y55..159 with no gaps) and from `main.cpp`'s `set prloc active <i>`
+(TODO removed) — guarded there on `currentAppId == AppId::PlaneRadar`
+before calling `_setActiveLoc()` (else settings-side mirror+save only,
+same shape as the existing `clockStyle` cross-app guard; PlaneRadar's own
+`resume()` picks up the new location on next entry). Epoch: `uint8_t
+epoch` added to `PlaneRadarResult` and to `enqueuePlaneRadar()`'s signature
+(defaulted `= 0`, so the one pre-existing call site needed no changes
+beyond passing `_locEpoch`); `dataTaskStorage.cpp` snapshots it into
+`s_pendingPrEpoch` alongside lat/lon/distNm and echoes it into the result
+after the TASK-313 retry-or-not settles; `tick()`'s poll compares
+`result.epoch != _locEpoch` and discards with a `LOG_D "stale epoch"` line
+(leaves `_pendingFetch` alone — it now tracks the newer-epoch fetch
+`_setActiveLoc()` already enqueued). DUT asserts (T_PRL_02/05/09) deferred
+to grouped TASK-324 session.
+**Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
 **Owner:** Developer · **Deps:** TASK-316, TASK-319 · **Size:** M · **DUT:** y
 
 ### TASK-324 — M-PR-LOCATIONS: VE suite T_PRL_01a..11 + DUT gate

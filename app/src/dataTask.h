@@ -146,10 +146,17 @@ static constexpr uint8_t PR_MAX_AIRCRAFT = 24;
 // TASK-318): -120 = pinned-CA verify failure (mbedTLS -0x2700 surfaced by
 // openHttps(); remediation = ADR-029 rotation procedure), all fetchers on
 // openHttps() can return it. Do not allocate app-specific codes here.
+// epoch: VE-PRL-6 identity check (TASK-308/309 lineage, same pattern as
+// GeocodeResult.seq below). enqueuePlaneRadar() snapshots the caller's
+// current location epoch; fetchPlaneRadar() echoes it back here untouched.
+// A switch-side fetch already in flight for the OLD location arrives with a
+// stale epoch — the poller (PlaneRadarApp::tick()) discards it rather than
+// rendering aircraft against the new centre.
 struct PlaneRadarResult {
     bool       ok        = false;
     int        errorCode = 0;
     uint8_t    count     = 0;
+    uint8_t    epoch     = 0;
     PrAircraft aircraft[PR_MAX_AIRCRAFT];
 };
 
@@ -203,7 +210,11 @@ void enqueueWebRadioStations(const char* countryCode, uint8_t bitrateCap);
 // Post an ADS-B fetch request for the given center + radius (NM). Non-blocking
 // (drops if queue full). lat/lon/distNm are snapshotted into a config slot
 // under spinlock, same pattern as enqueueWebRadioStations()'s country snapshot.
-void enqueuePlaneRadar(float lat, float lon, float distNm);
+// epoch: VE-PRL-6 — caller's current location-switch epoch, echoed back
+// unchanged in PlaneRadarResult.epoch so a stale in-flight result (fetch
+// started before a location switch) can be told apart from a fresh one.
+// Defaulted so pre-TASK-323 call sites keep compiling unmodified.
+void enqueuePlaneRadar(float lat, float lon, float distNm, uint8_t epoch = 0);
 
 // Post a one-shot geocode lookup (Nominatim structured search, full postcode
 // per the phase0-geocode-probe rule). countryCC: ISO 3166-1 alpha-2;

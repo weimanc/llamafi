@@ -115,6 +115,22 @@ static constexpr int16_t PR_STRIP_ROW_COUNT_Y = 43;
 static constexpr int16_t PR_STRIP_ROW_AGE_Y   = 193;
 static constexpr int16_t PR_STRIP_ROW_ERR_Y   = 213;
 
+// Location-slot strip rows (M-PR-LOCATIONS/TASK-316, frozen at the
+// 2026-07-14 eyeball gate; transcribed from preview_planeradar.py's
+// PR_PREVIEW_SLOT_Y0/PITCH). Named per-row so hit-test/render code and VE
+// tests reference geometry, not magic numbers (settings-nav coordinate-drift
+// lesson). 26 px pitch fits inside the band N^ used to occupy (Q3: marker
+// removed outright, TASK-323).
+static constexpr int16_t PR_STRIP_ROW_LOC0_Y = 68;
+static constexpr int16_t PR_STRIP_ROW_LOC1_Y = 94;
+static constexpr int16_t PR_STRIP_ROW_LOC2_Y = 120;
+static constexpr int16_t PR_STRIP_ROW_LOC3_Y = 146;
+static constexpr int16_t PR_STRIP_ROW_LOC_Y[PR_NUM_LOCS] = {
+    PR_STRIP_ROW_LOC0_Y, PR_STRIP_ROW_LOC1_Y, PR_STRIP_ROW_LOC2_Y, PR_STRIP_ROW_LOC3_Y
+};
+// Half the 26 px pitch: hit-test zones tile [55,159) with no gaps/overlap.
+static constexpr int16_t PR_STRIP_LOC_HIT_HALF = 13;
+
 // One aircraft's on-screen geometry from the last render — kept so the next
 // update can erase exactly what it drew (static-grid-once + symbol/tag
 // erase-redraw, per the design doc's platform-infrastructure table: no
@@ -181,18 +197,28 @@ public:
         if (!_injected) {
             dataTask::PlaneRadarResult result;
             if (dataTask::pollPlaneRadar(&result)) {
-                _pendingFetch = false;
-                _lastHttp     = result.errorCode;
-                if (result.ok) {
-                    _result        = result;
-                    _everHadResult = true;
-                    _prErr         = false;
-                    _lastGoodMs    = now;
-                    _render();
+                if (result.epoch != _locEpoch) {
+                    // VE-PRL-6: a fetch started for the OLD location landed after
+                    // _setActiveLoc() already moved on — discard rather than
+                    // render aircraft against the new centre. _pendingFetch is
+                    // deliberately left alone: it now tracks the NEW-epoch
+                    // fetch _setActiveLoc() already enqueued.
+                    LOG_D("planeradar", "stale epoch result=%u current=%u — discarded",
+                          (unsigned)result.epoch, (unsigned)_locEpoch);
                 } else {
-                    _prErr = true;   // stale display kept; strip shows the error code
+                    _pendingFetch = false;
+                    _lastHttp     = result.errorCode;
+                    if (result.ok) {
+                        _result        = result;
+                        _everHadResult = true;
+                        _prErr         = false;
+                        _lastGoodMs    = now;
+                        _render();
+                    } else {
+                        _prErr = true;   // stale display kept; strip shows the error code
+                    }
+                    _updateStripDynamic(true);
                 }
-                _updateStripDynamic(true);
             }
         }
 
@@ -207,8 +233,21 @@ public:
     bool handleInput(TouchPhase phase, int x, int y) override {
         if (phase != TouchPhase::Release) return false;
         if (x >= PR_STRIP_X) {
+            // M-PR-LOCATIONS/TASK-323: supersedes the phase0 "strip is
+            // display-only" default — hit-test the 4 location-slot rows
+            // (half-pitch zones, no gaps/overlap); everything else in the
+            // strip (RANGE/COUNT/AGE/ERR rows) stays inert, as before.
+            for (uint8_t i = 0; i < PR_NUM_LOCS; i++) {
+                int16_t rowY = PR_STRIP_ROW_LOC_Y[i];
+                if (y < rowY - PR_STRIP_LOC_HIT_HALF || y >= rowY + PR_STRIP_LOC_HIT_HALF) continue;
+                if (g_settings.prLocs[i].label[0] == '\0') break;   // empty slot: inert
+                char act[16]; snprintf(act, sizeof(act), "STRIP_LOC_%u", (unsigned)i);
+                strlcpy(_lastAction, act, sizeof(_lastAction));
+                _setActiveLoc(i);   // guards same-slot tap internally (no-op, no flicker)
+                return true;
+            }
             strlcpy(_lastAction, "STRIP_NONE", sizeof(_lastAction));
-            return false;   // strip is display-only (phase0-preview-ui.md)
+            return false;
         }
         // TASK-308 fix 5 / TASK-309 fix 2: _project()'s scale depends on
         // _presetIdx, so a range change shifts every airport/aircraft pixel
@@ -220,6 +259,39 @@ public:
         strlcpy(_lastAction, "DISC_RANGE", sizeof(_lastAction));
         if (!_injected) _requestFetch(millis());
         return true;
+    }
+
+    // M-PR-LOCATIONS: the single switch primitive (DEV-3/QM-1, BP-047/LL-110
+    // — one shared sequence, never two inline copies). Exactly two call
+    // sites: the strip tap above and `set prloc active <i>` in main.cpp.
+    // Public so main.cpp can reach it on the file-scope g_PlaneRadarApp
+    // instance, same access pattern as planeRadarDbgGet/planeRadarDbgSet.
+    void _setActiveLoc(uint8_t slot) {
+        if (slot >= PR_NUM_LOCS) return;                           // out of range: no-op
+        if (slot == g_settings.prActiveLoc) return;                // (a) same slot: no-op, no flicker
+        if (g_settings.prLocs[slot].label[0] == '\0') return;      // (a) empty slot: no-op
+
+        // (b) copy slot -> write-through mirror, persist.
+        g_settings.prLat       = g_settings.prLocs[slot].lat;
+        g_settings.prLon       = g_settings.prLocs[slot].lon;
+        g_settings.prActiveLoc = slot;
+        SettingsStorage::save();
+
+        // (c) DEV-3: strip must not show the old location's count/age, and
+        // the ADR-046 amber "connecting" state must fire again for the new fetch.
+        _result        = dataTask::PlaneRadarResult{};
+        _everHadResult = false;
+        _lastGoodMs    = 0;
+        _prErr         = false;
+
+        // (d) epoch bump (VE-PRL-6) before re-enqueuing, so the new fetch
+        // carries the new epoch; _repaintDisc() already redraws runways via
+        // _redrawGridStatics() — no separate _drawRunways() call.
+        _locEpoch++;
+        _repaintDisc();
+        _drawLocSlots();
+        _updateStripDynamic(true);   // reflect the (c) reset immediately, not stale digits
+        if (!_injected) _requestFetch(_forceNow());
     }
 
     // ── VE debug surface (NEW-APP-CHECKLIST §3) ──────────────────────────────
@@ -321,6 +393,7 @@ private:
     unsigned long _lastGoodMs     = 0;
     long          _lastAgeDrawSec = -1;
     char          _lastAction[16] = {};
+    uint8_t       _locEpoch       = 0;   // VE-PRL-6: bumped by _setActiveLoc(), echoed via enqueuePlaneRadar()
 
     dataTask::PlaneRadarResult _result;
     PrRendered _prev[dataTask::PR_MAX_AIRCRAFT];
@@ -338,7 +411,7 @@ private:
     // (TASK-310). Callers gate on !_injected themselves — VE injection tests
     // rely on real fetches never firing while injected.
     void _requestFetch(unsigned long ts) {
-        dataTask::enqueuePlaneRadar(g_settings.prLat, g_settings.prLon, kPrFetchNm[_presetIdx]);
+        dataTask::enqueuePlaneRadar(g_settings.prLat, g_settings.prLon, kPrFetchNm[_presetIdx], _locEpoch);
         _lastFetch    = ts;
         _pendingFetch = true;
     }
@@ -477,10 +550,9 @@ private:
         // apply from the next resume — the app is necessarily suspended while
         // the user is in the Settings app to change it).
         tft.drawString(g_settings.prUnits ? "mi" : "km", PR_STRIP_LABEL_X, 22, 1);
-        tft.setTextColor(PR_COL_BEZEL, PR_COL_STRIP_BG);
-        tft.drawString("N^", PR_STRIP_LABEL_X, 120, 1);  // static bezel marker
         tft.setTextDatum(TL_DATUM);
 
+        _drawLocSlots();   // Q3: N^ marker removed outright — slots take the freed band
         _updateStripDynamic(true);
     }
 
@@ -545,6 +617,30 @@ private:
         tft.fillRect(PR_STRIP_X + 1, rowY, PR_STRIP_W - 2, 14, PR_COL_STRIP_BG);
         tft.setTextColor(color, PR_COL_STRIP_BG);
         tft.drawString(text, PR_STRIP_LABEL_X, rowY + 7, 1);
+    }
+
+    // Location-slot label rows (M-PR-LOCATIONS/TASK-316 frozen layout,
+    // variant (a) inverse box — preview_planeradar.py's _location_slots()).
+    // Static per location-set: called from _drawGridOnce() and again after
+    // every _setActiveLoc() switch (the active row moves). Empty slots draw
+    // nothing; the fillRect below still erases the row so a slot that was
+    // just deleted (Settings, while this app is suspended) doesn't leave a
+    // stale label behind on the next resume()'s repaint.
+    void _drawLocSlots() {
+        tft.setTextDatum(MC_DATUM);
+        for (uint8_t i = 0; i < PR_NUM_LOCS; i++) {
+            int16_t y      = PR_STRIP_ROW_LOC_Y[i];
+            bool    active = (i == g_settings.prActiveLoc);
+            // Erase + (active row only) inverse-box highlight in one fill.
+            // 34 px usable width = strip W35 minus the x=PR_STRIP_X border line.
+            uint16_t boxColor = active ? PR_COL_STRIP_TEXT : PR_COL_STRIP_BG;
+            tft.fillRect(PR_STRIP_X + 1, (int16_t)(y - 5), PR_STRIP_W - 1, 10, boxColor);
+            const char* label = g_settings.prLocs[i].label;
+            if (label[0] == '\0') continue;   // empty slot: nothing drawn
+            tft.setTextColor(active ? PR_COL_STRIP_BG : PR_COL_STRIP_TEXT, boxColor);
+            tft.drawString(label, PR_STRIP_LABEL_X, y, 1);
+        }
+        tft.setTextDatum(TL_DATUM);
     }
 
     // Repaints the strip's dynamic fields. includeRangeAndCount also refreshes

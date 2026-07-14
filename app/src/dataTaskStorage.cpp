@@ -697,6 +697,7 @@ static bool              s_planeRadarNew    = false;
 static float             s_pendingPrLat     = 52.3676f;  // reference default (Amsterdam area)
 static float             s_pendingPrLon     = 4.9041f;
 static float             s_pendingPrDistNm  = 8.0f;      // ~10 km default preset
+static uint8_t           s_pendingPrEpoch   = 0;         // VE-PRL-6 identity echo (TASK-323)
 static portMUX_TYPE      s_pendingPrMux     = portMUX_INITIALIZER_UNLOCKED;
 
 // --- Geocode (M-PR-LOCATIONS / TASK-320) ------------------------------------
@@ -1199,8 +1200,10 @@ static int prFetchOnce(const char* url, PlaneRadarResult& r) {
 
 static void fetchPlaneRadar() {
     float lat, lon, distNm;
+    uint8_t epoch;
     portENTER_CRITICAL_SAFE(&s_pendingPrMux);
     lat = s_pendingPrLat; lon = s_pendingPrLon; distNm = s_pendingPrDistNm;
+    epoch = s_pendingPrEpoch;
     portEXIT_CRITICAL_SAFE(&s_pendingPrMux);
 
     spotifyTask::tlsYield();   // BP-031: free Spotify TLS before our own handshake
@@ -1231,8 +1234,9 @@ static void fetchPlaneRadar() {
         r = retryResult;   // second attempt's outcome (success or error) wins
     }
 
-    LOG_D("dataTask.planeradar", "ok=%d errorCode=%d count=%u",
-          (int)r.ok, r.errorCode, (unsigned)r.count);
+    r.epoch = epoch;   // VE-PRL-6: echo the snapshot taken at enqueue time, not a later one
+    LOG_D("dataTask.planeradar", "ok=%d errorCode=%d count=%u epoch=%u",
+          (int)r.ok, r.errorCode, (unsigned)r.count, (unsigned)r.epoch);
 
     portENTER_CRITICAL_SAFE(&s_planeRadarMux);
     s_planeRadarResult = r;
@@ -1678,12 +1682,13 @@ void enqueueWebRadioStations(const char* countryCode, uint8_t bitrateCap) {
     }
 }
 
-void enqueuePlaneRadar(float lat, float lon, float distNm) {
+void enqueuePlaneRadar(float lat, float lon, float distNm, uint8_t epoch) {
     if (!s_queue) return;
     portENTER_CRITICAL_SAFE(&s_pendingPrMux);
     s_pendingPrLat    = lat;
     s_pendingPrLon    = lon;
     s_pendingPrDistNm = distNm;
+    s_pendingPrEpoch  = epoch;
     portEXIT_CRITICAL_SAFE(&s_pendingPrMux);
     Request req = {}; req.type = DATA_FETCH_PLANERADAR;
     if (xQueueSend(s_queue, &req, 0) != pdTRUE)

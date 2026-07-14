@@ -3369,23 +3369,31 @@ static void cmdSet(const char *args) {
     if (sscanf(rest, "active %d", &idx) == 1) {
       // "set prloc active <i>" — programmatic switch (T_PRL_02 etc.), so
       // switch-side effects are testable independently of strip tap
-      // hit-testing. This performs only the copy-slot + write-through-mirror
-      // + save half of the strip-tap gesture (design DEV-3's _setActiveLoc).
-      // TODO(TASK-323): hook in the radar-side repaint/re-project/re-fetch +
-      // result-state reset + location-epoch bump here once planeRadarApp.h's
-      // _setActiveLoc() exists — this command must call the same shared
-      // primitive the strip tap uses, not grow a second inline copy
-      // (BP-047/LL-110 duplication shape).
+      // hit-testing. Calls the same shared primitive the strip tap uses
+      // (design DEV-3/QM-1's _setActiveLoc — BP-047/LL-110: never a second
+      // inline copy of the sequence).
       if (idx < 0 || idx >= (int)PR_NUM_LOCS || g_settings.prLocs[idx].label[0] == '\0') {
         Serial.printf("{\"ok\":false,\"cmd\":\"set\",\"var\":\"prloc\","
                       "\"error\":\"bad or empty slot — active <i> needs 0..%d, non-empty\"}\n",
                       PR_NUM_LOCS - 1);
         return;
       }
-      g_settings.prActiveLoc = (uint8_t)idx;
-      g_settings.prLat = g_settings.prLocs[idx].lat;
-      g_settings.prLon = g_settings.prLocs[idx].lon;
-      SettingsStorage::save();
+      if (currentAppId == AppId::PlaneRadar) {
+        // _setActiveLoc() does TFT drawing (disc repaint, strip statics) —
+        // only safe to call while PlaneRadar actually owns the screen.
+        // Same guard shape as `set clockStyle`'s `if (currentAppId ==
+        // AppId::Clock) g_ClockApp.resume();` above.
+        g_PlaneRadarApp._setActiveLoc((uint8_t)idx);
+      } else {
+        // Settings-side only: mirror + persist so the switch survives to
+        // the next PlaneRadar resume() (which repaints from g_settings
+        // fresh); no result-state reset/re-fetch needed since the app
+        // isn't polling while suspended.
+        g_settings.prActiveLoc = (uint8_t)idx;
+        g_settings.prLat = g_settings.prLocs[idx].lat;
+        g_settings.prLon = g_settings.prLocs[idx].lon;
+        SettingsStorage::save();
+      }
       Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"prloc\",\"active\":%d}\n", idx);
       return;
     }
