@@ -207,8 +207,13 @@ Strip geometry today (`planeRadarApp.h:113-116`): RANGE y5, COUNT y43,
   whole y55..185 band contiguously; one less static to repaint.
 - Render up to 4 label rows (font 1, MC_DATUM at `PR_STRIP_LABEL_X`,
   ~26 px pitch) in the freed band; empty slots render nothing. Active slot
-  highlighted (inverse box or `PR_COL_STRIP_TEXT` vs dimmed — preview
-  decides).
+  highlight: **frozen 2026-07-14 at the TASK-316 eyeball gate — variant
+  (a) inverse box** (filled `PR_COL_STRIP_TEXT` rect, field-coloured
+  label); labels at y68/94/120/146. TASK-317's editor frames passed the
+  same gate as rendered (stacked-button fork, slot-0 delete disabled,
+  40 px confirm buttons) — and spawned TASK-326/327 (shared Settings
+  widget kit + style-enforcement pass) so the editor's button idiom
+  becomes THE Settings idiom instead of a fifth hand-roll.
 - **Touch**: `handleTouch` currently returns `STRIP_NONE` for `x >= 240`
   (display-only). New behaviour: hit-test the label rows; tap →
   `_setActiveLoc(slot)`. Taps elsewhere in the strip stay inert.

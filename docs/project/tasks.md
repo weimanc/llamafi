@@ -873,7 +873,10 @@ Extend `app/tools/preview_planeradar.py`: slot label rows (~26px pitch, 4
 slots), active-slot highlight variants, N^ marker removed, empty-slot and
 single-slot degenerate cases. Human eyeball gate (BP-048) freezes layout +
 highlight style before any planeRadarApp.h edit.
-**Status:** awaiting eyeball gate — tool extended (N^ removed outright per
+**Status:** DONE — eyeball gate PASSED 2026-07-14, human chose **variant
+(a) inverse box**; layout frozen for TASK-323 (labels y68/94/120/146,
+26 px pitch, box highlight). Gate detail kept below for the record.
+Tool extended (N^ removed outright per
 Q3; 4 slot-label rows at y68/94/120/146 px, `_location_slots()`, both
 highlight variants wired, selectable via `radar.highlight` / `h` key in
 interactive mode); 4 gate PNGs rendered against the busy_33km fixture at
@@ -957,8 +960,13 @@ written):**
    this tool (rendered as `?` before the fix); the empty-slot string is
    ASCII `-- empty --`, a real constraint for any future wording pass too.
 
-**Status:** awaiting eyeball gate (human review of the 7 PNGs + contact
-sheet) · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Status:** DONE — eyeball gate PASSED 2026-07-14 ("looking good"),
+frames approved as rendered: stacked-button fork screen, slot-0 Delete
+*disabled* (not absent), 40 px confirm buttons, 2-line display_name wrap
+all accepted. Follow-up: the stacked-button/confirm-bar idiom is to be
+extracted into a shared widget kit (TASK-326) so TASK-321 builds on it
+rather than hand-rolling — see TASK-326/327.
+**Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
 **Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** n
 
 ### TASK-318 — M-CERT-ERRCODE minimal slice: -120 CERT_VERIFY_FAILED sentinel
@@ -970,7 +978,9 @@ TLS band). Hard prerequisite of TASK-320 so the Nominatim call site is born
 with correct cert-failure surfacing. Rest of M-CERT-ERRCODE (build-hook
 preflight, offline expiry check, --propose-fix, call-site audit, DUT test)
 stays on the roadmap, off this milestone's critical path.
-**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-CERT-ERRCODE ·
+**Status:** DONE 2026-07-14 (`5cb6060`) — sentinel + httpErr decode +
+dataTask.h band comment + dataTaskCerts.h pointer; run/check 6/6 PASS.
+**Opened:** 2026-07-14 · **Milestone:** M-CERT-ERRCODE ·
 **Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** n (DUT assert
 folded into TASK-324's gate)
 
@@ -1008,8 +1018,9 @@ coords) with Save/Retry/Cancel; delete with slot-0 refusal; late/stale seq
 results ignored (VE-PRL-5). Editor testable end-to-end via TASK-325 +
 TASK-320 stubs.
 **Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
-**Owner:** Developer · **Deps:** TASK-316, TASK-317, TASK-319, TASK-320,
-TASK-325 · **Size:** M · **DUT:** y
+**Owner:** Developer · **Deps:** TASK-316 (done), TASK-317 (done),
+TASK-319, TASK-320, TASK-325, TASK-326 (widget kit — build the editor ON
+it, don't hand-roll buttons) · **Size:** M · **DUT:** y
 
 ### TASK-322 — M-PR-LOCATIONS: manual lat/lon entry path
 
@@ -1086,3 +1097,44 @@ boundary in the manifest header comment while here.
 **Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-MEMPLAN ·
 **Owner:** Developer (Architect consult on the webradio entry) · **Deps:** —
 · **Size:** S · **DUT:** n (`run/check` gate [6/6] covers)
+
+### TASK-326 — Settings widget kit: shared button/spinner/confirm primitives
+
+Human direction 2026-07-14 (at the TASK-317 gate): enforce a common
+Settings UI style. Today `settingsSection.h` enforces the ROW style by
+construction (geometry, palette, header, drawRow, hitbox) but buttons are
+hand-rolled 4x over — wifiSection Retry/Cancel (30 px, own constants),
+ledSection OFF/ON/SAVE (own bar + 100 ms invert feedback), timeSection
+up/down arrows, calibrationFlow's buttons — each with private layout +
+hit-test + feedback. The TASK-317 frames' 40-vs-30 px divergence is the
+symptom: no constant to obey.
+
+Extract `app/src/settings/settingsWidgets.h`: `SButton` (rect, label,
+style enum primary/neutral/danger/disabled; draw + hitTest + shared press
+feedback), a 1–3-across button-bar layout helper at a standard bar Y, a
+spinner/progress row (M-DATATASK-PROGRESS idiom), and the standard
+S_BTN_H (decide 30 vs 40 once — the approved TASK-317 frames use 40 for
+finger targets; lean 40 and let the migration pass resize the old ones).
+API proven by the first consumer (TASK-321 location editor). Preview-tool
+note: `preview_prloc_editor.py` mirrors geometry by hand — keep its
+constants in one obvious block referencing this header until a shared
+constants export exists.
+**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS
+/ M-SETTINGS-STYLE · **Owner:** Developer · **Deps:** — (before or with
+TASK-321) · **Size:** S/M · **DUT:** n (visual check rides TASK-321's)
+
+### TASK-327 — Settings style enforcement pass: migrate sections onto the widget kit
+
+Second half of the human direction: once TASK-326's kit is proven by the
+location editor, migrate the existing hand-rolled button sites onto it —
+wifiSection (Retry/Cancel), ledSection (OFF/ON/SAVE + invert feedback
+becomes the kit's shared feedback), timeSection (arrows), calibrationFlow
+— deleting per-section button constants and hit-test code. Pure reuse/
+style pass: zero behaviour change intended; run/check + targeted
+touch-path tests gate it (mind the settings-nav coordinate-drift lesson —
+if any button moves to the standard bar Y, audit tests/docs that encode
+old coordinates). Candidate BP if it holds: "new Settings UI = kit
+widgets only; hand-rolled buttons are a review flag" (QM to propose).
+**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-SETTINGS-STYLE
+· **Owner:** Developer · **Deps:** TASK-326, TASK-321 (kit proven) ·
+**Size:** M · **DUT:** y (touch regression on migrated sections)
