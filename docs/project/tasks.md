@@ -902,7 +902,63 @@ interactive mode); 4 gate PNGs rendered against the busy_33km fixture at
 Static frames for the Settings location sub-view + ~8-state editor (slot
 list, source fork, lookup chain, manual chain, confirm, delete): layout,
 wording, tap-target sizes. Eyeball gate before appsSection.h geometry.
-**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+
+**Done (tool + frames) 2026-07-14 — awaiting eyeball gate.** New standalone
+`app/tools/preview_prloc_editor.py` (does not touch `preview_planeradar.py`
+or any existing tool). Geometry hardcoded from `settingsSection.h`
+(`S_CONTENT_Y`/`S_ROW_H`/palette) and the button/spinner conventions in
+`wifiSection.h` (Retry/Cancel layout, `_drawSpinner`) and `keyboardWidget.h`
+(accent/neutral key colour language); text rendered with `dut_fonts.Font2`
+(pixel-accurate TFT_eSPI Font16, the only font size Settings rows ever use).
+Content uses the real phase-0 probe result (NL postcode 2513AA / The Hague,
+`display_name` truncated to the firmware's 47-char `GeocodeResult.display[48]`
+buffer) — see `docs/architecture/designs/M-PR-LOCATIONS/phase0-geocode-probe.md`.
+
+Rendered to `docs/architecture/designs/M-PR-LOCATIONS/img/`:
+- `editor_slotlist.png` — Locations sub-view, 4 slot rows (3 filled + 1
+  `-- empty --`), green 3px active-bar marker on slot 0 (taskbar
+  active-indicator visual language reused).
+- `editor_source_fork.png` — non-empty-slot fork: stacked [Lookup] (accent
+  green, default) / [Manual] (neutral grey) / [Delete] (red, destructive).
+- `editor_source_fork_slot0.png` — same fork for slot 0: Delete rendered
+  **disabled/greyed** (not absent) with a "slot 0 is always defined" caption
+  — the disabled-vs-absent choice is one of the things to eyeball.
+- `editor_lookup_pending.png` — Country/Postcode rows + spinner block
+  (M-DATATASK-PROGRESS / `wifiSection.h` spinner pattern).
+- `editor_lookup_confirm.png` — wrapped truncated `display_name`, Lat/Lon
+  rows, 3-across Save/Retry/Cancel (81px × 40px each).
+- `editor_lookup_error.png` — decoded error line `-96 GEOCODE_NO_MATCH —
+  postcode not found` in the error-red palette colour, Retry/Cancel.
+- `editor_manual_confirm.png` — entered Lat/Lon, range-validation hint text,
+  Save/Cancel.
+- `editor_frames_sheet.png` — one-page 3-col contact sheet, all 7 frames +
+  captions (PIL default font — host review aid only, not on-device UI).
+
+**What the human is deciding (before any `appsSection.h`/new-section C++ is
+written):**
+1. **Fork-screen button style** — vertical stacked 243×40 buttons vs a
+   plain chevron-row list (current design borrows a "button" visual
+   language not used elsewhere in Settings, which is otherwise all
+   label/value/chevron rows — worth a second look for consistency).
+2. **Delete-on-slot-0: disabled/greyed vs absent entirely** — only the
+   disabled variant was rendered; if "absent" (row just not drawn) is
+   preferred, that's a one-line change once decided.
+3. **Confirm-screen button height (40px)** vs the rest of Settings' 30px
+   (`wifiSection.h` Retry/Cancel) — deliberately sized larger here per the
+   task's "finger-sized tap targets" ask for Save/Retry/Cancel; flagged as
+   a departure from the existing convention, not silently matched to it.
+4. **`display_name` wrap to 2 lines** vs single-line ellipsis truncation —
+   2-line wrap was chosen to show more of the real OSM string; confirm this
+   reads better than a harder truncation.
+5. **Wording**: "Current" (source-fork context row), "Looking up...",
+   "fetching from Nominatim", "slot 0 is always defined", the Range hint
+   text — all first-draft, all cheap to change now vs after firmware lands.
+6. Em dash (`—`) is not in Font2's ASCII-only glyph table — confirmed by
+   this tool (rendered as `?` before the fix); the empty-slot string is
+   ASCII `-- empty --`, a real constraint for any future wording pass too.
+
+**Status:** awaiting eyeball gate (human review of the 7 PNGs + contact
+sheet) · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
 **Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** n
 
 ### TASK-318 — M-CERT-ERRCODE minimal slice: -120 CERT_VERIFY_FAILED sentinel
