@@ -993,8 +993,7 @@ call #3 — hooks land with the state they inspect): `get prloc`,
 `set prloc <i> <label> <lat> <lon>`, `set prloc active <i>` (the latter
 calls the shared `_setActiveLoc()` once TASK-323 lands; until then settings
 side only).
-**Status:** code landed, run/check 6/6; DUT asserts deferred to the grouped
-TASK-324 session — `PrLocation prLocs[4]`/`prActiveLoc` added to
+**Status:** code landed, run/check 6/6; **intermediate DUT smoke PASS 2026-07-14** (migration seeded HOME from stored coords; slot set/get/active round-trip; reboot persistence; bad-index + long-label rejected) — `PrLocation prLocs[4]`/`prActiveLoc` added to
 `AppSettings`, load/save + DEV-PRL-6 migration-order-safe seeding wired in
 `settingsStorage.cpp`, `get prloc` / `set prloc <i> <label> <lat> <lon>` /
 `set prloc active <i>` (settings-side only, TODO(TASK-323) marks the
@@ -1011,8 +1010,7 @@ cross-sign comment; UA header; -96 GEOCODE_NO_MATCH; parse buffer sized
 from TASK-315 measurements. Bundled serialdbg: `set geocode <lat> <lon>` /
 `set geocode err <code>` with structural isolation (parked slot checked
 before real result; enqueue no-op while parked — TASK-276 lesson).
-**Status:** code landed 2026-07-14, run/check 6/6; DUT asserts deferred to
-the grouped TASK-324 session. Landed: DATA_FETCH_GEOCODE + fetchGeocode()
+**Status:** code landed 2026-07-14, run/check 6/6; **intermediate DUT smoke PASS 2026-07-14** (live Nominatim 2513AA→52.0795,4.3132 seq-matched; stub parked -96; enqueue no-op while parked). Landed: DATA_FETCH_GEOCODE + fetchGeocode()
 (openHttps + NOMINATIM_ROOT_CA alias w/ cross-sign comment, mandatory UA,
 geoUrlEncode, 1 KB doc per probe measurement, -96 no-match + new -97
 parse-failed in httpErr); enqueueGeocode returns seq (pending-config-mux);
@@ -1112,8 +1110,7 @@ not an archived tasks list, so the "leave archive alone" fallback didn't
 apply — no separate archived task entry for these tests was found).
 `./run/check` 6/6 PASS. DUT execution of T232/233/246/247 and the VE-PRL-1
 assert deferred to the grouped TASK-324 session.
-**Status:** code landed, run/check 6/6; DUT asserts deferred to grouped
-TASK-324 session · **Opened:** 2026-07-14 · **Milestone:** M-SERIALDBG /
+**Status:** code landed, run/check 6/6; **intermediate DUT smoke PASS 2026-07-14** (kbShow helper added; UpperAlpha filter+maxLen, Full-mode verbatim, submit/cancel callbacks fire, inactive after cancel) · **Opened:** 2026-07-14 · **Milestone:** M-SERIALDBG /
 M-PR-LOCATIONS · **Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** y
 
 ---

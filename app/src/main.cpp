@@ -3166,6 +3166,24 @@ static void cmdSet(const char *args) {
   if (strncmp(args, "geocode ", 8) == 0) {
     const char* rest = args + 8;
     dataTask::GeocodeResult r;
+    // Third form (DUT smoke / T_PRL_01b): `set geocode fetch <CC> <postcode…>`
+    // triggers a REAL enqueueGeocode() — the editor (TASK-321) doesn't exist
+    // yet, so this is the only on-device path to exercise the live fetcher
+    // (UA/TLS/parse). Postcode = remainder verbatim (may contain a space).
+    // Checked before the lat/lon form ("fetch" would otherwise parse as a
+    // 0.0-lat injection). Result observable via `get geocode` (new=true).
+    if (strncmp(rest, "fetch ", 6) == 0) {
+      char cc[4]; int consumed = 0;
+      if (sscanf(rest + 6, "%3s %n", cc, &consumed) < 1 || rest[6 + consumed] == '\0') {
+        Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"geocode\","
+                        "\"error\":\"usage: geocode fetch <CC> <postcode>\"}");
+        return;
+      }
+      uint8_t seq = dataTask::enqueueGeocode(cc, rest + 6 + consumed);
+      Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"geocode\","
+                    "\"fetch\":true,\"seq\":%u}\n", (unsigned)seq);
+      return;
+    }
     if (strncmp(rest, "err ", 4) == 0) {
       r.ok = false;
       r.errorCode = atoi(rest + 4);
@@ -3195,6 +3213,30 @@ static void cmdSet(const char *args) {
     Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"geocode\","
                   "\"parked\":true,\"resOk\":%s,\"errorCode\":%d}\n",
                   r.ok ? "true" : "false", r.errorCode);
+    return;
+  }
+  // TASK-325 smoke helper: open the keyboard directly (no touch navigation
+  // needed) so kbText/kbOk/kbCancel are DUT-testable standalone. Submitted/
+  // cancelled text is echoed as JSON for host asserts.
+  //   set kbShow [maxLen] [mode]   (mode 0=Full 1=UpperAlpha; defaults 10, 0)
+  if (strncmp(args, "kbShow", 6) == 0 && (args[6] == '\0' || args[6] == ' ')) {
+    int maxLen = 10, mode = 0;
+    sscanf(args + 6, "%d %d", &maxLen, &mode);
+    if (g_keyboard.active()) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"kbShow\","
+                      "\"error\":\"keyboard already active\"}");
+      return;
+    }
+    g_keyboard.show("dbg kbShow", "",
+                    mode == 1 ? KeyboardWidget::Mode::UpperAlpha : KeyboardWidget::Mode::Full,
+                    (uint8_t)maxLen,
+                    [](const char* text, void*) {
+                      Serial.printf("{\"evt\":\"kbSubmit\",\"text\":\"%s\"}\n", text);
+                    },
+                    [](void*) { Serial.println("{\"evt\":\"kbCancel\"}"); },
+                    nullptr);
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"kbShow\","
+                  "\"maxLen\":%d,\"mode\":%d}\n", maxLen, mode);
     return;
   }
 
