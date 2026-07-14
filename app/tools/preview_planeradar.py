@@ -48,14 +48,20 @@ def rgb565(r, g, b):
     """Quantise an (r,g,b) to what RGB565 can actually show."""
     return (r & 0xF8, g & 0xFC, b & 0xF8)
 
-COL_FIELD    = rgb565(0, 0, 48)       # dark blue background
-COL_RING     = rgb565(0, 96, 32)      # subdued green rings/crosshair
-COL_RING_HI  = rgb565(0, 140, 48)     # ring 3 (range ring) slightly brighter
-COL_BEZEL    = rgb565(255, 255, 255)  # N/E/S/W + centre dot
-COL_AIRCRAFT = rgb565(255, 32, 32)    # heading triangle + rim dots
-COL_VECTOR   = rgb565(255, 0, 255)    # speed vector
-COL_TAG      = rgb565(200, 200, 200)  # callsign/type/alt text
-COL_RUNWAY   = rgb565(0, 160, 160)    # teal
+# Matched 1:1 to the reference's radar_theme.h initPalette() (ESP32-Plane-Radar).
+# Constants with no reference counterpart (STRIP_*, STALE, ERR — our square-panel
+# side strip has no analogue in the reference's round-display UI) are our own
+# design calls, unchanged.
+COL_FIELD        = rgb565(4, 10, 28)     # ref kColorBackground
+COL_RING         = rgb565(16, 100, 32)   # ref kColorGrid (all rings — no per-ring highlight, matches TASK-312 firmware)
+COL_BEZEL        = rgb565(255, 255, 255) # ref kColorLabel / kColorCenter — N/E/S/W + centre dot
+COL_AIRCRAFT     = rgb565(255, 0, 0)     # ref kColorAircraft
+COL_VECTOR       = rgb565(255, 0, 255)   # ref kColorTrackVector
+COL_TAG_CALLSIGN = rgb565(255, 255, 255) # ref kColorLabel
+COL_TAG_TYPE     = rgb565(255, 200, 0)   # ref kColorTagType
+COL_TAG_ALT      = rgb565(90, 200, 255)  # ref kColorTagAltitude
+COL_RUNWAY       = rgb565(56, 150, 170)  # ref kColorRunway
+COL_RUNWAY_LABEL = rgb565(110, 210, 230) # ref kColorRunwayLabel
 COL_STRIP_BG = rgb565(8, 8, 16)
 COL_STRIP_TX = rgb565(160, 255, 160)
 COL_STALE    = rgb565(255, 180, 0)
@@ -210,11 +216,11 @@ class Radar:
         d.rectangle([0, 0, pc.APP_W - 1, pc.SCREEN_H - 1], fill=COL_FIELD)
 
         cx, cy, r = L["cx"], L["cy"], L["r"]
-        # rings at 1/4..4/4; ring 3 = the preset distance
+        # rings at 1/4..4/4 — all four the same colour (TASK-312: no per-ring
+        # highlight, matches both the firmware and the reference).
         for i in (1, 2, 3, 4):
             rr = r * i // 4
-            col = COL_RING_HI if i == 3 else COL_RING
-            d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], outline=col)
+            d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], outline=COL_RING)
         d.line([cx - r, cy, cx + r, cy], fill=COL_RING)
         d.line([cx, cy - r, cx, cy + r], fill=COL_RING)
         d.rectangle([cx - 1, cy - 1, cx + 1, cy + 1], fill=COL_BEZEL)
@@ -277,7 +283,7 @@ class Radar:
                 d.line([lx, ly, hx, hy], fill=COL_RUNWAY)
             show_label = self.runway_density == "all" or (ap, ax, ay) is nearest
             if show_label:
-                F1.draw_centered(d, int(ax), int(ay) - 9, ap["icao"], COL_RUNWAY)
+                F1.draw_centered(d, int(ax), int(ay) - 9, ap["icao"], COL_RUNWAY_LABEL)
 
     def _aircraft(self, d, x, y, p):
         nose = math.radians(nose_deg(p) - 90)   # 0° = north = up
@@ -312,7 +318,12 @@ class Radar:
             d.line([x, y, ex, ey], fill=COL_VECTOR)
 
     def _tag(self, d, x, y, p, cx, occupied):
-        lines = [t for t in (callsign(p), (p.get("t") or ""), alt_tag(p)) if t]
+        # (text, colour) pairs in fixed callsign/type/alt order — matches the
+        # reference's 3-colour tag scheme (kColorLabel/kColorTagType/kColorTagAltitude).
+        fields = [(callsign(p), COL_TAG_CALLSIGN), (p.get("t") or "", COL_TAG_TYPE),
+                  (alt_tag(p), COL_TAG_ALT)]
+        fields = [(t, c) for t, c in fields if t]
+        lines = [t for t, _ in fields]
         w = max((len(t) for t in lines), default=0) * 6
         h = len(lines) * 8
         tx = x + 9 if x < cx else x - 9 - w   # centre-side placement (reference rule)
@@ -334,8 +345,8 @@ class Radar:
                 if self.collision == "c":      # rule c: drop tag, keep symbol
                     return
         occupied.append(rect)
-        for i, t in enumerate(lines):
-            F1.draw(d, int(rect[0]), int(ty + i * 8), t, COL_TAG)
+        for i, (t, col) in enumerate(fields):
+            F1.draw(d, int(rect[0]), int(ty + i * 8), t, col)
 
     def _strip(self, d, n_shown):
         sx = LAYOUTS["strip"]["strip_x"]
@@ -343,10 +354,10 @@ class Radar:
         d.line([sx, 0, sx, pc.SCREEN_H - 1], fill=COL_RING)
         F1.draw_centered(d, sx + 17, 12, f"{self.preset_km}", COL_STRIP_TX)
         F1.draw_centered(d, sx + 17, 22, "km", COL_STRIP_TX)
-        F1.draw_centered(d, sx + 17, 50, f"{n_shown}ac", COL_TAG)
+        F1.draw_centered(d, sx + 17, 50, f"{n_shown}ac", COL_STRIP_TX)
         age = int(self.last_fetch_age)
         F1.draw_centered(d, sx + 17, 200, f"{age}s",
-                         COL_STALE if age > 30 else COL_TAG)
+                         COL_STALE if age > 30 else COL_STRIP_TX)
         if self.http_err:
             F1.draw_centered(d, sx + 17, 220, f"E{self.http_err}", COL_ERR)
         F1.draw_centered(d, sx + 17, 120, "N^", COL_BEZEL)

@@ -30,20 +30,27 @@ static constexpr int16_t PR_SCREEN_H = 240;                  // full display hei
 // projection scale, strip row Y positions) are geometry/behaviour, not
 // look-and-feel — deliberately left out.
 
-// RGB565 palette (radar_theme.h equivalents — see preview_planeradar.py's
-// rgb565() block; values here are that same (r,g,b) set packed to RGB565).
-static constexpr uint16_t PR_COL_FIELD      = 0x0006;
-static constexpr uint16_t PR_COL_OUTSIDE    = 0x0000;  // black surround outside the disc (TASK-312)
-static constexpr uint16_t PR_COL_RING       = 0x0304;
-static constexpr uint16_t PR_COL_BEZEL      = 0xFFFF;
-static constexpr uint16_t PR_COL_AIRCRAFT   = 0xF904;
-static constexpr uint16_t PR_COL_VECTOR     = 0xF81F;
-static constexpr uint16_t PR_COL_TAG        = 0xCE59;
-static constexpr uint16_t PR_COL_STRIP_BG   = 0x0842;
-static constexpr uint16_t PR_COL_STRIP_TEXT = 0xA7F4;
-static constexpr uint16_t PR_COL_STALE      = 0xFDA0;
-static constexpr uint16_t PR_COL_ERROR      = 0xFA08;
-static constexpr uint16_t PR_COL_RUNWAY     = 0x0514;
+// RGB565 palette — matched 1:1 to the reference's radar_theme.h initPalette()
+// (rgb565() equivalents; see preview_planeradar.py's rgb565() block, kept in
+// sync by hand — the two files don't share code, see docs). Constants with
+// no reference counterpart (OUTSIDE, STRIP_*, STALE, ERROR — our square-panel
+// side strip has no analogue in the reference's round-display UI) are left
+// as our own design calls.
+static constexpr uint16_t PR_COL_FIELD          = 0x0043;  // rgb565(4,10,28)     ref kColorBackground
+static constexpr uint16_t PR_COL_OUTSIDE        = 0x0000;  // black surround outside the disc (TASK-312)
+static constexpr uint16_t PR_COL_RING           = 0x1324;  // rgb565(16,100,32)   ref kColorGrid
+static constexpr uint16_t PR_COL_BEZEL          = 0xFFFF;  // rgb565(255,255,255) ref kColorLabel/kColorCenter
+static constexpr uint16_t PR_COL_AIRCRAFT       = 0xF800;  // rgb565(255,0,0)     ref kColorAircraft
+static constexpr uint16_t PR_COL_VECTOR         = 0xF81F;  // rgb565(255,0,255)   ref kColorTrackVector
+static constexpr uint16_t PR_COL_TAG_CALLSIGN   = 0xFFFF;  // rgb565(255,255,255) ref kColorLabel
+static constexpr uint16_t PR_COL_TAG_TYPE       = 0xFE20;  // rgb565(255,200,0)   ref kColorTagType
+static constexpr uint16_t PR_COL_TAG_ALT        = 0x5E3F;  // rgb565(90,200,255)  ref kColorTagAltitude
+static constexpr uint16_t PR_COL_STRIP_BG       = 0x0842;
+static constexpr uint16_t PR_COL_STRIP_TEXT     = 0xA7F4;
+static constexpr uint16_t PR_COL_STALE          = 0xFDA0;
+static constexpr uint16_t PR_COL_ERROR          = 0xFA08;
+static constexpr uint16_t PR_COL_RUNWAY         = 0x3CB5;  // rgb565(56,150,170)  ref kColorRunway
+static constexpr uint16_t PR_COL_RUNWAY_LABEL   = 0x6E9C;  // rgb565(110,210,230) ref kColorRunwayLabel
 
 // Grid ring geometry: ring index 3 of 4 is the ring the Q5 stale indicator
 // recolours in _updateStripDynamic() (TASK-312: the base grid no longer
@@ -518,7 +525,7 @@ private:
             int16_t ltlx = (int16_t)(ax - lw / 2), ltly = (int16_t)((ay - 9) - lh / 2);
             if (_boxInDisc(ltlx, ltly, lw, lh)) {
                 char icao[5]; strlcpy(icao, ap.icao, sizeof(icao));
-                tft.setTextColor(PR_COL_RUNWAY, PR_COL_FIELD);
+                tft.setTextColor(PR_COL_RUNWAY_LABEL, PR_COL_FIELD);
                 tft.drawString(icao, ax, (int16_t)(ay - 9), 1);
             }
         }
@@ -553,13 +560,13 @@ private:
             _stripField(PR_STRIP_ROW_RANGE_Y, rbuf, PR_COL_STRIP_TEXT);
 
             char ac[8]; snprintf(ac, sizeof(ac), "%uac", (unsigned)_result.count);
-            _stripField(PR_STRIP_ROW_COUNT_Y, ac, PR_COL_TAG);
+            _stripField(PR_STRIP_ROW_COUNT_Y, ac, PR_COL_STRIP_TEXT);
         }
 
         long ageS  = _everHadResult ? (long)((millis() - _lastGoodMs) / 1000) : 0;
         bool stale = ageS > (long)PR_STALE_S;
         char age[8]; snprintf(age, sizeof(age), "%lds", ageS);
-        _stripField(PR_STRIP_ROW_AGE_Y, age, stale ? PR_COL_STALE : PR_COL_TAG);
+        _stripField(PR_STRIP_ROW_AGE_Y, age, stale ? PR_COL_STALE : PR_COL_STRIP_TEXT);
         // Q5: ring-colour shift is the strip age-text's ADDITION, not a
         // replacement — the numeric fallback above is always shown regardless
         // of style (per the frozen doc). Text/Dim (never prototyped, Q5
@@ -679,12 +686,22 @@ private:
     void _placeTag(const dataTask::PrAircraft& a, int16_t x, int16_t y, PrRendered& rd,
                    PrRendered* occ, uint8_t& occCount) {
         char lines[PR_TAG_MAX_LINES][PR_TAG_LINE_LEN] = {};
+        uint16_t lineColors[PR_TAG_MAX_LINES] = {};
         uint8_t nLines = 0;
         const char* cs = a.callsign[0] ? a.callsign : "?";
-        strlcpy(lines[nLines++], cs, PR_TAG_LINE_LEN);
-        if (a.type[0]) strlcpy(lines[nLines++], a.type, PR_TAG_LINE_LEN);
-        if (a.altFt == INT32_MIN)      strlcpy(lines[nLines++], "GND", PR_TAG_LINE_LEN);
-        else if (a.altFt != INT32_MAX) snprintf(lines[nLines++], PR_TAG_LINE_LEN, "%ldft", (long)a.altFt);
+        strlcpy(lines[nLines], cs, PR_TAG_LINE_LEN);
+        lineColors[nLines++] = PR_COL_TAG_CALLSIGN;
+        if (a.type[0]) {
+            strlcpy(lines[nLines], a.type, PR_TAG_LINE_LEN);
+            lineColors[nLines++] = PR_COL_TAG_TYPE;
+        }
+        if (a.altFt == INT32_MIN) {
+            strlcpy(lines[nLines], "GND", PR_TAG_LINE_LEN);
+            lineColors[nLines++] = PR_COL_TAG_ALT;
+        } else if (a.altFt != INT32_MAX) {
+            snprintf(lines[nLines], PR_TAG_LINE_LEN, "%ldft", (long)a.altFt);
+            lineColors[nLines++] = PR_COL_TAG_ALT;
+        }
 
         int16_t w = 0;
         for (uint8_t i = 0; i < nLines; i++) {
@@ -740,8 +757,9 @@ private:
         occCount++;
 
         tft.setTextDatum(TL_DATUM);
-        tft.setTextColor(PR_COL_TAG, PR_COL_FIELD);
-        for (uint8_t i = 0; i < nLines; i++)
+        for (uint8_t i = 0; i < nLines; i++) {
+            tft.setTextColor(lineColors[i], PR_COL_FIELD);
             tft.drawString(lines[i], tx, (int16_t)(bestY + i * PR_TAG_LINE_H), 1);
+        }
     }
 };
