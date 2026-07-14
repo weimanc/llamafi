@@ -6,6 +6,11 @@
 > Parent: [M-PLANERADAR-plane-radar-app.md](../M-PLANERADAR-plane-radar-app.md)
 > Closes: OQ4 (side strip vs on-disc bezel); freezes layout + tag-collision rule before firmware
 > Depends: phase0-api-probe (fixtures; live mode reuses the probe's fetch)
+> **Partially superseded 2026-07-13** by
+> [M-PR-LOCATIONS-location-presets.md](../M-PR-LOCATIONS-location-presets.md):
+> the frozen "strip is display-only" rule and the `N^` bezel marker are both
+> revoked — the strip becomes a tappable location switcher and the marker is
+> removed. Disc geometry, tag rules and everything else here still stand.
 
 ## Context / pain points
 

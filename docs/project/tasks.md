@@ -833,3 +833,142 @@ Production firmware (`cyd2usb_winamp`) reflashed and monitor restored after.
 · **Status:** DONE · **Opened:** 2026-07-12 · **Closed:** 2026-07-12 ·
 **Milestone:** none (post M-PLANERADAR taskbar-icon cleanup) · **Owner:**
 Developer · **Deps:** none · **Branch:** master
+
+---
+
+## Open — M-PR-LOCATIONS (+ M-CERT-ERRCODE slice) — filed 2026-07-14 from panel-reviewed design r2
+
+> Source: `docs/architecture/designs/M-PR-LOCATIONS-location-presets.md` (r2) +
+> 4-reviewer panel (`M-PR-LOCATIONS-{DEV,VE,QM,PM}-review.md`, unanimous
+> PASS-with-actions; all blockers/majors folded into r2). Breakdown per PM
+> review with two amendments: TASK-325 (kbText hook, VE blocker) added as an
+> editor prerequisite; TASK-315 absorbs the QM-2 evidence requirements.
+> DUT plan: group into 2–3 sessions (storage+fetcher / UI+strip / final gate),
+> not per-task reflashes.
+
+### TASK-315 — M-PR-LOCATIONS Phase-0: geocode probe script + report
+
+Formalize the 2026-07-13 ad-hoc probes: repeatable script + committed report
+(`M-PR-LOCATIONS/phase0-geocode-probe.md`) — query matrix (NL/UK/DE, full vs
+truncated postcodes), URL-encoding, response contract + measured sizes (parse
+buffer freeze, BP-001), HTTP/1.0 compat, UA acceptance, rate behaviour, and
+the strict cert verify with committed output (QM-2/BP-039). Same task adds
+`nominatim.openstreetmap.org` to `run/check-datatask-certs` ENDPOINTS
+(VE-PRL-12). Manual/on-demand cadence only — never wired into run/test.
+**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** n
+
+### TASK-316 — M-PR-LOCATIONS Phase-0: preview tool — strip layout
+
+Extend `app/tools/preview_planeradar.py`: slot label rows (~26px pitch, 4
+slots), active-slot highlight variants, N^ marker removed, empty-slot and
+single-slot degenerate cases. Human eyeball gate (BP-048) freezes layout +
+highlight style before any planeRadarApp.h edit.
+**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** n
+
+### TASK-317 — M-PR-LOCATIONS Phase-0: preview tool — slot-editor screen-flow frames
+
+Static frames for the Settings location sub-view + ~8-state editor (slot
+list, source fork, lookup chain, manual chain, confirm, delete): layout,
+wording, tap-target sizes. Eyeball gate before appsSection.h geometry.
+**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** n
+
+### TASK-318 — M-CERT-ERRCODE minimal slice: -120 CERT_VERIFY_FAILED sentinel
+
+Pulled forward from M-CERT-ERRCODE (PM review): `openHttps()` checks
+`tls.lastError()` for -0x2700 on failed GET → returns -120; `httpErr()`
+decode case; dataTask.h errorCode-convention comment (reserve -120..-129
+TLS band). Hard prerequisite of TASK-320 so the Nominatim call site is born
+with correct cert-failure surfacing. Rest of M-CERT-ERRCODE (build-hook
+preflight, offline expiry check, --propose-fix, call-site audit, DUT test)
+stays on the roadmap, off this milestone's critical path.
+**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-CERT-ERRCODE ·
+**Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** n (DUT assert
+folded into TASK-324's gate)
+
+### TASK-319 — M-PR-LOCATIONS: settings storage PrLocation[4] + migration + prloc serialdbg
+
+`PrLocation prLocs[4]` + `prActiveLoc` in AppSettings (64 B), prLat/prLon
+kept as write-through mirror of the active slot; load-time migration seeds
+slot 0 ("HOME") from prLat/prLon when prLocs absent. Bundled serialdbg (PM
+call #3 — hooks land with the state they inspect): `get prloc`,
+`set prloc <i> <label> <lat> <lon>`, `set prloc active <i>` (the latter
+calls the shared `_setActiveLoc()` once TASK-323 lands; until then settings
+side only).
+**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Owner:** Developer · **Deps:** — · **Size:** S/M · **DUT:** y
+
+### TASK-320 — M-PR-LOCATIONS: dataTask geocode fetcher + stub injection
+
+Pending-config-mux pattern (NOT stock Request.symbol — 7 chars can't hold
+"SW1A 1AA"); GeocodeResult with seq identity (TASK-300 lesson); minimal
+percent-encoder (none exists in firmware); NOMINATIM_ROOT_CA alias +
+cross-sign comment; UA header; -96 GEOCODE_NO_MATCH; parse buffer sized
+from TASK-315 measurements. Bundled serialdbg: `set geocode <lat> <lon>` /
+`set geocode err <code>` with structural isolation (parked slot checked
+before real result; enqueue no-op while parked — TASK-276 lesson).
+**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Owner:** Developer · **Deps:** TASK-315, TASK-318 · **Size:** M · **DUT:** y
+
+### TASK-321 — M-PR-LOCATIONS: Settings Locations sub-view + slot editor (Lookup path)
+
+Locations row replaces the grey lat/lon row; sub-view + explicit ~8-state
+editor enum (DEV-4 — own state machine, not boolean flags; Stock's 3-state
+StockEditPhase is the nearest precedent at 1/3 the size). Lookup path only:
+label → country → postcode → pending spinner → confirm (display_name +
+coords) with Save/Retry/Cancel; delete with slot-0 refusal; late/stale seq
+results ignored (VE-PRL-5). Editor testable end-to-end via TASK-325 +
+TASK-320 stubs.
+**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Owner:** Developer · **Deps:** TASK-316, TASK-317, TASK-319, TASK-320,
+TASK-325 · **Size:** M · **DUT:** y
+
+### TASK-322 — M-PR-LOCATIONS: manual lat/lon entry path
+
+Second editor source path (Q4): lat → lon numeric entry, −90..90/−180..180
+validation, same confirm screen. Isolates the "does KeyboardWidget need a
+numeric layout or does Full mode suffice" question (DEV minor: Full mode's
+decimal-point friction) — descope a new keyboard layout unless TASK-317
+prototyping proves it necessary.
+**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Owner:** Developer · **Deps:** TASK-321 · **Size:** S · **DUT:** y
+
+### TASK-323 — M-PR-LOCATIONS: radar strip switcher
+
+Remove N^ (Q3); render slot labels + active highlight per TASK-316 frozen
+layout; strip tap hit-test → shared `_setActiveLoc()` (single primitive,
+two call sites — QM-1/BP-047): guard, write-through+save, reset
+`_result/_everHadResult/_lastGoodMs/_prErr` (DEV-3), epoch bump,
+`_repaintDisc()` (runways included — no separate `_drawRunways()`),
+re-enqueue. `enqueuePlaneRadar`/`PlaneRadarResult` gain the epoch byte;
+poll discards old-epoch results (VE-PRL-6, TASK-308/309 lineage).
+**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Owner:** Developer · **Deps:** TASK-316, TASK-319 · **Size:** M · **DUT:** y
+
+### TASK-324 — M-PR-LOCATIONS: VE suite T_PRL_01a..11 + DUT gate
+
+Full suite per design r2 verification sketch: 01a stubbed editor round-trip
+(gate) / 01b live [NETWORK] smoke incl. space-postcode encoding / 02 switch
+/ 03 failure paths / 04 migration / 05 no-op+delete-fallback / 06 manual
+range validation / 07 persistence layers (reflash vs flash-fs wipe) / 08
+late-result-after-cancel / 09 old-epoch discard / 10 slot-0 delete refusal
+/ 11 geocode-during-Spotify tlsYield coexistence. Includes TASK-318's -120
+DUT assert (via `set certbreak` if the M-CERT-ERRCODE remainder has landed,
+else deferred to that milestone). Regression entry in
+`docs/verification/regression_suite/`.
+**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Owner:** VE · **Deps:** TASK-320, TASK-321, TASK-322, TASK-323, TASK-325 ·
+**Size:** M · **DUT:** y
+
+### TASK-325 — M-SERIALDBG: KeyboardWidget serial injection (set kbText / kbOk / kbCancel)
+
+VE-PRL-1 blocker: no serial path exists to drive KeyboardWidget text entry;
+the stock-ticker editor tests (T232/233/246/247) have been non-executable
+for this exact reason since they were planned. Inject into the active
+keyboard's buffer + commit/cancel, following handleSerialCommands
+conventions (mind the drain-all-bytes-at-once lesson, T157-159). Unblocks
+TASK-321/322/324 here AND the parked stock editor tests.
+**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-SERIALDBG /
+M-PR-LOCATIONS · **Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** y

@@ -151,6 +151,11 @@ any variant given ~62% current usage. **OQ2 closed.** Captured in ADR-049.
 
 ### D4 — Location entry
 
+> **Superseded 2026-07-13** by
+> [M-PR-LOCATIONS-location-presets.md](M-PR-LOCATIONS-location-presets.md):
+> named location slots with geocode lookup + manual lat/lon entry replace
+> the v1 "SPIFFS-only, no entry UI" lean below. Kept for the record.
+
 Settings app has toggles/choices but no numeric lat/lon entry UI today.
 Options: (a) SPIFFS settings.json only (edit via `run/spiffs push`) for v1;
 (b) build a numeric entry widget in Settings. Lean: **(a) for v1** — this is a

@@ -1060,7 +1060,12 @@ fingerprint report for human approval — explicitly **no** auto-update of
 pins (TOFU risk; single probes lie under Cloudflare multi-chain
 load-balancing, see TASK-298). Companion to M-PR-LOCATIONS.
 
-**Status:** proposed — design doc drafted 2026-07-13
+**Status:** proposed; minimal slice split out — the `-120` sentinel +
+`httpErr()` decode is filed as TASK-318 (hard prerequisite of
+M-PR-LOCATIONS' geocode fetcher, per its PM panel review 2026-07-13). The
+remainder (build-hook preflight, offline expiry check, `--propose-fix`,
+call-site audit, `set certbreak` DUT test) stays unscheduled on this
+milestone.
 **Deps:** ADR-029, TASK-223 (openHttps)
 **Design:** [M-CERT-ERRCODE-cert-error-sentinel.md](../architecture/designs/M-CERT-ERRCODE-cert-error-sentinel.md)
 
@@ -1084,14 +1089,28 @@ written-through mirror of the active slot so all existing consumers and the
 spiffs-push dev path keep working. Preview-first for the strip layout per
 BP-048.
 
-**Status:** proposed — design doc drafted 2026-07-13; Q1–Q7 resolved by
+**Status:** in progress — design r2. Drafted 2026-07-13; Q1–Q7 resolved by
 human same day (4 slots · 5-char labels · N^ marker removed outright ·
 manual lat/lon entry as first-class alternative to lookup · 2-char country
-entry · radar-only switching · home-alias recorded only). Ready for PM
-breakdown into tasks
+entry · radar-only switching · home-alias recorded only); 4-reviewer panel
+(DEV/VE/QM/PM) unanimous PASS-with-actions 2026-07-13; all blockers/majors
+folded into r2 on 2026-07-14 (async-result identity/epoch lifecycle,
+pending-config-mux plumbing, shared `_setActiveLoc()`, `set kbText`
+prerequisite, committed cert evidence, supersession back-pointers, ADR-029
+rotation-table rows). Tasks filed: TASK-315..325.
 **Deps:** M-PLANERADAR (done), dataTask, ADR-029, KeyboardWidget,
-M-CERT-ERRCODE (companion, not blocking)
-**Design:** [M-PR-LOCATIONS-location-presets.md](../architecture/designs/M-PR-LOCATIONS-location-presets.md)
+TASK-318 (M-CERT-ERRCODE -120 slice — hard prerequisite of the fetcher;
+rest of that milestone stays independent)
+**Design:** [M-PR-LOCATIONS-location-presets.md](../architecture/designs/M-PR-LOCATIONS-location-presets.md) ·
+Reviews: [DEV](../architecture/designs/M-PR-LOCATIONS-DEV-review.md) ·
+[VE](../architecture/designs/M-PR-LOCATIONS-VE-review.md) ·
+[QM](../architecture/designs/M-PR-LOCATIONS-QM-review.md) ·
+[PM](../architecture/designs/M-PR-LOCATIONS-PM-review.md)
+**Tracked-as:** TASK-315 (phase-0 geocode probe) · TASK-316/317 (preview
+strip + editor frames) · TASK-319 (storage+migration) · TASK-320 (geocode
+fetcher) · TASK-321 (editor, Lookup) · TASK-322 (manual entry) · TASK-323
+(strip switcher) · TASK-324 (VE suite) · TASK-325 (kbText hook, also
+unblocks parked stock editor tests)
 
 ---
 
