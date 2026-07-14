@@ -116,7 +116,7 @@ queue, whose 7-char payload can't even hold `SW1A 1AA`:
 // dataTask.h
 struct GeocodeResult {
     bool    ok;
-    int     errorCode;    // 0 ok; HTTP status; HTTPClient negatives; -96 no-match; -100; -120 (M-CERT-ERRCODE)
+    int     errorCode;    // 0 ok; HTTP status; HTTPClient negatives; -96 no-match; -97 parse-failed (added at implementation, TASK-320); -100; -120 (M-CERT-ERRCODE)
     uint8_t seq;          // echo of the request sequence — see identity rule below
     float   lat, lon;
     char    display[48];  // truncated display_name for the confirm UI
@@ -142,7 +142,11 @@ bool    pollGeocode(GeocodeResult& out);
   the HTTPClient before the call (decide at implementation, trivial).
 - Empty JSON array (`[]`, postcode not found) → `ok=false`,
   `-96 GEOCODE_NO_MATCH` (next to the stock parse band) so the edit UI can
-  say "not found" vs "network error".
+  say "not found" vs "network error". Implementation added
+  `-97 GEOCODE_PARSE_FAILED` (200 but unparseable body) — the editor
+  renders it via the generic decoded-error path (`httpErr()` + Retry);
+  the TASK-317 frames only eyeballed the -96 wording, so TASK-321 must
+  confirm the -97 state renders sanely (QM check-in 2026-07-14, note 7).
 - Parse buffer: ~1 KB `StaticJsonDocument` **provisional — sized by the
   phase-0 probe's measured responses before freezing** (BP-001: measure,
   don't guess; QM-5).

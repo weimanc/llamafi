@@ -1034,7 +1034,11 @@ StockEditPhase is the nearest precedent at 1/3 the size). Lookup path only:
 label → country → postcode → pending spinner → confirm (display_name +
 coords) with Save/Retry/Cancel; delete with slot-0 refusal; late/stale seq
 results ignored (VE-PRL-5). Editor testable end-to-end via TASK-325 +
-TASK-320 stubs.
+TASK-320 stubs. Error states must include -97 GEOCODE_PARSE_FAILED via the
+generic decoded-error path — the TASK-317 frames only eyeballed -96 (QM
+check-in 2026-07-14). Kit-fidelity check at acceptance: buttons must match
+the TASK-317 gate-approved PNGs (stacked, 40 px, delete disabled-not-absent
+on slot 0), checked against the PNGs, not re-derived from prose.
 **Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
 **Owner:** Developer · **Deps:** TASK-316 (done), TASK-317 (done),
 TASK-319, TASK-320, TASK-325, TASK-328 (widget kit — build the editor ON
@@ -1069,9 +1073,14 @@ Full suite per design r2 verification sketch: 01a stubbed editor round-trip
 / 03 failure paths / 04 migration / 05 no-op+delete-fallback / 06 manual
 range validation / 07 persistence layers (reflash vs flash-fs wipe) / 08
 late-result-after-cancel / 09 old-epoch discard / 10 slot-0 delete refusal
-/ 11 geocode-during-Spotify tlsYield coexistence. Includes TASK-318's -120
-DUT assert (via `set certbreak` if the M-CERT-ERRCODE remainder has landed,
-else deferred to that milestone). Regression entry in
+/ 11 geocode-during-Spotify tlsYield coexistence. Deferred-item ledger
+(QM check-in 2026-07-14, LL-102 guard — each individually-deferred DUT
+assert must be exercised BY NAME, not absorbed): TASK-318 -120 assert (via
+`set certbreak` if the M-CERT-ERRCODE remainder has landed, else explicitly
+re-deferred to that milestone with a note); TASK-319 migration + prloc
+serialdbg on-device; TASK-320 live geocode + stub isolation on-device;
+TASK-325 kbText/kbOk/kbCancel on-device (and unparks stock T232/233/246/247
+— run or explicitly hand back to their own suite). Regression entry in
 `docs/verification/regression_suite/`.
 **Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
 **Owner:** VE · **Deps:** TASK-320, TASK-321, TASK-322, TASK-323, TASK-325 ·
