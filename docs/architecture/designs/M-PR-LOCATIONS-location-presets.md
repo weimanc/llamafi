@@ -211,7 +211,7 @@ Strip geometry today (`planeRadarApp.h:113-116`): RANGE y5, COUNT y43,
   (a) inverse box** (filled `PR_COL_STRIP_TEXT` rect, field-coloured
   label); labels at y68/94/120/146. TASK-317's editor frames passed the
   same gate as rendered (stacked-button fork, slot-0 delete disabled,
-  40 px confirm buttons) — and spawned TASK-326/327 (shared Settings
+  40 px confirm buttons) — and spawned TASK-328/327 (shared Settings
   widget kit + style-enforcement pass) so the editor's button idiom
   becomes THE Settings idiom instead of a fifth hand-roll.
 - **Touch**: `handleTouch` currently returns `STRIP_NONE` for `x >= 240`

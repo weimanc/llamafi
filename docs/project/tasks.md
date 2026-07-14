@@ -964,8 +964,8 @@ written):**
 frames approved as rendered: stacked-button fork screen, slot-0 Delete
 *disabled* (not absent), 40 px confirm buttons, 2-line display_name wrap
 all accepted. Follow-up: the stacked-button/confirm-bar idiom is to be
-extracted into a shared widget kit (TASK-326) so TASK-321 builds on it
-rather than hand-rolling — see TASK-326/327.
+extracted into a shared widget kit (TASK-328) so TASK-321 builds on it
+rather than hand-rolling — see TASK-328/327.
 **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
 **Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** n
 
@@ -1037,7 +1037,7 @@ results ignored (VE-PRL-5). Editor testable end-to-end via TASK-325 +
 TASK-320 stubs.
 **Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
 **Owner:** Developer · **Deps:** TASK-316 (done), TASK-317 (done),
-TASK-319, TASK-320, TASK-325, TASK-326 (widget kit — build the editor ON
+TASK-319, TASK-320, TASK-325, TASK-328 (widget kit — build the editor ON
 it, don't hand-roll buttons) · **Size:** M · **DUT:** y
 
 ### TASK-322 — M-PR-LOCATIONS: manual lat/lon entry path
@@ -1135,7 +1135,7 @@ boundary in the manifest header comment while here.
 **Owner:** Developer (Architect consult on the webradio entry) · **Deps:** —
 · **Size:** S · **DUT:** n (`run/check` gate [6/6] covers)
 
-### TASK-326 — Settings widget kit: shared button/spinner/confirm primitives
+### TASK-328 — Settings widget kit: shared button/spinner/confirm primitives
 
 Human direction 2026-07-14 (at the TASK-317 gate): enforce a common
 Settings UI style. Today `settingsSection.h` enforces the ROW style by
@@ -1162,7 +1162,7 @@ TASK-321) · **Size:** S/M · **DUT:** n (visual check rides TASK-321's)
 
 ### TASK-327 — Settings style enforcement pass: migrate sections onto the widget kit
 
-Second half of the human direction: once TASK-326's kit is proven by the
+Second half of the human direction: once TASK-328's kit is proven by the
 location editor, migrate the existing hand-rolled button sites onto it —
 wifiSection (Retry/Cancel), ledSection (OFF/ON/SAVE + invert feedback
 becomes the kit's shared feedback), timeSection (arrows), calibrationFlow
@@ -1173,5 +1173,5 @@ if any button moves to the standard bar Y, audit tests/docs that encode
 old coordinates). Candidate BP if it holds: "new Settings UI = kit
 widgets only; hand-rolled buttons are a review flag" (QM to propose).
 **Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-SETTINGS-STYLE
-· **Owner:** Developer · **Deps:** TASK-326, TASK-321 (kit proven) ·
+· **Owner:** Developer · **Deps:** TASK-328, TASK-321 (kit proven) ·
 **Size:** M · **DUT:** y (touch regression on migrated sections)
