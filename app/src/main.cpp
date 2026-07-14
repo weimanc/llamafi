@@ -3091,6 +3091,20 @@ static void cmdGet(const char *args) {
     Serial.printf("],\"last\":true}\n");
     return;
   }
+  if (strcmp(args, "geocode") == 0) {
+    // TASK-320: non-consuming peek at the geocode slot (the editor is the
+    // real pollGeocode() consumer — this must not steal its result).
+    bool parked = false, hasNew = false;
+    dataTask::GeocodeResult r;
+    dataTask::dbgGeocodeState(&parked, &hasNew, &r);
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"geocode\","
+                  "\"parked\":%s,\"new\":%s,\"resOk\":%s,\"errorCode\":%d,"
+                  "\"seq\":%u,\"lat\":%.6f,\"lon\":%.6f,\"display\":\"%s\",\"last\":true}\n",
+                  parked ? "true" : "false", hasNew ? "true" : "false",
+                  r.ok ? "true" : "false", r.errorCode,
+                  (unsigned)r.seq, r.lat, r.lon, r.display);
+    return;
+  }
   Serial.printf("{\"ok\":false,\"cmd\":\"get\","
                 "\"error\":\"unknown var\",\"var\":\"%s\"}\n", args);
 }
@@ -3140,6 +3154,47 @@ static void cmdSet(const char *args) {
     }
     g_keyboard.cancelFromHost();
     Serial.println("{\"ok\":true,\"cmd\":\"set\",\"var\":\"kbCancel\"}");
+    return;
+  }
+  // TASK-320 (VE-PRL-2): park a synthetic geocode result for the NEXT
+  // pollGeocode(). Two forms, both multi-token (raw-args parse like prloc):
+  //   set geocode <lat> <lon> [display text…]   — success result
+  //   set geocode err <code>                    — failure result (e.g. -96)
+  // Structural isolation lives in dataTask (parked slot checked before the
+  // real one; enqueueGeocode() no-ops while parked) — this command only
+  // builds the result. seq is stamped by debugInjectGeocode() itself.
+  if (strncmp(args, "geocode ", 8) == 0) {
+    const char* rest = args + 8;
+    dataTask::GeocodeResult r;
+    if (strncmp(rest, "err ", 4) == 0) {
+      r.ok = false;
+      r.errorCode = atoi(rest + 4);
+      if (r.errorCode == 0) {
+        Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"geocode\","
+                        "\"error\":\"err needs nonzero code\"}");
+        return;
+      }
+    } else {
+      char latBuf[16], lonBuf[16]; int consumed = 0;
+      if (sscanf(rest, "%15s %15s %n", latBuf, lonBuf, &consumed) < 2) {
+        Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"geocode\","
+                        "\"error\":\"usage: geocode <lat> <lon> [display] | geocode err <code>\"}");
+        return;
+      }
+      r.ok  = true;
+      r.lat = atof(latBuf);
+      r.lon = atof(lonBuf);
+      if (r.lat < -90.0f || r.lat > 90.0f || r.lon < -180.0f || r.lon > 180.0f) {
+        Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"geocode\","
+                        "\"error\":\"lat/lon out of range\"}");
+        return;
+      }
+      strlcpy(r.display, rest + consumed, sizeof(r.display));  // may be empty
+    }
+    dataTask::debugInjectGeocode(r);
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"geocode\","
+                  "\"parked\":true,\"resOk\":%s,\"errorCode\":%d}\n",
+                  r.ok ? "true" : "false", r.errorCode);
     return;
   }
 

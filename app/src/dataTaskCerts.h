@@ -234,6 +234,20 @@ p/SgguMh1YQdc4acLa/KNJvxn7kjNuK8YAOdgLOaVsjh4rsUecrNIdSUtUlD
 // guards against a mirror silently regressing.
 #define RADIO_BROWSER_ROOT_CA OPEN_METEO_ROOT_CA
 
+// nominatim.openstreetmap.org (M-PR-LOCATIONS geocode lookup, TASK-320):
+// same ISRG Root X1 anchor, alias per the radio-browser pattern above.
+// CROSS-SIGN DEPENDENCY (phase0-geocode-probe.md, strict-verify evidence
+// committed 2026-07-14): nominatim's served chain is
+//   leaf <- YR1 <- ISRG Root YR <-(cross-signed by)- ISRG Root X1
+// — it reaches our pinned X1 only because OSM currently serves the
+// cross-signed Root YR as the third chain cert. If OSM drops that
+// cross-sign (typical once Root YR has broad store coverage), verification
+// against X1 alone breaks: runtime -120 CERT_VERIFY_FAILED here, FAIL in
+// ./run/check-datatask-certs. Remediation = concatenate ISRG Root YR into
+// a two-root bundle (the COINGECKO_ROOT_CA / TASK-298 pattern), NOT a
+// replacement — open-meteo and radio-browser still chain via X1 directly.
+#define NOMINATIM_ROOT_CA OPEN_METEO_ROOT_CA
+
 // PLANERADAR_ROOT_CA — GTS Root R4 only, no bundle (M-PLANERADAR / ADR-048's
 // sibling OQ1 decision, phase0-api-probe.md). opendata.adsb.fi's served chain
 // (leaf <- Google Trust Services WE1 <- GTS Root R4, cross-signed by GlobalSign

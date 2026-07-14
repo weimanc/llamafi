@@ -699,6 +699,32 @@ static float             s_pendingPrLon     = 4.9041f;
 static float             s_pendingPrDistNm  = 8.0f;      // ~10 km default preset
 static portMUX_TYPE      s_pendingPrMux     = portMUX_INITIALIZER_UNLOCKED;
 
+// --- Geocode (M-PR-LOCATIONS / TASK-320) ------------------------------------
+// Pending-config slot per the s_pendingCountry / s_pendingPr* pattern above —
+// NOT the Request.symbol[8] payload, which can't hold a UK full postcode
+// ("SW1A 1AA" = 8 chars + NUL, DEV-2). Snapshotted by fetchGeocode() under
+// the mux. s_geoSeq is the request identity counter echoed in GeocodeResult
+// (DEV-1/TASK-300); bumped by every accepted enqueueGeocode().
+// s_geoInjected parks a SERIAL_DEBUG synthetic result (set geocode …):
+// pollGeocode() consumes it BEFORE looking at the real slot, and
+// enqueueGeocode() is a no-op while it is parked, so a concurrent real fetch
+// can never overwrite injected state (VE-PRL-2 / the TASK-276 bug shape).
+static char          s_pendingGeoCountry[4]  = "";
+static char          s_pendingGeoPostcode[12] = "";
+static uint8_t       s_geoSeq                = 0;
+static portMUX_TYPE  s_pendingGeoMux         = portMUX_INITIALIZER_UNLOCKED;
+
+static GeocodeResult s_geocodeResult;
+static bool          s_geocodeNew            = false;
+static GeocodeResult s_geoInjectedResult;
+static bool          s_geoInjected           = false;
+static portMUX_TYPE  s_geocodeMux            = portMUX_INITIALIZER_UNLOCKED;
+
+static const char GEOCODE_URL_BASE[] = "https://nominatim.openstreetmap.org/search";
+// Nominatim usage policy requires an identifying UA (default UAs get 403 —
+// verified, phase0-geocode-probe.md); same string the phase-0 probe used.
+static const char GEOCODE_UA[]       = "esp32-cyd-multiapp/1.0 (github.com/weimanc; device)";
+
 // WebRadio station-page parse-buffer capacity. WR_MAX_STATIONS (30) stations ×
 // ~115 B filtered JSON ≈ 3.45 kB; 5120 gives headroom. Shrunk from 14336 (sized
 // for 100 stations) when the array caps were reconciled to limit=30 (TASK-224).
@@ -1216,6 +1242,92 @@ static void fetchPlaneRadar() {
     spotifyTask::tlsResume();
 }
 
+// Minimal percent-encoder for the geocode query values (no urlEncode helper
+// exists anywhere in this firmware — DEV review). Unreserved chars (RFC 3986:
+// alnum, '-', '.', '_', '~') pass through; everything else — notably the
+// space in a UK full postcode — becomes %XX. Truncates safely at dstLen.
+static void geoUrlEncode(char* dst, size_t dstLen, const char* src) {
+    static const char hex[] = "0123456789ABCDEF";
+    size_t o = 0;
+    for (const char* p = src; *p && o + 4 <= dstLen; p++) {
+        unsigned char c = (unsigned char)*p;
+        if (isalnum(c) || c == '-' || c == '.' || c == '_' || c == '~') {
+            dst[o++] = (char)c;
+        } else {
+            dst[o++] = '%';
+            dst[o++] = hex[c >> 4];
+            dst[o++] = hex[c & 0xF];
+        }
+    }
+    dst[o] = '\0';
+}
+
+// One-shot Nominatim structured search (M-PR-LOCATIONS / TASK-320). Query
+// contract per phase0-geocode-probe.md: jsonv2, limit=1, addressdetails=0;
+// max observed response 459 B -> 1 KB parse doc (measured, BP-001); lat/lon
+// arrive as JSON *strings*; "[]" = postcode unknown (-96, distinct from
+// network errors so the editor can say "not found"). openHttps() supplies
+// the -120 pinned-CA sentinel (TASK-318); NOMINATIM_ROOT_CA carries a
+// cross-sign rot risk documented at its #define.
+static void fetchGeocode() {
+    char country[4], postcode[12];
+    uint8_t seq;
+    portENTER_CRITICAL_SAFE(&s_pendingGeoMux);
+    strlcpy(country,  s_pendingGeoCountry,  sizeof(country));
+    strlcpy(postcode, s_pendingGeoPostcode, sizeof(postcode));
+    seq = s_geoSeq;
+    portEXIT_CRITICAL_SAFE(&s_pendingGeoMux);
+
+    spotifyTask::tlsYield();   // BP-031: free Spotify TLS before our own handshake
+    LOG_HEAP("dataTask.geocode");
+
+    char encPost[40];
+    geoUrlEncode(encPost, sizeof(encPost), postcode);
+    char url[192];
+    snprintf(url, sizeof(url),
+             "%s?country=%s&postalcode=%s&format=jsonv2&limit=1&addressdetails=0",
+             GEOCODE_URL_BASE, country, encPost);
+
+    GeocodeResult r;
+    r.seq = seq;
+
+    WiFiClientSecure tls;
+    HTTPClient http;
+    http.setUserAgent(GEOCODE_UA);   // mandatory (403 on default UA) — set pre-begin
+    int code = openHttps(tls, http, url, NOMINATIM_ROOT_CA, false);
+    if (code == OPENHTTPS_BEGIN_FAILED) {
+        r.errorCode = -100;
+    } else if (code == 200) {
+        DynamicJsonDocument doc(1024);
+        DeserializationError err = deserializeJson(doc, http.getString());
+        http.end();
+        if (err) {
+            r.errorCode = -97;   // transaction ok, body unparseable
+            LOG_W("dataTask.geocode", "parse error: %s", err.c_str());
+        } else if (doc.as<JsonArrayConst>().size() == 0) {
+            r.errorCode = -96;   // GEOCODE_NO_MATCH — valid query, unknown postcode
+        } else {
+            JsonVariantConst hit = doc.as<JsonArrayConst>()[0];
+            r.ok  = true;
+            r.lat = atof(hit["lat"] | "0");   // strings on the wire (probe)
+            r.lon = atof(hit["lon"] | "0");
+            strlcpy(r.display, hit["display_name"] | "", sizeof(r.display));
+        }
+    } else {
+        r.errorCode = code;      // HTTP status, HTTPClient negative, or -120
+        http.end();
+    }
+    LOG_D("dataTask.geocode", "%s %s -> ok=%d rc=%d seq=%u",
+          country, postcode, (int)r.ok, r.errorCode, (unsigned)seq);
+
+    portENTER_CRITICAL_SAFE(&s_geocodeMux);
+    s_geocodeResult = r;
+    s_geocodeNew    = true;
+    portEXIT_CRITICAL_SAFE(&s_geocodeMux);
+    LOG_HEAP("dataTask.geocode");
+    spotifyTask::tlsResume();
+}
+
 static void fetchWebRadioStations() {
     char    country[4];
     uint8_t bitrateCap;
@@ -1362,6 +1474,7 @@ static void taskBody(void *) {
             }
             case DATA_FETCH_WEBRADIO_STATIONS: fetchWebRadioStations(); break;
             case DATA_FETCH_PLANERADAR:        fetchPlaneRadar(); break;
+            case DATA_FETCH_GEOCODE:           fetchGeocode(); break;
             default: break;
         }
         s_pendingMask &= ~(1u << req.type);   // TASK-250: fetch done — allow re-enqueue
@@ -1587,6 +1700,69 @@ bool pollPlaneRadar(PlaneRadarResult *out) {
     }
     portEXIT_CRITICAL_SAFE(&s_planeRadarMux);
     return got;
+}
+
+uint8_t enqueueGeocode(const char* countryCC, const char* postcode) {
+    uint8_t seq;
+    // Injection gate first (VE-PRL-2): while a synthetic result is parked,
+    // no real fetch may be started — return the pending seq so the caller's
+    // identity check matches the injected result it is about to poll.
+    portENTER_CRITICAL_SAFE(&s_geocodeMux);
+    bool parked = s_geoInjected;
+    portEXIT_CRITICAL_SAFE(&s_geocodeMux);
+
+    portENTER_CRITICAL_SAFE(&s_pendingGeoMux);
+    if (!parked) {
+        s_geoSeq++;
+        strlcpy(s_pendingGeoCountry,  countryCC ? countryCC : "", sizeof(s_pendingGeoCountry));
+        strlcpy(s_pendingGeoPostcode, postcode  ? postcode  : "", sizeof(s_pendingGeoPostcode));
+    }
+    seq = s_geoSeq;
+    portEXIT_CRITICAL_SAFE(&s_pendingGeoMux);
+    if (parked) return seq;
+
+    if (s_queue) {
+        Request req = {}; req.type = DATA_FETCH_GEOCODE;
+        if (xQueueSend(s_queue, &req, 0) != pdTRUE)
+            LOG_W("dataTask", "queue full — dropped geocode %s %s", countryCC, postcode);
+    }
+    return seq;
+}
+
+bool pollGeocode(GeocodeResult *out) {
+    bool got = false;
+    portENTER_CRITICAL_SAFE(&s_geocodeMux);
+    if (s_geoInjected) {              // parked synthetic result wins (consumed once)
+        *out          = s_geoInjectedResult;
+        s_geoInjected = false;
+        got           = true;
+    } else if (s_geocodeNew) {
+        *out         = s_geocodeResult;
+        s_geocodeNew = false;
+        got          = true;
+    }
+    portEXIT_CRITICAL_SAFE(&s_geocodeMux);
+    return got;
+}
+
+void debugInjectGeocode(const GeocodeResult& r) {
+    GeocodeResult inj = r;
+    portENTER_CRITICAL_SAFE(&s_pendingGeoMux);
+    inj.seq = s_geoSeq;               // pass the caller's identity check
+    portEXIT_CRITICAL_SAFE(&s_pendingGeoMux);
+    portENTER_CRITICAL_SAFE(&s_geocodeMux);
+    s_geoInjectedResult = inj;
+    s_geoInjected       = true;
+    s_geocodeNew        = false;      // synthetic result supersedes any unconsumed real one
+    portEXIT_CRITICAL_SAFE(&s_geocodeMux);
+}
+
+void dbgGeocodeState(bool* parked, bool* hasNew, GeocodeResult* last) {
+    portENTER_CRITICAL_SAFE(&s_geocodeMux);
+    if (parked) *parked = s_geoInjected;
+    if (hasNew) *hasNew = s_geocodeNew;
+    if (last)   *last   = s_geoInjected ? s_geoInjectedResult : s_geocodeResult;
+    portEXIT_CRITICAL_SAFE(&s_geocodeMux);
 }
 
 void dbgQueueState(DbgQueueState* out) {

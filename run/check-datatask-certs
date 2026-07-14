@@ -43,9 +43,10 @@ ENDPOINTS = [
     # nominatim.openstreetmap.org (M-PR-LOCATIONS geocode lookup): chain
     # verified against OPEN_METEO_ROOT_CA by TASK-315's phase-0 probe
     # (docs/architecture/designs/M-PR-LOCATIONS/phase0-geocode-probe.md).
-    # NOMINATIM_ROOT_CA is a same-cert #define alias (radio-browser pattern)
-    # that TASK-320 (the fetcher task) adds to dataTaskCerts.h — it does not
-    # exist yet, so this row is listed as PENDING below, not ERROR/FAIL.
+    # NOMINATIM_ROOT_CA is a same-cert #define alias (radio-browser pattern),
+    # landed with TASK-320. Its chain reaches X1 only via a cross-signed
+    # ISRG Root YR — a FAIL here most likely means OSM dropped the
+    # cross-sign; remediation is a two-root bundle (see dataTaskCerts.h).
     ("nominatim.openstreetmap.org", "NOMINATIM_ROOT_CA"),
 ]
 
@@ -53,10 +54,9 @@ ENDPOINTS = [
 # specific future task lands them (see comment at the ENDPOINTS entry). A
 # missing constant here prints PENDING and does not fail the gate; a missing
 # constant NOT in this dict still prints ERROR as before — this only silences
-# the specific, tracked, not-yet-landed case.
-PENDING_CERTS = {
-    "NOMINATIM_ROOT_CA": "TASK-320",
-}
+# the specific, tracked, not-yet-landed case. (NOMINATIM_ROOT_CA graduated
+# 2026-07-14 when TASK-320 landed the alias — dict kept for the next pin.)
+PENDING_CERTS = {}
 
 BLOCK_RE = re.compile(
     r'static const char (\w+)\[\]\s*=\s*R"EOF\((.*?)\)EOF";', re.DOTALL

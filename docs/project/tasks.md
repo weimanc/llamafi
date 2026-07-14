@@ -1011,8 +1011,20 @@ cross-sign comment; UA header; -96 GEOCODE_NO_MATCH; parse buffer sized
 from TASK-315 measurements. Bundled serialdbg: `set geocode <lat> <lon>` /
 `set geocode err <code>` with structural isolation (parked slot checked
 before real result; enqueue no-op while parked — TASK-276 lesson).
-**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
-**Owner:** Developer · **Deps:** TASK-315, TASK-318 · **Size:** M · **DUT:** y
+**Status:** code landed 2026-07-14, run/check 6/6; DUT asserts deferred to
+the grouped TASK-324 session. Landed: DATA_FETCH_GEOCODE + fetchGeocode()
+(openHttps + NOMINATIM_ROOT_CA alias w/ cross-sign comment, mandatory UA,
+geoUrlEncode, 1 KB doc per probe measurement, -96 no-match + new -97
+parse-failed in httpErr); enqueueGeocode returns seq (pending-config-mux);
+pollGeocode (parked injected result wins, consume-once);
+debugInjectGeocode + dbgGeocodeState peek; serialdbg `set geocode <lat>
+<lon> [display]` / `set geocode err <code>` / `get geocode`
+(non-consuming). check-datatask-certs nominatim row graduated
+PENDING→PASS on live strict verify; PENDING_CERTS dict emptied, kept for
+the next pin.
+**Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Owner:** Developer · **Deps:** TASK-315 (done), TASK-318 (done) ·
+**Size:** M · **DUT:** y
 
 ### TASK-321 — M-PR-LOCATIONS: Settings Locations sub-view + slot editor (Lookup path)
 

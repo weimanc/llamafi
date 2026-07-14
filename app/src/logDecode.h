@@ -49,6 +49,11 @@ inline const char *httpErr(int code) {
     case  -9: return "-9 HTTPC_ENCODING";
     case -10: return "-10 HTTPC_STREAM_WRITE";
     case -11: return "-11 HTTPC_READ_TIMEOUT";
+    // Geocode fetcher sentinels (TASK-320): valid query, postcode unknown to
+    // OSM ("[]") vs 200-but-unparseable body. Distinct so the editor can say
+    // "not found" instead of "network error".
+    case -96:  return "-96 GEOCODE_NO_MATCH";
+    case -97:  return "-97 GEOCODE_PARSE_FAILED";
     // Our sentinel: http.begin() returned false (URL/TLS setup failure)
     case -100: return "-100 HTTP_BEGIN_FAILED";
     // Our sentinel: pinned-CA verify failure (mbedTLS -0x2700 surfaced by

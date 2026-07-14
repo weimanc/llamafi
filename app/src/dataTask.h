@@ -18,6 +18,7 @@ enum FetchType : uint8_t {
     DATA_FETCH_TELETEXT_PAGE    = 6,
     DATA_FETCH_WEBRADIO_STATIONS = 7,
     DATA_FETCH_PLANERADAR       = 8,
+    DATA_FETCH_GEOCODE          = 9,
 };
 
 struct WeatherResult {
@@ -152,6 +153,28 @@ struct PlaneRadarResult {
     PrAircraft aircraft[PR_MAX_AIRCRAFT];
 };
 
+// GeocodeResult — written by fetchGeocode() (Nominatim country+postcode
+// lookup, M-PR-LOCATIONS/TASK-320), read by the Settings location editor via
+// pollGeocode(). One-shot on explicit user action — never periodic (Nominatim
+// policy: 1 req/s max; structurally satisfied by the editor flow).
+// errorCode: 0 ok; positive = HTTP status; -1..-11 HTTPClient; -96 = query
+// succeeded but no match for this postcode ("[]" — editor says "not found",
+// not "network error"); -97 = 200 but body failed to parse; -100 begin
+// failed; -120 pinned-CA verify failure (TASK-318).
+// seq: echo of the enqueue's sequence number. Identity rule (DEV-1, the
+// TASK-300 stale-parked-result lesson): the editor stores the seq returned
+// by enqueueGeocode() and ignores+discards any polled result with a
+// different seq — covers cancel, back-out-and-retry, and slot-change while
+// a lookup is in flight.
+struct GeocodeResult {
+    bool    ok        = false;
+    int     errorCode = 0;
+    uint8_t seq       = 0;
+    float   lat       = 0.0f;
+    float   lon       = 0.0f;
+    char    display[48] = {};  // truncated display_name for the confirm UI
+};
+
 // Spawn the FreeRTOS task. Call once in setup(), after WiFi is connected.
 void begin();
 
@@ -182,6 +205,18 @@ void enqueueWebRadioStations(const char* countryCode, uint8_t bitrateCap);
 // under spinlock, same pattern as enqueueWebRadioStations()'s country snapshot.
 void enqueuePlaneRadar(float lat, float lon, float distNm);
 
+// Post a one-shot geocode lookup (Nominatim structured search, full postcode
+// per the phase0-geocode-probe rule). countryCC: ISO 3166-1 alpha-2;
+// postcode: raw user entry, may contain a space (percent-encoded internally).
+// Both are snapshotted into a pending-config slot under spinlock — the
+// enqueuePlaneRadar()/enqueueWebRadioStations() pattern, NOT the stock
+// Request.symbol[8] payload (a UK full postcode already exceeds it, DEV-2).
+// Returns the request's seq for the GeocodeResult identity check. While a
+// debug-injected result is parked (set geocode), this is a no-op that
+// returns the pending seq — the injected result cannot be raced by a real
+// fetch (VE-PRL-2, the TASK-276 injected-state-overwrite lesson).
+uint8_t enqueueGeocode(const char* countryCC, const char* postcode);
+
 // TASK-289: abandon an in-flight (or queued) station fetch — called by
 // WebRadioApp::_play() when playback starts while the fetch is still pending.
 // Playback's arena/decoder allocations would starve the fetch's TLS handshake
@@ -203,6 +238,20 @@ int  lastTeletextHttpCode(); // last HTTP response code from teletekst-data.nos.
 
 bool pollWebRadioStations(WebRadioStationsResult *out);
 bool pollPlaneRadar(PlaneRadarResult *out);
+bool pollGeocode(GeocodeResult *out);
+
+// SERIAL_DEBUG test hook (set geocode …): park a synthetic result that the
+// NEXT pollGeocode() returns (consumed on first poll). Structurally isolated
+// per VE-PRL-2: checked before the real result slot, and enqueueGeocode() is
+// a no-op while one is parked. r.seq is overwritten with the current pending
+// seq so it passes the editor's identity check.
+void debugInjectGeocode(const GeocodeResult& r);
+
+// SERIAL_DEBUG peek (get geocode): copies current state WITHOUT consuming —
+// safe to call while the editor is the real consumer. parked = injected
+// result waiting; hasNew = real result unconsumed; *last = whichever of the
+// two pollGeocode() would return next (injected wins), else the last result.
+void dbgGeocodeState(bool* parked, bool* hasNew, GeocodeResult* last);
 
 void configureStockTickers(const char tickers[8][8]);
 void configureCrypto(const char ids[6][16], const char* ccy);
