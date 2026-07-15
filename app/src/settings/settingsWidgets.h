@@ -53,6 +53,14 @@ enum class SBtnStyle : uint8_t { Primary, Neutral, Danger, Disabled };
 // their repaint, and hit() them in handleTap. No global state, no callbacks:
 // the section's tap handler owns what a hit means (matches the section
 // model — SettingsApp routes Release events to the section, not to widgets).
+//
+// gnu++11 note (LL-112): this firmware compiles -std=gnu++11, under which a
+// type with default member initializers (the fields below all have one) is
+// NOT an aggregate — `SButton{ rect, "label", SBtnStyle::Primary }` will not
+// compile here even though it looks like ordinary aggregate init and works
+// on newer standards. Construct via field assignment instead:
+//   btn.r = rect; btn.label = "label"; btn.style = SBtnStyle::Primary;
+// Same applies to SSpinner below.
 
 struct SButton {
     Rect        r     = {0, 0, 0, 0};
