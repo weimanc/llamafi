@@ -1037,7 +1037,70 @@ generic decoded-error path — the TASK-317 frames only eyeballed -96 (QM
 check-in 2026-07-14). Kit-fidelity check at acceptance: buttons must match
 the TASK-317 gate-approved PNGs (stacked, 40 px, delete disabled-not-absent
 on slot 0), checked against the PNGs, not re-derived from prose.
-**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Status: code landed, run/check 6/6; intermediate DUT smoke PASS 2026-07-15**
+(`app/tools/prloc_editor_smoke.py`, 14/14 — drives the real state machine via
+`tap`/`kbText`/`kbOk` touch+keyboard injection, not a synthetic harness:
+SlotList render+tap into an empty slot; EditLabel keyboard prefill/maxLen/
+mode; SourceFork hasCurrent-gated "Current" row; Lookup→Country→Postcode→
+LookupPending→`_tickPrLookup()`→LookupConfirm round trip via the
+`set geocode <lat> <lon> [display]` stub — isolation confirmed, no live
+Nominatim call; Save persists label+coords into the target slot and
+write-through-mirrors only when the edited slot is active; slot-0 Delete
+confirmed inert — disabled, not absent (`get prloc` unchanged after the
+tap); non-active non-zero slot Delete confirmed working and confirmed NOT
+touching `prActiveLoc`; `-97 GEOCODE_PARSE_FAILED` stub → LookupError →
+Cancel confirmed to leave the target slot untouched (generic decoded-error
+path, no special-casing). Full T_PRL_01..11 VE matrix (network leg,
+migration, epoch/seq edge cases, tlsYield coexistence) is still TASK-324's
+job — this smoke is state-machine/UI-flow coverage only, not a substitute.
+Explicit `PrLocView` 8-state enum (SlotList/EditLabel/
+SourceFork/LookupCountry/LookupPostcode/LookupPending/LookupConfirm/
+LookupError) added to `AppsSection` (`app/src/settings/appsSection.h`).
+Lookup path only — the SourceFork [Manual] button is wired but rendered
+`SBtnStyle::Disabled` with a `// TASK-322` comment (disabled-renders-but-
+never-hits is the kit's semantic, so it's inert until that task lands).
+Entry: the PlaneRadar row-view's old greyed-out lat/lon row is now a
+"Locations  <active label>  >" chevron row (same idiom as TimeSection's
+City row) — tap opens SlotList. Kit-fidelity self-check against the
+TASK-317 gate-approved PNGs, screen by screen:
+- SlotList → `editor_slotlist.png`: match (4 rows, `-- empty --` for empty
+  slots, 3px green active bar, "Tap a slot to edit" hint).
+- SourceFork / slot-0 SourceFork → `editor_source_fork.png` /
+  `editor_source_fork_slot0.png`: match (stacked Lookup/Manual/Delete via
+  `sStackedBtnRect`, slot-0 Delete Disabled + caption, non-empty-slot
+  "Current" row).
+- LookupPending → `editor_lookup_pending.png`: match on Country/Postcode
+  rows + `SSpinner` + "fetching from Nominatim" caption; **one deliberate
+  addition beyond the frozen PNG**: a `[Cancel]` button (`sButtonBar` n=1),
+  since the PNG predates the VE-PRL-5/T_PRL_08 cancel-mid-lookup finding
+  that requires one — noted in-code at the call site.
+- LookupConfirm → `editor_lookup_confirm.png`: match (2-line wrapped
+  `display_name`, Lat/Lon rows, 3-across Save/Retry/Cancel via
+  `sButtonBar`).
+- LookupError → `editor_lookup_error.png`: match (2-across Retry/Cancel);
+  the error line renders via `httpErr(errorCode)` + a generic second line
+  ("postcode not found" for -96, else "lookup failed - check network") —
+  **-97 GEOCODE_PARSE_FAILED routes through this same generic path with no
+  special-casing**, confirming the QM check-in note.
+Seq identity (design "Geocode fetch"): the seq returned by
+`enqueueGeocode()` is stored in `_prGeoSeq`; `_tickPrLookup()`'s
+`pollGeocode()` result is consumed either way but only acted on when
+`r.seq == _prGeoSeq`, otherwise silently discarded. Cancel-mid-lookup
+(`_prAbandonLookup()`) returns to SourceFork without clearing `_prGeoSeq`;
+a late delivery for that seq is still consumed by poll but the UI has
+already moved on, and any subsequent lookup gets a fresh seq from a new
+`enqueueGeocode()` call, so it can never be mistaken for current
+(VE-PRL-5/T_PRL_08). Geometry: no S_MAX_ROWS tension — SlotList is 4 rows
+(well under the 8-row cap) and the stacked/bar screens use their own
+`sStackedBtnRect`/`sButtonBar` geometry, not the row grid. One toolchain
+finding (not a kit gap): this build compiles `-std=gnu++11`, under which a
+class with default member initializers (SButton, SSpinner) is not an
+aggregate, so `SButton{a,b,c}` / `x = {a,b,c}` brace-init doesn't resolve
+— worked around with individual field assignment
+(`btn.r=...; btn.label=...; btn.style=...;`) at every call site; flagging
+in case TASK-327's migration pass hits the same wall. No kit API gaps
+found — `settingsWidgets.h` was not modified. `run/check` 6/6 PASS.
+**Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
 **Owner:** Developer · **Deps:** TASK-316 (done), TASK-317 (done),
 TASK-319, TASK-320, TASK-325, TASK-328 (widget kit — build the editor ON
 it, don't hand-roll buttons) · **Size:** M · **DUT:** y

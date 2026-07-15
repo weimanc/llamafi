@@ -5,28 +5,44 @@
 #include "keyboardWidget.h"
 #include "dataTask.h"
 #include "planeRadarConfig.h"
+#include "logDecode.h"   // httpErr() — TASK-321 geocode error decode
 
 const char* cgIdToDisplay(const char* id);
 
 class AppsSection : public SettingsSection {
 public:
     const char* title() const override {
-        return (_sub < 0) ? "Applications" : kConfigurableApps[_sub].display;
+        if (_sub < 0) return "Applications";
+        if (_prLocActive) return _prLocTitle();
+        return kConfigurableApps[_sub].display;
     }
 
     int submenu() const { return (int)_sub; }
 
-    void enter() override { _sub = -1; repaint(); }
-    void leave() override { _sub = -1; }
+    void enter() override { _sub = -1; _prLocActive = false; repaint(); }
+    void leave() override {
+        if (_prLocActive && g_keyboard.active()) g_keyboard.hide();
+        _prLocActive = false;
+        _sub = -1;
+    }
 
+    // Keyboard-driven PrLocView steps (EditLabel / LookupCountry / LookupPostcode)
+    // own the full canvas via KeyboardWidget — mirrors wifiSection's
+    // `if (_step == WifiStep::Keyboard) return;` guard (TASK-321).
     void repaint() override {
+        if (_prLocActive && _prLocIsKeyboardStep()) return;
         drawHeader();
         clearContent();
-        if (_sub < 0) _repaintAppList();
-        else          _repaintAppRows();
+        if (_sub < 0)          _repaintAppList();
+        else if (_prLocActive) _repaintPrLoc();
+        else                   _repaintAppRows();
     }
 
     SectionResult tick() override {
+        if (_prLocActive && _prLocState == PrLocView::LookupPending) {
+            _tickPrLookup();
+            return SectionResult::Continue;
+        }
         if (_editPhase != StockEditPhase::Validating) return SectionResult::Continue;
         dataTask::StockChartResult r;
         if (dataTask::pollStockChart(&r)) {
@@ -54,8 +70,17 @@ public:
     bool isValidating() const { return _editPhase == StockEditPhase::Validating; }
 
     SectionResult handleInput(TouchPhase phase, int x, int y) override {
+        // Keyboard captures all touch while a PrLocView keyboard step is active
+        // (mirrors wifiSection's pattern) — checked before back-tap, since the
+        // keyboard has its own cancel zone at x<40,y<KB_INPUT_H that overlaps
+        // where our header back-zone would otherwise be.
+        if (_prLocActive && g_keyboard.active()) {
+            g_keyboard.handleInput(phase, x, y);
+            return SectionResult::Continue;
+        }
         if (phase != TouchPhase::Release) return SectionResult::Continue;
         if (isBackTap(x, y)) {
+            if (_prLocActive) { _handlePrLocBack(); return SectionResult::Continue; }
             if (_sub >= 0) { _sub = -1; repaint(); return SectionResult::Continue; }
             return SectionResult::GoBack;
         }
@@ -63,6 +88,8 @@ public:
             Rect area = { 0, S_CONTENT_Y, S_CANVAS_W, S_CONTENT_H };
             int row = hitTestRow(area, _appListRowH(), y);
             if (row >= 0 && row < CONFIGURABLE_APP_COUNT) { _sub = (int8_t)row; repaint(); }
+        } else if (_prLocActive) {
+            _handlePrLocTap(x, y);
         } else {
             _handleAppTap(tapToRow(y));
         }
@@ -78,6 +105,34 @@ private:
     char            _pendingTicker[8]= {};
     unsigned long   _validateStartMs = 0;
     static constexpr unsigned long kValidateTimeoutMs = 20000;
+
+    // ---- M-PR-LOCATIONS / TASK-321: Locations sub-view + slot editor -------
+    // Explicit ~8-state machine (DEV-4 — own state machine from the start,
+    // not boolean flags). Manual* states arrive in TASK-322; the fork's
+    // [Manual] button is wired here but rendered Disabled (disabled-renders-
+    // but-never-hits, TASK-322 stub) until that task lands.
+    enum class PrLocView : uint8_t {
+        SlotList, EditLabel, SourceFork,
+        LookupCountry, LookupPostcode, LookupPending, LookupConfirm, LookupError
+    };
+
+    bool          _prLocActive       = false;   // gates the whole sub-view (PlaneRadar row view otherwise)
+    PrLocView     _prLocState        = PrLocView::SlotList;
+    uint8_t       _prEditSlot        = 0;
+    char          _prPendingLabel[PR_LABEL_MAX + 1] = {};   // label edit is NOT persisted until final Save
+    char          _prPendingCountry[3]  = {};
+    char          _prPendingPostcode[11] = {};
+    char          _prLastCountry[3]  = "NL";    // session-remembered across lookups (Q5)
+    uint8_t       _prGeoSeq          = 0;       // seq identity — DEV-1/TASK-300 lesson
+    float         _prGeoLat          = 0.0f;
+    float         _prGeoLon          = 0.0f;
+    int           _prGeoErr          = 0;
+    char          _prGeoDisplay[48]  = {};
+    SSpinner      _prSpinner;
+    unsigned long _prSpinnerMs       = 0;
+    SButton       _prForkBtn[3];   // SourceFork: [Lookup][Manual][Delete] stacked
+    SButton       _prBar[3];       // reused across Pending(n=1)/Error(n=2)/Confirm(n=3) bottom bars
+    mutable char  _prTitleBuf[16]   = {};
 
     // Shrinks below S_ROW_H only once CONFIGURABLE_APP_COUNT no longer fits
     // S_CONTENT_H at the default row height (bug found 2026-07-11: PlaneRadar
@@ -346,8 +401,17 @@ private:
         static const char* kStaleStyle[] = { "ring", "text", "dim" };
         drawRow(y, { "Stale style", kStaleStyle[(uint8_t)settings().prStaleStyle % (uint8_t)PrStaleStyle::Count], S_LABEL, S_VALUE }); y += S_ROW_H;
 
-        char lbuf[24]; snprintf(lbuf, sizeof(lbuf), "%.3f,%.3f", settings().prLat, settings().prLon);
-        drawRow(y, { "Location", lbuf, S_LABEL, 0x7BEF });  // greyed-out (D4: run/spiffs push only)
+        // M-PR-LOCATIONS / TASK-321: Locations row replaces the old greyed-out
+        // read-only lat/lon row (D4 superseded). Same chevron+value idiom as
+        // TimeSection's City row: drawChevronRow() draws the ">" at
+        // S_COL_VALUE, then the value text is drawn separately, right-aligned
+        // just to its left.
+        const PrLocation& activeLoc = settings().prLocs[settings().prActiveLoc % PR_NUM_LOCS];
+        drawChevronRow(y, "Locations");
+        tft.setTextDatum(MR_DATUM);
+        tft.setTextColor(S_VALUE);
+        tft.drawString(activeLoc.label[0] ? activeLoc.label : "HOME", S_COL_VALUE - 14, y + S_ROW_H / 2, 2);
+        tft.setTextDatum(TL_DATUM);
     }
 
     void _cyclePlaneRadar(int row) {
@@ -361,8 +425,432 @@ private:
             settings().prTagRule = (PrTagRule)(((uint8_t)settings().prTagRule + 1) % (uint8_t)PrTagRule::Count);
         } else if (row == 4) {
             settings().prStaleStyle = (PrStaleStyle)(((uint8_t)settings().prStaleStyle + 1) % (uint8_t)PrStaleStyle::Count);
-        } else return;   // row 5 (Location) is read-only — no-op, same as Teletext's Country
+        } else if (row == 5) {
+            // Locations row: tap opens the SlotList sub-view (TASK-321). Nothing
+            // changed yet, so skip the saveSettings()+repaint() at the bottom.
+            _prLocActive = true;
+            _prLocState  = PrLocView::SlotList;
+            repaint();
+            return;
+        } else return;
         saveSettings(); repaint();
+    }
+
+    // ==== M-PR-LOCATIONS / TASK-321: Locations sub-view + slot editor =======
+    // Lookup path only (manual lat/lon path is TASK-322 — the fork's [Manual]
+    // button is present and wired but styled Disabled until that lands).
+    // Kit-fidelity: every button/spinner below is SButton/sButtonBar/
+    // sStackedBtnRect/SSpinner from settingsWidgets.h (TASK-328) — no
+    // hand-rolled buttons.
+
+    bool _prLocIsKeyboardStep() const {
+        return _prLocState == PrLocView::EditLabel ||
+               _prLocState == PrLocView::LookupCountry ||
+               _prLocState == PrLocView::LookupPostcode;
+    }
+
+    const char* _prLocTitle() const {
+        if (_prLocState == PrLocView::SlotList) return "Locations";
+        snprintf(_prTitleBuf, sizeof(_prTitleBuf), "Edit %s",
+                 _prPendingLabel[0] ? _prPendingLabel : "");
+        return _prTitleBuf;
+    }
+
+    void _repaintPrLoc() {
+        switch (_prLocState) {
+            case PrLocView::SlotList:      _repaintPrSlotList();   break;
+            case PrLocView::SourceFork:    _repaintPrSourceFork(); break;
+            case PrLocView::LookupPending: _repaintPrPending();    break;
+            case PrLocView::LookupConfirm: _repaintPrConfirm();    break;
+            case PrLocView::LookupError:   _repaintPrError();      break;
+            default: break;   // EditLabel/LookupCountry/LookupPostcode — keyboard owns the canvas
+        }
+    }
+
+    void _handlePrLocTap(int x, int y) {
+        switch (_prLocState) {
+            case PrLocView::SlotList:      _handlePrSlotListTap(y);      break;
+            case PrLocView::SourceFork:    _handlePrSourceForkTap(x, y); break;
+            case PrLocView::LookupPending: _handlePrPendingTap(x, y);    break;
+            case PrLocView::LookupConfirm: _handlePrConfirmTap(x, y);    break;
+            case PrLocView::LookupError:   _handlePrErrorTap(x, y);      break;
+            default: break;   // keyboard steps — handled by handleInput()'s g_keyboard branch
+        }
+    }
+
+    // Header back-tap semantics per state (mirrors each screen's own
+    // Cancel button where one exists; EditLabel/LookupCountry/LookupPostcode
+    // are unreachable here — the keyboard owns touch and has its own cancel
+    // zone, intercepted earlier in handleInput()).
+    void _handlePrLocBack() {
+        switch (_prLocState) {
+            case PrLocView::SlotList:
+                _prLocActive = false;   // back out to the PlaneRadar app row view
+                repaint();
+                break;
+            case PrLocView::SourceFork:
+                _prLocState = PrLocView::SlotList;
+                repaint();
+                break;
+            case PrLocView::LookupPending:
+                _prAbandonLookup();     // == the screen's own [Cancel] button
+                break;
+            case PrLocView::LookupConfirm:
+            case PrLocView::LookupError:
+                _prLocState = PrLocView::SlotList;   // == each screen's own Cancel
+                repaint();
+                break;
+            default:
+                break;
+        }
+    }
+
+    // ---- SlotList (editor_slotlist.png) -------------------------------------
+
+    void _repaintPrSlotList() {
+        int y = S_CONTENT_Y;
+        for (uint8_t i = 0; i < PR_NUM_LOCS; i++) {
+            const PrLocation& loc = settings().prLocs[i];
+            bool active = (i == settings().prActiveLoc);
+            if (active) tft.fillRect(0, y, 3, S_ROW_H, S_VALUE_ON);   // 3px active bar
+            if (loc.label[0]) {
+                char lbuf[24];
+                snprintf(lbuf, sizeof(lbuf), "%.3f,%.3f", loc.lat, loc.lon);
+                drawRow(y, { loc.label, lbuf, active ? S_VALUE_ON : S_LABEL, S_VALUE });
+            } else {
+                tft.setTextDatum(MC_DATUM);
+                tft.setTextColor(S_VALUE_OFF);
+                tft.drawString("-- empty --", S_CANVAS_W / 2, y + S_ROW_H / 2, 2);
+                tft.setTextDatum(TL_DATUM);
+            }
+            y += S_ROW_H;
+        }
+        y += 16;
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextColor(S_VALUE_OFF);
+        tft.drawString("Tap a slot to edit", S_CANVAS_W / 2, y, 2);
+        tft.setTextDatum(TL_DATUM);
+    }
+
+    void _handlePrSlotListTap(int y) {
+        Rect area = { 0, S_CONTENT_Y, S_CANVAS_W, (int16_t)(PR_NUM_LOCS * S_ROW_H) };
+        int row = hitTestRow(area, S_ROW_H, y);
+        if (row < 0 || row >= PR_NUM_LOCS) return;   // hint text tap — inert
+        _openPrEditor((uint8_t)row);
+    }
+
+    // Tap ANY slot (incl. empty) → editor flow for that slot, starting at
+    // EditLabel (design "sub-view tap = edit only", Q6).
+    void _openPrEditor(uint8_t slot) {
+        _prEditSlot = slot;
+        strlcpy(_prPendingLabel, settings().prLocs[slot].label, sizeof(_prPendingLabel));
+        _prLocState = PrLocView::EditLabel;
+        g_keyboard.show("Label", _prPendingLabel, KeyboardWidget::Mode::UpperAlpha,
+            PR_LABEL_MAX, _onPrLabelSubmit, _onPrLabelCancel, this);
+    }
+
+    static void _onPrLabelSubmit(const char* text, void* ctx) {
+        AppsSection* self = static_cast<AppsSection*>(ctx);
+        strlcpy(self->_prPendingLabel, text, sizeof(self->_prPendingLabel));
+        self->_prLocState = PrLocView::SourceFork;
+        self->repaint();
+    }
+    static void _onPrLabelCancel(void* ctx) {
+        AppsSection* self = static_cast<AppsSection*>(ctx);
+        self->_prLocState = PrLocView::SlotList;
+        self->repaint();
+    }
+
+    // ---- SourceFork (editor_source_fork.png / editor_source_fork_slot0.png) -
+
+    void _repaintPrSourceFork() {
+        int y = S_CONTENT_Y;
+        bool hasCurrent = settings().prLocs[_prEditSlot].label[0] != '\0';
+        if (hasCurrent) {
+            char lbuf[24];
+            snprintf(lbuf, sizeof(lbuf), "%.3f,%.3f",
+                     settings().prLocs[_prEditSlot].lat, settings().prLocs[_prEditSlot].lon);
+            drawRow(y, { "Current", lbuf, S_LABEL, S_VALUE_OFF });
+            y += S_ROW_H;
+        }
+        y += 10;
+
+        // NOTE: individual-field assignment, not aggregate brace-init — this
+        // toolchain compiles gnu++11, where a class with default member
+        // initializers (SButton has them) is not an aggregate, so
+        // `SButton{a,b,c}` has no matching constructor.
+        _prForkBtn[0].r     = sStackedBtnRect(0, y);
+        _prForkBtn[0].label = "Lookup  (country + postcode)";
+        _prForkBtn[0].style = SBtnStyle::Primary;
+        _prForkBtn[0].draw();
+
+        // TASK-322: manual lat/lon entry lands in a follow-on task. Disabled
+        // (not absent) per the TASK-317 gate — "disabled renders but never
+        // hits" is the kit's semantic (SButton::hit()).
+        _prForkBtn[1].r     = sStackedBtnRect(1, y);
+        _prForkBtn[1].label = "Manual  (lat / lon)";
+        _prForkBtn[1].style = SBtnStyle::Disabled;
+        _prForkBtn[1].draw();
+
+        bool slot0 = (_prEditSlot == 0);
+        _prForkBtn[2].r     = sStackedBtnRect(2, y);
+        _prForkBtn[2].label = "Delete";
+        _prForkBtn[2].style = (slot0 || !hasCurrent) ? SBtnStyle::Disabled : SBtnStyle::Danger;
+        _prForkBtn[2].draw();
+
+        if (slot0) {
+            tft.setTextDatum(MC_DATUM);
+            tft.setTextColor(S_VALUE_OFF);
+            tft.drawString("slot 0 is always defined", S_CANVAS_W / 2,
+                            _prForkBtn[2].r.y + _prForkBtn[2].r.h + 14, 2);
+            tft.setTextDatum(TL_DATUM);
+        }
+    }
+
+    void _handlePrSourceForkTap(int x, int y) {
+        if (_prForkBtn[0].hit(x, y)) {
+            _prForkBtn[0].flash();
+            _prLocState = PrLocView::LookupCountry;
+            g_keyboard.show("Country", _prLastCountry, KeyboardWidget::Mode::UpperAlpha, 2,
+                _onPrCountrySubmit, _onPrCountryCancel, this);
+            return;
+        }
+        // _prForkBtn[1] (Manual) is Disabled — hit() always false, TASK-322.
+        if (_prForkBtn[2].hit(x, y)) {
+            _prForkBtn[2].flash();
+            _prDeleteSlot();
+        }
+    }
+
+    void _prDeleteSlot() {
+        if (_prEditSlot == 0) return;   // slot 0 is always defined — defensive, button is Disabled anyway
+        PrLocation& slot = settings().prLocs[_prEditSlot];
+        slot.label[0] = '\0';
+        slot.lat = 0.0f;
+        slot.lon = 0.0f;
+        if (_prEditSlot == settings().prActiveLoc) {
+            // Fall back active -> 0, write-through mirror the same way
+            // _setActiveLoc() will (TASK-323) so prLat/prLon stay valid.
+            settings().prActiveLoc = 0;
+            settings().prLat = settings().prLocs[0].lat;
+            settings().prLon = settings().prLocs[0].lon;
+        }
+        saveSettings();
+        _prLocState = PrLocView::SlotList;
+        repaint();
+    }
+
+    static void _onPrCountrySubmit(const char* text, void* ctx) {
+        AppsSection* self = static_cast<AppsSection*>(ctx);
+        strlcpy(self->_prLastCountry, text, sizeof(self->_prLastCountry));
+        strlcpy(self->_prPendingCountry, text, sizeof(self->_prPendingCountry));
+        self->_prLocState = PrLocView::LookupPostcode;
+        g_keyboard.show("Postcode", "", KeyboardWidget::Mode::Full, 10,
+            _onPrPostcodeSubmit, _onPrPostcodeCancel, self);
+    }
+    static void _onPrCountryCancel(void* ctx) {
+        AppsSection* self = static_cast<AppsSection*>(ctx);
+        self->_prLocState = PrLocView::SourceFork;
+        self->repaint();
+    }
+
+    static void _onPrPostcodeSubmit(const char* text, void* ctx) {
+        AppsSection* self = static_cast<AppsSection*>(ctx);
+        strlcpy(self->_prPendingPostcode, text, sizeof(self->_prPendingPostcode));
+        self->_prGeoSeq = dataTask::enqueueGeocode(self->_prPendingCountry, self->_prPendingPostcode);
+        self->_prLocState  = PrLocView::LookupPending;
+        self->_prSpinnerMs = millis();
+        self->_prSpinner   = SSpinner{};
+        self->repaint();
+    }
+    static void _onPrPostcodeCancel(void* ctx) {
+        AppsSection* self = static_cast<AppsSection*>(ctx);
+        self->_prLocState = PrLocView::SourceFork;
+        self->repaint();
+    }
+
+    // ---- LookupPending (editor_lookup_pending.png) --------------------------
+
+    void _repaintPrPending() {
+        int y = S_CONTENT_Y;
+        drawRow(y, { "Country",  _prPendingCountry,  S_LABEL, S_VALUE }); y += S_ROW_H;
+        drawRow(y, { "Postcode", _prPendingPostcode, S_LABEL, S_VALUE }); y += S_ROW_H;
+        y += 20;
+
+        _prSpinner.y     = y;
+        _prSpinner.label = "Looking up...";
+        _prSpinner.draw();
+
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextColor(S_VALUE_OFF);
+        tft.drawString("fetching from Nominatim", S_CANVAS_W / 2, y + 40, 2);
+        tft.setTextDatum(TL_DATUM);
+
+        // [Cancel] — functionally required (VE-PRL-5/T_PRL_08 cancel-mid-
+        // lookup) but not present in the frozen TASK-317 PNG, which predates
+        // that VE finding; see kit-fidelity note in the TASK-321 report.
+        _prBar[0].label = "Cancel";
+        _prBar[0].style = SBtnStyle::Neutral;
+        sButtonBar(_prBar, 1);
+        _prBar[0].draw();
+    }
+
+    void _handlePrPendingTap(int x, int y) {
+        if (_prBar[0].hit(x, y)) {
+            _prBar[0].flash();
+            _prAbandonLookup();
+        }
+    }
+
+    // Cancel mid-lookup: abandon back to SourceFork. _prGeoSeq is left as-is
+    // (not cleared) so a late-arriving result for THIS seq is still correctly
+    // matched by _tickPrLookup() and then simply not acted on because the UI
+    // has moved on — but a subsequent NEW lookup gets a fresh seq from
+    // enqueueGeocode(), so a truly stale delivery from an earlier abandoned
+    // lookup can never be mistaken for the current one (VE-PRL-5/T_PRL_08).
+    void _prAbandonLookup() {
+        _prLocState = PrLocView::SourceFork;
+        repaint();
+    }
+
+    void _tickPrLookup() {
+        unsigned long now = millis();
+        if (now - _prSpinnerMs >= 250) {
+            _prSpinnerMs = now;
+            _prSpinner.tick();
+        }
+        dataTask::GeocodeResult r;
+        if (dataTask::pollGeocode(&r)) {
+            // Seq identity rule (design "Geocode fetch"): store the seq
+            // returned by enqueueGeocode, ignore+discard any polled result
+            // with a different seq. It IS consumed by poll — that's fine,
+            // we just don't act on it.
+            if (r.seq != _prGeoSeq) return;
+            if (r.ok) {
+                _prGeoLat = r.lat;
+                _prGeoLon = r.lon;
+                strlcpy(_prGeoDisplay, r.display, sizeof(_prGeoDisplay));
+                _prLocState = PrLocView::LookupConfirm;
+            } else {
+                _prGeoErr   = r.errorCode;
+                _prLocState = PrLocView::LookupError;
+            }
+            repaint();
+        }
+    }
+
+    // ---- LookupConfirm (editor_lookup_confirm.png) --------------------------
+
+    static void _wrapDisplay(const char* src, char* l1, size_t l1n, char* l2, size_t l2n) {
+        size_t len = strlen(src);
+        size_t split = len;
+        if (len > 23) {
+            split = 23;
+            while (split > 0 && src[split] != ' ') split--;
+            if (split == 0) split = 23;   // no space found — hard break
+        }
+        size_t n1 = (split < l1n - 1) ? split : l1n - 1;
+        memcpy(l1, src, n1); l1[n1] = '\0';
+        const char* rest = src + split;
+        while (*rest == ' ') rest++;
+        strlcpy(l2, rest, l2n);
+    }
+
+    void _repaintPrConfirm() {
+        int y = S_CONTENT_Y;
+        char line1[40], line2[40];
+        _wrapDisplay(_prGeoDisplay, line1, sizeof(line1), line2, sizeof(line2));
+        tft.setTextDatum(TL_DATUM);
+        tft.setTextColor(S_VALUE_ON);
+        tft.drawString(line1, S_COL_LABEL, y, 2); y += 16;
+        tft.drawString(line2, S_COL_LABEL, y, 2); y += 22;
+
+        char latbuf[16]; snprintf(latbuf, sizeof(latbuf), "%.4f", _prGeoLat);
+        drawRow(y, { "Lat", latbuf, S_LABEL, S_VALUE }); y += S_ROW_H;
+        char lonbuf[16]; snprintf(lonbuf, sizeof(lonbuf), "%.4f", _prGeoLon);
+        drawRow(y, { "Lon", lonbuf, S_LABEL, S_VALUE });
+
+        _prBar[0].label = "Save";   _prBar[0].style = SBtnStyle::Primary;
+        _prBar[1].label = "Retry";  _prBar[1].style = SBtnStyle::Neutral;
+        _prBar[2].label = "Cancel"; _prBar[2].style = SBtnStyle::Neutral;
+        sButtonBar(_prBar, 3);
+        for (uint8_t i = 0; i < 3; i++) _prBar[i].draw();
+    }
+
+    void _handlePrConfirmTap(int x, int y) {
+        if (_prBar[0].hit(x, y)) {
+            _prBar[0].flash();
+            _prSaveGeocode();
+        } else if (_prBar[1].hit(x, y)) {
+            _prBar[1].flash();
+            _prLocState = PrLocView::LookupCountry;
+            g_keyboard.show("Country", _prLastCountry, KeyboardWidget::Mode::UpperAlpha, 2,
+                _onPrCountrySubmit, _onPrCountryCancel, this);
+        } else if (_prBar[2].hit(x, y)) {
+            _prBar[2].flash();
+            _prLocState = PrLocView::SlotList;   // Cancel keeps prior coords, nothing persisted
+            repaint();
+        }
+    }
+
+    // Save commits the pending label + looked-up coords into the slot. Does
+    // NOT switch the active slot (Q6 resolved) — only the radar-strip
+    // gesture (TASK-323) does that.
+    void _prSaveGeocode() {
+        PrLocation& slot = settings().prLocs[_prEditSlot];
+        strlcpy(slot.label, _prPendingLabel, sizeof(slot.label));
+        slot.lat = _prGeoLat;
+        slot.lon = _prGeoLon;
+        if (_prEditSlot == settings().prActiveLoc) {
+            // Editing the currently-active slot: refresh the write-through
+            // mirror so existing prLat/prLon consumers see the new coords
+            // without switching (Q6 — saving != switching).
+            settings().prLat = _prGeoLat;
+            settings().prLon = _prGeoLon;
+        }
+        saveSettings();
+        _prLocState = PrLocView::SlotList;
+        repaint();
+    }
+
+    // ---- LookupError (editor_lookup_error.png) ------------------------------
+
+    const char* _prGeoErrDetail() const {
+        return (_prGeoErr == -96) ? "postcode not found" : "lookup failed - check network";
+    }
+
+    void _repaintPrError() {
+        int y = S_CONTENT_Y;
+        drawRow(y, { "Country",  _prPendingCountry,  S_LABEL, S_VALUE }); y += S_ROW_H;
+        drawRow(y, { "Postcode", _prPendingPostcode, S_LABEL, S_VALUE }); y += S_ROW_H;
+        y += 24;
+
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextColor(0xF800);   // red — matches wifiSection's Result-screen error idiom
+        tft.drawString(httpErr(_prGeoErr), S_CANVAS_W / 2, y, 2);
+        y += 20;
+        tft.setTextColor(S_VALUE_OFF);
+        tft.drawString(_prGeoErrDetail(), S_CANVAS_W / 2, y, 2);
+        tft.setTextDatum(TL_DATUM);
+
+        _prBar[0].label = "Retry";  _prBar[0].style = SBtnStyle::Primary;
+        _prBar[1].label = "Cancel"; _prBar[1].style = SBtnStyle::Neutral;
+        sButtonBar(_prBar, 2);
+        _prBar[0].draw();
+        _prBar[1].draw();
+    }
+
+    void _handlePrErrorTap(int x, int y) {
+        if (_prBar[0].hit(x, y)) {
+            _prBar[0].flash();
+            _prLocState = PrLocView::LookupCountry;
+            g_keyboard.show("Country", _prLastCountry, KeyboardWidget::Mode::UpperAlpha, 2,
+                _onPrCountrySubmit, _onPrCountryCancel, this);
+        } else if (_prBar[1].hit(x, y)) {
+            _prBar[1].flash();
+            _prLocState = PrLocView::SlotList;
+            repaint();
+        }
     }
 
     static AppSpeed _cycleSpeed(AppSpeed s) {
