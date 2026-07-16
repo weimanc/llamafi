@@ -561,6 +561,9 @@ interactions:
       Added 2026-07-16 (Architect registration pass). No defect today — this is a
       designed-in overlap awaiting a "device home location" decision. Any design that
       adds a FOURTH location store must go through Architect.
+      2026-07-16 (later): resolution DRAFTED — M-HOME-LOCATION (home = prLocs[0],
+      Time&Location lat/lon become its mirror; webRadioCountry stays independent).
+      X035 reserved for the unified edges; this entry closes when that design lands.
 
   - id: X031
     feature_a: settings-001
@@ -648,6 +651,29 @@ interactions:
     notes: |
       Reserved 2026-07-16 at design time by M-WEBRADIO-SETTINGS §5 (Architect registry
       remit). Developer completes at implementation; VE attaches T-WRSET-01..06.
+
+  - id: X035
+    feature_a: home-location-001
+    feature_b: pr-locations-001
+    interaction_type: shared_state
+    description: |
+      Device home = prLocs[0] (M-HOME-LOCATION D1b): the Time & Location lat/lon
+      fields become a load-derived write-through mirror of slot 0, consumed by
+      weather (WIRE2 G4). Obligations: (a) the city picker becomes a prLocs[0]
+      WRITER — it must refresh the mirror + save exactly like every writer in
+      X026's list (that list grows by one at implementation); (b) the HOME-slot
+      editor refines coords only — tz and city name stay city-picker-owned;
+      (c) radar active-slot switching (prActiveLoc) must NEVER move home — weather
+      is pinned to slot 0, not the active slot; (d) the D4 migration (seed slot 0
+      from city iff slot 0 is still the untouched compile default) runs AFTER
+      X025's prLocs load invariants. Supersedes X032's empty-city fallback story:
+      slot 0 is always defined, so weather always has coordinates.
+    risk: medium
+    test_coverage: []
+    notes: |
+      Reserved 2026-07-16 at design time by M-HOME-LOCATION §5 (Architect registry
+      remit). Developer completes at implementation and updates X026/X030/X032 in
+      the same change; VE attaches T-HOME-01..05.
 
 #   interaction_type: shared_state | dependency | conflict | overlap
 #   description: ""
