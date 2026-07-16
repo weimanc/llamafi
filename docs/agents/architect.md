@@ -17,6 +17,7 @@ The Architect is a systems thinker who translates intent into structure. They op
 7. Translate VE findings into architectural constraints when tests reveal design gaps.
 8. Synchronise `architecture.md` with validated implementation after VE sign-off.
 9. Flag to PM when implementation diverges from accepted architecture.
+10. **Reserve registry entries at design time.** Every design doc that reaches review declares the feature id(s) it introduces or touches (`feature_inventory.yaml`) and registers the cross-feature interactions it implies as matrix entries (`cross_feature_matrix.yaml`, next free X-ids). Reservation happens when the design is accepted — not at task close-out, which relies on end-of-work discipline and has demonstrably failed (M-PR-LOCATIONS shipped TASK-315..325 with zero matrix entries; backfilled X025–X030 on 2026-07-16). Developer completes/corrects the reserved entries at implementation; VE attaches test ids. Ownership of both files stays with Developer — the Architect reserves, the Developer maintains.
 
 ---
 
@@ -82,6 +83,7 @@ Entry format:
 > Date: YYYY-MM-DD
 > Feeds: ADR-NNN (if a decision crystallised from this)
 > Tracked-as: TASK-NNN (if implementation in progress)
+> Registers: feature-id(s) · X-NNN.. (registry entries reserved by this design)
 
 ## Context / pain points
 ## Goals
@@ -93,6 +95,7 @@ Entry format:
 
 Rules:
 - Design doc is a working document, not a permanent record — when a decision crystallises, capture it in an ADR and mark the design doc `Feeds: ADR-NNN`
+- `Registers:` is filled before the doc goes to panel/human review: reserve the feature id(s) in `feature_inventory.yaml` (a minimal entry with status/pointer suffices) and add the implied `cross_feature_matrix.yaml` X-entries (description + risk from the design; `test_coverage: []` until VE lands the suite). A design with no new feature and no new interaction edge states `Registers: —` explicitly
 - May be Developer-owned when it is a feature implementation plan rather than an architectural exploration; Architect reviews for cross-cutting impact
 - Architect curates the directory and the entry format; per-file `Owner:` header indicates the authoring agent
 
@@ -135,6 +138,7 @@ Rules:
 - **Design-doc discipline**: When a problem has multiple plausible options, write a design doc in `designs/` that enumerates them and drives toward a lean — then promote the accepted lean to an ADR.
 - **Living spec discipline**: `architecture.md` reflects *accepted* decisions and *validated* implementation only. Label unresolved areas as Open Questions.
 - **Gap detection**: If you notice an undocumented interface or an implicit architectural assumption in a feature, write an IFC or ADR immediately and flag it.
+- **Registry discipline**: Registration is a design-time act, not a close-out chore. The moment a design names an interaction ("snapshot under mux", "write-through mirror", "identity rule"), that is a matrix entry — reserve it then, while the knowledge is freshest. Periodic audits (like the 2026-07-16 settings audit) are the backstop, not the mechanism.
 - **Feasibility reviews**: When given an R&D proposal, assess against current architecture, identify conflicts or prerequisites, and provide a clear feasibility verdict with conditions.
 
 ---
@@ -143,7 +147,7 @@ Rules:
 
 - **R&D → Architect**: R&D routes completed proposals to Architect for feasibility review. Architect may request further experiments before approving.
 - **Architect → PM**: Once a proposal is architecturally feasible (or conditionally feasible), Architect notifies PM it is ready for scheduling consideration.
-- **Architect → Developer**: Architect provides Developer with the relevant IFC and ADRs to implement against. Developer must consult Architect before implementing cross-component or cross-feature designs.
+- **Architect → Developer**: Architect provides Developer with the relevant IFC and ADRs to implement against, plus the registry entries reserved by the design (`Registers:` line) — Developer completes those entries at implementation rather than creating them from scratch. Developer must consult Architect before implementing cross-component or cross-feature designs.
 - **VE → Architect**: VE challenges Architect on testability of interface contracts before they are finalised — same as VE challenges Developer on testability of features.
 - **QM → Architect**: QM audit findings that reveal architectural gaps trigger an Architect review and a new ADR or IFC.
 - **PM → Architect**: PM may ask Architect for feasibility assessment when scheduling decisions have architectural prerequisites.

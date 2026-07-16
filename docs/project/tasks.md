@@ -1331,6 +1331,11 @@ touch-path tests gate it (mind the settings-nav coordinate-drift lesson —
 if any button moves to the standard bar Y, audit tests/docs that encode
 old coordinates). Candidate BP if it holds: "new Settings UI = kit
 widgets only; hand-rolled buttons are a review flag" (QM to propose).
+Registry (Architect review 2026-07-16): kit reserved as
+`settings-widgets-001` in feature_inventory.yaml — close-out updates listed
+in its notes (move migrated files into that entry, update settings-001 /
+settings-wifi, coordinate-drift test audit). No new matrix entry — kit↔section
+coupling is intra-settings build-time idiom, not a runtime interaction.
 **Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-SETTINGS-STYLE
 · **Owner:** Developer · **Deps:** TASK-328, TASK-321 (kit proven) ·
 **Size:** M · **DUT:** y (touch regression on migrated sections)
