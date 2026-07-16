@@ -5,6 +5,7 @@
 #include <TFT_eSPI.h>
 #include "appShell.h"
 #include "settingsStorage.h"
+#include "util/timeFmt.h"   // WIRE2-G2/G3: clockHour/clockAmPm/fmtDate
 #include <WiFi.h>
 #include <time.h>
 #include <math.h>
@@ -53,6 +54,9 @@ public:
 private:
     unsigned long _lastTickMs = 0;
     FlipDigit     _fd[4]      = {};
+    // W-6 erase-gating cache (Digital): last rendered hour string + AM/PM ptr.
+    char          _lastHourStr[4] = "";
+    const char*   _lastAmPm       = nullptr;
 
     bool _anyFlipActive() const {
         for (int i = 0; i < 4; i++) if (_fd[i].frame > 0) return true;
@@ -110,8 +114,20 @@ private:
     void _drawDigital() {
         struct tm t; if (!getLocalTime(&t)) return;
         char hBuf[4], mBuf[4];
-        snprintf(hBuf, sizeof(hBuf), "%02d", t.tm_hour);
+        // WIRE2-G2: 12h drops the leading zero (%d, "9:41"); 24h keeps %02d.
+        snprintf(hBuf, sizeof(hBuf), g_settings.fmt24h ? "%02d" : "%d", clockHour(t));
         snprintf(mBuf, sizeof(mBuf), "%02d", t.tm_min);
+        const char* ap = clockAmPm(t);   // nullptr in 24h mode
+        // W-6: hour is MR-anchored overpaint — a narrower string (12:59→1:00)
+        // or an AM/PM mode toggle leaves stale pixels. Explicit erase of the
+        // hour + AM/PM areas, gated on content change so the 1 Hz tick doesn't
+        // flicker the steady-state face.
+        if (strcmp(hBuf, _lastHourStr) != 0 || ap != _lastAmPm) {
+            tft.fillRect(16, 21, 113, 48, TFT_BLACK);   // hour area (MR @129, font 6)
+            tft.fillRect(228, 10, 38, 20, TFT_BLACK);   // AM/PM area (top-right of cell)
+            strncpy(_lastHourStr, hBuf, sizeof(_lastHourStr));
+            _lastAmPm = ap;
+        }
         tft.setTextColor(TFT_WHITE, TFT_BLACK);
         tft.setTextDatum(MR_DATUM);
         tft.drawString(hBuf, 129, 45, 6);
@@ -121,6 +137,10 @@ private:
         tft.setTextDatum(ML_DATUM);
         tft.setTextColor(TFT_WHITE, TFT_BLACK);
         tft.drawString(mBuf, 145, 45, 6);
+        if (ap) {   // T-TIME-02: small AM/PM label, top-right of the time cell
+            tft.setTextDatum(TR_DATUM);
+            tft.drawString(ap, 262, 12, 2);
+        }
         tft.setTextDatum(TL_DATUM);
     }
 
@@ -145,7 +165,7 @@ private:
         tft.setTextColor(TFT_WHITE, TFT_BLACK);
         tft.drawString(kDays[t.tm_wday], 137, 170, 4);
         char dBuf[16];
-        snprintf(dBuf, sizeof(dBuf), "%02d/%02d/%04d", t.tm_mday, t.tm_mon + 1, t.tm_year + 1900);
+        fmtDate(t, dBuf, sizeof(dBuf), '/');   // WIRE2-G3: DMY/MDY/YMD per settings
         tft.drawString(dBuf, 137, 200, 4);
         tft.setTextDatum(TL_DATUM);
     }
@@ -180,8 +200,9 @@ private:
     void _drawFlip() {
         static const int kFpX[4] = {10, 60, 130, 180};
         struct tm t; if (!getLocalTime(&t)) return;
+        uint8_t hh = clockHour(t);   // WIRE2-G2: digit pair stays two digits ("09")
         uint8_t newDig[4] = {
-            (uint8_t)(t.tm_hour / 10), (uint8_t)(t.tm_hour % 10),
+            (uint8_t)(hh / 10), (uint8_t)(hh % 10),
             (uint8_t)(t.tm_min  / 10), (uint8_t)(t.tm_min  % 10)
         };
         // Start animation for any changed digit
@@ -263,8 +284,9 @@ private:
         static const int kTy = 10, kTw = 52, kTh = 70, kTr = 26;
 
         struct tm t; if (!getLocalTime(&t)) return;
+        uint8_t hh = clockHour(t);   // WIRE2-G2: digit pair stays two digits ("09")
         uint8_t digs[4] = {
-            (uint8_t)(t.tm_hour / 10), (uint8_t)(t.tm_hour % 10),
+            (uint8_t)(hh / 10), (uint8_t)(hh % 10),
             (uint8_t)(t.tm_min  / 10), (uint8_t)(t.tm_min  % 10)
         };
 
@@ -307,8 +329,9 @@ private:
         static const uint8_t kDCol[4] = {2, 14, 29, 41}; // glyph start dot-col
 
         struct tm t; if (!getLocalTime(&t)) return;
+        uint8_t hh = clockHour(t);   // WIRE2-G2: digit pair stays two digits ("09")
         uint8_t digs[4] = {
-            (uint8_t)(t.tm_hour / 10), (uint8_t)(t.tm_hour % 10),
+            (uint8_t)(hh / 10), (uint8_t)(hh % 10),
             (uint8_t)(t.tm_min  / 10), (uint8_t)(t.tm_min  % 10)
         };
         bool colonOn = (t.tm_sec % 2 == 0);
@@ -349,7 +372,7 @@ private:
         // Date below digit block (y≈141 per approved constants)
         static const char* kDays[] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
         char dBuf[12];
-        snprintf(dBuf, sizeof(dBuf), "%02d-%02d-%04d", t.tm_mday, t.tm_mon + 1, t.tm_year + 1900);
+        fmtDate(t, dBuf, sizeof(dBuf), '-');   // WIRE2-G3: VFD-only date line (W-10)
         tft.setTextSize(2);
         tft.setTextColor(0x0473, 0x0022);
         tft.setTextDatum(MC_DATUM);

@@ -11,6 +11,7 @@
 #include "appShell.h"
 #include "settingsStorage.h"
 #include "util/mathUtil.h"
+#include "util/timeFmt.h"   // WIRE2-G2: clockHour()
 
 extern TFT_eSPI tft;
 
@@ -924,7 +925,9 @@ private:
         time_t now = time(nullptr);
         struct tm ti;
         localtime_r(&now, &ti);
-        _clockHour   = ti.tm_hour;
+        // WIRE2-G2: hour honours fmt24h (helper keeps %02d width in drawClock);
+        // AM/PM omitted by design — 10 px overlay has no room.
+        _clockHour   = clockHour(ti);
         _clockMinute = ti.tm_min;
     }
 

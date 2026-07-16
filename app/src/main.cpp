@@ -108,6 +108,7 @@ char clientSecret[200];
 #include "winamp/vuMeter.h"
 #endif
 #include "util/mathUtil.h"
+#include "util/timeFmt.h"   // WIRE2-G2/G3: shared 12h/24h + dateFmt helpers
 
 // ----------------------------
 // Memory overlay layout (Phase 1: declarative budget only — no buffers wired yet)
@@ -440,10 +441,16 @@ private:
     if (ti.tm_sec == _lsec) return;
     _lsec = ti.tm_sec;
     tft.fillRect(5, 20, 127, 90, TFT_BLACK);    // TIME value area
-    char tS[6]; strftime(tS, 6, "%H:%M", &ti);
+    // WIRE2-G2: hour via shared helper — 12h drops the leading zero (%d);
+    // AM/PM (when 12h) sits under the time, still inside the tile erase rect.
+    char tS[8];
+    snprintf(tS, sizeof(tS), g_settings.fmt24h ? "%02d:%02d" : "%d:%02d",
+             clockHour(ti), ti.tm_min);
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(0xF81F, TFT_BLACK);
     tft.drawString(tS, WX_LEFT_CX, WX_TOP_CY, 4);
+    const char* wxAp = clockAmPm(ti);
+    if (wxAp) tft.drawString(wxAp, WX_LEFT_CX, WX_TOP_CY + 28, 2);
     int32_t rssi = WiFi.RSSI();
     int bars = (rssi > -50) ? 4 : (rssi > -70) ? 3 : (rssi > -85) ? 2 : 1;
     for (int i = 0; i < 4; i++) {
@@ -2262,7 +2269,10 @@ void setup()
   // clock starts ~1970 and mbedTLS rejects current Spotify certs (notBefore
   // in the future), surfacing as a generic "send_ssl_data 0x0050" failure.
   // 5 s bounded wait, non-fatal on timeout.
-  configTime(0, 0, "pool.ntp.org", "time.google.com", "time.cloudflare.com");
+  // WIRE2-G1: apply the persisted TZ rule at boot (SettingsStorage::load()
+  // ran above) instead of hardcoded UTC; fresh device defaults to "UTC0" —
+  // identical behaviour. The epoch wait below is TZ-independent.
+  configTzTime(g_settings.posixTz, "pool.ntp.org", "time.google.com", "time.cloudflare.com");
   unsigned long ntpStart = millis();
   unsigned long ntpDeadline = ntpStart + 5000;
   while (time(nullptr) < 1700000000UL && millis() < ntpDeadline) {
@@ -3105,6 +3115,30 @@ static void cmdGet(const char *args) {
                   (unsigned)r.seq, r.lat, r.lon, r.display);
     return;
   }
+  // WIRE2 (§6d, W-7): shared G1+G2/G3 observable — the harness asserts the
+  // formatted strings computed from getLocalTime + the timeFmt helpers (the
+  // exact code path the renderers use), never scraped pixels. hour is emitted
+  // as rendered (12h drops the leading zero); ampm is null in 24h mode.
+  if (strcmp(args, "clockRender") == 0) {
+    struct tm t;
+    if (!getLocalTime(&t)) {
+      Serial.println("{\"ok\":false,\"cmd\":\"get\",\"var\":\"clockRender\","
+                     "\"error\":\"time not synced\"}");
+      return;
+    }
+    char hBuf[4], dBuf[16];
+    snprintf(hBuf, sizeof(hBuf), g_settings.fmt24h ? "%02d" : "%d", clockHour(t));
+    fmtDate(t, dBuf, sizeof(dBuf), '/');
+    const char* ap = clockAmPm(t);
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"clockRender\","
+                  "\"hour\":\"%s\",\"min\":\"%02d\",\"ampm\":%s%s%s,"
+                  "\"date\":\"%s\",\"fmt24h\":%s,\"dateFmt\":%d,\"last\":true}\n",
+                  hBuf, t.tm_min,
+                  ap ? "\"" : "", ap ? ap : "null", ap ? "\"" : "",
+                  dBuf, g_settings.fmt24h ? "true" : "false",
+                  (int)g_settings.dateFmt);
+    return;
+  }
   Serial.printf("{\"ok\":false,\"cmd\":\"get\","
                 "\"error\":\"unknown var\",\"var\":\"%s\"}\n", args);
 }
@@ -3321,6 +3355,48 @@ static void cmdSet(const char *args) {
     return;
   }
 #endif
+  // WIRE2 (§6 debug hooks, W-1): force a save — T-SETW-01/02's load→RAM→save
+  // leg; nothing saves at boot, so without this a spiffs pull returns the
+  // pushed bytes verbatim and proves nothing. Value is ignored ("set
+  // settingsSave 1" per house two-token syntax).
+  if (strcmp(var, "settingsSave") == 0) {
+    SettingsStorage::save();
+    Serial.println("{\"ok\":true,\"cmd\":\"set\",\"var\":\"settingsSave\",\"saved\":true}");
+    return;
+  }
+  // WIRE2-G2 (§6 debug hooks, W-7): 12h/24h toggle. Mirrors clockStyle below,
+  // incl. the resume-if-current-app repaint trick for Clock.
+  if (strcmp(var, "fmt24h") == 0) {
+    if (val[1] != '\0' || (val[0] != '0' && val[0] != '1')) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"fmt24h\","
+                     "\"error\":\"bad val — use 0|1\"}");
+      return;
+    }
+    g_settings.fmt24h = (val[0] == '1');
+    SettingsStorage::save();
+    if (currentAppId == AppId::Clock) g_ClockApp.resume();
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"fmt24h\",\"val\":%d}\n",
+                  g_settings.fmt24h ? 1 : 0);
+    return;
+  }
+  // WIRE2-G3 (§6 debug hooks, W-7): date format. 0-2 or dmy/mdy/ymd.
+  if (strcmp(var, "dateFmt") == 0) {
+    static const char* kDF[] = {"dmy", "mdy", "ymd"};
+    int idx = -1;
+    for (int i = 0; i < 3; i++) if (strcasecmp(val, kDF[i]) == 0) { idx = i; break; }
+    if (idx < 0) { if (sscanf(val, "%d", &idx) != 1 || idx < 0 || idx > 2) idx = -1; }
+    if (idx < 0) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"dateFmt\","
+                     "\"error\":\"bad val — use 0-2 or dmy/mdy/ymd\"}");
+      return;
+    }
+    g_settings.dateFmt = (DateFmt)idx;
+    SettingsStorage::save();
+    if (currentAppId == AppId::Clock) g_ClockApp.resume();
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"dateFmt\",\"val\":%d,"
+                  "\"name\":\"%s\"}\n", idx, kDF[idx]);
+    return;
+  }
   if (strcmp(var, "clockStyle") == 0) {
     static const char* kSN[] = {"digital","flip","nixie","vfd"};
     int idx = -1;

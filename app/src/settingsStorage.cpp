@@ -156,8 +156,10 @@ void SettingsStorage::load() {
         auto d = doc["disp"];
         if (d.containsKey("auto"))    g_settings.dispAuto  = d["auto"]    | false;
         if (d.containsKey("level"))   g_settings.dispLevel = d["level"]   | 7;
-        if (d.containsKey("ldrLow"))  g_settings.ldrLow    = d["ldrLow"]  | 200;
-        if (d.containsKey("ldrHigh")) g_settings.ldrHigh   = d["ldrHigh"] | 3800;
+        // WIRE2 §6a (T-SETW-02): fallbacks must match applyDefaults() (0/120)
+        // — the old 200/3800 pair diverged from the calibrated defaults.
+        if (d.containsKey("ldrLow"))  g_settings.ldrLow    = d["ldrLow"]  | 0;
+        if (d.containsKey("ldrHigh")) g_settings.ldrHigh   = d["ldrHigh"] | 120;
     }
 
     // LED
