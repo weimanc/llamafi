@@ -1178,7 +1178,7 @@ features:
     git_ref: "463ba0b (M-SETUP-WIZARD implementation)"
     files:
       - run/setup
-      - Spotify-Diy-Thing/SpotifyDiyThing/WifiManagerHandler.h  # PATCH-003
+      - app/src/main.cpp  # SPIFFS /wifi_creds.json boot read (PATCH-003 successor; WifiManagerHandler.h deleted by M-SETTINGS WiFi Phase 2)
       - app/data/wifi_creds.json  # gitignored runtime file
       - app/data/spotify_diy_config.json  # gitignored runtime file
     cross_features:

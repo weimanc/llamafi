@@ -1,8 +1,20 @@
 # Design — M-SETUP-WIZARD: `run/setup` wizard
 
 > Owner: Architect  
-> Status: draft (2026-06-09)  
+> Status: **implemented** (2026-06-11, `463ba0b`; VE-verified same day — feature
+> `setup-wizard-001`, T-SETUP-01..10)  
 > Milestone: M-SETUP-WIZARD  
+> Reality-sync 2026-07-16 (Architect pass): shipped as designed EXCEPT the
+> PATCH-003 section below, which is historical — the patch landed, then was
+> **retired** when M-SETTINGS WiFi Phase 2 deleted `WifiManagerHandler.h`
+> entirely (WiFiManager/DRD left the boot path). The SPIFFS `/wifi_creds.json`
+> read now lives in `app/src/main.cpp` (~:2146-2185) and the priority chain
+> gained two levels: `wifi_creds.h` → **NVS** → SPIFFS `/wifi_creds.json` →
+> **on-device WiFi settings UI** (no captive portal). One post-design fix on
+> record: `WiFi.persistent(true)` corrupted NVS on bad SPIFFS creds
+> (TASK-167) — the shipped code uses `persistent(false)` on the SPIFFS path.
+> OQ-2 resolved by reality: wizard and on-device UI share the file, no
+> conflict. See `upstream-patches.md` (PATCH-003 marked retired).  
 
 ---
 
