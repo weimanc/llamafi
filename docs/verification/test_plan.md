@@ -4226,7 +4226,7 @@ Detailed run + results: `docs/verification/regression_suite/m-pr-locations-dut.m
 - **Type**: integration [SLOW]
 - **Feature(s)**: pr-locations-001
 - **Objective**: `prLocs` survives a firmware reflash (`run/flash`/`run/flash-debug`); documented-destroyed by `run/flash-fs` (SPIFFS format), same class as the `cal.json`/`settings.json` wipe behaviour recorded elsewhere.
-- **Status**: **PARTIAL 2026-07-16** — reflash-survival implicit (many reflashes across TASK-319–324, `get prloc` correct every time; not independently re-asserted as a dedicated test this session). The destructive `flash-fs`-wipe leg was **not run** — needs explicit human go-ahead before wiping the DUT's live `cal.json`/`settings.json`.
+- **Status**: **PASS 2026-07-16** — reflash-survival implicit (many reflashes across TASK-319–324, `get prloc` correct every time). Destructive `flash-fs`-wipe leg run with explicit human go-ahead, wrapped in a raw byte-exact `esptool.py` backup/restore (independent of `run/spiffs`, which only round-trips through `app/data/`): pre-wipe SPIFFS partition read to a local image → `run/flash-fs` → confirmed `get prloc` showed the documented wipe+migration (`slot0="HOME"` reseeded, slots 1-3 empty) → backup image written back → post-restore raw read confirmed byte-identical (`cmp`) to the pre-wipe backup → production firmware reflashed. See `m-pr-locations-dut.md` for the full sequence.
 
 ### T_PRL_08 — [pr-locations-001] Late result after cancel
 

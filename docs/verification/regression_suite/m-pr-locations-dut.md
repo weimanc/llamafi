@@ -2,7 +2,7 @@
 
 > Owner: Verification Engineer
 > Milestone: M-PR-LOCATIONS (TASK-324, parent design doc verification sketch)
-> Status: **closed 2026-07-16 — T_PRL_01a/02/03/04/05/06/09/10 PASS; T_PRL_01b/07/11 explicitly deferred (not gaps — see notes); T_PRL_08 partially provable by design (see notes)**
+> Status: **closed 2026-07-16 — T_PRL_01a/02/03/04/05/06/07/09/10 PASS; T_PRL_01b PASS (cited, minus one leg); T_PRL_11 blocked (external); T_PRL_08 partially provable by design (see notes)**
 > DUT: ESP32-2432S028R CYD2USB, firmware `cyd2usb_winamp_debug`
 > Design: `docs/architecture/designs/M-PR-LOCATIONS-location-presets.md` §Verification sketch
 
@@ -44,14 +44,26 @@
   finding — the same one-line identity-guard shape already DUT-proven for
   the analogous `StockChartResult` (TASK-300), not independently
   re-provable live without a seq-injection hook that doesn't exist.
-- **T_PRL_07's destructive leg was not run.** The non-destructive half
-  (settings survive a firmware `run/flash`/`run/flash-debug` reflash) is
-  implicitly proven — every task in this milestone reflashed the DUT
-  multiple times across TASK-319 through TASK-324 and `get prloc` came back
-  correct every time. The *destructive* half (`run/flash-fs` wipes
-  `cal.json`+`settings.json` — documented, expected behaviour, but a real
-  wipe of the DUT's live configuration) needs explicit human go-ahead before
-  running; not run in this session.
+- **T_PRL_07's destructive leg ran 2026-07-16, with a full backup/restore
+  around it.** The non-destructive half (settings survive a firmware
+  `run/flash`/`run/flash-debug` reflash) was already implicitly proven —
+  every task in this milestone reflashed the DUT multiple times across
+  TASK-319 through TASK-324 and `get prloc` came back correct every time.
+  For the destructive half, with explicit human go-ahead: raw-read the whole
+  SPIFFS partition (`esptool.py read_flash 0x290000 0x160000`, byte-exact,
+  independent of `run/spiffs` which only round-trips through `app/data/`)
+  → `./run/flash-fs` (formats SPIFFS, reflashes from `app/data/`'s stale
+  pre-M-PR-LOCATIONS `settings.json` template, which has no `locs` key) →
+  confirmed `get prloc` showed exactly the documented wipe+migration
+  behaviour (`slot0="HOME"` reseeded from the template's compile-time
+  lat/lon, slots 1-3 empty — the same migration path T_PRL_04 already
+  covers, incidentally re-exercised live here) → raw-wrote the backup image
+  back (`esptool.py write_flash`) → **post-restore raw read verified
+  byte-identical (`cmp`) to the pre-wipe backup** → production firmware
+  reflashed. The DUT's real WiFi creds, Spotify refresh token, calibration,
+  and all four live location presets (AMS/HH/CAM/WFD) were never at risk of
+  permanent loss — the restore is a byte-exact roundtrip, not a
+  reconstruction from the individually-known fields.
 - **T_PRL_11 (geocode during Spotify-active) is blocked by TASK-243**
   (external: owner-account Premium lapsed), same disposition M-PLANERADAR's
   own exit-criterion-4 soak used. `spotifyAuthError:true`/
@@ -85,7 +97,7 @@
 | T_PRL_04  | Migration — pre-upgrade settings.json (no prLocs) → slot 0 seeded        | serial | **PASS (cited)** — TASK-319 close-out (`prloc_smoke.py` Phase A) |
 | T_PRL_05  | Same-slot tap no-op; delete-active-slot falls back to slot 0             | serial | **PASS 2026-07-16** — no-op confirmed via stable `connecting:false`; delete-active fallback confirmed (`active`→0, mirror→slot 0 coords) |
 | T_PRL_06  | Manual lat/lon entry range validation                                    | serial | **PASS (cited)** — TASK-322 close-out (`prloc_manual_smoke.py`, 13/13) |
-| T_PRL_07  | Persistence layers (reflash vs flash-fs wipe)                            | —      | **PARTIAL** — reflash-survival implicit (many reflashes this milestone, always correct); flash-fs-wipe leg **not run** (destructive, needs explicit human go-ahead) |
+| T_PRL_07  | Persistence layers (reflash vs flash-fs wipe)                            | serial + raw esptool | **PASS 2026-07-16** — reflash-survival implicit (many reflashes this milestone, always correct); flash-fs-wipe leg run with explicit go-ahead: confirmed wipe+migration, then byte-exact backup/restore (`cmp` verified) |
 | T_PRL_08  | Late result after cancel                                                 | serial | **PARTIAL (code-verified for the seq-mismatch half)** — cancel-mid-lookup clean-state + late-real-result-inert both DUT-confirmed; genuine seq mismatch not manufacturable via the debug surface (see notes) |
 | T_PRL_09  | Switch discards in-flight old-location fetch (epoch)                     | serial | **PASS 2026-07-16** — back-to-back `set prloc active` settles cleanly on the final slot, no crash, fetch completes correctly after the race |
 | T_PRL_10  | Slot-0 delete refusal                                                    | serial | **PASS (cited)** — `prloc_editor_smoke.py` G1, TASK-321 close-out |

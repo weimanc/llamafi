@@ -1092,9 +1092,11 @@ BP-048.
 **Status:** **closed 2026-07-16** — all of TASK-315..325 landed; TASK-324's
 VE gate closed (see `docs/verification/regression_suite/m-pr-locations-dut.md`).
 Residuals intentionally left open, not gaps in this milestone: TASK-318's
--120 assert re-deferred to M-CERT-ERRCODE (its own milestone); T_PRL_07's
-destructive flash-fs-wipe leg needs explicit human go-ahead; T_PRL_11
-blocked on TASK-243 (external, Spotify Premium lapsed). Design r2 drafted
+-120 assert re-deferred to M-CERT-ERRCODE (its own milestone); T_PRL_11
+blocked on TASK-243 (external, Spotify Premium lapsed). T_PRL_07's
+destructive flash-fs-wipe leg ran 2026-07-16 with explicit human go-ahead,
+wrapped in a raw esptool byte-exact backup/restore — device confirmed back
+to its exact pre-wipe state (`cmp`-verified). Design r2 drafted
 2026-07-13; Q1–Q7 resolved by human same day (4 slots · 5-char labels · N^
 marker removed outright · manual lat/lon entry as first-class alternative
 to lookup · 2-char country entry · radar-only switching · home-alias

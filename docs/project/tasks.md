@@ -1191,13 +1191,23 @@ serialdbg on-device; TASK-320 live geocode + stub isolation on-device;
 TASK-325 kbText/kbOk/kbCancel on-device (and unparks stock T232/233/246/247
 — run or explicitly hand back to their own suite). Regression entry in
 `docs/verification/regression_suite/`.
-**Status: closed 2026-07-16** — T_PRL_01a/02/03/04/05/06/09/10 **PASS**;
+**Status: closed 2026-07-16** — T_PRL_01a/02/03/04/05/06/07/09/10 **PASS**;
 T_PRL_01b **PASS (cited)** minus the space-postcode-encoding leg specifically;
-T_PRL_07 **PARTIAL** (reflash-survival implicit, flash-fs-wipe leg not run —
-destructive, needs explicit human go-ahead); T_PRL_08 **PASS for the
-DUT-provable half**, seq-mismatch half code-verified only (the debug
-injection hook can't manufacture a genuinely stale seq — see design note);
-T_PRL_11 **BLOCKED** (TASK-243 external, Spotify Premium lapsed). Full
+T_PRL_08 **PASS for the DUT-provable half**, seq-mismatch half code-verified
+only (the debug injection hook can't manufacture a genuinely stale seq —
+see design note); T_PRL_11 **BLOCKED** (TASK-243 external, Spotify Premium
+lapsed). T_PRL_07's destructive `flash-fs`-wipe leg was run in a follow-up
+session with explicit human go-ahead, wrapped in a raw byte-exact
+`esptool.py read_flash`/`write_flash` backup-restore around it (independent
+of `run/spiffs`, which only round-trips through git-tracked `app/data/` —
+using that would have meant overwriting tracked template files with live
+device secrets to stage a restore, so a raw partition image was used
+instead): pre-wipe SPIFFS captured → `run/flash-fs` → confirmed the
+documented wipe+migration (`slot0="HOME"` reseeded from the stale
+`app/data/settings.json` template's compile-time lat/lon, slots 1-3 empty —
+incidentally re-exercising T_PRL_04's migration path live) → backup image
+written back → post-restore raw read verified **byte-identical** (`cmp`) to
+the pre-wipe backup → production firmware reflashed. Full
 write-up: `docs/verification/regression_suite/m-pr-locations-dut.md`;
 `test_plan.md` got the T_PRL_01a..11 suite entries. New this session:
 `app/tools/prloc_ve_smoke.py` (22/22 PASS) covering T_PRL_02/03/05/08/09 —
