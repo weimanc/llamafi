@@ -176,11 +176,12 @@ the country keyboard):
 - **OQ1** — RESOLVED 2026-07-16 (human): default bitrateCap becomes **128**
   (was 96). T-WRSET-02 gains a defaults leg: wiped settings.json → boot →
   cap reads 128.
-- **OQ2**: validate country codes against a baked ISO list vs accept free
-  text? v1 accepts free text (empty list is self-explanatory and harmless);
-  the shared country-picker widget (M-PR-LOCATIONS Q5) is the real fix and
-  now has its second consumer on record — schedule the widget when either
-  consumer's UX complaint materialises.
+- **OQ2** — RESOLVED by design 2026-07-16: shared country picker drafted
+  (M-COUNTRY-PICKER — SPickerList + baked full ISO table); the Country row
+  opens the picker instead of the keyboard, making invalid codes
+  unrepresentable. If the picker ships with/before this milestone, D2's
+  keyboard row never lands; if after, the keyboard is the interim and is
+  retired by T-CPICK-03.
 - **OQ3**: should the radio's PLEDIT header surface the active country badge
   tap-to-edit (deep-link into Settings)? Nice-to-have; out of scope v1.
 

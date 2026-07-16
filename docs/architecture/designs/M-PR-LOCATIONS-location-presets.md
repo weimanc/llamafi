@@ -415,7 +415,11 @@ session.
   (editor offers Lookup | Manual at the coordinate-source step) — not
   merely a failure fallback. Covers offline setup and OSM postcode gaps.
 - **Q5 — country input: 2-char ISO code via the existing KeyboardWidget.**
-  No country picker.
+  No country picker. *(Revisited 2026-07-16: second consumer arrived —
+  M-WEBRADIO-SETTINGS Country row — hitting the extraction threshold; shared
+  picker drafted as M-COUNTRY-PICKER, which replaces this step's keyboard when
+  it ships. Q7's record-only posture similarly progressed: M-HOME-LOCATION
+  drafts the slot-0 home alias.)*
 - **Q6 — switching: radar-strip only in v1.** Settings sub-view tap =
   edit, single-purpose.
 - **Q7 — shared home location: record only.** Radar-scoped milestone;

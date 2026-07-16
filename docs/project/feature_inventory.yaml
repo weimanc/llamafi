@@ -1774,6 +1774,10 @@ features:
     cross_features: [settings-001, pr-locations-001, settings-wifi]
     test_ids: []
     notes: |
+      Planned addition (M-COUNTRY-PICKER, drafted 2026-07-16): SPickerList generic
+      scroll-list widget (city-picker mechanics extracted) + baked app/gen/countries.h
+      ISO table; consumers: WebRadio Country row, prloc Lookup country step. Files
+      move into this entry when it ships.
       gnu++11 constraint: SButton has default member initializers, so it is NOT an
       aggregate — no brace-init (LL-112); assign fields individually. TASK-327
       (landed 2026-07-16) migrated the four legacy button sites onto the kit:
