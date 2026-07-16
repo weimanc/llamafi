@@ -1,7 +1,8 @@
 # Design — M-SETTINGS-WIRE2: Global settings wiring gaps (audit remediation)
 
 > Owner: Architect
-> Status: draft
+> Status: **accepted** (r2 2026-07-16 — panel-reviewed PASS-with-actions, all MAJORs
+> folded, human sign-off; see §10)
 > Date: 2026-07-16
 > Feeds: ADR-050 (accepted 2026-07-16)
 > Tracked-as: — (PM to slice into TASKs after review)
@@ -101,9 +102,11 @@ format independently. Options:
 - **(b) Shared header `app/src/util/timeFmt.h`** with three pure helpers:
 
 ```cpp
-// hour respecting g_settings.fmt24h; 12h maps 0→12, 13→1 …
+// hour respecting g_settings.fmt24h. 12h contract (W-6, boundaries explicit
+// so call sites cannot diverge): 0→12 (midnight, AM), 1..11→as-is (AM),
+// 12→12 (noon, PM), 13..23→1..11 (PM).
 uint8_t     clockHour(const struct tm& t);
-// "AM"/"PM" in 12h mode, nullptr in 24h mode (caller may omit)
+// "AM"/"PM" in 12h mode (00:xx="AM", 12:xx="PM"), nullptr in 24h mode
 const char* clockAmPm(const struct tm& t);
 // dd/mm/yyyy | mm/dd/yyyy | yyyy/mm/dd per g_settings.dateFmt; sep configurable
 void        fmtDate(const struct tm& t, char* buf, size_t len, char sep = '/');
@@ -116,8 +119,8 @@ Per-surface application:
 
 | Surface | Change |
 |---|---|
-| clockApp Digital | `clockHour()` for the hour pair; AM/PM drawn small next to the minute block when non-null; `fmtDate()` for the date line (`:148`) |
-| clockApp Flip / Nixie / VFD | Digit-pair styles: convert via `clockHour()` only. AM/PM indicator **omitted for v1** — these faces have no natural glyph slot; a 2-px indicator dot is a polish follow-up (OQ2). Date line at `:352` → `fmtDate(…, '-')` (keeps that style's existing `-` separator) |
+| clockApp Digital | `clockHour()` for the hour; AM/PM placement per **T-TIME-02's pre-existing spec: top-right of the time cell** (W-2 reconciliation — the acceptance criterion predates this design); `fmtDate()` for the shared `_drawDate()` line (`:148`, used by Digital/Flip/Nixie). 12h hour is variable-width (`%d`) and the erase model is overpaint — add an explicit erase rect over the hour + AM/PM areas so 12:59→1:00 and a 12h→24h toggle leave no stale pixels (W-6) |
+| clockApp Flip / Nixie / VFD | Digit-pair styles: convert via `clockHour()` only (fixed two digits, "09"). AM/PM indicator **omitted for v1** — no natural glyph slot; 2-px dot is a polish follow-up (OQ2). Flip/Nixie date comes free via shared `_drawDate()` (`:148`); VFD's own date line at `:352` → `fmtDate(…, '-')` (W-10 correction: `:352` is VFD-only) |
 | Weather TIME tile | Replace `strftime("%H:%M")` with `clockHour()`/minute + optional AM/PM at font-2 under the tile label |
 | Aquarium overlay | `clockHour()` in the `snprintf` at `:933`; AM/PM omitted (10-px overlay, no room) — hour conversion alone is the user-visible contract |
 
@@ -142,6 +145,19 @@ Fallback when no city was ever selected (`city == ""`, lat/lon = 0.0): keep toda
 behaviour — the current hardcoded coordinates become `WX_DEFAULT_LAT/LON` compile
 constants used iff `city[0] == '\0'`. (0,0 is a real location — Gulf of Guinea — so the
 sentinel must be the empty city string, not the floats.)
+
+> **Coordination (W-3, r2):** the fallback branch above is **conditional on the
+> M-HOME-LOCATION disposition** — that design (accepted same date) supersedes it:
+> home = `prLocs[0]` is always defined, so `WX_DEFAULT_LAT/LON` and the empty-city
+> sentinel never ship if the two land together (the enqueue/resume-diff machinery is
+> unaffected either way). PM sequences G4 against M-HOME-LOCATION; slicing G4 alone
+> knowingly buys the sentinel + its T-SETW-13 empty-city leg as throwaway.
+
+Queue discipline (W-5): `enqueueWeather()` **keeps** the `DATA_FETCH_WEATHER`
+`s_pendingMask` coalescing bit (TASK-250) that the generic `enqueue()` has today —
+the planeRadar pattern it copies does not coalesce, and weather gains a third call
+site with this design. Coalescing is safe here: the config slot always holds the
+latest coords, so a coalesced request fetches the newest location.
 
 URL details: `&timezone=Europe/London` is dropped — the app consumes only
 `current=temperature_2m,relative_humidity_2m,wind_speed_10m`, none of which are
@@ -177,6 +193,11 @@ public:
 extern BacklightFlow g_backlight;
 ```
 
+- **LedFlow relocation (W-4)**: `class LedFlow` physically lives in
+  `settings/ledSection.h:30` — which makes the §6c gate fail its own exemplar (the
+  four LED fields have zero consumers outside `settings/`). G5 moves LedFlow to
+  `app/src/ledFlow.h`, the literal sibling of `backlightFlow.h`; ADR-050 rule 2 then
+  holds by file layout and the gate is honest with no allowlist entry.
 - **Boot**: `main.cpp:2126-2129` block becomes `g_backlight.applyMode()` — honours
   `dispAuto` instead of unconditionally applying `dispLevel`.
 - **Main loop**: `g_backlight.tick()` next to `g_ledFlow.tick()` (`main.cpp:2044`).
@@ -205,21 +226,39 @@ No inter-gap dependencies; each is independently testable and committable.
 
 ## 6. VE — whole-of-settings validation
 
-The audit found gaps no existing test family (T-SET/T-TIME/T-DISP/T-APPS) was shaped to
-catch: those suites verify the *Settings UI* (rows render, taps cycle, values persist), not
-that the persisted value *does* anything. VE to add a **T-SETW** (settings wiring) family to
-`docs/verification/test_plan.md`, plus per-gap acceptance tests. VE challenges the following
-before finalising (per protocol):
+Corrected framing (W-2, r2): the defect class is **"specified-but-never-executed
+tests"**, not "no test was shaped to catch this" — T-TIME-02/03/04 (planned/partial,
+mostly manual-visual) already assert exactly G2/G3/G1, and T-DISP-02/04 cover the G5
+behaviours; the G1–G3 gaps violate pre-existing time-settings acceptance criteria
+C1/C3/C5/C6. The QM lesson is execution discipline + automating visual assertions
+(§6d's `get clockRender` starts that). Accordingly: **T-SETW-10/11/12 absorb and
+supersede T-TIME-04/02/03** (VE marks the old ids superseded, not duplicated), and
+T-SETW-15 re-dispositions the blocked T-DISP-02/03 via `injectLdr`. VE owns a
+**T-SETW** family in `docs/verification/test_plan.md`; VE challenges the following
+before finalising (per protocol).
+
+**New debug hooks, consolidated (W-1/W-7 — tests below assume these):**
+`set settingsSave` (force `SettingsStorage::save()` — required by T-SETW-01/02 and
+T-HOME-04; nothing saves at boot); settings setters for `fmt24h`/`dateFmt`/`city`+
+coords (or scripted Settings-UI taps — house style supports both); `get duty` (owned
+by BacklightFlow `dbgGet`); `get clockRender` (formatted hour/ampm/date strings —
+shared G1+G2/G3 observable); `injectLdr` (§4-G5, sticky, cleared with `-1`).
 
 ### 6a. Structural round-trip (host + DUT, automated)
 
 - **T-SETW-01 — full-field round-trip.** Host generates a `settings.json` with a
-  *non-default* value for every key (script-derived from `settingsStorage.cpp`'s save()
-  key set), `run/spiffs push` → reboot → `run/spiffs pull settings.json` → key-by-key diff.
-  Catches load/save asymmetry and silent key drops for every future field, not just today's.
-- **T-SETW-02 — defaults matrix.** `run/spiffs rm settings.json` → reboot → pull → assert
-  every key equals `applyDefaults()`. Catches divergence like the existing
-  `applyDefaults()` (ldrLow=0/ldrHigh=120) vs `load()` fallbacks (`|200`/`|3800`,
+  *non-default* value for every key, `run/spiffs push` → reboot → **`set settingsSave`
+  (the load→RAM→save leg — without it the pull returns the pushed bytes verbatim and
+  proves nothing, W-1)** → `run/spiffs pull` → **typed** key-by-key diff (W-8):
+  numeric with float tolerance ~1e-4, booleans, enums compared through the string
+  tables (`kDateFmtStr`…`kPrStaleStyleStr` — arbitrary strings silently fall back to
+  defaults in `strToEnum`, so probe values MUST come from the tables); probe values
+  excluded where load rewrites them (`ldrHigh=0`→120 migration; `webRadioMaxVolume`
+  default is hwMod-conditional — choose against both branches).
+- **T-SETW-02 — defaults matrix.** `run/spiffs rm settings.json` → reboot →
+  `set settingsSave` (device must re-create the file — W-1) → pull → assert every key
+  equals `applyDefaults()`. Catches divergence like the existing `applyDefaults()`
+  (ldrLow=0/ldrHigh=120) vs `load()` fallbacks (`|200`/`|3800`,
   `settingsStorage.cpp:159-160`) — align these values as part of this work.
 
 ### 6b. Per-gap wiring acceptance (DUT, agent-driven)
@@ -228,6 +267,9 @@ before finalising (per protocol):
   shows UTC+9 (compare against host clock via serial timestamp), *without* touching
   Settings. The reboot is the test — T-TIME-01 already covers live city-pick.
 - **T-SETW-11 (G2)**: `set` fmt24h=false → Clock Digital shows 12h + AM/PM; weather TIME
+  tile + aquarium overlay converted. Boundary leg (W-6): pick a `posixTz` whose offset
+  makes DUT local hour 0, then 12 — assert 12 AM / 12 PM via `get clockRender` without
+  waiting for wall-clock midnight/noon. Original leg continues: weather TIME
   tile and aquarium overlay show converted hour. Repeat across all 4 clock styles
   (digit faces: hour pair converted, no AM/PM v1).
 - **T-SETW-12 (G3)**: cycle dateFmt through MDY/YMD → date line reorders at both clockApp
@@ -249,8 +291,13 @@ Small host script (`app/tools/check_settings_wiring.py`): parse `AppSettings` fi
 from `settingsStorage.h`; assert each appears in (a) `load()`, (b) `save()`, and (c) ≥1
 consumer file outside `app/src/settings/` + `settingsStorage.*` — with an explicit
 allowlist for documented-reserved fields (`teletextCountry`, `teletextAutoAdvance`).
-Wire as a warn-only step of `run/check` initially (cert-preflight precedent); promote to a
-failing gate once green. This automates the audit that produced this document.
+Wire as a warn-only step of `run/check` initially (warn-only precedent: the cert
+preflight, which runs as `run/test` step 0 — W-11 correction: the *pattern* is the
+precedent, its home is run/test); promote to a failing gate once green. This automates
+the audit that produced this document. LED fields need no allowlist entry once G5
+moves LedFlow out of `settings/` (W-4). Field count note (W-11): the struct has 47
+top-level fields, not the 45 the ADR text says — the gate derives the set from the
+header, never hard-codes a count.
 
 ### 6d. Testability notes for VE challenge
 
@@ -313,10 +360,24 @@ shows exactly where they were under-maintained:**
    local time with zero Settings interaction (G1).
 2. `fmt24h=false` visibly changes every time-rendering surface; `dateFmt` reorders both
    date lines (G2/G3).
-3. Weather reflects the selected city's coordinates; empty-city fallback preserves today's
-   behaviour; URL visible at LOG_D (G4).
+3. Weather reflects the selected city's coordinates; URL visible at LOG_D (G4).
+   Fallback leg is **conditional per the W-3 coordination note**: with M-HOME-LOCATION,
+   "always-defined home" replaces it; standalone, empty-city preserves today's behaviour.
 4. Auto-brightness tracks ambient light in any app and across reboot; manual mode
-   unaffected; T-DISP suite still green (G5).
+   unaffected; T-DISP suite still green (G5). LedFlow relocated to `app/src/ledFlow.h`
+   (W-4).
 5. T-SETW-01/02 pass; T-SETW-10..15 pass on DUT; §6c gate green in `run/check` (warn-only).
-6. `feature_inventory.yaml` + `cross_feature_matrix.yaml` updated per §7; candidate ADR-050
-   submitted for human sign-off.
+6. (refreshed per W-9 — ADR-050 is already accepted) `NEW-APP-CHECKLIST.md` "owner
+   declared?" item landed; the `webRadioLastStation` coalesce obligation is owned by
+   M-WEBRADIO-SETTINGS D3 (not this design); registries updated per §7.
+
+---
+
+## 10. Review disposition (r2, 2026-07-16)
+
+Panel review: `M-SETTINGS-WIRE2-review.md` — PASS-with-actions, 0/4/5/2.
+All four MAJORs folded above: W-1 (`set settingsSave` + load→save legs, §6a),
+W-2 (§6 framing + T-TIME supersession + AM/PM placement), W-3 (G4 coordination
+note + EC3), W-4 (LedFlow relocation, §4-G5 + EC4). MINORs W-5..W-9 folded at
+their sections; NIT citation drift corrected where load-bearing (G2 table row),
+remainder at implementation. **Design ACCEPTED 2026-07-16 (human sign-off).**

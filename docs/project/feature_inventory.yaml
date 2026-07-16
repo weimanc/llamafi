@@ -1804,7 +1804,8 @@ features:
     status: designed
     description: |
       RESERVED 2026-07-16 at design time (Architect registry remit). On-device UI for
-      the WebRadio settings block: Country (keyboard, ISO alpha-2), Autoplay toggle,
+      the WebRadio settings block: Country (M-COUNTRY-PICKER if it ships with/before,
+      else interim 2-char keyboard — WR-8c contingency), Autoplay toggle,
       Bitrate cap cycle off/64/96/128/192 (fixes the wipe-trap that hides NPO
       stations), Auto-skip toggle, Max volume slider 1..21 with effective-cap label,
       HW mod greyed read-only (hardware statement, serial/spiffs-only). WebRadio
@@ -1815,9 +1816,11 @@ features:
     git_ref: ""
     files:
       - app/src/appRegistry.h
-      - app/src/gen/configurable_apps.h
+      - app/gen/configurable_apps.h
       - app/src/settings/appsSection.h
       - app/src/webRadioApp.h
+      - app/src/settingsStorage.cpp
+      - app/src/dataTask.h
     cross_features: [settings-001, webradio-001, player-state-001]
     test_ids: []
     notes: |

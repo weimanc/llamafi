@@ -1,7 +1,13 @@
 # Design — M-HOME-LOCATION: one device home location (X030 resolution)
 
 > Owner: Architect
-> Status: draft
+> Status: **accepted** (r2 2026-07-16 — panel-reviewed PASS-with-actions
+> [0 BLOCKER / 5 MAJOR, all folded: H-1 writer×mirror matrix, H-2 unconditional
+> slot-0 home refresh, H-3 pre-existing serial-writer mirror bug named+owned,
+> H-4 kCities-by-name hint reference, H-5 debug surface + G4 hard ordering],
+> human sign-off; review: `M-HOME-LOCATION-review.md`. Terminology: "active
+> mirror" = prLat/prLon, "home mirror" = lat/lon — "the mirror" unqualified is
+> banned per H-1/H-12)
 > Date: 2026-07-16
 > Feeds: — (resolves matrix X030; may crystallise a 1-paragraph ADR at acceptance)
 > Tracked-as: — (PM to slice after review; sequence WITH or immediately after
@@ -58,17 +64,44 @@ WIRE2 OQ1 punts it here.
 ### D2 — Writer semantics (two editors, one value, different jobs)
 
 - **City picker** (Time & Location): sets tz + `city` name + **home coords**
-  (writes `prLocs[0].lat/lon` + refreshes the mirror + save). Label stays
-  `"HOME"` — city names don't fit PR_LABEL_MAX=5, and the label is the
-  *slot's* name, not the place's.
+  (writes `prLocs[0].lat/lon` + BOTH mirrors where applicable, see matrix +
+  save). Label stays `"HOME"` — city names don't fit PR_LABEL_MAX=5, and the
+  label is the *slot's* name, not the place's.
 - **prloc HOME-slot editor** (postcode geocode / manual): **refines coords
   only** — tz and `city` name untouched. Postcode precision inside the same
   city is the intended use; the editor is the precision tool, the city picker
-  is the region tool.
+  is the region tool. **A slot-0 edit refreshes the home mirror
+  unconditionally — even when slot 0 is NOT the active radar slot** (H-2;
+  today's `_prSaveCoords` refreshes `prLat/prLon` only iff active, so this is
+  a code change, not just wording).
+
+**Writer×mirror matrix (H-1, r2 — normative).** After this design there are
+TWO mirrors and "the mirror" unqualified is banned: the **active mirror**
+`prLat/prLon` (= `prLocs[prActiveLoc]`, X026) and the **home mirror**
+`lat/lon` (= `prLocs[0]`, new). Every `prLocs` writer:
+
+| Writer | home mirror (`lat/lon`) | active mirror (`prLat/prLon`) |
+|---|---|---|
+| `SettingsStorage::load()` | derive from slot 0, every load | derive from active slot, every load (existing) |
+| City picker `_selectCity` | always (writes slot 0) | **iff `prActiveLoc == 0`** — the default case; skipping this leaves the radar silently stale (H-1) |
+| `_prSaveCoords` (slot editor) | iff edited slot == 0, **unconditionally** (H-2) | iff edited slot == active (existing) |
+| `_prDeleteSlot` | never — slot 0 undeletable, its coords don't move (H-2 note: do NOT add one "for symmetry") | on active-delete fallback (existing) |
+| `_setActiveLoc` (strip/serial) | **never** — switching must not move home | always (existing) |
+| `set prloc <i> <label> <lat> <lon>` | iff i==0 | iff i==active — **PRE-EXISTING BUG (H-3): this writer refreshes NO mirror today (`main.cpp:3422-3426`), violating X026's accounting. Fix both obligations here.** |
+
+Implementation routes all writers through one shared helper so the matrix
+lives in exactly one place (the BP-047 no-duplication shape).
+
 - Divergence guard (cheap, non-blocking): if a HOME-slot edit lands >500 km
-  from the current city coords, the confirm screen renders one hint line
-  "timezone follows Time & Location" — informs, never blocks. (The user may
-  genuinely be moving; the next city pick re-converges tz and coords.)
+  from the city's coordinates, the confirm screen renders one hint line
+  "timezone follows Time & Location" — informs, never blocks. **Reference
+  coords (H-4): a `kCities[]` lookup by `g_settings.city` name** — after this
+  design `lat/lon` ARE the home mirror, so the city's own coords survive
+  nowhere in settings.json; the check is name-driven. Hint **skipped** when
+  `city` is unset or not found in the table (pushed-file case). Distance:
+  equirectangular with cosf latitude scale (H-6 — adequate at a 500 km
+  threshold; no haversine import), computed in appsSection, exposed as a
+  `divKm` field on the confirm-screen debug surface.
 - Radar strip switching (`_setActiveLoc`) and non-zero slot edits: **no home
   interaction whatsoever.** Home is slot 0, not the active slot.
 
@@ -88,8 +121,21 @@ default** (label `"HOME"` ∧ coords == the Amsterdam constants), seed
 `prLocs[0]` from the city coords — a user who only ever picked a city gets
 weather + radar HOME where they said they live. Every other combination keeps
 `prLocs[0]` as-is (a user-edited HOME is more precise than any city entry).
-Then derive the mirror. Fresh device: home = Amsterdam compile default —
-weather's previous hardcoded-Luton behaviour is superseded (see §6).
+Then derive both mirrors. Fresh device: home = Amsterdam compile default —
+WIRE2 G4's *planned* WX_DEFAULT fallback is superseded (H-12: today's shipped
+behaviour is a compile-time URL, not a designed fallback).
+
+Hardening (H-7 — float equality itself is verified safe against real device
+serialization, ~9-10 sig digits round-trip bit-exactly): (a) introduce a named
+`PR_DEFAULT_LAT/LON` constant — the symbol the comments already cite **does
+not exist**; the Amsterdam values are three uncoordinated literals today
+(`applyDefaults` :84-85, load fallbacks :266-267, comment claim) and D4 adds a
+fourth comparison site — one constant, four users; (b) compare with epsilon
+~1e-4 as cheap insurance; (c) guard the seed with "city found in `kCities`"
+(or lat/lon nonzero) so a truncated time block (city set, coords missing →
+parsed 0,0) cannot seed home to the Gulf of Guinea. City-pick of Amsterdam
+itself is distinguishable from the untouched default (kCities has
+52.3667/4.9000 vs compile 52.3676/4.9041 — verified).
 
 ## 4. Lean / decision — summary
 
@@ -122,10 +168,14 @@ G4 (weather coords) should be implemented **against this design** if both are
 accepted: `enqueueWeather()` and the resume-diff stay exactly as designed; the
 G4-only pieces that die are the `WX_DEFAULT_LAT/LON` compile constants and the
 empty-city sentinel (slot 0 is always defined — the fallback case cannot
-occur). If G4 ships first anyway, this design's migration converts it with no
-rework: the caller's coordinate source changes from `g_settings.lat/lon`
-(raw) to `g_settings.lat/lon` (mirror) — same field, new derivation. Weather
-tile naming: show `city` when set, else the HOME label.
+occur). If G4 ships first anyway (H-8 honest-cost wording): **no rework of the
+enqueue/resume-diff machinery**, but the fallback branch, WX_DEFAULT constants,
+and T-SETW-13's empty-city test leg ship and are then discarded — that
+throwaway is the cost PM weighs when sequencing. **Hard ordering the other
+way (H-10): G4 (or at minimum `enqueueWeather` + the URL LOG_D hook) lands
+before or with this work** — otherwise home-location lands as pure plumbing
+with no user-visible effect and three of five T-HOME tests lose their weather
+leg. Weather tile naming: show `city` when set, else the HOME label.
 
 ## 7. Open questions
 
@@ -134,25 +184,40 @@ tile naming: show `city` when set, else the HOME label.
 - **OQ2**: seed `webRadioCountry` from the picked city's country when the user
   never customised it (detect: value still the "NL" compile default)? Human
   call at M-WEBRADIO-SETTINGS or here; zero code risk either way.
-- **OQ3**: weather tile label for a postcode-refined home — `city` name may be
-  a neighbouring city (picker granularity). Cosmetic; v1 accepts.
+- **OQ3** (widened per H-9): weather tile label vs actual home coords can
+  diverge durably, not just by picker granularity — city=Tokyo kept for tz +
+  HOME refined to Amsterdam titles Amsterdam weather "Tokyo"; the D4 migration
+  can create the same silently (user-edited slot 0 + old city name). Cheap v1
+  option recorded: title with the HOME label instead of `city` when the same
+  >500 km predicate holds (reuses the H-4/H-6 lookup+distance). Human call;
+  shipping v1 as designed is acceptable if explicitly accepted.
 
 ## 8. Verification sketch (VE to own)
 
-`T-HOME` family (DUT):
+`T-HOME` family (DUT). **Observation surface (H-5): `get prloc` gains a
+`"home":{"lat":…,"lon":…}` object** (the home mirror is otherwise unreadable
+from the harness); persistence legs use WIRE2's `set settingsSave` forced-save
+hook (nothing saves at boot — same W-1 gap; reference that mechanism, don't
+re-derive). **Weather legs hard-require G4 landed** (H-5/H-10).
 
-- T-HOME-01 — city pick → prLocs[0] coords + mirror updated + persisted; radar
-  HOME slot renders new coords; weather refetch fires with them (rides G4's
-  URL LOG_D hook).
-- T-HOME-02 — HOME slot postcode refine → mirror + weather follow; tz and
+- T-HOME-01 — city pick → prLocs[0] coords + BOTH mirrors updated (`get prloc`
+  home + active fields) + persisted via `set settingsSave` → pull; radar HOME
+  slot renders new coords; weather refetch fires with them (G4 URL LOG_D).
+- T-HOME-02 — HOME slot postcode refine **while a non-zero slot is active**
+  (the H-2 case) → home mirror + weather follow; active mirror unmoved; tz and
   `city` name unchanged.
 - T-HOME-03 — radar strip switch to slot 1 → weather coords UNMOVED (home ≠
   active slot).
 - T-HOME-04 — migration: settings.json with city set + compile-default
-  prLocs[0] → boot seeds slot 0 from city; any user-edited prLocs[0] survives
-  an identical boot untouched.
-- T-HOME-05 — divergence hint: geocode HOME >500 km from city → hint line
-  renders on confirm; ≤500 km → absent.
+  prLocs[0] → boot seeds slot 0 from city (`set settingsSave` → pull to
+  observe); any user-edited prLocs[0] survives an identical boot untouched;
+  corrupt-file leg: city set + missing time coords must NOT seed 0,0 (H-7c).
+- T-HOME-05 — divergence hint: geocode HOME >500 km from city → `divKm` debug
+  field present + hint asserted via the confirm-screen debug surface (H-6);
+  ≤500 km → absent; city unset → skipped.
+- T-HOME-06 (H-3) — `set prloc <i> …` on the ACTIVE slot refreshes the active
+  mirror, and on slot 0 refreshes the home mirror (the pre-existing serial
+  writer bug, fixed via the shared helper).
 - Regression: T_PRL_02/04/05 (slot mechanics), T-TIME-01 (city pick), T-SETW
   weather legs.
 

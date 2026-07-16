@@ -469,10 +469,15 @@ interactions:
       consumer (projection math, fetch centre, runway overlay) reads only the mirror.
       Every writer of prLocs/prActiveLoc must refresh the mirror in the same change:
       writers today are settingsStorage::load() (X025), _setActiveLoc() (strip tap +
-      `set prloc active`, the DEV-3/QM-1 single switch primitive), _prSaveGeocode() /
-      _prDeleteSlot() (appsSection.h:799/:625), and `set prloc <i> <label> <lat> <lon>`
-      (main.cpp serialdbg). A new writer that skips the mirror leaves the radar centred
-      on stale coordinates with no error. _setActiveLoc() additionally owns the
+      `set prloc active`, the DEV-3/QM-1 single switch primitive), _prSaveCoords() /
+      _prDeleteSlot() (appsSection.h:808/:632 — H-11 name/line fix: was cited as
+      _prSaveGeocode), and `set prloc <i> <label> <lat> <lon>` (main.cpp serialdbg).
+      KNOWN NON-COMPLIANT (H-3, found 2026-07-16 review): the full-form serial
+      writer at main.cpp:3422-3426 refreshes NO mirror today — editing the active
+      slot's coords over serial leaves the radar stale until reboot/switch. Fix
+      owned by M-HOME-LOCATION's shared writer helper (T-HOME-06). A new writer
+      that skips the mirror leaves the radar centred on stale coordinates with no
+      error. _setActiveLoc() additionally owns the
       result-state reset (count/age/stale cleared, ADR-046 amber connecting fires) —
       an inline copy of the switch sequence elsewhere is the BP-047/LL-110 duplication
       shape and is forbidden.
@@ -634,13 +639,18 @@ interactions:
     interaction_type: dependency
     description: |
       On-device WebRadio settings UI (M-WEBRADIO-SETTINGS) couples to the radio app
-      through the D3 resume-diff contract: webRadioApp snapshots country+bitrateCap at
-      each station-list fetch; resume() diffs against g_settings and on mismatch stops
-      playback, resets _currentIdx AND g_settings.webRadioLastStation to 0 (the
-      persisted value is an INDEX into the fetched list — either edit voids station
-      identity), clears the list, and re-enqueues via the TASK-289 second-chance path
-      (audio stack torn down at that point, so the TASK-289 fetch/playback heap-race
-      guard holds by construction). Autoplay must NOT fire across a config change.
+      through the D3 resume-diff contract (r2, post-review): webRadioApp snapshots
+      country+bitrateCap at each station-list fetch; resume() diffs against g_settings
+      and on mismatch resets _currentIdx, clears the list, aborts any in-flight fetch
+      (abortWebRadioFetch), and re-enqueues via the TASK-289 second-chance path.
+      RESULT IDENTITY is mandatory (WR-1 blocker): WebRadioStationsResult carries
+      country+cap echoes and the install site discards mismatches — without it a
+      stale parked/in-flight old-country result repopulates the list AFTER the diff
+      (TASK-300 pattern). webRadioLastStation resets to 0 AT EDIT TIME in the
+      section's country/cap commit (rides its saveSettings(); closes the WR-2 reboot
+      window — a resume()-time RAM reset persists new-country + old-index to flash).
+      The persisted value is an INDEX into the fetched list — either edit voids
+      station identity. Autoplay must NOT fire across a config change.
       A no-edit Settings round-trip must NOT refetch (TASK-284 rate-limit
       sensitivity). Volume: the UI slider stores webRadioMaxVolume 1..21 but
       wrEffectiveVolume() (TASK-209) remains the single clamp authority — hwMod stays
@@ -659,15 +669,20 @@ interactions:
     description: |
       Device home = prLocs[0] (M-HOME-LOCATION D1b): the Time & Location lat/lon
       fields become a load-derived write-through mirror of slot 0, consumed by
-      weather (WIRE2 G4). Obligations: (a) the city picker becomes a prLocs[0]
-      WRITER — it must refresh the mirror + save exactly like every writer in
-      X026's list (that list grows by one at implementation); (b) the HOME-slot
-      editor refines coords only — tz and city name stay city-picker-owned;
-      (c) radar active-slot switching (prActiveLoc) must NEVER move home — weather
-      is pinned to slot 0, not the active slot; (d) the D4 migration (seed slot 0
-      from city iff slot 0 is still the untouched compile default) runs AFTER
-      X025's prLocs load invariants. Supersedes X032's empty-city fallback story:
-      slot 0 is always defined, so weather always has coordinates.
+      weather (WIRE2 G4). TWO mirrors exist after this design (H-1 r2): the ACTIVE
+      mirror prLat/prLon (X026) and the HOME mirror lat/lon — writers refresh BOTH
+      where applicable per the design's writer×mirror matrix (D2), routed through
+      one shared helper. Obligations: (a) the city picker becomes a prLocs[0]
+      WRITER — home mirror always, active mirror iff prActiveLoc==0 (the default
+      case — skipping it leaves the radar silently stale); (b) the HOME-slot
+      editor refines coords only — tz and city name stay city-picker-owned; slot-0
+      edits refresh the home mirror UNCONDITIONALLY even when slot 0 is not active
+      (H-2); (c) radar active-slot switching (prActiveLoc) must NEVER move home —
+      weather is pinned to slot 0, not the active slot; (d) the D4 migration (seed
+      slot 0 from city iff slot 0 is still the untouched compile default, epsilon +
+      kCities-membership guarded) runs AFTER X025's prLocs load invariants.
+      Supersedes X032's empty-city fallback story: slot 0 is always defined, so
+      weather always has coordinates.
     risk: medium
     test_coverage: []
     notes: |
