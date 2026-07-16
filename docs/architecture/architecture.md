@@ -2,222 +2,173 @@
 
 > Owner: Architect
 > Living system specification. Reflects accepted ADRs and validated implementation only.
-
-This document describes two states of the system:
-
-- **Current Implementation** — the Spotify-Diy-Thing firmware as it exists today. Baseline reference.
-- **Target Architecture** — the proposed extension to a Winamp 2 classic skin UI with full controller capability and a PC-side mirror. Driven by ADR-001 through ADR-005.
-
----
-
-# Current Implementation (Spotify-Diy-Thing baseline)
+> Full sync 2026-07-16 — the previous baseline-vs-target framing (ADR-001..006 era) is
+> retired: the Winamp target shipped (M2–M7, 2026-05) and the system has since grown into
+> a multi-app firmware. History lives in `roadmap.md` (completed milestones) and git; this
+> doc describes what runs today.
 
 ## System Overview
 
-Single-purpose ESP32 firmware that polls Spotify's Web API for the user's currently-playing track and renders track + album art on a 320×240 LCD. Optional NFC reader for tap-to-play.
+ESP32 firmware for the ESP32-2432S028R "Cheap Yellow Display" (two-USB CYD, 320×240
+ILI9341, XPT2046 touch, no PSRAM): a **multi-app appliance** behind a Winamp-2-skinned
+face. Twelve registered apps (`appRegistry.h`, single-source codegen): the Winamp player
+slot (Spotify controller ⇄ WebRadio, mode-switched by eject — M-PLAYER-STATE), Clock (4
+styles), Weather, Crypto, Matrix, Life, Stock (list/chart/heatmap), Aquarium, Teletext
+(NOS), PlaneRadar (live ADS-B), Settings, and WebRadio.
 
-**Scope boundary:** only `Spotify-Diy-Thing/` is in scope. The sibling `cspot/` directory is a vendored upstream of an unrelated Spotify Connect *player* implementation; it is not built, linked, or referenced from this firmware.
+Screen splits 275×240 app canvas + 45 px right-hand icon taskbar. Eleven apps have
+taskbar slots (scrolling taskbar); **WebRadio is eject-only** — entered via the Winamp
+eject toggle, deliberately excluded from the taskbar (`TASKBAR_APP_COUNT`, LL-085).
+
+Two personalities of the player slot:
+
+- **Spotify (controller)** — polls the Web API for playback state, renders the skinned
+  UI, sends control intents back. No audio on device for this mode.
+- **WebRadio (player)** — the one on-device audio path: MP3 internet radio via
+  radio-browser station lists, Helix decode in a 24 K free-list arena (no PSRAM —
+  ADR-047 A-lite), mono internal DAC on GPIO26.
+
+**Scope boundary:** only `Spotify-Diy-Thing/` + `app/` are in scope. The sibling
+`cspot/` directory is an unrelated vendored project; never built or referenced.
 
 ## Component Architecture
 
 ```
-                       +---------------------+
-                       |  Spotify Web API    |
-                       +----------+----------+
-                                  |  HTTPS (TLS via WiFiClientSecure)
-                                  |
-+-------------------+    +--------v---------+    +------------------+
-| WiFiManager (AP)  |--->| Wifi STA + DNS   |--->| SpotifyArduino   |
-|  /config + DRD    |    +------------------+    |  (lib_dep)       |
-+-------------------+                            +---+----+---------+
-        |                                            |    |
-        | first-boot only                            |    |
-        v                                            |    |
-+-------------------+      +------------------+      |    |
-|  NVS (wifi creds) |      | SPIFFS           |<-----+    | track JSON +
-+-------------------+      |  /spotify_diy_   |           | JPEG bytes
-                           |  config.json     |           v
-                           |  (clientId,      |   +-------+---------+
-                           |   clientSecret,  |   | spotifyLogic.h  |
-                           |   refreshToken)  |   |  poll loop      |
-                           +------------------+   +-------+---------+
-                                                          |
-+-------------------+                                     v
-| PN532 (optional)  |---SPI--+                  +---------+---------+
-|  nfc.h            |        |                  |  spotifyDisplay   |
-+-------------------+        |                  |  (interface)      |
-                             |                  +----+---------+----+
-                             |                       |         |
-                             v                       v         v
-                       +-----+---------+    +--------+--+ +----+--------+
-                       | spotifyLogic  |    | cheapYellow| | matrixDisp  |
-                       |  (play URI)   |    |  LCD       | | (HUB75)     |
-                       +---------------+    +-----+------+ +-------------+
-                                                  |
-                                                  v
-                                         +--------+--------+
-                                         | TFT_eSPI / SPI  |
-                                         | + JPEGDEC       |
-                                         | + XPT2046 touch |
-                                         +-----------------+
+                    Spotify Web API        open-meteo / coingecko / yahoo /
+                          |                NOS teletekst / adsb.fi / radio-browser /
+                    HTTPS |                Nominatim          |  HTTPS
+                          |                                   |
+                 +--------v--------+              +-----------v-----------+
+                 |  spotifyTask    |              |  dataTask             |
+                 |  (pinned task)  |              |  (pinned task; serial |
+                 |  poll + actions |              |   fetch queue, per-   |
+                 +--------+--------+              |   host CA registry)   |
+                          |  results/queue        +-----------+-----------+
+                          |                       enqueue/poll | (seq/epoch identity)
++-------------------------v-----------------------------------v----------------------+
+|  loop() — app shell (appShell.h)                                                   |
+|  switchApp() lifecycle: init/resume/suspend/tick/handleInput (TouchPhase)          |
+|  + taskbar (45px, scrolling)  + screenLog overlay  + LedFlow  + serial debug       |
++---+----------+---------+--------+--------+--------+--------+--------+---------+----+
+    |          |         |        |        |        |        |        |         |
+ Winamp      Clock    Weather  Crypto/  Aquarium Teletext  Plane   Settings  WebRadio
+ (Spotify    (4       (tiles)  Stock/   (canvas) (25x40    Radar   (6 sect., (PLEDIT
+  skin, VU,   styles)          Matrix/           cells)    (disc+  /settings  list +
+  PLEDIT)                      Life                        strip)  .json)     wrpump
+    |                                                                          task)
+    +-- eject toggles playerMode (persisted) --------------------------------->|
+                                                                               v
+                                                                    audioI2S (Helix MP3,
+                                                                    24K arena) -> I2S
+                                                                    internal DAC GPIO26
+Storage: NVS (wifi creds) · SPIFFS (/spotify_diy_config.json, /settings.json,
+/cal.json, /wifi_creds.json) · flash .rodata (baked skin atlas, teletext font,
+airport DB — gen/ + golden.sha256 determinism gates)
 ```
+
+Three FreeRTOS tasks beside the Arduino `loop()`: `spotifyTask` (async Spotify HTTP —
+poll + control actions, exponential backoff), `dataTask` (all non-Spotify HTTPS, serial
+queue), `wrpump` (WebRadio audio pump; created per-play, torn down on suspend). Cross-task
+result identity uses seq/epoch echoes (X026/X027); Spotify-vs-other TLS heap coexistence
+uses the ref-counted `tlsYield()`/`tlsResume()` protocol (BP-031 lineage).
 
 ## Software Stack
 
 | Layer            | Choice                                                                |
 |------------------|-----------------------------------------------------------------------|
-| Toolchain        | PlatformIO (`~/.platformio/penv/bin/pio`), env `cyd2usb_winamp`       |
-| Platform         | `espressif32 @ 6.9.0` (Arduino-ESP32 2.0.17) — pinned                 |
-| Framework        | Arduino                                                               |
-| Spotify client   | `witnessmenow/spotify-api-arduino`                                    |
-| JSON             | `bblanchon/ArduinoJson @ 6.x`                                         |
-| Image decode     | `bitbank2/JPEGDEC @ 1.x`                                              |
-| Provisioning     | `wnatth3/WiFiManager @ 2.0.16-rc.2` + `khoih-prog/ESP_DoubleResetDetector` |
-| Display (CYD)    | `bodmer/TFT_eSPI @ 2.5.x` with full `User_Setup.h` baked into build_flags |
-| Display (Matrix) | `mrfaptastic/ESP32-HUB75-MatrixPanel-I2S-DMA` + `Adafruit GFX`        |
-| NFC (optional)   | `witnessmenow/Seeed_Arduino_NFC` fork                                 |
+| Toolchain        | PlatformIO (`~/.platformio/penv/bin/pio`), env `cyd2usb_winamp` (+`_debug`) |
+| Platform         | `espressif32 @ 6.9.0` (Arduino-ESP32 2.0.17) — pinned; gnu++11 (no NSDMI aggregate brace-init, LL-112) |
+| Framework        | Arduino super-loop + 3 pinned FreeRTOS tasks                          |
+| Spotify client   | `witnessmenow/spotify-api-arduino` + LOCAL_PATCHES (getQueue, token helpers) |
+| Radio audio      | ESP32-audioI2S v2.3.0 (pinned — TASK-257) + Helix MP3, A-lite arena (ADR-047) |
+| JSON             | `bblanchon/ArduinoJson @ 6.x` (heap docs registered in `app/mem_manifest.yaml`) |
+| Display          | `bodmer/TFT_eSPI @ 2.5.x`, full `User_Setup.h` in build_flags; `TFT_INVERSION_ON` (2-USB CYD) |
+| Touch            | XPT2046 via `CYD28_TouchscreenR` (rotated coords), TouchPhase state machine |
+| Provisioning     | on-device WiFi settings UI + SPIFFS creds + optional `wifi_creds.h` shim (WiFiManager retired from the boot path) |
+| Album art / JPEG | **removed** (M-NOART) — `lib_ignore = JPEGDEC` in winamp env               |
+| Host tooling     | Python venv (`~/proj/esp/venv`): bake tools, preview tools, serialdbg test harness, `run/` scripts |
 
 ## Component Interfaces
 
-The display layer is the only intentional abstraction in the codebase: `spotifyDisplay.h` defines the contract; concrete implementations are `cheapYellowLCD.h` (TFT_eSPI) and `matrixDisplay.h` (HUB75). Build-time `-DYELLOW_DISPLAY` / `-DMATRIX_DISPLAY` selects one.
-
-`SpotifyArduino` is consumed directly — no wrapper.
+- **`App` ABC** (`appShell.h`) — the system's primary seam: `init/resume/suspend/tick/
+  handleInput(TouchPhase,x,y)` + status hooks (`hasPendingAsync`, `isConnecting`,
+  `hasError` — ADR-046 status bar) + `dbgGet/dbgSet` (M-SERIALDBG). Informal contract
+  captured in `NEW-APP-CHECKLIST.md`; formalisation → IFC-002 (planned).
+- **dataTask API** (`dataTask.h`) — enqueue/poll pairs per fetch type with snapshot-at-
+  enqueue configs and seq/epoch result identity. Contract: **IFC-001**
+  (`docs/architecture/interfaces/IFC-001.md`).
+- **Settings storage** (`settingsStorage.h`) — `AppSettings` ↔ `/settings.json`;
+  ownership rules per ADR-050.
+- **`spotifyDisplay.h`** — legacy upstream seam; superseded by the app shell but kept
+  for upstream compatibility (`winampDisplay.h` is the live renderer).
+- **Serial debug** (`get`/`set`/`tap`/`drag`/`switchApp` JSON protocol) — the DUT test
+  surface for the whole VE suite (M-SERIALDBG).
 
 ## Data Flows
 
-1. **Boot.** `setup()` mounts SPIFFS → `fetchConfigFile()` reads JSON into `clientId` / `clientSecret` / `refreshToken` globals → WiFiManager `autoConnect` (or captive portal if NVS empty / DRD fired) → `spotifySetup()` configures `SpotifyArduino` with creds → `spotifyRefreshToken()` exchanges refresh for access token.
-2. **Steady state.** `loop()` calls `getCurrentlyPlaying` every N seconds. On track change: download JPEG → `JPEGDEC` decode → render via active `spotifyDisplay`. On 204: render idle screen.
-3. **Touch.** `handleTouched()` polls XPT2046 each loop iteration; left/right thirds map to prev/next via `SpotifyArduino::previousTrack/nextTrack`.
-4. **NFC (optional).** Tag scan reads URI string → `SpotifyArduino::playAdvanced` (or similar). If `writeContextToNfc` is set, currently-playing context is written back to the tag.
+1. **Boot.** SPIFFS mount → `SettingsStorage::load()` + touch-cal load → backlight from
+   settings → WiFi (priority chain: `wifi_creds.h` → NVS → SPIFFS `/wifi_creds.json` →
+   on-device WiFi settings UI) → TWDT-fed waits (TASK-288) → SNTP (5 s bounded; TZ from
+   `posixTz` once M-SETTINGS-WIRE2 G1 lands) → Spotify token refresh → app shell starts
+   in the persisted player mode.
+2. **Spotify steady state.** `spotifyTask` polls `getCurrentlyPlaying` at 5 s base with
+   backoff; UI interpolates position between polls (ADR-005); touch intents enqueue
+   actions (ADR-012), optimistic UI flips immediately (ADR-004), speculative 750 ms poll
+   after next/prev (ADR-020). Synthetic VU at 20 Hz (ADR-009e).
+3. **dataTask fetches.** Apps enqueue; dataTask serialises, applies per-host root CA
+   (`dataTaskCerts.h` — ADR-029/034/044 + amendments), parses into fixed result structs
+   (manifest-registered heap docs), returns via spinlock-guarded slots; consumers poll
+   with seq/epoch identity checks. PlaneRadar adds a parse-error-only single retry
+   (TASK-313, Cloudflare edge truncation).
+4. **WebRadio playback.** Station list via dataTask (country + bitrateMax filter) →
+   `_play()` builds decoder arena + `wrpump` task → ICY title/PLEDIT scroll UI →
+   auto-skip dead stations (ADR-045); fetch and playback are mutually exclusive
+   (TASK-289); `tlsYield()` brackets every non-Spotify TLS handshake.
+5. **Touch.** Shell samples XPT2046, delivers TouchPhase to the active app; taskbar
+   gestures switch apps (player slot resolves via persisted mode — X022); Settings
+   sections + KeyboardWidget capture per X029 ordering.
+6. **Logging/observability.** logSink ring + heartbeat JSON + logServer (LAN) +
+   screenLog overlay; serial debug protocol drives the DUT test suites (`run/test*`).
 
 ## Cross-cutting concerns
 
-- **Auth bootstrap.** Spotify's redirect-URI policy (Apr 2025+) only accepts HTTPS or loopback HTTP. The device's LAN IP cannot be registered. Refresh tokens must be obtained off-device via `get_refresh_token.py` and baked into SPIFFS. The on-device `refreshToken.h` flow remains in source but is no longer reachable through dashboard-approved redirect URIs.
-- **Persistence split.** Wifi creds live in NVS (managed by WiFiManager). Spotify creds live in SPIFFS. Each is preserved across firmware-only or SPIFFS-only flashes; only `pio run -t erase` wipes both.
-- **Settings ownership (ADR-050, accepted 2026-07-16).** Runtime app settings persist to SPIFFS `/settings.json` (`settingsStorage.{h,cpp}`, `AppSettings` struct, per-key defaults on missing/corrupt). Every field has a named runtime owner *outside* `app/src/settings/` — a global flow object ticked from the main loop (LedFlow pattern), a pull-on-resume consumer in the owning app (M-SETTINGS-APP-WIRE D1), or snapshot-at-enqueue for dataTask-coupled values. Settings sections render/edit/persist only; live preview goes through the owner's `pause()`/`resume()` handshake. Writers outside the Settings UI must save (immediate + unchanged-skip, or coalesced on suspend for churn-prone values) — no RAM-drift fields. Enforced by `check_settings_wiring.py` in `run/check` (warn-only initially) + VE's T-SETW suite. Remediation of the five pre-ADR violations: M-SETTINGS-WIRE2.
+- **Auth bootstrap.** Spotify redirect-URI policy (Apr 2025+): loopback-HTTP only —
+  refresh token minted off-device (`get_refresh_token.py`), baked into SPIFFS. On-device
+  `refreshToken.h` flow unreachable under current policy.
+- **Persistence split.** NVS: wifi creds. SPIFFS: Spotify creds (`configFile.h`),
+  app settings (`/settings.json`), touch cal (`/cal.json`, ring-buffer history),
+  optional `/wifi_creds.json`. All survive firmware reflash; `run/flash-fs` wipes SPIFFS
+  (use `run/spiffs push` instead — non-destructive).
+- **Settings ownership (ADR-050, accepted 2026-07-16).** Every `AppSettings` field has a
+  named runtime owner outside `app/src/settings/` (global flow / pull-on-resume /
+  snapshot-at-enqueue). Sections render/edit/persist only; preview via owner
+  `pause()`/`resume()`. No RAM-drift fields. Enforced: `check_settings_wiring.py`
+  (run/check, warn-only initially) + T-SETW. Remediation of the five pre-ADR violations:
+  M-SETTINGS-WIRE2; location unification: M-HOME-LOCATION.
+- **Memory budget (M-MEMPLAN, ADR-047).** No PSRAM; ~290 K INTERNAL ceiling with 60 K
+  TLS/system headroom. Heap buffers register in `app/mem_manifest.yaml` (planner-placed
+  overlay or `placement: runtime` budget-only); WebRadio decode uses the 24 K A-lite
+  arena; unregistered heap docs are an audit finding (LL-111).
+- **TLS coexistence.** One Spotify TLS context + one dataTask/audio TLS at a time;
+  ref-counted `tlsYield()`/`tlsResume()`; violations historically caused SSL -32512 /
+  WDT crashes (TASK-285..299 lineage) — treat the protocol as load-bearing.
+- **Codegen determinism.** All baked assets (`app/gen/`: skin atlas, registry, airport
+  DB, mem layout) re-bake byte-identical (`golden.sha256`); `run/check` gates staleness.
+- **DUT workflow.** All build/flash/monitor/test through `run/` scripts (port
+  resolution, monitor lifecycle, trap-guarded test loops) — see
+  `docs/process/project_run_scripts.md`.
 
----
+## Open Questions
 
-# Target Architecture (esp_spotify Winamp extension)
-
-> Per ADR-006: keep the Spotify-Diy-Thing baseline architecture. Change the UI; leave everything else.
-
-## System Overview
-
-The baseline firmware, with its display layer replaced by a Winamp 2 classic skin renderer and its touch layer extended to cover the full skin's controls. The device remains a Spotify Connect *controller* (no audio path on device): track metadata and playback position come from the Spotify Web API; control intents (play/pause, prev, next, seek, shuffle, repeat, volume) are sent back via the same API. A VU meter is rendered for visual fidelity to the Winamp aesthetic; it is synthesised from cached `audio-analysis` data, beat-aligned to the playing track (ADR-002).
-
-There is **no PC mirror** and **no portable `core/` layer**. UI iteration happens on the DUT.
-
-## Component Architecture
-
-The baseline diagram (above) still applies. Changes are localised:
-
-```
-                       +---------------------+
-                       |  Spotify Web API    |
-                       +----------+----------+
-                                  |  HTTPS
-+-------------------+    +--------v---------+    +---------------------+
-| WiFiManager (AP)  |--->| Wifi STA + DNS   |--->| SpotifyArduino      |
-|  /config + DRD    |    +------------------+    |  (extended to cover |
-+-------------------+                            |   seek, shuffle,    |
-        |                                        |   repeat, volume,   |
-        | first-boot only                        |   audio-analysis —  |
-        v                                        |   see Open Qs)      |
-+-------------------+      +------------------+  +---+----+------------+
-|  NVS (wifi creds) |      | SPIFFS           |<-----+    |
-+-------------------+      |  /spotify_diy_   |           |  track JSON
-                           |  config.json     |           |  + analysis
-                           |  + audio-analysis|           v
-                           |  cache           |   +-------+---------+
-                           +------------------+   | spotifyLogic.h  |
-                                                  |  poll loop      |
-                                                  |  + position     |
-                                                  |    interpolation|
-                                                  |  + VU module    |
-+-------------------+                              +-------+---------+
-| XPT2046 touch     |---SPI---+                            |
-|  touchScreen.h    |         |                            v
-|  (skin-region     |         |                   +--------+--------+
-|   hit-testing)    |         +------------------>|  spotifyDisplay |
-+-------------------+                             |  (interface)    |
-                                                  +--------+--------+
-                                                           |
-                                                           v
-                                                  +--------+--------+
-                                                  | winampSkinLCD.h |
-                                                  |  (TFT_eSPI +    |
-                                                  |   baked atlas)  |
-                                                  +-----------------+
-```
-
-What's new vs. baseline:
-
-- **`winampSkinLCD.h`** — new concrete `spotifyDisplay` implementation. Renders the Winamp 2 classic skin against TFT_eSPI using a baked atlas + layout table (ADR-003). Replaces `cheapYellowLCD.h` for this project.
-- **Skin-region hit-testing in `touchScreen.h`** — replaces the three-zone (prev / dead / next) mapping with per-button rects from the same baked layout table. Issues calls into the Spotify client for play/pause, prev, next, seek, shuffle, repeat, volume.
-- **Position interpolation in `spotifyLogic.h`** — between ~1 Hz polls, the displayed position is computed as `progress_ms_at_last_poll + (millis() - last_poll_millis)`. On each poll, the API value is treated as truth; if the gap exceeds ~500 ms, snap rather than glide. Local seeks update both fields directly. (Survives from ADR-005; not its own ADR.)
-- **VU module** — one new file, fed by an `audio-analysis` cache. Fetched once per track change and held in RAM (and optionally mirrored to SPIFFS for restart persistence; see Open Questions). Fallback chain per ADR-002: `audio-analysis` → `audio-features` → `off`.
-- **Optimistic UI** — touch handlers flip the locally tracked play/pause / shuffle / repeat / volume / position immediately for visual feedback, then fire the API call. The next poll reconciles. (Survives from ADR-004; an implementation pattern, not a separate component.)
-
-What's removed:
-
-- **`matrixDisplay.h`** (HUB75 backend) — out of scope for the Winamp skin, not carried forward.
-
-What's unchanged from baseline:
-
-- Toolchain (`espressif32@6.9.0`, env `cyd2usb_winamp`, PlatformIO).
-- Super-loop in `loop()`. No FreeRTOS task split.
-- `SpotifyArduino` consumed directly. No `SpotifyTransport` wrapper.
-- WiFiManager provisioning, NVS for WiFi creds, SPIFFS for Spotify creds.
-- `get_refresh_token.py` host-side OAuth bootstrap.
-- `spotifyDisplay.h` as the display seam.
-
-## Software Stack
-
-Identical to baseline (PlatformIO + Arduino-ESP32 + TFT_eSPI + JPEGDEC + WiFiManager + SpotifyArduino + ArduinoJson). No new libraries are mandated by the architecture; the `audio-analysis` fetch may use either an extension to `SpotifyArduino` or a small helper built on the existing `WiFiClientSecure` (Open Question).
-
-Skin asset pipeline (per ADR-003): a host-side build-time tool emits `gen/skin_assets.c` (sprite atlas, RGB565) and `gen/skin_layout.h` (button rects, VU rect, text rects, slider tracks, 9-slice metadata) from the Winamp 2 classic skin. Run as a PlatformIO pre-build step or as a separate `make` target. No runtime parser on the device.
-
-## Component Interfaces
-
-`spotifyDisplay.h` is reused as-is and is the only architectural interface in scope. New display capabilities (VU rect render, slider state, button highlight) are added as methods on this interface; both `cheapYellowLCD.h` (if kept for fallback) and `winampSkinLCD.h` either implement them or stub them.
-
-No IFCs are drafted in `interfaces/`. `Surface` / `Input` / `SpotifyTransport` / `Clock` / `Storage` from the superseded ADR-001 are not introduced.
-
-## Data Flow
-
-1. **Boot.** Same as baseline: SPIFFS mount → `fetchConfigFile()` → WiFiManager → `spotifySetup()` → `spotifyRefreshToken()`.
-2. **Steady state.** `loop()` polls `getCurrentlyPlaying` via `spotifyTask` (FreeRTOS task, TASK-031) at a 5 s base cadence with exponential backoff. On track change: fetch album JPEG, decode, hand off to the active `spotifyDisplay`. Between polls, the seek bar and elapsed-time field advance via local millis-based interpolation (ADR-005).
-2a. **dataTask (non-Spotify HTTPS endpoints).** A separate FreeRTOS task (`dataTask`) handles all non-Spotify HTTPS fetches: weather (`api.open-meteo.com`), crypto (`api.coingecko.com`), stock (`query1.finance.yahoo.com`), and teletext (`teletekst-data.nos.nl`). Each app posts a fetch request via a queue; `dataTask` serialises the requests, selects the appropriate root CA from `dataTaskCerts.h`, opens a `WiFiClientSecure`, and returns the response via a spinlock-protected shared buffer. `dataTaskCerts.h` is the single registry for all non-Spotify TLS root CA PEMs (ISRG Root X1, GTS Root R4, DigiCert Global Root CA, USERTrust RSA CA). The pattern follows the weather/crypto precedent established in ADR-029; teletext added in ADR-044.
-3. **Touch.** `checkForInput()` polls XPT2046 each loop iteration; the touch coordinate is hit-tested against the baked button layout. Each button enqueues an action into `spotifyTask` (ADR-012). The local UI state is flipped immediately for visual feedback (ADR-004); the next poll reconciles. After `ACT_NEXT` / `ACT_PREV`, a 750 ms deferred speculative poll fires automatically (ADR-020).
-4. **VU.** `vu::tick()` runs at 20 Hz. Drives a synthetic stereo envelope from `progressMs` + `is_playing` (ADR-009 option e — `audio-analysis` not available). Beat transient synthesised from a flat 120 BPM clock with per-track phase offset.
-5. **NFC (optional).** Unchanged from baseline; gate with `NFC_ENABLED` (TASK-004 still open).
-
-## Migration from baseline (delta)
-
-- Add `winampSkinLCD.h` implementing `spotifyDisplay`; build `-DWINAMP_DISPLAY` (or rename the existing `-DYELLOW_DISPLAY` flag space).
-- Add the host-side skin bake tool and the generated `gen/skin_assets.c` / `gen/skin_layout.h`.
-- Extend `touchScreen.h` to consume the layout table and fire all controller intents.
-- Add a synthetic VU module driven by `currentlyPlaying` envelope (ADR-009 option e — `audio-analysis` not available).
-- Add position interpolation in the existing poll loop.
-- Drop `matrixDisplay.h` and its build env from scope.
-- Everything else: keep.
-
----
-
-# Open Questions
-
-Cross-cutting questions across both states. Items marked **(baseline)** apply to current firmware; **(target)** apply to the Winamp extension; unmarked apply to both.
-
-- **(target)** `SpotifyArduino` extension strategy — the library covers `getCurrentlyPlaying`, `previousTrack`, `nextTrack`, and exposes (unwired) `seek`. It does not cover `audio-analysis`, `audio-features`, shuffle/repeat toggles, or volume. Options: extend the library upstream, fork, or add small helpers using the existing `WiFiClientSecure`. No PC mirror means no portability constraint on this choice.
-- **(target — closed ADR-029, ADR-044)** TLS root CA strategy for non-Spotify HTTPS endpoints (`api.open-meteo.com`, `api.coingecko.com`, `query1.finance.yahoo.com`, `teletekst-data.nos.nl`): hardcoded PEMs in `dataTaskCerts.h` — ISRG Root X1 + GTS Root R4 (weather/crypto), DigiCert Global Root CA (stock), USERTrust RSA Certification Authority (teletext/NOS, valid 2010-01-18–2038-01-18) — applied via `WiFiClientSecure::setCACert()` + `HTTPClient::begin(client, url)`. `fetchWeather()`, `fetchCrypto()`, and `fetchTeletext()` use `http.getString()` (not `getStream()`) — these endpoints return `Transfer-Encoding: chunked`; `getStream()` on Arduino-ESP32 2.0.17 does not dechunk and ArduinoJson fails to parse (confirmed 2026-05-29, ADR-034 amended). `fetchStockQuote()` / `fetchStockChart()` use `http.getStream()` — Yahoo Finance returns `Content-Length` so streaming is safe (ADR-034). Teletext endpoint: `https://teletekst-data.nos.nl/page/{N}` (no `.json` suffix), ~1.1 KB payload, 30–120 s cadence (ADR-044).
-- **(target)** WiFi + TLS root CA strategy for `accounts.spotify.com` and `api.spotify.com` — **closed ADR-019** (2026-05-16): keep two hardcoded DigiCert Global Root CA G2 PEMs; no change needed; cert expires 2038.
-- **(target)** `audio-analysis` cache size and eviction — closed. M6 went synthetic (ADR-009 option e); no analysis fetch.
-- **(target)** `audio-analysis` cache miss UX — closed. Same as above.
-- **(target)** Skin atlas pixel format — closed. RGB565 confirmed; flash budget resolved via ADR-014 + TASK-035.
-- **(target)** Seek-bar drag UX — **closed M7** (2026-05-16): snap posbar to finger during drag, freeze interpolation, fire seek on release. Impl in `touchScreen.h` / `spotifyDisplay`.
-- **(target)** Position snap threshold — 500 ms is the starting value (survives ADR-005); tune once real network jitter is measured.
-- **(target)** Spotify rate-limiting headroom — **closed ADR-020** (2026-05-16): speculative 750 ms post-poll after `ACT_NEXT`/`ACT_PREV` only; not for other actions.
-- **(baseline / target)** Touch UX gesture model on a 320×240 panel given more controls (play/pause, volume, seek, shuffle, repeat). See TASK-002, TASK-003.
-- **(baseline)** NFC: keep, gate behind a build flag, or remove? See TASK-004. **(target)** carries the same question; if dropped, NFC code is removed in the migration.
-- **(baseline)** Secret hygiene: `data/spotify_diy_config.json` must be gitignored once this directory becomes a git repo. See TASK-005.
+- **Settings wiring remediation** — M-SETTINGS-WIRE2 (accepted ADR-050 dependency) and
+  M-HOME-LOCATION, M-WEBRADIO-SETTINGS drafts awaiting review/scheduling.
+- **Spotify Premium lapse (TASK-243, external)** — live-playback-state paths untestable
+  until the owner account is restored; UI/nav suites unaffected.
+- **TASK-284 station-list mirror truncation** — intermittent upstream flakiness;
+  best-effort mitigation shipped; watch, don't chase.
+- **Position snap threshold** — 500 ms initial value stands; tune only if real jitter
+  measurements demand it.
+- **NFC** — probe gated by `NFC_ENABLED` in the .ino; non-fatal boot noise on unwired
+  readers. Remove-vs-keep remains a product call (TASK-004).
+- **Publish hygiene** — GitHub publish plan open item #9 (license scanner) +
+  OSM/ODbL attribution (geocoding) tracked in `docs/process/github_publish_plan.md`.
