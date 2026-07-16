@@ -440,6 +440,191 @@ interactions:
       handler (Spotify->WebRadio), now covered by webradio-001 (backfilled 2026-06-27). v2
       boot-into-mode couples with M-MEMBUDGET (the Option-A-lite boot-direct-to-WebRadio appliance).
 
+  - id: X025
+    feature_a: pr-locations-001
+    feature_b: settings-001
+    interaction_type: dependency
+    description: |
+      PrLocation[4] slots + prActiveLoc live inside settings-001's AppSettings /
+      settings.json store, with a load-time migration (pre-upgrade file without "locs"
+      seeds slot 0 "HOME" from the stored prLat/prLon — settingsStorage.cpp:292-299,
+      ordering-sensitive: the migration branch MUST run after the lat/lon parse or a
+      real pre-upgrade location is silently replaced by the compile default, see
+      DEV-PRL-6 comment) and load-time invariants (slot 0 never empty; prActiveLoc
+      always points at a defined slot; prLat/prLon re-derived from the active slot on
+      EVERY load — settingsStorage.cpp:305-318). Any future change to load() ordering
+      or the settings schema must preserve all three.
+    risk: medium
+    test_coverage: [T_PRL_04, T_PRL_07]
+    notes: |
+      Added 2026-07-16 (Architect registration pass — M-PR-LOCATIONS shipped TASK-315..325
+      without matrix entries). Design: M-PR-LOCATIONS-location-presets.md "Settings storage".
+
+  - id: X026
+    feature_a: pr-locations-001
+    feature_b: planeradar-001
+    interaction_type: shared_state
+    description: |
+      prLat/prLon are the write-through MIRROR of prLocs[prActiveLoc] — every radar
+      consumer (projection math, fetch centre, runway overlay) reads only the mirror.
+      Every writer of prLocs/prActiveLoc must refresh the mirror in the same change:
+      writers today are settingsStorage::load() (X025), _setActiveLoc() (strip tap +
+      `set prloc active`, the DEV-3/QM-1 single switch primitive), _prSaveGeocode() /
+      _prDeleteSlot() (appsSection.h:799/:625), and `set prloc <i> <label> <lat> <lon>`
+      (main.cpp serialdbg). A new writer that skips the mirror leaves the radar centred
+      on stale coordinates with no error. _setActiveLoc() additionally owns the
+      result-state reset (count/age/stale cleared, ADR-046 amber connecting fires) —
+      an inline copy of the switch sequence elsewhere is the BP-047/LL-110 duplication
+      shape and is forbidden.
+    risk: medium
+    test_coverage: [T_PRL_02, T_PRL_05, T_PRL_10]
+    notes: |
+      Added 2026-07-16 (Architect registration pass). Design: M-PR-LOCATIONS
+      "Radar app — strip becomes the location switcher".
+
+  - id: X027
+    feature_a: pr-locations-001
+    feature_b: data-task-001
+    interaction_type: shared_state
+    description: |
+      Two result-identity contracts guard cross-task staleness: (a) geocode requests
+      carry a monotonic seq echoed in GeocodeResult — the editor stores the seq it
+      enqueued and ignores+discards any polled result with a different seq (covers
+      cancel/back-out/retry mid-flight, VE-PRL-5, TASK-300 lineage); (b) a location
+      switch bumps an epoch byte echoed in PlaneRadarResult — the app's poll discards
+      results whose epoch predates the current one, else old-location aircraft render
+      on the new-location grid for up to one fetch cycle (VE-PRL-6, TASK-308/309
+      lineage). Request payloads travel via the pending-config-mux snapshot pattern
+      (NOT the 7-char stock Request.symbol queue — UK postcodes don't fit). Any new
+      dataTask consumer added to this app must adopt the same identity rule.
+    risk: medium
+    test_coverage: [T_PRL_08, T_PRL_09]
+    notes: |
+      Added 2026-07-16 (Architect registration pass). Design: M-PR-LOCATIONS
+      "Geocode fetch — dataTask one-shot".
+
+  - id: X028
+    feature_a: pr-locations-001
+    feature_b: poll-001
+    interaction_type: conflict
+    description: |
+      The geocode fetch is a TLS one-shot on the dataTask while the Spotify task may
+      hold or want its own TLS session — same heap-contention surface as the
+      TASK-287/289 tlsYield lineage. The fetcher must tlsYield() before handshake
+      (BP-031) and coexist with Spotify-active without SSL -32512 either way.
+    risk: medium
+    test_coverage: [T_PRL_11]
+    notes: |
+      Added 2026-07-16 (Architect registration pass). T_PRL_11 passed the TASK-324 gate
+      2026-07-16.
+
+  - id: X029
+    feature_a: pr-locations-001
+    feature_b: settings-001 (KeyboardWidget)
+    interaction_type: dependency
+    description: |
+      The slot editor's keyboard steps (EditLabel / LookupCountry / LookupPostcode)
+      hand the FULL canvas to the global KeyboardWidget. Two ordering invariants in
+      appsSection.h: (a) handleInput checks g_keyboard.active() BEFORE the header
+      back-tap test, because the keyboard's cancel zone (x<40, y<KB_INPUT_H) overlaps
+      where the section's back zone would be (appsSection.h:73-80, mirrors
+      wifiSection's guard) — reordering silently swallows keyboard cancels; (b)
+      repaint() early-returns during keyboard steps so section chrome never paints
+      over the keyboard (appsSection.h:32-33). Agent-driven testing of the whole
+      editor rides on TASK-325's kbText/kbOk/kbCancel serialdbg injection.
+    risk: low
+    test_coverage: [T_PRL_01a, T_PRL_01b]
+    notes: |
+      Added 2026-07-16 (Architect registration pass). Third consumer of this pattern
+      (wifiSection, stock-ticker editor, prloc editor) — candidate for extraction if a
+      fourth appears.
+
+  - id: X030
+    feature_a: pr-locations-001
+    feature_b: settings-001
+    interaction_type: overlap
+    description: |
+      The device now has THREE independent user-facing location stores in one
+      settings.json: Time & Location city lat/lon (timeSection city picker),
+      PlaneRadar prLocs[4] (geocode/manual entry), and webRadioCountry. They share no
+      code and can freely disagree. M-PR-LOCATIONS explicitly deferred a shared
+      "device home location" (design Context: "nothing here should preclude slot 0
+      later being aliased as the device home, but we don't design that now");
+      M-SETTINGS-WIRE2 G4 raises the stakes by making Weather consume the city
+      lat/lon — after it lands, a user who sets city=Tokyo but prLocs HOME=Amsterdam
+      gets Tokyo weather and Amsterdam radar with no UI hint of the divergence.
+      Register so the unification question (M-SETTINGS-WIRE2 OQ1) stays visible
+      rather than re-derived by a future audit.
+    risk: low
+    test_coverage: []
+    notes: |
+      Added 2026-07-16 (Architect registration pass). No defect today — this is a
+      designed-in overlap awaiting a "device home location" decision. Any design that
+      adds a FOURTH location store must go through Architect.
+
+  - id: X031
+    feature_a: settings-001
+    feature_b: time-001
+    interaction_type: dependency
+    description: |
+      The persisted timezone (g_settings.posixTz) must be applied at boot by time-001's
+      NTP-init path, not only by the Settings city picker. Today boot calls
+      configTime(0, 0, ...) = UTC (main.cpp:2265) and the saved rule is applied solely
+      inside timeSection's city pick (configTzTime, timeSection.h:241) — so every
+      reboot silently reverts all clocks to UTC (M-SETTINGS-WIRE2 G1). Fix couples the
+      two: boot ordering guarantee is SettingsStorage::load() (main.cpp:2119) BEFORE
+      configTzTime(g_settings.posixTz, ...); the city picker remains the change-time
+      applier. Same edge-shape as X001 (time-001 must precede TLS): boot-order
+      dependencies around time-001 keep biting.
+    risk: medium
+    test_coverage: []
+    notes: |
+      Reserved 2026-07-16 at design time by M-SETTINGS-WIRE2 §4-G1 (Architect registry
+      remit). Developer completes at implementation; VE attaches T-SETW-10.
+
+  - id: X032
+    feature_a: settings-001
+    feature_b: weather-001
+    interaction_type: dependency
+    description: |
+      Weather fetch coordinates come from the Time & Location city (g_settings.lat/lon)
+      instead of the compile-time WEATHER_URL constant (dataTaskStorage.cpp:121, which
+      pins every device to one hardcoded location — M-SETTINGS-WIRE2 G4). Contract:
+      snapshot-at-enqueue via enqueueWeather(lat, lon) (enqueuePlaneRadar pattern —
+      never a cross-core read of g_settings floats at fetch time); WeatherApp resume()
+      diffs a coord snapshot and forces a refetch on mismatch (StockApp ticker-diff
+      pattern); empty-city sentinel (city[0]=='\0', NOT lat==lon==0.0 — 0,0 is a real
+      place) falls back to WX_DEFAULT_LAT/LON preserving today's behaviour.
+    risk: medium
+    test_coverage: []
+    notes: |
+      Reserved 2026-07-16 at design time by M-SETTINGS-WIRE2 §4-G4 (Architect registry
+      remit). Developer completes at implementation; VE attaches T-SETW-13. Composes
+      with X030 (three-location-store overlap): this is the edge that makes city/prLocs
+      divergence user-visible.
+
+  - id: X033
+    feature_a: settings-001
+    feature_b: disp-001
+    interaction_type: dependency
+    description: |
+      Auto-brightness (dispAuto/ldrLow/ldrHigh) needs an owner outside the Settings UI:
+      today the whole LDR sample→map→ledcWrite loop lives in DisplaySection::tick()
+      (displaySection.h:24-42) and runs ONLY while Settings→Display is the active view;
+      boot applies manual dispLevel unconditionally (main.cpp:2127) even when
+      dispAuto=true (M-SETTINGS-WIRE2 G5). Fix introduces a global BacklightFlow
+      (LedFlow clone: applyMode() at boot, tick() in main loop, pause()/resume() so the
+      Display section's manual-slider preview doesn't fight the controller). Invariant
+      after the fix: DisplaySection is a pure editor — it never writes the backlight
+      duty directly, only through g_backlight.
+    risk: medium
+    test_coverage: []
+    notes: |
+      Reserved 2026-07-16 at design time by M-SETTINGS-WIRE2 §4-G5 (Architect registry
+      remit). Developer completes at implementation (may split a backlight-001 feature
+      out of disp-001); VE attaches T-SETW-14/15 — T-SETW-14 needs the injectLdr()
+      debug hook.
+
 #   interaction_type: shared_state | dependency | conflict | overlap
 #   description: ""
 #   risk: low | medium | high

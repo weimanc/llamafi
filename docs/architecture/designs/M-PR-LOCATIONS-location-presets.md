@@ -14,6 +14,8 @@
 > (M-SETTINGS-001), Settings AppsSection
 > Feeds: likely 1 small ADR (geocode provider + pin reuse); M-CERT-ERRCODE
 > (companion — new pinned host should fail loudly)
+> Registers: pr-locations-001 · X025–X030 (backfilled 2026-07-16 by the Architect
+> registry pass — this design predates the design-time reservation remit)
 
 ## Context
 
