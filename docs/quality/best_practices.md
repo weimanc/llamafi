@@ -496,12 +496,22 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-047 — Verify shared kit/library code at a real call site, not just at the include line
+
+**Adopted from**: LL-112  
+**Date adopted**: 2026-07-16  
+**Rule**: A shared header/widget kit's "compiles" close-out claim must be backed by at least one real call site exercising its actual intended construction syntax — not a bare `#include` with zero instantiations. If the type has toolchain-sensitive construction (e.g. structs with default member initializers under this firmware's pinned `-std=gnu++11` aggregate-init rules), that call site is exactly what would catch it.  
+**Rationale**: TASK-328's Settings widget kit closed out as "compile-proven via appsSection.h include, run/check 6/6 PASS" while the header had zero actual widget instantiations at that point — the claim was true but hollow. TASK-321, the kit's first real consumer, broke on ordinary-looking `SButton{a,b,c}` brace-init because `SButton`/`SSpinner` have default member initializers, which disqualifies them from aggregate status under `-std=gnu++11`. One real button constructed and drawn in TASK-328 itself would have caught this before it reached a consumer.  
+**Applies to**: Developer, QM (close-out review)
+
+---
+
 ## Candidates — proposed, pending human adoption
 
 > These entries are **NOT yet adopted**. Per QM discipline ("QM brings best-practice
 > candidates to human — never self-promotes"), they are recorded here in proposed form
 > awaiting explicit human sign-off before being assigned a final BP number and promoted
-> above this line. The latest **adopted** BP is BP-046.
+> above this line. The latest **adopted** BP is BP-047.
 
 **LL-106** (M-PLANERADAR, 2026-07-11) — session-scoped scheduling primitives
 (`CronCreate`) are the wrong default for work that must survive across
