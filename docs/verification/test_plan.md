@@ -4163,6 +4163,103 @@ Criterion 4 is a dedicated standalone soak (`./run/pr-soak`, `app/tools/test_pla
 
 ---
 
+## Suite: M-PR-LOCATIONS — PlaneRadar location presets + geocode lookup (TASK-324)
+
+Detailed run + results: `docs/verification/regression_suite/m-pr-locations-dut.md`.
+
+### T_PRL_01a — [pr-locations-001] Stubbed editor round-trip (gate)
+
+- **Type**: integration
+- **Feature(s)**: pr-locations-001
+- **Objective**: Full keyboard-driven editor flow — label → country → postcode → pending → confirm → save — using the `set geocode` stub (no live network). Primary gate per VE-PRL-3 split.
+- **Preconditions**: DUT on `cyd2usb_winamp_debug`.
+- **Status**: **PASS 2026-07-15** — `app/tools/prloc_editor_smoke.py`, 14/14 (TASK-321 close-out).
+
+### T_PRL_01b — [pr-locations-001] Live [NETWORK] smoke incl. space-postcode encoding
+
+- **Type**: integration [NETWORK]
+- **Feature(s)**: pr-locations-001
+- **Objective**: One real Nominatim lookup end to end, including on-device URL-encoding of a postcode containing a space (VE-PRL-9). SKIP-on-trouble is acceptable — 01a is the gate.
+- **Status**: **PASS (cited)** — TASK-320 close-out (`prloc_smoke.py` Phase B: NL 2513AA → 52.0795/4.3132, seq-matched) plus an incidental real fetch during T_PRL_08 this session. The space-containing-postcode leg specifically (a UK postcode) was not separately re-run — flagged as the one residual gap in this citation.
+
+### T_PRL_02 — [pr-locations-001] Strip tap switches location
+
+- **Type**: integration
+- **Feature(s)**: pr-locations-001
+- **Objective**: Tapping a filled label row in the PlaneRadar side strip switches the active slot: `prActiveLoc` updates, the write-through `prLat`/`prLon` mirror follows, staleness state resets (`isConnecting()`→true), and the location epoch bumps.
+- **Steps**: `switchApp` PlaneRadar → `tap` a non-active filled strip row (x=257, y∈{68,94,120,146}) → `get prloc`/`get prLastAction`/`get activeError`.
+- **Expected result**: `prloc.active` equals the tapped slot; `prLastAction`=`STRIP_LOC_<i>`; `activeError.connecting` is `true` immediately after the tap, then settles `false` once the re-fetch completes.
+- **Status**: **PASS 2026-07-16** — `app/tools/prloc_ve_smoke.py`.
+
+### T_PRL_03 — [pr-locations-001] Geocode failure paths
+
+- **Type**: integration
+- **Feature(s)**: pr-locations-001
+- **Objective**: `-96 GEOCODE_NO_MATCH` renders via the generic decoded-error path and Cancel returns cleanly without persisting anything (companion to the `-97 GEOCODE_PARSE_FAILED` leg already covered at TASK-321 close-out — QM check-in 2026-07-14 note 7).
+- **Steps**: open a filled slot's editor → Lookup → `set geocode err -96` → submit postcode → `get kb` (confirm LookupError, not a keyboard step) → tap Cancel → `get prloc` (slot untouched).
+- **Status**: **PASS 2026-07-16** — `app/tools/prloc_ve_smoke.py`.
+
+### T_PRL_04 — [pr-locations-001] Migration — pre-upgrade settings.json seeds slot 0
+
+- **Type**: integration
+- **Feature(s)**: pr-locations-001
+- **Objective**: A `settings.json` written before `prLocs` existed seeds `prLocs[0] = {"HOME", prLat, prLon}` on load, `prActiveLoc=0`.
+- **Status**: **PASS (cited)** — TASK-319 close-out (`prloc_smoke.py` Phase A: "migration seeded HOME from stored coords"). Not re-run this session — see M-PR-LOCATIONS DUT doc notes on why (avoids risking the DUT's real, in-use settings.json via SPIFFS surgery for an already-proven path).
+
+### T_PRL_05 — [pr-locations-001] Same-slot no-op; delete-active-slot fallback
+
+- **Type**: integration
+- **Feature(s)**: pr-locations-001
+- **Objective**: Tapping the already-active strip slot is a no-op (no staleness-reset flicker). Deleting the currently-active slot (via the Settings editor) falls back `prActiveLoc` to slot 0 and mirrors slot 0's coords.
+- **Steps**: (a) tap the active slot's own strip row twice with a settle wait between; `activeError.connecting` must stay `false` on the second tap. (b) `set prloc active <non-zero slot>` → open that slot's editor → SourceFork → Delete → `get prloc` (active=0, slot emptied, mirror = slot 0's coords).
+- **Status**: **PASS 2026-07-16** — `app/tools/prloc_ve_smoke.py`.
+
+### T_PRL_06 — [pr-locations-001] Manual lat/lon entry range validation
+
+- **Type**: integration
+- **Feature(s)**: pr-locations-001
+- **Objective**: Manual entry (TASK-322) rejects out-of-range lat/lon (91, -200 style values) and re-prompts; a valid pair persists.
+- **Status**: **PASS (cited)** — TASK-322 close-out (`app/tools/prloc_manual_smoke.py`, 13/13).
+
+### T_PRL_07 — [pr-locations-001] Persistence layers (reflash vs flash-fs wipe)
+
+- **Type**: integration [SLOW]
+- **Feature(s)**: pr-locations-001
+- **Objective**: `prLocs` survives a firmware reflash (`run/flash`/`run/flash-debug`); documented-destroyed by `run/flash-fs` (SPIFFS format), same class as the `cal.json`/`settings.json` wipe behaviour recorded elsewhere.
+- **Status**: **PARTIAL 2026-07-16** — reflash-survival implicit (many reflashes across TASK-319–324, `get prloc` correct every time; not independently re-asserted as a dedicated test this session). The destructive `flash-fs`-wipe leg was **not run** — needs explicit human go-ahead before wiping the DUT's live `cal.json`/`settings.json`.
+
+### T_PRL_08 — [pr-locations-001] Late result after cancel
+
+- **Type**: integration [NETWORK]
+- **Feature(s)**: pr-locations-001
+- **Objective**: Cancelling mid-lookup returns to SourceFork with nothing persisted; a result that arrives afterward (whether from the abandoned fetch or a genuinely stale seq) does not corrupt state.
+- **Steps**: open a filled slot's editor → Lookup → submit postcode (real fetch, no stub — see notes) → immediately tap Cancel on the pending screen → `get prloc` (slot untouched) → wait ~5 s → `get geocode` (peek) + `get prloc` (still untouched).
+- **Status**: **PASS for the DUT-provable half; seq-mismatch half is code-verified, not independently DUT-provable** — see `m-pr-locations-dut.md` notes on why `debugInjectGeocode()` can't manufacture a genuinely mismatched seq.
+
+### T_PRL_09 — [pr-locations-001] Switch discards in-flight old-location fetch (epoch)
+
+- **Type**: integration
+- **Feature(s)**: pr-locations-001
+- **Objective**: A location switch while a fetch for the *previous* location is still in flight bumps the epoch; the stale-epoch result, when it arrives, is discarded rather than rendered.
+- **Steps**: `set prloc active <a>` immediately followed by `set prloc active <b>` (no gap — see notes on why this must be the serial path, not back-to-back `tap` injection) → `get prloc` (settles on `b`) → wait for `activeError.connecting`→`false` → `get prAircraftCount` (sane, no crash/corruption).
+- **Status**: **PASS 2026-07-16** — `app/tools/prloc_ve_smoke.py`. (Discovery: back-to-back interactive taps can't exercise this — `g_shellBusy` silently drops the second tap; see regression-suite notes.)
+
+### T_PRL_10 — [pr-locations-001] Slot-0 delete refusal
+
+- **Type**: integration
+- **Feature(s)**: pr-locations-001
+- **Objective**: The Delete button on slot 0's editor is disabled (renders, never hits) — "disabled, not absent."
+- **Status**: **PASS (cited)** — `prloc_editor_smoke.py` G1, TASK-321 close-out.
+
+### T_PRL_11 — [pr-locations-001] Geocode during Spotify-active (tlsYield coexistence)
+
+- **Type**: integration [SLOW]
+- **Feature(s)**: pr-locations-001
+- **Objective**: A geocode lookup while a live Spotify playback TLS session is held exercises no tlsYield-starvation regression (5 prior fix layers on this exact seam).
+- **Status**: **BLOCKED 2026-07-16** — TASK-243 external blocker (Spotify Premium lapsed); `spotifyAuthError:true`/`spotifyConnecting:true` observed throughout this session, meaning no live playback TLS session was actually held to race against. Re-run once TASK-243 clears.
+
+---
+
 ## Entry Format
 
 ```

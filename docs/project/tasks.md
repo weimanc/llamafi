@@ -1191,9 +1191,35 @@ serialdbg on-device; TASK-320 live geocode + stub isolation on-device;
 TASK-325 kbText/kbOk/kbCancel on-device (and unparks stock T232/233/246/247
 — run or explicitly hand back to their own suite). Regression entry in
 `docs/verification/regression_suite/`.
-**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
-**Owner:** VE · **Deps:** TASK-320, TASK-321, TASK-322, TASK-323, TASK-325 ·
-**Size:** M · **DUT:** y
+**Status: closed 2026-07-16** — T_PRL_01a/02/03/04/05/06/09/10 **PASS**;
+T_PRL_01b **PASS (cited)** minus the space-postcode-encoding leg specifically;
+T_PRL_07 **PARTIAL** (reflash-survival implicit, flash-fs-wipe leg not run —
+destructive, needs explicit human go-ahead); T_PRL_08 **PASS for the
+DUT-provable half**, seq-mismatch half code-verified only (the debug
+injection hook can't manufacture a genuinely stale seq — see design note);
+T_PRL_11 **BLOCKED** (TASK-243 external, Spotify Premium lapsed). Full
+write-up: `docs/verification/regression_suite/m-pr-locations-dut.md`;
+`test_plan.md` got the T_PRL_01a..11 suite entries. New this session:
+`app/tools/prloc_ve_smoke.py` (22/22 PASS) covering T_PRL_02/03/05/08/09 —
+device state (all 4 in-use location slots + active index) captured and
+restored exactly at the end, not left dirtied. T_PRL_01a/04/06/10 cited from
+TASK-319/320/321/322's own close-out smokes rather than re-run (LL-102
+guard — cited by name, not absorbed). Deferred-item ledger disposition:
+TASK-318's -120 `CERT_VERIFY_FAILED` assert — no `set certbreak` hook exists
+(M-CERT-ERRCODE remainder hasn't landed) — **explicitly re-deferred to that
+milestone**, per this task's own ledger instruction; TASK-319/320 on-device
+legs — covered (T_PRL_04/01b above); TASK-325 kbText/kbOk/kbCancel — proven
+at its own close-out and exercised continuously across every T_PRL_* leg in
+this session; the parked stock-ticker tests (T232/233/246/247) are **handed
+back to their own suite** — out of scope for this task, unrelated feature.
+Notable finding (documented in the regression-suite doc, worth carrying into
+future VE work on this app): `g_shellBusy` silently drops a second
+interactive `tap` while a fetch is pending — correct product behaviour, but
+it means an epoch-race test needs the `set prloc active <i>` serial path,
+not back-to-back tap injection.
+**Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Owner:** VE · **Deps:** TASK-320 (done), TASK-321 (done), TASK-322 (done),
+TASK-323 (done), TASK-325 (done) · **Size:** M · **DUT:** y
 
 ### TASK-325 — M-SERIALDBG: KeyboardWidget serial injection (set kbText / kbOk / kbCancel)
 
