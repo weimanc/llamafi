@@ -1112,8 +1112,34 @@ validation, same confirm screen. Isolates the "does KeyboardWidget need a
 numeric layout or does Full mode suffice" question (DEV minor: Full mode's
 decimal-point friction) — descope a new keyboard layout unless TASK-317
 prototyping proves it necessary.
-**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
-**Owner:** Developer · **Deps:** TASK-321 · **Size:** S · **DUT:** y
+**Status: code landed, run/check 6/6; intermediate DUT smoke PASS 2026-07-16**
+(`app/tools/prloc_manual_smoke.py`, 13/13). Three new `PrLocView` states —
+`ManualLat`, `ManualLon`, `ManualConfirm` — added alongside the TASK-321
+Lookup* states; both source paths now funnel through the same
+`_prGeoLat`/`_prGeoLon` fields and the (renamed) shared `_prSaveCoords()`
+persist primitive, so Save/Cancel and the write-through-mirror-on-active-
+slot rule are one implementation, not two. SourceFork's `[Manual]` button is
+now `SBtnStyle::Neutral` (was `Disabled` as the TASK-321 stub). No numeric
+keyboard layout added — descoped per this task's own instruction, since
+TASK-317's prototyping never showed `KeyboardWidget::Mode::Full` to be
+insufficient; digits/`-`/`.` are all reachable via Full's existing 123/
+symbol pages. Range validation (`_prParseCoord()`, `strtod`-based, rejects
+unparseable input too — a bare `-` doesn't silently become `0.0`) re-shows
+the *same* field's keyboard with an inline range hint in the prompt on a
+bad value rather than a separate error screen (no such frame exists in the
+TASK-317 gate set for this path) — confirmed on-device that 999° lat and
+-200° lon are both rejected and re-prompt cleanly, not just at the type
+level. Manual entry omits the Lookup confirm screen's "Retry" button (2-
+across Save/Cancel, not 3-across) — nothing to retry against for a value
+the user typed themselves; re-opening `[Manual]` from SourceFork covers
+that case. DUT smoke covers: empty-slot Manual entry end to end (invalid
+lat → reject → valid lat → invalid lon → reject → valid lon → Save →
+persisted); re-entry into an already-filled slot correctly prefills from
+its current coords; Cancel at ManualConfirm leaves the slot untouched.
+Full T_PRL_06 (out-of-range boundary values, projection) matrix stays
+TASK-324's job.
+**Opened:** 2026-07-14 · **Milestone:** M-PR-LOCATIONS ·
+**Owner:** Developer · **Deps:** TASK-321 (done) · **Size:** S · **DUT:** y
 
 ### TASK-323 — M-PR-LOCATIONS: radar strip switcher
 

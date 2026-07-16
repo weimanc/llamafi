@@ -106,14 +106,15 @@ private:
     unsigned long   _validateStartMs = 0;
     static constexpr unsigned long kValidateTimeoutMs = 20000;
 
-    // ---- M-PR-LOCATIONS / TASK-321: Locations sub-view + slot editor -------
-    // Explicit ~8-state machine (DEV-4 — own state machine from the start,
-    // not boolean flags). Manual* states arrive in TASK-322; the fork's
-    // [Manual] button is wired here but rendered Disabled (disabled-renders-
-    // but-never-hits, TASK-322 stub) until that task lands.
+    // ---- M-PR-LOCATIONS / TASK-321/322: Locations sub-view + slot editor ---
+    // Explicit state machine (DEV-4 — own state machine from the start, not
+    // boolean flags). ManualLat/ManualLon/ManualConfirm (TASK-322) are the
+    // second coordinate-source path alongside Lookup*; both funnel into the
+    // same _prGeoLat/_prGeoLon + _prSaveCoords() confirm/save primitive.
     enum class PrLocView : uint8_t {
         SlotList, EditLabel, SourceFork,
-        LookupCountry, LookupPostcode, LookupPending, LookupConfirm, LookupError
+        LookupCountry, LookupPostcode, LookupPending, LookupConfirm, LookupError,
+        ManualLat, ManualLon, ManualConfirm
     };
 
     bool          _prLocActive       = false;   // gates the whole sub-view (PlaneRadar row view otherwise)
@@ -436,17 +437,17 @@ private:
         saveSettings(); repaint();
     }
 
-    // ==== M-PR-LOCATIONS / TASK-321: Locations sub-view + slot editor =======
-    // Lookup path only (manual lat/lon path is TASK-322 — the fork's [Manual]
-    // button is present and wired but styled Disabled until that lands).
-    // Kit-fidelity: every button/spinner below is SButton/sButtonBar/
-    // sStackedBtnRect/SSpinner from settingsWidgets.h (TASK-328) — no
-    // hand-rolled buttons.
+    // ==== M-PR-LOCATIONS / TASK-321/322: Locations sub-view + slot editor ===
+    // Both coordinate-source paths (Lookup and Manual) are live. Kit-fidelity:
+    // every button/spinner below is SButton/sButtonBar/sStackedBtnRect/
+    // SSpinner from settingsWidgets.h (TASK-328) — no hand-rolled buttons.
 
     bool _prLocIsKeyboardStep() const {
         return _prLocState == PrLocView::EditLabel ||
                _prLocState == PrLocView::LookupCountry ||
-               _prLocState == PrLocView::LookupPostcode;
+               _prLocState == PrLocView::LookupPostcode ||
+               _prLocState == PrLocView::ManualLat ||
+               _prLocState == PrLocView::ManualLon;
     }
 
     const char* _prLocTitle() const {
@@ -458,30 +459,32 @@ private:
 
     void _repaintPrLoc() {
         switch (_prLocState) {
-            case PrLocView::SlotList:      _repaintPrSlotList();   break;
-            case PrLocView::SourceFork:    _repaintPrSourceFork(); break;
-            case PrLocView::LookupPending: _repaintPrPending();    break;
-            case PrLocView::LookupConfirm: _repaintPrConfirm();    break;
-            case PrLocView::LookupError:   _repaintPrError();      break;
-            default: break;   // EditLabel/LookupCountry/LookupPostcode — keyboard owns the canvas
+            case PrLocView::SlotList:      _repaintPrSlotList();      break;
+            case PrLocView::SourceFork:    _repaintPrSourceFork();    break;
+            case PrLocView::LookupPending: _repaintPrPending();       break;
+            case PrLocView::LookupConfirm: _repaintPrConfirm();       break;
+            case PrLocView::LookupError:   _repaintPrError();         break;
+            case PrLocView::ManualConfirm: _repaintPrManualConfirm(); break;
+            default: break;   // EditLabel/LookupCountry/LookupPostcode/ManualLat/ManualLon — keyboard owns the canvas
         }
     }
 
     void _handlePrLocTap(int x, int y) {
         switch (_prLocState) {
-            case PrLocView::SlotList:      _handlePrSlotListTap(y);      break;
-            case PrLocView::SourceFork:    _handlePrSourceForkTap(x, y); break;
-            case PrLocView::LookupPending: _handlePrPendingTap(x, y);    break;
-            case PrLocView::LookupConfirm: _handlePrConfirmTap(x, y);    break;
-            case PrLocView::LookupError:   _handlePrErrorTap(x, y);      break;
+            case PrLocView::SlotList:      _handlePrSlotListTap(y);         break;
+            case PrLocView::SourceFork:    _handlePrSourceForkTap(x, y);    break;
+            case PrLocView::LookupPending: _handlePrPendingTap(x, y);       break;
+            case PrLocView::LookupConfirm: _handlePrConfirmTap(x, y);       break;
+            case PrLocView::LookupError:   _handlePrErrorTap(x, y);         break;
+            case PrLocView::ManualConfirm: _handlePrManualConfirmTap(x, y); break;
             default: break;   // keyboard steps — handled by handleInput()'s g_keyboard branch
         }
     }
 
     // Header back-tap semantics per state (mirrors each screen's own
-    // Cancel button where one exists; EditLabel/LookupCountry/LookupPostcode
-    // are unreachable here — the keyboard owns touch and has its own cancel
-    // zone, intercepted earlier in handleInput()).
+    // Cancel button where one exists; EditLabel/LookupCountry/LookupPostcode/
+    // ManualLat/ManualLon are unreachable here — the keyboard owns touch and
+    // has its own cancel zone, intercepted earlier in handleInput()).
     void _handlePrLocBack() {
         switch (_prLocState) {
             case PrLocView::SlotList:
@@ -497,6 +500,7 @@ private:
                 break;
             case PrLocView::LookupConfirm:
             case PrLocView::LookupError:
+            case PrLocView::ManualConfirm:
                 _prLocState = PrLocView::SlotList;   // == each screen's own Cancel
                 repaint();
                 break;
@@ -584,12 +588,11 @@ private:
         _prForkBtn[0].style = SBtnStyle::Primary;
         _prForkBtn[0].draw();
 
-        // TASK-322: manual lat/lon entry lands in a follow-on task. Disabled
-        // (not absent) per the TASK-317 gate — "disabled renders but never
-        // hits" is the kit's semantic (SButton::hit()).
+        // TASK-322: manual lat/lon entry — Neutral (not Primary/accent; Lookup
+        // stays the recommended default per the TASK-317 gate frame).
         _prForkBtn[1].r     = sStackedBtnRect(1, y);
         _prForkBtn[1].label = "Manual  (lat / lon)";
-        _prForkBtn[1].style = SBtnStyle::Disabled;
+        _prForkBtn[1].style = SBtnStyle::Neutral;
         _prForkBtn[1].draw();
 
         bool slot0 = (_prEditSlot == 0);
@@ -615,7 +618,11 @@ private:
                 _onPrCountrySubmit, _onPrCountryCancel, this);
             return;
         }
-        // _prForkBtn[1] (Manual) is Disabled — hit() always false, TASK-322.
+        if (_prForkBtn[1].hit(x, y)) {
+            _prForkBtn[1].flash();
+            _openPrManualLat();
+            return;
+        }
         if (_prForkBtn[2].hit(x, y)) {
             _prForkBtn[2].flash();
             _prDeleteSlot();
@@ -780,7 +787,7 @@ private:
     void _handlePrConfirmTap(int x, int y) {
         if (_prBar[0].hit(x, y)) {
             _prBar[0].flash();
-            _prSaveGeocode();
+            _prSaveCoords();
         } else if (_prBar[1].hit(x, y)) {
             _prBar[1].flash();
             _prLocState = PrLocView::LookupCountry;
@@ -793,10 +800,12 @@ private:
         }
     }
 
-    // Save commits the pending label + looked-up coords into the slot. Does
-    // NOT switch the active slot (Q6 resolved) — only the radar-strip
-    // gesture (TASK-323) does that.
-    void _prSaveGeocode() {
+    // Save commits the pending label + coords into the slot — coords come
+    // from either the Lookup result or manual entry (TASK-322), both funneled
+    // through _prGeoLat/_prGeoLon by the time this runs. Does NOT switch the
+    // active slot (Q6 resolved) — only the radar-strip gesture (TASK-323)
+    // does that.
+    void _prSaveCoords() {
         PrLocation& slot = settings().prLocs[_prEditSlot];
         strlcpy(slot.label, _prPendingLabel, sizeof(slot.label));
         slot.lat = _prGeoLat;
@@ -849,6 +858,112 @@ private:
         } else if (_prBar[1].hit(x, y)) {
             _prBar[1].flash();
             _prLocState = PrLocView::SlotList;
+            repaint();
+        }
+    }
+
+    // ---- Manual lat/lon entry (TASK-322, editor_manual_confirm.png) --------
+    // Second coordinate-source path (Q4): lat -> lon via KeyboardWidget Full
+    // mode (digits/-/. all reachable via the 123/symbol pages) — a dedicated
+    // numeric layout was descoped per the task's own instruction, since
+    // TASK-317's prototyping never showed Full mode to be insufficient.
+    // Both fields prefill from the slot's CURRENT coords when editing an
+    // already-filled slot (same prefill idiom as EditLabel). Range-invalid
+    // input re-shows the same field's keyboard rather than advancing —
+    // no separate error screen exists for this path (T_PRL_06).
+
+    static bool _prParseCoord(const char* text, float lo, float hi, float* out) {
+        if (!text || !*text) return false;
+        char* end = nullptr;
+        double v = strtod(text, &end);
+        if (end == text) return false;   // nothing parsed (e.g. bare "-" or "")
+        if (v < lo || v > hi) return false;
+        *out = (float)v;
+        return true;
+    }
+
+    void _openPrManualLat() {
+        _prLocState = PrLocView::ManualLat;
+        char init[16] = "";
+        if (settings().prLocs[_prEditSlot].label[0] != '\0')
+            snprintf(init, sizeof(init), "%.4f", settings().prLocs[_prEditSlot].lat);
+        g_keyboard.show("Lat (-90..90)", init, KeyboardWidget::Mode::Full, 10,
+            _onPrLatSubmit, _onPrLatCancel, this);
+    }
+
+    void _openPrManualLon() {
+        _prLocState = PrLocView::ManualLon;
+        char init[16] = "";
+        if (settings().prLocs[_prEditSlot].label[0] != '\0')
+            snprintf(init, sizeof(init), "%.4f", settings().prLocs[_prEditSlot].lon);
+        g_keyboard.show("Lon (-180..180)", init, KeyboardWidget::Mode::Full, 11,
+            _onPrLonSubmit, _onPrLonCancel, this);
+    }
+
+    static void _onPrLatSubmit(const char* text, void* ctx) {
+        AppsSection* self = static_cast<AppsSection*>(ctx);
+        float v;
+        if (!_prParseCoord(text, -90.0f, 90.0f, &v)) {
+            g_keyboard.show("Lat -90..90 (invalid)", "", KeyboardWidget::Mode::Full, 10,
+                _onPrLatSubmit, _onPrLatCancel, self);
+            return;
+        }
+        self->_prGeoLat = v;
+        self->_openPrManualLon();
+    }
+    static void _onPrLatCancel(void* ctx) {
+        AppsSection* self = static_cast<AppsSection*>(ctx);
+        self->_prLocState = PrLocView::SourceFork;
+        self->repaint();
+    }
+
+    static void _onPrLonSubmit(const char* text, void* ctx) {
+        AppsSection* self = static_cast<AppsSection*>(ctx);
+        float v;
+        if (!_prParseCoord(text, -180.0f, 180.0f, &v)) {
+            g_keyboard.show("Lon -180..180 (invalid)", "", KeyboardWidget::Mode::Full, 11,
+                _onPrLonSubmit, _onPrLonCancel, self);
+            return;
+        }
+        self->_prGeoLon    = v;
+        self->_prLocState  = PrLocView::ManualConfirm;
+        self->repaint();
+    }
+    static void _onPrLonCancel(void* ctx) {
+        AppsSection* self = static_cast<AppsSection*>(ctx);
+        self->_prLocState = PrLocView::SourceFork;
+        self->repaint();
+    }
+
+    void _repaintPrManualConfirm() {
+        int y = S_CONTENT_Y;
+        char latbuf[16]; snprintf(latbuf, sizeof(latbuf), "%.4f", _prGeoLat);
+        drawRow(y, { "Lat", latbuf, S_LABEL, S_VALUE }); y += S_ROW_H;
+        char lonbuf[16]; snprintf(lonbuf, sizeof(lonbuf), "%.4f", _prGeoLon);
+        drawRow(y, { "Lon", lonbuf, S_LABEL, S_VALUE }); y += S_ROW_H + 12;
+
+        tft.setTextDatum(TL_DATUM);
+        tft.setTextColor(S_VALUE_OFF);
+        tft.drawString("Range: lat -90..90", S_COL_LABEL, y, 2); y += 18;
+        tft.drawString("        lon -180..180", S_COL_LABEL, y, 2);
+        tft.setTextDatum(TL_DATUM);
+
+        // 2-across bar (Save/Cancel) — no "Retry" concept for manual entry
+        // (nothing to retry against; SourceFork -> Manual re-entry covers it).
+        _prBar[0].label = "Save";   _prBar[0].style = SBtnStyle::Primary;
+        _prBar[1].label = "Cancel"; _prBar[1].style = SBtnStyle::Neutral;
+        sButtonBar(_prBar, 2);
+        _prBar[0].draw();
+        _prBar[1].draw();
+    }
+
+    void _handlePrManualConfirmTap(int x, int y) {
+        if (_prBar[0].hit(x, y)) {
+            _prBar[0].flash();
+            _prSaveCoords();
+        } else if (_prBar[1].hit(x, y)) {
+            _prBar[1].flash();
+            _prLocState = PrLocView::SlotList;   // Cancel keeps prior coords, nothing persisted
             repaint();
         }
     }
