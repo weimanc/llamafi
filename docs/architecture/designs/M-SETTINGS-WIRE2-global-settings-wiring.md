@@ -3,7 +3,7 @@
 > Owner: Architect
 > Status: draft
 > Date: 2026-07-16
-> Feeds: ADR-050 (drafted 2026-07-16, proposed — awaiting human sign-off)
+> Feeds: ADR-050 (accepted 2026-07-16)
 > Tracked-as: — (PM to slice into TASKs after review)
 > Registers: settings-001 / time-001 / weather-001 / disp-001 updates · X031–X033
 > (reserved 2026-07-16; G2/G3 add no new interaction edge — formatting helpers are
@@ -305,7 +305,7 @@ shows exactly where they were under-maintained:**
   meters). DUT eyeball during T-SETW-14.
 - **OQ4** — RESOLVED 2026-07-16: standalone ADR-050 drafted (proposed), including the
   save-policy corollary (no RAM-drift fields; `webRadioLastStation` coalesces on
-  suspend/eject). Awaiting human sign-off.
+  suspend/eject). ADR-050 ACCEPTED 2026-07-16 (human sign-off).
 
 ## 9. Exit criteria
 
