@@ -5,6 +5,10 @@
 > Date: 2026-06-04 (updated 2026-06-05 — colour picker replaces predefined swatches; HSV storage; updated 2026-06-06 — common-anode confirmed; NFC/GPIO16 conflict handling; implementation audit 2026-06-06)
 > Part of: M-MULTIAPP Settings (`led` tab)
 > See also: [settings.md](settings.md), [settingsSection.h](../../../app/src/settings/settingsSection.h)
+> **Geometry superseded (TASK-327, 2026-07-16):** the picker OFF/ON/SAVE bar now comes
+> from the settings widget kit (`settingsWidgets.h`: `sButtonBar` 3-across at y=32,
+> 40 px); the SV square moved down to y=78 (height 151). Any 20 px-bar geometry below
+> is historical.
 
 ---
 

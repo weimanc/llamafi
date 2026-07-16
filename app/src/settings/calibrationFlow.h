@@ -4,6 +4,7 @@
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
 #include "settingsSection.h"
+#include "settingsWidgets.h"
 #include "CYD28_TouchscreenR.h"
 
 extern TFT_eSPI tft;
@@ -140,13 +141,6 @@ namespace TouchCalStorage {
 #define CAL_CROSSHAIR_ARM   24
 #define CAL_Z_THRESHOLD    400
 
-#define CAL_BTN_Y          210
-#define CAL_BTN_H           26
-#define CAL_BTN_W           78
-#define CAL_BTN_ACCEPT_X     4
-#define CAL_BTN_RETRY_X     95
-#define CAL_BTN_CANCEL_X   186
-
 #define CAL_BG_COLOR         0x2104
 #define CAL_SEP_COLOR        0x4208
 #define CAL_HEADER_COLOR     0xFFFF
@@ -244,27 +238,27 @@ public:
                 repaint();
                 return SectionResult::Continue;
             }
-            // Accept button
-            if (y >= CAL_BTN_Y - CAL_BTN_H / 2 &&
-                y <= CAL_BTN_Y + CAL_BTN_H / 2) {
-                if (x >= CAL_BTN_ACCEPT_X &&
-                    x <= CAL_BTN_ACCEPT_X + CAL_BTN_W && !_sanityFailed) {
-                    _step = CalStep::Saving;
-                    return SectionResult::Continue;
-                }
-                if (x >= CAL_BTN_RETRY_X && x <= CAL_BTN_RETRY_X + CAL_BTN_W) {
-                    _step     = CalStep::TL;
-                    _tapsDone = 0;
-                    _rawSumX  = _rawSumY = 0;
-                    _rawCount = 0;
-                    repaint();
-                    return SectionResult::Continue;
-                }
-                if (x >= CAL_BTN_CANCEL_X && x <= CAL_BTN_CANCEL_X + CAL_BTN_W) {
-                    _step = CalStep::Idle;
-                    repaint();
-                    return SectionResult::Continue;
-                }
+            // Accept is SBtnStyle::Disabled while _sanityFailed, so hit()
+            // already refuses it — no separate guard needed.
+            if (_calBtns[0].hit(x, y)) {
+                _calBtns[0].flash();
+                _step = CalStep::Saving;
+                return SectionResult::Continue;
+            }
+            if (_calBtns[1].hit(x, y)) {
+                _calBtns[1].flash();
+                _step     = CalStep::TL;
+                _tapsDone = 0;
+                _rawSumX  = _rawSumY = 0;
+                _rawCount = 0;
+                repaint();
+                return SectionResult::Continue;
+            }
+            if (_calBtns[2].hit(x, y)) {
+                _calBtns[2].flash();
+                _step = CalStep::Idle;
+                repaint();
+                return SectionResult::Continue;
             }
         }
 
@@ -358,6 +352,8 @@ private:
     uint8_t   _tapsDone     = 0;
     bool      _sanityFailed = false;
     bool      _justSaved    = false;
+
+    SButton   _calBtns[3];   // Accept / Retry / Cancel (Review screen)
 
     int16_t   _rawX[4] = {};
     int16_t   _rawY[4] = {};
@@ -530,19 +526,17 @@ private:
             tft.drawString(buf, 48, y, 2);
         }
 
-        tft.drawFastHLine(0, CAL_BTN_Y - 4, S_CANVAS_W, CAL_SEP_COLOR);
+        tft.drawFastHLine(0, S_BTN_BAR_Y - 6, S_CANVAS_W, CAL_SEP_COLOR);
 
-        auto drawBtn = [&](int lx, const char* label, bool enabled) {
-            uint16_t c = enabled ? (uint16_t)CAL_BTN_COLOR : (uint16_t)CAL_DIM_COLOR;
-            tft.drawRect(lx, CAL_BTN_Y - CAL_BTN_H / 2, CAL_BTN_W, CAL_BTN_H, c);
-            tft.setTextDatum(MC_DATUM);
-            tft.setTextColor(c);
-            tft.drawString(label, lx + CAL_BTN_W / 2, CAL_BTN_Y, 2);
-            tft.setTextDatum(TL_DATUM);
-        };
-        drawBtn(CAL_BTN_ACCEPT_X, "Accept", !_sanityFailed);
-        drawBtn(CAL_BTN_RETRY_X,  "Retry",  true);
-        drawBtn(CAL_BTN_CANCEL_X, "Cancel", true);
+        // Kit buttons on the standard bar (TASK-327; were hand-rolled 26px
+        // outline boxes at y=210). CAL_BG_COLOR == S_BG, so the Disabled
+        // style's background fill matches this screen.
+        _calBtns[0].label = "Accept";
+        _calBtns[0].style = _sanityFailed ? SBtnStyle::Disabled : SBtnStyle::Primary;
+        _calBtns[1].label = "Retry";  _calBtns[1].style = SBtnStyle::Neutral;
+        _calBtns[2].label = "Cancel"; _calBtns[2].style = SBtnStyle::Neutral;
+        sButtonBar(_calBtns, 3);
+        for (auto& b : _calBtns) b.draw();
     }
 
     void _drawCrosshair(int x, int y, uint16_t color) const {

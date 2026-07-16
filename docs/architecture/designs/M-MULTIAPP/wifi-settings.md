@@ -5,6 +5,9 @@
 > Date: 2026-06-04 (updated 2026-06-05 — WifiSection base-class adoption; phase split; updated 2026-06-06 — implementation audit)
 > Part of: M-MULTIAPP Settings (`wifi` tab)
 > See also: [settings.md](settings.md), [keyboard-widget.md](keyboard-widget.md), ADR-040
+> **Geometry superseded (TASK-327, 2026-07-16):** the RESULT-screen Retry/Cancel buttons
+> now come from the settings widget kit (`settingsWidgets.h`: `sButtonBar`, 40 px,
+> standard bar y=190) — any 30 px / y=178 button geometry below is historical.
 
 ---
 

@@ -5,6 +5,9 @@
 > Date: 2026-06-04 (updated 2026-06-05 — whiteboard decisions applied; updated 2026-06-06 — implementation audit; naming, sort order, picker layout corrected to match impl)
 > Part of: M-MULTIAPP Settings (`time` tab)
 > See also: [settings.md](settings.md)
+> **Note (TASK-327, 2026-07-16):** the city-picker scrollbar step arrows are now drawn/
+> hit-tested via the settings widget kit's `SButton` (at the scrollbar's own 18×20
+> rects — same coordinates, so tap geometry below is still accurate).
 
 ## Whiteboard decisions (2026-06-05)
 

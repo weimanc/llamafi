@@ -5,6 +5,9 @@
 > Date: 2026-06-04 (updated 2026-06-05 — full class sketch; constants; rendering sketches; SettingsApp integration; resolved OQ1/OQ2/OQ3; active()/stepping() split; header overlap fix; updated 2026-06-06 — OQ2/3/5 resolved; C8 guard EC; touch debug overlay section added; updated 2026-06-06 — implementation audit; formula corrected; overlay marked NOT YET IMPLEMENTED)
 > Part of: M-MULTIAPP Settings (`cal` tab)
 > See also: [settings.md](settings.md), [upstream-patches.md](upstream-patches.md)
+> **Geometry superseded (TASK-327, 2026-07-16):** the Review-screen Accept/Retry/Cancel
+> buttons now come from the settings widget kit (`settingsWidgets.h`: `sButtonBar`,
+> 40 px, standard bar y=190). The `CAL_BTN_*` constants sketched below no longer exist.
 
 ---
 

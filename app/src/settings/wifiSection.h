@@ -13,6 +13,7 @@
 
 #include <WiFi.h>
 #include "settingsSection.h"
+#include "settingsWidgets.h"
 #include "keyboardWidget.h"
 
 extern KeyboardWidget g_keyboard;
@@ -163,12 +164,9 @@ private:
     wl_status_t   _failReason       = WL_IDLE_STATUS;
     bool          _connectOk        = false;
 
-    // Result button regions (fixed layout constants)
-    static constexpr int16_t kBtnY      = 178;
-    static constexpr int16_t kBtnH      =  30;
-    static constexpr int16_t kRetryX    =  16;
-    static constexpr int16_t kCancelX   = 148;
-    static constexpr int16_t kBtnW      = 110;
+    // Result Retry/Cancel — kit buttons on the standard bar (TASK-327; was a
+    // hand-rolled 30px pair at y=178).
+    SButton       _resultBtns[2];
 
     // ---- Repaint helpers -----------------------------------------------------
 
@@ -268,14 +266,13 @@ private:
         tft.drawString(reason, S_CANVAS_W / 2, 120, 2);
         tft.setTextDatum(TL_DATUM);
 
-        // Buttons
-        tft.fillRect(kRetryX,  kBtnY, kBtnW, kBtnH, S_SEP);
-        tft.fillRect(kCancelX, kBtnY, kBtnW, kBtnH, S_SEP);
-        tft.setTextDatum(MC_DATUM);
-        tft.setTextColor(S_LABEL);
-        tft.drawString("Retry",  kRetryX  + kBtnW / 2, kBtnY + kBtnH / 2, 2);
-        tft.drawString("Cancel", kCancelX + kBtnW / 2, kBtnY + kBtnH / 2, 2);
-        tft.setTextDatum(TL_DATUM);
+        // Retry=Primary / Cancel=Neutral: the kit's error-screen idiom
+        // (matches the location editor's LookupError bar).
+        _resultBtns[0].label = "Retry";  _resultBtns[0].style = SBtnStyle::Primary;
+        _resultBtns[1].label = "Cancel"; _resultBtns[1].style = SBtnStyle::Neutral;
+        sButtonBar(_resultBtns, 2);
+        _resultBtns[0].draw();
+        _resultBtns[1].draw();
     }
 
     // ---- Spinner -------------------------------------------------------------
@@ -330,11 +327,12 @@ private:
     }
 
     void _handleResultTap(int px, int py) {
-        if (py < kBtnY || py >= kBtnY + kBtnH) return;
-        if (px >= kRetryX && px < kRetryX + kBtnW) {
+        if (_resultBtns[0].hit(px, py)) {
+            _resultBtns[0].flash();
             _step = WifiStep::List;
             repaint();
-        } else if (px >= kCancelX && px < kCancelX + kBtnW) {
+        } else if (_resultBtns[1].hit(px, py)) {
+            _resultBtns[1].flash();
             _step = WifiStep::Status;
             repaint();
         }

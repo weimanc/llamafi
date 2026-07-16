@@ -1003,6 +1003,9 @@ features:
       T-SET-03 and T-SET-07 STALE: settingsAppSubmenu debug var removed when AppsSection
       extracted; superseded by T-APPS-07. T-SET-06 updated to remove stale step.
       SettingsRow default member initializers removed (C++11 aggregate fix).
+      TASK-327 (2026-07-16): section buttons (led picker OFF/ON/SAVE, cal Review
+      Accept/Retry/Cancel, time picker scroll arrows) migrated onto the
+      settings-widgets-001 kit — geometry now lives in settingsWidgets.h.
       Design: docs/architecture/designs/M-MULTIAPP/settings.md.
 
   - id: settings-wifi
@@ -1026,6 +1029,9 @@ features:
     notes: |
       Phase 1 wired into SettingsApp 2026-06-06 (section 0). Phase 2 removes wifi-001 (X013).
       Scan ↔ Spotify TLS conflict flagged as X014 — DUT validation pending (T-WIFI-06).
+      TASK-327 (2026-07-16): Result-screen Retry/Cancel migrated onto the
+      settings-widgets-001 kit (standard bar y=190, Retry=Primary; was a
+      hand-rolled 30px pair at y=178).
       Design: docs/architecture/designs/M-MULTIAPP/wifi-settings.md. ADR-040.
 
   - id: led-001
@@ -1758,19 +1764,32 @@ features:
       precedent): after TASK-327 lands this is THE Settings button idiom — every
       section consumes it, hand-rolled buttons become a review flag (candidate BP,
       QM to propose).
-    git_ref: "TASK-328 landed 2026-07-14; API proven by TASK-321 (first consumer)"
+    git_ref: "TASK-328 landed 2026-07-14; API proven by TASK-321; TASK-327 migration 2026-07-16"
     files:
       - app/src/settings/settingsWidgets.h
+      - app/src/settings/wifiSection.h
+      - app/src/settings/ledSection.h
+      - app/src/settings/timeSection.h
+      - app/src/settings/calibrationFlow.h
     cross_features: [settings-001, pr-locations-001, settings-wifi]
     test_ids: []
     notes: |
       gnu++11 constraint: SButton has default member initializers, so it is NOT an
       aggregate — no brace-init (LL-112); assign fields individually. TASK-327
-      (open) migrates wifiSection Retry/Cancel, ledSection OFF/ON/SAVE, timeSection
-      arrows, calibrationFlow onto the kit; at completion Developer (a) moves the
-      migrated files into this entry's files list, (b) updates settings-001 /
-      settings-wifi notes, (c) audits VE tests + docs encoding old button
-      coordinates if anything moves to the standard bar Y (settings-nav
-      coordinate-drift lesson, 801f378). No new cross-feature MATRIX entry: the
-      kit<->section coupling is intra-settings build-time idiom, not runtime state
-      (same ruling as the 2026-07-16 registration pass).
+      (landed 2026-07-16) migrated the four legacy button sites onto the kit:
+      wifiSection Result Retry/Cancel (Primary/Neutral, standard bar, was 30px @
+      y=178), ledSection picker OFF/ON/SAVE (3-across sButtonBar at y=32, active
+      state = Primary; SV square shifted 61->78 to make room for S_BTN_H=40; SAVE
+      uses shared flash()), calibrationFlow Review Accept/Retry/Cancel (standard
+      bar, Accept = Disabled while sanityFailed, was 26px outline boxes @ y=210),
+      timeSection city-picker scrollbar arrows (SButton draw/hit at the
+      scrollbar's own 18x20 rects — S_BTN_H is a bar-button contract, doesn't
+      apply in a scrollbar; no flash(), scroll repaint is the feedback).
+      Coordinate-drift audit (801f378 lesson): no serialdbg test taps any of the
+      moved buttons (T-SET-* only tap category rows + back zone); manual
+      regression docs reference buttons by name, not coordinates; design docs
+      (wifi-settings.md, led-settings.md, touch-calibration.md) carry a
+      supersession note. Kit is now THE Settings button idiom — hand-rolled
+      buttons are a review flag (BP candidate, QM to propose).
+      No new cross-feature MATRIX entry: the kit<->section coupling is
+      intra-settings build-time idiom, not runtime state (2026-07-16 ruling).

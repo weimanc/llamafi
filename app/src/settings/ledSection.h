@@ -3,6 +3,7 @@
 #include <TFT_eSPI.h>
 #include "../util/mathUtil.h"
 #include "settingsSection.h"
+#include "settingsWidgets.h"
 
 // LedMode is defined in settingsStorage.h (already included via settingsSection.h).
 
@@ -151,15 +152,19 @@ private:
     bool    _dirty       = false;
 
     // ---- Picker geometry (absolute canvas coords) ----------------------------
-    static constexpr int16_t kBarY  = 28;    // button bar top y
-    static constexpr int16_t kBarH  = 28;
-    static constexpr int16_t kPickY = 61;    // SV square + hue strip top y
-    static constexpr int16_t kPickH = 168;
+    // OFF/ON/SAVE are kit buttons (TASK-327; were a hand-rolled 20px bar at
+    // y=28). S_BTN_H=40 pushed the SV square down from y=61 to y=78; the
+    // bottom edge stays at 229.
+    static constexpr int16_t kBarY  = 32;    // button bar top y
+    static constexpr int16_t kPickY = 78;    // SV square + hue strip top y
+    static constexpr int16_t kPickH = 151;
 
     static constexpr int16_t kSvX   =   8;
     static constexpr int16_t kSvW   = 168;
     static constexpr int16_t kHueX  = 184;
     static constexpr int16_t kHueW  =  24;
+
+    SButton _pickBtns[3];   // OFF / ON / SAVE
 
     // ---- List view -----------------------------------------------------------
 
@@ -223,42 +228,29 @@ private:
         _drawHueCursor();
     }
 
-    void _drawPickerButtons() const {
-        tft.fillRect(0, kBarY, S_CANVAS_W, kBarH, S_BG);
+    void _drawPickerButtons() {
+        tft.fillRect(0, kBarY, S_CANVAS_W, S_BTN_H, S_BG);
 
-        // OFF button (x=8..73)
-        bool offActive = (_mode == LedMode::Off);
-        uint16_t offBg = offActive ? S_VALUE_ON : S_SEP;
-        uint16_t offFg = offActive ? (uint16_t)0x0000 : S_HDR_TXT;
-        tft.fillRect(8, kBarY + 4, 66, 20, offBg);
-        tft.setTextDatum(MC_DATUM);
-        tft.setTextColor(offFg);
-        tft.drawString("OFF", 8 + 33, kBarY + 14, 2);
-
-        // ON button (x=77..142)
-        bool onActive = (_mode != LedMode::Off);
-        uint16_t onBg = onActive ? S_VALUE_ON : S_SEP;
-        uint16_t onFg = onActive ? (uint16_t)0x0000 : S_HDR_TXT;
-        tft.fillRect(77, kBarY + 4, 66, 20, onBg);
-        tft.setTextColor(onFg);
-        tft.drawString("ON", 77 + 33, kBarY + 14, 2);
-
-        // SAVE button (x=200..267)
-        uint16_t saveBg = _dirty ? S_VALUE_ON : S_SEP;
-        uint16_t saveFg = _dirty ? (uint16_t)0x0000 : S_HDR_TXT;
-        tft.fillRect(200, kBarY + 4, 68, 20, saveBg);
-        tft.setTextColor(saveFg);
-        tft.drawString("SAVE", 200 + 34, kBarY + 14, 2);
-
-        tft.setTextDatum(TL_DATUM);
+        // Active state renders as Primary (green), inactive as Neutral —
+        // same palette as the old hand-rolled bar, now via the kit.
+        _pickBtns[0].label = "OFF";
+        _pickBtns[0].style = (_mode == LedMode::Off) ? SBtnStyle::Primary
+                                                     : SBtnStyle::Neutral;
+        _pickBtns[1].label = "ON";
+        _pickBtns[1].style = (_mode != LedMode::Off) ? SBtnStyle::Primary
+                                                     : SBtnStyle::Neutral;
+        _pickBtns[2].label = "SAVE";
+        _pickBtns[2].style = _dirty ? SBtnStyle::Primary : SBtnStyle::Neutral;
+        sButtonBar(_pickBtns, 3, kBarY);
+        for (auto& b : _pickBtns) b.draw();
     }
 
     void _drawSvSquare() const {
-        uint16_t buf[168];
+        uint16_t buf[kSvW];
         for (int row = 0; row < kPickH; row++) {
-            uint8_t v = (uint8_t)(255u - (uint32_t)row * 255u / 167u);
+            uint8_t v = (uint8_t)(255u - (uint32_t)row * 255u / (kPickH - 1));
             for (int col = 0; col < kSvW; col++) {
-                uint8_t s = (uint8_t)((uint32_t)col * 255u / 167u);
+                uint8_t s = (uint8_t)((uint32_t)col * 255u / (kSvW - 1));
                 buf[col] = hsvToRgb565(_hue, s, v);
             }
             tft.pushImage(kSvX, kPickY + row, kSvW, 1, buf);
@@ -267,7 +259,7 @@ private:
 
     void _drawHueStrip() const {
         for (int row = 0; row < kPickH; row++) {
-            uint8_t hue = (uint8_t)((uint32_t)row * 255u / 167u);
+            uint8_t hue = (uint8_t)((uint32_t)row * 255u / (kPickH - 1));
             tft.fillRect(kHueX, kPickY + row, kHueW, 1, hsvToRgb565(hue, 255, 255));
         }
     }
@@ -378,38 +370,29 @@ private:
             return SectionResult::Continue;
         }
 
-        // Button bar (kBarY..kBarY+kBarH)
-        if (y < kBarY || y >= kBarY + kBarH) return SectionResult::Continue;
-
-        if (x >= 8 && x <= 73) {
-            // OFF
+        if (_pickBtns[0].hit(x, y)) {
+            // OFF — no flash: the active-state repaint is the feedback
             _mode = LedMode::Off;
             g_settings.ledMode = _mode;
             _applyLed();
             _dirty = true;
             _drawPickerButtons();
-        } else if (x >= 77 && x <= 142) {
+        } else if (_pickBtns[1].hit(x, y)) {
             // ON — restore Static if coming from Off
             if (_mode == LedMode::Off) _mode = LedMode::Static;
             g_settings.ledMode = _mode;
             _applyLed();
             _dirty = true;
             _drawPickerButtons();
-        } else if (x >= 200 && x <= 267) {
-            // SAVE
+        } else if (_pickBtns[2].hit(x, y)) {
+            // SAVE — kit flash replaces the old hand-rolled 100 ms invert
+            _pickBtns[2].flash();
             g_settings.ledHue  = _hue;
             g_settings.ledSat  = _sat;
             g_settings.ledVal  = _val;
             g_settings.ledMode = _mode;
             saveSettings();
             _dirty = false;
-            // Brief visual confirmation: invert Save button ~100 ms
-            tft.fillRect(200, kBarY + 4, 68, 20, S_HDR_TXT);
-            tft.setTextDatum(MC_DATUM);
-            tft.setTextColor(S_BG);
-            tft.drawString("SAVE", 234, kBarY + 14, 2);
-            tft.setTextDatum(TL_DATUM);
-            delay(100);
             _drawPickerButtons();
         }
 

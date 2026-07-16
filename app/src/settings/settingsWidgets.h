@@ -8,8 +8,8 @@
 // press feedback. The TASK-317 editor frames' 40-vs-30px divergence was the
 // symptom: there was no constant to obey. This header is now THE Settings
 // button/spinner idiom: new Settings UI uses these widgets only; a
-// hand-rolled button is a review flag (BP candidate via TASK-327, which also
-// migrates the four legacy sites onto this kit).
+// hand-rolled button is a review flag (BP candidate; TASK-327 migrated the
+// four legacy sites onto this kit 2026-07-16).
 //
 // Visual contract is FROZEN by the TASK-317 eyeball gate (2026-07-14,
 // docs/architecture/designs/M-PR-LOCATIONS/img/editor_*.png) — check changes

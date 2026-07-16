@@ -1,6 +1,7 @@
 #pragma once
 #include <time.h>
 #include "settingsSection.h"
+#include "settingsWidgets.h"
 #include "cities.h"
 #include "../settingsStorage.h"
 
@@ -62,6 +63,13 @@ private:
     static constexpr int16_t  kSbUpY1     = S_CONTENT_Y + 20;
     static constexpr int16_t  kSbDnY0     = 220;
     static constexpr int16_t  kSbDnY1     = 240;
+
+    // Scrollbar step arrows as kit buttons (TASK-327): draw/hit via SButton,
+    // but at the scrollbar's own 18x20 geometry — S_BTN_H=40 is a bar-button
+    // contract and doesn't apply inside a scrollbar column. No flash():
+    // the scroll repaint is the feedback, and a 100 ms block per step would
+    // make repeated scrolling sluggish.
+    SButton _sbUp, _sbDn;
 
     void _repaintMain() {
         int y = S_CONTENT_Y;
@@ -208,16 +216,14 @@ private:
                 }
             } else if (phase == TouchPhase::Release) {
                 _sbDragging = false;
-                if (px >= kSbX) {
-                    // Button taps (only on Release, not after a drag)
-                    if (py >= kSbUpY0 && py < kSbUpY1 && _cityOffset > 0) {
-                        _cityOffset--;
-                        repaint();
-                    } else if (py >= kSbDnY0 && py < kSbDnY1
-                               && _cityOffset + kPickerRows < kCityCount) {
-                        _cityOffset++;
-                        repaint();
-                    }
+                // Arrow taps (only on Release, not after a drag)
+                if (_sbUp.hit(px, py) && _cityOffset > 0) {
+                    _cityOffset--;
+                    repaint();
+                } else if (_sbDn.hit(px, py)
+                           && _cityOffset + kPickerRows < kCityCount) {
+                    _cityOffset++;
+                    repaint();
                 }
             }
             return;
@@ -248,16 +254,12 @@ private:
     void _drawScrollbar() {
         tft.fillRect(kSbX, S_CONTENT_Y, kSbW, S_CONTENT_H, S_SEP);
 
-        // ▲ button
-        tft.fillRect(kSbX, kSbUpY0, kSbW, 20, S_BG);
-        tft.setTextDatum(MC_DATUM);
-        tft.setTextColor(S_LABEL);
-        tft.drawString("^", kSbX + kSbW / 2, kSbUpY0 + 10, 2);
-
-        // ▼ button
-        tft.fillRect(kSbX, kSbDnY0, kSbW, 20, S_BG);
-        tft.drawString("v", kSbX + kSbW / 2, kSbDnY0 + 10, 2);
-        tft.setTextDatum(TL_DATUM);
+        _sbUp.r = { kSbX, kSbUpY0, kSbW, (int16_t)(kSbUpY1 - kSbUpY0) };
+        _sbUp.label = "^";
+        _sbDn.r = { kSbX, kSbDnY0, kSbW, (int16_t)(kSbDnY1 - kSbDnY0) };
+        _sbDn.label = "v";
+        _sbUp.draw();
+        _sbDn.draw();
 
         // Thumb
         int trackY0 = kSbUpY1 + 2;

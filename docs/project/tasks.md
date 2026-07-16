@@ -1336,6 +1336,38 @@ Registry (Architect review 2026-07-16): kit reserved as
 in its notes (move migrated files into that entry, update settings-001 /
 settings-wifi, coordinate-drift test audit). No new matrix entry — kit↔section
 coupling is intra-settings build-time idiom, not a runtime interaction.
-**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-SETTINGS-STYLE
+**Status:** DONE 2026-07-16.** All four sites migrated, per-site geometry
+constants + hand-rolled hit-tests deleted:
+- wifiSection Result Retry/Cancel → `sButtonBar` n=2 on the standard bar
+  (Retry=Primary/Cancel=Neutral, the kit's error-screen idiom; was a 30px
+  pair at y=178). Moved to bar Y → coordinate audit done, see below.
+- ledSection picker OFF/ON/SAVE → `sButtonBar` n=3 at y=32 (active state
+  = Primary, same palette as before); the private 100ms SAVE invert is now
+  the kit's shared `flash()`. S_BTN_H=40 pushed the SV square from y=61 to
+  y=78 (height 168→151; the hardcoded 167 scale divisors were
+  parameterised to kPickH-1/kSvW-1 as part of this).
+- calibrationFlow Review Accept/Retry/Cancel → `sButtonBar` n=3 on the
+  standard bar; Accept renders `Disabled` while `_sanityFailed` (the kit's
+  disabled-never-hits semantic replaced the manual guard). CAL_BTN_*
+  deleted; CAL_BG_COLOR == S_BG so Disabled's fill matches.
+- timeSection city-picker scroll arrows → `SButton` draw/hit at the
+  scrollbar's own 18x20 rects (S_BTN_H is a bar-button contract; doesn't
+  apply inside a scrollbar column). Deliberately no `flash()` — a 100ms
+  block per step would make repeated scrolling sluggish; noted in-code.
+Coordinate-drift audit (801f378 lesson): no serialdbg test taps any moved
+button (T-SET-* touch only category rows + the back zone — verified by
+inspection); manual regression docs reference buttons by name, not
+coordinates; design docs (wifi-settings.md, led-settings.md,
+touch-calibration.md, time-settings.md) got supersession notes. Gates:
+`run/check` 6/6 PASS; DUT T-SET-01/02/03/06/07/08 6/6 PASS post-migration;
+new `app/tools/settings_kit_smoke.py` 14/14 PASS on DUT (drives LED picker
+OFF/ON/SAVE incl. kit flash, and city-picker arrows, via tap injection;
+side effect: parks ledMode=Off). wifiSection Result and calibrationFlow
+Review buttons are NOT serial-reachable (need a failed connect / raw
+XPT2046 taps) — they remain on the manual eyeball checklist (BP-048), same
+pattern as TASK-328's visual check riding TASK-321. BP candidate now ready
+for QM: "new Settings UI = kit widgets only; hand-rolled buttons are a
+review flag".
+**Opened:** 2026-07-14 · **Milestone:** M-SETTINGS-STYLE
 · **Owner:** Developer · **Deps:** TASK-328, TASK-321 (kit proven) ·
 **Size:** M · **DUT:** y (touch regression on migrated sections)
