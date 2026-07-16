@@ -3,7 +3,7 @@
 > Owner: Architect
 > Status: draft
 > Date: 2026-07-16
-> Feeds: — (candidate ADR-050, see §3; promote on human sign-off)
+> Feeds: ADR-050 (drafted 2026-07-16, proposed — awaiting human sign-off)
 > Tracked-as: — (PM to slice into TASKs after review)
 > Registers: settings-001 / time-001 / weather-001 / disp-001 updates · X031–X033
 > (reserved 2026-07-16; G2/G3 add no new interaction edge — formatting helpers are
@@ -54,7 +54,7 @@ Out of scope (separate class of finding, not "broken wiring"; PM may file separa
 Non-goals: new UI surfaces (WebRadio settings page, 8th ticker row); 12h/24h support in the
 Winamp skin surface (it has no wall-clock display); changing the weather provider.
 
-## 3. Cross-cutting principle (candidate ADR-050)
+## 3. Cross-cutting principle (→ ADR-050, drafted 2026-07-16)
 
 > **A persisted setting must have an owner outside `settings/`.** Settings sections render
 > and edit state; they never *own* runtime behaviour. Every `AppSettings` field needs a
@@ -303,8 +303,9 @@ shows exactly where they were under-maintained:**
   the Settings screen where flicker is tolerable; a full-time controller may want slower
   cadence / stronger smoothing to avoid visible pumping during video-like content (VU
   meters). DUT eyeball during T-SETW-14.
-- **OQ4**: promote §3 to ADR-050 as written, or fold into an amendment of an existing
-  settings ADR? Architect recommends a standalone ADR — the rule is new, not a refinement.
+- **OQ4** — RESOLVED 2026-07-16: standalone ADR-050 drafted (proposed), including the
+  save-policy corollary (no RAM-drift fields; `webRadioLastStation` coalesces on
+  suspend/eject). Awaiting human sign-off.
 
 ## 9. Exit criteria
 
