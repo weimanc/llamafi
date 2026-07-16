@@ -94,6 +94,7 @@ The display layer is the only intentional abstraction in the codebase: `spotifyD
 
 - **Auth bootstrap.** Spotify's redirect-URI policy (Apr 2025+) only accepts HTTPS or loopback HTTP. The device's LAN IP cannot be registered. Refresh tokens must be obtained off-device via `get_refresh_token.py` and baked into SPIFFS. The on-device `refreshToken.h` flow remains in source but is no longer reachable through dashboard-approved redirect URIs.
 - **Persistence split.** Wifi creds live in NVS (managed by WiFiManager). Spotify creds live in SPIFFS. Each is preserved across firmware-only or SPIFFS-only flashes; only `pio run -t erase` wipes both.
+- **Settings ownership (ADR-050, accepted 2026-07-16).** Runtime app settings persist to SPIFFS `/settings.json` (`settingsStorage.{h,cpp}`, `AppSettings` struct, per-key defaults on missing/corrupt). Every field has a named runtime owner *outside* `app/src/settings/` — a global flow object ticked from the main loop (LedFlow pattern), a pull-on-resume consumer in the owning app (M-SETTINGS-APP-WIRE D1), or snapshot-at-enqueue for dataTask-coupled values. Settings sections render/edit/persist only; live preview goes through the owner's `pause()`/`resume()` handshake. Writers outside the Settings UI must save (immediate + unchanged-skip, or coalesced on suspend for churn-prone values) — no RAM-drift fields. Enforced by `check_settings_wiring.py` in `run/check` (warn-only initially) + VE's T-SETW suite. Remediation of the five pre-ADR violations: M-SETTINGS-WIRE2.
 
 ---
 
