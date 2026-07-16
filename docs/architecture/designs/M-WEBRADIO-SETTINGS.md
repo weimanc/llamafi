@@ -131,7 +131,7 @@ Settings → Applications → WebRadio".
 | Rows | D2 table: 5 editable + hwMod greyed |
 | Propagation | D3: resume-diff → stop + reset indices + refetch; lastStation coalesced save on suspend |
 | hwMod | never editable on-device |
-| bitrateCap default | **unchanged at 96** — the no-PSRAM decode-safety lineage (TASK-233/ADR-045) still argues for a conservative fresh-device default, and the UI now makes the NPO case a two-tap fix. Revisit only with soak evidence at 192 as the default (§7-OQ1) |
+| bitrateCap default | **128** — human decision 2026-07-16 (OQ1 resolved). Change `applyDefaults()` (settingsStorage.cpp:74) AND the load fallback (`\| 96`, settingsStorage.cpp:253) together. Honest consequence on record: NPO's 192 kbps streams are still filtered at 128 — the default is a decode-safety midpoint, and the new UI row is the recovery path for 192k content |
 
 ## 5. Registry (Registers: line, reserved with this design)
 
@@ -173,8 +173,9 @@ the country keyboard):
 
 ## 7. Open questions
 
-- **OQ1**: bump default bitrateCap 96→128/192 once a default-192 soak matches
-  the wr-soak baseline? Deferred — needs DUT evidence, PM/human call.
+- **OQ1** — RESOLVED 2026-07-16 (human): default bitrateCap becomes **128**
+  (was 96). T-WRSET-02 gains a defaults leg: wiped settings.json → boot →
+  cap reads 128.
 - **OQ2**: validate country codes against a baked ISO list vs accept free
   text? v1 accepts free text (empty list is self-explanatory and harmless);
   the shared country-picker widget (M-PR-LOCATIONS Q5) is the real fix and

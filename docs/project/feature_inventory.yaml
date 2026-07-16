@@ -1819,5 +1819,34 @@ features:
     notes: |
       Design: docs/architecture/designs/M-WEBRADIO-SETTINGS.md (draft, awaiting
       review). Matrix edge X034 reserved. Developer completes this entry at
-      implementation; VE adds T-WRSET-01..06. OQ1 (default cap 96->192) is a
-      PM/human call gated on soak evidence.
+      implementation; VE adds T-WRSET-01..06. OQ1 resolved 2026-07-16 (human):
+      default bitrateCap 96 -> 128 (applyDefaults + load fallback together);
+      NPO 192k streams remain filtered at the default — UI row is the recovery.
+
+  - id: home-location-001
+    name: Device home location (home = prLocs[0], mirrored to Time&Location lat/lon)
+    milestone: M-HOME-LOCATION
+    status: designed
+    description: |
+      RESERVED 2026-07-16 at design time (Architect registry remit). Resolves the
+      X030 three-location-store overlap: home = prLocs[0] (always defined); the
+      Time & Location lat/lon fields become its load-derived write-through mirror,
+      consumed by weather (M-SETTINGS-WIRE2 G4). City picker writes tz + city name +
+      home coords; prloc HOME editor refines coords only (>500 km divergence hint);
+      radar active-slot switching never moves home; webRadioCountry stays an
+      independent content preference (cities.h country hook recorded, OQ2).
+      Migration is load-logic only: seed slot 0 from city iff slot 0 is still the
+      untouched compile default. No settings.json schema change.
+    git_ref: ""
+    files:
+      - app/src/settingsStorage.cpp
+      - app/src/settings/timeSection.h
+      - app/src/settings/appsSection.h
+      - app/src/main.cpp
+    cross_features: [pr-locations-001, settings-001, weather-001, planeradar-001]
+    test_ids: []
+    notes: |
+      Design: docs/architecture/designs/M-HOME-LOCATION.md (draft, awaiting review).
+      Matrix edge X035 reserved; closes X030 and supersedes X032's empty-city
+      fallback at implementation. Sequence with or immediately after WIRE2 G4
+      (coordination note, design §6). VE adds T-HOME-01..05.
