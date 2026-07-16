@@ -1793,3 +1793,31 @@ features:
       buttons are a review flag (BP candidate, QM to propose).
       No new cross-feature MATRIX entry: the kit<->section coupling is
       intra-settings build-time idiom, not runtime state (2026-07-16 ruling).
+
+  - id: settings-webradio
+    name: WebRadio settings section (Settings -> Applications -> WebRadio)
+    milestone: M-WEBRADIO-SETTINGS
+    status: designed
+    description: |
+      RESERVED 2026-07-16 at design time (Architect registry remit). On-device UI for
+      the WebRadio settings block: Country (keyboard, ISO alpha-2), Autoplay toggle,
+      Bitrate cap cycle off/64/96/128/192 (fixes the wipe-trap that hides NPO
+      stations), Auto-skip toggle, Max volume slider 1..21 with effective-cap label,
+      HW mod greyed read-only (hardware statement, serial/spiffs-only). WebRadio
+      flips to cfg=1 in appRegistry.h (own Applications entry; taskbar untouched —
+      cfg and taskbar lists are disjoint, X022 invariant). Change propagation via
+      resume-diff (X034): country/cap edit -> stop + reset lastStation + refetch.
+      lastStation moves to coalesced save on suspend/eject (ADR-050 rule 3).
+    git_ref: ""
+    files:
+      - app/src/appRegistry.h
+      - app/src/gen/configurable_apps.h
+      - app/src/settings/appsSection.h
+      - app/src/webRadioApp.h
+    cross_features: [settings-001, webradio-001, player-state-001]
+    test_ids: []
+    notes: |
+      Design: docs/architecture/designs/M-WEBRADIO-SETTINGS.md (draft, awaiting
+      review). Matrix edge X034 reserved. Developer completes this entry at
+      implementation; VE adds T-WRSET-01..06. OQ1 (default cap 96->192) is a
+      PM/human call gated on soak evidence.

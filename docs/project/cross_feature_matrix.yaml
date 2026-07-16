@@ -625,6 +625,30 @@ interactions:
       out of disp-001); VE attaches T-SETW-14/15 — T-SETW-14 needs the injectLdr()
       debug hook.
 
+  - id: X034
+    feature_a: settings-webradio
+    feature_b: webradio-001
+    interaction_type: dependency
+    description: |
+      On-device WebRadio settings UI (M-WEBRADIO-SETTINGS) couples to the radio app
+      through the D3 resume-diff contract: webRadioApp snapshots country+bitrateCap at
+      each station-list fetch; resume() diffs against g_settings and on mismatch stops
+      playback, resets _currentIdx AND g_settings.webRadioLastStation to 0 (the
+      persisted value is an INDEX into the fetched list — either edit voids station
+      identity), clears the list, and re-enqueues via the TASK-289 second-chance path
+      (audio stack torn down at that point, so the TASK-289 fetch/playback heap-race
+      guard holds by construction). Autoplay must NOT fire across a config change.
+      A no-edit Settings round-trip must NOT refetch (TASK-284 rate-limit
+      sensitivity). Volume: the UI slider stores webRadioMaxVolume 1..21 but
+      wrEffectiveVolume() (TASK-209) remains the single clamp authority — hwMod stays
+      serial/spiffs-only. No taskbar edge: the cfg column feeds only
+      Settings->Applications; X022's eject-only invariant is unaffected.
+    risk: medium
+    test_coverage: []
+    notes: |
+      Reserved 2026-07-16 at design time by M-WEBRADIO-SETTINGS §5 (Architect registry
+      remit). Developer completes at implementation; VE attaches T-WRSET-01..06.
+
 #   interaction_type: shared_state | dependency | conflict | overlap
 #   description: ""
 #   risk: low | medium | high
