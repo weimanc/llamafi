@@ -18,6 +18,7 @@
 #   ./jnap.sh check                     # verify the password works
 #   ./jnap.sh logon                     # enable the router event log (SetLogSettings)
 #   ./jnap.sh dhcplog [MAC]             # DHCP log entries (optionally filtered to one
+#   ./jnap.sh dhcpfollow               # live tail of the DHCP log (new (re)connects)
 #                                         client MAC). A full Discover->Ack handshake =
 #                                         a fresh association after a disconnect, so this
 #                                         is a ROUTER-SIDE reconnect timestamp. The only
@@ -62,6 +63,24 @@ dhcplog)
             echo "$out" | jq -r '.output.entries[]? | "\(.timestamp) \(.messageType) \(.macAddress) \(.ipAddress // "")"'
         fi
     else echo "$out"; fi ;;
+dhcpfollow)
+    # tail -f style: poll the DHCP log, print only NEW entries as they appear.
+    # The router log is poll-only (no streaming), so we emulate it. Ctrl-C to stop.
+    declare -A NM
+    while IFS=$'\t' read -r m n; do NM[$m]="$n"; done < <(
+      jnap router/GetDHCPClientLeases '{}' | jq -r '.output.leases[]?|"\(.macAddress|ascii_upcase)\t\(.hostName//"?")"' 2>/dev/null)
+    seen=$(mktemp)
+    echo "following router DHCP log (new device (re)connects appear below; Ctrl-C to stop)"
+    while true; do
+      jnap routerlog/GetDHCPLogEntries '{"firstEntryIndex":1,"entryCount":80}' \
+        | jq -r '.output.entries[]?|"\(.timestamp)\t\(.messageType)\t\(.macAddress|ascii_upcase)\t\(.ipAddress//"")"' 2>/dev/null \
+        | while IFS=$'\t' read -r ts mt mac ip; do
+            key="$ts|$mt|$mac"
+            grep -qxF "$key" "$seen" 2>/dev/null || { echo "$key" >> "$seen"; \
+              printf '%s  %-9s %-20s %s\n' "$ts" "$mt" "${NM[$mac]:-$mac}" "$ip"; }
+          done
+      sleep 4
+    done ;;
 raw)   jnap "$2" "${3:-{\}}" | pp ;;
 *) grep -E '^# ' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac
