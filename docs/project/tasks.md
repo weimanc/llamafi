@@ -1281,6 +1281,26 @@ shows two remaining heap docs outside the manifest:
   (M-MEMPLAN §2 coexist rule) unless modelled `sequential`. Needs Architect
   call: placed vs `placement: runtime` budget-only entry.
 
+**Architect ruling 2026-07-16:**
+- `weather_doc` (1024) → **placed**: `{ app: Weather, caps: ANY, group:
+  foreground, kind: scratch }` — identical exclusivity argument to
+  crypto_doc/heatmap_doc (dataTask serial, pure scratch, result copied out);
+  fits the existing 4096 overlay region, no growth.
+- `webradio_stations_doc` (5120) → **`placement: runtime`** budget-only,
+  joining webradio_decoder/inbuf. It is runtime-JIT inside
+  fetchWebRadioStations() and deliberately live across the mirror TLS
+  handshakes — the same "one member is heap-resident TLS" reason the design
+  doc gives for why the fetch-vs-decoder overlay cannot be made static.
+  Summing does overstate the WebRadio foreground budget by 5120 B (TASK-289
+  made fetch and playback mutually exclusive, so doc and decoder never
+  coexist) — accept that as documented conservatism via a manifest comment.
+  Do NOT build `sequential` modelling for this: the planner has no such
+  mechanism today (design-doc concept only), and 5 KB of modelled slack does
+  not justify new planner machinery. Revisit only if the INTERNAL ceiling
+  ever binds. NOTE (M-SETTINGS-WIRE2 G4): weather_doc's app tag stays
+  Weather and its size is unaffected by the coords change — same endpoint,
+  same response shape.
+
 Stack-based `StaticJsonDocument`s (stock 2×2048, teletext 1536, filters) are
 dataTask *stack* budget (TASK-240), out of manifest scope — document that
 boundary in the manifest header comment while here.
