@@ -4372,7 +4372,7 @@ Landed 2026-07-17 (`fff0208`, orphaned mid-session by the Fable-5 usage limit, g
 
 ## Suite: M-HOME-LOCATION — device home = prLocs[0] (X035)
 
-Landed 2026-07-17 (`dcc12bf`). Design: `docs/architecture/designs/M-HOME-LOCATION.md`. This suite's DUT session also independently surfaced TASK-329 (settings.json capacity/silent-truncation bug, unrelated to this feature's own code) — see `tasks.md`.
+Landed 2026-07-17 (`dcc12bf`). Design: `docs/architecture/designs/M-HOME-LOCATION.md`. This suite's DUT session also independently surfaced TASK-329 (settings.json capacity/silent-truncation bug, unrelated to this feature's own code) — see `tasks.md`. **Update 2026-07-17 (later same day): TASK-329 is fixed and DUT-verified** (capacity 6144, save/load round-trip clean, `saved (doc 1561/6144 B)`) — the persistence-corruption hazard that made T-HOME-02/05 inconclusive and T_PRL-adjacent SPIFFS surgery risky no longer blocks re-runs; the inconclusive tests below were NOT re-run and keep their recorded status.
 
 ### T-HOME-01 — [home-location-001, pr-locations-001] City picker is a prLocs[0] writer
 
