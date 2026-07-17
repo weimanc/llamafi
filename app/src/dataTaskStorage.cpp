@@ -116,11 +116,20 @@ constexpr UBaseType_t kStackBytes  = 14 * 1024;
 constexpr UBaseType_t kPriority    = 1;
 constexpr BaseType_t  kPinnedCpu   = APP_CPU_NUM;
 
-static const char WEATHER_URL[] =
+// WIRE2-G4: weather coords travel with the enqueue (enqueuePlaneRadar snapshot
+// pattern) — URL built task-side at fetch time from the last snapshot. The
+// timezone param is dropped: the parser only reads current.temperature/
+// humidity/wind, none of which are timezone-shaped (design §4-G4; if a daily
+// forecast is ever added, use timezone=auto). 0,0 until the first
+// enqueueWeather() — the generic enqueue(DATA_FETCH_WEATHER) path fetches
+// with whatever was last snapshotted.
+static const char WEATHER_URL_FMT[] =
     "https://api.open-meteo.com/v1/forecast"
-    "?latitude=51.75&longitude=-0.47"
-    "&current=temperature_2m,relative_humidity_2m,wind_speed_10m"
-    "&timezone=Europe/London";
+    "?latitude=%.4f&longitude=%.4f"
+    "&current=temperature_2m,relative_humidity_2m,wind_speed_10m";
+static float        s_pendingWxLat = 0.0f;
+static float        s_pendingWxLon = 0.0f;
+static portMUX_TYPE s_pendingWxMux = portMUX_INITIALIZER_UNLOCKED;
 
 static char        s_cryptoIds[6][16] = {
     "bitcoin","ethereum","binancecoin","solana","ripple","cardano"
@@ -185,6 +194,18 @@ static int openHttps(WiFiClientSecure& tls, HTTPClient& http, const char* url,
 
 static void fetchWeather() {
     s_weatherFetchPhase = 0;  // TLS + http.begin
+    // WIRE2-G4: read back the coords snapshotted by enqueueWeather() under the
+    // same mux (matches fetchPlaneRadar's read of its pending slot).
+    float lat, lon;
+    portENTER_CRITICAL_SAFE(&s_pendingWxMux);
+    lat = s_pendingWxLat;
+    lon = s_pendingWxLon;
+    portEXIT_CRITICAL_SAFE(&s_pendingWxMux);
+    char url[160];
+    snprintf(url, sizeof(url), WEATHER_URL_FMT, lat, lon);
+    // Log the complete query so a host curl can replicate this request exactly
+    // (WebRadio full-URL precedent — VE hooks on it).
+    LOG_D("dataTask.weather", "url=%s", url);
     // BP-031: yield Spotify's TLS before our own handshake — contention is about
     // concurrent open sessions, not response size (LL-071/T272). Matches crypto
     // below. Was previously omitted here despite BP-031 citing weather as
@@ -195,7 +216,7 @@ static void fetchWeather() {
     tls.setCACert(OPEN_METEO_ROOT_CA);
     HTTPClient http;
     http.useHTTP10(true);   // force Connection:close so http.end() frees TLS
-    if (!http.begin(tls, WEATHER_URL)) {
+    if (!http.begin(tls, url)) {
         LOG_W("dataTask.weather", "http.begin failed");
         s_weatherFetchPhase = -1;
         spotifyTask::tlsResume();  // BP-031: every exit path
@@ -212,7 +233,9 @@ static void fetchWeather() {
     LOG_HEAP("dataTask.weather");
     if (code == 200) {
         s_weatherFetchPhase = 2;  // JSON parse
-        DynamicJsonDocument doc(1024);
+        // M-MEMPLAN §8 (TASK-326): backed by MEM_weather_doc (same overlay region).
+        BasicJsonDocument<StaticRegionAllocator> doc(
+            1024, StaticRegionAllocator{MEM_weather_doc, 1024u});
         DeserializationError err = deserializeJson(doc, body);
         if (!err) {
             WeatherResult r;
@@ -1519,6 +1542,30 @@ void enqueue(FetchType type) {
     Request req = { (uint8_t)type };
     if (xQueueSend(s_queue, &req, 0) != pdTRUE) {
         LOG_W("dataTask", "queue full — dropped type=%d", (int)type);
+        return;
+    }
+    s_pendingMask |= bit;
+}
+
+// WIRE2-G4: weather fetch with coords snapshotted at enqueue time.
+void enqueueWeather(float lat, float lon) {
+    if (!s_queue) return;
+    // Snapshot on the caller's task (which owns g_settings) under the mux —
+    // fetchWeather() reads it back the same way (enqueuePlaneRadar pattern).
+    // Snapshot BEFORE the coalesce check: the slot must always hold the latest
+    // coords so a coalesced request still fetches the newest location (W-5).
+    portENTER_CRITICAL_SAFE(&s_pendingWxMux);
+    s_pendingWxLat = lat;
+    s_pendingWxLon = lon;
+    portEXIT_CRITICAL_SAFE(&s_pendingWxMux);
+    // W-5: unlike enqueuePlaneRadar, KEEP the generic enqueue()'s TASK-250
+    // pendingMask coalescing — bit cleared by the dispatch loop after
+    // fetchWeather() completes, same as the generic path.
+    uint32_t bit = 1u << (uint8_t)DATA_FETCH_WEATHER;
+    if (s_pendingMask & bit) return;   // already queued or in flight — coalesce
+    Request req = {}; req.type = DATA_FETCH_WEATHER;
+    if (xQueueSend(s_queue, &req, 0) != pdTRUE) {
+        LOG_W("dataTask", "queue full — dropped weather fetch");
         return;
     }
     s_pendingMask |= bit;

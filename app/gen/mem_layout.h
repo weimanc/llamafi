@@ -6,10 +6,11 @@
 
 /* region: ANY / foreground — 4096 B (max of PlaneRadar 4096 B) */
 static uint8_t s_overlay_any_foreground[4096] __attribute__((aligned(4), unused));
-/* mutually exclusive overlay: Crypto @ [0, 2048), PlaneRadar @ [0, 4096), Stock @ [0, 2560) */
+/* mutually exclusive overlay: Crypto @ [0, 2048), PlaneRadar @ [0, 4096), Stock @ [0, 2560), Weather @ [0, 1024) */
 #define MEM_crypto_doc (s_overlay_any_foreground + 0)
 #define MEM_planeradar_doc (s_overlay_any_foreground + 0)
 #define MEM_heatmap_doc (s_overlay_any_foreground + 0)
+#define MEM_weather_doc (s_overlay_any_foreground + 0)
 
 /* budget summary */
 #define MEM_BUDGET_ANY_USED 4096

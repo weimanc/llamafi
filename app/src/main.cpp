@@ -388,10 +388,17 @@ class WeatherApp : public App {
 public:
   void init() override {
     repaintWeather();
-    dataTask::enqueue(dataTask::DATA_FETCH_WEATHER);
+    enqueueWx();   // WIRE2-G4: coords from settings, snapshotted at enqueue
     _s.lastDataFetch = millis();
   }
-  void resume()  override { repaintWeather(); }
+  void resume()  override {
+    // WIRE2-G4 resume-diff (StockApp pattern): coords changed in Settings
+    // while we were away → zero the fetch timestamp so the next tick
+    // refetches immediately with the new location.
+    if (g_settings.lat != _cfgLat || g_settings.lon != _cfgLon)
+      _s.lastDataFetch = 0;
+    repaintWeather();
+  }
   void suspend() override {}
   void tick()    override { weatherTick(); }
   bool handleInput(TouchPhase, int, int) override { return false; }
@@ -404,6 +411,16 @@ private:
   WeatherAppState _s   = {};
   int             _lsec = -1;
   bool            _wxErr = false;
+  float           _cfgLat = 0.0f;   // WIRE2-G4: coords snapshotted at each
+  float           _cfgLon = 0.0f;   //   enqueue; resume() diffs vs g_settings
+
+  // WIRE2-G4: single enqueue path — snapshot g_settings coords for the
+  // resume-diff and hand them to dataTask (which re-snapshots under mux).
+  void enqueueWx() {
+    _cfgLat = g_settings.lat;
+    _cfgLon = g_settings.lon;
+    dataTask::enqueueWeather(_cfgLat, _cfgLon);
+  }
 
   void weatherDrawChrome() {
     tft.drawRoundRect(0,   0,   137, 120, 5, 0xF81F);  // TIME,     top-left
@@ -470,7 +487,7 @@ private:
 
   void weatherTick() {
     if (!_s.lastDataFetch || millis() - _s.lastDataFetch > WEATHER_FETCH_MS) {
-      dataTask::enqueue(dataTask::DATA_FETCH_WEATHER);
+      enqueueWx();   // WIRE2-G4: coords from settings, snapshotted at enqueue
       _s.lastDataFetch = millis();
     }
     dataTask::WeatherResult r;

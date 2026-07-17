@@ -188,6 +188,16 @@ void begin();
 // Post a fetch request. Non-blocking (drops if queue full).
 void enqueue(FetchType type);
 
+// Post a weather fetch for the given coordinates (WIRE2-G4). lat/lon are
+// snapshotted into a config slot under spinlock (enqueuePlaneRadar pattern);
+// fetchWeather() builds the URL from the snapshot at fetch time. Unlike the
+// planeRadar pattern this KEEPS the generic enqueue()'s DATA_FETCH_WEATHER
+// pendingMask coalescing (TASK-250, review W-5) — safe because the slot
+// always holds the latest coords, so a coalesced request fetches the newest
+// location. The generic enqueue(DATA_FETCH_WEATHER) still works: it fetches
+// with the last snapshotted coords (0,0 if never set).
+void enqueueWeather(float lat, float lon);
+
 // Post a chart fetch for one ticker/range. Non-blocking (drops if queue full).
 void enqueueStockChart(uint8_t tickerIdx, uint8_t rangeIdx);
 

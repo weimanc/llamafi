@@ -1,3 +1,7 @@
+# Scope note (TASK-326): stack-based StaticJsonDocuments (stock 2x2048,
+# teletext 1536, stream filters) live on the dataTask STACK and are budgeted
+# there (TASK-240, kStackBytes high-water) — out of manifest scope. Only
+# heap-allocated buffers are registered here.
 ceiling:                     # RAM pool available to overlays + headroom, per caps class
   INTERNAL: 290000           # bytes — EXP-009 ~320 K pool minus ~30 K WiFi/LWIP always-resident (estimate)
   DMA:      48000
@@ -19,6 +23,11 @@ buffers:
   # dataTaskStorage.cpp:616 — static DynamicJsonDocument s_heatmapDoc(2560); result → s_heatmapResult
   - { name: crypto_doc,       app: Crypto,   caps: ANY,      group: foreground, size: 2048,  kind: scratch }
   # dataTaskStorage.cpp:236 — DynamicJsonDocument doc(2048) in fetchCrypto(); result → s_cryptoResult
+  - { name: weather_doc,      app: Weather,  caps: ANY,      group: foreground, size: 1024,  kind: scratch }
+  # dataTaskStorage.cpp:237 — fetchWeather() parse doc (was DynamicJsonDocument(1024),
+  # now backed by MEM_weather_doc); result → s_weatherResult. Same exclusivity argument
+  # as crypto_doc: dataTask is serial, doc is pure scratch, result copied out. Registered
+  # per TASK-326 Architect ruling 2026-07-16; fits the existing 4096 overlay region, no growth.
   - { name: planeradar_doc,   app: PlaneRadar, caps: ANY,    group: foreground, size: 4096,  kind: scratch }
   # dataTaskStorage.cpp prParseStream() — reused per-object chunked-parse doc, ~4 KB measured
   # peak independent of traffic (ADR-048 D1(b')); result → s_planeRadarResult (fixed array).
