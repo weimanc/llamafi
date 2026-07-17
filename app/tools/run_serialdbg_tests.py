@@ -4914,9 +4914,37 @@ def _settings_submenu(dut: Dut, timeout: float = 3.0):
     return r.get("submenu") if r.get("ok") else None
 
 
+# ---- Settings-list geometry (mirrored from firmware — keep in sync; same
+# row_y()/APP_LIST_ROW_H pattern as the prloc_*_smoke.py tools, e929792) ----
+_S_CONTENT_Y = 28    # app/src/settings/settingsSection.h S_CONTENT_Y
+_S_ROW_H     = 26    # app/src/settings/settingsSection.h S_ROW_H
+_S_CONTENT_H = 212   # app/src/settings/settingsSection.h S_CONTENT_H (240 - header 28)
+_CONFIGURABLE_APP_COUNT = 10   # app/gen/configurable_apps.h
+# appsSection.h _appListRowH(): the Applications list compresses its row
+# height once CONFIGURABLE_APP_COUNT * S_ROW_H no longer fits S_CONTENT_H —
+# 21px today (TASK-330: was still using the uncompressed 26px formula here).
+_APP_LIST_ROW_H = min(_S_ROW_H, _S_CONTENT_H // _CONFIGURABLE_APP_COUNT)
+
+
 def _settings_tap_row(dut: Dut, row: int, timeout: float = 3.0):
-    """Tap the midpoint of settings list row `row` (0-indexed from content area)."""
-    y = 28 + row * 26 + 13
+    """Tap the midpoint of a top-level settings CATEGORY row (category list,
+    e.g. General/Display/.../Applications — always S_ROW_H=26px). Do NOT use
+    this for rows inside the Applications app list — that list compresses to
+    a smaller row height once CONFIGURABLE_APP_COUNT apps no longer fit
+    S_CONTENT_H at 26px (currently 21px); use _settings_tap_app_row() there.
+    """
+    y = _S_CONTENT_Y + row * _S_ROW_H + _S_ROW_H // 2
+    dut.cmd(f"tap 137 {y}", timeout=timeout)
+    time.sleep(0.1)
+
+
+def _settings_tap_app_row(dut: Dut, row: int, timeout: float = 3.0):
+    """Tap the midpoint of row `row` inside the Applications app list
+    (settingsSection==5, submenu==-1) — uses the compressed _appListRowH()
+    (min(S_ROW_H, S_CONTENT_H // CONFIGURABLE_APP_COUNT) == 21px today), NOT
+    the 26px category-row height. See TASK-330.
+    """
+    y = _S_CONTENT_Y + row * _APP_LIST_ROW_H + _APP_LIST_ROW_H // 2
     dut.cmd(f"tap 137 {y}", timeout=timeout)
     time.sleep(0.1)
 
@@ -4983,7 +5011,7 @@ def t_set_03(dut: Dut):
         _restore_spotify(dut)
         fail("T-SET-03", f"submenu={sub!r} at Applications level 1, expected -1")
         return
-    _settings_tap_row(dut, 0)  # Stock
+    _settings_tap_app_row(dut, 0)  # Stock (app-list row, TASK-330)
     sub = _settings_submenu(dut)
     if sub != 0:
         _restore_spotify(dut)
@@ -5012,7 +5040,7 @@ def t_set_06(dut: Dut):
         _restore_spotify(dut)
         return
     _settings_tap_row(dut, 5)   # Applications
-    _settings_tap_row(dut, 0)   # Stock submenu
+    _settings_tap_app_row(dut, 0)   # Stock submenu (app-list row, TASK-330)
     sub = _settings_submenu(dut)
     if sub != 0:
         _restore_spotify(dut)
@@ -5041,7 +5069,7 @@ def t_set_07(dut: Dut):
         _restore_spotify(dut)
         return
     _settings_tap_row(dut, 5)   # Applications
-    _settings_tap_row(dut, 2)   # Aquarium
+    _settings_tap_app_row(dut, 2)   # Aquarium (app-list row, TASK-330 fix)
     sec = _settings_section(dut)
     sub = _settings_submenu(dut)
     if sec != 5 or sub != 2:

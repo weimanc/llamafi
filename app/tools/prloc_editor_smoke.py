@@ -9,6 +9,22 @@ keyboard injection). Plus the
 `set geocode <lat> <lon> [display]` / `set geocode err <code>` stub-injection
 isolation (TASK-320/VE-PRL-2) so the lookup leg needs no live network.
 
+*** DESTRUCTIVE SCOPE (flagged by VE during T-CPICK-03, see test_plan.md) ***
+This script mutates real prLoc slots on whatever device it is pointed at:
+  - Slot 2 : WRITTEN — Lookup+Save with label "TEST" (F0-F4). Assumes empty.
+  - Slot 1 : DELETED unconditionally (H1/H2). Assumes a disposable non-active
+             filled slot ("AMS" in the original dev fixture) — on a device
+             with real saved locations this destroys whatever is there (e.g.
+             "HH").
+  - Slot 0 : label field re-submitted unchanged, Delete tapped but disabled
+             for the active slot — NOT destructive regardless of contents.
+  - Slot 3 : label set to "ERR" then the flow is Cancelled — NOT persisted
+             (verified by I1) as long as the error path behaves.
+Before touching anything, the script now reads `get prloc` and ABORTS if
+slot 1 or slot 2 is non-empty, unless run with --force. Always snapshot
+settings.json (`./run/spiffs pull`) before running this against a device
+with real saved locations.
+
 No dedicated `get`/dbg hook exposes _prLocState directly (not added by
 TASK-321), so this asserts via the *externally observable* surface: `get kb`
 (keyboard active/mode/len) and `get prloc` (final persisted slot state) —
@@ -35,7 +51,11 @@ settingsWidgets.h geometry, same approach prloc_smoke.py / the preview tool use:
 import json, sys, time
 import serial
 
-PORT = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyUSB0"
+# --force bypasses the destructive-scope guard below (D2). Accepted anywhere
+# in argv so it doesn't disturb the existing positional PORT convention.
+FORCE = "--force" in sys.argv
+_argv = [a for a in sys.argv[1:] if a != "--force"]
+PORT = _argv[0] if _argv else "/dev/ttyUSB0"
 results = []
 
 # ---- Settings-list geometry (mirrored from firmware — keep in sync) ---------
@@ -106,8 +126,24 @@ print(f"== opening {PORT} (DTR reset) ==", flush=True)
 d = Dut()
 boot = d.wait_ready(90)
 report("D0 boot + cmd loop ready", bool(boot.get("ok")), str(boot))
+s1_before = loc(boot, 1)
 s2_before = loc(boot, 2)
 report("D1 slot2 empty before test", s2_before.get("label", "?") == "", str(s2_before))
+
+# ---- Destructive-scope guard (D2) ------------------------------------------
+# slot 1 gets unconditionally DELETED (H1/H2) and slot 2 gets WRITTEN (F0-F4)
+# below. If either already holds real data, abort now instead of silently
+# destroying it — this is what T-CPICK-03 flagged (slot 1 "HH" got deleted).
+_dirty = [(i, l) for i, l in ((1, s1_before), (2, s2_before)) if l.get("label", "?") != ""]
+if _dirty and not FORCE:
+    print("\n*** ABORT: prloc_editor_smoke.py is destructive to slots 1 and 2 ***")
+    for i, l in _dirty:
+        print(f"    slot {i} is NOT empty: {l!r} — this script will delete/overwrite it")
+    print("    Snapshot with `./run/spiffs pull` first, or pass --force to proceed anyway.\n")
+    d.close()
+    sys.exit(2)
+if _dirty and FORCE:
+    print("*** --force set: proceeding despite non-empty target slot(s):", _dirty, "***", flush=True)
 
 # ---- Navigate: Settings -> Applications -> PlaneRadar -> Locations --------
 d.cmd("switchApp 6")           # Settings
