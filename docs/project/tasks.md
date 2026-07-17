@@ -52,6 +52,21 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 > `settings-webradio`, and `home-location-001` all show `test_ids: []` in `feature_inventory.yaml` —
 > fill those in as the suites land, per the existing per-feature notes.
 
+> **VE/DUT queue — CLEARED 2026-07-17 (real-data DUT session, snapshot-guarded, human-authorized).**
+> T-HOME-02/04/05 (the three real-data-risk deferrals) and T-CPICK-03's remaining prloc Lookup + both
+> Retry legs all ran and PASS this session; the WR-4 coordinate re-derivation audit also ran (DONE —
+> only `app-settings-wire-001.md` was stale; `m-clock-styles.md`/`m-pr-locations-dut.md` were already
+> clean). **M-HOME-LOCATION and M-COUNTRY-PICKER suites are now both fully dispositioned** — see
+> `test_plan.md` per-suite status lines. `feature_inventory.yaml`'s `test_ids` were already filled in
+> for `home-location-001`/`settings-widgets-001` by the time of this session (the "still `[]`" note
+> above was stale). Session followed the mandatory snapshot protocol throughout: `./run/spiffs pull`
+> at session start, real `settings.json`/`cal.json` snapshotted aside with timestamps, one deliberate
+> authorized Save (T-HOME-02) plus three synthetic-fixture reboots (T-HOME-04), byte-identical restore
+> confirmed via sha256 at session end, production firmware reflashed. One pre-existing test-tool
+> coordinate-drift bug (**TASK-330**, `run_serialdbg_tests.py`) was found already filed and
+> Developer-owned — not touched this session, cross-referenced from the WR-4 entry so it isn't
+> mistaken for a duplicate.
+
 > **PM sync 2026-06-28 (A-lite PROVEN — spike all-phases PASS)** — TASK-261 Phase 0/1/2 all PASS
 > (EXP-010, branch `rnd/membudget`): the no-PSRAM CYD plays MP3 WebRadio on the multi-app build with the
 > Helix decoder forked into a 24 K free-list arena (88/103/129.7 s × 3 trials, churn-safe, production ELF

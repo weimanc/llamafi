@@ -675,8 +675,11 @@ interactions:
       site discard, edit-time lastStation resets, resume-diff + abort, coalesced
       suspend save, phase-forwarded volume slider, cfg=1 registry flip, default cap
       128. Suite fully PASS on DUT 2026-07-17 (01/04 via the 16b8acc debug hooks,
-      05 re-run via dataq wrEnqueues); the WR-4 coordinate re-derivation across
-      settings suites is still owed alongside this suite.
+      05 re-run via dataq wrEnqueues). WR-4 coordinate re-derivation across settings
+      suites — DONE 2026-07-17 (later session, VE/DUT real-data pass): only
+      app-settings-wire-001.md needed the fix (m-clock-styles.md and
+      m-pr-locations-dut.md carry no hardcoded Applications-list taps); see
+      test_plan.md's WR-4 entry and app-settings-wire-001.md's updated layout table.
 
   - id: X035
     feature_a: home-location-001
@@ -700,16 +703,21 @@ interactions:
       Supersedes X032's empty-city fallback story: slot 0 is always defined, so
       weather always has coordinates.
     risk: medium
-    test_coverage: []
+    test_coverage: [T-HOME-01, T-HOME-02, T-HOME-03, T-HOME-04, T-HOME-05, T-HOME-06]
     notes: |
       Reserved 2026-07-16 at design time by M-HOME-LOCATION §5 (Architect registry
       remit). IMPLEMENTED 2026-07-17 (dcc12bf): prSlotWritten() shared helper is the
       single writer x mirror site (fixes the X026/H-3 serial-writer no-mirror bug);
       dual mirror derivation at load; D4 migration kCities+epsilon guarded;
       PR_DEFAULT_LAT/LON constant unifies the literal sites; >500km hint + divKm +
-      get prloc home observables. VE attaches T-HOME-01..06 at suite landing.
-      Residual noted by implementer: manual-entry confirm path (TASK-322) shows no
-      divergence hint — Lookup path only; VE to disposition in T-HOME-05.
+      get prloc home observables. Suite fully dispositioned 2026-07-17 (later,
+      real-data DUT session, snapshot-guarded, human-authorized): T-HOME-01/03/06
+      PASS (earlier session); T-HOME-02/05 PASS and T-HOME-04 RUN+PASS (this
+      session) — see test_plan.md per-test entries. All six T-HOME tests closed.
+      Residual noted by implementer (manual-entry confirm path, TASK-322, shows no
+      divergence hint — Lookup path only) **dispositioned in T-HOME-05 (2026-07-17)**:
+      accepted as-is for v1, a deliberately-scoped limitation per the design's own
+      "no Retry concept for manual entry" comment, not a defect. No follow-up filed.
 
 #   interaction_type: shared_state | dependency | conflict | overlap
 #   description: ""

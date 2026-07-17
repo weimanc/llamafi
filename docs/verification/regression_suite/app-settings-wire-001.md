@@ -139,7 +139,19 @@ where `%s` is the comma-joined coin IDs and currency. Used by T-WIRE-CRYPTO-03.
 Derived from `S_CONTENT_Y=28`, `S_ROW_H=26`, `S_HEADER_H=28`. x=137 hits centre of
 275 px canvas for all rows.
 
+**Re-derived 2026-07-17 (WR-4 coordinate audit, VE/DUT session)** — this table
+was stale: it predated Spotify/Clock joining `kConfigurableApps` and predated
+Teletext/PlaneRadar/WebRadio, and assumed the fixed `S_ROW_H=26` Applications
+row height that only held at ≤8 apps. At the current
+`CONFIGURABLE_APP_COUNT=10` (`app/gen/configurable_apps.h`),
+`appsSection.h::_appListRowH()` returns
+`min(S_ROW_H, S_CONTENT_H/CONFIGURABLE_APP_COUNT) = min(26, 212/10) = 21` px
+rows, not 26 — every row's mid-y below is `28 + i*21 + 21/2` (int division).
+See `docs/architecture/designs/M-WEBRADIO-SETTINGS-review.md` WR-4.
+
 ### Category list (Settings level 1)
+
+Unaffected by WR-4 — still 6 categories at the un-shrunk `S_ROW_H=26`.
 
 | Row | Category | tap y (mid) |
 |-----|----------|-------------|
@@ -152,15 +164,28 @@ Derived from `S_CONTENT_Y=28`, `S_ROW_H=26`, `S_HEADER_H=28`. x=137 hits centre 
 
 ### Applications submenu (level 2 — kConfigurableApps order)
 
+10 rows at the compressed 21 px row height (`APP_LIST_ROW_H`). Live-verified
+on DUT 2026-07-17: idx 8 (PlaneRadar, y=206) and idx 9 (WebRadio, y=227) via
+T-CPICK-01/T-CPICK-03 navigation; idx 1 (Clock, y=59) spot-checked this
+session (tap landed on Clock's own Style row, confirmed via `get clockStyle`
+toggling) as an independent WR-4 cross-check.
+
 | Row | App | tap y (mid) |
 |-----|-----|-------------|
-| 0 | Crypto | 41 |
-| 1 | Matrix | 67 |
-| 2 | Life | 93 |
-| 3 | Stock | 119 |
-| 4 | Aquarium | 145 |
+| 0 | Spotify (Winamp) | 38 |
+| 1 | Clock | 59 |
+| 2 | Crypto | 80 |
+| 3 | Matrix | 101 |
+| 4 | Life | 122 |
+| 5 | Stock | 143 |
+| 6 | Aquarium | 164 |
+| 7 | Teletext | 185 |
+| 8 | PlaneRadar | 206 |
+| 9 | WebRadio | 227 |
 
 ### Per-app rows (level 3)
+
+Unaffected by WR-4 — per-app content rows use the un-shrunk `S_ROW_H=26`.
 
 **Matrix:** Color=41, Speed=67  
 **Life:** Speed=41, Colors=67  
@@ -169,7 +194,10 @@ Derived from `S_CONTENT_Y=28`, `S_ROW_H=26`, `S_HEADER_H=28`. x=137 hits centre 
 **Crypto:** Coin 1=41, Coin 2=67, Coin 3=93, Coin 4=119, Coin 5=145, Coin 6=171, Currency=197  
 
 Back zone: `tap 30 14`  
-AppIds: Spotify=0, Clock=1, Weather=2, Crypto=3, Matrix=4, Life=5, Settings=6, Stock=7, Aquarium=8
+AppIds (confirmed 2026-07-17 from `app/src/appRegistry.h` APP_X order, not the
+stale 5-app list this table used to carry): Spotify=0, Clock=1, Weather=2,
+Crypto=3, Matrix=4, Life=5, Settings=6, Stock=7, Aquarium=8, Teletext=9,
+PlaneRadar=10, WebRadio=11.
 
 ---
 
@@ -182,7 +210,7 @@ AppIds: Spotify=0, Clock=1, Weather=2, Crypto=3, Matrix=4, Life=5, Settings=6, S
 **Steps:**
 1. `switchApp 6` — enter Settings
 2. `tap 137 171` — tap "Applications"
-3. `tap 137 67` — tap "Matrix"
+3. `tap 137 101` — tap "Matrix" (WR-4 re-derived 2026-07-17: idx 3 of 10 @ 21px rows, was `67`)
 4. `tap 137 41` — tap "Color" row once → cycles green→white
 5. `tap 30 14` — back to app list
 6. `tap 30 14` — back to category list
@@ -201,7 +229,7 @@ AppIds: Spotify=0, Clock=1, Weather=2, Crypto=3, Matrix=4, Life=5, Settings=6, S
 **Preconditions:** Default Matrix state (`get matrixTickMs` returns `"25"`).
 
 **Steps (slow):**
-1. `switchApp 6` → `tap 137 171` → `tap 137 67` → `tap 137 67` (Speed row) once
+1. `switchApp 6` → `tap 137 171` → `tap 137 101` (Matrix, WR-4 re-derived — was `67`) → `tap 137 67` (Speed row, per-app row, unaffected by WR-4) once
 2. Exit Settings: `tap 30 14` × 3; `switchApp 4`
 3. `get matrixTickMs`
 
@@ -325,7 +353,7 @@ AppIds: Spotify=0, Clock=1, Weather=2, Crypto=3, Matrix=4, Life=5, Settings=6, S
 **Preconditions:** Debug build. Settings → Applications → Stock submenu visible.
 
 **Steps:**
-1. `switchApp 6` → `tap 137 171` → `tap 137 119` (Stock)
+1. `switchApp 6` → `tap 137 171` → `tap 137 143` (Stock, WR-4 re-derived 2026-07-17: idx 5 of 10 @ 21px rows, was `119`)
 2. `tap 137 41` — tap Ticker 1 row
 
 **Expected:** Keyboard canvas appears (UpperAlpha mode). Prompt shows "Ticker 1". Input pre-filled with current ticker (e.g. "AAPL").
@@ -506,10 +534,14 @@ Without it, this is MANUAL-only at this milestone.
 3. Exit to category list: `tap 30 14` × 2
 4. `switchApp 4`; `get matrixColor` — verify `val == "white"` (change applied)
 5. `switchApp 6` (re-enter Settings)
-6. Scroll to category list if needed; `tap 137 196` (Cancel row — y = 28 + 6×26 + 1 + 13 = 210 approx)
-
-   *(Note: Cancel row y must be confirmed against implementation; design spec: 1px separator after
-   6 category rows at y=184, Cancel row at y=185..210, mid≈197)*
+6. Scroll to category list if needed; `tap 137 196` (Cancel row — arithmetic
+   note fixed 2026-07-17, WR-4 audit pass: `sepY = S_CONTENT_Y(28) +
+   SETTINGS_CAT_COUNT(6)×SETTINGS_ROW_H(26) = 184`; `cancelMid = sepY + 1 +
+   ROW_H/2 = 184+1+13 = 198` per `main.cpp::repaintCategoryList()` — the
+   category list itself is unaffected by WR-4 (still 6 rows @ 26px), this was
+   a pre-existing arithmetic slip in the comment, not a coordinate-drift bug;
+   the tap value `196` is within the row's ±13px tolerance of the correct
+   `198` and works either way)*
 
 7. `switchApp 4`; `get matrixColor`
 
