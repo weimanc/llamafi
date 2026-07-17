@@ -1764,20 +1764,33 @@ features:
       precedent): after TASK-327 lands this is THE Settings button idiom — every
       section consumes it, hand-rolled buttons become a review flag (candidate BP,
       QM to propose).
-    git_ref: "TASK-328 landed 2026-07-14; API proven by TASK-321; TASK-327 migration 2026-07-16"
+    git_ref: "TASK-328 landed 2026-07-14; API proven by TASK-321; TASK-327 migration 2026-07-16; SPickerList (M-COUNTRY-PICKER) landed 2026-07-17"
     files:
       - app/src/settings/settingsWidgets.h
       - app/src/settings/wifiSection.h
       - app/src/settings/ledSection.h
       - app/src/settings/timeSection.h
       - app/src/settings/calibrationFlow.h
+      - app/gen/countries.h
+      - app/tools/gen_countries.py
+      - app/tools/data/iso3166.csv
     cross_features: [settings-001, pr-locations-001, settings-wifi]
     test_ids: []
     notes: |
-      Planned addition (M-COUNTRY-PICKER, drafted 2026-07-16): SPickerList generic
-      scroll-list widget (city-picker mechanics extracted) + baked app/gen/countries.h
-      ISO table; consumers: WebRadio Country row, prloc Lookup country step. Files
-      move into this entry when it ships.
+      SPickerList (M-COUNTRY-PICKER, landed 2026-07-17): modal full-canvas
+      scroll picker over CountryEntry rows — city-picker mechanics transcribed
+      with int16_t offsets (CP-7) and opens-at-current-selection (CP-6, new
+      code, donor opens at 0); integrates via the g_keyboard capture precedent
+      in AppsSection (CP-1); global g_countryPicker defined in main.cpp.
+      Deliberate exception to the kit's "no global state, no callbacks"
+      value-type contract (CP-11 — KeyboardWidget model). Consumers: WebRadio
+      Country row + prloc Lookup country step incl. both Retry paths — the
+      2-char country keyboards are retired; serialdbg `set pick <CC>` /
+      `get pick` (CP-4/CP-8), prloc_editor_smoke.py migrated. Data: committed
+      app/tools/data/iso3166.csv -> network-free gen_countries.py ->
+      app/gen/countries.h (249 entries, golden.sha256-pinned); superseded and
+      deleted the dead TASK-213 webradio_countries bake (CP-2). Resolves
+      M-PR-LOCATIONS Q5 and M-WEBRADIO-SETTINGS OQ2 keyboard interims.
       gnu++11 constraint: SButton has default member initializers, so it is NOT an
       aggregate — no brace-init (LL-112); assign fields individually. TASK-327
       (landed 2026-07-16) migrated the four legacy button sites onto the kit:

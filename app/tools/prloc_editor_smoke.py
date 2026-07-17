@@ -2,7 +2,10 @@
 """DUT smoke for TASK-321 (M-PR-LOCATIONS Settings Locations sub-view + slot
 editor, Lookup path). Drives the real appsSection.h state machine via touch
 injection (`tap`) + KeyboardWidget injection (`set kbText`/`kbOk`/`kbCancel`)
-— the same primitives TASK-325 landed for exactly this purpose — plus the
+— the same primitives TASK-325 landed for exactly this purpose. The country
+step is an SPickerList since M-COUNTRY-PICKER (CP-4): it is driven with
+`set pick <CC>` and asserted via `get pick` (label/postcode steps keep the
+keyboard injection). Plus the
 `set geocode <lat> <lon> [display]` / `set geocode err <code>` stub-injection
 isolation (TASK-320/VE-PRL-2) so the lookup leg needs no live network.
 
@@ -120,14 +123,14 @@ report("F0 geocode stub parked", bool(stub.get("ok")) and stub.get("parked"), st
 
 d.tap(137, 58)                 # Lookup button (empty-slot fork layout)
 time.sleep(0.3)
-k = d.cmd("get kb")
-report("F1 Lookup -> Country keyboard, UpperAlpha maxLen=2",
-       k.get("active") and k.get("mode") == 1 and k.get("maxLen") == 2, str(k))
+p = d.cmd("get pick")
+report("F1 Lookup -> Country picker active, opened at current selection",
+       p.get("active") and p.get("highlightIdx", -1) >= 0, str(p))
 
-d.cmd("set kbOk")             # country prefilled "NL" (default _prLastCountry) — submit as-is
+d.cmd("set pick NL")           # select "NL" (default _prLastCountry) as if tapped
 time.sleep(0.3)
 k = d.cmd("get kb")
-report("F2 Country submit -> Postcode keyboard, Full maxLen=10",
+report("F2 Country pick -> Postcode keyboard, Full maxLen=10",
        k.get("active") and k.get("mode") == 0 and k.get("maxLen") == 10 and k.get("len") == 0,
        str(k))
 
@@ -185,7 +188,7 @@ report("I0 -97 stub parked", bool(err_stub.get("ok")) and err_stub.get("errorCod
 
 d.tap(137, 58)                  # Lookup (empty-slot layout)
 time.sleep(0.3)
-d.cmd("set kbOk")              # country "NL" default, submit as-is
+d.cmd("set pick NL")           # country picker: select "NL" (session default)
 time.sleep(0.3)
 d.cmd("set kbText 9999ZZ")
 d.cmd("set kbOk")              # postcode submit -> LookupPending -> consumes -97 stub -> LookupError

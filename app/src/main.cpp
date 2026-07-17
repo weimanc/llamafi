@@ -1014,6 +1014,7 @@ static SettingsApp g_SettingsApp;
 LedFlow      g_ledFlow;
 BacklightFlow g_backlight;   // WIRE2-G5: backlight owner (ADR-050)
 KeyboardWidget g_keyboard;
+SPickerList g_countryPicker;   // M-COUNTRY-PICKER: shared modal country picker (settingsWidgets.h)
 #ifdef SERIAL_DEBUG
 static bool settingsDbgGet(const char* v, char* b, int l) { return g_SettingsApp.dbgGet(v, b, l); }
 #endif
@@ -3108,6 +3109,17 @@ static void cmdGet(const char *args) {
                   (int)g_keyboard.mode());
     return;
   }
+  if (strcmp(args, "pick") == 0) {
+    // M-COUNTRY-PICKER (CP-8): SPickerList observable — scroll offset +
+    // highlighted index, so T-CPICK assertions aren't coordinate-guesswork
+    // against a scroll-state-dependent list (same role as `get kb`).
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"pick\","
+                  "\"active\":%s,\"offset\":%d,\"highlightIdx\":%d,\"last\":true}\n",
+                  g_countryPicker.active() ? "true" : "false",
+                  (int)g_countryPicker.dbgOffset(),
+                  (int)g_countryPicker.dbgHighlight());
+    return;
+  }
   if (strcmp(args, "prloc") == 0) {
     // M-PR-LOCATIONS (TASK-319): per-slot dump + active index — the
     // diagnostic surface for every T_PRL test (same role `get wrStation` /
@@ -3314,6 +3326,25 @@ static void cmdSet(const char *args) {
 
   if (sscanf(args, "%31s %127s", var, val) != 2) {
     Serial.println("{\"ok\":false,\"cmd\":\"set\",\"error\":\"bad args\"}");
+    return;
+  }
+  // M-COUNTRY-PICKER (CP-4): `set pick <CC>` selects on the ACTIVE SPickerList
+  // by ISO code — fires onSelect exactly like a row tap (same callback, same
+  // hide/cleanup; the kbText/kbOk submit-equivalent idiom). Errors when no
+  // picker is active or the code isn't in the table.
+  if (strcmp(var, "pick") == 0) {
+    if (!g_countryPicker.active()) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"pick\","
+                      "\"error\":\"no active picker\"}");
+      return;
+    }
+    if (g_countryPicker.pickByCode(val)) {
+      Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"pick\","
+                    "\"code\":\"%s\"}\n", val);
+    } else {
+      Serial.printf("{\"ok\":false,\"cmd\":\"set\",\"var\":\"pick\","
+                    "\"error\":\"unknown code\",\"code\":\"%s\"}\n", val);
+    }
     return;
   }
   // TASK-248: runtime log-volume control (for stress soaks). `set logLevel <d|i|w|e>`

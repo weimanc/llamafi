@@ -26,6 +26,7 @@
 // from touch/hitbox.h via settingsSection.h — no duplication here.
 
 #include "settingsSection.h"
+#include "gen/countries.h"   // CountryEntry — SPickerList row shape (M-COUNTRY-PICKER)
 
 // ---- Geometry ---------------------------------------------------------------
 
@@ -158,3 +159,229 @@ struct SSpinner {
     void tick() { _phase++; draw(); }
     void clear() const { tft.fillRect(0, y, S_CANVAS_W, 34, S_BG); }
 };
+
+// ---- SPickerList --------------------------------------------------------------
+// Modal full-canvas scroll picker (M-COUNTRY-PICKER D1) over CountryEntry-shaped
+// (name, code) rows. Deliberate EXCEPTION to the "no global state, no callbacks"
+// kit contract above (CP-11): like KeyboardWidget, an active picker owns the
+// whole canvas and ALL touch phases — host sections integrate via the
+// g_keyboard capture precedent (forward every phase while active(); early-
+// return their repaint()). Cancel is the picker's own "< back" header zone,
+// checked here — the host's back-tap code is unreachable while it captures.
+//
+// Mechanics transcribed from timeSection's city picker (paged rows, right-edge
+// scrollbar with thumb drag + arrow taps, tap-to-select), with two deliberate
+// changes: int16_t offsets/count (CP-7 — the donor's uint8_t clears 249 rows
+// with only 6 to spare; a kit widget doesn't inherit that cliff) and opens
+// scrolled to the current selection, highlighted (CP-6 — NEW code, the donor
+// always opens at offset 0; unset/unknown selection opens at the top).
+// The donor (TimeSection) is intentionally untouched in v1.
+
+class SPickerList {
+public:
+    void show(const CountryEntry* items, int16_t count, const char* currentCode,
+              void (*onSelect)(int16_t idx, void* ctx),
+              void (*onCancel)(void* ctx),
+              void* ctx)
+    {
+        _items      = items;
+        _count      = count;
+        _onSelect   = onSelect;
+        _onCancel   = onCancel;
+        _ctx        = ctx;
+        _sbDragging = false;
+        _highlight  = -1;
+        _offset     = 0;
+        if (items && currentCode && currentCode[0]) {
+            for (int16_t i = 0; i < count; i++) {
+                if (strcasecmp(items[i].code, currentCode) == 0) { _highlight = i; break; }
+            }
+        }
+        // CP-6: open scrolled to the current selection (clamped so the last
+        // page stays full); no/unknown selection opens at the top.
+        if (_highlight >= 0) {
+            int16_t maxOff = _maxOffset();
+            _offset = (_highlight < maxOff) ? _highlight : maxOff;
+        }
+        _active = true;
+        repaint();
+    }
+
+    void hide() { _active = false; _sbDragging = false; }
+    bool active() const { return _active; }
+
+    void repaint() {
+        if (!_active) return;
+        // Own header — "< back" is the cancel zone (the host never paints
+        // under an active picker, CP-1 takeover contract).
+        tft.fillRect(0, 0, S_CANVAS_W, S_HEADER_H, S_BG);
+        tft.setTextColor(S_HDR_TXT);
+        tft.setTextDatum(ML_DATUM);
+        tft.drawString("< back", 4, 14, 2);
+        tft.setTextDatum(MR_DATUM);
+        tft.drawString("Select country", S_CANVAS_W - 4, 14, 2);
+        tft.drawFastHLine(0, S_HEADER_H - 1, S_CANVAS_W, S_SEP);
+        tft.setTextDatum(TL_DATUM);
+        tft.fillRect(0, S_CONTENT_Y, S_CANVAS_W, S_CONTENT_H, S_BG);
+        _drawScrollbar();
+        _drawRows();
+    }
+
+    // Owns ALL phases while active (CP-1) — the host forwards unconditionally.
+    void handleInput(TouchPhase phase, int x, int y) {
+        if (!_active) return;
+
+        // Cancel via the picker's own back zone (Release only, never mid-drag).
+        if (phase == TouchPhase::Release && !_sbDragging
+                && x < S_BACK_ZONE_W && y < S_HEADER_H) {
+            _cancel();
+            return;
+        }
+
+        // Scrollbar zone (x >= kSbX) — donor logic, int16_t offsets.
+        if (x >= kSbX || _sbDragging) {
+            if (phase == TouchPhase::Press && x >= kSbX
+                    && y > kSbUpY1 && y < kSbDnY0) {
+                _sbDragging         = true;
+                _sbDragAnchorY      = (int16_t)y;
+                _sbDragAnchorOffset = _offset;
+            } else if (phase == TouchPhase::Move && _sbDragging) {
+                int trackH = kSbDnY0 - kSbUpY1 - 4;
+                int maxOff = _maxOffset();
+                if (maxOff > 0 && trackH > 0) {
+                    int delta  = ((y - _sbDragAnchorY) * maxOff + trackH / 2) / trackH;
+                    int newOff = constrain((int)_sbDragAnchorOffset + delta, 0, maxOff);
+                    if (newOff != (int)_offset) {
+                        _offset = (int16_t)newOff;
+                        repaint();
+                    }
+                }
+            } else if (phase == TouchPhase::Release) {
+                _sbDragging = false;
+                // Arrow taps (only on Release, not after a drag)
+                if (_sbUp.hit(x, y) && _offset > 0) {
+                    _offset--;
+                    repaint();
+                } else if (_sbDn.hit(x, y) && _offset + kRows < _count) {
+                    _offset++;
+                    repaint();
+                }
+            }
+            return;
+        }
+
+        // Row tap — Release only
+        if (phase != TouchPhase::Release) return;
+        if (y < S_CONTENT_Y) return;   // header outside the back zone — inert
+        int16_t row = (int16_t)((y - S_CONTENT_Y) / S_ROW_H);
+        if (row < 0 || row >= kRows) return;
+        int16_t idx = (int16_t)(_offset + row);
+        if (idx >= _count) return;
+        _select(idx);
+    }
+
+#ifdef SERIAL_DEBUG
+    // CP-8 observables (`get pick`) + CP-4 injection (`set pick <CC>`).
+    int16_t dbgOffset()    const { return _offset; }
+    int16_t dbgHighlight() const { return _highlight; }
+    // Selects by code exactly as if the row were tapped — same onSelect
+    // callback, same hide()/cleanup (the kbText/kbOk submit-equivalent idiom,
+    // BP-047/LL-110: no duplicated commit logic).
+    bool pickByCode(const char* code) {
+        if (!_active || !_items || !code || !code[0]) return false;
+        for (int16_t i = 0; i < _count; i++) {
+            if (strcasecmp(_items[i].code, code) == 0) { _select(i); return true; }
+        }
+        return false;
+    }
+#endif
+
+private:
+    // Donor geometry (timeSection city picker) — 6 paged rows, 18px scrollbar
+    // column at x=257 with 20px arrow zones top/bottom.
+    static constexpr int16_t kRows   = 6;
+    static constexpr int16_t kSbX    = 257;
+    static constexpr int16_t kSbW    = 18;
+    static constexpr int16_t kSbUpY0 = S_CONTENT_Y;
+    static constexpr int16_t kSbUpY1 = S_CONTENT_Y + 20;
+    static constexpr int16_t kSbDnY0 = 220;
+    static constexpr int16_t kSbDnY1 = 240;
+
+    const CountryEntry* _items = nullptr;
+    int16_t _count      = 0;
+    int16_t _offset     = 0;      // first visible row index
+    int16_t _highlight  = -1;     // index of the current selection, -1 = none
+    bool    _active     = false;
+    bool    _sbDragging = false;
+    int16_t _sbDragAnchorY      = 0;
+    int16_t _sbDragAnchorOffset = 0;
+    // Scrollbar step arrows as kit buttons at the scrollbar's own 18x20
+    // geometry (timeSection precedent — S_BTN_H is a bar-button contract).
+    SButton _sbUp, _sbDn;
+    void  (*_onSelect)(int16_t idx, void* ctx) = nullptr;
+    void  (*_onCancel)(void* ctx)              = nullptr;
+    void*   _ctx = nullptr;
+
+    int16_t _maxOffset() const {
+        return (_count > kRows) ? (int16_t)(_count - kRows) : (int16_t)0;
+    }
+
+    // KeyboardWidget submit()/cancel() idiom: copy the callback, hide FIRST,
+    // then fire — the callback may immediately show() another modal (the
+    // prloc country -> postcode keyboard hand-off).
+    void _select(int16_t idx) {
+        auto  cb  = _onSelect;
+        void* ctx = _ctx;
+        hide();
+        if (cb) cb(idx, ctx);
+    }
+    void _cancel() {
+        auto  cb  = _onCancel;
+        void* ctx = _ctx;
+        hide();
+        if (cb) cb(ctx);
+    }
+
+    void _drawRows() {
+        int y = S_CONTENT_Y;
+        int16_t end = (int16_t)(_offset + kRows);
+        if (end > _count) end = _count;
+        for (int16_t i = _offset; i < end; i++) {
+            bool cur = (i == _highlight);
+            int mid = y + S_ROW_H / 2;
+            // Name (left) + code (right-aligned at x=246, before the
+            // scrollbar) — the city picker's country-code column idiom.
+            tft.setTextDatum(ML_DATUM);
+            tft.setTextColor(cur ? S_VALUE_ON : S_LABEL);
+            tft.drawString(_items[i].name, S_COL_LABEL, mid, 2);
+            tft.setTextDatum(MR_DATUM);
+            tft.setTextColor(cur ? S_VALUE_ON : S_VALUE_OFF);
+            tft.drawString(_items[i].code, 246, mid, 2);
+            tft.setTextDatum(TL_DATUM);
+            y += S_ROW_H;
+        }
+    }
+
+    void _drawScrollbar() {
+        tft.fillRect(kSbX, S_CONTENT_Y, kSbW, S_CONTENT_H, S_SEP);
+
+        _sbUp.r = { kSbX, kSbUpY0, kSbW, (int16_t)(kSbUpY1 - kSbUpY0) };
+        _sbUp.label = "^";
+        _sbDn.r = { kSbX, kSbDnY0, kSbW, (int16_t)(kSbDnY1 - kSbDnY0) };
+        _sbDn.label = "v";
+        _sbUp.draw();
+        _sbDn.draw();
+
+        // Thumb
+        int trackY0 = kSbUpY1 + 2;
+        int trackH  = kSbDnY0 - trackY0 - 2;
+        if (_count > kRows && trackH > 0) {
+            int thumbH = max(8, trackH * kRows / (int)_count);
+            int thumbY = trackY0 + ((int)_offset * (trackH - thumbH))
+                         / ((int)_count - kRows);
+            tft.fillRect(kSbX + 3, thumbY, kSbW - 6, thumbH, S_VALUE);
+        }
+    }
+};
+
+extern SPickerList g_countryPicker;

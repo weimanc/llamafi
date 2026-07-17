@@ -29,6 +29,7 @@ public:
     void enter() override { _sub = -1; _prLocActive = false; repaint(); }
     void leave() override {
         if ((_prLocActive || _wrSub()) && g_keyboard.active()) g_keyboard.hide();
+        if (g_countryPicker.active()) g_countryPicker.hide();   // M-COUNTRY-PICKER
         _prLocActive = false;
         _sub = -1;
     }
@@ -38,9 +39,9 @@ public:
     // `if (_step == WifiStep::Keyboard) return;` guard (TASK-321).
     void repaint() override {
         if (_prLocActive && _prLocIsKeyboardStep()) return;
-        // WebRadio Country editor: the keyboard owns the full canvas
-        // (wifiSection's `_step == Keyboard` guard idiom).
-        if (_wrSub() && g_keyboard.active()) return;
+        // M-COUNTRY-PICKER (CP-1 takeover): an active picker owns the full
+        // canvas — never paint under it (same guard as the keyboard steps).
+        if (g_countryPicker.active()) return;
         drawHeader();
         clearContent();
         if (_sub < 0)          _repaintAppList();
@@ -86,6 +87,15 @@ public:
         // where our header back-zone would otherwise be.
         if ((_prLocActive || _wrSub()) && g_keyboard.active()) {
             g_keyboard.handleInput(phase, x, y);
+            return SectionResult::Continue;
+        }
+        // M-COUNTRY-PICKER (CP-1): an active picker captures ALL phases —
+        // same precedent as the keyboard branch above (pierces the
+        // Release-only gate below so the scrollbar thumb drag works). The
+        // picker owns its own "< back" cancel zone, so this runs before the
+        // section's isBackTap() check.
+        if ((_prLocActive || _wrSub()) && g_countryPicker.active()) {
+            g_countryPicker.handleInput(phase, x, y);
             return SectionResult::Continue;
         }
         // WR-3 (M-WEBRADIO-SETTINGS D2): SliderWidget needs Press/Move/Release,
@@ -475,7 +485,7 @@ private:
     }
 
     // ==== M-WEBRADIO-SETTINGS: WebRadio row view (D2) ========================
-    // 6 rows: Country (keyboard, WR-2 reset on commit), Autoplay (toggle),
+    // 6 rows: Country (picker, WR-2 reset on select), Autoplay (toggle),
     // Bitrate cap (cycle — the wipe-trap fix row, WR-2 reset on change),
     // Auto-skip (toggle), Max volume (slider — WR-3 phases forwarded in
     // handleInput), HW mod (greyed read-only: a statement about installed
@@ -526,13 +536,14 @@ private:
 
     void _cycleWebRadio(int row) {
         if (row == 0) {
-            // Country editor — prloc idiom (UpperAlpha, maxLen 2). Free-typed
-            // ISO 3166-1 alpha-2; invalid codes just fetch an empty list
-            // (design OQ2 — interim until M-COUNTRY-PICKER).
-            g_keyboard.show("Country", settings().webRadioCountry,
-                KeyboardWidget::Mode::UpperAlpha, 2,
-                _onWrCountrySubmit, _onWrCountryCancel, this);
-            return;   // nothing changed yet — commit handler saves
+            // Country picker (M-COUNTRY-PICKER D3) — replaces the free-typed
+            // 2-char keyboard; WR-SETTINGS OQ2's "invalid code -> empty
+            // station list" failure mode is now unrepresentable. Opens at
+            // the currently persisted code (CP-6).
+            g_countryPicker.show(kCountries, kCountryCount,
+                settings().webRadioCountry,
+                _onWrCountryPicked, _onWrCountryPickCancel, this);
+            return;   // nothing changed yet — the select handler saves
         } else if (row == 1) {
             settings().webRadioAutoplay = !settings().webRadioAutoplay;
         } else if (row == 2) {
@@ -558,11 +569,11 @@ private:
         saveSettings(); repaint();
     }
 
-    static void _onWrCountrySubmit(const char* text, void* ctx) {
+    static void _onWrCountryPicked(int16_t idx, void* ctx) {
         AppsSection* self = static_cast<AppsSection*>(ctx);
-        if (text && text[0] &&
-            strcmp(text, self->settings().webRadioCountry) != 0) {
-            strlcpy(self->settings().webRadioCountry, text,
+        const char* code = kCountries[idx].code;
+        if (strcmp(code, self->settings().webRadioCountry) != 0) {
+            strlcpy(self->settings().webRadioCountry, code,
                     sizeof(self->settings().webRadioCountry));
             // WR-2 edit-time reset: rides this save (zero extra flash wear)
             // and closes the reboot window a resume()-time RAM reset leaves.
@@ -571,7 +582,7 @@ private:
         }
         self->repaint();
     }
-    static void _onWrCountryCancel(void* ctx) {
+    static void _onWrCountryPickCancel(void* ctx) {
         static_cast<AppsSection*>(ctx)->repaint();
     }
 
@@ -580,9 +591,11 @@ private:
     // every button/spinner below is SButton/sButtonBar/sStackedBtnRect/
     // SSpinner from settingsWidgets.h (TASK-328) — no hand-rolled buttons.
 
+    // LookupCountry is no longer a keyboard step — it is a PICKER step
+    // (M-COUNTRY-PICKER D3); repaint() early-returns on g_countryPicker
+    // .active() instead, and the picker captures touch in handleInput().
     bool _prLocIsKeyboardStep() const {
         return _prLocState == PrLocView::EditLabel ||
-               _prLocState == PrLocView::LookupCountry ||
                _prLocState == PrLocView::LookupPostcode ||
                _prLocState == PrLocView::ManualLat ||
                _prLocState == PrLocView::ManualLon;
@@ -603,7 +616,7 @@ private:
             case PrLocView::LookupConfirm: _repaintPrConfirm();       break;
             case PrLocView::LookupError:   _repaintPrError();         break;
             case PrLocView::ManualConfirm: _repaintPrManualConfirm(); break;
-            default: break;   // EditLabel/LookupCountry/LookupPostcode/ManualLat/ManualLon — keyboard owns the canvas
+            default: break;   // EditLabel/LookupPostcode/ManualLat/ManualLon — keyboard owns the canvas; LookupCountry — picker owns it
         }
     }
 
@@ -615,14 +628,15 @@ private:
             case PrLocView::LookupConfirm: _handlePrConfirmTap(x, y);       break;
             case PrLocView::LookupError:   _handlePrErrorTap(x, y);         break;
             case PrLocView::ManualConfirm: _handlePrManualConfirmTap(x, y); break;
-            default: break;   // keyboard steps — handled by handleInput()'s g_keyboard branch
+            default: break;   // keyboard/picker steps — captured by handleInput()'s g_keyboard/g_countryPicker branches
         }
     }
 
     // Header back-tap semantics per state (mirrors each screen's own
-    // Cancel button where one exists; EditLabel/LookupCountry/LookupPostcode/
-    // ManualLat/ManualLon are unreachable here — the keyboard owns touch and
-    // has its own cancel zone, intercepted earlier in handleInput()).
+    // Cancel button where one exists; EditLabel/LookupPostcode/ManualLat/
+    // ManualLon are unreachable here — the keyboard owns touch and has its
+    // own cancel zone — and so is LookupCountry, whose picker owns its own
+    // "< back" zone; both are intercepted earlier in handleInput()).
     void _handlePrLocBack() {
         switch (_prLocState) {
             case PrLocView::SlotList:
@@ -751,9 +765,7 @@ private:
     void _handlePrSourceForkTap(int x, int y) {
         if (_prForkBtn[0].hit(x, y)) {
             _prForkBtn[0].flash();
-            _prLocState = PrLocView::LookupCountry;
-            g_keyboard.show("Country", _prLastCountry, KeyboardWidget::Mode::UpperAlpha, 2,
-                _onPrCountrySubmit, _onPrCountryCancel, this);
+            _openPrCountryPicker();
             return;
         }
         if (_prForkBtn[1].hit(x, y)) {
@@ -787,15 +799,26 @@ private:
         repaint();
     }
 
-    static void _onPrCountrySubmit(const char* text, void* ctx) {
+    // Country step = SPickerList (M-COUNTRY-PICKER D3; replaces the 2-char
+    // UpperAlpha keyboard). _prLastCountry session memory (Q5) is the
+    // picker's initial position; select feeds the pending code and advances
+    // to the Postcode keyboard exactly as the old keyboard submit did.
+    void _openPrCountryPicker() {
+        _prLocState = PrLocView::LookupCountry;
+        g_countryPicker.show(kCountries, kCountryCount, _prLastCountry,
+            _onPrCountryPicked, _onPrCountryPickCancel, this);
+    }
+
+    static void _onPrCountryPicked(int16_t idx, void* ctx) {
         AppsSection* self = static_cast<AppsSection*>(ctx);
-        strlcpy(self->_prLastCountry, text, sizeof(self->_prLastCountry));
-        strlcpy(self->_prPendingCountry, text, sizeof(self->_prPendingCountry));
+        const char* code = kCountries[idx].code;
+        strlcpy(self->_prLastCountry, code, sizeof(self->_prLastCountry));
+        strlcpy(self->_prPendingCountry, code, sizeof(self->_prPendingCountry));
         self->_prLocState = PrLocView::LookupPostcode;
         g_keyboard.show("Postcode", "", KeyboardWidget::Mode::Full, 10,
             _onPrPostcodeSubmit, _onPrPostcodeCancel, self);
     }
-    static void _onPrCountryCancel(void* ctx) {
+    static void _onPrCountryPickCancel(void* ctx) {
         AppsSection* self = static_cast<AppsSection*>(ctx);
         self->_prLocState = PrLocView::SourceFork;
         self->repaint();
@@ -962,9 +985,7 @@ private:
             _prSaveCoords();
         } else if (_prBar[1].hit(x, y)) {
             _prBar[1].flash();
-            _prLocState = PrLocView::LookupCountry;
-            g_keyboard.show("Country", _prLastCountry, KeyboardWidget::Mode::UpperAlpha, 2,
-                _onPrCountrySubmit, _onPrCountryCancel, this);
+            _openPrCountryPicker();   // Retry restarts at the country step
         } else if (_prBar[2].hit(x, y)) {
             _prBar[2].flash();
             _prLocState = PrLocView::SlotList;   // Cancel keeps prior coords, nothing persisted
@@ -1023,9 +1044,7 @@ private:
     void _handlePrErrorTap(int x, int y) {
         if (_prBar[0].hit(x, y)) {
             _prBar[0].flash();
-            _prLocState = PrLocView::LookupCountry;
-            g_keyboard.show("Country", _prLastCountry, KeyboardWidget::Mode::UpperAlpha, 2,
-                _onPrCountrySubmit, _onPrCountryCancel, this);
+            _openPrCountryPicker();   // Retry restarts at the country step
         } else if (_prBar[1].hit(x, y)) {
             _prBar[1].flash();
             _prLocState = PrLocView::SlotList;
