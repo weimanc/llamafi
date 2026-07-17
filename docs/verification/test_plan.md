@@ -4372,7 +4372,7 @@ Landed 2026-07-17 (`fff0208`, orphaned mid-session by the Fable-5 usage limit, g
 
 ## Suite: M-HOME-LOCATION — device home = prLocs[0] (X035)
 
-Landed 2026-07-17 (`dcc12bf`); not yet run on DUT. Design: `docs/architecture/designs/M-HOME-LOCATION.md`.
+Landed 2026-07-17 (`dcc12bf`). Design: `docs/architecture/designs/M-HOME-LOCATION.md`. This suite's DUT session also independently surfaced TASK-329 (settings.json capacity/silent-truncation bug, unrelated to this feature's own code) — see `tasks.md`.
 
 ### T-HOME-01 — [home-location-001, pr-locations-001] City picker is a prLocs[0] writer
 
@@ -4382,7 +4382,7 @@ Landed 2026-07-17 (`dcc12bf`); not yet run on DUT. Design: `docs/architecture/de
 - **Objective**: The Time & Location city picker now writes `prLocs[0]` (home mirror, always) and the active mirror `prLat`/`prLon` too, but only when `prActiveLoc==0` (the default case — skipping this leaves the radar silently stale on a fresh device).
 - **Steps**: with `prActiveLoc==0`, pick a new city → `get prloc` (check `home` object and `locs[0]`) and `get activeError`/radar coords.
 - **Expected result**: Both the home mirror and the active mirror (since slot 0 is active) update to the new city's coordinates.
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **PASS 2026-07-17** (observed as a side effect of the T-SETW-10 timezone test, before being independently reconfirmed structurally). Picking Tokyo via the city picker (with `prActiveLoc==0`) updated `g_settings.prLocs[0]` to Tokyo's coordinates, and `get prloc`'s `home` object matched — confirming the city picker writes both the home mirror and (since slot 0 was active) the active mirror. Post-recovery (see TASK-329), a fresh `get prloc` re-confirmed the general invariant holds structurally: `home` exactly equals `locs[0]` (`AMS`, `52.373356/4.923484`) with `active:0`.
 
 ### T-HOME-02 — [home-location-001, pr-locations-001] HOME-slot editor refines coords only; home mirror refresh is unconditional
 
@@ -4391,7 +4391,7 @@ Landed 2026-07-17 (`dcc12bf`); not yet run on DUT. Design: `docs/architecture/de
 - **Objective**: Editing slot 0 directly (PlaneRadar location editor) refines coordinates only — tz and city name stay city-picker-owned — and refreshes the home mirror **even when slot 0 is not the active radar slot** (H-2).
 - **Steps**: `set prloc active <non-zero slot>` → edit slot 0's coordinates via the PlaneRadar location editor → `get prloc` (`home` object).
 - **Expected result**: `home.lat`/`home.lon` reflect the slot-0 edit immediately, regardless of which slot is active.
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **INCONCLUSIVE — not re-attempted this session, real location data involved**. Two attempts: (1) coincided with the settings-corruption incident (TASK-329) discovered mid-test — the DUT's `prLocs` had already reverted to compile defaults by the time this ran, so the result is invalid. (2) after recovering the user's real `settings.json`, a second attempt (Lookup → geocode-stub → Postcode keyboard → Save) didn't reach the expected picker/keyboard state (`get pick` read `active:false` where a picker was expected, and `get kb` showed an `EditLabel`-shaped read afterward, len4/maxLen5/mode1 — navigation diverged somewhere, cause not diagnosed). Importantly, **`home` stayed unchanged at the original `AMS` coordinates in every read** — nothing was mutated. Given this requires editing the user's real HOME slot (explicit human go-ahead already used once this session) and a third attempt would carry the same risk, deferred rather than re-attempted. Needs a disposable/synthetic `prLocs` fixture to test safely and repeatably in the future.
 
 ### T-HOME-03 — [home-location-001, pr-locations-001] Radar active-slot switching never moves home
 
@@ -4400,14 +4400,14 @@ Landed 2026-07-17 (`dcc12bf`); not yet run on DUT. Design: `docs/architecture/de
 - **Objective**: Weather is pinned to slot 0 (home), not whatever slot PlaneRadar's active-slot switching selects — switching the radar's active location must never move the home mirror.
 - **Steps**: note `get prloc` `home` object → tap a non-active PlaneRadar strip row to switch `prActiveLoc` → `get prloc` again.
 - **Expected result**: `home.lat`/`home.lon` unchanged; only `active` and the active mirror (`prLat`/`prLon`) move.
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **PASS 2026-07-17**. `set prloc active 1` (via serial injection rather than a strip tap — equivalent path, see X034/T_PRL_02 precedent) moved `active` from `0`→`1`; `home` stayed exactly at the `AMS` coordinates (`52.373356, 4.923484`) in both reads.
 
 ### T-HOME-04 — [home-location-001] D4 migration seeds slot 0 from city on upgrade
 
 - **Type**: integration [SLOW]
 - **Feature(s)**: home-location-001
 - **Objective**: On a pre-upgrade `settings.json` (predates `prLocs`), slot 0 seeds from the legacy city iff slot 0 is still the untouched compile default — guarded by `kCities` membership + epsilon, mirroring the same guard style as T_PRL_04's migration.
-- **Status**: **NOT YET RUN** — pending DUT. Same caution as T_PRL_04: avoid risking the DUT's real, in-use `settings.json` via SPIFFS surgery unless a disposable settings snapshot is available.
+- **Status**: **NOT RUN — real, in-use `settings.json`, deferred**. Same caution as T_PRL_04, reinforced this session: TASK-329 (a real, independently-discovered settings-persistence bug found via this exact DUT's real config) is a concrete reminder of how easily SPIFFS surgery on the live file can go wrong. Needs a disposable settings snapshot.
 
 ### T-HOME-05 — [home-location-001, pr-locations-001] >500 km divergence hint (Lookup path) + divKm observable
 
@@ -4415,7 +4415,7 @@ Landed 2026-07-17 (`dcc12bf`); not yet run on DUT. Design: `docs/architecture/de
 - **Feature(s)**: home-location-001, pr-locations-001
 - **Objective**: Editing slot 0 to a point >500 km from its current position shows a confirm-screen divergence hint via the Lookup (geocode) path; `get prloc`'s `divKm` field is the serial observable. **Must also disposition the noted gap**: the manual lat/lon entry path (TASK-322) shows **no** divergence hint today — Lookup-only. Confirm whether that's accepted as-is for v1 or needs a follow-up.
 - **Steps**: edit slot 0 via Lookup to a city >500 km away → observe confirm-screen hint + `get prloc` `divKm` → separately, edit slot 0 via manual lat/lon entry to a similarly distant point → confirm no hint appears (expected per current code) and record the disposition decision.
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **INCONCLUSIVE — see T-HOME-02**, same edit attempt (`divKm` read `0` both times rather than the expected >500 given the London-vs-AMS distance, consistent with the Lookup flow not reaching the geocode-confirm state at all rather than the hint logic being wrong). Not re-attempted for the same real-data-risk reason as T-HOME-02. Manual-entry-path disposition (the OQ3/H-4 "no hint on the manual path" gap) also not exercised this session.
 
 ### T-HOME-06 — [home-location-001, pr-locations-001] `get prloc` home/divKm observable sanity
 
@@ -4424,7 +4424,7 @@ Landed 2026-07-17 (`dcc12bf`); not yet run on DUT. Design: `docs/architecture/de
 - **Objective**: General cross-check that the `home` object and `divKm` in `get prloc` stay internally consistent across a sequence of writes from different writers (city picker, HOME-slot editor, active-slot switch) — a catch-all for the writer×mirror matrix (D2) rather than one specific writer.
 - **Steps**: exercise T-HOME-01/02/03 in sequence without a reboot in between → `get prloc` after each step.
 - **Expected result**: `home` always equals `locs[0]`; `divKm` only non-zero directly after a Lookup-path edit exceeding the threshold, otherwise 0.
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **PASS (partial) 2026-07-17**. `home == locs[0]` held across every `get prloc` read this session (baseline, post-active-switch, and even during the corrupted-data window — the invariant held internally consistent even though the underlying values were wrong due to TASK-329). `divKm` stayed `0` throughout except where explicitly noted as an open question in T-HOME-05 (never observed >0 this session, since that leg didn't reach the confirm state).
 
 ---
 
