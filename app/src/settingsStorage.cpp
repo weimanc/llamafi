@@ -1,6 +1,8 @@
 #include "settingsStorage.h"
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
+#include <math.h>
+#include "settings/cities.h"   // M-HOME-LOCATION D4: migration seeds home from the kCities table (standalone data, no include cycle)
 
 AppSettings g_settings;
 
@@ -11,8 +13,12 @@ static void applyDefaults() {
     strlcpy(g_settings.posixTz, "UTC0", sizeof(g_settings.posixTz));
     strlcpy(g_settings.tzName,  "UTC",  sizeof(g_settings.tzName));
     g_settings.city[0] = '\0';
-    g_settings.lat     = 0.0f;
-    g_settings.lon     = 0.0f;
+    // M-HOME-LOCATION: lat/lon are the home mirror of prLocs[0] — default to
+    // the same compile-time home so the mirror invariant holds even on the
+    // no-file / parse-error early-return paths (fresh device: home = Amsterdam,
+    // never 0,0 — weather reads these).
+    g_settings.lat     = PR_DEFAULT_LAT;
+    g_settings.lon     = PR_DEFAULT_LON;
     g_settings.fmt24h  = true;
     g_settings.dateFmt = DateFmt::DMY;
 
@@ -80,9 +86,9 @@ static void applyDefaults() {
     g_settings.webRadioMaxVolume     = 10;
     g_settings.webRadioLastStation   = 0;
 
-    // Plane Radar (matches planeRadarApp.h's PR_DEFAULT_LAT/LON)
-    g_settings.prLat            = 52.3676f;
-    g_settings.prLon            = 4.9041f;
+    // Plane Radar (PR_DEFAULT_LAT/LON — settingsStorage.h, M-HOME-LOCATION H-7a)
+    g_settings.prLat            = PR_DEFAULT_LAT;
+    g_settings.prLon            = PR_DEFAULT_LON;
     g_settings.prUnits          = 0;
     g_settings.prRunwayOverlay  = true;
     g_settings.prRangeIdx       = 1;   // 10 km
@@ -265,8 +271,8 @@ void SettingsStorage::load() {
     // Plane Radar
     if (doc.containsKey("planeRadar")) {
         auto pr = doc["planeRadar"];
-        if (pr.containsKey("lat"))      g_settings.prLat           = pr["lat"]      | 52.3676f;
-        if (pr.containsKey("lon"))      g_settings.prLon           = pr["lon"]      | 4.9041f;
+        if (pr.containsKey("lat"))      g_settings.prLat           = pr["lat"]      | PR_DEFAULT_LAT;
+        if (pr.containsKey("lon"))      g_settings.prLon           = pr["lon"]      | PR_DEFAULT_LON;
         if (pr.containsKey("units"))    g_settings.prUnits         = pr["units"]    | 0;
         if (pr.containsKey("runways"))  g_settings.prRunwayOverlay = pr["runways"]  | true;
         if (pr.containsKey("rangeIdx")) g_settings.prRangeIdx      = pr["rangeIdx"] | 1;
@@ -313,11 +319,41 @@ void SettingsStorage::load() {
     if (g_settings.prActiveLoc >= PR_NUM_LOCS ||
         g_settings.prLocs[g_settings.prActiveLoc].label[0] == '\0')
         g_settings.prActiveLoc = 0;
-    // Write-through mirror (design "Settings storage"): prLat/prLon are now
-    // derived FROM the active slot, every load, so every existing consumer
-    // that only reads prLat/prLon stays correct without modification.
+
+    // M-HOME-LOCATION §3-D4 migration (must run AFTER the prLocs invariants
+    // above, BEFORE the mirror derivation below — X035 ordering): a user who
+    // only ever picked a city (slot 0 still the untouched compile default:
+    // label "HOME" + Amsterdam coords, epsilon-compared per H-7b) gets home
+    // seeded from that city so weather + radar HOME land where they said they
+    // live. Seeds from the kCities TABLE entry, never from g_settings.lat/lon
+    // — a truncated time block (city set, coords parsed 0,0) must not seed
+    // home to the Gulf of Guinea; kCities membership doubles as the
+    // corrupt-file guard (H-7c). A user-edited prLocs[0] fails the epsilon
+    // check and survives untouched (more precise than any city entry).
+    if (g_settings.city[0] != '\0' &&
+        strcmp(g_settings.prLocs[0].label, "HOME") == 0 &&
+        fabsf(g_settings.prLocs[0].lat - PR_DEFAULT_LAT) < 1e-4f &&
+        fabsf(g_settings.prLocs[0].lon - PR_DEFAULT_LON) < 1e-4f) {
+        for (uint8_t i = 0; i < kCityCount; i++) {
+            if (strcmp(g_settings.city, kCities[i].city) == 0) {
+                g_settings.prLocs[0].lat = kCities[i].lat;
+                g_settings.prLocs[0].lon = kCities[i].lon;
+                break;
+            }
+        }
+    }
+
+    // Write-through mirrors, both derived every load (M-HOME-LOCATION H-1
+    // writer×mirror matrix, load() row):
+    //   ACTIVE mirror — prLat/prLon FROM the active slot (M-PR-LOCATIONS), so
+    //   every existing consumer that only reads prLat/prLon stays correct;
     g_settings.prLat = g_settings.prLocs[g_settings.prActiveLoc].lat;
     g_settings.prLon = g_settings.prLocs[g_settings.prActiveLoc].lon;
+    //   HOME mirror — lat/lon FROM slot 0 (D1b): the Time & Location lat/lon
+    //   fields are repurposed as the home mirror; whatever the file's time
+    //   block carried is overwritten here. Weather reads these.
+    g_settings.lat = g_settings.prLocs[0].lat;
+    g_settings.lon = g_settings.prLocs[0].lon;
 
     // Migrate: ldrHigh==0 means uncalibrated (old save or user wiped it).
     if (g_settings.ldrHigh == 0)
@@ -417,4 +453,24 @@ void SettingsStorage::save() {
     if (serializeJson(doc, f) == 0) Serial.println("SettingsStorage: write failed");
     f.close();
     Serial.println("SettingsStorage: saved");
+}
+
+// ---- M-HOME-LOCATION writer×mirror matrix (H-1/H-3) ------------------------
+// THE single implementation of the matrix — every prLocs slot writer calls
+// this; see the header comment for the full contract.
+
+void SettingsStorage::prSlotWritten(uint8_t slot) {
+    if (slot >= PR_NUM_LOCS) return;
+    if (slot == 0) {
+        // Home mirror: unconditional on slot-0 writes — even when slot 0 is
+        // NOT the active radar slot (H-2: weather follows home, not active).
+        g_settings.lat = g_settings.prLocs[0].lat;
+        g_settings.lon = g_settings.prLocs[0].lon;
+    }
+    if (slot == g_settings.prActiveLoc) {
+        // Active mirror: existing prLat/prLon consumers see the new coords
+        // without a switch (Q6 — saving != switching).
+        g_settings.prLat = g_settings.prLocs[slot].lat;
+        g_settings.prLon = g_settings.prLocs[slot].lon;
+    }
 }

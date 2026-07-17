@@ -929,6 +929,10 @@ public:
     }
     return false;
   }
+
+  // M-HOME-LOCATION H-5: confirm-screen divergence km (T-HOME-05 observable),
+  // surfaced through `get prloc` — house dbgGet-chain pattern.
+  int prDivKm() const { return _apps.prDivKm(); }
 #endif
 
 private:
@@ -3117,7 +3121,11 @@ static void cmdGet(const char *args) {
                     i ? "," : "", i, g_settings.prLocs[i].label,
                     g_settings.prLocs[i].lat, g_settings.prLocs[i].lon);
     }
-    Serial.printf("],\"last\":true}\n");
+    // M-HOME-LOCATION H-5: "home" = the home mirror (g_settings.lat/lon =
+    // prLocs[0]) — otherwise unreadable from the harness; "divKm" = the
+    // confirm-screen divergence observable (T-HOME-05), 0 when n/a.
+    Serial.printf("],\"home\":{\"lat\":%.6f,\"lon\":%.6f},\"divKm\":%d,\"last\":true}\n",
+                  g_settings.lat, g_settings.lon, g_SettingsApp.prDivKm());
     return;
   }
   if (strcmp(args, "geocode") == 0) {
@@ -3543,6 +3551,11 @@ static void cmdSet(const char *args) {
     strlcpy(g_settings.prLocs[idx].label, label, sizeof(g_settings.prLocs[idx].label));
     g_settings.prLocs[idx].lat = lat;
     g_settings.prLocs[idx].lon = lon;
+    // M-HOME-LOCATION H-3: this writer refreshed NO mirror before — editing
+    // the active slot left the radar on stale coords until reboot/switch, and
+    // slot-0 edits would have left weather stale. The shared matrix helper
+    // fixes both obligations (home iff idx==0, active iff idx==prActiveLoc).
+    SettingsStorage::prSlotWritten((uint8_t)idx);
     SettingsStorage::save();
     Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"prloc\",\"i\":%d,"
                   "\"label\":\"%s\",\"lat\":%.6f,\"lon\":%.6f}\n",

@@ -242,8 +242,16 @@ private:
         strlcpy(g_settings.city,     kCities[idx].city,    sizeof(g_settings.city));
         strlcpy(g_settings.tzName,   kCities[idx].tzName,  sizeof(g_settings.tzName));
         strlcpy(g_settings.posixTz,  kCities[idx].posixTz, sizeof(g_settings.posixTz));
-        g_settings.lat = kCities[idx].lat;
-        g_settings.lon = kCities[idx].lon;
+        // M-HOME-LOCATION D2: the city picker is a prLocs[0] writer — home
+        // coords live in slot 0; g_settings.lat/lon (the HOME mirror) are no
+        // longer written directly, prSlotWritten() refreshes them, plus the
+        // ACTIVE mirror prLat/prLon iff prActiveLoc == 0 (the default case —
+        // skipping that left the radar silently stale, H-1). Slot label stays
+        // "HOME": it names the slot, not the place (city names don't fit
+        // PR_LABEL_MAX anyway).
+        g_settings.prLocs[0].lat = kCities[idx].lat;
+        g_settings.prLocs[0].lon = kCities[idx].lon;
+        SettingsStorage::prSlotWritten(0);
         configTzTime(g_settings.posixTz,
                      "pool.ntp.org", "time.google.com", "time.cloudflare.com");
         saveSettings();

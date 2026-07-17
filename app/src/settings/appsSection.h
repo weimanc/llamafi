@@ -6,6 +6,7 @@
 #include "dataTask.h"
 #include "planeRadarConfig.h"
 #include "logDecode.h"   // httpErr() — TASK-321 geocode error decode
+#include "cities.h"      // M-HOME-LOCATION H-4: divergence-hint reference coords (kCities lookup by name)
 
 const char* cgIdToDisplay(const char* id);
 
@@ -18,6 +19,11 @@ public:
     }
 
     int submenu() const { return (int)_sub; }
+
+    // M-HOME-LOCATION H-5/H-6: divergence-km observable for T-HOME-05 —
+    // last value computed by the confirm screen (0 when not applicable).
+    // Read by `get prloc` via SettingsApp.
+    int prDivKm() const { return _prDivKm; }
 
     void enter() override { _sub = -1; _prLocActive = false; repaint(); }
     void leave() override {
@@ -128,6 +134,7 @@ private:
     float         _prGeoLat          = 0.0f;
     float         _prGeoLon          = 0.0f;
     int           _prGeoErr          = 0;
+    int           _prDivKm           = 0;       // M-HOME-LOCATION H-4/H-6: confirm-screen divergence km; 0 = n/a
     char          _prGeoDisplay[48]  = {};
     SSpinner      _prSpinner;
     unsigned long _prSpinnerMs       = 0;
@@ -636,11 +643,13 @@ private:
         slot.lat = 0.0f;
         slot.lon = 0.0f;
         if (_prEditSlot == settings().prActiveLoc) {
-            // Fall back active -> 0, write-through mirror the same way
-            // _setActiveLoc() will (TASK-323) so prLat/prLon stay valid.
+            // Fall back active -> 0, then re-derive the ACTIVE mirror through
+            // the shared matrix helper so prLat/prLon stay valid (same net
+            // effect as the previous inline copy). prSlotWritten(0) also
+            // rewrites the HOME mirror from slot 0 — a value no-op: delete
+            // never moves home, slot 0 is undeletable (H-2 note).
             settings().prActiveLoc = 0;
-            settings().prLat = settings().prLocs[0].lat;
-            settings().prLon = settings().prLocs[0].lon;
+            SettingsStorage::prSlotWritten(0);
         }
         saveSettings();
         _prLocState = PrLocView::SlotList;
@@ -775,13 +784,45 @@ private:
         char latbuf[16]; snprintf(latbuf, sizeof(latbuf), "%.4f", _prGeoLat);
         drawRow(y, { "Lat", latbuf, S_LABEL, S_VALUE }); y += S_ROW_H;
         char lonbuf[16]; snprintf(lonbuf, sizeof(lonbuf), "%.4f", _prGeoLon);
-        drawRow(y, { "Lon", lonbuf, S_LABEL, S_VALUE });
+        drawRow(y, { "Lon", lonbuf, S_LABEL, S_VALUE }); y += S_ROW_H;
+
+        // M-HOME-LOCATION H-4: divergence hint — informs, never blocks (Save
+        // still commits). Rendered under the lat/lon rows, above the bar.
+        _prComputeDivKm();
+        if (_prDivKm > 500) {
+            tft.setTextDatum(MC_DATUM);
+            tft.setTextColor(S_VALUE_OFF);
+            tft.drawString("timezone follows Time & Location",
+                           S_CANVAS_W / 2, y + 8, 2);
+            tft.setTextDatum(TL_DATUM);
+        }
 
         _prBar[0].label = "Save";   _prBar[0].style = SBtnStyle::Primary;
         _prBar[1].label = "Retry";  _prBar[1].style = SBtnStyle::Neutral;
         _prBar[2].label = "Cancel"; _prBar[2].style = SBtnStyle::Neutral;
         sButtonBar(_prBar, 3);
         for (uint8_t i = 0; i < 3; i++) _prBar[i].draw();
+    }
+
+    // M-HOME-LOCATION H-4/H-6: km between the pending geocode result and the
+    // picked city's coords. Reference = kCities lookup by NAME — after D1b,
+    // g_settings.lat/lon ARE the home mirror, so the city's own coords survive
+    // nowhere in settings.json; the check is name-driven. 0 (= skipped) when
+    // not editing slot 0, city unset, or city not in the table (pushed-file
+    // case). Distance: equirectangular with cosf midpoint-latitude scale —
+    // adequate at a 500 km threshold, no haversine import (H-6).
+    void _prComputeDivKm() {
+        _prDivKm = 0;
+        if (_prEditSlot != 0 || settings().city[0] == '\0') return;
+        for (uint8_t i = 0; i < kCityCount; i++) {
+            if (strcmp(settings().city, kCities[i].city) != 0) continue;
+            float midLatRad = 0.5f * (kCities[i].lat + _prGeoLat)
+                              * 0.0174533f;   // deg -> rad
+            float dx = (_prGeoLon - kCities[i].lon) * cosf(midLatRad);
+            float dy = _prGeoLat - kCities[i].lat;
+            _prDivKm = (int)(111.19f * sqrtf(dx * dx + dy * dy));
+            return;
+        }
     }
 
     void _handlePrConfirmTap(int x, int y) {
@@ -810,13 +851,12 @@ private:
         strlcpy(slot.label, _prPendingLabel, sizeof(slot.label));
         slot.lat = _prGeoLat;
         slot.lon = _prGeoLon;
-        if (_prEditSlot == settings().prActiveLoc) {
-            // Editing the currently-active slot: refresh the write-through
-            // mirror so existing prLat/prLon consumers see the new coords
-            // without switching (Q6 — saving != switching).
-            settings().prLat = _prGeoLat;
-            settings().prLon = _prGeoLon;
-        }
+        // M-HOME-LOCATION H-1/H-2: mirror refresh via the shared matrix
+        // helper — ACTIVE mirror iff this slot is active (Q6 — saving !=
+        // switching, unchanged), plus HOME mirror unconditionally on slot-0
+        // edits, even while a non-zero slot is active (weather follows home,
+        // not the active slot).
+        SettingsStorage::prSlotWritten(_prEditSlot);
         saveSettings();
         _prLocState = PrLocView::SlotList;
         repaint();

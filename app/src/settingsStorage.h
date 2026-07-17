@@ -44,6 +44,15 @@ struct PrLocation {
     float lat, lon;
 };
 
+// M-HOME-LOCATION (H-7a): the compile-time default home (Amsterdam). One named
+// constant, four users: applyDefaults(), the two load() fallbacks, and the D4
+// migration's "slot 0 still the untouched default?" comparison — one drifted
+// literal would break that heuristic silently. Deliberately distinct from the
+// kCities Amsterdam entry (52.3667/4.9000), so a real city-pick of Amsterdam
+// is distinguishable from this default.
+static constexpr float PR_DEFAULT_LAT = 52.3676f;
+static constexpr float PR_DEFAULT_LON = 4.9041f;
+
 // ---- Settings struct -------------------------------------------------------
 
 struct AppSettings {
@@ -52,6 +61,10 @@ struct AppSettings {
     char    posixTz[48];    // POSIX tz rule, e.g. "GMT0BST,M3.5.0/1,M10.5.0"
     char    tzName[32];     // display name, e.g. "Europe/London"
     char    city[24];       // selected city name; "" = none
+    // M-HOME-LOCATION (D1b): lat/lon are REPURPOSED as the HOME MIRROR —
+    // write-through mirror of prLocs[0], derived on every load and refreshed
+    // by SettingsStorage::prSlotWritten(). Weather (WIRE2-G4) reads them; the
+    // city picker writes them only via slot 0 + the helper, never directly.
     float   lat;
     float   lon;
     bool    fmt24h;         // true = 24h; false = 12h AM/PM
@@ -138,4 +151,16 @@ extern AppSettings g_settings;
 namespace SettingsStorage {
     void load();   // SPIFFS → g_settings; per-key defaults applied for missing entries
     void save();   // g_settings → SPIFFS
+
+    // M-HOME-LOCATION (H-1/H-3): the writer×mirror matrix lives HERE and only
+    // here (BP-047 — one shared sequence, never a second inline copy). Two
+    // mirrors exist; "the mirror" unqualified is banned:
+    //   home mirror   lat/lon     = prLocs[0]           — refreshed iff slot == 0
+    //   active mirror prLat/prLon = prLocs[prActiveLoc] — refreshed iff slot == prActiveLoc
+    // Call after ANY write to g_settings.prLocs[slot] (city picker,
+    // _prSaveCoords, delete-fallback, `set prloc <i> ...`). Does NOT persist —
+    // callers own the save() they already do. SWITCHING the active slot
+    // (_setActiveLoc / `set prloc active`) is not a slot write and never
+    // touches home — it keeps its own prLat/prLon copy.
+    void prSlotWritten(uint8_t slot);
 }
