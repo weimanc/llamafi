@@ -995,7 +995,8 @@ features:
                T-KB-01, T-KB-02, T-KB-03, T-KB-04, T-KB-05, T-KB-06,
                T-KB-07, T-KB-08, T-KB-09, T-KB-10, T-KB-11, T-KB-12,
                T-CAL-01, T-CAL-02, T-CAL-03, T-CAL-04, T-CAL-05, T-CAL-06,
-               T-CAL-07, T-CAL-08, T-CAL-09, T-CAL-10, T-CAL-11]
+               T-CAL-07, T-CAL-08, T-CAL-09, T-CAL-10, T-CAL-11,
+               T-SETW-10, T-SETW-13, T-SETW-14, T-SETW-15]
     notes: |
       TASK-141/142 done (2026-06-05). Section impls wired 2026-06-06.
       LedSection (section 4) and CalibrationFlow (section 2) implemented 2026-06-06 — all 6
@@ -1775,7 +1776,7 @@ features:
       - app/tools/gen_countries.py
       - app/tools/data/iso3166.csv
     cross_features: [settings-001, pr-locations-001, settings-wifi]
-    test_ids: []
+    test_ids: [T-CPICK-01, T-CPICK-02, T-CPICK-03, T-CPICK-04, T-CPICK-05]
     notes: |
       SPickerList (M-COUNTRY-PICKER, landed 2026-07-17): modal full-canvas
       scroll picker over CountryEntry rows — city-picker mechanics transcribed
@@ -1835,7 +1836,8 @@ features:
       - app/src/settingsStorage.cpp
       - app/src/dataTask.h
     cross_features: [settings-001, webradio-001, player-state-001]
-    test_ids: []
+    test_ids: [T-WRSET-01, T-WRSET-02, T-WRSET-03, T-WRSET-04, T-WRSET-05, T-WRSET-06,
+               T-CPICK-03]
     notes: |
       Design: docs/architecture/designs/M-WEBRADIO-SETTINGS.md (draft, awaiting
       review). Matrix edge X034 reserved. Developer completes this entry at
@@ -1864,7 +1866,7 @@ features:
       - app/src/settings/appsSection.h
       - app/src/main.cpp
     cross_features: [pr-locations-001, settings-001, weather-001, planeradar-001]
-    test_ids: []
+    test_ids: [T-HOME-01, T-HOME-02, T-HOME-03, T-HOME-04, T-HOME-05, T-HOME-06]
     notes: |
       Design: docs/architecture/designs/M-HOME-LOCATION.md (draft, awaiting review).
       Matrix edge X035 reserved; closes X030 and supersedes X032's empty-city
