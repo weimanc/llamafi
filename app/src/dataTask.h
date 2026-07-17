@@ -95,6 +95,10 @@ struct WebRadioStationsResult {
     int     lastHttpCode = 0;
     uint8_t count        = 0;
     char    countryCode[4] = {};
+    uint8_t bitrateCap   = 0;      // WR-1 (M-WEBRADIO-SETTINGS D3): request-param echo alongside
+                                    // countryCode — tick()'s install site compares BOTH against its
+                                    // enqueue-time snapshot and discards stale parked/in-flight
+                                    // results (same medicine as TASK-300's StockChartResult.symbol).
     char    jsonErr[24]  = {};
     bool    tlsInsecure  = false;  // always false since TASK-236 removed the setInsecure()
                                     // fallback (ADR-029 gate at T_WR_TLS_01 proved it never

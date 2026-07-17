@@ -297,6 +297,10 @@ public:
         _currentIdx      = g_settings.webRadioLastStation;
         _scrollOffset    = 0;
         _pendingStations = false;
+        // ADR-050 rule 3 (M-WEBRADIO-SETTINGS): lastStation-at-load baseline for
+        // the coalesced suspend()-save — no flash write when nothing changed.
+        _lastStationSaved = g_settings.webRadioLastStation;
+        _lastStationDirty = false;
         _dirty           = true;
         _icyTitle[0]     = '\0';
         _bufPct          = 0;
@@ -328,9 +332,7 @@ public:
         // Kick off station list fetch
         LOG_I("webradio", "HEAP pre-fetch free=%u min=%u",
               (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap());
-        dataTask::enqueueWebRadioStations(g_settings.webRadioCountry,
-                                          g_settings.webRadioBitrateCap);
-        _pendingStations = true;
+        _enqueueStationFetch();
 
         // _dirty=true; tick() handles first paint — init() must return fast
         // (called synchronously from cmdTap context; _drawFull here risks WDT).
@@ -339,6 +341,37 @@ public:
     void resume() override {
         _dirty = true;
         // Defer paint to tick() — resume() can also run from cmdTap context.
+
+        // M-WEBRADIO-SETTINGS D3: pull-on-resume config diff (StockApp
+        // ticker-diff precedent). A Settings edit of country or bitrate cap
+        // voids the station-list identity: abort any in-flight fetch (WR-1 —
+        // its result may still park; tick()'s identity check discards it),
+        // stop the stream defensively (WR-7: every real app-switch path runs
+        // suspend() -> _stopAudio() first, so this is belt-and-braces), clear
+        // the list/indices and refetch. The WR-2 lastStation reset already
+        // happened at edit time in appsSection (rides the section's save);
+        // this branch is also the safety net for serial `set` edits. Autoplay
+        // below cannot fire across the change: _stationCount is 0 until the
+        // fresh list lands, and by then the check has passed.
+        if (_cfgCountry[0] != '\0' &&
+            (strcmp(_cfgCountry, g_settings.webRadioCountry) != 0 ||
+             _cfgCap != g_settings.webRadioBitrateCap)) {
+            LOG_I("webradio", "config changed %s/%u -> %s/%u — refetching stations",
+                  _cfgCountry, (unsigned)_cfgCap,
+                  g_settings.webRadioCountry,
+                  (unsigned)g_settings.webRadioBitrateCap);
+            if (_pendingStations) dataTask::abortWebRadioFetch();
+            if (_state != WRPlayState::STOPPED) _stopAudio();
+            _currentIdx   = 0;
+            _stationCount = 0;
+            _scrollOffset = 0;
+            // The WR-2 edit-time reset already persisted lastStation=0 (UI
+            // path) — refresh the suspend()-save baseline so the coalesced
+            // save doesn't redundantly rewrite an unchanged value.
+            _lastStationSaved = g_settings.webRadioLastStation;
+            _lastStationDirty = false;
+            _enqueueStationFetch();
+        }
 
         // TASK-289: second-chance station fetch. The list was fetched exactly
         // once (init(), first entry); if that fetch failed — network blip,
@@ -349,9 +382,7 @@ public:
         // can't fire, so this cannot recreate the fetch/playback race the
         // guard exists for.
         if (_stationCount == 0 && !_pendingStations) {
-            dataTask::enqueueWebRadioStations(g_settings.webRadioCountry,
-                                              g_settings.webRadioBitrateCap);
-            _pendingStations = true;
+            _enqueueStationFetch();
         }
 
         if (g_settings.webRadioAutoplay && _stationCount > 0 &&
@@ -386,6 +417,19 @@ public:
         if (s_wr_audio) { delete s_wr_audio; s_wr_audio = nullptr; }
         mb_arena_release();
 #endif
+
+        // ADR-050 rule 3 (M-WEBRADIO-SETTINGS D3): coalesced lastStation
+        // persistence — _play() writes g_settings in RAM and marks dirty;
+        // one SettingsStorage::save() here per session iff the value actually
+        // changed since load. Auto-skip churn costs zero flash writes, and
+        // eject also funnels through suspend() so it is covered.
+        if (_lastStationDirty) {
+            if (g_settings.webRadioLastStation != _lastStationSaved) {
+                SettingsStorage::save();
+                _lastStationSaved = g_settings.webRadioLastStation;
+            }
+            _lastStationDirty = false;
+        }
     }
 
     void tick() override {
@@ -466,6 +510,22 @@ public:
         if (_pendingStations) {
             dataTask::WebRadioStationsResult result;
             if (dataTask::pollWebRadioStations(&result)) {
+                // WR-1 (M-WEBRADIO-SETTINGS D3): result identity. A stale
+                // in-flight/parked fetch from before a config change can pop
+                // AFTER resume()'s diff cleared the list and re-enqueued —
+                // the TASK-300 parked-result class. Compare BOTH request-param
+                // echoes against the snapshot latched at enqueue; on mismatch
+                // discard and keep polling for the current request's result
+                // (_pendingStations stays true — do NOT install, do NOT set
+                // _stationCount).
+                if (strcmp(result.countryCode, _cfgCountry) != 0 ||
+                    result.bitrateCap != _cfgCap) {
+                    LOG_W("webradio",
+                          "stale station result discarded (%s/%u, want %s/%u)",
+                          result.countryCode, (unsigned)result.bitrateCap,
+                          _cfgCountry, (unsigned)_cfgCap);
+                    return;
+                }
                 _pendingStations = false;
                 // TASK-208: heap watermark — post-fetch (TLS torn down)
                 _heapFetchFree = ESP.getFreeHeap();
@@ -1071,6 +1131,16 @@ private:
     unsigned long _lastScrollMs   = 0;     // dt tracking for _tickScroll (M-LIST-v4 OQ1)
     bool        _pleditDirty      = false; // row-region-only repaint marker (not _dirty)
     bool        _pendingStations = false;
+    // M-WEBRADIO-SETTINGS D3: config snapshot latched at every station-list
+    // enqueue (_enqueueStationFetch()). resume() diffs it against g_settings
+    // to detect Settings edits; tick()'s WR-1 identity check compares the
+    // result's param echoes against it before installing. Empty/0 until the
+    // first init() fetch so the first-entry path is unaffected.
+    char        _cfgCountry[4]   = {};
+    uint8_t     _cfgCap          = 0;
+    // ADR-050 rule 3: coalesced lastStation persistence (see suspend()).
+    bool        _lastStationDirty = false;
+    uint8_t     _lastStationSaved = 0;
     // TASK-289: a wrUrl inject arrived while the station fetch was in flight —
     // tick() starts _play(0) when the (aborted) fetch result lands, so playback
     // never allocates concurrently with the fetch's TLS session.
@@ -1117,6 +1187,18 @@ private:
     uint32_t    _snapFilled     = 0;
     uint32_t    _snapFreeB      = 0;
     bool        _snapRunning    = false;
+
+    // M-WEBRADIO-SETTINGS D3: single enqueue funnel — latches the config
+    // snapshot at the moment of request so tick()'s WR-1 identity check and
+    // resume()'s diff always compare against what was actually asked for.
+    // Every station-list enqueue MUST go through here.
+    void _enqueueStationFetch() {
+        strlcpy(_cfgCountry, g_settings.webRadioCountry, sizeof(_cfgCountry));
+        _cfgCap = g_settings.webRadioBitrateCap;
+        dataTask::enqueueWebRadioStations(g_settings.webRadioCountry,
+                                          g_settings.webRadioBitrateCap);
+        _pendingStations = true;
+    }
 
     // ── Audio control ──────────────────────────────────────────────────────
 
@@ -1179,7 +1261,11 @@ private:
         if (userInitiated) { _autoSkipTried = 0; _stallRetries = 0; }
         _lastAttemptMs = millis();   // TASK-273: stamp every attempt (paces auto retry/skip)
         _currentIdx = idx;
+        // RAM-only write + dirty mark; persisted coalesced in suspend()
+        // (ADR-050 rule 3, M-WEBRADIO-SETTINGS D3) so auto-skip churn costs
+        // zero flash writes.
         g_settings.webRadioLastStation = idx;
+        _lastStationDirty = true;
         _icyTitle[0] = '\0';
         _bufPct      = 0;
         _state       = WRPlayState::CONNECTING;
@@ -1520,7 +1606,8 @@ private:
         // scrollbar thumb, bottom bar) instead of the old flat fillRect panel,
         // so WebRadio's station list matches Spotify's playlist in the same skin.
         // The skin title bar carries no text by design (§PLEDIT title bar — the
-        // active country is surfaced via Settings, not an overlay), so the old
+        // active country is edited and surfaced via Settings > Applications >
+        // WebRadio (M-WEBRADIO-SETTINGS), not an overlay), so the old
         // "N stations — country" header is dropped here too.
         winampDisplay.drawPleditFrame(_scrollOffset, (int)_stationCount);
 

@@ -1,6 +1,7 @@
 #pragma once
 #include "settingsSection.h"
 #include "settingsWidgets.h"   // TASK-328 kit — first consumer is the TASK-321 location editor
+#include "sliderWidget.h"      // M-WEBRADIO-SETTINGS D2: Max-volume row (WR-3 phase-forwarded)
 #include "gen/configurable_apps.h"
 #include "keyboardWidget.h"
 #include "dataTask.h"
@@ -27,7 +28,7 @@ public:
 
     void enter() override { _sub = -1; _prLocActive = false; repaint(); }
     void leave() override {
-        if (_prLocActive && g_keyboard.active()) g_keyboard.hide();
+        if ((_prLocActive || _wrSub()) && g_keyboard.active()) g_keyboard.hide();
         _prLocActive = false;
         _sub = -1;
     }
@@ -37,6 +38,9 @@ public:
     // `if (_step == WifiStep::Keyboard) return;` guard (TASK-321).
     void repaint() override {
         if (_prLocActive && _prLocIsKeyboardStep()) return;
+        // WebRadio Country editor: the keyboard owns the full canvas
+        // (wifiSection's `_step == Keyboard` guard idiom).
+        if (_wrSub() && g_keyboard.active()) return;
         drawHeader();
         clearContent();
         if (_sub < 0)          _repaintAppList();
@@ -80,9 +84,29 @@ public:
         // (mirrors wifiSection's pattern) — checked before back-tap, since the
         // keyboard has its own cancel zone at x<40,y<KB_INPUT_H that overlaps
         // where our header back-zone would otherwise be.
-        if (_prLocActive && g_keyboard.active()) {
+        if ((_prLocActive || _wrSub()) && g_keyboard.active()) {
             g_keyboard.handleInput(phase, x, y);
             return SectionResult::Continue;
+        }
+        // WR-3 (M-WEBRADIO-SETTINGS D2): SliderWidget needs Press/Move/Release,
+        // but this section is Release-only below — forward all phases to the
+        // Max-volume slider while the WebRadio submenu is showing (the keyboard
+        // capture above is the precedent for piercing the Release-only gate;
+        // DisplaySection's Level row is the routing idiom). Live volume apply
+        // is NOT needed — the radio is never running while Settings is open.
+        if (_wrSub() && !g_keyboard.active()) {
+            const int volRowY = S_CONTENT_Y + 4 * S_ROW_H;   // row 4 = Max volume
+            if (phase == TouchPhase::Press) {
+                _wrVolSlider.onPress(x, y, volRowY);
+            } else if (phase == TouchPhase::Move && _wrVolSlider.isDragging()) {
+                _wrVolSlider.onMove(x);
+                _wrVolSlider.render(volRowY, "Max vol");
+            } else if (phase == TouchPhase::Release && _wrVolSlider.isDragging()) {
+                settings().webRadioMaxVolume = (uint8_t)_wrVolSlider.onRelease(x);
+                saveSettings();
+                repaint();   // refresh row + the TASK-209 cap hint
+                return SectionResult::Continue;   // captured — no row dispatch
+            }
         }
         if (phase != TouchPhase::Release) return SectionResult::Continue;
         if (isBackTap(x, y)) {
@@ -142,6 +166,10 @@ private:
     SButton       _prBar[3];       // reused across Pending(n=1)/Error(n=2)/Confirm(n=3) bottom bars
     mutable char  _prTitleBuf[16]   = {};
 
+    // M-WEBRADIO-SETTINGS D2 row 4: Max-volume slider (1..21). Phase routing
+    // lives in handleInput()'s WR-3 forwarding hook, not here.
+    SliderWidget  _wrVolSlider;
+
     // Shrinks below S_ROW_H only once CONFIGURABLE_APP_COUNT no longer fits
     // S_CONTENT_H at the default row height (bug found 2026-07-11: PlaneRadar
     // was the 9th configurable app, and 9*S_ROW_H=234 > S_CONTENT_H=212 — its
@@ -180,6 +208,7 @@ private:
             case AppId::Teletext: _repaintTeletext(); break;
             case AppId::Spotify:  _repaintPlayer();   break;
             case AppId::PlaneRadar: _repaintPlaneRadar(); break;
+            case AppId::WebRadio: _repaintWebRadio(); break;
             default: break;
         }
     }
@@ -279,6 +308,7 @@ private:
             case AppId::Teletext: _cycleTeletext(row); break;
             case AppId::Spotify:  _cyclePlayer(row);   break;
             case AppId::PlaneRadar: _cyclePlaneRadar(row); break;
+            case AppId::WebRadio: _cycleWebRadio(row); break;
             default: break;
         }
     }
@@ -442,6 +472,107 @@ private:
             return;
         } else return;
         saveSettings(); repaint();
+    }
+
+    // ==== M-WEBRADIO-SETTINGS: WebRadio row view (D2) ========================
+    // 6 rows: Country (keyboard, WR-2 reset on commit), Autoplay (toggle),
+    // Bitrate cap (cycle — the wipe-trap fix row, WR-2 reset on change),
+    // Auto-skip (toggle), Max volume (slider — WR-3 phases forwarded in
+    // handleInput), HW mod (greyed read-only: a statement about installed
+    // hardware, not a preference — stays serial/spiffs-only, Teletext
+    // Country posture). Change propagation is the radio app's job (D3
+    // resume-diff); this section only edits + saves.
+
+    bool _wrSub() const {
+        return _sub >= 0 && kConfigurableApps[_sub].id == AppId::WebRadio;
+    }
+
+    void _repaintWebRadio() {
+        int y = S_CONTENT_Y;
+        drawRow(y, { "Country", settings().webRadioCountry, S_LABEL, S_VALUE });
+        y += S_ROW_H;
+        drawRow(y, { "Autoplay", settings().webRadioAutoplay ? "on" : "off",
+                     S_LABEL, S_VALUE });
+        y += S_ROW_H;
+        char cbuf[8];
+        if (settings().webRadioBitrateCap == 0) strlcpy(cbuf, "off", sizeof(cbuf));
+        else snprintf(cbuf, sizeof(cbuf), "%uk", (unsigned)settings().webRadioBitrateCap);
+        drawRow(y, { "Bitrate cap", cbuf, S_LABEL, S_VALUE });
+        y += S_ROW_H;
+        drawRow(y, { "Auto-skip", settings().webRadioAutoSkip ? "on" : "off",
+                     S_LABEL, S_VALUE });
+        y += S_ROW_H;
+        // 1..21 = ESP32-audioI2S setVolume() range (webRadioApp.h WR_VOLUME_MAX).
+        // Re-init only outside a drag so mid-gesture repaints can't reset capture.
+        if (!_wrVolSlider.isDragging())
+            _wrVolSlider.init(1, 21, settings().webRadioMaxVolume);
+        _wrVolSlider.render(y, "Max vol");
+        y += S_ROW_H;
+        drawRow(y, { "HW mod", settings().webRadioHwMod ? "yes" : "no",
+                     S_LABEL, S_VALUE_OFF });   // greyed read-only
+        y += S_ROW_H;
+        // TASK-209 clamp made visible (D2 value-label intent): stock hardware
+        // soft-caps effective volume at 12 (wrEffectiveVolume() semantics).
+        // Rendered as a footer hint — the slider's fixed value zone is too
+        // narrow for a composite "N (cap 12)" label.
+        if (!settings().webRadioHwMod && settings().webRadioMaxVolume > 12) {
+            tft.setTextDatum(MC_DATUM);
+            tft.setTextColor(S_VALUE_OFF);
+            tft.drawString("volume capped at 12 (no HW mod)",
+                           S_CANVAS_W / 2, y + 10, 2);
+            tft.setTextDatum(TL_DATUM);
+        }
+    }
+
+    void _cycleWebRadio(int row) {
+        if (row == 0) {
+            // Country editor — prloc idiom (UpperAlpha, maxLen 2). Free-typed
+            // ISO 3166-1 alpha-2; invalid codes just fetch an empty list
+            // (design OQ2 — interim until M-COUNTRY-PICKER).
+            g_keyboard.show("Country", settings().webRadioCountry,
+                KeyboardWidget::Mode::UpperAlpha, 2,
+                _onWrCountrySubmit, _onWrCountryCancel, this);
+            return;   // nothing changed yet — commit handler saves
+        } else if (row == 1) {
+            settings().webRadioAutoplay = !settings().webRadioAutoplay;
+        } else if (row == 2) {
+            // find-current-else-default-next (WR-11, _cycleTeletext
+            // convention): a serial-set off-list value (e.g. 100) advances to
+            // 128 (the default) instead of wedging the row. 0 renders "off".
+            static const uint8_t kCaps[] = { 0, 64, 96, 128, 192 };
+            uint8_t cur  = settings().webRadioBitrateCap;
+            uint8_t next = 3;   // -> 128 when cur is off-list
+            for (int i = 0; i < 5; i++)
+                if (kCaps[i] == cur) { next = (uint8_t)((i + 1) % 5); break; }
+            settings().webRadioBitrateCap = kCaps[next];
+            // WR-2 edit-time reset: the persisted index points into the old
+            // (differently filtered) list; reset rides this handler's save.
+            settings().webRadioLastStation = 0;
+        } else if (row == 3) {
+            settings().webRadioAutoSkip = !settings().webRadioAutoSkip;
+        } else {
+            // row 4 (Max volume) is phase-forwarded to the slider in
+            // handleInput(); row 5 (HW mod) is read-only — inert.
+            return;
+        }
+        saveSettings(); repaint();
+    }
+
+    static void _onWrCountrySubmit(const char* text, void* ctx) {
+        AppsSection* self = static_cast<AppsSection*>(ctx);
+        if (text && text[0] &&
+            strcmp(text, self->settings().webRadioCountry) != 0) {
+            strlcpy(self->settings().webRadioCountry, text,
+                    sizeof(self->settings().webRadioCountry));
+            // WR-2 edit-time reset: rides this save (zero extra flash wear)
+            // and closes the reboot window a resume()-time RAM reset leaves.
+            self->settings().webRadioLastStation = 0;
+            self->saveSettings();
+        }
+        self->repaint();
+    }
+    static void _onWrCountryCancel(void* ctx) {
+        static_cast<AppsSection*>(ctx)->repaint();
     }
 
     // ==== M-PR-LOCATIONS / TASK-321/322: Locations sub-view + slot editor ===

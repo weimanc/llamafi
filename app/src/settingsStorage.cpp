@@ -77,7 +77,7 @@ static void applyDefaults() {
     // Web Radio
     strlcpy(g_settings.webRadioCountry, "NL", sizeof(g_settings.webRadioCountry));
     g_settings.webRadioAutoplay      = false;
-    g_settings.webRadioBitrateCap    = 96;
+    g_settings.webRadioBitrateCap    = 128;  // M-WEBRADIO-SETTINGS OQ1 (2026-07-16): decode-safety midpoint; keep in sync with load()'s fallback below
     g_settings.webRadioAutoSkip      = true;   // TASK-234/ADR-045: default ON
     g_settings.webRadioHwMod         = false;
     // TASK-209 / §HW Mod: stock default 10 (soft-capped to 12 at playback); the
@@ -258,7 +258,7 @@ void SettingsStorage::load() {
         auto wr = doc["webRadio"];
         if (wr.containsKey("country"))     strlcpy(g_settings.webRadioCountry, wr["country"] | "NL", sizeof(g_settings.webRadioCountry));
         if (wr.containsKey("autoplay"))    g_settings.webRadioAutoplay    = wr["autoplay"]    | false;
-        if (wr.containsKey("bitrateCap"))  g_settings.webRadioBitrateCap  = wr["bitrateCap"]  | 96;
+        if (wr.containsKey("bitrateCap"))  g_settings.webRadioBitrateCap  = wr["bitrateCap"]  | 128;  // keep in sync with applyDefaults() (M-WEBRADIO-SETTINGS OQ1)
         if (wr.containsKey("autoSkip"))    g_settings.webRadioAutoSkip    = wr["autoSkip"]    | true;
         if (wr.containsKey("hwMod"))       g_settings.webRadioHwMod       = wr["hwMod"]       | false;
         // TASK-209 / §HW Mod: explicit maxVolume wins; otherwise default 18 with the

@@ -1381,6 +1381,7 @@ static void fetchWebRadioStations() {
     // Reset result in-place; dataTask is sole writer — no lock needed for the fill.
     s_webRadioResult        = WebRadioStationsResult{};
     strlcpy(s_webRadioResult.countryCode, country, sizeof(s_webRadioResult.countryCode));
+    s_webRadioResult.bitrateCap = bitrateCap;   // WR-1: echo the latched request params for the caller's identity check
 
     s_webRadioResult.count = 0;
     // TASK-239: the 5 KB parse buffer lives only for the fill loop — allocated
