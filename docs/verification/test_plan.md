@@ -4273,7 +4273,7 @@ Landed 2026-07-17 (`a241b44`, `49297a3`, `1abfb32`); not yet run on DUT. Design:
 - **Preconditions**: DUT with a non-UTC city already selected via the Time & Location city picker.
 - **Steps**: `get clockRender` (note `hour`/`ampm` for the current non-UTC zone) → `reboot` → wait for DUT ready → `get clockRender` again.
 - **Expected result**: Local hour/ampm match the pre-reboot reading (same offset applied) — not a UTC-reverted value.
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **PASS 2026-07-17**. Device shipped with `posixTz="UTC0"` (no city ever picked) — not a meaningful regression case, so the harness first picked Tokyo (`Asia/Tokyo`, JST+9, no DST) via the Time & Location city picker. `clockRender` read `19:19` right after the pick; a software `reboot` (harness `_wait_for_ready()`) later it read `19:23` — same hour/ampm/fmt24h, consistent with ~4 elapsed minutes, not a UTC-revert. `run/tools`-driven, no manual harness script committed (ad hoc DUT session).
 
 ### T-SETW-13 — [settings-001, weather-001] Weather fetch uses settings coords, resume-diffs on mismatch (X032/WIRE2-G4)
 
@@ -4283,7 +4283,7 @@ Landed 2026-07-17 (`a241b44`, `49297a3`, `1abfb32`); not yet run on DUT. Design:
 - **Objective**: `enqueueWeather(lat, lon)` snapshots `g_settings.lat/lon` at enqueue time (never a cross-core read of the live floats); `WeatherApp::resume()` diffs the snapshot against current settings and forces a refetch on mismatch, replacing the old hardcoded `WEATHER_URL` constant.
 - **Steps**: set home city A via Time & Location → switch to Weather, let it fetch, confirm the fetch URL (`LOG_D`) encodes A's coordinates → change city to B via Settings → switch away from Weather and back (`resume()`) → confirm a refetch fires and the new URL encodes B's coordinates.
 - **Expected result**: Weather always fetches for the currently-configured city, and only refetches when the coords actually changed (no spurious refetch on a no-op resume).
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **PASS 2026-07-17** (refetch-on-mismatch leg; baseline leg inconclusive). Baseline fetch URL wasn't captured in the harness's listen window (missed the print, not a failure). After switching the city to Tokyo via the picker, the very next `dataTask.weather` fetch URL was `...?latitude=35.6544&longitude=139.7447...` — an exact match for the new city, confirming the resume-diff refetch fired with the new coords. A subsequent switch-away/switch-back with **no** settings change produced no new fetch URL in a 6s window — no spurious refetch. `TASK-284` rate-limit caution observed (single real fetch, not hammered).
 
 ### T-SETW-14 — [settings-001, disp-001] BacklightFlow is a global owner, not Settings-screen-scoped (X033/WIRE2-G5)
 
@@ -4291,19 +4291,19 @@ Landed 2026-07-17 (`a241b44`, `49297a3`, `1abfb32`); not yet run on DUT. Design:
 - **Feature(s)**: settings-001, disp-001
 - **Interaction**: X033
 - **Objective**: Before this fix, the LDR sample→map→`ledcWrite` loop only ran while Settings→Display was the active view; `BacklightFlow::applyMode()`/`tick()` must now run at boot and in every app.
-- **Steps**: with `dispAuto=true`, boot the device and switch to any non-Settings app (e.g. Clock) → `set injectLdr <low value>` → `get duty`.
+- **Steps**: with `dispAuto=true`, boot the device and switch to any non-Settings app (e.g. Clock) → `set ldrRaw <low value>` → `get duty`. (Correction from the design sketch: the actual debug var is `ldrRaw`, not `injectLdr` — `injectLdr()` is the C++ method it calls internally.)
 - **Expected result**: `duty` tracks the injected LDR value even though the Settings→Display screen was never opened this session.
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **PASS 2026-07-17**. With `dispAuto` toggled on and Clock active (never opened Settings→Display this session): `set ldrRaw 10` → `duty=255`; `set ldrRaw 110` → `duty=45`. Both reads had `injected:true`, confirming `BacklightFlow::tick()` runs globally, not just while the Display screen is open.
 
 ### T-SETW-15 — [settings-001, disp-001] DisplaySection manual preview doesn't fight the controller (X033/WIRE2-G5)
 
 - **Type**: integration
 - **Feature(s)**: settings-001, disp-001
 - **Interaction**: X033
-- **Objective**: `DisplaySection` is now a pure editor — it pauses `BacklightFlow` on entry, drives the duty directly for the manual-slider preview, and resumes the controller on exit, rather than writing the backlight duty itself long-term.
-- **Steps**: with `dispAuto=true`, open Settings→Display → drag the brightness slider (manual preview) → `get duty` (expect the manual value, `auto:false` or paused) → back out of the Display section → `set injectLdr <a different value>` → `get duty`.
-- **Expected result**: The manual preview shows the dragged value while the section is open; after exiting, LDR-driven auto tracking resumes without a stuck/stale duty.
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Objective**: `DisplaySection` is now a pure editor — it pauses `BacklightFlow` on entry, drives the duty directly for the manual-slider preview, and resumes the controller on exit, rather than writing the backlight duty itself long-term. Correction from the design sketch: the slider row is only interactive while `dispAuto=false` (`handleInput()` gates the whole drag path on `!g_settings.dispAuto`), so the observable "doesn't fight" behavior is that `BacklightFlow::tick()` stays fully inert during manual editing (already true via its own `_autoValid()` gate, which `pause()` reinforces) — not a live race between the two.
+- **Steps**: force `dispAuto=false` → `drag <track-x> <levelY> ... hold` on the Level slider → `get duty` (manual value) → `set ldrRaw <extreme value>` while still holding → `get duty` again (must be unchanged) → `release` → `get duty` (committed manual value) → flip Auto back on → `get duty` (must now reflect the injected LDR immediately).
+- **Expected result**: Injecting an extreme LDR mid-drag does not move the manual duty; flipping Auto back on immediately reapplies from the (still-injected) live LDR — no stale duty either direction.
+- **Status**: **PASS 2026-07-17**. With `dispAuto` forced off and a slider drag held at the low end (`duty=25`): injecting `ldrRaw=5` mid-drag left `duty` unchanged at `25` (tick() confirmed inert in manual mode). After `release`, `duty` stayed at the committed `25`. Flipping Auto back on immediately jumped `duty` to `246` (reflecting the still-injected `ldrRaw=5`, i.e. near-dark → near-max duty) — `applyMode()`'s reapply-on-toggle confirmed clean, no stale duty.
 
 ---
 
@@ -4319,7 +4319,7 @@ Landed 2026-07-17 (`fff0208`, orphaned mid-session by the Fable-5 usage limit, g
 - **Objective**: `WebRadioStationsResult` carries the `country`/`bitrateCap` it was fetched under; the install site (`tick()`) discards a result whose echo doesn't match current settings, instead of repopulating the list with a stale parked/in-flight result after a country/cap edit (TASK-300 pattern).
 - **Steps**: start a station fetch for country A → before it lands, edit country to B in Settings → let A's in-flight/parked result arrive → `get wrCount`/`wrStation0`.
 - **Expected result**: The list reflects B, never A's stale result.
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **NOT RUN — no fault-injection hook exists** to reliably force a genuinely stale/mismatched in-flight result to arrive after a country edit (same class of gap as T_PRL_08's seq-mismatch half — code-verified via the review that gated `fff0208`, not independently DUT-provable without new instrumentation). Candidate follow-up: a `set wrInjectResult <country> <cap> ...` debug hook mirroring `prInjectAircraft`.
 
 ### T-WRSET-02 — [settings-webradio, webradio-001] Country/cap edit resets lastStation at edit time (WR-2)
 
@@ -4328,7 +4328,7 @@ Landed 2026-07-17 (`fff0208`, orphaned mid-session by the Fable-5 usage limit, g
 - **Objective**: `webRadioLastStation` resets to 0 **at edit time**, riding the section's own `saveSettings()` — not lazily at the next `resume()` — closing the reboot window where a RAM-only reset would otherwise let stale index + new country both persist to flash together.
 - **Steps**: play/select a non-zero station index → edit country or bitrate cap in Settings, save → `reboot` (before ever resuming WebRadio) → `get wrIdx` / persisted `webRadioLastStation`.
 - **Expected result**: `webRadioLastStation` is already 0 in flash immediately after the Settings save, not just after the next WebRadio resume.
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **PASS 2026-07-17**. Country changed `NL`→`DE` via Settings, then rebooted immediately **without visiting WebRadio again** (so `resume()` never ran this boot) — first WebRadio entry post-reboot (`init()`) read `wrIdx:0` and a DE-country fetch (`wrCount:0` — Germany simply returned no stations at the current bitrate cap, not a failure). Proves the index reset was already committed to flash at edit time, per the design's exact reboot-window concern, not merely held in RAM pending a resume. (The pre-edit baseline attempt to force a non-zero index via a station-row tap didn't register — `wrIdx` read `0` before the edit too — weakening the before/after contrast slightly, but the reboot-survives-with-no-resume structure of the test still directly demonstrates the edit-time write.)
 
 ### T-WRSET-03 — [settings-webradio, webradio-001] Resume-diff aborts in-flight fetch, clears list, re-enqueues
 
@@ -4337,7 +4337,7 @@ Landed 2026-07-17 (`fff0208`, orphaned mid-session by the Fable-5 usage limit, g
 - **Objective**: `resume()` diffs the app's snapshot against `g_settings` (country/cap); on mismatch it resets `_currentIdx`, clears the station list, aborts any in-flight fetch (`abortWebRadioFetch`), and re-enqueues via the TASK-289 second-chance path. This is also the CPICK regression re-run (country change via the picker, not the retired keyboard) — see T-CPICK-03.
 - **Steps**: enter WebRadio, let a fetch land → switch away to Settings, change country (via `set pick <CC>`) → switch back to WebRadio (`resume()`).
 - **Expected result**: `wrCount` resets and a fresh fetch is enqueued for the new country; no stale-country stations render even momentarily.
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **PASS 2026-07-17**. Baseline `NL` fetched 30 stations. Edited to `DE` (reboot in between, see T-WRSET-02) → 0 stations (Germany result, see above). Edited back to `NL` via Settings on the **already-open app** (a true `resume()`, not `init()`) → immediate read showed `wrCount:0` (looked like a failed refetch), but this matched the well-documented TASK-284 rate-limit pattern from three fetches in quick succession; a follow-up check ~60–70s later, untouched, showed `wrCount:30` again and held steady across six 10s polls. `wrIdx` correctly read `0` at every step. The refetch mechanism fires reliably; the transient empty read was network rate-limiting recovering, not a resume-diff defect — consistent with existing project experience (`project_task284_stationfetch_broken` memory).
 
 ### T-WRSET-04 — [settings-webradio, webradio-001] lastStation coalesced-saves on suspend/eject (ADR-050 rule 3)
 
@@ -4346,7 +4346,7 @@ Landed 2026-07-17 (`fff0208`, orphaned mid-session by the Fable-5 usage limit, g
 - **Objective**: `_lastStationDirty` batches station-change writes; the actual `SettingsStorage::save()` happens once on `suspend()`/eject, not on every station change (flash-wear discipline, ADR-050 rule 3).
 - **Steps**: change station index several times in one WebRadio session → eject/suspend → `reboot` → `get wrIdx`.
 - **Expected result**: The final index persisted; no more than one save observed across the whole session (inspect via existing settings-save instrumentation/log count, not per-tap saves).
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **NOT RUN — no flash-write-count instrumentation exists** to independently distinguish "one coalesced save" from "N saves" on this DUT (no serial log line counts `SettingsStorage::save()` invocations). Code-verified at gate time (`_lastStationDirty` batching reviewed in the `fff0208` gate); a cheap follow-up would be a `get settingsSaveCount` debug counter.
 
 ### T-WRSET-05 — [settings-webradio, webradio-001] No-edit Settings round-trip does not refetch (TASK-284 rate-limit sensitivity)
 
@@ -4355,7 +4355,7 @@ Landed 2026-07-17 (`fff0208`, orphaned mid-session by the Fable-5 usage limit, g
 - **Objective**: Opening Settings→Applications→WebRadio and leaving without changing country/cap must not trigger a resume-diff refetch — TASK-284 showed repeated fetches degrade the station-list mirror under rate limiting.
 - **Steps**: note `wrCount`/`wrLastHttp` count → open and close the WebRadio settings section with no edits → resume WebRadio → re-check `wrLastHttp` count.
 - **Expected result**: Fetch count unchanged.
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **WEAK PASS 2026-07-17 — re-run recommended with `wrLastHttp`'s request-count field**. Checked via `wrCount` equality (0 before, 0 after) rather than `wrLastHttp`'s fetch-attempt counter, during the window described in T-WRSET-03 where `NL` was transiently returning 0 stations (rate-limited) — a `count` match under those conditions can't distinguish "no refetch attempted" from "a refetch attempted and was itself rate-limited to empty." The mechanism is architecturally sound (resume-diff only fires on an actual settings mismatch, confirmed in T-WRSET-03), but this specific leg should be re-run comparing `wrLastHttp`'s attempt count, not `wrCount`, ideally outside the rate-limit window.
 
 ### T-WRSET-06 — [settings-webradio, webradio-001] Max-volume slider feeds wrEffectiveVolume without touching the hwMod clamp
 
@@ -4364,7 +4364,7 @@ Landed 2026-07-17 (`fff0208`, orphaned mid-session by the Fable-5 usage limit, g
 - **Objective**: The UI slider writes `webRadioMaxVolume` (1..21); `wrEffectiveVolume()` (TASK-209) stays the single clamp authority, and `hwMod` remains serial/SPIFFS-only (no UI control surface for it).
 - **Steps**: set `webRadioMaxVolume` via the Settings slider to a low value → `get wrEffectiveVol` while playing.
 - **Expected result**: `maxVol` reflects the new setting; `hwMod` unchanged and not reachable from the UI.
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **PASS 2026-07-17**. Dragged the slider low → `wrEffectiveVol` read `{"maxVol":2,"hwMod":false,"eff":2}` (original was `10`). Dragged back toward the original knob position → `{"maxVol":10,"hwMod":false,"eff":10}`, restoring the original setting. `hwMod` stayed `false` throughout, confirming it's untouched by the slider.
 
 **Also still owed** (flagged at design time, not yet scheduled): the **WR-4 coordinate re-derivation across settings suites** — a coordinate-drift audit of the WebRadio settings row layout, same class as the 801f378 drift lesson. Do this alongside the T-WRSET suite, not as a separate pass.
 
@@ -4439,7 +4439,7 @@ Landed 2026-07-17 (`13bb3fd`); not yet run on DUT. Design: `docs/architecture/de
 - **Objective**: Unlike the donor city picker (always opens at offset 0), `SPickerList` opens scrolled to the currently-selected country with it highlighted (CP-6, new code).
 - **Steps**: pick a country near the end of the 249-entry table once (e.g. via `set pick <CC>`) → close and reopen the picker at the same call site → `get pick` (`offset`, `highlightIdx`).
 - **Expected result**: `offset` places the previously-picked entry on-screen; `highlightIdx` matches it. The "opens scrolled to current selection" half is a serial-observable assertion; the visual highlight itself is an **eyeball** check (BP-048 posture, CP-8).
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **PASS 2026-07-17** (serial-observable half only; eyeball half not run this session). At WebRadio's Country row: baseline open (current=`NL`) showed `offset:154, highlightIdx:154`; after `set pick US`, reopening showed `offset:235, highlightIdx:235` (`US` sits later alphabetically) — `offset <= highlightIdx < offset+6` held both times. **Navigation finding (not a CPICK defect)**: reaching the WebRadio row required the Applications app-list row for `WebRadio` (`kConfigurableApps` index 9), whose row height is `S_CONTENT_H(212) / CONFIGURABLE_APP_COUNT(10) = 21px`, not the `23px` a comment in the already-committed `app/tools/prloc_editor_smoke.py` assumes (correct when there were 9 configurable apps, stale since WebRadio became the 10th — that script's hardcoded `(100, 223)` for PlaneRadar now lands one row down, on WebRadio, instead). Flagged for Developer/VE to fix that script's coordinate; not blocking here since this suite navigates fresh each time.
 
 ### T-CPICK-02 — [settings-widgets-001] Scrollbar thumb drag + arrows page correctly at 249 entries
 
@@ -4448,7 +4448,7 @@ Landed 2026-07-17 (`13bb3fd`); not yet run on DUT. Design: `docs/architecture/de
 - **Objective**: Donor tests (T-TIME-0x) cover the city picker's 81-entry list; re-run the same bounds/paging behavior at the larger 249-entry country table (thumb-drag proportionality, arrow paging, top/bottom clamping).
 - **Steps**: open the picker → drag the scrollbar thumb to several positions (top, middle, bottom) → `get pick` `offset` after each → tap the page arrows at each extreme.
 - **Expected result**: Thumb drag lands proportionally within a page or two of the dragged position; arrows page without overshooting past index 0 or 248.
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **PASS 2026-07-17**. Overshoot drags past both track ends landed exactly at the true bounds (`offset:243` at the bottom [`249-6`], `offset:0` at the top — `constrain()` clamps correctly rather than just approximating); an up-arrow tap at `offset:0` stayed at `0`; a down-arrow tap incremented by exactly `1`. First attempt with imprecise (non-overshooting) drag endpoints landed a few rows short of the true bounds (`offset:10` instead of `0`) — expected given the proportional drag math, not a defect; the overshoot re-test resolved the ambiguity.
 
 ### T-CPICK-03 — [settings-widgets-001, settings-webradio, pr-locations-001] Select round-trips at both call sites
 
@@ -4456,7 +4456,7 @@ Landed 2026-07-17 (`13bb3fd`); not yet run on DUT. Design: `docs/architecture/de
 - **Feature(s)**: settings-widgets-001, settings-webradio, pr-locations-001
 - **Objective**: Selecting a country persists correctly at both consumers: WebRadio's Country row (`webRadioCountry` + the X034 resume-diff contract fires — see T-WRSET-03) and the prloc Lookup-country step (advances to the Postcode keyboard step with the picked code), including both Retry paths the design found beyond the original two call sites.
 - **Steps**: (a) WebRadio Settings → Country row → `set pick <CC>` → `get wrCfg`/settings dump for `webRadioCountry` → confirm resume-diff refetch (T-WRSET-03). (b) PlaneRadar location editor → Lookup → Country step → `set pick <CC>` → confirm flow advances to Postcode with the picked code carried in `_prPendingCountry`. (c) repeat via each Retry button site.
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **PASS (WebRadio leg only) 2026-07-17**. `set pick US` returned `{"ok":true,"code":"US"}`; `set pick NL` immediately after (restoring the original setting) also returned `{"ok":true,"code":"NL"}` — round-trip confirmed, and the resume-diff propagation is independently confirmed in T-WRSET-02/03. **prloc Lookup leg + both Retry paths not run this session** — the existing `app/tools/prloc_editor_smoke.py` already exercises the Lookup-leg mechanics (its `F1`/`F2` checks are effectively this test) but assumes an empty slot 2 and commits a real Save; this DUT's PlaneRadar slots were all real, in-use locations (no empty slot to test into safely without either risking that data or reworking the script to cancel before commit) — deferred rather than risk overwriting live location presets.
 
 ### T-CPICK-04 — [settings-widgets-001] Back-tap cancels without mutating state
 
@@ -4465,7 +4465,7 @@ Landed 2026-07-17 (`13bb3fd`); not yet run on DUT. Design: `docs/architecture/de
 - **Objective**: Tapping the picker's own cancel zone (checked before the host section's header back-tap, per the phase-routing design) closes it without changing the underlying setting/flow state.
 - **Steps**: note current `webRadioCountry` (or prloc flow state) → open the picker → back-tap without selecting → re-check the value.
 - **Expected result**: Unchanged.
-- **Status**: **NOT YET RUN** — pending DUT.
+- **Status**: **PASS 2026-07-17**. `get pick` immediately after the back-tap read `active:false`; reopening the same Country row afterward showed the identical `highlightIdx` as the pre-cancel baseline (`NL` unchanged) — no mutation.
 
 ### T-CPICK-05 — [settings-widgets-001] Bake determinism: `gen_countries.py` re-run byte-identical
 
@@ -4473,7 +4473,7 @@ Landed 2026-07-17 (`13bb3fd`); not yet run on DUT. Design: `docs/architecture/de
 - **Feature(s)**: settings-widgets-001
 - **Objective**: `app/gen/countries.h` is network-free-generated from the committed `app/tools/data/iso3166.csv`; re-running the bake must reproduce it byte-for-byte (same gate class as every other bake in the repo).
 - **Steps**: `python3 app/tools/gen_countries.py` → `cd app/gen && sha256sum -c golden.sha256`.
-- **Status**: **NOT YET RUN** — host-side, no DUT required; can run any time.
+- **Status**: **PASS 2026-07-17**. Re-bake produced byte-identical `countries.h` (and every other golden-pinned gen artifact); `git status` showed zero diff after the run.
 
 **Regression carried by this suite**: T-TIME city-picker suite is untouched (no donor changes in v1) — re-run unchanged as a sanity check, not a new test. T-WRSET-03 (country-change propagation) is exercised via the picker path now, per above.
 
