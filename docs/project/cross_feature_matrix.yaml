@@ -569,6 +569,10 @@ interactions:
       2026-07-16 (later): resolution DRAFTED — M-HOME-LOCATION (home = prLocs[0],
       Time&Location lat/lon become its mirror; webRadioCountry stays independent).
       X035 reserved for the unified edges; this entry closes when that design lands.
+      2026-07-17: CLOSED — M-HOME-LOCATION landed (dcc12bf); the coordinate stores
+      are unified under X035's contract. webRadioCountry remains independent by
+      design (content preference). The residual divergence surface is cosmetic
+      (city label vs refined coords — design OQ3, human-accepted v1).
 
   - id: X031
     feature_a: settings-001
@@ -588,7 +592,8 @@ interactions:
     test_coverage: []
     notes: |
       Reserved 2026-07-16 at design time by M-SETTINGS-WIRE2 §4-G1 (Architect registry
-      remit). Developer completes at implementation; VE attaches T-SETW-10.
+      remit). IMPLEMENTED 2026-07-17 (a241b44): boot now configTzTime(g_settings.posixTz).
+      VE attaches T-SETW-10 at suite landing.
 
   - id: X032
     feature_a: settings-001
@@ -607,9 +612,12 @@ interactions:
     test_coverage: []
     notes: |
       Reserved 2026-07-16 at design time by M-SETTINGS-WIRE2 §4-G4 (Architect registry
-      remit). Developer completes at implementation; VE attaches T-SETW-13. Composes
-      with X030 (three-location-store overlap): this is the edge that makes city/prLocs
-      divergence user-visible.
+      remit). IMPLEMENTED 2026-07-17 (1abfb32): enqueueWeather(lat,lon) snapshot +
+      pendingMask coalescing kept (W-5) + resume-diff + URL LOG_D; weather_doc placed
+      in the overlay per the TASK-326 ruling. The empty-city sentinel/WX_DEFAULT
+      fallback was NEVER built — superseded by X035 (home always defined) per the
+      W-3 coordination note; lat/lon are the HOME mirror since dcc12bf. VE attaches
+      T-SETW-13 at suite landing.
 
   - id: X033
     feature_a: settings-001
@@ -629,9 +637,11 @@ interactions:
     test_coverage: []
     notes: |
       Reserved 2026-07-16 at design time by M-SETTINGS-WIRE2 §4-G5 (Architect registry
-      remit). Developer completes at implementation (may split a backlight-001 feature
-      out of disp-001); VE attaches T-SETW-14/15 — T-SETW-14 needs the injectLdr()
-      debug hook.
+      remit). IMPLEMENTED 2026-07-17 (49297a3): BacklightFlow global owner (boot
+      applyMode honours dispAuto; ticks in every app); DisplaySection demoted to
+      editor (pause/applyManual/resume handshake); LedFlow relocated to
+      app/src/ledFlow.h (W-4); injectLdr + get duty hooks landed. VE attaches
+      T-SETW-14/15 at suite landing.
 
   - id: X034
     feature_a: settings-webradio
@@ -687,8 +697,13 @@ interactions:
     test_coverage: []
     notes: |
       Reserved 2026-07-16 at design time by M-HOME-LOCATION §5 (Architect registry
-      remit). Developer completes at implementation and updates X026/X030/X032 in
-      the same change; VE attaches T-HOME-01..05.
+      remit). IMPLEMENTED 2026-07-17 (dcc12bf): prSlotWritten() shared helper is the
+      single writer x mirror site (fixes the X026/H-3 serial-writer no-mirror bug);
+      dual mirror derivation at load; D4 migration kCities+epsilon guarded;
+      PR_DEFAULT_LAT/LON constant unifies the literal sites; >500km hint + divKm +
+      get prloc home observables. VE attaches T-HOME-01..06 at suite landing.
+      Residual noted by implementer: manual-entry confirm path (TASK-322) shows no
+      divergence hint — Lookup path only; VE to disposition in T-HOME-05.
 
 #   interaction_type: shared_state | dependency | conflict | overlap
 #   description: ""

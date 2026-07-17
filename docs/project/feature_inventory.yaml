@@ -1833,7 +1833,7 @@ features:
   - id: home-location-001
     name: Device home location (home = prLocs[0], mirrored to Time&Location lat/lon)
     milestone: M-HOME-LOCATION
-    status: designed
+    status: implemented
     description: |
       RESERVED 2026-07-16 at design time (Architect registry remit). Resolves the
       X030 three-location-store overlap: home = prLocs[0] (always defined); the
@@ -1844,7 +1844,7 @@ features:
       independent content preference (cities.h country hook recorded, OQ2).
       Migration is load-logic only: seed slot 0 from city iff slot 0 is still the
       untouched compile default. No settings.json schema change.
-    git_ref: ""
+    git_ref: "dcc12bf (2026-07-17; against WIRE2 G4 1abfb32 per the §6 hard ordering)"
     files:
       - app/src/settingsStorage.cpp
       - app/src/settings/timeSection.h
