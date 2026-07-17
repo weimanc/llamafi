@@ -4,6 +4,16 @@
 
 Entries promoted from `lessons_learned.md` on explicit human approval. All agents read+apply. QM owns file, invalidates outdated practices.
 
+### BP-049 — DUT sessions snapshot persisted state at start and verify a fully-populated round-trip at end
+
+**Adopted from**: LL-113
+**Date adopted**: 2026-07-18 (human)
+**Rule**: Three parts. (1) Before any DUT work that reboots the device or exercises settings saves, snapshot persisted state: `./run/spiffs pull` and copy `settings.json` (plus any file the session may touch, e.g. `cal.json`) aside with a timestamp — this snapshot is the session's restoration source of record. (2) At session end, verify the device's `settings.json` against the snapshot (`./run/spiffs pull settings.json` + diff; byte-identical unless the session intentionally changed something, in which case restore and re-verify) — and verify against a FULLY-POPULATED real config, never fresh defaults: defaults fit any capacity by construction and structurally cannot reveal truncation-to-defaults. (3) Treat `SettingsStorage: loaded` as absence-of-syntax-error only, never as state-integrity evidence — a valid-but-truncated JSON loads cleanly into compile defaults with no alarming log line; when integrity matters, gate on actual values (`get prloc` sweep etc.).
+**Rationale**: TASK-329 — settings saves silently truncated to compile defaults (ArduinoJson v6 no-ops past capacity; likely trigger was the doc's heap allocation failing under fragmentation) and ate real user data (all 4 prLocs slots, dispLevel, teletextPage, bitrateCap) with zero error output. Detection was pure luck (an unrelated mid-session `get prloc`); recovery was possible ONLY because a session-start snapshot happened to exist. Every DUT session on 2026-07-17/18 then ran this protocol deliberately: cost ~a minute each, and the end-of-session byte-identical diff is what proved five separate mutation-bearing sessions left the device clean.
+**Applies to**: VE + Developer (every DUT session, step 0 and close-out), PM (exit-criteria wording on tasks touching persisted schema: require the fully-populated round-trip, not "loads without error")
+
+---
+
 ### BP-048 — Apps must paint completely from init(); pixel-level exit criteria carry an explicit human-eyeball gate
 
 **Adopted from**: LL-109
@@ -496,10 +506,10 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
-### BP-047 — Verify shared kit/library code at a real call site, not just at the include line
+### BP-050 — Verify shared kit/library code at a real call site, not just at the include line
 
 **Adopted from**: LL-112  
-**Date adopted**: 2026-07-16  
+**Date adopted**: 2026-07-16 (renumbered 2026-07-18: originally mis-assigned "BP-047", colliding with the LL-110 duplication rule above — all repo-wide BP-047 citations mean LL-110)  
 **Rule**: A shared header/widget kit's "compiles" close-out claim must be backed by at least one real call site exercising its actual intended construction syntax — not a bare `#include` with zero instantiations. If the type has toolchain-sensitive construction (e.g. structs with default member initializers under this firmware's pinned `-std=gnu++11` aggregate-init rules), that call site is exactly what would catch it.  
 **Rationale**: TASK-328's Settings widget kit closed out as "compile-proven via appsSection.h include, run/check 6/6 PASS" while the header had zero actual widget instantiations at that point — the claim was true but hollow. TASK-321, the kit's first real consumer, broke on ordinary-looking `SButton{a,b,c}` brace-init because `SButton`/`SSpinner` have default member initializers, which disqualifies them from aggregate status under `-std=gnu++11`. One real button constructed and drawn in TASK-328 itself would have caught this before it reached a consumer.  
 **Applies to**: Developer, QM (close-out review)
@@ -511,7 +521,8 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 > These entries are **NOT yet adopted**. Per QM discipline ("QM brings best-practice
 > candidates to human — never self-promotes"), they are recorded here in proposed form
 > awaiting explicit human sign-off before being assigned a final BP number and promoted
-> above this line. The latest **adopted** BP is BP-047.
+> above this line. The latest **adopted** BP is BP-050 (BP-049 adopted 2026-07-18;
+> BP-050 is the 2026-07-16 LL-112 rule, renumbered from a colliding second "BP-047").
 
 **LL-106** (M-PLANERADAR, 2026-07-11) — session-scoped scheduling primitives
 (`CronCreate`) are the wrong default for work that must survive across
