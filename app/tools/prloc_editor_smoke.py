@@ -16,12 +16,15 @@ sufficient to prove each transition actually ran, since a wrong state would
 either leave the keyboard in the wrong mode/maxLen or leave prloc unchanged/
 wrong after a Save.
 
-Coordinates (hardcoded from settingsSection.h / settingsWidgets.h geometry,
-same approach prloc_smoke.py and the preview tool use):
-  Settings row "Applications"      : (100, 171)  category idx 5, SETTINGS_ROW_H=26
-  Applications row "PlaneRadar"    : (100, 223)  idx 8/9, compact rowH=23
-  PlaneRadar row "Locations"       : (100, 171)  idx 5, S_ROW_H=26
-  SlotList row i                   : (100, 28 + i*26 + 13)
+Coordinates: list-row Ys are derived from the firmware layout constants via
+row_y() below (settingsSection.h S_CONTENT_Y/S_ROW_H, appsSection.h
+_appListRowH(), main.cpp SETTINGS_ROW_H); button coords stay hardcoded from
+settingsWidgets.h geometry, same approach prloc_smoke.py / the preview tool use:
+  Settings row "Applications"      : (100, row_y(5)=171)  category idx 5 (main.cpp kLabels), SETTINGS_ROW_H=26
+  Applications row "PlaneRadar"    : (100, row_y(8, 21)=206)  idx 8 of 10, rowH=min(26, 212//10)=21
+                                     (was hardcoded 223 from the 9-app/23px era — that y now hits WebRadio)
+  PlaneRadar row "Locations"       : (100, row_y(5)=171)  idx 5, S_ROW_H=26
+  SlotList row i                   : (100, row_y(i))
   SourceFork Lookup (hasCurrent)   : (137, 58)   sStackedBtnRect(0, 38) — empty slot, no "Current" row
   SourceFork Lookup (hasCurrent=T) : (137, 84)   sStackedBtnRect(0, 64) — filled slot, "Current" row drawn
   SourceFork Delete (hasCurrent=T) : (137, 188)  sStackedBtnRect(2, 64)
@@ -34,6 +37,21 @@ import serial
 
 PORT = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyUSB0"
 results = []
+
+# ---- Settings-list geometry (mirrored from firmware — keep in sync) ---------
+S_CONTENT_Y = 28    # app/src/settings/settingsSection.h S_CONTENT_Y
+S_ROW_H     = 26    # app/src/settings/settingsSection.h S_ROW_H (== main.cpp SETTINGS_ROW_H)
+S_CONTENT_H = 212   # app/src/settings/settingsSection.h S_CONTENT_H (240 - header 28)
+CONFIGURABLE_APP_COUNT = 10   # app/gen/configurable_apps.h
+PLANERADAR_APP_IDX     = 8    # kConfigurableApps[] order (WebRadio is idx 9)
+# appsSection.h _appListRowH(): the Applications list compresses its row height
+# once CONFIGURABLE_APP_COUNT * S_ROW_H no longer fits S_CONTENT_H -> 21 today.
+APP_LIST_ROW_H = min(S_ROW_H, S_CONTENT_H // CONFIGURABLE_APP_COUNT)
+
+
+def row_y(i, row_h=S_ROW_H):
+    """Center y of row i in a settings list starting at S_CONTENT_Y."""
+    return S_CONTENT_Y + i * row_h + row_h // 2
 
 
 def report(name, ok, detail=""):
@@ -94,15 +112,15 @@ report("D1 slot2 empty before test", s2_before.get("label", "?") == "", str(s2_b
 # ---- Navigate: Settings -> Applications -> PlaneRadar -> Locations --------
 d.cmd("switchApp 6")           # Settings
 time.sleep(0.3)
-d.tap(100, 171)                # Applications category row
+d.tap(100, row_y(5))           # Applications category row (main.cpp kLabels idx 5)
 time.sleep(0.3)
-d.tap(100, 223)                # PlaneRadar row in the app list
+d.tap(100, row_y(PLANERADAR_APP_IDX, APP_LIST_ROW_H))   # PlaneRadar row in the app list (=206)
 time.sleep(0.3)
-d.tap(100, 171)                # Locations row -> opens SlotList
+d.tap(100, row_y(5))           # Locations row -> opens SlotList
 time.sleep(0.3)
 
 # ---- SlotList: tap empty slot 2 -> EditLabel keyboard ----------------------
-d.tap(100, 28 + 2 * 26 + 13)   # slot 2 row
+d.tap(100, row_y(2))           # slot 2 row
 time.sleep(0.3)
 k = d.cmd("get kb")
 report("E1 EditLabel keyboard active, UpperAlpha, maxLen=5, empty",
@@ -151,7 +169,7 @@ report("F4 slot2 saved from geocode stub",
        str(s2))
 
 # ---- Slot 0: Delete must be disabled (renders but never hits) -------------
-d.tap(100, 28 + 0 * 26 + 13)   # slot 0 row -> EditLabel prefilled "HOME"
+d.tap(100, row_y(0))           # slot 0 row -> EditLabel prefilled "HOME"
 time.sleep(0.3)
 d.cmd("set kbOk")             # resubmit "HOME" unchanged -> SourceFork (hasCurrent=true, y0=64)
 time.sleep(0.3)
@@ -165,7 +183,7 @@ d.tap(10, 10)                   # back: SourceFork -> SlotList
 time.sleep(0.2)
 
 # ---- Slot 1 (AMS, non-active, non-zero): Delete must work ------------------
-d.tap(100, 28 + 1 * 26 + 13)   # slot 1 row -> EditLabel prefilled "AMS"
+d.tap(100, row_y(1))           # slot 1 row -> EditLabel prefilled "AMS"
 time.sleep(0.3)
 d.cmd("set kbOk")             # resubmit "AMS" unchanged -> SourceFork (hasCurrent=true, y0=64)
 time.sleep(0.3)
@@ -178,7 +196,7 @@ report("H2 active slot untouched by deleting a non-active slot", r.get("active")
 
 # ---- Error path: -97 GEOCODE_PARSE_FAILED via the generic decoded-error ---
 # path (QM check-in 2026-07-14 note 7 — TASK-317 frames only eyeballed -96).
-d.tap(100, 28 + 3 * 26 + 13)   # slot 3 row (still empty) -> EditLabel
+d.tap(100, row_y(3))           # slot 3 row (still empty) -> EditLabel
 time.sleep(0.3)
 d.cmd("set kbText ERR")
 d.cmd("set kbOk")             # -> SourceFork (hasCurrent=false, y0=38)

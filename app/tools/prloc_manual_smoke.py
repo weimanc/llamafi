@@ -8,10 +8,11 @@ ManualLat -> ManualLon -> ManualConfirm leg specifically: range validation
 silently clamping, a valid pair reaches Save and persists, and Cancel at
 ManualConfirm leaves the slot untouched.
 
-Coordinates (same geometry as prloc_editor_smoke.py; SourceFork's button
+Coordinates (same geometry as prloc_editor_smoke.py — list-row Ys derived
+via row_y() below from the firmware constants; SourceFork's button
 Y0 depends on whether the edited slot already has data — see
 _repaintPrSourceFork()):
-  SlotList row i                       : (100, 28 + i*26 + 13)
+  SlotList row i                       : (100, row_y(i))
   SourceFork Manual (hasCurrent=false) : (137, 110)  sStackedBtnRect(1, 38)
   SourceFork Manual (hasCurrent=true)  : (137, 136)  sStackedBtnRect(1, 64)
   SourceFork Delete (hasCurrent=true)  : (137, 188)  sStackedBtnRect(2, 64)
@@ -24,6 +25,21 @@ import serial
 PORT = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyUSB0"
 SLOT = int(sys.argv[2]) if len(sys.argv) > 2 else 3   # slot under test — restored at the end
 results = []
+
+# ---- Settings-list geometry (mirrored from firmware — keep in sync) ---------
+S_CONTENT_Y = 28    # app/src/settings/settingsSection.h S_CONTENT_Y
+S_ROW_H     = 26    # app/src/settings/settingsSection.h S_ROW_H (== main.cpp SETTINGS_ROW_H)
+S_CONTENT_H = 212   # app/src/settings/settingsSection.h S_CONTENT_H (240 - header 28)
+CONFIGURABLE_APP_COUNT = 10   # app/gen/configurable_apps.h
+PLANERADAR_APP_IDX     = 8    # kConfigurableApps[] order (WebRadio is idx 9)
+# appsSection.h _appListRowH(): the Applications list compresses its row height
+# once CONFIGURABLE_APP_COUNT * S_ROW_H no longer fits S_CONTENT_H -> 21 today.
+APP_LIST_ROW_H = min(S_ROW_H, S_CONTENT_H // CONFIGURABLE_APP_COUNT)
+
+
+def row_y(i, row_h=S_ROW_H):
+    """Center y of row i in a settings list starting at S_CONTENT_Y."""
+    return S_CONTENT_Y + i * row_h + row_h // 2
 
 
 def report(name, ok, detail=""):
@@ -81,18 +97,18 @@ report("A1 baseline slot captured", "label" in orig, str(orig))
 # ---- Navigate: Settings -> Applications -> PlaneRadar -> Locations --------
 d.cmd("switchApp 6")
 time.sleep(0.3)
-d.tap(100, 171)                # Applications
+d.tap(100, row_y(5))           # Applications (main.cpp kLabels idx 5)
 time.sleep(0.3)
-d.tap(100, 223)                # PlaneRadar
+d.tap(100, row_y(PLANERADAR_APP_IDX, APP_LIST_ROW_H))   # PlaneRadar (=206; was 223 in the 9-app/23px era)
 time.sleep(0.3)
-d.tap(100, 171)                # Locations -> SlotList
+d.tap(100, row_y(5))           # Locations -> SlotList
 time.sleep(0.3)
 
 # ---- If the target slot has data, empty it first via Delete so this run --
 # ---- gets a clean hasCurrent=false SourceFork layout (y0=38, no "Current" -
 # ---- row) and a clean empty-prefill ManualLat/Lon. Restored at the end. --
 if orig.get("label"):
-    d.tap(100, 28 + SLOT * 26 + 13)   # slot row -> EditLabel prefilled
+    d.tap(100, row_y(SLOT))            # slot row -> EditLabel prefilled
     time.sleep(0.3)
     d.cmd("set kbOk")                  # resubmit unchanged -> SourceFork (hasCurrent=true, y0=64)
     time.sleep(0.3)
@@ -103,7 +119,7 @@ if orig.get("label"):
     # _prDeleteSlot() already leaves us at SlotList — no back-tap needed here.
 
 # ---- SlotList: open the (now empty) target slot ----------------------------
-d.tap(100, 28 + SLOT * 26 + 13)
+d.tap(100, row_y(SLOT))
 time.sleep(0.3)
 k = d.cmd("get kb")
 report("B1 EditLabel keyboard active, empty", k.get("active") and k.get("len") == 0, str(k))
@@ -159,7 +175,7 @@ report("D1 slot saved from manual entry",
        str(s))
 
 # ---- Cancel-at-confirm leaves the slot untouched ---------------------------
-d.tap(100, 28 + SLOT * 26 + 13)   # slot row (now MANU/52.5,13.4) -> EditLabel
+d.tap(100, row_y(SLOT))            # slot row (now MANU/52.5,13.4) -> EditLabel
 time.sleep(0.3)
 d.cmd("set kbOk")                   # resubmit "MANU" unchanged -> SourceFork (hasCurrent=true, y0=64)
 time.sleep(0.3)

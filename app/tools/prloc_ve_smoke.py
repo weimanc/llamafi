@@ -41,6 +41,21 @@ import serial
 PORT = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyUSB0"
 results = []
 
+# ---- Settings-list geometry (mirrored from firmware — keep in sync) ---------
+S_CONTENT_Y = 28    # app/src/settings/settingsSection.h S_CONTENT_Y
+S_ROW_H     = 26    # app/src/settings/settingsSection.h S_ROW_H (== main.cpp SETTINGS_ROW_H)
+S_CONTENT_H = 212   # app/src/settings/settingsSection.h S_CONTENT_H (240 - header 28)
+CONFIGURABLE_APP_COUNT = 10   # app/gen/configurable_apps.h
+PLANERADAR_APP_IDX     = 8    # kConfigurableApps[] order (WebRadio is idx 9)
+# appsSection.h _appListRowH(): the Applications list compresses its row height
+# once CONFIGURABLE_APP_COUNT * S_ROW_H no longer fits S_CONTENT_H -> 21 today.
+APP_LIST_ROW_H = min(S_ROW_H, S_CONTENT_H // CONFIGURABLE_APP_COUNT)
+
+
+def row_y(i, row_h=S_ROW_H):
+    """Center y of row i in a settings list starting at S_CONTENT_Y."""
+    return S_CONTENT_Y + i * row_h + row_h // 2
+
 
 def report(name, ok, detail=""):
     results.append((name, ok, detail))
@@ -195,13 +210,13 @@ if victim is not None:
 
     d.cmd("switchApp 6")            # Settings
     time.sleep(0.3)
-    d.tap(100, 171)                 # Applications
+    d.tap(100, row_y(5))            # Applications (main.cpp kLabels idx 5)
     time.sleep(0.3)
-    d.tap(100, 223)                 # PlaneRadar
+    d.tap(100, row_y(PLANERADAR_APP_IDX, APP_LIST_ROW_H))   # PlaneRadar (=206; was 223 in the 9-app/23px era)
     time.sleep(0.3)
-    d.tap(100, 171)                 # Locations
+    d.tap(100, row_y(5))            # Locations
     time.sleep(0.3)
-    d.tap(100, 28 + victim * 26 + 13)   # victim's slot row -> EditLabel prefilled
+    d.tap(100, row_y(victim))       # victim's slot row -> EditLabel prefilled
     time.sleep(0.3)
     d.cmd("set kbOk")                # resubmit unchanged -> SourceFork (hasCurrent=true, y0=64)
     time.sleep(0.3)
@@ -229,13 +244,13 @@ report("V4 found a scratch slot for the -96 leg (untouched by Save)", scratch is
 if scratch is not None:
     d.cmd("switchApp 6")
     time.sleep(0.3)
-    d.tap(100, 171)
+    d.tap(100, row_y(5))            # Applications
     time.sleep(0.3)
-    d.tap(100, 223)
+    d.tap(100, row_y(PLANERADAR_APP_IDX, APP_LIST_ROW_H))   # PlaneRadar
     time.sleep(0.3)
-    d.tap(100, 171)
+    d.tap(100, row_y(5))            # Locations
     time.sleep(0.3)
-    d.tap(100, 28 + scratch * 26 + 13)   # scratch slot row -> EditLabel prefilled
+    d.tap(100, row_y(scratch))      # scratch slot row -> EditLabel prefilled
     time.sleep(0.3)
     d.cmd("set kbOk")                     # resubmit unchanged -> SourceFork (hasCurrent=true, y0=64)
     time.sleep(0.3)
@@ -264,7 +279,7 @@ if scratch is not None:
 # see docstring caveat on what this does/doesn't prove)
 # =========================================================================
 if scratch is not None:
-    d.tap(100, 28 + scratch * 26 + 13)   # scratch slot row -> EditLabel (still in SlotList from T_PRL_03)
+    d.tap(100, row_y(scratch))      # scratch slot row -> EditLabel (still in SlotList from T_PRL_03)
     time.sleep(0.3)
     d.cmd("set kbOk")
     time.sleep(0.3)
