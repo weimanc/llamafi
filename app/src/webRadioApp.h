@@ -1047,6 +1047,40 @@ public:
             _dirty = true;
             return true;
         }
+        // T-WRSET-01 (M-WEBRADIO-SETTINGS D3, WR-1): fault-injection hook —
+        // directly parks a synthetic WebRadioStationsResult for tick()'s next
+        // poll, bypassing the real dataTask fetch queue. Timing a genuinely
+        // stale network result to land after a country/cap edit isn't
+        // reproducible on demand; this simulates the same race by forcing a
+        // result whose echo (countryCode/bitrateCap) is caller-controlled —
+        // the test deliberately mismatches it against _cfgCountry/_cfgCap so
+        // tick()'s identity check (line ~520) discards it. Forces
+        // _pendingStations=true so tick() actually polls (the discard branch
+        // does NOT clear it — get wrCount's "pending" stays 1, "count" stays
+        // unchanged, proving the stale result never installed).
+        // Usage: set wrInjectResult <country>[,<cap>]  (cap defaults to 255 —
+        // not a real bitrateCap value: 0/64/96/128/192 — if omitted).
+        if (strcmp(var, "wrInjectResult") == 0) {
+            char country[4] = {};
+            int  cap        = 255;
+            sscanf(val, "%3[^,],%d", country, &cap);
+            if (!country[0]) return true;   // malformed — no-op, still handled
+            dataTask::WebRadioStationsResult r;
+            r.ok           = true;
+            r.lastHttpCode = 200;
+            r.count        = 1;
+            strlcpy(r.countryCode, country, sizeof(r.countryCode));
+            r.bitrateCap   = (uint8_t)cap;
+            strlcpy(r.stations[0].name, "INJECTED_STALE", sizeof(r.stations[0].name));
+            strlcpy(r.stations[0].url, "http://198.51.100.1:1/stale",
+                    sizeof(r.stations[0].url));
+            r.stations[0].bitrate = 0;
+            _pendingStations = true;
+            dataTask::debugInjectWebRadioResult(r);
+            LOG_I("webradio", "wrInjectResult parked %s/%u (cfg %s/%u)",
+                  country, (unsigned)cap, _cfgCountry, (unsigned)_cfgCap);
+            return true;
+        }
         // TASK-237: drive the auto-skip setting (no on-device UI exists) so both
         // ON (skip past dead stations) and OFF (park on first stall) are testable.
         if (strcmp(var, "wrAutoSkip") == 0) {

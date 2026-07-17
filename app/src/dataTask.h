@@ -265,6 +265,17 @@ bool pollWebRadioStations(WebRadioStationsResult *out);
 bool pollPlaneRadar(PlaneRadarResult *out);
 bool pollGeocode(GeocodeResult *out);
 
+// SERIAL_DEBUG test hook (set wrInjectResult …): directly park a synthetic
+// WebRadioStationsResult for the NEXT pollWebRadioStations(), bypassing the
+// real fetch queue entirely — same medicine as debugInjectGeocode() below
+// (T_PRL_08 precedent). This is the only reliable way to exercise T-WRSET-01
+// (WR-1): timing a real network fetch to land AFTER a country/cap edit is not
+// reproducible on demand, but tick()'s install site doesn't care WHERE the
+// result came from — it only compares r.countryCode/r.bitrateCap against the
+// app's current snapshot. Caller deliberately mismatches them to force the
+// discard path.
+void debugInjectWebRadioResult(const WebRadioStationsResult& r);
+
 // SERIAL_DEBUG test hook (set geocode …): park a synthetic result that the
 // NEXT pollGeocode() returns (consumed on first poll). Structurally isolated
 // per VE-PRL-2: checked before the real result slot, and enqueueGeocode() is

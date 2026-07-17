@@ -26,6 +26,12 @@ AppSettings g_settings;
 // a resident tenant.
 static constexpr size_t kSettingsJsonCapacity = 6144;
 
+#ifdef SERIAL_DEBUG
+// T-WRSET-04: bumped only at the bottom of a fully-completed save() — see
+// the increment site below for exactly which failure paths are excluded.
+static uint32_t s_saveCount = 0;
+#endif
+
 // ---- Defaults --------------------------------------------------------------
 
 static void applyDefaults() {
@@ -488,14 +494,25 @@ void SettingsStorage::save() {
 
     File f = SPIFFS.open(SETTINGS_JSON, "w");
     if (!f) { Serial.println("SettingsStorage: failed to open for write"); return; }
-    if (serializeJson(doc, f) == 0) Serial.println("SettingsStorage: write failed");
+    size_t written = serializeJson(doc, f);
     f.close();
+    if (written == 0) { Serial.println("SettingsStorage: write failed"); return; }
+#ifdef SERIAL_DEBUG
+    // T-WRSET-04: only a fully-completed write reaches here — the
+    // doc.overflowed() abort above and the written==0 failure just above
+    // both return early, so neither increments the counter.
+    s_saveCount++;
+#endif
     // doc usage vs capacity in the log so future schema growth is visible
     // long before it becomes another TASK-329 (worst case ≈ 2271 B, see
     // kSettingsJsonCapacity above).
     Serial.printf("SettingsStorage: saved (doc %u/%u B)\n",
                   (unsigned)doc.memoryUsage(), (unsigned)kSettingsJsonCapacity);
 }
+
+#ifdef SERIAL_DEBUG
+uint32_t SettingsStorage::debugSaveCount() { return s_saveCount; }
+#endif
 
 // ---- M-HOME-LOCATION writer×mirror matrix (H-1/H-3) ------------------------
 // THE single implementation of the matrix — every prLocs slot writer calls

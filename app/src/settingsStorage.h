@@ -163,4 +163,15 @@ namespace SettingsStorage {
     // (_setActiveLoc / `set prloc active`) is not a slot write and never
     // touches home — it keeps its own prLat/prLon copy.
     void prSlotWritten(uint8_t slot);
+
+#ifdef SERIAL_DEBUG
+    // T-WRSET-04: completed-write counter for save() — increments once per
+    // actual SPIFFS write. The doc.overflowed() abort path (TASK-329) and a
+    // failed SPIFFS.open()/serializeJson() do NOT count, so this can't be
+    // fooled by a save that never reached flash. Lets VE prove ADR-050 rule 3
+    // coalesced-save discipline (one save per suspend/eject, not one per
+    // station-index change) with a hard counter instead of parsing
+    // "SettingsStorage: saved" log lines. Debug-only; `get settingsSaveCount`.
+    uint32_t debugSaveCount();
+#endif
 }

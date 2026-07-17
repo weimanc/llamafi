@@ -3196,6 +3196,18 @@ static void cmdGet(const char *args) {
                   g_backlight.injected() ? "true" : "false");
     return;
   }
+  // T-WRSET-04: completed-SPIFFS-write counter for SettingsStorage::save()
+  // (see settingsStorage.cpp) — lets VE prove ADR-050 rule 3 coalesced-save
+  // discipline (one save per suspend/eject) with a hard counter instead of
+  // parsing "SettingsStorage: saved" log lines. Pair with `set settingsSave`
+  // (WIRE2 §6 W-1) to force a save and confirm the counter advances by
+  // exactly one.
+  if (strcmp(args, "settingsSaveCount") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"settingsSaveCount\","
+                  "\"count\":%u,\"last\":true}\n",
+                  (unsigned)SettingsStorage::debugSaveCount());
+    return;
+  }
   Serial.printf("{\"ok\":false,\"cmd\":\"get\","
                 "\"error\":\"unknown var\",\"var\":\"%s\"}\n", args);
 }

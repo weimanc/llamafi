@@ -1847,4 +1847,16 @@ bool pollWebRadioStations(WebRadioStationsResult *out) {
     return got;
 }
 
+// T-WRSET-01 (WR-1) fault-injection hook — see dataTask.h for why this is the
+// only reliable way to exercise the discard path. Overwrites the poll slot
+// unconditionally, same as a real mirror-loop write would; the caller (set
+// wrInjectResult) is responsible for choosing a countryCode/bitrateCap that
+// deliberately mismatches the app's current snapshot.
+void debugInjectWebRadioResult(const WebRadioStationsResult& r) {
+    portENTER_CRITICAL_SAFE(&s_webRadioMux);
+    s_webRadioResult = r;
+    s_webRadioNew    = true;
+    portEXIT_CRITICAL_SAFE(&s_webRadioMux);
+}
+
 }  // namespace dataTask
