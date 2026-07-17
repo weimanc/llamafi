@@ -5011,7 +5011,7 @@ def t_set_03(dut: Dut):
         _restore_spotify(dut)
         fail("T-SET-03", f"submenu={sub!r} at Applications level 1, expected -1")
         return
-    _settings_tap_app_row(dut, 0)  # Stock (app-list row, TASK-330)
+    _settings_tap_app_row(dut, 0)  # Spotify — kConfigurableApps[0] (app-list row, TASK-330)
     sub = _settings_submenu(dut)
     if sub != 0:
         _restore_spotify(dut)
@@ -5040,7 +5040,7 @@ def t_set_06(dut: Dut):
         _restore_spotify(dut)
         return
     _settings_tap_row(dut, 5)   # Applications
-    _settings_tap_app_row(dut, 0)   # Stock submenu (app-list row, TASK-330)
+    _settings_tap_app_row(dut, 0)   # Spotify submenu — kConfigurableApps[0] (app-list row, TASK-330)
     sub = _settings_submenu(dut)
     if sub != 0:
         _restore_spotify(dut)
@@ -5062,19 +5062,19 @@ def t_set_06(dut: Dut):
 
 
 def t_set_07(dut: Dut):
-    """T-SET-07: back from Applications L2 (Aquarium) traverses all three levels correctly."""
-    print("T-SET-07  Double-back from Applications L2 (Aquarium) → fully unwound")
+    """T-SET-07: back from Applications L2 (Crypto, app-list row 2) traverses all three levels correctly."""
+    print("T-SET-07  Double-back from Applications L2 (Crypto, row 2) → fully unwound")
     if not _switch_to_settings(dut):
         skip("T-SET-07", "could not switch to Settings")
         _restore_spotify(dut)
         return
     _settings_tap_row(dut, 5)   # Applications
-    _settings_tap_app_row(dut, 2)   # Aquarium (app-list row, TASK-330 fix)
+    _settings_tap_app_row(dut, 2)   # Crypto — kConfigurableApps[2] (app-list row, TASK-330 fix; tests assert indices, not app identity)
     sec = _settings_section(dut)
     sub = _settings_submenu(dut)
     if sec != 5 or sub != 2:
         _restore_spotify(dut)
-        fail("T-SET-07", f"section={sec!r} submenu={sub!r} after drill to Aquarium, expected 5/2")
+        fail("T-SET-07", f"section={sec!r} submenu={sub!r} after drill to app-list row 2 (Crypto), expected 5/2")
         return
     _settings_tap_back(dut)     # back to app list
     sub = _settings_submenu(dut)
@@ -5088,7 +5088,7 @@ def t_set_07(dut: Dut):
     if sec != -1:
         fail("T-SET-07", f"section={sec!r} after second back, expected -1")
         return
-    pass_("T-SET-07", "back×2 from Aquarium submenu: submenu→-1, section→-1 confirmed")
+    pass_("T-SET-07", "back×2 from app-list row 2 (Crypto) submenu: submenu→-1, section→-1 confirmed")
 
 
 def t_set_08(dut: Dut):
