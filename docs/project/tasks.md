@@ -6,6 +6,49 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 > Completed/closed/fixed/resolved tasks are periodically moved to [tasks-archive.md](tasks-archive.md) to keep this file WIP-only. Last archive pass: 2026-07-12 (moved TASK-143..313 range, 149 entries — see archive file for the batch note).
 
+> **PM sync 2026-07-17 (overnight session — 6 slices landed, ZERO DUT time — handoff for daylight)** —
+> Overnight agent session (`Claude Fable 5`) shipped six build-verified slices, each `run/check` 6/6
+> (7/7 once the new gate landed): **WIRE2-G1/G2/G3** boot TZ + timeFmt + 12h/dateFmt (`a241b44`),
+> **WIRE2-G5** BacklightFlow global owner (`49297a3`), **WIRE2-G4** weather coords from settings
+> (`1abfb32`), **HOME** device home = `prLocs[0]` + dual-mirror writer (`dcc12bf`, registry-closed
+> `9495774`), **WRSET** WebRadio settings UI + D3 resume-diff contract (`fff0208`, registry-closed
+> `a0c729f`), **CPICK** shared country picker, both keyboard call sites retired (`13bb3fd`, registry
+> self-updated in the same commit). One slice (WRSET) was orphaned mid-session by the Fable-5 usage
+> limit right before its build gate; the work was complete and unmodified, so it was gated + review-
+> contract-verified + committed post-hoc rather than re-run. Session close-out (`0935a18`, this
+> session, Sonnet 5): finished the one dangling piece — `check_settings_wiring.py` (ADR-050 static
+> gate: every `AppSettings` field needs load()+save()+a runtime consumer outside `settings/`), wired
+> as `run/check` step `[7/7]` (warn-only), plus the city-name label on the TIME tile (M-HOME-LOCATION
+> §6 visible confirmation) that made `city` wire clean, and a `NEW-APP-CHECKLIST.md` item documenting
+> the gate for future settings fields.
+>
+> **None of tonight's six slices have touched a DUT.** Everything above is `run/check`-clean
+> (build + static gates only) — no serial-dbg suite has run, no eyeball pass has happened. The city
+> label in particular is a brand-new visible surface with zero eyeball verification (BP-048 posture).
+>
+> **VE/DUT queue for daylight** (all spec'd already — none written into `test_plan.md` yet):
+> - **T-SETW-10** — boot applies `posixTz` via `configTzTime` (X031/WIRE2-G1, `cross_feature_matrix.yaml`).
+> - **T-SETW-13** — weather fetch uses settings coords, snapshot-at-enqueue, resume()-diff refetch on
+>   mismatch (X032/WIRE2-G4).
+> - **T-SETW-14/15** — `BacklightFlow` global owner honours `dispAuto` at boot and in every app;
+>   `DisplaySection` pause/applyManual/resume handshake doesn't fight the controller (X033/WIRE2-G5).
+> - **T-WRSET-01..06** — WebRadio settings UI: result-identity discard (WR-1), edit-time
+>   `lastStation` reset (WR-2), resume-diff + abort + refetch, coalesced suspend save, no-edit
+>   round-trip must NOT refetch (X034). **Also still owed**: the WR-4 coordinate re-derivation
+>   across settings suites, flagged at design time and not yet scheduled — do it alongside this suite.
+> - **T-HOME-01..06** — home = `prLocs[0]`, writer×mirror matrix via `prSlotWritten()`, D4 migration,
+>   >500 km divergence hint (X035). **T-HOME-05 must also disposition** the noted gap: the manual-
+>   entry confirm path (TASK-322) shows no divergence hint — only the Lookup path does.
+> - **T-CPICK-01..05** — spec'd in `M-COUNTRY-PICKER.md` §7: opens scrolled to current selection
+>   (eyeball half per BP-048/CP-8), scrollbar drag+arrows page correctly at 249 entries, select
+>   round-trips at both call sites (WebRadio Country + prloc Lookup, incl. both Retry paths),
+>   back-tap cancels without mutating state, bake determinism (`gen_countries.py` re-run byte-
+>   identical against `golden.sha256`).
+>
+> Next agent: write the above into `test_plan.md` as new suites, then run on DUT. `settings-widgets-001`,
+> `settings-webradio`, and `home-location-001` all show `test_ids: []` in `feature_inventory.yaml` —
+> fill those in as the suites land, per the existing per-feature notes.
+
 > **PM sync 2026-06-28 (A-lite PROVEN — spike all-phases PASS)** — TASK-261 Phase 0/1/2 all PASS
 > (EXP-010, branch `rnd/membudget`): the no-PSRAM CYD plays MP3 WebRadio on the multi-app build with the
 > Helix decoder forked into a 24 K free-list arena (88/103/129.7 s × 3 trials, churn-safe, production ELF
