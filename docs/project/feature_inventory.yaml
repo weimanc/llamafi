@@ -10,7 +10,7 @@ features:
     name: First-time bring-up procedure
     description: End-to-end procedure to flash a blank CYD2USB unit, bake Spotify creds into SPIFFS, configure wifi, and start polling Spotify Web API. Documented in docs/first_time_run_deploy.md.
     status: implemented
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - docs/first_time_run_deploy.md
       - get_refresh_token.py
@@ -24,7 +24,7 @@ features:
     name: Spotify OAuth refresh-token bootstrap
     description: Off-device Authorization Code flow against http://127.0.0.1:8888/callback/ (Spotify's loopback-only HTTP exception). Helper script captures the refresh token; baked into SPIFFS instead of running the device's built-in flow which Spotify's redirect-URI policy now rejects.
     status: implemented
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - get_refresh_token.py
       - Spotify-Diy-Thing/SpotifyDiyThing/refreshToken.h
@@ -36,7 +36,7 @@ features:
     name: Persisted Spotify config (SPIFFS)
     description: JSON config at /spotify_diy_config.json holding clientId, clientSecret, refreshToken. Read on every boot; written either by the captive portal's save callback or pre-baked via PlatformIO `uploadfs`.
     status: implemented
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - Spotify-Diy-Thing/SpotifyDiyThing/configFile.h
       - Spotify-Diy-Thing/data/spotify_diy_config.json
@@ -48,7 +48,7 @@ features:
     name: Wifi captive-portal setup (WiFiManager)
     description: First-boot AP `SpotifyDIY` / `thing123`. Configure WiFi page also exposes Client ID / Secret / Refresh Token text fields. Double-press reset within ~10s re-enters config mode (DoubleResetDetector).
     status: implemented
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - Spotify-Diy-Thing/SpotifyDiyThing/WifiManagerHandler.h
     cross_features: [cfg-001, time-001]
@@ -59,7 +59,7 @@ features:
     name: Currently-playing poll loop
     description: Polls /v1/me/player/currently-playing periodically, decodes JPEG album art, updates display. 204 No Content handled as "nothing playing".
     status: implemented
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
       - Spotify-Diy-Thing/SpotifyDiyThing/spotifyLogic.h
@@ -70,7 +70,7 @@ features:
     name: CYD LCD rendering
     description: TFT_eSPI-based 320x240 ILI9341 panel rendering — track + artist text, album art JPEG, progress bar.
     status: implemented
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - Spotify-Diy-Thing/SpotifyDiyThing/cheapYellowLCD.h
       - Spotify-Diy-Thing/SpotifyDiyThing/spotifyDisplay.h
@@ -83,7 +83,7 @@ features:
     name: Touch input (prev / next track)
     description: Tap left third → previous track, tap right third → next track. Middle band is a dead zone. No play/pause, volume, or seek.
     status: implemented
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - Spotify-Diy-Thing/SpotifyDiyThing/touchScreen.h
       - Spotify-Diy-Thing/SpotifyDiyThing/CYD28_TouchscreenR.cpp
@@ -96,7 +96,7 @@ features:
     name: SNTP system-clock sync at boot
     description: configTime() against pool.ntp.org / time.google.com / time.cloudflare.com at the end of WiFi-up in setup(), before any TLS handshake. Bounded 5 s wait until time(nullptr) > 1700000000 (2023-11-14); non-fatal on timeout. Without this, ESP32's RTC-less clock starts ~1970, mbedTLS rejects current Spotify certs whose notBefore is in the future, and accounts.spotify.com TLS fails with a generic send error (X001).
     status: implemented
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
     cross_features: [wifi-001, auth-001]
@@ -129,7 +129,7 @@ features:
     name: TLS connection lifecycle fix for non-GET endpoints
     description: Fix or replacement for the SpotifyArduino library's connection-reuse pattern that fails at TLS-send (mbedTLS 0x0050) for every POST/PUT after a prior GET. Candidate approaches per TASK-009; recommended is migrating affected endpoints to Arduino-ESP32 HTTPClient which manages connection lifecycle internally.
     status: planned
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files: []
     cross_features: [api-001, poll-001]
     test_ids: []
@@ -174,7 +174,7 @@ features:
     name: Winamp display backend (renderer scaffold)
     description: SpotifyDisplay backend that paints the Winamp 2 main window from the m2-001 atlas. Subclasses CheapYellowDisplay to inherit the JPEG/SPIFFS/touch plumbing; overrides showDefaultScreen/displayTrackProgress/printCurrentlyPlayingToScreen to draw via SKIN_MAIN_BG, SKIN_CBUTTONS, SKIN_GLYPH. Selected at compile time via -DWINAMP_DISPLAY (env cyd2usb_winamp).
     status: scaffold
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
       - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
@@ -286,7 +286,7 @@ features:
     name: Loop-iteration + hot-path performance instrumentation (M-PERF tier 1)
     description: perf.h namespace with record(name, ms) / recordLoop(ms) / loopMaxMs() / worstPathName() / worstPathMs() / stackHwmBytes() / reset(). Heartbeat consumes + resets each tick, adds stack_hwm + loop_max + slow=<name>:Nms fields. .ino wraps the four top-level loop paths (screenlog.tick, display.input, spotify.poll, display.bar). Iterations > 50 ms emit a LOG_W("perf", "iter=Nms ...") line.
     status: implemented
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - Spotify-Diy-Thing/SpotifyDiyThing/perf.h
       - Spotify-Diy-Thing/SpotifyDiyThing/logHeartbeat.h
@@ -302,7 +302,7 @@ features:
     name: NFC reader (PN532) — optional
     description: Tag holds a Spotify URI/URL; on swipe device asks Spotify to play it. Optionally writes back currently-playing context to the tag.
     status: implemented
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - Spotify-Diy-Thing/SpotifyDiyThing/nfc.h
     cross_features: []
@@ -405,7 +405,7 @@ features:
       SpotifyDisplay base provides default no-ops; non-Winamp backends compile unchanged.
       cmdGet/cmdSet are dumb dispatchers — frozen, never need to change as fields grow.
     status: planned
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - Spotify-Diy-Thing/platformio.ini
       - Spotify-Diy-Thing/scripts/inject_git_hash.py
@@ -443,7 +443,7 @@ features:
       Host-side comparator `tools/tsync_diff.py` against the firmware-consumed field set
       from T073.
     status: planned
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files: []
     cross_features: [poll-001, poll-002, touch-002, chrome-001, playlist-001, playlist-002, io-001, serialdbg-001, log-001]
     test_ids: [T097, T098, T099, T100, T101, T102, T103, T104, T105, T106, T107, T108, T109, T110]
@@ -480,7 +480,7 @@ features:
       code is right at QA time; drift-001 surfaces when reality diverges at
       runtime.
     status: planned
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files: []
     cross_features: [conn-001, chrome-001, io-001, log-001, sync-001]
     test_ids: [T111, T112, T113]
@@ -668,7 +668,7 @@ features:
       colour would otherwise be defined independently in firmware and preview tools.
       Also fixes the existing preview_vis.py:58 WINDOW_W hardcode to parse gen/skin_layout.h.
     status: planned
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - Spotify-Diy-Thing/SpotifyDiyThing/gen/shell_layout.h
       - Spotify-Diy-Thing/tools/bake_skin.py
@@ -696,7 +696,7 @@ features:
       handoff). Resolves the four open aesthetic questions in taskbar.md before firmware
       renderTaskbar() is written. See interactive-preview.md.
     status: planned
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - Spotify-Diy-Thing/tools/preview_layout.py
       - Spotify-Diy-Thing/tools/bake_skin.py
@@ -720,7 +720,7 @@ features:
       updates currentAppId, re-renders the taskbar indicator, then calls the incoming
       app's repaint. appTick() and appHandleInput() dispatch per currentAppId.
     status: implemented
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - app/src/taskbar/taskbar.h
       - app/src/appShell.h
@@ -741,7 +741,7 @@ features:
       colon, rainbow seconds bar, day+date). Reads system time via getLocalTime().
       RSSI signal bars in bottom-right. 1 Hz tick rate.
     status: implemented
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - app/src/main.cpp
     cross_features: [taskbar-001]
@@ -889,7 +889,7 @@ features:
       Eliminates per-app arithmetic bugs and makes hitbox intent explicit in code review.
       Zero runtime overhead (8-byte struct; inlines compile identically to hand-rolled versions).
     status: implemented
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - app/src/touch/hitbox.h
     cross_features: [touch-004, touch-005, app-interface-001, stock-001]
@@ -909,7 +909,7 @@ features:
       `SHELL_BUSY_TIMEOUT_MS = 3000` ms as fallback. `switchApp()` always clears busy
       before painting the new active slot. Classic "sand-glass" equivalent for a touch UI.
     status: implemented
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - app/gen/shell_layout.h
       - app/src/taskbar/taskbar.h
@@ -940,7 +940,7 @@ features:
       Press gate in `appHandleInput()` to also block while `g_shellBusy` is set. Taskbar taps
       are checked before this gate and are unaffected. No new debounce class.
     status: proposed
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - app/src/winamp/winampDisplay.h
       - app/src/main.cpp
@@ -1020,7 +1020,7 @@ features:
       NVS-backed connect, CONNECTING + RESULT(fail) states, "Forget network" action,
       removal of WiFiManager + DoubleResetDetector from lib_deps (retires wifi-001).
     status: in_progress
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - app/src/settings/wifiSection.h
       - docs/architecture/designs/M-MULTIAPP/wifi-settings.md
@@ -1048,7 +1048,7 @@ features:
       hsvToRgb() integer-only conversion in mathUtil.h. Settings persist in /settings.json
       via settingsStorage (ledMode, ledHue, ledSat, ledVal).
     status: implemented
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - app/src/settings/ledSection.h
       - app/src/main.cpp
@@ -1801,7 +1801,7 @@ features:
   - id: settings-webradio
     name: WebRadio settings section (Settings -> Applications -> WebRadio)
     milestone: M-WEBRADIO-SETTINGS
-    status: designed
+    status: implemented
     description: |
       RESERVED 2026-07-16 at design time (Architect registry remit). On-device UI for
       the WebRadio settings block: Country (M-COUNTRY-PICKER if it ships with/before,
@@ -1813,7 +1813,7 @@ features:
       cfg and taskbar lists are disjoint, X022 invariant). Change propagation via
       resume-diff (X034): country/cap edit -> stop + reset lastStation + refetch.
       lastStation moves to coalesced save on suspend/eject (ADR-050 rule 3).
-    git_ref: ""
+    git_ref: "fff0208 (2026-07-17)"
     files:
       - app/src/appRegistry.h
       - app/gen/configurable_apps.h
