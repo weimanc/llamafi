@@ -2,9 +2,14 @@
 #include "settingsSection.h"
 #include "sliderWidget.h"
 #include "../settingsStorage.h"
+#include "../backlightFlow.h"
 
-#define LDR_PIN          34
-#define TFT_LEDC_CHANNEL  0
+// DisplaySection — pure EDITOR since M-SETTINGS-WIRE2 G5 (ADR-050 rule 2):
+// the LDR sample→map→ledcWrite loop moved to BacklightFlow (g_backlight),
+// which owns the backlight in every app and at boot. This section renders
+// rows, edits values, and borrows the backlight only through the owner's
+// pause()/applyManual()/resume() handshake (the g_ledFlow idiom). No direct
+// analogRead/ledcWrite here.
 
 class DisplaySection : public SettingsSection {
 public:
@@ -12,30 +17,19 @@ public:
 
     void enter() override {
         _slider.init(1, 10, g_settings.dispLevel);
-        _ldrRaw       = (int16_t)analogRead(LDR_PIN);
-#ifdef SERIAL_DEBUG
-        Serial.printf("[disp] analogRead(%d) raw = %d\n", LDR_PIN, (int)_ldrRaw);
-#endif
-        _ldrUpdateMs   = millis();
-        _lastAutoDuty  = -1;
+        _shownLdr    = g_backlight.ldrRaw();
+        _repaintMs   = millis();
         repaint();
     }
 
     SectionResult tick() override {
-        if (millis() - _ldrUpdateMs >= 500) {
-            _ldrUpdateMs = millis();
-            int16_t fresh = (int16_t)analogRead(LDR_PIN);
-            if (abs(fresh - _ldrRaw) > 20) {
-                _ldrRaw = fresh;
+        // Repaint cadence only — the owner samples; we just display its value.
+        if (millis() - _repaintMs >= 500) {
+            _repaintMs = millis();
+            int16_t fresh = g_backlight.ldrRaw();
+            if (abs(fresh - _shownLdr) > 20) {
+                _shownLdr = fresh;
                 _repaintLdrRows();
-            }
-        }
-        if (g_settings.dispAuto && g_settings.ldrHigh > g_settings.ldrLow) {
-            int16_t raw  = constrain(_ldrRaw, g_settings.ldrLow, g_settings.ldrHigh);
-            int     duty = (int)map(raw, g_settings.ldrLow, g_settings.ldrHigh, 255, 25);
-            if (abs(duty - _lastAutoDuty) >= 3) {
-                _lastAutoDuty = duty;
-                ledcWrite(TFT_LEDC_CHANNEL, (uint32_t)duty);
             }
         }
         return SectionResult::Continue;
@@ -60,15 +54,16 @@ public:
         if (!g_settings.dispAuto) {
             const int levelRowY = S_CONTENT_Y + 1 * S_ROW_H;
             if (phase == TouchPhase::Press) {
-                _slider.onPress(x, y, levelRowY);
+                if (_slider.onPress(x, y, levelRowY))
+                    g_backlight.pause();   // borrow the backlight for live preview
             } else if (phase == TouchPhase::Move && _slider.isDragging()) {
                 _slider.onMove(x);
                 _slider.render(levelRowY, "Level", false);
-                _applyBrightness(_slider.value());
+                g_backlight.applyManual(_slider.value());
             } else if (phase == TouchPhase::Release && _slider.isDragging()) {
                 g_settings.dispLevel = (uint8_t)_slider.onRelease(x);
-                _applyBrightness(g_settings.dispLevel);
                 saveSettings();
+                g_backlight.resume();      // owner re-applies from committed settings
                 _slider.render(levelRowY, "Level", false);
                 return SectionResult::Continue;
             }
@@ -79,23 +74,25 @@ public:
             if (row == 0) {
                 g_settings.dispAuto = !g_settings.dispAuto;
                 saveSettings();
-                if (!g_settings.dispAuto) _applyBrightness(g_settings.dispLevel);
+                g_backlight.applyMode();
                 repaint();
             }
-            // Cal rows: tap to capture current LDR reading as calibration point.
+            // Cal rows: tap to capture the owner's current LDR reading.
             // Cal:bright (ldrLow) = expected low ADC in bright room.
             // Cal:dark   (ldrHigh) = expected high ADC in dark room.
             const int calY = S_CONTENT_Y + 3 * S_ROW_H + S_ROW_HDR_H;
             if (y >= calY && y < calY + S_ROW_H) {
-                g_settings.ldrLow = _ldrRaw;
+                g_settings.ldrLow = _shownLdr;
                 saveSettings();
+                g_backlight.applyMode();
                 _repaintLdrRows();
             } else if (y >= calY + S_ROW_H && y < calY + 2 * S_ROW_H) {
                 // Only store if reading is above the bright calibration — prevents
                 // accidentally wiping cal by tapping in ambient (ldrRaw ≈ 0).
-                if (_ldrRaw > g_settings.ldrLow + 10) {
-                    g_settings.ldrHigh = _ldrRaw;
+                if (_shownLdr > g_settings.ldrLow + 10) {
+                    g_settings.ldrHigh = _shownLdr;
                     saveSettings();
+                    g_backlight.applyMode();
                     _repaintLdrRows();
                 }
             }
@@ -106,17 +103,12 @@ public:
 
 private:
     SliderWidget  _slider;
-    int16_t       _ldrRaw        = 0;
-    unsigned long _ldrUpdateMs   = 0;
-    int           _lastAutoDuty  = -1;
-
-    void _applyBrightness(int level) {
-        ledcWrite(TFT_LEDC_CHANNEL, (uint32_t)map(constrain(level, 1, 10), 1, 10, 25, 255));
-    }
+    int16_t       _shownLdr   = 0;
+    unsigned long _repaintMs  = 0;
 
     void _repaintLdrRows() {
         char bufLive[8], bufLow[8], bufHigh[8];
-        snprintf(bufLive, sizeof(bufLive), "%d", (int)_ldrRaw);
+        snprintf(bufLive, sizeof(bufLive), "%d", (int)_shownLdr);
         snprintf(bufLow,  sizeof(bufLow),  "%d", (int)g_settings.ldrLow);
         snprintf(bufHigh, sizeof(bufHigh), "%d", (int)g_settings.ldrHigh);
         // ldr_live(26) + subhdr(22) + dark(26) + bright(26) = 100px

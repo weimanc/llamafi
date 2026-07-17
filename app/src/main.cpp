@@ -991,6 +991,7 @@ private:
 };
 static SettingsApp g_SettingsApp;
 LedFlow      g_ledFlow;
+BacklightFlow g_backlight;   // WIRE2-G5: backlight owner (ADR-050)
 KeyboardWidget g_keyboard;
 #ifdef SERIAL_DEBUG
 static bool settingsDbgGet(const char* v, char* b, int l) { return g_SettingsApp.dbgGet(v, b, l); }
@@ -2049,6 +2050,7 @@ void appHandleInput(AppId) {
 
 void appTick(AppId id) {
   g_ledFlow.tick();
+  g_backlight.tick();   // WIRE2-G5: auto-brightness in every app, not just Settings→Display
   g_keyboard.tick();
   if (g_apps[(int)id]) g_apps[(int)id]->tick();
 }
@@ -2130,10 +2132,10 @@ void setup()
   analogReadResolution(12);        // TASK-151: ensure 12-bit ADC for LDR on GPIO34
   ledcSetup(0, 5000, 8);           // 5 kHz, 8-bit — channel 0 matches TFT_LEDC_CHANNEL
   ledcAttachPin(TFT_BL, 0);        // redirect GPIO21 from digital to LEDC
-  {
-    int duty = map(constrain((int)g_settings.dispLevel, 1, 10), 1, 10, 25, 255);
-    ledcWrite(0, (uint32_t)duty);   // apply stored brightness before first frame
-  }
+  // WIRE2-G5: owner applies the stored mode before first frame — honours
+  // dispAuto (one LDR sample → mapped duty) instead of unconditionally
+  // applying the manual dispLevel like the old inline block did.
+  g_backlight.applyMode();
   // RGB LED channels (ch1=R/GPIO4, ch2=G/GPIO16, ch3=B/GPIO17).
   ledcSetup(LED_R_CH, 5000, 8); ledcAttachPin(LED_R_PIN, LED_R_CH);
 #if !NFC_ENABLED
@@ -3139,6 +3141,17 @@ static void cmdGet(const char *args) {
                   (int)g_settings.dateFmt);
     return;
   }
+  // WIRE2-G5 (§6 debug hooks, W-7): backlight owner observable — T-SETW-14
+  // asserts the duty tracks injected LDR values outside the Settings screen.
+  if (strcmp(args, "duty") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"duty\","
+                  "\"duty\":%d,\"ldrRaw\":%d,\"auto\":%s,\"injected\":%s,"
+                  "\"last\":true}\n",
+                  g_backlight.currentDuty(), (int)g_backlight.ldrRaw(),
+                  g_settings.dispAuto ? "true" : "false",
+                  g_backlight.injected() ? "true" : "false");
+    return;
+  }
   Serial.printf("{\"ok\":false,\"cmd\":\"get\","
                 "\"error\":\"unknown var\",\"var\":\"%s\"}\n", args);
 }
@@ -3362,6 +3375,20 @@ static void cmdSet(const char *args) {
   if (strcmp(var, "settingsSave") == 0) {
     SettingsStorage::save();
     Serial.println("{\"ok\":true,\"cmd\":\"set\",\"var\":\"settingsSave\",\"saved\":true}");
+    return;
+  }
+  // WIRE2-G5 (§4-G5, W-7): sticky LDR override for T-SETW-14 — the harness
+  // cannot darken the room. -1 clears; while set, BacklightFlow samples the
+  // injected value instead of the ADC.
+  if (strcmp(var, "ldrRaw") == 0) {
+    int v = atoi(val);
+    if (v < -1 || v > 4095) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"ldrRaw\","
+                     "\"error\":\"range -1..4095 (-1 clears)\"}");
+      return;
+    }
+    g_backlight.injectLdr((int16_t)v);
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"ldrRaw\",\"val\":%d}\n", v);
     return;
   }
   // WIRE2-G2 (§6 debug hooks, W-7): 12h/24h toggle. Mirrors clockStyle below,
