@@ -4260,6 +4260,225 @@ Detailed run + results: `docs/verification/regression_suite/m-pr-locations-dut.m
 
 ---
 
+## Suite: M-SETTINGS-WIRE2 — global settings wiring gaps (X031-X033)
+
+Landed 2026-07-17 (`a241b44`, `49297a3`, `1abfb32`); not yet run on DUT. Design: `docs/architecture/designs/M-SETTINGS-WIRE2-global-settings-wiring.md`.
+
+### T-SETW-10 — [settings-001, time-001] Boot applies persisted timezone (X031/WIRE2-G1)
+
+- **Type**: integration [REBOOT]
+- **Feature(s)**: settings-001, time-001
+- **Interaction**: X031
+- **Objective**: Boot calls `configTzTime(g_settings.posixTz, ...)` (main.cpp, after `SettingsStorage::load()`) instead of the old hardcoded `configTime(0, 0, ...)` = UTC. A non-UTC `posixTz` must survive a reboot instead of every clock silently reverting to UTC.
+- **Preconditions**: DUT with a non-UTC city already selected via the Time & Location city picker.
+- **Steps**: `get clockRender` (note `hour`/`ampm` for the current non-UTC zone) → `reboot` → wait for DUT ready → `get clockRender` again.
+- **Expected result**: Local hour/ampm match the pre-reboot reading (same offset applied) — not a UTC-reverted value.
+- **Status**: **NOT YET RUN** — pending DUT.
+
+### T-SETW-13 — [settings-001, weather-001] Weather fetch uses settings coords, resume-diffs on mismatch (X032/WIRE2-G4)
+
+- **Type**: integration [NETWORK]
+- **Feature(s)**: settings-001, weather-001
+- **Interaction**: X032
+- **Objective**: `enqueueWeather(lat, lon)` snapshots `g_settings.lat/lon` at enqueue time (never a cross-core read of the live floats); `WeatherApp::resume()` diffs the snapshot against current settings and forces a refetch on mismatch, replacing the old hardcoded `WEATHER_URL` constant.
+- **Steps**: set home city A via Time & Location → switch to Weather, let it fetch, confirm the fetch URL (`LOG_D`) encodes A's coordinates → change city to B via Settings → switch away from Weather and back (`resume()`) → confirm a refetch fires and the new URL encodes B's coordinates.
+- **Expected result**: Weather always fetches for the currently-configured city, and only refetches when the coords actually changed (no spurious refetch on a no-op resume).
+- **Status**: **NOT YET RUN** — pending DUT.
+
+### T-SETW-14 — [settings-001, disp-001] BacklightFlow is a global owner, not Settings-screen-scoped (X033/WIRE2-G5)
+
+- **Type**: integration
+- **Feature(s)**: settings-001, disp-001
+- **Interaction**: X033
+- **Objective**: Before this fix, the LDR sample→map→`ledcWrite` loop only ran while Settings→Display was the active view; `BacklightFlow::applyMode()`/`tick()` must now run at boot and in every app.
+- **Steps**: with `dispAuto=true`, boot the device and switch to any non-Settings app (e.g. Clock) → `set injectLdr <low value>` → `get duty`.
+- **Expected result**: `duty` tracks the injected LDR value even though the Settings→Display screen was never opened this session.
+- **Status**: **NOT YET RUN** — pending DUT.
+
+### T-SETW-15 — [settings-001, disp-001] DisplaySection manual preview doesn't fight the controller (X033/WIRE2-G5)
+
+- **Type**: integration
+- **Feature(s)**: settings-001, disp-001
+- **Interaction**: X033
+- **Objective**: `DisplaySection` is now a pure editor — it pauses `BacklightFlow` on entry, drives the duty directly for the manual-slider preview, and resumes the controller on exit, rather than writing the backlight duty itself long-term.
+- **Steps**: with `dispAuto=true`, open Settings→Display → drag the brightness slider (manual preview) → `get duty` (expect the manual value, `auto:false` or paused) → back out of the Display section → `set injectLdr <a different value>` → `get duty`.
+- **Expected result**: The manual preview shows the dragged value while the section is open; after exiting, LDR-driven auto tracking resumes without a stuck/stale duty.
+- **Status**: **NOT YET RUN** — pending DUT.
+
+---
+
+## Suite: M-WEBRADIO-SETTINGS — Settings→Applications→WebRadio (X034)
+
+Landed 2026-07-17 (`fff0208`, orphaned mid-session by the Fable-5 usage limit, gated + committed post-hoc); not yet run on DUT. Design: `docs/architecture/designs/M-WEBRADIO-SETTINGS.md`.
+
+### T-WRSET-01 — [settings-webradio, webradio-001] Result identity: stale echo discarded at install site (WR-1)
+
+- **Type**: integration
+- **Feature(s)**: settings-webradio, webradio-001
+- **Interaction**: X034
+- **Objective**: `WebRadioStationsResult` carries the `country`/`bitrateCap` it was fetched under; the install site (`tick()`) discards a result whose echo doesn't match current settings, instead of repopulating the list with a stale parked/in-flight result after a country/cap edit (TASK-300 pattern).
+- **Steps**: start a station fetch for country A → before it lands, edit country to B in Settings → let A's in-flight/parked result arrive → `get wrCount`/`wrStation0`.
+- **Expected result**: The list reflects B, never A's stale result.
+- **Status**: **NOT YET RUN** — pending DUT.
+
+### T-WRSET-02 — [settings-webradio, webradio-001] Country/cap edit resets lastStation at edit time (WR-2)
+
+- **Type**: integration
+- **Feature(s)**: settings-webradio, webradio-001
+- **Objective**: `webRadioLastStation` resets to 0 **at edit time**, riding the section's own `saveSettings()` — not lazily at the next `resume()` — closing the reboot window where a RAM-only reset would otherwise let stale index + new country both persist to flash together.
+- **Steps**: play/select a non-zero station index → edit country or bitrate cap in Settings, save → `reboot` (before ever resuming WebRadio) → `get wrIdx` / persisted `webRadioLastStation`.
+- **Expected result**: `webRadioLastStation` is already 0 in flash immediately after the Settings save, not just after the next WebRadio resume.
+- **Status**: **NOT YET RUN** — pending DUT.
+
+### T-WRSET-03 — [settings-webradio, webradio-001] Resume-diff aborts in-flight fetch, clears list, re-enqueues
+
+- **Type**: integration
+- **Feature(s)**: settings-webradio, webradio-001
+- **Objective**: `resume()` diffs the app's snapshot against `g_settings` (country/cap); on mismatch it resets `_currentIdx`, clears the station list, aborts any in-flight fetch (`abortWebRadioFetch`), and re-enqueues via the TASK-289 second-chance path. This is also the CPICK regression re-run (country change via the picker, not the retired keyboard) — see T-CPICK-03.
+- **Steps**: enter WebRadio, let a fetch land → switch away to Settings, change country (via `set pick <CC>`) → switch back to WebRadio (`resume()`).
+- **Expected result**: `wrCount` resets and a fresh fetch is enqueued for the new country; no stale-country stations render even momentarily.
+- **Status**: **NOT YET RUN** — pending DUT.
+
+### T-WRSET-04 — [settings-webradio, webradio-001] lastStation coalesced-saves on suspend/eject (ADR-050 rule 3)
+
+- **Type**: integration
+- **Feature(s)**: settings-webradio, webradio-001
+- **Objective**: `_lastStationDirty` batches station-change writes; the actual `SettingsStorage::save()` happens once on `suspend()`/eject, not on every station change (flash-wear discipline, ADR-050 rule 3).
+- **Steps**: change station index several times in one WebRadio session → eject/suspend → `reboot` → `get wrIdx`.
+- **Expected result**: The final index persisted; no more than one save observed across the whole session (inspect via existing settings-save instrumentation/log count, not per-tap saves).
+- **Status**: **NOT YET RUN** — pending DUT.
+
+### T-WRSET-05 — [settings-webradio, webradio-001] No-edit Settings round-trip does not refetch (TASK-284 rate-limit sensitivity)
+
+- **Type**: integration
+- **Feature(s)**: settings-webradio, webradio-001
+- **Objective**: Opening Settings→Applications→WebRadio and leaving without changing country/cap must not trigger a resume-diff refetch — TASK-284 showed repeated fetches degrade the station-list mirror under rate limiting.
+- **Steps**: note `wrCount`/`wrLastHttp` count → open and close the WebRadio settings section with no edits → resume WebRadio → re-check `wrLastHttp` count.
+- **Expected result**: Fetch count unchanged.
+- **Status**: **NOT YET RUN** — pending DUT.
+
+### T-WRSET-06 — [settings-webradio, webradio-001] Max-volume slider feeds wrEffectiveVolume without touching the hwMod clamp
+
+- **Type**: integration
+- **Feature(s)**: settings-webradio, webradio-001
+- **Objective**: The UI slider writes `webRadioMaxVolume` (1..21); `wrEffectiveVolume()` (TASK-209) stays the single clamp authority, and `hwMod` remains serial/SPIFFS-only (no UI control surface for it).
+- **Steps**: set `webRadioMaxVolume` via the Settings slider to a low value → `get wrEffectiveVol` while playing.
+- **Expected result**: `maxVol` reflects the new setting; `hwMod` unchanged and not reachable from the UI.
+- **Status**: **NOT YET RUN** — pending DUT.
+
+**Also still owed** (flagged at design time, not yet scheduled): the **WR-4 coordinate re-derivation across settings suites** — a coordinate-drift audit of the WebRadio settings row layout, same class as the 801f378 drift lesson. Do this alongside the T-WRSET suite, not as a separate pass.
+
+---
+
+## Suite: M-HOME-LOCATION — device home = prLocs[0] (X035)
+
+Landed 2026-07-17 (`dcc12bf`); not yet run on DUT. Design: `docs/architecture/designs/M-HOME-LOCATION.md`.
+
+### T-HOME-01 — [home-location-001, pr-locations-001] City picker is a prLocs[0] writer
+
+- **Type**: integration
+- **Feature(s)**: home-location-001, pr-locations-001
+- **Interaction**: X035
+- **Objective**: The Time & Location city picker now writes `prLocs[0]` (home mirror, always) and the active mirror `prLat`/`prLon` too, but only when `prActiveLoc==0` (the default case — skipping this leaves the radar silently stale on a fresh device).
+- **Steps**: with `prActiveLoc==0`, pick a new city → `get prloc` (check `home` object and `locs[0]`) and `get activeError`/radar coords.
+- **Expected result**: Both the home mirror and the active mirror (since slot 0 is active) update to the new city's coordinates.
+- **Status**: **NOT YET RUN** — pending DUT.
+
+### T-HOME-02 — [home-location-001, pr-locations-001] HOME-slot editor refines coords only; home mirror refresh is unconditional
+
+- **Type**: integration
+- **Feature(s)**: home-location-001, pr-locations-001
+- **Objective**: Editing slot 0 directly (PlaneRadar location editor) refines coordinates only — tz and city name stay city-picker-owned — and refreshes the home mirror **even when slot 0 is not the active radar slot** (H-2).
+- **Steps**: `set prloc active <non-zero slot>` → edit slot 0's coordinates via the PlaneRadar location editor → `get prloc` (`home` object).
+- **Expected result**: `home.lat`/`home.lon` reflect the slot-0 edit immediately, regardless of which slot is active.
+- **Status**: **NOT YET RUN** — pending DUT.
+
+### T-HOME-03 — [home-location-001, pr-locations-001] Radar active-slot switching never moves home
+
+- **Type**: integration
+- **Feature(s)**: home-location-001, pr-locations-001
+- **Objective**: Weather is pinned to slot 0 (home), not whatever slot PlaneRadar's active-slot switching selects — switching the radar's active location must never move the home mirror.
+- **Steps**: note `get prloc` `home` object → tap a non-active PlaneRadar strip row to switch `prActiveLoc` → `get prloc` again.
+- **Expected result**: `home.lat`/`home.lon` unchanged; only `active` and the active mirror (`prLat`/`prLon`) move.
+- **Status**: **NOT YET RUN** — pending DUT.
+
+### T-HOME-04 — [home-location-001] D4 migration seeds slot 0 from city on upgrade
+
+- **Type**: integration [SLOW]
+- **Feature(s)**: home-location-001
+- **Objective**: On a pre-upgrade `settings.json` (predates `prLocs`), slot 0 seeds from the legacy city iff slot 0 is still the untouched compile default — guarded by `kCities` membership + epsilon, mirroring the same guard style as T_PRL_04's migration.
+- **Status**: **NOT YET RUN** — pending DUT. Same caution as T_PRL_04: avoid risking the DUT's real, in-use `settings.json` via SPIFFS surgery unless a disposable settings snapshot is available.
+
+### T-HOME-05 — [home-location-001, pr-locations-001] >500 km divergence hint (Lookup path) + divKm observable
+
+- **Type**: integration
+- **Feature(s)**: home-location-001, pr-locations-001
+- **Objective**: Editing slot 0 to a point >500 km from its current position shows a confirm-screen divergence hint via the Lookup (geocode) path; `get prloc`'s `divKm` field is the serial observable. **Must also disposition the noted gap**: the manual lat/lon entry path (TASK-322) shows **no** divergence hint today — Lookup-only. Confirm whether that's accepted as-is for v1 or needs a follow-up.
+- **Steps**: edit slot 0 via Lookup to a city >500 km away → observe confirm-screen hint + `get prloc` `divKm` → separately, edit slot 0 via manual lat/lon entry to a similarly distant point → confirm no hint appears (expected per current code) and record the disposition decision.
+- **Status**: **NOT YET RUN** — pending DUT.
+
+### T-HOME-06 — [home-location-001, pr-locations-001] `get prloc` home/divKm observable sanity
+
+- **Type**: integration
+- **Feature(s)**: home-location-001, pr-locations-001
+- **Objective**: General cross-check that the `home` object and `divKm` in `get prloc` stay internally consistent across a sequence of writes from different writers (city picker, HOME-slot editor, active-slot switch) — a catch-all for the writer×mirror matrix (D2) rather than one specific writer.
+- **Steps**: exercise T-HOME-01/02/03 in sequence without a reboot in between → `get prloc` after each step.
+- **Expected result**: `home` always equals `locs[0]`; `divKm` only non-zero directly after a Lookup-path edit exceeding the threshold, otherwise 0.
+- **Status**: **NOT YET RUN** — pending DUT.
+
+---
+
+## Suite: M-COUNTRY-PICKER — shared country picker (SPickerList + ISO table)
+
+Landed 2026-07-17 (`13bb3fd`); not yet run on DUT. Design: `docs/architecture/designs/M-COUNTRY-PICKER.md` §4.
+
+### T-CPICK-01 — [settings-widgets-001] Picker opens scrolled to current selection, highlighted
+
+- **Type**: integration
+- **Feature(s)**: settings-widgets-001
+- **Objective**: Unlike the donor city picker (always opens at offset 0), `SPickerList` opens scrolled to the currently-selected country with it highlighted (CP-6, new code).
+- **Steps**: pick a country near the end of the 249-entry table once (e.g. via `set pick <CC>`) → close and reopen the picker at the same call site → `get pick` (`offset`, `highlightIdx`).
+- **Expected result**: `offset` places the previously-picked entry on-screen; `highlightIdx` matches it. The "opens scrolled to current selection" half is a serial-observable assertion; the visual highlight itself is an **eyeball** check (BP-048 posture, CP-8).
+- **Status**: **NOT YET RUN** — pending DUT.
+
+### T-CPICK-02 — [settings-widgets-001] Scrollbar thumb drag + arrows page correctly at 249 entries
+
+- **Type**: integration
+- **Feature(s)**: settings-widgets-001
+- **Objective**: Donor tests (T-TIME-0x) cover the city picker's 81-entry list; re-run the same bounds/paging behavior at the larger 249-entry country table (thumb-drag proportionality, arrow paging, top/bottom clamping).
+- **Steps**: open the picker → drag the scrollbar thumb to several positions (top, middle, bottom) → `get pick` `offset` after each → tap the page arrows at each extreme.
+- **Expected result**: Thumb drag lands proportionally within a page or two of the dragged position; arrows page without overshooting past index 0 or 248.
+- **Status**: **NOT YET RUN** — pending DUT.
+
+### T-CPICK-03 — [settings-widgets-001, settings-webradio, pr-locations-001] Select round-trips at both call sites
+
+- **Type**: integration
+- **Feature(s)**: settings-widgets-001, settings-webradio, pr-locations-001
+- **Objective**: Selecting a country persists correctly at both consumers: WebRadio's Country row (`webRadioCountry` + the X034 resume-diff contract fires — see T-WRSET-03) and the prloc Lookup-country step (advances to the Postcode keyboard step with the picked code), including both Retry paths the design found beyond the original two call sites.
+- **Steps**: (a) WebRadio Settings → Country row → `set pick <CC>` → `get wrCfg`/settings dump for `webRadioCountry` → confirm resume-diff refetch (T-WRSET-03). (b) PlaneRadar location editor → Lookup → Country step → `set pick <CC>` → confirm flow advances to Postcode with the picked code carried in `_prPendingCountry`. (c) repeat via each Retry button site.
+- **Status**: **NOT YET RUN** — pending DUT.
+
+### T-CPICK-04 — [settings-widgets-001] Back-tap cancels without mutating state
+
+- **Type**: integration
+- **Feature(s)**: settings-widgets-001
+- **Objective**: Tapping the picker's own cancel zone (checked before the host section's header back-tap, per the phase-routing design) closes it without changing the underlying setting/flow state.
+- **Steps**: note current `webRadioCountry` (or prloc flow state) → open the picker → back-tap without selecting → re-check the value.
+- **Expected result**: Unchanged.
+- **Status**: **NOT YET RUN** — pending DUT.
+
+### T-CPICK-05 — [settings-widgets-001] Bake determinism: `gen_countries.py` re-run byte-identical
+
+- **Type**: unit
+- **Feature(s)**: settings-widgets-001
+- **Objective**: `app/gen/countries.h` is network-free-generated from the committed `app/tools/data/iso3166.csv`; re-running the bake must reproduce it byte-for-byte (same gate class as every other bake in the repo).
+- **Steps**: `python3 app/tools/gen_countries.py` → `cd app/gen && sha256sum -c golden.sha256`.
+- **Status**: **NOT YET RUN** — host-side, no DUT required; can run any time.
+
+**Regression carried by this suite**: T-TIME city-picker suite is untouched (no donor changes in v1) — re-run unchanged as a sanity check, not a new test. T-WRSET-03 (country-change propagation) is exercised via the picker path now, per above.
+
+---
+
 ## Entry Format
 
 ```
