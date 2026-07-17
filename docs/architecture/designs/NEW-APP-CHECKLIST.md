@@ -124,6 +124,26 @@ DUT runs; TASK-312).
 
 ---
 
+### 8. `AppSettings` field wiring — load/save/consumer (ADR-050 / M-SETTINGS-WIRE2)
+
+**Required if**: the app adds a persisted field to `AppSettings` (`settingsStorage.h`).
+**Symptom of omission**: a field that round-trips through `SettingsStorage::load()`/`save()` but has
+no runtime reader outside `app/src/settings/` — the Settings UI can edit it, but nothing acts on the
+edit (this is exactly how G1-G5's WIRE2 gaps were introduced: `tzName`, `dispAuto`, weather coords).
+
+- [ ] New field appears in both `SettingsStorage::load()` and `SettingsStorage::save()`.
+- [ ] New field has >= 1 consumer (`g_settings.<field>`) in a file outside `app/src/settings/` and
+  outside `settingsStorage.{h,cpp}` — i.e. something other than the Settings UI reads it.
+- [ ] If the field is a documented UI-only companion with no runtime consumer by design (e.g. a
+  display-name string), add it to `ALLOWLIST` in `app/tools/check_settings_wiring.py` with a comment
+  explaining why.
+- [ ] Run `./run/check` — step `[7/7]` runs this gate (warn-only for now; a `WARN <field>` line means
+  either wire it up or allowlist it).
+
+Precedent: `app/tools/check_settings_wiring.py`, wired into `check_build.sh` 2026-07-17.
+
+---
+
 ## Deferral policy
 
 If a checklist item is explicitly deferred (e.g. no async work planned for v1), note the deferral in the

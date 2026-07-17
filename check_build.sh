@@ -82,6 +82,13 @@ else
 fi
 rm -rf "$TMPDIR_MEM"
 
+# ── 7. settings-wiring gate (ADR-050 / M-SETTINGS-WIRE2 §6c) — WARN-ONLY ─────
+# Every AppSettings field must have load/save mappings and a runtime owner
+# outside app/src/settings/. Warn-only until promoted (script exits 0 unless
+# --strict); does not count toward PASS/FAIL yet.
+echo "[7/7] settings-wiring gate (warn-only)"
+"$VENV_PY" "$PROJ_ROOT/app/tools/check_settings_wiring.py" || true
+
 echo
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]

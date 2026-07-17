@@ -428,7 +428,14 @@ private:
     tft.drawRoundRect(0,   121, 137, 119, 5, 0x07FF);  // HUMIDITY, bottom-left
     tft.drawRoundRect(138, 121, 137, 119, 5, 0x07E0);  // WIND,     bottom-right
     tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(0xF81F); tft.drawString("TIME",     WX_LEFT_CX,  8,   2);
+    // M-HOME-LOCATION §6: title the TIME tile with the selected city when one
+    // is set (visible confirmation the coordinate wiring works); "TIME" else.
+    // Truncated to the 137px box; OQ3 (label-vs-refined-coords divergence)
+    // accepted for v1 by human sign-off.
+    char timeLbl[14];
+    if (g_settings.city[0]) snprintf(timeLbl, sizeof(timeLbl), "%.12s", g_settings.city);
+    else                    strlcpy(timeLbl, "TIME", sizeof(timeLbl));
+    tft.setTextColor(0xF81F); tft.drawString(timeLbl,    WX_LEFT_CX,  8,   2);
     tft.setTextColor(0xFFE0); tft.drawString("TEMP",     WX_RIGHT_CX, 8,   2);
     tft.setTextColor(0x07FF); tft.drawString("HUMIDITY", WX_LEFT_CX,  129, 2);
     tft.setTextColor(0x07E0); tft.drawString("WIND",     WX_RIGHT_CX, 129, 2);
