@@ -667,14 +667,16 @@ interactions:
       serial/spiffs-only. No taskbar edge: the cfg column feeds only
       Settings->Applications; X022's eject-only invariant is unaffected.
     risk: medium
-    test_coverage: []
+    test_coverage: [T-WRSET-01, T-WRSET-02, T-WRSET-03, T-WRSET-04, T-WRSET-05,
+                    T-WRSET-06]
     notes: |
       Reserved 2026-07-16 at design time by M-WEBRADIO-SETTINGS §5 (Architect registry
       remit). IMPLEMENTED 2026-07-17 (fff0208): country+cap result echoes + install-
       site discard, edit-time lastStation resets, resume-diff + abort, coalesced
       suspend save, phase-forwarded volume slider, cfg=1 registry flip, default cap
-      128. VE attaches T-WRSET-01..06 at suite landing; the WR-4 coordinate
-      re-derivation across settings suites is still owed with that suite.
+      128. Suite fully PASS on DUT 2026-07-17 (01/04 via the 16b8acc debug hooks,
+      05 re-run via dataq wrEnqueues); the WR-4 coordinate re-derivation across
+      settings suites is still owed alongside this suite.
 
   - id: X035
     feature_a: home-location-001
