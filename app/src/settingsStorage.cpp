@@ -6,6 +6,26 @@
 
 AppSettings g_settings;
 
+// ---- JSON document capacity (TASK-329) -------------------------------------
+// ONE constant for load() and save() — never two magic numbers again.
+// Worst-case measurement 2026-07-17 (ArduinoJson 6.21.3; slot = 16 B on
+// ESP32, verified by static_assert against the vendored lib):
+//   structure: 72 object slots + 18 array slots = 90 × 16 B  = 1440 B
+//   strings:   every key occurrence ≈ 466 B + max-length
+//              string values ≈ 365 B (load() copies both,
+//              assume no dedup)                              ≈  831 B
+//   worst case                                               ≈ 2271 B
+// 6144 ≈ 2.7× that — headroom for schema growth (each new field costs one
+// 16 B slot + its key string). Note the old 3072 was analytically sufficient
+// for today's schema: the TASK-329 truncation incident is consistent with the
+// ctor's 3072 B heap alloc failing under fragmentation (capacity 0 → every
+// add silently no-ops → valid-but-defaulted file), not pool exhaustion — the
+// overflowed() guards below catch BOTH failure modes. Heap: transient only,
+// alive for the duration of one load()/save() call (boot + occasional UI
+// saves); covered by the mem_manifest.yaml "headroom" transient reserve, not
+// a resident tenant.
+static constexpr size_t kSettingsJsonCapacity = 6144;
+
 // ---- Defaults --------------------------------------------------------------
 
 static void applyDefaults() {
@@ -137,13 +157,20 @@ void SettingsStorage::load() {
     File f = SPIFFS.open(SETTINGS_JSON, "r");
     if (!f) return;
 
-    DynamicJsonDocument doc(3072);
-    if (deserializeJson(doc, f) != DeserializationError::Ok) {
+    DynamicJsonDocument doc(kSettingsJsonCapacity);
+    DeserializationError err = deserializeJson(doc, f);
+    if (err != DeserializationError::Ok) {
         f.close();
-        Serial.println("SettingsStorage: parse error — using defaults");
+        // NoMemory here = doc alloc failed or file outgrew capacity (TASK-329)
+        Serial.printf("SettingsStorage: parse error (%s) — using defaults\n", err.c_str());
         return;
     }
     f.close();
+    // TASK-329: warn-only — deserializeJson should already have returned
+    // NoMemory on pool exhaustion, but a silent truncation must never again
+    // pass without an unmistakable log line.
+    if (doc.overflowed())
+        Serial.println("SettingsStorage: JSON doc OVERFLOWED on load — data truncated!");
 
     // Time & Location
     if (doc.containsKey("time")) {
@@ -365,7 +392,7 @@ void SettingsStorage::load() {
 // ---- Save ------------------------------------------------------------------
 
 void SettingsStorage::save() {
-    DynamicJsonDocument doc(3072);
+    DynamicJsonDocument doc(kSettingsJsonCapacity);
 
     auto t = doc.createNestedObject("time");
     t["posixTz"] = g_settings.posixTz;
@@ -448,11 +475,26 @@ void SettingsStorage::save() {
     }
     pr["activeLoc"] = g_settings.prActiveLoc;
 
+    // TASK-329: never persist a truncated tree. ArduinoJson v6 silently
+    // no-ops every add past capacity (or on a failed ctor alloc → capacity 0)
+    // and serializeJson() would happily write the valid-but-incomplete
+    // fragment. SPIFFS.open(..., "w") truncates the existing file the moment
+    // it opens, so this guard MUST run before the open — abort here and the
+    // previous settings.json stays intact on flash.
+    if (doc.overflowed()) {
+        Serial.println("SettingsStorage: JSON doc OVERFLOWED — save aborted, previous file kept!");
+        return;
+    }
+
     File f = SPIFFS.open(SETTINGS_JSON, "w");
     if (!f) { Serial.println("SettingsStorage: failed to open for write"); return; }
     if (serializeJson(doc, f) == 0) Serial.println("SettingsStorage: write failed");
     f.close();
-    Serial.println("SettingsStorage: saved");
+    // doc usage vs capacity in the log so future schema growth is visible
+    // long before it becomes another TASK-329 (worst case ≈ 2271 B, see
+    // kSettingsJsonCapacity above).
+    Serial.printf("SettingsStorage: saved (doc %u/%u B)\n",
+                  (unsigned)doc.memoryUsage(), (unsigned)kSettingsJsonCapacity);
 }
 
 // ---- M-HOME-LOCATION writer×mirror matrix (H-1/H-3) ------------------------
