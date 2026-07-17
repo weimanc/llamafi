@@ -1472,5 +1472,29 @@ Found 2026-07-17 while fixing the same drift in the three `prloc_*_smoke.py` too
 
 **Fix sketch**: give `_settings_tap_row()` a notion of context (category list vs compressed app list) — e.g. a second helper `_settings_tap_app_row()` using `28 + row*21 + 10` (midline per `drawRow()`'s `screenY + rowH/2`), or a `row_h` parameter — mirroring the `row_y()`/`APP_LIST_ROW_H` pattern now in the prloc smoke tools (e929792). Audit ALL `_settings_tap_row()` call sites in the file and classify each as category-row vs app-row before switching any. Then re-run T-SET-03/06/07 on DUT to confirm no regression (03/06) and the actual fix (07).
 
-**Status:** filed, not fixed — deliberately not fixed in e929792 because the helper is shared across a large test file and the call-site audit deserves its own pass.
-**Opened:** 2026-07-17 · **Milestone:** — (test-harness hygiene, cross-cutting) · **Owner:** Developer · **Deps:** none · **Size:** S-M (helper split + call-site audit + 3 DUT test re-runs) · **DUT:** y (T-SET-03/06/07 re-run)
+**Status:** **DONE — DUT-verified 2026-07-18**. Fixed by parameter/context split, not a constant swap: added `_settings_tap_app_row(dut, row)` (mirrors the `row_y()`/`APP_LIST_ROW_H` pattern from e929792 — `y = 28 + row*21 + 10`, `APP_LIST_ROW_H = min(26, 212//10) = 21`), left `_settings_tap_row()` for genuine category-list rows (still `y = 28 + row*26 + 13`).
+
+**Call-site audit (all 7 in `run_serialdbg_tests.py`, none elsewhere in the repo)** — classified category-row vs app-row and switched only the latter:
+| Line (post-fix) | Call | Context | Classification | Action |
+|---|---|---|---|---|
+| 4980 | `_settings_tap_row(dut, idx)` in `t_set_02`'s `for idx in range(5)` | taps the 5 top-level category-list stub rows | category-row | unchanged |
+| 5003 | `_settings_tap_row(dut, 5)` in `t_set_03` | opens Applications from the category list | category-row | unchanged |
+| 5014 | `_settings_tap_row(dut, 0)  # Stock` in `t_set_03` | row 0 **inside** the Applications app list | app-row (was mis-typed, passed "by luck" — row 0's midline lands in row 0's hitbox under both formulas) | → `_settings_tap_app_row(dut, 0)` |
+| 5042 | `_settings_tap_row(dut, 5)  # Applications` in `t_set_06` | opens Applications from the category list | category-row | unchanged |
+| 5043 | `_settings_tap_row(dut, 0)  # Stock submenu` in `t_set_06` | row 0 inside the Applications app list | app-row (same "by luck" case as 5014) | → `_settings_tap_app_row(dut, 0)` |
+| 5071 | `_settings_tap_row(dut, 5)  # Applications` in `t_set_07` | opens Applications from the category list | category-row | unchanged |
+| 5072 | `_settings_tap_row(dut, 2)  # Aquarium` in `t_set_07` | row 2 inside the Applications app list | app-row — **the actual bug** (y=93 lands in row 3's hitbox under the real 21px height) | → `_settings_tap_app_row(dut, 2)` |
+
+Aside (out of scope, not fixed): row 0/row 2's inline comments ("Stock"/"Aquarium") don't match `kConfigurableApps[]`'s current order (`Stock` is index 5, `Aquarium` is index 6 — see the WR-4 audit table in test_plan.md line ~4369). This is a stale-comment/app-identity mismatch, not a coordinate bug — the tests only assert `settingsSection`/`settingsAppSubmenu` **indices**, not which app rendered, so it doesn't affect pass/fail. Flagging for whoever next touches these tests; not fixed here per the task's own scope (row-height context split only).
+
+**DUT re-run (2026-07-18, `cyd2usb_winamp_debug` via `./run/test-targeted T-SET-03,T-SET-06,T-SET-07`)**: snapshot-protected (`./run/spiffs pull` before, byte-identical after — diff clean). All three **PASS**:
+```
+[PASS] T-SET-03  Applications drill: section 5, submenu 0 confirmed; back×2 unwinds to -1/-1
+[PASS] T-SET-06  suspend() reset confirmed: section==-1 submenu==-1 on re-entry
+[PASS] T-SET-07  back×2 from Aquarium submenu: submenu→-1, section→-1 confirmed
+```
+T-SET-03/06 confirm no regression from the app-row split (they only ever tapped row 0, which happened to work under the old formula too). T-SET-07 is the actual fix under DUT proof — row 2's tap now lands at y=80 (was y=93, which fell in row 3's hitbox). No `OVERFLOWED` log line seen (TASK-329 guard). Production firmware + monitor restored at session end.
+
+**Bundled in the same pass (tools-only, not filed separately)**: `app/tools/prloc_editor_smoke.py` destructive-scope hygiene, flagged by VE during T-CPICK-03 (see its test_plan.md entry) — the script would delete real slot 1 (`HH`) in addition to its documented empty-slot-2 assumption. Added a DESTRUCTIVE SCOPE banner enumerating exactly which slots are written (2) / deleted (1), plus an upfront `get prloc` read that aborts before any hardware mutation if slot 1 or slot 2 is non-empty (`--force` bypasses for a disposable/synthetic fixture). Script itself not re-run against this live device — the fix's entire point is that it no longer runs destructively by default.
+
+**Opened:** 2026-07-17 · **Closed:** 2026-07-18 · **Milestone:** — (test-harness hygiene, cross-cutting) · **Owner:** Developer · **Deps:** none · **Size:** S-M (helper split + call-site audit + 3 DUT test re-runs) · **DUT:** y (T-SET-03/06/07 re-run, all PASS)

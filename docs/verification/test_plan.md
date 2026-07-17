@@ -2023,15 +2023,15 @@ Common preconditions for all T-SET tests:
   1. `tap 137 171` (row 5 midpoint: y = 28 + 5*26 + 13 = 171).
   2. `get settingsSection` — assert `section == 5`.
   3. `get settingsAppSubmenu` — assert `submenu == -1`.
-  4. `tap 137 41` (row 0 — "Stock": y = 28 + 0*26 + 13 = 41).
+  4. `tap 137 38` (row 0 — "Stock", **Applications app-list row**: compressed row height `_appListRowH()=min(26,212/10)=21`; y = 28 + 0*21 + 10 = 38 — was documented as the uncompressed-formula y=41 pre-TASK-330; row 0's midline happened to land correctly under both formulas, which is why this step passed "by luck" before the fix).
   5. `get settingsAppSubmenu` — assert `submenu == 0`.
   6. `tap 30 14` (back).
   7. `get settingsAppSubmenu` — assert `submenu == -1`.
   8. `tap 30 14` (back).
   9. `get settingsSection` — assert `section == -1`.
 - **Expected result**: `settingsSection==5`, `settingsAppSubmenu==0`, then both reset to -1 after two backs (C2b).
-- **Harness**: `run_serialdbg_tests.py --tests T-SET-03`. Owner: VE.
-- **Status**: PASS — `settingsAppSubmenu` re-implemented in AppsSection (TASK-159, commit 50b962f, 2026-06-08). All steps valid and passing. T-APPS-07 remains as a complementary higher-level test (uses `settingsSection` only, adds visual steps).
+- **Harness**: `run_serialdbg_tests.py --tests T-SET-03` (now calls `_settings_tap_app_row()` for step 4, TASK-330). Owner: VE.
+- **Status**: PASS — `settingsAppSubmenu` re-implemented in AppsSection (TASK-159, commit 50b962f, 2026-06-08). All steps valid and passing. T-APPS-07 remains as a complementary higher-level test (uses `settingsSection` only, adds visual steps). **TASK-330 (2026-07-18)**: re-run on DUT confirmed no regression after the app-list tap-row split — see TASK-330 tasks.md entry for evidence.
 
 ---
 
@@ -2077,15 +2077,15 @@ Common preconditions for all T-SET tests:
 - **Steps**:
   1. `switchApp 6` (Settings).
   2. `tap 137 171` (Applications, row 5).
-  3. `tap 137 41` (Stock row within Applications — enters Stock submenu).
+  3. `tap 137 38` (Stock row within Applications — enters Stock submenu; **app-list row**, compressed 21px height: y = 28 + 0*21 + 10 = 38, was documented y=41 pre-TASK-330).
   4. Visual: Stock per-app rows visible (Ticker 1..7 + Default view).
   5. `switchApp 0` (Spotify — triggers `suspend()`).
   6. `switchApp 6` (Settings — triggers `resume()`).
   7. `get settingsSection` — assert `section == -1`.
   8. Visual: category list shows 6 rows with chevrons.
 - **Expected result**: `section == -1` after suspend/resume; category list renders (C5).
-- **Harness**: `run_serialdbg_tests.py --tests T-SET-06` (steps 1–3, 5–7). Step 4/8 manual visual. Owner: VE.
-- **Status**: partial — serial steps 1–3/5–7 PASS (2026-06-06 DUT; also tested suspend mid-L2: `section==-1`); step 4/8 visual pending.
+- **Harness**: `run_serialdbg_tests.py --tests T-SET-06` (steps 1–3, 5–7; step 3 now calls `_settings_tap_app_row()`, TASK-330). Step 4/8 manual visual. Owner: VE.
+- **Status**: partial — serial steps 1–3/5–7 PASS (2026-06-06 DUT; also tested suspend mid-L2: `section==-1`); step 4/8 visual pending. **TASK-330 (2026-07-18)**: re-run on DUT confirmed no regression after the app-list tap-row split — see TASK-330 tasks.md entry for evidence.
 
 ---
 
@@ -2097,7 +2097,7 @@ Common preconditions for all T-SET tests:
 - **Preconditions**: DUT in Settings at category list.
 - **Steps**:
   1. `tap 137 171` (Applications row).
-  2. `tap 137 67` (Aquarium, row 2: y = 28 + 2*26 + 13 = 67).
+  2. `tap 137 80` (row 2, **Applications app-list row**: compressed row height `_appListRowH()=min(26,212/10)=21`; y = 28 + 2*21 + 10 = 80 — was documented as the uncompressed-formula y=67 pre-TASK-330, which under the real 21px row height lands in row 3's hitbox instead of row 2's, i.e. this step mistapped the wrong app until the fix).
   3. `get settingsSection` — assert `section == 5`.
   4. `get settingsAppSubmenu` — assert `submenu == 2`.
   5. `tap 30 14` (back).
@@ -2105,8 +2105,8 @@ Common preconditions for all T-SET tests:
   7. `tap 30 14` (back).
   8. `get settingsSection` — assert `section == -1` (at category list).
 - **Expected result**: Two back taps unwind both levels correctly (C6).
-- **Harness**: `run_serialdbg_tests.py --tests T-SET-07`. Owner: VE.
-- **Status**: PASS — `settingsAppSubmenu` re-implemented in AppsSection (TASK-159, commit 50b962f, 2026-06-08). All steps valid and passing.
+- **Harness**: `run_serialdbg_tests.py --tests T-SET-07` (step 2 now calls `_settings_tap_app_row()`, TASK-330 — the actual fix this test re-run validates). Owner: VE.
+- **Status**: PASS — `settingsAppSubmenu` re-implemented in AppsSection (TASK-159, commit 50b962f, 2026-06-08). All steps valid and passing (the pass predates TASK-330's discovery that step 2's *y-coordinate* was wrong even though the section/submenu index assertions still happened to hold — see TASK-330 tasks.md entry for the DUT re-confirmation after the coordinate fix, 2026-07-18).
 
 ---
 
@@ -4463,6 +4463,7 @@ Landed 2026-07-17 (`13bb3fd`). Design: `docs/architecture/designs/M-COUNTRY-PICK
 - **Status**: **PASS, all legs, 2026-07-17 (real-data DUT session, human-authorized; zero persistence on the prloc legs — see disposition below)**. WebRadio leg (unchanged from prior session): `set pick US` returned `{"ok":true,"code":"US"}`; `set pick NL` immediately after (restoring the original setting) also returned `{"ok":true,"code":"NL"}` — round-trip confirmed, resume-diff propagation independently confirmed in T-WRSET-02/03.
   **prloc Lookup leg + both Retry paths — now run**, on slot 1 (`HH`), deliberately kept separate from the T-HOME-02/05 slot-0 narrative. Disposition: the shipped `app/tools/prloc_editor_smoke.py` was **not** re-run as-is — re-reading it this session found it also **deletes slot 1** (its `H1`/`H2` checks, written when slot 1 was a spare `AMS`-labelled slot; today slot 1 is the real, in-use `HH`) in addition to writing/committing into slot 2 — i.e. it would have mutated *three* of the four real slots, not the one the PM handoff anticipated. Since the country-picker mechanics themselves never require a Save (`_handlePrConfirmTap`/`_handlePrErrorTap`'s Retry both just call `_openPrCountryPicker()`, and Cancel on every screen is a documented no-persist no-op), the leg was driven by hand via the same primitives (`tap`/`set kbText`/`kbOk`/`set pick`/`set geocode`), reaching Confirm/Error and tapping **Retry** at each site, then Cancelling out — **without ever tapping Save** — which exercises the leg's actual objective with strictly less risk than the shipped script and no slot to restore. Evidence: slot 1 `EditLabel` prefilled `len:2` ("HH") → Lookup → `get pick` active, `highlightIdx>=0` → `set pick DE` → `get kb` Postcode `maxLen:10` (code carried into the flow, satisfying the "(b)" step) → geocode-success stub → Confirm reached → tapped **Retry** (site 1/2, Confirm bar `(137,210)`) → `get pick` active again, `highlightIdx` moved off the pre-pick position (picker reopened at the just-picked `DE`, i.e. `_prLastCountry` carried across the retry) → `set pick NL` → Postcode again (flow correctly restarted at the country step) → geocode `-96`-error stub → Error reached → tapped **Retry** (site 2/2, Error bar `(69,210)`) → `get pick` active again. Backed all the way out via the picker's own cancel zone + the fork's back-tap, never tapping Save. Final `get prloc`: slot 1 (`HH`) byte-identical to baseline, slots 2/3 (`CAM`/`WFD`) untouched — confirmed zero mutation.
   **Script hygiene note (not a firmware defect)**: `app/tools/prloc_editor_smoke.py` is stale against the current 4-real-slot device (its slot-1-delete and slot-2-Save assumptions predate `AMS/HH/CAM/WFD` all being populated) — safe to run only against a disposable/synthetic `prLocs` fixture (same posture as T-HOME-04's fixtures), never against a live device with real presets in all 4 slots. Recorded here rather than filed as a task since it's a test-tool caveat, not a shipped-code bug — the WR-4 row-coordinate fix already landed in it (T-CPICK-01) is unaffected and still correct.
+  **Fixed 2026-07-18** (tools-only, bundled with TASK-330): `prloc_editor_smoke.py` now carries a loud DESTRUCTIVE SCOPE banner in its module docstring naming exactly which slots it writes (2) and deletes (1), and reads `get prloc` up front to abort before touching hardware if slot 1 or slot 2 is non-empty — `--force` bypasses for the disposable/synthetic-fixture case this note describes. The script itself was not re-run against this live device (still destructive to real `HH`/whatever occupies slot 2 by design); the guard is what now prevents that from happening silently.
 
 ### T-CPICK-04 — [settings-widgets-001] Back-tap cancels without mutating state
 
