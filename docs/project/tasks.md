@@ -25,6 +25,9 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 > **None of tonight's six slices have touched a DUT.** Everything above is `run/check`-clean
 > (build + static gates only) — no serial-dbg suite has run, no eyeball pass has happened. The city
 > label in particular is a brand-new visible surface with zero eyeball verification (BP-048 posture).
+> *(Resolved 2026-07-17, daylight session: city label eyeballed by human on DUT — correct city shown
+> on the Weather TIME tile, not clipped, tile chrome intact, no weather-screen regression. T-CPICK-01
+> eyeball half also PASSED same pass. DUT suites ran — see test_plan.md T-SETW/T-WRSET/T-HOME/T-CPICK.)*
 >
 > **VE/DUT queue for daylight** (all spec'd already — none written into `test_plan.md` yet):
 > - **T-SETW-10** — boot applies `posixTz` via `configTzTime` (X031/WIRE2-G1, `cross_feature_matrix.yaml`).
