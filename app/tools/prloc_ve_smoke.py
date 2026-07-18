@@ -113,9 +113,10 @@ def loc(r, i):
 
 
 # PlaneRadar strip geometry (planeRadarApp.h): label column x=257,
-# rows y = 68/94/120/146 for slots 0..3.
+# rows y = 68/90/112/134/156/178/200 for slots 0..6 (Q1 amendment
+# 2026-07-18: 7 slots @ 22 px pitch, AGE/ERR moved to strip bottom).
 STRIP_X = 257
-STRIP_ROW_Y = [68, 94, 120, 146]
+STRIP_ROW_Y = [68, 90, 112, 134, 156, 178, 200]
 
 print(f"== opening {PORT} (DTR reset) ==", flush=True)
 d = Dut()

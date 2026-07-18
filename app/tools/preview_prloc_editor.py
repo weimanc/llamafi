@@ -84,7 +84,7 @@ S_ACCENT_BG  = S_VALUE_ON        # default/recommended-choice button fill
 
 # ── PR_* constants (from M-PR-LOCATIONS-location-presets.md) ──────────────────
 
-PR_NUM_LOCS  = 4
+PR_NUM_LOCS  = 7   # Q1 amended 4 -> 7 (2026-07-18)
 PR_LABEL_MAX = 5
 
 # ── realistic content (phase-0 probe: NL postcode 2513AA / The Hague) ─────────

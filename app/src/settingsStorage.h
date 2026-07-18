@@ -34,9 +34,9 @@ enum class PrTagRule     : uint8_t { A = 0, B = 1, C = 2, Count = 3 };
 enum class PrStaleStyle  : uint8_t { Ring = 0, Text = 1, Dim = 2, Count = 3 };
 
 // M-PR-LOCATIONS (TASK-315..325): named location presets for PlaneRadar.
-// label[6] pads to 8 for float alignment -> 16 B/slot x PR_NUM_LOCS = 64 B
+// label[6] pads to 8 for float alignment -> 16 B/slot x PR_NUM_LOCS = 112 B
 // (M-PR-LOCATIONS design, "Heap / budget note").
-static constexpr uint8_t PR_NUM_LOCS  = 4;   // Q1 resolved: 4
+static constexpr uint8_t PR_NUM_LOCS  = 7;   // Q1 amended 4 -> 7 (2026-07-18): AGE/ERR strip rows moved to the strip bottom, slot pitch 26 -> 22 px
 static constexpr uint8_t PR_LABEL_MAX = 5;   // chars, excl. NUL — strip-width bound; Q2 resolved: 5
 
 struct PrLocation {

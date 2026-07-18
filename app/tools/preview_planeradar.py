@@ -78,12 +78,13 @@ COL_STRIP_DIM = rgb565(90, 90, 90)
 
 # Location-slot strip band (TASK-316 / M-PR-LOCATIONS "Radar app — strip
 # becomes the location switcher"): N^ marker removed outright (Q3) frees
-# y55..185; 4 rows (Q1) at ~26 px pitch, comfortably inside that band and
-# clear of the AGE row below (drawn at y200 in this tool's strip layout —
-# see PR_STRIP_ROW_AGE_Y=193 in planeRadarApp.h for the firmware-side value).
-PR_PREVIEW_SLOT_COUNT = 4
+# the band below the count row. Q1 amendment (2026-07-18): AGE/ERR rows
+# pushed to the strip bottom (AGE y211, ERR y226 — synced with
+# PR_STRIP_ROW_AGE_Y/ERR_Y in planeRadarApp.h), so 7 rows at 22 px pitch
+# fill the y57..211 band exactly.
+PR_PREVIEW_SLOT_COUNT = 7
 PR_PREVIEW_SLOT_Y0    = 68
-PR_PREVIEW_SLOT_PITCH = 26
+PR_PREVIEW_SLOT_PITCH = 22
 
 PRESETS_KM = [5, 10, 15, 25]
 KM_PER_NM = 1.852
@@ -211,12 +212,11 @@ class Radar:
         self.last_fetch_age = 0.0
         self.http_err = 0
         # M-PR-LOCATIONS (TASK-316): location-slot strip. `slots` is a
-        # length-≤4 list, `None`/falsy entries are empty slots (render
-        # nothing — Q1..Q3). `highlight` selects the active-slot treatment:
-        # "box" = inverse filled box, field-coloured text; "colour" = bright
-        # vs dimmed text + left-edge marker bar. Both are the two candidates
-        # the design doc leaves for the preview to decide between.
-        self.slots = ["HOME", "WORK", "CABIN", "AIRPT"]
+        # length-≤PR_PREVIEW_SLOT_COUNT list, `None`/falsy entries are empty
+        # slots (render nothing — Q1..Q3). `highlight` selects the
+        # active-slot treatment: "box" = inverse filled box, field-coloured
+        # text; "colour" = bright vs dimmed text + left-edge marker bar.
+        self.slots = ["HOME", "WORK", "CABIN", "AIRPT", "LHR", "JFK", "SCHIP"]
         self.active_slot = 0
         self.highlight = "box"        # box | colour
 
@@ -383,13 +383,14 @@ class Radar:
         F1.draw_centered(d, sx + 17, 22, "km", COL_STRIP_TX)
         F1.draw_centered(d, sx + 17, 50, f"{n_shown}ac", COL_STRIP_TX)
         # Q3: N^ bezel marker removed outright (not relocated) — the freed
-        # y55..185 band now holds the location-slot rows.
+        # band holds the location-slot rows; AGE/ERR sit at the strip bottom
+        # (Q1 amendment, synced with PR_STRIP_ROW_AGE_Y/ERR_Y).
         self._location_slots(d, sx)
         age = int(self.last_fetch_age)
-        F1.draw_centered(d, sx + 17, 200, f"{age}s",
+        F1.draw_centered(d, sx + 17, 211 + 7, f"{age}s",
                          COL_STALE if age > 30 else COL_STRIP_TX)
         if self.http_err:
-            F1.draw_centered(d, sx + 17, 220, f"E{self.http_err}", COL_ERR)
+            F1.draw_centered(d, sx + 17, 226 + 7, f"E{self.http_err}", COL_ERR)
 
     def _location_slots(self, d, sx):
         """M-PR-LOCATIONS strip switcher (TASK-316). Up to
@@ -500,9 +501,14 @@ def shot_mode(argv: list[str]) -> None:
     _prloc_shot("strip_2slots.png", ["HOME", "WORK", None, None], 0, "box")
     # Single-slot degenerate case (always active, no marker collision).
     _prloc_shot("strip_1slot.png", ["HOME", None, None, None], 0, "box")
+    # Q1 amendment (2026-07-18): full 7-slot band at 22 px pitch, AGE/ERR at
+    # the strip bottom — the eyeball shot the 4→7 change was gated on.
+    _prloc_shot("strip_7slots_highlight-box.png",
+                ["HOME", "WORK", "CABIN", "AIRPT", "LHR", "JFK", "SCHIP"],
+                1, "box")
 
     # restore defaults for anything appended after shot_mode returns
-    radar.slots = ["HOME", "WORK", "CABIN", "AIRPT"]
+    radar.slots = ["HOME", "WORK", "CABIN", "AIRPT", "LHR", "JFK", "SCHIP"]
     radar.active_slot = 0
     radar.highlight = "box"
 

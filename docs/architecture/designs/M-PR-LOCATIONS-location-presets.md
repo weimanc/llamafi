@@ -407,6 +407,13 @@ session.
 ## Resolved questions (human review 2026-07-13)
 
 - **Q1 — slot count: 4.** Readable ~26 px pitch in the freed band.
+  *(Amended 2026-07-18, human request: **7 slots**. AGE/ERR strip rows moved
+  to the strip bottom — `PR_STRIP_ROW_AGE_Y` 193→211, `PR_STRIP_ROW_ERR_Y`
+  213→226, flush against the 240 px screen edge — freeing the y57..211 band;
+  7 rows at 22 px pitch tile it exactly, hit zones `[57,211)`. Touch targets
+  shrink 26→22 px: below the 26 px settings-row convention, accepted
+  trade-off. Settings SlotList still fits without scrolling: 7×26 px rows
+  end at y210, hint text at y226. `prLocs[7]` = 112 B resident.)*
 - **Q2 — label length: 5 chars** (font-1 width bound; UpperAlpha keyboard).
 - **Q3 — `N^` marker: remove entirely** ("adds no value") — not relocated.
   North-up is implicit; drop the draw call at `planeRadarApp.h:481`.

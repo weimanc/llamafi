@@ -110,26 +110,33 @@ static constexpr float PR_KM_PER_DEG_LON = 111.320f;
 static constexpr float PR_KM_PER_DEG_LAT = 110.574f;
 
 // Strip dynamic-field row Y positions (TASK-310 audit finding #5).
+// AGE/ERR moved to the strip bottom (2026-07-18, Q1 amendment 4->7 slots):
+// AGE fills 211..225, ERR fills 226..240 — flush against PR_SCREEN_H=240,
+// freeing the y57..211 band for seven slot rows.
 static constexpr int16_t PR_STRIP_ROW_RANGE_Y = 5;
 static constexpr int16_t PR_STRIP_ROW_COUNT_Y = 43;
-static constexpr int16_t PR_STRIP_ROW_AGE_Y   = 193;
-static constexpr int16_t PR_STRIP_ROW_ERR_Y   = 213;
+static constexpr int16_t PR_STRIP_ROW_AGE_Y   = 211;
+static constexpr int16_t PR_STRIP_ROW_ERR_Y   = 226;
 
 // Location-slot strip rows (M-PR-LOCATIONS/TASK-316, frozen at the
 // 2026-07-14 eyeball gate; transcribed from preview_planeradar.py's
 // PR_PREVIEW_SLOT_Y0/PITCH). Named per-row so hit-test/render code and VE
 // tests reference geometry, not magic numbers (settings-nav coordinate-drift
-// lesson). 26 px pitch fits inside the band N^ used to occupy (Q3: marker
-// removed outright, TASK-323).
+// lesson). Q1 amendment (2026-07-18): 4 slots @ 26 px -> 7 slots @ 22 px,
+// occupying the COUNT-row-to-AGE-row band exactly (hit zones [57,211)).
 static constexpr int16_t PR_STRIP_ROW_LOC0_Y = 68;
-static constexpr int16_t PR_STRIP_ROW_LOC1_Y = 94;
-static constexpr int16_t PR_STRIP_ROW_LOC2_Y = 120;
-static constexpr int16_t PR_STRIP_ROW_LOC3_Y = 146;
+static constexpr int16_t PR_STRIP_ROW_LOC1_Y = 90;
+static constexpr int16_t PR_STRIP_ROW_LOC2_Y = 112;
+static constexpr int16_t PR_STRIP_ROW_LOC3_Y = 134;
+static constexpr int16_t PR_STRIP_ROW_LOC4_Y = 156;
+static constexpr int16_t PR_STRIP_ROW_LOC5_Y = 178;
+static constexpr int16_t PR_STRIP_ROW_LOC6_Y = 200;
 static constexpr int16_t PR_STRIP_ROW_LOC_Y[PR_NUM_LOCS] = {
-    PR_STRIP_ROW_LOC0_Y, PR_STRIP_ROW_LOC1_Y, PR_STRIP_ROW_LOC2_Y, PR_STRIP_ROW_LOC3_Y
+    PR_STRIP_ROW_LOC0_Y, PR_STRIP_ROW_LOC1_Y, PR_STRIP_ROW_LOC2_Y, PR_STRIP_ROW_LOC3_Y,
+    PR_STRIP_ROW_LOC4_Y, PR_STRIP_ROW_LOC5_Y, PR_STRIP_ROW_LOC6_Y
 };
-// Half the 26 px pitch: hit-test zones tile [55,159) with no gaps/overlap.
-static constexpr int16_t PR_STRIP_LOC_HIT_HALF = 13;
+// Half the 22 px pitch: hit-test zones tile [57,211) with no gaps/overlap.
+static constexpr int16_t PR_STRIP_LOC_HIT_HALF = 11;
 
 // One aircraft's on-screen geometry from the last render — kept so the next
 // update can erase exactly what it drew (static-grid-once + symbol/tag
