@@ -1154,6 +1154,29 @@ manual-eyeball-only (not serial-reachable).
 
 ---
 
+### M-WEBRADIO-WINAMP-UI — skin-native country/time/vis in radio mode
+
+Human request (2026-07-18): radio mode stops overlaying ad-hoc UI on the skin
+and uses the skin's own elements. Country code moves from the superimposed
+badge into the PLEDIT bottom bar (Spotify's total-time slot, same glyph
+blit); the unused main-window time digits get the stream play time
+(audioI2S `getAudioCurrentTime()` via the TASK-278 timeout-take read block,
+wrap at 99:59); the visualizer area reuses the ADR-009 synthetic vis —
+kept mock by explicit instruction — via a `vu::tick()` refactor to
+caller-supplied playing/elapsed (the Spotify path stays behaviourally
+identical). That refactored seam doubles as the injection point for
+PROP-005, the registered RnD activity exploring *real* levels from the
+locally-decoded PCM (ADR-009's "no local audio" premise doesn't hold in
+radio mode).
+
+**Status:** scheduled (2026-07-18) — TASK-348/349/350 (production) +
+TASK-351 (RnD, `rnd/webradio-vis`, gated on the TASK-350 seam).
+**Deps:** M-WEBRADIO, ADR-018, ADR-009, TASK-278.
+**Design:** [M-WEBRADIO-WINAMP-UI.md](../architecture/designs/M-WEBRADIO-WINAMP-UI.md) ·
+**RnD:** [PROP-005](../rnd/proposals/PROP-005-webradio-real-vis.md)
+
+---
+
 ### M-APP-ORDER — Settings pinned as last taskbar entry
 
 Human product call (2026-07-18): Settings is a utility and should always occupy

@@ -102,6 +102,61 @@ BP-048 eyeball gate — scroll the full cycle, every slot shows the right icon.
 DUT suite rerun + eyeball · **Priority:** P2 · **Status:** open — coordinate with the active
 clock-faces session before touching `appRegistry.h`/regens (shared files)
 
+## Open — M-WEBRADIO-WINAMP-UI (2026-07-18)
+
+Human request, 4 items. Design:
+[M-WEBRADIO-WINAMP-UI.md](../architecture/designs/M-WEBRADIO-WINAMP-UI.md) — consumer audit and
+per-item specifics live there; read it before implementing. Items 1–3 are production tasks;
+item 4 is RnD (PROP-005).
+
+### TASK-348 — country code into the PLEDIT bottom bar
+
+Kill the superimposed badge (`webRadioApp.h:1556`, `WR_BADGE_*`) and render the country code in
+the PLEDIT bottom bar with the `SKIN_GLYPH` blit at Spotify's total-time position
+(`winampDisplay.h:1287` coords). Repaint rides the existing `drawPleditFrame` + resume-diff
+paths — no new dirty tracking. Update `preview_webradio.py`'s zone map (check it parses, not
+mirrors — LL-114). Test: T_WRUI_01 + eyeball.
+
+**Owner:** Developer · **Deps:** none · **Gate:** `run/check` + DUT · **Priority:** P2 ·
+**Status:** open
+
+### TASK-349 — wire stream play time to the main-window digits
+
+`drawTimeDigits()` is never called in radio mode. Source: audioI2S `getAudioCurrentTime()` —
+**must ride the existing TASK-278 timeout-take per-tick read block** (one take, all values out;
+skip-on-timeout, digits hold). Reset 0:00 on station change/stop; freeze during rebuffer is
+correct behaviour; wrap at `% 6000` s (digits clamp at 99:59 otherwise, radio streams outlive
+it). Test: T_WRUI_02.
+
+**Owner:** Developer · **Deps:** none (shares the read block TASK-350 also touches — land
+together or sequence) · **Gate:** `run/check` + DUT · **Priority:** P2 · **Status:** open
+
+### TASK-350 — reuse the synthetic visualizer in radio mode (KEEP MOCK)
+
+`vu::tick()` internally grabs the Spotify snapshot (`vuMeter.h:368-378`) — calling it from
+WebRadio as-is would dance to stale Spotify state. Refactor to caller-supplied
+`(playing, elapsedMs)` with a Spotify-side wrapper keeping that path behaviourally identical;
+WebRadio ticks it with its own state. Synthesis stays ADR-009 mock — explicit human instruction.
+Vis mode global carries across eject for free; tap-to-cycle in radio mode if input routing is
+cheap, else ship without (fallback allowed by design). The refactored seam is deliberately the
+PROP-005 injection point. Test: T_WRUI_03 (incl. eject-back regression leg).
+
+**Owner:** Developer · **Deps:** TASK-349 (elapsed source) · **Gate:** `run/check` + DUT +
+Spotify-mode vis regression eyeball · **Priority:** P2 · **Status:** open
+
+### TASK-351 — RnD: real visualization from the WebRadio audio stream (PROP-005)
+
+Registered RnD activity — see
+[PROP-005-webradio-real-vis.md](../rnd/proposals/PROP-005-webradio-real-vis.md) for the
+cheap-kill-first ladder (tap-point cost spike → real envelope → bands) and kill gates
+(decode-tail p95 vs TASK-278 baseline; no pump-task heap allocs). Branch `rnd/webradio-vis`,
+never merged directly; deliverable is an EXP report + graduation proposal to PM, not code in
+production. ADR-009's "no local audio" premise doesn't hold for WebRadio — that's the whole
+opening.
+
+**Owner:** R&D · **Deps:** TASK-350 (the vu:: seam) · **Gate:** EXP report + human review ·
+**Priority:** P3 · **Status:** open — schedule after TASK-350 lands
+
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
 Human request 2026-07-18. Clock canvas splits at `CLK_TAP_SPLIT_Y=120`: top tap cycles the
