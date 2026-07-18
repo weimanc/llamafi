@@ -15,9 +15,14 @@ Scope (2026-07-18 human triage of BAKED_SHEET.png at 36×36):
   aquarium  — 1px ASCII-fish strokes never survived resampling; redrawn
               with 2px grid-aligned strokes
   teletext  — line spacing uneven after 40→36 resample; border supersampled,
-              horizontal lines drawn at exact pixels (2px lines, 4px gaps)
+              horizontal lines drawn at exact pixels (2px lines, 4px gaps);
+              bbox pulled in to 30px (square glyphs read optically larger)
+  crypto    — (2nd triage round) circle redrawn native + ₿ from bitcoin.svg
+  aquarium  — (2nd round) ASCII fish now rendered as literal TEXT: mono font
+              auto-sized down until the packed glyphs fit, binarized to hard
+              pixels — no vector redraw, no resample
 
-Untouched: spotify, crypto (fine as-is), planeradar (TASK-333).
+Untouched: spotify (fine as-is), planeradar (TASK-333).
 
 Curved shapes draw at an INTEGER supersample factor (SS) and take exactly
 one LANCZOS down to the target — even AA, no double-resample. Rectilinear
@@ -74,6 +79,9 @@ SETTINGS_ORANGE = (240, 128, 0, 255)
 STOCK_GREEN = (0, 192, 64, 255)
 AQUARIUM_CYAN = (0, 224, 240, 255)
 TELETEXT_CYAN = (0, 208, 208, 255)
+CRYPTO_GOLD = (240, 192, 0, 255)
+
+MONO_FONT = "/usr/share/fonts/google-noto-vf/NotoSansMono[wght].ttf"
 
 
 def canvas_ss():
@@ -182,40 +190,98 @@ def draw_life(colors=None) -> Image.Image:
 
 def draw_teletext(color) -> Image.Image:
     """Rounded border (supersampled) + text lines at exact pixels:
-    2px lines at y=8,14,20,26 — uniform 4px gaps incl. border margins."""
+    2px lines at y=8,14,20,26 — uniform gaps incl. border margins.
+    Border bbox 30px (83%): a filled square reads optically larger than a
+    round/sparse glyph at equal bbox, so it sits deliberately below the
+    ADR-051 band (the WARN is expected and accepted)."""
     img_ss = canvas_ss()
     d = ImageDraw.Draw(img_ss)
-    d.rounded_rectangle([s(1), s(1), s(34.99), s(34.99)], radius=s(6),
+    d.rounded_rectangle([s(3), s(3), s(32.99), s(32.99)], radius=s(5),
                         outline=color, width=s(3))
     img = down(img_ss)
     d2 = ImageDraw.Draw(img)
     for y in (8, 14, 20, 26):
-        d2.rectangle([7, y, 28, y + 1], fill=color)
+        d2.rectangle([8, y, 27, y + 1], fill=color)
     return img
 
 
 # ── aquarium ──────────────────────────────────────────────────────────────────
 
 def draw_aquarium(color) -> Image.Image:
-    """The ASCII fish '><((( *>' redrawn with 2px grid-aligned strokes."""
-    img = canvas_ss()
-    d = ImageDraw.Draw(img)
-    yt, ym, yb = 12.0, 18.0, 24.0             # 12px band → same wide-flat glyph
-    wdt = s(2.0)
+    """The ASCII fish '><((( *>' rendered as actual TEXT — a mono font at
+    the largest size whose glyphs (manually packed: per-char ink boxes,
+    1px gaps, baseline-aligned) fit the icon width, binarized to hard
+    pixels. No vector redraw, no resample — font hinting does the crisp."""
+    from PIL import ImageFont
 
-    def chevron(x_tip, x_open, col):
-        d.line([s(x_open), s(yt), s(x_tip), s(ym)], fill=col, width=wdt)
-        d.line([s(x_tip), s(ym), s(x_open), s(yb)], fill=col, width=wdt)
+    text = "><((( *>"
+    max_w = 35
 
-    chevron(4.5, 0.5, color)                  # '>' tail
-    chevron(3.5, 7.5, color)                  # '<' tail (bowtie pinch at ~4)
-    for cx in (14.0, 19.0, 24.0):             # '(((' body arcs
-        r = 6.0
-        d.arc([s(cx - r), s(ym - r), s(cx + r), s(ym + r)],
-              start=115, end=245, fill=color, width=wdt)
-    d.ellipse([s(27.0), s(13.0), s(30.0), s(16.0)], fill=color)   # '*' eye
-    chevron(34.5, 30.5, color)                # '>' head (clear of the eye)
-    return down(img)
+    def glyphs(font, eye_font):
+        """[(char-ink-image, ink-bbox)] — getmask gives true ink boxes;
+        textbbox would return the mono advance box (identical per char).
+        The '*' eye renders from eye_font (one size up): binarization at
+        the body size amputates the asterisk's arms into a '^'."""
+        out = []
+        for ch in text:
+            if ch == " ":
+                out.append((None, None))
+                continue
+            m = (eye_font if ch == "*" else font).getmask(ch, mode="L")
+            img = Image.frombytes("L", m.size, bytes(m))
+            out.append((img, img.getbbox()))
+        return out
+
+    def pack_width(gs):
+        wsum = sum(2 if g is None else (bb[2] - bb[0]) + 1 for g, bb in gs)
+        return wsum - 1  # no gap after last char
+
+    font = packed = None
+    for size in range(16, 6, -1):   # largest size whose packed ink fits
+        f = ImageFont.truetype(MONO_FONT, size)
+        fe = ImageFont.truetype(MONO_FONT, size + 2)
+        gs = glyphs(f, fe)
+        if pack_width(gs) <= max_w:
+            font, packed = f, gs
+            break
+    assert font is not None, "fish text cannot fit the icon width"
+
+    # Pack at 1px gaps, preserving each glyph's vertical bearing (the '*'
+    # eye sits high, the arcs centred — exactly like terminal output),
+    # then binarize to hard pixels (threshold 110).
+    mask = Image.new("L", (W, H), 0)
+    x = 0
+    for g, bb in packed:
+        if g is None:
+            x += 2
+            continue
+        mask.paste(g.crop(bb), (x, 10 + bb[1]))
+        x += (bb[2] - bb[0]) + 1
+    mask = mask.point(lambda v: 255 if v >= 110 else 0)
+
+    # Centre the ink bbox on the canvas
+    bbox = mask.getbbox()
+    glyph = mask.crop(bbox)
+    out = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    tint = Image.new("RGBA", glyph.size, color)
+    tint.putalpha(glyph)
+    out.paste(tint, ((W - glyph.width) // 2, (H - glyph.height) // 2), tint)
+    return out
+
+
+# ── crypto ────────────────────────────────────────────────────────────────────
+
+def draw_crypto(color) -> Image.Image:
+    """Circle outline (supersampled) + the ₿ glyph from bitcoin.svg."""
+    img_ss = canvas_ss()
+    d = ImageDraw.Draw(img_ss)
+    cx = cy = W / 2.0
+    r = 16.0                      # bbox 33px → 92%, matches clock
+    d.ellipse([s(cx - r), s(cy - r), s(cx + r), s(cy + r)],
+              outline=color, width=s(3.0))
+    img = down(img_ss)
+    glyph = render_svg(ICONS_DIR / "bitcoin.svg", color, 20)
+    return Image.alpha_composite(img, glyph)
 
 
 # ── SVG-derived (settings, stock) ─────────────────────────────────────────────
@@ -262,6 +328,8 @@ def build() -> dict:
         "teletext_active": draw_teletext(TELETEXT_CYAN),
         "aquarium": draw_aquarium(WHITE),
         "aquarium_active": draw_aquarium(AQUARIUM_CYAN),
+        "crypto": draw_crypto(WHITE),
+        "crypto_active": draw_crypto(CRYPTO_GOLD),
         "settings": render_svg(ICONS_DIR / "settings.svg", WHITE, 33),
         "settings_active": render_svg(ICONS_DIR / "settings.svg", SETTINGS_ORANGE, 33),
         "stock": render_svg(ICONS_DIR / "stock.svg", WHITE, 33),
