@@ -1744,14 +1744,24 @@ for no visual gain — they're just 1-2px strokes, not gradients).
 
 **Status:** DONE — 2026-07-18. Flash 67.3%→70.0% (both debug and
 production envs rebuild clean under budget). DUT-confirmed correct
-(warm amber wire-glow, hex mesh visible) **by human eyeball** — the
-`screendump` tool's own capture of this exact screen is colour-wrong
-(TASK-340), so automated verification wasn't possible; a person at the
-physical device confirmed it matches the host bake preview
-(`app/tools/icon_drafts/NIXIE_SHEET.png`).
+(warm amber wire-glow, hex mesh visible) **by human eyeball** at the
+time — the `screendump` tool's own capture of this exact screen was
+colour-wrong (TASK-340), so automated verification wasn't possible then;
+a person at the physical device confirmed it matched the host bake
+preview (`app/tools/icon_drafts/NIXIE_SHEET.png`).
+
+**Re-verified 2026-07-18, same day, post-TASK-340 fix:** with the
+`screendump` colour-readback bug fixed, pulled a fresh capture of the
+live Nixie clock and sampled the brightest pixel inside tube 0 — exactly
+`(255, 210, 8)`, matching the ground-truth peak value TASK-340 itself
+cited from the baked sprite's source array. No hollow-green-outline
+artifact (the original symptom that led to discovering TASK-340).
+Confirms the bake pipeline was correct all along — it was purely a
+`screendump` capture-path bug, not a rendering bug.
 **Opened:** 2026-07-18 · **Closed:** 2026-07-18 · **Milestone:**
 M-CLOCK-STYLES (follow-on) · **Owner:** Developer · **Deps:** — ·
-**Size:** M · **DUT:** y (human eyeball; screendump unusable, see TASK-340)
+**Size:** M · **DUT:** y (human eyeball + `screendump` pixel-exact
+re-verification post-TASK-340)
 
 ---
 
@@ -1888,12 +1898,15 @@ not a production variant, not on any `rnd/` branch (just a local dev
 convenience, reuses the existing TASK-255 flag).
 
 **Status:** DONE for structural/content capture — reliable, verified.
-Colour capture is a **separate, unresolved** bug — see TASK-340. Do not
-trust `screendump` colours for anything with a gradient or bloom until
-that closes; flat/simple-palette content is fine.
-**Opened:** 2026-07-18 · **Closed:** 2026-07-18 (structural scope only)
-· **Milestone:** — (tooling) · **Owner:** Developer · **Deps:** — ·
-**Size:** M · **DUT:** y
+Colour capture was a separate bug (TASK-340: `readRect()`'s pushRect-compat
+byte swap streamed uncorrected, compounded by an unreliable 20MHz SPI read
+frequency) — **now fixed and closed**, same day. `screendump` colours are
+trustworthy for gradient/bloom content too as of the TASK-340 fix;
+re-verified pixel-exact on both Flip (TASK-337 follow-up) and Nixie
+(TASK-336 re-verification) afterward.
+**Opened:** 2026-07-18 · **Closed:** 2026-07-18 (structural scope only;
+colour scope closed same day via TASK-340) · **Milestone:** — (tooling)
+· **Owner:** Developer · **Deps:** — · **Size:** M · **DUT:** y
 
 ---
 
