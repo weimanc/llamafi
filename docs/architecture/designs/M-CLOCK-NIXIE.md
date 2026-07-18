@@ -3,16 +3,19 @@
 > Owner: Architect  
 > Status: shipped (TASK-193, 2026-06-13 — flat single-pass renderer);
 > **upgraded (TASK-336, 2026-07-18 — baked wire-glyph + hex-mesh +
-> 3-pass-bloom sprite)**. `ClockApp::_drawNixie()` in `app/src/clockApp.h`
-> now `pushImage()`s a flash-resident sprite baked by
+> 3-pass-bloom sprite)**; **tube geometry resynced to the concept
+> (TASK-336 follow-up, 2026-07-18)**. `ClockApp::_drawNixie()` in
+> `app/src/clockApp.h` now `pushImage()`s a flash-resident sprite baked by
 > `app/tools/bake_nixie.py`, which reuses this doc's / `_clock_nixie.py`'s
 > bloom pipeline **verbatim** — the wire-glyph/mesh/bloom model described
 > below IS what ships now, just pre-rendered to flash instead of drawn
-> live (TFT_eSPI has no Gaussian blur at runtime). Baked at the **shipped**
-> tube geometry (52×70, r26), not the Phase 0 concept values (48×110, r18)
-> — see "Firmware reality" note after the tube geometry section, updated
-> accordingly. Colour themes and colon afterglow are still host-renderer-only
-> (unchanged, see table below).  
+> live (TFT_eSPI has no Gaussian blur at runtime). Baked at the concept's
+> own tube geometry (48×110, r18) as of the follow-up pass — see "Firmware
+> reality" note after the tube geometry section for the full history (it
+> used to be a flatter shipped-only 52×70/r26, explicitly documented as
+> "don't fix without a design pass"; that pass happened, same pattern as
+> the Flip clock's TASK-337). Colour themes and colon afterglow are still
+> host-renderer-only (unchanged, see table below).  
 > Date: 2026-06-14 (last updated 2026-07-18)  
 > Part of: [M-CLOCK-STYLES.md](M-CLOCK-STYLES.md) — Style 2  
 > See also: [clock.md](M-MULTIAPP/clock.md), [M-SETTINGS-APP-WIRE.md](M-SETTINGS-APP-WIRE.md)
@@ -26,10 +29,10 @@
 | Concept analysis | **Done** — physics doc from `resource/nixieclock_concept.jpg.png` |
 | Host renderer | **Done** — `app/tools/_clock_nixie.py` (`NixieRenderer`) |
 | Preview tool | **Done** — `app/tools/preview_clock.py --style nixie` |
-| Glyph system | **Done, shipped (TASK-336)** — wire-glyph + bloom baked to a flash sprite (`bake_nixie.py`, 71.1 KB, 10 digits × 52×70 RGB565) and `pushImage()`d at runtime. Ghost cathodes remain host-renderer-only (off by default, not baked). |
+| Glyph system | **Done, shipped (TASK-336), resynced to concept geometry same day** — wire-glyph + bloom baked to a flash sprite (`bake_nixie.py`, 103.1 KB, 10 digits × 48×110 RGB565 — was 71.1 KB at 52×70 before the resync) and `pushImage()`d at runtime. Ghost cathodes remain host-renderer-only (off by default, not baked). |
 | Colour themes | **Done in POC (host renderer only)** — 4 themes, `c` key cycles. **NOT implemented in firmware** — single fixed amber bake, no `nixieTheme` field; see "Settings wiring" below. |
 | Colon afterglow | **Done (host renderer only)** — 1 Hz blink, 80 ms ramp-up, 500 ms exponential decay. Firmware colon is still a plain 2-frame blink (on/off, unbaked — only the tube digits were baked), no ramp or decay. |
-| Clock/date layout | Superseded by shipped firmware layout — see "Firmware reality" note |
+| Clock/date layout | Tube layout now matches this doc exactly (resynced 2026-07-18) — date position (`_drawDate()`) is shared across all clock styles and was not part of this resync |
 | Firmware renderer | **Shipped (TASK-193), upgraded (TASK-336)** — bloom/mesh/wire-glyph pipeline now ships via baked sprite; tube glass outline/glow strokes/pin shadows remain cheap runtime primitives (unchanged, correctly so — baking 1-2px strokes would cost flash for no gain) |
 
 ---
@@ -133,17 +136,28 @@ TUBE_Y  =  8    (px — top of tubes on canvas)
 
 Aspect ratio: 48:110 ≈ 1:2.3 — tall capsule matching reference concept.
 
-> **Firmware reality (TASK-193):** shipped `ClockApp::_drawNixie()`
-> (`app/src/clockApp.h:262-263`) uses different, flatter tube geometry —
-> `kTw=52, kTh=70, kTr=26` (52×70, corner radius 26) at `kTy=10`, tube x
-> positions `{6, 62, 128, 184}`. This was a Phase 3 firmware-budget decision,
-> not a Phase 0 re-approval: the tall 48×110 r18 capsule above is what the
-> host renderer/preview tool still produces and was never updated to match.
-> Treat the 48×110/r18 values as the **host-tool / concept-art geometry**, and
-> 52×70/r26 as the **shipped firmware geometry** — known, accepted cosmetic
-> deviation. Do not "fix" firmware to match this doc without a design pass;
-> do not edit this doc's host-tool constants to match firmware (they describe
-> different code paths).
+> **Resynced to concept geometry (2026-07-18, user direction).** From
+> TASK-193 (2026-06-13) through earlier today, shipped
+> `ClockApp::_drawNixie()` used a different, flatter tube geometry —
+> `kTw=52, kTh=70, kTr=26` at `kTy=10`, x positions `{6, 62, 128, 184}` —
+> a Phase 3 firmware-budget decision, explicitly **not** a Phase 0
+> re-approval, and this doc previously instructed "do not fix firmware to
+> match this doc without a design pass." That design pass happened: after
+> a side-by-side `screendump` comparison against `preview_clock.py` (same
+> exercise that resynced the Flip clock, TASK-337), the user directed
+> matching the concept's tube height/width/spacing/glow+bloom exactly.
+> Firmware now uses the values above verbatim (`kTw=48, kTh=110, kTr=18,
+> kTy=8`, x positions `{24, 78, 148, 202}`) — no more split between
+> "host-tool geometry" and "shipped geometry." `app/tools/bake_nixie.py`
+> was also changed to read `nx.TUBE_W/H/R` directly instead of overriding
+> them, so the bake and the preview tool structurally can't drift apart
+> on tube shape again. Flash cost rose 71.1 KB → 103.1 KB (10 digits ×
+> 48×110×2B) — comfortably within budget (`run/check` gate 6). DUT-verified
+> via side-by-side `screendump` at matching digit values. The tube glass
+> outline / glow strokes / pin shadows (cheap runtime primitives, not
+> baked) were left unchanged — out of scope for this pass, and still
+> noticeably brighter/more saturated than the concept's subtle `(50,22,5)`
+> outline; a follow-up could tune those closer if wanted.
 
 ### Canvas layout (four tubes + colon)
 

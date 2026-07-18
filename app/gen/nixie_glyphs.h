@@ -3,8 +3,8 @@
 #pragma once
 #include <stdint.h>
 
-#define NIXIE_GLYPH_W 52
-#define NIXIE_GLYPH_H 70
+#define NIXIE_GLYPH_W 48
+#define NIXIE_GLYPH_H 110
 
 extern const uint16_t nixie_glyph_0[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
 extern const uint16_t nixie_glyph_1[NIXIE_GLYPH_W * NIXIE_GLYPH_H];

@@ -1758,10 +1758,37 @@ cited from the baked sprite's source array. No hollow-green-outline
 artifact (the original symptom that led to discovering TASK-340).
 Confirms the bake pipeline was correct all along — it was purely a
 `screendump` capture-path bug, not a rendering bug.
+
+**Follow-up: tube geometry resynced to concept (2026-07-18, same day,
+user direction).** After the Flip clock's TASK-337 concept resync, did
+the same side-by-side `screendump`-vs-`preview_clock.py` comparison for
+Nixie. Unlike Flip, this doc had already flagged the shipped tube shape
+(52×70, r26) as a deliberate, documented deviation from the concept
+(48×110, r18) with an explicit "don't fix without a design pass" note —
+digit style/weight already matched (both baked from the same
+`_clock_nixie.py` bloom pipeline, `bake_nixie.py` reuses it verbatim),
+so this pass was purely geometry: user directed taking the concept's
+tube height/width/spacing/glow+bloom as-is. Changed `bake_nixie.py` to
+read `nx.TUBE_W/H/R` directly (was a hardcoded 52/70/26 override) so it
+can't drift from the preview tool again; re-baked at 48×110 (103.1 KB,
+up from 71.1 KB — within flash budget, `run/check` gate 6 passed).
+Updated `ClockApp::_drawNixie()` tube geometry (`kTx/kTy/kTw/kTh/kTr`),
+the frame-clear rect (widened for the taller tubes), and colon dot
+position (recentred to the concept's gutter midpoint) to match. DUT-
+verified via side-by-side `screendump` at matching digit values — one
+capture caught a live mid-tick capture race (digit changed between a
+band and its corrupted-band retry, producing a ghosted double-digit
+artifact); a clean re-capture confirmed it was a capture-timing
+artifact, not a rendering bug. Tube glass outline/glow strokes/pin
+shadows (cheap runtime primitives, not baked) were left unchanged —
+still visibly brighter than the concept's subtle outline colour, out of
+scope for this pass. `docs/architecture/designs/M-CLOCK-NIXIE.md`
+updated to match (status header, status table, "Firmware reality" note
+rewritten to record the resync).
 **Opened:** 2026-07-18 · **Closed:** 2026-07-18 · **Milestone:**
 M-CLOCK-STYLES (follow-on) · **Owner:** Developer · **Deps:** — ·
 **Size:** M · **DUT:** y (human eyeball + `screendump` pixel-exact
-re-verification post-TASK-340)
+re-verification post-TASK-340 + side-by-side concept resync)
 
 ---
 

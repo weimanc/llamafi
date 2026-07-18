@@ -11,10 +11,13 @@ with PIL, bake it to a flash-resident RGB565 C array, pushImage() it at
 runtime. Zero extra RAM — ESP32 flash is memory-mapped, pushImage reads
 straight out of .rodata.
 
-Renders at the SHIPPED firmware tube geometry (52x70, r26 — ClockApp::_drawNixie
-kTw/kTh/kTr), NOT the old concept-doc geometry (48x110, r18) that
-_clock_nixie.py's TUBE_W/TUBE_H/TUBE_R constants still use — this bake
-targets what's actually on screen, not the abandoned Phase-0 layout.
+Renders at the CONCEPT tube geometry (48x110, r18 — _clock_nixie.py's
+TUBE_W/TUBE_H/TUBE_R), resynced 2026-07-18 per user direction after a
+side-by-side screendump comparison against preview_clock.py (same
+pattern as the Flip clock's TASK-337 concept resync). Previously baked
+at a flatter shipped-firmware geometry (52x70, r26); that override is
+gone now — this always tracks whatever _clock_nixie.py defines, so the
+bake and the preview tool can't drift on tube shape again.
 
 Only the glow CONTENT is baked (mesh + wire digit + bloom, clipped to the
 tube's rounded-rect mask). The glass outline, inner/outer glow strokes, and
@@ -40,13 +43,10 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 import _clock_nixie as nx
 
-# ── shipped firmware tube geometry (ClockApp::_drawNixie, clockApp.h) ───────
-# Deliberately NOT nx.TUBE_W/H/R — those are the old concept-doc values
-# (48x110, r18); firmware shipped a flatter 52x70, r26 (TASK-193 budget cut,
-# documented in M-CLOCK-NIXIE.md's "Firmware reality" note).
-TUBE_W = 52
-TUBE_H = 70
-TUBE_R = 26
+# ── tube geometry — always the concept's, so bake and preview can't drift ───
+TUBE_W = nx.TUBE_W
+TUBE_H = nx.TUBE_H
+TUBE_R = nx.TUBE_R
 
 C_WIRE = (255, 125, 8)  # amber — matches firmware's fixed palette intent
 
@@ -76,11 +76,7 @@ def render_digit(digit: int, mask: Image.Image) -> Image.Image:
     tube = ImageChops.add(tube, mesh)
 
     wire = Image.new("RGB", (TUBE_W, TUBE_H), (0, 0, 0))
-    renderer = nx.NixieRenderer()
-    # Scale the wire font to this tube's height (renderer's default 88pt was
-    # sized for the old 110px-tall concept tube; the shipped tube is 70px).
-    renderer._wire_size = int(88 * TUBE_H / nx.TUBE_H)
-    renderer._font_wire = nx._load_font(nx._WIRE_FONT_PATHS, renderer._wire_size)
+    renderer = nx.NixieRenderer()   # default wire_size (88pt) — TUBE_H now matches concept
     renderer._draw_wire_digit(wire, digit, C_WIRE)
     bloom = renderer._make_bloom(wire)
 

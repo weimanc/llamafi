@@ -335,9 +335,14 @@ private:
     }
 
     // ── Nixie ───────────────────────────────────────────────────────────────
+    // Tube geometry resynced 2026-07-18 to the concept tool
+    // (app/tools/_clock_nixie.py TUBE_W/H/R/XS) per user direction, same
+    // pattern as the Flip clock's TASK-337 concept resync — was previously a
+    // flatter 52x70/r26 shipped geometry, documented as a deliberate
+    // deviation; that override is gone now (see M-CLOCK-NIXIE.md).
     void _drawNixie() {
-        static const int kTx[4] = {6, 62, 128, 184};
-        static const int kTy = 10, kTw = 52, kTh = 70, kTr = 26;
+        static const int kTx[4] = {24, 78, 148, 202};
+        static const int kTy = 8, kTw = 48, kTh = 110, kTr = 18;
 
         struct tm t; if (!getLocalTime(&t)) return;
         uint8_t hh = clockHour(t);   // WIRE2-G2: digit pair stays two digits ("09")
@@ -346,13 +351,17 @@ private:
             (uint8_t)(t.tm_min  / 10), (uint8_t)(t.tm_min  % 10)
         };
 
-        tft.fillRect(0, 5, 275, 82, TFT_BLACK);
+        // Clear region sized for the taller tubes + their glow rings
+        // (tx-2..tx+kTw+2, kTy-2..kTy+kTh+2).
+        tft.fillRect(0, 4, 275, kTh + 8, TFT_BLACK);
 
-        // Colon dots — blinking at 0.5 Hz
+        // Colon dots — blinking at 0.5 Hz. X/Y match the concept's
+        // COLON_CX (gutter midpoint between H2 and M1) and
+        // TUBE_Y+TUBE_H/3, TUBE_Y+2*TUBE_H/3.
         bool colonOn = (t.tm_sec % 2 == 0);
         uint16_t colonC = colonOn ? (uint16_t)0xFE60 : (uint16_t)0x4000;
-        tft.fillRect(119, kTy + 18, 4, 4, colonC);
-        tft.fillRect(119, kTy + 45, 4, 4, colonC);
+        tft.fillRect(135, kTy + kTh / 3 - 2, 4, 4, colonC);
+        tft.fillRect(135, kTy + 2 * kTh / 3 - 2, 4, 4, colonC);
 
         for (int i = 0; i < 4; i++) {
             int tx = kTx[i], cx = tx + kTw / 2;
