@@ -355,13 +355,24 @@ private:
         // (tx-2..tx+kTw+2, kTy-2..kTy+kTh+2).
         tft.fillRect(0, 4, 275, kTh + 8, TFT_BLACK);
 
-        // Colon dots — blinking at 0.5 Hz. X/Y match the concept's
-        // COLON_CX (gutter midpoint between H2 and M1) and
-        // TUBE_Y+TUBE_H/3, TUBE_Y+2*TUBE_H/3.
+        // Colon dots — round, with a poor-man's bloom (dim halo + bright
+        // core, same trick the tube uses for its glow rings), matching the
+        // concept's round glowing dot instead of the previous flat filled
+        // square. Colours are the wire amber C_WIRE=(255,125,8): halo is a
+        // ~30% scale (0x4920), core is full brightness (0xFBE1). Blinks at
+        // 0.5Hz (concept's smooth ramp/decay afterglow is a separate,
+        // deferred change — see M-CLOCK-NIXIE.md colon afterglow gap).
+        // Both circles are always redrawn (even "off", in black) so the
+        // previous frame's glow is fully erased regardless of state.
+        // X/Y match the concept's COLON_CX (gutter midpoint between H2 and
+        // M1) and TUBE_Y+TUBE_H/3, TUBE_Y+2*TUBE_H/3.
         bool colonOn = (t.tm_sec % 2 == 0);
-        uint16_t colonC = colonOn ? (uint16_t)0xFE60 : (uint16_t)0x4000;
-        tft.fillRect(135, kTy + kTh / 3 - 2, 4, 4, colonC);
-        tft.fillRect(135, kTy + 2 * kTh / 3 - 2, 4, 4, colonC);
+        uint16_t colonHalo = colonOn ? (uint16_t)0x4920 : TFT_BLACK;
+        uint16_t colonCore = colonOn ? (uint16_t)0xFBE1 : TFT_BLACK;
+        for (int cy : {kTy + kTh / 3, kTy + 2 * kTh / 3}) {
+            tft.fillCircle(137, cy, 5, colonHalo);
+            tft.fillCircle(137, cy, 2, colonCore);
+        }
 
         for (int i = 0; i < 4; i++) {
             int tx = kTx[i], cx = tx + kTw / 2;
@@ -371,15 +382,20 @@ private:
             // extra RAM (ESP32 flash is memory-mapped, pushImage reads
             // straight out of .rodata).
             tft.pushImage(tx, kTy, kTw, kTh, nixie_glyph_ptrs[digs[i]]);
-            // 2. Outer glow
-            tft.drawRoundRect(tx - 2, kTy - 2, kTw + 4, kTh + 4, kTr + 1, 0x8000);
-            // 3. Inner glow
-            tft.drawRoundRect(tx - 1, kTy - 1, kTw + 2, kTh + 2, kTr, 0xFC00);
-            // 4. Tube border
-            tft.drawRoundRect(tx, kTy, kTw, kTh, kTr, 0xFE60);
-            // 6. Pin shadows
-            tft.fillRect(cx - 8, kTy + kTh - 3, 4, 4, 0x2104);
-            tft.fillRect(cx + 4, kTy + kTh - 3, 4, 4, 0x2104);
+            // 2. Glass outline — single subtle stroke matching the concept's
+            // _draw_tube() exactly (outline=(50,22,5), width=1). Previously
+            // three bright concentric rings (dark red / orange / amber) that
+            // read as a glowing halo — much more prominent than the concept,
+            // which has no separate drawn glow ring at all (its bloom is
+            // baked into the tube content, and its outer canvas bleed —
+            // not replicated here, see bake_nixie.py docstring — is soft
+            // and diffuse, not a hard-edged ring).
+            tft.drawRoundRect(tx, kTy, kTw, kTh, kTr, 0x30A0);
+            // 3. Pin shadows — below the tube (not overlapping the glass),
+            // matching the concept's [px-7,py,px-5,py+2] / [px+4,py,px+6,py+2]
+            // rects at fill=(8,3,0) (near-black, barely visible).
+            tft.fillRect(cx - 7, kTy + kTh, 3, 3, 0x0800);
+            tft.fillRect(cx + 4, kTy + kTh, 3, 3, 0x0800);
         }
         tft.setTextDatum(TL_DATUM);
     }

@@ -31,9 +31,9 @@
 | Preview tool | **Done** — `app/tools/preview_clock.py --style nixie` |
 | Glyph system | **Done, shipped (TASK-336), resynced to concept geometry same day** — wire-glyph + bloom baked to a flash sprite (`bake_nixie.py`, 103.1 KB, 10 digits × 48×110 RGB565 — was 71.1 KB at 52×70 before the resync) and `pushImage()`d at runtime. Ghost cathodes remain host-renderer-only (off by default, not baked). |
 | Colour themes | **Done in POC (host renderer only)** — 4 themes, `c` key cycles. **NOT implemented in firmware** — single fixed amber bake, no `nixieTheme` field; see "Settings wiring" below. |
-| Colon afterglow | **Done (host renderer only)** — 1 Hz blink, 80 ms ramp-up, 500 ms exponential decay. Firmware colon is still a plain 2-frame blink (on/off, unbaked — only the tube digits were baked), no ramp or decay. |
+| Colon afterglow | **Done (host renderer only)** — 1 Hz blink, 80 ms ramp-up, 500 ms exponential decay. Firmware colon is now round with a soft dim-halo + bright-core glow (resynced 2026-07-18, was a flat filled square with no glow), still a plain on/off blink rather than the ramp/decay — the smooth afterglow animation itself remains a separate, deferred change (needs the same tick-gate rework as Flip's colon disc). |
 | Clock/date layout | Tube layout now matches this doc exactly (resynced 2026-07-18) — date position (`_drawDate()`) is shared across all clock styles and was not part of this resync |
-| Firmware renderer | **Shipped (TASK-193), upgraded (TASK-336)** — bloom/mesh/wire-glyph pipeline now ships via baked sprite; tube glass outline/glow strokes/pin shadows remain cheap runtime primitives (unchanged, correctly so — baking 1-2px strokes would cost flash for no gain) |
+| Firmware renderer | **Shipped (TASK-193), upgraded (TASK-336), tube outline + colon + pin marks resynced to concept (2026-07-18)** — bloom/mesh/wire-glyph pipeline ships via baked sprite; glass outline is now a single subtle stroke (was three bright concentric "glow ring" strokes, much more prominent than the concept); pin marks moved below the tube (were overlapping the glass) and recoloured to the concept's near-black; colon is round with a soft glow (was a flat square). All still cheap runtime primitives, correctly so — baking 1-2px strokes would cost flash for no gain. |
 
 ---
 
@@ -153,11 +153,28 @@ Aspect ratio: 48:110 ≈ 1:2.3 — tall capsule matching reference concept.
 > them, so the bake and the preview tool structurally can't drift apart
 > on tube shape again. Flash cost rose 71.1 KB → 103.1 KB (10 digits ×
 > 48×110×2B) — comfortably within budget (`run/check` gate 6). DUT-verified
-> via side-by-side `screendump` at matching digit values. The tube glass
-> outline / glow strokes / pin shadows (cheap runtime primitives, not
-> baked) were left unchanged — out of scope for this pass, and still
-> noticeably brighter/more saturated than the concept's subtle `(50,22,5)`
-> outline; a follow-up could tune those closer if wanted.
+> via side-by-side `screendump` at matching digit values.
+>
+> **Follow-up, same day:** the tube glass outline, colon, and pin marks
+> (all cheap runtime primitives, not baked) were then also brought in
+> line with the concept, per explicit user feedback after reviewing this
+> pass's side-by-side. Outline: the three bright concentric "glow ring"
+> strokes (dark red / orange / bright amber, an approximation of bleed
+> that TASK-193/336 never actually replaced) were removed and replaced
+> with the concept's single subtle 1px stroke, `(50,22,5)` → `0x30A0`.
+> Pin marks: moved from overlapping the glass (`kTy+kTh-3`) to sitting
+> below it (`kTy+kTh`), and recoloured from an unrelated dark
+> green-grey (`0x2104`) to the concept's near-black `(8,3,0)` → `0x0800`
+> — the wrong colour looks like a leftover/copy-paste value, not an
+> intentional design choice. Colon: changed from a flat filled square to
+> a round dot with a poor-man's bloom (dim halo circle + bright core
+> circle, both always redrawn — including in black when off — so the
+> previous frame is fully erased regardless of blink state), using the
+> wire amber `C_WIRE=(255,125,8)` for the core. DUT-verified via
+> side-by-side `screendump`, including deliberately re-capturing until a
+> frame caught the colon mid-"on" (it blinks, so roughly half of
+> single-shot captures show it fully black, which is correct — the
+> off-state erase was verified separately too).
 
 ### Canvas layout (four tubes + colon)
 
@@ -397,6 +414,15 @@ COLON_Y2    = TUBE_Y + 2 × TUBE_H // 3  (lower dot)
 Each dot gets the same three-pass bloom as the wire glyph: render a
 filled circle at `C_WIRE × colon_level`, bloom, paste additively.
 
+> **Firmware reality (resynced 2026-07-18):** `ClockApp::_drawNixie()`
+> approximates the bloom cheaply at runtime (no Gaussian blur available)
+> as two concentric `fillCircle()`s — a dim ~30%-brightness halo (`r=5`)
+> and a bright core (`r=2`, vs. this doc's `COLON_DOT_R=3` — close
+> enough by eye) — instead of this section's true multi-pass blur.
+> Position (`COLON_CX`, `COLON_Y1/Y2`) matches exactly. Blink is a hard
+> on/off at 0.5Hz, not the ramp/decay afterglow below — that needs the
+> same tick-gate rework already deferred for Flip's colon disc (M-CLOCK-FLIP.md).
+
 ### Blink + phosphor afterglow
 
 The colon blinks at 1 Hz with a realistic phosphor afterglow — fast
@@ -473,6 +499,13 @@ Glass effect layers (drawn after compositing, on the canvas):
    `TUBE_Y + TUBE_H - TUBE_R` — simulates reflected room light on glass.
 3. **Pin shadow**: two 1×3 px dark rects at tube bottom centre — represents
    the wire pins at the base of a real Nixie tube envelope.
+
+> **Firmware reality (resynced 2026-07-18):** items 1 and 3 now match
+> this doc's colours and geometry (outline `0x30A0`, pin marks below the
+> tube at `0x0800` — see the tube-geometry section's status header note
+> for the before/after). Item 2, the specular highlight, was never
+> implemented in firmware at any point (not a regression from this
+> pass — just never built); left out of scope here.
 
 ---
 

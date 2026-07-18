@@ -1779,16 +1779,40 @@ verified via side-by-side `screendump` at matching digit values — one
 capture caught a live mid-tick capture race (digit changed between a
 band and its corrupted-band retry, producing a ghosted double-digit
 artifact); a clean re-capture confirmed it was a capture-timing
-artifact, not a rendering bug. Tube glass outline/glow strokes/pin
-shadows (cheap runtime primitives, not baked) were left unchanged —
-still visibly brighter than the concept's subtle outline colour, out of
-scope for this pass. `docs/architecture/designs/M-CLOCK-NIXIE.md`
+artifact, not a rendering bug. `docs/architecture/designs/M-CLOCK-NIXIE.md`
 updated to match (status header, status table, "Firmware reality" note
 rewritten to record the resync).
+
+**Second follow-up, same day: tube outline, colon, pin marks.** User
+flagged three more concrete mismatches after reviewing the geometry
+resync's side-by-side: (1) tube outline didn't match the concept —
+firmware drew three bright concentric "glow ring" strokes (dark red
+`0x8000`, orange `0xFC00`, bright amber `0xFE60`), an old approximation
+of outer bleed that read as a halo, much more prominent than the
+concept's single subtle 1px `(50,22,5)` stroke; replaced with that exact
+stroke (`0x30A0`). (2) two dots at the tube bottom didn't match — pin
+marks were drawn *overlapping* the glass (`kTy+kTh-3`) in an unrelated
+dark green-grey (`0x2104`, looks like a leftover/wrong colour, not an
+intentional choice) instead of the concept's near-black `(8,3,0)`
+sitting *below* the tube; fixed both (position → `kTy+kTh`, colour →
+`0x0800`). (3) colon ":" didn't feel right — was a flat filled square
+with no glow, jarring against the tubes' soft bloom; changed to a round
+dot with a poor-man's bloom (dim halo circle + bright core circle, both
+redrawn every tick including in black when off, so old frames erase
+cleanly regardless of blink phase). DUT-verified via side-by-side
+`screendump`, including deliberately re-capturing to catch the colon
+mid-"on" (roughly half of single-shot captures land on the "off" phase
+of its 0.5Hz blink, which is correct, not a bug). Colon ramp/decay
+afterglow animation itself remains a separate, deferred item (needs a
+tick-gate architecture change, same as Flip's colon disc) — this pass
+only fixed shape/glow/colour, not the animation timing.
+`M-CLOCK-NIXIE.md` updated further (Colon section, Tube glass section,
+status table, status header) to record this second pass.
 **Opened:** 2026-07-18 · **Closed:** 2026-07-18 · **Milestone:**
 M-CLOCK-STYLES (follow-on) · **Owner:** Developer · **Deps:** — ·
 **Size:** M · **DUT:** y (human eyeball + `screendump` pixel-exact
-re-verification post-TASK-340 + side-by-side concept resync)
+re-verification post-TASK-340 + two rounds of side-by-side concept
+resync)
 
 ---
 
