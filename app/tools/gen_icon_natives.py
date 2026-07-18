@@ -216,6 +216,8 @@ def draw_aquarium(color) -> Image.Image:
 
     text = "><((( *>"
     max_w = 35
+    gap, space = 0, 1   # compressed: ink boxes touch, 1px word gap — the
+                        # width saved lets the size search pick a larger font
 
     def glyphs(font, eye_font):
         """[(char-ink-image, ink-bbox)] — getmask gives true ink boxes;
@@ -233,8 +235,9 @@ def draw_aquarium(color) -> Image.Image:
         return out
 
     def pack_width(gs):
-        wsum = sum(2 if g is None else (bb[2] - bb[0]) + 1 for g, bb in gs)
-        return wsum - 1  # no gap after last char
+        wsum = sum(space if g is None else (bb[2] - bb[0]) + gap
+                   for g, bb in gs)
+        return wsum - gap  # no gap after last char
 
     font = packed = None
     for size in range(16, 6, -1):   # largest size whose packed ink fits
@@ -253,10 +256,14 @@ def draw_aquarium(color) -> Image.Image:
     x = 0
     for g, bb in packed:
         if g is None:
-            x += 2
+            x += space
             continue
-        mask.paste(g.crop(bb), (x, 10 + bb[1]))
-        x += (bb[2] - bb[0]) + 1
+        crop = g.crop(bb)
+        # paste through the glyph as its own mask — with gap 0, adjacent
+        # ink boxes may overlap by a column; a plain paste would erase the
+        # neighbour's edge with this glyph's transparent pixels
+        mask.paste(crop, (x, 10 + bb[1]), crop)
+        x += (bb[2] - bb[0]) + gap
     mask = mask.point(lambda v: 255 if v >= 110 else 0)
 
     # Centre the ink bbox on the canvas
