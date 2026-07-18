@@ -22,7 +22,11 @@ Scope (2026-07-18 human triage of BAKED_SHEET.png at 36×36):
               auto-sized down until the packed glyphs fit, binarized to hard
               pixels — no vector redraw, no resample
 
-Untouched: spotify (fine as-is), planeradar (TASK-333).
+  planeradar — (TASK-333) rings/cross/dart at a native 33px outer-edge
+              bbox; the drafts-tool TARGET_FILL overshoot hack dies with
+              the resize step it compensated for
+
+Untouched: spotify (fine as-is).
 
 Curved shapes draw at an INTEGER supersample factor (SS) and take exactly
 one LANCZOS down to the target — even AA, no double-resample. Rectilinear
@@ -279,6 +283,56 @@ def draw_aquarium(color) -> Image.Image:
     return out
 
 
+# ── planeradar (TASK-333 — the icon that opened M-ICON-PIXELART) ─────────────
+
+PR_BG_BLUE = (18, 54, 140, 255)          # active disc fill (shipped palette)
+PR_GREEN = (0, 255, 0, 255)              # active rings/cross accent
+PR_RED = (255, 33, 33, 255)              # aircraft dart (PR_COL_AIRCRAFT)
+
+
+def draw_planeradar(ring_color, aircraft_color=None, bg_fill=None) -> Image.Image:
+    """Two concentric rings + crosshair (+ optional aircraft dart / disc
+    fill). Geometry is the gen_icon_drafts.py ratio set, re-anchored to a
+    native 33px outer-edge bbox (92% fill — ring centreline + half stroke
+    = 16.5 from centre) instead of the drafts' 44px canvas + TARGET_FILL
+    overshoot tuned for a resize step that no longer exists."""
+    import math
+    img = canvas_ss()
+    d = ImageDraw.Draw(img)
+    cx = cy = W / 2.0
+    ring_w_ratio = 0.125
+    outer_r = 16.5 / (1.0 + ring_w_ratio / 2.0)   # centreline ≈ 15.53
+    inner_r = outer_r * 0.5625
+    ring_w = outer_r * ring_w_ratio
+    cross_hw = outer_r * 0.0625
+
+    if bg_fill is not None:
+        edge = outer_r + ring_w / 2.0
+        d.ellipse([s(cx - edge), s(cy - edge), s(cx + edge), s(cy + edge)],
+                  fill=bg_fill)
+    for r in (outer_r, inner_r):
+        d.ellipse([s(cx - r), s(cy - r), s(cx + r), s(cy + r)],
+                  outline=ring_color, width=s(ring_w))
+    d.rectangle([s(cx - outer_r), s(cy - cross_hw), s(cx + outer_r), s(cy + cross_hw)],
+                fill=ring_color)
+    d.rectangle([s(cx - cross_hw), s(cy - outer_r), s(cx + cross_hw), s(cy + outer_r)],
+                fill=ring_color)
+
+    if aircraft_color is not None:
+        # bottom-left quadrant dart, same radial slot/proportions as the app
+        off_mag = math.hypot(-7.3, 9.7) / 16.0    # ≈ 0.759 of outer_r
+        bearing = math.atan2(9.7, -7.3)           # ≈ 127°
+        acx = cx + off_mag * outer_r * math.cos(bearing)
+        acy = cy + off_mag * outer_r * math.sin(bearing)
+        nose, tail, wing = 0.44 * outer_r, 0.26 * outer_r, 2.5
+        heading = math.radians(-40)               # up-right, away from centre
+        pts = [(acx + nose * math.cos(heading), acy + nose * math.sin(heading)),
+               (acx + tail * math.cos(heading + wing), acy + tail * math.sin(heading + wing)),
+               (acx + tail * math.cos(heading - wing), acy + tail * math.sin(heading - wing))]
+        d.polygon([(s(px), s(py)) for px, py in pts], fill=aircraft_color)
+    return down(img)
+
+
 # ── crypto ────────────────────────────────────────────────────────────────────
 
 def draw_crypto(color) -> Image.Image:
@@ -340,6 +394,9 @@ def build() -> dict:
         "aquarium_active": draw_aquarium(AQUARIUM_CYAN),
         "crypto": draw_crypto(WHITE),
         "crypto_active": draw_crypto(CRYPTO_GOLD),
+        "planeradar": draw_planeradar(WHITE),
+        "planeradar_active": draw_planeradar(PR_GREEN, aircraft_color=PR_RED,
+                                             bg_fill=PR_BG_BLUE),
         "settings": render_svg(ICONS_DIR / "settings.svg", WHITE, 33),
         "settings_active": render_svg(ICONS_DIR / "settings.svg", SETTINGS_ORANGE, 33),
         "stock": render_svg(ICONS_DIR / "stock.svg", WHITE, 33),
