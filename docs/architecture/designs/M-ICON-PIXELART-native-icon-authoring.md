@@ -1,10 +1,10 @@
 # Design — Native pixel-art icon authoring at taskbar slot resolution
 
 > Owner: Architect
-> Status: draft
-> Date: 2026-07-12
-> Feeds: (none yet — no ADR crystallised)
-> Tracked-as: (none yet — pending PM scheduling; see roadmap M-ICON-PIXELART stub)
+> Status: decided — see ADR-051 (2026-07-18: 36×36 budget, Option B, warn-only fill check)
+> Date: 2026-07-12 (decided 2026-07-18)
+> Feeds: [ADR-051](../decisions/ADR-051.md)
+> Tracked-as: roadmap M-ICON-PIXELART (PM to file implementation tasks)
 
 ## Context / pain points
 
@@ -183,6 +183,22 @@ Option C's stronger consistency guarantee.
 - Is there an appetite for a documented fill-ratio target (crypto's 96% is
   the closest thing to a de facto standard today) with a bake-time
   warn/fail check, independent of which option is chosen for authoring?
+
+## Resolution (2026-07-18)
+
+Human decided all three gates in one pass (ADR-051):
+
+- **Size: 36×36** (80%/90% of slot; 4px x-offset clears the 3px
+  active-indicator bar, 2px y-offset clears the 1px separator).
+- **Authoring: Option B** — native-resolution for hand-authored icons,
+  bake becomes pass-through on exact dimension match; imported art keeps
+  hi-res master + resize path.
+- **Fill check: warn-only** — major-axis fill outside [85%, 97%] warns at
+  bake; minor axis unchecked (wide-flat glyphs legal); never fails build.
+
+Verified during decision prep: `golden.sha256` **does** cover
+`taskbar_icons.cpp/h` and `shell_layout.h` (closes the "unverified" note
+under cross-cutting) — size bump + re-bake need a golden regen.
 
 ## Exit criteria
 

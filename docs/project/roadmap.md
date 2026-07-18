@@ -1033,10 +1033,17 @@ for all taskbar icons including imported art), which only matters once the
 target size is settled. No lean forced on either question — needs a human
 decision given real tradeoffs on each side.
 
-**Status:** proposed — design doc drafted, awaiting human decision on
-options before an ADR is written
+**Status:** in progress — human decided all three gates 2026-07-18
+(36×36 budget / Option B native hand-authored / warn-only fill check),
+recorded as ADR-051. Tasks filed: TASK-331 (bake tooling + host contact
+sheet), TASK-332 (36×36 bump + re-bake + triage), TASK-333 (PlaneRadar
+native re-author, first test case), TASK-334 (opportunistic re-touch,
+scope from TASK-332 triage). Host-first inspection: iterate on
+`BAKED_SHEET.png` / `gen_icon_drafts.py` contact sheets; DUT only as
+final eyeball gate (BP-048) on TASK-332/333.
 **Deps:** M-TASKBAR-ICONS (done), M-PLANERADAR (done)
 **Design:** [M-ICON-PIXELART-native-icon-authoring.md](../architecture/designs/M-ICON-PIXELART-native-icon-authoring.md)
+**ADR:** [ADR-051](../architecture/decisions/ADR-051.md)
 
 ---
 

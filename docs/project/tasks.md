@@ -1514,3 +1514,104 @@ T-SET-03/06 confirm no regression from the app-row split (they only ever tapped 
 **Bundled in the same pass (tools-only, not filed separately)**: `app/tools/prloc_editor_smoke.py` destructive-scope hygiene, flagged by VE during T-CPICK-03 (see its test_plan.md entry) — the script would delete real slot 1 (`HH`) in addition to its documented empty-slot-2 assumption. Added a DESTRUCTIVE SCOPE banner enumerating exactly which slots are written (2) / deleted (1), plus an upfront `get prloc` read that aborts before any hardware mutation if slot 1 or slot 2 is non-empty (`--force` bypasses for a disposable/synthetic fixture). Script itself not re-run against this live device — the fix's entire point is that it no longer runs destructively by default.
 
 **Opened:** 2026-07-17 · **Closed:** 2026-07-18 · **Milestone:** — (test-harness hygiene, cross-cutting) · **Owner:** Developer · **Deps:** none · **Size:** S-M (helper split + call-site audit + 3 DUT test re-runs) · **DUT:** y (T-SET-03/06/07 re-run, all PASS)
+
+### TASK-331 — M-ICON-PIXELART: bake tooling — WYSIWYG pass-through, fill-ratio warn, host contact sheet
+
+First slice of ADR-051 (2026-07-18 decision: 36×36 / Option B / warn-only
+fill check). Tooling lands **before** the size bump so the host inspection
+surface exists when the re-bake triage (TASK-332) needs it. Three changes,
+no icon or golden churn (existing sources don't dimension-match 24×24, so
+the bake output stays byte-identical — assert `run/check` golden gate clean
+as proof):
+
+1. **Pass-through on exact match**: `gen_taskbar_icons.py` skips the LANCZOS
+   resample when source PNG dims == `TASKBAR_ICON_W`×`_H` — the source *is*
+   the shipped icon (Option B WYSIWYG guarantee; host preview becomes exact
+   by construction).
+2. **Warn-only fill check**: per-icon bbox fill (alpha>128, per axis) printed
+   at every bake; warn when the **major axis** lands outside [85%, 97%]
+   (100% = the PlaneRadar edge-to-edge overshoot mode; minor axis unchecked
+   so wide-flat glyphs like aquarium stay legal). Never fails the build.
+3. **`--sheet` mode**: writes `app/tools/icon_drafts/BAKED_SHEET.png` — all
+   baked icon pairs at true baked size, nearest-neighbor upscaled, each in a
+   simulated slot (taskbar bg + 3px active-indicator + 1px separator, per
+   `taskbar.h`). This is the host inspection surface for TASK-332/333/334;
+   DUT is demoted to final eyeball gate only.
+
+Also: `gen_icon_drafts.py` reads its target size from `gen/shell_layout.h`
+(it currently hardcodes canvas sizes — the exact failure mode the milestone
+exists to kill).
+**Status:** open
+**Opened:** 2026-07-18 · **Milestone:** M-ICON-PIXELART · **Owner:**
+Developer · **Deps:** — · **Size:** S · **DUT:** n (host tooling only;
+golden byte-identity via `run/check` is the gate)
+
+### TASK-332 — M-ICON-PIXELART: grow icon budget to 36×36, re-bake, host triage, DUT eyeball
+
+ADR-051 point 1. Bump `TASKBAR_ICON_W`/`_H` 24 → 36 in `gen/shell_layout.h`
+(via `preview_layout.py`'s export path or direct edit — keep the header's
+comment format), re-bake all icons, regen `golden.sha256` (covers
+`shell_layout.h` + `taskbar_icons.cpp/h` — verified 2026-07-18), `run/check`.
+No layout code changes: `iconOffX/Y` in `taskbar.h` derive from the
+constants (36×36 centres at x+4/y+2, clearing the 3px indicator bar and 1px
+separator). Flash +~31.7 KB across 11 pairs — negligible.
+
+**Host inspection step (before any flash):** generate `BAKED_SHEET.png`
+(TASK-331 `--sheet`) and human-triage all 22 upscaled icons — every source
+is smaller than 36, so all go through LANCZOS upscale and render softer.
+Triage output = the explicit list of icons whose softness is unacceptable →
+that list **is** TASK-334's scope. Accepted interim state per ADR-051: soft
+is legal, no flag day.
+
+**DUT step (last):** flash, one eyeball pass over the taskbar (BP-048 —
+init must paint; host PNG ≠ TFT: RGB565 quantization + inversion + real
+backlight), confirm active-indicator/separator clearance on real panel.
+**Status:** open
+**Opened:** 2026-07-18 · **Milestone:** M-ICON-PIXELART · **Owner:**
+Developer (triage call: human) · **Deps:** TASK-331 (`--sheet` must exist
+first) · **Size:** S-M · **DUT:** y (single final eyeball gate; all
+iteration on host sheet)
+
+### TASK-333 — M-ICON-PIXELART: re-author PlaneRadar icon pair natively at 36×36 (first test case)
+
+ADR-051 exit criterion: the icon that surfaced the whole milestone
+(TASK-302 follow-up) is the first authored under the new workflow.
+`gen_icon_drafts.py` (target size now read from `shell_layout.h`, per
+TASK-331) renders `planeradar` / `planeradar_active` candidates **directly
+at 36×36** — no supersample-then-shrink-to-target-through-intermediate
+canvas, the double-LANCZOS trap is structurally gone (supersampling for AA
+within a single resize to the true target is fine).
+
+**Host inspection loop (all iteration here):** candidates land on the
+`icon_drafts/` contact sheet (true-size + NN-upscaled, in simulated slot)
+— human approves on host **before** anything is copied into
+`app/icons/taskbar/`. Fill target: major axis inside [85%, 97%] (the
+TASK-331 warn band; shipped 24×24 planeradar is 100% edge-to-edge — this
+re-author fixes that too). On approval: copy in, bake (pass-through — baked
+bytes == approved PNG), golden regen, `run/check`.
+
+**DUT step (last):** flash, one eyeball pass of the new pair
+(inactive + active states).
+**Status:** open
+**Opened:** 2026-07-18 · **Milestone:** M-ICON-PIXELART · **Owner:**
+Developer (approval: human) · **Deps:** TASK-331, TASK-332 · **Size:** S ·
+**DUT:** y (single final eyeball; approval already given on host sheet)
+
+### TASK-334 — M-ICON-PIXELART: opportunistic re-touch of soft upscaled icons (scope from TASK-332 triage)
+
+Backlog under ADR-051's no-flag-day rule: sources smaller than 36 (the
+32×32 set — clock, weather, stock, teletext — plus any others the triage
+flags) render soft after the TASK-332 upscale. Re-touch **only** the icons
+the TASK-332 host triage marked unacceptable, each natively at 36×36 via
+the TASK-333-proven workflow (draft → host contact-sheet approval → copy →
+pass-through bake → golden → `run/check`). Imported hi-res art
+(`spotify_active.png` Winamp bolt) keeps its master + resize path per
+Option B — exempt unless triage says the 36×36 resize product itself is
+unacceptable. Batch the DUT eyeball: one pass at the end for all re-touched
+icons, not per icon.
+**Status:** open — scope TBD by TASK-332 triage (may close empty if
+everything survives triage)
+**Opened:** 2026-07-18 · **Milestone:** M-ICON-PIXELART · **Owner:**
+Developer (per-icon approval: human) · **Deps:** TASK-332 (triage list),
+TASK-333 (workflow proven) · **Size:** S-M (scales with triage list) ·
+**DUT:** y (one batched eyeball pass)
