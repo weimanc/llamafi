@@ -1583,6 +1583,26 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 
 ---
 
+### Audit — 2026-07-18 — M-ICON-PIXELART TASK-331/332/334 retrospective (milestone still open: TASK-333 remains)
+**Triggered by**: human ("QM PM, happy?")
+**Areas checked**:
+- [x] git log vs tasks.md/roadmap consistency (8 commits, 874181d..d87f5d0)
+- [x] Gate discipline (run/check at every landing; golden regen twice; BP-048 eyeball named + executed)
+- [x] Host tooling the milestone leaned on (preview surfaces, bake pipeline)
+- [x] Feature inventory currency for touched areas
+
+**Findings**:
+1. **Process — green, and a pattern worth keeping.** Decision → ADR-051 → four filed tasks → execution, same day, with the human decision gate up front (size/authoring/fill asked once, before any code). The host-first inspection loop did what it promised: 3 approval rounds ran entirely on contact sheets (NATIVE_SHEET.png), the DUT was flashed **once**, and the eyeball gate passed first try.
+2. **Two host-preview drift defects found mid-milestone**: `preview_layout.py` still rendered TEXT.BMP placeholder glyphs (~5 weeks after real icons shipped), and `preview_common.py`'s hardcoded 24×24 mirrors feed `--export`'s *write* path — a habitual export would have silently regressed the ADR-051 bump. Third instance of the "host tool encodes firmware truth by copy" class (after the 21px tap-row arc). **LL-114** filed; structural fix (parse, don't mirror) = **TASK-335**.
+3. **feature_inventory.yaml stale by two generations** for taskbar rendering: `taskbar-001` still documents "6 icon slots (S/C/W/$/M/G via TFT font 4)" (pre-M-TASKBAR-ICONS, pre-ADR-051); the preview-tool entry still documents TEXT.BMP glyph rendering. Refresh folded into TASK-335.
+4. **Deliberate fill-band outliers recorded in three places** (tasks.md close-outs, memory, bake WARNs): teletext 83% (square-glyph optical correction), aquarium 97% (wide-flat text fish) — so a future pass doesn't "fix" them.
+5. **PM state**: milestone NOT closed — TASK-333 (PlaneRadar re-author) open and unblocked; inherits the proven `gen_icon_natives.py` pipeline. Roadmap says exactly this; no premature close.
+
+**Actions assigned**: QM — LL-114 logged; BP candidate "visual-asset work: approval iterates on host contact sheets, single batched DUT flash carries the BP-048 eyeball" brought to human (promotion pending, per protocol). Developer — TASK-335. PM — none; bookkeeping current as of d87f5d0.
+**Resolution**: open until TASK-335 lands and the BP candidate gets a human verdict; TASK-333 tracked in roadmap as the milestone's last item.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:

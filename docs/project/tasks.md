@@ -1662,3 +1662,29 @@ workflow first; in practice 334 ran before 333 and proved it instead —
 M-ICON-PIXELART · **Owner:** Developer (approval: human) · **Deps:**
 TASK-332 · **Size:** M (9 pairs, 3 review rounds) · **DUT:** y (batched
 eyeball with TASK-332 — PASS)
+
+### TASK-335 — host preview tools: parse shell_layout.h instead of mirroring constants + inventory refresh
+
+LL-114 structural fix. `preview_common.py` hardcodes `TASKBAR_ICON_W/H`
+(and bg/indicator/sep colours) as comment-bound mirrors of
+`gen/shell_layout.h`; `preview_layout.py --export` WRITES the header from
+those mirrors, so a drifted mirror is a write-path regression (the
+ADR-051 bump dodged this only because 118dc07 bumped both in one commit).
+Fix: `preview_common.py` parses the generated header at import (the
+`gen_taskbar_icons.py`/`gen_icon_drafts.py`/`gen_icon_natives.py` pattern
+— reuse one shared parse helper rather than a fourth regex copy);
+`load_icon_pil`/`load_icon_pygame` then track the header automatically.
+Check `--export` round-trips the parsed values byte-identically against
+the current header (it must not clobber the ADR-051 comments — decide:
+preserve annotations or regenerate them).
+
+Bundled (same Developer pass): feature_inventory.yaml description sweep
+for the taskbar arc — `taskbar-001` still says "6 icon slots
+(S/C/W/$/M/G via TFT font 4)" (two generations stale: pre-M-TASKBAR-ICONS
+PNG icons, pre-ADR-051 36×36); the preview-tool entry still describes
+TEXT.BMP glyph rendering. Update to current truth (baked 36×36 RGB565
+pairs, pass-through bake, real-icon preview per 48e724d).
+**Status:** open
+**Opened:** 2026-07-18 · **Milestone:** M-ICON-PIXELART (hygiene tail) ·
+**Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** n (host
+tools only; `--export` round-trip check is the gate)
