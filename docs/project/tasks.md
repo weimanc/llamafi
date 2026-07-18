@@ -177,6 +177,33 @@ Spotify-slider regression leg.
 `webRadioApp.h` — coordinate merges) · **Gate:** `run/check` 7/7 + DUT + eyeball ·
 **Priority:** P2 · **Status:** open
 
+### TASK-353 — Nixie 4-bit luminance pack + 16-entry tint LUT (M-CLOCK-FACE-COMMON pt 2)
+
+Halve the Nixie bake: 4-bit luminance (two px/byte, high nibble left), 51.6→25.8 KB flash.
+Measured max quantisation error 8/255 = at/below one RGB565 display LSB after theme tint —
+visually lossless. Runtime decode via 16-entry per-theme RGB565 LUT that *replaces* the
+3-multiply-per-pixel tint (hot loop gets cheaper). Design + measurements:
+`docs/architecture/designs/M-CLOCK-FACE-COMMON.md` §Part 2. Gate: run/check + DUT screendump
+eyeball across themes vs pre-change reference.
+
+**Owner:** Developer · **Deps:** TASK-345 (luminance bake) · **Gate:** `run/check` + DUT
+eyeball · **Priority:** P2 · **Status:** in progress
+
+### TASK-354 — shared clock-face delta engine (colon flicker fix, M-CLOCK-FACE-COMMON pt 1)
+
+One FaceFrame diff engine over four face renderers (drawStatic/drawDigit/drawColon/animate
+hooks): fixes Flip + Nixie whole-face-per-second flicker by construction (colon blink currently
+drags a full wipe+repaint; VFD fixed this privately, fix never propagated), deletes 3 copies of
+the time→digits split + 4 of the colon parity. Digital keeps its variable-width-hour handling
+inside its renderer; Flip animation passes through `animate()`. VE adds a steady-state
+"second tick repaints ≤ colon pixels" screendump-diff assertion. Design:
+`M-CLOCK-FACE-COMMON.md` §Part 1. Human has seen the flicker analysis and said "not yet" to an
+immediate fix — do not start without explicit go-ahead.
+
+**Owner:** Developer · **Deps:** TASK-353 (touches same tint path; land after) · **Gate:**
+`run/check` + per-face screendump eyeballs + T_CLK_TAP suite re-run · **Priority:** P3 ·
+**Status:** open — awaiting human go-ahead
+
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
 Human request 2026-07-18. Clock canvas splits at `CLK_TAP_SPLIT_Y=120`: top tap cycles the

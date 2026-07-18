@@ -444,15 +444,33 @@ private:
     // enough to overflow this board's tight DRAM budget when added to the
     // rest of the debug build's static buffers; bands keep it small, same
     // pattern as screendump's kBandRows).
+    //
+    // TASK-353 (M-CLOCK-FACE-COMMON pt 2): source is 4-bit packed luminance
+    // (two px/byte, high nibble = left pixel; NIXIE_GLYPH_W is even so rows
+    // never straddle a byte). The 16-entry per-theme RGB565 LUT replaces the
+    // previous three-multiplies-per-pixel tint — decode l = nibble*17 is
+    // folded into the table, so the hot loop is two table fetches per byte.
     static void _tintNixieGlyph(uint8_t digit, int rowStart, int rows, uint16_t* out) {
-        const uint8_t* lum = nixie_glyph_ptrs[digit % 10] + (size_t)rowStart * NIXIE_GLYPH_W;
-        const NixieTheme& th = kNixieThemes[g_settings.nixieTheme % 4];
-        int n = rows * NIXIE_GLYPH_W;
+        static uint16_t s_lut[16];
+        static uint8_t  s_lutTheme = 0xFF;
+        uint8_t themeIdx = g_settings.nixieTheme % 4;
+        if (themeIdx != s_lutTheme) {
+            const NixieTheme& th = kNixieThemes[themeIdx];
+            for (int i = 0; i < 16; i++) {
+                uint8_t l = (uint8_t)(i * 17);   // dequant: 0..15 -> 0..255
+                s_lut[i] = tft.color565((uint16_t)th.r * l / 255,
+                                        (uint16_t)th.g * l / 255,
+                                        (uint16_t)th.b * l / 255);
+            }
+            s_lutTheme = themeIdx;
+        }
+        const uint8_t* packed = nixie_glyph_ptrs[digit % 10]
+                              + (size_t)rowStart * (NIXIE_GLYPH_W / 2);
+        int n = rows * (NIXIE_GLYPH_W / 2);
         for (int i = 0; i < n; i++) {
-            uint8_t l = lum[i];
-            out[i] = tft.color565((uint16_t)th.r * l / 255,
-                                   (uint16_t)th.g * l / 255,
-                                   (uint16_t)th.b * l / 255);
+            uint8_t b = packed[i];
+            out[2 * i]     = s_lut[b >> 4];
+            out[2 * i + 1] = s_lut[b & 0x0F];
         }
     }
 

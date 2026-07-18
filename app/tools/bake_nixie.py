@@ -45,7 +45,7 @@ _drawNixie() — baking those would cost flash for zero visual gain, and
 (post M-CLOCK-THEMES) already read the theme colour directly at runtime.
 
 Outputs:
-  app/gen/nixie_glyphs.cpp   — const uint8_t nixie_glyph_0..9[48*110] (luminance)
+  app/gen/nixie_glyphs.cpp   — const uint8_t nixie_glyph_0..9[48/2*110] (4-bit packed luminance, TASK-353)
   app/gen/nixie_glyphs.h     — extern decls + nixie_glyph_ptrs[10]
   app/tools/icon_drafts/NIXIE_SHEET.png  — host contact sheet (--sheet, amber preview)
 
@@ -108,10 +108,24 @@ def img_to_luminance(img: Image.Image) -> list[int]:
     return [r for r, g, b in img.getdata()]
 
 
+def pack_4bit(data: list[int]) -> list[int]:
+    """TASK-353 (M-CLOCK-FACE-COMMON pt 2): quantise 8-bit luminance to 16
+    levels and pack two pixels per byte, high nibble = left pixel. Max
+    quantisation error is 8/255 — at/below one RGB565 display LSB after the
+    runtime theme tint, i.e. visually lossless (measured over the real baked
+    set before this change landed). TUBE_W=48 is even, so rows never straddle
+    a byte (one row = 24 B) and the runtime band decoder stays trivial."""
+    assert TUBE_W % 2 == 0
+    q = [(v * 15 + 127) // 255 for v in data]
+    return [(q[i] << 4) | q[i + 1] for i in range(0, len(q), 2)]
+
+
 def format_array(name: str, data: list[int]) -> str:
-    lines = [f"const uint8_t {name}[{TUBE_W * TUBE_H}] = {{"]
+    packed = pack_4bit(data)
+    row_bytes = TUBE_W // 2
+    lines = [f"const uint8_t {name}[NIXIE_GLYPH_W / 2 * NIXIE_GLYPH_H] = {{"]
     for row in range(TUBE_H):
-        chunk = data[row * TUBE_W:(row + 1) * TUBE_W]
+        chunk = packed[row * row_bytes:(row + 1) * row_bytes]
         lines.append("    " + ", ".join(str(v) for v in chunk) + ",")
     lines.append("};")
     return "\n".join(lines)
@@ -161,12 +175,15 @@ def main():
         "",
         f"#define NIXIE_GLYPH_W {TUBE_W}",
         f"#define NIXIE_GLYPH_H {TUBE_H}",
+        "#define NIXIE_GLYPH_PACKED_4BIT 1",
         "",
-        "// Luminance-only (0..255), NOT RGB565 — tinted per-theme at runtime,",
-        "// see ClockApp::_tintNixieGlyph() in clockApp.h (M-CLOCK-THEMES).",
+        "// 4-bit packed luminance (TASK-353), two pixels/byte, high nibble =",
+        "// left pixel; one row = NIXIE_GLYPH_W/2 bytes. Decode: l = nibble*17",
+        "// via the 16-entry per-theme RGB565 LUT in",
+        "// ClockApp::_tintNixieGlyph() (M-CLOCK-FACE-COMMON pt 2).",
     ]
     for d in range(10):
-        h_lines.append(f"extern const uint8_t nixie_glyph_{d}[NIXIE_GLYPH_W * NIXIE_GLYPH_H];")
+        h_lines.append(f"extern const uint8_t nixie_glyph_{d}[NIXIE_GLYPH_W / 2 * NIXIE_GLYPH_H];")
     h_lines.append("")
     h_lines.append("// Indexed 0..9.")
     h_lines.append("extern const uint8_t* const nixie_glyph_ptrs[10];")
@@ -182,7 +199,7 @@ def main():
     h_path = out_dir / "nixie_glyphs.h"
     cpp_path.write_text("\n".join(cpp_lines))
     h_path.write_text("\n".join(h_lines))
-    total_bytes = 10 * TUBE_W * TUBE_H
+    total_bytes = 10 * TUBE_W // 2 * TUBE_H   # 4-bit packed (TASK-353)
     print(f"Wrote {cpp_path} + {h_path} ({total_bytes} bytes / {total_bytes/1024:.1f} KB flash)")
 
     if args.sheet:
