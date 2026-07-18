@@ -1619,10 +1619,24 @@ bytes == approved PNG), golden regen, `run/check`.
 
 **DUT step (last):** flash, one eyeball pass of the new pair
 (inactive + active states).
-**Status:** open
-**Opened:** 2026-07-18 · **Milestone:** M-ICON-PIXELART · **Owner:**
-Developer (approval: human) · **Deps:** TASK-331, TASK-332 · **Size:** S ·
-**DUT:** y (single final eyeball; approval already given on host sheet)
+**Status:** **DONE — 2026-07-18, milestone-closing task.** Executed via
+`gen_icon_natives.py` (the pipeline TASK-334 proved), not the drafts
+tool: `draw_planeradar()` re-anchors the drafts' ratio geometry (ring-w
+0.125 / inner 0.5625 / cross 0.0625 of outer; dart 0.759R @127°,
+0.44R/0.26R nose/tail) to a native 33px outer-edge bbox — 92%, matching
+the clock/crypto ring family; the drafts' `TARGET_FILL=1.02` overshoot
+hack died with the resize step it compensated for. Shipped 100%
+edge-to-edge overshoot resolved (baked 89×86% / 92×92%, in band, no
+WARN). Landed 6c2fc29; bakes PASS-THROUGH; other 18 natives regenerated
+byte-identical (pipeline determinism check). `run/check` 6/6, prod
+flash, **human eyeball PASS 2026-07-18** ("active icon look great" —
+green rings/cross + blue disc + red dart confirmed on panel). Process
+note (QM ledger): BP-051 sheet approval was a blanket mid-turn "proceed"
+delegation rather than per-sheet sign-off — the BP-048 eyeball backstop
+held as designed.
+**Opened:** 2026-07-18 · **Closed:** 2026-07-18 · **Milestone:**
+M-ICON-PIXELART (closes it) · **Owner:** Developer (approval: human) ·
+**Deps:** TASK-331, TASK-332 · **Size:** S · **DUT:** y (eyeball PASS)
 
 ### TASK-334 — M-ICON-PIXELART: opportunistic re-touch of soft upscaled icons (scope from TASK-332 triage)
 

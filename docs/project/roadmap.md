@@ -1033,13 +1033,18 @@ for all taskbar icons including imported art), which only matters once the
 target size is settled. No lean forced on either question — needs a human
 decision given real tradeoffs on each side.
 
-**Status:** in progress — TASK-331/332/334 DONE 2026-07-18 (ADR-051
-decided same day: 36×36 / Option B / warn-only fill check). 9 icon pairs
-re-authored natively via `gen_icon_natives.py`, installed, DUT eyeball
-PASS; all bake PASS-THROUGH. Only TASK-333 (PlaneRadar native re-author)
-remains — it reuses the gen_icon_natives pipeline that TASK-334 proved.
-Host-first inspection pattern held: 3 approval rounds entirely on
-contact sheets, exactly one DUT flash at the end.
+**Status:** **CLOSED 2026-07-18** — decided (ADR-051: 36×36 / Option B /
+warn-only fill) and fully executed in one day. TASK-331/332/333/334/335
+all DONE: bake tooling (pass-through + fill warn + BAKED_SHEET),
+36×36 bump, 10 icon pairs re-authored natively via `gen_icon_natives.py`
+(only spotify's imported Winamp art untouched), PlaneRadar's
+edge-to-edge overshoot — the bug that opened the milestone — resolved at
+89-92% fill, and the LL-114 structural fix (shared `shell_layout.py`
+parser, no mirrored constants, byte-identical `--export` round-trip).
+Two DUT eyeball PASSes (batch 2026-07-18 + PlaneRadar close). Process
+outcomes: BP-051 adopted (host-contact-sheet approval loop), LL-114
+logged. Deliberate fill outliers on record: teletext 83% (square-glyph
+optical), aquarium 97% (wide-flat text fish) — don't "fix" them.
 **Deps:** M-TASKBAR-ICONS (done), M-PLANERADAR (done)
 **Design:** [M-ICON-PIXELART-native-icon-authoring.md](../architecture/designs/M-ICON-PIXELART-native-icon-authoring.md)
 **ADR:** [ADR-051](../architecture/decisions/ADR-051.md)

@@ -1599,7 +1599,7 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 5. **PM state**: milestone NOT closed — TASK-333 (PlaneRadar re-author) open and unblocked; inherits the proven `gen_icon_natives.py` pipeline. Roadmap says exactly this; no premature close.
 
 **Actions assigned**: QM — LL-114 logged; BP candidate "visual-asset work: approval iterates on host contact sheets, single batched DUT flash carries the BP-048 eyeball" brought to human. Developer — TASK-335. PM — none; bookkeeping current as of d87f5d0.
-**Resolution**: BP candidate **adopted same day as BP-051** (human, 2026-07-18). Remains open only for TASK-335; TASK-333 tracked in roadmap as the milestone's last item.
+**Resolution**: closed 2026-07-18, same day. BP candidate **adopted as BP-051** (human). TASK-335 landed (cf07d30 — shared `shell_layout.py` parser, byte-identical `--export` round-trip, inventory refreshed). TASK-333 landed (6c2fc29) with human eyeball PASS → **M-ICON-PIXELART closed**. Process deviation noted for the record: TASK-333's BP-051 sheet approval was a blanket mid-turn "proceed" delegation; the BP-048 eyeball backstop held as designed (human confirmed active icon on panel before task close).
 
 ---
 
