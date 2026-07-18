@@ -1541,10 +1541,25 @@ as proof):
 Also: `gen_icon_drafts.py` reads its target size from `gen/shell_layout.h`
 (it currently hardcodes canvas sizes — the exact failure mode the milestone
 exists to kill).
-**Status:** open
-**Opened:** 2026-07-18 · **Milestone:** M-ICON-PIXELART · **Owner:**
-Developer · **Deps:** — · **Size:** S · **DUT:** n (host tooling only;
-golden byte-identity via `run/check` is the gate)
+**Status:** **DONE — 2026-07-18.** All four pieces landed in
+`gen_taskbar_icons.py` (`prepare_icon` pass-through + `fill_ratios` +
+per-icon bake log with WARN lines + `--sheet`/`--sheet-out` →
+`BAKED_SHEET.png`, true RGB565-decoded pixels in simulated 45×40 slots with
+separator + 3px indicator) and `gen_icon_drafts.py` (`BAKE_W/H` +
+`TASKBAR_BG` parsed from `shell_layout.h`; draft canvas = baked size —
+native authoring, no intermediate-canvas resample; `simulate_baked`
+mirrors the pass-through). Byte-identity proven two ways: `sha256sum -c
+golden.sha256` clean after a fresh bake AND `app/gen/` untouched in git
+(no current source is exactly 24×24, so pass-through is latent until a
+native-size source exists — `weather_active.png` at 36×36 will be the
+first to exact-match after TASK-332's bump). Fill warnings fire exactly
+per the design-doc measured table (life 58% undersized, planeradar 100%
+edge-to-edge, 83%-cluster flagged) — early triage signal for TASK-332/334.
+`run/check` 6/6 PASS. Sheet visually verified on host (icon centring,
+separator, indicator bar, fill labels all correct).
+**Opened:** 2026-07-18 · **Closed:** 2026-07-18 · **Milestone:**
+M-ICON-PIXELART · **Owner:** Developer · **Deps:** — · **Size:** S ·
+**DUT:** n (host tooling only; golden byte-identity + `run/check` gate)
 
 ### TASK-332 — M-ICON-PIXELART: grow icon budget to 36×36, re-bake, host triage, DUT eyeball
 

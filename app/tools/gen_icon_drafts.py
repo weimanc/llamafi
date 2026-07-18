@@ -17,6 +17,7 @@ Run:
 """
 
 import math
+import re
 from pathlib import Path
 from PIL import Image, ImageDraw
 
@@ -26,7 +27,25 @@ OUT_DIR = HERE / "icon_drafts"
 OUT_DIR.mkdir(exist_ok=True)
 
 SS = 10          # supersample factor for anti-aliasing
-TASKBAR_BG = (0x21, 0x08, 0x21)  # approx RGB of TASKBAR_BG_RGB565 0x2104
+
+# ADR-051: the baked target size and taskbar bg come from gen/shell_layout.h —
+# never hardcoded here. Drafts render AT the true baked size (native
+# authoring): supersample SS× for AA, one LANCZOS down to (BAKE_W, BAKE_H),
+# no intermediate canvas — the double-resample trap this milestone kills.
+_LAYOUT = (HERE.parent / "gen" / "shell_layout.h").read_text()
+
+
+def _define(name: str) -> int:
+    v = re.search(rf"#define\s+{name}\s+(0x[0-9A-Fa-f]+|\d+)", _LAYOUT).group(1)
+    return int(v, 16 if v.startswith("0x") else 10)
+
+
+BAKE_W = _define("TASKBAR_ICON_W")
+BAKE_H = _define("TASKBAR_ICON_H")
+_bg565 = _define("TASKBAR_BG_RGB565")
+TASKBAR_BG = (((_bg565 >> 11) & 0x1F) * 255 // 31,
+              ((_bg565 >> 5) & 0x3F) * 255 // 63,
+              (_bg565 & 0x1F) * 255 // 31)
 
 # ---------------------------------------------------------------------------
 # Base geometry measured off the CURRENT (shipped) planeradar.png: outer ring
@@ -51,8 +70,11 @@ TASKBAR_BG = (0x21, 0x08, 0x21)  # approx RGB of TASKBAR_BG_RGB565 0x2104
 # genuine ~+19pp visual size increase over the original 80% fill -- this is
 # what actually reads as "the circle got bigger" post-bake, unlike the
 # previous scale-both approach.
-CANVAS = 44
-CENTER = CANVAS / 2.0            # 22.0
+# ADR-051: canvas == the true baked size from shell_layout.h (was a
+# hardcoded 44 in the pre-native workflow — the resize-to-target step that
+# made fill ratios unpredictable is gone; what this renders is what bakes).
+CANVAS = BAKE_W
+CENTER = CANVAS / 2.0
 TARGET_FILL = 1.02                # pre-antialiasing target; supersample+LANCZOS
                                    # downsize softens the true edge under the
                                    # alpha>128 bbox threshold, so this
@@ -149,11 +171,13 @@ def upscale(img, factor, nearest=True):
                        Image.NEAREST if nearest else Image.LANCZOS)
 
 
-def simulate_baked(img_rgba, bake_w=24, bake_h=24, bg_rgb=TASKBAR_BG):
-    """Mimic gen_taskbar_icons.py: resize to baked size, alpha-composite over
-    the taskbar bg. Shows what actually ships to the DUT (RGB565 quantization
-    itself is skipped here as it's visually negligible for a preview)."""
-    small = img_rgba.resize((bake_w, bake_h), Image.LANCZOS)
+def simulate_baked(img_rgba, bake_w=BAKE_W, bake_h=BAKE_H, bg_rgb=TASKBAR_BG):
+    """Mimic gen_taskbar_icons.py: pass through if already at baked size
+    (ADR-051 WYSIWYG), else resize; alpha-composite over the taskbar bg.
+    Shows what actually ships to the DUT (RGB565 quantization itself is
+    skipped here as it's visually negligible for a preview)."""
+    small = img_rgba if img_rgba.size == (bake_w, bake_h) \
+        else img_rgba.resize((bake_w, bake_h), Image.LANCZOS)
     return composite_on(small, bg_rgb)
 
 
@@ -270,7 +294,7 @@ def main():
         big_preview = composite_on(upscale(img, 6, nearest=False), TASKBAR_BG)
         baked_preview = upscale(simulate_baked(img.convert("RGBA")), 8)
 
-        dctx.text((pad, y), f"{name}  (left: clean draft, right: simulated 24x24 baked)",
+        dctx.text((pad, y), f"{name}  (left: clean draft, right: simulated {BAKE_W}x{BAKE_H} baked)",
                    fill=(230, 230, 230), font=font)
         y2 = y + label_h
         bp = big_preview.resize((row_h, row_h))
