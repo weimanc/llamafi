@@ -2128,3 +2128,77 @@ agent) · **Deps:** — · **Size:** M (two-part root cause, one debug
 command, one platformio.ini flag, one firmware post-correction) ·
 **DUT:** y (colorprobe sweep 25/25 clean ×2 runs; live Nixie
 screendump visually + numerically confirmed correct)
+
+---
+
+### TASK-345 — Nixie + VFD colour theme picker, settings-exposed (M-CLOCK-THEMES)
+
+User asked to "call the architect" to wire in the Nixie/VFD colour
+themes both design docs had carried as fully-specified but
+`DOCUMENTED, NOT IMPLEMENTED` since TASK-193. Architect design doc:
+`docs/architecture/designs/M-CLOCK-THEMES.md`.
+
+The interesting design question was Nixie-specific: `_drawNixie()`
+`pushImage()`s a **baked** sprite (host-rendered, since TFT_eSPI has no
+Gaussian blur), and the naive extension — bake one full RGB565 sprite
+set per theme — would cost 4×103.1 KB = 412.4 KB flash, over half the
+remaining headroom for a cosmetic feature. Key insight: every colour
+source in the tube composite (mesh, background, wire glyph, all 3 bloom
+passes) is a pure per-channel scalar of `C_WIRE`, and Gaussian blur +
+scalar multiply commute — so `render(C_WIRE) == render(WHITE)` scaled
+channel-wise by `C_WIRE/255`, **exactly**, not an approximation. Rebaked
+`bake_nixie.py` to store **luminance only** (`uint8_t`, not `uint16_t`
+RGB565 — half the bytes too), added `ClockApp::_tintNixieGlyph()` to
+reconstruct any theme's exact colour at runtime
+(`color565(R×lum/255, G×lum/255, B×lum/255)`). Result: **51.6 KB total,
+flat regardless of theme count** — cheaper than the old single-theme
+bake (103.1 KB), not more expensive for having 4 themes.
+
+VFD needed no baking machinery (`_drawVFD()` already drew flat runtime
+`fillRect` colours) — added `_vfdOnColor()`/`_vfdOffColor()`/`_vfdDateColor()`
+deriving from the active theme's `C_ON` via `M-CLOCK-VFD.md`'s own
+formulas (`OFF = C_ON×0.06`, `DATE = C_ON×0.68`), replacing hardcoded
+`0x069C`/`0x0061`/`0x0473` — decoding those by hand first confirmed they
+were exactly teal (theme 0) run through the same formulas, so the
+refactor is provably a no-op for the default theme.
+
+`nixieTheme`/`vfdTheme` (`uint8_t`, default 0, SPIFFS-persisted) added
+to `AppSettings`. `appsSection.h`'s `_repaintClock()`/`_cycleClock()`
+gained a conditional second "Colour" row (visible only for the matching
+`clockStyle`), one function generalized to handle both styles rather
+than duplicating the row-index/tap-dispatch logic. Added
+`set nixieTheme`/`set vfdTheme` SERIAL_DEBUG commands (same pattern as
+`set clockStyle`) — used for DUT verification, also just generally
+useful going forward.
+
+**Build issues hit and fixed:**
+- First build attempt: linker error, `undefined reference to
+  ClockApp::kNixieThemes/kVfdThemes` — `static constexpr` array class
+  members need an out-of-class definition pre-C++17 (project targets
+  gnu++11) once ODR-used (binding a `const T&` reference to an element
+  does this). Added the out-of-line definitions after the class body —
+  safe since `clockApp.h` has exactly one includer (`main.cpp`).
+- Second build attempt: DRAM overflow by 9880 bytes — a full-tube tint
+  scratch buffer (`uint16_t[48*110]` = 10.3 KB) was too large for this
+  board's tight DRAM budget on top of the debug build's existing static
+  buffers. Fixed by band-processing 5 rows at a time (960 B → 480 B
+  buffer), same pattern as `screendump`'s `kBandRows`.
+
+**DUT verification:** all 4 Nixie themes (amber/red/green/blue) and all
+4 VFD themes (teal/amber/blue/green) captured via `screendump` —
+correct colour, bloom/glow intact, no artifacts. Both
+`cyd2usb_winamp`/`cyd2usb_winamp_debug` build clean; flash usage
+actually *dropped* slightly overall (Nixie's smaller luminance bake more
+than offset the new theme-cycling code). `run/check` 6/6 pass
+(settings-wiring gate: 49 fields, all wired).
+
+Registered at design time: `clock-themes-001` (feature_inventory.yaml,
+now `implemented`), `X036` (cross_feature_matrix.yaml, clock-themes-001
+↔ settings-001 dependency — the theme row's visibility depends on
+`clockStyle`).
+
+**Opened:** 2026-07-18 · **Closed:** 2026-07-18 · **Milestone:**
+M-CLOCK-STYLES (follow-on) · **Owner:** Architect (design) + Developer
+(implementation) · **Deps:** TASK-336, TASK-337, TASK-340 (built on the
+same session's Nixie/Flip/screendump work) · **Size:** L · **DUT:** y
+(8 theme renders captured and visually confirmed correct)

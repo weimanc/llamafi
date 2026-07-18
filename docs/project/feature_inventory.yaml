@@ -1880,3 +1880,37 @@ features:
       fallback at implementation. Sequence with or immediately after WIRE2 G4
       (coordination note, design §6). T-HOME-01..06 all PASS (suite fully
       dispositioned 2026-07-17 — see test_plan.md/cross_feature_matrix.yaml X035).
+
+  - id: clock-themes-001
+    name: Nixie + VFD colour theme picker
+    milestone: M-CLOCK-STYLES (follow-on)
+    status: implemented
+    description: |
+      Settings-exposed colour theme picker for Nixie (amber/red/green/blue)
+      and VFD (teal/amber/blue/green), both previously documented but never
+      built (M-CLOCK-NIXIE.md / M-CLOCK-VFD.md "Future/post-MVP" sections).
+      nixieTheme/vfdTheme AppSettings fields, appsSection.h conditional
+      settings row. Nixie re-bakes nixie_glyphs as luminance-only (uint8_t,
+      C_WIRE=white) + runtime per-theme tint (design doc's key decision —
+      51.6 KB flash flat regardless of theme count, vs. 4x the old 103.1 KB
+      single-theme bake if themes had been baked directly). VFD needed no
+      baking machinery, just three colour-derivation helpers reading the
+      active theme's C_ON.
+    git_ref: "TASK-345 (2026-07-18)"
+    files:
+      - app/tools/bake_nixie.py
+      - app/gen/nixie_glyphs.cpp
+      - app/gen/nixie_glyphs.h
+      - app/src/clockApp.h
+      - app/src/settingsStorage.h
+      - app/src/settingsStorage.cpp
+      - app/src/settings/appsSection.h
+      - app/src/main.cpp
+    cross_features: [clock-001, settings-001]
+    test_ids: []
+    notes: |
+      Design: docs/architecture/designs/M-CLOCK-THEMES.md (accepted).
+      Matrix edge X036. DUT-verified via screendump: all 4 Nixie themes +
+      all 4 VFD themes, pixel-correct. Also added `set nixieTheme`/
+      `set vfdTheme` SERIAL_DEBUG commands (main.cpp), same pattern as
+      `set clockStyle`, for DUT test convenience.

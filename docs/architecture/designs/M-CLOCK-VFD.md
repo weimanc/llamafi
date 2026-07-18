@@ -3,8 +3,12 @@
 > Owner: Architect  
 > Status: shipped (TASK-193, 2026-06-13 — `ClockApp::_drawVFD()` in
 > `app/src/clockApp.h`). Firmware ships a sharp-dots-only renderer (Option C
-> below) — no Gaussian bloom, single fixed teal palette, no theme picker. See
-> "Firmware reality" note in the Bloom parameters section.  
+> below) — no Gaussian bloom. See "Firmware reality" note in the Bloom
+> parameters section. **Colour theme picker shipped (TASK-345, 2026-07-18 —
+> `M-CLOCK-THEMES.md`)** — `vfdTheme` field, settings-exposed, ON/OFF/DATE
+> colours derived from the active theme's `C_ON` at runtime via this doc's
+> own formulas (`OFF = C_ON×0.06`, `DATE = C_ON×0.68`) instead of the
+> previous hardcoded teal-only constants.  
 > Date: 2026-06-13  
 > Part of: [M-CLOCK-STYLES.md](M-CLOCK-STYLES.md) — Style 3  
 > See also: [clock.md](M-MULTIAPP/clock.md), [M-SETTINGS-APP-WIRE.md](M-SETTINGS-APP-WIRE.md)
@@ -18,7 +22,7 @@
 | Host renderer | **Done** — `app/tools/_clock_vfd.py` (`VFDRenderer`) |
 | Preview tool | **Done** — `app/tools/preview_clock.py --style vfd` |
 | Glyph system | **Done** — Dexter v2 (`_dex()` + `_GLYPHS`); firmware uses the same Dexter v2 bitmaps via `kVFDGlyphs` in `clockApp.h` |
-| Colour themes | **Done in POC (host renderer only)** — 4 themes, `c` key cycles. **NOT implemented in firmware** — no `vfdTheme` field exists; see "Future / post-MVP" section below |
+| Colour themes | **Shipped (TASK-345, 2026-07-18)** — 4 themes, settings-exposed (`vfdTheme` field, Settings > Applications > Clock), DUT-verified. See "Theme picker — SHIPPED" section below. |
 | Firmware renderer | **Shipped** (TASK-193) — sharp-dots-only grid, no bloom pass (Option C of the three options below) |
 
 ---
@@ -257,44 +261,38 @@ Contrast modes (secondary setting, optional exposure):
 | high | 0.00 | Fully black gaps, maximum bloom drama |
 | low | 0.14 | Visible grid texture, less bloom drama |
 
-These themes and contrast modes exist only in `app/tools/_clock_vfd.py` /
-`preview_clock.py --style vfd`. Shipped firmware always renders the single
-fixed palette baked into `ClockApp::_drawVFD()` (`0x0022` bg, `0x069C` on,
-`0x0061` off, `0x0473` date text) — there is no per-theme or per-contrast-mode
-selection on device.
+Colour themes are shipped (TASK-345, 2026-07-18) — user-selectable via
+Settings > Applications > Clock, persisted, DUT-verified; `0x0022` bg
+stays fixed for all themes as this table always specified. Contrast
+modes were **not** exposed (see below) — standard (0.06) only, matching
+what was already baked into the pre-existing hardcoded constants.
 
 ---
 
-## Future / post-MVP — VFD colour theme picker (DOCUMENTED, NOT IMPLEMENTED)
+## Theme picker — SHIPPED (TASK-345, 2026-07-18)
 
-> **DOCUMENTED, NOT IMPLEMENTED — no firmware, no settings field.**
-> The section below describes a settings-exposed colour-theme picker that was
-> designed but never built. `app/src/settingsStorage.h` has no `vfdTheme`
-> field, and `app/src/settings/appsSection.h`'s Clock section exposes only a
-> single "Style" cycle row (Digital/Flip/Nixie/VFD) — no per-style theme row
-> exists for any style. Do not assume this works; do not implement it without
-> a new task. Retained here as a candidate post-MVP enhancement only.
+> **Implemented**, together with Nixie's (design:
+> `docs/architecture/designs/M-CLOCK-THEMES.md`). `app/src/settingsStorage.h`
+> has `vfdTheme` (`uint8_t`, default 0/teal, persisted). VFD needed no
+> baking machinery (`_drawVFD()` already drew flat runtime `fillRect`
+> colours) — just three small helper methods
+> (`_vfdOnColor()`/`_vfdOffColor()`/`_vfdDateColor()`) computing
+> `color565()` from the active theme's `C_ON` via this doc's own
+> `OFF = C_ON×0.06` / `DATE = C_ON×0.68` formulas, replacing the
+> hardcoded `0x069C`/`0x0061`/`0x0473` (which, decoded, turned out to be
+> exactly teal run through those same formulas — confirmed by hand before
+> this change, so the refactor is provably a no-op for the default theme).
 
-Colour theme would be exposed as a user-selectable option in Settings >
-Applications > Clock.
+Colour theme is exposed as a user-selectable option in Settings >
+Applications > Clock (second row, visible when `clockStyle == VFD`):
 
-Add to `AppSettings`:
 ```cpp
 uint8_t vfdTheme;   // 0=teal 1=amber 2=blue 3=green
 ```
 
-`appsSection.h` would cycle `vfdTheme` on tap (only visible when `clockStyle == VFD`):
-```cpp
-void _repaintVFDTheme() {
-    static const char* kT[] = { "teal","amber","blue","green" };
-    drawRow(S_CONTENT_Y + ROW_H, { "VFD Colour", kT[g_settings.vfdTheme % 4], S_LABEL, S_VALUE });
-}
-void _cycleVFDTheme() {
-    g_settings.vfdTheme = (g_settings.vfdTheme + 1) % 4;
-    saveSettings();
-    repaint();
-}
-```
+`appsSection.h`'s `_repaintClock()`/`_cycleClock()` handle this row (the
+same functions also handle Nixie's, generalized rather than duplicated —
+see `M-CLOCK-THEMES.md`'s "Lean / decision").
 
 Contrast mode is **not** exposed to the user. Ship standard mode only;
 revisit if there is feedback.

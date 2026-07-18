@@ -6,16 +6,18 @@
 #define NIXIE_GLYPH_W 48
 #define NIXIE_GLYPH_H 110
 
-extern const uint16_t nixie_glyph_0[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
-extern const uint16_t nixie_glyph_1[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
-extern const uint16_t nixie_glyph_2[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
-extern const uint16_t nixie_glyph_3[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
-extern const uint16_t nixie_glyph_4[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
-extern const uint16_t nixie_glyph_5[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
-extern const uint16_t nixie_glyph_6[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
-extern const uint16_t nixie_glyph_7[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
-extern const uint16_t nixie_glyph_8[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
-extern const uint16_t nixie_glyph_9[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
+// Luminance-only (0..255), NOT RGB565 — tinted per-theme at runtime,
+// see ClockApp::_tintNixieGlyph() in clockApp.h (M-CLOCK-THEMES).
+extern const uint8_t nixie_glyph_0[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
+extern const uint8_t nixie_glyph_1[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
+extern const uint8_t nixie_glyph_2[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
+extern const uint8_t nixie_glyph_3[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
+extern const uint8_t nixie_glyph_4[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
+extern const uint8_t nixie_glyph_5[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
+extern const uint8_t nixie_glyph_6[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
+extern const uint8_t nixie_glyph_7[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
+extern const uint8_t nixie_glyph_8[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
+extern const uint8_t nixie_glyph_9[NIXIE_GLYPH_W * NIXIE_GLYPH_H];
 
 // Indexed 0..9.
-extern const uint16_t* const nixie_glyph_ptrs[10];
+extern const uint8_t* const nixie_glyph_ptrs[10];

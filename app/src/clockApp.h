@@ -340,6 +340,40 @@ private:
     // pattern as the Flip clock's TASK-337 concept resync — was previously a
     // flatter 52x70/r26 shipped geometry, documented as a deliberate
     // deviation; that override is gone now (see M-CLOCK-NIXIE.md).
+    //
+    // Colour themes (M-CLOCK-THEMES, TASK-345): names/values copied verbatim
+    // from M-CLOCK-NIXIE.md's theme table. bake_nixie.py bakes luminance
+    // only (uint8_t, C_WIRE=white) — _tintNixieGlyph() reconstructs any
+    // theme's colour at runtime (color565(R*lum/255, G*lum/255, B*lum/255)),
+    // exact for the glyph/bloom/mesh layers (see bake_nixie.py docstring for
+    // the linearity argument and one documented near-invisible exception).
+    // Outline/pin-shadow colours stay fixed regardless of theme — the
+    // concept's _draw_tube() hardcodes those independent of C_WIRE too.
+    struct NixieTheme { const char* name; uint8_t r, g, b; };
+    static constexpr NixieTheme kNixieThemes[4] = {
+        { "amber", 255, 125,   8 },
+        { "red",   255,  45,  10 },
+        { "green",  50, 255,  80 },
+        { "blue",   70, 150, 255 },
+    };
+
+    // Tints `rows` rows starting at `rowStart` (band-wise, not the whole
+    // 48x110 tube at once — a full-tube uint16_t scratch buffer is 10.6 KB,
+    // enough to overflow this board's tight DRAM budget when added to the
+    // rest of the debug build's static buffers; bands keep it small, same
+    // pattern as screendump's kBandRows).
+    static void _tintNixieGlyph(uint8_t digit, int rowStart, int rows, uint16_t* out) {
+        const uint8_t* lum = nixie_glyph_ptrs[digit % 10] + (size_t)rowStart * NIXIE_GLYPH_W;
+        const NixieTheme& th = kNixieThemes[g_settings.nixieTheme % 4];
+        int n = rows * NIXIE_GLYPH_W;
+        for (int i = 0; i < n; i++) {
+            uint8_t l = lum[i];
+            out[i] = tft.color565((uint16_t)th.r * l / 255,
+                                   (uint16_t)th.g * l / 255,
+                                   (uint16_t)th.b * l / 255);
+        }
+    }
+
     void _drawNixie() {
         static const int kTx[4] = {24, 78, 148, 202};
         static const int kTy = 8, kTw = 48, kTh = 110, kTr = 18;
@@ -358,30 +392,46 @@ private:
         // Colon dots — round, with a poor-man's bloom (dim halo + bright
         // core, same trick the tube uses for its glow rings), matching the
         // concept's round glowing dot instead of the previous flat filled
-        // square. Colours are the wire amber C_WIRE=(255,125,8): halo is a
-        // ~30% scale (0x4920), core is full brightness (0xFBE1). Blinks at
-        // 0.5Hz (concept's smooth ramp/decay afterglow is a separate,
-        // deferred change — see M-CLOCK-NIXIE.md colon afterglow gap).
-        // Both circles are always redrawn (even "off", in black) so the
-        // previous frame's glow is fully erased regardless of state.
-        // X/Y match the concept's COLON_CX (gutter midpoint between H2 and
-        // M1) and TUBE_Y+TUBE_H/3, TUBE_Y+2*TUBE_H/3.
+        // square. Colour is the active theme's C_WIRE: halo ~30% scale,
+        // core full brightness. Blinks at 0.5Hz (concept's smooth
+        // ramp/decay afterglow is a separate, deferred change — see
+        // M-CLOCK-NIXIE.md colon afterglow gap). Both circles are always
+        // redrawn (even "off", in black) so the previous frame's glow is
+        // fully erased regardless of state. X/Y match the concept's
+        // COLON_CX (gutter midpoint between H2 and M1) and
+        // TUBE_Y+TUBE_H/3, TUBE_Y+2*TUBE_H/3.
+        const NixieTheme& theme = kNixieThemes[g_settings.nixieTheme % 4];
+        uint16_t coreFull = tft.color565(theme.r, theme.g, theme.b);
+        uint16_t haloDim  = tft.color565(theme.r * 3 / 10, theme.g * 3 / 10, theme.b * 3 / 10);
         bool colonOn = (t.tm_sec % 2 == 0);
-        uint16_t colonHalo = colonOn ? (uint16_t)0x4920 : TFT_BLACK;
-        uint16_t colonCore = colonOn ? (uint16_t)0xFBE1 : TFT_BLACK;
+        uint16_t colonHalo = colonOn ? haloDim : TFT_BLACK;
+        uint16_t colonCore = colonOn ? coreFull : TFT_BLACK;
         for (int cy : {kTy + kTh / 3, kTy + 2 * kTh / 3}) {
             tft.fillCircle(137, cy, 5, colonHalo);
             tft.fillCircle(137, cy, 2, colonCore);
         }
 
+        // Band scratch buffer — 10 rows at a time (110/10 = 11 bands per
+        // digit), 48*10*2 = 960 B. A full-tube buffer (10.3 KB) overflowed
+        // this board's tight DRAM budget; bands keep it small (same pattern
+        // as screendump's kBandRows).
+        static const int kTintBandRows = 5;
+        static uint16_t s_nixieTintBuf[NIXIE_GLYPH_W * kTintBandRows];
+
         for (int i = 0; i < 4; i++) {
             int tx = kTx[i], cx = tx + kTw / 2;
             // 1. Baked wire-glyph + hex-mesh + 3-pass-bloom sprite (TASK-336,
-            // app/tools/bake_nixie.py) — replaces the flat fillRoundRect+
-            // drawString the old steps 1+5 did. Flash-resident RGB565, zero
-            // extra RAM (ESP32 flash is memory-mapped, pushImage reads
-            // straight out of .rodata).
-            tft.pushImage(tx, kTy, kTw, kTh, nixie_glyph_ptrs[digs[i]]);
+            // app/tools/bake_nixie.py), tinted to the active theme at
+            // runtime (TASK-345, M-CLOCK-THEMES) — replaces the flat
+            // fillRoundRect+drawString the old steps 1+5 did. Bake is
+            // flash-resident, zero extra RAM (ESP32 flash is memory-mapped);
+            // the tint pass itself is the only new runtime cost, ~5.3K
+            // multiplies per digit redraw (not every tick — only on change).
+            for (int ry = 0; ry < kTh; ry += kTintBandRows) {
+                int rows = min(kTintBandRows, kTh - ry);
+                _tintNixieGlyph(digs[i], ry, rows, s_nixieTintBuf);
+                tft.pushImage(tx, kTy + ry, kTw, rows, s_nixieTintBuf);
+            }
             // 2. Glass outline — single subtle stroke matching the concept's
             // _draw_tube() exactly (outline=(50,22,5), width=1). Previously
             // three bright concentric rings (dark red / orange / amber) that
@@ -404,11 +454,28 @@ private:
     // Dot grid: 54 cols × 24 rows, TC=4px, TG=1px, GRID_X0=3, GRID_Y0=10
     // Glyph start cols (dot units): H1=2, H2=14, M1=29, M2=41
     // Colon: 2×2 dot block at rows 7-8 and 15-16, cols 26-27
-    // Palette (RGB565): BG=0x0022, ON=0x069C, OFF=0x0061, DATE=0x0473
+    // Palette (RGB565): BG=0x0022 fixed for all themes (M-CLOCK-VFD.md:
+    // "same for all themes"); ON/OFF/DATE derived from the active theme's
+    // C_ON at runtime (M-CLOCK-THEMES, TASK-345) via the doc's own formulas
+    // (OFF = C_ON x 0.06 "standard" contrast, DATE = C_ON x 0.68) — the old
+    // hardcoded 0x069C/0x0061/0x0473 were exactly teal (theme 0) run through
+    // these same formulas, confirmed by hand-decoding before this change.
+    struct VfdTheme { const char* name; uint8_t r, g, b; };
+    static constexpr VfdTheme kVfdThemes[4] = {
+        { "teal",   0, 210, 230 },
+        { "amber", 230, 160,   0 },
+        { "blue",   60, 120, 255 },
+        { "green",   0, 220,  80 },
+    };
+    uint16_t _vfdOnColor()   const { const VfdTheme& t = kVfdThemes[g_settings.vfdTheme % 4]; return tft.color565(t.r, t.g, t.b); }
+    uint16_t _vfdOffColor()  const { const VfdTheme& t = kVfdThemes[g_settings.vfdTheme % 4]; return tft.color565(t.r * 6 / 100, t.g * 6 / 100, t.b * 6 / 100); }
+    uint16_t _vfdDateColor() const { const VfdTheme& t = kVfdThemes[g_settings.vfdTheme % 4]; return tft.color565(t.r * 68 / 100, t.g * 68 / 100, t.b * 68 / 100); }
+
     // Redraw a single digit slot's 11×24 dot cells (glyph rows 1..22, plus
     // the always-off margin rows 0/23). Only called when that digit's value
     // actually changed — see delta-redraw note on _drawVFD().
     void _drawVFDDigitSlot(int d, uint8_t digitVal, uint8_t dcol) {
+        uint16_t onC = _vfdOnColor(), offC = _vfdOffColor();
         tft.startWrite();
         for (int r = 0; r < 24; r++) {
             int gr = r - 1; // GLYPH_ROW_OFFSET=1
@@ -418,7 +485,7 @@ private:
                     active = (kVFDGlyphs[digitVal][gr] >> (10 - gc)) & 1;
                 int px = 3 + (dcol + gc) * 5;
                 int py = 10 + r * 5;
-                tft.fillRect(px, py, 4, 4, active ? 0x069C : 0x0061);
+                tft.fillRect(px, py, 4, 4, active ? onC : offC);
             }
         }
         tft.endWrite();
@@ -427,7 +494,7 @@ private:
     // Redraw just the colon's 8 dot cells (cols 26-27, rows 7-8 & 15-16).
     // Only called when colon on/off state actually changed.
     void _drawVFDColon(bool colonOn) {
-        uint16_t color = colonOn ? 0x069C : 0x0061;
+        uint16_t color = colonOn ? _vfdOnColor() : _vfdOffColor();
         tft.startWrite();
         for (int c = 26; c <= 27; c++) {
             for (int r = 7; r <= 8; r++)
@@ -471,7 +538,7 @@ private:
         char dBuf[12];
         fmtDate(t, dBuf, sizeof(dBuf), '-');   // WIRE2-G3: VFD-only date line (W-10)
         tft.setTextSize(2);
-        tft.setTextColor(0x0473, 0x0022);
+        tft.setTextColor(_vfdDateColor(), 0x0022);
         tft.setTextDatum(MC_DATUM);
         tft.drawString(kDays[t.tm_wday], 137, 148, 1);
         tft.drawString(dBuf, 137, 166, 1);
@@ -479,3 +546,10 @@ private:
         tft.setTextDatum(TL_DATUM);
     }
 };
+
+// Out-of-class definitions for the static constexpr theme tables — required
+// pre-C++17 (this project targets gnu++11) whenever a static constexpr array
+// member is ODR-used, which binding `const NixieTheme& th = kNixieThemes[i]`
+// does. Safe here because clockApp.h has exactly one includer (main.cpp).
+constexpr ClockApp::NixieTheme ClockApp::kNixieThemes[4];
+constexpr ClockApp::VfdTheme ClockApp::kVfdThemes[4];

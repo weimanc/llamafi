@@ -724,3 +724,19 @@ interactions:
 #   risk: low | medium | high
 #   test_coverage: []     # test IDs from VE's test plan that cover this interaction
 #   notes: ""
+
+  - id: X036
+    feature_a: clock-themes-001
+    feature_b: settings-001
+    interaction_type: dependency
+    description: |
+      nixieTheme/vfdTheme live in AppSettings, only meaningful (and only shown
+      in the settings UI) while g_settings.clockStyle is Nixie or VFD
+      respectively — appsSection.h's _repaintClock()/_cycleClock() must read
+      clockStyle before deciding whether to draw/dispatch the theme row, same
+      pattern as every other style-conditional settings row in that file.
+    risk: low
+    test_coverage: []
+    notes: |
+      Reserved 2026-07-18 at design time (docs/architecture/designs/M-CLOCK-THEMES.md,
+      Architect registry remit). Status tracked via TASK-345 / clock-themes-001.

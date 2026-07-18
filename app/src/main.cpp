@@ -3521,6 +3521,28 @@ static void cmdSet(const char *args) {
                   "\"var\":\"clockStyle\",\"val\":%d,\"name\":\"%s\"}\n", idx, kSN[idx]);
     return;
   }
+  if (strcmp(var, "nixieTheme") == 0 || strcmp(var, "vfdTheme") == 0) {
+    // M-CLOCK-THEMES (TASK-345): same name/index tables as appsSection.h's
+    // cycle rows and the M-CLOCK-NIXIE.md/M-CLOCK-VFD.md theme tables.
+    bool isNixie = (strcmp(var, "nixieTheme") == 0);
+    static const char* kNixieN[] = {"amber","red","green","blue"};
+    static const char* kVfdN[]   = {"teal","amber","blue","green"};
+    const char** names = isNixie ? kNixieN : kVfdN;
+    int idx = -1;
+    for (int i = 0; i < 4; i++) if (strcmp(val, names[i]) == 0) { idx = i; break; }
+    if (idx < 0) { if (sscanf(val, "%d", &idx) != 1 || idx < 0 || idx > 3) idx = -1; }
+    if (idx < 0) {
+      Serial.printf("{\"ok\":false,\"cmd\":\"set\",\"error\":\"bad val — use 0-3 or %s/%s/%s/%s\"}\n",
+                    names[0], names[1], names[2], names[3]);
+      return;
+    }
+    if (isNixie) g_settings.nixieTheme = (uint8_t)idx; else g_settings.vfdTheme = (uint8_t)idx;
+    SettingsStorage::save();
+    if (currentAppId == AppId::Clock) g_ClockApp.resume();
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"%s\",\"val\":%d,\"name\":\"%s\"}\n",
+                  var, idx, names[idx]);
+    return;
+  }
   if (strcmp(var, "playerMode") == 0) {   // TASK-260 (VE: agent-driven persist/boot tests)
     int idx = -1;
     if      (strcasecmp(val, "spotify")  == 0) idx = 0;

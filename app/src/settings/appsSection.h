@@ -367,15 +367,33 @@ private:
         saveSettings(); repaint();
     }
 
+    // Colour theme row — visible only for Nixie/VFD, the two styles that
+    // have themes (M-CLOCK-THEMES, TASK-345). Name lists copied verbatim
+    // from M-CLOCK-NIXIE.md / M-CLOCK-VFD.md's theme tables — those docs are
+    // the source of truth for names/order, not re-derived here.
     void _repaintClock() {
         static const char* kS[] = { "digital", "flip", "nixie", "vfd" };
         uint8_t cs = (uint8_t)settings().clockStyle % 4;
         drawRow(S_CONTENT_Y, { "Style", kS[cs], S_LABEL, S_VALUE });
+        if (settings().clockStyle == ClockStyle::Nixie) {
+            static const char* kNixieT[] = { "amber", "red", "green", "blue" };
+            drawRow(S_CONTENT_Y + S_ROW_H, { "Colour", kNixieT[settings().nixieTheme % 4], S_LABEL, S_VALUE });
+        } else if (settings().clockStyle == ClockStyle::VFD) {
+            static const char* kVfdT[] = { "teal", "amber", "blue", "green" };
+            drawRow(S_CONTENT_Y + S_ROW_H, { "Colour", kVfdT[settings().vfdTheme % 4], S_LABEL, S_VALUE });
+        }
     }
 
     void _cycleClock(int row) {
-        if (row != 0) return;
-        settings().clockStyle = (ClockStyle)(((uint8_t)settings().clockStyle + 1) % 4);
+        if (row == 0) {
+            settings().clockStyle = (ClockStyle)(((uint8_t)settings().clockStyle + 1) % 4);
+        } else if (row == 1 && settings().clockStyle == ClockStyle::Nixie) {
+            settings().nixieTheme = (settings().nixieTheme + 1) % 4;
+        } else if (row == 1 && settings().clockStyle == ClockStyle::VFD) {
+            settings().vfdTheme = (settings().vfdTheme + 1) % 4;
+        } else {
+            return;
+        }
         saveSettings();
         repaint();
     }

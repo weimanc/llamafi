@@ -90,6 +90,8 @@ static void applyDefaults() {
 
     // Clock
     g_settings.clockStyle = ClockStyle::Digital;
+    g_settings.nixieTheme = 0;  // amber
+    g_settings.vfdTheme   = 0;  // teal
 
     // Player slot (M-PLAYER-STATE / TASK-260)
     g_settings.playerMode = (uint8_t)PlayerMode::Spotify;
@@ -268,6 +270,8 @@ void SettingsStorage::load() {
     if (doc.containsKey("clock")) {
         auto ck = doc["clock"];
         if (ck.containsKey("style")) g_settings.clockStyle = strToEnum<ClockStyle>(ck["style"] | "digital", kClockStyleStr, ClockStyle::Digital);
+        if (ck.containsKey("nixieTheme")) g_settings.nixieTheme = (uint8_t)(ck["nixieTheme"] | 0) % 4;
+        if (ck.containsKey("vfdTheme"))   g_settings.vfdTheme   = (uint8_t)(ck["vfdTheme"]   | 0) % 4;
     }
 
     // Player slot (M-PLAYER-STATE / TASK-260): top-level object — the mode spans both
@@ -445,6 +449,8 @@ void SettingsStorage::save() {
 
     auto ck = doc.createNestedObject("clock");
     ck["style"] = kClockStyleStr[(uint8_t)g_settings.clockStyle];
+    ck["nixieTheme"] = g_settings.nixieTheme;
+    ck["vfdTheme"]   = g_settings.vfdTheme;
 
     // Player slot (M-PLAYER-STATE / TASK-260)
     doc.createNestedObject("player")["mode"] = g_settings.playerMode;

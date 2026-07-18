@@ -14,8 +14,10 @@
 > reality" note after the tube geometry section for the full history (it
 > used to be a flatter shipped-only 52×70/r26, explicitly documented as
 > "don't fix without a design pass"; that pass happened, same pattern as
-> the Flip clock's TASK-337). Colour themes and colon afterglow are still
-> host-renderer-only (unchanged, see table below).  
+> the Flip clock's TASK-337). **Colour theme picker shipped (TASK-345,
+> 2026-07-18 — `M-CLOCK-THEMES.md`)** — bake changed to luminance-only,
+> tinted per-theme at runtime; settings-exposed. Colon afterglow (the
+> ramp/decay animation, not the theme colour) is still host-renderer-only.
 > Date: 2026-06-14 (last updated 2026-07-18)  
 > Part of: [M-CLOCK-STYLES.md](M-CLOCK-STYLES.md) — Style 2  
 > See also: [clock.md](M-MULTIAPP/clock.md), [M-SETTINGS-APP-WIRE.md](M-SETTINGS-APP-WIRE.md)
@@ -30,7 +32,7 @@
 | Host renderer | **Done** — `app/tools/_clock_nixie.py` (`NixieRenderer`) |
 | Preview tool | **Done** — `app/tools/preview_clock.py --style nixie` |
 | Glyph system | **Done, shipped (TASK-336), resynced to concept geometry same day** — wire-glyph + bloom baked to a flash sprite (`bake_nixie.py`, 103.1 KB, 10 digits × 48×110 RGB565 — was 71.1 KB at 52×70 before the resync) and `pushImage()`d at runtime. Ghost cathodes remain host-renderer-only (off by default, not baked). |
-| Colour themes | **Done in POC (host renderer only)** — 4 themes, `c` key cycles. **NOT implemented in firmware** — single fixed amber bake, no `nixieTheme` field; see "Settings wiring" below. |
+| Colour themes | **Shipped (TASK-345, 2026-07-18)** — 4 themes, settings-exposed (`nixieTheme` field, Settings > Applications > Clock), DUT-verified. See "Theme picker — SHIPPED" section below. |
 | Colon afterglow | **Done (host renderer only)** — 1 Hz blink, 80 ms ramp-up, 500 ms exponential decay. Firmware colon is now round with a soft dim-halo + bright-core glow (resynced 2026-07-18, was a flat filled square with no glow), still a plain on/off blink rather than the ramp/decay — the smooth afterglow animation itself remains a separate, deferred change (needs the same tick-gate rework as Flip's colon disc). |
 | Clock/date layout | Tube layout now matches this doc exactly (resynced 2026-07-18) — date position (`_drawDate()`) is shared across all clock styles and was not part of this resync |
 | Firmware renderer | **Shipped (TASK-193), upgraded (TASK-336), tube outline + colon + pin marks resynced to concept (2026-07-18)** — bloom/mesh/wire-glyph pipeline ships via baked sprite; glass outline is now a single subtle stroke (was three bright concentric "glow ring" strokes, much more prominent than the concept); pin marks moved below the tube (were overlapping the glass) and recoloured to the concept's near-black; colon is round with a soft glow (was a flat square). All still cheap runtime primitives, correctly so — baking 1-2px strokes would cost flash for no gain. |
@@ -323,33 +325,42 @@ C_TUBE_BG = (max(C_WIRE[0]×0.02, 5), C_WIRE[1]×0.015, C_WIRE[2]×0.01)
            ≈ (5, 2, 0) for amber default
 ```
 
-These four themes exist only in `app/tools/_clock_nixie.py` /
-`preview_clock.py --style nixie`. Shipped firmware always renders the single
-fixed Nixie palette baked into `ClockApp::_drawNixie()` (warm orange glow
-colours `0x8000`/`0xFC00`/`0xFE60`) — there is no per-theme selection on
-device.
+All four themes are shipped (TASK-345, 2026-07-18) — user-selectable via
+Settings > Applications > Clock, persisted, DUT-verified. See "Theme
+picker — SHIPPED" below for how (luminance-only bake + runtime tint).
 
 ---
 
-## Future / post-MVP — theme picker (DOCUMENTED, NOT IMPLEMENTED)
+## Theme picker — SHIPPED (TASK-345, 2026-07-18)
 
-> **DOCUMENTED, NOT IMPLEMENTED — no firmware, no settings field.**
-> The section below describes a settings-exposed colour-theme picker that was
-> designed but never built. `app/src/settingsStorage.h` has no `nixieTheme`
-> field, and `app/src/settings/appsSection.h`'s Clock section exposes only a
-> single "Style" cycle row (Digital/Flip/Nixie/VFD) — no per-style theme row
-> exists for any style. Do not assume this works; do not implement it without
-> a new task. Retained here as a candidate post-MVP enhancement only.
+> **Implemented.** `app/src/settingsStorage.h` has `nixieTheme` (`uint8_t`,
+> default 0/amber, persisted to SPIFFS). `app/src/settings/appsSection.h`'s
+> Clock section shows a second "Colour" row, visible only when
+> `clockStyle == Nixie`, cycling through the four themes below on tap.
+> Design: `docs/architecture/designs/M-CLOCK-THEMES.md` — the interesting
+> part is how the bake pipeline supports 4 themes at **less** flash than the
+> old single-theme bake: `bake_nixie.py` now bakes **luminance only**
+> (`uint8_t`, `C_WIRE=white`, 51.6 KB total vs. the old single-theme RGB565
+> bake's 103.1 KB), and `ClockApp::_tintNixieGlyph()` reconstructs any
+> theme's exact colour at runtime (`color565(R*lum/255, G*lum/255,
+> B*lum/255)`) — exact, not approximate, because every colour source in this
+> doc's render pipeline (mesh, background, wire glyph, all three bloom
+> passes) is a pure per-channel scalar of `C_WIRE`, and Gaussian blur +
+> scalar multiply commute. Runtime cost is a ~5.3K-multiply tint pass per
+> digit redraw (only on digit change, band-processed 5 rows at a time —
+> 48x110 KB in RAM overflowed this board's DRAM budget as one buffer).
+> DUT-verified via `screendump` for all 4 themes — pixel-exact renders,
+> confirmed the linearity argument empirically as well as mathematically.
 
-Colour theme would be exposed in Settings > Applications > Clock
-(visible when `clockStyle == Nixie`):
+Colour theme is exposed in Settings > Applications > Clock (visible when
+`clockStyle == Nixie`):
 
 ```cpp
 uint8_t nixieTheme;  // 0=amber 1=red 2=green 3=blue
 ```
 
-`appsSection.h` would cycle `nixieTheme` on tap, same pattern as the
-(also not implemented) `vfdTheme`.
+`appsSection.h` cycles `nixieTheme` on tap (second row, only when
+`clockStyle == Nixie`), same function also handles `vfdTheme` for VFD.
 
 ---
 

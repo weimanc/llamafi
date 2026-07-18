@@ -104,6 +104,8 @@ struct AppSettings {
 
     // --- Clock ---
     ClockStyle clockStyle;   // Digital / Flip / Nixie / VFD
+    uint8_t    nixieTheme;   // 0=amber 1=red 2=green 3=blue (M-CLOCK-THEMES)
+    uint8_t    vfdTheme;     // 0=teal 1=amber 2=blue 3=green (M-CLOCK-THEMES)
 
     // --- Player slot (M-PLAYER-STATE / TASK-260) ---
     // The Winamp "player" slot is one slot with two mutually-exclusive modes. Persisted
