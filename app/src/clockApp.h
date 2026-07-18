@@ -6,6 +6,7 @@
 #include "appShell.h"
 #include "settingsStorage.h"
 #include "util/timeFmt.h"   // WIRE2-G2/G3: clockHour/clockAmPm/fmtDate
+#include "gen/nixie_glyphs.h"   // TASK-336: baked wire-glyph+bloom sprites (bake_nixie.py)
 #include <WiFi.h>
 #include <time.h>
 #include <math.h>
@@ -57,6 +58,10 @@ private:
     // W-6 erase-gating cache (Digital): last rendered hour string + AM/PM ptr.
     char          _lastHourStr[4] = "";
     const char*   _lastAmPm       = nullptr;
+    // VFD delta-redraw cache: sentinel values force a full draw on first tick
+    // after repaint() (style switch / resume).
+    uint8_t       _vfdDigs[4]     = {0xFF, 0xFF, 0xFF, 0xFF};
+    int8_t        _vfdColonOn     = -1;
 
     bool _anyFlipActive() const {
         for (int i = 0; i < 4; i++) if (_fd[i].frame > 0) return true;
@@ -74,6 +79,8 @@ private:
                 break;
             case ClockStyle::VFD:
                 tft.fillRect(0, 0, TASKBAR_X, 240, 0x0022);
+                memset(_vfdDigs, 0xFF, sizeof(_vfdDigs));
+                _vfdColonOn = -1;
                 break;
             default: // Digital
                 tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK);
@@ -183,22 +190,27 @@ private:
     // ── Flip ────────────────────────────────────────────────────────────────
     // Panel layout: 4 panels at kFpX[], y=kFpY, w=kFpW, h=kFpH
     // Split at y=kFpY+kFpMid; gap=kFpGap; corner radius=kFpR
-    // Colour palette from M-CLOCK-FLIP.md parameter table
-    static constexpr int     kFpY    = 14;
-    static constexpr int     kFpW    = 46;
-    static constexpr int     kFpH    = 62;
-    static constexpr int     kFpMid  = 30;  // top-half height in px
+    // Geometry + colour palette resynced to the concept tool
+    // (app/tools/_clock_flip.py / preview_clock.py) per TASK-337 follow-up —
+    // flat card faces (no luminance-ramp gradient) + a 3-tone hinge bevel
+    // instead, matching the concept's _draw_card() pipeline.
+    static constexpr int     kFpY    = 8;
+    static constexpr int     kFpW    = 56;
+    static constexpr int     kFpH    = 78;
+    static constexpr int     kFpMid  = 38;  // top-half height in px
     static constexpr int     kFpGap  = 2;   // split-line gap
-    static constexpr int     kFpR    = 5;
-    static constexpr uint16_t kFpBgTop  = 0x2945;
-    static constexpr uint16_t kFpBgBot  = 0x18C3;
-    static constexpr uint16_t kFpDigit  = 0xFFF0;
-    static constexpr uint16_t kFpSplit  = 0x0861;
-    static constexpr uint16_t kFpBorder = 0x4208;
-    static constexpr uint16_t kFpBody   = 0x1082;
+    static constexpr int     kFpR    = 6;
+    static constexpr uint16_t kFpBgTop        = 0x31A7;  // concept C_TOP    (55,55,62)
+    static constexpr uint16_t kFpBgBot        = 0x2945;  // concept C_BOT    (40,40,46)
+    static constexpr uint16_t kFpDigit        = 0xF79D;  // concept C_TEXT   (242,242,235)
+    static constexpr uint16_t kFpSplitEdgeTop = 0x1082;  // concept (18,18,20) — shadow at base of top flap
+    static constexpr uint16_t kFpSplitGap     = 0x0020;  // concept (5,5,6)   — groove fill
+    static constexpr uint16_t kFpSplitEdgeBot = 0x4A4A;  // concept (72,72,84) — highlight at crown of bottom
+    static constexpr uint16_t kFpBorder       = 0x4A4B;  // concept C_OUTLINE (75,75,88)
+    static constexpr uint16_t kFpBody         = 0x0841;  // concept housing bg (10,10,12)
 
     void _drawFlip() {
-        static const int kFpX[4] = {10, 60, 130, 180};
+        static const int kFpX[4] = {13, 73, 147, 207};
         struct tm t; if (!getLocalTime(&t)) return;
         uint8_t hh = clockHour(t);   // WIRE2-G2: digit pair stays two digits ("09")
         uint8_t newDig[4] = {
@@ -214,10 +226,19 @@ private:
             }
         }
         // Clock body background
-        tft.fillRect(5, 5, 265, 80, kFpBody);
-        // Colon dots — static, no blink (M-CLOCK-FLIP.md)
-        tft.fillRect(118, kFpY + 12, 5, 5, kFpDigit);
-        tft.fillRect(118, kFpY + 36, 5, 5, kFpDigit);
+        tft.fillRect(5, 4, 265, 86, kFpBody);
+        // Colon — round flip-dots, 1Hz blink (was: static squares, never blinked).
+        // M-CLOCK-FLIP.md specs an animated 45deg-rotating disc at 500ms on/off;
+        // that needs the tick gate to run at <=500ms even when no digit is
+        // flipping (currently 1000ms) — out of scope for this pass, deferred.
+        // This still fixes "never blinks at all" with the existing 1Hz cadence
+        // Digital already uses (t.tm_sec parity), just via fillCircle instead
+        // of fillRect for a rounder, more dot-like face.
+        // X/Y/radius match the concept's colon geometry (_COLON_CX/_COLON_Y1/Y2/DOT_R).
+        bool colonOn = (t.tm_sec % 2 == 0);
+        uint16_t colonC = colonOn ? kFpDigit : (uint16_t)0x2104;
+        tft.fillCircle(138, kFpY + 19, 5, colonC);
+        tft.fillCircle(138, kFpY + 59, 5, colonC);
         // Draw and advance each panel
         for (int i = 0; i < 4; i++) {
             _drawFlipPanel(kFpX[i]);
@@ -236,13 +257,16 @@ private:
     // flap is anchored at split line, extends upward by fh pixels.
     void _drawFlipPanel(int px) {
         // Determine which digit index this px belongs to
-        static const int kFpX[4] = {10, 60, 130, 180};
+        static const int kFpX[4] = {13, 73, 147, 207};
         int pi = 0;
         for (int i = 0; i < 4; i++) if (kFpX[i] == px) { pi = i; break; }
 
-        static const uint8_t kFlapH[5] = {30, 24, 10, 10, 24}; // frame 0..4
+        // Flap-height sequence rescaled from the concept's own frame table
+        // (38,27,14,4,38 @ CARD_HALF_H=38) to this panel's kFpMid — same
+        // proportions, same 5-frame cadence already tuned/approved.
+        static const uint8_t kFlapH[5] = {38, 30, 13, 13, 30}; // frame 0..4
         FlipDigit& fd  = _fd[pi];
-        int  fh        = fd.frame < 5 ? kFlapH[fd.frame] : 30;
+        int  fh        = fd.frame < 5 ? kFlapH[fd.frame] : kFpMid;
         bool isFalling = (fd.frame <= 2);
         int  cx        = px + kFpW / 2;
         int  mid_y     = kFpY + kFpMid;
@@ -251,26 +275,54 @@ private:
         uint8_t flapDig = isFalling ? fd.shown : fd.next;
         char fStr[2] = { (char)('0' + flapDig), '\0' };
         char bStr[2] = { (char)('0' + fd.botShown), '\0' };
-
-        // 1. Bottom plate — always shows botShown (new digit after switch)
-        tft.fillRect(px, mid_y + kFpGap, kFpW, kFpMid, kFpBgBot);
-        tft.setTextColor(kFpDigit, kFpBgBot);
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(bStr, cx, mid_y + kFpGap + kFpMid / 2, 4);
 
-        // 2. Flap background
+        // 1. Bottom plate — flat card colour (concept _clock_flip.py draws
+        // flat top/bottom halves, no luminance ramp), then glyph anchored at
+        // the shared split-line centre (mid_y), clipped to the bottom box via
+        // viewport. Both halves draw the SAME anchor point so together they
+        // read as one digit split in two, not two complete digits stacked
+        // (that was the original bug: each half centred the *full* glyph in
+        // its own box with no clip, so the whole digit rendered twice).
+        tft.fillRect(px, mid_y + kFpGap, kFpW, kFpMid, kFpBgBot);
+        // Falling-flap drop shadow: a shrinking pure-black band cast onto the
+        // bottom plate near the hinge while the flap is falling (concept:
+        // shadow_h = max(2, top_h/4), flat black — frames 1-2 only here;
+        // zero once the flap passes the midpoint or is stable).
+        if (isFalling && fd.frame > 0) {
+            int sh = max(2, fh / 4);
+            tft.fillRect(px, mid_y + kFpGap, kFpW, sh, TFT_BLACK);
+        }
+        // Text bg matches the flat bottom-card colour directly (no gradient
+        // band to track anymore).
+        tft.setViewport(px, mid_y + kFpGap, kFpW, kFpMid, false);
+        tft.setTextColor(kFpDigit, kFpBgBot);
+        tft.drawString(bStr, cx, mid_y, 6);
+        tft.resetViewport();
+
+        // 2. Flap background — flat card colour, same as concept's top half.
         tft.fillRect(px, mid_y - fh, kFpW, fh, kFpBgTop);
 
-        // 3. Flap digit (centered in full top half, clipped by overpainting)
+        // 3. Flap digit — same shared anchor (mid_y), clipped to the flap
+        // rect (which shrinks toward mid_y as fh decreases during the fall).
+        tft.setViewport(px, mid_y - fh, kFpW, fh, false);
         tft.setTextColor(kFpDigit, kFpBgTop);
-        tft.drawString(fStr, cx, kFpY + kFpMid / 2, 4);
+        tft.drawString(fStr, cx, mid_y, 6);
+        tft.resetViewport();
 
         // 4. Erase overflow above flap rect (reveals clock body colour)
         if (fh < kFpMid)
             tft.fillRect(px, kFpY, kFpW, kFpMid - fh, kFpBody);
 
-        // 5. Split line
-        tft.fillRect(px, mid_y, kFpW, kFpGap, kFpSplit);
+        // 5. Layered hinge bevel (concept's 3-tone split: shadow at the base
+        // of the top flap / dark groove / highlight at the crown of the
+        // bottom plate) — inset 1px in x so the card border's own left/right
+        // edge pixels aren't part of this fill (border is redrawn last anyway
+        // since the plate fills above are full-width and would otherwise
+        // paint over it, but keeping this inset mirrors the concept exactly).
+        tft.fillRect(px + 1, mid_y - 1,            kFpW - 2, 1,       kFpSplitEdgeTop);
+        tft.fillRect(px + 1, mid_y,                kFpW - 2, kFpGap,  kFpSplitGap);
+        tft.fillRect(px + 1, mid_y + kFpGap - 1,    kFpW - 2, 1,       kFpSplitEdgeBot);
 
         // 6. Panel border
         tft.drawRoundRect(px, kFpY, kFpW, kFpH, kFpR, kFpBorder);
@@ -300,19 +352,18 @@ private:
 
         for (int i = 0; i < 4; i++) {
             int tx = kTx[i], cx = tx + kTw / 2;
-            // 1. Black fill inside tube
-            tft.fillRoundRect(tx, kTy, kTw, kTh, kTr, TFT_BLACK);
+            // 1. Baked wire-glyph + hex-mesh + 3-pass-bloom sprite (TASK-336,
+            // app/tools/bake_nixie.py) — replaces the flat fillRoundRect+
+            // drawString the old steps 1+5 did. Flash-resident RGB565, zero
+            // extra RAM (ESP32 flash is memory-mapped, pushImage reads
+            // straight out of .rodata).
+            tft.pushImage(tx, kTy, kTw, kTh, nixie_glyph_ptrs[digs[i]]);
             // 2. Outer glow
             tft.drawRoundRect(tx - 2, kTy - 2, kTw + 4, kTh + 4, kTr + 1, 0x8000);
             // 3. Inner glow
             tft.drawRoundRect(tx - 1, kTy - 1, kTw + 2, kTh + 2, kTr, 0xFC00);
             // 4. Tube border
             tft.drawRoundRect(tx, kTy, kTw, kTh, kTr, 0xFE60);
-            // 5. Digit
-            char buf[2] = { (char)('0' + digs[i]), '\0' };
-            tft.setTextDatum(MC_DATUM);
-            tft.setTextColor(TFT_WHITE, TFT_BLACK);
-            tft.drawString(buf, cx, kTy + kTh / 2, 4);
             // 6. Pin shadows
             tft.fillRect(cx - 8, kTy + kTh - 3, 4, 4, 0x2104);
             tft.fillRect(cx + 4, kTy + kTh - 3, 4, 4, 0x2104);
@@ -325,6 +376,45 @@ private:
     // Glyph start cols (dot units): H1=2, H2=14, M1=29, M2=41
     // Colon: 2×2 dot block at rows 7-8 and 15-16, cols 26-27
     // Palette (RGB565): BG=0x0022, ON=0x069C, OFF=0x0061, DATE=0x0473
+    // Redraw a single digit slot's 11×24 dot cells (glyph rows 1..22, plus
+    // the always-off margin rows 0/23). Only called when that digit's value
+    // actually changed — see delta-redraw note on _drawVFD().
+    void _drawVFDDigitSlot(int d, uint8_t digitVal, uint8_t dcol) {
+        tft.startWrite();
+        for (int r = 0; r < 24; r++) {
+            int gr = r - 1; // GLYPH_ROW_OFFSET=1
+            for (int gc = 0; gc < 11; gc++) {
+                bool active = false;
+                if (gr >= 0 && gr < 22)
+                    active = (kVFDGlyphs[digitVal][gr] >> (10 - gc)) & 1;
+                int px = 3 + (dcol + gc) * 5;
+                int py = 10 + r * 5;
+                tft.fillRect(px, py, 4, 4, active ? 0x069C : 0x0061);
+            }
+        }
+        tft.endWrite();
+    }
+
+    // Redraw just the colon's 8 dot cells (cols 26-27, rows 7-8 & 15-16).
+    // Only called when colon on/off state actually changed.
+    void _drawVFDColon(bool colonOn) {
+        uint16_t color = colonOn ? 0x069C : 0x0061;
+        tft.startWrite();
+        for (int c = 26; c <= 27; c++) {
+            for (int r = 7; r <= 8; r++)
+                tft.fillRect(3 + c * 5, 10 + r * 5, 4, 4, color);
+            for (int r = 15; r <= 16; r++)
+                tft.fillRect(3 + c * 5, 10 + r * 5, 4, 4, color);
+        }
+        tft.endWrite();
+    }
+
+    // Delta redraw: the full-grid fillRect + full 1296-cell repaint every
+    // 1 s tick (tied to the colon blink period, since that's the only thing
+    // that changes most seconds) caused a visible whole-screen flicker.
+    // Cache last-drawn digit values + colon state; only repaint the cells
+    // that actually changed. Digit slots change at most once/minute; colon
+    // toggles once/second but is only 8 cells.
     void _drawVFD() {
         static const uint8_t kDCol[4] = {2, 14, 29, 41}; // glyph start dot-col
 
@@ -336,38 +426,16 @@ private:
         };
         bool colonOn = (t.tm_sec % 2 == 0);
 
-        tft.fillRect(0, 0, TASKBAR_X, 240, 0x0022);
-
-        tft.startWrite();
-        for (int r = 0; r < 24; r++) {
-            for (int c = 0; c < 54; c++) {
-                int px = 3 + c * 5;
-                int py = 10 + r * 5;
-                uint16_t color = 0x0022; // BG — skip unless it's a dot cell
-
-                // Check digit glyph slots
-                for (int d = 0; d < 4; d++) {
-                    int gc = c - kDCol[d];
-                    if (gc >= 0 && gc < 11) {
-                        int gr = r - 1; // GLYPH_ROW_OFFSET=1
-                        bool active = false;
-                        if (gr >= 0 && gr < 22)
-                            active = (kVFDGlyphs[digs[d]][gr] >> (10 - gc)) & 1;
-                        color = active ? 0x069C : 0x0061;
-                        break;
-                    }
-                }
-                // Colon dots (rows 7-8 and 15-16, dot cols 26-27)
-                if ((c == 26 || c == 27) &&
-                    ((r >= 7 && r <= 8) || (r >= 15 && r <= 16))) {
-                    color = colonOn ? 0x069C : 0x0061;
-                }
-
-                if (color != 0x0022)
-                    tft.fillRect(px, py, 4, 4, color);
+        for (int d = 0; d < 4; d++) {
+            if (digs[d] != _vfdDigs[d]) {
+                _drawVFDDigitSlot(d, digs[d], kDCol[d]);
+                _vfdDigs[d] = digs[d];
             }
         }
-        tft.endWrite();
+        if ((int8_t)colonOn != _vfdColonOn) {
+            _drawVFDColon(colonOn);
+            _vfdColonOn = (int8_t)colonOn;
+        }
 
         // Date below digit block (y≈141 per approved constants)
         static const char* kDays[] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};

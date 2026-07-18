@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# run/screendump — pull an exact DUT screenshot (not a human eyeball) via the
+# SERIAL_DEBUG `screendump` command. Requires debug firmware (./run/flash-debug).
+#
+# Usage:
+#   ./run/screendump                              # full 320x240 -> /tmp/screendump.png
+#   ./run/screendump -o /tmp/clock.png             # custom output path
+#   ./run/screendump -x 0 -y 0 -w 275 -h 240 -o /tmp/canvas.png   # app canvas only
+#
+# Kills the tmux serial monitor before running (port must be free), restores
+# it after — same lifecycle as run/flash and run/spiffs.
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+
+_MONITOR_KILLED=0
+_cleanup() {
+  [ "$_MONITOR_KILLED" = "1" ] && _start_monitor_local || true
+}
+trap '_cleanup' EXIT
+
+_start_monitor_local() {
+  PORT="$(resolve_port)"
+  tmux new-session -d -s "$SESSION" \
+    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'"
+}
+
+if tmux has-session -t "$SESSION" 2>/dev/null; then
+  tmux kill-session -t "$SESSION"
+  sleep 1
+  _MONITOR_KILLED=1
+fi
+
+echo "[screendump] reading DUT screen…"
+"$VENV_PY" "$PIO_DIR/tools/screendump.py" "$@"
+echo "[screendump] done"

@@ -1716,3 +1716,266 @@ as the historical stopgap).
 **Opened:** 2026-07-18 · **Closed:** 2026-07-18 · **Milestone:**
 M-ICON-PIXELART (hygiene tail) · **Owner:** Developer · **Deps:** — ·
 **Size:** S · **DUT:** n (`--export` round-trip byte-identity gate PASS)
+
+---
+
+### TASK-336 — Nixie clock: bake wire-glyph + hex-mesh + 3-pass-bloom sprite pipeline
+
+M-CLOCK-NIXIE.md documented the gap since TASK-193: shipped `_drawNixie()`
+was a flat `drawRoundRect` outline + plain `tft.drawString` digit — none
+of the wire-glyph/hex-mesh/bloom pipeline `_clock_nixie.py` already
+implements for the host preview tool. TFT_eSPI has no Gaussian blur, so
+the fix reuses the pattern already proven for the Winamp skin
+(`bake_skin.py`) and taskbar icons (`gen_taskbar_icons.py`): render the
+expensive part on the host with PIL, bake to a flash-resident RGB565 C
+array, `pushImage()` it at runtime.
+
+New `app/tools/bake_nixie.py` reuses `_clock_nixie.py`'s bloom renderer
+verbatim (same math as the host preview tool, so they can't drift) but
+targets the **shipped** firmware tube geometry (52×70, r26 —
+`ClockApp::_drawNixie` `kTw/kTh/kTr`), not the old concept-doc geometry
+(48×110, r18) `_clock_nixie.py`'s own constants still use. Outputs
+`app/gen/nixie_glyphs.cpp/.h` (10 digits × 52×70×2B = 71.1 KB flash, zero
+extra RAM — ESP32 flash is memory-mapped, `pushImage` reads straight out
+of `.rodata`). `_drawNixie()` step 1+5 (black fill + plain digit text)
+replaced with one `pushImage()` call; glass outline/glow strokes/pin
+shadows stay as cheap runtime primitives (baking those would cost flash
+for no visual gain — they're just 1-2px strokes, not gradients).
+
+**Status:** DONE — 2026-07-18. Flash 67.3%→70.0% (both debug and
+production envs rebuild clean under budget). DUT-confirmed correct
+(warm amber wire-glow, hex mesh visible) **by human eyeball** — the
+`screendump` tool's own capture of this exact screen is colour-wrong
+(TASK-340), so automated verification wasn't possible; a person at the
+physical device confirmed it matches the host bake preview
+(`app/tools/icon_drafts/NIXIE_SHEET.png`).
+**Opened:** 2026-07-18 · **Closed:** 2026-07-18 · **Milestone:**
+M-CLOCK-STYLES (follow-on) · **Owner:** Developer · **Deps:** — ·
+**Size:** M · **DUT:** y (human eyeball; screendump unusable, see TASK-340)
+
+---
+
+### TASK-337 — Flip clock: fix duplicate-digit render bug + Phase 2 visual polish
+
+User report: "each digit on the DUT is shown twice." Root cause:
+`_drawFlipPanel()` centred the **full** digit glyph independently in
+each half-card's own 30px box (`MC_DATUM` at each box's own local
+centre), with no clipping — since font 4 fits inside 30px without visual
+cropping, the complete digit rendered whole in both the top and bottom
+card. Fix: both halves now draw the SAME glyph anchored at the shared
+split-line centre (`mid_y`) via `tft.setViewport(..., false)` — each
+half is clipped to show only its physical half of one glyph, which is
+what a real split-flap card does (top card = upper half of the numeral,
+bottom card = lower half, meeting at the hinge).
+
+Bundled Phase 2 polish (M-CLOCK-FLIP.md spec, previously undelivered
+per that doc's "shipped" notes): 4-stop luminance-ramp gradient on each
+card face (brightest at the outer edge, dimmest at the hinge — `M-CLOCK-FLIP.md`'s
+"amplitude ≤15%, edges inward"); a shrinking drop-shadow cast on the
+bottom plate during the falling-flap animation frames; round blinking
+colon dots at 1Hz (was: static squares, per the doc's own admission
+"no rotation, no blink, no ON/OFF cadence" — this uses the existing 1s
+tick cadence rather than the doc's spec'd 500ms animated-disc version,
+which would need a tick-gate architecture change, out of scope here).
+Per human feedback the digit font was also swapped 4→6 (26px→48px, the
+same bold font Digital style uses) — fits within the 62px combined card
+height with margin to spare.
+
+**Status:** PARTIAL. Dupe-digit fix: DONE, DUT-confirmed. Gradient/
+shadow/colon polish (first pass): DONE and DUT-confirmed pixel-exact for
+colour (2026-07-18, post-TASK-340 fix) — but then **superseded same
+day** by a follow-up pass (below) after a side-by-side against the
+`preview_clock.py` concept tool showed the concept never used a
+gradient at all (flat card colours + a 3-tone hinge bevel instead). User
+directed "match the DUT to the concept" over keeping the
+already-verified gradient.
+
+**Follow-up pass (2026-07-18, same day):** removed the 4-stop gradient
+and `_scaleColor565`/`_fpGradientFill` entirely; replaced with the
+concept's flat `BG_TOP`/`BG_BOT` fills + 3-tone hinge bevel
+(shadow/groove/highlight). Resynced panel geometry to the concept's
+exact pixel constants (`kFpW` 46→56, `kFpH` 62→78, `kFpMid` 30→38, `kFpR`
+5→6, panel x-positions `{10,60,130,180}`→`{13,73,147,207}`, colon
+recentred to the concept's gutter midpoint). Digit colour switched
+amber→warm-white (`0xFFF0`→`0xF79D`, concept's `C_TEXT`). Flap-height
+frame table and falling-flap shadow formula rescaled/rederived to match
+(shadow now flat black via `max(2,flap_h/4)`, per the concept and per
+this doc's own original shadow spec — the gradient-era shadow had
+drifted from that). DUT-verified pixel-exact via `screendump`: 7/7
+sampled points (housing bg, flat top/bottom card fill, all 3 bevel
+rows, border) matched the new firmware constants exactly. Side-by-side
+screenshot vs. the concept confirmed close visual parity. Production
+firmware reflashed after verification.
+`docs/architecture/designs/M-CLOCK-FLIP.md` updated to match (Parameters
+table, static-render pipeline, frame table, status header) — see that
+doc's 2026-07-18 changelog entry for full detail.
+
+Font-6 swap (from the original TASK-337 pass, unaffected by this
+follow-up): DUT-confirmed "bigger and thicker" by human eyeball, but
+flagged **"still needs adjustment"** with no specifics given yet —
+still open. The card resize in this follow-up pass may have already
+addressed it (bigger cards give the font-6 glyphs more room), but that
+needs the user to actually look at the new build before assuming it's
+resolved — don't close this without that confirmation.
+**Opened:** 2026-07-18 · **Milestone:** M-CLOCK-STYLES (follow-on) ·
+**Owner:** Developer · **Deps:** — · **Size:** M · **DUT:** y (partial —
+font sizing confirmation pending)
+
+---
+
+### TASK-338 — VFD clock: fix full-canvas flicker tied to the colon blink
+
+User report: "annoying screen refresh... tied to `:`." Root cause:
+`_drawVFD()` did a full 275×240 `fillRect` clear **and** a full
+54×24-cell redraw (1296 `fillRect` calls) on every 1000ms tick — not
+just when the colon toggled, which happens to share the same 1s period,
+making the two look linked. Fix: cache last-drawn digit values +
+colon on/off state (same W-6 erase-gating pattern already used by
+Digital style); only repaint a digit slot's cells when that digit's
+value actually changes (~once/minute) and only repaint the colon's 8
+cells when its state changes (~once/second) — removed the unconditional
+full-canvas clear entirely (only needed once, in `repaint()`, on style
+switch).
+
+**Status:** DONE — code-verified (the root cause, an unconditional
+full-redraw every tick, is structurally eliminated; delta-redraw is a
+mechanical fix, not a judgement call). **Not re-confirmed live on DUT
+this session** — flicker is a temporal artifact a still screenshot
+can't prove either way, and the session moved on to other work before
+circling back for a live glance. Low risk, but flag for a quick visual
+check next time someone's at the device.
+**Opened:** 2026-07-18 · **Closed:** 2026-07-18 · **Milestone:**
+M-CLOCK-STYLES (follow-on) · **Owner:** Developer · **Deps:** — ·
+**Size:** S · **DUT:** n (structural fix; live re-confirmation pending)
+
+---
+
+### TASK-339 — SERIAL_DEBUG `screendump` command + host tool + TWDT-panic fix
+
+New capability, built to close the "I have to be the feedback loop"
+problem raised mid-session: `tft.readRect()` GRAM readback (MISO wired
+on this board — `TFT_MISO=12`, `SPI_READ_FREQUENCY=20000000` in
+`app/platformio.ini` — previously unused anywhere in this codebase)
+streamed out as base64 RGB565 bands over serial via a new `screendump`
+debug command; `app/tools/screendump.py` (+ `run/screendump` wrapper)
+reassembles bands into a PNG host-side. Lets structural/content DUT
+state get verified without a human at the physical screen.
+
+**Bug found + fixed:** `cmdScreenDump()` blocked synchronously for
+~18s per full-canvas dump (30 bands × ~590ms of `Serial.write` at
+115200 baud) without feeding the loop task's watchdog
+(`esp_task_wdt_init(15, true)`, 15s **panic** timeout, `main.cpp`
+`setup()`) — it panicked and hard-reset the device mid-capture on
+nearly every dump. The host kept reading serial output straight through
+the reboot with no way to detect it, silently capturing whatever the
+fresh boot's default screen (WebRadio) showed instead of the requested
+one — diagnosed via a coherent, fully-legible "wrong app" capture with
+no `[shell] leaving/entered` log anywhere near it, plus two back-to-back
+captures of a static screen differing by 94% of pixels. Fixed:
+`esp_task_wdt_reset()` once per band (same pattern as TASK-288). Verified:
+post-fix back-to-back diff dropped to 0.24% (160/66000 px — just the
+colon blink), phantom-frame captures gone.
+
+Also handled: cross-task Serial-write interleaving (spotifyTask/dataTask
+log lines with no mutex guarding raw `Serial` writes across tasks) can
+corrupt a band's base64 mid-transmission; `dump_with_retry()` detects a
+malformed band and re-requests just that sub-region rather than the
+whole dump.
+
+New build env `cyd2usb_winamp_debug_noSpotify` (`-DDISABLE_SPOTIFY` on
+top of `cyd2usb_winamp_debug`) for quiet DUT iteration — debug-only,
+not a production variant, not on any `rnd/` branch (just a local dev
+convenience, reuses the existing TASK-255 flag).
+
+**Status:** DONE for structural/content capture — reliable, verified.
+Colour capture is a **separate, unresolved** bug — see TASK-340. Do not
+trust `screendump` colours for anything with a gradient or bloom until
+that closes; flat/simple-palette content is fine.
+**Opened:** 2026-07-18 · **Closed:** 2026-07-18 (structural scope only)
+· **Milestone:** — (tooling) · **Owner:** Developer · **Deps:** — ·
+**Size:** M · **DUT:** y
+
+---
+
+### TASK-340 — [CLOSED] `screendump` colour-readback bug: `tft.readRect()` returns wrong colours for non-flat content
+
+Standalone hardware/firmware investigation, spun out of TASK-339/336.
+**Never blocked any clock-style work** — TASK-336/337/338 were all
+already DUT-confirmed correct by human eyeball; only the `screendump`
+tool's own colour channel was wrong, discovered because it made
+Nixie's baked amber bloom look like a hollow green outline when the
+physical device showed correct amber.
+
+**Root cause — two compounding bugs, found via the task's own
+suggested "systematic palette sweep" experiment, run through a new
+`colorprobe` SERIAL_DEBUG command (`app/src/main.cpp` `cmdColorProbe`,
+~line 3706):**
+
+1. **Real bug (software, always present):** `tft.readRect()` (vendored
+   `TFT_eSPI.cpp` ~line 1412-1413) deliberately returns each pixel
+   *byte-swapped* — the comment right there says why: "Swapped colour
+   byte order for compatibility with `pushRect()`", so a captured
+   buffer can be fed straight back into `pushRect()` with no
+   correction. `cmdScreenDump()` streamed that swapped buffer raw, and
+   because a 5-6-5 field layout doesn't align on byte boundaries, a
+   plain byte-swap of it does **not** look like a clean channel
+   permutation when decoded with the standard bit-shifts — it looks
+   like scrambled noise (exactly what the original 5-point probe
+   found, e.g. green `(0,255,0)` → `(0,129,8)`). This is why manual
+   inspection never spotted "it's just byteswap()" — the corruption
+   pattern from a mid-field byte swap doesn't read as one.
+2. **Confounding bug (hardware/timing, was masking #1):**
+   `SPI_READ_FREQUENCY=20000000` (`app/platformio.ini`) was genuinely
+   unreliable on this board — actual bit errors on the MISO read at
+   20MHz, not a deterministic transform. This is why earlier ad-hoc
+   probing (at 20MHz) never found *any* clean formula, permutation or
+   otherwise: the raw signal itself was noisy, so there was no clean
+   transform to find until the read was made reliable.
+
+**How isolated:** `colorprobe` fills/pushes 25 known RGB565 values
+(16 via `fillRect` — exercises write+read together; 9 via `pushRect`
+with raw words like `0xDEAD`/`0xBEEF` — exercises a pure write/read
+round trip, bypassing colour semantics entirely) and reads each back
+raw via `tft.readRect()`, printing expected vs. actual as JSON. At the
+original 20MHz: 0/25 matched any clean transform. At 1MHz: 25/25
+matched `actual == byteswap(expected)` exactly (push-probe values
+round-tripped byte-for-byte). At 2500000 (reusing the
+already-DUT-proven `SPI_TOUCH_FREQUENCY` value on this same board):
+25/25 clean again, confirmed on two independent runs — settled on
+2.5MHz as the fix (smaller change than 1MHz, same margin evidence).
+
+**Fix applied:**
+- `app/platformio.ini` (`common_cyd` `build_flags`): `SPI_READ_FREQUENCY`
+  20000000 → 2500000, with a comment recording the finding and pointing
+  at this task.
+- `app/src/main.cpp` `cmdScreenDump()` (~line 3697-3701): undoes
+  `readRect()`'s internal swap in-place on `s_band` before base64
+  encoding, so the stream this command emits is true RGB565 — no
+  change needed to `screendump.py`'s `rgb565_to_rgb888()`, which
+  already assumed standard (non-swapped) RGB565.
+- Kept `colorprobe` as a permanent SERIAL_DEBUG command (cheap,
+  registered in `kCmds[]` with a real help string like its siblings)
+  — useful if `SPI_READ_FREQUENCY` or the read path is ever touched
+  again.
+
+**DUT verification (2026-07-18, `cyd2usb_winamp_debug`):**
+1. `colorprobe` sweep at the fixed 2.5MHz: **25/25 clean**, confirmed
+   on two independent runs (`actual == byteswap(expected)` for fills,
+   `actual == expected` for raw pushes).
+2. Live `./run/screendump` of the Nixie clock (`switchApp 1` +
+   `set clockStyle nixie`): dumped PNG shows correct amber digits with
+   a clean glow bloom, **not** the previously-reported hollow green
+   outline. Numerically sampled the brightest digit pixel: **exact
+   match** to the task's own cited ground-truth peak, `(255, 210, 8)`,
+   with clean amber (no green) throughout the surrounding bloom.
+
+Production firmware (`cyd2usb_winamp`, which inherits the same
+`SPI_READ_FREQUENCY` fix from `common_cyd`) rebuilt and reflashed;
+monitor restored. Device confirmed booting normally post-flash.
+
+**Opened:** 2026-07-18 · **Closed:** 2026-07-18 · **Milestone:** —
+(tooling / hardware investigation) · **Owner:** unassigned (session
+agent) · **Deps:** — · **Size:** M (two-part root cause, one debug
+command, one platformio.ini flag, one firmware post-correction) ·
+**DUT:** y (colorprobe sweep 25/25 clean ×2 runs; live Nixie
+screendump visually + numerically confirmed correct)

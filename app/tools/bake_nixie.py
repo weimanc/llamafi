@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+"""bake_nixie.py — bake the Nixie clock's wire-glyph + bloom pipeline to flash.
+
+M-CLOCK-NIXIE.md documents the gap: shipped ClockApp::_drawNixie() draws a
+flat drawRoundRect outline + plain tft.drawString digit — none of the
+wire-glyph / hex-mesh / 3-pass-bloom pipeline _clock_nixie.py already
+implements for the host preview tool. TFT_eSPI has no Gaussian blur, so the
+fix is the same pattern already used for the Winamp skin (bake_skin.py) and
+taskbar icons (gen_taskbar_icons.py): render the expensive part on the host
+with PIL, bake it to a flash-resident RGB565 C array, pushImage() it at
+runtime. Zero extra RAM — ESP32 flash is memory-mapped, pushImage reads
+straight out of .rodata.
+
+Renders at the SHIPPED firmware tube geometry (52x70, r26 — ClockApp::_drawNixie
+kTw/kTh/kTr), NOT the old concept-doc geometry (48x110, r18) that
+_clock_nixie.py's TUBE_W/TUBE_H/TUBE_R constants still use — this bake
+targets what's actually on screen, not the abandoned Phase-0 layout.
+
+Only the glow CONTENT is baked (mesh + wire digit + bloom, clipped to the
+tube's rounded-rect mask). The glass outline, inner/outer glow strokes, and
+pin shadows stay as cheap runtime drawRoundRect/fillRect calls in
+_drawNixie() — baking those would cost flash for zero visual gain.
+
+Outputs:
+  app/gen/nixie_glyphs.cpp   — const uint16_t nixie_glyph_0..9[52*70]
+  app/gen/nixie_glyphs.h     — extern decls + nixie_glyph_ptrs[10]
+  app/tools/icon_drafts/NIXIE_SHEET.png  — host contact sheet (--sheet)
+
+Run:
+  ~/proj/esp/venv/bin/python3 app/tools/bake_nixie.py --sheet
+"""
+import argparse
+import sys
+import time as _time
+from pathlib import Path
+
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
+
+HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE))
+import _clock_nixie as nx
+
+# ── shipped firmware tube geometry (ClockApp::_drawNixie, clockApp.h) ───────
+# Deliberately NOT nx.TUBE_W/H/R — those are the old concept-doc values
+# (48x110, r18); firmware shipped a flatter 52x70, r26 (TASK-193 budget cut,
+# documented in M-CLOCK-NIXIE.md's "Firmware reality" note).
+TUBE_W = 52
+TUBE_H = 70
+TUBE_R = 26
+
+C_WIRE = (255, 125, 8)  # amber — matches firmware's fixed palette intent
+
+OUT_DIR = HERE.parent / "gen"
+SHEET_OUT = HERE / "icon_drafts" / "NIXIE_SHEET.png"
+
+
+def to_rgb565(r: int, g: int, b: int) -> int:
+    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+
+
+def _build_tube_mask() -> Image.Image:
+    mask = Image.new("L", (TUBE_W, TUBE_H), 0)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        [0, 0, TUBE_W - 1, TUBE_H - 1], radius=TUBE_R, fill=255)
+    return mask
+
+
+def render_digit(digit: int, mask: Image.Image) -> Image.Image:
+    """Mesh + wire glyph + 3-pass bloom, clipped to the tube mask. Reuses
+    _clock_nixie.py's bloom math verbatim (same renderer as the host preview
+    tool) so the baked sprite and the preview tool never drift apart."""
+    c_bg = tuple(max(int(v * 0.02), 3 if i == 0 else 0) for i, v in enumerate(C_WIRE))
+    mesh = nx._build_mesh(TUBE_W, TUBE_H, C_WIRE)
+
+    tube = Image.new("RGB", (TUBE_W, TUBE_H), c_bg)
+    tube = ImageChops.add(tube, mesh)
+
+    wire = Image.new("RGB", (TUBE_W, TUBE_H), (0, 0, 0))
+    renderer = nx.NixieRenderer()
+    # Scale the wire font to this tube's height (renderer's default 88pt was
+    # sized for the old 110px-tall concept tube; the shipped tube is 70px).
+    renderer._wire_size = int(88 * TUBE_H / nx.TUBE_H)
+    renderer._font_wire = nx._load_font(nx._WIRE_FONT_PATHS, renderer._wire_size)
+    renderer._draw_wire_digit(wire, digit, C_WIRE)
+    bloom = renderer._make_bloom(wire)
+
+    tube = ImageChops.add(tube, ImageChops.add(bloom, wire))
+    tube.paste(Image.new("RGB", (TUBE_W, TUBE_H), (0, 0, 0)),
+               mask=ImageChops.invert(mask))
+    return tube
+
+
+def img_to_rgb565(img: Image.Image) -> list[int]:
+    return [to_rgb565(r, g, b) for r, g, b in img.getdata()]
+
+
+def format_array(name: str, data: list[int]) -> str:
+    lines = [f"const uint16_t {name}[{TUBE_W * TUBE_H}] = {{"]
+    for row in range(TUBE_H):
+        chunk = data[row * TUBE_W:(row + 1) * TUBE_W]
+        lines.append("    " + ", ".join(f"0x{v:04X}" for v in chunk) + ",")
+    lines.append("};")
+    return "\n".join(lines)
+
+
+def write_sheet(digit_imgs: list[Image.Image]) -> None:
+    scale = 4
+    pad = 8
+    cell_w, cell_h = TUBE_W * scale, TUBE_H * scale
+    sheet = Image.new("RGB", (10 * (cell_w + pad) + pad, cell_h + 2 * pad), (20, 20, 20))
+    for i, img in enumerate(digit_imgs):
+        big = img.resize((cell_w, cell_h), Image.NEAREST)
+        sheet.paste(big, (pad + i * (cell_w + pad), pad))
+    SHEET_OUT.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(SHEET_OUT)
+    print(f"Wrote {SHEET_OUT}")
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--sheet", action="store_true", help="also write NIXIE_SHEET.png")
+    ap.add_argument("--out-dir", default=str(OUT_DIR))
+    args = ap.parse_args()
+    out_dir = Path(args.out_dir)
+
+    mask = _build_tube_mask()
+    digit_imgs = [render_digit(d, mask) for d in range(10)]
+
+    cpp_lines = [
+        "// AUTO-GENERATED by tools/bake_nixie.py — do not edit by hand.",
+        "// Re-run: ~/proj/esp/venv/bin/python3 app/tools/bake_nixie.py",
+        '#include "nixie_glyphs.h"',
+        "",
+    ]
+    for d, img in enumerate(digit_imgs):
+        data = img_to_rgb565(img)
+        cpp_lines.append(format_array(f"nixie_glyph_{d}", data))
+        cpp_lines.append("")
+
+    h_lines = [
+        "// AUTO-GENERATED by tools/bake_nixie.py — do not edit by hand.",
+        "// Re-run: ~/proj/esp/venv/bin/python3 app/tools/bake_nixie.py",
+        "#pragma once",
+        "#include <stdint.h>",
+        "",
+        f"#define NIXIE_GLYPH_W {TUBE_W}",
+        f"#define NIXIE_GLYPH_H {TUBE_H}",
+        "",
+    ]
+    for d in range(10):
+        h_lines.append(f"extern const uint16_t nixie_glyph_{d}[NIXIE_GLYPH_W * NIXIE_GLYPH_H];")
+    h_lines.append("")
+    h_lines.append("// Indexed 0..9.")
+    h_lines.append("extern const uint16_t* const nixie_glyph_ptrs[10];")
+    h_lines.append("")
+
+    cpp_lines.append("const uint16_t* const nixie_glyph_ptrs[10] = {")
+    cpp_lines.append("    " + ", ".join(f"nixie_glyph_{d}" for d in range(10)) + ",")
+    cpp_lines.append("};")
+    cpp_lines.append("")
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    cpp_path = out_dir / "nixie_glyphs.cpp"
+    h_path = out_dir / "nixie_glyphs.h"
+    cpp_path.write_text("\n".join(cpp_lines))
+    h_path.write_text("\n".join(h_lines))
+    total_bytes = 10 * TUBE_W * TUBE_H * 2
+    print(f"Wrote {cpp_path} + {h_path} ({total_bytes} bytes / {total_bytes/1024:.1f} KB flash)")
+
+    if args.sheet:
+        write_sheet(digit_imgs)
+
+
+if __name__ == "__main__":
+    main()

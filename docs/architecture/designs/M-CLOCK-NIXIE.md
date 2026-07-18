@@ -1,14 +1,19 @@
 # M-CLOCK-NIXIE — Nixie Tube Clock Renderer Physics
 
 > Owner: Architect  
-> Status: shipped (TASK-193, 2026-06-13 — `ClockApp::_drawNixie()` in
-> `app/src/clockApp.h`). Firmware ships a simplified single-pass renderer:
-> flat tube fill + outer/inner glow outline + border + plain digit text + pin
-> shadows — **not** the wire-glyph / multi-pass-bloom / hex-mesh model
-> described below, and shipped tube geometry (52×70, r26) differs from the
-> Phase 0 approved values (48×110, r18). See "Firmware reality" note after
-> the tube geometry section.  
-> Date: 2026-06-14  
+> Status: shipped (TASK-193, 2026-06-13 — flat single-pass renderer);
+> **upgraded (TASK-336, 2026-07-18 — baked wire-glyph + hex-mesh +
+> 3-pass-bloom sprite)**. `ClockApp::_drawNixie()` in `app/src/clockApp.h`
+> now `pushImage()`s a flash-resident sprite baked by
+> `app/tools/bake_nixie.py`, which reuses this doc's / `_clock_nixie.py`'s
+> bloom pipeline **verbatim** — the wire-glyph/mesh/bloom model described
+> below IS what ships now, just pre-rendered to flash instead of drawn
+> live (TFT_eSPI has no Gaussian blur at runtime). Baked at the **shipped**
+> tube geometry (52×70, r26), not the Phase 0 concept values (48×110, r18)
+> — see "Firmware reality" note after the tube geometry section, updated
+> accordingly. Colour themes and colon afterglow are still host-renderer-only
+> (unchanged, see table below).  
+> Date: 2026-06-14 (last updated 2026-07-18)  
 > Part of: [M-CLOCK-STYLES.md](M-CLOCK-STYLES.md) — Style 2  
 > See also: [clock.md](M-MULTIAPP/clock.md), [M-SETTINGS-APP-WIRE.md](M-SETTINGS-APP-WIRE.md)
 
@@ -21,11 +26,11 @@
 | Concept analysis | **Done** — physics doc from `resource/nixieclock_concept.jpg.png` |
 | Host renderer | **Done** — `app/tools/_clock_nixie.py` (`NixieRenderer`) |
 | Preview tool | **Done** — `app/tools/preview_clock.py --style nixie` |
-| Glyph system | **Done (host renderer only)** — Roboto-Thin 88 pt; ghost cathodes implemented (off by default). Firmware uses plain `tft.drawString` digits, not the wire-glyph model. |
-| Colour themes | **Done in POC (host renderer only)** — 4 themes, `c` key cycles. **NOT implemented in firmware** — no `nixieTheme` field exists; see "Settings wiring" below. |
-| Colon afterglow | **Done (host renderer only)** — 1 Hz blink, 80 ms ramp-up, 500 ms exponential decay. Firmware colon is a plain 2-frame blink (on/off), no ramp or decay. |
+| Glyph system | **Done, shipped (TASK-336)** — wire-glyph + bloom baked to a flash sprite (`bake_nixie.py`, 71.1 KB, 10 digits × 52×70 RGB565) and `pushImage()`d at runtime. Ghost cathodes remain host-renderer-only (off by default, not baked). |
+| Colour themes | **Done in POC (host renderer only)** — 4 themes, `c` key cycles. **NOT implemented in firmware** — single fixed amber bake, no `nixieTheme` field; see "Settings wiring" below. |
+| Colon afterglow | **Done (host renderer only)** — 1 Hz blink, 80 ms ramp-up, 500 ms exponential decay. Firmware colon is still a plain 2-frame blink (on/off, unbaked — only the tube digits were baked), no ramp or decay. |
 | Clock/date layout | Superseded by shipped firmware layout — see "Firmware reality" note |
-| Firmware renderer | **Shipped** (TASK-193) — simplified single-pass version; bloom/mesh/wire-glyph pipeline below was not carried into firmware |
+| Firmware renderer | **Shipped (TASK-193), upgraded (TASK-336)** — bloom/mesh/wire-glyph pipeline now ships via baked sprite; tube glass outline/glow strokes/pin shadows remain cheap runtime primitives (unchanged, correctly so — baking 1-2px strokes would cost flash for no gain) |
 
 ---
 
@@ -519,19 +524,21 @@ The concept reference shows no explicit seconds indicator. Options:
 
 ---
 
-## Firmware renderer (Phase 3) — superseded by shipped TASK-193 implementation
+## Firmware renderer (Phase 3) — TASK-193 shipped the cheap version; TASK-336 shipped Option A
 
-> This section describes the bloom-pipeline options that were under
-> consideration for firmware. **None of them were taken.** TASK-193 shipped
-> `ClockApp::_drawNixie()` using a 4th, much cheaper approach not listed
-> here: per-tube `drawRoundRect` outer/inner glow outlines (2 strokes) plus a
-> plain `tft.drawString` digit and two small pin-shadow rects — no sprites,
-> no rings, no Gaussian blur, no flash cost. Retained below for historical
-> context / in case a higher-fidelity Nixie pass is revisited later.
+> This section originally described bloom-pipeline options considered for
+> firmware, none of which TASK-193 took (it shipped a 4th, cheaper approach:
+> outline strokes + plain text, no sprites). **TASK-336 (2026-07-18)
+> subsequently implemented Option A below** — pre-baked glyph sprites, single
+> theme (not the 4-theme/422KB version originally sized) — via
+> `app/tools/bake_nixie.py` → `app/gen/nixie_glyphs.cpp/.h`. Outer
+> bleed/glass outline/pin shadows stayed as cheap runtime draws exactly as
+> Option A always intended. Retained below for the original option analysis;
+> see TASK-336 in `docs/project/tasks.md` for what actually shipped.
 
 TFT_eSPI has no Gaussian blur. Three options were considered, same as VFD:
 
-### Option A — Pre-baked glyph sprites (recommended at the time; not used)
+### Option A — Pre-baked glyph sprites (recommended at the time; SHIPPED 2026-07-18, TASK-336)
 
 For each of the 10 digits × 4 colour themes: pre-compute a
 `uint16_t[]` sprite (48×90 px, RGB565) with all three bloom passes
@@ -540,8 +547,20 @@ burned in. Store in flash.
 Flash cost: 10 × 4 × 48 × 110 × 2 bytes = 422.4 KB.
 Acceptable with PSRAM; without PSRAM limit to active theme only (~42 KB).
 
+> **Shipped variant (TASK-336):** single amber theme only (no
+> `nixieTheme` picker — see "Future/post-MVP" above, still not
+> implemented), baked at the **shipped** tube geometry (52×70, not this
+> section's 48×110) — 10 × 52×70×2 bytes = **71.1 KB**, comfortably
+> under even this doc's single-theme estimate. No PSRAM needed at all:
+> ESP32 flash is memory-mapped, `pushImage()` reads the sprite straight
+> out of `.rodata` — zero RAM cost, not "~42 KB" as this section assumed.
+
 Outer bleed and glass outline are cheap runtime draws. Mesh texture
 is also cheap runtime (nested loop, no blur).
+
+> **Shipped variant:** mesh texture was baked INTO the sprite alongside
+> the wire glyph (not drawn separately at runtime) — simpler to bake once
+> than to layer a separate runtime mesh pass under a static sprite.
 
 ### Option B — Concentric ring approximation (not used)
 
@@ -549,16 +568,16 @@ After drawing the sharp wire glyph, draw the same glyph multiple times
 at increasing `drawRoundRect` / `drawLine` offsets with decreasing
 brightness. Three rings, O(digit_strokes × 3). Coarser but zero RAM.
 
-### Option C — Sharp wire only (closest in spirit to what shipped, but still not used as-is)
+### Option C — Sharp wire only (not used)
 
 Authenticate the thin-wire look without bloom. Works well if the
 hardware cannot afford Option A or B. The tube housing and mesh texture
 still distinguish this from the plain Digital style.
 
 **Decision (historical)**: defer to Phase 3. Option A preferred if PSRAM
-available. **Actual outcome (TASK-193):** none of A/B/C were implemented;
-firmware shipped the simpler outline+plain-text approach described in the
-note at the top of this section.
+available. **Actual outcome:** TASK-193 shipped none of A/B/C (simpler
+outline+plain-text approach); TASK-336 later shipped Option A as
+described above.
 
 ---
 
