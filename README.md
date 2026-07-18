@@ -14,7 +14,7 @@ The Spotify app renders a pixel-faithful Winamp 2.x skin on the CYD's 320×240 d
 
 ### Multi-app shell
 
-Eight more apps live alongside Spotify, switchable via a scrolling taskbar:
+Ten more apps live alongside Spotify, switchable via a scrolling taskbar:
 
 | App | What it does |
 |---|---|
@@ -25,7 +25,14 @@ Eight more apps live alongside Spotify, switchable via a scrolling taskbar:
 | **Matrix** | Matrix rain effect |
 | **Life** | Conway's Game of Life |
 | **Aquarium** | ASCII aquarium with fish, bubbles, and a crab |
+| **Teletext** | Live teletext pages, country-selectable, rendered in authentic blocky glory |
+| **PlaneRadar** | Live aircraft radar around a configurable location — ADS-B data via [adsb.fi](https://adsb.fi), saved location slots, range zoom |
 | **Settings** | On-device WiFi setup, display brightness, time zone, and more |
+
+Plus **WebRadio**: press the Winamp deck's eject button and the player flips
+from Spotify to internet radio ([radio-browser.info](https://www.radio-browser.info)
+directory, filterable by country and bitrate), played through the CYD's
+built-in DAC.
 
 ### Settings — on device, no portal
 
@@ -38,6 +45,7 @@ WiFi credentials and time zone are configured entirely on the device via touch. 
 - **[witnessmenow/Spotify-Diy-Thing](https://github.com/witnessmenow/Spotify-Diy-Thing)** — the base project this grew out of. Spotify Web API client, CYD display driver, and touch input all originate here.
 - **[Winamp 2.x skin format](https://skins.webamp.org)** — the Winamp Skin Museum and the webamp project were invaluable references for decoding the `.wsz` format and layout.
 - **[POWER-PILL/ASCII-Aquarium](https://github.com/POWER-PILL/ASCII-Aquarium)** — inspiration for the aquarium app.
+- **[MatixYo/ESP32-Plane-Radar](https://github.com/MatixYo/ESP32-Plane-Radar)** — inspiration for the PlaneRadar app.
 - **[Hacktuber](https://www.youtube.com/@Hacktuber)** — the multi-app shell concept originated from Hacktuber's [5in1 Cyber Deck for ESP32 CYD](https://youtu.be/qM6bYuTQb-I). The idea of running multiple apps on a single CYD device, switchable from a launcher, came directly from that project.
 
 ---
@@ -227,7 +235,7 @@ DUT safety automatically.
 | `./run/monitor-start` | Start serial monitor (tmux) |
 | `./run/monitor-read [N]` | Dump last N lines (default 200) |
 | `./run/monitor-stop` | Stop monitor |
-| `./run/check` | 5-gate build check (run before committing) |
+| `./run/check` | 6-gate build check (run before committing) |
 
 ---
 
