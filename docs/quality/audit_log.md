@@ -1598,8 +1598,8 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 4. **Deliberate fill-band outliers recorded in three places** (tasks.md close-outs, memory, bake WARNs): teletext 83% (square-glyph optical correction), aquarium 97% (wide-flat text fish) — so a future pass doesn't "fix" them.
 5. **PM state**: milestone NOT closed — TASK-333 (PlaneRadar re-author) open and unblocked; inherits the proven `gen_icon_natives.py` pipeline. Roadmap says exactly this; no premature close.
 
-**Actions assigned**: QM — LL-114 logged; BP candidate "visual-asset work: approval iterates on host contact sheets, single batched DUT flash carries the BP-048 eyeball" brought to human (promotion pending, per protocol). Developer — TASK-335. PM — none; bookkeeping current as of d87f5d0.
-**Resolution**: open until TASK-335 lands and the BP candidate gets a human verdict; TASK-333 tracked in roadmap as the milestone's last item.
+**Actions assigned**: QM — LL-114 logged; BP candidate "visual-asset work: approval iterates on host contact sheets, single batched DUT flash carries the BP-048 eyeball" brought to human. Developer — TASK-335. PM — none; bookkeeping current as of d87f5d0.
+**Resolution**: BP candidate **adopted same day as BP-051** (human, 2026-07-18). Remains open only for TASK-335; TASK-333 tracked in roadmap as the milestone's last item.
 
 ---
 

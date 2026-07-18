@@ -514,6 +514,14 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 **Rationale**: TASK-328's Settings widget kit closed out as "compile-proven via appsSection.h include, run/check 6/6 PASS" while the header had zero actual widget instantiations at that point — the claim was true but hollow. TASK-321, the kit's first real consumer, broke on ordinary-looking `SButton{a,b,c}` brace-init because `SButton`/`SSpinner` have default member initializers, which disqualifies them from aggregate status under `-std=gnu++11`. One real button constructed and drawn in TASK-328 itself would have caught this before it reached a consumer.  
 **Applies to**: Developer, QM (close-out review)
 
+### BP-051 — Visual-asset work iterates approval on host contact sheets; a single batched DUT flash carries the BP-048 eyeball gate
+
+**Adopted from**: M-ICON-PIXELART retrospective (2026-07-18 audit; companion to LL-114)
+**Date adopted**: 2026-07-18 (human)
+**Rule**: For work whose exit criteria are pixel-level assets (icons, skins, layout art): (1) all design/approval iteration happens on host-rendered contact sheets that show the **true shipped pixels** — rendered through the real bake pipeline (post-quantization, in simulated device context: real background, indicators, separators), not hand-approximated previews; (2) the human approves on the sheet BEFORE any asset lands in the source tree (`--install`-style gated copy, candidates live in a drafts dir); (3) the DUT is flashed **once per approved batch**, and that flash carries the BP-048 human-eyeball gate (host PNG ≠ TFT: RGB565 quantization, panel inversion, real backlight — the device look is still a named, blocking criterion; it just isn't the iteration loop). Preview tools used for this must obey LL-114: parse generated headers, render from the real source assets.
+**Rationale**: M-ICON-PIXELART TASK-332/334 — nine icon pairs went through three full human review rounds (size triage, shape/spacing critique, per-glyph fixes like the asterisk-eye amputation) entirely on `BAKED_SHEET.png`/`NATIVE_SHEET.png`, with exactly one production flash at the end; the DUT eyeball passed first try. Contrast the pre-ADR-051 workflow the milestone was opened to kill: bake-flash-squint loops where fill ratios and double-resample artifacts were discovered on the panel, one flash per guess.
+**Applies to**: Developer, VE (gate design), QM (close-out review)
+
 ---
 
 ## Candidates — proposed, pending human adoption
