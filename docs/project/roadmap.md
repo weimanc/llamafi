@@ -1169,7 +1169,14 @@ PROP-005, the registered RnD activity exploring *real* levels from the
 locally-decoded PCM (ADR-009's "no local audio" premise doesn't hold in
 radio mode).
 
-**Status:** scheduled (2026-07-18) — TASK-348/349/350 (production) +
+Item 5 (added same day): the main-window volume slider — complete but
+Spotify-only — gets a `volumeSink(pct)` seam (the coupling is two hard-coded
+`ACT_VOLUME` enqueues) so one drag state machine serves both modes; the
+WebRadio sink maps pct within the `wrEffectiveVolume()` ceiling (clamp
+semantics untouched) under the sanctioned audio-mutex control-call idiom,
+with `webRadioVolumePct` persisted via the coalesced suspend-save idiom.
+
+**Status:** scheduled (2026-07-18) — TASK-348/349/350/352 (production) +
 TASK-351 (RnD, `rnd/webradio-vis`, gated on the TASK-350 seam).
 **Deps:** M-WEBRADIO, ADR-018, ADR-009, TASK-278.
 **Design:** [M-WEBRADIO-WINAMP-UI.md](../architecture/designs/M-WEBRADIO-WINAMP-UI.md) ·

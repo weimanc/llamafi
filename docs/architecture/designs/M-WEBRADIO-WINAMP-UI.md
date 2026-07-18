@@ -1,11 +1,13 @@
 # Design — M-WEBRADIO-WINAMP-UI: skin-native country/time/vis in radio mode
 
 > Owner: Architect
-> Status: scheduled — designed 2026-07-18 (human request, 4 items), filed as
-> TASK-348/349/350 + PROP-005 (RnD). No ADR needed for items 1–3 (pure use of
-> existing skin surfaces); item 4's outcome may amend ADR-009.
+> Status: scheduled — designed 2026-07-18 (human request, 4 items; item 5
+> volume slider added same day), filed as TASK-348/349/350/352 + PROP-005
+> (RnD). No ADR needed for items 1–3/5 (pure use of existing skin surfaces);
+> item 4's outcome may amend ADR-009.
 > Deps: M-WEBRADIO (shipped), ADR-018 (PLEDIT chrome), ADR-009 (synthetic VU),
-> M-VIS (vis tap cycle), TASK-278 (pump-task read discipline)
+> M-VIS (vis tap cycle), TASK-278 (pump-task read discipline), ADR-035 /
+> M-TOUCH-CAPTURE (slider capture prior art), TASK-224 (volume ceiling)
 
 ## Intent (human, 2026-07-18)
 
@@ -20,6 +22,8 @@ and use the skin's own UI elements instead:
    Spotify synthetic vis (explicitly kept mock for now).
 4. An **RnD activity** is registered to explore real visualization from the
    WebRadio audio stream (→ PROP-005; separate doc, rnd branch).
+5. The main-window **volume slider** — Spotify-only today — controls WebRadio
+   volume, with the existing capture/render machinery reused, not duplicated.
 
 ## Item 1 — country code into the PLEDIT bottom bar (TASK-348)
 
@@ -113,6 +117,63 @@ Items 1–3 do not depend on it; item 3's refactor (caller-supplied
 levels seam) is deliberately the interface PROP-005 would feed real data
 into.
 
+## Item 5 — volume slider wired for WebRadio (TASK-352)
+
+**Today:** the slider is fully built and Spotify-only. `drawVolume(pct)`
+(28-keyframe VOLUME.BMP + knob, self-guarded) plus a complete drag gesture in
+`winampDisplay`'s `D_VOLUME_DRAG` state: capture, `volumeFromX()`, debounced
+mid-drag commits (`VOLUME_DRAG_DEBOUNCE_MS`), drag-end commit, optimistic
+hold (`optimisticVolumeUntilMs`), background-blit restore (`:153-156`).
+WebRadio has **no interactive volume at all** — `wrEffectiveVolume()` is a
+static ceiling (settings `webRadioMaxVolume` 1–21, soft-capped at 12 stock /
+21 with the HW mod, TASK-209/224) applied once per play.
+
+**Reuse analysis — what's shared vs. what's Spotify-coupled:**
+
+- Renderer, gesture state machine, debounce, optimistic hold: mode-agnostic
+  (operate in 0–100 pct). Reuse as-is.
+- The coupling is exactly **two hard-coded
+  `spotifyTask::enqueue(ACT_VOLUME, pct)` calls** (mid-drag `:381`, drag-end
+  `:361`). That is the seam.
+
+**Change — cut a volume sink seam, one state machine for both modes:**
+
+1. Replace the two enqueue calls with a `volumeSink(int pct)` indirection
+   (function pointer or small interface on `winampDisplay`, same shape as the
+   item-3 vu:: seam). Spotify wires the existing `ACT_VOLUME` enqueue —
+   behaviourally identical, same debounce cadence.
+2. WebRadio wires a sink that maps pct → hardware steps:
+   `vol = (pct * wrEffectiveVolume() + 50) / 100` — **the ceiling stays the
+   ceiling**; the slider scales *within* the safe range, so the TASK-209
+   HW-mod clamp and T_WR_VOL_03 semantics are untouched. Apply via the
+   sanctioned control-call pattern (`s_wrAudioMutex` take →
+   `s_wr_audio->setVolume()` → give — the `:321` idiom; `setVolume` is
+   already on the `:162` sanctioned-control-calls list). Mutex take in the
+   sink must be short-timeout, not `portMAX_DELAY` — a drag must never block
+   the UI task behind a busy pump (skip the step; the debounced next commit
+   lands it).
+3. Gesture routing: WebRadio's input path uses piecemeal `hitTest*Public`
+   calls, not `checkForInput` — expose the volume gesture as a public
+   capture entry (hit-test + Press/Move/Release forwarding into the same
+   `D_VOLUME_DRAG` machine) rather than duplicating the state machine in
+   `webRadioApp.h`. ADR-035/M-TOUCH-CAPTURE is the pattern reference.
+4. State: new `webRadioVolumePct` (0–100, default 100 = current behaviour:
+   full ceiling). Persist coalesced-on-suspend iff changed — the
+   `lastStation` idiom (ADR-050 rule 3). **ADR-050 static gate applies**: the
+   new AppSettings field needs load()+save()+runtime consumer or `run/check`
+   step 7 flags it. Applied at `_play()` (replacing the bare
+   `wrEffectiveVolume()` call) and on slider commit.
+5. Eject transitions: entering radio mode `drawVolume(webRadioVolumePct)`;
+   returning to Spotify, the existing snapshot-driven redraw restores the
+   Spotify pct. The `:153-156` background-blit restore re-renders
+   `lastVolumeRendered` and is mode-correct for free once each mode seeds it
+   on entry.
+
+Settings interaction, stated explicitly: `webRadioMaxVolume` (settings
+slider) remains the *ceiling*; the Winamp slider is the *session volume
+within it*. Raising the ceiling later does not retroactively boost a
+persisted 100% session — pct is relative, re-derived per commit.
+
 ## Verification sketch (VE to own)
 
 - **T_WRUI_01 (DUT):** country code renders in the PLEDIT bottom bar with
@@ -123,15 +184,26 @@ into.
 - **T_WRUI_03 (DUT):** vis animates while PLAYING, decays to idle on STOP
   (envelope's `!playing` decay); `get visMode` cycles in radio mode; eject
   back to Spotify → vis unaffected (wrapper regression check).
+- **T_WRUI_04 (DUT):** volume drag in radio mode — knob tracks, audible level
+  changes (or `get wrVolume` confirms the mapped step), value survives
+  suspend/resume (coalesced save), and `webRadioMaxVolume` ceiling is never
+  exceeded (extend T_WR_VOL_03's clamp assertions to the pct mapping).
+  Eject leg: Spotify slider still enqueues ACT_VOLUME with identical
+  debounce (regression on the sink seam).
 - Eyeball (BP-048): one screendump pass of the radio main window — digits,
-  bottom bar, vis all skin-correct.
-- Host: `preview_webradio.py` zone map updated; `run/check` full pass.
+  bottom bar, vis, volume knob all skin-correct.
+- Host: `preview_webradio.py` zone map updated; `run/check` full pass
+  (incl. step-7 settings-wiring gate for `webRadioVolumePct`).
 
 ## Effort / risk
 
-Items 1–2 small. Item 3 medium-small (the refactor touches the Spotify path —
-the wrapper must keep it behaviourally identical; T_WRUI_03's eject leg is
-the guard). Risk concentrates in pump-task read discipline (mitigated: reuse
-the existing timeout-take block, one take per tick) and in vis-tap routing
-inside WebRadio's input handler (fallback: ship without tap-cycle in radio
-mode, inherit whatever mode Spotify last set — still meets the ask).
+Items 1–2 small. Items 3 and 5 medium-small — both are the same move
+(cut a Spotify-coupled seam, keep the Spotify path behaviourally identical)
+and both carry an eject regression leg as the guard (T_WRUI_03 / _04).
+Risk concentrates in pump-task discipline (item 2/3: reuse the existing
+timeout-take read block; item 5: short-timeout mutex take in the volume
+sink, never portMAX_DELAY from the UI task) and in gesture routing inside
+WebRadio's piecemeal input path (item 3 fallback: ship without tap-cycle;
+item 5 has no fallback — the capture-entry exposure is the deliverable,
+duplicating the drag state machine is explicitly out per the reuse
+instruction).

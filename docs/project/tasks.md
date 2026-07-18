@@ -104,10 +104,10 @@ clock-faces session before touching `appRegistry.h`/regens (shared files)
 
 ## Open — M-WEBRADIO-WINAMP-UI (2026-07-18)
 
-Human request, 4 items. Design:
+Human request, 4 items + item 5 (volume slider) added same day. Design:
 [M-WEBRADIO-WINAMP-UI.md](../architecture/designs/M-WEBRADIO-WINAMP-UI.md) — consumer audit and
-per-item specifics live there; read it before implementing. Items 1–3 are production tasks;
-item 4 is RnD (PROP-005).
+per-item specifics live there; read it before implementing. Items 1–3 and 5 are production
+tasks; item 4 is RnD (PROP-005).
 
 ### TASK-348 — country code into the PLEDIT bottom bar
 
@@ -156,6 +156,26 @@ opening.
 
 **Owner:** R&D · **Deps:** TASK-350 (the vu:: seam) · **Gate:** EXP report + human review ·
 **Priority:** P3 · **Status:** open — schedule after TASK-350 lands
+
+### TASK-352 — wire the Winamp volume slider for WebRadio (reuse, don't duplicate)
+
+The slider machinery is complete and Spotify-only; the coupling is exactly two hard-coded
+`spotifyTask::enqueue(ACT_VOLUME, ...)` calls in the `D_VOLUME_DRAG` state
+(`winampDisplay.h:361/:381`). Scope per design item 5: (1) cut a `volumeSink(pct)` seam —
+Spotify wires the existing enqueue, behaviour identical; (2) WebRadio sink maps
+`pct → 0..wrEffectiveVolume()` (ceiling stays the ceiling — TASK-209/T_WR_VOL_03 clamp semantics
+untouched) and applies via the sanctioned `s_wrAudioMutex` control-call idiom with a
+**short-timeout take** (never portMAX_DELAY from the UI task; skip on busy, debounce re-lands
+it); (3) expose the drag capture as a public entry so WebRadio's piecemeal `hitTest*Public`
+input path drives the SAME state machine — duplicating it is explicitly out (human: "make sure
+code reuse is done"); (4) new `webRadioVolumePct` (default 100 = today's behaviour), coalesced
+suspend-save (lastStation idiom, ADR-050 rule 3), load/save/consumer for the step-7 wiring
+gate; (5) seed `drawVolume()` on eject transitions both ways. Test: T_WRUI_04 incl.
+Spotify-slider regression leg.
+
+**Owner:** Developer · **Deps:** none hard (independent of TASK-348/349/350; touches the same
+`webRadioApp.h` — coordinate merges) · **Gate:** `run/check` 7/7 + DUT + eyeball ·
+**Priority:** P2 · **Status:** open
 
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
