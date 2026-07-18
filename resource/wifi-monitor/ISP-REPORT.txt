@@ -1,0 +1,51 @@
+Subject: Velop MX5600 - 2.4 GHz radio keeps dropping out (intermittent, worst in the evenings)
+
+Hi,
+
+I have a recurring fault with my Linksys Velop MX5600 (model MX56HF, firmware
+1.0.2.216845, serial 66H10M22F02460). The 2.4 GHz radio goes off the air for a
+few seconds at a time, over and over. It is fine overnight but gets steadily
+worse through the day and is at its worst in the evening. Phones and other
+2.4 GHz devices keep dropping off the wifi because of it. The 5 GHz radio is not
+affected.
+
+Before contacting you I did some testing to rule out my own equipment. From a
+laptop a few metres from the router I ran repeated wifi scans (Linux, nmcli and
+iw) every couple of seconds and logged whether my 2.4 GHz network was visible.
+In the same scan I also logged how many neighbouring networks were visible, as a
+control. Every time my network disappeared, the neighbours' networks were still
+there - so the scan itself was working and the outage was my router, not my
+laptop or interference. I saw the same drops independently from a second device
+(a small ESP32 board) that logged the same timeouts.
+
+I logged this over several days (10 to 12 July) and it repeats the same way
+every day: quiet overnight, worse through the day, and worst in the evening.
+On 10 July alone I recorded 173 dropouts in about 20 hours. Rough rate by time
+of day:
+
+  overnight (02:00-07:00):  about 1 every 90 minutes
+  daytime   (09:00-11:00):  about 1 every 5-8 minutes
+  evening   (18:00-21:00):  about 1 every 2 minutes (peak 37 in one hour)
+
+Each dropout lasts a few seconds up to about half a minute (longest was ~28 s).
+Signal was strong the whole time (around -45 dBm), so this is not a range or
+coverage problem - the radio just stops transmitting for a few seconds and comes
+back. It is worst when the band is busiest (evenings), but the neighbouring
+networks stay visible right through each drop, so it is my radio going quiet,
+not general interference knocking everything out.
+
+I have already tried the obvious fixes without success: rebooted the router,
+pinned both the 2.4 and 5 GHz radios to fixed channels (so it is not auto-channel
+switching), and split the 2.4 GHz band onto its own SSID. These reduced the
+frequency but did not stop it.
+
+This looks like a firmware or hardware fault in the 2.4 GHz radio. Could you tell
+me whether this is a known issue on this model/firmware and whether there is a
+firmware update, or whether the unit needs replacing?
+
+I have the full timestamped logs if they are useful - the per-scan capture from
+the laptop (presence of my network vs neighbours, every ~2.5 s) and the capture
+from the second device. Happy to send them over.
+
+Thanks,
+[your name]

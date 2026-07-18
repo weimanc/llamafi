@@ -1564,6 +1564,25 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 
 ---
 
+### Audit — 2026-07-18 — M-PR-LOCATIONS + M-SETTINGS-STYLE milestone retrospective
+**Triggered by**: PM (bookkeeping close-out pass; milestones closed 2026-07-16, retro not yet logged)
+**Areas checked**:
+- [x] Process compliance vs the r2 panel-review actions (all blockers/majors folded pre-implementation)
+- [x] Deferred-item ledger discipline (LL-102 guard — every deferred DUT assert dispositioned BY NAME in TASK-324)
+- [x] tasks.md/roadmap status consistency at close
+- [x] Defects found during or adjacent to the milestone window
+
+**Findings**:
+1. **Process — green, best cycle to date.** Design r2 → 4-reviewer panel (unanimous PASS-with-actions) → blockers folded into r2 *before* code → preview-first eyeball gates (BP-048, TASK-316/317) froze layout before any C++ → per-task intermediate DUT smokes → one grouped VE gate (TASK-324). The LL-102 ledger held: every deferred assert was either run, cited from a named smoke, or explicitly re-deferred with a destination (TASK-318 -120 → M-CERT-ERRCODE; T232/233/246/247 → own suite).
+2. **Bookkeeping lag (this audit's trigger).** Roadmap said closed 2026-07-16 but seven task entries (TASK-319/320/321/322/323/325/328) still read "code landed / intermediate smoke" two days later — flipped to DONE in this pass. Minor; harmless because the TASK-324 gate entry carried the truth, but grep-for-open-status (the standing PM recall rule) would have miscounted open work.
+3. **Adjacent defects caught by milestone VE sessions, not by the milestone itself**: TASK-329 (settings JSON silent truncation — real data loss, recovered from session-start snapshot → BP-049 adopted) and TASK-330 (stale 26px tap-row formula in the shared test harness — same drift class as the e929792 prloc-smoke fix and the 801f378 coordinate-drift lesson). Both DONE and DUT-verified. Pattern worth noting: the app-list row compression (21px) has now bitten three separate host tools; any future settings-list geometry change must sweep *all* tap-injection helpers in one pass.
+4. **Toolchain lesson carried**: gnu++11 NSDMI-struct brace-init wall (found TASK-321, re-confirmed TASK-327 migration) — field-assignment idiom is the standing workaround.
+
+**Actions assigned**: PM — task statuses flipped, M-SETTINGS-STYLE roadmap entry added (done, was never stubbed) [this pass]. QM — BP candidate "new Settings UI = kit widgets only; hand-rolled buttons are a review flag" (from TASK-327) awaits human promotion decision. Developer — TASK-326 (mem_manifest backfill) is the next open item.
+**Resolution**: closed with this entry; no new tasks filed.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:

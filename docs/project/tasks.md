@@ -897,7 +897,7 @@ Developer · **Deps:** none · **Branch:** master
 
 ---
 
-## Open — M-PR-LOCATIONS (+ M-CERT-ERRCODE slice) — filed 2026-07-14 from panel-reviewed design r2
+## Done — M-PR-LOCATIONS (+ M-CERT-ERRCODE slice) — filed 2026-07-14, closed 2026-07-16 (TASK-324 gate; roadmap entry closed same day)
 
 > Source: `docs/architecture/designs/M-PR-LOCATIONS-location-presets.md` (r2) +
 > 4-reviewer panel (`M-PR-LOCATIONS-{DEV,VE,QM,PM}-review.md`, unanimous
@@ -1054,7 +1054,7 @@ call #3 — hooks land with the state they inspect): `get prloc`,
 `set prloc <i> <label> <lat> <lon>`, `set prloc active <i>` (the latter
 calls the shared `_setActiveLoc()` once TASK-323 lands; until then settings
 side only).
-**Status:** code landed, run/check 6/6; **intermediate DUT smoke PASS 2026-07-14** (migration seeded HOME from stored coords; slot set/get/active round-trip; reboot persistence; bad-index + long-label rejected) — `PrLocation prLocs[4]`/`prActiveLoc` added to
+**Status:** **DONE — closed 2026-07-16 with the TASK-324 gate (migration/persistence legs T_PRL_04/07).** Code landed, run/check 6/6; **intermediate DUT smoke PASS 2026-07-14** (migration seeded HOME from stored coords; slot set/get/active round-trip; reboot persistence; bad-index + long-label rejected) — `PrLocation prLocs[4]`/`prActiveLoc` added to
 `AppSettings`, load/save + DEV-PRL-6 migration-order-safe seeding wired in
 `settingsStorage.cpp`, `get prloc` / `set prloc <i> <label> <lat> <lon>` /
 `set prloc active <i>` (settings-side only, TODO(TASK-323) marks the
@@ -1071,7 +1071,7 @@ cross-sign comment; UA header; -96 GEOCODE_NO_MATCH; parse buffer sized
 from TASK-315 measurements. Bundled serialdbg: `set geocode <lat> <lon>` /
 `set geocode err <code>` with structural isolation (parked slot checked
 before real result; enqueue no-op while parked — TASK-276 lesson).
-**Status:** code landed 2026-07-14, run/check 6/6; **intermediate DUT smoke PASS 2026-07-14** (live Nominatim 2513AA→52.0795,4.3132 seq-matched; stub parked -96; enqueue no-op while parked). Landed: DATA_FETCH_GEOCODE + fetchGeocode()
+**Status:** **DONE — closed 2026-07-16 with the TASK-324 gate (live leg T_PRL_01b, failure paths T_PRL_03).** Code landed 2026-07-14, run/check 6/6; **intermediate DUT smoke PASS 2026-07-14** (live Nominatim 2513AA→52.0795,4.3132 seq-matched; stub parked -96; enqueue no-op while parked). Landed: DATA_FETCH_GEOCODE + fetchGeocode()
 (openHttps + NOMINATIM_ROOT_CA alias w/ cross-sign comment, mandatory UA,
 geoUrlEncode, 1 KB doc per probe measurement, -96 no-match + new -97
 parse-failed in httpErr); enqueueGeocode returns seq (pending-config-mux);
@@ -1098,7 +1098,7 @@ generic decoded-error path — the TASK-317 frames only eyeballed -96 (QM
 check-in 2026-07-14). Kit-fidelity check at acceptance: buttons must match
 the TASK-317 gate-approved PNGs (stacked, 40 px, delete disabled-not-absent
 on slot 0), checked against the PNGs, not re-derived from prose.
-**Status: code landed, run/check 6/6; intermediate DUT smoke PASS 2026-07-15**
+**Status: DONE — closed 2026-07-16 with the TASK-324 gate (T_PRL_01a cited from this smoke). Code landed, run/check 6/6; intermediate DUT smoke PASS 2026-07-15**
 (`app/tools/prloc_editor_smoke.py`, 14/14 — drives the real state machine via
 `tap`/`kbText`/`kbOk` touch+keyboard injection, not a synthetic harness:
 SlotList render+tap into an empty slot; EditLabel keyboard prefill/maxLen/
@@ -1173,7 +1173,7 @@ validation, same confirm screen. Isolates the "does KeyboardWidget need a
 numeric layout or does Full mode suffice" question (DEV minor: Full mode's
 decimal-point friction) — descope a new keyboard layout unless TASK-317
 prototyping proves it necessary.
-**Status: code landed, run/check 6/6; intermediate DUT smoke PASS 2026-07-16**
+**Status: DONE — closed 2026-07-16 with the TASK-324 gate (T_PRL_06 cited from this smoke). Code landed, run/check 6/6; intermediate DUT smoke PASS 2026-07-16**
 (`app/tools/prloc_manual_smoke.py`, 13/13). Three new `PrLocView` states —
 `ManualLat`, `ManualLon`, `ManualConfirm` — added alongside the TASK-321
 Lookup* states; both source paths now funnel through the same
@@ -1211,7 +1211,7 @@ two call sites — QM-1/BP-047): guard, write-through+save, reset
 `_repaintDisc()` (runways included — no separate `_drawRunways()`),
 re-enqueue. `enqueuePlaneRadar`/`PlaneRadarResult` gain the epoch byte;
 poll discards old-epoch results (VE-PRL-6, TASK-308/309 lineage).
-**Status:** code landed 2026-07-14, run/check 6/6 PASS. `planeRadarApp.h`:
+**Status:** **DONE — closed 2026-07-16 with the TASK-324 gate (T_PRL_02/05/09).** Code landed 2026-07-14, run/check 6/6 PASS. `planeRadarApp.h`:
 N^ marker removed; `_drawLocSlots()` renders the 4 label rows (font 1,
 box-variant highlight, frozen y68/94/120/146) from `_drawGridOnce()` and
 after every switch; public `_setActiveLoc(uint8_t slot)` is the single
@@ -1318,7 +1318,7 @@ not an archived tasks list, so the "leave archive alone" fallback didn't
 apply — no separate archived task entry for these tests was found).
 `./run/check` 6/6 PASS. DUT execution of T232/233/246/247 and the VE-PRL-1
 assert deferred to the grouped TASK-324 session.
-**Status:** code landed, run/check 6/6; **intermediate DUT smoke PASS 2026-07-14** (kbShow helper added; UpperAlpha filter+maxLen, Full-mode verbatim, submit/cancel callbacks fire, inactive after cancel) · **Opened:** 2026-07-14 · **Milestone:** M-SERIALDBG /
+**Status:** **DONE — closed 2026-07-16 with the TASK-324 gate** (kbText/kbOk/kbCancel exercised across every T_PRL_* editor leg; stock T232/233/246/247 handed back to their own suite per the ledger). Code landed, run/check 6/6; **intermediate DUT smoke PASS 2026-07-14** (kbShow helper added; UpperAlpha filter+maxLen, Full-mode verbatim, submit/cancel callbacks fire, inactive after cancel) · **Opened:** 2026-07-14 · **Milestone:** M-SERIALDBG /
 M-PR-LOCATIONS · **Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** y
 
 ---
@@ -1390,7 +1390,7 @@ API proven by the first consumer (TASK-321 location editor). Preview-tool
 note: `preview_prloc_editor.py` mirrors geometry by hand — keep its
 constants in one obvious block referencing this header until a shared
 constants export exists.
-**Status:** code landed 2026-07-14 (settings/settingsWidgets.h: SButton
+**Status:** **DONE — closed 2026-07-16**: API + visual contract proven by TASK-321 (first consumer, kit-fidelity check vs the gate PNGs) and the TASK-327 migration (all four legacy sites). Code landed 2026-07-14 (settings/settingsWidgets.h: SButton
 w/ Primary/Neutral/Danger/Disabled + shared 100ms flash, sButtonBar 1-3
 across @S_BTN_BAR_Y, sStackedBtnRect, SSpinner; S_BTN_H=40 per TASK-317
 gate; visual contract comment points at the frozen gate PNGs, QM note 10).

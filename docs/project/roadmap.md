@@ -1121,6 +1121,26 @@ unblocks parked stock editor tests)
 
 ---
 
+### M-SETTINGS-STYLE — Settings widget kit + style enforcement
+
+Human direction 2026-07-14 (at the TASK-317 eyeball gate): one common
+Settings button/spinner/confirm idiom instead of four hand-rolled sites.
+`settings/settingsWidgets.h` kit (SButton Primary/Neutral/Danger/Disabled,
+`sButtonBar`, `sStackedBtnRect`, `SSpinner`, S_BTN_H=40 per the approved
+TASK-317 frames), proven by the M-PR-LOCATIONS location editor as first
+consumer, then all legacy sites (wifiSection, ledSection, calibrationFlow,
+timeSection arrows) migrated onto it with per-section constants deleted.
+
+**Status:** **done 2026-07-16** — TASK-328 (kit) + TASK-327 (migration,
+DUT touch regression 6/6 + `settings_kit_smoke.py` 14/14). BP candidate
+pending at QM: "new Settings UI = kit widgets only; hand-rolled buttons are
+a review flag". wifiSection Result / calibrationFlow Review buttons remain
+manual-eyeball-only (not serial-reachable).
+**Deps:** M-PR-LOCATIONS (TASK-321 first consumer)
+**Tracked-as:** TASK-328 (kit) · TASK-327 (enforcement pass)
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.

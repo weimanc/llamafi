@@ -17,5 +17,8 @@ app/data/*
 # host-side parse-trial build artifact (TASK-303 phase 0)
 app/tools/host/pr_parse_trial/pr_parse_trial
 
+# regenerable output of gen_icon_drafts.py (icon-authoring session scratch)
+app/tools/icon_drafts/
+
 # Python bytecode (run/, app/tools/, anywhere)
 __pycache__/
