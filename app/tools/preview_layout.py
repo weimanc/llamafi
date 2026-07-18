@@ -18,6 +18,8 @@ Keyboard controls (interactive mode):
     c   Cycle active indicator colour
     [   Step active slot left (preview indicator on different app slots)
     ]   Step active slot right
+    ,   Scroll taskbar up through APP_ORDER (see other apps' icons)
+    .   Scroll taskbar down
     +   Increase scale (1–4)
     -   Decrease scale (1–4)
     e   Export approved params to gen/shell_layout.h
@@ -40,8 +42,13 @@ from preview_common import (
     SCREEN_W, SCREEN_H, TASKBAR_X, TASKBAR_W,
     TASKBAR_SLOT_H, TASKBAR_SLOT_COUNT, TASKBAR_ICON_W, TASKBAR_ICON_H,
     TASKBAR_BG, TASKBAR_ACTIVE_COL, TASKBAR_SEP_COL,
+    APP_ORDER, load_icon_pil,
     PreviewWindow,
 )
+
+# WebRadio is eject-only (TASK-242/LL-085): it has no taskbar slot, so the
+# preview scroll list must exclude it just like firmware's TASKBAR_APP_COUNT.
+TASKBAR_ORDER = [a for a in APP_ORDER if a != "WebRadio"]
 
 # Winamp 5×6 glyph dimensions.
 GLYPH_W = 5
@@ -110,10 +117,12 @@ def _render_taskbar(font_bmp: Image.Image, params: dict) -> Image.Image:
 
     icon_pad_x = (TASKBAR_W   - TASKBAR_ICON_W) // 2
     icon_pad_y = (TASKBAR_SLOT_H - TASKBAR_ICON_H) // 2
-    glyph_off_x = (TASKBAR_ICON_W - GLYPH_W) // 2   # = 9
-    glyph_off_y = (TASKBAR_ICON_H - GLYPH_H) // 2   # = 9
+    glyph_off_x = (TASKBAR_ICON_W - GLYPH_W) // 2
+    glyph_off_y = (TASKBAR_ICON_H - GLYPH_H) // 2
 
-    for slot, (char, gu, gv) in enumerate(_SLOT_GLYPHS):
+    scroll = params.get("scroll", 0)
+    for slot in range(TASKBAR_SLOT_COUNT):
+        app = TASKBAR_ORDER[(scroll + slot) % len(TASKBAR_ORDER)]
         slot_y = slot * TASKBAR_SLOT_H
 
         # Active-slot indicator.
@@ -133,11 +142,16 @@ def _render_taskbar(font_bmp: Image.Image, params: dict) -> Image.Image:
                 cy = slot_y + TASKBAR_SLOT_H // 2
                 draw.rectangle([cx - 3, cy - 3, cx + 2, cy + 2], fill=col)
 
-        # Glyph — crop from TEXT.BMP and paste.
-        glyph = font_bmp.crop((gu, gv, gu + GLYPH_W, gv + GLYPH_H)).convert("RGB")
-        cell_x = icon_pad_x + glyph_off_x
-        cell_y = slot_y + icon_pad_y + glyph_off_y
-        strip.paste(glyph, (cell_x, cell_y))
+        # Real taskbar icon (post-M-TASKBAR-ICONS); TEXT.BMP glyph fallback
+        # only if the PNG pair is missing.
+        ico = load_icon_pil(app, active=(slot == params["active_slot"]))
+        if ico is not None:
+            strip.paste(ico, (icon_pad_x, slot_y + icon_pad_y), mask=ico)
+        else:
+            char, gu, gv = _SLOT_GLYPHS[slot % len(_SLOT_GLYPHS)]
+            glyph = font_bmp.crop((gu, gv, gu + GLYPH_W, gv + GLYPH_H)).convert("RGB")
+            strip.paste(glyph, (icon_pad_x + glyph_off_x,
+                                slot_y + icon_pad_y + glyph_off_y))
 
         # Separator line below slot (except last).
         if params["sep_enabled"] and slot < TASKBAR_SLOT_COUNT - 1:
@@ -231,6 +245,7 @@ def main() -> None:
         "sep_enabled":    True,
         "sep_color":      _SEP_COLORS[0],
         "active_slot":    0,
+        "scroll":         0,   # taskbar scroll offset into APP_ORDER (,/. keys)
         # palette indices for cycling
         "_bg_idx":        0,
         "_ic_idx":        0,
@@ -286,6 +301,12 @@ def main() -> None:
                 elif k == pygame.K_RIGHTBRACKET:
                     params["active_slot"] = (params["active_slot"] + 1) % TASKBAR_SLOT_COUNT
                     print(f"  active slot → {params['active_slot']}")
+                elif k == pygame.K_COMMA:
+                    params["scroll"] = (params["scroll"] - 1) % len(TASKBAR_ORDER)
+                    print(f"  scroll → {params['scroll']} (top slot: {TASKBAR_ORDER[params['scroll']]})")
+                elif k == pygame.K_PERIOD:
+                    params["scroll"] = (params["scroll"] + 1) % len(TASKBAR_ORDER)
+                    print(f"  scroll → {params['scroll']} (top slot: {TASKBAR_ORDER[params['scroll']]})")
                 elif k == pygame.K_e:
                     path = _export(params, gen_dir)
                     print(f"  Exported → {path}")
