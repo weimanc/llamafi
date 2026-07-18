@@ -204,6 +204,43 @@ immediate fix — do not start without explicit go-ahead.
 `run/check` + per-face screendump eyeballs + T_CLK_TAP suite re-run · **Priority:** P3 ·
 **Status:** open — awaiting human go-ahead
 
+## Open — M-PR-MOTION (2026-07-18)
+
+Human request: PlaneRadar poll interval as a settings slider (1 s minimum), and interpolation
+for smooth motion — research/preview on host FIRST (samples × algorithm). Design:
+[M-PR-MOTION.md](../architecture/designs/M-PR-MOTION.md). The production interpolation task is
+deliberately NOT filed — it waits for the study's graduation proposal (R&D protocol).
+
+### TASK-355 — PlaneRadar poll-interval settings slider (1–30 s, default 10)
+
+New `uint8_t prPollSec` (1–30, default 10 = current behaviour), `SliderWidget` row in the
+PlaneRadar submenu — reuse the WR-3 max-volume idiom incl. Press/Move/Release routing
+(`appsSection.h:101/:181`). Firmware reads `prPollSec * 1000UL` live in the tick gate
+(`planeRadarApp.h:200`; `_forceNow()` `:409` derives from the same value) — applies next tick,
+no resume-diff needed. **No hidden clamp below 5 s**: the `_pendingFetch` gate + the ~4.3 s
+edge-paced GET (TASK-313) make low settings degrade to fetch-completion pacing naturally —
+document at the field, don't forbid. ADR-050 step-7 wiring gate applies. Tests: T_PRM_01
+(round-trip + persist), T_PRM_02 (setting=1 → ~4–5 s effective spacing, no pile-up, no Spotify
+heartbeat regression over 5 min).
+
+**Owner:** Developer · **Deps:** none · **Gate:** `run/check` 7/7 + DUT · **Priority:** P2 ·
+**Status:** open
+
+### TASK-356 — RnD: interpolation study, samples × algorithm on host (PROP-006)
+
+Host-only pygame preview study — see
+[PROP-006-pr-interpolation-study.md](../rnd/proposals/PROP-006-pr-interpolation-study.md):
+capture ~1 s ground truth (⚠ 429-budget protocol: non-DUT egress IP or declared DUT-quiet
+window, ONE bounded session, fixtures saved for replay), downsample to the 1/5/10/15/30 s
+cadence sweep, score dead-reckon / damped-correction / delayed-lerp / Catmull-Rom × history
+depth 1–3 on RMS px error, max correction jump (the teleport artifact), heading jitter — then
+human eyeball as the acceptance criterion. Stop at the first eyeball-smooth rung. Deliverable:
+EXP report + graduation proposal; production firmware out of scope. Branch `rnd/pr-interp`.
+
+**Owner:** R&D · **Deps:** none (fixture capture is independent of TASK-355) · **Gate:** EXP
+report + human review · **Priority:** P2 (human-requested, host-only, unblocked) ·
+**Status:** open
+
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
 Human request 2026-07-18. Clock canvas splits at `CLK_TAP_SPLIT_Y=120`: top tap cycles the

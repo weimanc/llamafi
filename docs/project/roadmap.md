@@ -1154,6 +1154,25 @@ manual-eyeball-only (not serial-reachable).
 
 ---
 
+### M-PR-MOTION — PlaneRadar poll-interval setting + motion smoothing
+
+Human request (2026-07-18): poll interval becomes a settings slider
+(`prPollSec` 1–30 s, default 10; WR-3 SliderWidget idiom), read live in the
+tick gate — no clamp below 5 s, because the `_pendingFetch` serialization +
+the ~4.3 s edge-paced GET (TASK-313) make low settings self-limit to
+fetch-completion pacing. Interpolation for smooth motion goes through a
+host-side study first (PROP-006, `rnd/pr-interp`): samples × algorithm sweep
+(dead-reckon / damped correction / delayed lerp / Catmull-Rom × depth 1–3)
+against ~1 s ground-truth captures, scored on px error + correction-jump +
+eyeball. Production interpolation is filed only after the study graduates.
+
+**Status:** scheduled (2026-07-18) — TASK-355 (slider) + TASK-356 (RnD study).
+**Deps:** M-PLANERADAR, M-SETTINGS-STYLE, ADR-050, TASK-313.
+**Design:** [M-PR-MOTION.md](../architecture/designs/M-PR-MOTION.md) ·
+**RnD:** [PROP-006](../rnd/proposals/PROP-006-pr-interpolation-study.md)
+
+---
+
 ### M-WEBRADIO-WINAMP-UI — skin-native country/time/vis in radio mode
 
 Human request (2026-07-18): radio mode stops overlaying ad-hoc UI on the skin
