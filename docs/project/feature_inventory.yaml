@@ -688,19 +688,23 @@ features:
   - id: preview-tooling-001
     name: Interactive preview tooling (preview_layout.py)
     description: |
-      New host-side tool preview_layout.py: pygame live panel showing the full 320x240
+      Host-side tool preview_layout.py: pygame live panel showing the full 320x240
       device layout at integer scale (--scale 1-4, default 2x). Keyboard shortcuts cycle
-      taskbar background/indicator/separator/colour in real time. Icon glyphs rendered from
-      Winamp TEXT.BMP font atlas (5x6 px SKIN_GLYPH chars S/C/W/$/M/G), pixel-identical to
-      firmware. 'e' key exports approved params directly to gen/shell_layout.h (M-SHELL-LAYOUT
-      handoff). Resolves the four open aesthetic questions in taskbar.md before firmware
-      renderTaskbar() is written. See interactive-preview.md.
-    status: planned
-    git_ref: "fff0208 (2026-07-17)"
+      taskbar background/indicator/separator/colour in real time. Renders the REAL baked
+      taskbar icon PNGs (app/icons/taskbar/ via preview_common.load_icon_pil at
+      TASKBAR_ICON_W/H, active variant on the active slot); ,/. scrolls TASKBAR_ORDER
+      (APP_ORDER minus eject-only WebRadio); TEXT.BMP 5x6 glyphs kept only as a
+      missing-file fallback (real-icon render: 48e724d 2026-07-18). All taskbar
+      constants PARSED from gen/shell_layout.h via the shared shell_layout.py helper
+      (LL-114/TASK-335 — never mirrored literals). 'e' exports params back to
+      gen/shell_layout.h, byte-identical round-trip incl. the ADR-051 annotations.
+    status: implemented
+    git_ref: "48e724d (2026-07-18)"
     files:
-      - Spotify-Diy-Thing/tools/preview_layout.py
-      - Spotify-Diy-Thing/tools/bake_skin.py
-      - Spotify-Diy-Thing/SpotifyDiyThing/gen/shell_layout.h
+      - app/tools/preview_layout.py
+      - app/tools/preview_common.py
+      - app/tools/shell_layout.py
+      - app/gen/shell_layout.h
     cross_features: [m2-001, shell-layout-001]
     test_ids: [T131, T132]
     notes: |
@@ -714,7 +718,10 @@ features:
     name: M-MULTIAPP taskbar + app-shell dispatch
     description: |
       45×240 px icon taskbar strip on the right edge (x:275..319). renderTaskbar() draws
-      background fill, 6 icon slots (S/C/W/$/M/G via TFT font 4), separator lines, and
+      background fill, 6 icon slots (baked 36×36 RGB565 icon pairs from
+      app/icons/taskbar/ via gen_taskbar_icons.py + the kTaskbarIcons table — ADR-051:
+      hand-authored sources are native-resolution and bake as pass-through; TFT-font
+      S/C/W/$/M/G glyphs were the pre-M-TASKBAR-ICONS stopgap), separator lines, and
       the 3 px active-indicator bar. First-priority hit-test in checkForInput() consumes
       taps at x>=275 and calls switchApp(). switchApp() clears the 275×240 app canvas,
       updates currentAppId, re-renders the taskbar indicator, then calls the incoming

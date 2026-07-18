@@ -29,23 +29,18 @@ OUT_DIR.mkdir(exist_ok=True)
 SS = 10          # supersample factor for anti-aliasing
 
 # ADR-051: the baked target size and taskbar bg come from gen/shell_layout.h —
-# never hardcoded here. Drafts render AT the true baked size (native
-# authoring): supersample SS× for AA, one LANCZOS down to (BAKE_W, BAKE_H),
-# no intermediate canvas — the double-resample trap this milestone kills.
-_LAYOUT = (HERE.parent / "gen" / "shell_layout.h").read_text()
+# never hardcoded here (LL-114: shared parser, not per-tool regex). Drafts
+# render AT the true baked size (native authoring): supersample SS× for AA,
+# one LANCZOS down to (BAKE_W, BAKE_H), no intermediate canvas — the
+# double-resample trap this milestone kills.
+import sys
+sys.path.insert(0, str(HERE))
+from shell_layout import defines as _shell_defines, rgb565_to_rgb8 as _565
 
-
-def _define(name: str) -> int:
-    v = re.search(rf"#define\s+{name}\s+(0x[0-9A-Fa-f]+|\d+)", _LAYOUT).group(1)
-    return int(v, 16 if v.startswith("0x") else 10)
-
-
-BAKE_W = _define("TASKBAR_ICON_W")
-BAKE_H = _define("TASKBAR_ICON_H")
-_bg565 = _define("TASKBAR_BG_RGB565")
-TASKBAR_BG = (((_bg565 >> 11) & 0x1F) * 255 // 31,
-              ((_bg565 >> 5) & 0x3F) * 255 // 63,
-              (_bg565 & 0x1F) * 255 // 31)
+_D = _shell_defines()
+BAKE_W = _D["TASKBAR_ICON_W"]
+BAKE_H = _D["TASKBAR_ICON_H"]
+TASKBAR_BG = _565(_D["TASKBAR_BG_RGB565"])
 
 # ---------------------------------------------------------------------------
 # Base geometry measured off the CURRENT (shipped) planeradar.png: outer ring

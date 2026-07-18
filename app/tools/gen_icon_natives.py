@@ -53,9 +53,12 @@ HERE = Path(__file__).parent
 ICONS_DIR = HERE.parent / "icons" / "taskbar"
 OUT_DIR = HERE / "icon_drafts" / "native"
 
-_LAYOUT = (HERE.parent / "gen" / "shell_layout.h").read_text()
-W = int(re.search(r"#define\s+TASKBAR_ICON_W\s+(\d+)", _LAYOUT).group(1))
-H = int(re.search(r"#define\s+TASKBAR_ICON_H\s+(\d+)", _LAYOUT).group(1))
+sys.path.insert(0, str(HERE))
+from shell_layout import defines as shell_defines
+
+_D = shell_defines()
+W = _D["TASKBAR_ICON_W"]
+H = _D["TASKBAR_ICON_H"]
 
 SS = 8  # integer supersample factor for curved shapes
 

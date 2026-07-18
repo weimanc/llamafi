@@ -104,26 +104,23 @@ def img_to_rgb565_array(img: Image.Image, w: int, h: int, bg_rgb: tuple) -> list
 
 
 def parse_shell_layout(path: Path) -> dict:
-    """Extract taskbar geometry + colours from shell_layout.h."""
-    text = path.read_text()
+    """Extract taskbar geometry + colours from shell_layout.h (shared
+    parser per LL-114; per-key defaults preserved for partial headers)."""
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).parent))
+    from shell_layout import defines as shell_defines
 
-    def d(name: str, default: int, hex_: bool = False) -> int:
-        pat = rf"#define\s+{name}\s+(0x[0-9A-Fa-f]+|\d+)"
-        m = re.search(pat, text)
-        if not m:
-            return default
-        return int(m.group(1), 16 if m.group(1).startswith("0x") else 10)
-
+    d = shell_defines(path)
     return {
-        "icon_w": d("TASKBAR_ICON_W", DEFAULT_ICON_W),
-        "icon_h": d("TASKBAR_ICON_H", DEFAULT_ICON_H),
-        "bg": d("TASKBAR_BG_RGB565", DEFAULT_BG_RGB565),
+        "icon_w": d.get("TASKBAR_ICON_W", DEFAULT_ICON_W),
+        "icon_h": d.get("TASKBAR_ICON_H", DEFAULT_ICON_H),
+        "bg": d.get("TASKBAR_BG_RGB565", DEFAULT_BG_RGB565),
         # sheet-only (simulated slot rendering, mirrors taskbar.h)
-        "taskbar_w": d("TASKBAR_W", 45),
-        "slot_h": d("TASKBAR_SLOT_H", 40),
-        "active_color": d("TASKBAR_ACTIVE_COLOR", 0x07E0),
-        "sep_enabled": d("TASKBAR_SEP_ENABLED", 1),
-        "sep_color": d("TASKBAR_SEP_COLOR", 0x4208),
+        "taskbar_w": d.get("TASKBAR_W", 45),
+        "slot_h": d.get("TASKBAR_SLOT_H", 40),
+        "active_color": d.get("TASKBAR_ACTIVE_COLOR", 0x07E0),
+        "sep_enabled": d.get("TASKBAR_SEP_ENABLED", 1),
+        "sep_color": d.get("TASKBAR_SEP_COLOR", 0x4208),
     }
 
 

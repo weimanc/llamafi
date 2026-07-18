@@ -1684,7 +1684,21 @@ for the taskbar arc — `taskbar-001` still says "6 icon slots
 PNG icons, pre-ADR-051 36×36); the preview-tool entry still describes
 TEXT.BMP glyph rendering. Update to current truth (baked 36×36 RGB565
 pairs, pass-through bake, real-icon preview per 48e724d).
-**Status:** open
-**Opened:** 2026-07-18 · **Milestone:** M-ICON-PIXELART (hygiene tail) ·
-**Owner:** Developer · **Deps:** — · **Size:** S · **DUT:** n (host
-tools only; `--export` round-trip check is the gate)
+**Status:** **DONE — 2026-07-18.** New shared module
+`app/tools/shell_layout.py` (`defines()` parser + `rgb565_to_rgb8`); all
+four consumers migrated off private regex/mirrors: `preview_common.py`
+(the load-bearing one — constants parsed at import; SCREEN_W/H stay
+literal, they're hardware not header), `gen_taskbar_icons.py` (keeps its
+per-key defaults for partial headers), `gen_icon_drafts.py`,
+`gen_icon_natives.py`. `--export` template updated to carry the ADR-051
+annotations; round-trip gate PASS: `_export()` output diffs
+**byte-identical** against the live `gen/shell_layout.h`. Golden still
+clean after a fresh bake (parser swap changed no output). Inventory
+refreshed: `preview-tooling-001` (real-icon render, parsed constants,
+correct `app/tools/` paths — old entry pointed at nonexistent
+`Spotify-Diy-Thing/tools/`, status flipped planned→implemented) and
+`taskbar-001` (baked 36×36 pairs + kTaskbarIcons; TFT-font glyphs noted
+as the historical stopgap).
+**Opened:** 2026-07-18 · **Closed:** 2026-07-18 · **Milestone:**
+M-ICON-PIXELART (hygiene tail) · **Owner:** Developer · **Deps:** — ·
+**Size:** S · **DUT:** n (`--export` round-trip byte-identity gate PASS)

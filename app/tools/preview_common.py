@@ -9,23 +9,31 @@ from __future__ import annotations
 import pathlib
 import sys
 
-# ── geometry (mirrors firmware shell_layout.h) ────────────────────────────────
+# ── geometry — PARSED from gen/shell_layout.h, never mirrored (LL-114:
+#    mirrored literals rot silently, and preview_layout's --export writes
+#    the header back from these values) ─────────────────────────────────────────
 
-SCREEN_W  = 320
+SCREEN_W  = 320   # hardware, not in shell_layout.h
 SCREEN_H  = 240
-TASKBAR_X = 275
-TASKBAR_W = 45
 APP_W     = 275
 APP_H     = 240
 
-TASKBAR_SLOT_H     = 40
-TASKBAR_SLOT_COUNT = 6
-TASKBAR_ICON_W     = 36   # ADR-051 (was 24) — keep in sync with gen/shell_layout.h
-TASKBAR_ICON_H     = 36   # ADR-051 (was 24)
+import pathlib as _pathlib
+import sys as _sys
+_sys.path.insert(0, str(_pathlib.Path(__file__).parent))
+from shell_layout import defines as _shell_defines, rgb565_to_rgb8 as _565
 
-TASKBAR_BG         = (32, 32, 32)    # 0x2104 RGB565
-TASKBAR_ACTIVE_COL = (0, 255, 0)     # 0x07E0 RGB565 — green
-TASKBAR_SEP_COL    = (64, 64, 64)    # 0x4208 RGB565
+_D = _shell_defines()
+TASKBAR_X          = _D["TASKBAR_X"]
+TASKBAR_W          = _D["TASKBAR_W"]
+TASKBAR_SLOT_H     = _D["TASKBAR_SLOT_H"]
+TASKBAR_SLOT_COUNT = _D["TASKBAR_SLOT_COUNT"]
+TASKBAR_ICON_W     = _D["TASKBAR_ICON_W"]
+TASKBAR_ICON_H     = _D["TASKBAR_ICON_H"]
+
+TASKBAR_BG         = _565(_D["TASKBAR_BG_RGB565"])
+TASKBAR_ACTIVE_COL = _565(_D["TASKBAR_ACTIVE_COLOR"])
+TASKBAR_SEP_COL    = _565(_D["TASKBAR_SEP_COLOR"])
 
 # ── APP_ORDER (canonical registry — ADR-041 / app_ids_gen.py) ─────────────────
 
