@@ -14,7 +14,7 @@ host's own radio via active scans. Cross-referenced evidence: M-WIFI-DIAG
 
 ```sh
 ./wifi_evidence.sh monitor                  # current SSID, 15 s samples
-./wifi_evidence.sh monitor yellowbrickroad 15
+./wifi_evidence.sh monitor <home-ssid> 15
 ```
 
 Runs until Ctrl-C. Appends to `logs/wifi_evidence_<SSID>.log` (gitignored).

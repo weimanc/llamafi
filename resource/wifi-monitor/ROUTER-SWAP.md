@@ -51,8 +51,8 @@ change this — it's an ISP-side call (ask them for a public/static IP if you ne
 
 | Band | SSID | Security | Channel | Width |
 |---|---|---|---|---|
-| 2.4 GHz | `yellowbrickroad` | WPA2-Personal | **6 (pinned)** | Auto |
-| 5 GHz | `yellowbrickroad` | WPA2-Personal | **44 (pinned)** | Auto |
+| 2.4 GHz | `<home-ssid>` | WPA2-Personal | **6 (pinned)** | Auto |
+| 5 GHz | `<home-ssid>` | WPA2-Personal | **44 (pinned)** | Auto |
 
 > Both channels are manually pinned (2.4→6 on 2026-07-03, 5 GHz→44 on 2026-07-04)
 > to reduce this unit's auto-channel scans taking the radios off-air. **Pin BOTH
@@ -73,7 +73,7 @@ change this — it's an ISP-side call (ask them for a public/static IP if you ne
 1. **Note the WiFi passphrase** (read it now: `./jnap.sh raw wirelessap/GetRadioInfo`
    → `.settings.wpaPersonalSettings.passphrase`) — you'll re-enter it on the new router.
 2. New router: set **WAN = DHCP** (default), **LAN = 192.168.1.1/24 + DHCP on**.
-3. New router WiFi: SSID `yellowbrickroad`, WPA2 (or WPA2/WPA3), same passphrase,
+3. New router WiFi: SSID `<home-ssid>`, WPA2 (or WPA2/WPA3), same passphrase,
    2.4 GHz pinned to a fixed channel.
 4. Power off the Linksys, connect the new router's WAN port to the same ONT/handoff,
    power on.

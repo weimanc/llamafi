@@ -3298,7 +3298,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
   4. Monitor boot log: `./run/monitor-read 100`.
 - **Expected result**: Boot log contains `[wifi] Connecting from SPIFFS: <ssid>` followed by `WL_CONNECTED`. No captive portal launch. Spotify polling begins normally.
 - **Harness**: host-driven (DUT). Owner: VE.
-- **Status**: passing. DUT 2026-06-11. `[wifi] Connecting from SPIFFS: yellowbrickroad` → STA_CONNECTED → STA_GOT_IP → token POST 200, Spotify polling normally.
+- **Status**: passing. DUT 2026-06-11. `[wifi] Connecting from SPIFFS: <home-ssid>` → STA_CONNECTED → STA_GOT_IP → token POST 200, Spotify polling normally.
 
 ---
 
@@ -3315,7 +3315,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
   5. Remove `wifi_creds.h`, rebuild and reflash to restore normal state.
 - **Expected result**: Step 4 boot log: `Connecting to hardcoded SSID <real-ssid>` and `WL_CONNECTED`. No `[wifi] Connecting from SPIFFS:` line — SPIFFS path not entered.
 - **Harness**: host-driven (DUT). Owner: VE.
-- **Status**: passing. DUT 2026-06-11. `Connecting to hardcoded SSID yellowbrickroad` → STA_CONNECTED. No SPIFFS path entered. fake-ssid SPIFFS file ignored.
+- **Status**: passing. DUT 2026-06-11. `Connecting to hardcoded SSID <home-ssid>` → STA_CONNECTED. No SPIFFS path entered. fake-ssid SPIFFS file ignored.
 
 ---
 
@@ -4386,7 +4386,7 @@ Landed 2026-07-17 (`dcc12bf`). Design: `docs/architecture/designs/M-HOME-LOCATIO
 - **Objective**: The Time & Location city picker now writes `prLocs[0]` (home mirror, always) and the active mirror `prLat`/`prLon` too, but only when `prActiveLoc==0` (the default case — skipping this leaves the radar silently stale on a fresh device).
 - **Steps**: with `prActiveLoc==0`, pick a new city → `get prloc` (check `home` object and `locs[0]`) and `get activeError`/radar coords.
 - **Expected result**: Both the home mirror and the active mirror (since slot 0 is active) update to the new city's coordinates.
-- **Status**: **PASS 2026-07-17** (observed as a side effect of the T-SETW-10 timezone test, before being independently reconfirmed structurally). Picking Tokyo via the city picker (with `prActiveLoc==0`) updated `g_settings.prLocs[0]` to Tokyo's coordinates, and `get prloc`'s `home` object matched — confirming the city picker writes both the home mirror and (since slot 0 was active) the active mirror. Post-recovery (see TASK-329), a fresh `get prloc` re-confirmed the general invariant holds structurally: `home` exactly equals `locs[0]` (`AMS`, `52.373356/4.923484`) with `active:0`.
+- **Status**: **PASS 2026-07-17** (observed as a side effect of the T-SETW-10 timezone test, before being independently reconfirmed structurally). Picking Tokyo via the city picker (with `prActiveLoc==0`) updated `g_settings.prLocs[0]` to Tokyo's coordinates, and `get prloc`'s `home` object matched — confirming the city picker writes both the home mirror and (since slot 0 was active) the active mirror. Post-recovery (see TASK-329), a fresh `get prloc` re-confirmed the general invariant holds structurally: `home` exactly equals `locs[0]` (`AMS`, `52.37/4.92 (redacted)`) with `active:0`.
 
 ### T-HOME-02 — [home-location-001, pr-locations-001] HOME-slot editor refines coords only; home mirror refresh is unconditional
 
@@ -4404,7 +4404,7 @@ Landed 2026-07-17 (`dcc12bf`). Design: `docs/architecture/designs/M-HOME-LOCATIO
 - **Objective**: Weather is pinned to slot 0 (home), not whatever slot PlaneRadar's active-slot switching selects — switching the radar's active location must never move the home mirror.
 - **Steps**: note `get prloc` `home` object → tap a non-active PlaneRadar strip row to switch `prActiveLoc` → `get prloc` again.
 - **Expected result**: `home.lat`/`home.lon` unchanged; only `active` and the active mirror (`prLat`/`prLon`) move.
-- **Status**: **PASS 2026-07-17**. `set prloc active 1` (via serial injection rather than a strip tap — equivalent path, see X034/T_PRL_02 precedent) moved `active` from `0`→`1`; `home` stayed exactly at the `AMS` coordinates (`52.373356, 4.923484`) in both reads.
+- **Status**: **PASS 2026-07-17**. `set prloc active 1` (via serial injection rather than a strip tap — equivalent path, see X034/T_PRL_02 precedent) moved `active` from `0`→`1`; `home` stayed exactly at the `AMS` coordinates (`52.37, 4.92 (redacted)`) in both reads.
 
 ### T-HOME-04 — [home-location-001] D4 migration seeds slot 0 from city on upgrade
 

@@ -48,7 +48,7 @@ is `Audio(bool, uint8_t, uint8_t)` — `I2S_DAC_CHANNEL_LEFT_EN` converts implic
 
 ## Rig/ops notes (for future rig users)
 
-- Rig `secrets.h` had the pre-rename SSID (`yellowbrickroad` — AP renamed to `yellowbrickroad-2.4Ghz`
+- Rig `secrets.h` had the pre-rename SSID (`<home-ssid>` — AP renamed to `<home-ssid>-2.4Ghz`
   2026-07-09); refreshed from `app/data/wifi_creds.json`. First arm-A batch failed on WiFi until fixed.
 - SomaFM returns `403 Account already in use` on rapid reconnect after an unclean drop (hard reset
   mid-stream) — excluded one trial; fixed with 60 s inter-trial cooldown + clean `stop` before reset.
