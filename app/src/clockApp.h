@@ -294,10 +294,14 @@ private:
             tft.fillRect(px, mid_y + kFpGap, kFpW, sh, TFT_BLACK);
         }
         // Text bg matches the flat bottom-card colour directly (no gradient
-        // band to track anymore).
+        // band to track anymore). Font 8 (75px tall / 55px wide digits) —
+        // font 6 (48px) was sized for the old 46x62 card and never rescaled
+        // when the card grew to 56x78, leaving digits looking small and thin
+        // against the concept's bold, near-full-height glyphs. Font 8 is the
+        // closest built-in TFT_eSPI match to that proportion.
         tft.setViewport(px, mid_y + kFpGap, kFpW, kFpMid, false);
         tft.setTextColor(kFpDigit, kFpBgBot);
-        tft.drawString(bStr, cx, mid_y, 6);
+        tft.drawString(bStr, cx, mid_y, 8);
         tft.resetViewport();
 
         // 2. Flap background — flat card colour, same as concept's top half.
@@ -307,7 +311,7 @@ private:
         // rect (which shrinks toward mid_y as fh decreases during the fall).
         tft.setViewport(px, mid_y - fh, kFpW, fh, false);
         tft.setTextColor(kFpDigit, kFpBgTop);
-        tft.drawString(fStr, cx, mid_y, 6);
+        tft.drawString(fStr, cx, mid_y, 8);
         tft.resetViewport();
 
         // 4. Erase overflow above flap rect (reveals clock body colour)

@@ -31,8 +31,15 @@
 > pixel constants too. Digit colour switched from amber (`0xFFF0`) to the
 > concept's warm-white (`0xF79D`). DUT-verified pixel-exact via
 > `screendump` post-TASK-340. Font-6 digit swap (from the original
-> TASK-337 pass) retained; sizing/position still open per user feedback,
-> see TASK-337 in `docs/project/tasks.md`.  
+> TASK-337 pass) retained at first, but flagged by the user as "still
+> needs adjustment" — root cause found on the next pass, same day: font
+> 6 is a fixed 48px bitmap font that was never rescaled when the card
+> grew to the concept's 56×78 proportions in the resync above, so digits
+> stayed small and thin against the bigger card. Switched to font 8
+> (TFT_eSPI's other built-in digit font, 75px tall / 55px wide glyphs,
+> already enabled via `LOAD_FONT8`) — much closer to the concept's bold,
+> near-full-height digits. DUT-verified via side-by-side `screendump`
+> against `preview_clock.py`.  
 > Date: 2026-06-14 (last updated 2026-07-18)  
 > Part of: [M-CLOCK-STYLES.md](M-CLOCK-STYLES.md) — Style 1  
 > See also: [clock.md](M-MULTIAPP/clock.md)

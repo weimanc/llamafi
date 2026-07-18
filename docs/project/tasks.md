@@ -1820,16 +1820,27 @@ firmware reflashed after verification.
 table, static-render pipeline, frame table, status header) — see that
 doc's 2026-07-18 changelog entry for full detail.
 
-Font-6 swap (from the original TASK-337 pass, unaffected by this
-follow-up): DUT-confirmed "bigger and thicker" by human eyeball, but
-flagged **"still needs adjustment"** with no specifics given yet —
-still open. The card resize in this follow-up pass may have already
-addressed it (bigger cards give the font-6 glyphs more room), but that
-needs the user to actually look at the new build before assuming it's
-resolved — don't close this without that confirmation.
+**Font-size root cause found and fixed (2026-07-18, same day, third
+pass).** The card resize alone did *not* fix the "still needs
+adjustment" complaint — font 6 is a fixed 48px TFT_eSPI bitmap font
+(27px-wide digit glyphs) that doesn't rescale with its container, so it
+stayed pinned at its old absolute size while the card grew around it,
+making digits look proportionally *smaller* and thinner than before,
+not bigger — the opposite of the intended effect, and exactly what the
+user's own side-by-side screenshot caught (this was missed in the
+resync pass; the user had to point it out). Root cause: no font-metrics
+check was done when picking the resize target. Fix: switched
+`_drawFlipPanel()`'s two `drawString()` calls from font 6 to font 8
+(TFT_eSPI's other built-in digit-only font — 75px tall, 55px-wide
+glyphs, already available via `-DLOAD_FONT8` in `platformio.ini`, no
+new flash cost). Verified via side-by-side `screendump` against
+`preview_clock.py` at matching digit values — size and boldness now
+track the concept closely.
 **Opened:** 2026-07-18 · **Milestone:** M-CLOCK-STYLES (follow-on) ·
-**Owner:** Developer · **Deps:** — · **Size:** M · **DUT:** y (partial —
-font sizing confirmation pending)
+**Owner:** Developer · **Deps:** — · **Size:** M · **DUT:** y
+(side-by-side screendump verified; final user sign-off on the new look
+still pending — don't close without it, this was a subjective
+complaint originally)
 
 ---
 
