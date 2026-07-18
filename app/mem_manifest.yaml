@@ -15,6 +15,14 @@ buffers:
   # EXP-010 Phase 2: arenaHWM = 23216 B (exact sum of 9 Helix structs); see EXP-010 §Phase 2
   - { name: webradio_inbuf,   app: WebRadio, caps: INTERNAL, group: foreground, size: 6400,  kind: scratch, placement: runtime }
   # Audio.cpp:59 calloc(m_buffSize); boot log: 6399 B, rounded; in general heap
+  - { name: webradio_stations_doc, app: WebRadio, caps: INTERNAL, group: foreground, size: 5120, kind: scratch, placement: runtime }
+  # dataTaskStorage.cpp fetchWebRadioStations() — WR_DOC_CAP local doc, runtime-JIT after
+  # tlsYield() and deliberately live across the mirror TLS handshakes (same "one member is
+  # heap-resident TLS" reason decoder/inbuf can't be statically placed). TASK-326 Architect
+  # ruling 2026-07-16: budget-only, NOT placed. Documented conservatism: summing with
+  # decoder/inbuf overstates the WebRadio foreground budget by 5120 B — TASK-289 made fetch
+  # and playback mutually exclusive, so doc and decoder never coexist. Accepted; do NOT
+  # build `sequential` modelling for 5 KB of slack. Revisit only if INTERNAL ceiling binds.
   # Phase-2 overlay tenants (TASK-269): two fork-free ArduinoJson parse buffers — mutually
   # exclusive (dataTask is serial + Stock/Crypto are foreground), result copied to a separate
   # struct so the doc is pure scratch. (aquarium_strip deferred — TFT_eSprite has no external-

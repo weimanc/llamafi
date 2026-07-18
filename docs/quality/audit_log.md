@@ -1560,7 +1560,7 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 
 **Findings**: PlaneRadar's chunked-parse doc (4096 B, measured to the byte in ADR-048 phase 0) never entered the manifest — the WCMU gate under-counted by 4 KB while reporting green; unregistered consumers make the budget look *better*, so the gate cannot flag its own coverage gap. Sweep found two more unregistered heap docs: weather (1024 B) and webradio stations (`WR_DOC_CAP`=5120 B) — manifest covered 2 of 5 heap parse docs. Root cause and BP candidate filed as LL-111 (registration is opt-in; no forcing function in the new-app flow).
 **Actions assigned**: Developer — register `planeradar_doc` and convert `prParseStream()` to the placed-overlay pattern (done in-session); TASK-326 filed for the weather/webradio backfill (Architect consult on the webradio entry's group/placement). QM — LL-111 filed, BP candidate flagged for human promotion decision.
-**Resolution**: `planeradar_doc` registered + placed same session (manifest, `gen_mem_layout` regen, `StaticRegionAllocator` conversion, `golden.sha256`; ANY/foreground region 2560→4096). `run/check` 6/6. TASK-326 open.
+**Resolution**: `planeradar_doc` registered + placed same session (manifest, `gen_mem_layout` regen, `StaticRegionAllocator` conversion, `golden.sha256`; ANY/foreground region 2560→4096). `run/check` 6/6. TASK-326 closed 2026-07-18: weather_doc placed (landed with WIRE2-G4 `1abfb32`), webradio_stations_doc registered `placement: runtime` per Architect ruling, stack-vs-heap scope note in the manifest header — all five heap parse docs now registered.
 
 ---
 
@@ -1579,7 +1579,7 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 4. **Toolchain lesson carried**: gnu++11 NSDMI-struct brace-init wall (found TASK-321, re-confirmed TASK-327 migration) — field-assignment idiom is the standing workaround.
 
 **Actions assigned**: PM — task statuses flipped, M-SETTINGS-STYLE roadmap entry added (done, was never stubbed) [this pass]. QM — BP candidate "new Settings UI = kit widgets only; hand-rolled buttons are a review flag" (from TASK-327) awaits human promotion decision. Developer — TASK-326 (mem_manifest backfill) is the next open item.
-**Resolution**: closed with this entry; no new tasks filed.
+**Resolution**: closed with this entry; no new tasks filed. TASK-326 was then closed the same day (webradio_stations_doc runtime entry; see the 2026-07-14 audit's resolution).
 
 ---
 

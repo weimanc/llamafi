@@ -1323,7 +1323,7 @@ M-PR-LOCATIONS · **Owner:** Developer · **Deps:** — · **Size:** S · **DUT:
 
 ---
 
-## Open — M-MEMPLAN hygiene — filed 2026-07-14 (QM audit: manifest coverage gap, LL-111)
+## Done — M-MEMPLAN hygiene — filed 2026-07-14 (QM audit: manifest coverage gap, LL-111), closed 2026-07-18
 
 ### TASK-326 — M-MEMPLAN: backfill unregistered heap parse docs (weather, webradio stations) into mem_manifest
 
@@ -1365,7 +1365,23 @@ shows two remaining heap docs outside the manifest:
 Stack-based `StaticJsonDocument`s (stock 2×2048, teletext 1536, filters) are
 dataTask *stack* budget (TASK-240), out of manifest scope — document that
 boundary in the manifest header comment while here.
-**Status:** open · **Opened:** 2026-07-14 · **Milestone:** M-MEMPLAN ·
+**Status:** **DONE 2026-07-18.** Landed in two halves: the weather half +
+manifest scope-note header (stack-vs-heap boundary) went in earlier with
+WIRE2-G4 (`1abfb32` — `weather_doc` placed entry, fetchWeather() converted
+to `StaticRegionAllocator{MEM_weather_doc}`, fits the 4096 ANY/foreground
+region with no growth, per the Architect ruling). This session added the
+remaining piece: `webradio_stations_doc` (5120 B) as a `placement: runtime`
+budget-only entry joining webradio_decoder/inbuf, with the documented-
+conservatism comment (sums +5120 B into the WebRadio foreground budget even
+though TASK-289 made fetch and playback mutually exclusive — accepted, no
+`sequential` planner machinery for 5 KB of slack) and a pointer comment at
+the `WR_DOC_CAP` definition in `dataTaskStorage.cpp`. Runtime entries emit
+no placed region, so `mem_layout.h`/`.py` are byte-identical (verified by
+regen) and `golden.sha256` is untouched; WCMU budget check passes
+(INTERNAL runtime now 34 736 B + 60 000 B headroom ≪ 290 000 B ceiling).
+`run/check` 6/6 PASS. All five heap parse docs in `dataTaskStorage.cpp`
+are now manifest-registered — the LL-111 coverage gap is closed.
+· **Opened:** 2026-07-14 · **Closed:** 2026-07-18 · **Milestone:** M-MEMPLAN ·
 **Owner:** Developer (Architect consult on the webradio entry) · **Deps:** —
 · **Size:** S · **DUT:** n (`run/check` gate [6/6] covers)
 

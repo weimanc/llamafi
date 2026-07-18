@@ -756,6 +756,9 @@ static const char GEOCODE_UA[]       = "esp32-cyd-multiapp/1.0 (github.com/weima
 // fetchWebRadioStations() — allocated after tlsYield() (maxAlloc ≥ 50 KB) and
 // freed before tlsResume(), not held resident — reclaiming ~5 KB during WebRadio
 // playback. Freeing before the audio path's first alloc is the whole point.
+// TASK-326: budgeted in mem_manifest.yaml as webradio_stations_doc
+// (placement: runtime, like decoder/inbuf) — live across mirror TLS
+// handshakes, so it cannot be a planner-placed overlay tenant.
 static constexpr size_t WR_DOC_CAP = 5120;
 
 // TASK-289: minimum contiguous block for a radio-browser TLS handshake attempt.
