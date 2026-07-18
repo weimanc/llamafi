@@ -1154,6 +1154,25 @@ manual-eyeball-only (not serial-reachable).
 
 ---
 
+### M-APP-ORDER — Settings pinned as last taskbar entry
+
+Human product call (2026-07-18): Settings is a utility and should always occupy
+the last taskbar slot. Because WebRadio must remain the final registry row
+(eject-only, `TASKBAR_APP_COUNT = (int)AppId::WebRadio`, TASK-242/LL-085),
+"last" means second-to-last registry row — directly before WebRadio — enforced
+as a build invariant (static_assert + codegen guard), not a one-time move.
+Consumer audit done at design time: no numeric AppId persisted (settings.json
+is name-keyed), configurable-apps list order unchanged, DUT tests slot via the
+generated `APP_SLOT` mirror. The one real hazard is `gen_taskbar_icons.py`'s
+hand-mirrored APPS order list (silent wrong-icon rendering; LL-114 pattern) —
+the task de-mirrors it onto `app_ids_gen.APP_ORDER`.
+
+**Status:** scheduled (2026-07-18) — TASK-347.
+**Deps:** ADR-041, TASK-242.
+**Design:** [M-APP-ORDER-settings-last.md](../architecture/designs/M-APP-ORDER-settings-last.md)
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.

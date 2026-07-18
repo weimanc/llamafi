@@ -80,6 +80,28 @@ flagged that no `certbreak` hook exists — this task closes that gap too.
 exercises the final code paths) · **Gate:** DUT window required — queue for next DUT session ·
 **Priority:** P3 · **Status:** open — DUT-blocked (scheduling, not external)
 
+## Open — M-APP-ORDER (2026-07-18)
+
+### TASK-347 — pin Settings as the last taskbar entry (registry reorder + invariant)
+
+Human product call: Settings always last in the taskbar. Design:
+[M-APP-ORDER-settings-last.md](../architecture/designs/M-APP-ORDER-settings-last.md) — read it
+first; the consumer audit is already done there. Scope: (1) move the Settings `APP_X` row to
+directly before WebRadio (WebRadio MUST stay the final row — `TASKBAR_APP_COUNT` derivation,
+TASK-242); (2) enforce the invariant twice — `static_assert(Settings == WebRadio - 1)` in
+`taskbar.h` + a codegen guard in `gen_app_registry.py`; (3) de-mirror `gen_taskbar_icons.py`'s
+hand-kept `APPS` list onto `app_ids_gen.APP_ORDER` (LL-114 — order drift renders wrong icons
+silently, the count static_assert won't catch it); (4) re-run both codegens + `run/bake-icons`,
+regen goldens; (5) NEW-APP-CHECKLIST note ("insert new apps BEFORE Settings"); (6) T182 mod-base
+nit (`% APP_COUNT` → `% TASKBAR_APP_COUNT`) + grep tests/docs for hardcoded slot numerals.
+Verification: `run/check` 7/7, taskbar suites T088/T136/T137/T147/T162-166/T182 + settings smoke
+on DUT, one-off negative build check (dummy row after Settings must fail both guards), and the
+BP-048 eyeball gate — scroll the full cycle, every slot shows the right icon.
+
+**Owner:** Developer · **Deps:** ADR-041, TASK-242 (both landed) · **Gate:** `run/check` +
+DUT suite rerun + eyeball · **Priority:** P2 · **Status:** open — coordinate with the active
+clock-faces session before touching `appRegistry.h`/regens (shared files)
+
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
 Human request 2026-07-18. Clock canvas splits at `CLK_TAP_SPLIT_Y=120`: top tap cycles the
