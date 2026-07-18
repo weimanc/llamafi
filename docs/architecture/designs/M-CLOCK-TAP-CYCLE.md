@@ -1,9 +1,9 @@
 # Design — In-app clock face/theme cycling via tap zones
 
 > Owner: Architect
-> Status: proposed — awaiting human review (Q1–Q4)
+> Status: accepted — Q1–Q4 resolved by human 2026-07-18, all as proposed
 > Date: 2026-07-18
-> Feeds: implementation task (PM to assign; TASK-345 is taken by M-CLOCK-THEMES)
+> Tracked-as: TASK-346
 > Depends on: M-CLOCK-THEMES.md (TASK-345, implemented — `nixieTheme`/`vfdTheme` fields + runtime tint), ADR-050
 
 ## Context / request
@@ -107,15 +107,14 @@ already accepted for WebRadio station churn). Not worth a timer-flush — Q4.
 - Any on-screen affordance/chrome for the tap zones (Q2).
 - Gestures (swipe/long-press) — Release-tap only.
 
-## Resolved questions — awaiting human sign-off
+## Resolved questions (human review 2026-07-18 — all as proposed)
 
-- **Q1 — top tap on Digital/Flip**: proposed strict no-op. Alternative:
-  fall through to face-cycle so the whole screen always "does something."
-- **Q2 — discoverability**: proposed none (clean face wins; the feature is
+- **Q1 — top tap on Digital/Flip: strict no-op.**
+- **Q2 — discoverability: none** (clean face wins; the feature is
   documented, and Settings still exists as the discoverable path).
-- **Q3 — cycle order**: proposed enum order (matches Settings + serial
-  name table). No user-curated ordering.
-- **Q4 — flush policy**: proposed suspend-only (ADR-050 rule 3 idiom). No
+- **Q3 — cycle order: enum order** (matches Settings + serial name
+  table). No user-curated ordering.
+- **Q4 — flush policy: suspend-only** (ADR-050 rule 3 idiom). No
   idle-timer flush.
 
 ## Cost note

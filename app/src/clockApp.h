@@ -35,11 +35,20 @@ struct FlipDigit {
     uint8_t frame;    // 0=stable; 1..4=animating
 };
 
+// M-CLOCK-TAP-CYCLE (TASK-346): in-app cycling zones. Canvas splits at this
+// y — above: cycle the active face's colour theme (Nixie/VFD only; strict
+// no-op elsewhere, Q1), below: cycle the face itself. Named constant so
+// hit-test and VE tests reference geometry, not magic numbers.
+static constexpr int16_t CLK_TAP_SPLIT_Y = 120;
+
 class ClockApp : public App {
 public:
-    void init()    override { repaint(); }
-    void resume()  override { repaint(); }
-    void suspend() override { tft.setTextDatum(TL_DATUM); }
+    void init()    override { _snapshotPersisted(); repaint(); }
+    void resume()  override { _snapshotPersisted(); repaint(); }
+    void suspend() override {
+        tft.setTextDatum(TL_DATUM);
+        _flushStyleIfDirty();   // ADR-050 rule 3: one coalesced save per session, iff changed
+    }
 
     void tick() override {
         unsigned long now = millis();
@@ -50,10 +59,83 @@ public:
         _doTick();
     }
 
-    bool handleInput(TouchPhase, int, int) override { return false; }
+    // M-CLOCK-TAP-CYCLE (TASK-346): Release-phase tap zones + debounce
+    // (teletext idiom). Mutates g_settings in RAM only — persistence is
+    // deferred to suspend()'s _flushStyleIfDirty().
+    bool handleInput(TouchPhase phase, int x, int y) override {
+        (void)x;
+        if (phase != TouchPhase::Release) return false;
+        unsigned long now = millis();
+        if (now - _lastTapMs < 300) {
+            strlcpy(_lastAction, "DEBOUNCE", sizeof(_lastAction));
+            return false;
+        }
+        _lastTapMs = now;
+        return (y < CLK_TAP_SPLIT_Y) ? _cycleTheme() : _cycleFace();
+    }
+
+    // VE observables (`get clockStyle` dirty field / `get clockLastAction`).
+    const char* dbgLastAction() const { return _lastAction; }
+    bool dbgStyleDirty() const {
+        // Snapshot only exists once the app has run (init/resume) — before
+        // that, comparing g_settings against constructor defaults would
+        // report a phantom dirty at boot.
+        if (!_snapshotValid) return false;
+        return g_settings.clockStyle != _savedStyle ||
+               g_settings.nixieTheme != _savedNixie ||
+               g_settings.vfdTheme   != _savedVfd;
+    }
 
 private:
     unsigned long _lastTickMs = 0;
+    unsigned long _lastTapMs  = 0;
+    char          _lastAction[16] = "";
+    // Persisted-state snapshot, refreshed on init/resume and after every
+    // flush — dirty = current g_settings differs from it, so cycling full
+    // circle back costs zero flash writes (design D4 wear guard).
+    ClockStyle    _savedStyle = ClockStyle::Digital;
+    uint8_t       _savedNixie = 0;
+    uint8_t       _savedVfd   = 0;
+    bool          _snapshotValid = false;
+
+    void _snapshotPersisted() {
+        _savedStyle = g_settings.clockStyle;
+        _savedNixie = g_settings.nixieTheme;
+        _savedVfd   = g_settings.vfdTheme;
+        _snapshotValid = true;
+    }
+
+    void _flushStyleIfDirty() {
+        if (!dbgStyleDirty()) return;
+        SettingsStorage::save();
+        _snapshotPersisted();
+    }
+
+    bool _cycleFace() {
+        g_settings.clockStyle =
+            (ClockStyle)(((uint8_t)g_settings.clockStyle + 1) % 4);
+        strlcpy(_lastAction, "TAP_FACE", sizeof(_lastAction));
+        repaint();
+        return true;
+    }
+
+    bool _cycleTheme() {
+        switch (g_settings.clockStyle) {
+            case ClockStyle::Nixie:
+                g_settings.nixieTheme = (uint8_t)((g_settings.nixieTheme + 1) % 4);
+                break;
+            case ClockStyle::VFD:
+                g_settings.vfdTheme = (uint8_t)((g_settings.vfdTheme + 1) % 4);
+                break;
+            default:
+                // Q1: faces without themes — consumed no-op, no repaint.
+                strlcpy(_lastAction, "TAP_THEME_NA", sizeof(_lastAction));
+                return true;
+        }
+        strlcpy(_lastAction, "TAP_THEME", sizeof(_lastAction));
+        repaint();
+        return true;
+    }
     FlipDigit     _fd[4]      = {};
     // W-6 erase-gating cache (Digital): last rendered hour string + AM/PM ptr.
     char          _lastHourStr[4] = "";

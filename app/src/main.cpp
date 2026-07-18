@@ -2681,6 +2681,14 @@ static void cmdTap(const char *args) {
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                     "\"hit\":\"%s\",\"action\":\"%s\",\"skipped\":false}\n",
                     x, y, wr.region, wr.action);
+    } else if (currentAppId == AppId::Clock && g_apps[(int)AppId::Clock]) {
+      // M-CLOCK-TAP-CYCLE (TASK-346): clock now has real canvas interaction
+      // (face/theme cycle zones) — no async, so no setBusy propagation.
+      g_apps[(int)AppId::Clock]->handleInput(TouchPhase::Press, x, y);
+      bool consumed = g_apps[(int)AppId::Clock]->handleInput(TouchPhase::Release, x, y);
+      Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                    "\"hit\":\"CLOCKAPP\",\"action\":\"%s\",\"skipped\":false}\n",
+                    x, y, consumed ? "CONSUMED" : "NONE");
     } else {
       winampDisplay.lastTouchResult = { "CLOCK", -1, "NONE", 0, -1, false };
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
@@ -3099,8 +3107,22 @@ static void cmdGet(const char *args) {
   if (strcmp(args, "clockStyle") == 0) {
     static const char* kSN[] = {"digital","flip","nixie","vfd"};
     uint8_t cs = (uint8_t)g_settings.clockStyle % 4;
+    // M-CLOCK-TAP-CYCLE (TASK-346): themes + dirty added — dirty is the
+    // un-flushed-change flag that makes deferred persistence testable
+    // without pulling settings.json (pair with `get settingsSaveCount`).
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"clockStyle\","
-                  "\"val\":%d,\"name\":\"%s\",\"last\":true}\n", cs, kSN[cs]);
+                  "\"val\":%d,\"name\":\"%s\",\"nixieTheme\":%d,\"vfdTheme\":%d,"
+                  "\"dirty\":%s,\"last\":true}\n", cs, kSN[cs],
+                  (int)g_settings.nixieTheme, (int)g_settings.vfdTheme,
+                  g_ClockApp.dbgStyleDirty() ? "true" : "false");
+    return;
+  }
+  if (strcmp(args, "clockLastAction") == 0) {
+    // M-CLOCK-TAP-CYCLE (TASK-346): tap-zone outcome observable
+    // (TAP_FACE / TAP_THEME / TAP_THEME_NA / DEBOUNCE) — prLastAction's
+    // role for the clock's two hit boxes.
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"clockLastAction\","
+                  "\"val\":\"%s\",\"last\":true}\n", g_ClockApp.dbgLastAction());
     return;
   }
   if (strcmp(args, "playerMode") == 0) {   // TASK-260 (VE: agent-driven persist/settings tests)

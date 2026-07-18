@@ -80,6 +80,19 @@ flagged that no `certbreak` hook exists — this task closes that gap too.
 exercises the final code paths) · **Gate:** DUT window required — queue for next DUT session ·
 **Priority:** P3 · **Status:** open — DUT-blocked (scheduling, not external)
 
+### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
+
+Human request 2026-07-18. Clock canvas splits at `CLK_TAP_SPLIT_Y=120`: top tap cycles the
+active face's colour theme (Nixie/VFD; strict no-op on Digital/Flip — Q1), bottom tap cycles
+the face (enum order — Q3). No on-screen affordance (Q2). Persistence deferred: taps mutate
+`g_settings` in RAM + dirty; `suspend()` does one coalesced `SettingsStorage::save()` iff the
+value differs from the loaded snapshot (ADR-050 rule 3, WebRadio lastStation idiom — Q4).
+Observables: `get clockLastAction`, `get clockStyle` extended with themes + dirty. Design:
+`docs/architecture/designs/M-CLOCK-TAP-CYCLE.md` (accepted, Q1–Q4 human-resolved same day).
+
+**Owner:** Developer + VE · **Deps:** TASK-345 (themes; done) · **Gate:** `run/check` + DUT
+tap suite T_CLK_TAP_01..06 + screendump eyeballs · **Priority:** P2 · **Status:** in progress
+
 > **PM sync 2026-07-17 (overnight session — 6 slices landed, ZERO DUT time — handoff for daylight)** —
 > Overnight agent session (`Claude Fable 5`) shipped six build-verified slices, each `run/check` 6/6
 > (7/7 once the new gate landed): **WIRE2-G1/G2/G3** boot TZ + timeFmt + 12h/dateFmt (`a241b44`),
