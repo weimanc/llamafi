@@ -1033,14 +1033,13 @@ for all taskbar icons including imported art), which only matters once the
 target size is settled. No lean forced on either question — needs a human
 decision given real tradeoffs on each side.
 
-**Status:** in progress — human decided all three gates 2026-07-18
-(36×36 budget / Option B native hand-authored / warn-only fill check),
-recorded as ADR-051. Tasks filed: TASK-331 (bake tooling + host contact
-sheet), TASK-332 (36×36 bump + re-bake + triage), TASK-333 (PlaneRadar
-native re-author, first test case), TASK-334 (opportunistic re-touch,
-scope from TASK-332 triage). Host-first inspection: iterate on
-`BAKED_SHEET.png` / `gen_icon_drafts.py` contact sheets; DUT only as
-final eyeball gate (BP-048) on TASK-332/333.
+**Status:** in progress — TASK-331/332/334 DONE 2026-07-18 (ADR-051
+decided same day: 36×36 / Option B / warn-only fill check). 9 icon pairs
+re-authored natively via `gen_icon_natives.py`, installed, DUT eyeball
+PASS; all bake PASS-THROUGH. Only TASK-333 (PlaneRadar native re-author)
+remains — it reuses the gen_icon_natives pipeline that TASK-334 proved.
+Host-first inspection pattern held: 3 approval rounds entirely on
+contact sheets, exactly one DUT flash at the end.
 **Deps:** M-TASKBAR-ICONS (done), M-PLANERADAR (done)
 **Design:** [M-ICON-PIXELART-native-icon-authoring.md](../architecture/designs/M-ICON-PIXELART-native-icon-authoring.md)
 **ADR:** [ADR-051](../architecture/decisions/ADR-051.md)

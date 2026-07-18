@@ -1581,11 +1581,23 @@ is legal, no flag day.
 **DUT step (last):** flash, one eyeball pass over the taskbar (BP-048 —
 init must paint; host PNG ≠ TFT: RGB565 quantization + inversion + real
 backlight), confirm active-indicator/separator clearance on real panel.
-**Status:** open
-**Opened:** 2026-07-18 · **Milestone:** M-ICON-PIXELART · **Owner:**
-Developer (triage call: human) · **Deps:** TASK-331 (`--sheet` must exist
-first) · **Size:** S-M · **DUT:** y (single final eyeball gate; all
-iteration on host sheet)
+**Status:** **DONE — 2026-07-18.** Bump landed in 118dc07 (with
+`preview_common.py` mirror constants fixed in the same commit — a future
+`preview_layout.py --export` would have silently regressed the header to
+24). `weather_active.png` (36×36) was the first PASS-THROUGH source, as
+predicted. Host triage happened on BAKED_SHEET.png + the repaired
+`preview_layout.py` (48e724d — it was still pasting TEXT.BMP letter
+glyphs; now renders real icons, with ,/. scroll through TASKBAR_ORDER =
+APP_ORDER minus eject-only WebRadio). Triage verdict (human): life bad;
+clock/matrix/settings/stock/weather-inactive mildly soft; user widened
+scope to weather-active, aquarium, teletext, crypto → all executed under
+TASK-334. DUT eyeball 2026-07-18 after the TASK-334 install flash
+(build Jul 18 07:20, d60b96d): human PASS on real panel — no clipping of
+indicator bar or separators. `run/check` 6/6 at every step.
+**Opened:** 2026-07-18 · **Closed:** 2026-07-18 · **Milestone:**
+M-ICON-PIXELART · **Owner:** Developer (triage: human) · **Deps:**
+TASK-331 · **Size:** S-M · **DUT:** y (single eyeball flash, shared with
+TASK-334's — PASS)
 
 ### TASK-333 — M-ICON-PIXELART: re-author PlaneRadar icon pair natively at 36×36 (first test case)
 
@@ -1624,9 +1636,29 @@ pass-through bake → golden → `run/check`). Imported hi-res art
 Option B — exempt unless triage says the 36×36 resize product itself is
 unacceptable. Batch the DUT eyeball: one pass at the end for all re-touched
 icons, not per icon.
-**Status:** open — scope TBD by TASK-332 triage (may close empty if
-everything survives triage)
-**Opened:** 2026-07-18 · **Milestone:** M-ICON-PIXELART · **Owner:**
-Developer (per-icon approval: human) · **Deps:** TASK-332 (triage list),
-TASK-333 (workflow proven) · **Size:** S-M (scales with triage list) ·
-**DUT:** y (one batched eyeball pass)
+**Status:** **DONE — 2026-07-18.** Scope from triage grew to **9 pairs**
+(life, clock, weather, matrix, settings, stock, aquarium, teletext +
+crypto added in review round 2); only spotify untouched (planeradar =
+TASK-333). Executed via new `app/tools/gen_icon_natives.py` (65ede54 +
+018de46 + 958db9f), which renders all candidates natively at
+`TASKBAR_ICON_W/H` from `shell_layout.h`: rectilinear pixel art (life
+glider, teletext lines) drawn 1:1 with zero resampling; curves at
+integer SS=8 with exactly one LANCZOS down; settings/stock/crypto-₿ from
+their Material SVG masters via inkscape; active palette sampled from the
+shipped PNGs (life's blue→orange per-block gradient preserved).
+Notable calls: teletext deliberately at 83% fill (square glyphs read
+optically larger — its WARN is accepted); aquarium fish is **literal
+text** — '><((( *>' in Noto Sans Mono, auto-sized until the ink-packed
+glyphs fit 35px (getmask ink boxes, NOT textbbox which returns the
+constant mono advance), gap-0 compressed packing, binarized to hard
+pixels, '*' eye one font size up (binarization otherwise amputates it to
+'^'). Human approval loop ran entirely on NATIVE_SHEET.png (3 rounds);
+`--install` copied the approved set (d60b96d), all 18 bake
+PASS-THROUGH, golden regen, `run/check` 6/6, prod flash + human DUT
+eyeball PASS 2026-07-18. Note: deps assumed TASK-333 would prove the
+workflow first; in practice 334 ran before 333 and proved it instead —
+333 now reuses `gen_icon_natives.py`'s pipeline.
+**Opened:** 2026-07-18 · **Closed:** 2026-07-18 · **Milestone:**
+M-ICON-PIXELART · **Owner:** Developer (approval: human) · **Deps:**
+TASK-332 · **Size:** M (9 pairs, 3 review rounds) · **DUT:** y (batched
+eyeball with TASK-332 — PASS)
