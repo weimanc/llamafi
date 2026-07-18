@@ -6,6 +6,80 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 > Completed/closed/fixed/resolved tasks are periodically moved to [tasks-archive.md](tasks-archive.md) to keep this file WIP-only. Last archive pass: 2026-07-12 (moved TASK-143..313 range, 149 entries — see archive file for the batch note).
 
+> **PM sync 2026-07-18 (parallel session — M-CERT-ERRCODE remainder scheduled + ADR sweep)** —
+> Ran alongside the clock-faces agent (clock files untouched by this session). Two deliverables:
+> **(1)** M-CERT-ERRCODE remainder broken down into TASK-341..344 (section below) from the existing
+> design doc — TASK-341/342/343 are host-or-build-verified and DUT-free; TASK-344 needs a DUT window.
+> **(2)** ADR hygiene sweep: all nine stale-`proposed` ADRs dispositioned with code evidence —
+> ADR-024/025/026/031/035/039/041 **accepted** (all implemented and load-bearing),
+> ADR-028 (Canvas abstraction) **rejected — not adopted** (no `canvas.h`; renderers still bind
+> `TFT_eSPI` directly; preview needs met host-side), ADR-032 (yieldHeap/reclaimHeap)
+> **superseded** (protocol never implemented; tlsYield arbitration + demoscene .bss cuts solved it).
+> Human review flag: the ADR-028 rejection and ADR-032 supersession are the two judgement calls —
+> the seven accepts are mechanical.
+
+## Open — M-CERT-ERRCODE remainder (2026-07-18)
+
+Breakdown of everything the design doc
+([M-CERT-ERRCODE-cert-error-sentinel.md](../architecture/designs/M-CERT-ERRCODE-cert-error-sentinel.md))
+specifies beyond the TASK-318 minimal slice (sentinel + `openHttps()` hook + `httpErr()` decode —
+already shipped with M-PR-LOCATIONS).
+
+### TASK-341 — cert-sentinel call-site audit: every `setCACert()` site reports -120
+
+`openHttps()` carries the `lastError()` → `-120` substitution, but eight fetcher call sites in
+`dataTaskStorage.cpp` still hand-roll `setCACert()` + begin/GET and therefore swallow cert-verify
+failures as `-1`: weather (`:216`), coingecko (`:287`), yahoo ×4 (`:359/:432/:803/:895`),
+radio-browser (`:979`), planeradar (`:1199`). Per design §"Fetchers not on the helper": migrate
+onto `openHttps()` where the divergence is historical accident; where the custom path is deliberate
+(radio-browser per-mirror skip logic, planeradar retry-once), add the same two-line `lastError()`
+check inline. Done = every `setCACert()` site in the file surfaces `-120` on verify failure.
+Optional rider (design Q1): latch a "last cert failure (host, ts)" heartbeat line **only if free** —
+do not build new heartbeat plumbing for it.
+
+**Owner:** Developer · **Deps:** TASK-318 (done) · **Gate:** `run/check` 7/7; DUT regression rides
+existing suites (no cert-path behaviour change on the happy path) · **Priority:** P2 ·
+**Status:** open
+
+### TASK-342 — build-time cert preflight (warn-only) + offline expiry check
+
+Hook `run/check-datatask-certs` into `run/build` / `run/build-debug` (inherited by `run/flash*`),
+mirroring the run/test step-0 pattern: FAIL = loud banner, never blocks compile; ERROR
+(network) = one line and move on; `CERT_PREFLIGHT=0` skips entirely. Plus the new fully-offline
+expiry check: parse each pinned PEM's `notAfter`, warn when < 180 days out — runs unconditionally
+(no network, deterministic). Host test T_CERT_HOST_02: synthetic near-expiry cert trips the warn;
+shipped roster stays silent.
+
+**Owner:** Developer · **Deps:** none (checker exists) · **Gate:** host-only; verify build still
+completes offline with knob unset · **Priority:** P2 · **Status:** open
+
+### TASK-343 — `--propose-fix` guided-rotation report mode
+
+Extend the cert checker: on FAIL, fetch the served chain, identify the served root (or note an
+unknown terminator), write a report to `scratch/` with subject/issuer/fingerprint/notAfter, a
+ready-to-paste PEM block, and the two mandatory judgement-call reminders (verify fingerprint
+against CCADB/Mozilla; replace-vs-bundle needs repeat probes — coingecko flipped twice, TASK-298).
+**Explicit non-goal: no auto-apply to `dataTaskCerts.h`** (TOFU risk, design §3). Host test
+T_CERT_HOST_01: doctored copy of `dataTaskCerts.h` with a wrong root → report names the actual
+served root.
+
+**Owner:** Developer · **Deps:** TASK-342 (shares checker plumbing; can land together) ·
+**Gate:** host-only · **Priority:** P3 · **Status:** open
+
+### TASK-344 — `set certbreak <app>` debug command + T_CERT_ERR_01 (DUT)
+
+Debug-build serial command swaps in a syntactically-valid wrong root CA for the named app's next
+fetch, auto-clearing after one cycle. VE test T_CERT_ERR_01: error row + `get dataq` show `-120`,
+next cycle recovers; **must include the stale-`lastError()` leg** — after break/recover, an
+unreachable-host failure must show `-1`/`-11`, not a lingering `-120` (design §Effort/risk, the
+one identified risk of the whole milestone). Follows the TASK-276 injected-state pattern — same
+autoSkip/retry isolation care. Note: the settings-suite drain audit (tasks.md `:1279`) already
+flagged that no `certbreak` hook exists — this task closes that gap too.
+
+**Owner:** Developer (command) + VE (test) · **Deps:** TASK-341 (audit first, so the injection
+exercises the final code paths) · **Gate:** DUT window required — queue for next DUT session ·
+**Priority:** P3 · **Status:** open — DUT-blocked (scheduling, not external)
+
 > **PM sync 2026-07-17 (overnight session — 6 slices landed, ZERO DUT time — handoff for daylight)** —
 > Overnight agent session (`Claude Fable 5`) shipped six build-verified slices, each `run/check` 6/6
 > (7/7 once the new gate landed): **WIRE2-G1/G2/G3** boot TZ + timeFmt + 12h/dateFmt (`a241b44`),

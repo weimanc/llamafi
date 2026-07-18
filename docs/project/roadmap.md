@@ -1071,12 +1071,14 @@ fingerprint report for human approval — explicitly **no** auto-update of
 pins (TOFU risk; single probes lie under Cloudflare multi-chain
 load-balancing, see TASK-298). Companion to M-PR-LOCATIONS.
 
-**Status:** proposed; minimal slice split out — the `-120` sentinel +
-`httpErr()` decode is filed as TASK-318 (hard prerequisite of
-M-PR-LOCATIONS' geocode fetcher, per its PM panel review 2026-07-13). The
-remainder (build-hook preflight, offline expiry check, `--propose-fix`,
-call-site audit, `set certbreak` DUT test) stays unscheduled on this
-milestone.
+**Status:** scheduled (2026-07-18) — minimal slice (TASK-318: `-120` sentinel +
+`openHttps()` hook + `httpErr()` decode) shipped with M-PR-LOCATIONS. The
+remainder is now broken down as **TASK-341** (call-site audit — 8 hand-rolled
+`setCACert()` fetchers still swallow verify failures as `-1`), **TASK-342**
+(build-hook preflight warn-only + `CERT_PREFLIGHT=0` knob + offline 180-day
+expiry check), **TASK-343** (`--propose-fix` rotation report, no auto-apply),
+**TASK-344** (`set certbreak` + T_CERT_ERR_01 incl. stale-`lastError()` leg —
+DUT window required). 341–343 are DUT-free.
 **Deps:** ADR-029, TASK-223 (openHttps)
 **Design:** [M-CERT-ERRCODE-cert-error-sentinel.md](../architecture/designs/M-CERT-ERRCODE-cert-error-sentinel.md)
 

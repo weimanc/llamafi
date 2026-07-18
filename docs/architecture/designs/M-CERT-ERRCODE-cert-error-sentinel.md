@@ -1,8 +1,10 @@
 # Design — M-CERT-ERRCODE: Dedicated error code for TLS certificate failures
 
 > Owner: Architect
-> Status: draft — proposed 2026-07-13, no ADR needed (extends ADR-029's error
-> surface; no new decision class)
+> Status: scheduled — proposed 2026-07-13, no ADR needed (extends ADR-029's error
+> surface; no new decision class). Minimal slice shipped as TASK-318
+> (M-PR-LOCATIONS); remainder broken down 2026-07-18 as TASK-341..344
+> (tasks.md) — this doc is the implementation spec for those tasks.
 > Date: 2026-07-13
 > Deps: ADR-029 (root-CA pinning), TASK-223 (openHttps helper), M-CONN
 > (heartbeat `last=` surface)
