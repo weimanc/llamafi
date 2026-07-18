@@ -7,8 +7,8 @@
 #define TASKBAR_W            45   // width of taskbar strip
 #define TASKBAR_SLOT_COUNT    6   // number of app slots (== AppId::COUNT)
 #define TASKBAR_SLOT_H       40   // height of each icon slot (SLOT_COUNT × SLOT_H == 240)
-#define TASKBAR_ICON_W       24   // icon glyph width (centred in slot)
-#define TASKBAR_ICON_H       24   // icon glyph height
+#define TASKBAR_ICON_W       36   // icon glyph width (centred in slot) — ADR-051, was 24
+#define TASKBAR_ICON_H       36   // icon glyph height — ADR-051, was 24
 
 // Aesthetics (resolved in interactive preview pass)
 #define TASKBAR_BG_RGB565    0x2104   // background fill colour

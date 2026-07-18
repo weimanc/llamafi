@@ -4,9 +4,9 @@
 #include <stdint.h>
 #include "appShell.h"
 
-#define TASKBAR_ICON_BAKED_W 24
-#define TASKBAR_ICON_BAKED_H 24
-#define TASKBAR_ICON_BAKED_PX (24 * 24)
+#define TASKBAR_ICON_BAKED_W 36
+#define TASKBAR_ICON_BAKED_H 36
+#define TASKBAR_ICON_BAKED_PX (36 * 36)
 #define TASKBAR_ICON_COUNT 11
 
 struct TaskbarIconPair {

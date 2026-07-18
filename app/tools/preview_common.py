@@ -20,8 +20,8 @@ APP_H     = 240
 
 TASKBAR_SLOT_H     = 40
 TASKBAR_SLOT_COUNT = 6
-TASKBAR_ICON_W     = 24
-TASKBAR_ICON_H     = 24
+TASKBAR_ICON_W     = 36   # ADR-051 (was 24) — keep in sync with gen/shell_layout.h
+TASKBAR_ICON_H     = 36   # ADR-051 (was 24)
 
 TASKBAR_BG         = (32, 32, 32)    # 0x2104 RGB565
 TASKBAR_ACTIVE_COL = (0, 255, 0)     # 0x07E0 RGB565 — green
