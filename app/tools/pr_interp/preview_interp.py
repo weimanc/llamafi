@@ -147,9 +147,20 @@ class Sim:
         return img
 
 
+KEY_HELP = """\
+PROP-006 interpolation study — keys:
+  1..6    toggle algorithms (legend top-left; # = on, default snap/damped2/lerp)
+  c / v   poll cadence up / down (1/5/10/15/30 s)
+  s       solo plane cycle (all -> cruise -> turn -> holding -> approach -> climbout -> all)
+  SPACE   pause            r   restart run
+  + / -   window scale     q   quit
+White glyph+vector = ground truth; coloured trails/rings = reconstructions."""
+
+
 def interactive(preset_km):
     import pygame
     from preview_common import PreviewWindow
+    print(KEY_HELP)
     win = PreviewWindow("PROP-006 interpolation study", scale=3)
     radar = _radar(preset_km)
     ci = CADENCES_S.index(10)
