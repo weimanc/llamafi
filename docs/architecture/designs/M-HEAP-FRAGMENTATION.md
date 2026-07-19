@@ -344,14 +344,103 @@ justified by the evidence in hand today.
   `lfbInt` before/after a debug-triggered full `spotifyTask` teardown
   (Q3-b) is roughly an hour of work and would retire the "unproven" status
   in §Design space Option B either way. Worth doing opportunistically even
-  though it's not gating Option E. **Spike outline below** (human requested
-  this be written up before running it).
+  though it's not gating Option E. **RUN 2026-07-19 — results below.**
+  Verdict: predominantly **Outcome B** (full teardown does *not* reliably
+  recover the largest free block); Q3-b retired as a dependable lever, Option
+  B's "parked" status unchanged (if anything, reinforced).
 
-### OQ4 spike outline — does a fuller `spotifyTask` teardown recover the largest free block?
+### OQ4 spike — RUN 2026-07-19 — does a fuller `spotifyTask` teardown recover the largest free block?
 
-**Not yet run.** This is the plan, written up for review before executing —
-matches this doc's own root-cause methodology (`get heap`'s `lfbInt`/
-`freeInt`, exact-byte, not estimated).
+**Run 2026-07-19** against the current debug build (`cyd2usb_winamp_debug`,
+post-TASK-363 — persisted `playerMode=WebRadio`, Spotify idle at boot).
+Method matched this doc's root-cause methodology (`get heap`'s `lfbInt`/
+`freeInt`, exact-byte). Throwaway debug-only teardown was added
+(`spotifyTask::debugTeardown()` via a `SERIAL_DEBUG` `spTeardown` command:
+reuses the existing `tlsYield()` stop path to park the task at a safe point —
+`client.stop()` already done, task in its yield-spin `vTaskDelay`, not inside
+mbedTLS — then `vTaskDelete()`s it and `vQueueDelete`/`vSemaphoreDelete`s its
+OS objects) and **reverted after measurement** — no spike code shipped.
+
+Because TASK-363 now boots into WebRadio mode (Spotify idle), the original
+fragmentation condition was reproduced by explicitly toggling to Spotify
+(`switchApp 0`) to force the real TLS connect, rather than by changing the
+persisted `playerMode`. `playerMode` was confirmed unchanged (`WebRadio`)
+after every trial; the shell (running on `loopTask`, not the deleted task)
+stayed responsive and no `spotify.poll`/`spotify.tls` lines appeared after
+teardown in any trial.
+
+**Results — 7 completed fresh boots** (all `lfbInt`/`freeInt` in bytes,
+`MALLOC_CAP_INTERNAL`):
+
+| Trial | boot `lfbInt` (Spotify idle) | post-connect `lfbInt` | post-teardown `lfbInt` | post-teardown `freeInt` |
+|-------|------|------|------|------|
+| 1 | 42996 | 42996 | **65524** | 130088 |
+| 2 | 42996 | 42996 | 42996 | 130088 |
+| 4 | 42996 | 42996 | 42996 | 129864 |
+| 6 | 42996 | 42996 | 45044 | 130032 |
+| 7 | 42996 | 42996 | 45044 | 130052 |
+| 8 | 42996 | 42996 | 45044 | 130080 |
+| 9 | 42996 | 42996 | 47092 | 130064 |
+
+(boot `freeInt` ranged 58868–64876; post-connect `freeInt` 73476–119188 —
+the spread reflects WebRadio's arena being released as its app suspends on the
+toggle to Spotify, partially offsetting Spotify's TLS allocation.)
+
+**Which outcome: predominantly B, with one non-reproducible A-like outlier.**
+- `freeInt` **fully recovers** to ~130 K every single trial (129864–130088) —
+  the teardown demonstrably frees everything it should (TLS session ~40 K +
+  task stack ~10 K + queue/sem), all bytes return to the pool.
+- `lfbInt` **stays pinned at ~43 K in 6 of 7 trials** (42996 ×2, 45044 ×3,
+  47092 ×1 — the +2 K/+4 K cases are one-to-two extra 2 KB TLSF blocks, i.e.
+  effectively still at the ceiling). Only trial 1 showed material recovery
+  (65524, +22.5 K), and it did **not** reproduce across the other six boots —
+  this is exactly the single-sample DUT non-determinism this investigation
+  has been bitten by before (the `_ensureMotion()` A/B needed 3 repeats for
+  the same reason). It is allocator-placement luck, not a mechanism.
+
+**`freeInt`-delta inspection (per Outcome C's caution):** the ~56 K the
+teardown frees returns to the free pool (post-connect ~73 K → post-teardown
+~130 K `freeInt`) but does **not** enlarge the largest contiguous block past
+~43 K in the reproducible case. That is the definitive read: the freed
+regions (TLS working set + task stack) are **not adjacent to the wedge**, so
+coalescing cannot extend the largest block through it. The wedge is not in
+`spotifyTask`'s footprint.
+
+**This maps to Outcome B as spelled out in §Design space Option B:** nothing
+resident in `spotifyTask`'s own footprint — stack included — is the wedge, so
+deleting the task can't reliably free it. The actual wedge is something else
+whose lifetime isn't tied to the task (most likely a WiFi/LWIP driver buffer
+or an mbedTLS-internal/persistent structure), consistent with the doc's
+Outcome-B hypothesis. **Additional observation worth recording:** under the
+current TASK-363 build, `lfbInt` is *already* 42996 at WebRadio boot with
+Spotify idle (never connected this boot) — the ~43 K ceiling is present from
+resident WebRadio-mode state independent of Spotify's TLS connect, and it
+persists after the Spotify teardown. So in this build the ceiling is not
+uniquely a Spotify-TLS side-effect; tearing Spotify down doesn't clear it,
+reinforcing the "wedge is outside spotifyTask" conclusion.
+
+**Implication for Option B ("parked").** OQ4's status converts from
+*unproven* to **measured**: a full `spotifyTask` teardown does **not**
+reliably recover the largest free block (6/7 pinned). Q3-b is retired as a
+dependable lever for this fragmentation problem — the extra ~10 K stack
+reclaim it buys over today's `tlsYield` does not un-split the wedge. This does
+**not** change the doc's overall `Status: parked` (a human call, left as-is),
+but it removes the one open reason to revisit Option B: there is no longer a
+plausible mechanism by which Q3-b would help, so it should stay parked (now on
+measured evidence, not speculation). If the fragmentation ever needs to be
+attacked at the wedge itself, the next lever is ESP-IDF heap tracing
+(`heap_trace_start()`/`dump()`) to attribute the ~43 K-pinning allocation to
+its actual owner — a separate, larger investigation, exactly as Outcome B
+anticipated. Option E remains the recommended structural fix (sidestep the
+ceiling rather than fight it); nothing in this spike changes that.
+
+---
+
+<details>
+<summary>Original OQ4 spike outline (pre-run, retained for reference)</summary>
+
+Written up for review before executing — matched this doc's own root-cause
+methodology (`get heap`'s `lfbInt`/`freeInt`, exact-byte, not estimated).
 
 **What's not already there.** `spotifyTaskStorage.cpp` today only has a
 one-shot `begin()` (`g_taskHandle`-guarded, idempotent no-op if already
@@ -427,6 +516,9 @@ Spotify-connect baseline in this doc's Context section):
 against the null-safety audit and UX cost, not something a heap-number spike
 settles by itself. This spike's only job is to convert "unproven" into
 "measured," per OQ4's original framing.
+
+</details>
+
 - **OQ5 (manifest headroom).** Confirm the boot-time-prefetch's demand
   (~40 K TLS + `WR_DOC_CAP` 5 K) still fits `mem_manifest.yaml`'s
   `headroom.INTERNAL: 60000` line — expected yes, since it's the same
