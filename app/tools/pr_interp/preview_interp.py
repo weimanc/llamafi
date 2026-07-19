@@ -15,7 +15,8 @@
 import argparse
 import os
 
-os.environ.setdefault("SDL_VIDEODRIVER", os.environ.get("SDL_VIDEODRIVER", ""))
+# Leave SDL_VIDEODRIVER alone: SDL autodetects wayland/x11 for the window;
+# headless mode sets =dummy itself. (Setting it to "" breaks window creation.)
 import pygame  # noqa: E402
 
 from model import to_px, PRESETS_KM
