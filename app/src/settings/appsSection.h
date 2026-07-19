@@ -487,7 +487,7 @@ private:
         drawRow(y, { "Units", settings().prUnits ? "mi" : "km", S_LABEL, S_VALUE }); y += S_ROW_H;
         drawRow(y, { "Runways", settings().prRunwayOverlay ? "on" : "off", S_LABEL, S_VALUE }); y += S_ROW_H;
 
-        static const char* kTagRule[]   = { "a", "b", "c (drop)" };
+        static const char* kTagRule[]   = { "fixed", "nudge", "drop" };
         drawRow(y, { "Tag rule", kTagRule[(uint8_t)settings().prTagRule % (uint8_t)PrTagRule::Count], S_LABEL, S_VALUE }); y += S_ROW_H;
 
         static const char* kStaleStyle[] = { "ring", "text", "dim" };

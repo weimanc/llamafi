@@ -740,3 +740,27 @@ interactions:
     notes: |
       Reserved 2026-07-18 at design time (docs/architecture/designs/M-CLOCK-THEMES.md,
       Architect registry remit). Status tracked via TASK-345 / clock-themes-001.
+
+  - id: X037
+    feature_a: viewport-repair-001
+    feature_b: planeradar-001
+    interaction_type: dependency
+    description: |
+      planeradar-001's TASK-357 follow-up (per-aircraft dirty-rect motion
+      redraw — deferred, not yet filed as a task) will call
+      withViewportRepair() around _redrawGridStatics() (planeRadarApp.h:756),
+      scoping the post-erase static-layer repair (rings/crosshair/runways)
+      to each dirty aircraft's bounding box instead of the whole 240px disc
+      on every ~10 Hz _motionDirty() tick. viewport-repair-001 has no other
+      consumer today — this is a one-directional dependency (PlaneRadar
+      depends on the helper; the helper has zero PlaneRadar-specific logic).
+    risk: low
+    test_coverage: []
+    notes: |
+      Reserved 2026-07-19 at design time
+      (docs/architecture/designs/M-DISPLAY-DELTA-COMMON.md, Architect
+      registry remit; feeds ADR-052, proposed). Both sides of this edge are
+      unimplemented as of reservation — status tracked via
+      viewport-repair-001 / a not-yet-filed PlaneRadar follow-up task.
+      Developer completes/corrects this entry (test_coverage, risk
+      re-check) at implementation.

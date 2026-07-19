@@ -1169,11 +1169,16 @@ eyeball. Production interpolation is filed only after the study graduates.
 **Status:** in progress — TASK-355 (slider) open; TASK-356 (RnD study)
 **DONE 2026-07-19** (EXP-014: **dr-damped(tau=2), depth 1 VALIDATED**, human
 eyeball sign-off; capture session descoped, model-match caveat dispositioned
-in the report); graduation filed as **TASK-357** (firmware smoother — core
-question is the ~10 Hz dirty-rect repaint strategy, Architect consult
-required).
+in the report); graduation filed as **TASK-357**, shipped `1f66252`
+(firmware smoother) but the deferred repaint-strategy question surfaced as
+human-reported visible tearing — Architect design
+(`M-DISPLAY-DELTA-COMMON.md`) + **ADR-052** (proposed, awaiting human
+sign-off) settled it: extract one small shared `withViewportRepair()`
+helper, not a unified delta-engine framework. Follow-up filed as
+**TASK-358** (per-aircraft dirty-rect redraw, ADR-052 graduation).
 **Deps:** M-PLANERADAR, M-SETTINGS-STYLE, ADR-050, TASK-313.
 **Design:** [M-PR-MOTION.md](../architecture/designs/M-PR-MOTION.md) ·
+[M-DISPLAY-DELTA-COMMON.md](../architecture/designs/M-DISPLAY-DELTA-COMMON.md) ·
 **RnD:** [PROP-006](../rnd/proposals/PROP-006-pr-interpolation-study.md) →
 [EXP-014](../rnd/reports/EXP-014-pr-interpolation.md)
 

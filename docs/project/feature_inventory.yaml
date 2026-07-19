@@ -1914,3 +1914,36 @@ features:
       all 4 VFD themes, pixel-correct. Also added `set nixieTheme`/
       `set vfdTheme` SERIAL_DEBUG commands (main.cpp), same pattern as
       `set clockStyle`, for DUT test convenience.
+
+  - id: viewport-repair-001
+    name: Viewport-scoped static-layer repair helper
+    milestone: M-DISPLAY-DELTA-COMMON (reserved, not yet scheduled)
+    status: planned
+    description: |
+      Reserved at design time (Architect registry remit) — not yet
+      implemented. `withViewportRepair(tft, x, y, w, h, repairFn)`: a single
+      stateless function template wrapping TFT_eSPI's setViewport()/
+      resetViewport() around a caller-supplied redraw callback, so an app's
+      EXISTING whole-static-layer redraw function can be reused verbatim to
+      repair only a dirty rectangle instead of the whole scene. Lives in
+      app/src/util/tftViewportRepair.h (new file, alongside mathUtil.h/
+      timeFmt.h). First (currently only) intended consumer: planeradar-001's
+      TASK-357 follow-up (per-aircraft dirty-rect motion redraw — deferred,
+      not yet filed as a task), scoping _redrawGridStatics()'s post-erase
+      repair to the dirty aircraft's bounding box instead of the full disc.
+      Deliberately NOT a unified delta-engine/dirty-rect-sprite framework —
+      see design doc for why (7-instance survey of existing ad hoc
+      diff-render mechanisms across the app suite found no shared shape
+      worth abstracting beyond this one TFT_eSPI wrapper).
+    git_ref: "fff0208 (2026-07-17)"
+    files:
+      - app/src/util/tftViewportRepair.h
+    cross_features: [planeradar-001]
+    test_ids: []
+    notes: |
+      Design: docs/architecture/designs/M-DISPLAY-DELTA-COMMON.md (draft).
+      Feeds ADR-052 (proposed). Matrix edge X037. Reserved 2026-07-19;
+      Developer completes/corrects this entry (git_ref, files, test_ids)
+      when the PlaneRadar follow-up that consumes it is actually
+      implemented — per architect.md's registry-reservation protocol, a
+      design reserves, Developer completes at implementation.

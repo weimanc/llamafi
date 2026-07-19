@@ -328,6 +328,49 @@ signal (see Deferred).
 3. **Architect sign-off** on the repaint-strategy substitution above (whole-scene-reuse +
    exact dirty-gate vs. the originally-sketched partial redraw).
 
+### TASK-358 — PlaneRadar per-aircraft dirty-rect redraw (fixes TASK-357 tearing, ADR-052 graduation)
+
+Fixes the whole-scene repaint anti-pattern TASK-357 introduced at ~10 Hz (`_render()` erases +
+redraws *every* aircraft, `_redrawGridStatics()` repaints the full disc, on every
+`_motionDirty()` tick) — human-reported this session as visible "twitchy" tearing, the same bug
+class TASK-354 fixed for Clock's Flip/Nixie colon flicker, and explicitly flagged as TASK-357's
+own deferred item #3 (Architect sign-off on the repaint strategy). Design + evidence:
+`docs/architecture/designs/M-DISPLAY-DELTA-COMMON.md`, `docs/architecture/decisions/ADR-052.md`
+(registry: `viewport-repair-001`, `X037`). Two-part implementation:
+
+1. **Shared primitive** — `withViewportRepair(tft, x, y, w, h, repairFn)`, new file
+   `app/src/util/tftViewportRepair.h` (stateless template wrapping TFT_eSPI's
+   `setViewport()`/`resetViewport()` around a caller-supplied redraw callback; no reentrancy,
+   no per-app state, ~15 lines — reference implementation + invariants in the design doc). Zero
+   prior call sites in the codebase (`grep -rn setViewport app/src/` is empty today).
+2. **PlaneRadar consumer** (`app/src/planeRadarApp.h`) — replace `_render()`'s whole-scene
+   erase/redraw with per-aircraft handling: a per-aircraft draw helper, a per-aircraft
+   erase-with-bounding-box helper (`fillRect` over the old footprint), `withViewportRepair()`
+   wrapped around `_redrawGridStatics()` (called verbatim, unchanged) scoped to each dirty
+   aircraft's bbox instead of the full 240px disc, and rigid tag repositioning without full
+   occlusion recompute on every tick (full occlusion recompute stays reserved for real
+   fetch-landing events, not the ~10 Hz interp tick). Dirty check reuses `_motionPx()` as the
+   existing exact, zero-extra-storage pure-function trick (`_motionDirty()` already does this at
+   the whole-scene level, `:732`) — no new per-aircraft "last drawn px" bookkeeping needed.
+   Per-aircraft vs. union-bbox viewport scoping left to implementation judgement (both cheap at
+   ≤24 `PR_MAX_AIRCRAFT`). Clock's TASK-354 delta engine, VU meter, WebRadio, Weather/Digital,
+   Game of Life, Aquarium: **zero diffs** — each already solves its own case correctly by its
+   own mechanism; touching them for framework consistency is explicitly out of scope (ADR-052).
+
+Addresses TASK-357's deferred items #1 (DUT eyeball — the acceptance test here, see Gate) and #3
+(Architect sign-off — settled by ADR-052/the design doc). Item #2 (worst-case ~20-24-aircraft
+busy-airport load) stays open and untouched by this task.
+
+**Owner:** Developer · **Deps:** ADR-052 (status: proposed, awaiting human sign-off — confirm
+`accepted` before landing, or flag back if still open); TASK-357 (done — this is an additive
+follow-up, not a revision of its status) · **Gate:** `run/check` 7/7 + a
+`clock_delta_smoke.py`-style screendump-diff assertion ("steady per-aircraft motion tick touches
+≤ the dirty aircraft's own footprint pixels outside its erase/redraw box") + DUT crash-free
+stress + **human visual confirmation the flicker/tearing is actually gone (cannot be verified
+by the agent — this is the primary acceptance test, BP-048)** · **Priority:** P1 — human-
+reported visible regression in already-shipped functionality (TASK-357, this session), not
+routine backlog · **Status:** open
+
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
 Human request 2026-07-18. Clock canvas splits at `CLK_TAP_SPLIT_Y=120`: top tap cycles the
