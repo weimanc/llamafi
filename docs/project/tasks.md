@@ -2957,4 +2957,52 @@ TASK-361/362 were) · **Size:** M (one new `begin()` parameter, one
 boot-time conditional mirroring an existing guard, one refresh-call
 conditional, one harness readiness branch — small mechanical diff, but
 four required pieces plus a DUT exit-criteria list with six distinct
-scenarios) · **Status:** open
+scenarios) · **Status:** **DONE** 2026-07-19 (`app/src/spotifyTask.h`,
+`app/src/spotifyTaskStorage.cpp`, `app/src/main.cpp`,
+`app/tools/run_serialdbg_tests.py`, `docs/project/cross_feature_matrix.yaml`;
+commit pending)
+
+All four required pieces landed exactly per Option B, plus companion change 1
+implemented by inlining the conditional at the `main.cpp` call site rather
+than adding a parameter to upstream `spotifyLogic.h::spotifyRefreshToken()`
+(avoids touching the vendored upstream tree — left as implementer judgement
+by the brief). `bootIntoWebRadio` is computed once and reused for both the
+refresh-token gate and the existing boot-switch `else if`, exactly matching
+the anti-duplication instruction.
+
+**DUT-verified**, all six Exit Criteria scenarios exercised with real evidence
+(debug build, then reflashed production; `playerMode` was `WebRadio` before
+and after — restored, untouched by the debug-only commands used):
+- **5 cold boots, `playerMode=WebRadio`:** every boot logged
+  `[boot] spotify=idle (playerMode=webradio)...` + `begin ok ... startIdle=1`;
+  zero `[spotify.poll]` lines in any of them.
+- **Heap (Goal 2):** immediately post-boot (`post-init-idle`, before
+  WebRadio's own station-search fetch runs its own separate
+  `WiFiClientSecure`), `lfbInt` stayed 73-86k — not degraded to the
+  ~41-43k M-HEAP-FRAGMENTATION ceiling, confirming Spotify's own
+  contribution to the fragmentation is avoided. `lfbInt` does settle to
+  ~43k a few seconds later once WebRadio's *own* fetch runs — a separate,
+  pre-existing, unrelated TLS client, correctly out of this task's scope
+  (flagged explicitly so this isn't misread as Goal 2 failing).
+- **No-WiFi-at-boot edge case exercised for real** (a WiFi AP flake during
+  this pass left WiFi down at `setup()` time twice, not synthesized):
+  `bootIntoWebRadio` correctly computed `false` both times, `startIdle=0`,
+  and the visibly-active Spotify app kept retrying with backoff and
+  successfully refreshed its token (`POST /api/token -> 200`) once WiFi
+  recovered ~90s later — confirms the `wifiConnected` guard actually
+  prevents stranding, not just in theory.
+- **Toggle-to-Spotify** from a fresh WebRadio boot: connected and polled
+  (403 Forbidden — TASK-243's known external Premium-lapse condition,
+  expected, not a regression). 2 repeated toggle cycles both worked, no
+  compounding latency.
+- **Harness fix (companion 2) confirmed live:** `Dut()` construction (which
+  forces a DTR reboot) connected in 4.5-29.4s across the 5 cold boots via
+  the new `playerMode=WebRadio` branch — never the ~120s hang the old
+  code would have hit against a WebRadio-mode-persisted device.
+- `./run/check`: 6/6 gates green (independently re-verified by the
+  coordinator after the fact, also 6/6).
+
+Cross-reference X038's `test_coverage`/notes filled in with this evidence
+in `cross_feature_matrix.yaml` (ad hoc DUT verification, no formal
+T-numbered regression test written this pass — VE to assign `test_ids` if
+this graduates into the regression suite).

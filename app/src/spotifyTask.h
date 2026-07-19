@@ -98,7 +98,14 @@ extern portMUX_TYPE  g_queueMux;
 extern TaskHandle_t  g_taskHandle;
 
 // Lifecycle. Call after spotifyRefreshToken() has primed the lib.
-void begin(SpotifyArduino *spotifyObj);
+// TASK-363 (M-SPOTIFY-BOOT-GATE, ADR-054): startIdle seeds s_webRadioActive
+// before the task is created (before xTaskCreatePinnedToCore()), so the
+// task's very first loop iteration already observes the correct idle state
+// — closes a boot race where setWebRadioActive() called later (from the
+// boot-time switchApp(WebRadio)) arrived too late to stop the first
+// self-issued ACT_POLL from connecting TLS. Pass true when booting straight
+// into WebRadio mode (see main.cpp's bootIntoWebRadio), false otherwise.
+void begin(SpotifyArduino *spotifyObj, bool startIdle = false);
 
 // Loop posts requests; non-blocking (xQueueSend with timeout 0).
 // Returns false if the queue was full — drop and emit a WARN.

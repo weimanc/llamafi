@@ -792,6 +792,33 @@ interactions:
       run_serialdbg_tests.py::Dut._wait_for_ready() readiness-branch fix
       (VE-owned, not a feature_inventory entry — harness-internal) so a DUT
       left in playerMode=WebRadio doesn't hang the test harness on the
-      Spotify-poll wait; see the design doc's Finding 5. Developer
-      completes/corrects this entry (git_ref, test_coverage) at
-      implementation.
+      Spotify-poll wait; see the design doc's Finding 5.
+
+      TASK-363 implementation (2026-07-19, uncommitted as filed — see
+      commit at PM's next task-close pass): DUT-verified ad hoc (no formal
+      T-numbered regression test written this pass — VE to assign test_ids
+      if/when this graduates into the regression suite). Evidence: ≥5 cold
+      boots with playerMode=WebRadio persisted showed no `[spotify.poll]`
+      line and `startIdle=1` in the `spotify.task begin ok` log line before
+      an explicit toggle; a naturally-occurring no-WiFi-at-boot flake during
+      testing exercised the `wifiConnected` guard for real — WiFi was down
+      at setup() time, bootIntoWebRadio correctly computed false,
+      spotifyTask started with startIdle=0, and the visibly-active Spotify
+      app kept retrying (with backoff) and successfully refreshed its token
+      (`POST /api/token -> 200`) once WiFi recovered ~90s later, confirming
+      it was never stranded idle. Toggle-to-Spotify (switchApp 0) from a
+      fresh WebRadio-mode boot connected and polled (403 Forbidden —
+      TASK-243's known external Premium-lapse condition, not a regression);
+      2 repeated WebRadio<->Spotify toggle cycles within one boot both
+      succeeded with no compounding latency. run_serialdbg_tests.py's new
+      playerMode-aware readiness branch connected in 4.5-29s across 5 cold
+      boots (WiFi-timing variance), never the ~120s hang. Heap: immediately
+      post-boot (before WebRadio's own station-search fetch touches its own
+      TLS client), lfbInt stayed 73-86k (not degraded to the ~41-43k
+      M-HEAP-FRAGMENTATION ceiling) confirming Spotify's own contribution
+      to fragmentation is avoided; lfbInt does settle to ~43k a few seconds
+      later once WebRadio's *own* station-search HTTPS fetch runs (a
+      separate WiFiClientSecure, unrelated to Spotify, pre-existing
+      behavior, out of scope per M-HEAP-FRAGMENTATION/ADR-053 being
+      parked/independent) — flagged here so this isn't misread as Goal 2
+      failing to land.

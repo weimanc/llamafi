@@ -169,6 +169,26 @@ class Dut:
             self.ser.reset_input_buffer()
             print("  [Dut] DUT ready (spotify=off variant — poll wait skipped).", flush=True)
             return
+        # TASK-363 (M-SPOTIFY-BOOT-GATE, ADR-054 decision 4 / Finding 5): playerMode-aware
+        # readiness. On a device persisted in WebRadio mode, spotifyTask boots idle and
+        # deliberately never polls (see ADR-054) — waiting below for "[spotify.poll] ok 200"
+        # would hang the full ~120 s (60 s + reconnect retry) every single run. WiFi up +
+        # shell responsive is "ready" here, same standard as the variant_off branch above.
+        self.ser.reset_input_buffer()
+        self.ser.write(b"get playerMode\n"); self.ser.flush()
+        player_mode_webradio = False
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            line = self.ser.readline().decode(errors="replace").strip()
+            if '"var":"playerMode"' in line:
+                player_mode_webradio = '"name":"WebRadio"' in line
+                break
+        if player_mode_webradio:
+            time.sleep(0.5)
+            self.ser.timeout = orig_timeout
+            self.ser.reset_input_buffer()
+            print("  [Dut] DUT ready (playerMode=WebRadio — Spotify idle by design, poll wait skipped).", flush=True)
+            return
         # Wait for first successful Spotify poll (ok 200) AND queue fetch completion.
         # 60s window covers backoff after a failed startup poll.
         poll_ok = False

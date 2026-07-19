@@ -2360,7 +2360,30 @@ void setup()
     }
   }
 
-  spotifyRefreshToken(refreshToken);
+  // TASK-363 (M-SPOTIFY-BOOT-GATE, ADR-054 decision 1): computed once, must
+  // mirror the boot-switch condition below (main.cpp ~line 2407) exactly —
+  // NOT raw playerMode alone. If WiFi isn't up yet, the boot-switch keeps
+  // currentAppId == Spotify (visibly on screen) regardless of the persisted
+  // preference, and that visible app must still be allowed to connect once
+  // WiFi comes up via the background supervisor; seeding from raw
+  // playerMode would silently strand it idle.
+  bool bootIntoWebRadio = wifiConnected && (g_settings.playerMode == (uint8_t)PlayerMode::WebRadio);
+
+  // TASK-363 companion 1 (Finding 2/3): under bootIntoWebRadio, skip the
+  // eager network-calling refreshAccessToken() leg — it opens a real TLS
+  // connect on the same shared `client` spotifyTask uses, independent of
+  // any gate on begin(). setRefreshToken() alone primes the library with
+  // zero network; SpotifyArduino's autoTokenRefresh (default true) already
+  // refreshes lazily before the first real API call, which under this
+  // design only happens after an explicit toggle-to-Spotify. The
+  // forceRefreshToken/launchRefreshTokenFlow() credential-bootstrap path
+  // above is unaffected — stays unconditional.
+  if (bootIntoWebRadio) {
+    spotify.setRefreshToken(refreshToken);
+    Serial.println("[boot] spotify=idle (playerMode=webradio) — refresh deferred to first toggle");
+  } else {
+    spotifyRefreshToken(refreshToken);
+  }
 
   // refreshToken.h flow would have held port 80. Stand up permanent /log server now.
   logsink::serverBegin();
@@ -2369,7 +2392,12 @@ void setup()
   // this stage — task dequeues + logs but doesn't issue API calls yet.
   // 031b/c migrate the actual calls in.
 #ifndef DISABLE_SPOTIFY
-  spotifyTask::begin(&spotify);
+  // TASK-363 (M-SPOTIFY-BOOT-GATE, ADR-054 decision 1): seed the task idle
+  // before its first loop iteration when booting straight into WebRadio —
+  // closes the boot race where setWebRadioActive(true) (from the
+  // switchApp(WebRadio) call below) arrived too late to stop the first
+  // self-issued ACT_POLL from connecting TLS ~5s after begin().
+  spotifyTask::begin(&spotify, bootIntoWebRadio);
 #else
   // TASK-255 (M-WEBRADIO-NOPSRAM): the SOLE functional guard. Skipping begin()
   // means reqQueue / s_tlsYieldedSem stay null, so tlsYield()/tlsResume() (and
@@ -2404,7 +2432,10 @@ void setup()
   // enter WebRadio if that was the last-active mode. Whether a station then auto-plays is
   // governed by the existing webRadioAutoplay knob — these compose. Skipped when offline
   // (no network for the station fetch — including the TASK-296 creds-known offline boot).
-  else if (wifiConnected && g_settings.playerMode == (uint8_t)PlayerMode::WebRadio) {
+  // TASK-363: reuses bootIntoWebRadio computed above (same condition, computed once) —
+  // this switchApp(WebRadio) call's setWebRadioActive(true) is now purely confirmatory,
+  // the idle flag was already seeded before spotifyTask::begin() ran.
+  else if (bootIntoWebRadio) {
     switchApp(AppId::WebRadio);
   }
   mb_heap_probe("post-init-idle");    // TASK-261 Phase 0 milestone M4 (steady idle)

@@ -518,12 +518,20 @@ static void taskBody(void *) {
 
 // ---- public API -------------------------------------------------------------
 
-void begin(SpotifyArduino *spotifyObj) {
+void begin(SpotifyArduino *spotifyObj, bool startIdle) {
   if (g_taskHandle != nullptr) {
     LOG_W("spotify.task", "begin() called twice — ignoring");
     return;
   }
   s_spotify = spotifyObj;
+
+  // TASK-363 (M-SPOTIFY-BOOT-GATE, ADR-054 decision 1): seed the idle flag
+  // *before* the task is created, so the task's very first top-of-loop
+  // check already sees the correct state — closes Finding 1's boot race,
+  // where s_webRadioActive was only set later via setWebRadioActive() from
+  // the boot-time switchApp(WebRadio) call, too late to prevent the first
+  // self-issued ACT_POLL from firing a TLS connect ~5s after begin().
+  s_webRadioActive = startIdle;
 
   s_tlsYieldedSem = xSemaphoreCreateBinary();
   reqQueue = xQueueCreate(8, sizeof(Request));
@@ -541,7 +549,7 @@ void begin(SpotifyArduino *spotifyObj) {
     g_taskHandle = nullptr;
     return;
   }
-  LOG_I("spotify.task", "begin ok — handle=%p", (void *)g_taskHandle);
+  LOG_I("spotify.task", "begin ok — handle=%p startIdle=%d", (void *)g_taskHandle, (int)startIdle);
 }
 
 void resetBackoff() {
