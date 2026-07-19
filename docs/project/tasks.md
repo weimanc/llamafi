@@ -242,7 +242,34 @@ EXP report + graduation proposal; production firmware out of scope. Branch `rnd/
 
 **Owner:** R&D · **Deps:** none (fixture capture is independent of TASK-355) · **Gate:** EXP
 report + human review · **Priority:** P2 (human-requested, host-only, unblocked) ·
-**Status:** open
+**Status:** **DONE 2026-07-19** — [EXP-014](../rnd/reports/EXP-014-pr-interpolation.md),
+branch `rnd/pr-interp` e1f61ff..b302033. **VALIDATED: dr-damped(tau=2), depth 1** (10 s
+cadence: 0.7 px RMS, 0.1 px max jump vs dr-snap's 9.6 px teleports; delayed rungs ~10 px
+stale; catmull-rom never beats lerp → depth 3 dead). Human eyeball sign-off on synthetic
+("tau=2 is good enough"); capture session DESCOPED by human decision — model-match caveat
+dispositioned in EXP-014 (damped correction matters more, not less, when real prediction is
+worse; production DUT phase runs on the live feed anyway). Rig stays on the branch; process
+note: first cut rebuilt existing tools standalone (caught by human, rebased; LL candidate
+for QM — "inventory app/tools first").
+
+### TASK-357 — PlaneRadar motion smoothing: dr-damped(tau=2) in firmware (EXP-014 graduation)
+
+Implement the validated smoother in `planeRadarApp.h`: per-aircraft render position =
+dead-reckon from last fix along track+gs (the vecX/vecY derivation already exists for the
+speed line) + exponentially-decaying rendered-vs-predicted offset, **tau = 2 s**, depth 1 —
+state per aircraft is the last fix + one 2-component offset; fixed-point friendly, bounded
+for ~20 aircraft, no history arrays. Cap extrapolation on stale fixes (hand off to
+`prStaleStyle`, don't fly ghosts). **The core design question is the repaint strategy, not
+the math** (EXP-014): smooth motion needs ~10 Hz per-aircraft dirty-rect erase/redraw instead
+of repaint-on-fetch — budget it against Spotify SPI traffic and the tick loop; Architect
+consult before implementation (cross-component: render cadence). Interacts with TASK-355
+(`prPollSec`): tau stays 2 s at every cadence per the study. VE: DUT eyeball is primary
+(BP-048 — this feature IS a visual); add a `get prInterp` observable (offset magnitude,
+last-fix age) for T_PRI_01 assertions.
+
+**Owner:** Developer (Architect consult on repaint design) · **Deps:** EXP-014 (done);
+TASK-355 open but not blocking · **Gate:** `run/check` 7/7 + DUT eyeball + T_PRI_01 ·
+**Priority:** P2 · **Status:** open
 
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 

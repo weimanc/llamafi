@@ -1166,10 +1166,16 @@ host-side study first (PROP-006, `rnd/pr-interp`): samples × algorithm sweep
 against ~1 s ground-truth captures, scored on px error + correction-jump +
 eyeball. Production interpolation is filed only after the study graduates.
 
-**Status:** scheduled (2026-07-18) — TASK-355 (slider) + TASK-356 (RnD study).
+**Status:** in progress — TASK-355 (slider) open; TASK-356 (RnD study)
+**DONE 2026-07-19** (EXP-014: **dr-damped(tau=2), depth 1 VALIDATED**, human
+eyeball sign-off; capture session descoped, model-match caveat dispositioned
+in the report); graduation filed as **TASK-357** (firmware smoother — core
+question is the ~10 Hz dirty-rect repaint strategy, Architect consult
+required).
 **Deps:** M-PLANERADAR, M-SETTINGS-STYLE, ADR-050, TASK-313.
 **Design:** [M-PR-MOTION.md](../architecture/designs/M-PR-MOTION.md) ·
-**RnD:** [PROP-006](../rnd/proposals/PROP-006-pr-interpolation-study.md)
+**RnD:** [PROP-006](../rnd/proposals/PROP-006-pr-interpolation-study.md) →
+[EXP-014](../rnd/reports/EXP-014-pr-interpolation.md)
 
 ---
 

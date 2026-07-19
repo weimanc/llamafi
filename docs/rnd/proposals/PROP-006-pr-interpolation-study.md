@@ -1,7 +1,12 @@
 # PROP-006 — PlaneRadar interpolation study: samples × algorithm on host
 
 > Owner: R&D Engineer
-> Status: registered 2026-07-18 (human-commissioned; PM tracks as TASK-356)
+> Status: **CONCLUDED 2026-07-19 — VALIDATED** (see
+> [EXP-014](../reports/EXP-014-pr-interpolation.md)): dr-damped(tau=2),
+> depth 1; human eyeball sign-off on synthetic; capture session descoped by
+> human decision (mechanism argument + production DUT phase runs on the live
+> feed anyway — EXP-014 caveat 1). Production task: TASK-357.
+> Was: registered 2026-07-18 (human-commissioned; PM tracked as TASK-356)
 > Branch: `rnd/pr-interp` (host tooling only; no firmware)
 > Companion: M-PR-MOTION.md item B (Architect framing + graduation constraints)
 
