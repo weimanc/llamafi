@@ -116,11 +116,24 @@ def interactive(preset_km):
         clock.tick(FPS)
 
 
-def headless(out_dir, preset_km, n_frames, scenario_name):
+def _surface_to_pil(surf):
+    from PIL import Image
+    return Image.frombytes("RGB", surf.get_size(),
+                           pygame.image.tostring(surf, "RGB"))
+
+
+def headless(out_dir, preset_km, n_frames, scenario_name, gif=False):
+    """PNG stills (default) or animated GIFs (--gif, via preview_common's
+    write_gif — M-PREVIEW-FRAMEWORK) for the EXP report."""
     os.environ["SDL_VIDEODRIVER"] = "dummy"
     pygame.init()
     surf = pygame.Surface((W, H))
     os.makedirs(out_dir, exist_ok=True)
+    if gif:
+        import sys
+        import pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).parents[1]))
+        from preview_common import write_gif
     scenarios = [s for s in default_scenarios(preset_km)
                  if scenario_name in (None, s.name)]
     for sc in scenarios:
@@ -132,6 +145,7 @@ def headless(out_dir, preset_km, n_frames, scenario_name):
                 fi = 0
                 total = int(states[-1].t * FPS)
                 shots = 0
+                gif_frames = []
                 for n in range(total):
                     t = n / FPS
                     while fi < len(fixes) and fixes[fi].t <= t:
@@ -140,13 +154,20 @@ def headless(out_dir, preset_km, n_frames, scenario_name):
                     draw_disc(surf)
                     run_replay(surf, states, fixes, algo, preset_km, t,
                                trail_true, trail_algo)
-                    if n % max(1, total // n_frames) == 0:
+                    safe = algo.name.replace("(", "_").replace(")", "").replace("=", "")
+                    if gif and n % 3 == 0:            # 10 fps GIF
+                        gif_frames.append(_surface_to_pil(surf))
+                    elif not gif and n % max(1, total // n_frames) == 0:
                         shots += 1
-                        safe = algo.name.replace("(", "_").replace(")", "").replace("=", "")
                         pygame.image.save(
                             surf, os.path.join(
                                 out_dir, f"{sc.name}_{cad}s_{safe}_{shots:03d}.png"))
-                print(f"[headless] {sc.name} {cad}s {algo.name}: {shots} frames")
+                if gif:
+                    write_gif(gif_frames,
+                              os.path.join(out_dir, f"{sc.name}_{cad}s_{safe}.gif"),
+                              fps=10)
+                else:
+                    print(f"[headless] {sc.name} {cad}s {algo.name}: {shots} frames")
 
 
 if __name__ == "__main__":
@@ -154,9 +175,11 @@ if __name__ == "__main__":
     ap.add_argument("--preset", type=int, default=10, choices=PRESETS_KM)
     ap.add_argument("--headless", metavar="OUT_DIR")
     ap.add_argument("--frames", type=int, default=6)
+    ap.add_argument("--gif", action="store_true",
+                    help="headless: write animated GIFs instead of PNG stills")
     ap.add_argument("--scenario", default=None)
     a = ap.parse_args()
     if a.headless:
-        headless(a.headless, a.preset, a.frames, a.scenario)
+        headless(a.headless, a.preset, a.frames, a.scenario, gif=a.gif)
     else:
         interactive(a.preset)
