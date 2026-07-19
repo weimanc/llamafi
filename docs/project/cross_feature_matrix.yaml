@@ -764,3 +764,34 @@ interactions:
       viewport-repair-001 / a not-yet-filed PlaneRadar follow-up task.
       Developer completes/corrects this entry (test_coverage, risk
       re-check) at implementation.
+
+  - id: X038
+    feature_a: player-state-001
+    feature_b: poll-001
+    interaction_type: dependency
+    description: |
+      player-state-001's persisted g_settings.playerMode now gates poll-001's
+      spotifyTask::begin(): a bool bootIntoWebRadio = wifiConnected &&
+      (playerMode == WebRadio) — the same condition main.cpp's existing
+      boot-into-persisted-mode switch already uses, not raw playerMode alone
+      (the no-WiFi-at-boot edge case must not strand a visibly-active
+      Spotify app idle) — seeds spotifyTask's TLS-idle flag before the
+      task's first loop iteration, and separately gates whether main.cpp's
+      eager spotify.refreshAccessToken() network call fires at boot. Extends
+      TASK-264/Q3-a's already-shipped setWebRadioActive() mechanism (fixes
+      an unrecognized boot-race gap in it) rather than introducing new
+      task-lifecycle machinery; reqQueue/g_taskHandle/s_tlsYieldedSem remain
+      always-created (no null-safety audit reopened). Toggle-back-to-Spotify
+      mid-session is unaffected (existing shipped path).
+    risk: medium
+    test_coverage: []
+    notes: |
+      Reserved 2026-07-19 at design time
+      (docs/architecture/designs/M-SPOTIFY-BOOT-GATE.md, Architect registry
+      remit; feeds ADR-054, proposed). Also requires a companion
+      run_serialdbg_tests.py::Dut._wait_for_ready() readiness-branch fix
+      (VE-owned, not a feature_inventory entry — harness-internal) so a DUT
+      left in playerMode=WebRadio doesn't hang the test harness on the
+      Spotify-poll wait; see the design doc's Finding 5. Developer
+      completes/corrects this entry (git_ref, test_coverage) at
+      implementation.
