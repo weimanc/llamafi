@@ -576,6 +576,65 @@ human-observed accuracy concern in shipped functionality, comparable footing to 
 is R&D/investigation rather than a confirmed bug with a scoped fix yet, so not P1 · **Status:**
 open, in progress — human wants R&D moving on this immediately.
 
+### TASK-361 — PlaneRadar fetch: TASK-313 retry-once mitigation regressed under busy-traffic payload size — re-quantify + fix
+
+Human-reported 2026-07-19, watching the DUT live in daytime over genuinely busy London traffic
+(same session as TASK-360/EXP-015, which independently captured 62–70 real aircraft within 25 km
+of the device's configured location). The human asked why on-screen motion "stops after 30+s" —
+that's `PR_STALE_S=30` (`app/src/planeRadarApp.h`), the intentional dead-reckon extrapolation cap
+("never fly a ghost"), which normally shouldn't be visible if fixes land every ~10–15s under
+`prPollSec`'s default. Live investigation via `./run/monitor-read` found the real cause: sampling
+~500 lines of the production serial log just now (daytime, busy traffic) showed **~36% of fetch
+cycles failing completely** (`ok=0 errorCode=-92 count=0` — `IncompleteInput` parse errors on
+*both* the original request and TASK-313's one retry) — a large regression from TASK-313's
+DUT-measured 0.47% residual rate (see `docs/project/tasks-archive.md` TASK-313 entry: 8.5% first-
+attempt failure → single retry → 0.47% final, validated on a 35-min/211-cycle soak).
+
+**Working hypothesis, not yet verified:** Cloudflare edge truncation (TASK-313's root cause —
+TLS-fingerprint-keyed, not WiFi/429/Spotify/heap) likely scales with response size. TASK-313's
+original soak was not measured against today's real, busy-traffic payload (60–70 aircraft ≈ much
+larger JSON than whatever density the original 8.5%/0.47% numbers were taken under). If truncation
+probability scales with body size, a single retry becomes insufficient once *both* the original
+and the retry are drawn from the same high-truncation-probability regime — consistent with
+0.085×0.085≈0.7% (TASK-313's math) failing to explain a observed ~36%.
+
+**Explicitly unrelated to TASK-357/358** (the dr-damped(tau=2) smoother + its dirty-rect repaint
+fix) — this is a separate fetch-layer/transport issue, not a rendering or interpolation bug.
+`PR_STALE_S` making the fetch failures visible as "frozen" motion is a symptom, not the cause;
+don't chase the smoother for this.
+
+**Scope:**
+1. **Quantify.** This session's 500-line sample is opportunistic, not a clean measurement — get a
+   proper instrumented soak (TASK-313's own methodology: cycle count, cadence, duration, host-probe
+   contrast) run under today's real busy-traffic conditions, and correlate per-cycle failure
+   (first-attempt AND retry) against response size / reported aircraft count. Confirm or falsify
+   the size-scaling hypothesis — don't assume it; TASK-313's evidence-phase discipline (BP-044:
+   cause confirmed only when a fix-shaped experiment stops the repro) applies here too.
+2. **Scope a fix**, once the mechanism is confirmed. Investigate candidates, don't jump to the
+   first one: more than one retry; exponential backoff; whether adsb.fi's API supports a
+   field-limiting/bbox-narrowing query parameter to shrink the response (check whether that would
+   drop data the app actually needs — callsign/track/gs/alt — before assuming it's viable);
+   whether a smaller max-aircraft/radius cap is an acceptable product tradeoff at high density; or
+   a fundamentally different mitigation if truncation genuinely scales with payload size such that
+   no fixed retry count helps at the extreme end.
+3. **Fix + DUT-verify** against a real busy-traffic window (not just a quiet-traffic soak — TASK-
+   313's original soak may itself have been under lighter traffic than today, which is plausibly
+   why the regression wasn't caught then).
+
+**Owner:** whoever picks this up should scope the split (R&D-style quantification vs. Developer
+implementation) as part of doing the work — could stay one task through to a DUT-verified fix, or
+split once the mechanism is confirmed · **Deps:** TASK-313 (original mitigation being
+re-investigated — this is a regression report against it, not a revision of its DONE status);
+informed by TASK-360/EXP-015 (found this while investigating a different, real-traffic-related
+question — the busy-traffic capture that surfaced this); explicitly independent of TASK-357/358
+(unrelated fetch- vs render-layer issue, noted above to prevent misattribution) · **Gate:** a
+clean instrumented measurement of the current failure rate (not this session's opportunistic
+sample) correlated against payload size/aircraft count, then a DUT-verified fix bringing the
+user-visible failure rate back down near TASK-313's original 0.47% floor (or better, if the fix
+also addresses the size-scaling mechanism) · **Priority:** P1 — live, currently-reproducible,
+human-observed problem: at ~36% total fetch failure the display is frequently stale, which is more
+severe in measured impact than TASK-358's tearing (also P1) · **Status:** open
+
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
 Human request 2026-07-18. Clock canvas splits at `CLK_TAP_SPLIT_Y=120`: top tap cycles the
