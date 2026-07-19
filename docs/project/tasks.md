@@ -411,18 +411,46 @@ usable decimal precision, not the 3 originally estimated; ~58 shifting re-inject
 apart) produced zero `LOG_W("perf", iter>50ms)` warnings and no reboot/crash signature on the
 serial stream. Production build reflashed afterward (device left in normal state).
 
-**Not done / explicitly out of scope this session:**
-- **The gate's `clock_delta_smoke.py`-style screendump-diff assertion was not written.** The
-  coordinator's implementation brief for this session scoped verification to `run/check` + DUT
-  crash-free stress + T_PRI_01 + (deferred) human eyeball, and did not include authoring this
-  assertion — flagging the gap against the task's own stated Gate rather than silently
-  narrowing it. Still needed before this task's Gate is fully satisfied.
-- **Human visual confirmation the flicker/tearing is actually gone — cannot be verified by an
-  agent (no camera on the device), per BP-048.** This is the primary acceptance test per the
-  task and remains the single open item. Everything build/DUT-stress/regression-verifiable this
-  session came back clean; only the eyeball is outstanding.
+**Screendump-diff assertion — written and DUT-verified, follow-up session
+2026-07-19.** `app/tools/pr_delta_smoke.py` (new), modeled on
+`clock_delta_smoke.py`, using `set prInjectAircraft`/`set prClearInject` for
+deterministic synthetic scenes (T_PR_06/T_PRI_01 pattern) instead of
+clock_delta_smoke's "same minute" wait:
+- **T_PRD_01** — two stationary (`gsKnots=0`) aircraft, captured after
+  `>=4*PR_INTERP_TAU_MS` settle, two screendumps of the disc a few seconds
+  apart. Asserts **zero diff, no mask** — the direct check that
+  `_redrawOneAircraft()` never fires when nothing is dirty (stronger than
+  clock_delta_smoke's colon-masked assertion).
+- **T_PRD_02** — one moving aircraft (`gsKnots=200`, straight-line track)
+  + one stationary aircraft placed far away. Asserts zero diff **outside**
+  a generous mask around the moving aircraft's computed start->end pixel
+  path (padded past the worst-case tag+vector reach) — proves the
+  stationary aircraft, grid rings, crosshair, and any runway overlay stay
+  untouched, i.e. the dirty-rect *scoping* claim, not just "a redraw
+  happened somewhere". A companion sanity check (`T_PRD_02b`) confirms
+  pixels *did* change inside the mask, ruling out a trivial pass.
+
+DUT result: **6/6 PASS**, run twice for determinism (both clean, 0 px
+diff outside each test's zero-diff/mask boundary). This closes the gap
+flagged below in the original session's notes. Debug build was already
+flashed for this session; production reflashed afterward alongside
+TASK-359 (same session, see that entry).
+
+**Human visual confirmation the flicker/tearing is actually gone — still
+open, cannot be verified by an agent (no camera on the device), per
+BP-048.** This is the primary acceptance test per the task and remains the
+single open item; not touched by this follow-up session, per instruction.
+
+**Not done / explicitly out of scope:**
 - Item #2 from TASK-357 (worst-case ~20-24-aircraft busy-airport load) — still open, untouched
   by this task, as scoped.
+
+*(Original session note, now resolved above: "The gate's
+`clock_delta_smoke.py`-style screendump-diff assertion was not written" —
+the coordinator's original implementation brief scoped verification to
+`run/check` + DUT crash-free stress + T_PRI_01 + deferred human eyeball and
+did not include authoring this assertion; flagged as a gap against the
+task's own stated Gate at the time, now filled per above.)*
 
 ### TASK-359 — migrate Clock Flip + heatmap raw setViewport() call sites onto withViewportRepair()
 
@@ -440,7 +468,113 @@ h, repairFn)` call — no behavior change expected.
 7/7 + re-run Clock Flip face and heatmap's existing DUT screendump/eyeball coverage (both already
 have this from their original tasks — TASK-354, heatmap's own task — don't invent new coverage) +
 confirm no visual regression · **Priority:** P3 (pure refactor/consistency, no known bug) ·
-**Status:** open
+**Status:** **DONE** 2026-07-19
+
+Landed exactly the scoped swap. `app/src/clockApp.h` (Flip digit-clipping, two sites: the
+bottom-plate glyph clip at the old `:425-428` and the falling-flap glyph clip at the old
+`:435-438`) and `app/src/main.cpp` (heatmap rotated-text clip, old `:1677-1680`) both now call
+`withViewportRepair(tft, x, y, w, h, [&]{ ...same draw calls... })`; `#include
+"util/tftViewportRepair.h"` added to both files. Pure mechanical swap — same draw calls moved
+verbatim into the lambda, no logic changed.
+
+One divergence worth flagging, resolved by reading TFT_eSPI's source rather than assuming: the
+heatmap site's original call was `tft.setViewport(t.x, t.y, t.w, t.h)` — 4 args, so
+**`vpDatum` defaults to `true`** — while `withViewportRepair()` always passes `vpDatum=false`.
+That's a real difference in what `setViewport()` does internally (`vpDatum=false` resets
+`_xDatum`/`_yDatum` to 0; `true` keeps them at the viewport origin), so it needed checking, not
+assuming "verified during TASK-358" covered this exact call shape too. Traced the actual
+consumer (`spr.pushRotated(-90, col)` via `TFT_eSprite::pushRotated()` in
+`.pio/libdeps/.../TFT_eSPI/Extensions/Sprite.cpp`): it computes its destination window
+(`_tft->setWindow(...)`) from `_tft->_xPivot`/`_yPivot` (set directly by `setPivot()`, never
+offset by `_xDatum`/`_yDatum`) and `getRotatedBounds()`, and `setWindow()` itself takes absolute
+screen coordinates with no datum adjustment either — so `pushRotated()`'s output is provably
+identical regardless of `vpDatum`. Only the *clip rectangle* (`_vpX/_vpY/_vpW/_vpH`) matters
+here, and that's computed identically for both `vpDatum` values. No behavior change, confirmed
+by source reading before flashing, not just by the plan's assumption.
+
+**Verified:** `run/check` 7/7 (both `cyd2usb_winamp_debug`/`cyd2usb_winamp` compile clean).
+DUT (debug build, same session as TASK-358's screendump-diff follow-up):
+- **Clock Flip face** — `python3 app/tools/clock_delta_smoke.py` full 4/4 PASS (digital/flip/
+  nixie/vfd), flip leg specifically: `0 px changed outside colon column` on the first attempt
+  (no retry needed, unlike nixie/vfd which hit the pre-existing documented digit-rollover
+  retry flake) — no regression from the migration.
+- **Heatmap** — no automated DUT suite exists for this (checked `test_plan.md`/
+  `feature_inventory.yaml`: `stock-002`/M-HEATMAP's own T196 SERIALDBG harness depends on the
+  full `run_serialdbg_tests.py::Dut` class, which blocks on a Spotify "poll ok 200" that will
+  never land under TASK-243's external Premium lapse — not usable here). Verified manually
+  instead, per the task's own Gate fallback: `switchApp 7` -> `set triggerHeatmap 1` -> polled
+  `get heatmapCount` until 20 tiles landed -> `screendump` of the full canvas. Result: heatmap
+  renders correctly, including several small tiles (AMAT/ORCL/PLTR/PANW/TXN/KLAC/DELL/ARM) that
+  are exactly the rotated-text code path the migration touched — labels render cleanly, no
+  clipping artifact, no viewport bleed, matching pre-migration appearance. First fetch attempt
+  hit a transient `ERR -1` (ESP32-side HTTPClient connection error; host `curl` to the same
+  Yahoo Finance URL returned 200 fine at the same time, confirming it wasn't a real network/DNS
+  outage) — retried the trigger and it landed cleanly; noted as flaky-external, not a
+  regression (T196's own docs flag this same endpoint as intermittent).
+
+**Incident during this session's DUT work (flagging per usual honesty standard, not
+downplaying):** while working the port for the above, found a live `/dev/ttyUSB0` collision —
+the coordinator's own `./run/spiffs pull settings.json` (run in the same top-level session, to
+confirm the device's actual PlaneRadar location for TASK-360 — not a separate Claude Code
+session, as this subtask first guessed from the PID chain alone before the coordinator clarified
+it) was mid-flight when this session opened the port for `pr_delta_smoke.py`/screendump work.
+The CH340 driver's DTR-on-open behavior (documented in `screendump.py`'s own docstring) reset the
+DUT out from under that `esptool.py read_flash`, which then hung indefinitely (0% CPU,
+unresponsive, 14+ min with no progress on what should be a <1 min read). After confirming it was
+genuinely wedged (not just slow) and that a SPIFFS *read* is non-destructive to device state,
+killed the hung `esptool.py` process to free the port; its parent script's trap-guarded cleanup
+then ran normally and restored the tmux serial monitor, its normal resting state. The coordinator
+did not retry the pull immediately (to avoid a second collision with this session's DUT work
+still in flight) — read an existing, slightly stale local `spiffs-dump/settings.json` instead,
+which was sufficient to ground TASK-360's location choice. Production reflash and further DUT
+work proceeded normally afterward with no other collisions observed.
+
+Production firmware reflashed at the end of this session (alongside TASK-358's follow-up,
+same session) — device left on production build, normal state, `switchApp 0`.
+
+### TASK-360 — RnD: revisit PROP-006's descoped capture session with real daytime traffic (reduced scope)
+
+Human-reported 2026-07-19, watching the DUT live in daytime (busy real air traffic, unlike
+whenever PROP-006/EXP-014 were last worked): visible interpolation **inaccuracy** in the shipped
+dr-damped(tau=2) smoother (TASK-357/358) — not the tearing bug TASK-358 already fixed, a
+positioning/tracking error. This reopens the same R&D question EXP-014 dispositioned via caveat 1
+rather than measured (["Model-match bias: synthetic truth integrates the same track+gs kinematics
+DR extrapolates... The 1 s ground-truth capture session (429-budget logistics) was therefore
+**descoped by human decision**"](../rnd/reports/EXP-014-pr-interpolation.md)) — it is a
+**continuation of that thread**, not a revision of TASK-356's DONE status or EXP-014's synthetic
+verdict, both of which stand.
+
+**Scope, reduced from PROP-006's original method** (no continuous 10–15 min 1 Hz stream):
+5–10 discrete samples each at 1 s, 5 s, and 10 s intervals — matching the `prPollSec` slider's
+low/mid range (TASK-355) — captured from adsb.fi from a location "buzzing" with real traffic
+within a 25 km radius. PROP-006's method section names LHR fixture slots as an existing candidate;
+actual location choice is R&D's call. Runs **host-side only**, not through the DUT — the human
+will be present to supervise, and using non-DUT egress removes the sharpest edge of the original
+429-budget blocker (the standing rule's alternate condition: a network that isn't the DUT's egress
+IP). Deliverables:
+
+1. **Download and permanently store** a real-world fixture dataset on `rnd/pr-interp` (commit it —
+   R&D branches never merge to `main`/`master` directly, per `docs/agents/AGENTS.md` — so this
+   fixture set is available for future sessions without a re-capture).
+2. **Check the shipped smoother against it**: replay the dr-damped(tau=2) rung from EXP-014's
+   ladder against real (non-synthetic) traffic instead of only the synthetic ground truth EXP-014
+   validated against, specifically probing whether real aircraft behaviour — turns, speed/altitude
+   changes — reveals prediction error that caveat 1's disposition ("a *worse* real-world
+   prediction produces *bigger* corrections, which is precisely what damped blending absorbs")
+   undersold rather than correctly reasoned through.
+3. **Investigate the human's speed+altitude hypothesis**: that correct display of an aircraft's
+   motion vector may need speed **and** altitude/height together, not ground speed + track alone
+   (the vector the firmware currently derives). Test this against the captured real data — don't
+   assume it correct or incorrect going in.
+
+**Owner:** R&D · **Deps:** PROP-006, EXP-014, TASK-356 (closed — this reopens the same question,
+does not revise it), TASK-357, TASK-358 (shipped smoother + repaint fix under test), TASK-355
+(`prPollSec` — defines the interval range sampled) · **Gate:** fixture dataset committed on
+`rnd/pr-interp` + an EXP report (or a caveat-1 addendum to EXP-014) documenting findings against
+real traffic, including a disposition of the speed+altitude hypothesis · **Priority:** P2 — live,
+human-observed accuracy concern in shipped functionality, comparable footing to TASK-358, but this
+is R&D/investigation rather than a confirmed bug with a scoped fix yet, so not P1 · **Status:**
+open, in progress — human wants R&D moving on this immediately.
 
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 

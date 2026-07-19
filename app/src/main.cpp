@@ -110,6 +110,7 @@ char clientSecret[200];
 #endif
 #include "util/mathUtil.h"
 #include "util/timeFmt.h"   // WIRE2-G2/G3: shared 12h/24h + dateFmt helpers
+#include "util/tftViewportRepair.h"   // TASK-359: heatmap rotated-text clip migrated onto the shared helper
 
 // ----------------------------
 // Memory overlay layout (Phase 1: declarative budget only — no buffers wired yet)
@@ -1674,10 +1675,10 @@ private:
             spr.drawString(sym, 0, 0, 1);
           }
           spr.setPivot(sprW / 2, 4);
-          tft.setViewport(t.x, t.y, t.w, t.h);
           tft.setPivot(cx, cy);
-          spr.pushRotated(-90, col);
-          tft.resetViewport();
+          withViewportRepair(tft, t.x, t.y, t.w, t.h, [&]{
+            spr.pushRotated(-90, col);
+          });
           spr.deleteSprite();
         }
       }

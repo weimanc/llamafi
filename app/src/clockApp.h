@@ -7,6 +7,7 @@
 #include "settingsStorage.h"
 #include "util/timeFmt.h"   // WIRE2-G2/G3: clockHour/clockAmPm/fmtDate
 #include "gen/nixie_glyphs.h"   // TASK-336: baked wire-glyph+bloom sprites (bake_nixie.py)
+#include "util/tftViewportRepair.h"   // TASK-359: Flip digit-clip migrated onto the shared helper
 #include <WiFi.h>
 #include <time.h>
 #include <math.h>
@@ -422,20 +423,20 @@ private:
         // when the card grew to 56x78, leaving digits looking small and thin
         // against the concept's bold, near-full-height glyphs. Font 8 is the
         // closest built-in TFT_eSPI match to that proportion.
-        tft.setViewport(px, mid_y + kFpGap, kFpW, kFpMid, false);
-        tft.setTextColor(kFpDigit, kFpBgBot);
-        tft.drawString(bStr, cx, mid_y, 8);
-        tft.resetViewport();
+        withViewportRepair(tft, px, mid_y + kFpGap, kFpW, kFpMid, [&]{
+            tft.setTextColor(kFpDigit, kFpBgBot);
+            tft.drawString(bStr, cx, mid_y, 8);
+        });
 
         // 2. Flap background — flat card colour, same as concept's top half.
         tft.fillRect(px, mid_y - fh, kFpW, fh, kFpBgTop);
 
         // 3. Flap digit — same shared anchor (mid_y), clipped to the flap
         // rect (which shrinks toward mid_y as fh decreases during the fall).
-        tft.setViewport(px, mid_y - fh, kFpW, fh, false);
-        tft.setTextColor(kFpDigit, kFpBgTop);
-        tft.drawString(fStr, cx, mid_y, 8);
-        tft.resetViewport();
+        withViewportRepair(tft, px, mid_y - fh, kFpW, fh, [&]{
+            tft.setTextColor(kFpDigit, kFpBgTop);
+            tft.drawString(fStr, cx, mid_y, 8);
+        });
 
         // 4. Erase overflow above flap rect (reveals clock body colour)
         if (fh < kFpMid)
