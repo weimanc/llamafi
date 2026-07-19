@@ -2834,3 +2834,127 @@ satisfied, evidence above) · **Priority:** P3 (small, already-shipped UX
 improvement to error legibility — not a live bug, nothing was crashing or
 silently failing beyond being uninformative) · **Size:** S · **DUT:** y
 (screendump captured and visually confirmed correct)
+
+### TASK-363 — gate spotifyTask's TLS connect on g_settings.playerMode (M-SPOTIFY-BOOT-GATE, ADR-054)
+
+Implement Option B (the accepted lean) from `docs/architecture/designs/
+M-SPOTIFY-BOOT-GATE.md` / `docs/architecture/decisions/ADR-054.md` — both
+accepted, human sign-off 2026-07-19. Today, `spotifyTask::begin(&spotify)`
+(`main.cpp:2372`) is gated only by the `DISABLE_SPOTIFY` compile-time macro
+(a separate no-PSRAM build, TASK-255) — **not** on `g_settings.playerMode`
+at all — so a boot where the user's own persisted preference is `WebRadio`
+still spins up Spotify's poll task and connects its TLS session. The
+existing TASK-264/Q3-a idle-flag mechanism (`setWebRadioActive()`, already
+wired into the boot-time `switchApp(WebRadio)` call) *should* prevent this
+but doesn't: a race in `taskBody()`'s loop shape means the flag is only
+checked at the top of the `for(;;)` loop before `xQueueReceive` blocks, and
+is **not** re-checked before the self-issued `ACT_POLL` dispatches after the
+5 s queue-wait times out — so the first TLS connect still fires ~5 s after
+`begin()`, before the boot-time flag-set gets a chance to matter. Read both
+documents in full before implementing; this brief summarizes their
+concrete plan but the design doc's Findings 1-5 carry the reasoning.
+
+**Implementation (four required pieces — do not ship a subset; the design
+doc is explicit that companions 1 and 2 below are required, not optional
+polish):**
+
+1. **`spotifyTask::begin()` gains a `bool startIdle` parameter**, seeding
+   `s_webRadioActive = startIdle` **before** `xTaskCreatePinnedToCore()`
+   runs — so the task's very first loop iteration already sees the flag
+   correctly, before ever reaching `xQueueReceive`/`doPoll()`. Closes
+   Finding 1's boot race directly. `reqQueue`/`g_taskHandle`/
+   `s_tlsYieldedSem` are still always created — only the initial idle
+   state changes, so no new null-safety audit (Goal 4) is needed across
+   the unconditional `spotifyTask::` accessors.
+2. **`main.cpp:2372`'s call becomes `spotifyTask::begin(&spotify,
+   bootIntoWebRadio)`**, where `bool bootIntoWebRadio = wifiConnected &&
+   (g_settings.playerMode == (uint8_t)PlayerMode::WebRadio);` — computed
+   once, matching `main.cpp:2407`'s existing boot-switch condition
+   **exactly**. Must NOT be simplified to raw `playerMode` alone: if WiFi
+   isn't up yet at boot, `main.cpp:2407`'s guard keeps `currentAppId ==
+   Spotify` (visibly on screen) regardless of the persisted preference, and
+   that visible Spotify app must still be allowed to connect once WiFi
+   comes up via the background supervisor — seeding from raw `playerMode`
+   would silently strand it idle. The existing boot-time
+   `switchApp(AppId::WebRadio)` call and its `setWebRadioActive(true)`
+   become purely confirmatory/idempotent, no change needed there.
+3. **Companion change 1 (required — closes Finding 2, delivers Goal 2's
+   heap-fragmentation side benefit):** at `main.cpp:2363`, under
+   `bootIntoWebRadio`, skip the eager `spotify.refreshAccessToken()`
+   network call (a real TLS handshake on the **same shared** `client`
+   object `spotifyTask` uses — this is a second, independent connect,
+   unaffected by gating `begin()` alone) — call only
+   `spotify.setRefreshToken(refreshToken)` (primes the library, zero
+   network). `SpotifyArduino`'s `checkAndRefreshAccessToken()` already
+   refreshes lazily before every real API call (`autoTokenRefresh` default
+   `true`) — the explicit eager call is functionally redundant, not new
+   behavior being invented, just not forced early. The `forceRefreshToken`/
+   `launchRefreshTokenFlow()` credential-bootstrap path
+   (`main.cpp:2338-2361`) is unaffected/stays unconditional. Before
+   implementing, grep for any other `client.connect`/`client->connect`
+   call reachable from `setup()` to confirm this is the only such gap
+   (design doc OQ5).
+4. **Companion change 2 (required — closes Finding 5, VE-adjacent but
+   filed here since it's part of the same required change per ADR-054
+   decision 4):** `app/tools/run_serialdbg_tests.py`'s `_wait_for_ready()`
+   needs a `playerMode`-aware readiness branch, mechanically identical in
+   shape to the existing `spotify=off`/`DISABLE_SPOTIFY` branch
+   (`:153-171`) — WiFi-up + shell-responsive counts as "ready" when the
+   persisted mode is `WebRadio` (no Spotify poll to wait for). A
+   `get playerMode` debug command already exists (`main.cpp:3129-3133`)
+   for the probe. Without this, every DUT test run against a device left
+   in `playerMode == WebRadio` from a prior session eats the harness's
+   full ~120 s poll-wait hang before running a single test — a real,
+   load-bearing regression to every future test run, not hypothetical.
+
+**No new code needed for toggle-back-to-Spotify** — `webRadioApp.h:749`/
+`:962`'s `persistPlayerMode(Spotify)` on eject already calls
+`setWebRadioActive(false)` via `switchApp(AppId::Spotify)`, which the
+design doc's Finding 4 confirms is already shipped, DUT-exercised, and
+doesn't compound latency across repeated toggles (task/stack/queue never
+torn down, only the TLS session cycles).
+
+**Recommended observability (OQ2, non-blocking but cheap):** a boot-log
+token when `bootIntoWebRadio` is true, e.g. `"[boot] spotify=idle
+(playerMode=webradio)"`, mirroring the existing `"[boot] spotify=off"`
+line — aids both manual debugging and the harness fix's probe.
+
+**Registry:** add cross-feature edge **X038** (`player-state-001` ×
+`poll-001`, `interaction_type: dependency`, `risk: medium`) to
+`cross_feature_matrix.yaml` per the design doc's §Registers — both
+features already exist in `feature_inventory.yaml`, no new feature id
+needed.
+
+Explicitly out of scope: this is independent of
+`M-HEAP-FRAGMENTATION.md`/`ADR-053` (both parked) — a WebRadio-mode boot
+avoiding Spotify's TLS connect entirely is a validated side benefit, not a
+fix for or reopening of that parked investigation.
+
+**Owner:** Developer · **Deps:** TASK-264/Q3-a (`setWebRadioActive()`
+mechanism being extended, not replaced); ADR-054 + M-SPOTIFY-BOOT-GATE.md
+(accepted, human sign-off 2026-07-19); informed by (not blocking on)
+M-HEAP-FRAGMENTATION.md/ADR-053 (parked, independent) · **Gate:**
+`./run/check` 5-gate green + DUT verification per the design doc's Exit
+Criteria: ≥5 cold boots with `playerMode` persisted `WebRadio` show no
+`[spotify.poll]` log line before an explicit toggle-to-Spotify (`get
+playerMode`/`get appId` confirm); ≥3 of those boots sampled via `get heap`
+well into the session show no permanent heap-block split comparable to
+M-HEAP-FRAGMENTATION's measured ~43 KB ceiling (confirms companion 1
+actually closes Finding 2's gap, not just in theory); ≥5 toggle-to-Spotify
+actions connect within a bounded, recorded latency inside `ADR-046`'s
+"connecting" amber tolerance, no false green/hang; ≥3 repeated
+WebRadio↔Spotify toggle cycles within one boot show no compounding
+latency; a no-WiFi-at-boot-then-reconnect scenario confirms the visibly-
+active Spotify app still connects normally once WiFi comes up (proves the
+`wifiConnected` term in the seed condition actually prevents stranding);
+`run_serialdbg_tests.py` connects promptly (no ~120 s hang) against a DUT
+left in `playerMode == WebRadio` from a prior session (proves companion 2
+closes Finding 5's gap on the harness side); full serialdbg suite green
+on `cyd2usb_winamp` · **Priority:** P2 (accepted architecture ready for
+implementation, real user-facing correctness gap — Spotify connecting
+against explicit user intent — but not a live bug/regression like
+TASK-361/362 were) · **Size:** M (one new `begin()` parameter, one
+boot-time conditional mirroring an existing guard, one refresh-call
+conditional, one harness readiness branch — small mechanical diff, but
+four required pieces plus a DUT exit-criteria list with six distinct
+scenarios) · **Status:** open
