@@ -7049,6 +7049,92 @@ def t_prm_02(dut: Dut):
                       f"max spotify activity age {max_sp_age}ms")
 
 
+# ── TASK-357 / EXP-014 graduation: dr-damped(tau=2) motion smoothing ─────────
+# T_PRI_01: injected continuity pair (same callsign, shifted fix) shows a
+#           nonzero, un-snapped offset that decays toward 0 with tau=2s.
+
+def t_pri_01(dut: Dut):
+    """T_PRI_01 (TASK-357): dr-damped(tau=2) offset continuity + decay via the
+    `get prInterp` observable (motion-slot 0: offsetPx, fixAgeMs, tracked).
+
+    Forces prRange=25 (widest preset, smallest px/km) first — the offset is
+    computed in *screen px*, so a fixed lat/lon delta's px magnitude scales
+    with zoom; a tight preset can push a delta past PR_INTERP_SNAP_PX=40 and
+    trigger the re-appearance snap instead of the continuity path this test
+    means to exercise (found during initial DUT verification: the same
+    injected pair read offsetPx=0 at whatever preset a prior test session had
+    left persisted, vs ~13px at the test's intended preset — a leftover-state
+    trap, not a code bug, but worth pinning the zoom explicitly here).
+
+    Sequence: inject fix1 (first sighting -> offset must be 0, no continuity
+    claim); inject fix2 for the SAME callsign, shifted ~0.01 deg lon (-> offset
+    must jump to a nonzero, un-snapped value, continuity is exactly the
+    OLD-predicted-vs-NEW-fix delta at that instant); poll prInterp at ~1 tau
+    (2s) and ~2 tau (4s) intervals and assert it decays (not flat, not
+    re-snapped) — bounds are generous (exp(-1)=~0.37, exp(-2)=~0.14 of the
+    initial reading) to tolerate serial round-trip timing jitter, not an exact
+    curve-fit. Restores prRange=10 (default) and Spotify at the end."""
+    print("T_PRI_01  dr-damped(tau=2) offset continuity + decay")
+    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+        skip("T_PRI_01", "could not switch to PlaneRadar")
+        _restore_spotify(dut)
+        return
+    dut.cmd("set prRange 25", timeout=3.0)
+    dut.cmd("set prClearInject 1", timeout=3.0)
+
+    r0 = dut.cmd("set prInjectAircraft AAA111,A320,51.5,0.0,10,90,90,450,35000", timeout=3.0)
+    if not r0.get("ok"):
+        fail("T_PRI_01", f"first injection failed: {r0}")
+        dut.cmd("set prRange 10", timeout=3.0); _restore_spotify(dut)
+        return
+    r_first = dut.cmd("get prInterp", timeout=3.0)
+    if r_first.get("offsetPx", -1) != 0.0:
+        fail("T_PRI_01", f"first sighting offsetPx={r_first.get('offsetPx')}, expected exactly 0 (no continuity claim)")
+        dut.cmd("set prRange 10", timeout=3.0); _restore_spotify(dut)
+        return
+
+    r1 = dut.cmd("set prInjectAircraft AAA111,A320,51.5,0.01,10,90,90,450,35000", timeout=3.0)
+    if not r1.get("ok"):
+        fail("T_PRI_01", f"second injection failed: {r1}")
+        dut.cmd("set prRange 10", timeout=3.0); _restore_spotify(dut)
+        return
+    r_t0 = dut.cmd("get prInterp", timeout=3.0)
+    off0 = r_t0.get("offsetPx", 0.0)
+    if not (0.3 <= off0 <= 39.0):
+        fail("T_PRI_01", f"t=0 offsetPx={off0} — expected a nonzero, un-snapped "
+                         f"continuity offset in (0.3, 39.0)px")
+        dut.cmd("set prRange 10", timeout=3.0); _restore_spotify(dut)
+        return
+
+    # NOTE: prRange restore is deliberately deferred until AFTER the decay
+    # reads below — _setPreset() (any prRange write) calls _repaintDisc(),
+    # which zeroes _motionCount as a side effect (new scale, no continuity
+    # claim — see planeRadarApp.h). Restoring here first was an earlier
+    # version of this test's own bug: it wiped motion state before the decay
+    # checks ran, so both later reads read back the "nothing tracked" default
+    # of exactly 0.0 — decaying-looking, but for the wrong reason. Caught by
+    # DUT verification during TASK-357 (2026-07-19).
+    time.sleep(2.0)
+    r_t1 = dut.cmd("get prInterp", timeout=3.0)
+    off1 = r_t1.get("offsetPx", off0)
+    time.sleep(2.0)
+    r_t2 = dut.cmd("get prInterp", timeout=3.0)
+    off2 = r_t2.get("offsetPx", off1)
+    dut.cmd("set prRange 10", timeout=3.0)
+    _restore_spotify(dut)
+
+    if not (off1 < off0 * 0.6):
+        fail("T_PRI_01", f"offset not decaying: t=0 {off0}px -> t+2s {off1}px "
+                         f"(expected < 60% of t=0, tau=2s theory ~37%)")
+        return
+    if not (off2 < off0 * 0.3):
+        fail("T_PRI_01", f"offset not settling: t=0 {off0}px -> t+4s {off2}px "
+                         f"(expected < 30% of t=0, tau=2s theory ~14%)")
+        return
+    pass_("T_PRI_01", f"offset {off0}px -> {off1}px (t+2s) -> {off2}px (t+4s), "
+                      f"decaying toward 0 (tau=2s)")
+
+
 ALL_TESTS = {
     "T077": t077,
     "T078": t078,
@@ -7246,6 +7332,8 @@ ALL_TESTS = {
     # TASK-355 poll-interval setting (M-PR-MOTION Item A)
     "T_PRM_01": t_prm_01,
     "T_PRM_02": t_prm_02,
+    # TASK-357 motion smoothing (EXP-014 graduation)
+    "T_PRI_01": t_pri_01,
 }
 
 def main():

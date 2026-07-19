@@ -108,6 +108,22 @@ static constexpr int16_t PR_SYMBOL_INSET = (int16_t)(PR_AC_NOSE_LEN + PR_AC_TAIL
 // each tick via _pollMs() so a Settings edit applies on the next tick.
 static constexpr uint32_t PR_STALE_S = 30;      // Q5 stale threshold
 
+// ── motion smoothing (TASK-357, EXP-014 graduation: dr-damped, tau=2, depth 1) ──
+// Per aircraft: dead-reckon the rendered position from the last fix along
+// track+groundspeed (same vecPx derivation the speed line already uses); on
+// a new fix, do NOT snap — the just-rendered dead-reckoned position (at the
+// instant the new fix lands) becomes a 2-component px offset from the new
+// fix, decaying exponentially with tau = 2 s. Continuity is automatic: at
+// dt=0 the offset fully cancels the fix jump, so the redraw right after a
+// fetch lands exactly where the last smoothing frame left off. tau is a
+// constant by design (EXP-014: tau=1 leaks visible jump, tau=4 gains
+// nothing) — no settings knob. Extrapolation is capped at PR_STALE_S so a
+// stale plane stops moving and hands off to the existing prStaleStyle
+// treatment (never fly a ghost).
+static constexpr uint32_t PR_INTERP_TICK_MS = 100;      // ~10 Hz repaint cadence
+static constexpr float    PR_INTERP_TAU_MS  = 2000.0f;  // EXP-014 validated
+static constexpr float    PR_INTERP_SNAP_PX = 40.0f;    // bigger correction = re-appearance -> snap to 0 offset
+
 static constexpr float PR_MI_PER_KM      = 0.621371f;
 static constexpr float PR_KM_PER_DEG_LON = 111.320f;
 static constexpr float PR_KM_PER_DEG_LAT = 110.574f;
@@ -154,6 +170,30 @@ struct PrRendered {
     int16_t vecX = 0, vecY = 0;
     bool    hasTag     = false;
     int16_t tagX = 0, tagY = 0, tagW = 0, tagH = 0;
+};
+
+// Per-aircraft dr-damped(tau=2) smoothing state (TASK-357, EXP-014
+// graduation), depth 1 — last fix + one 2-component px offset, no history
+// arrays. Indexed like _result.aircraft[]/_prev[] between fetches; rebuilt
+// by _reconcileMotion() whenever a fresh fetch lands, matching old-to-new by
+// callsign (hashed — see _csHash()) so the offset (and therefore on-screen
+// continuity) survives across the fetch event.
+//
+// Deliberately compact: the debug build (extra log/screenlog buffers) has
+// only tens of bytes of static DRAM headroom on this no-PSRAM board, and
+// this struct is x24 (dataTask::PR_MAX_AIRCRAFT). Fixed lat/lon is cached as
+// the already-projected screen px (fixPxX/Y) rather than kept as float
+// degrees — valid because every path that could change the projection scale
+// (_setPreset/_setActiveLoc, via _repaintDisc()) zeroes _motionCount first,
+// so a surviving fix is always still on the current scale. The offset is
+// Q4 fixed-point (offXq/offYq = px * 16) — PR_INTERP_SNAP_PX bounds its
+// range far under int16, and 1/16 px resolution is well past what's visible.
+struct PrMotion {
+    uint32_t csHash  = 0;             // identity key across fetches (0 = no callsign)
+    int16_t  fixPxX = 0, fixPxY = 0;  // projected position at the fix, current scale
+    int16_t  trackDeg = 0, gsKnots = 0;
+    uint32_t fixMs    = 0;            // millis() at the fix — dead-reckon + decay epoch
+    int16_t  offXq = 0, offYq = 0;    // Q4 fixed-point px offset, decays toward 0 from fixMs
 };
 
 class PlaneRadarApp : public App {
@@ -223,13 +263,25 @@ public:
                         _everHadResult = true;
                         _prErr         = false;
                         _lastGoodMs    = now;
-                        _render();
+                        _reconcileMotion(now);   // TASK-357: match to old motion by callsign before drawing
+                        _render(now);
+                        _lastInterpMs  = now;
                     } else {
                         _prErr = true;   // stale display kept; strip shows the error code
                     }
                     _updateStripDynamic(true);
                 }
             }
+        }
+
+        // TASK-357: ~10 Hz smoothing repaint between fetches. Dead-reckon +
+        // damped-offset positions evolve every ms, but a redraw only costs
+        // anything when _motionDirty() finds a pixel actually due to move —
+        // cruise-phase traffic at typical zoom clears this cheaply most ticks.
+        if (_everHadResult && now - _lastInterpMs >= PR_INTERP_TICK_MS) {
+            unsigned long prevInterpMs = _lastInterpMs;
+            _lastInterpMs = now;
+            if (_motionDirty(prevInterpMs, now)) _render(now);
         }
 
         // Age readout ticks once a second even without a new fetch.
@@ -329,6 +381,35 @@ public:
                      (unsigned)g_settings.prPollSec);
             return true;
         }
+        if (strcmp(var, "prInterp") == 0) {
+            // TASK-357: T_PRI_01 observable — motion-slot 0 (the first
+            // tracked aircraft; VE drives this with a single prInjectAircraft
+            // record for a controlled, deterministic read). offsetPx is the
+            // decaying continuity correction's current magnitude (0 once
+            // settled or for a just-appeared aircraft); fixAgeMs is how long
+            // ago that slot's dead-reckon fix landed.
+            bool have = _motionCount > 0;
+            float offsetPx = 0.0f;
+            unsigned long fixAgeMs = 0;
+            if (have) {
+                const PrMotion& m = _motion[0];
+                fixAgeMs = millis() - m.fixMs;
+                // Bug found in DUT verification (2026-07-19): reporting the raw
+                // stored offXq/offYq (fixed at the fix instant) read as a flat
+                // 13px for 2.5s straight instead of decaying — the stored value
+                // never decays on its own, only _motionPx()'s evaluation of it
+                // does. Apply the same tau=2s decay here so this observable
+                // matches what's actually on screen.
+                float decay = expf(-(float)fixAgeMs / PR_INTERP_TAU_MS);
+                offsetPx = _distPx((float)m.offXq / 16.0f * decay, (float)m.offYq / 16.0f * decay);
+            }
+            snprintf(buf, len,
+                     "\"var\":\"prInterp\",\"have\":%s,\"offsetPx\":%.2f,\"fixAgeMs\":%u,"
+                     "\"tracked\":%u,\"last\":true",
+                     have ? "true" : "false", (double)offsetPx, (unsigned)fixAgeMs,
+                     (unsigned)_motionCount);
+            return true;
+        }
         return false;
     }
 
@@ -402,7 +483,12 @@ public:
             _prErr         = false;
             _lastHttp      = 0;
             _lastGoodMs    = millis();
-            _render();
+            // TASK-357: reconcile before render — two successive injections
+            // with a repeated callsign exercise the dr-damped continuity path
+            // exactly like a real fetch pair, which is how T_PRI_01 drives it.
+            _reconcileMotion(_lastGoodMs);
+            _render(_lastGoodMs);
+            _lastInterpMs  = _lastGoodMs;
             _updateStripDynamic(true);
             return true;
         }
@@ -425,6 +511,36 @@ private:
     dataTask::PlaneRadarResult _result;
     PrRendered _prev[dataTask::PR_MAX_AIRCRAFT];
     uint8_t    _prevCount = 0;
+
+    // TASK-357: motion smoothing. _motion[i] tracks _result.aircraft[i]
+    // between fetches; _reconcileMotion() rebuilds it (matched by callsign)
+    // each time a new fetch lands. _lastInterpMs paces the ~10 Hz repaint
+    // tick independent of the (much slower) fetch cadence.
+    //
+    // Heap-allocated (via _ensureMotion(), lazily on first reconcile), NOT a
+    // static x24 array: the debug build (SERIAL_DEBUG's membudget probes +
+    // TOUCH_DEBUG_OVERLAY) has only tens of bytes of .bss/.data headroom left
+    // on this no-PSRAM board — a static array here overflowed dram0_0_seg by
+    // hundreds of bytes even after shrinking PrMotion to its current 20-byte
+    // fixed-point form. 480 B total is a one-time allocation, held for the
+    // app's lifetime (never freed/reallocated), so it does not contend with
+    // the large-contiguous-block concerns M-AQUARIUM's sprite-heap-arbitration
+    // exists for (that mechanism is for apps holding/releasing large pools —
+    // not applicable at this size).
+    PrMotion*     _motion        = nullptr;
+    uint8_t       _motionCount   = 0;
+    unsigned long _lastInterpMs  = 0;
+
+    // Lazily heap-allocate _motion on first use; returns false (leaving
+    // _motion null) on the OOM edge case, which callers treat the same as
+    // "nothing tracked yet" — _render()'s `i < _motionCount` guard already
+    // falls back to raw fix positions, so a failed allocation just means no
+    // smoothing rather than a crash.
+    bool _ensureMotion() {
+        if (_motion) return true;
+        _motion = new PrMotion[dataTask::PR_MAX_AIRCRAFT];
+        return _motion != nullptr;
+    }
 
     // TASK-355: live poll interval — read fresh from settings so an edit
     // applies on the next tick (no resume-diff). load() guarantees 1–30.
@@ -458,8 +574,11 @@ private:
         _presetIdx = idx;
         g_settings.prRangeIdx = idx;   // persists across reboot
         SettingsStorage::save();
-        _repaintDisc();
-        _render();
+        _repaintDisc();   // TASK-357: also zeroes _motionCount — new scale, no continuity claim
+        unsigned long now = millis();
+        _reconcileMotion(now);
+        _render(now);
+        _lastInterpMs = now;   // else the next interp tick's dirty-check compares against a stale pre-switch time
         _updateStripDynamic(true);
     }
 
@@ -526,6 +645,100 @@ private:
         *py = (int16_t)lroundf(PR_CY - dyKm * s);
     }
 
+    // FNV-1a over the callsign — cross-fetch identity key. Collisions
+    // between two simultaneously-visible aircraft are astronomically
+    // unlikely at ~20 aircraft/32 bits, and even a collision only costs one
+    // mismatched (but PR_INTERP_SNAP_PX-bounded) frame, never a crash.
+    static uint32_t _csHash(const char* s) {
+        uint32_t h = 2166136261u;
+        for (; *s; s++) { h ^= (uint8_t)*s; h *= 16777619u; }
+        return h;
+    }
+
+    // TASK-357: dr-damped(tau=2) rendered position for _motion[i] at time
+    // `now` — dead-reckon the last fix along track+groundspeed (same
+    // kmMin -> px derivation _render()'s speed line already uses), then add
+    // the decaying continuity offset on top. Caller must have i < _motionCount
+    // (true for every _result-indexed caller post-reconcile).
+    void _motionPx(uint8_t i, unsigned long now, int16_t* px, int16_t* py) const {
+        const PrMotion& m = _motion[i];
+        float dtSec = (float)(now - m.fixMs) / 1000.0f;   // unsigned subtraction wraps sanely across millis() rollover
+        if (dtSec < 0.0f) dtSec = 0.0f;
+        if (dtSec > (float)PR_STALE_S) dtSec = (float)PR_STALE_S;   // cap extrapolation — stale hands off to prStaleStyle
+        float speedPxPerSec = (float)m.gsKnots * PR_KM_PER_NM / 3600.0f * _pxPerKm();
+        float tr = _degToRad((float)m.trackDeg);
+        float predX = (float)m.fixPxX + speedPxPerSec * dtSec * cosf(tr);
+        float predY = (float)m.fixPxY + speedPxPerSec * dtSec * sinf(tr);
+        float decay = expf(-dtSec * 1000.0f / PR_INTERP_TAU_MS);
+        *px = (int16_t)lroundf(predX + (float)m.offXq / 16.0f * decay);
+        *py = (int16_t)lroundf(predY + (float)m.offYq / 16.0f * decay);
+    }
+
+    // Rebuild _motion[] from the just-landed _result (identity by callsign —
+    // depth 1, no history arrays). For a matched aircraft, the new offset is
+    // exactly the delta between where we were CURRENTLY rendering it (dead-
+    // reckoned + decayed from the OLD fix, evaluated at `now`) and the new
+    // fix's raw position — so the very next _render() call draws it right
+    // where the smoother left off (continuity, no teleport) and then decays
+    // toward the new fix over tau=2s. Unmatched (new) aircraft get offset 0:
+    // no continuity claim for a plane that just appeared. A correction bigger
+    // than PR_INTERP_SNAP_PX is treated as a re-appearance (stale timeout,
+    // location switch collision, etc.) and snapped to 0 rather than dragged
+    // across the disc. Callers (fetch landing / injection) must have already
+    // assigned the new _result before calling — old-generation continuity is
+    // read from _motion[], which is only overwritten at the end here.
+    void _reconcileMotion(unsigned long now) {
+        if (!_ensureMotion()) { _motionCount = 0; return; }   // OOM edge case: render falls back to raw fix positions
+        PrMotion next[dataTask::PR_MAX_AIRCRAFT];
+        for (uint8_t i = 0; i < _result.count; i++) {
+            const dataTask::PrAircraft& a = _result.aircraft[i];
+            PrMotion m{};
+            m.csHash   = a.callsign[0] ? _csHash(a.callsign) : 0;
+            m.trackDeg = a.trackDeg;
+            m.gsKnots  = a.gsKnots;
+            _project(a.lat, a.lon, &m.fixPxX, &m.fixPxY);
+
+            int8_t oldIdx = -1;
+            if (m.csHash) {
+                for (uint8_t j = 0; j < _motionCount; j++) {
+                    if (_motion[j].csHash == m.csHash) { oldIdx = (int8_t)j; break; }
+                }
+            }
+
+            if (oldIdx >= 0) {
+                int16_t predX, predY;
+                _motionPx((uint8_t)oldIdx, now, &predX, &predY);
+                float ox = (float)(predX - m.fixPxX), oy = (float)(predY - m.fixPxY);
+                if (_distPx(ox, oy) > PR_INTERP_SNAP_PX) { ox = 0.0f; oy = 0.0f; }
+                m.offXq = (int16_t)lroundf(ox * 16.0f);
+                m.offYq = (int16_t)lroundf(oy * 16.0f);
+            }
+            m.fixMs = now;
+            next[i] = m;
+        }
+        memcpy(_motion, next, sizeof(PrMotion) * _result.count);
+        _motionCount = _result.count;
+    }
+
+    // Cheap (no TFT calls, no extra per-aircraft storage) check for the
+    // ~10 Hz smoothing tick: did any tracked aircraft's dead-reckoned+damped
+    // position actually cross a screen pixel between the last redraw
+    // (`prevNow`) and now? _motionPx() is a pure function of stored state +
+    // time, so comparing it at the two instants IS the dirty check — no
+    // separate "last drawn px" needs to be kept per aircraft. Lets a full
+    // _render() redraw stay gated on actual visible motion instead of firing
+    // unconditionally at 10 Hz — cruise-phase traffic at typical zoom moves
+    // well under 1 px per 100 ms tick.
+    bool _motionDirty(unsigned long prevNow, unsigned long now) const {
+        for (uint8_t i = 0; i < _motionCount; i++) {
+            int16_t x0, y0, x1, y1;
+            _motionPx(i, prevNow, &x0, &y0);
+            _motionPx(i, now,     &x1, &y1);
+            if (x0 != x1 || y0 != y1) return true;
+        }
+        return false;
+    }
+
     // Rings + crosshair + bezel + runway overlay — the disc's static layer.
     // Called once on resume() AND after every _erasePrev() in _render() (bug
     // found 2026-07-11: _erasePrev()'s per-aircraft bounding-box erase paints
@@ -567,7 +780,8 @@ private:
         tft.fillRect(0, 0, PR_STRIP_X, PR_SCREEN_H, PR_COL_OUTSIDE);
         tft.fillCircle(PR_CX, PR_CY, PR_R, PR_COL_FIELD);
         _redrawGridStatics();
-        _prevCount = 0;   // prior aircraft pixel positions are stale after a repaint/rescale
+        _prevCount   = 0;   // prior aircraft pixel positions are stale after a repaint/rescale
+        _motionCount = 0;   // TASK-357: and so is any dead-reckon/offset continuity built on them
     }
 
     void _drawGridOnce() {
@@ -709,8 +923,12 @@ private:
     }
 
     // Erase previous frame's symbols/tags, draw the current _result, remember
-    // the new geometry in _prev[] for next erase.
-    void _render() {
+    // the new geometry in _prev[] for next erase. TASK-357: `now` positions
+    // every aircraft via _motionPx() (dead-reckon + damped offset) rather
+    // than the raw fix — this is what turns a fetch-cadence-only redraw into
+    // the ~10 Hz smoothing repaint (tick() calls this both on fetch landing
+    // and on the interp tick when _motionDirty() says something moved).
+    void _render(unsigned long now) {
         _erasePrev();
         _redrawGridStatics();   // repair any grid pixels the erase above chewed into
 
@@ -722,7 +940,11 @@ private:
         for (uint8_t i = 0; i < _result.count; i++) {
             const dataTask::PrAircraft& a = _result.aircraft[i];
             int16_t x, y;
-            _project(a.lat, a.lon, &x, &y);
+            if (i < _motionCount) {
+                _motionPx(i, now, &x, &y);
+            } else {
+                _project(a.lat, a.lon, &x, &y);   // defensive: should not happen post-reconcile
+            }
             int16_t dx = (int16_t)(x - PR_CX), dy = (int16_t)(y - PR_CY);
             float distPx = _distPx((float)dx, (float)dy);
 

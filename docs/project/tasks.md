@@ -269,7 +269,64 @@ last-fix age) for T_PRI_01 assertions.
 
 **Owner:** Developer (Architect consult on repaint design) · **Deps:** EXP-014 (done);
 TASK-355 open but not blocking · **Gate:** `run/check` 7/7 + DUT eyeball + T_PRI_01 ·
-**Priority:** P2 · **Status:** open
+**Priority:** P2 · **Status:** **DONE (build+T_PRI_01), DUT eyeball + worst-case load still
+open** 2026-07-19 (`app/src/planeRadarApp.h`, commit pending)
+
+Landed as a **continuity-offset** design, not literal alpha-beta blending: dead-reckon each
+aircraft in *screen px* (reuses the existing track/gs → px-vector derivation), and on a fetch
+landing, the new offset is exactly (old dead-reckoned+damped px at that instant) minus (new
+fix's raw px) — so the redraw right after a fetch is pixel-continuous with the smoothing
+frame before it, then decays toward the new fix with tau=2s. Depth 1, matched across fetches
+by a callsign hash (`PrMotion.csHash`), correction >`PR_INTERP_SNAP_PX`=40px snaps to 0 (re-
+appearance). Repaint strategy chosen: reuse the existing whole-scene `_render()` erase/redraw/
+tag-placement pipeline unchanged (zero new correctness risk to that already-hardened code) at
+a ~10Hz tick, **gated on an exact, zero-extra-storage dirty check** (`_motionPx()` is a pure
+function of stored state + time, so comparing it at the last-redraw instant vs now tells you
+whether anything actually crossed a pixel — no per-aircraft "last drawn px" bookkeeping
+needed). This is a **simpler alternative to EXP-014/this task's originally-sketched
+partial dirty-rect + rotating-scan (`PR_INTERP_MAX_MOVERS`) scheme** — that idea was dropped
+in favour of the lower-risk whole-scene reuse; see "Deferred" below for what a partial-redraw
+follow-up would still need to prove.
+
+**Process note:** picked up as a Fable→Sonnet session handoff (prior agent died to usage limit
+mid-design, before writing code) — proceeded **without a separate formal Architect consult
+step** the task called for; the repaint-strategy call above was made solo and documented here
+instead. Flagging per AGENTS.md protocol rather than silently skipping it — a human/Architect
+review of this choice is still owed.
+
+**DRAM finding (real, fixed):** a naive `PrMotion _motion[24]` static member overflowed the
+debug build's `dram0_0_seg` by 872 B — that build (SERIAL_DEBUG's membudget probes +
+TOUCH_DEBUG_OVERLAY) has only tens of bytes of static headroom left on this no-PSRAM board.
+Fixed two ways: (1) shrunk `PrMotion` to 20 B via fixed-point (Q4 px offset, hashed callsign,
+projected-px fix cache instead of float lat/lon) — 960→480 B; (2) still didn't fit, so
+`_motion` is now **heap-allocated once** (`_ensureMotion()`, lazy, on first reconcile) rather
+than static — moves it out of `.bss` entirely. 480 B is a one-time hold for the app's
+lifetime, not a repeated alloc/free, so it doesn't engage M-AQUARIUM's sprite-heap-arbitration
+concerns (that mechanism is for apps holding/releasing large pools). `run/check` 6/6 clean.
+
+**Bug found + fixed during DUT verification (own code, caught before commit):** the
+`get prInterp` debug observable initially reported the raw stored offset, not the
+decay-adjusted one — read as a flat, non-decaying value on the DUT. Fixed (dbgGet now applies
+the same tau=2s decay the renderer uses) and reverified: offset ratios across 0.5s steps came
+back ~0.77 consistently (theory `exp(-0.5/2)=0.779`) via manual injection, and T_PRI_01
+(1.97px → 0.72px@t+2s → 0.26px@t+4s, matching `exp(-1)=0.368`/`exp(-2)=0.135` almost exactly)
+now passes clean.
+
+**Verified this session:** `run/check` 6/6; T_PRI_01 (continuity + decay curve) PASS; a 15s
+sustained-synthetic-motion DUT stress (3 aircraft, re-injected every ~180ms) produced **zero**
+`LOG_W("perf", iter>50ms)` warnings and no reboot — a reasonable but *not exhaustive* perf
+signal (see Deferred).
+
+**Deferred to the human DUT session (BP-048 — this feature IS a visual):**
+1. **DUT eyeball** — no human has looked at the actual motion on screen yet. This is the
+   primary acceptance criterion per the task and per EXP-014's own methodology.
+2. **Worst-case load** — the serial injection line is size-limited (~160 B/line), so only
+   ~3 synthetic aircraft could be stress-tested this session, not the ~20-24-aircraft busy-
+   airport case B's original design notes flagged as the real perf risk. The 15s/3-aircraft
+   stress found nothing, but that is not the scenario that matters — needs either a real busy
+   preset on the live adsb.fi feed, or a larger synthetic capture-replay harness.
+3. **Architect sign-off** on the repaint-strategy substitution above (whole-scene-reuse +
+   exact dirty-gate vs. the originally-sketched partial redraw).
 
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
