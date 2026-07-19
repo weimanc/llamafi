@@ -17,6 +17,7 @@ All tools run with the project venv: `~/proj/esp/venv/bin/python3`.
 | `preview_interp.py` | eyeball harness on the REAL radar renderer (`preview_planeradar.Radar` + `PreviewWindow`): all 5 scenario planes fly at once, every enabled algorithm overlaid colour-coded per plane. Keys: `1..6` toggle algos, `c`/`v` cadence, `s` solo-plane cycle, `SPACE` pause, `r` restart, `+`/`-` scale, `q` quit; `--headless DIR [--gif]` |
 | `capture_adsb.py` | the ONE-session real-data capture (refuses without `--ack`; 429-budget protocol in PROP-006); `fixtures_load()` returns the same Fix schema |
 | `baseline_synth.md` | committed score matrix on synthetic truth (see caveats!) |
+| `real_replay.py` | TASK-360/EXP-015: replays real captured fixes (`app/tools/fixtures/planeradar/task360_london/`) through the same track+gs dead-reckon math, scores raw one-hop correction magnitude, correlates against turning/speed/altitude — real-vs-synthetic check + speed+altitude hypothesis test |
 
 ## Reuse (added after review — the first cut wrongly built standalone)
 
@@ -53,6 +54,15 @@ All tools run with the project venv: `~/proj/esp/venv/bin/python3`.
    next fix is late (clamp f=1); near-zero px steps make the heading
    estimate thrash, inflating `jit_degs`. Treat jitter as a tiebreaker, not
    a headline number, until the metric gets a step floor.
+
+**TASK-360/EXP-015 update (2026-07-19):** caveat 1's "pending real-fixture
+confirmation" is now checked against real London traffic — see
+`docs/rnd/reports/EXP-015-pr-interp-real-traffic.md`. Headline: real
+one-hop DR corrections (mean 0.29 px, max 4.80 px, n=762) are smaller than
+the synthetic dr-snap worst case (9.6 px), and the turning/speed-change
+mechanism is confirmed (not altitude — that hypothesis is refuted on this
+data). No graduation change; two non-smoother candidate explanations for the
+human's observed inaccuracy flagged for PM follow-up instead.
 
 ## Baseline read (synthetic, 2026-07-19, ring-3-corrected scale)
 
