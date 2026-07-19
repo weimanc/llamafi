@@ -1947,3 +1947,35 @@ features:
       when the PlaneRadar follow-up that consumes it is actually
       implemented — per architect.md's registry-reservation protocol, a
       design reserves, Developer completes at implementation.
+
+  - id: boot-ui-001
+    name: Chrome-first boot + title-marquee boot progress
+    milestone: M-BOOT-UI (reserved, not yet scheduled)
+    status: planned
+    description: |
+      Reserved at design time (Architect registry remit) — not yet
+      implemented. Paints the Winamp skin chrome (winampDisplay.
+      showDefaultScreen() + renderTaskbar()) immediately after displaySetup()
+      + TouchCalStorage::load()/backlight handoff in setup() — before the
+      WiFi connect cascade and NTP sync — replacing the black screen that
+      previously persisted until the first post-network chrome paint
+      (main.cpp:2415-2422, unchanged, now a cheap idempotent second pass).
+      Boot progress (WiFi fallback stage, NTP sync/fallback) is surfaced via
+      the existing title marquee (winampDisplay::setTitle(), redraw-on-change
+      reused as-is) with marquee-scroll liveness riding the WiFi/NTP wait
+      loops' existing esp_task_wdt_reset()/yield() per-iteration hook
+      (winampDisplay::tickMarquee()). No new display mechanism, no new
+      persisted state. Scoped to the WINAMP_DISPLAY build family
+      (cyd2usb_winamp + its extends family); non-Winamp envs (cyd, trinity)
+      unaffected.
+    git_ref: —
+    files:
+      - app/src/main.cpp
+    cross_features: [chrome-001, wifi-001, time-001]
+    test_ids: []
+    notes: |
+      Design: docs/architecture/designs/M-BOOT-UI.md (draft). Feeds ADR-055
+      (proposed). Matrix edges X039-X041. Reserved 2026-07-19; Developer
+      completes/corrects this entry (git_ref, files, test_ids) at
+      implementation — per architect.md's registry-reservation protocol, a
+      design reserves, Developer completes at implementation.

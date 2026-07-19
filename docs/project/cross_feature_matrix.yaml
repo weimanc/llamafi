@@ -822,3 +822,58 @@ interactions:
       behavior, out of scope per M-HEAP-FRAGMENTATION/ADR-053 being
       parked/independent) — flagged here so this isn't misread as Goal 2
       failing to land.
+
+  - id: X039
+    feature_a: boot-ui-001
+    feature_b: chrome-001
+    interaction_type: dependency
+    description: |
+      boot-ui-001 calls chrome-001's existing render primitives
+      (winampDisplay::showDefaultScreen()/repaintChrome()/renderTaskbar())
+      from a new, earlier call site in main.cpp's setup() — immediately
+      after displaySetup() + TouchCalStorage::load()/backlight handoff,
+      before the WiFi connect cascade. The later, existing call site
+      (main.cpp:2415-2422) is unchanged and becomes a harmless idempotent
+      second paint. No new rendering logic in chrome-001 — a call-site
+      relocation plus reuse from boot-ui-001's side.
+    risk: low
+    test_coverage: []
+    notes: |
+      Reserved 2026-07-19 at design time (docs/architecture/designs/
+      M-BOOT-UI.md, Architect registry remit; feeds ADR-055, proposed).
+
+  - id: X040
+    feature_a: boot-ui-001
+    feature_b: wifi-001
+    interaction_type: dependency
+    description: |
+      boot-ui-001's title-marquee boot-status text is keyed to wifi-001's
+      connect-loop phase transitions (hardcoded-SSID/NVS/SPIFFS-creds
+      cascade + re-association settle + connected/retry/no-creds outcomes
+      in main.cpp's setup()); winampDisplay::tickMarquee() is invoked from
+      the existing per-iteration esp_task_wdt_reset() hook inside those
+      loops (TASK-288) to drive scroll-liveness for any status text that
+      exceeds TITLE_W. Read-only with respect to wifi-001 — boot-ui-001
+      does not change WiFi connect/retry/timeout behavior, only observes
+      its phase transitions.
+    risk: low
+    test_coverage: []
+    notes: |
+      Reserved 2026-07-19 at design time (docs/architecture/designs/
+      M-BOOT-UI.md, Architect registry remit; feeds ADR-055, proposed).
+
+  - id: X041
+    feature_a: boot-ui-001
+    feature_b: time-001
+    interaction_type: dependency
+    description: |
+      Same shape as X040, keyed to time-001's NTP sync wait
+      (main.cpp:2308-2332) and its HTTPS-Date fallback branch — boot-ui-001
+      sets marquee status text at phase entry/fallback and drives
+      tickMarquee() from the loop's existing yield() call. Read-only with
+      respect to time-001.
+    risk: low
+    test_coverage: []
+    notes: |
+      Reserved 2026-07-19 at design time (docs/architecture/designs/
+      M-BOOT-UI.md, Architect registry remit; feeds ADR-055, proposed).
