@@ -14,7 +14,7 @@ All tools run with the project venv: `~/proj/esp/venv/bin/python3`.
 | `synth.py` | synthetic ground truth: cruise / turn / holding / approach / climbout, 1 Hz sampling with whole-degree track, int knots, 8 m GPS jitter, 5% dropout |
 | `algorithms.py` | the ladder: `dr-snap` (depth 1) · `dr-damped(tau)` (depth 1) · `delayed-lerp` (depth 2) · `catmull-rom` (depth 3) |
 | `score.py` | cadence × algorithm matrix → RMS px / p95 px / max jump px / heading jitter; `--md` writes the table |
-| `preview_interp.py` | pygame eyeball harness (keys a/z algo, c/v cadence, s scenario); `--headless DIR` renders PNGs |
+| `preview_interp.py` | eyeball harness on the REAL radar renderer (`preview_planeradar.Radar` + `PreviewWindow`): all 5 scenario planes fly at once, every enabled algorithm overlaid colour-coded per plane. Keys: `1..6` toggle algos, `c`/`v` cadence, `s` solo-plane cycle, `SPACE` pause, `r` restart, `+`/`-` scale, `q` quit; `--headless DIR [--gif]` |
 | `capture_adsb.py` | the ONE-session real-data capture (refuses without `--ack`; 429-budget protocol in PROP-006); `fixtures_load()` returns the same Fix schema |
 | `baseline_synth.md` | committed score matrix on synthetic truth (see caveats!) |
 
@@ -30,12 +30,17 @@ All tools run with the project venv: `~/proj/esp/venv/bin/python3`.
   `107 / (preset × 4/3)` px/km.
 - `preview_interp.py --headless --gif` uses `preview_common.write_gif`
   (M-PREVIEW-FRAMEWORK) for report animations.
-- NOT adopted (deliberate): `preview_common.PreviewWindow` — it is
-  PIL-blit-oriented and the study window needs custom per-frame pygame
-  drawing + its own keys; adopting it is graduation-time cleanup if the
-  harness ever becomes a permanent tool. `preview_planeradar.py`'s full
-  chrome (strips, tags, runways) is device-screen preview scope, not needed
-  for algorithm scoring.
+- `preview_interp.py` (round 2, after eyeball feedback) renders through
+  `preview_planeradar.Radar` (device palette, rings, glyphs, vectors, tags,
+  taskbar) and adopts `preview_common.PreviewWindow` — the round-1
+  "PIL-blit doesn't fit" rationale dissolved once the frame WAS a PIL image.
+- Projection recalibrated again to match `Radar.project`: **118 px outer
+  ring = preset × 4/3 km** (px/km = 88.5/preset). The probe's 107 px is the
+  reference project's pre-scale-up grid radius — display metrics use 118.
+- Worktree note: `dut_fonts.py` reads TFT_eSPI's `glcdfont.c` from
+  `Spotify-Diy-Thing/.pio/` (untracked upstream dir) — in an rnd worktree,
+  symlink it from the main checkout:
+  `ln -s ~/proj/esp_spotify/Spotify-Diy-Thing <worktree>/Spotify-Diy-Thing`.
 
 ## Read the baseline with these caveats
 

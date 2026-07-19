@@ -6,11 +6,12 @@
 # track (int), gs knots (int) — quantization is applied at the *fix* level so
 # every algorithm sees exactly what the firmware would see.
 #
-# Pixel projection: the range preset maps to grid RING 3, not the disc edge —
-# outer grid ring (107 px, reference kGridOuterRadius) holds preset*4/3 km,
-# so px_per_km = 107 / (preset * 4/3) ≈ 80.25/preset. Derivation reused from
-# app/tools/pr_adsb_probe.py (fetch_radius_nm + its radar_range.cpp comment);
-# PRESETS_KM is imported from there rather than mirrored (LL-114).
+# Pixel projection: matches preview_planeradar.Radar.project — the OUR-device
+# outer ring (118 px) holds preset*4/3 km (ring 3 = the preset), so
+# px_per_km = 118 / (preset * 4/3) ≈ 88.5/preset. (pr_adsb_probe's 107 px is
+# the reference project's kGridOuterRadius before our 118/107 screen scale-up;
+# use the display mapping here since metrics are display pixels.)
+# PRESETS_KM is imported from the probe rather than mirrored (LL-114).
 
 from dataclasses import dataclass
 import math
@@ -23,8 +24,7 @@ from pr_adsb_probe import PRESETS_KM  # noqa: E402  (single source, LL-114)
 KNOTS_TO_MS = 0.514444
 EARTH_R = 6371000.0
 
-GRID_OUTER_PX = 107          # reference kGridOuterRadius (disc PR_R=118 is bezel)
-PR_R_PX = 118                # disc radius, used for drawing only
+PR_R_PX = 118                # disc/outer-ring radius (preview_planeradar LAYOUTS)
 
 
 @dataclass
@@ -67,8 +67,8 @@ def quantize(s: TruthState, jitter_m: float = 0.0, rng=None) -> Fix:
 
 
 def px_per_m(preset_km: int) -> float:
-    # preset km sits at ring 3 = 3/4 of the outer grid ring (107 px).
-    return GRID_OUTER_PX / (preset_km * (4.0 / 3.0) * 1000.0)
+    # preset km sits at ring 3 = 3/4 of the 118 px outer ring (Radar.project).
+    return PR_R_PX / (preset_km * (4.0 / 3.0) * 1000.0)
 
 
 def to_px(x_m: float, y_m: float, preset_km: int) -> tuple[float, float]:
