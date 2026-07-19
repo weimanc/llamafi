@@ -6900,6 +6900,155 @@ def t_pr_06(dut: Dut):
                      f"prClearInject -> count={r_after.get('val')} (real poll resumes)")
 
 
+# ── TASK-355 / M-PR-MOTION Item A: poll-interval setting (prPollSec) ─────────
+# T_PRM_01: dbg set/get round-trip (1/10/30) + out-of-range clamp + reboot
+#           persistence [REBOOT].
+# T_PRM_02: setting=1 → inter-fetch spacing settles at fetch-completion pace
+#           (~4–5 s, TASK-313 edge pacing), no enqueue pile-up, no Spotify
+#           heartbeat regression over a 5-min window [NETWORK][SLOW].
+
+# dataTask.h FetchType — PlaneRadar's dispatch id as reported by `get dataq`
+# inFlight (keep in sync with the enum; -1 = idle).
+PR_FETCH_TYPE = 8
+
+def t_prm_01(dut: Dut):
+    """T_PRM_01 (TASK-355) [REBOOT]: prPollSec slider value round-trips via dbg
+    set/get at 1 / 10 / 30 (full slider range: min / default / max), clamps an
+    out-of-range set (99 -> 30, mirroring load()'s corrupt-file guard), and
+    persists across a reboot.
+
+    No app switch needed: `set/get prPollSec` dispatch to the file-scope
+    g_PlaneRadarApp instance (main.cpp planeRadarDbgGet/Set are called
+    unconditionally) and the value is g_settings-backed, not app-instance
+    state. Persistence expectation: dbgSet("prPollSec") calls
+    SettingsStorage::save() itself (same idiom as _setPreset() for prRange /
+    T_PR_04), so the value must survive a reboot with no further action; the
+    on-screen slider's own Release path rides AppsSection::saveSettings()
+    identically. Restores the default (10) at the end."""
+    print("T_PRM_01  prPollSec set/get round-trip + clamp + persistence [REBOOT]")
+    for v in (1, 10, 30):
+        dut.cmd(f"set prPollSec {v}", timeout=3.0)
+        r = dut.cmd("get prPollSec", timeout=3.0)
+        if r.get("val") != v:
+            fail("T_PRM_01", f"set {v} -> get returned {r.get('val')}")
+            dut.cmd("set prPollSec 10", timeout=3.0)
+            return
+    # Out-of-range set clamps to the slider max (dbg mirror of the load guard).
+    dut.cmd("set prPollSec 99", timeout=3.0)
+    r = dut.cmd("get prPollSec", timeout=3.0)
+    if r.get("val") != 30:
+        fail("T_PRM_01", f"set 99 -> get returned {r.get('val')}, expected clamp to 30")
+        dut.cmd("set prPollSec 10", timeout=3.0)
+        return
+    # Persistence leg (T_PR_04 idiom): 30 is distinctive vs the default 10.
+    dut.send("reboot")
+    time.sleep(0.3)   # let the reset actually happen before we start reading for it
+    dut._wait_for_ready()
+    r_post = dut.cmd("get prPollSec", timeout=3.0)
+    dut.cmd("set prPollSec 10", timeout=3.0)   # restore default
+    if r_post.get("val") != 30:
+        fail("T_PRM_01", f"prPollSec={r_post.get('val')} after reboot, expected 30 (not persisted)")
+        return
+    pass_("T_PRM_01", "1/10/30 round-trip OK, 99->30 clamp OK, 30 held across reboot; restored to 10")
+
+
+def t_prm_02(dut: Dut):
+    """T_PRM_02 (TASK-355) [NETWORK][SLOW]: at prPollSec=1 the poll loop is
+    fetch-completion-paced, serialized, and does not starve Spotify — 5-min
+    observation window.
+
+    The design's honest-1s contract (M-PR-MOTION 'The 1 s setting, honestly'):
+    _pendingFetch already serializes fetches and TASK-313 measured ~4.3 s wall
+    per device GET (Cloudflare edge pacing), so setting=1 must settle at ~4–5 s
+    effective spacing — NOT at 1 s, and NOT pile up requests.
+
+    Observables (all via `get dataq`, sampled at ~0.5 s):
+      - fetch identity: inFlightMs is the dispatch-start millis stamp, so each
+        distinct value seen while inFlight==PR_FETCH_TYPE is one PR fetch —
+        spacing is measured start-to-start from those stamps, immune to
+        sampling aliasing between back-to-back fetches.
+      - pile-up: queueWaiting stays small (<=2 tolerated: other apps' bg
+        fetches legitimately queue behind an in-flight PR GET; PR itself can
+        never stack a second request while _pendingFetch is true).
+      - Spotify heartbeat: spActMs is spotifyTask's loop-position stamp; its
+        age (dataq ms - spActMs) must never exceed 120 s. Uses task activity,
+        not poll success — TASK-243 (Premium lapsed, 403s) makes success-based
+        checks meaningless, but a starved/deadlocked task parks the stamp.
+    Bounds: median spacing in [3.0, 9.0] s (fetch-completion pace, clearly
+    faster than the 10 s default), min spacing >= 1.5 s (no double-fire),
+    >= 20 fetches observed (~60-75 expected at ~4-5 s over 300 s).
+    Restores prPollSec=10 and Spotify at the end."""
+    print("T_PRM_02  prPollSec=1 -> fetch-completion pacing, no pile-up, Spotify alive [NETWORK][SLOW]")
+    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+        skip("T_PRM_02", "could not switch to PlaneRadar")
+        _restore_spotify(dut)
+        return
+    dut.cmd("set prPollSec 1", timeout=3.0)
+    # Baseline: first poll must resolve before the window starts (T_PR_02 idiom
+    # incl. its 90 s budget rationale — tlsYield contention can stretch it).
+    baseline_deadline = time.monotonic() + 90.0
+    baseline_ok = False
+    while time.monotonic() < baseline_deadline:
+        r = dut.cmd("get activeError", timeout=3.0)
+        if not r.get("connecting", True):
+            baseline_ok = True
+            break
+        time.sleep(1.0)
+    if not baseline_ok:
+        dut.cmd("set prPollSec 10", timeout=3.0)
+        _restore_spotify(dut)
+        skip("T_PRM_02", "first poll never resolved within 90s — no baseline")
+        return
+    window_s = 300.0
+    fetch_starts = set()      # distinct inFlightMs stamps while inFlight==PR
+    max_queue = 0
+    max_sp_age = 0
+    deadline = time.monotonic() + window_s
+    while time.monotonic() < deadline:
+        q = dut.cmd("get dataq", timeout=3.0)
+        if q.get("ok"):
+            if q.get("inFlight") == PR_FETCH_TYPE and q.get("inFlightMs"):
+                fetch_starts.add(q["inFlightMs"])
+            max_queue = max(max_queue, q.get("queueWaiting", 0))
+            if q.get("spActMs") and q.get("ms"):
+                max_sp_age = max(max_sp_age, q["ms"] - q["spActMs"])
+        time.sleep(0.5)
+    # Restore before judging — the window is over either way.
+    dut.cmd("set prPollSec 10", timeout=3.0)
+    still_alive = dut.cmd("get appId", timeout=3.0)
+    _restore_spotify(dut)
+    starts = sorted(fetch_starts)
+    gaps = [b - a for a, b in zip(starts, starts[1:])]
+    if not still_alive.get("ok"):
+        fail("T_PRM_02", f"DUT shell unresponsive after 5-min window: {still_alive}")
+        return
+    if len(starts) < 20:
+        fail("T_PRM_02", f"only {len(starts)} PR fetch starts observed in 300s — "
+                         f"expected >=20 at fetch-completion pace (gaps={gaps[:10]})")
+        return
+    gaps_sorted = sorted(gaps)
+    median_gap = gaps_sorted[len(gaps_sorted) // 2]
+    min_gap = gaps_sorted[0]
+    if min_gap < 1500:
+        fail("T_PRM_02", f"min inter-fetch gap {min_gap}ms < 1.5s — double-fire / "
+                         f"_pendingFetch serialization broken")
+        return
+    if not (3000 <= median_gap <= 9000):
+        fail("T_PRM_02", f"median inter-fetch gap {median_gap}ms outside [3s,9s] — "
+                         f"not fetch-completion-paced ({len(starts)} fetches)")
+        return
+    if max_queue > 2:
+        fail("T_PRM_02", f"queueWaiting peaked at {max_queue} (>2) — enqueue pile-up")
+        return
+    if max_sp_age > 120000:
+        fail("T_PRM_02", f"spotifyTask activity stamp went {max_sp_age}ms stale (>120s) — "
+                         f"heartbeat regression under continuous PR fetching")
+        return
+    pass_("T_PRM_02", f"{len(starts)} fetches in 300s, median gap {median_gap}ms "
+                      f"(min {min_gap}ms), queueWaiting peak {max_queue}, "
+                      f"max spotify activity age {max_sp_age}ms")
+
+
 ALL_TESTS = {
     "T077": t077,
     "T078": t078,
@@ -7094,6 +7243,9 @@ ALL_TESTS = {
     "T_PR_04": t_pr_04,
     "T_PR_05": t_pr_05,
     "T_PR_06": t_pr_06,
+    # TASK-355 poll-interval setting (M-PR-MOTION Item A)
+    "T_PRM_01": t_prm_01,
+    "T_PRM_02": t_prm_02,
 }
 
 def main():

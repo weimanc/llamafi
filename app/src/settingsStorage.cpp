@@ -122,6 +122,7 @@ static void applyDefaults() {
     g_settings.prRangeIdx       = 1;   // 10 km
     g_settings.prTagRule        = PrTagRule::C;
     g_settings.prStaleStyle     = PrStaleStyle::Ring;
+    g_settings.prPollSec        = PR_POLL_DEFAULT_SEC;   // TASK-355: 10 s == old PR_POLL_MS
 
     // M-PR-LOCATIONS: slot 0 seeded from the compile-time default above
     // (matches prLat/prLon); slots 1..3 start empty.
@@ -317,6 +318,7 @@ void SettingsStorage::load() {
             g_settings.prTagRule = strToEnum<PrTagRule>(pr["tagRule"] | "c", kPrTagRuleStr, PrTagRule::C);
         if (pr.containsKey("staleStyle"))
             g_settings.prStaleStyle = strToEnum<PrStaleStyle>(pr["staleStyle"] | "ring", kPrStaleStyleStr, PrStaleStyle::Ring);
+        if (pr.containsKey("pollSec")) g_settings.prPollSec = pr["pollSec"] | PR_POLL_DEFAULT_SEC;
 
         // M-PR-LOCATIONS (DEV-PRL-6): this MUST run after the lat/lon parsing
         // above, not before — the migration branch seeds prLocs[0] from
@@ -344,6 +346,12 @@ void SettingsStorage::load() {
         }
     }
     if (g_settings.prRangeIdx > 3) g_settings.prRangeIdx = 1;   // corrupt/out-of-range guard
+    // TASK-355: corrupt/out-of-range guard ONLY (0 or >30 from a hand-edited
+    // file). In-range low values (1–4 s) are deliberate and pass through —
+    // they degrade to fetch-completion pacing at runtime, see the field
+    // comment in settingsStorage.h.
+    if (g_settings.prPollSec < PR_POLL_MIN_SEC || g_settings.prPollSec > PR_POLL_MAX_SEC)
+        g_settings.prPollSec = PR_POLL_DEFAULT_SEC;
 
     // M-PR-LOCATIONS invariants (covers the loaded-array branch, the migration
     // branch, and a corrupt file alike):
@@ -478,6 +486,7 @@ void SettingsStorage::save() {
     pr["rangeIdx"]   = g_settings.prRangeIdx;
     pr["tagRule"]    = kPrTagRuleStr[(uint8_t)g_settings.prTagRule];
     pr["staleStyle"] = kPrStaleStyleStr[(uint8_t)g_settings.prStaleStyle];
+    pr["pollSec"]    = g_settings.prPollSec;   // TASK-355
     auto locs = pr.createNestedArray("locs");
     for (int i = 0; i < PR_NUM_LOCS; i++) {
         auto loc = locs.createNestedObject();

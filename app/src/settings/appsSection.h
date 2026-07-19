@@ -118,6 +118,28 @@ public:
                 return SectionResult::Continue;   // captured — no row dispatch
             }
         }
+        // TASK-355 (M-PR-MOTION Item A): poll-interval slider on the
+        // PlaneRadar row view — the WR-3 forwarding idiom above, verbatim.
+        // Gated on the ROW view only (_prRowSub() excludes the Locations
+        // sub-view, whose keyboard/picker steps are captured earlier anyway).
+        // Live apply needs nothing extra: the app's tick gate reads
+        // g_settings.prPollSec fresh each pass, so commit = save + repaint.
+        if (_prRowSub() && !g_keyboard.active()) {
+            const int pollRowY = S_CONTENT_Y + 6 * S_ROW_H;   // row 6 = Poll slider
+            if (phase == TouchPhase::Press) {
+                _prPollSlider.onPress(x, y, pollRowY);
+            } else if (phase == TouchPhase::Move && _prPollSlider.isDragging()) {
+                _prPollSlider.onMove(x);
+                char plbl[16];
+                _prPollLabel(plbl, sizeof(plbl));
+                _prPollSlider.render(pollRowY, plbl);
+            } else if (phase == TouchPhase::Release && _prPollSlider.isDragging()) {
+                settings().prPollSec = (uint8_t)_prPollSlider.onRelease(x);
+                saveSettings();
+                repaint();
+                return SectionResult::Continue;   // captured — no row dispatch
+            }
+        }
         if (phase != TouchPhase::Release) return SectionResult::Continue;
         if (isBackTap(x, y)) {
             if (_prLocActive) { _handlePrLocBack(); return SectionResult::Continue; }
@@ -179,6 +201,10 @@ private:
     // M-WEBRADIO-SETTINGS D2 row 4: Max-volume slider (1..21). Phase routing
     // lives in handleInput()'s WR-3 forwarding hook, not here.
     SliderWidget  _wrVolSlider;
+
+    // TASK-355 (M-PR-MOTION Item A) PlaneRadar row 6: poll-interval slider
+    // (PR_POLL_MIN_SEC..PR_POLL_MAX_SEC = 1..30 s). Same WR-3 routing idiom.
+    SliderWidget  _prPollSlider;
 
     // Shrinks below S_ROW_H only once CONFIGURABLE_APP_COUNT no longer fits
     // S_CONTENT_H at the default row height (bug found 2026-07-11: PlaneRadar
@@ -478,6 +504,17 @@ private:
         tft.setTextColor(S_VALUE);
         tft.drawString(activeLoc.label[0] ? activeLoc.label : "HOME", S_COL_VALUE - 14, y + S_ROW_H / 2, 2);
         tft.setTextDatum(TL_DATUM);
+        y += S_ROW_H;
+
+        // TASK-355 row 6: poll-interval slider (1–30 s). Re-init only outside
+        // a drag so mid-gesture repaints can't reset capture (WR-3 idiom).
+        // Values below ~5 s degrade to fetch-completion pacing on the device
+        // (~4.3 s edge-paced GET, TASK-313) — deliberate, no hidden clamp.
+        if (!_prPollSlider.isDragging())
+            _prPollSlider.init(PR_POLL_MIN_SEC, PR_POLL_MAX_SEC, settings().prPollSec);
+        char plbl[16];
+        _prPollLabel(plbl, sizeof(plbl));
+        _prPollSlider.render(y, plbl);
     }
 
     void _cyclePlaneRadar(int row) {
@@ -513,6 +550,19 @@ private:
 
     bool _wrSub() const {
         return _sub >= 0 && kConfigurableApps[_sub].id == AppId::WebRadio;
+    }
+
+    // TASK-355: PlaneRadar ROW view showing (not the Locations sub-view) —
+    // gates the Poll-slider phase forwarding, same role as _wrSub() for WR-3.
+    bool _prRowSub() const {
+        return _sub >= 0 && kConfigurableApps[_sub].id == AppId::PlaneRadar
+               && !_prLocActive;
+    }
+
+    // TASK-355: slider label carries the live value ("Poll: 10s") per the
+    // M-PR-MOTION design; SliderWidget's own right-side numeral shows it too.
+    void _prPollLabel(char* buf, size_t n) const {
+        snprintf(buf, n, "Poll: %ds", _prPollSlider.value());
     }
 
     void _repaintWebRadio() {

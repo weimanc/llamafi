@@ -102,7 +102,10 @@ static constexpr int16_t PR_SYMBOL_INSET = (int16_t)(PR_AC_NOSE_LEN + PR_AC_TAIL
 // default value (matches the reference project's kDefaultRadarLat/Lon);
 // edited only via `run/spiffs push` (TASK-305).
 
-static constexpr uint32_t PR_POLL_MS = 10000;  // D2 cadence, foreground-only
+// Poll cadence (D2, foreground-only) is a live setting since TASK-355
+// (M-PR-MOTION Item A): g_settings.prPollSec (1–30 s, default
+// PR_POLL_DEFAULT_SEC = 10 s == the old fixed PR_POLL_MS = 10000), read fresh
+// each tick via _pollMs() so a Settings edit applies on the next tick.
 static constexpr uint32_t PR_STALE_S = 30;      // Q5 stale threshold
 
 static constexpr float PR_MI_PER_KM      = 0.621371f;
@@ -197,7 +200,7 @@ public:
     void tick() override {
         unsigned long now = millis();
 
-        if (!_injected && !_pendingFetch && (now - _lastFetch >= PR_POLL_MS)) {
+        if (!_injected && !_pendingFetch && (now - _lastFetch >= _pollMs())) {
             _requestFetch(now);
         }
 
@@ -321,6 +324,11 @@ public:
             snprintf(buf, len, "\"var\":\"prLastAction\",\"val\":\"%s\",\"last\":true", _lastAction);
             return true;
         }
+        if (strcmp(var, "prPollSec") == 0) {   // TASK-355: T_PRM_01/02 observable
+            snprintf(buf, len, "\"var\":\"prPollSec\",\"val\":%u,\"last\":true",
+                     (unsigned)g_settings.prPollSec);
+            return true;
+        }
         return false;
     }
 
@@ -338,6 +346,18 @@ public:
             int km = atoi(val);
             for (uint8_t i = 0; i < PR_NUM_PRESETS; i++)
                 if (kPrPresetKm[i] == km) { _setPreset(i); break; }
+            return true;
+        }
+        if (strcmp(var, "prPollSec") == 0) {
+            // TASK-355: clamp to the slider range (mirrors load()'s
+            // out-of-range guard) and persist — T_PRM_01 asserts the value
+            // survives a reboot. No fetch enqueue / no _lastFetch touch: the
+            // tick gate reads the value live on its next pass.
+            int s = atoi(val);
+            if (s < PR_POLL_MIN_SEC) s = PR_POLL_MIN_SEC;
+            if (s > PR_POLL_MAX_SEC) s = PR_POLL_MAX_SEC;
+            g_settings.prPollSec = (uint8_t)s;
+            SettingsStorage::save();
             return true;
         }
         if (strcmp(var, "prClearInject") == 0 && strcmp(val, "1") == 0) {
@@ -406,7 +426,11 @@ private:
     PrRendered _prev[dataTask::PR_MAX_AIRCRAFT];
     uint8_t    _prevCount = 0;
 
-    unsigned long _forceNow() const { return millis() - PR_POLL_MS; }
+    // TASK-355: live poll interval — read fresh from settings so an edit
+    // applies on the next tick (no resume-diff). load() guarantees 1–30.
+    static uint32_t _pollMs() { return (uint32_t)g_settings.prPollSec * 1000UL; }
+
+    unsigned long _forceNow() const { return millis() - _pollMs(); }
 
     // Re-seed _presetIdx from g_settings.prRangeIdx (init()/resume() — TASK-310
     // dedup of the clamp expression whose divergence caused TASK-308 fix 2).

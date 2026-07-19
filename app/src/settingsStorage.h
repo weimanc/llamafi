@@ -53,6 +53,14 @@ struct PrLocation {
 static constexpr float PR_DEFAULT_LAT = 52.3676f;
 static constexpr float PR_DEFAULT_LON = 4.9041f;
 
+// M-PR-MOTION Item A (TASK-355): PlaneRadar poll-interval slider bounds +
+// default seed. 10 == the old fixed PR_POLL_MS (10000 ms) cadence. Lives here
+// (not planeRadarApp.h) because applyDefaults()/load() are its primary
+// consumers and the Settings slider row needs the bounds too.
+static constexpr uint8_t PR_POLL_MIN_SEC     = 1;
+static constexpr uint8_t PR_POLL_MAX_SEC     = 30;
+static constexpr uint8_t PR_POLL_DEFAULT_SEC = 10;
+
 // ---- Settings struct -------------------------------------------------------
 
 struct AppSettings {
@@ -138,6 +146,16 @@ struct AppSettings {
     uint8_t      prRangeIdx;      // 0..3 -> 5/10/15/25 km preset, persists across reboot
     PrTagRule    prTagRule;       // Q2, default C
     PrStaleStyle prStaleStyle;    // Q5, default Ring
+    // M-PR-MOTION Item A (TASK-355): poll cadence in seconds, 1–30, default
+    // PR_POLL_DEFAULT_SEC (10 == the old fixed PR_POLL_MS). Read LIVE by
+    // planeRadarApp's tick gate (prPollSec * 1000UL) — a Settings edit
+    // applies on the next tick, no resume-diff. Deliberately NO hidden clamp
+    // below ~5 s: the app's _pendingFetch gate serializes fetches and the
+    // device GET itself walls at ~4.3 s (Cloudflare edge pacing, TASK-313),
+    // so low settings degrade to fetch-completion pacing (~4–5 s effective)
+    // — self-limiting, no request pile-up, still inside adsb.fi's 1 req/s
+    // courtesy limit. load() clamps only OUT-OF-RANGE values (0 / >30).
+    uint8_t      prPollSec;
     // M-PR-LOCATIONS: named presets. prLat/prLon above are now the
     // write-through mirror of prLocs[prActiveLoc] (design "Settings storage")
     // — every existing prLat/prLon consumer keeps working unmodified; the
