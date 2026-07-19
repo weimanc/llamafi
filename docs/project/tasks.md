@@ -341,8 +341,12 @@ own deferred item #3 (Architect sign-off on the repaint strategy). Design + evid
 1. **Shared primitive** — `withViewportRepair(tft, x, y, w, h, repairFn)`, new file
    `app/src/util/tftViewportRepair.h` (stateless template wrapping TFT_eSPI's
    `setViewport()`/`resetViewport()` around a caller-supplied redraw callback; no reentrancy,
-   no per-app state, ~15 lines — reference implementation + invariants in the design doc). Zero
-   prior call sites in the codebase (`grep -rn setViewport app/src/` is empty today).
+   no per-app state, ~15 lines — reference implementation + invariants in the design doc).
+   Correction (found during implementation review, not caught by ADR-052's own original survey):
+   this is the first consumer of the new *helper*, not the first use of `setViewport` in the
+   codebase — `clockApp.h:425-438` (Flip digit clipping, TASK-354) and `main.cpp:1677-1680`
+   (heatmap text clipping) already call it raw, correctly. Doesn't change the design; both docs
+   corrected in place.
 2. **PlaneRadar consumer** (`app/src/planeRadarApp.h`) — replace `_render()`'s whole-scene
    erase/redraw with per-aircraft handling: a per-aircraft draw helper, a per-aircraft
    erase-with-bounding-box helper (`fillRect` over the old footprint), `withViewportRepair()`
@@ -369,7 +373,56 @@ follow-up, not a revision of its status) · **Gate:** `run/check` 7/7 + a
 stress + **human visual confirmation the flicker/tearing is actually gone (cannot be verified
 by the agent — this is the primary acceptance test, BP-048)** · **Priority:** P1 — human-
 reported visible regression in already-shipped functionality (TASK-357, this session), not
-routine backlog · **Status:** open
+routine backlog · **Status:** **DONE (build+DUT-stress+T_PRI_01), human eyeball still open**
+2026-07-19 (`app/src/util/tftViewportRepair.h` new, `app/src/planeRadarApp.h`, commit pending)
+
+Landed exactly the two-part design above. `withViewportRepair()` matches the design doc's
+reference implementation verbatim (`int32_t` params, `vpDatum=false`, no reentrancy). In
+`planeRadarApp.h`: `tick()`'s ~10 Hz interp-tick gate is now a per-aircraft loop (was one
+whole-scene `_motionDirty()` OR-check) calling a new `_redrawOneAircraft(i, now)` per dirty
+aircraft. `_render()` keeps its full-scene shape (fetch-landing/injection/preset-switch only,
+unchanged semantics) but its per-aircraft body is now shared code:
+`_eraseFootprint(p, &bx,&by,&bw,&bh)` (extracted from `_erasePrev()`'s loop — erases one
+entry's rim-dot/triangle+vector/tag and reports the union bbox of what it touched, `_erasePrev()`
+ignores the bbox, `_redrawOneAircraft()` scopes `withViewportRepair()`'s grid-statics repair to
+it), `_drawAircraftBody()` (extracted from `_render()`'s loop — pure symbol/vector drawing, no
+tag), and `_buildTagLines()`/`_drawTagLines()` (extracted from `_placeTag()` — pure
+formatting/drawing, `_placeTag()`'s occlusion-avoidance logic itself is untouched).
+`_redrawOneAircraft()`'s tag handling is rigid reposition by the symbol's (dx,dy), dropping the
+tag for the tick (not carrying it forward) on any rim-dot-state mismatch or off-disc landing —
+self-corrects at the next real `_render()`, per the design's accepted limitation. Removed the
+now-dead whole-scene `_motionDirty()` (inlined equivalently into `tick()`'s per-aircraft loop).
+
+**Bug found + fixed during self-review, before any DUT time (own code, not from a bad plan):**
+the first draft of `_eraseFootprint()` computed the erased bounding box as exclusive width
+(`maxX-minX`, `maxY-minY`) instead of the inclusive pixel-count width `fillRect()` itself uses
+(`maxX-minX+1`) — `withViewportRepair()`'s viewport would have been one pixel short on the
+right/bottom edge of every dirty-rect repair, i.e. exactly the kind of stray-pixel-erosion bug
+TASK-311's original `_redrawGridStatics()` fix was about. Caught by re-reading the diff against
+`_erasePrev()`'s original `fillRect(...,(maxX-minX+1),...)` call before flashing; fixed by
+tracking inclusive extents throughout and adding the `+1` once at the end.
+
+**Verified this session:** `run/check` 6/6 (7/7 incl. warn-only settings gate) clean. DUT
+(debug build): T_PRI_01 (continuity + decay curve, TASK-357's own regression check — unaffected
+by this refactor since only *what* redraws changed, not the position math) PASS, offsets
+1.97px → 0.72px (t+2s) → 0.26px (t+4s), identical to TASK-357's original numbers. An 18s
+sustained-synthetic-motion stress (2 aircraft — the ~160-byte serial-line budget only fits 2 at
+usable decimal precision, not the 3 originally estimated; ~58 shifting re-injections, ~0.3s
+apart) produced zero `LOG_W("perf", iter>50ms)` warnings and no reboot/crash signature on the
+serial stream. Production build reflashed afterward (device left in normal state).
+
+**Not done / explicitly out of scope this session:**
+- **The gate's `clock_delta_smoke.py`-style screendump-diff assertion was not written.** The
+  coordinator's implementation brief for this session scoped verification to `run/check` + DUT
+  crash-free stress + T_PRI_01 + (deferred) human eyeball, and did not include authoring this
+  assertion — flagging the gap against the task's own stated Gate rather than silently
+  narrowing it. Still needed before this task's Gate is fully satisfied.
+- **Human visual confirmation the flicker/tearing is actually gone — cannot be verified by an
+  agent (no camera on the device), per BP-048.** This is the primary acceptance test per the
+  task and remains the single open item. Everything build/DUT-stress/regression-verifiable this
+  session came back clean; only the eyeball is outstanding.
+- Item #2 from TASK-357 (worst-case ~20-24-aircraft busy-airport load) — still open, untouched
+  by this task, as scoped.
 
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 

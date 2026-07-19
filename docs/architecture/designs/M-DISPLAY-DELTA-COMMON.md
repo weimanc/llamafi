@@ -41,8 +41,7 @@ dirty check (it's a pure function of stored state + time, so evaluating it at
 with zero extra bookkeeping — the mechanism `_motionDirty()` already uses at
 the whole-scene level, `:732`).
 
-Researched this session (not yet used anywhere — `grep -rn setViewport
-app/src/` returns nothing): TFT_eSPI's `setViewport(x,y,w,h,vpDatum=false)`
+Researched this session: TFT_eSPI's `setViewport(x,y,w,h,vpDatum=false)`
 clips every subsequent draw call (`drawCircle`, `fillRect`, `drawLine`,
 `fillTriangle`, `drawString`, …) at the individual-pixel level via
 `drawPixel`'s bounds check. Confirmed by reading `TFT_eSPI.cpp`:
@@ -159,14 +158,28 @@ calls directly.**
 - *Con:* TFT_eSPI's viewport is a single **non-stacking global rectangle** —
   a forgotten `resetViewport()` on any exit path silently clips every
   subsequent draw call app-wide until the next full repaint happens to reset
-  it. That's a nasty, easy-to-introduce bug class for a technique that is
-  brand new to this codebase (zero prior call sites to copy the invariant
-  from). A one-function wrapper is cheap insurance to pin the invariants
-  (auto-clip to screen, no nesting, `vpDatum=false` convention) once, in one
-  place, rather than trusting every future call site to get it right from
-  scratch.
+  it. That's a nasty, easy-to-introduce bug class.
 - **Rejected** — B's cost is low enough that C's savings aren't worth the
   footgun risk.
+
+**Correction (found during TASK-358 implementation review, not caught by
+this design's own survey):** the claim above that this technique is "brand
+new to this codebase, zero prior call sites" is **wrong**. `grep -rn
+setViewport app/src/` (re-run properly this time) finds it already inline in
+two places: `clockApp.h:425-438` (Flip face digit clipping — almost
+certainly landed as part of TASK-354 itself) and `main.cpp:1677-1680`
+(heatmap rotated-text clipping). Both call `resetViewport()` correctly on
+every path — no live bug — but this means PlaneRadar is the **first
+consumer of the new `withViewportRepair` helper**, not the first use of the
+underlying mechanism, and option C's risk case is if anything *stronger* now
+that it's demonstrated: the same footgun-prone raw pattern has already been
+copy-pasted twice independently. The **conclusion (lean B) is unaffected and
+arguably reinforced** — three raw call sites (two existing + PlaneRadar) are
+a better case for consolidating into one audited helper than one. Migrating
+the two existing raw call sites to `withViewportRepair` is a legitimate,
+low-risk follow-up for consistency; not done as part of TASK-358 (out of
+that task's scope — it touched PlaneRadar only) and not separately filed —
+flagged here for whoever picks it up next.
 
 ## Lean / decision
 

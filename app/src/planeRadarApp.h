@@ -14,6 +14,7 @@
 #include "logSink.h"
 #include "gen/planeradar_airports.h"
 #include "planeRadarConfig.h"
+#include "util/tftViewportRepair.h"
 
 extern TFT_eSPI tft;
 
@@ -274,14 +275,24 @@ public:
             }
         }
 
-        // TASK-357: ~10 Hz smoothing repaint between fetches. Dead-reckon +
+        // TASK-357/358: ~10 Hz smoothing repaint between fetches. Dead-reckon +
         // damped-offset positions evolve every ms, but a redraw only costs
-        // anything when _motionDirty() finds a pixel actually due to move —
-        // cruise-phase traffic at typical zoom clears this cheaply most ticks.
+        // anything for aircraft whose pixel position actually crossed a pixel
+        // between the last interp tick and now (_motionPx() is a pure
+        // function of stored state + time, so evaluating it at both instants
+        // IS the dirty check — no extra "last drawn px" bookkeeping needed).
+        // TASK-358: per-aircraft, not whole-scene — only the dirty aircraft's
+        // own footprint gets erased/redrawn/repaired, fixing the visible
+        // tearing the prior whole-scene _render() call caused here.
         if (_everHadResult && now - _lastInterpMs >= PR_INTERP_TICK_MS) {
             unsigned long prevInterpMs = _lastInterpMs;
             _lastInterpMs = now;
-            if (_motionDirty(prevInterpMs, now)) _render(now);
+            for (uint8_t i = 0; i < _motionCount; i++) {
+                int16_t x0, y0, x1, y1;
+                _motionPx(i, prevInterpMs, &x0, &y0);
+                _motionPx(i, now,          &x1, &y1);
+                if (x0 != x1 || y0 != y1) _redrawOneAircraft(i, now);
+            }
         }
 
         // Age readout ticks once a second even without a new fetch.
@@ -720,25 +731,6 @@ private:
         _motionCount = _result.count;
     }
 
-    // Cheap (no TFT calls, no extra per-aircraft storage) check for the
-    // ~10 Hz smoothing tick: did any tracked aircraft's dead-reckoned+damped
-    // position actually cross a screen pixel between the last redraw
-    // (`prevNow`) and now? _motionPx() is a pure function of stored state +
-    // time, so comparing it at the two instants IS the dirty check — no
-    // separate "last drawn px" needs to be kept per aircraft. Lets a full
-    // _render() redraw stay gated on actual visible motion instead of firing
-    // unconditionally at 10 Hz — cruise-phase traffic at typical zoom moves
-    // well under 1 px per 100 ms tick.
-    bool _motionDirty(unsigned long prevNow, unsigned long now) const {
-        for (uint8_t i = 0; i < _motionCount; i++) {
-            int16_t x0, y0, x1, y1;
-            _motionPx(i, prevNow, &x0, &y0);
-            _motionPx(i, now,     &x1, &y1);
-            if (x0 != x1 || y0 != y1) return true;
-        }
-        return false;
-    }
-
     // Rings + crosshair + bezel + runway overlay — the disc's static layer.
     // Called once on resume() AND after every _erasePrev() in _render() (bug
     // found 2026-07-11: _erasePrev()'s per-aircraft bounding-box erase paints
@@ -922,12 +914,76 @@ private:
         tft.setTextDatum(TL_DATUM);
     }
 
+    // Draw one aircraft's symbol (rim-dot or triangle) + speed vector at
+    // (x,y), populating `rd` with the drawn geometry for the next erase. Pure
+    // drawing — does NOT place a tag; callers own tag placement (TASK-358:
+    // extracted from _render()'s per-aircraft loop body so both _render()'s
+    // full-occlusion path and _redrawOneAircraft()'s rigid-reposition path
+    // call the identical symbol/vector drawing code).
+    void _drawAircraftBody(const dataTask::PrAircraft& a, int16_t x, int16_t y, PrRendered& rd) {
+        rd = PrRendered{};
+        rd.shown = true;
+        rd.x = x; rd.y = y;
+
+        int16_t dx = (int16_t)(x - PR_CX), dy = (int16_t)(y - PR_CY);
+        float distPx = _distPx((float)dx, (float)dy);
+
+        // TASK-309 fix 1: rim-dot fallback triggers PR_SYMBOL_INSET px before
+        // the ring edge (not just past it) so no triangle vertex can reach
+        // the strip at x=PR_STRIP_X.
+        if (distPx > PR_R - PR_SYMBOL_INSET) {
+            rd.rimDot = true;
+            float ang = atan2f((float)dy, (float)dx);
+            rd.x = (int16_t)lroundf(PR_CX + PR_AC_RIM_RADIUS * cosf(ang));
+            rd.y = (int16_t)lroundf(PR_CY + PR_AC_RIM_RADIUS * sinf(ang));
+            tft.fillCircle(rd.x, rd.y, PR_AC_RIMDOT_DRAW_R, PR_COL_AIRCRAFT);
+            return;
+        }
+
+        float nose = _degToRad((float)a.noseDeg);
+        rd.tipX = (int16_t)lroundf(x + PR_AC_NOSE_LEN * cosf(nose));
+        rd.tipY = (int16_t)lroundf(y + PR_AC_NOSE_LEN * sinf(nose));
+        rd.lX   = (int16_t)lroundf(x + PR_AC_TAIL_LEN * cosf(nose + PR_AC_WING_ANGLE));
+        rd.lY   = (int16_t)lroundf(y + PR_AC_TAIL_LEN * sinf(nose + PR_AC_WING_ANGLE));
+        rd.rX   = (int16_t)lroundf(x + PR_AC_TAIL_LEN * cosf(nose - PR_AC_WING_ANGLE));
+        rd.rY   = (int16_t)lroundf(y + PR_AC_TAIL_LEN * sinf(nose - PR_AC_WING_ANGLE));
+        // TASK-312: triangle vertices already satisfy the PR_R-1 disc
+        // containment invariant by construction (see PR_SYMBOL_INSET) — no
+        // clip needed here.
+        tft.fillTriangle(rd.tipX, rd.tipY, rd.lX, rd.lY, rd.rX, rd.rY, PR_COL_AIRCRAFT);
+
+        if (a.gsKnots > 0) {
+            // Deliberate divergence from the reference: this is the true
+            // 1-minute ground distance at the active zoom (gsKnots -> km/min
+            // -> px via _pxPerKm()), not the reference's fixed screen length
+            // — vector length shrinks/grows with the range preset here.
+            float kmMin = a.gsKnots * PR_KM_PER_NM / 60.0f;
+            float vecPx = kmMin * _pxPerKm();
+            float tr    = _degToRad((float)a.trackDeg);
+            float ex = x + vecPx * cosf(tr), ey = y + vecPx * sinf(tr);
+            float ddx = ex - PR_CX, ddy = ey - PR_CY;
+            // TASK-312: clip threshold is PR_R-1 (was PR_R) — disc
+            // containment invariant, so the drawn+erased line never reaches
+            // the outer ring pixel. _clipToDisc() is the extracted
+            // binary-search clip, shared with _drawRunways().
+            if (_distPx(ddx, ddy) > (float)(PR_R - 1)) {
+                _clipToDisc((float)x, (float)y, &ex, &ey);
+            }
+            rd.hasVector = true;
+            rd.vecX = (int16_t)lroundf(ex); rd.vecY = (int16_t)lroundf(ey);
+            tft.drawLine(x, y, rd.vecX, rd.vecY, PR_COL_VECTOR);
+        }
+    }
+
     // Erase previous frame's symbols/tags, draw the current _result, remember
     // the new geometry in _prev[] for next erase. TASK-357: `now` positions
     // every aircraft via _motionPx() (dead-reckon + damped offset) rather
-    // than the raw fix — this is what turns a fetch-cadence-only redraw into
-    // the ~10 Hz smoothing repaint (tick() calls this both on fetch landing
-    // and on the interp tick when _motionDirty() says something moved).
+    // than the raw fix. TASK-358: this whole-scene path is now reserved for
+    // real fetch-landing/injection/preset-switch events (tick()'s ~10 Hz
+    // interp tick calls the per-aircraft _redrawOneAircraft() instead) — kept
+    // verbatim in shape (full erase, full grid repaint, full occlusion
+    // recompute) since that's correct here, just refactored to share
+    // _eraseFootprint()/_drawAircraftBody() with the new path.
     void _render(unsigned long now) {
         _erasePrev();
         _redrawGridStatics();   // repair any grid pixels the erase above chewed into
@@ -945,61 +1001,10 @@ private:
             } else {
                 _project(a.lat, a.lon, &x, &y);   // defensive: should not happen post-reconcile
             }
-            int16_t dx = (int16_t)(x - PR_CX), dy = (int16_t)(y - PR_CY);
-            float distPx = _distPx((float)dx, (float)dy);
 
-            PrRendered rd{};
-            rd.shown = true;
-            rd.x = x; rd.y = y;
-
-            // TASK-309 fix 1: rim-dot fallback triggers PR_SYMBOL_INSET px
-            // before the ring edge (not just past it) so no triangle vertex
-            // can reach the strip at x=PR_STRIP_X.
-            if (distPx > PR_R - PR_SYMBOL_INSET) {
-                rd.rimDot = true;
-                float ang = atan2f((float)dy, (float)dx);
-                rd.x = (int16_t)lroundf(PR_CX + PR_AC_RIM_RADIUS * cosf(ang));
-                rd.y = (int16_t)lroundf(PR_CY + PR_AC_RIM_RADIUS * sinf(ang));
-                tft.fillCircle(rd.x, rd.y, PR_AC_RIMDOT_DRAW_R, PR_COL_AIRCRAFT);
-                next[nextCount++] = rd;
-                continue;
-            }
-
-            float nose = _degToRad((float)a.noseDeg);
-            rd.tipX = (int16_t)lroundf(x + PR_AC_NOSE_LEN * cosf(nose));
-            rd.tipY = (int16_t)lroundf(y + PR_AC_NOSE_LEN * sinf(nose));
-            rd.lX   = (int16_t)lroundf(x + PR_AC_TAIL_LEN * cosf(nose + PR_AC_WING_ANGLE));
-            rd.lY   = (int16_t)lroundf(y + PR_AC_TAIL_LEN * sinf(nose + PR_AC_WING_ANGLE));
-            rd.rX   = (int16_t)lroundf(x + PR_AC_TAIL_LEN * cosf(nose - PR_AC_WING_ANGLE));
-            rd.rY   = (int16_t)lroundf(y + PR_AC_TAIL_LEN * sinf(nose - PR_AC_WING_ANGLE));
-            // TASK-312: triangle vertices already satisfy the PR_R-1 disc
-            // containment invariant by construction (see PR_SYMBOL_INSET) —
-            // no clip needed here.
-            tft.fillTriangle(rd.tipX, rd.tipY, rd.lX, rd.lY, rd.rX, rd.rY, PR_COL_AIRCRAFT);
-
-            if (a.gsKnots > 0) {
-                // Deliberate divergence from the reference: this is the true
-                // 1-minute ground distance at the active zoom (gsKnots -> km/min
-                // -> px via _pxPerKm()), not the reference's fixed screen length
-                // — vector length shrinks/grows with the range preset here.
-                float kmMin = a.gsKnots * PR_KM_PER_NM / 60.0f;
-                float vecPx = kmMin * _pxPerKm();
-                float tr    = _degToRad((float)a.trackDeg);
-                float ex = x + vecPx * cosf(tr), ey = y + vecPx * sinf(tr);
-                float ddx = ex - PR_CX, ddy = ey - PR_CY;
-                // TASK-312: clip threshold is PR_R-1 (was PR_R) — disc
-                // containment invariant, so the drawn+erased line never
-                // reaches the outer ring pixel. _clipToDisc() is the
-                // extracted binary-search clip, shared with _drawRunways().
-                if (_distPx(ddx, ddy) > (float)(PR_R - 1)) {
-                    _clipToDisc((float)x, (float)y, &ex, &ey);
-                }
-                rd.hasVector = true;
-                rd.vecX = (int16_t)lroundf(ex); rd.vecY = (int16_t)lroundf(ey);
-                tft.drawLine(x, y, rd.vecX, rd.vecY, PR_COL_VECTOR);
-            }
-
-            _placeTag(a, x, y, rd, occ, occCount);
+            PrRendered rd;
+            _drawAircraftBody(a, x, y, rd);
+            if (!rd.rimDot) _placeTag(a, x, y, rd, occ, occCount);
             next[nextCount++] = rd;
         }
 
@@ -1007,35 +1012,116 @@ private:
         _prevCount = nextCount;
     }
 
+    // Erase one previously-drawn aircraft's footprint (rim-dot circle, or
+    // triangle bbox + vector line + tag rect) and report the union bounding
+    // box of every pixel just touched, via the (bx,by,bw,bh) out-params —
+    // TASK-358: extracted from the old _erasePrev() loop body so both
+    // _erasePrev() (whole-scene, ignores the bbox) and _redrawOneAircraft()
+    // (per-aircraft, uses the bbox to scope grid-static repair) share the
+    // identical erase logic. bw/bh are 0 if nothing was drawn (p.shown false).
+    void _eraseFootprint(const PrRendered& p, int16_t& bx, int16_t& by, int16_t& bw, int16_t& bh) {
+        bx = by = bw = bh = 0;
+        if (!p.shown) return;
+        if (p.rimDot) {
+            tft.fillCircle(p.x, p.y, PR_AC_RIMDOT_ERASE_R, PR_COL_FIELD);
+            bx = (int16_t)(p.x - PR_AC_RIMDOT_ERASE_R);
+            by = (int16_t)(p.y - PR_AC_RIMDOT_ERASE_R);
+            bw = (int16_t)(PR_AC_RIMDOT_ERASE_R * 2 + 1);   // inclusive: covers p.x-R..p.x+R
+            bh = (int16_t)(PR_AC_RIMDOT_ERASE_R * 2 + 1);
+            return;   // rim-dot aircraft never carry a vector or a tag
+        }
+        // minX/maxX/minY/maxY track an INCLUSIVE pixel extent throughout —
+        // final bw/bh below add the +1 to convert to a width/height, same
+        // convention fillRect()'s own (maxX-minX+1) call already used.
+        int16_t minX = (int16_t)(min(min(p.tipX, p.lX), p.rX) - 1);
+        int16_t maxX = (int16_t)(max(max(p.tipX, p.lX), p.rX) + 1);
+        int16_t minY = (int16_t)(min(min(p.tipY, p.lY), p.rY) - 1);
+        int16_t maxY = (int16_t)(max(max(p.tipY, p.lY), p.rY) + 1);
+        tft.fillRect(minX, minY, (int16_t)(maxX - minX + 1), (int16_t)(maxY - minY + 1), PR_COL_FIELD);
+        if (p.hasVector) {
+            tft.drawLine(p.x, p.y, p.vecX, p.vecY, PR_COL_FIELD);
+            minX = min(minX, (int16_t)min(p.x, p.vecX));
+            maxX = max(maxX, (int16_t)max(p.x, p.vecX));
+            minY = min(minY, (int16_t)min(p.y, p.vecY));
+            maxY = max(maxY, (int16_t)max(p.y, p.vecY));
+        }
+        if (p.hasTag) {
+            tft.fillRect(p.tagX, p.tagY, p.tagW, p.tagH, PR_COL_FIELD);
+            minX = min(minX, p.tagX);
+            maxX = max(maxX, (int16_t)(p.tagX + p.tagW - 1));
+            minY = min(minY, p.tagY);
+            maxY = max(maxY, (int16_t)(p.tagY + p.tagH - 1));
+        }
+        bx = minX; by = minY; bw = (int16_t)(maxX - minX + 1); bh = (int16_t)(maxY - minY + 1);
+    }
+
     void _erasePrev() {
         for (uint8_t i = 0; i < _prevCount; i++) {
-            const PrRendered& p = _prev[i];
-            if (!p.shown) continue;
-            if (p.rimDot) {
-                tft.fillCircle(p.x, p.y, PR_AC_RIMDOT_ERASE_R, PR_COL_FIELD);
-                continue;
-            }
-            int16_t minX = (int16_t)(min(min(p.tipX, p.lX), p.rX) - 1);
-            int16_t maxX = (int16_t)(max(max(p.tipX, p.lX), p.rX) + 1);
-            int16_t minY = (int16_t)(min(min(p.tipY, p.lY), p.rY) - 1);
-            int16_t maxY = (int16_t)(max(max(p.tipY, p.lY), p.rY) + 1);
-            tft.fillRect(minX, minY, (int16_t)(maxX - minX + 1), (int16_t)(maxY - minY + 1), PR_COL_FIELD);
-            if (p.hasVector)
-                tft.drawLine(p.x, p.y, p.vecX, p.vecY, PR_COL_FIELD);
-            if (p.hasTag)
-                tft.fillRect(p.tagX, p.tagY, p.tagW, p.tagH, PR_COL_FIELD);
+            int16_t bx, by, bw, bh;
+            _eraseFootprint(_prev[i], bx, by, bw, bh);   // whole-scene path: bbox unused, _redrawGridStatics() repairs the full disc after
         }
     }
 
-    // Q2 tag placement: centre-side, rule (c) default — ±10/±20 px vertical
-    // nudge on overlap, drop tag (keep symbol) if all four candidates collide.
-    // TASK-312: in-disc containment (all four box corners within PR_R-1) is a
-    // hard constraint layered over every rule, including (a) — human style
-    // directive 2026-07-12, overrides the phase0 doc.
-    void _placeTag(const dataTask::PrAircraft& a, int16_t x, int16_t y, PrRendered& rd,
-                   PrRendered* occ, uint8_t& occCount) {
-        char lines[PR_TAG_MAX_LINES][PR_TAG_LINE_LEN] = {};
-        uint16_t lineColors[PR_TAG_MAX_LINES] = {};
+    // TASK-358: per-aircraft dirty-rect repaint for the ~10 Hz smoothing
+    // tick. Erases only aircraft `i`'s old footprint (_prev[i]), repairs grid
+    // statics scoped to that footprint's bounding box (ADR-052's
+    // withViewportRepair(), instead of the whole 240px disc), redraws the
+    // symbol/vector at the new dead-reckoned position, and rigidly
+    // repositions its tag by the same (dx,dy) the symbol moved — no full
+    // occlusion recompute, which stays reserved for _render()'s real
+    // fetch-landing/injection/preset-switch path.
+    //
+    // Known accepted limitation: rigid tag repositioning between real fetches
+    // can't detect a NEW overlap a full occlusion pass would have avoided —
+    // self-corrects at the next fetch/injection landing (which calls
+    // _render()). Not a regression versus pre-TASK-357 behaviour: tags didn't
+    // exist mid-smoothing before TASK-357 introduced the interp tick at all.
+    void _redrawOneAircraft(uint8_t i, unsigned long now) {
+        if (i >= _result.count || i >= _prevCount) return;   // defensive: invariant should hold post-reconcile
+        const dataTask::PrAircraft& a = _result.aircraft[i];
+        PrRendered old = _prev[i];
+
+        int16_t x, y;
+        _motionPx(i, now, &x, &y);
+
+        int16_t bx, by, bw, bh;
+        _eraseFootprint(old, bx, by, bw, bh);
+        if (bw > 0 && bh > 0) {
+            withViewportRepair(tft, bx, by, bw, bh, [&] { _redrawGridStatics(); });
+        }
+
+        PrRendered rd;
+        _drawAircraftBody(a, x, y, rd);
+
+        // Tag: rigid reposition by the symbol's (dx,dy), no occlusion
+        // recompute. Rim-dot aircraft never carry a tag (old.rimDot check);
+        // any old/new rim-dot-state mismatch or off-disc landing drops the
+        // tag for this tick rather than carrying it over, per the accepted
+        // limitation above.
+        if (old.hasTag && !old.rimDot && !rd.rimDot) {
+            int16_t dx = (int16_t)(x - old.x), dy = (int16_t)(y - old.y);
+            int16_t newTagX = (int16_t)(old.tagX + dx), newTagY = (int16_t)(old.tagY + dy);
+            if (_boxInDisc(newTagX, newTagY, old.tagW, old.tagH)) {
+                char     lines[PR_TAG_MAX_LINES][PR_TAG_LINE_LEN] = {};
+                uint16_t lineColors[PR_TAG_MAX_LINES] = {};
+                uint8_t  nLines = _buildTagLines(a, lines, lineColors);
+                _drawTagLines(lines, lineColors, nLines, newTagX, newTagY);
+                rd.hasTag = true;
+                rd.tagX = newTagX; rd.tagY = newTagY; rd.tagW = old.tagW; rd.tagH = old.tagH;
+            }
+        }
+
+        _prev[i] = rd;
+    }
+
+    // Build the tag's text lines (callsign/type/altitude) + per-line colours
+    // — pure formatting, no drawing or placement. Returns the line count.
+    // TASK-358: extracted from _placeTag() so _redrawOneAircraft()'s rigid-
+    // reposition path can reuse the identical formatting without touching
+    // _placeTag()'s occlusion-avoidance logic.
+    static uint8_t _buildTagLines(const dataTask::PrAircraft& a,
+                                   char lines[PR_TAG_MAX_LINES][PR_TAG_LINE_LEN],
+                                   uint16_t lineColors[PR_TAG_MAX_LINES]) {
         uint8_t nLines = 0;
         const char* cs = a.callsign[0] ? a.callsign : "?";
         strlcpy(lines[nLines], cs, PR_TAG_LINE_LEN);
@@ -1051,6 +1137,35 @@ private:
             snprintf(lines[nLines], PR_TAG_LINE_LEN, "%ldft", (long)a.altFt);
             lineColors[nLines++] = PR_COL_TAG_ALT;
         }
+        return nLines;
+    }
+
+    // Draw pre-built tag lines at (tx,ty) — pure drawing, no placement/
+    // occlusion logic. TASK-358: extracted from _placeTag()'s trailing draw
+    // loop so _redrawOneAircraft() can reuse it verbatim.
+    void _drawTagLines(const char lines[PR_TAG_MAX_LINES][PR_TAG_LINE_LEN],
+                        const uint16_t lineColors[PR_TAG_MAX_LINES], uint8_t nLines,
+                        int16_t tx, int16_t ty) {
+        tft.setTextDatum(TL_DATUM);
+        for (uint8_t i = 0; i < nLines; i++) {
+            tft.setTextColor(lineColors[i], PR_COL_FIELD);
+            tft.drawString(lines[i], tx, (int16_t)(ty + i * PR_TAG_LINE_H), 1);
+        }
+    }
+
+    // Q2 tag placement: centre-side, rule (c) default — ±10/±20 px vertical
+    // nudge on overlap, drop tag (keep symbol) if all four candidates collide.
+    // TASK-312: in-disc containment (all four box corners within PR_R-1) is a
+    // hard constraint layered over every rule, including (a) — human style
+    // directive 2026-07-12, overrides the phase0 doc. TASK-358: line
+    // building/drawing now delegate to _buildTagLines()/_drawTagLines(); the
+    // occlusion-avoidance logic below (occ[]/overlaps/nudge ladder) is
+    // unchanged.
+    void _placeTag(const dataTask::PrAircraft& a, int16_t x, int16_t y, PrRendered& rd,
+                   PrRendered* occ, uint8_t& occCount) {
+        char     lines[PR_TAG_MAX_LINES][PR_TAG_LINE_LEN] = {};
+        uint16_t lineColors[PR_TAG_MAX_LINES] = {};
+        uint8_t  nLines = _buildTagLines(a, lines, lineColors);
 
         int16_t w = 0;
         for (uint8_t i = 0; i < nLines; i++) {
@@ -1105,10 +1220,6 @@ private:
         occ[occCount].tagW = w;  occ[occCount].tagH = h;
         occCount++;
 
-        tft.setTextDatum(TL_DATUM);
-        for (uint8_t i = 0; i < nLines; i++) {
-            tft.setTextColor(lineColors[i], PR_COL_FIELD);
-            tft.drawString(lines[i], tx, (int16_t)(bestY + i * PR_TAG_LINE_H), 1);
-        }
+        _drawTagLines(lines, lineColors, nLines, tx, bestY);
     }
 };
