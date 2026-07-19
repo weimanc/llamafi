@@ -376,19 +376,23 @@ schedule).
   Real, but a `loop()`-side feature (wiring `wifiDiag`'s supervisor state
   back into the marquee continuously), not a `setup()`-boot-sequence one —
   flagged as a natural follow-up, not pulled into this design.
-- **OQ3 (measure actual wall-clock delta on DUT, not just reason about it).**
-  This design's central empirical claim — "chrome visible within ~1.3 s
-  instead of ~4.1 s (or 85+ s worst case)" — should be confirmed with a
-  timestamped DUT capture identical in method to the one that motivated this
-  design, both on a healthy AP and (if reproducible) a deliberately
-  unreachable one, before closing the exit criteria.
+- **OQ3 — RESOLVED (human decision):** exact wall-clock timing is not
+  necessary to confirm. The original framing (a timestamped DUT capture,
+  same method as the motivating one, precise `t=1.3-1.5s` numbers) is
+  overkill for what this design is actually proving — that chrome paints
+  *before* the network phases instead of after, and that no black screen
+  ever appears. A qualitative DUT eyeball (chrome+taskbar visible
+  immediately on boot, marquee text legible, no black frame) is enough;
+  no per-boot timestamp capture required. Exit criteria below updated to
+  match.
 
 ## Exit criteria
 
-- **DUT, ≥5 cold boots, healthy AP:** timestamped capture (same method as
-  the motivating capture) shows Winamp chrome + taskbar visible by
-  ~`t=1.3-1.5s` (vs. today's ~4.1 s), with `"STARTING UP..."` → WiFi phase
-  text → `"TIME: SYNCING..."` visible in sequence on the title marquee.
+- **DUT, healthy AP, qualitative eyeball (per OQ3 — no timestamp capture
+  required):** Winamp chrome + taskbar visibly paint immediately on boot,
+  well before the device would previously have shown a black screen;
+  `"STARTING UP..."` → WiFi phase text → `"TIME: SYNCING..."` legible in
+  sequence on the title marquee.
 - **DUT, ≥1 deliberately-unreachable-AP boot (or the fastest safe proxy —
   e.g. a wrong password forcing the full cascade):** chrome + taskbar remain
   visible throughout; marquee shows `"WI-FI: CONNECTING..."` per OQ1's
