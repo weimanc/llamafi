@@ -1,11 +1,12 @@
-# Design — M-BOOT-UI: paint Winamp chrome first, surface boot progress via the title marquee
+# Design — M-BOOT-UI: paint Winamp chrome first, surface boot + whole-session WiFi status via the title marquee
 
 > Owner: Architect
-> Status: draft
-> Date: 2026-07-19
+> Status: accepted (2026-07-20, human sign-off)
+> Date: 2026-07-19 (extended same day, §6: whole-session background
+> WiFi-reconnect status, resolving OQ2 per human decision)
 > Feeds: ADR-055 (proposed)
 > Tracked-as: — (PM to file; suggest TASK-364+)
-> Registers: boot-ui-001, X039–X041 (`cross_feature_matrix.yaml`) — see §Registers
+> Registers: boot-ui-001, wifi-diag-001, X039–X042 (`cross_feature_matrix.yaml`) — see §Registers
 
 ## Context / pain points
 
@@ -90,9 +91,11 @@ and *how much* liveness during the still-blocking waits is worth building now.
 2. Surface WiFi-connect and NTP-sync progress through the existing title
    marquee (`setTitle()`), reusing its redraw-on-change behavior — no new
    display mechanism.
-3. On a slow/dodgy network, the wait no longer reads as "frozen": distinct
-   text per fallback stage, plus marquee-scroll liveness for any text that
-   doesn't fit `TITLE_W`.
+3. On a slow/dodgy network, the wait no longer reads as "frozen": legible
+   phase-appropriate status text, plus marquee-scroll liveness for any text
+   that doesn't fit `TITLE_W` (per OQ1's resolution, §2, the WiFi phase uses
+   one generic string rather than per-stage text — see §3 for the
+   consequence that has for this goal's "doesn't read as frozen" claim).
 4. Zero regression to the app-lifecycle bookkeeping downstream (`g_appLaunched`,
    `switchApp()`'s init-vs-resume branching, the boot-time `AppId::WebRadio`/
    `AppId::Settings` switches) — the early paint is additive, not a
@@ -102,6 +105,11 @@ and *how much* liveness during the still-blocking waits is worth building now.
    matching the existing `#ifdef WINAMP_DISPLAY` boundary around
    `SpotifyApp`/`g_apps[]` (`main.cpp:205-269`, `:1820-1828`). The non-Winamp
    `cyd` and `trinity` envs are untouched.
+6. **(2026-07-19 scope extension, resolves OQ2)** The same title marquee
+   also surfaces a **whole-session, `loop()`-time** WiFi outage — not just
+   the `setup()`-time boot wait — regardless of which app is foreground,
+   without fighting that app's own `setTitle()` calls or corrupting
+   Settings' screen. See §6.
 
 ## §1 — What does painting the chrome that early actually need?
 
@@ -355,6 +363,218 @@ schedule).
   `spotifyDisplay->showDefaultScreen()` call with no marquee/taskbar (those
   backends have no such concepts; out of scope, matches current behavior).
 
+## §6 — Background WiFi-reconnect status (loop()-time, whole-session) [2026-07-19 addition, resolves OQ2]
+
+The human resolved OQ2: the marquee should also surface WiFi loss that
+happens **mid-session**, at any point after boot, with any app foreground —
+not just the `setup()`-time boot wait §1-§5 cover. The mechanism already
+exists and is already silent: `wifiDiag::superviseTick()`
+(`app/src/wifiDiag.cpp:101-134`), called from `loop()`
+(`main.cpp:3886`, guarded `if (currentAppId != AppId::Settings)`) whenever
+WiFi is down and the supervisor is armed. Retry policy: wait until
+continuously down for `WIFI_SUP_DOWN_MS = 60000`, then kick
+(`WiFi.disconnect()`+`WiFi.begin()`), repeat every `WIFI_SUP_PACE_MS = 30000`,
+forever — `wifiDiag.h`'s own comment: *"an AP can be absent for hours."*
+Today this produces exactly one `[wifi-sup]` serial log line per kick and
+**nothing on screen, ever, regardless of which app is foreground.**
+
+### Is this actually redundant with something that already exists? (Q1 — investigated, not assumed)
+
+Checked both candidate existing signals; neither covers this adequately:
+
+1. **Spotify's own title goes silently stale, indefinitely.**
+   `handleCurrentlyPlaying()` (`spotifyLogic.h:76-90`) only calls
+   `printCurrentlyPlayingToScreen()` (→ `setTitle()`) `if
+   (!isSameTrack(currentlyPlaying.trackUri))` — i.e. only on a **track
+   change**. A poll that fails outright (network down) never reaches this
+   function at all (no successful HTTP response to parse). So on a
+   mid-session WiFi outage where the currently-playing track doesn't happen
+   to change, the marquee keeps showing the same (now stale, unverified)
+   track title **forever**, with zero indication anything is wrong. This is
+   the same class of problem as the pre-fix boot case, just mid-session.
+2. **The small, live, Spotify-internal signals exist but don't reach the
+   scope needed.** `drawPlaylist()` (`winampDisplay.h:1155-1163`, called
+   every tick from `SpotifyApp::tick()`) *does* live-diff
+   `spotifyTask::isHealthy()` against a cached `lastHealthy` and, on change,
+   repaints the `SKIN_TITLEBAR_INACTIVE` overlay + swaps the PLEDIT title
+   art — genuinely live, not boot-only. But it's small (a titlebar
+   recolor + a 4×4 amber pip, `repaintChrome():135-139`), easy to miss, and
+   **only present while Spotify is foreground**. The more globally-visible
+   signal — the taskbar active-slot amber/red indicator, edge-triggered
+   every `loop()` iteration (`main.cpp:3912-3930`) — reads
+   `shell::activeError()`/`activeConnecting()`, which call
+   `SpotifyApp::hasError()`/`isConnecting()` →
+   `spotifyTask::authError()`/`connecting()` **only** — `authError()` is
+   403-specific (latched), `connecting()` is "no successful poll *ever*"
+   (first-connect gate). **Neither is driven by `isHealthy()`.** A
+   mid-session WiFi outage (poll fails repeatedly, but there *was* a prior
+   successful poll, and it's not a 403) sets `isHealthy() == false` but
+   leaves both `authError()` and `connecting()` `false` — so the taskbar's
+   globally-visible indicator stays **plain idle/green** through a live
+   outage. This is a real, separate, pre-existing gap in `ADR-046`'s
+   indicator (flagged here, **not fixed by this design** — out of scope,
+   see §Open questions OQ4) — but it does mean the "the taskbar already
+   covers this" hypothesis is false for the one indicator most likely to be
+   glanced at regardless of foreground app.
+3. **WebRadio's `ERROR_WIFI` state (`webRadioApp.h:35`, rendered as
+   `"WiFi lost"` in `_drawTitleZone()`, `:1533`) is dead code in
+   production.** Grepped every assignment site: `_state =
+   WRPlayState::ERROR_WIFI` **never appears** anywhere in `webRadioApp.h` —
+   the only place that enum value is ever set is the synthetic DUT
+   injection command (`run_serialdbg_tests.py`'s `T_WR_ERR_03`, `set
+   wrState 3`). A real mid-session WiFi outage while WebRadio is playing
+   instead surfaces through `ERROR_UNREACHABLE`/`ERROR_STALL` (generic
+   fetch-timeout/stall states from the HTTP layer, `:1531-1532`) — accurate
+   in effect (the stream *does* die), but generic, not WiFi-specific, and
+   only exists because WebRadio's own fetch happens to be actively running
+   at the moment of loss. A WebRadio session sitting idle (`STOPPED`, no
+   active fetch) shows **nothing** on a WiFi drop, same gap as every other
+   non-Spotify, non-WebRadio app.
+
+**Conclusion: not redundant.** No existing mechanism gives a uniform,
+app-agnostic, "the device's WiFi is actually down right now" signal that's
+visible regardless of foreground app. A shared marquee override is the
+right layer — it is, after all, the one piece of chrome every
+`WINAMP_DISPLAY` app already routes through for exactly this kind of status
+text (§2's whole premise).
+
+### Coexistence with the foreground app's own title (Q2 — the real design problem)
+
+Three candidates, evaluated rather than defaulted to the marquee reflexively:
+
+- **(a) Override only when the foreground app's title would otherwise be
+  stale/meaningless anyway.** Rejected: requires every app to expose "is my
+  current title still meaningful independent of live network," which
+  doesn't exist today and isn't uniform (Spotify's title is meaningful
+  metadata about a *past* successful poll; WebRadio's station name is
+  static regardless of stream health; a Clock/Weather/Crypto app's title
+  area isn't even in play). Building that predicate per-app is more
+  machinery than the problem justifies.
+- **(b) A priority/precedence rule: the WiFi-down message always wins over
+  foreground-app title content while the outage is sustained, restored
+  automatically on reconnect.** This is the natural generalization of what
+  §2 already does for boot (status text supersedes silence, then is itself
+  superseded by the first real content) — same shape, just triggered by a
+  `loop()`-time edge instead of a one-time boot sequence. **Adopted** — see
+  below for the mechanism that makes "restored automatically" actually
+  correct, not just asserted.
+- **(c) A different visual channel entirely (e.g., make the existing amber
+  taskbar pip more prominent, instead of touching the marquee).** Rejected
+  as the *primary* mechanism: the taskbar strip is 45 px wide at the
+  screen's right edge, already carries error/busy/connecting semantics for
+  the foreground app specifically (`ADR-046`), and repurposing/enlarging it
+  for a *different*, device-wide meaning ("WiFi," not "this app's data
+  connection") would overload one indicator with two unrelated meanings —
+  a worse design than reusing the marquee, which already exists
+  specifically to carry human-readable status prose. (The taskbar's actual
+  gap — not reflecting `isHealthy()` — is real, but is a fix to *that*
+  indicator's own semantics, not a reason to route this design's signal
+  through it; see OQ4.)
+
+**The actual hard problem in (b): apps that don't reliably re-call
+`setTitle()` on their own.** Spotify's `handleCurrentlyPlaying()` gate
+(`!isSameTrack(...)`, above) means that if WiFi drops and reconnects
+**without** the track changing in between, Spotify never attempts a
+`setTitle()` call at all during or after the outage — so naively "let the
+override sit until the app's own next `setTitle()` call supersedes it" (the
+mechanism §2 relies on for boot, which works there because *some* real
+content is always eventually coming) would leave the marquee **stuck on the
+outage message forever**, even after WiFi recovers and polling resumes
+successfully. This must be handled by an active restore, not a passive wait.
+
+**Recommended mechanism** — centralize at `setTitle()`, the single
+chokepoint every caller (Spotify, WebRadio, TASK-362's empty-list reason,
+and this design's own boot-status text) already goes through:
+
+1. `WinampDisplay` gains a small piece of state: `bool
+   _wifiDownOverrideActive` and a stash buffer (same size/shape as
+   `lastTitle`) holding the most recently *attempted* real title.
+2. `setTitle(text)` gains a guard at its top: while
+   `_wifiDownOverrideActive`, stash `text` into the pending-restore buffer
+   and **return without drawing** — every caller's intent is remembered,
+   none of them get to paint over the override, and none of them need to
+   know the override exists.
+3. Two new entry points, used only by the `loop()`-level detector below:
+   `showWifiDownOverride()` — no-op if already active; otherwise stashes
+   the *current* `lastTitle` (so an app that made zero calls during the
+   outage, e.g. Spotify with an unchanged track, has its real title
+   preserved from the moment the override engaged) and force-draws the
+   status text, bypassing the guard. `clearWifiDownOverride()` — no-op if
+   not active; otherwise force-draws whatever is in the stash (the
+   *most recently attempted* real title — either what was showing before
+   the outage, or whatever an app tried and failed to set mid-outage,
+   which for an app that ticks its title unconditionally, e.g. WebRadio,
+   is itself already correct/current and gets superseded again within its
+   own next tick regardless).
+
+This is a small, centralized, defensive addition (one guard clause + two
+thin wrapper methods) that makes the restore correct **by construction**
+for every current and future caller of `setTitle()`, rather than relying on
+each app's own call cadence being "frequent enough" — which, per the
+Spotify trace above, it demonstrably isn't.
+
+### Detection, threshold, and the Settings-foreground question (Q3 + Q4)
+
+- **Detection/threshold: self-contained in the new `loop()` block, no new
+  `wifiDiag` API needed.** `WiFi.status() == WL_CONNECTED` polled once per
+  `loop()` iteration (the same primitive `superviseTick()` itself uses to
+  detect recovery, `wifiDiag.cpp:110-113`) plus a local edge-anchored
+  `static uint32_t s_downSince = 0` (set once, on the transition into
+  "down"; not reused/trusted across separate outages) is sufficient — no
+  need to add a public duration accessor to `wifiDiag.h`. This deliberately
+  does **not** reuse `superviseTick()`'s own `lastDiscMs`-anchoring nuance
+  (trusting a possibly-stale event timestamp from a *prior* outage) — a
+  fresh local edge-trigger, anchored to the first `loop()` iteration that
+  observed "down," sidesteps that whole class of bug for free, at the cost
+  of zero shared code with `superviseTick()`'s anchor (acceptable — it's
+  four lines, not worth a shared helper for this).
+- **Threshold: shorter than the supervisor's own 60 s kick threshold —
+  proposed 10 s, an open question for VE/DUT tuning (not hard-pinned here).**
+  The marquee is purely informational (showing it a bit early costs
+  nothing, unlike kicking the radio early which could be disruptive), and
+  10 s is comfortably longer than a typical sub-second AP-roam/reassociation
+  blip (avoiding flap) while still informing the user well before the
+  supervisor's own first kick attempt. See OQ5.
+- **Text: `"WI-FI: RECONNECTING..."` (22 chars) — fits `TITLE_W`'s 25-char
+  budget without scrolling**, consistent with §2's existing text budget;
+  held static (no dot-cycle animation), same "Option A" cost/benefit
+  already chosen in §3 for the boot case.
+- **Clear event: the very next `loop()` iteration where
+  `WiFi.status() == WL_CONNECTED`** — edge-triggered, no polling delay
+  beyond one `loop()` tick (sub-millisecond in practice).
+- **Settings-foreground suppression is load-bearing, not just tidy.**
+  `switchApp()` (`main.cpp:1952-1985`) unconditionally wipes the entire app
+  canvas (`tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK)`, `TASKBAR_X =
+  275`) before the next app paints — every app, including Settings, then
+  owns and repaints that **entire** region itself (the "full-screen canvas"
+  convention this codebase already follows uniformly). The Winamp title
+  marquee lives inside that same region (`originX=0, originY=0`,
+  `TITLE_X`/`TITLE_Y` well within it). So while Settings is foreground, it
+  has already painted its own UI over the pixels the marquee would
+  occupy — calling `setTitle()`/`showWifiDownOverride()` there wouldn't
+  just be pointless, it would **blit a stray title-bar-shaped strip of
+  text over the Settings UI**, a real visual corruption, not a hypothetical
+  one. The new `loop()`-level detector block must therefore be gated by
+  the **exact same** `currentAppId != AppId::Settings` condition
+  `superviseTick()` already uses (`main.cpp:3886`) — co-located with that
+  call for discoverability, not a separately-invented condition that could
+  drift out of sync with it. Secondary, complementary reason: a user
+  inside Settings' WiFi section is already looking at connection status
+  directly (scan results, connect flow) — a generic overlay there would be
+  redundant on top of being visually broken.
+- **Traced consequence of gating the whole block off during a Settings
+  visit: self-heals correctly, no special-case code needed.** `s_downSince`
+  is an absolute `millis()` timestamp, not a counter, so it stays valid
+  across a Settings excursion during which the block isn't evaluated at
+  all — no correction needed on resume. If WiFi was already down and the
+  override was showing when the user opened Settings, `_wifiDownOverrideActive`
+  simply stays `true` (frozen, not touched) while Settings owns the screen; the
+  first `loop()` iteration after returning to any non-Settings app
+  re-evaluates fresh and either keeps showing (still down) or immediately
+  clears (now connected — including the common case where the user fixed
+  it from inside Settings' own WiFi UI) — correct either way, no explicit
+  "resync on Settings-exit" step required.
+
 ## Open questions
 
 - **OQ1 — RESOLVED (human decision):** generic `"WI-FI: CONNECTING..."` for
@@ -366,16 +586,22 @@ schedule).
   consequence (the WiFi phase now has no stage-progression liveness signal,
   and Option B's scroll-tick has nothing to scroll for this specific string —
   recorded there, not re-litigated here).
-- **OQ2 (background-reconnect status during `loop()`, not just `setup()`).**
-  The `wifiCredsKnown`-but-failed path (`:2274-2285`) arms
-  `wifiDiag::superviseArm()` for a background reconnect that continues into
-  normal operation (`loop()`), outside this design's `setup()`-only scope.
-  The marquee would sit at `"WI-FI: RETRY IN BG"` until either the
-  background reconnect succeeds and a real title arrives, or the user
-  navigates away — no live update of *that* ongoing retry inside `loop()`.
-  Real, but a `loop()`-side feature (wiring `wifiDiag`'s supervisor state
-  back into the marquee continuously), not a `setup()`-boot-sequence one —
-  flagged as a natural follow-up, not pulled into this design.
+- **OQ2 — RESOLVED (human decision, 2026-07-19): scope extended, not
+  deferred.** The original framing treated `loop()`-time background
+  reconnect as a natural follow-up outside this design's boot-sequence
+  scope. The human overruled that: the marquee should surface
+  `wifiDiag::superviseTick()`'s silent background reconnect (`main.cpp:3886`,
+  `wifiDiag.cpp:101-134`) too — mid-session, any foreground app, not just
+  the `setup()`-time wait. Investigated (not assumed) whether this is
+  redundant with anything that already exists (it isn't — Spotify's title
+  goes silently stale forever, the taskbar indicator doesn't reflect this
+  state, WebRadio's `ERROR_WIFI` is dead code in production), how it
+  coexists with whatever the foreground app's own title machinery is doing
+  (a centralized `setTitle()` guard + explicit stash/restore, not a passive
+  wait — passive doesn't work for Spotify's change-gated title calls), and
+  why it must be suppressed while Settings is foreground (load-bearing:
+  Settings already owns those pixels, not just a policy nicety). Full
+  writeup: **§6**. Exit criteria and Registers below updated to match.
 - **OQ3 — RESOLVED (human decision):** exact wall-clock timing is not
   necessary to confirm. The original framing (a timestamped DUT capture,
   same method as the motivating one, precise `t=1.3-1.5s` numbers) is
@@ -385,6 +611,28 @@ schedule).
   immediately on boot, marquee text legible, no black frame) is enough;
   no per-boot timestamp capture required. Exit criteria below updated to
   match.
+- **OQ4 (new, §6) — the taskbar active-slot indicator doesn't reflect
+  `spotifyTask::isHealthy()` at all, a real pre-existing gap in `ADR-046`,
+  found while investigating §6's Q1.** `shell::activeError()`/
+  `activeConnecting()` only read `authError()` (403-specific) and
+  `connecting()` (first-poll-ever gate) — a mid-session WiFi outage with a
+  prior successful poll sets neither, so the globally-visible taskbar
+  indicator stays idle/green through a live outage; only the small,
+  Spotify-internal titlebar-inactive overlay + amber pip (`repaintChrome()`,
+  driven live by `drawPlaylist()`) reflects it, and only while Spotify is
+  foreground. **Not fixed by this design** — it's a semantic gap in a
+  different, already-accepted indicator (`ADR-046`), not something §6's
+  marquee override needs to touch to do its own job. Flagged for PM/Architect
+  follow-up (a small fix: wire `isHealthy()` into `activeError()`/a third
+  precedence tier, or accept the taskbar indicator as "app-specific data
+  health," not "device WiFi health," and rely on §6's marquee for the
+  latter) — not scheduled by this design, no task filed.
+- **OQ5 (new, §6) — the 10 s down-threshold before showing
+  `"WI-FI: RECONNECTING..."` is a proposed starting point, not DUT-tuned.**
+  Needs at least one real-world flaky-AP DUT session to confirm 10 s avoids
+  flapping on ordinary roam/reassociation blips while still surfacing a
+  genuine outage promptly — VE to tune at implementation, adjustable
+  without any design change (a single constant).
 
 ## Exit criteria
 
@@ -408,18 +656,61 @@ schedule).
 - **Eyeball (BP-048):** one screendump pass across the phase-text table —
   every string renders correctly inside `TITLE_W`, no clipping, no leftover
   pixels from a previous phase's longer string.
+- **DUT, background reconnect (§6, new): WiFi drops mid-session with a
+  non-Spotify app foreground** (e.g. Clock or Weather — apps with no
+  `hasError()`/`isConnecting()` override, i.e. no existing signal of their
+  own), staying down past the tuned threshold (OQ5) — `"WI-FI:
+  RECONNECTING..."` appears on the marquee within one `loop()` tick of the
+  threshold; reconnect (`WiFi.status() == WL_CONNECTED`) clears it within
+  one `loop()` tick, restoring whatever that app's title area last showed
+  (or blank, if the app never used the marquee — must not leave the
+  override text stuck).
+- **DUT, background reconnect with Spotify foreground, unchanged track
+  across the outage:** the specific gap found in §6 (Spotify's
+  `isSameTrack`-gated `setTitle()` never naturally re-fires) — confirms the
+  restore mechanism actively repaints the pre-outage track title rather
+  than relying on Spotify's own next `setTitle()` call, which in this
+  scenario never comes.
+- **DUT, background reconnect with WebRadio foreground, ICY metadata
+  arriving mid-outage (if reproducible):** confirms the `setTitle()` guard
+  correctly stashes WebRadio's attempted title without letting it paint
+  over the override, and that the stashed (not the pre-outage) text is
+  what's restored on reconnect.
+- **DUT, WiFi drop while Settings is foreground, reconnect (manual or
+  automatic) before leaving Settings:** no marquee override ever paints
+  over the Settings UI; on returning to any non-Settings app, the indicator
+  state is correct within one `loop()` tick (either already-cleared if
+  reconnected during the Settings visit, or freshly shown if still down) —
+  no stale/incorrect state carried across the Settings excursion.
 - Full serialdbg suite green on `cyd2usb_winamp`; `./run/check` 5-gate green
   (golden-hash gate matters here: this design touches no generated asset,
   so `golden.sha256` should be unaffected — confirm at implementation).
 
 ## Registers
 
-**New feature: `boot-ui-001`** — "Chrome-first boot + title-marquee boot
-progress." Composes existing capabilities (does not duplicate them): reuses
-`chrome-001`'s render primitives from an earlier `setup()` call site, and
-surfaces `wifi-001`/`time-001`'s phase transitions as marquee text via the
-existing `setTitle()`/`tickMarquee()` mechanism (no new rendering code, no
-new persisted state, no new settings field).
+**New feature: `boot-ui-001`** — "Chrome-first boot + title-marquee status
+(boot progress *and* whole-session WiFi health, per the 2026-07-19 §6
+extension)." Composes existing capabilities (does not duplicate them):
+reuses `chrome-001`'s render primitives from an earlier `setup()` call
+site, surfaces `wifi-001`/`time-001`'s boot-time phase transitions as
+marquee text via the existing `setTitle()`/`tickMarquee()` mechanism, and
+(§6) surfaces `wifi-diag-001`'s (newly registered below) silent background
+reconnect the same way, via a small centralized guard on `setTitle()`
+itself (stash/restore, described in §6) rather than new per-app rendering
+code. No new persisted state, no new settings field.
+
+**New feature: `wifi-diag-001`** — "WiFi link-event diagnostics + background
+reconnect supervisor." Retroactively registered — this module
+(`app/src/wifiDiag.h`/`.cpp`, TASK-274/282/283/296) already ships in every
+build and has been live since TASK-274/283, but had no `feature_inventory.yaml`
+entry before this design created a real, code-level coupling to it (§6:
+`boot-ui-001`'s new `loop()`-level detector must track the exact same
+`currentAppId != AppId::Settings` suppression condition
+`wifiDiag::superviseTick()` already uses, `main.cpp:3886` — a shared-policy
+coupling that needs an anchor on both sides to stay in sync, not a
+call-graph dependency). Status `implemented` (pre-existing, shipped);
+`git_ref`/`test_ids` back-filled from existing task history, `boot-ui-001`
+added to `cross_features` as the new (design-time) consumer.
 
 - **X039** — `boot-ui-001` × `chrome-001`, `interaction_type: dependency`,
   `risk: low`. `boot-ui-001` calls `chrome-001`'s existing
@@ -436,7 +727,25 @@ new persisted state, no new settings field).
 - **X041** — `boot-ui-001` × `time-001`, `interaction_type: dependency`,
   `risk: low`. Same shape as X040, keyed to the NTP sync wait
   (`main.cpp:2308-2332`) and its HTTPS-Date fallback branch.
+- **X042 (new, §6)** — `boot-ui-001` × `wifi-diag-001`,
+  `interaction_type: shared_state`, `risk: medium`. `boot-ui-001`'s
+  `loop()`-level WiFi-down marquee detector must be gated by the **same**
+  `currentAppId != AppId::Settings` condition `wifiDiag::superviseTick()`
+  already uses (`main.cpp:3886`) — not a function-call dependency (§6
+  deliberately keeps the down-duration tracking self-contained, no new
+  `wifiDiag` API), but a **shared policy** that must not drift: if
+  `superviseTick()`'s suppression condition is ever changed (e.g. a future
+  design suppresses it under a different app too), `boot-ui-001`'s detector
+  must change identically or the two diverge — one keeps retrying silently
+  while the other shows a stale/wrong marquee state, or vice versa. `risk:
+  medium` (not `low`, unlike X039-X041) specifically because this
+  coordination is enforced by convention/comment, not by a shared constant
+  or function both sides call — a real, if narrow, drift risk flagged for
+  VE to include as a regression check if either side's suppression
+  condition is ever touched.
 
-Developer to add `boot-ui-001` to `feature_inventory.yaml` and the X039-X041
-rows to `cross_feature_matrix.yaml` at implementation (`test_coverage` from
-VE's Exit-criteria suite above), per the reservation made here.
+Developer to add `boot-ui-001` and `wifi-diag-001` to `feature_inventory.yaml`
+(the latter's `git_ref`/`test_ids` back-filled from existing history, not
+newly implemented) and the X039-X042 rows to `cross_feature_matrix.yaml` at
+implementation (`test_coverage` from VE's Exit-criteria suite above), per
+the reservation made here.

@@ -1949,7 +1949,7 @@ features:
       design reserves, Developer completes at implementation.
 
   - id: boot-ui-001
-    name: Chrome-first boot + title-marquee boot progress
+    name: Chrome-first boot + title-marquee status (boot progress + whole-session WiFi health)
     milestone: M-BOOT-UI (reserved, not yet scheduled)
     status: planned
     description: |
@@ -1968,14 +1968,63 @@ features:
       persisted state. Scoped to the WINAMP_DISPLAY build family
       (cyd2usb_winamp + its extends family); non-Winamp envs (cyd, trinity)
       unaffected.
+
+      2026-07-19 scope extension (§6, human decision resolving OQ2): also
+      surfaces wifi-diag-001's silent background reconnect
+      (wifiDiag::superviseTick()) through the same marquee, whole-session
+      not just at boot, regardless of foreground app. Adds a centralized
+      guard to winampDisplay::setTitle() (stash the caller's intended text
+      while an override is active; force-draw the override; restore the
+      stash on reconnect) rather than per-app rendering code, plus a new
+      loop()-level edge-triggered detector gated by the same
+      currentAppId != AppId::Settings condition wifiDiag::superviseTick()
+      already uses (main.cpp:3886) — load-bearing, not cosmetic: Settings
+      already repaints that whole pixel region itself (full-screen canvas
+      convention), so an ungated override would corrupt the Settings UI.
     git_ref: —
     files:
       - app/src/main.cpp
-    cross_features: [chrome-001, wifi-001, time-001]
+      - app/src/winamp/winampDisplay.h
+    cross_features: [chrome-001, wifi-001, time-001, wifi-diag-001]
     test_ids: []
     notes: |
       Design: docs/architecture/designs/M-BOOT-UI.md (draft). Feeds ADR-055
-      (proposed). Matrix edges X039-X041. Reserved 2026-07-19; Developer
+      (proposed). Matrix edges X039-X042. Reserved 2026-07-19; Developer
       completes/corrects this entry (git_ref, files, test_ids) at
       implementation — per architect.md's registry-reservation protocol, a
       design reserves, Developer completes at implementation.
+
+  - id: wifi-diag-001
+    name: WiFi link-event diagnostics + background reconnect supervisor
+    milestone: M-WIFI-DIAG
+    status: implemented
+    description: |
+      One WiFi.onEvent handler logging every WiFi event with millis +
+      disconnect reason code ([wifi-ev], stable grep contract; TASK-274).
+      superviseTick() (TASK-283, called from loop() when currentAppId !=
+      AppId::Settings) re-kicks a wedged link (WiFi.disconnect()+
+      WiFi.begin()) after WIFI_SUP_DOWN_MS=60000 continuously down, paced at
+      WIFI_SUP_PACE_MS=30000, forever — no finite retry budget, mitigates
+      the Arduino core's auto-reconnect wedging after a long AP absence.
+      Armed after the first GOT_IP this boot, or explicitly via
+      superviseArm() when boot found stored credentials but its own connect
+      windows expired before any GOT_IP (TASK-296). Suppressed while
+      Settings is foreground so it doesn't fight WifiSection's manual
+      scan/connect flow (which deliberately runs with auto-reconnect off).
+      100% silent on screen prior to boot-ui-001 (§6) — a [wifi-sup] serial
+      log line per kick was the only observable signal.
+    git_ref: "fff0208 (2026-07-17)"
+    files:
+      - app/src/wifiDiag.h
+      - app/src/wifiDiag.cpp
+    cross_features: [wifi-001, boot-ui-001]
+    test_ids: []
+    notes: |
+      Retroactively registered 2026-07-19 — this module has shipped since
+      TASK-274/283/296 but had no feature_inventory.yaml entry until
+      docs/architecture/designs/M-BOOT-UI.md §6 created a real, code-level
+      coupling to it (the loop()-level marquee detector must track the same
+      currentAppId != AppId::Settings suppression condition superviseTick()
+      uses — a shared-policy coupling, matrix edge X042). test_ids left
+      empty pending a VE audit of existing coverage (Phase 1/2 of
+      M-WIFI-DIAG predate the current test_plan.md-centric regime).

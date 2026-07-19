@@ -877,3 +877,27 @@ interactions:
     notes: |
       Reserved 2026-07-19 at design time (docs/architecture/designs/
       M-BOOT-UI.md, Architect registry remit; feeds ADR-055, proposed).
+
+  - id: X042
+    feature_a: boot-ui-001
+    feature_b: wifi-diag-001
+    interaction_type: shared_state
+    description: |
+      boot-ui-001's §6 loop()-level WiFi-down marquee detector must be
+      gated by the SAME currentAppId != AppId::Settings condition
+      wifi-diag-001's superviseTick() already uses (main.cpp:3886) — not a
+      function-call dependency (the down-duration tracking is deliberately
+      self-contained in the new loop() block, no new wifiDiag API added),
+      but a shared policy that must not drift: if superviseTick()'s
+      suppression condition is ever changed, boot-ui-001's detector must
+      change identically or the two diverge (supervisor silently retries
+      under a state the marquee doesn't reflect, or vice versa).
+    risk: medium
+    test_coverage: []
+    notes: |
+      Reserved 2026-07-19 at design time (docs/architecture/designs/
+      M-BOOT-UI.md §6, Architect registry remit; feeds ADR-055, proposed).
+      risk: medium (not low, unlike X039-X041) specifically because this
+      coordination is enforced by convention/comment, not a shared constant
+      or function both sides call — flagged for VE to add as a regression
+      check if either suppression condition is ever touched.
