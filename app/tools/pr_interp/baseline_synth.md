@@ -1,0 +1,32 @@
+| cadence | algorithm | RMS px | p95 px | max jump px | jitter °/fr |
+|---|---|---|---|---|---|
+| 1 s | catmull-rom | 1.3 | 1.7 | 3.2 | 6.89 |
+| 1 s | delayed-lerp | 1.3 | 1.7 | 3.0 | 9.28 |
+| 1 s | dr-damped(tau=1) | 0.1 | 0.2 | 0.0 | 1.77 |
+| 1 s | dr-damped(tau=2) | 0.1 | 0.1 | 0.0 | 0.09 |
+| 1 s | dr-damped(tau=4) | 0.1 | 0.1 | 0.0 | 0.04 |
+| 1 s | dr-snap | 0.1 | 0.2 | 0.5 | 107.08 |
+| 5 s | catmull-rom | 6.7 | 11.9 | 8.1 | 9.63 |
+| 5 s | delayed-lerp | 6.6 | 11.6 | 7.6 | 42.00 |
+| 5 s | dr-damped(tau=1) | 0.3 | 0.4 | 0.1 | 7.88 |
+| 5 s | dr-damped(tau=2) | 0.3 | 0.5 | 0.0 | 0.16 |
+| 5 s | dr-damped(tau=4) | 0.3 | 0.6 | 0.0 | 0.08 |
+| 5 s | dr-snap | 0.2 | 0.4 | 3.1 | 93.53 |
+| 10 s | catmull-rom | 14.0 | 24.5 | 16.2 | 9.38 |
+| 10 s | delayed-lerp | 13.9 | 23.8 | 15.2 | 54.11 |
+| 10 s | dr-damped(tau=1) | 0.8 | 1.4 | 0.4 | 4.54 |
+| 10 s | dr-damped(tau=2) | 0.9 | 1.5 | 0.2 | 3.20 |
+| 10 s | dr-damped(tau=4) | 1.0 | 1.8 | 0.1 | 2.44 |
+| 10 s | dr-snap | 0.8 | 1.3 | 12.8 | 90.64 |
+| 15 s | catmull-rom | 22.5 | 37.1 | 24.3 | 9.90 |
+| 15 s | delayed-lerp | 22.1 | 35.8 | 22.8 | 66.01 |
+| 15 s | dr-damped(tau=1) | 2.1 | 4.1 | 0.9 | 4.53 |
+| 15 s | dr-damped(tau=2) | 2.1 | 4.2 | 0.4 | 3.41 |
+| 15 s | dr-damped(tau=4) | 2.3 | 4.9 | 0.2 | 2.63 |
+| 15 s | dr-snap | 2.0 | 3.9 | 28.0 | 83.79 |
+| 30 s | catmull-rom | 46.7 | 74.0 | 48.4 | 32.63 |
+| 30 s | delayed-lerp | 45.2 | 71.1 | 45.6 | 57.40 |
+| 30 s | dr-damped(tau=1) | 10.1 | 27.6 | 3.0 | 3.66 |
+| 30 s | dr-damped(tau=2) | 10.3 | 28.0 | 1.5 | 2.85 |
+| 30 s | dr-damped(tau=4) | 10.6 | 28.8 | 0.7 | 1.92 |
+| 30 s | dr-snap | 9.9 | 27.1 | 90.8 | 61.40 |
