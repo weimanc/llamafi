@@ -424,6 +424,24 @@ serial stream. Production build reflashed afterward (device left in normal state
 - Item #2 from TASK-357 (worst-case ~20-24-aircraft busy-airport load) — still open, untouched
   by this task, as scoped.
 
+### TASK-359 — migrate Clock Flip + heatmap raw setViewport() call sites onto withViewportRepair()
+
+Pure consistency follow-up from TASK-358's correction (see ADR-052 "Correction" section and
+`M-DISPLAY-DELTA-COMMON.md`'s matching correction): review during TASK-358 found two pre-existing,
+independently-correct raw `setViewport()`/`resetViewport()` call sites that predate the new shared
+helper — `clockApp.h:425-438` (Flip clock face digit-clipping, landed with TASK-354) and
+`main.cpp:1677-1680` (heatmap rotated-text clipping). Neither has a known bug; both docs flagged
+migrating them onto `withViewportRepair()` (`app/src/util/tftViewportRepair.h`, TASK-358,
+`0c84e46`) as optional cleanup, not urgent. Scope: swap each site's raw
+`setViewport(...); <draw>; resetViewport();` for the equivalent `withViewportRepair(tft, x, y, w,
+h, repairFn)` call — no behavior change expected.
+
+**Owner:** Developer · **Deps:** TASK-358 (done — supplies the helper) · **Gate:** `run/check`
+7/7 + re-run Clock Flip face and heatmap's existing DUT screendump/eyeball coverage (both already
+have this from their original tasks — TASK-354, heatmap's own task — don't invent new coverage) +
+confirm no visual regression · **Priority:** P3 (pure refactor/consistency, no known bug) ·
+**Status:** open
+
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
 Human request 2026-07-18. Clock canvas splits at `CLK_TAP_SPLIT_Y=120`: top tap cycles the

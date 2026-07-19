@@ -1,11 +1,11 @@
 # Design — Display repair: is the delta engine worth generalizing?
 
 > Owner: Architect
-> Status: draft
+> Status: implemented — Feeds: ADR-052 (accepted 2026-07-19); PlaneRadar
+> consumer landed as TASK-358 (commit `0c84e46`)
 > Date: 2026-07-19
-> Feeds: ADR-052 (proposed)
-> Tracked-as: none yet (PM to file the PlaneRadar follow-up task; this design
-> is scoped to the shared-infra question, not the PlaneRadar implementation)
+> Tracked-as: TASK-358 (PlaneRadar consumer); Clock Flip + heatmap viewport
+> migration filed as TASK-359 (see ADR-052's correction note for scope)
 > Registers: viewport-repair-001 · X037
 
 ## Context / pain points
