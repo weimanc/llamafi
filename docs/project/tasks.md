@@ -187,7 +187,8 @@ visually lossless. Runtime decode via 16-entry per-theme RGB565 LUT that *replac
 eyeball across themes vs pre-change reference.
 
 **Owner:** Developer · **Deps:** TASK-345 (luminance bake) · **Gate:** `run/check` + DUT
-eyeball · **Priority:** P2 · **Status:** in progress
+eyeball · **Priority:** P2 · **Status:** **DONE 2026-07-18** (00e8ad1) — decode error measured
+max 8/255 vs old bake, run/check 6/6, DUT eyeball amber+blue PASS, flash 67.7%, prod reflashed
 
 ### TASK-354 — shared clock-face delta engine (colon flicker fix, M-CLOCK-FACE-COMMON pt 1)
 
@@ -197,12 +198,14 @@ drags a full wipe+repaint; VFD fixed this privately, fix never propagated), dele
 the time→digits split + 4 of the colon parity. Digital keeps its variable-width-hour handling
 inside its renderer; Flip animation passes through `animate()`. VE adds a steady-state
 "second tick repaints ≤ colon pixels" screendump-diff assertion. Design:
-`M-CLOCK-FACE-COMMON.md` §Part 1. Human has seen the flicker analysis and said "not yet" to an
-immediate fix — do not start without explicit go-ahead.
+`M-CLOCK-FACE-COMMON.md` §Part 1. Human go-ahead given 2026-07-18 ("drive 353 then 354").
 
 **Owner:** Developer · **Deps:** TASK-353 (touches same tint path; land after) · **Gate:**
 `run/check` + per-face screendump eyeballs + T_CLK_TAP suite re-run · **Priority:** P3 ·
-**Status:** open — awaiting human go-ahead
+**Status:** **DONE 2026-07-19** — run/check 6/6; clock_tap_smoke 16/16 (one 1/16 run was the
+CH340 port flap mid-run, not the engine); NEW clock_delta_smoke.py 4/4 (steady second tick
+repaints 0 px outside the colon column on every face — the Flip/Nixie flicker is gone by
+measurement, not eyeball); all-four-faces screendump eyeballs PASS; prod reflashed clean
 
 ## Open — M-PR-MOTION (2026-07-18)
 

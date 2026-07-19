@@ -1,8 +1,9 @@
 # Design — Clock face common infrastructure: colon/delta engine + Nixie storage
 
 > Owner: Architect
-> Status: accepted — footprint part (4-bit) implemented as TASK-353; shared
-> engine part filed as TASK-354 (open, awaiting scheduling)
+> Status: implemented — Part 2 (4-bit) TASK-353 done 2026-07-18; Part 1
+> (delta engine) TASK-354 done 2026-07-19, proven by clock_delta_smoke.py
+> (steady-state second tick = 0 px outside the colon column, all faces)
 > Date: 2026-07-18
 > Depends on: M-CLOCK-STYLES, M-CLOCK-THEMES (TASK-345), M-CLOCK-TAP-CYCLE (TASK-346)
 

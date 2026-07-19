@@ -140,20 +140,28 @@ private:
     // W-6 erase-gating cache (Digital): last rendered hour string + AM/PM ptr.
     char          _lastHourStr[4] = "";
     const char*   _lastAmPm       = nullptr;
-    // VFD delta-redraw cache: sentinel values force a full draw on first tick
-    // after repaint() (style switch / resume).
-    uint8_t       _vfdDigs[4]     = {0xFF, 0xFF, 0xFF, 0xFF};
-    int8_t        _vfdColonOn     = -1;
+    // Delta-engine FaceFrame cache (TASK-354): last-drawn digits + colon
+    // parity, shared by every face. Sentinels (>9 / -1) = invalidated by
+    // repaint(), forcing a full redraw on the next tick. Absorbs what used
+    // to be the VFD-only _vfdDigs/_vfdColonOn private cache.
+    uint8_t       _lastDigs[4]    = {0xFF, 0xFF, 0xFF, 0xFF};
+    int8_t        _lastColon      = -1;
 
     bool _anyFlipActive() const {
         for (int i = 0; i < 4; i++) if (_fd[i].frame > 0) return true;
         return false;
     }
 
+    // Static layer only (TASK-354: the engine's drawStatic hook) — per-face
+    // backgrounds and frames that never change between full repaints. The
+    // per-second dynamic content is owned by _doTick()'s delta engine.
     void repaint() {
         switch (g_settings.clockStyle) {
             case ClockStyle::Flip:
                 tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK);
+                // Clock body plate behind the cards — was re-filled every
+                // tick by _drawFlip() (the whole-face flicker); static now.
+                tft.fillRect(5, 4, 265, 86, kFpBody);
                 memset(_fd, 0, sizeof(_fd));
                 break;
             case ClockStyle::Nixie:
@@ -161,8 +169,6 @@ private:
                 break;
             case ClockStyle::VFD:
                 tft.fillRect(0, 0, TASKBAR_X, 240, 0x0022);
-                memset(_vfdDigs, 0xFF, sizeof(_vfdDigs));
-                _vfdColonOn = -1;
                 break;
             default: // Digital
                 tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK);
@@ -171,32 +177,63 @@ private:
                 tft.drawRoundRect(5, 138, 265,  97, 10, 0xFFE0);
                 break;
         }
+        // Invalidate the engine's delta cache: next _doTick() force-redraws
+        // every digit slot + colon for the active face.
+        memset(_lastDigs, 0xFF, sizeof(_lastDigs));
+        _lastColon  = -1;
         _lastTickMs = 0;
         tick();
     }
 
+    // ── Delta engine (TASK-354, M-CLOCK-FACE-COMMON pt 1) ──────────────────
+    // Computes the FaceFrame (4 digits + colon parity) ONCE, diffs it against
+    // the cached previous frame, and hands the per-face renderers only what
+    // changed. This is what VFD privately implemented (and Digital half-did
+    // with string caches) while Flip/Nixie redrew their whole face every
+    // second to blink an 8-px colon — the fix is structural, not a third and
+    // fourth private cache. Faces own HOW to draw; the engine owns WHEN.
     void _doTick() {
+        struct tm t; if (!getLocalTime(&t)) return;
+        uint8_t hh = clockHour(t);   // WIRE2-G2: digit pair stays two digits ("09")
+        uint8_t digs[4] = {
+            (uint8_t)(hh / 10), (uint8_t)(hh % 10),
+            (uint8_t)(t.tm_min / 10), (uint8_t)(t.tm_min % 10)
+        };
+        bool colonOn = (t.tm_sec % 2 == 0);
+
+        bool force = (_lastDigs[0] > 9);   // cache invalidated by repaint()
+        uint8_t changed = 0;               // per-slot bitmask
+        for (int i = 0; i < 4; i++)
+            if (force || digs[i] != _lastDigs[i]) changed |= (uint8_t)(1 << i);
+        bool colonChanged = force || ((int8_t)colonOn != _lastColon);
+
         switch (g_settings.clockStyle) {
             case ClockStyle::Flip:
-                _drawFlip();
-                if (!_anyFlipActive()) { _drawDate(); _drawRssi(); }
+                _tickFlip(digs, changed, colonOn, colonChanged, force);
                 break;
             case ClockStyle::Nixie:
-                _drawNixie();
+                _tickNixie(digs, changed, colonOn, colonChanged);
                 _drawDate();
                 _drawRssi();
                 break;
             case ClockStyle::VFD:
-                _drawVFD();
+                _tickVFD(t, digs, changed, colonOn, colonChanged);
                 _drawRssi();
                 break;
             default:
+                // Digital predates the engine and is already delta-clean
+                // internally (string-cache erase gating + self-overdrawing
+                // colon glyph); its seconds bar changes every tick anyway,
+                // so it keeps its own per-second path unchanged.
                 _drawDigital();
                 _drawSecondsBar();
                 _drawDate();
                 _drawRssi();
                 break;
         }
+
+        memcpy(_lastDigs, digs, sizeof(_lastDigs));
+        _lastColon = (int8_t)colonOn;
     }
 
     // ── Digital ─────────────────────────────────────────────────────────────
@@ -291,38 +328,41 @@ private:
     static constexpr uint16_t kFpBorder       = 0x4A4B;  // concept C_OUTLINE (75,75,88)
     static constexpr uint16_t kFpBody         = 0x0841;  // concept housing bg (10,10,12)
 
-    void _drawFlip() {
+    // Colon — round flip-dots, 1Hz blink. Self-erasing: both states fully
+    // overdraw the same two circles, so no background wipe is needed.
+    // M-CLOCK-FLIP.md specs an animated 45deg-rotating disc at 500ms on/off;
+    // that needs the tick gate to run at <=500ms even when no digit is
+    // flipping (currently 1000ms) — out of scope, deferred (pre-existing).
+    // X/Y/radius match the concept's colon geometry (_COLON_CX/_COLON_Y1/Y2/DOT_R).
+    void _drawFlipColon(bool on) {
+        uint16_t colonC = on ? kFpDigit : (uint16_t)0x2104;
+        tft.fillCircle(138, kFpY + 19, 5, colonC);
+        tft.fillCircle(138, kFpY + 59, 5, colonC);
+    }
+
+    // TASK-354 delta renderer: the engine says which digits changed; panels
+    // repaint only while animating (each _drawFlipPanel call fully covers
+    // its own card rect, so no body wipe — that moved to repaint()). The
+    // per-second steady-state cost drops from full-face to two fillCircles.
+    void _tickFlip(const uint8_t* digs, uint8_t changed, bool colonOn,
+                   bool colonChanged, bool force) {
         static const int kFpX[4] = {13, 73, 147, 207};
-        struct tm t; if (!getLocalTime(&t)) return;
-        uint8_t hh = clockHour(t);   // WIRE2-G2: digit pair stays two digits ("09")
-        uint8_t newDig[4] = {
-            (uint8_t)(hh / 10), (uint8_t)(hh % 10),
-            (uint8_t)(t.tm_min  / 10), (uint8_t)(t.tm_min  % 10)
-        };
-        // Start animation for any changed digit
+        // Start animation for any changed digit (skip straight-set on force:
+        // after repaint() the panels draw their target digit directly).
         for (int i = 0; i < 4; i++) {
-            if (_fd[i].frame == 0 && _fd[i].shown != newDig[i]) {
-                _fd[i].next     = newDig[i];
-                _fd[i].botShown = newDig[i]; // bottom switches immediately
+            if (force) {
+                _fd[i].shown = _fd[i].botShown = _fd[i].next = digs[i];
+                _fd[i].frame = 0;
+            } else if ((changed & (1 << i)) && _fd[i].frame == 0 && _fd[i].shown != digs[i]) {
+                _fd[i].next     = digs[i];
+                _fd[i].botShown = digs[i]; // bottom switches immediately
                 _fd[i].frame    = 1;
             }
         }
-        // Clock body background
-        tft.fillRect(5, 4, 265, 86, kFpBody);
-        // Colon — round flip-dots, 1Hz blink (was: static squares, never blinked).
-        // M-CLOCK-FLIP.md specs an animated 45deg-rotating disc at 500ms on/off;
-        // that needs the tick gate to run at <=500ms even when no digit is
-        // flipping (currently 1000ms) — out of scope for this pass, deferred.
-        // This still fixes "never blinks at all" with the existing 1Hz cadence
-        // Digital already uses (t.tm_sec parity), just via fillCircle instead
-        // of fillRect for a rounder, more dot-like face.
-        // X/Y/radius match the concept's colon geometry (_COLON_CX/_COLON_Y1/Y2/DOT_R).
-        bool colonOn = (t.tm_sec % 2 == 0);
-        uint16_t colonC = colonOn ? kFpDigit : (uint16_t)0x2104;
-        tft.fillCircle(138, kFpY + 19, 5, colonC);
-        tft.fillCircle(138, kFpY + 59, 5, colonC);
-        // Draw and advance each panel
+        if (colonChanged) _drawFlipColon(colonOn);
+        // Draw animating panels (or all, on force) and advance frames.
         for (int i = 0; i < 4; i++) {
+            if (!force && _fd[i].frame == 0) continue;
             _drawFlipPanel(kFpX[i]);
             if (_fd[i].frame > 0) {
                 _fd[i].frame++;
@@ -333,6 +373,7 @@ private:
                 }
             }
         }
+        if (!_anyFlipActive()) { _drawDate(); _drawRssi(); }
     }
 
     // Draws one flip panel for _fd[pi] state.
@@ -474,79 +515,66 @@ private:
         }
     }
 
-    void _drawNixie() {
-        static const int kTx[4] = {24, 78, 148, 202};
-        static const int kTy = 8, kTw = 48, kTh = 110, kTr = 18;
+    // Nixie tube geometry — shared by the per-tube renderer and the colon.
+    static constexpr int kNxTy = 8, kNxTw = 48, kNxTh = 110, kNxTr = 18;
 
-        struct tm t; if (!getLocalTime(&t)) return;
-        uint8_t hh = clockHour(t);   // WIRE2-G2: digit pair stays two digits ("09")
-        uint8_t digs[4] = {
-            (uint8_t)(hh / 10), (uint8_t)(hh % 10),
-            (uint8_t)(t.tm_min  / 10), (uint8_t)(t.tm_min  % 10)
-        };
-
-        // Clear region sized for the taller tubes + their glow rings
-        // (tx-2..tx+kTw+2, kTy-2..kTy+kTh+2).
-        tft.fillRect(0, 4, 275, kTh + 8, TFT_BLACK);
-
-        // Colon dots — round, with a poor-man's bloom (dim halo + bright
-        // core, same trick the tube uses for its glow rings), matching the
-        // concept's round glowing dot instead of the previous flat filled
-        // square. Colour is the active theme's C_WIRE: halo ~30% scale,
-        // core full brightness. Blinks at 0.5Hz (concept's smooth
-        // ramp/decay afterglow is a separate, deferred change — see
-        // M-CLOCK-NIXIE.md colon afterglow gap). Both circles are always
-        // redrawn (even "off", in black) so the previous frame's glow is
-        // fully erased regardless of state. X/Y match the concept's
-        // COLON_CX (gutter midpoint between H2 and M1) and
-        // TUBE_Y+TUBE_H/3, TUBE_Y+2*TUBE_H/3.
+    // Colon dots — round, with a poor-man's bloom (dim halo + bright core,
+    // same trick the tube uses for its glow rings). Colour is the active
+    // theme's C_WIRE: halo ~30% scale, core full brightness. Blinks at
+    // 0.5Hz (concept's smooth ramp/decay afterglow is a separate, deferred
+    // change — see M-CLOCK-NIXIE.md colon afterglow gap). Both circles are
+    // always redrawn (even "off", in black) so the previous frame's glow is
+    // fully erased regardless of state — self-erasing, so the engine can
+    // call this alone on parity flips with no band wipe. X/Y match the
+    // concept's COLON_CX (gutter midpoint between H2 and M1) and
+    // TUBE_Y+TUBE_H/3, TUBE_Y+2*TUBE_H/3.
+    void _drawNixieColon(bool on) {
         const NixieTheme& theme = kNixieThemes[g_settings.nixieTheme % 4];
         uint16_t coreFull = tft.color565(theme.r, theme.g, theme.b);
         uint16_t haloDim  = tft.color565(theme.r * 3 / 10, theme.g * 3 / 10, theme.b * 3 / 10);
-        bool colonOn = (t.tm_sec % 2 == 0);
-        uint16_t colonHalo = colonOn ? haloDim : TFT_BLACK;
-        uint16_t colonCore = colonOn ? coreFull : TFT_BLACK;
-        for (int cy : {kTy + kTh / 3, kTy + 2 * kTh / 3}) {
+        uint16_t colonHalo = on ? haloDim : TFT_BLACK;
+        uint16_t colonCore = on ? coreFull : TFT_BLACK;
+        for (int cy : {kNxTy + kNxTh / 3, kNxTy + 2 * kNxTh / 3}) {
             tft.fillCircle(137, cy, 5, colonHalo);
             tft.fillCircle(137, cy, 2, colonCore);
         }
+    }
 
-        // Band scratch buffer — 10 rows at a time (110/10 = 11 bands per
-        // digit), 48*10*2 = 960 B. A full-tube buffer (10.3 KB) overflowed
-        // this board's tight DRAM budget; bands keep it small (same pattern
-        // as screendump's kBandRows).
+    // One tube (TASK-354: the engine's drawDigit hook). Erases just this
+    // tube's column (sprite + glass ring + pin shadows all live inside it;
+    // the colon gutter at x132..142 is clear of every tube), then:
+    // 1. Baked wire-glyph + hex-mesh + 3-pass-bloom sprite (TASK-336,
+    //    bake_nixie.py), 4-bit packed, tinted to the active theme via the
+    //    16-entry LUT (TASK-353) band-wise through the small scratch buffer
+    //    (a full-tube buffer overflowed this board's DRAM budget).
+    // 2. Glass outline — single subtle stroke matching the concept's
+    //    _draw_tube() (outline=(50,22,5), width=1).
+    // 3. Pin shadows below the tube, near-black per the concept.
+    void _drawNixieTube(int tx, uint8_t digit) {
         static const int kTintBandRows = 5;
         static uint16_t s_nixieTintBuf[NIXIE_GLYPH_W * kTintBandRows];
-
-        for (int i = 0; i < 4; i++) {
-            int tx = kTx[i], cx = tx + kTw / 2;
-            // 1. Baked wire-glyph + hex-mesh + 3-pass-bloom sprite (TASK-336,
-            // app/tools/bake_nixie.py), tinted to the active theme at
-            // runtime (TASK-345, M-CLOCK-THEMES) — replaces the flat
-            // fillRoundRect+drawString the old steps 1+5 did. Bake is
-            // flash-resident, zero extra RAM (ESP32 flash is memory-mapped);
-            // the tint pass itself is the only new runtime cost, ~5.3K
-            // multiplies per digit redraw (not every tick — only on change).
-            for (int ry = 0; ry < kTh; ry += kTintBandRows) {
-                int rows = min(kTintBandRows, kTh - ry);
-                _tintNixieGlyph(digs[i], ry, rows, s_nixieTintBuf);
-                tft.pushImage(tx, kTy + ry, kTw, rows, s_nixieTintBuf);
-            }
-            // 2. Glass outline — single subtle stroke matching the concept's
-            // _draw_tube() exactly (outline=(50,22,5), width=1). Previously
-            // three bright concentric rings (dark red / orange / amber) that
-            // read as a glowing halo — much more prominent than the concept,
-            // which has no separate drawn glow ring at all (its bloom is
-            // baked into the tube content, and its outer canvas bleed —
-            // not replicated here, see bake_nixie.py docstring — is soft
-            // and diffuse, not a hard-edged ring).
-            tft.drawRoundRect(tx, kTy, kTw, kTh, kTr, 0x30A0);
-            // 3. Pin shadows — below the tube (not overlapping the glass),
-            // matching the concept's [px-7,py,px-5,py+2] / [px+4,py,px+6,py+2]
-            // rects at fill=(8,3,0) (near-black, barely visible).
-            tft.fillRect(cx - 7, kTy + kTh, 3, 3, 0x0800);
-            tft.fillRect(cx + 4, kTy + kTh, 3, 3, 0x0800);
+        int cx = tx + kNxTw / 2;
+        tft.fillRect(tx - 2, 4, kNxTw + 4, kNxTh + 8, TFT_BLACK);
+        for (int ry = 0; ry < kNxTh; ry += kTintBandRows) {
+            int rows = min(kTintBandRows, kNxTh - ry);
+            _tintNixieGlyph(digit, ry, rows, s_nixieTintBuf);
+            tft.pushImage(tx, kNxTy + ry, kNxTw, rows, s_nixieTintBuf);
         }
+        tft.drawRoundRect(tx, kNxTy, kNxTw, kNxTh, kNxTr, 0x30A0);
+        tft.fillRect(cx - 7, kNxTy + kNxTh, 3, 3, 0x0800);
+        tft.fillRect(cx + 4, kNxTy + kNxTh, 3, 3, 0x0800);
+    }
+
+    // TASK-354 delta renderer: was a full-width wipe + all-four-tubes
+    // re-tint/re-push every second (~42 KB SPI + the tint loop, dragged in
+    // by the colon blink); now a changed tube redraws at most twice a
+    // minute and the steady-state second tick is four fillCircles.
+    void _tickNixie(const uint8_t* digs, uint8_t changed, bool colonOn,
+                    bool colonChanged) {
+        static const int kTx[4] = {24, 78, 148, 202};
+        for (int i = 0; i < 4; i++)
+            if (changed & (1 << i)) _drawNixieTube(kTx[i], digs[i]);
+        if (colonChanged) _drawNixieColon(colonOn);
         tft.setTextDatum(TL_DATUM);
     }
 
@@ -573,7 +601,7 @@ private:
 
     // Redraw a single digit slot's 11×24 dot cells (glyph rows 1..22, plus
     // the always-off margin rows 0/23). Only called when that digit's value
-    // actually changed — see delta-redraw note on _drawVFD().
+    // actually changed — see delta-redraw note on _tickVFD().
     void _drawVFDDigitSlot(int d, uint8_t digitVal, uint8_t dcol) {
         uint16_t onC = _vfdOnColor(), offC = _vfdOffColor();
         tft.startWrite();
@@ -605,33 +633,18 @@ private:
         tft.endWrite();
     }
 
-    // Delta redraw: the full-grid fillRect + full 1296-cell repaint every
-    // 1 s tick (tied to the colon blink period, since that's the only thing
-    // that changes most seconds) caused a visible whole-screen flicker.
-    // Cache last-drawn digit values + colon state; only repaint the cells
-    // that actually changed. Digit slots change at most once/minute; colon
+    // TASK-354: VFD was the face that pioneered delta redraw (its header
+    // comment records the whole-screen flicker it fixed) — this renderer is
+    // that same logic, minus the private _vfdDigs/_vfdColonOn cache the
+    // shared engine now owns. Digit slots change at most once/minute; colon
     // toggles once/second but is only 8 cells.
-    void _drawVFD() {
+    void _tickVFD(const struct tm& t, const uint8_t* digs, uint8_t changed,
+                  bool colonOn, bool colonChanged) {
         static const uint8_t kDCol[4] = {2, 14, 29, 41}; // glyph start dot-col
 
-        struct tm t; if (!getLocalTime(&t)) return;
-        uint8_t hh = clockHour(t);   // WIRE2-G2: digit pair stays two digits ("09")
-        uint8_t digs[4] = {
-            (uint8_t)(hh / 10), (uint8_t)(hh % 10),
-            (uint8_t)(t.tm_min  / 10), (uint8_t)(t.tm_min  % 10)
-        };
-        bool colonOn = (t.tm_sec % 2 == 0);
-
-        for (int d = 0; d < 4; d++) {
-            if (digs[d] != _vfdDigs[d]) {
-                _drawVFDDigitSlot(d, digs[d], kDCol[d]);
-                _vfdDigs[d] = digs[d];
-            }
-        }
-        if ((int8_t)colonOn != _vfdColonOn) {
-            _drawVFDColon(colonOn);
-            _vfdColonOn = (int8_t)colonOn;
-        }
+        for (int d = 0; d < 4; d++)
+            if (changed & (1 << d)) _drawVFDDigitSlot(d, digs[d], kDCol[d]);
+        if (colonChanged) _drawVFDColon(colonOn);
 
         // Date below digit block (y≈141 per approved constants)
         static const char* kDays[] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
