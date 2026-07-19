@@ -3006,3 +3006,169 @@ Cross-reference X038's `test_coverage`/notes filled in with this evidence
 in `cross_feature_matrix.yaml` (ad hoc DUT verification, no formal
 T-numbered regression test written this pass — VE to assign `test_ids` if
 this graduates into the regression suite).
+
+## Open — M-BOOT-UI (2026-07-20)
+
+### TASK-364 — chrome-first boot + whole-session WiFi-status marquee (M-BOOT-UI, ADR-055)
+
+Implement `docs/architecture/designs/M-BOOT-UI.md` / `docs/architecture/
+decisions/ADR-055.md` in full — both accepted, human sign-off 2026-07-20.
+One task, not split: the boot-time chrome-first change (§1-§5) and the
+§6 whole-session background-reconnect marquee extension share the same
+mechanism (the title marquee via `setTitle()`), the same build-family scope
+(`WINAMP_DISPLAY`), and were reviewed and accepted together as a single
+design after the human resolved OQ2 to fold §6 in rather than defer it —
+splitting into two tasks would just re-separate what the design doc
+deliberately merged, for no review/rollout benefit (§6's guard mechanism
+sits directly in `winampDisplay.setTitle()`, the same file/function the
+boot-time `setTitle()` calls target — a single coherent diff to that file
+either way). Read both documents in full before implementing; this brief
+summarizes their concrete plan but the design doc's §1-§6 carry the
+reasoning and line numbers.
+
+**Implementation (five pieces, per the design doc):**
+
+1. **New early chrome-paint call site**, `main.cpp:~2176` — an *additional*
+   direct call to `winampDisplay.showDefaultScreen()` + `renderTaskbar(...)`,
+   placed right after `TouchCalStorage::load()` and the backlight-PWM
+   handoff (before `fetchConfigFile()`/`wifiDiag::begin()`/the WiFi connect
+   cascade). This is **not** a reorder of the existing
+   `main.cpp:2415-2422` block (`g_apps[(int)AppId::Spotify]->init()` +
+   `renderTaskbar()`) — that block stays exactly as-is; its second pass
+   becomes a harmless, cheap, idempotent repaint (§1's own doc comment).
+   `g_appLaunched` bookkeeping and `switchApp()`'s init-vs-resume branching
+   are untouched by construction (Goal 4). Per §1's tracing, nothing the
+   early paint touches (`spotifyTask::isHealthy()`/
+   `lastSuccessfulPollAgeMs()`, `shell::activeError()`/`activeConnecting()`)
+   depends on `SettingsStorage::load()`, WiFi, NTP, or `spotifyTask::begin()`
+   having run — same accessor family ADR-054/TASK-363 already validated
+   safe pre-`begin()`.
+2. **`setTitle()` calls at the ~10 existing WiFi/NTP phase-transition
+   points**, per §2's table — one generic `"WI-FI: CONNECTING..."` string
+   covering all four fallback-cascade call sites (hardcoded-SSID, NVS,
+   SPIFFS-creds, re-association settle; OQ1's resolved single-string
+   decision, not per-stage text), plus distinct strings for
+   connected/retry-in-background/no-credentials outcomes and the NTP
+   sync/HTTPS-Date-fallback phases. No new branching — one `setTitle()`
+   call added at each site the code already visits. Deliberately no
+   `"SPOTIFY: CONNECTING..."` phase (already covered by
+   `repaintChrome()`'s titlebar-inactive overlay + the taskbar's amber
+   indicator, per §2).
+3. **`tickMarquee()` calls riding the existing per-iteration
+   `esp_task_wdt_reset()`/`yield()` hooks** in the WiFi/NTP wait loops
+   (§3, Option B) — ship together with piece 2, not as a follow-up (§3's
+   "Lean: ship both A and B together" — B is ~4 lines, zero marginal cost
+   once piece 2's call sites are already being edited). The three WiFi
+   loops use `esp_task_wdt_reset()` (`main.cpp:2205,2221,2239,2252`); the
+   NTP loop uses `yield()` (`:2311-2314`) — `tickMarquee()` rides whichever
+   hook is already there, no change to WDT-feeding behavior either way.
+4. **`setTitle()` stash-and-restore guard in `winampDisplay.h`** (§6):
+   `_wifiDownOverrideActive` bool + a stash buffer sized/shaped like
+   `lastTitle`. Guard clause at the top of `setTitle(text)`: while active,
+   stash `text` into the pending-restore buffer and return without
+   drawing — every caller's intent is remembered, none can paint over the
+   override, none need to know it exists. Two new entry points:
+   `showWifiDownOverride()` (no-op if already active; otherwise stashes the
+   *current* `lastTitle`, then force-draws `"WI-FI: RECONNECTING..."`
+   bypassing the guard) and `clearWifiDownOverride()` (no-op if not active;
+   otherwise force-draws whatever is in the stash — the most recently
+   *attempted* real title, correct by construction per §6's mechanism
+   writeup, including the Spotify unchanged-track case where a passive
+   "wait for the app's next real `setTitle()`" approach would leave the
+   marquee stuck forever).
+5. **New `loop()`-level edge-triggered detector**, self-contained (no new
+   `wifiDiag` API): `WiFi.status() == WL_CONNECTED` polled once per `loop()`
+   iteration + a local `static uint32_t s_downSince = 0` anchored fresh on
+   each down-transition (deliberately not reusing `superviseTick()`'s
+   `lastDiscMs` staleness-prone anchor — a fresh local edge-trigger
+   sidesteps that class of bug for free). Threshold proposed at 10s
+   (**OQ5, open — VE/DUT to tune, a single adjustable constant, not
+   DUT-pinned by the design doc**). **Must be gated by the exact same
+   `currentAppId != AppId::Settings` condition `wifiDiag::superviseTick()`
+   already uses** (`main.cpp:3886`) — load-bearing per X042, not cosmetic:
+   `switchApp()`'s full-screen-canvas convention means Settings already
+   owns and repaints the marquee's screen region itself, so an ungated
+   override would blit stray title-bar text over the Settings UI, a real
+   visual corruption. Co-locate the new block with the existing
+   `superviseTick()` call site for discoverability rather than inventing a
+   separately-tracked condition that could drift out of sync with it.
+
+**Scope:** `WINAMP_DISPLAY` build family only (`cyd2usb_winamp` production
+env + everything that `extends` it: `_debug`, `_screenlog`, `_webradio`,
+`_webradio_16k`, `_debug_noSpotify`), inside the same `#ifdef
+WINAMP_DISPLAY` guard the existing `SpotifyApp`/`g_apps[]`/taskbar code
+already uses. Non-Winamp `cyd`/`cyd2usb` (plain) and `trinity` (HUB75
+matrix) envs untouched — those backends have no marquee/taskbar concept,
+matches current behavior.
+
+**Explicitly out of scope (flagged by the design doc, not to be pulled in
+here):**
+- **OQ4** — the taskbar active-slot indicator doesn't reflect
+  `spotifyTask::isHealthy()` (only `authError()`/`connecting()`), a real
+  pre-existing gap in the already-accepted `ADR-046`, found while
+  investigating §6. Not fixed by this task — flagged for a future
+  PM/Architect follow-up, no task filed for it yet.
+- Shortening/parallelizing the ~85s-worst-case WiFi fallback cascade
+  itself (§4) — display-timing only, not retry-policy, in this task.
+- Touch input during the blocking WiFi/NTP waits, and a dot-cycle
+  "connecting…" animation beyond marquee-scroll reuse (§3) — both
+  evaluated and consciously deferred as materially larger, separate work.
+
+**Registry:** add `boot-ui-001` (new) and `wifi-diag-001` (new,
+retroactively registered — `wifiDiag.h`/`.cpp` already ships, TASK-274/
+282/283/296, `status: implemented`, back-fill `git_ref`/`test_ids` from
+existing history) to `feature_inventory.yaml`; add edges X039-X042 to
+`cross_feature_matrix.yaml` per the design doc's §Registers (X039:
+`boot-ui-001`×`chrome-001` dependency/low; X040:
+`boot-ui-001`×`wifi-001` dependency/low; X041: `boot-ui-001`×`time-001`
+dependency/low; X042: `boot-ui-001`×`wifi-diag-001` shared_state/**medium**
+— the Settings-suppression condition is a convention-enforced coupling, not
+a shared constant/function call, a real if narrow drift risk if either
+side's condition is ever touched independently).
+
+**Owner:** Developer · **Deps:** TASK-362 (`setTitle()` dedup/redraw-on-change
+precedent this design reuses verbatim, no new display mechanism); TASK-363/
+ADR-054 (confirmed-safe pre-`spotifyTask::begin()` accessor pattern the
+early paint reuses); wifi-diag-001/TASK-274/283/296 (the background
+supervisor §6 surfaces, unmodified — read-only observation of its
+`currentAppId != Settings` gating condition, no call-graph dependency);
+M-BOOT-UI.md + ADR-055 (accepted, human sign-off 2026-07-20) · **Gate:**
+`./run/check` 5-gate green (golden-hash gate expected unaffected — no
+generated asset touched, confirm at implementation) + the design doc's own
+Exit Criteria, qualitative DUT checks per OQ3's resolution (no timestamped
+capture required): healthy-AP boot shows chrome+taskbar immediately with
+the phase-text sequence legible; ≥1 forced-full-cascade boot (unreachable
+AP or wrong password) shows chrome+taskbar throughout with no black screen
+and the static `"WI-FI: CONNECTING..."` text; WebRadio-mode boot confirms
+clean hand-off from boot-status text to WebRadio's own first `setTitle()`
+call, no stale/glitched artifact; no-WiFi-credentials boot confirms
+`"WI-FI SETUP NEEDED"` briefly shows then `switchApp(Settings)` takes over
+cleanly; one BP-048 screendump eyeball pass across every phase string
+confirms no clipping; a live mid-session WiFi-drop scenario with a
+non-Spotify, non-WebRadio app foreground (e.g. Clock/Weather) confirms the
+`"WI-FI: RECONNECTING..."` override engages past the tuned threshold and
+clears cleanly within one `loop()` tick of reconnect; the same with Spotify
+foreground and an *unchanged* track across the outage confirms the active-
+restore mechanism (not a passive wait) recovers the correct title; the same
+with WebRadio foreground and ICY metadata arriving mid-outage (if
+reproducible) confirms the guard stashes without letting WebRadio paint
+over the override; a WiFi-drop-while-Settings-foreground scenario confirms
+no marquee override ever paints over the Settings UI and state is correct
+within one `loop()` tick of returning to any non-Settings app; full
+serialdbg suite green on `cyd2usb_winamp` · **Priority:** P2 (accepted
+architecture ready for implementation, real UX gap on both ends — black
+screen on a dodgy boot network, 100%-silent background WiFi retry
+mid-session — similar footing to TASK-363, not a live crash/regression)
+· **Size:** M (one new early-paint call site, ~10 `setTitle()` insertions,
+~4 `tickMarquee()` insertions, one new guard clause + two thin wrapper
+methods on `WinampDisplay`, one new `loop()`-level detector block — small
+per-piece, five pieces plus a wide DUT exit-criteria list) · **Status:**
+open · **DUT:** required (all Exit Criteria above are DUT checks; no
+host-only substitute)
+
+Note for implementer: OQ5 (10s down-threshold before showing the
+reconnect override) is a proposed starting point, not DUT-tuned — confirm
+or adjust at implementation/VE pass, single constant, no design change
+needed either way. OQ4 (taskbar indicator not reflecting `isHealthy()`) is
+a separate, real, already-flagged gap in `ADR-046` — do not fix it as part
+of this task; leave for a future PM/Architect follow-up.
