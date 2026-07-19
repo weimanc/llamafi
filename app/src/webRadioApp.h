@@ -1547,7 +1547,29 @@ private:
                     break;
             }
         } else {
-            t = "No stations";
+            // TASK-362: an empty list was previously always "No stations" —
+            // indistinguishable from a heap-guard skip, a truncated fetch, a
+            // real HTTP error, or a fetch that hasn't happened yet. Surface
+            // _lastHttpCode (already captured from the fetch result, just
+            // never read back here) so the failure reason is visible instead
+            // of silently blank. Codes per dataTaskStorage.cpp's
+            // fetchWebRadioStations(): 200 = fetched fine but genuinely
+            // empty (e.g. bitrateCap filtered everything); -100 = JSON parse
+            // error / truncated body (TASK-284); -101 = heap-guard skip
+            // (largest free block below WR_FETCH_MIN_TLS_BLOCK,
+            // M-HEAP-FRAGMENTATION); -102 = abandoned for playback
+            // (TASK-289); anything else = a raw HTTP/HTTPClient code.
+            switch (_lastHttpCode) {
+                case 0:    t = "No stations"; break;   // never fetched yet
+                case 200:  t = "No stations for country"; break;
+                case -100: t = "No stations - fetch truncated"; break;
+                case -101: t = "No stations - heap fragmented"; break;
+                case -102: t = "No stations - cancelled"; break;
+                default:
+                    snprintf(buf, sizeof(buf), "No stations - error %d", _lastHttpCode);
+                    t = buf;
+                    break;
+            }
         }
         winampDisplay.setTitle(t);
     }

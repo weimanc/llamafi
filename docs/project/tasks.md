@@ -2770,3 +2770,67 @@ M-CLOCK-STYLES (follow-on) · **Owner:** Architect (design) + Developer
 (implementation) · **Deps:** TASK-336, TASK-337, TASK-340 (built on the
 same session's Nixie/Flip/screendump work) · **Size:** L · **DUT:** y
 (8 theme renders captured and visually confirmed correct)
+
+### TASK-362 — WebRadio empty-station-list marquee: surface real failure reason instead of a flat "No stations"
+
+WebRadio's title marquee (`app/src/winamp/winampDisplay.h`'s `setTitle()`/
+`drawTitleText()` — the shared Winamp LED-font display, also used for
+Spotify's own track title) hardcoded a single literal `"No stations"`
+whenever the station list came back empty, regardless of cause: a genuine
+empty result, the `-101` heap-fragmentation guard skip, a `-100` truncated
+fetch (TASK-284), a `-102` abandoned-for-playback cancel (TASK-289), a raw
+HTTP error, or simply "never fetched yet." All of those are indistinguishable
+to a user looking at the screen, even though `_lastHttpCode` was already
+being captured from the fetch result — it just wasn't being read back into
+the display string. Human noticed this while investigating the `-101` heap
+condition (see M-HEAP-FRAGMENTATION.md/ADR-053 below) and asked why the
+marquee — which already does exactly this kind of reason-surfacing for
+Spotify/ICY titles — wasn't doing it here too.
+
+**Fix** (`app/src/webRadioApp.h`, `_drawTitleZone()`'s final `else` branch —
+was a single line, `t = "No stations";`): replaced with a switch on
+`_lastHttpCode`:
+- `0` → `"No stations"` (never fetched yet)
+- `200` → `"No stations for country"` (genuinely empty result — e.g.
+  `bitrateCap` filtered everything out)
+- `-100` → `"No stations - fetch truncated"` (TASK-284's code)
+- `-101` → `"No stations - heap fragmented"` (TASK-289's guard code,
+  the condition M-HEAP-FRAGMENTATION.md/ADR-053 root-caused this session)
+- `-102` → `"No stations - cancelled"` (TASK-289's abandoned-for-playback
+  code)
+- anything else → `"No stations - error %d"` (raw HTTP code, `snprintf`)
+
+No new state — `_lastHttpCode` was already a member (`int _lastHttpCode = 0`,
+set from `result.lastHttpCode` in the fetch-result handler), this only wires
+an existing value into an existing display path. The in-code comment
+originally referenced "TASK-363" as a placeholder pending this filing —
+correct number is **TASK-362**; comment to be fixed to match.
+
+**Verified:** `./run/check` 6/6 clean. DUT (debug build): switched to
+WebRadio, confirmed `get wrLastHttp` reported `http: -101` (per
+M-HEAP-FRAGMENTATION.md, this condition is essentially guaranteed once
+Spotify's TLS has connected once this boot — not a rare/flaky repro to hit),
+then captured the title-marquee region via `screendump`
+(`TITLE_X=111,TITLE_Y=27,TITLE_W=154,TITLE_H=6` per `app/gen/skin_layout.h`
+— a small 6px bitmap-font row), cropped and upscaled the capture, and
+visually confirmed the scrolling marquee reads
+"...STATIONS - HEAP FRAGMENTE[D]..." (mid-scroll capture, matches the
+expected string exactly). Production firmware reflashed afterward.
+
+**Cross-references:** `docs/architecture/designs/M-HEAP-FRAGMENTATION.md`
+and `docs/architecture/decisions/ADR-053.md` — the investigation that
+surfaced this gap (both **still uncommitted, under human review** as of
+this filing — not yet landed/accepted, referenced here only as the
+motivating context, not as a dependency this task's own scope required).
+TASK-284 (`-100` truncation code, reused as-is). TASK-289 (`-101`/`-102`
+codes, reused as-is).
+
+**Opened:** 2026-07-19 · **Closed:** 2026-07-19 · **Owner:** Developer
+(this session's coordinator, implemented directly — small, self-contained
+fix, no separate design step warranted) · **Deps:** TASK-284, TASK-289
+(reuses their error codes); informed by M-HEAP-FRAGMENTATION.md/ADR-053
+(uncommitted) · **Gate:** `run/check` 6/6 + DUT screendump eyeball (both
+satisfied, evidence above) · **Priority:** P3 (small, already-shipped UX
+improvement to error legibility — not a live bug, nothing was crashing or
+silently failing beyond being uninformative) · **Size:** S · **DUT:** y
+(screendump captured and visually confirmed correct)
