@@ -344,7 +344,89 @@ justified by the evidence in hand today.
   `lfbInt` before/after a debug-triggered full `spotifyTask` teardown
   (Q3-b) is roughly an hour of work and would retire the "unproven" status
   in §Design space Option B either way. Worth doing opportunistically even
-  though it's not gating Option E.
+  though it's not gating Option E. **Spike outline below** (human requested
+  this be written up before running it).
+
+### OQ4 spike outline — does a fuller `spotifyTask` teardown recover the largest free block?
+
+**Not yet run.** This is the plan, written up for review before executing —
+matches this doc's own root-cause methodology (`get heap`'s `lfbInt`/
+`freeInt`, exact-byte, not estimated).
+
+**What's not already there.** `spotifyTaskStorage.cpp` today only has a
+one-shot `begin()` (`g_taskHandle`-guarded, idempotent no-op if already
+running) — there is no teardown path at all, `vTaskDelete` doesn't appear
+anywhere in that file. `tlsYield()`/`tlsResume()` (the mechanism already
+measured as insufficient — see Context above) only stops/restarts the TLS
+*client*, not the task itself. So this spike needs new code, not an
+existing switch to flip: a **debug-only** teardown function —
+`vTaskDelete(g_taskHandle)`, reset `g_taskHandle = nullptr`, free/reset
+`reqQueue` and `s_tlsYieldedSem`, and confirm `client.stop()` has already
+run (TLS session torn down) before the delete — reachable only via a
+`SERIAL_DEBUG` command, never wired into production boot/toggle flow. This
+is throwaway instrumentation for the measurement, not a candidate
+implementation of Q3-b itself (if the spike says Q3-b is worth pursuing,
+*that* would need its own design pass — see "What this doesn't answer"
+below).
+
+**Protocol** (mirrors the A/B already run for `_ensureMotion()` and the
+Spotify-connect baseline in this doc's Context section):
+
+1. Fresh boot, debug build. Let Spotify connect normally (routine boot —
+   don't gate this on M-SPOTIFY-BOOT-GATE/ADR-054's `playerMode` work,
+   which is a separate, already-accepted change; run this spike against
+   whichever build is current at the time, noting which).
+2. `get heap` — record `lfbInt`/`freeInt` post-connect. Expected ≈ 42996 /
+   ~77-84 K, matching this doc's own measured baseline.
+3. Trigger the debug teardown command. Confirm via log that the task is
+   actually gone (no more `spotify.tls`/`spotify.poll` log lines; `get heap`
+   commands still work, issued from the still-running `loopTask`/debug
+   command handler, not from the deleted task).
+4. `get heap` again — record `lfbInt`/`freeInt` post-teardown.
+5. Repeat over ≥3 fresh boots for consistency (single-sample DUT
+   measurements have bitten this investigation before — see the earlier
+   `_ensureMotion()` A/B, which needed the same rigor to trust its 0-byte
+   result).
+
+**Expected outcomes, and what each means:**
+
+- **A — `lfbInt` recovers close to the pristine ~73 K baseline** (or at
+  least materially above the current ~43 K ceiling, comfortably clearing
+  `WR_FETCH_MIN_TLS_BLOCK`). Confirms Q3-b's extra ~10 K stack reclaim is
+  what the earlier TLS-only stop was missing — something resident in the
+  task's own footprint (the stack itself, or an allocation whose lifetime
+  is tied to the task rather than the TLS session) was the wedge preventing
+  recoalescence. **Implication:** Q3-b becomes a real candidate, not merely
+  parked — but productizing it is a *separate* follow-on design, not this
+  spike's output. It would need: the null-safety audit across every
+  unconditional `spotifyTask::` accessor already flagged as Q3-b's cost in
+  §Design space Option B (LL-085 family), a policy for in-flight requests
+  at teardown time, and reconnect-latency UX — all deferred, not solved by
+  a positive spike result.
+- **B — `lfbInt` stays pinned at ~43 K even after full task deletion.**
+  Conclusively retires Q3-b — nothing resident in `spotifyTask`'s own
+  footprint (stack included) is the wedge, so deleting the task can't free
+  it. **Implication:** the actual wedge is something else entirely — most
+  likely a WiFi/LWIP driver buffer or an mbedTLS-internal structure whose
+  lifetime isn't tied to the task at all (e.g. a persistent TLS session
+  cache, or LWIP's own PBUF pool state) — outside this project's control
+  either way, but worth knowing precisely rather than leaving as "probably
+  the task." Closes OQ4 outright; no further spike needed on this specific
+  question. Would motivate a *different* follow-up if pursued further:
+  ESP-IDF heap tracing (`heap_trace_start()`/`dump()`, mentioned earlier
+  this session) to attribute the wedge allocation to its actual caller —
+  a bigger, separate investigation, not implied by this spike alone.
+- **C — partial recovery** (meaningfully above ~43 K but well short of
+  ~73 K). Real but ambiguous outcome — would need a closer look at what
+  specifically freed (compare `freeInt` deltas at each step, not just
+  `lfbInt`) before concluding anything. Don't over-interpret a partial
+  result into either A's or B's story without that follow-up look.
+
+**What this spike does NOT answer, regardless of outcome:** whether Q3-b is
+*worth shipping* even if outcome A holds — that's a cost/benefit call
+against the null-safety audit and UX cost, not something a heap-number spike
+settles by itself. This spike's only job is to convert "unproven" into
+"measured," per OQ4's original framing.
 - **OQ5 (manifest headroom).** Confirm the boot-time-prefetch's demand
   (~40 K TLS + `WR_DOC_CAP` 5 K) still fits `mem_manifest.yaml`'s
   `headroom.INTERNAL: 60000` line — expected yes, since it's the same
