@@ -97,15 +97,59 @@ fixes (points at firmware/radio, not config). **Only the 2.4 radio drops** — t
 5 GHz radio showed **0 ABSENT vs 33 for 2.4** in the dual-band control log, i.e.
 the 2.4 radio does the off-channel background scanning; 5 GHz stays up.
 
-**Path to fully clean: firmware update or router replacement** (MX56HF FW
-1.0.2.216845, Jan 2026 — check for a newer point release; see ROUTER-SWAP.md).
+Config (channel pinning) reduced but never eliminated the residual — see the
+RESOLUTION below for what actually fixed it.
 
-If a firmware update later re-enables auto-channel, re-pin (both bands). Even with
-both pinned, a low-rate 2.4 blackout residual persists — if the host confirms it
-ABSENT (not just the DUT) while neighbours stay present, that's a router
-hardware/firmware defect with no config workaround — escalate with the outage
-report below. A DUT-only drop while the host sees the AP present is a client-side
-margin issue, not a router fault.
+## RESOLUTION (2026-07-20) — ISP set 2.4 GHz to 20 MHz width, drops stopped
+
+The ISP made a remote settings change ~2026-07-20 14:00. Measured before/after
+(FAST24 logger, sleep-boundary artifacts filtered out):
+
+| period | logged coverage | real 2.4 blackouts | rate |
+|---|---|---|---|
+| before (Fri–Mon 14:00) | 41 h | 316 | 1 per 8 min (evenings 20–37/h) |
+| after (Mon 14:00 →) | 27 h | 2 (both at 14:19–14:21, during the change) | ~0 |
+
+**What they changed** (probed via `jnap.sh raw wirelessap/GetRadioInfo`, diffed
+against our pre-Monday record):
+
+| setting | before | after | note |
+|---|---|---|---|
+| **2.4 GHz channel width** | **Auto** | **Standard (20 MHz)** | the fix |
+| 2.4 GHz channel | 6 (pinned) | 3 | minor |
+| 5 GHz channel | 40/44 (UNII-1) | 104 (UNII-2, DFS) | unrelated to 2.4 |
+| firmware | 1.0.2.216845 | 1.0.2.216845 | NO update — settings only |
+| steering / DFS-enabled | off / off | off / off | unchanged |
+
+**Mechanism (why width was the real root cause).** On 2.4 GHz, "Auto" width
+permits **40 MHz** channels. 802.11n/ac require a 40 MHz 2.4 GHz AP to
+**periodically scan the band** for other networks and fall back to 20 MHz if any
+are present (40/20 "coexistence" / "fat-channel intolerance"). That periodic scan
+takes the radio briefly off-air — the exact 3–13 s blackout signature — and it
+scans *more* when the band is busy, which is why the drops peaked in the evening.
+Forcing **20 MHz** removes the 40 MHz to police, so the radio stops scanning.
+
+Note this is a *different* scan from the auto-channel one our channel-pinning
+targeted: we stopped channel-*selection* scans (helped ~6×); the ISP stopped the
+40/20 *coexistence* scan (fixed it). **Both are "the radio leaves its channel to
+survey the band"; width was the dominant trigger.**
+
+**Takeaway for any router / a future swap:** on 2.4 GHz run **20 MHz width, fixed
+channel** — always. 40 MHz on 2.4 GHz is widely discouraged for exactly this
+coexistence-scan behaviour (and 2.4 GHz has no room for a clean 40 MHz channel
+anyway). This is the single most useful setting to check first.
+
+**Honest caveat:** "before width = Auto" is from our own records (ROUTER-SWAP.md),
+not a snapshot taken the instant before their change. But the mechanism and the
+evening-correlation make it a strong attribution, and firmware was unchanged so
+it was purely a settings fix.
+
+---
+
+If a config change later re-enables 40 MHz / auto width or auto-channel on 2.4
+GHz, expect the blackouts to return — set it back to 20 MHz, fixed channel. A
+host-confirmed ABSENT (not just one device) while neighbours stay present is a
+router-side scan, not a client margin issue.
 
 ## What strengthens the complaint
 

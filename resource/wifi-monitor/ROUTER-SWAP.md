@@ -51,8 +51,16 @@ change this — it's an ISP-side call (ask them for a public/static IP if you ne
 
 | Band | SSID | Security | Channel | Width |
 |---|---|---|---|---|
-| 2.4 GHz | `<home-ssid>` | WPA2-Personal | **6 (pinned)** | Auto |
-| 5 GHz | `<home-ssid>` | WPA2-Personal | **44 (pinned)** | Auto |
+| 2.4 GHz | `<home-ssid>-2.4Ghz` | WPA2-Personal | fixed (3) | **20 MHz / "Standard"** |
+| 5 GHz | `<home-ssid>` | WPA2-Personal | fixed (non-DFS pref.) | Wide80 |
+
+> **The setting that actually fixed the 2.4 GHz dropouts: width = 20 MHz.** Our
+> channel-pinning only reduced them (~6x); the ISP set 2.4 GHz width from Auto
+> (40 MHz-capable) to 20 MHz on 2026-07-20 and the drops stopped (316 blackouts in
+> the 3 days before → ~0 after; see README RESOLUTION). 40 MHz on 2.4 GHz forces
+> the AP to periodically scan the band (40/20 coexistence), taking the radio
+> off-air — worst in the evening when the band is busy. **On any router: set 2.4
+> GHz to 20 MHz, fixed channel. Do this first.**
 
 > Both channels are manually pinned (2.4→6 on 2026-07-03, 5 GHz→44 on 2026-07-04)
 > to reduce this unit's auto-channel scans taking the radios off-air. **Pin BOTH
@@ -74,7 +82,8 @@ change this — it's an ISP-side call (ask them for a public/static IP if you ne
    → `.settings.wpaPersonalSettings.passphrase`) — you'll re-enter it on the new router.
 2. New router: set **WAN = DHCP** (default), **LAN = 192.168.1.1/24 + DHCP on**.
 3. New router WiFi: SSID `<home-ssid>`, WPA2 (or WPA2/WPA3), same passphrase,
-   2.4 GHz pinned to a fixed channel.
+   **2.4 GHz set to 20 MHz width + fixed channel** (the width is the important one
+   — see the WiFi table note above).
 4. Power off the Linksys, connect the new router's WAN port to the same ONT/handoff,
    power on.
 5. If the new router **gets a WAN IP** (check its status page shows a `100.64.x.x`
