@@ -275,3 +275,49 @@ fixes.
   framework consistency.
 - ADR-052 moves `proposed` → `accepted` on human sign-off; this design's
   `Status` moves `draft` → `accepted` in lockstep.
+
+## Addendum — Settings touch-drag gesture audit (2026-07-24)
+
+**Status:** proposed — audit + lean only, no code changes; TASK-365 filed to implement.
+
+Human reported a Settings slider flickering during drag and asked for an audit of
+every touch-drag-gesture UI element against this design's findings. This design's
+original survey (table above) covered per-tick *animation* loops (Clock, PlaneRadar,
+VU meter, WebRadio, Weather, Game of Life, Aquarium) but never looked at
+`app/src/settings/` — a real gap, not a deliberate exclusion. Grepped `src/` for
+`isDragging`/`_dragging`/`onMove`/`TouchPhase::Move`; five touch-drag elements exist,
+all in Settings:
+
+| Element | Move-handler behaviour | Verdict |
+|---|---|---|
+| `SliderWidget::render()` (`app/src/settings/sliderWidget.h:73-115`) — 3 call sites: `displaySection.h:61` (Level), `appsSection.h:112` (WebRadio Max-vol), `appsSection.h:132` (PlaneRadar Poll-interval) | Every `onMove()` → full `render()`: `fillRect(0,rowY,275,26,BG)` then redraws label, value number, full unfilled+filled track, knob — unconditionally, every Move event. | **Same anti-pattern class as Clock's TASK-354 bug** (erase-then-redraw of pixels that didn't need to change, visible on this unbuffered SPI panel). This is the human-reported flicker. |
+| LedSection hue-strip drag (`ledSection.h`, `_hueDragging` branch) | Every Move regenerates the full 168×151 SV square (`_drawSvSquare()`, ~25k `hsvToRgb565` calls, per-row `pushImage`) + hue strip. | **Different problem shape** — every SV pixel's colour is a real function of hue, so this isn't wasted-pixel erase/redraw, it's an expensive *generation* step re-run per tick (the exact non-goal flagged in Open Question 2 above, now observed in the wild). Not delta-engine-shaped; out of scope for `withViewportRepair`/slot-diff. Flagged, not actioned. |
+| LedSection SV-square drag (`ledSection.h`, `_svDragging` branch) | `_drawSvCursor()` draws the new cursor outline, never erases the old one (`_drawSvSquare()` isn't re-run on this path). | **Opposite failure mode** — under-repaint (ghost cursor outlines accumulate), not flicker. Real bug, different class, own fix (erase old cursor rect before drawing new one, or re-run `_drawSvSquare()`'s affected rows). Flagged, not actioned. |
+| `SPickerList` scrollbar drag (`settingsWidgets.h:248-258`) | Move → full content-area `repaint()` (rows + scrollbar), but gated behind `if (newOff != _offset)`. | **Not the anti-pattern.** A changed offset means every visible row's identity actually changed — full repaint is legitimate work, not waste. No action. |
+| TimeSection city-picker scrollbar drag (`timeSection.h:206-217`, mirrors `SPickerList`) | Same shape, same gate. | Same verdict — no action. |
+
+**Lean:** fix `SliderWidget` only, using the **Clock-style discrete-slot diff**
+(`FaceFrame` mechanism), not `withViewportRepair()`. Reasoning: `withViewportRepair`
+clips SPI *writes* but — per this design's own Open Question 2 — does not cut the
+CPU cost of re-running a redraw function's shape/text list, and the slider's waste is
+almost entirely in redundant *text* redraw (label, value number) plus a background
+fill that never needed to happen, not in stray pixel writes outside a small box. The
+right fix is structural, matching how Clock stopped re-drawing static digits every
+tick: split `SliderWidget::render()` into a one-time static draw (label, called once
+on row-enter) and a `renderDynamic()` called from `onMove()`/`onRelease()` that:
+1. Caches the knob x last actually drawn; no-ops if the new knob x is unchanged
+   (finger jitter within a step currently still triggers a full row repaint).
+2. Redraws the value-number text only when the integer value changes.
+3. Redraws only the track+knob rect (`kTrackX0 - kKnobW/2 .. kTrackX1 + kKnobW/2`,
+   row height) — never the full 275 px row, never the label.
+
+This is a same-file, ~3-call-site change (`sliderWidget.h` + the three `.render()`
+call sites, which already pass `label`/`rowY`/`disabled` every time and can keep
+doing so for the one-time path). No new abstraction, no viewport helper needed —
+consistent with this design's own conclusion (Option B over Option A): extract only
+what's genuinely reusable, and a slider's discrete-value diff isn't the same shape as
+PlaneRadar's continuous-2-D dirty rect.
+
+**Not in scope for this addendum's fix:** LedSection's two findings (expensive
+per-tick SV regen; ghost-cursor under-repaint) — different bug classes, each would
+need its own design if picked up. Not blocking the slider fix.

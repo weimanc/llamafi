@@ -3172,3 +3172,52 @@ or adjust at implementation/VE pass, single constant, no design change
 needed either way. OQ4 (taskbar indicator not reflecting `isHealthy()`) is
 a separate, real, already-flagged gap in `ADR-046` — do not fix it as part
 of this task; leave for a future PM/Architect follow-up.
+
+## Open — M-DISPLAY-DELTA-COMMON settings-slider follow-up (2026-07-24)
+
+### TASK-365 — SliderWidget flicker: Clock-style discrete-slot diff for the Settings drag slider
+
+Human reported a Settings slider flickering during touch-drag and asked for an audit
+of every touch-drag-gesture UI element against ADR-052/`M-DISPLAY-DELTA-COMMON.md`
+(the erase-then-redraw-unchanged-pixels bug fixed for Clock/TASK-354 and PlaneRadar/
+TASK-358). Architect audit filed as an addendum to that design
+(`docs/architecture/designs/M-DISPLAY-DELTA-COMMON.md` §Addendum, 2026-07-24;
+cross-referenced in ADR-052's Consequences).
+
+Finding: `SliderWidget::render()` (`app/src/settings/sliderWidget.h:73-115`) runs
+unconditionally on every `onMove()` — full-row `fillRect(0,rowY,275,26,BG)` then
+redraws label, value number, full track, and knob, at whatever the touch poll rate
+is. Three call sites, all affected: `displaySection.h:61` (brightness "Level"),
+`appsSection.h:112` (WebRadio "Max vol"), `appsSection.h:132` (PlaneRadar
+"Poll: Ns"). Same anti-pattern class as the Clock bug, different data shape (a
+slider's dynamic state is knob-x + an integer value, not a discrete slot array —
+still a diff, not a viewport-repair case; see addendum's Open-Question-2 rationale
+for why `withViewportRepair()` is the wrong tool here).
+
+**Scope (per the addendum's lean):**
+1. Split `SliderWidget::render()` into a one-time static draw (label, on row-enter/
+   `init()`) and a `renderDynamic()` invoked from `onMove()`/`onRelease()`.
+2. Cache the last-drawn knob x; no-op `renderDynamic()` if the new knob x is
+   unchanged (kills redundant repaints from finger jitter within a step).
+3. Redraw the value-number text only when the integer value actually changes.
+4. Scope the track/knob redraw to `kTrackX0 - kKnobW/2 .. kTrackX1 + kKnobW/2` at
+   row height — never the full 275 px row, never the label.
+5. Update the three call sites if `render()`'s signature changes; verify none of
+   them relied on the old full-row repaint as an implicit "clear stale content"
+   (e.g. `_repaintLdrRows()`/section `repaint()` calls already handle full-row
+   clears on section entry — confirm the slider's own full-row fill isn't load-
+   bearing there before narrowing it).
+
+**Explicitly out of scope** (flagged by the addendum, own follow-ups if picked up):
+LedSection hue-strip drag's expensive per-tick SV-square regen (different problem
+shape — real per-pixel work, not waste); LedSection SV-square drag's ghost-cursor
+under-repaint bug (opposite failure mode, ledSection.h `_drawSvCursor()`).
+
+**Owner:** Developer (implementation) · **Deps:** M-DISPLAY-DELTA-COMMON addendum
+(design, this session); informed by TASK-354/358 (the Clock/PlaneRadar precedents
+this generalizes from) · **Gate:** `run/check` + DUT eyeball (BP-048 — this is a
+visual, drag the slider live and confirm no flicker) + a screendump-diff assertion
+analogous to `clock_delta_smoke.py` (steady drag motion touches only the
+track/knob region + value-number cell, not the label or background outside the
+track) · **Priority:** P2 — confirmed visible defect, not a correctness/data-loss
+bug · **Status:** open
