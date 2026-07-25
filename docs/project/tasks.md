@@ -724,6 +724,90 @@ quiet-traffic data point as if it settled anything).
     max-aircraft/radius product tradeoff at high density, or another mitigation — PM/human to
     weigh in on which candidate(s) to pursue before implementation.
 
+**Step 2 — candidate scoping (2026-07-25, same session).** Investigated each candidate the task
+brief named, plus one it didn't, all with real host-side/DUT evidence rather than guessing:
+
+- **Field-limiting query param: CONFIRMED NOT AVAILABLE.** Live `curl` against
+  `opendata.adsb.fi/api/v3/...` shows each aircraft record carries ~38 fields (full ADS-B decode:
+  `alert`/`category`/`nav_*`/`nic`/`rc`/`sil`/etc.) — the app's own `prParseStream()` filter already
+  narrows this to the 15 it needs client-side, but that's a *parse-time* filter, not a *wire* one.
+  Tried `?fields=lat,lon,gs` — server ignored it, returned the full record set unchanged. No
+  narrower endpoint or param found in `phase0-api-probe.md` or by experiment. Ruled out.
+- **Response compression (not in the original brief, found while checking the above): the server
+  DOES support it, but the client can't use it without a real lift.** `curl -H "Accept-Encoding:
+  br"` against the same JFK query returned `content-encoding: br` and a **9.2 KB body vs 56.9 KB
+  uncompressed — a 6.15x reduction**, which per the confirmed size-scaling data would very plausibly
+  collapse the failure rate back toward TASK-313's original floor. But: the vendored Arduino-ESP32
+  `HTTPClient.cpp` (`framework-arduinoespressif32/libraries/HTTPClient/src/HTTPClient.cpp:1217`)
+  **unconditionally sends `Accept-Encoding: identity;q=1,chunked;q=0.1,*;q=0`** — no user override
+  point in the library as vendored — and there's no gzip/brotli decoder anywhere in this firmware
+  today (`grep` for gzip/inflate/miniz/zlib/brotli across `app/src` — nothing). Genuinely fixing
+  this means: a library patch (this project already has a `LOCAL_PATCHES.md` precedent for
+  SpotifyArduino) to make the Accept-Encoding header overridable, PLUS a streaming decompressor
+  (brotli decode is heavier than gzip/deflate; even deflate's ~32 KB window is a lot on a device
+  that just barely fit a 264-byte addition into `cyd2usb_winamp_debug`'s DRAM budget this session —
+  see `feedback_dram_bss_static_buffers` memory note) integrated as a `Stream` adapter feeding
+  `prParseStream()`. **Real, probably the single highest-impact lever available, but a separately-
+  scoped design/task, not a TASK-361-sized change** — flagging for PM/Architect, not implementing
+  here.
+- **Smaller max-aircraft/radius preset cap (blanket product change): NOT recommended.** Would
+  reduce visibility exactly when a user would want more (watching a busy sky) — a real product
+  regression for the common case to fix a failure-mode case. Rejected as the *default* behavior.
+- **A genuinely promising angle the brief didn't name, found by checking what the app actually
+  keeps:** `prInsertNearest()` (`dataTaskStorage.cpp`) already discards everything past the nearest
+  `PR_MAX_AIRCRAFT=24` — the client **downloads and attempts to parse far more than it ever
+  displays**. Host-side radius probe at JFK: `dist=20nm→111 aircraft/56.5KB`,
+  `dist=4nm→35/16.6KB`, `dist=3nm→35/16.6KB` — a **3.4x size reduction while still returning 35
+  aircraft, comfortably over the 24-slot cap**. Same probe at LHR (quiet, current traffic) showed
+  the plateau effect too (though LHR's live count tonight is only 11-18, below the cap regardless
+  of radius — a reminder this is density-dependent, see below).
+- **Recommended primary fix: reduce the query radius on the retry attempt only, not the first
+  attempt.** Concretely: `fetchPlaneRadar()`'s existing retry (`dataTaskStorage.cpp` ~1253) requests
+  the *same* `distNm` as the first attempt; change it to request a smaller radius (e.g. capped at
+  ~10nm, or half the configured preset, whichever is smaller) on the retry only.
+  - **Why this is safe and well-targeted, not just a guess:** the retry only fires when the
+    first attempt already failed — and per the confirmed size-scaling data, first-attempt failure
+    is overwhelmingly concentrated in the *large-response* regime (HK ≤12KB: 6.5% first-fail;
+    JFK 50-66KB: 37.7% first-fail). A radius cut precisely targets the case that needs it: when
+    there's enough real density to have caused a large response in the first place, a smaller
+    radius still reliably clears the 24-aircraft display cap (per the JFK probe above); when
+    traffic is genuinely too sparse for a smaller radius to reach 24 aircraft, the first attempt
+    was almost certainly small enough to have already succeeded, so the retry path rarely
+    triggers there at all.
+  - **Why NOT a blanket radius cut:** the first attempt — the common case, ~85%+ of cycles even
+    at JFK's extreme — is completely unaffected; full-radius data, full-radius display, zero
+    product change for the vast majority of fetches. The reduction only ever applies to an
+    already-degraded cycle (one that would otherwise fall back to `PR_STALE_S` dead-reckoning) —
+    a radius-limited *fresh* frame is a strict improvement over a stale extrapolated one.
+  - **Known wrinkle, not a blocker:** the on-screen rings are drawn at the configured preset's
+    full radius regardless of what the retry actually fetched, so a radius-limited retry frame
+    could in principle show a suddenly-emptier disc near the edge on an already-rare degraded
+    cycle. Worth a VE eyeball at implementation, not a reason to hold the fix.
+- **Recommended secondary/complementary: a second retry (2 retries total, 3 attempts), specifically
+  paired with the radius cut above — not a bare 3rd same-size attempt.** Quantitative check against
+  the JFK data first, because "just add retries" alone is weaker than it looks at the extreme end:
+  at the 62KB+ bucket specifically, first-fail=51.6% (16/31) and of *those*, retry-also-failed
+  ≈68.8% (11/16) — noticeably higher than the 37.7%-ish independent-redraw rate TASK-313's own
+  0.085² model would predict, meaning retries at the **same** size are *not* fully independent
+  draws in this regime (some correlation — persistent edge/congestion state across the ~300ms
+  gap, not pure bad luck per connection). A 3rd attempt at the *same* size would only add a
+  weak, diminishing-returns benefit (~69%² ≈ 47% probability of failing all 3) while costing
+  another full TLS handshake (seconds) on an already-slow cycle. Pairing retry #2 with the radius
+  cut breaks that correlation by changing the one variable that's actually driving it (size), so
+  it isn't just "try again and hope" — it's "try again with the thing we now know reduces the
+  failure probability."
+- **Not recommending as primary: backoff/exponential delay alone.** Plausible (TASK-313's
+  Cloudflare-bot-management theory could mean closely-spaced requests get flagged harder), but
+  unconfirmed — no experiment run this session isolated retry-delay as a variable. Cheap to add
+  alongside the radius-cut retry, not worth gating the fix on its own dedicated soak first.
+
+**Recommendation for implementation, pending PM/human sign-off:** (1) keep the existing 1st retry
+at full radius as today (catches the "genuinely transient" failures at any size); (2) add a 2nd
+retry, radius-capped (~10nm or half the preset, whichever is smaller), for cycles where both the
+first attempt AND the first (full-radius) retry failed; (3) flag the compression path as a real,
+larger, separately-scoped opportunity (design doc + library patch + RAM budget review) rather than
+folding it into this task. Not yet implemented — awaiting go-ahead.
+
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
 Human request 2026-07-18. Clock canvas splits at `CLK_TAP_SPLIT_Y=120`: top tap cycles the
