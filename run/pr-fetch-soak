@@ -9,13 +9,25 @@
 # was only observed under 60-70 real aircraft; a quiet-traffic run is a valid
 # but less informative data point.
 #
-# Usage: ./run/pr-fetch-soak            # 30-min soak (default)
+# Usage: ./run/pr-fetch-soak            # 30-min soak (default), current prloc
 #        ./run/pr-fetch-soak 10         # 10-min soak
 #        MINUTES=60 ./run/pr-fetch-soak
+#        LOC_SLOT=6 LAT=22.308 LON=113.915 LABEL=HKG ./run/pr-fetch-soak 15
+#          — temporarily repoints prloc slot 6 (never 0 — that's home/weather)
+#            at a busy airport in a different timezone's daytime, so the soak
+#            isn't gated on local busy-traffic hours. Restores the slot's
+#            prior contents + original active index afterward (see the
+#            python tool's --help for the one caveat: an originally-empty
+#            slot can't be restored to empty, no clear-slot command exists).
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 MINUTES="${MINUTES:-${1:-30}}"
 PORT=$(resolve_port)
+LOC_ARGS=()
+if [ -n "${LOC_SLOT:-}" ]; then
+  LOC_ARGS=(--loc-slot "$LOC_SLOT" --lat "${LAT:?LAT required with LOC_SLOT}" \
+            --lon "${LON:?LON required with LOC_SLOT}" --label "${LABEL:-TEST}")
+fi
 
 _RC=0
 _cleanup() {
@@ -42,5 +54,6 @@ echo "[pr-fetch-soak] 3/4 — waiting ${BOOT_WAIT}s for boot + WiFi"
 sleep "$BOOT_WAIT"
 
 echo "[pr-fetch-soak] 4/4 — soaking ${MINUTES} min"
-(cd "$PIO_DIR" && "$VENV_PY" tools/pr_fetch_soak_report.py --port "$PORT" --minutes "$MINUTES") \
+(cd "$PIO_DIR" && "$VENV_PY" tools/pr_fetch_soak_report.py --port "$PORT" --minutes "$MINUTES" \
+    "${LOC_ARGS[@]}") \
   || _RC=$?

@@ -89,18 +89,68 @@ def _elapsed_bucket(ms):
     return "?"
 
 
+def _get_prloc(dut):
+    return dut.cmd("get prloc", timeout=5.0)
+
+
+def _set_prloc_slot(dut, slot, label, lat, lon):
+    r = dut.cmd(f"set prloc {slot} {label} {lat} {lon}", timeout=5.0)
+    if not r.get("ok"):
+        raise RuntimeError(f"set prloc {slot} failed: {r}")
+
+
+def _set_prloc_active(dut, slot):
+    r = dut.cmd(f"set prloc active {slot}", timeout=5.0)
+    if not r.get("ok"):
+        raise RuntimeError(f"set prloc active {slot} failed: {r}")
+
+
 def main():
     ap = make_arg_parser([], "PlaneRadar fetch-failure-rate soak (TASK-361 quantification)")
     ap.add_argument("--minutes", type=float, default=30.0)
+    ap.add_argument("--loc-slot", type=int, default=None,
+                    help="prloc slot index (1..6 — never 0, that's home/weather) to "
+                         "temporarily repoint at --lat/--lon for this soak, e.g. a busy "
+                         "airport in a different timezone's daytime. Restores the "
+                         "slot's prior contents + original active index afterward — "
+                         "EXCEPT if the slot was empty before, which can't be restored "
+                         "to empty via the serial command surface (no 'clear slot' "
+                         "verb exists); it will be left holding --label/--lat/--lon.")
+    ap.add_argument("--lat", type=float, default=None)
+    ap.add_argument("--lon", type=float, default=None)
+    ap.add_argument("--label", default="TEST", help="max 5 chars, uppercased by firmware")
     args = ap.parse_args()
+    if args.loc_slot == 0:
+        print("[pr-fetch-soak] refusing --loc-slot 0 — that's home, also drives weather")
+        sys.exit(1)
+    if args.loc_slot is not None and (args.lat is None or args.lon is None):
+        print("[pr-fetch-soak] --loc-slot requires --lat and --lon")
+        sys.exit(1)
 
     dut = Dut(args.port, args.baud)
     cycles = []          # one dict per fetch cycle (first attempt + retry if any)
     crashed = False
     pending_get_size = None      # size= from the most recent GET line (paired to the next outcome line)
     pending_get_elapsed = None   # elapsed=...ms from the same GET line
+    orig_active = None
+    orig_slot = None   # (label, lat, lon) of args.loc_slot before we overwrote it
 
     try:
+        if args.loc_slot is not None:
+            before = _get_prloc(dut)
+            orig_active = before.get("active")
+            slot_before = next((l for l in before.get("locs", []) if l["i"] == args.loc_slot), None)
+            orig_slot = (slot_before["label"], slot_before["lat"], slot_before["lon"]) \
+                if slot_before else ("", 0.0, 0.0)
+            was_empty = not orig_slot[0]
+            print(f"[pr-fetch-soak] slot {args.loc_slot} before: "
+                  f"{'EMPTY' if was_empty else orig_slot} — repointing to "
+                  f"{args.label} {args.lat},{args.lon}"
+                  + ("" if not was_empty else
+                     " (was empty — will NOT be restorable to empty, see --help)"))
+            _set_prloc_slot(dut, args.loc_slot, args.label, args.lat, args.lon)
+            _set_prloc_active(dut, args.loc_slot)
+
         if not _switch_to(dut, "PlaneRadar", timeout=15.0):
             print("[pr-fetch-soak] FAIL: could not switch to PlaneRadar")
             sys.exit(1)
@@ -162,6 +212,23 @@ def main():
     except Exception as e:
         print(f"[pr-fetch-soak] exception: {e}")
     finally:
+        if args.loc_slot is not None and orig_slot is not None:
+            try:
+                olabel, olat, olon = orig_slot
+                if olabel:
+                    _set_prloc_slot(dut, args.loc_slot, olabel, olat, olon)
+                    print(f"[pr-fetch-soak] restored slot {args.loc_slot} -> "
+                          f"{olabel} {olat},{olon}")
+                else:
+                    print(f"[pr-fetch-soak] slot {args.loc_slot} was empty before — "
+                          f"left holding {args.label} {args.lat},{args.lon} "
+                          f"(no clear-slot command exists to restore emptiness)")
+                if orig_active is not None:
+                    _set_prloc_active(dut, orig_active)
+                    print(f"[pr-fetch-soak] restored active slot -> {orig_active}")
+            except Exception as e:
+                print(f"[pr-fetch-soak] WARNING: prloc restore failed: {e} — "
+                      f"check 'get prloc' by hand")
         try:
             _restore_spotify(dut, timeout=10.0)
         except Exception:

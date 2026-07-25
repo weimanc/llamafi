@@ -654,13 +654,33 @@ quiet-traffic data point as if it settled anything).
   finding that E-92 lands ~70-90% through the body with a prompt clean EOF). Deliberately does NOT
   bucket the size-scaling verdict by `scanned` — on a failed cycle that's how far the parse got
   before truncating, not the true count, so bucketing by it would be circular.
-- **Not yet done:** an actual busy-traffic run of `run/pr-fetch-soak`. A quiet-traffic validation
-  attempt this session hit a tooling mistake (external `timeout | tail` around the soak wrapper —
-  see `feedback_no_timeout_pipe_for_soak_scripts` memory note) that raced the script's own
+- **First real soak run (2026-07-25, later same session):** a quiet-traffic validation attempt
+  initially hit a tooling mistake (external `timeout | tail` around the soak wrapper — see
+  `feedback_no_timeout_pipe_for_soak_scripts` memory note) that raced the script's own
   trap-guarded prod-restore flash and boot-looped the DUT; recovered with a plain `./run/flash`, no
-  data loss, but no usable soak data either. Next session: re-run `./run/pr-fetch-soak 30`
-  (no external `timeout` wrapper) during a real busy-traffic window, read the PRIMARY (size) table,
-  and only then scope a fix per this task's step 2 — don't skip straight to "more retries."
+  data loss. Rather than wait for London rush hour, `run/pr-fetch-soak` gained a `LOC_SLOT`/`LAT`/
+  `LON`/`LABEL` option (human's idea) that temporarily repoints one `prloc` slot at a busy airport
+  in a different timezone's daytime — adsb.fi is a global feed, so this sidesteps local
+  time-of-day entirely. Human picked slot 3 (WFD) to sacrifice temporarily; the tool reads the
+  slot's prior contents + active index first and restores both when done (confirmed correct both
+  times — 5-min validation + 30-min real run).
+  - **30-min soak at Hong Kong Intl (22.308, 113.915), 181 cycles:** first-attempt failure 10.5%,
+    final (post-retry) failure **1.1%** — close to TASK-313's original 0.47% floor, nowhere near
+    the human's reported ~36%. Size buckets (declared Content-Length, truncation-independent):
+    3000-5999B (23 cycles) 13.0%/4.3%, 6000-8999B (102 cycles) 15.7%/1.0%, 9000-11999B (56 cycles)
+    **0.0%/0.0%**. **No monotonic climb with size** — if anything the top bucket had zero
+    failures. Peak traffic reached: 18 aircraft / ~11.9 KB — well short of the human's reported
+    60-70 aircraft. Reading: either HK-area adsb.fi feeder density (crowd-sourced, not flight
+    volume) is simply weaker than the UK's near this specific point, or a different high-density
+    hub is needed to reach the 60-70-aircraft regime at all.
+  - **Working hypothesis status: NOT supported by this data** (though not fully falsified either —
+    the tested size range 3-12 KB never reached the ~20 KB+ a 60-70-aircraft response likely is).
+    Per BP-044, don't scope a "shrink the response" or "more retries" fix off this alone — it did
+    NOT reproduce the regression. Next: either catch real London rush-hour traffic directly, or
+    find/verify a similarly UK-dense hub currently in daytime (Frankfurt/Schiphol are same-ish
+    timezone as London, not a real time-of-day escape; a US/Australian hub might have worse feeder
+    density than assumed — verify density before trusting a location choice, the way this run
+    revealed HK's was lower than expected).
 
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
