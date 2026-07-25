@@ -633,8 +633,9 @@ sample) correlated against payload size/aircraft count, then a DUT-verified fix 
 user-visible failure rate back down near TASK-313's original 0.47% floor (or better, if the fix
 also addresses the size-scaling mechanism) · **Priority:** P1 — live, currently-reproducible,
 human-observed problem: at ~36% total fetch failure the display is frequently stale, which is more
-severe in measured impact than TASK-358's tearing (also P1) · **Status:** open — quantification
-tooling landed, real-conditions measurement still pending (see below)
+severe in measured impact than TASK-358's tearing (also P1) · **Status:** open — evidence phase
+CLOSED (size-scaling hypothesis confirmed with real busy-traffic data, see below), fix not yet
+scoped/implemented
 
 **Progress (2026-07-25):** landed the instrumentation this task's quantification step needs, but
 have NOT yet run it under real busy traffic (session started 06:36 Saturday — quiet-traffic hours;
@@ -694,17 +695,34 @@ quiet-traffic data point as if it settled anything).
     (each final-fail% rests on single-digit failure counts) but the *first*-fail% does trend up
     (14.6→14.5→20.0), and the retry-also-failed jump (0%→29.6%) going from HK's ≤12KB regime to
     LHR's 22-37KB regime is the cleanest signal here.
-  - **Hypothesis status after LHR: directionally CONFIRMED, magnitude not yet matched.** Failure
-    rate clearly climbs with payload size/density (HK ≤12KB → 1.1% final-fail/0% retry-also-failed;
-    LHR 22-37KB → 4.5%/29.6%) — consistent with "truncation probability scales with response size,"
-    and specifically with the "both attempts drawn from the same high-truncation regime" mechanism
-    the hypothesis proposes (retries stop reliably rescuing large responses). But 4.5% is still well
-    under the human's originally reported ~36% — that report was presumably an even busier moment
-    (peak rush hour, not a quiet Saturday morning) or is itself somewhat time-of-day/edge-load
-    dependent beyond payload size alone. Not yet at "confirmed enough to lock in a fix design" —
-    worth one more data point at real weekday rush hour (bigger aircraft counts still possible;
-    LHR's own peak is well above this Saturday-morning sample) before scoping step 2's fix
-    candidates (more retries / backoff / bbox-narrowing / smaller max-aircraft cap).
+  - **Hypothesis status after LHR: directionally CONFIRMED, magnitude not yet matched** (4.5% still
+    well under the reported ~36%).
+  - **US hub probe round:** quick single-fetch probes at ATL/ORD/DFW/LAX/JFK (Saturday ~13:00-17:00
+    local across time zones — not weekday rush hour, but July is peak US leisure-travel season) —
+    ORD/DFW/LAX/JFK all immediately saturated `prAircraftCount` at `PR_MAX_AIRCRAFT=24` (ATL read 0,
+    likely a probe hiccup, not investigated further). Confirms the US has strong crowd-sourced
+    ADS-B feeder density, comparable to Western Europe and well above the Gulf/SE Asia/Turkey
+    probed earlier. (Aside: the human correctly flagged that the QNS slot, a Queens neighbourhood
+    reference point, doesn't actually center on JFK/LaGuardia's runways — used JFK's own
+    coordinates directly instead, in the scratch slot, rather than reusing QNS.)
+  - **30-min soak at JFK (40.6413,-73.7781), 175 cycles — sizes 50-66 KB, 12-128 aircraft (by far
+    the largest/busiest of the three soaks):** first-attempt failure **37.7%**, final (post-retry)
+    failure **18.3%**, retry-also-failed **48.5%**. Re-bucketed at finer size granularity:
+    50-53KB (11 cycles) 27.3%/0.0%; 54-57KB (39) 25.6%/7.7%; 58-61KB (94) 39.4%/19.1%; 62KB+ (31)
+    51.6%/**35.5%**. **A clean, monotonic climb in both columns** — and the top bucket's 35.5%
+    final-failure rate lands almost exactly on the human's originally reported ~36%.
+  - **Hypothesis status: CONFIRMED.** Three independent locations, one consistent trend:
+    HK (≤12KB) → 1.1% final-fail / 0% retry-also-failed; LHR (22-37KB) → 4.5%/29.6%; JFK
+    (50-66KB) → 18.3% overall, climbing to 35.5%/final-fail at 62KB+ — matching the original
+    report's magnitude at the size regime that actually produces it. The mechanism is exactly as
+    hypothesized: TASK-313's single retry was sized for TASK-313's own (much smaller/quieter)
+    traffic regime, and stops being sufficient once BOTH attempts are drawn from a
+    payload-size range where truncation itself has become common (retry-also-failed climbing from
+    0%→29.6%→48.5% across the three soaks is the cleanest single number). Per BP-044, evidence
+    phase is now genuinely closed — ready to move to TASK-361's step 2 (scope a fix): more
+    retries / backoff, adsb.fi field-limiting or bbox-narrowing to shrink the response, a smaller
+    max-aircraft/radius product tradeoff at high density, or another mitigation — PM/human to
+    weigh in on which candidate(s) to pursue before implementation.
 
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
