@@ -808,6 +808,35 @@ first attempt AND the first (full-radius) retry failed; (3) flag the compression
 larger, separately-scoped opportunity (design doc + library patch + RAM budget review) rather than
 folding it into this task. Not yet implemented — awaiting go-ahead.
 
+**Host-reproducibility check (2026-07-25, same session, human's question):** re-ran TASK-313's own
+"is this device-specific" test, fresh, under today's exact JFK conditions rather than trusting the
+older characterization. Two runs **in parallel** (human's suggestion) against the identical JFK
+query, same real-time traffic:
+- **Host (plain `urllib`, `curl`-identity UA, 10s cadence, 30 cycles, sizes 51.7-57.1KB):
+  0/30 failures (0.0%).**
+- **DUT (`run/pr-fetch-soak`, same coordinates, same window, 47 cycles, overlapping sizes
+  ~50.7-57.2KB): first-attempt failure 29.8%, final (post-retry) failure 10.6%.**
+
+Same query, same moment, same response-size range, same underlying real traffic — **zero host
+failures vs. ~30% device first-attempt failures.** This is about as clean a same-conditions A/B as
+this investigation is going to get, and it reconfirms TASK-313's original root-cause finding
+(TLS-fingerprint/client-identity-keyed Cloudflare edge treatment, not a property of the response,
+network, or server) still holds at today's much larger payload sizes — the size-scaling regression
+is a property of *how much more often* the device-specific truncation fires as responses grow, not
+a sign that the mechanism itself changed. Answers the human's reproducibility question directly:
+**effectively none of this is host-reproducible; it requires the actual device's TLS stack.**
+
+**Tooling note (housekeeping, not a task-361 finding):** during this parallel run, the *previous*
+JFK soak's own restore step had printed "restored active slot -> 5" and a follow-up `get prloc`
+had confirmed `active: 5` — yet the *next* soak invocation (after several purely host-side,
+device-untouched curl/urllib commands) found the device's persisted `prActiveLoc` back at `6`. No
+device-touching action occurred in between that should have changed it. Not root-caused this
+session (possibly a `SettingsStorage::save()` durability edge case under back-to-back
+debug↔prod reflashing — unconfirmed) — re-fixed (`set prloc active 5`, verified with a second
+`get prloc` in the *same* session before reflashing prod this time) and flagged in memory
+(`feedback_no_timeout_pipe_for_soak_scripts`) as an open reliability question worth a closer look
+if it recurs, rather than assumed-fixed.
+
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
 Human request 2026-07-18. Clock canvas splits at `CLK_TAP_SPLIT_Y=120`: top tap cycles the
