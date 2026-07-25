@@ -187,17 +187,46 @@ public:
   // state). Redraws only on change; resets scroll + holds before scrolling. The
   // baked SKIN_GLYPH folds lowercase→uppercase, so callers needn't uppercase.
   void setTitle(const char* text) {
+    // M-BOOT-UI §6 / ADR-055 decision 5: while the WiFi-down override owns
+    // the marquee, remember what this caller *tried* to show (so restore
+    // is correct even for a caller that never fires again during the
+    // outage) but don't let it paint over the override.
+    if (_wifiDownOverrideActive) {
+      if (!_wifiDownStash) _wifiDownStash = (char*)malloc(sizeof(lastTitle));
+      if (_wifiDownStash) {
+        strncpy(_wifiDownStash, text, sizeof(lastTitle) - 1);
+        _wifiDownStash[sizeof(lastTitle) - 1] = '\0';
+      }
+      return;
+    }
     if (strcmp(lastTitle, text) == 0) return;
-    strncpy(lastTitle, text, sizeof(lastTitle) - 1);
-    lastTitle[sizeof(lastTitle) - 1] = '\0';
-    titleScrollOffset   = 0;
-    titleScrollDeadline = millis() + TITLE_SCROLL_HOLD_MS;
-    drawTitleText(0);
+    _forceSetTitle(text);
   }
 
   // TASK-252 — drive the title marquee scroll (WebRadio calls from its tick();
   // Spotify drives it internally via _tickMarquee in its own tick/input paths).
   void tickMarquee() { _tickMarquee(); }
+
+  // M-BOOT-UI §6 / ADR-055 decision 5 — centralized WiFi-down marquee
+  // override, driven by the loop()-level edge-triggered detector in
+  // main.cpp. No-op if already active/inactive (idempotent under repeated
+  // calls from an edge-triggered caller).
+  void showWifiDownOverride() {
+    if (_wifiDownOverrideActive) return;
+    if (!_wifiDownStash) _wifiDownStash = (char*)malloc(sizeof(lastTitle));
+    if (_wifiDownStash) {
+      strncpy(_wifiDownStash, lastTitle, sizeof(lastTitle) - 1);
+      _wifiDownStash[sizeof(lastTitle) - 1] = '\0';
+    }
+    _wifiDownOverrideActive = true;
+    _forceSetTitle("WI-FI: RECONNECTING...");
+  }
+
+  void clearWifiDownOverride() {
+    if (!_wifiDownOverrideActive) return;
+    _wifiDownOverrideActive = false;
+    _forceSetTitle(_wifiDownStash ? _wifiDownStash : "");
+  }
 
   // TASK-041 / ADR-014 A1.5 — VOLUME slider renderer.
   // percent: 0..100 → KEYFRAME_0..KEYFRAME_4; <0 → KEYFRAME_NONE.
@@ -602,6 +631,17 @@ private:
   int scrollOffset = 0;       // TASK-051c will drive; 0 = thumb at top
   int titleScrollOffset = 0;
   unsigned long titleScrollDeadline = 0;
+  // M-BOOT-UI §6 / ADR-055 decision 5: while active, setTitle() stashes
+  // every caller's intent instead of drawing — none can paint over the
+  // WiFi-down override, none need to know it exists.
+  bool _wifiDownOverrideActive = false;
+  // Lazily malloc'd (once, first outage, never freed) rather than a second
+  // static sizeof(lastTitle)-byte member — the latter overflowed
+  // cyd2usb_winamp_debug's .dram0.bss budget by more than this feature's
+  // share of it (a real implementation-time constraint the design doc
+  // didn't anticipate; full lastTitle-sized capacity is still needed for
+  // correctness — see setTitle()'s stash comment — just not as static BSS).
+  char* _wifiDownStash = nullptr;
   // Status indicator state survives a full repaint (TASK-018a). Set in
   // showDefaultScreen (PP_STOP) and printCurrentlyPlayingToScreen (PP_PLAY).
   SkinUV currentStatusUv = PP_STOP;
@@ -708,6 +748,17 @@ private:
         drawScrollThumbOnly();
       }
     }
+  }
+
+  // M-BOOT-UI §6 / ADR-055 decision 5: unconditional title paint, bypassing
+  // both the dedup and the WiFi-down guard — the two entry points that need
+  // to force new content into lastTitle regardless of either.
+  void _forceSetTitle(const char* text) {
+    strncpy(lastTitle, text, sizeof(lastTitle) - 1);
+    lastTitle[sizeof(lastTitle) - 1] = '\0';
+    titleScrollOffset   = 0;
+    titleScrollDeadline = millis() + TITLE_SCROLL_HOLD_MS;
+    drawTitleText(0);
   }
 
   void _tickMarquee() {

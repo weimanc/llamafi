@@ -2175,6 +2175,20 @@ void setup()
   ledcSetup(LED_B_CH, 5000, 8); ledcAttachPin(LED_B_PIN, LED_B_CH);
   g_ledFlow.applyMode();
 
+#ifdef WINAMP_DISPLAY
+  // M-BOOT-UI (TASK-364, ADR-055 decision 1): paint the Winamp chrome now —
+  // a flash-resident composite blit, no heap/network cost — instead of
+  // leaving the screen solid black through the WiFi/NTP phases below. This
+  // is an *additional* direct call to the renderer, not a reorder of the
+  // existing g_apps[(int)AppId::Spotify]->init() + renderTaskbar() block
+  // further down (main.cpp ~2415) — that block is unchanged, and its
+  // second pass becomes a harmless, idempotent repaint (design doc §1).
+  winampDisplay.showDefaultScreen();
+  renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
+                false, shell::activeError(), shell::activeConnecting());
+  winampDisplay.setTitle("STARTING UP...");
+#endif
+
   refreshToken[0] = '\0';
   fetchConfigFile(refreshToken, clientId, clientSecret);
 
@@ -2192,6 +2206,9 @@ void setup()
   bool wifiCredsKnown = false;
 #ifdef HARDCODED_WIFI_SSID
   wifiCredsKnown = true;
+#ifdef WINAMP_DISPLAY
+  winampDisplay.setTitle("WI-FI: CONNECTING...");  // M-BOOT-UI (TASK-364) §2
+#endif
   WiFi.persistent(true);
   WiFi.mode(WIFI_STA);
   WiFi.begin(HARDCODED_WIFI_SSID, HARDCODED_WIFI_PASS);
@@ -2202,12 +2219,20 @@ void setup()
     // also chain into the NVS/SPIFFS fallback loops below with zero resets
     // in between, so cumulative un-fed time (not any single loop's deadline)
     // is what was tripping task_wdt during a flaky-AP boot.
-    while (WiFi.status() != WL_CONNECTED && millis() < dl) { delay(250); Serial.print("."); esp_task_wdt_reset(); }
+    while (WiFi.status() != WL_CONNECTED && millis() < dl) {
+      delay(250); Serial.print("."); esp_task_wdt_reset();
+#ifdef WINAMP_DISPLAY
+      winampDisplay.tickMarquee();  // M-BOOT-UI (TASK-364) §3 Option B
+#endif
+    }
     Serial.println(); }
   wifiConnected = (WiFi.status() == WL_CONNECTED);
   if (!wifiConnected) Serial.println("[wifi] hardcoded connect failed, trying NVS");
 #endif
   if (!wifiConnected) {
+#ifdef WINAMP_DISPLAY
+    winampDisplay.setTitle("WI-FI: CONNECTING...");  // M-BOOT-UI (TASK-364) §2
+#endif
     WiFi.persistent(true);
     WiFi.mode(WIFI_STA);
     // TASK-296: driver is up after mode() — a non-empty stored SSID means NVS
@@ -2218,7 +2243,12 @@ void setup()
     WiFi.begin();  // reconnect from NVS (no args)
     { unsigned long dl = millis() + 10000;
       // TASK-288: see hardcoded-SSID loop above — feed TWDT every iteration.
-      while (WiFi.status() != WL_CONNECTED && millis() < dl) { delay(100); esp_task_wdt_reset(); } }
+      while (WiFi.status() != WL_CONNECTED && millis() < dl) {
+        delay(100); esp_task_wdt_reset();
+#ifdef WINAMP_DISPLAY
+        winampDisplay.tickMarquee();  // M-BOOT-UI (TASK-364) §3 Option B
+#endif
+      } }
     wifiConnected = (WiFi.status() == WL_CONNECTED);
   }
   if (!wifiConnected && SPIFFS.exists("/wifi_creds.json")) {
@@ -2230,18 +2260,29 @@ void setup()
         const char* pass = doc["pass"] | "";
         if (strlen(ssid) > 0) {
           wifiCredsKnown = true;  // TASK-296
+#ifdef WINAMP_DISPLAY
+          winampDisplay.setTitle("WI-FI: CONNECTING...");  // M-BOOT-UI (TASK-364) §2
+#endif
           Serial.printf("[wifi] Connecting from SPIFFS: %s\n", ssid);
           WiFi.persistent(false);  // don't corrupt NVS if creds are wrong (TASK-167)
           WiFi.mode(WIFI_STA);
           WiFi.begin(ssid, pass);
           { unsigned long dl = millis() + 30000;
             // TASK-288: see hardcoded-SSID loop above — feed TWDT every iteration.
-            while (WiFi.status() != WL_CONNECTED && millis() < dl) { delay(250); Serial.print("."); esp_task_wdt_reset(); }
+            while (WiFi.status() != WL_CONNECTED && millis() < dl) {
+              delay(250); Serial.print("."); esp_task_wdt_reset();
+#ifdef WINAMP_DISPLAY
+              winampDisplay.tickMarquee();  // M-BOOT-UI (TASK-364) §3 Option B
+#endif
+            }
             Serial.println(); }
           wifiConnected = (WiFi.status() == WL_CONNECTED);
           if (wifiConnected) {
             WiFi.persistent(true);
             WiFi.begin(ssid, pass);  // persist verified creds to NVS
+#ifdef WINAMP_DISPLAY
+            winampDisplay.setTitle("WI-FI: CONNECTING...");  // M-BOOT-UI (TASK-364) §2, re-assoc settle
+#endif
             // TASK-290: this re-begin DEAUTHS the just-verified association
             // (observed [wifi-ev] reason=8 ~150ms after GOT_IP) and the code
             // below read localIP() before re-association finished — boot
@@ -2249,7 +2290,12 @@ void setup()
             // missed its window and this SPIFFS path ran. Wait (bounded,
             // TWDT-fed per TASK-288) for the re-association to settle.
             { unsigned long dl = millis() + 15000;
-              while (WiFi.status() != WL_CONNECTED && millis() < dl) { delay(100); esp_task_wdt_reset(); } }
+              while (WiFi.status() != WL_CONNECTED && millis() < dl) {
+                delay(100); esp_task_wdt_reset();
+#ifdef WINAMP_DISPLAY
+                winampDisplay.tickMarquee();  // M-BOOT-UI (TASK-364) §3 Option B
+#endif
+              } }
             wifiConnected = (WiFi.status() == WL_CONNECTED);
             Serial.println("[wifi] SPIFFS credentials saved to NVS");
           } else {
@@ -2262,6 +2308,9 @@ void setup()
   }
 
   if (wifiConnected) {
+#ifdef WINAMP_DISPLAY
+    winampDisplay.setTitle("WI-FI: CONNECTED");  // M-BOOT-UI (TASK-364) §2
+#endif
     // TASK-272: disable modem power-save. With the default WIFI_PS_MIN_MODEM the
     // radio dozes after idle periods; the first TCP connect after ~30-45 s of
     // network quiet then fails with EHOSTUNREACH (errno 118) for tens of seconds
@@ -2282,6 +2331,9 @@ void setup()
     // link self-heals when the AP settles.
     WiFi.setAutoReconnect(true);
     wifiDiag::superviseArm();
+#ifdef WINAMP_DISPLAY
+    winampDisplay.setTitle("WI-FI: RETRY IN BG");  // M-BOOT-UI (TASK-364) §2
+#endif
     Serial.println("[wifi] connect failed with stored credentials — reconnect + supervisor armed");
   } else {
     // Leave WiFi in a clean disconnected STA state so WifiSection scan works.
@@ -2289,6 +2341,9 @@ void setup()
     // so the subsequent scanNetworks() call is not blocked by a reconnect loop.
     WiFi.setAutoReconnect(false);
     WiFi.disconnect(false);
+#ifdef WINAMP_DISPLAY
+    winampDisplay.setTitle("WI-FI SETUP NEEDED");  // M-BOOT-UI (TASK-364) §2
+#endif
     Serial.println("[wifi] no credentials — will open WiFi settings after init");
   }
   mb_heap_probe("post-wifi");  // TASK-261 Phase 0 milestone M1
@@ -2305,12 +2360,18 @@ void setup()
   // WIRE2-G1: apply the persisted TZ rule at boot (SettingsStorage::load()
   // ran above) instead of hardcoded UTC; fresh device defaults to "UTC0" —
   // identical behaviour. The epoch wait below is TZ-independent.
+#ifdef WINAMP_DISPLAY
+  winampDisplay.setTitle("TIME: SYNCING...");  // M-BOOT-UI (TASK-364) §2
+#endif
   configTzTime(g_settings.posixTz, "pool.ntp.org", "time.google.com", "time.cloudflare.com");
   unsigned long ntpStart = millis();
   unsigned long ntpDeadline = ntpStart + 5000;
   while (time(nullptr) < 1700000000UL && millis() < ntpDeadline) {
     delay(50);
     yield();
+#ifdef WINAMP_DISPLAY
+    winampDisplay.tickMarquee();  // M-BOOT-UI (TASK-364) §3 Option B
+#endif
   }
   time_t now = time(nullptr);
   if (now >= 1700000000UL) {
@@ -2318,6 +2379,9 @@ void setup()
   } else {
     Serial.printf("[time] NTP sync failed after %lums, trying HTTPS-Date fallback\n",
                   millis() - ntpStart);
+#ifdef WINAMP_DISPLAY
+    winampDisplay.setTitle("TIME: HTTPS FALLBACK...");  // M-BOOT-UI (TASK-364) §2
+#endif
     time_t httpsT;
     if (fetchHttpsDate("connectivitycheck.gstatic.com", httpsT)) {
       struct timeval tv = {httpsT, 0};
@@ -3884,6 +3948,32 @@ void loop()
   // while Settings is foreground: WifiSection's scan flow owns the radio and
   // deliberately runs with auto-reconnect off.
   if (currentAppId != AppId::Settings) wifiDiag::superviseTick();
+#ifdef WINAMP_DISPLAY
+  // M-BOOT-UI §6 (TASK-364, ADR-055 decision 5): whole-session background
+  // WiFi-reconnect status on the title marquee. Self-contained edge-trigger
+  // (deliberately not wifiDiag::superviseTick()'s lastDiscMs anchor — a
+  // fresh local anchor sidesteps that staleness class of bug for free, per
+  // design doc §6 Q3). Co-located with, and gated by the exact same
+  // condition as, superviseTick() above (X042, load-bearing per §6 Q4):
+  // Settings already owns and repaints this whole screen region, so an
+  // ungated override would blit stray marquee text over the Settings UI.
+  if (currentAppId != AppId::Settings) {
+    static uint32_t s_wifiDownSinceMs = 0;
+    // OQ5: proposed starting point, not DUT-pinned — VE/DUT to tune, a
+    // single adjustable constant.
+    constexpr uint32_t WIFI_DOWN_MARQUEE_THRESHOLD_MS = 10000;
+    if (WiFi.status() != WL_CONNECTED) {
+      if (s_wifiDownSinceMs == 0) {
+        s_wifiDownSinceMs = millis();
+      } else if (millis() - s_wifiDownSinceMs >= WIFI_DOWN_MARQUEE_THRESHOLD_MS) {
+        winampDisplay.showWifiDownOverride();
+      }
+    } else if (s_wifiDownSinceMs != 0) {
+      s_wifiDownSinceMs = 0;
+      winampDisplay.clearWifiDownOverride();
+    }
+  }
+#endif
   esp_task_wdt_reset();   // WDT safety: reset after serial+logsink, before appTick
 #ifdef SCREEN_LOG
   { unsigned long _t = millis(); screenlog::tick(spotifyDisplay);

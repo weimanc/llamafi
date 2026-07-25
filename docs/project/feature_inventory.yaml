@@ -1950,8 +1950,8 @@ features:
 
   - id: boot-ui-001
     name: Chrome-first boot + title-marquee status (boot progress + whole-session WiFi health)
-    milestone: M-BOOT-UI (reserved, not yet scheduled)
-    status: planned
+    milestone: M-BOOT-UI
+    status: implemented
     description: |
       Reserved at design time (Architect registry remit) — not yet
       implemented. Paints the Winamp skin chrome (winampDisplay.
@@ -1981,18 +1981,29 @@ features:
       already uses (main.cpp:3886) — load-bearing, not cosmetic: Settings
       already repaints that whole pixel region itself (full-screen canvas
       convention), so an ungated override would corrupt the Settings UI.
-    git_ref: —
+    git_ref: "TASK-364 (2026-07-25)"
     files:
       - app/src/main.cpp
       - app/src/winamp/winampDisplay.h
     cross_features: [chrome-001, wifi-001, time-001, wifi-diag-001]
     test_ids: []
     notes: |
-      Design: docs/architecture/designs/M-BOOT-UI.md (draft). Feeds ADR-055
-      (proposed). Matrix edges X039-X042. Reserved 2026-07-19; Developer
-      completes/corrects this entry (git_ref, files, test_ids) at
-      implementation — per architect.md's registry-reservation protocol, a
-      design reserves, Developer completes at implementation.
+      Design: docs/architecture/designs/M-BOOT-UI.md. Feeds ADR-055
+      (accepted 2026-07-20). Matrix edges X039-X042. Implemented 2026-07-25
+      (TASK-364): early winampDisplay.showDefaultScreen()+renderTaskbar()
+      call site in setup() (before fetchConfigFile()/wifiDiag::begin());
+      setTitle() calls at all WiFi/NTP phase-transition points + the
+      connected/retry-in-background/no-credentials outcomes;
+      tickMarquee() riding the existing esp_task_wdt_reset()/yield()
+      per-iteration hooks in the WiFi/NTP wait loops; the setTitle()
+      stash-and-restore guard (_wifiDownOverrideActive/_wifiDownStash) plus
+      showWifiDownOverride()/clearWifiDownOverride() in winampDisplay.h;
+      and the loop()-level edge-triggered WiFi-down detector (10s threshold,
+      OQ5 — DUT-tunable single constant), co-located with and gated
+      identically to wifiDiag::superviseTick()'s currentAppId !=
+      AppId::Settings condition. test_ids empty pending VE's DUT pass (all
+      Exit Criteria in the design doc are DUT-only, no host-only substitute
+      per the task brief).
 
   - id: wifi-diag-001
     name: WiFi link-event diagnostics + background reconnect supervisor

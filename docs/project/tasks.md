@@ -3163,8 +3163,34 @@ mid-session — similar footing to TASK-363, not a live crash/regression)
 ~4 `tickMarquee()` insertions, one new guard clause + two thin wrapper
 methods on `WinampDisplay`, one new `loop()`-level detector block — small
 per-piece, five pieces plus a wide DUT exit-criteria list) · **Status:**
-open · **DUT:** required (all Exit Criteria above are DUT checks; no
-host-only substitute)
+implemented, DUT partial (see below) · **DUT:** required (all Exit Criteria
+above are DUT checks; no host-only substitute)
+
+**Implementation note (2026-07-25):** all five pieces landed as specified.
+One implementation-time finding not anticipated by the design doc: the new
+`_wifiDownStash` buffer (§6, sized `sizeof(lastTitle)` = 264 B) as a second
+static member on the global `winampDisplay` overflowed
+`cyd2usb_winamp_debug`'s `.dram0.bss` budget by 184 B (prod `cyd2usb_winamp`
+built fine — debug has less static-RAM slack). Fixed by lazily
+`malloc()`-ing that buffer once (first outage, never freed) instead of a
+static array — same full capacity/correctness, moves the cost off the
+static budget. `./run/check` 6/6 green.
+
+DUT coverage so far: fresh-boot serial capture confirms the early paint
+fires before `fetchConfigFile()`/WiFi (a `[D][chrome] drawVolume` line
+appears immediately after `TouchCalStorage::load()`'s print, well before
+`reading config file`), the existing `main.cpp:2415-2422` second pass is
+harmless/idempotent, boot into WebRadio mode hands off cleanly with no
+stale boot-status artifact (screendump confirmed), and the smoke test suite
+(`./run/test-smoke`) passed with production firmware restored afterward.
+**Not yet DUT-verified** (need either a real AP outage or deliberately-wrong
+credentials, deferred by human decision this session): the forced
+full-fallback-cascade boot, and the §6 mid-session background-reconnect
+scenarios (non-Spotify/non-WebRadio foreground, Spotify-foreground
+unchanged-track restore, WebRadio-foreground ICY-mid-outage, and
+Settings-foreground suppression). OQ5's 10 s threshold is unchanged
+(not DUT-tuned this session). Follow-up VE pass needed to close out the
+remaining Exit Criteria before this task is fully `closed`.
 
 Note for implementer: OQ5 (10s down-threshold before showing the
 reconnect override) is a proposed starting point, not DUT-tuned — confirm

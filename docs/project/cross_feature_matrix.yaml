@@ -840,7 +840,8 @@ interactions:
     test_coverage: []
     notes: |
       Reserved 2026-07-19 at design time (docs/architecture/designs/
-      M-BOOT-UI.md, Architect registry remit; feeds ADR-055, proposed).
+      M-BOOT-UI.md, Architect registry remit; feeds ADR-055, accepted
+      2026-07-20). Implemented 2026-07-25 (TASK-364).
 
   - id: X040
     feature_a: boot-ui-001
@@ -860,7 +861,8 @@ interactions:
     test_coverage: []
     notes: |
       Reserved 2026-07-19 at design time (docs/architecture/designs/
-      M-BOOT-UI.md, Architect registry remit; feeds ADR-055, proposed).
+      M-BOOT-UI.md, Architect registry remit; feeds ADR-055, accepted
+      2026-07-20). Implemented 2026-07-25 (TASK-364).
 
   - id: X041
     feature_a: boot-ui-001
@@ -876,7 +878,8 @@ interactions:
     test_coverage: []
     notes: |
       Reserved 2026-07-19 at design time (docs/architecture/designs/
-      M-BOOT-UI.md, Architect registry remit; feeds ADR-055, proposed).
+      M-BOOT-UI.md, Architect registry remit; feeds ADR-055, accepted
+      2026-07-20). Implemented 2026-07-25 (TASK-364).
 
   - id: X042
     feature_a: boot-ui-001
@@ -896,7 +899,11 @@ interactions:
     test_coverage: []
     notes: |
       Reserved 2026-07-19 at design time (docs/architecture/designs/
-      M-BOOT-UI.md §6, Architect registry remit; feeds ADR-055, proposed).
+      M-BOOT-UI.md §6, Architect registry remit; feeds ADR-055, accepted
+      2026-07-20). Implemented 2026-07-25 (TASK-364): the loop()-level
+      detector co-located with the wifiDiag::superviseTick() call site in
+      main.cpp, sharing its exact `if (currentAppId != AppId::Settings)`
+      guard.
       risk: medium (not low, unlike X039-X041) specifically because this
       coordination is enforced by convention/comment, not a shared constant
       or function both sides call — flagged for VE to add as a regression
