@@ -1981,7 +1981,7 @@ features:
       already uses (main.cpp:3886) — load-bearing, not cosmetic: Settings
       already repaints that whole pixel region itself (full-screen canvas
       convention), so an ungated override would corrupt the Settings UI.
-    git_ref: "TASK-364 (2026-07-25)"
+    git_ref: "fc39056 (TASK-364, 2026-07-25)"
     files:
       - app/src/main.cpp
       - app/src/winamp/winampDisplay.h
