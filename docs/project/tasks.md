@@ -633,7 +633,34 @@ sample) correlated against payload size/aircraft count, then a DUT-verified fix 
 user-visible failure rate back down near TASK-313's original 0.47% floor (or better, if the fix
 also addresses the size-scaling mechanism) · **Priority:** P1 — live, currently-reproducible,
 human-observed problem: at ~36% total fetch failure the display is frequently stale, which is more
-severe in measured impact than TASK-358's tearing (also P1) · **Status:** open
+severe in measured impact than TASK-358's tearing (also P1) · **Status:** open — quantification
+tooling landed, real-conditions measurement still pending (see below)
+
+**Progress (2026-07-25):** landed the instrumentation this task's quantification step needs, but
+have NOT yet run it under real busy traffic (session started 06:36 Saturday — quiet-traffic hours;
+human decision this session was to land the tooling now rather than fabricate a low-value
+quiet-traffic data point as if it settled anything).
+
+- `dataTaskStorage.cpp`: `prFetchOnce()`/`prParseStream()` now report the declared HTTP
+  Content-Length (`http.getSize()`, truthful even on a truncated body — set by the origin before
+  Cloudflare's edge can cut the connection) and the true "ac"-array object count scanned this
+  attempt (independent of the `PR_MAX_AIRCRAFT=24` kept-count cap) via new `size=`/`scanned=`
+  fields on the existing `[dataTask.planeradar]` log lines. Diagnostic-only — no behavior change,
+  `./run/check` 6/6 green.
+- New `app/tools/pr_fetch_soak_report.py` + `run/pr-fetch-soak [minutes]`: switches to PlaneRadar,
+  watches the log for a soak window, and buckets first-attempt/final failure rate by declared size
+  (primary — truncation-independent, the real size-scaling test) and by GET elapsed time (secondary
+  — tells a time-based edge cutoff apart from a body-fraction-based one, per TASK-313's archived
+  finding that E-92 lands ~70-90% through the body with a prompt clean EOF). Deliberately does NOT
+  bucket the size-scaling verdict by `scanned` — on a failed cycle that's how far the parse got
+  before truncating, not the true count, so bucketing by it would be circular.
+- **Not yet done:** an actual busy-traffic run of `run/pr-fetch-soak`. A quiet-traffic validation
+  attempt this session hit a tooling mistake (external `timeout | tail` around the soak wrapper —
+  see `feedback_no_timeout_pipe_for_soak_scripts` memory note) that raced the script's own
+  trap-guarded prod-restore flash and boot-looped the DUT; recovered with a plain `./run/flash`, no
+  data loss, but no usable soak data either. Next session: re-run `./run/pr-fetch-soak 30`
+  (no external `timeout` wrapper) during a real busy-traffic window, read the PRIMARY (size) table,
+  and only then scope a fix per this task's step 2 — don't skip straight to "more retries."
 
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 

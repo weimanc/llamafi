@@ -1136,7 +1136,15 @@ static void prInsertNearest(PrAircraft* kept, uint8_t& keptCount, uint8_t cap, c
 // independent of aircraft count — see ADR-048). Returns 0 on success (result
 // aircraft/count filled), or a negative internal error code (see dataTask.h's
 // PlaneRadarResult comment for the code list) with 'result' left at defaults.
-static int prParseStream(Stream& stream, PlaneRadarResult& result) {
+// TASK-361: 'scanned' (out) is the count of "ac" array objects this attempt
+// fully deserialized before returning — on success it's the true traffic
+// density (unlike result.count, which is capped at PR_MAX_AIRCRAFT by the
+// nearest-first insert); on a mid-array parse failure it's how far the
+// attempt got before truncation. Diagnostic-only — not consumed by render
+// logic, just logged, so a busy-traffic soak can correlate failure rate
+// against real payload size instead of guessing from HTTP code alone.
+static int prParseStream(Stream& stream, PlaneRadarResult& result, uint16_t& scanned) {
+    scanned = 0;
     // Scan for "ac" key then its '['.
     const char* pat = "\"ac\"";
     int pi = 0, c;
@@ -1163,17 +1171,18 @@ static int prParseStream(Stream& stream, PlaneRadarResult& result) {
     // crypto/heatmap tenants of the same region.
     BasicJsonDocument<StaticRegionAllocator> doc(
         4096, StaticRegionAllocator{MEM_planeradar_doc, 4096u});
-    uint8_t n = 0;
+    uint16_t n = 0;
     for (;;) {
         do { c = stream.read(); } while (c != -1 && (isspace(c) || c == ','));
         if (c == ']') break;
-        if (c == -1) return -114;      // truncated mid-array
-        if (c != '{') return -115;     // unexpected byte
+        if (c == -1) { scanned = n; return -114; }      // truncated mid-array
+        if (c != '{') { scanned = n; return -115; }     // unexpected byte
         PrStreamPrepend pr('{', stream);
         DeserializationError err = deserializeJson(doc, pr,
                                        DeserializationOption::Filter(filter));
         if (err) {
             LOG_W("dataTask.planeradar", "parse error at object %u: %s", n, err.c_str());
+            scanned = n;
             return -90 - (int)err.code();
         }
         PrAircraft ac{};
@@ -1182,6 +1191,7 @@ static int prParseStream(Stream& stream, PlaneRadarResult& result) {
         n++;
     }
     result.ok = true;
+    scanned = n;
     return 0;
 }
 
@@ -1194,7 +1204,8 @@ static int prParseStream(Stream& stream, PlaneRadarResult& result) {
 // can gate the retry on exactly "code==200 but parse failed" without
 // inferring it from errorCode's sign (which parse errors and non-200 codes
 // can both produce).
-static int prFetchOnce(const char* url, PlaneRadarResult& r) {
+static int prFetchOnce(const char* url, PlaneRadarResult& r, uint16_t& scanned) {
+    scanned = 0;
     WiFiClientSecure tls;
     tls.setCACert(PLANERADAR_ROOT_CA);
     HTTPClient http;
@@ -1206,7 +1217,13 @@ static int prFetchOnce(const char* url, PlaneRadarResult& r) {
     }
     unsigned long t0 = millis();
     int code = http.GET();
-    LOG_D("dataTask.planeradar", "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
+    // TASK-361: declared Content-Length alongside the existing timing log —
+    // http.useHTTP10(true) forces identity encoding (no chunked transfer), so
+    // this is a real byte count, not -1. Lets a soak correlate truncation
+    // against response size instead of guessing from HTTP code alone.
+    int declaredSize = http.getSize();
+    LOG_D("dataTask.planeradar", "GET %d elapsed=%lums size=%d",
+          code, (unsigned long)(millis() - t0), declaredSize);
     if (code != 200) {
         // Distinct, unmolested HTTP code (incl. 429) reaches the app — the
         // phase-0 limit probe measured ~33% 429s at the nominal 1 req/s
@@ -1218,7 +1235,7 @@ static int prFetchOnce(const char* url, PlaneRadarResult& r) {
         http.end();
         return code;
     }
-    int rc = prParseStream(http.getStream(), r);
+    int rc = prParseStream(http.getStream(), r, scanned);
     http.end();
     if (rc != 0) { r.ok = false; r.errorCode = rc; r.count = 0; }
     return code;
@@ -1240,7 +1257,8 @@ static void fetchPlaneRadar() {
              PLANERADAR_URL_BASE, lat, lon, distNm);
 
     PlaneRadarResult r;
-    int code = prFetchOnce(url, r);
+    uint16_t scanned = 0;
+    int code = prFetchOnce(url, r, scanned);
 
     // TASK-313: adsb.fi (Cloudflare-fronted) prompt-clean-EOFs mid-body on
     // ~9% of fetches (evidence phase — TLS-fingerprint edge treatment, not a
@@ -1251,18 +1269,24 @@ static void fetchPlaneRadar() {
     // code (incl. 429) or a connect/begin failure — those stay
     // skip-don't-retry per prFetchOnce's comment.
     if (code == 200 && !r.ok) {
-        LOG_D("dataTask.planeradar", "parse rc=%d -> retry", r.errorCode);
+        LOG_D("dataTask.planeradar", "parse rc=%d scanned=%u -> retry", r.errorCode, (unsigned)scanned);
         vTaskDelay(pdMS_TO_TICKS(300));
         PlaneRadarResult retryResult;   // fresh result — no stale partial state
-        prFetchOnce(url, retryResult);
-        LOG_D("dataTask.planeradar", "retry ok=%d rc=%d",
-              (int)retryResult.ok, retryResult.errorCode);
+        uint16_t retryScanned = 0;
+        prFetchOnce(url, retryResult, retryScanned);
+        LOG_D("dataTask.planeradar", "retry ok=%d rc=%d scanned=%u",
+              (int)retryResult.ok, retryResult.errorCode, (unsigned)retryScanned);
         r = retryResult;   // second attempt's outcome (success or error) wins
+        scanned = retryScanned;
     }
 
     r.epoch = epoch;   // VE-PRL-6: echo the snapshot taken at enqueue time, not a later one
-    LOG_D("dataTask.planeradar", "ok=%d errorCode=%d count=%u epoch=%u",
-          (int)r.ok, r.errorCode, (unsigned)r.count, (unsigned)r.epoch);
+    // TASK-361: 'scanned' is this cycle's FINAL attempt's true "ac" object
+    // count (see prParseStream) — on success it's real traffic density
+    // uncapped by PR_MAX_AIRCRAFT; on failure it's how far the parse got.
+    // Diagnostic-only, not otherwise consumed.
+    LOG_D("dataTask.planeradar", "ok=%d errorCode=%d count=%u scanned=%u epoch=%u",
+          (int)r.ok, r.errorCode, (unsigned)r.count, (unsigned)scanned, (unsigned)r.epoch);
 
     portENTER_CRITICAL_SAFE(&s_planeRadarMux);
     s_planeRadarResult = r;
