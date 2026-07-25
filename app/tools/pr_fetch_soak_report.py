@@ -119,12 +119,20 @@ def main():
     ap.add_argument("--lat", type=float, default=None)
     ap.add_argument("--lon", type=float, default=None)
     ap.add_argument("--label", default="TEST", help="max 5 chars, uppercased by firmware")
+    ap.add_argument("--active-slot", type=int, default=None,
+                    help="switch to an EXISTING, already-saved prloc slot for this soak — "
+                         "no content overwrite, just the active index, restored afterward. "
+                         "Safer than --loc-slot when the location you want is already saved "
+                         "(e.g. an LHR/airport slot). Mutually exclusive with --loc-slot.")
     args = ap.parse_args()
-    if args.loc_slot == 0:
-        print("[pr-fetch-soak] refusing --loc-slot 0 — that's home, also drives weather")
+    if args.loc_slot == 0 or args.active_slot == 0:
+        print("[pr-fetch-soak] refusing slot 0 — that's home, also drives weather")
         sys.exit(1)
     if args.loc_slot is not None and (args.lat is None or args.lon is None):
         print("[pr-fetch-soak] --loc-slot requires --lat and --lon")
+        sys.exit(1)
+    if args.loc_slot is not None and args.active_slot is not None:
+        print("[pr-fetch-soak] --loc-slot and --active-slot are mutually exclusive")
         sys.exit(1)
 
     dut = Dut(args.port, args.baud)
@@ -150,6 +158,13 @@ def main():
                      " (was empty — will NOT be restorable to empty, see --help)"))
             _set_prloc_slot(dut, args.loc_slot, args.label, args.lat, args.lon)
             _set_prloc_active(dut, args.loc_slot)
+
+        if args.active_slot is not None:
+            before = _get_prloc(dut)
+            orig_active = before.get("active")
+            print(f"[pr-fetch-soak] switching active slot {orig_active} -> {args.active_slot} "
+                  f"(no content changed, just the active index)")
+            _set_prloc_active(dut, args.active_slot)
 
         if not _switch_to(dut, "PlaneRadar", timeout=15.0):
             print("[pr-fetch-soak] FAIL: could not switch to PlaneRadar")
@@ -228,6 +243,13 @@ def main():
                     print(f"[pr-fetch-soak] restored active slot -> {orig_active}")
             except Exception as e:
                 print(f"[pr-fetch-soak] WARNING: prloc restore failed: {e} — "
+                      f"check 'get prloc' by hand")
+        elif args.active_slot is not None and orig_active is not None:
+            try:
+                _set_prloc_active(dut, orig_active)
+                print(f"[pr-fetch-soak] restored active slot -> {orig_active}")
+            except Exception as e:
+                print(f"[pr-fetch-soak] WARNING: active-slot restore failed: {e} — "
                       f"check 'get prloc' by hand")
         try:
             _restore_spotify(dut, timeout=10.0)

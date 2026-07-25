@@ -19,6 +19,11 @@
 #            prior contents + original active index afterward (see the
 #            python tool's --help for the one caveat: an originally-empty
 #            slot can't be restored to empty, no clear-slot command exists).
+#        ACTIVE_SLOT=4 ./run/pr-fetch-soak 30
+#          — switches to an EXISTING, already-saved slot (e.g. a saved
+#            airport) for the soak, no content overwrite at all, just the
+#            active index — restored afterward. Prefer this over LOC_SLOT
+#            whenever the location you want is already saved.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 MINUTES="${MINUTES:-${1:-30}}"
@@ -27,6 +32,8 @@ LOC_ARGS=()
 if [ -n "${LOC_SLOT:-}" ]; then
   LOC_ARGS=(--loc-slot "$LOC_SLOT" --lat "${LAT:?LAT required with LOC_SLOT}" \
             --lon "${LON:?LON required with LOC_SLOT}" --label "${LABEL:-TEST}")
+elif [ -n "${ACTIVE_SLOT:-}" ]; then
+  LOC_ARGS=(--active-slot "$ACTIVE_SLOT")
 fi
 
 _RC=0

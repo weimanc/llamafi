@@ -673,14 +673,38 @@ quiet-traffic data point as if it settled anything).
     60-70 aircraft. Reading: either HK-area adsb.fi feeder density (crowd-sourced, not flight
     volume) is simply weaker than the UK's near this specific point, or a different high-density
     hub is needed to reach the 60-70-aircraft regime at all.
-  - **Working hypothesis status: NOT supported by this data** (though not fully falsified either —
-    the tested size range 3-12 KB never reached the ~20 KB+ a 60-70-aircraft response likely is).
-    Per BP-044, don't scope a "shrink the response" or "more retries" fix off this alone — it did
-    NOT reproduce the regression. Next: either catch real London rush-hour traffic directly, or
-    find/verify a similarly UK-dense hub currently in daytime (Frankfurt/Schiphol are same-ish
-    timezone as London, not a real time-of-day escape; a US/Australian hub might have worse feeder
-    density than assumed — verify density before trusting a location choice, the way this run
-    revealed HK's was lower than expected).
+  - **Working hypothesis status after HK: NOT supported by this data** (though not fully falsified
+    either — the tested size range 3-12 KB never reached the ~20 KB+ a 60-70-aircraft response
+    likely is). Per BP-044, don't scope a fix off this alone.
+  - **Density-probe round (same session):** before committing another 30-min soak to a guess,
+    quick single-fetch probes (`prAircraftCount` after `set triggerPlaneRadarFetch 1`) at Dubai,
+    Singapore, Doha, Istanbul, and Amsterdam/Schiphol — all much lower than expected (DXB≈0,
+    SIN≈4, DOH≈0, IST≈6, AMS≈18), confirming (independent of raw flight volume) that adsb.fi's
+    crowd-sourced feeder density is concentrated in Western Europe/UK, not matched by Gulf/SE
+    Asia/Turkey. A non-destructive check of the ALREADY-SAVED LHR slot (just switching the active
+    index, no content write) showed **23-24 aircraft at 07:45 on a quiet Saturday morning** —
+    already denser than Hong Kong's 30-min peak. `pr_fetch_soak_report.py` gained `--active-slot`
+    (and `run/pr-fetch-soak`'s `ACTIVE_SLOT=`) for exactly this case: reuse an already-saved slot,
+    switch only the active index, zero content risk.
+  - **30-min soak at LHR (slot 4, already saved), 179 cycles — sizes 22-37 KB, 9-66 aircraft:**
+    first-attempt failure **15.1%**, final (post-retry) failure **4.5%** — a real step up from HK's
+    1.1%, and the retry itself started failing meaningfully: **29.6% of retries also failed**
+    (vs 0% at HK). Re-bucketing the same log at finer size granularity: 20-24KB (5 cycles, too few)
+    0%/0%; 24-28KB (89) 14.6%/4.5%; 28-32KB (55) 14.5%/5.5%; 32KB+ (30) 20.0%/3.3% — noisy per-bucket
+    (each final-fail% rests on single-digit failure counts) but the *first*-fail% does trend up
+    (14.6→14.5→20.0), and the retry-also-failed jump (0%→29.6%) going from HK's ≤12KB regime to
+    LHR's 22-37KB regime is the cleanest signal here.
+  - **Hypothesis status after LHR: directionally CONFIRMED, magnitude not yet matched.** Failure
+    rate clearly climbs with payload size/density (HK ≤12KB → 1.1% final-fail/0% retry-also-failed;
+    LHR 22-37KB → 4.5%/29.6%) — consistent with "truncation probability scales with response size,"
+    and specifically with the "both attempts drawn from the same high-truncation regime" mechanism
+    the hypothesis proposes (retries stop reliably rescuing large responses). But 4.5% is still well
+    under the human's originally reported ~36% — that report was presumably an even busier moment
+    (peak rush hour, not a quiet Saturday morning) or is itself somewhat time-of-day/edge-load
+    dependent beyond payload size alone. Not yet at "confirmed enough to lock in a fix design" —
+    worth one more data point at real weekday rush hour (bigger aircraft counts still possible;
+    LHR's own peak is well above this Saturday-morning sample) before scoping step 2's fix
+    candidates (more retries / backoff / bbox-narrowing / smaller max-aircraft cap).
 
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
