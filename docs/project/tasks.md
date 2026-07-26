@@ -909,15 +909,37 @@ condition specifically has now failed twice today at comparable-or-larger sizes,
 sessions/times. Whether that's Cloudflare's treatment of this device improving over time, genuine
 random day-to-day edge variance, or something else entirely — unresolved, would need many more
 soaks across many more days to characterize.
-· **Status:** fix implemented and shipped (safe, gated, gone through `./run/check` and 5 live
-soaks with zero crashes/regressions) — but its actual benefit remains **unverified by live
-testing**, because the specific failure mode it targets (1st retry also failing) has not
-reproduced on demand since the original 2026-07-25 evidence-gathering session, despite two
-same-day attempts at matching/exceeding sizes. Recommend: leave the fix in place (it's a pure
-win when the condition it targets does occur, and a no-op otherwise, so there's no downside to
-having it live), and revisit if/when the original ~30-35% final-failure-rate symptom is
-observed again in real usage — at that point, checking whether the new retry engages (grep serial
-log for `radius-capped`/`retry2`) will settle whether it's actually helping.
+**Code review + fault-injection hook (2026-07-26, human asked "what's the condition to reach the
+new code path, is it unreachable").** Traced the exact gate by hand: `code == 200 && !r.ok`
+(1st attempt) then `retryCode == 200 && !retryResult.ok` (1st retry) — straight-line code, no
+early-return between the two checks, `PlaneRadarResult.ok` correctly defaults `false` and is only
+set `true` on a fully clean parse. **Confirmed reachable, not dead code** — this exact condition
+occurred for real yesterday (JFK's 62KB+ bucket: 68.8% retry-also-failed). The three same-day
+soaks simply never happened to redraw it live.
+
+Added a VE fault-injection hook so this doesn't have to wait on lucky/unlucky real traffic again:
+`dataTask::debugForcePlaneRadarParseFail(n)` / `debugPeekForcedParseFailCount()`
+(`dataTask.h`/`dataTaskStorage.cpp`, cross-task via a dedicated spinlock, same discipline as
+`debugInjectGeocode`/`debugInjectWebRadioResult`), wired to `set prForceParseFail <n>` /
+`get prForceParseFail` via `PlaneRadarApp::dbgSet`/`dbgGet`. `prFetchOnce()` consumes one credit
+per call when armed, bypassing the network and returning a synthetic `200`/`errorCode=-92`
+(matching the real observed IncompleteInput code) — `n=2` forces attempts 1-2 so retry2 hits the
+real network; `n=3` exercises the full give-up path. `./run/check` 6/6 green.
+
+**DUT-verified live**, `set prForceParseFail 2` + `triggerPlaneRadarFetch 1`, exact log sequence:
+`FORCED synthetic parse failure` → `parse rc=-92 ... -> retry` → `FORCED synthetic parse failure`
+→ `retry ok=0 rc=-92` → **`retry also failed rc=-92 -> radius-capped retry2 distNm=9.9`** →
+real `GET 200` → `retry2 ok=1 rc=0`. Counter correctly consumed to 0 afterward (`get
+prForceParseFail` confirmed). **This settles the code-review question definitively: the new path
+fires exactly as designed** — radius correctly halved-and-capped (9.9nm, matching
+`min(distNm/2, 10.0)` off a ~19.9nm preset), retry2 hit the real network and succeeded. The
+earlier "never fired live" finding was purely about real Cloudflare conditions not reproducing
+"both attempts fail" on those particular days — not a defect in the code.
+· **Status:** fix implemented, code-reviewed, and now DUT-verified via deterministic fault
+injection to fire correctly end-to-end. Its real-world *benefit magnitude* under organic traffic
+is still unmeasured (the injection hook proves the mechanism works, not how often live traffic
+will actually need it) — leave in place (pure win when needed, no-op otherwise) and watch
+production logs for `radius-capped`/`retry2` lines if the original symptom recurs.
 
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 

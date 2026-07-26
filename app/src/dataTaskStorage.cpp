@@ -723,6 +723,13 @@ static float             s_pendingPrDistNm  = 8.0f;      // ~10 km default prese
 static uint8_t           s_pendingPrEpoch   = 0;         // VE-PRL-6 identity echo (TASK-323)
 static portMUX_TYPE      s_pendingPrMux     = portMUX_INITIALIZER_UNLOCKED;
 
+// SERIAL_DEBUG test hook (set prForceParseFail <n>, TASK-361): written by the
+// main/serial-command task, consumed by dataTask inside prFetchOnce() —
+// cross-task, needs the same spinlock discipline as every other pending-*
+// slot above, even though it's a single int.
+static int               s_prForceParseFailCount = 0;
+static portMUX_TYPE      s_prForceFailMux   = portMUX_INITIALIZER_UNLOCKED;
+
 // --- Geocode (M-PR-LOCATIONS / TASK-320) ------------------------------------
 // Pending-config slot per the s_pendingCountry / s_pendingPr* pattern above —
 // NOT the Request.symbol[8] payload, which can't hold a UK full postcode
@@ -1207,6 +1214,20 @@ static int prParseStream(Stream& stream, PlaneRadarResult& result, uint16_t& sca
 // can both produce).
 static int prFetchOnce(const char* url, PlaneRadarResult& r, uint16_t& scanned) {
     scanned = 0;
+    // TASK-361 VE test hook: consume one forced-failure credit if armed
+    // (set prForceParseFail <n>) — bypasses the network entirely so the
+    // fetch/retry/retry2 cascade can be exercised deterministically. See
+    // dataTask.h's doc comment for why real Cloudflare conditions can't be
+    // relied on to reproduce "both attempts fail" on demand.
+    bool forced = false;
+    portENTER_CRITICAL_SAFE(&s_prForceFailMux);
+    if (s_prForceParseFailCount > 0) { s_prForceParseFailCount--; forced = true; }
+    portEXIT_CRITICAL_SAFE(&s_prForceFailMux);
+    if (forced) {
+        LOG_D("dataTask.planeradar", "FORCED synthetic parse failure (VE injection)");
+        r.ok = false; r.errorCode = -92;   // IncompleteInput sentinel, matches the real observed code
+        return 200;   // pretend HTTP succeeded so code==200 && !r.ok gates the caller's retry logic
+    }
     WiFiClientSecure tls;
     tls.setCACert(PLANERADAR_ROOT_CA);
     HTTPClient http;
@@ -1875,6 +1896,20 @@ void debugInjectGeocode(const GeocodeResult& r) {
     s_geoInjected       = true;
     s_geocodeNew        = false;      // synthetic result supersedes any unconsumed real one
     portEXIT_CRITICAL_SAFE(&s_geocodeMux);
+}
+
+void debugForcePlaneRadarParseFail(int n) {
+    portENTER_CRITICAL_SAFE(&s_prForceFailMux);
+    s_prForceParseFailCount = (n < 0) ? 0 : n;
+    portEXIT_CRITICAL_SAFE(&s_prForceFailMux);
+}
+
+int debugPeekForcedParseFailCount() {
+    int n;
+    portENTER_CRITICAL_SAFE(&s_prForceFailMux);
+    n = s_prForceParseFailCount;
+    portEXIT_CRITICAL_SAFE(&s_prForceFailMux);
+    return n;
 }
 
 void dbgGeocodeState(bool* parked, bool* hasNew, GeocodeResult* last) {

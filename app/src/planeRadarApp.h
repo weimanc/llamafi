@@ -383,6 +383,11 @@ public:
                      (unsigned)kPrPresetKm[_presetIdx]);
             return true;
         }
+        if (strcmp(var, "prForceParseFail") == 0) {
+            snprintf(buf, len, "\"var\":\"prForceParseFail\",\"val\":%d,\"last\":true",
+                     dataTask::debugPeekForcedParseFailCount());
+            return true;
+        }
         if (strcmp(var, "prLastAction") == 0) {
             snprintf(buf, len, "\"var\":\"prLastAction\",\"val\":\"%s\",\"last\":true", _lastAction);
             return true;
@@ -428,6 +433,18 @@ public:
         if (strcmp(var, "triggerPlaneRadarFetch") == 0 && strcmp(val, "1") == 0) {
             _lastFetch    = _forceNow();
             _pendingFetch = false;   // allow tick() to enqueue even if a prior fetch is pending
+            return true;
+        }
+        // TASK-361 VE test hook: force the next N prFetchOnce() attempts
+        // (fetch/retry/retry2) to report a synthetic parse failure, so the
+        // radius-capped 2nd retry can be exercised on demand rather than
+        // waiting on real Cloudflare edge conditions — confirmed 2026-07-26
+        // these don't reliably reproduce "both attempts fail" day to day.
+        // n=2 forces attempts 1-2, letting retry2 hit the real network;
+        // n=3 forces the full cascade to give up too. Combine with
+        // `triggerPlaneRadarFetch 1` to fire immediately.
+        if (strcmp(var, "prForceParseFail") == 0) {
+            dataTask::debugForcePlaneRadarParseFail(atoi(val));
             return true;
         }
         if (strcmp(var, "prRange") == 0) {

@@ -289,6 +289,23 @@ void debugInjectGeocode(const GeocodeResult& r);
 // two pollGeocode() would return next (injected wins), else the last result.
 void dbgGeocodeState(bool* parked, bool* hasNew, GeocodeResult* last);
 
+// SERIAL_DEBUG test hook (set prForceParseFail <n>): forces the next n
+// PlaneRadar prFetchOnce() calls — across the fetch/retry/2nd-retry cascade,
+// whichever attempts are still pending when this is set — to report a
+// synthetic "200 but parse failed" result, bypassing the network entirely.
+// TASK-361's radius-capped 2nd retry only engages when the first attempt AND
+// the first (full-radius) retry both fail — a condition real Cloudflare edge
+// behavior does not reproduce on demand (confirmed 2026-07-26: three DUT
+// soaks at matching/exceeding the original failure-prone payload size all
+// found the existing 1st retry alone sufficient). Same category of problem
+// debugInjectGeocode()/debugInjectWebRadioResult() solve for their own
+// fetchers. n=2 exercises the 2nd retry against the real network (attempts
+// 1-2 forced, attempt 3 real); n=3 exercises the full give-up path too.
+void debugForcePlaneRadarParseFail(int n);
+
+// SERIAL_DEBUG peek (get prForceParseFail): remaining forced-failure count.
+int debugPeekForcedParseFailCount();
+
 void configureStockTickers(const char tickers[8][8]);
 void configureCrypto(const char ids[6][16], const char* ccy);
 
