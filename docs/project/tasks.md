@@ -880,12 +880,44 @@ similar size, which could be genuine day-to-day/edge-load variance in Cloudflare
 than anything this session changed. Real evidence for the new 2nd-retry path specifically still
 requires a regime dense enough that the 1st retry *also* fails sometimes — LHR hasn't reliably
 produced that twice now; JFK did (48.5% retry-also-failed, 68.8% at its top bucket).
-· **Status:** fix implemented, DUT-verified for safety/no-regression across three different
-traffic regimes/sessions (JFK red-eye ~13KB, Sydney ~12-19KB, LHR ~22-33KB twice) — the new
-2nd-retry code path itself has never actually fired in any live test yet, because nothing short of
-JFK's own busy-hour scale has reproduced a 1st-retry-also-fails condition. Marking this DONE
-without that would be premature; real confirmation still needs either JFK during its own busy
-hours or another hub proven to reach a comparable size regime.
+· **Status (superseded below):** fix implemented, DUT-verified for safety/no-regression across
+three different traffic regimes/sessions (JFK red-eye ~13KB, Sydney ~12-19KB, LHR ~22-33KB twice)
+— the new 2nd-retry code path itself has never actually fired in any live test yet.
+
+**3rd JFK soak, post-fix (2026-07-26, ~12:00-12:35pm EDT — human asked "is JFK awake yet",
+confirmed live via host probe at 97 aircraft/50.4KB right before starting): 166 cycles, sizes
+48.3-62.9KB, 32-120 aircraft — matches or exceeds yesterday's most failure-prone JFK regime.**
+Bucketed: 40-49KB (8 cycles) 25.0%/0.0%; 50-59KB (149) 20.1%/0.0%; **60KB+ (9) 88.9% first-attempt
+failure, 0.0% final failure.** Grepped the raw log directly for the new firmware log lines
+(`radius-capped`, `retry2`) — **zero occurrences.** The new 2nd retry did not fire even once,
+including at 88.9% first-attempt failure in the top bucket — the existing 1st retry alone
+recovered every single failure, all 40 of them, across the entire soak.
+
+**This is a genuinely important, unresolved finding, not a clean confirmation either way.**
+Yesterday, this *exact* size regime (58-66KB) produced 19-35% *final* failure (retry-also-failed
+48.5% overall, 68.8% at the top bucket) — today, at matching/larger sizes, retry-also-failed was
+0.0%. Two full soaks now (this one and the earlier same-day LHR one) have reached sizes that
+matched or exceeded a previous session's worst-case bucket and found the *existing* 1st retry
+alone sufficient both times. **Read carefully: this is NOT evidence the new fix works** (it never
+engaged) **and it's NOT evidence the original regression is gone** (TASK-313/TASK-361's own
+root-cause finding is Cloudflare-edge/TLS-fingerprint-keyed treatment, which this data now
+suggests has a real day-to-day or session-to-session time-varying component — not a stable,
+purely size-deterministic function the way the 2026-07-25 data alone made it look). The
+size-scaling correlation from yesterday's evidence phase still stands (it was internally
+consistent across three locations in one session), but reproducing the *retry-also-fails*
+condition specifically has now failed twice today at comparable-or-larger sizes, in two different
+sessions/times. Whether that's Cloudflare's treatment of this device improving over time, genuine
+random day-to-day edge variance, or something else entirely — unresolved, would need many more
+soaks across many more days to characterize.
+· **Status:** fix implemented and shipped (safe, gated, gone through `./run/check` and 5 live
+soaks with zero crashes/regressions) — but its actual benefit remains **unverified by live
+testing**, because the specific failure mode it targets (1st retry also failing) has not
+reproduced on demand since the original 2026-07-25 evidence-gathering session, despite two
+same-day attempts at matching/exceeding sizes. Recommend: leave the fix in place (it's a pure
+win when the condition it targets does occur, and a no-op otherwise, so there's no downside to
+having it live), and revisit if/when the original ~30-35% final-failure-rate symptom is
+observed again in real usage — at that point, checking whether the new retry engages (grep serial
+log for `radius-capped`/`retry2`) will settle whether it's actually helping.
 
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
