@@ -1195,13 +1195,14 @@ static int prParseStream(Stream& stream, PlaneRadarResult& result, uint16_t& sca
     return 0;
 }
 
-// TASK-313 fix experiment: a single fresh-connection attempt against
-// PLANERADAR_URL_BASE, filling 'r' with either a parsed result or an error
-// code. Shared by fetchPlaneRadar()'s first try and its one parse-error
-// retry (BP-047) — each call opens its own WiFiClientSecure/HTTPClient so a
+// TASK-313 fix experiment (TASK-361 extends the caller to a 2nd,
+// radius-capped retry): a single fresh-connection attempt against a given
+// URL, filling 'r' with either a parsed result or an error code. Shared by
+// fetchPlaneRadar()'s first try and both of its parse-error retries
+// (BP-047) — each call opens its own WiFiClientSecure/HTTPClient so a
 // "retry" is a genuinely new TLS connection, not a reused stream. Returns
 // the raw HTTP code (or -100 if http.begin() itself failed) so the caller
-// can gate the retry on exactly "code==200 but parse failed" without
+// can gate each retry on exactly "code==200 but parse failed" without
 // inferring it from errorCode's sign (which parse errors and non-200 codes
 // can both produce).
 static int prFetchOnce(const char* url, PlaneRadarResult& r, uint16_t& scanned) {
@@ -1241,6 +1242,10 @@ static int prFetchOnce(const char* url, PlaneRadarResult& r, uint16_t& scanned) 
     return code;
 }
 
+// TASK-361: radius cap for the 2nd (size-reducing) retry — see the retry
+// cascade's comment in fetchPlaneRadar() below for the full rationale.
+static constexpr float PR_RETRY2_MAX_NM = 10.0f;
+
 static void fetchPlaneRadar() {
     float lat, lon, distNm;
     uint8_t epoch;
@@ -1273,11 +1278,46 @@ static void fetchPlaneRadar() {
         vTaskDelay(pdMS_TO_TICKS(300));
         PlaneRadarResult retryResult;   // fresh result — no stale partial state
         uint16_t retryScanned = 0;
-        prFetchOnce(url, retryResult, retryScanned);
+        int retryCode = prFetchOnce(url, retryResult, retryScanned);
         LOG_D("dataTask.planeradar", "retry ok=%d rc=%d scanned=%u",
               (int)retryResult.ok, retryResult.errorCode, (unsigned)retryScanned);
         r = retryResult;   // second attempt's outcome (success or error) wins
         scanned = retryScanned;
+
+        // TASK-361: the full-radius retry ALSO failed with a parse error —
+        // per the confirmed size-scaling data (30-min soaks at Hong Kong/
+        // LHR/JFK), same-size retries are NOT independent draws in this
+        // regime (JFK's 62KB+ bucket: retry-also-failed ~69%, well above
+        // what an independent per-connection redraw would predict) — a 3rd
+        // same-size attempt has weak, diminishing-returns odds. Instead,
+        // shrink the query radius for this final attempt: the app already
+        // discards everything past PR_MAX_AIRCRAFT nearest aircraft
+        // (prInsertNearest below), so a smaller radius rarely changes what
+        // gets displayed once there's enough density to have produced a
+        // large response in the first place (host-probed at JFK:
+        // dist=20nm->111 aircraft/56.5KB vs dist=4nm->35/16.6KB — still
+        // comfortably over the 24-slot cap, at ~3.4x less data). This only
+        // ever fires on a cycle that's already failed twice at full radius
+        // and would otherwise fall back to PR_STALE_S dead-reckoning, so a
+        // radius-limited fresh frame is a strict improvement — no change to
+        // the common case (first attempt succeeds) at all.
+        if (retryCode == 200 && !retryResult.ok) {
+            float smallDistNm = distNm * 0.5f;
+            if (smallDistNm > PR_RETRY2_MAX_NM) smallDistNm = PR_RETRY2_MAX_NM;
+            char smallUrl[128];
+            snprintf(smallUrl, sizeof(smallUrl), "%s%.4f/lon/%.4f/dist/%.1f",
+                     PLANERADAR_URL_BASE, lat, lon, smallDistNm);
+            LOG_D("dataTask.planeradar", "retry also failed rc=%d -> radius-capped retry2 distNm=%.1f",
+                  retryResult.errorCode, (double)smallDistNm);
+            vTaskDelay(pdMS_TO_TICKS(300));
+            PlaneRadarResult retry2Result;   // fresh result — no stale partial state
+            uint16_t retry2Scanned = 0;
+            prFetchOnce(smallUrl, retry2Result, retry2Scanned);
+            LOG_D("dataTask.planeradar", "retry2 ok=%d rc=%d scanned=%u",
+                  (int)retry2Result.ok, retry2Result.errorCode, (unsigned)retry2Scanned);
+            r = retry2Result;   // third attempt's outcome (success or error) wins
+            scanned = retry2Scanned;
+        }
     }
 
     r.epoch = epoch;   // VE-PRL-6: echo the snapshot taken at enqueue time, not a later one

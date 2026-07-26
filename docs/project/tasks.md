@@ -634,8 +634,8 @@ user-visible failure rate back down near TASK-313's original 0.47% floor (or bet
 also addresses the size-scaling mechanism) · **Priority:** P1 — live, currently-reproducible,
 human-observed problem: at ~36% total fetch failure the display is frequently stale, which is more
 severe in measured impact than TASK-358's tearing (also P1) · **Status:** open — evidence phase
-CLOSED (size-scaling hypothesis confirmed with real busy-traffic data, see below), fix not yet
-scoped/implemented
+CLOSED, radius-capped 2nd retry IMPLEMENTED + DUT-safety-verified, busy-hour before/after
+magnitude verification still pending (see below)
 
 **Progress (2026-07-25):** landed the instrumentation this task's quantification step needs, but
 have NOT yet run it under real busy traffic (session started 06:36 Saturday — quiet-traffic hours;
@@ -836,6 +836,25 @@ debug↔prod reflashing — unconfirmed) — re-fixed (`set prloc active 5`, ver
 `get prloc` in the *same* session before reflashing prod this time) and flagged in memory
 (`feedback_no_timeout_pipe_for_soak_scripts`) as an open reliability question worth a closer look
 if it recurs, rather than assumed-fixed.
+
+**Fix implemented (2026-07-26): the radius-capped 2nd retry, per the recommendation above.**
+`dataTaskStorage.cpp`'s `fetchPlaneRadar()` cascade is now: 1st attempt (full radius, unchanged)
+→ 1st retry (full radius, unchanged, existing TASK-313 mechanism) → **new** 2nd retry, only if
+*both* prior attempts failed with a parse error, at `min(distNm/2, PR_RETRY2_MAX_NM=10.0nm)`.
+`prFetchOnce()`'s doc comment updated to reflect two retries, not one. `./run/check` 6/6 green
+(no DRAM regression this time — the change is stack-local, no new persisted/static state).
+
+DUT sanity check (`run/pr-fetch-soak 5`, JFK coords, 03:14 EDT Sunday — red-eye hours, real-time
+traffic only ~28 aircraft/13KB): 30 cycles, 4 first-attempt failures, all recovered by the
+*existing* 1st retry (0% final failures) — the new 2nd-retry path never fired, correctly, since
+nothing reached the size regime it targets. Confirms no regression/crash under real conditions,
+but does **not** yet demonstrate the fix's actual benefit — that needs a soak during real
+50KB+-regime traffic (JFK ~13:00-17:00 EDT was the regime that showed the problem). Human declined
+a same-session JFK soak for that ("no dont soak on jfk") — **comparative before/after verification
+at real busy-hour size is still open**, not done this session. Code is in, gated, and
+crash-safe; magnitude-of-improvement is unverified until that follow-up soak runs.
+· **Status:** fix implemented, DUT-verified for safety/no-regression only — busy-hour before/after
+comparison still pending before this can be marked fully DONE.
 
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
