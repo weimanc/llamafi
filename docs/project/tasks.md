@@ -850,11 +850,27 @@ traffic only ~28 aircraft/13KB): 30 cycles, 4 first-attempt failures, all recove
 nothing reached the size regime it targets. Confirms no regression/crash under real conditions,
 but does **not** yet demonstrate the fix's actual benefit — that needs a soak during real
 50KB+-regime traffic (JFK ~13:00-17:00 EDT was the regime that showed the problem). Human declined
-a same-session JFK soak for that ("no dont soak on jfk") — **comparative before/after verification
-at real busy-hour size is still open**, not done this session. Code is in, gated, and
-crash-safe; magnitude-of-improvement is unverified until that follow-up soak runs.
-· **Status:** fix implemented, DUT-verified for safety/no-regression only — busy-hour before/after
-comparison still pending before this can be marked fully DONE.
+a same-session JFK soak for that ("no dont soak on jfk").
+
+**Alternative-hub search (same session):** human asked whether another currently-busy hub could
+substitute for waiting on JFK. Host-side density probes (no DUT touched) at Sydney, Melbourne,
+Tokyo Haneda/Narita, Seoul Incheon — all in daytime/early-evening local hours at probe time —
+found decent but still moderate density: Sydney 34 aircraft/17.7KB, Seoul 32/17.1KB, Haneda
+28/14.0KB, Melbourne 10/5.2KB, Narita 5/3.7KB. Best of these (Sydney/Seoul) lands in LHR's
+regime, well short of JFK's 100+ aircraft/50-66KB.
+
+**30-min soak at Sydney (slot 3, temp), 176 cycles, sizes 12.0-19.0KB, 21-34 aircraft:**
+first-attempt failure 11.9% (21/176), **retry-also-failed 0.0%, final failure 0.0%** — the
+existing 1st retry alone recovered every single failure at this size. Good regression-safety
+result (no crashes, clean restore, matches the expected "moderate regime, low failure" profile)
+but **the new radius-capped 2nd retry still did not get exercised** — this size range (12-19KB)
+sits below where even LHR started showing retry-also-failed (LHR's 22-37KB regime was 29.6%).
+**Comparative before/after verification of the new 2nd-retry path specifically still requires
+JFK-scale (50KB+) traffic — not yet achieved by any alternative hub tried this session.**
+· **Status:** fix implemented, DUT-verified for safety/no-regression at two different (moderate)
+traffic regimes — the new 2nd-retry code path itself remains unexercised by live traffic; needs
+either real JFK busy-hour traffic or another hub that reaches a comparable size regime before this
+can be marked fully DONE.
 
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
