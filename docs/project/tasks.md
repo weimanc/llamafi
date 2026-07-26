@@ -867,10 +867,25 @@ but **the new radius-capped 2nd retry still did not get exercised** — this siz
 sits below where even LHR started showing retry-also-failed (LHR's 22-37KB regime was 29.6%).
 **Comparative before/after verification of the new 2nd-retry path specifically still requires
 JFK-scale (50KB+) traffic — not yet achieved by any alternative hub tried this session.**
-· **Status:** fix implemented, DUT-verified for safety/no-regression at two different (moderate)
-traffic regimes — the new 2nd-retry code path itself remains unexercised by live traffic; needs
-either real JFK busy-hour traffic or another hub that reaches a comparable size regime before this
-can be marked fully DONE.
+
+**2nd LHR soak, post-fix (2026-07-26, ~11:56am-12:30pm BST — human noticed live traffic "picking
+up," 52 aircraft/27.3KB at check time): 177 cycles, sizes 21.7-33.5KB, 25-60 aircraft — same
+regime as the pre-fix LHR soak (22-37KB, 9-66 aircraft).** First-attempt failure 10.7%,
+**retry-also-failed 0.0%, final failure 0.0%** — vs. the pre-fix run's 15.1%/29.6%/4.5% at
+essentially the same size range. **Read this carefully, don't overclaim:** the new radius-capped
+2nd retry *still never fired* here either (retry-also-failed=0% means the existing 1st retry
+recovered every single failure by itself) — so this comparison does **not** demonstrate the new
+code path working. It shows the *existing* mechanism performed better today than yesterday at a
+similar size, which could be genuine day-to-day/edge-load variance in Cloudflare's behavior rather
+than anything this session changed. Real evidence for the new 2nd-retry path specifically still
+requires a regime dense enough that the 1st retry *also* fails sometimes — LHR hasn't reliably
+produced that twice now; JFK did (48.5% retry-also-failed, 68.8% at its top bucket).
+· **Status:** fix implemented, DUT-verified for safety/no-regression across three different
+traffic regimes/sessions (JFK red-eye ~13KB, Sydney ~12-19KB, LHR ~22-33KB twice) — the new
+2nd-retry code path itself has never actually fired in any live test yet, because nothing short of
+JFK's own busy-hour scale has reproduced a 1st-retry-also-fails condition. Marking this DONE
+without that would be premature; real confirmation still needs either JFK during its own busy
+hours or another hub proven to reach a comparable size regime.
 
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
