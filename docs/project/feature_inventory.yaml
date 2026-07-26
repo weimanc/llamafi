@@ -1618,9 +1618,27 @@ features:
       the 5/10/15/25 km range preset and re-enqueues a fetch.
       Root CA: GTS Root R4 only (PLANERADAR_ROOT_CA in dataTaskCerts.h, ADR-048
       sibling OQ1 decision — two independent-day chain observations, no bundle needed).
-      Serial debug: get prAircraftCount/prLastHttp/prRange/prLastAction;
+      Serial debug: get prAircraftCount/prLastHttp/prRange/prLastAction/prForceParseFail;
       set triggerPlaneRadarFetch/prRange/prInjectAircraft (TASK-276 synthetic-injection
-      pattern, isolates from auto-refresh)/prClearInject.
+      pattern, isolates from auto-refresh)/prClearInject/prForceParseFail (TASK-361 fault
+      injection — forces N consecutive prFetchOnce() calls to report a synthetic parse
+      failure, exercising the retry cascade below on demand).
+      Fetch reliability (TASK-313/TASK-361): dataTask's fetchPlaneRadar() retries once
+      immediately on a parse failure (fresh TLS connection, same radius — TASK-313, fixed
+      an ~9%-of-fetches Cloudflare-edge truncation down to a ~0.5% floor). TASK-361
+      (2026-07-25/26) found this regressed under genuinely busy traffic (~36% total
+      failure reported/reproduced at 50-66 KB payloads, 100+ aircraft) — confirmed via
+      three DUT soaks across independent locations that failure rate climbs with response
+      size, and confirmed via a parallel host-vs-DUT A/B that the truncation is
+      device-specific (0% host failures at identical size/traffic). Fix: a second,
+      radius-capped retry (min(distNm/2, 10 nm)) fires only if the first retry ALSO
+      fails — the app already discards everything past PR_MAX_AIRCRAFT=24 nearest
+      aircraft, so a smaller radius rarely changes what's displayed once there's enough
+      density to have produced a large response. DUT-verified to fire correctly via the
+      prForceParseFail injection hook (real Cloudflare conditions didn't reliably
+      reproduce "both attempts fail" across three follow-up same-day soaks, so the fix's
+      real-world benefit magnitude under organic traffic remains unmeasured — the
+      mechanism itself is proven, not how often live traffic will need it).
       Location (lat/lon) is a compile-time default (D4 v1 lean, g_settings.prLat/prLon,
       run/spiffs push only, no numeric-entry UI) — persisted via settingsStorage
       (TASK-305), along with units (km/mi), runway-overlay toggle, range preset
@@ -1724,6 +1742,18 @@ features:
       hasPendingAsync()/tlsYield()-tlsResume()/dbgGet()-dbgSet()/cmdTap busy
       propagation/taskbar icon all wired per NEW-APP-CHECKLIST.md; cmdTap branch
       at main.cpp's PLANERADAR hit-string.
+
+      TASK-313 (2026-07-12, DONE): one-retry-on-parse-failure fix, ~9%→~0.5%.
+      TASK-361 (2026-07-25/26, DONE — see tasks-archive.md for full soak-by-soak
+      numbers): regression re-quantified under real busy traffic (size-scaling
+      confirmed across HK/LHR/JFK soaks + a host-vs-DUT parallel A/B), fixed with
+      a radius-capped 2nd retry, DUT-verified to fire correctly via a new
+      prForceParseFail fault-injection hook. Left open by design: the fix's
+      benefit magnitude under organic (non-injected) busy traffic is unmeasured
+      — three follow-up same-day soaks at matching/exceeding sizes never
+      reproduced the "both attempts fail" condition live, suggesting real
+      day-to-day/session variance in Cloudflare's edge treatment beyond pure
+      size-determinism. Revisit if the original ~30-35% symptom recurs.
 
   - id: pr-locations-001
     name: PlaneRadar named location presets + geocode lookup

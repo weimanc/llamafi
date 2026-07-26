@@ -633,9 +633,12 @@ sample) correlated against payload size/aircraft count, then a DUT-verified fix 
 user-visible failure rate back down near TASK-313's original 0.47% floor (or better, if the fix
 also addresses the size-scaling mechanism) · **Priority:** P1 — live, currently-reproducible,
 human-observed problem: at ~36% total fetch failure the display is frequently stale, which is more
-severe in measured impact than TASK-358's tearing (also P1) · **Status:** open — evidence phase
-CLOSED, radius-capped 2nd retry IMPLEMENTED + DUT-safety-verified, busy-hour before/after
-magnitude verification still pending (see below)
+severe in measured impact than TASK-358's tearing (also P1) · **Status:** DONE (2026-07-26) —
+evidence phase closed (size-scaling confirmed, device-specific confirmed via host-vs-DUT A/B),
+radius-capped 2nd retry implemented, code-reviewed, and DUT-verified to fire correctly via fault
+injection (see below). Real-world benefit magnitude under organic traffic is unmeasured and
+deliberately left open — not a blocker to closing this task, see the wrap-up note at the end of
+this entry.
 
 **Progress (2026-07-25):** landed the instrumentation this task's quantification step needs, but
 have NOT yet run it under real busy traffic (session started 06:36 Saturday — quiet-traffic hours;
@@ -940,6 +943,24 @@ injection to fire correctly end-to-end. Its real-world *benefit magnitude* under
 is still unmeasured (the injection hook proves the mechanism works, not how often live traffic
 will actually need it) — leave in place (pure win when needed, no-op otherwise) and watch
 production logs for `radius-capped`/`retry2` lines if the original symptom recurs.
+
+**WRAP-UP (2026-07-26) — closing this task.** Summary of the full arc: human-reported live
+regression → quantified with real DUT soaks across three independent locations (Hong Kong, LHR,
+JFK) confirming failure rate climbs with payload size → confirmed the failure is device-specific
+via a parallel host-vs-DUT A/B (0% host failures at identical size/traffic) → scoped candidate
+fixes (ruled out field-limiting/blanket-radius-cap, flagged compression as a separately-scoped
+future opportunity) → implemented a radius-capped 2nd retry, gated exactly on "both prior attempts
+failed" → code-reviewed the gate by hand → added a fault-injection hook and DUT-proved the new
+code fires correctly end-to-end. `feature_inventory.yaml`'s `planeradar-001` entry updated with
+the fetch-reliability history and the new `prForceParseFail` debug surface.
+
+**Deliberately not blocking on:** measuring the fix's real-world improvement under organic (non-
+injected) busy traffic — three follow-up soaks at matching/exceeding sizes never reproduced the
+"both attempts fail" condition live, suggesting genuine day-to-day/session variance in Cloudflare's
+edge treatment. The fix is a no-op when that condition doesn't occur and a strict improvement when
+it does, so there's no downside to shipping it without that measurement. Revisit only if the
+original ~30-35%-failure symptom is reported again in real usage — `radius-capped`/`retry2` in the
+serial log will show whether the fix is the thing helping. **Status: DONE.**
 
 ### TASK-346 — in-app clock face/theme cycling via tap zones (M-CLOCK-TAP-CYCLE)
 
