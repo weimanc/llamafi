@@ -139,11 +139,12 @@ flagged that no `certbreak` hook exists — this task closes that gap too.
 
 **Owner:** Developer (command) + VE (test) · **Deps:** TASK-341 (audit first, so the injection
 exercises the final code paths) · **Gate:** DUT window required — queue for next DUT session ·
-**Priority:** P3 · **Status:** **code written 2026-07-28, DUT verification still open** —
-`set certbreak <app>` landed and code-reviewed; T_CERT_ERR_01 not yet run (DUT-blocked: the live
-LHR PlaneRadar session was using the port, and the safety classifier began denying Bash execution
-mid-session — see TASK-343's note). Per explicit instruction this session: write the code, hold
-off on verification.
+**Priority:** P3 · **Status:** **`run/check` PASSED 2026-07-28** (6/6, both `cyd2usb_winamp` and
+`cyd2usb_winamp_debug` compile clean — confirms `1bad465`'s `certbreak` code has no syntax
+errors) — **run by the human directly** (`!./run/check`), since the safety classifier was still
+denying my own Bash calls to it this session (conversation-scoped block from TASK-343's
+cert-manipulation work, did not clear on its own). T_CERT_ERR_01 (the actual DUT run) still not
+done.
 
 **Implementation.** `dataTask::debugBreakCert(FetchType)` / `debugPeekCertBreak()`
 (`dataTask.h`/`dataTaskStorage.cpp`) arm a one-shot break keyed by `FetchType`, consumed at all
