@@ -22,3 +22,7 @@ app/tools/icon_drafts/
 
 # Python bytecode (run/, app/tools/, anywhere)
 __pycache__/
+
+# TASK-343: check-datatask-certs --propose-fix reports — human-review scratch
+# output, never a committed artifact (the checker regenerates it on demand).
+/scratch/

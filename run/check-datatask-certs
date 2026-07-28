@@ -18,6 +18,7 @@
 # Usage:
 #   ./run/check-datatask-certs
 #   ./run/check-datatask-certs --expiry-only     # TASK-342: offline, no network, no gate
+#   ./run/check-datatask-certs --propose-fix     # TASK-343: on FAIL, write a scratch/ report
 #   ./run/check-datatask-certs --certs-file PATH # override cert header (testing)
 #
 # Exits 0 if every endpoint's chain verifies; 1 if any fails or errors.
@@ -154,6 +155,134 @@ def strict_verify(host: str, pem: str) -> tuple[str, str]:
     return "FAIL", f"verify code {code} ({msg})"
 
 
+# TASK-343: --propose-fix support. Never applies anything to dataTaskCerts.h —
+# TOFU risk (design doc §3): auto-trusting whatever a live server presents
+# would let a build-time MITM bake itself into firmware, and single probes are
+# unreliable evidence on their own (coingecko's Cloudflare edge flip-flopped
+# between two valid root chains twice, TASK-298 — an auto-updater watching one
+# probe would have "corrected" the two-root bundle fix right back into the
+# breakage it fixed). This only writes a report; a human reads it, verifies
+# the fingerprint against CCADB/Mozilla, and edits dataTaskCerts.h by hand.
+
+CERT_SPLIT_RE = re.compile(
+    r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", re.DOTALL
+)
+
+
+def fetch_served_chain(host: str) -> list[str]:
+    """Returns the raw PEM cert chain the server presents, WITHOUT verifying
+    it against any pinned root (no -CAfile) — this is "what's actually being
+    served right now", independent of whether it validates against what we
+    currently pin. Ordered leaf-first, as sent."""
+    proc = subprocess.run(
+        ["openssl", "s_client", "-connect", f"{host}:443",
+         "-servername", host, "-showcerts"],
+        input="", capture_output=True, text=True, timeout=TIMEOUT_S,
+    )
+    return CERT_SPLIT_RE.findall(proc.stdout)
+
+
+def describe_cert(pem: str) -> dict:
+    proc = subprocess.run(
+        ["openssl", "x509", "-noout", "-subject", "-issuer",
+         "-fingerprint", "-sha256", "-enddate"],
+        input=pem, capture_output=True, text=True, timeout=5,
+    )
+    out = proc.stdout
+    subject = re.search(r"subject=(.+)", out)
+    issuer = re.search(r"issuer=(.+)", out)
+    fingerprint = re.search(r"Fingerprint=(.+)", out)
+    enddate = re.search(r"notAfter=(.+)", out)
+    d = {
+        "subject": subject.group(1).strip() if subject else "?",
+        "issuer": issuer.group(1).strip() if issuer else "?",
+        "fingerprint": fingerprint.group(1).strip() if fingerprint else "?",
+        "notafter": enddate.group(1).strip() if enddate else "?",
+        "pem": pem.strip(),
+    }
+    d["self_signed"] = d["subject"] == d["issuer"]
+    return d
+
+
+def write_propose_fix_report(host: str, cert_name: str, detail: str,
+                              scratch_dir: Path) -> Path:
+    """Fetches the chain currently served by `host` (independent of our
+    pinned root) and writes a human-review report naming the candidate root.
+    Returns the report path. Caller decides when to call this (on FAIL)."""
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    report_path = scratch_dir / f"cert-propose-fix-{cert_name}-{ts}.md"
+
+    chain_pems = fetch_served_chain(host)
+    lines = [
+        f"# Cert rotation proposal — {cert_name} ({host})",
+        "",
+        f"Generated {datetime.now().isoformat(timespec='seconds')} by "
+        f"`run/check-datatask-certs --propose-fix`.",
+        "",
+        f"**Preflight verify failed:** {detail}",
+        "",
+    ]
+
+    if not chain_pems:
+        lines.append("Could not fetch the served chain (network error or "
+                      "openssl failure) — nothing to propose. Re-run from an "
+                      "unrestricted network.")
+    else:
+        candidates = [describe_cert(p) for p in chain_pems]
+        top = candidates[-1]   # topmost cert the server presented
+        if top["self_signed"]:
+            lines.append("**Candidate root (self-signed — the server sent the "
+                          "actual root):**")
+        else:
+            lines.append(
+                "**Chain terminates in a root we don't have.** The server did "
+                "NOT send the actual root (topmost cert below is not "
+                "self-signed) — its `issuer` line names the root you need to "
+                "source separately from the CA's published root store "
+                "(CCADB/Mozilla), it is NOT in the PEM block below."
+            )
+        lines += [
+            "",
+            f"- subject: `{top['subject']}`",
+            f"- issuer: `{top['issuer']}`",
+            f"- sha256 fingerprint: `{top['fingerprint']}`",
+            f"- notAfter: `{top['notafter']}`",
+            "",
+            "Ready-to-paste PEM block (topmost cert served — see self-signed "
+            "note above for whether this IS the root or just the nearest "
+            "cert to it we have):",
+            "",
+            "```",
+            top["pem"],
+            "```",
+            "",
+            f"Full served chain was {len(candidates)} cert(s) deep (leaf-first); "
+            "only the topmost is shown above.",
+        ]
+
+    lines += [
+        "",
+        "## Two mandatory judgement calls before touching `dataTaskCerts.h`",
+        "",
+        "1. **Verify the fingerprint** against the CA's own published root "
+        "(CCADB or the Mozilla root store) — do not trust this probe alone. "
+        "A build-time MITM would produce a plausible-looking report too.",
+        "2. **Replace vs. bundle**: decide based on whether the OLD pinned "
+        "root still appears on repeat probes (a different network, a "
+        "different day). coingecko's Cloudflare edge flip-flopped between "
+        "two valid root chains twice (TASK-298) — replacing the pin outright "
+        "on a single probe would have reintroduced that exact breakage. If "
+        "both roots are still live, bundle (both roots' PEMs), don't replace.",
+        "",
+        "This report never touches `dataTaskCerts.h` — that edit is yours to "
+        "make by hand, then re-run this checker to confirm PASS.",
+        "",
+    ]
+    report_path.write_text("\n".join(lines))
+    return report_path
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--expiry-only", action="store_true",
@@ -164,6 +293,13 @@ def main() -> int:
     parser.add_argument("--certs-file", type=Path, default=CERTS_H,
                          help="Override path to the cert header (default: "
                               "app/src/dataTaskCerts.h). For testing (T_CERT_HOST_02).")
+    parser.add_argument("--propose-fix", action="store_true",
+                         help="On FAIL, fetch the served chain and write a human-review "
+                              "report to --scratch-dir (TASK-343). Never edits "
+                              "dataTaskCerts.h — proposal only.")
+    parser.add_argument("--scratch-dir", type=Path, default=PROJ_ROOT / "scratch",
+                         help="Where --propose-fix writes reports (default: scratch/). "
+                              "For testing (T_CERT_HOST_01).")
     args = parser.parse_args()
 
     certs_h = args.certs_file
@@ -192,6 +328,9 @@ def main() -> int:
         status, detail = strict_verify(host, pem)
         results.append((host, cert_name, status, detail))
         print(f"{status:5s} {host:32s} ({cert_name}) — {detail}")
+        if status == "FAIL" and args.propose_fix:
+            report_path = write_propose_fix_report(host, cert_name, detail, args.scratch_dir)
+            print(f"      -> propose-fix report: {report_path}")
 
     failures = [r for r in results if r[2] not in ("PASS", "PENDING")]
     print()
