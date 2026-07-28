@@ -18,7 +18,7 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 > Human review flag: the ADR-028 rejection and ADR-032 supersession are the two judgement calls —
 > the seven accepts are mechanical.
 
-## Open — M-CERT-ERRCODE remainder (2026-07-18)
+## Closed — M-CERT-ERRCODE remainder (2026-07-18, closed 2026-07-28)
 
 Breakdown of everything the design doc
 ([M-CERT-ERRCODE-cert-error-sentinel.md](../architecture/designs/M-CERT-ERRCODE-cert-error-sentinel.md))
@@ -191,17 +191,11 @@ identity, not one App's own state. Both gated under the existing outer `#ifdef S
 block (verified: opens `main.cpp:2709`, closes `:3975`, both new blocks fall inside it) — debug
 build only, per spec.
 
-**Not yet done:** `run/check` build verification (blocked, see above), and everything VE-side —
-T_CERT_ERR_01's actual DUT run (armed cert-break → -120 on error row/`get dataq` → next cycle
-recovers), and in particular the stale-`lastError()` leg the design doc flags as the one real
-risk: after a break-then-recover cycle, a genuinely unreachable host must show `-1`/`-11`, not a
-lingering `-120`. Nothing in this implementation should cause that (the break is consumed
-one-shot before the fetch, `certSentinel()`'s stale-check logic is untouched by this task), but
-that is exactly the kind of claim T_CERT_ERR_01 exists to verify rather than assume. Also
-untested: whether `consumeCertBreak`'s interaction with PlaneRadar's forced-parse-fail hook
-(`prForceParseFail`, checked first in `prFetchOnce()` and returning before reaching
-`setCACert()`) matters for any real test scenario — analysis says no (the two mechanisms
-shouldn't be armed simultaneously in practice) but unverified.
+**Stale — superseded by the DUT-verified paragraph above** (was written before `run/check`
+PASSED and the DUT run landed; kept saying "blocked" and "not yet done" after both were
+already done). The one genuinely still-open item is the stale-`lastError()` leg noted above:
+not DUT-proven, argued-safe-by-structure only. Tracked as this milestone's sole follow-up,
+not blocking.
 
 ## Closed — M-APP-ORDER (2026-07-18, closed 2026-07-28)
 
