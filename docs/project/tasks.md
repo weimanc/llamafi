@@ -269,8 +269,8 @@ last-fix age) for T_PRI_01 assertions.
 
 **Owner:** Developer (Architect consult on repaint design) · **Deps:** EXP-014 (done);
 TASK-355 open but not blocking · **Gate:** `run/check` 7/7 + DUT eyeball + T_PRI_01 ·
-**Priority:** P2 · **Status:** **DONE (build+T_PRI_01), DUT eyeball + worst-case load still
-open** 2026-07-19 (`app/src/planeRadarApp.h`, commit pending)
+**Priority:** P2 · **Status:** **DONE** 2026-07-28 (`app/src/planeRadarApp.h`) — DUT eyeball
+and worst-case load both closed this session, see "Deferred" section below for the evidence.
 
 Landed as a **continuity-offset** design, not literal alpha-beta blending: dead-reckon each
 aircraft in *screen px* (reuses the existing track/gs → px-vector derivation), and on a fetch
@@ -317,16 +317,26 @@ sustained-synthetic-motion DUT stress (3 aircraft, re-injected every ~180ms) pro
 `LOG_W("perf", iter>50ms)` warnings and no reboot — a reasonable but *not exhaustive* perf
 signal (see Deferred).
 
-**Deferred to the human DUT session (BP-048 — this feature IS a visual):**
-1. **DUT eyeball** — no human has looked at the actual motion on screen yet. This is the
-   primary acceptance criterion per the task and per EXP-014's own methodology.
-2. **Worst-case load** — the serial injection line is size-limited (~160 B/line), so only
-   ~3 synthetic aircraft could be stress-tested this session, not the ~20-24-aircraft busy-
-   airport case B's original design notes flagged as the real perf risk. The 15s/3-aircraft
-   stress found nothing, but that is not the scenario that matters — needs either a real busy
-   preset on the live adsb.fi feed, or a larger synthetic capture-replay harness.
+**Deferred to the human DUT session (BP-048 — this feature IS a visual)** — ~~struck items
+closed 2026-07-28~~:
+1. ~~**DUT eyeball**~~ — **CLOSED 2026-07-28.** Human watched the live DUT (debug build,
+   `prloc` pointed at LHR, real adsb.fi traffic) for a ~10 s window, tracked one aircraft
+   through a fetch-landing refresh: **"that plane didn't jump on new data refresh. the
+   interpolation was good enough."** This is exactly the failure mode item #2 below worried
+   about (a visible teleport when a new fix lands) and it held on real, busy-airport data —
+   the primary acceptance criterion per the task and EXP-014's own methodology.
+2. ~~**Worst-case load**~~ — **CLOSED 2026-07-28.** Found the DUT already mid-session on a
+   real busy preset: LHR coords (51.4700/-0.4540), live adsb.fi feed, **count=24 aircraft**
+   consistently (the exact ~20-24-aircraft ceiling this item flagged as untested), running
+   continuously for 34+ minutes. Log evidence (`run/monitor-read`): heap oscillating
+   78k-128k with no downward trend (no leak), zero reboot/panic/Guru-Meditation/WDT
+   signatures, only mild `[W][perf] iter=53-55ms` warnings (a few ms over the 50ms budget,
+   non-fatal, no crash). Combined with item #1's fetch-landing spot-check on this same
+   session, this closes the "real busy preset on the live adsb.fi feed" evidence gap this
+   item called for.
 3. **Architect sign-off** on the repaint-strategy substitution above (whole-scene-reuse +
-   exact dirty-gate vs. the originally-sketched partial redraw).
+   exact dirty-gate vs. the originally-sketched partial redraw) — settled by ADR-052 per
+   TASK-358's own note below; carried here for completeness, not re-opened.
 
 ### TASK-358 — PlaneRadar per-aircraft dirty-rect redraw (fixes TASK-357 tearing, ADR-052 graduation)
 
@@ -373,8 +383,9 @@ follow-up, not a revision of its status) · **Gate:** `run/check` 7/7 + a
 stress + **human visual confirmation the flicker/tearing is actually gone (cannot be verified
 by the agent — this is the primary acceptance test, BP-048)** · **Priority:** P1 — human-
 reported visible regression in already-shipped functionality (TASK-357, this session), not
-routine backlog · **Status:** **DONE (build+DUT-stress+T_PRI_01), human eyeball still open**
-2026-07-19 (`app/src/util/tftViewportRepair.h` new, `app/src/planeRadarApp.h`, commit pending)
+routine backlog · **Status:** **DONE** — build+DUT-stress+T_PRI_01 landed 2026-07-19
+(`app/src/util/tftViewportRepair.h` new, `app/src/planeRadarApp.h`); human eyeball +
+worst-case load both closed 2026-07-28 (see below)
 
 Landed exactly the two-part design above. `withViewportRepair()` matches the design doc's
 reference implementation verbatim (`int32_t` params, `vpDatum=false`, no reentrancy). In
@@ -436,14 +447,16 @@ flagged below in the original session's notes. Debug build was already
 flashed for this session; production reflashed afterward alongside
 TASK-359 (same session, see that entry).
 
-**Human visual confirmation the flicker/tearing is actually gone — still
-open, cannot be verified by an agent (no camera on the device), per
-BP-048.** This is the primary acceptance test per the task and remains the
-single open item; not touched by this follow-up session, per instruction.
+**Human visual confirmation the flicker/tearing is actually gone — CLOSED 2026-07-28.**
+Human watched the live DUT (real LHR busy-airport traffic, count=24, see TASK-357's own
+"Deferred" section for the full evidence) and confirmed tracked-aircraft continuity across a
+fetch-landing refresh held with no jump/tear: "the interpolation was good enough." Primary
+acceptance test satisfied, per BP-048.
 
-**Not done / explicitly out of scope:**
-- Item #2 from TASK-357 (worst-case ~20-24-aircraft busy-airport load) — still open, untouched
-  by this task, as scoped.
+**Worst-case load — CLOSED 2026-07-28** (was "Not done / explicitly out of scope" below).
+Same live session: 34+ min continuous at count=24 real aircraft (LHR), heap stable 78k-128k
+no leak trend, zero reboot/panic/WDT signature, only mild non-fatal `[W][perf]` warnings.
+See TASK-357's "Deferred" item #2 for the full log evidence — not re-duplicated here.
 
 *(Original session note, now resolved above: "The gate's
 `clock_delta_smoke.py`-style screendump-diff assertion was not written" —
@@ -574,7 +587,72 @@ does not revise it), TASK-357, TASK-358 (shipped smoother + repaint fix under te
 real traffic, including a disposition of the speed+altitude hypothesis · **Priority:** P2 — live,
 human-observed accuracy concern in shipped functionality, comparable footing to TASK-358, but this
 is R&D/investigation rather than a confirmed bug with a scoped fix yet, so not P1 · **Status:**
-open, in progress — human wants R&D moving on this immediately.
+**CONCLUDED 2026-07-19** — [EXP-015](../rnd/reports/EXP-015-pr-interp-real-traffic.md), branch
+`rnd/pr-interp` commit `dab6ae6`. Doc status line was stale (never updated after landing);
+backfilled 2026-07-28.
+
+**Summary.** 24 real adsb.fi samples (8 each at nominal 1 s/5 s/10 s, actual ~2 s/5 s/11 s —
+adsb.fi's own refresh floors around ~2 s) captured from the device's actual configured location
+(central London/Westminster, 25 km preset, 62-70 aircraft/sample — genuinely busy). `pr_adsb_probe.py`
+extended with `--lat`/`--lon` (reused, not rebuilt), new `real_replay.py` reuses the existing
+`model.py`/`algorithms.py` projection + dead-reckon math. 762 matched consecutive-fix pairs
+scored for raw DR correction magnitude (the `jump_px` analog).
+
+- **Deliverable 2 (shipped smoother vs real traffic):** mean correction 0.29px, max 4.80px across
+  762 pairs — smaller than EXP-014's synthetic dr-snap worst case (9.6px), every observed max far
+  under `PR_INTERP_SNAP_PX=40px`. Mechanism confirmed (turning/gs-change predicts error, r up to
+  0.65), magnitude not under-provisioned. **No firmware change recommended** — the shipped
+  dr-damped(tau=2) smoother's absorption capacity holds on real traffic.
+- **Deliverable 3 (speed+altitude hypothesis): REFUTED.** `|baro_rate|`/`|geom_rate|`/`|alt_change|`
+  correlate weakly *negative* with error in all three runs (opposite sign the hypothesis predicts);
+  climbing/descending aircraft show *lower* mean correction than level flight. Turning remains the
+  driver, independent of vertical motion (confirmed within level-flight-only subsets too).
+- **Two non-smoother candidates flagged for the human's observed "inaccuracy"** (R&D hands findings
+  to PM, not code, per AGENTS.md — filed below as TASK-367/368): (a) `fixMs` is stamped at
+  queue-drain time, not request-issue or payload-sample time — fetch-latency variance could read as
+  a systematic dead-reckon lead; (b) `PR_MAX_AIRCRAFT=24` roster churn in this 62-70-aircraft
+  traffic density (only nearest 24 rendered) could read as "inaccurate tracking" when it's actually
+  boundary pop-in/pop-out, a distinct phenomenon from motion-vector error.
+
+Deliverable 1 (fixture dataset) committed on `rnd/pr-interp`:
+`app/tools/fixtures/planeradar/task360_london/` (24 samples × compact+pretty JSON, 2.1MB).
+
+### TASK-367 — PlaneRadar: measure fetch round-trip variance behind `fixMs`, consider request-time stamping (EXP-015 Finding 3)
+
+EXP-015 (TASK-360) flagged a candidate, unmeasured explanation for the human-observed motion
+"inaccuracy": `_reconcileMotion(now)` stamps `m.fixMs = now` at queue-drain time
+(`dataTask::pollPlaneRadar`), not at request-issue time or from the adsb.fi payload's own `now`
+epoch field. If DUT-side fetch round-trip time (TASK-313's edge-paced GETs, ~4.3s) varies
+fetch-to-fetch rather than staying near-constant, every fix is timestamped later than the aircraft's
+true position by a *varying* amount — the dead-reckon then runs systematically ahead by a moving
+offset, which reads as "off" to continuous human observation in a way EXP-015's isolated `jump_px`
+metric can't capture (rough magnitude: 2s of unaccounted latency ≈ 1.6px at the 25km preset — small
+alone, but stacks with the already-measured DR error). **Step 1 (measurement only):** log actual
+fetch round-trip time per PlaneRadar GET (`_requestFetch()` timestamp to `pollPlaneRadar()` drain)
+on the DUT and check fetch-to-fetch variance over a real busy session. If near-constant, close as
+non-issue. If it varies by 1-2s+, scope a fix (stamp `fixMs` from request-issue time or the
+payload's own timestamp field instead of drain time) as a follow-up.
+
+**Owner:** Developer (measurement) · **Deps:** EXP-015/TASK-360 (source finding), TASK-313 (the
+edge-pacing behaviour being measured) · **Gate:** DUT session, no fix without measurement first ·
+**Priority:** P3 — candidate explanation, not a confirmed bug · **Status:** open
+
+### TASK-368 — PlaneRadar: distinguish PR_MAX_AIRCRAFT=24 roster churn from motion-vector error (EXP-015 Finding 4)
+
+EXP-015 (TASK-360) found the device's actual location (central London) sees 62-70 aircraft within
+25km, far above `PR_MAX_AIRCRAFT=24` — only the nearest 24 are ever rendered. In this dense a
+traffic environment, set membership can plausibly change between fetches as aircraft cross the
+24th-nearest boundary; `_reconcileMotion()` correctly gives newly-appearing aircraft offset 0 (not a
+smoothing bug), but boundary pop-in/pop-out is a visually distinct phenomenon from mid-disc
+motion-vector inaccuracy and could read as "inaccurate tracking" to an observer who isn't
+distinguishing the two. **Scope:** a human eyeball session specifically watching for pop-in/pop-out
+near the disc edge vs. mid-disc position drift, at a busy-traffic location, to determine whether
+this — rather than TASK-367's candidate or genuine DR error — is what's actually being perceived.
+No code change implied unless the eyeball session identifies one.
+
+**Owner:** VE (eyeball session) · **Deps:** EXP-015/TASK-360 (source finding) · **Gate:** human
+DUT eyeball at a busy-traffic preset, BP-048 · **Priority:** P3 — candidate explanation, not a
+confirmed bug · **Status:** open
 
 ### TASK-361 — PlaneRadar fetch: TASK-313 retry-once mitigation regressed under busy-traffic payload size — re-quantify + fix
 
@@ -973,7 +1051,10 @@ Observables: `get clockLastAction`, `get clockStyle` extended with themes + dirt
 `docs/architecture/designs/M-CLOCK-TAP-CYCLE.md` (accepted, Q1–Q4 human-resolved same day).
 
 **Owner:** Developer + VE · **Deps:** TASK-345 (themes; done) · **Gate:** `run/check` + DUT
-tap suite T_CLK_TAP_01..06 + screendump eyeballs · **Priority:** P2 · **Status:** in progress
+tap suite T_CLK_TAP_01..06 + screendump eyeballs · **Priority:** P2 · **Status:** **DONE**
+2026-07-18 (`06455a8`) — `clock_tap_smoke.py` 16/16 PASS, `run/check` 6/6, screendump eyeballs
+confirmed tap-driven theme/face transitions, prod reflashed clean. Doc status line was stale
+(never updated after landing); backfilled 2026-07-28.
 
 > **PM sync 2026-07-17 (overnight session — 6 slices landed, ZERO DUT time — handoff for daylight)** —
 > Overnight agent session (`Claude Fable 5`) shipped six build-verified slices, each `run/check` 6/6
