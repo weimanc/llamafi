@@ -139,7 +139,41 @@ flagged that no `certbreak` hook exists — this task closes that gap too.
 
 **Owner:** Developer (command) + VE (test) · **Deps:** TASK-341 (audit first, so the injection
 exercises the final code paths) · **Gate:** DUT window required — queue for next DUT session ·
-**Priority:** P3 · **Status:** open — DUT-blocked (scheduling, not external)
+**Priority:** P3 · **Status:** **code written 2026-07-28, DUT verification still open** —
+`set certbreak <app>` landed and code-reviewed; T_CERT_ERR_01 not yet run (DUT-blocked: the live
+LHR PlaneRadar session was using the port, and the safety classifier began denying Bash execution
+mid-session — see TASK-343's note). Per explicit instruction this session: write the code, hold
+off on verification.
+
+**Implementation.** `dataTask::debugBreakCert(FetchType)` / `debugPeekCertBreak()`
+(`dataTask.h`/`dataTaskStorage.cpp`) arm a one-shot break keyed by `FetchType`, consumed at all
+10 fetcher call sites (the 8 from TASK-341 + teletext/geocode's `openHttps()` sites) via a shared
+`consumeCertBreak(type)` — same cross-task spinlock discipline as `s_prForceParseFailCount`
+(TASK-361 precedent). Deliberately reuses existing `dataTaskCerts.h` constants as the "wrong"
+root rather than authoring a new fixture cert: the four distinct roots actually pinned are ISRG
+Root X1 (weather/crypto/webradio/geocode), DigiCert Global Root G2 (the four yahoo/stock
+fetchers), USERTrust RSA CA (teletext), and GTS Root R4 (planeradar) — `wrongCaFor()` gives
+yahoo/stock targets `PLANERADAR_ROOT_CA` (GTS R4) and everything else `YAHOO_FINANCE_ROOT_CA`
+(DigiCert G2), a guaranteed cross-CA mismatch for all 10 `FetchType` values with zero new PEM
+material to maintain or expiry-track. `set certbreak <app>` (10 short names: weather, crypto,
+stockquote, stockchart, heatmap, stockchartsym, teletext, webradio, planeradar, geocode) and
+`get certbreak` wired into `main.cpp`'s `cmdSet`/`cmdGet` as global (cross-app) commands — same
+tier as `logLevel`/`wifiPs`, not per-app `dbgSet`, since the target is a `dataTask::FetchType`
+identity, not one App's own state. Both gated under the existing outer `#ifdef SERIAL_DEBUG`
+block (verified: opens `main.cpp:2709`, closes `:3975`, both new blocks fall inside it) — debug
+build only, per spec.
+
+**Not yet done:** `run/check` build verification (blocked, see above), and everything VE-side —
+T_CERT_ERR_01's actual DUT run (armed cert-break → -120 on error row/`get dataq` → next cycle
+recovers), and in particular the stale-`lastError()` leg the design doc flags as the one real
+risk: after a break-then-recover cycle, a genuinely unreachable host must show `-1`/`-11`, not a
+lingering `-120`. Nothing in this implementation should cause that (the break is consumed
+one-shot before the fetch, `certSentinel()`'s stale-check logic is untouched by this task), but
+that is exactly the kind of claim T_CERT_ERR_01 exists to verify rather than assume. Also
+untested: whether `consumeCertBreak`'s interaction with PlaneRadar's forced-parse-fail hook
+(`prForceParseFail`, checked first in `prFetchOnce()` and returning before reaching
+`setCACert()`) matters for any real test scenario — analysis says no (the two mechanisms
+shouldn't be armed simultaneously in practice) but unverified.
 
 ## Open — M-APP-ORDER (2026-07-18)
 

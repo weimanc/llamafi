@@ -193,6 +193,48 @@ static int certSentinel(WiFiClientSecure& tls, int code) {
     return code;
 }
 
+// TASK-344 (M-CERT-ERRCODE): SERIAL_DEBUG test hook state for `set certbreak
+// <app>` — one-shot, cross-task like s_prForceParseFailCount above. -1 = no
+// break armed; otherwise the FetchType value whose next fetch should use the
+// wrong root.
+static portMUX_TYPE s_certBreakMux    = portMUX_INITIALIZER_UNLOCKED;
+static int          s_certBreakTarget = -1;
+
+// If `type` is currently armed, consumes the arm (clears it) and returns
+// true — the "next fetch" contract is genuinely one-shot regardless of
+// whether the caller goes on to actually use the wrong root (it always
+// does, but the consume happens here so a fetcher that bails out early for
+// an unrelated reason, e.g. queue coalescing, doesn't leave a stale arm).
+static bool consumeCertBreak(FetchType type) {
+    bool hit = false;
+    portENTER_CRITICAL_SAFE(&s_certBreakMux);
+    if (s_certBreakTarget == (int)type) { s_certBreakTarget = -1; hit = true; }
+    portEXIT_CRITICAL_SAFE(&s_certBreakMux);
+    return hit;
+}
+
+// Picks an already-pinned root that is guaranteed to be the WRONG one for
+// `type` — reuses existing dataTaskCerts.h constants (no new fixture PEM to
+// author/maintain/expiry-track) rather than embedding a dedicated dummy
+// cert. The four distinct roots actually in use are: ISRG Root X1
+// (weather/crypto/webradio/geocode via OPEN_METEO_ROOT_CA and its aliases),
+// DigiCert Global Root G2 (the four yahoo/stock fetchers), USERTrust RSA CA
+// (teletext), and GTS Root R4 (planeradar, PLANERADAR_ROOT_CA). Yahoo/stock
+// gets PLANERADAR_ROOT_CA (GTS R4, never DigiCert); everything else gets
+// YAHOO_FINANCE_ROOT_CA (DigiCert G2, never ISRG/USERTrust/GTS) — covers
+// all 10 FetchType values with a guaranteed cross-CA mismatch.
+static const char* wrongCaFor(FetchType type) {
+    switch (type) {
+        case DATA_FETCH_STOCK_QUOTE:
+        case DATA_FETCH_STOCK_CHART:
+        case DATA_FETCH_HEATMAP_QUOTE:
+        case DATA_FETCH_STOCK_CHART_BY_SYM:
+            return PLANERADAR_ROOT_CA;
+        default:
+            return YAHOO_FINANCE_ROOT_CA;
+    }
+}
+
 static int openHttps(WiFiClientSecure& tls, HTTPClient& http, const char* url,
                       const char* rootCA, bool insecure) {
     if (insecure) tls.setInsecure();
@@ -224,7 +266,8 @@ static void fetchWeather() {
     spotifyTask::tlsYield();
     LOG_HEAP("dataTask.weather");
     WiFiClientSecure tls;
-    tls.setCACert(OPEN_METEO_ROOT_CA);
+    tls.setCACert(consumeCertBreak(DATA_FETCH_WEATHER)
+                      ? wrongCaFor(DATA_FETCH_WEATHER) : OPEN_METEO_ROOT_CA);  // TASK-344
     HTTPClient http;
     http.useHTTP10(true);   // force Connection:close so http.end() frees TLS
     if (!http.begin(tls, url)) {
@@ -295,7 +338,8 @@ static void fetchCrypto() {
     s_cryptoFetchPhase = 0;  // TLS + http.begin
     LOG_HEAP("dataTask.crypto");
     WiFiClientSecure tls;
-    tls.setCACert(COINGECKO_ROOT_CA);
+    tls.setCACert(consumeCertBreak(DATA_FETCH_CRYPTO)
+                      ? wrongCaFor(DATA_FETCH_CRYPTO) : COINGECKO_ROOT_CA);  // TASK-344
     HTTPClient http;
     http.useHTTP10(true);   // force Connection:close so http.end() frees TLS
     if (!http.begin(tls, cryptoUrl)) {
@@ -367,7 +411,8 @@ static void fetchStockQuote() {
     } else {
         String url = String(STOCK_SPARK_URL) + syms + "&interval=1d&range=1d";
         WiFiClientSecure tls;
-        tls.setCACert(YAHOO_FINANCE_ROOT_CA);
+        tls.setCACert(consumeCertBreak(DATA_FETCH_STOCK_QUOTE)
+                          ? wrongCaFor(DATA_FETCH_STOCK_QUOTE) : YAHOO_FINANCE_ROOT_CA);  // TASK-344
         HTTPClient http;
         if (!http.begin(tls, url)) {
             LOG_W("dataTask.stock", "spark http.begin failed");
@@ -440,7 +485,8 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
     r.rangeIdx = rangeIdx;
     s_stockChartProgress = 0;  // TLS + http.begin
     WiFiClientSecure tls;
-    tls.setCACert(YAHOO_FINANCE_ROOT_CA);
+    tls.setCACert(consumeCertBreak(DATA_FETCH_STOCK_CHART)
+                      ? wrongCaFor(DATA_FETCH_STOCK_CHART) : YAHOO_FINANCE_ROOT_CA);  // TASK-344
     HTTPClient http;
     if (!http.begin(tls, url)) {
         LOG_W("dataTask.stock", "chart http.begin failed");
@@ -547,7 +593,10 @@ static void fetchTeletext(uint16_t page, uint8_t sub) {
     WiFiClientSecure tls;
     HTTPClient http;
     unsigned long t0 = millis();
-    int code = openHttps(tls, http, url, TELETEXT_NOS_ROOT_CA, /*insecure=*/false);
+    int code = openHttps(tls, http, url,
+        consumeCertBreak(DATA_FETCH_TELETEXT_PAGE)
+            ? wrongCaFor(DATA_FETCH_TELETEXT_PAGE) : TELETEXT_NOS_ROOT_CA,  // TASK-344
+        /*insecure=*/false);
     if (code == OPENHTTPS_BEGIN_FAILED) {
         LOG_W("dataTask.teletext", "http.begin failed page=%u", page);
         portENTER_CRITICAL_SAFE(&s_teletextMux);
@@ -818,7 +867,8 @@ static void fetchHeatmapQuote() {
     LOG_HEAP("dataTask.stock");   // after Spotify TLS freed — expect maxBlk ≥ 50k
 
     WiFiClientSecure tls;
-    tls.setCACert(YAHOO_FINANCE_ROOT_CA);
+    tls.setCACert(consumeCertBreak(DATA_FETCH_HEATMAP_QUOTE)
+                      ? wrongCaFor(DATA_FETCH_HEATMAP_QUOTE) : YAHOO_FINANCE_ROOT_CA);  // TASK-344
     HTTPClient http;
     if (!http.begin(tls, HEATMAP_URL)) {
         LOG_W("dataTask.stock", "heatmap http.begin failed");
@@ -910,7 +960,8 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
     s_stockChartProgress = 0;  // TLS + http.begin
     LOG_HEAP("dataTask.stock");
     WiFiClientSecure tls;
-    tls.setCACert(YAHOO_FINANCE_ROOT_CA);
+    tls.setCACert(consumeCertBreak(DATA_FETCH_STOCK_CHART_BY_SYM)
+                      ? wrongCaFor(DATA_FETCH_STOCK_CHART_BY_SYM) : YAHOO_FINANCE_ROOT_CA);  // TASK-344
     HTTPClient http;
     if (!http.begin(tls, url)) {
         LOG_W("dataTask.stock", "chart-sym http.begin failed sym=%s", symbol);
@@ -994,7 +1045,8 @@ static int fetchOneMirror(const char* mirror, const char* country, uint8_t bitra
     // TASK-236 after the T_WR_TLS_01 gate proved it never fired — a verify
     // failure now surfaces as a connection error and the mirror is skipped,
     // rather than being silently downgraded to an unverified session.
-    tls.setCACert(RADIO_BROWSER_ROOT_CA);
+    tls.setCACert(consumeCertBreak(DATA_FETCH_WEBRADIO_STATIONS)
+                      ? wrongCaFor(DATA_FETCH_WEBRADIO_STATIONS) : RADIO_BROWSER_ROOT_CA);  // TASK-344
     HTTPClient http;
     http.useHTTP10(true);
     if (!http.begin(tls, url)) {
@@ -1243,7 +1295,8 @@ static int prFetchOnce(const char* url, PlaneRadarResult& r, uint16_t& scanned) 
         return 200;   // pretend HTTP succeeded so code==200 && !r.ok gates the caller's retry logic
     }
     WiFiClientSecure tls;
-    tls.setCACert(PLANERADAR_ROOT_CA);
+    tls.setCACert(consumeCertBreak(DATA_FETCH_PLANERADAR)
+                      ? wrongCaFor(DATA_FETCH_PLANERADAR) : PLANERADAR_ROOT_CA);  // TASK-344
     HTTPClient http;
     http.useHTTP10(true);   // identity encoding so getStream() yields clean JSON
     if (!http.begin(tls, url)) {
@@ -1426,7 +1479,10 @@ static void fetchGeocode() {
     WiFiClientSecure tls;
     HTTPClient http;
     http.setUserAgent(GEOCODE_UA);   // mandatory (403 on default UA) — set pre-begin
-    int code = openHttps(tls, http, url, NOMINATIM_ROOT_CA, false);
+    int code = openHttps(tls, http, url,
+        consumeCertBreak(DATA_FETCH_GEOCODE)
+            ? wrongCaFor(DATA_FETCH_GEOCODE) : NOMINATIM_ROOT_CA,  // TASK-344
+        false);
     if (code == OPENHTTPS_BEGIN_FAILED) {
         r.errorCode = -100;
     } else if (code == 200) {
@@ -1927,6 +1983,20 @@ int debugPeekForcedParseFailCount() {
     n = s_prForceParseFailCount;
     portEXIT_CRITICAL_SAFE(&s_prForceFailMux);
     return n;
+}
+
+void debugBreakCert(FetchType type) {
+    portENTER_CRITICAL_SAFE(&s_certBreakMux);
+    s_certBreakTarget = (int)type;
+    portEXIT_CRITICAL_SAFE(&s_certBreakMux);
+}
+
+int debugPeekCertBreak() {
+    int t;
+    portENTER_CRITICAL_SAFE(&s_certBreakMux);
+    t = s_certBreakTarget;
+    portEXIT_CRITICAL_SAFE(&s_certBreakMux);
+    return t;
 }
 
 void dbgGeocodeState(bool* parked, bool* hasNew, GeocodeResult* last) {

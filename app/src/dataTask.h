@@ -306,6 +306,24 @@ void debugForcePlaneRadarParseFail(int n);
 // SERIAL_DEBUG peek (get prForceParseFail): remaining forced-failure count.
 int debugPeekForcedParseFailCount();
 
+// SERIAL_DEBUG test hook (set certbreak <app>, TASK-344, M-CERT-ERRCODE):
+// arms a one-shot cert-verify break for the named fetch type's NEXT attempt
+// — the fetcher swaps its normal pinned root for a different, already-
+// pinned-elsewhere-in-this-file root CA (still syntactically valid PEM,
+// still a real trusted root, just the wrong one for this endpoint), which
+// mbedTLS rejects with X509_CERT_VERIFY_FAILED exactly like a real pin rot
+// would. Auto-clears whether or not the fetch actually runs (one-shot, not
+// a retry-surviving latch) — same "next fetch" contract prForceParseFail
+// uses, TASK-276 injected-state pattern. T_CERT_ERR_01 exercises this to
+// prove -120 surfaces on the error row / `get dataq`, and that the break
+// doesn't leak into the FOLLOWING cycle's unrelated failure (the
+// stale-lastError() leg design §"Effort/risk" flags as the one real risk).
+void debugBreakCert(FetchType type);
+
+// SERIAL_DEBUG peek (get certbreak): -1 if nothing armed, else the
+// FetchType value currently armed (consumed on that type's next attempt).
+int debugPeekCertBreak();
+
 void configureStockTickers(const char tickers[8][8]);
 void configureCrypto(const char ids[6][16], const char* ccy);
 

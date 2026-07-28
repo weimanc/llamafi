@@ -2967,6 +2967,19 @@ static void cmdGet(const char *args) {
                   (unsigned long)spotifyTask::taskActivityMs());
     return;
   }
+  // TASK-344 (M-CERT-ERRCODE): peek whether a `set certbreak <app>` arm is
+  // still pending (armed=false once the target fetch has consumed it).
+  if (strcmp(args, "certbreak") == 0) {
+    int armed = dataTask::debugPeekCertBreak();
+    if (armed < 0) {
+      Serial.println("{\"ok\":true,\"cmd\":\"get\",\"var\":\"certbreak\","
+                      "\"armed\":false,\"last\":true}");
+    } else {
+      Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"certbreak\","
+                    "\"armed\":true,\"type\":%d,\"last\":true}\n", armed);
+    }
+    return;
+  }
   // TASK-282: beacon-watcher stats — evidence at the antenna. count/gapMax/
   // gapsOver1s split BEACON_TIMEOUT into "beacons stopped arriving" (H-A/H-C)
   // vs "beacons fine, stack timed out" (H-B). otherMgmt proves rx was alive.
@@ -3536,6 +3549,34 @@ static void cmdSet(const char *args) {
     WiFi.disconnect();
     delay(200);
     WiFi.begin();   // reconnect from NVS creds
+    return;
+  }
+  // TASK-344 (M-CERT-ERRCODE): `set certbreak <app>` arms a one-shot wrong-
+  // root-CA swap for the named fetcher's next attempt (T_CERT_ERR_01). Global
+  // (cross-app) like logLevel/wifiPs above, not per-app dbgSet — certbreak
+  // targets a dataTask::FetchType, not any one App's own state.
+  if (strcmp(var, "certbreak") == 0) {
+    static const struct { const char* name; dataTask::FetchType type; } kCertBreakApps[] = {
+        {"weather",       dataTask::DATA_FETCH_WEATHER},
+        {"crypto",        dataTask::DATA_FETCH_CRYPTO},
+        {"stockquote",    dataTask::DATA_FETCH_STOCK_QUOTE},
+        {"stockchart",    dataTask::DATA_FETCH_STOCK_CHART},
+        {"heatmap",       dataTask::DATA_FETCH_HEATMAP_QUOTE},
+        {"stockchartsym", dataTask::DATA_FETCH_STOCK_CHART_BY_SYM},
+        {"teletext",      dataTask::DATA_FETCH_TELETEXT_PAGE},
+        {"webradio",      dataTask::DATA_FETCH_WEBRADIO_STATIONS},
+        {"planeradar",    dataTask::DATA_FETCH_PLANERADAR},
+        {"geocode",       dataTask::DATA_FETCH_GEOCODE},
+    };
+    for (const auto& a : kCertBreakApps) {
+      if (strcmp(val, a.name) == 0) {
+        dataTask::debugBreakCert(a.type);
+        Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"certbreak\",\"app\":\"%s\"}\n", val);
+        return;
+      }
+    }
+    Serial.printf("{\"ok\":false,\"cmd\":\"set\",\"var\":\"certbreak\","
+                  "\"error\":\"unknown app\",\"app\":\"%s\"}\n", val);
     return;
   }
   if ((spotifyDisplay && spotifyDisplay->dbgSet(var, val))
