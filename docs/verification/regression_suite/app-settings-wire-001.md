@@ -208,7 +208,7 @@ PlaneRadar=10, WebRadio=11.
 **Preconditions:** DUT booted, debug build. `switchApp 4` (Matrix) — note `get matrixColor` returns `"green"` (default).
 
 **Steps:**
-1. `switchApp 6` — enter Settings
+1. `switchApp 10` — enter Settings
 2. `tap 137 171` — tap "Applications"
 3. `tap 137 101` — tap "Matrix" (WR-4 re-derived 2026-07-17: idx 3 of 10 @ 21px rows, was `67`)
 4. `tap 137 41` — tap "Color" row once → cycles green→white
@@ -229,7 +229,7 @@ PlaneRadar=10, WebRadio=11.
 **Preconditions:** Default Matrix state (`get matrixTickMs` returns `"25"`).
 
 **Steps (slow):**
-1. `switchApp 6` → `tap 137 171` → `tap 137 101` (Matrix, WR-4 re-derived — was `67`) → `tap 137 67` (Speed row, per-app row, unaffected by WR-4) once
+1. `switchApp 10` → `tap 137 171` → `tap 137 101` (Matrix, WR-4 re-derived — was `67`) → `tap 137 67` (Speed row, per-app row, unaffected by WR-4) once
 2. Exit Settings: `tap 30 14` × 3; `switchApp 4`
 3. `get matrixTickMs`
 
@@ -303,11 +303,11 @@ PlaneRadar=10, WebRadio=11.
 
 **Steps:**
 1. Settings → Applications → Aquarium → Fish count tap once (16→4)
-2. Exit; `switchApp 8`; `get aquariumFish`
+2. Exit; `switchApp 7`; `get aquariumFish`
 
 **Expected:** `val == "4"`.
 
-3. Repeat: cycle back to 16 (4→8→12→16): tap Fish count row 3× more; exit; `switchApp 8`; `get aquariumFish`
+3. Repeat: cycle back to 16 (4→8→12→16): tap Fish count row 3× more; exit; `switchApp 7`; `get aquariumFish`
 
 **Expected:** `val == "16"`.
 
@@ -317,7 +317,7 @@ PlaneRadar=10, WebRadio=11.
 
 **Preconditions:** Fish count set to 4 via Settings.
 
-**Steps:** `switchApp 8`. Observe for ≥ 10 s.
+**Steps:** `switchApp 7`. Observe for ≥ 10 s.
 
 **Expected:** Approximately 4 fish visible. School is sparse; crab may find no targets quickly.
 
@@ -327,7 +327,7 @@ PlaneRadar=10, WebRadio=11.
 
 **Preconditions:** Fish count set to 16 via Settings.
 
-**Steps:** `switchApp 8`. Observe for ≥ 10 s.
+**Steps:** `switchApp 7`. Observe for ≥ 10 s.
 
 **Expected:** Dense school of ~16 fish; crab is active with nearby targets.
 
@@ -338,8 +338,8 @@ PlaneRadar=10, WebRadio=11.
 **Preconditions:** Observe at default (normal), then change to fast.
 
 **Steps:**
-1. `switchApp 8`. Observe fish swim pace for 10 s.
-2. Settings → Applications → Aquarium → Speed tap once (normal→fast); exit; `switchApp 8`.
+1. `switchApp 7`. Observe fish swim pace for 10 s.
+2. Settings → Applications → Aquarium → Speed tap once (normal→fast); exit; `switchApp 7`.
 3. Observe for 10 s.
 
 **Expected:** Fish at fast setting swim noticeably quicker than normal. Reverse: change to slow and confirm slower pace.
@@ -353,7 +353,7 @@ PlaneRadar=10, WebRadio=11.
 **Preconditions:** Debug build. Settings → Applications → Stock submenu visible.
 
 **Steps:**
-1. `switchApp 6` → `tap 137 171` → `tap 137 143` (Stock, WR-4 re-derived 2026-07-17: idx 5 of 10 @ 21px rows, was `119`)
+1. `switchApp 10` → `tap 137 171` → `tap 137 143` (Stock, WR-4 re-derived 2026-07-17: idx 5 of 10 @ 21px rows, was `119`)
 2. `tap 137 41` — tap Ticker 1 row
 
 **Expected:** Keyboard canvas appears (UpperAlpha mode). Prompt shows "Ticker 1". Input pre-filled with current ticker (e.g. "AAPL").
@@ -371,7 +371,7 @@ PlaneRadar=10, WebRadio=11.
 2. Clear input (backspace × 4); type "TSLA"; tap OK
 3. Observe serial: validating screen appears
 4. Poll `get stockTicker0` with 25 s timeout until `val == "TSLA"` (or timeout → error screen)
-5. Exit Settings; `switchApp 7`; poll `get quoteOkCount` ≤ 90 s until `val > Q0`
+5. Exit Settings; `switchApp 6`; poll `get quoteOkCount` ≤ 90 s until `val > Q0`
 
 **Expected:** Step 4: `val == "TSLA"`. Step 5: `quoteOkCount` increments. No `fetchFailed`.
 
@@ -411,7 +411,7 @@ PlaneRadar=10, WebRadio=11.
 **Preconditions:** StockApp stable, `Q0 = get quoteOkCount`. Ticker 1 changed to "TSLA" (via T-WIRE-STOCK-02).
 
 **Steps:**
-1. Exit Settings → `switchApp 7` (triggers `resume()` which detects ticker change)
+1. Exit Settings → `switchApp 6` (triggers `resume()` which detects ticker change)
 2. Poll `get quoteOkCount` ≤ 90 s
 
 **Expected:** `quoteOkCount > Q0` within timeout. No `fetchFailed`.
@@ -428,7 +428,7 @@ Exit Settings; save confirmed.
 **Steps:**
 1. `reboot` — full DUT restart
 2. Wait for boot (WiFi up, serial heartbeat)
-3. `switchApp 7`
+3. `switchApp 6`
 4. `get stockSubView`
 
 **Expected:** `val == "chart"` (seeded from `g_settings.stockMode` in `StockApp::init()`).
@@ -443,7 +443,7 @@ Exit Settings; save confirmed.
 `g_settings.stockMode == "list"` (default).
 
 **Steps:**
-1. `switchApp 6` → `switchApp 7` — leave and immediately re-enter StockApp
+1. `switchApp 10` → `switchApp 6` — leave and immediately re-enter StockApp
 2. `get stockSubView`
 
 **Expected:** `val == "chart"` — `resume()` does not reset to stockMode on re-entry.
@@ -529,11 +529,11 @@ Without it, this is MANUAL-only at this milestone.
 **Preconditions:** `get matrixColor` returns `"green"` (default).
 
 **Steps:**
-1. `switchApp 4` → `switchApp 6` (enter Settings with Matrix as context)
+1. `switchApp 4` → `switchApp 10` (enter Settings with Matrix as context)
 2. Tap Applications → Matrix → Color row once (green→white)
 3. Exit to category list: `tap 30 14` × 2
 4. `switchApp 4`; `get matrixColor` — verify `val == "white"` (change applied)
-5. `switchApp 6` (re-enter Settings)
+5. `switchApp 10` (re-enter Settings)
 6. Scroll to category list if needed; `tap 137 196` (Cancel row — arithmetic
    note fixed 2026-07-17, WR-4 audit pass: `sepY = S_CONTENT_Y(28) +
    SETTINGS_CAT_COUNT(6)×SETTINGS_ROW_H(26) = 184`; `cancelMid = sepY + 1 +
@@ -557,7 +557,7 @@ Without it, this is MANUAL-only at this milestone.
 1. Settings → Stock → Ticker 1 → keyboard → type "MSFT" → OK → wait for validation
 2. `get stockTicker0` → confirm `"MSFT"` (change applied)
 3. Re-enter Settings; navigate to category list; tap Cancel
-4. `switchApp 7`; `get stockTicker0`
+4. `switchApp 6`; `get stockTicker0`
 
 **Expected step 4:** `val == "AAPL"` — snapshot restore reverted the keyboard-entered ticker.
 
@@ -581,7 +581,7 @@ Without it, this is MANUAL-only at this milestone.
 **Steps:**
 1. Settings → Applications → Stock → Ticker 1 tap once; exit; note new ticker N
 2. `reboot`; wait for boot
-3. `switchApp 7`; `get stockTicker0`
+3. `switchApp 6`; `get stockTicker0`
 
 **Expected:** `val == N` (not `"AAPL"`).
 

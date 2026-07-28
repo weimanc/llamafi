@@ -33,21 +33,15 @@ from pathlib import Path
 from PIL import Image
 
 # ---------------------------------------------------------------------------
-# App list — must match appRegistry.h order exactly.
+# App list — derived from appRegistry.h via the generated app_ids_gen.py
+# mirror (LL-114: TASK-347 killed the former hand-kept copy of this list,
+# which could silently drift out of registry order and bake wrong icons).
+# WebRadio is eject-only and excluded from the taskbar (TASK-242).
 # ---------------------------------------------------------------------------
-APPS = [
-    "spotify",
-    "clock",
-    "weather",
-    "crypto",
-    "matrix",
-    "life",
-    "settings",
-    "stock",
-    "aquarium",
-    "teletext",
-    "planeradar",
-]
+sys.path.insert(0, str(Path(__file__).parent))
+import app_ids_gen
+
+APPS = [name.lower() for name in app_ids_gen.APP_ORDER if name != "WebRadio"]
 
 # ---------------------------------------------------------------------------
 # Defaults (may be overridden by --icon-size or parsed from shell_layout.h)

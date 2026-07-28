@@ -27,7 +27,7 @@
 
 ### T-CAL-BTAP-01 — Back-tap cancels TL step
 
-**Precondition:** Settings app open (switchApp 6), Touch Calibration tapped, Start tapped → device shows "Tap top-left" crosshair.
+**Precondition:** Settings app open (switchApp 10), Touch Calibration tapped, Start tapped → device shows "Tap top-left" crosshair.
 
 **Steps:**
 1. `tap 30 14` — tap `< back` zone (x<60, y<28)
@@ -110,7 +110,7 @@
 **Precondition:** Fresh SPIFFS (or device with no prior user calibration — `/cal.json` has only factory entry).
 
 **Steps:**
-1. `switchApp 6`, tap Touch Calibration row
+1. `switchApp 10`, tap Touch Calibration row
 
 **Expected:** IDLE view shows "History" section with one entry: `[1] factory  <xMin>/<xMax>/<yMin>/<yMax>`.
 
@@ -261,7 +261,7 @@
 **Precondition:** cyd2usb_winamp_debug build flashed. Serial monitor running.
 
 **Steps:**
-1. `switchApp 6` → tap Display row
+1. `switchApp 10` → tap Display row
 2. Observe serial output
 
 **Expected:** `[disp] analogRead(34) raw = <N>` line appears.
@@ -288,7 +288,7 @@
 
 ### T-SET-CANCEL-01 — Cancel row renders in category list
 
-**Precondition:** Settings app open (switchApp 6).
+**Precondition:** Settings app open (switchApp 10).
 
 **Steps:**
 1. Observe screen
@@ -418,7 +418,7 @@
 **Steps:**
 1. `switchApp 0` (Spotify), `tap 100 100` — check for diamond
 2. `switchApp 1` (Clock), `tap 100 100` — check for diamond
-3. `switchApp 6` (Settings), `tap 100 100` — check for diamond
+3. `switchApp 10` (Settings), `tap 100 100` — check for diamond
 
 **Expected:** Diamond appears in all three apps.
 

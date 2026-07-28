@@ -44,7 +44,7 @@ from typing import Optional
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import coords as _c
-from app_ids_gen import APP_SLOT, APP_COUNT
+from app_ids_gen import APP_SLOT
 
 try:
     import serial
@@ -2033,7 +2033,7 @@ def t_x07_01(dut: Dut):
 
 
 # ── stock-001 suite (TASK-110) ────────────────────────────────────────────────
-# All tests use `switchApp 7` (debug command) to reach StockApp directly rather
+# All tests use `switchApp <_STOCK_APP_ID>` (debug command) to reach StockApp directly rather
 # than scrolling the taskbar — taskbar scrolling is covered by T162–T168.
 # T182 is the one exception: it uses the taskbar path to exercise the real UI.
 #
@@ -2641,10 +2641,13 @@ def t182(dut: Dut):
         dut.cmd("drag 297 100 297 200 10", timeout=3.0)  # reset scroll
         return
     dut.set_cooldown_zero()
-    # Physical slot 5 at scrollOffset=2 → AppId (2+5)%APP_COUNT == Stock.
+    # Physical slot at scrollOffset=2 → AppId (offset+slot)%TASKBAR_APP_COUNT == Stock.
     # NOTE: this test intentionally uses physical-slot arithmetic, not APP_SLOT.
     # It breaks if the app order changes — update the drag offset and slot together.
-    _stock_physical_slot = (APP_SLOT["Stock"] - 2) % APP_COUNT
+    # Mod base is APP_SLOT["WebRadio"] (= firmware TASKBAR_APP_COUNT, the taskbar
+    # cycle length excluding eject-only WebRadio — TASK-242), NOT APP_COUNT (TASK-347:
+    # Settings moved directly before WebRadio, shifting Stock's physical slot 5→4).
+    _stock_physical_slot = (APP_SLOT["Stock"] - 2) % APP_SLOT["WebRadio"]
     sx, sy = _c.tap_taskbar_slot(_stock_physical_slot)
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     time.sleep(0.4)
@@ -6662,7 +6665,7 @@ def t_err_07(dut: Dut):
     driven via the existing `set fetchFailed` injector; clears on success. Representative of the
     Weather/Crypto/Teletext error latches (same set-on-fail / clear-on-success pattern)."""
     print("T-ERR-07  network-app hasError → red (Stock fetchFailed)")
-    dut.cmd("switchApp 7"); time.sleep(0.5)   # Stock
+    dut.cmd(f"switchApp {_STOCK_APP_ID}"); time.sleep(0.5)   # Stock
     dut.cmd("set fetchFailed 1"); time.sleep(0.2)
     err = dut.cmd("get activeError")
     dut.cmd("set fetchFailed 0"); time.sleep(0.2)

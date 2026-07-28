@@ -101,6 +101,11 @@ and crashed because its `kTaskbarIcons` entry was zero-filled).
 - [ ] **VE**: a test must scroll the taskbar a full cycle and assert (a) no crash, (b) hidden apps
   never appear as a slot — exercise the **user scroll/gesture path**, not a harness shortcut that taps
   an off-screen slot coordinate (that bypasses the render path where the crash lives — the WebRadio gap).
+- [ ] **Insert new `APP_X` rows BEFORE `Settings`.** Settings and WebRadio are pinned as the last two
+  registry rows (TASK-347 — Settings is a utility, not a destination app, and always occupies the last
+  taskbar slot). Both `taskbar.h`'s `static_assert` and `gen_app_registry.py`'s codegen guard fail the
+  build if a new row lands after Settings. See
+  `docs/architecture/designs/M-APP-ORDER-settings-last.md`.
 
 ---
 

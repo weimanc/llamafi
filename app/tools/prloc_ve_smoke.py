@@ -134,7 +134,7 @@ report("V2 found a non-active filled slot to switch to", target is not None, f"t
 # =========================================================================
 # T_PRL_02 — strip tap switches location
 # =========================================================================
-d.cmd("switchApp 10")   # AppId::PlaneRadar
+d.cmd("switchApp 9")   # AppId::PlaneRadar (TASK-347: Settings moved before it, shifting 10→9)
 time.sleep(0.5)
 
 d.tap(STRIP_X, STRIP_ROW_Y[target])
@@ -209,7 +209,7 @@ if victim is not None:
     r = d.cmd("get prloc")
     report("T_PRL_05b setup: victim slot is active", r.get("active") == victim, str(r))
 
-    d.cmd("switchApp 6")            # Settings
+    d.cmd("switchApp 10")           # Settings (TASK-347: moved from 6 to directly before WebRadio)
     time.sleep(0.3)
     d.tap(100, row_y(5))            # Applications (main.cpp kLabels idx 5)
     time.sleep(0.3)
@@ -243,7 +243,7 @@ scratch = next((i for i in filled if i != 0 and i != victim), None)
 report("V4 found a scratch slot for the -96 leg (untouched by Save)", scratch is not None, f"scratch={scratch}")
 
 if scratch is not None:
-    d.cmd("switchApp 6")
+    d.cmd("switchApp 10")           # Settings (TASK-347: moved from 6 to directly before WebRadio)
     time.sleep(0.3)
     d.tap(100, row_y(5))            # Applications
     time.sleep(0.3)

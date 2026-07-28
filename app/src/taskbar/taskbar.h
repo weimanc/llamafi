@@ -36,6 +36,15 @@ static_assert((int)AppId::WebRadio == (int)AppId::COUNT - 1,
               "docs/architecture/designs/NEW-APP-CHECKLIST.md.");
 static constexpr int TASKBAR_APP_COUNT = (int)AppId::WebRadio;
 
+// TASK-347: Settings is a utility, not a destination app — pinned as the last
+// visible taskbar slot, i.e. the second-to-last registry row (directly before
+// the eject-only WebRadio). Future apps insert BEFORE Settings; see
+// docs/architecture/designs/M-APP-ORDER-settings-last.md and NEW-APP-CHECKLIST.md.
+static_assert((int)AppId::Settings == (int)AppId::WebRadio - 1,
+              "Settings must remain the last taskbar slot (second-to-last AppId, "
+              "directly before WebRadio). Insert new apps BEFORE Settings — see "
+              "docs/architecture/designs/M-APP-ORDER-settings-last.md.");
+
 // Compile-time gate (TASK-242): every taskbar app must have a baked icon. The
 // generator emits TASKBAR_ICON_COUNT = number of icon pairs; if it drifts from
 // TASKBAR_APP_COUNT (e.g. a taskbar app added to AppId but not to the icon

@@ -1209,9 +1209,9 @@ Common preconditions for all DUT tests below:
 
 - **Type**: integration (DUT)
 - **Feature(s)**: stock-001
-- **Objective**: `switchApp 7` activates StockApp in list view; `switchApp 0` restores Spotify.
+- **Objective**: `switchApp 6` activates StockApp in list view; `switchApp 0` restores Spotify.
 - **Preconditions**: DUT booted, Spotify active.
-- **Steps**: 1. `switchApp 7`. 2. `get stockSubView` → assert `"list"`. 3. `switchApp 0`. 4. `get appId` → assert `"Spotify"`.
+- **Steps**: 1. `switchApp 6`. 2. `get stockSubView` → assert `"list"`. 3. `switchApp 0`. 4. `get appId` → assert `"Spotify"`.
 - **Expected result**: `stockSubView=list` on first launch; round-trip succeeds.
 - **Harness**: `run_serialdbg_tests.py --tests T169`. Owner: VE.
 - **Status**: written (2026-05-29).
@@ -1222,7 +1222,7 @@ Common preconditions for all DUT tests below:
 - **Feature(s)**: stock-001
 - **Objective**: `init()` sets `lastQuoteFetch` immediately on first launch (fetch enqueued but not yet returned).
 - **Preconditions**: Stock not previously activated this session (`lastQuoteFetch=0` before switch).
-- **Steps**: 1. Confirm `get lastQuoteFetch == 0`. 2. `switchApp 7`. 3. `get lastQuoteFetch` — assert `> 0`.
+- **Steps**: 1. Confirm `get lastQuoteFetch == 0`. 2. `switchApp 6`. 3. `get lastQuoteFetch` — assert `> 0`.
 - **Expected result**: `lastQuoteFetch > 0` immediately after `init()` (timestamp set before fetch returns).
 - **Harness**: `run_serialdbg_tests.py --tests T170`. SKIP if already fetched. Owner: VE.
 - **Status**: written (2026-05-29).
@@ -1244,7 +1244,7 @@ Common preconditions for all DUT tests below:
 - **Feature(s)**: stock-001
 - **Objective**: After Stock→Spotify switch, Winamp chrome repaints cleanly (no stock residue).
 - **Preconditions**: Spotify active, playing a track (playlist draw observable).
-- **Steps**: 1. `switchApp 7`. 2. Wait 150 ms. 3. `switchApp 0`. 4. Poll `get lastPlaylistDraw` — assert it advances within 3 s.
+- **Steps**: 1. `switchApp 6`. 2. Wait 150 ms. 3. `switchApp 0`. 4. Poll `get lastPlaylistDraw` — assert it advances within 3 s.
 - **Expected result**: `lastPlaylistDraw` advances — Winamp repainted over Stock canvas.
 - **Harness**: `run_serialdbg_tests.py --tests T172`. Owner: VE.
 - **Status**: written (2026-05-29).
@@ -1255,7 +1255,7 @@ Common preconditions for all DUT tests below:
 - **Feature(s)**: stock-001
 - **Objective**: Switching away from Stock and back within 60 s does not trigger a new quote fetch.
 - **Preconditions**: Quote fetch already completed (`lastQuoteFetch > 0`).
-- **Steps**: 1. `switchApp 7`. 2. Record `lastQuoteFetch`. 3. `switchApp 0`. 4. Wait 2 s. 5. `switchApp 7`. 6. `get lastQuoteFetch` — assert unchanged.
+- **Steps**: 1. `switchApp 6`. 2. Record `lastQuoteFetch`. 3. `switchApp 0`. 4. Wait 2 s. 5. `switchApp 6`. 6. `get lastQuoteFetch` — assert unchanged.
 - **Expected result**: `lastQuoteFetch` value identical before and after the round-trip.
 - **Harness**: `run_serialdbg_tests.py --tests T173`. Owner: VE.
 - **Status**: written (2026-05-29).
@@ -1266,7 +1266,7 @@ Common preconditions for all DUT tests below:
 - **Feature(s)**: stock-001
 - **Objective**: Tapping NVDA row (row 7, y=218) enters chart view with correct ticker and default D1 range.
 - **Preconditions**: Stock active, `stockSubView=list`, `fetchFailed=false`.
-- **Steps**: 1. `switchApp 7`. 2. `tap 137 218`. 3. `get stockSubView` → `"chart"`. 4. `get stockChartTicker` → `"NVDA"`. 5. `get stockChartRange` → `"D1"`.
+- **Steps**: 1. `switchApp 6`. 2. `tap 137 218`. 3. `get stockSubView` → `"chart"`. 4. `get stockChartTicker` → `"NVDA"`. 5. `get stockChartRange` → `"D1"`.
 - **Expected result**: All three asserts pass within 1 s.
 - **Harness**: `run_serialdbg_tests.py --tests T174`. Owner: VE.
 - **Status**: written (2026-05-29).
@@ -1354,7 +1354,7 @@ Common preconditions for all DUT tests below:
 - **Feature(s)**: stock-001, taskbar-scroll-001
 - **Objective**: Switching to Stock via the real taskbar UI (scroll + slot tap) after a chart session does not corrupt the display on return to Spotify.
 - **Preconditions**: Stock previously in chart view; taskbar at offset 0.
-- **Steps**: 1. `switchApp 7` → drill into chart. 2. `switchApp 0`. 3. Drag taskbar: `drag 297 200 297 100 10` (scroll to offset 2). 4. `tap 297 220` (slot 5 = Stock at offset 2). 5. Verify `appId=Stock`. 6. `drag 297 100 297 200 10` (reset). 7. `switchApp 0`. 8. Verify `lastPlaylistDraw` advances.
+- **Steps**: 1. `switchApp 6` → drill into chart. 2. `switchApp 0`. 3. Drag taskbar: `drag 297 200 297 100 10` (scroll to offset 2). 4. `tap 297 180` (slot 4 = Stock at offset 2; TASK-347 shifted this from slot 5 / y=220). 5. Verify `appId=Stock`. 6. `drag 297 100 297 200 10` (reset). 7. `switchApp 0`. 8. Verify `lastPlaylistDraw` advances.
 - **Expected result**: Stock active via taskbar tap; `lastPlaylistDraw` advances after Spotify return.
 - **Harness**: `run_serialdbg_tests.py --tests T182`. Owner: VE.
 - **Status**: written (2026-05-29).
@@ -1411,7 +1411,7 @@ Common preconditions for all DUT tests below:
 - **Objective**: Verify the `tickerIdx >= 8` guard fix (was `>= 6`) allows MSFT (index 6) to fetch chart data.
 - **Preconditions**: Stock app active, list view, `fetchFailed=0`.
 - **Steps**:
-  1. `switchApp 7` (Stock app).
+  1. `switchApp 6` (Stock app).
   2. Tap the MSFT row in the list view.
   3. `get stockChartTicker` → assert `"MSFT"`.
   4. `set triggerFetch 1` (resets `lastChartFetch` to 0).
@@ -1428,7 +1428,7 @@ Common preconditions for all DUT tests below:
 - **Objective**: Verify NVDA (index 7) chart fetch succeeds after `tickerIdx >= 8` guard fix.
 - **Preconditions**: Stock app active, list view, `fetchFailed=0`.
 - **Steps**:
-  1. `switchApp 7` (Stock app).
+  1. `switchApp 6` (Stock app).
   2. Tap the NVDA row in the list view.
   3. `get stockChartTicker` → assert `"NVDA"`.
   4. `set triggerFetch 1`.
@@ -1497,9 +1497,9 @@ Common preconditions for all DUT tests below:
 - **Type**: integration (DUT, SERIALDBG build)
 - **Feature(s)**: stock-001
 - **Objective**: Verify the `getStream()` fix (ADR-034) holds under repeated back-to-back `DynamicJsonDocument(16384)` alloc/free cycles. Alternates Ytd↔D1 3 times (6 fetches); `fetchFailed` must remain 0 throughout. T188 proved each range passes sequentially; T204 proves the heap recovers cleanly across rapid alternation between the largest (Ytd) and smallest (D1) payloads.
-- **Preconditions**: Stock app reachable via `switchApp 7`, WiFi connected, AAPL drillable (Yahoo Finance responsive), `fetchFailed=0`.
+- **Preconditions**: Stock app reachable via `switchApp 6`, WiFi connected, AAPL drillable (Yahoo Finance responsive), `fetchFailed=0`.
 - **Steps**:
-  1. `switchApp 7` → `set fetchFailed 0` → `set fetchErrorCode 0`.
+  1. `switchApp 6` → `set fetchFailed 0` → `set fetchErrorCode 0`.
   2. Drill AAPL from list view (tap 137 36) → assert `stockSubView=chart`.
   3. For each of [Ytd, D1, Ytd, D1, Ytd, D1]: snapshot `fetchOkCount` before → tap range tab → poll `fetchOkCount` until it advances (timeout 45 s) → `get fetchFailed` → assert `"0"`.
 - **Pass**: All 6 polls succeed; `fetchFailed=0` at every step.
@@ -1575,7 +1575,7 @@ and slen deviations from the PoC (TASK-123).
 
 Common preconditions for DUT tests below:
 - DUT flashed with `cyd2usb_winamp_debug`, booted, WiFi up, Spotify creds valid.
-- Serial debug interface active. StockApp accessible via `switchApp 7`.
+- Serial debug interface active. StockApp accessible via `switchApp 6`.
 - Heatmap button: x > 190, y < 22 in list view header. Back button: x > 190, y < 22 in heatmap header.
 - Chart tabs: x = 130..274, y = 0..17. Tab centres: 1D x=148, 5D x=184, 1M x=220, YTD x=256.
 - ARM tile: visible in heatmap after screener fetch; typical DUT screen position varies — confirm
@@ -1595,7 +1595,7 @@ Common preconditions for DUT tests below:
 - **Preconditions**: DUT in StockApp list view. Heatmap data present (`heatmapCount > 0`).
   `chartTickerIdx` defaults to 0 (AAPL) at boot.
 - **Steps**:
-  1. `switchApp 7` → confirm `get stockSubView == "list"`.
+  1. `switchApp 6` → confirm `get stockSubView == "list"`.
   2. `tap 220 10` (HEAT button: x=220 > 190, y=10 < 22) → confirm `get stockSubView == "heatmap"`.
   3. Poll `get heatmapCount` until `> 0` (timeout 30 s).
   4. Tap any visible non-AAPL tile (ARM recommended, or MSFT/NVDA if ARM absent).
@@ -1623,7 +1623,7 @@ Common preconditions for DUT tests below:
 - **Preconditions**: TASK-121 fix in tree. DUT in StockApp, heatmap data loaded. A non-default
   symbol tile is visible (e.g. ARM, MSFT). `chartTickerIdx` defaults to 0 (AAPL) at boot.
 - **Steps**:
-  1. `switchApp 7` → `get stockSubView == "list"`.
+  1. `switchApp 6` → `get stockSubView == "list"`.
   2. Enter heatmap (tap HEAT button at x=220, y=10). Poll `get heatmapCount` until > 0.
   3. Tap a non-AAPL tile (e.g. ARM at its screen position). Confirm chart view opens.
   4. `get stockSubView` → assert `"chart"`. `get stockChartRange` → assert `"D1"`.
@@ -1695,7 +1695,7 @@ Common preconditions for DUT tests below:
 - **Preconditions**: TASK-122 fix in tree. DUT in heatmap view with at least one fetch complete
   (`heatmapCount > 0`).
 - **Steps**:
-  1. `switchApp 7` → enter heatmap (tap HEAT button).
+  1. `switchApp 6` → enter heatmap (tap HEAT button).
   2. Wait for heatmap data (observe tiles appearing).
   3. Examine the bottom edge of the display closely.
 - **Expected result**: The tile with the lowest extent ends cleanly at or before y=239. No tile
@@ -1719,7 +1719,7 @@ Common preconditions for DUT tests below:
 - **Preconditions**: DUT in StockApp. Network available (or `host_overrides.json` populated for
   the heatmap screener endpoint).
 - **Steps**:
-  1. `switchApp 7` → `get stockSubView == "list"`.
+  1. `switchApp 6` → `get stockSubView == "list"`.
   2. `set triggerHeatmap 1` (sets subView = HeatmapDetail, forces fresh fetch).
   3. `get stockSubView` → assert `"heatmap"`.
   4. Poll `get heatmapCount` every 3 s until `> 0` (timeout 60 s).
@@ -1821,7 +1821,7 @@ Common preconditions for DUT tests below:
   HeatmapDetail sub-view. Tests the touch-input path through `handleInput()` → `enterHeatmap()`.
 - **Preconditions**: DUT in StockApp list view (`get stockSubView == "list"`).
 - **Steps**:
-  1. `switchApp 7` → `get stockSubView` → assert `"list"`.
+  1. `switchApp 6` → `get stockSubView` → assert `"list"`.
   2. `set cooldown 0`.
   3. `tap 220 10` (x=220>190, y=10<22 — HEAT button zone).
   4. `get stockSubView` → assert `"heatmap"`.
@@ -1839,7 +1839,7 @@ Common preconditions for DUT tests below:
   and returns to ListDetail. Tests the symmetric back-navigation path.
 - **Preconditions**: DUT in StockApp HeatmapDetail view (`get stockSubView == "heatmap"`).
 - **Steps**:
-  1. `switchApp 7` → `set triggerHeatmap 1` → `get stockSubView` → assert `"heatmap"`.
+  1. `switchApp 6` → `set triggerHeatmap 1` → `get stockSubView` → assert `"heatmap"`.
   2. `set cooldown 0`.
   3. `tap 220 10` (HEAT button zone in heatmap header).
   4. `get stockSubView` → assert `"list"`.
@@ -1858,7 +1858,7 @@ Common preconditions for DUT tests below:
   fills 100% of the area), so any tap at canvas center (137, 130) must hit a tile.
 - **Preconditions**: DUT in HeatmapDetail with `heatmapCount > 0` (tiles rendered).
 - **Steps**:
-  1. `switchApp 7` → `set triggerHeatmap 1` → poll `get heatmapCount` until `> 0` (60 s timeout).
+  1. `switchApp 6` → `set triggerHeatmap 1` → poll `get heatmapCount` until `> 0` (60 s timeout).
   2. `set cooldown 0`.
   3. `tap 137 130` (canvas center, y=130 >> ST_LIST_RULE_Y=22 — guaranteed tile hit).
   4. `get stockSubView` → assert `"chart"`.
@@ -1880,7 +1880,7 @@ Common preconditions for DUT tests below:
 - **Preconditions**: DUT in ChartDetail entered via heatmap tile drill (`prevSubView = HeatmapDetail`).
   Set up via `set triggerHeatmap 1` → wait for tiles → `tap 137 130`.
 - **Steps**:
-  1. `switchApp 7` → `set triggerHeatmap 1` → poll `get heatmapCount` until > 0.
+  1. `switchApp 6` → `set triggerHeatmap 1` → poll `get heatmapCount` until > 0.
   2. `set cooldown 0` → `tap 137 130` → `get stockSubView` → assert `"chart"`.
   3. `set cooldown 0` → `tap 10 7` (chart back button).
   4. `get stockSubView` → assert `"heatmap"`.
@@ -1908,7 +1908,7 @@ Harness: `app/tools/test_tls_yield_reliability.py`.
 - **Preconditions**: DUT flashed `cyd2usb_winamp_debug`. Active Spotify session (tlsYield
   blocks until Spotify task yields). WiFi up.
 - **Steps**:
-  1. `switchApp 7` (non-blocking send); detect ack in monitoring loop.
+  1. `switchApp 6` (non-blocking send); detect ack in monitoring loop.
   2. Send `set triggerFetch 1` immediately after ack.
   3. Monitor serial for `tls yield — client stopped/resumed`, `dataTask.stock` LOG_HEAP (pre-loop),
      and 8× `quote GET <SYM> 200` lines.
@@ -1985,7 +1985,7 @@ Common preconditions for all T-SET tests:
 - **Objective**: Confirm Settings opens at the category list (`section == -1`) and renders 6 rows within the content panel.
 - **Preconditions**: DUT booted. `get appId` != `Settings`.
 - **Steps**:
-  1. `switchApp 6` (Settings).
+  1. `switchApp 10` (Settings).
   2. `get appId` — assert `name == "Settings"`.
   3. `get settingsSection` — assert `section == -1`.
   4. Visual: 6 label rows visible within y:28..239; no pixel overflow above y=0 or into taskbar strip (x≥275).
@@ -2058,7 +2058,7 @@ Common preconditions for all T-SET tests:
 - **Objective**: Switching back to Spotify after visiting Settings restores the Winamp chrome pixel-correctly with no settings residue.
 - **Preconditions**: DUT running Spotify (winamp chrome visible).
 - **Steps**:
-  1. `switchApp 6` (Settings).
+  1. `switchApp 10` (Settings).
   2. Visual: Settings category list renders.
   3. `switchApp 0` (Spotify).
   4. Visual: Winamp chrome is pixel-correct; no grey/dark settings background or text residue on canvas.
@@ -2075,12 +2075,12 @@ Common preconditions for all T-SET tests:
 - **Objective**: `suspend()` resets `section=-1`; returning to Settings always starts at the top level.
 - **Preconditions**: DUT running Spotify.
 - **Steps**:
-  1. `switchApp 6` (Settings).
+  1. `switchApp 10` (Settings).
   2. `tap 137 171` (Applications, row 5).
   3. `tap 137 38` (Stock row within Applications — enters Stock submenu; **app-list row**, compressed 21px height: y = 28 + 0*21 + 10 = 38, was documented y=41 pre-TASK-330).
   4. Visual: Stock per-app rows visible (Ticker 1..7 + Default view).
   5. `switchApp 0` (Spotify — triggers `suspend()`).
-  6. `switchApp 6` (Settings — triggers `resume()`).
+  6. `switchApp 10` (Settings — triggers `resume()`).
   7. `get settingsSection` — assert `section == -1`.
   8. Visual: category list shows 6 rows with chevrons.
 - **Expected result**: `section == -1` after suspend/resume; category list renders (C5).
@@ -2119,7 +2119,7 @@ Common preconditions for all T-SET tests:
 - **Steps**:
   1. `switchApp 3` (Crypto).
   2. `get appId` — assert `name == "Crypto"`.
-  3. `switchApp 6` (Settings — sets `g_previousAppId = Crypto`).
+  3. `switchApp 10` (Settings — sets `g_previousAppId = Crypto`).
   4. `get settingsSection` — assert `section == -1`.
   5. `tap 30 14` (back from category list).
   6. `get appId` — assert `name == "Crypto"`.
@@ -2147,7 +2147,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
 
 **Tap Y reference (category list):** WiFi=41, Time=67, Touch-Cal=93, Display=119, LED=145, Applications=171.
 
-**DUT required for all tests.** Flash `cyd2usb_winamp_debug`. Enter Settings: `switchApp 6`.
+**DUT required for all tests.** Flash `cyd2usb_winamp_debug`. Enter Settings: `switchApp 10`.
 
 ---
 
@@ -2158,7 +2158,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
 - **Objective**: STATUS view renders connected state, SSID, IP, signal bars (C1a).
 - **Preconditions**: DUT connected to WiFi.
 - **Steps**:
-  1. `switchApp 6` → `tap 137 41` (WiFi row).
+  1. `switchApp 10` → `tap 137 41` (WiFi row).
   2. `get settingsSection` — assert `section == 0`.
   3. Visual: "Connected Yes" (green), SSID row, IP row (non-zero), signal bars (≥1 filled bar).
 - **Expected result**: STATUS view populated with live data (C1a).
@@ -2242,7 +2242,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
 - **Preconditions**: DUT playing Spotify (active poll interval), WiFi connected.
 - **Steps**:
   1. Confirm Spotify polling active (track metadata updates normally).
-  2. `switchApp 6` → `tap 137 41` (WiFi) → tap "Scan networks".
+  2. `switchApp 10` → `tap 137 41` (WiFi) → tap "Scan networks".
   3. Wait for scan to complete (LIST view appears, ≤5 s).
   4. `switchApp 0` (back to Spotify).
   5. Wait two poll intervals (~60 s). Observe: track metadata continues updating; no crash/reboot.
@@ -2259,7 +2259,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
 - **Objective**: Dragging Level slider 1→10 visibly changes backlight brightness; `ledcWrite(0, duty)` applied immediately (C1).
 - **Preconditions**: DUT at Settings, `dispAuto = false`.
 - **Steps**:
-  1. `switchApp 6` → `tap 137 119` (Display row, y=119).
+  1. `switchApp 10` → `tap 137 119` (Display row, y=119).
   2. `get settingsSection` — assert `section == 3`.
   3. Visual/touch: Level row slider visible at y=54. Drag from left (level 1, x≈75) to right (level 10, x≈241).
   4. Visual: backlight noticeably brighter after drag.
@@ -2317,7 +2317,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
   2. `tap 30 14` (back to category list).
   3. Physical reset or `set restart 1` (if serial restart command available).
   4. After boot, before entering Settings: visual — backlight is at dim level 3, not full brightness.
-  5. `switchApp 6` → `tap 137 119` (Display). Visual: Level slider positioned at 3.
+  5. `switchApp 10` → `tap 137 119` (Display). Visual: Level slider positioned at 3.
 - **Expected result**: Backlight at level 3 on boot; slider synced to stored value (C4).
 - **Harness**: steps 1–2 manual; step 3 `reboot` serial command (added 2026-06-06); steps 4–5 manual visual. Owner: VE.
 - **Status**: partial — `reboot` serial cmd PASS (2026-06-06 DUT; clean boot + `section==-1` on re-entry confirmed); brightness visual check pending.
@@ -2347,7 +2347,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
 - **Objective**: Selecting a city writes posixTz, tzName, lat, lon to SPIFFS and calls `configTzTime()` live; Clock app reflects new timezone without reboot (time-settings C1).
 - **Preconditions**: DUT at Settings. NTP synced (clock shows plausible UTC time).
 - **Steps**:
-  1. `switchApp 6` → `tap 137 67` (Time & Location row, y=67).
+  1. `switchApp 10` → `tap 137 67` (Time & Location row, y=67).
   2. `get settingsSection` — assert `section == 1`.
   3. Tap City row (y=63). Visual: city picker opens, header shows "Select city".
   4. Scroll to and tap a UTC+offset city, e.g. Tokyo (UTC+9). Tap its row.
@@ -2404,7 +2404,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
 - **Steps**:
   1. Select city "London" (Europe/London). Set Clock=12h. Set Date=MM/DD/YYYY.
   2. Physical reset.
-  3. After boot: `switchApp 6` → `tap 137 67` (Time section).
+  3. After boot: `switchApp 10` → `tap 137 67` (Time section).
   4. Visual: Timezone="Europe/London"; Clock="12h"; Date="MM/DD/YYYY".
   5. `switchApp 1` (Clock). Visual: time in 12h format with AM/PM.
 - **Expected result**: All three settings preserved; timezone applies on boot (C6).
@@ -2421,7 +2421,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
 - **Preconditions**: SPIFFS erased (`pio run -t erase` or `uploadfs` with empty data/).
 - **Steps**:
   1. Erase SPIFFS, flash firmware. Boot.
-  2. `switchApp 6` → `tap 137 67`.
+  2. `switchApp 10` → `tap 137 67`.
   3. Visual: City="None"; Timezone="UTC"; Clock="24h"; Date="DD/MM/YYYY".
   4. `switchApp 1` (Clock). Visual: time matches UTC (compare to known reference).
 - **Expected result**: All defaults correct; behaviour identical to pre-settings firmware (C7).
@@ -2437,7 +2437,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
 - **Objective**: Dragging the scrollbar thumb scrolls the city list proportionally; release commits the offset; city tap still selects correctly after drag (TASK-153 / time-settings OQ4 resolved).
 - **Preconditions**: DUT at Settings. City picker not yet open.
 - **Steps**:
-  1. `switchApp 6` → `tap 137 67` → `tap 137 63` (City row). Visual: picker opens, Auckland at top.
+  1. `switchApp 10` → `tap 137 67` → `tap 137 63` (City row). Visual: picker opens, Auckland at top.
   2. Press and hold in scrollbar track zone (x=265, y=80). Visual: thumb captured.
   3. Drag down to y=160. Visual: city list scrolls ~50% down (~40 of 78 cities).
   4. Release. City list stays at dragged position (not snapping back).
@@ -2455,7 +2455,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
 - **Objective**: City picker shows UTC offset prefix column for every row; horizontal group-separator lines mark each UTC offset transition; half-hour offsets formatted correctly (TASK-154).
 - **Preconditions**: DUT at Settings. City picker not yet open.
 - **Steps**:
-  1. `switchApp 6` → `tap 137 67` → `tap 137 63` (City row). Visual: picker opens.
+  1. `switchApp 10` → `tap 137 67` → `tap 137 63` (City row). Visual: picker opens.
   2. Visual: UTC offset right-aligned in left column (x≈8–50), e.g. `+12` for Auckland, ` +9` for Tokyo.
   3. Visual: vertical separator line at x≈54 between offset column and city name.
   4. Visual: thin 1px horizontal line above each first-city-of-group (above Noumea [UTC+11], above Sydney [UTC+10], above Adelaide [UTC+9:30], etc.).
@@ -2596,7 +2596,7 @@ persistence tests. Flash `cyd2usb_winamp_debug` (SHA ≥ `8a23642`+reboot commit
   1. Set Aquarium fish=12 (tap Fish count 3×), speed=fast (tap Speed 2×).
   2. Set Matrix color=amber (tap Color 2×).
   3. Physical reset.
-  4. After boot: `switchApp 6` → Applications → Aquarium. Visual: Fish count=12, Speed=fast.
+  4. After boot: `switchApp 10` → Applications → Aquarium. Visual: Fish count=12, Speed=fast.
   5. Back → Matrix. Visual: Color=amber.
 - **Expected result**: All three values preserved in `/settings.json`; loaded at boot (C8).
 - **Harness**: manual. Owner: VE.
@@ -3503,7 +3503,7 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Type**: integration (DUT, SERIALDBG)
 - **Objective**: `_activeFish` changes on resume without full init.
 - **Preconditions**: Default `get aquariumFish` == `"16"`.
-- **Steps**: Settings→Aquarium→Fish count tap×1 (16→4); exit; `switchApp 8`; `get aquariumFish`.
+- **Steps**: Settings→Aquarium→Fish count tap×1 (16→4); exit; `switchApp 7`; `get aquariumFish`.
 - **Expected result**: `val == "4"`.
 - **Status**: planned
 
@@ -3511,7 +3511,7 @@ tests. Visual (MANUAL) tests have no blockers.
 
 - **Type**: integration (DUT, MANUAL)
 - **Preconditions**: Fish count = 4.
-- **Steps**: `switchApp 8`; observe ≥ 10 s.
+- **Steps**: `switchApp 7`; observe ≥ 10 s.
 - **Expected result**: ~4 fish visible; sparse.
 - **Status**: planned
 
@@ -3519,7 +3519,7 @@ tests. Visual (MANUAL) tests have no blockers.
 
 - **Type**: integration (DUT, MANUAL)
 - **Preconditions**: Fish count = 16.
-- **Steps**: `switchApp 8`; observe ≥ 10 s.
+- **Steps**: `switchApp 7`; observe ≥ 10 s.
 - **Expected result**: Dense school of ~16 fish.
 - **Status**: planned
 
@@ -3572,7 +3572,7 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Type**: integration (DUT, SERIALDBG)
 - **Objective**: `StockApp::resume()` detects changed tickers → enqueues quote immediately.
 - **Preconditions**: `Q0 = get quoteOkCount`. Ticker changed to `"TSLA"` via T233.
-- **Steps**: Exit Settings; `switchApp 7`; poll `get quoteOkCount` ≤ 90 s.
+- **Steps**: Exit Settings; `switchApp 6`; poll `get quoteOkCount` ≤ 90 s.
 - **Expected result**: `quoteOkCount > Q0`. `fetchFailed == false`.
 - **Status**: planned
 
@@ -3580,7 +3580,7 @@ tests. Visual (MANUAL) tests have no blockers.
 
 - **Type**: integration (DUT, SERIALDBG)
 - **Objective**: `init()` uses g_settings.stockMode; verified after reboot.
-- **Steps**: Set Default view to `"chart"`; `reboot`; `switchApp 7`; `get stockSubView`.
+- **Steps**: Set Default view to `"chart"`; `reboot`; `switchApp 6`; `get stockSubView`.
 - **Expected result**: `val == "chart"`.
 - **Status**: planned
 
@@ -3589,7 +3589,7 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Type**: integration (DUT, SERIALDBG)
 - **Objective**: `resume()` does not re-seed subView from stockMode.
 - **Preconditions**: StockApp in chart view. `g_settings.stockMode == "list"`.
-- **Steps**: `switchApp 6`; `switchApp 7`; `get stockSubView`.
+- **Steps**: `switchApp 10`; `switchApp 6`; `get stockSubView`.
 - **Expected result**: `val == "chart"` (not `"list"`).
 - **Status**: planned
 
@@ -3649,7 +3649,7 @@ tests. Visual (MANUAL) tests have no blockers.
 
 - **Type**: integration (DUT, SERIALDBG)
 - **Preconditions**: `get stockTicker0` == `"AAPL"`.
-- **Steps**: Change Ticker 1; verify change; Cancel; `switchApp 7`; `get stockTicker0`.
+- **Steps**: Change Ticker 1; verify change; Cancel; `switchApp 6`; `get stockTicker0`.
 - **Expected result**: `val == "AAPL"`.
 - **Status**: planned
 
@@ -3663,7 +3663,7 @@ tests. Visual (MANUAL) tests have no blockers.
 ### T244 — [app-settings-wire-001] Stock tickers survive reboot [REBOOT]
 
 - **Type**: integration (DUT, SERIALDBG)
-- **Steps**: Change Ticker 1; note value N; `reboot`; `switchApp 7`; `get stockTicker0`.
+- **Steps**: Change Ticker 1; note value N; `reboot`; `switchApp 6`; `get stockTicker0`.
 - **Expected result**: `val == N`.
 - **Status**: planned
 
@@ -3903,7 +3903,7 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Preconditions**: DUT flashed `cyd2usb_winamp_debug`. WiFi connected. Active Spotify session (spotifyTask TLS polling at ~5s intervals).
 - **Steps**:
   1. `get lastPlaylistDraw` → record baseline `D0` (confirms spotifyTask active).
-  2. `switchApp 9` (Teletext) → triggers `resume()` + immediate `enqueueTeletextPage()`.
+  2. `switchApp 8` (Teletext) → triggers `resume()` + immediate `enqueueTeletextPage()`.
   3. `set triggerTeletextFetch 1` → forces a second enqueue even if already ready.
   4. Poll `get teletextReady` ≤ 30 s → assert `ready == true`.
   5. `switchApp 0` (Spotify).
@@ -4096,7 +4096,7 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Interaction**: X021
 - **Objective**: A network app's `hasError()` drives the red bar on a failed fetch and clears on success. Stock (`hasError() = _s.fetchFailed`) is the representative consumer, driven via the existing `set fetchFailed` injector; Weather/Crypto/Teletext use the same set-on-fail/clear-on-success latch (`_wxErr`/`_cxErr`/`_ttErr`).
 - **Preconditions**: DUT on `cyd2usb_winamp_debug`.
-- **Steps**: (1) `switchApp 7` (Stock). (2) `set fetchFailed 1`; `get activeError` → `active`. (3) `set fetchFailed 0`; `get activeError` → `active`. (4) restore Spotify.
+- **Steps**: (1) `switchApp 6` (Stock). (2) `set fetchFailed 1`; `get activeError` → `active`. (3) `set fetchFailed 0`; `get activeError` → `active`. (4) restore Spotify.
 - **Expected result**: `active:true` (red) after `fetchFailed 1`; `active:false` after `fetchFailed 0`. Precedence error(red) > connecting(amber): a failed *first* fetch shows red, not amber.
 - **Status**: passing
 

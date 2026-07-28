@@ -134,7 +134,7 @@ def get_device_ip(dut: Dut) -> str:
 # (and is starved by a 403 Spotify, TASK-244). So drive ONE fetch at a time and wait
 # for its result before moving on — re-triggering faster just saturates the queue and
 # starves the other fetchers. A phase is: (label, setup+trigger cmds, want_label,
-# expected_gets, max_wait_s). Stock phases bounce through Spotify (app 0) so switchApp 7
+# expected_gets, max_wait_s). Stock phases bounce through Spotify (app 0) so switchApp 6
 # re-runs the launch view with the freshly-set stockMode (resume re-applies on change).
 # Weather/Crypto have no debug trigger: switching re-fetches on their 60 s interval, so
 # they sample when a cycle has elapsed ≥60 s since their last fetch (lower cadence — OK,
@@ -148,16 +148,16 @@ def phases():
     tt = {"i": 0}
     def teletext():
         p = _TT_PAGES[tt["i"] % len(_TT_PAGES)]; tt["i"] += 1
-        return ["switchApp 9", f"set teletextPage {p}"]
+        return ["switchApp 8", f"set teletextPage {p}"]  # TASK-347: Teletext 9→8
     # max_wait is generous: after each fetch the 403 Spotify resumes and runs an
     # overdue poll (~10–15 s) before the next fetcher gets a TLS window, so a fetch
     # can legitimately take that long to land. want_gets breaks early when it does.
     return [
         ("teletext",      teletext,                                                  1, 25),
-        ("stock/quote",   lambda: ["set stockMode 0", "switchApp 7",
+        ("stock/quote",   lambda: ["set stockMode 0", "switchApp 6",  # TASK-347: Stock 7→6
                                     "set triggerFetch 1"],                           8, 40),
         ("weather",       lambda: ["switchApp 2"],                                   1, 30),
-        ("stock/heatmap", lambda: ["switchApp 7", "set triggerHeatmap 1"],           1, 30),
+        ("stock/heatmap", lambda: ["switchApp 6", "set triggerHeatmap 1"],           1, 30),  # TASK-347: 7→6
         ("crypto",        lambda: ["switchApp 3"],                                   1, 35),
     ]
 

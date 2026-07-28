@@ -146,7 +146,7 @@ if _dirty and FORCE:
     print("*** --force set: proceeding despite non-empty target slot(s):", _dirty, "***", flush=True)
 
 # ---- Navigate: Settings -> Applications -> PlaneRadar -> Locations --------
-d.cmd("switchApp 6")           # Settings
+d.cmd("switchApp 10")          # Settings (TASK-347: moved from 6 to directly before WebRadio)
 time.sleep(0.3)
 d.tap(100, row_y(5))           # Applications category row (main.cpp kLabels idx 5)
 time.sleep(0.3)

@@ -178,7 +178,7 @@ def t219(dut: Dut):
     dut.ser.timeout = orig_timeout
 
     if not switched:
-        skip("T219", "switchApp 7 ack not seen — DUT not responding?")
+        skip("T219", "switchApp Stock ack not seen — DUT not responding?")
         _restore_to_spotify(dut)
         return
 

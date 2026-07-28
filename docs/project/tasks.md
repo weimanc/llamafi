@@ -203,9 +203,9 @@ untested: whether `consumeCertBreak`'s interaction with PlaneRadar's forced-pars
 `setCACert()`) matters for any real test scenario — analysis says no (the two mechanisms
 shouldn't be armed simultaneously in practice) but unverified.
 
-## Open — M-APP-ORDER (2026-07-18)
+## Closed — M-APP-ORDER (2026-07-18, closed 2026-07-28)
 
-### TASK-347 — pin Settings as the last taskbar entry (registry reorder + invariant)
+### TASK-347 — pin Settings as the last taskbar entry (registry reorder + invariant) — DONE
 
 Human product call: Settings always last in the taskbar. Design:
 [M-APP-ORDER-settings-last.md](../architecture/designs/M-APP-ORDER-settings-last.md) — read it
@@ -222,8 +222,32 @@ on DUT, one-off negative build check (dummy row after Settings must fail both gu
 BP-048 eyeball gate — scroll the full cycle, every slot shows the right icon.
 
 **Owner:** Developer · **Deps:** ADR-041, TASK-242 (both landed) · **Gate:** `run/check` +
-DUT suite rerun + eyeball · **Priority:** P2 · **Status:** open — coordinate with the active
-clock-faces session before touching `appRegistry.h`/regens (shared files)
+DUT suite rerun + eyeball · **Priority:** P2 · **Status:** DONE (2026-07-28) — BP-048
+eyeball gate confirmed correct by human at the device (full taskbar scroll cycle, every
+slot shows the right icon). Registry reorder + both invariant guards (static_assert + codegen check) landed and
+negative-build-verified (dummy row after Settings fails both); icons rebaked and
+de-mirrored onto `app_ids_gen.APP_ORDER`; goldens regen'd; `run/check` 7/7 clean.
+T182 mod-base fixed (`% APP_SLOT["WebRadio"]`, not `% APP_COUNT`) — Stock's physical
+taskbar slot shifted 5→4, `tap 297 220`→`tap 297 180` in test_plan.md. Audit also caught
+hardcoded `switchApp <N>` literals broken by the reorder beyond the design doc's consumer
+list — fixed in `run_serialdbg_tests.py` (T-ERR-07), `test_fetch_stress.py`, and the
+standalone `prloc_*_smoke.py` / `pr_delta_smoke.py` scripts (none of which route through
+the generated `APP_SLOT` mirror), plus doc references in `test_plan.md` and
+`regression_suite/{app-settings-wire-001,settings-001-new-items}.md`. NEW-APP-CHECKLIST.md
+updated. DUT run 2026-07-28 (cyd2usb_winamp_debug via `run/test-targeted`): **8 passed, 0
+failed, 3 skipped** — T088/T147/T162/T163/T164/T165/T166/T-SET-01 (settings smoke) all PASS.
+T136 SKIP (by design, merged into T137's precondition). T137 + T182 SKIP on a Spotify-403
+precondition (`lastPlaylistDraw`/queue-based checks need live playback; TASK-243, external,
+unrelated to this task — see boot log `[W][spotify.poll] fail http=403`). T182 itself got
+past the taskbar-driven tap to Stock (mod-base fix confirmed working) before hitting the
+playback-residue precondition. Prod firmware + monitor restored cleanly after the run.
+Only remaining loose end: re-run T137/T182 once Spotify Premium/403 clears (TASK-243,
+external, tracked separately) — not a blocker for closing this task.
+Found in passing, **not fixed** (predates this task, unrelated — WebRadio's own numeral
+was never affected by the Settings move): `test_webradio_soak.py`, `test_adr045_gate.py`,
+and `exp012_measure.py` all hardcode `switchApp 10` intending WebRadio, but WebRadio has
+been AppId 11 since PlaneRadar landed (TASK-307) — stale since then, not since TASK-347.
+Flagging for a separate task.
 
 ## Open — M-WEBRADIO-WINAMP-UI (2026-07-18)
 

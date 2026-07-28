@@ -35,6 +35,21 @@ def parse_registry(header_path: pathlib.Path) -> list[tuple[str, str, int, str]]
     return rows
 
 
+def check_settings_pinned(rows: list) -> None:
+    """TASK-347: Settings must be the second-to-last row, directly before WebRadio
+    (WebRadio itself stays last per TASK-242). Insert new apps BEFORE Settings —
+    see docs/architecture/designs/M-APP-ORDER-settings-last.md."""
+    names = [r[0] for r in rows]
+    if "Settings" not in names or "WebRadio" not in names:
+        return
+    if names[-1] != "WebRadio" or names[-2] != "Settings":
+        sys.exit(
+            "ERROR: Settings must be the last taskbar slot (directly before WebRadio, "
+            "which must remain the final registry row). Found order: "
+            f"...{names[-3:]!r}. See docs/architecture/designs/M-APP-ORDER-settings-last.md."
+        )
+
+
 def emit_python(rows: list, out_path: pathlib.Path) -> None:
     names = [r[0] for r in rows]
     configurable = sorted(r[0] for r in rows if r[2])
@@ -90,6 +105,8 @@ def main() -> None:
     rows = parse_registry(header_path)
     if not rows:
         sys.exit("ERROR: no APP_X rows found in appRegistry.h")
+
+    check_settings_pinned(rows)
 
     if args.out_dir:
         out_dir = pathlib.Path(args.out_dir)

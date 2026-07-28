@@ -105,7 +105,7 @@ orig_range = dut.cmd("get prRange")
 orig_range_km = orig_range.get("val", 10)
 print("orig prRange:", orig_range, flush=True)
 
-dut.cmd("switchApp 10")   # AppId::PlaneRadar
+dut.cmd("switchApp 9")   # AppId::PlaneRadar (TASK-347: Settings moved before it, shifting 10→9)
 time.sleep(1.0)
 
 loc = dut.cmd("get prloc")

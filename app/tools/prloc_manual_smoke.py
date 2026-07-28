@@ -95,7 +95,7 @@ orig = loc(boot, SLOT)
 report("A1 baseline slot captured", "label" in orig, str(orig))
 
 # ---- Navigate: Settings -> Applications -> PlaneRadar -> Locations --------
-d.cmd("switchApp 6")
+d.cmd("switchApp 10")          # Settings (TASK-347: moved from 6 to directly before WebRadio)
 time.sleep(0.3)
 d.tap(100, row_y(5))           # Applications (main.cpp kLabels idx 5)
 time.sleep(0.3)

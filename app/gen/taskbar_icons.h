@@ -26,8 +26,6 @@ extern const uint16_t taskbar_icon_matrix[TASKBAR_ICON_BAKED_PX];
 extern const uint16_t taskbar_icon_matrix_active[TASKBAR_ICON_BAKED_PX];
 extern const uint16_t taskbar_icon_life[TASKBAR_ICON_BAKED_PX];
 extern const uint16_t taskbar_icon_life_active[TASKBAR_ICON_BAKED_PX];
-extern const uint16_t taskbar_icon_settings[TASKBAR_ICON_BAKED_PX];
-extern const uint16_t taskbar_icon_settings_active[TASKBAR_ICON_BAKED_PX];
 extern const uint16_t taskbar_icon_stock[TASKBAR_ICON_BAKED_PX];
 extern const uint16_t taskbar_icon_stock_active[TASKBAR_ICON_BAKED_PX];
 extern const uint16_t taskbar_icon_aquarium[TASKBAR_ICON_BAKED_PX];
@@ -36,6 +34,8 @@ extern const uint16_t taskbar_icon_teletext[TASKBAR_ICON_BAKED_PX];
 extern const uint16_t taskbar_icon_teletext_active[TASKBAR_ICON_BAKED_PX];
 extern const uint16_t taskbar_icon_planeradar[TASKBAR_ICON_BAKED_PX];
 extern const uint16_t taskbar_icon_planeradar_active[TASKBAR_ICON_BAKED_PX];
+extern const uint16_t taskbar_icon_settings[TASKBAR_ICON_BAKED_PX];
+extern const uint16_t taskbar_icon_settings_active[TASKBAR_ICON_BAKED_PX];
 
 // Indexed by (int)AppId — one pair per app.
 extern const TaskbarIconPair kTaskbarIcons[(int)AppId::COUNT];
