@@ -3490,7 +3490,8 @@ mid-session — similar footing to TASK-363, not a live crash/regression)
 ~4 `tickMarquee()` insertions, one new guard clause + two thin wrapper
 methods on `WinampDisplay`, one new `loop()`-level detector block — small
 per-piece, five pieces plus a wide DUT exit-criteria list) · **Status:**
-implemented, DUT partial (see below) · **DUT:** required (all Exit Criteria
+implemented, DUT complete modulo one inconclusive sub-case (see below,
+2026-07-28 follow-up pass) · **DUT:** required (all Exit Criteria
 above are DUT checks; no host-only substitute)
 
 **Implementation note (2026-07-25):** all five pieces landed as specified.
@@ -3510,14 +3511,59 @@ appears immediately after `TouchCalStorage::load()`'s print, well before
 harmless/idempotent, boot into WebRadio mode hands off cleanly with no
 stale boot-status artifact (screendump confirmed), and the smoke test suite
 (`./run/test-smoke`) passed with production firmware restored afterward.
-**Not yet DUT-verified** (need either a real AP outage or deliberately-wrong
-credentials, deferred by human decision this session): the forced
-full-fallback-cascade boot, and the §6 mid-session background-reconnect
-scenarios (non-Spotify/non-WebRadio foreground, Spotify-foreground
-unchanged-track restore, WebRadio-foreground ICY-mid-outage, and
-Settings-foreground suppression). OQ5's 10 s threshold is unchanged
-(not DUT-tuned this session). Follow-up VE pass needed to close out the
-remaining Exit Criteria before this task is fully `closed`.
+
+**Follow-up DUT pass (2026-07-28):** closed out the remaining Exit Criteria
+from above. No product code touched — pure verification (`git status` was
+clean before and after; a temporary `set wifiKill`/`set titleTest` debug
+hook and an ephemeral bogus-SSID `PLATFORMIO_BUILD_FLAGS` env var, never
+written to a tracked file, were used to force outages and reverted before
+finishing).
+- **Forced full-fallback-cascade boot:** confirmed via a genuinely-failing
+  hardcoded-SSID stage. Chrome+taskbar+marquee survived the whole outage,
+  no black screen — the core claim holds. Side finding, out of this task's
+  scope per §4 but worth flagging: once the hardcoded stage's `WiFi.begin()`
+  genuinely fails, the subsequent NVS and SPIFFS-creds attempts in the
+  *same* boot both hit an ESP32 driver-level `sta is connecting, return
+  error` and fail too, even with correct SPIFFS creds — recovery only came
+  via the background supervisor's later kick (~60-85s post-boot). A
+  retry-policy issue in the fallback cascade itself, not a display-layer
+  bug; §4 already named shortening/parallelizing that cascade as separate,
+  unscoped work — this is supporting evidence for it, not a new problem.
+  No task filed for it yet; human to decide if/when.
+- **§6 mid-session scenarios**, via a purpose-built single-connection test
+  harness (avoids `run_serialdbg_tests.Dut`'s DTR-reset-on-open, which would
+  wipe test state on every screendump): **Clock foreground** — override
+  engages/clears cleanly, no stuck text (screendumped). **Spotify
+  foreground, unchanged track** — real playback blocked by the pre-existing
+  TASK-243 Premium lapse, so a temporary synthetic `setTitle()` debug hook
+  simulated a last-known title with zero further `setTitle()` calls during
+  the outage; confirmed the guard **actively restores** the exact
+  pre-outage title — the specific gap §6's mechanism exists for
+  (screendumped). **WebRadio foreground** — override engages/clears
+  correctly; the narrow "ICY metadata arrives mid-outage" sub-case wasn't
+  cleanly isolated (station fetch was flaky this pass) — honestly
+  inconclusive on that one point, covered by the Exit Criteria's own
+  "(if reproducible)" allowance, not a blocker. **Settings-foreground
+  suppression** — confirmed zero corruption of the Settings UI through a
+  14s+ outage, correct state on return to a non-Settings app
+  (screendumped).
+- **BP-048 clipping check:** longest boot-phase string
+  (`"TIME: HTTPS FALLBACK..."`, 23 chars) and the §6 override string
+  (`"WI-FI: RECONNECTING..."`, 22 chars) both render with no clipping
+  (screendumped).
+- **OQ5 (10s threshold):** left unchanged. A rapid flap pattern (~1s
+  disconnect/reconnect) never triggered the override, consistent with the
+  continuous-down requirement; genuine sustained outages engaged it
+  reliably. No evidence this pass argues for a different value.
+- **WebRadio-mode boot handoff:** not re-tested this pass — already
+  DUT-confirmed (screendump) in the 2026-07-25 session; left as-is.
+
+Remaining before full `closed`: the WebRadio-foreground ICY-mid-outage
+sub-case is the only Exit Criteria item still inconclusive (not failing —
+just not cleanly isolated), and OQ4 (taskbar indicator gap, explicitly out
+of scope) stays open for a future follow-up. Everything else in the Exit
+Criteria list is now DUT-confirmed. **Status updated to: implemented, DUT
+complete modulo the WebRadio ICY sub-case.**
 
 Note for implementer: OQ5 (10s down-threshold before showing the
 reconnect override) is a proposed starting point, not DUT-tuned — confirm
