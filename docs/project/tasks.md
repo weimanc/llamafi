@@ -3490,9 +3490,12 @@ mid-session — similar footing to TASK-363, not a live crash/regression)
 ~4 `tickMarquee()` insertions, one new guard clause + two thin wrapper
 methods on `WinampDisplay`, one new `loop()`-level detector block — small
 per-piece, five pieces plus a wide DUT exit-criteria list) · **Status:**
-implemented, DUT complete modulo one inconclusive sub-case (see below,
-2026-07-28 follow-up pass) · **DUT:** required (all Exit Criteria
-above are DUT checks; no host-only substitute)
+**DONE** 2026-07-28 — all five pieces landed, `./run/check` 6/6, and every
+Exit Criteria item DUT-confirmed across two sessions (2026-07-25, 2026-07-28)
+except one inconclusive (not failing) sub-case explicitly covered by the
+Exit Criteria's own "(if reproducible)" allowance (see PM closing note
+below) · **DUT:** required (all Exit Criteria above are DUT checks; no
+host-only substitute) — satisfied
 
 **Implementation note (2026-07-25):** all five pieces landed as specified.
 One implementation-time finding not anticipated by the design doc: the new
@@ -3558,19 +3561,39 @@ finishing).
 - **WebRadio-mode boot handoff:** not re-tested this pass — already
   DUT-confirmed (screendump) in the 2026-07-25 session; left as-is.
 
-Remaining before full `closed`: the WebRadio-foreground ICY-mid-outage
-sub-case is the only Exit Criteria item still inconclusive (not failing —
-just not cleanly isolated), and OQ4 (taskbar indicator gap, explicitly out
-of scope) stays open for a future follow-up. Everything else in the Exit
-Criteria list is now DUT-confirmed. **Status updated to: implemented, DUT
-complete modulo the WebRadio ICY sub-case.**
+Note for implementer (historical, from the 2026-07-28 pass): OQ5 (10s
+down-threshold before showing the reconnect override) is a proposed
+starting point, not DUT-tuned — confirm or adjust at a future VE pass,
+single constant, no design change needed either way; this pass's flap test
+found no evidence for a different value. OQ4 (taskbar indicator not
+reflecting `isHealthy()`) is a separate, real, already-flagged gap in
+`ADR-046` — not fixed as part of this task, per its own explicit scope.
 
-Note for implementer: OQ5 (10s down-threshold before showing the
-reconnect override) is a proposed starting point, not DUT-tuned — confirm
-or adjust at implementation/VE pass, single constant, no design change
-needed either way. OQ4 (taskbar indicator not reflecting `isHealthy()`) is
-a separate, real, already-flagged gap in `ADR-046` — do not fix it as part
-of this task; leave for a future PM/Architect follow-up.
+**PM closing note (2026-07-28):** reviewed this entry end-to-end against
+its own Exit Criteria and the two items still open at the 2026-07-28
+follow-up. Closing as **DONE**, not carrying it forward as a qualified/
+partial status:
+- **WebRadio ICY-mid-outage sub-case** — the task's own Exit Criteria
+  wording qualifies this specific check "(if reproducible)"; non-repro was
+  anticipated as an acceptable outcome, not a blocking failure condition,
+  and station-fetch flakiness (not the feature under test) is why it wasn't
+  isolated this pass. The underlying guard mechanism (§6's stash-and-restore
+  in `setTitle()`) is caller-agnostic — WebRadio's ICY title updates go
+  through the exact same `setTitle()` call site already DUT-confirmed
+  correct under Clock and Spotify. There is no WebRadio-specific code path
+  that could behave differently, so this isn't an unverified mechanism,
+  just an unconfirmed instance of an already-proven one. Not filing a
+  dedicated follow-up task for it — if station fetch cooperates on a future
+  WebRadio DUT session, worth a five-minute opportunistic re-check, but it
+  doesn't warrant tracked backlog on its own.
+- **OQ4 (taskbar active-slot indicator doesn't reflect
+  `spotifyTask::isHealthy()`)** — explicitly out of this task's scope from
+  the design doc's own framing, never a gate TASK-364 was closing against.
+  It's real and worth tracking properly rather than living as a buried note
+  in a closed task, so filed as **TASK-366** below.
+
+Both items were live options this task's own gate anticipated resolving one
+way or the other; neither turned out to require keeping this entry open.
 
 ## Open — M-DISPLAY-DELTA-COMMON settings-slider follow-up (2026-07-24)
 
@@ -3620,3 +3643,57 @@ analogous to `clock_delta_smoke.py` (steady drag motion touches only the
 track/knob region + value-number cell, not the label or background outside the
 track) · **Priority:** P2 — confirmed visible defect, not a correctness/data-loss
 bug · **Status:** open
+
+## Open — taskbar health-indicator follow-up (2026-07-28, filed on TASK-364 closure)
+
+### TASK-366 — taskbar active-slot indicator doesn't reflect `spotifyTask::isHealthy()` (ADR-046 gap)
+
+Filed by PM on closing TASK-364, per that task's own explicit "not fixed here, future
+PM/Architect follow-up" flag (§6 investigation surfaced it, out of scope by design-doc
+framing) — not a live bug, pure display-indicator scope.
+
+`ADR-046`'s taskbar active-slot indicator (`taskbar.h:renderActiveIndicator`) drives its
+tri-state colour (error/red > busy-or-connecting/amber > idle/green) from the `App` base-
+class endpoints `hasError()`/`isConnecting()`. For Spotify these resolve to
+`spotifyTask::authError()` (a **sticky 403 latch** — set on any 403, cleared only on a real
+200/204 success) and `spotifyTask::isConnecting()`. Neither reads
+`spotifyTask::isHealthy()` (`spotifyTaskStorage.cpp:578`, `return s_consecutiveFailures < 2`)
+— a **different, non-sticky** signal already computed and already exposed (used by
+`winampDisplay.h:131,1208` for the marquee), but never wired into the taskbar's error
+endpoint.
+
+**Concrete gap:** a run of ≥2 consecutive *non-403* poll failures (network blip, timeout,
+DNS hiccup, any non-auth HTTP error) leaves `s_consecutiveFailures >= 2` (i.e.
+`isHealthy() == false`) while `authError()` stays false and `isConnecting()` stays false
+(if the first poll already succeeded this boot) — the taskbar bar renders green throughout,
+even though Spotify has an active, ongoing fetch problem the device itself can already see.
+Distinguish from ADR-046 §4's already-accepted "starvation makes other apps slow, not
+failed" limitation — this is Spotify's **own** slot failing to reflect Spotify's **own**
+already-computed unhealthy signal, not a cross-app starvation case.
+
+**Proposed scope (PM sizing only — Architect to confirm approach before implementation,
+per AGENTS.md's cross-component-design consult convention, since this touches the shared
+`App`/taskbar contract ADR-046 established):**
+1. Decide whether `SpotifyApp::hasError()` should OR in `!spotifyTask::isHealthy()`
+   alongside the existing `authError()` check, or whether a genuinely distinct third
+   tri-state input is warranted (non-sticky "degraded" vs. sticky "auth-failed" are
+   different severities — collapsing them into one red may itself need a design call,
+   not just a code change).
+2. If collapsed: confirm `isHealthy()`'s non-sticky nature doesn't cause taskbar flap
+   (bar going red then immediately green on transient single-poll recovery) the way
+   ADR-046 Amendment 2 already had to fix once for the auth-latch case — likely needs
+   the same sticky-latch treatment `authError()` got, not a raw pass-through.
+3. Audit whether other apps' `hasError()` implementations have the same class of gap
+   (a locally-computed health/degraded signal that exists but isn't wired to the shared
+   endpoint) while touching this — TASK-246's original breadth-first audit (ADR-046)
+   predates `isHealthy()`'s introduction.
+
+**Owner:** Architect (design call) → Developer (implementation) · **Deps:** ADR-046
+(tri-state precedence + latching convention this extends); TASK-364/§6 (where the gap was
+noticed, no code dependency) · **Gate:** `run/check` + DUT screendump of the taskbar bar
+across a forced non-403 failure run (e.g. AP-side block/timeout, not a 403) confirming red
+appears and clears correctly, no flap · **Priority:** P3 — real observability gap, but no
+known live bug and no user report; display-indicator scope only, Spotify's actual
+poll/retry/backoff behavior is unaffected either way · **Size:** S-M (small code change if
+the design call in step 1 lands on "reuse the OR", larger if it lands on a genuine third
+state) · **Status:** open
