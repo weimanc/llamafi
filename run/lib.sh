@@ -25,3 +25,32 @@ resolve_port() {
   [ -n "$found" ] || { echo "ERROR: CH340 device not found (VID:PID 1A86:7523)" >&2; exit 1; }
   echo "$found"
 }
+
+# TASK-342: TLS-pin preflight before compiling — mirrors run/test's step-0
+# pattern (TASK-298/LL-103), extended to build/flash entry points so a pinned
+# root rotation surfaces here too, not just 30+ min into a run/test session.
+# WARN-ONLY, never blocks the build/flash. CERT_PREFLIGHT=0 skips the network
+# leg entirely (offline/CI); the offline expiry leg always runs (no network,
+# deterministic, cheap — TASK-342's second piece).
+cert_preflight() {
+  local lib_dir
+  lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+  if [ "${CERT_PREFLIGHT:-1}" != "0" ]; then
+    local out
+    if ! out=$("$lib_dir/check-datatask-certs" 2>&1); then
+      echo "$out" | grep -E "^(FAIL|ERROR)" || true
+      if echo "$out" | grep -q "^FAIL"; then
+        echo ""
+        echo "!! [cert-preflight] WARNING: pinned-CA verify FAILed for endpoint(s) above."
+        echo "!!   Fix app/src/dataTaskCerts.h first (see ADR-029) unless this is a"
+        echo "!!   known host-side artifact. Not blocking this build."
+        echo ""
+      fi
+    fi
+  fi
+
+  local expiry_out
+  expiry_out=$("$lib_dir/check-datatask-certs" --expiry-only 2>&1) || true
+  echo "$expiry_out" | grep -E "^WARN" || true
+}

@@ -2,6 +2,7 @@
 # run/build-debug — compile debug firmware
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
+cert_preflight
 echo "[build-debug] compiling $ENV_DEBUG"
 (cd "$PIO_DIR" && "$PIO" run -e "$ENV_DEBUG")
 echo "[build-debug] done"

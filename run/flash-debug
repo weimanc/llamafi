@@ -5,6 +5,7 @@
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 PORT=$(resolve_port)
+cert_preflight
 
 echo "[flash-debug] 1/2 — killing monitor"
 tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true

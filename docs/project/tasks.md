@@ -62,7 +62,25 @@ expiry check: parse each pinned PEM's `notAfter`, warn when < 180 days out — r
 shipped roster stays silent.
 
 **Owner:** Developer · **Deps:** none (checker exists) · **Gate:** host-only; verify build still
-completes offline with knob unset · **Priority:** P2 · **Status:** open
+completes offline with knob unset · **Priority:** P2 · **Status:** **DONE** 2026-07-28 — T_CERT_HOST_02
+2/2 PASS (`app/tools/test_cert_preflight.py`), `run/check` 6/6 unaffected.
+
+Added `check_expiry()` to `run/check-datatask-certs` (offline, `openssl x509 -enddate`, dedupes
+`#define` aliases like `NOMINATIM_ROOT_CA`/`RADIO_BROWSER_ROOT_CA` by PEM content so an aliased
+cert isn't double-warned) behind a new `--expiry-only` flag, plus `--certs-file` (default
+`app/src/dataTaskCerts.h`) so tests can point it at a synthetic header without touching the real
+one. Verified against the shipped roster: 5 unique pinned roots, nearest expiry 2035-06-04
+(3233 days out) — silent as expected.
+
+Correction to this task's own text: `run/flash*` do **not** actually inherit from
+`run/build`/`run/build-debug` — they call `pio run -t upload` directly. Added a shared
+`cert_preflight()` function to `run/lib.sh` instead (network leg skippable via `CERT_PREFLIGHT=0`,
+offline expiry leg always runs) and called it explicitly from all four: `run/build`,
+`run/build-debug`, `run/flash`, `run/flash-debug`. Verified live: `./run/build` printed the
+network-leg FAIL/ERROR banner for 2 of 9 endpoints (real `nl1`/`at1` radio-browser mirror
+timeouts from this host, not a real pin issue) and the compile proceeded unblocked;
+`CERT_PREFLIGHT=0` cleanly skips the network leg. `run/check` 6/6 clean (check_build.sh calls
+`pio` directly too, untouched — out of scope, separate CI-gate script).
 
 ### TASK-343 — `--propose-fix` guided-rotation report mode
 

@@ -17,13 +17,18 @@
 #
 # Usage:
 #   ./run/check-datatask-certs
+#   ./run/check-datatask-certs --expiry-only     # TASK-342: offline, no network, no gate
+#   ./run/check-datatask-certs --certs-file PATH # override cert header (testing)
 #
 # Exits 0 if every endpoint's chain verifies; 1 if any fails or errors.
+# --expiry-only always exits 0 (warn-only by design — see TASK-342).
 
+import argparse
 import re
 import subprocess
 import sys
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 PROJ_ROOT = Path(__file__).resolve().parent.parent
@@ -64,13 +69,51 @@ BLOCK_RE = re.compile(
 ALIAS_RE = re.compile(r"^#define\s+(\w+_ROOT_CA)\s+(\w+)\s*$", re.MULTILINE)
 
 
-def load_certs():
-    text = CERTS_H.read_text()
+def load_certs(certs_h: Path = CERTS_H):
+    text = certs_h.read_text()
     certs = {name: pem.strip() + "\n" for name, pem in BLOCK_RE.findall(text)}
     for alias, target in ALIAS_RE.findall(text):
         if target in certs:
             certs[alias] = certs[target]
     return certs
+
+
+# TASK-342: fully offline expiry check — no network, deterministic, cheap
+# enough to run unconditionally (unlike strict_verify() above). Parses each
+# pinned PEM's notAfter locally via `openssl x509 -enddate` and warns when a
+# root is within warn_days of expiry. Current roster expires 2035-2038 (see
+# design doc), so this is silent for years; it exists to catch a short-lived
+# root/intermediate mistakenly pinned in a future rotation.
+def check_expiry(certs: dict, warn_days: int = 180) -> list[tuple[str, int]]:
+    warned = []
+    seen_pems = set()
+    for name, pem in certs.items():
+        if pem in seen_pems:
+            continue  # alias of an already-checked cert (e.g. NOMINATIM_ROOT_CA)
+        seen_pems.add(pem)
+        try:
+            proc = subprocess.run(
+                ["openssl", "x509", "-enddate", "-noout"],
+                input=pem, capture_output=True, text=True, timeout=5,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            print(f"ERROR {name:32s} — expiry check failed: {e}")
+            continue
+        m = re.search(r"notAfter=(.+)", proc.stdout)
+        if not m:
+            print(f"ERROR {name:32s} — could not parse notAfter ({proc.stderr.strip()})")
+            continue
+        try:
+            expiry = datetime.strptime(m.group(1).strip(), "%b %d %H:%M:%S %Y %Z")
+        except ValueError as e:
+            print(f"ERROR {name:32s} — could not parse expiry date {m.group(1)!r}: {e}")
+            continue
+        expiry = expiry.replace(tzinfo=timezone.utc)
+        days_left = (expiry - datetime.now(timezone.utc)).days
+        if days_left < warn_days:
+            print(f"WARN  {name:32s} expires in {days_left} days ({expiry.date()})")
+            warned.append((name, days_left))
+    return warned
 
 
 def strict_verify(host: str, pem: str) -> tuple[str, str]:
@@ -112,11 +155,28 @@ def strict_verify(host: str, pem: str) -> tuple[str, str]:
 
 
 def main() -> int:
-    if not CERTS_H.exists():
-        print(f"FAIL  cert header not found: {CERTS_H}", file=sys.stderr)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--expiry-only", action="store_true",
+                         help="Skip network chain verification; run only the offline PEM "
+                              "expiry check (TASK-342). Always exits 0 — warn-only.")
+    parser.add_argument("--expiry-warn-days", type=int, default=180,
+                         help="Warn threshold in days for --expiry-only (default: 180).")
+    parser.add_argument("--certs-file", type=Path, default=CERTS_H,
+                         help="Override path to the cert header (default: "
+                              "app/src/dataTaskCerts.h). For testing (T_CERT_HOST_02).")
+    args = parser.parse_args()
+
+    certs_h = args.certs_file
+    if not certs_h.exists():
+        print(f"FAIL  cert header not found: {certs_h}", file=sys.stderr)
         return 1
 
-    certs = load_certs()
+    certs = load_certs(certs_h)
+
+    if args.expiry_only:
+        check_expiry(certs, args.expiry_warn_days)
+        return 0
+
     results = []
     for host, cert_name in ENDPOINTS:
         pem = certs.get(cert_name)
@@ -125,7 +185,7 @@ def main() -> int:
             if pending_task:
                 status, detail = "PENDING", f"{cert_name} not defined yet — lands with {pending_task}"
             else:
-                status, detail = "ERROR", f"{cert_name} not found in {CERTS_H.name}"
+                status, detail = "ERROR", f"{cert_name} not found in {certs_h.name}"
             results.append((host, cert_name, status, detail))
             print(f"{status:5s} {host:32s} ({cert_name}) — {detail}")
             continue

@@ -2,6 +2,7 @@
 # run/build — compile production firmware
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
+cert_preflight
 echo "[build] compiling $ENV_PROD"
 (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD")
 echo "[build] done"
