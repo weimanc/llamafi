@@ -39,7 +39,18 @@ do not build new heartbeat plumbing for it.
 
 **Owner:** Developer · **Deps:** TASK-318 (done) · **Gate:** `run/check` 7/7; DUT regression rides
 existing suites (no cert-path behaviour change on the happy path) · **Priority:** P2 ·
-**Status:** open
+**Status:** **DONE** 2026-07-28 (`app/src/dataTaskStorage.cpp`) — all 8 sites now surface `-120`.
+Kept each fetcher's custom begin/GET path (headers, streaming-filter parse, retry logic all
+differ per-site — `openHttps()`'s atomic begin+GET can't accommodate the header-injection ones
+without its own restructure), and factored the two-line `lastError()` check into a shared
+`certSentinel(tls, code)` helper (also now used internally by `openHttps()` itself, replacing its
+duplicate inline check) rather than hand-copying the check 8 times — lower regression risk than
+migrating weather/crypto onto `openHttps()` and functionally required for the 6 yahoo/radio-browser
+sites that need a header or `getStream()` filter-parse between `begin()` and `GET()`.
+Radio-browser and planeradar sites carry an explicit deliberate-custom-path comment per the design
+doc's framing. `run/check` 7/7 clean (both `cyd2usb_winamp`/`cyd2usb_winamp_debug` compile).
+Optional Q1 heartbeat rider skipped — not free (needs new static host+ts slot + heartbeat format
+change), and the design doc says skip unless free.
 
 ### TASK-342 — build-time cert preflight (warn-only) + offline expiry check
 

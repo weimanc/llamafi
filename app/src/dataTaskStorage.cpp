@@ -177,6 +177,22 @@ static constexpr int OPENHTTPS_BEGIN_FAILED = INT_MIN;
 // Reserved band -120..-129: TLS-layer sentinels (see dataTask.h).
 static constexpr int CERT_VERIFY_FAILED = -120;
 
+// TASK-341: shared substitution, factored out of openHttps() so the fetchers
+// that hand-roll begin()/GET() instead of going through it (their divergence
+// is deliberate — extra headers/streaming-filter parse between begin() and
+// GET() that openHttps()'s atomic begin+GET can't accommodate) get the same
+// -120 surfacing with a two-line call, not a copy-pasted check. Checked only
+// when GET() already failed; a stale-but-different lastError() code falls
+// through to the raw HTTPClient code unchanged.
+static int certSentinel(WiFiClientSecure& tls, int code) {
+    if (code < 0) {
+        char ebuf[8];   // text unused; lastError() is the int accessor
+        if (tls.lastError(ebuf, sizeof(ebuf)) == -0x2700)
+            return CERT_VERIFY_FAILED;
+    }
+    return code;
+}
+
 static int openHttps(WiFiClientSecure& tls, HTTPClient& http, const char* url,
                       const char* rootCA, bool insecure) {
     if (insecure) tls.setInsecure();
@@ -184,12 +200,7 @@ static int openHttps(WiFiClientSecure& tls, HTTPClient& http, const char* url,
     http.useHTTP10(true);   // force Connection:close so http.end() frees TLS
     if (!http.begin(tls, url)) return OPENHTTPS_BEGIN_FAILED;
     int code = http.GET();
-    if (code < 0 && !insecure) {
-        char ebuf[8];   // text unused; lastError() is the int accessor
-        if (tls.lastError(ebuf, sizeof(ebuf)) == -0x2700)
-            return CERT_VERIFY_FAILED;   // begin() succeeded — caller still http.end()s
-    }
-    return code;
+    return insecure ? code : certSentinel(tls, code);   // begin() succeeded — caller still http.end()s
 }
 
 static void fetchWeather() {
@@ -224,7 +235,7 @@ static void fetchWeather() {
     }
     s_weatherFetchPhase = 1;  // GET in flight
     unsigned long t0 = millis();
-    int code = http.GET();
+    int code = certSentinel(tls, http.GET());  // TASK-341
     LOG_D("dataTask.weather", "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
     String body;
     if (code == 200) body = http.getString();
@@ -295,7 +306,7 @@ static void fetchCrypto() {
     }
     s_cryptoFetchPhase = 1;  // GET in flight
     unsigned long t0 = millis();
-    int code = http.GET();
+    int code = certSentinel(tls, http.GET());  // TASK-341
     s_cryptoLastCode = code;
     LOG_D("dataTask.crypto", "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
     String body;
@@ -365,7 +376,7 @@ static void fetchStockQuote() {
             http.addHeader("User-Agent", "Mozilla/5.0");
             http.useHTTP10(true);    // identity encoding so getStream() yields clean JSON
             unsigned long t0 = millis();
-            int code = http.GET();
+            int code = certSentinel(tls, http.GET());  // TASK-341
             LOG_D("dataTask.stock", "spark GET %d elapsed=%lums",
                   code, (unsigned long)(millis() - t0));
             if (code != 200) {
@@ -439,7 +450,7 @@ static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
         http.useHTTP10(true);
         s_stockChartProgress = 1;  // GET in flight
         unsigned long t0 = millis();
-        int code = http.GET();
+        int code = certSentinel(tls, http.GET());  // TASK-341
         LOG_D("dataTask.stock", "chart GET %s range=%s %d elapsed=%lums",
               tickers[tickerIdx], STOCK_RANGE_STR[rangeIdx],
               code, (unsigned long)(millis() - t0));
@@ -831,7 +842,7 @@ static void fetchHeatmapQuote() {
     // so getStream() yields clean JSON that ArduinoJson can parse correctly.
     http.useHTTP10(true);
     unsigned long t0 = millis();
-    int code = http.GET();
+    int code = certSentinel(tls, http.GET());  // TASK-341
     LOG_D("dataTask.stock", "heatmap GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
     HeatmapQuoteResult r;
     if (code != 200) {
@@ -909,7 +920,7 @@ static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
         http.useHTTP10(true);
         s_stockChartProgress = 1;  // GET in flight
         unsigned long t0 = millis();
-        int code = http.GET();
+        int code = certSentinel(tls, http.GET());  // TASK-341
         LOG_D("dataTask.stock", "chart-sym GET %s %d elapsed=%lums",
               symbol, code, (unsigned long)(millis() - t0));
         if (code != 200) {
@@ -992,7 +1003,10 @@ static int fetchOneMirror(const char* mirror, const char* country, uint8_t bitra
     }
     http.addHeader("User-Agent", "ESPSpotify/1.0");
     unsigned long t0 = millis();
-    int code = http.GET();
+    // TASK-341: custom path is deliberate (per-mirror skip-on-fail), but still
+    // gets the -120 sentinel so a rotted radio-browser pin doesn't masquerade
+    // as an ordinary dead mirror.
+    int code = certSentinel(tls, http.GET());
     LOG_I("dataTask.webradio", "GET mirror=%s code=%d elapsed=%lums",
           mirror, code, (unsigned long)(millis() - t0));
     if (code != 200) {
@@ -1238,7 +1252,10 @@ static int prFetchOnce(const char* url, PlaneRadarResult& r, uint16_t& scanned) 
         return -100;
     }
     unsigned long t0 = millis();
-    int code = http.GET();
+    // TASK-341: custom path is deliberate (radius-capped retry cascade), but
+    // still gets the -120 sentinel — shared by the first try and both
+    // TASK-361 retries since they all funnel through this one function.
+    int code = certSentinel(tls, http.GET());
     // TASK-361: declared Content-Length alongside the existing timing log —
     // http.useHTTP10(true) forces identity encoding (no chunked transfer), so
     // this is a real byte count, not -1. Lets a soak correlate truncation
