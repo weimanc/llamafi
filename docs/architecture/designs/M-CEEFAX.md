@@ -184,9 +184,7 @@ page_to_magazine_byte()`).
 
 ---
 
-### DS-6: One app or two? (`TeletextApp` variant vs. new `CeefaxApp`)
-
-**Open question, not resolved by this spike.** Two framings:
+### DS-6: One app or two? (`TeletextApp` variant vs. new `CeefaxApp`) — RESOLVED 2026-07-29
 
 **Option A — `CeefaxApp` as a sibling class**, sharing only the render-layer helpers
 (colour palette, mosaic tables, control-code switch — currently inline in
@@ -197,42 +195,128 @@ poll), but duplicates the strip/numpad/fastext UI shell unless that's also extra
 **Option B — one `TeletextApp` with a `teletextCountry`-style source switch**, where
 NOS and Ceefax are two `TeletextSource` backends behind a common interface
 (`ready()`, `grid()`, `navigate(page)`), matching the reserved-but-unimplemented
-`teletextCountry` settings field's original intent (M-TELETEXT DS-6). More consistent
-with the existing multi-country design language, but the NOS backend is a stateless
-poll and the Ceefax backend is a stateful persistent connection with its own FreeRTOS
-task — the common interface would need to paper over a real lifecycle difference
-(`resume()`/`suspend()` meaning "start/stop a task" for one source and "no-op" for the
-other).
+`teletextCountry` settings field's original intent (M-TELETEXT DS-6).
 
-**No lean recorded.** This is the one question worth an actual Architect/PM
-conversation before scheduling — it decides whether Ceefax extends the
-`teletextCountry` enum's original vision or forks away from it.
+**Lean: Option B.** Three independent reasons, any one of which would be enough on its
+own:
+
+1. **Taskbar slots are already the scarce resource, not code complexity.**
+   M-TELETEXT's own context section notes the shell was at 9 apps with the taskbar
+   already scrolling to fit them before Teletext became the 10th. A separate
+   `CeefaxApp` is an 11th slot for a page-for-page identical *experience* (same grid,
+   same strip, same numpad) with a different backend — that's the taskbar-scarcity
+   problem M-TELETEXT already flagged, made worse for no user-facing benefit. Folding
+   Ceefax into `TeletextApp` via `teletextCountry` costs zero additional slots.
+
+2. **The host prototype proved the shared surface is real, not aspirational.**
+   `preview_teletext.py --source ceefax` runs `build_cell_grid`, the mosaic/colour
+   tables, `Keypad`, the strip renderer, and `scan_links`/`find_row_link` completely
+   unmodified against Ceefax data (verified with screenshots, not just argued). Option
+   A doesn't avoid building the shared-backend abstraction this implies — it still
+   needs the render/UI code factored out to share it across two classes instead of
+   one. It adds a second class wrapper around the same abstraction for no functional
+   gain, only extra indirection.
+
+3. **The settings field already committed to this shape.** `teletextCountry` was
+   reserved in M-TELETEXT DS-6 specifically so a second teletext source would be a
+   *source*, not a new app. Ceefax is the first real test of that intent; Option B is
+   the field's original design working as planned, Option A quietly abandons it.
+
+**The lifecycle-mismatch concern is real but not a blocker.** NOS's backend is a
+stateless poll (`resume()`/`suspend()` no-ops beyond triggering/not-triggering the next
+`dataTask` fetch); Ceefax's backend needs to start/stop its own pump task
+(`wrEnsurePumpTask()`/`wrTeardownPumpTask()`-shaped, see DS-1) on `resume()`/
+`suspend()`. That's an ordinary strategy-pattern seam — `TeletextSource::onResume()`/
+`onSuspend()` meaning "no-op" for one implementation and "start/stop a FreeRTOS task"
+for the other isn't awkward, it's exactly what the interface is for.
+
+**What genuinely is new risk, not validated by the host prototype:** the prototype
+picks its source once at process start (`--source` CLI flag) and never switches at
+runtime. Firmware's `teletextCountry` is a live Settings toggle — if the user changes
+it while `TeletextApp` is backgrounded, the *next* `resume()` must start the newly
+selected backend and guarantee the previous one's pump task/WebSocket is fully torn
+down first, not just superseded. This follows the existing pull-on-resume pattern
+(ADR-043 — settings are read fresh in `resume()`) but needs the pump-task start/stop
+wired into that path explicitly; nothing in this spike exercised it, because the host
+tool never needed to.
+
+---
+
+### DS-7: Taskbar status flags (`isConnecting()` / `hasError()`) — not addressed until now
+
+**Gap, caught by review, not by this spike.** Every `App` implements
+`isConnecting()` (amber active-slot bar) and `hasError()` (red, sticky, highest
+precedence — ADR-046) against a tri-state contract: error > busy > idle.
+`TeletextApp`'s existing NOS mapping is `isConnecting() { return !_st.ready; }` (a
+one-time "before first page ever loaded" gate) and `hasError() { return _ttErr; }`
+(set on a failed fetch, cleared on the next success). Nothing in this doc or the host
+prototype considered what these should mean for a Ceefax backend, and the two
+questions are not the same shape as NOS's.
+
+**`isConnecting()` — lean: diverge from NOS's one-time gate, make it per-navigation.**
+NOS's fetch is near-instant after the first load, so nobody would notice if the amber
+bar only ever fired once at boot. Ceefax's page-acquisition wait (3-20s+, EXP-005
+finding 4) is long and visible on *every* navigation, not just the first — and the
+taskbar amber indicator is exactly the mechanism that stays useful while the app
+isn't foregrounded (the in-canvas "Waiting for page N..." message the prototype added
+only helps if you're looking at the screen). Lean: `isConnecting()` returns
+`!backend.acquired()` continuously — true from every `goto()`/`navigate()` call until
+the next successful acquisition, not just before the first one ever. This is a
+deliberate divergence from the NOS mapping, not an oversight; document it as such so
+a future reader doesn't "fix" it back to matching NOS.
+
+**`hasError()` — lean: needs a sustained-failure latch, not a raw reconnect pass-through
+(open sub-question on the exact threshold).** `ceefax_client.py`'s reconnect loop
+treats a dropped WebSocket as routine — 3s backoff, retry indefinitely — which is
+correct behaviour for the connection itself but is exactly the kind of locally-computed,
+non-sticky signal that caused taskbar flap before: ADR-046 Amendment 2 already had to
+add sticky-latch treatment once for the Spotify auth-error case, and the still-open
+Spotify `isHealthy()` gap (`docs/project/tasks.md`, un-numbered P3 item, 2026-07-2x) is
+the same class of bug — a real degraded/error signal that exists internally but either
+isn't wired to `hasError()` or is wired without latching, so it flaps red-then-green on
+ordinary transient recovery instead of reflecting a genuine sustained failure.
+Reconnecting every 3s and succeeding a moment later is normal operation, not an error —
+`hasError()` must not fire on every blip. What plausibly **should** latch red:
+a certificate/handshake failure (won't self-heal by retrying, matches ADR-046's own
+definition verbatim), or N consecutive failed reconnect attempts / a connection-down
+duration past some multiple of the backoff interval (genuinely sustained, not
+transient). **The exact threshold isn't picked here** — this needs either a DUT
+observation of real-world reconnect failure patterns, or an explicit Architect call,
+before implementation; flagging the shape of the answer, not the number.
 
 ---
 
 ## Lean / decision
 
-No ADR yet. Recommend: if this gets scheduled, write the ADR after DS-6 and DS-2 are
-resolved (source-backend shape, and DUT-verified resource-contention behavior) —
-both are cheap to get wrong on paper and expensive to unwind in firmware, and neither
-needs new host research to answer, just a decision + a DUT soak test.
+DS-6 resolved above (Option B — one `TeletextApp`, pluggable `TeletextSource`
+backend). No ADR yet: this repo's convention (see M-TELETEXT/ADR-044) is to write the
+ADR once the design is truly ready to schedule, and DS-2 (resource-contention DUT soak
+test) still gates that — it's not resolvable on host, and getting it wrong is exactly
+the class of mistake that cost several TASK-2xx cycles on WebRadio. Recommend: run the
+DS-2 soak test, then write the ADR covering both decisions together.
 
 ---
 
 ## Open questions
 
-1. DS-6 (one app vs. two) — needs an Architect/PM call, not more spiking.
-2. DS-2 resource contention — needs a DUT soak test (persistent WS + concurrent
-   `dataTask` fetch), not resolvable on host.
-3. Whether `nmsceefax.co.uk`'s relay is a service the project wants a firmware
-   dependency on long-term (single enthusiast operator, no SLA) — a product/ops
-   question, not an engineering one, but worth PM's awareness before scheduling.
+1. DS-2 resource contention — needs a DUT soak test (persistent WS + concurrent
+   `dataTask` fetch), not resolvable on host. Now the only *engineering* blocker on
+   an ADR (DS-6 resolved above).
+2. DS-7 `hasError()` sustained-failure threshold — needs either real-world DUT
+   reconnect-failure observation or an explicit Architect call; the shape of the
+   answer is proposed above, the exact number isn't.
+
+**Waived 2026-07-29** (not pursued, not resolved): whether `nmsceefax.co.uk`'s relay
+is a service the project wants a firmware dependency on long-term (single enthusiast
+operator, no SLA). Accepted as an out-of-scope operational risk rather than an
+engineering question — recorded here so a future reader knows it was considered and
+consciously set aside, not missed.
 
 ---
 
 ## Exit criteria (if scheduled)
 
-- DS-6 resolved via ADR.
+- DS-6 lean (Option B, above) confirmed in an ADR alongside DS-2's outcome.
 - DUT soak test proves persistent Ceefax WS + concurrent `dataTask` fetch does not
   reproduce the TASK-285/287/289 class of heap/TLS starvation.
 - `preview_teletext.py --source ceefax` (this spike's prototype, now merged into the
@@ -240,4 +324,6 @@ needs new host research to answer, just a decision + a DUT soak test.
   remaining gap with the NOS source's coverage, before firmware work starts. (Fastext
   packet-27 decode is already done — see DS-3.)
 - `TELETEXT_CEEFAX_ROOT_CA` added to `dataTaskCerts.h`.
+- `isConnecting()`/`hasError()` implemented per DS-7's lean, with a concrete
+  sustained-failure threshold for `hasError()` decided (not left as "some N").
 - `run/check` (5-gate) passes clean once firmware lands.
