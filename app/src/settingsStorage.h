@@ -135,6 +135,9 @@ struct AppSettings {
     bool    webRadioHwMod;        // SC8002B gain-reduction mod installed (M-WEBRADIO §HW Mod). Gates the anti-clipping ceiling: enforced by webRadioApp::wrEffectiveVolume() (TASK-209) — false → soft-cap 12, true → full 1–21
     uint8_t webRadioMaxVolume;    // 1–21 configured ceiling → setVolume(), clamped by wrEffectiveVolume() (TASK-209: stock soft-cap 12 / mod full range). Default 10 stock / 18 with HW mod. Exact stock clip point still needs DUT+ears calibration (T_WR_VOL_01/02)
     uint8_t webRadioLastStation;  // persisted last station index (default 0)
+    uint8_t webRadioVolumePct;    // TASK-352: Winamp slider session volume, 0-100, scales *within* the
+                                   // webRadioMaxVolume/wrEffectiveVolume() ceiling (default 100 = today's
+                                   // full-ceiling behaviour). Coalesced-save on suspend (ADR-050 rule 3).
 
     // --- Plane Radar (M-PLANERADAR, ADR-048/049, TASK-305) ---
     // lat/lon: D4 (v1) — compile-time default, edited via `run/spiffs push`;

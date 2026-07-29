@@ -113,6 +113,7 @@ static void applyDefaults() {
     // maxVolume. webRadioApp::wrEffectiveVolume() enforces the hardware ceiling.
     g_settings.webRadioMaxVolume     = 10;
     g_settings.webRadioLastStation   = 0;
+    g_settings.webRadioVolumePct     = 100;  // TASK-352: full ceiling, matches pre-slider behaviour
 
     // Plane Radar (PR_DEFAULT_LAT/LON — settingsStorage.h, M-HOME-LOCATION H-7a)
     g_settings.prLat            = PR_DEFAULT_LAT;
@@ -304,6 +305,7 @@ void SettingsStorage::load() {
         // playback clamp (wrEffectiveVolume) still bounds whatever value lands.
         g_settings.webRadioMaxVolume = wr["maxVolume"] | (uint8_t)(g_settings.webRadioHwMod ? 18 : 10);
         if (wr.containsKey("lastStation")) g_settings.webRadioLastStation = wr["lastStation"] | 0;
+        if (wr.containsKey("volumePct"))   g_settings.webRadioVolumePct   = wr["volumePct"]   | 100;
     }
 
     // Plane Radar
@@ -477,6 +479,7 @@ void SettingsStorage::save() {
     wr["hwMod"]       = g_settings.webRadioHwMod;
     wr["maxVolume"]   = g_settings.webRadioMaxVolume;
     wr["lastStation"] = g_settings.webRadioLastStation;
+    wr["volumePct"]   = g_settings.webRadioVolumePct;
 
     auto pr = doc.createNestedObject("planeRadar");
     pr["lat"]        = g_settings.prLat;

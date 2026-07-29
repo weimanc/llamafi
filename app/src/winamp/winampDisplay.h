@@ -183,6 +183,12 @@ public:
     tft.endWrite();
   }
 
+  // TASK-349 — main-window time digits for WebRadio (stream play time, no
+  // posbar thumb — WebRadio's posbar is drawBufferBar() above, not a seek
+  // position). Spotify drives the digits via displayTrackProgress(); this is
+  // the WebRadio-only entry into the same self-guarded drawTimeDigits().
+  void updateTimeDigits(int seconds) { drawTimeDigits(seconds); }
+
   // TASK-252 — set the marquee title (shared: Spotify track + WebRadio station/
   // state). Redraws only on change; resets scroll + holds before scrolling. The
   // baked SKIN_GLYPH folds lowercase→uppercase, so callers needn't uppercase.
@@ -261,6 +267,14 @@ public:
   // optimism expires. spotifyLogic checks `now < this` to skip the
   // snap-driven dedup gate during/after a drag.
   unsigned long getOptimisticVolumeUntil() const override { return optimisticVolumeUntilMs; }
+
+  // TASK-352: swap the volume-commit seam (nullptr restores the default
+  // Spotify ACT_VOLUME enqueue). SpotifyApp::resume() calls this with nullptr
+  // on every eject-back so the shared drag machine never sticks on a stale
+  // WebRadio sink.
+  void setVolumeSink(void (*sink)(int)) {
+    _volumeSink = sink ? sink : &_defaultVolumeSink;
+  }
 
   void drawShuffle(int on) override {
     SkinUV uv;
@@ -387,7 +401,7 @@ public:
       }
       if (dragState == D_VOLUME_DRAG) {
         if (lastVolumeRendered >= 0 && lastVolumeRendered != lastVolumeEnqueuedPct) {
-          spotifyTask::enqueue(spotifyTask::ACT_VOLUME, (int32_t)lastVolumeRendered);
+          _volumeSink((int)lastVolumeRendered);
           _lastInputWasAsync = true;
           lastVolumeEnqueuedPct = lastVolumeRendered;
           Serial.printf("[D][chrome] drag-end commit pct=%d\n", (int)lastVolumeRendered);
@@ -409,7 +423,7 @@ public:
           unsigned long now = millis();
           if (now - lastVolumeEnqueuedMs > VOLUME_DRAG_DEBOUNCE_MS &&
               (int8_t)pct != lastVolumeEnqueuedPct) {
-            spotifyTask::enqueue(spotifyTask::ACT_VOLUME, (int32_t)pct);
+            _volumeSink((int)pct);
             LOG_D("touch", "enqueued ACT_VOLUME pct=%ld", pct);
             lastVolumeEnqueuedMs = now;
             lastVolumeEnqueuedPct = (int8_t)pct;
@@ -497,7 +511,7 @@ public:
       unsigned long now = millis();
       if (now - lastVolumeEnqueuedMs > VOLUME_DRAG_DEBOUNCE_MS &&
           (int8_t)volPct != lastVolumeEnqueuedPct) {
-        spotifyTask::enqueue(spotifyTask::ACT_VOLUME, (int32_t)volPct);
+        _volumeSink((int)volPct);
         LOG_D("touch", "enqueued ACT_VOLUME pct=%ld", volPct);
         lastVolumeEnqueuedMs = now;
         lastVolumeEnqueuedPct = (int8_t)volPct;
@@ -545,6 +559,55 @@ public:
 
     _tickMarquee();
     return consumed;
+  }
+
+  // TASK-352: narrow public capture entry into the SAME D_VOLUME_DRAG state
+  // machine handleWinampInput() owns above (dragState, drawVolume(),
+  // volumeFromX(), debounce, optimistic hold, the _volumeSink seam) — for
+  // callers like WebRadio whose input path is piecemeal hitTest*Public calls,
+  // not the full handleWinampInput() dispatch (which would also hit-test
+  // Spotify-only zones — transport/posbar-seek/PLEDIT/shuffle/repeat — that
+  // WebRadio must not trigger). Deliberately NOT routed through
+  // handleWinampInput() for that reason; every field/helper it touches is
+  // shared state, so this is reuse of the machine, not a duplicate of it.
+  // Press: hit-test only, ignored (returns false) outside the slider.
+  // Move/Release: captured — consumes unconditionally once a drag is live.
+  bool handleVolumeGesturePublic(TouchPhase phase, int x, int y) {
+    if (dragState == D_VOLUME_DRAG) {
+      if (phase == TouchPhase::Release) {
+        if (lastVolumeRendered >= 0 && lastVolumeRendered != lastVolumeEnqueuedPct) {
+          _volumeSink((int)lastVolumeRendered);
+          lastVolumeEnqueuedPct = lastVolumeRendered;
+        }
+        dragState = D_IDLE;
+        return true;
+      }
+      long pct = volumeFromX(x);
+      drawVolume((int)pct);
+      unsigned long now = millis();
+      if (now - lastVolumeEnqueuedMs > VOLUME_DRAG_DEBOUNCE_MS &&
+          (int8_t)pct != lastVolumeEnqueuedPct) {
+        _volumeSink((int)pct);
+        lastVolumeEnqueuedMs = now;
+        lastVolumeEnqueuedPct = (int8_t)pct;
+      }
+      optimisticVolumeUntilMs = now + VOLUME_OPTIMISTIC_HOLD_MS;
+      return true;
+    }
+    if (phase != TouchPhase::Press) return false;
+    long volPct = hitTestVolume(x, y);
+    if (volPct < 0) return false;
+    dragState = D_VOLUME_DRAG;
+    drawVolume((int)volPct);
+    unsigned long now = millis();
+    if (now - lastVolumeEnqueuedMs > VOLUME_DRAG_DEBOUNCE_MS &&
+        (int8_t)volPct != lastVolumeEnqueuedPct) {
+      _volumeSink((int)volPct);
+      lastVolumeEnqueuedMs = now;
+      lastVolumeEnqueuedPct = (int8_t)volPct;
+    }
+    optimisticVolumeUntilMs = now + VOLUME_OPTIMISTIC_HOLD_MS;
+    return true;
   }
 
   bool wasLastInputAsync() { bool v = _lastInputWasAsync; _lastInputWasAsync = false; return v; }
@@ -685,6 +748,15 @@ private:
   unsigned long optimisticVolumeUntilMs = 0;
   static constexpr unsigned long VOLUME_DRAG_DEBOUNCE_MS = 300;
   static constexpr unsigned long VOLUME_OPTIMISTIC_HOLD_MS = 2000;
+  // TASK-352: volume commit seam — the D_VOLUME_DRAG state machine (capture,
+  // debounce, optimistic hold) above is mode-agnostic; only the commit action
+  // is Spotify-coupled. Default wires the original ACT_VOLUME enqueue so
+  // Spotify's behaviour is unchanged with zero wiring; WebRadio swaps this
+  // via setVolumeSink() instead of duplicating the state machine.
+  static void _defaultVolumeSink(int pct) {
+    spotifyTask::enqueue(spotifyTask::ACT_VOLUME, (int32_t)pct);
+  }
+  void (*_volumeSink)(int) = &_defaultVolumeSink;
 
   // chrome-001 final — shuffle / repeat indicator cache + optimistic
   // freeze. -1 / 3 = "never rendered" sentinels.
@@ -1158,6 +1230,21 @@ public:
     tft.endWrite();
   }
 
+  // TASK-348: PLEDIT bottom-bar overlay slot — same skin-font glyph blit and
+  // position Spotify uses for its total-playlist-time readout (x=127 in the
+  // PLEDIT frame, dark LCD area of the bottom bar), factored out so WebRadio
+  // can render its country code in the identical slot. Caller owns
+  // startWrite()/endWrite() (matches drawPleditFrame()'s contract).
+  void drawPleditOverlayText(const char *str) {
+    int tx = originX + 127 + GLYPH_W;
+    const int ty = PLEDIT_BOTTOM_Y + 10;
+    for (const char *p = str; *p; p++) {
+      const SkinUV uv = SKIN_GLYPH[(uint8_t)*p & 0x7F];
+      blitSprite(tx, ty, SKIN_FONT, SKIN_FONT_W, uv);
+      tx += uv.w;
+    }
+  }
+
   // ADR-018 TASK-047c — Winamp PLEDIT playlist editor chrome.
   // Call unconditionally from the main loop; returns immediately if the
   // snapshot seqno hasn't changed.
@@ -1334,13 +1421,7 @@ public:
         snprintf(tstr, sizeof(tstr), "%lu:%02lu:%02lu", (unsigned long)h, (unsigned long)m, (unsigned long)s);
       else
         snprintf(tstr, sizeof(tstr), "%lu:%02lu", (unsigned long)m, (unsigned long)s);
-      int tx = originX + 127 + GLYPH_W;
-      const int ty = PLEDIT_BOTTOM_Y + 10;
-      for (const char *p = tstr; *p; p++) {
-        const SkinUV uv = SKIN_GLYPH[(uint8_t)*p & 0x7F];
-        blitSprite(tx, ty, SKIN_FONT, SKIN_FONT_W, uv);
-        tx += uv.w;
-      }
+      drawPleditOverlayText(tstr);
     }
 
     tft.endWrite();

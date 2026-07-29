@@ -243,12 +243,13 @@ and `exp012_measure.py` all hardcode `switchApp 10` intending WebRadio, but WebR
 been AppId 11 since PlaneRadar landed (TASK-307) — stale since then, not since TASK-347.
 Flagging for a separate task.
 
-## Open — M-WEBRADIO-WINAMP-UI (2026-07-18)
+## M-WEBRADIO-WINAMP-UI (2026-07-18, production items closed 2026-07-28)
 
 Human request, 4 items + item 5 (volume slider) added same day. Design:
 [M-WEBRADIO-WINAMP-UI.md](../architecture/designs/M-WEBRADIO-WINAMP-UI.md) — consumer audit and
 per-item specifics live there; read it before implementing. Items 1–3 and 5 are production
-tasks; item 4 is RnD (PROP-005).
+tasks (TASK-348/349/350/352 — all DONE, DUT-verified); item 4 is RnD (PROP-005, TASK-351,
+still open — scheduled after TASK-350, which has now landed).
 
 ### TASK-348 — country code into the PLEDIT bottom bar
 
@@ -259,7 +260,9 @@ paths — no new dirty tracking. Update `preview_webradio.py`'s zone map (check 
 mirrors — LL-114). Test: T_WRUI_01 + eyeball.
 
 **Owner:** Developer · **Deps:** none · **Gate:** `run/check` + DUT · **Priority:** P2 ·
-**Status:** open
+**Status:** **DONE 2026-07-28** — `run/check` 6/6 both envs; T_WRUI_01 DUT-verified
+(screendump eyeball): country code ("GB", the device's live `webRadioCountry`) renders in
+the PLEDIT bottom bar overlay slot, old `WR_BADGE_*` area shows plain skin background.
 
 ### TASK-349 — wire stream play time to the main-window digits
 
@@ -270,7 +273,12 @@ correct behaviour; wrap at `% 6000` s (digits clamp at 99:59 otherwise, radio st
 it). Test: T_WRUI_02.
 
 **Owner:** Developer · **Deps:** none (shares the read block TASK-350 also touches — land
-together or sequence) · **Gate:** `run/check` + DUT · **Priority:** P2 · **Status:** open
+together or sequence) · **Gate:** `run/check` + DUT · **Priority:** P2 · **Status:**
+**DONE 2026-07-28** — `run/check` 6/6 both envs; T_WRUI_02 DUT-verified (live NPO Radio 1
+stream via `wrUrl` injection — real station-list fetch hit a pre-existing `-101` heap-guard
+skip unrelated to this task, see TASK-349/350/352 DUT note below): digits advanced 0:00→0:20
+over a real 20s wall-clock window (1:1 with `getAudioCurrentTime()`), reset to 0:00 on station
+skip and on stop, screendump confirms `00:20` rendered on-screen mid-stream.
 
 ### TASK-350 — reuse the synthetic visualizer in radio mode (KEEP MOCK)
 
@@ -283,7 +291,11 @@ cheap, else ship without (fallback allowed by design). The refactored seam is de
 PROP-005 injection point. Test: T_WRUI_03 (incl. eject-back regression leg).
 
 **Owner:** Developer · **Deps:** TASK-349 (elapsed source) · **Gate:** `run/check` + DUT +
-Spotify-mode vis regression eyeball · **Priority:** P2 · **Status:** open
+Spotify-mode vis regression eyeball · **Priority:** P2 · **Status:** **DONE 2026-07-28**
+(tap-to-cycle included) — `run/check` 6/6 both envs; T_WRUI_03 DUT-verified: vis animated
+while PLAYING (195 changed px between two 1s-apart screendumps), tap-cycled mode 0→1
+(ATLAS→VU) via `get visMode`, decayed to near-idle on STOP (screendump), eject-back to
+Spotify left the shell alive and responsive (decoupled `vu::tick()` seam regression-clean).
 
 ### TASK-351 — RnD: real visualization from the WebRadio audio stream (PROP-005)
 
@@ -316,7 +328,22 @@ Spotify-slider regression leg.
 
 **Owner:** Developer · **Deps:** none hard (independent of TASK-348/349/350; touches the same
 `webRadioApp.h` — coordinate merges) · **Gate:** `run/check` 7/7 + DUT + eyeball ·
-**Priority:** P2 · **Status:** open
+**Priority:** P2 · **Status:** **DONE 2026-07-28** — `run/check` 6/6 both envs,
+settings-wiring gate (step 7/7) OK for `webRadioVolumePct`; T_WRUI_04 DUT-verified: drag to
+~23% commits `pct=23`/`scaled=2` matching `(pct*eff+50)/100` exactly (`eff=10` ceiling
+untouched — TASK-209/T_WR_VOL_03 clamp semantics intact), eject-back to Spotify OK, and
+`webRadioVolumePct=23` **survived a full DUT reboot** (read back unchanged on next session,
+confirming the coalesced-suspend-save actually reached SPIFFS, not just RAM).
+
+**DUT session note (all four tasks):** the real radio-browser station-list fetch hit a
+pre-existing `-101` heap-guard skip during this session (heap fragmented by the
+already-known TASK-243 Spotify-403 poll/reconnect churn at boot — unrelated to
+TASK-348/349/350/352). Worked around via `set wrUrl <stream>` debug injection (same
+technique as EXP-010) to get a live playing station for T_WRUI_02–04; first attempt used a
+SomaFM URL which hit their documented "Account already in use" 403 cooldown
+([[task257-lane-c-closed]] memory) on repeated reconnects — switched to NPO's public icecast
+relay (`icecast.omroep.nl/radio1-bb-mp3`), which doesn't rate-limit per-connection, and all
+tests passed cleanly.
 
 ### TASK-353 — Nixie 4-bit luminance pack + 16-entry tint LUT (M-CLOCK-FACE-COMMON pt 2)
 

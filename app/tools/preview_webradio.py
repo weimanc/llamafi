@@ -10,10 +10,10 @@ Zone map:
   VU       x=24  y=43 w=76  h=16   spectrum bars (two horizontal bars, L top / R bottom)
   POSBAR   x=16  y=72 w=248 h=10   buffer bar replacing seek bar
   BUTTONS  y=88  PREV=16 PLAY=39 PAUSE=62 STOP=85 NEXT=108 (skin drawn; no remap needed)
-  COUNTRY  x=241 y=10 w=32  h=13   badge over the bitrate-legend area top-right
   PLEDIT title bar  y=116..135 (h=20) station count / stream status
   PLEDIT rows       y=136..200 (5 rows × 13px), content x=12 w=244
-  PLEDIT bottom bar y=201..238 (h=38)
+  PLEDIT bottom bar y=201..238 (h=38); country code at x=127+GLYPH_W y=+10
+                     (TASK-348: same overlay slot Spotify uses for total time)
 
 States (keyboard: S / C / P / E — Q to quit):
   stopped     station list visible, bar empty, VU flat
@@ -92,6 +92,7 @@ STATIONS = [
 ]
 ICY_TITLE = "Billie Eilish - BIRDS OF A FEATHER"
 BITRATE   = "128 kbps"
+COUNTRY   = "NL"
 
 try:
     _FONT = ImageFont.load_default()
@@ -222,6 +223,10 @@ def _draw_station_list(img: Image.Image, active_idx: int, state: str):
     if state == "playing":
         _text(draw, (PLEDIT_CONTENT_X + 2, PLEDIT_BOTTOM_Y + 6),
               BITRATE, (0x88, 0x88, 0x88))
+
+    # TASK-348: country code — same skin-font glyph slot as Spotify's total-time
+    # readout (winampDisplay.h drawPleditOverlayText), drawn unconditionally.
+    composite_text(img, _text_bmp, COUNTRY, 127 + GLYPH_W, PLEDIT_BOTTOM_Y + 10)
 
 
 # ── per-state render ──────────────────────────────────────────────────────────

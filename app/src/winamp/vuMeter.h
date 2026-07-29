@@ -24,11 +24,8 @@
 #include "gen/wave_atlas.h"  // WAVE_ATLAS_FRAMES, WAVE_ATLAS_COLS, WAVE_ATLAS[] — global scope
 #include "perf.h"
 #include "util/mathUtil.h"
-#include "spotifyTask.h"
 
 extern TFT_eSPI tft;
-extern long     songStartMillis;
-extern long     songDuration;
 
 namespace vu {
 
@@ -365,17 +362,19 @@ inline void tickWaveAtlas(int originX, int originY, const uint16_t *mainBg) {
 
 // --- Main entry point ---
 
-inline void tick(int originX, int originY, const uint16_t *mainBg = nullptr) {
+// TASK-350: caller supplies (playing, elapsedMs) instead of this reaching
+// into spotifyTask state directly — decouples the synthesis (still ADR-009
+// mock) from Spotify so WebRadio can drive it with its own state without
+// dancing to a stale Spotify snapshot. Spotify's call site (main.cpp) reads
+// its own snapshot + songStartMillis and passes them in, byte-identical to
+// the old inline behaviour.
+inline void tick(int originX, int originY, const uint16_t *mainBg, bool playing, long elapsedMs) {
   const unsigned long now = millis();
   if (now < nextTickRef()) return;
   nextTickRef() = now + TICK_MS;
   const unsigned long t0 = millis();
 
-  spotifyTask::Snapshot snap;
-  spotifyTask::copySnapshot(&snap);
-  const bool playing = snap.valid && snap.isPlaying && songStartMillis != 0;
-
-  long  elapsed  = playing ? (long)(now - (unsigned long)songStartMillis) : 0L;
+  long  elapsed  = playing ? elapsedMs : 0L;
   float target   = 0.0f;
   float beatRaw  = 0.0f;
   if (playing) {

@@ -211,6 +211,14 @@ public:
   void resume() override {
     winampDisplay.repaintChrome();
     winampDisplay.invalidatePlaylist();
+    // TASK-352: restore the default volume-commit seam (WebRadio may have
+    // wired its own on the way out) and seed the slider from the current
+    // snapshot rather than whatever pct repaintChrome() just redrew from
+    // its lastVolumeRendered cache (could be WebRadio's, from before eject).
+    winampDisplay.setVolumeSink(nullptr);
+    spotifyTask::Snapshot snap;
+    spotifyTask::copySnapshot(&snap);
+    winampDisplay.drawVolume(snap.volumePercent);
   }
   void suspend() override {
     winampDisplay.resetDragState();
@@ -241,7 +249,17 @@ public:
       _lastScrollMs = now;
       winampDisplay.tickScroll(dt);
     }
-    vu::tick(winampDisplay.chromeOriginX(), winampDisplay.chromeOriginY(), SKIN_MAIN_BG);
+    {
+      // TASK-350: vu::tick() no longer reads spotifyTask state internally —
+      // read the snapshot here at the Spotify call site, byte-identical to
+      // the old inline behaviour.
+      spotifyTask::Snapshot snap;
+      spotifyTask::copySnapshot(&snap);
+      const bool playing = snap.valid && snap.isPlaying && songStartMillis != 0;
+      const long elapsed = playing ? (long)(millis() - (unsigned long)songStartMillis) : 0L;
+      vu::tick(winampDisplay.chromeOriginX(), winampDisplay.chromeOriginY(), SKIN_MAIN_BG,
+               playing, elapsed);
+    }
     winampDisplay.drawPlaylist();
 #ifdef NFC_ENABLED
     if (writeContextToNfc) {

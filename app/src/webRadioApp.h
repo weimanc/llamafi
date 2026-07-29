@@ -22,6 +22,7 @@
 #include "spotifyTask.h"
 #include "touch/scrollTuning.h"   // TASK-277: shared gesture tuning with winampDisplay
 #include "winamp/winampDisplay.h"
+#include "winamp/vuMeter.h"
 
 extern TFT_eSPI         tft;
 extern WinampDisplay    winampDisplay;
@@ -88,6 +89,14 @@ static constexpr uint8_t WR_VOLUME_SOFT_CAP_STOCK = 12;
 static inline uint8_t wrEffectiveVolume() {
     uint8_t hi = g_settings.webRadioHwMod ? WR_VOLUME_MAX : WR_VOLUME_SOFT_CAP_STOCK;
     return g_settings.webRadioMaxVolume > hi ? hi : g_settings.webRadioMaxVolume;
+}
+
+// TASK-352: the Winamp slider's session volume (webRadioVolumePct, 0-100)
+// scales *within* the wrEffectiveVolume() ceiling — the ceiling stays the
+// ceiling (TASK-209/T_WR_VOL_03 clamp semantics untouched), the slider is
+// relative to it. +50 rounds instead of truncating.
+static inline uint8_t wrScaledVolume() {
+    return (uint8_t)(((uint32_t)g_settings.webRadioVolumePct * wrEffectiveVolume() + 50) / 100);
 }
 
 // ── ICY metadata queue ───────────────────────────────────────────────────────
@@ -195,6 +204,33 @@ static volatile uint32_t s_wrPumpMaxMutexWaitMs = 0;
 
 static bool wrPumpAlive() { return s_wrPumpTask != nullptr; }
 
+// ── TASK-352: Winamp volume-slider seam ───────────────────────────────────────
+// webRadioVolumePct coalesced-save state (ADR-050 rule 3, lastStation idiom —
+// mirrors _lastStationDirty/_lastStationSaved on WebRadioApp, kept as file
+// statics here rather than instance members because the sink below is a free
+// function: it is wired into WinampDisplay via a plain function pointer, no
+// `this`, same reason s_wr_audio/s_wrAudioMutex above are file statics.
+static bool    s_wrVolPctDirty = false;
+static uint8_t s_wrVolPctSaved = 100;
+
+// winampDisplay's volume-drag seam target (setVolumeSink()). Applies the
+// pct-scaled volume via the sanctioned short-timeout control-call idiom — a
+// drag must never block the UI task behind a busy pump (skip the step; the
+// debounced next commit lands it, same degrade-gracefully rule as every
+// other per-tick pump touchpoint). No live session yet (DEV-2-4 precedent,
+// same as the wrVol debug setter): clamp-store only, nothing to apply.
+static void wrVolumeSink(int pct) {
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    g_settings.webRadioVolumePct = (uint8_t)pct;
+    s_wrVolPctDirty = true;
+    if (!s_wr_audio) return;
+    if (xSemaphoreTake(s_wrAudioMutex, WR_PUMP_READ_TIMEOUT_TICKS) == pdTRUE) {
+        s_wr_audio->setVolume(wrScaledVolume());
+        xSemaphoreGive(s_wrAudioMutex);
+    }
+}
+
 static size_t wrPumpStackSizeBytes() {
     return (size_t)WR_PUMP_STACK_WORDS * sizeof(StackType_t);
 }
@@ -272,17 +308,6 @@ static void wrTeardownPumpTask() {
     s_wrPumpTask = nullptr;
 }
 
-// ── Display constants (mirrors preview_webradio.py zone map) ─────────────────
-
-// TASK-254: the ICY StreamTitle is now folded into the title marquee (no separate
-// line), so the old WR_ICY_X/Y/W/H zone constants were removed.
-
-// Country badge (top-right, over the bitrate-legend area):
-static constexpr int WR_BADGE_X = 241;
-static constexpr int WR_BADGE_Y = 10;
-static constexpr int WR_BADGE_W = 32;
-static constexpr int WR_BADGE_H = 13;
-
 // ── WebRadioApp ──────────────────────────────────────────────────────────────
 
 class WebRadioApp : public App {
@@ -300,6 +325,9 @@ public:
         // the coalesced suspend()-save — no flash write when nothing changed.
         _lastStationSaved = g_settings.webRadioLastStation;
         _lastStationDirty = false;
+        // TASK-352: same idiom for the volume-slider session pct.
+        s_wrVolPctSaved   = g_settings.webRadioVolumePct;
+        s_wrVolPctDirty   = false;
         _dirty           = true;
         _icyTitle[0]     = '\0';
         _bufPct          = 0;
@@ -318,7 +346,7 @@ public:
         if (s_wr_audio) {  // TASK-209: HW-mod clamp — defensive; s_wr_audio is
                            // always null on first init() (see comment above)
             xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
-            s_wr_audio->setVolume(wrEffectiveVolume());
+            s_wr_audio->setVolume(wrScaledVolume());  // TASK-352: ceiling + session pct
             xSemaphoreGive(s_wrAudioMutex);
         }
 
@@ -340,6 +368,11 @@ public:
     void resume() override {
         _dirty = true;
         // Defer paint to tick() — resume() can also run from cmdTap context.
+
+        // TASK-352: wire the shared volume-drag machine's commit seam to
+        // WebRadio for the duration of this session; SpotifyApp::resume()
+        // restores the default (ACT_VOLUME) seam on eject-back.
+        winampDisplay.setVolumeSink(wrVolumeSink);
 
         // M-WEBRADIO-SETTINGS D3: pull-on-resume config diff (StockApp
         // ticker-diff precedent). A Settings edit of country or bitrate cap
@@ -398,6 +431,10 @@ public:
         _scrollAccum    = 0.0f;
         _scrollVelocity = 0.0f;
         _pleditDirty    = false;
+        // TASK-352: a live volume drag is shared winampDisplay state (same
+        // precedent) — must not leave dragState==D_VOLUME_DRAG stuck across
+        // an eject mid-drag.
+        winampDisplay.resetDragState();
 
         _stopAudio();
 #ifdef MEMBUDGET_PHASE1
@@ -417,23 +454,44 @@ public:
         mb_arena_release();
 #endif
 
-        // ADR-050 rule 3 (M-WEBRADIO-SETTINGS D3): coalesced lastStation
-        // persistence — _play() writes g_settings in RAM and marks dirty;
-        // one SettingsStorage::save() here per session iff the value actually
-        // changed since load. Auto-skip churn costs zero flash writes, and
-        // eject also funnels through suspend() so it is covered.
+        // ADR-050 rule 3 (M-WEBRADIO-SETTINGS D3): coalesced lastStation +
+        // (TASK-352) volumePct persistence — both write g_settings in RAM and
+        // mark their own dirty flag; one SettingsStorage::save() here per
+        // session iff either actually changed since load, so a session that
+        // touches both doesn't cost two flash writes. Auto-skip/drag churn
+        // costs zero flash writes otherwise, and eject also funnels through
+        // suspend() so it is covered.
+        bool needSave = false;
         if (_lastStationDirty) {
-            if (g_settings.webRadioLastStation != _lastStationSaved) {
-                SettingsStorage::save();
-                _lastStationSaved = g_settings.webRadioLastStation;
-            }
+            if (g_settings.webRadioLastStation != _lastStationSaved) needSave = true;
             _lastStationDirty = false;
+        }
+        if (s_wrVolPctDirty) {
+            if (g_settings.webRadioVolumePct != s_wrVolPctSaved) needSave = true;
+            s_wrVolPctDirty = false;
+        }
+        if (needSave) {
+            SettingsStorage::save();
+            _lastStationSaved = g_settings.webRadioLastStation;
+            s_wrVolPctSaved   = g_settings.webRadioVolumePct;
         }
     }
 
     void tick() override {
         // TASK-252: scroll the LED-font title marquee (long station names).
         winampDisplay.tickMarquee();
+
+        // TASK-350: reuse the Spotify synthetic visualizer — decoupled seam
+        // (vu::tick() no longer reaches into spotifyTask state itself), fed
+        // WebRadio's own playing/elapsed. elapsedMs rides the item-2 (TASK-349)
+        // read block's _snapPlaySec — one take, both consumers, per TASK-278
+        // discipline; up to one tick (50ms) stale here is fine, the envelope's
+        // beat oscillators don't need sub-second phase accuracy. Mode state
+        // (vu::currentMode()) is global, so it carries across the eject
+        // toggle for free.
+        vu::tick(winampDisplay.chromeOriginX(), winampDisplay.chromeOriginY(), SKIN_MAIN_BG,
+                 /*playing=*/_state == WRPlayState::PLAYING,
+                 /*elapsedMs=*/(long)_snapPlaySec * 1000L);
 
         // TASK-277: velocity-scroll integrator — placed here, BEFORE the
         // terminal-retry / pending-action dispatch below, so those blocks'
@@ -625,6 +683,14 @@ public:
                     _drawPosbar();   // targeted POSBAR blit only — no full repaint
                 }
 
+                // TASK-349: main-window time digits — same read block as the
+                // buffer gauge above (one take, all values out, per TASK-278
+                // discipline). Wrap at 6000s (99:59 the raw drawTimeDigits()
+                // clamp would otherwise pin at) — radio streams outlive the
+                // classic 4-digit MM:SS range. Freeze-on-rebuffer falls out
+                // for free: the lib's own counter stalls with decode.
+                winampDisplay.updateTimeDigits((int)(_snapPlaySec % 6000));
+
                 // TASK-218 (guarded): a stream that ends or drops mid-playback
                 // otherwise leaves _state at PLAYING with Spotify TLS held yielded
                 // forever (silent Spotify starvation). Debounced: isRunning() must
@@ -701,6 +767,16 @@ public:
     // ── Input ──────────────────────────────────────────────────────────────
 
     bool handleInput(TouchPhase phase, int x, int y) override {
+        // TASK-352: volume slider — public capture entry into the shared
+        // D_VOLUME_DRAG machine (winampDisplay). Checked first: on Press it
+        // only consumes touches inside the slider (returns false otherwise,
+        // falling through unchanged below); once captured it consumes every
+        // Move/Release regardless of x/y, same priority pattern as the PLEDIT
+        // gesture capture right below — geometry is disjoint (slider sits in
+        // the main-window band, PLEDIT rows start at y=136+) so the two
+        // captures can never compete for the same touch.
+        if (winampDisplay.handleVolumeGesturePublic(phase, x, y)) return true;
+
         // TASK-277 (M-WR-PLEDIT-SCROLL): captured gesture — while a drag is
         // live, Move updates it and Release is consumed by drag-end BEFORE any
         // eject/transport hit-test [DEV-1-1 blocker]. Mirrors the donor
@@ -742,6 +818,15 @@ public:
         // No-anchor Release [VE-1-2]: no prior Press (exactly how cmdTap
         // drives the T_WR_* tap surface) — today's tap-at-(x,y) path,
         // unchanged from here down.
+
+        // TASK-350: tap the vis area to cycle mode — M-VIS parity with the
+        // Spotify path (the hit zone geometry already lives in vuMeter.h).
+        // Mode state is a global (vu::s_modeRef()), so this affects both apps.
+        if (x >= vu::RECT_X && x < vu::RECT_X + vu::RECT_W &&
+            y >= vu::LEFT_Y && y < vu::LEFT_Y + vu::VIS_H) {
+            vu::nextMode();
+            return true;
+        }
 
         // Eject → back to Spotify
         if (winampDisplay.hitTestEject(x, y)) {
@@ -847,6 +932,21 @@ public:
                      (unsigned)g_settings.webRadioMaxVolume,
                      g_settings.webRadioHwMod ? "true" : "false",
                      (unsigned)wrEffectiveVolume());
+            return true;
+        }
+        // TASK-352: T_WRUI_04 surface — session pct + the ceiling-scaled value
+        // actually fed to setVolume().
+        if (strcmp(var, "wrVolPct") == 0) {
+            snprintf(buf, len,
+                     "\"var\":\"wrVolPct\",\"pct\":%u,\"scaled\":%u,\"last\":true",
+                     (unsigned)g_settings.webRadioVolumePct, (unsigned)wrScaledVolume());
+            return true;
+        }
+        // TASK-349: T_WRUI_02 surface — raw seconds + the wrapped/displayed value.
+        if (strcmp(var, "wrPlaySec") == 0) {
+            snprintf(buf, len,
+                     "\"var\":\"wrPlaySec\",\"sec\":%u,\"wrapped\":%u,\"last\":true",
+                     (unsigned)_snapPlaySec, (unsigned)(_snapPlaySec % 6000));
             return true;
         }
         // T_WR_EJECT_01 surface — reports that eject is wired
@@ -1220,6 +1320,7 @@ private:
     uint32_t    _snapFilled     = 0;
     uint32_t    _snapFreeB      = 0;
     bool        _snapRunning    = false;
+    uint32_t    _snapPlaySec    = 0;   // TASK-349: getAudioCurrentTime(), same read block
 
     // M-WEBRADIO-SETTINGS D3: single enqueue funnel — latches the config
     // snapshot at the moment of request so tick()'s WR-1 identity check and
@@ -1244,6 +1345,7 @@ private:
             _snapFilled  = s_wr_audio->inBufferFilled();
             _snapFreeB   = s_wr_audio->inBufferFree();
             _snapRunning = s_wr_audio->isRunning();
+            _snapPlaySec = s_wr_audio->getAudioCurrentTime();  // TASK-349
             xSemaphoreGive(s_wrAudioMutex);
         }
         // else: mutex busy — reuse the last snapshot (already in the members).
@@ -1268,6 +1370,11 @@ private:
         }
         _state = WRPlayState::STOPPED;
         _pendingAction = ACT_NONE;  // TASK-234: a stop/eject cancels any deferred retry/skip
+        // TASK-349: stopSong() doesn't reset the lib's internal play-time counter
+        // (only the next connecttohost() does) — force the digits to 0:00 here so
+        // a stopped stream doesn't leave the last-played position on screen.
+        _snapPlaySec = 0;
+        winampDisplay.updateTimeDigits(0);
         // Resume Spotify TLS if we yielded it for playback
         if (_spotifyYielded && resumeTls) {
             spotifyTask::tlsResume();
@@ -1303,6 +1410,11 @@ private:
         _bufPct      = 0;
         _state       = WRPlayState::CONNECTING;
         _dirty       = true;
+        // TASK-349: station change — the lib's play-time counter only resets
+        // once connecttohost() below succeeds; zero the displayed digits now
+        // so a skip doesn't leave the previous station's elapsed time up.
+        _snapPlaySec = 0;
+        winampDisplay.updateTimeDigits(0);
 
         // Scroll PLEDIT to keep current station visible
         if ((int)_currentIdx < _scrollOffset)
@@ -1400,7 +1512,7 @@ private:
 
         // TASK-278: control calls — blocking take (§Locking model).
         xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
-        wrAudio().setVolume(wrEffectiveVolume());  // TASK-209: HW-mod clamp
+        wrAudio().setVolume(wrScaledVolume());  // TASK-209 ceiling + TASK-352 session pct
         xSemaphoreGive(s_wrAudioMutex);
         // TASK-208 / TASK-261 CP1: heap watermark at connecttohost (audio buffer alloc point).
         // Extended with caps-split (T_MB_PROBE_00) for Phase 0: freeInt/lfbInt distinguish
@@ -1504,9 +1616,12 @@ private:
     // Full repaint: Winamp skin background then WebRadio overlays.
     void _drawFull() {
         winampDisplay.repaintChrome();
+        // TASK-352: repaintChrome() just redrew whatever pct was last cached
+        // (possibly Spotify's, from before the eject) — seed the slider with
+        // WebRadio's own persisted session volume.
+        winampDisplay.drawVolume((int)g_settings.webRadioVolumePct);
         _drawPosbar();
         _drawTitleZone();   // TASK-254: title now carries the ICY StreamTitle inline
-        _drawCountryBadge();
         _drawPledit();
     }
 
@@ -1572,14 +1687,6 @@ private:
             }
         }
         winampDisplay.setTitle(t);
-    }
-
-    void _drawCountryBadge() {
-        tft.fillRect(WR_BADGE_X, WR_BADGE_Y, WR_BADGE_W, WR_BADGE_H,
-                     (uint16_t)PLEDIT_BODY_BG);
-        tft.setTextColor(TFT_WHITE, (uint16_t)PLEDIT_BODY_BG);
-        tft.drawCentreString(g_settings.webRadioCountry,
-                             WR_BADGE_X + WR_BADGE_W / 2, WR_BADGE_Y + 2, 1);
     }
 
     // ── TASK-277: gesture helpers (ADR-030 pattern copy) ───────────────────
@@ -1665,6 +1772,13 @@ private:
         // WebRadio (M-WEBRADIO-SETTINGS), not an overlay), so the old
         // "N stations — country" header is dropped here too.
         winampDisplay.drawPleditFrame(_scrollOffset, (int)_stationCount);
+
+        // TASK-348: country code in the same PLEDIT bottom-bar overlay slot
+        // Spotify uses for its total-playlist-time readout — replaces the old
+        // superimposed WR_BADGE. Repaints for free whenever this function
+        // runs (full repaint or the settings-refetch _dirty path); no new
+        // dirty tracking needed.
+        winampDisplay.drawPleditOverlayText(g_settings.webRadioCountry);
 
         // Station rows — fill the CONTENT area only; the side frame tiles drawn
         // by drawPleditFrame() must not be painted over.
