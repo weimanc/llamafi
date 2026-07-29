@@ -395,7 +395,11 @@ document at the field, don't forbid. ADR-050 step-7 wiring gate applies. Tests: 
 heartbeat regression over 5 min).
 
 **Owner:** Developer · **Deps:** none · **Gate:** `run/check` 7/7 + DUT · **Priority:** P2 ·
-**Status:** open
+**Status:** **DONE 2026-07-29** — implementation landed 82a80eb (2026-07-19); DUT gate closed
+this session. `run/check`: 6/6 + step-7 wiring gate OK. T_PRM_01 PASS (1/10/30 round-trip,
+99→30 clamp, 30 held across reboot). T_PRM_02 PASS (prPollSec=1: 36 fetches/300s, median gap
+6677ms — inside the [3s,9s] fetch-completion-pace bound — min gap 6518ms, queueWaiting peak 0,
+max Spotify heartbeat age 18.1s, well under the 120s regression threshold).
 
 ### TASK-356 — RnD: interpolation study, samples × algorithm on host (PROP-006)
 
