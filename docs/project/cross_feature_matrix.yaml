@@ -908,3 +908,33 @@ interactions:
       coordination is enforced by convention/comment, not a shared constant
       or function both sides call — flagged for VE to add as a regression
       check if either suppression condition is ever touched.
+
+  - id: X043
+    feature_a: vu-002
+    feature_b: webradio-001
+    interaction_type: shared_state
+    description: |
+      vu-002's real-audio envelope is written to vu::lLevelRef()/rLevelRef() from
+      webradio-001's wrAudio pump task — a different FreeRTOS task from the UI thread that
+      normally owns those statics via vu::tick(). This is a single-writer swap, not a lock:
+      whichever mode is active (Spotify synthetic vs. WebRadio real) is the sole writer for as
+      long as it's active, never both at once. Depends on 32-bit float writes being atomic on
+      Xtensa (same assumption already relied on by the wrPump observability counters).
+
+      Mechanism (not just convention): switchApp() calls the outgoing app's suspend()
+      synchronously, on the same loopTask, before the incoming app's init()/resume() runs — no
+      window for both to be active. WebRadioApp::suspend()'s _stopAudio() blocks on
+      s_wrAudioMutex (portMAX_DELAY) around stopSong() — the same mutex the pump task holds
+      around every Audio::loop() call (where audio_process_extern fires) — so _stopAudio()
+      cannot return until any in-flight write has completed, and loop() no-ops forever after
+      stopSong() returns. If either switchApp()'s suspend-before-activate ordering or this mutex
+      serialization ever changes, this interaction must be re-verified, not assumed.
+    risk: low
+    test_coverage: []
+    notes: |
+      Design: docs/architecture/designs/M-WEBRADIO-REAL-VIS.md. R&D evidence: PROP-005/PROP-007,
+      EXP-015/016/017/018. risk: low — no lock needed given the never-both-writers-at-once
+      invariant, mechanically enforced (see description), and the pattern is already precedented
+      elsewhere in this codebase (lLevelRef()/rLevelRef() themselves, wrPump counters).
+      test_coverage will be [T_WR_VIS_01, T_WR_VIS_02, T_WR_VIS_03] once VE writes them in a
+      separate follow-up pass — do not write those tests yourself.

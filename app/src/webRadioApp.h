@@ -142,6 +142,33 @@ void audio_info(const char *info) {
 
 static Audio* s_wr_audio = nullptr;
 
+// PROP-005/M-WEBRADIO-REAL-VIS: real per-block peak envelope for WebRadio's
+// VIS_VU mode. Fires once per decoded PCM block (interleaved L/R int16,
+// pre-gain/filter/volume — Audio.cpp's sendBytes()), on the wrAudio pump
+// task, before playChunk() sends the block to I2S. Writes directly into
+// vu::lLevelRef()/rLevelRef() — the same statics the synthetic Spotify path
+// uses — rather than any new storage: SERIAL_DEBUG-enabled builds on this
+// board have ~0 bytes of static-BSS headroom (see EXP-015/PROP-007).
+// DUT-verified cost-free (maxPumpMs unchanged vs a no-op baseline, EXP-016).
+void audio_process_extern(int16_t* buff, uint16_t len, bool *continueI2S) {
+    int32_t peakL = 0, peakR = 0;
+    for (uint16_t i = 0; i < len; ++i) {
+        int32_t l = buff[i * 2];
+        int32_t r = buff[i * 2 + 1];
+        if (l < 0) l = -l;
+        if (r < 0) r = -r;
+        if (l > peakL) peakL = l;
+        if (r > peakR) peakR = r;
+    }
+    float targetL = peakL / 32768.0f;
+    float targetR = peakR / 32768.0f;
+    float &lLvl = vu::lLevelRef();
+    float &rLvl = vu::rLevelRef();
+    lLvl += (targetL - lLvl) * ((targetL > lLvl) ? vu::ATTACK : vu::RELEASE);
+    rLvl += (targetR - rLvl) * ((targetR > rLvl) ? vu::ATTACK : vu::RELEASE);
+    *continueI2S = true;
+}
+
 // EXP-012: trial 16K input ring (default 8K = 1600*5). Must run after new Audio()
 // and before connecttohost() — InBuff is lazily allocated inside connecttohost's
 // setDefaults()/initInBuff(), so this only sets the size, no realloc.
@@ -489,9 +516,15 @@ public:
         // beat oscillators don't need sub-second phase accuracy. Mode state
         // (vu::currentMode()) is global, so it carries across the eject
         // toggle for free.
+        // PROP-005/M-WEBRADIO-REAL-VIS: realAudio=true unconditionally — this
+        // app's audio_process_extern hook above keeps lLevelRef()/rLevelRef()
+        // fresh with the real per-block peak envelope whenever WebRadio is
+        // playing, so vu::tick() should always trust it here (VIS_VU only;
+        // other modes are unaffected — see vuMeter.h).
         vu::tick(winampDisplay.chromeOriginX(), winampDisplay.chromeOriginY(), SKIN_MAIN_BG,
                  /*playing=*/_state == WRPlayState::PLAYING,
-                 /*elapsedMs=*/(long)_snapPlaySec * 1000L);
+                 /*elapsedMs=*/(long)_snapPlaySec * 1000L,
+                 /*realAudio=*/true);
 
         // TASK-277: velocity-scroll integrator — placed here, BEFORE the
         // terminal-retry / pending-action dispatch below, so those blocks'

@@ -368,42 +368,57 @@ inline void tickWaveAtlas(int originX, int originY, const uint16_t *mainBg) {
 // dancing to a stale Spotify snapshot. Spotify's call site (main.cpp) reads
 // its own snapshot + songStartMillis and passes them in, byte-identical to
 // the old inline behaviour.
-inline void tick(int originX, int originY, const uint16_t *mainBg, bool playing, long elapsedMs) {
+// PROP-005 rung 2 (EXP-016): realAudio=true skips the synthetic swell/beat/
+// noise computation below and trusts lLevelRef()/rLevelRef() as already
+// fresh — webRadioApp's audio_process_extern hook writes real peak-envelope
+// values directly into those same statics on the pump task (single-writer
+// while WebRadio real-mode is active; vu::tick() itself is the only other
+// writer, active only in synthetic/Spotify mode — never both at once).
+// Reusing the existing statics instead of adding new ones matters here:
+// SERIAL_DEBUG-enabled builds have ~0 bytes of static-BSS headroom (EXP-015).
+inline void tick(int originX, int originY, const uint16_t *mainBg, bool playing, long elapsedMs,
+                 bool realAudio = false) {
   const unsigned long now = millis();
   if (now < nextTickRef()) return;
   nextTickRef() = now + TICK_MS;
   const unsigned long t0 = millis();
 
   long  elapsed  = playing ? elapsedMs : 0L;
-  float target   = 0.0f;
   float beatRaw  = 0.0f;
-  if (playing) {
-    const float swell = MIX_SWELL * (1.0f + lut_sin((float)elapsed * (1.0f / 3000.0f)));
-    const float noise = (random(0, 1000) / 1000.0f) * MIX_NOISE;
-    // 3b: dual beat oscillators ~100 BPM + ~152 BPM — removes flat periodic regularity
-    float beatA = 0.0f, beatB = 0.0f;
-    const long phaseA = elapsed % (long)BEAT_PERIOD_A_MS;
-    if (phaseA < (long)BEAT_DECAY_MS)
-      beatA = 1.0f - (float)phaseA / (float)BEAT_DECAY_MS;
-    const long phaseB = elapsed % (long)BEAT_PERIOD_B_MS;
-    if (phaseB < (long)BEAT_DECAY_MS)
-      beatB = 1.0f - (float)phaseB / (float)BEAT_DECAY_MS;
-    beatRaw = beatA * 0.6f + beatB * 0.4f;
-    if (beatRaw > 1.0f) beatRaw = 1.0f;
-    target = swell + noise + beatRaw * MIX_BEAT;
-    if (target > 1.0f) target = 1.0f;
-  }
-
-  const float lfo = lut_sin((float)now * (1.0f / 700.0f)) * 0.15f;
-  float lTarget = target * (1.0f + lfo);
-  float rTarget = target * (1.0f - lfo);
-  if (lTarget > 1.0f) lTarget = 1.0f; if (lTarget < 0.0f) lTarget = 0.0f;
-  if (rTarget > 1.0f) rTarget = 1.0f; if (rTarget < 0.0f) rTarget = 0.0f;
-
   float &lLvl = lLevelRef();
   float &rLvl = rLevelRef();
-  lLvl += (lTarget - lLvl) * ((lTarget > lLvl) ? ATTACK : RELEASE);
-  rLvl += (rTarget - rLvl) * ((rTarget > rLvl) ? ATTACK : RELEASE);
+
+  if (realAudio) {
+    if (!playing) { lLvl = 0.0f; rLvl = 0.0f; }
+    // else: lLvl/rLvl already hold the current real envelope — nothing to do.
+  } else {
+    float target = 0.0f;
+    if (playing) {
+      const float swell = MIX_SWELL * (1.0f + lut_sin((float)elapsed * (1.0f / 3000.0f)));
+      const float noise = (random(0, 1000) / 1000.0f) * MIX_NOISE;
+      // 3b: dual beat oscillators ~100 BPM + ~152 BPM — removes flat periodic regularity
+      float beatA = 0.0f, beatB = 0.0f;
+      const long phaseA = elapsed % (long)BEAT_PERIOD_A_MS;
+      if (phaseA < (long)BEAT_DECAY_MS)
+        beatA = 1.0f - (float)phaseA / (float)BEAT_DECAY_MS;
+      const long phaseB = elapsed % (long)BEAT_PERIOD_B_MS;
+      if (phaseB < (long)BEAT_DECAY_MS)
+        beatB = 1.0f - (float)phaseB / (float)BEAT_DECAY_MS;
+      beatRaw = beatA * 0.6f + beatB * 0.4f;
+      if (beatRaw > 1.0f) beatRaw = 1.0f;
+      target = swell + noise + beatRaw * MIX_BEAT;
+      if (target > 1.0f) target = 1.0f;
+    }
+
+    const float lfo = lut_sin((float)now * (1.0f / 700.0f)) * 0.15f;
+    float lTarget = target * (1.0f + lfo);
+    float rTarget = target * (1.0f - lfo);
+    if (lTarget > 1.0f) lTarget = 1.0f; if (lTarget < 0.0f) lTarget = 0.0f;
+    if (rTarget > 1.0f) rTarget = 1.0f; if (rTarget < 0.0f) rTarget = 0.0f;
+
+    lLvl += (lTarget - lLvl) * ((lTarget > lLvl) ? ATTACK : RELEASE);
+    rLvl += (rTarget - rLvl) * ((rTarget > rLvl) ? ATTACK : RELEASE);
+  }
 
   // Mode transition: restore vis background and reset caches when entering
   // VU or Blank mode; Spectrum/Atlas/Wave blit inside their own tick functions.

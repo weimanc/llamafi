@@ -276,11 +276,36 @@ features:
       - Spotify-Diy-Thing/SpotifyDiyThing/vuMeter.h
       - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
       - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
-    cross_features: [m3-001, poll-002, perf-001]
+    cross_features: [m3-001, poll-002, perf-001, vu-002]
     test_ids: []
     notes: |
       Decoration not visualisation — ADR-009 is explicit about this. No claim to be music-locked.
       Cost surfaced via perf::record("vu.tick", ms); typical < 1 ms per tick when bars don't move (dirty-skip), ~1-3 ms when they do.
+
+  - id: vu-002
+    name: Real-audio VU envelope (WebRadio)
+    description: |
+      Replaces vu-001's synthetic envelope for WebRadio only (Spotify keeps vu-001's ADR-009
+      decoration unchanged). Real per-block peak level, computed from decoded PCM on the wrAudio
+      pump task (ESP32-audioI2S's audio_process_extern hook, pre-gain/filter), written directly
+      into the same vu::lLevelRef()/rLevelRef() statics the synthetic path already uses — no new
+      persistent storage (SERIAL_DEBUG-enabled builds on this board have ~0 bytes of static-BSS
+      headroom). vu::tick() gains an optional realAudio parameter (default false) selecting this
+      path; Spotify's call site is unchanged. Scoped to VIS_VU only — tickAtlas()/tickWaveAtlas()
+      take no level argument and are unaffected.
+    status: implemented
+    git_ref: "4983d222ba67b957b7c09a8c3f1f38f42176d5bb"
+    files:
+      - app/src/winamp/vuMeter.h
+      - app/src/webRadioApp.h
+    cross_features: [vu-001]
+    test_ids: []
+    notes: |
+      Design: docs/architecture/designs/M-WEBRADIO-REAL-VIS.md. R&D evidence:
+      PROP-005/PROP-007, EXP-015/016/017 (docs/rnd/reports/). Rung 3 (real spectrum bands,
+      EXP-018) is a separate, not-yet-scheduled follow-on — not part of this entry's scope.
+      test_ids intentionally empty: VE will add T_WR_VIS_01/02/03 in a separate follow-up pass
+      per the design doc's Testing and Validation section — do not write those tests yourself.
 
   - id: perf-001
     name: Loop-iteration + hot-path performance instrumentation (M-PERF tier 1)
