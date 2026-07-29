@@ -1,13 +1,31 @@
 #!/usr/bin/env python3
-"""NOS Teletekst live preview — full 320×240 device canvas with taskbar.
+"""Teletext live preview — full 320×240 device canvas with taskbar.
 
-Fetches pages directly from teletekst-data.nos.nl and renders the 25×40
-teletext grid at 6×8 px per cell (40×6=240px wide) in the 275px app area,
-with the standard 45px taskbar strip on the right.
+Two interchangeable sources behind one render pipeline (M-CEEFAX DS-6 option
+B: one app, pluggable source backend — this tool follows the same shape):
+
+  --source nos     (default) NOS Teletekst, synchronous HTTP GET per page.
+  --source ceefax  NMS Ceefax, live WebSocket relay via ceefax_client.py.
+                    Requires `pip install websocket-client`. No pn=/ftl=
+                    metadata: prev/next fall back to page±1, subpage ▲/▼ stay
+                    permanently dimmed. The fastext bar shows real
+                    labels/colours parsed from row 24 AND real targets
+                    decoded from packet 27 (Hamming 8/4 FLOF links, see
+                    ceefax_client.decode_flof_packet()) — a button navigates
+                    if the current page happened to carry a link for it,
+                    stays inert (no page carries FLOF links, or that colour
+                    slot is unset) otherwise. See EXP-005 / M-CEEFAX DS-3.
+
+Fetches pages directly from teletekst-data.nos.nl (NOS) or the live Ceefax
+relay, and renders the 25×40 teletext grid at 6×8 px per cell (40×6=240px
+wide) in the 275px app area, with the standard 45px taskbar strip on the
+right. Rendering code is 100% shared between sources — only fetch/nav differ.
 
 Usage:
-    python3 tools/preview_teletext.py          # start at page 101
-    python3 tools/preview_teletext.py 601      # start at sport index
+    python3 tools/preview_teletext.py                    # NOS, page 101
+    python3 tools/preview_teletext.py 601                 # NOS, sport index
+    python3 tools/preview_teletext.py --source ceefax     # Ceefax, page 100
+    python3 tools/preview_teletext.py --source ceefax 141 # Ceefax, page 141
 
 Keyboard controls:
     ←/→         previous / next page
@@ -205,6 +223,65 @@ def extract_nav(meta, content):
         btns.append((COLOR_ORDER[i], lbl, f.split('-')[0]))
 
     return prev, next_, ns, ps, btns
+
+def ceefax_extract_nav(page_int, content, flof=None):
+    """Ceefax equivalent of extract_nav() — no pn=/ftl= metadata exists (see
+    EXP-005 finding 6), so:
+      - prev/next fall back to page±1 (no "skip missing pages" smartness).
+      - subpage ▲/▼ stay unavailable (no subcode navigation surfaced yet).
+      - fastext bar: row 24's colour-coded label segments parse the same way
+        as NOS (same control-code scheme). Real targets come from `flof`
+        (ceefax_client.decode_flof_packet()'s packet-27 decode, keyed by
+        link index 0-3); a button with no entry in `flof` stays inert,
+        matching real teletext where not every page carries FLOF links.
+    """
+    prev  = str(page_int - 1) if page_int > 100 else None
+    next_ = str(page_int + 1) if page_int < 899 else None
+    ns = ps = None
+    flof = flof or {}
+
+    row24 = content[24*COLS:25*COLS]
+    segments = []
+    cur = ''; cur_fg = 7
+    for ch in row24:
+        c = ord(ch)
+        if 0x01 <= c <= 0x07:
+            if cur.strip(): segments.append((cur_fg, cur))
+            cur_fg = c; cur = ''
+        elif c < 0x20: cur += ' '
+        else:          cur += ch
+    if cur.strip(): segments.append((cur_fg, cur))
+
+    COLOR_ORDER = [1, 2, 3, 6]
+    btns = []
+    for slot_idx, color in enumerate(COLOR_ORDER):
+        lbl = ''
+        for seg_fg, seg_txt in segments:
+            if seg_fg == color:
+                lbl = seg_txt.strip(); break
+        target = str(flof[slot_idx]) if slot_idx in flof else None
+        btns.append((color, lbl, target))
+
+    return prev, next_, ns, ps, btns
+
+def ceefax_waiting_content(page_int):
+    """Synthesize a 1000-char content string with a centred "waiting for
+    carousel" message, rendered through the same build_cell_grid() path as
+    real content — no special-casing added to the renderer. Page acquisition
+    takes 3-20s+ (EXP-005 finding 4); without this the grid just goes blank
+    with no on-canvas indication of what's happening, which reads as a hang.
+    """
+    msg = f"Waiting for page {page_int} to air..."
+    row = 12
+    buf = [0x20] * (ROWS * COLS)
+    col = max(0, (COLS - len(msg)) // 2)
+    idx = row * COLS
+    buf[idx] = 0x03  # yellow FG control code, same scheme as real content
+    for i, ch in enumerate(msg):
+        pos = idx + col + i
+        if idx <= pos < idx + COLS:
+            buf[pos] = ord(ch)
+    return ''.join(chr(b) for b in buf)
 
 # ── numeric keypad widget ─────────────────────────────────────────────────────
 #
@@ -514,10 +591,28 @@ def strip_hit(cx, cy):
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
-def main():
-    page = sys.argv[1] if len(sys.argv) > 1 else '101'
+def parse_args():
+    """--source {nos,ceefax} plus an optional positional page number."""
+    argv = sys.argv[1:]
+    source = 'nos'
+    rest = []
+    i = 0
+    while i < len(argv):
+        if argv[i] == '--source' and i + 1 < len(argv):
+            source = argv[i + 1]
+            i += 2
+        else:
+            rest.append(argv[i])
+            i += 1
+    default_page = '101' if source == 'nos' else '100'
+    page = rest[0] if rest else default_page
+    return source, page
 
-    win = PreviewWindow("NOS Teletekst", scale=ZOOM_LEVELS[1])
+def main():
+    source, page = parse_args()
+
+    win = PreviewWindow("NOS Teletekst" if source == 'nos' else "NMS Ceefax",
+                        scale=ZOOM_LEVELS[1])
 
     font = None
     for candidate in _UNSCII_CANDIDATES:
@@ -531,15 +626,42 @@ def main():
 
     history  = []   # 10-entry page history ring
     keypad   = Keypad()
-    fetch_err = [None]  # [str | None] — shown in title bar, cleared on next nav
+    fetch_err = [None]     # [str | None] — NOS HTTP errors, shown in title bar
+    ceefax_status = [None] # [str | None] — Ceefax connection/acquisition status
+
+    client = None
+    if source == 'ceefax':
+        from ceefax_client import CeefaxClient
+        client = CeefaxClient(page=int(page))
+        client.start()
 
     def load(pg):
         raw = fetch(pg)
         meta, content = parse(raw)
         return build_cell_grid(content), *extract_nav(meta, content)
 
-    def nav_to(pg, push=True):
+    def navigate(pg, push=True):
         nonlocal current_page, grid, prev, next_, ns, ps, btns, link_rows
+        if source == 'ceefax':
+            # Non-blocking: request the page, then let the per-frame poll
+            # below pick up header/row updates as the carousel airs it
+            # (EXP-005 finding 4 — there is no synchronous "fetch" here).
+            if push:
+                history.append(current_page)
+                if len(history) > 10:
+                    history.pop(0)
+            current_page = pg
+            fetch_err[0] = None
+            client.goto(int(pg))
+            # Immediate on-canvas feedback — without this the grid just goes
+            # blank for the 3-20s+ carousel wait, which reads as a hang, not
+            # a wait (see ceefax_client.goto()'s docstring for the bug this
+            # was masking: the status string used to go stale here too).
+            waiting = ceefax_waiting_content(int(pg))
+            grid = build_cell_grid(waiting)
+            prev, next_, ns, ps, btns = ceefax_extract_nav(int(pg), waiting)
+            link_rows = set()
+            return
         try:
             new_grid, new_prev, new_next, new_ns, new_ps, new_btns = load(pg)
         except urllib.error.HTTPError as e:
@@ -560,16 +682,39 @@ def main():
     def go_back():
         if history:
             pg = history.pop()
-            nav_to(pg, push=False)
+            navigate(pg, push=False)
 
     current_page = page
-    grid, prev, next_, ns, ps, btns = load(current_page)
-    link_rows = scan_links(grid)
+    if source == 'ceefax':
+        waiting = ceefax_waiting_content(int(current_page))
+        grid = build_cell_grid(waiting)
+        prev, next_, ns, ps, btns = ceefax_extract_nav(int(current_page), waiting)
+        link_rows = set()
+    else:
+        grid, prev, next_, ns, ps, btns = load(current_page)
+        link_rows = scan_links(grid)
     clock = pygame.time.Clock()
     running = True
 
     while running:
         zoom = win.scale
+
+        if source == 'ceefax':
+            content, dirty, status, acquired, flof = client.snapshot()
+            ceefax_status[0] = status
+            if dirty:
+                if acquired:
+                    grid = build_cell_grid(content)
+                    prev, next_, ns, ps, btns = ceefax_extract_nav(int(current_page), content, flof)
+                    link_rows = scan_links(grid)
+                else:
+                    # goto() marks dirty on its own reset too (blank content)
+                    # — show the waiting message instead of a blank flash.
+                    waiting = ceefax_waiting_content(int(current_page))
+                    grid = build_cell_grid(waiting)
+                    prev, next_, ns, ps, btns = ceefax_extract_nav(int(current_page), waiting)
+                    link_rows = set()
+
         for ev in pygame.event.get():
             if ev.type == pygame.KEYDOWN:
                 # ── keypad open: digits route to keypad; +/-/q handled by PreviewWindow ──
@@ -583,14 +728,14 @@ def main():
                     elif pygame.K_0 <= ev.key <= pygame.K_9:
                         pg = keypad.push(chr(ev.key))
                         if pg:
-                            nav_to(pg)
+                            navigate(pg)
                     elif ev.key in (pygame.K_KP0, pygame.K_KP1, pygame.K_KP2,
                                     pygame.K_KP3, pygame.K_KP4, pygame.K_KP5,
                                     pygame.K_KP6, pygame.K_KP7, pygame.K_KP8,
                                     pygame.K_KP9):
                         pg = keypad.push(str(ev.key - pygame.K_KP0))
                         if pg:
-                            nav_to(pg)
+                            navigate(pg)
 
                 # ── keypad closed: navigation + PreviewWindow events ─────────
                 else:
@@ -598,19 +743,19 @@ def main():
                         continue
                     if ev.key == pygame.K_ESCAPE:
                         running = False
-                    elif ev.key == pygame.K_RIGHT and next_:   nav_to(next_)
-                    elif ev.key == pygame.K_LEFT  and prev:    nav_to(prev)
-                    elif ev.key == pygame.K_UP    and ns:      nav_to(ns)
-                    elif ev.key == pygame.K_DOWN  and ps:      nav_to(ps)
+                    elif ev.key == pygame.K_RIGHT and next_:   navigate(next_)
+                    elif ev.key == pygame.K_LEFT  and prev:    navigate(prev)
+                    elif ev.key == pygame.K_UP    and ns:      navigate(ns)
+                    elif ev.key == pygame.K_DOWN  and ps:      navigate(ps)
                     elif ev.key == pygame.K_BACKSPACE:         go_back()
                     elif ev.key in (pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4):
                         idx = ev.key - pygame.K_1
-                        if idx < len(btns) and btns[idx][2]: nav_to(btns[idx][2])
+                        if idx < len(btns) and btns[idx][2]: navigate(btns[idx][2])
                     # Any digit key opens keypad and feeds first digit
                     elif pygame.K_0 <= ev.key <= pygame.K_9:
                         keypad.show()
                         pg = keypad.push(chr(ev.key))
-                        if pg: nav_to(pg)
+                        if pg: navigate(pg)
 
             elif win.handle_event(ev):   # handles QUIT for non-KEYDOWN events
                 continue
@@ -628,7 +773,7 @@ def main():
                             keypad.push('backspace')
                         elif key:
                             pg = keypad.push(key)
-                            if pg: nav_to(pg)
+                            if pg: navigate(pg)
                     elif not keypad.contains(cx_raw, cy_raw):
                         keypad.hide()  # click outside → dismiss
 
@@ -637,35 +782,43 @@ def main():
                     action = strip_hit(cx_raw, cy_raw)
                     if action == 'page':                    keypad.show()
                     elif action == 'back':                  go_back()
-                    elif action == 'subup' and ps:          nav_to(ps)
-                    elif action == 'prev'  and prev:        nav_to(prev)
-                    elif action == 'next'  and next_:       nav_to(next_)
-                    elif action == 'subdn' and ns:          nav_to(ns)
+                    elif action == 'subup' and ps:          navigate(ps)
+                    elif action == 'prev'  and prev:        navigate(prev)
+                    elif action == 'next'  and next_:       navigate(next_)
+                    elif action == 'subdn' and ns:          navigate(ns)
                     elif cy_raw >= GRID_H and cx_raw < APP_W:
                         nav_bw = APP_W // 4
                         btn_idx = cx_raw // nav_bw
                         if btn_idx < len(btns) and btns[btn_idx][2]:
-                            nav_to(btns[btn_idx][2])
+                            navigate(btns[btn_idx][2])
                     elif cx_raw < GRID_W and cy_raw < GRID_H:
                         row = cy_raw // CHAR_H
                         tap_col = cx_raw // CHAR_W
                         pg_ref = find_row_link(grid, row, tap_col)
-                        if pg_ref: nav_to(pg_ref)
+                        if pg_ref: navigate(pg_ref)
 
         draw_page(pygame.display.get_surface(), font, grid, btns, current_page,
                   prev, next_, ns, ps, history, link_rows, keypad, zoom)
-        if fetch_err[0]:
-            hint = f'ERROR: {fetch_err[0]}'
-        elif keypad.visible:
-            hint = '[keypad] 0-9 digit  Esc dismiss'
+        if source == 'ceefax':
+            if keypad.visible:
+                hint = '[keypad] 0-9 digit  Esc dismiss'
+            else:
+                hint = '←→ page±1  1-4 ftl(if linked)  0-9 goto  Bksp back  +/- zoom  (no subpg)'
+            title = f'NMS Ceefax  p:{current_page}  hist:{len(history)}  {ceefax_status[0]}   {hint}'
         else:
-            hint = '←→ page  ↑↓ subpg  1-4 ftl  0-9 goto  Bksp back  +/- zoom'
-        pygame.display.set_caption(
-            f'NOS Teletekst  p:{current_page}  hist:{len(history)}   {hint}'
-        )
+            if fetch_err[0]:
+                hint = f'ERROR: {fetch_err[0]}'
+            elif keypad.visible:
+                hint = '[keypad] 0-9 digit  Esc dismiss'
+            else:
+                hint = '←→ page  ↑↓ subpg  1-4 ftl  0-9 goto  Bksp back  +/- zoom'
+            title = f'NOS Teletekst  p:{current_page}  hist:{len(history)}   {hint}'
+        pygame.display.set_caption(title)
         win.flip()
         clock.tick(10)
 
+    if client:
+        client.stop()
     pygame.quit()
 
 if __name__ == '__main__':
