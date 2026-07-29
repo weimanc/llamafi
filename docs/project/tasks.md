@@ -3891,13 +3891,8 @@ visual, drag the slider live and confirm no flicker) + a screendump-diff asserti
 analogous to `clock_delta_smoke.py` (steady drag motion touches only the
 track/knob region + value-number cell, not the label or background outside the
 track) · **Priority:** P2 — confirmed visible defect, not a correctness/data-loss
-bug · **Status:** open — implementation DONE + DUT delta-diff verified 2026-07-29
-(`e70a87f`), **not closeable yet.** Per BP-048, a pixel-level exit criterion's
-human-eyeball gate blocks DONE; this task's own Gate line requires the live-drag
-eyeball and it hasn't happened (no camera access from the agent side). The note
-below explains exactly what the automated check does and doesn't prove. Close this
-out once a human has dragged the slider live on the three affected rows and
-confirmed no flash.
+bug · **Status:** Closed 2026-07-29 (`e70a87f`) — BP-048 human eyeball PASSED
+(human dragged the slider live, confirmed flicker gone, "much better").
 
 **Implementation:** `sliderWidget.h` split into `render()` (one-time/row-enter
 full draw, unchanged behaviour) + `renderDynamic()` (called from `onMove()`/
@@ -3930,10 +3925,12 @@ draw identical final pixels for any given state — the bug was wasted
 intermediate writes, a timing artifact, not wrong output); what this test
 proves instead is that the new scoped/diffed repaint reaches the exact same
 pixel state a full redraw would, i.e. no stale-knob/stale-digit artifacts from
-narrowing the erase rects. The flicker itself needs the human BP-048 live-drag
-eyeball check the gate also calls for — not performed by the agent (no camera
-on the physical panel); production firmware reflashed after the debug-build
+narrowing the erase rects. Production firmware reflashed after the debug-build
 test run.
+
+**BP-048 gate:** human dragged the slider live on the device and confirmed the
+flicker is gone — this closes the one thing the automated check above
+structurally couldn't test (see its own reasoning above for why).
 
 ## Open — taskbar health-indicator follow-up (2026-07-28, filed on TASK-364 closure)
 
