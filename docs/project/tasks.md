@@ -3891,7 +3891,43 @@ visual, drag the slider live and confirm no flicker) + a screendump-diff asserti
 analogous to `clock_delta_smoke.py` (steady drag motion touches only the
 track/knob region + value-number cell, not the label or background outside the
 track) · **Priority:** P2 — confirmed visible defect, not a correctness/data-loss
-bug · **Status:** open
+bug · **Status:** Closed 2026-07-29
+
+**Implementation:** `sliderWidget.h` split into `render()` (one-time/row-enter
+full draw, unchanged behaviour) + `renderDynamic()` (called from `onMove()`/
+`onRelease()` at the three call sites — `displaySection.h`'s Level row,
+`appsSection.h`'s Max-vol and Poll-interval rows). `renderDynamic()` diffs three
+independent pieces against per-instance last-drawn state and skips any that
+didn't change: label cell (`strncmp` against a cached copy — needed because
+PlaneRadar's Poll row bakes the live value into its label text, "Poll: Ns", so
+that one *does* redraw every step; Level/Max-vol pass a constant literal and
+no-op after the first call), value-number cell (`kValueX0..S_CANVAS_W`, redraws
+only on integer value change), and track+knob (`kZoneX0..kZoneX1`, i.e.
+`kTrackX0-kKnobW/2 .. kTrackX1+kKnobW/2`, redraws only on knob-x or
+disabled-state change). No full-row `fillRect` on the hot path anymore.
+
+DRAM note: the 3 new per-instance diff-cache fields (`_lastValue`/`_lastKnobX`/
+`_lastDisabled`/`_lastLabel[]`) overflowed `cyd2usb_winamp_debug`'s
+`.dram0.bss` budget at first pass (72 bytes over, [[feedback_dram_bss_static_buffers|
+memory: DRAM budget — check debug env too]]) — fixed by narrowing `_min`/`_max`/
+`_value`/`_lastValue`/`_lastKnobX` to `int16_t` and `_lastLabel` to `char[10]`
+(longest real label, "Poll: 30s", is 10 bytes incl. NUL); both envs compile clean
+after.
+
+**Verification:** `run/check` 6/6. DUT-verified on debug firmware via new
+`app/tools/slider_delta_smoke.py` (8/8 PASS) — drags the Level slider start-to-
+end via the incremental `onMove()`/`onRelease()` path only, then forces a fresh
+`render()` by leaving/re-entering the section at the same settled value, and
+diffs the two screendumps: 0 px differ. Documented in the script why a plain
+before/after content diff can't observe the flicker *itself* (old and new code
+draw identical final pixels for any given state — the bug was wasted
+intermediate writes, a timing artifact, not wrong output); what this test
+proves instead is that the new scoped/diffed repaint reaches the exact same
+pixel state a full redraw would, i.e. no stale-knob/stale-digit artifacts from
+narrowing the erase rects. The flicker itself needs the human BP-048 live-drag
+eyeball check the gate also calls for — not performed by the agent (no camera
+on the physical panel); production firmware reflashed after the debug-build
+test run.
 
 ## Open — taskbar health-indicator follow-up (2026-07-28, filed on TASK-364 closure)
 

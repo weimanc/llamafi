@@ -110,7 +110,7 @@ public:
                 _wrVolSlider.onPress(x, y, volRowY);
             } else if (phase == TouchPhase::Move && _wrVolSlider.isDragging()) {
                 _wrVolSlider.onMove(x);
-                _wrVolSlider.render(volRowY, "Max vol");
+                _wrVolSlider.renderDynamic(volRowY, "Max vol");
             } else if (phase == TouchPhase::Release && _wrVolSlider.isDragging()) {
                 settings().webRadioMaxVolume = (uint8_t)_wrVolSlider.onRelease(x);
                 saveSettings();
@@ -132,7 +132,7 @@ public:
                 _prPollSlider.onMove(x);
                 char plbl[16];
                 _prPollLabel(plbl, sizeof(plbl));
-                _prPollSlider.render(pollRowY, plbl);
+                _prPollSlider.renderDynamic(pollRowY, plbl);
             } else if (phase == TouchPhase::Release && _prPollSlider.isDragging()) {
                 settings().prPollSec = (uint8_t)_prPollSlider.onRelease(x);
                 saveSettings();

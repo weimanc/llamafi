@@ -8,7 +8,8 @@
 //
 // The caller (e.g. DisplaySection) is responsible for:
 //   1. Calling onPress/onMove/onRelease in its handleInput() override.
-//   2. Calling render() after onMove to update the visual.
+//   2. Calling render() once on row-enter/repaint(), then renderDynamic()
+//      after each onMove()/onRelease() (TASK-365: diffed, not a full redraw).
 //   3. Applying the committed value (ledcWrite / saveSettings) on onRelease.
 //   4. Passing disabled=true when the row should be read-only (e.g. auto-brightness on).
 //
@@ -30,6 +31,7 @@ public:
         _max      = maxVal;
         _value    = constrain(initialVal, minVal, maxVal);
         _dragging = false;
+        _invalidate();
     }
 
     int  value()      const { return _value; }
@@ -65,53 +67,92 @@ public:
         return _value;
     }
 
-    // ---- Render --------------------------------------------------------------
+    // ---- Render (TASK-365: Clock-style discrete-slot diff) --------------------
+    //
+    // render() is the one-time/row-enter full draw (background fill, label,
+    // value, track, knob) — call it on section repaint()/row-enter. It
+    // invalidates the dynamic-diff cache so the next renderDynamic() always
+    // finds a fresh baseline and redraws everything once.
+    //
+    // renderDynamic() is what onMove()/onRelease() call on every touch tick:
+    // no full-row fillRect, no unconditional label/value/track redraw. Each
+    // of the three pieces (label cell, value-number cell, track+knob zone) is
+    // diffed against the last-drawn state and only repainted if it actually
+    // changed — this is what kills the flicker (was: full-row erase +
+    // redraw-everything on every Move event, same anti-pattern class as the
+    // Clock FaceFrame bug, TASK-354).
 
-    // Full row repaint at rowY.
+    // Full row repaint at rowY — row-enter / section repaint() only.
     //   label    — row label drawn at S_COL_LABEL (e.g. "Level").
     //   disabled — greyed out when auto-brightness is active; ignores touches.
-    void render(int rowY, const char* label, bool disabled = false) const {
+    void render(int rowY, const char* label, bool disabled = false) {
         tft.fillRect(0, rowY, S_CANVAS_W, S_ROW_H, S_BG);
+        _invalidate();
+        renderDynamic(rowY, label, disabled);
+    }
 
+    // Diffed repaint — call from onMove()/onRelease(). Same params as
+    // render() but never fills the full row and skips any piece (label cell/
+    // value cell/track+knob zone) whose drawn state hasn't changed since the
+    // last call.
+    void renderDynamic(int rowY, const char* label, bool disabled = false) {
         int mid = rowY + S_ROW_H / 2;
+        int8_t disabledState = disabled ? 1 : 0;
 
-        // Label (left)
-        tft.setTextDatum(ML_DATUM);
-        tft.setTextColor(disabled ? S_VALUE_OFF : S_LABEL);
-        tft.drawString(label, S_COL_LABEL, mid, 2);
+        // Label cell (dynamic only for call sites that bake a live value into
+        // the label itself, e.g. appsSection's "Poll: Ns" — static callers
+        // pass the same literal every time, so this no-ops after the first).
+        if (strncmp(label, _lastLabel, sizeof(_lastLabel)) != 0) {
+            tft.fillRect(S_COL_LABEL, rowY, kTrackX0 - S_COL_LABEL, S_ROW_H, S_BG);
+            tft.setTextDatum(ML_DATUM);
+            tft.setTextColor(disabled ? S_VALUE_OFF : S_LABEL);
+            tft.drawString(label, S_COL_LABEL, mid, 2);
+            tft.setTextDatum(TL_DATUM);
+            strlcpy(_lastLabel, label, sizeof(_lastLabel));
+        }
 
-        // Value number (right, aligned with other setting rows)
-        char buf[4];
-        snprintf(buf, sizeof(buf), "%d", _value);
-        tft.setTextDatum(MR_DATUM);
-        tft.setTextColor(disabled ? S_VALUE_OFF : S_VALUE_ON);
-        tft.drawString(buf, S_COL_VALUE, mid, 2);
+        // Value-number cell (right, aligned with other setting rows).
+        if (_value != _lastValue || disabledState != _lastDisabled) {
+            tft.fillRect(kValueX0, rowY, S_CANVAS_W - kValueX0, S_ROW_H, S_BG);
+            char buf[4];
+            snprintf(buf, sizeof(buf), "%d", _value);
+            tft.setTextDatum(MR_DATUM);
+            tft.setTextColor(disabled ? S_VALUE_OFF : S_VALUE_ON);
+            tft.drawString(buf, S_COL_VALUE, mid, 2);
+            tft.setTextDatum(TL_DATUM);
+        }
 
-        tft.setTextDatum(TL_DATUM);
-
-        // Track colours
-        uint16_t cFill   = disabled ? S_VALUE_OFF : S_VALUE_ON;
-        uint16_t cEmpty  = S_SEP;
-        uint16_t cKnob   = disabled ? S_SEP       : S_HDR_TXT;
-        uint16_t cBorder = disabled ? S_SEP       : S_VALUE_ON;
-
-        int trackY = rowY + (S_ROW_H - kTrackH) / 2;
+        // Track + knob — scoped to kZoneX0..kZoneX1, never the full row.
         int knobCx = valueToX(_value);
+        if (knobCx != _lastKnobX || disabledState != _lastDisabled) {
+            uint16_t cFill   = disabled ? S_VALUE_OFF : S_VALUE_ON;
+            uint16_t cEmpty  = S_SEP;
+            uint16_t cKnob   = disabled ? S_SEP       : S_HDR_TXT;
+            uint16_t cBorder = disabled ? S_SEP       : S_VALUE_ON;
 
-        // Unfilled track (full span)
-        tft.fillRect(kTrackX0, trackY,
-                     kTrackX1 - kTrackX0, kTrackH, cEmpty);
+            int trackY = rowY + (S_ROW_H - kTrackH) / 2;
 
-        // Filled track (left of knob centre)
-        if (knobCx > kTrackX0)
+            tft.fillRect(kZoneX0, rowY, kZoneX1 - kZoneX0, S_ROW_H, S_BG);
+
+            // Unfilled track (full span)
             tft.fillRect(kTrackX0, trackY,
-                         knobCx - kTrackX0, kTrackH, cFill);
+                         kTrackX1 - kTrackX0, kTrackH, cEmpty);
 
-        // Knob (centred on knobCx)
-        int kx = knobCx - kKnobW / 2;
-        int ky = rowY   + (S_ROW_H - kKnobH) / 2;
-        tft.fillRect(kx, ky, kKnobW, kKnobH, cKnob);
-        tft.drawRect(kx, ky, kKnobW, kKnobH, cBorder);
+            // Filled track (left of knob centre)
+            if (knobCx > kTrackX0)
+                tft.fillRect(kTrackX0, trackY,
+                             knobCx - kTrackX0, kTrackH, cFill);
+
+            // Knob (centred on knobCx)
+            int kx = knobCx - kKnobW / 2;
+            int ky = rowY   + (S_ROW_H - kKnobH) / 2;
+            tft.fillRect(kx, ky, kKnobW, kKnobH, cKnob);
+            tft.drawRect(kx, ky, kKnobW, kKnobH, cBorder);
+        }
+
+        _lastValue    = _value;
+        _lastKnobX    = knobCx;
+        _lastDisabled = disabledState;
     }
 
 private:
@@ -136,10 +177,38 @@ private:
     static constexpr int16_t kKnobCX0  = kTrackX0 + kKnobW / 2;   // 75
     static constexpr int16_t kKnobCX1  = kTrackX1 - kKnobW / 2;   // 241
 
-    int  _min      = 1;
-    int  _max      = 10;
-    int  _value    = 7;
-    bool _dragging = false;
+    // TASK-365 dirty-region bounds: track+knob zone (never the full row) and
+    // the value-number cell (right of the track, before the row's own bg
+    // margin). kZoneX1/kValueX0 deliberately overlap by a few px (both cover
+    // 248..255) — cheap, and avoids leaving a stale sliver between the two
+    // independently-diffed regions.
+    static constexpr int16_t kZoneX0   = kTrackX0 - kKnobW / 2;   // 61
+    static constexpr int16_t kZoneX1   = kTrackX1 + kKnobW / 2;   // 255
+    static constexpr int16_t kValueX0  = kTrackX1;                // 248
+
+    // int16_t throughout (not int): DRAM is tight in the debug build (BP —
+    // check .dram0.bss on cyd2usb_winamp_debug, not just prod, for any new
+    // per-instance static state on the 3 SliderWidget statics); every real
+    // range here (1..30) fits comfortably.
+    int16_t _min      = 1;
+    int16_t _max      = 10;
+    int16_t _value    = 7;
+    bool    _dragging = false;
+
+    // Last-drawn state for renderDynamic()'s per-piece diff. Sentinels
+    // guarantee the first renderDynamic() after init()/render() always draws.
+    // Longest live label is "Poll: 30s" (10 bytes incl NUL).
+    int16_t _lastValue    = -1;
+    int16_t _lastKnobX    = -1;
+    int8_t  _lastDisabled = -1;
+    char    _lastLabel[10] = {};
+
+    void _invalidate() {
+        _lastValue    = -1;
+        _lastKnobX    = -1;
+        _lastDisabled = -1;
+        _lastLabel[0] = '\0';
+    }
 
     // Map value → knob centre x.
     int valueToX(int v) const {

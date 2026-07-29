@@ -58,13 +58,13 @@ public:
                     g_backlight.pause();   // borrow the backlight for live preview
             } else if (phase == TouchPhase::Move && _slider.isDragging()) {
                 _slider.onMove(x);
-                _slider.render(levelRowY, "Level", false);
+                _slider.renderDynamic(levelRowY, "Level", false);
                 g_backlight.applyManual(_slider.value());
             } else if (phase == TouchPhase::Release && _slider.isDragging()) {
                 g_settings.dispLevel = (uint8_t)_slider.onRelease(x);
                 saveSettings();
                 g_backlight.resume();      // owner re-applies from committed settings
-                _slider.render(levelRowY, "Level", false);
+                _slider.renderDynamic(levelRowY, "Level", false);
                 return SectionResult::Continue;
             }
         }
