@@ -294,7 +294,7 @@ features:
       path; Spotify's call site is unchanged. Scoped to VIS_VU only — tickAtlas()/tickWaveAtlas()
       take no level argument and are unaffected.
     status: implemented
-    git_ref: "4983d222ba67b957b7c09a8c3f1f38f42176d5bb"
+    git_ref: "6444c4c"
     files:
       - app/src/winamp/vuMeter.h
       - app/src/webRadioApp.h
