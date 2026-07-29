@@ -3891,7 +3891,7 @@ visual, drag the slider live and confirm no flicker) + a screendump-diff asserti
 analogous to `clock_delta_smoke.py` (steady drag motion touches only the
 track/knob region + value-number cell, not the label or background outside the
 track) · **Priority:** P2 — confirmed visible defect, not a correctness/data-loss
-bug · **Status:** Closed 2026-07-29
+bug · **Status:** Closed 2026-07-29 (`e70a87f`)
 
 **Implementation:** `sliderWidget.h` split into `render()` (one-time/row-enter
 full draw, unchanged behaviour) + `renderDynamic()` (called from `onMove()`/
