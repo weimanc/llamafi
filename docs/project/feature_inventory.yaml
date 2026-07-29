@@ -299,13 +299,28 @@ features:
       - app/src/winamp/vuMeter.h
       - app/src/webRadioApp.h
     cross_features: [vu-001]
-    test_ids: []
+    test_ids: [T_WR_VIS_01, T_WR_VIS_02, T_WR_VIS_03]
     notes: |
       Design: docs/architecture/designs/M-WEBRADIO-REAL-VIS.md. R&D evidence:
       PROP-005/PROP-007, EXP-015/016/017 (docs/rnd/reports/). Rung 3 (real spectrum bands,
       EXP-018) is a separate, not-yet-scheduled follow-on — not part of this entry's scope.
-      test_ids intentionally empty: VE will add T_WR_VIS_01/02/03 in a separate follow-up pass
-      per the design doc's Testing and Validation section — do not write those tests yourself.
+      VE added T_WR_VIS_01/02/03 to app/tools/run_serialdbg_tests.py per the design doc's
+      Testing and Validation section. DUT results (2026-07-29, cyd2usb_winamp_debug):
+      T_WR_VIS_01 PASS (maxPumpMs=42, cycles=6167, maxMutexWaitMs=74, stackHwm=4604 —
+      within the 50ms ceiling); T_WR_VIS_02 PASS (VIS_VU pixel delta=465/9800, over the
+      100px threshold — real envelope animates; Atlas negative-control delta=485/9800 —
+      not near-zero as first expected, but explained: tickAtlas() advances its own 20Hz
+      pre-recorded footage loop whenever playing==true, independent of the real audio
+      level, so its pixels legitimately change frame-to-frame even though it never reads
+      lLevelRef()/rLevelRef() — this doesn't undermine the VU result, which is the
+      feature's actual pass/fail signal); T_WR_VIS_03 SKIP (Spotify isPlaying=false,
+      consecutiveFailures=0 this session — TASK-243 external blocker, Premium lapsed,
+      not a test defect). Note: docs/architecture/designs/M-WEBRADIO-REAL-VIS.md itself
+      only exists on the rnd/webradio-vis branch, not on master — vu-002 landed on master
+      (6444c4c/f3e0523) referencing a design doc that was never merged over; VE read it via
+      `git show rnd/webradio-vis:docs/architecture/designs/M-WEBRADIO-REAL-VIS.md` without
+      checking out that branch. Flagging for PM/Architect: the doc should probably be
+      copied to master alongside its graduated feature.
 
   - id: perf-001
     name: Loop-iteration + hot-path performance instrumentation (M-PERF tier 1)

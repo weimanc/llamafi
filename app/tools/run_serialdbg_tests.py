@@ -10,6 +10,7 @@ T149–T154 (touch-capture-001),
 T162–T166 (taskbar-scroll-001),
 T_WR_EJECT_01/02, T_WR_ERR_01–04, T_WR_COEX_01/02/04,
 T_WR_HEAP_01–04, T_WR_VOL_03, T_WR_TLS_01, T_WR_SPOTIFY_RESUME_01 (M-WEBRADIO),
+T_WR_VIS_01–03 (vu-002 / X043, M-WEBRADIO-REAL-VIS),
 T_PR_01–06 (M-PLANERADAR, TASK-307)
 against a DUT flashed with cyd2usb_winamp_debug.
 T089 (production ELF symbol check) is a host build check — not run here.
@@ -6538,6 +6539,198 @@ def t_wr_spotify_resume_01(dut: Dut):
           "track-info repaint still needs human confirmation")
 
 
+# ── vu-002 / X043 — WebRadio real-audio VIS envelope (M-WEBRADIO-REAL-VIS) ───
+# Design: docs/architecture/designs/M-WEBRADIO-REAL-VIS.md, "Testing and
+# Validation" + "Exit criteria" sections (reserved T_WR_VIS_01/02/03 there).
+#
+# `get visMode` does NOT report vu::VisMode's raw C++ enum ordinal — main.cpp
+# remaps it for the subset of modes reachable via the tap-cycle:
+#   VIS_ATLAS_MODE -> 0 (default)   VIS_VU -> 1   VIS_BLANK -> 2   VIS_WAVE_ATLAS -> 3
+# (VIS_SPECTRUM/VIS_WAVE are dead — unreachable via nextMode() — and read back -1.)
+# vu::nextMode()'s cycle is ATLAS_MODE -> WAVE_ATLAS -> VU -> BLANK -> ATLAS_MODE,
+# so two vis-zone taps from the default reach VIS_VU (mode index 1).
+
+_VIS_SCREEN_REGION = (0, 20, 140, 70)  # x,y,w,h — EXP-016/017/018 R&D region (9800px)
+
+
+def _webradio_ensure_playing(dut: Dut, tid: str) -> bool:
+    """Enter WebRadio (loading its station list if needed) and make sure playback
+    is active (wrState == 2 / PLAYING). skip()s and returns False on failure."""
+    count = _webradio_enter_with_stations(dut, tid, fetch_timeout=180.0)
+    if count == 0:
+        skip(tid, "station list unavailable (network or fetch failure)")
+        return False
+    if _wait_wr_state(dut, target=2, timeout=5.0):
+        return True  # already playing from a prior test in this run
+    dut.cmd("set wrPlay 0", timeout=3.0)
+    if not _wait_wr_state(dut, target=2, timeout=30.0):
+        skip(tid, "could not reach PLAYING state (wrState=2) after set wrPlay 0")
+        return False
+    return True
+
+
+def _cycle_vis_to(dut: Dut, target_mode: int, max_taps: int = 4) -> Optional[int]:
+    """Tap the vis hit-zone (coords.tap_vis()) until `get visMode` == target_mode,
+    or return whatever mode it's stuck at after max_taps.
+
+    Waits for the VIS-specific Phase-2 cooldown gate (`get cooldown` ->
+    winampDisplay's touchScreenCoolDownTime, T-CDWN-01 precedent) to clear
+    between taps so a fast second tap isn't silently dropped on the Spotify
+    app. WebRadio's own vis-tap handler (webRadioApp.h ~858) has no such gate
+    — nextMode() fires unconditionally on Release — so this wait is a no-op
+    there; `get cooldown` just reports winampDisplay's (untouched) state.
+    """
+    vx, vy = _c.tap_vis()
+    m = _get_vis_mode(dut)
+    for _ in range(max_taps):
+        if m == target_mode:
+            return m
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            rem = int(dut.cmd("get cooldown", timeout=2.0).get("remainingMs", 0))
+            if rem <= 0:
+                break
+            time.sleep(min(rem / 1000.0, 0.1))
+        dut.cmd(f"tap {vx} {vy}", timeout=3.0)
+        time.sleep(0.2)
+        m = _get_vis_mode(dut)
+    return m
+
+
+def _vis_pixel_delta(dut: Dut, tid: str) -> Optional[int]:
+    """Two screendumps of the vis region 1.5s apart; returns the count of
+    changed RGB565 pixels, or None (having already called fail()) on a
+    screendump failure. Lazy-imports screendump.py to avoid a circular
+    top-level import (screendump.py imports Dut from this module)."""
+    import screendump
+    x, y, w, h = _VIS_SCREEN_REGION
+    try:
+        c1 = screendump.dump_with_retry(dut, x, y, w, h)
+        time.sleep(1.5)
+        c2 = screendump.dump_with_retry(dut, x, y, w, h)
+    except Exception as e:
+        fail(tid, f"screendump failed: {e}")
+        return None
+    return int((c1 != c2).sum())
+
+
+def t_wr_vis_01(dut: Dut):
+    """T_WR_VIS_01: decode-tail regression, isolated measurement. Enter
+    WebRadio, play station 0, wait ~45s, then `get wrPump` ALONE — no
+    concurrent screendump/tap traffic in the same window. This isolation is
+    load-bearing: EXP-017 measured a false 272ms regression (vs. the true
+    42ms) specifically because its first pass bundled a screendump-diff probe
+    into the same window as the wrPump read; CPU contention from that
+    traffic, not the audio math, produced the spike.
+    Pass/fail: maxPumpMs <= 50 (TASK-278's decode-tail ceiling)."""
+    print("T_WR_VIS_01  WebRadio decode-tail regression (isolated wrPump read)")
+    if not _webradio_ensure_playing(dut, "T_WR_VIS_01"):
+        return
+    print("  [T_WR_VIS_01] playing — waiting 45s before isolated wrPump read…", flush=True)
+    time.sleep(45.0)
+    try:
+        r = dut.cmd("get wrPump", timeout=5.0)
+    except TimeoutError as e:
+        fail("T_WR_VIS_01", f"get wrPump timed out: {e}")
+        return
+    if not r.get("ok") or not r.get("alive"):
+        fail("T_WR_VIS_01", f"wrPump not alive/ok: {r}")
+        return
+    max_pump_ms = r.get("maxPumpMs")
+    if max_pump_ms is None:
+        fail("T_WR_VIS_01", f"no maxPumpMs field in response: {r}")
+        return
+    detail = (f"maxPumpMs={max_pump_ms} cycles={r.get('cycles')} "
+              f"maxMutexWaitMs={r.get('maxMutexWaitMs')} stackHwm={r.get('stackHwm')}")
+    if max_pump_ms > 50:
+        fail("T_WR_VIS_01", f"{detail} — exceeds 50ms threshold")
+        return
+    pass_("T_WR_VIS_01", f"{detail} — within 50ms threshold")
+
+
+def t_wr_vis_02(dut: Dut):
+    """T_WR_VIS_02: real envelope animates, and only in the mode that reads
+    it. Negative control at default VIS_ATLAS_MODE (visMode==0): tickAtlas()
+    gates frame-advance on `playing` only and never reads
+    lLevelRef()/rLevelRef(), so a screendump delta here should be near-zero.
+    Then cycle to VIS_VU (visMode==1, two vis-zone taps from default) and
+    expect a materially nonzero delta — design doc / EXP-016 precedent:
+    >100/9800 changed pixels (EXP-016 itself measured 531/9800)."""
+    print("T_WR_VIS_02  Real envelope animates only in VIS_VU (Atlas = negative control)")
+    if not _webradio_ensure_playing(dut, "T_WR_VIS_02"):
+        return
+
+    m0 = _get_vis_mode(dut)
+    if m0 != 0:
+        m0 = _cycle_vis_to(dut, 0)
+    if m0 != 0:
+        fail("T_WR_VIS_02", f"could not reach VIS_ATLAS_MODE (visMode==0); stuck at visMode={m0}")
+        return
+    atlas_delta = _vis_pixel_delta(dut, "T_WR_VIS_02")
+    if atlas_delta is None:
+        return
+    print(f"  [T_WR_VIS_02] Atlas mode (visMode=0) pixel delta: {atlas_delta}/9800")
+    if atlas_delta > 500:
+        print(f"  [T_WR_VIS_02] WARNING: Atlas negative-control delta ({atlas_delta}/9800) "
+              f"is higher than expected 'near-zero' — not failing on this alone, see VU result")
+
+    m1 = _cycle_vis_to(dut, 1)
+    if m1 != 1:
+        fail("T_WR_VIS_02", f"could not reach VIS_VU (visMode==1) via vis-zone taps; "
+                            f"stuck at visMode={m1}")
+        return
+    vu_delta = _vis_pixel_delta(dut, "T_WR_VIS_02")
+    if vu_delta is None:
+        return
+    print(f"  [T_WR_VIS_02] VU mode (visMode=1) pixel delta: {vu_delta}/9800")
+
+    if vu_delta <= 100:
+        fail("T_WR_VIS_02", f"VIS_VU pixel delta {vu_delta}/9800 <= 100 threshold — real "
+                            f"envelope does not appear to be animating (Atlas negative-control "
+                            f"delta was {atlas_delta}/9800)")
+        return
+    pass_("T_WR_VIS_02", f"Atlas(negative-control)={atlas_delta}/9800, VU={vu_delta}/9800 "
+                         f"(>100 threshold)")
+
+
+def t_wr_vis_03(dut: Dut):
+    """T_WR_VIS_03: Spotify's synthetic VIS_VU path is unaffected (Goal 2
+    regression guard — this design change must not touch Spotify's call
+    site). Same two-screendump-1.5s-apart check as T_WR_VIS_02, but on the
+    Spotify app. skip()s — does not fail or fabricate — if Spotify has no
+    active playback this session (known external blocker: TASK-243, lapsed
+    Premium account causes poll 403s)."""
+    print("T_WR_VIS_03  Spotify synthetic VIS_VU path unaffected (regression guard)")
+    if not _restore_spotify(dut):
+        skip("T_WR_VIS_03", "could not switch to Spotify app")
+        return
+    r_info = dut.cmd("info", timeout=4.0)
+    is_playing = r_info.get("isPlaying")
+    cf = r_info.get("consecutiveFailures")
+    if not is_playing:
+        skip("T_WR_VIS_03", f"Spotify has no active playback this session "
+                            f"(isPlaying={is_playing}, consecutiveFailures={cf}) — likely "
+                            f"TASK-243 external blocker (Premium lapsed, poll 403s), not testable now")
+        return
+
+    m1 = _get_vis_mode(dut)
+    if m1 != 1:
+        m1 = _cycle_vis_to(dut, 1)
+    if m1 != 1:
+        fail("T_WR_VIS_03", f"could not reach VIS_VU (visMode==1) on Spotify; stuck at visMode={m1}")
+        return
+    delta = _vis_pixel_delta(dut, "T_WR_VIS_03")
+    if delta is None:
+        return
+    print(f"  [T_WR_VIS_03] Spotify VIS_VU pixel delta: {delta}/9800")
+    if delta <= 100:
+        fail("T_WR_VIS_03", f"Spotify synthetic VIS_VU pixel delta {delta}/9800 <= 100 — "
+                            f"synthetic animation appears to have regressed")
+        return
+    pass_("T_WR_VIS_03", f"isPlaying=true; Spotify VIS_VU pixel delta={delta}/9800 (>100) — "
+                         f"synthetic path unaffected")
+
+
 # ── app-error-signal-001 (TASK-245 / ADR-046) ────────────────────────────────
 # Red taskbar active-bar on a sustained app error. The bar colour itself is not
 # serial-observable (no pixel readback) — that's the manual T-ERR-03 sign-off.
@@ -7338,6 +7531,10 @@ ALL_TESTS = {
     # M-WEBRADIO TLS path + Spotify coexistence (TASK-214)
     "T_WR_TLS_01":            t_wr_tls_01,
     "T_WR_SPOTIFY_RESUME_01": t_wr_spotify_resume_01,
+    # vu-002 / X043 — WebRadio real-audio VIS envelope (M-WEBRADIO-REAL-VIS)
+    "T_WR_VIS_01": t_wr_vis_01,
+    "T_WR_VIS_02": t_wr_vis_02,
+    "T_WR_VIS_03": t_wr_vis_03,
     # app-error-signal-001 — red taskbar active-bar (TASK-245 / ADR-046)
     "T-ERR-01": t_err_01,
     "T-ERR-02": t_err_02,

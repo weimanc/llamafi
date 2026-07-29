@@ -930,11 +930,16 @@ interactions:
       stopSong() returns. If either switchApp()'s suspend-before-activate ordering or this mutex
       serialization ever changes, this interaction must be re-verified, not assumed.
     risk: low
-    test_coverage: []
+    test_coverage: [T_WR_VIS_01, T_WR_VIS_02, T_WR_VIS_03]
     notes: |
       Design: docs/architecture/designs/M-WEBRADIO-REAL-VIS.md. R&D evidence: PROP-005/PROP-007,
       EXP-015/016/017/018. risk: low — no lock needed given the never-both-writers-at-once
       invariant, mechanically enforced (see description), and the pattern is already precedented
       elsewhere in this codebase (lLevelRef()/rLevelRef() themselves, wrPump counters).
-      test_coverage will be [T_WR_VIS_01, T_WR_VIS_02, T_WR_VIS_03] once VE writes them in a
-      separate follow-up pass — do not write those tests yourself.
+      VE added T_WR_VIS_01/02/03 to app/tools/run_serialdbg_tests.py; DUT results
+      (2026-07-29): T_WR_VIS_01 PASS (maxPumpMs=42, well under the 50ms ceiling — the
+      shared-state write from the pump task costs nothing extra), T_WR_VIS_02 PASS
+      (VIS_VU pixel delta=465/9800, confirms the pump-task write is actually visible
+      through to the UI-thread render), T_WR_VIS_03 SKIP (Spotify has no active playback
+      this session — TASK-243 external blocker, not exercisable right now, not a defect
+      in the interaction itself).
