@@ -4229,3 +4229,13 @@ closed by default.
 (2026-07-30)** — three options (accept / further-mitigate / R&D isolation
 pass) laid out for PM/Architect scheduling. TASK-374 stays PARTIAL until
 that proposal is actioned.
+
+**Same-day follow-up isolation (human-requested)**: re-ran EXP-006's
+"disable Spotify entirely" check against the real production build
+(`cyd2usb_winamp_debug_noSpotify`) — the DMA gate never opened once in 60s
+either way (`freeDma` sat ~36-37K, under the ported 38000 threshold,
+Spotify running or not). Spotify isn't competing for the memory; this
+build's baseline idle headroom is simply close to/under the ported
+threshold most of the time. See PROP-008's "Follow-up isolation" section —
+this reframes the next lever to try as *lowering*
+`kMinFreeDmaForConnect`, not raising it.
