@@ -248,8 +248,9 @@ Flagging for a separate task.
 Human request, 4 items + item 5 (volume slider) added same day. Design:
 [M-WEBRADIO-WINAMP-UI.md](../architecture/designs/M-WEBRADIO-WINAMP-UI.md) — consumer audit and
 per-item specifics live there; read it before implementing. Items 1–3 and 5 are production
-tasks (TASK-348/349/350/352 — all DONE, DUT-verified); item 4 is RnD (PROP-005, TASK-351,
-still open — scheduled after TASK-350, which has now landed).
+tasks (TASK-348/349/350/352 — all DONE, DUT-verified); item 4 was RnD (PROP-005, TASK-351) —
+**graduated to production 2026-07-30, see TASK-369** in the closed M-WEBRADIO-REAL-VIS
+section below.
 
 ### TASK-348 — country code into the PLEDIT bottom bar
 
@@ -308,7 +309,13 @@ production. ADR-009's "no local audio" premise doesn't hold for WebRadio — tha
 opening.
 
 **Owner:** R&D · **Deps:** TASK-350 (the vu:: seam) · **Gate:** EXP report + human review ·
-**Priority:** P3 · **Status:** open — schedule after TASK-350 lands
+**Priority:** P3 · **Status:** **DONE 2026-07-29** — [EXP-015](../rnd/reports/EXP-015-webradio-vis-tap-spike.md)
+(tap-point free), [EXP-016](../rnd/reports/EXP-016-webradio-vis-real-envelope.md) (real peak
+envelope, zero new storage), [EXP-017](../rnd/reports/EXP-017-webradio-vis-peak-vs-rms.md)
+(peak-vs-RMS A/B, inconclusive on feel, not a blocker), [EXP-018](../rnd/reports/EXP-018-webradio-vis-real-spectrum-bands.md)
+(rung 3 real spectrum bands — cost-clear but visually unfinished, NOT graduated, separate
+follow-on if ever scheduled). Branch `rnd/webradio-vis`. **GRADUATED** (rung 2 only) —
+see TASK-369.
 
 ### TASK-352 — wire the Winamp volume slider for WebRadio (reuse, don't duplicate)
 
@@ -374,6 +381,55 @@ inside its renderer; Flip animation passes through `animate()`. VE adds a steady
 CH340 port flap mid-run, not the engine); NEW clock_delta_smoke.py 4/4 (steady second tick
 repaints 0 px outside the colon column on every face — the Flip/Nixie flicker is gone by
 measurement, not eyeball); all-four-faces screendump eyeballs PASS; prod reflashed clean
+
+## Closed — M-WEBRADIO-REAL-VIS (2026-07-29, closed 2026-07-30)
+
+TASK-351's RnD (PROP-005) graduated to production. Design:
+[M-WEBRADIO-REAL-VIS.md](../architecture/designs/M-WEBRADIO-REAL-VIS.md) (Architect,
+Developer + VE reviewed before the Testing and Validation section was finalized). Decision:
+[ADR-056](../architecture/decisions/ADR-056.md) (accepted 2026-07-30 — amends ADR-009 for
+the WebRadio case only; Spotify's synthetic VU is untouched).
+
+### TASK-369 — real per-block peak envelope for WebRadio's VU meter (vu-002, PROP-007 graduation)
+
+Rung 2 only (real peak envelope for `VIS_VU`) — rung 3 (real spectrum bands, EXP-018) is
+cost-clear but visually unfinished and touches a currently tap-cycle-unreachable mode
+(`VIS_SPECTRUM`); deliberately not bundled in, per the design doc's Option A lean.
+
+`vu::tick()` gained an optional `realAudio` parameter (default `false`, Spotify's call site
+untouched); `webRadioApp.h` wires a permanent `audio_process_extern` hook computing real
+per-block peak L/R on the wrAudio pump task, writing directly into the same
+`vu::lLevelRef()`/`rLevelRef()` statics the synthetic path already used — no new persistent
+storage, since any `SERIAL_DEBUG`-enabled build on this board has ~0 bytes of static-BSS
+headroom (EXP-015; confirmed down to a single 4-byte pointer overflowing it). Registers
+`vu-002` (`feature_inventory.yaml`) and `X043` (`cross_feature_matrix.yaml`, the pump-task/
+UI-thread single-writer-swap interaction — mechanically enforced by `switchApp()`'s
+suspend-before-activate ordering + `s_wrAudioMutex` serialization, not just convention).
+
+**Landed:** `6444c4c` (implementation) / `f3e0523` (git_ref backfill). **Tested:**
+`897b71d` — T_WR_VIS_01 (isolated `get wrPump` read, `maxPumpMs<=50`: PASS at 42ms),
+T_WR_VIS_02 (Atlas-mode negative control vs. `VIS_VU` screendump delta: PASS, 465/9800 vs.
+485/9800 — Atlas's own delta is its independent 20 Hz footage loop, not the real envelope,
+investigated not hand-waved), T_WR_VIS_03 (Spotify regression guard: SKIP, TASK-243 external
+blocker, Premium lapsed). **BP-048 human eyeball:** PASSED 2026-07-30 — VU meter confirmed
+looking good with WebRadio streaming.
+
+**Post-landing regression scare, resolved (not a regression):** a "stations keep dropping"
+report the same day was chased through host-side API repro, a live DUT log read, and a
+clean A/B rebuild of the pre-`vu-002` baseline (`940b2ab`) plus the last documented
+soak-clean commit (`05f5a78`, TASK-278) using the existing `get wrUnderruns` instrumentation
+— both historic and current builds showed the identical "1 startup-blip underrun, 0
+recurrent, no stalls" signature over 168 s continuous holds. Root causes found instead: a
+host-corroborated ~70 s WiFi AP outage (NetworkManager `ssid-not-found`, same SSID/band as
+the DUT) and, separately, a flaky USB-serial cable connection (fixed by the human reseating
+it). Neither implicates `vu-002` — no code path in this change touches the network-fetch,
+decode, or stall/auto-skip state machine at all.
+
+**Owner:** Developer (implementation) · Architect (design + ADR) · VE (tests) · **Deps:**
+TASK-350 (the `vu::tick()` seam), TASK-351 (R&D validation) · **Gate:** `run/check` 6/6 +
+DUT-verified regression tests + BP-048 human eyeball · **Priority:** P2 · **Status:** **DONE
+2026-07-30** — full trail: PROP-005 → EXP-015..018 → PROP-007 → M-WEBRADIO-REAL-VIS.md →
+`6444c4c`/`f3e0523` → `897b71d` → ADR-056 accepted (`dd80927`)
 
 ## Open — M-PR-MOTION (2026-07-18)
 
