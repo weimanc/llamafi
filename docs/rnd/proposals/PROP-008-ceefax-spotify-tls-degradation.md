@@ -411,6 +411,74 @@ not an unbounded per-visit accumulation (as this review first feared).
 
 Raw log + per-poll series: scratch `dma_recovery.py` / `.json` (not committed).
 
+## Fifth follow-up: this is a known, documented upstream bug class, not a novel finding
+
+User asked directly: is mbedTLS open source, and can we check whether this
+is an existing/known issue? Yes to both — and it is. Three layers are in
+play here, all open source, all checkable:
+
+- **mbedTLS itself** (Apache-2.0/GPL-2.0 dual-licensed, maintained by the
+  Trusted Firmware project) — the actual TLS engine. Not directly
+  implicated by this search; its own `mbedtls_ssl_free()` is called
+  unconditionally by `stop_ssl_socket()` in our vendored copy (already
+  read, looked correct).
+- **`WiFiClientSecure`** (`espressif/arduino-esp32`, part of the Arduino
+  core, wraps mbedTLS) — **has a well-documented history of exactly this
+  bug class**:
+  [Issue #5781](https://github.com/espressif/arduino-esp32/issues/5781) /
+  [#3808](https://github.com/espressif/arduino-esp32/issues/3808) /
+  [#5480](https://github.com/espressif/arduino-esp32/issues/5480) all
+  describe `start_ssl_client()` failing (handshake/verification error)
+  without freeing CA-cert/client-cert/key structures.
+  [PR #5945](https://github.com/espressif/arduino-esp32/pull/5945) fixed
+  this (merged 2021-12-14) by adding the conditional frees inside
+  `stop_ssl_socket()` — **this is the exact code we already read and
+  confirmed present** in our vendored copy (the "avoid memory leak if ssl
+  connection attempt failed" comment). Confirmed: **our pinned Arduino-ESP32
+  2.0.17 (`platform = espressif32@6.9.0`) already includes this fix** — the
+  PR's regression ([Issue #6077](https://github.com/espressif/arduino-esp32/issues/6077),
+  handshake_timeout zeroed) was itself reported fixed by 2.0.3, well before
+  our 2.0.17. **So the specific historical CA/cert-leak bug is already
+  patched here — that's not what we're hitting.**
+- **`WebSocketsClient`** (`Links2004/arduinoWebSockets`, the WebSocket
+  protocol layer on top of `WiFiClientSecure`) — **has a separate,
+  long-standing, still-open class of issues where `WStype_DISCONNECTED`
+  never fires** in certain failure scenarios:
+  [#297](https://github.com/Links2004/arduinoWebSockets/issues/297),
+  [#373](https://github.com/Links2004/arduinoWebSockets/issues/373),
+  [#84](https://github.com/Links2004/arduinoWebSockets/issues/84),
+  [#864](https://github.com/Links2004/arduinoWebSockets/issues/864) (open),
+  [#706](https://github.com/Links2004/arduinoWebSockets/issues/706) (open),
+  [#290](https://github.com/Links2004/arduinoWebSockets/issues/290),
+  [#271](https://github.com/Links2004/arduinoWebSockets/issues/271).
+  **Issue #864 in particular describes almost exactly our scenario**: the
+  remote side becomes unreachable/unresponsive mid-session, and the
+  client-side library never reaches `WStype_DISCONNECTED` — the reporter's
+  own workaround is an application-level ping/staleness timer, which is
+  structurally the same shape as this project's own `hasError()`
+  sustained-failure latch (TASK-372).
+
+**Conclusion: this is not a bug we introduced or need to root-cause from
+scratch.** It's a known, still-open gap in `Links2004/arduinoWebSockets`'s
+disconnect detection, on a still-current version (2.7.3, our pinned
+version). Because that detection gap is what's supposed to trigger
+`clientDisconnect()` → `stop()` → the mbedTLS buffer free, a connection
+that the library never recognizes as "disconnected" plausibly never gets
+its ~16732 B I/O buffers freed either — consistent with everything
+observed in the fourth follow-up above. No open upstream issue was found
+that connects the disconnect-detection gap to this specific memory-leak
+consequence explicitly; that connection is this project's own synthesis,
+not something confirmed by an upstream maintainer.
+
+**This changes Option C's shape**: rather than an from-scratch R&D
+isolation spike, the scoped next step is to check whether upstream has
+since fixed disconnect-detection for this scenario in a version newer
+than 2.7.3 (not checked this session), and/or to file a new upstream issue
+connecting "WStype_DISCONNECTED never fires on X" to "the underlying
+WiFiClientSecure object's mbedTLS buffers are never freed as a
+consequence" — since that specific causal link doesn't appear to be
+documented anywhere upstream yet.
+
 ## Recommended next step
 
 Hand to PM for a scheduling decision among Options A/B/C above. This is a
