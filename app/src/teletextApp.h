@@ -267,12 +267,21 @@ public:
             portENTER_CRITICAL_SAFE(&_mux);
             connected = _connected; acquired = _acquired; since = _disconnectedSinceMs;
             portEXIT_CRITICAL_SAFE(&_mux);
+            // *** TASK-374 TEMPORARY DIAGNOSTIC (PROP-008 follow-up) — dmaFreeBlocks
+            // added to watch whether the ~46KB "doesn't come back" finding is a
+            // genuine leak (block count only ever grows) vs. memory claimed
+            // elsewhere (bytes shift, block count doesn't). Remove once explained. ***
+            multi_heap_info_t hi;
+            heap_caps_get_info(&hi, MALLOC_CAP_DMA);
             snprintf(buf, len,
                      "\"var\":\"ceefaxStatus\",\"connected\":%s,\"acquired\":%s,"
-                     "\"downMs\":%lu,\"hasError\":%s,\"last\":true",
+                     "\"downMs\":%lu,\"hasError\":%s,"
+                     "\"dmaFree\":%u,\"dmaFreeBlocks\":%u,\"dmaLargest\":%u,\"last\":true",
                      connected ? "true" : "false", acquired ? "true" : "false",
                      since ? (unsigned long)(millis() - since) : 0UL,
-                     hasError() ? "true" : "false");
+                     hasError() ? "true" : "false",
+                     (unsigned)hi.total_free_bytes, (unsigned)hi.free_blocks,
+                     (unsigned)hi.largest_free_block);
             return true;
         }
         return false;
@@ -674,9 +683,31 @@ private:
                            && now - _lastAttemptMs >= kRetryIntervalMs) {
                     _lastAttemptMs = now;
                     _consecutiveAttempts++;
+#ifdef SERIAL_DEBUG
+                    // *** TASK-374 TEMPORARY DIAGNOSTIC — PROP-008 follow-up.
+                    // Not a permanent feature; remove once the ~46KB
+                    // "doesn't come back" finding is explained. Logs
+                    // allocated_blocks (not just bytes) so a genuine leak
+                    // (block count climbs and never drops) can be told apart
+                    // from memory simply being claimed by other tasks
+                    // (bytes shift, block count doesn't). ***
+                    multi_heap_info_t hiBefore, hiAfter;
+                    heap_caps_get_info(&hiBefore, MALLOC_CAP_DMA);
+#endif
                     spotifyTask::tlsYield();
                     _ws->loop();
                     spotifyTask::tlsResume();
+#ifdef SERIAL_DEBUG
+                    heap_caps_get_info(&hiAfter, MALLOC_CAP_DMA);
+                    LOG_W("ceefax",
+                          "DIAG attempt#%u DMA before(free=%u blocks=%u largest=%u) "
+                          "after(free=%u blocks=%u largest=%u)",
+                          (unsigned)_consecutiveAttempts,
+                          (unsigned)hiBefore.total_free_bytes, (unsigned)hiBefore.free_blocks,
+                          (unsigned)hiBefore.largest_free_block,
+                          (unsigned)hiAfter.total_free_bytes, (unsigned)hiAfter.free_blocks,
+                          (unsigned)hiAfter.largest_free_block);
+#endif
                     if (_consecutiveAttempts == kMaxConsecutiveAttempts) {
                         LOG_W("ceefax", "giving up after %u consecutive attempts this session",
                               (unsigned)kMaxConsecutiveAttempts);

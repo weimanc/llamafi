@@ -204,6 +204,56 @@ next, whether that's Option B (try adding an explicit `stop()`/cleanup after
 each failed attempt, re-soak) or Option C (R&D isolation, now with a
 sharper hypothesis to test).
 
+## Third follow-up: instrumented soak confirms a real per-attempt leak
+
+Added temporary diagnostics (removed after this test, not shipped): logged
+`heap_caps_get_info(MALLOC_CAP_DMA)` immediately before/after each reconnect
+attempt (`free_bytes`, `free_blocks`, `largest_free_block`), and exposed the
+same fields on `get ceefaxStatus` for continuous polling. 5-minute soak,
+polled every 3s.
+
+**Code-level check first (ruled out one theory):** read
+`WiFiClientSecure`'s destructor and `stop_ssl_socket()` — both look
+structurally correct. `WebSocketsClient::loop()` `delete`s and `new`s a
+fresh `WiFiClientSecure` object on every reconnect attempt (not reusing
+one); the destructor calls `stop()`, which unconditionally frees
+`entropy_ctx`/`drbg_ctx`/`ssl_ctx`/`ssl_conf` and conditionally frees the
+CA cert. No missing free() call found by reading the code. **But the
+instrumented soak shows a real leak anyway** — the cleanup that looks
+correct on paper isn't accounting for everything that actually got
+allocated during a failed attempt (most likely something at the lwIP
+TCP-socket layer, underneath the mbedTLS-level cleanup that was checked).
+
+**The data**: attempt #2's before/after snapshot —
+`before(free=66180, blocks=12, largest=45044)` →
+`after(free=18808, blocks=16, largest=10228)` — one attempt cost **~47KB**,
+added **4 heap blocks that were never freed**, and dropped the largest
+contiguous block by more than 4×. For the remaining **~4.5 minutes** of the
+soak, `largest_free_block` sat at **exactly 10228 bytes, unchanged, every
+single poll** — a static number that never moved is a strong leak signal
+(ordinary WiFi/lwIP/other-task churn would show at least *some* fluctuation
+as those subsystems do their own normal alloc/free cycles). `free_blocks`
+also never dropped back below its post-attempt level for the rest of the
+soak.
+
+**This confirms it's a genuine leak, not fragmentation from other tasks
+occupying freed space** (the theory floated in the second follow-up above).
+Something in the connect-attempt path — most plausibly lwIP's TCP socket
+teardown on a failed/timed-out connect, since the mbedTLS-level cleanup was
+independently verified correct by reading the code — is not releasing
+everything it allocates. This is consistent with, and a much larger-scale
+version of, EXP-006's own smaller original observation on the narrower
+spike (`39968→37000` after one failure).
+
+**Concrete next step for whoever picks this up**: instrument (or find
+existing ESP-IDF tooling for) the lwIP socket/PCB layer specifically —
+confirm whether a failed/timed-out `lwip_connect()` leaves a TCP PCB or
+associated buffers alive after `lwip_close()`. If confirmed, the fix would
+be scoped to `ssl_client.cpp`'s socket-teardown path (a local patch to the
+vendored `WiFiClientSecure`, same precedent as `PATCH-003`'s stale-fd-close
+fix already in that file) rather than anything in `CeefaxTeletextSource`
+itself.
+
 ## Recommended next step
 
 Hand to PM for a scheduling decision among Options A/B/C above. This is a
