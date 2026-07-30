@@ -4224,3 +4224,8 @@ crash, never affects NOS or other apps), accept as a documented limitation
 alongside the already-accepted "may not connect at all" one, or send this back
 to R&D for a deeper look before M-CEEFAX closes out. Not treating this as
 closed by default.
+
+**Filed as [PROP-008](../rnd/proposals/PROP-008-ceefax-spotify-tls-degradation.md)
+(2026-07-30)** — three options (accept / further-mitigate / R&D isolation
+pass) laid out for PM/Architect scheduling. TASK-374 stays PARTIAL until
+that proposal is actioned.
