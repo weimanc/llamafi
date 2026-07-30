@@ -238,21 +238,76 @@ soak.
 
 **This confirms it's a genuine leak, not fragmentation from other tasks
 occupying freed space** (the theory floated in the second follow-up above).
-Something in the connect-attempt path — most plausibly lwIP's TCP socket
-teardown on a failed/timed-out connect, since the mbedTLS-level cleanup was
-independently verified correct by reading the code — is not releasing
-everything it allocates. This is consistent with, and a much larger-scale
-version of, EXP-006's own smaller original observation on the narrower
-spike (`39968→37000` after one failure).
+This is consistent with, and a much larger-scale version of, EXP-006's own
+smaller original observation on the narrower spike (`39968→37000` after one
+failure).
 
-**Concrete next step for whoever picks this up**: instrument (or find
-existing ESP-IDF tooling for) the lwIP socket/PCB layer specifically —
-confirm whether a failed/timed-out `lwip_connect()` leaves a TCP PCB or
-associated buffers alive after `lwip_close()`. If confirmed, the fix would
-be scoped to `ssl_client.cpp`'s socket-teardown path (a local patch to the
-vendored `WiFiClientSecure`, same precedent as `PATCH-003`'s stale-fd-close
-fix already in that file) rather than anything in `CeefaxTeletextSource`
-itself.
+## Fourth follow-up: `heap_caps_dump` narrows it to a specific, patchable candidate
+
+Added a full `heap_caps_dump(MALLOC_CAP_DMA)` right after a leaking attempt
+(temporary, kept in place alongside the other diagnostics). Sorted every
+block across all DMA heap regions by size; the top of the list:
+
+```
+20492 bytes  0x3ffb0318  Free: No
+16732 bytes  0x3ffeb1b4  Free: No
+16732 bytes  0x3ffe7054  Free: No
+```
+
+**Two identical 16732-byte blocks is a strong, specific match** for a single
+`mbedtls_ssl_context`'s `in_buf`/`out_buf` I/O buffers
+(`CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN=16384` + mbedTLS's per-buffer record
+overhead ≈ 16732) — this earlier follow-up's "lwIP socket layer" guess is
+superseded by this more specific evidence; it looks like an mbedTLS session
+object after all, just not the code path this proposal's earlier code
+reading covered.
+
+**Why the earlier code reading (WiFiClientSecure's destructor/`stop_ssl_socket()`
+— both structurally correct) didn't catch this**: those are called on the
+`connect()`-failure path. But this build never once logs a
+`WStype_CONNECTED` *or* a `WStype_DISCONNECTED` event across every soak run
+this session — the raw TLS handshake may be *succeeding* (a real session,
+with real buffers, gets established), with the failure happening one layer
+up, in the WebSocket protocol's own HTTP-Upgrade exchange on top of that
+already-open TLS session. Read `WebSocketsClient::clientDisconnect()`
+(the library's own teardown-on-failure path, called from e.g. a header-
+response-timeout) and found a real asymmetry there:
+
+```cpp
+if (client->isSSL && client->ssl) {
+    if (client->ssl->connected()) {   // only stop() if this reads true
+        client->ssl->flush();
+        client->ssl->stop();
+    }
+    delete client->ssl;               // deleted either way
+    ...
+}
+```
+
+`WiFiClientSecure::connected()` performs a `read(&dummy, 0)` and returns a
+cached `_connected` flag — plausible for this to read `false` at exactly
+the moment a peer has already reset/closed its side (a very ordinary
+outcome for "we opened a connection and nothing sensible ever came back"),
+skipping the explicit `stop()` call here. `~WiFiClientSecure()`'s own
+destructor (invoked by the `delete client->ssl` right after) *does*
+unconditionally call `stop()` again as a safety net — reading that
+destructor path alone, cleanup still looks like it should happen. Did not
+get further than this via static reading: confirming whether the
+destructor's safety net is actually skipped, or bypassed, or whether the
+object simply never reaches a `delete` at all in this specific failure
+branch, needs live stepping with a debugger attached — a bigger jump in
+tooling than fits this session.
+
+**Concrete next step for whoever picks this up**: attach a debugger (or add
+further targeted logging inside the vendored `WebSocketsClient.cpp`/
+`WiFiClientSecure.cpp`) around `clientDisconnect()`'s SSL branch and
+`WiFiClientSecure::connected()`'s `read()` call, specifically for the
+"header response timeout" / "no WStype event ever fires" case this
+project's real relay traffic reproduces reliably. If confirmed, the fix is
+a small local patch to the vendored `WebSocketsClient` and/or
+`WiFiClientSecure` (this project already has precedent for exactly this —
+`PATCH-003`'s stale-fd-close fix lives in the same `ssl_client.cpp`), not
+anything in `CeefaxTeletextSource` itself.
 
 ## Recommended next step
 

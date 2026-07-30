@@ -707,6 +707,9 @@ private:
                           (unsigned)hiBefore.largest_free_block,
                           (unsigned)hiAfter.total_free_bytes, (unsigned)hiAfter.free_blocks,
                           (unsigned)hiAfter.largest_free_block);
+                    // A one-off full heap_caps_dump(MALLOC_CAP_DMA) here (removed
+                    // after use) matched the leaked blocks to mbedTLS's ~16732B
+                    // SSL in_buf/out_buf pair — see PROP-008's fourth follow-up.
 #endif
                     if (_consecutiveAttempts == kMaxConsecutiveAttempts) {
                         LOG_W("ceefax", "giving up after %u consecutive attempts this session",
