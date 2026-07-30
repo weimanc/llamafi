@@ -89,8 +89,19 @@ def cmd_survey(args) -> None:
             time.sleep(1.2)  # stay under 1 req/s
 
 
+def resolve_latlon(args):
+    """--lat/--lon override SITES[args.site] (TASK-360: custom locations,
+    e.g. a device's actual configured PlaneRadar location, that aren't in
+    the baked SITES dict). Both must be given together."""
+    if (args.lat is None) != (args.lon is None):
+        sys.exit("--lat and --lon must be given together")
+    if args.lat is not None:
+        return args.lat, args.lon
+    return SITES[args.site]
+
+
 def cmd_capture(args) -> None:
-    lat, lon = SITES[args.site]
+    lat, lon = resolve_latlon(args)
     nm = fetch_radius_nm(args.preset)
     code, dt, nbytes, parsed, err = fetch(lat, lon, nm)
     if code != 200 or err:
@@ -132,7 +143,7 @@ def cmd_census(args) -> None:
 
 
 def cmd_soak(args) -> None:
-    lat, lon = SITES[args.site]
+    lat, lon = resolve_latlon(args)
     nm = fetch_radius_nm(args.preset)
     out = pathlib.Path(args.log)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -161,7 +172,7 @@ def cmd_hunt_max(args) -> None:
 
     Purpose: catch the daytime-peak worst case as fixtures/planeradar/busy_33km.json
     without babysitting (night captures are unrepresentative)."""
-    lat, lon = SITES[args.site]
+    lat, lon = resolve_latlon(args)
     nm = fetch_radius_nm(args.preset)
     FIXTURES.mkdir(parents=True, exist_ok=True)
     best = -1
@@ -208,6 +219,10 @@ def main() -> None:
     p.add_argument("--hunt-max", action="store_true",
                    help="with --soak/--interval/--capture: save body on each new ac-count max")
     p.add_argument("--site", choices=SITES, default="home")
+    p.add_argument("--lat", type=float, default=None,
+                   help="custom latitude, overrides --site (must pair with --lon)")
+    p.add_argument("--lon", type=float, default=None,
+                   help="custom longitude, overrides --site (must pair with --lat)")
     p.add_argument("--preset", type=int, choices=PRESETS_KM, default=10)
     p.add_argument("--interval", type=float, default=10.0)
     p.add_argument("--log", default=str(HERE / "fixtures" / "planeradar" / "soak.jsonl"))

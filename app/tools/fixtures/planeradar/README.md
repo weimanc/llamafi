@@ -17,6 +17,7 @@ human-readable copy (same data).
 | `soak.jsonl` | probe `--soak` log (not a fixture) | rolling | one JSON record per fetch: t/http/ms/bytes/ac/err |
 | `soak_evening.jsonl` | probe `--soak` log, second time-of-day sample (not a fixture) | 2026-07-10 21:19-22:18 | 350/350 HTTP 200; shortened by decision (~58 min vs 6h) — see phase0-api-probe.md |
 | `airports_preview.json` | OurAirports (davidmegginson/ourairports-data @ main), large_airport class — EHAM + EHRD only | 2026-07-10 | real runway-endpoint data for the Q4 preview-tool overlay (phase0-preview-ui.md); not an adsb.fi fixture |
+| `task360_london/london_{1s,5s,10s}_{0..7}.json` | live, central London/Westminster (51.50830078, −0.1253000 — the device's actual configured PlaneRadar location), 25 km preset (19.8 NM dist) | 2026-07-19 | TASK-360/EXP-015: 8 discrete samples each at nominal 1 s/5 s/10 s cadence (actual spacing ~2 s/~5 s/~11 s — adsb.fi's own refresh floors around 2 s); 62–70 aircraft/sample, busy London TMA; captured via `pr_adsb_probe.py --capture --lat --lon` (TASK-360's `--lat`/`--lon` override) |
 
 **Byte-size note:** `<name>.json` files are re-serialized compact
 (`json.dumps(…, separators=(",",":"))`), so their on-disk size differs
