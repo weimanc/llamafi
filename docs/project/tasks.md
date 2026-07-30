@@ -4330,3 +4330,20 @@ TASK-374, `PATCH-003` precedent · **Priority:** P2 (inherits TASK-374) ·
 **Status:** OPEN — scheduled 2026-07-30, not started.
 **Fallback if it can't land:** PROP-008 Option C (R&D debugger isolation), then
 Option A (human acceptance of the corrected ~42.6 KB cost).
+
+**EXP-019 correction (2026-07-30) — TASK-375's premise is contraindicated;
+re-scope before starting.** The Option-C isolation ran first (human chose C).
+Instrumenting the *vendored* `app/lib/WiFiClientSecure/ssl_client.cpp` showed:
+`stop_ssl_socket()` (the buffer free) **already runs constantly** — so TASK-375
+as written ("add an explicit `stop()`/cleanup") would be adding a call that
+already fires, and would **not** fix anything. The leak is not a simple missing
+free; the DMA behaviour is a **variable, network-dependent, metastable** churn
+(handshakes succeed then tear down; `freeDma` oscillates and *recovers* in some
+sessions, sticks low in others; transient dip to 6152 seen — the real crash
+risk, already gate-bounded). The confident "permanent ~42.6 KB session leak"
+from the DMA-recovery test is **walked back** (it was one metastable regime).
+**Status of TASK-375:** BLOCKED / re-scope pending — the concrete leads are now
+(a) out-of-band (non-`ets_printf`) instrumentation to get observer-effect-free
+dynamics across several sessions, and (b) checking `Links2004/arduinoWebSockets`
+for a release past `2.7.3` fixing `#864`. Direction escalated to human — this
+changed the fix direction. Full detail: `docs/rnd/reports/EXP-019-ceefax-tls-leak-isolation.md`.

@@ -411,6 +411,34 @@ not an unbounded per-visit accumulation (as this review first feared).
 
 Raw log + per-poll series: scratch `dma_recovery.py` / `.json` (not committed).
 
+### Correction (EXP-019, 2026-07-30) — the "permanent deterministic leak" model does not hold
+
+An Option-C isolation pass (instrumenting the **vendored**
+`app/lib/WiFiClientSecure/src/ssl_client.cpp` — *not* the framework copy;
+this project compiles its own, where `PATCH-001/003` live) walked back the
+confident wording above. Directly observed on-device:
+- **`stop_ssl_socket()` (which frees the mbedTLS I/O buffers) IS called
+  constantly** — cleanup is not skipped. The "cleanup never runs" mechanism
+  (this proposal's synthesis of upstream `#864`) is not what the instrumented
+  run shows.
+- **TLS handshakes SUCCEED then get torn down repeatedly** — the failure is
+  post-TLS (WebSocket-upgrade layer), and `freeDma` **oscillates** (66240 →
+  6152 → 74856 → …), hitting **6152** once (that transient low is the real
+  crash risk, not a permanent loss). End state was **variable** (one visit
+  ended depressed, the next recovered).
+- The earlier uninstrumented "stuck at 34052 forever" was one **metastable**
+  regime (gate latches closed after a heap dip, so no further churn fires the
+  recovering cleanup), **not** a hard unfreed allocation.
+
+**Two confounds** (blocking-`ets_printf` observer effect + genuine
+network/handshake-success variance between sessions) mean this is
+**inconclusive**, not a clean opposite verdict. Net: treat the ~42.6 KB figure
+as *one observed metastable session outcome*, not a fixed per-visit cost, and
+treat the `#864` root cause as a **candidate hypothesis, not settled**. The
+robust facts are narrower: per-attempt transient DMA allocation, dangerous
+`freeDma` dips under churn (gate-bounded), and variable network-dependent end
+state. Full detail + next steps: `docs/rnd/reports/EXP-019-ceefax-tls-leak-isolation.md`.
+
 ## Fifth follow-up: this is a known, documented upstream bug class, not a novel finding
 
 User asked directly: is mbedTLS open source, and can we check whether this
