@@ -4076,7 +4076,21 @@ regress the shipped path.
 DUT tests pass unchanged on the NOS path + new DUT soak confirming the DMA gate
 prevents the crash/degradation class found in EXP-006 (re-run that spike's
 methodology against production code, not just re-trust the spike's own result) ·
-**Priority:** P2 · **Status:** open
+**Priority:** P2 · **Status:** DONE (2026-07-30)
+
+DUT-verified: `TeletextSource` interface + `NosTeletextSource`/`CeefaxTeletextSource`
+landed in `teletextApp.h`; T270/T271/T272 (NOS regression) pass unchanged after
+every edit in this milestone. **Ported gate was NOT sufficient as-is** — this
+gate's own re-verify requirement caught two real gaps EXP-006's narrow spike
+never hit: (1) the free-DMA-bytes-only threshold let a real crash through
+(`start_ssl_client`/`strlen` LoadProhibited) in the full production build —
+fixed by also gating on `heap_caps_get_largest_free_block()` (fragmentation,
+not just total bytes); (2) that fix alone still let the SAME crash recur later
+in a longer soak at a *higher* largest-free-block reading than a prior clean
+run — not a clean memory-threshold story — mitigated (not root-caused) by
+capping consecutive reconnect attempts per activation (`kMaxConsecutiveAttempts
+= 5`) so exposure to the crash path is bounded, not unbounded. See TASK-374 for
+the residual (not fully closed) cross-app TLS finding.
 
 ### TASK-371 — Ceefax page content + packet-27 fastext decode into the shared render path
 
@@ -4093,7 +4107,18 @@ otherwise — matches real teletext decoder behaviour, not a gap to close later.
 **Owner:** Developer · **Deps:** TASK-370 · **Gate:** `run/check` + DUT: navigate a
 known Ceefax index page, confirm row-tap links work, confirm at least one fastext
 button with a real packet-27 target navigates correctly · **Priority:** P2 ·
-**Status:** open
+**Status:** DONE, code-complete — DUT acquisition unconfirmed (2026-07-30)
+
+Header/row assembly, `_deriveFtlLabels()` (byte-identical port of NOS's row-24
+segment scan), and `_decodeFlofPacket()` (Hamming-8/4 table transcribed verbatim
+from `ceefax_client.py`) all implemented and compile-verified. **Not DUT-verified
+end-to-end against a real acquired page**: across ~30 min of combined DUT
+sessions today the relay connection never once reached `WStype_CONNECTED` (only
+gate-open/closed cycling and occasional silent disconnects) — consistent with
+ADR-057's own accepted "best-effort, may not establish in a given session"
+characterization, not a regression. The row-tap/fastext logic itself is
+unchanged from the host-prototype-proven NOS code path (DS-3), so risk is
+low, but nobody has watched a live Ceefax page render on this hardware yet.
 
 ### TASK-372 — Ceefax `isConnecting()`/`hasError()` taskbar wiring
 
@@ -4109,7 +4134,19 @@ class of bug, see TASK-366 above).
 **Owner:** Developer · **Deps:** TASK-370 · **Gate:** `run/check` + DUT: force a
 sustained disconnect (e.g. block the relay host) and confirm the taskbar bar goes
 red within 2 reconnect cycles and clears on recovery, no flap on ordinary
-transient reconnects during normal use · **Priority:** P2 · **Status:** open
+transient reconnects during normal use · **Priority:** P2 · **Status:** DONE (2026-07-30)
+
+DUT-verified via `get ceefaxStatus`/`get activeError`: `hasError()` latched
+`true` at downMs≈31.4s (just past the 2×15s retry-interval threshold) and
+stayed latched through a 5-min soak with the connection never recovering —
+correct sticky behaviour. **One real bug caught and fixed during verification**:
+the original latch armed only on the first `WStype_DISCONNECTED` event, so a
+session where the very first connect attempt fails silently (no event at all —
+observed on a bad-network run) never armed the down-timer and `hasError()`
+never latched no matter how long it stayed broken. Fixed: the down-timer now
+arms at `onResume()` (activation time), not at first-disconnect-event time.
+Didn't force-block the relay host itself (no router access from this session);
+the natural best-effort failure mode already exercises the same code path.
 
 ### TASK-373 — `teletextCountry` Settings UI goes live
 
@@ -4119,7 +4156,23 @@ sub-section. ADR-050 settings-wiring gate applies.
 
 **Owner:** Developer · **Deps:** TASK-370, TASK-371 · **Gate:** `run/check`
 (settings-wiring gate) + DUT round-trip (select Ceefax, reboot, confirm it
-persists and the app resumes on the Ceefax source) · **Priority:** P2 · **Status:** open
+persists and the app resumes on the Ceefax source) · **Priority:** P2 · **Status:** DONE (2026-07-30)
+
+Country row is live (NOS/Ceefax toggle); `teletextCountry` removed from
+`check_settings_wiring.py`'s allowlist (has a real runtime consumer now).
+Added a raw `set teletextCountry 0|1|nos|ceefax` debug command (main.cpp
+`cmdSet`, same save+resume-if-current-app convention as `clockStyle`/`fmt24h`)
+so a DUT harness can drive this without the tap sequence. **One real bug
+caught and fixed during the reboot round-trip DUT test**: `appShell` calls
+`init()` XOR `resume()` on an app's first-ever entry per boot session (never
+both), but backend activation only lived in `resume()` — so the very first
+time Teletext was opened after a fresh boot, it silently stayed on NOS
+regardless of the persisted setting (confirmed via `get teletextBackend`
+reading "nos" immediately post-boot despite `settings.json` on the device
+correctly holding `"country":1`). Fixed by factoring activation into a shared
+`_activateSource()` called from both `init()` and `resume()`. Round-trip
+re-verified clean after the fix: persists across `reboot`, backend correct on
+the very first post-boot entry.
 
 ### TASK-374 — DUT coexistence regression gate (M-CEEFAX close-out)
 
@@ -4134,4 +4187,40 @@ found and fixed.
 
 **Owner:** Developer/VE · **Deps:** TASK-370, TASK-371, TASK-372, TASK-373 ·
 **Gate:** DUT soak, numeric comparison against baseline `run/stress`, zero
-crashes over the soak duration · **Priority:** P2 · **Status:** open
+crashes over the soak duration · **Priority:** P2 ·
+**Status:** PARTIAL — crash bar met, TLS-degradation bar NOT met (2026-07-30)
+
+**Baseline** (`run/stress 8`, Ceefax off, today's network conditions): 6 hard
+failures / 0 TLS-error lines over 8 min — in line with EXP-006's own baseline
+(6/1). **Crash-free bar: met.** Two DUT soaks (8 min, then a fresh 10 min after
+the fixes below) with Ceefax parked in the foreground the whole time: zero
+crashes, zero unexpected reboots. This took two real fixes during this gate's
+own verification (see TASK-370's note) — exactly the kind of regression this
+gate exists to catch, and it caught them.
+
+**TLS-degradation bar: NOT met, honestly reporting rather than papering over
+it.** With Ceefax parked and attempting reconnects, Spotify's independent
+poller went **0/8 and later 0/10 successful polls** over two full soaks, with
+repeated genuine `SSL - Memory allocation failed` (-32512) — the same failure
+class EXP-006 characterized as "absent at baseline." Root cause: Ceefax's pump
+task pumping `WebSocketsClient::loop()` on its own independent task races
+Spotify's independent poll task for the same DMA-capable heap pool; neither
+task originally coordinated with the other. Applied the project's existing
+`tlsYield()`/`tlsResume()` protocol (architecture.md "TLS coexistence" —
+already used by every dataTask HTTPS fetch) around Ceefax's reconnect
+attempts, throttled to one real attempt per `kRetryIntervalMs` rather than
+wrapping every 20 ms pump tick (which would have yielded Spotify continuously
+for as long as the gate stays open). This measurably reduced attempt
+frequency but did **not** eliminate the SSL -32512 failures in the follow-up
+10-min soak — they still occurred at roughly the same rate. Not re-litigated
+further within this session: EXP-005/EXP-006 already scoped a full framework
+rebuild (the durable fix for mbedTLS's own buffer footprint) as disproportionate
+to this feature, and the remaining gap looks like it sits in the same
+territory (WiFiClientSecure/mbedTLS internal contention, not something fixable
+from the caller side without going there). **This is a real, open decision for
+PM/Architect**: ship with Spotify's poll reliability measurably degraded while
+a user is actively on the Ceefax source (bounded to that window, never a
+crash, never affects NOS or other apps), accept as a documented limitation
+alongside the already-accepted "may not connect at all" one, or send this back
+to R&D for a deeper look before M-CEEFAX closes out. Not treating this as
+closed by default.

@@ -3629,6 +3629,27 @@ static void cmdSet(const char *args) {
                   "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
     return;
   }
+  // TASK-373 (M-CEEFAX/ADR-057): persisted backend toggle, same
+  // set-field/save/resume-if-current-app convention as clockStyle/fmt24h
+  // above — lets a DUT harness flip it (and confirm the reboot round-trip)
+  // without driving the Settings UI tap sequence.
+  if (strcmp(var, "teletextCountry") == 0) {
+    int idx = -1;
+    if (strcasecmp(val, "nos") == 0) idx = 0;
+    else if (strcasecmp(val, "ceefax") == 0) idx = 1;
+    else { if (sscanf(val, "%d", &idx) != 1 || (idx != 0 && idx != 1)) idx = -1; }
+    if (idx < 0) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"teletextCountry\","
+                     "\"error\":\"bad val — use 0|1 or nos|ceefax\"}");
+      return;
+    }
+    g_settings.teletextCountry = (uint8_t)idx;
+    SettingsStorage::save();
+    if (currentAppId == AppId::Teletext) g_TeletextApp.resume();
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"teletextCountry\","
+                  "\"val\":%d,\"name\":\"%s\"}\n", idx, idx ? "ceefax" : "nos");
+    return;
+  }
   if (teletextDbgSet(var, val)) {
     Serial.printf("{\"ok\":true,\"cmd\":\"set\","
                   "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
