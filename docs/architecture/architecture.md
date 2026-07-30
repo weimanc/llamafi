@@ -123,7 +123,11 @@ uses the ref-counted `tlsYield()`/`tlsResume()` protocol (BP-031 lineage).
 4. **WebRadio playback.** Station list via dataTask (country + bitrateMax filter) →
    `_play()` builds decoder arena + `wrpump` task → ICY title/PLEDIT scroll UI →
    auto-skip dead stations (ADR-045); fetch and playback are mutually exclusive
-   (TASK-289); `tlsYield()` brackets every non-Spotify TLS handshake.
+   (TASK-289); `tlsYield()` brackets every non-Spotify TLS handshake. Real per-block
+   peak audio envelope drives `VIS_VU` (ADR-056, amends ADR-009 for this path only —
+   Spotify's synthetic VU is unchanged): `wrpump`'s `audio_process_extern` hook writes
+   `vu::lLevelRef()`/`rLevelRef()` directly, single-writer swap with the UI thread's
+   synthetic path (X043).
 5. **Touch.** Shell samples XPT2046, delivers TouchPhase to the active app; taskbar
    gestures switch apps (player slot resolves via persisted mode — X022); Settings
    sections + KeyboardWidget capture per X029 ordering.
