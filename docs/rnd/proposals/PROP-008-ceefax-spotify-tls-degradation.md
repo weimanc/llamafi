@@ -309,6 +309,108 @@ a small local patch to the vendored `WebSocketsClient` and/or
 `PATCH-003`'s stale-fd-close fix lives in the same `ssl_client.cpp`), not
 anything in `CeefaxTeletextSource` itself.
 
+## Review (2026-07-30) — one material gap before the A/B/C decision
+
+An independent review of this proposal against the code, commits, and
+ADR-057 confirmed the evidence trail holds up (constants match
+`teletextApp.h`, the commit trail `a6b057d`/`08601c7`/`82022fa` maps to the
+follow-ups, and ADR-057's "eliminates the degradation" claim is genuinely
+contradicted — now amended). It also surfaced one material gap and two minor
+inaccuracies:
+
+**Material gap — Option A's core premise is untested and probably false.**
+Option A accepts the degradation as "bounded strictly to the window a user is
+actively on the Ceefax source." But this proposal's own fourth-follow-up
+theory (orphaned mbedTLS `in_buf`/`out_buf` buffers, leaked when
+`WebSocketsClient` deletes an inner `WiFiClientSecure` without freeing them)
+predicts the **opposite**: buffers already orphaned from prior deleted clients
+cannot be reclaimed when the *current* `_ws` is deleted on
+`onSuspend()`/`_teardownPumpTask()` (`teletextApp.h:630-632`). And each
+activation resets `_consecutiveAttempts = 0` (`:625`), granting a fresh budget
+of up to 5 leaking attempts **per visit**. If the leak is orphaned, the
+degradation is not window-bounded — it is a session-lifetime, device-wide
+regression, and Option A as written is not a legitimate option. This is the
+single fact that most changes the decision, and it was stated as a bound
+without being measured. The DMA-recovery test below settles it — confirming
+the leak persists across teardown (Option A's premise is false), while
+correcting this concern's initial fear that it compounds per-visit: the DMA
+gate self-limits further attempts, so the true cost is a one-time ~42.6 KB
+per-session loss, not an unbounded accumulation.
+
+**Minor — diagnostics doc inaccuracy.** The third follow-up says the
+diagnostics were "removed after this test, not shipped." They are still
+present in `teletextApp.h` (the `get ceefaxStatus` DMA fields at `:270-284`,
+unconditional; the per-attempt before/after `DIAG` log at `:686-713`, behind
+`SERIAL_DEBUG`), committed in `08601c7`/`82022fa`. "Not shipped" is true
+(debug-only for the `DIAG` line; the status fields ship but are read-only);
+"removed" is not — and the fourth follow-up explicitly *keeps* the dump, so
+the two sections contradict each other on whether instrumentation remains.
+
+**Minor — baseline is not strictly apples-to-apples.** The baseline is given
+as "6 hard failures / 0 TLS lines" with no poll-success count; the coexistence
+rows are "0/N poll success / 7–10 TLS lines." The clean signal (0 → 7–10
+TLS-error lines) carries the argument, but the table implies a symmetry the
+underlying metrics don't have.
+
+## DMA-recovery test (2026-07-30) — does the leak survive leaving Ceefax?
+
+Ran on `cyd2usb_winamp_debug`, ttyUSB1. Driver drives `switchApp` over serial
+and reads global DMA heap via `get heap` (`freeDma`/`lfbDma`, app-independent —
+unlike `get ceefaxStatus`, which only answers while Teletext is foreground).
+Baseline on Spotify (before any Ceefax visit), then 3 visits of `switchApp 8`
+(Teletext, park 60s) → `switchApp 0` (Spotify, `onSuspend()` →
+`_teardownPumpTask()` → `delete _ws`) → read free-DMA on Spotify after teardown.
+
+| Point | freeDma | lfbDma |
+|-------|---------|--------|
+| **Baseline** (Spotify, pre-Ceefax) | **76684** | **40948** |
+| Visit 1 — entered Teletext, pre-attempt | 66412 | 40948 |
+| Visit 1 — after 1st reconnect attempt | 20780 → 24968 | 16372 |
+| **Recovery after visit 1** (Spotify, pump torn down) | **34052** | **24564** |
+| Recovery after visit 2 | 34052 | 24564 |
+| Recovery after visit 3 | 34052 | 24564 |
+
+**Answer: the leak is NOT reclaimed on teardown — the "window-bounded" premise
+is false, definitively.** After the very first Ceefax visit, free-DMA
+never returns to its 76684 baseline. It plateaus at **34052 for the rest of
+the session** — a permanent **~42.6 KB** DMA-capable-heap loss that survives
+full pump-task teardown and persists while the user is back on Spotify (or any
+other app). Deleting `_ws` on `onSuspend()` does not free the leaked buffers,
+exactly as the orphaned-mbedTLS-buffer theory predicted.
+
+**Sharpest single confirmation**: `lfbDma` drops from 40948 to a permanent
+24564 — a loss of **exactly 16384 bytes** = `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN`,
+one mbedTLS content buffer, gone from the largest contiguous block and never
+returned. This is the same buffer the fourth follow-up's `heap_caps_dump`
+fingerprinted, now confirmed as permanently orphaned rather than transiently held.
+
+**One correction to this review's own earlier wording**: it does **not**
+compound unboundedly per visit. The plateau at 34052 across all three visits
+shows the cost is bounded at roughly *one* attempt's worth. The reason is
+self-limiting: once free-DMA is depressed, entering Teletext (its own ~10 KB
+app footprint) pushes free-DMA below `kMinFreeDmaForConnect`, so the gate
+never reopens and no further attempts fire (visits 2–3 leaked little/nothing
+more). So the accurate characterization is: **a one-time ~42.6 KB device-wide
+DMA loss triggered by the first Ceefax visit that fires an attempt, lasting
+until reboot** — not transient/window-bounded (as Option A claims), but also
+not an unbounded per-visit accumulation (as this review first feared).
+
+**Bearing on the options:**
+- **Option A** must be re-described honestly: not "degradation bounded to the
+  active-Ceefax window," but "the first Ceefax visit permanently costs the
+  device ~42.6 KB DMA / one mbedTLS content buffer of contiguous headroom for
+  the rest of the session, measurably degrading Spotify TLS even after the
+  user leaves Ceefax, until the next reboot." That is a materially different
+  product claim than the current Option A text; whether it is acceptable is
+  still PM's call, but it should be made against the true cost.
+- **Option B/C** are strengthened: because the cost is a permanent per-session
+  loss (not a transient one that clears when the user navigates away), the
+  explicit-`stop()`/cleanup fix (Option B's last bullet / Option C's vendored-
+  `WebSocketsClient` patch) now recovers ~42.6 KB that otherwise stays gone
+  for the whole session — a concrete, measurable win, not a marginal one.
+
+Raw log + per-poll series: scratch `dma_recovery.py` / `.json` (not committed).
+
 ## Recommended next step
 
 Hand to PM for a scheduling decision among Options A/B/C above. This is a

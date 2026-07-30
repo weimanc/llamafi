@@ -4239,3 +4239,21 @@ build's baseline idle headroom is simply close to/under the ported
 threshold most of the time. See PROP-008's "Follow-up isolation" section —
 this reframes the next lever to try as *lowering*
 `kMinFreeDmaForConnect`, not raising it.
+
+**DMA-recovery test (2026-07-30, DUT) — corrects the "bounded to that window"
+framing above.** A review of PROP-008 flagged that the "bounded to that window"
+claim (this task's own wording, and Option A's) was asserted but never
+measured, and PROP-008's leak theory predicted the opposite. Measured it:
+drove `switchApp` over serial, read global DMA via `get heap` across 3
+Teletext→Spotify visits. **Result: the degradation is NOT window-bounded.**
+Free-DMA never returns to its 76684 baseline after the first Ceefax visit —
+it drops permanently to 34052 (a **~42.6 KB session-lifetime loss**;
+`lfbDma` loses exactly 16384 B = one mbedTLS content buffer) and stays there
+across full pump-task teardown and all subsequent apps, until reboot. It does
+*not* compound unboundedly per visit (the DMA gate self-limits once heap is
+depressed), but the "leaving Ceefax gives the memory back" assumption is
+false. **Option A must be re-scoped against the true cost** (a one-time
+device-wide ~42.6 KB DMA loss triggered by the first Ceefax visit, degrading
+Spotify TLS even after the user leaves, until reboot). Strengthens Option B/C:
+the explicit `stop()`/cleanup fix now recovers a concrete, measurable ~42.6 KB.
+Full data in PROP-008's "DMA-recovery test" section; ADR-057 amended.
