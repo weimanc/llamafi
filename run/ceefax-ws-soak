@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# run/ceefax-ws-soak — M-CEEFAX DS-2 resource-contention soak
+# Flashes the Ceefax-WS-spike debug build (cyd2usb_winamp_debug_ceefaxspike —
+# persistent WSS connection to the live Ceefax relay, always-on from setup(),
+# see app/src/ceefaxWsSpike.h), runs the same multi-app fetch-cycling plan as
+# run/stress concurrently while polling heap + spike connection status, prints
+# a combined report, then restores production firmware + monitor.
+#
+# Usage: ./run/ceefax-ws-soak            # 15-min soak (default)
+#        ./run/ceefax-ws-soak 5          # 5-min soak
+#        MINUTES=20 ./run/ceefax-ws-soak
+#
+# For the A/B baseline (spike OFF, same fetch plan + heap polling, no Ceefax
+# connection at all): ENV_SPIKE=cyd2usb_winamp_debug ./run/ceefax-ws-soak 15
+# test_ceefax_ws_soak.py's `get ceefaxSpike` poll no-ops gracefully against a
+# build that doesn't define that command — same script, true apples-to-apples.
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+MINUTES="${MINUTES:-${1:-15}}"
+ENV_SPIKE="${ENV_SPIKE:-cyd2usb_winamp_debug_ceefaxspike}"
+PORT=$(resolve_port)
+
+_RC=0
+_cleanup() {
+  local rc=$_RC
+  echo ""
+  echo "[ceefax-ws-soak] restoring $ENV_PROD (rc=$rc so far)"
+  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT") || {
+    echo "ERROR [ceefax-ws-soak]: prod restore failed" >&2; rc=99; }
+  echo "[ceefax-ws-soak] restarting monitor"
+  tmux new-session -d -s "$SESSION" \
+    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'" \
+    2>/dev/null || true
+  exit "$rc"
+}
+trap _cleanup EXIT INT TERM
+
+echo "[ceefax-ws-soak] 1/4 — killing monitor"
+tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+
+echo "[ceefax-ws-soak] 2/4 — flashing $ENV_SPIKE to $PORT"
+(cd "$PIO_DIR" && "$PIO" run -e "$ENV_SPIKE" -t upload --upload-port "$PORT")
+
+echo "[ceefax-ws-soak] 3/4 — waiting ${BOOT_WAIT}s for boot + WiFi"
+sleep "$BOOT_WAIT"
+
+echo "[ceefax-ws-soak] 4/4 — soaking ${MINUTES} min"
+(cd "$PIO_DIR" && "$VENV_PY" tools/test_ceefax_ws_soak.py --port "$PORT" --minutes "$MINUTES" ${CEEFAX_SOAK_VERBOSE:+--verbose}) \
+  || _RC=$?

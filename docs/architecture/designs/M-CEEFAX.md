@@ -1,10 +1,16 @@
 # Design — M-CEEFAX: NMS Ceefax Live Teletext (proposal)
 
 > Owner: Architect
-> Status: proposal — pre-ADR, host-prototype only, no DUT/firmware work done
+> Status: proposal — pre-ADR, but fully closed out. DS-6, DS-2, DS-7 all
+>   resolved. DS-2 (EXP-006): real TLS contention, root-caused to a
+>   DMA-memory capacity ceiling; crash-prevention mitigation DUT-verified;
+>   **decision locked 2026-07-29 to accept best-effort connectivity, framework
+>   rebuild explicitly not pursued** — see DS-2. DS-7: full 6h observation
+>   complete, 1 outage (initial acquisition), zero drops thereafter. Nothing
+>   left open pending an ADR/scheduling call.
 > Date: 2026-07-29
 > Feeds: none yet (would need a new ADR if scheduled)
-> Feeds from: EXP-005
+> Feeds from: EXP-005, EXP-006
 
 ---
 
@@ -98,25 +104,124 @@ the standard Arduino choice with WSS support via `WiFiClientSecure` (not current
 
 ---
 
-### DS-2: Resource contention with existing fetchers
+### DS-2: Resource contention with existing fetchers — RESOLVED 2026-07-29 (DUT-confirmed)
 
-**The real risk, not a formality.** A persistent second TLS socket held open
-concurrently with `dataTask`'s periodic short-lived TLS fetches (weather/crypto/stock/
-NOS teletext, whichever else is active) is the same failure class already fought
-through in the WebRadio TLS/heap incidents (TASK-285 boot-time WDT crash, TASK-287
-`tlsYield` concurrent-caller race, TASK-289 fetch/playback heap race — see project
-memory `project_tlsyield_starvation`). WebRadio earned its continuous-connection
-architecture the hard way, across several DUT-crash cycles. Ceefax would be a *second*
-continuously-open TLS socket class on top of that, not a replacement for it — the two
-could in principle be foregrounded at overlapping times (Ceefax app active while
-WebRadio plays in the background, if that's ever a supported combination) and would
-then be competing for the same finite TLS buffer / heap headroom that `dataTask`
-already budgets tightly for.
+**The real risk, not a formality — and now confirmed on hardware, not just
+theorized.** A persistent second TLS socket held open concurrently with
+`dataTask`'s periodic short-lived TLS fetches (weather/crypto/stock/NOS
+teletext) is the same failure class already fought through in the WebRadio
+TLS/heap incidents (TASK-285 boot-time WDT crash, TASK-287 `tlsYield`
+concurrent-caller race, TASK-289 fetch/playback heap race — see project memory
+`project_tlsyield_starvation`).
 
-**Lean (not a resolved question — flagged for whoever picks this up):** validate
-concurrent persistent-WS + `dataTask` heap/TLS behavior on actual DUT hardware *before*
-committing to the architecture, not as a hardening pass afterward. This is exactly the
-order-of-operations mistake that cost multiple TASK-2xx cycles on WebRadio.
+**DUT spike result (EXP-006):** a minimal always-on WebSocket task
+(`app/src/ceefaxWsSpike.h`, `rnd/ceefax` branch) attempting a real connection
+to the live Ceefax relay was run concurrently with `dataTask`'s normal
+multi-app fetch cycling. Compared against a no-spike baseline on identical
+firmware: Spotify's TLS layer, which at baseline only shows the already-known
+TASK-243 403 (external, unrelated) and an occasional benign stale-fd
+condition, starts failing with genuine `SSL - Memory allocation failed` and
+(once) `X509_CERT_VERIFY_FAILED` when the spike runs — a failure mode absent
+at baseline. Heap itself didn't show a monotonic leak (oscillated and
+recovered across the soak, consistent with ordinary fetch churn) and no
+device reboot occurred — the contention is in TLS-specific resource limits
+(buffer pool / concurrent-session ceiling), not general heap exhaustion.
+**Notably, this reproduced even though the spike's own connection never
+reached a stable connected state** — the repeated connection *attempts*
+(TLS handshake setup/teardown on a 3s retry cycle) were enough on their own.
+
+**Numeric confirmation (same day):** a side-by-side run of the unmodified
+`run/stress` tool (no Ceefax code at all) over the identical 8-minute,
+5-fetcher plan gives an exact comparison, not just error-string matching:
+**6 hard failures / 1 TLS-error line at baseline vs. 25 hard failures / 11
+TLS-error lines with the spike running** — roughly 4× and 11× respectively.
+Per-fetcher success collapses across nearly every category (crypto and
+teletext: 100%→0%; weather: ~71%→~17%).
+
+See EXP-006 for the full methodology, real build obstacles hit (PlatformIO
+LDF quirks, DRAM budget, the ADR-042 ELF-verification gate), and data.
+
+**Lean: confirmed — a persistent Ceefax connection is a real, DUT-verified
+resource-contention risk, not a hypothetical one.** Any production
+implementation needs this designed around from the start (matching WebRadio's
+own hard-won lesson), not treated as a hardening pass after the fact.
+
+**Root-cause follow-up (same day): it's a capacity ceiling, not a scheduling
+race — and it cuts both ways.** Chased the "spike's own connection never
+stabilizes" loose end (user asked directly whether DS-2 is solvable). With
+Spotify entirely disabled, the spike *still* failed to connect 100% of the
+time — ruling out cross-app contention as the cause of its own failures. A
+raw-TLS diagnostic (bypassing `WebSocketsClient`'s own error-swallowing log)
+found the real error: `lastError() == -32512 "SSL - Memory allocation
+failed"` — the *same* error Spotify hits, occurring even completely alone,
+coinciding with free DMA-capable heap around ~35KB at the attempt (vs.
+~62-105KB when other connections succeed earlier in boot). A second attempt
+under this condition **crashed the device** (Guru Meditation Error,
+LoadProhibited) — a more serious finding than "TLS degrades."
+
+**Mitigation implemented and DUT-verified**: gate whether
+`WebSocketsClient::loop()` gets pumped at all on a free-DMA threshold — an
+established connection is served normally regardless, but reconnect attempts
+simply don't fire while memory is tight (matches the "check the budget before
+allocating" discipline already used for the WebRadio decoder arena elsewhere
+in this codebase). Verified on DUT: no further crash, no further failed-
+attempt spam. **This is not a complete fix**: a failed attempt appears to
+permanently cost a few KB of DMA headroom that doesn't recover in-session
+(observed 39968→37000 bytes after one failure), and since the gate's
+threshold sits close to steady-state idle free-DMA, the very first attempt
+can tip it closed for the rest of a session — the connection may simply never
+establish, even though nothing crashes anymore. **Answer to "is DS-2
+solvable": yes for the crash/degradation (verified), not yet for reliable
+connection establishment** — the durable fix likely also needs to reduce the
+memory footprint required per attempt, not just decide more carefully when to
+try. See EXP-006's root-cause follow-up section for full detail.
+
+**This project already has a formal DMA budget, and already solved this exact
+class of problem once** — checked *after* the empirical probing above, not
+before (should have been the first move). `app/mem_manifest.yaml` documents
+`ceiling.DMA = 48000` bytes, validated by `run/check`'s `gen_mem_layout` gate;
+the empirically-found failure/success boundary (fails ~35-40K, succeeds
+~50-62K+) brackets that number consistently. Zero buffers are currently
+registered `caps: DMA` in the manifest — this pool is entirely outside the
+formal budget system today, consistent with `M-MEMBUDGET-memory-budget.md`'s
+own note that WiFi/LWIP/mbedTLS overhead is untracked/unfreeable.
+`EXP-010-membudget-spike.md` already fought this exact DMA scarcity for
+WebRadio's I2S path (measured `lfbDma` at idle in essentially the same
+~35-37K range) and fixed it with `PATCH-MEMBUDGET-4` — halving the I2S DMA
+ring (`dma_buf_len` 512→256) freed ~24K with no audible quality loss.
+
+**mbedTLS's direct analog turned out to be blocked, not just unattempted —
+investigated, not assumed.** `CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN`/
+`OUT_CONTENT_LEN` (default 16KB each) looked like the obvious next step, but
+unlike I2S's `dma_buf_len` (a plain runtime struct field), these are
+**compile-time values baked into this project's precompiled
+`framework = arduino` binary** — confirmed via the shipped sdkconfig
+(`CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN=16384`), not overridable via project
+`build_flags`. Checked for a runtime alternative too (RFC 6066 Max Fragment
+Length negotiation) — also unavailable, that support isn't compiled into this
+framework build at all, and `WiFiClientSecure`'s Arduino wrapper exposes no
+buffer-size configuration either. Closing this gap needs rebuilding the
+framework from source — a materially bigger commitment than this spike's
+scope, not a quick follow-up.
+
+Both follow-ups from the prior draft are now resolved (numeric baseline: done,
+see above; footprint reduction: investigated and found infeasible without a
+framework rebuild, not silently dropped).
+
+**DECISION LOCKED 2026-07-29: accept best-effort connectivity. The framework
+rebuild is explicitly NOT being pursued.** The crash-prevention mitigation
+(DMA-gated reconnect, DUT-verified) is the shipped answer to DS-2 — a Ceefax
+connection may not always establish in a given session, but it will not crash
+the device or degrade other apps' TLS reliability once the mitigation is in
+place. Both framework-rebuild paths considered (switch to `framework =
+espidf` for the whole project; fork-and-custom-build the precompiled
+`framework-arduinoespressif32` package) were judged disproportionate to a
+feature that isn't shipped or scheduled — real, bounded work, but not worth
+doing speculatively. If full connection reliability is ever required later,
+the path is recorded (`CONFIG_MBEDTLS_SSL_VARIABLE_BUFFER_LENGTH` via a
+rebuilt framework — see EXP-006), but it is a deliberately deferred decision,
+not an oversight, and should not be re-litigated without a concrete reason
+best-effort connectivity stops being acceptable.
 
 ---
 
@@ -157,18 +262,31 @@ behaviour (real teletext decoders do the same), not a fallback state.
 
 ---
 
-### DS-4: TLS root CA
+### DS-4: TLS root CA — corrected 2026-07-29 (initial finding was wrong)
 
-**Confirmed** (`openssl s_client`, 2026-07-29): `internal.nathanmediaservices.co.uk`
-chains through Let's Encrypt's ECDSA hierarchy — leaf → `Let's Encrypt YE2`
-(intermediate) → `ISRG Root YE` (cross-signed intermediate) → **ISRG Root X2**
-(self-signed root).
+**Original finding (wrong):** `internal.nathanmediaservices.co.uk` chains leaf →
+`Let's Encrypt YE2` → `ISRG Root YE` → **ISRG Root X2**, and the last hop's subject
+being "ISRG Root X2" was read as "self-signed root, needs a brand-new pinned cert."
+That was a mistake — the actual served chain has one more cert: the "ISRG Root X2"
+certificate presented here is itself signed **by ISRG Root X1**, i.e. this is the
+commonly-served *cross-signed* X2, not the self-signed X2 root.
 
-This is **not** the ISRG Root X1 already bundled in `dataTaskCerts.h` for other
-fetchers — X1 is RSA, X2 is ECDSA, and embedding one does not cover the other. A new
-`TELETEXT_CEEFAX_ROOT_CA` (ISRG Root X2 PEM) would need adding before first DUT
-connect attempt, following the existing `dataTaskCerts.h` convention (see its
-multi-root-bundle precedent for CoinGecko/radio-browser).
+**Corrected, verified empirically:** `openssl verify -CAfile <the existing
+OPEN_METEO_ROOT_CA PEM> -untrusted <server's YE2+RootYE+cross-signed-X2>
+<leaf>` → `OK`. The chain verifies against the **X1 root already pinned** in
+`dataTaskCerts.h` — no new certificate is needed. This is the exact same shape
+already documented for `NOMINATIM_ROOT_CA` in that file (`leaf <- YR1 <- ISRG Root
+YR <-(cross-signed by)- ISRG Root X1`) — Ceefax's relay just has a different
+Let's Encrypt intermediate generation (YE vs. YR) hitting the identical pattern.
+
+**Lean:** alias, don't add a new cert — `#define CEEFAX_ROOT_CA OPEN_METEO_ROOT_CA`,
+same as `RADIO_BROWSER_ROOT_CA`/`NOMINATIM_ROOT_CA`. Carries the same caveat those
+two already carry: this depends on `nathanmediaservices.co.uk` continuing to serve
+the cross-signed intermediate. If it's ever dropped (typical once X2's self-signed
+form has broad store coverage), verification against X1 alone breaks — remediation
+is a two-root bundle (`COINGECKO_ROOT_CA` pattern), not a replacement cert. `./run/
+check-datatask-certs`-style monitoring would catch that regression the same way it
+already does for the other aliased fetchers.
 
 ---
 
@@ -280,31 +398,61 @@ Reconnecting every 3s and succeeding a moment later is normal operation, not an 
 a certificate/handshake failure (won't self-heal by retrying, matches ADR-046's own
 definition verbatim), or N consecutive failed reconnect attempts / a connection-down
 duration past some multiple of the backoff interval (genuinely sustained, not
-transient). **The exact threshold isn't picked here** — this needs either a DUT
-observation of real-world reconnect failure patterns, or an explicit Architect call,
-before implementation; flagging the shape of the answer, not the number.
+transient).
+
+**Update 2026-07-29 (EXP-006, complete):** a long-running host-side observer
+(`app/tools/ceefax_reconnect_observer.py`, `--hours 6`) characterized real drop
+frequency/duration against the live relay. **Result: 1 outage in the full 6h
+session — the initial 7.5s acquisition — zero disconnects for the remaining
+~5h59m52s.** Lean: **N≥2 consecutive failed reconnect attempts** (≈6s of
+continuous failure) as the `hasError()` threshold — no false-positive risk
+against this session's behaviour, while still catching a genuine outage within
+two retry cycles.
+
+**Real limitation, not glossed over:** one long session with zero observed
+outages tells us drops are rare; it says nothing about how the relay actually
+*recovers* from a real one (clean reacquisition? state reset needed?
+duration?), since none occurred to observe. The threshold is reasonable given
+available data, not proven against real outage-recovery behaviour. More
+confidence (different time of day / day of week) would need another
+observation run, not a re-read of this one.
 
 ---
 
 ## Lean / decision
 
-DS-6 resolved above (Option B — one `TeletextApp`, pluggable `TeletextSource`
-backend). No ADR yet: this repo's convention (see M-TELETEXT/ADR-044) is to write the
-ADR once the design is truly ready to schedule, and DS-2 (resource-contention DUT soak
-test) still gates that — it's not resolvable on host, and getting it wrong is exactly
-the class of mistake that cost several TASK-2xx cycles on WebRadio. Recommend: run the
-DS-2 soak test, then write the ADR covering both decisions together.
+DS-6, DS-2, and DS-7 are all resolved, and DS-2's implementation-level decision
+is locked. DS-6: one `TeletextApp`, pluggable `TeletextSource` backend
+(Option B). DS-2 (EXP-006, DUT-confirmed, numerically measured — ~4-11× worse
+than baseline): a persistent Ceefax connection is real, measurable
+TLS-resource contention, root-caused to a DMA capacity ceiling. A
+crash-prevention mitigation is DUT-verified; full connection reliability would
+need a framework rebuild (two paths scoped, both investigated), and **the
+decision is locked to accept best-effort connectivity instead of pursuing
+that rebuild** — deliberate, not deferred by default. DS-7 (EXP-006, full 6h
+observation): drops are rare (1 outage — initial acquisition — in 6 hours),
+`hasError()` threshold set at N≥2 consecutive failures.
+
+No ADR yet — this repo's convention (see M-TELETEXT/ADR-044) is to write the
+ADR once the design is truly ready to schedule — but every design question
+and implementation decision this proposal needed is now closed. Nothing
+remaining is an open unknown; what's left is purely a PM/Architect scheduling
+call on whether to proceed to production at all, not more design work.
 
 ---
 
 ## Open questions
 
-1. DS-2 resource contention — needs a DUT soak test (persistent WS + concurrent
-   `dataTask` fetch), not resolvable on host. Now the only *engineering* blocker on
-   an ADR (DS-6 resolved above).
-2. DS-7 `hasError()` sustained-failure threshold — needs either real-world DUT
-   reconnect-failure observation or an explicit Architect call; the shape of the
-   answer is proposed above, the exact number isn't.
+1. ~~DS-2 resource contention~~ — **resolved** (EXP-006, DUT-confirmed real
+   contention, root-caused to a DMA capacity ceiling, numerically measured).
+   Both follow-ups closed: numeric `run/stress` baseline done; mbedTLS
+   footprint reduction investigated and found to need a framework rebuild.
+   **Decision locked**: accept best-effort connectivity, do not pursue the
+   rebuild.
+2. ~~DS-7 `hasError()` sustained-failure threshold~~ — **resolved** (EXP-006:
+   full 6h observation, 1 outage — initial acquisition — zero drops thereafter;
+   threshold N≥2 consecutive failed reconnects). Caveat: says drops are rare,
+   not how the relay recovers from a real one, since none occurred to observe.
 
 **Waived 2026-07-29** (not pursued, not resolved): whether `nmsceefax.co.uk`'s relay
 is a service the project wants a firmware dependency on long-term (single enthusiast
@@ -317,13 +465,19 @@ consciously set aside, not missed.
 ## Exit criteria (if scheduled)
 
 - DS-6 lean (Option B, above) confirmed in an ADR alongside DS-2's outcome.
-- DUT soak test proves persistent Ceefax WS + concurrent `dataTask` fetch does not
-  reproduce the TASK-285/287/289 class of heap/TLS starvation.
+- ~~DS-2's confirmed contention (EXP-006) has a mitigation~~ — **done**: the
+  DMA-gated reconnect mitigation is DUT-verified (stops the crash and
+  failed-attempt churn). Full connection reliability would need a framework
+  rebuild — investigated, scoped, and **explicitly declined**: the decision is
+  locked to accept best-effort connectivity as a documented limitation, not an
+  open gap. An ADR for this milestone should record that decision, not
+  re-open the investigation.
 - `preview_teletext.py --source ceefax` (this spike's prototype, now merged into the
   existing tool — see "What's proven") gets a settings-driven start page, closing the
   remaining gap with the NOS source's coverage, before firmware work starts. (Fastext
   packet-27 decode is already done — see DS-3.)
-- `TELETEXT_CEEFAX_ROOT_CA` added to `dataTaskCerts.h`.
+- `CEEFAX_ROOT_CA` alias added to `dataTaskCerts.h` (`= OPEN_METEO_ROOT_CA`, per DS-4 —
+  no new cert needed, confirmed by verification, not just chain-reading).
 - `isConnecting()`/`hasError()` implemented per DS-7's lean, with a concrete
   sustained-failure threshold for `hasError()` decided (not left as "some N").
 - `run/check` (5-gate) passes clean once firmware lands.

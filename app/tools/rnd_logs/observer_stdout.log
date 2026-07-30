@@ -1,0 +1,12 @@
+Observing page 100, logging to app/tools/rnd_logs/ceefax_reconnect_log.jsonl
+Ctrl-C to stop and print summary.
+
+[    0.0s] LOST           status=connecting
+[    7.5s] FIRST ACQUIRE  (outage 7.5s)
+--hours deadline reached
+
+--- summary over 6.00h, 3 status transitions ---
+time to first acquire: 7.5s
+outages logged: 1
+  min: 7.5s  median: 7.5s  max: 7.5s
+  all: [7.5]

@@ -124,6 +124,9 @@ char clientSecret[200];
 #include "taskbar/taskbar.h"
 #include "dataTask.h"
 #include "settingsStorage.h"
+#ifdef CEEFAX_WS_SPIKE
+#include "ceefaxWsSpike.h"  // M-CEEFAX DS-2 spike, rnd/ceefax only
+#endif
 
 AppId currentAppId = AppId::Spotify;
 static AppId g_previousAppId = AppId::Spotify;
@@ -2492,6 +2495,9 @@ void setup()
   mb_heap_probe("post-spotifyTask");  // TASK-261 Phase 0 milestone M2
   dataTask::begin();
   mb_heap_probe("post-dataTask");     // TASK-261 Phase 0 milestone M3
+#ifdef CEEFAX_WS_SPIKE
+  ceefaxWsSpike::begin();  // M-CEEFAX DS-2 spike — always-on, see file header
+#endif
 
   // Boot: init the Spotify app via the App interface, then draw taskbar.
   if (g_apps[(int)AppId::Spotify]) {
@@ -3118,6 +3124,21 @@ static void cmdGet(const char *args) {
                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
     return;
   }
+#ifdef CEEFAX_WS_SPIKE
+  // M-CEEFAX DS-2 spike diagnostic — confirms the spike is actually connected
+  // and exercising the socket during a soak, not silently failed. rnd/ceefax only.
+  if (strcmp(args, "ceefaxSpike") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"ceefaxSpike\","
+                  "\"connected\":%s,\"connects\":%u,\"disconnects\":%u,"
+                  "\"msgs\":%u,\"bytes\":%u,\"last\":true}\n",
+                  ceefaxWsSpike::s_connected ? "true" : "false",
+                  (unsigned)ceefaxWsSpike::s_connectCount,
+                  (unsigned)ceefaxWsSpike::s_disconnCount,
+                  (unsigned)ceefaxWsSpike::s_msgCount,
+                  (unsigned)ceefaxWsSpike::s_bytesTotal);
+    return;
+  }
+#endif
   if (strcmp(args, "weatherReady") == 0) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\","
                   "\"ready\":%s,\"last\":true}\n", s_wxDataReady ? "true" : "false");

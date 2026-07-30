@@ -140,14 +140,19 @@ intended `(linksubcodeandmags & 0x3F7F) == 0x3F7F`). `decode_flof_packet()` impl
 the intended check, not the buggy one — flagged in case anyone cross-references
 against the live site's own behaviour and finds a discrepancy on genuinely-unset links.
 
-#### Finding 7 — New TLS root required
+#### Finding 7 — No new TLS root needed (corrected 2026-07-29 — original finding was wrong)
 
-`internal.nathanmediaservices.co.uk` chains through Let's Encrypt's **ECDSA** hierarchy
-(leaf → `Let's Encrypt YE2` → `ISRG Root YE` → **ISRG Root X2**, self-signed). This is
-a *different* root than the ISRG Root X1 already bundled in `dataTaskCerts.h` for other
-fetchers (Open-Meteo, CoinGecko, Radio-Browser) — X1 is RSA, X2 is ECDSA; embedding one
-does not cover the other. A new `TELETEXT_CEEFAX_ROOT_CA` (ISRG Root X2 PEM) would be
-needed before first DUT connect attempt.
+`internal.nathanmediaservices.co.uk` chains leaf → `Let's Encrypt YE2` → `ISRG Root
+YE` → a cert whose subject is "ISRG Root X2". The original write-up of this finding
+read that last hop as "self-signed X2 root, needs a brand-new pinned cert" — wrong:
+the cert actually served here is signed **by ISRG Root X1** (the commonly-served
+cross-signed form of X2, not the self-signed X2 root). Verified with `openssl
+verify -CAfile <the OPEN_METEO_ROOT_CA PEM already in dataTaskCerts.h> -untrusted
+<server's intermediates> <leaf>` → `OK`. No new cert is needed — same pattern
+`dataTaskCerts.h` already documents for `NOMINATIM_ROOT_CA` (a different Let's
+Encrypt intermediate generation, identical cross-sign-to-X1 shape). Same caveat
+those aliases carry: depends on the server continuing to serve the cross-signed
+intermediate; if dropped, needs a two-root bundle, not a new single cert.
 
 #### Finding 8 — Transport architecture doesn't fit `dataTask`'s poll pattern
 
