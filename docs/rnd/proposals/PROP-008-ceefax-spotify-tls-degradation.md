@@ -87,6 +87,15 @@ session, each independently testable:
   38000/20000 — untested whether a much higher bar (e.g. requiring near-idle
   freeDma) reduces the actual race window enough to matter, at the cost of
   Ceefax essentially never getting to attempt at all on this board.
+- **Or the opposite — lower `kMinFreeDmaForConnect`.** See the follow-up
+  isolation below: this build's idle baseline (~36-37K) sits at or below
+  the ported 38000 threshold most of the time regardless of Spotify, so the
+  gate mostly never opens at all today. `lfbDma` stayed healthy (30708) in
+  that same window, so it may be specifically the free-byte number, not
+  fragmentation, that's over-conservative for this build. Lowering it would
+  let more attempts through (more chances to actually connect, but also
+  more exposure to whatever causes the -32512 degradation) — needs a fresh
+  multi-minute soak before trusting, not a quick check.
 
 **Option C — Send back to R&D for a deeper isolation pass.** The mbedTLS/
 WiFiClientSecure internal-state theory (from finding #2 above — same crash
@@ -98,23 +107,66 @@ accumulate state (vs. a fresh object each attempt) would either explain
 finding #2 or rule it out — which also bears on how confident Option A/B's
 numbers should be trusted going forward.
 
+## Follow-up isolation (2026-07-30, same session, human-requested)
+
+Ran the same live-diagnostic check (`get ceefaxStatus` polled every ~8s over
+60s, Ceefax parked in foreground) on `cyd2usb_winamp_debug_noSpotify`
+(`-DDISABLE_SPOTIFY`, skips `spotifyTask::begin()` entirely — Spotify not
+merely idle, not running at all) — the same isolation EXP-006 ran for the
+original spike, re-verified against the real production build.
+
+**Result: the DMA gate never opened once in 60s** — `freeDma=36784` at
+switch-in, gate log line printed once ("CLOSED (low DMA)") and never again
+for the rest of the window; `ceefaxStatus.connected` stayed `false` the
+whole time, `hasError` latched at ~34s — visually and numerically
+indistinguishable from the with-Spotify runs above.
+
+**This changes the read on the finding.** With Spotify entirely removed,
+the connection still never got a chance to attempt at all, because this
+build's baseline idle free-DMA (~36-37K) sits at or below
+`kMinFreeDmaForConnect` (38000) most of the time — not because Spotify is
+competing for it. In the with-Spotify soaks, the gate *did* occasionally
+open (freeDma spiking to 63-66K); the working theory now is that this
+was Spotify's own connection cycling transiently freeing memory, giving
+Ceefax its only windows to attempt anything — take Spotify away and that
+periodic freeing event disappears too, so the gate just stays shut.
+`lfbDma=30708` in this run — comfortably above the 20000 contiguous-block
+floor — so it's specifically the raw free-byte threshold, not
+fragmentation, blocking attempts here.
+
+This resolves the "isolate whether Spotify contention causes the *failure
+to attempt*" unknown below with a clear answer (no), and turns Option B's
+"raise the DMA thresholds" lever into a more specific, concrete one:
+**`kMinFreeDmaForConnect` (38000) was tuned against `ceefaxWsSpike.h`'s
+narrower harness (~40-45K idle free-DMA); this build's real idle headroom
+is lower (~36-37K)** — the threshold may simply need lowering (with the
+contiguous-block check retained) to let more attempts through on this
+board, rather than raising it. Not yet tried — the risk is exactly the
+crash class TASK-370 already fought (a lower byte threshold with an
+already-healthy contiguous block might be fine, but should be re-soaked
+before trusting it, per [[persistent-conn-dma-gate-pattern]]).
+
 ## Risks / unknowns
 
 - Today's network conditions (WiFi RSSI, upstream relay behavior) were not
-  independently varied — both soaks ran back-to-back on the same evening.
-  Per this project's own WiFi-flakiness history (`project_wifi_flapping_ap_side`
-  memory), day-to-day network variance is real; the 0/8 → 0/10 consistency
-  is suggestive but not a multi-day-confirmed number the way EXP-006's own
-  4×/11× baseline comparison was.
+  independently varied — both TLS-degradation soaks ran back-to-back on the
+  same evening. Per this project's own WiFi-flakiness history
+  (`project_wifi_flapping_ap_side` memory), day-to-day network variance is
+  real; the 0/8 → 0/10 consistency is suggestive but not a multi-day-confirmed
+  number the way EXP-006's own 4×/11× baseline comparison was.
 - Whether the -32512 failures are caused by DMA contention *during* the
   handshake attempt itself, or by a lingering effect from a *previous*
-  attempt (per finding #2's residual-headroom theory), wasn't isolated —
-  this matters for which of Option B's levers would actually help.
-- No isolation test was run with Ceefax's pump task active but the gate
-  permanently CLOSED (i.e., attempting nothing) — that would cleanly
-  separate "does merely running the pump task at all (even doing nothing)
-  cost anything" from "does an actual attempt cost something," and wasn't
-  done due to session time constraints.
+  attempt (per finding #2's residual-headroom theory), still wasn't directly
+  isolated — the no-Spotify run above answers "is Spotify the *cause* of the
+  gate never opening" (no), but not "what exactly makes an attempt that does
+  fire degrade Spotify's own poll" — this still matters for judging Option
+  B's tlsYield-based levers.
+- The no-Spotify run's 60s window never saw the gate open at all, so it
+  couldn't test whether an actual connect *attempt* still crashes or
+  degrades anything in the no-Spotify configuration — only that attempts
+  are rarer there. A longer no-Spotify soak (waiting for a natural DMA dip
+  to force one open, or temporarily lowering the threshold) would close
+  this gap.
 
 ## Recommended next step
 
