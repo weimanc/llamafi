@@ -168,6 +168,42 @@ before trusting it, per [[persistent-conn-dma-gate-pattern]]).
   to force one open, or temporarily lowering the threshold) would close
   this gap.
 
+## Second follow-up: lowered-threshold soak reveals the more important lead
+
+Tried the "lower `kMinFreeDmaForConnect`" lever from above: 38000 → 30000
+(kept `kMinLargestFreeBlockForConnect`/`kMaxConsecutiveAttempts` unchanged),
+10-min soak with Ceefax parked, Spotify running.
+
+**Result: crash-free (10 min), but Spotify degradation unchanged** — still
+0/9→0/11 poll success, 10 `SSL -32512` lines, indistinguishable from every
+prior soak. The threshold change itself turned out to barely matter here,
+for a specific, more interesting reason: **the gate opened exactly once**
+(`freeDma=66160` — an early post-boot spike, above even the *old* 38000
+threshold, so lowering it didn't cause this particular open), one attempt
+fired, and DMA then dropped to `freeDma=19532` — **below even the new,
+lower 30000 threshold** — and the gate log shows **zero further OPEN
+transitions for the remaining ~9.5 minutes**. One attempt appears to
+permanently cost **~46KB** of DMA-capable headroom that never recovers for
+the rest of the session.
+
+**This reframes the whole threshold-tuning question as secondary.** Whatever
+threshold is picked, one real attempt seems to consume enough DMA that the
+gate very plausibly never opens again afterward regardless — matching (at
+much larger magnitude) EXP-006's own smaller observation for the original
+spike ("39968→37000 bytes after one failure"). The live, more valuable
+question this raises: **is `WiFiClientSecure`/mbedTLS failing to fully
+release its allocation after a failed `connect()`** (a real, if
+upstream/library-side, leak) **or legitimately holding a large cache/buffer
+after failure that a proper `stop()`/cleanup call should release but isn't
+being made**? If it's the latter, there may be a missed API call
+(`WiFiClientSecure::stop()` or similar) somewhere in `CeefaxTeletextSource`'s
+attempt path that would recover the memory — that's a concrete, scoped,
+worth-trying next step, more promising than further threshold tuning.
+Not confirmed this session — flagging as the lead for whoever picks this up
+next, whether that's Option B (try adding an explicit `stop()`/cleanup after
+each failed attempt, re-soak) or Option C (R&D isolation, now with a
+sharper hypothesis to test).
+
 ## Recommended next step
 
 Hand to PM for a scheduling decision among Options A/B/C above. This is a

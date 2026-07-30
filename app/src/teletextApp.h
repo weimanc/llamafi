@@ -287,23 +287,33 @@ private:
         "WyJubXMtY2VlZmF4IiwiaW50ZXJuYWwubmF0aGFubWVkaWFzZXJ2aWNlcy5jby51ayIsIi93ZWJzb2NrZXRzL2NlZWZheCJd";
 
     // TASK-370 (ADR-057 item 3): DMA-gated reconnect thresholds. The
-    // free-bytes threshold is ceefaxWsSpike.h/EXP-006's value, but that
-    // spike's narrow build (production base + this feature only) has far
-    // less DMA-capable fragmentation than the real production build
-    // (TFT_eSPI, WiFi, MEMBUDGET_PHASE1's arena, etc. all compete for the
-    // same pool). DUT-confirmed on THIS build (TASK-370 gate soak): a raw
-    // free-byte count above the spike's threshold is NOT sufficient —
+    // free-bytes threshold was originally ceefaxWsSpike.h/EXP-006's value
+    // (38000), but that spike's narrow build (production base + this
+    // feature only) has both less DMA-capable fragmentation AND a higher
+    // idle baseline (~40-45K) than the real production build (TFT_eSPI,
+    // WiFi, MEMBUDGET_PHASE1's arena, etc. all compete for the same pool).
+    // DUT-confirmed on THIS build (TASK-370 gate soak): a raw free-byte
+    // count above the spike's threshold is NOT sufficient on its own —
     // start_ssl_client() crashed (Guru Meditation / LoadProhibited in
-    // strlen(), same failure class as EXP-006) at freeDma=66288, well above
-    // kMinFreeDmaForConnect, because the free bytes weren't one contiguous
-    // block. mbedTLS needs a contiguous allocation (CONFIG_MBEDTLS_SSL_MAX_
-    // CONTENT_LEN=16384 per handshake buffer), so the gate now also checks
+    // strlen(), same failure class as EXP-006) at freeDma=66288, because
+    // the free bytes weren't one contiguous block. mbedTLS needs a
+    // contiguous allocation (CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN=16384 per
+    // handshake buffer), so the gate also checks
     // heap_caps_get_largest_free_block() — the same fragmentation-aware
-    // pattern webRadioApp.h already uses (mb_arena / EXP-010). Both
-    // thresholds must pass. *** kMinLargestFreeBlockForConnect is a first
-    // DUT-informed value (comfortably above the 16 KB single-buffer need,
-    // not yet stress-tested to a hard floor) — re-tune if a crash recurs. ***
-    static constexpr size_t   kMinFreeDmaForConnect         = 38000;
+    // pattern webRadioApp.h already uses (mb_arena / EXP-010).
+    // PROP-008 follow-up isolation (2026-07-30): this build's baseline idle
+    // freeDma sits at ~36-37K regardless of whether Spotify is running —
+    // below the original 38000, meaning the gate almost never opened at
+    // all in practice. Lowered to 30000 (comfortably under that idle
+    // reading, still requiring genuine headroom) so real attempts can
+    // actually fire; kMinLargestFreeBlockForConnect (the fragmentation
+    // check that stopped the crash) and kMaxConsecutiveAttempts (the
+    // attempt cap that stopped it recurring) are UNCHANGED — this change
+    // only affects how often an attempt gets a chance to run, not what
+    // happens once it does. *** Re-soak (crash + connectivity + Spotify
+    // coexistence) before trusting — do not assume safe from reasoning
+    // alone, per feedback memory persistent-conn-dma-gate-pattern. ***
+    static constexpr size_t   kMinFreeDmaForConnect         = 30000;
     static constexpr size_t   kMinLargestFreeBlockForConnect = 20000;
     static constexpr uint32_t kRetryIntervalMs      = 15000;
 
