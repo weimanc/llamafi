@@ -4045,3 +4045,93 @@ known live bug and no user report; display-indicator scope only, Spotify's actua
 poll/retry/backoff behavior is unaffected either way · **Size:** S-M (small code change if
 the design call in step 1 lands on "reuse the OR", larger if it lands on a genuine third
 state) · **Status:** open
+
+## Open — M-CEEFAX (2026-07-30)
+
+NMS Ceefax (`nmsceefax.co.uk`) as a second `TeletextSource` behind the existing
+`TeletextApp` (M-TELETEXT/ADR-044) — not a new app. Design: [M-CEEFAX.md](../architecture/designs/M-CEEFAX.md).
+Decision: [ADR-057](../architecture/decisions/ADR-057.md). RnD: [EXP-005](../rnd/reports/EXP-005-ceefax-websocket-protocol-spike.md)
+(protocol reverse-engineering + host prototype) → [EXP-006](../rnd/reports/EXP-006-ceefax-ds2-ds7-dut-spike.md)
+(DUT resource-contention spike, root-caused to a DMA capacity ceiling, mitigated,
+decision locked to accept best-effort connectivity — see ADR-057 §3). All design
+questions resolved pre-scheduling; no host research remaining, this is firmware work.
+
+### TASK-370 — Ceefax `TeletextSource` backend: pump task + DMA-gated reconnect
+
+Implement the `TeletextSource` interface in `teletextApp.h` (ADR-057 item 1) and the
+Ceefax backend: dedicated pump task mirroring `webRadioApp.h`'s
+`wrEnsurePumpTask()`/`wrTeardownPumpTask()` (`xTaskCreatePinnedToCore`, ack-based
+teardown), started in `onResume()` / torn down in `onSuspend()` — not `dataTask`
+(ADR-057 item 2). Port `ceefaxWsSpike.h`'s DMA-gated reconnect logic verbatim
+(don't pump `WebSocketsClient::loop()`'s reconnect path below the free-DMA
+threshold measured in EXP-006) — this is a **hard requirement for shipping**, not
+an optimization: it's what eliminated the DUT-confirmed crash and cross-app TLS
+degradation. Add `links2004/WebSockets@^2.7.3` as a real (non-spike) dependency.
+Add `CEEFAX_ROOT_CA` (`= OPEN_METEO_ROOT_CA` alias) to `dataTaskCerts.h` (ADR-057
+item 6 — no new cert, verified chain-of-trust already established in EXP-005/DS-4).
+Existing NOS behaviour must be provably unchanged — the abstraction must not
+regress the shipped path.
+
+**Owner:** Developer · **Deps:** ADR-057 · **Gate:** `run/check` + existing teletext
+DUT tests pass unchanged on the NOS path + new DUT soak confirming the DMA gate
+prevents the crash/degradation class found in EXP-006 (re-run that spike's
+methodology against production code, not just re-trust the spike's own result) ·
+**Priority:** P2 · **Status:** open
+
+### TASK-371 — Ceefax page content + packet-27 fastext decode into the shared render path
+
+Port the host-validated protocol parsing (`ceefax_client.py`'s header/row assembly
+into the 25×40 grid, `decode_flof_packet()`'s Hamming-8/4 packet-27 decode for real
+fastext targets) into firmware, feeding the **existing, unmodified**
+`teletextApp.h::_drawGrid()` — per DS-6/EXP-005, the render layer needs zero
+changes, this task is purely the fetch→grid plumbing for the Ceefax source.
+Prev/next = page±1 (no `pn=` metadata); row-tap inline links reuse the existing
+NOS logic unmodified (DS-3, already proven in the host preview tool). Fastext
+button targets come from packet-27 when a page supplies them, `None`/inert
+otherwise — matches real teletext decoder behaviour, not a gap to close later.
+
+**Owner:** Developer · **Deps:** TASK-370 · **Gate:** `run/check` + DUT: navigate a
+known Ceefax index page, confirm row-tap links work, confirm at least one fastext
+button with a real packet-27 target navigates correctly · **Priority:** P2 ·
+**Status:** open
+
+### TASK-372 — Ceefax `isConnecting()`/`hasError()` taskbar wiring
+
+Per ADR-057 item 7: `isConnecting()` fires on every navigation while the Ceefax
+source is active (not just first-load, unlike NOS — the acquisition wait is long
+and visible on every page change). `hasError()` needs a sustained-failure latch —
+**N ≥ 2 consecutive failed reconnect attempts** (EXP-006 DS-7: full 6h host
+observation, 1 outage total) — not a raw pass-through of connection state
+(ordinary 3 s-backoff reconnects are not errors; matches the ADR-046 Amendment 2
+sticky-latch precedent, avoid repeating the still-open Spotify `isHealthy()` gap
+class of bug, see TASK-366 above).
+
+**Owner:** Developer · **Deps:** TASK-370 · **Gate:** `run/check` + DUT: force a
+sustained disconnect (e.g. block the relay host) and confirm the taskbar bar goes
+red within 2 reconnect cycles and clears on recovery, no flap on ordinary
+transient reconnects during normal use · **Priority:** P2 · **Status:** open
+
+### TASK-373 — `teletextCountry` Settings UI goes live
+
+The `teletextCountry` field has been reserved since ADR-044 with a greyed-out
+"NL (NOS)" label. Make it a real selector (NOS/Ceefax) in the Teletext settings
+sub-section. ADR-050 settings-wiring gate applies.
+
+**Owner:** Developer · **Deps:** TASK-370, TASK-371 · **Gate:** `run/check`
+(settings-wiring gate) + DUT round-trip (select Ceefax, reboot, confirm it
+persists and the app resumes on the Ceefax source) · **Priority:** P2 · **Status:** open
+
+### TASK-374 — DUT coexistence regression gate (M-CEEFAX close-out)
+
+Final acceptance gate before this milestone closes: run the EXP-006 soak
+methodology (persistent Ceefax connection + `dataTask`'s normal multi-app fetch
+cycling) against the **production** firmware from TASK-370–373, not the throwaway
+spike, and confirm the DMA-gated mitigation still holds — no crash, no
+measurable TLS-reliability regression for Spotify/weather/crypto/stock vs. an
+unmodified baseline (mirrors EXP-006's numeric `run/stress` comparison). This is
+the check that the real implementation didn't quietly reintroduce what the spike
+found and fixed.
+
+**Owner:** Developer/VE · **Deps:** TASK-370, TASK-371, TASK-372, TASK-373 ·
+**Gate:** DUT soak, numeric comparison against baseline `run/stress`, zero
+crashes over the soak duration · **Priority:** P2 · **Status:** open

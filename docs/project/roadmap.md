@@ -1233,6 +1233,32 @@ the task de-mirrors it onto `app_ids_gen.APP_ORDER`.
 
 ---
 
+### M-CEEFAX — NMS Ceefax as a second TeletextApp source
+
+NMS Ceefax (`nmsceefax.co.uk`, a live off-air-style UK teletext relay over a
+persistent WebSocket, not a page-addressed HTTP GET like NOS) as a second
+`teletextCountry` value behind the existing `TeletextApp` (M-TELETEXT/ADR-044)
+— not a new app; the render/UI layer is proven 100% shareable. A DUT spike
+found real resource contention (a persistent second TLS client degraded
+Spotify's TLS reliability ~4-11x vs. baseline), root-caused to a DMA-capable-
+heap capacity ceiling and DUT-verified to include a crash risk under low
+memory. A DMA-gated reconnect mitigation was implemented and DUT-verified to
+close both. Human decision, locked: accept best-effort connectivity (the
+Ceefax connection may not always establish in a given session on this
+no-PSRAM board), decline the framework rebuild that would be needed for full
+reliability — a real, bounded piece of work, recorded but deliberately not
+pursued.
+
+**Status:** scheduled (2026-07-30) — TASK-370 through TASK-374.
+**Deps:** M-TELETEXT/ADR-044 (`teletextCountry` reservation), ADR-046
+(taskbar tri-state contract), `webRadioApp.h` pump-task precedent.
+**Design:** [M-CEEFAX.md](../architecture/designs/M-CEEFAX.md) ·
+**Decision:** [ADR-057](../architecture/decisions/ADR-057.md) ·
+**RnD:** [EXP-005](../rnd/reports/EXP-005-ceefax-websocket-protocol-spike.md) →
+[EXP-006](../rnd/reports/EXP-006-ceefax-ds2-ds7-dut-spike.md)
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.

@@ -1,15 +1,15 @@
-# Design — M-CEEFAX: NMS Ceefax Live Teletext (proposal)
+# Design — M-CEEFAX: NMS Ceefax Live Teletext
 
 > Owner: Architect
-> Status: proposal — pre-ADR, but fully closed out. DS-6, DS-2, DS-7 all
->   resolved. DS-2 (EXP-006): real TLS contention, root-caused to a
+> Status: **accepted, scheduled 2026-07-30** — see ADR-057. DS-6, DS-2, DS-7
+>   all resolved. DS-2 (EXP-006): real TLS contention, root-caused to a
 >   DMA-memory capacity ceiling; crash-prevention mitigation DUT-verified;
->   **decision locked 2026-07-29 to accept best-effort connectivity, framework
->   rebuild explicitly not pursued** — see DS-2. DS-7: full 6h observation
->   complete, 1 outage (initial acquisition), zero drops thereafter. Nothing
->   left open pending an ADR/scheduling call.
-> Date: 2026-07-29
-> Feeds: none yet (would need a new ADR if scheduled)
+>   decision locked 2026-07-29 to accept best-effort connectivity, framework
+>   rebuild explicitly not pursued — see DS-2. DS-7: full 6h observation
+>   complete, 1 outage (initial acquisition), zero drops thereafter.
+>   Implementation tracked as TASK-370 through TASK-374.
+> Date: 2026-07-29 (design) / 2026-07-30 (scheduled)
+> Feeds: ADR-057
 > Feeds from: EXP-005, EXP-006
 
 ---
@@ -433,11 +433,11 @@ that rebuild** — deliberate, not deferred by default. DS-7 (EXP-006, full 6h
 observation): drops are rare (1 outage — initial acquisition — in 6 hours),
 `hasError()` threshold set at N≥2 consecutive failures.
 
-No ADR yet — this repo's convention (see M-TELETEXT/ADR-044) is to write the
-ADR once the design is truly ready to schedule — but every design question
-and implementation decision this proposal needed is now closed. Nothing
-remaining is an open unknown; what's left is purely a PM/Architect scheduling
-call on whether to proceed to production at all, not more design work.
+**Scheduled 2026-07-30 — ADR-057 accepted, implementation tracked as TASK-370
+through TASK-374** (`docs/project/tasks.md`, `## Open — M-CEEFAX`). This
+design doc's job is done; ADR-057 is now the authoritative decision record,
+and further changes to the architecture/leans described here should go
+through an ADR amendment, not an edit to this file.
 
 ---
 
