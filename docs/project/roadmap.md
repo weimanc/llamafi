@@ -1242,14 +1242,20 @@ persistent WebSocket, not a page-addressed HTTP GET like NOS) as a second
 found real resource contention (a persistent second TLS client degraded
 Spotify's TLS reliability ~4-11x vs. baseline), root-caused to a DMA-capable-
 heap capacity ceiling and DUT-verified to include a crash risk under low
-memory. A DMA-gated reconnect mitigation was implemented and DUT-verified to
-close both. Human decision, locked: accept best-effort connectivity (the
-Ceefax connection may not always establish in a given session on this
-no-PSRAM board), decline the framework rebuild that would be needed for full
-reliability — a real, bounded piece of work, recorded but deliberately not
-pursued.
+memory. A DMA-gated reconnect mitigation was implemented; DUT-verified to
+close the **crash** — but the TASK-374 close-out gate found it does **not**
+close the **TLS degradation**, and the DMA-recovery test (2026-07-30) traced
+that to a real ~42.6 KB/session mbedTLS-buffer leak per failed reconnect that
+survives teardown until reboot (PROP-008; ADR-057 amended). Human decision,
+locked 2026-07-29: accept best-effort *connectivity* (the connection may not
+always establish on this no-PSRAM board), decline the framework rebuild.
+**That lock did not cover the newly-quantified permanent DMA cost** — see
+PROP-008's PM disposition (TASK-375) and the escalated human decision point.
 
-**Status:** scheduled (2026-07-30) — TASK-370 through TASK-374.
+**Status:** blocked (2026-07-30) — TASK-370..373 done; TASK-374 PARTIAL
+(crash bar met, TLS-degradation bar not) → PROP-008 → **TASK-375** (Option B:
+recover the leak) is the gating item before close-out, with Option C/A as
+fallbacks.
 **Deps:** M-TELETEXT/ADR-044 (`teletextCountry` reservation), ADR-046
 (taskbar tri-state contract), `webRadioApp.h` pump-task precedent.
 **Design:** [M-CEEFAX.md](../architecture/designs/M-CEEFAX.md) ·

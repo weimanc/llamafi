@@ -421,3 +421,20 @@ it. See `docs/project/tasks.md` TASK-374 and
 `docs/architecture/decisions/ADR-057.md` item 3 (needs a correcting
 amendment regardless of which option is chosen, since its current text
 claims degradation is eliminated).
+
+## PM disposition (2026-07-30)
+
+Actioned. The DMA-recovery finding shifted the balance: this is no longer a
+windowed cosmetic trade-off but a quantified ~42.6 KB/session leak with a
+specific patchable candidate site. PM decision:
+- **Option B scheduled as TASK-375** — the targeted `stop()`/cleanup patch on
+  the vendored WebSocket/`WiFiClientSecure` failure branch (`PATCH-003`
+  precedent). Cheapest highest-information action; if it lands the trade-off
+  dissolves. This session's `dma_recovery.py` becomes the regression gate.
+- **Option C** = fallback only if TASK-375 needs debugger-depth isolation.
+- **Option A** (accept the permanent cost) = **escalated to human**, not taken
+  unilaterally — the 2026-07-29 "accept best-effort connectivity" lock covered
+  reliability, not this newly-quantified device-wide DMA cost.
+
+Full disposition + TASK-375 scope: `docs/project/tasks.md` (TASK-374 →
+TASK-375). Roadmap M-CEEFAX status moved to **blocked** pending TASK-375.

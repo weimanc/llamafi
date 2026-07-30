@@ -4257,3 +4257,76 @@ device-wide ~42.6 KB DMA loss triggered by the first Ceefax visit, degrading
 Spotify TLS even after the user leaves, until reboot). Strengthens Option B/C:
 the explicit `stop()`/cleanup fix now recovers a concrete, measurable ~42.6 KB.
 Full data in PROP-008's "DMA-recovery test" section; ADR-057 amended.
+
+**PM disposition of PROP-008 (2026-07-30).** Reviewed the proposal end-to-end
+with the DMA-recovery finding. The A/B/C set is no longer evenly balanced:
+the finding upgraded the problem from a "windowed cosmetic degradation"
+(Option A's original framing) to a **concrete, quantified, per-session ~42.6 KB
+device-wide leak with a specific identified candidate site** (`WebSocketsClient::
+clientDisconnect()`'s conditional-`stop()` asymmetry / `WiFiClientSecure::
+connected()`'s `read()` — PROP-008 fourth follow-up) that this project already
+has direct precedent for patching (`PATCH-003`, same `ssl_client.cpp`).
+
+- **Scheduling Option B first** as **TASK-375** — the targeted explicit
+  `stop()`/cleanup patch attempt. Rationale: cheapest, highest-information
+  next action (exact buffer identified, exact code site identified, repeatable
+  DUT gate already built this session). If it lands, it dissolves the whole
+  accept-vs-mitigate trade-off — the degradation stops being a product
+  question at all. This is a graduation-to-production scheduling call, squarely
+  PM authority; not inventing priority (it inherits TASK-374's P2).
+- **Option C (full R&D isolation pass)** is the fallback *only if* TASK-375's
+  targeted read/patch can't confirm or fix the site with static+logging
+  effort (i.e. it genuinely needs debugger single-stepping into the vendored
+  library). Not scheduled now — TASK-375 is the smaller bet that would make it
+  unnecessary.
+- **Option A (accept permanently, corrected framing)** is a genuine product
+  judgement I am **not** taking unilaterally — per the PM escalation rule it's
+  the human's call, and it should only be reached if TASK-375 (and then C) are
+  declined or fail. Escalated below.
+
+**Human decision point (escalated).** The 2026-07-29 "accept best-effort
+connectivity" lock covered Ceefax *reliability* (may not connect), not a
+*permanent ~42.6 KB whole-device DMA cost triggered by visiting the app*. That
+cost is new information post-dating the lock. If TASK-375's fix doesn't land,
+accepting it is a fresh product decision (it degrades Spotify TLS for the rest
+of every session in which the user opens Ceefax once), and needs an explicit
+human yes — not an automatic extension of the earlier reliability lock.
+
+**M-CEEFAX close-out** stays **blocked**: TASK-374 remains PARTIAL, now
+depending on TASK-375 (or a human Option-A acceptance) before it can close.
+
+### TASK-375 — Option B: recover the per-attempt mbedTLS DMA leak (PROP-008)
+
+Scheduled from **PROP-008** Option B (PM disposition above). Attempt the
+targeted fix for the ~42.6 KB/session DMA leak the DMA-recovery test confirmed:
+each failed Ceefax WebSocket reconnect orphans one mbedTLS content buffer pair
+(`lfbDma` loses exactly 16384 B = `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN`) that
+survives pump-task teardown and never returns until reboot.
+
+**Approach (in order, stop at first that lands):**
+1. Instrument/confirm the suspected site — `WebSocketsClient::clientDisconnect()`'s
+   `if (client->ssl->connected()) { ... stop(); }` branch and
+   `WiFiClientSecure::connected()`'s `read(&dummy,0)` — for the "header-response
+   timeout / no `WStype` event ever fires" case this relay reproduces reliably.
+   Confirm whether the explicit `stop()` and/or the destructor safety-net is
+   actually skipped/bypassed for the leaked object.
+2. If confirmed, apply a small local patch in the vendored `WebSocketsClient` /
+   `WiFiClientSecure` (mirror `PATCH-003`'s precedent in the same
+   `ssl_client.cpp`) to force the cleanup on that failure branch — NOT a change
+   in `CeefaxTeletextSource` itself.
+3. Re-soak.
+
+**Gate (VE):** promote this session's scratch `dma_recovery.py` into
+`app/tools/` (+ a `run/` wrapper) as the repeatable regression harness, then:
+(a) DMA-recovery — free-DMA must return to within a few KB of the 76684
+baseline after teardown across 3 Teletext→Spotify visits (vs. the current
+permanent drop to 34052); AND (b) re-run TASK-374's coexistence soak — Spotify
+poll success must recover materially from 0/N and `SSL -32512` lines must drop
+toward the baseline 0. Both required to close.
+
+**Owner:** Developer (Architect consult — vendored-library/cross-component
+patch per AGENTS.md) · **VE:** gate harness + acceptance · **Deps:** PROP-008,
+TASK-374, `PATCH-003` precedent · **Priority:** P2 (inherits TASK-374) ·
+**Status:** OPEN — scheduled 2026-07-30, not started.
+**Fallback if it can't land:** PROP-008 Option C (R&D debugger isolation), then
+Option A (human acceptance of the corrected ~42.6 KB cost).
