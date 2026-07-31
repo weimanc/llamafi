@@ -4347,3 +4347,16 @@ from the DMA-recovery test is **walked back** (it was one metastable regime).
 dynamics across several sessions, and (b) checking `Links2004/arduinoWebSockets`
 for a release past `2.7.3` fixing `#864`. Direction escalated to human — this
 changed the fix direction. Full detail: `docs/rnd/reports/EXP-019-ceefax-tls-leak-isolation.md`.
+
+**PM disposition (2026-07-31) — pursued lead (b:library bump); CLOSED as dead
+end.** Human chose to proceed with the WebSockets-bump lead first (cheapest).
+Outcome: **no bump available.** PlatformIO registry's latest is `2.7.3` = what
+we run; upstream `#864` (disconnect detection) is still OPEN; the only adjacent
+unreleased master commit (`#980`, pong-timeout reconnect) doesn't match our
+post-TLS WS-upgrade churn and would mean cherry-picking unreleased code. So the
+a/b/c set (of the earlier chat framing) reduces to: **out-of-band
+re-measurement** (proper isolation, non-`ets_printf`) OR **Option A accept** —
+the latter now materially more defensible per EXP-019 (cost is variable /
+metastable / gate-bounded / never a crash, not a hard permanent leak).
+**TASK-375 remains BLOCKED**; recommend PM/human pick between out-of-band
+re-measurement vs. accepting and closing M-CEEFAX. No production change made.

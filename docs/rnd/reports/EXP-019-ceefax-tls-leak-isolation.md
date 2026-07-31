@@ -86,6 +86,19 @@ Two non-intrusive next steps, neither taken this session:
   `2.7.3` that addresses `#864`/`#373`; a library bump may be cheaper than any
   local patch, and sidesteps the whole detection-gap question.
 
+**Follow-up (2026-07-31) — lead (a) [library bump] CLOSED, dead end.** Checked
+upstream: the PlatformIO registry's latest `links2004/WebSockets` is **2.7.3 —
+exactly what we already run** (GitHub's latest *release* is only 2.7.2; 2.7.3 is
+the registry high-water mark). **#864 "Disconnection detection issue" is still
+OPEN** — no fix in any release. Master has 10 unreleased commits since 2.7.2;
+only `#980` "Fixing reconnect failure after pong Timeout" is adjacent, but it's
+a pong-timeout reconnect fix, not our post-TLS WS-upgrade churn, and cherry-
+picking an unreleased master commit is riskier than a release bump. **There is
+nothing newer to bump to and the relevant bug is unfixed upstream.** Remaining
+live options are therefore lead (b) [out-of-band re-measurement] or Option A
+[accept] — the latter now more defensible since EXP-019 reframed the cost as
+variable/metastable/gate-bounded with no crash, not a hard permanent leak.
+
 **Branch**: master (per this project's work-on-master convention; RnD-branch
 discipline in `rnd.md` is overridden here — instrumentation was scratch,
 reverted, never committed).
