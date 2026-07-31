@@ -969,9 +969,8 @@ this — rather than TASK-367's candidate or genuine DR error — is what's actu
 No code change implied unless the eyeball session identifies one.
 
 **Owner:** VE (eyeball session) · **Deps:** EXP-015/TASK-360 (source finding) · **Gate:** human
-DUT eyeball at a busy-traffic preset, BP-048 · **Priority:** P3 — candidate explanation, not a
-confirmed bug · **Status:** BLOCKED — attempted 2026-07-31 22:00 BST, precondition not met (see
-below); still needs a human, at daytime busy-traffic hours
+DUT eyeball at a busy-traffic preset, BP-048 · **Priority:** P3 — candidate explanation, confirmed
+real, not a bug · **Status:** DONE (2026-07-31, live daytime DUT eyeball — see below)
 
 **Attempt this session (2026-07-31, 22:00 BST):** this task's own gate is a *human* eyeball — I
 can't substitute for that (it's a subjective "does this read as inaccurate" perceptual call, not a
@@ -1021,6 +1020,21 @@ watching the live disc — the roster log will now also be running in the backgr
 supplementary churn data, and the ADS-B-reporting-gap finding above is a third pattern worth adding
 to what the observer is asked to distinguish.
 
+**RESOLVED 2026-07-31 (live human DUT eyeball, busy daytime traffic, 25km preset).** Gate met.
+Human report: aircraft near the disc's outer band show **occasional appear-then-vanish**, not a
+constant flicker and not a hard-static-empty ring. This confirms the core question — boundary
+pop-in/pop-out at the nearest-24 cap **is** a real, distinct, observed phenomenon at busy traffic,
+separate from TASK-367's dead-reckon-lag (fixed) and from ordinary query-radius entry/exit. The
+"occasional" cadence matches what the mechanism predicts: rank-24 churn only happens when two
+aircraft's distances actually cross near the cap boundary, not continuously.
+
+**Disposition:** not an accuracy bug — the pops are *correct* (those aircraft genuinely are
+crossing into/out of the nearest-24 set as relative distances change), just uncommunicated to the
+viewer, who has no way to tell "aircraft left detection range" apart from "aircraft got bumped by a
+nearer one" apart from "genuine tracking glitch." Fix scoped as **TASK-378** (visualize the
+effective-coverage horizon) rather than any change to the truncation/motion logic itself. **Status:
+DONE.**
+
 ### TASK-378 — PlaneRadar: render the nearest-24 "horizon" — don't let the disc imply uniform coverage out to the preset radius
 
 Human-observed 2026-07-31 (live daytime eyeball, busy traffic, 25km preset): the disc's outer band
@@ -1041,9 +1055,16 @@ distance — it's insertion/replacement order (confirmed empirically: TASK-368's
 unsorted `distNm` sequences). Finding the horizon means scanning for `max(distNm)` across
 `aircraft[0..count-1]`, not reading the last array slot. Recompute only on a fetch landing (inside
 `_reconcileMotion()` or right after, alongside `_project()`'s existing per-aircraft loop — cheap,
-same pass), not every interp tick. Exact visual treatment (darker fill vs. dashed ring vs. a small
-label) is an open design call — mock it up host-side in `preview_planeradar.py` first (BP-046: the
-tool must actually implement whatever the mockup claims) before committing to firmware.
+same pass), not every interp tick.
+
+**Visual treatment (human directive, 2026-07-31):** a darker shade of fill for the annulus beyond
+the horizon — not a dashed ring, not a label. Explicit constraint: dark enough to read as "beyond
+here" but must stay visually distinct from `PR_COL_OUTSIDE` (the black fill outside the disc
+entirely) — must not disappear against it. Mock up the exact shade host-side in
+`preview_planeradar.py` against both the field colour (`PR_COL_FIELD`) and outside-disc black
+before committing to firmware (BP-046: the tool must actually implement whatever the mockup
+claims), then confirm on-device under real backlight (RGB565 quantization/panel behaviour can shift
+a shade that reads fine on a host PNG — BP-051's host-iterate/DUT-confirm split applies here too).
 
 **Owner:** Developer (design + impl) · **Deps:** M-PLANERADAR (done), informed by TASK-368's
 eyeball session · **Gate:** `run/check` + DUT eyeball — this is a pixel-level exit criterion under
