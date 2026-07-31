@@ -259,13 +259,13 @@ public:
                 } else {
                     _pendingFetch = false;
                     _lastHttp     = result.errorCode;
-                    // TASK-367 step 1 (measurement only): fetch round-trip
-                    // from _requestFetch()'s request-issue stamp (_lastFetch)
-                    // to this drain — checking whether it's near-constant or
-                    // varies fetch-to-fetch (candidate explanation for
-                    // fixMs's drain-time stamp reading as dead-reckon lead).
+                    // TASK-367 measurement, left in place: fetch round-trip
+                    // from _requestFetch()'s true issue instant (_fetchIssuedMs
+                    // — unlike _lastFetch, never _forceNow()-backdated, so this
+                    // stays accurate for re-verifying TASK-377's effect) to this
+                    // drain.
                     LOG_D("planeradar", "fetch rtt=%lums ok=%d errorCode=%d",
-                          now - _lastFetch, (int)result.ok, (int)result.errorCode);
+                          now - _fetchIssuedMs, (int)result.ok, (int)result.errorCode);
                     if (result.ok) {
                         _result        = result;
                         _everHadResult = true;
@@ -518,6 +518,11 @@ public:
             _prErr         = false;
             _lastHttp      = 0;
             _lastGoodMs    = millis();
+            // TASK-377: injection bypasses _requestFetch() entirely, so
+            // _fetchIssuedMs would otherwise be left stale/zero from before
+            // (or from a real fetch) — _reconcileMotion() now stamps fixMs
+            // from it, so it must read "just landed" here same as a real fetch.
+            _fetchIssuedMs = _lastGoodMs;
             // TASK-357: reconcile before render — two successive injections
             // with a repeated callsign exercise the dr-damped continuity path
             // exactly like a real fetch pair, which is how T_PRI_01 drives it.
@@ -538,6 +543,13 @@ private:
     bool          _injected       = false;
     int           _lastHttp       = 0;
     unsigned long _lastFetch      = 0;
+    // TASK-377: real millis() at the GET enqueue, always — unlike _lastFetch,
+    // never backdated by _forceNow() (that backdate is deliberate for the
+    // poll-interval gate above, but would make a just-landed fix look up to
+    // a full _pollMs() stale if used as its age reference). _reconcileMotion()
+    // stamps fixMs from this, not drain time (TASK-367: drain time let
+    // 6-21s of fetch/retry transport variance masquerade as dead-reckon lead).
+    unsigned long _fetchIssuedMs  = 0;
     unsigned long _lastGoodMs     = 0;
     long          _lastAgeDrawSec = -1;
     char          _lastAction[16] = {};
@@ -594,8 +606,9 @@ private:
     // rely on real fetches never firing while injected.
     void _requestFetch(unsigned long ts) {
         dataTask::enqueuePlaneRadar(g_settings.prLat, g_settings.prLon, kPrFetchNm[_presetIdx], _locEpoch);
-        _lastFetch    = ts;
-        _pendingFetch = true;
+        _lastFetch     = ts;
+        _fetchIssuedMs = millis();   // TASK-377: true issue instant, ts may be _forceNow()-backdated
+        _pendingFetch  = true;
     }
 
     // Switch range preset: persist, repaint the disc at the new scale, and
@@ -748,7 +761,12 @@ private:
                 m.offXq = (int16_t)lroundf(ox * 16.0f);
                 m.offYq = (int16_t)lroundf(oy * 16.0f);
             }
-            m.fixMs = now;
+            // TASK-377: stamp from the GET's issue instant, not `now` (this
+            // reconcile's call time, which for the drain path is however long
+            // the fetch+retries took to land) — the aircraft's true position
+            // is that recent as of when we asked, not as of when the answer
+            // happened to finish arriving.
+            m.fixMs = _fetchIssuedMs;
             next[i] = m;
         }
         memcpy(_motion, next, sizeof(PrMotion) * _result.count);

@@ -916,7 +916,44 @@ lead actually shrinks, not just that the stamp semantics changed.
 comparison of dead-reckon lead behavior, ideally alongside TASK-361's retry-cascade fix landing (not
 blocking — independent improvement either way) · **Priority:** P3 — confirmed mechanism, not yet
 confirmed as the dominant contributor to the human-observed "inaccuracy" (TASK-368 still open on
-that question) · **Status:** open
+that question) · **Status:** DONE (2026-07-31, DUT-verified)
+
+**Implementation:** checked the adsb.fi payload for an in-band `now` epoch field first — the
+fixture confirms it exists (`{"ac":[...], "now": 1783680534000, ...}`), but the streaming
+per-object parser (`prParseStream`, `dataTaskStorage.cpp`) scans for `"ac"` first and returns as
+soon as its array closes, never reading the trailing `"now"`. Adopting it would need epoch↔millis()
+bridging (device only has second-resolution `time(nullptr)`, `fixMs` is a `millis()`-domain
+`uint32_t`) for a field that measures adsb.fi's own aggregation staleness, not *our* fetch/retry
+transport variance — the thing TASK-367 actually measured and flagged. Went with the simpler,
+lower-risk request-issue-time approach instead, as the scope note allowed.
+
+Used `_lastFetch` (request-issue time, already captured) directly — but not raw: it's deliberately
+*backdated* by `_forceNow()` at several call sites (app-entry `resume()`, location-switch
+`_setActiveLoc()`, the `triggerPlaneRadarFetch` debug hook) to make the poll-interval gate fire
+immediately. Stamping `fixMs` from raw `_lastFetch` would make a just-landed fix look up to a full
+`prPollSec` *stale* the instant it lands — backwards. Added a dedicated `_fetchIssuedMs` member,
+set to the true `millis()` unconditionally inside `_requestFetch()` (never backdated), and stamp
+`fixMs` from that instead. Also updated `prInjectAircraft` (the VE injection path, which bypasses
+`_requestFetch()` entirely) to set `_fetchIssuedMs = _lastGoodMs` so synthetic aircraft still read
+as freshly-landed, matching prior behavior.
+
+**DUT verification:** `run/check` 6/6. `get prInterp`'s `fixAgeMs` (reads `millis() - m.fixMs`)
+confirmed both ends: a synthetic injection reads `fixAgeMs≈0` immediately (unchanged VE semantics),
+while real fetches now carry their transport time forward — the TASK-367 RTT log
+(`_fetchIssuedMs`-based, corrected to no longer be backdate-contaminated) shows the same 6-25s
+range this session, which by construction is now exactly what `fixAgeMs` reads the instant each
+fetch lands (previously always ≈0 regardless of RTT — the bug). Targeted regression
+(`run/test-targeted T_PR_01,T_PR_02,T_PR_03,T_PR_06,T_PRI_01`) 5/5 PASS, including T_PRI_01 (the
+dr-damped continuity/decay test, which exercises `_reconcileMotion()` via the injection path this
+change touched) — decay curve unaffected (2.95px → 1.07px → 0.39px over t+2s/t+4s, tau=2s). No
+reboots/heap issues over the session. DUT restored to prod firmware.
+
+**Not done — explicitly deferred:** full EXP-015 `jump_px` re-verification (a live before/after
+quantitative re-run of TASK-360's fixture-based smoothness metric under real varying-RTT
+conditions) was not run — the scope note's suggestion, not a hard gate, and TASK-368's roster-churn
+question is still the open item deciding whether this was ever the dominant contributor to the
+human-observed "inaccuracy" report. If a future eyeball/soak session wants to close that question,
+this is the natural DUT run to pair it with.
 
 ### TASK-368 — PlaneRadar: distinguish PR_MAX_AIRCRAFT=24 roster churn from motion-vector error (EXP-015 Finding 4)
 
