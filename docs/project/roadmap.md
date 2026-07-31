@@ -1252,7 +1252,16 @@ always establish on this no-PSRAM board), decline the framework rebuild.
 **That lock did not cover the newly-quantified permanent DMA cost** — see
 PROP-008's PM disposition (TASK-375) and the escalated human decision point.
 
-**Status:** done — accepted (2026-07-31). TASK-370..373 implemented; TASK-374
+**Status:** REOPENED / not shipping (2026-07-31). Was briefly marked
+done-accepted earlier the same day; **reversed** after a functional DUT test
+showed **Ceefax does not connect on the device** (never `connected`; 5 attempts
+fail with ample memory; "gives up this session") and **crashes it in ~18 s**
+under contention (Guru Meditation). Relay verified working from host — firmware
+failure, not outage. Blocking bug = **TASK-376** (P1). The no-leak/coexistence
+analysis (below) stands but is moot until it connects. Earlier "accepted" text
+retained as the mistaken trail:
+
+TASK-370..373 implemented; TASK-374
 coexistence gate dispositioned by **Option A acceptance** (ADR-057 "Acceptance
 decision 2026-07-31"). PROP-008's A/B/C fully explored: no upstream WebSockets
 fix exists (lead a), and EXP-019 lead(b) out-of-band measurement proved **there

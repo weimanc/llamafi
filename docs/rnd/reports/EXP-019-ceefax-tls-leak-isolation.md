@@ -160,6 +160,48 @@ as the only non-cosmetic caveat. Any further hardening is **gate-tuning** (raise
 above Spotify's ~16 KB need during churn), *not* a leak fix. Instrumentation
 reverted; prod reflashed; tree clean.
 
+## Functional verification (2026-07-31) — Ceefax does NOT connect on the DUT; this reverses the Option-A acceptance
+
+All the above characterised the *coexistence cost* of Ceefax. It never verified
+Ceefax actually **works** on the device — and a direct functional test (prompted
+by the human: "I've never seen Ceefax working on the DUT") shows **it doesn't.**
+
+- **Never connects.** Two patient DUT observations (fresh boot; and a settled
+  90 s-after-boot switch): `ceefaxStatus.connected` stayed **false** the entire
+  time, only `WStype_DISCONNECTED` ever logged, never `WStype_CONNECTED`, and no
+  page was ever acquired. In the settled run all 5 reconnect attempts fired with
+  **ample memory** (freeDma 62–65 K, `lfbDma`=49140 ≫ the 20 K floor) and each
+  DIAG before/after barely moved (~3 K) — i.e. the attempts fail **early**
+  (before `ssl_setup` allocates the big TLS buffers: a TCP/handshake/WS-upgrade
+  or library-throttle failure, **not** memory), then hit `kMaxConsecutiveAttempts`
+  and log "giving up … this session" — no retry until the app is re-entered.
+- **Crashes under contention.** The fresh-boot run (Ceefax + Spotify token-
+  refresh poll + a WebRadio station fetch all doing TLS at once) **crashed the
+  device in ~18 s**: `Guru Meditation Error: Core 1 panic'ed (LoadProhibited)` →
+  `rst:0xc (SW_CPU_RESET)` — at freeDma≈65 K (a null-deref, not OOM; same class
+  as PROP-008 soak-1's `start_ssl_client`/`strlen` crash).
+- **The relay is fine — the device is the problem.** From the host, the exact
+  endpoint (`wss://internal.nathanmediaservices.co.uk/websockets/ceefax`) DNS-
+  resolves, TLS-verifies (`Verify return code: 0 (ok)`), and completes the
+  WebSocket upgrade: `HTTP/1.1 101 Switching Protocols` with a valid
+  `Sec-WebSocket-Accept`. So this is a **firmware/integration failure against a
+  working relay**, not an upstream outage.
+
+**This reverses the Option-A acceptance.** A feature that never connects to a
+working relay and can crash the device within seconds of use is **broken**, not
+a "documented limitation." The leak analysis above stands (there is no leak),
+but it was answering the wrong question — the milestone cannot be closed/accepted
+until Ceefax actually connects on this board.
+
+**Leading hypothesis for the no-connect** (unconfirmed): double reconnect
+throttle. Our pump calls `_ws->loop()` once per `kRetryIntervalMs` (15 s), and
+`WebSocketsClient::loop()` *also* early-returns if `(millis()-_lastConnectionFail)
+< _reconnectInterval` (also 15 s). Out of phase, most of our "attempts" may be
+loop() calls the library skips → few/no real connects happen, yet each burns one
+of the 5-attempt budget → "gives up" having barely tried. The always-on spike
+(`ceefaxWsSpike.h`, which DID connect for 6 h in EXP-006) pumps `loop()` every
+tick with no such gating, which is consistent with this. Needs confirmation.
+
 **Branch**: master (per this project's work-on-master convention; RnD-branch
 discipline in `rnd.md` is overridden here — instrumentation was scratch,
 reverted, never committed).

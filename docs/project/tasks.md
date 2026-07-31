@@ -4188,11 +4188,14 @@ found and fixed.
 **Owner:** Developer/VE · **Deps:** TASK-370, TASK-371, TASK-372, TASK-373 ·
 **Gate:** DUT soak, numeric comparison against baseline `run/stress`, zero
 crashes over the soak duration · **Priority:** P2 ·
-**Status:** CLOSED — Option A accepted 2026-07-31 (see close-out note at end of
-this task). Crash bar met; TLS-degradation characterised (transient, windowed,
-no leak — EXP-019 lead b) and accepted as a documented limitation per ADR-057's
-"Acceptance decision 2026-07-31". Residual intermittent low-DMA crash carried as
-a known limitation with gate-tuning as the sanctioned future mitigation.
+**Status:** REOPENED 2026-07-31 — the Option-A acceptance was PREMATURE and is
+withdrawn. Functional DUT test (EXP-019 "Functional verification") shows Ceefax
+**does not connect on the device** (never `connected`, all 5 attempts fail with
+ample memory, "gives up this session") and **crashes the device in ~18 s** under
+boot-time contention (Guru Meditation / LoadProhibited). Relay verified working
+from host (`HTTP/1.1 101 Switching Protocols`) — firmware failure, not outage.
+Blocking bug filed as **TASK-376**. (Prior close-out/acceptance notes below are
+retained as the — mistaken — decision trail; the no-leak finding still stands.)
 
 **Baseline** (`run/stress 8`, Ceefax off, today's network conditions): 6 hard
 failures / 0 TLS-error lines over 8 min — in line with EXP-006's own baseline
@@ -4397,3 +4400,48 @@ need; and/or lower `kMaxConsecutiveAttempts`), re-soaked per
 [[persistent-conn-dma-gate-pattern]], if it ever proves user-visible. No
 production code change made at acceptance. TASK-375 closed moot. M-CEEFAX →
 DONE (all of TASK-370..375 resolved).
+
+> ⚠️ **The DONE/accepted status above was reversed the same day (2026-07-31)** —
+> see TASK-374's REOPENED status and TASK-376. Ceefax does not connect on the DUT
+> and can crash it; the acceptance was made without a functional test. Retained
+> here as the mistaken decision trail.
+
+### TASK-376 — Ceefax does not connect on the DUT (+ crashes under contention) [BLOCKING]
+
+**Filed 2026-07-31** from EXP-019 "Functional verification" (human prompt: "I've
+never seen Ceefax working on the DUT"). This is the real blocker M-CEEFAX's
+close-out missed by never running a functional test.
+
+**Symptoms (DUT):**
+1. **Never connects.** `ceefaxStatus.connected` never true; only
+   `WStype_DISCONNECTED` logs, never `WStype_CONNECTED`; no page acquired.
+   Settled-boot run: all 5 attempts fail with **ample memory** (freeDma 62–65 K,
+   `lfbDma`=49140), each DIAG before/after barely moves (~3 K → failing *before*
+   `ssl_setup`, i.e. TCP/handshake/upgrade or throttle, not memory), then
+   `kMaxConsecutiveAttempts` → "giving up … this session" (no retry until
+   re-entry).
+2. **Crashes under contention.** Fresh-boot run (Ceefax + Spotify poll + WebRadio
+   fetch all doing TLS): `Guru Meditation LoadProhibited` → reboot in ~18 s, at
+   freeDma≈65 K (null-deref class, not OOM).
+
+**Not the relay.** Host reaches the exact endpoint fine: DNS ok, TLS verify ok,
+WebSocket upgrade `HTTP/1.1 101 Switching Protocols`. Firmware-side failure.
+
+**Leading hypothesis (unconfirmed):** double reconnect throttle — our pump gates
+`_ws->loop()` to once/`kRetryIntervalMs` (15 s), and `WebSocketsClient::loop()`
+*also* early-returns while `(millis()-_lastConnectionFail) < _reconnectInterval`
+(15 s). Out of phase, most "attempts" are loop() calls the library skips → real
+connects rarely happen, yet each burns one of the 5-attempt budget. The always-on
+spike (`ceefaxWsSpike.h`) that connected for 6 h in EXP-006 has no such gating.
+
+**Next steps:** (a) confirm the throttle hypothesis (log inside
+`WebSocketsClient::loop()`'s early-return, or compare a build that pumps loop()
+every tick within the gate); (b) separately, the crash is a real
+null-deref-under-contention that must be fixed regardless (unchecked alloc in the
+TLS/connect path). (c) Only after Ceefax reliably connects on the DUT does the
+PROP-008 coexistence question (already answered: no leak, transient) become
+relevant again.
+
+**Owner:** Developer (Architect consult) · **Deps:** M-CEEFAX (TASK-370..374) ·
+**Priority:** P1 (feature is non-functional on target hardware) · **Status:**
+OPEN — filed 2026-07-31, not started.

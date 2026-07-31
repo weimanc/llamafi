@@ -4,7 +4,14 @@
 > Origin: TASK-374 (M-CEEFAX DUT coexistence gate), ADR-057
 > Branch: n/a — finding surfaced during production implementation on master (TASK-370..374), not a separate rnd/ branch
 >
-> **STATUS: CLOSED — Option A accepted 2026-07-31.** Full A/B/C explored: (a) no
+> **STATUS: REOPENED 2026-07-31 — acceptance withdrawn.** A functional DUT test
+> (EXP-019 "Functional verification") showed Ceefax **does not connect on the
+> device** (relay verified working from host) and **crashes it in ~18 s** under
+> contention. The whole coexistence question below is moot until it connects —
+> blocking bug is TASK-376 (P1). The no-leak finding still stands. The banner
+> below reflects the (now-reversed) earlier close-out; read it as history.
+>
+> ~~**STATUS: CLOSED — Option A accepted 2026-07-31.**~~ Full A/B/C explored: (a) no
 > upstream WebSockets fix exists; (b) EXP-019 out-of-band measurement proved
 > **there is no leak** (the "permanent ~42.6 KB" was a metastable artifact —
 > memory recovers on leaving Ceefax); (c) mechanism understood (transient DMA
