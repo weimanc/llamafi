@@ -99,7 +99,6 @@ static void applyDefaults() {
     // Teletext
     g_settings.teletextPage        = 101;
     g_settings.teletextPollSecs    = 60;
-    g_settings.teletextCountry     = 0;
     g_settings.teletextAutoAdvance = false;
 
     // Web Radio
@@ -288,7 +287,6 @@ void SettingsStorage::load() {
         auto tt = doc["teletext"];
         if (tt.containsKey("page"))        g_settings.teletextPage        = tt["page"]        | 101;
         if (tt.containsKey("pollSecs"))    g_settings.teletextPollSecs    = tt["pollSecs"]    | 60;
-        if (tt.containsKey("country"))     g_settings.teletextCountry     = tt["country"]     | 0;
         if (tt.containsKey("autoAdvance")) g_settings.teletextAutoAdvance = tt["autoAdvance"] | false;
     }
 
@@ -468,7 +466,6 @@ void SettingsStorage::save() {
     auto tt = doc.createNestedObject("teletext");
     tt["page"]        = g_settings.teletextPage;
     tt["pollSecs"]    = g_settings.teletextPollSecs;
-    tt["country"]     = g_settings.teletextCountry;
     tt["autoAdvance"] = g_settings.teletextAutoAdvance;
 
     auto wr = doc.createNestedObject("webRadio");

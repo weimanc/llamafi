@@ -24,8 +24,6 @@ CPP = SRC / "settingsStorage.cpp"
 # tzName: UI display companion of posixTz — the runtime consumer of the
 # timezone is posixTz (boot configTzTime); tzName exists only so the
 # Settings UI can show a human-readable zone name.
-# teletextCountry: TASK-373 (M-CEEFAX/ADR-057) gave it a real runtime
-# consumer (teletextApp.h) — no longer reserved-only, removed from here.
 ALLOWLIST = {"teletextAutoAdvance", "tzName"}
 
 STRICT_DEFAULT = False

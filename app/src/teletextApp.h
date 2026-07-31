@@ -1,28 +1,22 @@
 #pragma once
-// teletextApp.h — live teletext reader (M-TELETEXT ADR-044, M-CEEFAX ADR-057).
+// teletextApp.h — live teletext reader (M-TELETEXT ADR-044).
 // Single-header App class. Slots into appRegistry.h at index 9.
 //
-// Two TeletextSource backends behind one app (ADR-057 item 1/DS-6): NOS
-// Teletekst (page-addressed HTTP poll via dataTask) and NMS Ceefax (a
-// persistent WebSocket relay of a real UK broadcast carousel, pump-task
-// owned). The render layer below (_drawGrid/_drawStrip/_drawBar/_handle*) is
-// 100% shared and untouched by which backend is active — proven on the host
-// prototype (preview_teletext.py --source ceefax, EXP-005) before any of this
-// was written.
+// NOS Teletekst (page-addressed HTTP poll via dataTask), behind a
+// TeletextSource strategy seam. A second source (NMS Ceefax, a persistent
+// WebSocket relay) was implemented under ADR-057 then CUT (ADR-058: its
+// persistent TLS/WS connection alone exceeded this hardware's DMA budget —
+// it connected but dropped ~90ms later, before a page could render). The
+// seam and the render layer (_drawGrid/_drawStrip/_drawBar/_handle*) are kept
+// intact so a future second source could slot in without touching rendering.
 
 #include <Arduino.h>
 #include <TFT_eSPI.h>
-#include <ArduinoJson.h>
-#include <WebSocketsClient.h>
-#include <freertos/semphr.h>
-#include <esp_heap_caps.h>
 #include "appShell.h"
 #include "dataTask.h"
-#include "dataTaskCerts.h"
 #include "settingsStorage.h"
 #include "gen/teletext_layout.h"
 #include "logSink.h"
-#include "spotifyTask.h"
 
 extern TFT_eSPI tft;
 
@@ -179,637 +173,6 @@ private:
     }
 };
 
-// ── Ceefax backend (M-CEEFAX / ADR-057) ─────────────────────────────────────
-// Dedicated pump task, mirroring webRadioApp.h's wrEnsurePumpTask()/
-// wrTeardownPumpTask() ack-based teardown (item 2). Only this task ever
-// touches the WebSocketsClient — navigate()/onResume()/onSuspend(), called
-// from loopTask, only touch the spinlock-guarded fields below; the pump task
-// owns _ws exclusively and deletes it itself at teardown, so no cross-task
-// synchronization is needed on the client object itself.
-class CeefaxTeletextSource : public TeletextSource {
-public:
-    void onResume(uint16_t page) override {
-        _resetForPage(page);
-        // Arm the sustained-failure timer from activation, not from the
-        // first WStype_DISCONNECTED — DUT-observed (TASK-372): on a bad
-        // network day the very first connect attempt can fail silently
-        // (DMA-gate closed the whole session, or a raw connect() failure
-        // the library doesn't surface as an event at all), so waiting for
-        // a disconnect event to ever fire would mean hasError() never
-        // latches even after arbitrarily long total failure — the class of
-        // bug ADR-057 item 7 explicitly calls out avoiding.
-        _disconnectedSinceMs = millis();
-        _ensurePumpTask();
-    }
-
-    void onSuspend() override {
-        _teardownPumpTask();
-    }
-
-    void navigate(uint16_t page, uint8_t /*sub*/) override {
-        _resetForPage(page);
-    }
-
-    bool poll(dataTask::TeletextState* out) override {
-        bool wasDirty = false;
-        portENTER_CRITICAL_SAFE(&_mux);
-        if (_dirty) {
-            out->page = _reqPage;
-            out->ready = _acquired;
-            memcpy(out->cells, _cells, sizeof(out->cells));
-            memcpy(out->ftlTargets, _ftlTargets, sizeof(out->ftlTargets));
-            _dirty = false;
-            wasDirty = true;
-        }
-        portEXIT_CRITICAL_SAFE(&_mux);
-        if (wasDirty) _deriveFtlLabels(out);
-        return wasDirty;
-    }
-
-    // DS-3: no pn= metadata — caller synthesizes page±1.
-    bool usesPageAdjacentNav() const override { return true; }
-
-    // DS-7: fires on every navigation, not just first-ever load — the
-    // acquisition wait (3-20s+) is long and visible on every page change.
-    // Deliberate divergence from NOS's one-time gate; do not "fix" this to
-    // match NOS.
-    bool isConnecting() const override {
-        bool acquired;
-        portENTER_CRITICAL_SAFE(&_mux);
-        acquired = _acquired;
-        portEXIT_CRITICAL_SAFE(&_mux);
-        return !acquired;
-    }
-
-    // DS-7: sustained-failure latch, not a raw reconnect pass-through.
-    // Ordinary 3s/15s-backoff reconnects are not errors; only a connection
-    // that has stayed down across at least 2 retry cycles latches red
-    // (EXP-006: N≥2 consecutive failed reconnect attempts). Self-clears the
-    // instant a reconnect succeeds — matches SpotifyApp/WebRadioApp's
-    // sticky/self-clearing hasError() contract (ADR-046 Amendment 2).
-    bool hasError() const override {
-        bool connected;
-        unsigned long since;
-        portENTER_CRITICAL_SAFE(&_mux);
-        connected = _connected;
-        since     = _disconnectedSinceMs;
-        portEXIT_CRITICAL_SAFE(&_mux);
-        if (connected || since == 0) return false;
-        return (millis() - since) >= (2 * kRetryIntervalMs);
-    }
-
-    bool hasPendingAsync() const override { return isConnecting(); }
-
-    // ── Debug surface (BP-036) ───────────────────────────────────────────────
-    bool dbgGet(const char* var, char* buf, int len) const {
-        if (strcmp(var, "ceefaxStatus") == 0) {
-            bool connected, acquired; unsigned long since;
-            portENTER_CRITICAL_SAFE(&_mux);
-            connected = _connected; acquired = _acquired; since = _disconnectedSinceMs;
-            portEXIT_CRITICAL_SAFE(&_mux);
-            // *** TASK-374 TEMPORARY DIAGNOSTIC (PROP-008 follow-up) — dmaFreeBlocks
-            // added to watch whether the ~46KB "doesn't come back" finding is a
-            // genuine leak (block count only ever grows) vs. memory claimed
-            // elsewhere (bytes shift, block count doesn't). Remove once explained. ***
-            multi_heap_info_t hi;
-            heap_caps_get_info(&hi, MALLOC_CAP_DMA);
-            snprintf(buf, len,
-                     "\"var\":\"ceefaxStatus\",\"connected\":%s,\"acquired\":%s,"
-                     "\"downMs\":%lu,\"hasError\":%s,"
-                     "\"dmaFree\":%u,\"dmaFreeBlocks\":%u,\"dmaLargest\":%u,\"last\":true",
-                     connected ? "true" : "false", acquired ? "true" : "false",
-                     since ? (unsigned long)(millis() - since) : 0UL,
-                     hasError() ? "true" : "false",
-                     (unsigned)hi.total_free_bytes, (unsigned)hi.free_blocks,
-                     (unsigned)hi.largest_free_block);
-            return true;
-        }
-        return false;
-    }
-
-private:
-    // TASK-370 (ADR-057 items 2/6): pump-task transport + cert alias.
-    static constexpr const char* kHost = "internal.nathanmediaservices.co.uk";
-    static constexpr uint16_t kPort = 443;
-    static constexpr const char* kPath = "/websockets/ceefax";
-    static constexpr const char* kChannelId =
-        "WyJubXMtY2VlZmF4IiwiaW50ZXJuYWwubmF0aGFubWVkaWFzZXJ2aWNlcy5jby51ayIsIi93ZWJzb2NrZXRzL2NlZWZheCJd";
-
-    // TASK-370 (ADR-057 item 3): DMA-gated reconnect thresholds. The
-    // free-bytes threshold was originally ceefaxWsSpike.h/EXP-006's value
-    // (38000), but that spike's narrow build (production base + this
-    // feature only) has both less DMA-capable fragmentation AND a higher
-    // idle baseline (~40-45K) than the real production build (TFT_eSPI,
-    // WiFi, MEMBUDGET_PHASE1's arena, etc. all compete for the same pool).
-    // DUT-confirmed on THIS build (TASK-370 gate soak): a raw free-byte
-    // count above the spike's threshold is NOT sufficient on its own —
-    // start_ssl_client() crashed (Guru Meditation / LoadProhibited in
-    // strlen(), same failure class as EXP-006) at freeDma=66288, because
-    // the free bytes weren't one contiguous block. mbedTLS needs a
-    // contiguous allocation (CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN=16384 per
-    // handshake buffer), so the gate also checks
-    // heap_caps_get_largest_free_block() — the same fragmentation-aware
-    // pattern webRadioApp.h already uses (mb_arena / EXP-010).
-    // PROP-008 follow-up isolation (2026-07-30): this build's baseline idle
-    // freeDma sits at ~36-37K regardless of whether Spotify is running —
-    // below the original 38000, meaning the gate almost never opened at
-    // all in practice. Lowered to 30000 (comfortably under that idle
-    // reading, still requiring genuine headroom) so real attempts can
-    // actually fire; kMinLargestFreeBlockForConnect (the fragmentation
-    // check that stopped the crash) and kMaxConsecutiveAttempts (the
-    // attempt cap that stopped it recurring) are UNCHANGED — this change
-    // only affects how often an attempt gets a chance to run, not what
-    // happens once it does. *** Re-soak (crash + connectivity + Spotify
-    // coexistence) before trusting — do not assume safe from reasoning
-    // alone, per feedback memory persistent-conn-dma-gate-pattern. ***
-    static constexpr size_t   kMinFreeDmaForConnect         = 30000;
-    static constexpr size_t   kMinLargestFreeBlockForConnect = 20000;
-    static constexpr uint32_t kRetryIntervalMs      = 15000;
-
-    // TASK-374: hard cap on consecutive connect attempts per activation.
-    // DUT-confirmed the crash above can still recur even above
-    // kMinLargestFreeBlockForConnect (seen once at lfbDma=27636, higher than
-    // a prior clean 5-minute run at 21492) — the free-block size isn't a
-    // fully reliable predictor, this looks like WiFiClientSecure/mbedTLS
-    // internal state on repeated connect() calls against the same
-    // WebSocketsClient object, not purely a memory-size question, and
-    // fully root-causing it is out of scope for this milestone (ADR-057
-    // already declines a framework rebuild). Since a crash is a harder
-    // requirement than "best-effort connectivity" (ADR-057 accepts flaky
-    // connects, not device resets), bound the exposure instead of retrying
-    // forever: after this many consecutive failed attempts with no
-    // WStype_CONNECTED in between, stop calling loop() in the disconnected
-    // branch for the rest of this activation. hasError() still latches
-    // (downMs keeps climbing) so the taskbar correctly shows the sustained
-    // failure; onResume() resets the counter, so leaving and re-entering
-    // Ceefax (or a reboot) gets a fresh budget.
-    static constexpr uint8_t kMaxConsecutiveAttempts = 5;
-
-    // TASK-376: once a fresh attempt fires, pump loop() every tick for this
-    // long so the TCP→TLS→WS-upgrade handshake completes. The library reads
-    // the "101 Switching Protocols" upgrade on a LATER loop() call than the
-    // one that opens the socket; the old once-per-kRetryIntervalMs (15s)
-    // cadence in the disconnected branch never serviced it before the
-    // library's ~5s header timeout, so WStype_CONNECTED never fired even
-    // though connect() succeeded (DUT-confirmed: attempt allocated the full
-    // ~55KB mbedTLS buffer pair, then timed out). Only fresh attempts stay
-    // gated/counted; the servicing window itself is not counted.
-    //
-    // CRITICAL INVARIANT: kServicingWindowMs < the WebSocketsClient reconnect
-    // interval set in _taskBody(). When a connect FAST-FAILS (relay down /
-    // rate-limiting the device IP), connectFailedCb() emits NO WStype_
-    // DISCONNECTED event (verified: it only DEBUG-prints), so nothing tells us
-    // the attempt died — the window keeps pumping loop(). If the library's
-    // reconnect interval were shorter than the window, loop() would kick off a
-    // NEW connect every interval within the window: a rapid fast-fail storm
-    // that leaks lwIP sockets ("errno=11 No more processes" -> ALL TLS incl.
-    // Spotify starts failing) and DMA. Keeping the window < interval bounds it
-    // to at most ONE connect per window (the fresh attempt itself); the next
-    // reconnect can't fire until after the window closes.
-    static constexpr uint32_t kServicingWindowMs = 3000;
-
-    // TASK-376: 16KB, was 8KB — PRECAUTIONARY, not the crash fix. The crash
-    // (Guru Meditation in start_ssl_client) turned out to be an uninitialized
-    // client-cert pointer, fixed at beginSslWithClientKey() below, NOT a stack
-    // overflow. But 8KB (flagged "unverified starting point" in the original
-    // comment) is genuinely marginal for a task that runs a full mbedTLS TLS
-    // handshake plus a StaticJsonDocument<384>; the project's other TLS-doing
-    // tasks are sized far larger (spotifyTask 10KB, dataTask 14KB). 16KB gives
-    // headroom while the real handshake stack depth is measured (the
-    // SERIAL_DEBUG DIAG below logs uxTaskGetStackHighWaterMark per attempt);
-    // right-size once a successful connect's HWM is on record.
-    static constexpr UBaseType_t kStackWords = (16 * 1024) / sizeof(StackType_t);
-
-    mutable portMUX_TYPE _mux = portMUX_INITIALIZER_UNLOCKED;
-    uint16_t _reqPage     = 100;
-    bool     _acquired    = false;
-    bool     _dirty       = false;
-    bool     _sendPending = false;
-    uint8_t  _cells[25][40];
-    uint16_t _ftlTargets[4] = {};
-    bool     _connected   = false;
-    unsigned long _disconnectedSinceMs = 0;
-
-    WebSocketsClient* _ws      = nullptr;
-    TaskHandle_t      _task    = nullptr;
-    SemaphoreHandle_t _ackSem  = nullptr;
-    volatile bool     _stopReq = false;
-    unsigned long     _lastKeepaliveMs = 0;
-    unsigned long     _lastAttemptMs   = 0;  // TASK-374: throttles reconnect attempts to once/kRetryIntervalMs
-    uint8_t           _consecutiveAttempts = 0;  // TASK-374: kMaxConsecutiveAttempts cap
-    unsigned long     _servicingUntilMs = 0;  // TASK-376: pump loop() every tick until this ms
-
-    void _resetForPage(uint16_t page) {
-        portENTER_CRITICAL_SAFE(&_mux);
-        _reqPage  = page;
-        _acquired = false;
-        _dirty    = false;
-        memset(_cells, 0x20, sizeof(_cells));
-        memset(_ftlTargets, 0, sizeof(_ftlTargets));
-        _sendPending = true;
-        portEXIT_CRITICAL_SAFE(&_mux);
-    }
-
-    // Idempotent — safe to call on every onResume() (mirrors wrEnsurePumpTask()).
-    void _ensurePumpTask() {
-        if (_task) return;
-        if (!_ackSem) _ackSem = xSemaphoreCreateBinary();
-        _stopReq = false;
-        BaseType_t rc = xTaskCreatePinnedToCore(&_trampoline, "ceefaxPump", kStackWords,
-                                                 this, 1, &_task, APP_CPU_NUM);
-        if (rc != pdPASS) {
-            LOG_E("ceefax", "xTaskCreatePinnedToCore failed rc=%d", (int)rc);
-            _task = nullptr;
-        }
-    }
-
-    // Enforced teardown [mirrors wrTeardownPumpTask()]: signal stop, wait
-    // (bounded) for the pump's ack. The pump itself owns disconnecting and
-    // freeing _ws before it acks — best-effort on timeout, matches this
-    // codebase's "never crash, degrade" philosophy elsewhere in WebRadio.
-    void _teardownPumpTask() {
-        if (!_task) return;
-        _stopReq = true;
-        if (xSemaphoreTake(_ackSem, pdMS_TO_TICKS(5000)) != pdTRUE)
-            LOG_E("ceefax", "pump teardown ack timeout — pump may be stuck in loop()");
-        _task = nullptr;
-    }
-
-    static void _trampoline(void* arg) {
-        static_cast<CeefaxTeletextSource*>(arg)->_taskBody();
-    }
-
-    void _sendHandshake() {
-        _ws->sendTXT(String("service,") + kChannelId);
-        _ws->sendTXT("ttx,true");
-    }
-
-    void _sendPageSearch(uint16_t page) {
-        uint16_t magazine = page / 100;
-        uint16_t suffix   = page % 100;
-        uint8_t  pageByte = (uint8_t)(((suffix / 10) << 4) | (suffix % 10));  // BCD
-        char buf[64];
-        snprintf(buf, sizeof(buf), "pagesearch,0,%u,%u,16255,true,false,false",
-                 (unsigned)magazine, (unsigned)pageByte);
-        _ws->sendTXT(buf);
-    }
-
-    static int8_t _b64Val(char c) {
-        if (c >= 'A' && c <= 'Z') return (int8_t)(c - 'A');
-        if (c >= 'a' && c <= 'z') return (int8_t)(c - 'a' + 26);
-        if (c >= '0' && c <= '9') return (int8_t)(c - '0' + 52);
-        if (c == '+') return 62;
-        if (c == '/') return 63;
-        return -1;
-    }
-
-    static size_t _b64Decode(const char* in, uint8_t* out, size_t outCap) {
-        size_t o = 0; int val = 0, bits = -8;
-        for (const char* p = in; *p && *p != '='; p++) {
-            int8_t c = _b64Val(*p);
-            if (c < 0) continue;
-            val = (val << 6) + c;
-            bits += 6;
-            if (bits >= 0) {
-                if (o < outCap) out[o++] = (uint8_t)((val >> bits) & 0xFF);
-                bits -= 8;
-            }
-        }
-        return o;
-    }
-
-    // Hamming 8/4 inverse table (packet 27 / FLOF only — X/26, X/28 use
-    // Hamming 24/18, not needed here). Table extracted programmatically from
-    // teletext.js's hamming_8_4_inverse during EXP-005; transcribed verbatim
-    // from ceefax_client.py, not hand-derived. 0xff = decode error.
-    static uint8_t _hamming84(uint8_t b) {
-        static const uint8_t kInverse[256] PROGMEM = {
-            0x01,0xff,0x01,0x01,0xff,0x00,0x01,0xff, 0xff,0x02,0x01,0xff,0x0a,0xff,0xff,0x07,
-            0xff,0x00,0x01,0xff,0x00,0x00,0xff,0x00, 0x06,0xff,0xff,0x0b,0xff,0x00,0x03,0xff,
-            0xff,0x0c,0x01,0xff,0x04,0xff,0xff,0x07, 0x06,0xff,0xff,0x07,0xff,0x07,0x07,0x07,
-            0x06,0xff,0xff,0x05,0xff,0x00,0x0d,0xff, 0x06,0x06,0x06,0xff,0x06,0xff,0xff,0x07,
-            0xff,0x02,0x01,0xff,0x04,0xff,0xff,0x09, 0x02,0x02,0xff,0x02,0xff,0x02,0x03,0xff,
-            0x08,0xff,0xff,0x05,0xff,0x00,0x03,0xff, 0xff,0x02,0x03,0xff,0x03,0xff,0x03,0x03,
-            0x04,0xff,0xff,0x05,0x04,0x04,0x04,0xff, 0xff,0x02,0x0f,0xff,0x04,0xff,0xff,0x07,
-            0xff,0x05,0x05,0x05,0x04,0xff,0xff,0x05, 0x06,0xff,0xff,0x05,0xff,0x0e,0x03,0xff,
-            0xff,0x0c,0x01,0xff,0x0a,0xff,0xff,0x09, 0x0a,0xff,0xff,0x0b,0x0a,0x0a,0x0a,0xff,
-            0x08,0xff,0xff,0x0b,0xff,0x00,0x0d,0xff, 0xff,0x0b,0x0b,0x0b,0x0a,0xff,0xff,0x0b,
-            0x0c,0x0c,0xff,0x0c,0xff,0x0c,0x0d,0xff, 0xff,0x0c,0x0f,0xff,0x0a,0xff,0xff,0x07,
-            0xff,0x0c,0x0d,0xff,0x0d,0xff,0x0d,0x0d, 0x06,0xff,0xff,0x0b,0xff,0x0e,0x0d,0xff,
-            0x08,0xff,0xff,0x09,0xff,0x09,0x09,0x09, 0xff,0x02,0x0f,0xff,0x0a,0xff,0xff,0x09,
-            0x08,0x08,0x08,0xff,0x08,0xff,0xff,0x09, 0x08,0xff,0xff,0x0b,0xff,0x0e,0x03,0xff,
-            0xff,0x0c,0x0f,0xff,0x04,0xff,0xff,0x09, 0x0f,0xff,0x0f,0x0f,0xff,0x0e,0x0f,0xff,
-            0x08,0xff,0xff,0x05,0xff,0x0e,0x0d,0xff, 0xff,0x0e,0x0f,0xff,0x0e,0x0e,0xff,0x0e,
-        };
-        return pgm_read_byte(&kInverse[b]);
-    }
-
-    // X/27 designation 0 (FLOF): 6 links (colour buttons 0-3 = red/green/
-    // yellow/cyan; indices 4/5 not decoded, matching this milestone's scope).
-    // Returns true iff this is a designation-0 packet; targets[i]=0 means
-    // that colour has no link on this page (real teletext decoders leave the
-    // button inert in that case — not a gap to close).
-    static bool _decodeFlofPacket(const uint8_t* raw, size_t rawLen,
-                                   uint8_t packetMagazine, uint16_t targets[4]) {
-        if (rawLen < 38) return false;
-        if (_hamming84(raw[0]) != 0) return false;
-        for (int i = 0; i < 4; i++) {
-            int base = 6 * i + 1;
-            uint8_t l1 = _hamming84(raw[base + 0]) & 0xF;
-            uint8_t l2 = _hamming84(raw[base + 1]) & 0xF;
-            uint8_t l3 = _hamming84(raw[base + 2]) & 0xF;
-            uint8_t l4 = _hamming84(raw[base + 3]) & 0xF;
-            uint8_t l5 = _hamming84(raw[base + 4]) & 0xF;
-            uint8_t l6 = _hamming84(raw[base + 5]) & 0xF;
-            uint8_t  pageByte    = (uint8_t)(l2 * 0x10 + l1);
-            uint16_t subcodeMags = (uint16_t)(l3 | (l4 << 4) | (l5 << 8) | (l6 << 12));
-
-            if (pageByte == 0xFF && (subcodeMags & 0x3F7F) == 0x3F7F) { targets[i] = 0; continue; }
-
-            uint16_t m1 = (subcodeMags & 0x0080) >> 7;
-            uint16_t m2 = (subcodeMags & 0x4000) >> 14;
-            uint16_t m3 = (subcodeMags & 0x8000) >> 15;
-            uint8_t magazine = packetMagazine ^ (uint8_t)((m3 << 2) | (m2 << 1) | m1);
-            if (magazine == 0) magazine = 8;
-
-            uint8_t tens = (pageByte >> 4) & 0xF, units = pageByte & 0xF;
-            if (tens > 9 || units > 9) { targets[i] = 0; continue; }
-            uint16_t pageNum = (uint16_t)(magazine * 100 + tens * 10 + units);
-            targets[i] = (pageNum >= 100 && pageNum <= 899) ? pageNum : 0;
-        }
-        return true;
-    }
-
-    // Row-24 fastext label text — same colour-segment scan as NOS's own
-    // extraction (dataTaskStorage.cpp fetchTeletext()), byte-identical
-    // control-code scheme confirmed by EXP-005. Kept as a local copy rather
-    // than a shared helper so the NOS fetch path is untouched (TASK-370
-    // no-regression requirement).
-    static void _deriveFtlLabels(dataTask::TeletextState* out) {
-        static const uint8_t kFtlColors[4] = { 1, 2, 3, 6 };  // red, green, yellow, cyan
-        uint8_t row24[40];
-        memcpy(row24, out->cells[24], 40);
-        for (int i = 0; i < 4; i++) {
-            char lbl[12] = {}; int llen = 0; uint8_t curFg = 7;
-            for (int ci = 0; ci < 40; ci++) {
-                uint8_t c = row24[ci];
-                if (c >= 0x01 && c <= 0x07) { curFg = c; continue; }
-                if (c >= 0x10 && c <= 0x17) { curFg = c & 0x07; continue; }
-                if (c < 0x20) continue;
-                if (curFg == kFtlColors[i] && llen < 11) lbl[llen++] = (char)c;
-            }
-            while (llen > 0 && lbl[llen - 1] == ' ') llen--;
-            lbl[llen] = '\0';
-            strlcpy(out->ftlLabels[i], lbl, sizeof(out->ftlLabels[i]));
-        }
-    }
-
-    // Runs entirely on the pump task (called synchronously from ws->loop()).
-    void _onMessage(uint8_t* payload, size_t length) {
-        StaticJsonDocument<384> doc;
-        if (deserializeJson(doc, (const char*)payload, length)) return;
-        JsonArray arr = doc.as<JsonArray>();
-        if (arr.isNull() || arr.size() < 2) return;
-        const char* cmd = arr[0].as<const char*>();
-        if (!cmd) return;
-
-        if (strcmp(cmd, "header") == 0 && arr.size() >= 4) {
-            const char* b64 = arr[2].as<const char*>();
-            bool pagematched = arr[3].as<bool>();
-            if (!b64 || !pagematched) return;
-            uint8_t raw[40];
-            if (_b64Decode(b64, raw, sizeof(raw)) < 40) return;
-            portENTER_CRITICAL_SAFE(&_mux);
-            _acquired = true;
-            for (int i = 0; i < 32; i++) _cells[0][8 + i] = raw[8 + i] & 0x7F;
-            _dirty = true;
-            portEXIT_CRITICAL_SAFE(&_mux);
-        } else if (strcmp(cmd, "row") == 0 && arr.size() >= 5) {
-            bool acquired;
-            portENTER_CRITICAL_SAFE(&_mux);
-            acquired = _acquired;
-            portEXIT_CRITICAL_SAFE(&_mux);
-            if (!acquired) return;
-            uint8_t magazine  = (uint8_t)arr[2].as<int>();
-            int     rownum    = arr[3].as<int>();
-            const char* b64   = arr[4].as<const char*>();
-            if (!b64) return;
-            uint8_t raw[40];
-            if (_b64Decode(b64, raw, sizeof(raw)) < 40) return;
-            if (rownum >= 1 && rownum <= 24) {
-                portENTER_CRITICAL_SAFE(&_mux);
-                memcpy(_cells[rownum], raw, 40);
-                _dirty = true;
-                portEXIT_CRITICAL_SAFE(&_mux);
-            } else if (rownum == 27) {
-                uint16_t targets[4] = { 0, 0, 0, 0 };
-                if (_decodeFlofPacket(raw, sizeof(raw), magazine, targets)) {
-                    portENTER_CRITICAL_SAFE(&_mux);
-                    memcpy(_ftlTargets, targets, sizeof(_ftlTargets));
-                    _dirty = true;
-                    portEXIT_CRITICAL_SAFE(&_mux);
-                }
-            }
-            // rownum 26/28 (X26/X28 enhancement, Hamming 24/18) — out of
-            // scope, DS-3.
-        }
-        // "initialpage"/"pageExists"/"clock"/"secondTick"/"channelSettings"/
-        // "apiver" — cosmetic, not needed to render a page.
-    }
-
-    void _onEvent(WStype_t type, uint8_t* payload, size_t length) {
-        switch (type) {
-            case WStype_CONNECTED:
-                portENTER_CRITICAL_SAFE(&_mux);
-                _connected = true;
-                _disconnectedSinceMs = 0;
-                _sendPending = true;  // (re)send pagesearch for the current requested page
-                portEXIT_CRITICAL_SAFE(&_mux);
-                _consecutiveAttempts = 0;  // TASK-374: a real connect resets the attempt budget
-                LOG_I("ceefax", "WStype_CONNECTED");
-                _sendHandshake();
-                break;
-            case WStype_DISCONNECTED:
-                portENTER_CRITICAL_SAFE(&_mux);
-                _connected = false;
-                if (_disconnectedSinceMs == 0) _disconnectedSinceMs = millis();
-                portEXIT_CRITICAL_SAFE(&_mux);
-                // TASK-376: the attempt that opened the current servicing
-                // window is over — end the window so we DON'T keep pumping
-                // loop() every tick into ungated library reconnects (2s
-                // _reconnectInterval) while disconnected. Falls back to the
-                // DMA-gated, kRetryIntervalMs-paced fresh-attempt path.
-                _servicingUntilMs = 0;
-                LOG_I("ceefax", "WStype_DISCONNECTED");
-                break;
-            case WStype_ERROR:
-                LOG_W("ceefax", "WStype_ERROR: %.*s", (int)length, (const char*)payload);
-                break;
-            case WStype_TEXT:
-                _onMessage(payload, length);
-                break;
-            default:
-                break;  // BIN/PING/PONG/FRAGMENT* — not needed
-        }
-    }
-
-    void _taskBody() {
-        _ws = new WebSocketsClient();
-        _ws->onEvent([this](WStype_t t, uint8_t* p, size_t l) { _onEvent(t, p, l); });
-        // TASK-376 (THE crash fix): use beginSslWithClientKey(..., nullptr,
-        // nullptr) rather than beginSslWithCA(). Upstream bug: WebSocketsClient
-        // never initializes its _client_cert/_client_key members — neither the
-        // constructor nor begin() touches them, and there's no default member
-        // initializer — so after `new WebSocketsClient()` they hold whatever
-        // was in the reused heap block. loop() then does
-        // `if(_client_cert && _client_key)` and, when that garbage is non-null,
-        // sets a GARBAGE client certificate on the freshly-allocated
-        // WiFiClientSecure; the next connect() strlen()s it in
-        // start_ssl_client() → Guru Meditation LoadProhibited. Intermittent
-        // precisely because a zeroed heap block reads NULL (fine) but a dirty
-        // one (boot/TLS contention) reads garbage (crash) — which is exactly
-        // the "crashes under contention at ~65K free" symptom. beginSslWith
-        // ClientKey explicitly assigns _client_cert/_client_key first, so
-        // passing nullptr for both makes the guards correctly skip client-cert
-        // auth (Ceefax authenticates the server via CA only).
-        _ws->beginSslWithClientKey(kHost, kPort, kPath, CEEFAX_ROOT_CA, nullptr, nullptr);
-        // TASK-376: 4s. Two competing constraints:
-        //  (bug 2) must be SHORTER than our kRetryIntervalMs (15s) fresh-attempt
-        //   cadence, or clientIsConnected()'s clientDisconnect("TCP connection
-        //   cleanup") — which resets _lastConnectionFail to now — makes the next
-        //   throttle check (millis()-_lastConnectionFail < interval) skip our
-        //   connect, wasting attempts. (Was 2s.)
-        //  (storm) must be LONGER than kServicingWindowMs (3s), so a fast-failing
-        //   connect can't be re-fired by the library inside the servicing window
-        //   — see kServicingWindowMs's CRITICAL INVARIANT comment (socket/DMA
-        //   leak otherwise). 3s < 4s < 15s satisfies both.
-        _ws->setReconnectInterval(4000);
-        _lastAttemptMs = millis() - kRetryIntervalMs;  // attempt immediately on first tick
-        _consecutiveAttempts = 0;
-
-        bool lastGateOk = true;
-        for (;;) {
-            if (_stopReq) {
-                _ws->disconnect();
-                delete _ws;
-                _ws = nullptr;
-                xSemaphoreGive(_ackSem);
-                vTaskDelete(NULL);
-            }
-
-            bool connectedSnapshot;
-            portENTER_CRITICAL_SAFE(&_mux);
-            connectedSnapshot = _connected;
-            portEXIT_CRITICAL_SAFE(&_mux);
-
-            unsigned long now = millis();
-
-            if (connectedSnapshot) {
-                _ws->loop();
-            } else {
-                // TASK-370 (ADR-057 item 3): gate reconnect attempts on free
-                // DMA-capable heap AND largest contiguous block — an
-                // established connection is served normally regardless,
-                // only reconnect attempts pause. See kMinLargestFreeBlock-
-                // ForConnect's comment above: raw free bytes alone let a
-                // real crash through in this build (fragmentation).
-                size_t freeDma = heap_caps_get_free_size(MALLOC_CAP_DMA);
-                size_t lfbDma  = heap_caps_get_largest_free_block(MALLOC_CAP_DMA);
-                bool gateOk = freeDma >= kMinFreeDmaForConnect
-                           && lfbDma  >= kMinLargestFreeBlockForConnect;
-                if (gateOk != lastGateOk) {
-                    LOG_I("ceefax", "reconnect gate %s freeDma=%u lfbDma=%u",
-                          gateOk ? "OPEN" : "CLOSED (low DMA)",
-                          (unsigned)freeDma, (unsigned)lfbDma);
-                    lastGateOk = gateOk;
-                }
-                // TASK-374 (M-CEEFAX close-out gate): the DMA gate alone
-                // stops the crash but NOT cross-app TLS degradation —
-                // DUT-confirmed (8-min coexistence soak): pumping loop()
-                // every 20ms tick raced Spotify's independent poller
-                // constantly, and it went 0/8 successful with genuine
-                // SSL -32512 "Memory allocation failed" for the whole
-                // session. This project already has a protocol for exactly
-                // this class of conflict (architecture.md "TLS coexistence"
-                // — every dataTask HTTPS fetch brackets itself with
-                // tlsYield()/tlsResume()), but wrapping *every* 20ms tick
-                // with it would mean Spotify is yielded continuously for as
-                // long as the gate stays open (worse than the race). Fix:
-                // only ever call loop() at all in this disconnected branch
-                // once per kRetryIntervalMs, under the yield bracket — same
-                // "just don't pump it" precedent as the gate itself
-                // (ceefaxWsSpike.h: skipping loop() entirely simply pauses
-                // the library's internal reconnect timer, it doesn't lose
-                // track of time), so every real attempt this task ever makes
-                // happens inside tlsYield()/tlsResume(), none unwrapped.
-                if (now < _servicingUntilMs) {
-                    // TASK-376 (bug 1): a fresh attempt is in flight — pump
-                    // loop() every tick so the library reads the 101 upgrade
-                    // before its header timeout. Still bracketed in the TLS
-                    // yield so Spotify isn't raced during the handshake. This
-                    // window is NOT counted against kMaxConsecutiveAttempts;
-                    // only the else-if below opens/counts a fresh attempt.
-                    spotifyTask::tlsYield();
-                    _ws->loop();
-                    spotifyTask::tlsResume();
-                } else if (gateOk && _consecutiveAttempts < kMaxConsecutiveAttempts
-                           && now - _lastAttemptMs >= kRetryIntervalMs) {
-                    _lastAttemptMs = now;
-                    _consecutiveAttempts++;
-#ifdef SERIAL_DEBUG
-                    // *** TASK-376 attempt-visibility DIAG (retained from the
-                    // PROP-008 leak scaffolding). Logs allocated_blocks (not
-                    // just bytes) so a genuine leak can be told apart from
-                    // memory claimed by other tasks. ***
-                    multi_heap_info_t hiBefore, hiAfter;
-                    heap_caps_get_info(&hiBefore, MALLOC_CAP_DMA);
-#endif
-                    spotifyTask::tlsYield();
-                    _ws->loop();
-                    spotifyTask::tlsResume();
-                    _servicingUntilMs = millis() + kServicingWindowMs;  // drive handshake to completion
-#ifdef SERIAL_DEBUG
-                    heap_caps_get_info(&hiAfter, MALLOC_CAP_DMA);
-                    LOG_W("ceefax",
-                          "DIAG attempt#%u DMA before(free=%u blocks=%u largest=%u) "
-                          "after(free=%u blocks=%u largest=%u)",
-                          (unsigned)_consecutiveAttempts,
-                          (unsigned)hiBefore.total_free_bytes, (unsigned)hiBefore.free_blocks,
-                          (unsigned)hiBefore.largest_free_block,
-                          (unsigned)hiAfter.total_free_bytes, (unsigned)hiAfter.free_blocks,
-                          (unsigned)hiAfter.largest_free_block);
-                    // TASK-376: min free stack ever seen on this pump task —
-                    // words remaining; ×4 = bytes. A near-zero value confirms
-                    // the 8KB→16KB bump was the crash fix.
-                    LOG_W("ceefax", "stack hwm free words=%u (task stack=%u bytes)",
-                          (unsigned)uxTaskGetStackHighWaterMark(NULL),
-                          (unsigned)(kStackWords * sizeof(StackType_t)));
-#endif
-                    if (_consecutiveAttempts == kMaxConsecutiveAttempts) {
-                        LOG_W("ceefax", "giving up after %u consecutive attempts this session",
-                              (unsigned)kMaxConsecutiveAttempts);
-                    }
-                }
-            }
-
-            uint16_t pageSnapshot; bool sendNow;
-            portENTER_CRITICAL_SAFE(&_mux);
-            sendNow = _connected && _sendPending;
-            pageSnapshot = _reqPage;
-            if (sendNow) _sendPending = false;
-            portEXIT_CRITICAL_SAFE(&_mux);
-            if (sendNow) _sendPageSearch(pageSnapshot);
-
-            if (connectedSnapshot && now - _lastKeepaliveMs >= 5000) {
-                _ws->sendTXT("keepalive");
-                _lastKeepaliveMs = now;
-            }
-
-            vTaskDelay(pdMS_TO_TICKS(20));
-        }
-    }
-};
-
 class TeletextApp : public App {
 public:
     void init() override {
@@ -817,13 +180,9 @@ public:
         _histDepth = 0;
         _lastTapMs = 0;
         _lastAction[0] = '\0';
-        _activeCountry = 0xFF;  // unset — _activateSource() below always runs before first use
-        // TASK-373 bug caught on DUT (persistence round-trip test): appShell
-        // calls init() XOR resume() on a given app's first-ever entry per
-        // session (never both — see main.cpp switchApp()), so backend
-        // activation can't live in resume() alone or a fresh boot's very
-        // first Teletext visit silently stays on NOS regardless of the
-        // persisted teletextCountry. Shared with resume() below.
+        // appShell calls init() XOR resume() on an app's first entry per
+        // session, so source activation lives in _activateSource() (shared
+        // with resume()), not in either one alone.
         _activateSource();
     }
 
@@ -832,18 +191,11 @@ public:
         _draw();
     }
 
-    // Shared by init() and resume() — see init()'s comment on why both need it.
+    // Shared by init() and resume(). NOS Teletekst is the only backend — the
+    // NMS Ceefax second source was cut (ADR-058: not viable within this
+    // hardware's DMA budget). The TeletextSource seam is kept for a possible
+    // future backend.
     void _activateSource() {
-        uint8_t wantCountry = (g_settings.teletextCountry == 1) ? 1 : 0;
-        if (_activeCountry != 0xFF && wantCountry != _activeCountry) {
-            // M-CEEFAX DS-6 "what's genuinely new risk": a live source
-            // switch must fully tear down the previous backend's connection
-            // before the new one starts, and stale nav-metadata/content from
-            // the old backend must not linger on screen.
-            _activeOf(_activeCountry)->onSuspend();
-            memset(&_st, 0, sizeof(_st));
-        }
-        _activeCountry = wantCountry;
         _st.page   = g_settings.teletextPage;
         _injectedContent = false;
         _numpadActive = false;
@@ -853,9 +205,7 @@ public:
 
     void suspend() override { _active()->onSuspend(); }
 
-    // TASK-245/246 (ADR-046), DS-7: delegate to the active backend — NOS and
-    // Ceefax intentionally use different isConnecting()/hasError() semantics
-    // (see CeefaxTeletextSource's comments), not a bug to unify.
+    // TASK-245/246 (ADR-046): delegate to the active backend.
     bool isConnecting() const override { return _active()->isConnecting(); }
     bool hasError() const override { return _active()->hasError(); }
 
@@ -949,14 +299,12 @@ public:
                      (unsigned)_st.subpagePrev, (unsigned)_st.subpagePrevSub);
             return true;
         }
-        // TASK-373: which backend is active (0=NOS/1=Ceefax), mirrors the
-        // Settings toggle so a serial harness can confirm the switch landed.
+        // Only the NOS backend remains (Ceefax cut, ADR-058); kept so any
+        // existing serial harness querying it still gets a defined answer.
         if (strcmp(var, "teletextBackend") == 0) {
-            snprintf(buf, len, "\"var\":\"teletextBackend\",\"val\":\"%s\",\"last\":true",
-                     (_activeCountry == 1) ? "ceefax" : "nos");
+            snprintf(buf, len, "\"var\":\"teletextBackend\",\"val\":\"nos\",\"last\":true");
             return true;
         }
-        if (_ceefax && _ceefax->dbgGet(var, buf, len)) return true;
         return false;
     }
 
@@ -1023,40 +371,22 @@ public:
     }
 
 private:
-    // Both backends lazy heap-allocated, never freed — embedding either
-    // (each polymorphic, and CeefaxTeletextSource's 25×40 cell grid alone is
-    // 1000 bytes) overflows this debug build's .dram0.bss at link time, same
-    // class of issue as the project's existing "lazy malloc once, never
-    // freed" rule for large static buffers (e.g. WinampDisplay,
-    // ceefaxWsSpike's WebSocketsClient — see project memory
-    // feedback_dram_bss_static_buffers). In practice _nos is allocated on
-    // the app's very first entry regardless of backend (init()/resume()
-    // always need SOME source); _ceefax only the first time teletextCountry
-    // actually selects Ceefax.
-    NosTeletextSource*    _nos     = nullptr;
-    CeefaxTeletextSource* _ceefax  = nullptr;
-    // Which backend is live (0xFF = unset, before the first resume()) — a
-    // 1-byte country code instead of a stored TeletextSource* pointer;
-    // _active()/_activeOf() resolve it to the (lazily-allocated) object on
-    // every call. Every extra stored pointer here costs the same 4 bytes the
-    // debug build's .dram0.bss budget is already fighting for (see the
-    // lazy-allocation comment above), so this app deliberately trades a
-    // pointer dereference for that byte.
-    uint8_t _activeCountry = 0xFF;
+    // NOS backend lazy heap-allocated on first entry, never freed — embedding
+    // the polymorphic source overflows the debug build's .dram0.bss at link
+    // time, same "lazy malloc once, never freed" rule the project uses for
+    // large static buffers (e.g. WinampDisplay — see project memory
+    // feedback_dram_bss_static_buffers).
+    NosTeletextSource* _nos = nullptr;
 
     NosTeletextSource* _nosSource() {
         if (!_nos) _nos = new NosTeletextSource();
         return _nos;
     }
-    CeefaxTeletextSource* _ceefaxSource() {
-        if (!_ceefax) _ceefax = new CeefaxTeletextSource();
-        return _ceefax;
-    }
-    TeletextSource* _activeOf(uint8_t country) {
-        return (country == 1) ? (TeletextSource*)_ceefaxSource() : (TeletextSource*)_nosSource();
-    }
+    // Only one backend remains (Ceefax cut, ADR-058). Kept as _active() (rather
+    // than inlining _nosSource() everywhere) so the TeletextSource seam stays
+    // intact for a possible future second source.
     TeletextSource* _active() const {
-        return const_cast<TeletextApp*>(this)->_activeOf(_activeCountry == 0xFF ? 0 : _activeCountry);
+        return const_cast<TeletextApp*>(this)->_nosSource();
     }
 
     dataTask::TeletextState _st      = {};

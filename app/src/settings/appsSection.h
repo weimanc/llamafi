@@ -454,10 +454,6 @@ private:
         char pbuf[8];
         snprintf(pbuf, sizeof(pbuf), "%us", settings().teletextPollSecs);
         drawRow(y, { "Refresh", pbuf, S_LABEL, S_VALUE }); y += S_ROW_H;
-        // TASK-373 (M-CEEFAX/ADR-057): live selector — was greyed-out pending
-        // this milestone (M-TELETEXT/ADR-044 reserved the field).
-        drawRow(y, { "Country", settings().teletextCountry ? "UK (Ceefax)" : "NL (NOS)",
-                     S_LABEL, S_VALUE });
     }
 
     void _cycleTeletext(int row) {
@@ -473,8 +469,6 @@ private:
             uint8_t next = 1;
             for (int i = 0; i < 3; i++) if (kPoll[i] == cur) { next = (i+1)%3; break; }
             settings().teletextPollSecs = kPoll[next];
-        } else if (row == 2) {
-            settings().teletextCountry = settings().teletextCountry ? 0 : 1;
         } else { return; }
         saveSettings(); repaint();
     }

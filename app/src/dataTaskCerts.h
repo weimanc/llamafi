@@ -248,16 +248,6 @@ p/SgguMh1YQdc4acLa/KNJvxn7kjNuK8YAOdgLOaVsjh4rsUecrNIdSUtUlD
 // replacement — open-meteo and radio-browser still chain via X1 directly.
 #define NOMINATIM_ROOT_CA OPEN_METEO_ROOT_CA
 
-// internal.nathanmediaservices.co.uk (M-CEEFAX DS-2/DS-4 spike, rnd/ceefax only):
-// same ISRG Root X1 anchor, alias per the radio-browser/nominatim pattern above.
-// CROSS-SIGN DEPENDENCY, same shape as nominatim's (verified via `openssl verify`
-// 2026-07-29, not just chain-reading): served chain is
-//   leaf <- Let's Encrypt YE2 <- ISRG Root YE <-(cross-signed by)- ISRG Root X1
-// — reaches our pinned X1 only because this relay currently serves the
-// cross-signed Root YE as the third chain cert. Same remediation as nominatim
-// if that's ever dropped: a two-root bundle, not a replacement cert.
-#define CEEFAX_ROOT_CA OPEN_METEO_ROOT_CA
-
 // PLANERADAR_ROOT_CA — GTS Root R4 only, no bundle (M-PLANERADAR / ADR-048's
 // sibling OQ1 decision, phase0-api-probe.md). opendata.adsb.fi's served chain
 // (leaf <- Google Trust Services WE1 <- GTS Root R4, cross-signed by GlobalSign

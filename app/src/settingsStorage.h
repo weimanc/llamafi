@@ -124,7 +124,6 @@ struct AppSettings {
     // --- Teletext (ADR-044) ---
     uint16_t teletextPage;        // starting page on resume (default 101)
     uint8_t  teletextPollSecs;    // refresh cadence: 30/60/120 s (default 60)
-    uint8_t  teletextCountry;     // 0 = NOS/NL; 1 = Ceefax/UK (M-CEEFAX, ADR-057/TASK-373)
     bool     teletextAutoAdvance; // reserved; no UI until subpage auto-advance implemented
 
     // --- Web Radio (M-WEBRADIO) ---
