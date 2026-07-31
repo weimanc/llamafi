@@ -4360,3 +4360,19 @@ the latter now materially more defensible per EXP-019 (cost is variable /
 metastable / gate-bounded / never a crash, not a hard permanent leak).
 **TASK-375 remains BLOCKED**; recommend PM/human pick between out-of-band
 re-measurement vs. accepting and closing M-CEEFAX. No production change made.
+
+**RESOLVED (2026-07-31, EXP-019 lead b) — there is no leak; TASK-375 is moot.**
+Ran the out-of-band measurement (inline counters in vendored `ssl_client.cpp`,
+no hot-path prints; read via a new `get ceefaxLeak`). `setup − stop` counter is
+**persistently ≤ 0** (every allocated SSL context is freed — `stop_ssl_socket`
+keeps pace), and `freeDma` at rest **recovers to ≥ baseline** across all 3
+visits. **The "permanent ~42.6 KB leak / not window-bounded" was a metastable
+artifact** (gate latches closed → no churn to fire the recovering cleanup);
+memory recovers on leaving Ceefax, so **Option A's original "bounded to the
+window" framing is essentially correct** (the earlier review's "definitively
+false" was wrong). Captured the real degradation live: Ceefax churn transiently
+starves DMA → Spotify's un-gated TLS poll takes `SSL -32512`, self-recovering.
+Residual real risk: an **intermittent** low-DMA crash at the deepest dips (one
+reboot seen at lfb=8180, not reproduced) — gate-mitigated, not a leak. **TASK-375
+("recover the leak / add stop()") → CLOSE as moot** (no leak; stop already
+runs). Any hardening left is gate-tuning, not a fix. Full detail: EXP-019 lead(b).

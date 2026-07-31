@@ -99,6 +99,67 @@ live options are therefore lead (b) [out-of-band re-measurement] or Option A
 [accept] — the latter now more defensible since EXP-019 reframed the cost as
 variable/metastable/gate-bounded with no crash, not a hard permanent leak.
 
+## Lead (b) — out-of-band measurement (2026-07-31) — RESOLVES the leak question: there is no leak
+
+Instrumented the **vendored** `ssl_client.cpp` with *inline counters only* (no
+UART in the hot path → no observer effect): `g_leak_setup` (mbedTLS `ssl_setup`
+succeeded = I/O buffers allocated), `g_leak_stop` (`stop_ssl_socket` entered =
+buffers freed), handshake ok/err/tmo, and a `freeDma` low-water. Exposed via a
+new out-of-band `get ceefaxLeak` command; drove 3 Teletext visits snapshotting
+counters + `get heap` before/after each (all reads on `loopTask`, never touching
+the pump task's connect path). Caveat: counters are global to *all* TLS
+(Spotify/dataTask share `ssl_client.cpp`) — per-visit deltas and the
+`outstanding` trend are the signal, not absolute counts.
+
+**Result — no leak, definitively:**
+- **`outstanding` (`setup − stop`) is persistently ≤ 0** (−1, −4, −4, −1), never
+  climbs. `stop_ssl_socket` runs as often as or *more* than `ssl_setup` — every
+  allocated SSL context is freed (stop ≥ setup is the healthy state; `stop()`
+  also fires on connects that never reached `setup`). No accumulation.
+- **`freeDma` at rest (Spotify, Ceefax torn down) RECOVERS every visit** —
+  33796 / 34020 / 35156, all **≥ the 30908 baseline** (trending up). Memory comes
+  back when you leave Ceefax.
+
+**This reconciles the whole arc.** The earlier uninstrumented "stuck at 34052
+forever / permanent ~42.6 KB / not window-bounded" (`7cc06b1`) was the
+**metastable artifact** — the gate latches closed after a heap dip so no further
+churn fires the recovering cleanup, making a momentary working level look
+permanent. Clean out-of-band, it plainly recovers. **So Option A's original
+"degradation bounded to the active-Ceefax window" framing is essentially correct
+after all** — the TASK-374 review's "definitively false" was itself wrong,
+based on the metastable run.
+
+**Actual Spotify-degradation mechanism, captured live** (full-log run):
+```
+[ceefax] attempt#1 DMA before(free=66284 largest=21492) after(free=19252 largest=12276)
+[ceefax] reconnect gate CLOSED (low DMA) freeDma=19768 lfbDma=12276
+[spotify.tls] after -1: rc=-32512 'SSL - Memory allocation failed'
+```
+Ceefax's connect churn transiently starves DMA-capable heap; Spotify's
+**un-gated** TLS poll then can't allocate its ~16 KB buffers → `SSL -32512`.
+Transient contention, not a leak; Spotify recovers on its next poll.
+
+**Residual real risk — intermittent low-DMA crash (not a leak).** One run
+rebooted mid-visit-3 after `freeDma`/`lfb` dipped to 16256/8180 (counters reset,
+~10 s unresponsive); a second full-logged run at the same depth did **not**
+crash (Spotify just took `-32512`). So the deep transient dips can occasionally
+crash rather than degrade gracefully — the same crash-under-low-DMA class the
+DMA gate exists to bound (PROP-008 soak 1: 1 crash; soak 2: 0). Gate mitigates,
+doesn't fully eliminate.
+
+**Conclusion (updated)**: **Validated — no memory leak.** The "leak" framing is
+retired. Real residue: (1) transient DMA contention while on Ceefax makes
+Spotify's poll fail (`-32512`) intermittently, bounded to that window and
+self-recovering; (2) at the deepest dips it can occasionally crash instead of
+degrade. `TASK-375`'s "recover the leak / add `stop()`" premise is **moot**
+(no leak; `stop` already runs).
+
+**Recommendation (updated)**: **Option A (accept)**, with the intermittent crash
+as the only non-cosmetic caveat. Any further hardening is **gate-tuning** (raise
+`kMinLargestFreeBlockForConnect` / lower `kMaxConsecutiveAttempts` to keep `lfb`
+above Spotify's ~16 KB need during churn), *not* a leak fix. Instrumentation
+reverted; prod reflashed; tree clean.
+
 **Branch**: master (per this project's work-on-master convention; RnD-branch
 discipline in `rnd.md` is overridden here — instrumentation was scratch,
 reverted, never committed).

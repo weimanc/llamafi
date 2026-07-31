@@ -439,6 +439,17 @@ robust facts are narrower: per-attempt transient DMA allocation, dangerous
 `freeDma` dips under churn (gate-bounded), and variable network-dependent end
 state. Full detail + next steps: `docs/rnd/reports/EXP-019-ceefax-tls-leak-isolation.md`.
 
+**FINAL RESOLUTION (EXP-019 lead b, 2026-07-31): no leak.** The out-of-band
+measurement (inline `setup`/`stop` counters, no hot-path prints) settled it:
+`setup − stop` stays **≤ 0** (every SSL context freed) and `freeDma` at rest
+**recovers to ≥ baseline** across visits. The ~42.6 KB "permanent leak" is
+**retired** as a metastable artifact — memory recovers on leaving Ceefax, so the
+degradation **is** bounded to the active-Ceefax window (Option A's framing was
+right). The real mechanism is transient DMA contention (Ceefax churn → Spotify
+`SSL -32512`, self-recovering), with an intermittent low-DMA crash as the only
+non-cosmetic residual. This retires the `#864` "cleanup-skipped" theory too
+(`stop` demonstrably runs). See EXP-019 lead(b) for data.
+
 ## Fifth follow-up: this is a known, documented upstream bug class, not a novel finding
 
 User asked directly: is mbedTLS open source, and can we check whether this
