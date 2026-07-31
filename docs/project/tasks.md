@@ -863,7 +863,60 @@ payload's own timestamp field instead of drain time) as a follow-up.
 
 **Owner:** Developer (measurement) · **Deps:** EXP-015/TASK-360 (source finding), TASK-313 (the
 edge-pacing behaviour being measured) · **Gate:** DUT session, no fix without measurement first ·
-**Priority:** P3 — candidate explanation, not a confirmed bug · **Status:** open
+**Priority:** P3 — candidate explanation, not a confirmed bug · **Status:** MEASURED, closed as
+confirmed — fix scoped as **TASK-377**
+
+**Measurement (2026-07-31, DUT session, debug build, real fetches at the device's configured
+London location):** added `LOG_D("planeradar", "fetch rtt=%lums ok=%d errorCode=%d", now -
+_lastFetch, ...)` at the `pollPlaneRadar()` drain point in `tick()` (`planeRadarApp.h`), spanning
+`_requestFetch()`'s request-issue stamp to drain. 26 fetch cycles sampled (1st excluded — the
+`_forceNow()` backdate on app-entry/resume artificially inflates the very first sample by one
+`prPollSec` and isn't representative of steady-state polling):
+
+- **Not near-constant.** RTT ranged 6203–21573ms, a 15.4s spread — an order of magnitude past the
+  "1-2s+" threshold the task set for scoping a fix.
+- **Bimodal, not smooth jitter.** 13/26 cycles (50%) were clean single-GET fetches at 6203-8152ms
+  (≈1.9s spread — real but modest baseline transport jitter). The other 13/26 (50%) hit at least one
+  `errorCode=-92` (`IncompleteInput`) retry within the cycle and ballooned to 13058-21573ms
+  (avg 19.2s) — multiple sequential ~6-8s GETs chained back-to-back before a result finally drains.
+  7/26 cycles (27%) failed outright even after retry.
+- **Dominant driver is TASK-361's retry cascade, not baseline edge jitter.** The 50% retry-cycle
+  rate and 27% terminal-failure rate line up with TASK-361's already-reported regression (busy-
+  traffic payload size defeating TASK-313's single-retry mitigation), not a new finding — this
+  measurement quantifies its knock-on effect on `fixMs` specifically. Baseline (retry-free) jitter
+  alone is already ≈1.9s, at the low end of the threshold that would justify a fix on its own.
+
+**Conclusion:** EXP-015 Finding 3's candidate mechanism is real and worse than hypothesized —
+drain-time `fixMs` stamping absorbs up to ~21s of transport variance, not the "2s of unaccounted
+latency" EXP-015 sized. Every `_reconcileMotion()` fix is timestamped up to ~15s later than the
+aircraft's true position, on a variable (not fixed) offset — exactly the "systematic dead-reckon
+lead that reads as inaccuracy" theory. Fix scoped below as TASK-377. The retry-cascade tail should
+shrink once TASK-361 lands, but request-time stamping removes the error class entirely (both the
+jitter and the retry tail) rather than just shrinking it, so it's still worth doing independent of
+TASK-361's timeline.
+
+The `LOG_D` measurement instrumentation was left in place (real signal, cheap, matches this file's
+existing per-fetch debug logging conventions) rather than reverted.
+
+### TASK-377 — PlaneRadar: stamp `fixMs` from request-issue time, not drain time (TASK-367 follow-up)
+
+TASK-367 confirmed `_reconcileMotion()` stamping `m.fixMs = now` at `pollPlaneRadar()` drain time
+(`planeRadarApp.h:744`) absorbs 6.2-21.6s of fetch transport variance (measured on DUT) into the
+motion model's fix epoch, defeating the dead-reckon's assumption of a fixed, known-age fix.
+**Scope:** stamp `fixMs` from `_requestFetch()`'s request-issue time (`_lastFetch`, already
+captured at `planeRadarApp.h:590`) instead of the drain-time `now` passed into
+`_reconcileMotion()` — the fix is that recent as of when the GET was issued, not when it happened
+to finish draining through `pollPlaneRadar()`. Check `dataTask::PlaneRadarResult`/`_result` for
+whether the adsb.fi payload carries its own `now`/timestamp epoch field first (design doc mentions
+it as an alternative source) — if present and more accurate than request-issue time, prefer it.
+Re-verify EXP-015's `jump_px` metric (or a successor) after the change to confirm the dead-reckon
+lead actually shrinks, not just that the stamp semantics changed.
+
+**Owner:** Developer · **Deps:** TASK-367 (measurement, done) · **Gate:** DUT session — before/after
+comparison of dead-reckon lead behavior, ideally alongside TASK-361's retry-cascade fix landing (not
+blocking — independent improvement either way) · **Priority:** P3 — confirmed mechanism, not yet
+confirmed as the dominant contributor to the human-observed "inaccuracy" (TASK-368 still open on
+that question) · **Status:** open
 
 ### TASK-368 — PlaneRadar: distinguish PR_MAX_AIRCRAFT=24 roster churn from motion-vector error (EXP-015 Finding 4)
 

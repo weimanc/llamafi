@@ -259,6 +259,13 @@ public:
                 } else {
                     _pendingFetch = false;
                     _lastHttp     = result.errorCode;
+                    // TASK-367 step 1 (measurement only): fetch round-trip
+                    // from _requestFetch()'s request-issue stamp (_lastFetch)
+                    // to this drain — checking whether it's near-constant or
+                    // varies fetch-to-fetch (candidate explanation for
+                    // fixMs's drain-time stamp reading as dead-reckon lead).
+                    LOG_D("planeradar", "fetch rtt=%lums ok=%d errorCode=%d",
+                          now - _lastFetch, (int)result.ok, (int)result.errorCode);
                     if (result.ok) {
                         _result        = result;
                         _everHadResult = true;
