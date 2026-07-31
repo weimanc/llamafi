@@ -4046,7 +4046,28 @@ poll/retry/backoff behavior is unaffected either way · **Size:** S-M (small cod
 the design call in step 1 lands on "reuse the OR", larger if it lands on a genuine third
 state) · **Status:** open
 
-## Open — M-CEEFAX (2026-07-30)
+## Closed — M-CEEFAX (2026-07-30, closed 2026-07-31 — **CUT**, ADR-058 D)
+
+> **PM DISPOSITION (2026-07-31) — supersedes every "close-out" note inside this
+> section.** M-CEEFAX is **CLOSED by removing the feature** (ADR-058 Option D,
+> commit `41448f5`). The section below is the full audit trail and contains
+> several *superseded* intermediate dispositions — read them as history, not
+> current state:
+> - "Option A accepted / M-CEEFAX closed" (TASK-374 close-out) — **WITHDRAWN**
+>   (accepted with no functional test; Ceefax had never actually worked).
+> - TASK-375 (add a `stop()`) — **moot** (no leak; EXP-019).
+> - TASK-376 (make it connect) — the crash was fixed and it *did* connect, but
+>   **EXP-020 proved the feature non-viable** on this hardware's DMA budget (its
+>   own ~47 KB TLS allocation drops the connection ~90 ms in, before a page
+>   renders, even fully isolated). Fork was B (reopen the declined framework
+>   rebuild) vs D (cut); **human chose D.**
+> **Net production state:** the Ceefax backend, `teletextCountry` setting, the
+> WebSockets dependency, the spike env/file and `CEEFAX_ROOT_CA` are all removed;
+> **NOS Teletekst (M-TELETEXT) is the sole teletext source, unchanged and
+> DUT-verified.** TASK-370..376 are all closed (TASK-370..373's implementation
+> was subsequently removed by the cut; kept below as record). The
+> `TeletextSource` seam is retained dormant for a possible future backend.
+> Current disposition: **ADR-058 (accepted, D)** + **EXP-020 (DONE)**.
 
 NMS Ceefax (`nmsceefax.co.uk`) as a second `TeletextSource` behind the existing
 `TeletextApp` (M-TELETEXT/ADR-044) — not a new app. Design: [M-CEEFAX.md](../architecture/designs/M-CEEFAX.md).
