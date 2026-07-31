@@ -345,10 +345,40 @@ private:
     // Ceefax (or a reboot) gets a fresh budget.
     static constexpr uint8_t kMaxConsecutiveAttempts = 5;
 
-    static constexpr UBaseType_t kStackWords = (8 * 1024) / sizeof(StackType_t);
-    // *** DUT-VERIFY (TASK-370 gate): sized as a starting point, not assumed
-    // from WebRadio's pump-task precedent — this task's stack additionally
-    // holds a StaticJsonDocument for inbound frame parsing. ***
+    // TASK-376: once a fresh attempt fires, pump loop() every tick for this
+    // long so the TCP→TLS→WS-upgrade handshake completes. The library reads
+    // the "101 Switching Protocols" upgrade on a LATER loop() call than the
+    // one that opens the socket; the old once-per-kRetryIntervalMs (15s)
+    // cadence in the disconnected branch never serviced it before the
+    // library's ~5s header timeout, so WStype_CONNECTED never fired even
+    // though connect() succeeded (DUT-confirmed: attempt allocated the full
+    // ~55KB mbedTLS buffer pair, then timed out). Only fresh attempts stay
+    // gated/counted; the servicing window itself is not counted.
+    //
+    // CRITICAL INVARIANT: kServicingWindowMs < the WebSocketsClient reconnect
+    // interval set in _taskBody(). When a connect FAST-FAILS (relay down /
+    // rate-limiting the device IP), connectFailedCb() emits NO WStype_
+    // DISCONNECTED event (verified: it only DEBUG-prints), so nothing tells us
+    // the attempt died — the window keeps pumping loop(). If the library's
+    // reconnect interval were shorter than the window, loop() would kick off a
+    // NEW connect every interval within the window: a rapid fast-fail storm
+    // that leaks lwIP sockets ("errno=11 No more processes" -> ALL TLS incl.
+    // Spotify starts failing) and DMA. Keeping the window < interval bounds it
+    // to at most ONE connect per window (the fresh attempt itself); the next
+    // reconnect can't fire until after the window closes.
+    static constexpr uint32_t kServicingWindowMs = 3000;
+
+    // TASK-376: 16KB, was 8KB — PRECAUTIONARY, not the crash fix. The crash
+    // (Guru Meditation in start_ssl_client) turned out to be an uninitialized
+    // client-cert pointer, fixed at beginSslWithClientKey() below, NOT a stack
+    // overflow. But 8KB (flagged "unverified starting point" in the original
+    // comment) is genuinely marginal for a task that runs a full mbedTLS TLS
+    // handshake plus a StaticJsonDocument<384>; the project's other TLS-doing
+    // tasks are sized far larger (spotifyTask 10KB, dataTask 14KB). 16KB gives
+    // headroom while the real handshake stack depth is measured (the
+    // SERIAL_DEBUG DIAG below logs uxTaskGetStackHighWaterMark per attempt);
+    // right-size once a successful connect's HWM is on record.
+    static constexpr UBaseType_t kStackWords = (16 * 1024) / sizeof(StackType_t);
 
     mutable portMUX_TYPE _mux = portMUX_INITIALIZER_UNLOCKED;
     uint16_t _reqPage     = 100;
@@ -367,6 +397,7 @@ private:
     unsigned long     _lastKeepaliveMs = 0;
     unsigned long     _lastAttemptMs   = 0;  // TASK-374: throttles reconnect attempts to once/kRetryIntervalMs
     uint8_t           _consecutiveAttempts = 0;  // TASK-374: kMaxConsecutiveAttempts cap
+    unsigned long     _servicingUntilMs = 0;  // TASK-376: pump loop() every tick until this ms
 
     void _resetForPage(uint16_t page) {
         portENTER_CRITICAL_SAFE(&_mux);
@@ -603,6 +634,12 @@ private:
                 _connected = false;
                 if (_disconnectedSinceMs == 0) _disconnectedSinceMs = millis();
                 portEXIT_CRITICAL_SAFE(&_mux);
+                // TASK-376: the attempt that opened the current servicing
+                // window is over — end the window so we DON'T keep pumping
+                // loop() every tick into ungated library reconnects (2s
+                // _reconnectInterval) while disconnected. Falls back to the
+                // DMA-gated, kRetryIntervalMs-paced fresh-attempt path.
+                _servicingUntilMs = 0;
                 LOG_I("ceefax", "WStype_DISCONNECTED");
                 break;
             case WStype_ERROR:
@@ -619,8 +656,34 @@ private:
     void _taskBody() {
         _ws = new WebSocketsClient();
         _ws->onEvent([this](WStype_t t, uint8_t* p, size_t l) { _onEvent(t, p, l); });
-        _ws->beginSslWithCA(kHost, kPort, kPath, CEEFAX_ROOT_CA);
-        _ws->setReconnectInterval(kRetryIntervalMs);
+        // TASK-376 (THE crash fix): use beginSslWithClientKey(..., nullptr,
+        // nullptr) rather than beginSslWithCA(). Upstream bug: WebSocketsClient
+        // never initializes its _client_cert/_client_key members — neither the
+        // constructor nor begin() touches them, and there's no default member
+        // initializer — so after `new WebSocketsClient()` they hold whatever
+        // was in the reused heap block. loop() then does
+        // `if(_client_cert && _client_key)` and, when that garbage is non-null,
+        // sets a GARBAGE client certificate on the freshly-allocated
+        // WiFiClientSecure; the next connect() strlen()s it in
+        // start_ssl_client() → Guru Meditation LoadProhibited. Intermittent
+        // precisely because a zeroed heap block reads NULL (fine) but a dirty
+        // one (boot/TLS contention) reads garbage (crash) — which is exactly
+        // the "crashes under contention at ~65K free" symptom. beginSslWith
+        // ClientKey explicitly assigns _client_cert/_client_key first, so
+        // passing nullptr for both makes the guards correctly skip client-cert
+        // auth (Ceefax authenticates the server via CA only).
+        _ws->beginSslWithClientKey(kHost, kPort, kPath, CEEFAX_ROOT_CA, nullptr, nullptr);
+        // TASK-376: 4s. Two competing constraints:
+        //  (bug 2) must be SHORTER than our kRetryIntervalMs (15s) fresh-attempt
+        //   cadence, or clientIsConnected()'s clientDisconnect("TCP connection
+        //   cleanup") — which resets _lastConnectionFail to now — makes the next
+        //   throttle check (millis()-_lastConnectionFail < interval) skip our
+        //   connect, wasting attempts. (Was 2s.)
+        //  (storm) must be LONGER than kServicingWindowMs (3s), so a fast-failing
+        //   connect can't be re-fired by the library inside the servicing window
+        //   — see kServicingWindowMs's CRITICAL INVARIANT comment (socket/DMA
+        //   leak otherwise). 3s < 4s < 15s satisfies both.
+        _ws->setReconnectInterval(4000);
         _lastAttemptMs = millis() - kRetryIntervalMs;  // attempt immediately on first tick
         _consecutiveAttempts = 0;
 
@@ -679,24 +742,32 @@ private:
                 // the library's internal reconnect timer, it doesn't lose
                 // track of time), so every real attempt this task ever makes
                 // happens inside tlsYield()/tlsResume(), none unwrapped.
-                if (gateOk && _consecutiveAttempts < kMaxConsecutiveAttempts
+                if (now < _servicingUntilMs) {
+                    // TASK-376 (bug 1): a fresh attempt is in flight — pump
+                    // loop() every tick so the library reads the 101 upgrade
+                    // before its header timeout. Still bracketed in the TLS
+                    // yield so Spotify isn't raced during the handshake. This
+                    // window is NOT counted against kMaxConsecutiveAttempts;
+                    // only the else-if below opens/counts a fresh attempt.
+                    spotifyTask::tlsYield();
+                    _ws->loop();
+                    spotifyTask::tlsResume();
+                } else if (gateOk && _consecutiveAttempts < kMaxConsecutiveAttempts
                            && now - _lastAttemptMs >= kRetryIntervalMs) {
                     _lastAttemptMs = now;
                     _consecutiveAttempts++;
 #ifdef SERIAL_DEBUG
-                    // *** TASK-374 TEMPORARY DIAGNOSTIC — PROP-008 follow-up.
-                    // Not a permanent feature; remove once the ~46KB
-                    // "doesn't come back" finding is explained. Logs
-                    // allocated_blocks (not just bytes) so a genuine leak
-                    // (block count climbs and never drops) can be told apart
-                    // from memory simply being claimed by other tasks
-                    // (bytes shift, block count doesn't). ***
+                    // *** TASK-376 attempt-visibility DIAG (retained from the
+                    // PROP-008 leak scaffolding). Logs allocated_blocks (not
+                    // just bytes) so a genuine leak can be told apart from
+                    // memory claimed by other tasks. ***
                     multi_heap_info_t hiBefore, hiAfter;
                     heap_caps_get_info(&hiBefore, MALLOC_CAP_DMA);
 #endif
                     spotifyTask::tlsYield();
                     _ws->loop();
                     spotifyTask::tlsResume();
+                    _servicingUntilMs = millis() + kServicingWindowMs;  // drive handshake to completion
 #ifdef SERIAL_DEBUG
                     heap_caps_get_info(&hiAfter, MALLOC_CAP_DMA);
                     LOG_W("ceefax",
@@ -707,9 +778,12 @@ private:
                           (unsigned)hiBefore.largest_free_block,
                           (unsigned)hiAfter.total_free_bytes, (unsigned)hiAfter.free_blocks,
                           (unsigned)hiAfter.largest_free_block);
-                    // A one-off full heap_caps_dump(MALLOC_CAP_DMA) here (removed
-                    // after use) matched the leaked blocks to mbedTLS's ~16732B
-                    // SSL in_buf/out_buf pair — see PROP-008's fourth follow-up.
+                    // TASK-376: min free stack ever seen on this pump task —
+                    // words remaining; ×4 = bytes. A near-zero value confirms
+                    // the 8KB→16KB bump was the crash fix.
+                    LOG_W("ceefax", "stack hwm free words=%u (task stack=%u bytes)",
+                          (unsigned)uxTaskGetStackHighWaterMark(NULL),
+                          (unsigned)(kStackWords * sizeof(StackType_t)));
 #endif
                     if (_consecutiveAttempts == kMaxConsecutiveAttempts) {
                         LOG_W("ceefax", "giving up after %u consecutive attempts this session",

@@ -4552,8 +4552,89 @@ this alone** — it pumps `loop()` harder, which makes bug (4)'s crash fire soon
   the framework copy; blocking prints change hot-path behaviour (use out-of-band
   counters); a stuck heap can be metastable, not a leak.
 
+#### Session update (2026-07-31, second session) — crash ROOT-CAUSED & FIXED; landed (1)+(2); connect blocked on external throttle
+
+Picked up the handoff. First-action harness run showed connect() had recovered
+(attempt#1 allocated the full ~55KB mbedTLS buffer pair → TCP+TLS was
+succeeding), i.e. **bug (3) had cooled off** at session start — the green-light
+condition. Proceeded to (4)→(1)+(2). Findings, in order:
+
+1. **THE CRASH (bug 4) is NOT a stack overflow or a generic null-guard — it is
+   an uninitialized-member bug in the pulled WebSocketsClient.** Root-caused by
+   addr2line'ing the panic (`strlen` ← `start_ssl_client` **ssl_client.cpp:244**
+   ← `WiFiClientSecure::connect` ← `WebSocketsClient::loop()`), then reading the
+   library: `WebSocketsClient::begin()` initializes `_CA_cert`/`_CA_bundle`/
+   `_fingerprint` but **never `_client_cert`/`_client_key`** (no ctor init, no
+   default member initializer). After `new WebSocketsClient()` those two members
+   hold whatever was in the reused heap block. `loop()` then does
+   `if(_client_cert && _client_key)` and, when that garbage is non-null, sets a
+   GARBAGE client certificate on the freshly-allocated WiFiClientSecure; the
+   next connect() `strlen()`s it → Guru Meditation LoadProhibited. **Intermittent
+   precisely because a zeroed heap block reads NULL (fine) but a dirty one
+   (boot/TLS contention) reads garbage (crash)** — matches the "crashes under
+   contention at ~65K free heap" symptom and the different garbage pointer each
+   boot. **FIX (clean, no lib patch):** call
+   `beginSslWithClientKey(host, port, path, CA, nullptr, nullptr)` instead of
+   `beginSslWithCA(...)` — that overload explicitly assigns both members first,
+   so passing nullptr makes the client-cert guards correctly skip. **Verified:
+   zero LoadProhibited across every post-fix run** despite the servicing window
+   pumping loop() hard. (The earlier "stack 8KB→16KB" change is retained as
+   PRECAUTIONARY only — it was NOT the crash cause; 8KB is just genuinely
+   marginal for an mbedTLS-handshake task. Right-size later from the DIAG's
+   per-attempt `uxTaskGetStackHighWaterMark`.)
+
+2. **Landed the (1)+(2) servicing fix, then found and fixed a storm it causes
+   under fast-fail.** `connectFailedCb()` emits **no** WStype_DISCONNECTED
+   (verified: it only DEBUG-prints), so the "clear the window on disconnect"
+   guard never fires when a connect fast-fails. With the held fix's 8s window +
+   2s reconnect interval, a fast-failing connect (relay/router throttling the
+   device) let loop() re-fire a NEW connect every 2s inside the 8s window → a
+   fast-fail **storm** that exhausts lwIP sockets (`errno=11 "No more
+   processes"` → ALL TLS incl. Spotify starts failing) and DMA. **Fix: enforce
+   the invariant kServicingWindowMs (3s) < reconnectInterval (4s) < kRetry
+   IntervalMs (15s)** — bounds each window to at most ONE connect, keeps our 15s
+   fresh-attempt cadence firing (bug-2 stays fixed). Verified under the current
+   fast-fail: only 1 Ceefax attempt per cadence, **no Ceefax-driven socket
+   storm, no crash**.
+
+3. **Connect is BLOCKED again — external device-side throttle, re-triggered by
+   this session's own heavy testing.** After ~15 connect-heavy runs, connect()
+   went back to fast-failing at the TCP stage (attempt#1 consumes ~3KB, largest
+   block unchanged → fails before mbedTLS allocates). The **host still gets
+   `HTTP/1.1 101` in 0.48s**, and Spotify's OWN device connect started taking
+   `errno=11`/`HTTPC_CONNECTION_REFUSED` too — so it's not relay-specific, it's
+   the **device's outbound TLS being rate-limited** (relay edge and/or the
+   home router's connection-rate/NAT limit) after hundreds of connections this
+   session. **Cannot observe a successful connect+acquire until this cools
+   down.** Stopped DUT testing (more runs just prolong it), restored prod.
+
+**Still OPEN — the acceptance harness is NOT green yet** (never connected this
+session due to the throttle). What remains:
+- **(a)** After a real cooldown (device relay-idle; prod doesn't touch the relay
+  unless someone foregrounds Ceefax), re-run:
+  `./run/flash-debug && sleep 6 && python3 app/tools/ceefax_connect_check.py \
+  --port /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0 --no-reset --secs 200`
+  Expect: `connect() OK` → WStype_CONNECTED → acquired=true, exit 0. The
+  servicing window + cert fix should carry it; if CONNECTED fires but no page,
+  debug the pagesearch/parse path, not the transport.
+- **(b)** The boot-time DMA/socket contention (Spotify+WebRadio+Ceefax all doing
+  TLS into a ~77KB DMA pool that fits maybe two ~50KB handshakes) is the deep
+  ADR-057 "cross-app TLS degradation" — likely still present once connect works,
+  and only partly attributable to Ceefax. Was confounded here by the throttle;
+  re-assess after (a) with a genuine coexistence soak. This is the TASK-374 bar.
+
+**Harness reliability fixes (committed):** `ceefax_connect_check.py` gained a
+`--no-reset` mode + tolerant reads. On this rig the DTR/RTS reset-on-open drops
+the CYD into download mode (silent port) AND re-enumerates the CH340 (ttyUSB0↔1
+flap). Use the stable `/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0` symlink
+and `--no-reset` right after `run/flash-debug` (which already leaves a fresh
+boot). Without this the harness can't even open the port on this hardware.
+
 **Owner:** Developer (Architect consult) · **Deps:** M-CEEFAX (TASK-370..374) ·
 **Priority:** P1 (feature is non-functional on target hardware) · **Status:**
-OPEN / HANDED OFF — root-caused 2026-07-31; blocked on (3) connect-fail (retest
-after cooldown — likely external rate-limit) then (4) the crash; fix for (1)+(2)
-validated and captured above.
+OPEN — crash (bug 4) root-caused & FIXED (uninitialized `_client_cert`; verified
+crash-free); (1)+(2) servicing fix landed + hardened against the fast-fail
+socket-storm; **connect+acquire NOT yet verified green** — blocked on an external
+device-side TLS throttle (host gets 101; device fast-fails) that this session's
+own testing re-triggered. Re-run the harness after cooldown per (a) above; do
+NOT close M-CEEFAX/TASK-374 until it exits 0.

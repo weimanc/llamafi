@@ -33,17 +33,42 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", default="/dev/ttyUSB0", help="CH340 port (resolve via ./run/port)")
     ap.add_argument("--secs", type=int, default=200, help="observation window after switch")
+    ap.add_argument("--no-reset", action="store_true",
+                    help="don't toggle DTR/RTS (avoids CH340 re-enumeration flap on some "
+                         "rigs); run right after ./run/flash-debug, which already leaves a "
+                         "fresh boot. Waits for the periodic heartbeat instead of the IP banner.")
     a = ap.parse_args()
 
-    s = serial.Serial(); s.port = a.port; s.baudrate = 115200; s.timeout = 1.0
-    s.dtr = False; s.rts = False
-    s.open()  # opening asserts DTR -> board resets -> fresh boot
+    # Open with the plain constructor (default DTR/RTS) — on this CYD's CH340
+    # adapter, pre-setting dtr=False/rts=False *before* open() intermittently
+    # latches GPIO0 low and drops the board into download mode (silent port ->
+    # SerialException on the first read).
+    s = serial.Serial(a.port, 115200, timeout=1.0)
+    if not a.no_reset:
+        # Reliable RUN-mode reset (matches esptool's hard_reset): DTR low keeps
+        # GPIO0 HIGH (run, not download); pulse EN via RTS low->high. On a flaky
+        # CH340 rig this pulse can re-enumerate the port — use --no-reset there.
+        s.dtr = False        # GPIO0 HIGH -> normal boot
+        s.rts = True         # EN LOW  -> hold in reset
+        time.sleep(0.15)
+        s.rts = False        # EN HIGH -> release, boots to run mode
+        time.sleep(0.05)
+    try: s.reset_input_buffer()
+    except Exception: pass
+    # With --no-reset the board is already up, so the "IP address:" banner has
+    # long scrolled past; the heartbeat line ("[hb]") is the readiness signal.
+    ready_markers = ("IP address:",) if not a.no_reset else ("IP address:", "[hb] ")
     dl = time.monotonic() + 60
     while time.monotonic() < dl:
-        if "IP address:" in s.readline().decode(errors="replace"):
+        try:
+            line = s.readline().decode(errors="replace")
+        except serial.SerialException:
+            # transient glitch right after the EN pulse — tolerate and retry
+            time.sleep(0.2); continue
+        if any(m in line for m in ready_markers):
             print("[ready]"); break
     else:
-        print("[warn] no IP banner seen; continuing")
+        print("[warn] no readiness marker seen; continuing")
 
     def send(c): s.write((c + "\n").encode()); s.flush()
 
@@ -54,7 +79,12 @@ def main():
     t0 = time.monotonic(); last_poll = 0.0
     KEYS = ("wsdbg", "wstype", "ceefax", "guru", "rst:", "panic", "-32512", "connect")
     while time.monotonic() - t0 < a.secs:
-        l = s.readline().decode(errors="replace").rstrip()
+        try:
+            l = s.readline().decode(errors="replace").rstrip()
+        except serial.SerialException:
+            # a hard crash/reboot can glitch the USB-UART mid-read; count it as
+            # a crash rather than aborting the run, then keep observing.
+            crashed = True; time.sleep(0.2); continue
         if l and '"var"' not in l and any(k in l.lower() for k in KEYS):
             print(f"  [{time.monotonic()-t0:5.0f}s] {l}", flush=True)
             if "guru" in l.lower() or "rst:" in l.lower(): crashed = True
@@ -65,7 +95,10 @@ def main():
             send("get ceefaxStatus")
             d = {}; dl2 = time.monotonic() + 2
             while time.monotonic() < dl2:
-                x = s.readline().decode(errors="replace").strip()
+                try:
+                    x = s.readline().decode(errors="replace").strip()
+                except serial.SerialException:
+                    crashed = True; break
                 if x.startswith("{") and "ceefaxStatus" in x:
                     try: d = json.loads(x); break
                     except json.JSONDecodeError: pass
