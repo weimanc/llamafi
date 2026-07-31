@@ -1603,6 +1603,58 @@ This is a recommendation, not a decision. PM/human determines whether to sprint-
 
 ---
 
+### Audit — 2026-07-31 — M-CEEFAX close-out: a feature accepted "closed" without ever being functionally tested
+
+**Triggered by**: human ("run the QM retro on the process miss"), after M-CEEFAX
+was cut (ADR-058 D, commit 41448f5).
+
+**Scope**: the M-CEEFAX close-out arc — ADR-057's "Option A accepted / M-CEEFAX
+closed" disposition (2026-07-31), the secondary analysis that preceded it (PROP-008
+DMA-leak / EXP-019 no-leak / TASK-374 coexistence soaks / arduinoWebSockets #864
+research), and how the miss was caught and recovered (human functional-test prompt →
+TASK-376 crash root-cause + first real connect → EXP-020 non-viability proof → cut).
+
+**Findings**:
+1. **LL-115 (new) — headline miss**: M-CEEFAX was accepted as "closed" while it had
+   **never once connected or rendered a page**. A large, internally-consistent body
+   of memory/leak/coexistence analysis characterized a permanently-failing feature
+   and mis-read its failure signatures (freeDma oscillation, Spotify `SSL -32512`) as
+   legitimate coexistence findings. The **rigor of that analysis masked the absence
+   of any primary functional test**. Same family as LL-064 (happy-path smoke accepted
+   as proof) and BP-048's rationale (a coherent but wrong source-read root cause),
+   one step worse — there was no functional test at all to over-trust.
+2. **Contributing cause**: ADR-057's acceptance criterion ("accept best-effort
+   connectivity") was never operationalized into a concrete "connect + acquire +
+   render once" check; nothing gated the behavioral characterization behind "does the
+   feature perform its primary function at all."
+3. **What worked (not just blame)**: the human's one-line "I've never seen it working"
+   prompt caught it; the recovery was disciplined and did **not** repeat the miss
+   (crash root-caused + fixed → feature genuinely connected for the first time →
+   EXP-020 *functionally* proved non-viability → cut). A standing acceptance gate,
+   `app/tools/ceefax_connect_check.py` (exit 0 only on real connect+acquire+no-crash),
+   was built and is the forcing function that should have existed from the start.
+
+**Actions assigned**:
+- **QM** — LL-115 logged (above). **BP candidate brought to human** (awaiting
+  sign-off; QM does not self-adopt): *"A feature may not be marked done/accepted —
+  and its non-functional characterization (perf, memory, coexistence, leak/no-leak)
+  may not be treated as meaningful — until its primary function has been demonstrated
+  end-to-end on the target at least once, captured as a named acceptance gate (an
+  automated harness or an explicit human eyeball). Extends BP-048 part 2 from
+  pixel-level UI to functional correctness."* Candidate BP-052, or an amendment to
+  BP-048 — human's call.
+- **PM** — M-CEEFAX filed **Closed (CUT)**; tasks.md milestone header + disposition
+  banner, roadmap M-TELETEXT annotations, and the current-state memory all reconciled;
+  next free task number **TASK-377**. (Done this session.)
+- **Developer/Architect** — none open. Ceefax backend + settings + WebSockets dep
+  removed; NOS Teletekst DUT-verified as the sole teletext source.
+
+**Resolution**: LL-115 logged. BP candidate **pending human decision** (adopt as
+BP-052 / fold into BP-048 / decline). No further code action — feature cut, project
+state consistent across tasks.md, roadmap.md, ADR-058, EXP-020, and memory.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:

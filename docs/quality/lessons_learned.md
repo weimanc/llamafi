@@ -4,6 +4,63 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-07-31 — M-CEEFAX: a feature was exhaustively analyzed and accepted as "closed" while it had never once performed its primary function
+
+### LL-115 — 2026-07-31 — Sophisticated secondary analysis (leak / coexistence / memory) is not evidence the feature works — and its rigor actively masked that it never did
+**Context**: M-CEEFAX (NMS Ceefax as a second teletext source) was implemented
+(TASK-370..373, 2026-07-30) and then, over several sessions, subjected to a large
+body of *secondary* analysis: a per-attempt DMA-leak investigation (PROP-008), a
+"no-leak" out-of-band isolation (EXP-019), upstream-bug research
+(arduinoWebSockets #864), and cross-app TLS-coexistence soaks (TASK-374) — culminating
+in an **ADR-057 "Option A accepted / M-CEEFAX closed"** disposition on 2026-07-31,
+all framed around "what happens *while the user is on the Ceefax source*." A
+one-line human prompt the same day — *"I've never seen Ceefax working on the DUT"* —
+triggered the **first end-to-end functional test**, which found the feature had
+**never connected once** (and could crash the device). Every prior artifact had been
+characterizing the behavior of a feature that did not work.
+**Observation**: The failure mode was **not too little rigor — it was misdirected
+rigor**. Hours went into characterizing a DMA "leak" that (a) turned out not to be a
+leak and (b) never mattered, because the WebSocket connection never established in
+the first place. The DMA-gate/soak instrumentation faithfully measured a feature
+stuck in a permanent-failure state and mis-read its failure *signatures* (freeDma
+oscillation, Spotify `SSL -32512`) as legitimate "coexistence findings." The volume
+and internal consistency of that analysis created false confidence that the feature
+was understood and therefore done. This is the same family as **LL-064** (happy-path
+smoke accepted as safety proof) and BP-048's rationale (a coherent source-read root
+cause that was simply wrong, falsified by one 30s DUT run) — but a step worse: here
+there wasn't even a happy-path functional test to over-trust; acceptance rested
+**entirely** on secondary analysis of a non-working feature.
+**Root cause**: No gate required the feature's **primary function** to be demonstrated
+end-to-end on the target *before* its non-functional behavior was characterized or the
+feature accepted. ADR-057's acceptance criterion ("accept best-effort connectivity")
+was never operationalized into a concrete "show it connect + acquire + render a page
+once" check. The characterization work was allowed to *stand in for* that check.
+**What worked (credit where due)**: the human's functional-test prompt caught it; and
+the recovery was disciplined and did **not** repeat the miss — the crash was
+root-caused and fixed, the feature was gotten to genuinely connect for the first time,
+then EXP-020 **functionally** proved it non-viable on this hardware's DMA budget, and
+only then was it cut (ADR-058 D). A standing acceptance gate
+(`app/tools/ceefax_connect_check.py` — exit 0 only on real connect+acquire+no-crash)
+was built and is now the forcing function that should have existed at the start.
+**Suggested improvement (BP candidate — see audit_log, for human sign-off)**: A
+feature may not be marked done/accepted — and its non-functional characterization
+(perf, memory, coexistence, "leak/no-leak") may not be treated as meaningful — until
+its **primary function has been demonstrated end-to-end on the target at least once**,
+captured as a named acceptance gate (an automated harness or an explicit human
+eyeball). Extends BP-048 part 2 (pixel-level work carries an eyeball gate) from UI to
+*functional* correctness: characterization of a feature's behavior presupposes the
+feature behaves.
+**Secondary (technical) lessons from the same arc, already captured in TASK-376 / the
+`m-ceefax-state` memory — logged here for the retro record**: (1) instrument the
+project's **vendored** `app/lib/WiFiClientSecure` (where PATCH-001/003 live), not the
+`~/.platformio` framework copy PlatformIO doesn't compile — probes on the wrong file
+are silent (`strings firmware.elf | grep <tag>` = 0 is the tell); (2) use `ets_printf`,
+not `log_e` (suppressed by `CORE_DEBUG_LEVEL` here); (3) blocking hot-path prints have
+an **observer effect** that changed the very heap timing being measured — use
+out-of-band counters; (4) a heap that "sticks low and never recovers" can be a
+**metastable** gate-latch artifact, not a leak — EXP-019 walked back the "permanent
+~46 KB leak" as exactly that.
+
 ## Retrospective — 2026-07-18 — M-ICON-PIXELART (TASK-331/332/334): host preview tools had drifted from firmware truth — twice, found only when the human tried to use them
 
 ### LL-114 — 2026-07-18 — Both host preview surfaces lied about the taskbar: mirrored constants and placeholder rendering drift silently until the moment a human actually needs them
