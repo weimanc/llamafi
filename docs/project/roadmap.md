@@ -796,7 +796,8 @@ was written — a deliberate practice from lessons learned.
 **Settings** (Settings → Applications → Teletext):
 - **Start page**: News 101 / Sport 601 / Weather 702 / Football 800
 - **Refresh**: 30 s / 60 s / 120 s
-- **Country**: NL (NOS) — label only until multi-country R&D spike completes
+- **Country**: NL (NOS) only. (A UK/Ceefax second source was explored and CUT —
+  see item 4 below; the Country toggle was removed with it, ADR-058.)
 
 **Open items before firmware:**
 1. Finalise right-strip layout + inline links in `preview_teletext.py`.
@@ -804,6 +805,11 @@ was written — a deliberate practice from lessons learned.
 3. Source `teletext.png` + `teletext_active.png` icons (24×24) for taskbar bake.
 4. R&D spike: which other active teletext services share the NOS wire format?
    Candidates: ORF (AT), ARD (DE), SVT (SE), RAI (IT), YLE (FI).
+   → RESOLVED: pursued NMS Ceefax (a *different* wire format — WebSocket
+   carousel, not NOS HTTP) as M-CEEFAX (ADR-057, EXP-005/006). Implemented
+   2026-07-30, then **CUT 2026-07-31 (ADR-058 D)** — a second persistent TLS/WS
+   connection is not viable on this hardware's ~70 KB DMA budget (EXP-020).
+   NOS remains the sole teletext source.
 
 **Status:** done (2026-06-13/14 — TASK-177–191; firmware implemented, icons baked, VE suite T249 ready-to-run, T272 PASS; ADR-044 accepted; 3 bugs fixed during T272: tlsYield gap, early-boot no-enqueue, null-byte parser)  
 **Deps:** M-MULTIAPP (done), M-TASKBAR-ICONS (done)  
