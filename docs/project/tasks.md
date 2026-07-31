@@ -4442,6 +4442,55 @@ TLS/connect path). (c) Only after Ceefax reliably connects on the DUT does the
 PROP-008 coexistence question (already answered: no leak, transient) become
 relevant again.
 
+**ROOT-CAUSED (2026-07-31, WSDBG instrumentation in vendored WebSocketsClient.cpp
++ an experimental fix, all reverted).** Three distinct bugs, in priority order:
+
+1. **Handshake never completes (fixed, validated).** `connect()` (TCP+TLS)
+   *can* succeed (~10 s), and `connectedCb()` sends the WS upgrade — but the
+   library reads the `101 Switching Protocols` on a **later** `loop()` call.
+   The pump only called `loop()` once per `kRetryIntervalMs` (15 s) in the
+   disconnected branch, while the library's header timeout is ~5 s → the upgrade
+   always timed out before we serviced it → `WStype_CONNECTED` never fired.
+   **Fix (validated on DUT):** a "servicing window" — once an attempt fires,
+   pump `loop()` every tick for ~8 s (`kServicingWindowMs`) so the handshake
+   completes; only fresh attempts stay gated/counted. Plus `setReconnectInterval`
+   15 s→2 s (see #2). Mechanism confirmed working (settled run: pumps correctly,
+   no crash). **Not committed** — see #3/#4 (it increases crash exposure without
+   the crash fix, and can't be end-to-end-verified while connect() fails).
+2. **Double-throttle wastes ~half the attempts.** `clientIsConnected()`'s own
+   `clientDisconnect(..., "TCP connection cleanup")` resets the library's
+   `_lastConnectionFail` to *now*, so the +immediately-following throttle check
+   `(millis()-_lastConnectionFail) < _reconnectInterval` skips the connect
+   (`WSDBG throttle-skip since_fail=10 interval=15000`). Lowering
+   `setReconnectInterval` to ~2 s (our own gate+cap already paces fresh attempts)
+   removes the skips.
+3. **connect() itself fails at the TCP stage — the current hard blocker.** With
+   #1/#2 fixed, `connect()` still returned FAILED **fast, essentially every
+   time** (before TLS allocates). The relay is UP and the **host connects 100%**
+   (`101 Switching Protocols`), and the original 6 h spike (EXP-006) connected
+   fine — so it's device-specific and new. Strong hypothesis: the relay is
+   **rate-limiting/blocking the device's IP** after hours of this session's
+   connect-hammering (some connects succeeded early today, then all fail).
+   Unconfirmed. **Next:** retest after a multi-hour cooldown and/or from a
+   different WAN IP before assuming a firmware cause; if it persists, probe
+   whether it's DNS (CNAME chain `internal.…` → `ekn.nmsni.co.uk`) vs TCP vs a
+   relay 429/block.
+4. **Null-deref crash under contention (separate blocker).** Fresh-boot runs
+   (Ceefax + Spotify poll + WebRadio fetch all doing TLS) crash with `Guru
+   Meditation LoadProhibited` in the TLS/connect path (unchecked alloc under low
+   DMA). The #1 servicing fix pumps `loop()` more → crashes *sooner*, so the
+   crash must be fixed before (or with) landing the servicing fix. Likely a
+   vendored-`ssl_client.cpp` hardening (guard the null return), same file/spirit
+   as `PATCH-003`.
+
+**Sequencing to actually fix:** (3) confirm/clear the connect-fail cause (may be
+external rate-limit — retest first, cheap) → (4) fix the null-deref crash →
+(1)+(2) land the servicing-window + reconnect-interval fix → re-verify a full
+connect + page acquire (+ screendump) on DUT → only *then* revisit PROP-008's
+coexistence acceptance.
+
 **Owner:** Developer (Architect consult) · **Deps:** M-CEEFAX (TASK-370..374) ·
 **Priority:** P1 (feature is non-functional on target hardware) · **Status:**
-OPEN — filed 2026-07-31, not started.
+OPEN — root-caused 2026-07-31; blocked on (3) connect-fail (likely external
+rate-limit — retest after cooldown) and (4) the crash. Fix for (1)+(2) validated
+but held.
