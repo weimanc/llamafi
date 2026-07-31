@@ -233,8 +233,11 @@ public:
   // TASK-245 / ADR-046: red taskbar bar on a persistent 403 (authorization
   // refused — e.g. owner-account Premium lapsed). Self-clears on the next
   // successful poll (see spotifyTask::authError()).
+  // TASK-366: OR'd with degraded() (>=2 consecutive non-403 failures — network/
+  // timeout/DNS) so a sustained non-auth poll problem also shows red, not just
+  // 403s. Both are sticky latches owned by spotifyTask; this endpoint just ORs.
   bool hasError() const override {
-    return spotifyTask::authError();
+    return spotifyTask::authError() || spotifyTask::degraded();
   }
   // TASK-245 amendment / ADR-046: amber "connecting" bar at boot until the first
   // poll resolves (then green on success, red on persistent 403).
@@ -3071,10 +3074,14 @@ static void cmdGet(const char *args) {
     bool ac = g_apps[(int)currentAppId] && g_apps[(int)currentAppId]->isConnecting();
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\","
                   "\"active\":%s,\"connecting\":%s,"
-                  "\"spotifyAuthError\":%s,\"spotifyConnecting\":%s,\"last\":true}\n",
+                  "\"spotifyAuthError\":%s,\"spotifyDegraded\":%s,\"spotifyConnecting\":%s,"
+                  "\"last\":true}\n",
                   ae ? "true" : "false",
                   ac ? "true" : "false",
                   spotifyTask::authError() ? "true" : "false",
+                  // TASK-366: surfaced alongside spotifyAuthError so VE can assert the
+                  // two sticky latches independently (both OR into `active`/hasError()).
+                  spotifyTask::degraded() ? "true" : "false",
                   spotifyTask::connecting() ? "true" : "false");
     return;
   }

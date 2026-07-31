@@ -59,6 +59,15 @@ static volatile int s_lastHttpStatus = 0;
 // 200/204. Read by authError(). Held through transient -1 blips; touch-immune
 // (not coupled to s_consecutiveFailures). See doPoll() / dbg_set("lastHttp").
 static volatile bool s_authErrorLatched = false;
+// TASK-366 / ADR-046: sticky non-auth-degraded latch — set once
+// s_consecutiveFailures reaches isHealthy()'s own >=2 threshold on a non-403
+// failure (network blip, timeout, DNS), cleared only on a real 200/204.
+// Deliberately NOT a raw read of s_consecutiveFailures/isHealthy(): that
+// counter is zeroed by resetBackoff() on every touch (ADR-046 Amendment 2's
+// exact flap lesson for s_authErrorLatched applies here too), so a sticky
+// latch mirroring s_authErrorLatched's pattern is required to avoid the same
+// red<->green flap on tap. Read by degraded(), OR'd into SpotifyApp::hasError().
+static volatile bool s_degradedLatched = false;
 // TASK-053b: pending TLS reset flag. Set by resetTls() (loop task); read
 // and cleared at the top of each taskBody iteration (spotify task). The
 // volatile ensures the compiler does not hoist the check out of the loop.
@@ -248,11 +257,13 @@ static void doPoll() {
     s_consecutiveFailures = 0;
     s_lastSuccessfulPollMs = millis();
     s_authErrorLatched = false;
+    s_degradedLatched = false;
     LOG_D("spotify.poll", "ok %s", httpErr(status));
   } else if (status == 204) {
     s_consecutiveFailures = 0;
     s_lastSuccessfulPollMs = millis();
     s_authErrorLatched = false;
+    s_degradedLatched = false;
     songStartMillis = 0;       // 204 no track — disable interpolator
     LOG_D("spotify.poll", "204 no track");
     // TASK-043: 204 means no active device. Reset volumePercent to the -1
@@ -269,6 +280,11 @@ static void doPoll() {
     portEXIT_CRITICAL_SAFE(&g_snapshotMux);
   } else {
     s_consecutiveFailures++;
+    // TASK-366: >=2 mirrors isHealthy()'s own threshold. 403s are excluded
+    // here in spirit (a 403 that trips this would already be red via
+    // authError()) but not worth a branch to special-case — OR'd together
+    // in hasError(), a redundant true changes nothing observable.
+    if (s_consecutiveFailures >= 2) s_degradedLatched = true;
     LOG_W("spotify.poll", "fail http=%s", httpErr(status));
     if (status == -1) {
       char errbuf[80] = {0};
@@ -593,6 +609,15 @@ bool authError() {
   return s_authErrorLatched;
 }
 
+// TASK-366 / ADR-046: true while in a sticky non-auth-degraded state (>=2
+// consecutive non-403 poll failures — network/timeout/DNS, not auth refusal).
+// OR'd with authError() into SpotifyApp::hasError() so the taskbar goes red
+// on either kind of persistent failure. See s_degradedLatched for why this
+// is a dedicated latch rather than a raw isHealthy() read.
+bool degraded() {
+  return s_degradedLatched;
+}
+
 // TASK-245 amendment / ADR-046: true until the *first* successful poll (200/204).
 // Drives the amber "connecting" taskbar state at boot, so the bar reads amber
 // (working) rather than green (all-good) before we know the connection state.
@@ -819,6 +844,11 @@ bool dbg_get(const char* var, char* buf, int len) {
 bool dbg_set(const char* var, const char* val) {
   if (strcmp(var, "backoff") == 0) {
     s_consecutiveFailures = (unsigned)atoi(val);
+    // TASK-366: mirror doPoll()'s latch rule so VE can drive the degraded
+    // taskbar red state without a real network failure ("set backoff 2").
+    // Sticky, same as the real path — does not clear on a lower value here;
+    // use `set lastHttp 200` (below) to simulate the recovery that clears it.
+    if (s_consecutiveFailures >= 2) s_degradedLatched = true;
     return true;
   }
   if (strcmp(var, "bgPoll") == 0) {
@@ -833,7 +863,10 @@ bool dbg_set(const char* var, const char* val) {
     int s = atoi(val);
     s_lastHttpStatus = s;
     if (s == 403) s_authErrorLatched = true;
-    else if (s == 200 || s == 204) s_authErrorLatched = false;
+    else if (s == 200 || s == 204) {
+      s_authErrorLatched = false;
+      s_degradedLatched = false;  // TASK-366: same success clears both latches
+    }
     return true;
   }
   // TASK-245 amendment: inject the last-successful-poll timestamp so VE can drive

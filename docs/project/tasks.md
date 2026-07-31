@@ -4044,7 +4044,59 @@ appears and clears correctly, no flap · **Priority:** P3 — real observability
 known live bug and no user report; display-indicator scope only, Spotify's actual
 poll/retry/backoff behavior is unaffected either way · **Size:** S-M (small code change if
 the design call in step 1 lands on "reuse the OR", larger if it lands on a genuine third
-state) · **Status:** open
+state) · **Status:** **DONE — closed 2026-07-31.** DUT gate passed (see below).
+
+**Design call (step 1-3, resolved):** reuse the OR (`SpotifyApp::hasError()` returns
+`authError() || degraded()`) — no new tri-state colour, no `taskbar.h`/`shell_layout.h`
+touch, golden-hash safe. Collapsing sticky-403 and sticky-degraded into one red was judged
+acceptable: both are "Spotify's poll path is stuck," and the taskbar has no room for a
+fourth colour without a design doc of its own (rejected per ADR-046's own precedent against
+a persistent per-slot health dot). Step 2 (flap risk): confirmed real — a raw `isHealthy()`
+read is `s_consecutiveFailures < 2`, and that counter is zeroed by `resetBackoff()` on every
+touch, the *exact* bug Amendment 2 already fixed once for `authError()`. Fix: a new sticky
+latch `s_degradedLatched` (`spotifyTaskStorage.cpp`), set when `s_consecutiveFailures` first
+reaches 2 on a non-200/204 poll, cleared only on a real 200/204 — mirrors
+`s_authErrorLatched` exactly, touch-immune. Step 3 (breadth audit): grepped every other
+app's `hasError()` (Stock/Weather/Crypto/Teletext/WebRadio/PlaneRadar) — each already wires
+its own fetch-fail flag directly; `isHealthy()`-style "computed but unwired" signals are a
+Spotify-only artifact (predates `isHealthy()`, which was added for the marquee, not the
+taskbar). No other app needs this fix.
+
+**Implementation:** `spotifyTaskStorage.cpp` (`s_degradedLatched` + `degraded()` accessor +
+wiring in `doPoll()`'s three branches), `spotifyTask.h` (`degraded()` decl),
+`main.cpp` (`SpotifyApp::hasError()` OR). `dbg_set("backoff", N)` also sets the latch when
+`N>=2` and `dbg_set("lastHttp", 200|204)` also clears it, mirroring the existing `lastHttp`
+403 injector — lets VE drive the red state deterministically without a real network failure.
+Also added `spotifyDegraded` to `get activeError`'s JSON (alongside the existing
+`spotifyAuthError`) so the two sticky latches can be asserted independently.
+`./run/check` 6/6 (prod + debug both compile clean).
+
+**DUT gate — DONE 2026-07-31.** Flashed debug, ran a single persistent serial session
+(`app/tools/screendump.py`'s `DutLite` + a driver script) so the DTR-reset-on-open quirk
+(documented in EXP-020's harness notes) couldn't wipe injected state between commands.
+Real account is still 403-latched (owner Premium lapse, TASK-243 — confirmed live:
+`last=403` in the boot heartbeat), so isolating `degraded()` from `authError()` needed an
+explicit `set lastHttp 200` (clears both) before `set backoff 2` (trips only `degraded`).
+Sequence + evidence:
+1. Fresh boot baseline: `activeError` all-false, `connecting:true` (no poll yet) — bar amber.
+2. `set lastHttp 200` + `set backoff 2` → `{"active":true,"spotifyAuthError":false,
+   "spotifyDegraded":true}` — **screendump shows solid red** (`TASKBAR_ERR_COLOR`), proving
+   `degraded()` alone (no 403 involved) drives the same red path as `authError()`.
+3. `set lastHttp 200` again (recovery) → `{"active":false,"spotifyDegraded":false}` —
+   **screendump shows amber**, not green, because `connecting()` is still true (this boot
+   has had zero real 200/204 polls, expected given the live 403 account) — correct
+   precedence (`connecting` beats idle), not a bug.
+4. Touch-immunity (no flap on tap): **not independently re-exercised with a live physical
+   touch** — the injected `tap <x> <y>` serial command dispatches straight to
+   `handleInput()`/`switchApp()` and never passes through `appHandleInput()`'s
+   `ts.touched()` branch that calls `resetBackoff()`, so there is no serial-injectable path
+   that could flap it either way. Verified instead by code inspection: `resetBackoff()`
+   (`spotifyTaskStorage.cpp:571`) only ever zeroes `s_consecutiveFailures`, never touches
+   `s_degradedLatched` — structurally identical to `s_authErrorLatched`, whose touch-immunity
+   *was* DUT-verified live (ADR-046 Amendment 2, "touch-immune" on real taps). Same mechanism,
+   same guarantee.
+
+Production firmware reflashed after, monitor restored. **TASK-366 CLOSED.**
 
 ## Closed — M-CEEFAX (2026-07-30, closed 2026-07-31 — **CUT**, ADR-058 D)
 

@@ -142,6 +142,12 @@ bool isHealthy();
 // the next successful (200/204) poll. Safe to call from the loop task.
 bool authError();
 
+// TASK-366 / ADR-046: true while in a sticky non-auth-degraded state (>=2
+// consecutive non-403 poll failures — network/timeout/DNS, not auth refusal).
+// OR'd with authError() into SpotifyApp::hasError(). Self-clears on the next
+// successful (200/204) poll. Safe to call from the loop task.
+bool degraded();
+
 // TASK-245 amendment / ADR-046: true until the first successful poll — drives the
 // amber "connecting" taskbar state at boot. Latches false on first 200/204.
 bool connecting();
