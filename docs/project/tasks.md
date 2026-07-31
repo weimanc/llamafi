@@ -4489,8 +4489,71 @@ external rate-limit — retest first, cheap) → (4) fix the null-deref crash �
 connect + page acquire (+ screendump) on DUT → only *then* revisit PROP-008's
 coexistence acceptance.
 
+#### Held fix for bugs (1)+(2) — validated on DUT, apply after (3)+(4) clear
+
+Exact edits to `app/src/teletextApp.h` (reverted this session; reproduce
+verbatim). Member + constant:
+
+```cpp
+// with the other members (near _consecutiveAttempts):
+unsigned long _servicingUntilMs = 0;  // TASK-376: pump loop() every tick until this ms
+// with the reconnect constants (near kMaxConsecutiveAttempts):
+static constexpr uint32_t kServicingWindowMs = 8000;  // TASK-376
+```
+
+In `_taskBody()`, change the reconnect interval (bug 2):
+
+```cpp
+_ws->setReconnectInterval(2000);   // was kRetryIntervalMs (15s) — double-throttled our pump
+```
+
+Replace the disconnected-branch attempt block (bug 1) with a servicing window —
+once an attempt fires, pump `loop()` every tick until `_servicingUntilMs` so the
+TCP→TLS→WS-upgrade handshake completes; only fresh attempts stay gated/counted:
+
+```cpp
+if (now < _servicingUntilMs) {
+    spotifyTask::tlsYield(); _ws->loop(); spotifyTask::tlsResume();
+} else if (gateOk && _consecutiveAttempts < kMaxConsecutiveAttempts
+           && now - _lastAttemptMs >= kRetryIntervalMs) {
+    _lastAttemptMs = now;
+    _consecutiveAttempts++;
+    spotifyTask::tlsYield(); _ws->loop(); spotifyTask::tlsResume();
+    _servicingUntilMs = millis() + kServicingWindowMs;  // drive handshake to completion
+    if (_consecutiveAttempts == kMaxConsecutiveAttempts)
+        LOG_W("ceefax", "giving up after %u consecutive attempts this session",
+              (unsigned)kMaxConsecutiveAttempts);
+}
+```
+
+(The `#ifdef SERIAL_DEBUG` DIAG block that lived in the old attempt branch can be
+dropped or folded in; it was PROP-008 leak scaffolding, now moot.) **Do not ship
+this alone** — it pumps `loop()` harder, which makes bug (4)'s crash fire sooner.
+
+#### Handoff (2026-07-31)
+
+- **First action (cheap):** let the DUT's WAN IP cool down several hours, then run
+  `python3 app/tools/ceefax_connect_check.py --port $(./run/port | tail -1)` on a
+  clean prod (or `./run/flash-debug` for full logs). If `connect()` starts
+  succeeding again, bug (3) was the relay rate-limiting this session's hammering
+  (external, not firmware) — proceed to (4)→(1)+(2). If it still fast-fails with
+  the host connecting fine, it's a real device-side connect bug (probe DNS-CNAME
+  vs TCP vs relay-429).
+- **Verification harness:** `app/tools/ceefax_connect_check.py` (added this
+  session) — reports ever-connected / ever-acquired / crashed. Exit 0 only on a
+  real connect+acquire with no crash. Use it as the TASK-376 acceptance gate.
+- **State:** prod firmware on DUT, git clean, all experiments reverted. The
+  WSDBG connect-flow probes lived in the *pulled* (not vendored)
+  `.pio/libdeps/**/WebSockets/src/WebSocketsClient.cpp` — re-add there if needed.
+- **Don't repeat the process mistake:** M-CEEFAX was briefly marked done/accepted
+  without any functional test; run `ceefax_connect_check.py` (green) *before* any
+  future close-out. QM retrospective offered (not yet run) — lessons: functional-
+  test-before-accept; instrument the *vendored* `app/lib/WiFiClientSecure`, not
+  the framework copy; blocking prints change hot-path behaviour (use out-of-band
+  counters); a stuck heap can be metastable, not a leak.
+
 **Owner:** Developer (Architect consult) · **Deps:** M-CEEFAX (TASK-370..374) ·
 **Priority:** P1 (feature is non-functional on target hardware) · **Status:**
-OPEN — root-caused 2026-07-31; blocked on (3) connect-fail (likely external
-rate-limit — retest after cooldown) and (4) the crash. Fix for (1)+(2) validated
-but held.
+OPEN / HANDED OFF — root-caused 2026-07-31; blocked on (3) connect-fail (retest
+after cooldown — likely external rate-limit) then (4) the crash; fix for (1)+(2)
+validated and captured above.
