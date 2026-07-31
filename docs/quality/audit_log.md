@@ -1649,9 +1649,11 @@ TASK-376 crash root-cause + first real connect → EXP-020 non-viability proof �
 - **Developer/Architect** — none open. Ceefax backend + settings + WebSockets dep
   removed; NOS Teletekst DUT-verified as the sole teletext source.
 
-**Resolution**: LL-115 logged. BP candidate **pending human decision** (adopt as
-BP-052 / fold into BP-048 / decline). No further code action — feature cut, project
-state consistent across tasks.md, roadmap.md, ADR-058, EXP-020, and memory.
+**Resolution**: closed 2026-07-31. LL-115 logged. BP candidate **folded into BP-048
+(human)** — part (2) generalized from pixel-level to primary-function correctness,
+new part (3) added (non-functional characterization is meaningless until the
+primary-function gate is green). No further code action — feature cut, project state
+consistent across tasks.md, roadmap.md, ADR-058, EXP-020, and memory.
 
 ---
 

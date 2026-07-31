@@ -42,14 +42,14 @@ then EXP-020 **functionally** proved it non-viable on this hardware's DMA budget
 only then was it cut (ADR-058 D). A standing acceptance gate
 (`app/tools/ceefax_connect_check.py` — exit 0 only on real connect+acquire+no-crash)
 was built and is now the forcing function that should have existed at the start.
-**Suggested improvement (BP candidate — see audit_log, for human sign-off)**: A
-feature may not be marked done/accepted — and its non-functional characterization
-(perf, memory, coexistence, "leak/no-leak") may not be treated as meaningful — until
-its **primary function has been demonstrated end-to-end on the target at least once**,
-captured as a named acceptance gate (an automated harness or an explicit human
-eyeball). Extends BP-048 part 2 (pixel-level work carries an eyeball gate) from UI to
-*functional* correctness: characterization of a feature's behavior presupposes the
-feature behaves.
+**Promoted → BP-048 (amended 2026-07-31, human)**: a feature may not be marked
+done/accepted — and its non-functional characterization (perf, memory, coexistence,
+"leak/no-leak") may not be treated as meaningful — until its **primary function has
+been demonstrated end-to-end on the target at least once**, captured as a named
+acceptance gate (an automated harness or an explicit human eyeball). Folded into
+BP-048 rather than a standalone BP: part (2) generalized from pixel-level to
+primary-function correctness, and a new part (3) added (characterization presupposes
+the feature behaves). See `best_practices.md` BP-048.
 **Secondary (technical) lessons from the same arc, already captured in TASK-376 / the
 `m-ceefax-state` memory — logged here for the retro record**: (1) instrument the
 project's **vendored** `app/lib/WiFiClientSecure` (where PATCH-001/003 live), not the
