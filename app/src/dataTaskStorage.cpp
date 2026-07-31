@@ -1418,6 +1418,21 @@ static void fetchPlaneRadar() {
     // Diagnostic-only, not otherwise consumed.
     LOG_D("dataTask.planeradar", "ok=%d errorCode=%d count=%u scanned=%u epoch=%u",
           (int)r.ok, r.errorCode, (unsigned)r.count, (unsigned)scanned, (unsigned)r.epoch);
+    // TASK-368 (measurement only): nearest-first roster this cycle, so a
+    // host-side diff across cycles can tell boundary churn (aircraft
+    // entering/leaving near rank PR_MAX_AIRCRAFT) apart from mid-disc
+    // motion-vector error — the two candidate explanations for "inaccurate
+    // tracking" EXP-015 couldn't distinguish from jump_px alone.
+    if (r.ok) {
+        char roster[300]; size_t rp = 0;
+        for (uint8_t i = 0; i < r.count && rp < sizeof(roster) - 10; i++) {
+            int n = snprintf(roster + rp, sizeof(roster) - rp, "%s,%.1f;",
+                              r.aircraft[i].callsign[0] ? r.aircraft[i].callsign : "?",
+                              (double)r.aircraft[i].distNm);
+            if (n > 0) rp += (size_t)n;
+        }
+        LOG_D("dataTask.planeradar", "roster %s", roster);
+    }
 
     portENTER_CRITICAL_SAFE(&s_planeRadarMux);
     s_planeRadarResult = r;

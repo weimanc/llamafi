@@ -970,7 +970,56 @@ No code change implied unless the eyeball session identifies one.
 
 **Owner:** VE (eyeball session) · **Deps:** EXP-015/TASK-360 (source finding) · **Gate:** human
 DUT eyeball at a busy-traffic preset, BP-048 · **Priority:** P3 — candidate explanation, not a
-confirmed bug · **Status:** open
+confirmed bug · **Status:** BLOCKED — attempted 2026-07-31 22:00 BST, precondition not met (see
+below); still needs a human, at daytime busy-traffic hours
+
+**Attempt this session (2026-07-31, 22:00 BST):** this task's own gate is a *human* eyeball — I
+can't substitute for that (it's a subjective "does this read as inaccurate" perceptual call, not a
+fact I can measure), so I did the prep half instead: added a `LOG_D("dataTask.planeradar", "roster
+...")` line (`dataTaskStorage.cpp`, right after the existing `ok=.../count=.../scanned=` log) that
+prints the nearest-first `callsign,distNm` roster on every successful fetch, so a host-side diff
+across cycles can quantify churn without needing a human to eyeball a live screen at all. Set the
+DUT to the 25km preset (widest, matches EXP-015's condition) and captured 24 fetch cycles.
+
+**Result: EXP-015's dense-traffic precondition isn't met at night.** It's 22:00 BST (evening) —
+`count` topped out at **13**, never approaching `PR_MAX_AIRCRAFT=24`. The specific mechanism this
+task asks about (aircraft churning across the *24th-nearest* rank boundary) **cannot occur** when
+the roster never fills 24 slots — there's no rank-24 boundary to churn across tonight. EXP-015's
+62-70-aircraft reading was a daytime observation; this needs re-running at busy daytime hours to
+even test the hypothesis, let alone eyeball it.
+
+**Found instead (worth carrying into the eventual eyeball session):** roster-diffing the 24 cycles
+turned up churn from a mechanism neither TASK-367 nor this task's own EXP-015 framing considered —
+per-cycle ADS-B **reporting gaps unrelated to distance**. Cycle 22: `BAW7PI` (rank 2 of 11, 0.5 NM —
+essentially overhead, nowhere near any edge) dropped out of the roster for one cycle. Cycle 12:
+`KLM51B` (rank 10 of 13, mid-pack) likewise. Both are consistent with adsb.fi simply not receiving
+that aircraft's position report that cycle (normal ADS-B coverage variance), not a boundary-rank or
+outer-fetch-radius effect. If this generalizes, "an aircraft vanishes then reappears" may be a third,
+visually distinct failure mode (anywhere in the disc, not just the edge) worth the eyeball session
+watching for specifically, alongside the original edge-pop-vs-drift distinction.
+
+**Also found:** aircraft do visibly cross the *outer fetch-radius* boundary (~17-19 NM, i.e.
+`kPrFetchNm`'s scaled query radius, not the 24-slot cap) — e.g. cycle 2 saw `SWR24C`/`HLE27` drop
+and `KLM51B`/`GTESK`/`RWD711`/etc. join in a single cycle as the range preset changed. This is a
+different, expected, non-bug phenomenon (real aircraft entering/leaving detection range) distinct
+from both TASK-367's dead-reckon-lag and this task's rank-24-cap hypothesis — worth distinguishing
+in the eyeball session too, so a "pop" isn't mis-attributed to the 24-cap effect when it's actually
+just query-radius entry/exit.
+
+**Screendump attempted, doesn't work for this:** `run/screendump` opens a *new* serial connection,
+which triggers the ESP32's DTR-toggle auto-reset (same board quirk as `BOOT_WAIT` being useless) —
+the device reboots to its default app *before* the GRAM read happens, so it can only ever capture
+default-boot state, never a live navigated-to app screen. Confirmed empirically (both attempts
+captured the Winamp boot screen, not the PlaneRadar disc). This is exactly why this task's gate is
+a literal human at the physical screen, not a tooling substitute — there isn't one available here.
+
+**Left in place:** the `roster` log line (real, cheap diagnostic signal, same rationale as
+TASK-367's `fetch rtt=` line). DUT restored to prod firmware.
+
+**Next step:** re-run at busy daytime hours (per EXP-015's original session) with an actual human
+watching the live disc — the roster log will now also be running in the background for
+supplementary churn data, and the ADS-B-reporting-gap finding above is a third pattern worth adding
+to what the observer is asked to distinguish.
 
 ### TASK-361 — PlaneRadar fetch: TASK-313 retry-once mitigation regressed under busy-traffic payload size — re-quantify + fix
 
