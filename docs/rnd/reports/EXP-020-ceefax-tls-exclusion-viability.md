@@ -2,7 +2,7 @@
 
 > Owner: R&D
 
-**Status**: PARTIAL — executed 2026-07-31. Precondition cleared and the key
+**Status**: DONE — executed 2026-07-31. Verdict: near-1-way FAILs -> Option A falsified; fork is ADR-058 B or D. Precondition cleared and the key
 transport result landed (Ceefax **connects** for the first time), but the clean
 near-1-way isolation was blocked by the CH340 `ttyUSB0↔1` flap wedging the board
 mid-capture. See **Results** at the bottom. Server-frugal throughout (~a dozen
@@ -187,3 +187,58 @@ is **not yet decided**. What *is* established:
 Either path is server-frugal (one connect burst per check). The CH340 flap is
 the practical tax — reset via esptool when the board wedges; use the by-id
 symlink + `--no-reset`.
+
+---
+
+**Results UPDATE — 2026-07-31 (isolation run; Option A FALSIFIED)**
+
+Completed the near-1-way isolation the earlier partial couldn't reach: temporarily
+stubbed `WebRadioApp::_enqueueStationFetch()` (throwaway, reverted) so `dataTask`
+is a quiet TLS path, on top of `-DDISABLE_SPOTIFY`. This is Ceefax essentially
+alone — the *maximum* headroom Option A could ever give it.
+
+**Result: it still fails, and the timing rules out contention.** Precise capture:
+
+```
+[ 9.15] attempt#1 DMA before(free=70000 largest=69620) after(free=23300 largest=17396)
+[ 9.31] WStype_CONNECTED
+[ 9.40] WStype_DISCONNECTED        <- ~90 ms after connect, CLEAN (no WStype_ERROR)
+[ 9.42] gate OPEN freeDma=69312    <- TLS torn down, memory fully recovers
+... repeats identically every ~15 s ...
+```
+
+- The drop is **~90 ms after connect**, not the ~3 s the earlier (contended)
+  partial suggested — i.e. it dies **the instant the relay's initial data burst
+  arrives**, not on an idle/keepalive timeout.
+- It is a **clean** disconnect (no `WStype_ERROR`) with **immediate memory
+  recovery** — the signature of the WebSockets library's `clientDisconnect()`
+  after a failed receive/alloc, not a protocol reject or a crash.
+- It happens at **freeDma ≈ 24 K**: Ceefax's *own* ~47 KB TLS allocation
+  (70 K → 23 K) leaves only ~23 K of the ~70 K pool — too little to buffer the
+  carousel's opening burst.
+- Endpoint, path, channel-ID, handshake (`service`/`ttx`/`pagesearch`) and 5 s
+  keepalive are **byte-identical** to the 6 h-stable spike (verified). The spike
+  survived because its narrow build had a higher free-DMA baseline *after* the
+  same TLS cost; the full build does not.
+
+**This FALSIFIES Option A.** A pauses the *other* TLS consumers to free DMA — but
+here Spotify was compiled out and WebRadio was stubbed, i.e. there was nothing
+left to pause, and it *still* dropped because **Ceefax's own connection alone
+already exceeds the usable headroom** for connect + receive-burst. Freeing the
+other consumers cannot raise the ~70 K baseline, and 70 K − 47 K is not enough.
+
+**Decision-table outcome: Run 1 (near-1-way) = FAIL → do NOT build Option A.**
+The remaining fork is **B** (shrink the mbedTLS per-connection footprint via
+`CONFIG_MBEDTLS_SSL_VARIABLE_BUFFER_LENGTH` — the ADR-057 "deeper fix" that needs
+the declined framework rebuild) or **D** (cut Ceefax, keep NOS). Architect lean:
+**D**, unless a live UK-teletext source is judged worth reopening the framework
+rebuild (a human/@PM call, ADR-058).
+
+*Confidence note:* the exact drop mechanism (receive-burst alloc failure) is a
+strong, evidence-consistent hypothesis (clean no-error disconnect ~90 ms after
+connect = first data arrival, at ~24 K free), not directly instrumented. But the
+**falsification of Option A does not depend on the mechanism** — the hard fact is
+that Ceefax, given the pool essentially to itself, still cannot hold a connection
+on this build. Instrumenting the WebSockets receive/alloc path would confirm the
+mechanism and is the only thing left to make it airtight, but it does not change
+the A/B/D conclusion.
