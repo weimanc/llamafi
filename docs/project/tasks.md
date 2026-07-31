@@ -1021,6 +1021,35 @@ watching the live disc — the roster log will now also be running in the backgr
 supplementary churn data, and the ADS-B-reporting-gap finding above is a third pattern worth adding
 to what the observer is asked to distinguish.
 
+### TASK-378 — PlaneRadar: render the nearest-24 "horizon" — don't let the disc imply uniform coverage out to the preset radius
+
+Human-observed 2026-07-31 (live daytime eyeball, busy traffic, 25km preset): the disc's outer band
+was empty. Traced to `PR_MAX_AIRCRAFT=24`'s nearest-only cap (`prInsertNearest()`,
+`dataTaskStorage.cpp:1198`) — not a fetch-radius shortfall (the query already asks a bit past the
+disc's drawn edge, `kPrFetchNm` > `_outerKm()`). When more than 24 aircraft sit within the fetch
+radius, the kept set is strictly the 24 *nearest*; the render's effective coverage radius silently
+shrinks to wherever the 24th-nearest aircraft happens to be, which can be well inside the disc's
+drawn edge — the outer band isn't "no traffic there," it's "not shown because 24 nearer aircraft
+took every slot." Currently invisible to the user: the disc looks like uniform coverage to the
+preset radius at all times, busy or not.
+
+**Scope:** shade/darken the disc annulus beyond the *effective* horizon (the farthest currently-kept
+aircraft's `distNm`, projected to px via `_pxPerKm()`) whenever `result.count == PR_MAX_AIRCRAFT`
+(roster actually capped — below cap, every detected aircraft is shown, no hidden horizon, no
+shading). **Implementation note:** `prInsertNearest()` does NOT keep `aircraft[]` sorted by
+distance — it's insertion/replacement order (confirmed empirically: TASK-368's roster log showed
+unsorted `distNm` sequences). Finding the horizon means scanning for `max(distNm)` across
+`aircraft[0..count-1]`, not reading the last array slot. Recompute only on a fetch landing (inside
+`_reconcileMotion()` or right after, alongside `_project()`'s existing per-aircraft loop — cheap,
+same pass), not every interp tick. Exact visual treatment (darker fill vs. dashed ring vs. a small
+label) is an open design call — mock it up host-side in `preview_planeradar.py` first (BP-046: the
+tool must actually implement whatever the mockup claims) before committing to firmware.
+
+**Owner:** Developer (design + impl) · **Deps:** M-PLANERADAR (done), informed by TASK-368's
+eyeball session · **Gate:** `run/check` + DUT eyeball — this is a pixel-level exit criterion under
+BP-048, needs explicit human sign-off, not just a serial-signature check · **Priority:** P3 (UX
+honesty polish, not a correctness bug) · **Status:** open
+
 ### TASK-361 — PlaneRadar fetch: TASK-313 retry-once mitigation regressed under busy-traffic payload size — re-quantify + fix
 
 Human-reported 2026-07-19, watching the DUT live in daytime over genuinely busy London traffic
