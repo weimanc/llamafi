@@ -1252,10 +1252,16 @@ always establish on this no-PSRAM board), decline the framework rebuild.
 **That lock did not cover the newly-quantified permanent DMA cost** — see
 PROP-008's PM disposition (TASK-375) and the escalated human decision point.
 
-**Status:** blocked (2026-07-30) — TASK-370..373 done; TASK-374 PARTIAL
-(crash bar met, TLS-degradation bar not) → PROP-008 → **TASK-375** (Option B:
-recover the leak) is the gating item before close-out, with Option C/A as
-fallbacks.
+**Status:** done — accepted (2026-07-31). TASK-370..373 implemented; TASK-374
+coexistence gate dispositioned by **Option A acceptance** (ADR-057 "Acceptance
+decision 2026-07-31"). PROP-008's A/B/C fully explored: no upstream WebSockets
+fix exists (lead a), and EXP-019 lead(b) out-of-band measurement proved **there
+is no leak** — the earlier "permanent DMA leak" was a metastable artifact; the
+Spotify degradation is transient, self-recovering, and bounded to the
+active-Ceefax window. Accepted as a documented limitation (extends the
+best-effort-connectivity posture to Spotify coexistence). One residual — an
+intermittent low-DMA crash at the deepest dips — carried openly with gate-tuning
+as the sanctioned future mitigation. TASK-375 (leak fix) closed moot.
 **Deps:** M-TELETEXT/ADR-044 (`teletextCountry` reservation), ADR-046
 (taskbar tri-state contract), `webRadioApp.h` pump-task precedent.
 **Design:** [M-CEEFAX.md](../architecture/designs/M-CEEFAX.md) ·

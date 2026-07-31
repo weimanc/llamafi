@@ -4188,7 +4188,11 @@ found and fixed.
 **Owner:** Developer/VE · **Deps:** TASK-370, TASK-371, TASK-372, TASK-373 ·
 **Gate:** DUT soak, numeric comparison against baseline `run/stress`, zero
 crashes over the soak duration · **Priority:** P2 ·
-**Status:** PARTIAL — crash bar met, TLS-degradation bar NOT met (2026-07-30)
+**Status:** CLOSED — Option A accepted 2026-07-31 (see close-out note at end of
+this task). Crash bar met; TLS-degradation characterised (transient, windowed,
+no leak — EXP-019 lead b) and accepted as a documented limitation per ADR-057's
+"Acceptance decision 2026-07-31". Residual intermittent low-DMA crash carried as
+a known limitation with gate-tuning as the sanctioned future mitigation.
 
 **Baseline** (`run/stress 8`, Ceefax off, today's network conditions): 6 hard
 failures / 0 TLS-error lines over 8 min — in line with EXP-006's own baseline
@@ -4327,7 +4331,11 @@ toward the baseline 0. Both required to close.
 **Owner:** Developer (Architect consult — vendored-library/cross-component
 patch per AGENTS.md) · **VE:** gate harness + acceptance · **Deps:** PROP-008,
 TASK-374, `PATCH-003` precedent · **Priority:** P2 (inherits TASK-374) ·
-**Status:** OPEN — scheduled 2026-07-30, not started.
+**Status:** CLOSED — MOOT (2026-07-31). EXP-019 lead(b) proved there is no leak
+(`setup − stop` balanced, `freeDma` recovers) and `stop_ssl_socket` already runs,
+so this task's whole premise (recover a leak / add a `stop()`) is void. Not
+implemented, not needed. Any future work on the coexistence residual is
+gate-tuning under TASK-374's close-out, not this task.
 **Fallback if it can't land:** PROP-008 Option C (R&D debugger isolation), then
 Option A (human acceptance of the corrected ~42.6 KB cost).
 
@@ -4376,3 +4384,16 @@ Residual real risk: an **intermittent** low-DMA crash at the deepest dips (one
 reboot seen at lfb=8180, not reproduced) — gate-mitigated, not a leak. **TASK-375
 ("recover the leak / add stop()") → CLOSE as moot** (no leak; stop already
 runs). Any hardening left is gate-tuning, not a fix. Full detail: EXP-019 lead(b).
+
+**CLOSE-OUT (2026-07-31) — Option A accepted, M-CEEFAX closed.** Human-approved.
+The coexistence gate is dispositioned by accepting the transient, windowed,
+self-recovering Spotify `SSL -32512` as a documented limitation (ADR-057
+"Acceptance decision 2026-07-31"), extending the milestone's existing
+best-effort-connectivity posture to Spotify coexistence. One residual carried
+openly: the intermittent low-DMA crash at the deepest dips (gate-mitigated, not
+a leak) — sanctioned future mitigation is **gate-tuning only** (raise
+`kMinLargestFreeBlockForConnect` to hold `lfbDma` above Spotify's ~16 KB TLS
+need; and/or lower `kMaxConsecutiveAttempts`), re-soaked per
+[[persistent-conn-dma-gate-pattern]], if it ever proves user-visible. No
+production code change made at acceptance. TASK-375 closed moot. M-CEEFAX →
+DONE (all of TASK-370..375 resolved).

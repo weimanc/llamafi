@@ -3,6 +3,17 @@
 > Owner: R&D
 > Origin: TASK-374 (M-CEEFAX DUT coexistence gate), ADR-057
 > Branch: n/a — finding surfaced during production implementation on master (TASK-370..374), not a separate rnd/ branch
+>
+> **STATUS: CLOSED — Option A accepted 2026-07-31.** Full A/B/C explored: (a) no
+> upstream WebSockets fix exists; (b) EXP-019 out-of-band measurement proved
+> **there is no leak** (the "permanent ~42.6 KB" was a metastable artifact —
+> memory recovers on leaving Ceefax); (c) mechanism understood (transient DMA
+> contention → self-recovering Spotify `SSL -32512`, bounded to the active-Ceefax
+> window). Accepted as a documented limitation per ADR-057 "Acceptance decision
+> 2026-07-31"; residual intermittent low-DMA crash carried openly with
+> gate-tuning as the sanctioned future mitigation. TASK-375 closed moot; M-CEEFAX
+> DONE. The body below is the (heavily self-correcting) investigation trail —
+> read the EXP-019 "lead (b)" section and this banner as the settled truth.
 
 ## Summary
 
