@@ -4631,10 +4631,22 @@ and `--no-reset` right after `run/flash-debug` (which already leaves a fresh
 boot). Without this the harness can't even open the port on this hardware.
 
 **Owner:** Developer (Architect consult) · **Deps:** M-CEEFAX (TASK-370..374) ·
-**Priority:** P1 (feature is non-functional on target hardware) · **Status:**
-OPEN — crash (bug 4) root-caused & FIXED (uninitialized `_client_cert`; verified
-crash-free); (1)+(2) servicing fix landed + hardened against the fast-fail
-socket-storm; **connect+acquire NOT yet verified green** — blocked on an external
-device-side TLS throttle (host gets 101; device fast-fails) that this session's
-own testing re-triggered. Re-run the harness after cooldown per (a) above; do
-NOT close M-CEEFAX/TASK-374 until it exits 0.
+**Priority:** P1 · **Status:** **CLOSED — RESOLVED BY CUTTING CEEFAX (ADR-058 D,
+2026-07-31, commit 41448f5).**
+
+Resolution trail: the crash (bug 4) was root-caused & fixed (uninitialized
+`_client_cert` in the pulled WebSocketsClient → garbage client cert → `strlen`
+crash; fixed via `beginSslWithClientKey(...,nullptr,nullptr)`), and the
+servicing-window fix (bugs 1+2) got Ceefax to **connect for the first time**
+(WStype_CONNECTED). But EXP-020's isolation then showed the feature is **not
+viable on this hardware**: even fully isolated (Spotify compiled out, WebRadio
+station-fetch stubbed) it drops ~90 ms after connect at freeDma ≈ 24 K — its own
+~47 KB TLS allocation alone leaves too little of the ~70 K DMA pool to buffer the
+relay's opening carousel burst. Option A (pause other TLS) was thereby falsified;
+the fork was B (reopen the declined mbedTLS-buffer framework rebuild) vs D (cut).
+**Human decision: D.** The Ceefax backend, its settings, the WebSockets dep, the
+spike env/file, and CEEFAX_ROOT_CA are removed; NOS Teletekst remains as the sole
+teletext source (DUT-verified post-cut: backend=nos, page 601 fetched HTTP 200,
+ready=true, no crash; run/check 6/6). The `TeletextSource` seam is kept dormant.
+Full analysis: ADR-058 (accepted, D) + EXP-020 (DONE). **M-CEEFAX / TASK-374 /
+TASK-376 all CLOSED.**
