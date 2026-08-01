@@ -5215,3 +5215,87 @@ pattern (same range, same time-of-day, correlates with Spotify activity, etc.) �
 further action planned · **Priority:** P4 (downgraded from P3 — investigated, no actionable cause,
 not reproducible) · **Status:** **CLOSED — accepted as transient network noise, not a firmware
 defect.** Re-open with fresh evidence if it recurs.
+
+## Open — full-suite re-run findings (2026-08-01, filed from `run/test` after TASK-379/380/381/382 landed)
+
+Re-ran the full suite (`./run/test`) after all four fixes above were committed, to confirm the
+original 6 failures were resolved. Result: **122 passed, 6 failed, 40 skipped, 2 flaked** — the
+targeted tests (T148, T176, T188, T192) that TASK-379/380/381/382 fixed all now **PASS**, confirming
+those fixes hold in full-suite context, not just isolated targeted runs. But 3 **new** failures
+appeared that weren't present in the original baseline run (`T184`, `T231` — both `PASS` in the
+original run; `T193` — also `PASS` originally), alongside the already-tracked `T_WR_TLS_01`
+(TASK-284) and `T_PRM_02` (TASK-313, still showing degraded gaps — 19/300s this run, up to 37s
+between fetches, consistent with the "worth a fresh look" flag noted when this section was first
+filed) and one already-known `T091` reconnect flake (`FLAKE` in the baseline run, `FAIL` this run —
+same underlying serial-timing flakiness, not new).
+
+### TASK-384 — Back-navigation tap silently dropped by `g_shellBusy` gate, exposed by TASK-380's fix (T184, T231)
+
+**Filed + root-caused 2026-08-01.** Both failures show the identical shape: drill into Stock chart
+→ tap the back button (`(10,7)`) shortly after → `stockSubView` stays `"chart"` instead of
+returning to `"list"`. Traced to `main.cpp:2756-2760`:
+
+```cpp
+if (g_shellBusy) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"tap\",...,\"hit\":\"CANVAS\",\"action\":\"NONE\",\"skipped\":true}\n", x, y);
+    return;
+}
+```
+
+This check runs **before** the `currentAppId != AppId::Spotify` dispatch block that routes taps to
+`StockApp::handleInput()` — while `g_shellBusy` is true, **every** tap is silently skipped
+(`"skipped":true`), with no exception for the back button. `shell::setBusy(true)` fires right after
+a drill-in (`main.cpp:2768`, `if (!g_shellBusy && hasPendingAsync()) shell::setBusy(true)`) and
+`hasPendingAsync()` mirrors `_pendingAsync`, which `drillToChart()`/`drillToChartBySym()` set to
+`true` on every enqueue. `SHELL_BUSY_TIMEOUT_MS = 3000` (`main.cpp:1861`) is the auto-clear ceiling,
+and a chart fetch (~2.5-3.5s normally, up to ~5.5s with TASK-381's retry-once) is well within that
+window — so a back-tap arriving 0.15-0.4s after a drill (both T184 and T231's actual timing) lands
+squarely inside the busy window and gets dropped before it ever reaches `backToPrevView()`.
+
+**Why this is new:** before TASK-380's fix, `drillToChart()`'s stale recency guard frequently
+*skipped* the enqueue entirely on back-to-back drills within 60s (exactly what T184/T231's dense
+sequence of chart tests does) — so `_pendingAsync` often stayed `false`, `shellBusy` never got set,
+and back-taps sailed through unblocked. TASK-380 correctly fixed a real data-staleness bug by making
+every drill-in enqueue unconditionally — but that also means `shellBusy` now reliably engages on
+every drill, which unmasks this pre-existing gap: **the busy gate has no allowance for
+back-navigation**, a tap that should always be safe to process (it doesn't touch the in-flight
+fetch, just changes what view is showing). This was latent before, now reliably reproducible.
+
+**Fix direction (not yet implemented):** the back-button tap (`x < ST_CHART_BACK_W * 2` within the
+chart header band) should bypass the `g_shellBusy` gate, or `backToPrevView()`/its trigger should be
+special-cased the way `main.cpp:2756`'s taskbar-tap block already runs *before* this check (taskbar
+switches are similarly always-safe). Scope this carefully — other apps (Teletext, PlaneRadar) share
+the identical `g_shellBusy`-gates-all-taps structure, so worth checking whether they have the same
+gap for their own back/exit affordances before fixing Stock in isolation (BP-047 divergence-risk
+shape: don't fix one call site if the same bug exists in siblings).
+
+**Owner:** Developer (Architect consult recommended — this changes shared shell-busy-gate
+semantics, similar framing to TASK-366's taskbar-indicator gap) · **Deps:** TASK-380 (exposed this,
+did not cause it) · **Gate:** `run/test-targeted T184,T231` after fix, plus a full-suite re-run to
+confirm no other back-navigation regressed · **Priority:** P2 (real UX bug — user can get stuck
+unable to navigate back for up to 3s after any chart drill) · **Status:** OPEN — root cause
+confirmed, fix not yet written.
+
+### TASK-385 — T193 auto-refresh fetch timeout — likely TASK-383-adjacent, unconfirmed
+
+**Filed 2026-08-01, low confidence.** `T193` failed: `fetchOkCount did not advance after
+triggerFetch — auto-refresh did not fire` (45s timeout). Traced the trigger path
+(`main.cpp:1332-1334`, `triggerFetch=1` resets `_s.lastChartFetch=0`, forcing `stockTickChart()`'s
+own cadence check to re-enqueue on the next tick) — this is a **different** code path from
+TASK-384 above (no tap involved, not gated by `g_shellBusy`, and `stockTickChart()`'s cadence
+re-fetch was untouched by any of today's fixes). No obvious mechanism connects this to TASK-379/380
+directly. Best guess: simply increased exposure to TASK-383's already-documented rare connect-level
+failure (`code=-1`, no retry fires for non-200) or two consecutive `IncompleteInput` parse failures
+(TASK-381/382's retry only covers one) — this run's `T_PRM_02` degradation (19/300s vs. the usual
+36/300s) suggests the network was generally worse than usual during this run, and TASK-380 also
+means more real chart fetches happen throughout the full suite than before, proportionally raising
+odds of hitting *any* single-request failure mode somewhere in the run. Unconfirmed — no serial
+capture for this run to check for `IncompleteInput`/connect-timeout evidence at the actual failure
+point.
+
+**Owner:** Developer · **Deps:** possibly TASK-383 (same failure class, different trigger path) ·
+**Gate:** re-run `run/test-targeted T193` a few times with `LOG_FILE=` capture to check whether the
+failure correlates with `IncompleteInput`/`code=-1` at the fetch itself, same method as TASK-383's
+investigation · **Priority:** P3 (single occurrence, plausible network-noise explanation, not yet
+confirmed as a distinct bug) · **Status:** OPEN — filed as-is, needs a serial-capture re-run before
+further action.
