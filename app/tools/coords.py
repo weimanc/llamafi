@@ -183,6 +183,8 @@ def tap_taskbar_slot(app_id: int) -> tuple[int, int]:
 
 
 def clock_canvas_tap() -> tuple[int, int]:
-    """A tap at clock-face centre — inside x<TASKBAR_X.
-    Hits TRANSPORT zone in Spotify mode; must return CLOCK/NONE after BUG-1 fix."""
+    """A tap at clock-face centre — inside x<TASKBAR_X. Hits TRANSPORT zone in
+    Spotify mode; with Clock active, sits on CLK_TAP_SPLIT_Y (clockApp.h) and
+    lands in the face-cycle zone (TASK-346) — routes to hit=CLOCKAPP,
+    action=CONSUMED, never a Winamp/Spotify zone name."""
     return 137, 120

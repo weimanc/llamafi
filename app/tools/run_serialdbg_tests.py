@@ -1418,7 +1418,8 @@ def t147(dut: Dut):
 
 
 def t148(dut: Dut):
-    """T148: while Clock active, tap at x<275 returns hit=CLOCK, no Spotify action."""
+    """T148: while Clock active, tap routes through Clock's own dedicated handler
+    (TASK-346 M-CLOCK-TAP-CYCLE) — hit=CLOCKAPP, never a Winamp/Spotify zone name."""
     import time
     # Switch to Clock.
     dut.set_cooldown_zero()
@@ -1429,7 +1430,8 @@ def t148(dut: Dut):
     if not r_pre.get("ok") or r_pre.get("name") != "Clock":
         skip("T148", f"precondition: could not switch to Clock (appId={r_pre.get('name')!r})")
         return
-    # Tap clock-face centre — coordinate (137, 120) hits TRANSPORT zone in Spotify mode.
+    # Tap clock-face centre — coordinate (137, 120) sits on CLK_TAP_SPLIT_Y and
+    # lands in the face-cycle zone (TASK-346); _cycleFace() always consumes.
     dut.set_cooldown_zero()
     tx, ty = _c.clock_canvas_tap()
     r = dut.cmd(f"tap {tx} {ty}", timeout=3.0)
@@ -1440,14 +1442,17 @@ def t148(dut: Dut):
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     time.sleep(0.3)
-    if hit not in ("CLOCK", "NON_SPOTIFY"):
+    if hit != "CLOCKAPP":
         fail("T148", f"BUG-1 guard not firing: hit={hit!r} action={action!r} "
-                     f"at ({tx},{ty}) with Clock active — Winamp zone leaked")
+                     f"at ({tx},{ty}) with Clock active — expected dedicated CLOCKAPP "
+                     f"routing (TASK-346), got a Winamp/Spotify zone name instead")
         return
-    if action != "NONE":
-        fail("T148", f"unexpected Spotify action={action!r} (want NONE) for Clock canvas tap")
+    if action != "CONSUMED":
+        fail("T148", f"unexpected action={action!r} (want CONSUMED) for Clock face-cycle "
+                     f"tap at ({tx},{ty}) — _cycleFace() always returns true")
         return
-    pass_("T148", f"Clock active: hit={hit!r} action={action!r} — no Winamp zone leak")
+    pass_("T148", f"Clock active: hit={hit!r} action={action!r} — routed through Clock's "
+                 f"own handler, no Winamp zone leak")
 
 
 # ── T_BI_01 — PLEDIT repaint on Spotify resume ───────────────────────────────

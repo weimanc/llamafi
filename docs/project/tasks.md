@@ -5009,19 +5009,23 @@ exercised as part of a full suite run until now.
 `coords.py:186-187`'s docstring is also stale: `"Hits TRANSPORT zone in Spotify mode; must return
 CLOCK/NONE after BUG-1 fix"` — describes Clock's pre-TASK-346 non-interactive behavior.
 
-**Fix direction (not yet implemented — investigation only, per this task's scope):** update T148 to
-assert the current, correct contract instead of the pre-TASK-346 one: `hit == "CLOCKAPP"` and
+**Fix (implemented 2026-08-01):** updated `T148` (`app/tools/run_serialdbg_tests.py`) to assert the
+current, correct contract instead of the pre-TASK-346 one: `hit == "CLOCKAPP"` and
 `action == "CONSUMED"` (deterministic for this coordinate). The property BUG-1 originally guarded —
 no Winamp/Spotify transport action can fire while Clock owns the screen — is now structurally
 guaranteed by the dedicated `AppId::Clock` branch existing at all (that branch never calls
-`winampDisplay.injectTouch()`), not by a runtime string comparison, so the rewritten test's real
-job is just confirming the dispatch still routes to Clock's own handler, not the specific string
-match. Also worth refreshing `clock_canvas_tap()`'s stale docstring while touching this.
+`winampDisplay.injectTouch()`), not by a runtime string comparison, so the rewritten test's real job
+is confirming the dispatch still routes to Clock's own handler, not matching a specific string for
+its own sake. Also refreshed `clock_canvas_tap()`'s stale docstring (`coords.py`) to describe the
+current TASK-346 behavior instead of the old pre-fix "must return CLOCK/NONE" framing.
 
-**Owner:** Developer · **Deps:** none · **Gate:** `run/test-targeted T148` after the test-only fix
-· **Priority:** P3 (downgraded from P2 — no live firmware defect, no user-facing risk; this is
-test-suite hygiene) · **Status:** OPEN — root cause confirmed (test staleness, not a firmware bug),
-fix not yet written.
+**DUT-verified 2026-08-01** (`run/test-targeted T147,T148`): both pass —
+`T148  Clock active: hit='CLOCKAPP' action='CONSUMED' — routed through Clock's own handler, no
+Winamp zone leak`. DUT restored to prod cleanly.
+
+**Owner:** Developer · **Deps:** none · **Gate:** `run/test-targeted T147,T148` — 2/2 PASS ·
+**Priority:** P3 (downgraded from P2 — no live firmware defect, no user-facing risk; this was
+test-suite hygiene) · **Status:** **DONE 2026-08-01** — test fixed and DUT-verified.
 
 ### TASK-380 — `drillToChart()` skips re-fetch on ticker change within 60s (confirmed root cause of T176)
 
