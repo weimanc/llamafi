@@ -5143,7 +5143,41 @@ per-request slowdown — something about the Mo1 request specifically (larger re
 `STOCK_RANGE_STR`/`STOCK_INTERVAL_STR` value that hits a slower Yahoo code path?) or plain bad luck
 on one connection attempt.
 
-**Owner:** Developer · **Deps:** none · **Gate:** `run/test-targeted T188` with `LOG_FILE=` capture,
-several times to establish repro rate (this was a single occurrence so far) · **Priority:** P3
-(lower than TASK-381/382 were — single occurrence, no confirmed pattern yet) · **Status:** OPEN —
-filed as-is, uninvestigated.
+**Investigated 2026-08-01.** Two lines of investigation, neither turned up an actionable code bug:
+
+**Library-level:** `code=-1` is `HTTPC_ERROR_CONNECTION_REFUSED` — HTTPClient's generic "connect
+failed" code, returned when `WiFiClientSecure::connect(host, port, timeout)` fails
+(`HTTPClient.cpp:1162`). The codebase sets no explicit `setTimeout()`/`setConnectTimeout()` anywhere
+in `dataTaskStorage.cpp` (`grep` came up empty), so this runs on library defaults:
+`HTTPCLIENT_DEFAULT_TCP_TIMEOUT` = 5000ms for the raw TCP connect (`HTTPClient.h:42`), with a
+separate, much larger `handshake_timeout` = 120000ms for the TLS handshake proper
+(`WiFiClientSecure.cpp:40`) — the observed 13039ms doesn't cleanly match either ceiling on its own,
+but is consistent with DNS resolution (a separate step before `start_ssl_client()`, with its own
+retry/backoff) plus a TCP connect attempt stacking together. No misconfigured or missing timeout
+found — this is the library behaving as configured, not a firmware bug in the request path.
+
+**Repro attempt:** ran `run/test-targeted T188` five more times back-to-back with `LOG_FILE=`
+capture (full flash/test/restore cycle each time, DUT restored to prod cleanly all 5×). **0/5
+reproduced the `code=-1` connect failure** — every GET across all 5 runs (20 chart fetches total)
+returned 200. Useful side effect: the TASK-381/382 retry-once fix was caught actually firing live
+twice in this batch (iteration 2's D1 and iteration 5's 5d+ytd all hit `IncompleteInput` on first
+attempt, retried, and succeeded — `chart retry ok=1 rc=0` both times, test still passed) — good
+independent confirmation that fix holds up under repeated real-world exercise, separate from this
+task's own question.
+
+**Disposition:** with 1 occurrence in 6 total `T188` runs across this investigation and 0/5 on
+immediate re-test, plus no code-level cause found, this reads as ordinary transient WiFi/DNS/TCP
+noise (single dropped or slow resolution/connect attempt) rather than a reproducible firmware
+defect — the same category this project already accepts for `T_WR_TLS_01`/TASK-284's mirror
+flakiness. Deliberately **not** widening TASK-381/382's retry scope to cover connect-level failures
+too: unlike the `IncompleteInput` case (reproduced 2/5 in the same batch, clearly common enough to
+be worth the fix) or PlaneRadar's adsb.fi truncation (empirically ~9%, TASK-313), a single
+unreproduced event doesn't justify a code change, and a failed chart-tab fetch already has a
+free, trivial recovery path (the user just re-taps the tab — `main.cpp:1226`'s tab handler
+enqueues unconditionally on every tap, no cooldown/backoff blocking a retry).
+
+**Owner:** Developer · **Deps:** none · **Gate:** re-open only if this recurs with a discernible
+pattern (same range, same time-of-day, correlates with Spotify activity, etc.) — otherwise no
+further action planned · **Priority:** P4 (downgraded from P3 — investigated, no actionable cause,
+not reproducible) · **Status:** **CLOSED — accepted as transient network noise, not a firmware
+defect.** Re-open with fresh evidence if it recurs.
