@@ -1491,11 +1491,14 @@ private:
     _s.chartSymbol[0] = '\0';
     _s.chartRange     = StockRange::D1;
     _s.subView        = StockSubView::ChartDetail;
-    if (!_s.lastChartFetch || millis() - _s.lastChartFetch > STOCK_CHART_FETCH_D1) {
-      dataTask::enqueueStockChart(tickerIdx, (uint8_t)StockRange::D1);
-      _s.lastChartFetch = millis();
-      _pendingAsync     = true;
-    }
+    // TASK-380: always fetch on drill-in, keyed to the tapped ticker — a prior
+    // fetch for a DIFFERENT ticker within STOCK_CHART_FETCH_D1 previously made
+    // this look "still fresh" via a recency-only guard and silently skipped
+    // the request. Matches drillToChartBySym()/the tab-switch handler, which
+    // already enqueue unconditionally on any symbol/range change.
+    dataTask::enqueueStockChart(tickerIdx, (uint8_t)StockRange::D1);
+    _s.lastChartFetch = millis();
+    _pendingAsync      = true;
     _s.chartLen = 0; _s.chartLo = _s.chartHi = 0;
     repaintChart();
   }

@@ -4961,3 +4961,129 @@ teletext source (DUT-verified post-cut: backend=nos, page 601 fetched HTTP 200,
 ready=true, no crash; run/check 6/6). The `TeletextSource` seam is kept dormant.
 Full analysis: ADR-058 (accepted, D) + EXP-020 (DONE). **M-CEEFAX / TASK-374 /
 TASK-376 all CLOSED.**
+
+## Open — full-suite regressions/findings (2026-08-01, filed from `run/test` full run)
+
+Filed from a full `./run/test` pass (120 passed, 6 failed, 41 skipped, 3 flaked; DUT restored to
+prod cleanly). Two of the six failures (`T_WR_TLS_01`, `T_PRM_02`) match already-tracked flake
+patterns (TASK-284 mirror truncation; TASK-313 adsb.fi Cloudflare-edge truncation, though tonight's
+`T_PRM_02` gaps — 16/300s, up to 26s between fetches — are worse than the last documented PASS at
+tasks.md:456, 36/300s, and worth a fresh look rather than being assumed identical). The four below
+had no prior record in this file or in QM memory and were filed as-is, uninvestigated.
+
+**Update 2026-08-01 (same session):** TASK-380/381/382 (the three Stock chart `fetchOkCount`
+stalls, T176/T188/T192) were investigated by code read. They do **not** share one root cause as
+initially suspected from the matching symptom shape — T176 traced to a confirmed, distinct firmware
+bug (a stale recency guard in `drillToChart()`); T188 and T192 share a *different*, still-unconfirmed
+cause (evidence rules out T380's bug for both — their fetches were provably enqueued and dispatched
+— but stops short of distinguishing a real intermittent Yahoo Finance failure from a silent
+TASK-300 identity-mismatch drop). See each entry for detail.
+
+### TASK-379 — Winamp zone leaks into Clock app: BUG-1 touch guard not firing (T148)
+
+`T148` (`Spotify→Clock→Spotify round-trip` context, run directly after `T147` which confirmed the
+round-trip itself) failed: `hit='CLOCKAPP' action='CONSUMED' at (137,120)` while Clock was the
+active app — a tap coordinate resolved to a Winamp-zone hit-test result while a different app owned
+the screen. `BUG-1` is an existing named guard (per the test's own failure string) that's supposed
+to prevent exactly this cross-app zone leak; it did not fire this run.
+
+**Owner:** Developer · **Deps:** none known · **Gate:** re-run `run/test-targeted T148` after fix,
+plus `run/check` · **Priority:** P2 (UI correctness — wrong app can consume input) ·
+**Status:** OPEN — filed 2026-08-01, root cause not yet investigated.
+
+### TASK-380 — `drillToChart()` skips re-fetch on ticker change within 60s (confirmed root cause of T176)
+
+**Investigated 2026-08-01 — root cause CONFIRMED by code read, not yet DUT-fixed.** `drillToChart()`
+(`app/src/main.cpp:1488-1501`, the List→Chart drill-in-by-ticker-index path) guards its enqueue with
+a pure recency check: `if (!_s.lastChartFetch || millis() - _s.lastChartFetch > STOCK_CHART_FETCH_D1)`
+(60s). `_s.lastChartFetch` is a single timestamp shared across *every* chart fetch regardless of
+which ticker/range it was for — the guard answers "was there a recent chart fetch of any kind?", not
+"is *this* ticker's D1 data still fresh?". Drilling into a new ticker within 60s of any prior chart
+fetch silently skips the enqueue entirely: no request ever reaches the dataTask queue, which matches
+the observed evidence exactly (`inFlight=-1`, `pendingMask=0` for the entire 45s wait — nothing was
+ever dispatched, not a stuck in-flight request).
+
+This is inconsistent with the two sibling entry points, both of which enqueue unconditionally on any
+symbol/range change with no recency guard: `drillToChartBySym()` (`main.cpp:1503-1513`, heatmap-tile
+drill) and the chart-view tab-switch handler (`main.cpp:1226-1236`). `drillToChart()` is the odd one
+out.
+
+**Reproduction match:** in the full suite's test order, `T174` ("Row drill-in (NVDA)") drills NVDA
+and completes a real chart fetch, setting `_s.lastChartFetch`. `T175` (back-navigation) does nothing
+that touches it. `T176` runs seconds later and drills AAPL (row 0) via the same `drillToChart()`
+path — well inside the 60s window — so the guard fires and the fetch is silently skipped.
+
+**Fix (implemented 2026-08-01):** dropped the freshness guard in `drillToChart()` — it now
+enqueues unconditionally on every drill-in, matching `drillToChartBySym()` and the tab-switch
+handler exactly (a drill-in is a deliberate user action, not a cadence tick; re-fetching every time
+is correct UX regardless of recency, and simpler than threading ticker identity through the guard).
+
+**Owner:** Developer · **Deps:** none · **Gate:** `run/check` 6/6 clean.
+`run/test-targeted T176,T188,T192` DUT-verified: **T176 PASS** (fetchOkCount advanced, chart data
+received — confirms the fix; this is the same back-to-back-drill scenario that previously hung),
+**T188 PASS** (all 4 ranges D1/D5/Mo1/Ytd fetched clean, no regression from touching the same file),
+T192 SKIP (heatmap screener never populated in 60s this run — precondition failure unrelated to this
+fix, not a regression; see TASK-382). DUT restored to prod (`cyd2usb_winamp`) cleanly after.
+**Priority:** P2 · **Status:** **DONE 2026-08-01** — root cause confirmed, fix implemented and
+DUT-verified. This was *not* the same bug as TASK-381/382 below — see those entries, investigation
+found their fetch **was** correctly enqueued and dispatched (confirmed via `inFlight=5`/`3` and
+correct `stockChartRange` readback), so this recency-guard bug never explained them.
+
+### TASK-381 — Stock chart fetch enqueued+dispatched but never completes as success (T188, D5 tab)
+
+**Investigated 2026-08-01 — narrowed, not resolved.** Ruled out sharing TASK-380's cause: T188's
+loop taps the range tabs directly (`main.cpp:1226-1236`), which has no recency guard and enqueues
+unconditionally; the D1 tab in the same loop passed (proving the enqueue path works), only D5
+failed. `dataq` confirms the request *was* dispatched (`inFlight` non-`-1` briefly right after the
+tap) then goes idle for the rest of the 45s wait with no success. `fetchFailed=True` but
+`fetchErrorCode=None` as reported — `fetchErrorCode` is always set to a concrete int by
+`stockTickChart()` on any real failure (`main.cpp:1801`, never left null), so `None` most likely
+means the *diagnostic* `get fetchErrorCode` follow-up query itself didn't get an `ok` response
+(serial timing), not that the firmware genuinely has no code — can't confirm without a raw serial
+capture.
+
+**Two live hypotheses, unconfirmed:**
+1. Real intermittent Yahoo Finance failure (HTTP error/rate-limit) — the T173-T192 sequence fires
+   several chart fetches for the same symbol/mirror in a short window, plausible for a 429.
+2. Silent identity-mismatch drop at `main.cpp:1782-1788` (TASK-300's stale-result guard) — checked
+   the dataTask-side code (`fetchStockChartBySym`/`fetchStockChart` in `dataTaskStorage.cpp`) and it
+   correctly echoes back the requested symbol/range in the result, and nothing in the single-tap
+   T188 sequence obviously mutates `_s.chartRange`/`_s.chartSymbol` between enqueue and poll — so no
+   mismatch is currently provable, but can't be ruled out without seeing the `LOG_D`/`LOG_W` lines
+   from `dataTaskStorage.cpp:975,989` (GET result code, JSON error), which this test run's harness
+   output doesn't capture.
+
+**Next step:** re-run `run/test-targeted T188` with a live `run/monitor-read` capture (or
+`screenLog`) alongside it to catch the `dataTask.stock` GET/JSON log lines and settle which
+hypothesis is real.
+
+**Update 2026-08-01 (same session, post-TASK-380 fix):** re-ran `T188` on the TASK-380-fixed build
+(unrelated file, but same run) — **all 4 ranges including D5 passed clean**, no repro this time.
+One data point, not proof, but leans hypothesis 1 (a real transient Yahoo Finance failure/rate-limit
+in the original run) over hypothesis 2 (a deterministic identity-mismatch drop, which should have
+reproduced again on an unrelated fix). Still worth a serial-log-captured run before closing —
+one clean pass doesn't rule out an intermittent bug.
+
+**Owner:** Developer · **Deps:** none (independent of TASK-380) · **Gate:**
+`run/test-targeted T188` after fix, with serial log captured this time · **Priority:** P2 ·
+**Status:** OPEN — narrowed to two hypotheses, leaning transient-network, not yet confirmed or
+fixed.
+
+### TASK-382 — Stock chart fetch enqueued+dispatched but never completes as success (T192, tab-switch after heatmap drill)
+
+**Investigated 2026-08-01 — narrowed, not resolved; same shape as TASK-381, likely shares *that*
+cause rather than TASK-380's.** T192 drills via a heatmap tile tap (`drillToChartBySym()`, no
+recency guard) then taps the 5D range tab; the test itself confirms `stockChartRange=="D5"` after
+the tap, which only happens inside the tab handler's `!_s.fetchFailed` branch (`main.cpp:1226`) —
+i.e. the branch that also calls `enqueueStockChartBySym()` ran, so the fetch was enqueued. `dataq`
+showed `inFlight=5` (== `DATA_FETCH_STOCK_CHART_BY_SYM`, confirms dispatch) dropping to `-1` within
+~3s and staying idle for the rest of the 45s wait. Same open hypotheses as TASK-381 (real fetch
+failure vs. silent TASK-300 identity-drop) — the underlying mechanism (a range-tab tap on the chart
+view, one-shot enqueue) is the same code path T188's D5 tab exercises, just reached via a different
+drill-in route.
+
+**Owner:** Developer · **Deps:** TASK-381 — investigate together, same code path (`main.cpp:1226-
+1236` tab handler + `fetchStockChartBySym`), diagnose once and likely fixes both · **Gate:**
+`run/test-targeted T188,T192` after fix, with serial log captured · **Priority:** P2 ·
+**Status:** OPEN — narrowed to two hypotheses (shared with TASK-381), not yet distinguished or
+fixed.
