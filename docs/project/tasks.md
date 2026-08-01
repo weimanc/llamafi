@@ -5261,20 +5261,60 @@ every drill, which unmasks this pre-existing gap: **the busy gate has no allowan
 back-navigation**, a tap that should always be safe to process (it doesn't touch the in-flight
 fetch, just changes what view is showing). This was latent before, now reliably reproducible.
 
-**Fix direction (not yet implemented):** the back-button tap (`x < ST_CHART_BACK_W * 2` within the
-chart header band) should bypass the `g_shellBusy` gate, or `backToPrevView()`/its trigger should be
-special-cased the way `main.cpp:2756`'s taskbar-tap block already runs *before* this check (taskbar
-switches are similarly always-safe). Scope this carefully — other apps (Teletext, PlaneRadar) share
-the identical `g_shellBusy`-gates-all-taps structure, so worth checking whether they have the same
-gap for their own back/exit affordances before fixing Stock in isolation (BP-047 divergence-risk
-shape: don't fix one call site if the same bug exists in siblings).
+**Deepened investigation 2026-08-01 — this affects real physical touch, not just the serial test
+harness, and is systemic across four apps, not Stock-specific. Severity upgraded.**
 
-**Owner:** Developer (Architect consult recommended — this changes shared shell-busy-gate
-semantics, similar framing to TASK-366's taskbar-indicator gap) · **Deps:** TASK-380 (exposed this,
-did not cause it) · **Gate:** `run/test-targeted T184,T231` after fix, plus a full-suite re-run to
-confirm no other back-navigation regressed · **Priority:** P2 (real UX bug — user can get stuck
-unable to navigate back for up to 3s after any chart drill) · **Status:** OPEN — root cause
-confirmed, fix not yet written.
+`cmdTap()` (`main.cpp:2735`, the `#ifdef SERIAL_DEBUG` command this bug was originally caught
+through) is a **test-only simulation** of touch input. Checked whether the same gate exists on the
+**always-compiled production path** — it does, independently: `appHandleInput()`
+(`main.cpp:2032-2104`, polled every loop iteration from `ts.touched()`) has its own equivalent check
+at `main.cpp:2061`: `if (!s_inGesture && (millis() <= s_cooldownMs || g_shellBusy)) return;` — a
+brand-new Press is dropped with **no `handleInput()` call at all** whenever `g_shellBusy` is true.
+This is confirmed to affect the real CYD hardware exactly as it affects the test harness: a real
+finger tap on the back button within the busy window is silently ignored, same as the serial-
+injected one.
+
+**Busy-window duration, precisely (`main.cpp:4063-4069`):** clears at the *earlier* of (a) the
+active app's `hasPendingAsync()` going false (checked every loop tick, right after `appTick()`) or
+(b) the `SHELL_BUSY_TIMEOUT_MS=3000` safety-net ceiling. For Stock, (a) fires when the chart fetch
+genuinely completes — i.e. the busy window is essentially the **full fetch duration** (~2.5-3.5s
+normally, up to ~5.5s if TASK-381's retry fires), not some artificially-extended 3s always. Since
+T184/T231's back-taps land at 0.15-0.4s post-drill — far inside *any* normal fetch's duration — this
+is not a narrow race window to hit; **any back-tap thrown during the entire normal fetch time gets
+dropped.** That's the common case for a user who drills in, immediately realizes it's the wrong row,
+and taps back right away — not an edge case.
+
+**Confirmed systemic, not Stock-specific:** `hasPendingAsync()` (`appShell.h:18`, default `false`)
+is overridden by Stock, **Teletext** (`teletextApp.h:155`, `_pendingFetch`), **PlaneRadar**
+(`planeRadarApp.h:270`, `_pendingFetch`), and **WebRadio** (`webRadioApp.h:782`,
+`_pendingStations`) — all four route through the identical pre-dispatch `g_shellBusy` check with no
+navigation exception. Teletext is the clearest case of this violating an *existing, stated* design
+intent: its own back-navigation zone is commented **"Strip is always live (back, nav) even when
+numpad is active"** (`teletextApp.h:237`) — a promise the outer `g_shellBusy` gate currently breaks
+whenever a page fetch (`_pendingFetch`) is in flight. This wasn't invented for Stock; it's a
+pre-existing cross-app gap that TASK-380 happened to make reliably reproducible for Stock first.
+
+One existing precedent for the right shape of fix: the **taskbar tap block already runs before this
+check** (`main.cpp:2743-2755`, returns early) — switching apps via the taskbar is *never* blocked by
+`shellBusy`, on the reasoning that navigating away is always safe regardless of in-flight work. The
+fix for in-app back-navigation (Stock's `(10,7)` chart-back, Teletext's `STRIP_BACK` zone) should
+extend that same reasoning inward: a canvas tap can still be safe to process even while the app's
+*own* fetch is in flight, if what it does is pure navigation/UI state (no new fetch, no data
+mutation) rather than starting a competing async operation. Doing this generically (rather than
+special-casing per app, x/y-coordinate style — see TASK-366's framing about the same kind of
+narrow-vs-general fork) likely means giving apps a way to declare "this tap is nav-only, bypass
+busy" back to the dispatcher, or moving the busy gate to wrap only the app-specific branches that
+actually *start* new async work, not the ones that only navigate.
+
+**Owner:** Developer (Architect consult recommended — this changes shared shell-busy-gate semantics
+across four apps, not a single-app fix; same framing as TASK-366's taskbar-indicator gap) ·
+**Deps:** TASK-380 (exposed this, did not cause it) · **Gate:** `run/test-targeted T184,T231` after
+fix, plus a full-suite re-run to confirm no other in-app navigation regressed (Teletext's
+`STRIP_BACK` in particular, given its explicit always-live comment) · **Priority:** **P1
+(upgraded from P2)** — confirmed to affect real physical touch on shipped hardware, not just a test
+artifact, and the trigger window is the common case, not a rare race · **Status:** OPEN — root
+cause confirmed and scope widened to all four `hasPendingAsync()`-implementing apps, fix not yet
+written (recommend Architect input on the general mechanism before implementation).
 
 ### TASK-385 — T193 auto-refresh fetch timeout — likely TASK-383-adjacent, unconfirmed
 
