@@ -30,6 +30,21 @@ struct App {
     // state. Amber here collapses with the busy state; error (red) still wins.
     // Safe default = false.
     virtual bool isConnecting() const { return false; }
+    // TASK-384: return true when (x, y) is a pure-navigation tap for the app's
+    // CURRENT state — one that changes what's on screen without starting any
+    // new async work (e.g. Stock's chart/heatmap "back" zone, Teletext's
+    // STRIP_BACK). The shell's g_shellBusy pre-dispatch gate normally drops
+    // every tap while the app's own hasPendingAsync() is true, to stop a tap
+    // from stacking a redundant fetch on top of one already in flight — but
+    // that gate has no way to tell "will start a new fetch" apart from "just
+    // navigates", so it silently swallowed navigation taps too (confirmed on
+    // real hardware, not just the serial test harness — see TASK-384). This
+    // lets an app explicitly except specific screen regions, mirroring how
+    // the taskbar tap already bypasses the busy gate entirely for the same
+    // reason (switching away is always safe). Safe default = false — apps
+    // with no async work, or no in-app navigation-while-pending case, need
+    // not override.
+    virtual bool isNavigationTap(int x, int y) const { (void)x; (void)y; return false; }
     virtual ~App() = default;
 };
 

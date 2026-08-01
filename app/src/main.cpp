@@ -1121,6 +1121,17 @@ public:
   // TASK-246: red bar when the last fetch failed (_s.fetchFailed; set on a failed
   // quote/chart/heatmap result, cleared on success).
   bool hasError() const override { return _s.fetchFailed; }
+  // TASK-384: the chart/heatmap "back to list" zones — same geometry
+  // handleInput() checks at ST_CHART_HEADER_Y/ST_LIST_RULE_Y — never start a
+  // new fetch, so they're safe to process even while a fetch is in flight.
+  bool isNavigationTap(int x, int y) const override {
+    if (_s.subView == StockSubView::ChartDetail)
+      return y >= ST_CHART_HEADER_Y && y < ST_CHART_HEADER_Y + ST_CHART_HEADER_H
+             && x < ST_CHART_BACK_W * 2;
+    if (_s.subView == StockSubView::HeatmapDetail)
+      return y < ST_LIST_RULE_Y && x > 190;
+    return false;
+  }
   void init() override {
     for (int i = 0; i < 8; i++)
       strlcpy(_s.tickers[i], g_settings.stockTickers[i], 8);
@@ -2058,7 +2069,11 @@ void appHandleInput(AppId) {
       }
       return;
     }
-    if (!s_inGesture && (millis() <= s_cooldownMs || g_shellBusy)) return;
+    // TASK-384: a pure-navigation tap bypasses the busy gate (see
+    // isNavigationTap()'s doc comment) — cooldown debounce still applies.
+    bool navTapBypass = g_apps[(int)currentAppId] &&
+                         g_apps[(int)currentAppId]->isNavigationTap(p.x, p.y);
+    if (!s_inGesture && (millis() <= s_cooldownMs || (g_shellBusy && !navTapBypass))) return;
     s_lastTouchX = p.x; s_lastTouchY = p.y;
     if (!s_inGesture) {
       s_inGesture = true;
@@ -2753,7 +2768,12 @@ static void cmdTap(const char *args) {
                   "\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}\n", x, y);
     return;
   }
-  if (g_shellBusy) {
+  // TASK-384: a pure-navigation tap (e.g. Stock's chart-back zone) bypasses
+  // the busy gate — it doesn't start new async work, so there's nothing for
+  // the gate to protect against here. See isNavigationTap()'s doc comment.
+  bool navTapBypass = g_apps[(int)currentAppId] &&
+                       g_apps[(int)currentAppId]->isNavigationTap(x, y);
+  if (g_shellBusy && !navTapBypass) {
     Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                   "\"hit\":\"CANVAS\",\"action\":\"NONE\",\"skipped\":true}\n", x, y);
     return;

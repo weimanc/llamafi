@@ -5297,24 +5297,58 @@ pre-existing cross-app gap that TASK-380 happened to make reliably reproducible 
 One existing precedent for the right shape of fix: the **taskbar tap block already runs before this
 check** (`main.cpp:2743-2755`, returns early) — switching apps via the taskbar is *never* blocked by
 `shellBusy`, on the reasoning that navigating away is always safe regardless of in-flight work. The
-fix for in-app back-navigation (Stock's `(10,7)` chart-back, Teletext's `STRIP_BACK` zone) should
-extend that same reasoning inward: a canvas tap can still be safe to process even while the app's
-*own* fetch is in flight, if what it does is pure navigation/UI state (no new fetch, no data
-mutation) rather than starting a competing async operation. Doing this generically (rather than
-special-casing per app, x/y-coordinate style — see TASK-366's framing about the same kind of
-narrow-vs-general fork) likely means giving apps a way to declare "this tap is nav-only, bypass
-busy" back to the dispatcher, or moving the busy gate to wrap only the app-specific branches that
-actually *start* new async work, not the ones that only navigate.
+fix for in-app back-navigation (Stock's `(10,7)` chart-back) should extend that same reasoning
+inward: a canvas tap can still be safe to process even while the app's *own* fetch is in flight, if
+what it does is pure navigation/UI state (no new fetch, no data mutation) rather than starting a
+competing async operation.
 
-**Owner:** Developer (Architect consult recommended — this changes shared shell-busy-gate semantics
-across four apps, not a single-app fix; same framing as TASK-366's taskbar-indicator gap) ·
-**Deps:** TASK-380 (exposed this, did not cause it) · **Gate:** `run/test-targeted T184,T231` after
-fix, plus a full-suite re-run to confirm no other in-app navigation regressed (Teletext's
-`STRIP_BACK` in particular, given its explicit always-live comment) · **Priority:** **P1
-(upgraded from P2)** — confirmed to affect real physical touch on shipped hardware, not just a test
-artifact, and the trigger window is the common case, not a rare race · **Status:** OPEN — root
-cause confirmed and scope widened to all four `hasPendingAsync()`-implementing apps, fix not yet
-written (recommend Architect input on the general mechanism before implementation).
+**Correction before implementing — Teletext/PlaneRadar do NOT need this fix, on closer read of
+their actual `handleInput()` bodies (the systemic framing above overreached; narrowed here rather
+than left standing uncorrected):**
+- **Teletext's `STRIP_BACK`** (`teletextApp.h:430-438`) is *not* pure navigation in the general
+  case — when `_histDepth > 0` it calls `_goBack()` → `_active()->navigate(...)` →
+  `dataTask::enqueueTeletextPage(...)`, i.e. it starts a **new fetch** for the previous page. Same
+  for `STRIP_PREV`/`STRIP_NEXT`/`STRIP_SUBUP`/`STRIP_SUBDN` — all call `_navigate()`, all enqueue.
+  The "Strip is always live... even when numpad is active" comment (`teletextApp.h:237`) is about
+  numpad-vs-strip precedence, a *different* axis from the `g_shellBusy` gate this task is about —
+  not the promise it first looked like. Exempting the strip from busy would let rapid taps stack
+  overlapping page fetches, which is exactly what the gate exists to prevent. Leaving it as-is.
+- **PlaneRadar's `handleInput()`** (`planeRadarApp.h:350-379`) has no pure-navigation tap at all —
+  both its interactions (`STRIP_LOC_x` via `_setActiveLoc()`, and the disc-range-cycle tap)
+  explicitly re-enqueue a fetch. There's no in-app sub-view to navigate back from in the first
+  place (single full-screen view, no back button). Nothing to fix here.
+
+Only **Stock** genuinely has this pattern (multiple in-app sub-views — List/Chart/Heatmap — reached
+via a back-navigation tap that touches zero fetch state), which makes sense: it's the only app in
+this codebase structured with real in-app sub-navigation.
+
+**Fix (implemented 2026-08-01):** added `App::isNavigationTap(int x, int y) const` to the base
+interface (`appShell.h`, default `false` — zero behavior change for any app that doesn't override
+it, confirmed by `T_MA_02`/`T_WX_02`/`T_CX_02`/`T_GOL_02` all still passing unchanged). Wired it into
+**both** dispatch paths — `cmdTap()` (`main.cpp:2756-2763`, the serial test harness) and
+`appHandleInput()` (`main.cpp:2061-2065`, the real physical-touchscreen path, cooldown debounce
+still applies) — so a tap where `isNavigationTap()` returns true bypasses the `g_shellBusy` check
+and reaches the app's `handleInput()` regardless of pending async work. `StockApp::isNavigationTap()`
+returns true for the exact same geometry `handleInput()` already checks for chart-back
+(`y` in the header band `&& x < ST_CHART_BACK_W*2`, `ChartDetail` only) and heatmap-back
+(`y < ST_LIST_RULE_Y && x > 190`, `HeatmapDetail` only) — confirmed neither zone's actual handler
+(`backToPrevView()`) touches `dataTask::enqueue*` anywhere, so bypassing busy for these specific
+coordinates is safe by construction, not just by absence of a counterexample.
+
+**DUT-verified 2026-08-01** (`run/test-targeted T184,T231,T148,T176,T188,T192,T_MA_02,T_WX_02,
+T_CX_02,T_GOL_02` — the fix itself plus every test touching the shared dispatch code this change
+modified): **9 passed, 0 failed, 1 skipped** (`T192` skipped on an unrelated precondition —
+heatmap cache not populated within 60s this run, not caused by this fix). `T184`/`T231` (the actual
+regression) now PASS; `T148`/`T176`/`T188` (TASK-379/380/381's fixes) still PASS, confirming no
+regression from touching shared dispatch code; all four BUG-1 guard tests
+(`T_MA_02`/`T_WX_02`/`T_CX_02`/`T_GOL_02`) still PASS, confirming apps that don't override
+`isNavigationTap()` see zero behavior change. DUT restored to prod cleanly.
+
+**Owner:** Developer · **Deps:** TASK-380 (exposed this, did not cause it) · **Gate:**
+`run/test-targeted T184,T231,T148,T176,T188,T192,T_MA_02,T_WX_02,T_CX_02,T_GOL_02` — 9/10 PASS,
+1 unrelated SKIP · **Priority:** P1 (confirmed real-hardware impact, common-case trigger window) ·
+**Status:** **DONE 2026-08-01** — root cause confirmed, fix implemented (Stock only — Teletext/
+PlaneRadar investigated and found not to need it) and DUT-verified with no regressions.
 
 ### TASK-385 — T193 auto-refresh fetch timeout — likely TASK-383-adjacent, unconfirmed
 
