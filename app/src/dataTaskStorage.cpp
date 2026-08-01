@@ -466,92 +466,127 @@ static void fetchStockQuote() {
     spotifyTask::tlsResume();
 }
 
-static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
-    if (tickerIdx >= 8 || rangeIdx >= 4) return;
-    char tickers[8][8];
-    portENTER_CRITICAL_SAFE(&s_stockTickersMux);
-    memcpy(tickers, s_stockTickers, sizeof(tickers));
-    portEXIT_CRITICAL_SAFE(&s_stockTickersMux);
-    spotifyTask::tlsYield();
-    String url = String(STOCK_URL_BASE) + tickers[tickerIdx]
+// Single GET+parse attempt, shared by the by-ticker-index and by-symbol chart
+// fetchers (TASK-381/382) — factored out so both can be retried identically.
+// Returns the HTTP code (or a negative connect/begin failure); fills `r`.
+static int fetchStockChartOnce(const char* symbol, uint8_t rangeIdx, FetchType certTag,
+                                StockChartResult &r) {
+    String url = String(STOCK_URL_BASE) + symbol
                  + "?interval=" + STOCK_INTERVAL_STR[rangeIdx]
                  + "&range="    + STOCK_RANGE_STR[rangeIdx];
-    LOG_D("dataTask.stock", "chart START %s range=%s heap free=%uk maxBlk=%uk",
-          tickers[tickerIdx], STOCK_RANGE_STR[rangeIdx],
-          (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)          / 1024),
-          (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024));
-    StockChartResult r;
-    strlcpy(r.symbol, tickers[tickerIdx], sizeof(r.symbol));
+    strlcpy(r.symbol, symbol, sizeof(r.symbol));
     r.rangeIdx = rangeIdx;
-    s_stockChartProgress = 0;  // TLS + http.begin
     WiFiClientSecure tls;
-    tls.setCACert(consumeCertBreak(DATA_FETCH_STOCK_CHART)
-                      ? wrongCaFor(DATA_FETCH_STOCK_CHART) : YAHOO_FINANCE_ROOT_CA);  // TASK-344
+    tls.setCACert(consumeCertBreak(certTag) ? wrongCaFor(certTag) : YAHOO_FINANCE_ROOT_CA);  // TASK-344
     HTTPClient http;
     if (!http.begin(tls, url)) {
-        LOG_W("dataTask.stock", "chart http.begin failed");
+        LOG_W("dataTask.stock", "chart http.begin failed sym=%s", symbol);
         r.ok = false; r.errorCode = -100;
-    } else {
-        http.addHeader("User-Agent", "Mozilla/5.0");
-        http.useHTTP10(true);
-        s_stockChartProgress = 1;  // GET in flight
-        unsigned long t0 = millis();
-        int code = certSentinel(tls, http.GET());  // TASK-341
-        LOG_D("dataTask.stock", "chart GET %s range=%s %d elapsed=%lums",
-              tickers[tickerIdx], STOCK_RANGE_STR[rangeIdx],
-              code, (unsigned long)(millis() - t0));
-        if (code != 200) {
-            r.ok = false; r.errorCode = code;
-            http.end();
-        } else {
-            LOG_D("dataTask.stock", "chart pre-json heap free=%uk maxBlk=%uk",
-                  (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)          / 1024),
-                  (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024));
-            // Filter: extract only close[] — D1 response is ~8 KB (78×5m candles);
-            // full parse needs >16384 B pool and cascades a dirty TCP RST into
-            // the Spotify keep-alive connection. Filter reduces pool to <2 KB.
-            // Tree: chart→result[0]→indicators→quote[0]→close, 5 levels × 1 leaf, ~56B min.
-            // HOST TEST: test_yahoo_finance_api.py T_SF_06 CHART_MAX_POINTS=110.
-            s_stockChartProgress = 2;  // JSON parse (streaming)
-            StaticJsonDocument<128> filter;
-            filter["chart"]["result"][0]["indicators"]["quote"][0]["close"] = true;
-            StaticJsonDocument<2048> doc;
-            DeserializationError err = deserializeJson(doc, http.getStream(),
-                                           DeserializationOption::Filter(filter));
-            http.end();
-            LOG_D("dataTask.stock", "chart post-json heap free=%uk maxBlk=%uk err=%s",
-                  (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)          / 1024),
-                  (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024),
-                  err.c_str());
-            if (err) {
-                LOG_W("dataTask.stock", "chart JSON err: %s", err.c_str());
-                r.ok = false; r.errorCode = -90 - (int)err.code();
-            } else {
-                JsonArray closeArr =
-                    doc["chart"]["result"][0]["indicators"]["quote"][0]["close"].as<JsonArray>();
-                r.len = 0;
-                r.lo  = 1e30f;
-                r.hi  = -1e30f;
-                for (JsonVariant v : closeArr) {
-                    if (v.isNull()) continue;
-                    float val = v.as<float>();
-                    r.points[r.len++] = val;
-                    if (val < r.lo) r.lo = val;
-                    if (val > r.hi) r.hi = val;
-                    if (r.len >= 110) break;
-                }
-                if (r.lo > r.hi) { r.lo = 0.0f; r.hi = 1.0f; }
-                r.ok = true;
-                LOG_D("dataTask.stock", "chart ok len=%u lo=%.2f hi=%.2f", r.len, r.lo, r.hi);
-            }
-        }
+        return -100;
     }
+    http.addHeader("User-Agent", "Mozilla/5.0");
+    http.useHTTP10(true);
+    s_stockChartProgress = 1;  // GET in flight
+    unsigned long t0 = millis();
+    int code = certSentinel(tls, http.GET());  // TASK-341
+    LOG_D("dataTask.stock", "chart GET sym=%s range=%s %d elapsed=%lums",
+          symbol, STOCK_RANGE_STR[rangeIdx], code, (unsigned long)(millis() - t0));
+    if (code != 200) {
+        r.ok = false; r.errorCode = code;
+        http.end();
+        return code;
+    }
+    LOG_D("dataTask.stock", "chart pre-json heap free=%uk maxBlk=%uk",
+          (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)          / 1024),
+          (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024));
+    // Filter: extract only close[] — D1 response is ~8 KB (78×5m candles);
+    // full parse needs >16384 B pool and cascades a dirty TCP RST into
+    // the Spotify keep-alive connection. Filter reduces pool to <2 KB.
+    // Tree: chart→result[0]→indicators→quote[0]→close, 5 levels × 1 leaf, ~56B min.
+    // HOST TEST: test_yahoo_finance_api.py T_SF_06 CHART_MAX_POINTS=110.
+    s_stockChartProgress = 2;  // JSON parse (streaming)
+    StaticJsonDocument<128> filter;
+    filter["chart"]["result"][0]["indicators"]["quote"][0]["close"] = true;
+    StaticJsonDocument<2048> doc;
+    DeserializationError err = deserializeJson(doc, http.getStream(),
+                                   DeserializationOption::Filter(filter));
+    http.end();
+    LOG_D("dataTask.stock", "chart post-json heap free=%uk maxBlk=%uk err=%s",
+          (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)          / 1024),
+          (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024),
+          err.c_str());
+    if (err) {
+        LOG_W("dataTask.stock", "chart JSON err sym=%s: %s", symbol, err.c_str());
+        r.ok = false; r.errorCode = -90 - (int)err.code();
+        return code;
+    }
+    JsonArray closeArr =
+        doc["chart"]["result"][0]["indicators"]["quote"][0]["close"].as<JsonArray>();
+    r.len = 0;
+    r.lo  = 1e30f;
+    r.hi  = -1e30f;
+    for (JsonVariant v : closeArr) {
+        if (v.isNull()) continue;
+        float val = v.as<float>();
+        r.points[r.len++] = val;
+        if (val < r.lo) r.lo = val;
+        if (val > r.hi) r.hi = val;
+        if (r.len >= 110) break;
+    }
+    if (r.lo > r.hi) { r.lo = 0.0f; r.hi = 1.0f; }
+    r.ok = true;
+    LOG_D("dataTask.stock", "chart ok sym=%s len=%u lo=%.2f hi=%.2f", symbol, r.len, r.lo, r.hi);
+    return code;
+}
+
+// Orchestrates one fetch cycle (TLS yield/resume, progress state, retry,
+// shared-result publish) around fetchStockChartOnce() — the by-ticker-index
+// and by-symbol entry points below both delegate here.
+static void fetchStockChartWithRetry(const char* symbol, uint8_t rangeIdx, FetchType certTag) {
+    spotifyTask::tlsYield();
+    LOG_D("dataTask.stock", "chart START sym=%s range=%s heap free=%uk maxBlk=%uk",
+          symbol, STOCK_RANGE_STR[rangeIdx],
+          (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)          / 1024),
+          (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024));
+    s_stockChartProgress = 0;  // TLS + http.begin
+    StockChartResult r;
+    int code = fetchStockChartOnce(symbol, rangeIdx, certTag, r);
+
+    // TASK-381/382: Yahoo chart responses intermittently truncate mid-body
+    // under heap pressure — deserializeJson() fails with IncompleteInput
+    // despite a clean HTTP 200 (confirmed via raw serial capture: free heap
+    // drops ~50k across the GET+parse, e.g. 73k->23k). Same failure shape
+    // TASK-313 found for PlaneRadar/adsb.fi. Retry ONLY when the HTTP
+    // transaction itself succeeded but the body failed to parse; never on a
+    // non-200 code or a connect/begin failure — those are real failures,
+    // not a stream glitch, and retrying them just burns another TLS
+    // handshake for no benefit.
+    if (code == 200 && !r.ok) {
+        LOG_D("dataTask.stock", "chart parse failed rc=%d sym=%s -> retry", r.errorCode, symbol);
+        vTaskDelay(pdMS_TO_TICKS(300));
+        StockChartResult retryResult;   // fresh result — no stale partial state
+        fetchStockChartOnce(symbol, rangeIdx, certTag, retryResult);
+        LOG_D("dataTask.stock", "chart retry ok=%d rc=%d sym=%s",
+              (int)retryResult.ok, retryResult.errorCode, symbol);
+        r = retryResult;   // second attempt's outcome (success or error) wins
+    }
+
     s_stockChartProgress = -1;  // idle
     portENTER_CRITICAL_SAFE(&s_stockChartMux);
     s_stockChartResult = r;
     s_stockChartNew    = true;
     portEXIT_CRITICAL_SAFE(&s_stockChartMux);
+    LOG_HEAP("dataTask.stock");
     spotifyTask::tlsResume();
+}
+
+static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
+    if (tickerIdx >= 8 || rangeIdx >= 4) return;
+    char symbol[8];
+    portENTER_CRITICAL_SAFE(&s_stockTickersMux);
+    strlcpy(symbol, s_stockTickers[tickerIdx], sizeof(symbol));
+    portEXIT_CRITICAL_SAFE(&s_stockTickersMux);
+    fetchStockChartWithRetry(symbol, rangeIdx, DATA_FETCH_STOCK_CHART);
 }
 
 // Pre-allocated at startup (unfragmented heap) and reused per fetch cycle to avoid
@@ -950,69 +985,7 @@ static void fetchHeatmapQuote() {
 
 static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
     if (!symbol || symbol[0] == '\0' || rangeIdx >= 4) return;
-    spotifyTask::tlsYield();
-    String url = String(STOCK_URL_BASE) + symbol
-                 + "?interval=" + STOCK_INTERVAL_STR[rangeIdx]
-                 + "&range="    + STOCK_RANGE_STR[rangeIdx];
-    StockChartResult r;
-    strlcpy(r.symbol, symbol, sizeof(r.symbol));
-    r.rangeIdx = rangeIdx;
-    s_stockChartProgress = 0;  // TLS + http.begin
-    LOG_HEAP("dataTask.stock");
-    WiFiClientSecure tls;
-    tls.setCACert(consumeCertBreak(DATA_FETCH_STOCK_CHART_BY_SYM)
-                      ? wrongCaFor(DATA_FETCH_STOCK_CHART_BY_SYM) : YAHOO_FINANCE_ROOT_CA);  // TASK-344
-    HTTPClient http;
-    if (!http.begin(tls, url)) {
-        LOG_W("dataTask.stock", "chart-sym http.begin failed sym=%s", symbol);
-        r.ok = false; r.errorCode = -100;
-    } else {
-        http.addHeader("User-Agent", "Mozilla/5.0");
-        http.useHTTP10(true);
-        s_stockChartProgress = 1;  // GET in flight
-        unsigned long t0 = millis();
-        int code = certSentinel(tls, http.GET());  // TASK-341
-        LOG_D("dataTask.stock", "chart-sym GET %s %d elapsed=%lums",
-              symbol, code, (unsigned long)(millis() - t0));
-        if (code != 200) {
-            r.ok = false; r.errorCode = code;
-            http.end();
-        } else {
-            s_stockChartProgress = 2;  // JSON parse (streaming)
-            StaticJsonDocument<128> filter;
-            filter["chart"]["result"][0]["indicators"]["quote"][0]["close"] = true;
-            StaticJsonDocument<2048> doc;
-            DeserializationError err = deserializeJson(doc, http.getStream(),
-                                           DeserializationOption::Filter(filter));
-            http.end();
-            if (err) {
-                LOG_W("dataTask.stock", "chart-sym JSON err: %s", err.c_str());
-                r.ok = false; r.errorCode = -90 - (int)err.code();
-            } else {
-                JsonArray closeArr =
-                    doc["chart"]["result"][0]["indicators"]["quote"][0]["close"].as<JsonArray>();
-                r.lo = 1e30f; r.hi = -1e30f;
-                for (JsonVariant v : closeArr) {
-                    if (v.isNull()) continue;
-                    float val = v.as<float>();
-                    r.points[r.len++] = val;
-                    if (val < r.lo) r.lo = val;
-                    if (val > r.hi) r.hi = val;
-                    if (r.len >= 110) break;
-                }
-                if (r.lo > r.hi) { r.lo = 0.0f; r.hi = 1.0f; }
-                r.ok = true;
-                LOG_D("dataTask.stock", "chart-sym ok sym=%s len=%u", symbol, r.len);
-            }
-        }
-    }
-    s_stockChartProgress = -1;  // idle
-    portENTER_CRITICAL_SAFE(&s_stockChartMux);
-    s_stockChartResult = r;
-    s_stockChartNew    = true;
-    portEXIT_CRITICAL_SAFE(&s_stockChartMux);
-    LOG_HEAP("dataTask.stock");
-    spotifyTask::tlsResume();
+    fetchStockChartWithRetry(symbol, rangeIdx, DATA_FETCH_STOCK_CHART_BY_SYM);
 }
 
 // Issues one GET against a single mirror with the given TLS mode and, on HTTP

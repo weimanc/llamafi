@@ -5065,20 +5065,36 @@ path producing a short read that `getStream()`'s filtered parse can't recover fr
   the failure is 100% in JSON parsing, not the HTTP layer. Refined to: **JSON body truncation under
   heap pressure**, not a rate-limit.
 
-**Fix direction (not yet implemented):** either address the heap squeeze directly (why does free
-heap drop by 50k+ during this one GET+parse — is something else on the dataTask/spotifyTask threads
-competing for heap concurrently, per `spAct`/`tlsStopped` in the `dataq` samples above showing a
-Spotify TLS yield active at the same moment?), or add a retry-once-on-parse-error mitigation the way
-TASK-313 did for PlaneRadar's adsb.fi truncation (same failure shape: clean HTTP 200, truncated body
-under resource pressure) — cheaper to land, doesn't fix the underlying squeeze but matches this
-codebase's existing precedent for this exact class of bug.
+**Fix (implemented 2026-08-01):** chose the retry-once mitigation over chasing the heap squeeze
+directly (cheaper, matches this codebase's existing TASK-313 precedent for the identical failure
+shape; the squeeze's root cause — heap-caps fragmentation during GET+parse — remains uninvestigated
+and could still be worth a separate look someday, but isn't blocking). Factored the shared GET+parse
+body out of both `fetchStockChart()`/`fetchStockChartBySym()` into one `fetchStockChartOnce()`
+helper (`dataTaskStorage.cpp:472`), and added `fetchStockChartWithRetry()` (`:545`) which calls it,
+and — only when `code == 200 && !r.ok` (never on a non-200 or connect failure, same skip-don't-retry
+rule TASK-313 established) — waits 300ms and calls it again on a fresh connection/result, keeping
+whichever attempt's outcome is final. Both `fetchStockChart()` and `fetchStockChartBySym()` are now
+thin wrappers delegating to the shared retry orchestrator (`certTag` parameterized so the existing
+per-fetch-type `certbreak` test hook still targets each independently).
 
-**Owner:** Developer · **Deps:** compare against TASK-313's retry-once mitigation (`dataTaskStorage.
-cpp`, PlaneRadar path) for a ready-made pattern · **Gate:** `run/check`; `run/test-targeted
-T188,T192` after fix, `LOG_FILE=` capture again to confirm `IncompleteInput` stops appearing (not
-just that the test happens to pass — this failure is intermittent under heap pressure, a single
-clean run isn't proof) · **Priority:** P2 · **Status:** OPEN — root cause confirmed, fix not yet
-written.
+**DUT-verified 2026-08-01** with `LOG_FILE=` capture again (`run/test-targeted T176,T188,T192`):
+**T192 passed clean** — the exact by-symbol path that hit `IncompleteInput` in the pre-fix capture.
+T188 failed again this run, but on a **different range (Mo1) with a different, distinct root cause**
+— see TASK-383 below, filed separately; the retry logic correctly did *not* fire for it (HTTP code
+was `-1`, a connect/timeout failure, not the `code==200`-but-truncated shape this fix targets) —
+confirms the retry is scoped correctly, not just "test happened to pass." No `IncompleteInput`
+appeared anywhere in this run's capture for any of the D1/D5/Mo1/NVDA fetches that *did* complete.
+T176 SKIP ("could not enter chart view") was an unrelated harness-timing flake — the pipeline-drain
+precondition step ate an unusually long stretch (`inFlight=2` for ~60s before draining), leaving too
+little of the test's own window; `drillToChart()`'s control flow for entering chart view is
+unchanged by this fix, only its enqueue guard (TASK-380) — re-run clean before treating as a
+regression. DUT restored to prod cleanly.
+
+**Owner:** Developer · **Deps:** TASK-313 (retry-once precedent, `dataTaskStorage.cpp` PlaneRadar
+path) · **Gate:** `run/check` 6/6; `run/test-targeted T188,T192` with `LOG_FILE=` — T192 clean,
+T188's remaining failure mode is TASK-383, not this bug · **Priority:** P2 · **Status:** **DONE
+2026-08-01** — root cause confirmed, fix implemented and DUT-verified for the `IncompleteInput`
+failure shape specifically.
 
 ### TASK-382 — same `IncompleteInput`-under-heap-pressure cause as TASK-381 (T192, tab-switch after heatmap drill)
 
@@ -5093,12 +5109,41 @@ written.
 
 Identical shape to TASK-381 (clean HTTP 200, `IncompleteInput` on parse, depressed/fragmented heap
 around the fetch) via the by-symbol fetch path (`fetchStockChartBySym()`,
-`dataTaskStorage.cpp:951-1016`) instead of the by-ticker-index one. One root cause, two call sites —
-fixing TASK-381 (whichever direction is chosen: heap-squeeze root-cause or retry-once mitigation)
-should be applied to both `fetchStockChart()` and `fetchStockChartBySym()` in the same pass, or
-factored into one shared parse-with-retry helper if a retry mitigation is the chosen direction (they
-already share the identical GET→filtered `deserializeJson()`→result shape).
+`dataTaskStorage.cpp:951-1016` pre-fix) instead of the by-ticker-index one.
 
-**Owner:** Developer · **Deps:** TASK-381 — fix once, apply to both fetch functions · **Gate:**
-`run/test-targeted T188,T192` after fix, `LOG_FILE=` capture again · **Priority:** P2 ·
-**Status:** OPEN — root cause confirmed (same as TASK-381), fix not yet written.
+**Fix: shared with TASK-381** — `fetchStockChartBySym()` is now a thin wrapper over the same
+`fetchStockChartWithRetry()` orchestrator, so the retry-once mitigation applies to this call site
+automatically; no separate change needed. **DUT-verified 2026-08-01: `T192` PASSED clean** on the
+fixed build (`run/test-targeted T176,T188,T192` with `LOG_FILE=` capture) — `drilled='NVDA'; 5D
+tab-switch fired fetch; ticker unchanged`, the exact scenario that previously hit `IncompleteInput`.
+
+**Owner:** Developer · **Deps:** TASK-381 (shared fix) · **Gate:** `run/test-targeted T192` with
+`LOG_FILE=` — clean pass, no `IncompleteInput` in capture · **Priority:** P2 · **Status:** **DONE
+2026-08-01** — fixed via TASK-381's shared retry orchestrator, DUT-verified.
+
+### TASK-383 — Stock chart fetch: HTTP-level connect/timeout failure (`code=-1`, ~13s), distinct from TASK-381/382
+
+**Filed 2026-08-01, surfaced while DUT-verifying the TASK-381/382 fix — uninvestigated.** During
+the post-fix verification run (`LOG_FILE=… ./run/test-targeted T176,T188,T192`), `T188` failed again
+— but not with `IncompleteInput` this time. The Mo1 (1-month) tab fetch for AAPL:
+
+```
+[D][dataTask.stock] chart START sym=AAPL range=1mo heap free=74k maxBlk=39k
+[D][dataTask.stock] chart GET sym=AAPL range=1mo -1 elapsed=13039ms
+```
+
+`code=-1` is an `HTTPClient`/connect-level failure (not a JSON parse error — no `pre-json`/
+`post-json` log lines appear at all, confirming the failure is before or during the GET, not after
+a 200), and `elapsed=13039ms` is ~5x the normal ~2.6s round-trip — looks like a connect or TLS
+handshake stall that eventually times out, not a fast-fail. TASK-381/382's retry-once mitigation
+correctly did **not** fire for this (by design — it only retries `code==200 && !ok`), so this is
+confirmed to be genuinely outside that fix's scope, not a gap in it. Same D1/D5 fetches in the same
+test run (AAPL and NVDA both) completed fine at their usual ~2.5-2.6s, so this isn't a systemic
+per-request slowdown — something about the Mo1 request specifically (larger response window? a
+`STOCK_RANGE_STR`/`STOCK_INTERVAL_STR` value that hits a slower Yahoo code path?) or plain bad luck
+on one connection attempt.
+
+**Owner:** Developer · **Deps:** none · **Gate:** `run/test-targeted T188` with `LOG_FILE=` capture,
+several times to establish repro rate (this was a single occurrence so far) · **Priority:** P3
+(lower than TASK-381/382 were — single occurrence, no confirmed pattern yet) · **Status:** OPEN —
+filed as-is, uninvestigated.
