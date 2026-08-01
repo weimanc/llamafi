@@ -5373,3 +5373,46 @@ failure correlates with `IncompleteInput`/`code=-1` at the fetch itself, same me
 investigation · **Priority:** P3 (single occurrence, plausible network-noise explanation, not yet
 confirmed as a distinct bug) · **Status:** OPEN — filed as-is, needs a serial-capture re-run before
 further action.
+
+## Open — TASK-386 (2026-08-01, filed from a third full-suite `run/test` pass, post-TASK-384)
+
+Re-ran `./run/test` after TASK-384 landed. **Result: 122 passed, 4 failed, 41 skipped, 3 flaked** —
+best result yet across the three full-suite passes today. Every fix from today
+(TASK-379/380/381/382/384) confirmed holding simultaneously in this run: `T148`, `T176`, `T184`,
+`T188`, `T192`(skip, unrelated precondition)/`T193`, `T231` all pass. `T091` back to its usual
+`FLAKE` (not `FAIL`) — no new information. `T_WR_TLS_01`/`T_PRM_02` remain the already-tracked
+flakes (TASK-284/313) — `T_PRM_02`'s gaps this run (up to 27573ms) are again on the degraded side,
+consistent with a generally rough network night rather than a new issue.
+
+### TASK-386 — T204 + T-BUSY-01: two more `fetchOkCount`/`chartLen` stalls, likely TASK-381/382's known residual risk
+
+**Filed 2026-08-01, not independently investigated — high-confidence hypothesis from pattern
+match.** Two new failures, both Stock-chart-fetch tests that have passed cleanly in both prior
+full-suite runs today:
+- `T204` (`D1↔Ytd rapid alternating stress`, M-STOCK-VE-STRESS — deliberately hammers
+  `DynamicJsonDocument` alloc/free under heap pressure by design): `fetchOkCount did not advance on
+  Ytd — heap pressure failure?` (the test's own hypothesis, baked into its fail message).
+- `T-BUSY-01` (`StockApp row tap → amber → clears on fetch complete`): `chartLen did not exceed 0
+  after 45s — fetch did not complete`.
+
+Both show the identical `dataq` shape already characterized for TASK-381/382/383: `inFlight`
+transitions out of flight within a few seconds (fetch attempt(s) genuinely completed, not stuck) but
+`fetchOkCount`/`chartLen` never advances. **Not re-investigated with a fresh `LOG_FILE=` capture**,
+but the shape, the same fetch codepath (`fetchStockChart`/`fetchStockChartBySym` via
+`fetchStockChartWithRetry`), and — most tellingly — `T_PRM_02`'s notably degraded gaps in this exact
+same run all point at the same already-documented, already-accepted residual risk: TASK-381/382's
+retry-once mitigation covers exactly one extra attempt, and under sustained heap/network pressure
+(evidenced this run) two consecutive failures (two `IncompleteInput`s, or one `IncompleteInput` +
+one `code=-1` connect failure) still produce a genuine, uncovered failure. This is expected residual
+behavior of a retry-*once* design, not retry-forever — TASK-381/382's commit message said as much.
+
+**Not attributed to TASK-384** — that fix touches only tap-dispatch/busy-gate logic, no HTTP/JSON/
+heap code at all, and both failures are squarely in the fetch/parse path TASK-384 never touched.
+
+**Owner:** Developer · **Deps:** TASK-381/382 (shared mechanism), TASK-383 (established the
+accept-transient-network-noise precedent this likely falls under) · **Gate:** if this recurs across
+multiple runs (not just one rough-network night), re-run with `LOG_FILE=` capture the same way
+TASK-383 was settled, to confirm double-failure vs. something new · **Priority:** P3 (matches the
+already-accepted residual-risk category unless repro rate says otherwise) · **Status:** OPEN — filed
+as a likely-known-cause pattern match, not independently root-caused; downgrade to closed-as-
+accepted or escalate once more data exists.
