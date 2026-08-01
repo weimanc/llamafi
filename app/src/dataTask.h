@@ -161,6 +161,13 @@ struct PlaneRadarResult {
     int        errorCode = 0;
     uint8_t    count     = 0;
     uint8_t    epoch     = 0;
+    // TASK-378: the NM radius actually queried for this landed result — the
+    // nominal preset radius normally, or TASK-361's smaller radius-capped
+    // retry2 value when the full-radius attempt and its retry both failed
+    // to parse. Lets the app distinguish "genuinely nothing out there" from
+    // "we didn't ask that far out this cycle" (visualized as two different
+    // shade colours, not conflated).
+    float      fetchedRadiusNm = 0.0f;
     PrAircraft aircraft[PR_MAX_AIRCRAFT];
 };
 

@@ -1355,6 +1355,7 @@ static void fetchPlaneRadar() {
     PlaneRadarResult r;
     uint16_t scanned = 0;
     int code = prFetchOnce(url, r, scanned);
+    float finalRadiusNm = distNm;   // TASK-378: overwritten below if retry2 fires
 
     // TASK-313: adsb.fi (Cloudflare-fronted) prompt-clean-EOFs mid-body on
     // ~9% of fetches (evidence phase — TLS-fingerprint edge treatment, not a
@@ -1395,6 +1396,7 @@ static void fetchPlaneRadar() {
         if (retryCode == 200 && !retryResult.ok) {
             float smallDistNm = distNm * 0.5f;
             if (smallDistNm > PR_RETRY2_MAX_NM) smallDistNm = PR_RETRY2_MAX_NM;
+            finalRadiusNm = smallDistNm;   // TASK-378: this attempt's radius, whatever its outcome
             char smallUrl[128];
             snprintf(smallUrl, sizeof(smallUrl), "%s%.4f/lon/%.4f/dist/%.1f",
                      PLANERADAR_URL_BASE, lat, lon, smallDistNm);
@@ -1412,6 +1414,7 @@ static void fetchPlaneRadar() {
     }
 
     r.epoch = epoch;   // VE-PRL-6: echo the snapshot taken at enqueue time, not a later one
+    r.fetchedRadiusNm = finalRadiusNm;   // TASK-378
     // TASK-361: 'scanned' is this cycle's FINAL attempt's true "ac" object
     // count (see prParseStream) — on success it's real traffic density
     // uncapped by PR_MAX_AIRCRAFT; on failure it's how far the parse got.
@@ -1424,11 +1427,19 @@ static void fetchPlaneRadar() {
     // motion-vector error — the two candidate explanations for "inaccurate
     // tracking" EXP-015 couldn't distinguish from jump_px alone.
     if (r.ok) {
-        char roster[300]; size_t rp = 0;
+        char roster[400] = {0}; size_t rp = 0;   // zero-init: count==0 skips the loop below, %s must not read uninit stack
         for (uint8_t i = 0; i < r.count && rp < sizeof(roster) - 10; i++) {
-            int n = snprintf(roster + rp, sizeof(roster) - rp, "%s,%.1f;",
+            // Bearing device->aircraft (0=N/90=E), diagnostic-only — quick
+            // equirectangular approx, not _project()'s exact formula (that
+            // lives in planeRadarApp.h, a different translation unit; close
+            // enough at these sub-20NM ranges for a "which sector" check).
+            float dLat = r.aircraft[i].lat - lat;
+            float dLon = (r.aircraft[i].lon - lon) * cosf(lat * (float)M_PI / 180.0f);
+            float bearing = atan2f(dLon, dLat) * 180.0f / (float)M_PI;
+            if (bearing < 0) bearing += 360.0f;
+            int n = snprintf(roster + rp, sizeof(roster) - rp, "%s,%.1f,%.0f;",
                               r.aircraft[i].callsign[0] ? r.aircraft[i].callsign : "?",
-                              (double)r.aircraft[i].distNm);
+                              (double)r.aircraft[i].distNm, (double)bearing);
             if (n > 0) rp += (size_t)n;
         }
         LOG_D("dataTask.planeradar", "roster %s", roster);

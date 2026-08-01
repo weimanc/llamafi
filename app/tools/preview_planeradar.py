@@ -72,6 +72,26 @@ COL_STRIP_BG = rgb565(8, 8, 16)
 COL_STRIP_TX = rgb565(160, 255, 160)
 COL_STALE    = rgb565(255, 180, 0)
 COL_ERR      = rgb565(255, 64, 64)
+# TASK-378: beyond-horizon annulus (nearest-24 cap — roster's genuinely
+# full). Native RGB565 midpoint between FIELD (0,2,3 in 5/6/5-bit units) and
+# OUTSIDE (0,0,0): G=1, B=2. Expressed here in this tool's pre-quantised
+# input convention (native G=1 -> 8-bit-ish 4, since 6-bit steps are 4
+# apart; native B=2 -> 16, since 5-bit steps are 8 apart) so rgb565()'s mask
+# is a no-op on these — matches firmware's PR_COL_HORIZON = 0x0022 exactly.
+# Derived directly from the two real constants per human direction, not
+# picked via PNG-mockup guessing (several earlier darker-than-FIELD
+# candidates read fine as isolated swatches but washed out to invisible in
+# a full disc render — host PNG rendering isn't a reliable judge of
+# near-black RGB565 contrast either way, BP-051) — still pending DUT
+# eyeball confirmation on the real panel.
+COL_HORIZON  = rgb565(0, 4, 16)
+# TASK-378 (human directive): distinct warning shade for TASK-361's
+# radius-capped retry2 (the fetch itself asked a smaller question this
+# cycle) — mirrors COL_FIELD with R/B swapped, warm instead of cool, so it's
+# a different hue rather than a different shade of the same one. Also a
+# candidate pending DUT eyeball.
+COL_HORIZON_WARN = rgb565(24, 10, 4)
+COL_OUTSIDE  = rgb565(0, 0, 0)
 # M-PR-LOCATIONS (TASK-316): dimmed label colour for inactive slots (colour
 # highlight variant) — no reference-project analogue, our own design call.
 COL_STRIP_DIM = rgb565(90, 90, 90)
@@ -200,6 +220,31 @@ def is_ground(p):
     return p.get("alt_baro") == "ground"
 
 
+# TASK-378: mirrors firmware's prInsertNearest() (dataTaskStorage.cpp) exactly
+# — keep the first PR_MAX_AIRCRAFT_PREVIEW seen, then for each further
+# candidate, replace whichever KEPT aircraft is currently farthest if the
+# candidate is nearer. NOT a distance sort — same non-sorted insertion order
+# firmware uses (confirmed against real DUT roster logs, TASK-368). Needed so
+# this tool's horizon mockup reflects the real truncation, not an idealized
+# swatch (BP-046: a mockup must implement what it claims, not just gesture at
+# it) — the aircraft this drops must also not render, or the mockup would
+# show planes past its own horizon line.
+PR_MAX_AIRCRAFT_PREVIEW = 24
+
+
+def prInsertNearest_sim(planes: list[dict]) -> list[dict]:
+    kept: list[dict] = []
+    for p in planes:
+        dst = p.get("dst", 0.0)
+        if len(kept) < PR_MAX_AIRCRAFT_PREVIEW:
+            kept.append(p)
+            continue
+        far_i = max(range(len(kept)), key=lambda i: kept[i].get("dst", 0.0))
+        if dst < kept[far_i].get("dst", 0.0):
+            kept[far_i] = p
+    return kept
+
+
 # ── renderer ───────────────────────────────────────────────────────────────────
 class Radar:
     def __init__(self):
@@ -243,6 +288,20 @@ class Radar:
         d.rectangle([0, 0, pc.APP_W - 1, pc.SCREEN_H - 1], fill=COL_FIELD)
 
         cx, cy, r = L["cx"], L["cy"], L["r"]
+
+        # TASK-378: nearest-24 cap + horizon shading. Airborne-only (matches
+        # firmware's prFillRecord(showGround=false) running before
+        # prInsertNearest) — ground contacts never contend for a keep slot.
+        airborne = [p for p in planes if not is_ground(p)]
+        kept = prInsertNearest_sim(airborne)
+        if len(kept) >= PR_MAX_AIRCRAFT_PREVIEW:
+            horizon_nm = max(p.get("dst", 0.0) for p in kept)
+            horizon_px = horizon_nm * KM_PER_NM * r / self.outer_km
+            if horizon_px < r:
+                d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=COL_HORIZON)
+                d.ellipse([cx - horizon_px, cy - horizon_px,
+                           cx + horizon_px, cy + horizon_px], fill=COL_FIELD)
+
         # rings at 1/4..4/4 — all four the same colour (TASK-312: no per-ring
         # highlight, matches both the firmware and the reference).
         for i in (1, 2, 3, 4):
@@ -264,9 +323,7 @@ class Radar:
 
         occupied = []  # tag rects for collision rule
         n_shown = 0
-        for p in planes:
-            if is_ground(p):
-                continue
+        for p in kept:   # TASK-378: already airborne-only + nearest-24-capped
             x, y = self.project(p["lat"], p["lon"], L)
             dx, dy = x - cx, y - cy
             dist_px = math.hypot(dx, dy)

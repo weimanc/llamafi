@@ -1069,7 +1069,56 @@ a shade that reads fine on a host PNG — BP-051's host-iterate/DUT-confirm spli
 **Owner:** Developer (design + impl) · **Deps:** M-PLANERADAR (done), informed by TASK-368's
 eyeball session · **Gate:** `run/check` + DUT eyeball — this is a pixel-level exit criterion under
 BP-048, needs explicit human sign-off, not just a serial-signature check · **Priority:** P3 (UX
-honesty polish, not a correctness bug) · **Status:** open
+honesty polish, not a correctness bug) · **Status:** DONE (2026-08-01, implementation + two rounds
+of human DUT eyeball + a requested code-review pass, all closed)
+
+**Extended scope (human-directed, live during DUT eyeball):** a second, independent limiter turned
+out to warrant the same visualization — TASK-361's radius-capped retry2 (the fetch itself asks a
+smaller question after two straight parse failures), distinct from the nearest-24 cap and worth a
+different colour so the viewer can tell "the roster's genuinely full" apart from "we don't actually
+know, the fetch degraded." Added `PlaneRadarResult.fetchedRadiusNm` (`dataTask.h`/
+`dataTaskStorage.cpp`) so the app layer knows which radius actually got queried this cycle, a
+second colour `PR_COL_HORIZON_WARN`, and precedence (radius-cap wins if both were somehow active).
+
+**Two real bugs found by live human DUT eyeball, both fixed same session:**
+1. **Stale shade never cleared.** `_drawHorizonShade()` only knew how to *add* a shade — when the
+   underlying condition cleared, it just `return`ed, leaving the annulus stuck on screen. Fixed:
+   made it idempotent (re-establishes the full correct state every call, including explicitly
+   re-filling `PR_COL_FIELD` when nothing's active).
+2. **Aircraft "wiped clean" holes as they moved through the shaded band.** The ~10Hz interp-tick
+   per-aircraft repair path (`_redrawOneAircraft()`) deliberately skips the full-disc shade redraw
+   for performance (`withViewportRepair()` only clips pixel *writes*, not the shape-iteration CPU
+   cost of two full-radius `fillCircle()` calls — see the code comment) — but that left the erased
+   footprint's `PR_COL_FIELD` fill uncorrected when it should've been shade-coloured. Fixed with
+   `_repairHorizonShadeBox()`, an O(box area) approximation (box-centre-distance test) scoped to
+   just the erased rect, not the whole disc.
+
+**Colour: locked by direct human eyeball on-device, not a PNG-mockup guess.** Every earlier
+darker-than-`PR_COL_FIELD` candidate read fine as an isolated host-rendered swatch but washed out
+to invisible in a full disc render — host PNG rendering turned out not to be a reliable judge of
+near-black RGB565 contrast at all (confirmed by direct pixel sampling: the annulus *was* drawing
+correctly with genuinely different values, just imperceptible through that rendering/viewing
+pipeline). Final value computed directly from the two real constants per human instruction rather
+than iterated blind: `PR_COL_HORIZON = 0x0022` — the native-RGB565 midpoint between `PR_COL_FIELD`
+(0,2,3 in 5/6/5-bit units) and `PR_COL_OUTSIDE` (0,0,0). `PR_COL_HORIZON_WARN` (dark orange/red,
+mirrors `PR_COL_FIELD` with R/B swapped) is still an unconfirmed candidate.
+
+**Code-review pass (human-requested, 2026-08-01):** found and fixed the shade-selection logic
+(precedence + NM→px conversion) duplicated between `_drawHorizonShade()` and
+`_repairHorizonShadeBox()` — exactly BP-047's divergence-risk shape. Consolidated into one function,
+`_activeShade()`, both now call. Also found two text-rendering call sites that had silently never
+gone through any shading logic at all — `_drawRunways()`'s ICAO label and `_drawTagLines()`'s tag
+text both hardcoded `PR_COL_FIELD` as `setTextColor()`'s glyph-erase background, invisible to every
+fix above since neither is footprint erasure. Fixed via a new `_bgColorAt(x,y)` point-query helper
+built on `_activeShade()` — now the single place any disc-interior drawing asks "what's the
+background here." Also named the one magic number introduced this session (`PR_RADIUS_CAP_EPS_NM`,
+was an inline `0.01f`).
+
+**Verification:** `run/check` 6/6 throughout. `run/test-targeted T_PR_01,T_PR_02,T_PR_03,T_PR_06,
+T_PRI_01` 5/5 PASS after the code-review refactor — `T_PR_02` landed with `prAircraftCount=24`
+(genuine nearest-24 cap), so the shading path got real exercise, not just a synthetic check.
+Colour confirmed good by human eyeball before the refactor; the refactor changes structure, not
+rendered output, but a final look at the consolidated build is still worthwhile next session.
 
 ### TASK-361 — PlaneRadar fetch: TASK-313 retry-once mitigation regressed under busy-traffic payload size — re-quantify + fix
 

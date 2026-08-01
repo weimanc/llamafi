@@ -39,6 +39,37 @@ static constexpr int16_t PR_SCREEN_H = 240;                  // full display hei
 // as our own design calls.
 static constexpr uint16_t PR_COL_FIELD          = 0x0043;  // rgb565(4,10,28)     ref kColorBackground
 static constexpr uint16_t PR_COL_OUTSIDE        = 0x0000;  // black surround outside the disc (TASK-312)
+// TASK-378: beyond-effective-horizon annulus shade (see _drawHorizonShade()).
+// Native RGB565 midpoint between PR_COL_FIELD (0,2,3 in 5/6/5-bit units) and
+// PR_COL_OUTSIDE (0,0,0) — G=1 (half of field's 2), B=2 (half of field's 3,
+// rounded up). Computed directly from the two real constants, not derived
+// through the lossy 0-255-input rgb565() helper used elsewhere in this file
+// (that round trip is fine at the 4-28 magnitudes those constants use, but
+// field/outside are already this close together that going through it here
+// just re-derives the same handful of representable values less directly).
+// Earlier candidates iterated blind against host-rendered PNG mockups,
+// which turned out not to be a reliable judge of near-black RGB565 contrast
+// at all (see TASK-367/378 session history) — this one was picked by human
+// eyeball directly on the DUT instead, still worth a final on-device check
+// after this change.
+static constexpr uint16_t PR_COL_HORIZON        = 0x0022;  // native (0,1,2) — halfway FIELD(0,2,3)<->OUTSIDE(0,0,0)
+// TASK-378 (human directive): a distinct warning shade for the OTHER reason
+// the disc's coverage can fall short of the preset radius — TASK-361's
+// radius-capped retry2 (the fetch itself asked a smaller question this
+// cycle, after two straight parse failures), not the nearest-24 cap. Mirrors
+// PR_COL_FIELD's (4,10,28) with R/B swapped — same magnitude, warm instead
+// of cool, so it reads as a different hue rather than a different shade of
+// the same one (hue differences are more perceptible than luminance-only
+// steps at this end of the RGB565 range — see PR_COL_HORIZON's own
+// candidate-selection history). Also a candidate, needs the same DUT eyeball
+// confirmation before it locks.
+static constexpr uint16_t PR_COL_HORIZON_WARN   = 0x1840;  // rgb565(24,10,4) candidate
+// TASK-378: float-equality tolerance for "did this fetch use a smaller
+// radius than the preset nominally covers" — the normal-path value is the
+// same float round-tripped through enqueuePlaneRadar()/PlaneRadarResult, so
+// it should compare exact, but this guards against any accumulated fp
+// drift rather than relying on that.
+static constexpr float    PR_RADIUS_CAP_EPS_NM  = 0.01f;
 static constexpr uint16_t PR_COL_RING           = 0x1324;  // rgb565(16,100,32)   ref kColorGrid
 static constexpr uint16_t PR_COL_BEZEL          = 0xFFFF;  // rgb565(255,255,255) ref kColorLabel/kColorCenter
 static constexpr uint16_t PR_COL_AIRCRAFT       = 0xF800;  // rgb565(255,0,0)     ref kColorAircraft
@@ -271,6 +302,12 @@ public:
                         _everHadResult = true;
                         _prErr         = false;
                         _lastGoodMs    = now;
+                        // TASK-378: this cycle's fetch asked a smaller radius
+                        // than the preset nominally covers (TASK-361's
+                        // radius-capped retry2) — must be set before
+                        // _render() (which draws the shade) runs below.
+                        _radiusCapActive = result.fetchedRadiusNm < kPrFetchNm[_presetIdx] - PR_RADIUS_CAP_EPS_NM;
+                        _radiusCapNm     = result.fetchedRadiusNm;
                         _reconcileMotion(now);   // TASK-357: match to old motion by callsign before drawing
                         _render(now);
                         _lastInterpMs  = now;
@@ -523,6 +560,9 @@ public:
             // (or from a real fetch) — _reconcileMotion() now stamps fixMs
             // from it, so it must read "just landed" here same as a real fetch.
             _fetchIssuedMs = _lastGoodMs;
+            // TASK-378: injection isn't a degraded fetch — clear any warning
+            // shade left over from real traffic before the injection started.
+            _radiusCapActive = false;
             // TASK-357: reconcile before render — two successive injections
             // with a repeated callsign exercise the dr-damped continuity path
             // exactly like a real fetch pair, which is how T_PRI_01 drives it.
@@ -577,6 +617,24 @@ private:
     PrMotion*     _motion        = nullptr;
     uint8_t       _motionCount   = 0;
     unsigned long _lastInterpMs  = 0;
+
+    // TASK-378: effective-coverage horizon — active only when the roster is
+    // actually capped (_result.count == PR_MAX_AIRCRAFT), since below cap
+    // every detected aircraft is shown and there's no hidden horizon.
+    // Recomputed in _reconcileMotion() (same pass already scanning
+    // _result.aircraft[], no extra loop).
+    bool          _horizonActive = false;
+    float         _horizonNm     = 0.0f;
+    // TASK-378: radius-capped-retry2 indicator — active when this cycle's
+    // landed result queried a smaller radius than the preset nominally
+    // covers (TASK-361's degraded-fetch mitigation). Set where `result`
+    // lands in tick(), not in _reconcileMotion() — this is about the FETCH,
+    // not the aircraft positions. Takes precedence over _horizonActive when
+    // both would apply (see _drawHorizonShade()) — a radius-capped fetch
+    // already queried a smaller area, so "we don't know" is the more urgent
+    // signal than "roster's genuinely full."
+    bool          _radiusCapActive = false;
+    float         _radiusCapNm     = 0.0f;
 
     // Lazily heap-allocate _motion on first use; returns false (leaving
     // _motion null) on the OOM edge case, which callers treat the same as
@@ -738,8 +796,14 @@ private:
     void _reconcileMotion(unsigned long now) {
         if (!_ensureMotion()) { _motionCount = 0; return; }   // OOM edge case: render falls back to raw fix positions
         PrMotion next[dataTask::PR_MAX_AIRCRAFT];
+        // TASK-378: track the farthest-kept aircraft's distance in the same
+        // pass — only meaningful (roster actually truncated, not just "every
+        // detected aircraft happens to be this far out") when the roster is
+        // at the PR_MAX_AIRCRAFT cap.
+        float horizonNm = 0.0f;
         for (uint8_t i = 0; i < _result.count; i++) {
             const dataTask::PrAircraft& a = _result.aircraft[i];
+            if (a.distNm > horizonNm) horizonNm = a.distNm;
             PrMotion m{};
             m.csHash   = a.callsign[0] ? _csHash(a.callsign) : 0;
             m.trackDeg = a.trackDeg;
@@ -771,6 +835,8 @@ private:
         }
         memcpy(_motion, next, sizeof(PrMotion) * _result.count);
         _motionCount = _result.count;
+        _horizonActive = (_result.count == dataTask::PR_MAX_AIRCRAFT);
+        _horizonNm     = horizonNm;
     }
 
     // Rings + crosshair + bezel + runway overlay — the disc's static layer.
@@ -787,7 +853,23 @@ private:
     // colour variation in the base grid (the highlight was removed; the Q5
     // stale indicator still recolours ring PR_RING_STALE_IDX, but as a
     // status signal drawn in _updateStripDynamic(), not base-grid decoration).
-    void _redrawGridStatics() {
+    //
+    // TASK-378: `shade` gates the beyond-horizon annulus fill. Default true
+    // for the two real callers of this whole-static-layer path (_repaintDisc()
+    // and _render()'s once-per-fetch repair — both cheap contexts for two
+    // full-radius fillCircle() calls). _redrawOneAircraft()'s ~10Hz
+    // per-aircraft withViewportRepair() call passes false explicitly:
+    // withViewportRepair only clips PIXEL WRITES, not the shape-iteration
+    // CPU cost (see tftViewportRepair.h) — two full fillCircle(PR_R) calls
+    // in that hot path would cost real CPU every dirty-aircraft tick for a
+    // repaint that's 99% clipped away. Known accepted limitation (same shape
+    // as _redrawOneAircraft()'s tag-reposition one below): an aircraft erase
+    // that chews into the shaded annulus during interp-tick smoothing won't
+    // have that patch repaired until the next real _render() — self-corrects
+    // at the next fetch landing, same cadence the horizon value itself
+    // changes at anyway.
+    void _redrawGridStatics(bool shade = true) {
+        if (shade) _drawHorizonShade();
         for (int i = 1; i <= PR_RING_COUNT; i++) {
             int rr = PR_R * i / PR_RING_COUNT;
             tft.drawCircle(PR_CX, PR_CY, rr, PR_COL_RING);
@@ -798,6 +880,78 @@ private:
 
         // Runway overlay (Q4, density=all — every in-range airport labeled).
         if (g_settings.prRunwayOverlay) _drawRunways();
+    }
+
+    // TASK-378: SINGLE SOURCE OF TRUTH for the beyond-horizon shade —
+    // precedence rule (radius-cap warn > nearest-24 neutral > none) and the
+    // NM->px conversion live ONLY here. Every consumer (_drawHorizonShade()'s
+    // full-disc fill, _repairHorizonShadeBox()'s per-footprint patch,
+    // _bgColorAt()'s text-background lookup) calls through this instead of
+    // re-deriving the rule — found duplicated across the first two during a
+    // human code-review request (2026-08-01), which is exactly the
+    // divergence-risk shape BP-047 warns about. Returns false (radiusPx
+    // untouched) if neither condition is active or the horizon is at/past
+    // the disc's own edge (nothing to shade either way).
+    bool _activeShade(uint16_t& col, float& radiusPx) const {
+        float radiusNm;
+        if (_radiusCapActive)      { radiusNm = _radiusCapNm; col = PR_COL_HORIZON_WARN; }
+        else if (_horizonActive)   { radiusNm = _horizonNm;   col = PR_COL_HORIZON; }
+        else return false;
+        radiusPx = radiusNm * PR_KM_PER_NM * _pxPerKm();
+        return radiusPx < (float)PR_R;
+    }
+
+    // TASK-378: the background colour at a single point — PR_COL_FIELD
+    // inside the active horizon (or when there isn't one), the shade colour
+    // beyond it. Use this anywhere a background/erase colour is needed on
+    // the disc, instead of hardcoding PR_COL_FIELD — found two call sites
+    // that had (_drawRunways()'s ICAO label, _drawTagLines()'s tag text),
+    // both invisible to every other TASK-378 fix since text rendering's
+    // setTextColor(fg,bg) erase-behind-glyph never went through
+    // _drawHorizonShade()/_repairHorizonShadeBox() at all.
+    uint16_t _bgColorAt(int16_t x, int16_t y) const {
+        uint16_t col; float radiusPx;
+        if (!_activeShade(col, radiusPx)) return PR_COL_FIELD;
+        float dx = (float)x - (float)PR_CX, dy = (float)y - (float)PR_CY;
+        return (_distPx(dx, dy) > radiusPx) ? col : PR_COL_FIELD;
+    }
+
+    // Fill the annulus beyond the effective coverage horizon — outer
+    // fillCircle first, then an inner fillCircle back to PR_COL_FIELD,
+    // leaving the ring band between them. MUST be idempotent/self-
+    // correcting, not additive-only: this runs once per landed fetch
+    // regardless of whether a shade was active last time, so the "no active
+    // shade" branch explicitly re-fills the full disc with PR_COL_FIELD —
+    // bug found by human DUT eyeball (2026-08-01): an early version just
+    // `return`ed there, leaving a stale shade stuck on screen after the
+    // underlying condition cleared.
+    void _drawHorizonShade() {
+        uint16_t col; float radiusPx;
+        if (!_activeShade(col, radiusPx)) { tft.fillCircle(PR_CX, PR_CY, PR_R, PR_COL_FIELD); return; }
+        tft.fillCircle(PR_CX, PR_CY, PR_R, col);
+        tft.fillCircle(PR_CX, PR_CY, (int16_t)radiusPx, PR_COL_FIELD);
+    }
+
+    // Cheap per-footprint repair for the ~10Hz interp-tick path
+    // (_redrawOneAircraft()'s withViewportRepair scope) — _eraseFootprint()
+    // already filled the erased box with PR_COL_FIELD; if the box actually
+    // sits beyond the active horizon, that fill was wrong and needs
+    // overpainting with the shade colour, or a moving aircraft visibly
+    // "wipes clean" a hole in the shaded annulus as it crosses through (bug
+    // found by human DUT eyeball, 2026-08-01 — the interp-tick path
+    // deliberately skips _drawHorizonShade()'s full-disc redraw for
+    // performance, see _redrawGridStatics()'s comment, but that left this
+    // hole unrepaired). Approximates by the box's CENTRE distance from the
+    // disc centre — a box straddling the boundary line gets entirely one
+    // colour, not pixel-exact, but self-corrects at the next full _render()
+    // (once per fetch) regardless, and stays O(box area) instead of
+    // O(disc area).
+    void _repairHorizonShadeBox(int16_t bx, int16_t by, int16_t bw, int16_t bh) {
+        uint16_t col; float radiusPx;
+        if (!_activeShade(col, radiusPx)) return;   // no active shade — _eraseFootprint's PR_COL_FIELD fill already correct
+        float cdx = (float)bx + (float)bw / 2.0f - (float)PR_CX;
+        float cdy = (float)by + (float)bh / 2.0f - (float)PR_CY;
+        if (_distPx(cdx, cdy) > radiusPx) tft.fillRect(bx, by, bw, bh, col);
     }
 
     // Black surround + field-colour disc + statics redraw + stale-aircraft-
@@ -876,7 +1030,7 @@ private:
             int16_t ltlx = (int16_t)(ax - lw / 2), ltly = (int16_t)((ay - 9) - lh / 2);
             if (_boxInDisc(ltlx, ltly, lw, lh)) {
                 char icao[5]; strlcpy(icao, ap.icao, sizeof(icao));
-                tft.setTextColor(PR_COL_RUNWAY_LABEL, PR_COL_FIELD);
+                tft.setTextColor(PR_COL_RUNWAY_LABEL, _bgColorAt(ax, (int16_t)(ay - 9)));
                 tft.drawString(icao, ax, (int16_t)(ay - 9), 1);
             }
         }
@@ -1129,7 +1283,13 @@ private:
         int16_t bx, by, bw, bh;
         _eraseFootprint(old, bx, by, bw, bh);
         if (bw > 0 && bh > 0) {
-            withViewportRepair(tft, bx, by, bw, bh, [&] { _redrawGridStatics(); });
+            withViewportRepair(tft, bx, by, bw, bh, [&] {
+                // TASK-378: shade-colour repair BEFORE the ring/runway
+                // redraw below, so those thin lines land on top of the
+                // corrected background rather than being overpainted by it.
+                _repairHorizonShadeBox(bx, by, bw, bh);
+                _redrawGridStatics(/*shade=*/false);
+            });
         }
 
         PrRendered rd;
@@ -1190,8 +1350,9 @@ private:
                         int16_t tx, int16_t ty) {
         tft.setTextDatum(TL_DATUM);
         for (uint8_t i = 0; i < nLines; i++) {
-            tft.setTextColor(lineColors[i], PR_COL_FIELD);
-            tft.drawString(lines[i], tx, (int16_t)(ty + i * PR_TAG_LINE_H), 1);
+            int16_t ly = (int16_t)(ty + i * PR_TAG_LINE_H);
+            tft.setTextColor(lineColors[i], _bgColorAt(tx, ly));
+            tft.drawString(lines[i], tx, ly, 1);
         }
     }
 
