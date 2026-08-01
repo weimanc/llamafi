@@ -67,8 +67,31 @@ _PORTAL_INDICATORS  = (
 )
 
 
+class _TeeSerial:
+    """Wraps a pyserial Serial to also append every readline() line (JSON
+    responses and bare LOG_D/LOG_W lines alike — everything the harness's own
+    parsing normally discards) to a plain-text file. Delegates everything
+    else to the wrapped object unchanged."""
+
+    def __init__(self, ser, log_path: str):
+        self._ser = ser
+        self._log = open(log_path, "a", buffering=1)
+
+    def readline(self, *a, **kw):
+        line = self._ser.readline(*a, **kw)
+        if line:
+            self._log.write(line.decode(errors="replace"))
+            if not line.endswith(b"\n"):
+                self._log.write("\n")
+        return line
+
+    def __getattr__(self, name):
+        return getattr(self._ser, name)
+
+
 class Dut:
-    def __init__(self, port: str, baud: int = 115200, timeout: float = 3.0):
+    def __init__(self, port: str, baud: int = 115200, timeout: float = 3.0,
+                 log_file: Optional[str] = None):
         self.ser = serial.Serial()
         self.ser.port = port
         self.ser.baudrate = baud
@@ -86,6 +109,8 @@ class Dut:
         except (FileNotFoundError, ValueError):
             pass
         self.ser.open()
+        if log_file:
+            self.ser = _TeeSerial(self.ser, log_file)
         self._port_open_time = time.monotonic()
         # Serial stream is NOT thread-safe. All methods that touch self.ser must be
         # called from the thread that constructed this Dut. Never read self.ser from
@@ -7568,6 +7593,10 @@ def main():
     default_tests = ",".join(k for k in ALL_TESTS if k not in _interactive_tests)
     p.add_argument("--tests", default=default_tests,
                    help="comma-separated test IDs, e.g. T080,T083,T084")
+    p.add_argument("--log-file", default=None,
+                   help="append every raw serial line (JSON responses AND bare "
+                        "LOG_D/LOG_W lines) to this file — for diagnosing "
+                        "failures whose cause isn't visible in dbg command output")
     args = p.parse_args()
 
     selected = [t.strip() for t in args.tests.split(",") if t.strip()]
@@ -7576,7 +7605,9 @@ def main():
         sys.exit(f"Unknown tests: {unknown}. Available: {list(ALL_TESTS)}")
 
     print(f"Connecting to {args.port} @ {args.baud}…")
-    dut = Dut(args.port, args.baud, timeout=args.timeout)
+    if args.log_file:
+        print(f"Raw serial log: {args.log_file}")
+    dut = Dut(args.port, args.baud, timeout=args.timeout, log_file=args.log_file)
     # Warmup ping: flush any residual DUT serial output before first test.
     try:
         dut.cmd("help", timeout=4.0)

@@ -4972,11 +4972,13 @@ tasks.md:456, 36/300s, and worth a fresh look rather than being assumed identica
 had no prior record in this file or in QM memory and were filed as-is, uninvestigated.
 
 **Update 2026-08-01 (same session):** TASK-380/381/382 (the three Stock chart `fetchOkCount`
-stalls, T176/T188/T192) were investigated by code read. They do **not** share one root cause as
-initially suspected from the matching symptom shape — T176 traced to a confirmed, distinct firmware
-bug (a stale recency guard in `drillToChart()`); T188 and T192 share a *different*, still-unconfirmed
-cause (evidence rules out T380's bug for both — their fetches were provably enqueued and dispatched
-— but stops short of distinguishing a real intermittent Yahoo Finance failure from a silent
+stalls, T176/T188/T192) were investigated and all three now have a confirmed root cause and are
+**not** one shared bug as the matching symptom initially suggested. TASK-380 (T176): a stale recency
+guard in `drillToChart()` — **fixed and DUT-verified same session.** TASK-381/382 (T188/T192): a
+`deserializeJson()` `IncompleteInput` failure after a clean HTTP 200, correlated with a severe heap
+squeeze during the fetch — confirmed via a raw serial capture (`run_serialdbg_tests.py` grew a
+`--log-file` option, `run/test-targeted` a matching `LOG_FILE=` passthrough, to see the `LOG_D`/
+`LOG_W` lines the harness's JSON-only parsing had been silently discarding). Root cause confirmed,
 TASK-300 identity-mismatch drop). See each entry for detail.
 
 ### TASK-379 — Winamp zone leaks into Clock app: BUG-1 touch guard not firing (T148)
@@ -5029,61 +5031,74 @@ DUT-verified. This was *not* the same bug as TASK-381/382 below — see those en
 found their fetch **was** correctly enqueued and dispatched (confirmed via `inFlight=5`/`3` and
 correct `stockChartRange` readback), so this recency-guard bug never explained them.
 
-### TASK-381 — Stock chart fetch enqueued+dispatched but never completes as success (T188, D5 tab)
+### TASK-381 — Stock chart JSON parse fails (`IncompleteInput`) after a clean HTTP 200, under heap pressure (T188)
 
-**Investigated 2026-08-01 — narrowed, not resolved.** Ruled out sharing TASK-380's cause: T188's
-loop taps the range tabs directly (`main.cpp:1226-1236`), which has no recency guard and enqueues
-unconditionally; the D1 tab in the same loop passed (proving the enqueue path works), only D5
-failed. `dataq` confirms the request *was* dispatched (`inFlight` non-`-1` briefly right after the
-tap) then goes idle for the rest of the 45s wait with no success. `fetchFailed=True` but
-`fetchErrorCode=None` as reported — `fetchErrorCode` is always set to a concrete int by
-`stockTickChart()` on any real failure (`main.cpp:1801`, never left null), so `None` most likely
-means the *diagnostic* `get fetchErrorCode` follow-up query itself didn't get an `ok` response
-(serial timing), not that the firmware genuinely has no code — can't confirm without a raw serial
-capture.
+**Investigated 2026-08-01 — root cause CONFIRMED via raw serial capture, not yet fixed.** Extended
+`app/tools/run_serialdbg_tests.py` with a `--log-file` option (`run/test-targeted` grew a matching
+`LOG_FILE=` passthrough) that tees every raw serial line — including the `LOG_D`/`LOG_W` lines the
+harness's own JSON-only parsing had been silently discarding — to a file. Re-ran
+`LOG_FILE=… ./run/test-targeted T188,T192`; both reproduced (T188 failed on **D1** this time, not
+D5 — confirms it's not tied to a specific range/tab, ruling out anything range-specific) and the
+capture shows exactly what happens:
 
-**Two live hypotheses, unconfirmed:**
-1. Real intermittent Yahoo Finance failure (HTTP error/rate-limit) — the T173-T192 sequence fires
-   several chart fetches for the same symbol/mirror in a short window, plausible for a 429.
-2. Silent identity-mismatch drop at `main.cpp:1782-1788` (TASK-300's stale-result guard) — checked
-   the dataTask-side code (`fetchStockChartBySym`/`fetchStockChart` in `dataTaskStorage.cpp`) and it
-   correctly echoes back the requested symbol/range in the result, and nothing in the single-tap
-   T188 sequence obviously mutates `_s.chartRange`/`_s.chartSymbol` between enqueue and poll — so no
-   mismatch is currently provable, but can't be ruled out without seeing the `LOG_D`/`LOG_W` lines
-   from `dataTaskStorage.cpp:975,989` (GET result code, JSON error), which this test run's harness
-   output doesn't capture.
+```
+[D][dataTask.stock] chart START AAPL range=1d heap free=73k maxBlk=41k
+[D][dataTask.stock] chart GET AAPL range=1d 200 elapsed=2632ms
+[D][dataTask.stock] chart pre-json heap free=23k maxBlk=15k
+[D][dataTask.stock] chart post-json heap free=71k maxBlk=21k err=IncompleteInput
+[W][dataTask.stock] chart JSON err: IncompleteInput
+```
 
-**Next step:** re-run `run/test-targeted T188` with a live `run/monitor-read` capture (or
-`screenLog`) alongside it to catch the `dataTask.stock` GET/JSON log lines and settle which
-hypothesis is real.
+The HTTP GET completes cleanly (200, ~2.6s) — the failure is entirely in `deserializeJson()`
+(`dataTaskStorage.cpp:483-490` / the by-sym twin at `:984-990`) running out of input mid-parse.
+Heap free drops from 73k to 23k (`maxBlk` 41k→15k, real fragmentation, not just usage) between the
+GET starting and the pre-json checkpoint — the response body is landing during a heap squeeze severe
+enough to plausibly be truncating the stream itself (allocation failure inside the TLS/HTTP read
+path producing a short read that `getStream()`'s filtered parse can't recover from).
 
-**Update 2026-08-01 (same session, post-TASK-380 fix):** re-ran `T188` on the TASK-380-fixed build
-(unrelated file, but same run) — **all 4 ranges including D5 passed clean**, no repro this time.
-One data point, not proof, but leans hypothesis 1 (a real transient Yahoo Finance failure/rate-limit
-in the original run) over hypothesis 2 (a deterministic identity-mismatch drop, which should have
-reproduced again on an unrelated fix). Still worth a serial-log-captured run before closing —
-one clean pass doesn't rule out an intermittent bug.
+**Both original hypotheses are now settled:**
+- ~~Silent identity-mismatch drop (TASK-300's `main.cpp:1782-1788` stale-result guard)~~ — **ruled
+  out**. `grep -c "drop stale"` on the full capture returns `0`; that code path never fires.
+  `fetchErrorCode=None` in the test's diagnostic follow-up was indeed a serial-timing artifact of the
+  *diagnostic* query, not a missing firmware value, as suspected — the real error is captured above.
+- ~~Yahoo rate-limit / generic HTTP failure~~ — **ruled out as stated**. The GET always returns 200;
+  the failure is 100% in JSON parsing, not the HTTP layer. Refined to: **JSON body truncation under
+  heap pressure**, not a rate-limit.
 
-**Owner:** Developer · **Deps:** none (independent of TASK-380) · **Gate:**
-`run/test-targeted T188` after fix, with serial log captured this time · **Priority:** P2 ·
-**Status:** OPEN — narrowed to two hypotheses, leaning transient-network, not yet confirmed or
-fixed.
+**Fix direction (not yet implemented):** either address the heap squeeze directly (why does free
+heap drop by 50k+ during this one GET+parse — is something else on the dataTask/spotifyTask threads
+competing for heap concurrently, per `spAct`/`tlsStopped` in the `dataq` samples above showing a
+Spotify TLS yield active at the same moment?), or add a retry-once-on-parse-error mitigation the way
+TASK-313 did for PlaneRadar's adsb.fi truncation (same failure shape: clean HTTP 200, truncated body
+under resource pressure) — cheaper to land, doesn't fix the underlying squeeze but matches this
+codebase's existing precedent for this exact class of bug.
 
-### TASK-382 — Stock chart fetch enqueued+dispatched but never completes as success (T192, tab-switch after heatmap drill)
+**Owner:** Developer · **Deps:** compare against TASK-313's retry-once mitigation (`dataTaskStorage.
+cpp`, PlaneRadar path) for a ready-made pattern · **Gate:** `run/check`; `run/test-targeted
+T188,T192` after fix, `LOG_FILE=` capture again to confirm `IncompleteInput` stops appearing (not
+just that the test happens to pass — this failure is intermittent under heap pressure, a single
+clean run isn't proof) · **Priority:** P2 · **Status:** OPEN — root cause confirmed, fix not yet
+written.
 
-**Investigated 2026-08-01 — narrowed, not resolved; same shape as TASK-381, likely shares *that*
-cause rather than TASK-380's.** T192 drills via a heatmap tile tap (`drillToChartBySym()`, no
-recency guard) then taps the 5D range tab; the test itself confirms `stockChartRange=="D5"` after
-the tap, which only happens inside the tab handler's `!_s.fetchFailed` branch (`main.cpp:1226`) —
-i.e. the branch that also calls `enqueueStockChartBySym()` ran, so the fetch was enqueued. `dataq`
-showed `inFlight=5` (== `DATA_FETCH_STOCK_CHART_BY_SYM`, confirms dispatch) dropping to `-1` within
-~3s and staying idle for the rest of the 45s wait. Same open hypotheses as TASK-381 (real fetch
-failure vs. silent TASK-300 identity-drop) — the underlying mechanism (a range-tab tap on the chart
-view, one-shot enqueue) is the same code path T188's D5 tab exercises, just reached via a different
-drill-in route.
+### TASK-382 — same `IncompleteInput`-under-heap-pressure cause as TASK-381 (T192, tab-switch after heatmap drill)
 
-**Owner:** Developer · **Deps:** TASK-381 — investigate together, same code path (`main.cpp:1226-
-1236` tab handler + `fetchStockChartBySym`), diagnose once and likely fixes both · **Gate:**
-`run/test-targeted T188,T192` after fix, with serial log captured · **Priority:** P2 ·
-**Status:** OPEN — narrowed to two hypotheses (shared with TASK-381), not yet distinguished or
-fixed.
+**Investigated 2026-08-01 — confirmed same root cause as TASK-381, via the same `LOG_FILE=` capture
+(one combined `run/test-targeted T188,T192` run reproduced both).** T192's failure log:
+
+```
+[D][dataTask.stock] chart-sym GET NVDA 200 elapsed=3158ms
+[W][dataTask.stock] chart-sym JSON err: IncompleteInput
+[D][dataTask.stock] heap free=68k maxBlk=22k
+```
+
+Identical shape to TASK-381 (clean HTTP 200, `IncompleteInput` on parse, depressed/fragmented heap
+around the fetch) via the by-symbol fetch path (`fetchStockChartBySym()`,
+`dataTaskStorage.cpp:951-1016`) instead of the by-ticker-index one. One root cause, two call sites —
+fixing TASK-381 (whichever direction is chosen: heap-squeeze root-cause or retry-once mitigation)
+should be applied to both `fetchStockChart()` and `fetchStockChartBySym()` in the same pass, or
+factored into one shared parse-with-retry helper if a retry mitigation is the chosen direction (they
+already share the identical GET→filtered `deserializeJson()`→result shape).
+
+**Owner:** Developer · **Deps:** TASK-381 — fix once, apply to both fetch functions · **Gate:**
+`run/test-targeted T188,T192` after fix, `LOG_FILE=` capture again · **Priority:** P2 ·
+**Status:** OPEN — root cause confirmed (same as TASK-381), fix not yet written.

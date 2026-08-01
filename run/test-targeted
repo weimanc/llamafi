@@ -3,6 +3,9 @@
 # Usage: ./run/test-targeted T080,T083,T091
 #        TESTS=T080,T083 ./run/test-targeted
 #        BOOT_WAIT=12 ./run/test-targeted T-SET-01,T-SET-02
+#        LOG_FILE=/tmp/serial.log ./run/test-targeted T188,T192   (captures raw
+#          LOG_D/LOG_W lines alongside dbg command output, for diagnosing
+#          failures whose cause isn't visible in dbg output alone)
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 TESTS="${TESTS:-${1:-}}"
@@ -41,5 +44,10 @@ echo "[test-targeted] step 3/6 — waiting ${BOOT_WAIT}s for boot + WiFi"
 sleep "$BOOT_WAIT"
 
 echo "[test-targeted] step 4/6 — running tests: $TESTS"
-(cd "$PIO_DIR" && "$VENV_PY" tools/run_serialdbg_tests.py --port "$PORT" --tests "$TESTS") \
+_LOG_ARGS=()
+if [ -n "${LOG_FILE:-}" ]; then
+  echo "[test-targeted] raw serial log: $LOG_FILE"
+  _LOG_ARGS=(--log-file "$LOG_FILE")
+fi
+(cd "$PIO_DIR" && "$VENV_PY" tools/run_serialdbg_tests.py --port "$PORT" --tests "$TESTS" "${_LOG_ARGS[@]}") \
   || _TEST_RC=$?
