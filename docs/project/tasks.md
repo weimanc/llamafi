@@ -4981,17 +4981,47 @@ squeeze during the fetch — confirmed via a raw serial capture (`run_serialdbg_
 `LOG_W` lines the harness's JSON-only parsing had been silently discarding). Root cause confirmed,
 TASK-300 identity-mismatch drop). See each entry for detail.
 
-### TASK-379 — Winamp zone leaks into Clock app: BUG-1 touch guard not firing (T148)
+### TASK-379 — T148 assertion is stale post-TASK-346, NOT a Winamp zone leak (misdiagnosed at filing)
 
-`T148` (`Spotify→Clock→Spotify round-trip` context, run directly after `T147` which confirmed the
-round-trip itself) failed: `hit='CLOCKAPP' action='CONSUMED' at (137,120)` while Clock was the
-active app — a tap coordinate resolved to a Winamp-zone hit-test result while a different app owned
-the screen. `BUG-1` is an existing named guard (per the test's own failure string) that's supposed
-to prevent exactly this cross-app zone leak; it did not fire this run.
+**Investigated 2026-08-01 — this is a test bug, not a firmware bug. No guard failure occurred.**
+Original filing read `hit='CLOCKAPP' action='CONSUMED' at (137,120)` as a cross-app zone leak
+("BUG-1 guard not firing"). Tracing the actual code shows the opposite: this is exactly correct,
+deterministic, by-design behavior, and T148's assertions are simply out of date.
 
-**Owner:** Developer · **Deps:** none known · **Gate:** re-run `run/test-targeted T148` after fix,
-plus `run/check` · **Priority:** P2 (UI correctness — wrong app can consume input) ·
-**Status:** OPEN — filed 2026-08-01, root cause not yet investigated.
+`main.cpp:2804-2811` (the tap dispatcher) has had a **dedicated** `currentAppId == AppId::Clock`
+branch since **TASK-346 (M-CLOCK-TAP-CYCLE, commit `06455a8`, "in-app face/theme cycling via tap
+zones")** — it routes the tap through `ClockApp::handleInput()` directly and reports
+`hit="CLOCKAPP"`, never touching `winampDisplay.injectTouch()`/the Winamp zone tables at all. The
+generic `"CLOCK"` sentinel T148 still expects is the *fallback* `else` branch (`main.cpp:2812-2816`)
+used by apps with **no** dedicated tap handling (Matrix, Weather, Crypto, GoL — confirmed via
+`T_MA_02`/`T_WX_02`, which correctly still assert `hit=="CLOCK"` for those, and correctly still
+pass). Clock stopped being one of those apps as of TASK-346.
+
+`clockApp.h:39-43` defines `CLK_TAP_SPLIT_Y = 120` — the canvas splits at y=120 into a theme-cycle
+zone (`y < 120`) and a face-cycle zone (`y >= 120`), with **no dead zone left anywhere on the
+canvas**. T148's tap coordinate, `(137, 120)` from `coords.py:clock_canvas_tap()`, lands exactly on
+the boundary (`y < 120` is false) → routes to `_cycleFace()` (`clockApp.h:115-121`), which
+unconditionally `return true`s. So `hit="CLOCKAPP", action="CONSUMED"` isn't a flake or an
+intermittent bug — it is the **only** possible outcome for this exact tap, every single time,
+since TASK-346 shipped. T148 has been deterministically broken since then; it just hadn't been
+exercised as part of a full suite run until now.
+
+`coords.py:186-187`'s docstring is also stale: `"Hits TRANSPORT zone in Spotify mode; must return
+CLOCK/NONE after BUG-1 fix"` — describes Clock's pre-TASK-346 non-interactive behavior.
+
+**Fix direction (not yet implemented — investigation only, per this task's scope):** update T148 to
+assert the current, correct contract instead of the pre-TASK-346 one: `hit == "CLOCKAPP"` and
+`action == "CONSUMED"` (deterministic for this coordinate). The property BUG-1 originally guarded —
+no Winamp/Spotify transport action can fire while Clock owns the screen — is now structurally
+guaranteed by the dedicated `AppId::Clock` branch existing at all (that branch never calls
+`winampDisplay.injectTouch()`), not by a runtime string comparison, so the rewritten test's real
+job is just confirming the dispatch still routes to Clock's own handler, not the specific string
+match. Also worth refreshing `clock_canvas_tap()`'s stale docstring while touching this.
+
+**Owner:** Developer · **Deps:** none · **Gate:** `run/test-targeted T148` after the test-only fix
+· **Priority:** P3 (downgraded from P2 — no live firmware defect, no user-facing risk; this is
+test-suite hygiene) · **Status:** OPEN — root cause confirmed (test staleness, not a firmware bug),
+fix not yet written.
 
 ### TASK-380 — `drillToChart()` skips re-fetch on ticker change within 60s (confirmed root cause of T176)
 
