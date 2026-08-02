@@ -5367,12 +5367,81 @@ odds of hitting *any* single-request failure mode somewhere in the run. Unconfir
 capture for this run to check for `IncompleteInput`/connect-timeout evidence at the actual failure
 point.
 
-**Owner:** Developer · **Deps:** possibly TASK-383 (same failure class, different trigger path) ·
-**Gate:** re-run `run/test-targeted T193` a few times with `LOG_FILE=` capture to check whether the
-failure correlates with `IncompleteInput`/`code=-1` at the fetch itself, same method as TASK-383's
-investigation · **Priority:** P3 (single occurrence, plausible network-noise explanation, not yet
-confirmed as a distinct bug) · **Status:** OPEN — filed as-is, needs a serial-capture re-run before
-further action.
+**Investigated 2026-08-02.** Re-ran `run/test-targeted T193` five times back-to-back with `LOG_FILE=`
+capture (full flash/test/restore cycle each time, DUT restored to prod cleanly all 5×), same method
+as TASK-383's investigation. **0/5 reproduced.** Every run showed the identical clean pattern: both
+chart GETs (`NVDA range=1d` — the initial drill-fetch and the `triggerFetch`-forced auto-refetch)
+returned HTTP 200 on the first attempt, `elapsed` in the normal ~2.9-3.0s band, no `IncompleteInput`,
+no `code=-1`, no retry ever fired, `fetchOkCount` advanced 1→2 and `chartLen=79` every time (10
+total chart fetches across the 5 runs, all clean). One useful side observation: run 1's log did show
+a live `code=-1 HTTPC_CONNECTION_REFUSED`, but on a *Spotify* poll reconnect (unrelated call site),
+not the stock chart fetch — confirms the failure mode TASK-383 characterized is real and still
+occurs in this build's fetch stack generally, just not caught landing on T193's specific fetch in
+this sample.
+
+**Reopened 2026-08-02 — the 0/5 result above doesn't rule out what it looks like it rules out.**
+`run/test-targeted` flashes fresh and boots the DUT immediately before running only the named
+test(s) — every one of the 5 re-runs started from a clean boot (~2-3 min uptime, heap freeInt
+~74-118k, no prior test history). But the run T193 originally failed in was a `run/test` full-suite
+pass: one flash, one boot, then ~167 tests run sequentially with **no reboot in between** — T193
+executed after roughly 150 prior tests had already been exercising heap alloc/free, the dataTask
+queue, WiFi, and Spotify's 403-poll/backoff loop for however long the suite had been running by
+that point. The isolated re-runs only tested "does T193 fail from a cold boot" (answer: no) — they
+never tested "does T193 fail once ~150 tests' worth of state has accumulated," which is the
+condition it actually failed under. Walking the CLOSED disposition back to open pending real
+evidence from that condition, not a synthetic approximation of it.
+
+**Plausible causes, now framed against the isolated-vs-suite-accumulated gap** (untested,
+listed for the next full-suite pass to discriminate between, most to least likely):
+
+1. **dataTask queue congestion / poll-bounded serialization** (TASK-244/299/300 precedent) — if a
+   fetch enqueued by a test running shortly before T193 is still in flight or queued when
+   `triggerFetch` lands, TASK-244's already-accepted "queued fetch can serialize behind Spotify's
+   poll cycle for up to minutes" behavior could push completion past the 45s deadline with **no
+   failure at all** on the wire — a false test failure, not a firmware bug. Distinguishing test:
+   `T193-pre-trigger`'s new `dataq` snapshot (queueWaiting/inFlight) — clean-boot baseline is 0/0.
+2. **Heap fragmentation under sustained load** (TASK-381/382 precedent, same mechanism TASK-386
+   already flagged for T204/T-BUSY-01) — ~150 tests' worth of alloc/free cycles could leave
+   `lfbInt`/`lfbDma` (largest free block, not just free bytes) measurably smaller than the
+   clean-boot baseline (~41-45k), which is what actually gates whether `DynamicJsonDocument` can
+   allocate contiguously. Distinguishing test: the new `heap()` snapshots' `lfbInt`/`lfbDma` fields
+   vs. the 2026-08-02 clean-boot baseline.
+3. **tlsYield arbitration contention** (TASK-287/299's tlsYield-starvation precedent) — extended uptime means
+   many more Spotify 403-poll/backoff cycles have run and contested the shared TLS yield lock than
+   in a 2-3 min isolated boot; if the chart fetch's `tlsYield()` call has to wait longer to acquire
+   it under sustained contention, that eats into the 45s budget before the GET even starts.
+   Distinguishing test: the new `dataq` snapshots' `spAct`/`spActMs`/`yieldCount`/`tlsStopped`
+   fields at `pre-trigger` — elevated `spActMs` or a non-idle `spAct` right before the trigger
+   would implicate this.
+4. **Plain connect-level noise, more exposure** (TASK-383's original hypothesis) — more total
+   fetches happen throughout a longer, busier run, proportionally raising the odds of hitting
+   TASK-383's already-characterized rare `code=-1` connect failure on any single request,
+   independent of any accumulated-state mechanism. Distinguishing signal: a `T193-timeout` snapshot
+   that looks identical to the clean-boot baseline (nothing degraded) points here instead of 1-3.
+
+**Diagnostics added 2026-08-02 (code, no DUT run performed — batched for the next real `run/test`
+pass instead of another isolated repro attempt):** new `_diag_snapshot()` helper in
+`run_serialdbg_tests.py` (`get heap` + `get backoff` + `get dataq` in one call) wired into both
+`t193()` and `t194()` at entry, immediately before each test's risky fetch-trigger step, and — for
+the specific `fetchOkCount`-did-not-advance failure — again at the moment of timeout. Snapshots are
+embedded directly in the `fail()`/`skip()` reason string itself (not just printed), so the evidence
+survives in the test-summary output even on a run with no `LOG_FILE=` capture — closing the exact
+gap this task was originally blocked on. T194 got the same instrumentation as T193 (entry +
+pre-list-drill + pre-tab-switch + timeout) even though it wasn't the one that failed: it runs
+immediately after T193 in suite order, does a heavier fetch cascade (heatmap + 2 chart fetches + a
+tab-switch fetch vs. T193's 2), and is therefore the more sensitive canary for the same
+suite-accumulation hypotheses — a same-run comparison of T193's and T194's entry snapshots is a
+second, free data point.
+
+**Owner:** Developer · **Deps:** possibly TASK-383 (same failure class, different trigger path);
+shares its diagnostic mechanism with TASK-386's T204/T-BUSY-01 (same heap-pressure-under-load
+hypothesis, worth checking together) · **Gate:** next real full `run/test` pass — inspect T193/T194's
+new diagnostic snapshot lines whether or not they fail this time, and compare against the
+2026-08-02 clean-boot baseline (heap freeInt~74-118k/lfbInt~41-45k, dataq queueWaiting=0/inFlight=0
+pre-trigger, spAct idle) to discriminate between hypotheses 1-4 above · **Priority:** P3 (back up
+from the premature P4 close — now has a concrete, low-cost path to a real answer instead of another
+guess) · **Status:** **OPEN — instrumented, awaiting the next full-suite `run/test` pass** (human
+said no rerun for now; diagnostics batched upfront per that direction).
 
 ## Open — TASK-386 (2026-08-01, filed from a third full-suite `run/test` pass, post-TASK-384)
 

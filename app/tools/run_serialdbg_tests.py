@@ -2191,6 +2191,50 @@ def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0,
     return False
 
 
+def _diag_snapshot(dut: Dut, tag: str = "") -> str:
+    """Best-effort one-line heap/backoff/dataq snapshot (TASK-385). `run/test-targeted`
+    always starts from a fresh flash+boot, so an isolated re-run can only prove a test
+    fails-or-doesn't from a *clean* state — it can't observe whatever heap fragmentation,
+    dataTask queue backlog, or Spotify-poll/tlsYield contention ~150 prior tests may have
+    left behind by the time T193/T194 run in a real `run/test` full-suite pass. Embedding
+    this snapshot directly into the fail()/skip() reason (not just printing it) means the
+    evidence survives even when the run has no `LOG_FILE=` capture — closing exactly the
+    gap TASK-385 was originally blocked on ('no serial capture for this run'). Compare
+    against the clean-boot baseline from the 2026-08-02 isolated 5/5-pass investigation:
+    heap freeInt~74-118k/lfbInt~41-45k, dataq queueWaiting=0/inFlight=0 pre-trigger,
+    spAct idle between POLL dequeues — a same-run T193/T194 snapshot reading materially
+    lower/busier than that is evidence for the suite-accumulation hypotheses; a snapshot
+    that looks the same as a clean boot points back toward plain connect-level noise
+    (TASK-383) instead."""
+    parts = []
+    try:
+        h = dut.cmd("get heap", timeout=3.0)
+        parts.append(f"heap(freeInt={h.get('freeInt')},lfbInt={h.get('lfbInt')},"
+                      f"freeDma={h.get('freeDma')},lfbDma={h.get('lfbDma')})" if h.get("ok")
+                      else "heap(no-ok)")
+    except TimeoutError:
+        parts.append("heap(timeout)")
+    try:
+        b = dut.cmd("get backoff", timeout=3.0)
+        parts.append(f"backoff(cf={b.get('consecutiveFailures')})" if b.get("ok")
+                      else "backoff(no-ok)")
+    except TimeoutError:
+        parts.append("backoff(timeout)")
+    try:
+        q = dut.cmd("get dataq", timeout=3.0)
+        parts.append(
+            f"dataq(ms={q.get('ms')},qw={q.get('queueWaiting')},inFlight={q.get('inFlight')},"
+            f"inFlightMs={q.get('inFlightMs')},tlsStopped={q.get('tlsStopped')},"
+            f"spAct={q.get('spAct')},spActMs={q.get('spActMs')},"
+            f"yieldCount={q.get('yieldCount')})" if q.get("ok") else "dataq(no-ok)")
+    except TimeoutError:
+        parts.append("dataq(timeout)")
+    snap = " ".join(parts)
+    prefix = f"[{tag}] " if tag else ""
+    print(f"  {prefix}diag: {snap}", flush=True)
+    return snap
+
+
 def _drain_data_pipeline(dut: Dut, timeout_s: float = 200.0, tag: str = "") -> bool:
     """Wait until the dataTask/spotifyTask fetch pipeline is quiet: nothing in
     flight or queued, no unacked tlsYield, and spotifyTask not inside an API
@@ -4769,6 +4813,11 @@ def t192(dut: Dut):
 def t193(dut: Dut):
     """T193: stockTickChart() auto-refresh uses chartSymbol after heatmap drill (TASK-121b fix)."""
     print("T193  Auto-refresh path uses drilled symbol")
+    # TASK-385: baseline snapshot at test entry. In a full `run/test` pass this runs after
+    # ~150 prior tests with no reboot in between; in an isolated `run/test-targeted T193`
+    # rerun it runs 2-3 min post-boot. Comparing this line's heap/dataq/backoff numbers
+    # across the two contexts is the whole point — see _diag_snapshot's docstring.
+    entry_diag = _diag_snapshot(dut, "T193-entry")
     if not _switch_to_stock(dut):
         skip("T193", "could not switch to Stock")
         _restore_from_stock(dut)
@@ -4821,9 +4870,17 @@ def t193(dut: Dut):
         _restore_from_stock(dut)
         return
     before_ok = _stock_ok_count(dut)
+    # TASK-385: snapshot immediately before the risky trigger — this is the state the
+    # forced re-fetch actually has to run against (post-heatmap-drill, post-tile-drill).
+    pre_diag = _diag_snapshot(dut, "T193-pre-trigger")
     dut.cmd("set triggerFetch 1", timeout=3.0)  # reset lastChartFetch → force next tick re-fetch
-    if not _wait_chart_complete(dut, before_ok, timeout_s=45.0):
-        fail("T193", "fetchOkCount did not advance after triggerFetch — auto-refresh did not fire")
+    if not _wait_chart_complete(dut, before_ok, timeout_s=45.0, test_id="T193"):
+        # TASK-385: on timeout, one more snapshot at the point of failure. Embedded
+        # directly in the fail() reason (not just printed) so it survives even without
+        # LOG_FILE= capture — the original 2026-08-01 filing had neither.
+        timeout_diag = _diag_snapshot(dut, "T193-timeout")
+        fail("T193", "fetchOkCount did not advance after triggerFetch — auto-refresh did not "
+                      f"fire | entry={entry_diag} | pre-trigger={pre_diag} | timeout={timeout_diag}")
         _restore_from_stock(dut)
         return
     r_sym2 = dut.cmd("get stockChartTicker", timeout=3.0)
@@ -4845,6 +4902,12 @@ def t193(dut: Dut):
 def t194(dut: Dut):
     """T194: Back to list after heatmap drill clears chartSymbol; list drill uses index ticker."""
     print("T194  Back-to-list clears chartSymbol; list drill uses index ticker")
+    # TASK-385: entry baseline, same rationale as T193's. T194 runs right after T193 in
+    # suite order and does a heavier fetch cascade (heatmap + 2 chart fetches + a
+    # tab-switch fetch vs T193's 2), so it's the more sensitive canary for suite-
+    # accumulated heap/queue/tlsYield pressure — worth comparing its entry snapshot
+    # against T193's from the same run.
+    entry_diag = _diag_snapshot(dut, "T194-entry")
     if not _switch_to_stock(dut):
         skip("T194", "could not switch to Stock")
         _restore_from_stock(dut)
@@ -4912,6 +4975,7 @@ def t194(dut: Dut):
     # A spurious touch during repaintHeatmap can leave g_shellBusy=true; wait it out
     _wait_shell_not_busy(dut, timeout_s=15.0)
     before_ok = _stock_ok_count(dut)
+    list_drill_diag = _diag_snapshot(dut, "T194-pre-list-drill")
     dut.set_cooldown_zero()
     dut.cmd("tap 137 36", timeout=5.0)
     time.sleep(0.5)
@@ -4927,11 +4991,17 @@ def t194(dut: Dut):
         _restore_from_stock(dut)
         return
     time.sleep(0.1)
+    # TASK-385: snapshot immediately before the final trigger — the structural twin of
+    # T193's forced-refetch trigger (same _wait_chart_complete/45s-timeout shape).
+    tab_diag = _diag_snapshot(dut, "T194-pre-tab-switch")
     dut.set_cooldown_zero()
     dut.cmd("tap 184 9", timeout=3.0)  # 5D tab
     time.sleep(0.3)
-    if not _wait_chart_complete(dut, before_ok, timeout_s=45.0):
-        skip("T194", "fetchOkCount did not advance on list-drilled tab-switch")
+    if not _wait_chart_complete(dut, before_ok, timeout_s=45.0, test_id="T194"):
+        timeout_diag = _diag_snapshot(dut, "T194-timeout")
+        skip("T194", "fetchOkCount did not advance on list-drilled tab-switch | "
+                      f"entry={entry_diag} | pre-list-drill={list_drill_diag} | "
+                      f"pre-tab-switch={tab_diag} | timeout={timeout_diag}")
         _restore_from_stock(dut)
         return
     r_sym2 = dut.cmd("get stockChartTicker", timeout=3.0)
