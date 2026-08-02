@@ -5478,10 +5478,52 @@ behavior of a retry-*once* design, not retry-forever — TASK-381/382's commit m
 **Not attributed to TASK-384** — that fix touches only tap-dispatch/busy-gate logic, no HTTP/JSON/
 heap code at all, and both failures are squarely in the fetch/parse path TASK-384 never touched.
 
+**Investigated 2026-08-02 — code-only, no DUT run (human direction: batch diagnostics before any
+rerun).** Read `fetchStockChartWithRetry()` (`dataTaskStorage.cpp:545-581`) to confirm the retry
+mechanism precisely: retries **only** when `code==200 && !r.ok` (HTTP succeeded, JSON parse
+failed — the `IncompleteInput` case); a non-200/connect-level failure on the *first* attempt never
+retries at all, by design (retrying a connect failure "just burns another TLS handshake for no
+benefit", per the code comment). So a genuine double-failure covers exactly two shapes: two
+consecutive `IncompleteInput`s, or one `IncompleteInput` (retried) followed by a second failure of
+either kind — but a **first-attempt connect-level `code=-1`** would show as this exact same
+`fetchOkCount`-never-advanced/`chartLen`-stayed-0 symptom from the test's point of view, with *zero*
+retry ever attempted (TASK-383's failure mode, not TASK-381/382's). The existing firmware LOG_D
+lines (`chart START ... heap free=Xk maxBlk=Yk`, `chart GET ... <code> elapsed=Xms`, `chart parse
+failed rc=X -> retry`, `chart retry ok=Y rc=Z`) already distinguish all of this cleanly — they just
+weren't captured, because **`run/test` (the full-suite script) had no `LOG_FILE=` support at all**
+(only `run/test-targeted` did) — the actual reason TASK-383's/TASK-386's own filed gates could only
+ever recommend an *isolated* re-run, which TASK-385's investigation this session established
+is the wrong tool for a suite-order-dependent failure.
+
+**Applying the TASK-385 lesson here too:** `T204` and `T-BUSY-01` are not equally suite-state-
+dependent. `T204` self-induces its own heap pressure (6 rapid back-to-back fetches by design), so
+an isolated `run/test-targeted T204` repro attempt would actually be a fair test of the
+heap-pressure hypothesis on its own — unlike T193. `T-BUSY-01` is a single self-contained fetch,
+structurally identical to T193's case: its failure is more plausibly suite-accumulated-state-
+dependent (heap fragmentation, dataTask queue backlog, tlsYield contention left over from ~150
+prior tests) than something a fresh-boot isolated rerun could validate.
+
+**Diagnostics added 2026-08-02 (code, no DUT run performed):**
+1. **`run/test` gained `LOG_FILE=` support**, mirroring `run/test-targeted`'s existing flag —
+   previously only isolated targeted re-runs could capture raw serial (`run_serialdbg_tests.py`
+   already accepted `--log-file` in full-suite mode; the full-suite *wrapper script* just never
+   passed it through). This is the single highest-value fix here: the next full `run/test` pass can
+   now capture the complete firmware-side retry-cascade evidence for T204/T-BUSY-01 (and T193/T194)
+   in situ, under real suite conditions, with zero isolated-repro ambiguity.
+2. Same `_diag_snapshot()` helper from TASK-385 wired into both tests: `T204` gets a baseline at
+   entry plus a snapshot before **every one of its 6 taps** (not just on failure — the
+   heap-pressure hypothesis is specifically about a *trend* across the cycle, which a single
+   failure-point snapshot can't show) and on any failure; `T-BUSY-01` gets entry/pre-trigger/
+   timeout snapshots, same shape as T193's. All embedded directly in the `fail()` reason so the
+   evidence survives even on a `run/test` pass someone forgets to point `LOG_FILE=` at.
+
 **Owner:** Developer · **Deps:** TASK-381/382 (shared mechanism), TASK-383 (established the
-accept-transient-network-noise precedent this likely falls under) · **Gate:** if this recurs across
-multiple runs (not just one rough-network night), re-run with `LOG_FILE=` capture the same way
-TASK-383 was settled, to confirm double-failure vs. something new · **Priority:** P3 (matches the
-already-accepted residual-risk category unless repro rate says otherwise) · **Status:** OPEN — filed
-as a likely-known-cause pattern match, not independently root-caused; downgrade to closed-as-
-accepted or escalate once more data exists.
+accept-transient-network-noise precedent this likely falls under), TASK-385 (shared diagnostic
+mechanism + the isolated-rerun-vs-suite-state methodology lesson) · **Gate:** next real full
+`run/test` pass, run with `LOG_FILE=` set — if T204/T-BUSY-01 fail again, check (a) the LOG_D
+retry-cascade lines to see whether it was a genuine double-`IncompleteInput`/mixed failure (TASK-
+381/382's accepted residual) vs. a first-attempt `code=-1` with no retry (TASK-383's class) vs.
+something new, and (b) the new `_diag_snapshot()` lines for a heap/queue/tlsYield trend, same
+comparison basis as TASK-385 · **Priority:** P3 (unchanged — still matches the already-accepted
+residual-risk category unless the next run's evidence says otherwise) · **Status:** OPEN —
+instrumented, awaiting the next full-suite `run/test` pass (same batching direction as TASK-385).

@@ -4,6 +4,11 @@
 # Usage: ./run/test
 #        BOOT_WAIT=12 ./run/test
 #        PORT=/dev/ttyUSB1 ./run/test
+#        LOG_FILE=/tmp/serial.log ./run/test   (TASK-386: captures raw LOG_D/LOG_W
+#          lines for the whole suite — a suite-order-dependent failure (state
+#          only exists after ~150 prior tests, no reboot in between) can't be
+#          diagnosed by an isolated `run/test-targeted` re-run afterward; this
+#          is the only way to catch the firmware-side evidence live, in situ)
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 PORT=$(resolve_port)
@@ -55,7 +60,12 @@ echo "[test] step 3/6 — waiting ${BOOT_WAIT}s for boot + WiFi"
 sleep "$BOOT_WAIT"
 
 echo "[test] step 4/6 — running full test suite"
-(cd "$PIO_DIR" && "$VENV_PY" tools/run_serialdbg_tests.py --port "$PORT") \
+_LOG_ARGS=()
+if [ -n "${LOG_FILE:-}" ]; then
+  echo "[test] raw serial log: $LOG_FILE"
+  _LOG_ARGS=(--log-file "$LOG_FILE")
+fi
+(cd "$PIO_DIR" && "$VENV_PY" tools/run_serialdbg_tests.py --port "$PORT" "${_LOG_ARGS[@]}") \
   || _TEST_RC=$?
 
 # EXIT trap fires here: steps 5 and 6 run unconditionally

@@ -3072,6 +3072,11 @@ def t188(dut: Dut):
 def t204(dut: Dut):
     """T204: D1↔Ytd rapid alternating stress — back-to-back alloc/free under heap pressure."""
     print("T204  D1↔Ytd rapid alternating stress (M-STOCK-VE-STRESS)", flush=True)
+    # TASK-386: entry baseline. Unlike T193, T204 self-induces heap pressure via its own
+    # 6 rapid back-to-back fetches — but its *starting* fragmentation still depends on
+    # whatever ~150 prior tests in a full-suite run left behind, so this baseline still
+    # matters for comparing an isolated run/test-targeted repro against a real suite run.
+    entry_diag = _diag_snapshot(dut, "T204-entry")
     if not _switch_to_stock(dut):
         skip("T204", "could not switch to Stock")
         _restore_from_stock(dut)
@@ -3092,24 +3097,35 @@ def t204(dut: Dut):
 
     stress_tabs = [(_TAB_XY[3], "Ytd"), (_TAB_XY[0], "D1")] * 3  # 3 cycles, 6 taps
 
-    for (tx, ty), tab_name in stress_tabs:
+    for i, ((tx, ty), tab_name) in enumerate(stress_tabs, start=1):
         before = _stock_ok_count(dut)
+        # TASK-386: snapshot before every tap, not just on failure — the heap-pressure
+        # hypothesis is specifically about a *trend* across the 6-fetch cycle (freeInt/
+        # lfbInt shrinking cycle over cycle), which a single failure-point snapshot can't
+        # show. Cheap (3 `get`s) relative to the ~2.9s fetch itself.
+        pre_diag = _diag_snapshot(dut, f"T204-pre-{i}-{tab_name}")
         dut.set_cooldown_zero()
         dut.cmd(f"tap {tx} {ty}", timeout=5.0)
         print(f"  [T204] {tab_name} tapped (fetchOkCount={before}); waiting…", flush=True)
-        if not _wait_chart_complete(dut, before, timeout_s=45.0):
+        if not _wait_chart_complete(dut, before, timeout_s=45.0, test_id="T204"):
+            timeout_diag = _diag_snapshot(dut, f"T204-timeout-{i}-{tab_name}")
             dut.cmd("set fetchFailed 0", timeout=3.0)
             dut.cmd("set fetchErrorCode 0", timeout=3.0)
             _restore_from_stock(dut)
-            fail("T204", f"fetchOkCount did not advance on {tab_name} — heap pressure failure?")
+            fail("T204", f"fetchOkCount did not advance on {tab_name} (cycle {i}/6) — heap "
+                          f"pressure failure? | entry={entry_diag} | pre-tap={pre_diag} | "
+                          f"timeout={timeout_diag}")
             return
         r_ff   = _stock_get(dut, "fetchFailed", timeout=8.0)
         r_code = _stock_get(dut, "fetchErrorCode", timeout=8.0)
         if r_ff.get("val") == "1" or r_ff.get("val") is True:
+            post_diag = _diag_snapshot(dut, f"T204-fail-{i}-{tab_name}")
             dut.cmd("set fetchFailed 0", timeout=3.0)
             dut.cmd("set fetchErrorCode 0", timeout=3.0)
             _restore_from_stock(dut)
-            fail("T204", f"fetchFailed=1 errorCode={r_code.get('val')} on {tab_name} — alloc/free stress failure")
+            fail("T204", f"fetchFailed=1 errorCode={r_code.get('val')} on {tab_name} (cycle "
+                          f"{i}/6) — alloc/free stress failure | entry={entry_diag} | "
+                          f"pre-tap={pre_diag} | post={post_diag}")
             return
         print(f"  [T204] {tab_name} ok", flush=True)
 
@@ -3181,12 +3197,18 @@ def _get_vis_mode(dut: Dut) -> int | None:
 def t_busy_01(dut: Dut):
     """T-BUSY-01: switchApp(Stock) → tap AAPL row → shellBusy true → chartLen>0 → shellBusy false."""
     print("T-BUSY-01  StockApp row tap → amber → clears on fetch complete")
+    # TASK-386: entry baseline. This is a single self-contained fetch (no self-induced
+    # stress like T204) — structurally identical to T193's case, so its "chartLen never
+    # exceeded 0" failure is most plausibly suite-accumulated-state-dependent, not
+    # something an isolated run/test-targeted repro could validate on its own.
+    entry_diag = _diag_snapshot(dut, "T-BUSY-01-entry")
     if not _switch_to_stock(dut):
         skip("T-BUSY-01", "could not switch to StockApp")
         return
     # Ensure list view (tap back to list if needed)
     dut.cmd("tap 10 7", timeout=2.0)  # back tap — no-op if already in list
     time.sleep(0.3)
+    pre_diag = _diag_snapshot(dut, "T-BUSY-01-pre-trigger")
     # Tap AAPL row (137, 36) to drill to chart and trigger async fetch
     dut.cmd("tap 137 36", timeout=2.0)
     # Poll for busy (may be brief; miss → test gap, not firmware defect)
@@ -3199,8 +3221,10 @@ def t_busy_01(dut: Dut):
     # Wait for chart fetch to complete (chartLen > 0)
     print("  [T-BUSY-01] waiting for chartLen > 0…", flush=True)
     if not _poll_chart_len_positive(dut, timeout_s=45.0):
+        timeout_diag = _diag_snapshot(dut, "T-BUSY-01-timeout")
         _restore_from_stock(dut)
-        fail("T-BUSY-01", "chartLen did not exceed 0 after 45 s — fetch did not complete")
+        fail("T-BUSY-01", "chartLen did not exceed 0 after 45 s — fetch did not complete | "
+                           f"entry={entry_diag} | pre-trigger={pre_diag} | timeout={timeout_diag}")
         return
     # After fetch, shellBusy must be false
     time.sleep(0.1)
