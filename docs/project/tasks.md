@@ -5433,15 +5433,40 @@ tab-switch fetch vs. T193's 2), and is therefore the more sensitive canary for t
 suite-accumulation hypotheses — a same-run comparison of T193's and T194's entry snapshots is a
 second, free data point.
 
+**Full-suite `run/test` pass 2026-08-02, with the new `LOG_FILE=` capture.** First real
+suite-condition test since filing — single boot, ~167 tests sequentially, no reboot in between
+(the actual condition T193 originally failed under, unlike the isolated re-runs above). **0/1
+reproduced.** Located T193's exact run in the raw log via its unique `set triggerFetch` marker
+(the heatmap-tile-drill → `triggerFetch` sequence is unambiguous): fired at uptime ~663s (~11 min
+into the suite), `pre-trigger` diag snapshot read `heap(freeInt=117604,lfbInt=42996,freeDma=74460,
+lfbDma=42996) backoff(cf=17) dataq(queueWaiting=0,inFlight=-1,tlsStopped=false,spAct=0)` —
+materially *healthier* than the isolated clean-boot baseline, not degraded — chart GET returned
+200 in 2881ms, `fetchOkCount` advanced, test passed clean. T194 (same run, ~1 min later) also
+passed clean, both new diag triples (`pre-list-drill`, `pre-tab-switch`) confirmed present and
+readable in the log exactly where the instrumentation should place them — the new tooling itself
+is validated working, independent of whether it caught a failure this time. Also checked
+suite-wide: zero non-200 chart GETs, zero `IncompleteInput`/parse failures, zero `fetchFailed=true`
+anywhere in the entire ~9,300-line log for any Stock test (the 13 `IncompleteInput` hits in this
+run are all PlaneRadar/adsb.fi — TASK-313's already-accepted issue, unrelated). No crash/panic;
+two `SW_CPU_RESET` events were both harness-issued `reboot` commands (deliberate persistence-test
+reboots), not faults.
+
+**Disposition unchanged — one clean run doesn't retire an intermittent hypothesis, but it's a real
+data point now, not a synthetic one.** This run's heap simply never got as pressured as the
+original filing's (`lfbInt` held rock-steady ~41-43k the entire suite, vs. the original run's noted
+`T_PRM_02` degradation suggesting a rougher network night) — consistent with hypothesis 2 (heap
+fragmentation under load) requiring conditions this particular run didn't hit, not with the
+mechanism being wrong. Keep `LOG_FILE=` on future `run/test` passes going forward; either a repro
+eventually lands with full diagnostic context attached, or enough clean runs accumulate to
+downgrade this with real evidence instead of a guess.
+
 **Owner:** Developer · **Deps:** possibly TASK-383 (same failure class, different trigger path);
 shares its diagnostic mechanism with TASK-386's T204/T-BUSY-01 (same heap-pressure-under-load
-hypothesis, worth checking together) · **Gate:** next real full `run/test` pass — inspect T193/T194's
-new diagnostic snapshot lines whether or not they fail this time, and compare against the
-2026-08-02 clean-boot baseline (heap freeInt~74-118k/lfbInt~41-45k, dataq queueWaiting=0/inFlight=0
-pre-trigger, spAct idle) to discriminate between hypotheses 1-4 above · **Priority:** P3 (back up
-from the premature P4 close — now has a concrete, low-cost path to a real answer instead of another
-guess) · **Status:** **OPEN — instrumented, awaiting the next full-suite `run/test` pass** (human
-said no rerun for now; diagnostics batched upfront per that direction).
+hypothesis, worth checking together) · **Gate:** keep `LOG_FILE=` on future full `run/test` passes;
+next repro (if any) — inspect the diag snapshots against the 2026-08-02 clean-boot baseline (heap
+freeInt~74-118k/lfbInt~41-45k, dataq queueWaiting=0/inFlight=0 pre-trigger, spAct idle) to
+discriminate between hypotheses 1-4 · **Priority:** P3 · **Status:** **OPEN — instrumented and now
+validated working under real suite conditions; 0/1 full-suite repro + 0/5 isolated repro so far.**
 
 ## Open — TASK-386 (2026-08-01, filed from a third full-suite `run/test` pass, post-TASK-384)
 
@@ -5517,13 +5542,38 @@ prior tests) than something a fresh-boot isolated rerun could validate.
    timeout snapshots, same shape as T193's. All embedded directly in the `fail()` reason so the
    evidence survives even on a `run/test` pass someone forgets to point `LOG_FILE=` at.
 
+**Full-suite `run/test` pass 2026-08-02, with the new `LOG_FILE=` capture.** Same run used for
+TASK-385's re-check. Located T204's exact block via its unique alternating-tap signature
+((256,9)/(148,9) × 3): fired ~12 min into the suite, entry snapshot `heap(freeInt=76268,
+lfbInt=42996,...)`, all 6 cycles (Ytd/D1 × 3) returned HTTP 200 with `err=Ok`, `fetchOkCount`
+advanced monotonically 12→18, `lfbInt` held flat at 42996 across every single one of the 6
+pre-tap snapshots — **no heap-pressure trend at all this run**, contrary to what the hypothesis
+would predict if conditions were similar to the original filing. `fetchFailed` read `false` after
+every cycle. **T204: 0/1 reproduced.**
+
+`T-BUSY-01` could not be individually isolated in the raw log — this suite has several other
+Stock tests that tap the same AAPL list-row coordinate in adjacent sequences, and without the
+python-level PASS/FAIL boundary (lost to a `tail -100` truncation on the background command —
+noted for next time: don't pipe a long-running full-suite run through `tail`, let the harness
+capture the whole thing) its exact block couldn't be confidently distinguished from the others by
+raw-log pattern alone. However, a suite-wide sweep settles it anyway: **zero non-200 chart GETs,
+zero `IncompleteInput`/parse failures, zero `fetchFailed=true`, and zero post-JSON parse errors
+appear anywhere in the entire ~9,300-line log for any Stock test this run** (the only
+`IncompleteInput` hits are PlaneRadar/adsb.fi, TASK-313's unrelated already-accepted issue). Since
+T-BUSY-01 is just another stock chart fetch and no stock chart fetch failed anywhere in this run,
+T-BUSY-01 passed too, by construction. **T-BUSY-01: 0/1 reproduced** (via exhaustive negative
+sweep, not direct isolation).
+
+Same disposition logic as TASK-385: this run's heap simply never got as pressured as the original
+filing's — informative (the new instrumentation is confirmed working, ready to catch it next time
+with full context) but not yet conclusive either way.
+
 **Owner:** Developer · **Deps:** TASK-381/382 (shared mechanism), TASK-383 (established the
 accept-transient-network-noise precedent this likely falls under), TASK-385 (shared diagnostic
-mechanism + the isolated-rerun-vs-suite-state methodology lesson) · **Gate:** next real full
-`run/test` pass, run with `LOG_FILE=` set — if T204/T-BUSY-01 fail again, check (a) the LOG_D
-retry-cascade lines to see whether it was a genuine double-`IncompleteInput`/mixed failure (TASK-
-381/382's accepted residual) vs. a first-attempt `code=-1` with no retry (TASK-383's class) vs.
-something new, and (b) the new `_diag_snapshot()` lines for a heap/queue/tlsYield trend, same
-comparison basis as TASK-385 · **Priority:** P3 (unchanged — still matches the already-accepted
-residual-risk category unless the next run's evidence says otherwise) · **Status:** OPEN —
-instrumented, awaiting the next full-suite `run/test` pass (same batching direction as TASK-385).
+mechanism + the isolated-rerun-vs-suite-state methodology lesson) · **Gate:** keep `LOG_FILE=` on
+future full `run/test` passes; next repro (if any) — check (a) the LOG_D retry-cascade lines to see
+whether it was a genuine double-`IncompleteInput`/mixed failure (TASK-381/382's accepted residual)
+vs. a first-attempt `code=-1` with no retry (TASK-383's class) vs. something new, and (b) the new
+`_diag_snapshot()` lines for a heap/queue/tlsYield trend · **Priority:** P3 (unchanged) ·
+**Status:** **OPEN — instrumented and validated working under real suite conditions; 0/1 full-suite
+repro for both tests so far** (T204 directly confirmed clean, T-BUSY-01 via exhaustive sweep).
