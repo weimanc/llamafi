@@ -18,21 +18,23 @@ Ten more apps live alongside Spotify, switchable via a scrolling taskbar:
 
 | App | What it does |
 |---|---|
-| **Clock** | Full-screen clock |
+| **Clock** | Full-screen clock — four styles (Digital, Flip, Nixie, VFD) with a per-theme colour picker, cycle between them in-app via tap zones |
 | **Weather** | Current conditions + forecast |
 | **Crypto** | Cryptocurrency price ticker |
 | **Stock** | Stock quotes, line charts, and a heatmap view |
 | **Matrix** | Matrix rain effect |
 | **Life** | Conway's Game of Life |
 | **Aquarium** | ASCII aquarium with fish, bubbles, and a crab |
-| **Teletext** | Live teletext pages, country-selectable, rendered in authentic blocky glory |
-| **PlaneRadar** | Live aircraft radar around a configurable location — ADS-B data via [adsb.fi](https://adsb.fi), saved location slots, range zoom |
+| **Teletext** | Live NOS Teletekst pages, rendered in authentic blocky glory |
+| **PlaneRadar** | Live aircraft radar around a configurable location — ADS-B data via [adsb.fi](https://adsb.fi), 7 saved location slots, range zoom, motion-smoothed aircraft tracks, horizon shading near the radar's edge |
 | **Settings** | On-device WiFi setup, display brightness, time zone, and more |
 
 Plus **WebRadio**: press the Winamp deck's eject button and the player flips
 from Spotify to internet radio ([radio-browser.info](https://www.radio-browser.info)
 directory, filterable by country and bitrate), played through the CYD's
-built-in DAC.
+built-in DAC. The VU meter reacts to the real decoded audio stream here —
+Spotify's meter is a synthesised approximation, since Spotify never gives the
+device actual PCM to analyse.
 
 ### Settings — on device, no portal
 
