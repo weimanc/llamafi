@@ -2122,6 +2122,11 @@ def _wait_quote_fetch(dut: Dut, baseline: int, timeout_s: float = 65.0) -> bool:
         if r.get("ok") and int(r.get("val", 0)) != baseline:
             return True
         time.sleep(2.0)
+    # TASK-386: diagnostic snapshot on timeout, for every caller, automatically.
+    # Return type/signature unchanged — zero risk to existing call sites — but the
+    # get heap/backoff/dataq round trips still land on the wire and get captured by
+    # any LOG_FILE= in effect, same rationale as _wait_chart_complete below.
+    _diag_snapshot(dut, "_wait_quote_fetch-timeout")
     return False
 
 
@@ -2188,6 +2193,12 @@ def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0,
     phase_name = _CHART_PHASE_NAMES.get(phase, "idle" if phase == -1 else "unknown")
     print(f"  {prefix}_wait_chart_complete timed out — stockChartProgress={phase} "
           f"({phase_name}) dataq={last_q}", flush=True)
+    # TASK-386: heap/backoff snapshot on every timeout, for every caller, automatically
+    # — dataq was already sampled above, this adds the two fields it doesn't cover.
+    # Return type/signature unchanged (still bool) — zero risk to any of the 9 existing
+    # call sites (T176/T185/T188/T192/T193/T194/T204/T-BUSY-01b/...), and any future
+    # caller gets this for free without needing to know _diag_snapshot() exists.
+    _diag_snapshot(dut, f"{prefix}_wait_chart_complete-timeout")
     return False
 
 
@@ -3170,6 +3181,8 @@ def _poll_chart_len_positive(dut: Dut, timeout_s: float = 45.0) -> bool:
         except (ValueError, TypeError):
             pass
         time.sleep(1.0)
+    # TASK-386: same treatment as _wait_chart_complete — automatic for every caller.
+    _diag_snapshot(dut, "_poll_chart_len_positive-timeout")
     return False
 
 
@@ -4509,6 +4522,8 @@ def _wait_heatmap_count(dut: Dut, timeout_s: float = 60.0) -> int:
             except (ValueError, TypeError):
                 pass
         time.sleep(3.0)
+    # TASK-386: same treatment as _wait_chart_complete — automatic for every caller.
+    _diag_snapshot(dut, "_wait_heatmap_count-timeout")
     return 0
 
 
@@ -4523,6 +4538,10 @@ def _wait_shell_not_busy(dut: Dut, timeout_s: float = 45.0) -> bool:
         except TimeoutError:
             pass
         time.sleep(1.0)
+    # TASK-386: same treatment as _wait_chart_complete — automatic for every caller.
+    # This helper gates on g_shellBusy directly, so a timeout here is exactly as
+    # relevant to the dataTask/tlsYield hypotheses as a chart-fetch timeout is.
+    _diag_snapshot(dut, "_wait_shell_not_busy-timeout")
     return False
 
 
@@ -5832,12 +5851,16 @@ def _wait_wr_count(dut: Dut, min_count: int = 1, timeout: float = 120.0) -> bool
             count = r.get("count", 0)
             if count >= min_count:
                 return True
-            # Firmware reports pending=0 → fetch done, no more stations coming
+            # Firmware reports pending=0 → fetch done, no more stations coming — not a
+            # timeout, an expected negative result; no diagnostic snapshot needed here.
             if "pending" in r and r["pending"] == 0:
                 return False
         except TimeoutError:
             pass
         time.sleep(2.0)
+    # TASK-386: genuine deadline-exceeded timeout only (not the pending=0 early exit
+    # above) — same rationale as _wait_chart_complete, automatic for every caller.
+    _diag_snapshot(dut, "_wait_wr_count-timeout")
     return False
 
 
@@ -5852,6 +5875,7 @@ def _wait_wr_state(dut: Dut, target: int, timeout: float = 120.0) -> bool:
         except TimeoutError:
             pass
         time.sleep(2.0)
+    _diag_snapshot(dut, "_wait_wr_state-timeout")
     return False
 
 
@@ -7721,6 +7745,18 @@ def main():
         print()
 
     for tid in selected:
+        # TASK-386: emit a serial-side marker before every test. `get __TEST_<id>__`
+        # is intentionally an unrecognized var — the firmware's existing "unknown var"
+        # fallback (main.cpp) echoes it straight back on serial, so it lands in any
+        # LOG_FILE= capture with zero firmware changes and zero behavior risk. Without
+        # this, reconstructing which raw serial lines belong to which test after the
+        # fact requires manually pattern-matching tap/command sequences — expensive and
+        # sometimes impossible when multiple tests share the same coordinates (T-BUSY-01
+        # couldn't be isolated this way during TASK-385/386's 2026-08-02 investigation).
+        try:
+            dut.cmd(f"get __TEST_{tid}__", timeout=2.0)
+        except TimeoutError:
+            pass
         try:
             if tid == "T093":
                 t093(dut, args.interactive)

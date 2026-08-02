@@ -5568,6 +5568,35 @@ Same disposition logic as TASK-385: this run's heap simply never got as pressure
 filing's — informative (the new instrumentation is confirmed working, ready to catch it next time
 with full context) but not yet conclusive either way.
 
+**Generalized 2026-08-02 (human: "does this pattern apply to other tests? could we improve suite
+quality?").** Surveyed every caller of the same family of async-wait-or-timeout helpers.
+`_wait_chart_complete` alone (the exact helper T193/T204's failures went through) is also called by
+`T176`, `T185`, `T188`, `T192`, and `T-BUSY-01b` — T188/T192 are literally TASK-381/382's own
+`IncompleteInput` regression tests, so they're the most relevant uninstrumented gap of all. Parallel
+un-instrumented helper families exist for stock quotes (`_wait_quote_fetch`) and WebRadio
+(`_wait_wr_count`/`_wait_wr_state`) — same single-async-op-plus-timeout shape, same theoretical
+exposure to heap/queue/tlsYield pressure.
+
+Rather than hand-instrumenting each call site (what TASK-385/386 did for T193/T194/T204/T-BUSY-01),
+pushed `_diag_snapshot()` **into the shared helpers themselves**, on their timeout path only (never
+on a legitimate early-exit like `_wait_wr_count`'s `pending==0`/"no stations" case): `_wait_chart_
+complete`, `_poll_chart_len_positive`, `_wait_quote_fetch`, `_wait_wr_count`, `_wait_wr_state`,
+`_wait_heatmap_count`, `_wait_shell_not_busy`. Return types/signatures are **unchanged** (still
+`bool`/`int`) — zero risk to any of the existing ~15+ call sites across the suite, since the
+diagnostic `get`s land on the wire (captured by any `LOG_FILE=` in effect) purely as a side effect
+before the existing `return False`/`return 0`. Every current caller — instrumented or not — and any
+future test written against these helpers now gets this for free.
+
+Also added a **serial-side per-test marker**: the main dispatch loop (`run_serialdbg_tests.py`
+`main()`) now issues `get __TEST_<id>__` immediately before invoking each test. That's
+intentionally an unrecognized var — the firmware's existing "unknown var" fallback echoes it
+straight back on serial with zero firmware changes, giving `LOG_FILE=` captures an unambiguous
+per-test boundary. This directly targets the exact problem hit during this investigation: `T-BUSY-
+01` couldn't be individually isolated in the raw log because several tests share its tap
+coordinates, and the python-level PASS/FAIL boundary had been lost to a `tail -100` truncation on
+the backgrounded command. Future investigations won't need the kind of manual signature-matching
+this one required.
+
 **Owner:** Developer · **Deps:** TASK-381/382 (shared mechanism), TASK-383 (established the
 accept-transient-network-noise precedent this likely falls under), TASK-385 (shared diagnostic
 mechanism + the isolated-rerun-vs-suite-state methodology lesson) · **Gate:** keep `LOG_FILE=` on
