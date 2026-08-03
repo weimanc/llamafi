@@ -6180,3 +6180,63 @@ result is evidence to justify trying the change, not proof it fixes the DUT symp
 
 **Owner:** Developer · **Deps:** TASK-391 (done, this task's evidence base) · **Priority:** P2 ·
 **Status:** open — not started.
+
+### TASK-393 — WebRadio ERROR_* render freeze, live-reproduced on debug build; terminal-retry not firing
+
+**Filed 2026-08-03, same session as TASK-390/391, human-directed** ("could we do an extended soak,
+3h?" → live DUT correlation found while that soak ran → flashed debug build → drove WebRadio into
+the exact failure and caught it live with full introspection). This is the strongest evidence yet
+for TASK-390's render-freeze thread — reproduced on demand, not just observed after the fact.
+
+**Repro steps (debug build `cyd2usb_winamp_debug`, via `tmux send-keys` into the already-open
+monitor — no new serial connection, no DTR reset):**
+1. `switchApp 11` (WebRadio's current `AppId` — verified via `app/tools/app_ids_gen.py`'s
+   `APP_SLOT` map, **not** the `switchApp 10` some older tooling like `test_webradio_soak.py`
+   uses; that script targets `cyd2usb_webradio`'s trimmed registry, a different app count —
+   don't copy its index into a full-registry build).
+2. Station list fetch hit a live `HTTP 503` from radio-browser (`get wrLastHttp` — real, ambient
+   flakiness, unrelated to anything in this session). Sidestepped with the debug-only
+   `set wrUrl http://stream.slam.nl/WEB15_MP3` (TASK-261 Phase 2 lever — injects a single
+   synthetic station and plays it immediately, bypassing the fetch).
+3. First connect succeeded (`StreamTitle='September - Cry For You'`, `last_render_age_ms` reset to
+   4398 — **confirms active playback does reset the render clock; idle screens climbing on their
+   own is separately normal, not a symptom** — this session briefly worried a fresh idle boot's
+   own climbing `last_render_age_ms` was the same bug; it isn't, this comparison settles it).
+4. ~5s in: `stream dead (isRunning=1 for 0ms, bufStalled for 5000ms)`, one stall-retry per
+   `_onPlaybackFailed`'s policy, retry's `connecttohost()` to `stream.slam.nl` itself failed
+   (`"Request ... failed!"`) — plausibly another instance of TASK-391/392's connect-timeout
+   finding, though not confirmed as the specific cause here. `_state → ERROR_UNREACHABLE` (5).
+
+**From that point, `last_render_age_ms` climbed in exact lockstep with `uptime` for the entire
+observation window (348s+, zero resets, two independent `get wrState` checks both returned `5`
+throughout) — the identical signature as the live DUT correlation found earlier this session and
+TASK-390's original report.** `get wrScroll` while parked: `offset=0 drag=0 vel=0 accum=0` — fully
+static, matching the human's own live observation on the physical LCD this session ("buffer/POS is
+at zero (left)"). `get heap`/`get stacks` both healthy throughout — not a resource issue.
+
+**Root-cause candidate, not fully confirmed:** `webRadioApp.h`'s `tick()` only calls `_drawFull()`
+when `_dirty` is set, and once parked in an `ERROR_*` state nothing in the normal per-tick PLAYING
+block runs (it's gated on `_state == PLAYING`), so `_dirty` only gets set once (the transition into
+the error state) and never again — matching the freeze. **This is expected to be already handled**
+by TASK-276's own terminal-retry mechanism (`webRadioApp.h:623-634`, `WR_TERMINAL_RETRY_MS=30000`)
+— re-arms a fresh play attempt every 30s specifically so the app never parks forever. **That
+mechanism did not fire even once in 348+ seconds** (no `"terminal retry — re-arming scan"` log
+line ever appeared, `wrState` never left `5`), despite every logged precondition appearing
+satisfied (`webRadioAutoSkip` defaults `true`, `_state` is one of the three retryable errors,
+`_stationCount=1 > 0`, elapsed time was >10x the threshold). **Why the re-arm isn't firing is not
+determined** — `get wrAutoSkip` isn't a valid debug var (that key belongs to a different app's
+dbgGet, a dead end), and further tracing needs either a breakpoint/instrumented build or reading
+`_pendingAction`'s actual runtime value some other way. Flagged as the concrete next step, not
+solved here.
+
+**Relationship to other WebRadio tasks:** doesn't fully explain the *original* human report (this
+repro's `wrIcy` was empty when frozen — no stale title text — whereas the original report saw a
+stale real fragment, "...n de pauzuh"). Same *class* of bug (render pipeline stuck while parked),
+not necessarily byte-identical mechanism. Directly classifies the "ERROR_UNREACHABLE parking"
+signal TASK-390 flagged as "separate, real, currently unclassified" — it's now classified: real,
+reproducible, and its supposed auto-recovery isn't working.
+
+**Owner:** Developer · **Deps:** TASK-390 (feeds it), TASK-391/392 (connect-timeout evidence this
+repro's own connect failure is consistent with) · **Priority:** P1 (live-reproducible root-cause
+candidate for a real user-observed defect) · **Status:** open — reproduced, root cause of the
+non-firing terminal-retry not yet found.
