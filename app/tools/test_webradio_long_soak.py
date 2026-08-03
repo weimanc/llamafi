@@ -157,15 +157,28 @@ def main():
 
     log(f"entering WebRadio (switchApp {APP_SLOT['WebRadio']}) + waiting for station list …")
     dut.cmd(f"switchApp {APP_SLOT['WebRadio']}", timeout=3.0)
-    deadline = time.monotonic() + 60
     cnt = 0
-    while time.monotonic() < deadline:
-        cnt = dut.cmd("get wrCount", timeout=3.0).get("count", 0) or 0
+    for attempt in range(1, 4):
+        deadline = time.monotonic() + 90
+        while time.monotonic() < deadline:
+            r = dut.cmd("get wrCount", timeout=3.0)
+            cnt = r.get("count", 0) or 0
+            if cnt > 0:
+                break
+            if r.get("pending") == 0 and cnt == 0:
+                break  # fetch already gave up, no point waiting out the full window
+            time.sleep(2.0)
         if cnt > 0:
             break
-        time.sleep(2.0)
+        lh = dut.cmd("get wrLastHttp", timeout=3.0)
+        log(f"WARN: station fetch attempt {attempt}/3 failed "
+            f"(http={lh.get('http')} ok={lh.get('ok')} jsonErr={lh.get('jsonErr')!r}) — "
+            f"re-triggering via leave/re-enter")
+        dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=3.0)
+        time.sleep(1.0)
+        dut.cmd(f"switchApp {APP_SLOT['WebRadio']}", timeout=3.0)  # TASK-289 second-chance fetch
     if cnt <= 0:
-        log("FAIL: no stations loaded (check WiFi / radio-browser reachability)")
+        log("FAIL: no stations loaded after 3 attempts (check WiFi / radio-browser reachability)")
         sys.exit(1)
 
     idx, name = pick_station(dut, args.station_name)
