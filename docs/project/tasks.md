@@ -6245,15 +6245,54 @@ signal TASK-390 flagged as "separate, real, currently unclassified" — it's now
 reproducible, and its supposed auto-recovery isn't working.
 
 **Owner:** Developer · **Deps:** TASK-390 (feeds it), TASK-391/392 (connect-timeout evidence this
-repro's own connect failure is consistent with) · **Priority:** P1 (live-reproducible root-cause
-candidate for a real user-observed defect) · **Status:** open — reproduced, root cause of the
-non-firing terminal-retry not yet found.
+repro's own connect failure is consistent with) · **Priority:** P2 (downgraded from P1 — see
+below; the original freeze was directly witnessed and logged, but three independent real-network
+repro attempts couldn't re-break the retry mechanism, so this is no longer a reliably-reproducible
+defect to hand a Developer as "fix this") · **Status:** open — the render-freeze-while-parked
+*symptom* was live-reproduced once; the *retry-doesn't-recover* mechanism behind it could not be
+re-triggered in three further attempts (see update below). Needs recurrence + better
+instrumentation-at-the-moment before a root cause is findable.
 
 **Update (TASK-395's `T276` test, same day):** the retry re-arm's own condition logic tested
 correctly (PASS, fired at 32s) under `wrDeadUrls`'s synthetic forced-fail path — see TASK-395 for
 the full result. That path never calls the real `connecttohost()`, so this narrows the regression
 to something specific to state left behind by a genuine failed connect, not the retry logic
 itself. Next repro should use a real dead URL (`set wrUrl`), not the synthetic hook.
+
+**Update (real-dead-URL reproduction attempted, same day, human-directed) — could NOT re-break it,
+three separate ways:**
+
+1. **Real raw-IP dead host (`set wrUrl http://192.0.2.1/dead`, RFC 5737 TEST-NET, single injected
+   station, immediate `connecttohost()` failure via the real network stack — no PLAYING ever
+   happened first):** landed terminal `ERROR_UNREACHABLE` on the first attempt. Retry fired
+   reliably at **30s, then 30s, then 30s again** — three consecutive clean cycles, heap stable
+   (54k, no drift), before being stopped manually. (Note: raw-IP hosts hit TASK-295's existing
+   `10000ms` timeout bump, not the normal 250ms — expected, unrelated to this question; each
+   `_play()` attempt itself took ~10s to fail, the *retry cadence* was still a clean 30s.)
+2. **Real hostname (`set wrUrl http://stream.slam.nl/WEB15_MP3`), natural connect → play → stall →
+   stall-retry → second failure → terminal — structurally the same shape as the original human
+   report and this task's own live repro above:** reached terminal `ERROR_STALL`/`ERROR_UNREACHABLE`
+   repeatedly as the real stream connected, played briefly, and stalled again (real StreamTheWorld
+   edge-server flakiness, matches TASK-391's own findings). **The terminal-retry fired every single
+   time it was checked — four separate `"terminal retry — re-arming scan idx=0"` log lines across
+   one continuous ~5-minute session**, each landing back at a fresh connect attempt.
+
+**None of the three independent reproduction methods (synthetic multi-station, real single-station
+immediate-fail, real single-station stall-then-fail matching the original conditions structurally)
+could reproduce the 348+s-with-zero-re-arms behavior originally observed.** The terminal-retry
+mechanism held up under repeated, deliberate stress today. This does not mean the original
+observation was wrong or imagined — it was directly witnessed, logged, and math-checked at the
+time (two independent `last_render_age_ms` readings agreeing on a stable, non-recovering freeze
+duration) — but it does mean **this is not a simple, reliably-reproducible logic defect in the
+retry condition itself.** Candidate explanations, none confirmed: (a) some one-off state left over
+from that specific session's unusually long precursor history (5.5h frozen prod instance, a
+reflash, a real radio-browser 503 mid-session, the `_deferredInject` path) that a clean repro
+wouldn't hit; (b) a genuine but rare timing race that today's ~7 total retry cycles across three
+tests simply didn't happen to trigger. **Downgrading confidence accordingly** — this is now
+"observed once, robust against every repro attempt so far," not "confirmed broken." If it recurs,
+capture `_pendingAction`/`_lastAttemptMs`/`_autoSkipTried` via a debug build at the moment it's
+noticed, before touching anything else — that's the instrumentation this investigation was missing
+each time.
 
 ### TASK-394 — stale `switchApp 10` (WebRadio) in three tools — TASK-347's own follow-up, never filed
 
