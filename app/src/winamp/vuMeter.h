@@ -12,7 +12,16 @@
 // M-VIS (TASK-050a/b/c): tap vis area to cycle Atlas → WaveAtlas → VU → Blank → Atlas.
 // VIS_ATLAS: 20 Hz playback of bar-height atlas from real Winamp footage (PROP-002/TASK-052d).
 // VIS_WAVE_ATLAS: 20 Hz playback of waveform atlas from real Winamp footage (M-WAVE-ATLAS).
-// VIS_SPECTRUM / VIS_WAVE (synthetic) removed from cycle — superseded by atlases.
+// VIS_SPECTRUM / VIS_WAVE (synthetic) removed from the shared cycle — superseded by atlases.
+// TASK-387/M-WEBRADIO-REAL-VIS-SPECTRUM: VIS_SPECTRUM re-added to WebRadio's
+// own tap-cycle only (Atlas → WaveAtlas → VU → Wave → Spectrum → Blank →
+// Atlas), driven by real per-band energy there — see nextMode()'s
+// appHasSpectrum param. TASK-388/M-WEBRADIO-REAL-VIS-WAVE: VIS_WAVE re-added
+// the same way, but repointed to a real 19-column oscilloscope trace
+// (tickWaveTrace()) — the old synthetic sine this slot used to mean is gone,
+// not just unreachable (no call site left once WebRadio owns the slot;
+// Spotify never reached VIS_WAVE either, before or after). Spotify's cycle
+// is unchanged (Atlas → WaveAtlas → VU → Blank).
 // All other modes derive from the same synthetic envelope (lLvl, rLvl, beatRaw).
 //
 // Vis area (window-local): x=24..99 (76px), y=43..58 (16px) — MAIN.BMP border excluded.
@@ -91,15 +100,130 @@ inline VisMode        currentMode()     { return s_modeRef(); }
 inline uint16_t      &atlasFrameRef()     { static uint16_t f = 0; return f; }
 inline uint16_t      &waveAtlasFrameRef() { static uint16_t f = 0; return f; }
 
-inline void nextMode() {
-  VisMode &m = s_modeRef();
+// PROP-005 rung 3 (EXP-018/TASK-387): real per-band energy for VIS_SPECTRUM.
+// Band count matches SPEC_BARS (19, == VIS_ATLAS_BARS — the real-Winamp-
+// footage atlas mode's bar count, i.e. what this firmware's spectrum-style
+// vis already shows). Log-spaced 80 Hz-14 kHz — flash-resident (constexpr),
+// zero DRAM cost (lands in .rodata, confirmed via EXP-018's nm check).
+constexpr int SPEC_BAND_COUNT = 19;
+static_assert(SPEC_BAND_COUNT == SPEC_BARS, "band table must match SPEC_BARS");
+constexpr float SPEC_BAND_FREQ[SPEC_BAND_COUNT] = {
+  80.0f, 106.6f, 142.0f, 189.2f, 252.1f, 335.9f, 447.5f, 596.2f, 794.3f,
+  1058.3f, 1410.0f, 1878.6f, 2502.9f, 3334.7f, 4443.0f, 5919.5f, 7886.8f,
+  10507.9f, 14000.0f,
+};
+
+// EXP-018's storage resolution: SERIAL_DEBUG-enabled builds have ~0 bytes of
+// static-BSS headroom (EXP-015) — even one new 4-byte static pointer
+// overflows the link. tickSpectrum's own specPeak/specH/specVel arrays
+// already exist unconditionally (production code); promoting them from
+// function-local statics to namespace-scope accessors (same pattern as
+// lLevelRef()/rLevelRef()) reuses that existing storage instead of adding a
+// channel — net new static bytes: zero. webRadioApp's audio_process_extern
+// (pump task, real mode) becomes the writer via updateSpectrumBar() below;
+// tickSpectrum itself is the writer in synthetic/Spotify mode — never both
+// at once, same single-writer discipline as lLevelRef()/rLevelRef().
+inline float  *specPeakRef()    { static float  a[SPEC_BARS] = {}; return a; }
+inline float  *specHRef()       { static float  a[SPEC_BARS] = {}; return a; }
+inline float  *specVelRef()     { static float  a[SPEC_BARS] = {}; return a; }
+
+// Spring-damper (3c) + peak-fall smoothing for one spectrum bar, given a raw
+// 0..1 target level. Shared by tickSpectrum's synthetic path and (real mode)
+// webRadioApp's pump-task Goertzel writer — same formula either way, only
+// the caller/cadence differs.
+inline void updateSpectrumBar(int i, float lvl) {
+  if (lvl > 1.0f) lvl = 1.0f;
+  if (lvl < 0.0f) lvl = 0.0f;
+  float *specH    = specHRef();
+  float *specVel  = specVelRef();
+  float *specPeak = specPeakRef();
+  const float targetH = lvl * (float)VIS_H;
+  specVel[i] = 0.7f * specVel[i] + 0.3f * (targetH - specH[i]);
+  specH[i]  += specVel[i];
+  if (specH[i] < 0.0f) specH[i] = 0.0f;
+  if (specH[i] > (float)VIS_H) specH[i] = (float)VIS_H;
+
+  constexpr float kInvVisH = 1.0f / (float)VIS_H;
+  const float smoothLvl = specH[i] * kInvVisH;
+  if (smoothLvl > specPeak[i]) specPeak[i] = smoothLvl;
+  specPeak[i] -= kInvVisH;
+  if (specPeak[i] < 0.0f) specPeak[i] = 0.0f;
+}
+
+// TASK-388/M-WEBRADIO-REAL-VIS-WAVE: real 19-column oscilloscope trace for
+// VIS_WAVE. One column = one decimated sample (plain sub-sampling,
+// idx = i*len/19) from the pump task's most recently decoded block, L
+// channel only (same mono-adjacent simplification tickSpectrum's synthetic
+// mode and the real Goertzel path both already made). int8_t (raw int16
+// sample >> 8) — 19 new bytes, EXP-021-confirmed to fit measured
+// dram0_0_seg headroom; re-verified fresh via .map diff at TASK-388
+// implementation time (that report's own explicit warning: don't trust its
+// snapshot as durable). Ported from the throwaway spike branch
+// rnd/webradio-wave-spike (commits bcd2d0c, b698a2f) — ADR-056/EXP-021/022.
+inline int8_t *waveTraceRef() { static int8_t buf[SPEC_BARS] = {}; return buf; }
+
+// TASK-389: per-mode enable mask for the tap-cycle (Settings > WebRadio >
+// Vis modes). VIS_BLANK has no bit — it's always enabled, the guaranteed
+// fallback if a caller disables every other mode. Bit values are part of
+// the call-site contract (webRadioApp.h builds the mask from g_settings),
+// not persisted directly — settingsStorage.cpp owns the on-disk JSON keys.
+enum ModeFlags : uint8_t {
+  MF_ATLAS      = 1 << 0,
+  MF_WAVE_ATLAS = 1 << 1,
+  MF_VU         = 1 << 2,
+  MF_SPECTRUM   = 1 << 3,
+  MF_WAVE       = 1 << 4,
+  MF_ALL        = MF_ATLAS | MF_WAVE_ATLAS | MF_VU | MF_SPECTRUM | MF_WAVE,
+};
+
+inline bool modeEnabled(VisMode m, uint8_t enabledMask) {
   switch (m) {
-    case VIS_ATLAS_MODE: m = VIS_WAVE_ATLAS; break;
-    case VIS_WAVE_ATLAS: m = VIS_VU;         break;
-    case VIS_VU:         m = VIS_BLANK;      break;
-    case VIS_BLANK:      m = VIS_ATLAS_MODE; break;
-    default:             m = VIS_ATLAS_MODE; break;
+    case VIS_ATLAS_MODE: return enabledMask & MF_ATLAS;
+    case VIS_WAVE_ATLAS: return enabledMask & MF_WAVE_ATLAS;
+    case VIS_VU:         return enabledMask & MF_VU;
+    case VIS_SPECTRUM:   return enabledMask & MF_SPECTRUM;
+    case VIS_WAVE:        return enabledMask & MF_WAVE;
+    default:              return true;   // VIS_BLANK (and anything else): always on
   }
+}
+
+// appHasSpectrum/appHasWave: per-caller branch (same shape as vu::tick()'s
+// realAudio param) — TASK-387/TASK-388, M-WEBRADIO-REAL-VIS-SPECTRUM/WAVE
+// Option B. WebRadio's tap-cycle gains real-data Spectrum and Wave stops;
+// Spotify's stays untouched (ADR-009's synthetic-only reasoning for Spotify
+// is not revisited here). VIS_SPECTRUM/VIS_WAVE always fall through to the
+// next stop regardless of the flag — covers the case where mode state (a
+// global) carried one of them over from WebRadio into a Spotify session;
+// Spotify's own synthetic tickSpectrum path already renders correctly in
+// that case (VIS_WAVE has no synthetic path left to fall back to — see the
+// file-header comment — but Spotify's tap-cycle never lands there either
+// way), this just keeps its own tap-cycle from ever landing there again.
+//
+// enabledMask (TASK-389): the single natural-next hop below is now wrapped
+// in a bounded loop (at most one full lap of the 6-state ring) that skips
+// any mode the mask disables. VIS_BLANK is unconditionally enabled, so the
+// loop is guaranteed to terminate even with every bit clear — the cycle
+// just settles on Blank. Spotify's call site passes the default MF_ALL
+// (irrelevant anyway, since appHasSpectrum/appHasWave=false already keeps
+// it off both) — only WebRadio's call site builds a real mask from g_settings.
+inline void nextMode(bool appHasSpectrum = false, uint8_t enabledMask = MF_ALL,
+                      bool appHasWave = false) {
+  VisMode &m = s_modeRef();
+  VisMode next = m;
+  for (int i = 0; i < 7; i++) {
+    switch (next) {
+      case VIS_ATLAS_MODE: next = VIS_WAVE_ATLAS; break;
+      case VIS_WAVE_ATLAS: next = VIS_VU;         break;
+      case VIS_VU:         next = appHasWave ? VIS_WAVE
+                                  : (appHasSpectrum ? VIS_SPECTRUM : VIS_BLANK); break;
+      case VIS_WAVE:        next = appHasSpectrum ? VIS_SPECTRUM : VIS_BLANK; break;
+      case VIS_SPECTRUM:   next = VIS_BLANK;      break;
+      case VIS_BLANK:      next = VIS_ATLAS_MODE; break;
+      default:              next = VIS_ATLAS_MODE; break;
+    }
+    if (modeEnabled(next, enabledMask)) break;
+  }
+  m = next;
 }
 
 // Restore SKIN_MAIN_BG pixels for the full 76×16 vis area.
@@ -175,17 +299,25 @@ inline void tickVU(int originX, int originY, const uint16_t *mainBg,
 // Peak dots: 3px wide grey, decay 1 row per tick (~50 ms/row).
 // 3c: per-bar spring-damper inertia — bars overshoot and settle on transients.
 // 3e: spectral tilt LFO — rolloff peak drifts ±3 bars over ~14 s.
+// PROP-005 rung 3 (EXP-018/TASK-387): realAudio=true skips the per-bar
+// compute below entirely and just reads specH()/specPeak() as already
+// fresh — real mode's writer is webRadioApp's audio_process_extern, calling
+// updateSpectrumBar() per band per decoded block on the pump task (see the
+// accessor comments above for why this reuses storage instead of adding a
+// channel). Synthetic mode (Spotify, or WebRadio pre-play) is unchanged:
+// still computes envelope/shape/tilt/boost and calls updateSpectrumBar()
+// itself, on the UI thread, exactly as before this refactor.
 inline void tickSpectrum(int originX, int originY, const uint16_t *mainBg,
-                          float lLvl, float rLvl, float beatRaw, long elapsed) {
-  static float  specPeak[SPEC_BARS]    = {};
-  static float  specH[SPEC_BARS]       = {};   // 3c: smoothed bar heights (0..VIS_H)
-  static float  specVel[SPEC_BARS]     = {};   // 3c: bar velocity
+                          float lLvl, float rLvl, float beatRaw, long elapsed,
+                          bool realAudio = false) {
   static int8_t lastBinH[SPEC_BARS]    = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
   static int8_t lastPeakRow[SPEC_BARS] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
 
   const float envelope = (lLvl + rLvl) * 0.5f;
-  // 3e: rolloff peak drifts ±3 bars over ~14 s
+  // 3e: rolloff peak drifts ±3 bars over ~14 s (synthetic mode only)
   const float tilt = lut_sin((float)elapsed * (1.0f / 14000.0f)) * 3.0f;
+  float *specH    = specHRef();
+  float *specPeak = specPeakRef();
 
   // Compute all bars; dedup: skip SPI if nothing changed
   int8_t newBinH[SPEC_BARS];
@@ -193,27 +325,16 @@ inline void tickSpectrum(int originX, int originY, const uint16_t *mainBg,
   bool dirty = false;
 
   for (int i = 0; i < SPEC_BARS; i++) {
-    float ei = (float)i - tilt;                        // 3e: tilt shifts rolloff peak
-    if (ei < 0.0f) ei = 0.0f; if (ei > 18.0f) ei = 18.0f;
-    constexpr float kInv18 = 1.0f / 18.0f;
-    const float shape = 1.0f - (ei * kInv18) * 0.6f;  // pink-noise rolloff, tilted
-    const float boost = (i < 4) ? beatRaw * 0.8f : 0.0f;
-    float lvl = envelope * shape * (1.0f + boost);
-    if (lvl > 1.0f) lvl = 1.0f;
-    if (lvl < 0.0f) lvl = 0.0f;
-
-    // 3c: spring-damper inertia — bars converge toward target over 2–3 ticks
-    const float targetH = lvl * (float)VIS_H;
-    specVel[i] = 0.7f * specVel[i] + 0.3f * (targetH - specH[i]);
-    specH[i]  += specVel[i];
-    if (specH[i] < 0.0f) specH[i] = 0.0f;
-    if (specH[i] > (float)VIS_H) specH[i] = (float)VIS_H;
-
-    constexpr float kInvVisH = 1.0f / (float)VIS_H;
-    const float smoothLvl = specH[i] * kInvVisH;
-    if (smoothLvl > specPeak[i]) specPeak[i] = smoothLvl;
-    specPeak[i] -= kInvVisH;
-    if (specPeak[i] < 0.0f) specPeak[i] = 0.0f;
+    if (!realAudio) {
+      float ei = (float)i - tilt;                        // 3e: tilt shifts rolloff peak
+      if (ei < 0.0f) ei = 0.0f; if (ei > 18.0f) ei = 18.0f;
+      constexpr float kInv18 = 1.0f / 18.0f;
+      const float shape = 1.0f - (ei * kInv18) * 0.6f;  // pink-noise rolloff, tilted
+      const float boost = (i < 4) ? beatRaw * 0.8f : 0.0f;
+      const float lvl = envelope * shape * (1.0f + boost);
+      updateSpectrumBar(i, lvl);
+    }
+    // else: real mode already updated specH/specVel/specPeak on the pump task.
 
     newBinH[i] = (int8_t)(specH[i] + 0.5f);
     int pr = (int)((1.0f - specPeak[i]) * VIS_H);
@@ -283,48 +404,34 @@ inline void tickAtlas(int originX, int originY, const uint16_t *mainBg, bool pla
   tft.endWrite();
 }
 
-// Wave: phase-advancing sine, vertical fill between consecutive samples.
-// Colour: white (0xFFFF). Flat line at midline when paused (lLvl → 0).
-inline void tickWave(int originX, int originY, const uint16_t *mainBg, float lLvl) {
-  static float wavePhase = 0.0f;
-  static constexpr float WAVE_CYCLES = 2.5f;
-  static constexpr float TWO_PI_F    = 6.28318530f;
-  // Rotation matrix: advance sin by kWaveStep per pixel — 2 muls+2 adds vs 1 sinf.
-  static constexpr float kWaveStep = WAVE_CYCLES * TWO_PI_F / float(RECT_W);
-  static const float kWaveSin = sinf(kWaveStep);
-  static const float kWaveCos = cosf(kWaveStep);
-
+// TASK-388/M-WEBRADIO-REAL-VIS-WAVE: real 19-column oscilloscope trace.
+// Reads waveTraceRef() (already fresh — written by webRadioApp's
+// audio_process_extern on the pump task, same single-writer discipline as
+// tickSpectrum/updateSpectrumBar) and draws it as a connected line between
+// columns, oscilloscope-style. Ported from rnd/webradio-wave-spike
+// (bcd2d0c, b698a2f) — full redraw every call, no dirty-diff (spike
+// simplicity; the old synthetic sine this replaces did the same, so this
+// isn't a regression in that respect — optimize only if a real cost
+// problem shows up, per the design doc's exit criteria).
+inline void tickWaveTrace(int originX, int originY, const uint16_t *mainBg) {
   blitVisBackground(originX, originY, mainBg);
-
+  int8_t *buf = waveTraceRef();
   const int centreY = originY + LEFT_Y + (VIS_H - 1) / 2;
   const int yMin    = originY + LEFT_Y;
   const int yMax    = originY + LEFT_Y + VIS_H - 1;
-  int prevY = centreY;
 
-  // Seed rotation state at wavePhase
-  float wave  = lut_sin(wavePhase);
-  float waveC = lut_cos(wavePhase);
+  int prevX = originX + RECT_X;
+  int prevY = constrain(centreY + ((int)buf[0] * (VIS_H / 2)) / 127, yMin, yMax);
 
   tft.startWrite();
-  for (int x = 0; x < RECT_W; x++) {
-    int y = centreY + (int)roundf(lLvl * 5.0f * wave);
-    if (y < yMin) y = yMin;
-    if (y > yMax) y = yMax;
-
-    const int yTop = (x == 0) ? y : (y < prevY ? y : prevY);
-    const int yBot = (x == 0) ? y : (y > prevY ? y : prevY);
-    tft.drawFastVLine(originX + RECT_X + x, yTop, yBot - yTop + 1, VIS_WAVE_COLOR);
+  for (int i = 1; i < SPEC_BARS; i++) {
+    const int x = originX + RECT_X + i * SPEC_BAR_STEP;
+    const int y = constrain(centreY + ((int)buf[i] * (VIS_H / 2)) / 127, yMin, yMax);
+    tft.drawLine(prevX, prevY, x, y, VIS_WAVE_COLOR);
+    prevX = x;
     prevY = y;
-
-    // Advance: sin(a+step) = sin(a)*cos(step) + cos(a)*sin(step)
-    float nw = wave * kWaveCos - waveC * kWaveSin;
-    waveC     = wave * kWaveSin + waveC * kWaveCos;
-    wave      = nw;
   }
   tft.endWrite();
-
-  wavePhase += 0.3f;
-  if (wavePhase > TWO_PI_F * 32.0f) wavePhase -= TWO_PI_F * 32.0f;
 }
 
 // WaveAtlas: play back pre-extracted waveform rows from real Winamp footage.
@@ -432,9 +539,9 @@ inline void tick(int originX, int originY, const uint16_t *mainBg, bool playing,
 
   switch (cur) {
     case VIS_VU:         tickVU(originX, originY, mainBg, lLvl, rLvl); break;
-    case VIS_SPECTRUM:   tickSpectrum(originX, originY, mainBg, lLvl, rLvl, beatRaw, elapsed); break;
+    case VIS_SPECTRUM:   tickSpectrum(originX, originY, mainBg, lLvl, rLvl, beatRaw, elapsed, realAudio); break;
     case VIS_ATLAS_MODE: tickAtlas(originX, originY, mainBg, playing); break;
-    case VIS_WAVE:       tickWave(originX, originY, mainBg, lLvl); break;
+    case VIS_WAVE:       tickWaveTrace(originX, originY, mainBg); break;
     case VIS_WAVE_ATLAS: tickWaveAtlas(originX, originY, mainBg); break;
     case VIS_BLANK:      break;  // background blitted on mode entry above
   }

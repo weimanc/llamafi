@@ -5606,3 +5606,457 @@ vs. a first-attempt `code=-1` with no retry (TASK-383's class) vs. something new
 `_diag_snapshot()` lines for a heap/queue/tlsYield trend · **Priority:** P3 (unchanged) ·
 **Status:** **OPEN — instrumented and validated working under real suite conditions; 0/1 full-suite
 repro for both tests so far** (T204 directly confirmed clean, T-BUSY-01 via exhaustive sweep).
+
+---
+
+## Open — M-WEBRADIO-REAL-VIS follow-on: Spectrum + Wave graduation (2026-08-02)
+
+Two Architect design docs (`M-WEBRADIO-REAL-VIS-SPECTRUM.md`, `M-WEBRADIO-REAL-VIS-WAVE.md`)
+resolved the open tap-cycle-length question by human decision 2026-08-02: ship both together,
+keep `VIS_WAVE_ATLAS`. WebRadio's tap-cycle becomes the 6-stop Atlas → WaveAtlas → VU → Wave →
+Spectrum → Blank → Atlas; Spotify's cycle is untouched (Atlas → WaveAtlas → VU → Blank). Both
+tasks are DUT-gated (no DUT this session — scheduled, not started).
+
+### TASK-387 — M-WEBRADIO-REAL-VIS: graduate real per-band spectrum energy (PROP-005 rung 3)
+
+Graduates EXP-018's already-built real 19-band Goertzel spectrum analyzer (branch
+`rnd/webradio-vis`) to production. Promote `tickSpectrum`'s `specPeak`/`specH`/`specVel` arrays
+to namespace-scope accessors (`vu::specHRef()` etc., same pattern as `lLevelRef()`/`rLevelRef()`);
+extract `vu::updateSpectrumBar(i, lvl)` for the pump task (`audio_process_extern`) to call
+per-band per decoded block. Revive `VIS_SPECTRUM` in WebRadio's tap-cycle only — `nextMode()`
+gains a per-caller branch (same shape as `vu::tick()`'s existing `realAudio` parameter), Spotify's
+cycle stays Atlas/WaveAtlas/VU/Blank. Ship a per-band makeup-gain pass in the same PR to address
+EXP-018's "under-driven relative to rung 2" finding — not deferred to a follow-up.
+
+**Exit criteria:** zero new static bytes (linker `.map` diff vs. pre-change build); `get wrPump`
+`maxPumpMs` unchanged at 42ms vs. TASK-278/rung-2 baseline; WebRadio tap-cycle reaches Spectrum,
+Spotify's does not (VE regression); human eyeball gate (BP-048-style) confirms spectrum mode
+visibly tracks real program material and reads acceptably close to VU's liveliness after the gain
+pass; new VE test ids added to `run_serialdbg_tests.py` mirroring T_WR_VIS_01/02/03's shape.
+
+**Owner:** Developer · **Deps:** vu-002/ADR-056 (rung 2, shipped), PROP-005/EXP-018 (cost-cleared
+on `rnd/webradio-vis`, not yet ported to master) · **Design:**
+[M-WEBRADIO-REAL-VIS-SPECTRUM.md](../architecture/designs/M-WEBRADIO-REAL-VIS-SPECTRUM.md) ·
+**Registers:** vu-003, X044 (both now `implemented`) ·
+**Priority:** P2 · **Status:** DONE (2026-08-03, implementation + DUT verification; code
+uncommitted pending human review — see feature_inventory.yaml `vu-003` for full evidence).
+
+**Implementation notes:** all four exit criteria met. Zero new static bytes confirmed via a
+byte-for-byte `.dram0.data`/`.dram0.bss` `.map` diff against the pre-change build, on both
+`cyd2usb_winamp` and `cyd2usb_winamp_debug` (not just the RnD branch's earlier measurement).
+Isolated `get wrPump` reads (45s, no concurrent traffic) measured `maxPumpMs=43-47ms` vs.
+EXP-018's 42ms baseline — within noise, under the 50ms ceiling. WebRadio's tap-cycle confirmed
+on DUT to visit Atlas(0)->WaveAtlas(3)->VU(1)->Spectrum(4)->Blank(2)->Atlas(0); Spotify's
+confirmed to stay within {0,1,2,3}, visMode=4 never observed. Gain table (20dB base + 1.0dB/band
+tilt) derived empirically via a new `get wrSpec` debug getter (dumps the promoted `specH()` bar
+heights) — landed at Spectrum/VU screendump pixel deltas of 415 vs. 433 out of 9800 (comparable
+liveliness), full 0..16 bar-height range exercised on loud content. Added T_WR_VIS_04/05 to
+`run_serialdbg_tests.py` (spectrum reachability + real-data animation; Spotify regression guard).
+
+**Bug found + fixed along the way (not scoped originally, but blocking VE's own reachability
+check):** `cmdTap`'s WebRadio branch in `main.cpp` called both `winampDisplay.injectTouch()`
+(Press phase — hits the shared `hitVis` branch built for Spotify's real touch path) and
+WebRadioApp's own Release-phase vis handler on every synthetic vis-zone tap, double-stepping
+`vu::nextMode()` per `tap` command. Harmless while `nextMode()` took no args; broken once the two
+calls started passing different `appHasSpectrum` values (synthetic taps got stuck oscillating
+between `VIS_ATLAS_MODE` and `VIS_VU` only, WAVE_ATLAS/BLANK/SPECTRUM all unreachable via the
+debug `tap` command — pre-existing, just never exercised since no prior test needed those
+indices). Fixed by skipping `injectTouch` for vis-zone coordinates under WebRadio and building
+the diagnostic JSON directly. Real hardware touch was never affected (single dispatch via
+`WebRadioApp::handleInput` only) — synthetic-harness-only defect.
+
+**Automated suite this session:** T_WR_VIS_01/02/04 SKIPped (radio-browser station fetch
+returned 0 stations — live recurrence of the pre-existing TASK-284 mirror-flakiness/rate-limit
+issue; the manual DUT session minutes earlier successfully loaded 30 stations and exercised the
+same assertions directly). T_WR_VIS_03/05 SKIPped on the pre-existing TASK-243 external blocker
+(Premium lapsed). Re-run `run/test-targeted T_WR_VIS_01,T_WR_VIS_02,T_WR_VIS_03,T_WR_VIS_04,T_WR_VIS_05`
+next session once station fetch/Spotify are healthy, for the formal automated PASS record.
+
+### TASK-388 — M-WEBRADIO-REAL-VIS: real 19-column waveform trace for WebRadio's "Wave" mode
+
+**Rescoped 2026-08-02 (same day as filing) — see history below for the original scope.**
+PROP-009 validated a 19-column real oscilloscope-style trace (EXP-021: storage: fits today's
+measured 40-byte `dram0_0_seg` headroom directly, no reuse-overlay needed; EXP-022: decode-tail
+44ms, noise vs. the 42ms baseline; visual: screendump pairs show the trace changing *shape* — not
+just height — between a jagged speech passage and a quiet pause on live program material) in the
+same DUT session this task was filed in. Human decision, presented with both the originally-scoped
+amplitude-only sine and the validated trace: **ship the trace, not the sine.** WebRadio's "Wave"
+tap-cycle slot now means the 19-column real trace.
+
+Production implementation ports `vu::waveTraceRef()` (19-byte namespace-scope static) and
+`vu::tickWaveTrace()` from the throwaway spike branch `rnd/webradio-wave-spike` (commits `bcd2d0c`,
+`b698a2f`) — the spike's renderer was a full-redraw-per-call implementation for DUT observability,
+not tuned for production (no dirty-diff; fine as a starting point). Decimation is plain
+sub-sampling of the pump task's most recently decoded block (`idx = i*len/19`), overwriting the
+whole 19-byte array every `audio_process_extern` call — single writer, same never-both-active
+argument already established for `lLevelRef()`/`rLevelRef()` (X043) and the promoted spectrum
+arrays (X044).
+
+<details><summary>Original scope at filing (superseded same day)</summary>
+
+Originally: feed real audio amplitude (`vu::lLevelRef()`) into the currently-dormant synthetic
+`VIS_WAVE` sine (`tickWave()`) — cheap, zero new storage, but the sine's *shape* stayed synthetic,
+only its *height* tracked real audio. The true-oscilloscope variant was explicitly out of scope at
+filing, deferred to PROP-009 (then unstarted). PROP-009 ran to completion the same session,
+proving the trace affordable at comparable cost with a strictly better result — see
+`M-WEBRADIO-REAL-VIS-WAVE.md`'s amendment section for the full rationale for replacing rather than
+shipping both.
+
+</details>
+
+**Exit criteria:** re-verify storage headroom fresh at implementation time (don't trust EXP-021's
+40-byte snapshot as durable — explicit warning in that report); `get wrPump` `maxPumpMs` unchanged
+vs. TASK-278/42ms baseline on the production build (spike measured 44ms, noise); WebRadio tap-cycle
+reaches Wave with the real trace visibly animating in *shape* (not just amplitude) — screendump-diff
+check extended to assert shape variance, not just a raw pixel-delta threshold; Spotify's cycle
+unaffected; human eyeball gate — spot-check more than one station (this session's evidence was one
+NPO news/talk relay; worth checking a music station too, since speech's silence-vs-speech contrast
+may look more dramatic than continuous music would).
+
+**Owner:** Developer · **Deps:** PROP-009/EXP-021/EXP-022 (validated the shipped approach, spike
+code to port from `rnd/webradio-wave-spike`), X043/X044 (precedent for the single-writer argument) ·
+**Design:** [M-WEBRADIO-REAL-VIS-WAVE.md](../architecture/designs/M-WEBRADIO-REAL-VIS-WAVE.md) ·
+**Registers:** vu-004, X045 (both now `implemented`) ·
+**Priority:** P2 · **Status:** DONE (2026-08-03, implementation + DUT verification; code uncommitted
+pending human review, same as TASK-387/389 this session).
+
+**Implementation notes:** ported `vu::waveTraceRef()`/`vu::tickWaveTrace()` from
+`rnd/webradio-wave-spike` verbatim (`bcd2d0c`/`b698a2f`) — full-redraw renderer, no dirty-diff, per
+the design doc's explicit "acceptable starting point" allowance. The old synthetic `tickWave()`
+sine became genuinely dead code once `VIS_WAVE`'s tap-cycle slot repoints to the real trace (no
+call site left anywhere, for either app) — deleted rather than left unreachable, per the
+project's no-half-finished/no-dead-code convention. `vu::nextMode()` gained a second per-caller
+flag (`appHasWave`, alongside TASK-387's `appHasSpectrum`) and the ring grew to 6 stops for
+WebRadio: Atlas → WaveAtlas → VU → **Wave** → Spectrum → Blank → Atlas. `webRadioApp.h`'s
+`audio_process_extern` decimates the L channel of each decoded block to 19 columns
+(`idx = i*len/19`) directly into `waveTraceRef()`, unconditionally (display-independent, same as
+the Goertzel spectrum writer). TASK-389's toggle scheme extended to 5 modes (`webRadioVisWave`
+added, default true) — Settings > WebRadio > Vis modes' sub-view now has 5 rows, reordered to
+match the actual tap-cycle order.
+
+**Storage headroom re-verified fresh (per the design doc's explicit warning not to trust EXP-021's
+40 B snapshot as durable):** current measured headroom on `cyd2usb_winamp_debug` is **20 B** after
+this task's 19-byte trace array + 1 new settings bool (down from ~32 B after TASK-389 alone,
+~40 B baseline 2026-08-02 before either) — both envs still link cleanly. This is a fast-shrinking
+margin; the next feature that needs new static-BSS on this board should budget time for a
+storage-reuse search rather than assuming a small addition still fits.
+
+**Decode-tail measurement had a real confound this session, resolved by A/B test:** initial
+isolated `get wrPump` reads (45 s wait, no concurrent traffic — same methodology as T_WR_VIS_01)
+measured 78-123 ms, well over the 50 ms ceiling. Temporarily `#if 0`-disabling the new trace-write
+code and re-measuring gave an even *worse* result (311 ms, `maxMutexWaitMs`=6533 ms) — proving the
+regression was not attributable to this task's code at all. Root cause: the persisted `lastStation`
+(index 2) was itself stalling/reconnecting during the test window (matches the known TASK-284
+station-fetch-flakiness pattern). Switching to a known-reliable relay
+(`icecast.omroep.nl/radio1-bb-mp3`, this project's established fallback for ad-hoc WebRadio DUT
+testing) with the trace code re-enabled gave two clean isolated reads: **49 ms and 50 ms** — right
+at EXP-022's spike measurement (44 ms) plus TASK-387's Goertzel baseline, within the 50 ms ceiling
+but with less margin than before. Worth a closer look next session if a future feature needs to
+add more per-block work to this same pump-task budget.
+
+**DUT verification (2026-08-03):** WebRadio's 6-stop tap-cycle confirmed via `get visMode`:
+`0→3→1→5→4→2→0→3` (Atlas→WaveAtlas→VU→Wave→Spectrum→Blank→Atlas). `get wrWave` (new debug getter,
+dumps the 19 raw trace samples) showed flat zeros while the stream was still connecting, then
+genuine shape variance once audio flowed (sample spread up to 76 between adjacent columns,
+changing shape not just height across successive reads) — the exact property this mode exists
+for, confirmed non-visually via the numeric getter rather than only a screendump diff. Spotify's
+tap-cycle reconfirmed to visit only `{0,1,2,3}` across 8 taps, never reaching Wave(5) or
+Spectrum(4). Settings UI screendump-confirmed for both all-off and all-on states of the 5-row
+sub-view, no overlap. `run/check` 6/6 both times.
+
+**Not done this session:** human eyeball gate across more than one station (design doc's own
+explicit ask) — only the NPO relay was exercised after the degraded-station confound above; the
+original design doc also flagged wanting a music station in addition to a news/talk one. Worth a
+follow-up DUT pass.
+
+### TASK-389 — Settings > WebRadio: per-mode vis-cycle toggle (mock vs. audio-driven)
+
+Human-requested follow-on to TASK-387: a Settings option to include/exclude each of WebRadio's
+four toggleable tap-cycle vis modes (`Atlas`, `WaveAtlas` — pre-recorded/mock; `VU`, `Spectrum` —
+real audio-driven, TASK-369/TASK-387) independently. `VIS_BLANK` has no toggle — always the
+guaranteed cycle fallback.
+
+**Implementation:** four new `AppSettings` bools (`webRadioVisAtlas`/`webRadioVisWaveAtlas`/
+`webRadioVisVU`/`webRadioVisSpectrum`, default `true` — today's full 5-stop cycle, unchanged until
+a user opts to trim it), wired through `SettingsStorage::load()`/`save()` per ADR-050. `vu::nextMode()`
+(`vuMeter.h`) gains an `enabledMask` parameter (new `vu::ModeFlags` bitmask) and now loops (bounded
+to one lap of the 5-state ring) skipping disabled modes instead of a single fixed hop — `VIS_BLANK`
+is unconditionally "enabled" in the mask check, so the loop always terminates, settling on Blank if
+every togglable mode is off. WebRadio's tap handler (`webRadioApp.h`) builds the mask fresh from
+`g_settings` on every tap (cheap enough not to cache — a live Settings edit takes effect on the very
+next tap). Spotify's call site is unaffected (default full mask; `appHasSpectrum=false` already
+keeps Spectrum off there regardless).
+
+**Settings UI:** new "Vis modes" row (row 6) in the existing WebRadio settings list — chevron +
+`N/4` summary value, same idiom as PlaneRadar's Locations row — opens a dedicated 4-row toggle
+sub-view (`_wrVisActive`, mirrors `_prLocActive`'s gating pattern in `appsSection.h`, but without
+PlaneRadar's keyboard/picker machinery — this sub-view is plain tap-to-toggle rows only). Added
+`_wrRowSub()` (`_wrSub() && !_wrVisActive`) to correctly exclude the Max-volume slider's
+Press/Move/Release phase-forwarding while the vis sub-view is showing (was gated on `_wrSub()`
+alone, which stayed true inside the sub-view too).
+
+**Exit criteria — all DUT-confirmed (2026-08-03):** `run/check` 6/6 + settings-wiring gate green
+(54 fields, 4 new, all wired); zero new static bytes was NOT the bar here (unlike TASK-387's
+pump-task real-time constraint) — `.dram0.bss` grew a normal +8 B for the 4 new persisted bools,
+well within the ~40 B headroom measured 2026-08-02, confirmed the build still links on both envs.
+DUT-driven Settings navigation (switchApp → tap Applications → tap WebRadio row → tap Vis modes
+row → toggle rows → back×3) confirmed submenu/section state transitions correct at every step.
+Screendump confirmed both the row-view "Vis modes 4/4 >" row and the 4-row sub-view render legibly
+with kit styling. Live tap-cycle behavior confirmed for all three cases: VU+Spectrum disabled →
+cycle visits only {WaveAtlas, Blank, Atlas}; Atlas+WaveAtlas disabled → cycle visits only
+{VU, Spectrum, Blank}; all four disabled → cycle settles on Blank only, no hang/crash. Device
+left in the default all-on state.
+
+**Owner:** Developer · **Deps:** TASK-387 (vu-003/X044, DONE), TASK-369 (vu-002/X043, DONE — VU's
+`realAudio` seam this reuses) · **Priority:** P3 (UX customization, not a correctness fix) ·
+**Status:** DONE (2026-08-03, implementation + DUT verification; code uncommitted pending human
+review, same as TASK-387 this session).
+
+**Follow-up (same session, human feedback):** the row labels alone ("Atlas", "WaveAtlas", "VU",
+"Spectrum") didn't communicate which pair is pre-recorded vs. real-audio-driven. Fixed with
+explicit `"(mock)"`/`"(real)"` label suffixes plus color (real-mode rows in `TFT_GREEN`, matching
+`vuMeter.h`'s own `levelColor()` "signal present" convention — mock rows stay plain white), and a
+one-line grey legend under the four rows ("mock = pre-recorded, real = today's audio"). Screendump-
+confirmed both the normal and all-off states render without overlap.
+
+### TASK-390 — WebRadio marquee/title display freezes on sustained real playback — unconfirmed, filed for investigation
+
+**Filed 2026-08-03, human-observed live on DUT (production firmware, not a test-harness finding).**
+While a WebRadio station (SLAM!, a real Dutch commercial station — matches the default
+`webRadioCountry=NL`) had been playing for an extended, unmeasured duration, the marquee/title
+area froze showing a fragment of a show name ("...n de pauzuh", likely "in de pauze" — Dutch for
+"on break"/between-programme ID). Human confirmed the touchscreen was still responding to input
+at the time — this rules out a full `loopTask` hang (touch polling and the marquee tick both run
+in the same `loop()`), so this is not TASK-285/288's class of watchdog-relevant freeze.
+
+**Corroborating evidence, from the live serial heartbeat (not reconstructed after the fact):**
+`last_render_age_ms` was climbing in exact lockstep with `uptime` across three consecutive
+30s-interval heartbeats (32027 → 62027 → 92027, i.e. +30000 each time) — zero full-screen repaints
+happened in that window and counting. This is a *display-pipeline* symptom, not merely "the ICY
+title stopped updating text" — something stopped calling the render path that would normally fire
+every tick regardless of content changes.
+
+**No forensic trail into the actual triggering event.** The monitor session capturing the original
+freeze went silent independently (the board's CH340 adapter flapped `/dev/ttyUSB0` → `/dev/ttyUSB1`
+mid-session — a known quirk, see `docs/process/dut_workflow.md`), and was killed/restarted before
+its scrollback could be searched for the triggering sequence. Production firmware
+(`cyd2usb_winamp`, no `SERIAL_DEBUG`) has no live `get`/`set` query surface, so nothing could be
+pulled from the frozen device directly either. This task starts from symptom + one confirmed
+mechanism-level fact (render pipeline stalled, not full loopTask) and no direct cause evidence.
+
+**Diagnostic gap found while investigating (worth closing regardless of root cause):** neither
+`WinampDisplay`'s marquee state (`titleScrollOffset`/`titleScrollDeadline`/`lastTitle`/
+`_wifiDownOverrideActive` — `winampDisplay.h:693-710`) nor the WiFi-down-override latch has any
+debug getter today. `get wrIcy` (webRadioApp.h) exposes the *source* ICY title but not what the
+marquee is actually doing with it — there is currently no way to tell "ICY title stopped arriving"
+apart from "marquee logic itself is stuck" apart from "WiFi-down override latched and never
+cleared" without new instrumentation.
+
+**Plausible causes, ranked most to least likely (all unconfirmed — this is the investigation's
+starting hypothesis set, same discipline as TASK-385/386):**
+
+1. **ICY-metadata pipeline stalled independent of audio/touch/loopTask.** `s_icyTitleQueue`
+   (`webRadioApp.h:107`, single-slot `xQueueOverwrite`) is fed by the Audio library's metadata
+   callback and drained non-blockingly in `tick()`. The existing stall-detection apparatus
+   (`WR_STREAM_DEAD_MS`, TASK-218/291's "no bytes consumed" debounce) is tuned to catch the PCM
+   byte-level stall case; it's unconfirmed whether metadata delivery specifically can silently stop
+   while byte-level stall-detection still reads the stream as healthy (or vice versa — audio still
+   audibly playing while metadata parsing wedges). This would produce exactly the observed symptom:
+   a real, stale title frozen on screen, with everything else (touch, heartbeat, presumably audio)
+   still alive. Distinguishing test: `get wrIcy` during a live freeze — if it matches the frozen
+   on-screen text, metadata delivery stopped upstream of the marquee; if it shows a *newer* title
+   the marquee never picked up, the bug is in the marquee's consumption of the queue instead.
+2. **Marquee scroll-state stuck independent of ICY delivery.** `_tickMarquee()`
+   (`winampDisplay.h:836`) only redraws when `titleScrollDeadline != 0 && millis() >= deadline`. A
+   short title intentionally sets `titleScrollDeadline = 0` (static display, no scroll — not a bug
+   by itself), but if a *new* title never gets to `setTitle()` at all (see hypothesis 1) this reads
+   identically to "marquee is broken." Needs the new getter (below) to tell apart from hypothesis 1.
+3. **WiFi-down override (`_wifiDownOverrideActive`, `winampDisplay.h:196-234`) latched and never
+   cleared.** Ranked low-likelihood specifically because the visible text was real station content
+   ("...n de pauzuh"), not the override's fixed `"WI-FI: RECONNECTING..."` string — if this were
+   active, that string would show, not stale station content. Kept as a hypothesis only because the
+   override *could* have engaged and cleared earlier in the session in a way that left some other
+   state inconsistent; the getter below settles it in one read.
+4. **Extended-uptime resource contention as a contributing factor, not the direct mechanism.** The
+   live log showed Spotify's background poll continuously failing (`HTTPC_CONNECTION_REFUSED`
+   alternating with `403`, backoff climbing every ~30-60s cycle) concurrently with WebRadio
+   playback, for over an hour of uptime by the time the freeze was noticed. Matches this project's
+   prior tlsYield-contention/heap-fragmentation-under-sustained-load precedent class
+   (TASK-287/288/289, and TASK-385/386's still-open hypotheses for an unrelated app). Not a
+   standalone mechanism — would need to combine with 1 or 2 to actually produce a frozen marquee —
+   but worth checking `get heap`'s `lfbInt`/`lfbDma` at repro time against this session's
+   established baselines.
+5. **Regression from today's TASK-387/388/389 changes.** Lowest likelihood: none of today's edits
+   touch `WinampDisplay`'s marquee code, the ICY queue, or the top-level render dispatch — they're
+   scoped to the vis area (`vuMeter.h`), `audio_process_extern`'s per-block math
+   (`webRadioApp.h`), and the Settings UI (`appsSection.h`/`settingsStorage.*`). Kept as a
+   hypothesis only for completeness and because it's the cheapest to rule out: if reproduced, A/B
+   against a build with today's three commits reverted settles it in one soak.
+
+**Investigation plan (not yet executed — DUT-gated, needs a long unattended/monitored window):**
+
+- Add a `get wrMarquee` debug getter (mirrors this session's `wrSpec`/`wrWave` precedent) dumping
+  `titleScrollOffset`, `titleScrollDeadline` (plus `millis()` so the caller can compute the delta
+  without a race), `lastTitle`, and `_wifiDownOverrideActive` — the single missing piece that lets
+  hypotheses 1-3 be told apart the moment a freeze is caught live.
+- Flash `cyd2usb_winamp_debug`, tune into a real, currently-live station — ideally SLAM! or another
+  ID-heavy commercial station (frequent title changes stress the ICY-update path harder than a
+  quiet talk station would) — and sustain playback for an extended, unattended window (no existing
+  canned soak fits this: `run/wr-soak` cycles play/leave every ~20s by design, which is the wrong
+  shape for a "sits on one station for a long time" bug). Leave Spotify's background poll running
+  rather than suspending it, matching the environment the original freeze happened in (hypothesis 4
+  needs that concurrent churn present to have a chance of mattering).
+- Poll `get wrIcy` + the new `get wrMarquee` + `get heap` + `get wrPump` + a screendump on an
+  interval (e.g. every 60-120s) for the full soak duration. On a freeze: compare `wrIcy` against
+  the on-screen text and `wrMarquee`'s state to place the fault per hypothesis 1 vs. 2 vs. 3.
+- If not reproduced in a reasonable window (say, 60-90 min — unknown true MTTF, this is a budget
+  not a bound): disposition as unconfirmed/intermittent, same honest framing TASK-385/386 already
+  use, rather than closing on absence of a forced repro.
+
+**Architect review (2026-08-03):** No new ADR or design doc warranted — this is a bug
+investigation with a small, well-scoped diagnostic addition (one debug getter, read-only, no new
+persistent state, no cross-component interface change), not a design decision. Cross-component
+note worth flagging for whoever picks this up: hypothesis 1's queue (`s_icyTitleQueue`) and the
+marquee's `setTitle()` gate both live on the boundary between the pump/Audio-library callback
+context and the UI-thread render path — same class of boundary TASK-387/388 already had to reason
+about carefully for `vu::specHRef()`/`waveTraceRef()` (single-writer discipline). Worth explicitly
+confirming the ICY callback and `tick()`'s drain are still correctly single-producer/single-consumer
+before assuming the queue mechanism itself is innocent — it wasn't audited as part of this filing.
+No storage-headroom concern: `get wrMarquee` is a pure read-only getter over existing fields, same
+shape as `wrSpec`/`wrWave` (net zero new static bytes) — this board's shrinking `dram0_0_seg`
+headroom (see `[[project_webradio_headroom_finding]]`, 20B as of this session) is not at risk here,
+but flagging since it's a live constraint on this exact file. Approved for scheduling as filed.
+
+**VE review (2026-08-03):** Exit criteria as drafted above are testable but not yet automatable —
+this is a real gap, not an oversight: the repro depends on real-world station content and an
+unknown, possibly long, time-to-failure, which doesn't fit `run_serialdbg_tests.py`'s
+short-deterministic-assertion model. Recommend, once reproduced at least once with the new getter:
+(a) capture the exact `wrIcy`/`wrMarquee` state pairing that a real freeze produces and turn *that*
+specific signature into a fast synthetic test (`set wrIcy <value>` injection already exists per
+`webRadioApp.h:1347-1350` — a synthetic repro harness is plausible once the real mechanism is
+known, not before); (b) until then, this stays a manual/soak-verified item, not a suite addition —
+do not force a T_WR_MARQUEE_xx id into `run_serialdbg_tests.py` before the failure mode is
+understood, that would just encode a guess as a permanent assertion. Testability challenge for the
+Developer taking this on: the "not reproduced in 60-90 min" disposition path needs an explicit,
+stated confidence level (this is a budget, not a bound, per the investigation plan above) — don't
+let a single clean soak read as "fixed" the way TASK-385's first isolated-rerun mistake did.
+
+**Owner:** Developer (investigation) · **Deps:** none blocking; loosely related to TASK-385/386's
+open extended-uptime/resource-contention hypothesis class (#4 above) and shares this session's
+`get wrSpec`/`get wrWave` getter precedent for the new `get wrMarquee` · **Gate:** DUT session with
+an extended unattended soak window, new getter added first · **Priority:** P2 (real user-observed
+defect on production firmware, not a test artifact) · **Status:** open — filed, reviewed
+(Architect approved as filed; VE flagged the automation gap above), **soak attempted same session,
+paused mid-investigation — see below.**
+
+**Soak attempt 2026-08-03 (same day as filing) — paused, not completed.** `get wrMarquee`
+implemented (`winampDisplay.h`, chained through the existing `spotifyDisplay->dbgGet()` polymorphic
+path — `spotifyDisplay` is `&winampDisplay` for this build, so no new dispatch wiring was needed;
+zero new static bytes, confirmed via unchanged RAM-used in the build report). Flashed
+`cyd2usb_winamp_debug`, entered WebRadio with Spotify's background poll deliberately left running
+(matching the original freeze's environment), loaded the real 30-station NL list, selected "SLAM!
+DANCE CLASSICS" (index 23 — the closest real match to the human's original report), started
+playback.
+
+**What actually happened, not what was originally being tested for:** within 90s, `wrState`
+transitioned to `ERROR_UNREACHABLE` ("Station unreachable") and stayed there across 4 consecutive
+90s-spaced polls (240s+) with zero visible recovery. This is **not** the originally-reported
+symptom — the marquee correctly showed the error text, not frozen-stale-real-content — but it's a
+second, real, DUT-observed WebRadio defect-shaped signal worth its own line: `wrPump` stayed alive
+with `cycles` climbing steadily (~45,000/90s, consistent, no stall in the pump task itself) and
+heap stayed rock-stable (`lfbInt` flat at 42996 across the whole window, no fragmentation) — so
+whatever's happening isn't a crash, leak, or pump-task hang, just an apparent failure to progress
+past the error state.
+
+**Self-caught methodology gap, worth recording as its own lesson:** the first soak's poller
+captured `wrState`/`wrIcy`/`wrMarquee`/`heap`/`wrPump` but **not** `wrIdx` or `get wrSkip`
+(`autoSkip`/`tried`/`retries`). `webRadioApp.h:610-648`'s auto-skip logic has two layers — an
+immediate multi-station burn-through on connect failure, and (once parked in a terminal error) a
+30s-paced re-arm that retries whatever station it's currently parked on, not necessarily a
+*different* one. Without `wrIdx` per-poll, "stuck in `ERROR_UNREACHABLE` for 4 minutes" cannot be
+told apart from "auto-skip correctly cycling through a network that's currently bad end-to-end" —
+these look identical from `wrState` alone. **Initially over-called this as a confirmed stuck-state
+bug before catching the gap** — corrected before writing it up as more certain than the evidence
+supports. This is exactly the discipline TASK-385's history already flagged (don't let an
+incomplete read pass as a confirmed finding) — recorded here as a second instance of the same
+lesson, not just a one-off.
+
+**Follow-up attempt blocked, investigation paused (human decision):** rebuilt the poller to add
+`wrIdx`/`get wrSkip`, but the station-list fetch then failed **three consecutive times** on
+re-entry — confirmed NOT the heap-guard this time (`get heap` on a fresh boot showed
+`lfbInt=42996`, comfortably clear of the ~40k gate) — a live recurrence of the pre-existing
+TASK-284 radio-browser-flakiness class, not a new issue and not something to hammer further
+per that task's own "space out fetches" lesson. Human paused the investigation here rather than
+continuing to burn reconnect/fetch attempts against a currently-uncooperative external service.
+Production firmware restored, DUT left clean.
+
+**State for whoever resumes this:** the original marquee-freeze-with-stale-content symptom was
+**not reproduced** this session — zero data either way on hypotheses 1-3. The `ERROR_UNREACHABLE`-
+parking observation above is a **separate, real signal**, currently unclassified (bug vs. expected
+behavior against bad network conditions) pending a clean run with `wrIdx`/`wrSkip` instrumentation
+(the corrected poller already exists, just never got a clean station-list fetch to run against —
+`/tmp` scratch path from this session, not committed; whoever resumes should rewrite it fresh
+rather than hunt for the throwaway). Next session: retry once radio-browser is healthy again
+(`get wrCount` succeeding is the go/no-go signal, same as every other WebRadio DUT session this
+project has had), watch `wrIdx` specifically to resolve the auto-skip question first — that's now
+higher-priority than the original marquee hypothesis, since it's the thing actually reproduced.
+
+### TASK-391 — Host-side network reproduction harness for WebRadio connectivity (informs TASK-390)
+
+**Filed 2026-08-03, human-directed** to determine whether TASK-390's `ERROR_UNREACHABLE`-parking
+finding is reproducible from a host machine on the same WiFi SSID as the DUT (same router/ISP
+path, different hardware) — separating "network/station/CDN-side problem" from "DUT-specific."
+
+**Concrete lead found while drafting the design (not yet tested, not yet applied as a fix):**
+`ESP32-audioI2S`'s `Audio::connecttohost()` defaults its TCP-connect timeout to **250ms for plain
+HTTP, 2700ms for HTTPS** (`Audio.h:530-531`) and `webRadioApp.h` never raises it via
+`setConnectionTimeout()`. That's an unusually tight budget for a real TCP handshake to a remote
+icecast/shoutcast host over consumer internet — a connect that would succeed in 300-400ms reads
+identically to a genuinely dead station from the app's perspective, and could explain an entire
+station list appearing "unreachable" in quick succession without any real outage. This is the
+leading hypothesis the host tool should test first (fast, cheap: just measure real connect
+latency to the actual stream hosts), before committing to the longer sustained soak.
+
+**Design:** [M-WEBRADIO-HOST-REPRO.md](../architecture/designs/M-WEBRADIO-HOST-REPRO.md)
+(Architect, drafted same session). Lean: lightweight HTTP + ICY-metadata-aware streaming client
+(no MP3 decode, no I2S) — replicates `connecttohost()`'s exact request bytes and headers, splits
+connect latency into DNS/TCP/TLS phases (a fast-DNS-slow-TCP result points at a different fix than
+slow-DNS-fast-TCP), and tracks `StreamTitle` changes over a sustained connection to also speak to
+TASK-390's original metadata-stall hypothesis. Breadth test: top 5 NL stations by vote count via
+the exact same radio-browser query the app uses (`countrycode=NL&codec=MP3&hidebroken=true&
+order=votes&reverse=true&bitrateMax=128`), decoupled from the DUT's own (currently flaky) fetch.
+Depth test: sustained soak on SLAM! DANCE CLASSICS (the exact station TASK-390's DUT run
+attempted), matching the human's original report station.
+
+**Exit criteria:** design doc's four-way disposition matrix (timeout-too-short / DUT-specific /
+real external outage / metadata-pipeline-specific) reached with logged evidence — connect-latency
+numbers with DNS/TCP/TLS phase splits, and/or a title-tracking timeline from the soak — written
+back into TASK-390 or a new follow-up, not left only in the design doc.
+
+**VE review (2026-08-03):** independent pass found six real gaps, none blocking but two
+substantive enough to require resolving before the tool's output is trusted for a disposition
+call. Most important: (1) the design's Phase 1 test compares absolute host connect latency
+against "near 250ms" — indirect and not falsifiable (host TCP stack timing isn't guaranteed
+comparable to the ESP32's). Stronger substitute: connect to each host twice, once with an
+artificially-imposed 250ms client timeout matching `m_timeout_ms` exactly, once with a generous
+one — a materially higher failure rate at 250ms on the *same* hosts is direct causal evidence,
+not a cross-stack number comparison. (2) single connect attempt per breadth-test station is too
+thin to distinguish "reliably unreachable" from "one lost packet" — require N≥3 attempts per
+station with a per-station success rate, not a pass/fail bit. Four more flagged: DNS-resolver
+mismatch between host and DUT is unaddressed (host OS resolver may differ from the router's
+DHCP-assigned DNS the ESP32 actually gets); re-querying radio-browser for station selection
+repeats the exact flaky, rate-limit-sensitive call under suspicion — cache the resolved URLs,
+don't re-fetch every run; the ICY-metadata parser has no correctness check of its own before a
+"title went quiet" finding is trusted (the same false-positive shape TASK-385 and this session's
+own `wrIdx` gap already hit); and "same-session, best-effort" correlation between host and DUT
+runs is too loose given how fast conditions changed today (radio-browser worked, then failed 3×
+within the same hour) — log + report elapsed time between host and DUT runs, don't treat them as
+implicitly simultaneous. Full detail with fixes proposed for each: design doc's "VE Review"
+section. Testability sign-off: exit criteria become genuinely falsifiable once #1/#2 are
+addressed; without them a Developer could reach whichever disposition they expected going in —
+the outcome this document exists to prevent.
+
+**Owner:** Developer (implementation) · **Deps:** TASK-390 (this informs its resumption) ·
+**Priority:** P2 (same urgency class as TASK-390 — real user-observed defect, and this is the
+fastest path to root-causing it) · **Status:** open — design drafted (Architect) and reviewed
+(VE, six gaps flagged, none blocking) — not yet implemented.

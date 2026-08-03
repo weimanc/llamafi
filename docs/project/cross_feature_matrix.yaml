@@ -943,3 +943,79 @@ interactions:
       through to the UI-thread render), T_WR_VIS_03 SKIP (Spotify has no active playback
       this session — TASK-243 external blocker, not exercisable right now, not a defect
       in the interaction itself).
+
+  - id: X044
+    feature_a: vu-003
+    feature_b: webradio-001
+    interaction_type: shared_state
+    description: |
+      Same single-writer swap as X043 (vu-002), extended to the promoted
+      specPeak()/specH()/specVel() namespace-scope accessors: webradio-001's pump task
+      (audio_process_extern) calls vu::updateSpectrumBar(i, lvl) per band per decoded block;
+      the UI thread's synthetic tickSpectrum() path is the only other writer, active only in
+      Spotify mode, never concurrently. Same switchApp() suspend-before-activate + s_wrAudioMutex
+      mechanism as X043 makes the handoff safe — not a new mechanism, the same one covering a
+      larger set of statics.
+    risk: low
+    test_coverage: [T_WR_VIS_01, T_WR_VIS_04]
+    notes: |
+      Implemented — TASK-387, 2026-08-03 (feature vu-003: status implemented). Design:
+      docs/architecture/designs/M-WEBRADIO-REAL-VIS-SPECTRUM.md. R&D evidence: PROP-005/EXP-018.
+      DUT-confirmed on master (manual session, 30 stations loaded): isolated maxPumpMs=43-47ms
+      (EXP-018 baseline 42ms, within noise, under the 50ms ceiling); wrSpec (new debug getter)
+      showed active per-band animation while the pump task and tickSpectrum's real-mode read
+      never wrote concurrently (same switchApp() suspend-before-activate handoff as X043).
+      T_WR_VIS_01/04 SKIPped in the automated suite this session on a live recurrence of the
+      pre-existing TASK-284 station-fetch flakiness — re-run once network conditions clear.
+
+  - id: X045
+    feature_a: vu-004
+    feature_b: webradio-001
+    interaction_type: shared_state
+    description: |
+      Rescoped 2026-08-02 (see feature_inventory.yaml vu-004 notes): NOT a reuse of X043's
+      lLevelRef()/rLevelRef() as originally planned — vu-004 now introduces its own new
+      namespace-scope static, vu::waveTraceRef() (int8_t[19], matching SPEC_BARS). Same
+      single-writer-swap argument as X043/X044 (webradio-001's pump task, audio_process_extern,
+      is the sole writer while WebRadio real-mode is active; never concurrent with any other
+      writer of this specific static since nothing else touches it), just a distinct 19-byte
+      buffer rather than sharing X043's two floats. EXP-021 confirmed this new static fits
+      within measured dram0_0_seg headroom (40B) on cyd2usb_winamp_debug as of 2026-08-02 — that
+      number is a snapshot, not durable; re-verified fresh at implementation (see notes).
+    risk: low
+    test_coverage: []
+    notes: |
+      Implemented — TASK-388, 2026-08-03. Design: docs/architecture/designs/M-WEBRADIO-REAL-VIS-WAVE.md
+      (amendment section covers the rescope). R&D evidence: PROP-009/EXP-021 (storage)/EXP-022
+      (decode-tail 44ms, noise vs. 42ms baseline; visual — trace shape, not just amplitude,
+      changes with content). Ported verbatim from rnd/webradio-wave-spike (bcd2d0c, b698a2f).
+      Storage headroom re-verified fresh at implementation (per EXP-021's own warning): 20B
+      remaining on cyd2usb_winamp_debug after this + TASK-389, both envs still link. Decode-tail
+      DUT-confirmed 49-50ms on a healthy station/relay after an initial confound (a stalling
+      station, not this task's code, caused false 78-311ms readings — see tasks.md TASK-388 for
+      the full A/B-test writeup). get wrWave (new debug getter) confirmed genuine shape variance
+      once playing. No automated test_ids yet — VE follow-up candidate.
+
+  - id: X046
+    feature_a: settings-webradio
+    feature_b: vu-003
+    interaction_type: control
+    description: |
+      TASK-389 (extended by TASK-388 to 5 modes): Settings > WebRadio > Vis modes' toggles
+      (Atlas/WaveAtlas/VU/Wave/Spectrum) control which stops vu::nextMode()'s bounded skip-loop
+      can land on for WebRadio's tap-cycle. Not a shared-state interaction like X043/X044/X045
+      (no cross-task real-time data) — this is control-plane: webRadioApp.h's vis-tap handler
+      builds a uint8_t mask fresh from g_settings on every tap and passes it to
+      vu::nextMode(enabledMask). VIS_SPECTRUM (vu-003) and VIS_WAVE (vu-004) are two of the five
+      togglable stops; VIS_BLANK is not (always enabled, the guaranteed fallback if every
+      togglable mode is off).
+    risk: low
+    test_coverage: []
+    notes: |
+      Implemented — TASK-389, 2026-08-03; extended to cover vu-004/Wave by TASK-388 same session
+      (feature_b could equally list vu-004 — kept as vu-003 since that's this edge's original
+      registration; the mask mechanism itself is generic across both). DUT-confirmed all
+      partition cases (VU+Spectrum off, Atlas+WaveAtlas off, all-off, and post-TASK-388's
+      6-stop full cycle) produce the correct restricted/fallback cycle — see tasks.md TASK-388/
+      389 and feature_inventory.yaml settings-webradio for the full DUT record. No automated
+      test_ids yet (manual verification only this session) — VE follow-up candidate.

@@ -137,6 +137,16 @@ struct AppSettings {
     uint8_t webRadioVolumePct;    // TASK-352: Winamp slider session volume, 0-100, scales *within* the
                                    // webRadioMaxVolume/wrEffectiveVolume() ceiling (default 100 = today's
                                    // full-ceiling behaviour). Coalesced-save on suspend (ADR-050 rule 3).
+    // TASK-389/TASK-388: per-mode vis-cycle enable/disable (Settings >
+    // WebRadio > Vis modes). Default true (all five on) = today's 6-stop
+    // tap-cycle, unchanged for existing users until they opt to trim it.
+    // VIS_BLANK has no toggle — always the guaranteed fallback if
+    // everything else is off.
+    bool webRadioVisAtlas;
+    bool webRadioVisWaveAtlas;
+    bool webRadioVisVU;
+    bool webRadioVisSpectrum;
+    bool webRadioVisWave;
 
     // --- Plane Radar (M-PLANERADAR, ADR-048/049, TASK-305) ---
     // lat/lon: D4 (v1) — compile-time default, edited via `run/spiffs push`;

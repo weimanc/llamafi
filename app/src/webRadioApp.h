@@ -142,14 +142,40 @@ void audio_info(const char *info) {
 
 static Audio* s_wr_audio = nullptr;
 
+// PROP-005 rung 3 (EXP-018/TASK-387): per-band makeup gain for the real
+// Goertzel spectrum below. EXP-018 measured real per-band energy as
+// visibly "under-driven" vs. rung 2's broadband peak/RMS — a single-
+// frequency resonance carries much less amplitude than the full-signal
+// peak once real program energy is spread across the band, and the
+// narrow high bands (log-spaced 80 Hz-14 kHz over a fixed-length Goertzel
+// window, so every band sees the same Hz-wide analysis window) capture an
+// even smaller slice of a typically pink/rolled-off real spectrum. Flat
+// makeup gain (20 dB base + 1.0 dB/band tilt toward the highs) derived
+// empirically against live WebRadio stations during the TASK-387 DUT
+// gate — mirrors SPEC_BAND_FREQ's log spacing, same flash-resident
+// constexpr, zero new DRAM.
+constexpr float SPEC_BAND_GAIN[vu::SPEC_BAND_COUNT] = {
+    10.000f, 11.220f, 12.589f, 14.125f, 15.849f, 17.783f, 19.953f, 22.387f,
+    25.119f, 28.184f, 31.623f, 35.481f, 39.811f, 44.668f, 50.119f, 56.234f,
+    63.096f, 70.795f, 79.433f,
+};
+
 // PROP-005/M-WEBRADIO-REAL-VIS: real per-block peak envelope for WebRadio's
-// VIS_VU mode. Fires once per decoded PCM block (interleaved L/R int16,
+// VIS_VU mode, plus (rung 3, TASK-387) real per-band spectrum energy for
+// VIS_SPECTRUM. Fires once per decoded PCM block (interleaved L/R int16,
 // pre-gain/filter/volume — Audio.cpp's sendBytes()), on the wrAudio pump
 // task, before playChunk() sends the block to I2S. Writes directly into
-// vu::lLevelRef()/rLevelRef() — the same statics the synthetic Spotify path
-// uses — rather than any new storage: SERIAL_DEBUG-enabled builds on this
-// board have ~0 bytes of static-BSS headroom (see EXP-015/PROP-007).
-// DUT-verified cost-free (maxPumpMs unchanged vs a no-op baseline, EXP-016).
+// vu::lLevelRef()/rLevelRef() and (via vu::updateSpectrumBar()) the
+// promoted specH/specVel/specPeak arrays — the same statics the synthetic
+// Spotify path uses — rather than any new storage: SERIAL_DEBUG-enabled
+// builds on this board have ~0 bytes of static-BSS headroom (see
+// EXP-015/PROP-007). DUT-verified cost-free (maxPumpMs unchanged vs a
+// no-op baseline, EXP-016; 19-band Goertzel unchanged again, EXP-018).
+//
+// Spectrum: one Goertzel resonator per band, recomputed fresh every block —
+// no coefficient caching, matching EXP-018's honest per-block cost
+// measurement. Mono mix (L+R)/2, same simplification tickSpectrum's
+// synthetic mode already made via its single `envelope` value.
 void audio_process_extern(int16_t* buff, uint16_t len, bool *continueI2S) {
     int32_t peakL = 0, peakR = 0;
     for (uint16_t i = 0; i < len; ++i) {
@@ -164,8 +190,43 @@ void audio_process_extern(int16_t* buff, uint16_t len, bool *continueI2S) {
     float targetR = peakR / 32768.0f;
     float &lLvl = vu::lLevelRef();
     float &rLvl = vu::rLevelRef();
+
+    if (len > 0 && s_wr_audio) {
+        const float fs = (float)s_wr_audio->getSampleRate();
+        const float n  = (float)len;
+        for (int b = 0; b < vu::SPEC_BAND_COUNT; ++b) {
+            const float f = vu::SPEC_BAND_FREQ[b];
+            const float k = 0.5f + (n * f / fs);
+            const float w = 6.28318530718f * k / n; // 2*pi*k/n
+            const float coeff = 2.0f * cosf(w);
+            float s1 = 0.0f, s2 = 0.0f;
+            for (uint16_t i = 0; i < len; ++i) {
+                float mono = (buff[i * 2] + buff[i * 2 + 1]) * (0.5f / 32768.0f);
+                float s0 = mono + coeff * s1 - s2;
+                s2 = s1;
+                s1 = s0;
+            }
+            float power = s1 * s1 + s2 * s2 - coeff * s1 * s2;
+            if (power < 0.0f) power = 0.0f;
+            float mag = (sqrtf(power) / n) * SPEC_BAND_GAIN[b];
+            vu::updateSpectrumBar(b, mag);
+        }
+    }
+
     lLvl += (targetL - lLvl) * ((targetL > lLvl) ? vu::ATTACK : vu::RELEASE);
     rLvl += (targetR - rLvl) * ((targetR > rLvl) ? vu::ATTACK : vu::RELEASE);
+
+    // TASK-388 (EXP-021/022, PROP-009): 19-column real trace, plain
+    // sub-sampling of the L channel across this decoded block — replaces
+    // the whole trace every call, single writer, same never-both-active
+    // argument as X043/X044.
+    if (len >= vu::SPEC_BARS) {
+        int8_t *trace = vu::waveTraceRef();
+        for (int i = 0; i < vu::SPEC_BARS; ++i) {
+            uint16_t idx = (uint16_t)(((uint32_t)i * len) / vu::SPEC_BARS);
+            trace[i] = (int8_t)(buff[idx * 2] >> 8);
+        }
+    }
     *continueI2S = true;
 }
 
@@ -855,9 +916,22 @@ public:
         // TASK-350: tap the vis area to cycle mode — M-VIS parity with the
         // Spotify path (the hit zone geometry already lives in vuMeter.h).
         // Mode state is a global (vu::s_modeRef()), so this affects both apps.
+        // TASK-387/388: appHasSpectrum/appHasWave=true — WebRadio's cycle
+        // gains real-data Spectrum and Wave stops (Atlas -> WaveAtlas -> VU
+        // -> Wave -> Spectrum -> Blank -> Atlas); Spotify's own call site
+        // (winampDisplay.h) is untouched.
+        // TASK-389: mask built fresh from g_settings each tap (Settings >
+        // WebRadio > Vis modes) — cheap enough not to cache, and a live
+        // Settings edit takes effect on the very next tap this way.
         if (x >= vu::RECT_X && x < vu::RECT_X + vu::RECT_W &&
             y >= vu::LEFT_Y && y < vu::LEFT_Y + vu::VIS_H) {
-            vu::nextMode();
+            uint8_t mask = 0;
+            if (g_settings.webRadioVisAtlas)     mask |= vu::MF_ATLAS;
+            if (g_settings.webRadioVisWaveAtlas) mask |= vu::MF_WAVE_ATLAS;
+            if (g_settings.webRadioVisVU)        mask |= vu::MF_VU;
+            if (g_settings.webRadioVisSpectrum)  mask |= vu::MF_SPECTRUM;
+            if (g_settings.webRadioVisWave)      mask |= vu::MF_WAVE;
+            vu::nextMode(/*appHasSpectrum=*/true, mask, /*appHasWave=*/true);
             return true;
         }
 
@@ -1074,6 +1148,34 @@ public:
                      (int)wrPumpAlive(), (unsigned)s_wrPumpCycles,
                      (unsigned)s_wrPumpMaxPumpMs, (unsigned)s_wrPumpMaxMutexWaitMs,
                      (unsigned)wrPumpStackHighWaterBytes());
+            return true;
+        }
+        // TASK-387: real per-band spectrum observability — dump vu::specHRef()
+        // (0..VIS_H bar heights, rounded) as a JSON array. Used for the DUT
+        // gain-tuning pass (M-WEBRADIO-REAL-VIS-SPECTRUM.md) and by VE's
+        // spectrum-liveliness regression test, same role `get wrPump` plays
+        // for decode-tail: a precise numeric readout instead of pixel-diffing
+        // a screendump.
+        if (strcmp(var, "wrSpec") == 0) {
+            float *specH = vu::specHRef();
+            int n = snprintf(buf, len, "\"var\":\"wrSpec\",\"bars\":[");
+            for (int i = 0; i < vu::SPEC_BARS && n < len; i++) {
+                n += snprintf(buf + n, len - n, "%s%d", i ? "," : "",
+                              (int)(specH[i] + 0.5f));
+            }
+            if (n < len) n += snprintf(buf + n, len - n, "],\"last\":true");
+            return true;
+        }
+        // TASK-388: real waveform trace observability — dump vu::waveTraceRef()
+        // (19 raw int8_t samples) as a JSON array. Same role wrSpec plays for
+        // TASK-387's DUT verification.
+        if (strcmp(var, "wrWave") == 0) {
+            int8_t *trace = vu::waveTraceRef();
+            int n = snprintf(buf, len, "\"var\":\"wrWave\",\"samples\":[");
+            for (int i = 0; i < vu::SPEC_BARS && n < len; i++) {
+                n += snprintf(buf + n, len - n, "%s%d", i ? "," : "", (int)trace[i]);
+            }
+            if (n < len) n += snprintf(buf + n, len - n, "],\"last\":true");
             return true;
         }
         return false;

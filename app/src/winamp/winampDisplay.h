@@ -1097,6 +1097,24 @@ public:
                songDuration);
       return true;
     }
+    // TASK-390: marquee/title state observability — no prior getter exposed
+    // any of this. deadlineInMs is signed (can go negative: a positive
+    // titleScrollDeadline that's already in the past would mean _tickMarquee()
+    // should have fired but hasn't — the smoking gun for a stuck marquee,
+    // vs. deadline==0 which is the *intentional* static-title (fits on
+    // screen, no scroll needed) resting state, not a bug by itself.
+    if (strcmp(var, "wrMarquee") == 0) {
+      long deadlineInMs = titleScrollDeadline
+                         ? (long)titleScrollDeadline - (long)now : 0;
+      snprintf(buf, len,
+               "\"var\":\"wrMarquee\",\"lastTitle\":\"%s\",\"scrollOffset\":%d,"
+               "\"scrollDeadlineSet\":%s,\"deadlineInMs\":%ld,"
+               "\"wifiDownOverrideActive\":%s,\"last\":true",
+               lastTitle, titleScrollOffset,
+               titleScrollDeadline ? "true" : "false", deadlineInMs,
+               _wifiDownOverrideActive ? "true" : "false");
+      return true;
+    }
     if (strcmp(var, "posbarDragMs") == 0) {
       snprintf(buf, len, "\"var\":\"posbarDragMs\",\"ms\":%ld,\"last\":true",
                _posbarDragCurrentMs);

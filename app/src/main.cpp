@@ -2815,7 +2815,22 @@ static void cmdTap(const char *args) {
     } else if (currentAppId == AppId::WebRadio && g_apps[(int)AppId::WebRadio]) {
       // WebRadio: injectTouch populates lastTouchResult for the response;
       // WebRadioApp::handleInput executes the action (eject/transport/PLEDIT).
-      winampDisplay.injectTouch(x, y);
+      // TASK-387: the vis-zone is WebRadioApp's own authoritative handler
+      // (vu::nextMode(appHasSpectrum=true) — vuMeter.h). injectTouch's Press
+      // call reaches the *same* screen coordinates via handleWinampInput's
+      // hitVis branch (that function is shared chrome, otherwise correctly
+      // reused for Spotify's real touch path) and would silently fire a
+      // second, differently-flagged vu::nextMode() call first — pre-existing
+      // latent bug (harmless while nextMode() took no args, since both calls
+      // did the same step; surfaced now because the two calls diverge).
+      // Skip injectTouch for this one zone and build the diagnostic result
+      // directly instead of double-mutating the vis mode.
+      if (x >= vu::RECT_X && x < vu::RECT_X + vu::RECT_W &&
+          y >= vu::LEFT_Y && y < vu::LEFT_Y + vu::VIS_H) {
+        winampDisplay.lastTouchResult = { "VIS", -1, "VIS", 0, -1, false };
+      } else {
+        winampDisplay.injectTouch(x, y);
+      }
       g_apps[(int)AppId::WebRadio]->handleInput(TouchPhase::Release, x, y);
       const auto &wr = winampDisplay.lastTouchResult;
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
@@ -3208,7 +3223,9 @@ static void cmdGet(const char *args) {
     int mi = (m == vu::VIS_ATLAS_MODE) ? 0
            : (m == vu::VIS_VU)         ? 1
            : (m == vu::VIS_BLANK)      ? 2
-           : (m == vu::VIS_WAVE_ATLAS) ? 3 : -1;
+           : (m == vu::VIS_WAVE_ATLAS) ? 3
+           : (m == vu::VIS_SPECTRUM)   ? 4
+           : (m == vu::VIS_WAVE)       ? 5 : -1;
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"visMode\","
                   "\"mode\":%d,\"last\":true}\n", mi);
     return;

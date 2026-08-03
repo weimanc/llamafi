@@ -322,6 +322,105 @@ features:
       checking out that branch. Flagging for PM/Architect: the doc should probably be
       copied to master alongside its graduated feature.
 
+  - id: vu-003
+    name: Real per-band spectrum energy (WebRadio) — graduated PROP-005 rung 3
+    description: |
+      Graduates EXP-018's real 19-band Goertzel spectrum analyzer to production: real per-band
+      energy drives VIS_SPECTRUM via the promoted vu::updateSpectrumBar()/specPeak()/specH()/
+      specVel() namespace-scope accessors (zero new static bytes — confirmed on master via
+      .dram0.data/.dram0.bss byte-for-byte .map diff, both cyd2usb_winamp and
+      cyd2usb_winamp_debug). Adds VIS_SPECTRUM back to WebRadio's tap-cycle only (Atlas ->
+      WaveAtlas -> VU -> Spectrum -> Blank -> Atlas; Spotify's 4-stop cycle unaffected) via
+      vu::nextMode(bool appHasSpectrum) — same per-caller shape as vu::tick()'s realAudio
+      param. Ships a per-band makeup-gain constexpr table (20 dB base + 1.0 dB/band tilt
+      toward the highs) in the same PR to address EXP-018's "under-driven relative to rung 2"
+      finding, derived empirically against a live WebRadio station on DUT.
+    status: implemented
+    git_ref: "(commit pending)"
+    files:
+      - app/src/winamp/vuMeter.h
+      - app/src/webRadioApp.h
+      - app/src/main.cpp
+    cross_features: [vu-002]
+    test_ids: [T_WR_VIS_01, T_WR_VIS_02, T_WR_VIS_03, T_WR_VIS_04, T_WR_VIS_05]
+    notes: |
+      Design: docs/architecture/designs/M-WEBRADIO-REAL-VIS-SPECTRUM.md. R&D evidence:
+      PROP-005/EXP-018. TASK-387, 2026-08-03.
+
+      Also fixed a latent cmdTap bug found while wiring VE's reachability test: main.cpp's
+      WebRadio tap branch called both winampDisplay.injectTouch() (Press phase, hits the
+      shared hitVis branch built for Spotify's real touch path) and WebRadioApp's own
+      Release-phase vis handler on every synthetic vis-zone tap, double-stepping
+      vu::nextMode() per `tap` command. Harmless while nextMode() took no args (both calls
+      did the same step); broken once the two calls started passing different
+      appHasSpectrum values (synthetic taps got stuck oscillating between VIS_ATLAS_MODE and
+      VIS_VU, never reaching WAVE_ATLAS/BLANK/SPECTRUM). Fixed by skipping injectTouch for
+      vis-zone coordinates under WebRadio and building the diagnostic JSON directly instead.
+      Real hardware touch was never affected (single dispatch via WebRadioApp::handleInput
+      only) — this was a synthetic-`tap`-command-only defect.
+
+      DUT verification (2026-08-03, cyd2usb_winamp_debug, manual serial session — 30
+      stations loaded): tap-cycle confirmed 0(Atlas)->3(WaveAtlas)->1(VU)->4(Spectrum)->
+      2(Blank)->0(Atlas); `get wrSpec` (new debug getter, dumps specH() bar heights)
+      showed active per-band animation across samples 1.5s apart, values spanning the full
+      0..16 range on loud content; isolated `get wrPump` read (45s wait, no concurrent
+      traffic, matching T_WR_VIS_01's methodology) measured maxPumpMs=43-47ms vs. EXP-018's
+      42ms baseline (within noise, well under the 50ms ceiling); screendump pixel-delta
+      Spectrum=415/9800 vs. VU=433/9800 (comparable liveliness); Spotify's tap-cycle
+      confirmed to visit only {0,1,2,3} across 8 taps, never 4. run/check (all 6 gates) PASS.
+      T_WR_VIS_01/02/04 added to the automated suite's target list but SKIPped this session
+      (radio-browser station-fetch returned 0 stations, pending=0 — a live recurrence of the
+      pre-existing TASK-284 mirror-flakiness/rate-limiting issue, not a regression — the same
+      manual session above got 30 stations minutes earlier). T_WR_VIS_03/05 SKIPped on the
+      pre-existing TASK-243 external blocker (Premium lapsed). Re-run the automated suite
+      next session once station fetch is healthy again.
+
+  - id: vu-004
+    name: Real 19-column waveform trace (WebRadio) — rescoped 2026-08-02 from amplitude-only sine
+    description: |
+      Real oscilloscope-style waveform trace for WebRadio's "Wave" tap-cycle slot. Pump task
+      (audio_process_extern) decimates the most recently decoded block to 19 points (plain
+      sub-sampling, idx = i*len/19) into a new namespace-scope static (vu::waveTraceRef(),
+      int8_t[19], matching SPEC_BARS width) every call — single writer, same never-both-active
+      argument as X043/X044. Rendered as a connected line (vu::tickWaveTrace()). Rescoped same
+      day as filing from an originally-planned amplitude-only sine (feeding real lLevelRef()
+      into the dormant synthetic VIS_WAVE) once PROP-009 (EXP-021/022) validated the trace is
+      affordable at comparable cost (19 new bytes vs. 0; 44ms vs 42ms decode-tail) with a
+      strictly better result (shows real waveform shape, not just amplitude). Distinct from
+      VIS_WAVE_ATLAS (WebRadio's other "wave"-adjacent tap-cycle stop), which plays back canned
+      pre-recorded footage frames and remains untouched/non-audio-reactive.
+    status: implemented
+    git_ref: "(commit pending)"
+    files:
+      - app/src/winamp/vuMeter.h
+      - app/src/webRadioApp.h
+      - app/src/main.cpp
+    cross_features: [vu-001, vu-002, vu-003]
+    test_ids: []
+    notes: |
+      Design: docs/architecture/designs/M-WEBRADIO-REAL-VIS-WAVE.md (see amendment section for
+      the rescope rationale). R&D evidence: PROP-009/EXP-021 (storage)/EXP-022 (decode-tail +
+      visual). TASK-388, 2026-08-03. Ported verbatim from rnd/webradio-wave-spike (bcd2d0c,
+      b698a2f). The old synthetic tickWave() sine was deleted (not left dormant) once VIS_WAVE's
+      tap-cycle slot repointed to the real trace — no call site left for it anywhere.
+
+      Storage headroom re-verified fresh at implementation (per the report's own warning not to
+      trust the 40B snapshot): 20B remaining on cyd2usb_winamp_debug after this task's 19-byte
+      array + 1 settings bool (was ~32B after TASK-389 alone). Both envs still link.
+
+      Decode-tail had a real confound this session: initial isolated reads showed 78-123ms
+      (over the 50ms ceiling). A/B test (temporarily disabling the trace-write code) showed an
+      even WORSE result (311ms) with it disabled, proving the regression wasn't this task's
+      code — root cause was the persisted lastStation stalling/reconnecting (TASK-284-class
+      flakiness). On a known-reliable relay (icecast.omroep.nl/radio1-bb-mp3) with the trace
+      code active: two clean isolated reads at 49ms and 50ms — passes, but with less margin
+      than TASK-387's 42-47ms. DUT-confirmed: 6-stop cycle (0→3→1→5→4→2→0→3 via get visMode);
+      get wrWave (new debug getter) showed flat-zero during connect, then genuine shape
+      variance once playing (spread up to 76 between adjacent columns); Spotify's cycle
+      reconfirmed {0,1,2,3} only. Human eyeball gate across >1 station (design doc's own ask)
+      NOT done this session — only the NPO relay was exercised, after the degraded-station
+      confound above. Worth a follow-up DUT pass.
+
   - id: perf-001
     name: Loop-iteration + hot-path performance instrumentation (M-PERF tier 1)
     description: perf.h namespace with record(name, ms) / recordLoop(ms) / loopMaxMs() / worstPathName() / worstPathMs() / stackHwmBytes() / reset(). Heartbeat consumes + resets each tick, adds stack_hwm + loop_max + slow=<name>:Nms fields. .ino wraps the four top-level loop paths (screenlog.tick, display.input, spotify.poll, display.bar). Iterations > 50 ms emit a LOG_W("perf", "iter=Nms ...") line.
@@ -1904,15 +2003,38 @@ features:
       cfg and taskbar lists are disjoint, X022 invariant). Change propagation via
       resume-diff (X034): country/cap edit -> stop + reset lastStation + refetch.
       lastStation moves to coalesced save on suspend/eject (ADR-050 rule 3).
-    git_ref: "fff0208 (2026-07-17)"
+
+      TASK-389 (2026-08-03): added a 7th row, "Vis modes" (chevron + N/4
+      summary), opening a 4-row toggle sub-view (Atlas/WaveAtlas/VU/Spectrum,
+      independent on/off; VIS_BLANK has no toggle — always the cycle
+      fallback). New `_wrVisActive` sub-view flag mirrors PlaneRadar's
+      `_prLocActive` gating pattern in `appsSection.h`, minus the
+      keyboard/picker machinery (plain toggle rows only). New `_wrRowSub()`
+      helper (`_wrSub() && !_wrVisActive`) correctly excludes the Max-volume
+      slider's touch forwarding while the sub-view is open — was gated on
+      `_wrSub()` alone before, which stayed true inside the sub-view too.
+
+      TASK-389 follow-up, same session (human feedback: labels alone didn't
+      say which modes were mock vs. real): row labels got explicit
+      "(mock)"/"(real)" suffixes plus color (real rows in TFT_GREEN, mirroring
+      vuMeter.h's own levelColor() "signal present" convention), plus a
+      one-line grey legend under the rows.
+
+      TASK-388 (2026-08-03, same session): the sub-view grew a 5th row,
+      "Wave (real)", once VIS_WAVE graduated to a real trace — "N/4" became
+      "N/5", rows reordered to match the actual tap-cycle order (Atlas,
+      WaveAtlas, VU, Wave, Spectrum).
+    git_ref: "fff0208 (2026-07-17); TASK-389/388 additions (commit pending)"
     files:
       - app/src/appRegistry.h
       - app/gen/configurable_apps.h
       - app/src/settings/appsSection.h
       - app/src/webRadioApp.h
       - app/src/settingsStorage.cpp
+      - app/src/settingsStorage.h
+      - app/src/winamp/vuMeter.h
       - app/src/dataTask.h
-    cross_features: [settings-001, webradio-001, player-state-001]
+    cross_features: [settings-001, webradio-001, player-state-001, vu-002, vu-003]
     test_ids: [T-WRSET-01, T-WRSET-02, T-WRSET-03, T-WRSET-04, T-WRSET-05, T-WRSET-06,
                T-CPICK-03]
     notes: |
@@ -1921,6 +2043,18 @@ features:
       implementation; VE adds T-WRSET-01..06. OQ1 resolved 2026-07-16 (human):
       default bitrateCap 96 -> 128 (applyDefaults + load fallback together);
       NPO 192k streams remain filtered at the default — UI row is the recovery.
+
+      TASK-389 DUT verification (2026-08-03, manual serial session, no new
+      automated test ids added — behavior verified directly via `get visMode`
+      + tap-cycle sequences, see tasks.md TASK-389 for the full record):
+      Settings nav (switchApp->Applications->WebRadio->Vis modes->toggle->
+      back x3) confirmed correct submenu/section transitions at every step;
+      screendump confirmed both the row and sub-view render legibly; live
+      tap-cycle behavior confirmed correct for VU+Spectrum-disabled,
+      Atlas+WaveAtlas-disabled, and all-four-disabled (settles on Blank, no
+      hang) cases. Device left in the default all-on state. VE follow-up:
+      consider adding T-WRSET-07/08 to run_serialdbg_tests.py mirroring this
+      manual sequence, for regression coverage.
 
   - id: home-location-001
     name: Device home location (home = prLocs[0], mirrored to Time&Location lat/lon)

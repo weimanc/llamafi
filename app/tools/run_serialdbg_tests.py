@@ -11,6 +11,7 @@ T162–T166 (taskbar-scroll-001),
 T_WR_EJECT_01/02, T_WR_ERR_01–04, T_WR_COEX_01/02/04,
 T_WR_HEAP_01–04, T_WR_VOL_03, T_WR_TLS_01, T_WR_SPOTIFY_RESUME_01 (M-WEBRADIO),
 T_WR_VIS_01–03 (vu-002 / X043, M-WEBRADIO-REAL-VIS),
+T_WR_VIS_04/05 (vu-003 / X044, TASK-387, M-WEBRADIO-REAL-VIS-SPECTRUM),
 T_PR_01–06 (M-PLANERADAR, TASK-307)
 against a DUT flashed with cyd2usb_winamp_debug.
 T089 (production ELF symbol check) is a host build check — not run here.
@@ -6692,11 +6693,29 @@ def t_wr_spotify_resume_01(dut: Dut):
 # Validation" + "Exit criteria" sections (reserved T_WR_VIS_01/02/03 there).
 #
 # `get visMode` does NOT report vu::VisMode's raw C++ enum ordinal — main.cpp
-# remaps it for the subset of modes reachable via the tap-cycle:
+# remaps it for the subset of modes reachable via a tap-cycle:
 #   VIS_ATLAS_MODE -> 0 (default)   VIS_VU -> 1   VIS_BLANK -> 2   VIS_WAVE_ATLAS -> 3
-# (VIS_SPECTRUM/VIS_WAVE are dead — unreachable via nextMode() — and read back -1.)
-# vu::nextMode()'s cycle is ATLAS_MODE -> WAVE_ATLAS -> VU -> BLANK -> ATLAS_MODE,
-# so two vis-zone taps from the default reach VIS_VU (mode index 1).
+#   VIS_SPECTRUM -> 4 (TASK-387, WebRadio's tap-cycle only — see below)
+# (VIS_WAVE is still dead — unreachable via nextMode() — and reads back -1.)
+# vu::nextMode()'s cycle is ATLAS_MODE -> WAVE_ATLAS -> VU -> BLANK -> ATLAS_MODE
+# for Spotify (appHasSpectrum=false, the default); WebRadio passes
+# appHasSpectrum=true, so its cycle is ATLAS_MODE -> WAVE_ATLAS -> VU ->
+# SPECTRUM -> BLANK -> ATLAS_MODE. Two vis-zone taps from the default reach
+# VIS_VU (mode index 1) on both apps; a third tap reaches VIS_SPECTRUM (index
+# 4) on WebRadio only, or VIS_BLANK (index 2) on Spotify.
+#
+# TASK-387 also fixed a latent cmdTap bug (main.cpp's WebRadio branch): the
+# synthetic `tap` command called both winampDisplay.injectTouch() (Press
+# phase, hits the shared hitVis branch meant for Spotify's real touch path)
+# and WebRadioApp's own Release-phase vis handler on every vis-zone tap —
+# double-stepping vu::nextMode() per synthetic tap. Harmless while
+# nextMode() took no args (both calls did the same step, so two taps still
+# net the expected single step and the old suite's assertions happened to
+# hold) but broken once the two calls started passing different
+# appHasSpectrum values — fixed by skipping injectTouch for vis-zone taps
+# under WebRadio and building the diagnostic result directly instead. Real
+# hardware touch was never affected (single dispatch via
+# WebRadioApp::handleInput only).
 
 _VIS_SCREEN_REGION = (0, 20, 140, 70)  # x,y,w,h — EXP-016/017/018 R&D region (9800px)
 
@@ -6877,6 +6896,87 @@ def t_wr_vis_03(dut: Dut):
         return
     pass_("T_WR_VIS_03", f"isPlaying=true; Spotify VIS_VU pixel delta={delta}/9800 (>100) — "
                          f"synthetic path unaffected")
+
+
+# ── vu-003 / X044 — WebRadio real per-band spectrum (TASK-387 /
+# M-WEBRADIO-REAL-VIS-SPECTRUM) ──────────────────────────────────────────────
+# `get visMode`'s remap gains one more entry for this rung:
+#   VIS_ATLAS_MODE -> 0   VIS_VU -> 1   VIS_BLANK -> 2
+#   VIS_WAVE_ATLAS -> 3   VIS_SPECTRUM -> 4  (WebRadio's tap-cycle only)
+# WebRadio's tap-cycle becomes Atlas(0) -> WaveAtlas(3) -> VU(1) ->
+# Spectrum(4) -> Blank(2) -> Atlas(0). Spotify's is unchanged (Atlas ->
+# WaveAtlas -> VU -> Blank — VIS_SPECTRUM never appears).
+#
+# `get wrSpec` (TASK-387 debug getter, webRadioApp.h) dumps the promoted
+# specH() bar-height array (0..VIS_H=16) — a precise numeric readout instead
+# of pixel-diffing a screendump, used here the same way `get wrPump` is used
+# for decode-tail instead of instrumenting timing by hand.
+
+def t_wr_vis_04(dut: Dut):
+    """T_WR_VIS_04: WebRadio's tap-cycle reaches VIS_SPECTRUM (visMode==4),
+    and the real per-band spectrum visibly animates while playing — two
+    wrSpec samples ~1s apart differ in at least one band (EXP-018's "not a
+    flatline" finding, checked numerically instead of via screendump)."""
+    print("T_WR_VIS_04  WebRadio tap-cycle reaches Spectrum; real per-band data animates")
+    if not _webradio_ensure_playing(dut, "T_WR_VIS_04"):
+        return
+
+    m = _cycle_vis_to(dut, 4, max_taps=6)
+    if m != 4:
+        fail("T_WR_VIS_04", f"could not reach VIS_SPECTRUM (visMode==4) via vis-zone taps; "
+                            f"stuck at visMode={m}")
+        return
+
+    time.sleep(1.0)
+    r1 = dut.cmd("get wrSpec", timeout=3.0)
+    bars1 = r1.get("bars")
+    time.sleep(1.5)
+    r2 = dut.cmd("get wrSpec", timeout=3.0)
+    bars2 = r2.get("bars")
+    if not bars1 or not bars2 or len(bars1) != 19 or len(bars2) != 19:
+        fail("T_WR_VIS_04", f"bad wrSpec response(s): {r1} / {r2}")
+        return
+    print(f"  [T_WR_VIS_04] wrSpec t0={bars1}")
+    print(f"  [T_WR_VIS_04] wrSpec t1={bars2}")
+    if bars1 == bars2:
+        fail("T_WR_VIS_04", f"wrSpec identical across 1.5s ({bars1}) — real per-band "
+                            f"spectrum does not appear to be animating")
+        return
+    pass_("T_WR_VIS_04", f"reached visMode=4; wrSpec changed across 1.5s (t0={bars1}, t1={bars2})")
+
+
+def t_wr_vis_05(dut: Dut):
+    """T_WR_VIS_05: Spotify's tap-cycle never reaches VIS_SPECTRUM (Option B
+    regression guard, Goal 4 of M-WEBRADIO-REAL-VIS-SPECTRUM.md) — cycle
+    through all 4 of Spotify's stops and confirm visMode==4 is never
+    observed. skip()s if Spotify has no active playback (TASK-243 external
+    blocker), same guard as T_WR_VIS_03."""
+    print("T_WR_VIS_05  Spotify tap-cycle never reaches Spectrum (regression guard)")
+    if not _restore_spotify(dut):
+        skip("T_WR_VIS_05", "could not switch to Spotify app")
+        return
+    r_info = dut.cmd("info", timeout=4.0)
+    if not r_info.get("isPlaying"):
+        skip("T_WR_VIS_05", f"Spotify has no active playback this session "
+                            f"(isPlaying={r_info.get('isPlaying')}) — likely TASK-243 "
+                            f"external blocker, not testable now")
+        return
+
+    vx, vy = _c.tap_vis()
+    seen = set()
+    m = _get_vis_mode(dut)
+    seen.add(m)
+    for _ in range(6):  # full loop is 4 stops; 6 taps covers a full cycle + margin
+        dut.cmd(f"tap {vx} {vy}", timeout=3.0)
+        time.sleep(0.2)
+        m = _get_vis_mode(dut)
+        seen.add(m)
+        if m == 4:
+            fail("T_WR_VIS_05", f"Spotify's tap-cycle reached visMode=4 (VIS_SPECTRUM) — "
+                                f"Option B regression: Spotify must stay spectrum-less")
+            return
+    pass_("T_WR_VIS_05", f"Spotify tap-cycle visited {sorted(seen)} over 6 taps — "
+                         f"visMode=4 never observed")
 
 
 # ── app-error-signal-001 (TASK-245 / ADR-046) ────────────────────────────────
@@ -7683,6 +7783,9 @@ ALL_TESTS = {
     "T_WR_VIS_01": t_wr_vis_01,
     "T_WR_VIS_02": t_wr_vis_02,
     "T_WR_VIS_03": t_wr_vis_03,
+    # vu-003 / X044 — real per-band spectrum (TASK-387)
+    "T_WR_VIS_04": t_wr_vis_04,
+    "T_WR_VIS_05": t_wr_vis_05,
     # app-error-signal-001 — red taskbar active-bar (TASK-245 / ADR-046)
     "T-ERR-01": t_err_01,
     "T-ERR-02": t_err_02,

@@ -113,6 +113,11 @@ static void applyDefaults() {
     g_settings.webRadioMaxVolume     = 10;
     g_settings.webRadioLastStation   = 0;
     g_settings.webRadioVolumePct     = 100;  // TASK-352: full ceiling, matches pre-slider behaviour
+    g_settings.webRadioVisAtlas      = true;  // TASK-389: default full cycle
+    g_settings.webRadioVisWaveAtlas  = true;
+    g_settings.webRadioVisVU         = true;
+    g_settings.webRadioVisSpectrum   = true;
+    g_settings.webRadioVisWave       = true;  // TASK-388
 
     // Plane Radar (PR_DEFAULT_LAT/LON — settingsStorage.h, M-HOME-LOCATION H-7a)
     g_settings.prLat            = PR_DEFAULT_LAT;
@@ -304,6 +309,12 @@ void SettingsStorage::load() {
         g_settings.webRadioMaxVolume = wr["maxVolume"] | (uint8_t)(g_settings.webRadioHwMod ? 18 : 10);
         if (wr.containsKey("lastStation")) g_settings.webRadioLastStation = wr["lastStation"] | 0;
         if (wr.containsKey("volumePct"))   g_settings.webRadioVolumePct   = wr["volumePct"]   | 100;
+        // TASK-389: per-mode vis-cycle toggles (Settings > WebRadio > Vis modes)
+        if (wr.containsKey("visAtlas"))     g_settings.webRadioVisAtlas     = wr["visAtlas"]     | true;
+        if (wr.containsKey("visWaveAtlas")) g_settings.webRadioVisWaveAtlas = wr["visWaveAtlas"] | true;
+        if (wr.containsKey("visVU"))        g_settings.webRadioVisVU        = wr["visVU"]        | true;
+        if (wr.containsKey("visSpectrum"))  g_settings.webRadioVisSpectrum  = wr["visSpectrum"]  | true;
+        if (wr.containsKey("visWave"))      g_settings.webRadioVisWave      = wr["visWave"]      | true;
     }
 
     // Plane Radar
@@ -477,6 +488,11 @@ void SettingsStorage::save() {
     wr["maxVolume"]   = g_settings.webRadioMaxVolume;
     wr["lastStation"] = g_settings.webRadioLastStation;
     wr["volumePct"]   = g_settings.webRadioVolumePct;
+    wr["visAtlas"]     = g_settings.webRadioVisAtlas;
+    wr["visWaveAtlas"] = g_settings.webRadioVisWaveAtlas;
+    wr["visVU"]        = g_settings.webRadioVisVU;
+    wr["visSpectrum"]  = g_settings.webRadioVisSpectrum;
+    wr["visWave"]      = g_settings.webRadioVisWave;
 
     auto pr = doc.createNestedObject("planeRadar");
     pr["lat"]        = g_settings.prLat;

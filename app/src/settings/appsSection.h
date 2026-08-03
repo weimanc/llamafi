@@ -16,6 +16,7 @@ public:
     const char* title() const override {
         if (_sub < 0) return "Applications";
         if (_prLocActive) return _prLocTitle();
+        if (_wrVisActive) return "Vis modes";
         return kConfigurableApps[_sub].display;
     }
 
@@ -26,11 +27,12 @@ public:
     // Read by `get prloc` via SettingsApp.
     int prDivKm() const { return _prDivKm; }
 
-    void enter() override { _sub = -1; _prLocActive = false; repaint(); }
+    void enter() override { _sub = -1; _prLocActive = false; _wrVisActive = false; repaint(); }
     void leave() override {
         if ((_prLocActive || _wrSub()) && g_keyboard.active()) g_keyboard.hide();
         if (g_countryPicker.active()) g_countryPicker.hide();   // M-COUNTRY-PICKER
         _prLocActive = false;
+        _wrVisActive = false;
         _sub = -1;
     }
 
@@ -46,6 +48,7 @@ public:
         clearContent();
         if (_sub < 0)          _repaintAppList();
         else if (_prLocActive) _repaintPrLoc();
+        else if (_wrVisActive) _repaintWrVis();
         else                   _repaintAppRows();
     }
 
@@ -104,7 +107,7 @@ public:
         // capture above is the precedent for piercing the Release-only gate;
         // DisplaySection's Level row is the routing idiom). Live volume apply
         // is NOT needed — the radio is never running while Settings is open.
-        if (_wrSub() && !g_keyboard.active()) {
+        if (_wrRowSub() && !g_keyboard.active()) {
             const int volRowY = S_CONTENT_Y + 4 * S_ROW_H;   // row 4 = Max volume
             if (phase == TouchPhase::Press) {
                 _wrVolSlider.onPress(x, y, volRowY);
@@ -143,6 +146,7 @@ public:
         if (phase != TouchPhase::Release) return SectionResult::Continue;
         if (isBackTap(x, y)) {
             if (_prLocActive) { _handlePrLocBack(); return SectionResult::Continue; }
+            if (_wrVisActive) { _wrVisActive = false; repaint(); return SectionResult::Continue; }
             if (_sub >= 0) { _sub = -1; repaint(); return SectionResult::Continue; }
             return SectionResult::GoBack;
         }
@@ -152,6 +156,8 @@ public:
             if (row >= 0 && row < CONFIGURABLE_APP_COUNT) { _sub = (int8_t)row; repaint(); }
         } else if (_prLocActive) {
             _handlePrLocTap(x, y);
+        } else if (_wrVisActive) {
+            _handleWrVisTap(tapToRow(y));
         } else {
             _handleAppTap(tapToRow(y));
         }
@@ -180,6 +186,7 @@ private:
     };
 
     bool          _prLocActive       = false;   // gates the whole sub-view (PlaneRadar row view otherwise)
+    bool          _wrVisActive       = false;   // TASK-389: gates the WebRadio "Vis modes" sub-view
     PrLocView     _prLocState        = PrLocView::SlotList;
     uint8_t       _prEditSlot        = 0;
     char          _prPendingLabel[PR_LABEL_MAX + 1] = {};   // label edit is NOT persisted until final Save
@@ -551,6 +558,11 @@ private:
         return _sub >= 0 && kConfigurableApps[_sub].id == AppId::WebRadio;
     }
 
+    // TASK-389: WebRadio ROW view showing (not the Vis-modes sub-view) —
+    // gates the Max-volume slider phase forwarding, same role as
+    // _prRowSub() below plays for PlaneRadar's poll slider vs. Locations.
+    bool _wrRowSub() const { return _wrSub() && !_wrVisActive; }
+
     // TASK-355: PlaneRadar ROW view showing (not the Locations sub-view) —
     // gates the Poll-slider phase forwarding, same role as _wrSub() for WR-3.
     bool _prRowSub() const {
@@ -587,6 +599,21 @@ private:
         y += S_ROW_H;
         drawRow(y, { "HW mod", settings().webRadioHwMod ? "yes" : "no",
                      S_LABEL, S_VALUE_OFF });   // greyed read-only
+        y += S_ROW_H;
+        // TASK-389/388: Vis modes row 6 — chevron into the 5-toggle sub-view
+        // (Atlas/WaveAtlas/VU/Wave/Spectrum; Blank always available, no
+        // toggle). Same chevron+value idiom as PlaneRadar's Locations row.
+        {
+            int n = (int)settings().webRadioVisAtlas + (int)settings().webRadioVisWaveAtlas
+                  + (int)settings().webRadioVisVU     + (int)settings().webRadioVisSpectrum
+                  + (int)settings().webRadioVisWave;
+            char vbuf[8]; snprintf(vbuf, sizeof(vbuf), "%d/5", n);
+            drawChevronRow(y, "Vis modes");
+            tft.setTextDatum(MR_DATUM);
+            tft.setTextColor(S_VALUE);
+            tft.drawString(vbuf, S_COL_VALUE - 14, y + S_ROW_H / 2, 2);
+            tft.setTextDatum(TL_DATUM);
+        }
         y += S_ROW_H;
         // TASK-209 clamp made visible (D2 value-label intent): stock hardware
         // soft-caps effective volume at 12 (wrEffectiveVolume() semantics).
@@ -628,11 +655,64 @@ private:
             settings().webRadioLastStation = 0;
         } else if (row == 3) {
             settings().webRadioAutoSkip = !settings().webRadioAutoSkip;
+        } else if (row == 6) {
+            // Vis modes row: tap opens the 4-toggle sub-view (TASK-389).
+            // Nothing changed yet, so skip the saveSettings()+repaint() below
+            // — same idiom as PlaneRadar's Locations row (row 5 there).
+            _wrVisActive = true;
+            repaint();
+            return;
         } else {
             // row 4 (Max volume) is phase-forwarded to the slider in
             // handleInput(); row 5 (HW mod) is read-only — inert.
             return;
         }
+        saveSettings(); repaint();
+    }
+
+    // TASK-389/388: Vis modes sub-view — 5 independent tap-to-toggle rows,
+    // ordered to match the tap-cycle itself (Atlas/WaveAtlas/VU/Wave/
+    // Spectrum). No keyboard/picker involved, unlike PlaneRadar's Locations
+    // sub-view, so this doesn't need that machinery's extra state — just
+    // _wrVisActive gating repaint()/handleInput() above.
+    void _repaintWrVis() {
+        int y = S_CONTENT_Y;
+        // Mock (pre-recorded Winamp footage) rows in plain white; real
+        // audio-driven rows in green — same "signal present" color the VU
+        // meter itself uses (vuMeter.h levelColor()) — plus an explicit
+        // "(mock)"/"(real)" label suffix so the distinction doesn't depend
+        // on color perception alone.
+        drawRow(y, { "Atlas (mock)", settings().webRadioVisAtlas ? "on" : "off",
+                     S_LABEL, S_VALUE }); y += S_ROW_H;
+        drawRow(y, { "WaveAtlas (mock)", settings().webRadioVisWaveAtlas ? "on" : "off",
+                     S_LABEL, S_VALUE }); y += S_ROW_H;
+        drawRow(y, { "VU (real)", settings().webRadioVisVU ? "on" : "off",
+                     TFT_GREEN, S_VALUE }); y += S_ROW_H;
+        drawRow(y, { "Wave (real)", settings().webRadioVisWave ? "on" : "off",
+                     TFT_GREEN, S_VALUE }); y += S_ROW_H;
+        drawRow(y, { "Spectrum (real)", settings().webRadioVisSpectrum ? "on" : "off",
+                     TFT_GREEN, S_VALUE }); y += S_ROW_H;
+        tft.setTextDatum(TL_DATUM);
+        tft.setTextColor(S_VALUE_OFF);
+        tft.drawString("mock = pre-recorded, real = today's audio", S_COL_LABEL, y + 6, 1);
+        y += 16;
+        if (!settings().webRadioVisAtlas && !settings().webRadioVisWaveAtlas &&
+            !settings().webRadioVisVU && !settings().webRadioVisSpectrum &&
+            !settings().webRadioVisWave) {
+            tft.setTextDatum(MC_DATUM);
+            tft.setTextColor(S_VALUE_OFF);
+            tft.drawString("all off - vis area stays blank", S_CANVAS_W / 2, y + 10, 2);
+            tft.setTextDatum(TL_DATUM);
+        }
+    }
+
+    void _handleWrVisTap(int row) {
+        if (row == 0)      settings().webRadioVisAtlas     = !settings().webRadioVisAtlas;
+        else if (row == 1) settings().webRadioVisWaveAtlas = !settings().webRadioVisWaveAtlas;
+        else if (row == 2) settings().webRadioVisVU        = !settings().webRadioVisVU;
+        else if (row == 3) settings().webRadioVisWave      = !settings().webRadioVisWave;
+        else if (row == 4) settings().webRadioVisSpectrum  = !settings().webRadioVisSpectrum;
+        else return;
         saveSettings(); repaint();
     }
 
