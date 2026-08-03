@@ -1,0 +1,291 @@
+{
+  "run_start": "2026-08-03T18:41:30",
+  "run_end": "2026-08-03T21:41:30",
+  "self_check": true,
+  "parser_check_ok": null,
+  "dns_resolvers": [
+    "127.0.0.53"
+  ],
+  "stations": {
+    "fetched_at": "2026-08-03T17:08:22",
+    "breadth": [
+      {
+        "name": "Radio 10",
+        "url_resolved": "http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10.mp3",
+        "bitrate": 128,
+        "votes": 7666
+      },
+      {
+        "name": "Arrow Classic Rock",
+        "url_resolved": "https://stream.player.arrow.nl/arrowcr",
+        "bitrate": 96,
+        "votes": 6193
+      },
+      {
+        "name": "Sky Radio 80's Hits",
+        "url_resolved": "http://playerservices.streamtheworld.com/api/livestream-redirect/SRGSTR04.mp3",
+        "bitrate": 128,
+        "votes": 4391
+      },
+      {
+        "name": "SLAM!",
+        "url_resolved": "http://stream.slam.nl/slam",
+        "bitrate": 128,
+        "votes": 4337
+      },
+      {
+        "name": "Concertzender Baroque",
+        "url_resolved": "http://streams.greenhost.nl:8080/barok",
+        "bitrate": 128,
+        "votes": 4329
+      }
+    ],
+    "depth": {
+      "name": "SLAM! DANCE CLASSICS",
+      "url_resolved": "http://stream.slam.nl/WEB15_MP3",
+      "bitrate": 128,
+      "votes": 423
+    }
+  },
+  "phase1_results": [],
+  "phase1_overall_disposition": null,
+  "phase2_soak": {
+    "name": "SLAM! DANCE CLASSICS",
+    "url": "http://stream.slam.nl/WEB15_MP3",
+    "minutes": 180.0,
+    "reconnects": 5,
+    "timeline": [
+      {
+        "ts": "2026-08-03T18:41:33",
+        "elapsed_s": 2.5,
+        "title": "Akon & Eminem - Smack That"
+      },
+      {
+        "ts": "2026-08-03T18:43:54",
+        "elapsed_s": 143.8,
+        "title": "Kate Ryan - Desenchantee"
+      },
+      {
+        "ts": "2026-08-03T18:47:04",
+        "elapsed_s": 334.0,
+        "title": "David Guetta Ft. Chris Willis - Love Is Gone"
+      },
+      {
+        "ts": "2026-08-03T18:50:21",
+        "elapsed_s": 530.8,
+        "title": "Daddy Yankee - Gasolina"
+      },
+      {
+        "ts": "2026-08-03T18:53:54",
+        "elapsed_s": 743.9,
+        "title": "Armin Van Buuren & Sharon Den Adel - In And Out Of Love"
+      },
+      {
+        "ts": "2026-08-03T18:56:35",
+        "elapsed_s": 904.5,
+        "title": "Tiesto - Adagio For Strings"
+      },
+      {
+        "ts": "2026-08-03T19:00:29",
+        "elapsed_s": 1138.9,
+        "title": "Special D - Come With Me"
+      },
+      {
+        "ts": "2026-08-03T19:02:42",
+        "elapsed_s": 1271.6,
+        "title": "Deepest Blue - Deepest Blue"
+      },
+      {
+        "ts": "2026-08-03T19:06:15",
+        "elapsed_s": 1484.6,
+        "title": "Wayne Wonder - No Letting Go"
+      },
+      {
+        "ts": "2026-08-03T19:09:29",
+        "elapsed_s": 1678.5,
+        "title": "Sylver - Turn The Tide"
+      },
+      {
+        "ts": "2026-08-03T20:09:46",
+        "elapsed_s": 5294.1,
+        "event": "disconnect",
+        "error": "timed out"
+      },
+      {
+        "ts": "2026-08-03T20:09:48",
+        "elapsed_s": 5297.7,
+        "title": "Sisqo - Thong Song"
+      },
+      {
+        "ts": "2026-08-03T20:12:26",
+        "elapsed_s": 5455.4,
+        "title": "Shapeshifters - Lola"
+      },
+      {
+        "ts": "2026-08-03T20:15:43",
+        "elapsed_s": 5652.6,
+        "title": "Jakatta - American Dream"
+      },
+      {
+        "ts": "2026-08-03T20:19:35",
+        "elapsed_s": 5884.7,
+        "title": "Rihanna - Don"
+      },
+      {
+        "ts": "2026-08-03T20:22:50",
+        "elapsed_s": 6079.6,
+        "title": "LMC Vs U2 - Take Me To The Clouds Above"
+      },
+      {
+        "ts": "2026-08-03T20:25:08",
+        "elapsed_s": 6217.5,
+        "title": "Gadjo & Alexandra Prince - So Many Times"
+      },
+      {
+        "ts": "2026-08-03T20:31:33",
+        "elapsed_s": 6600.4,
+        "event": "disconnect",
+        "error": "timed out"
+      },
+      {
+        "ts": "2026-08-03T20:31:34",
+        "elapsed_s": 6603.9,
+        "title": "Kylie Minogue - Can"
+      },
+      {
+        "ts": "2026-08-03T20:31:53",
+        "elapsed_s": 6620.7,
+        "event": "disconnect",
+        "error": "timed out"
+      },
+      {
+        "ts": "2026-08-03T20:31:56",
+        "elapsed_s": 6625.4,
+        "title": "Kylie Minogue - Can"
+      },
+      {
+        "ts": "2026-08-03T20:33:37",
+        "elapsed_s": 6726.5,
+        "title": "Motorcycle - As The Rush Comes"
+      },
+      {
+        "ts": "2026-08-03T20:36:57",
+        "elapsed_s": 6926.9,
+        "title": "Chicane Vs. Natasha Bedingfield - Bruised Water"
+      },
+      {
+        "ts": "2026-08-03T20:38:33",
+        "elapsed_s": 7020.6,
+        "event": "disconnect",
+        "error": "stream closed"
+      },
+      {
+        "ts": "2026-08-03T20:38:34",
+        "elapsed_s": 7023.6,
+        "title": "Chicane Vs. Natasha Bedingfield - Bruised Water"
+      },
+      {
+        "ts": "2026-08-03T20:40:13",
+        "elapsed_s": 7122.8,
+        "title": "Christina Aguilera & Redman - Dirrty"
+      },
+      {
+        "ts": "2026-08-03T20:45:28",
+        "elapsed_s": 7437.4,
+        "title": "Junior Senior - Move Your Feet"
+      },
+      {
+        "ts": "2026-08-03T20:47:34",
+        "elapsed_s": 7563.6,
+        "title": "J.C.A. - I Begin To Wonder"
+      },
+      {
+        "ts": "2026-08-03T20:50:08",
+        "elapsed_s": 7715.6,
+        "event": "disconnect",
+        "error": "timed out"
+      },
+      {
+        "ts": "2026-08-03T20:50:11",
+        "elapsed_s": 7720.5,
+        "title": "J.C.A. - I Begin To Wonder"
+      },
+      {
+        "ts": "2026-08-03T20:51:13",
+        "elapsed_s": 7782.8,
+        "title": "Nsync - Bye Bye Bye"
+      },
+      {
+        "ts": "2026-08-03T20:54:29",
+        "elapsed_s": 7979.2,
+        "title": "Rui Da Silva & Cassandra - Touch Me"
+      },
+      {
+        "ts": "2026-08-03T20:58:13",
+        "elapsed_s": 8202.8,
+        "title": "The Supermen Lovers & Mani Hoffman - Starlight"
+      },
+      {
+        "ts": "2026-08-03T21:02:16",
+        "elapsed_s": 8445.8,
+        "title": "Ritmo Dynamic - Calinda"
+      },
+      {
+        "ts": "2026-08-03T21:05:10",
+        "elapsed_s": 8619.7,
+        "title": "DJ Jean - Love Come Home"
+      },
+      {
+        "ts": "2026-08-03T21:08:39",
+        "elapsed_s": 8829.0,
+        "title": "Katy Perry - I Kissed A Girl"
+      },
+      {
+        "ts": "2026-08-03T21:11:37",
+        "elapsed_s": 9006.9,
+        "title": "Mylo - Drop The Pressure"
+      },
+      {
+        "ts": "2026-08-03T21:14:40",
+        "elapsed_s": 9190.0,
+        "title": "Freestylers - Push Up"
+      },
+      {
+        "ts": "2026-08-03T21:18:13",
+        "elapsed_s": 9402.8,
+        "title": "Dr. Dre & Snoop Dogg - Still D.R.E."
+      },
+      {
+        "ts": "2026-08-03T21:22:57",
+        "elapsed_s": 9687.0,
+        "title": "Darude - Sandstorm"
+      },
+      {
+        "ts": "2026-08-03T21:26:05",
+        "elapsed_s": 9875.2,
+        "title": "Milk Inc - Land Of The Living"
+      },
+      {
+        "ts": "2026-08-03T21:29:29",
+        "elapsed_s": 10078.9,
+        "title": "Nelly Furtado - Say It Right"
+      },
+      {
+        "ts": "2026-08-03T21:33:03",
+        "elapsed_s": 10292.7,
+        "title": "Moby - Porcelain"
+      },
+      {
+        "ts": "2026-08-03T21:36:19",
+        "elapsed_s": 10488.9,
+        "title": "DJ Melvin - L.O.I.S."
+      },
+      {
+        "ts": "2026-08-03T21:39:38",
+        "elapsed_s": 10688.0,
+        "title": "The Underdog Project Vs. Sunclub - Summer Jam 2003"
+      }
+    ],
+    "complete": true
+  }
+}

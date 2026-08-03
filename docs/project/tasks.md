@@ -6010,6 +6010,37 @@ DANCE CLASSICS stayed healthy throughout, no sustained stall) — that thread st
 pending the `wrIdx`/auto-skip retry above. Candidate timeout fix filed as TASK-392, gated on DUT
 confirmation. Full results: TASK-391 entry below.
 
+**Live correlation found 2026-08-03, later same session (human-flagged):** a DUT was already
+running (production `cyd2usb_winamp`, `spotify-mon` tmux monitor session, boot ~15:20) when this
+session's TASK-391 work started — missed initially; should have been checked per the design doc's
+own "Correlation with DUT runs" section. Once found, its live heartbeat showed the *exact*
+TASK-390 signature actively in progress: `last_render_age_ms` climbing in lockstep with `uptime`,
+zero repaints. Back-calculated onset from two heartbeat readings (both agree): **~18:20:42**,
+~180.7 min into uptime — about 20 min *before* TASK-391's 3-hour host soak started (18:41:33), and
+it was still frozen when that soak completed at 21:41:33 (200+ min frozen and counting, confirmed
+again after). `heap=128k`/`maxAlloc=41k` unchanged throughout (not a crash/heap issue),
+WiFi rssi stayed in a normal range (-43 to -55, not a WiFi drop), `poll=0/177` (Spotify polling,
+unrelated to WebRadio) failing the whole session.
+
+**This gives the disposition-matrix outcome #4 comparison the design doc asked for, even though
+the overlap was partial (missed the actual onset moment):** for the entire 3-hour host soak
+window, the host sustained a healthy connection to the *same station family* (SLAM! DANCE
+CLASSICS) — 180 min, only 5 brief reconnects (each recovering within seconds, real titles tracked
+throughout, 45 timeline events) — while the DUT sat completely frozen the whole time, both before
+and during. Network/CDN health is not in question here; the DUT's render pipeline stopped calling
+repaint on its own. This points at outcome #4 (DUT-specific, in the render/marquee pipeline, not
+network) as the more likely explanation for the original marquee-freeze report, though it's a
+timing correlation, not a captured root cause.
+
+**Confirmed no live introspection possible on this instance:** sent a single safe, read-only probe
+(`help`, matches `cmdHelp` in the SERIAL_DEBUG-only list — not the always-compiled `reconnect`
+command, deliberately avoided since it forces a TLS reset + poll and would have cleared the frozen
+state). Response: `{"ok":false,"error":"unknown command","cmd":"help"}` — confirms production
+build, no `get`/`set`/`screendump` surface, exactly the wall this task's own "diagnostic gap"
+paragraph above already flagged. No further live diagnosis possible on this instance without
+reflashing debug (which would reboot and lose it). Left running, not touched further, decision on
+reflash-vs-continue-observing handed to the human.
+
 ### TASK-391 — Host-side network reproduction harness for WebRadio connectivity (informs TASK-390)
 
 **Filed 2026-08-03, human-directed** to determine whether TASK-390's `ERROR_UNREACHABLE`-parking
