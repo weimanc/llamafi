@@ -30,14 +30,17 @@ Usage:
 Exit 0 always (this is an observational soak, not a pass/fail gate) unless
 the DUT never becomes ready.
 """
-import re
 import sys
 import json
 import time
 import argparse
 import serial
+from pathlib import Path
 
 from app_ids_gen import APP_SLOT
+
+TOOLS_DIR = Path(__file__).resolve().parent
+REPORT_DIR = TOOLS_DIR / "rnd_logs"
 
 # WRPlayState (webRadioApp.h): 0 STOPPED,1 CONNECTING,2 PLAYING,
 # 3 ERROR_WIFI,4 ERROR_STALL,5 ERROR_UNREACHABLE,6 ERROR_BLOCKED
@@ -128,8 +131,14 @@ def snapshot(dut):
 
 
 def write_report(report_out, data):
-    with open(report_out, "w") as f:
-        json.dump(data, f, indent=2, default=str)
+    """Never let a report-write hiccup kill an otherwise-healthy multi-hour
+    soak -- log and continue instead of raising."""
+    try:
+        Path(report_out).parent.mkdir(parents=True, exist_ok=True)
+        with open(report_out, "w") as f:
+            json.dump(data, f, indent=2, default=str)
+    except OSError as e:
+        log(f"WARN: report write to {report_out} failed: {e}")
 
 
 def main():
@@ -147,7 +156,7 @@ def main():
     args = ap.parse_args()
 
     stamp = time.strftime("%Y%m%dT%H%M%S")
-    report_out = args.report_out or f"rnd_logs/webradio_long_soak_{stamp}.json"
+    report_out = args.report_out or str(REPORT_DIR / f"webradio_long_soak_{stamp}.json")
 
     log(f"connecting {args.port} …")
     dut = SerialDut(args.port)
