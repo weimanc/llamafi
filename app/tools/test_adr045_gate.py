@@ -37,6 +37,8 @@ import threading
 import subprocess
 import serial
 
+from app_ids_gen import APP_SLOT
+
 UPSTREAM_URL = "http://connectivitycheck.gstatic.com/generate_204"
 
 RE_WIFI_EV = re.compile(r"\[wifi-ev\] t=(\d+) ev=\d+ (\S+)(?: reason=(\d+))?")
@@ -280,7 +282,7 @@ def run_trial(d, n, hold_secs, max_skips, trial_cap):
          "discDelta": 0, "why": ""}
     w0 = d.cmd("get wifi")
     disc0 = w0.get("discCount", 0) or 0
-    d.cmd("switchApp 10", 3.0)
+    d.cmd(f"switchApp {APP_SLOT['WebRadio']}", 3.0)
     time.sleep(1.5)
     d.cmd("set wrPlay 0", 3.0)
 
@@ -346,7 +348,7 @@ def main():
     # a 0-station conclusion means the fetch died; recover by rebooting.
     cnt = 0
     for attempt in range(1, 4):
-        d.cmd("switchApp 10", 3.0)
+        d.cmd(f"switchApp {APP_SLOT['WebRadio']}", 3.0)
         cnt, stable = 0, 0
         deadline = time.monotonic() + 120
         while time.monotonic() < deadline and stable < 3:

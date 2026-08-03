@@ -243,6 +243,12 @@ and `exp012_measure.py` all hardcode `switchApp 10` intending WebRadio, but WebR
 been AppId 11 since PlaneRadar landed (TASK-307) — stale since then, not since TASK-347.
 Flagging for a separate task.
 
+**Follow-up note added 2026-08-03:** that separate task was never actually filed — sat as this
+paragraph for 6 days until a live DUT session (TASK-393) hit the consequences directly. Fixed
+and closed as **TASK-394**; the "why didn't the test suite catch this" question itself produced
+**TASK-395** (real regression-coverage gap) and **TASK-396** (audit for other instances of this
+exact "flagged, never filed" pattern).
+
 ## M-WEBRADIO-WINAMP-UI (2026-07-18, production items closed 2026-07-28)
 
 Human request, 4 items + item 5 (volume slider) added same day. Design:
@@ -6191,9 +6197,11 @@ for TASK-390's render-freeze thread — reproduced on demand, not just observed 
 **Repro steps (debug build `cyd2usb_winamp_debug`, via `tmux send-keys` into the already-open
 monitor — no new serial connection, no DTR reset):**
 1. `switchApp 11` (WebRadio's current `AppId` — verified via `app/tools/app_ids_gen.py`'s
-   `APP_SLOT` map, **not** the `switchApp 10` some older tooling like `test_webradio_soak.py`
-   uses; that script targets `cyd2usb_webradio`'s trimmed registry, a different app count —
-   don't copy its index into a full-registry build).
+   `APP_SLOT` map, **not** the `switchApp 10` `test_webradio_soak.py` hardcoded. **Correction
+   (2026-08-03, later same session):** the guess here that `cyd2usb_webradio` has a different,
+   trimmed app registry was wrong — `appRegistry.h` is one unconditional list, identical across
+   every env; `WEBRADIO_ONLY` is an unrelated memory-budget flag, not a registry trim. `10` was
+   simply stale everywhere, full stop — see TASK-394, which traces exactly when and fixes it.).
 2. Station list fetch hit a live `HTTP 503` from radio-browser (`get wrLastHttp` — real, ambient
    flakiness, unrelated to anything in this session). Sidestepped with the debug-only
    `set wrUrl http://stream.slam.nl/WEB15_MP3` (TASK-261 Phase 2 lever — injects a single
@@ -6240,3 +6248,125 @@ reproducible, and its supposed auto-recovery isn't working.
 repro's own connect failure is consistent with) · **Priority:** P1 (live-reproducible root-cause
 candidate for a real user-observed defect) · **Status:** open — reproduced, root cause of the
 non-firing terminal-retry not yet found.
+
+### TASK-394 — stale `switchApp 10` (WebRadio) in three tools — TASK-347's own follow-up, never filed
+
+**Filed and CLOSED same-session, 2026-08-03 — human pushback on TASK-393's write-up** ("we've done
+addressing by reference, yet the test suite is not able be coded by reference?! yesterday we ran
+the full test suite and this issue was not flagged — how poor is our test suite?"). Root-caused
+before fixing, not just patched.
+
+**Timeline (git history, not guessed):**
+- `c941260` (2026-06-29, TASK-271): `test_webradio_soak.py` written, `switchApp 10` — **correct
+  at the time**, WebRadio genuinely was `AppId` 10 in `appRegistry.h` then.
+- `8dd270c` (2026-07-11, TASK-303/304, M-PLANERADAR): `PlaneRadar` inserted before `WebRadio` in
+  `appRegistry.h` → WebRadio shifted 10→11. **This is the exact commit that broke it** —
+  `test_webradio_soak.py`, `test_adr045_gate.py`, and `exp012_measure.py` (all pre-existing at
+  that point) went stale here, silently.
+- `68da01b` (2026-07-28, TASK-347): explicitly audited the codebase for hardcoded `switchApp <N>`
+  literals broken by *its own* registry reorder (moving `Settings`) — found and fixed
+  `run_serialdbg_tests.py`, `test_fetch_stress.py`, `prloc_*_smoke.py`, `pr_delta_smoke.py`, plus
+  doc references. **In the course of that audit it also found today's three files, correctly
+  attributed them to the earlier TASK-307/PlaneRadar break (not its own change), wrote "flagging
+  for a separate task" directly into `tasks.md`** (line 244 as of this session) — **and no such
+  task was ever actually filed.** It sat as a prose note in a closed task for 6 days.
+- `2026-08-03` (this session, TASK-393): live-reproduced the WebRadio render-freeze bug on the
+  DUT, mentioned in passing that `test_webradio_soak.py`'s `switchApp 10` was stale — framed as a
+  minor "landmine avoided," with an **incorrect guess** that it might still be intentionally
+  correct for a differently-registered build (corrected above, in TASK-393). Human correctly
+  called this out as under-selling a real, already-self-diagnosed, never-actioned gap.
+
+**Why "yesterday's full test suite" didn't flag it:** it doesn't run these three tools.
+`run/test`'s T-suite (`run_serialdbg_tests.py`) is unaffected — it already routes `switchApp`
+through the generated `APP_SLOT` mirror correctly (fixed by TASK-347). `test_webradio_soak.py` /
+`test_adr045_gate.py` / `exp012_measure.py` are separate, manually-invoked tools
+(`run/wr-soak` and ad-hoc), not part of the routine regression sweep — so this bug could only ever
+have been caught by someone actually running one of them, which nobody had done since the break
+(TASK-238's ADR-045 gate close, the last recorded `test_adr045_gate.py` run, was 2026-07-02 —
+*before* the break).
+
+**Fix (DUT-verified, not just code-reviewed):** all three files now `from app_ids_gen import
+APP_SLOT` and use `f"switchApp {APP_SLOT['WebRadio']}"` — the same pattern already established
+correctly in `run_serialdbg_tests.py` / `test_tls_yield_reliability.py`. Verified end-to-end
+against the live DUT (not just import-tested): `python3 tools/test_webradio_soak.py --port
+/dev/ttyUSB1 --minutes 1 --play-secs 15 --verbose` → `entering WebRadio (switchApp 11)`, `30
+stations loaded`, 4 real play cycles against real stations (Radio 10, Sky Radio 80's Hits, SLAM!,
+Concertzender Baroque), arena acquire/release balanced 4/4, **VERDICT: PASS**. (Incidentally: 3 of
+those 4 cycles hit `state=4`/`state=5` — ERROR_STALL/ERROR_UNREACHABLE — during a 1-minute window;
+consistent with, not deeper-investigated here, TASK-391/392's connect-timeout finding.)
+
+**Owner:** Developer · **Deps:** none · **Priority:** P2 · **Status:** DONE — fixed and
+DUT-verified 2026-08-03.
+
+### TASK-395 — zero regression coverage for TASK-276's terminal-retry — the actual reason TASK-393 went undetected
+
+**Filed 2026-08-03, same pushback session.** TASK-394 explains why the *tooling* was broken;
+this explains why the T-suite itself has no chance of catching a TASK-393-class regression even
+when every tool is pointed at the right app.
+
+`webRadioApp.h:608-634`'s terminal-retry (`WR_TERMINAL_RETRY_MS=30000`, added by TASK-276
+specifically to stop the app parking in an `ERROR_*` state forever) was DUT-confirmed working
+*eagerly* on 2026-07-07 — confirmed so eager, in fact, that `run_serialdbg_tests.py`'s own
+`_wr_err_test()` helper (used by `T_WR_ERR_01`/`T_WR_ERR_02`) has to explicitly `set wrAutoSkip 0`
+before injecting a test state, **specifically because the retry would otherwise re-arm within one
+tick and overwrite the injected state** (see the helper's own docstring, dated from the TASK-277
+campaign). That's a deliberate, correctly-reasoned test-isolation choice — but its side effect is
+that **every automated test which touches this code path turns the retry off first**, so none of
+them can ever observe whether it still fires.
+
+`T237` (`run_serialdbg_tests.py:6409`) is the closest thing to a real test of the surrounding
+auto-skip machinery, and it does run with auto-skip ON — but it only asserts "no loop within 1.5s
+of hitting terminal," which is correct for *its own* scope (TASK-237's runaway-skip bound) and
+says nothing about the 30-second-later re-arm. **No test anywhere waits past
+`WR_TERMINAL_RETRY_MS` with auto-skip ON to confirm the terminal-retry itself still recovers.**
+
+Between the 2026-07-07 manual DUT confirmation and 2026-08-03's TASK-393 finding that it no longer
+fires (348+s observed, zero re-arms, despite every logged precondition satisfied), roughly four
+weeks passed with **no automated test capable of catching that regression even in principle** —
+one class deliberately disables the mechanism for isolation, the other class (TASK-394's tools)
+was independently broken and unrun. Two unrelated gaps compounded into one blind spot exactly
+where the real regression lived.
+
+**Proposed fix:** a new test (`T_WR_ERR_03` or similar) — inject a retryable error
+(`ERROR_UNREACHABLE`/`ERROR_STALL`) with `wrAutoSkip` **ON** and a loaded station list, wait
+`WR_TERMINAL_RETRY_MS + slack` (~35-40s), and assert `wrState` actually left the injected error
+(either back to `PLAYING`/`CONNECTING`, or a fresh connect attempt observably fired) — a *positive*
+assertion that the re-arm happened, not just that nothing looped. This is also the test that
+should have caught TASK-393 and would catch it going forward once TASK-393 itself is fixed.
+
+**Owner:** Developer · **Deps:** TASK-393 (root cause must land or this test starts RED, which is
+fine/expected — write the test first as the regression check, then fix TASK-393 against it) ·
+**Priority:** P1 (this is the actual coverage hole, not just today's symptom) · **Status:** open —
+not started.
+
+### TASK-396 — audit `tasks.md` for "flagged for a separate task" notes that were never filed
+
+**Filed 2026-08-03, same pushback session.** TASK-394 is a second confirmed instance of a specific
+failure pattern: a task's own closing write-up correctly identifies a real, separate issue,
+explicitly says "flagging for a separate task" / "no task filed for it yet," and then nothing
+files it — the note sits as prose in a closed task, invisible to any task-number-based search,
+until someone re-discovers the underlying bug the hard way (today: live, on the DUT, because a
+human happened to be watching the screen).
+
+One other live instance was checked this session and found to have actually resolved itself
+correctly (`OQ4`/taskbar `isHealthy()` gap: flagged once as unfiled circa TASK-364's writeup, then
+properly filed as **TASK-366** in the same document, later) — so this isn't universal, but it's
+not a one-off either (two real instances found from a light grep this session, not an exhaustive
+pass).
+
+**Scope:** grep `tasks.md` (and `tasks-archive.md`) for the pattern (`flagged for`, `flagging for`,
+`no task filed`, `not yet filed`, `separate task`, `follow-up task`, similar phrasings), and for
+each hit: confirm a real `TASK-NNN` now exists for it: if yes, note it inline (`OQ4` precedent);
+if no, either file it properly or make an explicit, reasoned call that it's not worth tracking
+(some of this session's own grep hits *were* legitimately fine as-is — e.g. tasks-archive.md's
+"doesn't warrant tracked backlog on its own" calls were reasoned decisions, not gaps — the audit
+needs to tell those apart, not file everything reflexively).
+
+**Process angle (for QM):** `AGENTS.md` already says "PM reads `git log` before planning" — worth
+adding an explicit line that a task closing with a "flagged, not filed" note is not actually
+closed on that thread until the follow-up has a number, or the human/PM has made an explicit
+call to drop it. Candidate for `docs/quality/best_practices.md` once this task's audit gives it a
+concrete enough shape to generalize from (don't add the BP speculatively before that).
+
+**Owner:** PM/QM · **Deps:** none · **Priority:** P3 (process hygiene, not a functional bug) ·
+**Status:** open — not started.

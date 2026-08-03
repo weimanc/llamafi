@@ -32,6 +32,8 @@ import time
 import argparse
 import serial
 
+from app_ids_gen import APP_SLOT
+
 RE_CP2     = re.compile(r"CP2-decoder-init freeInt=(\d+) lfbInt=(\d+) freeDma=(\d+) lfbDma=(\d+)")
 RE_ACQUIRE = re.compile(r"arena acquire=(\d+)B lfbBefore=(\d+)\s+(\S+)")
 RE_INBUF   = re.compile(r"inputBufferSize: (\d+) bytes")   # ground truth for the ring size
@@ -165,7 +167,7 @@ def main():
     print(f"[exp012] connecting {args.port} …", flush=True)
     if not d.boot_wait():
         print("[exp012] FAIL: shell not ready", flush=True); sys.exit(1)
-    d.cmd("switchApp 10", 3.0)
+    d.cmd(f"switchApp {APP_SLOT['WebRadio']}", 3.0)
     time.sleep(1.0)
     # The station list arrives over a multi-page fetch — wait until the count
     # STABILIZES (unchanged for 3 polls), not merely >0. Polling early sees a

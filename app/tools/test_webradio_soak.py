@@ -44,6 +44,8 @@ import argparse
 import statistics
 import serial
 
+from app_ids_gen import APP_SLOT
+
 # Self-contained serial wrapper. We deliberately do NOT reuse run_serialdbg_tests.Dut:
 # its constructor enforces the canonical cyd2usb_winamp_debug ELF hash, but this soak runs
 # on the cyd2usb_webradio build (different ELF). Both have SERIAL_DEBUG, which is all we need.
@@ -223,7 +225,7 @@ class Soak:
         self._scan_arena(self._read_for(3.0, want_substr="arena released"))
         time.sleep(0.5)
         # re-enter WebRadio (stations persist — init() only runs on first launch)
-        self._cmd("switchApp 10", 3.0)
+        self._cmd(f"switchApp {APP_SLOT['WebRadio']}", 3.0)
         time.sleep(1.0)
 
         if self.verbose:
@@ -309,8 +311,9 @@ def main():
     if not dut.boot_wait():
         print("[wr-soak] FAIL: shell did not become ready (WiFi up? debug build?)", flush=True)
         sys.exit(1)
-    print("[wr-soak] entering WebRadio (switchApp 10) + waiting for station list …", flush=True)
-    dut.cmd("switchApp 10", timeout=3.0)
+    print(f"[wr-soak] entering WebRadio (switchApp {APP_SLOT['WebRadio']}) + waiting for "
+          f"station list …", flush=True)
+    dut.cmd(f"switchApp {APP_SLOT['WebRadio']}", timeout=3.0)
     time.sleep(1.0)
 
     cnt = 0
