@@ -494,12 +494,34 @@ def check_parser_correctness(url=SELFCHECK_URL, duration_s=30):
 
 # ── phase 2: sustained soak (depth) ─────────────────────────────────────────
 
-def run_soak(name, url, minutes):
+CHECKPOINT_EVERY_S = 300  # 5 min -- long soaks (hours) shouldn't be all-or-nothing
+
+
+def run_soak(name, url, minutes, checkpoint_path=None):
     _log(f"=== Phase 2: {minutes}min soak against {name} ===")
     timeline = []
     start = time.time()
     deadline = start + minutes * 60
     reconnects = 0
+    last_checkpoint = start
+
+    def maybe_checkpoint(force=False):
+        nonlocal last_checkpoint
+        if checkpoint_path is None:
+            return
+        if not force and time.time() - last_checkpoint < CHECKPOINT_EVERY_S:
+            return
+        last_checkpoint = time.time()
+        partial = {"name": name, "url": url, "minutes": minutes,
+                   "elapsed_s": round(time.time() - start, 1),
+                   "reconnects": reconnects, "timeline": list(timeline),
+                   "complete": False, "checkpoint_ts": _ts()}
+        try:
+            Path(checkpoint_path).write_text(json.dumps(partial, indent=2, default=str))
+            _log(f"  [{name}] checkpoint written -> {checkpoint_path} "
+                 f"(elapsed={partial['elapsed_s']}s, {reconnects} reconnect(s))")
+        except OSError as e:
+            _log(f"  [{name}] WARNING: checkpoint write failed: {e}")
 
     def connect_headers(url_now, hop=0):
         """Connect + send request + parse status/headers. Follows 3xx
@@ -564,6 +586,7 @@ def run_soak(name, url, minutes):
                      f"(elapsed={time.time()-start:.0f}s)")
                 bytes_since_log = 0
                 last_log = time.time()
+                maybe_checkpoint()
 
             if metaint is None:
                 continue
@@ -599,10 +622,18 @@ def run_soak(name, url, minutes):
             time.sleep(2.0)
             timeline.append({"ts": _ts(), "elapsed_s": round(gap_start - start, 1),
                               "event": "disconnect", "error": str(e)})
+            maybe_checkpoint(force=True)
 
     _log(f"soak complete: {reconnects} reconnect(s), {len(timeline)} timeline event(s)")
-    return {"name": name, "url": url, "minutes": minutes, "reconnects": reconnects,
-            "timeline": timeline}
+    result = {"name": name, "url": url, "minutes": minutes, "reconnects": reconnects,
+              "timeline": timeline, "complete": True}
+    if checkpoint_path:
+        try:
+            Path(checkpoint_path).write_text(json.dumps({**result, "checkpoint_ts": _ts()},
+                                                          indent=2, default=str))
+        except OSError as e:
+            _log(f"WARNING: final checkpoint write failed: {e}")
+    return result
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
@@ -617,18 +648,22 @@ def main():
                           "(0 = skip Phase 2, default)")
     ap.add_argument("--skip-parser-check", action="store_true",
                      help="skip the parser-correctness check (not recommended before Phase 2)")
+    ap.add_argument("--skip-phase1", action="store_true",
+                     help="skip Phase 1 (connect-latency A/B) -- TASK-391 already reached a "
+                          "disposition on this; use for a dedicated Phase 2 soak run")
     ap.add_argument("--report-out", type=str, default=None,
                      help="path to write the JSON report (default: app/tools/rnd_logs/)")
     args = ap.parse_args()
 
     run_start_wall = _ts()
+    run_stamp = time.strftime("%Y%m%dT%H%M%S")
     _log(f"=== TASK-391 WebRadio host repro harness -- run started {run_start_wall} ===")
     log_dns_resolver()
 
     if not run_selfcheck():
         report = {"run_start": run_start_wall, "self_check": False,
                   "note": "aborted: self-check failed, tool broken"}
-        _write_report(report, args.report_out)
+        _write_report(report, args.report_out, run_stamp)
         sys.exit(1)
 
     if not args.skip_parser_check:
@@ -643,38 +678,44 @@ def main():
     _log(f"breadth stations: {[s['name'] for s in stations['breadth']]}")
     _log(f"depth station: {stations['depth']['name']}")
 
-    _log("=== Phase 1: connect-latency A/B (capped vs generous timeout) ===")
-    ab_results = []
-    for s in stations["breadth"]:
-        ab_results.append(run_ab_test(s["name"], s["url_resolved"]))
     depth = stations["depth"]
-    ab_results.append(run_ab_test(depth["name"], depth["url_resolved"]))
-
-    supported = [r for r in ab_results if r["verdict"] == "timeout-supported"]
-    both_fail = [r for r in ab_results if r["verdict"] == "both-fail"]
-    healthy = [r for r in ab_results if r["verdict"] == "no-timeout-signal"]
-
-    _log("=== Phase 1 disposition ===")
-    for r in ab_results:
-        _log(f"  {r['name']}: capped {r['capped_ok']}/{ATTEMPTS_PER_BUDGET} ok, "
-             f"generous {r['generous_ok']}/{ATTEMPTS_PER_BUDGET} ok -> {r['verdict']}")
-
-    if supported:
-        overall = ("timeout-too-short SUPPORTED for "
-                   f"{len(supported)}/{len(ab_results)} station(s): "
-                   f"{[r['name'] for r in supported]} -- candidate fix: raise "
-                   "setConnectionTimeout(), gated on DUT-side confirmation")
-    elif both_fail:
-        overall = (f"{len(both_fail)}/{len(ab_results)} station(s) unreachable at BOTH budgets: "
-                   f"{[r['name'] for r in both_fail]} -- real external outage/network-path "
-                   "issue, not a timeout-tuning fix")
+    ab_results = []
+    overall = None
+    if args.skip_phase1:
+        _log("=== Phase 1 skipped (--skip-phase1) -- disposition already reached this session ===")
     else:
-        overall = "no station showed a timeout-supported pattern -- all healthy at both budgets"
-    _log(f"OVERALL: {overall}")
+        _log("=== Phase 1: connect-latency A/B (capped vs generous timeout) ===")
+        for s in stations["breadth"]:
+            ab_results.append(run_ab_test(s["name"], s["url_resolved"]))
+        ab_results.append(run_ab_test(depth["name"], depth["url_resolved"]))
+
+        supported = [r for r in ab_results if r["verdict"] == "timeout-supported"]
+        both_fail = [r for r in ab_results if r["verdict"] == "both-fail"]
+
+        _log("=== Phase 1 disposition ===")
+        for r in ab_results:
+            _log(f"  {r['name']}: capped {r['capped_ok']}/{ATTEMPTS_PER_BUDGET} ok, "
+                 f"generous {r['generous_ok']}/{ATTEMPTS_PER_BUDGET} ok -> {r['verdict']}")
+
+        if supported:
+            overall = ("timeout-too-short SUPPORTED for "
+                       f"{len(supported)}/{len(ab_results)} station(s): "
+                       f"{[r['name'] for r in supported]} -- candidate fix: raise "
+                       "setConnectionTimeout(), gated on DUT-side confirmation")
+        elif both_fail:
+            overall = (f"{len(both_fail)}/{len(ab_results)} station(s) unreachable at BOTH budgets: "
+                       f"{[r['name'] for r in both_fail]} -- real external outage/network-path "
+                       "issue, not a timeout-tuning fix")
+        else:
+            overall = "no station showed a timeout-supported pattern -- all healthy at both budgets"
+        _log(f"OVERALL: {overall}")
 
     soak = None
     if args.minutes > 0:
-        soak = run_soak(depth["name"], depth["url_resolved"], args.minutes)
+        checkpoint_path = REPORT_DIR / f"webradio_host_repro_soak_checkpoint_{run_stamp}.json"
+        REPORT_DIR.mkdir(parents=True, exist_ok=True)
+        soak = run_soak(depth["name"], depth["url_resolved"], args.minutes,
+                         checkpoint_path=checkpoint_path)
 
     report = {
         "run_start": run_start_wall,
@@ -687,16 +728,16 @@ def main():
         "phase1_overall_disposition": overall,
         "phase2_soak": soak,
     }
-    _write_report(report, args.report_out)
+    _write_report(report, args.report_out, run_stamp)
     sys.exit(0)
 
 
-def _write_report(report, report_out):
+def _write_report(report, report_out, stamp=None):
     if report_out:
         path = Path(report_out)
     else:
         REPORT_DIR.mkdir(parents=True, exist_ok=True)
-        stamp = time.strftime("%Y%m%dT%H%M%S")
+        stamp = stamp or time.strftime("%Y%m%dT%H%M%S")
         path = REPORT_DIR / f"webradio_host_repro_{stamp}.json"
     path.write_text(json.dumps(report, indent=2, default=str))
     _log(f"report written -> {path}")
