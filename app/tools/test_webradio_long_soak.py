@@ -33,6 +33,7 @@ the DUT never becomes ready.
 import sys
 import json
 import time
+import atexit
 import argparse
 import serial
 from pathlib import Path
@@ -164,10 +165,34 @@ def main():
         log("FAIL: shell did not become ready (WiFi up? debug build?)")
         sys.exit(1)
 
+    # Spotify's background polling is a CONTINUOUS competing TLS user, not a
+    # one-time boot blip -- it retries on its own backoff schedule even while
+    # erroring (observed: repeated "SSL - Memory allocation failed" in this
+    # session), so a settle-and-hope delay never reliably wins the race. It
+    # kept tripping the documented -101 heap guard (dataTaskStorage.cpp:1575,
+    # "fetch skipped: maxBlk < WR_FETCH_MIN_TLS_BLOCK") even after 8s settle +
+    # 50s of backoff across 4 retries. Fix: disable it outright for the
+    # duration, matching the established pattern in test_adr045_gate.py/T237.
+    log("set bgPoll 0 (disable Spotify's competing background polling)")
+    dut.cmd("set bgPoll 0", timeout=2.0)
+
+    def _cleanup():
+        # atexit, not try/finally around the rest of main() -- guarantees
+        # restoration on every exit path (normal completion, FAIL sys.exit,
+        # or an uncaught exception) without restructuring the whole function.
+        try:
+            dut.cmd("set bgPoll 1", timeout=2.0)
+            dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=3.0)
+        except Exception:
+            pass
+    atexit.register(_cleanup)
+
     log(f"entering WebRadio (switchApp {APP_SLOT['WebRadio']}) + waiting for station list …")
     dut.cmd(f"switchApp {APP_SLOT['WebRadio']}", timeout=3.0)
     cnt = 0
-    for attempt in range(1, 4):
+    RETRY_BACKOFF_S = [5.0, 10.0]
+    attempts = len(RETRY_BACKOFF_S) + 1
+    for attempt in range(1, attempts + 1):
         deadline = time.monotonic() + 90
         while time.monotonic() < deadline:
             r = dut.cmd("get wrCount", timeout=3.0)
@@ -180,14 +205,19 @@ def main():
         if cnt > 0:
             break
         lh = dut.cmd("get wrLastHttp", timeout=3.0)
-        log(f"WARN: station fetch attempt {attempt}/3 failed "
+        if attempt > len(RETRY_BACKOFF_S):
+            break
+        backoff = RETRY_BACKOFF_S[attempt - 1]
+        log(f"WARN: station fetch attempt {attempt}/{attempts} failed "
             f"(http={lh.get('http')} ok={lh.get('ok')} jsonErr={lh.get('jsonErr')!r}) — "
-            f"re-triggering via leave/re-enter")
+            f"waiting {backoff:.0f}s then re-triggering via leave/re-enter")
+        time.sleep(backoff)
         dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=3.0)
         time.sleep(1.0)
         dut.cmd(f"switchApp {APP_SLOT['WebRadio']}", timeout=3.0)  # TASK-289 second-chance fetch
     if cnt <= 0:
-        log("FAIL: no stations loaded after 3 attempts (check WiFi / radio-browser reachability)")
+        log(f"FAIL: no stations loaded after {attempts} attempts "
+            f"(check WiFi / radio-browser reachability)")
         sys.exit(1)
 
     idx, name = pick_station(dut, args.station_name)
