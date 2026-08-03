@@ -20,9 +20,19 @@ both get captured too). This is the instrumentation-at-the-moment TASK-393
 kept missing every time it was observed live.
 
 Runs against whatever debug build (SERIAL_DEBUG) is currently flashed —
-does not flash anything itself. Point it at cyd2usb_winamp_debug (Spotify
-present, matching the actual TASK-390/393 environment) for the most
-representative run.
+does not flash anything itself. Point it at cyd2usb_winamp_debug for the
+closest match to the actual TASK-390/393 environment.
+
+Note: `set bgPoll 0` disables Spotify's background polling for the
+duration (restored on exit). This was necessary, not optional — Spotify's
+own polling is a continuous competing TLS user (observed repeatedly
+failing "SSL - Memory allocation failed" this session) that reliably
+starved the WebRadio station-fetch's heap-contiguity guard on a fresh
+boot, no amount of settle/backoff won that race. So this soak does NOT
+reproduce the original TASK-390/393 environment's Spotify-contention
+exactly — it isolates the WebRadio-side question (does it park forever on
+its own) from the Spotify-TLS-contention question, rather than testing
+both at once.
 
 Usage:
     python3 test_webradio_long_soak.py --port /dev/ttyUSB0 --hours 4
