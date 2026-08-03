@@ -6495,6 +6495,105 @@ def t237(dut: Dut):
         _restore_spotify(dut)
 
 
+# ── T276 — terminal-retry re-arm actually fires (TASK-395, regression for TASK-393) ──
+
+def t276(dut: Dut):
+    """T276: TASK-276's terminal-retry re-arm actually recovers a parked ERROR_*.
+
+    No existing test asserts this positively. T_WR_ERR_01-04 only round-trip
+    inject a state with auto-skip OFF (deliberately, so the retry can't
+    interfere with the injection — see _wr_err_test()'s own docstring, which
+    documents the retry firing within one tick when auto-skip is ON). T237
+    asserts "no loop within 1.5s" of hitting terminal, which is correct for
+    ITS OWN scope (the runaway-skip bound) but says nothing about the
+    30-second-later re-arm. TASK-393 (2026-08-03, live DUT session) found
+    the re-arm did not fire in 348+ seconds despite every logged
+    precondition (autoSkip ON, retryable error, stationCount>0, elapsed >>
+    WR_TERMINAL_RETRY_MS) appearing satisfied. This test closes that gap:
+    drive to terminal exactly like T237 (deterministic, no real network
+    dependency), then wait past WR_TERMINAL_RETRY_MS with auto-skip ON and
+    assert the re-arm actually happened.
+
+    Signal: the retry handler (webRadioApp.h:623-634) resets _autoSkipTried
+    to 0 before re-playing, so a `wrSkip.tried` reading below the saturated
+    N-1 at any point during the wait is unambiguous evidence the re-arm
+    fired — not just "state changed" (a transient CONNECTING could be
+    missed between polls; tried dropping cannot happen any other way).
+
+    Expected to currently FAIL — that is the point (TASK-393's root cause
+    is still open as of this test's authoring). Once TASK-393 lands a fix,
+    this test is what proves it and guards against a repeat.
+    """
+    tid = "T276"
+    print(f"{tid}  terminal-retry re-arm after WR_TERMINAL_RETRY_MS (TASK-395/393)")
+
+    WR_TERMINAL_RETRY_MS = 30000  # webRadioApp.h:69 — keep in sync if that constant moves
+    SLACK_S = 15.0
+    POLL_S  = 0.5
+
+    dut.cmd("set bgPoll 0", timeout=2.0)
+    ok, _ = _switch_to_webradio_capture_heap(dut)
+    if not ok:
+        dut.cmd("set bgPoll 1", timeout=2.0)
+        skip(tid, "could not enter WebRadio via eject")
+        return
+
+    N = 3
+    try:
+        dut.cmd("set wrStop 1", timeout=3.0)
+        dut.cmd("set wrAutoSkip 1", timeout=3.0)      # ON — the point of this test
+        dut.cmd(f"set wrDeadUrls {N}", timeout=3.0)   # synthesize N dead + arm deterministic fail
+        rc = dut.cmd("get wrCount", timeout=3.0)
+        if rc.get("count") != N:
+            fail(tid, f"wrDeadUrls {N} did not yield count={N}: {rc}")
+            return
+        dut.cmd("set wrPlay 0", timeout=3.0)          # user-initiated play
+
+        # Drive to terminal (mirrors T237): tried saturates at N-1.
+        deadline = time.monotonic() + 12.0
+        tried = -1
+        while time.monotonic() < deadline:
+            tried = _wr_skip_tried(dut)
+            if tried >= N - 1:
+                break
+            time.sleep(0.3)
+        if tried != N - 1:
+            fail(tid, f"did not reach terminal: tried={tried}, expected {N - 1}")
+            return
+        st = dut.cmd("get wrState", timeout=3.0).get("state")
+        if st != 5:  # ERROR_UNREACHABLE
+            fail(tid, f"expected terminal ERROR_UNREACHABLE(5), got state={st}")
+            return
+        t_terminal = time.monotonic()
+        wait_budget = WR_TERMINAL_RETRY_MS / 1000.0 + SLACK_S
+        print(f"  [{tid}] reached terminal (tried={tried}, state=5) — "
+              f"waiting up to {wait_budget:.0f}s for re-arm …")
+
+        rearmed = False
+        deadline2 = t_terminal + wait_budget
+        while time.monotonic() < deadline2:
+            tried_now = _wr_skip_tried(dut)
+            if 0 <= tried_now < N - 1:
+                rearmed = True
+                break
+            time.sleep(POLL_S)
+        elapsed = time.monotonic() - t_terminal
+
+        if not rearmed:
+            fail(tid, f"terminal-retry did NOT fire within {elapsed:.0f}s "
+                       f"(tried stayed at {N - 1}, WR_TERMINAL_RETRY_MS="
+                       f"{WR_TERMINAL_RETRY_MS}ms) — TASK-393 regression")
+            return
+        pass_(tid, f"terminal-retry re-armed after {elapsed:.0f}s "
+                    f"(tried dropped below {N - 1}, scan restarted)")
+    finally:
+        dut.cmd("set wrDeadUrls 0", timeout=3.0)   # disable hook + clear synthetic list
+        dut.cmd("set wrAutoSkip 1", timeout=3.0)   # restore default ON
+        dut.cmd("set wrStop 1", timeout=3.0)
+        dut.cmd("set bgPoll 1", timeout=2.0)
+        _restore_spotify(dut)
+
+
 # ── T_WR_TLS_01 — Station fetch succeeds; record which TLS path fired ───────
 
 def _tls01_pull_dut_log(dut: Dut):
@@ -7776,6 +7875,7 @@ ALL_TESTS = {
     "T_WR_VOL_03":   t_wr_vol_03,
     "T_WR_VOL_CLAMP": t_wr_vol_clamp,
     "T237":          t237,   # TASK-237: auto-skip terminal bound (dead-URL hook)
+    "T276":          t276,   # TASK-276/395: terminal-retry re-arm actually fires
     # M-WEBRADIO TLS path + Spotify coexistence (TASK-214)
     "T_WR_TLS_01":            t_wr_tls_01,
     "T_WR_SPOTIFY_RESUME_01": t_wr_spotify_resume_01,

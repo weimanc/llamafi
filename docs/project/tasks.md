@@ -6249,6 +6249,12 @@ repro's own connect failure is consistent with) · **Priority:** P1 (live-reprod
 candidate for a real user-observed defect) · **Status:** open — reproduced, root cause of the
 non-firing terminal-retry not yet found.
 
+**Update (TASK-395's `T276` test, same day):** the retry re-arm's own condition logic tested
+correctly (PASS, fired at 32s) under `wrDeadUrls`'s synthetic forced-fail path — see TASK-395 for
+the full result. That path never calls the real `connecttohost()`, so this narrows the regression
+to something specific to state left behind by a genuine failed connect, not the retry logic
+itself. Next repro should use a real dead URL (`set wrUrl`), not the synthetic hook.
+
 ### TASK-394 — stale `switchApp 10` (WebRadio) in three tools — TASK-347's own follow-up, never filed
 
 **Filed and CLOSED same-session, 2026-08-03 — human pushback on TASK-393's write-up** ("we've done
@@ -6327,17 +6333,41 @@ one class deliberately disables the mechanism for isolation, the other class (TA
 was independently broken and unrun. Two unrelated gaps compounded into one blind spot exactly
 where the real regression lived.
 
-**Proposed fix:** a new test (`T_WR_ERR_03` or similar) — inject a retryable error
-(`ERROR_UNREACHABLE`/`ERROR_STALL`) with `wrAutoSkip` **ON** and a loaded station list, wait
-`WR_TERMINAL_RETRY_MS + slack` (~35-40s), and assert `wrState` actually left the injected error
-(either back to `PLAYING`/`CONNECTING`, or a fresh connect attempt observably fired) — a *positive*
-assertion that the re-arm happened, not just that nothing looped. This is also the test that
-should have caught TASK-393 and would catch it going forward once TASK-393 itself is fixed.
+**Test written and DUT-run 2026-08-03 — `T276`** (`run_serialdbg_tests.py`, registered alongside
+`T237`): drives to terminal `ERROR_UNREACHABLE` via the same deterministic `set wrDeadUrls N`
+hook T237 uses (no real network dependency), with `wrAutoSkip` **ON** this time, then polls
+`wrSkip.tried` for up to `WR_TERMINAL_RETRY_MS + 15s` slack — a drop below the saturated `N-1`
+is unambiguous evidence the re-arm fired (only the retry handler resets that counter).
 
-**Owner:** Developer · **Deps:** TASK-393 (root cause must land or this test starts RED, which is
-fine/expected — write the test first as the regression check, then fix TASK-393 against it) ·
-**Priority:** P1 (this is the actual coverage hole, not just today's symptom) · **Status:** open —
-not started.
+**Result — surprising, and it changes the shape of TASK-393, doesn't close it:**
+
+```
+T276  reached terminal (tried=2, state=5) — waiting up to 45s for re-arm …
+T276  PASS — terminal-retry re-armed after 32s (tried dropped below 2, scan restarted)
+```
+
+**The terminal-retry fired correctly** — 32s, right against `WR_TERMINAL_RETRY_MS=30000`. This
+directly contradicts TASK-393's live observation (348+s, zero re-arms) under what looked like the
+same preconditions. The mechanistic difference: `wrDeadUrls`'s `_debugForceConnFail` path is an
+early return in `_play()` (`webRadioApp.h:1568-1580`) that sets `ERROR_UNREACHABLE` **without ever
+calling the real `connecttohost()`** — no real `WiFiClient`/TLS/`Audio` object state is touched.
+TASK-393's repro used `set wrUrl` against a real stream URL, where `connecttohost()` actually ran
+and returned false after a genuine attempted TCP connect. **TASK-393's regression is therefore
+plausibly specific to state left behind by a real failed `connecttohost()`** (a stuck semaphore,
+`spotifyTask` TLS yield/resume bookkeeping, `Audio` object internal state, something arena/heap-
+adjacent) — not a defect in the retry re-arm's own condition logic, which this test now shows
+works correctly in isolation.
+
+**This test is real, valuable coverage on its own** (the retry mechanism's logic previously had
+zero automated assertion; now it has one, and it passes) — but it does **not** currently reproduce
+or catch TASK-393's actual failure mode. TASK-393 needs a repro using a real dead URL (matching
+the original live conditions) with this same 30s+ wait pattern, not the synthetic hook, to
+actually pin down what real-connect-failure-specific state differs. Filed as the next concrete
+step under TASK-393, not a new task — same root cause, sharper reproduction target.
+
+**Owner:** Developer · **Deps:** TASK-393 · **Priority:** P1 · **Status:** T276 test DONE
+(committed, passing, real coverage) — **TASK-393's actual root cause still open, now better
+scoped** (real-`connecttohost()`-failure-specific, not the retry logic itself).
 
 ### TASK-396 — audit `tasks.md` for "flagged for a separate task" notes that were never filed
 
