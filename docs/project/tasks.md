@@ -6001,6 +6001,15 @@ rather than hunt for the throwaway). Next session: retry once radio-browser is h
 project has had), watch `wrIdx` specifically to resolve the auto-skip question first — that's now
 higher-priority than the original marquee hypothesis, since it's the thing actually reproduced.
 
+**TASK-391 update (2026-08-03):** host-side A/B testing found real, repeat-run evidence that
+`Audio.h`'s tight default connect-timeout (250ms HTTP/2700ms HTTPS) is clipping genuinely-good
+connects (0/36 failures at 5s budget vs. 11/36 at the default budget, same hosts/network) — a
+plausible contributor to this task's `ERROR_UNREACHABLE`-parking signal specifically. Does **not**
+reproduce or explain the original marquee-freeze symptom (host-side 10-minute soak against SLAM!
+DANCE CLASSICS stayed healthy throughout, no sustained stall) — that thread stays open, unchanged,
+pending the `wrIdx`/auto-skip retry above. Candidate timeout fix filed as TASK-392, gated on DUT
+confirmation. Full results: TASK-391 entry below.
+
 ### TASK-391 — Host-side network reproduction harness for WebRadio connectivity (informs TASK-390)
 
 **Filed 2026-08-03, human-directed** to determine whether TASK-390's `ERROR_UNREACHABLE`-parking
@@ -6058,5 +6067,85 @@ the outcome this document exists to prevent.
 
 **Owner:** Developer (implementation) · **Deps:** TASK-390 (this informs its resumption) ·
 **Priority:** P2 (same urgency class as TASK-390 — real user-observed defect, and this is the
-fastest path to root-causing it) · **Status:** open — design drafted (Architect) and reviewed
-(VE, six gaps flagged, none blocking) — not yet implemented.
+fastest path to root-causing it) · **Status:** CLOSED 2026-08-03 — disposition reached, follow-up
+filed as TASK-392.
+
+**Results (2026-08-03, Developer):** Built `app/tools/test_webradio_host_repro.py` per the design
+(Option C + all six VE-review fixes: self-check gate, capped-vs-generous same-host A/B instead of
+absolute-latency guessing, N=3 attempts/station, cached station resolution, DNS-resolver
+disclosure, ICY-parser correctness check before trusting title-tracking). Ran the full harness
+twice, ~15 minutes apart (self-check + parser-check + Phase 1 six-station A/B + Phase 2 10-minute
+soak each time).
+
+**Tool bug found and fixed before trusting Phase 2 (worth recording as its own lesson):** the
+first run's soak showed SLAM! DANCE CLASSICS "dropping" every ~17s for the full 10 minutes,
+34 reconnects, zero throughput, zero titles — reading like a dramatic real stall. It was a tool
+defect: the soak's connect path (unlike `probe_once`) didn't follow the 302 redirect every single
+station in this session required (StreamTheWorld edge load-balancing) — it was reading a
+redirect's empty body forever until the 15s read timeout, over and over. Fixed by sharing the
+redirect-following logic into the soak's connect path; a 30s re-test immediately showed normal
+sustained throughput and a correctly-parsed title. Re-ran the full 10-minute soak after the fix —
+this is exactly the false-positive shape the VE review's point #5 warned about, just one layer up
+(connect/redirect, not metadata parsing) from where the review looked for it.
+
+**Phase 1 (connect-latency A/B), combined across both runs — primary result:** generous-budget
+(5s) connects succeeded **36/36** (100%) across all 6 stations × 2 runs. Capped-budget connects
+(250ms HTTP / 2700ms HTTPS, matching `Audio.h`'s defaults exactly) succeeded **25/36** (~69%,
+31% failure rate) — same hosts, same network, same code path, only the timeout value differed.
+5 of 6 stations hit the pre-registered "timeout-supported" threshold (capped failures ≥2 more than
+generous, out of 3) in at least one of the two runs: Radio 10, Sky Radio 80's Hits, SLAM!,
+Concertzender Baroque, SLAM! DANCE CLASSICS. Only Arrow Classic Rock (HTTPS, the more generous
+2700ms capped budget) never did. **This is same-machine, same-moment, falsifiable evidence for
+the timeout-too-short hypothesis** — disposition matrix outcome #2 ("host connects fine, but
+latency clusters near/above 250ms") — not outcome #1 (weakens hypothesis) or #3 (real outage).
+
+**Caveat that likely makes 31% an undercount, not an overcount:** Python's `getaddrinfo()` has no
+enforceable per-call timeout, so DNS-resolve time was NOT counted against the tested budget in
+this tool — only TCP-connect (+TLS for HTTPS) was. One attempt (SLAM!, run 2, generous budget)
+saw a 5222ms DNS resolve alone. On the real device, `WiFiClient::connect(host, port, timeout)`
+bundles DNS+TCP(+TLS) under one budget, so a DNS spike like that would by itself blow through the
+250/2700ms capped budget on the DUT — a failure mode this tool can't currently observe or count.
+
+**DNS resolver caveat (VE review #3, unresolved):** this host resolves via `127.0.0.53`
+(systemd-resolved) — not verified equivalent to whatever the DUT's DHCP lease actually hands out.
+Flagged, not fixed; residual uncertainty on how directly comparable the two paths are.
+
+**Phase 2 (10-minute soak, depth station, post-fix):** sustained connection to SLAM! DANCE
+CLASSICS, ~150-300 KB/10s throughput throughout (consistent with the 128 kbps stream), 4 real
+`StreamTitle` changes correctly tracked over the session, only **1 reconnect** in 10 minutes (a
+~32s gap around the 3:45 mark, recovered on its own). No sustained multi-minute stall of the kind
+TASK-390's original marquee-freeze report described — this host-side run does not reproduce that
+symptom, and (parser-correctness check having passed separately) there's no reason to suspect the
+one clean reconnect was itself a parsing artifact. Disposition matrix outcome #4 ("metadata
+pipeline specific to the DUT") stays unconfirmed either way — no concurrent DUT run happened this
+session to compare against, so this remains open per TASK-390, not closed by this result.
+
+**Overall disposition:** timeout-too-short (outcome #2) is the supported finding, with logged,
+repeat-run evidence. Per this doc's own scoping note ("not proposing the fix yet... proposing the
+measurement"), the candidate fix (raise `setConnectionTimeout()`) is **not applied here** — filed
+as **TASK-392**, gated on a DUT-side confirmation run per the design's own requirement.
+
+### TASK-392 — Raise WebRadio's connect timeout (setConnectionTimeout), gated on DUT confirmation
+
+**Filed 2026-08-03, follow-up from TASK-391.** TASK-391's host-side A/B test found real,
+repeat-run evidence that `Audio.h`'s default connect-timeout budget (`m_timeout_ms = 250` plain
+HTTP, `m_timeout_ms_ssl = 2700` HTTPS — never raised by `webRadioApp.h` via
+`setConnectionTimeout()`) clips genuinely-successful connects: 0/36 failures at a 5s budget vs.
+11/36 (~31%) failures at the capped budget, same hosts/network/code path, across two independent
+runs. 5 of 6 tested NL stations hit this at least once. Likely conservative (see TASK-391's DNS-
+timing caveat — the tested budget didn't even cover DNS-resolve time, which the real device's
+`WiFiClient::connect()` does).
+
+**Proposed change:** call `wrAudio().setConnectionTimeout(...)` in `webRadioApp.h` with a more
+realistic budget — exact values TBD by whoever implements (something well above the observed
+capped-budget failures without drifting into TASK-295's TWDT-adjacent territory at the high end;
+that task's own `10000ms` extreme-case bump is a useful ceiling reference, not necessarily the
+right steady-state value here).
+
+**Gate (per TASK-391's design doc, explicit — do not skip):** this must be confirmed on the DUT
+before being treated as done — run `run/wr-soak` (or a targeted WebRadio connectivity test) before
+and after the change and confirm `ERROR_UNREACHABLE` incidence actually drops. A host-side A/B
+result is evidence to justify trying the change, not proof it fixes the DUT symptom.
+
+**Owner:** Developer · **Deps:** TASK-391 (done, this task's evidence base) · **Priority:** P2 ·
+**Status:** open — not started.

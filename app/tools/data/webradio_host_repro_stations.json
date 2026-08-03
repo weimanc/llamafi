@@ -1,0 +1,41 @@
+{
+  "fetched_at": "2026-08-03T17:08:22",
+  "breadth": [
+    {
+      "name": "Radio 10",
+      "url_resolved": "http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10.mp3",
+      "bitrate": 128,
+      "votes": 7666
+    },
+    {
+      "name": "Arrow Classic Rock",
+      "url_resolved": "https://stream.player.arrow.nl/arrowcr",
+      "bitrate": 96,
+      "votes": 6193
+    },
+    {
+      "name": "Sky Radio 80's Hits",
+      "url_resolved": "http://playerservices.streamtheworld.com/api/livestream-redirect/SRGSTR04.mp3",
+      "bitrate": 128,
+      "votes": 4391
+    },
+    {
+      "name": "SLAM!",
+      "url_resolved": "http://stream.slam.nl/slam",
+      "bitrate": 128,
+      "votes": 4337
+    },
+    {
+      "name": "Concertzender Baroque",
+      "url_resolved": "http://streams.greenhost.nl:8080/barok",
+      "bitrate": 128,
+      "votes": 4329
+    }
+  ],
+  "depth": {
+    "name": "SLAM! DANCE CLASSICS",
+    "url_resolved": "http://stream.slam.nl/WEB15_MP3",
+    "bitrate": 128,
+    "votes": 423
+  }
+}

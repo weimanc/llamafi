@@ -1,0 +1,692 @@
+{
+  "run_start": "2026-08-03T17:30:14",
+  "run_end": "2026-08-03T17:42:24",
+  "self_check": true,
+  "parser_check_ok": null,
+  "dns_resolvers": [
+    "127.0.0.53"
+  ],
+  "stations": {
+    "fetched_at": "2026-08-03T17:08:22",
+    "breadth": [
+      {
+        "name": "Radio 10",
+        "url_resolved": "http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10.mp3",
+        "bitrate": 128,
+        "votes": 7666
+      },
+      {
+        "name": "Arrow Classic Rock",
+        "url_resolved": "https://stream.player.arrow.nl/arrowcr",
+        "bitrate": 96,
+        "votes": 6193
+      },
+      {
+        "name": "Sky Radio 80's Hits",
+        "url_resolved": "http://playerservices.streamtheworld.com/api/livestream-redirect/SRGSTR04.mp3",
+        "bitrate": 128,
+        "votes": 4391
+      },
+      {
+        "name": "SLAM!",
+        "url_resolved": "http://stream.slam.nl/slam",
+        "bitrate": 128,
+        "votes": 4337
+      },
+      {
+        "name": "Concertzender Baroque",
+        "url_resolved": "http://streams.greenhost.nl:8080/barok",
+        "bitrate": 128,
+        "votes": 4329
+      }
+    ],
+    "depth": {
+      "name": "SLAM! DANCE CLASSICS",
+      "url_resolved": "http://stream.slam.nl/WEB15_MP3",
+      "bitrate": 128,
+      "votes": 423
+    }
+  },
+  "phase1_results": [
+    {
+      "name": "Radio 10",
+      "url": "http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10.mp3",
+      "capped_budget_ms": 250,
+      "capped_ok": 1,
+      "generous_ok": 3,
+      "capped_latencies_ms": [
+        2163.035860983655
+      ],
+      "generous_latencies_ms": [
+        1164.320892188698,
+        2527.653041994199,
+        1259.1943889856339
+      ],
+      "verdict": "timeout-supported",
+      "raw": {
+        "capped": [
+          {
+            "url": "http://25243.live.streamtheworld.com:80/RADIO10.mp3",
+            "budget_ms": 250,
+            "ok": false,
+            "dns_ms": 247.54157289862633,
+            "tcp_ms": null,
+            "tls_ms": null,
+            "total_ms": null,
+            "http_status": null,
+            "icy_metaint": null,
+            "error": "TCP connect: timed out",
+            "redirected_to": "http://25243.live.streamtheworld.com:80/RADIO10.mp3"
+          },
+          {
+            "url": "http://28503.live.streamtheworld.com:80/RADIO10.mp3",
+            "budget_ms": 250,
+            "ok": true,
+            "dns_ms": 33.58873096294701,
+            "tcp_ms": 12.387261958792806,
+            "tls_ms": null,
+            "total_ms": 2163.035860983655,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://28503.live.streamtheworld.com:80/RADIO10.mp3"
+          },
+          {
+            "url": "http://28973.live.streamtheworld.com:80/RADIO10.mp3",
+            "budget_ms": 250,
+            "ok": false,
+            "dns_ms": 428.6197959445417,
+            "tcp_ms": null,
+            "tls_ms": null,
+            "total_ms": null,
+            "http_status": null,
+            "icy_metaint": null,
+            "error": "TCP connect: timed out",
+            "redirected_to": "http://28973.live.streamtheworld.com:80/RADIO10.mp3"
+          }
+        ],
+        "generous": [
+          {
+            "url": "http://28983.live.streamtheworld.com:80/RADIO10.mp3",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 415.5315160751343,
+            "tcp_ms": 18.376389052718878,
+            "tls_ms": null,
+            "total_ms": 1164.320892188698,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://28983.live.streamtheworld.com:80/RADIO10.mp3"
+          },
+          {
+            "url": "http://25543.live.streamtheworld.com:80/RADIO10.mp3",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 24.17786419391632,
+            "tcp_ms": 444.0939298365265,
+            "tls_ms": null,
+            "total_ms": 2527.653041994199,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://25543.live.streamtheworld.com:80/RADIO10.mp3"
+          },
+          {
+            "url": "http://21633.live.streamtheworld.com:80/RADIO10.mp3",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 61.75768584944308,
+            "tcp_ms": 192.9251190740615,
+            "tls_ms": null,
+            "total_ms": 1259.1943889856339,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://21633.live.streamtheworld.com:80/RADIO10.mp3"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Arrow Classic Rock",
+      "url": "https://stream.player.arrow.nl/arrowcr",
+      "capped_budget_ms": 2700,
+      "capped_ok": 3,
+      "generous_ok": 3,
+      "capped_latencies_ms": [
+        674.3552328553051,
+        791.9561890885234,
+        794.4306009449065
+      ],
+      "generous_latencies_ms": [
+        548.4127311501652,
+        797.3768778610975,
+        790.4587250668555
+      ],
+      "verdict": "no-timeout-signal",
+      "raw": {
+        "capped": [
+          {
+            "url": "https://stream.player.arrow.nl/arrowcr",
+            "budget_ms": 2700,
+            "ok": true,
+            "dns_ms": 134.31374705396593,
+            "tcp_ms": 27.547938050702214,
+            "tls_ms": 123.06312099099159,
+            "total_ms": 674.3552328553051,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": null
+          },
+          {
+            "url": "https://stream.player.arrow.nl/arrowcr",
+            "budget_ms": 2700,
+            "ok": true,
+            "dns_ms": 1.2120879255235195,
+            "tcp_ms": 129.12611686624587,
+            "tls_ms": 278.4824480768293,
+            "total_ms": 791.9561890885234,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": null
+          },
+          {
+            "url": "https://stream.player.arrow.nl/arrowcr",
+            "budget_ms": 2700,
+            "ok": true,
+            "dns_ms": 0.7812180556356907,
+            "tcp_ms": 20.596381975337863,
+            "tls_ms": 387.4244880862534,
+            "total_ms": 794.4306009449065,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": null
+          }
+        ],
+        "generous": [
+          {
+            "url": "https://stream.player.arrow.nl/arrowcr",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 1.121819019317627,
+            "tcp_ms": 24.466247064992785,
+            "tls_ms": 144.98663716949522,
+            "total_ms": 548.4127311501652,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": null
+          },
+          {
+            "url": "https://stream.player.arrow.nl/arrowcr",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 1.168806105852127,
+            "tcp_ms": 27.00745197944343,
+            "tls_ms": 399.8875829856843,
+            "total_ms": 797.3768778610975,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": null
+          },
+          {
+            "url": "https://stream.player.arrow.nl/arrowcr",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 0.5956590175628662,
+            "tcp_ms": 21.43047912977636,
+            "tls_ms": 388.0684480536729,
+            "total_ms": 790.4587250668555,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "Sky Radio 80's Hits",
+      "url": "http://playerservices.streamtheworld.com/api/livestream-redirect/SRGSTR04.mp3",
+      "capped_budget_ms": 250,
+      "capped_ok": 1,
+      "generous_ok": 3,
+      "capped_latencies_ms": [
+        1538.2322180084884
+      ],
+      "generous_latencies_ms": [
+        1093.6344640795141,
+        1597.9635461699218,
+        2041.254716925323
+      ],
+      "verdict": "timeout-supported",
+      "raw": {
+        "capped": [
+          {
+            "url": "http://25243.live.streamtheworld.com:80/SRGSTR04.mp3",
+            "budget_ms": 250,
+            "ok": true,
+            "dns_ms": 0.753125874325633,
+            "tcp_ms": 17.053002025932074,
+            "tls_ms": null,
+            "total_ms": 1538.2322180084884,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://25243.live.streamtheworld.com:80/SRGSTR04.mp3"
+          },
+          {
+            "url": "http://playerservices.streamtheworld.com/api/livestream-redirect/SRGSTR04.mp3",
+            "budget_ms": 250,
+            "ok": false,
+            "dns_ms": 1.0274709202349186,
+            "tcp_ms": null,
+            "tls_ms": null,
+            "total_ms": null,
+            "http_status": null,
+            "icy_metaint": null,
+            "error": "TCP connect: timed out",
+            "redirected_to": null
+          },
+          {
+            "url": "http://playerservices.streamtheworld.com/api/livestream-redirect/SRGSTR04.mp3",
+            "budget_ms": 250,
+            "ok": false,
+            "dns_ms": 1.0814331471920013,
+            "tcp_ms": null,
+            "tls_ms": null,
+            "total_ms": null,
+            "http_status": null,
+            "icy_metaint": null,
+            "error": "TCP connect: timed out",
+            "redirected_to": null
+          }
+        ],
+        "generous": [
+          {
+            "url": "http://22603.live.streamtheworld.com:80/SRGSTR04.mp3",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 14.690991956740618,
+            "tcp_ms": 15.1228541508317,
+            "tls_ms": null,
+            "total_ms": 1093.6344640795141,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://22603.live.streamtheworld.com:80/SRGSTR04.mp3"
+          },
+          {
+            "url": "http://25243.live.streamtheworld.com:80/SRGSTR04.mp3",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 0.8920459076762199,
+            "tcp_ms": 21.138970972970128,
+            "tls_ms": null,
+            "total_ms": 1597.9635461699218,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://25243.live.streamtheworld.com:80/SRGSTR04.mp3"
+          },
+          {
+            "url": "http://29093.live.streamtheworld.com:80/SRGSTR04.mp3",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 18.06138688698411,
+            "tcp_ms": 213.74946902506053,
+            "tls_ms": null,
+            "total_ms": 2041.254716925323,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://29093.live.streamtheworld.com:80/SRGSTR04.mp3"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SLAM!",
+      "url": "http://stream.slam.nl/slam",
+      "capped_budget_ms": 250,
+      "capped_ok": 2,
+      "generous_ok": 3,
+      "capped_latencies_ms": [
+        1525.4651040304452,
+        2003.8098299410194
+      ],
+      "generous_latencies_ms": [
+        1486.8073430843651,
+        6269.23880004324,
+        618.3984009549022
+      ],
+      "verdict": "no-timeout-signal",
+      "raw": {
+        "capped": [
+          {
+            "url": "http://stream.slam.nl/slam",
+            "budget_ms": 250,
+            "ok": false,
+            "dns_ms": 43.98001194931567,
+            "tcp_ms": null,
+            "tls_ms": null,
+            "total_ms": null,
+            "http_status": null,
+            "icy_metaint": null,
+            "error": "TCP connect: timed out",
+            "redirected_to": null
+          },
+          {
+            "url": "http://22343.live.streamtheworld.com/SLAM_MP3_SC",
+            "budget_ms": 250,
+            "ok": true,
+            "dns_ms": 13.16641690209508,
+            "tcp_ms": 20.98663500510156,
+            "tls_ms": null,
+            "total_ms": 1525.4651040304452,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://22343.live.streamtheworld.com/SLAM_MP3_SC"
+          },
+          {
+            "url": "http://27903.live.streamtheworld.com/SLAM_MP3_SC",
+            "budget_ms": 250,
+            "ok": true,
+            "dns_ms": 26.055913185700774,
+            "tcp_ms": 123.950419947505,
+            "tls_ms": null,
+            "total_ms": 2003.8098299410194,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://27903.live.streamtheworld.com/SLAM_MP3_SC"
+          }
+        ],
+        "generous": [
+          {
+            "url": "http://22333.live.streamtheworld.com/SLAM_MP3_SC",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 21.784315118566155,
+            "tcp_ms": 378.5975358914584,
+            "tls_ms": null,
+            "total_ms": 1486.8073430843651,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://22333.live.streamtheworld.com/SLAM_MP3_SC"
+          },
+          {
+            "url": "http://29053.live.streamtheworld.com/SLAM_MP3_SC",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 5222.22986118868,
+            "tcp_ms": 15.163901029154658,
+            "tls_ms": null,
+            "total_ms": 6269.23880004324,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://29053.live.streamtheworld.com/SLAM_MP3_SC"
+          },
+          {
+            "url": "http://25223.live.streamtheworld.com/SLAM_MP3_SC",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 16.15635701455176,
+            "tcp_ms": 18.014618894085288,
+            "tls_ms": null,
+            "total_ms": 618.3984009549022,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://25223.live.streamtheworld.com/SLAM_MP3_SC"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Concertzender Baroque",
+      "url": "http://streams.greenhost.nl:8080/barok",
+      "capped_budget_ms": 250,
+      "capped_ok": 3,
+      "generous_ok": 3,
+      "capped_latencies_ms": [
+        184.41653717309237,
+        60.94903708435595,
+        359.8682649899274
+      ],
+      "generous_latencies_ms": [
+        422.7802399545908,
+        175.38506211712956,
+        495.9138168487698
+      ],
+      "verdict": "no-timeout-signal",
+      "raw": {
+        "capped": [
+          {
+            "url": "http://streams.greenhost.nl:8080/barok",
+            "budget_ms": 250,
+            "ok": true,
+            "dns_ms": 40.30554578639567,
+            "tcp_ms": 16.605189070105553,
+            "tls_ms": null,
+            "total_ms": 184.41653717309237,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": null
+          },
+          {
+            "url": "http://streams.greenhost.nl:8080/barok",
+            "budget_ms": 250,
+            "ok": true,
+            "dns_ms": 1.2110171373933554,
+            "tcp_ms": 20.122099900618196,
+            "tls_ms": null,
+            "total_ms": 60.94903708435595,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": null
+          },
+          {
+            "url": "http://streams.greenhost.nl:8080/barok",
+            "budget_ms": 250,
+            "ok": true,
+            "dns_ms": 0.7436680607497692,
+            "tcp_ms": 149.7678740415722,
+            "tls_ms": null,
+            "total_ms": 359.8682649899274,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": null
+          }
+        ],
+        "generous": [
+          {
+            "url": "http://streams.greenhost.nl:8080/barok",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 0.6825618911534548,
+            "tcp_ms": 158.91608805395663,
+            "tls_ms": null,
+            "total_ms": 422.7802399545908,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": null
+          },
+          {
+            "url": "http://streams.greenhost.nl:8080/barok",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 1.1091148480772972,
+            "tcp_ms": 130.0032171420753,
+            "tls_ms": null,
+            "total_ms": 175.38506211712956,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": null
+          },
+          {
+            "url": "http://streams.greenhost.nl:8080/barok",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 1.0888359975069761,
+            "tcp_ms": 83.84532015770674,
+            "tls_ms": null,
+            "total_ms": 495.9138168487698,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "SLAM! DANCE CLASSICS",
+      "url": "http://stream.slam.nl/WEB15_MP3",
+      "capped_budget_ms": 250,
+      "capped_ok": 1,
+      "generous_ok": 3,
+      "capped_latencies_ms": [
+        2045.6513708923012
+      ],
+      "generous_latencies_ms": [
+        1085.4198019951582,
+        2051.6676099505275,
+        4012.0953309815377
+      ],
+      "verdict": "timeout-supported",
+      "raw": {
+        "capped": [
+          {
+            "url": "http://22533.live.streamtheworld.com/WEB15_MP3_SC",
+            "budget_ms": 250,
+            "ok": true,
+            "dns_ms": 13.98656819947064,
+            "tcp_ms": 14.153491938486695,
+            "tls_ms": null,
+            "total_ms": 2045.6513708923012,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://22533.live.streamtheworld.com/WEB15_MP3_SC"
+          },
+          {
+            "url": "http://stream.slam.nl/WEB15_MP3",
+            "budget_ms": 250,
+            "ok": false,
+            "dns_ms": 1.2204539962112904,
+            "tcp_ms": null,
+            "tls_ms": null,
+            "total_ms": null,
+            "http_status": null,
+            "icy_metaint": null,
+            "error": "TCP connect: timed out",
+            "redirected_to": null
+          },
+          {
+            "url": "http://stream.slam.nl/WEB15_MP3",
+            "budget_ms": 250,
+            "ok": false,
+            "dns_ms": 1.1838148348033428,
+            "tcp_ms": null,
+            "tls_ms": null,
+            "total_ms": null,
+            "http_status": null,
+            "icy_metaint": null,
+            "error": "TCP connect: timed out",
+            "redirected_to": null
+          }
+        ],
+        "generous": [
+          {
+            "url": "http://22713.live.streamtheworld.com/WEB15_MP3_SC",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 22.176912054419518,
+            "tcp_ms": 15.089061111211777,
+            "tls_ms": null,
+            "total_ms": 1085.4198019951582,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://22713.live.streamtheworld.com/WEB15_MP3_SC"
+          },
+          {
+            "url": "http://29003.live.streamtheworld.com/WEB15_MP3_SC",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 19.606990972533822,
+            "tcp_ms": 15.966037986800075,
+            "tls_ms": null,
+            "total_ms": 2051.6676099505275,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://29003.live.streamtheworld.com/WEB15_MP3_SC"
+          },
+          {
+            "url": "http://25223.live.streamtheworld.com/WEB15_MP3_SC",
+            "budget_ms": 5000,
+            "ok": true,
+            "dns_ms": 0.888710143044591,
+            "tcp_ms": 1962.0976091828197,
+            "tls_ms": null,
+            "total_ms": 4012.0953309815377,
+            "http_status": 200,
+            "icy_metaint": 16000,
+            "error": null,
+            "redirected_to": "http://25223.live.streamtheworld.com/WEB15_MP3_SC"
+          }
+        ]
+      }
+    }
+  ],
+  "phase1_overall_disposition": "timeout-too-short SUPPORTED for 3/6 station(s): ['Radio 10', \"Sky Radio 80's Hits\", 'SLAM! DANCE CLASSICS'] -- candidate fix: raise setConnectionTimeout(), gated on DUT-side confirmation",
+  "phase2_soak": {
+    "name": "SLAM! DANCE CLASSICS",
+    "url": "http://stream.slam.nl/WEB15_MP3",
+    "minutes": 10.0,
+    "reconnects": 1,
+    "timeline": [
+      {
+        "ts": "2026-08-03T17:32:26",
+        "elapsed_s": 2.6,
+        "title": "Modjo - Lady (Hear Me Tonight)"
+      },
+      {
+        "ts": "2026-08-03T17:36:33",
+        "elapsed_s": 247.4,
+        "event": "disconnect",
+        "error": "timed out"
+      },
+      {
+        "ts": "2026-08-03T17:36:39",
+        "elapsed_s": 255.5,
+        "title": "Mauro Picotto - Proximus"
+      },
+      {
+        "ts": "2026-08-03T17:36:45",
+        "elapsed_s": 261.3,
+        "title": "50 Cent & Olivia - Candy Shop"
+      },
+      {
+        "ts": "2026-08-03T17:40:35",
+        "elapsed_s": 491.6,
+        "title": "Rank 1 - Such Is Life"
+      }
+    ]
+  }
+}
