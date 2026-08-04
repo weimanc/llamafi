@@ -1,0 +1,10 @@
+{
+  "start": "2026-08-04T17:01:30",
+  "station": "Radio 10",
+  "idx": 0,
+  "url": "http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10.mp3",
+  "status": "complete",
+  "elapsed_s": 1800.1,
+  "anomalies": [],
+  "raw_log": "/home/weiman/proj/esp_spotify/app/tools/rnd_logs/webradio_long_soak_20260804T170116_raw.log"
+}

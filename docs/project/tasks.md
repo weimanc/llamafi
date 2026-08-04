@@ -6228,6 +6228,40 @@ much bigger lever on WebRadio connect reliability than the timeout budget was. W
 before declaring this task's fix sufficient even if a future clean before/after gate does confirm
 it helps in isolation.
 
+**Second DUT gate attempt, isolated retry (2026-08-04, later still) — same inconclusive result, on
+a different station this time.** Per PM direction to re-run the gate isolated from TASK-393's
+Spotify-present confound and against a station with an actual TASK-391 failure track record:
+targeted single-station soak (`test_webradio_long_soak.py`, 30 min each leg) against **Radio 10**
+(`http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10.mp3`), on the
+**noSpotify** build for the cleanest possible isolation. Before leg: temporarily reverted just
+`webRadioApp.h` to its pre-fix state (`git checkout b0adc8d~1 -- app/src/webRadioApp.h`, working
+tree otherwise untouched), flashed, ran 30 min — **0 failures, 5 title changes, 2 connects, 0
+anomalies.** Restored the fix (`git checkout HEAD -- app/src/webRadioApp.h`), confirmed `run/check`
+clean, reflashed, ran the identical 30 min after-leg — **0 failures, 7 title changes, 2 connects, 0
+anomalies.** Identical shape, both legs.
+
+**This is now the second independent gate attempt, on two different stations (SLAM! DANCE
+CLASSICS, Radio 10), across two separate sessions, with the *same* structural outcome: neither leg
+of either attempt has ever produced a single connect failure at the original tight 250ms/2700ms
+defaults.** TASK-391's host-side A/B (100% vs 69% success, same hosts/network, only the timeout
+varied) is real, controlled, repeat-run evidence — but two on-device gate attempts now can't
+reproduce *any* baseline failure to confirm the fix against, on this network, on these two nights.
+That's a pattern, not bad luck twice: either tonight's/2026-08-03's on-device network path is
+consistently healthier than whatever TASK-391's host machine experienced, or the DNS-resolver
+mismatch TASK-391 itself flagged as unresolved (host resolves via `127.0.0.53` systemd-resolved,
+never verified equivalent to the DUT's DHCP-assigned resolver) means the host-side finding doesn't
+transfer to the device's actual network path the way assumed. Reports:
+`app/tools/rnd_logs/webradio_long_soak_20260804T162536.json` (before) /
+`webradio_long_soak_20260804T170116.json` (after), raw logs alongside each.
+
+**Still open.** Not closing on a second inconclusive result any more than the first. If a third
+attempt is ever made, it should either (a) target a network/time-of-day more likely to show a
+capped-budget failure (TASK-391's own testing happened at a different hour than either on-device
+attempt — worth checking if that's a variable), or (b) stop trying to catch it in the wild and
+instead build a controlled reproduction (deliberately throttle the DUT's connect path to simulate
+a slow handshake, rather than waiting for a real one) — that would actually let this task close on
+a real pass/fail instead of a third "nothing failed" result.
+
 ### TASK-393 — WebRadio ERROR_* render freeze, live-reproduced on debug build; terminal-retry not firing
 
 **Filed 2026-08-03, same session as TASK-390/391, human-directed** ("could we do an extended soak,

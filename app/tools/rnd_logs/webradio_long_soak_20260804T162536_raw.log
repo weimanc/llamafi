@@ -1,0 +1,346 @@
+1785857136.776|ets Jul 29 2019 12:21:46
+1785857136.781|rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+1785857136.784|configsip: 0, SPIWP:0xee
+1785857136.789|clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+1785857136.793|mode:DIO, clock div:2
+1785857136.795|load:0x3fff0030,len:1184
+1785857136.798|load:0x40078000,len:13232
+1785857136.798|load:0x40080400,len:3028
+1785857136.801|entry 0x400805e4
+1785857137.557|[membudget] boot-baseline freeInt=204604 lfbInt=110580 freeDma=161460 lfbDma=110580
+1785857137.562|[boot] git=d1ebff3 elf=cdeef27e build=Aug  4 2026 16:24:37
+1785857137.564|cyd display setup
+1785857137.868|winamp display setup
+1785857137.984|Initialisation done.
+1785857138.020|SettingsStorage: loaded
+1785857138.060|TouchCalStorage: loaded xMin=223 xMax=3582 yMin=196 yMax=3890
+1785857138.122|[D][chrome] drawVolume pct=-1 keyframe=NONE
+1785857138.136|reading config file
+1785857138.139|opened config file
+1785857138.139|parsed json
+1785857138.149|config loaded: clientId=db…e0 (len=32) clientSecret=b9…63 (len=32) refreshToken=AQ…ng (len=131)
+1785857138.167|[wifi-ev] t=681 ev=0 EV
+1785857138.242|[wifi-ev] t=756 ev=2 STA_START
+1785857138.289|[wifi-ev] t=801 ev=5 STA_DISCONNECTED reason=202
+1785857138.400|[wifi-ev] t=914 ev=4 STA_CONNECTED
+1785857138.956|[wifi-ev] t=1468 ev=7 STA_GOT_IP ip=192.168.1.181
+1785857138.959|IP address: 192.168.1.181
+1785857138.967|[membudget] post-wifi freeInt=148764 lfbInt=102388 freeDma=105620 lfbDma=102388
+1785857142.415|[time] synced epoch=1785857142 in 3452ms
+1785857142.420|[boot] spotify=idle (playerMode=webradio) — refresh deferred to first toggle
+1785857142.424|[boot] spotify=off
+1785857142.432|[membudget] post-spotifyTask freeInt=146912 lfbInt=102388 freeDma=103768 lfbDma=102388
+1785857142.438|[membudget] post-dataTask freeInt=132056 lfbInt=86004 freeDma=88912 lfbDma=86004
+1785857142.442|[I][dataTask] task started stack=14336B
+1785857142.503|[D][chrome] drawVolume pct=-1 keyframe=NONE
+1785857142.518|[shell] leaving 0  heap=132056 maxAlloc=86004 minFree=129640
+1785857142.543|[I][webradio] HEAP init free=131652 min=129640
+1785857142.549|[I][webradio] HEAP pre-fetch free=131652 min=129640
+1785857142.555|[shell] entered 11  heap=131652 maxAlloc=86004 minFree=129640
+1785857142.558|[D][dataTask.webradio] heap free=86k maxBlk=83k
+1785857142.575|[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128
+1785857142.581|[shell] switch 0->11 suspend=1ms wipe=27ms init=1ms taskbar=26ms total=55ms
+1785857142.589|[membudget] post-init-idle freeInt=123820 lfbInt=77812 freeDma=80676 lfbDma=77812
+1785857142.594|{"ok":true,"cmd":"get","var":"appId","id":11,"name":"WebRadio","last":true}
+1785857142.600|{"ok":true,"cmd":"get","var":"appId","id":11,"name":"WebRadio","last":true}
+1785857142.623|[I][hb] display=winamp wifi=rssi(-50) disc=1 heap=120k maxAlloc=75k stack_hwm=17580b uptime=00:00:05 poll=0/0 last=0 block_max=0ms loop_max=0ms slow=shell.switch:55ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=98 build=Aug  4 2026-16:24:37
+1785857142.672|[D][chrome] drawVolume pct=-1 keyframe=NONE
+1785857142.676|[D][chrome] drawVolume pct=100 keyframe=4
+1785857142.711|[W][perf] iter=120ms (worst path so far: app.tick:81ms)
+1785857142.793|{"ok":true,"cmd":"get","var":"appId","id":11,"name":"WebRadio","last":true}
+1785857142.804|{"ok":true,"cmd":"set","var":"bgPoll","val":"0"}
+1785857142.819|{"ok":true,"cmd":"switchApp","id":11}
+1785857142.833|{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+1785857144.848|{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+1785857145.263|[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=200 elapsed=2681ms
+1785857145.675|[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=30&bitrateMax=128
+1785857146.865|{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+1785857148.304|[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=200 elapsed=2627ms
+1785857148.721|[I][dataTask.webradio] ok mirror=all.api.radio-browser.info country=NL count=30
+1785857148.727|[I][webradio] HEAP post-fetch free=130608 min=64468
+1785857148.730|[I][webradio] stations loaded count=30 country=NL
+1785857148.735|[D][dataTask.webradio] heap free=85k maxBlk=39k
+1785857148.763|[D][chrome] drawVolume pct=100 keyframe=4
+1785857148.767|[D][chrome] drawVolume pct=100 keyframe=4
+1785857148.797|[W][perf] iter=79ms (worst path so far: app.tick:81ms)
+1785857148.877|{"ok":true,"cmd":"get","var":"wrCount","count":30,"pending":0,"last":true}
+1785857148.889|{"ok":true,"cmd":"get","var":"wrCount","count":30,"pending":0,"last":true}
+1785857148.911|{"ok":true,"cmd":"get","var":"wrStation","idx":0,"name":"Radio 10","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10.mp3","last":true}
+1785857148.934|{"ok":true,"cmd":"get","var":"wrStation","idx":1,"name":"Sky Radio 80's Hits","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/SRGSTR04.mp3","last":true}
+1785857148.950|{"ok":true,"cmd":"get","var":"wrStation","idx":2,"name":"SLAM!","bitrate":128,"url":"http://stream.slam.nl/slam","last":true}
+1785857148.970|{"ok":true,"cmd":"get","var":"wrStation","idx":3,"name":"Concertzender Baroque","bitrate":128,"url":"http://streams.greenhost.nl:8080/barok","last":true}
+1785857148.991|{"ok":true,"cmd":"get","var":"wrStation","idx":4,"name":"Radio 10 60's & 70's Hits","bitrate":128,"url":"http://22333.live.streamtheworld.com:3690/TLPSTR18_SC","last":true}
+1785857149.013|{"ok":true,"cmd":"get","var":"wrStation","idx":5,"name":"Sky Radio Christmas","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/SRGSTR08.mp3","last":true}
+1785857149.031|{"ok":true,"cmd":"get","var":"wrStation","idx":6,"name":"SLAM! Non Stop","bitrate":128,"url":"http://stream.radiocorp.nl/web10_mp3","last":true}
+1785857149.049|{"ok":true,"cmd":"get","var":"wrStation","idx":7,"name":"100% NL","bitrate":128,"url":"http://stream.100p.nl/100pctnl.mp3","last":true}
+1785857149.069|{"ok":true,"cmd":"get","var":"wrStation","idx":8,"name":"Concertzender Oude Muziek","bitrate":128,"url":"http://streams.greenhost.nl:8080/oudemuziek","last":true}
+1785857149.088|{"ok":true,"cmd":"get","var":"wrStation","idx":9,"name":"The Great American Songbook","bitrate":128,"url":"http://tgas.dyndns.org:8001/;","last":true}
+1785857149.111|{"ok":true,"cmd":"get","var":"wrStation","idx":10,"name":"Sky Radio 101 FM","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/SKYRADIO.mp3","last":true}
+1785857149.133|{"ok":true,"cmd":"get","var":"wrStation","idx":11,"name":"Radio 538","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO538.mp3","last":true}
+1785857149.156|{"ok":true,"cmd":"get","var":"wrStation","idx":12,"name":"Sky Radio 90's Hits","bitrate":128,"url":"http://22343.live.streamtheworld.com:80/SRGSTR05.mp3","last":true}
+1785857149.176|{"ok":true,"cmd":"get","var":"wrStation","idx":13,"name":"Concertzender Geen dag zonder Bach","bitrate":128,"url":"http://streams.greenhost.nl:8080/bach","last":true}
+1785857149.195|{"ok":true,"cmd":"get","var":"wrStation","idx":14,"name":"Slam! Mixmarathon","bitrate":128,"url":"http://stream.radiocorp.nl/web13_mp3","last":true}
+1785857149.218|{"ok":true,"cmd":"get","var":"wrStation","idx":15,"name":"538 Dance Departmetn","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/TLPSTR01.mp3","last":true}
+1785857149.238|{"ok":true,"cmd":"get","var":"wrStation","idx":16,"name":"Radio 538 Ibiza","bitrate":128,"url":"http://22323.live.streamtheworld.com/TLPSTR19_SC","last":true}
+1785857149.258|{"ok":true,"cmd":"get","var":"wrStation","idx":17,"name":"Radio 538 Nonstop","bitrate":128,"url":"http://25303.live.streamtheworld.com/TLPSTR09_SC","last":true}
+1785857149.279|{"ok":true,"cmd":"get","var":"wrStation","idx":18,"name":"Concertzender Gregoriaans","bitrate":128,"url":"http://streams.greenhost.nl:8080/gregoriaans","last":true}
+1785857149.300|{"ok":true,"cmd":"get","var":"wrStation","idx":19,"name":"Radio 538 Party","bitrate":128,"url":"http://28973.live.streamtheworld.com/TLPSTR16_SC","last":true}
+1785857149.320|{"ok":true,"cmd":"get","var":"wrStation","idx":20,"name":"Radio Caroline 319 Gold","bitrate":128,"url":"http://www.rmgoldserver.eu:8313/","last":true}
+1785857149.340|{"ok":true,"cmd":"get","var":"wrStation","idx":21,"name":"RTV Oost Radio","bitrate":128,"url":"http://streams.rtvoost.nl/audio/oost/mp3","last":true}
+1785857149.359|{"ok":true,"cmd":"get","var":"wrStation","idx":22,"name":"Concertzender De Muzikant","bitrate":128,"url":"http://streams.greenhost.nl:8080/amateurmuziek","last":true}
+1785857149.379|{"ok":true,"cmd":"get","var":"wrStation","idx":23,"name":"SLAM! DANCE CLASSICS","bitrate":128,"url":"http://stream.slam.nl/WEB15_MP3","last":true}
+1785857149.401|{"ok":true,"cmd":"get","var":"wrStation","idx":24,"name":"538 Non-Stop","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/TLPSTR09.mp3","last":true}
+1785857149.421|{"ok":true,"cmd":"get","var":"wrStation","idx":25,"name":"Concertzender Geen dag zonder Bach","bitrate":128,"url":"http://streams.greenhost.nl:8080/bach","last":true}
+1785857149.437|{"ok":true,"cmd":"get","var":"wrStation","idx":26,"name":"Coastline","bitrate":128,"url":"http://81.169.223.8/","last":true}
+1785857149.460|{"ok":true,"cmd":"get","var":"wrStation","idx":27,"name":"RADIO 10 TOP 4000","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/TLPSTR24.mp3","last":true}
+1785857149.483|{"ok":true,"cmd":"get","var":"wrStation","idx":28,"name":"Sky Radio Nice & Easy","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/SRGSTR07.mp3","last":true}
+1785857149.504|{"ok":true,"cmd":"get","var":"wrStation","idx":29,"name":"Radio Noordvaarder Angel Healing","bitrate":128,"url":"http://www1.radionoordvaarder.nl:8000/;","last":true}
+1785857149.520|{"ok":true,"cmd":"get","var":"wrSkip","autoSkip":1,"tried":0,"retries":0,"settled":0,"pending":0,"last":true}
+1785857149.530|{"ok":true,"cmd":"set","var":"wrAutoSkip","val":"1"}
+1785857149.545|{"ok":true,"cmd":"get","var":"wrSkip","autoSkip":1,"tried":0,"retries":0,"settled":0,"pending":0,"last":true}
+1785857149.569|[I][webradio] play idx=0 name=INJECTED url=http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10.mp3
+1785857149.574|[membudget] TASK-267 _play pre-acquire lfbInt=42996 freeInt=131012
+1785857149.580|[membudget] TASK-267 arena acquire=24576B lfbBefore=42996 OK
+1785857149.585|[membudget] arena init base=0x3fff9148 cap=24576
+1785857149.591|[membudget] CP0-pre-audio-init freeDma=63276 lfbDma=40948
+1785857149.594|[I][wrpump] created stack=8192B prio=2 core=1
+1785857149.600|[I][webradio] HEAP pre-connect free=75748 min=64468 maxAlloc=42996
+1785857149.608|[membudget] CP1-pre-connect skip=0 freeInt=75748 lfbInt=42996 freeDma=32604 lfbDma=23540
+1785857149.614|[I][webradio] audio_info: PSRAM not found, inputBufferSize: 6399 bytes
+1785857149.626|[I][webradio] audio_info: buffers freed, free Heap: 67532 bytes
+1785857149.639|[I][webradio] audio_info: Connect to new host: "http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10.mp3"
+1785857149.694|[I][webradio] audio_info: Connection has been established in 53 ms, free Heap: 66584 bytes
+1785857149.706|{"ok":true,"cmd":"set","var":"wrUrl","val":"http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10.mp3"}
+1785857149.744|[D][chrome] drawVolume pct=100 keyframe=4
+1785857149.748|[D][chrome] drawVolume pct=100 keyframe=4
+1785857149.768|[I][webradio] audio_info: redirect to new host "http://23603.live.streamtheworld.com:80/RADIO10.mp3"
+1785857149.784|[I][webradio] audio_info: buffers freed, free Heap: 67316 bytes
+1785857149.795|[I][webradio] audio_info: Connect to new host: "http://23603.live.streamtheworld.com:80/RADIO10.mp3"
+1785857149.803|[W][perf] iter=241ms (worst path so far: app.tick:94ms)
+1785857149.839|[I][webradio] audio_info: Connection has been established in 39 ms, free Heap: 66264 bytes
+1785857150.559|[I][webradio] audio_info: icy-name: Radio 10
+1785857150.564|[mbdbg] arena FIRST alloc: base=0x3fff9148 cap=24576 req=2000
+1785857150.581|[mbdbg] helix alloc: DecInfo=0x3fff9148(2000) FHdr=0x3fff9918(44) SI=0x3fff9944(40) SFJS=0x3fff996c(36) Huff=0x3fff9990(4624) Deq=0x3fffaba0(792) IMDCT=0x3fffaeb8(6944) Sub=0x3fffc9d8(8708) FInfo=0x3fffebdc(28)
+1785857150.589|[I][webradio] audio_info: MP3Decoder has been initialized, free Heap: 58172 bytes
+1785857150.599|[membudget] CP2-decoder-init freeInt=58172 lfbInt=42996 freeDma=15028 lfbDma=9204 arenaHWM=23216
+1785857150.607|[W][perf] iter=52ms (worst path so far: app.tick:94ms)[I][webradio] audio_info: stream ready
+1785857150.611|[I][webradio] audio_info: syncword found at pos 0
+1785857150.625|[I][webradio] audio_info: Channels: 2
+1785857150.628|[I][webradio] audio_info: SampleRate: 44100
+1785857150.630|[I][webradio] audio_info: BitsPerSample: 16
+1785857150.636|[I][webradio] audio_info: BitRate: 128000
+1785857167.500|[I][webradio] HEAP play free=58172 min=50380
+1785857172.645|[I][hb] display=winamp wifi=rssi(-50) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:00:35 poll=0/0 last=0 block_max=0ms loop_max=241ms slow=app.tick:94ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=22871 build=Aug  4 2026-16:24:37
+1785857172.653|[W][perf] iter=51ms (worst path so far: wr.pump:22ms)
+1785857197.514|[I][webradio] HEAP play free=55812 min=48672
+1785857202.664|[I][hb] display=winamp wifi=rssi(-50) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:01:05 poll=0/0 last=0 block_max=0ms loop_max=51ms slow=app.tick:25ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=52894 build=Aug  4 2026-16:24:37
+1785857227.529|[I][webradio] HEAP play free=55808 min=48672
+1785857232.679|[I][hb] display=winamp wifi=rssi(-50) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:01:35 poll=0/0 last=0 block_max=0ms loop_max=27ms slow=app.tick:25ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=82905 build=Aug  4 2026-16:24:37
+1785857257.539|[I][webradio] HEAP play free=53452 min=48320
+1785857262.692|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:02:05 poll=0/0 last=0 block_max=0ms loop_max=34ms slow=wr.pump:23ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=112921 build=Aug  4 2026-16:24:37
+1785857263.760|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857287.536|[I][webradio] HEAP play free=58176 min=48312
+1785857292.701|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:02:35 poll=0/0 last=0 block_max=0ms loop_max=29ms slow=app.tick:27ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=142930 build=Aug  4 2026-16:24:37
+1785857293.781|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857317.542|[I][webradio] HEAP play free=58164 min=48312
+1785857322.719|[I][hb] display=winamp wifi=rssi(-46) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:03:05 poll=0/0 last=0 block_max=0ms loop_max=50ms slow=app.tick:28ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=172947 build=Aug  4 2026-16:24:37
+1785857323.820|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857347.540|[I][webradio] HEAP play free=60536 min=48312
+1785857352.730|[I][hb] display=winamp wifi=rssi(-49) disc=1 heap=52k maxAlloc=41k stack_hwm=11744b uptime=00:03:35 poll=0/0 last=0 block_max=0ms loop_max=45ms slow=app.tick:27ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=202965 build=Aug  4 2026-16:24:37
+1785857353.859|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857364.237|[I][webradio] audio_info: StreamTitle=''
+1785857364.237|[D][webradio] ICY:
+1785857377.546|[I][webradio] HEAP play free=55812 min=48312
+1785857382.747|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:04:05 poll=0/0 last=0 block_max=0ms loop_max=28ms slow=app.tick:25ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=232978 build=Aug  4 2026-16:24:37
+1785857383.894|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857407.565|[I][webradio] HEAP play free=58180 min=48312
+1785857412.757|[I][hb] display=winamp wifi=rssi(-53) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:04:35 poll=0/0 last=0 block_max=0ms loop_max=44ms slow=app.tick:25ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=262988 build=Aug  4 2026-16:24:37
+1785857413.917|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857437.575|[I][webradio] HEAP play free=58216 min=48312
+1785857442.776|[I][hb] display=winamp wifi=rssi(-52) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:05:05 poll=0/0 last=0 block_max=0ms loop_max=50ms slow=app.tick:25ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=293009 build=Aug  4 2026-16:24:37
+1785857443.957|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857449.989|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857450.014|{"ok":true,"cmd":"get","var":"wrIdx","idx":0,"last":true}
+1785857467.586|[I][webradio] HEAP play free=58216 min=48312
+1785857472.787|[I][hb] display=winamp wifi=rssi(-50) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:05:35 poll=0/0 last=0 block_max=0ms loop_max=27ms slow=app.tick:25ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=323016 build=Aug  4 2026-16:24:37
+1785857474.049|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857497.606|[I][webradio] HEAP play free=55612 min=48312
+1785857502.799|[I][hb] display=winamp wifi=rssi(-47) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:06:05 poll=0/0 last=0 block_max=0ms loop_max=50ms slow=wr.pump:23ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=353029 build=Aug  4 2026-16:24:37
+1785857502.807|[W][perf] iter=51ms (worst path so far: wr.pump:22ms)
+1785857504.083|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857527.621|[I][webradio] HEAP play free=55852 min=48312
+1785857532.798|[I][hb] display=winamp wifi=rssi(-51) disc=1 heap=59k maxAlloc=41k stack_hwm=11744b uptime=00:06:35 poll=0/0 last=0 block_max=0ms loop_max=51ms slow=app.tick:25ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=383029 build=Aug  4 2026-16:24:37
+1785857534.104|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857557.629|[I][webradio] HEAP play free=58212 min=48312
+1785857562.803|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:07:05 poll=0/0 last=0 block_max=0ms loop_max=31ms slow=app.tick:24ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=413041 build=Aug  4 2026-16:24:37
+1785857564.141|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857587.628|[I][webradio] HEAP play free=58212 min=48312
+1785857592.821|[I][hb] display=winamp wifi=rssi(-49) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:07:35 poll=0/0 last=0 block_max=0ms loop_max=30ms slow=app.tick:24ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=443056 build=Aug  4 2026-16:24:37
+1785857594.181|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857617.631|[I][webradio] HEAP play free=58212 min=48312
+1785857622.831|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:08:05 poll=0/0 last=0 block_max=0ms loop_max=28ms slow=app.tick:25ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=473064 build=Aug  4 2026-16:24:37
+1785857624.219|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857647.649|[I][webradio] HEAP play free=55644 min=48312
+1785857652.854|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:08:35 poll=0/0 last=0 block_max=0ms loop_max=50ms slow=app.tick:25ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=503081 build=Aug  4 2026-16:24:37
+1785857654.242|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857670.227|[I][webradio] audio_info: StreamTitle='Human League - Don't You Want Me'
+1785857670.246|[D][webradio] ICY: Human League - Don't You Want Me
+1785857677.659|[I][webradio] HEAP play free=55848 min=48312
+1785857682.860|[I][hb] display=winamp wifi=rssi(-49) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:09:05 poll=0/0 last=0 block_max=0ms loop_max=34ms slow=app.tick:25ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=533099 build=Aug  4 2026-16:24:37
+1785857684.280|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857707.674|[I][webradio] HEAP play free=58216 min=48312
+1785857712.876|[I][hb] display=winamp wifi=rssi(-46) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:09:35 poll=0/0 last=0 block_max=0ms loop_max=46ms slow=app.tick:27ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=563116 build=Aug  4 2026-16:24:37
+1785857714.321|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857737.672|[I][webradio] HEAP play free=58204 min=48312
+1785857742.888|[I][hb] display=winamp wifi=rssi(-49) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:10:05 poll=0/0 last=0 block_max=0ms loop_max=41ms slow=app.tick:28ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=593129 build=Aug  4 2026-16:24:37
+1785857744.352|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857750.368|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857750.390|{"ok":true,"cmd":"get","var":"wrIdx","idx":0,"last":true}
+1785857767.676|[I][webradio] HEAP play free=58204 min=48312
+1785857772.905|[I][hb] display=winamp wifi=rssi(-50) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:10:35 poll=0/0 last=0 block_max=0ms loop_max=30ms slow=app.tick:26ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=623144 build=Aug  4 2026-16:24:37
+1785857774.422|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857797.678|[I][webradio] HEAP play free=60576 min=48312
+1785857802.920|[I][hb] display=winamp wifi=rssi(-49) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:11:05 poll=0/0 last=0 block_max=0ms loop_max=30ms slow=app.tick:27ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=653158 build=Aug  4 2026-16:24:37
+1785857804.460|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857827.684|[I][webradio] HEAP play free=55644 min=48312
+1785857832.933|[I][hb] display=winamp wifi=rssi(-49) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:11:35 poll=0/0 last=0 block_max=0ms loop_max=44ms slow=app.tick:28ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=683167 build=Aug  4 2026-16:24:37
+1785857834.504|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857857.700|[I][webradio] HEAP play free=55848 min=48312
+1785857862.944|[I][hb] display=winamp wifi=rssi(-51) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:12:05 poll=0/0 last=0 block_max=0ms loop_max=49ms slow=app.tick:28ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=713180 build=Aug  4 2026-16:24:37
+1785857864.520|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857887.708|[I][webradio] HEAP play free=58204 min=48312
+1785857892.961|[I][hb] display=winamp wifi=rssi(-51) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:12:35 poll=0/0 last=0 block_max=0ms loop_max=50ms slow=app.tick:28ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=743202 build=Aug  4 2026-16:24:37
+1785857893.227|[I][webradio] audio_info: StreamTitle='David Guetta ft Sia - Flames'
+1785857893.248|[D][webradio] ICY: David Guetta ft Sia - Flames
+1785857894.554|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857917.721|[I][webradio] HEAP play free=58216 min=48312
+1785857922.978|[I][hb] display=winamp wifi=rssi(-51) disc=1 heap=59k maxAlloc=41k stack_hwm=11744b uptime=00:13:05 poll=0/0 last=0 block_max=0ms loop_max=28ms slow=app.tick:26ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=773215 build=Aug  4 2026-16:24:37
+1785857924.572|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857947.738|[I][webradio] HEAP play free=55612 min=48312
+1785857952.990|[I][hb] display=winamp wifi=rssi(-51) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:13:35 poll=0/0 last=0 block_max=0ms loop_max=39ms slow=app.tick:27ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=803229 build=Aug  4 2026-16:24:37
+1785857954.590|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785857977.755|[I][webradio] HEAP play free=55848 min=48312
+1785857983.002|[I][hb] display=winamp wifi=rssi(-51) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:14:05 poll=0/0 last=0 block_max=0ms loop_max=48ms slow=app.tick:30ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=833246 build=Aug  4 2026-16:24:37
+1785857984.630|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858007.765|[I][webradio] HEAP play free=55848 min=48312
+1785858013.017|[I][hb] display=winamp wifi=rssi(-51) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:14:35 poll=0/0 last=0 block_max=0ms loop_max=30ms slow=app.tick:27ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=863252 build=Aug  4 2026-16:24:37
+1785858013.024|[W][perf] iter=52ms (worst path so far: wr.pump:22ms)
+1785858014.661|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858037.776|[I][webradio] HEAP play free=58212 min=48312
+1785858043.029|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:15:05 poll=0/0 last=0 block_max=0ms loop_max=52ms slow=app.tick:30ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=893269 build=Aug  4 2026-16:24:37
+1785858044.685|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858050.717|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858050.745|{"ok":true,"cmd":"get","var":"wrIdx","idx":0,"last":true}
+1785858067.788|[I][webradio] HEAP play free=58212 min=48312
+1785858073.046|[I][hb] display=winamp wifi=rssi(-49) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:15:35 poll=0/0 last=0 block_max=0ms loop_max=50ms slow=app.tick:28ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=923287 build=Aug  4 2026-16:24:37
+1785858074.772|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858097.789|[I][webradio] HEAP play free=60452 min=48312
+1785858103.057|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:16:05 poll=0/0 last=0 block_max=0ms loop_max=46ms slow=app.tick:26ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=953304 build=Aug  4 2026-16:24:37
+1785858104.791|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858120.231|[I][webradio] audio_info: StreamTitle='Elton John & Kiki Dee - Don't Go Breaking My Heart'
+1785858120.252|[D][webradio] ICY: Elton John & Kiki Dee - Don't Go Breaking My Heart
+1785858127.794|[I][webradio] HEAP play free=55840 min=48312
+1785858133.074|[I][hb] display=winamp wifi=rssi(-49) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:16:35 poll=0/0 last=0 block_max=0ms loop_max=41ms slow=app.tick:27ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=983311 build=Aug  4 2026-16:24:37
+1785858134.833|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858157.809|[I][webradio] HEAP play free=55840 min=48312
+1785858163.086|[I][hb] display=winamp wifi=rssi(-46) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:17:05 poll=0/0 last=0 block_max=0ms loop_max=48ms slow=app.tick:27ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1013331 build=Aug  4 2026-16:24:3
+1785858164.863|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858187.828|[I][webradio] HEAP play free=58216 min=48312
+1785858193.099|[I][hb] display=winamp wifi=rssi(-46) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:17:35 poll=0/0 last=0 block_max=0ms loop_max=40ms slow=app.tick:26ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1043338 build=Aug  4 2026-16:24:3
+1785858193.133|[W][perf] iter=77ms (worst path so far: app.tick:29ms)
+1785858194.885|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858217.838|[I][webradio] HEAP play free=58104 min=48312
+1785858223.092|[I][hb] display=winamp wifi=rssi(-47) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:18:05 poll=0/0 last=0 block_max=0ms loop_max=77ms slow=app.tick:29ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1073340 build=Aug  4 2026-16:24:3
+1785858224.925|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858247.837|[I][webradio] HEAP play free=60480 min=48312
+1785858253.102|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:18:35 poll=0/0 last=0 block_max=0ms loop_max=46ms slow=app.tick:27ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1103351 build=Aug  4 2026-16:24:3
+1785858254.962|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858277.837|[I][webradio] HEAP play free=55752 min=48312
+1785858283.120|[I][hb] display=winamp wifi=rssi(-49) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:19:05 poll=0/0 last=0 block_max=0ms loop_max=46ms slow=app.tick:28ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1133366 build=Aug  4 2026-16:24:3
+1785858284.983|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858307.855|[I][webradio] HEAP play free=55748 min=48312
+1785858313.130|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:19:35 poll=0/0 last=0 block_max=0ms loop_max=45ms slow=app.tick:27ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1163380 build=Aug  4 2026-16:24:3
+1785858315.020|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858337.867|[I][webradio] HEAP play free=58104 min=48312
+1785858343.155|[I][hb] display=winamp wifi=rssi(-47) disc=1 heap=58k maxAlloc=41k stack_hwm=11744b uptime=00:20:05 poll=0/0 last=0 block_max=0ms loop_max=28ms slow=app.tick:26ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1193397 build=Aug  4 2026-16:24:3
+1785858345.059|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858351.091|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858351.113|{"ok":true,"cmd":"get","var":"wrIdx","idx":0,"last":true}
+1785858367.877|[I][webradio] HEAP play free=58112 min=48312
+1785858373.164|[I][hb] display=winamp wifi=rssi(-47) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:20:35 poll=0/0 last=0 block_max=0ms loop_max=46ms slow=app.tick:30ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1223409 build=Aug  4 2026-16:24:3
+1785858375.146|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858397.881|[I][webradio] HEAP play free=60136 min=48312
+1785858403.168|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:21:05 poll=0/0 last=0 block_max=0ms loop_max=49ms slow=app.tick:28ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1253415 build=Aug  4 2026-16:24:3
+1785858403.181|[W][perf] iter=52ms (worst path so far: wr.pump:23ms)
+1785858405.192|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858427.886|[I][webradio] HEAP play free=55748 min=48312
+1785858433.165|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:21:35 poll=0/0 last=0 block_max=0ms loop_max=52ms slow=app.tick:27ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1283416 build=Aug  4 2026-16:24:3
+1785858433.223|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858457.895|[I][webradio] HEAP play free=55748 min=48312
+1785858463.175|[I][hb] display=winamp wifi=rssi(-49) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:22:05 poll=0/0 last=0 block_max=0ms loop_max=29ms slow=app.tick:26ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1313427 build=Aug  4 2026-16:24:3
+1785858463.258|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858487.893|[I][webradio] HEAP play free=58112 min=48312
+1785858493.199|[I][hb] display=winamp wifi=rssi(-46) disc=1 heap=58k maxAlloc=41k stack_hwm=11744b uptime=00:22:35 poll=0/0 last=0 block_max=0ms loop_max=29ms slow=app.tick:27ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1343442 build=Aug  4 2026-16:24:3
+1785858493.298|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858517.899|[I][webradio] HEAP play free=58112 min=48312
+1785858523.205|[I][hb] display=winamp wifi=rssi(-46) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:23:05 poll=0/0 last=0 block_max=0ms loop_max=39ms slow=app.tick:28ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1373456 build=Aug  4 2026-16:24:3
+1785858523.338|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858547.911|[I][webradio] HEAP play free=58112 min=48312
+1785858553.220|[I][hb] display=winamp wifi=rssi(-47) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:23:35 poll=0/0 last=0 block_max=0ms loop_max=46ms slow=app.tick:26ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1403473 build=Aug  4 2026-16:24:3
+1785858553.357|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858577.911|[I][webradio] HEAP play free=55740 min=48312
+1785858583.233|[I][hb] display=winamp wifi=rssi(-45) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:24:05 poll=0/0 last=0 block_max=0ms loop_max=39ms slow=app.tick:27ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1433481 build=Aug  4 2026-16:24:3
+1785858583.398|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858607.916|[I][webradio] HEAP play free=55748 min=48312
+1785858613.244|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:24:35 poll=0/0 last=0 block_max=0ms loop_max=49ms slow=app.tick:26ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1463495 build=Aug  4 2026-16:24:3
+1785858613.425|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858637.932|[I][webradio] HEAP play free=55748 min=48312
+1785858643.246|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=58k maxAlloc=41k stack_hwm=11744b uptime=00:25:05 poll=0/0 last=0 block_max=0ms loop_max=44ms slow=app.tick:26ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1493495 build=Aug  4 2026-16:24:3
+1785858643.450|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858651.472|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858651.497|{"ok":true,"cmd":"get","var":"wrIdx","idx":0,"last":true}
+1785858667.945|[I][webradio] HEAP play free=58104 min=48312
+1785858673.254|[I][hb] display=winamp wifi=rssi(-45) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:25:35 poll=0/0 last=0 block_max=0ms loop_max=38ms slow=app.tick:26ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1523503 build=Aug  4 2026-16:24:3
+1785858673.519|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858697.954|[I][webradio] HEAP play free=58104 min=48312
+1785858703.265|[I][hb] display=winamp wifi=rssi(-47) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:26:05 poll=0/0 last=0 block_max=0ms loop_max=47ms slow=app.tick:29ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1553513 build=Aug  4 2026-16:24:3
+1785858703.553|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858705.231|[I][webradio] audio_info: StreamTitle='Blues Brothers - Everybody Needs Somebody'
+1785858705.237|[D][webradio] ICY: Blues Brothers - Everybody Needs Somebody
+1785858727.958|[I][webradio] HEAP play free=55748 min=48312
+1785858733.305|[I][hb] display=winamp wifi=rssi(-47) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:26:35 poll=0/0 last=0 block_max=0ms loop_max=48ms slow=app.tick:26ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1583535 build=Aug  4 2026-16:24:3
+1785858733.572|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858757.960|[I][webradio] HEAP play free=55748 min=48312
+1785858763.293|[I][hb] display=winamp wifi=rssi(-47) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:27:05 poll=0/0 last=0 block_max=0ms loop_max=49ms slow=app.tick:25ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1613549 build=Aug  4 2026-16:24:3
+1785858763.609|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858787.971|[I][webradio] HEAP play free=55752 min=48312
+1785858793.311|[I][hb] display=winamp wifi=rssi(-47) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:27:35 poll=0/0 last=0 block_max=0ms loop_max=37ms slow=app.tick:28ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1643563 build=Aug  4 2026-16:24:3
+1785858793.650|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858817.973|[I][webradio] HEAP play free=58116 min=48312
+1785858823.322|[I][hb] display=winamp wifi=rssi(-45) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:28:05 poll=0/0 last=0 block_max=0ms loop_max=44ms slow=app.tick:26ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1673571 build=Aug  4 2026-16:24:3
+1785858823.692|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858847.982|[I][webradio] HEAP play free=58104 min=48312
+1785858853.334|[I][hb] display=winamp wifi=rssi(-45) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:28:35 poll=0/0 last=0 block_max=0ms loop_max=49ms slow=app.tick:28ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1703591 build=Aug  4 2026-16:24:3
+1785858853.731|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858877.993|[I][webradio] HEAP play free=58096 min=48312
+1785858883.351|[I][hb] display=winamp wifi=rssi(-46) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:29:05 poll=0/0 last=0 block_max=0ms loop_max=48ms slow=app.tick:30ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1733601 build=Aug  4 2026-16:24:3
+1785858883.754|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858908.005|[I][webradio] HEAP play free=55752 min=48312
+1785858913.366|[I][hb] display=winamp wifi=rssi(-46) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:29:35 poll=0/0 last=0 block_max=0ms loop_max=48ms slow=app.tick:29ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1763614 build=Aug  4 2026-16:24:3
+1785858913.373|[W][perf] iter=51ms (worst path so far: wr.pump:19ms)
+1785858913.781|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858938.019|[I][webradio] HEAP play free=55752 min=48312
+1785858943.378|[I][hb] display=winamp wifi=rssi(-49) disc=1 heap=54k maxAlloc=41k stack_hwm=11744b uptime=00:30:05 poll=0/0 last=0 block_max=0ms loop_max=51ms slow=app.tick:28ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=1793632 build=Aug  4 2026-16:24:3
+1785858943.818|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785858949.833|{"ok":true,"cmd":"set","var":"bgPoll","val":"1"}
+1785858949.856|{"ok":true,"cmd":"set","var":"wrAutoSkip","val":"1"}
+1785858949.887|[shell] leaving 11  heap=58116 maxAlloc=42996 minFree=48312
+1785858949.890|[I][wrpump] ack
+1785858949.890|[I][wrpump] deleted
+1785858949.929|[I][webradio] audio_info: buffers freed, free Heap: 76044 bytes
+1785858949.934|[membudget] TASK-267 arena released
+1785858949.992|[D][chrome] drawVolume pct=100 keyframe=4
+1785858949.995|[D][chrome] drawVolume pct=-1 keyframe=NONE
+1785858950.001|[shell] entered 0  heap=130728 maxAlloc=42996 minFree=48312
+1785858950.009|[shell] switch 11->0 suspend=45ms wipe=27ms init=36ms taskbar=12ms total=120ms
+1785858950.012|{"ok":true,"cmd":"switchApp","id":0}
