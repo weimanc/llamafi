@@ -6970,3 +6970,50 @@ question for a DUT/`preview_layout.py` visual-fit pass before locking the consta
 `m3-001` (feature owning the title marquee), `M-UI-POLISH-fidelity.md` TASK-048 (the gap/loop half
 that never shipped) · **Priority:** P3 (cosmetic fidelity, no functional/safety impact) ·
 **Status:** open — design accepted, implementation not started.
+
+### TASK-400 — Settings → System → Reboot (user-triggered soft reboot)
+
+**Filed 2026-08-04.** Human asked for a manual recovery path for the occasional heap-fragmentation
+state that leaves an app unable to open (`M-HEAP-FRAGMENTATION.md`, parked — no in-session recovery
+exists today short of a physical power cycle or the `SERIAL_DEBUG`-only `reboot` command). Asked
+for a design pass before implementation.
+
+Architect design doc: `docs/architecture/designs/M-SYS-REBOOT.md`. Lean: new 7th Settings category
+("System") with a single "Reboot device" row → Danger-styled confirm screen (existing
+`SButton`/`sButtonBar` kit, same pattern as the PrLoc delete-slot confirm) → `ESP.restart()` — the
+same call already proven at `wifiSection.h:377` and the debug `reboot` serial command, no new reset
+mechanism. Doc also works out why a full `ESP.restart()` isn't undercut by `M-HEAP-FRAGMENTATION`'s
+own OQ4 finding (partial in-process `vTaskDelete()` teardown doesn't reliably un-fragment the heap)
+— a full chip reset reinitializes the entire heap allocator from scratch, a different mechanism
+than the one OQ4 measured as insufficient. Flags a real layout constraint: the category list is
+now 208/212px used with 7 categories + Cancel — zero headroom left for an 8th category without a
+layout change (reserved as cross-feature edge X047 pending acceptance).
+
+**Owner:** Architect (design pass — done, draft) → human (sign-off pending) → VE (testability
+review, not started) → Developer (implementation, not started) · **Deps:** `M-HEAP-FRAGMENTATION.md`
+(the motivating parked issue), `settings-001` (SettingsApp category-list capacity) · **Priority:**
+P2 (real recovery gap — no user-facing path today for a known, if infrequent, failure mode) ·
+**Status:** open — design drafted, awaiting human acceptance.
+
+### TASK-401 — Settings → WiFi: save multiple networks (manual switch only, no auto-failover)
+
+**Filed 2026-08-04.** Human asked whether SPIFFS has room for multiple saved WiFi networks, and
+whether the device could support them. Asked for a design pass before implementation.
+
+Architect design doc: `docs/architecture/designs/M-WIFI-MULTI-AP.md`. SPIFFS headroom confirmed
+trivial (2,129 B used of a 1.4 MB partition). First draft proposed automatic scan-and-failover, both
+at boot and in `wifiDiag::superviseTick()` (built on the vendored `WiFiMulti` library) — **human
+explicitly rejected autonomous switching** ("I don't want the DUT switching over of wifi hotspots on
+its own"), so the doc was revised same-day: boot chain and the supervisor are now **fully
+unchanged** — still single-NVS-profile retry, forever, exactly as today. The feature collapses to
+storage + a new "Saved networks" screen in `WifiSection` (new `/wifi_networks.json`, cap 5 entries,
+kept out of `g_settings`/`settings.json` to avoid re-opening that file's own TASK-329 capacity-math
+history) where tapping a saved entry is a deliberate, user-initiated connect — no code path picks a
+network on its own anywhere. Rejected auto-failover design space kept in the doc, marked rejected,
+per this project's "record what was investigated and turned down" convention.
+
+**Owner:** Architect (design pass — done, draft, revised same-day per human decision) → human
+(sign-off pending) → VE (testability review, not started) → Developer (implementation, not started)
+· **Deps:** `settings-wifi` (WifiSection, the section this extends) · **Priority:** P3 (convenience
+feature, no functional gap being closed) · **Status:** open — design drafted, awaiting human
+acceptance.
