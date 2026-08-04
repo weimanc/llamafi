@@ -24,6 +24,14 @@ same "record what was investigated and turned down" convention as
 `M-HEAP-FRAGMENTATION.md`'s parked options, in case this is revisited later
 with different constraints.
 
+**Second revision note (2026-08-04, same day):** folded in VE's testability
+review (`docs/architecture/designs/sys-reboot-wifi-multi-VE-review.md`,
+verdict approve-with-changes, no blockers). Both majors closed below:
+VE-2-1 (§Lean step 4, a `get wifiSaved` debug getter) and VE-2-2 (§Exit
+criteria, an explicit migration-path test). Minors/informational items not
+folded here — left for implementation time per the review's own
+recommendation.
+
 ## Context / pain points
 
 Asked: (1) is there SPIFFS headroom to store more than one WiFi network's
@@ -186,6 +194,14 @@ zero new autonomous behavior anywhere.**
    connect directly (stored creds, no keyboard) or Danger-confirm-delete
    it. "Forget network" unchanged in position/feel, now scoped to one list
    entry rather than the only file that existed.
+5. **Debug observable (VE-2-1):** add `get wifiSaved` →
+   `{count, entries:[{ssid, lastUsedMs}, ...]}`, same `dbgGet()` chain
+   pattern already used by `AppsSection::submenu()`/`prDivKm()`. Without
+   this there's no way for an automated test to know which row index in
+   "Saved networks" maps to which SSID before tapping it, and no way to
+   assert the LRU-eviction outcome OQ4 below leaves as an open policy
+   question — the getter is what makes that policy, whatever it ends up
+   being, actually testable rather than just implemented.
 
 Not adopted: Option A (capacity-math risk on `settings.json` for no
 benefit), Option C (no multi-profile NVS API exists), Options D/E/G
@@ -217,13 +233,20 @@ technical rejection).
 
 ## Exit criteria
 
+- DUT (VE-2-2): flash a device with only the legacy `/wifi_creds.json`
+  present (i.e. every DUT's actual current state — this is the upgrade
+  path every existing device hits first, not a hypothetical), boot, and
+  confirm `/wifi_networks.json` is created with the migrated single entry
+  — `get wifiSaved` (per VE-2-1's getter) reports `count==1` with the
+  correct SSID.
 - DUT: with 2+ saved networks, boot and background behavior are
   byte-for-byte unchanged from today (same NVS retry, same timings) —
   confirms the "no autonomous switching" requirement holds, not just at
   the design level.
-- DUT: Settings → WiFi → Saved networks lists all saved entries; tapping a
-  non-active, in-range entry connects to it (manual switch) and that
-  becomes the new NVS-active profile.
+- DUT: Settings → WiFi → Saved networks lists all saved entries
+  (cross-check against `get wifiSaved`); tapping a non-active, in-range
+  entry connects to it (manual switch) and that becomes the new
+  NVS-active profile.
 - DUT: tapping a saved entry that's *not* in range fails the same way a
   fresh manual connect attempt fails today (Result screen, "Network not
   found," Retry/Cancel) — no silent fallback to anything else.

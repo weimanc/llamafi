@@ -164,3 +164,13 @@ Neither doc needs a design rethink. Recommend both proceed to Architect disposit
 majors (ideally folded directly into each design doc's Lean/decision or Exit criteria section)
 before Developer implementation starts; the minors and informational notes can be picked up at
 implementation time without blocking.
+
+**Architect disposition (2026-08-04, same day):** all four majors folded directly into their
+design docs. `M-SYS-REBOOT.md`: VE-1-1 → confirm handler now specs a
+`[settings] system-reboot confirmed` log line before `ESP.restart()` (§Lean step 2), plus a new
+exit-criteria bullet asserting it; VE-1-2 → the layout-check exit criterion now states
+human-eyeball-only explicitly, with the DTR-reset reasoning inline. `M-WIFI-MULTI-AP.md`:
+VE-2-1 → new `get wifiSaved` getter specced as §Lean step 5; VE-2-2 → new exit-criteria bullet
+for the legacy-file migration path, wired to the new getter. Minors/informational items left
+un-folded per this review's own recommendation. Both docs remain `Status: draft`, awaiting human
+sign-off next.

@@ -7023,12 +7023,18 @@ check can't be automated with `run/screendump` as it exists today — connecting
 DUT via CH340 DTR-on-open, per `best_practices.md`'s live rule and LL-051, wiping any navigated
 state before a pixel is read). Three minors/informational, no design rethink required.
 
-**Owner:** Architect (design pass — done, draft) → human (sign-off pending) → VE (testability
-review — **done, approve-with-changes**) → Developer (implementation, not started; fold VE-1-1/
-VE-1-2 into the doc first) · **Deps:** `M-HEAP-FRAGMENTATION.md` (the motivating parked issue),
-`settings-001` (SettingsApp category-list capacity) · **Priority:** P2 (real recovery gap — no
-user-facing path today for a known, if infrequent, failure mode) · **Status:** open — design
-drafted + VE-reviewed, awaiting human acceptance.
+**Architect disposition (2026-08-04, same day):** both majors folded into `M-SYS-REBOOT.md`.
+VE-1-1 → confirm handler now specs a `[settings] system-reboot confirmed` log line immediately
+before `ESP.restart()`, plus a matching exit-criteria assertion. VE-1-2 → the layout-check exit
+criterion now states explicitly it's human-eyeball-only under current tooling (DTR-reset-on-open
+makes `run/screendump` unusable for navigated state), not left implicit.
+
+**Owner:** Architect (design pass — done, draft; VE majors folded) → human (sign-off pending) →
+VE (testability review — done, approve-with-changes) → Developer (implementation, not started) ·
+**Deps:** `M-HEAP-FRAGMENTATION.md` (the motivating parked issue), `settings-001` (SettingsApp
+category-list capacity) · **Priority:** P2 (real recovery gap — no user-facing path today for a
+known, if infrequent, failure mode) · **Status:** open — design drafted, VE-reviewed, majors
+folded, awaiting human acceptance.
 
 ### TASK-401 — Settings → WiFi: save multiple networks (manual switch only, no auto-failover)
 
@@ -7056,9 +7062,15 @@ exit criteria never test the one-time legacy `/wifi_creds.json` migration path, 
 existing DUT today hitting exactly that path first). Three minors/informational, no design
 rethink required.
 
-**Owner:** Architect (design pass — done, draft, revised same-day per human decision) → human
-(sign-off pending) → VE (testability review — **done, approve-with-changes**) → Developer
-(implementation, not started; fold VE-2-1/VE-2-2 into the doc first) · **Deps:** `settings-wifi`
-(WifiSection, the section this extends) · **Priority:** P3 (convenience feature, no functional gap
-being closed) · **Status:** open — design drafted + VE-reviewed, awaiting human
+**Architect disposition (2026-08-04, same day):** both majors folded into `M-WIFI-MULTI-AP.md`.
+VE-2-1 → new `get wifiSaved` debug getter specced as Lean step 5, mirroring the existing
+`AppsSection` accessor pattern. VE-2-2 → new exit-criteria bullet requiring the legacy
+`/wifi_creds.json` → `/wifi_networks.json` migration to be exercised on a DUT, wired to the new
+getter for verification.
+
+**Owner:** Architect (design pass — done, draft, revised same-day per human decision; VE majors
+folded) → human (sign-off pending) → VE (testability review — done, approve-with-changes) →
+Developer (implementation, not started) · **Deps:** `settings-wifi` (WifiSection, the section this
+extends) · **Priority:** P3 (convenience feature, no functional gap being closed) · **Status:**
+open — design drafted, VE-reviewed, majors folded, awaiting human
 acceptance.

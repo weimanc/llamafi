@@ -14,6 +14,14 @@
 > parked entry). Listed in full under §Registers below for the human/PM to
 > commit if this design is accepted.
 
+**Revision note (2026-08-04, same day):** folded in VE's testability review
+(`docs/architecture/designs/sys-reboot-wifi-multi-VE-review.md`, verdict
+approve-with-changes, no blockers). Both majors closed below: VE-1-1 (§Lean
+step 2, a stable pre-restart log line) and VE-1-2 (§Exit criteria, the
+"confirm on-device" layout check stated as human-eyeball-only, not
+automatable with current tooling). Minors/informational items not folded
+here — left for implementation time per the review's own recommendation.
+
 ## Context / pain points
 
 The device occasionally fragments its heap badly enough that an app fails to
@@ -178,9 +186,15 @@ already accepted project-wide).
 2. New `app/src/settings/systemSection.h`: single-row body ("Reboot
    device", chevron) that pushes a confirm screen (built from
    `SButton`/`sButtonBar`, `SBtnStyle::Danger` for the reboot action) on
-   tap. Confirming calls `ESP.restart()` directly — no new abstraction
-   needed; this is the same one-line call already proven at
-   `wifiSection.h:377` and `main.cpp:4026`.
+   tap. Confirming fires `SButton::flash()`, then **emits a stable-prefix
+   log line — `[settings] system-reboot confirmed` — immediately before**
+   calling `ESP.restart()` directly (VE-1-1: mirrors `cmdReboot`'s own
+   `{"ok":true,"cmd":"reboot"}` ack, `main.cpp:4023-4026`, so a harness
+   reconnecting after the restart can confirm this was the confirm-tap path
+   firing as designed, not a coincidental crash/TWDT reset landing at the
+   same moment). Otherwise the same one-line `ESP.restart()` call already
+   proven at `wifiSection.h:377` and `main.cpp:4026` — no new reset
+   mechanism.
 3. No changes to `settingsStorage.h`/`SettingsApp::_cancel()` — confirmed
    unnecessary above.
 
@@ -222,6 +236,17 @@ severity match for this action).
   boot-time window, landing back on whatever app/mode was active pre-reboot
   per existing boot-restore behavior (`playerMode` persistence, etc. —
   unchanged by this design).
+- DUT (VE-1-1): the harness's captured serial output shows
+  `[settings] system-reboot confirmed` as the last line before the boot
+  banner — distinguishes this specific trigger from any other reset cause.
+  Reconnect-after-restart itself follows the already-proven pattern from
+  `T-DISP-04`/`T-TIME-04`/`T-APPS-08`/`T-LED-11` (all PASS against the
+  serial `reboot` command, `test_plan.md:2144-2146`) — no new harness
+  mechanism needed, just the new log line to assert against.
+- DUT: after tapping the System row from the category list,
+  `get settingsSection` reports `section==6` (same observable pattern as
+  `T-WIFI-04`'s `section==-1` check, `main.cpp:951-955`) — confirms the
+  category is reachable before exercising the confirm flow above.
 - DUT: tapping Cancel on the confirm screen returns to the System section
   with no restart and no side effects.
 - DUT: triggering Reboot while WebRadio is actively playing / a fetch is
@@ -230,10 +255,16 @@ severity match for this action).
   path already clears).
 - `./run/check` 5-gate green (category-list layout change, low risk, but
   gate anyway per BP-008).
-- Manual layout check: category list with 7 entries + Cancel renders fully
-  inside the 212px content area with no clipping (208px computed above —
-  should be a non-issue, confirm on-device rather than trusting the
-  arithmetic alone).
+- Manual layout check (VE-1-2: **human-eyeball only, not automatable with
+  current tooling** — `run/screendump` opens its own serial connection,
+  which resets the DUT via CH340 DTR-on-open before a pixel can be read,
+  per `best_practices.md`'s live rule and LL-051; there is no way to
+  navigate to the 7-category list on one connection and screenshot it from
+  a fresh tool invocation without a `screendump.py` change to navigate
+  in-connection, which is out of scope here): category list with 7 entries
+  + Cancel renders fully inside the 212px content area with no clipping
+  (208px computed above — should be a non-issue, confirmed by eye on
+  device, not by the arithmetic alone).
 
 ## Registers
 
