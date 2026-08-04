@@ -6907,9 +6907,31 @@ freshly-validated ADR-045/TASK-276 terminal-retry transition logic. Draft, not y
 human sign-off and a VE testability pass on the CONNECTING-state changes before implementation, per
 this session's own standing practice.
 
-**Owner:** Architect (design pass — done, draft) → Developer (implementation, not started) ·
+**Human sign-off (2026-08-04):** design lean approved (narrow option, both safety requirements
+mandatory). Sent to VE for a testability challenge before implementation.
+
+**VE review (2026-08-04, same day) — 4 blocking findings, 1 non-blocking, sign-off: no-go until
+resolved.** Independent pass confirmed the design doc's own line citations are all accurate, but
+found its mutex audit stopped short: (1) `_play()` itself is reachable with zero `_state` guard
+from six other loopTask-synchronous entry points (eject/stop/next/prev/togglePlay/station-tap, plus
+five debug `set wr*` hooks) — today safe only because loopTask is fully blocked during connect,
+exactly the property this design removes; also found a third independent freeze source (`wrVol`'s
+debug setter uses a raw blocking mutex take, inconsistent with the short-timeout idiom already used
+next door for the real volume-drag path). (2) The `WR_PUMP_ACK_TIMEOUT_MS=10000` risk is a real,
+already-provable use-after-free, not an open question — `Audio.cpp:511-519` (TASK-295) forces the
+connect timeout to exactly `10000` for raw-IP URLs, a zero-margin tie with the teardown ack-wait on
+an already-shipped code path. (3) The design doc's own prose is self-contradictory about whether
+loopTask "stays responsive" or "waits" during CONNECTING — can't be both on ESP32 Arduino's
+single-threaded `loop()`. (4) No exit criterion exercises re-entrant control input during
+CONNECTING despite the test hooks already existing. Full findings + proposed fixes in
+`M-WR-CONNECT-ASYNC.md`'s own VE review section. Design needs revision before implementation —
+none of this argues for abandoning the narrow-option lean, but the "two mandatory requirements" as
+originally written are insufficient.
+
+**Owner:** Architect (design pass — done; revision pending VE findings) → VE (review — done, 4
+blocking findings) → Developer (implementation, not started, blocked on design revision) ·
 **Deps:** M-WR-AUDIO-TASK.md (the design this resolves OQ4 for), TASK-393 (source of the
 measurement), M-WR-CONNECT-ASYNC.md (this task's own design doc) · **Priority:** P2 (real,
 measured, user-visible whole-device freeze — not hypothetical — but bounded by TWDT surviving 421
-occurrences without a crash, so not P1) · **Status:** open — design drafted, awaiting human
-sign-off + VE review before implementation.
+occurrences without a crash, so not P1) · **Status:** open — VE review complete, design revision
+needed before implementation can start.
