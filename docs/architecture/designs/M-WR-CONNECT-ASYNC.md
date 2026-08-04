@@ -1,9 +1,12 @@
 # Design — moving WebRadio's `connecttohost()` off loopTask (TASK-398)
 
 > Owner: Architect
-> Status: accepted (lean) — human-approved 2026-08-04; VE review complete same day, **4 blocking
-> findings, no-go until resolved** (see VE review section below). Narrow-option lean itself stands;
-> the doc's stated "mandatory requirements" need revision before implementation.
+> Status: accepted (lean) — human-approved 2026-08-04. VE's first pass (same day) found 4 blocking
+> findings; all four addressed same day in a revision to the "Design space"/"Lean" sections below
+> (now three mandatory requirements, not two). **Revision has not yet had a second VE pass — not
+> implementation-ready until that happens.** One new open question (re-entry racing a deferred
+> teardown) surfaced during the revision itself and is explicitly unresolved, not implemented
+> around.
 > Date: 2026-08-04
 > Feeds: (ADR TBD — promote once VE review + implementation lands)
 > Tracked-as: TASK-398
@@ -59,65 +62,97 @@ different things).
 **Option B — narrow async connect (this doc's actual subject).** Move only the `connecttohost()`
 call onto the pump task; `_play()` on `loopTask` becomes a fast, non-blocking "kick off" that sets
 `_state = CONNECTING` and posts a request; `tick()` polls a result slot each iteration instead of
-blocking on the call. Two real safety requirements fall out of tracing the existing code, not
-optional extras:
+blocking on the call.
 
-- **`_stopAudio()` / `suspend()` (eject, `switchApp` away from WebRadio) must not blocking-take
-  `s_wrAudioMutex` while a connect may be in flight.** Currently they do
-  (`xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY)`, `webRadioApp.h:1520`), which would block
-  `loopTask` for the same 7-9s waiting for the pump to finish its connect — moving the freeze, not
-  removing it. Fix: gate these paths on `_state != CONNECTING`, i.e. accept that you cannot
-  stop/skip/eject *out of* an in-flight connect attempt — you wait for it to resolve (same
-  worst-case ~7-9s, but `loopTask` stays responsive for everything else meanwhile: touch, render,
-  other apps, `switchApp` to a *different* app is the one path that still needs to wait, see next
-  point). This is a real, honest UX limitation, not free — but it replaces "everything is frozen"
-  with "WebRadio's own eject/skip buttons don't respond for up to ~7-9s," which is a real reduction
-  even if not a full fix.
-- **`suspend()` deletes the `Audio` object** (`webRadioApp.h:559`, `MEMBUDGET_PHASE1`) **after**
-  `wrTeardownPumpTask()`'s ack-or-timeout handshake (`WR_PUMP_ACK_TIMEOUT_MS = 10000`,
-  `webRadioApp.h:302`). If the pump is mid-`connecttohost()` when `suspend()` fires (user switches
-  to a different app while WebRadio is CONNECTING), deleting `s_wr_audio` out from under the pump's
-  blocked call is a use-after-free. The existing teardown handshake already has *some* tolerance
-  for this ("pump may be stuck in `Audio::loop()`" is an anticipated log line), but 10s is close
-  enough to the observed 7-9425ms range that it's not a comfortable margin — worth widening or
-  making connect-aware (e.g. skip the ack-timeout log/path entirely and just wait out the known
-  bound when `_state == CONNECTING` at teardown time, since in that specific case "stuck" isn't an
-  anomaly, it's the expected worst case).
+**Revised 2026-08-04 after VE review — three mandatory requirements, not two, and #2 rewritten
+after the original "widen the timeout" idea turned out not to be soundly fixable at all:**
 
-With both handled, Option B eliminates the `loopTask` freeze for the common case (nothing else
-touches WebRadio while it's connecting) and bounds the worst case (switching away from WebRadio
-mid-connect) to a wait, not a crash — down from "the whole device is unusable" to "leaving
-WebRadio takes up to ~7-9s if you catch it mid-connect," which is a real, meaningful improvement
-without adopting the full command-queue model.
+1. **`_play()` must be a no-op whenever `_state == CONNECTING` already** (VE finding #1). Today
+   re-entry is impossible by accident — `loopTask` is fully blocked inside `connecttohost()` for
+   the whole attempt, so nothing else can call `_play()` in the meantime. Removing that blocking is
+   exactly what exposes six untraced call sites that could otherwise race a second connect onto the
+   same `s_wr_audio`/mutex: `handleInput()`'s eject/STOP/PREV/NEXT/`_togglePlay()`/PLEDIT
+   station-tap, and `dbgSet`'s `wrEject`/`wrPlay`/`wrStop`/`wrNext`/`wrPrev`/`wrUrl` hooks. Fix:
+   `_play()` checks `_state == CONNECTING` first and returns immediately (log only) if so — a
+   tap/command that arrives mid-connect is silently ignored, not queued, not blocked. Same pass:
+   `dbgSet`'s `wrVol` handler (a third, independent freeze source VE found, using a raw
+   `xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY)`) switches to the same short-timeout,
+   graceful-degrade idiom `wrVolumeSink()` already uses for the real touch-drag path two hundred
+   lines away — no reason for the debug setter to be less safe than the production gesture path it
+   mirrors.
+2. **Teardown must never delete `s_wr_audio` while the pump might still be touching it — and a
+   fixed timeout cannot guarantee that, so this is an ownership fix, not a bigger number.** VE
+   traced `WR_PUMP_ACK_TIMEOUT_MS = 10000`'s "thin margin" to an actual use-after-free: the
+   existing ack-wait is a tripwire (logs and proceeds to delete `s_wr_audio` even on timeout), and
+   `Audio.cpp:511-519` (TASK-295) forces the connect timeout to exactly `10000` for raw-IP stream
+   URLs — a zero-margin tie with the teardown wait on an already-shipped path, before any DNS
+   overhead on top. **Widening the number doesn't actually fix this**, because DNS resolution
+   itself (`WiFiClient::connect()` → `hostByName()`, confirmed earlier this session,
+   `framework-arduinoespressif32/libraries/WiFi/src/WiFiClient.cpp:302-309`) has **no timeout at
+   all** — there is no fixed value that's guaranteed to exceed every real worst case, only ones
+   that make the failure rarer. The actual fix has to change *who* is responsible for the
+   deletion: **`suspend()` no longer deletes `s_wr_audio` itself when `_state == CONNECTING` at
+   teardown time.** Instead it sets a `s_wrPumpTeardownPending` flag and returns immediately
+   (`loopTask` stays fast — this is the whole point). The pump task, at the top of its next cycle
+   *after* its blocking `connecttohost()` call finally returns (however long that takes — it is no
+   longer `loopTask`'s problem once this fix lands, and the pump task is not TWDT-subscribed per
+   `M-WR-AUDIO-TASK.md`'s own "Facts that bound the design" section, so a slow-but-eventually-
+   returning connect can't crash the device from here either), checks the pending-teardown flag,
+   discards whatever the connect result was, and performs the actual `delete s_wr_audio` /
+   `mb_arena_release()` itself before self-deleting — the same "ack-then-self-delete, holding no
+   locks" discipline the pump already uses for a normal stop request, just triggered by a flag
+   instead of assumed to have already happened. Deletion ownership moves to whichever task
+   actually knows it's safe, instead of `loopTask` guessing based on a timer.
+
+With all three handled, Option B eliminates the `loopTask` freeze in every case traced so far: a
+control tap during CONNECTING silently no-ops instead of blocking anything; leaving WebRadio during
+CONNECTING returns immediately and defers cleanup to the pump task itself rather than either
+blocking `loopTask` or racing a delete against it. There is no remaining case where `loopTask`
+blocks waiting for the pump — every path is now either fast (no-op) or deferred (pending-teardown
+flag), never a wait.
 
 **Option C — full Phase 2 (as sketched in `M-WR-AUDIO-TASK.md`).** Pump task owns the `Audio`
 object entirely; all control calls (`PLAY`/`STOP`/`VOL`) go through a queue; results come back as
 events; `tick()` never touches `Audio` directly. This naturally handles cancellation/supersession
 (a stale connect result for a station the user already skipped past just gets dropped when it
-arrives) without the "wait it out" compromise Option B needs — the real advantage over B. Cost:
-"real surgery on the freshly validated ADR-045/TASK-276 machine" per the original design doc's own
-words — `_onPlaybackFailed`, the terminal-retry re-arm, and every debug getter/setter that reads
-`_state`/`_pendingAction` synchronously would need to become event-driven. Much larger surface for
-something to break, on a state machine that's had real, hard-won validation this session (TASK-395's
-T276 test, the two independent VE reviews of TASK-397's soak tool that specifically traced this
-state machine).
+arrives) as a structural property of the queue, not a bolted-on flag — the real advantage over the
+revised Option B, whose silent-no-op (requirement 1) and deferred-teardown-with-a-pending-flag
+(requirement 2) are two separate, hand-built mechanisms doing a smaller version of the same job.
+Cost: "real surgery on the freshly validated ADR-045/TASK-276 machine" per the original design
+doc's own words — `_onPlaybackFailed`, the terminal-retry re-arm, and every debug getter/setter
+that reads `_state`/`_pendingAction` synchronously would need to become event-driven. Much larger
+surface for something to break, on a state machine that's had real, hard-won validation this
+session (TASK-395's T276 test, the two independent VE reviews of TASK-397's soak tool that
+specifically traced this state machine).
 
 ## Lean / decision
 
-**Option B, narrow async connect, with both safety requirements above treated as mandatory, not
-optional.** It gets the actual measured problem (loopTask freezing 421 times over 4 hours) down to
-a much smaller and more honest one (WebRadio's own controls, and only `switchApp`-away specifically,
-wait up to the connect's worst-case duration in the rare case they race with an in-flight connect)
-without touching the terminal-retry/auto-skip state machine's actual transition logic — `_play()`
-still runs to completion synchronously from the pump task's perspective, `tick()` still drives
+**Option B, narrow async connect, with all three safety requirements above treated as mandatory,
+not optional.** It gets the actual measured problem (loopTask freezing 421 times over 4 hours) down
+to zero remaining blocking-wait cases — every path is now either a fast no-op (a control tap during
+CONNECTING) or a deferred cleanup (leaving WebRadio during CONNECTING) — without touching the
+terminal-retry/auto-skip state machine's actual transition logic: `_play()` still runs to
+completion synchronously from the pump task's own perspective, `tick()` still drives
 `_onPlaybackFailed`/retry pacing off `_state` and `_lastAttemptMs` exactly as today, just reading a
 polled result instead of a live return value. Option C is not rejected, just not justified yet —
-revisit if Option B's "wait it out" compromise turns out to matter in practice (e.g. if users
-frequently switch away from WebRadio while it's failing to connect and find that annoying).
+revisit if the silent-no-op UX (requirement 1) or the deferred-teardown mechanism (requirement 2)
+turn out to need more real state than a flag once implementation is underway, at which point the
+hand-built version may cost more than just adopting the queue.
+
+**One new edge case surfaced while revising requirement 2, not yet resolved — see Open Questions:**
+if the user leaves WebRadio during CONNECTING (deferred teardown pending) and re-enters WebRadio
+quickly, before the pump task's blocked `connecttohost()` call returns and completes the deferred
+cleanup, `init()`/`resume()` would be racing the still-pending teardown for ownership of
+`s_wr_audio`. Not covered by any of the three requirements above as currently scoped.
 
 **Human-approved 2026-08-04.** Sent to VE for a testability challenge on the state-machine boundary
 before implementation, per this project's own standing practice (VE review before code, not after,
-per TASK-397's precedent this session). VE findings recorded below once returned.
+per TASK-397's precedent this session). VE findings recorded below.
+
+**Revised 2026-08-04, same day, after VE's first pass (4 blocking findings) — see VE review section
+above for the original findings and the "Revised" callouts inline above for how each was addressed.
+This revision has not yet been re-reviewed by VE — flagged in Open Questions, not silently treated
+as resolved.**
 
 ## VE review
 
@@ -242,23 +277,37 @@ pre-implementation VE practice exists to catch before code, not after a second i
 
 ## Open questions
 
-1. **Is "you can't cancel out of a CONNECTING state" actually a UX regression, or a wash?**
+1. **Is "control taps silently no-op during CONNECTING" actually a UX regression, or a wash?**
    Currently, mid-connect, the *entire device* is frozen — you can't press anything, anywhere, so
-   there's no real "cancel" experience to preserve today. Option B's compromise (WebRadio's own
-   controls specifically don't respond during CONNECTING, but the rest of the device does) is
-   arguably a strict improvement over the status quo, not a new limitation — worth confirming this
-   framing holds up rather than assuming it during implementation.
-2. **Is `WR_PUMP_ACK_TIMEOUT_MS = 10000` the right bound once `suspend()` can legitimately wait out
-   a real in-flight connect (not just a stuck `Audio::loop()`)?** Tonight's observed range was
-   7099-9425ms; 10000ms covers it with only a ~600ms-1900ms margin against the worst tonight
-   actually produced. Should this widen, or should `suspend()` treat "waiting for a known
-   CONNECTING state" differently (no error log, since it's expected) from "actually stuck"?
-3. **Does the ICY/title/marquee code path (`_drawTitleZone()`, already flagged in
+   there's no real "responsive but ignored" experience to compare against today. This is arguably a
+   strict improvement over the status quo, not a new limitation — worth confirming this framing
+   holds up rather than assuming it during implementation. VE's non-blocking finding #6 (surfacing
+   `isConnecting()`, already wired to the taskbar's amber indicator, as feedback when a tap is
+   ignored) is a cheap way to make the no-op legible instead of a silent nothing.
+2. ~~Is `WR_PUMP_ACK_TIMEOUT_MS = 10000` the right bound?~~ — **superseded by the requirement-2
+   revision above.** The fix no longer relies on picking a big-enough number (VE's finding #2
+   showed no fixed number is soundly sufficient, since DNS resolution is unbounded); teardown
+   ownership moves to the pump task instead. `WR_PUMP_ACK_TIMEOUT_MS` still exists for the
+   *original* "pump genuinely stuck, not just mid-connect" case the ack semaphore already guarded
+   against — that tripwire's behavior on a real stuck task (not a merely-slow connect) is
+   unchanged by this design and out of scope here.
+3. **NEW, surfaced during this revision, not yet resolved — quick re-entry into WebRadio while a
+   deferred teardown (requirement 2) is still pending.** If the user leaves WebRadio during
+   CONNECTING (setting `s_wrPumpTeardownPending`) and switches back into WebRadio before the pump
+   task's blocked call returns and completes that deferred cleanup, `init()`/`resume()` would race
+   the pending teardown for ownership of `s_wr_audio`. Needs a concrete answer before implementation
+   — candidates: (a) `resume()` checks the pending-teardown flag and treats WebRadio as still
+   mid-shutdown, showing a brief "closing…"-style state until the pump's deferred cleanup finishes,
+   then proceeds with a normal fresh `init()`; (b) block re-entry into WebRadio entirely (via
+   `switchApp`'s own gating) while a teardown is pending, same rough shape as how CONNECTING itself
+   blocks control taps. Not designed yet — flagged, not solved, per this doc's own standing
+   practice of not silently treating an open edge case as handled.
+4. **Does the ICY/title/marquee code path (`_drawTitleZone()`, already flagged in
    `M-WEBRADIO-DIAG-SURFACING.md` for a retry-countdown addition) need any change under Option B?**
    Likely not — `_state == CONNECTING` already drives the "Connecting..." marquee text today; a
    polled-result model doesn't change what `tick()` does with `_state` once it's set, just how the
    transition into PLAYING/ERROR_* gets triggered.
-4. **Should this land before or after `M-WEBRADIO-DIAG-SURFACING`'s Tier 1 (retry countdown)?**
+5. **Should this land before or after `M-WEBRADIO-DIAG-SURFACING`'s Tier 1 (retry countdown)?**
    That design flagged its own interaction with TASK-393's freeze mechanism (periodic `_dirty`
    while parked). The two are touching adjacent but different code (this doc: the CONNECTING
    transition itself; that doc: the parked-in-`ERROR_*` marquee) — probably independent and
@@ -266,12 +315,21 @@ pre-implementation VE practice exists to catch before code, not after a second i
 
 ## Exit criteria
 
-- ~~VE testability review of the CONNECTING-state changes~~ — **done, 2026-08-04, see VE review
-  section above.** 4 blocking findings; not yet resolved. The three items below still apply once
-  implementation happens, but implementation itself is blocked on addressing those findings first
-  (in particular: the `_play()`-re-entrancy rule from finding #1, the mandatory teardown fix from
-  finding #2, and finding #4's own added exit criterion for re-entrant control input during
-  CONNECTING).
+- ~~VE testability review of the CONNECTING-state changes~~ — **first pass done, 2026-08-04, 4
+  blocking findings, see VE review section above.** Addressed same day in the "Design space" /
+  "Lean" revisions above (three mandatory requirements instead of two, self-contradiction resolved
+  by eliminating the "wait" case entirely, new open question #3 for the re-entry race surfaced
+  during the revision itself). **This revision has NOT yet had a second VE pass** — treat as
+  addressed-but-unverified, not closed, until that happens.
+- **New, from VE finding #4 — re-entrant control input during CONNECTING, using existing test
+  hooks, no new instrumentation needed:** force `CONNECTING` (`set wrState 1`, or a real slow/dead
+  host), then fire each of eject/stop/next/prev/play/station-tap via both `cmdTap` and the
+  `set wr*` debug commands (`wrEject`/`wrStop`/`wrNext`/`wrPrev`/`wrPlay`/`wrUrl`), and confirm: (a)
+  `_state` is unchanged by each (still `CONNECTING`, not disturbed by the ignored tap), (b)
+  `[W][perf] app.tick` shows no multi-second spike from any of them, (c) `get arenaStats`/
+  `get wrPump` show nothing corrupted afterward, and (d) the original in-flight connect still
+  resolves normally (to PLAYING or an `ERROR_*` state) once its own attempt completes, undisturbed
+  by the ignored taps.
 - DUT proof under the *same* conditions that surfaced the problem: re-run TASK-393's
   `--spotify-present` soak (or a shorter targeted version) against the same station and confirm the
   `[W][perf] app.tick` worst-path no longer shows multi-second values during connect failures —

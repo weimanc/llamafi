@@ -6928,13 +6928,26 @@ CONNECTING despite the test hooks already existing. Full findings + proposed fix
 none of this argues for abandoning the narrow-option lean, but the "two mandatory requirements" as
 originally written are insufficient.
 
-**Owner:** Architect (design pass — done; revision pending VE findings) → VE (review — done, 4
-blocking findings) → Developer (implementation, not started, blocked on design revision) ·
-**Deps:** M-WR-AUDIO-TASK.md (the design this resolves OQ4 for), TASK-393 (source of the
-measurement), M-WR-CONNECT-ASYNC.md (this task's own design doc) · **Priority:** P2 (real,
-measured, user-visible whole-device freeze — not hypothetical — but bounded by TWDT surviving 421
-occurrences without a crash, so not P1) · **Status:** open — VE review complete, design revision
-needed before implementation can start.
+**Design revision (2026-08-04, same day):** all 4 blocking findings addressed in
+`M-WR-CONNECT-ASYNC.md` — now **three** mandatory requirements instead of two: (1) `_play()`
+becomes a no-op during `CONNECTING` instead of racing a second connect, plus fixing a third
+freeze source VE found (`wrVol`'s debug setter); (2) teardown ownership moves to the pump task
+itself via a `s_wrPumpTeardownPending` flag instead of relying on `WR_PUMP_ACK_TIMEOUT_MS` as a
+safety bound — VE's finding that DNS resolution is genuinely unbounded meant no fixed timeout
+value could have soundly fixed this, so widening the number was rejected in favor of an ownership
+fix; (3, resolved as a side effect of fixing #2) the self-contradictory "stays responsive" vs
+"waits" framing is gone — every path is now fast-no-op or deferred-cleanup, never a blocking wait.
+One new edge case surfaced *during* the revision and is explicitly flagged as unresolved, not
+implemented around: quick re-entry into WebRadio while a deferred teardown is still pending races
+`init()`/`resume()` against the pump task's cleanup. **This revision has not yet had a second VE
+pass.**
+
+**Owner:** Architect (design pass — done, revised) → VE (first pass done, second pass pending) →
+Developer (implementation, not started, blocked on second VE pass) · **Deps:** M-WR-AUDIO-TASK.md
+(the design this resolves OQ4 for), TASK-393 (source of the measurement), M-WR-CONNECT-ASYNC.md
+(this task's own design doc) · **Priority:** P2 (real, measured, user-visible whole-device freeze
+— not hypothetical — but bounded by TWDT surviving 421 occurrences without a crash, so not P1) ·
+**Status:** open — design revised post-VE, second VE pass not yet done, implementation blocked.
 
 ### TASK-399 — endless-ticker wraparound for the Winamp title marquee
 
