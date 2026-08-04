@@ -1,15 +1,17 @@
 # Design — moving WebRadio's `connecttohost()` off loopTask (TASK-398)
 
 > Owner: Architect
-> Status: accepted (lean) — human-approved 2026-08-04. Two VE passes same day: first found 4
-> blocking findings against the original two-requirement sketch (addressed, but incompletely);
-> second found the fix itself was incomplete (`_stopAudio()`, not just `_play()`, was the real
-> blocking primitive; the flag-only teardown left a permanent state wedge, not just a race) — 4 new
-> blocking findings. This revision replaces the ad-hoc flags with an explicit request/result-slot
-> mechanism between `loopTask` and the pump task, fixing `_stopAudio()` at the primitive (which
-> transitively covers `suspend()` and a seventh call site neither VE pass had enumerated) and giving
-> `tick()` an unconditional per-iteration reconciliation poll. **Not yet re-reviewed — a third VE
-> pass is next, not implementation.**
+> Status: accepted (lean) — human-approved 2026-08-04. Three VE passes same day, iterating to
+> consensus per explicit human direction. First: 4 blocking findings against the original
+> two-requirement sketch. Second: the fix was incomplete (`_stopAudio()`, not just `_play()`, was
+> the real blocking primitive; the flag-only teardown left a permanent state wedge) — 4 new
+> blocking findings, fixed via an explicit request/result-slot mechanism. Third: confirmed the
+> use-after-free and permanent-wedge bugs were genuinely closed, but found 4 more gaps in the new
+> mechanism's own completeness — most severely, a dropped Spotify TLS-resume call reintroducing
+> `tlsYield` starvation (a bug class fixed five times before this session) on ordinary STOP/eject
+> use. This revision adds the missing TLS-resume, removes two now-harmful redundant `_state`
+> writes, specifies the request-slot's clear-on-commit, and fixes a `TEARDOWN`-downgrade-to-`ABORT`
+> gap. **Not yet re-reviewed — a fourth VE pass is next, not implementation.**
 > Date: 2026-08-04
 > Feeds: (ADR TBD — promote once VE review + implementation lands)
 > Tracked-as: TASK-398
@@ -95,52 +97,102 @@ already relies on for `s_wrPumpTask`/`s_wrPumpStopReq` — no new mutex):
 - `_play()`: unchanged guard from the first revision — no-op if `_state == CONNECTING` already.
   Otherwise sets `_state = CONNECTING`, posts `s_wrPumpRequest = CONNECT` (station URL already
   reachable via existing station-list state, no separate payload needed), returns.
-- `_stopAudio()` **(the actual fix for VE findings #1 and #2, fixed once, at the primitive, not at
-  each of its 6 call sites individually)**: gains a branch at the top — `if (_state ==
-  WRPlayState::CONNECTING) { s_wrPumpRequest = ABORT; return; }` — skipping the mutex take and
-  `stopSong()` call entirely (nothing is playing yet at the codec level; there's nothing to stop).
-  Every existing behavior for every *other* state (`PLAYING`, `ERROR_*`, etc.) is unchanged — this
-  narrowly targets the one state where blocking is unsafe. Because every caller VE traced (eject,
-  STOP, `_togglePlay()`'s stop branch, `dbgSet`'s `wrEject`/`wrStop`, **and** a seventh call site —
-  found while re-checking this revision, not caught by either VE pass — `resume()`'s config-change
-  branch, `webRadioApp.h:502`, `if (_state != WRPlayState::STOPPED) _stopAudio();`) all go through
-  this one shared function, fixing it once fixes all of them, including `suspend()`'s own call
-  (finding #2) and this newly-found seventh site, without needing to touch each call site
-  separately.
+- `_stopAudio()` **(the shared primitive fix — still correct in shape, but its guard's write must
+  respect request priority, per VE third-pass finding #4)**: gains a branch at the top —
+  `if (_state == WRPlayState::CONNECTING) { if (s_wrPumpRequest != TEARDOWN) s_wrPumpRequest =
+  ABORT; return; }` — skipping the mutex take and `stopSong()` call entirely (nothing is playing
+  yet at the codec level; there's nothing to stop), and **never downgrading an already-posted
+  `TEARDOWN` back to `ABORT`** (third-pass finding #4: without this check, `resume()`'s config-diff
+  branch calling `_stopAudio()` while a `TEARDOWN` from an earlier `suspend()` is still pending
+  would silently cancel the arena/`Audio` release, leaking both past the session that was supposed
+  to end them — `TEARDOWN` must always win over `ABORT` once posted). Every existing behavior for
+  every *other* state (`PLAYING`, `ERROR_*`, etc.) is unchanged. Because every caller VE traced
+  across all three passes (eject, STOP, `_togglePlay()`'s stop branch, `dbgSet`'s
+  `wrEject`/`wrStop`, `resume()`'s config-change branch at `webRadioApp.h:502`) all go through this
+  one shared function, fixing the guard once fixes the *mutex-blocking* half of the problem for all
+  of them — but **not the whole problem for two of them**, see the STOP-button fix below (third-pass
+  finding #2) and the TLS-resume fix in the `tick()` section (third-pass finding #1) — both are
+  real gaps this primitive-level fix alone does not close.
+- **STOP transport button (`webRadioApp.h:968-972`) and `dbgSet`'s `wrStop`
+  (`:1224-1228`) — VE third-pass finding #2, a real gap the `_stopAudio()` fix above does not
+  cover.** Both call `_stopAudio()` and then unconditionally force `_state =
+  WRPlayState::STOPPED` immediately afterward — harmless today (`_stopAudio()` already sets that
+  same value unconditionally at the end of its normal path), but once `_stopAudio()` skips that
+  line specifically for `CONNECTING` (the fix above), these two call sites' own redundant
+  assignment overwrites `_state` back to `STOPPED` *immediately*, before the pump has actually
+  processed the posted `ABORT` — defeating `_play()`'s own re-entrancy guard for any subsequent tap
+  (which reads `_state`, not the request slot) and reintroducing the exact blocking freeze this
+  design exists to remove, reachable via ordinary STOP-then-retap or STOP-then-eject. **Fix: delete
+  the redundant `_state = WRPlayState::STOPPED` line at both sites** — it was already dead code in
+  every other state (`_stopAudio()` sets it), and now actively harmful in the one state where
+  `_stopAudio()` deliberately doesn't. `tick()`'s reconciliation (below) becomes the sole owner of
+  this transition, consistently, for every caller.
 - `suspend()`: the `#ifdef MEMBUDGET_PHASE1` teardown block gains the same check — if `_state ==
-  CONNECTING` when `suspend()` runs (the preceding `_stopAudio()` call already posted `ABORT` per
-  the point above; this overwrites that with the stronger `TEARDOWN` request, since leaving the app
-  entirely implies more than just stopping), skip `wrTeardownPumpTask()` and the direct
-  `delete s_wr_audio` **entirely** for this call — post `s_wrPumpRequest = TEARDOWN` instead and
-  return. Every other `suspend()` state (nothing in flight) keeps today's exact synchronous
-  teardown — this only changes behavior for the specific unsafe case.
+  CONNECTING` when `suspend()` runs (the preceding `_stopAudio()` call already posted `ABORT` or
+  left an existing `TEARDOWN` alone per the priority-respecting guard above; this line then
+  overwrites to `TEARDOWN` unconditionally, since leaving the app entirely is always at least as
+  strong an intent as stopping), skip `wrTeardownPumpTask()` and the direct `delete s_wr_audio`
+  **only** — post `s_wrPumpRequest = TEARDOWN` instead. **Disambiguating non-blocking finding #5:**
+  this skips only the audio-teardown steps inside the `#ifdef MEMBUDGET_PHASE1` block; execution
+  falls through normally to the rest of `suspend()`'s body afterward (the coalesced
+  `_lastStationDirty`/`s_wrVolPctDirty` settings-save logic) — that logic is cheap, RAM-only, and
+  doesn't touch WebRadio audio state, so there's no reason to skip it and doing so would silently
+  drop a pending settings write. Every other `suspend()` state (nothing in flight) keeps today's
+  exact synchronous teardown — this only changes behavior for the specific unsafe case.
 
-**Consumer side (the pump task, `wrPumpTaskBody`):** at the top of each cycle, if
-`s_wrPumpRequest == CONNECT` and no connect is currently in flight, take the mutex and call
-`connecttohost()` — this is the multi-second blocking call, now fully isolated to this task, never
-touching `loopTask`. Once it returns (success or fail), check whether `s_wrPumpRequest` has since
-changed to `ABORT` or `TEARDOWN` (set concurrently by `loopTask` while the connect was outstanding):
+**Consumer side (the pump task, `wrPumpTaskBody`) — VE third-pass finding #3's fix included: the
+request slot's clear-on-commit was missing entirely from the first version of this section, and
+without it a successful connect free-runs into an infinite 2ms reconnect loop, since "no connect
+currently in flight" is trivially true every single time the single-threaded pump reaches the
+top-of-loop check.** At the top of each cycle: if `s_wrPumpRequest == CONNECT`, **immediately clear
+it to `NONE`** (this is the commit point — the pump is now the sole owner of servicing this
+specific request), then take the mutex and call `connecttohost()` — this is the multi-second
+blocking call, now fully isolated to this task, never touching `loopTask`. **Accepted, narrow
+residual limitation, stated explicitly rather than engineered around:** there is a razor-thin
+window between the pump reading `CONNECT` and clearing it to `NONE` where a same-instant
+`ABORT`/`TEARDOWN` write from `loopTask` could be silently clobbered back to `NONE` by the clear —
+a handful of instructions wide, not the multi-second connect duration. Worst case if this narrow
+window is hit: the user's stop/eject request is dropped for that one occurrence (the connect
+proceeds as if nothing happened, then resolves normally to `CONNECTED`/`FAILED`) — not a crash, not
+corruption, just one input silently ignored in a window measured in microseconds. A fully
+race-free version would need a compare-and-swap primitive this codebase doesn't currently use
+anywhere; not adding one for a window this narrow is a deliberate scope call, not an oversight.
+Once the connect returns (success or fail), check `s_wrPumpRequest`'s **current** value (which by
+now correctly reflects anything `loopTask` posted *during* the connect, since the clear only
+touched the value at the commit instant, not afterward):
 - **`TEARDOWN`**: if the connect had actually succeeded, call `stopSong()` to clean up; delete
-  `s_wr_audio`, release the arena (`mb_arena_release()`) — moving this ownership to the pump task,
-  exactly as the first revision intended, just triggered by a request enum instead of a bare flag;
-  set `s_wrPumpResult = TORN_DOWN`; **null `s_wrPumpTask` last, immediately before
-  `vTaskDelete(NULL)`** (VE second-pass finding #4's exact fix) so `wrEnsurePumpTask()`'s existing
+  `s_wr_audio`, release the arena (`mb_arena_release()`) — deletion ownership genuinely moved to
+  the pump task, triggered by the request enum; set `s_wrPumpResult = TORN_DOWN`; **null
+  `s_wrPumpTask` last, immediately before `vTaskDelete(NULL)`** (VE second-pass finding #4's exact
+  fix, confirmed still correct by the third pass) so `wrEnsurePumpTask()`'s existing
   `if (s_wrPumpTask) return;` guard continues to see "pump still here, don't spawn a second one"
   for the entire window between the connect returning and the pump's actual self-deletion.
 - **`ABORT`**: if the connect had succeeded, call `stopSong()` (the user asked to stop); set
   `s_wrPumpResult = ABORTED`; the pump task itself is **not** torn down (it persists across a stop,
   matching today's existing behavior/comment) — only the in-flight connect's outcome is discarded.
-- **neither** (normal path): set `s_wrPumpResult = CONNECTED` or `FAILED` per the real outcome.
+- **`NONE`** (normal path — nothing else was requested while the connect was outstanding): set
+  `s_wrPumpResult = CONNECTED` or `FAILED` per the real outcome.
 
-**`tick()` (runs every iteration while WebRadio is the current app — this is the fix for what was
-VE's finding #3, generalized rather than patched):** polls `s_wrPumpResult` each iteration,
-non-blocking. `CONNECTED` → today's existing PLAYING-transition logic runs exactly as it does today
-(seed timers, etc.), reading the result instead of a live return value; `FAILED` → today's existing
-`ERROR_UNREACHABLE` + `_onPlaybackFailed()` logic, same substitution; `ABORTED` or `TORN_DOWN` →
-`_state = WRPlayState::STOPPED`. Each branch clears `s_wrPumpResult = NONE` after handling it. This
-single poll, running unconditionally at the top of `tick()`, closes the wedge VE's second pass
-found without any special-case logic in `resume()`: **`resume()`'s existing autoplay guard already
-requires `_state == WRPlayState::STOPPED` before calling `_play()` again**
+**`tick()` (runs every iteration while WebRadio is the current app):** polls `s_wrPumpResult` each
+iteration, non-blocking. `CONNECTED` → today's existing PLAYING-transition logic runs exactly as it
+does today (seed timers, etc.), reading the result instead of a live return value; `FAILED` →
+today's existing `ERROR_UNREACHABLE` + `_onPlaybackFailed()` logic, same substitution. **`ABORTED`
+or `TORN_DOWN` → `_state = WRPlayState::STOPPED`, AND — VE third-pass finding #1, the most severe
+finding across all three passes — `if (_spotifyYielded) { spotifyTask::tlsResume(); _spotifyYielded
+= false; }`.** `_play()` unconditionally yields Spotify's TLS session before ever reaching the
+connect call (`webRadioApp.h:1613-1616`), so `_spotifyYielded == true` for the entire `CONNECTING`
+window by construction; `_stopAudio()`'s normal (non-`CONNECTING`) path already resumes it near the
+end of its body, but the new early-return added above skips straight past that resume — meaning
+every `ABORT`/`TEARDOWN` this design introduces would otherwise permanently leak Spotify's TLS
+yield reference count (`spotifyTaskStorage.cpp`'s `s_tlsYieldReqCount`, TASK-287) on nothing more
+exotic than pressing STOP while a station connects — reintroducing `tlsYield` starvation, a bug
+class this project has already root-caused and fixed five separate times
+(`project_tlsyield_starvation.md`), via a sixth, previously-unconsidered mechanism. Both
+reconciliation branches must resume TLS explicitly; this is not optional cleanup, it's the fix for
+a real leak this revision would otherwise ship. Each branch clears `s_wrPumpResult = NONE` after
+handling it. This single poll, running unconditionally at the top of `tick()`, closes the wedge
+VE's second pass found without any special-case logic in `resume()`: **`resume()`'s existing
+autoplay guard already requires `_state == WRPlayState::STOPPED` before calling `_play()` again**
 (`webRadioApp.h:526-528`, unchanged by this design) — so if the user re-enters WebRadio while an
 `ABORT`/`TEARDOWN` is still resolving in the background, `_state` is still `CONNECTING` at that
 exact moment and autoplay simply doesn't fire on *that* particular `resume()` call (a real,
@@ -151,43 +203,6 @@ after that a manual station tap or the next legitimate autoplay opportunity work
 state, no special resume()-only check, no risk of a second concurrent pump task (per the
 `s_wrPumpTask`-null-timing fix above) — reusing the exact same STOPPED-gate `resume()` already has
 today for an unrelated reason turns out to be sufficient once `_state` is reconciled correctly.
-
-1. **`_play()` must be a no-op whenever `_state == CONNECTING` already** (VE finding #1). Today
-   re-entry is impossible by accident — `loopTask` is fully blocked inside `connecttohost()` for
-   the whole attempt, so nothing else can call `_play()` in the meantime. Removing that blocking is
-   exactly what exposes six untraced call sites that could otherwise race a second connect onto the
-   same `s_wr_audio`/mutex: `handleInput()`'s eject/STOP/PREV/NEXT/`_togglePlay()`/PLEDIT
-   station-tap, and `dbgSet`'s `wrEject`/`wrPlay`/`wrStop`/`wrNext`/`wrPrev`/`wrUrl` hooks. Fix:
-   `_play()` checks `_state == CONNECTING` first and returns immediately (log only) if so — a
-   tap/command that arrives mid-connect is silently ignored, not queued, not blocked. Same pass:
-   `dbgSet`'s `wrVol` handler (a third, independent freeze source VE found, using a raw
-   `xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY)`) switches to the same short-timeout,
-   graceful-degrade idiom `wrVolumeSink()` already uses for the real touch-drag path two hundred
-   lines away — no reason for the debug setter to be less safe than the production gesture path it
-   mirrors.
-2. **Teardown must never delete `s_wr_audio` while the pump might still be touching it — and a
-   fixed timeout cannot guarantee that, so this is an ownership fix, not a bigger number.** VE
-   traced `WR_PUMP_ACK_TIMEOUT_MS = 10000`'s "thin margin" to an actual use-after-free: the
-   existing ack-wait is a tripwire (logs and proceeds to delete `s_wr_audio` even on timeout), and
-   `Audio.cpp:511-519` (TASK-295) forces the connect timeout to exactly `10000` for raw-IP stream
-   URLs — a zero-margin tie with the teardown wait on an already-shipped path, before any DNS
-   overhead on top. **Widening the number doesn't actually fix this**, because DNS resolution
-   itself (`WiFiClient::connect()` → `hostByName()`, confirmed earlier this session,
-   `framework-arduinoespressif32/libraries/WiFi/src/WiFiClient.cpp:302-309`) has **no timeout at
-   all** — there is no fixed value that's guaranteed to exceed every real worst case, only ones
-   that make the failure rarer. The actual fix has to change *who* is responsible for the
-   deletion: **`suspend()` no longer deletes `s_wr_audio` itself when `_state == CONNECTING` at
-   teardown time.** Instead it sets a `s_wrPumpTeardownPending` flag and returns immediately
-   (`loopTask` stays fast — this is the whole point). The pump task, at the top of its next cycle
-   *after* its blocking `connecttohost()` call finally returns (however long that takes — it is no
-   longer `loopTask`'s problem once this fix lands, and the pump task is not TWDT-subscribed per
-   `M-WR-AUDIO-TASK.md`'s own "Facts that bound the design" section, so a slow-but-eventually-
-   returning connect can't crash the device from here either), checks the pending-teardown flag,
-   discards whatever the connect result was, and performs the actual `delete s_wr_audio` /
-   `mb_arena_release()` itself before self-deleting — the same "ack-then-self-delete, holding no
-   locks" discipline the pump already uses for a normal stop request, just triggered by a flag
-   instead of assumed to have already happened. Deletion ownership moves to whichever task
-   actually knows it's safe, instead of `loopTask` guessing based on a timer.
 
 With the request/result mechanism handled, Option B eliminates the `loopTask` freeze in every case
 traced across both VE passes: a control tap during CONNECTING silently no-ops (`_play()`'s guard);
@@ -241,12 +256,29 @@ per TASK-397's precedent this session).
   `_state` permanently stuck at `CONNECTING` after any eject during a connect, since nothing else
   in the file ever clears it. 4 new blocking findings, 1 non-blocking (the mechanism for how the
   pump task learns to connect was never specified at all).
-- **This revision**: replaces the ad-hoc flags with the request/result-slot mechanism (see "The
-  mechanism, specified properly this time" above) — fixes `_stopAudio()` at the primitive (which
-  transitively fixes `suspend()`'s call, plus a seventh call site inside `resume()`'s config-diff
-  branch neither VE pass enumerated), and gives `tick()` an explicit, unconditional poll that
-  reconciles `_state` on every iteration rather than relying on any one caller to do it. **Not yet
-  re-reviewed — a third VE pass is the next step, not implementation.**
+- **Second revision**: replaced the ad-hoc flags with the request/result-slot mechanism — fixed
+  `_stopAudio()` at the primitive (which transitively fixed `suspend()`'s call, plus a seventh call
+  site inside `resume()`'s config-diff branch neither VE pass had enumerated), and gave `tick()` an
+  explicit, unconditional poll that reconciles `_state` on every iteration rather than relying on
+  any one caller to do it.
+- **Third VE pass** (see VE review section above): confirmed the second revision correctly closed
+  the use-after-free and the permanent `_state` wedge, but found four new gaps in the mechanism's
+  own completeness — most severely, `_stopAudio()`'s new early-return silently dropped the Spotify
+  TLS-resume call, reintroducing `tlsYield` starvation (a bug class fixed five times before this
+  session) on ordinary STOP/eject use, not a race. Also found: the STOP button and `wrStop` debug
+  setter still force `_state = STOPPED` immediately after calling `_stopAudio()`, defeating the
+  whole mechanism for that specific tap; the request slot was never specified to clear itself,
+  meaning a successful connect as originally drafted would free-run into an infinite 2ms reconnect
+  loop; and `resume()`'s config-diff branch could silently downgrade an already-posted `TEARDOWN`
+  back to `ABORT`, leaking the arena and pump task past their intended session. 4 blocking findings,
+  2 non-blocking.
+- **This revision**: adds the missing TLS-resume call to `tick()`'s `ABORTED`/`TORN_DOWN`
+  reconciliation; deletes the two redundant, now-harmful `_state = STOPPED` writes at the STOP
+  button and `wrStop`; specifies the request-slot's clear-on-commit explicitly (with a narrow,
+  explicitly-accepted residual race documented rather than engineered around); and makes
+  `_stopAudio()`'s guard respect request priority (`TEARDOWN` always wins over `ABORT`, never
+  downgraded). **Not yet re-reviewed — a fourth VE pass is next, not implementation**, per the
+  explicit "iterate until consensus" direction this design is being built under.
 
 ## VE review
 
@@ -530,6 +562,206 @@ call site inside `suspend()` (finding #2), give the deferred path a way to recon
 exit criteria to actually exercise the mutex-held case and the re-entry race (finding #5) — then this
 is ready for a third pass, not for implementation as currently written.
 
+### Third pass (2026-08-04)
+
+Independent re-verification against the current source (`app/src/webRadioApp.h`, 1961 lines — same
+length the second pass reported, confirming no implementation has landed since; line numbers
+re-derived from scratch, not trusted from either prior pass or the doc's own citations). This pass
+does not re-litigate whether the request/result-slot *idea* is sound — it is, and it is the right
+shape — it traces the mechanism as specified against every call site that touches `_state`,
+`s_wr_audio`, or `_spotifyYielded` during a `CONNECTING` window, the same way the first two passes
+traced `_stopAudio()`/`suspend()`. Conclusion up front: **the revision correctly closes the two bugs
+the first two passes found (the use-after-free and the permanent `_state` wedge), but introduces two
+new bugs of its own, both reachable through ordinary use, not just adversarial timing — one of them
+(TLS-yield starvation) is a bug class this project has already root-caused and fixed five separate
+times (see `project_tlsyield_starvation.md`), and this design reintroduces it via a different
+mechanism than any of those five.** Four findings, four blocking.
+
+1. **BLOCKING — `_stopAudio()`'s new `CONNECTING` early-return skips the Spotify TLS-resume side
+   effect, reintroducing tlsYield starvation (a bug class this project has fixed five times already,
+   via a sixth, new mechanism).** `_stopAudio()` (`:1516-1536`) today unconditionally resumes
+   Spotify's yielded TLS session near its end: `if (_spotifyYielded && resumeTls) {
+   spotifyTask::tlsResume(); _spotifyYielded = false; }` (`:1532-1535`). The design's fix adds an
+   early `return` at the top of `_stopAudio()` when `_state == CONNECTING` — which necessarily skips
+   this block along with everything else past it (`_pendingAction` reset, play-time zeroing). By the
+   time `_state == CONNECTING` is reachable at all, `_spotifyYielded` is already `true`: `_play()`
+   sets `_state = CONNECTING` at `:1564`, then unconditionally yields Spotify's TLS at `:1613-1616`
+   ("Yield Spotify TLS for the duration of playback... both `new Audio()` and `connecttohost()` need
+   ~50 KB contiguous heap") *before* ever reaching the connect call itself — so the entire `CONNECTING`
+   window has `_spotifyYielded == true` by construction. Every call site that reaches `_stopAudio()`
+   while `_state == CONNECTING` — eject (`:957-958`), the STOP transport button (`:968-969`),
+   `_togglePlay()`'s stop branch (`:1747-1749`, which literally names `CONNECTING` in its own
+   condition), `wrEject` (`:1213-1214`), `wrStop` (`:1224-1225`), and `suspend()`'s own first line
+   (`:545`) — now returns without ever calling `spotifyTask::tlsResume()`. Traced `tlsYield()`/
+   `tlsResume()` in `spotifyTaskStorage.cpp` (`:646-701`): `s_tlsYieldReqCount` is a real reference
+   count (TASK-287), incremented once per `tlsYield()` and decremented once per matching
+   `tlsResume()`; Spotify's own service loop stays stopped (`s_tlsStopped`) until the count returns to
+   zero. A dropped `tlsResume()` here isn't cosmetic — it's a permanently leaked yield: the count never
+   returns to zero from this session, and nothing else in the design's new machinery calls
+   `tlsResume()` on this path either. The pump task (`wrPumpTaskBody`, a free function per second-pass
+   finding #3's own already-established reasoning) has no access to `_spotifyYielded` — an instance
+   member (`:1460`) — so it cannot correctly decide whether to call it even if the doc's ABORT/TEARDOWN
+   branches wanted it to (and as specified, they don't mention it at all). `tick()`'s new poll *is* a
+   member function and could reach `_spotifyYielded`, but the doc's spec for its `ABORTED`/`TORN_DOWN`
+   branches ("`_state = WRPlayState::STOPPED`") says nothing about TLS. Net effect: pressing STOP,
+   eject, or PLAY/PAUSE-to-stop during an ordinary in-flight connect attempt — not a rare race, the
+   single most natural thing a user does when a "Connecting..." screen sits there for several
+   seconds — silently and permanently starves Spotify's TLS session for the rest of the boot. **Fix:**
+   the doc must specify where the resume happens now that `_stopAudio()` can no longer do it
+   unconditionally — the natural owner is `tick()`'s new poll, which has instance access: its
+   `ABORTED`/`TORN_DOWN` branches need `if (_spotifyYielded) { spotifyTask::tlsResume(); _spotifyYielded
+   = false; }` added explicitly, stated as part of the mechanism, not left to be inferred.
+
+2. **BLOCKING — the STOP transport button (`:968-972`) and the `wrStop` debug setter
+   (`:1224-1228`) unconditionally force `_state = WRPlayState::STOPPED` immediately after calling
+   `_stopAudio()`, which the design doesn't touch and which defeats the entire async mechanism for
+   this specific tap.** Both are, today, harmless redundancy — `_stopAudio()` itself already
+   unconditionally sets `_state = STOPPED` at `:1524` in every case, so the caller's own assignment is
+   a no-op. The design's fix makes `_stopAudio()` skip that line specifically when `_state ==
+   CONNECTING` (finding #1's early return) — but does not touch these two call sites, so they still
+   force `_state = STOPPED` immediately, synchronously, regardless of whether the pump has actually
+   processed the `ABORT` yet. Concretely: user taps a station (CONNECTING), immediately presses STOP —
+   `_stopAudio()` posts `ABORT` and returns; the STOP handler's very next line then overwrites
+   `_state` to `STOPPED` right away, before the pump's `connecttohost()` has returned. Two
+   consequences, both reachable with nothing but ordinary fast button-mashing: (a) it directly
+   contradicts the exit criteria's own stated expectation for this exact tap ("`_state` transitions to
+   `STOPPED` once the in-flight connect actually resolves (**not immediately**, and not stuck
+   forever)") — so a Developer who actually runs that check would catch this at test time, but the
+   *design* itself doesn't specify the fix, so it would have to be rediscovered there rather than
+   fixed here; (b) worse, it defeats `_play()`'s own requirement-1 re-entrancy guard for *any*
+   subsequent action, because that guard reads `_state`, not the request slot: with `_state` now
+   `STOPPED`, a station tap immediately after pressing STOP sails past `_play()`'s guard, reaches
+   `_play()`'s own `_stopAudio(/*resumeTls=*/false)` call at `:1544` — which, since `_state` again
+   reads `STOPPED` (not `CONNECTING`) at that exact call, takes the *original*, unguarded, blocking
+   `xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY)` path (`:1520`) — and the pump task is still
+   genuinely inside the first `connecttohost()` call, still holding that mutex. This reintroduces the
+   full multi-second `loopTask` freeze the entire design exists to eliminate — reachable via
+   STOP-then-retap, not a contrived race. The same false signal also reaches `suspend()`: if the user
+   instead ejects right after pressing STOP, `suspend()`'s `_stopAudio()` call at `:545` likewise
+   reads `_state == STOPPED` and takes the same blocking path, freezing `loopTask` during exactly the
+   one path (`switchApp`-away during `CONNECTING`) both prior passes and this doc's own exit criteria
+   treat as the single most important case to verify doesn't block. **Fix:** requirement to fix
+   `_stopAudio()`'s call sites individually after all, for these two specifically — either delete the
+   redundant `_state = WRPlayState::STOPPED` lines at `:970`/`:1226` (let `tick()`'s reconciliation own
+   the transition, matching finding #1's fix) or make them conditional (`if (_state !=
+   WRPlayState::CONNECTING) _state = WRPlayState::STOPPED;`). The doc's claim that fixing
+   `_stopAudio()` "at the primitive... fixes all of them, including `suspend()`'s own call... without
+   needing to touch each call site separately" is false for these two, because they do something to
+   `_state` beyond just calling `_stopAudio()`.
+
+3. **BLOCKING — the consumer-side mechanism never specifies clearing `s_wrPumpRequest` back to
+   `NONE`, and the pump task's own loop structure makes "no connect currently in flight" trivially
+   true every time the check is reached — as literally specified, a successful connect free-runs into
+   an infinite reconnect loop.** The mechanism's opening declaration promises `s_wrPumpRequest` is
+   "written by `loopTask`, read/**cleared** by the pump task," but the detailed "Consumer side"
+   walkthrough that actually describes the algorithm never says when that clearing happens. Traced the
+   implied control flow against `wrPumpTaskBody()`'s existing structure (`:349-382`, a single-threaded
+   `for(;;)` loop): the doc's check is "at the top of each cycle, if `s_wrPumpRequest == CONNECT` **and
+   no connect is currently in flight**, take the mutex and call `connecttohost()`." But "no connect
+   currently in flight" isn't a variable the doc defines anywhere — and because the task is
+   single-threaded, it's *always* true at that exact check point: if a connect genuinely were in
+   flight, the task would be blocked inside `connecttohost()`, not back at the top of the loop to be
+   asked the question. So the qualifier is a no-op as specified. Absent an explicit reset of
+   `s_wrPumpRequest` to `NONE` somewhere in the consumer-side steps (e.g. immediately upon consuming a
+   `CONNECT`, before or after issuing the call), `s_wrPumpRequest` stays `CONNECT` forever after the
+   first successful play — and the very next pump cycle (`WR_PUMP_CADENCE_TICKS` = 2 ms later, `:297`)
+   re-evaluates the same top-of-loop check, sees `CONNECT` again, and calls `connecttohost()` a second
+   time — tearing down the connection it just established and reconnecting, then doing it again 2 ms
+   later, indefinitely, hammering `s_wrAudioMutex` the entire time (during which every per-tick
+   snapshot read and volume-drag take degrades to a stale value on every single attempt, since the
+   mutex is now perpetually busy). This is not a rare interleaving — it is the deterministic outcome
+   of implementing the "Consumer side" section exactly as written, on literally the first successful
+   connect. **Fix:** state explicitly, as part of the consumer-side steps (not just the file-static's
+   declaration comment), that the pump clears `s_wrPumpRequest = NONE` at the moment it commits to
+   starting a connect (before calling `connecttohost()`, so a same-instant `ABORT`/`TEARDOWN` write
+   from `loopTask` isn't lost — see finding #4 for the related ordering concern) — and confirm that is
+   the *only* mechanism relied upon to stop the branch from re-firing, since no other "in-flight"
+   tracking variable exists in the design.
+
+4. **BLOCKING — `resume()`'s config-diff branch (`:494-512`, the doc's own "seventh call site") can
+   downgrade an already-posted `TEARDOWN` back to `ABORT`, silently skipping the arena/Audio release
+   the prior `suspend()` had already committed to, and leaking the pump task past the session that was
+   supposed to end it.** Re-traced the specific sequence the doc's own revision highlights as its
+   headline fix (fixing `_stopAudio()` "at the primitive... transitively covers... this newly-found
+   seventh site"): user starts a connect, ejects away (`suspend()` sees `_state == CONNECTING`, posts
+   `s_wrPumpRequest = TEARDOWN`, returns fast per the doc's `suspend()` requirement) — `_state` is left
+   at `CONNECTING` (nothing in the design writes to it until `tick()`'s poll reconciles a landed
+   result, and `tick()` doesn't run while WebRadio is suspended, per second-pass finding #3's
+   already-established reasoning, unchanged by this revision). If the user then edits WebRadio's
+   country or bitrate cap in Settings (entirely plausible within the several-second-to-unbounded
+   window a real connect/DNS attempt can take per finding #2 of the first pass) and re-enters WebRadio
+   before the deferred teardown has actually landed, `resume()` runs with `_cfgCountry`/`_cfgCap` now
+   differing from `g_settings` — its diff branch fires `if (_state != WRPlayState::STOPPED)
+   _stopAudio();` (`:502`) because `_state` is still `CONNECTING` (`!= STOPPED`). `_stopAudio()`'s new
+   guard (finding #1's fix) unconditionally posts `s_wrPumpRequest = ABORT` whenever `_state ==
+   CONNECTING` — with no check of what's already queued — **overwriting the still-pending `TEARDOWN`
+   with a weaker `ABORT`.** If the pump hasn't yet consumed the request (a real possibility across a
+   Settings-navigation-length window), it resolves the connect, sees `ABORT` instead of `TEARDOWN`, and
+   per the doc's own ABORT branch ("the pump task itself is **not** torn down... only the in-flight
+   connect's outcome is discarded") does *not* delete `s_wr_audio`, does *not* release the arena via
+   `mb_arena_release()`, and does *not* self-terminate. This directly contradicts the original
+   `suspend()` call's own intent (`suspend()`'s comment at `:552-557`: "release the JIT arena when
+   leaving WebRadio so the next entry's station fetch has full heap") and the entire memory-budget
+   motivation `MEMBUDGET_PHASE1`/`mb_arena_*` exists for — the arena and pump task silently outlive the
+   session that was supposed to end them, for as long as this exact interleaving takes to next occur
+   (which self-corrects only by accident, on the next unrelated `suspend()` that happens to *not* race
+   a pending teardown). **Fix:** the shared `_stopAudio()` guard must not downgrade a request that's
+   already stronger than `ABORT` — e.g. `if (s_wrPumpRequest != s_wrPumpRequest_TEARDOWN) s_wrPumpRequest
+   = ABORT;` (or equivalent ordering: `TEARDOWN > ABORT > CONNECT`, never move down the ordering via
+   `_stopAudio()`'s blind write). This is a distinct bug from second-pass finding #4 (the `s_wrPumpTask`
+   null-timing question, which this revision's "pump nulls itself immediately before
+   `vTaskDelete(NULL)`" answer does correctly close) — it's a request-priority-ordering gap the
+   request/result model itself introduces and that finding never had reason to consider.
+
+**Non-blocking:**
+
+5. `suspend()`'s new `CONNECTING` branch is specified as "skip `wrTeardownPumpTask()` and the direct
+   `delete s_wr_audio` **entirely** for this call — post `s_wrPumpRequest = TEARDOWN` instead and
+   return." It's ambiguous whether "return" exits `suspend()` entirely or just the `#ifdef
+   MEMBUDGET_PHASE1` block (`:546-561`) — if the former, it also skips the coalesced
+   `_lastStationDirty`/`s_wrVolPctDirty` settings-save logic that follows at `:563-583`, silently
+   dropping a pending `lastStation`/`webRadioVolumePct` write for that session whenever eject happens
+   to land during a real `CONNECTING` race. Nothing about the "loopTask stays fast" motivation requires
+   skipping the settings save specifically (it's a cheap RAM-only flag check, not a blocking call) — a
+   sentence disambiguating the control flow before implementation would prevent this from being decided
+   by accident.
+
+6. Confirmed, for completeness, that `_play()`'s own early-return branches that set `_state` directly
+   without going through the pump — `_debugForceConnFail` (`:1586-1598`) and the DMA-pool-too-low guard
+   (`:1647-1657`) — both run *before* the point in `_play()` where a request would be posted (both are
+   synchronous pre-flight checks on `loopTask`, unaffected by moving the actual `connecttohost()` call
+   off it). No new risk here; noted so the next reviewer doesn't have to re-derive it, matching the
+   documentation style of second-pass finding #6.
+
+**Testability sign-off (third pass):** consensus **not** reached — go/no-go is **no-go**, four
+blocking findings. The revision's central idea (an explicit request/result-slot pair, deletion
+ownership moved to the pump, an unconditional `tick()` reconciliation poll) is the right shape and
+correctly closes both bugs the first two passes found — the use-after-free and the permanent `_state`
+wedge are genuinely gone. But the doc still stops its own call-site audit one layer too shallow, the
+same failure mode both prior passes independently hit: it traces `_stopAudio()` and `suspend()` as
+*callers of the mechanism* but not as *code with side effects beyond the mechanism* — the STOP
+button/`wrStop` (finding #2) do something to `_state` besides calling `_stopAudio()`, and
+`_stopAudio()` itself does something besides guarding the mutex (the TLS resume, finding #1) that its
+new early-return silently drops. Findings #3 and #4 are gaps in the *new* machinery specifically —
+the request-slot's own lifecycle (clearing) and priority ordering (`TEARDOWN` vs `ABORT`) were never
+fully specified even though this revision's whole stated purpose was to specify the mechanism
+"properly this time." Finding #1 is the most severe: it reintroduces a bug class (`tlsYield`
+starvation) this project has already root-caused and fixed five times over multiple sessions, via a
+sixth, previously-undocumented mechanism, and it's reachable by nothing more exotic than pressing
+STOP while a station connects — not a race, not a timing window, just normal use. None of the four
+findings require reopening the core design decision (Option B is still correct, the request/result
+shape is still correct) — they are call-site and protocol-completeness gaps of the same character
+both prior passes found, which suggests the actual process gap is that the doc's revisions keep
+patching the specific bug the last VE pass named without re-running the full call-site/side-effect
+audit against the newest version of the mechanism. Concretely falsifiable next step: add the missing
+`tlsResume()` call to `tick()`'s `ABORTED`/`TORN_DOWN` branches (finding #1), fix the two call sites
+that write `_state` directly instead of going through the guarded primitive (finding #2), specify
+`s_wrPumpRequest`'s clearing point (finding #3), and give the shared `_stopAudio()` guard a
+priority-preserving write instead of a blind one (finding #4) — then this needs a fourth pass, not
+implementation, since three consecutive passes each finding real, previously-unflagged bugs in the
+same document is itself a signal this mechanism has more surface area than a single VE pass reliably
+covers in one sitting.
+
 ## Open questions
 
 1. **Is "control taps silently no-op during CONNECTING" actually a UX regression, or a wash?**
@@ -574,13 +806,34 @@ is ready for a third pass, not for implementation as currently written.
 
 ## Exit criteria
 
-- ~~VE testability review of the CONNECTING-state changes~~ — **two passes done, 2026-08-04.**
-  First pass: 4 blocking findings against the original two-requirement sketch, addressed same day.
-  Second pass: found that fix incomplete (`_stopAudio()` was the real blocking primitive in most
-  named call sites; the flag-only teardown left a permanent wedge, not just a race) — 4 new
-  blocking findings, addressed in this revision via the request/result-slot mechanism. **This
-  revision has NOT yet had a third VE pass** — treat as addressed-but-unverified, not closed, until
-  that happens.
+- ~~VE testability review of the CONNECTING-state changes~~ — **three passes done, 2026-08-04.**
+  First: 4 blocking findings against the original two-requirement sketch. Second: found that fix
+  incomplete (`_stopAudio()` was the real blocking primitive in most named call sites; the
+  flag-only teardown left a permanent wedge) — 4 new blocking findings, addressed via the
+  request/result-slot mechanism. Third: confirmed the use-after-free and permanent wedge were
+  genuinely fixed, but found 4 more gaps in the new mechanism's own completeness (dropped
+  TLS-resume reintroducing `tlsYield` starvation; two redundant `_state` writes defeating the
+  mechanism for the STOP tap specifically; an unspecified request-clear causing an infinite
+  reconnect loop; a `TEARDOWN`-downgrade-to-`ABORT` leak path) — addressed in this revision. **Not
+  yet had a fourth VE pass** — treat as addressed-but-unverified, not closed, until that happens.
+- **New — Spotify TLS-yield accounting survives a stop/eject during CONNECTING (VE third-pass
+  finding #1, the most severe finding across all three passes):** force `CONNECTING` against a real
+  slow/dead host with Spotify's `bgPoll` active (the `--spotify-present` soak build, not the
+  isolated noSpotify build, so a real yield/resume imbalance is actually observable), press
+  STOP/eject during the connect, then confirm — once the abort/teardown resolves — that Spotify's
+  polling actually resumes (`get heap`/heartbeat's `poll=` counters advancing again, not stuck at
+  `0/0`; cross-reference `spotifyTaskStorage.cpp`'s yield-count surface if one exists, or a fresh
+  `get`/log line added for this check) rather than staying silently yielded for the rest of the
+  boot. This is the one finding across all three passes reachable by nothing more than ordinary
+  use, not a timing race — it deserves its own dedicated, repeated check (multiple STOP-during-
+  CONNECTING cycles in one soak), not a single pass/fail sample.
+- **New — no runaway reconnect loop (VE third-pass finding #3):** force a real, eventually-
+  succeeding `CONNECTING` (not a permanently-dead host), and confirm via the raw serial log that
+  `connecttohost()`/`"Connect to new host"` fires exactly once per successful connect, not
+  repeatedly at the pump's ~2ms cadence — the failure mode as originally drafted (before this
+  revision's clear-on-commit fix) would have been silent at a casual glance (the station *does*
+  play) while hammering `s_wrAudioMutex` continuously underneath, so this needs an explicit log-line
+  count, not just "does audio come out."
 - **Re-entrant control input during CONNECTING, using existing test hooks — split by expected
   outcome, since the two categories of tap now behave differently under the fixed design (this is
   a correction from the previous version of this criterion, which incorrectly expected `_state` to

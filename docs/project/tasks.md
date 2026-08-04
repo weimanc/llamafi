@@ -6964,15 +6964,41 @@ reconciles `_state` whether the user stayed in WebRadio (stop-while-staying) or 
 (teardown). Re-uses `resume()`'s pre-existing `_state == STOPPED` autoplay gate (unmodified) to
 naturally handle the re-entry-during-teardown case without new special-case code — the accepted
 residual limitation is a missed one-shot autoplay opportunity in a narrow timing window, not a
-crash or a wedge. Full mechanism + revision history in `M-WR-CONNECT-ASYNC.md`. **Sent for a third
-VE pass — iterating to consensus per explicit human direction, not stopping at "looks fixed."**
+crash or a wedge. Full mechanism + revision history in `M-WR-CONNECT-ASYNC.md`.
 
-**Owner:** Architect (design pass — done, twice-revised) → VE (two passes done, third pending) →
-Developer (implementation, not started, blocked on third VE pass) · **Deps:** M-WR-AUDIO-TASK.md
+**Third VE pass (2026-08-04, same day) — 4 new blocking findings, 2 non-blocking, no consensus.**
+Confirmed the second revision genuinely closed the use-after-free and the permanent `_state` wedge
+— but re-deriving every call site that touches `_state`/`s_wr_audio`/`_spotifyYielded` during
+`CONNECTING` found four more real bugs, reachable by ordinary use, not adversarial timing. Most
+severe: `_stopAudio()`'s new early-return also skips the Spotify TLS-resume call, permanently
+leaking `spotifyTask`'s yield reference count on nothing more exotic than pressing STOP while a
+station connects — reintroducing `tlsYield` starvation, a bug class this project has already
+root-caused and fixed five separate times, via a sixth mechanism. Also found: the STOP button and
+`wrStop` debug setter still force `_state = STOPPED` immediately after `_stopAudio()`, defeating
+the mechanism specifically for that tap and reintroducing the original freeze via STOP-then-retap;
+the request slot was never specified to clear itself, so a successful connect as drafted would
+free-run into an infinite 2ms reconnect loop; and `resume()`'s config-diff branch could silently
+downgrade an already-posted `TEARDOWN` back to `ABORT`, leaking the arena and pump task past their
+intended session.
+
+**Third revision (2026-08-04, same day):** added the missing TLS-resume call to `tick()`'s
+reconciliation; deleted the two now-harmful redundant `_state = STOPPED` writes; specified the
+request slot's clear-on-commit explicitly, with a narrow, deliberately-accepted residual race
+documented (not engineered around — no compare-and-swap primitive exists in this codebase, and the
+window is a handful of instructions, not the multi-second connect duration); and made
+`_stopAudio()`'s guard priority-aware so `TEARDOWN` can never be downgraded to `ABORT`. Also caught
+and removed a genuine editing mistake from the second revision: stale, superseded duplicate content
+(an old "two mandatory requirements" list) had been left sitting in the doc alongside the newer
+mechanism description, contradicting it. **Sent for a fourth VE pass — iterating to consensus per
+explicit human direction, not stopping at "looks fixed" a third time either.**
+
+**Owner:** Architect (design pass — done, three revisions) → VE (three passes done, fourth pending)
+→ Developer (implementation, not started, blocked on fourth VE pass) · **Deps:** M-WR-AUDIO-TASK.md
 (the design this resolves OQ4 for), TASK-393 (source of the measurement), M-WR-CONNECT-ASYNC.md
 (this task's own design doc) · **Priority:** P2 (real, measured, user-visible whole-device freeze
 — not hypothetical — but bounded by TWDT surviving 421 occurrences without a crash, so not P1) ·
-**Status:** open — design twice-revised post-VE, third VE pass in progress, implementation blocked.
+**Status:** open — design three times revised post-VE, fourth VE pass in progress, implementation
+blocked.
 
 ### TASK-399 — endless-ticker wraparound for the Winamp title marquee
 
