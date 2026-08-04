@@ -475,6 +475,7 @@ def main():
 
     start = time.monotonic()
     start_wall = time.time()
+    start_iso = _ts()
     end = start + args.hours * 3600
 
     anomaly_count = 0
@@ -494,7 +495,7 @@ def main():
         return round(time.monotonic() - start, 1)
 
     def full_report(status):
-        return {"start": _ts(), "station": name, "idx": idx, "url": url,
+        return {"start": start_iso, "station": name, "idx": idx, "url": url,
                 "status": status, "elapsed_s": elapsed(),
                 "anomalies": all_anomalies, "raw_log": raw_log_path}
 

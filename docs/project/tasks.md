@@ -6294,6 +6294,34 @@ capture `_pendingAction`/`_lastAttemptMs`/`_autoSkipTried` via a debug build at 
 noticed, before touching anything else — that's the instrumentation this investigation was missing
 each time.
 
+**Update (TASK-397 4-hour unattended soak, 2026-08-04, 05:20:40–09:20:55):** ran the purpose-built
+`test_webradio_long_soak.py` v2 (see TASK-397 for its own build history) against the single real
+target station (`SLAM! DANCE CLASSICS`, `http://stream.slam.nl/WEB15_MP3`), no Spotify present
+(`cyd2usb_winamp_debug_noSpotify`), `wrAutoSkip` confirmed on throughout. **Result: 14401.9s
+(4h00m02s) elapsed, 0 anomalies, `status=complete`.** `wrState` stayed `2` (PLAYING) for the entire
+run — never entered an `ERROR_*` state, so the terminal-retry mechanism this soak exists to stress
+was never actually invoked; heap stable 49–58k across 479 heartbeat samples (no drift); 71 real ICY
+title changes tracked correctly; DUT-silence watchdog never tripped (max gap between raw serial
+lines: 40s, well under its 90s threshold); zero `terminal retry`/`stream dead`/`connecttohost
+failed`/`ERROR_` lines anywhere in the 1872-line raw log. Report:
+`app/tools/rnd_logs/webradio_long_soak_20260804T052040.json`, raw log
+`app/tools/rnd_logs/webradio_long_soak_20260804T052040_raw.log`. Also caught mid-run, on-device (not
+a bug): the Winamp skin's play-time digits legitimately wrap at 6000s / 100min
+(`webRadioApp.h:786`, `_snapPlaySec % 6000`, TASK-349's own documented design for streams that
+outlive classic MM:SS range) — human saw the on-screen clock drop from ~90min to ~1min and flagged
+it as a possible reset; confirmed from the raw log (zero reconnect events at that timestamp) and
+source it was the intentional wrap, not a real reconnect.
+
+**This is new evidence, not resolution.** A single clean 4-hour run where the target error states
+were never entered doesn't confirm or rule out TASK-393's original observation — it mainly confirms
+`stream.slam.nl` didn't happen to fail during this particular window, so the terminal-retry-recovery
+question this soak was built to answer remains untested by this run. Consistent with the "observed
+once, robust against every repro attempt so far" framing above, now with a fourth clean attempt
+added to that list (three real-network repro attempts + this soak). If a real anomaly is ever
+caught by this tool (or another `--hours` run against a flakier station), the report JSON's
+`anomalies[]` array carries the full diagnostic snapshot at the moment it fires — that's what
+would move this from "not reproduced" to "confirmed."
+
 ### TASK-394 — stale `switchApp 10` (WebRadio) in three tools — TASK-347's own follow-up, never filed
 
 **Filed and CLOSED same-session, 2026-08-03 — human pushback on TASK-393's write-up** ("we've done
@@ -6578,8 +6606,36 @@ false-positive — every threshold trip confirmed `wrState=PLAYING` and stood do
 checkpoint fired cleanly at 300s. Final: **360s elapsed, 0 anomalies, `status=complete`.** Report:
 `app/tools/rnd_logs/webradio_long_soak_20260804T051037.json`.
 
+**Real 4-hour unattended run, 2026-08-04, 05:20:40–09:20:55 (handover from the smoke-test
+session):** launched per the handover prompt against the flashed `cyd2usb_winamp_debug_noSpotify`
+build, `--hours 4 --station-name "SLAM! DANCE CLASSICS"`, detached from the harness via
+`nohup`+`disown` (PID 988751) specifically so no `TaskStop`/session-boundary event could touch the
+serial port mid-run — the operational lesson from v1's DTR-reset incident, applied for real this
+time. Monitored via periodic `ScheduleWakeup` reads of the stdout log and report JSON only, never
+by touching `/dev/ttyUSB1` while the tool held it. **Result: 14401.9s (4h00m02s) elapsed, 0
+anomalies, `status=complete`, heap stable 49-58k across 479 heartbeats, 71 title changes tracked,
+silence watchdog never tripped.** Full result and its relationship to TASK-393's original
+observation is written up under TASK-393's own entry (not duplicated here) — short version: clean
+run, but `wrState` never left PLAYING, so the terminal-retry mechanism under test was never
+actually exercised; this is new evidence the mechanism didn't obviously break under 4h of real
+single-station playback, not proof TASK-393 is resolved. Report:
+`app/tools/rnd_logs/webradio_long_soak_20260804T052040.json`.
+
+**One cosmetic bug found and fixed mid-run (self-caught, not by the human this time):** the
+report JSON's `"start"` field was calling `_ts()` (current wall-clock time) fresh on every 5-minute
+checkpoint write instead of the actual run-start timestamp — so `"start"` silently drifted forward
+to "now" on every write, reading exactly like the run had restarted if you looked at that one field
+in isolation. (`elapsed_s` was never affected — it's computed from a `time.monotonic()` value
+captured once at true start — so the run's own correctness was never in question, only that one
+display field.) Root cause: `full_report()`'s `"start": _ts()` should have referenced the
+already-captured `start_wall`/its ISO form, not called `_ts()` again. Fixed in-place
+(`start_iso = _ts()` captured once alongside `start`/`start_wall`, referenced by `full_report()`
+thereafter) — safe to edit while the soak was running since Python had already loaded the old
+function body into memory; the live run kept using the old (buggy but harmless) behavior for its
+remaining ~40 minutes, this fix only affects future runs.
+
 **Owner:** Developer · **Deps:** TASK-393 (this soak exists to catch its recurrence), TASK-395
-(shares the terminal-retry mechanism understanding) · **Priority:** P1 · **Status:** tool fixed
-per both VE reviews (2 blocking + 6 minor findings, all resolved), **smoke-tested clean against
-the real no-Spotify build — ready for a real multi-hour unattended run.** Not yet run at real
-duration; next step is launching that run (see handover prompt / next session).
+(shares the terminal-retry mechanism understanding) · **Priority:** P1 · **Status:** tool built,
+twice independently reviewed, smoke-tested, and now run to completion for a full real 4-hour
+unattended soak — clean (0 anomalies). Tool itself is done; whether TASK-393 needs another,
+longer, or flakier-station soak is TASK-393's call, not this task's.
