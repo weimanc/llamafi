@@ -1,0 +1,185 @@
+1785816637.657|ets Jul 29 2019 12:21:46
+1785816637.663|rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+1785816637.665|configsip: 0, SPIWP:0xee
+1785816637.671|clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+1785816637.674|mode:DIO, clock div:2
+1785816637.676|load:0x3fff0030,len:1184
+1785816637.679|load:0x40078000,len:13232
+1785816637.679|load:0x40080400,len:3028
+1785816637.682|entry 0x400805e4
+1785816638.438|[membudget] boot-baseline freeInt=204604 lfbInt=110580 freeDma=161460 lfbDma=110580
+1785816638.444|[boot] git=d4ebd91 elf=5fbdf734 build=Aug  4 2026 05:09:55
+1785816638.446|cyd display setup
+1785816638.750|winamp display setup
+1785816638.867|Initialisation done.
+1785816638.898|SettingsStorage: loaded
+1785816638.942|TouchCalStorage: loaded xMin=223 xMax=3582 yMin=196 yMax=3890
+1785816639.004|[D][chrome] drawVolume pct=-1 keyframe=NONE
+1785816639.017|reading config file
+1785816639.020|opened config file
+1785816639.020|parsed json
+1785816639.030|config loaded: clientId=db…e0 (len=32) clientSecret=b9…63 (len=32) refreshToken=AQ…ng (len=131)
+1785816639.049|[wifi-ev] t=681 ev=0 EV
+1785816639.124|[wifi-ev] t=756 ev=2 STA_START
+1785816639.164|[wifi-ev] t=795 ev=5 STA_DISCONNECTED reason=202
+1785816639.255|[wifi-ev] t=886 ev=4 STA_CONNECTED
+1785816639.792|[wifi-ev] t=1422 ev=7 STA_GOT_IP ip=192.168.1.181
+1785816639.837|IP address: 192.168.1.181
+1785816639.846|[membudget] post-wifi freeInt=148780 lfbInt=102388 freeDma=105636 lfbDma=102388
+1785816640.794|[time] synced epoch=1785816640 in 949ms
+1785816640.800|[boot] spotify=idle (playerMode=webradio) — refresh deferred to first toggle
+1785816640.802|[boot] spotify=off
+1785816640.810|[membudget] post-spotifyTask freeInt=146936 lfbInt=102388 freeDma=103792 lfbDma=102388
+1785816640.816|[membudget] post-dataTask freeInt=132080 lfbInt=86004 freeDma=88936 lfbDma=86004
+1785816640.820|[I][dataTask] task started stack=14336B
+1785816640.881|[D][chrome] drawVolume pct=-1 keyframe=NONE
+1785816640.897|[shell] leaving 0  heap=132080 maxAlloc=86004 minFree=131960
+1785816640.922|[I][webradio] HEAP init free=131676 min=131656
+1785816640.927|[I][webradio] HEAP pre-fetch free=131676 min=131656
+1785816640.933|[shell] entered 11  heap=131676 maxAlloc=86004 minFree=131656
+1785816640.936|[D][dataTask.webradio] heap free=86k maxBlk=83k
+1785816640.952|[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128
+1785816640.958|[shell] switch 0->11 suspend=1ms wipe=27ms init=1ms taskbar=25ms total=54ms
+1785816640.967|[membudget] post-init-idle freeInt=123844 lfbInt=77812 freeDma=80700 lfbDma=77812
+1785816640.972|{"ok":true,"cmd":"get","var":"appId","id":11,"name":"WebRadio","last":true}
+1785816640.978|{"ok":true,"cmd":"get","var":"appId","id":11,"name":"WebRadio","last":true}
+1785816641.003|[I][hb] display=winamp wifi=rssi(-49) disc=1 heap=120k maxAlloc=75k stack_hwm=17580b uptime=00:00:02 poll=0/0 last=0 block_max=0ms loop_max=0ms slow=shell.switch:54ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=98 build=Aug  4 2026-05:09:55
+1785816641.053|[D][chrome] drawVolume pct=-1 keyframe=NONE
+1785816641.057|[D][chrome] drawVolume pct=100 keyframe=4
+1785816641.089|[W][perf] iter=122ms (worst path so far: app.tick:83ms)
+1785816641.094|{"ok":true,"cmd":"set","var":"bgPoll","val":"0"}
+1785816641.098|{"ok":true,"cmd":"switchApp","id":11}
+1785816641.111|{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+1785816643.115|{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+1785816643.628|[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=200 elapsed=2668ms
+1785816644.031|[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=30&bitrateMax=128
+1785816645.130|{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+1785816646.674|[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=200 elapsed=2640ms
+1785816647.137|[I][dataTask.webradio] ok mirror=all.api.radio-browser.info country=NL count=30
+1785816647.139|[D][dataTask.webradio] heap free=85k maxBlk=47k
+1785816647.145|[I][webradio] HEAP post-fetch free=130632 min=66384
+1785816647.150|[I][webradio] stations loaded count=30 country=NL
+1785816647.179|[D][chrome] drawVolume pct=100 keyframe=4
+1785816647.183|[D][chrome] drawVolume pct=100 keyframe=4
+1785816647.214|[W][perf] iter=79ms (worst path so far: app.tick:83ms)
+1785816647.220|{"ok":true,"cmd":"get","var":"wrCount","count":30,"pending":0,"last":true}
+1785816647.232|{"ok":true,"cmd":"get","var":"wrCount","count":30,"pending":0,"last":true}
+1785816647.254|{"ok":true,"cmd":"get","var":"wrStation","idx":0,"name":"Radio 10","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10.mp3","last":true}
+1785816647.278|{"ok":true,"cmd":"get","var":"wrStation","idx":1,"name":"Sky Radio 80's Hits","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/SRGSTR04.mp3","last":true}
+1785816647.295|{"ok":true,"cmd":"get","var":"wrStation","idx":2,"name":"SLAM!","bitrate":128,"url":"http://stream.slam.nl/slam","last":true}
+1785816647.315|{"ok":true,"cmd":"get","var":"wrStation","idx":3,"name":"Concertzender Baroque","bitrate":128,"url":"http://streams.greenhost.nl:8080/barok","last":true}
+1785816647.336|{"ok":true,"cmd":"get","var":"wrStation","idx":4,"name":"Radio 10 60's & 70's Hits","bitrate":128,"url":"http://22333.live.streamtheworld.com:3690/TLPSTR18_SC","last":true}
+1785816647.359|{"ok":true,"cmd":"get","var":"wrStation","idx":5,"name":"Sky Radio Christmas","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/SRGSTR08.mp3","last":true}
+1785816647.377|{"ok":true,"cmd":"get","var":"wrStation","idx":6,"name":"SLAM! Non Stop","bitrate":128,"url":"http://stream.radiocorp.nl/web10_mp3","last":true}
+1785816647.395|{"ok":true,"cmd":"get","var":"wrStation","idx":7,"name":"100% NL","bitrate":128,"url":"http://stream.100p.nl/100pctnl.mp3","last":true}
+1785816647.415|{"ok":true,"cmd":"get","var":"wrStation","idx":8,"name":"Concertzender Oude Muziek","bitrate":128,"url":"http://streams.greenhost.nl:8080/oudemuziek","last":true}
+1785816647.434|{"ok":true,"cmd":"get","var":"wrStation","idx":9,"name":"The Great American Songbook","bitrate":128,"url":"http://tgas.dyndns.org:8001/;","last":true}
+1785816647.456|{"ok":true,"cmd":"get","var":"wrStation","idx":10,"name":"Sky Radio 101 FM","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/SKYRADIO.mp3","last":true}
+1785816647.478|{"ok":true,"cmd":"get","var":"wrStation","idx":11,"name":"Radio 538","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO538.mp3","last":true}
+1785816647.498|{"ok":true,"cmd":"get","var":"wrStation","idx":12,"name":"Sky Radio 90's Hits","bitrate":128,"url":"http://22343.live.streamtheworld.com:80/SRGSTR05.mp3","last":true}
+1785816647.520|{"ok":true,"cmd":"get","var":"wrStation","idx":13,"name":"Concertzender Geen dag zonder Bach","bitrate":128,"url":"http://streams.greenhost.nl:8080/bach","last":true}
+1785816647.539|{"ok":true,"cmd":"get","var":"wrStation","idx":14,"name":"Slam! Mixmarathon","bitrate":128,"url":"http://stream.radiocorp.nl/web13_mp3","last":true}
+1785816647.561|{"ok":true,"cmd":"get","var":"wrStation","idx":15,"name":"538 Dance Departmetn","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/TLPSTR01.mp3","last":true}
+1785816647.581|{"ok":true,"cmd":"get","var":"wrStation","idx":16,"name":"Radio 538 Ibiza","bitrate":128,"url":"http://22323.live.streamtheworld.com/TLPSTR19_SC","last":true}
+1785816647.601|{"ok":true,"cmd":"get","var":"wrStation","idx":17,"name":"Radio 538 Nonstop","bitrate":128,"url":"http://25303.live.streamtheworld.com/TLPSTR09_SC","last":true}
+1785816647.622|{"ok":true,"cmd":"get","var":"wrStation","idx":18,"name":"Concertzender Gregoriaans","bitrate":128,"url":"http://streams.greenhost.nl:8080/gregoriaans","last":true}
+1785816647.642|{"ok":true,"cmd":"get","var":"wrStation","idx":19,"name":"Radio 538 Party","bitrate":128,"url":"http://28973.live.streamtheworld.com/TLPSTR16_SC","last":true}
+1785816647.662|{"ok":true,"cmd":"get","var":"wrStation","idx":20,"name":"Radio Caroline 319 Gold","bitrate":128,"url":"http://www.rmgoldserver.eu:8313/","last":true}
+1785816647.681|{"ok":true,"cmd":"get","var":"wrStation","idx":21,"name":"RTV Oost Radio","bitrate":128,"url":"http://streams.rtvoost.nl/audio/oost/mp3","last":true}
+1785816647.702|{"ok":true,"cmd":"get","var":"wrStation","idx":22,"name":"Concertzender De Muzikant","bitrate":128,"url":"http://streams.greenhost.nl:8080/amateurmuziek","last":true}
+1785816647.721|{"ok":true,"cmd":"get","var":"wrStation","idx":23,"name":"SLAM! DANCE CLASSICS","bitrate":128,"url":"http://stream.slam.nl/WEB15_MP3","last":true}
+1785816647.744|{"ok":true,"cmd":"get","var":"wrStation","idx":24,"name":"538 Non-Stop","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/TLPSTR09.mp3","last":true}
+1785816647.765|{"ok":true,"cmd":"get","var":"wrStation","idx":25,"name":"Concertzender Geen dag zonder Bach","bitrate":128,"url":"http://streams.greenhost.nl:8080/bach","last":true}
+1785816647.782|{"ok":true,"cmd":"get","var":"wrStation","idx":26,"name":"Coastline","bitrate":128,"url":"http://81.169.223.8/","last":true}
+1785816647.806|{"ok":true,"cmd":"get","var":"wrStation","idx":27,"name":"RADIO 10 TOP 4000","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/TLPSTR24.mp3","last":true}
+1785816647.829|{"ok":true,"cmd":"get","var":"wrStation","idx":28,"name":"Sky Radio Nice & Easy","bitrate":128,"url":"http://playerservices.streamtheworld.com/api/livestream-redirect/SRGSTR07.mp3","last":true}
+1785816647.849|{"ok":true,"cmd":"get","var":"wrStation","idx":29,"name":"Radio Noordvaarder Angel Healing","bitrate":128,"url":"http://www1.radionoordvaarder.nl:8000/;","last":true}
+1785816647.864|{"ok":true,"cmd":"get","var":"wrSkip","autoSkip":1,"tried":0,"retries":0,"settled":0,"pending":0,"last":true}
+1785816647.875|{"ok":true,"cmd":"set","var":"wrAutoSkip","val":"1"}
+1785816647.889|{"ok":true,"cmd":"get","var":"wrSkip","autoSkip":1,"tried":0,"retries":0,"settled":0,"pending":0,"last":true}
+1785816647.905|[I][webradio] play idx=0 name=INJECTED url=http://stream.slam.nl/WEB15_MP3
+1785816647.910|[membudget] TASK-267 _play pre-acquire lfbInt=49140 freeInt=131040
+1785816647.916|[membudget] TASK-267 arena acquire=24576B lfbBefore=49140 OK
+1785816647.919|[membudget] arena init base=0x3fff8c38 cap=24576
+1785816647.925|[membudget] CP0-pre-audio-init freeDma=63304 lfbDma=49140
+1785816647.930|[I][wrpump] created stack=8192B prio=2 core=1
+1785816647.936|[I][webradio] HEAP pre-connect free=75780 min=66384 maxAlloc=42996
+1785816647.941|[membudget] CP1-pre-connect skip=0 freeInt=75780 lfbInt=42996 freeDma=32636 lfbDma=30708
+1785816647.949|[I][webradio] audio_info: PSRAM not found, inputBufferSize: 6399 bytes
+1785816647.965|[I][webradio] audio_info: buffers freed, free Heap: 67556 bytes
+1785816647.974|[I][webradio] audio_info: Connect to new host: "http://stream.slam.nl/WEB15_MP3"
+1785816648.071|[I][webradio] audio_info: Connection has been established in 92 ms, free Heap: 66564 bytes
+1785816648.080|{"ok":true,"cmd":"set","var":"wrUrl","val":"http://stream.slam.nl/WEB15_MP3"}
+1785816648.097|[I][webradio] audio_info: chunked data transfer
+1785816648.106|[I][webradio] audio_info: redirect to new host "http://29023.live.streamtheworld.com/WEB15_MP3_SC"
+1785816648.119|[I][webradio] audio_info: buffers freed, free Heap: 66984 bytes
+1785816648.129|[I][webradio] audio_info: Connect to new host: "http://29023.live.streamtheworld.com/WEB15_MP3_SC"
+1785816648.138|[D][chrome] drawVolume pct=100 keyframe=4
+1785816648.142|[D][chrome] drawVolume pct=100 keyframe=4
+1785816648.170|[W][perf] iter=268ms (worst path so far: wr.connect:134ms)
+1785816648.179|[I][webradio] audio_info: Connection has been established in 40 ms, free Heap: 66156 bytes
+1785816649.259|[I][webradio] audio_info: icy-name: SLAM! 00's
+1785816649.264|[mbdbg] arena FIRST alloc: base=0x3fff8c38 cap=24576 req=2000
+1785816649.281|[mbdbg] helix alloc: DecInfo=0x3fff8c38(2000) FHdr=0x3fff9408(44) SI=0x3fff9434(40) SFJS=0x3fff945c(36) Huff=0x3fff9480(4624) Deq=0x3fffa690(792) IMDCT=0x3fffa9a8(6944) Sub=0x3fffc4c8(8708) FInfo=0x3fffe6cc(28)
+1785816649.289|[I][webradio] audio_info: MP3Decoder has been initialized, free Heap: 59800 bytes
+1785816649.298|[membudget] CP2-decoder-init freeInt=59800 lfbInt=42996 freeDma=16656 lfbDma=13812 arenaHWM=23216
+1785816649.306|[W][perf] iter=52ms (worst path so far: wr.connect:134ms)[I][webradio] audio_info: stream ready
+1785816649.311|[I][webradio] audio_info: syncword found at pos 0
+1785816649.329|[I][webradio] audio_info: Channels: 2
+1785816649.332|[I][webradio] audio_info: SampleRate: 44100
+1785816649.335|[I][webradio] audio_info: BitsPerSample: 16
+1785816649.341|[I][webradio] audio_info: BitRate: 128000
+1785816649.941|[I][webradio] audio_info: StreamTitle='Sean Paul - Get Busy'
+1785816649.959|[D][webradio] ICY: Sean Paul - Get Busy
+1785816668.373|[I][webradio] HEAP play free=58220 min=55180
+1785816671.012|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=58k maxAlloc=41k stack_hwm=11744b uptime=00:00:32 poll=0/0 last=0 block_max=0ms loop_max=268ms slow=wr.connect:134ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=22844 build=Aug  4 2026-05:09
+1785816698.385|[I][webradio] HEAP play free=58220 min=55180
+1785816701.025|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=58k maxAlloc=41k stack_hwm=11744b uptime=00:01:02 poll=0/0 last=0 block_max=0ms loop_max=33ms slow=app.tick:27ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=52856 build=Aug  4 2026-05:09:55
+1785816707.954|[I][webradio] audio_info: StreamTitle='Uniting Nations - Out Of Touch'
+1785816707.974|[D][webradio] ICY: Uniting Nations - Out Of Touch
+1785816728.395|[I][webradio] HEAP play free=58220 min=55180
+1785816731.043|[I][hb] display=winamp wifi=rssi(-47) disc=1 heap=60k maxAlloc=41k stack_hwm=11744b uptime=00:01:32 poll=0/0 last=0 block_max=0ms loop_max=49ms slow=app.tick:24ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=82857 build=Aug  4 2026-05:09:55
+1785816758.396|[I][webradio] HEAP play free=59944 min=55180
+1785816761.029|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=56k maxAlloc=41k stack_hwm=11744b uptime=00:02:02 poll=0/0 last=0 block_max=0ms loop_max=48ms slow=app.tick:25ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=112863 build=Aug  4 2026-05:09:55
+1785816762.126|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785816788.400|[I][webradio] HEAP play free=60176 min=55180
+1785816791.040|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=57k maxAlloc=41k stack_hwm=11744b uptime=00:02:32 poll=0/0 last=0 block_max=0ms loop_max=46ms slow=app.tick:27ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=142874 build=Aug  4 2026-05:09:55
+1785816792.147|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785816818.413|[I][webradio] HEAP play free=60172 min=55180
+1785816821.057|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=58k maxAlloc=41k stack_hwm=11744b uptime=00:03:02 poll=0/0 last=0 block_max=0ms loop_max=48ms slow=app.tick:24ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=172891 build=Aug  4 2026-05:09:55
+1785816822.179|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785816848.412|[I][webradio] HEAP play free=58456 min=55180
+1785816851.068|[I][hb] display=winamp wifi=rssi(-49) disc=1 heap=58k maxAlloc=41k stack_hwm=11744b uptime=00:03:32 poll=0/0 last=0 block_max=0ms loop_max=41ms slow=app.tick:25ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=202903 build=Aug  4 2026-05:09:55
+1785816852.200|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785816864.947|[I][webradio] audio_info: StreamTitle='Jules & Raoul - Progress'
+1785816864.967|[D][webradio] ICY: Jules & Raoul - Progress
+1785816878.424|[I][webradio] HEAP play free=58460 min=55180
+1785816881.085|[I][hb] display=winamp wifi=rssi(-48) disc=1 heap=57k maxAlloc=41k stack_hwm=11744b uptime=00:04:02 poll=0/0 last=0 block_max=0ms loop_max=49ms slow=app.tick:26ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=232921 build=Aug  4 2026-05:09:55
+1785816882.237|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785816908.431|[I][webradio] HEAP play free=60172 min=53636
+1785816911.096|[I][hb] display=winamp wifi=rssi(-49) disc=1 heap=57k maxAlloc=41k stack_hwm=11744b uptime=00:04:32 poll=0/0 last=0 block_max=0ms loop_max=45ms slow=app.tick:28ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=262939 build=Aug  4 2026-05:09:55
+1785816912.256|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785816938.429|[I][webradio] HEAP play free=60160 min=53636
+1785816941.116|[I][hb] display=winamp wifi=rssi(-49) disc=1 heap=58k maxAlloc=41k stack_hwm=11744b uptime=00:05:02 poll=0/0 last=0 block_max=0ms loop_max=48ms slow=app.tick:30ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=292954 build=Aug  4 2026-05:09:55
+1785816942.289|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785816948.320|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785816948.355|{"ok":true,"cmd":"get","var":"wrIdx","idx":0,"last":true}
+1785816968.433|[I][webradio] HEAP play free=60208 min=53636
+1785816971.124|[I][hb] display=winamp wifi=rssi(-49) disc=1 heap=58k maxAlloc=41k stack_hwm=11744b uptime=00:05:32 poll=0/0 last=0 block_max=0ms loop_max=37ms slow=app.tick:28ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=322961 build=Aug  4 2026-05:09:55
+1785816972.388|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785816998.455|[I][webradio] HEAP play free=58500 min=53636
+1785817001.148|[I][hb] display=winamp wifi=rssi(-45) disc=1 heap=60k maxAlloc=41k stack_hwm=11744b uptime=00:06:02 poll=0/0 last=0 block_max=0ms loop_max=50ms slow=app.tick:28ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=352983 build=Aug  4 2026-05:09:55
+1785817002.425|{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+1785817008.451|{"ok":true,"cmd":"set","var":"bgPoll","val":"1"}
+1785817008.486|{"ok":true,"cmd":"set","var":"wrAutoSkip","val":"1"}
+1785817008.512|[shell] leaving 11  heap=58492 maxAlloc=42996 minFree=53636
+1785817008.515|[I][wrpump] ack
+1785817008.515|[I][wrpump] deleted
+1785817008.553|[I][webradio] audio_info: buffers freed, free Heap: 76156 bytes
+1785817008.558|[membudget] TASK-267 arena released
+1785817008.609|SettingsStorage: saved (doc 1871/6144 B)
+1785817008.671|[D][chrome] drawVolume pct=100 keyframe=4
+1785817008.674|[D][chrome] drawVolume pct=-1 keyframe=NONE
+1785817008.681|[shell] entered 0  heap=130836 maxAlloc=49140 minFree=53636
+1785817008.689|[shell] switch 11->0 suspend=98ms wipe=26ms init=37ms taskbar=12ms total=173ms
+1785817008.691|{"ok":true,"cmd":"switchApp","id":0}

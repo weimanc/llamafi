@@ -6565,8 +6565,21 @@ restored in `_cleanup()`.
 **Go/no-go from the second review: go**, for a supervised run; the silence watchdog (now added)
 was its one recommendation before running unattended overnight.
 
+**Flashed + supervised smoke test, 2026-08-04, clean:** `cyd2usb_winamp_debug_noSpotify` built and
+flashed (`pio run -e cyd2usb_winamp_debug_noSpotify -t upload`, 32s, SUCCESS). 6-minute supervised
+run against it: station-list fetch succeeded on the **first** attempt (no `-101` retries needed —
+confirms the no-Spotify build fixes the heap-contiguity race that `bgPoll 0` alone didn't
+reliably prevent), resolved the exact target `'SLAM! DANCE CLASSICS'` (idx=23, real
+`http://stream.slam.nl/WEB15_MP3`), `wrAutoSkip` confirmed ON, ICY titles tracked correctly
+(`Sean Paul - Get Busy` → `Uniting Nations - Out Of Touch` → `Jules & Raoul - Progress`), heap
+stable 56-60k throughout, `last_render_age_ms` climbed in lockstep with `uptime` the entire time
+(as expected for healthy quiet PLAYING per the render-freeze finding) and correctly did **not**
+false-positive — every threshold trip confirmed `wrState=PLAYING` and stood down. 5-minute
+checkpoint fired cleanly at 300s. Final: **360s elapsed, 0 anomalies, `status=complete`.** Report:
+`app/tools/rnd_logs/webradio_long_soak_20260804T051037.json`.
+
 **Owner:** Developer · **Deps:** TASK-393 (this soak exists to catch its recurrence), TASK-395
 (shares the terminal-retry mechanism understanding) · **Priority:** P1 · **Status:** tool fixed
-per both VE reviews (2 blocking + 6 minor findings total, all resolved), compiles clean —
-**not yet run for real against the DUT with the fully-fixed build; awaiting go-ahead + a flash of
-`cyd2usb_winamp_debug_noSpotify` before the next live attempt.**
+per both VE reviews (2 blocking + 6 minor findings, all resolved), **smoke-tested clean against
+the real no-Spotify build — ready for a real multi-hour unattended run.** Not yet run at real
+duration; next step is launching that run (see handover prompt / next session).

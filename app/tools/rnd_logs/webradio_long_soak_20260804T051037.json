@@ -1,0 +1,10 @@
+{
+  "start": "2026-08-04T05:16:48",
+  "station": "SLAM! DANCE CLASSICS",
+  "idx": 23,
+  "url": "http://stream.slam.nl/WEB15_MP3",
+  "status": "complete",
+  "elapsed_s": 360.3,
+  "anomalies": [],
+  "raw_log": "/home/weiman/proj/esp_spotify/app/tools/rnd_logs/webradio_long_soak_20260804T051037_raw.log"
+}
