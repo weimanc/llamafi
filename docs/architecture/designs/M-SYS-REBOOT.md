@@ -1,18 +1,15 @@
 # Design — M-SYS-REBOOT: Settings → System → Reboot (user-triggered soft reboot)
 
 > Owner: Architect
-> Status: draft
+> Status: **accepted** (2026-08-04, human sign-off)
 > Date: 2026-08-04
-> Feeds: ADR-NNN (TBD — human to decide if this small a change warrants its
-> own ADR, or whether accepting this design doc directly is enough; flagged
-> as an open question below rather than pre-judged)
-> Tracked-as: — (not yet scheduled; PM to file a task if this design is
-> accepted)
+> Feeds: — (no ADR — OQ1's own lean adopted at sign-off: the mechanism is
+> 100% reused (`ESP.restart()`, already proven at `wifiSection.h:377` and
+> the debug `reboot` command), not a novel architectural decision)
+> Tracked-as: TASK-400
 > Registers: settings-system (new feature) · X047 (new cross-feature edge) —
-> **not yet committed to the registry files**, per this project's own
-> "reserve at acceptance, not before" precedent (see `M-HEAP-FRAGMENTATION.md`'s
-> parked entry). Listed in full under §Registers below for the human/PM to
-> commit if this design is accepted.
+> **committed** (`feature_inventory.yaml`, `cross_feature_matrix.yaml`,
+> 2026-08-04).
 
 **Revision note (2026-08-04, same day):** folded in VE's testability review
 (`docs/architecture/designs/sys-reboot-wifi-multi-VE-review.md`, verdict
@@ -203,14 +200,9 @@ severity match for this action).
 
 ## Open questions
 
-- **OQ1 (ADR or not).** Is this change small/low-risk enough to ship as an
-  accepted design doc alone, or does the project want a dedicated ADR for
-  "user-triggered soft reboot is a supported recovery mechanism" (arguably
-  a real architectural statement: it's this project's first admission that
-  in-session recovery from fragmentation is a UI feature, not just a
-  debug-serial escape hatch)? Human call — leaning toward "design doc is
-  enough" given the mechanism is 100% reused, not new, but flagging rather
-  than deciding unilaterally.
+- **OQ1 (ADR or not) — RESOLVED 2026-08-04.** Human signed off on this
+  design doc directly, no separate ADR — the doc's own lean ("mechanism is
+  100% reused, not new") stands as the answer.
 - **OQ2 (label copy).** Exact confirm-screen wording is a Developer/QM
   polish detail, not gated here — "Reboot now? Playback and any unsaved
   activity will restart." is a placeholder, not a final string.
@@ -268,8 +260,8 @@ severity match for this action).
 
 ## Registers
 
-**Not yet committed** (draft status — per this project's "reserve at
-acceptance" precedent). If accepted:
+**Committed 2026-08-04** (`feature_inventory.yaml`, `cross_feature_matrix.yaml`),
+following human sign-off:
 
 New feature: **settings-system** — "Settings → System section: device
 soft-reboot control (`ESP.restart()` exposed as a confirm-gated UI action)."

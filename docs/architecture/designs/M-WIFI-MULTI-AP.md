@@ -1,15 +1,14 @@
 # Design — M-WIFI-MULTI-AP: store multiple saved WiFi networks (manual switch only)
 
 > Owner: Architect
-> Status: draft
+> Status: **accepted** (2026-08-04, human sign-off)
 > Date: 2026-08-04
-> Feeds: ADR-NNN (downgraded from the first draft — see revision note below;
-> likely not needed now that boot/supervisor behavior is unchanged, but
-> left TBD for human call)
-> Tracked-as: — (not yet scheduled; PM to file a task if accepted)
-> Registers: wifi-002 (new feature) — **not yet committed**, draft status,
-> same reserve-on-acceptance convention as `M-SYS-REBOOT.md`/
-> `M-HEAP-FRAGMENTATION.md`.
+> Feeds: — (no ADR — OQ1's own lean adopted at sign-off: boot chain and
+> `wifiDiag::superviseTick()` are unchanged, so there's no boot-order or
+> recovery-policy decision left to formalize)
+> Tracked-as: TASK-401
+> Registers: wifi-002 (new feature) — **committed** (`feature_inventory.yaml`,
+> 2026-08-04). No new cross-feature edge, per the design's own §Registers.
 
 **Revision note (2026-08-04, same day):** first draft of this doc proposed
 automatic scan-and-failover — both at boot (fall back to whichever saved
@@ -210,11 +209,9 @@ technical rejection).
 
 ## Open questions
 
-- **OQ1 (ADR needed?).** Downgraded from the first draft: with boot and
-  the supervisor both unchanged, this is now a self-contained UI/storage
-  feature inside `WifiSection`, not a change to boot-order or recovery
-  policy. Leaning toward "design doc is enough, no ADR" — flagging for
-  human confirmation rather than deciding unilaterally.
+- **OQ1 (ADR needed?) — RESOLVED 2026-08-04.** Human signed off on this
+  design doc directly, no separate ADR — boot/supervisor are unchanged, so
+  there was never a boot-order or recovery-policy decision to formalize.
 - **OQ2 (password storage — plaintext, same as today).** `/wifi_creds.json`
   already stores the password in cleartext SPIFFS today; this design
   extends that posture to a list, doesn't change it. Flagging as a
@@ -259,8 +256,8 @@ technical rejection).
 
 ## Registers
 
-**Not yet committed** (draft status — reserve-on-acceptance convention).
-If accepted:
+**Committed 2026-08-04** (`feature_inventory.yaml`), following human
+sign-off:
 
 New feature: **wifi-002** — "Multi-network WiFi credential storage +
 manual-switch UI (`WifiSection` 'Saved networks' screen). No change to

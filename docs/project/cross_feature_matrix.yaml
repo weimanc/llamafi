@@ -1019,3 +1019,20 @@ interactions:
       6-stop full cycle) produce the correct restricted/fallback cycle — see tasks.md TASK-388/
       389 and feature_inventory.yaml settings-webradio for the full DUT record. No automated
       test_ids yet (manual verification only this session) — VE follow-up candidate.
+
+  - id: X047
+    feature_a: settings-system
+    feature_b: settings-001
+    interaction_type: dependency
+    description: |
+      SettingsApp's category-list content area (212px / 26px rows) is now 208px used /
+      212px available once settings-system lands as the 7th category + Cancel row —
+      effectively zero headroom left for an 8th category without a layout change
+      (smaller row height, dropped separator, or a scrolling list). Anyone adding a
+      future Settings category should read this edge first.
+    risk: low
+    test_coverage: []
+    notes: |
+      Registered at design-acceptance per M-SYS-REBOOT.md (accepted 2026-08-04) — the
+      design's own §Layout capacity check. Not implemented yet (TASK-400). No test id
+      yet — VE follow-up candidate once app/src/settings/systemSection.h exists.

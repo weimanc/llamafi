@@ -2243,3 +2243,52 @@ features:
       uses — a shared-policy coupling, matrix edge X042). test_ids left
       empty pending a VE audit of existing coverage (Phase 1/2 of
       M-WIFI-DIAG predate the current test_plan.md-centric regime).
+
+  - id: settings-system
+    name: Settings → System section — user-triggered soft reboot
+    description: |
+      New 7th SettingsApp category ("System") housing a single "Reboot device" row.
+      Tap → Danger-styled confirm screen (SButton/sButtonBar kit, same pattern as the
+      PrLoc delete-slot confirm) → emits "[settings] system-reboot confirmed" (VE-1-1
+      disposition) → ESP.restart(). Reuses the reset mechanism already proven at
+      wifiSection.h's _doForget() and the debug `reboot` serial command — no new reset
+      path. Manual recovery for the occasional heap-fragmentation state
+      (M-HEAP-FRAGMENTATION.md, parked) that otherwise requires a physical power cycle.
+    status: planned
+    git_ref: "bf3bf6c (2026-08-04)"
+    files: []
+    cross_features: [settings-001]
+    test_ids: []
+    notes: |
+      Design: docs/architecture/designs/M-SYS-REBOOT.md (accepted 2026-08-04, no ADR —
+      OQ1's own lean adopted, mechanism is 100% reused). VE testability review:
+      docs/architecture/designs/sys-reboot-wifi-multi-VE-review.md
+      (approve-with-changes; both majors folded into the design doc). Implementation
+      not started: app/src/settings/systemSection.h (new file), main.cpp
+      SETTINGS_CAT_COUNT 6→7. Tracked as TASK-400. Matrix edge X047 registered
+      alongside this entry (settings-001 category-list capacity).
+
+  - id: wifi-002
+    name: Multi-network WiFi credential storage + manual-switch UI
+    description: |
+      New /wifi_networks.json (cap 5 entries) + "Saved networks" screen inside
+      WifiSection: lists saved networks, tap an entry to connect directly (stored
+      creds, no keyboard), Danger-confirm-delete per entry. Boot chain and
+      wifiDiag::superviseTick() are explicitly UNCHANGED — no autonomous network
+      selection anywhere, by human decision ("I don't want the DUT switching over of
+      wifi hotspots on its own", 2026-08-04). One-time migration from legacy
+      /wifi_creds.json on first boot after upgrade.
+    status: planned
+    git_ref: "bf3bf6c (2026-08-04)"
+    files: []
+    cross_features: [settings-wifi]
+    test_ids: []
+    notes: |
+      Design: docs/architecture/designs/M-WIFI-MULTI-AP.md (accepted 2026-08-04, no
+      ADR — OQ1's own lean adopted, boot/supervisor unchanged so no architectural
+      policy change). VE testability review: docs/architecture/designs/
+      sys-reboot-wifi-multi-VE-review.md (approve-with-changes; both majors folded —
+      get wifiSaved debug getter, migration exit criterion). Implementation not
+      started: extends app/src/settings/wifiSection.h. Tracked as TASK-401. No new
+      cross_feature_matrix.yaml edge — explicitly does not touch wifi-diag-001 (see
+      design doc §Registers).

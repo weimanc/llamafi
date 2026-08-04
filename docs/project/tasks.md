@@ -7029,12 +7029,21 @@ before `ESP.restart()`, plus a matching exit-criteria assertion. VE-1-2 → the 
 criterion now states explicitly it's human-eyeball-only under current tooling (DTR-reset-on-open
 makes `run/screendump` unusable for navigated state), not left implicit.
 
-**Owner:** Architect (design pass — done, draft; VE majors folded) → human (sign-off pending) →
-VE (testability review — done, approve-with-changes) → Developer (implementation, not started) ·
-**Deps:** `M-HEAP-FRAGMENTATION.md` (the motivating parked issue), `settings-001` (SettingsApp
-category-list capacity) · **Priority:** P2 (real recovery gap — no user-facing path today for a
-known, if infrequent, failure mode) · **Status:** open — design drafted, VE-reviewed, majors
-folded, awaiting human acceptance.
+**Human sign-off (2026-08-04):** design **accepted** as a design doc, no separate ADR (OQ1's own
+lean — the reset mechanism is 100% reused, not a novel decision). `settings-system` (new feature)
++ `X047` (new cross-feature edge, `settings-system` × `settings-001` category-list capacity)
+committed to `feature_inventory.yaml`/`cross_feature_matrix.yaml` same day, both `status: planned`.
+
+**PM scheduling (2026-08-04):** cleared for Developer pickup — no further design/review gate
+before implementation. `app/src/settings/systemSection.h` (new) + `main.cpp` `SETTINGS_CAT_COUNT`
+6→7 wiring, per the accepted doc's §Lean/decision.
+
+**Owner:** Architect (design pass — done; VE majors folded) → human (**signed off**) → VE
+(testability review — done, approve-with-changes) → PM (scheduled) → Developer (implementation,
+**not started — next up**) · **Deps:** `M-HEAP-FRAGMENTATION.md` (the motivating parked issue),
+`settings-001` (SettingsApp category-list capacity) · **Priority:** P2 (real recovery gap — no
+user-facing path today for a known, if infrequent, failure mode) · **Status:** open — **accepted,
+scheduled, awaiting Developer implementation.**
 
 ### TASK-401 — Settings → WiFi: save multiple networks (manual switch only, no auto-failover)
 
@@ -7068,9 +7077,18 @@ VE-2-1 → new `get wifiSaved` debug getter specced as Lean step 5, mirroring th
 `/wifi_creds.json` → `/wifi_networks.json` migration to be exercised on a DUT, wired to the new
 getter for verification.
 
-**Owner:** Architect (design pass — done, draft, revised same-day per human decision; VE majors
-folded) → human (sign-off pending) → VE (testability review — done, approve-with-changes) →
-Developer (implementation, not started) · **Deps:** `settings-wifi` (WifiSection, the section this
-extends) · **Priority:** P3 (convenience feature, no functional gap being closed) · **Status:**
-open — design drafted, VE-reviewed, majors folded, awaiting human
-acceptance.
+**Human sign-off (2026-08-04):** design **accepted** as a design doc, no separate ADR (OQ1's own
+lean — boot chain and `wifiDiag::superviseTick()` stay unchanged, so there's no boot-order/
+recovery-policy decision to formalize). `wifi-002` (new feature) committed to
+`feature_inventory.yaml` same day, `status: planned`. No new cross-feature edge, per the design's
+own §Registers.
+
+**PM scheduling (2026-08-04):** cleared for Developer pickup — no further design/review gate
+before implementation. Extends `app/src/settings/wifiSection.h` per the accepted doc's
+§Lean/decision; no boot-chain or `wifiDiag.cpp` changes in scope.
+
+**Owner:** Architect (design pass — done, revised same-day per human decision; VE majors folded)
+→ human (**signed off**) → VE (testability review — done, approve-with-changes) → PM (scheduled)
+→ Developer (implementation, **not started — next up**) · **Deps:** `settings-wifi` (WifiSection,
+the section this extends) · **Priority:** P3 (convenience feature, no functional gap being
+closed) · **Status:** open — **accepted, scheduled, awaiting Developer implementation.**
