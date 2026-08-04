@@ -6215,6 +6215,19 @@ observed (or against a station/network known to produce real capped-budget failu
 Phase 1 list — Radio 10, Sky Radio 80's Hits, Concertzender Baroque hit the threshold more than
 SLAM! did) to get a comparison that can actually move this to DONE.
 
+**Update (2026-08-04, later same day — sobering data point, not a gate result):** TASK-393's
+Spotify-present 4h soak ran on this exact fix (5000ms/7000ms already applied) and still saw a
+~97% connect-failure rate against SLAM! DANCE CLASSICS (415 failures / 13 successes) whenever
+Spotify's background polling was concurrently active — vs 0 failures on the identical code with
+Spotify disabled. **The raised timeout budget alone did not fix connect reliability under
+Spotify-concurrent conditions.** Not a formal gate result for this task (different variable under
+test — Spotify-presence, not before/after the timeout change itself — see TASK-393's own entry for
+the full writeup, including two disproven theories for the precise ~7.007s failure timing worth
+reading before continuing this investigation), but real evidence that Spotify-concurrency may be a
+much bigger lever on WebRadio connect reliability than the timeout budget was. Worth factoring in
+before declaring this task's fix sufficient even if a future clean before/after gate does confirm
+it helps in isolation.
+
 ### TASK-393 — WebRadio ERROR_* render freeze, live-reproduced on debug build; terminal-retry not firing
 
 **Filed 2026-08-03, same session as TASK-390/391, human-directed** ("could we do an extended soak,
@@ -6349,6 +6362,70 @@ added to that list (three real-network repro attempts + this soak). If a real an
 caught by this tool (or another `--hours` run against a flakier station), the report JSON's
 `anomalies[]` array carries the full diagnostic snapshot at the moment it fires — that's what
 would move this from "not reproduced" to "confirmed."
+
+**Update (Spotify-present 4-hour soak, 2026-08-04, 11:40:13–15:40:14) — did not reproduce the
+render-freeze, but found a large, separate, well-evidenced connect-reliability finding.** Added a
+`--spotify-present` flag to `test_webradio_long_soak.py` (skips the `set bgPoll 0` disable, leaving
+Spotify's background polling active as a concurrent TLS user — the one condition from the original
+human sighting the noSpotify-build runs above don't cover). Flashed the regular
+`cyd2usb_winamp_debug` build (Spotify enabled, TASK-243's Premium lapse means `bgPoll` is
+continuous 403 retries rather than real playback polling — still real TLS churn either way). Ran
+the identical single-station soak (`SLAM! DANCE CLASSICS`) on a build that also already had
+TASK-392's connect-timeout fix (5000ms/7000ms) applied.
+
+**Result: 14401.9s (4h00m02s) elapsed, 0 anomalies, `status=complete`.** `render_age` never
+climbed in lockstep with `uptime` at any point — the render-freeze detector correctly never fired,
+so **this run does not reproduce TASK-393's specific symptom**, same disposition as every prior
+attempt (now a fifth). But the connect-outcome numbers are dramatic and unambiguous: **415 connect
+failures vs. 13 successful plays over the full 4 hours (~97% failure rate)**, against the identical
+code/station/URL that held **0 failures, 71 successful title updates, one continuous connection for
+nearly the entire 4 hours** in the no-Spotify run directly above. Heap stable 44-117k (mostly 47-49k
+observed live, no leak — `anomalies=0` would have caught sustained drift), silence watchdog never
+tripped (max gap between raw serial lines: 24.7s). Report:
+`app/tools/rnd_logs/webradio_long_soak_20260804T114000.json`, raw log
+`app/tools/rnd_logs/webradio_long_soak_20260804T114000_raw.log`.
+
+**Live investigation during the run, both leads chased and both disproven — recorded so a future
+session doesn't repeat them:**
+1. *SSL-edge-timeout theory (wrong):* every failure takes almost exactly **7.007s**, matching
+   `WR_CONNECT_TIMEOUT_MS_SSL`, which looked at first like the device was being redirected to an
+   HTTPS StreamTheWorld edge (`stream.slam.nl` genuinely does 302-redirect there — confirmed via a
+   live host `curl`, real audio streamed fine externally). Disproven by the raw log itself: the
+   `"Connect to new host"` and `"Request ... failed!"` lines both reference the exact same string,
+   `http://stream.slam.nl/WEB15_MP3` — no `"redirect to new host"` line ever appears in a failing
+   cycle. The failure happens at the very first hop, on the plain-HTTP URL, which per
+   `Audio.cpp:476-477` means `m_f_ssl` should be `false` and the **5000ms** plain budget should
+   apply — not 7000ms. The precise 7.007s timing (confirmed consistent from the run's start to its
+   final failure just before completion) remains **unexplained** — flagged, not resolved.
+2. *General router-DNS unhealthiness (not supported):* one cold `dig @<gateway> stream.slam.nl`
+   took 10.02s, suggestively close to the unaccounted-for ~2s gap. Immediately re-tested: a fresh,
+   never-queried hostname (`stream.radiocorp.nl`, the CNAME target) resolved in 0.01s, `www.google.com`
+   resolved in 0.02-0.19s across three tries, and `stream.slam.nl` itself resolved in 0.10s on a
+   second (genuinely TTL-expired, re-resolved) query. One isolated slow blip, not a sustained
+   pattern — doesn't survive its own follow-up test, so not trusted as the explanation either.
+3. **What is confirmed, from source, and stays useful regardless of which theory is right:**
+   `framework-arduinoespressif32/libraries/WiFi/src/WiFiClient.cpp:302-309` —
+   `WiFiClient::connect(host, port, timeout_ms)` calls `hostByName()` (DNS resolve) with **no
+   timeout at all**; only the subsequent raw-IP `connect()` gets the requested budget. This sharpens
+   (with actual source evidence, not a guess) the DNS caveat TASK-391 already flagged as unresolved
+   — DNS-resolve time is additional and unbounded on top of `setConnectionTimeout()`'s budget, not
+   counted against it. Still doesn't fully explain the precise 7.007s figure on its own.
+
+**Bearing on TASK-392:** this build already had TASK-392's timeout fix (5000ms/7000ms) applied, and
+the connect failure rate was still ~97% under Spotify-present conditions — raising the budget alone
+clearly does not fix connect reliability when Spotify is concurrently active. TASK-392's own gate
+(run without Spotify present, both before/after clean) and this result are not directly comparable
+— different variable under test — but this is a strong signal that Spotify-concurrency is a bigger
+lever on connect reliability than the timeout budget was, at least for this station tonight.
+
+**Honest bottom line:** TASK-390's original concurrent-Spotify-TLS-contention hypothesis now has
+real, dramatic, reproducible-tonight support at the *connect-reliability* level (100%→3% success
+swing, same code/station/URL, only Spotify's presence differs) — but it still has **zero** support
+at the *render-freeze* level (the actual symptom TASK-393 was filed for). These may be related
+(repeated connect failure is a precondition for ever reaching a parked `ERROR_*` state) or may be
+two separate WebRadio-reliability issues that happen to share a station. Don't conflate "WebRadio
+struggles to connect when Spotify is present" (now well-evidenced) with "WebRadio's error-recovery
+gets permanently stuck" (still unreproduced) when reporting this further up.
 
 ### TASK-394 — stale `switchApp 10` (WebRadio) in three tools — TASK-347's own follow-up, never filed
 
@@ -6681,3 +6758,10 @@ this is repro attempt #4 with the same "observed once, unreproduced since" dispo
 candidates if someone picks TASK-393 back up: a longer run, a station with a track record of real
 failures (StreamTheWorld per TASK-393's second update, not SLAM! which held clean twice now), or a
 Spotify-present run per the reviewer's carried-forward scope caveat above.
+
+**Post-close tool enhancement (2026-08-04, same day):** added `--spotify-present` (skip the
+`bgPoll 0` disable) and used it for exactly the "Spotify-present run" candidate named above — see
+TASK-393's own entry for the full result (415 connect failures vs 13 successes over 4h, a large
+connect-reliability finding, still no render-freeze reproduction). Small, low-risk addition (one
+argparse flag gating the existing, already-reviewed `set bgPoll 0` call behind an if/else — no
+change to the anomaly-detection logic itself), didn't reopen this task for it.

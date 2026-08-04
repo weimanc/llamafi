@@ -350,6 +350,19 @@ def main():
     ap.add_argument("--raw-log", default=None,
                      help="path for the full raw serial log, every line, host-timestamped "
                           "(default: app/tools/rnd_logs/webradio_long_soak_<stamp>_raw.log)")
+    ap.add_argument("--spotify-present", action="store_true",
+                     help="skip the 'set bgPoll 0' belt-and-braces disable, leaving Spotify's "
+                          "background polling active as a concurrent TLS user -- for testing "
+                          "the concurrent-TLS-contention hypothesis both TASK-397 VE reviews "
+                          "carried forward as unconfirmed (the one condition present in the "
+                          "original human sighting that the noSpotify-build runs don't cover). "
+                          "Requires the regular cyd2usb_winamp_debug build flashed (Spotify "
+                          "enabled), not the noSpotify variant -- this tool does not flash "
+                          "anything itself. TASK-243's Premium lapse means bgPoll will just be "
+                          "continuous 403 retries rather than real playback polling; that's fine "
+                          "for this purpose -- the TLS churn from repeated failed-auth attempts "
+                          "is the same contention this hypothesis is about, not successful "
+                          "Spotify playback.")
     args = ap.parse_args()
 
     # VE review finding 4: Python does NOT run atexit handlers on a bare
@@ -388,12 +401,17 @@ def main():
     # spotifyTask::begin() call itself, not the dbgSet handler -- so this
     # WARN path shouldn't trigger in practice either way. Kept as a WARN
     # rather than fatal regardless, since it's genuinely non-essential now.)
-    log("set bgPoll 0 (belt-and-braces; primary isolation is the noSpotify build)")
-    bgpoll_reply = dut.cmd("set bgPoll 0", timeout=2.0)
-    if not bgpoll_reply.get("ok"):
-        log(f"WARN: 'set bgPoll 0' did not confirm ok=true (got {bgpoll_reply!r}) — "
-            f"expected on a noSpotify build (handler may not be compiled in); "
-            f"continuing")
+    if args.spotify_present:
+        log("--spotify-present: leaving bgPoll ON — Spotify's background polling stays active "
+            "as a concurrent TLS user (testing the concurrent-TLS-contention hypothesis, not "
+            "isolating the WebRadio-only mechanism)")
+    else:
+        log("set bgPoll 0 (belt-and-braces; primary isolation is the noSpotify build)")
+        bgpoll_reply = dut.cmd("set bgPoll 0", timeout=2.0)
+        if not bgpoll_reply.get("ok"):
+            log(f"WARN: 'set bgPoll 0' did not confirm ok=true (got {bgpoll_reply!r}) — "
+                f"expected on a noSpotify build (handler may not be compiled in); "
+                f"continuing")
 
     orig_autoskip = None  # populated below, before we force it to 1; _cleanup
                           # reads this by closure at call time, not definition time
