@@ -6461,6 +6461,40 @@ two separate WebRadio-reliability issues that happen to share a station. Don't c
 struggles to connect when Spotify is present" (now well-evidenced) with "WebRadio's error-recovery
 gets permanently stuck" (still unreproduced) when reporting this further up.
 
+**Update (2026-08-04, later same day) — the Spotify-present run's own raw log already answered a
+different, bigger, previously-open question, with zero new instrumentation required.** Re-reading
+the existing `[W][perf] iter=...ms (worst path so far: app.tick:...)` lines already captured in
+that soak's raw log: **every one of the run's 415 failed connect attempts blocked `loopTask` — the
+main app-dispatch loop: touch, rendering, taskbar, every other app — for 7-9+ seconds.** 421
+individual tick iterations exceeded 5000ms over the 4-hour run (`grep -oE "iter=[0-9]+ms"` on the
+raw log, filtered >5000), roughly one every ~34s, matching the failure cadence almost exactly.
+Successful connects are fast and properly categorized under a separate `wr.connect` perf label
+(29-332ms observed); *failed* connects fall through to the generic `app.tick` bucket instead — a
+secondary instrumentation gap worth fixing alongside whatever lands here. Cross-checked against
+the clean no-Spotify run: worst `app.tick` there was 79ms, zero iterations over 5000ms.
+
+**This is not a new architectural discovery — it's the first real measurement of an already-known,
+already-explicitly-deferred open question.** `docs/architecture/designs/M-WR-AUDIO-TASK.md` (the
+design behind TASK-278's audio-pump-task offload, accepted 2026-07-03) documents this exact gap at
+filing time: *"A third, adjacent latency source: `connecttohost()` blocks loopTask for up to
+several seconds... Not this design's primary target, but the option space should not foreclose
+fixing it."* Phase 1 (implemented, TASK-278) **deliberately left connect-blocking out of scope**
+— TASK-278's own E1 exit-criteria explicitly excluded CONNECTING-state windows from its UI-latency
+measurement. Phase 2 (async connect via a command-queue architecture, "real surgery on the
+freshly validated ADR-045/TASK-276 machine," per the design doc) was proposed and explicitly
+deferred, gated on OQ4 — *"measure (`perf::record("wr.connect")`) during Phase 1 to decide whether
+Phase 2 is worth the state-machine surgery"* — which had only ever been sampled once, under
+healthy conditions (`wr.connect:83ms`, excluded as an outlier in the 2026-07-07 E1 campaign).
+**Tonight's 421-freezes-in-4-hours number is that measurement**, just arrived at from the failure
+path instead of the success path OQ4 originally expected. OQ4 marked RESOLVED in the design doc
+with this update; a caught-live self-correction is on record there too (an early read of the
+`app.tick` worst-path values as "growing over time due to fragmentation" was wrong — same benign
+~73ms/cycle phase-drift artifact as `render_age`'s drift, not real degradation; walked back before
+being asserted as fact).
+
+**Filed as TASK-398** to actually scope Phase 2 (or a narrower connect-specific mitigation) now
+that the freeze magnitude is real data, not a deferred theoretical.
+
 ### TASK-394 — stale `switchApp 10` (WebRadio) in three tools — TASK-347's own follow-up, never filed
 
 **Filed and CLOSED same-session, 2026-08-03 — human pushback on TASK-393's write-up** ("we've done
@@ -6799,3 +6833,52 @@ TASK-393's own entry for the full result (415 connect failures vs 13 successes o
 connect-reliability finding, still no render-freeze reproduction). Small, low-risk addition (one
 argparse flag gating the existing, already-reviewed `set bgPoll 0` call behind an if/else — no
 change to the anomaly-detection logic itself), didn't reopen this task for it.
+
+### TASK-398 — scope Phase 2 (async `connecttohost`) now that the freeze magnitude is measured
+
+**Filed 2026-08-04, follow-up from TASK-393's Spotify-present soak.** `docs/architecture/designs/
+M-WR-AUDIO-TASK.md` (TASK-278's own design doc, accepted 2026-07-03) has carried an explicitly
+deferred open question since filing: OQ4, *"`connecttohost` freeze magnitude: measure... to decide
+whether Phase 2 (async connect) is worth the state-machine surgery."* It was never really answered
+— the one sample taken during the 2026-07-07 E1 campaign was a single healthy connect
+(`wr.connect:83ms`), excluded as an outlier, under conditions with no reason to ever hit the slow
+path.
+
+**Now measured, for real, under harsh (but real — reproduced tonight, not hypothetical)
+conditions:** TASK-393's Spotify-present 4h soak (same day) found `_play()`'s `connecttohost()`
+call — which per TASK-278's own explicit, human-approved Phase-1 scope decision still runs
+synchronously on `loopTask`, not the offloaded pump task — blocks the entire device (touch,
+render, taskbar, every other app) for **7-9+ seconds on every failed connect attempt**. Under
+Spotify-concurrent conditions that was 421 separate whole-device freezes over 4 hours, roughly one
+every ~34 seconds. TWDT (15s window) survived all 421 without a reboot, but this is a real,
+directly-felt "the device is frozen" symptom — arguably more user-visible than the narrower
+WebRadio-marquee-specific freeze TASK-393 itself was filed to catch, and plausibly part of what
+made the original human sighting read as "frozen" in the first place (unconfirmed — TASK-393's
+own render-freeze detector and this `app.tick` finding are measuring two different things and
+haven't been shown to be the same event).
+
+**What this task is NOT:** it doesn't reproduce or explain TASK-393's specific render-freeze
+signature (`last_render_age_ms` climbing in lockstep with `uptime` while parked in an `ERROR_*`
+state with zero recovery) — that stays open on its own, still unreproduced after 5 attempts. This
+is a distinct, separately-real, now-measured architectural cost of the current synchronous-connect
+design.
+
+**Proposed scope (Architect to own the actual design work):**
+1. Revisit `M-WR-AUDIO-TASK.md`'s Phase 2 sketch (pump task owns the `Audio` object, UI sends
+   `PLAY(idx)/STOP/VOL` via queue, connect results return as events, `tick()` reads a `volatile`
+   snapshot) with the new magnitude data as justification — the design doc's own gating condition
+   for even considering Phase 2 is now satisfied.
+2. Phase 2 was flagged as "real surgery on the freshly validated ADR-045/TASK-276 machine" — an
+   Architect design pass should assess whether a narrower mitigation (e.g. moving just the
+   `connecttohost()` call itself onto the pump task, without the full command-queue rearchitecture)
+   gets most of the benefit at a fraction of the risk, before committing to the full Phase 2 scope.
+3. Fix the secondary instrumentation gap found along the way: failed connects aren't wrapped in
+   the same `wr.connect` perf-timer scope successful connects are, so they fall through to the
+   generic `app.tick` bucket — cheap, low-risk, worth doing regardless of which mitigation is
+   chosen, since it's the thing that made this measurement possible to reconstruct after the fact
+   at all.
+
+**Owner:** Architect (design pass) → Developer (implementation) · **Deps:** M-WR-AUDIO-TASK.md
+(the design this resolves OQ4 for), TASK-393 (source of the measurement) · **Priority:** P2 (real,
+measured, user-visible whole-device freeze — not hypothetical — but bounded by TWDT surviving 421
+occurrences without a crash, so not P1) · **Status:** open — filed, not yet designed or scheduled.

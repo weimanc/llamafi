@@ -253,10 +253,22 @@ the (a) soak exceeding baseline.
 - **OQ3 — perf slot cross-task writes:** torn reads *and* a non-atomic registration race
   vs `perf::reset()` [DEV-2-8] — accept as diagnostic-grade noise, or gate `wr.pump`
   behind SERIAL_DEBUG only.
-- **OQ4 — `connecttohost` freeze magnitude:** measure (`perf::record("wr.connect")`) during
-  Phase 1 to decide whether Phase 2 (async connect) is worth the state-machine surgery.
-  The DEV-2-1 in-`loop()` connect paths (redirect/reconnect/playlist) count toward the same
-  decision.
+- **OQ4 — `connecttohost` freeze magnitude: RESOLVED (2026-08-04), and it argues for Phase 2.**
+  The 2026-07-07 E1 campaign only ever sampled one healthy connect (`wr.connect:83ms`,
+  excluded as an outlier). TASK-393's Spotify-present 4h soak the same day as this update
+  (see `tasks.md` TASK-393) gave the first real magnitude measurement under harsh conditions: with
+  Spotify's background polling concurrently active, WebRadio connects failed ~97% of the
+  time (415/428), and **every failed connect blocked `loopTask` for 7-9+ seconds** — visible
+  directly in the firmware's own `perf` log as `app.tick` (not `wr.connect`; the *failure*
+  path isn't wrapped in the same perf-timer scope as the success path, a secondary
+  instrumentation gap worth fixing alongside whatever else lands here) — **421 separate
+  multi-second whole-device freezes over 4 hours**, roughly one every ~34s, matching the
+  failure cadence. TWDT (15s window) survived all 421 without a reboot, but this is a real,
+  tangible "device is frozen" symptom — touch, rendering, every other app — distinct from
+  (and probably more user-visible than) the narrower WebRadio-marquee-specific freeze
+  TASK-393 was originally filed to catch. Filed as TASK-398 to scope Phase 2 (or a
+  narrower connect-specific mitigation) now that the freeze magnitude is measured, not
+  theoretical.
 - **OQ5 — `isRunning()` transient semantics** (TASK-218's standing DUT-verify note): the
   mutex changes nothing here, but the Phase-0 baseline run is a chance to finally
   characterise it.
