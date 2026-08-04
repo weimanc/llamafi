@@ -6989,11 +6989,21 @@ than the one OQ4 measured as insufficient. Flags a real layout constraint: the c
 now 208/212px used with 7 categories + Cancel — zero headroom left for an 8th category without a
 layout change (reserved as cross-feature edge X047 pending acceptance).
 
+**VE testability review (2026-08-04, same day):** `docs/architecture/designs/
+sys-reboot-wifi-multi-VE-review.md`. Verdict **approve-with-changes**, no blockers. Two majors:
+VE-1-1 (confirm-tap reboot path has no stable pre-restart log line, unlike the existing serial
+`reboot` command's ack — a harness reconnecting after the confirm tap can't tell "confirmed as
+designed" from a coincidental crash/TWDT reset) and VE-1-2 (the doc's "confirm on-device" layout
+check can't be automated with `run/screendump` as it exists today — connecting the tool resets the
+DUT via CH340 DTR-on-open, per `best_practices.md`'s live rule and LL-051, wiping any navigated
+state before a pixel is read). Three minors/informational, no design rethink required.
+
 **Owner:** Architect (design pass — done, draft) → human (sign-off pending) → VE (testability
-review, not started) → Developer (implementation, not started) · **Deps:** `M-HEAP-FRAGMENTATION.md`
-(the motivating parked issue), `settings-001` (SettingsApp category-list capacity) · **Priority:**
-P2 (real recovery gap — no user-facing path today for a known, if infrequent, failure mode) ·
-**Status:** open — design drafted, awaiting human acceptance.
+review — **done, approve-with-changes**) → Developer (implementation, not started; fold VE-1-1/
+VE-1-2 into the doc first) · **Deps:** `M-HEAP-FRAGMENTATION.md` (the motivating parked issue),
+`settings-001` (SettingsApp category-list capacity) · **Priority:** P2 (real recovery gap — no
+user-facing path today for a known, if infrequent, failure mode) · **Status:** open — design
+drafted + VE-reviewed, awaiting human acceptance.
 
 ### TASK-401 — Settings → WiFi: save multiple networks (manual switch only, no auto-failover)
 
@@ -7012,8 +7022,18 @@ history) where tapping a saved entry is a deliberate, user-initiated connect —
 network on its own anywhere. Rejected auto-failover design space kept in the doc, marked rejected,
 per this project's "record what was investigated and turned down" convention.
 
+**VE testability review (2026-08-04, same day):** `docs/architecture/designs/
+sys-reboot-wifi-multi-VE-review.md`. Verdict **approve-with-changes**, no blockers. Two majors:
+VE-2-1 (no debug getter proposed for the saved-network list — every comparable list-editing
+section in this codebase has one, e.g. `AppsSection::submenu()`; without it the LRU-eviction
+outcome the doc's own OQ4 already leaves undecided is also unobservable) and VE-2-2 (the doc's
+exit criteria never test the one-time legacy `/wifi_creds.json` migration path, despite every
+existing DUT today hitting exactly that path first). Three minors/informational, no design
+rethink required.
+
 **Owner:** Architect (design pass — done, draft, revised same-day per human decision) → human
-(sign-off pending) → VE (testability review, not started) → Developer (implementation, not started)
-· **Deps:** `settings-wifi` (WifiSection, the section this extends) · **Priority:** P3 (convenience
-feature, no functional gap being closed) · **Status:** open — design drafted, awaiting human
+(sign-off pending) → VE (testability review — **done, approve-with-changes**) → Developer
+(implementation, not started; fold VE-2-1/VE-2-2 into the doc first) · **Deps:** `settings-wifi`
+(WifiSection, the section this extends) · **Priority:** P3 (convenience feature, no functional gap
+being closed) · **Status:** open — design drafted + VE-reviewed, awaiting human
 acceptance.
