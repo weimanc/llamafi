@@ -6635,7 +6635,21 @@ function body into memory; the live run kept using the old (buggy but harmless) 
 remaining ~40 minutes, this fix only affects future runs.
 
 **Owner:** Developer · **Deps:** TASK-393 (this soak exists to catch its recurrence), TASK-395
-(shares the terminal-retry mechanism understanding) · **Priority:** P1 · **Status:** tool built,
-twice independently reviewed, smoke-tested, and now run to completion for a full real 4-hour
-unattended soak — clean (0 anomalies). Tool itself is done; whether TASK-393 needs another,
-longer, or flakier-station soak is TASK-393's call, not this task's.
+(shares the terminal-retry mechanism understanding) · **Priority:** P1 · **Status:** **CLOSED
+2026-08-04.** Tool built, twice independently reviewed (2 blocking + 6 minor findings, all
+resolved), smoke-tested, and run to completion for a full real 4-hour unattended soak — clean
+(0 anomalies), commit `b1cb80a`. This task's deliverable was the tool + a real run of it, both
+done; it does not claim TASK-393 resolved (that task stays open on its own merits — see its entry).
+Re-open only if the tool itself needs further changes (a new detector, a different station-fault
+profile, etc.) — a *bug hunt* using the tool (another `--hours` run, a flakier station, a
+Spotify-present run) is TASK-393's job, not a reason to reopen this one.
+
+**PM sign-off (2026-08-04):** closing TASK-397. Scope was "build a soak tool that can catch a
+TASK-393 recurrence with full diagnostics" — met: built, independently reviewed twice, smoke-tested,
+and proven against real hardware for a full 4-hour run with a working anomaly-capture path (even
+though this particular run didn't trigger it). **TASK-393 itself stays OPEN** — a clean run is
+evidence the mechanism didn't break under these conditions, not proof of no bug; per its own entry,
+this is repro attempt #4 with the same "observed once, unreproduced since" disposition. Next
+candidates if someone picks TASK-393 back up: a longer run, a station with a track record of real
+failures (StreamTheWorld per TASK-393's second update, not SLAM! which held clean twice now), or a
+Spotify-present run per the reviewer's carried-forward scope caveat above.
