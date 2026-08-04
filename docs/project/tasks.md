@@ -6939,15 +6939,40 @@ fix; (3, resolved as a side effect of fixing #2) the self-contradictory "stays r
 "waits" framing is gone — every path is now fast-no-op or deferred-cleanup, never a blocking wait.
 One new edge case surfaced *during* the revision and is explicitly flagged as unresolved, not
 implemented around: quick re-entry into WebRadio while a deferred teardown is still pending races
-`init()`/`resume()` against the pump task's cleanup. **This revision has not yet had a second VE
-pass.**
+`init()`/`resume()` against the pump task's cleanup.
 
-**Owner:** Architect (design pass — done, revised) → VE (first pass done, second pass pending) →
-Developer (implementation, not started, blocked on second VE pass) · **Deps:** M-WR-AUDIO-TASK.md
+**Second VE pass (2026-08-04, same day) — 4 new blocking findings, 1 non-blocking, no consensus.**
+The first revision's fix was incomplete: `_stopAudio()` itself, not just `_play()`, is the real
+blocking primitive in 5 of the design's own named call sites, including `suspend()`'s own first
+line — so `_stopAudio()`/eject/STOP/`suspend()` all still fully froze the device exactly as today,
+unfixed by requirement 1 as originally worded. Worse, once that gap is closed the flag-only
+teardown mechanism has no code path that ever clears `_state` back out of `CONNECTING` (that job
+belonged solely to `_stopAudio()`'s own `_state = STOPPED` line, which the fix had to stop calling)
+— so what looked like a rare re-entry *race* (Open Question 3) is actually a **deterministic
+permanent wedge**: any single eject during `CONNECTING` leaves WebRadio stuck showing
+"Connecting..." forever, no race required. Also found the pump-task-handle null-timing was
+unspecified (risking a second concurrent pump task on re-entry) and that the exit criteria's
+synthetic `set wrState 1` path can't actually exercise the mutex-held case the fix is meant to
+protect.
+
+**Second revision (2026-08-04, same day):** replaced the ad-hoc flags entirely with an explicit
+`s_wrPumpRequest`/`s_wrPumpResult` request/result-slot pair between `loopTask` and the pump task —
+`_stopAudio()` itself gains the `CONNECTING`-state branch (fixing every caller, including a
+*seventh* unguarded call site found while re-checking, inside `resume()`'s config-diff branch, that
+neither VE pass had enumerated), and `tick()` gains an unconditional per-iteration poll that
+reconciles `_state` whether the user stayed in WebRadio (stop-while-staying) or left and came back
+(teardown). Re-uses `resume()`'s pre-existing `_state == STOPPED` autoplay gate (unmodified) to
+naturally handle the re-entry-during-teardown case without new special-case code — the accepted
+residual limitation is a missed one-shot autoplay opportunity in a narrow timing window, not a
+crash or a wedge. Full mechanism + revision history in `M-WR-CONNECT-ASYNC.md`. **Sent for a third
+VE pass — iterating to consensus per explicit human direction, not stopping at "looks fixed."**
+
+**Owner:** Architect (design pass — done, twice-revised) → VE (two passes done, third pending) →
+Developer (implementation, not started, blocked on third VE pass) · **Deps:** M-WR-AUDIO-TASK.md
 (the design this resolves OQ4 for), TASK-393 (source of the measurement), M-WR-CONNECT-ASYNC.md
 (this task's own design doc) · **Priority:** P2 (real, measured, user-visible whole-device freeze
 — not hypothetical — but bounded by TWDT surviving 421 occurrences without a crash, so not P1) ·
-**Status:** open — design revised post-VE, second VE pass not yet done, implementation blocked.
+**Status:** open — design twice-revised post-VE, third VE pass in progress, implementation blocked.
 
 ### TASK-399 — endless-ticker wraparound for the Winamp title marquee
 
