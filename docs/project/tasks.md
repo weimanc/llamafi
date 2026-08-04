@@ -6184,8 +6184,36 @@ before being treated as done — run `run/wr-soak` (or a targeted WebRadio conne
 and after the change and confirm `ERROR_UNREACHABLE` incidence actually drops. A host-side A/B
 result is evidence to justify trying the change, not proof it fixes the DUT symptom.
 
+**Implemented, 2026-08-04:** `WR_CONNECT_TIMEOUT_MS = 5000` / `WR_CONNECT_TIMEOUT_MS_SSL = 7000`
+added to `webRadioApp.h`, applied via a new `wrApplyConnectTimeout()` helper (mirrors the existing
+`wrApplyInBufTrial()` pattern) called at both `Audio` construction sites (`wrAudio()`'s lazy path
+and `_play()`'s explicit re-create path). 5000ms matches TASK-391's tested generous budget
+directly (36/36 succeeded); 7000ms pads the HTTPS leg for the TLS handshake on top of TCP, staying
+well under TASK-295's 10000ms extreme-case ceiling. `run/check` 6/6 both envs.
+
+**DUT before/after gate run, 2026-08-04 — inconclusive, not a confirmation:** ran `run/wr-soak 10`
+(28-cycle real-station soak, `test_webradio_soak.py`) twice against the same station list, ~15
+minutes apart — once with the fix `git stash`-removed (clean unmodified-defaults baseline), once
+with it restored. **Both runs came back identical: 28 cycles, reached PLAYING 28/28, error/skip
+cycles 0, arena acquire FAILures 0.** The gate this task specifies (confirm incidence *drops*)
+could not be exercised today because the baseline itself never failed once — there was no
+incidence to drop. This is not evidence the fix does nothing; it's the same pattern as TASK-393's
+whole investigation this session (three independent real-network repro attempts + a full 4h
+TASK-397 soak, none reproducing a connect-parked freeze on demand) — real WebRadio connect
+failures here are genuinely intermittent/network-dependent, not something a 10-minute same-day
+soak can be relied on to surface either way. TASK-391's own host-side evidence (same hosts/network,
+same code path, only the timeout value varied, 100% vs 69% success across 36 attempts × 2 runs)
+remains the strongest evidence for the underlying premise — today's on-device comparison neither
+confirms nor undermines it, it just didn't get a chance to discriminate.
+
 **Owner:** Developer · **Deps:** TASK-391 (done, this task's evidence base) · **Priority:** P2 ·
-**Status:** open — not started.
+**Status:** implemented, code-complete, `run/check` clean — **DUT gate attempted but inconclusive**
+(both before/after runs clean, no incidence to compare). Leaving open per the task's own explicit
+"must be confirmed on the DUT" requirement rather than closing on an inconclusive result. Re-run
+the same before/after comparison on a session where WebRadio connect issues are actually being
+observed (or against a station/network known to produce real capped-budget failures, per TASK-391's
+Phase 1 list — Radio 10, Sky Radio 80's Hits, Concertzender Baroque hit the threshold more than
+SLAM! did) to get a comparison that can actually move this to DONE.
 
 ### TASK-393 — WebRadio ERROR_* render freeze, live-reproduced on debug build; terminal-retry not firing
 

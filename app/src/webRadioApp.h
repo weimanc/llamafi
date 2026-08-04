@@ -68,6 +68,17 @@ static constexpr uint32_t WR_SETTLED_MS = 12000;
 static constexpr uint32_t WR_SKIP_PACE_MS = 2000;  // TASK-273: min gap between auto retry/skip attempts
 static constexpr uint32_t WR_TERMINAL_RETRY_MS = 30000;  // TASK-276: backoff before re-arming a parked scan
 
+// TASK-392: ESP32-audioI2S's own default connect budget (Audio.h: 250ms plain
+// HTTP / 2700ms HTTPS) is too tight for a real handshake over consumer internet
+// and was never raised here. TASK-391's host-side A/B (same hosts/network/code
+// path, only the timeout varied) found 36/36 connects succeeding at a 5s budget
+// vs 25/36 (~69%) at the capped default — real false-negative "unreachable"
+// failures, not real outages. 5s/7s here: 5s matches the tested generous budget
+// directly; 7s pads the HTTPS leg for the TLS handshake on top of TCP, staying
+// well under TASK-295's 10000ms extreme-case ceiling for known-bad hosts.
+static constexpr uint16_t WR_CONNECT_TIMEOUT_MS = 5000;
+static constexpr uint16_t WR_CONNECT_TIMEOUT_MS_SSL = 7000;
+
 // TASK-224: ICY StreamTitle buffer length, used consistently across the audio
 // callback, the queue's element size, tick()'s receive buffer, and _icyTitle.
 static constexpr size_t WR_ICY_TITLE_LEN = 104;
@@ -241,10 +252,17 @@ static inline void wrApplyInBufTrial(Audio* a) {
 #endif
 }
 
+// TASK-392: raise connecttohost()'s TCP(+TLS) connect budget above the library's
+// tight defaults — see WR_CONNECT_TIMEOUT_MS/_SSL above for the evidence.
+static inline void wrApplyConnectTimeout(Audio* a) {
+    a->setConnectionTimeout(WR_CONNECT_TIMEOUT_MS, WR_CONNECT_TIMEOUT_MS_SSL);
+}
+
 static Audio& wrAudio() {
     if (!s_wr_audio) {
         s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
         wrApplyInBufTrial(s_wr_audio);
+        wrApplyConnectTimeout(s_wr_audio);
     }
     return *s_wr_audio;
 }
@@ -1639,6 +1657,7 @@ private:
             }
             s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
             wrApplyInBufTrial(s_wr_audio);   // EXP-012: before connecttohost (InBuff not yet alloc'd)
+            wrApplyConnectTimeout(s_wr_audio);  // TASK-392
         }
         // TASK-278: lazily create the pump task — AFTER mb_arena_acquire() above
         // [DEV-2-3], idempotent across churn within a session (persists until
