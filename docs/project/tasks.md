@@ -6935,3 +6935,25 @@ measurement), M-WR-CONNECT-ASYNC.md (this task's own design doc) · **Priority:*
 measured, user-visible whole-device freeze — not hypothetical — but bounded by TWDT surviving 421
 occurrences without a crash, so not P1) · **Status:** open — VE review complete, design revision
 needed before implementation can start.
+
+### TASK-399 — endless-ticker wraparound for the Winamp title marquee
+
+**Filed 2026-08-04.** Human noticed the title marquee (`winampDisplay.h::_tickMarquee()`) doesn't
+loop like real Winamp 2 — it scrolls fully out, holds blank, then respawns off-screen right and
+scrolls back in, instead of an endless loop with a separator glyph between passes. Traced the
+separator to `TEXT.BMP` row2/col1 (`bake_skin.py`'s `CHAR_MAP`, mapped to ASCII `'*'`) — cropped
+and confirmed it renders as a 4-point shuriken, not a plain asterisk; already reachable today via
+`SKIN_GLYPH['*']`, no bake-tool change needed. Also found `M-UI-POLISH-fidelity.md` (TASK-048,
+marked done) had already specified this exact endless-loop-with-gap behavior — only the
+`"Artist - Title"` composition half of that item shipped, not the loop/gap half.
+
+Architect design doc: `docs/architecture/designs/M-TITLE-MARQUEE-WRAP.md`. Three options
+enumerated (doubled-string buffer / modular virtual-index render in `drawTitleText()` / keep
+bounce motion but fill the hold with glyphs). **Lean: Option B** (modular indexing, no extra RAM,
+true endless loop) — human-approved 2026-08-04. Exact separator glyph run/spacing left as an open
+question for a DUT/`preview_layout.py` visual-fit pass before locking the constant in.
+
+**Owner:** Architect (design pass — done) → Developer (implementation, not started) · **Deps:**
+`m3-001` (feature owning the title marquee), `M-UI-POLISH-fidelity.md` TASK-048 (the gap/loop half
+that never shipped) · **Priority:** P3 (cosmetic fidelity, no functional/safety impact) ·
+**Status:** open — design accepted, implementation not started.
