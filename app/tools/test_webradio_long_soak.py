@@ -93,11 +93,23 @@ STUCK_SLACK_S = 20.0           # margin over WR_TERMINAL_RETRY_MS before flaggin
 RENDER_STUCK_HEARTBEATS = 3    # consecutive zero-repaint heartbeats before flagging (render signal)
 HEARTBEAT_PERIOD_S = 30        # logHeartbeat.h PERIOD_MS
 RENDER_AGE_SLACK_MS = 3000     # tolerance on "delta == heartbeat period" (jitter, missed lines)
+# Second VE review finding 2: total silence (loopTask wedged -- this project
+# has hit that failure class repeatedly: TASK-285/288/295) is a DIFFERENT
+# failure mode than a render freeze, and previously had no detector at all --
+# a DUT that died at hour 1 of a 4h soak would have produced a "complete, 0
+# anomalies" report, the worst possible outcome for an unattended run. ~3x
+# the heartbeat period of zero serial lines (not just zero heartbeats --
+# any line at all) is the signal.
+DUT_SILENCE_THRESHOLD_S = HEARTBEAT_PERIOD_S * 3
 
 # DUT log-line signatures -- see webRadioApp.h for the LOG_I/LOG_W call sites.
 RE_HEARTBEAT = re.compile(
     r"\[hb\].*heap=(\d+)k.*uptime=(\d+):(\d+):(\d+).*last_render_age_ms=(\d+)")
-RE_PLAY = re.compile(r"\[webradio\] play idx=(\d+) name=(\S+) url=(\S+)")
+# Second VE review finding 1: real radio-browser.info names routinely
+# contain spaces (this soak's own default target, "SLAM! DANCE CLASSICS",
+# is one) -- \S+ silently dropped the whole line from the event timeline
+# whenever a name had a space in it. Non-greedy .*? instead.
+RE_PLAY = re.compile(r"\[webradio\] play idx=(\d+) name=(.*?) url=(\S+)")
 # VE review finding 3: Audio.cpp logs "SSL has been established" for https
 # stations, "Connection has been established" for http -- the SSL variant
 # was missing, silently thinning the event timeline for https-only stations.
@@ -141,6 +153,8 @@ class SerialDut:
         self.events = []          # (host_ts, kind, dict) -- the structured timeline
         self.heartbeats = []      # (host_ts, heap_k, uptime_s, render_age_ms)
         self.boot_marks = []
+        self.last_line_ts = time.time()  # any line at all, not just parsed ones --
+                                          # second VE review finding 2's silence watchdog
         self.lock = threading.Lock()
         self._alive = True
         self._rx = threading.Thread(target=self._reader, daemon=True)
@@ -163,6 +177,7 @@ class SerialDut:
             line = raw.decode(errors="replace").strip()
             if not line:
                 continue
+            self.last_line_ts = ts
             self.raw_log.write(f"{ts:.3f}|{line}\n")
 
             m = RE_HEARTBEAT.search(line)
@@ -280,8 +295,18 @@ def resolve_station_url(dut, name_hint):
         for i, name, url in stations:
             if name_hint.lower() in name.lower():
                 return i, name, url
-        log(f"WARN: no station matched {name_hint!r} among {len(stations)} loaded — "
-            f"falling back to idx 0 ({stations[0][1]!r})")
+        # Second VE review finding 4: this used to silently fall back to
+        # idx 0 with just a WARN -- an unattended run could soak a
+        # completely different station than intended (defeating the whole
+        # point of pinning to TASK-393's exact repro target) with nobody
+        # noticing until long after. The station list DID load successfully
+        # here (this isn't a fetch failure the caller's retry loop should
+        # keep hammering) -- fail loudly and immediately instead, matching
+        # the wrAutoSkip-mismatch precedent elsewhere in this tool.
+        available = ", ".join(repr(n) for _, n, _ in stations)
+        log(f"FAIL: no station matched {name_hint!r} among {len(stations)} loaded. "
+            f"Available: {available}")
+        sys.exit(1)
     return stations[0]
 
 
@@ -357,9 +382,12 @@ def main():
     # dataTaskStorage.cpp:1575) on a fresh boot this session, and bgPoll=0
     # alone did NOT reliably prevent that recurring (still hit -101 with it
     # set, in a later run) -- the noSpotify build is the real fix; this is
-    # just defense-in-depth. VE review finding 5: verify, don't fire-and-forget
-    # (a no-Spotify build may not even compile this handler in, so a
-    # non-confirming reply is a WARN, not fatal).
+    # just defense-in-depth. VE review finding 5: verify, don't fire-and-forget.
+    # (Second-pass review: this handler actually compiles in unconditionally
+    # on the noSpotify build too -- DISABLE_SPOTIFY only guards the
+    # spotifyTask::begin() call itself, not the dbgSet handler -- so this
+    # WARN path shouldn't trigger in practice either way. Kept as a WARN
+    # rather than fatal regardless, since it's genuinely non-essential now.)
     log("set bgPoll 0 (belt-and-braces; primary isolation is the noSpotify build)")
     bgpoll_reply = dut.cmd("set bgPoll 0", timeout=2.0)
     if not bgpoll_reply.get("ok"):
@@ -367,9 +395,19 @@ def main():
             f"expected on a noSpotify build (handler may not be compiled in); "
             f"continuing")
 
+    orig_autoskip = None  # populated below, before we force it to 1; _cleanup
+                          # reads this by closure at call time, not definition time
+
     def _cleanup():
         try:
             dut.cmd("set bgPoll 1", timeout=2.0)
+            # Second VE review finding 5: wrAutoSkip was forced ON and never
+            # restored -- harmless (RAM-only, no settingsSave) but stays
+            # forced for the rest of that boot session, which matters if a
+            # T237/T_WR_ERR_*-style test runs against the same live session
+            # right after this soak exits.
+            if orig_autoskip is not None:
+                dut.cmd(f"set wrAutoSkip {orig_autoskip}", timeout=2.0)
             dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=3.0)
         except Exception:
             pass
@@ -419,6 +457,7 @@ def main():
     # T_WR_ERR_* tests flip it deliberately). test_adr045_gate.py sets this
     # explicitly before its trials; that line was dropped translating to
     # this tool. Force it on and verify, don't assume the default holds.
+    orig_autoskip = dut.cmd("get wrSkip", timeout=3.0).get("autoSkip")
     dut.cmd("set wrAutoSkip 1", timeout=2.0)
     skip_check = dut.cmd("get wrSkip", timeout=3.0)
     if skip_check.get("autoSkip") != 1:
@@ -443,6 +482,7 @@ def main():
     flagged_mechanism = False
     render_stuck_run = 0          # consecutive zero-repaint heartbeats
     flagged_render = False
+    flagged_silence = False       # DUT-silence watchdog (second VE review finding 2)
     last_seen_event_ts = start_wall
     last_hb_seen_ts = start_wall
     last_render_age = None
@@ -464,6 +504,25 @@ def main():
     last_checkpoint = time.monotonic()
     while time.monotonic() < end:
         time.sleep(2.0)  # cheap idle tick; all real signal comes from the reader thread
+
+        # --- watchdog: total DUT silence (loopTask wedged, USB/serial dropped, etc.) ---
+        # Distinct from the render-freeze signal: that one requires heartbeats to
+        # keep arriving (frozen render, alive loopTask); this one catches the DUT
+        # not talking to us AT ALL, the failure mode with no detector before.
+        silent_for = time.time() - dut.last_line_ts
+        if silent_for > DUT_SILENCE_THRESHOLD_S:
+            if not flagged_silence:
+                flagged_silence = True
+                anomaly_count += 1
+                log(f"  *** ANOMALY (DUT silence): no serial output at all for "
+                    f"{silent_for:.0f}s (threshold {DUT_SILENCE_THRESHOLD_S:.0f}s) — "
+                    f"loopTask wedged? USB/serial dropped? ***")
+                all_anomalies.append({"ts": _ts(), "elapsed_s": elapsed(),
+                                       "kind": "dut_silent", "silent_for_s": round(silent_for, 1)})
+                write_report(report_out, full_report("anomaly-in-progress"))
+        elif flagged_silence:
+            flagged_silence = False
+            log(f"  DUT silence resolved after {silent_for:.0f}s — lines arriving again")
 
         # --- primary signal: heartbeat render-age (the actual TASK-390/393 symptom) ---
         for hb_ts, heap_k, uptime_s, render_age_ms in dut.recent_heartbeats(last_hb_seen_ts):
@@ -563,8 +622,10 @@ def main():
                 f"idx={idx_now.get('idx')} anomalies={anomaly_count}")
             write_report(report_out, full_report("running"))
 
-    log(f"soak complete: {elapsed():.0f}s elapsed, {anomaly_count} anomaly(ies)")
-    write_report(report_out, full_report("complete"))
+    final_status = "complete-dut-silent" if flagged_silence else "complete"
+    log(f"soak complete: {elapsed():.0f}s elapsed, {anomaly_count} anomaly(ies), "
+        f"status={final_status}")
+    write_report(report_out, full_report(final_status))
     log(f"report written -> {report_out}")
     log(f"raw log -> {raw_log_path}")
 

@@ -6531,10 +6531,42 @@ concurrency present as an unconfirmed hypothesis. Plan: no-Spotify build first (
 reliable, isolates the mechanism question cleanly); a Spotify-present run is a distinct necessary
 follow-up if this one comes back clean, not something this run can substitute for.
 
-**Second independent review requested** (same human instruction, after the fixes above) before
-any real multi-hour DUT run — in progress as of this entry.
+**Second independent review** (fresh agent, explicitly instructed not to take the first review's
+claimed fixes on faith): independently traced both blocking fixes down to exact source lines —
+confirmed correct as claimed, not just plausible. Every `_state = ERROR_*` assignment site (4 of
+them) sets `_dirty=true` in the same block, confirming the render-freeze detector's state-gate
+logic is sound across a full walked timeline (3h healthy quiet PLAYING → zero false positives,
+re-checks every heartbeat without latching; a 10-min genuine stuck episode → exactly one anomaly,
+correct ~90-120s delay, no missed detection). `wrSkip.autoSkip` confirmed to really read
+`g_settings.webRadioAutoSkip`, the same flag gating the terminal-retry. `SIGTERM → sys.exit(0)`
+handler confirmed safe (CPython dispatches at the next bytecode check, not in raw signal-handler
+context — no deadlock risk with the reader thread). `cyd2usb_winamp_debug_noSpotify` confirmed to
+exist as described and safe for the cleanup path (`SpotifyApp` only touches zero-initialized
+statics even when `spotifyTask::begin()` never ran).
+
+Five new (non-blocking) findings, all fixed same pass: (1) `RE_PLAY`'s `\S+` name capture silently
+dropped any multi-word station name from the event timeline — including this soak's own default
+target, `"SLAM! DANCE CLASSICS"` — fixed to non-greedy `.*?` (inert for the actual test path since
+`wrUrl` renames to `"INJECTED"`, but a real trap if reused); (2) **no detector existed for total
+DUT silence** (loopTask wedged — this project's own history: TASK-285/288/295 — or a dropped
+USB/serial connection) as distinct from a render freeze; a DUT dying at hour 1 of a 4h run would
+have produced a `"complete", 0 anomalies` report, the single worst outcome for an unattended run,
+and is exactly the shape of the unexplained gap this tool's own v1 run hit earlier the same day.
+Added a watchdog on `dut.last_line_ts` (any serial line at all, not just heartbeats) at 3×
+heartbeat period (90s); final report status becomes `complete-dut-silent` rather than a bare
+`complete` if it's still silent at run end; (3) the `bgPoll` fallback comment's premise was
+factually wrong (the handler compiles in unconditionally, `DISABLE_SPOTIFY` only guards the
+`begin()` call) — corrected, harmless either way; (4) a station-name mismatch silently fell back to
+station idx 0 with just a WARN — an unattended run could soak entirely the wrong station with no
+one noticing; now fatal, matching the `wrAutoSkip`-mismatch precedent, with the full available list
+printed; (5) `wrAutoSkip` was forced on and never restored — now captured before forcing and
+restored in `_cleanup()`.
+
+**Go/no-go from the second review: go**, for a supervised run; the silence watchdog (now added)
+was its one recommendation before running unattended overnight.
 
 **Owner:** Developer · **Deps:** TASK-393 (this soak exists to catch its recurrence), TASK-395
 (shares the terminal-retry mechanism understanding) · **Priority:** P1 · **Status:** tool fixed
-per first VE review, second review requested, **not yet run for real against the DUT with the
-v2+fixes build**.
+per both VE reviews (2 blocking + 6 minor findings total, all resolved), compiles clean —
+**not yet run for real against the DUT with the fully-fixed build; awaiting go-ahead + a flash of
+`cyd2usb_winamp_debug_noSpotify` before the next live attempt.**
