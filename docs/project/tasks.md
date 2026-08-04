@@ -6892,7 +6892,24 @@ design.
    `wr.connect` call, not because failures go uninstrumented. See TASK-393's own entry and
    `M-WR-AUDIO-TASK.md`'s OQ4 for the correction. Nothing to fix here.
 
-**Owner:** Architect (design pass) → Developer (implementation) · **Deps:** M-WR-AUDIO-TASK.md
-(the design this resolves OQ4 for), TASK-393 (source of the measurement) · **Priority:** P2 (real,
+**Architect design pass (2026-08-04, same day):** `docs/architecture/designs/M-WR-CONNECT-ASYNC.md`
+drafted. Key finding from tracing the actual call sites, not obvious from the task filing alone:
+**the "narrower mitigation" (move just `connecttohost()` to the pump task) is not actually narrow
+once followed through** — `_stopAudio()`/`suspend()` (eject, `switchApp` away from WebRadio) both
+take the same `s_wrAudioMutex` with a blocking, unbounded `xSemaphoreTake`, so relocating the
+connect call alone would just relocate the freeze to whichever of those fires next, not remove it.
+Two concrete safety requirements identified for a real fix (gate `_stopAudio`/`suspend` on
+`_state != CONNECTING`; widen or connect-aware the existing `WR_PUMP_ACK_TIMEOUT_MS=10000` teardown
+handshake, since tonight's observed connect-failure range of 7099-9425ms leaves an uncomfortably
+thin margin against it). Lean: the narrow option (with both requirements as mandatory, not
+optional) over the full Phase 2 command-queue rearchitecture — smaller surface, doesn't touch the
+freshly-validated ADR-045/TASK-276 terminal-retry transition logic. Draft, not yet accepted — needs
+human sign-off and a VE testability pass on the CONNECTING-state changes before implementation, per
+this session's own standing practice.
+
+**Owner:** Architect (design pass — done, draft) → Developer (implementation, not started) ·
+**Deps:** M-WR-AUDIO-TASK.md (the design this resolves OQ4 for), TASK-393 (source of the
+measurement), M-WR-CONNECT-ASYNC.md (this task's own design doc) · **Priority:** P2 (real,
 measured, user-visible whole-device freeze — not hypothetical — but bounded by TWDT surviving 421
-occurrences without a crash, so not P1) · **Status:** open — filed, not yet designed or scheduled.
+occurrences without a crash, so not P1) · **Status:** open — design drafted, awaiting human
+sign-off + VE review before implementation.
