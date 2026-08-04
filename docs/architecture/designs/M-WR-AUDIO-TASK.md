@@ -258,17 +258,23 @@ the (a) soak exceeding baseline.
   excluded as an outlier). TASK-393's Spotify-present 4h soak the same day as this update
   (see `tasks.md` TASK-393) gave the first real magnitude measurement under harsh conditions: with
   Spotify's background polling concurrently active, WebRadio connects failed ~97% of the
-  time (415/428), and **every failed connect blocked `loopTask` for 7-9+ seconds** — visible
-  directly in the firmware's own `perf` log as `app.tick` (not `wr.connect`; the *failure*
-  path isn't wrapped in the same perf-timer scope as the success path, a secondary
-  instrumentation gap worth fixing alongside whatever else lands here) — **421 separate
-  multi-second whole-device freezes over 4 hours**, roughly one every ~34s, matching the
-  failure cadence. TWDT (15s window) survived all 421 without a reboot, but this is a real,
-  tangible "device is frozen" symptom — touch, rendering, every other app — distinct from
-  (and probably more user-visible than) the narrower WebRadio-marquee-specific freeze
-  TASK-393 was originally filed to catch. Filed as TASK-398 to scope Phase 2 (or a
-  narrower connect-specific mitigation) now that the freeze magnitude is measured, not
-  theoretical.
+  time (415/428), and **every failed connect blocked `loopTask` for 7-9+ seconds** — 421
+  individual `[W][perf]` iterations over 5000ms across the run, roughly one every ~34s,
+  matching the failure cadence. (Correction from an earlier pass on this same finding:
+  `wr.connect` *is* correctly recorded for both success and failure —
+  `perf::record("wr.connect", ...)` at `webRadioApp.h:1694` runs unconditionally before the
+  success/failure branch, confirmed by 47 `wr.connect`-labelled worst-path lines including
+  fast successful connects in the same log. `app.tick` — not `wr.connect` — shows as the
+  reported "worst path" during failures simply because `perf::worstPathName()`
+  (`perf.h`) reports whichever named slot has the largest value since the last reset, and
+  `app.tick` is the *outer* span containing the nested `wr.connect` call plus everything
+  else in that `tick()`, so it's always ≥ `wr.connect` for the same iteration and wins the
+  comparison. Not an instrumentation gap — expected behavior for a max-over-named-spans
+  profiler.) TWDT (15s window) survived all 421 occurrences without a reboot, but this is a
+  real, tangible "device is frozen" symptom — touch, rendering, every other app — distinct
+  from (and probably more user-visible than) the narrower WebRadio-marquee-specific freeze
+  TASK-393 was originally filed to catch. Filed as TASK-398 to scope Phase 2 (or a narrower
+  connect-specific mitigation) now that the freeze magnitude is measured, not theoretical.
 - **OQ5 — `isRunning()` transient semantics** (TASK-218's standing DUT-verify note): the
   mutex changes nothing here, but the Phase-0 baseline run is a chance to finally
   characterise it.

@@ -6468,10 +6468,22 @@ that soak's raw log: **every one of the run's 415 failed connect attempts blocke
 main app-dispatch loop: touch, rendering, taskbar, every other app — for 7-9+ seconds.** 421
 individual tick iterations exceeded 5000ms over the 4-hour run (`grep -oE "iter=[0-9]+ms"` on the
 raw log, filtered >5000), roughly one every ~34s, matching the failure cadence almost exactly.
-Successful connects are fast and properly categorized under a separate `wr.connect` perf label
-(29-332ms observed); *failed* connects fall through to the generic `app.tick` bucket instead — a
-secondary instrumentation gap worth fixing alongside whatever lands here. Cross-checked against
-the clean no-Spotify run: worst `app.tick` there was 79ms, zero iterations over 5000ms.
+Successful connects are fast (29-332ms observed). Cross-checked against the clean no-Spotify run:
+worst `app.tick` there was 79ms, zero iterations over 5000ms.
+
+**Self-correction, same session, before this went further:** initially wrote this up as "failed
+connects fall through to a generic `app.tick` bucket instead of the `wr.connect` perf label — a
+secondary instrumentation gap." Checked the actual `_play()` call site
+(`webRadioApp.h:1690-1694`) before repeating that claim in TASK-398, and it's wrong —
+`perf::record("wr.connect", ...)` runs *unconditionally*, before the success/failure branch, so
+failures ARE recorded under `wr.connect` (confirmed: 47 `wr.connect`-labelled worst-path lines in
+this same raw log, including fast successful connects). `app.tick` shows as the reported "worst
+path" during failures simply because `perf::worstPathName()` reports whichever named slot has the
+largest value, and `app.tick` (the outer `tick()` span, containing the nested `wr.connect` call
+plus everything else) is always ≥ `wr.connect` for the same iteration — not a gap, expected
+behavior for a max-over-named-spans profiler. The 7-9s/421-freezes finding itself is unaffected;
+only the "why app.tick and not wr.connect" secondary detail was wrong. See
+`M-WR-AUDIO-TASK.md`'s OQ4 for the corrected version.
 
 **This is not a new architectural discovery — it's the first real measurement of an already-known,
 already-explicitly-deferred open question.** `docs/architecture/designs/M-WR-AUDIO-TASK.md` (the
@@ -6872,11 +6884,13 @@ design.
    Architect design pass should assess whether a narrower mitigation (e.g. moving just the
    `connecttohost()` call itself onto the pump task, without the full command-queue rearchitecture)
    gets most of the benefit at a fraction of the risk, before committing to the full Phase 2 scope.
-3. Fix the secondary instrumentation gap found along the way: failed connects aren't wrapped in
-   the same `wr.connect` perf-timer scope successful connects are, so they fall through to the
-   generic `app.tick` bucket — cheap, low-risk, worth doing regardless of which mitigation is
-   chosen, since it's the thing that made this measurement possible to reconstruct after the fact
-   at all.
+3. ~~Fix the instrumentation gap~~ — **retracted, no gap exists.** Initial write-up claimed
+   failed connects weren't wrapped in the `wr.connect` perf scope; checked the actual call site
+   before repeating it here and that's wrong — `perf::record("wr.connect", ...)` runs
+   unconditionally in `_play()`, before the success/failure branch. `app.tick` shows as the
+   reported worst-path during failures because it's the outer span containing the nested
+   `wr.connect` call, not because failures go uninstrumented. See TASK-393's own entry and
+   `M-WR-AUDIO-TASK.md`'s OQ4 for the correction. Nothing to fix here.
 
 **Owner:** Architect (design pass) → Developer (implementation) · **Deps:** M-WR-AUDIO-TASK.md
 (the design this resolves OQ4 for), TASK-393 (source of the measurement) · **Priority:** P2 (real,
