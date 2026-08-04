@@ -6439,3 +6439,102 @@ concrete enough shape to generalize from (don't add the BP speculatively before 
 
 **Owner:** PM/QM · **Deps:** none · **Priority:** P3 (process hygiene, not a functional bug) ·
 **Status:** open — not started.
+
+### TASK-397 — long single-station WebRadio soak tool (`test_webradio_long_soak.py`)
+
+**Filed 2026-08-04, TASK-393 follow-up.** Building a soak tool to catch a genuine TASK-393
+recurrence on real hardware, with instrumentation captured at the moment it happens — the thing
+every prior TASK-393 sighting lacked. This task exists specifically to document the tool's own
+build process honestly, including the mistakes, per direct human instruction not to under-report
+trial-and-error as if it were a clean build.
+
+**v1 (built, run, retired same day) — three real bugs, found only by running it, not by design
+review (that gap is the point of this task's second half):**
+1. Default report path was relative (`"rnd_logs/..."`) — crashed the first real multi-hour run at
+   its first periodic checkpoint write (~5 min in), because the actual invocation cwd didn't match.
+2. Didn't disable Spotify's competing background polling — its continuous TLS retries starved the
+   WebRadio station-fetch's heap-contiguity guard (`-101`, `dataTaskStorage.cpp:1575`), causing
+   repeated silent failures to even start on a fresh boot.
+3. Played from the real 30-station list with `wrAutoSkip` at its firmware default (ON) and never
+   tracked `wrIdx` — so when the target station failed repeatedly, the firmware's own auto-skip
+   logic (correctly) moved to a *different* real station, and the tool's logs showed a confusing
+   mix of titles from at least two stations (dance/pop mixed with classical/baroque programme
+   names) with no way to tell what was actually playing. Human caught this from the log output
+   alone ("sounds like a different station... I get the feel you've missed this"). This also means
+   v1 was structurally incapable of testing "stuck on one station forever" — auto-skip always had
+   somewhere else to go with a real multi-station list.
+
+**Separately, an operational incident:** stopping v1 mid-run via `TaskStop` reset the DUT. Root
+cause (per human correction, not my first guess): closing the serial port on process kill drops
+DTR via the OS's hangup-on-close behaviour — the same reset mechanism as opening a fresh
+connection, already documented elsewhere in this project's own process notes ("never externally
+kill a soak/test script mid-flight"). My first explanation (blamed an apparent ~3h host-suspend
+gap in the logs) was wrong for the reboot itself, though a genuine large monotonic/wall-clock
+gap was separately present in that same run and remains unexplained.
+
+**v1 also only ever did periodic `get` polling**, and its `cmd()` called `reset_input_buffer()`
+before every command — silently discarding every unsolicited log line the DUT emits the instant a
+state transition, connect attempt, redirect, or auto-skip decision happens. Human: "we keep
+looking at point issues, based on a serialdbg view that is incomplete." Correct — the same event
+stream had already been read live via `tmux capture-pane` earlier in TASK-393's own investigation
+and worked well; v1 never built that capability in.
+
+**v2 (rewritten):** single real station injected via debug-only `set wrUrl <resolved-url>`
+(`webRadioApp.h` TASK-261 Phase 2 lever) instead of the station list — pins `_stationCount=1` so
+auto-skip has nowhere to go and TASK-276's terminal-retry is the sole recovery path under test.
+Continuous reader-thread architecture (modeled on `test_adr045_gate.py`'s already-working
+pattern) — one thread owns the serial port, tees every raw line host-timestamped to a full log
+file, and parses known patterns (`play idx=`, `terminal retry`, `connecttohost failed`,
+`stream dead`, `ICY:`, `auto-skip`, heartbeats) into a structured real-time timeline; `get` polling
+is now a light periodic cross-check, not the primary data source. Primary anomaly signal is the
+heartbeat's `last_render_age_ms` parsed directly (the actual TASK-390/393 symptom), secondary is
+an event-log mechanism check (connect-fail/stream-dead with no recovery event within
+`WR_TERMINAL_RETRY_MS` + slack).
+
+**Independent VE-style review requested by human before any further live run** (explicit callback
+to `docs/agents/verification_engineer.md`: "Challenge Developer... before code beats after" — a
+step that was skipped for v1 and shouldn't have been). Fresh general-purpose agent, no shared
+context with the implementation, told to verify every claim against the actual firmware source
+rather than trust the tool's own comments. Result: **two blocking findings**, both fixed same
+session before any further DUT time was spent:
+
+1. **The render-freeze detector would false-positive on nearly every healthy run.** Traced every
+   `_dirty = true` site in `webRadioApp.h` (16 of them): during steady PLAYING with no touch input,
+   none fire again after the initial connect — ICY title updates, the buffer bar, and time digits
+   are all explicitly targeted blits, not `repaintChrome()`. So `last_render_age_ms` climbs in
+   lockstep with `uptime` during completely normal quiet playback the same way it does while parked
+   in an error state. Fixed: gate the alert on `get wrState` actually being one of the three
+   retryable errors at the moment the heartbeat threshold trips, not on the heartbeat signal alone
+   — and specifically don't latch the "already checked, it's healthy" flag, so a *later* transition
+   into a stuck error state without an intervening repaint still gets caught (a bug in my first fix
+   attempt, caught in self-review while applying the finding, not by the reviewer).
+2. **`wrAutoSkip` was never forced on or verified.** The terminal-retry re-arm's own gate condition
+   requires `g_settings.webRadioAutoSkip == true` — a persisted setting a prior debug session could
+   have left off (T237/`T_WR_ERR_*` tests flip it deliberately). `test_adr045_gate.py` sets this
+   explicitly before its trials; the line was dropped translating the pattern to this tool. Fixed:
+   force `set wrAutoSkip 1` and abort with a clear message if `get wrSkip` doesn't confirm it —
+   better to fail loudly before wasting DUT hours than complete a soak that silently never exercised
+   the mechanism under test.
+
+Four more (non-blocking) findings also fixed same pass: `RE_CONNECT_OK` missed the SSL-station log
+variant (thinned the event timeline for https-only stations); `atexit` doesn't fire on a bare
+`SIGTERM` in Python by default (root cause of the reboot-on-stop incident above) — added a signal
+handler funnelling `SIGTERM` through normal `sys.exit()`; `set bgPoll 0`/`set wrUrl` replies were
+fire-and-forget, now verified with a WARN on non-confirmation; default `--station-name "SLAM"` was
+coarser than TASK-393's actual repro station, tightened to `"SLAM! DANCE CLASSICS"`.
+
+**Reviewer's honest scope caveat, carried forward, not resolved:** isolating Spotify out (via
+`bgPoll 0`, and now primarily via the recommended `cyd2usb_winamp_debug_noSpotify` build) tests the
+WebRadio-only mechanism, not the exact environment of the one real historical sighting, which had
+Spotify's TLS churn concurrently active — TASK-390's own investigation plan explicitly wants that
+concurrency present as an unconfirmed hypothesis. Plan: no-Spotify build first (faster, more
+reliable, isolates the mechanism question cleanly); a Spotify-present run is a distinct necessary
+follow-up if this one comes back clean, not something this run can substitute for.
+
+**Second independent review requested** (same human instruction, after the fixes above) before
+any real multi-hour DUT run — in progress as of this entry.
+
+**Owner:** Developer · **Deps:** TASK-393 (this soak exists to catch its recurrence), TASK-395
+(shares the terminal-retry mechanism understanding) · **Priority:** P1 · **Status:** tool fixed
+per first VE review, second review requested, **not yet run for real against the DUT with the
+v2+fixes build**.

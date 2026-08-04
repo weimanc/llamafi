@@ -1,0 +1,476 @@
+{
+  "start": "2026-08-04T01:02:12",
+  "station": "SLAM!",
+  "idx": 2,
+  "events": [
+    {
+      "ts": "2026-08-04T00:01:00",
+      "elapsed_s": 10.0,
+      "event": "state_change",
+      "from": null,
+      "to": 2
+    },
+    {
+      "ts": "2026-08-04T00:01:10",
+      "elapsed_s": 20.1,
+      "event": "title",
+      "title": "L\u00e2\u0080\u0099Esprit Baroque (zo 24 jun 2018 16:00)"
+    },
+    {
+      "ts": "2026-08-04T00:04:12",
+      "elapsed_s": 201.7,
+      "event": "title",
+      "title": "Tavares - Don't Take Away The Music"
+    },
+    {
+      "ts": "2026-08-04T00:04:32",
+      "elapsed_s": 221.8,
+      "event": "title",
+      "title": "Katy Perry - Cozy Little Christmas"
+    },
+    {
+      "ts": "2026-08-04T00:05:15",
+      "elapsed_s": 264.5,
+      "event": "state_change",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:05:25",
+      "elapsed_s": 274.5,
+      "event": "title",
+      "title": "Early Delights (zo 21 mei 2017 16:00)"
+    },
+    {
+      "ts": "2026-08-04T00:05:25",
+      "elapsed_s": 274.5,
+      "event": "state_change",
+      "from": 5,
+      "to": 2
+    },
+    {
+      "ts": "2026-08-04T00:07:16",
+      "elapsed_s": 385.7,
+      "event": "state_change",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:07:26",
+      "elapsed_s": 395.8,
+      "event": "title",
+      "title": "Kim Basinger & Stan Getz - Let's Do It (Let's Fall In Love) - Album Marrying Man  (TX2JK)"
+    },
+    {
+      "ts": "2026-08-04T00:07:26",
+      "elapsed_s": 395.8,
+      "event": "state_change",
+      "from": 5,
+      "to": 2
+    },
+    {
+      "ts": "2026-08-04T00:09:17",
+      "elapsed_s": 506.8,
+      "event": "title",
+      "title": "Pat Boone - Sunday, Monday Or Always - Album The Sixties (1960-1962)"
+    },
+    {
+      "ts": "2026-08-04T00:11:18",
+      "elapsed_s": 627.9,
+      "event": "title",
+      "title": "Kathy Kirby - I Wish You Love - Album Make Someone Happy"
+    },
+    {
+      "ts": "2026-08-04T00:14:30",
+      "elapsed_s": 819.5,
+      "event": "title",
+      "title": "Jesse Belvin - The Best Is Yet To Come - Album Mr. Easy"
+    },
+    {
+      "ts": "2026-08-04T00:16:51",
+      "elapsed_s": 960.7,
+      "event": "title",
+      "title": "Various (Vocals The Andrews Sisters) - Alexander's Ragtime Band - Album Reprise Musical Repertory Theat"
+    },
+    {
+      "ts": "2026-08-04T00:19:42",
+      "elapsed_s": 1132.2,
+      "event": "title",
+      "title": "Michael Feinstein - Exactly Like You - Album The Sinatra Project"
+    },
+    {
+      "ts": "2026-08-04T00:21:34",
+      "elapsed_s": 1243.4,
+      "event": "title",
+      "title": "Geen dag zonder Bach (ma 17 jun 2013 13:00)"
+    },
+    {
+      "ts": "2026-08-04T00:25:36",
+      "elapsed_s": 1486.1,
+      "event": "state_change",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:25:46",
+      "elapsed_s": 1496.1,
+      "event": "title",
+      "title": "MixMarathon - Marten Lou"
+    },
+    {
+      "ts": "2026-08-04T00:25:46",
+      "elapsed_s": 1496.1,
+      "event": "state_change",
+      "from": 5,
+      "to": 2
+    },
+    {
+      "ts": "2026-08-04T00:26:27",
+      "elapsed_s": 1536.5,
+      "event": "title",
+      "title": "HTTP/1.0 403 Forbidden"
+    },
+    {
+      "ts": "2026-08-04T00:26:37",
+      "elapsed_s": 1546.5,
+      "event": "title",
+      "title": "Bonum est (do 3 jan 2013 18:00)"
+    },
+    {
+      "ts": "2026-08-04T00:26:47",
+      "elapsed_s": 1557.3,
+      "event": "state_change",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:27:03",
+      "elapsed_s": 1572.7,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:27:38",
+      "elapsed_s": 1607.6,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:28:10",
+      "elapsed_s": 1639.7,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:28:37",
+      "elapsed_s": 1667.3,
+      "event": "state_change",
+      "from": null,
+      "to": 2
+    },
+    {
+      "ts": "2026-08-04T00:29:04",
+      "elapsed_s": 1694.1,
+      "event": "state_change",
+      "from": 2,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:29:21",
+      "elapsed_s": 1711.3,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:29:39",
+      "elapsed_s": 1729.1,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:30:05",
+      "elapsed_s": 1754.8,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:30:32",
+      "elapsed_s": 1781.8,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:31:19",
+      "elapsed_s": 1828.4,
+      "event": "state_change",
+      "from": null,
+      "to": 2
+    },
+    {
+      "ts": "2026-08-04T00:31:37",
+      "elapsed_s": 1847.1,
+      "event": "state_change",
+      "from": 2,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:31:54",
+      "elapsed_s": 1864.3,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:32:09",
+      "elapsed_s": 1878.8,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:32:26",
+      "elapsed_s": 1895.9,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:32:41",
+      "elapsed_s": 1910.8,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:33:15",
+      "elapsed_s": 1945.3,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:33:30",
+      "elapsed_s": 1959.8,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:34:24",
+      "elapsed_s": 2014.2,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:34:51",
+      "elapsed_s": 2040.8,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:36:39",
+      "elapsed_s": 2148.7,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:36:55",
+      "elapsed_s": 2164.5,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:38:34",
+      "elapsed_s": 2264.4,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:39:02",
+      "elapsed_s": 2291.5,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:42:45",
+      "elapsed_s": 2515.1,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:43:12",
+      "elapsed_s": 2541.7,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:44:34",
+      "elapsed_s": 2623.5,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:44:50",
+      "elapsed_s": 2639.7,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:46:48",
+      "elapsed_s": 2757.9,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:47:15",
+      "elapsed_s": 2784.9,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:48:52",
+      "elapsed_s": 2881.9,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:49:08",
+      "elapsed_s": 2898.0,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:51:07",
+      "elapsed_s": 3017.3,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:51:34",
+      "elapsed_s": 3044.3,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:53:51",
+      "elapsed_s": 3181.0,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:54:06",
+      "elapsed_s": 3196.3,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:55:16",
+      "elapsed_s": 3266.0,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:55:43",
+      "elapsed_s": 3293.0,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:57:04",
+      "elapsed_s": 3374.3,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:57:21",
+      "elapsed_s": 3390.5,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:58:07",
+      "elapsed_s": 3437.4,
+      "event": "state_change",
+      "from": null,
+      "to": 5
+    },
+    {
+      "ts": "2026-08-04T00:58:23",
+      "elapsed_s": 3453.0,
+      "event": "state_change",
+      "from": 5,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T00:58:51",
+      "elapsed_s": 3481.2,
+      "event": "state_change",
+      "from": null,
+      "to": 2
+    },
+    {
+      "ts": "2026-08-04T00:59:01",
+      "elapsed_s": 3491.3,
+      "event": "title",
+      "title": "Zwerven door de Barok (do 6 Aug 2015 19:00)"
+    },
+    {
+      "ts": "2026-08-04T01:00:22",
+      "elapsed_s": 3572.3,
+      "event": "title",
+      "title": "Tim Hardin - How Can We Hang On To A Dream"
+    },
+    {
+      "ts": "2026-08-04T01:00:48",
+      "elapsed_s": 3598.0,
+      "event": "state_change",
+      "from": 2,
+      "to": null
+    },
+    {
+      "ts": "2026-08-04T01:00:58",
+      "elapsed_s": 3608.0,
+      "event": "state_change",
+      "from": null,
+      "to": 2
+    },
+    {
+      "ts": "2026-08-04T01:01:54",
+      "elapsed_s": 3664.3,
+      "event": "state_change",
+      "from": 2,
+      "to": null
+    }
+  ],
+  "status": "running",
+  "elapsed_s": 3681.6
+}

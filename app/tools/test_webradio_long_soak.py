@@ -1,50 +1,82 @@
 #!/usr/bin/env python3
-"""Long single-station WebRadio soak — TASK-393 recurrence watch.
+"""Long single-station WebRadio soak — TASK-393 recurrence watch, v2.
 
-Plays ONE real station for an extended duration, mirroring the original
-human report's usage pattern ("had been playing for an extended, unmeasured
-duration"). This is deliberately NOT test_webradio_soak.py's arena-churn
-soak (TASK-271) — that one forcibly leaves+re-enters WebRadio every ~25s,
-which would mask a station getting stuck in a parked ERROR_* state forever
-(exactly TASK-393's symptom). Here the firmware's own terminal-retry
-(TASK-276) is left to run in place, on the same station, for hours.
+Plays ONE real station (injected via `set wrUrl <resolved-url>`, NOT played
+from the full station list) for an extended duration. Single-station is
+deliberate: with a real multi-station list, `wrAutoSkip`'s default-ON
+behavior means a repeatedly-failing station gets skipped rather than stuck
+— which would silently defeat the entire point of this soak (v1 did exactly
+this: auto-skip wandered across the real 30-station list and produced a
+confusing mix of titles from different stations with no way to tell which
+station was actually playing, because nothing was watching `wrIdx`). With
+one station in the list, `_stationCount==1` so the auto-skip-to-next branch
+in `_onPlaybackFailed()` never applies — TASK-276's terminal-retry is the
+ONLY recovery path, exactly the mechanism this soak exists to stress.
 
-Every poll interval, reads `get wrState` and derives whether the app is
-"stuck": in one of the retryable error states (ERROR_WIFI/ERROR_STALL/
-ERROR_UNREACHABLE) for longer than WR_TERMINAL_RETRY_MS + slack with no
-observable recovery (no state change, no wrIdx/wrSkip.tried movement). If
-that fires, it's the TASK-393 signature recurring — immediately dumps full
-debug state (wrState/wrIcy/wrIdx/wrSkip/heap/stacks/info) to a timestamped
-report and keeps running (a later recovery, or the run ending still stuck,
-both get captured too). This is the instrumentation-at-the-moment TASK-393
-kept missing every time it was observed live.
+v1 also only ever did periodic `get` polling, discarding (via
+`reset_input_buffer()`) every unsolicited log line the DUT emits between
+polls — throwing away exactly the event stream (`play idx=`, `terminal
+retry`, `connecttohost failed`, `stream dead`, `ICY:`, heartbeats) that
+would show precisely what happened and when. v2 uses a continuous
+reader-thread architecture (matching test_adr045_gate.py) instead: one
+thread owns the serial port, tees every raw line (host-timestamped) to a
+full log file, and parses known patterns into a structured, real-time
+timeline. `get` polling is now a light, low-frequency cross-check
+(wrState/wrIdx/wrIcy), not the primary data source.
+
+Primary anomaly signal is now the ACTUAL TASK-390/393 symptom, not a proxy:
+the heartbeat's `last_render_age_ms` field, parsed directly off every
+`[I][hb]` line. If it climbs by ~the same amount as `uptime` (i.e., zero
+repaints) across several consecutive heartbeats, that IS the render-freeze
+signature — the same thing established by hand-reading heartbeats earlier
+this session. A secondary, mechanism-level signal watches the parsed event
+log for a connect-failure/stream-dead event with no observed recovery
+(fresh `play idx=` or `terminal retry` line) within WR_TERMINAL_RETRY_MS +
+slack.
+
+Either firing captures a full `get` snapshot (wrState/wrIcy/wrIdx/wrSkip/
+heap/stacks) immediately and writes an anomaly report; the soak keeps
+running afterward (a later recovery, or the run ending still stuck, both
+get captured too).
 
 Runs against whatever debug build (SERIAL_DEBUG) is currently flashed —
-does not flash anything itself. Point it at cyd2usb_winamp_debug for the
-closest match to the actual TASK-390/393 environment.
+does not flash anything itself. **Flash `cyd2usb_winamp_debug_noSpotify`
+first** (`-DDISABLE_SPOTIFY`, `app/platformio.ini`) — Spotify's background
+polling is a continuous competing TLS user that reliably starved the
+station-fetch's heap-contiguity guard on a fresh boot this session, and the
+runtime `set bgPoll 0` workaround (still sent, belt-and-braces) did NOT
+reliably prevent that recurring in practice. This does mean the soak tests
+the WebRadio-only mechanism in isolation, not the exact environment of the
+one real historical sighting (which had Spotify's TLS churn concurrently
+active — TASK-390's own investigation plan flags that as an unconfirmed
+contributing hypothesis). Treat this as a first, faster pass that narrows
+the mechanism question; a Spotify-present run (regular `cyd2usb_winamp_debug`
+build) is a distinct follow-up, not a substitute, if this comes back clean.
 
-Note: `set bgPoll 0` disables Spotify's background polling for the
-duration (restored on exit). This was necessary, not optional — Spotify's
-own polling is a continuous competing TLS user (observed repeatedly
-failing "SSL - Memory allocation failed" this session) that reliably
-starved the WebRadio station-fetch's heap-contiguity guard on a fresh
-boot, no amount of settle/backoff won that race. So this soak does NOT
-reproduce the original TASK-390/393 environment's Spotify-contention
-exactly — it isolates the WebRadio-side question (does it park forever on
-its own) from the Spotify-TLS-contention question, rather than testing
-both at once.
+Reviewed by an independent agent (VE-style, see TASK-397 in tasks.md) before
+first real use — two blocking findings fixed: the render-freeze detector
+was gated on `last_render_age_ms` alone, which climbs identically during
+completely normal quiet PLAYING (WebRadio's own repaint sites are all
+targeted blits after initial connect, not full-chrome repaints) and would
+have false-positived within minutes of every run; and `wrAutoSkip` was never
+forced on, silently risking a soak where the terminal-retry mechanism under
+test was itself disabled by a stale persisted setting.
 
 Usage:
     python3 test_webradio_long_soak.py --port /dev/ttyUSB0 --hours 4
-        [--station-name "SLAM"] [--poll-secs 10] [--report-out PATH]
-Exit 0 always (this is an observational soak, not a pass/fail gate) unless
-the DUT never becomes ready.
+        [--station-name "SLAM! DANCE CLASSICS"] [--report-out PATH] [--raw-log PATH]
+Exit 0 always (observational, not a pass/fail gate) unless the DUT never
+becomes ready or no station can be resolved.
 """
+import re
 import sys
 import json
 import time
 import atexit
+import queue
+import signal
 import argparse
+import threading
 import serial
 from pathlib import Path
 
@@ -56,49 +88,32 @@ REPORT_DIR = TOOLS_DIR / "rnd_logs"
 # WRPlayState (webRadioApp.h): 0 STOPPED,1 CONNECTING,2 PLAYING,
 # 3 ERROR_WIFI,4 ERROR_STALL,5 ERROR_UNREACHABLE,6 ERROR_BLOCKED
 RETRYABLE_ERROR_STATES = {3, 4, 5}
-WR_TERMINAL_RETRY_MS = 30000  # webRadioApp.h:69 — keep in sync if that constant moves
-STUCK_SLACK_S = 20.0          # generous margin over WR_TERMINAL_RETRY_MS before flagging
+WR_TERMINAL_RETRY_MS = 30000   # webRadioApp.h:69 -- keep in sync if that constant moves
+STUCK_SLACK_S = 20.0           # margin over WR_TERMINAL_RETRY_MS before flagging (mechanism signal)
+RENDER_STUCK_HEARTBEATS = 3    # consecutive zero-repaint heartbeats before flagging (render signal)
+HEARTBEAT_PERIOD_S = 30        # logHeartbeat.h PERIOD_MS
+RENDER_AGE_SLACK_MS = 3000     # tolerance on "delta == heartbeat period" (jitter, missed lines)
 
-
-class SerialDut:
-    """Matches test_webradio_soak.py's SerialDut — no ELF-hash check (this
-    tool runs against whatever debug build is currently flashed)."""
-
-    def __init__(self, port, baud=115200):
-        self.ser = serial.Serial(port, baud, timeout=0.4)
-        self.ser.dtr = False
-        self.ser.rts = False
-
-    def boot_wait(self, timeout=45):
-        end = time.monotonic() + timeout
-        while time.monotonic() < end:
-            l = self.ser.readline().decode(errors="replace").strip()
-            if "IP address:" in l or "spotify=off" in l:
-                break
-        for _ in range(40):
-            if self.cmd("get appId", 2.0).get("name"):
-                return True
-            time.sleep(1.0)
-        return False
-
-    def cmd(self, s, timeout=3.0):
-        self.ser.reset_input_buffer()
-        self.ser.write((s + "\n").encode())
-        self.ser.flush()
-        end = time.monotonic() + timeout
-        while time.monotonic() < end:
-            l = self.ser.readline().decode(errors="replace").strip()
-            if not l:
-                continue
-            try:
-                r = json.loads(l)
-                if not isinstance(r, dict):
-                    continue
-                if r.get("last", True):
-                    return r
-            except (json.JSONDecodeError, ValueError):
-                pass
-        return {}
+# DUT log-line signatures -- see webRadioApp.h for the LOG_I/LOG_W call sites.
+RE_HEARTBEAT = re.compile(
+    r"\[hb\].*heap=(\d+)k.*uptime=(\d+):(\d+):(\d+).*last_render_age_ms=(\d+)")
+RE_PLAY = re.compile(r"\[webradio\] play idx=(\d+) name=(\S+) url=(\S+)")
+# VE review finding 3: Audio.cpp logs "SSL has been established" for https
+# stations, "Connection has been established" for http -- the SSL variant
+# was missing, silently thinning the event timeline for https-only stations.
+RE_CONNECT_OK = re.compile(r"(?:SSL|Connection) has been established in (\d+) ms")
+RE_CONNECT_FAIL = re.compile(r"connecttohost failed idx=(\d+)")
+RE_STREAM_DEAD = re.compile(r"stream dead \(isRunning=(\d+) for (\d+)ms, bufStalled for (\d+)ms\)")
+RE_STALL_RETRY = re.compile(r"stall idx=(\d+) — retrying once")
+RE_AUTO_SKIP = re.compile(r"auto-skip (\d+)/(\d+) from idx=(\d+)")
+RE_AUTO_SKIP_EXHAUSTED = re.compile(r"auto-skip exhausted")
+RE_TERMINAL_RETRY = re.compile(r"terminal retry — re-arming scan idx=(\d+)")
+RE_ICY = re.compile(r"\[webradio\] ICY: (.*)")
+RE_REDIRECT = re.compile(r"redirect to new host \"([^\"]*)\"")
+# ROM bootloader banner date is a fixed constant baked into the chip's boot
+# ROM, not the actual calendar date -- literal match, copied from the
+# already-validated pattern in test_adr045_gate.py, not reinvented.
+RE_BOOT = re.compile(r"ets Jun  8 2016|rst:0x")
 
 
 def _ts():
@@ -109,21 +124,162 @@ def log(msg):
     print(f"[{_ts()}] {msg}", flush=True)
 
 
-def pick_station(dut, name_hint):
+class SerialDut:
+    """Continuous-reader serial DUT, matching test_adr045_gate.py's
+    architecture -- one thread owns RX, tees every line to a raw log,
+    parses known WebRadio event patterns into a structured timeline, and
+    feeds JSON replies to cmd() via a queue. reset_input_buffer() is never
+    called -- nothing between polls is ever silently discarded."""
+
+    def __init__(self, port, raw_log_path, baud=115200):
+        self.port, self.baud = port, baud
+        self.ser = serial.Serial(port, baud, timeout=0.4)
+        self.ser.dtr = False
+        self.ser.rts = False
+        self.raw_log = open(raw_log_path, "a", buffering=1)
+        self.replies = queue.Queue()
+        self.events = []          # (host_ts, kind, dict) -- the structured timeline
+        self.heartbeats = []      # (host_ts, heap_k, uptime_s, render_age_ms)
+        self.boot_marks = []
+        self.lock = threading.Lock()
+        self._alive = True
+        self._rx = threading.Thread(target=self._reader, daemon=True)
+        self._rx.start()
+
+    def _emit(self, kind, **fields):
+        with self.lock:
+            self.events.append((time.time(), kind, fields))
+
+    def _reader(self):
+        while self._alive:
+            try:
+                raw = self.ser.readline()
+            except (serial.SerialException, OSError):
+                time.sleep(0.2)
+                continue
+            if not raw:
+                continue
+            ts = time.time()
+            line = raw.decode(errors="replace").strip()
+            if not line:
+                continue
+            self.raw_log.write(f"{ts:.3f}|{line}\n")
+
+            m = RE_HEARTBEAT.search(line)
+            if m:
+                heap_k = int(m.group(1))
+                uptime_s = int(m.group(2)) * 3600 + int(m.group(3)) * 60 + int(m.group(4))
+                render_age_ms = int(m.group(5))
+                with self.lock:
+                    self.heartbeats.append((ts, heap_k, uptime_s, render_age_ms))
+                continue
+            m = RE_PLAY.search(line)
+            if m:
+                self._emit("play", idx=int(m.group(1)), name=m.group(2), url=m.group(3))
+                continue
+            if RE_CONNECT_OK.search(line):
+                self._emit("connect_ok")
+                continue
+            m = RE_CONNECT_FAIL.search(line)
+            if m:
+                self._emit("connect_fail", idx=int(m.group(1)))
+                continue
+            m = RE_STREAM_DEAD.search(line)
+            if m:
+                self._emit("stream_dead", isRunning=int(m.group(1)),
+                            runningForMs=int(m.group(2)), stalledForMs=int(m.group(3)))
+                continue
+            m = RE_STALL_RETRY.search(line)
+            if m:
+                self._emit("stall_retry", idx=int(m.group(1)))
+                continue
+            m = RE_AUTO_SKIP.search(line)
+            if m:
+                self._emit("auto_skip", tried=int(m.group(1)), count=int(m.group(2)),
+                            fromIdx=int(m.group(3)))
+                continue
+            if RE_AUTO_SKIP_EXHAUSTED.search(line):
+                self._emit("auto_skip_exhausted")
+                continue
+            m = RE_TERMINAL_RETRY.search(line)
+            if m:
+                self._emit("terminal_retry", idx=int(m.group(1)))
+                continue
+            m = RE_ICY.search(line)
+            if m:
+                self._emit("icy_title", title=m.group(1))
+                continue
+            m = RE_REDIRECT.search(line)
+            if m:
+                self._emit("redirect", to=m.group(1))
+                continue
+            if RE_BOOT.search(line):
+                with self.lock:
+                    self.boot_marks.append(ts)
+                self._emit("boot_marker")
+                continue
+
+            if line.startswith("{"):
+                try:
+                    r = json.loads(line)
+                    if isinstance(r, dict) and r.get("last", True):
+                        self.replies.put((ts, r))
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+    def cmd(self, s, timeout=3.0):
+        while not self.replies.empty():
+            try:
+                self.replies.get_nowait()
+            except queue.Empty:
+                break
+        self.ser.write((s + "\n").encode())
+        self.ser.flush()
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            try:
+                _, r = self.replies.get(timeout=0.2)
+                return r
+            except queue.Empty:
+                continue
+        return {}
+
+    def boot_wait(self, timeout=45):
+        for _ in range(40):
+            if self.cmd("get appId", 2.0).get("name"):
+                return True
+            time.sleep(1.0)
+        return False
+
+    def recent_events(self, since_ts, kinds=None):
+        with self.lock:
+            evs = list(self.events)
+        return [(ts, k, f) for ts, k, f in evs
+                if ts >= since_ts and (kinds is None or k in kinds)]
+
+    def recent_heartbeats(self, since_ts):
+        with self.lock:
+            return [h for h in self.heartbeats if h[0] >= since_ts]
+
+
+def resolve_station_url(dut, name_hint):
+    """One-shot: fetch the real station list, resolve name_hint to its
+    actual url_resolved, so it can be injected as a fixed single station
+    via `set wrUrl` -- guarantees wrIdx never drifts (see module docstring)."""
     cnt = dut.cmd("get wrCount", timeout=3.0).get("count", 0) or 0
     if cnt <= 0:
-        return None, None
+        return None, None, None
     stations = []
     for i in range(cnt):
         r = dut.cmd(f"get wrStation{i}", timeout=3.0)
         if "name" in r:
-            stations.append((i, r["name"]))
+            stations.append((i, r["name"], r.get("url")))
     if not stations:
-        return None, None
+        return None, None, None
     if name_hint:
-        for i, name in stations:
+        for i, name, url in stations:
             if name_hint.lower() in name.lower():
-                return i, name
+                return i, name, url
         log(f"WARN: no station matched {name_hint!r} among {len(stations)} loaded — "
             f"falling back to idx 0 ({stations[0][1]!r})")
     return stations[0]
@@ -157,39 +313,61 @@ def main():
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", default="/dev/ttyUSB0")
     ap.add_argument("--hours", type=float, default=4.0)
-    ap.add_argument("--station-name", default="SLAM",
+    ap.add_argument("--station-name", default="SLAM! DANCE CLASSICS",
                      help="substring to match against loaded station names "
-                          "(default SLAM, matching the original TASK-390 report)")
-    ap.add_argument("--poll-secs", type=float, default=10.0)
+                          "(default matches TASK-393's own live repro station "
+                          "exactly; VE review finding 6 -- the old bare 'SLAM' "
+                          "default could match any SLAM-family station, not "
+                          "necessarily the one TASK-393 actually reproduced on)")
     ap.add_argument("--report-out", default=None,
                      help="path for the anomaly/final report JSON "
                           "(default: app/tools/rnd_logs/webradio_long_soak_<stamp>.json)")
+    ap.add_argument("--raw-log", default=None,
+                     help="path for the full raw serial log, every line, host-timestamped "
+                          "(default: app/tools/rnd_logs/webradio_long_soak_<stamp>_raw.log)")
     args = ap.parse_args()
+
+    # VE review finding 4: Python does NOT run atexit handlers on a bare
+    # SIGTERM by default (only on normal interpreter exit / SIGINT). This
+    # project has already hit a live incident where an external kill of a
+    # predecessor tool bypassed its cleanup and reset the DUT (closing the
+    # serial port drops DTR via the OS's hangup-on-close). Funnel SIGTERM
+    # through sys.exit() so it takes the same path as normal completion and
+    # DOES trigger the atexit-registered cleanup below. Defense-in-depth
+    # only -- the actual project rule is still "never externally kill a
+    # soak mid-flight"; this just makes an accidental kill less bad.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 
     stamp = time.strftime("%Y%m%dT%H%M%S")
     report_out = args.report_out or str(REPORT_DIR / f"webradio_long_soak_{stamp}.json")
+    raw_log_path = args.raw_log or str(REPORT_DIR / f"webradio_long_soak_{stamp}_raw.log")
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
-    log(f"connecting {args.port} …")
-    dut = SerialDut(args.port)
+    log(f"connecting {args.port} … (raw log -> {raw_log_path})")
+    dut = SerialDut(args.port, raw_log_path)
     if not dut.boot_wait():
         log("FAIL: shell did not become ready (WiFi up? debug build?)")
         sys.exit(1)
 
-    # Spotify's background polling is a CONTINUOUS competing TLS user, not a
-    # one-time boot blip -- it retries on its own backoff schedule even while
-    # erroring (observed: repeated "SSL - Memory allocation failed" in this
-    # session), so a settle-and-hope delay never reliably wins the race. It
-    # kept tripping the documented -101 heap guard (dataTaskStorage.cpp:1575,
-    # "fetch skipped: maxBlk < WR_FETCH_MIN_TLS_BLOCK") even after 8s settle +
-    # 50s of backoff across 4 retries. Fix: disable it outright for the
-    # duration, matching the established pattern in test_adr045_gate.py/T237.
-    log("set bgPoll 0 (disable Spotify's competing background polling)")
-    dut.cmd("set bgPoll 0", timeout=2.0)
+    # Belt-and-braces: `set bgPoll 0` in case this is running against a
+    # regular cyd2usb_winamp_debug build rather than the recommended
+    # cyd2usb_winamp_debug_noSpotify (see module docstring) -- Spotify's
+    # background polling is a continuous competing TLS user that reliably
+    # starved the WebRadio station-fetch's heap-contiguity guard (-101,
+    # dataTaskStorage.cpp:1575) on a fresh boot this session, and bgPoll=0
+    # alone did NOT reliably prevent that recurring (still hit -101 with it
+    # set, in a later run) -- the noSpotify build is the real fix; this is
+    # just defense-in-depth. VE review finding 5: verify, don't fire-and-forget
+    # (a no-Spotify build may not even compile this handler in, so a
+    # non-confirming reply is a WARN, not fatal).
+    log("set bgPoll 0 (belt-and-braces; primary isolation is the noSpotify build)")
+    bgpoll_reply = dut.cmd("set bgPoll 0", timeout=2.0)
+    if not bgpoll_reply.get("ok"):
+        log(f"WARN: 'set bgPoll 0' did not confirm ok=true (got {bgpoll_reply!r}) — "
+            f"expected on a noSpotify build (handler may not be compiled in); "
+            f"continuing")
 
     def _cleanup():
-        # atexit, not try/finally around the rest of main() -- guarantees
-        # restoration on every exit path (normal completion, FAIL sys.exit,
-        # or an uncaught exception) without restructuring the whole function.
         try:
             dut.cmd("set bgPoll 1", timeout=2.0)
             dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=3.0)
@@ -197,9 +375,9 @@ def main():
             pass
     atexit.register(_cleanup)
 
-    log(f"entering WebRadio (switchApp {APP_SLOT['WebRadio']}) + waiting for station list …")
+    log(f"entering WebRadio (switchApp {APP_SLOT['WebRadio']}) + resolving station list …")
     dut.cmd(f"switchApp {APP_SLOT['WebRadio']}", timeout=3.0)
-    cnt = 0
+    idx = name = url = None
     RETRY_BACKOFF_S = [5.0, 10.0]
     attempts = len(RETRY_BACKOFF_S) + 1
     for attempt in range(1, attempts + 1):
@@ -208,11 +386,12 @@ def main():
             r = dut.cmd("get wrCount", timeout=3.0)
             cnt = r.get("count", 0) or 0
             if cnt > 0:
+                idx, name, url = resolve_station_url(dut, args.station_name)
                 break
             if r.get("pending") == 0 and cnt == 0:
-                break  # fetch already gave up, no point waiting out the full window
+                break
             time.sleep(2.0)
-        if cnt > 0:
+        if url:
             break
         lh = dut.cmd("get wrLastHttp", timeout=3.0)
         if attempt > len(RETRY_BACKOFF_S):
@@ -224,93 +403,170 @@ def main():
         time.sleep(backoff)
         dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=3.0)
         time.sleep(1.0)
-        dut.cmd(f"switchApp {APP_SLOT['WebRadio']}", timeout=3.0)  # TASK-289 second-chance fetch
-    if cnt <= 0:
-        log(f"FAIL: no stations loaded after {attempts} attempts "
-            f"(check WiFi / radio-browser reachability)")
+        dut.cmd(f"switchApp {APP_SLOT['WebRadio']}", timeout=3.0)
+    if not url:
+        log(f"FAIL: could not resolve a station URL after {attempts} attempts")
         sys.exit(1)
 
-    idx, name = pick_station(dut, args.station_name)
-    if idx is None:
-        log("FAIL: could not resolve a station to play")
+    log(f"resolved {name!r} (idx={idx}) -> {url}")
+
+    # VE review finding 2 (blocking): the terminal-retry re-arm's OWN gate
+    # condition (webRadioApp.h:623) requires g_settings.webRadioAutoSkip ==
+    # true -- with _stationCount==1 the "skip to next station" branch never
+    # applies, but the retry-recovery mechanism this whole soak exists to
+    # stress is unconditionally disabled if autoSkip is false. It's a
+    # persisted setting a prior debug session could have left off (T237/
+    # T_WR_ERR_* tests flip it deliberately). test_adr045_gate.py sets this
+    # explicitly before its trials; that line was dropped translating to
+    # this tool. Force it on and verify, don't assume the default holds.
+    dut.cmd("set wrAutoSkip 1", timeout=2.0)
+    skip_check = dut.cmd("get wrSkip", timeout=3.0)
+    if skip_check.get("autoSkip") != 1:
+        log(f"FAIL: wrAutoSkip did not confirm ON after 'set wrAutoSkip 1' "
+            f"(got {skip_check!r}) -- the terminal-retry mechanism under test "
+            f"would never fire; aborting rather than running a meaningless soak")
         sys.exit(1)
-    log(f"{cnt} stations loaded — playing idx={idx} ({name!r}) for {args.hours:.1f}h, "
-        f"polling every {args.poll_secs:.0f}s")
-    dut.cmd(f"set wrPlay {idx}", timeout=3.0)
+    log("confirmed wrAutoSkip=1 (terminal-retry re-arm is live)")
+
+    log(f"injecting as single station: set wrUrl {url}")
+    wrurl_reply = dut.cmd(f"set wrUrl {url}", timeout=3.0)  # _stationCount -> 1
+    if not wrurl_reply.get("ok"):
+        log(f"WARN: 'set wrUrl' reply did not confirm ok=true (got {wrurl_reply!r}) — "
+            f"continuing, but the injected station may not have taken")
 
     start = time.monotonic()
+    start_wall = time.time()
     end = start + args.hours * 3600
-    events = []
-    stuck_since = None
-    flagged_this_episode = False
-    last_state = None
-    last_tried = None
-    last_title = None
-    polls = 0
+
+    anomaly_count = 0
+    stuck_since = None            # mechanism-signal (event-log-based) stuck timer
+    flagged_mechanism = False
+    render_stuck_run = 0          # consecutive zero-repaint heartbeats
+    flagged_render = False
+    last_seen_event_ts = start_wall
+    last_hb_seen_ts = start_wall
+    last_render_age = None
+    last_uptime = None
+    poll_n = 0
+    all_anomalies = []
 
     def elapsed():
         return round(time.monotonic() - start, 1)
 
+    def full_report(status):
+        return {"start": _ts(), "station": name, "idx": idx, "url": url,
+                "status": status, "elapsed_s": elapsed(),
+                "anomalies": all_anomalies, "raw_log": raw_log_path}
+
+    log(f"soaking {name!r} for {args.hours:.1f}h — watching heartbeats + event log "
+        f"(raw log: {raw_log_path})")
+
+    last_checkpoint = time.monotonic()
     while time.monotonic() < end:
-        time.sleep(args.poll_secs)
-        polls += 1
-        st_r = dut.cmd("get wrState", timeout=3.0)
-        state = st_r.get("state")
-        skip_r = dut.cmd("get wrSkip", timeout=3.0)
-        tried = skip_r.get("tried")
-        icy_r = dut.cmd("get wrIcy", timeout=3.0)
-        title = icy_r.get("title")
+        time.sleep(2.0)  # cheap idle tick; all real signal comes from the reader thread
 
-        if title and title != last_title:
-            events.append({"ts": _ts(), "elapsed_s": elapsed(), "event": "title", "title": title})
-            log(f"  title: {title!r} (elapsed={elapsed():.0f}s)")
-        last_title = title or last_title
+        # --- primary signal: heartbeat render-age (the actual TASK-390/393 symptom) ---
+        for hb_ts, heap_k, uptime_s, render_age_ms in dut.recent_heartbeats(last_hb_seen_ts):
+            last_hb_seen_ts = hb_ts + 0.001
+            if last_render_age is not None:
+                d_render = render_age_ms - last_render_age
+                d_uptime = uptime_s - last_uptime
+                zero_repaint = (d_uptime > 0 and
+                                 abs(d_render - d_uptime * 1000) <= RENDER_AGE_SLACK_MS)
+                if zero_repaint:
+                    render_stuck_run += 1
+                else:
+                    render_stuck_run = 0
+                    flagged_render = False
+                log(f"  hb: uptime={uptime_s}s heap={heap_k}k render_age={render_age_ms}ms "
+                    f"{'(no repaint)' if zero_repaint else ''}")
+                # VE review finding 1 (blocking): last_render_age_ms climbs in
+                # lockstep with uptime during NORMAL steady PLAYING too, not
+                # just while parked in an error state -- WebRadioApp's own
+                # _dirty sites (marquee/buffer-bar/time-digits) are all
+                # targeted blits, not repaintChrome(), once initial connect
+                # settles. Zero-repaint alone is not the TASK-390/393
+                # signature; gate on the DUT actually being in a retryable
+                # error state, confirmed at the moment of the trip, or every
+                # healthy run false-positives within ~2-3 minutes.
+                if render_stuck_run >= RENDER_STUCK_HEARTBEATS and not flagged_render:
+                    st_now = dut.cmd("get wrState", timeout=3.0).get("state")
+                    if st_now in RETRYABLE_ERROR_STATES:
+                        flagged_render = True
+                        anomaly_count += 1
+                        snap = snapshot(dut)
+                        log(f"  *** ANOMALY (render-freeze signal): last_render_age_ms "
+                            f"tracking uptime for {render_stuck_run} consecutive heartbeats "
+                            f"(~{render_stuck_run * HEARTBEAT_PERIOD_S}s, zero repaints), "
+                            f"state={st_now} ***")
+                        all_anomalies.append({"ts": _ts(), "elapsed_s": elapsed(),
+                                               "kind": "render_freeze",
+                                               "consecutive_heartbeats": render_stuck_run,
+                                               "render_age_ms": render_age_ms,
+                                               "uptime_s": uptime_s, "state": st_now,
+                                               "snapshot": snap})
+                        write_report(report_out, full_report("anomaly-in-progress"))
+                    # else: healthy quiet PLAYING/STOPPED with no repaints --
+                    # expected, not an anomaly. Deliberately NOT latching
+                    # flagged_render here: keep re-checking state on every
+                    # subsequent heartbeat while zero_repaint persists, so a
+                    # LATER transition into a stuck error state (without an
+                    # intervening repaint in between) still gets caught. One
+                    # extra `get wrState` per 30s heartbeat while quiet is
+                    # negligible cost.
+            last_render_age = render_age_ms
+            last_uptime = uptime_s
 
-        if state != last_state:
-            events.append({"ts": _ts(), "elapsed_s": elapsed(), "event": "state_change",
-                            "from": last_state, "to": state})
-            log(f"  state {last_state} -> {state} (elapsed={elapsed():.0f}s)")
-        last_state = state
+        # --- secondary signal: event-log mechanism check (connect-fail/stream-dead
+        #     with no observed recovery within WR_TERMINAL_RETRY_MS + slack) ---
+        new_events = dut.recent_events(last_seen_event_ts)
+        if new_events:
+            last_seen_event_ts = new_events[-1][0] + 0.001
+        for ts, kind, fields in new_events:
+            if kind in ("connect_fail", "stream_dead", "auto_skip_exhausted"):
+                if stuck_since is None:
+                    stuck_since = ts
+                    flagged_mechanism = False
+                log(f"  event: {kind} {fields}")
+            elif kind in ("play", "terminal_retry", "connect_ok", "stall_retry", "auto_skip"):
+                stuck_since = None
+                flagged_mechanism = False
+                if kind == "play":
+                    log(f"  event: {kind} {fields}")
+            elif kind == "icy_title":
+                log(f"  title: {fields['title']!r}")
+            elif kind == "boot_marker":
+                log("  *** DUT BOOT MARKER SEEN -- unexpected reset mid-soak ***")
+                anomaly_count += 1
+                all_anomalies.append({"ts": _ts(), "elapsed_s": elapsed(), "kind": "reboot"})
+                write_report(report_out, full_report("anomaly-in-progress"))
 
-        moving = (tried != last_tried)
-        last_tried = tried
+        if stuck_since is not None and not flagged_mechanism:
+            stuck_s = time.time() - stuck_since
+            if stuck_s > (WR_TERMINAL_RETRY_MS / 1000.0 + STUCK_SLACK_S):
+                flagged_mechanism = True
+                anomaly_count += 1
+                snap = snapshot(dut)
+                log(f"  *** ANOMALY (mechanism signal): no recovery event for {stuck_s:.0f}s "
+                    f"after a connect-fail/stream-dead (TASK-393 signature) ***")
+                all_anomalies.append({"ts": _ts(), "elapsed_s": elapsed(),
+                                       "kind": "mechanism_stuck", "stuck_s": round(stuck_s, 1),
+                                       "snapshot": snap})
+                write_report(report_out, full_report("anomaly-in-progress"))
 
-        if state in RETRYABLE_ERROR_STATES:
-            if stuck_since is None:
-                stuck_since = time.monotonic()
-                flagged_this_episode = False
-            elif moving:
-                # tried counter moved -- the retry re-armed and is scanning again;
-                # this episode is alive, reset the stuck clock.
-                stuck_since = time.monotonic()
-            else:
-                stuck_s = time.monotonic() - stuck_since
-                if stuck_s > (WR_TERMINAL_RETRY_MS / 1000.0 + STUCK_SLACK_S) and not flagged_this_episode:
-                    flagged_this_episode = True
-                    snap = snapshot(dut)
-                    log(f"  *** ANOMALY: stuck in state={state} for {stuck_s:.0f}s with no "
-                        f"observable recovery (TASK-393 signature) — capturing full state ***")
-                    events.append({"ts": _ts(), "elapsed_s": elapsed(), "event": "ANOMALY",
-                                    "stuck_s": round(stuck_s, 1), "snapshot": snap})
-                    write_report(report_out, {"start": _ts(), "station": name, "idx": idx,
-                                               "events": events, "status": "anomaly-in-progress"})
-        else:
-            stuck_since = None
-            flagged_this_episode = False
+        if time.monotonic() - last_checkpoint >= 300:  # 5 min
+            last_checkpoint = time.monotonic()
+            poll_n += 1
+            st = dut.cmd("get wrState", timeout=3.0)
+            idx_now = dut.cmd("get wrIdx", timeout=3.0)
+            log(f"  alive: elapsed={elapsed():.0f}s state={st.get('state')} "
+                f"idx={idx_now.get('idx')} anomalies={anomaly_count}")
+            write_report(report_out, full_report("running"))
 
-        if polls % 30 == 0:  # ~every poll_secs*30 (default 5 min), a heartbeat line
-            log(f"  alive: elapsed={elapsed():.0f}s state={state} tried={tried} "
-                f"title={last_title!r}")
-            write_report(report_out, {"start": _ts(), "station": name, "idx": idx,
-                                       "events": events, "status": "running",
-                                       "elapsed_s": elapsed()})
-
-    log(f"soak complete: {elapsed():.0f}s elapsed, {len(events)} event(s), "
-        f"{'ANOMALY CAPTURED' if any(e['event']=='ANOMALY' for e in events) else 'no anomaly'}")
-    write_report(report_out, {"start": _ts(), "station": name, "idx": idx,
-                               "events": events, "status": "complete",
-                               "elapsed_s": elapsed()})
+    log(f"soak complete: {elapsed():.0f}s elapsed, {anomaly_count} anomaly(ies)")
+    write_report(report_out, full_report("complete"))
     log(f"report written -> {report_out}")
+    log(f"raw log -> {raw_log_path}")
 
 
 if __name__ == "__main__":
