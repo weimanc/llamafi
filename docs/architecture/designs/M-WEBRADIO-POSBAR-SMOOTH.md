@@ -14,6 +14,16 @@
 > draft status, same reserve-on-acceptance convention as prior designs this
 > session.
 
+**Revision note (2026-08-05, same day):** folded in VE's testability review
+(`docs/architecture/designs/webradio-posbar-VE-review.md`, verdict
+approve-with-changes, no blockers). All four majors closed below: VE-1
+(§Lean step 1, `set wrBufPct`'s interaction with the new gates specified),
+VE-2 (§Lean step 1, single instrumentation site specified, inside
+`_drawPosbar()`'s body), VE-3 (§Exit criteria, multi-trial comparison),
+VE-4 (§Lean step 1, getter now reports the binding gate). Minors/
+informational items not folded — left for implementation time per the
+review's own recommendation.
+
 ## Context / pain points
 
 Asked: the WebRadio posbar (repurposed, in WebRadio mode, to show input
@@ -233,10 +243,20 @@ budget is full, not a workaround.
 **Adopt C (A+B) + E + F.** Concretely:
 
 1. **F first (measure before changing behavior):** add
-   `perf::record("wr.posbar", ...)` around `_drawPosbar()`'s call site
-   (bump `MAX_PATHS` 10→11 in `perf.h`), and a `get wrPosbar` debug getter
-   reporting redraw count, last-redraw interval, raw `_bufPct`, and (once
-   it exists) the smoothed value. Capture a DUT baseline of today's actual
+   `perf::record("wr.posbar", ...)` **exactly once, inside `_drawPosbar()`'s
+   own body** (wrapping the two `blitSprite()` calls) — **not** at any of
+   its three callers (`tick()`'s gated redraw, `_drawFull()`'s full repaint,
+   `dbgSet`'s debug-forced call) (VE-2: `perf::record()` matches by pointer
+   identity on `name`, not string content, `perf.h:37,52` — instrumenting
+   at multiple independently-written call sites risks silently fragmenting
+   one logical path into multiple slots, and overflow is a silent drop).
+   Bump `MAX_PATHS` 10→11 in `perf.h`. Add a `get wrPosbar` debug getter
+   reporting redraw count, last-redraw interval, raw `_bufPct`, the smoothed
+   value, **and `lastSkipReason: delta|interval|none`** — which of the two
+   new gates (§2/§3 below) most recently blocked a redraw (VE-4: without
+   this, OQ1/OQ2's own DUT tuning pass has no way to tell which of the two
+   interacting thresholds is currently the binding constraint — pure
+   trial-and-error otherwise). Capture a DUT baseline of today's actual
    redraw rate and per-call cost before changing anything — turns "too
    jittery, too many updates" from a subjective complaint into a measured
    starting point.
@@ -249,6 +269,14 @@ budget is full, not a workaround.
 4. **E:** convert `drawBufferBar()` to a partial-diff blit (old-thumb-region
    + new-thumb, skip the full-groove re-blit unless something else is
    confirmed to paint over it between calls — see Open Questions).
+5. **`set wrBufPct` (VE-1):** keeps its current behavior exactly —
+   force-writes `_bufPct` and calls `_drawPosbar()` **immediately,
+   bypassing both new gates** (A's EMA and B's time interval), same as
+   today. Document it explicitly as "debug-forced, does not exercise the
+   smoothing/rate-limit path" so a future reader doesn't assume it verifies
+   the gated behavior. DUT verification of the *gated* path itself uses the
+   new `get wrPosbar` getter's raw/smoothed/`lastSkipReason` fields (§1)
+   under real playback, not this hook.
 
 Not adopted: Option D (regresses TASK-253's own fix for no independent
 benefit).
@@ -282,14 +310,26 @@ benefit).
 
 ## Exit criteria
 
-- DUT baseline (pre-change, per F): `get wrPosbar` captures redraw count
-  and interval distribution over a fixed real-playback window (e.g. 5 min),
-  establishing the actual "how often does this redraw today" number this
-  design doc could not determine from source alone.
-- DUT post-change: same window, same station/conditions — redraw count
-  measurably lower, with the smoothed value's visual motion still reading
-  as continuous (no TASK-253-style visible jumps) — a human eyeball check
-  DUT-side, not just the getter's numbers.
+- DUT baseline (pre-change, per F), **≥3 trials** (VE-3: this project has
+  been burned before by single-shot DUT comparisons in an RF environment —
+  see `touch-ux-panel-VE-review.md`'s VE-2-1 and `M-HEAP-FRAGMENTATION.md`'s
+  OQ4 spike, both needing repeats after a first sample proved
+  non-reproducible): `get wrPosbar` captures redraw count and interval
+  distribution over a fixed real-playback window (e.g. 5 min) each trial,
+  same station, comparable conditions — or explicitly correlate against
+  `[wifi-ev]` per the M-WIFI-DIAG attribution protocol and exclude/re-run
+  outage-affected trials. Establishes the actual "how often does this
+  redraw today" number this design doc could not determine from source
+  alone.
+- DUT post-change: same window and **≥3-trial** protocol, same station/
+  conditions — redraw count measurably lower, with the smoothed value's
+  visual motion still reading as continuous (no TASK-253-style visible
+  jumps) — a **live human eyeball on the physical LCD (or phone-camera
+  video), not a tool-assisted capture**: connecting `run/screendump` or any
+  fresh serial tool resets the DUT via CH340 DTR-on-open
+  (`best_practices.md`, LL-051), which would restart WiFi and the stream
+  from scratch mid-observation, perturbing exactly the continuous-playback
+  behavior being checked.
 - DUT: a real stall/underrun approaching zero buffer is still visibly
   reflected on the bar in time to be useful — the smoothing/rate-limit
   must not hide a real depleting-buffer trend behind lag (ties to OQ1/OQ2).

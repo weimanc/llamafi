@@ -147,3 +147,13 @@ character as the majors found in this session's prior VE reviews.
 Recommend Architect fold the four majors into the design doc (Lean/decision or Exit criteria
 sections, matching this session's established pattern) before scheduling; minors/informational
 can be picked up at implementation time.
+
+**Architect disposition (2026-08-05, same day):** all four majors folded directly into
+`M-WEBRADIO-POSBAR-SMOOTH.md`'s §Lean step 1 and §Exit criteria. VE-1 → `set wrBufPct` explicitly
+kept bypassing both new gates, documented as debug-forced/non-gated. VE-2 → instrumentation
+pinned to exactly one site, inside `_drawPosbar()`'s own body, not its three callers. VE-3 →
+exit criteria now require ≥3 trials each side (or explicit `[wifi-ev]` outage correlation), citing
+this session's own precedent for why single-shot DUT comparisons aren't trusted here. VE-4 → the
+new getter gains a `lastSkipReason: delta|interval|none` field so the DUT tuning pass OQ1/OQ2 call
+for is actually diagnosable. Minors/informational items left un-folded per this review's own
+recommendation. Doc remains `Status: draft`, awaiting human sign-off next.
