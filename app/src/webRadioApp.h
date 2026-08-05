@@ -292,6 +292,36 @@ static SemaphoreHandle_t s_wrPumpAckSem  = nullptr;  // teardown handshake
 static TaskHandle_t      s_wrPumpTask    = nullptr;
 static volatile bool     s_wrPumpStopReq = false;
 
+// TASK-398 (M-WR-CONNECT-ASYNC): request/result-slot protocol that moves
+// connecttohost() itself off loopTask. Single-word volatiles, same
+// atomicity/no-mutex-needed precedent as s_wrPumpTask/s_wrPumpStopReq above —
+// see the design doc's "residual race" analysis (WR_PUMP_PRIORITY above
+// loopTask, both pinned to APP_CPU_NUM, no blocking call between a branch's
+// read and its clear, so the window is zero-width by construction, not a
+// race needing CAS). Used only when a connect is actually in flight — the
+// s_wrPumpStopReq/ack-sem handshake above still owns every other teardown.
+enum class WrPumpRequest : uint8_t { NONE, CONNECT, ABORT, TEARDOWN };
+enum class WrPumpResult  : uint8_t { NONE, CONNECTED, FAILED, ABORTED, TORN_DOWN };
+
+static volatile WrPumpRequest s_wrPumpRequest = WrPumpRequest::NONE;  // written by loopTask, read/cleared by the pump task
+static volatile WrPumpResult  s_wrPumpResult  = WrPumpResult::NONE;   // written by the pump task, read/cleared by tick()'s poll
+// Connect target for a posted CONNECT request — written by _play() (loopTask)
+// strictly before the s_wrPumpRequest post that hands it off, read by the
+// pump's CONNECT branch only after observing that post; same ordering
+// argument as the enums above, no separate mutex needed. Sized to match
+// dataTask::WebRadioStation::url (dataTask.h).
+// Lazy heap-allocated on first _play(), never freed — an embedded 104B
+// static array overflows the debug build's .dram0.bss at link time, same
+// "lazy malloc once, never freed" rule the project already uses elsewhere
+// for large static buffers (project memory feedback_dram_bss_static_buffers;
+// TeletextApp's _nosSource() is the precedent this mirrors).
+static constexpr size_t WR_PUMP_CONNECT_URL_LEN = 104;
+static char* s_wrPumpConnectUrl = nullptr;
+static char* wrPumpConnectUrlBuf() {
+    if (!s_wrPumpConnectUrl) s_wrPumpConnectUrl = new char[WR_PUMP_CONNECT_URL_LEN];
+    return s_wrPumpConnectUrl;
+}
+
 constexpr UBaseType_t WR_PUMP_STACK_WORDS      = (8 * 1024) / sizeof(StackType_t);
 constexpr UBaseType_t WR_PUMP_PRIORITY         = 2;  // above loopTask (prio 1) — DMA deadline
 constexpr TickType_t  WR_PUMP_CADENCE_TICKS    = pdMS_TO_TICKS(2);   // OQ1: tune on DUT
@@ -353,6 +383,11 @@ static void wrPumpTaskBody(void*) {
         // Checked at the top of the cycle, holding no locks — the enforced
         // teardown sequence [QM-2-1/DEV-2-6]: ack, then immediately
         // self-delete. Never re-enters the mutex/Audio::loop() after acking.
+        // Only fires for suspend()'s synchronous teardown path (nothing in
+        // flight — see wrTeardownPumpTask()). TASK-398's CONNECTING-time
+        // teardown goes through s_wrPumpRequest == TEARDOWN below instead,
+        // since this stop-req path has no way to reconcile _state back on
+        // loopTask (it's a free function — no `this`).
         if (s_wrPumpStopReq) {
             LOG_I("wrpump", "ack");
             xSemaphoreGive(s_wrPumpAckSem);
@@ -360,21 +395,97 @@ static void wrPumpTaskBody(void*) {
             vTaskDelete(NULL);
         }
 
-        uint32_t tWait = millis();
-        xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
-        uint32_t waitMs = millis() - tWait;
-        if (waitMs > s_wrPumpMaxMutexWaitMs) s_wrPumpMaxMutexWaitMs = waitMs;
+        // TASK-398 (M-WR-CONNECT-ASYNC): request/result-slot protocol.
+        // connecttohost() — the multi-second blocking call, OQ4/TASK-393 —
+        // is fully isolated to this task here, never touching loopTask. Each
+        // branch below REPLACES that cycle's normal pump servicing, it does
+        // not run in addition to it.
+        WrPumpRequest req = s_wrPumpRequest;
+        if (req == WrPumpRequest::CONNECT) {
+            // Commit point: clear now. Zero-width per the priority-preemption
+            // argument above — loopTask (strictly lower priority) cannot
+            // interleave with this read/clear pair, so anything posted
+            // DURING the connect below is a genuinely later write, correctly
+            // observed by the re-check after connecttohost() returns.
+            s_wrPumpRequest = WrPumpRequest::NONE;
 
-        uint32_t tPump = millis();
-        if (s_wr_audio) s_wr_audio->loop();  // no-ops fast internally when !m_f_running
-        uint32_t pumpMs = millis() - tPump;
-        if (pumpMs > s_wrPumpMaxPumpMs) s_wrPumpMaxPumpMs = pumpMs;
+            xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
+            unsigned long tConnect = millis();
+            bool connectOk = s_wr_audio->connecttohost(s_wrPumpConnectUrl);
+            perf::record("wr.connect", millis() - tConnect);
+
+            WrPumpRequest after = s_wrPumpRequest;  // may have changed DURING the connect
+            if (after == WrPumpRequest::TEARDOWN) {
+                if (connectOk) s_wr_audio->stopSong();  // still under the mutex above
+                delete s_wr_audio;
+                s_wr_audio = nullptr;
+                xSemaphoreGive(s_wrAudioMutex);
+                mb_arena_release();
+                s_wrPumpRequest = WrPumpRequest::NONE;
+                s_wrPumpResult  = WrPumpResult::TORN_DOWN;
+                LOG_I("wrpump", "torn down (post-connect)");
+                s_wrPumpTask = nullptr;  // null last, right before self-delete —
+                                          // wrEnsurePumpTask()'s guard must keep
+                                          // seeing "pump still here" until now
+                vTaskDelete(NULL);
+            } else if (after == WrPumpRequest::ABORT) {
+                if (connectOk) s_wr_audio->stopSong();
+                xSemaphoreGive(s_wrAudioMutex);
+                s_wrPumpRequest = WrPumpRequest::NONE;
+                s_wrPumpResult  = WrPumpResult::ABORTED;
+            } else {  // NONE — nothing else was requested while the connect was outstanding
+                xSemaphoreGive(s_wrAudioMutex);
+                s_wrPumpResult = connectOk ? WrPumpResult::CONNECTED : WrPumpResult::FAILED;
+            }
+        } else if (req == WrPumpRequest::ABORT) {
+            // Arrived before any connect started this cycle (the pump's own
+            // vTaskDelay below, not a sub-instruction race) — nothing to
+            // stop, no mutex needed.
+            s_wrPumpRequest = WrPumpRequest::NONE;
+            s_wrPumpResult  = WrPumpResult::ABORTED;
+        } else if (req == WrPumpRequest::TEARDOWN) {
+            // Same early-arrival case, stronger intent — mirrors the
+            // post-connect TEARDOWN branch's terminal sequence exactly, just
+            // skipping stopSong() (nothing was ever dispatched this cycle).
+            // The delete itself still takes the mutex, unlike an earlier
+            // version of this branch: whichever caller posted TEARDOWN did
+            // so via suspend(), which only runs while WebRadio is the
+            // current app — but dbgSet's wrVol (like every other app's
+            // debug setters) reaches s_wr_audio regardless of currentAppId,
+            // including while WebRadio is suspended, and does its own
+            // null-check-then-separate-take outside any single critical
+            // section. Without the mutex here, a same-window `set wrVol`
+            // could pass wrVol's `!s_wr_audio` check and then dereference a
+            // pointer this branch is concurrently freeing.
+            s_wrPumpRequest = WrPumpRequest::NONE;
+            xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
+            delete s_wr_audio;
+            s_wr_audio = nullptr;
+            xSemaphoreGive(s_wrAudioMutex);
+            mb_arena_release();
+            s_wrPumpResult = WrPumpResult::TORN_DOWN;
+            LOG_I("wrpump", "torn down (early-arrival)");
+            s_wrPumpTask = nullptr;
+            vTaskDelete(NULL);
+        } else {
+            // NONE — genuinely nothing requested: today's existing
+            // steady-state servicing, unconditionally.
+            uint32_t tWait = millis();
+            xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
+            uint32_t waitMs = millis() - tWait;
+            if (waitMs > s_wrPumpMaxMutexWaitMs) s_wrPumpMaxMutexWaitMs = waitMs;
+
+            uint32_t tPump = millis();
+            if (s_wr_audio) s_wr_audio->loop();  // no-ops fast internally when !m_f_running
+            uint32_t pumpMs = millis() - tPump;
+            if (pumpMs > s_wrPumpMaxPumpMs) s_wrPumpMaxPumpMs = pumpMs;
 #ifdef SERIAL_DEBUG
-        // OQ3: cross-task perf-slot write (non-atomic registration race vs
-        // perf::reset()) — accepted as diagnostic-grade noise, SERIAL_DEBUG-only.
-        perf::record("wr.pump", pumpMs);
+            // OQ3: cross-task perf-slot write (non-atomic registration race vs
+            // perf::reset()) — accepted as diagnostic-grade noise, SERIAL_DEBUG-only.
+            perf::record("wr.pump", pumpMs);
 #endif
-        xSemaphoreGive(s_wrAudioMutex);
+            xSemaphoreGive(s_wrAudioMutex);
+        }
 
         s_wrPumpCycles++;
         vTaskDelay(WR_PUMP_CADENCE_TICKS);
@@ -544,20 +655,36 @@ public:
 
         _stopAudio();
 #ifdef MEMBUDGET_PHASE1
-        // TASK-278: tear down the pump task BEFORE the Audio object — the
-        // enforced ack-then-self-delete handshake guarantees the pump is gone
-        // (or the timeout tripwire has fired) before anything below touches
-        // s_wr_audio again.
-        wrTeardownPumpTask();
-        // TASK-267: release the JIT arena when leaving WebRadio so the next entry's
-        // station fetch has full heap. Destroy the Audio object FIRST — its decoder
-        // buffers live in the arena, so they must be freed (via ~Audio → mb_arena_free,
-        // while the arena is still valid) before we free the backing block. Safe even
-        // if ~Audio doesn't free them: release frees the whole block and nothing
-        // references the arena afterwards (Audio is gone; a fresh one is built on
-        // re-entry). Gated to MEMBUDGET_PHASE1 so production behaviour is unchanged.
-        if (s_wr_audio) { delete s_wr_audio; s_wr_audio = nullptr; }
-        mb_arena_release();
+        if (_state == WRPlayState::CONNECTING) {
+            // TASK-398: a connect is in flight on the pump task — the
+            // _stopAudio() call above already posted ABORT (or left an
+            // already-posted TEARDOWN alone; TEARDOWN always wins, never
+            // downgraded). Leaving WebRadio entirely is always at least as
+            // strong an intent as stopping, so overwrite unconditionally to
+            // TEARDOWN and let the pump task own the delete/arena-release
+            // itself — calling wrTeardownPumpTask() or deleting s_wr_audio
+            // here would block loopTask for the connect's full remaining
+            // duration, the exact freeze this design exists to remove.
+            // Execution falls through to the settings-save logic below
+            // unchanged — that's cheap, RAM-only, and doesn't touch
+            // WebRadio audio state.
+            s_wrPumpRequest = WrPumpRequest::TEARDOWN;
+        } else {
+            // TASK-278: tear down the pump task BEFORE the Audio object — the
+            // enforced ack-then-self-delete handshake guarantees the pump is gone
+            // (or the timeout tripwire has fired) before anything below touches
+            // s_wr_audio again.
+            wrTeardownPumpTask();
+            // TASK-267: release the JIT arena when leaving WebRadio so the next entry's
+            // station fetch has full heap. Destroy the Audio object FIRST — its decoder
+            // buffers live in the arena, so they must be freed (via ~Audio → mb_arena_free,
+            // while the arena is still valid) before we free the backing block. Safe even
+            // if ~Audio doesn't free them: release frees the whole block and nothing
+            // references the arena afterwards (Audio is gone; a fresh one is built on
+            // re-entry). Gated to MEMBUDGET_PHASE1 so production behaviour is unchanged.
+            if (s_wr_audio) { delete s_wr_audio; s_wr_audio = nullptr; }
+            mb_arena_release();
+        }
 #endif
 
         // ADR-050 rule 3 (M-WEBRADIO-SETTINGS D3): coalesced lastStation +
@@ -584,6 +711,64 @@ public:
     }
 
     void tick() override {
+        // TASK-398 (M-WR-CONNECT-ASYNC): reconcile the pump task's async
+        // connect outcome. Runs unconditionally, first thing every tick, so
+        // a stale CONNECTING never survives past this call — this single
+        // poll is what lets _play()'s CONNECTING no-op guard and
+        // resume()'s existing `_state == STOPPED` autoplay gate both work
+        // correctly without any special-case logic of their own.
+        {
+            WrPumpResult result = s_wrPumpResult;
+            if (result == WrPumpResult::CONNECTED) {
+                // Re-derived from _play()'s old post-connect success path —
+                // today's existing PLAYING-transition logic, unchanged, just
+                // reading a polled result instead of a live return value.
+                _state = WRPlayState::PLAYING;
+                _lastRunningMs   = millis();  // TASK-218: seed grace window for stream-death detection
+                _lastBufChangeMs = _lastRunningMs;  // TASK-291: seed grace window for the buffer-stall signal
+                _lastSeenFilled  = 0;
+                _playingSinceMs  = _lastRunningMs;  // TASK-234: settled-timer start
+                _settled        = false;
+                _bufPctDrawn    = 0;         // TASK-220: force a buffer-bar repaint on first fill
+#ifdef MEMBUDGET_PHASE1
+                _underrunCount          = 0; // TASK-263: fresh underrun count per PLAYING session
+                _recurrentUnderrunCount = 0; // TASK-266: fresh per PLAYING session too
+                _minBufPct      = 100;
+                _wasEmpty       = false;
+#endif
+                // _spotifyYielded stays true — TLS resumes in _stopAudio().
+                _dirty = true;
+                s_wrPumpResult = WrPumpResult::NONE;
+            } else if (result == WrPumpResult::FAILED) {
+                // Re-derived directly from _play()'s old failure path, in
+                // full — the resume call sits between the other two
+                // statements and is not optional: FAILED is the single most
+                // common outcome (421 occurrences/4h per TASK-393), so
+                // dropping it here leaks Spotify's TLS yield for the rest of
+                // the boot (tlsYield starvation — a bug class this project
+                // has already root-caused and fixed five times before).
+                _state = WRPlayState::ERROR_UNREACHABLE;
+                LOG_W("webradio", "connecttohost failed idx=%u", _currentIdx);
+                if (_spotifyYielded) {
+                    spotifyTask::tlsResume();
+                    _spotifyYielded = false;
+                }
+                _onPlaybackFailed(/*connectFail=*/true);  // TASK-234: skip a dead host
+                _dirty = true;
+                s_wrPumpResult = WrPumpResult::NONE;
+            } else if (result == WrPumpResult::ABORTED || result == WrPumpResult::TORN_DOWN) {
+                // Same TLS-resume obligation as FAILED above — a STOP/eject
+                // during CONNECTING must not leak the yield either.
+                _state = WRPlayState::STOPPED;
+                if (_spotifyYielded) {
+                    spotifyTask::tlsResume();
+                    _spotifyYielded = false;
+                }
+                _dirty = true;
+                s_wrPumpResult = WrPumpResult::NONE;
+            }
+        }
+
         // TASK-252: scroll the LED-font title marquee (long station names).
         winampDisplay.tickMarquee();
 
@@ -966,8 +1151,13 @@ public:
         if (t == 0) { _prevStation(); return true; }
         if (t == 1 || t == 2) { _togglePlay(); return true; }
         if (t == 3) {
+            // TASK-398: no redundant _state = STOPPED here — _stopAudio()
+            // already sets it in every state except CONNECTING, and forcing
+            // it there would overwrite the pending-ABORT CONNECTING state
+            // before the pump has actually processed it, defeating _play()'s
+            // re-entrancy guard on the very next tap. tick()'s poll is the
+            // sole owner of this transition now, for every caller.
             _stopAudio();
-            _state = WRPlayState::STOPPED;
             _dirty = true;
             return true;
         }
@@ -1222,8 +1412,9 @@ public:
             return true;
         }
         if (strcmp(var, "wrStop") == 0) {
+            // TASK-398: no redundant _state = STOPPED — see the STOP
+            // transport button's comment above the same fix.
             _stopAudio();
-            _state = WRPlayState::STOPPED;
             _dirty = true;
             return true;
         }
@@ -1354,10 +1545,18 @@ public:
                 LOG_I("webradio", "vol set=%d — no active session, not applied", v);
                 return true;
             }
-            xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
-            s_wr_audio->setVolume((uint8_t)v);
-            xSemaphoreGive(s_wrAudioMutex);
-            LOG_I("webradio", "vol set=%d", v);
+            // TASK-398: short-timeout, degrade-gracefully take — matches
+            // wrVolumeSink()'s idiom (a drag/debug-set must never block
+            // loopTask behind a busy pump), instead of the raw portMAX_DELAY
+            // take this debug setter used to have, a third independent
+            // freeze source distinct from _play()/_stopAudio().
+            if (xSemaphoreTake(s_wrAudioMutex, WR_PUMP_READ_TIMEOUT_TICKS) == pdTRUE) {
+                s_wr_audio->setVolume((uint8_t)v);
+                xSemaphoreGive(s_wrAudioMutex);
+                LOG_I("webradio", "vol set=%d", v);
+            } else {
+                LOG_I("webradio", "vol set=%d — pump busy, skipped", v);
+            }
             return true;
         }
         // TASK-254: inject an ICY StreamTitle (single token — cmdSet splits on
@@ -1514,6 +1713,36 @@ private:
     // stop removes the bounce entirely; _play() skips its re-yield when
     // _spotifyYielded is still true.
     void _stopAudio(bool resumeTls = true) {
+        // TASK-398: a connect is in flight on the pump task. Nothing is
+        // playing yet at the codec level — there's nothing to stop — and
+        // taking the mutex here would block loopTask for the connect's full
+        // remaining duration, exactly the freeze this design exists to
+        // remove. Post ABORT and let the pump/tick() reconcile _state once
+        // it resolves. Never downgrade an already-posted TEARDOWN (e.g.
+        // resume()'s config-diff branch calling _stopAudio() while an
+        // earlier suspend()'s TEARDOWN is still pending) — TEARDOWN must
+        // always win, or the arena/Audio release it guards would be silently
+        // cancelled.
+        //
+        // wrPumpAlive() guard: dbgSet's wrEject/wrStop/wrPlay (like every
+        // other app's debug setters — see main.cpp's unconditional
+        // cmdSet -> webRadioDbgSet forwarding) reach this instance
+        // regardless of currentAppId, including while WebRadio is
+        // suspended. _state can be stale CONNECTING off-screen (nothing
+        // reconciles it until tick() runs again on re-entry) even after an
+        // earlier TEARDOWN has already fully resolved and self-deleted the
+        // pump. Without this check, a stray off-screen call here would post
+        // an orphaned ABORT into a slot with no live reader — a freshly
+        // created pump task on the next _play() would then consume that
+        // stale ABORT before ever seeing the real CONNECT it's about to
+        // post, producing a phantom ABORTED result that tick() applies to a
+        // connect that's genuinely still in flight (re-timing this design's
+        // own re-entrancy/freeze bugs one layer up).
+        if (_state == WRPlayState::CONNECTING) {
+            if (wrPumpAlive() && s_wrPumpRequest != WrPumpRequest::TEARDOWN)
+                s_wrPumpRequest = WrPumpRequest::ABORT;
+            return;
+        }
         // TASK-278: control call — blocking take (§Locking model). Pump task
         // persists across this stop (only suspend() tears it down).
         if (s_wr_audio) {
@@ -1539,6 +1768,11 @@ private:
     // the auto-skip/retry dispatch passes false so the scan bound is preserved.
     void _play(uint8_t idx, bool userInitiated = true) {
         if (idx >= _stationCount) return;
+        // TASK-398: a connect is already in flight on the pump task —
+        // _stopAudio()'s guard and tick()'s poll own reconciling it. A
+        // second _play() here would race a second connecttohost() against
+        // the first over the same s_wr_audio/mutex.
+        if (_state == WRPlayState::CONNECTING) return;
         // Keep the TLS yield held across the stop (see _stopAudio comment —
         // resume-then-reyield within one quantum deadlocks the handshake).
         _stopAudio(/*resumeTls=*/false);
@@ -1683,39 +1917,16 @@ private:
               (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
               (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
 #endif
-        // TASK-278 / OQ4: control call (blocking take) + wr.connect timing —
-        // Audio::loop() also re-enters this internally on redirect/reconnect/
-        // playlist paths (DEV-2-1), which is why the pump's own mutex hold can
-        // span seconds; this call site measures the _play()-side connect only.
-        unsigned long _tConnect = millis();
-        xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
-        bool connectOk = wrAudio().connecttohost(_stations[idx].url);
-        xSemaphoreGive(s_wrAudioMutex);
-        perf::record("wr.connect", millis() - _tConnect);
-        if (connectOk) {
-            _state = WRPlayState::PLAYING;
-            _lastRunningMs   = millis();  // TASK-218: seed grace window for stream-death detection
-            _lastBufChangeMs = _lastRunningMs;  // TASK-291: seed grace window for the buffer-stall signal
-            _lastSeenFilled  = 0;
-            _playingSinceMs  = _lastRunningMs;  // TASK-234: settled-timer start
-            _settled        = false;
-            _bufPctDrawn    = 0;         // TASK-220: force a buffer-bar repaint on first fill
-#ifdef MEMBUDGET_PHASE1
-            _underrunCount          = 0; // TASK-263: fresh underrun count per PLAYING session
-            _recurrentUnderrunCount = 0; // TASK-266: fresh per PLAYING session too
-            _minBufPct      = 100;
-            _wasEmpty       = false;
-#endif
-            // _spotifyYielded stays true; TLS resumes in _stopAudio()
-        } else {
-            _state = WRPlayState::ERROR_UNREACHABLE;
-            LOG_W("webradio", "connecttohost failed idx=%u", idx);
-            // resume TLS now — we won't be streaming
-            spotifyTask::tlsResume();
-            _spotifyYielded = false;
-            _onPlaybackFailed(/*connectFail=*/true);  // TASK-234: skip a dead host
-        }
-        _dirty = true;
+        // TASK-398 / OQ4: connecttohost() itself is the multi-second blocking
+        // call (TASK-393: 7-9+s per failed attempt, 421 whole-device freezes
+        // in one 4h soak) — hand it to the pump task instead of running it
+        // here on loopTask. _state stays CONNECTING; tick()'s poll of
+        // s_wrPumpResult reconciles PLAYING/ERROR_UNREACHABLE once the
+        // pump's attempt resolves. The URL is copied into the shared buffer
+        // BEFORE the request post, so the pump — which only reads it after
+        // observing CONNECT — never sees a partial/stale value.
+        strlcpy(wrPumpConnectUrlBuf(), _stations[idx].url, WR_PUMP_CONNECT_URL_LEN);
+        s_wrPumpRequest = WrPumpRequest::CONNECT;
     }
 
     // TASK-234 (ADR-045): decide what to do after a station fails to play. A stall
