@@ -311,12 +311,17 @@ def resolve_station_url(dut, name_hint):
 
 
 def snapshot(dut):
+    # TASK-390: wrMarquee + wrPump added so an anomaly capture can discriminate
+    # its hypotheses 1-3 directly (ICY delivery stalled vs. marquee scroll-state
+    # stuck vs. WiFi-down override latched) without a separate DUT round-trip.
     return {
         "ts": _ts(),
         "wrState": dut.cmd("get wrState", timeout=3.0),
         "wrIcy": dut.cmd("get wrIcy", timeout=3.0),
         "wrIdx": dut.cmd("get wrIdx", timeout=3.0),
         "wrSkip": dut.cmd("get wrSkip", timeout=3.0),
+        "wrMarquee": dut.cmd("get wrMarquee", timeout=3.0),
+        "wrPump": dut.cmd("get wrPump", timeout=3.0),
         "heap": dut.cmd("get heap", timeout=3.0),
         "stacks": dut.cmd("get stacks", timeout=3.0),
     }

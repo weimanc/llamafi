@@ -6673,7 +6673,38 @@ call to drop it. Candidate for `docs/quality/best_practices.md` once this task's
 concrete enough shape to generalize from (don't add the BP speculatively before that).
 
 **Owner:** PM/QM · **Deps:** none · **Priority:** P3 (process hygiene, not a functional bug) ·
-**Status:** open — not started.
+**Status:** **DONE — full audit completed 2026-08-05.**
+
+**Audit results.** `grep -noiE` for the pattern set (`flagged for`, `flagging for`, `no task
+filed`, `not yet filed`, `separate task`, `follow-up task`) across both files:
+
+- `tasks-archive.md` (TASK-143..313 range, 8673 lines): **zero hits.** Clean.
+- `tasks.md`: 21 raw hits, collapsing to **7 distinct notes** (several hits are the same note
+  matching the pattern twice, e.g. "flagging for a separate task"). Disposition per note:
+
+| # | Location (origin task) | Note | Disposition |
+|---|---|---|---|
+| 1 | TASK-347 (`:244`) | stale `switchApp 10` in 3 tools, "flagging for a separate task" | **Already resolved** — filed as TASK-394 (this task's own trigger case) |
+| 2 | TASK-347 (`:246`) | same note, restated in the 2026-08-03 follow-up paragraph | Self-referential to #1, no separate action |
+| 3 | TASK-360 (`:844`) | two non-smoother inaccuracy candidates, "filed below as TASK-367/368" | **Already resolved** — filed correctly same session, both since DONE |
+| 4 | TASK-361 (`:1304`) | HTTP response compression (brotli) lever for adsb.fi fetch size, "flagging for PM/Architect, not implementing here" | **Gap — filed as TASK-403** (see below) |
+| 5 | TASK-364 design doc (`:3989`) | OQ4, taskbar `isHealthy()` gap, "no task filed for it yet" | **Already resolved** — filed as TASK-366, DONE 2026-07-31 |
+| 6 | TASK-364 (`:4088`) | WiFi fallback cascade: NVS/SPIFFS attempts both fail after hardcoded stage fails, ~60-85s recovery via supervisor only, "No task filed for it yet; human to decide if/when" | **Gap — filed as TASK-404** (see below) |
+| 7 | TASK-364 (`:4139`) | WebRadio ICY title vs. Clock/Spotify `setTitle()` guard re-check, "Not filing a dedicated follow-up task... doesn't warrant tracked backlog on its own" | **Already a reasoned drop, not a gap** — correctly dispositioned inline, no action |
+
+Net: of 7 distinct notes, 3 were already resolved (correctly filed later, just never
+cross-referenced), 1 was already a deliberate reasoned drop, and **2 were genuine gaps** —
+now filed as TASK-403 and TASK-404. No further "flagged, never filed" debt remaining as of
+this audit.
+
+**QM process note (per the "Process angle" above):** the pattern that let #4 and #6 sit
+unfiled for 2-4 weeks each is the same both times — the flag was written into a *closing*
+write-up of an unrelated task, several paragraphs deep, with no structural marker beyond the
+prose phrase itself. Recommend `docs/quality/best_practices.md` adopt: **any task closeout
+that identifies a new, real, out-of-scope issue must either get a TASK-NNN in the same
+editing session, or an explicit `**Deferred, not filed:**` marker line** (searchable, unlike
+free-form "flagging for..." prose) so a future audit — or grep — doesn't have to re-derive
+which notes are gaps vs. already-actioned vs. deliberately dropped.
 
 ### TASK-397 — long single-station WebRadio soak tool (`test_webradio_long_soak.py`)
 
@@ -7636,3 +7667,70 @@ polish, no functional gap) · **Status:** **implemented, host-verified (`run/che
 and DUT-verified** (mechanism confirmed live against real playback + a real-hardware screenshot) —
 **open, not closed**: OQ1/OQ2 formal tuning and the doc's ≥3-trial exit-criteria comparison still
 need a dedicated longer DUT session.
+
+## Open — TASK-396 audit follow-ups (2026-08-05, filed from the completed audit)
+
+Two genuine "flagged, never filed" gaps surfaced by TASK-396's full audit. Both were correctly
+identified with real evidence at the time they were originally noted; neither ever got a task
+number. Filed here rather than folded into their origin tasks (both origins are long since
+closed/DONE) per this session's own new BP recommendation — a number now, not more prose.
+
+### TASK-403 — PlaneRadar fetch: HTTP response compression (brotli) support
+
+Origin: TASK-361's candidate-scoping pass (2026-07-25). Live `curl -H "Accept-Encoding: br"`
+against `opendata.adsb.fi` returned a **9.2 KB body vs. 56.9 KB uncompressed at the same JFK
+query — a 6.15x reduction** — which per TASK-361's own confirmed size-scaling data (truncation
+failure rate climbs with payload size) would very plausibly collapse the fetch-truncation
+failure rate back toward TASK-313's original floor. Called "probably the single highest-impact
+lever available" at the time, explicitly not implemented as part of TASK-361 (too large for that
+task's scope) and never filed since.
+
+**Why it's real work, not a quick win:** the vendored Arduino-ESP32 `HTTPClient.cpp`
+(`framework-arduinoespressif32/libraries/HTTPClient/src/HTTPClient.cpp:1217`) unconditionally
+sends `Accept-Encoding: identity;q=1,chunked;q=0.1,*;q=0` — no user override point as vendored —
+and there is no gzip/brotli decoder anywhere in this firmware today (confirmed via grep across
+`app/src`). Fixing this needs: (1) a library patch making the Accept-Encoding header overridable
+(this project already has a `LOCAL_PATCHES.md` precedent for SpotifyArduino — same mechanism);
+(2) a streaming decompressor integrated as a `Stream` adapter feeding `prParseStream()` — brotli
+decode is heavier than gzip/deflate, and even deflate's ~32 KB window is a lot against this
+board's tight DRAM budget (see `[[feedback_dram_bss_static_buffers]]` memory note — this board
+has overflowed DRAM on additions as small as 264 bytes before); (3) a RAM budget review before
+committing to which codec, if any, actually fits.
+
+**Owner:** Architect (design/feasibility pass first — this is exactly the "separately-scoped
+design/task" TASK-361 deferred to) · **Deps:** TASK-361 (shipped mitigation already lowers the
+acute urgency — radius-capped 2nd retry is in production and TASK-361's own follow-up soaks
+never reproduced the original "both attempts fail" condition live) · **Priority:** P3 (real,
+well-evidenced, but not currently blocking — TASK-361's cheaper fix is holding) · **Size:**
+L (library patch + decompressor + RAM budget review) · **Gate:** design doc first; no
+implementation without an Architect feasibility call, given the DRAM-budget risk.
+
+### TASK-404 — Boot: WiFi fallback cascade doesn't recover until the background supervisor kicks in (~60-85s)
+
+Origin: TASK-364/M-BOOT-UI's §6 mid-session investigation (2026-07-28). Once the hardcoded
+`wifi_creds.h` stage's `WiFi.begin()` genuinely fails, the *same-boot* NVS and SPIFFS-creds
+fallback attempts both hit an ESP32 driver-level `sta is connecting, return error` and fail too
+— **even when the SPIFFS creds are correct.** Recovery only happens via the background WiFi
+supervisor's later retry kick, observed at ~60-85s post-boot. Noted at the time as "a
+retry-policy issue in the fallback cascade itself, not a display-layer bug" (M-BOOT-UI's own
+scope was the marquee/UI layer, not cascade retry timing) — "No task filed for it yet; human to
+decide if/when." Never filed until now.
+
+**Symptom conditions:** only manifests when the hardcoded-WiFi credential source (`wifi_creds.h`)
+is present but wrong or unreachable — a narrow, self-inflicted-config window, not a general WiFi
+flakiness issue (see `[[project_wifi_flapping_ap_side]]` for the unrelated AP-side flapping
+history). Self-recovers within ~85s regardless, via the existing supervisor — not a hang, just a
+slower-than-necessary recovery.
+
+**Candidate fix direction (unscoped, needs Developer investigation, not prescribed here):** the
+ESP32 WiFi driver's "sta is connecting" rejection suggests the cascade's stage transitions aren't
+giving `WiFi.disconnect()`/driver teardown enough time to settle between `WiFi.begin()` attempts
+— either add an explicit disconnect-and-wait between cascade stages, or skip the immediate
+same-boot NVS/SPIFFS retries entirely and let the background supervisor own all retries after a
+hardcoded-stage failure (avoids hammering a driver that's still mid-teardown).
+
+**Owner:** Developer · **Deps:** none, informed by M-BOOT-UI/TASK-364 (`docs/architecture/designs/
+M-BOOT-UI-chrome-first-boot.md` §4/§6) · **Priority:** P3 (narrow trigger condition, bounded
+~85s self-recovery, not a hang or data-loss risk) · **Gate:** DUT reproduction first (deliberately
+misconfigure `wifi_creds.h` to a reachable-SSID-wrong-password or wrong-SSID case, confirm the
+same-boot NVS/SPIFFS stall, then verify the fix collapses recovery time) · **Size:** S-M.
