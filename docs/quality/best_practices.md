@@ -549,6 +549,13 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 > from LL-116/LL-117; BP-051 adopted 2026-07-18; BP-050 is the 2026-07-16 LL-112 rule,
 > renumbered from a colliding second "BP-047").
 
+**LL-118** (TASK-396, 2026-08-05) — a task-closeout note that flags new,
+real, out-of-scope work in free-form prose ("flagging for a separate task")
+is not actually tracked until it has a `TASK-NNN` or an explicit
+`**Deferred, not filed:**` marker line; two real instances sat unfiled for
+2-4 weeks each until a human hit one live on the DUT. Proposed, awaiting
+human decision.
+
 **LL-106** (M-PLANERADAR, 2026-07-11) — session-scoped scheduling primitives
 (`CronCreate`) are the wrong default for work that must survive across
 sessions/days; default to a durable tracker entry instead. Proposed, awaiting
