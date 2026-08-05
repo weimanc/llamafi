@@ -7053,13 +7053,132 @@ this specific bug) is worth remembering: five real, previously-unflagged, increa
 were caught before a single line of firmware code was written, on a design that looked complete to
 its own author at every single revision along the way.
 
-**Owner:** Architect (design pass — done, six revisions, VE consensus reached) → Developer
-(implementation — ready to start) · **Deps:** M-WR-AUDIO-TASK.md (the design this resolves OQ4
-for), TASK-393 (source of the measurement), M-WR-CONNECT-ASYNC.md (this task's own design doc,
-implementation-ready) · **Priority:** P2 (real, measured, user-visible whole-device freeze — not
-hypothetical — but bounded by TWDT surviving 421 occurrences without a crash, so not P1) ·
-**Status:** open — design complete and VE-approved, implementation not yet started (next session
-or explicit go-ahead).
+**Implementation (2026-08-05):** built against `M-WR-CONNECT-ASYNC.md` exactly as specified —
+`s_wrPumpRequest`/`s_wrPumpResult` enums added; `_play()` gets the `_state == CONNECTING` no-op
+guard and now posts `CONNECT` (station URL copied into a lazily heap-allocated file-static buffer,
+`wrPumpConnectUrlBuf()`, before the post — the design doc didn't spell out how the pump, a free
+function with no `this`, would reach `_stations[idx].url`; mirrors `TeletextApp::_nosSource()`'s
+existing lazy-malloc-once-never-freed pattern rather than an embedded array, since an embedded
+104B static overflowed the debug build's `.dram0.bss` on first attempt — caught by `./run/check`,
+not by inspection); `_stopAudio()` gets the `CONNECTING`-guard posting `ABORT`
+(never downgrading `TEARDOWN`); `suspend()` posts `TEARDOWN` and skips the synchronous
+teardown/delete when leaving mid-connect, falling through to the settings-save logic unchanged;
+`wrPumpTaskBody()` gets the full `CONNECT`/`ABORT`/`TEARDOWN`/`NONE` branch chain including
+early-arrival `ABORT`/`TEARDOWN`, `s_wr_audio = nullptr` after both `TEARDOWN` deletes,
+`s_wrPumpTask = nullptr` last before self-delete, and an explicit mutex give-back per `CONNECT`
+sub-branch; `tick()` polls `s_wrPumpResult` unconditionally first thing every iteration with all
+three reconciliation branches (`CONNECTED`/`FAILED`/`ABORTED`+`TORN_DOWN`) each explicitly calling
+`spotifyTask::tlsResume()` when `_spotifyYielded`; the two redundant `_state = STOPPED` writes
+(STOP transport button, `wrStop` debug setter) deleted; `wrVol`'s debug setter switched from a raw
+`portMAX_DELAY` take to the same short-timeout, degrade-gracefully idiom `wrVolumeSink()` already
+uses. `./run/check` passed clean (6/6 gates, both `cyd2usb_winamp`/`cyd2usb_winamp_debug`) on the
+first attempt after fixing the `.dram0.bss` overflow above.
+
+**Post-implementation fresh-agent review (2026-08-05) — two real bugs, neither anticipated by the
+six-pass design review, both closed same session before any DUT time was spent on them.** Per this
+project's standing practice, a fresh general-purpose agent (no shared context with the
+implementation) reviewed the diff against the design doc's every specified mechanism detail —
+confirmed faithful line-for-line — and then independently hunted for translation defects the
+design text couldn't have anticipated. Found:
+1. **BLOCKING** — `_stopAudio()`'s `CONNECTING` guard posted `ABORT` purely on `_state ==
+   CONNECTING`, without checking a pump task actually existed to consume it. `main.cpp`'s `cmdSet`
+   forwards `webRadioDbgSet()` to `g_WebRadioApp.dbgSet()` **unconditionally, regardless of
+   `currentAppId`** — the same pattern as every other app's debug setter, confirmed by grep, not
+   assumed. None of the six design-review passes considered this because the design's own prose
+   assumed (reasonably, for the UI path) that nothing reaches WebRadio's instance while it's
+   suspended — true for taps, false for debug `set` commands. A stray `set wrStop`/`wrEject` fired
+   at a suspended, stale-`CONNECTING` WebRadio instance (its earlier `TEARDOWN` already resolved,
+   pump already self-deleted) could write an orphaned `ABORT` into the request slot; a freshly
+   created pump task on the *next* `_play()` would consume that orphaned `ABORT` before ever seeing
+   the real `CONNECT` it was about to post, producing a phantom `ABORTED` result that `tick()` would
+   apply to a connect genuinely still in flight — re-timing this design's own re-entrancy/freeze
+   class one layer up. **Fix:** the guard now also checks `wrPumpAlive()` before posting `ABORT`.
+2. **Non-blocking-but-real** — the same cross-app-reachability fact meant the pump's early-arrival
+   `TEARDOWN` branch's deliberate mutex-skip (justified in the design text as safe "by
+   construction," an assumption finding #1 proved false) left a narrow TOCTOU window: a same-window
+   `set wrVol` could pass its own `!s_wr_audio` null-check and then dereference a pointer this
+   branch was concurrently freeing, unprotected. **Fix:** that branch's delete is now
+   mutex-wrapped, matching every other `s_wr_audio` touch site in the file.
+
+A second, narrower fresh-agent pass confirmed both fixes correct (no new deadlock, no suppression
+of legitimate in-flight `ABORT`s, no path merging between the two distinct `TEARDOWN` sub-branches)
+and swept the remaining `wrPlay`/`wrNext`/`wrPrev`/`wrUrl`/`wrEject` debug setters for the same
+class of gap — none found. `./run/check` re-passed clean after both fixes.
+
+**DUT verification (2026-08-05).** Two layers:
+
+*Regression baseline* (`run/test-targeted`, existing `T_WR_*` suite, unrelated to this task but
+exercising code paths this task rewrote): `T_WR_EJECT_01/02`, `T_WR_ERR_01-04` passed first try.
+`T_WR_VOL_03`/`T_WR_TLS_01`/`T_WR_SPOTIFY_RESUME_01` needed one-to-two retries each — not a
+regression, a pre-existing, previously-documented radio-browser.info mirror flake (TASK-284;
+confirmed host-side same session: `de1`/`at1` mirrors DNS/connect-failed while `nl1` returned 200).
+On retry all five passed clean, including `T_WR_VOL_03` — **`wrPlay 0` reached `PLAYING` via a real
+station through the entire new async path** (`_play()` → `CONNECT` → pump → `tick()`
+reconciliation) — and `T_WR_SPOTIFY_RESUME_01`, confirming eject-during-`PLAYING` TLS resume still
+works.
+
+*New exit-criteria script* (`app/tools/task398_connect_async_verify.py`, kept as a project asset —
+see its own module docstring for the full methodology writeup). Building it surfaced a real
+environmental finding worth recording: **`set wrDeadUrls`'s synthetic dead-host hook cannot test
+this design at all** — it resolves inside `_play()` before ever posting `CONNECT`, so it never
+touches the pump. A genuinely unreachable real address (RFC 5737 TEST-NET-1, an unused LAN IP)
+was tried first per the design doc's own instruction to use "real slow/dead hosts" — and failed
+**near-instantly** on this network (this network's router/resolver responds fast; TASK-393's
+7-9s freezes came from real-world mirror flakiness this healthy LAN doesn't reproduce on demand).
+An accept-then-never-respond TCP listener was tried next and also didn't work: `connecttohost()`
+returns success as soon as the TCP handshake completes, before any HTTP response is read — a
+server that accepts but stays silent resolves to `PLAYING` almost instantly, no hang. What
+reliably worked: a **fresh, never-cached NXDOMAIN hostname per attempt** (`hostByName()` has no
+enforced timeout — the exact mechanism the Architect's own VE review cites as TASK-393's real root
+cause) — real DNS resolution + negative-response round-trip against this network's resolver
+reproducibly took ~350-600ms per fresh random label (a repeated hostname resolves from cache
+near-instantly on retry, which is why a fresh label is used every time). This is a real,
+reproducible, non-synthetic window through the pump's genuine mutex-held `connecttohost()` call —
+shorter than TASK-393's pathological case, but the mechanism under test doesn't care about the
+duration, only whether it's genuine. Two harness bugs found and fixed while building this (a
+`send()`-without-drain leaving a stale ack for the next `cmd()` call to misread; `set wrUrl`
+unconditionally clamping `_stationCount=1`, so a "no stations? refetch" check written as `cnt==0`
+silently no-oped after any dead-host test had already run) — both fixed, not worked around.
+
+Result: **32/33 checks passed** on the clean run. Covered and passing: re-entrant `_play()`-path
+taps during real `CONNECTING` (no second dispatch); re-entrant `_stopAudio()`-path taps (fast,
+no mutex block, resolves to `STOPPED`); early-arrival `ABORT` (3 iterations, back-to-back `set`
+commands with zero delay, pump never orphaned); early-arrival `TEARDOWN` via eject
+(state reconciles correctly on re-entry); TLS-yield accounting for both the interrupted
+(stop-during-connecting) and uninterrupted (ordinary failed-connect) paths, verified via the
+persisted raw serial log rather than live reads (a third harness bug — `drain_log_lines()` races
+against every intervening `cmd()` call's own read, which silently consumes whatever log lines are
+sitting in the buffer regardless of who was looking for them; fixed by grepping the `_TeeSerial`
+log file directly, which sees every line unconditionally); leave-and-quickly-re-enter during
+`CONNECTING` (arena stays sane, exactly one pump task, state reconciles, manual play works
+afterward); no dangling `s_wr_audio` after `TEARDOWN` (fresh session plays/fails cleanly, DUT
+stays responsive); `switchApp`-during-`CONNECTING` (no crash, arena `acquires`==`releases`
+throughout). The one non-pass (`4-setup`, "no runaway reconnect loop on a **real successful**
+connect") was blocked by the same radio-browser.info mirror flakiness noted above, not a firmware
+issue — a dedicated retry (120s wait for station fetch) still returned `count=0`; not re-attempted
+further given this session's evidence budget. **Not left unverified, though:** the raw log across
+this session's ~36 real (dead-host) connect attempts shows a perfect 1:1 `play idx=` /
+`connecttohost failed` pairing throughout — zero evidence of reconnect-hammering under real network
+I/O — and `T_WR_VOL_03` (above) already independently proved a real successful connect reaches
+`PLAYING` via this exact path. The specific combination ("real successful connect" + "dispatch-count
+check") is the only piece not directly re-derived this session; flagged honestly rather than
+silently marked done.
+
+**Honest scope note carried forward:** this DUT session did not reproduce TASK-393's full 7-9s
+freeze window — this network's DNS/routing infrastructure is healthier than whatever TASK-393's
+real-world mirror conditions were. The mechanism was verified under a real, shorter (~0.4-0.6s)
+window instead; the properties that matter (non-blocking taps, correct guard priority, no orphaned
+requests, no leaked TLS yield, no dangling pointer) don't depend on the window's duration, only on
+it being genuine mutex-held real I/O, which it was.
+
+**Owner:** Architect (design — six-pass VE consensus) → Developer (implementation, done) → fresh-agent
+review ×2 (two real bugs found + fixed, neither in the design's own six-pass history) → DUT
+verification (done, 32/33 direct + full T_WR_* regression suite, one criterion indirectly evidenced
+per above) · **Deps:** M-WR-AUDIO-TASK.md, TASK-393, M-WR-CONNECT-ASYNC.md ·
+**Priority:** P2 · **Status:** **closed — implemented, reviewed, DUT-verified, committed to
+master** (commit `4d105e4` + the two post-review fixes in the same commit). `app/tools/
+task398_connect_async_verify.py` kept as a regression asset for future WebRadio connect-path
+changes.
 
 ### TASK-399 — endless-ticker wraparound for the Winamp title marquee
 
