@@ -7032,19 +7032,34 @@ call.
 
 **Fifth revision (2026-08-05):** adds `s_wr_audio = nullptr` after both `delete s_wr_audio`
 instances, mirroring today's synchronous `suspend()` exactly (`webRadioApp.h:559` already does both
-statements as one unit); clarifies the mutex-scoping detail. Full mechanism + five-pass revision
-history in `M-WR-CONNECT-ASYNC.md`. **Sent for a sixth VE pass** — per the fifth pass's own
-assessment that this is now a narrow, mechanical, well-precedented fix, the sixth pass can
-reasonably scope itself narrowly to confirming just this fix rather than re-auditing the whole
-mechanism again, though that remains the reviewer's own call, not a constraint imposed here.
+statements as one unit); clarifies the mutex-scoping detail.
 
-**Owner:** Architect (design pass — done, five revisions) → VE (five passes done, sixth pending) →
-Developer (implementation, not started, blocked on sixth VE pass) · **Deps:** M-WR-AUDIO-TASK.md
-(the design this resolves OQ4 for), TASK-393 (source of the measurement), M-WR-CONNECT-ASYNC.md
-(this task's own design doc) · **Priority:** P2 (real, measured, user-visible whole-device freeze
-— not hypothetical — but bounded by TWDT surviving 421 occurrences without a crash, so not P1) ·
-**Status:** open — design five times revised post-VE, sixth VE pass in progress, implementation
-blocked.
+**Sixth VE pass (2026-08-05) — CONSENSUS REACHED, zero blocking findings.** Independently
+re-verified the fifth pass's dangling-pointer fix correct (right order, right scope, no new race)
+and re-checked the doc's underlying "every call site guards on non-null" claim against a fresh,
+complete grep (not the fifth pass's own enumerated list) — found three additional touch points the
+fifth pass hadn't individually named, all consistent with the claim. One cheap non-blocking finding:
+no sub-branch of the `CONNECT` case explicitly stated when it gives back the mutex taken before
+`connecttohost()` — judged non-blocking specifically because a real gap here would self-deadlock on
+the single most basic possible smoke test (the very first connect), not survive silently into soak
+conditions the way every actual blocking finding across all six passes did. Folded into a final,
+sixth revision anyway (explicit per-branch mutex give-back) given this document's own established
+pattern of "second half of a paired operation" gaps recurring three times already.
+
+**Six passes, findings narrowing 4 → 4 → 4 → 3 → 1 → 0 blocking.** Full mechanism + six-pass
+revision history in `M-WR-CONNECT-ASYNC.md`, now marked implementation-ready. This is the first
+task this session to complete a full iterate-to-consensus VE loop — the process itself (not just
+this specific bug) is worth remembering: five real, previously-unflagged, increasingly-narrow bugs
+were caught before a single line of firmware code was written, on a design that looked complete to
+its own author at every single revision along the way.
+
+**Owner:** Architect (design pass — done, six revisions, VE consensus reached) → Developer
+(implementation — ready to start) · **Deps:** M-WR-AUDIO-TASK.md (the design this resolves OQ4
+for), TASK-393 (source of the measurement), M-WR-CONNECT-ASYNC.md (this task's own design doc,
+implementation-ready) · **Priority:** P2 (real, measured, user-visible whole-device freeze — not
+hypothetical — but bounded by TWDT surviving 421 occurrences without a crash, so not P1) ·
+**Status:** open — design complete and VE-approved, implementation not yet started (next session
+or explicit go-ahead).
 
 ### TASK-399 — endless-ticker wraparound for the Winamp title marquee
 

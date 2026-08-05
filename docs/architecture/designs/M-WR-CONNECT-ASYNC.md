@@ -1,27 +1,17 @@
 # Design — moving WebRadio's `connecttohost()` off loopTask (TASK-398)
 
 > Owner: Architect
-> Status: accepted (lean) — human-approved 2026-08-04. Four VE passes same day, iterating to
-> consensus per explicit human direction. First: 4 blocking findings against the original
-> two-requirement sketch. Second: the fix was incomplete (`_stopAudio()`, not just `_play()`, was
-> the real blocking primitive; a flag-only teardown left a permanent state wedge) — fixed via an
-> explicit request/result-slot mechanism. Third: confirmed the use-after-free and permanent-wedge
-> bugs were genuinely closed, but found 4 more gaps — most severely, a dropped Spotify TLS-resume
-> call reintroducing `tlsYield` starvation (a bug class fixed five times before this session) on
-> ordinary STOP/eject use. Fourth: confirmed 2 of the third revision's 4 fixes held up exactly as
-> specified, but found the other 2 each had a residual gap of their own — a different
-> early-arrival hole reintroducing the same permanent wedge, and the TLS-resume fix's "same
-> substitution" shorthand leaving the `FAILED` branch (the single most common outcome) unguaranteed.
-> This revision closes the early-arrival hole with explicit `ABORT`/`TEARDOWN` branches, spells out
-> every `tick()` reconciliation branch in full rather than by cross-reference, corrects a
-> misdiagnosed "residual race" (already closed by this file's own task-priority setup), and
-> re-adds a `wrVol` fix the second revision had accidentally dropped. Fifth pass (2026-08-05): the
-> narrowest result yet — 1 blocking finding (both `TEARDOWN` branches deleted `s_wr_audio` without
-> nulling the pointer afterward, a deterministic dangling-pointer bug every other call site in the
-> file would trip on), 1 related non-blocking; everything else re-verified sound. This revision
-> adds the missing `s_wr_audio = nullptr` (mirroring `suspend()`'s own existing two-statement
-> cleanup exactly) and clarifies a mutex-scoping detail. **Not yet re-reviewed — a sixth VE pass is
-> next, not implementation.**
+> Status: **accepted, VE consensus reached (2026-08-05) — implementation-ready.**
+> Human-approved 2026-08-04; six independent VE passes same day/next, iterating to consensus per
+> explicit human direction, findings narrowing 4 → 4 → 4 → 3 → 1 → **0 blocking**. Full history in
+> the "Lean / decision" and "## VE review" sections below — summary: passes 1-2 found and fixed a
+> use-after-free and a deterministic permanent-`_state`-wedge in earlier mechanisms; passes 3-4
+> found and fixed a dropped Spotify TLS-resume call (reintroducing `tlsYield` starvation, a bug
+> class fixed five times before this session) plus several protocol-completeness gaps in the
+> request/result-slot mechanism that replaced them; pass 5 found and fixed a dangling-`s_wr_audio`
+> pointer after teardown; **pass 6 reached consensus** with one cheap non-blocking cleanup (explicit
+> mutex give-back per branch) folded into this final revision. Not yet implemented — Developer work
+> can now proceed against this doc.
 > Date: 2026-08-04 (last revised 2026-08-05)
 > Feeds: (ADR TBD — promote once VE review + implementation lands)
 > Tracked-as: TASK-398
@@ -178,7 +168,16 @@ servicing, it does not run in addition to it, per non-blocking finding #5):
   to), take the mutex, call `connecttohost()` — the multi-second blocking call, now fully isolated
   to this task, never touching `loopTask`. Once it returns (success or fail), re-check
   `s_wrPumpRequest`'s **current** value (correctly reflecting anything `loopTask` posted *during*
-  the connect, since the earlier clear only touched the value at the commit instant):
+  the connect, since the earlier clear only touched the value at the commit instant). **VE
+  sixth-pass non-blocking finding, closed explicitly rather than left implied a fourth time (after
+  the TLS-resume line, the `wrVol` fix's own regression, and the dangling-pointer omission above):
+  the mutex taken before `connecttohost()` is given back once whichever sub-branch below has
+  finished its own mutex-scoped work — immediately after `stopSong()` for `TEARDOWN`/`ABORT`, or
+  immediately upon reaching `NONE` with nothing further to do — before that sub-branch sets
+  `s_wrPumpResult`. Every sub-branch below gives the mutex exactly once, matching the take/give
+  bracketing idiom already used everywhere else in this file (`_play()`, `_stopAudio()`,
+  `wrVolumeSink()`, today's own synchronous `connecttohost()` call) — not left to the trailing
+  steady-state `else` branch's own explicit callout to imply by proximity.**
   - **`TEARDOWN`**: if the connect had actually succeeded, call `stopSong()` to clean up **(still
     under the mutex the pump already holds from the `connecttohost()` call above — not a separate
     take)**; delete `s_wr_audio` **and set `s_wr_audio = nullptr` immediately after — VE fifth-pass
@@ -190,16 +189,18 @@ servicing, it does not run in addition to it, per non-blocking finding #5):
     cycle), the identical "load-bearing second half of a two-part cleanup doesn't survive
     relocation" failure mode the TLS-resume line hit twice already. Mirrors today's synchronous
     `suspend()` exactly (`webRadioApp.h:559`: `if (s_wr_audio) { delete s_wr_audio; s_wr_audio =
-    nullptr; }`) — both statements, not just the first.**; release the arena
-    (`mb_arena_release()`); set `s_wrPumpResult = TORN_DOWN`; **null `s_wrPumpTask` last,
+    nullptr; }`) — both statements, not just the first.**; **give the mutex** (nothing further in
+    this branch needs it); release the arena (`mb_arena_release()`); set `s_wrPumpResult =
+    TORN_DOWN`; **null `s_wrPumpTask` last,
     immediately before `vTaskDelete(NULL)`** (VE second-pass finding #4's exact fix) so
     `wrEnsurePumpTask()`'s existing `if (s_wrPumpTask) return;` guard continues to see "pump still
     here" for the entire window until the pump's actual self-deletion.
-  - **`ABORT`**: if the connect had succeeded, call `stopSong()` (the user asked to stop); set
-    `s_wrPumpResult = ABORTED`; the pump task itself is **not** torn down (persists across a stop,
-    matching today's existing behavior) — only the in-flight connect's outcome is discarded.
-  - **`NONE`** (nothing else was requested while the connect was outstanding): set
-    `s_wrPumpResult = CONNECTED` or `FAILED` per the real outcome.
+  - **`ABORT`**: if the connect had succeeded, call `stopSong()` (the user asked to stop); **give
+    the mutex**; set `s_wrPumpResult = ABORTED`; the pump task itself is **not** torn down
+    (persists across a stop, matching today's existing behavior) — only the in-flight connect's
+    outcome is discarded.
+  - **`NONE`** (nothing else was requested while the connect was outstanding): **give the mutex**;
+    set `s_wrPumpResult = CONNECTED` or `FAILED` per the real outcome.
 - **`== ABORT`** (arrived before any connect started this cycle — nothing to stop, no mutex needed):
   clear `s_wrPumpRequest = NONE`, set `s_wrPumpResult = ABORTED` directly.
 - **`== TEARDOWN`** (same early-arrival case, stronger intent): clear `s_wrPumpRequest = NONE`,
@@ -380,15 +381,33 @@ per TASK-397's precedent this session).
   recurring a third time for a different pair of statements. Non-blocking: the post-connect
   `TEARDOWN` branch's `stopSong()` call wasn't explicitly marked as still running under the mutex
   already held from the `connecttohost()` call.
-- **This revision**: adds `s_wr_audio = nullptr` immediately after both `delete s_wr_audio`
+- **Fifth revision**: added `s_wr_audio = nullptr` immediately after both `delete s_wr_audio`
   instances (mirroring today's synchronous `suspend()` at `webRadioApp.h:559` exactly — both
-  statements, not just the first), and clarifies the post-connect `TEARDOWN` branch's `stopSong()`
-  call runs under the mutex already held, not a separate take. **Not yet re-reviewed — a sixth VE
-  pass is next, not implementation.** Given the fifth pass's own assessment that this is a narrow,
-  mechanical, well-precedented fix, the sixth pass can reasonably be scoped narrowly to confirming
-  just this fix rather than re-auditing the whole mechanism from scratch again — though it remains
-  an independent reviewer's call whether a broader check is still warranted, not a constraint
-  imposed here.
+  statements, not just the first), and clarified the post-connect `TEARDOWN` branch's `stopSong()`
+  call runs under the mutex already held, not a separate take.
+- **Sixth VE pass** (see VE review section above): **consensus reached — zero blocking findings.**
+  Independently verified both `s_wr_audio = nullptr` additions correct — right order, right scope,
+  no new race, matching the cited idiom exactly — and re-checked the doc's underlying "every call
+  site guards on non-null" claim against a fresh, complete grep (not the fifth pass's own
+  enumerated list), finding three additional touch points the fifth pass hadn't individually named,
+  all consistent with the claim. One non-blocking finding: no sub-branch of the `CONNECT` case
+  explicitly states when it gives back the mutex taken before `connecttohost()` — only the trailing
+  steady-state branch had an explicit callout. Judged non-blocking specifically because, unlike
+  every prior blocking finding in this document's history, a missing give here would self-deadlock
+  on the single most basic possible smoke test (the very first connect), not survive into soak
+  conditions — but flagged anyway given this is the fourth time this document has had a "second
+  half of a paired operation" go unstated.
+- **This revision**: closes that non-blocking finding explicitly — every `CONNECT` sub-branch
+  (`TEARDOWN`/`ABORT`/`NONE`) now states exactly where it gives the mutex back, matching the
+  take/give bracketing idiom used everywhere else in this file, so no branch is left to imply it by
+  proximity to the one branch that already had an explicit callout.
+
+**Six VE passes, converging: 4 → 4 → 4 → 3 → 1 → 0 blocking findings.** Design considered
+implementation-ready as of the sixth pass's consensus, with this revision's cheap non-blocking
+cleanup folded in. A seventh pass confirming this specific cleanup would be optional diligence, not
+a gate — the pattern of narrowing findings and the nature of this last change (additive,
+non-structural, matching an idiom already verified sound five times over) is a materially different
+risk profile than any of the five actual blocking-finding rounds before it.
 
 ## VE review
 
@@ -1113,20 +1132,11 @@ a fifth pass.
 
 ## Exit criteria
 
-- ~~VE testability review of the CONNECTING-state changes~~ — **five passes done, 2026-08-04/05.**
-  First: 4 blocking findings against the original two-requirement sketch. Second: found that fix
-  incomplete (`_stopAudio()` was the real blocking primitive in most named call sites; the
-  flag-only teardown left a permanent wedge) — 4 new blocking findings, addressed via the
-  request/result-slot mechanism. Third: confirmed the use-after-free and permanent wedge were
-  genuinely fixed, but found 4 more gaps (dropped TLS-resume; two redundant `_state` writes; an
-  unspecified request-clear causing an infinite reconnect loop; a `TEARDOWN`-downgrade leak).
-  Fourth: confirmed 2 of those 4 fixes held up exactly as specified, found the other 2 each had a
-  residual gap (a different early-arrival hole reintroducing the same permanent wedge; the
-  TLS-resume fix's shorthand leaving the `FAILED` branch un-guaranteed) — both addressed. Fifth: the
-  narrowest result yet, 1 blocking finding (both `TEARDOWN` branches deleted `s_wr_audio` without
-  nulling it, a deterministic dangling-pointer bug), 1 non-blocking — addressed in this revision.
-  **Not yet had a sixth VE pass** — treat as addressed-but-unverified, not closed, until that
-  happens.
+- ~~VE testability review of the CONNECTING-state changes~~ — **DONE. Six passes, 2026-08-04/05,
+  consensus reached.** Findings narrowed 4 → 4 → 4 → 3 → 1 → 0 blocking across passes 1-6 (full
+  history in "Lean / decision" and "## VE review" above). Pass 6 reached consensus with one cheap
+  non-blocking cleanup (explicit per-branch mutex give-back) folded into the final revision. This
+  design is implementation-ready.
 - **New — `s_wr_audio` doesn't dangle after a `TEARDOWN` (VE fifth-pass finding #1):** force a
   `TEARDOWN` (eject during `CONNECTING`, real host, either early-arrival or post-connect-return
   timing), let it resolve, then confirm on the *next* WebRadio entry that a fresh `Audio` object is
@@ -1379,3 +1389,158 @@ is a single, precisely-scoped, easily-fixed omission rather than a structural ga
 itself, a sixth pass focused specifically on confirming this one fix (plus a final holistic pass over
 the whole document once it lands) seems like a reasonable, near-final step rather than a sign this
 process needs to keep expanding in scope.
+
+### Sixth pass (2026-08-05)
+
+Independent re-verification against the actual current source (`app/src/webRadioApp.h`, confirmed
+still 1961 lines — no implementation has landed since the fifth pass; `app/src/spotifyTaskStorage.cpp`,
+confirmed still 887 lines). Per the brief, this pass verifies the specific fix this revision made
+carefully rather than rubber-stamping it, and separately does a broad-but-not-exhaustive sanity pass
+over the rest of the mechanism to check the edit didn't destabilize anything adjacent. It does not
+re-derive the request/result protocol, the TLS-yield accounting, or the `_state` re-entrancy guards
+from first principles again — five passes have converged on those being sound, and nothing found here
+disturbs that. Conclusion up front: **the fix itself is correct — both `s_wr_audio = nullptr`
+additions are present, textually placed after their `delete s_wr_audio` (not before, so no
+read-after-delete-before-null hazard), and match the `delete p; p = nullptr;` idiom `suspend()`
+already uses at `webRadioApp.h:559`. Re-grepping every touch point of `s_wr_audio` in the real source
+confirms the doc's underlying claim — every read site guards on non-null first, none dereferences
+unconditionally — so the fix genuinely closes the dangling-pointer class the fifth pass found, and
+introduces no new one.** One adjacent gap surfaced during the broader sanity pass, judged non-blocking
+for reasons given below. Zero blocking findings.
+
+**Verifying the fix itself:**
+
+Re-read both `TEARDOWN` branches word for word against the doc's own citation of `suspend()`'s
+existing idiom (`webRadioApp.h:559`: `if (s_wr_audio) { delete s_wr_audio; s_wr_audio = nullptr; }`):
+
+- Post-connect-return branch (design doc lines 182-197): "...delete `s_wr_audio` **and set
+  `s_wr_audio = nullptr` immediately after**... release the arena (`mb_arena_release()`); set
+  `s_wrPumpResult = TORN_DOWN`; null `s_wrPumpTask` last..." — the null-out is textually adjacent to
+  and after the delete, not interleaved with the arena release or result-slot write in a way that
+  could reorder it ahead of the delete. Correct order, correct scope (only `s_wr_audio`, not
+  accidentally applied to `s_wrPumpTask`, which correctly keeps its own separately-specified
+  null-last-before-`vTaskDelete` timing from the second pass's fix — the two pointers are not
+  conflated).
+- Early-arrival branch (design doc lines 205-214): "...delete `s_wr_audio` **and set `s_wr_audio =
+  nullptr`** (same fix as the post-connect branch above...)" — same ordering, explicitly stated to
+  mirror the post-connect branch rather than restating independently, which is the right call (one
+  idiom, one place it's fully spelled out, one cross-reference) rather than a risk of the two copies
+  drifting apart on a future revision.
+
+Neither addition introduces a new race. The pointer write happens on the pump task, single-threaded
+with respect to `s_wr_audio` for the entire window a `TEARDOWN` can be in flight: per the third/fourth
+passes' already-established reasoning (re-confirmed here, not re-derived from scratch), whichever
+caller posts `TEARDOWN` does so only via `suspend()`, which by construction means WebRadio has already
+stopped being `currentApp` — no `loopTask` code path reaches `s_wr_audio` again until `resume()`, and
+`resume()` only runs once `tick()` has already reconciled `_state` off a landed `s_wrPumpResult`. Cross-
+core visibility of the plain (non-`volatile`) `s_wr_audio` write is not a separate concern either: the
+pump task and `loopTask` are both `xTaskCreatePinnedToCore`'d/scheduled onto the same physical core
+(`APP_CPU_NUM`, per the fourth pass's own already-established citation of `webRadioApp.h:296` and
+`:393-395`), so there is no genuine SMP cache-coherency gap to bridge — ordinary FreeRTOS context-switch
+serialization on a single core is sufficient, the same reasoning the fourth pass already applied to the
+clear-on-commit window, applying equally here to the pointer write.
+
+**Re-checking the doc's underlying claim ("every other call site treats a non-null pointer as proof of
+life") against a fresh, complete grep, not the doc's own enumerated list:**
+
+`grep -n "s_wr_audio" app/src/webRadioApp.h` returns every touch point in the file. Checked each one
+individually, including three the fifth pass's finding didn't name (its list was illustrative, not
+claimed exhaustive):
+
+- `:154` — the declaration (`static Audio* s_wr_audio = nullptr;`), not a read.
+- `:205-206` (VU/spectrum feed inside the audio-process callback) — guarded: `if (len > 0 &&
+  s_wr_audio) { ... s_wr_audio->getSampleRate(); ... }`. Not named by the fifth pass, but consistent
+  with its claim.
+- `:262-267` (`wrAudio()`'s own inline guard) — matches the fifth pass's citation exactly.
+- `:333-337` (`wrVolumeSink()`) — matches.
+- `:369` (pump steady-state `loop()`) — matches.
+- `:452-457` (inside `init()`, TASK-209 HW-mod clamp) — guarded, and doubly inert for this concern
+  since `init()` runs exactly once per app lifetime, before any `_play()`/`TEARDOWN` could ever have
+  run — not a site this fix's correctness depends on, but still consistent with the pattern.
+- `:753` + `:1495-1505` (`_refreshAudioSnapshot()`, called from `tick()`) — guarded at both the call
+  site (`if (s_wr_audio) { _refreshAudioSnapshot(); }`, itself gated to `_state == PLAYING`, which
+  cannot be true while a `TEARDOWN` is unresolved) and again inside the function (`if (!s_wr_audio) {
+  ...; return; }`). Not named by the fifth pass, but reinforces rather than weakens its claim.
+- `:1349-1358` (`wrVol` debug setter) — matches the fifth pass's citation exactly, still raw
+  `portMAX_DELAY` (unfixed in source, as expected pre-implementation).
+- `:1519-1523` (`_stopAudio()`) — matches.
+- `:1632-1661` (`_play()`'s own guard, including the `SERIAL_DEBUG`-only probe at `:1632` and the
+  DMA-floor guard) — matches, all guarded.
+
+No unguarded dereference exists anywhere in the current file. The doc's "crashes or corrupts" framing
+(fifth pass finding #1) is accurate, not an over- or under-statement: a dangling-but-non-null pointer
+passing one of these `if (s_wr_audio)` checks and then being called through (`->stopSong()`,
+`->loop()`, `->setVolume()`, `->getSampleRate()`) is genuinely undefined behavior on freed heap —
+consistent with "crashes or corrupts," nothing worse (no site skips the null-check entirely and does
+something silently wrong without even attempting the guard).
+
+**Confirming the mutex-scoping clarification (fifth pass non-blocking finding #2) is itself accurate:**
+the added parenthetical — "still under the mutex the pump already holds from the `connecttohost()`
+call above — not a separate take" — correctly describes the only sequence the mechanism supports: the
+`CONNECT` branch takes the mutex once, before `connecttohost()`, and the doc never describes releasing
+it before evaluating the post-connect sub-branches, so a `stopSong()` call inside the `TEARDOWN`
+sub-branch genuinely is running under that same, still-held take. The clarification is textually
+correct against the mechanism as specified.
+
+**Non-blocking — the same question the clarification above raises but doesn't close: none of the
+`CONNECT` branch's three post-connect sub-branches (`TEARDOWN`, `ABORT`, `NONE`) ever say when the
+mutex taken before `connecttohost()` is given back.** Grepped the whole "Consumer side" section for
+every mention of releasing the mutex: the *only* explicit "give the mutex" instruction in the entire
+section is in the trailing `else` (`NONE`, nothing requested) steady-state branch (design doc line
+216: "take the mutex, call `s_wr_audio->loop()`, give the mutex"). The `CONNECT` branch's own `TEARDOWN`
+(lines 182-197), `ABORT` (lines 198-200), and `NONE` (lines 201-202) sub-branches — the ones doing the
+actual load-bearing work with the mutex the design just went out of its way to clarify is still held —
+never mention releasing it. Traced the consequence of a literal, ungenerous reading: if the give is
+missing from the `NONE` sub-branch specifically (the single most common outcome — an ordinary
+CONNECTED or FAILED result with nothing else queued), the pump task's own very next loop iteration
+reaches the trailing `else` branch's `xSemaphoreTake(s_wrAudioMutex, ...)` on a **non-recursive**
+FreeRTOS mutex (`xSemaphoreCreateMutex()` at `webRadioApp.h:446`) it already holds — a same-task
+self-deadlock, 2 ms after the very first connect this design ever processes, with no further pump
+cycles ever running again. Judged **non-blocking**, for a reason none of the five prior blocking
+findings shared: this failure mode is not silent or soak-dependent — it is a self-deadlock reachable
+on the single most basic possible manual test (start one station, listen for more than 2 ms after it
+either connects or fails), so it is very unlikely to survive even cursory implementation-time testing
+the way the TLS-yield leak or the dangling-pointer bug did (both of which need a specific multi-step
+sequence — stop-during-connect, or teardown-then-reentry — to surface, and neither breaks the very
+first basic smoke test). It is also almost certainly implicitly obvious to an implementer following the
+take/give bracketing idiom used everywhere else in this exact file (`_play()`'s `:1668-1670`,
+`_stopAudio()`'s `:1520-1522`, `wrVolumeSink()`'s `:334-336`, the original synchronous
+`connecttohost()`'s own `:1691/:1693` bracket the doc's own "VE review" section already cited as
+checking out). Still, given this document's own established pattern — three separate times now (the
+TLS-resume call, the `wrVol` fix's own regression, and the `s_wr_audio = nullptr` omission this
+revision fixes) — of a load-bearing "give/reset/resume" half of a paired operation silently not
+surviving a relocation into this same asynchronous mechanism, it is worth naming explicitly rather than
+assumed away a fourth time. **Suggested fix, cheap:** add one sentence to the `CONNECT` branch's
+preamble — "the mutex taken before `connecttohost()` is given back once the post-connect sub-branch
+below has finished its own mutex-scoped work (immediately after `stopSong()` for `TEARDOWN`/`ABORT`, or
+immediately upon reaching `NONE`) — before setting `s_wrPumpResult`" — mirroring the explicit callout
+the steady-state branch already gets, so this isn't the one place in the section that relies on
+implication.
+
+**Brief sanity pass over the rest of the mechanism (not a full re-audit):** spot-checked the
+`ABORT`/`TEARDOWN` early-arrival branches, the `TEARDOWN`-priority guard in `_stopAudio()`'s
+description, and `tick()`'s three reconciliation branches against the real source one more time,
+looking specifically for anything this revision's edit could have nudged. Found nothing disturbed —
+the edit is additive and localized to the two `TEARDOWN` branches plus the one clarifying parenthetical
+already covered above; no other prose in the "Consumer side" or "Producer side" sections changed
+wording, cross-references, or line citations as a side effect. `webRadioApp.h`'s line count (1961) and
+`spotifyTaskStorage.cpp`'s (887) are unchanged from every prior pass, confirming no implementation has
+landed and no source drift could have invalidated any earlier pass's citations.
+
+**Testability sign-off (sixth pass): consensus reached — go, zero blocking findings.** The fifth pass's
+own dangling-pointer finding is genuinely and correctly closed: both `s_wr_audio = nullptr` additions
+are present, correctly ordered, textually faithful to the exact idiom they're copying, and introduce no
+new race under either a single-core-visibility or a call-graph-reachability analysis. A fresh,
+non-enumerated grep of every `s_wr_audio` touch point in the real source confirms the doc's broader
+"every other call site treats non-null as proof of life" claim holds completely, not just for the sites
+the fifth pass happened to name. The one adjacent gap this pass found — the `CONNECT` branch's
+post-connect sub-branches never state when the mutex is released — is real and worth a one-sentence
+fix, but its failure mode is self-revealing on the most basic possible smoke test rather than
+soak-dependent or silent, which is a materially different risk profile than any of the five prior
+passes' blocking findings; it does not rise to blocking on that basis. Six passes, findings narrowing
+4 → 4 → 4 → 3 → 1 → 0 blocking, with this pass's only new observation being a low-severity,
+self-correcting documentation gap rather than a fresh defect in the mechanism itself, is a legitimate
+basis to call this design verified. Recommend closing the VE review loop and proceeding to
+implementation, with the one non-blocking mutex-release sentence folded in either in this doc or picked
+up as a comment at the actual call site when the code is written — whichever the Architect/Developer
+finds lower-friction; it does not warrant another dedicated VE pass on its own.
