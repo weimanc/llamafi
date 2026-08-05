@@ -29,9 +29,13 @@ namespace perf {
 // production sites were 5 (+screenlog.tick under SCREEN_LOG) before this;
 // TASK-278 adds wr.connect (unconditional) + wr.pump (SERIAL_DEBUG-only,
 // cross-task write — see webRadioApp.h OQ3). M-TASKBAR-FEEDBACK adds
-// shell.switch, landing at exactly 10 production slots. This constant is the
-// single source of truth for that budget — bump it again before adding more.
-constexpr int MAX_PATHS = 10;
+// shell.switch, landing at exactly 10 production slots. TASK-402
+// (M-WEBRADIO-POSBAR-SMOOTH, cross-feature edge X049) adds wr.posbar,
+// 10→11 — single site inside WebRadioApp::_drawPosbar(), see that
+// function's own comment for why it isn't instrumented at each caller.
+// This constant is the single source of truth for that budget — bump it
+// again before adding more.
+constexpr int MAX_PATHS = 11;
 
 struct Slot {
   const char *name;     // pointer-compared (always a string literal at call sites)

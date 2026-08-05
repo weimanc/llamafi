@@ -87,6 +87,14 @@ static constexpr size_t WR_ICY_TITLE_LEN = 104;
 // "1-21" comment / ESP32-audioI2S's setVolume() range).
 static constexpr uint8_t WR_VOLUME_MAX = 21;
 
+// TASK-402 (M-WEBRADIO-POSBAR-SMOOTH): EMA alpha + time-based redraw floor
+// for the posbar buffer-fullness bar. Provisional defaults, not derived from
+// static analysis -- the design doc's OQ1/OQ2 call for a DUT tuning pass
+// (via `get wrPosbar`, comparing raw vs. smoothed traces under real
+// playback) before these are considered final.
+static constexpr float         WR_POSBAR_EMA_ALPHA      = 0.2f;
+static constexpr unsigned long WR_POSBAR_MIN_REDRAW_MS  = 200;
+
 // TASK-209 / M-WEBRADIO §HW Mod: without the SC8002B gain-reduction mod the 8-bit
 // internal-DAC output overloads and clips above ~12/21, so stock hardware is
 // soft-capped here. With the mod installed the full 1–21 range is usable.
@@ -730,6 +738,7 @@ public:
                 _playingSinceMs  = _lastRunningMs;  // TASK-234: settled-timer start
                 _settled        = false;
                 _bufPctDrawn    = 0;         // TASK-220: force a buffer-bar repaint on first fill
+                _bufPctSmoothed = 0.0f;      // TASK-402: fresh EMA baseline per PLAYING session
 #ifdef MEMBUDGET_PHASE1
                 _underrunCount          = 0; // TASK-263: fresh underrun count per PLAYING session
                 _recurrentUnderrunCount = 0; // TASK-266: fresh per PLAYING session too
@@ -951,6 +960,11 @@ public:
                 uint32_t freeB  = _snapFreeB;
                 uint32_t total  = filled + freeB;
                 _bufPct = total ? (uint8_t)((uint32_t)filled * 100u / total) : 0;
+                // TASK-402: EMA the raw ratio before it drives the gate/draw — the raw
+                // byte-level ring-buffer ratio is naturally noisy (M-WEBRADIO-POSBAR-
+                // SMOOTH.md), same value-domain-filter technique as the VU meter's own
+                // attack/release smoothing (webRadioApp.h tick(), around line 227).
+                _bufPctSmoothed += ((float)_bufPct - _bufPctSmoothed) * WR_POSBAR_EMA_ALPHA;
 #ifdef MEMBUDGET_PHASE1
                 // TASK-263: objective halved-DMA underrun metric — edge-count input
                 // buffer empties + track low-water while PLAYING.
@@ -973,11 +987,26 @@ public:
                     _wasEmpty = empty;
                 }
 #endif
-                int delta = (int)_bufPct - (int)_bufPctDrawn;
+                // TASK-402: two independent gates — value must have moved (on the
+                // smoothed trend, not raw noise) AND enough time must have passed.
+                // Both must pass to redraw; whichever blocks is recorded for
+                // `get wrPosbar`'s lastSkipReason (OQ1/OQ2 DUT tuning needs to see
+                // which threshold is actually binding, not just that a redraw was
+                // skipped).
+                uint8_t smoothedRounded = (uint8_t)(_bufPctSmoothed + 0.5f);
+                int delta = (int)smoothedRounded - (int)_bufPctDrawn;
                 if (delta < 0) delta = -delta;
-                if (delta >= 2) {
-                    _bufPctDrawn = _bufPct;
+                bool deltaOk    = delta >= 2;
+                bool intervalOk = (now - _lastPosbarRedrawMs) >= WR_POSBAR_MIN_REDRAW_MS;
+                if (deltaOk && intervalOk) {
+                    _bufPctDrawn         = smoothedRounded;
+                    _lastPosbarRedrawMs  = now;
+                    _posbarRedrawCount++;
+                    _posbarLastSkipReason = PosbarSkipReason::NONE;
                     _drawPosbar();   // targeted POSBAR blit only — no full repaint
+                } else {
+                    _posbarLastSkipReason = !deltaOk ? PosbarSkipReason::DELTA
+                                                      : PosbarSkipReason::INTERVAL;
                 }
 
                 // TASK-349: main-window time digits — same read block as the
@@ -1329,6 +1358,26 @@ public:
                      (unsigned)_minBufPct, (unsigned)_bufPct, (unsigned)playMs);
             return true;
         }
+        // TASK-402 (M-WEBRADIO-POSBAR-SMOOTH, VE-4): observability for the
+        // EMA + time-gate redraw path — raw vs. smoothed value, redraw count,
+        // last interval, and which of the two gates most recently blocked a
+        // redraw (needed for the OQ1/OQ2 DUT tuning pass, not just whether one
+        // was skipped).
+        if (strcmp(var, "wrPosbar") == 0) {
+            long sinceLastMs = _lastPosbarRedrawMs
+                              ? (long)(millis() - _lastPosbarRedrawMs) : -1;
+            const char *skipReason =
+                (_posbarLastSkipReason == PosbarSkipReason::DELTA)    ? "delta" :
+                (_posbarLastSkipReason == PosbarSkipReason::INTERVAL) ? "interval" : "none";
+            snprintf(buf, len,
+                     "\"var\":\"wrPosbar\",\"bufPctRaw\":%u,\"bufPctSmoothed\":%d,"
+                     "\"bufPctDrawn\":%u,\"redraws\":%u,\"sinceLastRedrawMs\":%ld,"
+                     "\"lastSkipReason\":\"%s\",\"last\":true",
+                     (unsigned)_bufPct, (int)(_bufPctSmoothed + 0.5f),
+                     (unsigned)_bufPctDrawn, (unsigned)_posbarRedrawCount, sinceLastMs,
+                     skipReason);
+            return true;
+        }
         // TASK-292: device-side arena lifecycle totals. The wr-soak balance gate
         // used to count [membudget] serial lines, which the harness's own
         // reset_input_buffer() drops at command boundaries → false-FAILs.
@@ -1570,11 +1619,18 @@ public:
         }
         // TASK-253: drive the buffer bar without real playback so the thumb
         // position is visually checkable on DUT.
+        // TASK-402 (VE-1): force-writes and draws immediately, bypassing both the
+        // EMA (A) and the redraw-interval floor (B) — same as before this task,
+        // does NOT exercise the smoothing/rate-limit path itself. Also syncs
+        // _bufPctSmoothed so a real tick() right after this hook doesn't EMA-lag
+        // back toward a stale pre-override baseline.
         if (strcmp(var, "wrBufPct") == 0) {
             int p = atoi(val);
             if (p < 0) p = 0;
             if (p > 100) p = 100;
-            _bufPct = (uint8_t)p;
+            _bufPct         = (uint8_t)p;
+            _bufPctSmoothed = (float)p;
+            _bufPctDrawn    = (uint8_t)p;
             _drawPosbar();
             return true;
         }
@@ -1633,6 +1689,14 @@ private:
     bool        _dirty           = false;
     uint8_t     _bufPct          = 0;
     uint8_t     _bufPctDrawn     = 0;       // TASK-220: last buffer % painted (hysteresis)
+    // TASK-402: EMA-filtered value feeds the redraw gate + the actual draw;
+    // _bufPct above stays raw (wrUnderruns/_minBufPct still read the raw
+    // value per the design doc's "raw value stays available" note).
+    float       _bufPctSmoothed        = 0.0f;
+    unsigned long _lastPosbarRedrawMs  = 0;
+    uint32_t    _posbarRedrawCount     = 0;
+    enum class PosbarSkipReason : uint8_t { NONE = 0, DELTA, INTERVAL };
+    PosbarSkipReason _posbarLastSkipReason = PosbarSkipReason::NONE;
 #ifdef MEMBUDGET_PHASE1
     uint32_t    _underrunCount   = 0;       // TASK-263: input-buffer-empty events while PLAYING
     uint32_t    _recurrentUnderrunCount = 0; // TASK-266: same, but excludes the connect-time
@@ -1993,8 +2057,14 @@ private:
     void _drawPosbar() {
         // TASK-253: buffer-health gradient bar. The shared renderer owns the POSBAR
         // groove sprite, so it restores the groove (handling a shrinking buffer) and
-        // draws the amber→green health-tinted gradient stretched to _bufPct.
-        winampDisplay.drawBufferBar(_bufPct);
+        // draws the amber→green health-tinted gradient stretched to _bufPctDrawn.
+        // TASK-402: draws the gated/smoothed value (_bufPctDrawn), not raw _bufPct —
+        // single instrumentation site (VE-2): this is the only place `wr.posbar` is
+        // recorded, so tick()'s gated redraw, _drawFull(), and dbgSet's debug-forced
+        // call all funnel through one perf path instead of fragmenting into three.
+        unsigned long _t = millis();
+        winampDisplay.drawBufferBar(_bufPctDrawn);
+        perf::record("wr.posbar", millis() - _t);
     }
 
     void _drawTitleZone() {

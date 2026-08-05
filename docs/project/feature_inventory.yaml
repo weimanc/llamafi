@@ -1561,12 +1561,15 @@ features:
       auto-skip-on-stall retry-once-then-advance past dead stations, default ON (TASK-234/ADR-045).
       Volume soft-cap 12 stock / full 1-21 with SC8002B HW mod, via wrEffectiveVolume() (TASK-209).
       ICY StreamTitle folded into the shared 0-RAM title marquee (TASK-252/254). Buffer-fullness
-      shown on the posbar.
+      shown on the posbar: TASK-402 (M-WEBRADIO-POSBAR-SMOOTH) EMA-smooths the raw ring-buffer
+      ratio, gates redraws on a value-delta AND a time-floor (both must pass), and drawBufferBar()
+      does a partial-diff blit (old-thumb + new-thumb only, mirroring the Spotify seek bar's
+      updateSeekThumb()) instead of a full 248x10 groove reblit every call.
       SETTINGS (AppSettings, settings.json "webRadio" object): country, autoplay, bitrateCap,
       autoSkip, hwMod, maxVolume, lastStation. (No settings-UI section yet — set via serial.)
-      SERIAL DEBUG: get wrPlaying/wrState/wrIdx/wrCount/wrIcy/wrBufPct/wrHeap/wrLastHttp/wrSkip/
-      wrDeadUrls/wrVol/wrEffectiveVol/wrMaxVol/wrHwMod/wrAutoSkip; set wrPlay/wrStop/wrNext/wrPrev/
-      wrEject/wrVol/wrIcy.
+      SERIAL DEBUG: get wrPlaying/wrState/wrIdx/wrCount/wrIcy/wrUnderruns/wrPosbar/wrHeap/
+      wrLastHttp/wrSkip/wrDeadUrls/wrVol/wrEffectiveVol/wrMaxVol/wrHwMod/wrAutoSkip; set
+      wrPlay/wrStop/wrNext/wrPrev/wrEject/wrVol/wrIcy/wrBufPct.
     files:
       - app/src/webRadioApp.h
       - app/src/appRegistry.h

@@ -1,0 +1,707 @@
+ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:1184
+load:0x40078000,len:13232
+load:0x40080400,len:3028
+entry 0x400805e4
+[membudget] boot-baseline freeInt=204452 lfbInt=110580 freeDma=161308 lfbDma=110580
+[boot] git=b6eaa66+ elf=e82cb8da build=Aug  5 2026 18:33:41
+cyd display setup
+winamp display setup
+
+Initialisation done.
+SettingsStorage: loaded
+TouchCalStorage: loaded xMin=223 xMax=3582 yMin=196 yMax=3890
+[D][chrome] drawVolume pct=-1 keyframe=NONE
+reading config file
+opened config file
+parsed json
+config loaded: clientId=db…e0 (len=32) clientSecret=b9…63 (len=32) refreshToken=AQ…ng (len=131)
+[wifi-ev] t=681 ev=0 EV
+[wifi-ev] t=756 ev=2 STA_START
+[wifi-ev] t=795 ev=5 STA_DISCONNECTED reason=202
+[wifi-ev] t=947 ev=4 STA_CONNECTED
+[wifi-ev] t=1530 ev=7 STA_GOT_IP ip=192.168.1.181
+IP address: 192.168.1.181
+udget] post-wifi freeInt=148628 lfbInt=102388 freeDma=105484 lfbDma=102388
+[time] synced epoch=1785951851 in 4653ms
+[boot] spotify=idle (playerMode=webradio) — refresh deferred to first toggle
+[I][spotify.task] task started; pinned core=1 stack=10240B period=5000ms
+[I][spotify.task] begin ok — handle=0x3ffe94c8 startIdle=1
+[membudget] post-spotifyTask freeInt=135896 lfbInt=90100 freeDma=92752 lfbDma=90100
+[membudget] post-dataTask freeInt=121040 lfbInt=73716 freeDma=77896 lfbDma=73716
+[I][dataTask] task started stack=14336B
+[D][chrome] drawVolume pct=-1 keyframe=NONE
+[shell] leaving 0  heap=121040 maxAlloc=73716 minFree=120912
+[I][webradio] HEAP init free=120636 min=120608
+[I][webradio] HEAP pre-fetch free=120636 min=120608
+[shell] entered 11  heap=120636 maxAlloc=73716 minFree=120608
+[shell] switch 0->11 suspend=1ms wipe=27ms init=0ms taskbar=26ms total=54ms
+[membudget] post-init-idle freeInt=120636 lfbInt=73716 freeDma=77492 lfbDma=73716
+{"ok":true,"cmd":"get","var":"variant","spotify":"on","last":true}
+i(-58) disc=1 heap=117k maxAlloc=71k stack_hwm=17580b uptime=00:00:06 poll=0/0 last=0 block_max=0ms loop_max=0ms slow=shell.switch:54ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=80 build=Aug  5 2026-18:33:41
+[D][chrome] drawVolume pct=-1 keyframe=NONE
+[D][chrome] drawVolume pct=100 keyframe=4
+[W][perf] iter=85ms (worst path so far: app.tick:60ms)
+{"ok":true,"cmd":"get","var":"playerMode","val":1,"name":"WebRadio","last":true}
+{"ok":true,"cmd":"get","var":"heap","freeInt":56656,"lfbInt":42996,"freeDma":13512,"lfbDma":11764,"last":true}
+{"ok":true,"cmd":"info","git":"b6eaa66+","elf":"e82cb8da","build":"Aug  5 2026 18:33:41","heap":56380,"isPlaying":false,"progressMs":0,"durationMs":0,"volumePct":-1,"shuffle":false,"repeat":2,"consecutiveFailures":0}
+{"ok":true,"cmd":"get","var":"appId","id":11,"name":"WebRadio","last":true}
+{"ok":true,"cmd":"set","var":"wrIcy","val":"SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ"}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":573,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":546,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":368,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":191,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":15,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=200 elapsed=3083ms
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=30&bitrateMax=128
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=200 elapsed=3049ms
+{"ok":true,"cmd":"set","var":"wrIcy","val":"-"}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"Loading...","scrollOffset":0,"scrollDeadlineSet":false,"deadlineInMs":0,"wifiDownOverrideActive":false,"textPx":60,"periodPx":114,"scrolling":false,"last":true}
+[I][dataTask.webradio] ok mirror=all.api.radio-browser.info country=NL count=30
+{"ok":true,"cmd":"get","var":"appId","id":11,"name":"WebRadio","last":true}
+[D][dataTask.webradio] heap free=74k maxBlk=47k
+[I][webradio] HEAP post-fetch free=119580 min=55520
+[I][webradio] stations loaded count=30 country=NL
+[I][spotify.tls] tls yield — resumed
+[D][chrome] drawVolume pct=100 keyframe=4
+[D][chrome] drawVolume pct=100 keyframe=4
+[W][perf] iter=92ms (worst path so far: app.tick:78ms)
+{"ok":true,"cmd":"set","var":"wrBufPct","val":"37"}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":37,"bufPctSmoothed":37,"bufPctDrawn":37,"redraws":0,"sinceLastRedrawMs":-1,"lastSkipReason":"none","last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:1184
+load:0x40078000,len:13232
+load:0x40080400,len:3028
+entry 0x400805e4
+[membudget] boot-baseline freeInt=204452 lfbInt=110580 freeDma=161308 lfbDma=110580
+[boot] git=b6eaa66+ elf=e82cb8da build=Aug  5 2026 18:33:41
+cyd display setup
+winamp display setup
+
+Initialisation done.
+SettingsStorage: loaded
+TouchCalStorage: loaded xMin=223 xMax=3582 yMin=196 yMax=3890
+[D][chrome] drawVolume pct=-1 keyframe=NONE
+reading config file
+opened config file
+parsed json
+config loaded: clientId=db…e0 (len=32) clientSecret=b9…63 (len=32) refreshToken=AQ…ng (len=131)
+[wifi-ev] t=681 ev=0 EV
+[wifi-ev] t=757 ev=2 STA_START
+[wifi-ev] t=799 ev=5 STA_DISCONNECTED reason=202
+[wifi-ev] t=896 ev=4 STA_CONNECTED
+[wifi-ev] t=1452 ev=7 STA_GOT_IP ip=192.168.1.181
+IP address: 192.168.1.181
+udget] post-wifi freeInt=148624 lfbInt=102388 freeDma=105480 lfbDma=102388
+[time] synced epoch=1785951991 in 4553ms
+[boot] spotify=idle (playerMode=webradio) — refresh deferred to first toggle
+[I][spotify.task] task started; pinned core=1 stack=10240B period=5000ms
+[I][spotify.task] begin ok — handle=0x3ffe953c startIdle=1
+[membudget] post-spotifyTask freeInt=135900 lfbInt=90100 freeDma=92756 lfbDma=90100
+[membudget] post-dataTask freeInt=121044 lfbInt=73716 freeDma=77900 lfbDma=73716
+[I][dataTask] task started stack=14336B
+[D][chrome] drawVolume pct=-1 keyframe=NONE
+[shell] leaving 0  heap=121044 maxAlloc=73716 minFree=120916
+[I][webradio] HEAP init free=120640 min=120612
+[I][webradio] HEAP pre-fetch free=120640 min=120612
+[shell] entered 11  heap=120640 maxAlloc=73716 minFree=120612
+[shell] switch 0->11 suspend=1ms wipe=27ms init=0ms taskbar=26ms total=54ms
+[membudget] post-init-idle freeInt=120640 lfbInt=73716 freeDma=77496 lfbDma=73716
+{"ok":true,"cmd":"get","var":"variant","spotify":"on","last":true}
+i(-57) disc=1 heap=117k maxAlloc=71k stack_hwm=17580b uptime=00:00:06 poll=0/0 last=0 block_max=0ms loop_max=0ms slow=shell.switch:54ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=80 build=Aug  5 2026-18:33:41
+[D][chrome] drawVolume pct=-1 keyframe=NONE
+[D][chrome] drawVolume pct=100 keyframe=4
+[W][perf] iter=85ms (worst path so far: app.tick:60ms)
+{"ok":true,"cmd":"get","var":"playerMode","val":1,"name":"WebRadio","last":true}
+{"ok":true,"cmd":"get","var":"heap","freeInt":56672,"lfbInt":42996,"freeDma":13528,"lfbDma":11764,"last":true}
+{"ok":true,"cmd":"info","git":"b6eaa66+","elf":"e82cb8da","build":"Aug  5 2026 18:33:41","heap":56396,"isPlaying":false,"progressMs":0,"durationMs":0,"volumePct":-1,"shuffle":false,"repeat":2,"consecutiveFailures":0}
+{"ok":true,"cmd":"get","var":"appId","id":11,"name":"WebRadio","last":true}
+{"ok":true,"cmd":"get","var":"appId","id":11,"name":"WebRadio","last":true}
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+{"ok":true,"cmd":"set","var":"bgPoll","val":"0"}
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=-11 elapsed=8055ms
+[W][dataTask.webradio] mirror=all.api.radio-browser.info failed code=-11
+[W][dataTask.webradio] fetch skipped: maxBlk=39k < 40k (TLS would OOM; playback active?)
+[D][dataTask.webradio] heap free=74k maxBlk=39k
+[I][spotify.tls] tls yield — resumed
+[I][webradio] HEAP post-fetch free=119596 min=55584
+[W][webradio] station fetch failed ok=0 http=-101 jsonErr=
+[D][chrome] drawVolume pct=100 keyframe=4
+[D][chrome] drawVolume pct=100 keyframe=4
+[W][perf] iter=92ms (worst path so far: app.tick:72ms)
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":0,"last":true}
+{"ok":true,"cmd":"set","var":"bgPoll","val":"1"}
+ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:1184
+load:0x40078000,len:13232
+load:0x40080400,len:3028
+entry 0x400805e4
+[membudget] boot-baseline freeInt=204452 lfbInt=110580 freeDma=161308 lfbDma=110580
+[boot] git=b6eaa66+ elf=e82cb8da build=Aug  5 2026 18:33:41
+cyd display setup
+winamp display setup
+
+Initialisation done.
+SettingsStorage: loaded
+TouchCalStorage: loaded xMin=223 xMax=3582 yMin=196 yMax=3890
+[D][chrome] drawVolume pct=-1 keyframe=NONE
+reading config file
+opened config file
+parsed json
+config loaded: clientId=db…e0 (len=32) clientSecret=b9…63 (len=32) refreshToken=AQ…ng (len=131)
+[wifi-ev] t=681 ev=0 EV
+[wifi-ev] t=757 ev=2 STA_START
+[wifi-ev] t=805 ev=5 STA_DISCONNECTED reason=202
+[wifi-ev] t=918 ev=4 STA_CONNECTED
+[wifi-ev] t=1463 ev=7 STA_GOT_IP ip=192.168.1.181
+IP address: 192.168.1.181
+udget] post-wifi freeInt=148436 lfbInt=102388 freeDma=105292 lfbDma=102388
+[time] synced epoch=1785952045 in 4453ms
+[boot] spotify=idle (playerMode=webradio) — refresh deferred to first toggle
+[I][spotify.task] task started; pinned core=1 stack=10240B period=5000ms
+[I][spotify.task] begin ok — handle=0x3ffe956c startIdle=1
+[membudget] post-spotifyTask freeInt=135900 lfbInt=90100 freeDma=92756 lfbDma=90100
+[membudget] post-dataTask freeInt=121044 lfbInt=73716 freeDma=77900 lfbDma=73716
+[I][dataTask] task started stack=14336B
+[D][chrome] drawVolume pct=-1 keyframe=NONE
+[shell] leaving 0  heap=121044 maxAlloc=73716 minFree=118620
+[I][webradio] HEAP init free=120640 min=118620
+[I][webradio] HEAP pre-fetch free=120640 min=118620
+[shell] entered 11  heap=120640 maxAlloc=73716 minFree=118620
+[shell] switch 0->11 suspend=1ms wipe=27ms init=0ms taskbar=26ms total=54ms
+[membudget] post-init-idle freeInt=120640 lfbInt=73716 freeDma=77496 lfbDma=73716
+{"ok":true,"cmd":"get","var":"variant","spotify":"on","last":true}
+i(-57) disc=1 heap=117k maxAlloc=71k stack_hwm=17580b uptime=00:00:06 poll=0/0 last=0 block_max=0ms loop_max=0ms slow=shell.switch:54ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=80 build=Aug  5 2026-18:33:41
+[D][chrome] drawVolume pct=-1 keyframe=NONE
+[D][chrome] drawVolume pct=100 keyframe=4
+[W][perf] iter=85ms (worst path so far: app.tick:60ms)
+{"ok":true,"cmd":"get","var":"playerMode","val":1,"name":"WebRadio","last":true}
+{"ok":true,"cmd":"get","var":"heap","freeInt":56404,"lfbInt":42996,"freeDma":13260,"lfbDma":11764,"last":true}
+{"ok":true,"cmd":"info","git":"b6eaa66+","elf":"e82cb8da","build":"Aug  5 2026 18:33:41","heap":56680,"isPlaying":false,"progressMs":0,"durationMs":0,"volumePct":-1,"shuffle":false,"repeat":2,"consecutiveFailures":0}
+{"ok":true,"cmd":"get","var":"appId","id":11,"name":"WebRadio","last":true}
+{"ok":true,"cmd":"get","var":"appId","id":11,"name":"WebRadio","last":true}
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+{"ok":true,"cmd":"set","var":"bgPoll","val":"0"}
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=200 elapsed=5872ms
+[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=30&bitrateMax=128
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=200 elapsed=3146ms
+[I][dataTask.webradio] ok mirror=all.api.radio-browser.info country=NL count=30
+[D][dataTask.webradio] heap free=74k maxBlk=47k
+[I][webradio] HEAP post-fetch free=119584 min=55412
+[I][webradio] stations loaded count=30 country=NL
+[I][spotify.tls] tls yield — resumed
+[D][chrome] drawVolume pct=100 keyframe=4
+[D][chrome] drawVolume pct=100 keyframe=4
+[W][perf] iter=79ms (worst path so far: app.tick:78ms)
+{"ok":true,"cmd":"get","var":"wrCount","count":30,"pending":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrCount","count":30,"pending":0,"last":true}
+{"ok":true,"cmd":"set","var":"bgPoll","val":"1"}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+[I][hb] display=winamp wifi=rssi(-57) disc=1 heap=117k maxAlloc=47k stack_hwm=13596b uptime=00:00:36 poll=0/0 last=0 block_max=0ms loop_max=85ms slow=app.tick:78ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=19755 build=Aug  5 2026-18:33:41
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"heap","freeInt":120012,"lfbInt":49140,"freeDma":76868,"lfbDma":49140,"last":true}
+{"ok":true,"cmd":"get","var":"backoff","consecutiveFailures":0,"nextPollMs":5000,"last":true}
+{"ok":true,"cmd":"get","var":"dataq","ms":47104,"queueWaiting":0,"pendingMask":0,"inFlight":-1,"inFlightMs":6059,"wrPhase":2,"wrPhaseMs":16297,"wrEnqueues":1,"wrDrops":0,"yieldCount":0,"tlsStopped":false,"spAct":2,"spActMs":46815,"last":true}
+{"ok":true,"cmd":"set","var":"wrIcy","val":"SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ"}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":1183,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":1153,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":973,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":793,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":613,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":433,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":254,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":74,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":1,"scrollDeadlineSet":true,"deadlineInMs":16,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":3,"scrollDeadlineSet":true,"deadlineInMs":85,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":4,"scrollDeadlineSet":true,"deadlineInMs":26,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":6,"scrollDeadlineSet":true,"deadlineInMs":90,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":7,"scrollDeadlineSet":true,"deadlineInMs":32,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":9,"scrollDeadlineSet":true,"deadlineInMs":96,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":10,"scrollDeadlineSet":true,"deadlineInMs":37,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":12,"scrollDeadlineSet":true,"deadlineInMs":101,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":13,"scrollDeadlineSet":true,"deadlineInMs":43,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":15,"scrollDeadlineSet":true,"deadlineInMs":107,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":16,"scrollDeadlineSet":true,"deadlineInMs":49,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":18,"scrollDeadlineSet":true,"deadlineInMs":113,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":19,"scrollDeadlineSet":true,"deadlineInMs":55,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":21,"scrollDeadlineSet":true,"deadlineInMs":118,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":22,"scrollDeadlineSet":true,"deadlineInMs":60,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":23,"scrollDeadlineSet":true,"deadlineInMs":2,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":25,"scrollDeadlineSet":true,"deadlineInMs":88,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":26,"scrollDeadlineSet":true,"deadlineInMs":30,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":28,"scrollDeadlineSet":true,"deadlineInMs":94,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":29,"scrollDeadlineSet":true,"deadlineInMs":36,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":31,"scrollDeadlineSet":true,"deadlineInMs":100,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":32,"scrollDeadlineSet":true,"deadlineInMs":42,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":34,"scrollDeadlineSet":true,"deadlineInMs":106,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":35,"scrollDeadlineSet":true,"deadlineInMs":48,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":37,"scrollDeadlineSet":true,"deadlineInMs":112,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":38,"scrollDeadlineSet":true,"deadlineInMs":54,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - SUPERCALIFRAGILISTIC_MARQUEE_WRAP_TEST_1234567890_ABCDEFGHIJ   ","scrollOffset":40,"scrollDeadlineSet":true,"deadlineInMs":118,"wifiDownOverrideActive":false,"textPx":426,"periodPx":480,"scrolling":true,"last":true}
+{"ok":true,"cmd":"set","var":"wrIcy","val":"-"}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM!","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":1189,"wifiDownOverrideActive":false,"textPx":30,"periodPx":84,"scrolling":false,"last":true}
+{"ok":true,"cmd":"set","var":"wrBufPct","val":"37"}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":37,"bufPctSmoothed":37,"bufPctDrawn":37,"redraws":0,"sinceLastRedrawMs":-1,"lastSkipReason":"none","last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+[I][hb] display=winamp wifi=rssi(-57) disc=1 heap=117k maxAlloc=47k stack_hwm=12224b uptime=00:01:06 poll=0/0 last=0 block_max=0ms loop_max=27ms slow=app.tick:3ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=49755 build=Aug  5 2026-18:33:41
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"heap","freeInt":120012,"lfbInt":49140,"freeDma":76868,"lfbDma":49140,"last":true}
+{"ok":true,"cmd":"get","var":"backoff","consecutiveFailures":0,"nextPollMs":5000,"last":true}
+{"ok":true,"cmd":"get","var":"dataq","ms":74220,"queueWaiting":0,"pendingMask":0,"inFlight":-1,"inFlightMs":6059,"wrPhase":2,"wrPhaseMs":16297,"wrEnqueues":1,"wrDrops":0,"yieldCount":0,"tlsStopped":false,"spAct":2,"spActMs":73815,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:1184
+load:0x40078000,len:13232
+load:0x40080400,len:3028
+entry 0x400805e4
+[membudget] boot-baseline freeInt=204452 lfbInt=110580 freeDma=161308 lfbDma=110580
+[boot] git=b6eaa66+ elf=e82cb8da build=Aug  5 2026 18:33:41
+cyd display setup
+winamp display setup
+
+Initialisation done.
+SettingsStorage: loaded
+TouchCalStorage: loaded xMin=223 xMax=3582 yMin=196 yMax=3890
+[D][chrome] drawVolume pct=-1 keyframe=NONE
+reading config file
+opened config file
+parsed json
+config loaded: clientId=db…e0 (len=32) clientSecret=b9…63 (len=32) refreshToken=AQ…ng (len=131)
+[wifi-ev] t=681 ev=0 EV
+[wifi-ev] t=756 ev=2 STA_START
+[wifi-ev] t=801 ev=5 STA_DISCONNECTED reason=202
+[wifi-ev] t=900 ev=4 STA_CONNECTED
+[wifi-ev] t=979 ev=7 STA_GOT_IP ip=192.168.1.181
+IP address: 192.168.1.181
+udget] post-wifi freeInt=148492 lfbInt=102388 freeDma=105348 lfbDma=102388
+[time] synced epoch=1785952217 in 3503ms
+[boot] spotify=idle (playerMode=webradio) — refresh deferred to first toggle
+[I][spotify.task] task started; pinned core=1 stack=10240B period=5000ms
+[I][spotify.task] begin ok — handle=0x3ffe956c startIdle=1
+[membudget] post-spotifyTask freeInt=135904 lfbInt=90100 freeDma=92760 lfbDma=90100
+[membudget] post-dataTask freeInt=121048 lfbInt=73716 freeDma=77904 lfbDma=73716
+[I][dataTask] task started stack=14336B
+[D][chrome] drawVolume pct=-1 keyframe=NONE
+[shell] leaving 0  heap=121048 maxAlloc=73716 minFree=120920
+[I][webradio] HEAP init free=120644 min=120616
+[I][webradio] HEAP pre-fetch free=120644 min=120616
+[shell] entered 11  heap=120644 maxAlloc=73716 minFree=120616
+[shell] switch 0->11 suspend=1ms wipe=27ms init=0ms taskbar=26ms total=54ms
+[membudget] post-init-idle freeInt=120644 lfbInt=73716 freeDma=77500 lfbDma=73716
+{"ok":true,"cmd":"get","var":"variant","spotify":"on","last":true}
+i(-57) disc=1 heap=117k maxAlloc=71k stack_hwm=17580b uptime=00:00:04 poll=0/0 last=0 block_max=0ms loop_max=0ms slow=shell.switch:54ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=80 build=Aug  5 2026-18:33:41
+[D][chrome] drawVolume pct=-1 keyframe=NONE
+[D][chrome] drawVolume pct=100 keyframe=4
+[W][perf] iter=85ms (worst path so far: app.tick:60ms)
+{"ok":true,"cmd":"get","var":"playerMode","val":1,"name":"WebRadio","last":true}
+{"ok":true,"cmd":"get","var":"heap","freeInt":56704,"lfbInt":42996,"freeDma":13560,"lfbDma":11764,"last":true}
+{"ok":true,"cmd":"info","git":"b6eaa66+","elf":"e82cb8da","build":"Aug  5 2026 18:33:41","heap":56704,"isPlaying":false,"progressMs":0,"durationMs":0,"volumePct":-1,"shuffle":false,"repeat":2,"consecutiveFailures":0}
+{"ok":true,"cmd":"get","var":"appId","id":11,"name":"WebRadio","last":true}
+{"ok":true,"cmd":"get","var":"appId","id":11,"name":"WebRadio","last":true}
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+{"ok":true,"cmd":"set","var":"bgPoll","val":"0"}
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=200 elapsed=3117ms
+[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=30&bitrateMax=128
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+{"ok":true,"cmd":"get","var":"wrCount","count":0,"pending":1,"last":true}
+[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=200 elapsed=3082ms
+[I][dataTask.webradio] ok mirror=all.api.radio-browser.info country=NL count=30
+[D][dataTask.webradio] heap free=74k maxBlk=21k
+[I][webradio] HEAP post-fetch free=119396 min=55452
+[I][webradio] stations loaded count=30 country=NL
+[I][spotify.tls] tls yield — resumed
+[D][chrome] drawVolume pct=100 keyframe=4
+[D][chrome] drawVolume pct=100 keyframe=4
+[W][perf] iter=79ms (worst path so far: app.tick:77ms)
+{"ok":true,"cmd":"get","var":"wrCount","count":30,"pending":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrCount","count":30,"pending":0,"last":true}
+{"ok":true,"cmd":"set","var":"bgPoll","val":"1"}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+[I][hb] display=winamp wifi=rssi(-55) disc=1 heap=117k maxAlloc=41k stack_hwm=13596b uptime=00:00:34 poll=0/0 last=0 block_max=0ms loop_max=85ms slow=app.tick:77ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=22543 build=Aug  5 2026-18:33:41
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"wrState","state":0,"last":true}
+{"ok":true,"cmd":"get","var":"heap","freeInt":120016,"lfbInt":42996,"freeDma":76872,"lfbDma":42996,"last":true}
+{"ok":true,"cmd":"get","var":"backoff","consecutiveFailures":0,"nextPollMs":5000,"last":true}
+{"ok":true,"cmd":"get","var":"dataq","ms":43750,"queueWaiting":0,"pendingMask":0,"inFlight":-1,"inFlightMs":4709,"wrPhase":2,"wrPhaseMs":12158,"wrEnqueues":1,"wrDrops":0,"yieldCount":0,"tlsStopped":false,"spAct":2,"spActMs":43671,"last":true}
+{"ok":true,"cmd":"set","var":"wrIcy","val":"MARQUEE_WRAP_TEST_OK"}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":1186,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":1160,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":984,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":808,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":631,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":455,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":279,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":102,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":1,"scrollDeadlineSet":true,"deadlineInMs":47,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":3,"scrollDeadlineSet":true,"deadlineInMs":115,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":4,"scrollDeadlineSet":true,"deadlineInMs":62,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":5,"scrollDeadlineSet":true,"deadlineInMs":8,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":7,"scrollDeadlineSet":true,"deadlineInMs":81,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":8,"scrollDeadlineSet":true,"deadlineInMs":27,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":10,"scrollDeadlineSet":true,"deadlineInMs":95,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":11,"scrollDeadlineSet":true,"deadlineInMs":41,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":13,"scrollDeadlineSet":true,"deadlineInMs":108,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":14,"scrollDeadlineSet":true,"deadlineInMs":54,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":16,"scrollDeadlineSet":true,"deadlineInMs":119,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":17,"scrollDeadlineSet":true,"deadlineInMs":65,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":18,"scrollDeadlineSet":true,"deadlineInMs":12,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":20,"scrollDeadlineSet":true,"deadlineInMs":81,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":21,"scrollDeadlineSet":true,"deadlineInMs":26,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":23,"scrollDeadlineSet":true,"deadlineInMs":94,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":24,"scrollDeadlineSet":true,"deadlineInMs":40,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":26,"scrollDeadlineSet":true,"deadlineInMs":108,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":27,"scrollDeadlineSet":true,"deadlineInMs":54,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":29,"scrollDeadlineSet":true,"deadlineInMs":119,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":30,"scrollDeadlineSet":true,"deadlineInMs":65,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":31,"scrollDeadlineSet":true,"deadlineInMs":11,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":33,"scrollDeadlineSet":true,"deadlineInMs":81,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":34,"scrollDeadlineSet":true,"deadlineInMs":27,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":36,"scrollDeadlineSet":true,"deadlineInMs":95,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":37,"scrollDeadlineSet":true,"deadlineInMs":40,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":39,"scrollDeadlineSet":true,"deadlineInMs":107,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":40,"scrollDeadlineSet":true,"deadlineInMs":53,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":42,"scrollDeadlineSet":true,"deadlineInMs":119,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":43,"scrollDeadlineSet":true,"deadlineInMs":66,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":44,"scrollDeadlineSet":true,"deadlineInMs":11,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":46,"scrollDeadlineSet":true,"deadlineInMs":81,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":47,"scrollDeadlineSet":true,"deadlineInMs":27,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":49,"scrollDeadlineSet":true,"deadlineInMs":95,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":50,"scrollDeadlineSet":true,"deadlineInMs":41,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":52,"scrollDeadlineSet":true,"deadlineInMs":109,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":53,"scrollDeadlineSet":true,"deadlineInMs":55,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":54,"scrollDeadlineSet":true,"deadlineInMs":1,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":56,"scrollDeadlineSet":true,"deadlineInMs":81,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":57,"scrollDeadlineSet":true,"deadlineInMs":27,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":59,"scrollDeadlineSet":true,"deadlineInMs":95,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":60,"scrollDeadlineSet":true,"deadlineInMs":41,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":62,"scrollDeadlineSet":true,"deadlineInMs":109,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":63,"scrollDeadlineSet":true,"deadlineInMs":55,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":65,"scrollDeadlineSet":true,"deadlineInMs":119,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":66,"scrollDeadlineSet":true,"deadlineInMs":65,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":67,"scrollDeadlineSet":true,"deadlineInMs":12,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":69,"scrollDeadlineSet":true,"deadlineInMs":81,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":70,"scrollDeadlineSet":true,"deadlineInMs":27,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":72,"scrollDeadlineSet":true,"deadlineInMs":95,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":73,"scrollDeadlineSet":true,"deadlineInMs":39,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":75,"scrollDeadlineSet":true,"deadlineInMs":107,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":76,"scrollDeadlineSet":true,"deadlineInMs":53,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":78,"scrollDeadlineSet":true,"deadlineInMs":119,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":79,"scrollDeadlineSet":true,"deadlineInMs":65,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":80,"scrollDeadlineSet":true,"deadlineInMs":11,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":82,"scrollDeadlineSet":true,"deadlineInMs":81,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":83,"scrollDeadlineSet":true,"deadlineInMs":27,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":85,"scrollDeadlineSet":true,"deadlineInMs":95,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":86,"scrollDeadlineSet":true,"deadlineInMs":40,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":88,"scrollDeadlineSet":true,"deadlineInMs":108,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":89,"scrollDeadlineSet":true,"deadlineInMs":53,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":91,"scrollDeadlineSet":true,"deadlineInMs":119,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":92,"scrollDeadlineSet":true,"deadlineInMs":65,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":93,"scrollDeadlineSet":true,"deadlineInMs":12,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":95,"scrollDeadlineSet":true,"deadlineInMs":80,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":96,"scrollDeadlineSet":true,"deadlineInMs":26,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":98,"scrollDeadlineSet":true,"deadlineInMs":93,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":99,"scrollDeadlineSet":true,"deadlineInMs":39,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":101,"scrollDeadlineSet":true,"deadlineInMs":107,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":102,"scrollDeadlineSet":true,"deadlineInMs":53,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":104,"scrollDeadlineSet":true,"deadlineInMs":119,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":105,"scrollDeadlineSet":true,"deadlineInMs":65,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":106,"scrollDeadlineSet":true,"deadlineInMs":11,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":108,"scrollDeadlineSet":true,"deadlineInMs":80,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":109,"scrollDeadlineSet":true,"deadlineInMs":25,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":111,"scrollDeadlineSet":true,"deadlineInMs":93,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":112,"scrollDeadlineSet":true,"deadlineInMs":38,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":114,"scrollDeadlineSet":true,"deadlineInMs":106,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":115,"scrollDeadlineSet":true,"deadlineInMs":52,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":117,"scrollDeadlineSet":true,"deadlineInMs":119,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":118,"scrollDeadlineSet":true,"deadlineInMs":65,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":119,"scrollDeadlineSet":true,"deadlineInMs":12,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":121,"scrollDeadlineSet":true,"deadlineInMs":81,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":122,"scrollDeadlineSet":true,"deadlineInMs":27,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":124,"scrollDeadlineSet":true,"deadlineInMs":94,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":125,"scrollDeadlineSet":true,"deadlineInMs":40,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":127,"scrollDeadlineSet":true,"deadlineInMs":108,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":128,"scrollDeadlineSet":true,"deadlineInMs":54,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":130,"scrollDeadlineSet":true,"deadlineInMs":119,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":131,"scrollDeadlineSet":true,"deadlineInMs":66,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":132,"scrollDeadlineSet":true,"deadlineInMs":11,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":134,"scrollDeadlineSet":true,"deadlineInMs":81,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":135,"scrollDeadlineSet":true,"deadlineInMs":26,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":137,"scrollDeadlineSet":true,"deadlineInMs":93,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":138,"scrollDeadlineSet":true,"deadlineInMs":38,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":140,"scrollDeadlineSet":true,"deadlineInMs":106,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":141,"scrollDeadlineSet":true,"deadlineInMs":51,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":143,"scrollDeadlineSet":true,"deadlineInMs":118,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":144,"scrollDeadlineSet":true,"deadlineInMs":64,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":145,"scrollDeadlineSet":true,"deadlineInMs":12,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":147,"scrollDeadlineSet":true,"deadlineInMs":80,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":148,"scrollDeadlineSet":true,"deadlineInMs":26,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":150,"scrollDeadlineSet":true,"deadlineInMs":94,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":151,"scrollDeadlineSet":true,"deadlineInMs":39,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":153,"scrollDeadlineSet":true,"deadlineInMs":106,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":154,"scrollDeadlineSet":true,"deadlineInMs":51,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":156,"scrollDeadlineSet":true,"deadlineInMs":118,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":157,"scrollDeadlineSet":true,"deadlineInMs":64,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":158,"scrollDeadlineSet":true,"deadlineInMs":10,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+[I][hb] display=winamp wifi=rssi(-55) disc=1 heap=117k maxAlloc=41k stack_hwm=12224b uptime=00:01:04 poll=0/0 last=0 block_max=0ms loop_max=23ms slow=app.tick:4ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=52543 build=Aug  5 2026-18:33:41
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":160,"scrollDeadlineSet":true,"deadlineInMs":69,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":161,"scrollDeadlineSet":true,"deadlineInMs":16,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":163,"scrollDeadlineSet":true,"deadlineInMs":83,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":164,"scrollDeadlineSet":true,"deadlineInMs":28,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":166,"scrollDeadlineSet":true,"deadlineInMs":96,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":167,"scrollDeadlineSet":true,"deadlineInMs":42,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":169,"scrollDeadlineSet":true,"deadlineInMs":110,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":170,"scrollDeadlineSet":true,"deadlineInMs":56,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":171,"scrollDeadlineSet":true,"deadlineInMs":1,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":173,"scrollDeadlineSet":true,"deadlineInMs":81,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":174,"scrollDeadlineSet":true,"deadlineInMs":27,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":176,"scrollDeadlineSet":true,"deadlineInMs":95,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":177,"scrollDeadlineSet":true,"deadlineInMs":41,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":179,"scrollDeadlineSet":true,"deadlineInMs":109,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":180,"scrollDeadlineSet":true,"deadlineInMs":54,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":182,"scrollDeadlineSet":true,"deadlineInMs":119,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":183,"scrollDeadlineSet":true,"deadlineInMs":65,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":184,"scrollDeadlineSet":true,"deadlineInMs":11,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":186,"scrollDeadlineSet":true,"deadlineInMs":81,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":187,"scrollDeadlineSet":true,"deadlineInMs":27,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":189,"scrollDeadlineSet":true,"deadlineInMs":94,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":190,"scrollDeadlineSet":true,"deadlineInMs":40,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":192,"scrollDeadlineSet":true,"deadlineInMs":108,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":193,"scrollDeadlineSet":true,"deadlineInMs":54,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":195,"scrollDeadlineSet":true,"deadlineInMs":119,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":196,"scrollDeadlineSet":true,"deadlineInMs":65,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":197,"scrollDeadlineSet":true,"deadlineInMs":12,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":199,"scrollDeadlineSet":true,"deadlineInMs":81,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":200,"scrollDeadlineSet":true,"deadlineInMs":26,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":202,"scrollDeadlineSet":true,"deadlineInMs":94,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":203,"scrollDeadlineSet":true,"deadlineInMs":40,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":205,"scrollDeadlineSet":true,"deadlineInMs":107,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":206,"scrollDeadlineSet":true,"deadlineInMs":53,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":208,"scrollDeadlineSet":true,"deadlineInMs":119,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":209,"scrollDeadlineSet":true,"deadlineInMs":65,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":210,"scrollDeadlineSet":true,"deadlineInMs":10,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":212,"scrollDeadlineSet":true,"deadlineInMs":80,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":213,"scrollDeadlineSet":true,"deadlineInMs":25,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":215,"scrollDeadlineSet":true,"deadlineInMs":92,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":216,"scrollDeadlineSet":true,"deadlineInMs":37,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":218,"scrollDeadlineSet":true,"deadlineInMs":105,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":219,"scrollDeadlineSet":true,"deadlineInMs":51,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":221,"scrollDeadlineSet":true,"deadlineInMs":118,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":222,"scrollDeadlineSet":true,"deadlineInMs":64,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":223,"scrollDeadlineSet":true,"deadlineInMs":12,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":225,"scrollDeadlineSet":true,"deadlineInMs":81,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":226,"scrollDeadlineSet":true,"deadlineInMs":27,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":228,"scrollDeadlineSet":true,"deadlineInMs":94,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":229,"scrollDeadlineSet":true,"deadlineInMs":40,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":231,"scrollDeadlineSet":true,"deadlineInMs":108,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":232,"scrollDeadlineSet":true,"deadlineInMs":53,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":234,"scrollDeadlineSet":true,"deadlineInMs":119,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":235,"scrollDeadlineSet":true,"deadlineInMs":65,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":236,"scrollDeadlineSet":true,"deadlineInMs":11,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":238,"scrollDeadlineSet":true,"deadlineInMs":81,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":239,"scrollDeadlineSet":true,"deadlineInMs":26,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":1,"scrollDeadlineSet":true,"deadlineInMs":93,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":2,"scrollDeadlineSet":true,"deadlineInMs":39,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":4,"scrollDeadlineSet":true,"deadlineInMs":107,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":5,"scrollDeadlineSet":true,"deadlineInMs":53,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":7,"scrollDeadlineSet":true,"deadlineInMs":119,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":8,"scrollDeadlineSet":true,"deadlineInMs":66,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":9,"scrollDeadlineSet":true,"deadlineInMs":12,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":11,"scrollDeadlineSet":true,"deadlineInMs":80,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":12,"scrollDeadlineSet":true,"deadlineInMs":26,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":14,"scrollDeadlineSet":true,"deadlineInMs":94,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":15,"scrollDeadlineSet":true,"deadlineInMs":40,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":17,"scrollDeadlineSet":true,"deadlineInMs":108,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":18,"scrollDeadlineSet":true,"deadlineInMs":53,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":20,"scrollDeadlineSet":true,"deadlineInMs":119,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":21,"scrollDeadlineSet":true,"deadlineInMs":65,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":22,"scrollDeadlineSet":true,"deadlineInMs":10,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":24,"scrollDeadlineSet":true,"deadlineInMs":81,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":25,"scrollDeadlineSet":true,"deadlineInMs":27,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM! - MARQUEE_WRAP_TEST_OK   ","scrollOffset":27,"scrollDeadlineSet":true,"deadlineInMs":95,"wifiDownOverrideActive":false,"textPx":186,"periodPx":240,"scrolling":true,"last":true}
+{"ok":true,"cmd":"set","var":"wrIcy","val":"-"}
+{"ok":true,"cmd":"get","var":"wrMarquee","lastTitle":"SLAM!","scrollOffset":0,"scrollDeadlineSet":true,"deadlineInMs":1188,"wifiDownOverrideActive":false,"textPx":30,"periodPx":84,"scrolling":false,"last":true}
+{"ok":true,"cmd":"set","var":"wrBufPct","val":"37"}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":37,"bufPctSmoothed":37,"bufPctDrawn":37,"redraws":0,"sinceLastRedrawMs":-1,"lastSkipReason":"none","last":true}
+[I][webradio] play idx=0 name=Radio 10 url=http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10.mp3
+[I][spotify.tls] tls yield — client stopped
+[membudget] TASK-267 _play pre-acquire lfbInt=42996 freeInt=120016
+[membudget] TASK-267 arena acquire=24576B lfbBefore=42996 OK
+[membudget] arena init base=0x3ffef4c0 cap=24576
+[membudget] CP0-pre-audio-init freeDma=52280 lfbDma=18420
+[I][wrpump] created stack=8192B prio=2 core=1
+[I][webradio] HEAP pre-connect free=64748 min=55452 maxAlloc=42996
+[membudget] CP1-pre-connect skip=0 freeInt=64748 lfbInt=42996 freeDma=21604 lfbDma=10228
+{"ok":true,"cmd":"set","var":"wrPlay","val":"0"}
+[I][webradio] audio_info: PSRAM not found, inputBufferSize: 6399 bytes
+[I][webradio] audio_info: buffers freed, free Heap: 56404 bytes
+[I][webradio] audio_info: Connect to new host: "http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10.mp3"
+[D][chrome] drawVolume pct=100 keyframe=4
+[D][chrome] drawVolume pct=100 keyframe=4
+[W][perf] iter=331ms (worst path so far: app.tick:93ms)
+{"ok":true,"cmd":"get","var":"wrState","state":1,"last":true}
+[I][webradio] audio_info: Connection has been established in 63 ms, free Heap: 55096 bytes
+[I][webradio] HEAP play free=53644 min=52648
+[D][chrome] drawVolume pct=100 keyframe=4
+[D][chrome] drawVolume pct=100 keyframe=4
+[I][webradio] audio_info: redirect to new host "http://27873.live.streamtheworld.com:80/RADIO10.mp3"
+[I][webradio] audio_info: buffers freed, free Heap: 55832 bytes
+[I][webradio] audio_info: Connect to new host: "http://27873.live.streamtheworld.com:80/RADIO10.mp3"
+[W][perf] iter=98ms (worst path so far: wr.connect:106ms)
+[W][perf] iter=56ms (worst path so far: wr.connect:106ms)
+[I][webradio] audio_info: Connection has been established in 90 ms, free Heap: 55372 bytes
+[I][webradio] audio_info: icy-name: Radio 10
+[mbdbg] arena FIRST alloc: base=0x3ffef4c0 cap=24576 req=2000
+[mbdbg] helix alloc: DecInfo=0x3ffef4c0(2000) FHdr=0x3ffefc90(44) SI=0x3ffefcbc(40) SFJS=0x3ffefce4(36) Huff=0x3ffefd08(4624) Deq=0x3fff0f18(792) IMDCT=0x3fff1230(6944) Sub=0x3fff2d50(8708) FInfo=0x3fff4f54(28)
+[I][webradio] audio_info: MP3Decoder has been initialized, free Heap: 47084 bytes
+[membudget] CP2-decoder-init freeInt=47084 lfbInt=42996 freeDma=3940 lfbDma=2292 arenaHWM=23216
+[W][perf] iter=52ms (worst path so far: wr.pump:132ms)[I][webradio] audio_info: stream ready
+
+[I][webradio] audio_info: syncword found at pos 0
+[I][webradio] audio_info: Channels: 2
+[I][webradio] audio_info: SampleRate: 44100
+[I][webradio] audio_info: BitsPerSample: 16
+[I][webradio] audio_info: BitRate: 128000
+[I][webradio] audio_info: StreamTitle='Chic - Good Times'
+[D][webradio] ICY: Chic - Good Times
+{"ok":true,"cmd":"get","var":"wrState","state":2,"last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":93,"bufPctSmoothed":97,"bufPctDrawn":97,"redraws":5,"sinceLastRedrawMs":162,"lastSkipReason":"delta","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":93,"bufPctSmoothed":97,"bufPctDrawn":97,"redraws":5,"sinceLastRedrawMs":451,"lastSkipReason":"delta","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":93,"bufPctSmoothed":97,"bufPctDrawn":93,"redraws":7,"sinceLastRedrawMs":52,"lastSkipReason":"interval","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":93,"bufPctSmoothed":98,"bufPctDrawn":97,"redraws":8,"sinceLastRedrawMs":140,"lastSkipReason":"delta","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":61,"bufPctSmoothed":69,"bufPctDrawn":69,"redraws":10,"sinceLastRedrawMs":6,"lastSkipReason":"none","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":93,"bufPctSmoothed":98,"bufPctDrawn":96,"redraws":11,"sinceLastRedrawMs":82,"lastSkipReason":"interval","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":93,"bufPctSmoothed":97,"bufPctDrawn":98,"redraws":12,"sinceLastRedrawMs":155,"lastSkipReason":"delta","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":100,"bufPctSmoothed":99,"bufPctDrawn":97,"redraws":14,"sinceLastRedrawMs":38,"lastSkipReason":"interval","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":58,"bufPctSmoothed":68,"bufPctDrawn":95,"redraws":15,"sinceLastRedrawMs":133,"lastSkipReason":"interval","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":47,"redraws":16,"sinceLastRedrawMs":201,"lastSkipReason":"interval","last":true}
+[I][webradio] audio_info: slow stream, dropouts are possible
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":258,"lastSkipReason":"delta","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":529,"lastSkipReason":"delta","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":802,"lastSkipReason":"delta","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":1073,"lastSkipReason":"delta","last":true}
+[I][webradio] audio_info: slow stream, dropouts are possible
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":1344,"lastSkipReason":"delta","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":1618,"lastSkipReason":"delta","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":1889,"lastSkipReason":"delta","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":2161,"lastSkipReason":"delta","last":true}
+[I][webradio] audio_info: slow stream, dropouts are possible
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":2433,"lastSkipReason":"delta","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":2705,"lastSkipReason":"delta","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":2975,"lastSkipReason":"delta","last":true}
+[I][webradio] audio_info: slow stream, dropouts are possible
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":3246,"lastSkipReason":"delta","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":3517,"lastSkipReason":"delta","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":3788,"lastSkipReason":"delta","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":4063,"lastSkipReason":"delta","last":true}
+[I][webradio] audio_info: slow stream, dropouts are possible
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":4335,"lastSkipReason":"delta","last":true}
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":4606,"lastSkipReason":"delta","last":true}
+[W][webradio] stream dead (isRunning=1 for 0ms, bufStalled for 5000ms) — stop + resume Spotify TLS
+[I][webradio] stall idx=0 — retrying once
+[I][spotify.tls] tls yield — resumed
+[D][chrome] drawVolume pct=100 keyframe=4
+[D][chrome] drawVolume pct=100 keyframe=4
+[W][perf] iter=81ms (worst path so far: wr.pump:132ms)
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":19,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":4937,"lastSkipReason":"delta","last":true}
+[I][webradio] play idx=0 name=Radio 10 url=http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10.mp3
+[I][spotify.tls] tls yield — client stopped
+[membudget] TASK-267 _play pre-acquire lfbInt=42996 freeInt=46988
+[I][webradio] HEAP pre-connect free=46988 min=43836 maxAlloc=42996
+[membudget] CP1-pre-connect skip=0 freeInt=46988 lfbInt=42996 freeDma=3844 lfbDma=2292
+[W][perf] iter=455ms (worst path so far: app.tick:440ms)
+{"ok":true,"cmd":"get","var":"wrPosbar","bufPctRaw":0,"bufPctSmoothed":19,"bufPctDrawn":19,"redraws":17,"sinceLastRedrawMs":5392,"lastSkipReason":"delta","last":true}

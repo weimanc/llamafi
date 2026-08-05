@@ -7234,10 +7234,55 @@ bounce motion but fill the hold with glyphs). **Lean: Option B** (modular indexi
 true endless loop) — human-approved 2026-08-04. Exact separator glyph run/spacing left as an open
 question for a DUT/`preview_layout.py` visual-fit pass before locking the constant in.
 
-**Owner:** Architect (design pass — done) → Developer (implementation, not started) · **Deps:**
-`m3-001` (feature owning the title marquee), `M-UI-POLISH-fidelity.md` TASK-048 (the gap/loop half
-that never shipped) · **Priority:** P3 (cosmetic fidelity, no functional/safety impact) ·
-**Status:** open — design accepted, implementation not started.
+**Implementation (2026-08-05, Developer, PM-driven session).** Landed Option B exactly as
+specced: `titleTextPx`/`titlePeriodPx` cached in `_forceSetTitle()` (not recomputed per tick);
+`_tickMarquee()` drops the off-screen-respawn reset for an unconditional `% titlePeriodPx` wrap
+once `textPx > TITLE_W`; `drawTitleText()` walks a virtual `lastTitle` + separator + `lastTitle`
+sequence via modular indexing (no doubled string, Goal 4) when scrolling, and keeps the original
+flat walk untouched for the short-text static path (Goal 3). Separator picked as `"   ***   "`
+(the doc's own named "classic" shape) through `kTitleMarqueeSep` — a file-scope `static
+constexpr char[]` (not a class static member: the latter needs an out-of-line definition to be
+ODR-used from an index expression, which linked as `undefined reference` on first build; moved
+to file scope alongside the existing `kDriftPip` precedent, fixed). `wrMarquee` getter extended
+with `textPx`/`periodPx`/`scrolling` per the doc's open question (cheap, done alongside).
+`./run/check` 6/6 both envs, no DRAM/BSS regression.
+
+**DUT verification (2026-08-05, same session).** The passive monitor (`spotify-mon`) turned out
+to be watching normal playback, not a supervised soak — confirmed via `ps aux`/tmux pane inspection
+(no soak/stress script attached) before interrupting it; human approved flashing. `./run/flash-debug`
++ a new ad hoc harness (`app/tools/task399_402_dut_verify.py`, same convention as
+`task400_401_dut_verify.py`) drove real DUT checks via `get wrMarquee`:
+- Long injected ICY title (`set wrIcy`) → `scrolling:true`, `periodPx`(240) `>` `textPx`(186) by
+  exactly the separator's pixel width (9 glyphs × 6px pitch = 54px) — confirms the separator is
+  actually being counted into the loop period, not just cosmetically appended.
+- `scrollOffset` polled across real ticks: advances monotonically, **never goes negative** (the
+  old off-screen-respawn value), and a live wrap was caught mid-test — offset fell from 239 to 1,
+  landing near 0 as designed rather than jumping to a large negative "off-screen" value. This is
+  the actual behavioral core of the fix (bounce → endless loop), confirmed on hardware, not just
+  read from source.
+- Short text afterward: `scrolling:false` — Goal 3 (static short-text path unchanged) holds.
+- **Visual confirmation**: timed a `screendump` (via a throwaway single-session script — a second
+  connection would DTR-reset the DUT and lose the marquee state, so setup + capture had to share
+  one serial session) to land inside the wrap window (`scrollOffset` in `[textPx-20, periodPx-5]`).
+  The captured frame shows the tail of one pass, the shuriken separator glyphs, and the head of the
+  next pass all in the same frame with no blank gap between them — the literal exit-criterion goal.
+  Confirms `kTitleMarqueeSep`'s glyphs render as the intended shuriken (via `SKIN_GLYPH['*']`), not
+  garbled — full-quality video of continuous motion is still a further-nice-to-have but the static
+  frame already proves the structural claim (endless loop, real separator, no hold).
+- WiFi-down override path not separately re-tested this session (short strings, same code path as
+  the already-covered short-text case — no new risk surface introduced by this change).
+
+OQ1 (exact separator run/spacing) resolved as `kTitleMarqueeSep = "   ***   "` (3 shuriken glyphs,
+1-space-gapped each side) — the design doc's own named "classic" shape, confirmed to read cleanly
+in the DUT screenshot above; not revisited further.
+
+**Owner:** Architect (design pass — done) → Developer (implementation — **done 2026-08-05**,
+DUT-verified) · **Deps:** `m3-001` (feature owning the title marquee), `M-UI-POLISH-fidelity.md`
+TASK-048 (the gap/loop half that never shipped) · **Priority:** P3 (cosmetic fidelity, no
+functional/safety impact) · **Status:** **CLOSED — implemented, host-verified (`run/check` 6/6
+both envs) and DUT-verified** (mechanism via `get wrMarquee` polling + a real-hardware screenshot
+confirming the endless-loop/separator visual). WiFi-down-override path inferred safe (same
+short-text code path already covered) rather than separately re-tested.
 
 ### TASK-400 — Settings → System → Reboot (user-triggered soft reboot)
 
@@ -7516,8 +7561,65 @@ before implementation. Touches `app/src/webRadioApp.h` (EMA, time-gate, new debu
 `perf::record` call), `app/src/winamp/winampDisplay.h` (`drawBufferBar()` partial-diff blit), and
 `app/src/perf.h` (`MAX_PATHS` 10→11), per the accepted doc's §Lean/decision.
 
+**Implementation (2026-08-05, Developer, PM-driven session).** Landed the full Lean (A+B+E+F):
+
+- **A (EMA):** `_bufPctSmoothed` (float), `+= (raw - smoothed) * WR_POSBAR_EMA_ALPHA`, mirroring
+  the VU meter's own attack/release filter shape. `_bufPct` itself stays raw and untouched — still
+  what `wrUnderruns`/`_minBufPct` read, per the doc's "raw value stays available" note.
+- **B (time floor):** `WR_POSBAR_MIN_REDRAW_MS` gate alongside the existing (now smoothed-value)
+  delta check — both must pass to redraw. Provisional constants (`WR_POSBAR_EMA_ALPHA = 0.2f`,
+  `WR_POSBAR_MIN_REDRAW_MS = 200`), explicitly commented as OQ1/OQ2-pending, not claimed final.
+- **E (partial-diff blit):** `drawBufferBar()` rewritten to mirror `updateSeekThumb()`'s own
+  old-thumb-under + new-thumb pattern, via a new `lastBufThumbPx` sentinel kept separate from
+  Spotify's `lastThumbPx` (prevents the two callers' diff-state from cross-contaminating). OQ3
+  (does anything else paint over the groove between calls) checked directly: `repaintChrome()`
+  already re-blits the full groove unconditionally on every full-chrome event, so `drawBufferBar`
+  invalidates `lastBufThumbPx` there too (`repaintChrome()` now resets it alongside the existing
+  `vu::invalidate()` precedent) — closes the one real gap found (a stray full-chrome repaint,
+  e.g. `SCREEN_LOG`'s `screenlog.tick()` dismiss, leaving a stale off-position thumb sprite that a
+  same-position partial-diff redraw would otherwise never clean up).
+- **F (instrumentation):** `perf::record("wr.posbar", ...)` added at the single site inside
+  `_drawPosbar()`'s own body (VE-2: not at its three callers), `MAX_PATHS` 10→11 in `perf.h`.
+  New `get wrPosbar` getter: `bufPctRaw`, `bufPctSmoothed`, `bufPctDrawn`, `redraws`,
+  `sinceLastRedrawMs`, `lastSkipReason: delta|interval|none` (VE-4).
+- **`set wrBufPct` (VE-1):** unchanged behavior — force-writes and draws immediately, bypassing
+  both new gates. Also syncs `_bufPctSmoothed` to the forced value so a real tick right after
+  doesn't visibly jump back toward a stale pre-override EMA baseline (small addition beyond the
+  doc's literal spec, low-risk, avoids an obvious own-goal).
+
+`feature_inventory.yaml`'s `webradio-001` entry updated per the doc's own note (description +
+serial-debug var list, including a pre-existing inaccuracy fixed in passing: `wrBufPct` was
+listed as a `get` var but only ever existed as `set`). `./run/check` 6/6 both envs, no DRAM/BSS
+regression.
+
+**DUT verification (2026-08-05, same session, real playback).** Same harness as TASK-399
+(`app/tools/task399_402_dut_verify.py`), against a real playing station (SLAM!, 30-station NL
+list fetched live), using the new `get wrPosbar` getter:
+- VE-1 (`set wrBufPct 37`, debug-forced): `bufPctDrawn` and `bufPctSmoothed` both reflect 37
+  immediately, gate bypass confirmed working exactly as specified.
+- Real playback, polled every 250ms over ~7s: `redraws` climbed 5→17 (real redraws happening) but
+  **not on every sample** — confirms the time-floor gate (B) is genuinely binding, not a no-op.
+  `lastSkipReason` was observed taking all three values (`delta`, `interval`, `none`) across the
+  window — both new gates were seen actually blocking a redraw at different points, not just one
+  dominating (the exact thing VE-4's getter field was added to make visible).
+- **Visual**: a `screendump` mid-playback shows the posbar thumb rendering cleanly at a plausible
+  low fill position with no groove corruption or leftover/ghost thumb sprite — the partial-diff
+  blit (Option E) isn't leaving stale pixels behind. (The forced 37% from the VE-1 check above was
+  overwritten within the same ~200ms window by real ticks recalculating from live buffer state,
+  as designed — the debug hook was never meant to stick once real playback resumes.)
+
+**Not done this session (explicitly, not an oversight):** OQ1/OQ2 formal DUT *tuning* (the
+provisional `WR_POSBAR_EMA_ALPHA=0.2f` / `WR_POSBAR_MIN_REDRAW_MS=200` constants read as reasonable
+from the above — visibly smoothed, visibly rate-limited, nothing looked laggy — but weren't swept
+against alternatives) and the design doc's own ≥3-trial before/after redraw-count comparison,
+multi-minute stall-visibility check, and full WebRadio regression suite (auto-skip/eject/ICY/vis
+toggles) — those are a deliberately separate, longer DUT session, not a quick mechanism check.
+
 **Owner:** Architect (design pass — done; VE majors folded) → human (**signed off**) → VE
-(testability review — done, approve-with-changes) → PM (scheduled) → Developer (implementation,
-**not started — next up**) · **Deps:** `webradio-001` (the feature this modifies), `perf-001`
-(`perf.h`'s `MAX_PATHS` budget, `X049`) · **Priority:** P3 (visual/resource-usage polish, no
-functional gap) · **Status:** open — **accepted, scheduled, awaiting Developer implementation.**
+(testability review — done, approve-with-changes) → PM (scheduled) → Developer (implementation —
+**done 2026-08-05**, DUT-verified) · **Deps:** `webradio-001` (the feature this modifies),
+`perf-001` (`perf.h`'s `MAX_PATHS` budget, `X049`) · **Priority:** P3 (visual/resource-usage
+polish, no functional gap) · **Status:** **implemented, host-verified (`run/check` 6/6 both envs)
+and DUT-verified** (mechanism confirmed live against real playback + a real-hardware screenshot) —
+**open, not closed**: OQ1/OQ2 formal tuning and the doc's ≥3-trial exit-criteria comparison still
+need a dedicated longer DUT session.

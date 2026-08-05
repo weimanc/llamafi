@@ -44,6 +44,11 @@ static constexpr uint16_t kDriftPip[4 * 4] = {
   0xFD00, 0xFD00, 0xFD00, 0xFD00,
 };
 
+// TASK-399: endless-ticker separator between marquee loop passes. '*'
+// resolves to the skin's baked shuriken glyph (TEXT.BMP row2/col1 via
+// CHAR_MAP), not a literal asterisk -- see M-TITLE-MARQUEE-WRAP.md.
+static constexpr char kTitleMarqueeSep[] = "   ***   ";
+
 class WinampDisplay : public CheapYellowDisplay {
 public:
   void displaySetup(SpotifyArduino *spotifyObj) override {
@@ -164,6 +169,13 @@ public:
     // any cached pixel-widths are stale. Force the next vu::tick to
     // repaint from scratch.
     vu::invalidate();
+    // TASK-402: the POSBAR groove was just re-blitted above (line ~148) as
+    // part of this full chrome repaint, so drawBufferBar()'s own partial-
+    // diff "under" blit (keyed on lastBufThumbPx) would be stale/no-op
+    // against it. Invalidate so its next call redoes a real groove blit
+    // instead of diffing against a thumb position that predates this
+    // repaint (OQ3, M-WEBRADIO-POSBAR-SMOOTH.md).
+    lastBufThumbPx = -1;
     g_lastRenderMs = millis();  // TASK-059: mark full chrome repaint time
   }
 
@@ -172,14 +184,28 @@ public:
   // buffer fullness (left = empty, right = full) — pct 0..100 mapped over the same
   // travel the seek bar uses. WebRadio-only; the renderer owns SKIN_POSBAR so it
   // restores the groove here. Mirrors app/tools/preview_webradio.py::_draw_buffer_bar.
+  // TASK-402 (Option E): partial-diff blit, mirrors updateSeekThumb()'s own
+  // pattern in this file — blit only the old-thumb-position "under" sprite
+  // plus the new thumb, instead of unconditionally repainting the whole
+  // 248x10 groove every call (~20 pushImage calls → ~1 when unchanged, ~12
+  // when moved). First call since a full chrome repaint (lastBufThumbPx==-1,
+  // see repaintChrome()'s invalidation) still does a real groove blit.
   void drawBufferBar(uint8_t pct) {
     if (pct > 100) pct = 100;
     const int travel  = POSBAR_BG.w - POSBAR_THUMB_N.w;   // same as the seek bar
     const int thumbPx = (int)pct * travel / 100;
+    if (thumbPx == lastBufThumbPx) return;   // no visible change since last draw
+    int slotX = originX + POSBAR_X;
+    int slotY = originY + POSBAR_Y;
     tft.startWrite();
-    blitSprite(originX + POSBAR_X, originY + POSBAR_Y, SKIN_POSBAR, SKIN_POSBAR_W, POSBAR_BG);
-    blitSprite(originX + POSBAR_X + thumbPx, originY + POSBAR_Y,
-               SKIN_POSBAR, SKIN_POSBAR_W, POSBAR_THUMB_N);
+    if (lastBufThumbPx < 0) {
+      blitSprite(slotX, slotY, SKIN_POSBAR, SKIN_POSBAR_W, POSBAR_BG);
+    } else {
+      SkinUV under = { (int16_t)lastBufThumbPx, 0, POSBAR_THUMB_N.w, POSBAR_BG.h };
+      blitSprite(slotX + lastBufThumbPx, slotY, SKIN_POSBAR, SKIN_POSBAR_W, under);
+    }
+    blitSprite(slotX + thumbPx, slotY, SKIN_POSBAR, SKIN_POSBAR_W, POSBAR_THUMB_N);
+    lastBufThumbPx = thumbPx;
     tft.endWrite();
   }
 
@@ -685,6 +711,11 @@ private:
   uint8_t lastCount = 0;            // cached qs.count for scroll clamp in touch handler
   static constexpr unsigned long PLAYLIST_DRAW_MIN_MS = 1000;  // 1 Hz cap
   int lastThumbPx = -1;
+  // TASK-402: separate diff-tracking sentinel for drawBufferBar() (WebRadio's
+  // POSBAR reuse) — kept apart from lastThumbPx (Spotify's seek thumb) so the
+  // two callers' partial-diff state can't cross-contaminate. -1 = next call
+  // must do a full groove blit (no valid prior position to diff against).
+  int lastBufThumbPx = -1;
   int lastSeconds = -1;
   // TASK-041 / A1.1 cache. -2 = never rendered (next repaint paints
   // sentinel); -1 = sentinel (no active device); 0..100 = real volume.
@@ -694,6 +725,11 @@ private:
   int scrollOffset = 0;       // TASK-051c will drive; 0 = thumb at top
   int titleScrollOffset = 0;
   unsigned long titleScrollDeadline = 0;
+  // TASK-399: cached at _forceSetTitle() time, not recomputed per tick/frame.
+  // titleTextPx <= TITLE_W means the static short-text path (Goal 3); the
+  // period includes one separator run so the loop wraps seamlessly.
+  int titleTextPx = 0;
+  int titlePeriodPx = 0;
   // M-BOOT-UI §6 / ADR-055 decision 5: while active, setTitle() stashes
   // every caller's intent instead of drawing — none can paint over the
   // WiFi-down override, none need to know it exists.
@@ -830,18 +866,21 @@ private:
     lastTitle[sizeof(lastTitle) - 1] = '\0';
     titleScrollOffset   = 0;
     titleScrollDeadline = millis() + TITLE_SCROLL_HOLD_MS;
+    titleTextPx   = (int)strlen(lastTitle) * (GLYPH_W + 1);
+    titlePeriodPx = titleTextPx + (int)(sizeof(kTitleMarqueeSep) - 1) * (GLYPH_W + 1);
     drawTitleText(0);
   }
 
+  // TASK-399: endless loop once textPx > TITLE_W -- offset wraps modulo the
+  // (text + separator) period instead of resetting off-screen right, so the
+  // tail of one pass and the head of the next are visible in the same frame.
   void _tickMarquee() {
     if (titleScrollDeadline && millis() >= titleScrollDeadline) {
       drawTitleText(titleScrollOffset);
-      titleScrollOffset++;
-      const int textPx = (int)strlen(lastTitle) * (GLYPH_W + 1);
-      if (textPx <= TITLE_W) {
+      if (titleTextPx <= TITLE_W) {
         titleScrollDeadline = 0;
       } else {
-        if (titleScrollOffset > textPx) titleScrollOffset = -TITLE_W / (GLYPH_W + 1);
+        titleScrollOffset = (titleScrollOffset + 1) % titlePeriodPx;
         titleScrollDeadline = millis() + TITLE_SCROLL_STEP_MS;
       }
     }
@@ -1106,13 +1145,17 @@ public:
     if (strcmp(var, "wrMarquee") == 0) {
       long deadlineInMs = titleScrollDeadline
                          ? (long)titleScrollDeadline - (long)now : 0;
+      // TASK-399: textPx/periodPx/scrolling let a DUT session confirm the
+      // endless-loop period matches lastTitle+separator without eyeballing.
       snprintf(buf, len,
                "\"var\":\"wrMarquee\",\"lastTitle\":\"%s\",\"scrollOffset\":%d,"
                "\"scrollDeadlineSet\":%s,\"deadlineInMs\":%ld,"
-               "\"wifiDownOverrideActive\":%s,\"last\":true",
+               "\"wifiDownOverrideActive\":%s,\"textPx\":%d,\"periodPx\":%d,"
+               "\"scrolling\":%s,\"last\":true",
                lastTitle, titleScrollOffset,
                titleScrollDeadline ? "true" : "false", deadlineInMs,
-               _wifiDownOverrideActive ? "true" : "false");
+               _wifiDownOverrideActive ? "true" : "false",
+               titleTextPx, titlePeriodPx, titleTextPx > TITLE_W ? "true" : "false");
       return true;
     }
     if (strcmp(var, "posbarDragMs") == 0) {
@@ -1205,11 +1248,28 @@ private:
       const uint16_t *src = SKIN_MAIN_BG + (TITLE_Y + row) * SKIN_MAIN_BG_W + TITLE_X;
       tft.pushImage(slotX, slotY + row, TITLE_W, 1, src);
     }
+    // TASK-399: once scrolling, walk a virtual index across lastTitle +
+    // separator + lastTitle (modulo the cached period) instead of a flat
+    // pointer walk -- no doubled string in memory (Option B, see
+    // M-TITLE-MARQUEE-WRAP.md). Short/static text keeps the original flat
+    // walk unchanged (Goal 3).
+    const bool scrolling = titleTextPx > TITLE_W;
+    const int textLen = (int)strlen(lastTitle);
+    const int sepLen  = (int)(sizeof(kTitleMarqueeSep) - 1);
+    const int cycleLen = textLen + sepLen;
+
     int x = -offset;
-    for (const char *p = lastTitle; *p; ++p) {
-      if (x >= TITLE_W) break;
+    for (int i = 0; x < TITLE_W; ++i) {
+      char ch;
+      if (scrolling) {
+        int m = i % cycleLen;
+        ch = (m < textLen) ? lastTitle[m] : kTitleMarqueeSep[m - textLen];
+      } else {
+        if (i >= textLen) break;
+        ch = lastTitle[i];
+      }
       if (x + GLYPH_W > 0) {
-        uint8_t code = (uint8_t)*p;
+        uint8_t code = (uint8_t)ch;
         if (code >= 128) code = '?';
         SkinUV uv = SKIN_GLYPH[code];
         // Clip the glyph to the slot edges.
