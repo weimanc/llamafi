@@ -2254,17 +2254,35 @@ features:
       wifiSection.h's _doForget() and the debug `reboot` serial command — no new reset
       path. Manual recovery for the occasional heap-fragmentation state
       (M-HEAP-FRAGMENTATION.md, parked) that otherwise requires a physical power cycle.
-    status: planned
-    git_ref: "bf3bf6c (2026-08-04)"
-    files: []
+    status: implemented
+    git_ref: "(commit pending)"
+    files:
+      - app/src/settings/systemSection.h
+      - app/src/main.cpp
     cross_features: [settings-001]
     test_ids: []
     notes: |
       Design: docs/architecture/designs/M-SYS-REBOOT.md (accepted 2026-08-04, no ADR —
       OQ1's own lean adopted, mechanism is 100% reused). VE testability review:
       docs/architecture/designs/sys-reboot-wifi-multi-VE-review.md
-      (approve-with-changes; both majors folded into the design doc). Implementation
-      not started: app/src/settings/systemSection.h (new file), main.cpp
+      (approve-with-changes; both majors folded into the design doc). Implemented
+      2026-08-05 (TASK-400): SETTINGS_CAT_COUNT 6->7, "System" added to kLabels[],
+      _sections[6] wired to a new SystemSection (main.cpp). systemSection.h: single
+      "Reboot device" row -> Danger-styled confirm screen (SButton/sButtonBar kit,
+      mirrors appsSection.h's ManualConfirm/LookupError confirm-frame idiom) ->
+      confirm fires SButton::flash(), LOG_I("settings","system-reboot confirmed")
+      (VE-1-1), Serial.flush()+delay(50) (mirrors cmdReboot's ack-then-reset
+      pattern), then ESP.restart(). Confirm-screen SButton[2] is lazy heap-allocated
+      (new SButton[2], never freed) rather than an inline member — an embedded
+      array overflowed the debug build's .dram0.bss by exactly 32B at link time;
+      same "lazy malloc once, never freed" rule already used elsewhere (TeletextApp
+      _nosSource(), webRadioApp wrPumpConnectUrlBuf() — project memory
+      feedback_dram_bss_static_buffers). ./run/check 6/6 green (host-side only —
+      a DUT soak was running on /dev/ttyUSB0 during implementation, no serial-port
+      script touched). No settingsStorage.h/_cancel() changes (design doc confirmed
+      unnecessary — every section autosaves per-field). DUT verification (exit
+      criteria: get settingsSection==6, the confirm log line, human-eyeball 7-row
+      layout check per VE-1-2) still outstanding — not run, DUT was unavailable.
       SETTINGS_CAT_COUNT 6→7. Tracked as TASK-400. Matrix edge X047 registered
       alongside this entry (settings-001 category-list capacity).
 
@@ -2278,9 +2296,11 @@ features:
       selection anywhere, by human decision ("I don't want the DUT switching over of
       wifi hotspots on its own", 2026-08-04). One-time migration from legacy
       /wifi_creds.json on first boot after upgrade.
-    status: planned
-    git_ref: "bf3bf6c (2026-08-04)"
-    files: []
+    status: implemented
+    git_ref: "(commit pending)"
+    files:
+      - app/src/settings/wifiSection.h
+      - app/src/main.cpp
     cross_features: [settings-wifi]
     test_ids: []
     notes: |
@@ -2288,7 +2308,46 @@ features:
       ADR — OQ1's own lean adopted, boot/supervisor unchanged so no architectural
       policy change). VE testability review: docs/architecture/designs/
       sys-reboot-wifi-multi-VE-review.md (approve-with-changes; both majors folded —
-      get wifiSaved debug getter, migration exit criterion). Implementation not
-      started: extends app/src/settings/wifiSection.h. Tracked as TASK-401. No new
-      cross_feature_matrix.yaml edge — explicitly does not touch wifi-diag-001 (see
-      design doc §Registers).
+      get wifiSaved debug getter, migration exit criterion).
+
+      Implemented 2026-08-05 (TASK-401): /wifi_networks.json (cap WIFI_MAX_SAVED=5),
+      TASK-329-discipline capacity math + doc.overflowed() guards on both read and
+      write. One-time migration from legacy /wifi_creds.json, lazily triggered on
+      first WifiSection::enter() or first `get wifiSaved` touch (never in the boot
+      chain — main.cpp's connect tiers are byte-for-byte unchanged, confirmed by
+      diff). New WifiStep::SavedList/SavedEntry/SavedDeleteConfirm sub-steps reusing
+      existing row/button-bar widgets. Scan-connect success (_onConnectSuccess(),
+      hooked into tick()'s WL_CONNECTED branch) appends/refreshes a saved entry with
+      LRU eviction past the cap; reads the password back out of NVS via
+      esp_wifi_get_config() rather than caching a second plaintext copy. "Forget
+      network" now removes just the active list entry, not the whole file. New
+      `get wifiSaved` debug getter (VE-2-1) in SettingsApp::dbgGet(), same
+      dbgGet-chain pattern as settingsAppSubmenu.
+
+      DRAM budget: this debug build had exactly 0 bytes of .dram0.bss headroom left
+      after TASK-400 (same-day sibling task). Fixed by shrinking WifiSection's
+      pre-existing _nets[] live-scan buffer from 16 to S_MAX_ROWS(8) entries —
+      behavior-preserving (repaintList() only ever renders min(_netCount,
+      S_MAX_ROWS) rows regardless of tracked-candidate depth, so an 8-slot bounded
+      insertion sort selects the identical top-8-by-RSSI set as a 16-slot one; the
+      extra capacity was dead weight). Two other relocation attempts (moving the
+      saved-state pointer, and separately TASK-400's confirm-button pointer, to
+      file scope) were tried first and measured to have zero effect on the actual
+      link-time budget — reverted back to simple class members for code clarity
+      once that was confirmed; only the _nets[] shrink was the real fix.
+      `./run/check` 6/6 green on both envs after the fix.
+
+      Implementation note: built by a subagent that died mid-task (session credit
+      limit) after completing the full feature but before the DRAM-budget iteration
+      — the surviving work (main.cpp + wifiSection.h diffs) was reviewed line-by-line
+      against the design doc and this codebase's real symbol/interface names (not
+      assumed), found correct and complete, and finished/verified by the PM-role
+      session rather than redone from scratch. One leftover mid-debug artifact (a
+      compile-time sizeof probe) was found and removed during review.
+
+      DUT verification (per the design's own exit criteria — legacy-migration on a
+      real device, get wifiSaved cross-checks, tap-to-connect/out-of-range/delete
+      paths, T-WIFI-01..06 regression) not yet run — DUT was occupied by a
+      concurrent TASK-390/393 soak during implementation. Tracked as TASK-401. No
+      new cross_feature_matrix.yaml edge — explicitly does not touch wifi-diag-001
+      (see design doc §Registers).

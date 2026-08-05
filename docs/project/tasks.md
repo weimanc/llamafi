@@ -6507,6 +6507,28 @@ being asserted as fact).
 **Filed as TASK-398** to actually scope Phase 2 (or a narrower connect-specific mitigation) now
 that the freeze magnitude is real data, not a deferred theoretical.
 
+**Post-TASK-398 soak, 2026-08-05 (2h, Spotify-present, `--spotify-present` flag, SLAM! DANCE
+CLASSICS, `cyd2usb_winamp_debug`) — sixth repro attempt overall, first since TASK-398 landed.**
+Run via `test_webradio_long_soak.py` in the background while unrelated host-side implementation
+work (TASK-400/401) proceeded in parallel. **Result: 0 anomalies, `status=complete`, 7200s
+elapsed.** `render_age` never climbed in lockstep with `uptime` at any point (the render-freeze
+detector correctly never fired) — same disposition as all five prior attempts, still unreproduced.
+Raw-log counts (`grep` against the persisted log, not live reads): 213 `connecttohost failed` /
+67 successful connects (~76% failure rate this run — lower than the pre-TASK-398 97% figure from
+the 2026-08-04 run, but station/network conditions differ enough between sessions that this is not
+a controlled before/after comparison, just a data point), and — the actually load-bearing number —
+**232 `terminal retry — re-arming scan` firings, every single one followed by a fresh `play idx=`
+attempt, zero permanent `ERROR_*` parks over the full 2 hours.** Heap stable (42-117k, no drift),
+no crash/panic/reboot lines. This is meaningfully different from the pre-TASK-398 picture: the
+device now visibly enters and recovers from the connect-fail/terminal-retry cycle roughly every
+30s for two straight hours, under the same adverse Spotify-concurrent conditions that used to
+produce 7-9s whole-device freezes, without ever wedging — consistent with TASK-398's async-connect
+fix having removed the freeze mechanism even though it hasn't fixed (and was never intended to fix)
+the underlying connect-reliability rate against this specific station under Spotify contention.
+Does not confirm the original stale-title marquee-freeze symptom either way (TASK-390's own open
+thread — no fresh evidence for or against this session). Reports:
+`app/tools/rnd_logs/webradio_long_soak_20260805T114034.json` (+ `_raw.log`).
+
 ### TASK-394 — stale `switchApp 10` (WebRadio) in three tools — TASK-347's own follow-up, never filed
 
 **Filed and CLOSED same-session, 2026-08-03 — human pushback on TASK-393's write-up** ("we've done
@@ -7259,12 +7281,64 @@ committed to `feature_inventory.yaml`/`cross_feature_matrix.yaml` same day, both
 before implementation. `app/src/settings/systemSection.h` (new) + `main.cpp` `SETTINGS_CAT_COUNT`
 6→7 wiring, per the accepted doc's §Lean/decision.
 
+**Implementation (2026-08-05, Developer subagent, PM-reviewed):** built exactly per §Lean/decision
+— `SETTINGS_CAT_COUNT` 6→7, `"System"` added to `kLabels[]`, `_sections[6]` wired to a new
+`SystemSection` (`main.cpp`). New `app/src/settings/systemSection.h`: single "Reboot device" row →
+confirm screen (`SButton`/`sButtonBar` kit, mirrors `appsSection.h`'s ManualConfirm/LookupError
+confirm-frame idiom — no new confirm-screen code invented). Confirm-tap: `SButton::flash()` →
+`LOG_I("settings","system-reboot confirmed")` (VE-1-1) → `Serial.flush(); delay(50);` → `ESP.restart()`.
+One implementation-time deviation from the doc, not a design change: the confirm screen's
+`SButton[2]` is lazy heap-allocated (`new SButton[2]`, never freed) rather than an inline member —
+an embedded array overflowed the debug build's `.dram0.bss` by exactly 32B at link time (prod build
+was fine); same "lazy malloc once, never freed" pattern already used by `TeletextApp::_nosSource()`
+and `webRadioApp.h`'s `wrPumpConnectUrlBuf()`. No `settingsStorage.h`/`_cancel()` changes (design
+doc confirmed unnecessary — every section autosaves per-field on change already).
+
+**PM verification (2026-08-05):** re-ran `./run/check` independently (not just trusting the
+implementer's own report) — 6/6 green. Read the full diff: `main.cpp` wiring matches the existing
+five-section pattern exactly; `systemSection.h`'s `handleInput`/`repaint`/`tick`/`title` overrides
+match `SettingsSection`'s actual virtual signatures (not the base class's stale docstring, which
+still says `handleTap`); `SBtnStyle::Neutral` is a real enum member (`settingsWidgets.h:50`); the
+gnu++11 no-aggregate-brace-init field-assignment approach matches that file's own documented note.
+Confirmed host-side only — a DUT soak (TASK-390/393) was running concurrently on `/dev/ttyUSB0`
+during this implementation; no serial-port script was touched. `feature_inventory.yaml`'s
+`settings-system` entry flipped `planned` → `implemented` with a matching notes update; `X047`
+left untouched (still accurately describes the shipped layout). Nothing committed yet.
+
+**DUT verification (2026-08-05, PM-run, once the TASK-390/393 soak freed the port).** New tool
+`app/tools/task400_401_dut_verify.py` (kept as a project asset, not folded into the automated
+suite — both VE reviews flagged parts of this as human-eyeball-only or not yet worth a permanent
+test id). Flashed `cyd2usb_winamp_debug`. Results: `switchApp 10` → `tap 137 197` (category row 6)
+→ `get settingsSection` returns `section:6` (System reachable); `tap 137 41` (Reboot device row) →
+`tap 69 210` (Cancel) → `get settingsSection` still `6`, no restart (Cancel path clean); re-entered
+the confirm screen and tapped Reboot for real (`tap 204 210`) — raw serial showed
+**`[I][settings] system-reboot confirmed`** as the line immediately before the connection dropped
+(VE-1-1, directly confirmed, not inferred). Reconnected after the boot: device came back up
+responsive (`get appId` → `Spotify`, its persisted pre-reboot `playerMode`), `SettingsStorage:
+loaded` clean in the boot log (no SPIFFS corruption), WiFi/Spotify/dataTask all started normally.
+10/10 automated checks in the script passed (see TASK-401 below for the second half — same DUT
+session).
+
+**Not exercised this session (honest scope note):** the human-eyeball 7-row layout check (VE-1-2)
+— genuinely not automatable with current tooling (`run/screendump` DTR-resets on connect, wiping
+any navigated-to state before a pixel is read, exactly as VE-1-2 itself predicted; not attempted
+rather than faked). The "reboot while WebRadio actively playing / a fetch in-flight" exit-criteria
+bullet also wasn't separately exercised — the actual confirmed reboot above happened from a
+Spotify-idle state, not mid-fetch; the general "reboot doesn't corrupt SPIFFS" property is
+evidenced (clean `SettingsStorage: loaded` after a real device-wide reset), but not that specific
+concurrent-activity variant. Both are cheap to pick up in a future DUT session if wanted; neither
+blocks calling the core feature done.
+
 **Owner:** Architect (design pass — done; VE majors folded) → human (**signed off**) → VE
-(testability review — done, approve-with-changes) → PM (scheduled) → Developer (implementation,
-**not started — next up**) · **Deps:** `M-HEAP-FRAGMENTATION.md` (the motivating parked issue),
-`settings-001` (SettingsApp category-list capacity) · **Priority:** P2 (real recovery gap — no
-user-facing path today for a known, if infrequent, failure mode) · **Status:** open — **accepted,
-scheduled, awaiting Developer implementation.**
+(testability review — done, approve-with-changes) → PM (scheduled, implementation-reviewed,
+DUT-verified) → Developer (implementation — **done 2026-08-05**) · **Deps:**
+`M-HEAP-FRAGMENTATION.md` (the motivating parked issue), `settings-001` (SettingsApp category-list
+capacity) · **Priority:** P2 (real recovery gap — no user-facing path today for a known, if
+infrequent, failure mode) · **Status:** **closed — implemented, host-verified (`run/check` 6/6),
+DUT-verified** (reachability, confirm/cancel, the VE-1-1 log line, and a real reboot-and-recover
+cycle all confirmed live; VE-1-2's layout eyeball-check and the mid-activity-reboot variant are the
+only two exit-criteria items left, both non-blocking per above). Uncommitted, pending the user's
+go-ahead to commit.
 
 ### TASK-401 — Settings → WiFi: save multiple networks (manual switch only, no auto-failover)
 
@@ -7308,8 +7382,83 @@ own §Registers.
 before implementation. Extends `app/src/settings/wifiSection.h` per the accepted doc's
 §Lean/decision; no boot-chain or `wifiDiag.cpp` changes in scope.
 
+**Implementation (2026-08-05, Developer subagent — died mid-task, PM-finished and verified.)**
+The implementing subagent hit its session credit limit partway through and terminated before
+reporting — per this project's own standing lesson (`[[project_subagent_credit_deaths]]`), the
+uncommitted work was reviewed and finished rather than discarded and redone. What it left behind
+was the complete feature, built exactly per §Lean/decision: `/wifi_networks.json` (cap
+`WIFI_MAX_SAVED=5`) with TASK-329-discipline capacity math (a documented worst-case comment,
+`doc.overflowed()` guards on both read and write, same as `SettingsStorage::save()`); one-time
+migration from legacy `/wifi_creds.json`, lazily triggered on first `WifiSection::enter()` or
+first `get wifiSaved` touch — deliberately not in the boot chain, satisfying the design's
+zero-boot-changes requirement; new `WifiStep::SavedList/SavedEntry/SavedDeleteConfirm` sub-steps
+reusing existing row/button-bar widgets (no new confirm-screen code); `_onConnectSuccess()` hooked
+into `tick()`'s `WL_CONNECTED` branch, appending/refreshing a saved entry with LRU eviction past
+the cap, reading the password back out of NVS via `esp_wifi_get_config()` rather than caching a
+second plaintext copy; `_doForget()` scoped down to remove just the active list entry; new
+`get wifiSaved` debug getter (VE-2-1) in `SettingsApp::dbgGet()`. One leftover mid-debug artifact
+(a compile-time `sizeof(WifiSection)` probe, clearly mid-diagnosis of the DRAM issue below) was
+found and removed during review.
+
+**PM review + DRAM-budget fix (2026-08-05).** Read the full diff against the design doc and this
+codebase's real interface names (`SettingsSection`'s actual virtual signatures, `SBtnStyle`'s real
+enum members, `sStackedBtnRect`'s real existing precedent) — all correct, nothing hallucinated.
+`./run/check`'s debug-build gate failed: `.dram0.bss` overflowed by 8 bytes (this debug build had
+exactly 0 bytes of headroom left after TASK-400, the same-day sibling task). Traced properly rather
+than guessed: measured `sizeof(WifiSection)` before/after via a temporary probe, diffed `nm`
+symbol tables between a clean-master baseline build and the current one to isolate exactly which
+symbols grew. Two plausible-looking fixes (merging the saved-state pointer+count+selIdx into one
+heap-allocated struct; relocating that pointer, and separately TASK-400's own confirm-button
+pointer, to file scope) were tried and **measured to have zero effect on the actual link-time
+total** — a class member and an equivalent file-scope global cost the identical 4 bytes either way,
+confirmed via `nm`/`size` before reverting both relocations back to plain class members for code
+clarity. The actual fix: shrank `WifiSection`'s pre-existing `_nets[16]` live-scan buffer to
+`_nets[S_MAX_ROWS]` (8) — behavior-preserving, not a functional cut, since `repaintList()` only
+ever renders `min(_netCount, S_MAX_ROWS)` rows regardless of how many candidates the insertion sort
+tracks; an 8-slot bounded insertion sort selects the identical top-8-by-RSSI set as a 16-slot one
+(any network that would land in the true top 8 is by definition stronger than whatever's in slot 8
+of an 8-slot array, so it always survives the shift). `./run/check` 6/6 green on both envs after.
+Re-verified independently (not just trusting the subagent's own prior report), full diff read
+line-by-line post-fix to confirm the mechanical renames from the DRAM iteration didn't corrupt any
+logic. Confirmed `main.cpp`'s boot-chain WiFi connect tiers and `wifiDiag.cpp` are byte-for-byte
+untouched — the one hard constraint this design exists to satisfy. `feature_inventory.yaml`'s
+`wifi-002` entry flipped `planned` → `implemented` with a full implementation note. Nothing
+committed yet.
+
+**DUT verification (2026-08-05, PM-run, same session as TASK-400 above, `app/tools/
+task400_401_dut_verify.py`).** Real, non-synthetic result: `get wifiSaved` against the actual
+production device returned `count:1, entries:[{"ssid":"<home-ssid>","lastUsedMs":...}]`
+— **the legacy `/wifi_creds.json` → `/wifi_networks.json` migration ran correctly on first touch
+against this device's real, previously-untouched credential file** (VE-2-2's exit criterion,
+confirmed with real data, not a synthetic fixture). Also confirmed: `get wifiSaved` works
+standalone before any `Settings → WiFi` navigation that boot (queried immediately after
+`switchApp Settings`, migration/load fired lazily on the getter itself, per design); `switchApp 10`
+→ WiFi category (`tap 137 41`) → `get settingsSection` returns `section:0`; navigated into the
+Saved-networks list (`tap` at the computed saved-row y, connected-state offset) → `SavedEntry` for
+the one real entry → `get wifiSaved` still reports the identical single entry (no state
+corruption from the nav); back-tap chain (`SavedEntry` → `SavedList` → `Status`) returns cleanly
+to `section:0`.
+
+**Not exercised this session (deliberate, not an oversight):** tap-to-connect and the
+Danger-confirm-delete path were **not** fired for real against this device's *only* saved,
+currently-active credential — doing so risked dropping the DUT's sole known-good WiFi connection
+for no real coverage gain (a reconnect-to-self and a delete-then-instantly-relose-network aren't
+meaningfully different from what the code already demonstrably does elsewhere). Those two
+exit-criteria bullets, plus "delete a *non-active* entry" and the out-of-range-connect failure
+path, all genuinely need a **second** saved network to test safely and aren't coverable with what
+this device currently has — noted as the concrete next step, not silently skipped. `T-WIFI-01..06`
+regression suite also not run this session (DUT time was budgeted for TASK-400+401's own new
+surface, not a full regression pass) — no reason to expect a regression (boot-chain/`wifiDiag.cpp`
+untouched, confirmed by diff), but not directly re-verified either.
+
 **Owner:** Architect (design pass — done, revised same-day per human decision; VE majors folded)
-→ human (**signed off**) → VE (testability review — done, approve-with-changes) → PM (scheduled)
-→ Developer (implementation, **not started — next up**) · **Deps:** `settings-wifi` (WifiSection,
-the section this extends) · **Priority:** P3 (convenience feature, no functional gap being
-closed) · **Status:** open — **accepted, scheduled, awaiting Developer implementation.**
+→ human (**signed off**) → VE (testability review — done, approve-with-changes) → PM (scheduled,
+implementation-finished + DRAM-fixed + reviewed + DUT-verified) → Developer (implementation —
+**done 2026-08-05**, subagent died mid-task, finished by PM) · **Deps:** `settings-wifi`
+(WifiSection, the section this extends) · **Priority:** P3 (convenience feature, no functional gap
+being closed) · **Status:** **implemented, host-verified (`run/check` 6/6 both envs), DUT-verified
+for reachability + the real legacy-migration path + nav integrity** — **open, not closed**: the
+tap-to-connect, delete, out-of-range, and `T-WIFI-01..06` regression exit-criteria bullets need a
+second saved network (or a dedicated future DUT session) to exercise safely, and haven't been.
+Core migration/storage/UI mechanism is proven against real device data; the remaining gap is
+narrow and named, not open-ended.

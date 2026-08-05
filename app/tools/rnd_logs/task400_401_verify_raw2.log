@@ -1,0 +1,92 @@
+ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:1184
+load:0x40078000,len:13232
+load:0x40080400,len:3028
+entry 0x400805e4
+[membudget] boot-baseline freeInt=204484 lfbInt=110580 freeDma=161340 lfbDma=110580
+[boot] git=52ffcbd+ elf=f95ac22c build=Aug  5 2026 14:41:18
+cyd display setup
+winamp display setup
+
+Initialisation done.
+SettingsStorage: loaded
+TouchCalStorage: loaded xMin=223 xMax=3582 yMin=196 yMax=3890
+[D][chrome] drawVolume pct=-1 keyframe=NONE
+reading config file
+opened config file
+parsed json
+config loaded: clientId=db…e0 (len=32) clientSecret=b9…63 (len=32) refreshToken=AQ…ng (len=131)
+[wifi-ev] t=680 ev=0 EV
+[wifi-ev] t=757 ev=2 STA_START
+[wifi-ev] t=796 ev=5 STA_DISCONNECTED reason=202
+[wifi-ev] t=870 ev=4 STA_CONNECTED
+[wifi-ev] t=1407 ev=7 STA_GOT_IP ip=192.168.1.181
+IP address: 192.168.1.181
+udget] post-wifi freeInt=148512 lfbInt=102388 freeDma=105368 lfbDma=102388
+[time] synced epoch=1785940750 in 151ms
+Refreshing Access Tokens
+[lib] POST /api/token -> 200
+[I][spotify.task] begin ok — handle=0x3ffe7030 startIdle=0[I][spotify.task] task started; pinned core=1 stack=10240B period=5000ms
+
+[membudget] post-spotifyTask freeInt=93860 lfbInt=42996 freeDma=50716 lfbDma=40948
+[I][dataTask] task started stack=14336B
+[membudget] post-dataTask freeInt=79004 lfbInt=42996 freeDma=35860 lfbDma=27636
+[D][chrome] drawVolume pct=-1 keyframe=NONE
+[membudget] post-init-idle freeInt=119972 lfbInt=42996 freeDma=76828 lfbDma=40948
+{"ok":true,"cmd":"get","var":"variant","spotify":"on","last":true}
+[I][hb] display=winamp wifi=rssi(-50) disc=1 heap=117k maxAlloc=41k stack_hwm=14876b uptime=00:00:03 poll=0/0 last=0 block_max=0ms loop_max=0ms slow=(none):0ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=27 build=Aug  5 2026-14:41:18
+[W][perf] iter=59ms (worst path so far: app.tick:24ms)
+{"ok":true,"cmd":"get","var":"playerMode","val":0,"name":"Spotify","last":true}
+[D][spotify.poll] GET /v1/me/player/currently-playing
+[W][spotify.poll] fail http=403 Forbidden
+[D][spotify.poll] backoff: consecutive=1 next=60000ms
+[D][spotify.queue] GET /v1/me/player/queue
+[D][spotify.queue] status=403 elapsed=114ms
+[I][hb] display=winamp wifi=rssi(-53) disc=1 heap=76k maxAlloc=41k stack_hwm=14876b uptime=00:00:33 poll=0/1 last=403 block_max=1587ms loop_max=59ms slow=app.tick:24ms last_poll_age_ms=0 next_poll_in_ms=36490 last_render_age_ms=30027 build=Aug  5 2026-14:
+[I][hb] display=winamp wifi=rssi(-52) disc=1 heap=76k maxAlloc=41k stack_hwm=14876b uptime=00:01:03 poll=0/1 last=403 block_max=0ms loop_max=25ms slow=vu.tick:2ms last_poll_age_ms=0 next_poll_in_ms=6490 last_render_age_ms=60027 build=Aug  5 2026-14:41:18
+[D][spotify.task] dequeued action=FORCE_POLL param=0
+{"ok":true,"cmd":"reconnect"}
+[D][spotify.poll] GET /v1/me/player/currently-playing
+[lib] status-line parse fail: read='Active' connected=1 avail=126
+[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED
+[W][spotify.tls] after -1: stale connect fd=48 (no current tls error)
+[D][spotify.poll] backoff: consecutive=1 next=60000ms
+[I][spotify.tls] hard reset — stopping client
+[I][hb] display=winamp wifi=rssi(-52) disc=1 heap=117k maxAlloc=41k stack_hwm=14876b uptime=00:01:33 poll=0/2 last=-1 block_max=74ms loop_max=23ms slow=app.tick:2ms last_poll_age_ms=0 next_poll_in_ms=33133 last_render_age_ms=90027 build=Aug  5 2026-14:41:
+[I][hb] display=winamp wifi=rssi(-50) disc=1 heap=117k maxAlloc=41k stack_hwm=14876b uptime=00:02:03 poll=0/2 last=-1 block_max=0ms loop_max=23ms slow=app.tick:1ms last_poll_age_ms=0 next_poll_in_ms=3133 last_render_age_ms=120027 build=Aug  5 2026-14:41:1
+[D][spotify.poll] GET /v1/me/player/currently-playing
+{"ok":true,"cmd":"get","var":"heap","freeInt":74500,"lfbInt":42996,"freeDma":31356,"lfbDma":24564,"last":true}
+{"ok":true,"cmd":"info","git":"52ffcbd+","elf":"f95ac22c","build":"Aug  5 2026 14:41:18","heap":74420,"isPlaying":false,"progressMs":0,"durationMs":0,"volumePct":-1,"shuffle":false,"repeat":2,"consecutiveFailures":1}
+{"ok":true,"cmd":"get","var":"appId","id":0,"name":"Spotify","last":true}
+[shell] leaving 0  heap=74420 maxAlloc=42996 minFree=59212
+[shell] entered 10  heap=74420 maxAlloc=42996 minFree=59212
+[shell] switch 0->10 suspend=2ms wipe=54ms init=68ms taskbar=26ms total=150ms
+{"ok":true,"cmd":"switchApp","id":10}
+[W][perf] iter=154ms (worst path so far: shell.switch:150ms)
+[wifi] wifi_networks.json saved (doc 129/2048 B, 1 entries)
+[wifi] migrated legacy /wifi_creds.json -> /wifi_networks.json (ssid=<home-ssid>)
+{"ok":true,"cmd":"get","var":"wifiSaved","count":1,"entries":[{"ssid":"<home-ssid>","lastUsedMs":127622}],"last":true}
+[W][perf] iter=1053ms (worst path so far: shell.switch:150ms)
+{"ok":true,"cmd":"get","var":"wifi","ms":128000,"status":3,"rssi":-51,"ip":"192.168.1.181","ch":3,"discCount":1,"lastDiscReason":202,"lastDiscMs":796,"lastGotIpMs":1407,"kicks":0,"last":true}
+[W][spotify.poll] fail http=403 Forbidden
+[D][spotify.poll] backoff: consecutive=2 next=60000ms
+[D][spotify.queue] GET /v1/me/player/queue
+{"ok":true,"cmd":"get","var":"shellCooldown","remainingMs":0,"last":true}
+{"ok":true,"cmd":"tap","x":137,"y":41,"hit":"SETTINGS","action":"CONSUMED","skipped":false}
+[D][spotify.queue] status=403 elapsed=109ms
+{"ok":true,"cmd":"get","var":"settingsSection","section":0,"last":true}
+{"ok":true,"cmd":"get","var":"shellCooldown","remainingMs":0,"last":true}
+{"ok":true,"cmd":"tap","x":137,"y":175,"hit":"SETTINGS","action":"CONSUMED","skipped":false}
+{"ok":true,"cmd":"get","var":"shellCooldown","remainingMs":0,"last":true}
+{"ok":true,"cmd":"tap","x":137,"y":41,"hit":"SETTINGS","action":"CONSUMED","skipped":false}
+{"ok":true,"cmd":"get","var":"wifiSaved","count":1,"entries":[{"ssid":"<home-ssid>","lastUsedMs":127622}],"last":true}
+{"ok":true,"cmd":"get","var":"shellCooldown","remainingMs":0,"last":true}
+{"ok":true,"cmd":"tap","x":30,"y":14,"hit":"SETTINGS","action":"CONSUMED","skipped":false}
+{"ok":true,"cmd":"get","var":"shellCooldown","remainingMs":0,"last":true}
+{"ok":true,"cmd":"tap","x":30,"y":14,"hit":"SETTINGS","action":"CONSUMED","skipped":false}
+{"ok":true,"cmd":"get","var":"settingsSection","section":0,"last":true}
