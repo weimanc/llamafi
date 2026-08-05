@@ -7015,16 +7015,35 @@ to the consumer side, closing the early-arrival hole finding #1 found; spells ou
 `tick()` reconciliation branches in full (no more "same substitution" shorthand anywhere); corrects
 the residual-race framing to reflect it's already closed by FreeRTOS priority preemption rather
 than merely accepted; and re-adds the `wrVol` fix the second revision had accidentally dropped
-while rewriting that section. Full mechanism + four-pass revision history in
-`M-WR-CONNECT-ASYNC.md`. **Sent for a fifth VE pass — iterating to consensus per explicit human
-direction.**
+while rewriting that section.
 
-**Owner:** Architect (design pass — done, four revisions) → VE (four passes done, fifth pending) →
-Developer (implementation, not started, blocked on fifth VE pass) · **Deps:** M-WR-AUDIO-TASK.md
+**Fifth VE pass (2026-08-05) — narrowest result yet: 1 blocking finding, 1 non-blocking, no
+consensus, but a real inflection point.** Down from 3-4 findings each of the prior four passes.
+Independently re-verified as sound: the full `ABORT`/`TEARDOWN`/`CONNECT`/`NONE` branch coverage
+added last revision, the `FAILED` branch's TLS-resume ordering against the real `_play()` failure
+path, the corrected residual-race framing (extended and re-checked across all four branches, not
+just the one prior pass covered), and the re-added `wrVol` fix. The one gap: both `TEARDOWN`
+branches (post-connect and early-arrival) specified `delete s_wr_audio` but never reset the pointer
+to `nullptr` afterward — a deterministic dangling-pointer bug (every other call site in the file
+treats non-null as proof-of-life), the same "second half of a two-part cleanup doesn't survive
+relocation" pattern that hit the TLS-resume line twice already, this time for a different pair of
+statements. Non-blocking: a mutex-scoping clarification for the post-connect branch's `stopSong()`
+call.
+
+**Fifth revision (2026-08-05):** adds `s_wr_audio = nullptr` after both `delete s_wr_audio`
+instances, mirroring today's synchronous `suspend()` exactly (`webRadioApp.h:559` already does both
+statements as one unit); clarifies the mutex-scoping detail. Full mechanism + five-pass revision
+history in `M-WR-CONNECT-ASYNC.md`. **Sent for a sixth VE pass** — per the fifth pass's own
+assessment that this is now a narrow, mechanical, well-precedented fix, the sixth pass can
+reasonably scope itself narrowly to confirming just this fix rather than re-auditing the whole
+mechanism again, though that remains the reviewer's own call, not a constraint imposed here.
+
+**Owner:** Architect (design pass — done, five revisions) → VE (five passes done, sixth pending) →
+Developer (implementation, not started, blocked on sixth VE pass) · **Deps:** M-WR-AUDIO-TASK.md
 (the design this resolves OQ4 for), TASK-393 (source of the measurement), M-WR-CONNECT-ASYNC.md
 (this task's own design doc) · **Priority:** P2 (real, measured, user-visible whole-device freeze
 — not hypothetical — but bounded by TWDT surviving 421 occurrences without a crash, so not P1) ·
-**Status:** open — design four times revised post-VE, fifth VE pass in progress, implementation
+**Status:** open — design five times revised post-VE, sixth VE pass in progress, implementation
 blocked.
 
 ### TASK-399 — endless-ticker wraparound for the Winamp title marquee

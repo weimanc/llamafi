@@ -15,9 +15,14 @@
 > This revision closes the early-arrival hole with explicit `ABORT`/`TEARDOWN` branches, spells out
 > every `tick()` reconciliation branch in full rather than by cross-reference, corrects a
 > misdiagnosed "residual race" (already closed by this file's own task-priority setup), and
-> re-adds a `wrVol` fix the second revision had accidentally dropped. **Not yet re-reviewed — a
-> fifth VE pass is next, not implementation.**
-> Date: 2026-08-04
+> re-adds a `wrVol` fix the second revision had accidentally dropped. Fifth pass (2026-08-05): the
+> narrowest result yet — 1 blocking finding (both `TEARDOWN` branches deleted `s_wr_audio` without
+> nulling the pointer afterward, a deterministic dangling-pointer bug every other call site in the
+> file would trip on), 1 related non-blocking; everything else re-verified sound. This revision
+> adds the missing `s_wr_audio = nullptr` (mirroring `suspend()`'s own existing two-statement
+> cleanup exactly) and clarifies a mutex-scoping detail. **Not yet re-reviewed — a sixth VE pass is
+> next, not implementation.**
+> Date: 2026-08-04 (last revised 2026-08-05)
 > Feeds: (ADR TBD — promote once VE review + implementation lands)
 > Tracked-as: TASK-398
 > Registers: — (no new feature id; a `cross_feature_matrix.yaml` edge for the pump-task/
@@ -174,11 +179,22 @@ servicing, it does not run in addition to it, per non-blocking finding #5):
   to this task, never touching `loopTask`. Once it returns (success or fail), re-check
   `s_wrPumpRequest`'s **current** value (correctly reflecting anything `loopTask` posted *during*
   the connect, since the earlier clear only touched the value at the commit instant):
-  - **`TEARDOWN`**: if the connect had actually succeeded, call `stopSong()` to clean up; delete
-    `s_wr_audio`, release the arena (`mb_arena_release()`); set `s_wrPumpResult = TORN_DOWN`;
-    **null `s_wrPumpTask` last, immediately before `vTaskDelete(NULL)`** (VE second-pass finding
-    #4's exact fix) so `wrEnsurePumpTask()`'s existing `if (s_wrPumpTask) return;` guard continues
-    to see "pump still here" for the entire window until the pump's actual self-deletion.
+  - **`TEARDOWN`**: if the connect had actually succeeded, call `stopSong()` to clean up **(still
+    under the mutex the pump already holds from the `connecttohost()` call above — not a separate
+    take)**; delete `s_wr_audio` **and set `s_wr_audio = nullptr` immediately after — VE fifth-pass
+    finding #1: every other call site that touches `s_wr_audio` (`_play()`'s guard, `wrAudio()`'s
+    inline guard, `_stopAudio()`'s guard, `wrVolumeSink()`/`wrVol`, the pump's own steady-state
+    `loop()` check) treats a non-null pointer as proof the object is live; leaving it dangling
+    after `delete` — as an earlier version of this section did — crashes or corrupts on the very
+    next touch (a subsequent `_play()`, a bare re-eject, or a freshly-created pump task's first
+    cycle), the identical "load-bearing second half of a two-part cleanup doesn't survive
+    relocation" failure mode the TLS-resume line hit twice already. Mirrors today's synchronous
+    `suspend()` exactly (`webRadioApp.h:559`: `if (s_wr_audio) { delete s_wr_audio; s_wr_audio =
+    nullptr; }`) — both statements, not just the first.**; release the arena
+    (`mb_arena_release()`); set `s_wrPumpResult = TORN_DOWN`; **null `s_wrPumpTask` last,
+    immediately before `vTaskDelete(NULL)`** (VE second-pass finding #4's exact fix) so
+    `wrEnsurePumpTask()`'s existing `if (s_wrPumpTask) return;` guard continues to see "pump still
+    here" for the entire window until the pump's actual self-deletion.
   - **`ABORT`**: if the connect had succeeded, call `stopSong()` (the user asked to stop); set
     `s_wrPumpResult = ABORTED`; the pump task itself is **not** torn down (persists across a stop,
     matching today's existing behavior) — only the in-flight connect's outcome is discarded.
@@ -187,9 +203,12 @@ servicing, it does not run in addition to it, per non-blocking finding #5):
 - **`== ABORT`** (arrived before any connect started this cycle — nothing to stop, no mutex needed):
   clear `s_wrPumpRequest = NONE`, set `s_wrPumpResult = ABORTED` directly.
 - **`== TEARDOWN`** (same early-arrival case, stronger intent): clear `s_wrPumpRequest = NONE`,
-  delete `s_wr_audio`, release the arena, set `s_wrPumpResult = TORN_DOWN`, null `s_wrPumpTask`
-  last, self-delete — the identical terminal sequence as the post-connect `TEARDOWN` case above,
-  just skipping `stopSong()` since nothing was ever dispatched this cycle. (`TEARDOWN` is only ever
+  delete `s_wr_audio` **and set `s_wr_audio = nullptr`** (same fix as the post-connect branch
+  above — this early-arrival path was written to explicitly mirror it, so it inherited the same
+  gap and gets the same fix), release the arena, set `s_wrPumpResult = TORN_DOWN`, null
+  `s_wrPumpTask` last, self-delete — the identical terminal sequence as the post-connect
+  `TEARDOWN` case above, just skipping `stopSong()` since nothing was ever dispatched this cycle
+  (and skipping the mutex take entirely too, for the same reason). (`TEARDOWN` is only ever
   posted alongside `suspend()` actually running, per the producer-side spec above — so by
   construction the user has already left WebRadio whenever this branch fires, consistent with
   `tick()`'s reconciliation-on-return story below, not a new case that story doesn't cover.)
@@ -341,15 +360,35 @@ per TASK-397's precedent this session).
   (including confirming the doc's own "accepted residual race" was misdiagnosed — FreeRTOS
   priority preemption on this file's documented task priorities already closes that specific
   window; the real gap was the missing branches, not that race).
-- **This revision**: adds explicit `ABORT`/`TEARDOWN` top-of-loop branches to the consumer side (not
-  just the `CONNECT` branch), closing the early-arrival hole; spells out all three `tick()`
+- **Fourth revision**: added explicit `ABORT`/`TEARDOWN` top-of-loop branches to the consumer side
+  (not just the `CONNECT` branch), closing the early-arrival hole; spelled out all three `tick()`
   reconciliation branches in full rather than by cross-reference, so the TLS-resume line is
-  explicit everywhere it's needed; corrects the "residual race" framing to reflect that it's
-  already closed by this file's own priority setup rather than merely accepted; and re-adds the
-  `wrVol` debug-setter fix that the second revision accidentally dropped when it rewrote this
+  explicit everywhere it's needed; corrected the "residual race" framing to reflect that it's
+  already closed by this file's own priority setup rather than merely accepted; re-added the
+  `wrVol` debug-setter fix that the second revision had accidentally dropped when it rewrote this
   section (VE's first pass had flagged it; three revisions passed before the fourth pass caught the
-  drop). **Not yet re-reviewed — a fifth VE pass is next, not implementation**, per the explicit
-  "iterate until consensus" direction this design is being built under.
+  drop).
+- **Fifth VE pass** (see VE review section above): the narrowest result yet — 1 blocking finding, 1
+  related non-blocking, down from 3-4 each of the prior four passes. Confirmed independently sound:
+  the full `ABORT`/`TEARDOWN`/`CONNECT`/`NONE` branch coverage, the `FAILED` branch's TLS-resume
+  ordering against the real source, the corrected residual-race framing (extended to all four
+  branches, not just the one previously checked), and the re-added `wrVol` fix. The one gap: both
+  `TEARDOWN` branches (post-connect and early-arrival) specified `delete s_wr_audio` but never
+  `s_wr_audio = nullptr` afterward — a deterministic dangling-pointer bug, not a race, since every
+  other call site treats a non-null pointer as proof the object is live. The exact "second half of
+  a two-part cleanup doesn't survive relocation" failure mode the TLS-resume line hit twice already,
+  recurring a third time for a different pair of statements. Non-blocking: the post-connect
+  `TEARDOWN` branch's `stopSong()` call wasn't explicitly marked as still running under the mutex
+  already held from the `connecttohost()` call.
+- **This revision**: adds `s_wr_audio = nullptr` immediately after both `delete s_wr_audio`
+  instances (mirroring today's synchronous `suspend()` at `webRadioApp.h:559` exactly — both
+  statements, not just the first), and clarifies the post-connect `TEARDOWN` branch's `stopSong()`
+  call runs under the mutex already held, not a separate take. **Not yet re-reviewed — a sixth VE
+  pass is next, not implementation.** Given the fifth pass's own assessment that this is a narrow,
+  mechanical, well-precedented fix, the sixth pass can reasonably be scoped narrowly to confirming
+  just this fix rather than re-auditing the whole mechanism from scratch again — though it remains
+  an independent reviewer's call whether a broader check is still warranted, not a constraint
+  imposed here.
 
 ## VE review
 
@@ -1074,20 +1113,27 @@ a fifth pass.
 
 ## Exit criteria
 
-- ~~VE testability review of the CONNECTING-state changes~~ — **four passes done, 2026-08-04.**
+- ~~VE testability review of the CONNECTING-state changes~~ — **five passes done, 2026-08-04/05.**
   First: 4 blocking findings against the original two-requirement sketch. Second: found that fix
   incomplete (`_stopAudio()` was the real blocking primitive in most named call sites; the
   flag-only teardown left a permanent wedge) — 4 new blocking findings, addressed via the
   request/result-slot mechanism. Third: confirmed the use-after-free and permanent wedge were
   genuinely fixed, but found 4 more gaps (dropped TLS-resume; two redundant `_state` writes; an
   unspecified request-clear causing an infinite reconnect loop; a `TEARDOWN`-downgrade leak).
-  Fourth: confirmed 2 of those 4 fixes held up exactly as specified, but found the other 2 each had
-  a residual gap — the clear-on-commit fix opened a *different* early-arrival hole reintroducing the
-  same permanent wedge, and the TLS-resume fix's "same substitution" shorthand for the `FAILED`
-  branch left the resume line un-guaranteed for the single most common outcome — both addressed in
-  this revision, along with re-adding the `wrVol` fix the second revision had accidentally dropped.
-  **Not yet had a fifth VE pass** — treat as addressed-but-unverified, not closed, until that
+  Fourth: confirmed 2 of those 4 fixes held up exactly as specified, found the other 2 each had a
+  residual gap (a different early-arrival hole reintroducing the same permanent wedge; the
+  TLS-resume fix's shorthand leaving the `FAILED` branch un-guaranteed) — both addressed. Fifth: the
+  narrowest result yet, 1 blocking finding (both `TEARDOWN` branches deleted `s_wr_audio` without
+  nulling it, a deterministic dangling-pointer bug), 1 non-blocking — addressed in this revision.
+  **Not yet had a sixth VE pass** — treat as addressed-but-unverified, not closed, until that
   happens.
+- **New — `s_wr_audio` doesn't dangle after a `TEARDOWN` (VE fifth-pass finding #1):** force a
+  `TEARDOWN` (eject during `CONNECTING`, real host, either early-arrival or post-connect-return
+  timing), let it resolve, then confirm on the *next* WebRadio entry that a fresh `Audio` object is
+  created cleanly (`get wrPump`/`get arenaStats` show a new session starting from a clean state, not
+  a crash/reboot on the first `_play()`, autoplay, or bare re-eject after the teardown completed).
+  Repeat for both `TEARDOWN` branches (early-arrival and post-connect-return) since they're
+  separate code paths that both needed the same fix.
 - **New — early-arrival ABORT/TEARDOWN, no connect ever dispatched (VE fourth-pass finding #1):**
   fire `set wrPlay N` immediately followed, in the same script with no delay, by `set wrStop` /
   `set wrEject` / a different `set wrPlay M` — repeated several times in a tight loop against both a
@@ -1158,3 +1204,178 @@ a fifth pass.
   one place a mistake here would be a crash, not just a UX papercut.
 - TASK-395-style regression coverage for the terminal-retry mechanism re-run after this lands, to
   confirm the retry cadence/state transitions are unchanged from `tick()`'s perspective.
+
+### Fifth pass (2026-08-05)
+
+Independent re-verification against the actual current source (`app/src/webRadioApp.h`, confirmed
+still 1961 lines — no implementation has landed since the fourth pass; `app/src/spotifyTaskStorage.cpp`,
+confirmed still 887 lines, re-checked for the `s_tlsYieldReqCount`/`tlsResume()` ref-counting claims
+specifically — both check out exactly as the fourth pass described, `tlsResume()` at `:694-702` is a
+plain critical-section-guarded decrement, last-caller-to-zero clears `s_tlsStopped`). Line numbers
+re-derived from scratch, not trusted from any prior pass or the doc's own citations, per every prior
+pass's own standing warning. This pass does not re-litigate whether the request/result-slot idea is
+sound — four passes have now converged on "yes," and nothing found here disturbs that. It re-traces
+the specific mechanics this revision changed (the `ABORT`/`TEARDOWN` top-of-loop branches, the fully
+spelled-out `tick()` triad, the corrected residual-race framing, the re-added `wrVol` fix) against the
+real `wrPumpTaskBody()`/`_stopAudio()`/`_play()`/`wrAudio()`/`suspend()` code, and specifically hunts,
+per the brief, for defects reachable only through this revision's newly-written text. Conclusion up
+front: **the `ABORT`/`TEARDOWN` top-of-loop chain genuinely covers all four values of
+`s_wrPumpRequest`, the fully-spelled-out `tick()` branches correctly reproduce `_play()`'s real
+failure-path ordering, the residual-race correction is accurate and (newly re-checked here) extends
+cleanly to all three request-bearing branches, and the re-added `wrVol` fix textually matches
+`wrVolumeSink()`'s real, current idiom exactly. But the two `TEARDOWN` branches — the post-connect one
+carried over from earlier revisions and the early-arrival one freshly written this revision to mirror
+it — both specify `delete s_wr_audio` without ever resetting the pointer to `nullptr` afterward. That
+omission is a real, deterministic (not timing-dependent) dangling-pointer bug: every other call site in
+this file that touches `s_wr_audio` — `_play()`'s own `if (!s_wr_audio) { new Audio(...) }` guard,
+`wrAudio()`'s identical inline guard, `_stopAudio()`'s `if (s_wr_audio)` guard, `wrVolumeSink()`/`wrVol`'s
+`if (!s_wr_audio) return;` checks, the pump's own steady-state `if (s_wr_audio) s_wr_audio->loop()` —
+treats a non-null `s_wr_audio` as proof a live object exists, and none of them re-verify that. Once a
+`TEARDOWN` completes without the reset, every one of those checks is wrong for the rest of the session,
+guaranteed, not probabilistically.** One finding, blocking, plus a smaller related non-blocking
+specification gap in the same branches.
+
+1. **BLOCKING — both `TEARDOWN` branches (`s_wrPumpRequest == TEARDOWN`, early-arrival and
+   post-connect-return alike) specify `delete s_wr_audio` but never `s_wr_audio = nullptr` afterward,
+   leaving a permanently dangling pointer that every other `s_wr_audio` null-check in the file will
+   read as "still valid" — a deterministic use-after-free on the very next touch, not a race.** Checked
+   both bullets word for word: the post-connect-return case (Consumer-side, `== CONNECT` →
+   `TEARDOWN`-after-resolve) reads "delete `s_wr_audio`, release the arena (`mb_arena_release()`); set
+   `s_wrPumpResult = TORN_DOWN`; **null `s_wrPumpTask` last**, immediately before `vTaskDelete(NULL)`" —
+   nulling is explicitly called out for `s_wrPumpTask`, in the same sentence, and just as explicitly
+   never mentioned for `s_wr_audio`. The early-arrival case (`== TEARDOWN` at top-of-loop, this
+   revision's new text) reads "clear `s_wrPumpRequest = NONE`, delete `s_wr_audio`, release the arena,
+   set `s_wrPumpResult = TORN_DOWN`, null `s_wrPumpTask` last, self-delete — **the identical terminal
+   sequence as the post-connect `TEARDOWN` case above**" — so the gap is inherited by explicit design
+   intent to mirror, not independently reintroduced. Compared this against the one case in the actual
+   source that already implements a synchronous version of this exact teardown — today's
+   `suspend()` (`webRadioApp.h:559`): `if (s_wr_audio) { delete s_wr_audio; s_wr_audio = nullptr; }` —
+   delete and null happen together, as a single unit, in the one line of existing code this design's
+   `TEARDOWN` branches are meant to relocate. The design's own text drops half of that pair while
+   moving it, the same failure mode (a load-bearing line silently not surviving a relocation) the third
+   and fourth passes already caught twice for the TLS-resume call — recurring here in the pointer
+   lifecycle instead of the TLS ref-count. Traced every downstream consumer of `s_wr_audio` to confirm
+   the consequence is real, not hypothetical:
+   - `_play()`'s own guard (`webRadioApp.h:1639-1661`): `if (!s_wr_audio) { ... size_t lfbDma = ...; if
+     (lfbDma < 16*1024) { ...abort...; } s_wr_audio = new Audio(...); wrApplyInBufTrial(...);
+     wrApplyConnectTimeout(...); }` — with `s_wr_audio` left non-null (dangling) by a prior `TEARDOWN`,
+     this entire block is skipped: no fresh `Audio` object, no DMA-floor guard, no
+     `wrApplyConnectTimeout()`. Execution falls straight through to `wrEnsurePumpTask()` (:1665, creates
+     a *new* pump task, correctly, since `s_wrPumpTask` — unlike `s_wr_audio` — genuinely was nulled)
+     and then `wrAudio().setVolume(...)` at :1668-1669.
+   - `wrAudio()` (`:261-268`) has its own, textually identical inline guard (`if (!s_wr_audio) { new
+     Audio(...); ... }` then `return *s_wr_audio;`) — belt-and-braces against exactly this kind of
+     caller bug in the *original* single-task code, but equally fooled by a dangling non-null pointer:
+     it returns `*s_wr_audio`, a reference to already-freed heap memory, and `_play()`'s very next line
+     immediately calls `.setVolume(...)` on it. This is the first guaranteed crash/heap-corruption
+     point — reached on quite literally the next `_play()` call (autoplay or a manual station tap)
+     after any `TEARDOWN` that actually completes, no adversarial timing needed.
+   - Even without ever tapping a station again: a bare re-suspend is enough. `_stopAudio()`
+     (`:1516-1523`)'s normal (non-`CONNECTING`) path — reached once `_state` has been reconciled to
+     `STOPPED` by `tick()`, e.g. the user re-enters WebRadio and immediately ejects again without
+     touching anything — does `if (s_wr_audio) { xSemaphoreTake(...); s_wr_audio->stopSong(); ... }`,
+     calling a virtual/member function through the same dangling pointer. Reachable via nothing but
+     eject-during-slow-connect → wait for resolution → re-enter WebRadio → eject again, no station tap
+     at all.
+   - If a *fresh* pump task does get created (via `wrEnsurePumpTask()` above, since `s_wrPumpTask` was
+     correctly nulled) before either of the above fires, its own steady-state branch (`:369`, `if
+     (s_wr_audio) s_wr_audio->loop();`) hits the identical dangling pointer on its very first cycle,
+     2 ms after creation — a second, independent crash site for the same root cause, on the pump task
+     this time instead of `loopTask`.
+
+   **This is not merely a hypothetical the exit criteria might happen to graze — the existing "leave-
+   and-quickly-re-enter during `CONNECTING`" exit criterion (VE second-pass finding #5, still on the
+   list above) explicitly directs a tester to confirm "a manual station tap afterward works normally
+   either way" once the deferred teardown resolves. A Developer who actually runs that check on real
+   hardware would hit this crash and be forced to debug it live — but that is exactly the outcome
+   this project's own standing pre-implementation VE practice exists to avoid: finding it here, from
+   the design text, is cheaper than finding it from a device that just aborted mid-soak.** **Fix:**
+   both `TEARDOWN` branches need an explicit `s_wr_audio = nullptr;` immediately after `delete
+   s_wr_audio;`, matching today's `suspend()` idiom at `:559` exactly — stated as its own step, not left
+   for a Developer to infer from "delete `s_wr_audio`" the way `_play()`'s own `_debugForceConnFail`
+   early return and the DMA-guard early return both already correctly pair `delete`-adjacent state
+   resets with the deletion itself elsewhere in this same file.
+
+   **A smaller, related gap surfaced while tracing this — non-blocking, but worth closing at the same
+   time since it's the same code path:** neither `TEARDOWN` branch's "call `stopSong()` to clean up"
+   step (post-connect-return case only — the early-arrival case correctly skips it, "nothing was ever
+   dispatched this cycle") restates that this call needs `s_wrAudioMutex`, the way the doc is explicit
+   about the mutex bracketing `connecttohost()` a few lines earlier in the same bullet. Every other
+   `s_wr_audio` method call in the file — `_stopAudio()`'s `stopSong()`, `wrVolumeSink()`'s
+   `setVolume()`, the pump's own steady-state `loop()` — is mutex-wrapped; an unwrapped `stopSong()`
+   here would be calling into the `Audio` object without exclusion against a concurrent
+   `wrVolumeSink()`/`wrVol` call from `loopTask` (both of which *do* still take the mutex, per the
+   `wrVol` fix re-added this revision) — a real but narrower race than finding #1 above, closed by
+   simply wrapping this specific `stopSong()` call the same way every other one in the file already is.
+   Once finding #1's `s_wr_audio = nullptr` fix lands, this residual gap is the only place left where
+   `s_wr_audio`'s mutex discipline isn't fully self-consistent within the new mechanism.
+
+**Confirmed sound, re-checked from the real source rather than re-trusted from the doc's own
+citations or any prior pass's line numbers:**
+- The `if`/`else if` chain the consumer-side spec implies (`== CONNECT`, `== ABORT`, `== TEARDOWN`, else
+  `NONE`) does cover all four values `s_wrPumpRequest` can hold, traced against `wrPumpTaskBody()`'s
+  real structure (`webRadioApp.h:349-382`): top-of-loop stop-request check, then (per the design) the
+  new branch, then `vTaskDelay(WR_PUMP_CADENCE_TICKS)` — `WR_PUMP_CADENCE_TICKS = pdMS_TO_TICKS(2)`
+  (`:297`) is a genuine blocking/yielding call, confirming the fourth pass's characterization of where
+  the real early-arrival window lives (the pump's own sleep, not a sub-instruction race). The
+  early-arrival `TEARDOWN` branch's own question — does it need the mutex at all, given nothing was
+  ever connecting — checks out as "no" for the reason the fourth pass's residual-race note already
+  established for a different step: whichever task ever posts `TEARDOWN` (via `suspend()`) has, by
+  construction, already caused WebRadio to stop being `currentApp`, so nothing on `loopTask` reaches
+  `s_wr_audio` again until `resume()` — the pump is the sole remaining actor.
+- `tick()`'s `FAILED` branch, re-derived against the real failure path it replaces
+  (`webRadioApp.h:1710-1717`: `_state = WRPlayState::ERROR_UNREACHABLE;` / `LOG_W(...)` /
+  `spotifyTask::tlsResume(); _spotifyYielded = false;` / `_onPlaybackFailed(true);`), correctly
+  preserves the resume call and its position in the sequence. One cosmetic note: the design wraps it in
+  `if (_spotifyYielded) { ... }`, whereas the real source at `:1713-1715` calls `tlsResume()`
+  unconditionally at that point — but `_play()`'s own `if (!_spotifyYielded) { tlsYield(); ... }` guard
+  at `:1613` guarantees `_spotifyYielded == true` for the entire `CONNECTING` window by construction
+  (the same invariant the third pass's finding #1 already established), so the added `if` is a
+  no-op-but-harmless defensive wrap, not a behavior change or a new gap — mentioning only so the next
+  reviewer doesn't have to re-derive whether the discrepancy matters (it doesn't).
+- The corrected "residual race" framing (`WR_PUMP_PRIORITY = 2`, `webRadioApp.h:296`, explicitly "above
+  loopTask (prio 1)", both `xTaskCreatePinnedToCore`'d onto `APP_CPU_NUM`, `:393-395`) is accurate, and
+  — re-checked per the brief's specific question — extends cleanly to all three request-bearing
+  branches (`CONNECT`'s clear-on-commit, and this revision's new `ABORT`/`TEARDOWN` early-arrival
+  clears), not just the `CONNECT` case the fourth pass verified: none of the three has a blocking or
+  yielding call between the implicit "read via branch selection" and the "clear to `NONE`" write, so
+  the same zero-width argument applies uniformly. Interrupts, not just tasks, can technically preempt
+  the pump mid-branch on Xtensa — but no ISR in this codebase writes `s_wrPumpRequest` (every producer
+  is a normal task-context function: `_play()`, `_stopAudio()`, `suspend()`), so an ISR landing in the
+  window has nothing to race even if it occurs.
+- The re-added `wrVol` fix (`webRadioApp.h:1346-1361` today, raw `xSemaphoreTake(s_wrAudioMutex,
+  portMAX_DELAY)`) is specified completely and correctly against `wrVolumeSink()`'s real, current idiom
+  (`:328-338`, `WR_PUMP_READ_TIMEOUT_TICKS` take with a silent-skip-on-timeout give-up) — textually
+  accurate, nothing dropped this time. Whether that idiom itself remains fully safe now that
+  `s_wr_audio` can be genuinely mutated from a second task (the pump, via the `TEARDOWN` branches) is
+  exactly finding #1's non-blocking sub-point above, not a flaw in the re-added fix's own correctness
+  against its stated target.
+
+**Testability sign-off (fifth pass):** consensus **not** reached — go/no-go is **no-go**, one blocking
+finding. This is a narrower result than any of the four prior passes (1 blocking vs. 3-4 each) and,
+unlike most of those, does not touch the request/result protocol's own state machine, the TLS-yield
+accounting, or the `_state` re-entrancy guards at all — every mechanism component those four passes
+individually hardened (the `_play()`/`_stopAudio()` guard, the `TEARDOWN`-priority ordering, the
+clear-on-commit protocol, the `ABORT`/`TEARDOWN` early-arrival branches themselves, the TLS-resume
+triad) is independently re-confirmed sound here, on its own terms, against the real source. The one
+gap that remains is adjacent to all of that machinery rather than inside it: the two `TEARDOWN`
+branches correctly *decide* to release `s_wr_audio`'s memory but never finish the release by resetting
+the pointer that every other line in the file treats as the sole liveness signal for that memory —
+structurally the same class of defect (a well-established idiom's second half silently not surviving
+relocation into the new asynchronous machinery) that has now shown up three times across five
+revisions of this document in three different guises: the TLS-resume call (third and fourth passes),
+the `wrVol` fix itself briefly falling out of scope (noted in the revision history), and now the
+pointer-reset half of `delete s_wr_audio`. That recurrence is itself worth naming as a process
+observation for whoever implements this: every "delete X" / "relocate Y" instruction in this design
+should be re-read against the *exact* multi-statement idiom it's replacing in the current source
+(`webRadioApp.h:559` in this case) before being marked complete, not summarized to the single verb that
+carries the primary intent. **Concretely falsifiable next step:** add `s_wr_audio = nullptr;`
+immediately after both `delete s_wr_audio` instances (Consumer-side `TEARDOWN`-after-`CONNECT` branch
+and the early-arrival `TEARDOWN` branch), and wrap the post-connect `TEARDOWN` branch's `stopSong()`
+call in the same mutex take/give every other `s_wr_audio` method call in the file already uses — both
+are one-line, mechanical fixes with a clear real-source precedent to copy from, not a redesign. Given
+the narrowing trend (4 → 4 → 3 → 1 blocking finding across the last four passes) and that this finding
+is a single, precisely-scoped, easily-fixed omission rather than a structural gap in the mechanism
+itself, a sixth pass focused specifically on confirming this one fix (plus a final holistic pass over
+the whole document once it lands) seems like a reasonable, near-final step rather than a sign this
+process needs to keep expanding in scope.
