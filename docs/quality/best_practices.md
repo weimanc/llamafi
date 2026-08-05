@@ -522,6 +522,22 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 **Rationale**: M-ICON-PIXELART TASK-332/334 — nine icon pairs went through three full human review rounds (size triage, shape/spacing critique, per-glyph fixes like the asterisk-eye amputation) entirely on `BAKED_SHEET.png`/`NATIVE_SHEET.png`, with exactly one production flash at the end; the DUT eyeball passed first try. Contrast the pre-ADR-051 workflow the milestone was opened to kill: bake-flash-squint loops where fill ratios and double-resample artifacts were discovered on the panel, one flash per guess.
 **Applies to**: Developer, VE (gate design), QM (close-out review)
 
+### BP-052 — On subagent death, check for salvageable work before relaunching from scratch
+
+**Adopted from**: LL-116
+**Date adopted**: 2026-08-05 (human)
+**Rule**: When a subagent with file-editing tool access dies mid-task (session/credit limit, crash, or any other non-report termination), check `git status`/`git diff` on its target files before deciding whether to relaunch. Review the diff for correctness and completeness against the original brief. If it's substantially complete, finish and verify it directly (host-side build gate at minimum, DUT verification where the task calls for it) rather than discarding it and re-running the same brief from a cold context.
+**Rationale**: TASK-401's implementing subagent completed the entire feature — migration, storage, new UI sub-steps, debug getter, later confirmed correct against the design doc and the codebase's real interfaces — and was mid-way through a build-budget fix when it hit its session credit limit and never reported. Its terminal status (didn't finish) said nothing about whether the work product was usable; reviewing and finishing it in place took a fraction of a from-scratch relaunch and preserved implementation choices a fresh agent might not reproduce identically.
+**Applies to**: PM (orchestration), any role driving subagents
+
+### BP-053 — `.dram0.bss` overflow fix priority: shrink over-provisioned existing capacity before lazy-allocating new state, and don't bother relocating a pointer between class-member and file-scope
+
+**Adopted from**: LL-117
+**Date adopted**: 2026-08-05 (human)
+**Rule**: When a new `SettingsApp` section (or any always-resident static object) overflows `cyd2usb_winamp_debug`'s `.dram0.bss` region at link time: (1) first look for existing static arrays sized larger than what they ever actually display/use (e.g. a scan-result buffer tracking more candidates than the UI ever renders) and shrink to the true need — verify behavior-preservation by reading the consuming code, don't guess; (2) only then reach for lazy heap-allocation (a single pointer, `new`d on first use, never freed) for the new feature's own bulk static data; (3) do NOT spend time relocating an already-necessary pointer between being a class member and a file-scope `static` as a space-saving move — measured twice (TASK-400 and TASK-401, 2026-08-05) to change the total link-time footprint by exactly zero, since the pointer's bytes exist somewhere in `.dram0.bss` either way. Measure with `nm --size-sort -S`/`size` diffed against a clean baseline build to find the real contributor, rather than assuming from `sizeof()` deltas alone.
+**Rationale**: This is at least the fourth occurrence of this exact failure class on this board (three prior fixes — `TeletextApp::_nosSource()`, `webRadioApp.h`'s `wrPumpConnectUrlBuf()`, TASK-400's own `_confirmBtns()` — are cited as precedent directly in code comments but were never written up here), and TASK-401 additionally burned real effort on two plausible-looking fixes that turned out to be no-ops, because nothing recorded that pointer relocation doesn't work. `app/mem_manifest.yaml` explicitly scopes itself to heap-allocated JIT-arena buffers only — this static-segment failure class has no tracking mechanism at all.
+**Applies to**: Developer, Architect (design docs adding new Settings sections should flag this risk explicitly, as M-SYS-REBOOT.md's own layout-capacity note already does for row budget)
+
 ---
 
 ## Candidates — proposed, pending human adoption
@@ -529,8 +545,9 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 > These entries are **NOT yet adopted**. Per QM discipline ("QM brings best-practice
 > candidates to human — never self-promotes"), they are recorded here in proposed form
 > awaiting explicit human sign-off before being assigned a final BP number and promoted
-> above this line. The latest **adopted** BP is BP-050 (BP-049 adopted 2026-07-18;
-> BP-050 is the 2026-07-16 LL-112 rule, renumbered from a colliding second "BP-047").
+> above this line. The latest **adopted** BP is BP-053 (BP-052/053 adopted 2026-08-05
+> from LL-116/LL-117; BP-051 adopted 2026-07-18; BP-050 is the 2026-07-16 LL-112 rule,
+> renumbered from a colliding second "BP-047").
 
 **LL-106** (M-PLANERADAR, 2026-07-11) — session-scoped scheduling primitives
 (`CronCreate`) are the wrong default for work that must survive across
