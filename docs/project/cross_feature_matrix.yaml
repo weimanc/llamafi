@@ -1036,3 +1036,35 @@ interactions:
       Registered at design-acceptance per M-SYS-REBOOT.md (accepted 2026-08-04) — the
       design's own §Layout capacity check. Not implemented yet (TASK-400). No test id
       yet — VE follow-up candidate once app/src/settings/systemSection.h exists.
+
+  - id: X048
+    feature_a: webradio-001
+    feature_b: vu-002
+    interaction_type: shared_state
+    description: |
+      TASK-398 (M-WR-CONNECT-ASYNC.md) changed the exact mutex serialization X043/X044 both
+      cite as their safety mechanism: `_stopAudio()`/`suspend()` no longer unconditionally
+      block on `s_wrAudioMutex` (`portMAX_DELAY`) — when `_state == CONNECTING`, they post
+      `ABORT`/`TEARDOWN` to the pump task and return immediately, non-blocking. X043/X044's own
+      text says this exact change requires re-verification, not assumption. Re-derived at
+      TASK-398 close-out (PM check, not caught by any of the six VE passes or two
+      post-implementation fresh-agent reviews — none of them cross-referenced this matrix):
+      the non-blocking path only fires during `CONNECTING`, before `connecttohost()` resolves —
+      no audio is decoding yet, so `audio_process_extern` (the actual writer X043/X044 guard
+      against) is never in flight during that window. PLAYING-state teardown is untouched by
+      TASK-398 and stays fully synchronous/blocking, exactly as X043/X044 describe. Net: the
+      single-writer-swap invariant holds, but through a narrower argument than X043/X044's
+      original text states (their "mutex serialization" framing is now only accurate for the
+      PLAYING case) — anyone touching CONNECTING-state teardown logic again should re-check
+      this edge specifically, not just X043/X044.
+    risk: low
+    test_coverage: []
+    notes: |
+      Filed 2026-08-05, PM close-out check on TASK-398. M-WR-CONNECT-ASYNC.md (line 18-20)
+      flagged this edge as reserved-but-not-registered at design-acceptance time; never
+      followed up through implementation, both fresh-agent reviews, or DUT verification.
+      No new test — the reasoning is a static-code argument (no CONNECTING-state audio
+      decode exists to race), not something the existing T_WR_VIS_* suite (which only
+      exercises the PLAYING-state handoff) would catch either way. VE follow-up candidate
+      if a future change ever makes CONNECTING-state decode possible (e.g. gapless
+      pre-buffering) — that would invalidate this edge's "no decode in flight" premise.

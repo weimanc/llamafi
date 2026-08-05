@@ -7171,14 +7171,29 @@ window instead; the properties that matter (non-blocking taps, correct guard pri
 requests, no leaked TLS yield, no dangling pointer) don't depend on the window's duration, only on
 it being genuine mutex-held real I/O, which it was.
 
+**PM close-out check (2026-08-05):** `M-WR-CONNECT-ASYNC.md` (line 18-20) had self-flagged a
+`cross_feature_matrix.yaml` edge as "reserved at implementation time — not done yet" for the
+pump-task/control-call mutex-serialization change this task makes. Never followed up — not by
+implementation, not by either post-implementation fresh-agent review, not by DUT verification, not
+by the six-pass VE loop (all of which focused on the new request/result protocol's own internal
+correctness, never cross-referenced the matrix). Existing edges X043/X044 explicitly name this
+exact mutex serialization as their safety argument and say a change to it "must be re-verified, not
+assumed." Re-verified now: the non-blocking `ABORT`/`TEARDOWN` path only fires during `CONNECTING`,
+before any audio decode starts, so `audio_process_extern` (what X043/X044 actually guard) is never
+in flight during that window — PLAYING-state teardown is untouched, stays fully synchronous. X043/
+X044's invariant holds, on a narrower argument than their original text states. Filed as **X045
+(requested, already taken by TASK-388's vu-004/webradio-001 wave-trace edge) → filed as X048** in
+`cross_feature_matrix.yaml`, recording this re-derivation and flagging it as a re-check point for
+any future CONNECTING-state decode change (e.g. gapless pre-buffering).
+
 **Owner:** Architect (design — six-pass VE consensus) → Developer (implementation, done) → fresh-agent
 review ×2 (two real bugs found + fixed, neither in the design's own six-pass history) → DUT
 verification (done, 32/33 direct + full T_WR_* regression suite, one criterion indirectly evidenced
-per above) · **Deps:** M-WR-AUDIO-TASK.md, TASK-393, M-WR-CONNECT-ASYNC.md ·
-**Priority:** P2 · **Status:** **closed — implemented, reviewed, DUT-verified, committed to
-master** (commit `4d105e4` + the two post-review fixes in the same commit). `app/tools/
-task398_connect_async_verify.py` kept as a regression asset for future WebRadio connect-path
-changes.
+per above) → PM close-out (done, X048 filed) · **Deps:** M-WR-AUDIO-TASK.md, TASK-393,
+M-WR-CONNECT-ASYNC.md · **Priority:** P2 · **Status:** **closed — implemented, reviewed,
+DUT-verified, committed to master** (commit `4d105e4` + the two post-review fixes in the same
+commit). `app/tools/task398_connect_async_verify.py` kept as a regression asset for future
+WebRadio connect-path changes.
 
 ### TASK-399 — endless-ticker wraparound for the Winamp title marquee
 
