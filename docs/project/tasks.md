@@ -6989,15 +6989,42 @@ window is a handful of instructions, not the multi-second connect duration); and
 `_stopAudio()`'s guard priority-aware so `TEARDOWN` can never be downgraded to `ABORT`. Also caught
 and removed a genuine editing mistake from the second revision: stale, superseded duplicate content
 (an old "two mandatory requirements" list) had been left sitting in the doc alongside the newer
-mechanism description, contradicting it. **Sent for a fourth VE pass — iterating to consensus per
-explicit human direction, not stopping at "looks fixed" a third time either.**
+mechanism description, contradicting it.
 
-**Owner:** Architect (design pass — done, three revisions) → VE (three passes done, fourth pending)
-→ Developer (implementation, not started, blocked on fourth VE pass) · **Deps:** M-WR-AUDIO-TASK.md
+**Fourth VE pass (2026-08-04, same day) — 3 new blocking findings, 3 non-blocking, no consensus,
+but real progress: 2 of the third revision's 4 fixes confirmed correct.** Independently re-verified
+the `TEARDOWN`-priority guard (traced against every caller, no legitimate downgrade case found) and
+the STOP-button/`wrStop` fix (confirmed via a file-wide grep — exactly the two sites the doc
+claimed, plus `_stopAudio()`'s own intentional one, with a fourth candidate site correctly ruled
+out). But: (1, most severe) the clear-on-commit fix that closed the third pass's infinite-reconnect
+bug opened a *different* hole — the request slot's consumer never handled `ABORT`/`TEARDOWN`
+arriving before the pump had read a posted `CONNECT` at all (a real window spanning the pump's own
+2ms `vTaskDelay`, not a sub-instruction race), reintroducing the permanent `_state` wedge plus a
+resource leak, reachable via two ordinary back-to-back `set` commands with no timing luck required;
+(2) the TLS-resume fix was precise for `ABORTED`/`TORN_DOWN` but only said "same substitution" for
+`FAILED` — the single most common outcome (421 occurrences) — leaving that exact line at risk of
+being dropped again through the one branch the fix's precision didn't reach; (3) an exit-criteria
+gap downstream of finding #1. Non-blocking: correctly identified that the doc's own "accepted
+residual race" (pump reading `CONNECT` then clearing it) is actually already closed by this file's
+documented FreeRTOS task-priority setup — a misdiagnosis, not a real gap, but pointed attention at
+the wrong window while finding #1's real one went unaddressed; and re-flagged that `wrVol`'s debug
+setter (named in the very first pass) had silently fallen out of scope across three revisions.
+
+**Fourth revision (2026-08-04, same day):** adds explicit `ABORT`/`TEARDOWN` top-of-loop branches
+to the consumer side, closing the early-arrival hole finding #1 found; spells out all three
+`tick()` reconciliation branches in full (no more "same substitution" shorthand anywhere); corrects
+the residual-race framing to reflect it's already closed by FreeRTOS priority preemption rather
+than merely accepted; and re-adds the `wrVol` fix the second revision had accidentally dropped
+while rewriting that section. Full mechanism + four-pass revision history in
+`M-WR-CONNECT-ASYNC.md`. **Sent for a fifth VE pass — iterating to consensus per explicit human
+direction.**
+
+**Owner:** Architect (design pass — done, four revisions) → VE (four passes done, fifth pending) →
+Developer (implementation, not started, blocked on fifth VE pass) · **Deps:** M-WR-AUDIO-TASK.md
 (the design this resolves OQ4 for), TASK-393 (source of the measurement), M-WR-CONNECT-ASYNC.md
 (this task's own design doc) · **Priority:** P2 (real, measured, user-visible whole-device freeze
 — not hypothetical — but bounded by TWDT surviving 421 occurrences without a crash, so not P1) ·
-**Status:** open — design three times revised post-VE, fourth VE pass in progress, implementation
+**Status:** open — design four times revised post-VE, fifth VE pass in progress, implementation
 blocked.
 
 ### TASK-399 — endless-ticker wraparound for the Winamp title marquee

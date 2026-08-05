@@ -1,17 +1,22 @@
 # Design — moving WebRadio's `connecttohost()` off loopTask (TASK-398)
 
 > Owner: Architect
-> Status: accepted (lean) — human-approved 2026-08-04. Three VE passes same day, iterating to
+> Status: accepted (lean) — human-approved 2026-08-04. Four VE passes same day, iterating to
 > consensus per explicit human direction. First: 4 blocking findings against the original
 > two-requirement sketch. Second: the fix was incomplete (`_stopAudio()`, not just `_play()`, was
-> the real blocking primitive; the flag-only teardown left a permanent state wedge) — 4 new
-> blocking findings, fixed via an explicit request/result-slot mechanism. Third: confirmed the
-> use-after-free and permanent-wedge bugs were genuinely closed, but found 4 more gaps in the new
-> mechanism's own completeness — most severely, a dropped Spotify TLS-resume call reintroducing
-> `tlsYield` starvation (a bug class fixed five times before this session) on ordinary STOP/eject
-> use. This revision adds the missing TLS-resume, removes two now-harmful redundant `_state`
-> writes, specifies the request-slot's clear-on-commit, and fixes a `TEARDOWN`-downgrade-to-`ABORT`
-> gap. **Not yet re-reviewed — a fourth VE pass is next, not implementation.**
+> the real blocking primitive; a flag-only teardown left a permanent state wedge) — fixed via an
+> explicit request/result-slot mechanism. Third: confirmed the use-after-free and permanent-wedge
+> bugs were genuinely closed, but found 4 more gaps — most severely, a dropped Spotify TLS-resume
+> call reintroducing `tlsYield` starvation (a bug class fixed five times before this session) on
+> ordinary STOP/eject use. Fourth: confirmed 2 of the third revision's 4 fixes held up exactly as
+> specified, but found the other 2 each had a residual gap of their own — a different
+> early-arrival hole reintroducing the same permanent wedge, and the TLS-resume fix's "same
+> substitution" shorthand leaving the `FAILED` branch (the single most common outcome) unguaranteed.
+> This revision closes the early-arrival hole with explicit `ABORT`/`TEARDOWN` branches, spells out
+> every `tick()` reconciliation branch in full rather than by cross-reference, corrects a
+> misdiagnosed "residual race" (already closed by this file's own task-priority setup), and
+> re-adds a `wrVol` fix the second revision had accidentally dropped. **Not yet re-reviewed — a
+> fifth VE pass is next, not implementation.**
 > Date: 2026-08-04
 > Feeds: (ADR TBD — promote once VE review + implementation lands)
 > Tracked-as: TASK-398
@@ -126,7 +131,21 @@ already relies on for `s_wrPumpTask`/`s_wrPumpStopReq` — no new mutex):
   the redundant `_state = WRPlayState::STOPPED` line at both sites** — it was already dead code in
   every other state (`_stopAudio()` sets it), and now actively harmful in the one state where
   `_stopAudio()` deliberately doesn't. `tick()`'s reconciliation (below) becomes the sole owner of
-  this transition, consistently, for every caller.
+  this transition, consistently, for every caller. **Confirmed by VE's fourth pass via a file-wide
+  grep for every `_state = WRPlayState::STOPPED`/`_state = STOPPED` write**: exactly these two plus
+  `_stopAudio()`'s own line — a fourth candidate site (the stream-death detector) was independently
+  checked and confirmed to run only under `_state == PLAYING`, never reachable during `CONNECTING`,
+  so it needs no change.
+- **`dbgSet`'s `wrVol` handler (`webRadioApp.h:1346-1361`) — flagged by VE's first pass as a third,
+  independent freeze source, and re-flagged by the fourth pass after this doc's second revision
+  accidentally dropped it while rewriting this section.** Uses a raw, unbounded
+  `xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY)`, inconsistent with the short-timeout,
+  degrade-gracefully idiom `wrVolumeSink()` (`webRadioApp.h:328-338`) already uses for the real
+  touch-drag volume path two hundred lines away. Not touched by the request/result mechanism above
+  (volume changes don't need to survive a `CONNECTING` window the way connect/stop/teardown do) —
+  **explicitly in scope for this revision, fixed the same way `wrVolumeSink()` already is**: switch
+  to the short `WR_PUMP_READ_TIMEOUT_TICKS` take with the same graceful-degrade-on-timeout behavior,
+  no reason for the debug setter to be less safe than the production gesture path it mirrors.
 - `suspend()`: the `#ifdef MEMBUDGET_PHASE1` teardown block gains the same check — if `_state ==
   CONNECTING` when `suspend()` runs (the preceding `_stopAudio()` call already posted `ABORT` or
   left an existing `TEARDOWN` alone per the priority-respecting guard above; this line then
@@ -140,57 +159,88 @@ already relies on for `s_wrPumpTask`/`s_wrPumpStopReq` — no new mutex):
   drop a pending settings write. Every other `suspend()` state (nothing in flight) keeps today's
   exact synchronous teardown — this only changes behavior for the specific unsafe case.
 
-**Consumer side (the pump task, `wrPumpTaskBody`) — VE third-pass finding #3's fix included: the
-request slot's clear-on-commit was missing entirely from the first version of this section, and
-without it a successful connect free-runs into an infinite 2ms reconnect loop, since "no connect
-currently in flight" is trivially true every single time the single-threaded pump reaches the
-top-of-loop check.** At the top of each cycle: if `s_wrPumpRequest == CONNECT`, **immediately clear
-it to `NONE`** (this is the commit point — the pump is now the sole owner of servicing this
-specific request), then take the mutex and call `connecttohost()` — this is the multi-second
-blocking call, now fully isolated to this task, never touching `loopTask`. **Accepted, narrow
-residual limitation, stated explicitly rather than engineered around:** there is a razor-thin
-window between the pump reading `CONNECT` and clearing it to `NONE` where a same-instant
-`ABORT`/`TEARDOWN` write from `loopTask` could be silently clobbered back to `NONE` by the clear —
-a handful of instructions wide, not the multi-second connect duration. Worst case if this narrow
-window is hit: the user's stop/eject request is dropped for that one occurrence (the connect
-proceeds as if nothing happened, then resolves normally to `CONNECTED`/`FAILED`) — not a crash, not
-corruption, just one input silently ignored in a window measured in microseconds. A fully
-race-free version would need a compare-and-swap primitive this codebase doesn't currently use
-anywhere; not adding one for a window this narrow is a deliberate scope call, not an oversight.
-Once the connect returns (success or fail), check `s_wrPumpRequest`'s **current** value (which by
-now correctly reflects anything `loopTask` posted *during* the connect, since the clear only
-touched the value at the commit instant, not afterward):
-- **`TEARDOWN`**: if the connect had actually succeeded, call `stopSong()` to clean up; delete
-  `s_wr_audio`, release the arena (`mb_arena_release()`) — deletion ownership genuinely moved to
-  the pump task, triggered by the request enum; set `s_wrPumpResult = TORN_DOWN`; **null
-  `s_wrPumpTask` last, immediately before `vTaskDelete(NULL)`** (VE second-pass finding #4's exact
-  fix, confirmed still correct by the third pass) so `wrEnsurePumpTask()`'s existing
-  `if (s_wrPumpTask) return;` guard continues to see "pump still here, don't spawn a second one"
-  for the entire window between the connect returning and the pump's actual self-deletion.
-- **`ABORT`**: if the connect had succeeded, call `stopSong()` (the user asked to stop); set
-  `s_wrPumpResult = ABORTED`; the pump task itself is **not** torn down (it persists across a stop,
-  matching today's existing behavior/comment) — only the in-flight connect's outcome is discarded.
-- **`NONE`** (normal path — nothing else was requested while the connect was outstanding): set
-  `s_wrPumpResult = CONNECTED` or `FAILED` per the real outcome.
+**Consumer side (the pump task, `wrPumpTaskBody`) — VE fourth-pass finding #1's fix included: the
+first version of this section only ever handled `s_wrPumpRequest == CONNECT` at the top-of-loop
+check, with no branch for `ABORT`/`TEARDOWN` arriving before the pump ever reads the request at
+all (a real, ordinarily-reachable window — the pump's own `vTaskDelay(WR_PUMP_CADENCE_TICKS)`
+between cycles, not a sub-instruction race) — reintroducing the second pass's permanent-`_state`-
+wedge, plus a resource leak on the `TEARDOWN` case, via a hole this doc's own clear-on-commit fix
+had newly opened one revision ago.** At the top of each cycle, `wrPumpTaskBody()` branches on
+`s_wrPumpRequest` (an `if`/`else if` chain — the branch below *replaces* that cycle's normal pump
+servicing, it does not run in addition to it, per non-blocking finding #5):
+- **`== CONNECT`**: clear `s_wrPumpRequest = NONE` (the commit point — see below for why this
+  specific clear is now provably race-free, unlike the fourth-pass finding it might look similar
+  to), take the mutex, call `connecttohost()` — the multi-second blocking call, now fully isolated
+  to this task, never touching `loopTask`. Once it returns (success or fail), re-check
+  `s_wrPumpRequest`'s **current** value (correctly reflecting anything `loopTask` posted *during*
+  the connect, since the earlier clear only touched the value at the commit instant):
+  - **`TEARDOWN`**: if the connect had actually succeeded, call `stopSong()` to clean up; delete
+    `s_wr_audio`, release the arena (`mb_arena_release()`); set `s_wrPumpResult = TORN_DOWN`;
+    **null `s_wrPumpTask` last, immediately before `vTaskDelete(NULL)`** (VE second-pass finding
+    #4's exact fix) so `wrEnsurePumpTask()`'s existing `if (s_wrPumpTask) return;` guard continues
+    to see "pump still here" for the entire window until the pump's actual self-deletion.
+  - **`ABORT`**: if the connect had succeeded, call `stopSong()` (the user asked to stop); set
+    `s_wrPumpResult = ABORTED`; the pump task itself is **not** torn down (persists across a stop,
+    matching today's existing behavior) — only the in-flight connect's outcome is discarded.
+  - **`NONE`** (nothing else was requested while the connect was outstanding): set
+    `s_wrPumpResult = CONNECTED` or `FAILED` per the real outcome.
+- **`== ABORT`** (arrived before any connect started this cycle — nothing to stop, no mutex needed):
+  clear `s_wrPumpRequest = NONE`, set `s_wrPumpResult = ABORTED` directly.
+- **`== TEARDOWN`** (same early-arrival case, stronger intent): clear `s_wrPumpRequest = NONE`,
+  delete `s_wr_audio`, release the arena, set `s_wrPumpResult = TORN_DOWN`, null `s_wrPumpTask`
+  last, self-delete — the identical terminal sequence as the post-connect `TEARDOWN` case above,
+  just skipping `stopSong()` since nothing was ever dispatched this cycle. (`TEARDOWN` is only ever
+  posted alongside `suspend()` actually running, per the producer-side spec above — so by
+  construction the user has already left WebRadio whenever this branch fires, consistent with
+  `tick()`'s reconciliation-on-return story below, not a new case that story doesn't cover.)
+- **else** (`NONE` — genuinely nothing requested): today's existing steady-state behavior,
+  unconditionally — take the mutex, call `s_wr_audio->loop()`, give the mutex (a documented fast
+  no-op when nothing is running).
+
+**On the clear-on-commit step specifically, corrected framing (non-blocking finding #4 from the
+fourth pass):** the previous revision described a "razor-thin, accepted residual race" between the
+pump reading `CONNECT` and clearing it to `NONE`, reached for a compare-and-swap justification for
+not closing it. VE's fourth pass traced this file's own documented scheduling facts —
+`WR_PUMP_PRIORITY = 2`, explicitly "above `loopTask` (prio 1)" (`webRadioApp.h:296`), both pinned
+to `APP_CPU_NUM` — and found that under standard FreeRTOS priority-based preemption, with no
+blocking call between the read and the clear, `loopTask` (strictly lower priority) cannot actually
+interleave with that specific pair at all: the window is not narrow, it's already zero-width by
+construction. **The real gap was never that window — it was the missing `ABORT`/`TEARDOWN`
+top-of-loop branches this revision adds above (fourth-pass finding #1).** No compare-and-swap
+primitive is needed anywhere in this design; the file's own existing priority setup already
+provides the guarantee the previous revision thought it had to accept a compromise to live
+without.
 
 **`tick()` (runs every iteration while WebRadio is the current app):** polls `s_wrPumpResult` each
-iteration, non-blocking. `CONNECTED` → today's existing PLAYING-transition logic runs exactly as it
-does today (seed timers, etc.), reading the result instead of a live return value; `FAILED` →
-today's existing `ERROR_UNREACHABLE` + `_onPlaybackFailed()` logic, same substitution. **`ABORTED`
-or `TORN_DOWN` → `_state = WRPlayState::STOPPED`, AND — VE third-pass finding #1, the most severe
-finding across all three passes — `if (_spotifyYielded) { spotifyTask::tlsResume(); _spotifyYielded
-= false; }`.** `_play()` unconditionally yields Spotify's TLS session before ever reaching the
-connect call (`webRadioApp.h:1613-1616`), so `_spotifyYielded == true` for the entire `CONNECTING`
-window by construction; `_stopAudio()`'s normal (non-`CONNECTING`) path already resumes it near the
-end of its body, but the new early-return added above skips straight past that resume — meaning
-every `ABORT`/`TEARDOWN` this design introduces would otherwise permanently leak Spotify's TLS
-yield reference count (`spotifyTaskStorage.cpp`'s `s_tlsYieldReqCount`, TASK-287) on nothing more
-exotic than pressing STOP while a station connects — reintroducing `tlsYield` starvation, a bug
-class this project has already root-caused and fixed five separate times
-(`project_tlsyield_starvation.md`), via a sixth, previously-unconsidered mechanism. Both
-reconciliation branches must resume TLS explicitly; this is not optional cleanup, it's the fix for
-a real leak this revision would otherwise ship. Each branch clears `s_wrPumpResult = NONE` after
-handling it. This single poll, running unconditionally at the top of `tick()`, closes the wedge
+iteration, non-blocking, one of four branches — **each spelled out completely below, not by
+shorthand, per VE fourth-pass finding #2: the third pass's TLS-resume fix was precise for two
+branches and imprecise for a third, and the imprecise one is the single most common outcome this
+whole design exists to fix (421 ordinary connect failures per the Context section), so "same
+substitution" is not an acceptable specification for a safety-critical line a third time.**
+- `CONNECTED` → today's existing PLAYING-transition logic runs exactly as it does today (seed
+  timers, `_playingSinceMs`, `_settled = false`, etc.), reading the result instead of a live return
+  value. Nothing to resume — TLS stays yielded for the PLAYING session, unchanged from today.
+- `FAILED` → re-derived directly from the current synchronous failure path this branch replaces
+  (`webRadioApp.h:1710-1717`), in full, not by naming two of its four statements: `_state =
+  WRPlayState::ERROR_UNREACHABLE;` then **`if (_spotifyYielded) { spotifyTask::tlsResume();
+  _spotifyYielded = false; }`** then `_onPlaybackFailed(/*connectFail=*/true);`. The resume call
+  sits between the other two in the original code and is not optional or implied — it is the fix
+  for the single most common code path in this entire design.
+- `ABORTED` or `TORN_DOWN` → `_state = WRPlayState::STOPPED;` then **`if (_spotifyYielded) {
+  spotifyTask::tlsResume(); _spotifyYielded = false; }`** (identical call, spelled out here too
+  rather than cross-referenced, so no branch in this list is ever the "implied" one again).
+
+`_play()` unconditionally yields Spotify's TLS session before ever reaching the connect call
+(`webRadioApp.h:1613-1616`), so `_spotifyYielded == true` for the entire `CONNECTING` window by
+construction; `_stopAudio()`'s normal (non-`CONNECTING`) path already resumes it near the end of
+its body, but the new early-return added above skips straight past that resume for every caller —
+meaning every one of `FAILED`/`ABORTED`/`TORN_DOWN`, not just the two the third pass's fix
+originally named, must resume TLS explicitly or permanently leak Spotify's TLS yield reference
+count (`spotifyTaskStorage.cpp`'s `s_tlsYieldReqCount`, TASK-287) — reintroducing `tlsYield`
+starvation, a bug class this project has already root-caused and fixed five separate times
+(`project_tlsyield_starvation.md`), via a sixth, previously-unconsidered mechanism, on nothing more
+exotic than an ordinary failed connect or a STOP tap. Each branch clears `s_wrPumpResult = NONE`
+after handling it. This single poll, running unconditionally at the top of `tick()`, closes the wedge
 VE's second pass found without any special-case logic in `resume()`: **`resume()`'s existing
 autoplay guard already requires `_state == WRPlayState::STOPPED` before calling `_play()` again**
 (`webRadioApp.h:526-528`, unchanged by this design) — so if the user re-enters WebRadio while an
@@ -272,13 +322,34 @@ per TASK-397's precedent this session).
   loop; and `resume()`'s config-diff branch could silently downgrade an already-posted `TEARDOWN`
   back to `ABORT`, leaking the arena and pump task past their intended session. 4 blocking findings,
   2 non-blocking.
-- **This revision**: adds the missing TLS-resume call to `tick()`'s `ABORTED`/`TORN_DOWN`
-  reconciliation; deletes the two redundant, now-harmful `_state = STOPPED` writes at the STOP
-  button and `wrStop`; specifies the request-slot's clear-on-commit explicitly (with a narrow,
-  explicitly-accepted residual race documented rather than engineered around); and makes
-  `_stopAudio()`'s guard respect request priority (`TEARDOWN` always wins over `ABORT`, never
-  downgraded). **Not yet re-reviewed — a fourth VE pass is next, not implementation**, per the
-  explicit "iterate until consensus" direction this design is being built under.
+- **Third revision**: added the missing TLS-resume call to `tick()`'s `ABORTED`/`TORN_DOWN`
+  reconciliation; deleted the two redundant, now-harmful `_state = STOPPED` writes at the STOP
+  button and `wrStop`; specified the request-slot's clear-on-commit (with a "narrow residual race"
+  documented as accepted rather than engineered around); made `_stopAudio()`'s guard respect
+  request priority (`TEARDOWN` always wins over `ABORT`, never downgraded).
+- **Fourth VE pass** (see VE review section above): confirmed two of the third revision's four
+  fixes hold up exactly as specified (the `TEARDOWN`-priority guard; the STOP-button/`wrStop` fix,
+  checked via a file-wide grep). But found the other two each had a real gap: the clear-on-commit
+  fix, in closing the third pass's infinite-reconnect-loop bug, opened a *different*,
+  ordinarily-reachable hole — the request slot's consumer never handled `ABORT`/`TEARDOWN` arriving
+  *before* the pump had read a posted `CONNECT` at all, reintroducing the permanent `_state` wedge
+  plus a resource leak, reachable via two ordinary back-to-back `set` commands, not adversarial
+  timing. And the TLS-resume fix was precise for `ABORTED`/`TORN_DOWN` but only said "same
+  substitution" for `FAILED` — the single most common outcome (421 occurrences per the Context
+  section) — leaving the exact TLS-resume line the fix was about at risk of being dropped again
+  through the one branch its own precision didn't reach. 3 blocking findings, 3 non-blocking
+  (including confirming the doc's own "accepted residual race" was misdiagnosed — FreeRTOS
+  priority preemption on this file's documented task priorities already closes that specific
+  window; the real gap was the missing branches, not that race).
+- **This revision**: adds explicit `ABORT`/`TEARDOWN` top-of-loop branches to the consumer side (not
+  just the `CONNECT` branch), closing the early-arrival hole; spells out all three `tick()`
+  reconciliation branches in full rather than by cross-reference, so the TLS-resume line is
+  explicit everywhere it's needed; corrects the "residual race" framing to reflect that it's
+  already closed by this file's own priority setup rather than merely accepted; and re-adds the
+  `wrVol` debug-setter fix that the second revision accidentally dropped when it rewrote this
+  section (VE's first pass had flagged it; three revisions passed before the fourth pass caught the
+  drop). **Not yet re-reviewed — a fifth VE pass is next, not implementation**, per the explicit
+  "iterate until consensus" direction this design is being built under.
 
 ## VE review
 
@@ -762,6 +833,203 @@ implementation, since three consecutive passes each finding real, previously-unf
 same document is itself a signal this mechanism has more surface area than a single VE pass reliably
 covers in one sitting.
 
+### Fourth pass (2026-08-04)
+
+Independent re-verification against the current source (`app/src/webRadioApp.h`, still 1961 lines —
+confirms no implementation has landed since the third pass; `app/src/spotifyTaskStorage.cpp`, 887
+lines, for the TLS-yield ref-counting specifically; line numbers re-derived from scratch, not trusted
+from any prior pass or the doc's own citations). This pass does not re-litigate whether the
+request/result-slot idea is sound — three passes have now converged on "yes" — it re-derives, from the
+actual source, whether *this specific revision's* four fixes (TLS-resume in `tick()`, deleting the two
+redundant `_state` writes, the clear-on-commit spec, the `TEARDOWN`-priority guard) actually close what
+they claim to close, and specifically hunts for defects that could only exist in *this* revision's new
+text, per the brief. Conclusion up front: **the STOP-button/`wrStop` fix and the `TEARDOWN`-priority
+fix both check out exactly as specified — confirmed independently, not just re-trusted. But the other
+two claimed fixes each have a real gap: the clear-on-commit fix, in the course of correctly closing the
+third pass's infinite-reconnect-loop bug, opens a new and structurally different hole in the same
+mechanism — a real, sizeable window (not the "handful of instructions" one the doc explicitly accepts)
+in which a `CONNECT` request can be silently overwritten before the pump ever consumes it, with nothing
+in the mechanism ever processing the overwrite — reintroducing the second pass's permanent-`_state`-
+wedge bug plus a resource leak, via a mechanism that could not have existed before this revision
+specified the clearing point. And the TLS-resume fix, while correct for the two branches it explicitly
+names, is specified with a precision gap for a third branch it doesn't — the same bug class the third
+pass's own most-severe finding was about, recurring through the branch that fix didn't touch.** Three
+findings, all three blocking.
+
+1. **BLOCKING (most severe this pass) — the request slot's consumption model has exactly two entry
+   points (top-of-loop `== CONNECT` check; post-connect-return check), and neither one ever processes
+   an `ABORT`/`TEARDOWN` that overwrites a `CONNECT` before the pump has read it — reintroducing the
+   second pass's permanent `_state` wedge, plus (when the overwritten value is `TEARDOWN`) a full
+   resource leak, via a window this revision's own clear-on-commit fix newly opens.** Traced
+   `wrPumpTaskBody()`'s actual loop (`webRadioApp.h:349-382`) against the mechanism as specified: the
+   loop currently does `if (s_wrPumpStopReq) {...}`, then unconditionally `xSemaphoreTake` (blocking)
+   + `s_wr_audio->loop()` + `xSemaphoreGive`, then `vTaskDelay(WR_PUMP_CADENCE_TICKS)` (`:297`,
+   `pdMS_TO_TICKS(2)` — a real, **blocking** delay, during which the pump task is not merely
+   "mid-instruction" but fully descheduled). The design's consumer-side steps require inserting a
+   `CONNECT`-branch at the top of this loop and a second check after `connecttohost()` returns — but
+   describe **no third path** for the case where `s_wrPumpRequest` is `ABORT` or `TEARDOWN` at the
+   top-of-loop check (i.e., neither `== CONNECT` — so the connect-branch doesn't fire — nor
+   "post-connect," since no connect was ever started this cycle). Concretely: `_play()` sets `_state =
+   CONNECTING` and posts `CONNECT` (per the design, replacing today's `:1690-1694` blocking call); if,
+   before the pump's *next* scheduled iteration reads that value — a real window, since the pump may be
+   sitting inside its own 2 ms `vTaskDelay` or otherwise not yet back at the top of its loop, not a
+   sub-instruction race — a second, ordinary loopTask action reaches `_stopAudio()`'s new `CONNECTING`
+   guard (eject, STOP, `_togglePlay()`'s stop branch, `wrEject`, `wrStop`, or `suspend()`'s own call),
+   it posts `ABORT` (or `TEARDOWN`, via `suspend()`'s subsequent unconditional upgrade) — **silently
+   overwriting the still-unread `CONNECT`**. When the pump *does* next reach the top-of-loop check, it
+   sees `s_wrPumpRequest != CONNECT` — the branch that would call `connecttohost()` never fires, so the
+   *only other* place the design ever inspects the request slot ("once the connect returns") is never
+   reached either, because no connect ever started. `s_wrPumpResult` is never written; `tick()`'s poll
+   sees `NONE` forever; `_state` stays `CONNECTING` permanently — the exact bug the second pass named
+   and this whole mechanism exists to prevent, resurrected through a path that could not have existed
+   before *this* revision specified where the request gets consumed. Worse than the wedge alone: if the
+   overwritten value was `TEARDOWN` (i.e., the user ejected), `s_wr_audio` is never deleted, the arena
+   is never released via `mb_arena_release()`, and the pump task never reaches its self-`vTaskDelete`
+   — precisely the leak `suspend()`'s own comment at `:552-557` exists to prevent, and the same class of
+   leak the third pass's finding #4 fixed for a different code path. **This is reachable by ordinary
+   use, not adversarial timing**: two loopTask actions issued back-to-back with no yield in between —
+   concretely, `set wrPlay N` immediately followed by `set wrStop` or `set wrEject` in a single serial
+   script, exactly the kind of two-command burst the doc's own proposed exit criteria plans to fire (see
+   finding #3) — land within nanoseconds of each other on the same task, comfortably inside the pump's
+   2 ms cadence gap, with no scheduling luck required at all. A human physically double-tapping this
+   fast is implausible, but this codebase's own serial test-hook surface (the exact mechanism the doc
+   cites as evidence of reachability for findings #1 and #4 in the first pass) makes it trivial to hit
+   every time. **The doc's own "accepted, narrow residual race"** (pump reading `CONNECT` then clearing
+   it to `NONE`, "a handful of instructions wide... measured in microseconds") **is a different, smaller
+   window than this one, and does not cover it** — that race is about a same-instant clobber during the
+   pump's own uninterruptible read-then-clear sequence (see non-blocking finding #4 below for why that
+   specific window is likely fully closed by this file's own priority setup, not just narrow); this
+   finding is about the much larger window *before* the pump has read the request at all, which the
+   doc's residual-race paragraph never considers and which has a categorically worse outcome (permanent
+   wedge + leak, not "one input dropped, connect resolves normally"). **Fix, one of:** (a) give the
+   pump's top-of-loop check a second branch — `else if (s_wrPumpRequest == ABORT || s_wrPumpRequest ==
+   TEARDOWN)`, resolving it immediately (no connect to abort, so this reduces to "set the terminal
+   result / do the teardown steps / clear the request") without ever attempting `connecttohost()`; or
+   (b) have `_stopAudio()`'s guard distinguish "request still reads `CONNECT`" (nothing has been
+   dispatched yet — safe to just clear `s_wrPumpRequest` straight to `NONE` and reconcile `_state`
+   directly from `loopTask`, no pump involvement needed since nothing was ever kicked off) from "request
+   already cleared, connect presumably in flight" (post `ABORT`/`TEARDOWN` as today). Either closes the
+   gap; the doc currently specifies neither, and the mechanism is incomplete without one of them.
+
+2. **BLOCKING — `tick()`'s `FAILED` branch is specified with materially less precision than its
+   `ABORTED`/`TORN_DOWN` sibling, and the imprecise reading drops the same TLS-resume call the third
+   pass's own most severe finding was about — reachable by nothing more than an ordinary failed
+   connect, the single most common outcome this whole design was written to handle better.** The
+   `ABORTED`/`TORN_DOWN` branch is specified by literally quoting the code to add: `if (_spotifyYielded)
+   { spotifyTask::tlsResume(); _spotifyYielded = false; }`. The `FAILED` branch, immediately
+   above it in the same paragraph, is specified only as *"today's existing `ERROR_UNREACHABLE` +
+   `_onPlaybackFailed()` logic, same substitution"* — naming two elements of the current code by name,
+   neither of which is the TLS-resume call. Re-read the current `_play()` failure path this branch is
+   meant to relocate (`webRadioApp.h:1710-1717`): `_state = WRPlayState::ERROR_UNREACHABLE;` /
+   `LOG_W(...)` / **`spotifyTask::tlsResume(); _spotifyYielded = false;`** / `_onPlaybackFailed(...)` —
+   the resume call sits *between* the two elements the doc names, and the doc's shorthand never
+   explicitly says it's included. Under the async design this whole block necessarily moves off
+   `_play()` (which no longer sees `connectOk` at all — the pump does, and the pump is a free function
+   with no access to `_spotifyYielded`, the same reasoning the doc itself already applies to justify why
+   `tick()`, not the pump, must own the `ABORTED`/`TORN_DOWN` resume) — so `tick()`'s `FAILED` branch is
+   the *only* place this call can go, and "same substitution" is the entire specification for whether it
+   goes there. Given this project's exact demonstrated failure mode on this precise question three times
+   running (a TLS-resume call quietly not making it into a relocated/guarded code path), and given that
+   ordinary connect failures are not an edge case here — they're the measured, headline problem this doc
+   exists to fix (421 occurrences over 4 hours per the Context section) — a Developer who reads "same
+   substitution" as "move the *named* elements, `ERROR_UNREACHABLE` and `_onPlaybackFailed()`" and
+   leaves the resume call behind would ship a build where **every ordinary failed connect** permanently
+   leaks the yield: `_play()`'s own `if (!_spotifyYielded) tlsYield()` guard (`:1613`) prevents it from
+   incrementing `s_tlsYieldReqCount` a second time once already `true`, so nothing else in the design
+   ever decrements it back to zero — Spotify's TLS starves for the rest of the boot after the *first*
+   bad connect, not a rare interruption case. Verified `spotifyTaskStorage.cpp`'s `tlsResume()`
+   (`:694-702`) is a plain ref-count decrement guarded by a spinlock, safe to call from any task context
+   including `loopTask` inside `tick()` — no mechanical reason this can't work, only a specification gap.
+   **Fix:** spell out the `FAILED` branch's transplanted block explicitly and completely, the same way
+   `ABORTED`/`TORN_DOWN`'s fix is spelled out — don't rely on "same substitution" to carry a
+   safety-critical line across a relocation by implication, precisely because this project has now
+   demonstrated three separate times that the implication doesn't reliably survive.
+
+3. **BLOCKING (exit-criteria gap, downstream of finding #1) — no exit criterion can catch finding #1
+   as currently worded, because the one bullet closest to it deliberately avoids the exact timing that
+   triggers it.** The "re-entrant control input during CONNECTING" bullet requires forcing `CONNECTING`
+   "against a **real** slow/dead host" *before* firing the interrupting eject/stop/etc. tap — which
+   guarantees the pump has had seconds, not milliseconds, to have already consumed `CONNECT` and be
+   blocked inside `connecttohost()` by the time the interrupting request lands. That is precisely the
+   case the mechanism already handles correctly (post-connect-return branch). It cannot exercise finding
+   #1's failure mode, which requires the interrupting request to land *before* the pump's first
+   top-of-loop read since `CONNECT` was posted. No other bullet fires two control actions back-to-back
+   with no host-response delay between them either. **Add an explicit criterion:** fire `set wrPlay N`
+   immediately followed (no delay, same script) by `set wrStop` / `set wrEject` / a different `set
+   wrPlay M`, repeated several times in a tight loop against both a fast-responding and a slow/dead
+   host, and confirm every time that `_state` reaches a terminal value within a bounded window (never
+   parks at `CONNECTING`) and that `get wrPump`/`get arenaStats` never show an orphaned pump task cycle
+   count that stops climbing or a JIT arena that was never released.
+
+**Non-blocking:**
+
+4. Re-derived the doc's own "accepted, narrow residual race" (pump reads `CONNECT`, then clears it to
+   `NONE` — a same-instant `ABORT`/`TEARDOWN` write could in principle clobber the clear) against this
+   file's own stated scheduling facts: `WR_PUMP_PRIORITY = 2` is explicitly documented as "above
+   loopTask (prio 1)" (`:296`), and the pump is `xTaskCreatePinnedToCore`'d onto `APP_CPU_NUM`
+   (`:393-395`) — the same core Arduino's `loopTask` runs on by default, which the file's own "above
+   loopTask" comment already assumes. Under standard FreeRTOS priority-based preemption, a strictly
+   lower-priority ready task cannot run while a higher-priority task is running and has not blocked or
+   yielded — and there is no blocking call between "read `CONNECT`" and "write `NONE`" in the specified
+   sequence. That means `loopTask` cannot actually interleave with the pump's read-then-clear pair at
+   all under this file's own priority setup; the window the doc explicitly "accepts" (and reaches for a
+   compare-and-swap justification to explain why it isn't engineered around) appears to be fully closed
+   by the scheduler already, not merely narrow. This doesn't make the design less safe — if anything the
+   opposite — but it means the doc's risk narrative is pointed at the wrong window: precise about a gap
+   that's arguably zero-width, silent about the real one (finding #1, which *is* reachable, because it
+   spans the pump's genuine `vTaskDelay` block where it has actually yielded the CPU). Worth correcting
+   so a future reader doesn't spend effort hardening the described window while the actual gap goes
+   unaddressed.
+
+5. `wrPumpTaskBody()`'s existing structure (`:349-382`) unconditionally takes the mutex and calls
+   `s_wr_audio->loop()` every single cycle; the design doesn't say whether the new `CONNECT` branch
+   *replaces* that cycle's normal pump call or runs in addition to it. Low risk either way — `loop()`
+   is a documented fast no-op when nothing is running (`:369`'s own comment) — but worth a sentence of
+   explicit control flow (an `if`/`else if`, not two unconditional steps run back-to-back) so a
+   Developer isn't left inferring it, matching this pass's brief question about whether the real loop
+   structure is compatible with the mechanism as prose.
+
+6. `dbgSet`'s `wrVol` handler (`webRadioApp.h:1346-1361`, unchanged since the first pass's own finding
+   #1 named it) still takes `s_wrAudioMutex` with a raw, unbounded `xSemaphoreTake(...,
+   portMAX_DELAY)` — a freeze source independent of every mechanism this design (and the three
+   revisions since) has touched, and still inconsistent with the short-timeout, degrade-gracefully
+   idiom `wrVolumeSink()` uses two hundred lines away for the same mutex. Never adopted as a mandatory
+   requirement in any revision since the first pass flagged it as a "third, independent freeze source."
+   Out of this design's stated narrow scope (it only claims to move `connecttohost()`), but it remains
+   live in the source and reachable via the same `set` surface this doc's own exit criteria rely on —
+   flagging again since three revisions have now passed without picking it up either way (fix it, or
+   explicitly declare it out of scope with a reason).
+
+**Testability sign-off (fourth pass):** consensus **not** reached — go/no-go is **no-go**, three
+blocking findings. The design's core shape is unchanged from the third pass's assessment and still
+correct — nothing here reopens Option B vs Option C. Two of this revision's four claimed fixes hold up
+under independent re-verification exactly as specified: the `TEARDOWN`-priority guard
+(`s_wrPumpRequest != TEARDOWN ? ABORT`) was traced against every caller from scratch and correctly
+prevents every downgrade path the third pass found, with no caller that legitimately needs to reverse
+it; the STOP-button/`wrStop` redundant-`_state`-write fix was checked with a file-wide grep for every
+`_state = WRPlayState::STOPPED`/`_state = STOPPED` write (`:970`, `:1226`, `:1524` — exactly three,
+matching the doc's claim of exactly two redundant sites plus `_stopAudio()`'s own intentional one), and
+a fourth candidate site (`:846`, inside the stream-death detector) was independently confirmed to run
+only under `_state == PLAYING` (gated at `:743`), never `CONNECTING`, so it is correctly *not* a third
+redundant site needing the same fix. But the other two claimed fixes each have a real gap, and both are
+severe enough on their own to block: finding #1 is a structural hole in the clear-on-commit mechanism
+this exact revision introduced — a real, ordinarily-reachable window (not the doc's own explicitly
+accepted micro-race) that reintroduces the second pass's permanent wedge plus a resource leak; finding
+#2 is the same TLS-yield-starvation bug class as the third pass's headline finding, recurring through
+the one reconciliation branch (`FAILED`) that fix's precision didn't reach, reachable by an ordinary
+failed connect rather than a stop/eject interruption. Four consecutive passes each finding a genuine,
+previously-unflagged defect — three of them in variations on the exact same TLS-yield/state-wedge
+failure modes — is itself now a strong signal about where this mechanism's actual hazard surface lives:
+not in the high-level shape (request/result slots, deferred teardown, priority ordering), which every
+pass has endorsed, but in the precise mechanics of *when* the request slot is read versus written, and
+in whether "same as today, just relocated" specifications carry every line of the original block along
+with them. Concretely falsifiable next step: give the pump's top-of-loop check (or `_stopAudio()`'s
+guard) a way to resolve `ABORT`/`TEARDOWN` when no connect was ever dispatched (finding #1), spell out
+`tick()`'s `FAILED` branch as explicitly as its `ABORTED`/`TORN_DOWN` sibling, including the TLS-resume
+line by name (finding #2), and extend the exit criteria with a back-to-back-command test that doesn't
+give the host a chance to respond before the second command lands (finding #3) — then this is ready for
+a fifth pass.
+
 ## Open questions
 
 1. **Is "control taps silently no-op during CONNECTING" actually a UX regression, or a wash?**
@@ -806,27 +1074,46 @@ covers in one sitting.
 
 ## Exit criteria
 
-- ~~VE testability review of the CONNECTING-state changes~~ — **three passes done, 2026-08-04.**
+- ~~VE testability review of the CONNECTING-state changes~~ — **four passes done, 2026-08-04.**
   First: 4 blocking findings against the original two-requirement sketch. Second: found that fix
   incomplete (`_stopAudio()` was the real blocking primitive in most named call sites; the
   flag-only teardown left a permanent wedge) — 4 new blocking findings, addressed via the
   request/result-slot mechanism. Third: confirmed the use-after-free and permanent wedge were
-  genuinely fixed, but found 4 more gaps in the new mechanism's own completeness (dropped
-  TLS-resume reintroducing `tlsYield` starvation; two redundant `_state` writes defeating the
-  mechanism for the STOP tap specifically; an unspecified request-clear causing an infinite
-  reconnect loop; a `TEARDOWN`-downgrade-to-`ABORT` leak path) — addressed in this revision. **Not
-  yet had a fourth VE pass** — treat as addressed-but-unverified, not closed, until that happens.
-- **New — Spotify TLS-yield accounting survives a stop/eject during CONNECTING (VE third-pass
-  finding #1, the most severe finding across all three passes):** force `CONNECTING` against a real
-  slow/dead host with Spotify's `bgPoll` active (the `--spotify-present` soak build, not the
-  isolated noSpotify build, so a real yield/resume imbalance is actually observable), press
+  genuinely fixed, but found 4 more gaps (dropped TLS-resume; two redundant `_state` writes; an
+  unspecified request-clear causing an infinite reconnect loop; a `TEARDOWN`-downgrade leak).
+  Fourth: confirmed 2 of those 4 fixes held up exactly as specified, but found the other 2 each had
+  a residual gap — the clear-on-commit fix opened a *different* early-arrival hole reintroducing the
+  same permanent wedge, and the TLS-resume fix's "same substitution" shorthand for the `FAILED`
+  branch left the resume line un-guaranteed for the single most common outcome — both addressed in
+  this revision, along with re-adding the `wrVol` fix the second revision had accidentally dropped.
+  **Not yet had a fifth VE pass** — treat as addressed-but-unverified, not closed, until that
+  happens.
+- **New — early-arrival ABORT/TEARDOWN, no connect ever dispatched (VE fourth-pass finding #1):**
+  fire `set wrPlay N` immediately followed, in the same script with no delay, by `set wrStop` /
+  `set wrEject` / a different `set wrPlay M` — repeated several times in a tight loop against both a
+  fast-responding and a slow/dead host. Confirm every time: `_state` reaches a terminal value within
+  a bounded window (never parks at `CONNECTING`); `get wrPump`'s cycle counter keeps climbing (no
+  orphaned pump task); `get arenaStats` never shows the arena stuck allocated past a session that
+  should have released it. This specifically exercises the window the "re-entrant control input"
+  criterion below cannot reach (that one deliberately uses a slow host, giving the pump time to
+  have already consumed `CONNECT` before the interrupting tap lands).
+- **Spotify TLS-yield accounting survives BOTH a stop/eject during CONNECTING (VE third-pass
+  finding #1) AND an ordinary failed connect with no interruption at all (VE fourth-pass finding
+  #2 — the `FAILED` branch specifically, since that's the single most common outcome and the one
+  the third revision's "same substitution" shorthand left unguaranteed):** force `CONNECTING`
+  against a real slow/dead host with Spotify's `bgPoll` active (the `--spotify-present` soak build,
+  not the isolated noSpotify build, so a real yield/resume imbalance is actually observable), press
   STOP/eject during the connect, then confirm — once the abort/teardown resolves — that Spotify's
   polling actually resumes (`get heap`/heartbeat's `poll=` counters advancing again, not stuck at
   `0/0`; cross-reference `spotifyTaskStorage.cpp`'s yield-count surface if one exists, or a fresh
   `get`/log line added for this check) rather than staying silently yielded for the rest of the
-  boot. This is the one finding across all three passes reachable by nothing more than ordinary
-  use, not a timing race — it deserves its own dedicated, repeated check (multiple STOP-during-
-  CONNECTING cycles in one soak), not a single pass/fail sample.
+  boot. **Separately, and just as important:** repeat the same check with zero interruption — let a
+  real connect attempt fail on its own (a genuinely dead host, no STOP/eject tap at all) and confirm
+  Spotify's polling resumes afterward too, since the `FAILED` branch is a structurally different
+  code path from `ABORTED`/`TORN_DOWN` and both need independent confirmation. These are the two
+  findings across all four passes reachable by nothing more than ordinary use, not a timing race —
+  each deserves its own dedicated, repeated check (multiple cycles in one soak), not a single
+  pass/fail sample.
 - **New — no runaway reconnect loop (VE third-pass finding #3):** force a real, eventually-
   succeeding `CONNECTING` (not a permanently-dead host), and confirm via the raw serial log that
   `connecttohost()`/`"Connect to new host"` fires exactly once per successful connect, not
