@@ -1068,3 +1068,22 @@ interactions:
       exercises the PLAYING-state handoff) would catch either way. VE follow-up candidate
       if a future change ever makes CONNECTING-state decode possible (e.g. gapless
       pre-buffering) — that would invalidate this edge's "no decode in flight" premise.
+
+  - id: X049
+    feature_a: webradio-001
+    feature_b: perf-001
+    interaction_type: dependency
+    description: |
+      M-WEBRADIO-POSBAR-SMOOTH's new perf::record("wr.posbar", ...) path (instrumented
+      once, inside WebRadioApp::_drawPosbar()'s own body — VE-2 disposition, not at any
+      of its three callers, to avoid perf.h's pointer-identity slot-matching silently
+      fragmenting one logical path into several) requires bumping perf.h's MAX_PATHS
+      from 10 to 11 — the shared budget constant every other named perf path also
+      depends on. Anyone adding another perf path after this one should read this edge
+      and perf.h:28-34's own comment first.
+    risk: low
+    test_coverage: []
+    notes: |
+      Registered at design-acceptance per M-WEBRADIO-POSBAR-SMOOTH.md (accepted
+      2026-08-05) — the design's own §Registers. Not implemented yet (TASK-402). No
+      test id yet — VE follow-up candidate once the wr.posbar path exists.

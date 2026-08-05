@@ -7462,3 +7462,62 @@ tap-to-connect, delete, out-of-range, and `T-WIFI-01..06` regression exit-criter
 second saved network (or a dedicated future DUT session) to exercise safely, and haven't been.
 Core migration/storage/UI mechanism is proven against real device data; the remaining gap is
 narrow and named, not open-ended.
+
+### TASK-402 — WebRadio posbar: smooth the buffer-fullness bar + rate-limit its redraws
+
+**Filed 2026-08-05.** Human observed the WebRadio posbar (repurposed in WebRadio mode to show
+input-buffer fullness rather than playback position) is too jittery and redraws too often,
+wasting CPU/SPI for no visible benefit — and asked directly whether the current update rate was
+known. Asked for a design pass before implementation.
+
+Architect design doc: `docs/architecture/designs/M-WEBRADIO-POSBAR-SMOOTH.md`. Direct answer to
+the update-rate question: there wasn't one — `WebRadioApp::tick()` runs once per `loop()`
+iteration with no `delay()` gating it, and the only redraw gate was a raw ±2-point value-delta
+check (not time-based) on an unfiltered ratio recomputed every tick from the audio library's input
+ring buffer. Each redraw was also unnecessarily expensive — always a full 248×10 groove reblit (20
+`pushImage` calls), ~4.8× costlier than Spotify's own seek-bar update in the same file, which only
+touches the changed thumb region. Doc flags that this exact tension was already tuned once before,
+in the opposite direction: TASK-253 cut a 15-point hysteresis down to 2 specifically to fix
+visible 33px thumb jumps — so simply widening the threshold back up would undo a real, prior,
+DUT-verified fix rather than improve on it.
+
+Lean: EMA smoothing on the value (mirroring the VU meter's own existing attack/release filter in
+the same file) + a time-based minimum redraw interval + a partial-diff blit (mirroring Spotify's
+seek-bar pattern) + a new `perf::record("wr.posbar", ...)` path and `get wrPosbar` debug getter,
+since nothing measures this today and any before/after claim needs a DUT baseline first. EMA alpha
+and the redraw-interval constant are explicitly left as DUT-tuning open questions, not guessed.
+
+**VE testability review (2026-08-05, same day):** `docs/architecture/designs/
+webradio-posbar-VE-review.md`. Verdict **approve-with-changes**, no blockers. Four majors:
+VE-1 (the existing `set wrBufPct` debug hook's interaction with the new gates was unaddressed),
+VE-2 (perf.h matches slots by pointer identity, not string content — the doc's "instrument around
+`_drawPosbar()`'s call site" was ambiguous since that function has three call sites; instrumenting
+at each independently risked silently fragmenting into multiple slots, invisible thanks to
+perf::record()'s silent-drop-on-overflow behavior), VE-3 (before/after redraw-count comparison
+wasn't specified multi-trial, despite this project's own repeated history of single-shot DUT
+measurements proving unreliable), VE-4 (the new getter reported outcomes but not which of the two
+new gates was currently binding, undermining the DUT tuning pass OQ1/OQ2 themselves call for).
+
+**Architect disposition (2026-08-05, same day):** all four majors folded into the design doc.
+VE-1 → `set wrBufPct` explicitly kept bypassing both new gates, documented as debug-forced. VE-2 →
+instrumentation pinned to exactly one site, inside `_drawPosbar()`'s own body. VE-3 → exit criteria
+now require ≥3 trials each side (or explicit `[wifi-ev]` outage correlation). VE-4 → new getter
+gains a `lastSkipReason: delta|interval|none` field.
+
+**Human sign-off (2026-08-05):** design **accepted** as a design doc, no separate ADR (this is a
+display-refresh tuning fix, not a novel architectural decision). Cross-feature edge `X049`
+(`webradio-001` × `perf-001`, the `perf.h` `MAX_PATHS` budget) committed to
+`cross_feature_matrix.yaml` same day. No new `feature_inventory.yaml` entry — this modifies the
+existing `webradio-001` feature in place; that entry's description/notes get updated by Developer
+at implementation, per the design doc's own note.
+
+**PM scheduling (2026-08-05):** cleared for Developer pickup — no further design/review gate
+before implementation. Touches `app/src/webRadioApp.h` (EMA, time-gate, new debug getter,
+`perf::record` call), `app/src/winamp/winampDisplay.h` (`drawBufferBar()` partial-diff blit), and
+`app/src/perf.h` (`MAX_PATHS` 10→11), per the accepted doc's §Lean/decision.
+
+**Owner:** Architect (design pass — done; VE majors folded) → human (**signed off**) → VE
+(testability review — done, approve-with-changes) → PM (scheduled) → Developer (implementation,
+**not started — next up**) · **Deps:** `webradio-001` (the feature this modifies), `perf-001`
+(`perf.h`'s `MAX_PATHS` budget, `X049`) · **Priority:** P3 (visual/resource-usage polish, no
+functional gap) · **Status:** open — **accepted, scheduled, awaiting Developer implementation.**

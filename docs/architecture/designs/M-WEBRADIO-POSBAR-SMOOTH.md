@@ -1,18 +1,17 @@
 # Design — M-WEBRADIO-POSBAR-SMOOTH: smooth + rate-limit the WebRadio buffer-fullness bar
 
 > Owner: Architect
-> Status: draft
+> Status: **accepted** (2026-08-05, human sign-off)
 > Date: 2026-08-05
-> Feeds: ADR-NNN (TBD — human to decide once the DUT-measured numbers below
-> exist; leaning toward "no ADR needed," this is a display-refresh tuning
-> fix, not an architectural decision, but flagging rather than deciding)
-> Tracked-as: — (not yet scheduled; PM to file a task if accepted — TASK-402
-> is the next free number as of this writing)
-> Registers: — (modifies the existing `webradio-001` feature, no new
-> feature id). Candidate cross-feature edge X049 (`webradio-001` ×
-> `perf-001`, the `perf.h` `MAX_PATHS` budget) — **not yet committed**,
-> draft status, same reserve-on-acceptance convention as prior designs this
-> session.
+> Feeds: — (no ADR — human accepted the doc's own lean: this is a
+> display-refresh tuning fix, not a novel architectural decision)
+> Tracked-as: TASK-402
+> Registers: — (modifies the existing `webradio-001` feature in place, no
+> new feature id — `feature_inventory.yaml`'s `webradio-001` entry is
+> updated by Developer at implementation, per this doc's own note below).
+> Cross-feature edge X049 (`webradio-001` × `perf-001`, the `perf.h`
+> `MAX_PATHS` budget) — **committed** (`cross_feature_matrix.yaml`,
+> 2026-08-05).
 
 **Revision note (2026-08-05, same day):** folded in VE's testability review
 (`docs/architecture/designs/webradio-posbar-VE-review.md`, verdict
@@ -343,8 +342,8 @@ benefit).
 
 ## Registers
 
-**Not yet committed** (draft status — reserve-on-acceptance convention,
-same as this session's other designs). If accepted:
+**Committed 2026-08-05** (`cross_feature_matrix.yaml`), following human
+sign-off:
 
 No new feature id — this modifies the existing `webradio-001` feature's
 posbar behavior in place; `webradio-001`'s `feature_inventory.yaml` entry
