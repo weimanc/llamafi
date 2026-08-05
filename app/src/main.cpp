@@ -850,7 +850,7 @@ static LifeApp g_LifeApp;
 #define SETTINGS_HEADER_H         28
 #define SETTINGS_CONTENT_Y        28
 #define SETTINGS_CONTENT_H       212
-#define SETTINGS_CAT_COUNT         6
+#define SETTINGS_CAT_COUNT         7
 #define SETTINGS_ROW_H            26
 #define SETTINGS_ROW_COL_LABEL     8
 #define SETTINGS_ROW_COL_VALUE   268
@@ -870,6 +870,7 @@ static LifeApp g_LifeApp;
 #include "settings/ledSection.h"
 #include "settings/keyboardWidget.h"
 #include "settings/calibrationFlow.h"
+#include "settings/systemSection.h"
 
 class SettingsApp : public App {
 public:
@@ -880,6 +881,7 @@ public:
     _sections[3] = &_disp;
     _sections[4] = &_led;
     _sections[5] = &_apps;
+    _sections[6] = &_system;
     repaintCategoryList();
   }
 
@@ -957,6 +959,29 @@ public:
       snprintf(buf, len, "\"var\":\"settingsAppSubmenu\",\"submenu\":%d,\"last\":true", _apps.submenu());
       return true;
     }
+    if (strcmp(var, "wifiSaved") == 0) {
+      // TASK-401 / VE-2-1: row index <-> SSID mapping + LRU state for an
+      // automated harness — same dbgGet-chain pattern as
+      // "settingsAppSubmenu" above (_apps.submenu()). _wifi.dbgSavedCount()
+      // also triggers the lazy migrate+load if this is the first touch this
+      // boot, so `get wifiSaved` works standalone without a prior
+      // Settings->WiFi navigation.
+      uint8_t n = _wifi.dbgSavedCount();
+      int off = snprintf(buf, len, "\"var\":\"wifiSaved\",\"count\":%d,\"entries\":[", (int)n);
+      if (off < 0) off = 0;
+      if (off > len) off = len;
+      for (uint8_t i = 0; i < n && off < len; i++) {
+        SavedWifiNet e = _wifi.dbgSavedEntry(i);
+        int w = snprintf(buf + off, (size_t)(len - off),
+                          "%s{\"ssid\":\"%s\",\"lastUsedMs\":%lu}",
+                          i ? "," : "", e.ssid, e.lastUsedMs);
+        if (w < 0) break;
+        off += w;
+        if (off > len) off = len;
+      }
+      if (off < len) snprintf(buf + off, (size_t)(len - off), "],\"last\":true");
+      return true;
+    }
     return false;
   }
 
@@ -974,6 +999,7 @@ private:
   DisplaySection     _disp;
   AppsSection        _apps;
   LedSection         _led;
+  SystemSection      _system;
   int16_t            _lastCalZ = 0;
   AppSettings        _snapshot;
   SettingsSection* _sections[SETTINGS_CAT_COUNT];
@@ -994,7 +1020,7 @@ private:
   void _onCategoryTap(int idx) {
     if (idx < 0 || idx >= SETTINGS_CAT_COUNT) return;
     _s.section = (int8_t)idx;
-    // All SETTINGS_CAT_COUNT sections are wired in the ctor (_sections[0..5]),
+    // All SETTINGS_CAT_COUNT sections are wired in the ctor (_sections[0..6]),
     // so this is always non-null; the guard is kept as cheap defence only.
     if (_sections[idx]) {
       _activeSection = _sections[idx];
@@ -1016,7 +1042,7 @@ private:
   void repaintCategoryList() {
     static const char* kLabels[SETTINGS_CAT_COUNT] = {
       "WiFi", "Time & Location", "Touch Calibration",
-      "Display", "LED", "Applications"
+      "Display", "LED", "Applications", "System"
     };
     repaintHeader("Settings");
     tft.fillRect(0, SETTINGS_CONTENT_Y, 275, SETTINGS_CONTENT_H, SETTINGS_BG_RGB565);
@@ -2970,7 +2996,11 @@ static void cmdTick(const char *args) {
 }
 
 static void cmdGet(const char *args) {
-  char buf[256]; buf[0] = '\0';
+  // TASK-401: widened 256 -> 512. `get wifiSaved` (5 entries x up to a
+  // 32-char ssid + 10-digit lastUsedMs) needs up to ~390 B; 256 silently
+  // truncated it. Every other dbgGet-chain caller below stays well under
+  // either size, so this is a pure headroom increase, not a behavior change.
+  char buf[512]; buf[0] = '\0';
   // TASK-255 (M-WEBRADIO-NOPSRAM): build-variant query (V0). Lets the harness pick a
   // Spotify-poll-free readiness path and lets V2 assert the variant.
   if (strcmp(args, "variant") == 0) {
