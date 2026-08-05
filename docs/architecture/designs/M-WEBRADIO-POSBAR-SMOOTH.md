@@ -6,7 +6,8 @@
 > Feeds: ADR-NNN (TBD — human to decide once the DUT-measured numbers below
 > exist; leaning toward "no ADR needed," this is a display-refresh tuning
 > fix, not an architectural decision, but flagging rather than deciding)
-> Tracked-as: TASK-402
+> Tracked-as: — (not yet scheduled; PM to file a task if accepted — TASK-402
+> is the next free number as of this writing)
 > Registers: — (modifies the existing `webradio-001` feature, no new
 > feature id). Candidate cross-feature edge X049 (`webradio-001` ×
 > `perf-001`, the `perf.h` `MAX_PATHS` budget) — **not yet committed**,
