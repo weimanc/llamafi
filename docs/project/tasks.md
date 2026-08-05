@@ -7272,17 +7272,30 @@ to be watching normal playback, not a supervised soak — confirmed via `ps aux`
 - WiFi-down override path not separately re-tested this session (short strings, same code path as
   the already-covered short-text case — no new risk surface introduced by this change).
 
-OQ1 (exact separator run/spacing) resolved as `kTitleMarqueeSep = "   ***   "` (3 shuriken glyphs,
-1-space-gapped each side) — the design doc's own named "classic" shape, confirmed to read cleanly
-in the DUT screenshot above; not revisited further.
+**Correction (2026-08-05, same day, human-caught on real hardware):** the ASCII `'*'` glyph
+above — despite being explicitly "confirmed" as a 4-pointed star/shuriken in this doc's own
+Context section via a BMP crop — reads as "o-umlaut" at actual render size on the physical LCD,
+not a star. Human caught it live; a second independent BMP-crop re-check (done to verify) made
+the identical misjudgment before a pixel-exact diff against a real screendump settled it
+definitively (30/30 match for `'*'`'s own bitmap, confirming the code was rendering exactly the
+glyph it was told to — this was a wrong glyph *choice*, not a rendering bug). A full scan of the
+155×74 `SKIN_FONT` atlas (not just the 3 `CHAR_MAP` rows) found no cleaner star hiding elsewhere —
+it's the same 31×3 character set repeated 4× in different recolor palettes, not extra glyphs.
+Human picked TEXT.BMP row2/col4 instead (real pixel data there, a small angular tick/spark shape,
+just never wired to an ASCII code by `CHAR_MAP`) — implemented as `kTitleMarqueeSepGlyph`, a raw
+`SkinUV` constant referencing that pixel position directly, no `CHAR_MAP`/bake-pipeline change.
+Same 3-blank+3-glyph+3-blank spacing kept. Full mechanism re-verified (17/17) and a fresh DUT
+screenshot confirms the new glyph reads cleanly. See `M-TITLE-MARQUEE-WRAP.md`'s OQ1 for the full
+writeup — flagged there as a general lesson: static BMP-crop reads of this kind of low-res
+abstract bitmap aren't a reliable proxy for in-context rendering, twice over in this one case.
 
 **Owner:** Architect (design pass — done) → Developer (implementation — **done 2026-08-05**,
-DUT-verified) · **Deps:** `m3-001` (feature owning the title marquee), `M-UI-POLISH-fidelity.md`
-TASK-048 (the gap/loop half that never shipped) · **Priority:** P3 (cosmetic fidelity, no
-functional/safety impact) · **Status:** **CLOSED — implemented, host-verified (`run/check` 6/6
-both envs) and DUT-verified** (mechanism via `get wrMarquee` polling + a real-hardware screenshot
-confirming the endless-loop/separator visual). WiFi-down-override path inferred safe (same
-short-text code path already covered) rather than separately re-tested.
+DUT-verified, glyph corrected same day per human real-hardware catch) · **Deps:** `m3-001`
+(feature owning the title marquee), `M-UI-POLISH-fidelity.md` TASK-048 (the gap/loop half that
+never shipped) · **Priority:** P3 (cosmetic fidelity, no functional/safety impact) · **Status:**
+**CLOSED — implemented, host-verified (`run/check` 6/6 both envs) and DUT-verified**, including
+the separator-glyph correction. WiFi-down-override path inferred safe (same short-text code path
+already covered) rather than separately re-tested.
 
 ### TASK-400 — Settings → System → Reboot (user-triggered soft reboot)
 

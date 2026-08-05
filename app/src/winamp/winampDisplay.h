@@ -44,10 +44,22 @@ static constexpr uint16_t kDriftPip[4 * 4] = {
   0xFD00, 0xFD00, 0xFD00, 0xFD00,
 };
 
-// TASK-399: endless-ticker separator between marquee loop passes. '*'
-// resolves to the skin's baked shuriken glyph (TEXT.BMP row2/col1 via
-// CHAR_MAP), not a literal asterisk -- see M-TITLE-MARQUEE-WRAP.md.
-static constexpr char kTitleMarqueeSep[] = "   ***   ";
+// TASK-399: endless-ticker separator between marquee loop passes.
+// M-TITLE-MARQUEE-WRAP.md originally specced ASCII '*' (TEXT.BMP row2/col1
+// via CHAR_MAP/SKIN_GLYPH), documented there as "cosmetically a ninja-star/
+// shuriken" from a BMP-crop read. DUT-verified 2026-08-05 that read was
+// wrong -- at actual render size it reads as "o-umlaut", not a star (a
+// second independent crop-read, on the screenshot taken to confirm it,
+// made the identical mistake). Human picked row2/col4 instead: a cell
+// TEXT.BMP has real pixel data in (confirmed via full-atlas scan -- it's
+// not blank) but bake_skin.py's CHAR_MAP never wires to any ASCII code
+// (row 2 is `"?*                             "` -- col4 is a space, so any
+// code that would map there instead falls through to BLANK_COL/BLANK_ROW).
+// Referenced directly by pixel position rather than adding a new CHAR_MAP
+// entry + re-baking -- only this one fixed spot needs it, not a general
+// ASCII mapping.
+static constexpr SkinUV kTitleMarqueeSepGlyph = { 4 * GLYPH_W, 2 * GLYPH_H, GLYPH_W, GLYPH_H };
+static constexpr int kTitleMarqueeSepLen = 9;  // 3 blank + 3 glyph + 3 blank slots
 
 class WinampDisplay : public CheapYellowDisplay {
 public:
@@ -867,7 +879,7 @@ private:
     titleScrollOffset   = 0;
     titleScrollDeadline = millis() + TITLE_SCROLL_HOLD_MS;
     titleTextPx   = (int)strlen(lastTitle) * (GLYPH_W + 1);
-    titlePeriodPx = titleTextPx + (int)(sizeof(kTitleMarqueeSep) - 1) * (GLYPH_W + 1);
+    titlePeriodPx = titleTextPx + kTitleMarqueeSepLen * (GLYPH_W + 1);
     drawTitleText(0);
   }
 
@@ -1255,23 +1267,36 @@ private:
     // walk unchanged (Goal 3).
     const bool scrolling = titleTextPx > TITLE_W;
     const int textLen = (int)strlen(lastTitle);
-    const int sepLen  = (int)(sizeof(kTitleMarqueeSep) - 1);
+    const int sepLen  = kTitleMarqueeSepLen;
     const int cycleLen = textLen + sepLen;
 
     int x = -offset;
     for (int i = 0; x < TITLE_W; ++i) {
-      char ch;
+      bool draw = true;
+      SkinUV uv;
       if (scrolling) {
         int m = i % cycleLen;
-        ch = (m < textLen) ? lastTitle[m] : kTitleMarqueeSep[m - textLen];
+        if (m < textLen) {
+          uint8_t code = (uint8_t)lastTitle[m];
+          if (code >= 128) code = '?';
+          uv = SKIN_GLYPH[code];
+        } else {
+          // Separator zone: middle 3 slots carry the glyph, outer slots on
+          // each side are blank gap -- nothing to draw for those.
+          int s = m - textLen;
+          if (s >= 3 && s < 6) {
+            uv = kTitleMarqueeSepGlyph;
+          } else {
+            draw = false;
+          }
+        }
       } else {
         if (i >= textLen) break;
-        ch = lastTitle[i];
-      }
-      if (x + GLYPH_W > 0) {
-        uint8_t code = (uint8_t)ch;
+        uint8_t code = (uint8_t)lastTitle[i];
         if (code >= 128) code = '?';
-        SkinUV uv = SKIN_GLYPH[code];
+        uv = SKIN_GLYPH[code];
+      }
+      if (draw && x + GLYPH_W > 0) {
         // Clip the glyph to the slot edges.
         int dstX = slotX + (x < 0 ? 0 : x);
         int srcDx = x < 0 ? -x : 0;

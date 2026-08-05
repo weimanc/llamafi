@@ -156,6 +156,22 @@ Concretely:
   narrower. This is a visual-fit call best made by looking at it on the actual TFT (DUT) or a
   `preview_layout.py`-rendered mock, not decided from the BMP crop alone. Recommend Developer
   render a couple of candidates via `app/tools/preview_layout.py` before committing.
+  **RESOLVED 2026-08-05, and this OQ's own caution turned out to matter more than expected:**
+  the ASCII `'*'` glyph this doc specced (documented above as "confirmed... a 4-pointed star"
+  from a BMP crop) reads as "o-umlaut" at actual render size on real hardware, not a star —
+  human caught it live on the DUT; a second independent BMP-crop read (done to double-check)
+  made the identical misjudgment before a rigorous pixel-diff against the real screendump
+  settled it. A full scan of the font atlas found no cleaner star hiding elsewhere (the 155×74
+  `SKIN_FONT` array is just the same 31×3 `CHAR_MAP` character set repeated 4× in different
+  recolor palettes, not extra glyphs). Human picked TEXT.BMP row2/col4 instead — a cell with
+  real pixel data (a small angular tick/spark shape) that `CHAR_MAP` never wires to an ASCII
+  code — referenced directly by pixel position (`kTitleMarqueeSepGlyph`, a raw `SkinUV`) rather
+  than adding a new `CHAR_MAP` entry and re-baking. Spacing kept at the original 3-blank +
+  3-glyph + 3-blank shape. DUT-reverified clean on the physical LCD. Lesson: this project's
+  own "live human eyeball, not a tool-assisted capture" caution (see M-WEBRADIO-POSBAR-SMOOTH.md's
+  exit criteria) applies to font-atlas crops too, not just motion/continuity checks — a static,
+  isolated crop of an abstract low-res bitmap is not a reliable proxy for how it reads in context,
+  and this doc got fooled by it twice before a real device settled it.
 - **Does the separator participate in the hold-at-start pause?** i.e. does the very first frame
   (`titleScrollOffset = 0`, pre-scroll hold) show `lastTitle` alone (today's behavior,
   preserved) or already include a trailing hint of the separator peeking in from the right?
