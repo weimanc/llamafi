@@ -2267,34 +2267,14 @@ void setup()
   // TASK-296: wifiCredsKnown tracks whether ANY source held credentials —
   // "connect failed with stored creds" (AP storm at boot) must not be treated
   // as "no credentials", or the device parks dead in the Settings screen.
+  // TASK-404: this used to also try a HARDCODED_WIFI_SSID stage ahead of NVS,
+  // sourced from a wifi_creds.h shim — removed 2026-08-06 after discovering
+  // that shim was never actually wired into the build (wrong file path, no
+  // #include anywhere), making the whole stage permanently dead code. NVS is
+  // the real first stage now.
   bool wifiConnected  = false;
   bool wifiCredsKnown = false;
-#ifdef HARDCODED_WIFI_SSID
-  wifiCredsKnown = true;
-#ifdef WINAMP_DISPLAY
-  winampDisplay.setTitle("WI-FI: CONNECTING...");  // M-BOOT-UI (TASK-364) §2
-#endif
-  WiFi.persistent(true);
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(HARDCODED_WIFI_SSID, HARDCODED_WIFI_PASS);
-  Serial.print("Connecting to hardcoded SSID " HARDCODED_WIFI_SSID);
-  { unsigned long dl = millis() + 30000;
-    // TASK-288: feed the TWDT every iteration — this loop's own 30s deadline
-    // already exceeds the runtime 15s watchdog window on its own, and it can
-    // also chain into the NVS/SPIFFS fallback loops below with zero resets
-    // in between, so cumulative un-fed time (not any single loop's deadline)
-    // is what was tripping task_wdt during a flaky-AP boot.
-    while (WiFi.status() != WL_CONNECTED && millis() < dl) {
-      delay(250); Serial.print("."); esp_task_wdt_reset();
-#ifdef WINAMP_DISPLAY
-      winampDisplay.tickMarquee();  // M-BOOT-UI (TASK-364) §3 Option B
-#endif
-    }
-    Serial.println(); }
-  wifiConnected = (WiFi.status() == WL_CONNECTED);
-  if (!wifiConnected) Serial.println("[wifi] hardcoded connect failed, trying NVS");
-#endif
-  if (!wifiConnected) {
+  {
 #ifdef WINAMP_DISPLAY
     winampDisplay.setTitle("WI-FI: CONNECTING...");  // M-BOOT-UI (TASK-364) §2
 #endif
@@ -2307,7 +2287,10 @@ void setup()
       wifiCredsKnown = true;
     WiFi.begin();  // reconnect from NVS (no args)
     { unsigned long dl = millis() + 10000;
-      // TASK-288: see hardcoded-SSID loop above — feed TWDT every iteration.
+      // TASK-288: feed the TWDT every iteration — this loop's own deadline can
+      // chain into the SPIFFS fallback loop below with zero resets in
+      // between, so cumulative un-fed time (not any single loop's deadline)
+      // is what was tripping task_wdt during a flaky-AP boot.
       while (WiFi.status() != WL_CONNECTED && millis() < dl) {
         delay(100); esp_task_wdt_reset();
 #ifdef WINAMP_DISPLAY
@@ -2315,6 +2298,26 @@ void setup()
 #endif
       } }
     wifiConnected = (WiFi.status() == WL_CONNECTED);
+  }
+  if (!wifiConnected) {
+    // TASK-404: the NVS attempt above leaves autoReconnect at its default
+    // true, so a failed attempt keeps retrying the same (bad) NVS creds in
+    // the background (WiFiGeneric.cpp's STA_DISCONNECTED handler calls
+    // WiFi.disconnect()+WiFi.begin() itself on every reconnectable-reason
+    // disconnect). If the SPIFFS stage below calls its own WiFi.begin()
+    // while that background retry is still mid-attempt, esp_wifi_connect()
+    // returns ESP_ERR_WIFI_CONN ("sta is connecting, return error") and the
+    // SPIFFS attempt silently no-ops — the fallback cascade doesn't actually
+    // try the SPIFFS creds until the background retry happens to be between
+    // attempts, which is why recovery only reliably happened via the
+    // separate background wifiDiag supervisor ~60-85s later. Stop the NVS
+    // stage's background retry and let the driver settle before handing
+    // control to SPIFFS's own explicit attempt.
+    WiFi.setAutoReconnect(false);
+    WiFi.disconnect(false);
+    { unsigned long dl = millis() + 300;
+      while (millis() < dl) { delay(20); esp_task_wdt_reset(); }
+    }
   }
   if (!wifiConnected && SPIFFS.exists("/wifi_creds.json")) {
     File f = SPIFFS.open("/wifi_creds.json", "r");

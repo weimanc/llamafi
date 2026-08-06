@@ -182,16 +182,11 @@ As of Apr 2025 (all apps by Nov 2025), Spotify only accepts redirect URIs that a
 
 Workaround used here: `get_refresh_token.py` (repo root) runs the Authorization Code flow on the host using `http://127.0.0.1:8888/callback/` (must be added to the Spotify app's Redirect URIs), prints the refresh token. Bake that into `app/data/spotify_diy_config.json` and run `./run/spiffs push spotify_diy_config.json`.
 
-### Hardcoded station WiFi (bypass settings UI)
+### WiFi boot fallback chain
 
-`Spotify-Diy-Thing/SpotifyDiyThing/wifi_creds.h` (gitignored) opt-in shim. If present, `main.cpp` sees it via `__has_include` and short-circuits to `WiFi.begin(SSID, PASS)`. Format:
+Priority: NVS (saved by prior user connect) → SPIFFS `/wifi_creds.json` (written by `./run/setup`) → WiFi settings UI on device. Each level falls through to the next on timeout or missing file. Between the NVS and SPIFFS attempts, `main.cpp` explicitly disables auto-reconnect and disconnects with a short settle-wait before the SPIFFS stage's own `WiFi.begin()` — without it, a failed NVS attempt's background auto-retry can collide with the SPIFFS attempt's `esp_wifi_connect()` call (driver returns `ESP_ERR_WIFI_CONN`, "sta is connecting", silently no-opping the SPIFFS attempt) — see TASK-404.
 
-```c
-#define HARDCODED_WIFI_SSID "..."
-#define HARDCODED_WIFI_PASS "..."
-```
-
-Reflash app to apply (creds compile in). Priority chain: `wifi_creds.h` (highest) → NVS (saved by prior user connect) → SPIFFS `/wifi_creds.json` (written by `./run/setup`) → WiFi settings UI on device. Each level falls through to the next on timeout or missing file.
+There used to be a hardcoded `HARDCODED_WIFI_SSID`/`HARDCODED_WIFI_PASS` stage ahead of NVS, fed by a `wifi_creds.h` shim. Removed 2026-08-06 (TASK-404): the shim was never actually wired into the build — `app/.gitignore` expected it at `app/src/wifi_creds.h`, but no such file existed, and `main.cpp` had no `__include`/`#include` mechanism to pull it in regardless — so `HARDCODED_WIFI_SSID` was never defined and the whole stage was permanently dead code. Confirmed via a full source grep and `strings` on the compiled ELF (no hardcoded SSID string present).
 
 
 ### Touch input (CYD)

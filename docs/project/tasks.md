@@ -6529,6 +6529,21 @@ Does not confirm the original stale-title marquee-freeze symptom either way (TAS
 thread — no fresh evidence for or against this session). Reports:
 `app/tools/rnd_logs/webradio_long_soak_20260805T114034.json` (+ `_raw.log`).
 
+**Eighth repro attempt, 2026-08-05 22:46–00:50 (overnight, unattended).** First launch
+(`..._20260805T224632_raw.log`, 9KB) aborted itself after 43s — booted into production firmware
+(no `SERIAL_DEBUG` surface), every `get` poll returned `{"ok":false,"error":"unknown command"}`;
+harness detected this and relaunched rather than logging a false-clean result. Second launch
+(`..._20260805T225002`, `status=complete`, `elapsed_s=7200.1`, 0 anomalies) is the real run: boot
+line shows `spotify=idle (playerMode=webradio) — refresh deferred to first toggle` — this run did
+**not** have Spotify's background poll active (`--spotify-present` was not set), unlike the sixth
+attempt above. 175 `wrState` polls, 66 `terminal retry — re-arming scan` firings (each followed by
+a fresh `play idx=` attempt, same pattern as the sixth run), 28 `connecttohost failed` lines, 0
+permanent `ERROR_*` parks, `render_age` never climbed in lockstep with `uptime`. Same disposition
+as all seven prior attempts — still unreproduced. Reports:
+`app/tools/rnd_logs/webradio_long_soak_20260805T225002.json` (+ `_raw.log`); the aborted false-start
+kept alongside it as `..._20260805T224632_raw.log` (evidence the harness's abort-on-no-debug-surface
+behavior works, not a separate finding).
+
 ### TASK-394 — stale `switchApp 10` (WebRadio) in three tools — TASK-347's own follow-up, never filed
 
 **Filed and CLOSED same-session, 2026-08-03 — human pushback on TASK-393's write-up** ("we've done
@@ -7729,8 +7744,59 @@ giving `WiFi.disconnect()`/driver teardown enough time to settle between `WiFi.b
 same-boot NVS/SPIFFS retries entirely and let the background supervisor own all retries after a
 hardcoded-stage failure (avoids hammering a driver that's still mid-teardown).
 
-**Owner:** Developer · **Deps:** none, informed by M-BOOT-UI/TASK-364 (`docs/architecture/designs/
-M-BOOT-UI-chrome-first-boot.md` §4/§6) · **Priority:** P3 (narrow trigger condition, bounded
-~85s self-recovery, not a hang or data-loss risk) · **Gate:** DUT reproduction first (deliberately
-misconfigure `wifi_creds.h` to a reachable-SSID-wrong-password or wrong-SSID case, confirm the
-same-boot NVS/SPIFFS stall, then verify the fix collapses recovery time) · **Size:** S-M.
+**Session update (2026-08-06) — premise was stale; picked up as the day's PM-recommended next
+task.** Attempted the gate's own repro (misconfigure `wifi_creds.h` to an unreachable SSID, flash
+debug, watch the boot log) and it reconnected in 1.4s — no stall at all. Traced why:
+**`HARDCODED_WIFI_SSID` was never actually defined in this build.** `app/.gitignore` expects the
+shim at `app/src/wifi_creds.h`; that file didn't exist on this machine. The file that did exist,
+`Spotify-Diy-Thing/SpotifyDiyThing/wifi_creds.h`, is the wrong location and was never `#include`d
+by any compiled source — confirmed by a full grep across every tracked `.cpp`/`.h`/`.ino` and by
+`strings` on the compiled ELF (no hardcoded SSID string present anywhere in the binary). The
+`#ifdef HARDCODED_WIFI_SSID` stage in `main.cpp` has been permanently dead code — the real chain
+has only ever been NVS → SPIFFS → UI, contradicting CLAUDE.md's documented chain (also now fixed).
+This means the original 2026-07-28 M-BOOT-UI observation, whatever its true cause, could not have
+been this specific hardcoded→NVS race as filed.
+
+**Human decision:** rip out the dead stage rather than wire it up (superseded by TASK-401's
+NVS-backed multi-network Settings UI; no product need for a compile-time-baked SSID anymore).
+Done: removed the `#ifdef HARDCODED_WIFI_SSID` block from `main.cpp` (`git log` — this session's
+commit). CLAUDE.md's "Hardcoded station WiFi" section rewritten to describe the real NVS→SPIFFS→UI
+chain and record why the old shim was dead.
+
+**The underlying race mechanism is still real for the two stages that do exist** — confirmed from
+source, not just inferred: `WiFiSTA.cpp`'s no-arg `begin()` (the NVS stage) calls
+`esp_wifi_connect()` with no disconnect first, and `WiFiGeneric.cpp:1091-1094`'s
+`STA_DISCONNECTED` handler runs its own background `WiFi.disconnect(); WiFi.begin();` retry loop
+whenever `autoReconnect` (default `true`) sees a reconnectable failure reason — which is most of
+them, including `NO_AP_FOUND`. If the SPIFFS stage's own `WiFi.begin(ssid, pass)` fires while that
+background retry is mid-attempt, `esp_wifi_connect()` returns `ESP_ERR_WIFI_CONN` ("sta is
+connecting, return error") and the SPIFFS attempt silently no-ops — explains the doc's original
+~60-85s-until-supervisor-recovers symptom shape even though the originally-named trigger (a bad
+hardcoded stage) turned out not to exist. **Fix applied** (`main.cpp`, between the NVS and SPIFFS
+stages): `WiFi.setAutoReconnect(false); WiFi.disconnect(false);` plus a bounded 300ms
+TWDT-fed settle-wait before the SPIFFS stage's own `WiFi.begin()` — stops the NVS stage's
+background retry from colliding with the next stage's explicit attempt.
+
+**Verification: compile + happy-path only, not the failure-path race itself.** `run/check` 6/6
+both envs. DUT sanity boot on production firmware with real creds: connects in ~1.5s via NVS exactly
+as before (one transient `AUTH_FAIL`/reason=202 on the very first attempt, driver's own
+built-in single retry recovers it, `GOT_IP` at t=1536ms) — the new disconnect+settle block is
+gated on `!wifiConnected` and was correctly skipped, confirming zero regression to the common case.
+**Not verified on DUT: the actual NVS→SPIFFS race scenario and whether this fix collapses its
+recovery time**, because reproducing it requires temporarily feeding the DUT's *real* NVS-persisted
+WiFi credentials something bad (not a throwaway file this time) — the human declined that specific
+action this session (offered as an explicit option, not chosen), preferring to scope down to
+removing the dead stage instead. If a future session wants full confirmation: temporarily corrupt
+NVS creds (e.g. via the on-device WiFi Settings UI, connect to a wrong/decoy network once), leave
+correct creds in SPIFFS `/wifi_creds.json`, reflash debug, and watch for `sta is connecting` in the
+boot log pre-fix vs. post-fix recovery timing — then restore the real NVS creds via Settings UI
+afterward.
+
+**Owner:** Developer (done: dead-stage removal + race fix implemented and compile/happy-path
+verified) · **Deps:** none, informed by M-BOOT-UI/TASK-364 (`docs/architecture/designs/
+M-BOOT-UI-chrome-first-boot.md` §4/§6), TASK-401 (superseding rationale for the removed stage) ·
+**Priority:** P3 · **Status:** implemented, host-verified (`run/check` 6/6 both envs), DUT
+happy-path-verified — **the specific NVS→SPIFFS race this fix targets remains DUT-unconfirmed**,
+gated on a future session choosing to deliberately corrupt this DUT's real NVS creds to test it ·
+**Size:** S-M (came in as scoped; the dead-code discovery added investigation time, not
+implementation size).

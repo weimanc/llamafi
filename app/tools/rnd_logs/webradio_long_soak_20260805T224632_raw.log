@@ -1,0 +1,117 @@
+1785966392.334|ets Jul 29 2019 12:21:46
+1785966392.340|rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+1785966392.343|configsip: 0, SPIWP:0xee
+1785966392.348|clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+1785966392.351|mode:DIO, clock div:2
+1785966392.353|load:0x3fff0030,len:1184
+1785966392.356|load:0x40078000,len:13232
+1785966392.356|load:0x40080400,len:3028
+1785966392.360|entry 0x400805e4
+1785966393.099|[    39][D][esp32-hal-cpu.c:244] setCpuFrequencyMhz(): PLL: 480 / 2 = 240 Mhz, APB: 80000000 Hz
+1785966393.129|[boot] git=n/a elf=dcfaa17b build=Aug  5 2026 22:12:41
+1785966393.142|[    75][I][logSink.h:168] begin(): [log] log sink up — ring=48 slots × 256 B = 12288 B; build Aug  5 2026 22:12:41
+1785966393.143|cyd display setup
+1785966393.447|winamp display setup
+1785966393.559|Initialisation done.
+1785966393.597|SettingsStorage: loaded
+1785966393.634|TouchCalStorage: loaded xMin=223 xMax=3582 yMin=196 yMax=3890
+1785966393.697|[D][chrome] drawVolume pct=-1 keyframe=NONE
+1785966393.710|reading config file
+1785966393.713|opened config file
+1785966393.713|parsed json
+1785966393.724|config loaded: clientId=db…e0 (len=32) clientSecret=b9…63 (len=32) refreshToken=AQ…ng (len=131)
+1785966393.746|[   687][D][WiFiGeneric.cpp:1040] _eventCallback(): Arduino Event: 0 - WIFI_READY
+1785966393.749|[wifi-ev] t=695 ev=0 EV
+1785966393.826|[   768][D][WiFiGeneric.cpp:1040] _eventCallback(): Arduino Event: 2 - STA_START
+1785966393.830|[wifi-ev] t=776 ev=2 STA_START
+1785966393.863|[   805][D][WiFiGeneric.cpp:1040] _eventCallback(): Arduino Event: 5 - STA_DISCONNECTED
+1785966393.872|[   813][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 202 - AUTH_FAIL
+1785966393.878|[   820][D][WiFiGeneric.cpp:1082] _eventCallback(): WiFi Reconnect Running
+1785966393.891|[wifi-ev] t=836 ev=5 STA_DISCONNECTED reason=202
+1785966393.970|[   912][D][WiFiGeneric.cpp:1040] _eventCallback(): Arduino Event: 4 - STA_CONNECTED
+1785966393.974|[wifi-ev] t=920 ev=4 STA_CONNECTED
+1785966394.506|[  1449][D][WiFiGeneric.cpp:1040] _eventCallback(): Arduino Event: 7 - STA_GOT_IP
+1785966394.518|[  1456][D][WiFiGeneric.cpp:1103] _eventCallback(): STA IP: 192.168.1.181, MASK: 255.255.255.0, GW: 192.168.1.1
+1785966394.522|[wifi-ev] t=1466 ev=7 STA_GOT_IP ip=192.168.1.181
+1785966394.545|IP address: 192.168.1.181
+1785966397.601|[time] synced epoch=1785966397 in 3053ms
+1785966397.607|[boot] spotify=idle (playerMode=webradio) — refresh deferred to first toggle
+1785966397.616|[  4550][I][logServer.h:60] serverBegin(): [log] server listening on http://192.168.1.181/log
+1785966397.621|[I][spotify.task] begin ok — handle=0x3ffe3230 startIdle=1
+1785966397.627|[I][spotify.task] task started; pinned core=1 stack=10240B period=5000ms
+1785966397.632|[I][dataTask] task started stack=14336B
+1785966397.685|[D][chrome] drawVolume pct=-1 keyframe=NONE
+1785966397.725|[I][webradio] HEAP init free=133200 min=133024
+1785966397.730|[I][webradio] HEAP pre-fetch free=133200 min=133024
+1785966397.741|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966397.748|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966397.769|[I][hb] display=winamp wifi=rssi(-58) disc=1 heap=130k maxAlloc=83k stack_hwm=17564b uptime=00:00:04 poll=0/0 last=0 block_max=0ms loop_max=0ms slow=shell.switch:42ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=57 build=Aug  5 2026-22:12:41
+1785966397.799|[D][chrome] drawVolume pct=-1 keyframe=NONE
+1785966397.804|[D][chrome] drawVolume pct=100 keyframe=4
+1785966397.828|[W][perf] iter=86ms (worst path so far: app.tick:60ms)
+1785966398.122|[I][spotify.tls] hard reset — stopping client
+1785966398.125|[I][spotify.tls] tls yield — client stopped
+1785966398.130|[D][dataTask.webradio] heap free=87k maxBlk=83k
+1785966398.147|[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128
+1785966398.167|[  5091][D][HTTPClient.cpp:303] beginInternal(): protocol: https, host: all.api.radio-browser.info port: 443 url: /json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128
+1785966398.175|[  5117][D][HTTPClient.cpp:598] sendRequest(): request type: 'GET' redirCount: 0
+1785966398.346|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966399.356|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966400.225|[  7165][D][HTTPClient.cpp:1170] connect():  connected to all.api.radio-browser.info:443
+1785966400.366|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966400.382|[  7322][D][HTTPClient.cpp:1321] handleHeaderResponse(): code: 200
+1785966400.387|[  7330][D][HTTPClient.cpp:642] sendRequest(): sendRequest code=200
+1785966400.393|[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=200 elapsed=2219ms
+1785966400.791|[  7735][D][HTTPClient.cpp:408] disconnect(): tcp is closed
+1785966400.808|[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=30&bitrateMax=128
+1785966400.830|[  7753][D][HTTPClient.cpp:303] beginInternal(): protocol: https, host: all.api.radio-browser.info port: 443 url: /json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=30&bitrateMax=128
+1785966400.837|[  7778][D][HTTPClient.cpp:598] sendRequest(): request type: 'GET' redirCount: 0
+1785966401.377|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966402.385|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966402.858|[  9799][D][HTTPClient.cpp:1170] connect():  connected to all.api.radio-browser.info:443
+1785966402.990|[  9932][D][HTTPClient.cpp:1321] handleHeaderResponse(): code: 200
+1785966402.996|[  9939][D][HTTPClient.cpp:642] sendRequest(): sendRequest code=200
+1785966403.002|[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=200 elapsed=2167ms
+1785966403.397|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966403.430|[ 10373][D][HTTPClient.cpp:408] disconnect(): tcp is closed
+1785966403.438|[I][dataTask.webradio] ok mirror=all.api.radio-browser.info country=NL count=30
+1785966403.441|[D][dataTask.webradio] heap free=86k maxBlk=45k
+1785966403.446|[I][webradio] HEAP post-fetch free=132168 min=68008
+1785966403.452|[I][webradio] stations loaded count=30 country=NL
+1785966403.456|[I][spotify.tls] tls yield — resumed
+1785966403.481|[D][chrome] drawVolume pct=100 keyframe=4
+1785966403.484|[D][chrome] drawVolume pct=100 keyframe=4
+1785966403.515|[W][perf] iter=79ms (worst path so far: app.tick:77ms)
+1785966404.407|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966405.418|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966406.427|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966407.437|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966408.446|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966409.455|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966410.464|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966411.473|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966412.483|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966413.492|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966414.501|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966415.511|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966416.520|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966417.529|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966418.538|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966419.547|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966420.556|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966421.568|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966422.577|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966423.586|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966424.595|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966425.604|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966426.613|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966427.622|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966427.762|[I][hb] display=winamp wifi=rssi(-56) disc=1 heap=129k maxAlloc=45k stack_hwm=13680b uptime=00:00:34 poll=0/0 last=0 block_max=0ms loop_max=86ms slow=app.tick:77ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=24260 build=Aug  5 2026-22:12:41
+1785966428.631|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966429.640|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966430.649|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966431.658|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966432.667|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966433.677|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966434.688|{"ok":false,"error":"unknown command","cmd":"get"}
+1785966435.698|{"ok":false,"error":"unknown command","cmd":"get"}
