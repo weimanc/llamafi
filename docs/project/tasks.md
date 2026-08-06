@@ -6579,6 +6579,24 @@ as all seven prior attempts — still unreproduced. Reports:
 kept alongside it as `..._20260805T224632_raw.log` (evidence the harness's abort-on-no-debug-surface
 behavior works, not a separate finding).
 
+**Update (2026-08-06, instrumentation gap closed, no new repro attempted):** every "if it recurs,
+capture X" note above pointed at `_pendingAction`/`_lastAttemptMs`/`_autoSkipTried` — but
+`_pendingAction` and `_autoSkipTried` were already exposed via the existing `get wrSkip` getter
+(`pending`/`tried`/`retries`/`autoSkip` fields, `webRadioApp.h`) the whole time; every "dead end"
+note in this task about needing a breakpoint or new instrumentation was really just this getter
+going unchecked. The one genuinely missing piece was `_lastAttemptMs` itself — with no elapsed-time
+field, a live catch couldn't tell whether the terminal-retry gate's `>= WR_TERMINAL_RETRY_MS` term
+was the one holding it back from the other three ANDed conditions. Added `sinceAttemptMs`
+(`millis() - _lastAttemptMs`) to `get wrSkip`'s JSON output — SERIAL_DEBUG-only, zero new static
+storage (computed inline), `run/check` 6/6 clean. `test_webradio_long_soak.py` already snapshots
+`get wrSkip` on every anomaly capture (line 322), so the next anomaly report picks this field up
+for free with no tool changes. Net effect: the four gating conditions in `tick()`'s terminal-retry
+check (`webRadioApp.h:863-874` — `autoSkip`, `pendingAction`, `state`, elapsed-vs-30s) are now all
+readable in one `get wrState` + `get wrSkip` pair at the moment of a freeze, closing the gap this
+task's repro attempts kept citing. Does not itself explain the original unreproduced freeze —
+still 8/8 repro attempts clean, mechanism holds up under stress — this only removes the excuse for
+the *next* live catch (spontaneous or soak-caught) coming back inconclusive again.
+
 ### TASK-394 — stale `switchApp 10` (WebRadio) in three tools — TASK-347's own follow-up, never filed
 
 **Filed and CLOSED same-session, 2026-08-03 — human pushback on TASK-393's write-up** ("we've done

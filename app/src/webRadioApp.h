@@ -1377,12 +1377,19 @@ public:
         }
         // TASK-234: auto-skip scan state — lets VE assert the bound (one list pass)
         // and the settled-reset without a logic analyser.
+        // TASK-393: sinceAttemptMs added — the one gating input the terminal-retry
+        // check (tick(), WR_TERMINAL_RETRY_MS) didn't already expose here. autoSkip/
+        // pending/state (get wrState) cover the other three ANDed conditions; this
+        // closes the diagnostic gap the task's own writeup flagged ("_pendingAction's
+        // actual runtime value" was already visible as `pending` above — the missing
+        // read was always the elapsed-time term, not _pendingAction).
         if (strcmp(var, "wrSkip") == 0) {
             snprintf(buf, len,
                      "\"var\":\"wrSkip\",\"autoSkip\":%d,\"tried\":%u,\"retries\":%u,"
-                     "\"settled\":%d,\"pending\":%u,\"last\":true",
+                     "\"settled\":%d,\"pending\":%u,\"sinceAttemptMs\":%u,\"last\":true",
                      (int)g_settings.webRadioAutoSkip, (unsigned)_autoSkipTried,
-                     (unsigned)_stallRetries, (int)_settled, (unsigned)_pendingAction);
+                     (unsigned)_stallRetries, (int)_settled, (unsigned)_pendingAction,
+                     (unsigned)(millis() - _lastAttemptMs));
             return true;
         }
         // TASK-255 (M-WEBRADIO-NOPSRAM, V0): PLAYING-hold duration in ms (0 when not
