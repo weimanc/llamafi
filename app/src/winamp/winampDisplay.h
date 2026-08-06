@@ -626,6 +626,7 @@ public:
       if (now - lastVolumeEnqueuedMs > VOLUME_DRAG_DEBOUNCE_MS &&
           (int8_t)pct != lastVolumeEnqueuedPct) {
         _volumeSink((int)pct);
+        LOG_D("touch", "enqueued ACT_VOLUME pct=%ld", pct);
         lastVolumeEnqueuedMs = now;
         lastVolumeEnqueuedPct = (int8_t)pct;
       }
@@ -641,6 +642,7 @@ public:
     if (now - lastVolumeEnqueuedMs > VOLUME_DRAG_DEBOUNCE_MS &&
         (int8_t)volPct != lastVolumeEnqueuedPct) {
       _volumeSink((int)volPct);
+      LOG_D("touch", "enqueued ACT_VOLUME pct=%ld", volPct);
       lastVolumeEnqueuedMs = now;
       lastVolumeEnqueuedPct = (int8_t)volPct;
     }

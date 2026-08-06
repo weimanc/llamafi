@@ -5645,6 +5645,20 @@ this run were unrelated (`T079`/`T082`, new — see TASK-385's note above; `T_WR
 already-tracked TASK-284/313 flakes). Now 2 consecutive clean full-suite passes for both T204 and
 T-BUSY-01 — still no repro under any condition tested.
 
+**Update (2026-08-06, third full-suite `run/test` pass, same session):** T193/T204/T-BUSY-01 all
+pass clean again (3rd consecutive for T193, 2nd for T204/T-BUSY-01 counting only full-suite
+passes — 4th overall counting the earlier isolated hand-check). `fetchOkCount` advanced
+monotonically through all 6 T204 taps as before, no heap trend. This run's real failures were
+`T082` (again — see TASK-406's correction above, root-caused and fixed this time, unrelated to
+the heap-pressure hypothesis) plus the already-tracked `T_WR_TLS_01`/`T_PRM_02`/`T_WR_COEX_04`/
+`T_WR_VOL_03`/`T_PR_04` flakes (network/timing noise, not investigated further this session).
+Diminishing returns at this point — 3-4 clean full-suite passes with zero heap-pressure trend on
+every single check. Still open per the discipline established above (a clean run doesn't retire
+an intermittent hypothesis), but further blind full-suite reruns are unlikely to be the highest-
+value next step; a real repro would need either a genuinely worse network night (like the
+original filing's `T_PRM_02` degradation) or a purpose-built heap-fragmentation stress harness
+rather than waiting on ambient conditions.
+
 ---
 
 ## Open — M-WEBRADIO-REAL-VIS follow-on: Spectrum + Wave graduation (2026-08-02)
@@ -8117,9 +8131,10 @@ started — is superseded by the dead-band addendum and considered resolved by t
 
 ---
 
-### TASK-406 — T079/T082 full-suite failures: leftover `playerMode=WebRadio` state + a real hardcoded-`skipped` bug in `cmdTap`'s WebRadio branch
+### TASK-406 — T079/T082 full-suite failures: leftover `playerMode=WebRadio` state, a hardcoded-`skipped` bug, and a missing volume-drag log line
 
-**Filed and closed same day, 2026-08-06** — surfaced as two new, previously-unrecorded failures
+**Filed 2026-08-06, closed same day after a self-caught correction mid-investigation** — surfaced
+as two new, previously-unrecorded failures
 in the TASK-385/386 second full-suite `run/test` pass (see that update above): `T079` (`tap not
 skipped while gate armed`) and `T082` (`only 0 ACT_VOLUME enqueue(s)`).
 
@@ -8147,20 +8162,59 @@ an unrelated vis-zone double-dispatch fix; see that entry above). Fixed: `wr.ski
 correctly returns `skipped:true` (was `false`); the follow-up post-reset tap correctly returns
 `hit=TRANSPORT, action=PLAY`.
 
-**T082 — same root cause, no separate bug.** With `playerMode` reset back to Spotify (which it
-already was again by the time of the fix-verification session — the full suite's own later
-`set playerMode 0` step had already landed it there for any *subsequent* run), the exact same
-`run/test-targeted T079,T082` pass produced 2 `enqueued ACT_VOLUME` log lines (pct=0, pct=61) plus
-a drag-end commit — meets the test's own `>= 2` bar. No code change needed for T082; it needed the
-same active-app precondition T079 did.
+**T082 — initial disposition was WRONG, corrected same day.** The first write-up above claimed
+"same root cause, no separate bug" based on a `run/test-targeted T079,T082` pass — but that
+targeted run's *own* fresh debug reflash happened to boot with `playerMode` already back to
+Spotify (confirmed via `get playerMode` right before it, and via T079's second tap carrying a
+`pressed` field in its JSON response — that field only appears in `cmdTap`'s Spotify-branch
+format, never WebRadio's, proving Spotify was genuinely active), so T082 passed for a reason
+that had nothing to do with any fix — it simply never
+exercised the WebRadio branch at all. This was caught because **`playerMode` reverted to
+WebRadio again on the very next full-suite `run/test` pass**, with no manual DUT poking in
+between — proving the original "one-off human-caused precondition, not a recurring risk" framing
+was also wrong. (The mechanism behind that reversion is still unexplained — current on-disk
+`settings.json` reads `player.mode=0` right now, and the suite's own teardown correctly leaves it
+there each time, so whatever flips it back to WebRadio between one full-suite run's teardown and
+the next run's fresh boot wasn't root-caused this session. Flagging as an open question for
+whoever next sees a `[boot] spotify=idle (playerMode=webradio)` line unprompted.)
 
-**Not a recurring risk going forward** — this was a one-off human-caused precondition violation
-(manual `set wrUrl` session bleeding state into the next full-suite run), not a suite-order or
-firmware defect in its own right, beyond the genuinely real (if narrow) T079 response bug now
-fixed. Worth noting for future manual DUT poking sessions: switch `playerMode` back to Spotify (or
-`reboot`) before handing the DUT back to an automated suite run.
+With that full-suite run's raw log giving a genuine WebRadio-active T082 failure (2nd real data
+point, 0 `enqueued ACT_VOLUME` lines, confirmed via `sinceAttemptMs`-style raw-log inspection —
+not a targeted-run coincidence this time), the real root cause was found: `winampDisplay.h`'s
+`handleVolumeGesturePublic()` (TASK-352's WebRadio-only capture entry into the shared
+`D_VOLUME_DRAG` machine — deliberately *not* routed through `handleWinampInput()`, per its own
+comment, to avoid hit-testing Spotify-only zones) duplicates `handleWinampInput`'s debounce/
+`_volumeSink()` logic in full but never got the `LOG_D("touch", "enqueued ACT_VOLUME pct=%ld", …)`
+line the other two call sites (`handleWinampInput`'s own Press and Move branches) have. The
+volume commit itself works fine under WebRadio — `_volumeSink()`/`drawVolume()` both fire
+correctly — this was a pure observability gap in the duplicated path, invisible until a test
+happened to grep for that exact log line. Fixed: added the missing `LOG_D` call to both branches
+(Move-continuation and Press-capture) in `handleVolumeGesturePublic()`.
 
-**Owner:** Developer · **Deps:** none · **Priority:** P4 (narrow, one-off trigger; the T079 fix
-itself is real but low-severity — test-harness-only surface, never reachable from a real touch)
+**DUT-verified properly this time** — and only after tripping over a second, independent mistake
+in my own manual verification: `switchApp 6` is **Stock**, not WebRadio (`appRegistry.h` order:
+0=Spotify, 1=Clock, 2=Weather, 3=Crypto, 4=Matrix, 5=Life, 6=Stock, …, 11=WebRadio) — the exact
+stale-ID class of mistake TASK-393/394 already documented and fixed elsewhere in this project,
+now made fresh by a human (me) doing ad hoc DUT commands instead of using the harness's own
+`app_ids_gen.py`-verified IDs. First manual attempt against "app 6" showed zero `drawVolume`
+calls at all (that unconditional-`Serial.printf`, not log-level-gated, made the wrong-app mistake
+obvious in retrospect) and `dragState` stuck at `D_IDLE` throughout a held gesture — not a bug,
+just the wrong app entirely. Re-run against the correct `switchApp 11`: `dragState` correctly
+transitions to `D_VOLUME_DRAG`, and a full 61-step drag (matching T082's own shape) produced
+exactly 2 `enqueued ACT_VOLUME` lines (`pct=0`, `pct=65`) — meets the test's `>= 2` bar under
+genuine, deliberately-forced WebRadio-active conditions this time, not a coincidence.
+
+**Lesson for future sessions:** confirming a test passes isn't the same as confirming *why* it
+passes — the first T082 "fix" here looked identical in isolation and was still just describing a
+precondition that happened to be absent, not present-and-satisfied. When a fix is meant to change
+behavior under a specific condition, verify the condition was actually live during the check
+(here: which `cmdTap`/dispatch branch's JSON *shape* fired, or a positive-control check like
+forcing the app switch explicitly first) rather than trusting an ambient state to have been the
+one you think you know how it got there.
+
+**Owner:** Developer · **Deps:** none · **Priority:** P4 (narrow test-harness-only surfaces, T079
+never reachable from real touch; T082's underlying volume-drag itself always worked, only its
+debug observability was gapped) · **Status update:** T082 fix is real and DUT-verified now, not
+just T079. The `playerMode`-reverts-between-runs mechanism remains genuinely open — see above.
 · **Status:** **CLOSED.** Fixed, `run/check` 6/6, DUT-verified via `run/test-targeted T079,T082`,
 prod firmware restored.
