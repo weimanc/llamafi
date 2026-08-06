@@ -8215,6 +8215,80 @@ one you think you know how it got there.
 **Owner:** Developer · **Deps:** none · **Priority:** P4 (narrow test-harness-only surfaces, T079
 never reachable from real touch; T082's underlying volume-drag itself always worked, only its
 debug observability was gapped) · **Status update:** T082 fix is real and DUT-verified now, not
-just T079. The `playerMode`-reverts-between-runs mechanism remains genuinely open — see above.
-· **Status:** **CLOSED.** Fixed, `run/check` 6/6, DUT-verified via `run/test-targeted T079,T082`,
-prod firmware restored.
+just T079. The `playerMode`-reverts-between-runs mechanism remains genuinely open — filed
+separately as TASK-407, see below.
+
+**Status:** **CLOSED.** Both fixes real and DUT-verified, `run/check` 6/6, prod firmware restored.
+
+---
+
+### TASK-407 — `g_settings.playerMode` reverts to WebRadio between DUT sessions with no manual trigger found
+
+**Filed 2026-08-06, split out of TASK-406's investigation** — that task closed two confirmed,
+narrow bugs (T079's hardcoded `skipped`, T082's missing volume-drag log line), but along the way
+turned up a separate, unexplained persistence anomaly that deserves its own tracking rather than
+living as a paragraph inside a closed task.
+
+**What's confirmed:** across today's session, `g_settings.playerMode` was observed reverting to
+`WebRadio` (`1`) at DUT boot on at least two occasions where the *known* mutation paths don't
+explain it:
+
+1. **First occurrence** — traceable to a real cause: an earlier manual DUT session that day
+   (`set wrUrl ...`, verifying TASK-393's terminal-retry) switched `currentAppId` to WebRadio, and
+   `playerMode` was never explicitly reset back to Spotify before the session's final
+   `./run/flash` (app-partition-only reflash — doesn't touch the SPIFFS/data partition, so
+   whatever was last durably saved there survives). Not mysterious once traced.
+
+2. **Second occurrence — genuinely unexplained.** A `run/test-targeted T079,T082` session (debug
+   reflash → run two tests, neither touches `playerMode` → prod reflash) left the device reading
+   `playerMode=Spotify` throughout (confirmed via raw serial log, zero `set playerMode` or
+   `switchApp` calls to WebRadio anywhere in that session's capture) and via a manual
+   `./run/flash` immediately after. The **next** full-suite `run/test` pass — a fresh debug
+   reflash with no manual DUT interaction in between — booted with `playerMode=WebRadio`
+   (`[boot] spotify=idle (playerMode=webradio)`), and that same full-suite run's own teardown then
+   correctly wrote it back to Spotify (confirmed durably: pulling `settings.json` after that run's
+   prod restore read `player.mode=0`, matching the suite's last action). No `set`/`switchApp`
+   command, no code path, no test invocation between the two sessions explains the flip from
+   Spotify to WebRadio.
+
+**A third, separate, KNOWN-cause instance happened later the same session** (not mysterious,
+noted here for completeness): my own manual TASK-406 T082 fix-verification explicitly ran
+`set playerMode webradio` to force the test condition, then reflashed prod directly afterward
+without resetting it back — leaving the live device on `playerMode=1` until caught and corrected
+via a `run/spiffs pull` → edit → `run/spiffs push settings.json` round-trip (non-destructive,
+confirmed `player.mode=0` after). This is just me forgetting a cleanup step, the same mistake
+TASK-406 itself was originally triggered by — worth a process note (see below) but not part of
+this task's actual mystery.
+
+**Ruled out / considered:**
+- `persistPlayerMode()` (`main.cpp:1935`) does an immediate `SettingsStorage::save()`, not a
+  coalesced/RAM-only write — no reason a completed `set playerMode 0` response should be lying
+  about having persisted.
+- The debug `set playerMode` handler (`main.cpp:3803-3819`) parses both numeric and
+  `spotify`/`webradio` string forms correctly; not a parsing bug.
+- Not explained by any test in the T077-T082 group or the T079/T082 targeted subset — neither
+  touches `playerMode`.
+- Repeated hard resets via `esptool`'s RTS-pin reset (many back-to-back reflashes happened this
+  session) are a plausible but unconfirmed suspect — if a SPIFFS write from an *unrelated* earlier
+  point in time wasn't fully committed before a later hard reset, a stale on-disk value could
+  resurface. Pure speculation; not verified against SPIFFS/LittleFS's actual write-durability
+  guarantees on this hardware.
+
+**Not yet tried:** deliberately reproducing the sequence (targeted-test session ending clean →
+immediately re-run a full suite with no intervening action) to see if occurrence #2 repeats. If it
+does, add a `get playerMode` snapshot immediately post-boot and immediately pre-shutdown to every
+`run/test*` script (cheap, mirrors the `_diag_snapshot()` precedent from TASK-385/386) to narrow
+down which of the two boundary points is lying.
+
+**Process note (not this task, but adjacent):** occurrence #3 above suggests manual DUT `set`
+commands used for one-off verification should default to resetting any test-only overrides
+(`playerMode`, `cooldown`, injected debug state) before handing the DUT back to an automated
+suite — the same discipline `run_serialdbg_tests.py`'s own tests already apply to themselves
+(`set cooldown 0` before/after nearly every tap). Consider this a personal-workflow reminder more
+than a firmware gap.
+
+**Owner:** unassigned · **Deps:** none · **Priority:** P4 (cosmetic-adjacent — self-heals via the
+suite's own end-of-run reset every time it's been observed; the actual risk is only ever a wasted
+T077-T082 run if caught mid-suite, which TASK-406's fixes now make harmless either way) ·
+**Status:** **OPEN — filed, not investigated.** Reproduction attempt is the concrete next step
+whenever DUT time is free and low-stakes.
