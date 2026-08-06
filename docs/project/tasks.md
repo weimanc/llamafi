@@ -6047,6 +6047,41 @@ paragraph above already flagged. No further live diagnosis possible on this inst
 reflashing debug (which would reboot and lose it). Left running, not touched further, decision on
 reflash-vs-continue-observing handed to the human.
 
+**Session note (2026-08-06) — `last_render_age_ms` caught disagreeing with a direct eyeball check;
+weakens it as this task's primary diagnostic signature.** Found a live production `spotify-mon`
+tmux session already running (`tmux ls`, per `[[feedback_check_for_live_dut_session_before_host_only_claims]]`)
+mid-WebRadio-playback, auto-skipping between several NL stations over ~2h40m uptime.
+`last_render_age_ms` climbed in lockstep with `uptime` between every station switch (resetting
+only on switch events) — superficially matching this task's original signature. But at one
+specific moment the human was asked to look at the physical screen directly, live: title had "just
+changed, scrolling to 'radio 10'" — a real, directly-observed, correctly-scrolling repaint — while
+the log's `last_render_age_ms` at that same moment showed no reset and kept climbing for 11+
+minutes past it (`StreamTitle=''` → station-name-fallback repaint, not a `StreamTitle` change, is
+the likely uninstrumented path). **Reading:** the counter does not cover every repaint code path
+(the station-name-fallback case specifically), so a climbing `last_render_age_ms` does **not**
+reliably mean the screen is stuck — it can be actively, correctly updating while the counter
+reports otherwise. **Confirmed a second time, same session, ~10 min later:** switched to Radio 10,
+a real `StreamTitle='Robbie Williams - Supreme'` arrived in the log and was directly observed on
+the physical screen scrolling correctly at the same moment — `last_render_age_ms` again did not
+reset (1165632 → 1195633 across that exact log line). So this isn't limited to the station-name-
+fallback path either; a normal ICY-driven title-change repaint also doesn't reset the counter.
+Broadens the finding: treat `last_render_age_ms` as unreliable for *any* mid-station title-change
+repaint, not just the fallback case. This does **not** confirm or disprove the original 2026-08-03 report (a direct
+human sighting of a genuinely stuck title fragment, independent of this counter) — it only weakens
+confidence in using this specific field as a stand-in for "is the marquee actually stuck" going
+forward. **Not closing as unable-to-reproduce** — no attempt this session actually tried to
+reproduce the original conditions (extended single-station play, no auto-skip churn); this was an
+opportunistic check of an already-running unrelated session. **Revised "what to look for" for
+future repro attempts:** direct eyeball only, don't trust `last_render_age_ms` alone — watch for
+(a) ticker text that has stopped scrolling/animating when it's long enough that it should be
+scrolling, and (b) title text that visibly doesn't match what's currently audible/announced for an
+extended stretch (the original report's "...n de pauzuh" fragment is the shape of a real positive:
+a stale, static, truncated-looking title). If `last_render_age_ms` is used as a corroborating
+signal, treat a *long* stretch with zero station switches as the only regime where it's meaningful
+(the reset-on-switch masking observed here doesn't apply when nothing switches for a long time,
+matching the original single-station report's setup) — cross-check any live reading against the
+physical screen before trusting it alone.
+
 ### TASK-391 — Host-side network reproduction harness for WebRadio connectivity (informs TASK-390)
 
 **Filed 2026-08-03, human-directed** to determine whether TASK-390's `ERROR_UNREACHABLE`-parking
