@@ -7678,10 +7678,13 @@ toggles) — those are a deliberately separate, longer DUT session, not a quick 
 (testability review — done, approve-with-changes) → PM (scheduled) → Developer (implementation —
 **done 2026-08-05**, DUT-verified) · **Deps:** `webradio-001` (the feature this modifies),
 `perf-001` (`perf.h`'s `MAX_PATHS` budget, `X049`) · **Priority:** P3 (visual/resource-usage
-polish, no functional gap) · **Status:** **implemented, host-verified (`run/check` 6/6 both envs)
-and DUT-verified** (mechanism confirmed live against real playback + a real-hardware screenshot) —
-**open, not closed**: OQ1/OQ2 formal tuning and the doc's ≥3-trial exit-criteria comparison still
-need a dedicated longer DUT session.
+polish, no functional gap) · **Status:** **CLOSED.** implemented, host-verified (`run/check` 6/6
+both envs) and DUT-verified (mechanism confirmed live against real playback + a real-hardware
+screenshot). OQ1/OQ2 formal tuning was picked up as TASK-405 (2026-08-06) — the live-eyeball
+session this entry deferred to found the slew-only tuning insufficient (ceiling jitter) and
+landed on a hysteresis dead-band instead, superseding rather than merely tuning this task's own
+constants. Live-eyeball confirmed on the physical LCD: "POSBAR no longer jitters." See TASK-405
+for the full resolution.
 
 ## Open — TASK-396 audit follow-ups (2026-08-05, filed from the completed audit)
 
