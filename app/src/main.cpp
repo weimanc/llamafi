@@ -2863,8 +2863,8 @@ static void cmdTap(const char *args) {
       g_apps[(int)AppId::WebRadio]->handleInput(TouchPhase::Release, x, y);
       const auto &wr = winampDisplay.lastTouchResult;
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
-                    "\"hit\":\"%s\",\"action\":\"%s\",\"skipped\":false}\n",
-                    x, y, wr.region, wr.action);
+                    "\"hit\":\"%s\",\"action\":\"%s\",\"skipped\":%s}\n",
+                    x, y, wr.region, wr.action, wr.skipped ? "true" : "false");
     } else if (currentAppId == AppId::Clock && g_apps[(int)AppId::Clock]) {
       // M-CLOCK-TAP-CYCLE (TASK-346): clock now has real canvas interaction
       // (face/theme cycle zones) — no async, so no setBusy propagation.

@@ -8114,3 +8114,53 @@ jitters." Resolves the exit criterion this whole addendum thread was chasing.
 **Status:** **CLOSED.** Implemented, DUT-verified (mechanism + regression), and live-eyeball
 confirmed on the physical LCD. TASK-402's own OQ1/OQ2 tuning pass — the reason this session
 started — is superseded by the dead-band addendum and considered resolved by this closure.
+
+---
+
+### TASK-406 — T079/T082 full-suite failures: leftover `playerMode=WebRadio` state + a real hardcoded-`skipped` bug in `cmdTap`'s WebRadio branch
+
+**Filed and closed same day, 2026-08-06** — surfaced as two new, previously-unrecorded failures
+in the TASK-385/386 second full-suite `run/test` pass (see that update above): `T079` (`tap not
+skipped while gate armed`) and `T082` (`only 0 ACT_VOLUME enqueue(s)`).
+
+**Root trigger, both tests:** the DUT booted this run with `g_settings.playerMode` persisted as
+`WebRadio`, not `Spotify` — leftover state from an unrelated manual DUT session earlier the same
+day (`set wrUrl ...` to verify TASK-393's terminal-retry, which switches `currentAppId` to
+WebRadio; `playerMode` persists in SPIFFS across reflashes, so it survived the subsequent
+`./run/flash` back to prod). Boot log confirmed it: `[boot] spotify=idle (playerMode=webradio)`.
+`run_serialdbg_tests.py` (`Dut` readiness wait, ~line 199-218) explicitly knows a device can boot
+into WebRadio and skips the Spotify-poll wait for that case — correct, intentional, TASK-363/
+ADR-054 territory — but nothing resets `playerMode` back to Spotify before the early T077-T082
+group runs, which implicitly assumes Spotify's winamp context. A `set playerMode 0` reset does
+exist later in the suite (for a different test), just too late to help these two.
+
+**T079 — real, previously-unnoticed firmware bug, confirmed and fixed.** With `currentAppId==
+WebRadio`, `cmdTap` routes through its WebRadio branch (`main.cpp`, ~line 2844-2867). That branch
+calls `winampDisplay.injectTouch()`, which correctly detects the armed `touchScreenCoolDownTime`
+gate and sets `TouchResult.skipped=true` internally (`winampDisplay.h:1053-1056`) — but the
+branch's response `printf` hardcoded `"skipped":false` instead of reading `wr.skipped`, unlike
+every other branch in `cmdTap` that has a real skip concept. Only reachable when a serial `tap`
+lands on the WebRadio-active dispatch path while the cooldown gate is armed — never exercised by
+any prior test, which is why it went unnoticed since this exact branch was added (TASK-387, for
+an unrelated vis-zone double-dispatch fix; see that entry above). Fixed: `wr.skipped ? "true" :
+"false"`. DUT-verified (`run/test-targeted T079,T082`, debug build): `tap 50 97` while armed now
+correctly returns `skipped:true` (was `false`); the follow-up post-reset tap correctly returns
+`hit=TRANSPORT, action=PLAY`.
+
+**T082 — same root cause, no separate bug.** With `playerMode` reset back to Spotify (which it
+already was again by the time of the fix-verification session — the full suite's own later
+`set playerMode 0` step had already landed it there for any *subsequent* run), the exact same
+`run/test-targeted T079,T082` pass produced 2 `enqueued ACT_VOLUME` log lines (pct=0, pct=61) plus
+a drag-end commit — meets the test's own `>= 2` bar. No code change needed for T082; it needed the
+same active-app precondition T079 did.
+
+**Not a recurring risk going forward** — this was a one-off human-caused precondition violation
+(manual `set wrUrl` session bleeding state into the next full-suite run), not a suite-order or
+firmware defect in its own right, beyond the genuinely real (if narrow) T079 response bug now
+fixed. Worth noting for future manual DUT poking sessions: switch `playerMode` back to Spotify (or
+`reboot`) before handing the DUT back to an automated suite run.
+
+**Owner:** Developer · **Deps:** none · **Priority:** P4 (narrow, one-off trigger; the T079 fix
+itself is real but low-severity — test-harness-only surface, never reachable from a real touch)
+· **Status:** **CLOSED.** Fixed, `run/check` 6/6, DUT-verified via `run/test-targeted T079,T082`,
+prod firmware restored.
