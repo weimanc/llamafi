@@ -5474,6 +5474,26 @@ freeInt~74-118k/lfbInt~41-45k, dataq queueWaiting=0/inFlight=0 pre-trigger, spAc
 discriminate between hypotheses 1-4 · **Priority:** P3 · **Status:** **OPEN — instrumented and now
 validated working under real suite conditions; 0/1 full-suite repro + 0/5 isolated repro so far.**
 
+**Update (2026-08-06, second full-suite `run/test` pass, `LOG_FILE=` capture) — 0/1 again, first
+run since diagnostics moved into the shared helpers.** T193 passed clean: `[T193-entry]`/
+`[T193-pre-trigger]` diag markers present and correctly placed in the raw log (confirms the
+generalized shared-helper instrumentation from TASK-386's later update — not just the earlier
+hand-instrumented version — is live and working, not only code-reviewed). `pre-trigger` snapshot:
+`heap(freeInt=117612,lfbInt=42996,...)` — same healthy shape as every prior clean run, no
+degradation trend. `fetchOkCount` advanced, `chartLen=61`. Real failures this run were elsewhere
+and unrelated: `T079`/`T082` (new, not previously seen — see note below) and the already-tracked
+`T_WR_TLS_01`/`T_PRM_02` flakes (TASK-284/TASK-313; this run's cert-preflight step also logged
+`nl1`/`at1` radio-browser mirrors network-unreachable **from the host**, consistent with
+`T_WR_TLS_01`'s failure, not a new cause). Tally: 132 passed, 4 failed, 36 skipped, 1 flaked; DUT
+restored to prod cleanly. Now 3 consecutive clean full-suite passes for T193 (2026-08-02 ×2,
+2026-08-06) — no repro yet under any condition tested, including this run's real network noise
+elsewhere in the suite.
+
+**Side note, out of scope for this task:** `T079` (`tap not skipped while gate armed`) and `T082`
+(`only 0 ACT_VOLUME enqueue(s)`) failed this run with no prior record in this file — not
+investigated (unrelated code path, Winamp gesture/volume-debounce tests, not stock-fetch), flagging
+here rather than dropping silently. Worth a look if they recur.
+
 ## Open — TASK-386 (2026-08-01, filed from a third full-suite `run/test` pass, post-TASK-384)
 
 Re-ran `./run/test` after TASK-384 landed. **Result: 122 passed, 4 failed, 41 skipped, 3 flaked** —
@@ -5612,6 +5632,18 @@ vs. a first-attempt `code=-1` with no retry (TASK-383's class) vs. something new
 `_diag_snapshot()` lines for a heap/queue/tlsYield trend · **Priority:** P3 (unchanged) ·
 **Status:** **OPEN — instrumented and validated working under real suite conditions; 0/1 full-suite
 repro for both tests so far** (T204 directly confirmed clean, T-BUSY-01 via exhaustive sweep).
+
+**Update (2026-08-06, second full-suite `run/test` pass, `LOG_FILE=` capture) — both 0/1 again,
+this time each test directly isolated** (T-BUSY-01 needed the exhaustive-sweep workaround last
+time because its PASS/FAIL boundary was lost to a `tail` truncation — the per-test `__TEST_<id>__`
+serial marker added afterward fixed exactly that; both tests' blocks were unambiguous in this raw
+log). T204: all 6 alternating D1/Ytd taps passed, `fetchOkCount` advanced 14→19 monotonically,
+`lfbInt` held dead flat at 42996 across every one of the 6 pre-tap snapshots — zero heap-pressure
+trend, same as the first clean run. T-BUSY-01: `shellBusy` cleared correctly on fetch completion,
+`[T-BUSY-01-entry]`/`[T-BUSY-01-pre-trigger]` markers present and correctly placed. Real failures
+this run were unrelated (`T079`/`T082`, new — see TASK-385's note above; `T_WR_TLS_01`/`T_PRM_02`,
+already-tracked TASK-284/313 flakes). Now 2 consecutive clean full-suite passes for both T204 and
+T-BUSY-01 — still no repro under any condition tested.
 
 ---
 
