@@ -7721,7 +7721,37 @@ acute urgency — radius-capped 2nd retry is in production and TASK-361's own fo
 never reproduced the original "both attempts fail" condition live) · **Priority:** P3 (real,
 well-evidenced, but not currently blocking — TASK-361's cheaper fix is holding) · **Size:**
 L (library patch + decompressor + RAM budget review) · **Gate:** design doc first; no
-implementation without an Architect feasibility call, given the DRAM-budget risk.
+implementation without an Architect feasibility call, given the DRAM-budget risk. ·
+**Status:** **OPEN — feasibility gate cleared 2026-08-06, deferred at P3** (design doc landed,
+not implemented; see session update below).
+
+**Session update (2026-08-06) — Architect feasibility pass done, gate cleared for a future
+implementation task; not implemented this session.** Full design doc:
+[`M-PLANERADAR-http-compression.md`](../architecture/designs/M-PLANERADAR-http-compression.md).
+Findings in brief:
+- **RAM verdict: feasible, and easier than the gate's framing implied.** Deflate/gzip's window is
+  spec-capped at 32 KB (unlike brotli, which the original `curl` test happened to use first, not
+  deliberately chose); as a transient dataTask-serial scratch buffer freed right after parse, it's
+  the same lifecycle already carried by `planeradar_doc`/`heatmap_doc`/`crypto_doc` in
+  `app/mem_manifest.yaml`, comfortably inside today's ~185 K nominal unallocated INTERNAL headroom.
+  No WebRadio-style arena/reclaim design needed — this fetch has no DMA-contiguity or long-residency
+  constraint.
+- **Mechanism verdict: already proven on this board.** `app/lib/WiFiClientSecure/` already vendors
+  and patches (PATCH-001/003) a framework-supplied library to shadow the Arduino-ESP32 core's own
+  copy — the exact mechanism TASK-403 needs for `HTTPClient.cpp`'s unconditional `Accept-Encoding`
+  header, not a novel approach.
+- **Scope correction: recommend gzip, not brotli**, as the implementation target — lighter decoder,
+  bounded window, no embedded precedent gap to close. Brotli (TASK-361's only actual measurement)
+  is explicitly not the recommended codec.
+- **Priority verdict: concur with P3, stay deferred.** TASK-361's radius-capped retry2 is
+  code-reviewed and fault-injection-proven to fire correctly, and three post-fix soaks at
+  JFK-scale traffic found the original truncation condition not reproducing organically — final
+  failure rate 0% in every soak since. No open user-visible symptom this would currently fix;
+  revisit on real recurrence (watch for frequent `radius-capped`/`retry2` log lines) or a future
+  need to shrink fetch size for its own sake.
+- Open questions before any implementation starts (full list in the design doc): whether
+  `opendata.adsb.fi` actually serves `gzip` (only `br` was ever tested), the real gzip ratio on
+  this payload shape, and which embedded inflate implementation to use.
 
 ### TASK-404 — Boot: WiFi fallback cascade doesn't recover until the background supervisor kicks in (~60-85s)
 
