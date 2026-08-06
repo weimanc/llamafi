@@ -540,21 +540,24 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 
 ---
 
+### BP-054 — A task-closeout note that flags new, real, out-of-scope work needs a `TASK-NNN` or an explicit deferred marker — not free-form prose
+
+**Adopted from**: LL-118
+**Date adopted**: 2026-08-06 (human)
+**Rule**: When a task's own closing write-up identifies a new, real issue that's out of that task's scope, don't leave it as free-form prose ("flagging for a separate task", "no task filed for it yet"). Either (a) file a `TASK-NNN` for it in the same editing session, or (b) if it's genuinely not worth tracking, say so explicitly and reasoned (e.g. "doesn't warrant tracked backlog on its own") — but if it IS worth tracking and isn't filed yet, mark the line `**Deferred, not filed:**` so it's greppable the same way `TODO(TASK-NNN)` already is in code (see the code-comment BP above this one). A closeout is not actually finished closing while a real flagged follow-up sits unfiled and unmarked.
+**Rationale**: TASK-396's full audit of `tasks.md`/`tasks-archive.md` for this exact prose pattern found 7 instances: 3 already correctly filed later (just never cross-referenced), 1 already a deliberate reasoned drop, and 2 genuine gaps that sat unfiled for 2-4 weeks each (TASK-361's PlaneRadar-compression note → TASK-403; TASK-364's WiFi-cascade note → TASK-404) — one of which (a third instance, TASK-347's stale-`switchApp` note) was only discovered because a human hit the live bug on the DUT by eye, six days after it was first correctly identified and never filed. The failure mode is structural, not a one-off: nothing in the note's own prose distinguishes "new tracked-worthy finding" from "incidental color," and neither is discoverable by the task-number search this project's process actually relies on.
+**Applies to**: PM (owns filing), Developer/VE/Architect/QM (whoever writes a task closeout)
+
+---
+
 ## Candidates — proposed, pending human adoption
 
 > These entries are **NOT yet adopted**. Per QM discipline ("QM brings best-practice
 > candidates to human — never self-promotes"), they are recorded here in proposed form
 > awaiting explicit human sign-off before being assigned a final BP number and promoted
-> above this line. The latest **adopted** BP is BP-053 (BP-052/053 adopted 2026-08-05
-> from LL-116/LL-117; BP-051 adopted 2026-07-18; BP-050 is the 2026-07-16 LL-112 rule,
-> renumbered from a colliding second "BP-047").
-
-**LL-118** (TASK-396, 2026-08-05) — a task-closeout note that flags new,
-real, out-of-scope work in free-form prose ("flagging for a separate task")
-is not actually tracked until it has a `TASK-NNN` or an explicit
-`**Deferred, not filed:**` marker line; two real instances sat unfiled for
-2-4 weeks each until a human hit one live on the DUT. Proposed, awaiting
-human decision.
+> above this line. The latest **adopted** BP is BP-054 (BP-054 adopted 2026-08-06 from
+> LL-118; BP-052/053 adopted 2026-08-05 from LL-116/LL-117; BP-051 adopted 2026-07-18;
+> BP-050 is the 2026-07-16 LL-112 rule, renumbered from a colliding second "BP-047").
 
 **LL-106** (M-PLANERADAR, 2026-07-11) — session-scoped scheduling primitives
 (`CronCreate`) are the wrong default for work that must survive across
