@@ -1,0 +1,6 @@
+{'idx': 0, 'name': 'Radio 10', 'bitrate': 128, 'playing': True, 'samples': 1175, 'csv': '00_Radio_10.csv'}
+{'idx': 2, 'name': 'SLAM!', 'bitrate': 128, 'playing': True, 'samples': 1351, 'csv': '02_SLAM_.csv'}
+{'idx': 7, 'name': '100% NL', 'bitrate': 128, 'playing': True, 'samples': 1251, 'csv': '07_100__NL.csv'}
+{'idx': 14, 'name': 'Slam! Mixmarathon', 'bitrate': 128, 'playing': True, 'samples': 1611, 'csv': '14_Slam__Mixmarathon.csv'}
+{'idx': 22, 'name': 'Concertzender De Muzikant', 'bitrate': 128, 'playing': False, 'samples': 0}
+{'idx': 29, 'name': 'Radio Noordvaarder Angel Healing', 'bitrate': 128, 'playing': True, 'samples': 1691, 'csv': '29_Radio_Noordvaarder_Angel_Healing.csv'}

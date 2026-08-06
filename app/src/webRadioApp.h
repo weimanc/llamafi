@@ -94,6 +94,31 @@ static constexpr uint8_t WR_VOLUME_MAX = 21;
 // playback) before these are considered final.
 static constexpr float         WR_POSBAR_EMA_ALPHA      = 0.2f;
 static constexpr unsigned long WR_POSBAR_MIN_REDRAW_MS  = 200;
+// TASK-405 (M-WEBRADIO-POSBAR-SLEW): max points the drawn value may step
+// toward the smoothed target per redraw-eligible tick. Bounds worst-case
+// visual travel within any 2s window to <= (2000/MIN_REDRAW_MS) * this,
+// by construction -- unlike the delta-threshold gate it replaces, which
+// only bounded redraw frequency, not magnitude (a single redraw could
+// jump ~80 points). Simulation-informed starting value against real
+// captured traces (see design doc); DUT eyeball confirmation still open.
+static constexpr uint8_t       WR_POSBAR_MAX_STEP_PER_TICK = 2;
+// TASK-405 (M-WEBRADIO-POSBAR-SLEW, live-eyeball follow-up): the slew limiter
+// alone bounds redraw *magnitude* but not *frequency of direction reversal* --
+// on real playback the raw ring-buffer ratio reverses direction multiple
+// times within a single network-delivery burst (confirmed via host-only sim
+// against captured DUT traces: reversal count near the ceiling was ~flat
+// regardless of step size or EMA alpha, since the underlying signal itself
+// keeps flipping). A hysteresis dead-band near the top absorbs this: once
+// the drawn value AND the smoothed target are both >= ENTER, freeze (skip
+// the slew step entirely) until the target drops below EXIT. The gap
+// between the two thresholds is the hysteresis band itself -- a single
+// shared threshold would just move the chatter to that one boundary.
+// Host-only eval (real traces + synthetic connect/hiccup/drop scenarios)
+// showed near-total elimination of steady-state ceiling jitter (5->0
+// reversals per 2s window) for ~0.2-0.6s of added connection-drop-detection
+// latency, negligible against the already-accepted ~5s baseline.
+static constexpr uint8_t       WR_POSBAR_FREEZE_ENTER_PCT  = 90;
+static constexpr uint8_t       WR_POSBAR_FREEZE_EXIT_PCT   = 80;
 
 // TASK-209 / M-WEBRADIO §HW Mod: without the SC8002B gain-reduction mod the 8-bit
 // internal-DAC output overloads and clips above ~12/21, so stock hardware is
@@ -739,6 +764,9 @@ public:
                 _settled        = false;
                 _bufPctDrawn    = 0;         // TASK-220: force a buffer-bar repaint on first fill
                 _bufPctSmoothed = 0.0f;      // TASK-402: fresh EMA baseline per PLAYING session
+                _posbarSimDrainActive = false; // TASK-405: a stale sim-drain must not suppress
+                                                // real buffer readings on a fresh session
+                _posbarFrozen   = false;     // TASK-405: fresh session, fresh dead-band state
 #ifdef MEMBUDGET_PHASE1
                 _underrunCount          = 0; // TASK-263: fresh underrun count per PLAYING session
                 _recurrentUnderrunCount = 0; // TASK-266: fresh per PLAYING session too
@@ -959,7 +987,26 @@ public:
                 uint32_t filled = _snapFilled;
                 uint32_t freeB  = _snapFreeB;
                 uint32_t total  = filled + freeB;
-                _bufPct = total ? (uint8_t)((uint32_t)filled * 100u / total) : 0;
+                if (_posbarSimDrainActive) {
+                    // TASK-405 (VE-2): `set wrPosbarSimDrain` override — decrement at the
+                    // same cadence as the redraw gate (slow enough to be a meaningful
+                    // "real decline", not an instant jump); feeds the exact same
+                    // EMA/slew path below, unlike `wrBufPct`'s direct-draw bypass.
+                    // Deliberately does NOT auto-disable at raw==0 — an earlier version
+                    // did, and it let real (high) buffer data flood back in as soon as
+                    // raw hit empty, while the slewed *drawn* value was still several
+                    // ticks away from visually catching down to 0, reversing the trend
+                    // before a tester could see it bottom out. Sits at 0 until
+                    // `set wrPosbarSimDrain 0` explicitly disables it, matching the
+                    // design doc's own spec.
+                    if (now - _posbarSimDrainLastMs >= WR_POSBAR_MIN_REDRAW_MS) {
+                        _posbarSimDrainLastMs = now;
+                        _bufPct = (_bufPct > _posbarSimDrainStep)
+                                  ? (uint8_t)(_bufPct - _posbarSimDrainStep) : 0;
+                    }
+                } else {
+                    _bufPct = total ? (uint8_t)((uint32_t)filled * 100u / total) : 0;
+                }
                 // TASK-402: EMA the raw ratio before it drives the gate/draw — the raw
                 // byte-level ring-buffer ratio is naturally noisy (M-WEBRADIO-POSBAR-
                 // SMOOTH.md), same value-domain-filter technique as the VU meter's own
@@ -987,26 +1034,47 @@ public:
                     _wasEmpty = empty;
                 }
 #endif
-                // TASK-402: two independent gates — value must have moved (on the
-                // smoothed trend, not raw noise) AND enough time must have passed.
-                // Both must pass to redraw; whichever blocks is recorded for
-                // `get wrPosbar`'s lastSkipReason (OQ1/OQ2 DUT tuning needs to see
-                // which threshold is actually binding, not just that a redraw was
-                // skipped).
+                // TASK-405 (M-WEBRADIO-POSBAR-SLEW): time-gate, then slew the drawn
+                // value toward the smoothed target by at most WR_POSBAR_MAX_STEP_PER_TICK
+                // points — bounds worst-case 2-second-window travel by construction
+                // (the old delta-threshold gate bounded redraw *frequency* only; a
+                // single redraw could still jump ~80 points, which is what read as
+                // "oscillating" on the physical LCD — see design doc's Analysis).
+                // `lastSkipReason` (`get wrPosbar`) stays three-way and meaningful
+                // (VE-1): INTERVAL = time-gate blocked; CONVERGED = eligible but
+                // already at target, nothing to step; NONE = we stepped/redrew.
                 uint8_t smoothedRounded = (uint8_t)(_bufPctSmoothed + 0.5f);
-                int delta = (int)smoothedRounded - (int)_bufPctDrawn;
-                if (delta < 0) delta = -delta;
-                bool deltaOk    = delta >= 2;
                 bool intervalOk = (now - _lastPosbarRedrawMs) >= WR_POSBAR_MIN_REDRAW_MS;
-                if (deltaOk && intervalOk) {
-                    _bufPctDrawn         = smoothedRounded;
-                    _lastPosbarRedrawMs  = now;
-                    _posbarRedrawCount++;
-                    _posbarLastSkipReason = PosbarSkipReason::NONE;
-                    _drawPosbar();   // targeted POSBAR blit only — no full repaint
+                if (intervalOk) {
+                    _lastPosbarRedrawMs = now;
+                    // TASK-405 (live-eyeball follow-up): hysteresis dead-band near the
+                    // ceiling. Un-freeze first (based on the incoming target, before this
+                    // tick's own step) so a genuine decline starts escaping the same tick
+                    // it crosses EXIT, not one tick late.
+                    if (_posbarFrozen && smoothedRounded < WR_POSBAR_FREEZE_EXIT_PCT) {
+                        _posbarFrozen = false;
+                    }
+                    if (_posbarFrozen) {
+                        _posbarLastSkipReason = PosbarSkipReason::FROZEN;
+                    } else {
+                        int diff = (int)smoothedRounded - (int)_bufPctDrawn;
+                        if (diff > (int)WR_POSBAR_MAX_STEP_PER_TICK) diff = WR_POSBAR_MAX_STEP_PER_TICK;
+                        else if (diff < -(int)WR_POSBAR_MAX_STEP_PER_TICK) diff = -(int)WR_POSBAR_MAX_STEP_PER_TICK;
+                        if (diff != 0) {
+                            _bufPctDrawn = (uint8_t)((int)_bufPctDrawn + diff);
+                            _posbarRedrawCount++;
+                            _posbarLastSkipReason = PosbarSkipReason::NONE;
+                            _drawPosbar();   // targeted POSBAR blit only — no full repaint
+                        } else {
+                            _posbarLastSkipReason = PosbarSkipReason::CONVERGED;
+                        }
+                        if (_bufPctDrawn >= WR_POSBAR_FREEZE_ENTER_PCT
+                            && smoothedRounded >= WR_POSBAR_FREEZE_ENTER_PCT) {
+                            _posbarFrozen = true;
+                        }
+                    }
                 } else {
-                    _posbarLastSkipReason = !deltaOk ? PosbarSkipReason::DELTA
-                                                      : PosbarSkipReason::INTERVAL;
+                    _posbarLastSkipReason = PosbarSkipReason::INTERVAL;
                 }
 
                 // TASK-349: main-window time digits — same read block as the
@@ -1358,24 +1426,25 @@ public:
                      (unsigned)_minBufPct, (unsigned)_bufPct, (unsigned)playMs);
             return true;
         }
-        // TASK-402 (M-WEBRADIO-POSBAR-SMOOTH, VE-4): observability for the
-        // EMA + time-gate redraw path — raw vs. smoothed value, redraw count,
-        // last interval, and which of the two gates most recently blocked a
-        // redraw (needed for the OQ1/OQ2 DUT tuning pass, not just whether one
-        // was skipped).
+        // TASK-402 (M-WEBRADIO-POSBAR-SMOOTH, VE-4) + TASK-405 (M-WEBRADIO-POSBAR-SLEW,
+        // VE-1): observability for the EMA + time-gate + slew redraw path — raw vs.
+        // smoothed value, redraw count, last interval, and which of the two gates most
+        // recently blocked a redraw / whether the value had already converged (needed
+        // for the OQ1/OQ2 DUT tuning pass, not just whether one was skipped).
         if (strcmp(var, "wrPosbar") == 0) {
             long sinceLastMs = _lastPosbarRedrawMs
                               ? (long)(millis() - _lastPosbarRedrawMs) : -1;
             const char *skipReason =
-                (_posbarLastSkipReason == PosbarSkipReason::DELTA)    ? "delta" :
-                (_posbarLastSkipReason == PosbarSkipReason::INTERVAL) ? "interval" : "none";
+                (_posbarLastSkipReason == PosbarSkipReason::CONVERGED) ? "converged" :
+                (_posbarLastSkipReason == PosbarSkipReason::INTERVAL)  ? "interval" :
+                (_posbarLastSkipReason == PosbarSkipReason::FROZEN)    ? "frozen" : "none";
             snprintf(buf, len,
                      "\"var\":\"wrPosbar\",\"bufPctRaw\":%u,\"bufPctSmoothed\":%d,"
                      "\"bufPctDrawn\":%u,\"redraws\":%u,\"sinceLastRedrawMs\":%ld,"
-                     "\"lastSkipReason\":\"%s\",\"last\":true",
+                     "\"lastSkipReason\":\"%s\",\"frozen\":%s,\"last\":true",
                      (unsigned)_bufPct, (int)(_bufPctSmoothed + 0.5f),
                      (unsigned)_bufPctDrawn, (unsigned)_posbarRedrawCount, sinceLastMs,
-                     skipReason);
+                     skipReason, _posbarFrozen ? "true" : "false");
             return true;
         }
         // TASK-292: device-side arena lifecycle totals. The wr-soak balance gate
@@ -1631,7 +1700,36 @@ public:
             _bufPct         = (uint8_t)p;
             _bufPctSmoothed = (float)p;
             _bufPctDrawn    = (uint8_t)p;
+            _posbarSimDrainActive = false;  // TASK-405: an immediate override cancels
+                                             // any in-progress simulated drain
+            _posbarFrozen         = false;  // TASK-405: an immediate override isn't
+                                             // subject to the dead-band either
             _drawPosbar();
+            return true;
+        }
+        // TASK-405 (M-WEBRADIO-POSBAR-SLEW, VE-2): deterministic synthetic buffer-drain
+        // injection. Unlike wrBufPct (forces + draws immediately, bypassing both gates),
+        // this seeds _bufPct and lets the real per-tick EMA/slew/redraw-gate path (only
+        // active while PLAYING) consume it exactly as it would a real declining buffer —
+        // needed because neither wrDeadUrls (never reaches PLAYING, TASK-395) nor wrBufPct
+        // (bypasses the gate) can exercise OQ2 (does a real depleting trend still show up
+        // in time through the gated/slewed path) deterministically.
+        // Usage: set wrPosbarSimDrain <startPct>[,<stepPerTick>]  (stepPerTick default 1,
+        // decremented once per WR_POSBAR_MIN_REDRAW_MS). `set wrPosbarSimDrain 0` disables.
+        if (strcmp(var, "wrPosbarSimDrain") == 0) {
+            int startPct = 0, step = 1;
+            sscanf(val, "%d,%d", &startPct, &step);
+            if (startPct <= 0) {
+                _posbarSimDrainActive = false;
+                return true;
+            }
+            if (startPct > 100) startPct = 100;
+            if (step < 1) step = 1;
+            if (step > 100) step = 100;
+            _posbarSimDrainActive = true;
+            _posbarSimDrainStep   = (uint8_t)step;
+            _posbarSimDrainLastMs = millis();
+            _bufPct = (uint8_t)startPct;   // seed — next real tick's EMA picks this up
             return true;
         }
         // TASK-209: drive the HW-mod flag + configured ceiling so the clamp logic
@@ -1695,8 +1793,26 @@ private:
     float       _bufPctSmoothed        = 0.0f;
     unsigned long _lastPosbarRedrawMs  = 0;
     uint32_t    _posbarRedrawCount     = 0;
-    enum class PosbarSkipReason : uint8_t { NONE = 0, DELTA, INTERVAL };
+    // TASK-405: CONVERGED replaces the old DELTA meaning -- under the slew
+    // limiter there's no jump-trigger width to fall short of, only "already
+    // equals the rounded smoothed target, nothing to step" (VE-1). FROZEN
+    // (live-eyeball follow-up): the near-ceiling hysteresis dead-band is
+    // actively holding -- distinct from CONVERGED (which means the value
+    // isn't frozen, it's just genuinely caught up to the target).
+    enum class PosbarSkipReason : uint8_t { NONE = 0, CONVERGED, INTERVAL, FROZEN };
     PosbarSkipReason _posbarLastSkipReason = PosbarSkipReason::NONE;
+    // TASK-405 (live-eyeball follow-up): near-ceiling hysteresis dead-band
+    // state -- see WR_POSBAR_FREEZE_ENTER_PCT/EXIT_PCT's own comment.
+    bool        _posbarFrozen          = false;
+    // TASK-405 (M-WEBRADIO-POSBAR-SLEW, VE-2): deterministic synthetic
+    // buffer-drain injection via `set wrPosbarSimDrain` -- feeds the same
+    // raw input the EMA/slew logic already consumes each real tick (unlike
+    // `wrBufPct`, does not call _drawPosbar() directly), so OQ2 (does a
+    // real depleting trend still show up in time through the gated/slewed
+    // path) is testable on purpose instead of waiting on a real stall.
+    bool        _posbarSimDrainActive  = false;
+    uint8_t     _posbarSimDrainStep    = 1;
+    unsigned long _posbarSimDrainLastMs = 0;
 #ifdef MEMBUDGET_PHASE1
     uint32_t    _underrunCount   = 0;       // TASK-263: input-buffer-empty events while PLAYING
     uint32_t    _recurrentUnderrunCount = 0; // TASK-266: same, but excludes the connect-time

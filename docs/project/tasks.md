@@ -7800,3 +7800,199 @@ happy-path-verified — **the specific NVS→SPIFFS race this fix targets remain
 gated on a future session choosing to deliberately corrupt this DUT's real NVS creds to test it ·
 **Size:** S-M (came in as scoped; the dead-code discovery added investigation time, not
 implementation size).
+
+## Open — TASK-405 (2026-08-06, filed from TASK-402's own deferred OQ1/OQ2 tuning session)
+
+### TASK-405 — WebRadio posbar: bound visual travel per second (slew-rate limiter, supersedes TASK-402's delta-threshold gate)
+
+**Filed 2026-08-06.** TASK-402 shipped EMA smoothing + a minimum-redraw-interval gate for the
+WebRadio posbar, explicitly deferring OQ1/OQ2 (the actual constant values) to a dedicated DUT
+tuning session — never done at implementation time. Picked up that session today: human
+live-observed the bar on the physical LCD (SLAM!, real playback) and reported it "oscillates,"
+~4 visible changes/sec — suspiciously close to the existing `MIN_REDRAW_MS=200` ceiling (5/sec
+max), meaning the time-gate wasn't actually limiting anything.
+
+Traced 5 stations (`app/tools/task402_posbar_trace.py`, new ad hoc tool, extends
+`run_serialdbg_tests.py`'s `Dut`/`_ensure_webradio`/`_webradio_enter_with_stations`/
+`_wait_wr_state` rather than re-deriving them) with `wrState` tracked alongside `wrPosbar` to
+isolate genuine `PLAYING` segments from `CONNECTING`/stall-retry noise (`_play()` force-resets
+`_bufPct=0` on every reconnect attempt, `webRadioApp.h:1861`, ambiguous with a real empty buffer
+otherwise). Two capture runs, `app/tools/rnd_logs/task402_trace_20260806T101314/` and
+`task402_trace_20260806T102219/` (raw CSVs, one manifest each).
+
+**Finding: the reported "oscillation" is a real, physically-driven burst-fill/rapid-drain
+pattern** (small ring buffer + bursty TCP chunk delivery), not steady jitter — raw buffer ratio
+swings the full 0-100 range within ~1.4s on 3 of 5 stations, repeatedly. Root cause of the visual
+defect: the existing gate correctly bounds redraw *frequency* (≤5/sec, confirmed working exactly
+as designed) but places no bound on redraw *magnitude* — a single redraw can jump ~80 points.
+Quantified via host-side simulation against the real captured traces (not synthetic data): worst
+2-second-window value range is 92-96 points today on 3 stations (i.e. nearly the entire bar
+flashes by), vs. ~18-20 points with a simulated slew-rate limiter (max 2 points per redraw tick,
+fed from the existing EMA target instead of jumping straight to it) — a ~5x reduction, by
+construction rather than tuning luck.
+
+**Design doc:** `docs/architecture/designs/M-WEBRADIO-POSBAR-SLEW.md` (Architect, status draft,
+full measurement method + analysis results + design-space writeup + lean). Proposes replacing the
+delta-threshold gate with the slew-rate limiter (Option C in the doc; A = lower EMA alpha alone
+rejected, no hard bound; B = widen delta threshold rejected outright, repeats the exact TASK-253
+regression M-WEBRADIO-POSBAR-SMOOTH already refused to reopen; D = windowed median filter
+rejected, more RAM state for no demonstrated benefit over C on a board with a DRAM-budget history —
+`[[feedback_dram_bss_static_buffers]]`). Starting constant `WR_POSBAR_MAX_STEP_PER_TICK=2`,
+flagged as simulation-informed, not yet DUT-confirmed.
+
+**Side finding, not this task's problem to solve:** 2 of 5 traced stations spent most/all of
+their capture window failing to reach `PLAYING` at all — real connect failures, same family as
+the already-tracked TASK-390/391/393/398 connect-reliability thread. Not folded in here; PM to
+decide if it's worth a fresh data point there.
+
+**VE testability review (2026-08-06, same day):** `docs/architecture/designs/
+M-WEBRADIO-POSBAR-SLEW-VE-review.md`. Verdict **approve-with-changes**, one blocker. VE-1 (major)
+— the doc's own Lean step 4 wrongly claimed `lastSkipReason` "collapses" to two values; re-derived
+that all three stay meaningful under the slew design, just re-mapped. VE-2 (**blocker**) — the
+doc's proposed OQ2 test method (`wrDeadUrls`-style injected failure) doesn't work: re-verified
+against the tree that `wrDeadUrls` never reaches `PLAYING` at all (TASK-395's own finding), and
+`set wrBufPct` bypasses the gate by design — neither can exercise the gated/slewed path over a real
+decline, meaning OQ2 had no test path at all as scoped, the same failure mode that already left
+TASK-402's own OQ1/OQ2 unresolved for a day-plus. VE-3 (major) — Exit criteria dropped the ≥3-trial
+protocol TASK-402's own VE-3 already established as necessary for this project (documented history
+of single-shot DUT/RF comparisons proving unreliable), and let "whichever station reproduces live"
+stand in for the one actually complained about. VE-4 (informational) — the host-side simulation's
+EMA fidelity rests on an unverified assumption that external poll rate approximates real tick()
+rate; order-of-magnitude consistent with observed `loop_max` values but not independently
+confirmed. VE-5 (minor) — OQ3's disposition should be an explicit PM decision, not an implicit
+non-decision.
+
+**Architect disposition (2026-08-06, same day):** all five folded into the design doc. VE-1 →
+Lean step 4 corrected (three-way `lastSkipReason` contract preserved, re-mapped not collapsed,
+`DELTA`→`CONVERGED` rename suggested). VE-2 → new Lean step 6: `set wrPosbarSimDrain
+<startPct>[,<stepPerTick>]` debug hook, seeds `_bufPct` and decrements it through the real
+(non-bypassing) code path each tick — makes OQ2 deterministically testable instead of waiting on a
+real stall; Exit criteria updated to use it. VE-3 → Exit criteria now requires ≥3 trials against
+SLAM! specifically at minimum, with Radio 10/100% NL as encouraged additional trials. VE-4 → caveat
+paragraph added to Analysis section. VE-5 → OQ3 now explicitly requires a PM disposition, not
+silence.
+
+**Human sign-off (2026-08-06):** design **accepted** as filed (all VE findings folded). Cleared
+for Developer pickup — no further design/review gate before implementation.
+
+**Implementation (2026-08-06, Developer, same session).** Landed per Lean, all six steps:
+
+- **Constants:** `WR_POSBAR_MAX_STEP_PER_TICK = 2` added alongside the existing EMA/interval
+  constants (`webRadioApp.h:95-103`).
+- **`lastSkipReason` (VE-1):** `PosbarSkipReason::DELTA` renamed `CONVERGED` — three-way contract
+  preserved, re-mapped (not collapsed) exactly as the folded design specifies.
+- **Slew gate:** the delta-threshold check replaced with a clamped step toward
+  `_bufPctSmoothed`, bounded to `±WR_POSBAR_MAX_STEP_PER_TICK` per `MIN_REDRAW_MS`-eligible tick.
+- **`wrPosbarSimDrain` (VE-2):** new `dbgSet` hook, seeds `_bufPct` and decrements it through the
+  real (non-bypassing) per-tick path. One design refinement found during DUT verification and
+  fixed same-session: an initial "auto-disable at raw==0" convenience (not in the VE-folded spec)
+  let real high-value playback data flood back in before the *drawn* value had visually finished
+  slewing down to 0, reversing the trend before a tester would see it bottom out — removed,
+  matching the doc's simpler literal spec (explicit `0` to disable only).
+- **`wrBufPct`:** unchanged bypass behavior, now also clears `_posbarSimDrainActive` on force-write
+  (hygiene, avoids the two debug hooks fighting).
+- **PLAYING-entry reset:** `_posbarSimDrainActive` reset alongside the existing
+  `_bufPctDrawn`/`_bufPctSmoothed` fresh-baseline reset, so a stale sim-drain can't suppress real
+  readings across a reconnect.
+
+`./run/check` 6/6 both envs. RAM: +8 bytes (three new small fields) — negligible, no DRAM/BSS
+budget concern.
+
+**DUT verification (2026-08-06, same session).** New `app/tools/task405_slew_verify.py` (ad hoc,
+same convention as `task399_402_dut_verify.py`), against real playback (30-station NL list,
+live). **13/13 PASS** after two rounds of fixing the *test's* own flawed assumptions (not the
+implementation — see script's own history for the two false starts): `wrBufPct` bypass still
+force-writes `bufPctDrawn` immediately; the slew bound holds exactly (`steps=[2,2,2,...] max=2`,
+every single observed redraw step ≤ `WR_POSBAR_MAX_STEP_PER_TICK`, confirmed against real device
+data, not simulation); `wrPosbarSimDrain` declines gradually through 35 distinct values before
+settling at 0 and staying there (no bounce-back); `lastSkipReason` reports only
+`{none, converged, interval}`, zero stale `"delta"` leakage; disabling sim-drain releases control
+back to real per-tick computation (confirmed via renewed raw-value variability, not a specific
+value — real buffers legitimately sit at/near 0 for stretches too, per this session's own traces).
+
+**Regression (2026-08-06, same session).** `T_WR_EJECT_01/02`, `T_WR_ERR_01-04` (6/6 PASS,
+consistent) — the tests most directly adjacent to this change (app-switch, error-state display).
+`T_WR_COEX_01/02/04` PASS on retry (3/3) after one transient CH340 port-flap and one real
+connect-timing hiccup, both environmental — confirmed non-deterministic by re-running (different
+failure shape each time with zero code changes between runs), consistent with this project's
+well-documented DUT-flakiness history, not a regression. `T_WR_VIS_01` (decode-tail pump timing)
+and `T_WR_VIS_04` (spectrum animation) showed flaky failures across runs — both test subsystems
+(`wrPump`/Audio decode, `vu::specHRef()`/spectrum) this diff has zero code overlap with (confirmed
+by re-reading the actual diff, not assumed); `T_WR_VIS_03/05` skipped on the pre-existing TASK-243
+external blocker (Spotify Premium lapsed), unrelated. Not treated as a blocking regression signal
+for this task; flagged here for the record rather than silently dropped.
+
+**Not yet done — still needs the human:** the design doc's own Exit Criteria live-eyeball check
+(≥3 trials against SLAM! specifically, VE-3) — the actual "does it look smooth now" call.
+Mechanism is DUT-confirmed working exactly as designed; the subjective visual read is next.
+
+**Owner:** Architect (design doc — done; VE findings folded) → VE (testability review — done,
+approve-with-changes) → human (**signed off**) → PM (scheduled) → Developer (implementation —
+**done 2026-08-06**, DUT-verified, host-verified `run/check` 6/6) · **Deps:** TASK-402 (the
+feature this modifies; supersedes its delta-threshold gate, keeps its EMA + time-floor +
+partial-diff-blit + instrumentation machinery) · **Priority:** P3 (visual polish, no functional
+gap, same class as TASK-402) · **Status (superseded by the addendum below):** implemented,
+host-verified, and DUT-verified (mechanism + regression) — the live-eyeball exit criterion found
+a real remaining gap, see below.
+
+**Live-eyeball follow-up (2026-08-06, same day) — "buffer slowly fills [good], but once full,
+still jumps around multiple times a second."** The slew limiter bounds redraw magnitude but not
+direction-reversal frequency, and reversals (not total range) turn out to be what reads as
+"jumping around." Full design-doc addendum: `M-WEBRADIO-POSBAR-SLEW.md`'s own Addendum section.
+
+Five filter-shape alternatives evaluated host-only (real captured traces + synthetic connect/
+hiccup/drop scenarios) before spending any further DUT time:
+
+1. **Fixed-gain critically-damped spring-damper** (same P+D-on-a-double-integrator family as
+   `vuMeter.h`'s spectrum peak tracker — the vuMeter's own literal constants turned out to be
+   underdamped for this recurrence, `b ≤ (1-√a)²` derived and used instead). Real, structural
+   tradeoff: damping heavy enough to kill ceiling jitter also made a genuine connection-drop
+   never reach 50% visible in the test window — worse than what was already shipped. A linear
+   P+D controller can't distinguish small noise from a large real change; both feed the same
+   proportional term.
+2. **Dual-rate/gain-scheduled spring-damper** (switch damping by error magnitude). Failed worse
+   — confirmed via direct measurement that single-sample noise on this signal routinely exceeds
+   any reasonable magnitude threshold, so "large error = real signal" doesn't hold here. A
+   persistence-gated variant was worse still, traced to a genuine "bumpless transfer" bug
+   (velocity built under fast dynamics bleeding off too slowly after switching to the heavy
+   regime's much slower damping) — confirmed and partially fixed (zeroing velocity on switch),
+   but still ~3x worse than the plain slew limiter even after the fix.
+3. **Asymmetric slew** (slower fall than rise). No improvement on the worst stations at any
+   fall rate — reversals happen *within* a single network-delivery burst, not as a clean
+   rise-then-fall, so damping only the fall side doesn't touch them.
+4. **Asymmetric EMA** (attack/release, fed from raw). Worse across the board, same root cause
+   as the raw-fed spring-damper variants.
+5. **Plain step-size reduction.** Range scales down linearly as expected, but reversal *count*
+   stays flat, and connection-drop visibility (already borderline at the shipped step size)
+   never resolves at any smaller step.
+
+**Winning approach: hysteresis dead-band near the ceiling, layered on the existing slew
+mechanism.** Freeze (skip the slew step) once drawn AND target are both `≥ WR_POSBAR_FREEZE_
+ENTER_PCT` (90); only resume once the target drops below `WR_POSBAR_FREEZE_EXIT_PCT` (80) —
+the gap between the two is the hysteresis band, preventing the boundary itself from chattering.
+Doesn't need to distinguish noise from signal at all, sidestepping the exact problem that broke
+the gain-scheduled attempts. Host-only: real-trace steady-state reversals dropped 5→0 (worst
+stations), connection-drop-from-98 cost only +0.2-0.6s versus the already-accepted ~5.4s/10.3s
+baseline, a recoverable near-ceiling hiccup was almost entirely absorbed.
+
+**Implementation:** `WR_POSBAR_FREEZE_ENTER_PCT`/`_EXIT_PCT` constants, `_posbarFrozen` state
+(reset alongside existing per-session/`wrBufPct`-override hygiene resets), `PosbarSkipReason`
+gains `FROZEN` (distinct from `CONVERGED`) plus a new explicit `"frozen"` getter field.
+
+**DUT verification** (`task405_slew_verify.py`, extended, same ad hoc convention): three
+consecutive clean confirmations of the freeze mechanism — froze at the seeded value, held
+constant while `bufPctRaw` kept changing underneath (proving the underlying computation isn't
+stopped, only the display step), correctly un-froze past `EXIT_PCT`, still reached 0 afterward.
+Two flaky failures across four DUT runs — a pre-existing `wrBufPct`-vs-concurrent-playback race
+(documented, predates this change) and one polling-aliasing artifact in an unrelated code path
+(never reaches the freeze threshold) that cleared on a smoother-polling rerun — both coincided
+with a literal mid-session USB disconnect/reconnect on the DUT rig (confirmed via `journalctl -k`
+CH341 disconnect/reconnect lines), not the implementation. `run/check` 6/6 both envs. Regression:
+`T_WR_EJECT_01/02`, `T_WR_ERR_01-04` 6/6 clean.
+
+**Live-eyeball confirmation (2026-08-06, same day, human on the physical LCD):** "POSBAR no longer
+jitters." Resolves the exit criterion this whole addendum thread was chasing.
+
+**Status:** **CLOSED.** Implemented, DUT-verified (mechanism + regression), and live-eyeball
+confirmed on the physical LCD. TASK-402's own OQ1/OQ2 tuning pass — the reason this session
+started — is superseded by the dead-band addendum and considered resolved by this closure.
