@@ -58,6 +58,7 @@ bool writeContextToNfc = true;
 #include <mbedtls/base64.h> // SERIAL_DEBUG `screendump` command — TFT readback encoding
 #ifdef SERIAL_DEBUG
 #include <SD.h>   // TASK-408: sdprobe bring-up probe, own VSPI bus (SD/FS is not otherwise linked)
+#include <ff.h>   // TASK-408: FATFS/FIL sizes — the mount's real memory cost (see cmdSdMem)
 #include <SPI.h>
 #include "ffconf.h" // TASK-408: FF_VOLUMES — kept for anyone re-investigating the deferred
                     // live-mount corruption (see setup()'s sdProbeBootMount() comment)
@@ -2175,18 +2176,21 @@ void setup()
   Serial.begin(115200);
 
 #ifdef SERIAL_DEBUG
-  // TASK-408 bisection (2026-08-07): SD.begin() on VSPI (18/19/23/5) succeeds at
-  // every synchronous point in setup() — including after WiFi connects — but fails
-  // (esp_vfs_fat_register ESP_ERR_NO_MEM, FATFS's 2-slot table reads "full" on what
-  // should be the first-ever mount) when invoked later via a live `sdprobe` serial
-  // command, once spotifyTask/dataTask are alive and running concurrent TLS/heap
-  // work. Isolated minimal sketch (no WiFi/Spotify/WebRadio) mounts fine, so this
-  // is not a wiring/pin/hardware issue — it's runtime heap/concurrency corruption
-  // once background tasks are active. Root cause not yet found (see tasks.md
-  // TASK-408). Workaround: mount once here, synchronously, before any concurrent
-  // task exists, and hold the session for the process lifetime instead of the
-  // lazy per-invocation mount M-SDFS §5 specifies for the eventual real feature —
-  // `sdprobe`/`sdcycle` reuse this session rather than re-mounting live.
+  // TASK-408 (2026-08-07): mount SD here, synchronously, and hold the session for
+  // the process lifetime — NOT the lazy per-mode-entry mount M-SDFS §5 assumes.
+  //
+  // `SD.begin()` needs ONE contiguous byte-addressable internal block of
+  // `sizeof(vfs_fat_ctx_t) + max_files * sizeof(FIL)` (see kSdMaxFiles). At boot that
+  // is trivial — the largest free 8-bit block is ~110 KB. Once WebRadio is playing it
+  // is ~5 KB, and the mount fails with `esp_vfs_fat_register` → ESP_ERR_NO_MEM, which
+  // is that calloc failing and NOT (as first read) the FF_VOLUMES table being full.
+  // DUT-reproduced both ways: mounts at every heap state above the ctx size, fails at
+  // every state below it, at every max_files setting. `sdmem` prints both numbers.
+  //
+  // So a lazy mount is only ever as reliable as the heap happens to be at the moment
+  // the user enters the mode, and LocalPlayer needs the card mounted *and* the Helix
+  // arena acquired at the same time. Mounting before any of that exists is the design,
+  // not a workaround.
   sdProbeBootMount();
 #endif
 
@@ -2663,6 +2667,13 @@ static void cmdScreenDump(const char *);
 static void cmdColorProbe(const char *);
 static void cmdSdProbe(const char *);
 static void cmdSdCycle(const char *);
+static void cmdSdMem(const char *);
+static void cmdSdMount(const char *);
+static void cmdSdUmount(const char *);
+static void cmdSdClean(const char *);
+static void cmdSdWrite(const char *);
+static void cmdSdLs(const char *);
+static void cmdSdRead(const char *);
 static void cmdHelp(const char *);
 static void cmdReboot(const char *);
 #endif
@@ -2682,6 +2693,13 @@ static const SerialCmd kCmds[] = {
   { "colorprobe", cmdColorProbe, "TASK-340: fillRect/pushRect known values, readRect them back", "" },
   { "sdprobe", cmdSdProbe, "TASK-408: SD card mount/heap/LFN/listDir/read-bench probe", "[reads=5000]" },
   { "sdcycle", cmdSdCycle, "TASK-408 T_SD_08: N live mount/unmount cycles, heap drift", "[cycles=20]" },
+  { "sdmem", cmdSdMem, "TASK-408: FATFS ctx sizing + contiguous-calloc ladder", "" },
+  { "sdmount", cmdSdMount, "TASK-408: live mount attempt at N slots, optional SPI Hz", "[maxFiles] [freqHz]" },
+  { "sdumount", cmdSdUmount, "TASK-408: unmount, report heap actually returned", "" },
+  { "sdclean", cmdSdClean, "TASK-408: delete sdprobe fixtures (/probelist, /probebench.bin)", "" },
+  { "sdwrite", cmdSdWrite, "TASK-408: isolated sequential write of N 512B chunks", "[chunks=64] [heapCheckEvery=0]" },
+  { "sdls", cmdSdLs, "TASK-408: list a directory with sizes", "[dir=/]" },
+  { "sdread", cmdSdRead, "TASK-408: read-only benchmark against an existing file", "<reads> <path>" },
   { "help",   cmdHelp,   "list commands",                   ""                                   },
   { "reboot", cmdReboot, "software reset (ESP.restart)",   ""                                   },
 #endif
@@ -4098,36 +4116,69 @@ static void cmdColorProbe(const char *) {
 
 // TASK-408 (M-SDFS phase-0): own VSPI bus — SCK18/MISO19/MOSI23/CS5 — entirely free of
 // the HSPI TFT bus and the touch controller's own SPI (see M-SDFS-sd-card-exploration.md
-// §2). WORKAROUND (2026-08-07): SD.begin() reliably succeeds at any synchronous point in
-// setup(), but fails when invoked live via serial once spotifyTask/dataTask are alive and
-// running concurrent TLS/heap work (esp_vfs_fat_register ESP_ERR_NO_MEM — FATFS's 2-slot
-// table reads full on what should be the first-ever mount; isolated minimal sketch mounts
-// fine, so this is runtime heap/concurrency corruption, not wiring — root cause deferred,
-// see tasks.md TASK-408). Mount once here, synchronously, before any concurrent task
-// exists, and hold the session for the process lifetime; sdprobe/sdcycle reuse it instead
-// of the lazy per-invocation mount M-SDFS §5 specifies for the eventual real feature.
+// §2). The mount is established once in setup() and held — see sdProbeBootMount()'s call
+// site for why a lazy per-mode-entry mount cannot be relied on here.
+//
+// Probe surface, all SERIAL_DEBUG-only: `sdmem` (ctx sizing + contiguous-alloc ceiling),
+// `sdmount`/`sdumount` (mount at N slots and a given SPI clock, with heap accounting),
+// `sdcycle` (mount/unmount leak check), `sdls`, `sdread` (read-only benchmark against an
+// existing file), `sdwrite`, `sdclean`, `sdprobe` (the full T_SD_01–09 sweep).
 static const int kSdCsPin = 5;
 static const int kSdSckPin = 18;
 static const int kSdMisoPin = 19;
 static const int kSdMosiPin = 23;
-static const uint32_t kSdFreqHz = 4000000;
+static uint32_t s_sdFreqHz = 4000000;   // runtime-settable via `sdmount`
+
+// Open-file slots requested of SD.begin(). This is the single dominant term in the
+// mount's memory cost, not a throughput knob: esp_vfs_fat_register() allocates
+// `sizeof(vfs_fat_ctx_t) + max_files * sizeof(FIL)` as ONE contiguous internal
+// block, and this IDF build has FF_MAX_SS=4096 (CONFIG_WL_SECTOR_SIZE) with
+// FF_FS_TINY=0 (CONFIG_FATFS_PER_FILE_CACHE=1) — so FATFS carries a 4 KB window
+// buffer and every FIL carries its own 4 KB sector cache. The Arduino default of
+// 5 therefore asks for ~25 KB in one piece. See `sdmem`.
+static const uint8_t kSdMaxFiles = 2;
 
 static SPIClass s_sdSPI(VSPI);
 static bool s_sdReady = false;
+static bool s_sdSpiUp = false;
 static size_t s_sdBootFreeIntBefore = 0, s_sdBootFreeIntAfter = 0;
 static size_t s_sdBootLfbIntBefore = 0, s_sdBootLfbIntAfter = 0;
 
+// One mount attempt with full before/after heap accounting, usable from setup()
+// and from a live serial command. `tag` names the call site in the JSON line.
+static bool sdMountAttempt(const char *tag, uint8_t maxFiles) {
+  size_t freeBefore = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  size_t lfbBefore = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  size_t lfb8Before = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (!s_sdSpiUp) {
+    s_sdSPI.begin(kSdSckPin, kSdMisoPin, kSdMosiPin, kSdCsPin);
+    s_sdSpiUp = true;
+  }
+  unsigned long t0 = millis();
+  bool ok = SD.begin(kSdCsPin, s_sdSPI, s_sdFreqHz, "/sd", maxFiles);
+  unsigned long elapsedMs = millis() - t0;
+  size_t freeAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  size_t lfbAfter = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  Serial.printf("{\"probe\":\"sdmount\",\"tag\":\"%s\",\"maxFiles\":%u,\"mounted\":%s,"
+                "\"elapsedMs\":%lu,\"heapDeltaB\":%ld,"
+                "\"freeIntBefore\":%u,\"freeIntAfter\":%u,"
+                "\"lfbIntBefore\":%u,\"lfbIntAfter\":%u,\"lfb8Before\":%u,\"lfb8After\":%u}\n",
+                tag, (unsigned)maxFiles, ok ? "true" : "false", elapsedMs,
+                (long)freeBefore - (long)freeAfter,
+                (unsigned)freeBefore, (unsigned)freeAfter,
+                (unsigned)lfbBefore, (unsigned)lfbAfter,
+                (unsigned)lfb8Before,
+                (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+  s_sdBootFreeIntBefore = freeBefore;
+  s_sdBootFreeIntAfter = freeAfter;
+  s_sdBootLfbIntBefore = lfbBefore;
+  s_sdBootLfbIntAfter = lfbAfter;
+  return ok;
+}
+
 static void sdProbeBootMount() {
-  s_sdBootFreeIntBefore = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-  s_sdBootLfbIntBefore = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-  s_sdSPI.begin(kSdSckPin, kSdMisoPin, kSdMosiPin, kSdCsPin);
-  s_sdReady = SD.begin(kSdCsPin, s_sdSPI, kSdFreqHz);
-  s_sdBootFreeIntAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-  s_sdBootLfbIntAfter = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-  Serial.printf("{\"probe\":\"sdboot\",\"FF_VOLUMES\":%d,\"mounted\":%s,\"heapDeltaB\":%ld}\n",
-                (int)FF_VOLUMES, s_sdReady ? "true" : "false",
-                (long)s_sdBootFreeIntBefore - (long)s_sdBootFreeIntAfter);
-  if (!s_sdReady) s_sdSPI.end();
+  s_sdReady = sdMountAttempt("boot", kSdMaxFiles);
+  if (!s_sdReady && s_sdSpiUp) { s_sdSPI.end(); s_sdSpiUp = false; }
 }
 
 static const char *sdCardTypeName(sdcard_type_t t) {
@@ -4140,9 +4191,107 @@ static const char *sdCardTypeName(sdcard_type_t t) {
   }
 }
 
-static int sdProbeCmpU32(const void *a, const void *b) {
-  uint32_t ua = *(const uint32_t *)a, ub = *(const uint32_t *)b;
-  return (ua > ub) - (ua < ub);
+// TASK-408 root-cause instrument. `esp_vfs_fat_register()` returns ESP_ERR_NO_MEM from
+// two distinct places: the FF_VOLUMES context table being full, and a plain calloc()
+// failing. This separates them — it prints the exact contiguous block SD.begin() will
+// ask for at each max_files setting, then actually tries to calloc that block and
+// reports which sizes the live heap can still serve.
+static void cmdSdMem(const char *) {
+  // MALLOC_CAP_INTERNAL alone over-reports what a plain calloc() can be served: it
+  // counts the 32-bit-only D/IRAM region, which is not byte-addressable. The number
+  // that actually gates the mount is the INTERNAL|8BIT largest free block.
+  const uint32_t kByteCap = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+  Serial.printf("{\"probe\":\"sdmem\",\"FF_VOLUMES\":%d,\"FF_MAX_SS\":%d,\"FF_FS_TINY\":%d,"
+                "\"FF_USE_LFN\":%d,\"sizeofFATFS\":%u,\"sizeofFIL\":%u,"
+                "\"freeInt\":%u,\"lfbInt\":%u,\"minFreeInt\":%u,"
+                "\"free8\":%u,\"lfb8\":%u,\"freeDma\":%u,\"lfbDma\":%u,"
+                "\"mounted\":%s}\n",
+                (int)FF_VOLUMES, (int)FF_MAX_SS, (int)FF_FS_TINY, (int)FF_USE_LFN,
+                (unsigned)sizeof(FATFS), (unsigned)sizeof(FIL),
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+                (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+                (unsigned)heap_caps_get_free_size(kByteCap),
+                (unsigned)heap_caps_get_largest_free_block(kByteCap),
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
+                (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA),
+                s_sdReady ? "true" : "false");
+
+  // Largest single byte-addressable block the live heap can actually serve, by
+  // bisection. `lfb8` is the allocator's view of its biggest free span; this is the
+  // number that decides whether SD.begin() survives, and the two can differ by the
+  // block header and alignment.
+  {
+    size_t lo = 0, hi = 65536;
+    while (lo + 64 < hi) {
+      size_t mid = (lo + hi) / 2;
+      void *p = malloc(mid);
+      if (p) { free(p); lo = mid; } else { hi = mid; }
+      esp_task_wdt_reset();
+    }
+    Serial.printf("{\"probe\":\"sdmem\",\"maxCallocB\":%u}\n", (unsigned)lo);
+  }
+
+  // vfs_fat_ctx_t is private to the IDF, but its layout is FATFS + a handful of
+  // scalars + FIL[max_files]; 128 B covers the scalars and any padding with margin.
+  const unsigned kCtxOverhead = 128;
+  static const uint8_t kSlots[] = { 1, 2, 3, 5 };
+  for (unsigned i = 0; i < sizeof(kSlots); i++) {
+    size_t need = sizeof(FATFS) + kCtxOverhead + (size_t)kSlots[i] * sizeof(FIL);
+    void *p = calloc(1, need);
+    bool got = (p != nullptr);
+    if (p) free(p);
+    bool last = (i + 1 == sizeof(kSlots));
+    Serial.printf("{\"probe\":\"sdmem\",\"maxFiles\":%u,\"ctxBytes\":%u,\"callocOk\":%s,"
+                  "\"lfb8\":%u,\"last\":%s}\n",
+                  (unsigned)kSlots[i], (unsigned)need, got ? "true" : "false",
+                  (unsigned)heap_caps_get_largest_free_block(kByteCap),
+                  last ? "true" : "false");
+    esp_task_wdt_reset();
+  }
+}
+
+// Live mount attempt from the serial-command context, i.e. with spotifyTask/dataTask
+// alive — the exact path that was reported as failing.
+static void cmdSdMount(const char *args) {
+  int maxFiles = kSdMaxFiles;
+  unsigned freqHz = 0;
+  sscanf(args, "%d %u", &maxFiles, &freqHz);
+  if (maxFiles < 1) maxFiles = 1;
+  if (maxFiles > 10) maxFiles = 10;
+  if (freqHz >= 400000 && freqHz <= 40000000) s_sdFreqHz = freqHz;
+  if (s_sdReady) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdmount\",\"error\":\"already mounted\"}");
+    return;
+  }
+  s_sdReady = sdMountAttempt("live", (uint8_t)maxFiles);
+  Serial.printf("{\"ok\":%s,\"cmd\":\"sdmount\",\"mounted\":%s}\n",
+                s_sdReady ? "true" : "false", s_sdReady ? "true" : "false");
+}
+
+// Unmount and report the heap actually handed back. This is the clean T_SD_06
+// measurement: a mount-cost delta taken across SD.begin() during boot is polluted by
+// WiFi/NTP/task-start allocations landing in the same window, but the free() side of
+// an idle unmount is not.
+static void cmdSdUmount(const char *) {
+  if (!s_sdReady) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdumount\",\"error\":\"not mounted\"}");
+    return;
+  }
+  size_t freeBefore = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  size_t lfbBefore = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  SD.end();
+  s_sdSPI.end();
+  s_sdSpiUp = false;
+  s_sdReady = false;
+  size_t freeAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  size_t lfbAfter = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  Serial.printf("{\"ok\":true,\"cmd\":\"sdumount\",\"reclaimedB\":%ld,"
+                "\"freeIntBefore\":%u,\"freeIntAfter\":%u,"
+                "\"lfbIntBefore\":%u,\"lfbIntAfter\":%u}\n",
+                (long)freeAfter - (long)freeBefore,
+                (unsigned)freeBefore, (unsigned)freeAfter,
+                (unsigned)lfbBefore, (unsigned)lfbAfter);
 }
 
 // T_SD_08: N live mount/unmount cycles against the same VSPI session, from the same
@@ -4169,7 +4318,8 @@ static void cmdSdCycle(const char *args) {
     SD.end();
     s_sdSPI.end();
     s_sdSPI.begin(kSdSckPin, kSdMisoPin, kSdMosiPin, kSdCsPin);
-    bool ok = SD.begin(kSdCsPin, s_sdSPI, kSdFreqHz);
+    s_sdSpiUp = true;
+    bool ok = SD.begin(kSdCsPin, s_sdSPI, s_sdFreqHz, "/sd", kSdMaxFiles);
     size_t freeNow = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
     long drift = (long)baseline - (long)freeNow;
     bool last = (i + 1 == cycles);
@@ -4181,9 +4331,203 @@ static void cmdSdCycle(const char *args) {
   s_sdReady = (okCount == cycles);
 }
 
+// Plain directory listing with sizes — needed to pick a pre-existing, cleanly
+// written file to benchmark reads against.
+static void cmdSdLs(const char *args) {
+  char dir[64] = "/";
+  if (args && args[0]) { sscanf(args, "%63s", dir); }
+  if (!s_sdReady) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdls\",\"error\":\"not mounted\"}");
+    return;
+  }
+  File d = SD.open(dir);
+  if (!d || !d.isDirectory()) {
+    Serial.printf("{\"ok\":false,\"cmd\":\"sdls\",\"error\":\"not a directory\",\"dir\":\"%s\"}\n", dir);
+    if (d) d.close();
+    return;
+  }
+  int n = 0;
+  unsigned long t0 = micros();
+  while (n < 400) {
+    File e = d.openNextFile();
+    if (!e) break;
+    Serial.printf("{\"probe\":\"sdls\",\"name\":\"%s\",\"dir\":%s,\"sizeB\":%u}\n",
+                  e.name(), e.isDirectory() ? "true" : "false", (unsigned)e.size());
+    e.close();
+    n++;
+    esp_task_wdt_reset();
+  }
+  unsigned long elapsedMs = (micros() - t0) / 1000;
+  d.close();
+  // Includes the per-entry Serial.printf, so it is an upper bound on the walk cost.
+  Serial.printf("{\"ok\":true,\"cmd\":\"sdls\",\"count\":%d,\"elapsedMs\":%lu}\n",
+                n, elapsedMs);
+}
+
+// Read-only sustained benchmark against a caller-chosen path. Same measurement as
+// sdprobe's bench phase, but it never writes, so it can be pointed at a file the
+// card already carried rather than one this probe created.
+static void cmdSdRead(const char *args) {
+  // Read count FIRST, then the rest of the line as the path: real filenames on this
+  // card contain spaces, so the path has to be the unbounded trailing field.
+  char path[96] = {0};
+  int reads = 5000, consumed = 0;
+  if (!args || sscanf(args, "%d %n", &reads, &consumed) != 1 || !args[consumed]) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdread\",\"error\":\"usage: sdread <reads> <path>\"}");
+    return;
+  }
+  strlcpy(path, args + consumed, sizeof(path));
+  if (reads < 100) reads = 100;
+  if (!s_sdReady) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdread\",\"error\":\"not mounted\"}");
+    return;
+  }
+  File f = SD.open(path, FILE_READ);
+  if (!f) {
+    Serial.printf("{\"ok\":false,\"cmd\":\"sdread\",\"error\":\"open failed\",\"path\":\"%s\"}\n", path);
+    return;
+  }
+  size_t fileSize = f.size();
+  static const uint32_t kEdgeUs[] = {
+    250, 500, 1000, 2000, 4000, 8000, 16000, 32000, 50000, 100000, 0xFFFFFFFFu
+  };
+  const int kNB = (int)(sizeof(kEdgeUs) / sizeof(kEdgeUs[0]));
+  uint32_t bk[kNB];
+  memset(bk, 0, sizeof(bk));
+  static uint8_t rbuf[512];
+  uint32_t maxUs = 0;
+  size_t bytes = 0;
+  int zeroReads = 0, wraps = 0;
+  unsigned long t0all = micros();
+  for (int i = 0; i < reads; i++) {
+    unsigned long t0 = micros();
+    size_t n = f.read(rbuf, sizeof(rbuf));
+    unsigned long t1 = micros();
+    uint32_t dt = (uint32_t)(t1 - t0);
+    if (dt > maxUs) maxUs = dt;
+    for (int b = 0; b < kNB; b++) { if (dt <= kEdgeUs[b]) { bk[b]++; break; } }
+    if (n == 0) {
+      // A failed physical read latches the stdio stream's error flag, and seek()
+      // does not clear it — every later read then returns 0 instantly, which ends
+      // the measurement early and understates sustained throughput. Reopen instead,
+      // resuming at the offset reached, and count the recoveries.
+      zeroReads++;
+      size_t resumeAt = (size_t)f.position();
+      f.close();
+      f = SD.open(path, FILE_READ);
+      if (!f) { break; }
+      if (resumeAt + sizeof(rbuf) < fileSize) f.seek(resumeAt); else { f.seek(0); wraps++; }
+    } else {
+      bytes += n;
+    }
+    if ((i % 50) == 0) esp_task_wdt_reset();
+  }
+  unsigned long elapsedUs = micros() - t0all;
+  f.close();
+
+  uint32_t p50 = 0, p99 = 0, cum = 0;
+  uint32_t need50 = (uint32_t)((reads * 50 + 99) / 100);
+  uint32_t need99 = (uint32_t)((reads * 99 + 99) / 100);
+  for (int b = 0; b < kNB; b++) {
+    cum += bk[b];
+    if (!p50 && cum >= need50) p50 = kEdgeUs[b];
+    if (!p99 && cum >= need99) { p99 = kEdgeUs[b]; break; }
+  }
+  if (p50 > maxUs) p50 = maxUs;
+  if (p99 > maxUs) p99 = maxUs;
+
+  char histo[192];
+  int off = 0;
+  for (int b = 0; b < kNB && off < (int)sizeof(histo) - 12; b++) {
+    off += snprintf(histo + off, sizeof(histo) - off, "%s%lu", b ? "," : "",
+                    (unsigned long)bk[b]);
+  }
+  Serial.printf("{\"ok\":true,\"cmd\":\"sdread\",\"path\":\"%s\",\"fileB\":%u,"
+                "\"reads\":%d,\"zeroReads\":%d,\"wraps\":%d,\"bytes\":%u,"
+                "\"elapsedMs\":%lu,\"throughputKBps\":%.1f,"
+                "\"p50Ms\":%.2f,\"p99Ms\":%.2f,\"maxMs\":%.2f,\"histo\":[%s]}\n",
+                path, (unsigned)fileSize, reads, zeroReads, wraps, (unsigned)bytes,
+                (unsigned long)(elapsedUs / 1000),
+                elapsedUs ? ((float)bytes / 1024.0f) / ((float)elapsedUs / 1000000.0f) : 0.0f,
+                p50 / 1000.0f, p99 / 1000.0f, maxUs / 1000.0f, histo);
+}
+
+// Isolated sequential write: nothing but open / write x N / close, so a write-path
+// fault can be separated from anything the earlier sdprobe phases leave behind.
+static void cmdSdWrite(const char *args) {
+  int chunks = 64, checkEvery = 0, append = 0;
+  sscanf(args, "%d %d %d", &chunks, &checkEvery, &append);
+  if (chunks < 1) chunks = 1;
+  if (!s_sdReady) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdwrite\",\"error\":\"not mounted\"}");
+    return;
+  }
+  static uint8_t wbuf[512];
+  memset(wbuf, 0xA5, sizeof(wbuf));
+  // Append mode builds the read fixture in short bursts: sustained single-open
+  // writes are what fail on this card, short open/write/close bursts are not.
+  File f = SD.open("/probebench.bin", append ? FILE_APPEND : FILE_WRITE);
+  if (!f) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdwrite\",\"error\":\"open failed\"}");
+    return;
+  }
+  Serial.printf("{\"probe\":\"sdwrite\",\"phase\":\"opened\",\"chunks\":%d,"
+                "\"append\":%d,\"startSizeB\":%u}\n",
+                chunks, append, (unsigned)f.size());
+  size_t total = 0;
+  unsigned long t0 = millis();
+  for (int i = 0; i < chunks; i++) {
+    size_t n = f.write(wbuf, sizeof(wbuf));
+    total += n;
+    if (n != sizeof(wbuf)) {
+      Serial.printf("{\"probe\":\"sdwrite\",\"shortWrite\":%u,\"atChunk\":%d}\n",
+                    (unsigned)n, i);
+      break;
+    }
+    // The FIL that f_write faults on lives inside the mount's heap block, so a
+    // stomped allocator structure would show up here before the fault does.
+    if (checkEvery > 0 && ((i + 1) % checkEvery) == 0) {
+      if (!heap_caps_check_integrity_all(true)) {
+        Serial.printf("{\"probe\":\"sdwrite\",\"heapCorruptAtChunk\":%d}\n", i);
+        break;
+      }
+    }
+    esp_task_wdt_reset();
+  }
+  unsigned long elapsedMs = millis() - t0;
+  f.close();
+  size_t endSize = 0;
+  { File chk = SD.open("/probebench.bin", FILE_READ); if (chk) { endSize = chk.size(); chk.close(); } }
+  Serial.printf("{\"ok\":true,\"cmd\":\"sdwrite\",\"bytes\":%u,\"endSizeB\":%u,"
+                "\"elapsedMs\":%lu,\"kBps\":%.1f}\n",
+                (unsigned)total, (unsigned)endSize, elapsedMs,
+                elapsedMs ? ((float)total / 1024.0f) / ((float)elapsedMs / 1000.0f) : 0.0f);
+}
+
+// Removes the sdprobe fixtures. A watchdog reboot during the bench-file write leaves
+// a half-written file behind, and a re-run then measures whatever that left on the
+// card rather than a clean sequential file.
+static void cmdSdClean(const char *) {
+  if (!s_sdReady) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdclean\",\"error\":\"not mounted\"}");
+    return;
+  }
+  int removed = 0;
+  if (SD.exists("/probebench.bin") && SD.remove("/probebench.bin")) removed++;
+  char path[40];
+  for (int i = 0; i < 400; i++) {
+    snprintf(path, sizeof(path), "/probelist/f%03d.txt", i);
+    if (SD.exists(path) && SD.remove(path)) removed++;
+    if ((i % 20) == 0) esp_task_wdt_reset();
+  }
+  bool rmdirOk = SD.rmdir("/probelist");
+  Serial.printf("{\"ok\":true,\"cmd\":\"sdclean\",\"removed\":%d,\"rmdir\":%s}\n",
+                removed, rmdirOk ? "true" : "false");
+}
+
 static void cmdSdProbe(const char *args) {
-  int reads = 5000;
-  sscanf(args, "%d", &reads);
+  int reads = 5000, skipWrites = 0;
+  sscanf(args, "%d %d", &reads, &skipWrites);
   if (reads < 100) reads = 100;
 
   if (!s_sdReady) {
@@ -4202,10 +4546,15 @@ static void cmdSdProbe(const char *args) {
   uint64_t totalMB = SD.totalBytes() / (1024 * 1024);
   uint64_t usedMB = SD.usedBytes() / (1024 * 1024);
 
+  // Phase markers: this probe can run for minutes on a contended bus, and a bare
+  // silence is indistinguishable from a hang.
+  Serial.println("{\"probe\":\"sdphase\",\"phase\":\"lfn\"}");
+  esp_task_wdt_reset();
+
   // Long-filename round-trip: >8.3, spaces, mixed case.
   const char *kLfnPath = "/A long name (test) 01.mp3";
   bool lfnOk = false;
-  {
+  if (!skipWrites) {
     File f = SD.open(kLfnPath, FILE_WRITE);
     if (f) {
       f.write((const uint8_t *)"probe", 5);
@@ -4221,14 +4570,25 @@ static void cmdSdProbe(const char *args) {
 
   // ~200-file directory listing timing. Files created once if absent; setup cost is
   // excluded from the timed window (browse-001 cares about steady-state page cost).
+  Serial.println("{\"probe\":\"sdphase\",\"phase\":\"mkfiles\"}");
+  esp_task_wdt_reset();
   const char *kListDir = "/probelist";
   const int kListFiles = 200;
-  if (!SD.exists(kListDir)) SD.mkdir(kListDir);
-  {
+  if (!skipWrites && !SD.exists(kListDir)) SD.mkdir(kListDir);
+  if (!skipWrites) {
     int existing = 0;
     File dir = SD.open(kListDir);
     if (dir) {
-      for (File e = dir.openNextFile(); e; e = dir.openNextFile()) { existing++; e.close(); }
+      // NOT `for (File e = d.openNextFile(); e; e = d.openNextFile())`: the
+      // increment opens the next entry while the current File is still alive, so
+      // two open-file slots are needed to walk a directory one entry at a time.
+      while (true) {
+        File e = dir.openNextFile();
+        if (!e) break;
+        existing++;
+        e.close();
+        esp_task_wdt_reset();
+      }
       dir.close();
     }
     for (int i = existing; i < kListFiles; i++) {
@@ -4236,15 +4596,26 @@ static void cmdSdProbe(const char *args) {
       snprintf(path, sizeof(path), "%s/f%03d.txt", kListDir, i);
       File f = SD.open(path, FILE_WRITE);
       if (f) { f.write((const uint8_t *)"x", 1); f.close(); }
-      if ((i % 20) == 0) esp_task_wdt_reset();
+      // Every iteration, not every 20th: a single create+write+close on a
+      // contended 4 MHz bus can take most of a second, and 20 of them overran
+      // the 15 s TWDT outright on the first run of this probe.
+      esp_task_wdt_reset();
     }
   }
+  Serial.println("{\"probe\":\"sdphase\",\"phase\":\"list\"}");
+  esp_task_wdt_reset();
   int listCount = 0;
   unsigned long listStartUs = micros();
   {
     File dir = SD.open(kListDir);
     if (dir) {
-      for (File e = dir.openNextFile(); e; e = dir.openNextFile()) { listCount++; e.close(); }
+      while (true) {                       // see the counting loop above
+        File e = dir.openNextFile();
+        if (!e) break;
+        listCount++;
+        e.close();
+        if ((listCount % 25) == 0) esp_task_wdt_reset();
+      }
       dir.close();
     }
   }
@@ -4254,16 +4625,29 @@ static void cmdSdProbe(const char *args) {
   // Bench file created once if absent/undersized; that write is not part of the timed
   // window. Read chunk (512 B) is deliberately smaller than InBuff (6 400 B) so `reads`
   // reads comfortably exceeds the >=2 MB / N>=5 000 bar at the default arg.
+  Serial.println("{\"probe\":\"sdphase\",\"phase\":\"bench-prepare\"}");
+  esp_task_wdt_reset();
   const size_t kChunk = 512;
   const char *kBenchPath = "/probebench.bin";
   size_t benchFileSize = (size_t)reads * kChunk;
+  const size_t kBenchFileMax = 1024 * 1024;   // read pass wraps via seek(0)
+  if (benchFileSize > kBenchFileMax) benchFileSize = kBenchFileMax;
+  // Any file of at least this size is a usable bench target — the read pass wraps
+  // with seek(0), so an exact size buys nothing, and demanding one forces a
+  // multi-megabyte rewrite on every run.
+  const size_t kBenchFileMin = 64 * 1024;
+  size_t benchActualSize = 0;
   bool benchFileOk = SD.exists(kBenchPath);
   if (benchFileOk) {
     File existing = SD.open(kBenchPath, FILE_READ);
-    if (!existing || existing.size() < benchFileSize) benchFileOk = false;
+    if (!existing || existing.size() < kBenchFileMin) {
+      benchFileOk = false;
+    } else {
+      benchActualSize = existing.size();
+    }
     if (existing) existing.close();
   }
-  if (!benchFileOk) {
+  if (!benchFileOk && !skipWrites) {
     File f = SD.open(kBenchPath, FILE_WRITE);
     if (f) {
       static uint8_t wbuf[512];
@@ -4272,18 +4656,34 @@ static void cmdSdProbe(const char *args) {
       while (written < benchFileSize) {
         f.write(wbuf, sizeof(wbuf));
         written += sizeof(wbuf);
-        if ((written % (64 * 1024)) == 0) esp_task_wdt_reset();
+        esp_task_wdt_reset();   // see the create loop above
       }
       f.close();
       benchFileOk = true;
     }
   }
 
-  uint32_t *latenciesUs = benchFileOk ? (uint32_t *)malloc(sizeof(uint32_t) * reads) : nullptr;
+  // Latency distribution as a fixed bucket histogram rather than an array of every
+  // sample: at the default 5 000 reads a uint32_t[] is a 20 KB contiguous internal
+  // allocation, which is exactly the class of allocation that cannot be served on a
+  // live heap here (see cmdSdMem). Percentiles are reported as the containing
+  // bucket's upper edge; `maxUs` stays exact, which is what the <=50 ms bar needs.
+  static const uint32_t kBucketEdgeUs[] = {
+    250, 500, 1000, 2000, 4000, 8000, 16000, 32000, 50000, 100000, 0xFFFFFFFFu
+  };
+  const int kNumBuckets = (int)(sizeof(kBucketEdgeUs) / sizeof(kBucketEdgeUs[0]));
+  uint32_t buckets[kNumBuckets];
+  memset(buckets, 0, sizeof(buckets));
+  uint32_t maxUsExact = 0;
+
+  Serial.printf("{\"probe\":\"sdphase\",\"phase\":\"bench-read\",\"fileOk\":%s,"
+                "\"benchFileB\":%u}\n",
+                benchFileOk ? "true" : "false", (unsigned)benchActualSize);
+  esp_task_wdt_reset();
   size_t bytesRead = 0;
   unsigned long benchElapsedUs = 0;
   int actualReads = 0;
-  if (benchFileOk && latenciesUs) {
+  if (benchFileOk) {
     File f = SD.open(kBenchPath, FILE_READ);
     if (f) {
       static uint8_t rbuf[512];
@@ -4291,11 +4691,30 @@ static void cmdSdProbe(const char *args) {
       for (int i = 0; i < reads; i++) {
         unsigned long t0 = micros();
         size_t n = f.read(rbuf, kChunk);
-        if (n == 0) { f.seek(0); t0 = micros(); n = f.read(rbuf, kChunk); }
+        if (n == 0) {
+          // Same latched-stream-error recovery as cmdSdRead: a failed physical read
+          // sets the stdio error flag, seek() does not clear it, and every later read
+          // then returns 0 instantly — which ends the measurement early and reports a
+          // throughput far below what the card sustains. Reopen and resume.
+          size_t resumeAt = (size_t)f.position();
+          f.close();
+          f = SD.open(kBenchPath, FILE_READ);
+          if (!f) break;
+          if (resumeAt + kChunk < benchActualSize) f.seek(resumeAt); else f.seek(0);
+          t0 = micros();
+          n = f.read(rbuf, kChunk);
+        }
         unsigned long t1 = micros();
-        latenciesUs[actualReads++] = (uint32_t)(t1 - t0);
+        uint32_t dtUs = (uint32_t)(t1 - t0);
+        if (dtUs > maxUsExact) maxUsExact = dtUs;
+        for (int b = 0; b < kNumBuckets; b++) {
+          if (dtUs <= kBucketEdgeUs[b]) { buckets[b]++; break; }
+        }
+        actualReads++;
         bytesRead += n;
-        if ((i % 200) == 0) esp_task_wdt_reset();
+        // Outside the timed sample window (t0/t1 bracket the read alone), so
+        // this does not perturb the latency histogram.
+        if ((i % 50) == 0) esp_task_wdt_reset();
       }
       benchElapsedUs = micros() - benchStartUs;
       f.close();
@@ -4306,14 +4725,31 @@ static void cmdSdProbe(const char *args) {
     ? ((float)bytesRead / 1024.0f) / ((float)benchElapsedUs / 1000000.0f)
     : 0.0f;
 
-  uint32_t p50Us = 0, p99Us = 0, maxUs = 0;
+  uint32_t p50Us = 0, p99Us = 0, maxUs = maxUsExact;
   if (actualReads > 0) {
-    qsort(latenciesUs, actualReads, sizeof(uint32_t), sdProbeCmpU32);
-    p50Us = latenciesUs[actualReads / 2];
-    p99Us = latenciesUs[(actualReads * 99) / 100];
-    maxUs = latenciesUs[actualReads - 1];
+    uint32_t need50 = (uint32_t)((actualReads * 50 + 99) / 100);
+    uint32_t need99 = (uint32_t)((actualReads * 99 + 99) / 100);
+    uint32_t cum = 0;
+    for (int b = 0; b < kNumBuckets; b++) {
+      cum += buckets[b];
+      if (!p50Us && cum >= need50) p50Us = kBucketEdgeUs[b];
+      if (!p99Us && cum >= need99) { p99Us = kBucketEdgeUs[b]; break; }
+    }
+    // Never report a bucket edge above the exact worst sample.
+    if (p50Us > maxUsExact) p50Us = maxUsExact;
+    if (p99Us > maxUsExact) p99Us = maxUsExact;
   }
-  free(latenciesUs);
+
+  {
+    char histo[192];
+    int off = 0;
+    for (int b = 0; b < kNumBuckets && off < (int)sizeof(histo) - 12; b++) {
+      off += snprintf(histo + off, sizeof(histo) - off, "%s%lu",
+                      b ? "," : "", (unsigned long)buckets[b]);
+    }
+    Serial.printf("{\"probe\":\"sdhisto\",\"edgesUs\":\"250,500,1k,2k,4k,8k,16k,32k,50k,100k,inf\","
+                  "\"counts\":[%s]}\n", histo);
+  }
 
   Serial.printf(
     "{\"ok\":true,\"cmd\":\"sdprobe\","

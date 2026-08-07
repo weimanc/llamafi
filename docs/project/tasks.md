@@ -5924,61 +5924,94 @@ actively redrawing** — an idle-device number measures the wrong thing.
 with a hardware note. SPIFFS is explicitly *not* an accepted fallback (1.4 MB shared with
 skin/settings/config ≈ one track). **Do not retune the bar to fit the hardware.**
 
-**Owner:** Developer · **Deps:** none · **Gate:** `T_SD_01`–`09`; `T_SD_02` (GPIO5 is a strapping
-pin — 5 cold boots with a card inserted, boot-loop class risk) and `T_SD_08` (20 mount/unmount
-cycles leak-free, because mount is lazy per mode entry) are the two easily skipped ·
+**Owner:** Developer · **Deps:** none · **Gate:** `T_SD_01`–`09` ·
 **Priority:** P0 (blocks its own gate; was P1 gating TASK-410/workstream 4) ·
-**Status:** **BLOCKED (2026-08-07)** — new defect found during implementation, below.
-Uncommitted `sdprobe`/`sdcycle` debug commands + investigation notes are in the working tree
-(`app/src/main.cpp`, `app/platformio.ini`); DUT is back on safe prod firmware.
+**Status:** **GATE FAILED — DUT-measured (2026-08-07), pending one card-swap retest before close.**
 
-**Blocker — live SD mount corrupts runtime state once background tasks are active.**
-`sdprobe` (own `SPIClass(VSPI)`, 18 SCLK/19 MISO/23 MOSI/5 CS, matches the pin budget above)
-was implemented per spec. Card slot confirmed populated, FAT32 card inserted, human-confirmed.
-`SD.begin()` fails with `esp_vfs_fat_register()` → `ESP_ERR_NO_MEM` — FATFS's 2-slot volume
-table (`FF_VOLUMES=2`, confirmed via direct macro print) reads *full* on what should be the
-first-ever mount of the process. Bisection (all via `CORE_DEBUG_LEVEL` bumped 0→1 to see
-`log_e`, kept — see `app/platformio.ini`):
+**The earlier BLOCKED finding was a misdiagnosis and is withdrawn.** There is no runtime heap
+corruption and no concurrency defect. `esp_vfs_fat_register()` returns `ESP_ERR_NO_MEM` from two
+unrelated places — the `FF_VOLUMES` context table being full, *and* a plain `calloc()` failing — and
+this was the second. `SD.begin()` needs **one contiguous byte-addressable internal block** of
+`sizeof(vfs_fat_ctx_t) + max_files * sizeof(FIL)`, and this IDF build has `FF_MAX_SS=4096`
+(`CONFIG_WL_SECTOR_SIZE`) with `FF_FS_TINY=0` (`CONFIG_FATFS_PER_FILE_CACHE=1`), so `sizeof(FATFS)`
+is **4 156 B** and `sizeof(FIL)` is **4 136 B** (both DUT-printed, not derived). The Arduino default
+`max_files=5` therefore asks for **24 964 B in one piece** — which is exactly the 27 712 B mount cost
+recorded as unexplained. Mount succeeds at every heap state above the ctx size and fails at every
+state below it, at every `max_files` setting:
 
-- Ruled out **hardware/wiring**: an isolated minimal sketch (SD.h + SPI.h only, no WiFi/
-  Spotify/WebRadio) mounts cleanly on the same physical unit — `cardType=SD, cardSizeMB=1910`.
-- Ruled out **pin conflict**: `Spotify-Diy-Thing/SpotifyDiyThing/nfc.h` defines the *identical*
-  VSPI pins (18/19/23, `NFC_SS=5`) for the PN532 reader (by design — the upstream sketch
-  piggybacks NFC on the microSD slot's SPI lines on this board). Checked whether that's live in
-  this build: it isn't — `NFC_ENABLED` is commented out in `app/src/main.cpp:36-37` (TASK-004,
-  "PN532 not wired on this dev unit"), so `nfc.h` never compiles in here. Not the cause in this
-  firmware, but **flag for the Architect**: the M-SDFS pin budget (§2) never enumerated
-  `nfc.h`'s pins because NFC lives outside `app/src/`; if NFC is ever re-enabled on `YELLOW_DISPLAY`
-  it will collide with the SD pins outright.
-- Bisected boot sequence: `SD.begin()` on this exact pin set **succeeds** at every synchronous
-  point tried in `setup()` — immediately after `Serial.begin()`, after `SPIFFS.begin()`, and
-  after WiFi connects (all before `spotifyTask::begin()`/`dataTask::begin()`). It only fails
-  when invoked **live over serial**, well after boot, once `spotifyTask` and `dataTask` are
-  alive and running concurrent TLS/HTTP work (Spotify polling, WebRadio station fetch). This
-  points at **runtime heap/concurrency corruption** stomping FATFS's small static bookkeeping
-  once background tasks are active — not a wiring, pin, or simple boot-ordering issue.
-- Applied (per human direction) a workaround rather than chasing the root cause further tonight:
-  mount once synchronously at the top of `setup()` (proven-good point) and hold the session for
-  process lifetime; `sdprobe`/`sdcycle` reuse it instead of M-SDFS §5's lazy per-mode-entry
-  mount. This **did** mount successfully on the DUT, but:
-  - `SD.begin()` heap delta measured **27 712 B** — over 3× the §3 budget (**≤8 KB**, `T_SD_06`).
-    Needs re-measurement in isolation (the 27 712 B figure was taken amid heavy concurrent boot
-    activity — WiFi/NTP/spotifyTask/dataTask all starting around the same window — and may be
-    conflating the mount cost with unrelated concurrent allocations rather than reflecting
-    `SD.begin()` alone).
-  - A DUT capture caught the device **mid-crash**: `Backtrace: ...|<-CORRUPTED`, `Rebooting...`,
-    `rst:0xc (SW_CPU_RESET)`. Not yet isolated to a clean backtrace — this could be the same
-    corruption manifesting more severely (repeated invocations / longer uptime), or a second,
-    related issue. This is a genuine firmware stability regression risk, not just a mount
-    failure, and needs Architect/PM triage before more DUT time goes into TASK-408 specifically.
+| heap state | largest free 8-bit block | `sdmount 5` (24 964 B) | `sdmount 1` (8 420 B) |
+|---|---|---|---|
+| boot, before tasks | 110 580 B | — (boot mount OK) | OK |
+| idle, tasks+WiFi up | 49 140 B | **OK** | OK |
+| WebRadio playing (Helix arena acquired) | 4 852 B | FAIL `0x101` | FAIL `0x101` |
 
-**None of `T_SD_01`–`09` are DUT-confirmed.** `T_SD_02` (GPIO5 strapping, real power-cycles)
-was never reached. Do not resume by re-attempting the workaround path blind — start from
-finding the actual corruption source (candidates: `spotifyTask`/`dataTask` concurrent heap
-churn racing our SPI/FATFS calls without a mutex; a driver-level double-init hazard from a
-second independent `SPIClass` instance claiming the same VSPI hardware peripheral while some
-other consumer is mid-transaction; or unrelated heap corruption elsewhere in this
-memory-constrained firmware landing on FATFS's `.bss` by coincidence of layout).
+Two things made the original reading wrong. `MALLOC_CAP_INTERNAL` over-reports what `calloc()` can
+serve — it counts the 32-bit-only D/IRAM region, and the number that decides the mount is
+`MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT` (49 140 vs 42 996 in the same snapshot). And `log_e()` was
+invisible at `CORE_DEBUG_LEVEL=0`; the one line that separates the two `ESP_ERR_NO_MEM` paths is
+`sd_diskio.cpp:800 esp_vfs_fat_register failed 0x(101)`. The level-1 bump is kept for that reason.
+
+**Consequence for M-SDFS §5:** the lazy per-mode-entry mount is not implementable as specified. A
+mount is only as reliable as the heap happens to be when the user enters the mode, and LocalPlayer
+needs the card mounted *and* the arena acquired simultaneously. Mount once in `setup()` and hold —
+that is the design, not a workaround. It is also cheap to make robust: `max_files` is a memory knob,
+not a throughput knob, and 2 slots is the minimum that walks a directory (`openNextFile()` in a
+`for`-increment opens the next entry before destroying the current File, so one slot is not enough).
+
+**Gate results.** Every number below is DUT-measured on `cyd2usb_winamp_debug`, card inserted,
+display actively redrawing, `spotifyTask`/`dataTask` live.
+
+| id | bar | measured | verdict |
+|---|---|---|---|
+| `T_SD_01` mount | OK | OK — SDSC, 1 910 MB card, 1 907 MB FAT volume | **PASS** |
+| `T_SD_02` GPIO5 strapping | no boot loop | ~15 `rst:0x1 (POWERON_RESET)` boots with card inserted, all clean | **PASS** |
+| `T_SD_03` LFN round-trip | exact | `lfnOk=true`; `sdls` reads `14 - Clint Eastwood (Ed Case & Sweetie Irie Refix).mp3` intact | **PASS** |
+| `T_SD_04` sustained read | **≥200 KB/s** | **34.1 KB/s** (2 558 976 B in 73 216 ms, 5 000 reads) | **FAIL — 5.9× under** |
+| `T_SD_05` worst read latency | **≤50 ms** | **113.9 ms** (p50 0.25 ms, p99 113.9 ms) | **FAIL — 2.3× over** |
+| `T_SD_06` `SD.begin()` heap delta | **≤8 KB** | **15 300 B** at 2 slots, **11 164 B** at 1 slot | **FAIL — structural, see above** |
+| `T_SD_08` 20 mount/unmount cycles | leak-free | 8 B total drift across 20 cycles (constant, not per-cycle) | **PASS** |
+| `listDir()` 200 files | (timing) | **18 552 ms** — 93 ms/entry | unusable for `browse-001` |
+
+**Why it is slow.** Not bandwidth. The cost is a fixed ~110 ms per *physical* 4 KB read that barely
+moves across a 50× SPI clock sweep — 400 kHz → 199.9 ms, 1 MHz → 142.9 ms, 4 MHz → 114.9 ms,
+8 MHz → 109.9 ms, 20 MHz → 107.9 ms. At 20 MHz the transfer itself is ~1.6 ms, so ~106 ms is
+overhead. `sdReadBytes()` fails a block on **CRC16 mismatch** and `sdReadSectors()` retries, so the
+link is completing reads only after repeated retries. The latency histogram is bimodal with nothing
+in between: 4 362 buffered hits ≤250 µs and 638 physical reads >100 ms, no middle bucket.
+
+Playback concurrency is **not** a factor: the same benchmark under a live WebRadio stream measured
+35.4 KB/s / 114.91 ms against 35.5 KB/s / 114.90 ms idle.
+
+**Before this closes as a hardware negative, one variable is untested: the card.** It is a 2 GB
+**SDSC** (`CARD_SD`, not SDHC) — the oldest and slowest class the driver supports, carrying 585 MB
+of unrelated content. Every measured symptom (CRC retries, clock-independent per-transaction cost)
+is equally consistent with a marginal card and with marginal board wiring, and swapping in a modern
+SDHC card is the one cheap test that separates them. It needs physical access, so it is the human's
+call. **Do not close TASK-408 or cut the milestone until that retest is done or explicitly waived.**
+
+**Also found, out of scope but recorded.** Sustained writes to a single open file are unreliable on
+this card and can panic the firmware: `f_write()` → `validate()` faults `LoadProhibited` because
+`obj->fs` reads NULL immediately after `ff_req_grant()` returns, and one truncated-then-reopened
+file reported a **1 073 678 476 B** size. Short open/write/close bursts are fine — 200 fixture files
+and 32 KB appends both complete cleanly at ~265 KB/s. M-SDFS phase-0 is read-only so nothing depends
+on this, but **any future write path must be treated as unproven**. The first crash seen here was a
+different bug and is fixed: the probe fed the task watchdog every 20 files / 64 KB, which a 93 ms/op
+bus overruns outright.
+
+**Tooling landed** (`app/src/main.cpp`, all `SERIAL_DEBUG`-only): `sdmem` (FATFS/FIL sizing, the
+8-bit contiguous-alloc ceiling by bisection, and a calloc ladder at 1/2/3/5 slots), `sdmount
+[maxFiles] [freqHz]` / `sdumount` (mount at a chosen slot count and SPI clock with full heap
+accounting — the unmount side is the clean cost measurement, since a boot-time delta is polluted by
+WiFi/NTP/task-start), `sdcycle`, `sdls`, `sdread <reads> <path>` (read-only benchmark against a file
+the card already carried, so a fixture this probe wrote cannot flatter the result), `sdwrite`,
+`sdclean`, and `sdprobe [reads] [skipWrites]`.
+
+> Two measurement traps are fixed in the committed tools and are worth knowing about. A failed
+> physical read latches the stdio stream's error flag, and `seek()` does **not** clear it — every
+> later read returns 0 instantly, which silently ended the benchmark at 385 KB and understated
+> sustained throughput. Both read paths now reopen and resume. And the histogram is bucketed rather
+> than an array of every sample: at 5 000 reads a `uint32_t[]` is a 20 KB contiguous internal
+> allocation, i.e. precisely the allocation class this task just proved cannot be served live.
 
 ### TASK-409 — extract the audio engine to `audio/audioEngine.h` (PURE MOVE)
 
