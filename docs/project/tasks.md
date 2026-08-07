@@ -8401,8 +8401,17 @@ is acceptable where a link failure is not. Zero production impact (the code does
 **Owner:** Developer · **Deps:** none · **Gate:** `T_RCL_01`–`04` — debug headroom ≥10 KB
 **measured** from a fresh `run/build-debug` + `.map` extents; prod `.dram0.bss` byte-identical;
 `screendump` output byte-identical to a pre-change capture of the same static screen ·
-**Priority:** P1 (unblocks the headroom every later task spends) · **Status:** OPEN — blocked on
-ADR-059 sign-off (D11).
+**Priority:** P1 (unblocks the headroom every later task spends) · **Status:** DONE (2026-08-07).
+
+`s_band`/`s_b64` moved to per-invocation `malloc`/`free` in `cmdScreenDump` (`app/src/main.cpp`).
+`T_RCL_01`: debug `dram0_0_seg` headroom 304 B → **12 264 B** (`.map` extents, `run/build-debug`).
+`T_RCL_02`: prod `.dram0.data`/`.dram0.bss` byte-identical before/after (`.map` diff). `T_RCL_03`:
+DUT full-canvas `screendump` PNG SHA256-identical before/after change (windowed-dump 30/66000 px
+diff traced to live app-state drift between the two captures, not the reclaim). `T_RCL_04`
+(alloc-failure degrades cleanly): closed by code inspection, not DUT-forced — no existing serial
+harness can force `malloc` failure on this device; null-check frees both pointers and returns the
+existing `"error":"empty region"`-shaped JSON, mirroring the pre-existing empty-region error path.
+Human accepted code-inspection closure over building a throwaway heap-pressure probe.
 
 > `T_RCL_03` matters more than it looks: `screendump` is the *instrument* three `T_PLE_`
 > pixel-identity tests depend on. Breaking it would silently invalidate the PLEDIT gate rather than

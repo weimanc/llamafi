@@ -3959,12 +3959,23 @@ static void cmdScreenDump(const char *args) {
     return;
   }
 
+  static const int kBandRows = 8;                       // 320*8*2 = 5120 B/band
+  // TASK-423: heap-allocated per invocation (was function-static) — returns
+  // the 12 KB to the heap between screendump calls instead of pinning it in
+  // .bss for the life of the process; this command runs ~18s on-demand from
+  // a host tool, not on any hot path, so the malloc cost is irrelevant.
+  const size_t kB64Size = ((320 * kBandRows * 2 + 2) / 3) * 4 + 8;
+  uint16_t *s_band = (uint16_t *)malloc(sizeof(uint16_t) * 320 * kBandRows);
+  unsigned char *s_b64 = (unsigned char *)malloc(kB64Size);
+  if (!s_band || !s_b64) {
+    free(s_band);
+    free(s_b64);
+    Serial.println("{\"ok\":false,\"cmd\":\"screendump\",\"error\":\"alloc failed\"}");
+    return;
+  }
+
   Serial.printf("{\"ok\":true,\"cmd\":\"screendump\",\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"bpp\":16}\n",
                 x, y, w, h);
-
-  static const int kBandRows = 8;                       // 320*8*2 = 5120 B/band
-  static uint16_t s_band[320 * kBandRows];
-  static unsigned char s_b64[((320 * kBandRows * 2 + 2) / 3) * 4 + 8];
 
   for (int ry = 0; ry < h; ry += kBandRows) {
     // TASK-288 pattern: a full-canvas dump is ~30 bands x ~590ms of Serial.write
@@ -3991,12 +4002,14 @@ static void cmdScreenDump(const char *args) {
     }
     size_t inLen = (size_t)w * rows * 2;
     size_t outLen = 0;
-    mbedtls_base64_encode(s_b64, sizeof(s_b64), &outLen, (const unsigned char *)s_band, inLen);
+    mbedtls_base64_encode(s_b64, kB64Size, &outLen, (const unsigned char *)s_band, inLen);
     Serial.printf("SCREENDUMP:BAND %d %d ", ry, rows);
     Serial.write(s_b64, outLen);
     Serial.println();
   }
   Serial.println("SCREENDUMP:END");
+  free(s_band);
+  free(s_b64);
 }
 
 // TASK-340 investigation aid: fills a small on-screen swatch with a *known*
