@@ -2354,3 +2354,182 @@ features:
       concurrent TASK-390/393 soak during implementation. Tracked as TASK-401. No
       new cross_feature_matrix.yaml edge — explicitly does not touch wifi-diag-001
       (see design doc §Registers).
+
+  # ── M-WINAMP-PLAYER reservations (Architect, 2026-08-07) ──────────────────
+  # Reserved at design time per architect.md responsibility #10 — minimal entries,
+  # completed by Developer at implementation. Design: designs/M-WINAMP-PLAYER.md.
+  # Decision: ADR-059 (proposed). ALL of these are gated on sdfs-001 phase 0.
+
+  - id: sdfs-001
+    name: SD card filesystem (VSPI mount + probe)
+    description: |
+      Micro-SD on the CYD's free VSPI pins (5 CS · 18 SCLK · 19 MISO · 23 MOSI), own
+      SPIClass instance, TFT stays on HSPI. Lazy mount on entry to Player mode, released
+      on mode exit (mirrors the mb_arena discipline). Phase 0 is a `sdprobe` debug command
+      reporting card type/size, FAT type, mount heap delta, long-filename round-trip,
+      listDir() timing, and a sustained-read benchmark with latency histogram.
+    status: reserved
+    git_ref: ""
+    files:
+      - app/src/player/sdfs.h
+    cross_features: [localplay-001, browse-001, m3u-001]
+    test_ids: []
+    notes: |
+      HARD GATE for the whole milestone (ADR-059 D1). Slot has never been mounted by this
+      firmware — M-AQUARIUM/overview.md dropped the donor's SD.h path as out of board config.
+      Pass bar: mount OK, sustained read >=200 KB/s, worst-case read latency <=50 ms, mount
+      heap delta <=8 KB. Fail => milestone closes with a hardware note; SPIFFS is explicitly
+      NOT an accepted fallback (1.4 MB shared with skin/settings/config ~= one track).
+      GPIO5 is a strapping pin (must read HIGH at reset) — verify empirically, boot-loop class.
+
+  - id: localplay-001
+    name: Local MP3 playback + system-owned audio engine
+    description: |
+      Extracts the Audio singleton, mutex, wrAudio pump task, mb_arena lifecycle,
+      audio_process_extern vis tap and volume sink out of webRadioApp.h into
+      audio/audioEngine.h as a PURE MOVE. WebRadio and LocalPlayer become peer clients.
+      New surface is connect(const Source&) with Source = {URL | FILE}; the FILE arm calls
+      connecttoFS(SD, path) through the existing post-to-pump-and-poll path. Requires
+      dropping -DAUDIO_NO_SD_FS from platformio.ini.
+    status: reserved
+    git_ref: ""
+    files:
+      - app/src/audio/audioEngine.h
+      - app/src/player/localPlayerApp.h
+      - app/platformio.ini
+    cross_features: [webradio-001, sdfs-001, memplan-001, player-state-001]
+    test_ids: []
+    notes: |
+      ADR-059 D2. Carries the fixes from TASK-278/287/289/291/295/299/392/398 — the move
+      lands only behind ./run/check 6/6 AND a full-length run/wr-soak (a short soak does not
+      clear it; see the persistent-conn DMA-gate lesson). Dropping AUDIO_NO_SD_FS adds a File
+      member + FATFS statics to .dram0.bss — re-derive headroom from a fresh run/build-debug
+      + .map grep, never a remembered number. Compensating win: local playback needs no TLS,
+      so it is the cheapest of the three player modes.
+
+  - id: plmodel-001
+    name: Shared playlist model + single PLEDIT renderer
+    description: |
+      PlaylistSource interface (count/row/seqno/caps/totalSec/onTap/move/remove) with three
+      implementers: SpotifyQueueSource and StationListSource (CAP_PLAY only, wrapping the
+      existing QueueSnapshot and _stations[] paths unchanged) and LocalPlaylistSource (full
+      caps). pleditView.h becomes the single renderer owning chrome, rows, truncation,
+      duration column, total-time bar, synthetic thumb, velocity scroll and the direct-scroll
+      right strip — replacing the two independently-evolved copies in winampDisplay.h and
+      webRadioApp.h. LocalPlaylistSource backing: RAM index of {uint32 offset, uint16 durSec,
+      uint16 flags} (8 B/entry, ~2 KB at 256 tracks) over an SD-backed M3U, plus a <=8-row
+      text cache and a bounded staging arena for not-yet-written additions.
+    status: reserved
+    git_ref: ""
+    files:
+      - app/src/winamp/pleditView.h
+      - app/src/winamp/playlistSource.h
+      - app/src/player/localPlaylist.h
+    cross_features: [playlist-001, playlist-002, webradio-001, localplay-001, touch-005]
+    test_ids: []
+    notes: |
+      ADR-059 D3/D4. Extraction is three separately-verified commits (Spotify caller ->
+      WebRadio caller -> local caller); each must be pixel-identical, eyeballed on the LCD
+      (BP-048), not inferred from serial. Fallback if either extraction step cannot be made
+      pixel-identical: a third renderer for local playlists only — shipped scroll behaviour
+      (TASK-051b-f, TASK-277, M-LIST-v4) is not traded for deduplication. Interface contract
+      drafted in the design §6; promote to an IFC at acceptance. Budget entry needed in
+      mem_manifest.yaml: plmodel_index, kind scratch, placement runtime.
+
+  - id: m3u-001
+    name: Extended-M3U parse and write
+    description: |
+      One-pass index build over #EXTINF/path lines at load; relative paths resolved against
+      the playlist directory. Save streams the index in order, copying each source line to
+      <name>.m3u.tmp and emitting staged entries inline, then renames — constant memory,
+      single sequential pass. Restore discards the index and re-parses.
+    status: reserved
+    git_ref: ""
+    files:
+      - app/src/player/m3u.h
+    cross_features: [sdfs-001, plmodel-001, pledit-edit-001]
+    test_ids: []
+    notes: |
+      Round-trip correctness is a host-side check: write from the device, re-read the file
+      off the card on the host, diff against expected order. OQ2 (design §8): M3U and ID3
+      carry UTF-8, PLEDIT renders TFT_eSPI Font 1 (GLCD, ASCII) — needs a transliterate-then-
+      substitute helper, shared with the Spotify path which has the same latent problem today.
+
+  - id: browse-001
+    name: On-device SD file browser
+    description: |
+      Modal full-canvas list over the player, entered via eject in Player mode. Reuses the
+      settings-section row widget and scroll machinery (not PLEDIT — hierarchical, not
+      ordered). One directory level at a time via SD.open(dir) + openNextFile(), PAGED at
+      <=32 entries per tick so loopTask never stalls the audio pump. Directories first, then
+      .mp3/.m3u, natural FAT order (no sort buffer). Tap file = play now; tap directory =
+      descend; tap .m3u = load as active playlist; edit-mode [+] = append to playlist.
+    status: reserved
+    git_ref: ""
+    files:
+      - app/src/player/fileBrowser.h
+    cross_features: [sdfs-001, localplay-001, plmodel-001, touch-004]
+    test_ids: []
+    notes: |
+      NEW-APP-CHECKLIST items 1 and 4 apply directly: hasPendingAsync() true while a browser
+      page or save is in flight, and isNavigationTap() must except the back/up zone or the
+      shell busy gate swallows navigation taps (TASK-384 — exactly the failure that checklist
+      item exists for).
+
+  - id: pledit-edit-001
+    name: PLEDIT edit mode — reorder, add, delete, save, restore
+    description: |
+      PLEDIT title-bar tap toggles edit mode; the bottom bar (today only total-time text)
+      becomes [+] [-] [up] [down] [SAVE]. Row tap selects rather than plays. All mutations are
+      index-array operations on plmodel-001 (reorder = permute two offsets, delete = memmove,
+      add = staged entry), so no file I/O until SAVE.
+    status: reserved
+    git_ref: ""
+    files:
+      - app/src/winamp/pleditView.h
+      - app/src/player/localPlaylist.h
+    cross_features: [plmodel-001, m3u-001, browse-001, touch-005]
+    test_ids: []
+    notes: |
+      ADR-059 D5 — modal, not gestural. Drag-to-reorder rejected: 16 px rows on a resistive
+      panel in direct collision with the TASK-277 velocity-scroll gesture. Modal form is also
+      skin-authentic (real Winamp's ADD/REM/SEL/MISC/LIST strip). OQ3 (design §8): unknown
+      whether bake_skin.py's build_pledit_atlas() already crops those sprites from PLEDIT.BMP
+      — if not, bake-tool change + new skin_layout.h constants + golden.sha256 re-bake +
+      T025 determinism re-check. Playlist SAVE pauses playback for its duration (the one
+      unbounded SD operation, deliberate and visible).
+
+  - id: playorder-001
+    name: Shuffle / repeat play-order engine + capability-driven transport zones
+    description: |
+      Makes the skin's existing SHUFREP buttons functional for Winamp-Player. No new skin assets:
+      chrome-001 already bakes SKIN_SHUFREP (4 sprites) and winampDisplay.h already draws,
+      hit-tests and optimistically caches shuffle/repeat — they are merely hardcoded to Spotify.
+      Two parts: (a) a per-mode capability mask CAP_TRANSPORT|CAP_SEEK|CAP_SHUFFLE|CAP_REPEAT that
+      handleWinampInput() consults instead of assuming the mode, replacing the "Spotify-only zones"
+      hardcoding and the handleVolumeGesturePublic() workaround; (b) the play-order engine over
+      plmodel-001's playOrder[] — Fisher-Yates shuffle bag, binary repeat, all four shuffle x repeat
+      end-of-playlist cells, and audio_eof_mp3()-driven auto-advance. Also makes the posbar a real
+      scrub control for local files (setFilePos/setTimeOffset/getAudioFileDuration exist in the
+      vendored lib).
+    status: reserved
+    git_ref: ""
+    files:
+      - app/src/winamp/winampDisplay.h
+      - app/src/player/localPlaylist.h
+      - app/src/player/localPlayerApp.h
+      - app/src/settingsStorage.cpp
+    cross_features: [chrome-001, plmodel-001, localplay-001, player-state-001, webradio-001]
+    test_ids: []
+    notes: |
+      ADR-059 D8/D9. Repeat is BINARY in v1, encoded in the shipped tri-state domain (Player emits
+      only 2=off and 0=repeat-all) so drawRepeat()'s existing `s != 2 -> ON` rule is unchanged;
+      repeat-one deferred (skin has only two repeat sprites, and two indistinguishable ON states are
+      tolerable for Spotify but not for a device that is its own only display).
+      Shuffle is a MATERIALISED bag, not a per-next dice roll — that is what makes Prev replay
+      history and tap-to-play move the cursor instead of reshuffling.
+      audio_eof_mp3() fires on the AUDIO PUMP TASK and may only set a flag; opening the next file
+      from inside it calls connecttoFS() from within Audio::loop() under the engine mutex =
+      self-deadlock.
+      Shuffle/repeat persist in g_settings as Player-scoped state (player.shuffle, player.repeat);
+      Spotify's stay server-owned and are never written there.

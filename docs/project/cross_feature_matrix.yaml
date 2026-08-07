@@ -1087,3 +1087,309 @@ interactions:
       Registered at design-acceptance per M-WEBRADIO-POSBAR-SMOOTH.md (accepted
       2026-08-05) — the design's own §Registers. Not implemented yet (TASK-402). No
       test id yet — VE follow-up candidate once the wr.posbar path exists.
+
+  # ── M-WINAMP-PLAYER reservations (Architect, 2026-08-07) ──────────────────
+  # Reserved at design-acceptance per architect.md #10 / designs/M-WINAMP-PLAYER.md §Registers.
+  # Decision: ADR-059 (proposed). Descriptions + risk from the design; test_coverage empty
+  # until VE lands the suite. Developer completes/corrects these at implementation.
+
+  - id: X050
+    feature_a: localplay-001
+    feature_b: webradio-001
+    interaction_type: shared_state
+    description: |
+      Both modes drive the SAME Audio object. Hardware permits exactly one: one internal DAC
+      (GPIO26), one 23216 B Helix arena, one 6400 B InBuff. ADR-059 D2 extracts the singleton,
+      its mutex, the wrAudio pump task, mb_arena acquire/release, the audio_process_extern vis
+      tap and the volume sink out of webRadioApp.h into audio/audioEngine.h; WebRadio and
+      LocalPlayer become peer clients of it. Mode mutual-exclusion (already relied on by
+      M-MEMBUDGET) is what makes one engine sufficient — the two modes can never both hold it.
+    risk: high
+    test_coverage: []
+    notes: |
+      The extracted code carries TASK-278/287/289/291/295/299/392/398. Verification obligation
+      is a PURE MOVE plus ./run/check 6/6 plus a FULL-LENGTH run/wr-soak — short soaks have
+      given false confidence on exactly this code before.
+
+  - id: X051
+    feature_a: localplay-001
+    feature_b: memplan-001
+    interaction_type: dependency
+    description: |
+      Dropping -DAUDIO_NO_SD_FS re-enables Audio's `File audiofile` member and the SD/FS code
+      paths, adding to .dram0.bss and to heap (FATFS work area + per-file sector cache at
+      SD.begin()). The binding build is cyd2usb_winamp_debug, which has sat at 0 B .dram0.bss
+      headroom twice this year. Offsetting: local playback opens no TLS, so the ~40 KB mbedtls
+      context that forces webradio_decoder + webradio_inbuf to stay placement:runtime is absent
+      in this mode — LocalPlayer is the cheapest of the three player modes, not the most costly.
+    risk: high
+    test_coverage: []
+    notes: |
+      MEASURED 2026-08-07 (not estimated): debug dram0_0_seg headroom is 304 B (prod 13160 B).
+      Enabling SD/FS with the code actually REFERENCED (a probe TU calling SD.begin/openNextFile/
+      read/connecttoFS — without it the linker GCs most of the cost and the number flatters) costs
+      +16 B .dram0.data, +72 B .dram0.bss = 88 B, leaving 216 B; flash +3984 B. Compile-in only,
+      unreferenced, was +40 B / +3904 B.
+      Consequence: NO Player state may be static — a LocalPlayerApp global instance puts its members
+      in .bss and there is no room. All Player buffers are heap, acquired in resume() and freed in
+      suspend() (~7.7 KB + the FATFS work area).
+      RECLAIM (ADR-059 D11, operator decision 2026-08-07 — proactive, scheduled FIRST as TASK-423):
+      11956 B of the debug build's 12792 B .bss overage over prod (93%) is two function statics in
+      one #ifdef SERIAL_DEBUG command — cmdScreenDump's s_b64 (6836 B) and s_band (5120 B),
+      main.cpp:3966-3967. Neither appears in the production map (verified, zero matches). Moving them
+      to per-invocation malloc/free takes debug headroom 304 B -> ~12.2 KB with zero production
+      impact. No separate X-entry: screendump has no feature id of its own (a small registry gap,
+      noted not fixed here), so the edge is recorded against this one.
+      Headroom must still be re-derived from a fresh run/build-debug + .map grep at each phase.
+      New manifest entries expected: sdfs_fatfs (unmeasured, M-SDFS pass bar <=8 KB) plus
+      plmodel_entries/view/play/rowcache/staging and browser_page, all scratch + runtime.
+
+  - id: X052
+    feature_a: sdfs-001
+    feature_b: localplay-001
+    interaction_type: resource_contention
+    description: |
+      Two tasks touch the filesystem: loopTask (browser paging, playlist row text, save) and the
+      audio pump task (Audio::loop() refilling from audiofile). ESP-IDF's FATFS VFS serialises
+      per volume, so this is safe but BLOCKING — a bulk directory read on loopTask can stall the
+      pump into an audible underrun. Rules: bulk loopTask SD I/O is chunked (<=32 dir entries,
+      one row batch per tick); playlist SAVE is the one unbounded operation and pauses playback
+      for its duration; the audio engine mutex guards Audio method calls only and must NOT be
+      widened to cover the filesystem.
+    risk: high
+    test_coverage: []
+    notes: |
+      The phase-0 latency bar (worst-case single read <=50 ms) is set against the InBuff holding
+      ~160 ms of 320 kbps audio. Exit criterion 8: >=30 min local-playback soak WITH concurrent
+      browsing and scrolling, not idle playback.
+
+  - id: X053
+    feature_a: sdfs-001
+    feature_b: memplan-001
+    interaction_type: dependency
+    description: |
+      SD lives on VSPI (5 CS · 18 SCLK · 19 MISO · 23 MOSI) with its own SPIClass; TFT stays on
+      HSPI (USE_HSPI_PORT), touch on its own 25/32/33/36/39. No pin conflict exists — verified
+      against the full board allocation at design time. GPIO5 is a strapping pin and must read
+      HIGH at reset; SD CS idles high so this is expected benign, but it is a boot-loop class
+      failure if a card pulls it low. Mount is lazy on entry to Player mode and released on mode
+      exit, mirroring the mb_arena discipline rather than paying the cost at boot.
+    risk: medium
+    test_coverage: []
+    notes: |
+      Several CYD revisions omit pull-ups on the SD lines; start at 4 MHz and only raise after
+      the benchmark is clean. All of this is phase-0 probe output, not design assumption.
+
+  - id: X054
+    feature_a: plmodel-001
+    feature_b: playlist-002
+    interaction_type: dependency
+    description: |
+      pleditView.h absorbs winampDisplay.h's drawPlaylist() wholesale: PLEDIT chrome blit, row
+      layout and truncation, duration column, total-time bottom bar, synthetic scroll thumb,
+      seqno-diff redraw gate, velocity-scroll gesture and the direct-scroll right strip.
+      SpotifyQueueSource wraps copyQueueSnapshot() and forwards the existing poll seqno, so the
+      redraw gate's only contract stays "seqno changes iff content changes".
+    risk: high
+    test_coverage: []
+    notes: |
+      This is the most gesture-tuned code in the project (TASK-051b-f, TASK-277, M-LIST-v4).
+      Extraction must be pixel-identical and eyeballed on the physical LCD (BP-048). Documented
+      fallback if it cannot be: keep the local playlist on its own third renderer.
+
+  - id: X055
+    feature_a: plmodel-001
+    feature_b: webradio-001
+    interaction_type: shared_state
+    description: |
+      WebRadio's independently-evolved PLEDIT copy (station rows, its own drag machine, its own
+      thumb maths, sharing only touch/scrollTuning.h with winampDisplay.h) is deleted and
+      replaced by StationListSource over the shared renderer. The two copies have diverged; the
+      merge must pick one behaviour deliberately per divergence rather than silently inheriting
+      whichever caller lands second.
+    risk: high
+    test_coverage: []
+    notes: |
+      Re-run the T277-family WebRadio PLEDIT scroll suite after this step. A scroll-feel
+      regression here is a real and likely failure mode and will not show up in serial output.
+
+  - id: X056
+    feature_a: player-state-001
+    feature_b: taskbar-icons-001
+    interaction_type: shared_state
+    description: |
+      ADR-059 D6 moves player-mode cycling off the eject button onto the taskbar Winamp icon:
+      tapping the player slot while the player is ALREADY ACTIVE cycles Spotify -> WebRadio ->
+      Player -> Spotify and persists; tapping it from any other app restores the persisted mode
+      (resolvePlayerSlot(), extended from two values to three). This gives the taskbar's
+      active-slot tap a second meaning it has for no other app — a deliberate asymmetry that
+      belongs in the taskbar contract rather than in one app's handler.
+    risk: medium
+    test_coverage: []
+    notes: |
+      g_settings.playerMode already stores a uint8_t, so the SPIFFS schema is unchanged; only
+      the value domain widens. Settings > Applications > Player row must cycle three values.
+      TASK-407 (playerMode reverting between DUT sessions, one occurrence still unexplained) is
+      OPEN but passive as of 2026-08-07: run_serialdbg_tests.py now snapshots `get playerMode` at
+      entry and exit of every run/test* session, and one repro attempt was clean (0/1). Does not
+      block the widening.
+      BUT the debug surface is hardcoded two-valued and fails SILENTLY, not loudly:
+        - main.cpp:3336 (get): `uint8_t pm = g_settings.playerMode ? 1 : 0;` + name = pm ?
+          "WebRadio" : "Spotify" -> reports Player mode as WebRadio(1). The TASK-407
+          instrumentation reads exactly this getter, so it will log confident wrong data for the
+          very bug it exists to catch.
+        - main.cpp:3806-3807 (set): rejects idx > 1 and only accepts "spotify"/"webradio", so
+          Player mode is unreachable from the harness.
+      TASK-413 must widen BOTH in the same commit as the enum change. VE gate: `get playerMode`
+      round-trips all three values.
+
+  - id: X057
+    feature_a: player-state-001
+    feature_b: app-registry-001
+    interaction_type: dependency
+    description: |
+      taskbar.h asserts today that WebRadio is the LAST AppId, because eject-only apps are
+      excluded from the taskbar by occupying the enum tail. A second eject-only mode makes the
+      tail `Settings, WebRadio, LocalPlayer` and TASKBAR_APP_COUNT = (int)AppId::COUNT - 2. The
+      assertion must be rewritten to express "the eject-only tail" instead of naming WebRadio —
+      otherwise a future third eject-only mode silently leaks into the taskbar and null-icon
+      crashes, exactly as TASK-242 / LL-085 did.
+    risk: high
+    test_coverage: []
+    notes: |
+      appRegistry.h edit requires re-running gen_app_registry.py; run/check step [5/5] enforces
+      staleness. Exit criterion 7 is a direct TASK-242 regression check.
+
+  - id: X058
+    feature_a: browse-001
+    feature_b: touch-004
+    interaction_type: dependency
+    description: |
+      The file browser's directory paging and playlist save are multi-tick blocking work, so
+      LocalPlayerApp must override hasPendingAsync() for the shell busy indicator AND
+      isNavigationTap() to except the browser's back/up zone — without the latter the shell's
+      g_shellBusy pre-dispatch gate swallows navigation taps while a page read is in flight.
+    risk: medium
+    test_coverage: []
+    notes: |
+      TASK-384 is the precedent: the identical failure, confirmed on real hardware and not just
+      in the serial harness. NEW-APP-CHECKLIST.md items 1 and 4.
+
+  - id: X059
+    feature_a: pledit-edit-001
+    feature_b: m3u-001
+    interaction_type: dependency
+    description: |
+      Edit operations mutate only the RAM index (reorder = permute two uint32 offsets, delete =
+      memmove, add = staged entry in a bounded arena); nothing reaches the card until SAVE,
+      which streams the index in order into <name>.m3u.tmp and renames. Staged entries have no
+      backing offset yet, so the writer must emit them from the staging arena rather than by
+      seeking the source file — a case the naive copy loop gets silently wrong (drops the added
+      tracks while reporting success).
+    risk: medium
+    test_coverage: []
+    notes: |
+      Round-trip verification is host-side: write from the device, pull the file off the card,
+      diff against the expected order. Do not verify save by re-reading through the same index
+      that produced it.
+
+  # ── M-WINAMP-PLAYER shuffle/repeat amendment (Architect, 2026-08-07) ───────
+  # Design §4.8/§4.9, ADR-059 D8/D9.
+
+  - id: X060
+    feature_a: playorder-001
+    feature_b: chrome-001
+    interaction_type: dependency
+    description: |
+      playorder-001 reuses chrome-001's shipped assets and render path VERBATIM: the SKIN_SHUFREP
+      75x30 atlas (SR_SHUFFLE_ON/OFF, SR_REPEAT_ON/OFF), drawShuffle()/drawRepeat() at SHUFFLE_X=164
+      / REPEAT_X=211, hitShuffle()/hitRepeat(), and the SHUFREP_OPTIMISTIC_HOLD_MS cache. No bake,
+      no crop, no new sprite. Player's binary repeat is encoded inside chrome-001's existing
+      tri-state domain (emits only 2=off and 0=repeat-all) so drawRepeat()'s `s != 2 -> ON` rule is
+      byte-for-byte unchanged and Spotify's 2->1->0->2 cycle is unaffected.
+    risk: low
+    test_coverage: []
+    notes: |
+      The constraint runs the other way too: chrome-001's repeat sprite pair is now shared by two
+      modes with different state domains. Anyone adding a third repeat state (repeat-one) must add a
+      synthetic glyph rather than a fifth sprite — the atlas is packed 75x30 and its geometry is
+      baked into skin_layout.h.
+
+  - id: X061
+    feature_a: playorder-001
+    feature_b: webradio-001
+    interaction_type: shared_state
+    description: |
+      The capability mask (ADR-059 D8) rewrites handleWinampInput()'s "Spotify-only zones"
+      hardcoding — the same hardcoding that forced WebRadio's handleVolumeGesturePublic() narrow
+      entry point to exist. WebRadio advertises CAP_TRANSPORT only, so it must render and hit-test
+      exactly the zones it does today and no more. This is a pure refactor for WebRadio; any
+      behavioural delta is a regression, not a feature.
+    risk: high
+    test_coverage: []
+    notes: |
+      Exit criterion 5b is the check. handleVolumeGesturePublic() can be retired once the mask lands
+      — but retire it deliberately in its own commit, not as a side effect: it is shared state with
+      the D_VOLUME_DRAG machine (TASK-352) and WebRadio's volume-drag path already cost TASK-406 a
+      missing-log-line bug.
+
+  - id: X062
+    feature_a: playorder-001
+    feature_b: plmodel-001
+    interaction_type: shared_state
+    description: |
+      Shuffle permutes playOrder[] ONLY. viewOrder[] — what PLEDIT renders and what SAVE writes —
+      is never touched by shuffle, and reorder never touches playOrder (dragging a row must not make
+      the playback queue jump). Delete must drop the entry id from BOTH permutations and fix the bag
+      cursor if it pointed past the removed slot; add appends to both so a newly added track plays
+      this cycle. Tap-to-play moves the bag cursor to that entry's position in playOrder (O(N) scan)
+      rather than reshuffling.
+    risk: high
+    test_coverage: []
+    notes: |
+      The destructive failure this split exists to prevent: shuffle ON + reorder + SAVE writing
+      SHUFFLED order to the card, silently destroying the user's playlist. Exit criterion 5a
+      verifies it host-side, from the card — not by re-reading through the same structure that
+      produced the write.
+
+  - id: X063
+    feature_a: playorder-001
+    feature_b: localplay-001
+    interaction_type: resource_contention
+    description: |
+      Auto-advance is driven by the audio_eof_mp3() weak callback, which the vendored ESP32-audioI2S
+      declares but nothing in this firmware currently implements. It fires on the AUDIO PUMP TASK,
+      from inside Audio::loop(), while the engine mutex is held. It may therefore only set a flag;
+      the actual open-next-track work (SD read, playlist model, display update) runs on loopTask's
+      next tick. Calling connecttoFS() from the callback re-enters the engine mutex from the task
+      that already holds it — self-deadlock.
+    risk: high
+    test_coverage: []
+    notes: |
+      Same single-writer/post-a-request discipline as the existing wrPumpConnect path (TASK-398) and
+      the X043/X044/X048 audio_process_extern edges. Reuse that pattern; do not invent a second one.
+      Note also that audio_eof_mp3 is the natural place a naive implementation would advance the
+      shuffle bag — the bag lives in loopTask-owned state and must not be mutated from the pump task.
+
+  - id: X064
+    feature_a: player-state-001
+    feature_b: app-registry-001
+    interaction_type: dependency
+    description: |
+      ADR-059 D10 makes the three player modes compile-time optional via presence flags
+      (-DPLAYER_SPOTIFY / -DPLAYER_WEBRADIO / -DPLAYER_LOCAL, never =0 per LL-006), removing an
+      absent mode's appRegistry.h row, object and header. Four consequences do NOT fall out
+      automatically: (1) mode cycling must iterate the compiled-in set — a single-mode build must not
+      cycle; (2) a persisted g_settings.playerMode naming an absent mode must fall back to the first
+      compiled-in mode, or resolvePlayerSlot() returns a null app = boot crash; (3) TASKBAR_APP_COUNT
+      must be computed from the compiled-in enum tail, not a literal; (4) Settings > Applications >
+      Player lists only compiled-in modes.
+    risk: high
+    test_coverage: []
+    notes: |
+      Consequence (2) is the dangerous one: it only triggers on a variant reflash over an existing
+      settings.json, so it will not show up in a clean-flash test. Exercise it deliberately.
+      Build-matrix cost is deliberately bounded: ONE new dev env (cyd2usb_player, Player only),
+      mirroring the existing cyd2usb_webradio precedent — check_build.sh gates go 6 -> 7, not 6 -> 13.
+      A full 2^3 matrix is explicitly rejected. Existing -DDISABLE_SPOTIFY stays as-is (load-bearing
+      for the harness's `get variant` fast path); do not migrate it in this milestone.
