@@ -8329,12 +8329,18 @@ build variants, registry, test-family map) over four workstreams —
 [local-playback](../architecture/designs/M-WINAMP-PLAYER-local-playback.md).
 Decision: [ADR-059](../architecture/decisions/ADR-059.md).
 
-> **⛔ SECTION GATE — ADR-059 is `proposed`, not `accepted`.** Eleven decisions await human sign-off.
-> Per `architect.md`, `proposed → accepted` needs the human. **No task below starts until that
-> happens.** Filed now so the breakdown is reviewable alongside the ADR, not to authorise work.
-> The two decisions worth pushing back on hardest are **D1** (SD phase-0 as a hard gate, milestone
-> closes on failure) and **D3** (the two-permutation playlist model) — everything downstream leans
-> on them.
+> **✅ GATE CLEARED — ADR-059 accepted 2026-08-07** (human sign-off, all thirteen decisions).
+> Implementation is authorised. All five design docs are `accepted`. Three constraints ride with
+> acceptance and are **not** renegotiable at implementation time without a new ADR:
+>
+> 1. **TASK-423 runs first** — the reclaim, before anything spends the 304 B of debug headroom.
+> 2. **D13's ≥3-run baselines must be captured BEFORE TASK-409, 412 and 417 land.** That is DUT time
+>    *ahead of* the refactors, not concurrent with them. Scheduling this late is the one way to
+>    invalidate the milestone's main safety property.
+> 3. **D2's move stays a move** — no behavioural hunks in the extraction commit.
+>
+> Acceptance does **not** pre-approve D1's outcome: TASK-408 remains a genuine gate, and a failing
+> probe closes the milestone with a hardware note rather than triggering a redesign.
 
 **Execution order is NOT numeric.** TASK-423 runs **first** (it was added after the range was
 drafted; renumbering would invalidate the just-committed design docs and their cross-references).
@@ -8425,8 +8431,7 @@ skin/settings/config ≈ one track). **Do not retune the bar to fit the hardware
 **Owner:** Developer · **Deps:** none · **Gate:** `T_SD_01`–`09`; `T_SD_02` (GPIO5 is a strapping
 pin — 5 cold boots with a card inserted, boot-loop class risk) and `T_SD_08` (20 mount/unmount
 cycles leak-free, because mount is lazy per mode entry) are the two easily skipped ·
-**Priority:** P1 (gates TASK-410 and all of workstream 4) · **Status:** OPEN — blocked on ADR-059
-sign-off (D1). Prerequisite: visually confirm the slot is populated before writing code.
+**Priority:** P1 (gates TASK-410 and all of workstream 4) · **Status:** **READY** — ADR-059 accepted 2026-08-07 (D1). Prerequisite: visually confirm the slot is populated before writing code.
 
 ### TASK-409 — extract the audio engine to `audio/audioEngine.h` (PURE MOVE)
 
@@ -8446,8 +8451,7 @@ behaviour makes any regression undiagnosable.
 `T_AE_01`–`06`. `T_AE_01` re-runs WebRadio's **existing** suite unchanged and compares failure
 **sets**, not counts (LL-104) — **baseline it before the extraction lands or there is nothing to
 compare to**. `T_AE_03` requires a **full-length** `./run/wr-soak`; a short soak has given false
-confidence on precisely this code before · **Priority:** P2 · **Status:** OPEN — blocked on ADR-059
-sign-off (D2).
+confidence on precisely this code before · **Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07 (D2).
 
 ### TASK-410 — drop `-DAUDIO_NO_SD_FS`, implement `connect(FILE)`, play one file
 
@@ -8466,7 +8470,7 @@ already holding the mutex: self-deadlock. Drain the flag on loopTask's next tick
 cheap and falsifies this workstream's biggest assumption — arena HWM after file playback must still
 be **23 216 B** (the same nine Helix structs as the stream path); if it differs, "no new decoder" is
 wrong and `mem_manifest.yaml` needs revisiting. `T_AE_08` re-derives `.dram0.bss` headroom from a
-fresh map · **Priority:** P2 · **Status:** OPEN — blocked on ADR-059 sign-off + TASK-408.
+fresh map · **Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07; gated on TASK-408 passing.
 
 ### TASK-411 — extract `pleditView.h`, Spotify caller only
 
@@ -8488,7 +8492,7 @@ only implementation in the tree.
 **Owner:** Developer (Architect consult) · **Deps:** none · **Gate:** `T_PLE_01`–`06` —
 pixel-identical via `run/screendump` diff across ≥5 states. Known limitation: screendump **cannot
 capture live navigated app state** (DTR-resets on connect), so reach states by serial injection ·
-**Priority:** P2 · **Status:** OPEN — blocked on ADR-059 sign-off (D4).
+**Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07 (D4).
 
 ### TASK-412 — WebRadio as the second caller (`StationListSource`)
 
@@ -8503,8 +8507,7 @@ traded for deduplication — **do not relax the test to make it pass.**
 gate on the physical LCD** (BP-048): pixel-identity does not imply feel-identity, timing and gesture
 thresholds do not appear in a screenshot, and this is the code TASK-277 was spent tuning.
 `T_PLE_13` is a tripwire — one renderer replacing two must be a **negative** flash delta; a positive
-one means the old path was not deleted · **Priority:** P2 · **Status:** OPEN — blocked on ADR-059
-sign-off.
+one means the old path was not deleted · **Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07.
 
 ### TASK-413 — `AppId::LocalPlayer`, three-valued mode, taskbar-icon cycling, taskbar assertion
 
@@ -8530,7 +8533,7 @@ unwidened it would log confident wrong data for the very bug it exists to catch.
 
 **Owner:** Developer · **Deps:** TASK-410, TASK-412 · **Gate:** `T_PLR_01`–`05`; `T_PLR_03` is the
 TASK-242 regression check, `T_PLR_04` requires `get`/`set playerMode` to round-trip all three
-values · **Priority:** P2 · **Status:** OPEN — blocked on ADR-059 sign-off (D6/D7). Related:
+values · **Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07 (D6/D7). Related:
 TASK-407 (OPEN, passive) tracks an unexplained flip of this exact field — does **not** block, but
 see TASK-422's `T_PLR_36`.
 
@@ -8545,7 +8548,7 @@ Accepted UX break: eject has meant "switch to radio" since M-WEBRADIO shipped. O
 call; recorded so it is not later mistaken for a regression.
 
 **Owner:** Developer · **Deps:** TASK-413 · **Gate:** `T_PLR_06`–`07` · **Priority:** P2 ·
-**Status:** OPEN — blocked on ADR-059 sign-off (D6).
+**Status:** **READY** — ADR-059 accepted 2026-08-07 (D6).
 
 ### TASK-415 — `m3u.h` + index model + read-only `LocalPlaylistSource`
 
@@ -8562,8 +8565,7 @@ instance's members in `.bss`. Acquire in `resume()`, free in `suspend()`. Regist
 
 **Owner:** Developer · **Deps:** TASK-410, TASK-413 · **Gate:** `T_PLR_08`–`12`; `T_PLR_11` covers
 malformed input (truncated, missing `#EXTINF`, CRLF, BOM), `T_PLR_12` requires the heap delta to
-return to baseline ±256 B on suspend · **Priority:** P2 · **Status:** OPEN — blocked on ADR-059
-sign-off (D3).
+return to baseline ±256 B on suspend · **Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07 (D3).
 
 > **Blocking sub-decision (OQ1):** M3U and ID3 are UTF-8; PLEDIT renders TFT_eSPI Font 1 (GLCD,
 > ASCII). Needs a shared transliterate-then-substitute helper — the Spotify path has the same latent
@@ -8586,7 +8588,7 @@ first, then `.mp3`/`.m3u`, natural FAT order, no sort buffer. Tap file → play;
 1 and 4 apply directly: `hasPendingAsync()` true while a page read or save is in flight, and
 `isNavigationTap()` **must** except the browser back/up zone or the shell busy gate swallows
 navigation taps — TASK-384 is the precedent, confirmed on real hardware, not just in the harness ·
-**Priority:** P2 · **Status:** OPEN — blocked on ADR-059 sign-off.
+**Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07.
 
 ### TASK-417 — transport capability mask: un-gate shuffle, repeat and seek
 
@@ -8606,7 +8608,7 @@ shares the `D_VOLUME_DRAG` machine (TASK-352) and WebRadio's volume path already
 **Owner:** Developer (Architect consult) · **Deps:** TASK-412, TASK-413 · **Gate:**
 `T_PLR_17`–`19`. `T_PLR_17`/`18` protect two shipped modes from a refactor they get no benefit from
 — any WebRadio or Spotify delta here is a regression, not a feature · **Priority:** P2 ·
-**Status:** OPEN — blocked on ADR-059 sign-off (D8).
+**Status:** **READY** — ADR-059 accepted 2026-08-07 (D8).
 
 ### TASK-418 — play-order engine: shuffle bag, repeat, auto-advance
 
@@ -8627,7 +8629,7 @@ and must never be mutated from the pump task.**
 
 **Owner:** Developer · **Deps:** TASK-415, TASK-417 · **Gate:** `T_PLR_20`–`26`; `T_PLR_21` is all
 four cells 4/4, `T_PLR_22` is 0/20 collisions over 20 wrap cycles · **Priority:** P2 ·
-**Status:** OPEN — blocked on ADR-059 sign-off (D9).
+**Status:** **READY** — ADR-059 accepted 2026-08-07 (D9).
 
 ### TASK-419 — real posbar seek for local files
 
@@ -8638,7 +8640,7 @@ real duration — not WebRadio's estimated slew (M-WEBRADIO-POSBAR-SLEW/SMOOTH),
 
 **Owner:** Developer · **Deps:** TASK-417 · **Gate:** `T_PLR_27`–`28` — ±2 s of target at 25/50/75 %,
 and 20 scrubs during playback with no underrun or decoder reinit failure · **Priority:** P3 ·
-**Status:** OPEN — blocked on ADR-059 sign-off.
+**Status:** **READY** — ADR-059 accepted 2026-08-07.
 
 ### TASK-420 — PLEDIT edit mode: button strip, reorder, delete
 
@@ -8653,7 +8655,7 @@ jump), delete memmoves `viewOrder` **and** drops the id from `playOrder`, fixing
 pointed past the removed slot.
 
 **Owner:** Developer · **Deps:** TASK-415, TASK-417 · **Gate:** `T_PLR_29`, `T_PLR_34` ·
-**Priority:** P2 · **Status:** OPEN — blocked on ADR-059 sign-off (D5).
+**Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07 (D5).
 
 > **Blocking sub-decision (OQ2):** does `bake_skin.py`'s `build_pledit_atlas()` already crop
 > ADD/REM/SEL/MISC/LIST from `PLEDIT.BMP`? If not: bake-tool change + new `skin_layout.h` constants
@@ -8674,7 +8676,7 @@ duration — deliberate and visible, not a background write.
 are verified host-side, off the card** — shuffle ON + reorder + SAVE must write **display** order,
 and staged adds must survive. Both have failure modes where the device confidently reports success;
 **never verify a save by re-reading through the structure that produced it** ·
-**Priority:** P2 · **Status:** OPEN — blocked on ADR-059 sign-off.
+**Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07.
 
 ### TASK-422 — build variants, soak, VE suite, registry completion
 
@@ -8696,4 +8698,4 @@ Close-out: complete the reserved `feature_inventory.yaml` entries and X050–X06
 **`T_PLR_36` is the dangerous one** — a persisted mode naming a compiled-out mode must fall back,
 not null-app-crash, and it is only reproducible over *existing* settings: **a clean flash will not
 catch it** (X064). `T_PLR_39` is ≥30 min playback **with concurrent browsing and scrolling**, not
-idle playback · **Priority:** P2 · **Status:** OPEN — blocked on ADR-059 sign-off (D10).
+idle playback · **Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07 (D10).

@@ -2358,7 +2358,7 @@ features:
   # ── M-WINAMP-PLAYER reservations (Architect, 2026-08-07) ──────────────────
   # Reserved at design time per architect.md responsibility #10 — minimal entries,
   # completed by Developer at implementation. Design: designs/M-WINAMP-PLAYER.md.
-  # Decision: ADR-059 (proposed). ALL of these are gated on sdfs-001 phase 0.
+  # Decision: ADR-059 (ACCEPTED 2026-08-07). ALL of these are gated on sdfs-001 phase 0 (TASK-408).
 
   - id: sdfs-001
     name: SD card filesystem (VSPI mount + probe)

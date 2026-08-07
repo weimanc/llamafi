@@ -164,6 +164,16 @@ uses the ref-counted `tlsYield()`/`tlsResume()` protocol (BP-031 lineage).
 
 ## Open Questions
 
+- **M-WINAMP-PLAYER (ADR-059, accepted 2026-08-07)** — accepted but **not yet implemented**, so
+  nothing below is reflected in the sections above yet. Introduces a system-owned audio engine
+  (`audio/audioEngine.h`, extracted from `webRadioApp.h`), a single PLEDIT renderer behind a
+  `PlaylistSource` interface (collapsing the two existing copies), a three-valued player mode with
+  SD-backed local MP3 playback, and a per-mode transport capability mask replacing the
+  "Spotify-only zones" hardcoding in `handleWinampInput()`. Three of its four workstreams do not
+  depend on the SD card. **Gated on TASK-408**: the micro-SD slot has never been mounted by this
+  firmware, and a failing probe closes the milestone rather than triggering a redesign. This entry
+  moves into Component Architecture / Component Interfaces once VE signs off the implementation.
+
 - **Settings wiring remediation** — M-SETTINGS-WIRE2 (accepted ADR-050 dependency) and
   M-HOME-LOCATION, M-WEBRADIO-SETTINGS drafts awaiting review/scheduling.
 - **Spotify Premium lapse (TASK-243, external)** — live-playback-state paths untestable

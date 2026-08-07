@@ -1,7 +1,7 @@
 # Design — M-AUDIO-ENGINE: extract the audio engine from WebRadio
 
 > Owner: Architect
-> Status: draft
+> Status: **accepted 2026-08-07** (ADR-059 signed off; implementation authorised)
 > Date: 2026-08-07
 > Parent: [M-WINAMP-PLAYER.md](M-WINAMP-PLAYER.md) (workstream 2 of 4)
 > Feeds: ADR-059 D2

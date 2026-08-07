@@ -1314,10 +1314,15 @@ and 3 984 B flash; flash sits at 68.7 % of `app0` with ~821 KB free. Local playb
 TLS, so it is the cheapest of the three player modes at runtime. The Helix MP3 decoder and
 `mb_arena` are reused unchanged — there is no second decoder and no new codec work.
 
-**Status:** FILED, NOT STARTED — **blocked on human sign-off of ADR-059** (`proposed`, eleven
-decisions). The two worth pushing back on hardest: **D1**, SD phase-0 as a hard gate with the
-milestone closing on failure (SPIFFS is not an accepted fallback), and **D3**, the
-two-permutation playlist model. Filed 2026-08-07; design set committed `a8d0369`.
+**Status:** **SCHEDULED — ADR-059 accepted 2026-08-07** (human sign-off, thirteen decisions;
+D7 was corrected and D12/D13 added from the VE and Developer reviews before sign-off). All five
+design docs `accepted`; implementation authorised. Filed 2026-08-07; design set `a8d0369`,
+reviews `44a6ef3`, review fold-in `d503739`.
+
+Execution order is not numeric: **TASK-423 first** (DRAM reclaim), then 408 (SD gate), then
+409/411 (the two SD-independent refactors). D13's ≥3-run behaviour-neutrality baselines must be
+captured on the DUT **before** TASK-409, 412 and 417 land. Acceptance does not pre-approve D1's
+outcome — a failing probe closes the milestone with a hardware note.
 **Deps:** none (workstreams 2 and 3); TASK-408 gates the rest.
 **Design:** [M-WINAMP-PLAYER.md](../architecture/designs/M-WINAMP-PLAYER.md) (umbrella) ·
 **Decision:** [ADR-059](../architecture/decisions/ADR-059.md) ·

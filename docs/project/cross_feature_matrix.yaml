@@ -1090,7 +1090,7 @@ interactions:
 
   # ── M-WINAMP-PLAYER reservations (Architect, 2026-08-07) ──────────────────
   # Reserved at design-acceptance per architect.md #10 / designs/M-WINAMP-PLAYER.md §Registers.
-  # Decision: ADR-059 (proposed). Descriptions + risk from the design; test_coverage empty
+  # Decision: ADR-059 (ACCEPTED 2026-08-07). Descriptions + risk from the design; test_coverage empty
   # until VE lands the suite. Developer completes/corrects these at implementation.
 
   - id: X050
