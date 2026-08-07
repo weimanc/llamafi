@@ -7939,6 +7939,16 @@ def main():
         dut.cmd("help", timeout=4.0)
     except Exception:
         pass
+    # TASK-407: playerMode was observed flipping Spotify->WebRadio between DUT
+    # sessions with no traced mutation path. Neither boundary (post-boot vs.
+    # pre-shutdown) had a snapshot before this, so a flip could only be caught
+    # by manually diffing separate sessions' logs after the fact. Printing it
+    # at both ends of every run closes that gap going forward.
+    try:
+        pm = dut.cmd("get playerMode", timeout=3.0)
+        print(f"[TASK-407] entry playerMode: {pm.get('name')} ({pm.get('val')})")
+    except TimeoutError:
+        print("[TASK-407] entry playerMode: timeout")
     print(f"Connected. Running: {selected}\n")
     print("NOTE: T089 (production ELF check) is a host build test — not here.")
     skip_notice = [t for t in selected if t in _interactive_tests and not args.interactive]
@@ -7974,6 +7984,13 @@ def main():
         except Exception as e:
             fail(tid, f"Exception: {e}")
         time.sleep(0.5)
+
+    # TASK-407: see entry snapshot above for rationale.
+    try:
+        pm = dut.cmd("get playerMode", timeout=3.0)
+        print(f"[TASK-407] exit playerMode: {pm.get('name')} ({pm.get('val')})")
+    except TimeoutError:
+        print("[TASK-407] exit playerMode: timeout")
 
     dut.close()
 

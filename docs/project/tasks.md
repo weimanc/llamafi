@@ -8274,11 +8274,29 @@ this task's actual mystery.
   resurface. Pure speculation; not verified against SPIFFS/LittleFS's actual write-durability
   guarantees on this hardware.
 
-**Not yet tried:** deliberately reproducing the sequence (targeted-test session ending clean →
-immediately re-run a full suite with no intervening action) to see if occurrence #2 repeats. If it
-does, add a `get playerMode` snapshot immediately post-boot and immediately pre-shutdown to every
-`run/test*` script (cheap, mirrors the `_diag_snapshot()` precedent from TASK-385/386) to narrow
-down which of the two boundary points is lying.
+**Instrumentation landed (2026-08-07):** `run_serialdbg_tests.py` now prints a `[TASK-407] entry
+playerMode:` / `[TASK-407] exit playerMode:` line (via `get playerMode`) right after connect and
+right before `dut.close()` — covers `run/test`, `run/test-targeted`, and `run/test-smoke` (all
+three share this runner). Mirrors the `_diag_snapshot()` precedent from TASK-385/386. Not added to
+`run/test-sync` (separate `run_sync_tests.py` runner; occurrence #2 never implicated it — revisit
+if a future flip does).
+
+**Reproduction attempt (2026-08-07):** ran the exact sequence from the "not yet tried" note —
+`run/test-targeted T079,T082` (clean, non-touching) → immediately `run/test` (full suite, no
+manual action between) → immediately another `run/test-targeted T079,T082`. Three boundary
+snapshots, all explained:
+1. Targeted #1: entry `WebRadio(1)`, exit `WebRadio(1)` — unchanged, as expected (neither test
+   touches it).
+2. Full suite: entry `WebRadio(1)` (correctly carried over) → exit `Spotify(0)` — this flip is the
+   suite's *own* WebRadio tests + end-of-run teardown resetting it, not a mystery.
+3. Targeted #2: entry `Spotify(0)` (correctly carried over from #2's teardown), exit `Spotify(0)`
+   unchanged. **No unexplained flip.** 0/1 repro on this attempt.
+
+Consistent with `feedback_isolated_rerun_vs_suite_state` — a single clean pass doesn't rule out a
+suite-order-dependent trigger. The instrumentation now stays live permanently, so the next time
+occurrence #2's pattern shows up in the wild (in any `run/test`/`run/test-targeted`/`run/test-smoke`
+session) it'll be caught in that session's own log instead of requiring after-the-fact reasoning
+across separate sessions.
 
 **Process note (not this task, but adjacent):** occurrence #3 above suggests manual DUT `set`
 commands used for one-off verification should default to resetting any test-only overrides
@@ -8290,5 +8308,6 @@ than a firmware gap.
 **Owner:** unassigned · **Deps:** none · **Priority:** P4 (cosmetic-adjacent — self-heals via the
 suite's own end-of-run reset every time it's been observed; the actual risk is only ever a wasted
 T077-T082 run if caught mid-suite, which TASK-406's fixes now make harmless either way) ·
-**Status:** **OPEN — filed, not investigated.** Reproduction attempt is the concrete next step
-whenever DUT time is free and low-stakes.
+**Status:** **OPEN — instrumented, one repro attempt clean (0/1).** Passive: instrumentation now
+catches the flip automatically in any future `run/test*` session's own log; no active follow-up
+needed until it resurfaces.
