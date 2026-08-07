@@ -7944,11 +7944,16 @@ def main():
     # pre-shutdown) had a snapshot before this, so a flip could only be caught
     # by manually diffing separate sessions' logs after the fact. Printing it
     # at both ends of every run closes that gap going forward.
+    # Guard broadly, not just TimeoutError: read_json() swallows JSON decode
+    # errors, but ser.readline() can still raise SerialException on a CH340
+    # flap. This snapshot runs before the first test, so anything escaping here
+    # aborts the whole suite instead of dropping one diagnostic line. Same
+    # defensive style as the `help` probe directly above.
     try:
         pm = dut.cmd("get playerMode", timeout=3.0)
         print(f"[TASK-407] entry playerMode: {pm.get('name')} ({pm.get('val')})")
-    except TimeoutError:
-        print("[TASK-407] entry playerMode: timeout")
+    except Exception as e:
+        print(f"[TASK-407] entry playerMode: unavailable ({type(e).__name__})")
     print(f"Connected. Running: {selected}\n")
     print("NOTE: T089 (production ELF check) is a host build test — not here.")
     skip_notice = [t for t in selected if t in _interactive_tests and not args.interactive]
@@ -7989,8 +7994,8 @@ def main():
     try:
         pm = dut.cmd("get playerMode", timeout=3.0)
         print(f"[TASK-407] exit playerMode: {pm.get('name')} ({pm.get('val')})")
-    except TimeoutError:
-        print("[TASK-407] exit playerMode: timeout")
+    except Exception as e:
+        print(f"[TASK-407] exit playerMode: unavailable ({type(e).__name__})")
 
     dut.close()
 
