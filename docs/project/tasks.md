@@ -5926,7 +5926,8 @@ skin/settings/config ≈ one track). **Do not retune the bar to fit the hardware
 
 **Owner:** Developer · **Deps:** none · **Gate:** `T_SD_01`–`09` ·
 **Priority:** P0 (blocks its own gate; was P1 gating TASK-410/workstream 4) ·
-**Status:** **GATE FAILED — DUT-measured (2026-08-07), pending one card-swap retest before close.**
+**Status:** **GATE PASSED on read performance (2026-08-07)** — after two defects were fixed. One
+sub-criterion, `T_SD_06`, fails structurally and needs an Architect call; see below.
 
 **The earlier BLOCKED finding was a misdiagnosis and is withdrawn.** There is no runtime heap
 corruption and no concurrency defect. `esp_vfs_fat_register()` returns `ESP_ERR_NO_MEM` from two
@@ -5958,45 +5959,77 @@ that is the design, not a workaround. It is also cheap to make robust: `max_file
 not a throughput knob, and 2 slots is the minimum that walks a directory (`openNextFile()` in a
 `for`-increment opens the next entry before destroying the current File, so one slot is not enough).
 
-**Gate results.** Every number below is DUT-measured on `cyd2usb_winamp_debug`, card inserted,
-display actively redrawing, `spotifyTask`/`dataTask` live.
+**Second defect — SDHC cards are misdetected and cannot mount (fixed, PATCH-SD-1).** The card-swap
+retest did not start with a benchmark; the new 30 GB SDHC card would not mount at all:
+`f_mount failed: (13) There is no valid FAT volume`, while the 2 GB SDSC card in the same slot was
+fine. `ff_sd_initialize()` types the card **solely** from OCR bit 30 (CCS) after ACMD41, and that bit
+reads 0 here — so the card was typed `CARD_SD` (byte-addressed) and every read issued `sector << 9`
+as a byte address to a card that expects block numbers.
 
-| id | bar | measured | verdict |
-|---|---|---|---|
-| `T_SD_01` mount | OK | OK — SDSC, 1 910 MB card, 1 907 MB FAT volume | **PASS** |
-| `T_SD_02` GPIO5 strapping | no boot loop | ~15 `rst:0x1 (POWERON_RESET)` boots with card inserted, all clean | **PASS** |
-| `T_SD_03` LFN round-trip | exact | `lfnOk=true`; `sdls` reads `14 - Clint Eastwood (Ed Case & Sweetie Irie Refix).mp3` intact | **PASS** |
-| `T_SD_04` sustained read | **≥200 KB/s** | **34.1 KB/s** (2 558 976 B in 73 216 ms, 5 000 reads) | **FAIL — 5.9× under** |
-| `T_SD_05` worst read latency | **≤50 ms** | **113.9 ms** (p50 0.25 ms, p99 113.9 ms) | **FAIL — 2.3× over** |
-| `T_SD_06` `SD.begin()` heap delta | **≤8 KB** | **15 300 B** at 2 slots, **11 164 B** at 1 slot | **FAIL — structural, see above** |
-| `T_SD_08` 20 mount/unmount cycles | leak-free | 8 B total drift across 20 cycles (constant, not per-cycle) | **PASS** |
-| `listDir()` 200 files | (timing) | **18 552 ms** — 93 ms/entry | unusable for `browse-001` |
+It hides well, because the one sector that still works is the one you check first: **address 0 is
+identical under both addressing modes**, so sector 0 returned a perfectly valid MBR (`0x55AA`,
+partition type `0x0C` FAT32-LBA, start LBA 63) and only sector 63 was garbage. Init completed with
+**no warnings at `CORE_DEBUG_LEVEL=2`** — every `log_w`/`goto unknown_card` path was skipped.
 
-**Why it is slow.** Not bandwidth. The cost is a fixed ~110 ms per *physical* 4 KB read that barely
-moves across a 50× SPI clock sweep — 400 kHz → 199.9 ms, 1 MHz → 142.9 ms, 4 MHz → 114.9 ms,
-8 MHz → 109.9 ms, 20 MHz → 107.9 ms. At 20 MHz the transfer itself is ~1.6 ms, so ~106 ms is
-overhead. `sdReadBytes()` fails a block on **CRC16 mismatch** and `sdReadSectors()` retries, so the
-link is completing reads only after repeated retries. The latency histogram is bimodal with nothing
-in between: 4 362 buffered hits ≤250 µs and 638 physical reads >100 ms, no middle bucket.
+The evidence is a self-contradiction inside the same init: `sdGetSectorsCount()` reads the CSD and
+takes the `(csd[0] >> 6) == 0x01` branch — **CSD structure v2.0, defined only for SDHC/SDXC** —
+returning a correct 60 733 440 sectors (29 655 MB). A byte-addressed `CARD_SD` cannot exceed 2 GB, so
+the OCR type and the CSD capacity cannot both be right. Deterministic: 5 consecutive cold inits,
+byte-identical garbage at sector 63.
 
-Playback concurrency is **not** a factor: the same benchmark under a live WebRadio stream measured
-35.4 KB/s / 114.91 ms against 35.5 KB/s / 114.90 ms idle.
+Fixed by vendoring the framework `SD` library into `app/lib/SD/` (the pattern `WiFiClientSecure`
+already uses) and promoting `CARD_SD` → `CARD_SDHC` when the CSD reports v2 — narrow by
+construction, and a genuine SDSC card (CSD v1) takes exactly its previous path. Full rationale in
+`app/lib/SD/LOCAL_PATCHES.md`. **Re-apply on any `platform = espressif32` bump.**
 
-**Before this closes as a hardware negative, one variable is untested: the card.** It is a 2 GB
-**SDSC** (`CARD_SD`, not SDHC) — the oldest and slowest class the driver supports, carrying 585 MB
-of unrelated content. Every measured symptom (CRC retries, clock-independent per-transaction cost)
-is equally consistent with a marginal card and with marginal board wiring, and swapping in a modern
-SDHC card is the one cheap test that separates them. It needs physical access, so it is the human's
-call. **Do not close TASK-408 or cut the milestone until that retest is done or explicitly waived.**
+**SPI clock is now 20 MHz, not the 4 MHz the bring-up plan assumed.** On the SDHC card 4 MHz
+reproducibly panics inside FatFs mid-read (2/2 runs) while 20 MHz is clean (3/3) and ~40× faster.
+Card identification always runs at 400 kHz inside the library regardless, and the library caps the
+data clock at 25 MHz.
 
-**Also found, out of scope but recorded.** Sustained writes to a single open file are unreliable on
-this card and can panic the firmware: `f_write()` → `validate()` faults `LoadProhibited` because
-`obj->fs` reads NULL immediately after `ff_req_grant()` returns, and one truncated-then-reopened
-file reported a **1 073 678 476 B** size. Short open/write/close bursts are fine — 200 fixture files
-and 32 KB appends both complete cleanly at ~265 KB/s. M-SDFS phase-0 is read-only so nothing depends
-on this, but **any future write path must be treated as unproven**. The first crash seen here was a
-different bug and is fixed: the probe fed the task watchdog every 20 files / 64 KB, which a 93 ms/op
-bus overruns outright.
+**Gate results.** Every number below is DUT-measured on `cyd2usb_winamp_debug`, display actively
+redrawing, `spotifyTask`/`dataTask` live, reading files copied onto the card by the host.
+
+| id | bar | 2 GB SDSC @4 MHz | 30 GB SDHC @20 MHz | verdict |
+|---|---|---|---|---|
+| `T_SD_01` mount | OK | OK | OK | **PASS** |
+| `T_SD_02` GPIO5 strapping | no boot loop | ~15 `rst:0x1` boots, clean | clean | **PASS** |
+| `T_SD_03` LFN round-trip | exact | `lfnOk=true` | long names read intact | **PASS** |
+| `T_SD_04` sustained read | **≥200 KB/s** | 34.1 KB/s | **1 380.8 KB/s** (2 555 904 B / 1 807 ms) | **PASS — 6.9× over** |
+| `T_SD_05` worst read latency | **≤50 ms** | 113.9 ms | **3.70 ms** (p50 0.25) | **PASS — 13× margin** |
+| `T_SD_06` `SD.begin()` heap delta | **≤8 KB** | 15 300 B | 15 300 B (11 164 B at 1 slot) | **FAIL — structural** |
+| `T_SD_08` 20 mount/unmount cycles | leak-free | 8 B total drift | 8 B total drift | **PASS** |
+| directory walk | (timing) | 93 ms/entry | **10.6 ms/entry** (52 entries / 549 ms) | usable for `browse-001` |
+
+Read latency is now tightly bimodal and clean: 4 376 buffered hits ≤250 µs and 624 physical 4 KB
+reads all landing in the 2–4 ms bucket, nothing above.
+
+**`T_SD_06` is the one open item and it is not about the card.** 15 300 B at 2 open-file slots
+against an ≤8 KB bar, driven entirely by `FF_MAX_SS=4096` in the *precompiled* IDF FATFS — not
+tunable from this project. Dropping to 1 slot gives 11 164 B, still over, and 1 slot cannot walk a
+directory. The choices are to accept ~15 KB as the cost of an SD mount on this platform, to rebuild
+the IDF with a smaller sector size, or to move to `esp_vfs_fat_sdspi_mount` (the `sdmmc` driver is
+already linked). **Architect call — the bar was not retuned.**
+
+**The old card was never the problem.** It reads at 9.5 MB/s on a host PC. Its 34 KB/s here was the
+same class of driver-level issue, and both cards now read fine given a correct card type and clock.
+
+**Open defect — the write path is broken, and it is card-independent.** Sustained writes to a single
+open file panic the firmware: `f_write()` → `validate()` faults `LoadProhibited` because `obj->fs`
+reads NULL immediately after `ff_req_grant()` returns. Reproduced on **both** cards and at **both**
+4 and 20 MHz. On the SDSC card short open/write/close bursts were a reliable workaround (200 fixture
+files, 32 KB appends at ~265 KB/s); on the SDHC card even those now fail. Files produced by this path
+are left damaged — one truncated-and-reopened file reported a **1 073 678 476 B** size, and reading a
+fixture the path had written was itself enough to panic, which is what a `sdprobe` re-run hit.
+
+M-SDFS phase-0 is read-only, and reads of host-written files are clean and fast, so nothing in the
+milestone depends on this. But **the write path is unproven and currently unsafe** — do not build
+playlist persistence, tag caching, or any on-card write feature on it without fixing this first. It
+needs its own task. `sdprobe` now builds its bench fixture in bursts specifically to route around it.
+
+> An earlier crash in this area was a *different*, now-fixed bug: the probe fed the task watchdog
+> only every 20 files / 64 KB, which a 93 ms/op bus overran outright. That one was mine, not the
+> library's.
 
 **Tooling landed** (`app/src/main.cpp`, all `SERIAL_DEBUG`-only): `sdmem` (FATFS/FIL sizing, the
 8-bit contiguous-alloc ceiling by bisection, and a calloc ladder at 1/2/3/5 slots), `sdmount
@@ -6004,7 +6037,8 @@ bus overruns outright.
 accounting — the unmount side is the clean cost measurement, since a boot-time delta is polluted by
 WiFi/NTP/task-start), `sdcycle`, `sdls`, `sdread <reads> <path>` (read-only benchmark against a file
 the card already carried, so a fixture this probe wrote cannot flatter the result), `sdwrite`,
-`sdclean`, and `sdprobe [reads] [skipWrites]`.
+`sdclean`, `sdmbr` (raw sector 0 / partition table / volume ID below the FatFs layer, which is what
+identified PATCH-SD-1), and `sdprobe [reads] [skipWrites]`.
 
 > Two measurement traps are fixed in the committed tools and are worth knowing about. A failed
 > physical read latches the stdio stream's error flag, and `seek()` does **not** clear it — every
@@ -6050,7 +6084,10 @@ already holding the mutex: self-deadlock. Drain the flag on loopTask's next tick
 cheap and falsifies this workstream's biggest assumption — arena HWM after file playback must still
 be **23 216 B** (the same nine Helix structs as the stream path); if it differs, "no new decoder" is
 wrong and `mem_manifest.yaml` needs revisiting. `T_AE_08` re-derives `.dram0.bss` headroom from a
-fresh map · **Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07; gated on TASK-408 passing.
+fresh map · **Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07; TASK-408's read
+gate is now PASSED (2026-08-07), so this is unblocked. Note two constraints it inherits: SD must be
+mounted in `setup()` and held (not lazily on mode entry), and the SD write path is a known open
+defect — `connect(FILE)` must be read-only.
 
 ### TASK-411 — extract `pleditView.h`, Spotify caller only
 

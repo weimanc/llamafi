@@ -58,6 +58,7 @@ bool writeContextToNfc = true;
 #include <mbedtls/base64.h> // SERIAL_DEBUG `screendump` command — TFT readback encoding
 #ifdef SERIAL_DEBUG
 #include <SD.h>   // TASK-408: sdprobe bring-up probe, own VSPI bus (SD/FS is not otherwise linked)
+#include <sd_diskio.h>  // TASK-408: raw-sector access for `sdmbr` (below SD/FatFs)
 #include <ff.h>   // TASK-408: FATFS/FIL sizes — the mount's real memory cost (see cmdSdMem)
 #include <SPI.h>
 #include "ffconf.h" // TASK-408: FF_VOLUMES — kept for anyone re-investigating the deferred
@@ -2674,6 +2675,7 @@ static void cmdSdClean(const char *);
 static void cmdSdWrite(const char *);
 static void cmdSdLs(const char *);
 static void cmdSdRead(const char *);
+static void cmdSdMbr(const char *);
 static void cmdHelp(const char *);
 static void cmdReboot(const char *);
 #endif
@@ -2698,7 +2700,8 @@ static const SerialCmd kCmds[] = {
   { "sdumount", cmdSdUmount, "TASK-408: unmount, report heap actually returned", "" },
   { "sdclean", cmdSdClean, "TASK-408: delete sdprobe fixtures (/probelist, /probebench.bin)", "" },
   { "sdwrite", cmdSdWrite, "TASK-408: isolated sequential write of N 512B chunks", "[chunks=64] [heapCheckEvery=0]" },
-  { "sdls", cmdSdLs, "TASK-408: list a directory with sizes", "[dir=/]" },
+  { "sdls", cmdSdLs, "TASK-408: list a directory with sizes", "[dir=/] [q=quiet/timing]" },
+  { "sdmbr", cmdSdMbr, "TASK-408: raw sector 0 / partition table / volume ID (no mount needed)", "" },
   { "sdread", cmdSdRead, "TASK-408: read-only benchmark against an existing file", "<reads> <path>" },
   { "help",   cmdHelp,   "list commands",                   ""                                   },
   { "reboot", cmdReboot, "software reset (ESP.restart)",   ""                                   },
@@ -4127,7 +4130,12 @@ static const int kSdCsPin = 5;
 static const int kSdSckPin = 18;
 static const int kSdMisoPin = 19;
 static const int kSdMosiPin = 23;
-static uint32_t s_sdFreqHz = 4000000;   // runtime-settable via `sdmount`
+// SPI clock for data transfers (card identification always runs at 400 kHz inside
+// ff_sd_initialize, and the library caps this at 25 MHz). 20 MHz, not the 4 MHz the
+// M-SDFS bring-up plan suggested: on the SDHC card, 4 MHz reproducibly panics inside
+// FatFs mid-read (2/2 runs; `validate()` sees obj->fs == NULL after ff_req_grant())
+// while 20 MHz is clean (3/3) and 40x faster. Runtime-settable via `sdmount`.
+static uint32_t s_sdFreqHz = 20000000;
 
 // Open-file slots requested of SD.begin(). This is the single dominant term in the
 // mount's memory cost, not a throughput knob: esp_vfs_fat_register() allocates
@@ -4331,11 +4339,102 @@ static void cmdSdCycle(const char *args) {
   s_sdReady = (okCount == cycles);
 }
 
+// Raw sector reader, below the FatFs layer, so a card that initialises over SPI but
+// carries no mountable volume can still be identified. Answers the only question a
+// "no valid FAT volume" mount failure leaves open: what IS on the card.
+static void cmdSdMbr(const char *) {
+  if (s_sdReady) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdmbr\",\"error\":\"unmount first (sdumount)\"}");
+    return;
+  }
+  if (!s_sdSpiUp) {
+    s_sdSPI.begin(kSdSckPin, kSdMisoPin, kSdMosiPin, kSdCsPin);
+    s_sdSpiUp = true;
+  }
+  uint8_t pdrv = sdcard_init(kSdCsPin, &s_sdSPI, (int)s_sdFreqHz);
+  if (pdrv == 0xFF) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdmbr\",\"error\":\"sdcard_init failed\"}");
+    return;
+  }
+  // sdcard_init() only claims a drive slot — the card is not identified until FatFs
+  // calls disk_initialize() from f_mount. Without this the card reads back as
+  // CARD_NONE with a nonsense sector count. The mount is EXPECTED to fail here (that
+  // is the whole point); it leaves the card initialised, which is what raw reads need.
+  bool mountOk = sdcard_mount(pdrv, "/sdraw", 1, false);
+  Serial.printf("{\"probe\":\"sdmbr\",\"initMountOk\":%s}\n", mountOk ? "true" : "false");
+
+  Serial.printf("{\"probe\":\"sdmbr\",\"cardType\":\"%s\",\"sectors\":%u,\"sectorSizeB\":%u,"
+                "\"capacityMB\":%u}\n",
+                sdCardTypeName(sdcard_type(pdrv)), (unsigned)sdcard_num_sectors(pdrv),
+                (unsigned)sdcard_sector_size(pdrv),
+                (unsigned)((uint64_t)sdcard_num_sectors(pdrv) * sdcard_sector_size(pdrv) / (1024 * 1024)));
+
+  uint8_t *buf = (uint8_t *)malloc(512);
+  if (!buf) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdmbr\",\"error\":\"alloc\"}");
+    sdcard_uninit(pdrv);
+    return;
+  }
+
+  // Sector 0, then whatever the first MBR entry points at. A card formatted as one
+  // big volume with no partition table puts the boot sector at 0 instead.
+  uint32_t probeSectors[2] = { 0, 0 };
+  int nProbe = 1;
+  if (sd_read_raw(pdrv, buf, 0)) {
+    bool sig = (buf[510] == 0x55 && buf[511] == 0xAA);
+    // OEM name at +3 is "EXFAT   " for exFAT, "MSDOS"/"mkfs.fat"/etc for FAT.
+    char oem[9] = {0};
+    memcpy(oem, buf + 3, 8);
+    for (int i = 0; i < 8; i++) if (oem[i] < 32 || oem[i] > 126) oem[i] = '.';
+    uint8_t ptype = buf[0x1BE + 4];
+    uint32_t plba = (uint32_t)buf[0x1BE + 8] | ((uint32_t)buf[0x1BE + 9] << 8) |
+                    ((uint32_t)buf[0x1BE + 10] << 16) | ((uint32_t)buf[0x1BE + 11] << 24);
+    Serial.printf("{\"probe\":\"sdmbr\",\"sector\":0,\"bootSig\":%s,\"oem\":\"%s\","
+                  "\"part0Type\":\"0x%02X\",\"part0Lba\":%u}\n",
+                  sig ? "true" : "false", oem, ptype, (unsigned)plba);
+    if (plba > 0 && plba < sdcard_num_sectors(pdrv)) { probeSectors[1] = plba; nProbe = 2; }
+  } else {
+    Serial.println("{\"probe\":\"sdmbr\",\"sector\":0,\"readFailed\":true}");
+  }
+
+  for (int i = 0; i < nProbe; i++) {
+    if (i == 0) continue;   // already reported above
+    if (!sd_read_raw(pdrv, buf, probeSectors[i])) {
+      Serial.printf("{\"probe\":\"sdmbr\",\"sector\":%u,\"readFailed\":true}\n",
+                    (unsigned)probeSectors[i]);
+      continue;
+    }
+    char oem[9] = {0}, fstype[9] = {0}, fstype32[9] = {0};
+    memcpy(oem, buf + 3, 8);
+    memcpy(fstype, buf + 0x36, 8);     // FAT12/FAT16
+    memcpy(fstype32, buf + 0x52, 8);   // FAT32
+    for (int k = 0; k < 8; k++) {
+      if (oem[k] < 32 || oem[k] > 126) oem[k] = '.';
+      if (fstype[k] < 32 || fstype[k] > 126) fstype[k] = '.';
+      if (fstype32[k] < 32 || fstype32[k] > 126) fstype32[k] = '.';
+    }
+    uint16_t bytesPerSec = (uint16_t)buf[11] | ((uint16_t)buf[12] << 8);
+    Serial.printf("{\"probe\":\"sdmbr\",\"sector\":%u,\"oem\":\"%s\",\"fsType\":\"%s\","
+                  "\"fsType32\":\"%s\",\"bytesPerSector\":%u,\"bootSig\":%s}\n",
+                  (unsigned)probeSectors[i], oem, fstype, fstype32, (unsigned)bytesPerSec,
+                  (buf[510] == 0x55 && buf[511] == 0xAA) ? "true" : "false");
+  }
+  free(buf);
+  if (mountOk) sdcard_unmount(pdrv);
+  sdcard_uninit(pdrv);
+  s_sdSPI.end();
+  s_sdSpiUp = false;
+  Serial.println("{\"ok\":true,\"cmd\":\"sdmbr\"}");
+}
+
 // Plain directory listing with sizes — needed to pick a pre-existing, cleanly
 // written file to benchmark reads against.
 static void cmdSdLs(const char *args) {
-  char dir[64] = "/";
-  if (args && args[0]) { sscanf(args, "%63s", dir); }
+  // `sdls <dir> q` suppresses the per-entry lines: at 115200 baud the Serial writes
+  // dominate the walk, so the timing is only meaningful with them off.
+  char dir[64] = "/", flag[8] = {0};
+  if (args && args[0]) { sscanf(args, "%63s %7s", dir, flag); }
+  bool quiet = (flag[0] == 'q' || flag[0] == 'Q');
   if (!s_sdReady) {
     Serial.println("{\"ok\":false,\"cmd\":\"sdls\",\"error\":\"not mounted\"}");
     return;
@@ -4351,15 +4450,19 @@ static void cmdSdLs(const char *args) {
   while (n < 400) {
     File e = d.openNextFile();
     if (!e) break;
-    Serial.printf("{\"probe\":\"sdls\",\"name\":\"%s\",\"dir\":%s,\"sizeB\":%u}\n",
-                  e.name(), e.isDirectory() ? "true" : "false", (unsigned)e.size());
+    if (!quiet) {
+      Serial.printf("{\"probe\":\"sdls\",\"name\":\"%s\",\"dir\":%s,\"sizeB\":%u}\n",
+                    e.name(), e.isDirectory() ? "true" : "false", (unsigned)e.size());
+    } else {
+      (void)e.size();   // still stat the entry -- that is the per-entry cost
+    }
     e.close();
     n++;
     esp_task_wdt_reset();
   }
   unsigned long elapsedMs = (micros() - t0) / 1000;
   d.close();
-  // Includes the per-entry Serial.printf, so it is an upper bound on the walk cost.
+  // With `q` this is the walk cost alone; without it the Serial writes dominate.
   Serial.printf("{\"ok\":true,\"cmd\":\"sdls\",\"count\":%d,\"elapsedMs\":%lu}\n",
                 n, elapsedMs);
 }
@@ -4648,19 +4751,37 @@ static void cmdSdProbe(const char *args) {
     if (existing) existing.close();
   }
   if (!benchFileOk && !skipWrites) {
-    File f = SD.open(kBenchPath, FILE_WRITE);
-    if (f) {
-      static uint8_t wbuf[512];
-      memset(wbuf, 0xA5, sizeof(wbuf));
-      size_t written = 0;
-      while (written < benchFileSize) {
-        f.write(wbuf, sizeof(wbuf));
+    // Built in short open/write/close bursts rather than one sustained open. A long
+    // single-open write reproducibly panics inside FatFs on this board -- on both cards
+    // tested and at both 4 and 20 MHz -- while bursts complete cleanly (see tasks.md
+    // TASK-408). The fixture is only a means to measure reads, so it is not worth
+    // blocking the read benchmark on an unrelated write-path defect.
+    static uint8_t wbuf[512];
+    memset(wbuf, 0xA5, sizeof(wbuf));
+    const int kBurstChunks = 64;
+    size_t written = 0;
+    bool writeOk = true;
+    while (written < benchFileSize && writeOk) {
+      File f = SD.open(kBenchPath, written == 0 ? FILE_WRITE : FILE_APPEND);
+      if (!f) { writeOk = false; break; }
+      for (int c = 0; c < kBurstChunks && written < benchFileSize; c++) {
+        if (f.write(wbuf, sizeof(wbuf)) != sizeof(wbuf)) { writeOk = false; break; }
         written += sizeof(wbuf);
-        esp_task_wdt_reset();   // see the create loop above
+        esp_task_wdt_reset();
       }
       f.close();
-      benchFileOk = true;
+      esp_task_wdt_reset();
     }
+    if (writeOk) {
+      File chk = SD.open(kBenchPath, FILE_READ);
+      if (chk) {
+        benchActualSize = chk.size();
+        benchFileOk = (benchActualSize >= kBenchFileMin);
+        chk.close();
+      }
+    }
+    Serial.printf("{\"probe\":\"sdphase\",\"phase\":\"bench-create\",\"writtenB\":%u,"
+                  "\"ok\":%s}\n", (unsigned)written, benchFileOk ? "true" : "false");
   }
 
   // Latency distribution as a fixed bucket histogram rather than an array of every
