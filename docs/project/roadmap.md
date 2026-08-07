@@ -1286,6 +1286,45 @@ as the sanctioned future mitigation. TASK-375 (leak fix) closed moot.
 
 ---
 
+### M-WINAMP-PLAYER — Local MP3 playback, file browsing, and a real playlist editor
+
+Human request: make Winamp behave like Winamp. A third player mode plays MP3s off the SD
+card, browses the filesystem, reads and writes `.m3u` playlists, turns PLEDIT into an actual
+editor (reorder / add / delete / save / restore), and makes the skin's existing shuffle and
+repeat buttons functional. Mode cycling moves off the eject button onto the taskbar Winamp
+icon; eject becomes "load media from this source" in all three modes.
+
+Structured as an umbrella over four workstreams. **Three of the four have standalone value and
+do not depend on the SD card existing**, so they can be scheduled independently of the hardware
+outcome:
+
+| Workstream | Tasks | Needs SD? | Standalone value |
+|---|---|---|---|
+| SD card exploration | 408 | — | answers a hardware question never asked here |
+| Audio-engine extraction | 409, 410 | 410 only | 409 is a behaviour-neutral refactor of a 2 365-line app header |
+| PLEDIT abstraction | 411, 412 | no | collapses a duplication that exists and has already diverged |
+| The Player mode | 413–422 | yes | the feature |
+
+Plus **TASK-423** (runs first): a proactive DRAM reclaim. The debug build has 304 B of
+`dram0_0_seg` headroom and 93 % of its `.bss` overage over production is two `cmdScreenDump`
+statics — moving them off `.bss` recovers ~12 KB.
+
+Budgets are measured rather than estimated (2026-08-07): enabling SD/FS costs 88 B static DRAM
+and 3 984 B flash; flash sits at 68.7 % of `app0` with ~821 KB free. Local playback opens no
+TLS, so it is the cheapest of the three player modes at runtime. The Helix MP3 decoder and
+`mb_arena` are reused unchanged — there is no second decoder and no new codec work.
+
+**Status:** FILED, NOT STARTED — **blocked on human sign-off of ADR-059** (`proposed`, eleven
+decisions). The two worth pushing back on hardest: **D1**, SD phase-0 as a hard gate with the
+milestone closing on failure (SPIFFS is not an accepted fallback), and **D3**, the
+two-permutation playlist model. Filed 2026-08-07; design set committed `a8d0369`.
+**Deps:** none (workstreams 2 and 3); TASK-408 gates the rest.
+**Design:** [M-WINAMP-PLAYER.md](../architecture/designs/M-WINAMP-PLAYER.md) (umbrella) ·
+**Decision:** [ADR-059](../architecture/decisions/ADR-059.md) ·
+**Tasks:** TASK-408..423
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.
