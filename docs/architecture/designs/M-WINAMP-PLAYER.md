@@ -56,7 +56,7 @@ deliberate sweep.
 | `touch/hitbox.h` | `Rect`, `hitTest`, `hitTestRow`, `hitTestCol` | already the shared hit-testing primitive |
 | `touch/scrollTuning.h` | TASK-277 tuning constants | already shared by both PLEDIT copies |
 | `settings/settingsWidgets.h` | `SButton` + `sButtonBar()` | the PLEDIT edit strip's buttons |
-| `settings/settingsWidgets.h` | **`SPickerList`** | the file browser. Already has scrollbar, drag, offset clamping, highlight, open-scrolled-to-selection and a documented CP-1 full-phase takeover contract. Generalising its item type beats writing a fourth list widget. |
+| `settings/settingsWidgets.h` | **`SPickerList`** | the file browser. Already has scrollbar, drag, offset clamping, highlight, open-scrolled-to-selection and a documented CP-1 full-phase takeover contract. Beats writing a fourth list widget — but the coupling to `CountryEntry` is structural (three direct field reads + a `gen/countries.h` include), and it must be generalised by **row-accessor callback, not template**: at 216 B of headroom, instantiating the widget twice is unaffordable (DEV-3, local-playback §4). |
 | `settings/settingsSection.h` | `drawRow()`, `drawRows()`, `S_MAX_ROWS` | browser row rendering |
 | `appRegistry.h` | rows are already comment-out-able by design | build variants (§6) |
 
@@ -70,7 +70,7 @@ manifest.
 |---|---|---|
 | **PLEDIT renderer × 2** — `winampDisplay.h` (Spotify queue) and `webRadioApp.h` (stations) share only `scrollTuning.h`; everything else is restated | already identified | workstream 3 |
 | **Scroll/velocity machinery × 3 families** — `winampDisplay.h`'s `dragState`, `webRadioApp.h`'s `_scrollAccum`/`_scrollVelocity`, `SPickerList::_sbDragging`. Only tuning constants are shared. The file browser would be a **fourth** | new | mitigated by reusing `SPickerList` (workstream 4 §4) rather than adding a fourth. Full unification of all three is **out of scope** — flag to PM as a candidate, not a prerequisite |
-| **Ellipsis truncation — exactly one implementation**, inline in `winampDisplay.h`'s Spotify row formatter | new | three new callers need it (browser rows, local PLEDIT rows, ID3 titles). Extract `util/textFit()` during workstream 3, before the copies exist |
+| **Ellipsis truncation — exactly one implementation**, inline in `winampDisplay.h`'s Spotify row formatter | new | three new callers need it (browser rows, local PLEDIT rows, ID3 titles). Extract `util/textFit()` during workstream 3, before the copies exist — taking a **pixel budget**, not a column spec: the current form is entangled with the number-prefix and duration-column width maths (M-LIST-v3 §Feature 4, DEV-10) |
 | **UTF-8 → renderable ASCII — nothing anywhere.** The Spotify path has the latent bug today; M3U/ID3 makes it acute | new | one shared helper serves both. Blocks row rendering — see workstream 4 OQ1 |
 | **Hand-rolled row bounds maths** in both PLEDIT copies, predating `hitbox.h` | new | adopt `hitbox.h` during extraction rather than porting the arithmetic twice |
 | **`handleVolumeGesturePublic()`** — a narrow public entry into one gesture, existing *only* because `handleWinampInput()` is Spotify-hardcoded | new | the capability mask (workstream 4 §7) removes the reason it exists. Retire it in its own commit — it shares `D_VOLUME_DRAG` state (TASK-352) and WebRadio's volume path already cost TASK-406 a bug |
@@ -217,7 +217,10 @@ Consequences to handle explicitly, none of which are automatic:
    bearing for the test harness's `get variant` fast path.
 
 **Do not build a 2³ env matrix.** `check_build.sh` runs two full builds today (gates 1 and 2 of 6/7);
-eight would make the gate unusable. Add exactly **one** development env —
+eight would make the gate unusable. *(DEV-7: the script's own labels are already inconsistent — it
+prints `[1/6]`…`[6/6]` plus a `[7/7]` warn-only gate, and `tasks.md` entries variously cite 6/6 and
+7/7. TASK-422 should renumber them in one pass rather than adding an eighth confusingly-numbered
+one.)* Add exactly **one** development env —
 `cyd2usb_player` (Player only, Spotify and WebRadio compiled out) — used for headroom during
 development and for isolating Player bugs from the other two modes, mirroring how `cyd2usb_webradio`
 already exists for exactly that purpose. Production keeps all three modes. Gate count goes 6 → 7,
@@ -271,13 +274,21 @@ specifies *what must be proven and by what method*; **VE owns the suite, may ren
 challenge any of these on testability before they are finalised** (inter-agent protocol). Ids are
 reserved, not written — `test_coverage: []` stays empty in the registry until VE lands them.
 
+> **Revised 2026-08-07** after [VE](M-WINAMP-PLAYER-VE-review.md) and
+> [Developer](M-WINAMP-PLAYER-DEV-review.md) reviews. VE found four blockers, of which two were
+> symptoms of the same omission — the design specified behaviour without specifying how it is
+> observed. Fixed structurally (ADR-059 D12: observability is product surface) rather than by
+> weakening the tests. **Net 76 → 78 ids**: three added (`T_SD_10`, `T_PLE_14`, `T_PLR_41`), one
+> removed as not-a-test (`T_AE_05`), one reclassified to a runtime assert (`T_PLR_25`'s task-identity
+> half).
+
 | Family | Workstream | Ids | Table |
 |---|---|---|---|
 | `T_RCL_` | 0 — reclaim | 01–04 | below |
-| `T_SD_` | 1 — SD exploration | 01–09 | [M-SDFS §7](M-SDFS-sd-card-exploration.md) |
-| `T_AE_` | 2 — audio engine | 01–10 | [M-AUDIO-ENGINE §8](M-AUDIO-ENGINE-extraction.md) |
-| `T_PLE_` | 3 — PLEDIT abstraction | 01–13 | [M-PLEDIT-ABSTRACTION §6](M-PLEDIT-ABSTRACTION-playlist-source.md) |
-| `T_PLR_` | 4 — Player mode | 01–40 | [local-playback §12](M-WINAMP-PLAYER-local-playback.md) |
+| `T_SD_` | 1 — SD exploration | 01–**10** | [M-SDFS §7](M-SDFS-sd-card-exploration.md) |
+| `T_AE_` | 2 — audio engine | 01–10 (**`05` withdrawn**) | [M-AUDIO-ENGINE §8](M-AUDIO-ENGINE-extraction.md) |
+| `T_PLE_` | 3 — PLEDIT abstraction | 01–**14** | [M-PLEDIT-ABSTRACTION §6](M-PLEDIT-ABSTRACTION-playlist-source.md) |
+| `T_PLR_` | 4 — Player mode | 01–**41** | [local-playback §12](M-WINAMP-PLAYER-local-playback.md) |
 
 All five prefixes were confirmed unused before reservation. Naming follows the established
 `T_XXX_NN` convention (`T_WR_`, `T_PR_`, `T_PRL_`, `T_CLK_`, …); the numeric `TNNN` space is at T282
@@ -295,13 +306,27 @@ and is not extended here.
 `T_RCL_03` matters more than it looks: `screendump` is the instrument three `T_PLE_` pixel-identity
 tests depend on. Breaking it would silently invalidate the PLEDIT gate rather than fail it.
 
+### Debug surface the tests depend on (ADR-059 D12)
+
+VE-1 and VE-2 established that six ids asserted on state the firmware does not expose, and two more
+needed ~3 hours of real-time playback to reach the state under test. Both are the same omission.
+These ship **with the features that create the state**, not as test scaffolding:
+
+| Surface | Task | Unblocks |
+|---|---|---|
+| `get pleditRepaints` | 411 | `T_PLE_04`, `T_PLE_14` |
+| `get plOrder` · `get plCursor` · `set plCursor` · `advance next\|prev` (steps the engine **without decoding audio**) | 418 | `T_PLR_20`–`24` — hours become seconds |
+| loopTask-handle capture + `configASSERT` on the open-next-track path | 410 | replaces a probe with an assert that holds on *every* run |
+
 ### Cross-cutting validation properties
 
 Four themes run across the tables; they are the reason the milestone is testable at all:
 
 1. **Behaviour-neutral refactors are proven by re-running the existing suite unchanged**
-   (`T_AE_01`, `T_PLE_08`, `T_PLR_17`, `T_PLR_18`) — not by new tests. Baseline **before** the
-   refactor lands, and compare failure *sets*, not counts (LL-104).
+   (`T_AE_01`, `T_PLE_08`, `T_PLR_17`, `T_PLR_18`) — not by new tests. **Baseline is ≥3 runs before
+   the refactor lands, with the flaky set pre-declared** (ADR-059 D13): a single-run "identical pass
+   set" bar fails on this suite's known flake — `T_WR_TLS_01`, `T169`, `T_PR_05` — rather than on
+   regression, and gets waved through. Compare failure *sets*, not counts (LL-104).
 2. **Anything the device could report success on while being wrong is verified off-device**
    (`T_PLR_30`, `T_PLR_31`, `T_PLR_36`, `T_RCL_02`) — from the card, from a variant reflash, or from
    the map file.
@@ -335,7 +360,7 @@ Every row's gate is a named test id (§8 and the workstream tables) — no task 
 | 419 | 4 | Real posbar seek for local files | `T_PLR_27`–`28` |
 | 420 | 4 | Edit mode: button strip, reorder, delete | `T_PLR_29`, `34` |
 | 421 | 4 | Add-from-browser (staging), save, restore | `T_PLR_30`–`33` |
-| 422 | 4 | Build variants (§6) + soak + VE suite + registry completion | `T_PLR_35`–`40` |
+| 422 | 4 | Build variants (§6) + soak + VE suite + registry completion + `check_build.sh` gate renumber (DEV-7) | `T_PLR_35`–`41` |
 
 417–419 sit **before** edit mode deliberately: they exercise the play-order and capability seams while
 the playlist is still read-only, so a failure there is diagnosed without edit-mode mutation as a

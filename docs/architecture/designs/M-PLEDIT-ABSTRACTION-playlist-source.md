@@ -41,6 +41,9 @@ down in the source.
 ### 2.1 The interface
 
 ```
+// NOTE (DEV-4): no default member initialisers in these structs. Under -std=gnu++11 an NSDMI
+// makes the struct a non-aggregate and brace-init at every call site stops compiling — the
+// TASK-327 lesson (SButton et al, field-by-field assignment throughout).
 struct PlRow { char text[64]; uint32_t durationSec; bool current; };
 
 enum PlCap : uint8_t {
@@ -140,10 +143,10 @@ explicitly eyeball gates (BP-048).
 
 | id | Must be true | Method | Pass criterion |
 |---|---|---|---|
-| `T_PLE_01` | Spotify PLEDIT renders identically | **host** — `run/screendump` before/after, pixel diff | zero differing pixels across ≥5 states: empty queue, 1 row, 5 rows, >5 rows scrolled mid-list, scrolled to end |
+| `T_PLE_01` | Spotify PLEDIT renders identically | **host** — `run/screendump` before/after, **diff scoped to the PLEDIT rect** (`PLEDIT_Y … PLEDIT_Y + PLEDIT_H`, full width) with **the visualiser disabled** (`vu::setMode(off)`) — VE-4 | zero differing pixels across ≥5 states: empty queue, 1 row, 5 rows, >5 rows scrolled mid-list, scrolled to end |
 | `T_PLE_02` | Row formatting unchanged | host — screendump diff on a long "Artist - Title" | truncation point and ellipsis identical; duration column right-edge identical |
 | `T_PLE_03` | Scroll thumb geometry unchanged | host — screendump diff at scrollOffset 0 / mid / max | thumb y and height identical at all three |
-| `T_PLE_04` | Redraw gate unchanged | DUT serial — seqno-diff behaviour under a static queue | no repaint while seqno static; repaint within one tick of seqno advance; `PLAYLIST_DRAW_MIN_MS` rate gate still observed |
+| `T_PLE_04` | Redraw gate unchanged | DUT serial — **`get pleditRepaints`** (new monotonic counter, ADR-059 D12 / VE-2 — the assertion had no observable signal before) sampled across a static queue and a seqno advance | counter does not advance while seqno is static; advances exactly once per seqno change; `PLAYLIST_DRAW_MIN_MS` rate gate still observed |
 | `T_PLE_05` | Scroll **feel** unchanged | **DUT eyeball** — velocity drag, flick, direct-strip drag | indistinguishable from baseline to the operator; no new stickiness or overshoot |
 | `T_PLE_06` | Tap-to-play still dispatches | DUT serial — tap each of 5 rows | `ACT_PLAY_URI` with the correct absolute index (`scrollOffset + row`) 5/5 |
 
@@ -151,20 +154,23 @@ explicitly eyeball gates (BP-048).
 
 | id | Must be true | Method | Pass criterion |
 |---|---|---|---|
-| `T_PLE_07` | WebRadio PLEDIT renders identically | host — screendump diff, ≥5 station-list states | zero differing pixels |
-| `T_PLE_08` | WebRadio scroll suite green | DUT — existing `T277`-family / `velocity-scroll-ve-review.md` | identical pass set to baseline |
+| `T_PLE_07` | WebRadio PLEDIT renders identically | host — screendump diff, PLEDIT rect only, vis off (VE-4), ≥5 station-list states | zero differing pixels |
+| `T_PLE_08` | WebRadio scroll suite green | DUT — existing `T277`-family / `velocity-scroll-ve-review.md`, **≥3-run baseline with flaky set pre-declared** (ADR-059 D13) | no test passing in all 3 baselines fails after; no new failure outside the pre-declared flaky set |
 | `T_PLE_09` | WebRadio scroll **feel** unchanged | **DUT eyeball** | indistinguishable from baseline |
 | `T_PLE_10` | Divergences resolved deliberately | **host** — review the §3 divergence enumeration | every divergence has a recorded chosen behaviour and a rationale; none resolved by "whichever landed second" |
 | `T_PLE_11` | Caps are honoured | DUT serial — tap a mutator zone on a `CAP_PLAY`-only source | control not drawn and not hit-tested; mutator never invoked |
 | `T_PLE_12` | No PLEDIT code left in `webRadioApp.h` | host — grep | zero PLEDIT render/scroll symbols outside `pleditView.h` |
 | `T_PLE_13` | Flash went down, not up | host — `firmware.bin` size delta | one renderer replacing two is a **negative** delta; a positive one means the old path was not deleted |
+| `T_PLE_14` | **StationListSource seqno obeys the IFC** | DUT serial — `get pleditRepaints` across (a) a station-list change and (b) 60 s of no change (VE, X055 gap) | bumps **exactly once** per station-list change and **not at all** otherwise. WebRadio's change detection is a `_pleditDirty` bool today; converting it to a seqno has two distinct uncovered failure modes — missed repaint and repaint storm |
 
 **Validation notes.** `T_PLE_01`/`07` are the gate; `run/screendump` gives an exact pixel comparison
 and removes the judgement call. Note the known limitation from prior work: screendump **cannot
 capture live navigated app state** (DTR-resets on connect), so states that require navigation must be
 reached via serial injection, not by hand. `T_PLE_05`/`09` exist because pixel-identity does not
 imply feel-identity — timing and gesture thresholds do not show up in a screenshot, and this is the
-code TASK-277 was spent tuning. `T_PLE_13` is a cheap tripwire for an incomplete deletion.
+code TASK-277 was spent tuning. **"Indistinguishable to the operator" is a vibe, not a criterion**
+(VE-18): use the ≥3-trial A/B protocol established on TASK-402, with the operator blind to build
+order where practical. `T_PLE_13` is a cheap tripwire for an incomplete deletion.
 
 **Fallback trigger.** If `T_PLE_01` or `T_PLE_07` cannot be made to pass, that is the signal to take
 §3's documented fallback (a third renderer for local playlists) — not to relax the test.

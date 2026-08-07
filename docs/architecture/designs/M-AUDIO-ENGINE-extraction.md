@@ -54,6 +54,13 @@ Net new decode code for local playback: **none**. The only new surface is where 
 
 ```
 audio/audioEngine.h
+  // NOTE (DEV-4): no default member initialisers here. Under -std=gnu++11 an NSDMI makes
+  // the struct a non-aggregate and every Source{URL, path} call site stops compiling.
+  // This project has already paid for that once (TASK-327, SButton et al).
+  // NOTE (DEV-8): `str` is BORROWED for the duration of the call only. connect() copies it
+  // into the pump task's own fixed buffer (today s_wrPumpConnectUrl) before returning —
+  // that ownership model exists so the posting task never outlives the caller's storage.
+  // Do not let a stack pointer cross the task boundary.
   struct Source { enum Kind { URL, FILE } kind; const char* str; };
   bool connect(const Source&);      // posts to the pump task, polls result — existing shape
   void stop();  void setVolume(int);  bool isRunning();
@@ -83,6 +90,17 @@ also the only context allowed to touch SD, the playlist model and the display.
 This is the same post-a-request discipline the `wrPumpConnect` path already uses. Reuse it; do not
 invent a second mechanism.
 
+**Enforced, not just documented (ADR-059 D12).** TASK-410 also captures the loopTask handle in
+`setup()` (`xTaskGetCurrentTaskHandle()` into a file static — there is no `g_loopTaskHandle` today,
+DEV-5) and asserts on it at the head of the open-next-track path:
+
+```c
+configASSERT(xTaskGetCurrentTaskHandle() == g_loopTaskHandle);
+```
+
+This replaces a reserved test id with a runtime assert, which is strictly stronger: it holds on every
+debug execution rather than on the one run where someone remembered to probe for it.
+
 ## 5. Build cost
 
 Dropping `-DAUDIO_NO_SD_FS` (required for the FILE arm) costs a measured **88 B of static DRAM and
@@ -93,9 +111,10 @@ Dropping `-DAUDIO_NO_SD_FS` (required for the FILE arm) costs a measured **88 B 
 Behaviour-neutrality is the whole contract, so it is verified rather than argued:
 
 1. `./run/check` 6/6 on both envs.
-2. **A full-length `./run/wr-soak`** — at or above the duration that previously caught the DMA-gate
-   regression. Short soaks have given false confidence on precisely this code before; a clean 2-minute
-   run is not evidence.
+2. **A `./run/wr-soak` of ≥30 min** (VE-7 — the previous wording, "at or above the duration that
+   caught the DMA-gate regression", was not a number anywhere, so it would have been read as whatever
+   was convenient). Short soaks have given false confidence on precisely this code before; a clean
+   2-minute run is not evidence.
 3. WebRadio play / skip / stop / eject / error-retry paths exercised, including the stall-retry and
    FIN-killed-stream paths (TASK-291/295).
 4. `get dataq` and the arena counters (`mb_arena_acquire_total` / `release_total` /
@@ -122,11 +141,10 @@ New ids cover only what the extraction itself can break.
 
 | id | Must be true | Method | Pass criterion |
 |---|---|---|---|
-| `T_AE_01` | No WebRadio behavioural change | DUT — existing `m-webradio-dut.md` suite + `T_WR_*` / `T_WRUI_*` families, unchanged | identical pass set to the pre-extraction baseline run; **compare failure *sets*, not counts** (LL-104) |
+| `T_AE_01` | No WebRadio behavioural change | DUT — existing `m-webradio-dut.md` suite + `T_WR_*` / `T_WRUI_*` families, unchanged. **Baseline = ≥3 full runs before the extraction lands**, flaky set pre-declared from them (ADR-059 D13 / VE-3) | **no test that passed in all 3 baselines fails after**, and no new failure outside the pre-declared flaky set. A single-run "identical pass set" bar fails on known flake — `T_WR_TLS_01`, `T169`, `T_PR_05` — not on regression |
 | `T_AE_02` | Arena lifecycle balanced | DUT serial — `get wrArena` before/after 20 play/stop cycles | `acquires - releases == (active ? 1 : 0)` holds throughout; `acquire_fail_total` unchanged |
-| `T_AE_03` | No decode regression under load | DUT — **full-length** `./run/wr-soak` | ≥ the duration that caught the DMA-gate regression; zero underruns, no heap decline, no WDT |
+| `T_AE_03` | No decode regression under load | DUT — `./run/wr-soak` | **≥30 min** (VE-7: "the duration that caught the DMA-gate regression" was never a figure anywhere, so an implementer would pick something convenient — the exact failure this bar exists to prevent). Zero underruns, no heap decline, no WDT |
 | `T_AE_04` | Teardown ordering preserved | DUT — eject mid-`CONNECTING`, ×10 | pump task torn down before `Audio` before arena; no loopTask block > 100 ms (TASK-398's whole point) |
-| `T_AE_05` | The diff is a move | **host** — `git diff -M` review | no behavioural hunks; every moved line accounted for |
 | `T_AE_06` | Build gates green | host — `./run/check` | 6/6 both envs |
 
 ### TASK-410 — file source (`connect(FILE)`)
@@ -135,12 +153,17 @@ New ids cover only what the extraction itself can break.
 |---|---|---|---|
 | `T_AE_07` | A local MP3 plays | DUT — hardcoded path, audible | plays to completion, no underrun |
 | `T_AE_08` | `AUDIO_NO_SD_FS` removal is budget-bounded | host — `run/build-debug` + `.map` extents | `dram0_0_seg` headroom re-derived and recorded; ≥10 KB after TASK-423's reclaim |
-| `T_AE_09` | Arena HWM unchanged by the file path | DUT serial — `get wrArena` HWM after file playback | **23 216 B** — same nine Helix structs as the stream path (if it differs, the codec assumption in §2 is wrong) |
-| `T_AE_10` | `audio_eof_mp3` fires and does not deadlock | DUT — play a short file to its end, ×10 | callback observed 10/10; no WDT, no mutex stall; the flag is drained on loopTask, not acted on in-callback |
+| `T_AE_09` | Arena HWM unchanged by the file path | DUT serial — **fresh boot, file playback only, no stream connect**, then `get wrArena` HWM (VE-8: `mb_arena_hwm()` is a session high-water mark — any earlier stream playback contaminates it and the assertion becomes vacuous) | **23 216 B** — same nine Helix structs as the stream path. If it differs, the codec assumption in §2 is wrong |
+| `T_AE_10` | `audio_eof_mp3` fires and does not deadlock | DUT — play a short file to its end, ×10; "stall" measured via `perf::record()` on the loopTask tick (VE-2: unmeasured "no stall" degrades to "it didn't crash") | callback observed 10/10; **max loopTask tick gap < 100 ms**, matching `T_AE_04`'s bound; flag drained on loopTask, not acted on in-callback |
 
 **Validation notes.** `T_AE_01` is the load-bearing test and it is *deliberately not new work* — the
 value is that the existing suite runs untouched. Baseline it **before** the extraction lands, or
-there is nothing to compare against. `T_AE_09` is cheap and falsifies the single biggest assumption
+there is nothing to compare against.
+
+`T_AE_05` ("the diff is a move") was **removed from the test set** on VE-9: it is a review gate with
+no repeatable procedure, and counting it as a test inflates coverage with something that cannot be
+re-run. It survives as a **review checklist item on TASK-409** — `git diff -M --stat` should show
+≥95 % rename similarity on the moved block, and no hunk should change behaviour. `T_AE_09` is cheap and falsifies the single biggest assumption
 in this workstream (that a file source allocates the same decoder set as a stream source).
 
 ## 9. Exit criteria

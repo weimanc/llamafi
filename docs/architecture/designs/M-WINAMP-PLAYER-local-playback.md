@@ -74,9 +74,27 @@ Modal full-canvas list over the player, entered by eject (§6).
 
 **Reuse, not rebuild:** `settings/settingsWidgets.h` already ships `SPickerList` — a modal list with
 scrollbar, drag handling, offset clamping, highlight, open-scrolled-to-selection, and a documented
-CP-1 full-phase takeover contract. It is currently typed to `CountryEntry`. Generalising its item
-type is a far smaller and better-tested change than writing a fourth list widget. `settingsSection.h`
-provides `drawRow()`/`drawRows()`; `touch/hitbox.h` provides the hit-testing primitives.
+CP-1 full-phase takeover contract. `settingsSection.h` provides `drawRow()`/`drawRows()`;
+`touch/hitbox.h` provides the hit-testing primitives.
+
+**How to generalise it (DEV-3).** The coupling to `CountryEntry` is structural, not a typedef:
+`#include "gen/countries.h"` at `:29`, `const CountryEntry* _items` at `:310`, and three direct field
+reads — `strcasecmp(_items[i].code, code)` at `:293`, `_items[i].name` at `:356`, `_items[i].code` at
+`:359`. Reuse is still right — the scrollbar, drag, clamping and takeover contract are the expensive
+parts and none of them care about the item type — but **do not template it**: at 216 B of debug
+headroom, instantiating the whole widget twice is not affordable. Generalise with a row-accessor
+callback pair matching the widget's existing `onSelect`/`onCancel` style:
+
+```c
+void show(int16_t count,
+          void (*rowText)(int16_t idx, char* out, size_t n, void* ctx),
+          bool (*rowIsCurrent)(int16_t idx, void* ctx),
+          void (*onSelect)(int16_t idx, void* ctx),
+          void (*onCancel)(void* ctx), void* ctx);
+```
+
+The country picker then becomes one caller of that shape rather than the shape everyone else must
+conform to.
 
 Behaviour:
 
@@ -110,10 +128,25 @@ determinism re-check.
 so the SPIFFS schema is unchanged; only the value domain widens.
 
 **Mode cycling moves off eject onto the taskbar Winamp icon.** Tap the player slot from another app →
-restore the persisted mode (`resolvePlayerSlot()`, extended to three). Tap it while the player is
-already active → cycle Spotify → WebRadio → Player → Spotify, and persist. This gives the taskbar's
-active-slot tap a second meaning it has for no other app — a deliberate asymmetry that belongs in the
-taskbar contract.
+restore the persisted mode. Tap it while the player is already active → cycle Spotify → WebRadio →
+Player → Spotify, and persist. This gives the taskbar's active-slot tap a second meaning it has for no
+other app — a deliberate asymmetry that belongs in the taskbar contract.
+
+**Where that logic lives (corrected 2026-08-07, DEV-1).** *Not* in `resolvePlayerSlot()`, as this
+design originally said. `switchApp()` early-returns on same-app (`main.cpp:2014`), so a tap on the
+already-active slot resolves to the current app and silently no-ops — and the two dispatch sites guard
+differently:
+
+| Site | Path | Same-app guard |
+|---|---|---|
+| `main.cpp:2001` | production taskbar dispatch | **its own** `if (target != currentAppId)` at `:2002`, *plus* `switchApp()`'s |
+| `main.cpp:2793` | serial-injection drain | `switchApp()`'s internal return only |
+
+A cycle branch added to one site only makes the feature behave differently under the harness than in
+production — the TASK-406 defect class, invisible to every build gate. Introduce one shared helper,
+`resolvePlayerTap(AppId tapped, bool playerAlreadyActive)`, owning both decisions and called from
+**both** sites — the same discipline TASK-279 imposes on `shellTbPress()`/`shellTbCommit()`.
+`resolvePlayerSlot()` stays as the pure restore case so its existing callers are undisturbed.
 
 **Eject becomes "load media from this source":**
 
@@ -126,11 +159,32 @@ taskbar contract.
 The Winamp logo tap keeps its TLS-reset behaviour — duplicating an affordance is harmless, silently
 deleting a recovery path is not.
 
-**Taskbar invariant.** `taskbar.h` asserts today that WebRadio is the last `AppId`, because eject-only
-apps are excluded by occupying the enum tail. With two such modes the tail becomes
-`Settings, WebRadio, LocalPlayer` and `TASKBAR_APP_COUNT = (int)AppId::COUNT - 2`. The assertion must
-be rewritten to express *the eject-only tail*, not to name WebRadio — otherwise a future third
-eject-only mode silently leaks into the taskbar and null-icon-crashes exactly as TASK-242 did.
+**Taskbar invariant (corrected 2026-08-07, DEV-2).** This design originally claimed the tail change
+forces `TASKBAR_APP_COUNT = (int)AppId::COUNT - 2` and a rewrite of "the assertion". Checked against
+`taskbar.h:34-56`, that is wrong on three counts — and the proposed replacement was worse than the
+existing code, because `COUNT - 2` hardcodes "exactly two eject-only modes" and the third one breaks
+it silently, which is the failure this invariant exists to prevent.
+
+| Assert / constant | With `LocalPlayer` appended |
+|---|---|
+| `AppId::WebRadio == COUNT - 1` | **breaks** — the only one that does |
+| `AppId::Settings == AppId::WebRadio - 1` | still holds (tail is `Settings, WebRadio, LocalPlayer`) |
+| `TASKBAR_ICON_COUNT == TASKBAR_APP_COUNT` | still holds |
+| `TASKBAR_APP_COUNT = (int)AppId::WebRadio` | still holds — the ordinal *is* the taskbar app count |
+
+Change exactly one thing, and keep the count derived rather than literal by anchoring it to the **last
+taskbar slot** instead of the eject-only tail:
+
+```c
+static constexpr int TASKBAR_APP_COUNT = (int)AppId::Settings + 1;
+
+static_assert((int)AppId::Settings + 1 == TASKBAR_APP_COUNT,
+              "Settings must remain the last taskbar slot; every AppId after it is eject-only "
+              "and must have no taskbar slot. See NEW-APP-CHECKLIST.md.");
+```
+
+This survives any number of eject-only tail modes. The Settings-pinning assert (TASK-347) and the
+icon-count assert (TASK-242) are untouched and keep doing their jobs.
 
 Cycling must **skip compiled-out modes** (parent design's build-variant section).
 
@@ -271,9 +325,14 @@ are acquired in `resume()`, so a compiled-in-but-never-entered mode costs nothin
 6. `sdfs::unmount()`.
 7. Persist mode/shuffle/repeat with the unchanged-value skip (flash wear).
 
-**Unclean paths.** Reboot or power loss mid-save leaves `<name>.m3u.tmp` on the card. Mount-time
-sweep: delete stray `.tmp` files older than the current session. The original `.m3u` is untouched
-until the rename, so the playlist is never lost — only unsaved edits are.
+**Unclean paths.** Reboot or power loss mid-save leaves `<name>.m3u.tmp` on the card. The original
+`.m3u` is untouched until the rename, so the playlist is never lost — only unsaved edits are.
+
+*Sweep policy (corrected 2026-08-07, DEV-6).* The original "delete stray `.tmp` files older than the
+current session" is not evaluable: this device has no RTC, and NTP arrives after WiFi — at mount time
+there is no trustworthy clock to compare FAT timestamps against. Use a **single fixed temp name**
+(`<name>.m3u.tmp`) and delete it unconditionally at playlist load. Only one save can ever be in
+flight, so there is nothing to disambiguate and no timestamp is consulted.
 
 **Invariant to assert in the debug build:** on suspend completion, `mb_arena_active() == false`, no
 `File` handle open, SD unmounted, playlist pointers null. Same shape as the existing arena
@@ -300,6 +359,17 @@ acquire/release balance invariant.
 Ids reserved in the `T_PLR_` family, grouped by task. VE owns the suite and may renumber; the
 *properties* are the design's contribution.
 
+> **Revised 2026-08-07 after [VE review](M-WINAMP-PLAYER-VE-review.md).** Changes folded in below:
+> `T_PLR_25` is **reclassified to a runtime assert** (ADR-059 D12) — strictly stronger than a probe,
+> because it holds on every execution; `T_PLR_21`/`22` become reachable via the TASK-418 debug surface
+> instead of hours of playback (VE-1); `T_PLR_17`/`18` inherit the ≥3-run baseline protocol (D13);
+> `T_PLR_30` gains a precondition (VE-10); `T_PLR_36` names its flash script (VE-11); `T_PLR_39`
+> becomes injection-driven (VE-12); `T_PLR_41` added for the card-removal path (VE-13).
+>
+> **Debug surface these depend on** (product surface, shipped with the feature — ADR-059 D12):
+> `get plOrder` · `get plCursor` · `set plCursor <n>` · `advance next|prev` (steps the order engine
+> **without decoding audio**), all delivered by TASK-418.
+
 ### TASK-413 — `AppId::LocalPlayer`, three-way mode, taskbar cycle
 
 | id | Must be true | Method | Pass criterion |
@@ -325,7 +395,7 @@ Ids reserved in the `T_PLR_` family, grouped by task. VE owns the suite and may 
 | `T_PLR_09` | Scroll end to end during playback | DUT — scroll full list while a track plays | no audible underrun, no dropped frames |
 | `T_PLR_10` | Relative paths resolve | DUT — playlist referencing `./sub/x.mp3` | resolves against the playlist's directory |
 | `T_PLR_11` | Malformed M3U degrades | DUT — truncated file, missing `#EXTINF`, CRLF, BOM | loads what it can; no crash; unreadable rows render the placeholder |
-| `T_PLR_12` | Index memory is bounded and freed | DUT serial — heap before load / after load / after suspend | ≤5.2 KB delta; returns to baseline ±256 B on suspend |
+| `T_PLR_12` | Index memory is bounded and freed | DUT serial — heap before load / after load / after suspend, quiesced; report **largest-free-block alongside free-heap** (fragmentation is the real risk per M-HEAP-FRAGMENTATION, and a clean free-heap figure hides it — VE-15) | ≤5.2 KB delta; returns to baseline ±256 B on suspend |
 
 ### TASK-416 — file browser
 
@@ -348,12 +418,13 @@ Ids reserved in the `T_PLR_` family, grouped by task. VE owns the suite and may 
 
 | id | Must be true | Method | Pass criterion |
 |---|---|---|---|
-| `T_PLR_20` | Shuffle bag visits each track once | DUT serial — 20-track playlist, log the advance order | 20 distinct ids, no repeat within the cycle |
-| `T_PLR_21` | All four end-of-list cells | DUT serial — each shuffle × repeat combination | matches §8's table exactly, 4/4 |
-| `T_PLR_22` | Reshuffle does not re-open with the last track | DUT — 20 wrap cycles under shuffle+repeat | 0/20 collisions |
-| `T_PLR_23` | Prev replays history | DUT serial — next ×5 then prev ×5 under shuffle | exact reverse sequence, no new randoms |
-| `T_PLR_24` | Tap-to-play moves the cursor | DUT serial — tap a row under shuffle, then next | continues from that row's bag position; bag not reshuffled |
-| `T_PLR_25` | Auto-advance is loopTask-driven | DUT — play 5 short files to completion | advances 5/5; no WDT; no `connecttoFS` from the pump task |
+| `T_PLR_20` | Shuffle bag visits each track once | DUT serial — 20-track playlist, `advance next` ×20, `get plOrder` | 20 distinct ids, no repeat within the cycle |
+| `T_PLR_21` | All four end-of-list cells | DUT serial — `set plCursor <last>` then `advance next`, per combination | matches §8's table exactly, 4/4. **No real-time playback** — VE-1 |
+| `T_PLR_22` | Reshuffle does not re-open with the last track | DUT serial — 20 forced wraps via `set plCursor <last>` + `advance next` | 0/20 collisions. Was ~3 h of playback as originally written (VE-1) |
+| `T_PLR_23` | Prev replays history | DUT serial — `advance next` ×5, `advance prev` ×5, diff against `get plOrder` | exact reverse sequence, no new randoms |
+| `T_PLR_24` | Tap-to-play moves the cursor | DUT serial — tap a row under shuffle, read `get plCursor`, then `advance next` | cursor moves to that entry's bag position; `get plOrder` unchanged (no reshuffle) |
+| `T_PLR_25` | Auto-advance works end to end | DUT — play 5 **short** files to completion (the one real-playback case, proving `audio_eof_mp3` drives the same path the debug surface drives) | advances 5/5; no WDT |
+| ~~`T_PLR_25b`~~ | ~~no `connecttoFS` from the pump task~~ | **reclassified to a runtime assert** (ADR-059 D12): `configASSERT(xTaskGetCurrentTaskHandle() == g_loopTaskHandle)` on the open-next-track path | panics in *every* debug run, not probed once |
 | `T_PLR_26` | Shuffle/repeat persist | DUT — set, reboot | restored; Spotify's values never written to settings |
 
 ### TASK-419 — real seek
@@ -368,7 +439,7 @@ Ids reserved in the `T_PLR_` family, grouped by task. VE owns the suite and may 
 | id | Must be true | Method | Pass criterion |
 |---|---|---|---|
 | `T_PLR_29` | Reorder/delete/add mutate only RAM | DUT serial — mutate, then read the card | file on card unchanged until SAVE |
-| `T_PLR_30` | **Shuffle ON + reorder + SAVE writes display order** | **host** — pull the card, diff | file matches `viewOrder`, **not** `playOrder`. The destructive failure §2 exists to prevent |
+| `T_PLR_30` | **Shuffle ON + reorder + SAVE writes display order** | **host** — pull the card, diff. **Precondition: N ≥ 20 and assert `get plOrder` != `viewOrder` before saving** — Fisher-Yates can return identity on a short list, and the test would pass proving nothing (VE-10) | file matches `viewOrder`, **not** `playOrder`. The destructive failure §2 exists to prevent |
 | `T_PLR_31` | Staged adds survive SAVE | host — add from browser, save, pull the card | added tracks present, in position — the failure mode that reports success while dropping them |
 | `T_PLR_32` | SAVE is atomic | DUT — reboot mid-save (deliberate), remount | original `.m3u` intact; stray `.tmp` swept at mount |
 | `T_PLR_33` | Restore discards edits | DUT serial — mutate, restore, compare | matches the on-card file |
@@ -379,11 +450,12 @@ Ids reserved in the `T_PLR_` family, grouped by task. VE owns the suite and may 
 | id | Must be true | Method | Pass criterion |
 |---|---|---|---|
 | `T_PLR_35` | Each variant builds and boots | host + DUT — prod (all three) and `cyd2usb_player` | both build; both boot to a valid mode |
-| `T_PLR_36` | **Persisted mode naming an absent mode falls back** | DUT — set Player, reflash a variant without it, boot | falls back to the first compiled-in mode; **no null-app crash**. Only reproducible over *existing* settings — a clean flash will not catch it (X064) |
+| `T_PLR_36` | **Persisted mode naming an absent mode falls back** | DUT — set Player, then **`run/flash` (app-partition only, SPIFFS survives)** a variant without it, boot. **Never `run/flash-fs`** — it formats SPIFFS, wipes the persisted mode and makes the test vacuously pass (VE-11) | falls back to the first compiled-in mode; **no null-app crash**. Only reproducible over *existing* settings — a clean flash will not catch it (X064) |
 | `T_PLR_37` | Single-mode build does not cycle | DUT serial — tap active slot on `cyd2usb_player` | no-op, no crash |
 | `T_PLR_38` | Suspend leaves nothing behind | DUT serial — 20 mode switches in/out of Player | §10 invariant clean each time: arena inactive, no `File` open, SD unmounted, pointers null |
-| `T_PLR_39` | Sustained soak | DUT — ≥30 min playback **with concurrent browsing and scrolling** | no underrun, no heap decline, no WDT |
+| `T_PLR_39` | Sustained soak | DUT — ≥30 min playback with concurrent browsing and scrolling, **driven from the injection queue** (`tap`/`tick`/`release`) so it is repeatable and re-runnable after later changes, not a human poking the screen (VE-12) | no underrun, no heap decline, no WDT |
 | `T_PLR_40` | Checklist walked | host — `NEW-APP-CHECKLIST.md` | every item recorded for `AppId::LocalPlayer` |
+| `T_PLR_41` | **Card removed mid-playback degrades** | DUT — physically remove the card during playback (VE-13) | no WDT, no crash; `hasError()` true; taskbar indicator red; Player mode still exitable |
 
 **Validation notes.** `T_PLR_30`, `T_PLR_31` and `T_PLR_36` are the three that would ship broken
 while looking fine, and all three are verified **off the device** — from the card or from a variant

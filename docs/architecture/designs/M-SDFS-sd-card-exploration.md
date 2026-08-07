@@ -97,8 +97,11 @@ measurement is not entangled with the feature.
 - **OQ1** — is the slot even populated on this unit? Visual check before any code.
 - **OQ2** — does the card need to be FAT32-formatted specifically (exFAT is not supported by the
   bundled FATFS configuration)? Document the supported format for the user.
-- **OQ3** — hot-swap: v1 mounts once per mode entry. Card removal mid-playback is undefined; decide
-  whether to detect and fail gracefully or leave it as a known rough edge.
+- **OQ3 — RESOLVED 2026-08-07 (VE-13).** Card removal mid-playback was left "undefined"; VE correctly
+  refused that as a test outcome for a case the device meets in normal use. v1 still mounts once per
+  mode entry (no hot-swap *support*), but the failure path is now specified and tested: `T_SD_10`
+  (enter Player mode with no card) and `T_PLR_41` (card pulled mid-playback) both require a clean
+  degraded state — `hasError()` true, taskbar red, no WDT, mode still exitable.
 
 ## 7. Test & validation
 
@@ -110,18 +113,21 @@ in the `T_SD_` family (unused before this design).
 | id | Must be true | Method | Pass criterion |
 |---|---|---|---|
 | `T_SD_01` | Card mounts on VSPI at 4 MHz | DUT serial — `sdprobe` | `ok:true`, card type and size reported non-zero |
-| `T_SD_02` | GPIO5 strapping is benign | DUT — 5 cold boots with card inserted | 5/5 normal boot, no bootloop, no `rst:0x10` in log |
+| `T_SD_02` | GPIO5 strapping is benign | DUT — **20 power-cycles** (not esptool RTS reset — straps latch on reset and "probably re-latches" is not a test) with card inserted (VE-14) | 20/20 normal boot, no bootloop, no `rst:0x10` in log |
 | `T_SD_03` | Long filenames round-trip | DUT serial — write/read `/A long name (test) 01.mp3` | byte-identical name returned by `openNextFile()` |
-| `T_SD_04` | Sustained read meets the bar | DUT — `sdprobe` benchmark, ≥2 MB read | **≥200 KB/s** |
-| `T_SD_05` | Worst-case read latency meets the bar | DUT — `sdprobe` latency histogram | **≤50 ms**, and the histogram is reported (not just the max — a bimodal distribution is the interesting case, cf. TASK-367's fetch RTT) |
-| `T_SD_06` | `SD.begin()` heap cost is bounded | DUT serial — free-heap delta across mount | **≤8 KB** |
+| `T_SD_04` | Sustained read meets the bar | DUT — `sdprobe` benchmark, ≥2 MB read, **under a named fixed display load** (VE-6 — record which; "actively redrawing" is not reproducible and two runs are not comparable without it) | **≥200 KB/s** |
+| `T_SD_05` | Worst-case read latency meets the bar | DUT — `sdprobe` latency histogram, **N ≥ 5 000 reads**, same display load as `T_SD_04` (VE-5) | **≤50 ms max**, and **p50/p99/max all reported** — a single figure hid a bimodal distribution once already (TASK-367 fetch RTT) |
+| `T_SD_06` | `SD.begin()` heap cost is bounded | DUT serial — free-heap delta across mount, quiesced (WiFi/LWIP churn is noise); report **largest-free-block alongside free-heap** (VE-15) | **≤8 KB** |
 | `T_SD_07` | `listDir()` on ~200 files is bounded | DUT — timed `sdprobe` listing | reported; sets the browser page size (`browse-001`) |
 | `T_SD_08` | Mount/unmount is repeatable and leak-free | DUT — 20 mount/unmount cycles | free heap returns to within 256 B of baseline each cycle |
 | `T_SD_09` | Absent/unformatted card fails cleanly | DUT — probe with no card, then with an exFAT card | `ok:false` with a distinguishable error; no crash, no hang |
+| `T_SD_10` | **Mount failure degrades cleanly** | DUT — enter Player mode with no card inserted (VE-13) | degraded entry, `hasError()` true, taskbar red, no crash; mode remains exitable. "Undefined" was not an acceptable answer for a case the device meets in normal use |
 
-**Validation notes.** `T_SD_04`/`T_SD_05` are the go/no-go pair and must be run with the display
-actively redrawing — a benchmark on an idle device measures the wrong thing, since the real
-contention is SPI/CPU against TFT rendering. `T_SD_08` exists because §5 makes mount lazy and
+**Validation notes.** `T_SD_04`/`T_SD_05` are the go/no-go pair and must be run under load — a
+benchmark on an idle device measures the wrong thing, since the real contention is SPI/CPU against
+TFT rendering. **Name the load and record it with the number** (VE-6): "actively redrawing" is not
+reproducible, and two runs are not comparable without it. Proposed fixed load: Aquarium at its
+natural frame rate, which is the heaviest sustained TFT writer in the tree. `T_SD_08` exists because §5 makes mount lazy and
 per-mode-entry: a leak there compounds once per mode switch, not once per boot.
 
 **Negative result is a valid outcome.** If `T_SD_01`, `04`, `05` or `06` fails, record the numbers

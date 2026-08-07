@@ -8347,10 +8347,35 @@ TASK-408 returns. Only TASK-410 and workstream 4 are gated on the probe passing.
 
 **Registry.** Reserved at design time (Architect responsibility #10): features `sdfs-001`,
 `localplay-001`, `plmodel-001`, `m3u-001`, `browse-001`, `pledit-edit-001`, `playorder-001`;
-matrix X050–X064. Developer completes them at implementation. **VE:** 76 test ids reserved across
-`T_RCL_`/`T_SD_`/`T_AE_`/`T_PLE_`/`T_PLR_` — per-task tables live in the workstream docs;
-`test_coverage: []` stays empty until VE lands the suite. VE should challenge the tables on
-testability before the first task starts (inter-agent protocol).
+matrix X050–X064. Developer completes them at implementation.
+
+**Reviews complete (2026-08-07).** [VE](../architecture/designs/M-WINAMP-PLAYER-VE-review.md) —
+4 blockers, 9 majors, 5 minors. [Developer](../architecture/designs/M-WINAMP-PLAYER-DEV-review.md) —
+2 blockers, 5 majors, 4 minors. **All folded into the design set and ADR-059** (Architect,
+2026-08-07). Material outcomes for scheduling:
+
+- **ADR-059 D7 was factually wrong** and is corrected — only one of three `static_assert`s breaks,
+  `TASKBAR_APP_COUNT = (int)AppId::WebRadio` still holds, and the proposed `COUNT - 2` replacement was
+  *less* robust than the existing code. Affects TASK-413 only.
+- **D6 amended (DEV-1)** — the taskbar cycle cannot live in `resolvePlayerSlot()`; `switchApp()`
+  early-returns on same-app and the two dispatch sites guard differently. Needs one shared helper
+  called from both. Affects TASK-413 only.
+- **New ADR-059 D12** — observability is product surface. TASK-411 gains `get pleditRepaints`;
+  TASK-418 gains `get plOrder` / `get plCursor` / `set plCursor` / `advance next|prev`; TASK-410
+  gains the loopTask-handle capture + `configASSERT`. Without these, eight ids were unrunnable
+  (two needed ~3 h of playback; six asserted on state the firmware does not expose).
+- **New ADR-059 D13** — every "identical pass set" gate now requires a **≥3-run baseline** with the
+  flaky set pre-declared. A single-run bar would have failed on `T_WR_TLS_01`/`T169`/`T_PR_05`
+  rather than on regression. Affects TASK-409, 412, 417 scheduling (baseline runs must precede the
+  refactor landing).
+- **TASK-422 also renumbers `check_build.sh`'s gate labels** (DEV-7) — the script prints `[1/6]`…
+  `[6/6]` plus a `[7/7]`, and `tasks.md` entries cite both 6/6 and 7/7.
+
+**VE ids: 76 → 78.** Added `T_SD_10`, `T_PLE_14` (closes a real X055 gap — WebRadio's `_pleditDirty`
+bool becoming a seqno has two uncovered failure modes), `T_PLR_41`. Withdrawn: `T_AE_05` (a review
+gate, not a repeatable test — survives as a TASK-409 checklist item). Reclassified: `T_PLR_25`'s
+task-identity half becomes a runtime assert. Per-task tables live in the workstream docs;
+`test_coverage: []` stays empty until VE lands the suite.
 
 ### TASK-423 — proactive DRAM reclaim: `cmdScreenDump` band buffers off `.bss`
 
