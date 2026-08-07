@@ -8440,7 +8440,58 @@ skin/settings/config ≈ one track). **Do not retune the bar to fit the hardware
 **Owner:** Developer · **Deps:** none · **Gate:** `T_SD_01`–`09`; `T_SD_02` (GPIO5 is a strapping
 pin — 5 cold boots with a card inserted, boot-loop class risk) and `T_SD_08` (20 mount/unmount
 cycles leak-free, because mount is lazy per mode entry) are the two easily skipped ·
-**Priority:** P1 (gates TASK-410 and all of workstream 4) · **Status:** **READY** — ADR-059 accepted 2026-08-07 (D1). Prerequisite: visually confirm the slot is populated before writing code.
+**Priority:** P0 (blocks its own gate; was P1 gating TASK-410/workstream 4) ·
+**Status:** **BLOCKED (2026-08-07)** — new defect found during implementation, below.
+Uncommitted `sdprobe`/`sdcycle` debug commands + investigation notes are in the working tree
+(`app/src/main.cpp`, `app/platformio.ini`); DUT is back on safe prod firmware.
+
+**Blocker — live SD mount corrupts runtime state once background tasks are active.**
+`sdprobe` (own `SPIClass(VSPI)`, 18 SCLK/19 MISO/23 MOSI/5 CS, matches the pin budget above)
+was implemented per spec. Card slot confirmed populated, FAT32 card inserted, human-confirmed.
+`SD.begin()` fails with `esp_vfs_fat_register()` → `ESP_ERR_NO_MEM` — FATFS's 2-slot volume
+table (`FF_VOLUMES=2`, confirmed via direct macro print) reads *full* on what should be the
+first-ever mount of the process. Bisection (all via `CORE_DEBUG_LEVEL` bumped 0→1 to see
+`log_e`, kept — see `app/platformio.ini`):
+
+- Ruled out **hardware/wiring**: an isolated minimal sketch (SD.h + SPI.h only, no WiFi/
+  Spotify/WebRadio) mounts cleanly on the same physical unit — `cardType=SD, cardSizeMB=1910`.
+- Ruled out **pin conflict**: `Spotify-Diy-Thing/SpotifyDiyThing/nfc.h` defines the *identical*
+  VSPI pins (18/19/23, `NFC_SS=5`) for the PN532 reader (by design — the upstream sketch
+  piggybacks NFC on the microSD slot's SPI lines on this board). Checked whether that's live in
+  this build: it isn't — `NFC_ENABLED` is commented out in `app/src/main.cpp:36-37` (TASK-004,
+  "PN532 not wired on this dev unit"), so `nfc.h` never compiles in here. Not the cause in this
+  firmware, but **flag for the Architect**: the M-SDFS pin budget (§2) never enumerated
+  `nfc.h`'s pins because NFC lives outside `app/src/`; if NFC is ever re-enabled on `YELLOW_DISPLAY`
+  it will collide with the SD pins outright.
+- Bisected boot sequence: `SD.begin()` on this exact pin set **succeeds** at every synchronous
+  point tried in `setup()` — immediately after `Serial.begin()`, after `SPIFFS.begin()`, and
+  after WiFi connects (all before `spotifyTask::begin()`/`dataTask::begin()`). It only fails
+  when invoked **live over serial**, well after boot, once `spotifyTask` and `dataTask` are
+  alive and running concurrent TLS/HTTP work (Spotify polling, WebRadio station fetch). This
+  points at **runtime heap/concurrency corruption** stomping FATFS's small static bookkeeping
+  once background tasks are active — not a wiring, pin, or simple boot-ordering issue.
+- Applied (per human direction) a workaround rather than chasing the root cause further tonight:
+  mount once synchronously at the top of `setup()` (proven-good point) and hold the session for
+  process lifetime; `sdprobe`/`sdcycle` reuse it instead of M-SDFS §5's lazy per-mode-entry
+  mount. This **did** mount successfully on the DUT, but:
+  - `SD.begin()` heap delta measured **27 712 B** — over 3× the §3 budget (**≤8 KB**, `T_SD_06`).
+    Needs re-measurement in isolation (the 27 712 B figure was taken amid heavy concurrent boot
+    activity — WiFi/NTP/spotifyTask/dataTask all starting around the same window — and may be
+    conflating the mount cost with unrelated concurrent allocations rather than reflecting
+    `SD.begin()` alone).
+  - A DUT capture caught the device **mid-crash**: `Backtrace: ...|<-CORRUPTED`, `Rebooting...`,
+    `rst:0xc (SW_CPU_RESET)`. Not yet isolated to a clean backtrace — this could be the same
+    corruption manifesting more severely (repeated invocations / longer uptime), or a second,
+    related issue. This is a genuine firmware stability regression risk, not just a mount
+    failure, and needs Architect/PM triage before more DUT time goes into TASK-408 specifically.
+
+**None of `T_SD_01`–`09` are DUT-confirmed.** `T_SD_02` (GPIO5 strapping, real power-cycles)
+was never reached. Do not resume by re-attempting the workaround path blind — start from
+finding the actual corruption source (candidates: `spotifyTask`/`dataTask` concurrent heap
+churn racing our SPI/FATFS calls without a mutex; a driver-level double-init hazard from a
+second independent `SPIClass` instance claiming the same VSPI hardware peripheral while some
+other consumer is mid-transaction; or unrelated heap corruption elsewhere in this
+memory-constrained firmware landing on FATFS's `.bss` by coincidence of layout).
 
 ### TASK-409 — extract the audio engine to `audio/audioEngine.h` (PURE MOVE)
 

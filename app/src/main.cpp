@@ -56,6 +56,12 @@ bool writeContextToNfc = true;
 #include <esp_task_wdt.h> // esp_task_wdt_init() — extended timeout for dataTask TLS
 #include <esp_heap_caps.h> // T_MB_PROBE_00: caps-split heap probes (TASK-261 Phase 0)
 #include <mbedtls/base64.h> // SERIAL_DEBUG `screendump` command — TFT readback encoding
+#ifdef SERIAL_DEBUG
+#include <SD.h>   // TASK-408: sdprobe bring-up probe, own VSPI bus (SD/FS is not otherwise linked)
+#include <SPI.h>
+#include "ffconf.h" // TASK-408: FF_VOLUMES — kept for anyone re-investigating the deferred
+                    // live-mount corruption (see setup()'s sdProbeBootMount() comment)
+#endif
 
 // ----------------------------
 // Additional Libraries
@@ -2151,6 +2157,10 @@ void appTick(AppId id) {
   if (g_apps[(int)id]) g_apps[(int)id]->tick();
 }
 
+#ifdef SERIAL_DEBUG
+static void sdProbeBootMount();  // TASK-408: defined near cmdSdProbe, called from setup()
+#endif
+
 void setup()
 {
   // Extend TWDT from 5→15s: dataTask TLS handshakes (webradio station list,
@@ -2163,6 +2173,22 @@ void setup()
   esp_task_wdt_add(xTaskGetIdleTaskHandleForCPU(0));  // re-subscribe CPU0 idle
 
   Serial.begin(115200);
+
+#ifdef SERIAL_DEBUG
+  // TASK-408 bisection (2026-08-07): SD.begin() on VSPI (18/19/23/5) succeeds at
+  // every synchronous point in setup() — including after WiFi connects — but fails
+  // (esp_vfs_fat_register ESP_ERR_NO_MEM, FATFS's 2-slot table reads "full" on what
+  // should be the first-ever mount) when invoked later via a live `sdprobe` serial
+  // command, once spotifyTask/dataTask are alive and running concurrent TLS/heap
+  // work. Isolated minimal sketch (no WiFi/Spotify/WebRadio) mounts fine, so this
+  // is not a wiring/pin/hardware issue — it's runtime heap/concurrency corruption
+  // once background tasks are active. Root cause not yet found (see tasks.md
+  // TASK-408). Workaround: mount once here, synchronously, before any concurrent
+  // task exists, and hold the session for the process lifetime instead of the
+  // lazy per-invocation mount M-SDFS §5 specifies for the eventual real feature —
+  // `sdprobe`/`sdcycle` reuse this session rather than re-mounting live.
+  sdProbeBootMount();
+#endif
 
   // TASK-267: arena is acquired JIT in WebRadioApp::_play(), NOT at boot (so the
   // station fetch isn't starved — TASK-265). Boot baseline probe (debug-only).
@@ -2415,6 +2441,7 @@ void setup()
     Serial.println("[wifi] no credentials — will open WiFi settings after init");
   }
   mb_heap_probe("post-wifi");  // TASK-261 Phase 0 milestone M1
+
   // TASK-288: fresh watchdog budget before NTP sync + spotifyRefreshToken()
   // below — none of setup()'s WiFi-connect wait loops fed the TWDT before
   // this fix, so a flaky AP requiring more than one fallback attempt could
@@ -2634,6 +2661,8 @@ static void cmdSwitchApp(const char *);
 static void cmdInfo(const char *);
 static void cmdScreenDump(const char *);
 static void cmdColorProbe(const char *);
+static void cmdSdProbe(const char *);
+static void cmdSdCycle(const char *);
 static void cmdHelp(const char *);
 static void cmdReboot(const char *);
 #endif
@@ -2651,6 +2680,8 @@ static const SerialCmd kCmds[] = {
   { "info", cmdInfo, "git+elf+build+snapshot summary",  ""                                   },
   { "screendump", cmdScreenDump, "read back TFT GRAM, base64 RGB565 bands", "[x=0] [y=0] [w=320] [h=240]" },
   { "colorprobe", cmdColorProbe, "TASK-340: fillRect/pushRect known values, readRect them back", "" },
+  { "sdprobe", cmdSdProbe, "TASK-408: SD card mount/heap/LFN/listDir/read-bench probe", "[reads=5000]" },
+  { "sdcycle", cmdSdCycle, "TASK-408 T_SD_08: N live mount/unmount cycles, heap drift", "[cycles=20]" },
   { "help",   cmdHelp,   "list commands",                   ""                                   },
   { "reboot", cmdReboot, "software reset (ESP.restart)",   ""                                   },
 #endif
@@ -4063,6 +4094,244 @@ static void cmdColorProbe(const char *) {
     Serial.printf("{\"probe\":\"push\",\"expected\":%u,\"actual\":%u,\"last\":%s}\n",
                   (unsigned)v, (unsigned)band[0], last ? "true" : "false");
   }
+}
+
+// TASK-408 (M-SDFS phase-0): own VSPI bus — SCK18/MISO19/MOSI23/CS5 — entirely free of
+// the HSPI TFT bus and the touch controller's own SPI (see M-SDFS-sd-card-exploration.md
+// §2). WORKAROUND (2026-08-07): SD.begin() reliably succeeds at any synchronous point in
+// setup(), but fails when invoked live via serial once spotifyTask/dataTask are alive and
+// running concurrent TLS/heap work (esp_vfs_fat_register ESP_ERR_NO_MEM — FATFS's 2-slot
+// table reads full on what should be the first-ever mount; isolated minimal sketch mounts
+// fine, so this is runtime heap/concurrency corruption, not wiring — root cause deferred,
+// see tasks.md TASK-408). Mount once here, synchronously, before any concurrent task
+// exists, and hold the session for the process lifetime; sdprobe/sdcycle reuse it instead
+// of the lazy per-invocation mount M-SDFS §5 specifies for the eventual real feature.
+static const int kSdCsPin = 5;
+static const int kSdSckPin = 18;
+static const int kSdMisoPin = 19;
+static const int kSdMosiPin = 23;
+static const uint32_t kSdFreqHz = 4000000;
+
+static SPIClass s_sdSPI(VSPI);
+static bool s_sdReady = false;
+static size_t s_sdBootFreeIntBefore = 0, s_sdBootFreeIntAfter = 0;
+static size_t s_sdBootLfbIntBefore = 0, s_sdBootLfbIntAfter = 0;
+
+static void sdProbeBootMount() {
+  s_sdBootFreeIntBefore = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  s_sdBootLfbIntBefore = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  s_sdSPI.begin(kSdSckPin, kSdMisoPin, kSdMosiPin, kSdCsPin);
+  s_sdReady = SD.begin(kSdCsPin, s_sdSPI, kSdFreqHz);
+  s_sdBootFreeIntAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  s_sdBootLfbIntAfter = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  Serial.printf("{\"probe\":\"sdboot\",\"FF_VOLUMES\":%d,\"mounted\":%s,\"heapDeltaB\":%ld}\n",
+                (int)FF_VOLUMES, s_sdReady ? "true" : "false",
+                (long)s_sdBootFreeIntBefore - (long)s_sdBootFreeIntAfter);
+  if (!s_sdReady) s_sdSPI.end();
+}
+
+static const char *sdCardTypeName(sdcard_type_t t) {
+  switch (t) {
+    case CARD_MMC:  return "MMC";
+    case CARD_SD:   return "SDSC";
+    case CARD_SDHC: return "SDHC";
+    case CARD_NONE: return "NONE";
+    default:        return "UNKNOWN";
+  }
+}
+
+static int sdProbeCmpU32(const void *a, const void *b) {
+  uint32_t ua = *(const uint32_t *)a, ub = *(const uint32_t *)b;
+  return (ua > ub) - (ua < ub);
+}
+
+// T_SD_08: N live mount/unmount cycles against the same VSPI session, from the same
+// serial-command execution context as sdprobe (concurrent tasks alive) — reuses the
+// already-good boot-established path rather than a fresh live mount (which is exactly
+// what's broken; see sdProbeBootMount()'s comment). Leaves SD mounted on return.
+static void cmdSdCycle(const char *args) {
+  int cycles = 20;
+  sscanf(args, "%d", &cycles);
+  if (cycles < 1) cycles = 1;
+  if (cycles > 200) cycles = 200;
+
+  if (!s_sdReady) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdcycle\",\"error\":\"not mounted at boot\"}");
+    return;
+  }
+
+  size_t baseline = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  Serial.printf("{\"ok\":true,\"cmd\":\"sdcycle\",\"cycles\":%d,\"baselineFreeInt\":%u}\n",
+                cycles, (unsigned)baseline);
+
+  int okCount = 0;
+  for (int i = 0; i < cycles; i++) {
+    SD.end();
+    s_sdSPI.end();
+    s_sdSPI.begin(kSdSckPin, kSdMisoPin, kSdMosiPin, kSdCsPin);
+    bool ok = SD.begin(kSdCsPin, s_sdSPI, kSdFreqHz);
+    size_t freeNow = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    long drift = (long)baseline - (long)freeNow;
+    bool last = (i + 1 == cycles);
+    Serial.printf("{\"probe\":\"sdcycle\",\"i\":%d,\"ok\":%s,\"freeInt\":%u,\"driftB\":%ld,\"last\":%s}\n",
+                  i, ok ? "true" : "false", (unsigned)freeNow, drift, last ? "true" : "false");
+    if (ok) { okCount++; } else { s_sdReady = false; break; }
+    esp_task_wdt_reset();
+  }
+  s_sdReady = (okCount == cycles);
+}
+
+static void cmdSdProbe(const char *args) {
+  int reads = 5000;
+  sscanf(args, "%d", &reads);
+  if (reads < 100) reads = 100;
+
+  if (!s_sdReady) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdprobe\",\"error\":\"mount failed\"}");
+    return;
+  }
+
+  size_t freeIntBefore = s_sdBootFreeIntBefore;
+  size_t freeIntAfter = s_sdBootFreeIntAfter;
+  size_t lfbIntBefore = s_sdBootLfbIntBefore;
+  size_t lfbIntAfter = s_sdBootLfbIntAfter;
+  long heapDeltaB = (long)freeIntBefore - (long)freeIntAfter;
+
+  sdcard_type_t cardType = SD.cardType();
+  uint64_t cardSizeMB = SD.cardSize() / (1024 * 1024);
+  uint64_t totalMB = SD.totalBytes() / (1024 * 1024);
+  uint64_t usedMB = SD.usedBytes() / (1024 * 1024);
+
+  // Long-filename round-trip: >8.3, spaces, mixed case.
+  const char *kLfnPath = "/A long name (test) 01.mp3";
+  bool lfnOk = false;
+  {
+    File f = SD.open(kLfnPath, FILE_WRITE);
+    if (f) {
+      f.write((const uint8_t *)"probe", 5);
+      f.close();
+      File r = SD.open(kLfnPath, FILE_READ);
+      if (r) {
+        lfnOk = (strcmp(r.name(), "A long name (test) 01.mp3") == 0);
+        r.close();
+      }
+      SD.remove(kLfnPath);
+    }
+  }
+
+  // ~200-file directory listing timing. Files created once if absent; setup cost is
+  // excluded from the timed window (browse-001 cares about steady-state page cost).
+  const char *kListDir = "/probelist";
+  const int kListFiles = 200;
+  if (!SD.exists(kListDir)) SD.mkdir(kListDir);
+  {
+    int existing = 0;
+    File dir = SD.open(kListDir);
+    if (dir) {
+      for (File e = dir.openNextFile(); e; e = dir.openNextFile()) { existing++; e.close(); }
+      dir.close();
+    }
+    for (int i = existing; i < kListFiles; i++) {
+      char path[40];
+      snprintf(path, sizeof(path), "%s/f%03d.txt", kListDir, i);
+      File f = SD.open(path, FILE_WRITE);
+      if (f) { f.write((const uint8_t *)"x", 1); f.close(); }
+      if ((i % 20) == 0) esp_task_wdt_reset();
+    }
+  }
+  int listCount = 0;
+  unsigned long listStartUs = micros();
+  {
+    File dir = SD.open(kListDir);
+    if (dir) {
+      for (File e = dir.openNextFile(); e; e = dir.openNextFile()) { listCount++; e.close(); }
+      dir.close();
+    }
+  }
+  unsigned long listElapsedMs = (micros() - listStartUs) / 1000;
+
+  // Sustained sequential-read benchmark + per-read latency histogram (T_SD_04/05).
+  // Bench file created once if absent/undersized; that write is not part of the timed
+  // window. Read chunk (512 B) is deliberately smaller than InBuff (6 400 B) so `reads`
+  // reads comfortably exceeds the >=2 MB / N>=5 000 bar at the default arg.
+  const size_t kChunk = 512;
+  const char *kBenchPath = "/probebench.bin";
+  size_t benchFileSize = (size_t)reads * kChunk;
+  bool benchFileOk = SD.exists(kBenchPath);
+  if (benchFileOk) {
+    File existing = SD.open(kBenchPath, FILE_READ);
+    if (!existing || existing.size() < benchFileSize) benchFileOk = false;
+    if (existing) existing.close();
+  }
+  if (!benchFileOk) {
+    File f = SD.open(kBenchPath, FILE_WRITE);
+    if (f) {
+      static uint8_t wbuf[512];
+      memset(wbuf, 0xA5, sizeof(wbuf));
+      size_t written = 0;
+      while (written < benchFileSize) {
+        f.write(wbuf, sizeof(wbuf));
+        written += sizeof(wbuf);
+        if ((written % (64 * 1024)) == 0) esp_task_wdt_reset();
+      }
+      f.close();
+      benchFileOk = true;
+    }
+  }
+
+  uint32_t *latenciesUs = benchFileOk ? (uint32_t *)malloc(sizeof(uint32_t) * reads) : nullptr;
+  size_t bytesRead = 0;
+  unsigned long benchElapsedUs = 0;
+  int actualReads = 0;
+  if (benchFileOk && latenciesUs) {
+    File f = SD.open(kBenchPath, FILE_READ);
+    if (f) {
+      static uint8_t rbuf[512];
+      unsigned long benchStartUs = micros();
+      for (int i = 0; i < reads; i++) {
+        unsigned long t0 = micros();
+        size_t n = f.read(rbuf, kChunk);
+        if (n == 0) { f.seek(0); t0 = micros(); n = f.read(rbuf, kChunk); }
+        unsigned long t1 = micros();
+        latenciesUs[actualReads++] = (uint32_t)(t1 - t0);
+        bytesRead += n;
+        if ((i % 200) == 0) esp_task_wdt_reset();
+      }
+      benchElapsedUs = micros() - benchStartUs;
+      f.close();
+    }
+  }
+
+  float throughputKBps = benchElapsedUs > 0
+    ? ((float)bytesRead / 1024.0f) / ((float)benchElapsedUs / 1000000.0f)
+    : 0.0f;
+
+  uint32_t p50Us = 0, p99Us = 0, maxUs = 0;
+  if (actualReads > 0) {
+    qsort(latenciesUs, actualReads, sizeof(uint32_t), sdProbeCmpU32);
+    p50Us = latenciesUs[actualReads / 2];
+    p99Us = latenciesUs[(actualReads * 99) / 100];
+    maxUs = latenciesUs[actualReads - 1];
+  }
+  free(latenciesUs);
+
+  Serial.printf(
+    "{\"ok\":true,\"cmd\":\"sdprobe\","
+    "\"cardType\":\"%s\",\"cardSizeMB\":%llu,\"totalMB\":%llu,\"usedMB\":%llu,"
+    "\"heapDeltaB\":%ld,\"freeIntBefore\":%u,\"freeIntAfter\":%u,"
+    "\"lfbIntBefore\":%u,\"lfbIntAfter\":%u,"
+    "\"lfnOk\":%s,"
+    "\"listFiles\":%d,\"listElapsedMs\":%lu,"
+    "\"benchReads\":%d,\"benchBytes\":%u,\"benchElapsedMs\":%lu,\"throughputKBps\":%.1f,"
+    "\"p50Ms\":%.2f,\"p99Ms\":%.2f,\"maxMs\":%.2f}\n",
+    sdCardTypeName(cardType), (unsigned long long)cardSizeMB,
+    (unsigned long long)totalMB, (unsigned long long)usedMB,
+    heapDeltaB, (unsigned)freeIntBefore, (unsigned)freeIntAfter,
+    (unsigned)lfbIntBefore, (unsigned)lfbIntAfter,
+    lfnOk ? "true" : "false",
+    listCount, listElapsedMs,
+    actualReads, (unsigned)bytesRead, (unsigned long)(benchElapsedUs / 1000), throughputKBps,
+    p50Us / 1000.0f, p99Us / 1000.0f, maxUs / 1000.0f);
 }
 
 static void cmdReboot(const char *) {
