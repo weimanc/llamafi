@@ -6002,21 +6002,55 @@ redrawing, `spotifyTask`/`dataTask` live, reading files copied onto the card by 
 | `T_SD_06` `SD.begin()` heap delta | **≤8 KB** | 15 300 B | 15 300 B (11 164 B at 1 slot) | **FAIL — structural** |
 | `T_SD_08` 20 mount/unmount cycles | leak-free | 8 B total drift | 8 B total drift | **PASS** |
 | `T_SD_07` `listDir()` ~200 files | reported | 18 552 ms (200 files) | **5 270 ms / 200 files** (26.4 ms/entry) | **MET** |
-| `T_SD_09` absent/unformatted card | clean fail | not run | not run | **NOT RUN** |
+| `T_SD_09` absent/unformatted card | clean fail | not run | **absent half PASS**; exFAT half unrun | **PARTIAL** |
 
 **Coverage gaps — what still has to happen before this closes.** Three of these need the human at
 the bench; none can be self-served from the serial harness.
 
 1. ~~**`T_SD_02` (20 power-cycles).**~~ **CLOSED 2026-08-08 — 20/20.** See below.
-2. **`T_SD_09` (absent / unformatted card).** Never run. Needs the card physically removed, and an
-   exFAT-formatted card. Partially anticipated by accident: the pre-PATCH-SD-1 SDHC card failed
-   cleanly with a distinguishable error and no crash, which is the shape the criterion wants — but
-   that is not the test.
+2. **`T_SD_09` — absent half CLOSED 2026-08-08 (and it found a crash); exFAT half still unrun.**
+   The criterion names two cases and only one has been run. See below. The exFAT case needs a card
+   that can be reformatted — deliberately not done to the 2 GB SDSC card, which still holds unrelated
+   content.
 3. ~~**`T_SD_04`/`T_SD_05` load fixture (VE-6).**~~ **CLOSED 2026-08-08** — re-run under the named
    load. See below; VE-6 was right, and the re-run changed the reported numbers.
 4. ~~**`T_SD_07` (~200-file listing).**~~ **CLOSED 2026-08-08** — 200 long-named files copied on
    from the host (the write path cannot create them). See below; the result is a constraint on
    `browse-001`, not just a number.
+
+**`T_SD_09` — absent card, 2026-08-08. Absent half PASS; it caught a live panic.** With the slot
+empty: boot mount `mounted:false` (heap delta 332 B, nothing retained), and `sdmount` / `sdprobe` /
+`sdls` / `sdcycle` / `sdmbr` each return `ok:false` with a distinguishable error — `"mount failed"`,
+`"not mounted"`, `"not mounted at boot"`, `"no readable card"`. Device responsive throughout, heap
+flat, zero resets across the run. Each failed mount attempt blocks `loopTask` for **~626 ms**
+(`block_max=618ms` in the heartbeat) — well inside the 15 s TWDT, but it is a visible stall and is a
+direct input to `T_SD_10` / LocalPlayer degraded entry, which should not sit on it synchronously.
+
+Getting there required fixing **PATCH-SD-2**, a use-after-free in the stock SD library that this id
+exists to catch: `f_mount()` registers the volume *before* attempting the forced mount, so a failed
+mount leaves `FatFs[vol]` populated; `sdcard_mount()`'s failure path then frees the context that
+FATFS is embedded in without detaching it, and the next mount dereferences the dangling pointer and
+asserts in `vQueueDelete(NULL)`. Full write-up in `app/lib/SD/LOCAL_PATCHES.md`.
+
+> Two things about that fix are worth carrying forward. It is **not** reachable through the stock
+> library alone — six consecutive failed `SD.begin()` calls with no card do not crash, because the
+> same-sized context is freed and reallocated at the same address and the stale pointer lands on the
+> new one by luck. It took a second mount path with a different context size to expose it. And the
+> **first fix was wrong**: a plausible double-unregister of `card->base_path` was patched, DUT-tested,
+> and still crashed. That change was kept (it is a genuine hygiene bug) but the write-up was rewritten
+> to name the real mechanism rather than the first theory — per BP-055, a diagnosis that has not been
+> tested against the failure is a hypothesis.
+
+`PATCH-SD-2` touches the shared mount path, so it was regression-checked with the card back in: boot
+mount and heap delta byte-identical (15 300 B), `sdread` 1 450.3 KB/s / 3.59 ms worst with the same
+4 375 / 625 histogram, `sdls /probe200` 5 521 ms (inside the observed spread), `sdcycle 20` 20/20
+with **0 B** drift (was 8 B). No regression.
+
+**Still unrun: the exFAT half.** The criterion is "probe with no card, **then with an exFAT card**".
+That needs a card that can be reformatted; the 2 GB SDSC card still holds unrelated content and was
+deliberately left alone. Risk is low — the pre-`PATCH-SD-1` SDHC card presented exactly the shape the
+criterion wants (`ok:false`, distinguishable error, no crash, no hang) — but that was an accident of
+a different bug, not this test.
 
 **`T_SD_02` — GPIO5 strapping, 2026-08-08. PASS 20/20.** Twenty *physical* USB unplug/replug cycles
 with the card inserted, driven by hand (`powercycle_watch.py`, scratchpad). Every cycle: application
