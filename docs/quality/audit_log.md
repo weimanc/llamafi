@@ -1657,6 +1657,85 @@ consistent across tasks.md, roadmap.md, ADR-058, EXP-020, and memory.
 
 ---
 
+### Audit — 2026-08-08 — TASK-408 (SD phase-0 hard gate) retrospective + M-WINAMP-PLAYER readiness
+
+**Triggered by**: PM (post-gate prompt), human approved.
+
+**Scope**: the TASK-408 arc end to end — the BLOCKED handoff (e7c5ba3), the two
+root-cause fixes (380e378, 18be2b2), the PM coverage correction (ce5af0e), and the
+state of M-WINAMP-PLAYER's registry/doc set behind it.
+
+**Areas checked**:
+- [x] Feature inventory completeness
+- [x] Test coverage per feature
+- [x] Cross-feature test coverage
+- [x] Documentation currency
+
+**Findings**:
+
+1. **LL-119 (new) — headline miss, inherited**: TASK-408 was handed off BLOCKED on a
+   "runtime heap/concurrency corruption" diagnosis that did not exist. `ESP_ERR_NO_MEM`
+   has two return sites inside `esp_vfs_fat_register()`; the wrong one was assumed and
+   then reasoned from, a workaround was built on it, and the real cost (a 24 964 B
+   contiguous `calloc`) was recorded as "unexplained". Reinforced by measuring free
+   memory with `MALLOC_CAP_INTERNAL`, which over-reports what a byte-addressable
+   allocation can use. Same family as LL-115 / BP-048 part 1.
+2. **LL-120 (new) — self-inflicted, this session**: the post-fix gate report was written
+   from `tasks.md`'s id *range* rather than the canonical `T_SD_01`–`10` table in
+   `M-SDFS-sd-card-exploration.md`. Result: `T_SD_02` claimed PASS by the exact method
+   its criterion excludes (esptool reset vs 20 power-cycles), `T_SD_09` omitted from the
+   table entirely, `T_SD_07` relabelled and answered with a 52-entry walk against a
+   ~200-file criterion, `T_SD_04`/`05` run under the load phrasing VE-6 had already
+   rejected. 4 of 9 ids actually satisfied. Corrected in ce5af0e; status downgraded to
+   **PARTIAL — NOT CLOSEABLE**.
+3. **LL-121 (new)**: the below-bar result on the original card was written up as a
+   hardware negative. The card reads 9.5 MB/s on a host PC; the cause was a second
+   driver defect (SDHC typed from OCR bit 30 alone → byte addresses to a
+   block-addressed card). Post-fix the gate passes by 6.9×. What worked: the untested
+   variable was named explicitly and the task was held open, which is why this was
+   recovered rather than cut in error.
+4. **Feature inventory lagging (Developer)**: `sdfs-001` is still `status: reserved`,
+   `git_ref: ""`, `test_ids: []` after substantial DUT-verified work landed across three
+   commits. Its `files:` entry points at `app/src/player/sdfs.h`, which does not exist —
+   the code is in `app/src/main.cpp`. Its description still specifies "Lazy mount on
+   entry to Player mode, released on mode exit", which TASK-408 **disproved**.
+5. **Design doc lagging (Architect)**: `M-SDFS-sd-card-exploration.md` §5's lazy
+   per-mode-entry mount is not implementable — LocalPlayer needs the card mounted and the
+   Helix arena acquired simultaneously, and by then the largest 8-bit block is ~5 KB.
+   `T_SD_08`'s stated rationale ("exists because §5 makes mount lazy and per-mode-entry")
+   falls with it. `T_SD_06`'s ≤8 KB bar is unmeetable for a structural reason
+   (`FF_MAX_SS=4096` in the *precompiled* IDF FATFS) and needs an explicit disposition:
+   accept ~15 KB, rebuild the IDF, or move to `esp_vfs_fat_sdspi_mount`.
+6. **Test coverage — no regression suite exists for this gate (VE)**: `T_SD_*` ids appear
+   only in the design doc; `test_plan.md` has **zero** `T_SD` entries. The whole gate was
+   measured through ad-hoc serial commands driven by a scratchpad script. Nothing in
+   `run/test*` re-runs it, so no future change can regress-check the SD path.
+   `cross_feature_matrix.yaml` X050–X064 carry empty `test_coverage` — expected and
+   documented at design time, not a finding, but it becomes one once TASK-409+ land.
+7. **What worked**: PATCH-SD-1 was vendored following the existing `WiFiClientSecure`
+   precedent with a `LOCAL_PATCHES.md` rationale, and `CLAUDE.md`'s platform-pin warning
+   was updated in the same session to record that a bump silently drops it — the
+   re-apply obligation is discoverable from the place someone would actually be standing
+   when they break it. TASK-424 was filed for the write-path panic **in the same editing
+   session it was characterised**, per BP-054, rather than left as prose.
+
+**Actions assigned**:
+- **QM** — LL-119/120/121 logged. **2 BP candidates brought to human** (below); QM does
+  not self-adopt.
+- **Human/bench** — three gate ids cannot be self-served: `T_SD_02` (20 physical
+  power-cycles, boot-loop class), `T_SD_09` (card removed + an exFAT card), `T_SD_07`
+  (~200 files copied on from the host, since the write path cannot create them).
+- **Developer** — reconcile `sdfs-001` (status, `git_ref`, `files`, description);
+  re-run `T_SD_04`/`T_SD_05` under the named Aquarium load (unattended, self-serviceable).
+- **Architect** — amend M-SDFS §5 + `T_SD_08` rationale; rule on `T_SD_06`.
+- **VE** — land `T_SD_01`–`10` into `test_plan.md` and a `run/test*` path; the gate
+  currently has no repeatable form.
+- **PM** — hold TASK-408 open; TASK-409/411/412 remain correctly unblocked (no SD needed).
+
+**Resolution**: _(open — awaiting bench items, Architect ruling, and BP sign-off)_
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:
