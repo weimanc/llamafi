@@ -5995,7 +5995,7 @@ redrawing, `spotifyTask`/`dataTask` live, reading files copied onto the card by 
 | id | bar | 2 GB SDSC @4 MHz | 30 GB SDHC @20 MHz | verdict |
 |---|---|---|---|---|
 | `T_SD_01` mount | OK | OK | OK | **PASS** |
-| `T_SD_02` GPIO5 strapping | 20 **power-cycles** | ~15 esptool resets — **excluded method** | same | **NOT MET** |
+| `T_SD_02` GPIO5 strapping | 20 **power-cycles** | ~15 esptool resets — excluded method | **20/20 physical power-cycles** | **PASS** |
 | `T_SD_03` LFN round-trip | exact | `lfnOk=true` | read-only (write path broken) | **PASS (SDSC)** |
 | `T_SD_04` sustained read | **≥200 KB/s** | 34.1 KB/s | **637.2 KB/s worst of 5** (median 1 433.1) | **PASS — 3.2× over** |
 | `T_SD_05` worst read latency | **≤50 ms** | 113.9 ms | **3.71 ms worst of 5** (p50 0.25–1.00) | **PASS — 13× margin** |
@@ -6007,10 +6007,7 @@ redrawing, `spotifyTask`/`dataTask` live, reading files copied onto the card by 
 **Coverage gaps — what still has to happen before this closes.** Three of these need the human at
 the bench; none can be self-served from the serial harness.
 
-1. **`T_SD_02` (20 power-cycles).** Its criterion explicitly excludes esptool RTS reset — "straps
-   latch on reset and 'probably re-latches' is not a test". The ~15 clean boots recorded here were
-   esptool hard-resets, i.e. exactly the excluded method. **Needs 20 physical power-cycles with the
-   card inserted.** This is boot-loop class, so it is not a formality.
+1. ~~**`T_SD_02` (20 power-cycles).**~~ **CLOSED 2026-08-08 — 20/20.** See below.
 2. **`T_SD_09` (absent / unformatted card).** Never run. Needs the card physically removed, and an
    exFAT-formatted card. Partially anticipated by accident: the pre-PATCH-SD-1 SDHC card failed
    cleanly with a distinguishable error and no crash, which is the shape the criterion wants — but
@@ -6020,6 +6017,29 @@ the bench; none can be self-served from the serial harness.
 4. ~~**`T_SD_07` (~200-file listing).**~~ **CLOSED 2026-08-08** — 200 long-named files copied on
    from the host (the write path cannot create them). See below; the result is a constraint on
    `browse-001`, not just a number.
+
+**`T_SD_02` — GPIO5 strapping, 2026-08-08. PASS 20/20.** Twenty *physical* USB unplug/replug cycles
+with the card inserted, driven by hand (`powercycle_watch.py`, scratchpad). Every cycle: application
+banner reached, `rst:0x1` only, no `rst:0x10` (RTCWDT_RTC_RESET, the bootloop signature the criterion
+names), no repeated resets. **Bonus: 20/20 also reported `"mounted":true`** — twenty independent
+cold-boot mount samples, which is a stronger mount result than `T_SD_01` alone gives.
+
+Honest limits on this evidence. The CH341 driver asserts DTR on open regardless of what userspace
+requests, so the capture tool's *own* connect resets the board — the `rst:0x1` it logs is from that
+connect, not from the power-on it is nominally observing. There is no way around that over USB
+serial on this rig. **The primary evidence is therefore the physical display** (human watched the
+Winamp UI come up all twenty times); the log is corroboration and a written record. That is an
+eyeball gate of the same class as BP-048/LL-109, which this project already relies on. One cycle
+(13) printed the replug prompt without an unplug prompt — the node had already gone during the
+previous capture window — but it was still a genuine replug boot and is counted as one.
+
+> The first attempt at this test aborted after one cycle, and the cause is worth recording because it
+> is a trap for any future bench tooling here: the watcher polled `run/port` to decide whether the
+> DUT was plugged in, and `resolve_port()` (`run/lib.sh:15`) returns `$PORT` **unconditionally when
+> that variable is set, without checking the device exists**. It is an override hook, not a presence
+> check, and using it as one means "is the device gone?" can be answered by an environment variable.
+> Detection is now an in-process `glob('/dev/ttyUSB*')` with no subprocess in the poll loop, and the
+> aborting timeout that turned a detection miss into a dead run was removed entirely.
 
 **`T_SD_07` — directory listing, 2026-08-08.** 200 files named `track NNN test.txt` (long names with
 spaces, so LFN records are exercised), created on the host because TASK-424 blocks the device from
