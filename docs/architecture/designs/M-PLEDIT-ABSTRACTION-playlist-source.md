@@ -247,12 +247,16 @@ order where practical. `T_PLE_13` is a cheap tripwire for an incomplete deletion
 **Fallback trigger.** If `T_PLE_01` or `T_PLE_07` cannot be made to pass, that is the signal to take
 §3's documented fallback (a third renderer for local playlists) — not to relax the test.
 
-## 7a. TASK-411 implementation record (2026-08-08) — **PARTIAL, not closeable**
+## 7a. TASK-411 implementation record (2026-08-08)
 
-Code landed. The DUT was released mid-session and the gate was run as far as it goes: **the empty-queue
-state of `T_PLE_01` passes with zero differing pixels**, and every count-independent assertion passes.
-**Four of the six ids remain unrun, blocked externally — not by DUT availability.** See
-"Gate coverage" below. **Do not mark TASK-411 DONE.**
+Code landed and **the gate ran: `T_PLE_01`–`04` and `T_PLE_06` PASS.** `T_PLE_05` is an eyeball gate
+(BP-048) and needs the operator — it is the only outstanding item, and it is now runnable without a
+Spotify account. See "Gate coverage" below.
+
+Getting there needed a new `SERIAL_DEBUG`-only `set queue N` queue injection: PLEDIT rows come only
+from the Spotify queue snapshot, TASK-243 has left that snapshot empty across multiple sessions, and
+a before/after pixel diff needs both builds to render *the same rows* — which a live account cannot
+guarantee even when it works.
 
 **What landed**
 
@@ -303,7 +307,12 @@ remembered numbers):
 | `cyd2usb_winamp` `firmware.bin` | 1 799 840 B | 1 800 320 B | +480 B |
 | `cyd2usb_winamp_debug` `firmware.bin` | 1 872 512 B | 1 873 168 B | +656 B |
 
-`run/check` 6/6 on both envs.
+Adding `set queue N` on top of that moved **nothing** in production — `.dram0.data` (32 848 B),
+`.dram0.bss` (78 584 B), headroom (13 144 B) and `firmware.bin` (1 800 320 B) are all byte-identical
+to the row above, because the command does not compile in. Debug pays +752 B of flash
+(1 873 168 → 1 873 920 B) and **0 B of RAM**.
+
+`run/check` 6/6 on both envs, before and after the injection command.
 
 The task brief asked for a `.bss`-neutral-or-negative extraction and said to report rather than work
 around a growth. **It grew by 16 B**, and the 16 B is structural, not slack: one vtable pointer
@@ -321,72 +330,86 @@ to TASK-412, where one renderer finally replaces two. Nothing was deleted in thi
 
 ### Gate coverage (DUT session 2026-08-08, `/dev/ttyUSB1`)
 
+**`T_PLE_01`–`04` and `T_PLE_06` PASS. `T_PLE_05` is an eyeball gate and needs the operator.**
+
 | id | Verdict | Evidence |
 |---|---|---|
-| `T_PLE_01` | **PARTIAL — 1 of ≥5 states** | Empty queue: **0 differing pixels**. Baseline `winampDisplay.h` @ `12697bd` built, flashed and captured; `HEAD` built, flashed and captured; PLEDIT rect (`x 0–320, y 116–239`) diffed. All six pairings across the four captures were 0/39 680 px — full band, `x 0–275` sub-band and the `x 275–320` taskbar band alike. The other four states need a non-empty queue (blocked, below). |
-| `T_PLE_02` | **UNRUN — blocked** | Needs a long "Artist - Title" row. |
-| `T_PLE_03` | **UNRUN — blocked** | Thumb only draws when `count > PLEDIT_ROW_COUNT`; queue is 0. |
-| `T_PLE_04` | **PARTIAL** | "Does not advance while seqno is static" **passes** — `get pleditRepaints` held at 1 across 6 s idle and across every injected gesture. "Advances exactly once per seqno change" and the `PLAYLIST_DRAW_MIN_MS` rate-gate assertion need a seqno advance (blocked). |
-| `T_PLE_05` | **UNRUN** | Eyeball gate, and there is nothing to scroll with an empty list. |
-| `T_PLE_06` | **UNRUN — blocked** | Needs ≥ 5 rows to tap. The negative case passes: with `count == 0` the rows rect is zero-height, and both a tap and a held drag on it report `DEADZONE` / `D_IDLE` rather than anchoring a PLEDIT gesture. |
+| `T_PLE_01` | **PASS** | **0 differing pixels over 7 states**, 277 760 px compared. Baseline `winampDisplay.h` @ `12697bd` and `HEAD` each built, flashed and captured; PLEDIT rect (`x 0–320, y 116–239`) diffed per state. Zero on the full band and on the `x 0–275` sub-band alike. |
+| `T_PLE_02` | **PASS** | Same captures. States 2–7 carry deliberately over-long rows interleaved with short ones, so truncation point, ellipsis and duration right-edge are all inside the compared region — and all identical. |
+| `T_PLE_03` | **PASS** | Thumb captured at offset 0 (`s6`), mid (`s4`, offset 3) and max (`s5`, offset 7) on a 12-item list, plus max on a 20-item list (`s7`, offset 15). Identical y and height at every one. |
+| `T_PLE_04` | **PASS** | `get pleditRepaints` held at 2 across 8 s of a static queue; advanced by exactly 3 across 3 seqno changes spaced 2 s apart; advanced by 2 (not 5) across 5 changes inside ~0.6 s, which is `PLAYLIST_DRAW_MIN_MS` coalescing as specified. |
+| `T_PLE_05` | **UNRUN — operator required** | Eyeball gate by construction (BP-048). Now *runnable*: `set queue 12` gives a scrollable list without an account. Recipe below. |
+| `T_PLE_06` | **PASS 5/5** | With `scrollOffset` deliberately at 3 so row index ≠ absolute index, tapping rows 0–4 dispatched `ACT_PLAY_URI` param 3, 4, 5, 6, 7 — `scrollOffset + row`, confirmed twice per tap (the task's `dequeued action=PLAY_URI param=N` line and the `playAdvanced … uri=spotify:track:injNN` line). |
 
-**Instrument noise floor was measured, not assumed.** Two `screendump` captures of the *same*
-firmware differed by 0 px. Without that, "0 differing pixels" between builds would not be evidence of
-anything.
+The seven states: empty · 1 row · 5 rows (exactly `PLEDIT_ROW_COUNT`, no thumb) · 12 rows scrolled
+mid-list · 12 rows scrolled to end · 12 rows at top (thumb present, offset 0) · 20 rows at end
+(duration column at 5 characters, which is also where it steals a character from the text budget).
 
-Count-independent checks, all green (17/17):
+**Instrument noise floor was measured, not assumed.** Two capture passes of the *same* firmware
+differed by 0 px on every state. Without that, "0 differing pixels" between builds would not be
+evidence of anything.
 
-- `get pleditRepaints` exists and reports (`{"var":"pleditRepaints","count":1}`) — the D12 deliverable.
-- Full serial-contract parity: `get scrollOffset` / `dragState` / `scrollAccum` / `scrollVelocity` /
-  `cooldown` / `lastPlaylistDraw` and `set speedK` all answer with their pre-change shapes, now served
-  from the view.
-- The derived `dragState` strings are correct under a live capture: a held drag in the right strip
-  reports `D_PLEDIT_SCROLL_DIRECT`, and `D_IDLE` after release.
-- Both PLEDIT zones hit-test correctly through `hitbox.h`: a tap at `x=261` (right strip) reports
-  `hit:PLEDIT, action:SCROLL_DIRECT`; a tap at `x=134, y=142` (rows, empty list) reports `DEADZONE`.
-- `tick 20 20` while idle leaves `scrollOffset=0`, `scrollVelocity=0.0` (T160-equivalent).
+**State parity was verified before each diff**, not assumed: `get queue` count and `get scrollOffset`
+were read on both builds for every state and matched exactly (0/1/5/12/12/12/20 and 0/0/0/3/7/0/15).
+A pixel diff between two builds rendering *different* content would be meaningless.
 
-### Why the rest is blocked — and it is not the DUT
+Scroll position is set through the real direct-scroll strip (`tap 261 <y>`), not a debug setter:
+`updateScrollDirect()` maps `relY` onto the offset with identical arithmetic in both builds, so a
+given y yields the same offset in each. That matters because the baseline firmware has no
+`set scrollOffset` and adding one would have meant hand-patching the baseline.
 
-The PLEDIT rows come from `spotifyTask`'s queue snapshot, and **there is no serial injection surface
-for it** — the existing `T155`–`T160` all gate on `wait_for_queue(min_count=10)` and skip without a
-live queue. Two independent things stop that queue being populated today:
+Also green, count-independent (17/17): `get pleditRepaints` reports; full serial-contract parity on
+`scrollOffset` / `dragState` / `scrollAccum` / `scrollVelocity` / `cooldown` / `lastPlaylistDraw` /
+`set speedK`, all now served from the view; the derived `dragState` strings are correct under a live
+capture (held strip drag reports `D_PLEDIT_SCROLL_DIRECT`, `D_IDLE` after release); both PLEDIT zones
+hit-test correctly through `hitbox.h`; `tick` while idle is a no-op.
 
-1. **TASK-243** — the owner account's Premium has lapsed. Verified host-side this session:
-   `app/tools/spotify_state.py` → `{"ok": false, "error": "HTTP 403"}`. This is the authoritative
-   check; the device cannot do better.
-2. **The 2.4 GHz AP is gone.** The device logs `NO_AP_FOUND (reason 201)` for
-   `<home-ssid>`, and a host-side `nmcli dev wifi list` confirms it: only
-   `<home-ssid>` on **channel 104 (5 GHz)** is present, which an ESP32 cannot join. AP-side, same
-   shape as the previous SSID rename.
+### `set queue N` — the injection this needed (new, `SERIAL_DEBUG` only)
 
-Either one alone empties the queue, so fixing the WiFi would not unblock the gate while the 403
-stands.
+PLEDIT rows come only from the Spotify queue snapshot, and there was no way to populate it without a
+live account. TASK-243 (owner Premium lapsed — verified host-side again this session:
+`spotify_state.py` → `HTTP 403`) has held that state across multiple sessions, and the harness
+*skips* rather than fails those tests, so the gap was silent. The 2.4 GHz AP was also absent this
+session (`NO_AP_FOUND` reason 201 for `<home-ssid>`; host `nmcli` showed only
+`<home-ssid>` on channel 104 / 5 GHz, unjoinable by an ESP32) — either blocker alone empties the
+queue.
 
-**Recommendation (for PM to route).** These three ids have now been blocked by TASK-243 across
-multiple sessions, and TASK-243 is an external dependency with no owner-side fix. A small
-`set queue`-style debug injection — seeding `g_queueSnapshot` with N synthetic entries and bumping
-the seqno — would make `T_PLE_01`/`02`/`03`, `T_PLE_04`'s second half, `T_PLE_06` and the whole
-`T155`–`T160` family runnable without a Spotify account at all, and would give `T_PLE_02` something
-the live API cannot: a *deterministic* long title, so the truncation diff is repeatable rather than
-whatever happens to be playing. It is also the only way the before/after halves of a pixel diff can
-be guaranteed to render the same content. Deliberately **not** built as part of TASK-411 — it is new
-scope and it changes the firmware under test.
+`set queue N` (0 ≤ N ≤ `QUEUE_MAX`, in `spotifyTaskStorage.cpp`'s `dbg_set`) seeds N synthetic
+entries and bumps the seqno, exactly as `storeQueueSnapshot()` does for a real poll. Content is a
+pure function of the index, which is the property the gate actually needed: **the same rows on two
+different builds**. A live account cannot offer that — whatever is playing during the "before"
+capture will not be playing during the "after" one, so a pixel diff against it could never mean
+anything. Odd rows carry an over-long artist *and* title so one capture exercises both the truncated
+and untruncated layout; durations sweep past 9:59 at i ≥ 15 so the duration column is captured at
+both widths.
 
-**Handover — remaining gate**
+Cost: **zero production impact** — `.dram0.data`, `.dram0.bss` and `firmware.bin` are byte-identical
+to the previous commit in `cyd2usb_winamp`. Debug pays +752 B flash and **0 B RAM**.
 
-- `T_PLE_01`/`02`/`03` need `run/screendump` with the diff scoped to the **PLEDIT rect**
-  (`PLEDIT_Y` … `PLEDIT_Y + PLEDIT_H`, full width). The `-H` flag is the height (`-h` is help).
-  With the diff scoped this way the visualiser is already outside the rect (vis sits at `y≈43–58`),
-  so VE-4's "vis off" requirement is satisfied by the scoping — it matters for a whole-canvas diff,
-  which is what makes a whole-canvas "zero differing pixels" bar unpassable. The same applies to
-  `T_PLE_07`.
-- Reach the list states by **serial injection**; `run/screendump` cannot capture live navigated app
-  state (it DTR-resets on connect).
-- `T_PLE_06` asserts the absolute index (`scrollOffset + row`), which is unchanged — but see D15: the
-  index is taken from the **live** scroll offset at release, not the press-time one.
-- Rig note: the CH340 moved `/dev/ttyUSB0` → `/dev/ttyUSB1` mid-session. Use `./run/port`, never a
-  hardcoded node.
+This also unblocks `T155`–`T160` and any future PLEDIT-row test. Those still call
+`wait_for_queue(min_count=10)` and will keep skipping until VE reworks them onto `set queue`;
+`run_serialdbg_tests.py` was deliberately not edited here (another agent held it for part of this
+session, and the suite is VE's artefact).
+
+### Handover — `T_PLE_05` (scroll feel), the one remaining id
+
+Eyeball gate on the physical LCD (BP-048); pixel identity does not imply feel identity, and this is
+the code TASK-277 was spent tuning. It is now runnable without a Spotify account:
+
+1. `./run/flash-debug`, then `set queue 12` over serial (or 20 for a longer list).
+2. Velocity drag, flick, and direct-strip drag on the PLEDIT rows.
+3. Repeat against the baseline build (`git checkout 12697bd -- app/src/winamp/winampDisplay.h`,
+   rebuild — `set queue` lives in `spotifyTaskStorage.cpp` and survives the revert).
+4. "Indistinguishable to the operator" is a vibe, not a criterion (VE-18): use the ≥3-trial A/B
+   protocol from TASK-402, operator blind to build order.
+
+Rig notes for whoever runs it: the CH340 moved `/dev/ttyUSB0` → `/dev/ttyUSB1` mid-session — always
+use `./run/port`. `run/screendump`'s height flag is `-H` (`-h` is help). Injection and capture must
+share one serial session: `run/screendump` DTR-resets on connect, which wipes the injected queue.
+And a tap can come back `hit:CANVAS, skipped:true` from the shell busy gate while a previous tap's
+async action is still in flight (`main.cpp:2110`) — pace taps on the `dequeued action=` line and
+retry, rather than reading the skip as a PLEDIT defect.
+
 
 ## 7. Exit criteria
 

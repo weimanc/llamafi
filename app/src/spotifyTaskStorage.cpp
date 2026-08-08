@@ -876,6 +876,53 @@ bool dbg_set(const char* var, const char* val) {
     s_lastSuccessfulPollMs = (unsigned long)strtoul(val, nullptr, 10);
     return true;
   }
+  // TASK-411 — seed the queue snapshot with N synthetic entries and bump the
+  // seqno, exactly as storeQueueSnapshot() does for a real poll. `set queue N`,
+  // 0 <= N <= QUEUE_MAX; N=0 is the empty-list state.
+  //
+  // Why this exists: PLEDIT rows come only from this snapshot, so every test
+  // that asserts on a *row* — T_PLE_01 states 2-5, T_PLE_02/03/06, T155-T160 —
+  // was unrunnable whenever the account could not poll. TASK-243 (owner Premium
+  // lapsed) has held that state across multiple sessions with no owner-side fix,
+  // and `wait_for_queue()` simply skips those tests rather than failing them,
+  // so the gap was silent. Injection also buys something a live account cannot:
+  // the SAME rows on two different builds, which is what a before/after pixel
+  // diff needs to mean anything, and a deterministic over-long title instead of
+  // whatever happens to be playing.
+  //
+  // Content is a pure function of the index, so two builds seeded with the same
+  // N render identical pixels:
+  //   - odd rows carry a deliberately over-long artist AND title, so a single
+  //     capture exercises both the truncated and the untruncated row layout;
+  //   - durations sweep past 9:59 (i >= 15), so the duration column is captured
+  //     at both 4- and 5-character widths, which is what moves the truncation
+  //     budget for the row text.
+  // Overwritten by the next successful real poll, same as any other injected
+  // state here.
+  if (strcmp(var, "queue") == 0) {
+    int n = val && *val ? atoi(val) : 0;
+    if (n < 0) n = 0;
+    if (n > QUEUE_MAX) n = QUEUE_MAX;
+    portENTER_CRITICAL_SAFE(&g_queueMux);
+    for (int i = 0; i < n; i++) {
+      QueueEntry &e = g_queueSnapshot.items[i];
+      if (i & 1) {
+        snprintf(e.name,   sizeof(e.name),   "A Very Long Track Title That Must Truncate %02d", i);
+        snprintf(e.artist, sizeof(e.artist), "An Extremely Long Artist %02d", i);
+      } else {
+        snprintf(e.name,   sizeof(e.name),   "Track %02d", i);
+        snprintf(e.artist, sizeof(e.artist), "Artist %02d", i);
+      }
+      snprintf(e.uri, sizeof(e.uri), "spotify:track:inj%02d", i);
+      e.durationMs = (uint32_t)(61 + i * 37) * 1000UL;   // 1:01 .. 12:44
+    }
+    g_queueSnapshot.count = (uint8_t)n;
+    g_queueSnapshot.seqno++;
+    portEXIT_CRITICAL_SAFE(&g_queueMux);
+    Serial.printf("[D][spotify.queue] injected count=%u seqno=%lu\n",
+                  (unsigned)n, (unsigned long)g_queueSnapshot.seqno);
+    return true;
+  }
   return false;
 }
 
