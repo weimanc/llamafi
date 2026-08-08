@@ -569,6 +569,26 @@ LL-101; BP-046 adopted 2026-07-11 from LL-105.)_
 
 ---
 
+### BP-055 — An error value is not a diagnosis until you have named which return site produced it
+
+**Adopted from**: LL-119 (LL-121 folded in as the third clause)
+**Date adopted**: 2026-08-08 (human)
+**Rule**: When a library or framework call returns an error value, open the callee and enumerate that value's return sites **before** forming a theory about the cause. If more than one site can produce it, identify which one fired and state it explicitly in the write-up; a diagnosis that cannot name its return site is a hypothesis, not a finding. If the evidence that distinguishes the sites is behind a suppressed log level, raising that level is the **first** diagnostic step, not an afterthought. And before attributing a below-bar measurement to a hardware component, obtain one independent measurement of that component off-target (host PC, second board, known-good reference part) and record it — where that is impossible, name it as an untested variable and hold the task open rather than closing on the negative.
+**Rationale**: TASK-408 was handed off BLOCKED for a session on "runtime heap/concurrency corruption" that did not exist. `esp_vfs_fat_register()` returns `ESP_ERR_NO_MEM` from two unrelated sites — the `FF_VOLUMES` table being full, and a plain `calloc()` failing — and the first was assumed, then reasoned from ("on a table that should be empty"), then built on with a workaround whose 27 712 B cost was recorded as unexplained. It was the second site: the mount needs 24 964 B **contiguous** at Arduino's default `max_files=5`. The callee is fifteen lines and ships in the framework package on disk. Two things reinforced the wrong story: free memory was measured with `MALLOC_CAP_INTERNAL`, which counts the 32-bit-only D/IRAM region and so over-reports what a byte-addressable allocation can use (use `MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT` when the question is "can this allocation succeed"); and the one line naming the true site is a `log_e`, invisible at that build's `CORE_DEBUG_LEVEL=0`. The hardware clause comes from the same task: a clean, well-instrumented 5.9×-under result was written up as a hardware negative, and the card in question reads 9.5 MB/s on a host PC — the real cause was a second driver defect, and the fixed result came in 6.9× *over* the bar. Same family as BP-048 part 1 (a coherent but wrong source-read), with a cheaper disproof available than either prior instance.
+**Applies to**: All
+
+---
+
+### BP-056 — A gate or acceptance report is written against the canonical id table, one row per id, including the rows with no evidence
+
+**Adopted from**: LL-120
+**Date adopted**: 2026-08-08 (human)
+**Rule**: When reporting a gate, milestone acceptance, or any criteria-keyed result, source the id list from the **owning design or test document** — not from a task's restatement of it — and produce one row per canonical id, with the criterion quoted or paraphrased alongside the measurement. Ids with no evidence get explicit `NOT RUN` / `NOT MET` rows. Rows may not be renamed, merged, or dropped. If the report's id list is not literally as long as the gate's, it is incomplete by construction.
+**Rationale**: TASK-408's post-fix report claimed "GATE PASSED" with 4 of 9 ids actually satisfied. The ids were taken from `tasks.md`'s one-line restatement — "**Gate:** `T_SD_01`–`09`", a range with no criteria — so the table got built outward from whatever the session had measured rather than inward from what was required. That construction *cannot* emit a NOT RUN row, which is exactly how `T_SD_09` (absent/unformatted card) disappeared from the report entirely. Worse, the two ids the VE had specified most carefully were the two mis-reported most confidently, because the restatement preserved the id and dropped the criterion: `T_SD_02` was claimed PASS on ~15 esptool hard-resets when its criterion reads "20 **power-cycles** (not esptool RTS reset — straps latch on reset and 'probably re-latches' is not a test)", and `T_SD_04`/`T_SD_05` were run under "actively redrawing", the exact phrasing VE-6 had already rejected as unreproducible after naming Aquarium at natural frame rate as the fixed load. `T_SD_07` was silently relabelled "directory walk" and answered with a 52-entry measurement against a ~200-file criterion. GPIO5 strapping is boot-loop class; that is not a formality to wave through.
+**Applies to**: All (Developer/VE report gates, PM accepts them)
+
+---
+
 ## Entry Format
 
 ```

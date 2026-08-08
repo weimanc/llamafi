@@ -5997,8 +5997,8 @@ redrawing, `spotifyTask`/`dataTask` live, reading files copied onto the card by 
 | `T_SD_01` mount | OK | OK | OK | **PASS** |
 | `T_SD_02` GPIO5 strapping | 20 **power-cycles** | ~15 esptool resets — **excluded method** | same | **NOT MET** |
 | `T_SD_03` LFN round-trip | exact | `lfnOk=true` | read-only (write path broken) | **PASS (SDSC)** |
-| `T_SD_04` sustained read | **≥200 KB/s** | 34.1 KB/s | **1 380.8 KB/s** (2 555 904 B / 1 807 ms) | **PASS — 6.9× over** |
-| `T_SD_05` worst read latency | **≤50 ms** | 113.9 ms | **3.70 ms** (p50 0.25) | **PASS — 13× margin** |
+| `T_SD_04` sustained read | **≥200 KB/s** | 34.1 KB/s | **637.2 KB/s worst of 5** (median 1 433.1) | **PASS — 3.2× over** |
+| `T_SD_05` worst read latency | **≤50 ms** | 113.9 ms | **3.71 ms worst of 5** (p50 0.25–1.00) | **PASS — 13× margin** |
 | `T_SD_06` `SD.begin()` heap delta | **≤8 KB** | 15 300 B | 15 300 B (11 164 B at 1 slot) | **FAIL — structural** |
 | `T_SD_08` 20 mount/unmount cycles | leak-free | 8 B total drift | 8 B total drift | **PASS** |
 | `T_SD_07` `listDir()` ~200 files | reported | 18 552 ms (200 files) | only 52 entries / 549 ms | **NOT MET** |
@@ -6015,15 +6015,36 @@ the bench; none can be self-served from the serial harness.
    exFAT-formatted card. Partially anticipated by accident: the pre-PATCH-SD-1 SDHC card failed
    cleanly with a distinguishable error and no crash, which is the shape the criterion wants — but
    that is not the test.
-3. **`T_SD_04`/`T_SD_05` load fixture (VE-6).** The numbers were taken under Winamp/WebRadio
-   rendering, i.e. "actively redrawing" — the exact phrasing VE-6 rejected as unreproducible. The
-   design names **Aquarium at its natural frame rate** as the fixed load. Re-run under it. The
-   margin is 6.9×, so a verdict flip is unlikely; the point is that two runs are not comparable
-   without a named load, and the next person will compare.
+3. ~~**`T_SD_04`/`T_SD_05` load fixture (VE-6).**~~ **CLOSED 2026-08-08** — re-run under the named
+   load. See below; VE-6 was right, and the re-run changed the reported numbers.
 4. **`T_SD_07` (~200-file listing)** was measured at 18 552 ms on the SDSC card at 4 MHz, before both
    fixes. Post-fix only a 52-entry directory was walked (10.6 ms/entry). `browse-001`'s page size is
    supposed to come from this number, so it needs re-measuring on ~200 files at 20 MHz — which
    currently needs the files copied on from the host, since the write path cannot create them.
+
+**`T_SD_04`/`T_SD_05` under the named load (VE-6), 2026-08-08.** Five runs of 5 000 reads
+(2 560 000 B each, zero read failures) with **Aquarium** as the active app at its natural frame rate,
+`get appId` asserted `id:7 Aquarium` before and after every run:
+
+| run | KB/s | p50 | p99 | max | histogram |
+|---|---|---|---|---|---|
+| 1 (first read after boot) | **637.2** | 1.00 ms | 1.00 ms | 1.82 ms | 4 997 in the ≤1 ms bucket, 3 in ≤2 ms |
+| 2 | 1 433.1 | 0.25 ms | 3.65 ms | 3.65 ms | 4 375 / 625 |
+| 3 | 1 439.2 | 0.25 ms | 3.70 ms | 3.70 ms | 4 375 / 625 |
+| 4 | 1 437.1 | 0.25 ms | 3.62 ms | 3.62 ms | 4 375 / 625 |
+| 5 | 1 431.7 | 0.25 ms | 3.71 ms | 3.71 ms | 4 375 / 625 |
+
+Runs 2–5 are tight (0.5 % spread). **Run 1 is a reproducible-looking outlier at 2.2× slower**, and
+its shape is the interesting part: it shows *no* buffered-hit bucket at all — every read cost ~1 ms,
+where runs 2–5 show the expected 8:1 pattern of one 4 KB physical read serving eight 512 B calls. The
+first read after boot appears not to get the 4 KB read-ahead. **Report the worst, not the median**:
+`T_SD_04` = 637.2 KB/s (still 3.2× over the bar), `T_SD_05` = 3.71 ms (13× under).
+
+> This is exactly what VE-6 was protecting against. The previously reported 1 380.8 KB/s was a
+> single run under an unnamed load; the honest worst-case under the specified load is less than half
+> of it. The verdict does not flip, but the number moved a long way, and a first-read-after-boot
+> penalty is directly relevant to `localplay-001`'s start-of-playback latency — it should be
+> characterised there rather than discovered again.
 
 Read latency is now tightly bimodal and clean: 4 376 buffered hits ≤250 µs and 624 physical 4 KB
 reads all landing in the 2–4 ms bucket, nothing above.
