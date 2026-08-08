@@ -6001,7 +6001,7 @@ redrawing, `spotifyTask`/`dataTask` live, reading files copied onto the card by 
 | `T_SD_05` worst read latency | **≤50 ms** | 113.9 ms | **3.71 ms worst of 5** (p50 0.25–1.00) | **PASS — 13× margin** |
 | `T_SD_06` `SD.begin()` heap delta | **≤8 KB** | 15 300 B | 15 300 B (11 164 B at 1 slot) | **FAIL — structural** |
 | `T_SD_08` 20 mount/unmount cycles | leak-free | 8 B total drift | 8 B total drift | **PASS** |
-| `T_SD_07` `listDir()` ~200 files | reported | 18 552 ms (200 files) | only 52 entries / 549 ms | **NOT MET** |
+| `T_SD_07` `listDir()` ~200 files | reported | 18 552 ms (200 files) | **5 270 ms / 200 files** (26.4 ms/entry) | **MET** |
 | `T_SD_09` absent/unformatted card | clean fail | not run | not run | **NOT RUN** |
 
 **Coverage gaps — what still has to happen before this closes.** Three of these need the human at
@@ -6017,10 +6017,38 @@ the bench; none can be self-served from the serial harness.
    that is not the test.
 3. ~~**`T_SD_04`/`T_SD_05` load fixture (VE-6).**~~ **CLOSED 2026-08-08** — re-run under the named
    load. See below; VE-6 was right, and the re-run changed the reported numbers.
-4. **`T_SD_07` (~200-file listing)** was measured at 18 552 ms on the SDSC card at 4 MHz, before both
-   fixes. Post-fix only a 52-entry directory was walked (10.6 ms/entry). `browse-001`'s page size is
-   supposed to come from this number, so it needs re-measuring on ~200 files at 20 MHz — which
-   currently needs the files copied on from the host, since the write path cannot create them.
+4. ~~**`T_SD_07` (~200-file listing).**~~ **CLOSED 2026-08-08** — 200 long-named files copied on
+   from the host (the write path cannot create them). See below; the result is a constraint on
+   `browse-001`, not just a number.
+
+**`T_SD_07` — directory listing, 2026-08-08.** 200 files named `track NNN test.txt` (long names with
+spaces, so LFN records are exercised), created on the host because TASK-424 blocks the device from
+writing them. Deterministic across runs (5 270 / 5 303 / 5 444 / 5 465 ms).
+
+| directory | entries | total | per entry |
+|---|---|---|---|
+| `/` | 9 | 9 ms | 1.0 ms |
+| `/mp3` | 52 | 543 ms | 10.5 ms |
+| `/probe200` | 200 | **5 270 ms** | **26.4 ms** |
+
+**Per-entry cost grows with directory size** — it is not a fixed page cost, so sizing a browser page
+from a small directory will underestimate badly. Three points on three different directories is not
+enough to name a complexity class, and the root is not comparable (short names, mostly
+subdirectories), so this is recorded as a trend, not a law.
+
+One hypothesis was tested and **falsified**: that `File::size()` per entry was the cost, since FatFs
+resolves a path-based stat by scanning the directory from its start. Added a no-stat listing mode
+(`sdls <dir> n`) to price it — and it made no difference at all (200 entries: 5 264 ms without the
+stat vs 5 270 ms with; 52 entries: 546 vs 543). The stat is not avoidable that way because
+`openNextFile()` already stats each entry when it constructs the `File` (to resolve `_isDirectory`),
+so skipping `size()` skips nothing.
+
+> **Constraint for `browse-001`, which is what this id exists to feed.** 5.3 s to walk a 200-file
+> directory cannot sit on a mode-entry or navigation path as a blocking call — that is ~18× the
+> worst *single-read* latency budget and would read as a hang. The browser has to walk incrementally
+> (yielding to `loopTask`), cache the result, or both, and it cannot assume the per-page cost it
+> measures on a small directory holds on a large one. Note this is a *listing* cost, not a
+> throughput problem: sustained reads on the same card are 637–1 439 KB/s.
 
 **`T_SD_04`/`T_SD_05` under the named load (VE-6), 2026-08-08.** Five runs of 5 000 reads
 (2 560 000 B each, zero read failures) with **Aquarium** as the active app at its natural frame rate,

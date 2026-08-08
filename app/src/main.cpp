@@ -2700,7 +2700,7 @@ static const SerialCmd kCmds[] = {
   { "sdumount", cmdSdUmount, "TASK-408: unmount, report heap actually returned", "" },
   { "sdclean", cmdSdClean, "TASK-408: delete sdprobe fixtures (/probelist, /probebench.bin)", "" },
   { "sdwrite", cmdSdWrite, "TASK-408: isolated sequential write of N 512B chunks", "[chunks=64] [heapCheckEvery=0]" },
-  { "sdls", cmdSdLs, "TASK-408: list a directory with sizes", "[dir=/] [q=quiet/timing]" },
+  { "sdls", cmdSdLs, "TASK-408: list a directory with sizes", "[dir=/] [q=quiet | n=quiet,no stat]" },
   { "sdmbr", cmdSdMbr, "TASK-408: raw sector 0 / partition table / volume ID (no mount needed)", "" },
   { "sdread", cmdSdRead, "TASK-408: read-only benchmark against an existing file", "<reads> <path>" },
   { "help",   cmdHelp,   "list commands",                   ""                                   },
@@ -4434,7 +4434,12 @@ static void cmdSdLs(const char *args) {
   // dominate the walk, so the timing is only meaningful with them off.
   char dir[64] = "/", flag[8] = {0};
   if (args && args[0]) { sscanf(args, "%63s %7s", dir, flag); }
-  bool quiet = (flag[0] == 'q' || flag[0] == 'Q');
+  bool quiet = (flag[0] == 'q' || flag[0] == 'Q' || flag[0] == 'n' || flag[0] == 'N');
+  // `n` also skips File::size(). That call is a path-based stat, which FatFs resolves by
+  // scanning the directory from its start — so doing it per entry makes a listing O(n^2)
+  // in directory size. Comparing `q` against `n` prices what showing file sizes costs
+  // browse-001, as opposed to what walking the directory costs.
+  bool doStat = !(flag[0] == 'n' || flag[0] == 'N');
   if (!s_sdReady) {
     Serial.println("{\"ok\":false,\"cmd\":\"sdls\",\"error\":\"not mounted\"}");
     return;
@@ -4453,8 +4458,8 @@ static void cmdSdLs(const char *args) {
     if (!quiet) {
       Serial.printf("{\"probe\":\"sdls\",\"name\":\"%s\",\"dir\":%s,\"sizeB\":%u}\n",
                     e.name(), e.isDirectory() ? "true" : "false", (unsigned)e.size());
-    } else {
-      (void)e.size();   // still stat the entry -- that is the per-entry cost
+    } else if (doStat) {
+      (void)e.size();   // the per-entry stat -- see doStat above
     }
     e.close();
     n++;
