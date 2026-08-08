@@ -98,9 +98,28 @@ conform to.
 
 Behaviour:
 
-- One directory level at a time via `SD.open(dir)` + `openNextFile()`, **paged at ≤32 entries per
-  tick** so loopTask never stalls the audio pump (§7). Page size is tuned from M-SDFS's `listDir()`
-  timing.
+- One directory level at a time via `SD.open(dir)` + `openNextFile()`, **paged**, so loopTask never
+  stalls the audio pump (§7).
+
+  **Page size corrected 2026-08-08 from TASK-408's measurement.** `T_SD_07` measured **26.4 ms per
+  directory entry** (5.3 s for 200 files), with per-entry cost rising as the directory grows. The
+  design's original "≤32 entries per tick" is **845 ms of blocking** — five times what the 6 400 B
+  InBuff can absorb (~160 ms of 320 kbps audio). It would underrun on the first page.
+
+  Revised policy, in three parts:
+
+  1. **Batch ≤4 entries per tick** (~105 ms worst case, still under the InBuff window with margin).
+  2. **Only the visible window is needed to paint.** The browser shows ~8 rows, so the first screen
+     costs ~210 ms across two ticks — the full directory walk is *not* on the critical path for
+     showing something. Paint as soon as the first window is filled, keep filling behind it.
+  3. **Scrolling past the loaded region waits**, with the existing busy indicator
+     (`hasPendingAsync()`), rather than blocking to pre-walk.
+
+  Consequence to accept: FAT `openNextFile()` is sequential-only, so reaching entry N is inherently
+  O(N) — a 200-file directory takes ~5 s to become fully scrollable. That is a property of the
+  filesystem, not of this design. If it grates in use, the answer is a cached per-directory index on
+  the card, not a bigger batch. **Do not raise the batch size to make scrolling feel faster** — that
+  trades an audible underrun for a UI nicety.
 - Directories first, then `.mp3`/`.m3u`, natural FAT order — no sort buffer.
 - Tap file → play now. Tap directory → descend. `..` → ascend. Tap `.m3u` → load as active playlist.
 - Edit-mode `[+]` → append to the current playlist (staged).

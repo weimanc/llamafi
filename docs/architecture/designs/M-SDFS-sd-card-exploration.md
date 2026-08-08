@@ -63,10 +63,29 @@ A serial command reporting, in one shot:
 | mount | succeeds | — |
 | sustained read | ≥ 200 KB/s | 320 kbps MP3 needs 40 KB/s; 5× margin covers pump burst refill under UI contention |
 | worst single-read latency | ≤ 50 ms | InBuff is 6 400 B ≈ 160 ms of 320 kbps audio, so a 50 ms stall is absorbable |
-| `SD.begin()` heap delta | ≤ 8 KB | fits the parent's runtime budget without a reclaim |
+| `SD.begin()` heap delta | ~~≤ 8 KB~~ **superseded — see below** | the original derivation ("fits the parent's runtime budget") was never computed against anything |
 
 **Fail → the parent milestone closes with a hardware note.** SPIFFS is explicitly not an accepted
 fallback: 1.4 MB shared with skin, settings and config is roughly one three-minute track.
+
+### Mount-heap bar — superseded 2026-08-08 (Architect ruling, ADR-059 D1 amendment)
+
+Measured **15 300 B** against a ≤8 KB bar. **The bar gives, not the implementation.** The cost is
+structural in the precompiled IDF: `FF_MAX_SS = MAX(FF_SS_SDCARD=512, FF_SS_WL=4096) = 4096` — the
+4 KB comes from the *wear-levelling* layer used for SPI-flash FATFS, which the SD path never invokes —
+and `CONFIG_FATFS_PER_FILE_CACHE=y` gives every open `FIL` its own 4096 B cache. At one open file
+that is already ~8 KB, so the original bar was unreachable by construction.
+
+Accepted at ~15 KB: Player's concurrent peak (~52.6 KB) is still ~17 KB *cheaper* than WebRadio's
+(~70 KB), which ships and works, because local playback opens no TLS. Rebuilding the IDF and moving to
+`esp_vfs_fat_sdspi_mount` are both rejected — see ADR-059 D1 for the reasoning and for the two
+conditions attached (measure the **concurrent** peak, and confirm `mb_arena_acquire()` still finds
+23 216 B contiguous with SD mounted).
+
+**Recovery to apply first:** `SD.begin(..., max_files)` defaults to **5**, and each descriptor costs
+~4 KB whether opened or not. The Player's true concurrent maximum is 4 (audio + playlist + `.tmp`
+during save + browser handle). Mount with `max_files=4` and re-measure. Do not go below 4 — an
+exhausted descriptor table fails a save.
 
 ## 4. Static cost — measured, not estimated (2026-08-07)
 
