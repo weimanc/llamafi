@@ -106,7 +106,79 @@ deduplication.
 The two copies have **diverged**. Merging them means picking one behaviour deliberately per
 divergence — not silently inheriting whichever caller lands second. Enumerate the divergences before
 writing the merged renderer; that enumeration is a deliverable of TASK-411, not an implementation
-detail.
+detail. That enumeration is the **Divergence log** below (`T_PLE_10` reviews it).
+
+## Divergence log
+
+> Recorded by the Developer during TASK-411 (2026-08-08), from
+> `winampDisplay.h` (Spotify, `drawPlaylist()` / `handleWinampInput()` / `tickScroll()` /
+> `updateScrollDirect()`) and `webRadioApp.h` (`_drawPledit()` / `handleInput()` / `_gestureEnd()` /
+> `_tickScroll()` / `_updateScrollDirect()`) as they stood at commit `12697bd`.
+>
+> **TASK-411 adopted the Spotify behaviour for every row below, without exception** — that task's gate
+> is Spotify pixel-identity, so any other choice would have failed it by construction. The "TASK-412
+> disposition" column is the recommendation for the second caller, and is the part that still needs a
+> decision. Nothing here has been applied to `webRadioApp.h`; it is untouched.
+
+### The finding that governs the rest
+
+`T_PLE_01` demands zero differing pixels for **Spotify**; `T_PLE_07` demands zero differing pixels for
+**WebRadio**. Both are measured against each caller's own pre-extraction baseline. Together they say
+that **no pixel-affecting divergence may be resolved by picking a winner** — a winner necessarily
+changes the loser's pixels and fails one of the two gates.
+
+So the divergences split cleanly, and TASK-412 must treat them as two different kinds of work:
+
+- **Pixel-affecting divergences (D1–D10)** cannot be "resolved". They must become **per-source
+  parameters** — a small style/format block the source supplies — or `T_PLE_07` fails. Deduplicating
+  the *code* is still the win; the *pixels* stay per-caller by contract.
+- **Behaviour-only divergences (D11–D22)** have no pixel consequence and can be resolved by choosing
+  a winner. Most are cases where WebRadio's copy silently dropped something the donor had.
+
+If TASK-412 would rather standardise the appearance than keep it, that is a legitimate product call —
+but it is a **deliberate UI change to WebRadio**, and it must be taken as one: `T_PLE_07` gets
+rewritten to describe the intended new pixels *before* the code changes, not relaxed afterwards to
+accommodate them. Silently letting `T_PLE_07` slide is the failure mode this log exists to prevent.
+
+### Pixel-affecting
+
+| # | Spotify (`winampDisplay.h`) | WebRadio (`webRadioApp.h`) | TASK-411 | TASK-412 disposition |
+|---|---|---|---|---|
+| D1 | Row background: `PLEDIT_BG_NORMAL` (`0x0000`), `PLEDIT_BG_SELECTED` (`0x0018`) for the current row | `PLEDIT_BODY_BG` (`0x18E5`) for **every** row; the current row gets no background treatment | Spotify | **Parameterise.** Two background colours per source. Skin-authentic (PLEDIT.TXT) is Spotify's, but adopting it repaints every WebRadio row. |
+| D2 | Row text starts at `PLEDIT_CONTENT_X + 3` (`TEXT_MARGIN`) | starts at `PLEDIT_CONTENT_X` (flush, no margin) | Spotify | **Parameterise** (`marginPx`). A 3 px shift on every WebRadio row otherwise. |
+| D3 | Right column is a right-aligned `M:SS` duration, `TEXT_MARGIN` in from the content edge, in the row's `fg` | right-aligned bitrate `"%uk"` at the content edge (no margin), in a fixed dim `0x4208`, and only when `bitrate > 0` | Spotify | **Parameterise.** The renderer already takes `PlRow::durationSec`; WebRadio needs a per-row right-hand *string* + colour, not a duration. Cheapest form: widen `PlRow` with a short `rightText[8]` and let `durationSec` be one way to fill it. |
+| D4 | Row text is `"N. Artist - Title"`, N session-relative (`songsSeen + idx + 1`) | station name only, no number | Spotify | **Already source-owned.** `PlRow::text` is composed by the source, so this needs no renderer change (resolved in TASK-411). |
+| D5 | Ellipsis truncation to the remaining pixel budget | none — a long station name overruns the right column and is overdrawn by the bitrate | Spotify | **Adopt Spotify's** — but note it is pixel-affecting for any WebRadio row long enough to overrun today, so it belongs with the `T_PLE_07` rewrite, not with the "free" changes. |
+| D6 | Empty slot (`idx >= count`) painted `TFT_BLACK` | painted `PLEDIT_BODY_BG`, same as a populated row | Spotify | Falls out of D1. |
+| D7 | "current" = `idx == 0` (queue head), **plus** an 8 s optimistic highlight after a tap | "current" = `idx == _currentIdx` **and** `_state != STOPPED`; no optimistic highlight | Spotify | **Source-owned** (`PlRow::current`) for the definition. The optimistic highlight is renderer-side and WebRadio gains it — pixel-affecting for ~8 s after a tap only, and arguably a fix (WebRadio's tap has no feedback until the station connects). |
+| D8 | Current-row foreground via `PLEDIT_FG_CURRENT` | hardcoded `0xFFFFU` literal | Spotify | Same value — code-level only, no pixel effect. Resolved by using the macro. |
+| D9 | Text baseline `ry + (PLEDIT_ROW_H - 8) / 2` | `rowY + 2` | Spotify | Identical in effect (both 2). Coincidence, not agreement — worth stating so nobody "harmonises" one of them later. |
+| D10 | Bottom-bar overlay = total playlist time (`M:SS` / `H:MM:SS`) | bottom-bar overlay = country code | Spotify | **Parameterise.** `totalSec()` is too narrow: it can only express a time. Prefer `overlayText(char*, int)` on the source, with the time formatter as the Spotify implementation. |
+
+### Behaviour-only
+
+| # | Spotify | WebRadio | TASK-411 | TASK-412 disposition |
+|---|---|---|---|---|
+| D11 | Redraw gate: seqno diff + `PLAYLIST_DRAW_MIN_MS` (1 Hz) rate cap + a separate scroll-dirty bypass | `_pleditDirty` bool, no rate cap, and suppressed entirely when the app's full-repaint `_dirty` is set | Spotify | **Adopt Spotify's.** This is the X055 gap `T_PLE_14` was written for: a bool has no way to express "changed twice", so the conversion has two distinct failure modes (missed repaint, repaint storm). The rate cap is the reason the counter in D12 exists. |
+| D12 | `invalidatePlaylist()` clears the seqno sentinel **and** zeroes the rate limit, for callers that wiped the canvas | no equivalent; WebRadio relies on a whole-app `_dirty` repaint | Spotify | **Adopt Spotify's.** WebRadio's full-repaint path subsumes it today but will not once the renderer owns the gate. |
+| D13 | On every consumed seqno change, `scrollOffset` resets to 0 (TASK-051f) | never auto-resets; instead `_scrollOffset` *follows* the current station so it stays visible | **Spotify (kept)** | **Keep both — this is a genuine product difference, not drift.** A refreshed Spotify queue is a new list (position 0 is meaningful); a refetched station list is the same list. Make it a source cap/flag rather than picking one. Getting this wrong is invisible in a screenshot and obvious in use. |
+| D14 | PLEDIT drag shares one `dragState` enum with volume/posbar/taskbar | private `_wrs` enum, PLEDIT states only | View owns it; the host's enum keeps its other gestures | **Adopt the TASK-411 split.** One owner per gesture; the host asks `dragging()`. Note `dbgGet("dragState")` still reports `D_PLEDIT_SCROLL` / `D_PLEDIT_SCROLL_DIRECT` — the serial contract is unchanged, the strings are just derived now. |
+| D15 | Tap index = **live** `scrollOffset + _dragStartRow` | tap index = **press-time** `_dragStartScrollOffset + _dragStartRow` | Spotify | **Adopt Spotify's.** Reachable only if the list scrolls during a gesture that still qualifies as a tap (`abs(dy) < 6 px`, `< 250 ms`) — rare but not impossible, since a seqno-driven reset can move the list under a stationary finger. The live offset is what the user is looking at. |
+| D16 | Tap validity = `_dragStartRow < lastVisibleRows` (the count cached at the last repaint) | tap validity = `idx < _stationCount` (live count) | Spotify | **Adopt Spotify's** — the cached count is what was actually drawn, so it matches what the finger landed on. |
+| D17 | Drag-end arms an inter-gesture cooldown: 300 ms tap / 150 ms scroll / 100 ms strip | no cooldown at all | Spotify | **Adopt Spotify's.** WebRadio's omission is a bug of the "never noticed" kind — it allows an immediate second gesture on release bounce. |
+| D18 | Strip drag repaints the thumb immediately (`drawScrollThumbOnly()`) and marks dirty | marks `_pleditDirty` only; the thumb moves on the next full repaint | Spotify | **Adopt Spotify's.** Direct-scroll with a thumb that lags a full repaint is the "feel" half of `T_PLE_09`. |
+| D19 | Velocity integrator writes `scrollOffset` and marks dirty on every non-zero step, even when the clamp makes it a no-op | only marks dirty when the offset actually changed | **Spotify (kept)** | **Adopt WebRadio's.** This is the one row where the second copy is strictly better: at the top/bottom limit Spotify repaints at the tick rate for no visual change. Deliberately **not** taken in TASK-411 — it is a repaint-count change, and `T_PLE_04` asserts on repaint counts. Do it in TASK-412 with the counter as evidence. |
+| D20 | Row-drag anchor is unconditional (the zone is already limited to populated rows) | requires `_stationCount > 0` before anchoring | Spotify | Equivalent in effect (Spotify's zone height is `visibleRows * ROW_H`, i.e. zero when empty). Recorded so the guard is not re-added as a "fix". |
+| D21 | one gesture path: anchored Press → Move → Release | **two** paths: the anchored gesture *and* a second, unanchored Release-only tap hit-test (`handleInput` rows branch) that re-derives the row from scratch | Spotify | **Adopt Spotify's**, but check `cmdTap` first: the unanchored path exists because `cmdTap` drives a Release with no prior Press. If the harness still does that, the path is test infrastructure and must be kept deliberately, not deleted by accident. |
+| D22 | Tap dispatches **asynchronously** (`ACT_PLAY_URI` onto the Spotify task queue) and paints an optimistic highlight | tap calls `_play(idx)` **synchronously** on loopTask | Both, via `onTap()` | **Already resolved by the interface** — `PlaylistSource::onTap()` is the seam, and each source keeps its own dispatch discipline. |
+
+### Not divergent (verified, recorded so it is not re-litigated)
+
+Frame chrome (gutters, title bar, side tiles, scrollbar thumb, bottom bar) was **already** shared via
+`drawPleditFrame()` (TASK-225), as was the bottom-bar overlay blit (TASK-348) and the whole gesture
+*tuning* block (`touch/scrollTuning.h`, TASK-277). The velocity integrator, the tap/scroll
+discrimination and the quick-swipe minimum-one-row fallback are line-for-line the same model in both
+copies — they were a deliberate pattern copy, and they merged without a decision.
 
 ## 4. Adjacent reuse this unlocks
 
@@ -174,6 +246,90 @@ order where practical. `T_PLE_13` is a cheap tripwire for an incomplete deletion
 
 **Fallback trigger.** If `T_PLE_01` or `T_PLE_07` cannot be made to pass, that is the signal to take
 §3's documented fallback (a third renderer for local playlists) — not to relax the test.
+
+## 7a. TASK-411 implementation record (2026-08-08) — **gate NOT run**
+
+Code landed; **`T_PLE_01`–`06` were not run and TASK-411 is not closed.** The DUT was reserved by
+parallel work for the whole session, and `T_PLE_01`/`02`/`03` are screendump pixel diffs that require
+it. Nothing weaker was substituted for them.
+
+**What landed**
+
+| File | |
+|---|---|
+| `app/src/winamp/pleditView.h` | new — `PlRow` / `PlCap` / `PlaylistSource` / `PleditView`. Owns chrome blit, row layout + truncation, duration column, total-time bar, synthetic thumb, velocity scroll, direct-scroll strip, seqno redraw gate, and the optimistic tap highlight |
+| `app/src/util/textFit.h` | new — ellipsis truncation to a **pixel** budget (DEV-10) |
+| `app/src/winamp/skinBlit.h` | new — `skinBlitSprite()`, lifted out of `WinampDisplay::blitSprite()` so the view can blit skin-font glyphs without depending on the display class. `WinampDisplay::blitSprite()` forwards to it |
+| `app/src/winamp/winampDisplay.h` | delegates. Adds `SpotifyQueueSource` (`CAP_PLAY`), which also absorbed the Spotify queue bookkeeping (`songsSeen`, the two-entry URI history, the skip suppressor) |
+| `webRadioApp.h` | **untouched**, by design — a pixel-identity failure must implicate one source |
+
+Net **−187 lines** in `winampDisplay.h`.
+
+**Deviations from §2.1, both deliberate**
+
+1. `PlaylistSource` gained `virtual void onListReset()`. The renderer owns the redraw gate, so it is
+   the only code that knows *when* a seqno advance was actually consumed — the `PLAYLIST_DRAW_MIN_MS`
+   rate limit can defer one. Source-side bookkeeping that must stay in lockstep with the gate hangs
+   off this instead of off a second seqno tracker in the caller.
+2. `PleditView` owns the PLEDIT drag outright rather than mirroring the host's `dragState`. The host
+   keeps its own enum for volume/posbar/taskbar and asks `dragging()`. `dbgGet("dragState")` still
+   emits `D_PLEDIT_SCROLL` / `D_PLEDIT_SCROLL_DIRECT` — the serial contract is unchanged, the strings
+   are just derived from `PleditView::dragMode()` now.
+
+**Pixel-identity argument for the row formatter.** The pre-extraction code truncated the
+artist-title half against a budget with the row-number prefix already subtracted, then concatenated
+the prefix. The extracted form composes first (in the source) and truncates the whole string against
+the un-subtracted budget. These are identical because the prefix width is an exact multiple of
+`CHAR_W`, so the ellipsis lands on the same character. The one place they could differ — a budget
+under three characters, where the original declines to truncate — is unreachable: `USABLE` is 238 px
+and the duration and prefix are at most 42 px each, leaving ≥ 32 characters. Buffer-size changes
+(`mid[48]` + `leftStr[56]` → `PlRow::text[64]`) are invisible for the same reason: truncation caps the
+row at ≤ 39 characters, below every clip point in either form.
+
+**`get pleditRepaints`** (ADR-059 D12) counts **accepted full repaints only**. A thumb-only blit
+during a right-strip drag does not bump it — it paints the thumb, not the playlist, and that is what
+`T_PLE_04` asserts on.
+
+**Measurements** (re-derived from a fresh `run/build` + `run/build-debug`, `.map` extents — not
+remembered numbers):
+
+| | before | after | Δ |
+|---|---|---|---|
+| `cyd2usb_winamp` `.dram0.bss` | 78 568 B | 78 584 B | **+16 B** |
+| `cyd2usb_winamp` `dram0_0_seg` headroom | 13 160 B | 13 144 B | −16 B |
+| `cyd2usb_winamp_debug` `.dram0.bss` | 81 624 B | 81 640 B | **+16 B** |
+| `cyd2usb_winamp_debug` `dram0_0_seg` headroom | 9 936 B | 9 920 B | −16 B |
+| `cyd2usb_winamp` `firmware.bin` | 1 799 840 B | 1 800 320 B | +480 B |
+| `cyd2usb_winamp_debug` `firmware.bin` | 1 872 512 B | 1 873 168 B | +656 B |
+
+`run/check` 6/6 on both envs.
+
+The task brief asked for a `.bss`-neutral-or-negative extraction and said to report rather than work
+around a growth. **It grew by 16 B**, and the 16 B is structural, not slack: one vtable pointer
+(`PlaylistSource` is the design's chosen seam), one snapshot borrow pointer, the four-byte repaint
+counter D12 required, and alignment. Every field that could move, moved; nothing is duplicated.
+Debug headroom is 9 920 B, so this is not a threat — but it is not neutral either, and squeezing it
+to zero would mean giving up either the interface or the observability.
+
+The brief also carried a stale premise worth correcting for the next reader: it stated debug headroom
+was **304 B** because "TASK-423's reclaim has NOT landed yet". TASK-423 **had** landed (see
+`tasks.md`); measured baseline headroom was 9 936 B.
+
+The positive flash delta is expected here and is **not** a `T_PLE_13` failure: that tripwire applies
+to TASK-412, where one renderer finally replaces two. Nothing was deleted in this task.
+
+**Handover — how to run the gate when the DUT frees up**
+
+- `T_PLE_01`/`02`/`03` need `run/screendump`, and the diff must be scoped to the **PLEDIT rect**
+  (`PLEDIT_Y` … `PLEDIT_Y + PLEDIT_H`, full width) with the **visualiser off** (VE-4). A live VU meter
+  makes a whole-canvas "zero differing pixels" bar unpassable — this is a property of the instrument,
+  not of the change, and the same applies to `T_PLE_07`.
+- Reach the five list states by **serial injection**; `run/screendump` cannot capture live navigated
+  app state (it DTR-resets on connect).
+- `T_PLE_04` now has its signal: sample `get pleditRepaints` across a static queue and across a seqno
+  advance.
+- `T_PLE_06` asserts the absolute index (`scrollOffset + row`), which is unchanged — but see D15: the
+  index is taken from the **live** scroll offset at release, not the press-time one.
 
 ## 7. Exit criteria
 

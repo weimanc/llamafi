@@ -12,6 +12,8 @@
 #include "vuMeter.h"
 #include "touchPhase.h"
 #include "touch/scrollTuning.h"   // TASK-277: shared gesture tuning (see header)
+#include "winamp/skinBlit.h"      // TASK-411: the one skin sprite blit
+#include "winamp/pleditView.h"    // TASK-411 / ADR-059 D4: the one PLEDIT renderer
 
 extern const uint16_t SKIN_MAIN_BG[];
 extern const uint16_t SKIN_CBUTTONS[];
@@ -60,6 +62,77 @@ static constexpr uint16_t kDriftPip[4 * 4] = {
 // ASCII mapping.
 static constexpr SkinUV kTitleMarqueeSepGlyph = { 4 * GLYPH_W, 2 * GLYPH_H, GLYPH_W, GLYPH_H };
 static constexpr int kTitleMarqueeSepLen = 9;  // 3 blank + 3 glyph + 3 blank slots
+
+// TASK-411 / ADR-059 D4 — the Spotify queue as a PlaylistSource (CAP_PLAY only).
+// Also the new home of the Spotify-domain playlist bookkeeping that used to sit
+// in WinampDisplay: session-relative row numbering (songsSeen), the two-entry
+// URI history that distinguishes a natural track advance from a user skip, and
+// the skip suppressor itself. None of that is renderer business.
+class SpotifyQueueSource : public PlaylistSource {
+public:
+  // The snapshot lives on the caller's stack for the duration of one repaint.
+  // A QueueSnapshot member here would be a permanent multi-KB .bss cost for
+  // data that is only live inside drawPlaylist().
+  void bind(const spotifyTask::QueueSnapshot *s) { _snap = s; }
+
+  uint16_t count() override { return _snap ? (uint16_t)_snap->count : 0; }
+  uint32_t seqno() override { return _snap ? _snap->seqno : 0; }
+  uint8_t  caps()  override { return CAP_PLAY; }
+
+  // TASK-051g: "N. Artist - Title", N session-relative via songsSeen. The
+  // renderer applies the ellipsis truncation against the remaining pixel
+  // budget — composing here keeps the numbering policy with the source that
+  // defines it (a station list has no track numbers at all).
+  bool row(uint16_t idx, PlRow &out) override {
+    if (!_snap || idx >= _snap->count) return false;
+    const spotifyTask::QueueEntry &e = _snap->items[idx];
+    snprintf(out.text, sizeof(out.text), "%u. %s - %s",
+             (unsigned)(_songsSeen + idx + 1),
+             e.artist[0] ? e.artist : "?",
+             e.name[0]   ? e.name   : "?");
+    out.durationSec = e.durationMs / 1000;
+    out.current     = (idx == 0);   // [0] is currently_playing (ADR-017)
+    return true;
+  }
+
+  uint32_t totalSec() override {
+    if (!_snap) return 0;
+    uint32_t totalMs = 0;
+    for (uint8_t i = 0; i < _snap->count; i++) totalMs += _snap->items[i].durationMs;
+    return totalMs / 1000;   // sum first, divide once — matches the original rounding
+  }
+
+  void onTap(uint16_t idx) override {
+    spotifyTask::enqueue(spotifyTask::ACT_PLAY_URI, (int32_t)idx);
+    _skipPending = true;
+  }
+
+  // Fires when the renderer's gate actually consumes a seqno advance, not on
+  // every snapshot write — the 1 Hz rate limit can defer one, and the advance
+  // detector must stay in lockstep with what was drawn.
+  void onListReset() override {
+    // TASK-051h: songsSeen — a natural advance is "the item that was next-up
+    // last time is playing now", and only when the user did not skip.
+    if (_snap && _snap->count > 0 && _prevNextUri[0] &&
+        strcmp(_snap->items[0].uri, _prevNextUri) == 0 && !_skipPending) {
+      _songsSeen++;
+    }
+    _skipPending = false;
+    strlcpy(_prevNextUri,
+            (_snap && _snap->count > 1) ? _snap->items[1].uri : "",
+            sizeof(_prevNextUri));
+  }
+
+  // Transport NEXT / tap-to-play are both intentional skips; suppress the
+  // songsSeen increment the next advance would otherwise earn.
+  void noteIntentionalSkip() { _skipPending = true; }
+
+private:
+  const spotifyTask::QueueSnapshot *_snap = nullptr;
+  uint16_t _songsSeen = 0;          // natural track advances since boot
+  char     _prevNextUri[64] = {};   // URI of items[1] from the last consumed poll
+  bool     _skipPending = false;
+};
 
 class WinampDisplay : public CheapYellowDisplay {
 public:
@@ -392,43 +465,13 @@ public:
         drawTransportButtons(-1);
         pendingReleaseAt = 0;
       }
-      // Drag-end handling on Release.
-      if (dragState == D_PLEDIT_SCROLL_DIRECT) {
-        dragState = D_IDLE;
-        touchScreenCoolDownTime = millis() + 100;
-      }
-      if (dragState == D_PLEDIT_SCROLL) {
-        const int dy = _dragCurrentY - _dragStartY;
-        LOG_D("touch", "PLEDIT drag end: dy=%d startY=%d curY=%d", dy, _dragStartY, _dragCurrentY);
-        const unsigned long elapsed = (unsigned long)(millis() - _dragStartMs);
-        const bool isTap = abs(dy) < PLEDIT_TAP_PX && elapsed < PLEDIT_TAP_MS;
-        _scrollAccum    = 0.0f;
-        _scrollVelocity = 0.0f;
-        if (isTap) {
-          if (_dragStartRow >= 0 && _dragStartRow < lastVisibleRows) {
-            const int playIdx = scrollOffset + _dragStartRow;
-            spotifyTask::enqueue(spotifyTask::ACT_PLAY_URI, (int32_t)playIdx);
-            _lastInputWasAsync        = true;
-            _skipPending              = true;
-            optimisticSelectedRow     = playIdx;
-            optimisticSelectedUntilMs = millis() + 8000;
-            _pleditScrollDirty = true;
-          }
-          touchScreenCoolDownTime = millis() + 300;
-        } else {
-          if (elapsed < PLEDIT_TAP_MS) {
-            // Quick swipe: tickScroll accumulated ~0 rows (brief dt); apply guaranteed delta
-            // from start offset so the gesture always registers at least 1 row.
-            const int delta  = max(1, abs(dy) / PLEDIT_ROW_H);
-            const int dir    = (dy <= 0) ? 1 : -1;
-            const int maxOff = max(0, (int)lastCount - PLEDIT_ROW_COUNT);
-            scrollOffset       = max(0, min(maxOff, _dragStartScrollOffset + dir * delta));
-            _pleditScrollDirty = true;
-          }
-          // Slow drag (elapsed >= PLEDIT_TAP_MS): velocity model already applied rows.
-          touchScreenCoolDownTime = millis() + 150;
-        }
-        dragState = D_IDLE;
+      // Drag-end handling on Release. TASK-411: the PLEDIT gesture (both the
+      // row drag and the right-strip drag) is owned by _plView; it reports back
+      // the inter-gesture cooldown and whether a tap was dispatched.
+      if (_plView.dragging()) {
+        const PlReleaseResult r = _plView.release(_queueSource);
+        if (r.tapDispatched) _lastInputWasAsync = true;
+        if (r.cooldownMs)    touchScreenCoolDownTime = millis() + r.cooldownMs;
       }
       if (dragState == D_POSBAR_DRAG) {
         spotifyTask::enqueue(spotifyTask::ACT_SEEK, (int32_t)_posbarDragCurrentMs);
@@ -453,6 +496,11 @@ public:
 
     // Press or Move.
     // Phase 1 — captured gesture: route directly to owning handler, no hit-test.
+    if (_plView.dragging()) {
+      _plView.move(y, originX, originY);
+      _tickMarquee();
+      return true;
+    }
     if (dragState != D_IDLE) {
       switch (dragState) {
         case D_VOLUME_DRAG: {
@@ -473,12 +521,6 @@ public:
           _posbarDragCurrentMs = posbarFromX(x);
           updateSeekThumb(_posbarDragCurrentMs);
           songStartMillis = millis() - _posbarDragCurrentMs;
-          break;
-        case D_PLEDIT_SCROLL_DIRECT:
-          updateScrollDirect(y);
-          break;
-        case D_PLEDIT_SCROLL:
-          _dragCurrentY = y;
           break;
         default: break;
       }
@@ -504,7 +546,7 @@ public:
         case 1: spotifyTask::enqueue(spotifyTask::ACT_PLAY);  break;
         case 2: spotifyTask::enqueue(spotifyTask::ACT_PAUSE); break;
         case 3: spotifyTask::enqueue(spotifyTask::ACT_PAUSE); break;
-        case 4: spotifyTask::enqueue(spotifyTask::ACT_NEXT); _skipPending = true; break;
+        case 4: spotifyTask::enqueue(spotifyTask::ACT_NEXT); _queueSource.noteIntentionalSkip(); break;
       }
       if (pressed == 0 || pressed == 2 || pressed == 3 || pressed == 4) {
         songStartMillis = 0;
@@ -557,25 +599,9 @@ public:
       optimisticVolumeUntilMs = now + VOLUME_OPTIMISTIC_HOLD_MS;
       consumed = true;
     } else {
-      int py = y - originY;
-      const int pleditRowsAll = PLEDIT_ROWS_Y + PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
-      if (py >= PLEDIT_ROWS_Y && py < pleditRowsAll &&
-          x >= originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W && x < originX + PLEDIT_W) {
-        dragState = D_PLEDIT_SCROLL_DIRECT;
-        updateScrollDirect(y);
-        consumed = true;
-      } else if (py >= PLEDIT_ROWS_Y && py < PLEDIT_ROWS_Y + lastVisibleRows * PLEDIT_ROW_H &&
-                 x >= originX + PLEDIT_CONTENT_X && x < originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W) {
-        const int row = (py - PLEDIT_ROWS_Y) / PLEDIT_ROW_H;
-        if (dragState == D_IDLE) {
-          dragState              = D_PLEDIT_SCROLL;
-          _dragStartY            = y;
-          _dragCurrentY          = y;
-          _dragStartRow          = row;
-          _dragStartMs           = millis();
-          _dragStartScrollOffset = scrollOffset;
-          LOG_D("touch", "PLEDIT drag start: startY=%d row=%d", y, row);
-        }
+      // TASK-411: both PLEDIT zones (right strip, then rows) are hit-tested and
+      // anchored by the view — see PleditView::press().
+      if (_plView.press(x, y, originX, originY)) {
         consumed = true;
       } else if (dragState == D_IDLE) {
         if (hitTestLogo(x, y) && millis() >= logoTapCooldownMs) {
@@ -654,40 +680,16 @@ public:
 
   void resetDragState() {
     dragState = D_IDLE;
+    _plView.resetDrag();
     pendingReleaseAt = 0;
 #ifdef SERIAL_DEBUG
     _injectingDrag = false;
 #endif
   }
 
-  void invalidatePlaylist() {
-    lastQueueSeqno = 0xFFFFFFFF;
-    _pleditScrollDirty = true;
-    lastPlaylistDrawMs = 0;  // bypass 1-Hz rate limit — caller wiped the canvas
-  }
+  void invalidatePlaylist() { _plView.invalidate(); }
 
-  void tickScroll(float dt) {
-    if (dragState != D_PLEDIT_SCROLL) {
-      _scrollAccum    = 0.0f;
-      _scrollVelocity = 0.0f;
-      return;
-    }
-    if (dt <= 0.0f || dt > 0.2f) return;
-
-    const int dy = _dragCurrentY - _dragStartY;
-    const float effective = max(0.0f, (float)abs(dy) - (float)SCROLL_DEAD_ZONE_PX);
-    const float speed = effective * _scrollSpeedK;
-    _scrollVelocity = (dy <= 0 ? 1.0f : -1.0f) * speed;
-
-    _scrollAccum += _scrollVelocity * dt;
-    const int steps = (int)_scrollAccum;
-    if (steps != 0) {
-      _scrollAccum -= (float)steps;
-      const int maxOffset = max(0, (int)lastCount - PLEDIT_ROW_COUNT);
-      scrollOffset = max(0, min(maxOffset, scrollOffset + steps));
-      _pleditScrollDirty = true;
-    }
-  }
+  void tickScroll(float dt) { _plView.tickScroll(dt); }
 
 #ifdef SERIAL_DEBUG
   // TASK-056d: public under SERIAL_DEBUG so cmdTap/cmdDrag in .ino can
@@ -719,11 +721,12 @@ private:
 
   int originX = 0, originY = 0;
   bool lastHealthy = true;
-  uint32_t lastQueueSeqno = 0xFFFFFFFF;  // force first draw
-  unsigned long lastPlaylistDrawMs = 0;
-  int lastVisibleRows = PLEDIT_ROW_COUNT;
-  uint8_t lastCount = 0;            // cached qs.count for scroll clamp in touch handler
-  static constexpr unsigned long PLAYLIST_DRAW_MIN_MS = 1000;  // 1 Hz cap
+  // TASK-411 / ADR-059 D4 — PLEDIT is no longer rendered here. The view owns
+  // the redraw gate, the scroll offset, the drag anchors, the velocity
+  // integrator and the optimistic tap highlight; the source owns the Spotify
+  // queue bookkeeping. Nothing is mirrored back into this class.
+  PleditView         _plView;
+  SpotifyQueueSource _queueSource;
   int lastThumbPx = -1;
   // TASK-402: separate diff-tracking sentinel for drawBufferBar() (WebRadio's
   // POSBAR reuse) — kept apart from lastThumbPx (Spotify's seek thumb) so the
@@ -736,7 +739,6 @@ private:
   int8_t lastVolumeRendered = -2;
   static constexpr int DIGIT_Y = 26;
   char lastTitle[264] = {0};  // artist(128) + " - "(3) + title(128) + gap(3) + NUL
-  int scrollOffset = 0;       // TASK-051c will drive; 0 = thumb at top
   int titleScrollOffset = 0;
   unsigned long titleScrollDeadline = 0;
   // TASK-399: cached at _forceSetTitle() time, not recomputed per tick/frame.
@@ -765,21 +767,16 @@ private:
   // ts.touched() is false. lastVolumeEnqueuedMs/Pct debounce ACT_VOLUME
   // queue traffic to ~3/s. optimisticVolumeUntilMs gates spotifyLogic's
   // dedup against stale snapshot reads during/after drag.
+  // TASK-411: D_PLEDIT_SCROLL / D_PLEDIT_SCROLL_DIRECT are retained as the
+  // names this class reports over the serial debug surface, but they are never
+  // assigned to dragState — PleditView is the single owner of the PLEDIT drag
+  // (see dbgGet("dragState"), which derives them from _plView.dragMode()).
   enum DragState { D_IDLE = 0, D_VOLUME_DRAG, D_POSBAR_DRAG, D_PLEDIT_SCROLL, D_PLEDIT_SCROLL_DIRECT, D_TASKBAR_SCROLL };
   DragState dragState = D_IDLE;
-  int _dragStartY = 0;    // screen Y at start of D_PLEDIT_SCROLL
-  int _dragCurrentY = 0;  // most recent screen Y during D_PLEDIT_SCROLL
-  int _dragStartRow = 0;  // row index at drag-start (tap fallback)
-  unsigned long _dragStartMs           = 0;   // millis() at D_PLEDIT_SCROLL press
-  int           _dragStartScrollOffset = 0;   // scrollOffset at D_PLEDIT_SCROLL press
   long _posbarDragCurrentMs = 0;
-  float _scrollVelocity = 0.0f;
-  float _scrollAccum    = 0.0f;
-  float _scrollSpeedK   = SCROLL_SPEED_K_DEFAULT;
   // TASK-277: SCROLL_DEAD_ZONE_PX / SCROLL_SPEED_K_DEFAULT / PLEDIT_TAP_PX /
-  // PLEDIT_TAP_MS moved to touch/scrollTuning.h (shared with webRadioApp.h's
-  // gesture copy) — same values, single definition site, zero behaviour change.
-  bool _pleditScrollDirty = false;  // force drawScrollThumbOnly bypass of rate-limit
+  // PLEDIT_TAP_MS live in touch/scrollTuning.h (shared with webRadioApp.h's
+  // gesture copy) — same values, single definition site.
   // Taskbar scroll (M-TASKBAR-SCROLL, TASK-105b)
   int   _tbScrollOffset = 0;
   int   _tbDragStartY   = 0;
@@ -788,11 +785,6 @@ private:
   bool  _tbIsScrolling  = false; // set once dead zone is exceeded; blocks tap-on-release
   static constexpr int   TB_SCROLL_DEAD_ZONE_PX = 3;
   static constexpr float TB_LP_ALPHA             = 0.4f;
-  int optimisticSelectedRow = -1;   // TASK-051a: row playing, highlighted until seqno advances
-  unsigned long optimisticSelectedUntilMs = 0;
-  uint16_t _songsSeen = 0;          // TASK-051h: natural track advances since boot
-  char _prevNextUri[64] = {};       // URI of items[1] from last poll (2-entry history)
-  bool _skipPending = false;        // suppresses songsSeen++ on intentional skip
   unsigned long lastVolumeEnqueuedMs = 0;
   int8_t lastVolumeEnqueuedPct = -2;
   unsigned long optimisticVolumeUntilMs = 0;
@@ -856,22 +848,6 @@ private:
     }
   }
 
-  void updateScrollDirect(int sy) {
-    const int py = sy - originY;
-    const int maxOffset = max(0, (int)lastCount - PLEDIT_ROW_COUNT);
-    if (maxOffset > 0) {
-      constexpr int track_h = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
-      constexpr int travel  = track_h - SKIN_PLEDIT_THUMB_H;
-      const int relY = py - PLEDIT_ROWS_Y;
-      const int newOffset = max(0, min(maxOffset, relY * maxOffset / travel));
-      if (newOffset != scrollOffset) {
-        scrollOffset = newOffset;
-        _pleditScrollDirty = true;
-        drawScrollThumbOnly();
-      }
-    }
-  }
-
   // M-BOOT-UI §6 / ADR-055 decision 5: unconditional title paint, bypassing
   // both the dedup and the WiFi-down guard — the two entry points that need
   // to force new content into lastTitle regardless of either.
@@ -921,11 +897,10 @@ private:
     return n[i];
   }
 
+  // TASK-411: the loop itself now lives in winamp/skinBlit.h so pleditView.h
+  // can use it without depending on this class. One implementation, two users.
   void blitSprite(int dstX, int dstY, const uint16_t *atlas, int atlasW, SkinUV uv) {
-    for (int row = 0; row < uv.h; ++row) {
-      const uint16_t *src = atlas + (uv.v + row) * atlasW + uv.u;
-      tft.pushImage(dstX, dstY + row, uv.w, 1, src);
-    }
+    skinBlitSprite(dstX, dstY, atlas, atlasW, uv);
   }
 
   void drawTransportButtons(int pressedIndex) {
@@ -1058,7 +1033,7 @@ public:
     }
     spotifyTask::resetBackoff();
     // Capture pre-state to build lastTouchResult after the call.
-    int prevDragState = (int)dragState;
+    const bool prevPleditDragging = _plView.dragging();
     unsigned long prevLogoCooldown = logoTapCooldownMs;  // detect logo tap processed
     handleWinampInput(TouchPhase::Press, sx, sy);
     // Populate lastTouchResult based on what handleWinampInput did.
@@ -1083,16 +1058,14 @@ public:
     } else if (volPct >= 0) {
       lastTouchResult = { "VOLUME", -1, "VOLUME", 0, volPct, false };
     } else {
-      int py = sy - originY;
-      const int pleditRowsAll = PLEDIT_ROWS_Y + PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
-      if (py >= PLEDIT_ROWS_Y && py < pleditRowsAll &&
-          sx >= originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W && sx < originX + PLEDIT_W) {
-        lastTouchResult = { "PLEDIT", scrollOffset, "SCROLL_DIRECT", 0, -1, false };
-      } else if (py >= PLEDIT_ROWS_Y && py < PLEDIT_ROWS_Y + lastVisibleRows * PLEDIT_ROW_H &&
-                 sx >= originX + PLEDIT_CONTENT_X && sx < originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W) {
-        const int row = (py - PLEDIT_ROWS_Y) / PLEDIT_ROW_H;
-        const char *act = (prevDragState == D_IDLE) ? "DRAG_START" : "DRAG_MOVE";
-        lastTouchResult = { "PLEDIT", row, act, (long)(sy - _dragStartY), -1, false };
+      const Rect plStrip = _plView.stripRect(originX, originY);
+      const Rect plRows  = _plView.rowsRect(originX, originY);
+      if (hitTest(plStrip, sx, sy)) {
+        lastTouchResult = { "PLEDIT", _plView.scrollOffset(), "SCROLL_DIRECT", 0, -1, false };
+      } else if (hitTest(plRows, sx, sy)) {
+        const int row = hitTestRow(plRows, PLEDIT_ROW_H, sy);
+        const char *act = prevPleditDragging ? "DRAG_MOVE" : "DRAG_START";
+        lastTouchResult = { "PLEDIT", row, act, (long)(sy - _plView.dragStartY()), -1, false };
       } else if (hitTestEject(sx, sy)) {
         lastTouchResult = { "EJECT", -1, "EJECT", 0, -1, false };
       } else if (hitTestLogo(sx, sy)) {
@@ -1129,11 +1102,14 @@ public:
       return true;
     }
     if (strcmp(var, "dragState") == 0) {
-      const char* dsStr = dragState == D_VOLUME_DRAG           ? "D_VOLUME_DRAG"
-                        : dragState == D_POSBAR_DRAG          ? "D_POSBAR_DRAG"
-                        : dragState == D_PLEDIT_SCROLL        ? "D_PLEDIT_SCROLL"
-                        : dragState == D_PLEDIT_SCROLL_DIRECT ? "D_PLEDIT_SCROLL_DIRECT"
-                        : dragState == D_TASKBAR_SCROLL       ? "D_TASKBAR_SCROLL"
+      // TASK-411: the two PLEDIT states are derived from the view (their sole
+      // owner); the rest are this class's own. The reported strings are
+      // unchanged — the serial contract predates the extraction.
+      const char* dsStr = _plView.dragMode() == PleditView::DRAG_ROWS  ? "D_PLEDIT_SCROLL"
+                        : _plView.dragMode() == PleditView::DRAG_STRIP ? "D_PLEDIT_SCROLL_DIRECT"
+                        : dragState == D_VOLUME_DRAG                   ? "D_VOLUME_DRAG"
+                        : dragState == D_POSBAR_DRAG                   ? "D_POSBAR_DRAG"
+                        : dragState == D_TASKBAR_SCROLL                ? "D_TASKBAR_SCROLL"
                         : "D_IDLE";
       snprintf(buf, len, "\"var\":\"dragState\",\"state\":\"%s\",\"last\":true", dsStr);
       return true;
@@ -1178,7 +1154,15 @@ public:
       return true;
     }
     if (strcmp(var, "scrollOffset") == 0) {
-      snprintf(buf, len, "\"key\":\"scrollOffset\",\"val\":%d", scrollOffset);
+      snprintf(buf, len, "\"key\":\"scrollOffset\",\"val\":%d", _plView.scrollOffset());
+      return true;
+    }
+    // ADR-059 D12 / TASK-411: monotonic PLEDIT repaint counter. The seqno
+    // redraw gate had no observable signal before this — "no repaint while
+    // seqno is static" (T_PLE_04, T_PLE_14) was unassertable from serial.
+    if (strcmp(var, "pleditRepaints") == 0) {
+      snprintf(buf, len, "\"var\":\"pleditRepaints\",\"count\":%lu,\"last\":true",
+               (unsigned long)_plView.repaints());
       return true;
     }
     if (strcmp(var, "tbScrollOffset") == 0) {
@@ -1186,17 +1170,17 @@ public:
       return true;
     }
     if (strcmp(var, "lastPlaylistDraw") == 0) {
-      snprintf(buf, len, "\"var\":\"lastPlaylistDraw\",\"ms\":%lu", lastPlaylistDrawMs);
+      snprintf(buf, len, "\"var\":\"lastPlaylistDraw\",\"ms\":%lu", _plView.lastDrawMs());
       return true;
     }
     if (strcmp(var, "scrollAccum") == 0) {
       snprintf(buf, len, "\"var\":\"scrollAccum\",\"val\":%.4f,\"last\":true",
-               _scrollAccum);
+               _plView.scrollAccum());
       return true;
     }
     if (strcmp(var, "scrollVelocity") == 0) {
       snprintf(buf, len, "\"var\":\"scrollVelocity\",\"val\":%.4f,\"last\":true",
-               _scrollVelocity);
+               _plView.scrollVelocity());
       return true;
     }
     return false;
@@ -1220,7 +1204,7 @@ public:
       return true;
     }
     if (strcmp(var, "speedK") == 0) {
-      _scrollSpeedK = (val && *val) ? strtof(val, nullptr) : SCROLL_SPEED_K_DEFAULT;
+      _plView.setSpeedK((val && *val) ? strtof(val, nullptr) : SCROLL_SPEED_K_DEFAULT);
       return true;
     }
     return false;
@@ -1315,88 +1299,34 @@ private:
   }
 
 public:
-  // TASK-051i: re-tile right-side strip and blit thumb at current scrollOffset.
-  // Much cheaper than a full drawPlaylist() — called during D_PLEDIT_SCROLL_DIRECT.
-  void drawScrollThumbOnly() {
-    if (lastCount <= PLEDIT_ROW_COUNT) return;
-    const int rowsH   = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
-    const int rightX  = originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W;
-    tft.startWrite();
-    for (int sy = PLEDIT_ROWS_Y; sy < PLEDIT_ROWS_Y + rowsH; sy += PLEDIT_SIDE_H_SRC) {
-      const int h = min((int)PLEDIT_SIDE_H_SRC, PLEDIT_ROWS_Y + rowsH - sy);
-      tft.pushImage(rightX, sy, PLEDIT_SIDE_RIGHT_W, h, SKIN_PLEDIT_RIGHT_SIDE);
-    }
-    constexpr int track_h = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
-    constexpr int travel  = track_h - SKIN_PLEDIT_THUMB_H;
-    const int denom  = max(1, (int)lastCount - PLEDIT_ROW_COUNT);
-    const int thumb_y = PLEDIT_ROWS_Y + scrollOffset * travel / denom;
-    tft.pushImage(rightX + PLEDIT_THUMB_X_INSET, thumb_y, SKIN_PLEDIT_THUMB_W, SKIN_PLEDIT_THUMB_H,
-                  SKIN_PLEDIT_THUMB, PLEDIT_TRANSPARENT_RGB565);
-    tft.endWrite();
-  }
+  // TASK-411: PLEDIT rendering lives in winamp/pleditView.h. These four stay as
+  // this class's public surface because their callers (main.cpp's SpotifyApp,
+  // and webRadioApp.h's still-separate renderer until TASK-412) address the
+  // display object, not the view.
 
-  // TASK-348: PLEDIT bottom-bar overlay slot — same skin-font glyph blit and
+  // TASK-051i: re-tile the right-side strip and blit the thumb at the current
+  // offset — much cheaper than a full drawPlaylist().
+  void drawScrollThumbOnly() { _plView.drawScrollThumbOnly(originX); }
+
+  // TASK-348: PLEDIT bottom-bar overlay slot — the skin-font glyph blit and
   // position Spotify uses for its total-playlist-time readout (x=127 in the
-  // PLEDIT frame, dark LCD area of the bottom bar), factored out so WebRadio
-  // can render its country code in the identical slot. Caller owns
-  // startWrite()/endWrite() (matches drawPleditFrame()'s contract).
-  void drawPleditOverlayText(const char *str) {
-    int tx = originX + 127 + GLYPH_W;
-    const int ty = PLEDIT_BOTTOM_Y + 10;
-    for (const char *p = str; *p; p++) {
-      const SkinUV uv = SKIN_GLYPH[(uint8_t)*p & 0x7F];
-      blitSprite(tx, ty, SKIN_FONT, SKIN_FONT_W, uv);
-      tx += uv.w;
-    }
-  }
+  // PLEDIT frame, dark LCD area of the bottom bar), so WebRadio can render its
+  // country code in the identical slot. Caller owns startWrite()/endWrite()
+  // (matches drawPleditFrame()'s contract).
+  void drawPleditOverlayText(const char *str) { _plView.drawOverlayText(originX, str); }
 
-  // ADR-018 TASK-047c — Winamp PLEDIT playlist editor chrome.
-  // Call unconditionally from the main loop; returns immediately if the
-  // snapshot seqno hasn't changed.
-  // Draw the PLEDIT frame chrome — gutters, title bar, side tiles, scrollbar
-  // thumb, and bottom bar — for a list of `count` rows scrolled to `scroll`.
-  // Everything except the rows themselves and any app-specific overlay (e.g.
-  // Spotify's total-time readout). Depends only on PLEDIT geometry + scroll/
-  // count, so it is shared by drawPlaylist() (Spotify) and
-  // WebRadioApp::_drawPledit() (TASK-225). Caller owns startWrite()/endWrite().
-  void drawPleditFrame(int scroll, int count) {
-    // Gutters outside the 275px chrome window — match the startup fillScreen.
-    const int rightEdge = originX + PLEDIT_W;
-    if (originX > 0)
-      tft.fillRect(0, PLEDIT_Y, originX, PLEDIT_H, TFT_BLACK);
-    if (rightEdge < TASKBAR_X)
-      tft.fillRect(rightEdge, PLEDIT_Y, TASKBAR_X - rightEdge, PLEDIT_H, TFT_BLACK);
+  // ADR-018 TASK-047c — PLEDIT frame chrome: gutters, title bar, side tiles,
+  // scrollbar thumb and bottom bar, for a list of `count` rows scrolled to
+  // `scroll`. Everything except the rows and any app-specific overlay. Shared
+  // with WebRadioApp::_drawPledit() (TASK-225). Caller owns startWrite()/endWrite().
+  void drawPleditFrame(int scroll, int count) { _plView.drawFrame(originX, scroll, count); }
 
-    // Title bar — top PLEDIT_TITLE_H rows of SKIN_PLEDIT_BG atlas.
-    tft.pushImage(originX, PLEDIT_Y, SKIN_PLEDIT_BG_W, PLEDIT_TITLE_H, SKIN_PLEDIT_BG);
-
-    // Frame side tiles — always full height (fixed PLEDIT dimensions).
-    const int rowsH = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
-    for (int sy = PLEDIT_ROWS_Y; sy < PLEDIT_ROWS_Y + rowsH; sy += PLEDIT_SIDE_H_SRC) {
-      const int h = min((int)PLEDIT_SIDE_H_SRC, PLEDIT_ROWS_Y + rowsH - sy);
-      tft.pushImage(originX,                                        sy, PLEDIT_SIDE_LEFT_W,  h, SKIN_PLEDIT_LEFT_SIDE);
-      tft.pushImage(originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W, sy, PLEDIT_SIDE_RIGHT_W, h, SKIN_PLEDIT_RIGHT_SIDE);
-    }
-
-    // Scrollbar thumb — sprite blit when the list exceeds the visible rows.
-    if (count > PLEDIT_ROW_COUNT) {
-      constexpr int track_h = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;   // 65 px
-      constexpr int travel  = track_h - SKIN_PLEDIT_THUMB_H;      // 48 px
-      const int denom   = max(1, count - PLEDIT_ROW_COUNT);
-      const int thumb_x = originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W + PLEDIT_THUMB_X_INSET;
-      const int thumb_y = PLEDIT_ROWS_Y + scroll * travel / denom;
-      tft.pushImage(thumb_x, thumb_y,
-                    SKIN_PLEDIT_THUMB_W, SKIN_PLEDIT_THUMB_H,
-                    SKIN_PLEDIT_THUMB, PLEDIT_TRANSPARENT_RGB565);
-    }
-
-    // Bottom bar — second band of the SKIN_PLEDIT_BG atlas.
-    const uint16_t *bottom = SKIN_PLEDIT_BG + (uint32_t)SKIN_PLEDIT_BG_W * PLEDIT_TITLE_H;
-    tft.pushImage(originX, PLEDIT_BOTTOM_Y, SKIN_PLEDIT_BG_W, PLEDIT_BOTTOM_H, bottom);
-  }
-
+  // Call unconditionally from the main loop; the view returns immediately if
+  // the snapshot seqno has not changed and nothing scrolled.
   void drawPlaylist() {
     // TASK-053c: repaint chrome + PLEDIT title bar if health state changed.
+    // Not PLEDIT content — this is the connection-health indicator that
+    // happens to repaint the title strip, so it stays with the Spotify caller.
     bool healthy = spotifyTask::isHealthy();
     if (healthy != lastHealthy) {
       lastHealthy = healthy;
@@ -1405,130 +1335,13 @@ public:
       tft.pushImage(originX, PLEDIT_Y, SKIN_PLEDIT_BG_W, PLEDIT_TITLE_H, pleditTitle);
     }
 
+    // The snapshot is stack-resident for exactly this call; the source borrows
+    // it for the duration of the repaint and gives it back (see
+    // SpotifyQueueSource::bind() for why it is not a member).
     spotifyTask::QueueSnapshot qs;
     spotifyTask::copyQueueSnapshot(&qs);
-
-    const unsigned long now = millis();
-    const bool seqnoChanged = (qs.seqno != lastQueueSeqno);
-    if (!seqnoChanged && !_pleditScrollDirty) return;
-    if (seqnoChanged && now - lastPlaylistDrawMs < PLAYLIST_DRAW_MIN_MS) return;
-    _pleditScrollDirty = false;
-    lastPlaylistDrawMs = now;
-    if (seqnoChanged) {
-      lastQueueSeqno  = qs.seqno;
-      if (dragState == D_PLEDIT_SCROLL) {
-        dragState       = D_IDLE;
-        _scrollAccum    = 0.0f;
-        _scrollVelocity = 0.0f;
-      }
-      scrollOffset    = 0;   // TASK-051f
-      optimisticSelectedRow = -1;  // TASK-051a: new queue clears optimistic
-      // TASK-051h: songsSeen — natural advance detection
-      if (qs.count > 0 && _prevNextUri[0] &&
-          strcmp(qs.items[0].uri, _prevNextUri) == 0 && !_skipPending) {
-        _songsSeen++;
-      }
-      _skipPending = false;
-      strlcpy(_prevNextUri, qs.count > 1 ? qs.items[1].uri : "", sizeof(_prevNextUri));
-    }
-
-    lastVisibleRows = min((int)qs.count, PLEDIT_ROW_COUNT);
-    lastCount = qs.count;
-
-    tft.startWrite();
-
-    // Frame chrome (gutters, title bar, side tiles, scrollbar thumb, bottom bar)
-    // — shared with WebRadio's _drawPledit() via drawPleditFrame() (TASK-225).
-    // The bottom bar is drawn here too; it sits below the rows area so order
-    // versus the rows below is irrelevant (disjoint regions).
-    drawPleditFrame(scrollOffset, (int)qs.count);
-
-    // Rows: flat fillRect (Audacious playlist-widget.cc) + Font 1 track text.
-    // Font 1 glyph height = 8px; TEXT_VOFF centres it in the 13px row.
-    tft.setTextFont(1);
-    tft.setTextSize(1);
-    tft.setTextDatum(TL_DATUM);  // own our text state — don't inherit datum from other apps
-    constexpr int TEXT_MARGIN = 3;
-    constexpr int TEXT_VOFF   = (PLEDIT_ROW_H - 8) / 2;
-    constexpr int CHAR_W      = 6;   // Font 1 fixed-width glyph (px)
-    constexpr int TEXT_GAP    = 2;   // px gap between mid section and duration
-    constexpr int USABLE      = PLEDIT_CONTENT_W - 2 * TEXT_MARGIN;  // 238 px
-
-    for (int i = 0; i < PLEDIT_ROW_COUNT; i++) {
-      const int ry  = PLEDIT_ROWS_Y + i * PLEDIT_ROW_H;
-      const int idx = scrollOffset + i;  // TASK-051c: offset into snapshot
-
-      if (idx >= qs.count) {
-        // Empty slot — black content area, no text.
-        tft.fillRect(originX + PLEDIT_CONTENT_X, ry, PLEDIT_CONTENT_W, PLEDIT_ROW_H, TFT_BLACK);
-        continue;
-      }
-
-      // Content background (side areas handled above by sprite tiling).
-      const bool isCurrent    = (idx == 0);
-      const bool isOptimistic = (optimisticSelectedRow == idx &&
-                                 millis() < optimisticSelectedUntilMs);  // TASK-051a
-      const uint16_t bg = (isCurrent || isOptimistic) ? PLEDIT_BG_SELECTED : PLEDIT_BG_NORMAL;
-      const uint16_t fg = (isCurrent || isOptimistic) ? PLEDIT_FG_CURRENT  : PLEDIT_FG_NORMAL;
-      tft.fillRect(originX + PLEDIT_CONTENT_X, ry, PLEDIT_CONTENT_W, PLEDIT_ROW_H, bg);
-
-      // TASK-051g: "N. Artist - Title...  M:SS"
-      // Duration right-aligned.
-      char dur[8];
-      const uint32_t durSec = qs.items[idx].durationMs / 1000;
-      snprintf(dur, sizeof(dur), "%lu:%02lu",
-               (unsigned long)(durSec / 60), (unsigned long)(durSec % 60));
-      const int durW = (int)strlen(dur) * CHAR_W;
-
-      // Number prefix "N. " (1-based, session-relative via songsSeen).
-      char pfx[8];
-      snprintf(pfx, sizeof(pfx), "%u. ", (unsigned)(_songsSeen + scrollOffset + i + 1));
-      const int pfxW = (int)strlen(pfx) * CHAR_W;
-
-      // Middle budget in chars; truncate with "..." if needed.
-      const int midBudget = (USABLE - pfxW - TEXT_GAP - durW) / CHAR_W;
-      char mid[48];
-      snprintf(mid, sizeof(mid), "%s - %s",
-               qs.items[idx].artist[0] ? qs.items[idx].artist : "?",
-               qs.items[idx].name[0]   ? qs.items[idx].name   : "?");
-      if (midBudget >= 3 && (int)strlen(mid) > midBudget) {
-        mid[midBudget - 3] = '.';
-        mid[midBudget - 2] = '.';
-        mid[midBudget - 1] = '.';
-        mid[midBudget]     = '\0';
-      }
-
-      char leftStr[56];
-      snprintf(leftStr, sizeof(leftStr), "%s%s", pfx, mid);
-
-      tft.setTextColor(fg, bg);
-      const int textY = ry + TEXT_VOFF;
-      tft.drawString(leftStr, originX + PLEDIT_CONTENT_X + TEXT_MARGIN, textY);
-      const int durX = originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W - TEXT_MARGIN - durW;
-      tft.drawString(dur, durX, textY);
-    }
-
-    // Bottom bar now drawn by drawPleditFrame() above (TASK-225).
-
-    // Total playlist time — left-aligned in the scrollbar track (dark LCD area, top
-    // row of the right section, x=127 in PLEDIT frame, y+4 in bottom bar).
-    // Rendered with the skin bitmap font (SKIN_GLYPH / SKIN_FONT) to match
-    // track name style. Format: "MM:SS" or "H:MM:SS".
-    {
-      uint32_t totalMs = 0;
-      for (uint8_t i = 0; i < qs.count; i++) totalMs += qs.items[i].durationMs;
-      char tstr[12];
-      const uint32_t totalSec = totalMs / 1000;
-      const uint32_t h = totalSec / 3600;
-      const uint32_t m = (totalSec % 3600) / 60;
-      const uint32_t s = totalSec % 60;
-      if (h > 0)
-        snprintf(tstr, sizeof(tstr), "%lu:%02lu:%02lu", (unsigned long)h, (unsigned long)m, (unsigned long)s);
-      else
-        snprintf(tstr, sizeof(tstr), "%lu:%02lu", (unsigned long)m, (unsigned long)s);
-      drawPleditOverlayText(tstr);
-    }
-
-    tft.endWrite();
+    _queueSource.bind(&qs);
+    _plView.draw(_queueSource, originX);
+    _queueSource.bind(nullptr);
   }
 };
