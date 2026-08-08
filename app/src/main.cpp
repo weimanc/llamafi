@@ -4378,9 +4378,15 @@ static void cmdSdMbr(const char *) {
 
   // Sector 0, then whatever the first MBR entry points at. A card formatted as one
   // big volume with no partition table puts the boot sector at 0 instead.
+  // With no card in the slot the driver still hands back a pdrv and reports a nonsense
+  // geometry (CARD_UNKNOWN, ~31 k sectors), so the summary must not read ok:true just
+  // because the calls returned. Track whether anything was actually readable.
+  bool cardUsable = (sdcard_type(pdrv) != CARD_NONE && sdcard_type(pdrv) != CARD_UNKNOWN);
+  bool sector0Ok = false;
   uint32_t probeSectors[2] = { 0, 0 };
   int nProbe = 1;
   if (sd_read_raw(pdrv, buf, 0)) {
+    sector0Ok = true;
     bool sig = (buf[510] == 0x55 && buf[511] == 0xAA);
     // OEM name at +3 is "EXFAT   " for exFAT, "MSDOS"/"mkfs.fat"/etc for FAT.
     char oem[9] = {0};
@@ -4424,6 +4430,12 @@ static void cmdSdMbr(const char *) {
   sdcard_uninit(pdrv);
   s_sdSPI.end();
   s_sdSpiUp = false;
+  if (!cardUsable || !sector0Ok) {
+    Serial.printf("{\"ok\":false,\"cmd\":\"sdmbr\",\"error\":\"no readable card\","
+                  "\"cardUsable\":%s,\"sector0Ok\":%s}\n",
+                  cardUsable ? "true" : "false", sector0Ok ? "true" : "false");
+    return;
+  }
   Serial.println("{\"ok\":true,\"cmd\":\"sdmbr\"}");
 }
 

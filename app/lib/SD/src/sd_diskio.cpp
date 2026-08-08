@@ -830,15 +830,32 @@ bool sdcard_mount(uint8_t pdrv, const char* path, uint8_t max_files, bool format
     }
     card->base_path = strdup(path);
 
+    // LOCAL PATCH (TASK-408, PATCH-SD-2) — see app/lib/SD/LOCAL_PATCHES.md.
+    //
+    // f_mount() stores the FATFS pointer in its volume table (FatFs[vol]) BEFORE it
+    // attempts the forced mount, and creates the volume's sync object on the way in. So
+    // a FAILED f_mount still leaves the volume registered. esp_vfs_fat_unregister_path()
+    // then frees the context that FATFS is embedded in — without detaching it — leaving
+    // FatFs[vol] dangling into freed heap and leaking the sync object. The next mount's
+    // f_mount() dereferences that pointer to tear down the "current" volume and asserts
+    // in vQueueDelete(NULL), or faults outright.
+    //
+    // f_mount(NULL, drv, 0) is the detach: it deletes the sync object and clears the
+    // slot. It must run BEFORE the unregister on every failure path. Clearing
+    // card->base_path additionally makes sdcard_uninit()'s own unregister idempotent —
+    // SDFS::begin() calls it immediately after a failed sdcard_mount().
+    #define SD_MOUNT_DETACH() do { f_mount(NULL, drv, 0); } while (0)
+    #define SD_MOUNT_FAIL() do { free(card->base_path); card->base_path = NULL; return false; } while (0)
+
     FATFS* fs;
     char drv[3] = {(char)('0' + pdrv), ':', 0};
     esp_err_t err = esp_vfs_fat_register(path, drv, max_files, &fs);
     if (err == ESP_ERR_INVALID_STATE) {
         log_e("esp_vfs_fat_register failed 0x(%x): SD is registered.", err);
-        return false;
+        SD_MOUNT_FAIL();
     } else if (err != ESP_OK) {
         log_e("esp_vfs_fat_register failed 0x(%x)", err);
-        return false;
+        SD_MOUNT_FAIL();
     }
 
     FRESULT res = f_mount(fs, drv, 1);
@@ -848,26 +865,33 @@ bool sdcard_mount(uint8_t pdrv, const char* path, uint8_t max_files, bool format
             BYTE* work = (BYTE*) malloc(sizeof(BYTE) * FF_MAX_SS);
             if (!work) {
               log_e("alloc for f_mkfs failed");
-              return false;
+              SD_MOUNT_DETACH();
+              esp_vfs_fat_unregister_path(path);
+              SD_MOUNT_FAIL();
             }
             res = f_mkfs(drv, FM_ANY, 0, work, sizeof(BYTE) * FF_MAX_SS);
             free(work);
             if (res != FR_OK) {
                 log_e("f_mkfs failed: %s", fferr2str[res]);
+                SD_MOUNT_DETACH();
                 esp_vfs_fat_unregister_path(path);
-                return false;
+                SD_MOUNT_FAIL();
             }
             res = f_mount(fs, drv, 1);
             if (res != FR_OK) {
                 log_e("f_mount failed: %s", fferr2str[res]);
+                SD_MOUNT_DETACH();
                 esp_vfs_fat_unregister_path(path);
-                return false;
+                SD_MOUNT_FAIL();
             }
         } else {
+            SD_MOUNT_DETACH();
             esp_vfs_fat_unregister_path(path);
-            return false;
+            SD_MOUNT_FAIL();
         }
     }
+    #undef SD_MOUNT_FAIL
+    #undef SD_MOUNT_DETACH
     AcquireSPI lock(card);
     card->sectors = sdGetSectorsCount(pdrv);
     return true;
