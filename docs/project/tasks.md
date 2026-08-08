@@ -5999,7 +5999,7 @@ redrawing, `spotifyTask`/`dataTask` live, reading files copied onto the card by 
 | `T_SD_03` LFN round-trip | exact | `lfnOk=true` | read-only (write path broken) | **PASS (SDSC)** |
 | `T_SD_04` sustained read | **≥200 KB/s** | 34.1 KB/s | **637.2 KB/s worst of 5** (median 1 433.1) | **PASS — 3.2× over** |
 | `T_SD_05` worst read latency | **≤50 ms** | 113.9 ms | **3.71 ms worst of 5** (p50 0.25–1.00) | **PASS — 13× margin** |
-| `T_SD_06` `SD.begin()` heap delta | **≤8 KB** | 15 300 B | 15 300 B (11 164 B at 1 slot) | **FAIL — structural** |
+| `T_SD_06` `SD.begin()` heap delta | **≤8 KB** | 15 300 B | **11 164 B floor** (1 slot); 23 376 B at 4 | **FAIL — unmeetable at any slot count** |
 | `T_SD_08` 20 mount/unmount cycles | leak-free | 8 B total drift | 8 B total drift | **PASS** |
 | `T_SD_07` `listDir()` ~200 files | reported | 18 552 ms (200 files) | **5 270 ms / 200 files** (26.4 ms/entry) | **MET** |
 | `T_SD_09` absent/unformatted card | clean fail | not run | **absent half PASS**; exFAT half unrun | **PARTIAL** |
@@ -6131,12 +6131,36 @@ first read after boot appears not to get the 4 KB read-ahead. **Report the worst
 Read latency is now tightly bimodal and clean: 4 376 buffered hits ≤250 µs and 624 physical 4 KB
 reads all landing in the 2–4 ms bucket, nothing above.
 
-**`T_SD_06` is the one open item and it is not about the card.** 15 300 B at 2 open-file slots
-against an ≤8 KB bar, driven entirely by `FF_MAX_SS=4096` in the *precompiled* IDF FATFS — not
-tunable from this project. Dropping to 1 slot gives 11 164 B, still over, and 1 slot cannot walk a
-directory. The choices are to accept ~15 KB as the cost of an SD mount on this platform, to rebuild
-the IDF with a smaller sector size, or to move to `esp_vfs_fat_sdspi_mount` (the `sdmmc` driver is
-already linked). **Architect call — the bar was not retuned.**
+**`T_SD_06` is unmeetable at every slot count, and that is now measured rather than argued.** Full
+sweep, DUT, card present — mount cost and unmount reclaim agree byte-for-byte at every point, so
+there is no leak and no measurement ambiguity:
+
+| `max_files` | mount cost | vs ≤8 KB bar |
+|---|---|---|
+| 1 | **11 164 B** | 1.4× over — and 1 slot cannot walk a directory |
+| 2 | 15 300 B | 1.9× over (current setting) |
+| 3 | 19 240 B | 2.3× over |
+| 4 | **23 376 B** | **2.9× over** |
+| 5 | 27 516 B | 3.4× over |
+
+Exactly **+4 136 B per slot** — one `sizeof(FIL)`, as predicted before measuring. More slots make
+`T_SD_06` worse, never better: the bar cannot be met by tuning `max_files`, because
+`sizeof(FATFS)` = 4 156 B plus the non-context overhead already consumes ~7 KB before the first file
+slot exists. **11 164 B is the floor**, and it is 1.4× the bar.
+
+Root cause is `FF_MAX_SS=4096` (`CONFIG_WL_SECTOR_SIZE`) with `FF_FS_TINY=0` in the **precompiled**
+IDF FATFS — FATFS carries a 4 KB window buffer and every `FIL` carries its own 4 KB sector cache.
+Not tunable from this project.
+
+4 slots costs 23 376 B *and* fragments: it drops the largest free 8-bit block to 20 468 B at idle,
+before WebRadio's Helix arena is anywhere in the picture. Throughput is unaffected (1 356.3 KB/s,
+3.61 ms worst, 200-file walk 5 350 ms at 4 slots), so this is purely a memory decision.
+
+**This is an Architect ruling, and it cannot be closed by measurement.** The honest options are:
+(a) accept the cost as an explicit, documented exception to `T_SD_06` and amend ADR-059 to say so;
+(b) rebuild the IDF with a smaller `FF_MAX_SS`; or (c) move to `esp_vfs_fat_sdspi_mount` (the
+`sdmmc` driver is already linked). **The bar was not retuned** — the milestone brief says not to,
+and no measurement can turn 11 164 B into ≤8 KB.
 
 **The old card was never the problem.** It reads at 9.5 MB/s on a host PC. Its 34 KB/s here was the
 same class of driver-level issue, and both cards now read fine given a correct card type and clock.
