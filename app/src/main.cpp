@@ -2293,7 +2293,8 @@ void setup()
   // are missed. Ships in all builds — [wifi-ev] is a stable log contract.
   wifiDiag::begin();
 
-  // WiFi boot: NVS credentials → SPIFFS wifi_creds.json → open WiFi settings.
+  // WiFi boot: NVS credentials → saved networks (/wifi_networks.json, or
+  // legacy single-entry /wifi_creds.json pre-migration) → open WiFi settings.
   // Priority chain mirrors WifiSection connect flow (C4: NVS-backed persist).
   // TASK-296: wifiCredsKnown tracks whether ANY source held credentials —
   // "connect failed with stored creds" (AP storm at boot) must not be treated
@@ -2350,59 +2351,140 @@ void setup()
       while (millis() < dl) { delay(20); esp_task_wdt_reset(); }
     }
   }
-  if (!wifiConnected && SPIFFS.exists("/wifi_creds.json")) {
-    File f = SPIFFS.open("/wifi_creds.json", "r");
-    if (f) {
-      StaticJsonDocument<256> doc;
-      if (deserializeJson(doc, f) == DeserializationError::Ok) {
-        const char* ssid = doc["ssid"] | "";
-        const char* pass = doc["pass"] | "";
-        if (strlen(ssid) > 0) {
-          wifiCredsKnown = true;  // TASK-296
-#ifdef WINAMP_DISPLAY
-          winampDisplay.setTitle("WI-FI: CONNECTING...");  // M-BOOT-UI (TASK-364) §2
-#endif
-          Serial.printf("[wifi] Connecting from SPIFFS: %s\n", ssid);
-          WiFi.persistent(false);  // don't corrupt NVS if creds are wrong (TASK-167)
-          WiFi.mode(WIFI_STA);
-          WiFi.begin(ssid, pass);
-          { unsigned long dl = millis() + 30000;
-            // TASK-288: see hardcoded-SSID loop above — feed TWDT every iteration.
-            while (WiFi.status() != WL_CONNECTED && millis() < dl) {
-              delay(250); Serial.print("."); esp_task_wdt_reset();
-#ifdef WINAMP_DISPLAY
-              winampDisplay.tickMarquee();  // M-BOOT-UI (TASK-364) §3 Option B
-#endif
-            }
-            Serial.println(); }
-          wifiConnected = (WiFi.status() == WL_CONNECTED);
-          if (wifiConnected) {
-            WiFi.persistent(true);
-            WiFi.begin(ssid, pass);  // persist verified creds to NVS
-#ifdef WINAMP_DISPLAY
-            winampDisplay.setTitle("WI-FI: CONNECTING...");  // M-BOOT-UI (TASK-364) §2, re-assoc settle
-#endif
-            // TASK-290: this re-begin DEAUTHS the just-verified association
-            // (observed [wifi-ev] reason=8 ~150ms after GOT_IP) and the code
-            // below read localIP() before re-association finished — boot
-            // proceeded with "IP address: 0.0.0.0" whenever the NVS attempt
-            // missed its window and this SPIFFS path ran. Wait (bounded,
-            // TWDT-fed per TASK-288) for the re-association to settle.
-            { unsigned long dl = millis() + 15000;
-              while (WiFi.status() != WL_CONNECTED && millis() < dl) {
-                delay(100); esp_task_wdt_reset();
-#ifdef WINAMP_DISPLAY
-                winampDisplay.tickMarquee();  // M-BOOT-UI (TASK-364) §3 Option B
-#endif
-              } }
-            wifiConnected = (WiFi.status() == WL_CONNECTED);
-            Serial.println("[wifi] SPIFFS credentials saved to NVS");
-          } else {
-            Serial.println("[wifi] SPIFFS connect failed");
+  if (!wifiConnected) {
+    // Gather saved-network candidates from two merged sources:
+    //  - /wifi_networks.json: TASK-401's saved-network store (up to
+    //    WIFI_MAX_SAVED entries), tried most-recently-used first, so a
+    //    renamed/rotated AP that's still in the saved list gets found
+    //    without a trip through Settings.
+    //  - /wifi_creds.json: the operator-facing provisioning file (run/setup,
+    //    or a hand-pushed SPIFFS image per the "pre-baked SPIFFS files" doc'd
+    //    workflow). Always merged in at highest priority, even when
+    //    /wifi_networks.json already has entries — it's the file a human
+    //    just edited/pushed to fix a credential, and the saved-network list
+    //    can otherwise sit stale (e.g. across an SSID rename) until
+    //    Settings->WiFi is opened and reconnects manually.
+    // +1 sizing: /wifi_creds.json's entry can add one candidate beyond
+    // WIFI_MAX_SAVED's cap on /wifi_networks.json entries (dedup'd by SSID,
+    // so it only ever adds — never evicts — a saved entry).
+    SavedWifiNet cand[WIFI_MAX_SAVED + 1];
+    uint8_t candCount = 0;
+    if (SPIFFS.exists(WIFI_NETWORKS_JSON)) {
+      File f = SPIFFS.open(WIFI_NETWORKS_JSON, "r");
+      if (f) {
+        DynamicJsonDocument doc(kWifiNetworksJsonCapacity);
+        if (deserializeJson(doc, f) == DeserializationError::Ok) {
+          for (JsonVariantConst v : doc["networks"].as<JsonArrayConst>()) {
+            if (candCount >= WIFI_MAX_SAVED) break;
+            const char* ssid = v["ssid"] | "";
+            if (!ssid[0]) continue;
+            strlcpy(cand[candCount].ssid, ssid, sizeof(cand[0].ssid));
+            strlcpy(cand[candCount].pass, v["pass"] | "", sizeof(cand[0].pass));
+            cand[candCount].lastUsedMs = v["lastUsedMs"] | 0UL;
+            candCount++;
           }
         }
+        f.close();
       }
-      f.close();
+    }
+    if (SPIFFS.exists("/wifi_creds.json")) {
+      File f = SPIFFS.open("/wifi_creds.json", "r");
+      if (f) {
+        StaticJsonDocument<256> doc;
+        if (deserializeJson(doc, f) == DeserializationError::Ok) {
+          const char* ssid = doc["ssid"] | "";
+          if (ssid[0]) {
+            int8_t existing = -1;
+            for (uint8_t i = 0; i < candCount; i++) {
+              if (strcmp(cand[i].ssid, ssid) == 0) { existing = (int8_t)i; break; }
+            }
+            uint8_t slot = (existing >= 0) ? (uint8_t)existing : candCount;
+            if (existing >= 0 || candCount < WIFI_MAX_SAVED + 1) {
+              strlcpy(cand[slot].ssid, ssid, sizeof(cand[0].ssid));
+              strlcpy(cand[slot].pass, doc["pass"] | "", sizeof(cand[0].pass));
+              cand[slot].lastUsedMs = 0xFFFFFFFFUL;  // always tried first
+              if (existing < 0) candCount++;
+            }
+          }
+        }
+        f.close();
+      }
+    }
+    // Most-recently-used first (small N — plain insertion sort). Best-effort:
+    // saved lastUsedMs values are millis()-since-boot from whichever session
+    // last wrote them, so cross-boot ordering is a heuristic, not a true
+    // timestamp compare — /wifi_creds.json's sentinel above is exempt, it's
+    // always meant to sort first.
+    for (uint8_t i = 1; i < candCount; i++) {
+      SavedWifiNet key = cand[i];
+      int8_t j = i - 1;
+      while (j >= 0 && cand[j].lastUsedMs < key.lastUsedMs) {
+        cand[j + 1] = cand[j];
+        j--;
+      }
+      cand[j + 1] = key;
+    }
+    if (candCount > 0) wifiCredsKnown = true;  // TASK-296
+
+    const char* connectedSsid = nullptr;
+    const char* connectedPass = nullptr;
+    for (uint8_t i = 0; i < candCount && !wifiConnected; i++) {
+#ifdef WINAMP_DISPLAY
+      winampDisplay.setTitle("WI-FI: CONNECTING...");  // M-BOOT-UI (TASK-364) §2
+#endif
+      Serial.printf("[wifi] Connecting from saved networks (%u/%u): %s\n",
+                    (unsigned)(i + 1), (unsigned)candCount, cand[i].ssid);
+      WiFi.persistent(false);  // don't corrupt NVS if creds are wrong (TASK-167)
+      WiFi.mode(WIFI_STA);
+      WiFi.begin(cand[i].ssid, cand[i].pass);
+      // Bounded per-candidate probe: trimmed from the old single-network 30s
+      // window so a full sweep of stale saved networks stays bounded (up to
+      // WIFI_MAX_SAVED=5 candidates * 10s = 50s worst case, vs. 150s at the
+      // old per-network timeout would have cost). A real, present AP
+      // associates in ~1s per the TASK-404 boot log; NO_AP_FOUND retries
+      // fire every ~2.4s, so 10s covers several rejection cycles before
+      // moving on, not a hair trigger.
+      { unsigned long dl = millis() + 10000;
+        // TASK-288: see hardcoded-SSID loop above — feed TWDT every iteration.
+        while (WiFi.status() != WL_CONNECTED && millis() < dl) {
+          delay(250); Serial.print("."); esp_task_wdt_reset();
+#ifdef WINAMP_DISPLAY
+          winampDisplay.tickMarquee();  // M-BOOT-UI (TASK-364) §3 Option B
+#endif
+        }
+        Serial.println(); }
+      if (WiFi.status() == WL_CONNECTED) {
+        wifiConnected = true;
+        connectedSsid = cand[i].ssid;
+        connectedPass = cand[i].pass;
+      } else {
+        WiFi.disconnect(false);
+      }
+    }
+
+    if (wifiConnected) {
+      WiFi.persistent(true);
+      WiFi.begin(connectedSsid, connectedPass);  // persist verified creds to NVS
+#ifdef WINAMP_DISPLAY
+      winampDisplay.setTitle("WI-FI: CONNECTING...");  // M-BOOT-UI (TASK-364) §2, re-assoc settle
+#endif
+      // TASK-290: this re-begin DEAUTHS the just-verified association
+      // (observed [wifi-ev] reason=8 ~150ms after GOT_IP) and the code
+      // below read localIP() before re-association finished — boot
+      // proceeded with "IP address: 0.0.0.0" whenever the NVS attempt
+      // missed its window and this saved-network path ran. Wait (bounded,
+      // TWDT-fed per TASK-288) for the re-association to settle.
+      { unsigned long dl = millis() + 15000;
+        while (WiFi.status() != WL_CONNECTED && millis() < dl) {
+          delay(100); esp_task_wdt_reset();
+#ifdef WINAMP_DISPLAY
+          winampDisplay.tickMarquee();  // M-BOOT-UI (TASK-364) §3 Option B
+#endif
+        } }
+      wifiConnected = (WiFi.status() == WL_CONNECTED);
+      Serial.println("[wifi] saved-network credentials saved to NVS");
+    } else if (candCount > 0) {
+      Serial.println("[wifi] all saved-network connect attempts failed");
     }
   }
 
