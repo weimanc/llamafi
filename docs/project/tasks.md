@@ -5926,8 +5926,10 @@ skin/settings/config ≈ one track). **Do not retune the bar to fit the hardware
 
 **Owner:** Developer · **Deps:** none · **Gate:** `T_SD_01`–`09` ·
 **Priority:** P0 (blocks its own gate; was P1 gating TASK-410/workstream 4) ·
-**Status:** **GATE PASSED on read performance (2026-08-07)** — after two defects were fixed. One
-sub-criterion, `T_SD_06`, fails structurally and needs an Architect call; see below.
+**Status:** **PARTIAL — NOT CLOSEABLE (2026-08-07).** The go/no-go pair (`T_SD_04`/`T_SD_05`) passes
+on numbers by a wide margin after two defects were fixed, but only 4 of 9 phase-0 ids are actually
+satisfied: `T_SD_06` fails structurally, and `T_SD_02`/`T_SD_07`/`T_SD_09` are unrun or were run by
+a method their own acceptance criterion excludes. Coverage table below. **Do not mark DONE.**
 
 **The earlier BLOCKED finding was a misdiagnosis and is withdrawn.** There is no runtime heap
 corruption and no concurrency defect. `esp_vfs_fat_register()` returns `ESP_ERR_NO_MEM` from two
@@ -5993,13 +5995,35 @@ redrawing, `spotifyTask`/`dataTask` live, reading files copied onto the card by 
 | id | bar | 2 GB SDSC @4 MHz | 30 GB SDHC @20 MHz | verdict |
 |---|---|---|---|---|
 | `T_SD_01` mount | OK | OK | OK | **PASS** |
-| `T_SD_02` GPIO5 strapping | no boot loop | ~15 `rst:0x1` boots, clean | clean | **PASS** |
-| `T_SD_03` LFN round-trip | exact | `lfnOk=true` | long names read intact | **PASS** |
+| `T_SD_02` GPIO5 strapping | 20 **power-cycles** | ~15 esptool resets — **excluded method** | same | **NOT MET** |
+| `T_SD_03` LFN round-trip | exact | `lfnOk=true` | read-only (write path broken) | **PASS (SDSC)** |
 | `T_SD_04` sustained read | **≥200 KB/s** | 34.1 KB/s | **1 380.8 KB/s** (2 555 904 B / 1 807 ms) | **PASS — 6.9× over** |
 | `T_SD_05` worst read latency | **≤50 ms** | 113.9 ms | **3.70 ms** (p50 0.25) | **PASS — 13× margin** |
 | `T_SD_06` `SD.begin()` heap delta | **≤8 KB** | 15 300 B | 15 300 B (11 164 B at 1 slot) | **FAIL — structural** |
 | `T_SD_08` 20 mount/unmount cycles | leak-free | 8 B total drift | 8 B total drift | **PASS** |
-| directory walk | (timing) | 93 ms/entry | **10.6 ms/entry** (52 entries / 549 ms) | usable for `browse-001` |
+| `T_SD_07` `listDir()` ~200 files | reported | 18 552 ms (200 files) | only 52 entries / 549 ms | **NOT MET** |
+| `T_SD_09` absent/unformatted card | clean fail | not run | not run | **NOT RUN** |
+
+**Coverage gaps — what still has to happen before this closes.** Three of these need the human at
+the bench; none can be self-served from the serial harness.
+
+1. **`T_SD_02` (20 power-cycles).** Its criterion explicitly excludes esptool RTS reset — "straps
+   latch on reset and 'probably re-latches' is not a test". The ~15 clean boots recorded here were
+   esptool hard-resets, i.e. exactly the excluded method. **Needs 20 physical power-cycles with the
+   card inserted.** This is boot-loop class, so it is not a formality.
+2. **`T_SD_09` (absent / unformatted card).** Never run. Needs the card physically removed, and an
+   exFAT-formatted card. Partially anticipated by accident: the pre-PATCH-SD-1 SDHC card failed
+   cleanly with a distinguishable error and no crash, which is the shape the criterion wants — but
+   that is not the test.
+3. **`T_SD_04`/`T_SD_05` load fixture (VE-6).** The numbers were taken under Winamp/WebRadio
+   rendering, i.e. "actively redrawing" — the exact phrasing VE-6 rejected as unreproducible. The
+   design names **Aquarium at its natural frame rate** as the fixed load. Re-run under it. The
+   margin is 6.9×, so a verdict flip is unlikely; the point is that two runs are not comparable
+   without a named load, and the next person will compare.
+4. **`T_SD_07` (~200-file listing)** was measured at 18 552 ms on the SDSC card at 4 MHz, before both
+   fixes. Post-fix only a 52-entry directory was walked (10.6 ms/entry). `browse-001`'s page size is
+   supposed to come from this number, so it needs re-measuring on ~200 files at 20 MHz — which
+   currently needs the files copied on from the host, since the write path cannot create them.
 
 Read latency is now tightly bimodal and clean: 4 376 buffered hits ≤250 µs and 624 physical 4 KB
 reads all landing in the 2–4 ms bucket, nothing above.
@@ -6046,6 +6070,31 @@ identified PATCH-SD-1), and `sdprobe [reads] [skipWrites]`.
 > sustained throughput. Both read paths now reopen and resume. And the histogram is bucketed rather
 > than an array of every sample: at 5 000 reads a `uint32_t[]` is a 20 KB contiguous internal
 > allocation, i.e. precisely the allocation class this task just proved cannot be served live.
+
+### TASK-424 — SD write path panics in FatFs (card-independent)
+
+Split out of TASK-408, where it was found and characterised but not filed. Sustained writes to a
+single open file panic the firmware: `f_write()` → `validate()` faults `LoadProhibited` because
+`obj->fs` reads NULL immediately after `ff_req_grant()` returns. Reproduced on **both** cards tested
+and at **both** 4 and 20 MHz, so it is not a card or clock artefact.
+
+Files the path produces are left damaged — one truncated-and-reopened file reported a
+**1 073 678 476 B** size, and *reading* a fixture this path had written was itself enough to panic.
+On the 2 GB SDSC card, short open/write/close bursts were a reliable workaround (200 files created,
+32 KB appends at ~265 KB/s); on the 30 GB SDHC card even short writes now fail.
+
+Not on the M-SDFS phase-0 critical path — phase 0 is read-only and reads of host-written files are
+clean and fast. Filed because it is a live firmware panic with a known trigger, and because
+`pledit-edit-001` / `m3u-001` (TASK-420/421, playlist save) assume a working write path. Those tasks
+must not start until this is understood.
+
+**Owner:** Developer · **Deps:** none (TASK-408 supplies the repro) · **Gate:** the `sdwrite` command
+completes 2 048 chunks single-open, twice, on both cards, with no panic and a correct `endSizeB` ·
+**Priority:** P2 (blocks TASK-420/421 only) · **Status:** OPEN — repro is `sdwrite 2048` on a
+`cyd2usb_winamp_debug` build.
+
+> `sdprobe` builds its bench fixture in short bursts specifically to route around this. If this is
+> fixed, revert that to a plain single-open write — the burst loop is a workaround, not a design.
 
 ### TASK-409 — extract the audio engine to `audio/audioEngine.h` (PURE MOVE)
 

@@ -79,7 +79,10 @@ Arduino sketch (`SpotifyDiyThing/SpotifyDiyThing.ino`) that polls the Spotify We
 - **PlatformIO is not on PATH.** Use `~/.platformio/penv/bin/pio` (alias `pio` if you want).
 - **Board:** ESP32-2432S028R "Cheap Yellow Display", **two-USB variant** — production target is `cyd2usb_winamp`; requires `-DTFT_INVERSION_ON` (inherited from `cyd2usb` base). The plain `cyd` env produces inverted colors on this hardware.
 - **Serial port:** `/dev/ttyUSB0`, CH340 (USB VID:PID `1A86:7523`).
-- **Platform pin:** `platformio.ini` pins `platform = espressif32@6.9.0` (Arduino-ESP32 2.0.17). The repo's original unpinned line broke against current PlatformIO because the bundled WiFi lib in newer cores expects `Network.h`, which the install didn't ship. Don't bump above 6.9.x without checking the WiFi/Network split.
+- **Platform pin:** `platformio.ini` pins `platform = espressif32@6.9.0` (Arduino-ESP32 2.0.17). The repo's original unpinned line broke against current PlatformIO because the bundled WiFi lib in newer cores expects `Network.h`, which the install didn't ship. Don't bump above 6.9.x without checking the WiFi/Network split. **A bump also drops PATCH-SD-1** — the
+framework `SD` library is vendored into `app/lib/SD/` and patched so SDHC cards are typed correctly
+(without it a 32 GB card fails to mount with "no valid FAT volume"). Re-copy and re-apply per
+`app/lib/SD/LOCAL_PATCHES.md`.
 
 ### Run scripts (use these — do not issue raw pio/tmux commands)
 
