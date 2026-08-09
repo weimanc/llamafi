@@ -322,9 +322,19 @@ TASK-278's teardown and DEV-2-3's acquire ordering.
 **`init()`** (first entry only) — allocate nothing. Register the source with `pleditView`. All buffers
 are acquired in `resume()`, so a compiled-in-but-never-entered mode costs nothing but flash.
 
-**`resume()`**
-1. `sdfs::mount()` — lazy, VSPI, 4 MHz. Failure → degraded state, `hasError()` true, no further steps.
-2. Allocate the playlist model (§2, ≈5.2 KB heap). Failure → degraded, unmount, bail.
+**`resume()`** — **order revised 2026-08-09 (ADR-059 D1 amendment #2): arena BEFORE mount.**
+1. `mb_arena_acquire()` — **first**, from the least-fragmented heap state. The arena needs 23 216 B
+   **contiguous**; FATFS needs ~19 KB in many small pieces, which tolerate fragmentation. Mounting
+   first leaves only ~1.4 KB of largest-free-block margin over the arena at `max_files=3` and none at
+   all at 4. Failure → degraded (`hasError()`), do **not** mount — a clean early failure beats a
+   successful mount followed by a play that mysteriously never starts.
+   *In Player mode the arena is mode-scoped, not play-scoped* — held for the whole session, released
+   in `suspend()`. A deliberate departure from WebRadio's JIT-per-play discipline, justified because
+   Player needs it for essentially the entire session and pre-committing makes acquisition
+   deterministic.
+2. `sdfs::mount()` — lazy, VSPI, 4 MHz, **`max_files=3`** (audio + browser directory handle + the
+   entry `openNextFile()` returns; save is also 3). Failure → degraded, release the arena, bail.
+3. Allocate the playlist model (§2, ≈5.2 KB heap). Failure → degraded, unmount, release, bail.
 3. Restore last playlist + shuffle/repeat from `g_settings`; rebuild `playOrder`.
 4. Seed `winampDisplay`'s volume/shuffle/repeat caches from Player state — they may hold Spotify's or
    WebRadio's values from before the switch (the precedent this exists for is `main.cpp:217`).
