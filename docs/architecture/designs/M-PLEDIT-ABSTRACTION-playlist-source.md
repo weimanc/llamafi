@@ -170,6 +170,8 @@ accommodate them. Silently letting `T_PLE_07` slide is the failure mode this log
 | D19 | Velocity integrator writes `scrollOffset` and marks dirty on every non-zero step, even when the clamp makes it a no-op | only marks dirty when the offset actually changed | **Spotify (kept)** | **Adopt WebRadio's.** This is the one row where the second copy is strictly better: at the top/bottom limit Spotify repaints at the tick rate for no visual change. Deliberately **not** taken in TASK-411 — it is a repaint-count change, and `T_PLE_04` asserts on repaint counts. Do it in TASK-412 with the counter as evidence. |
 | D20 | Row-drag anchor is unconditional (the zone is already limited to populated rows) | requires `_stationCount > 0` before anchoring | Spotify | Equivalent in effect (Spotify's zone height is `visibleRows * ROW_H`, i.e. zero when empty). Recorded so the guard is not re-added as a "fix". |
 | D21 | one gesture path: anchored Press → Move → Release | **two** paths: the anchored gesture *and* a second, unanchored Release-only tap hit-test (`handleInput` rows branch) that re-derives the row from scratch | Spotify | **Adopt Spotify's**, but check `cmdTap` first: the unanchored path exists because `cmdTap` drives a Release with no prior Press. If the harness still does that, the path is test infrastructure and must be kept deliberately, not deleted by accident. |
+| D23 | Flick feel: quick-swipe fallback applies `max(1, abs(dy) / PLEDIT_ROW_H)` rows from the press-time offset | same code, but reached through a different drag machine and repaint cadence (see D18) | Spotify (kept) | **Investigate before choosing.** Operator observation, 2026-08-09: *"Spotify's flick seems worse than WebRadio's PLEDIT implementation."* Both copies share the tuning constants, so if the flick genuinely feels different the cause is elsewhere — most likely D18 (WebRadio repaints the whole PLEDIT after a scroll step, Spotify blits only the thumb during a strip drag) or D19 (Spotify repaints at the clamp, WebRadio does not). This is **pre-existing**, not caused by TASK-411: the extraction reproduces Spotify's flick trajectory exactly (see the gesture battery in §7a). Worth resolving in TASK-412's favour of whichever actually feels better, rather than defaulting to the donor. |
+
 | D22 | Tap dispatches **asynchronously** (`ACT_PLAY_URI` onto the Spotify task queue) and paints an optimistic highlight | tap calls `_play(idx)` **synchronously** on loopTask | Both, via `onTap()` | **Already resolved by the interface** — `PlaylistSource::onTap()` is the seam, and each source keeps its own dispatch discipline. |
 
 ### Not divergent (verified, recorded so it is not re-litigated)
@@ -390,6 +392,56 @@ This also unblocks `T155`–`T160` and any future PLEDIT-row test. Those still c
 `wait_for_queue(min_count=10)` and will keep skipping until VE reworks them onto `set queue`;
 `run_serialdbg_tests.py` was deliberately not edited here (another agent held it for part of this
 session, and the suite is VE's artefact).
+
+### `T_PLE_05` attempt 1 (2026-08-09) — **inconclusive: the control failed**
+
+Ran the VE-18 blind A/B (≥3 trials, operator blind, presentation order randomised into a file
+neither party read). Trial 1's two presentations were **the same build** — a deliberate same-build
+control — and the operator reported a large, confident difference: *"A is better; B: none of 1, 2, 3
+work reliably."*
+
+There was no code difference between what was compared, so that is the **discrimination noise floor,
+and it is larger than any signal this test could resolve.** Attempt 1 is void — not passed, not
+failed. The control is the only reason we know that; a 2-presentation A/B without one would have
+been read as a regression in whichever build happened to land second.
+
+**The dominant noise source is the shell busy lockout, not the renderer.** `SHELL_BUSY_TIMEOUT_MS`
+is 3 000 ms (`main.cpp:1906`) and `appHandleInput` drops input outright while it is set
+(`main.cpp:2110`). Any gesture that qualifies as a tap — `abs(dy) < 6 px` and `< 250 ms` — dispatches
+`ACT_PLAY_URI`, which sets busy, which silently swallows **every gesture for the next ~3 s**. During
+feel-testing, taps happen constantly by accident, so a run degenerates into "half my gestures did
+nothing", and *how many* land differs run to run. This is pre-existing behaviour with nothing to do
+with TASK-411, and it is made worse now the AP is back: with WiFi up the dispatched action attempts a
+real request (403, with TLS and backoff behind it) instead of failing instantly, so the lockout runs
+its full length. The same mechanism was already visible during `T_PLE_06`, where two taps came back
+`hit:CANVAS, skipped:true` until the harness paced itself.
+
+**A second operator observation, unrelated to the extraction:** *"A's flick seems worse than
+WebRadio's PLEDIT implementation."* A was HEAD, and HEAD reproduces Spotify's flick exactly, so this
+is a **pre-existing Spotify-vs-WebRadio feel divergence** — logged as D23 below. It is a TASK-412
+input, not a TASK-411 defect.
+
+### `T_PLE_05` objective half — deterministic gesture battery (PASS)
+
+Since the eyeball channel is currently too noisy to resolve anything, the measurable part of "scroll
+feel" was measured directly instead: identical serial-driven gestures on both builds, comparing
+`scrollOffset` trajectories. `set bgPoll 0` first, to take poll/TLS contention out of the numbers.
+
+**Every result identical between baseline `12697bd` and HEAD:**
+
+| probe | result (both builds) | what it pins down |
+|---|---|---|
+| `flick_up` / `flick_down` | 0 → 1 / 0 → 0 (clamped) | quick-swipe minimum-one-row fallback, and the clamp |
+| `vel_small_up` (dy −3 px) | `[0,0,0,0,0,0]` | dead zone + speed constant at small displacement |
+| `vel_large_up` (dy −25 px) | `[5,6,7,7,7,7]` | integrator ramp **and** the clamp at max offset (7 = 12−5) |
+| `vel_large_down` at offset 0 | `[0,0,0,0,0,0]` | clamp at min offset |
+| `strip_map` (y 136…184) | `0, 1, 3, 5, 7` | direct-scroll positional mapping across the whole track |
+| `disc_dy5` / `disc_dy7` | no move / +1 row | tap-vs-scroll boundary sits exactly at `PLEDIT_TAP_PX` = 6 |
+
+That covers the dead zone, the speed constant, the integrator ramp, both clamps, the quick-swipe
+fallback, the tap/scroll threshold and the direct-scroll mapping — i.e. everything about "feel" that
+is a number. What remains for the eyeball is genuinely subjective: perceived smoothness and any
+stickiness the trajectories do not capture.
 
 ### Handover — `T_PLE_05` (scroll feel), the one remaining id
 
