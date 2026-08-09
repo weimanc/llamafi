@@ -3236,6 +3236,15 @@ static void cmdGet(const char *args) {
       return;
     }
     String own = WiFi.SSID();
+    // TASK-426: matches:[] alone is ambiguous — an empty `own` (STA configured
+    // but never associated) produces the same output as "target AP absent".
+    // Dump own + the full scan list so the two cases are distinguishable.
+    Serial.printf("[wifiScan] own=\"%s\" n=%d\n", own.c_str(), (int)n);
+    for (int i = 0; i < n; i++)
+      Serial.printf("[wifiScan]   ssid=\"%s\" bssid=%s rssi=%d ch=%d enc=%d\n",
+                    WiFi.SSID(i).c_str(), WiFi.BSSIDstr(i).c_str(),
+                    (int)WiFi.RSSI(i), (int)WiFi.channel(i),
+                    (int)WiFi.encryptionType(i));
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"wifiScan\",\"total\":%d,"
                   "\"matches\":[", (int)n);
     bool first = true;
@@ -3248,6 +3257,27 @@ static void cmdGet(const char *args) {
     }
     Serial.printf("],\"last\":true}\n");
     WiFi.scanDelete();
+    return;
+  }
+  // TASK-426: dump the STA connect config. A scan that finds the AP while
+  // esp_wifi_connect() returns NO_AP_FOUND means connect is filtering it out:
+  // a stale bssid/channel pin or an rssi/authmode threshold are the candidates.
+  if (strcmp(args, "wifiCfg") == 0) {
+    wifi_config_t c = {};
+    esp_err_t e = esp_wifi_get_config(WIFI_IF_STA, &c);
+    Serial.printf("[wifiCfg] err=%d ssid=\"%s\" pwlen=%u bssid_set=%d "
+                  "bssid=%02x:%02x:%02x:%02x:%02x:%02x ch=%u "
+                  "scan_method=%d sort=%d thr_rssi=%d thr_auth=%d pmf_r=%d\n",
+                  (int)e, (const char*)c.sta.ssid,
+                  (unsigned)strlen((const char*)c.sta.password),
+                  (int)c.sta.bssid_set,
+                  c.sta.bssid[0], c.sta.bssid[1], c.sta.bssid[2],
+                  c.sta.bssid[3], c.sta.bssid[4], c.sta.bssid[5],
+                  (unsigned)c.sta.channel,
+                  (int)c.sta.scan_method, (int)c.sta.sort_method,
+                  (int)c.sta.threshold.rssi, (int)c.sta.threshold.authmode,
+                  (int)c.sta.pmf_cfg.required);
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"wifiCfg\",\"last\":true}\n");
     return;
   }
   // appId — shell-owned; WinampDisplay cannot reference currentAppId.
@@ -3771,6 +3801,40 @@ static void cmdSet(const char *args) {
   if (strcmp(var, "wifiScan") == 0) {
     WiFi.scanNetworks(/*async=*/true);
     Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"wifiScan\",\"val\":1}\n");
+    return;
+  }
+  // TASK-426: quiesced connect — the control for a NO_AP_FOUND wedge. While
+  // wedged, autoreconnect re-fires esp_wifi_connect() every ~2.4s and the
+  // supervisor kicks every 30s, so any connect under test is contended. This
+  // silences both, waits for in-flight attempts to drain, then does exactly ONE
+  // begin() and reports what it actually did — separating "connect genuinely
+  // cannot find this AP" from "connect never got a clean run".
+  if (strcmp(var, "wifiKick") == 0) {
+    wifi_config_t c = {};
+    esp_wifi_get_config(WIFI_IF_STA, &c);
+    Serial.printf("[wifiKick] quiescing; ssid=\"%s\"\n", (const char*)c.sta.ssid);
+    WiFi.setAutoReconnect(false);
+    WiFi.disconnect(false, false);
+    // TASK-288 discipline: every bounded wait in this file feeds the TWDT.
+    // Without it this command's own waits panic-reset the board mid-diagnosis
+    // (observed on the first TASK-426 build — the reset looked like a wedge
+    // recovery and nearly cost a false conclusion).
+    { unsigned long dl = millis() + 1500;      // let in-flight attempts drain
+      while (millis() < dl) { delay(100); esp_task_wdt_reset(); } }
+    Serial.printf("[wifiKick] armed, single begin()\n");
+    WiFi.begin();
+    uint32_t t0 = millis();
+    wl_status_t st = WL_DISCONNECTED;
+    while (millis() - t0 < 20000) {
+      st = (wl_status_t)WiFi.status();
+      if (st == WL_CONNECTED) break;
+      delay(250); esp_task_wdt_reset();
+    }
+    Serial.printf("[wifiKick] result status=%d elapsed=%lums ip=%s rssi=%d\n",
+                  (int)st, (unsigned long)(millis() - t0),
+                  WiFi.localIP().toString().c_str(), (int)WiFi.RSSI());
+    WiFi.setAutoReconnect(true);
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"wifiKick\",\"status\":%d}\n", (int)st);
     return;
   }
   // TASK-274 (QM-2 positive control): force a disconnect so the [wifi-ev]
