@@ -251,9 +251,9 @@ order where practical. `T_PLE_13` is a cheap tripwire for an incomplete deletion
 
 ## 7a. TASK-411 implementation record (2026-08-08)
 
-Code landed and **the gate ran: `T_PLE_01`–`04` and `T_PLE_06` PASS.** `T_PLE_05` is an eyeball gate
-(BP-048) and needs the operator — it is the only outstanding item, and it is now runnable without a
-Spotify account. See "Gate coverage" below.
+Code landed and **the gate is complete: `T_PLE_01`–`04` and `T_PLE_06` PASS on the DUT; `T_PLE_05`
+closed on the objective gesture battery by human acceptance** (its blind A/B returned void — see the
+disposition at the end of this section). See "Gate coverage" below.
 
 Getting there needed a new `SERIAL_DEBUG`-only `set queue N` queue injection: PLEDIT rows come only
 from the Spotify queue snapshot, TASK-243 has left that snapshot empty across multiple sessions, and
@@ -332,7 +332,8 @@ to TASK-412, where one renderer finally replaces two. Nothing was deleted in thi
 
 ### Gate coverage (DUT session 2026-08-08, `/dev/ttyUSB1`)
 
-**`T_PLE_01`–`04` and `T_PLE_06` PASS. `T_PLE_05` is an eyeball gate and needs the operator.**
+**`T_PLE_01`–`04` and `T_PLE_06` PASS on the DUT. `T_PLE_05` closed on the objective gesture
+battery by human acceptance — see its disposition at the end of this section.**
 
 | id | Verdict | Evidence |
 |---|---|---|
@@ -340,7 +341,7 @@ to TASK-412, where one renderer finally replaces two. Nothing was deleted in thi
 | `T_PLE_02` | **PASS** | Same captures. States 2–7 carry deliberately over-long rows interleaved with short ones, so truncation point, ellipsis and duration right-edge are all inside the compared region — and all identical. |
 | `T_PLE_03` | **PASS** | Thumb captured at offset 0 (`s6`), mid (`s4`, offset 3) and max (`s5`, offset 7) on a 12-item list, plus max on a 20-item list (`s7`, offset 15). Identical y and height at every one. |
 | `T_PLE_04` | **PASS** | `get pleditRepaints` held at 2 across 8 s of a static queue; advanced by exactly 3 across 3 seqno changes spaced 2 s apart; advanced by 2 (not 5) across 5 changes inside ~0.6 s, which is `PLAYLIST_DRAW_MIN_MS` coalescing as specified. |
-| `T_PLE_05` | **UNRUN — operator required** | Eyeball gate by construction (BP-048). Now *runnable*: `set queue 12` gives a scrollable list without an account. Recipe below. |
+| `T_PLE_05` | **CLOSED — objective battery, human-accepted** | Blind A/B attempted 2026-08-09 and **void**: its same-build control drew a large, confident "different", so the operator noise floor exceeds the signal (root cause: the 3 s shell busy lockout, not the renderer). Substituted a deterministic gesture battery — dead zone, speed constant, integrator ramp, both clamps, quick-swipe fallback, tap/scroll threshold and direct-scroll mapping all **identical** on both builds. Perceived smoothness remains unverified; disposition and reasoning at the end of this section. |
 | `T_PLE_06` | **PASS 5/5** | With `scrollOffset` deliberately at 3 so row index ≠ absolute index, tapping rows 0–4 dispatched `ACT_PLAY_URI` param 3, 4, 5, 6, 7 — `scrollOffset + row`, confirmed twice per tap (the task's `dequeued action=PLAY_URI param=N` line and the `playAdvanced … uri=spotify:track:injNN` line). |
 
 The seven states: empty · 1 row · 5 rows (exactly `PLEDIT_ROW_COUNT`, no thumb) · 12 rows scrolled
@@ -443,24 +444,48 @@ fallback, the tap/scroll threshold and the direct-scroll mapping — i.e. everyt
 is a number. What remains for the eyeball is genuinely subjective: perceived smoothness and any
 stickiness the trajectories do not capture.
 
-### Handover — `T_PLE_05` (scroll feel), the one remaining id
+### `T_PLE_05` disposition — **CLOSED on the objective battery, by human acceptance (2026-08-09)**
 
-Eyeball gate on the physical LCD (BP-048); pixel identity does not imply feel identity, and this is
-the code TASK-277 was spent tuning. It is now runnable without a Spotify account:
+The operator signed off on the gesture battery above in place of a completed blind A/B. Recording
+exactly what that does and does not buy, so a later audit does not have to reconstruct it:
 
-1. `./run/flash-debug`, then `set queue 12` over serial (or 20 for a longer list).
-2. Velocity drag, flick, and direct-strip drag on the PLEDIT rows.
-3. Repeat against the baseline build (`git checkout 12697bd -- app/src/winamp/winampDisplay.h`,
-   rebuild — `set queue` lives in `spotifyTaskStorage.cpp` and survives the revert).
-4. "Indistinguishable to the operator" is a vibe, not a criterion (VE-18): use the ≥3-trial A/B
-   protocol from TASK-402, operator blind to build order.
+**Covered.** Every quantitative component of "feel" — dead zone, speed constant, integrator ramp,
+both clamps, quick-swipe minimum-one-row fallback, tap/scroll threshold, direct-scroll mapping —
+measured identical on both builds.
 
-Rig notes for whoever runs it: the CH340 moved `/dev/ttyUSB0` → `/dev/ttyUSB1` mid-session — always
-use `./run/port`. `run/screendump`'s height flag is `-H` (`-h` is help). Injection and capture must
-share one serial session: `run/screendump` DTR-resets on connect, which wipes the injected queue.
-And a tap can come back `hit:CANVAS, skipped:true` from the shell busy gate while a previous tap's
-async action is still in flight (`main.cpp:2110`) — pace taps on the `dequeued action=` line and
-retry, rather than reading the skip as a PLEDIT defect.
+**Not covered.** Perceived smoothness, and any stickiness that does not move `scrollOffset`
+differently. The blind A/B was attempted and returned void, so this id has **no operator-confirmed
+result**; it is closed on measurement plus judgement, not on the method its acceptance criterion
+names.
+
+**Why that was judged acceptable here** (the reasoning, so it is not treated as precedent for
+skipping eyeball gates generally): the renderer is a transcription — the velocity integrator, tap
+discrimination and quick-swipe fallback moved line-for-line — the pixel gate passed at 0 differing
+pixels over 7 states, and the battery pins every numeric parameter. The residual risk is a
+perceptual difference with no mechanism behind it. Against that, the eyeball channel is currently
+unusable: the 3 s shell busy lockout (above) produces a noise floor that swamped a same-build
+control. Re-running without first fixing that would not have produced evidence, only a second void
+result. This is the same shape as `T_RCL_04`'s closure (human accepted code inspection over building
+a throwaway probe), and it should be revisited if the busy-lockout confound is ever removed.
+
+**Follows from this, for TASK-412.** `T_PLE_09` is the same eyeball gate for WebRadio and will hit
+the identical noise floor. Either fix the confound first, or plan for the same objective-battery
+substitution — and decide that *before* running it, not after a void result. D23 (Spotify's flick
+reportedly feeling worse than WebRadio's) is an open question the battery cannot answer, since both
+copies produce the same trajectories; it needs the eyeball channel working.
+
+**To run it properly if that ever happens.** `set bgPoll 0` first, keep every gesture past 6 px so
+nothing dispatches a tap and arms the lockout, `set queue 12`, and use the ≥3-trial blind A/B with
+same-build controls included — the control is what made this attempt informative rather than
+misleading.
+
+Rig notes for whoever picks this up: the CH340 moved `/dev/ttyUSB0` → `/dev/ttyUSB1` mid-session —
+always use `./run/port`. `run/screendump`'s height flag is `-H` (`-h` is help). Injection and capture
+must share one serial session: `run/screendump` DTR-resets on connect, which wipes the injected
+queue, and so does closing the port — hold it open for the duration instead. With WiFi up the board
+boots into whichever player mode is persisted (`bootIntoWebRadio`, `main.cpp:2616`), so force
+`set playerMode spotify` before testing or you will be driving WebRadio's untouched PLEDIT copy
+instead of the one under test.
 
 
 ## 7. Exit criteria
