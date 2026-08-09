@@ -5926,10 +5926,23 @@ skin/settings/config ≈ one track). **Do not retune the bar to fit the hardware
 
 **Owner:** Developer · **Deps:** none · **Gate:** `T_SD_01`–`09` ·
 **Priority:** P0 (blocks its own gate; was P1 gating TASK-410/workstream 4) ·
-**Status:** **PARTIAL — NOT CLOSEABLE (2026-08-07).** The go/no-go pair (`T_SD_04`/`T_SD_05`) passes
-on numbers by a wide margin after two defects were fixed, but only 4 of 9 phase-0 ids are actually
-satisfied: `T_SD_06` fails structurally, and `T_SD_02`/`T_SD_07`/`T_SD_09` are unrun or were run by
-a method their own acceptance criterion excludes. Coverage table below. **Do not mark DONE.**
+**Status:** **DONE — passed with one recorded exception (2026-08-09).** Operator accepted the
+`T_SD_06` disposition (option (a), ADR-059 D1 amendments #1/#2): the ≤8 KB mount-heap bar is
+**unreachable by construction** — 11 164 B is the floor at one open-file slot — so it is recorded as
+an **accepted exception, not a pass**, with the measured numbers on the record. The bar was not
+retuned. `T_SD_09`'s exFAT half is **explicitly waived** by the operator (no spare card; the 2 GB
+SDSC card holds unrelated content and was deliberately left alone).
+
+Final: **7 of 9 ids PASS, 1 accepted exception (`T_SD_06`), 1 partial-and-waived (`T_SD_09`).** Both
+go/no-go ids pass by wide margins. Three defects were found and fixed getting here — two of them in
+the vendored SD library, one of which (PATCH-SD-2) is a use-after-free on a path LocalPlayer will
+meet as a *normal* user state.
+
+> **Two conditions ride out of this close and are not discharged by it** (ADR-059 D1 amendment #2):
+> the Player-mode **concurrent peak** has not been measured (all heap figures here are mount-cost in
+> isolation, idle, no stream), and the whole `max_files` table is **mount-first** while the accepted
+> lifecycle is **arena-first**. TASK-425 carries both. TASK-410 must not pick a `max_files` value
+> from the table in this task.
 
 **The earlier BLOCKED finding was a misdiagnosis and is withdrawn.** There is no runtime heap
 corruption and no concurrency defect. `esp_vfs_fat_register()` returns `ESP_ERR_NO_MEM` from two
@@ -6046,11 +6059,14 @@ mount and heap delta byte-identical (15 300 B), `sdread` 1 450.3 KB/s / 3.59 ms 
 4 375 / 625 histogram, `sdls /probe200` 5 521 ms (inside the observed spread), `sdcycle 20` 20/20
 with **0 B** drift (was 8 B). No regression.
 
-**Still unrun: the exFAT half.** The criterion is "probe with no card, **then with an exFAT card**".
-That needs a card that can be reformatted; the 2 GB SDSC card still holds unrelated content and was
-deliberately left alone. Risk is low — the pre-`PATCH-SD-1` SDHC card presented exactly the shape the
-criterion wants (`ok:false`, distinguishable error, no crash, no hang) — but that was an accident of
-a different bug, not this test.
+**The exFAT half is WAIVED (operator, 2026-08-09), not done.** The criterion is "probe with no card,
+**then with an exFAT card**"; only the first case was run. Waived because it needs a card that can be
+reformatted and no spare exists — the 2 GB SDSC card holds unrelated content and was deliberately
+left alone. Residual risk is low but non-zero: the pre-`PATCH-SD-1` SDHC card presented exactly the
+shape this criterion wants (`ok:false`, distinguishable error, no crash, no hang), which is
+encouraging but was an accident of a different bug rather than this test. **If a spare card ever
+turns up, run it** — an unformatted or exFAT card is a realistic user state, and `T_SD_09` is the id
+that would have caught PATCH-SD-2 earlier.
 
 **`T_SD_02` — GPIO5 strapping, 2026-08-08. PASS 20/20.** Twenty *physical* USB unplug/replug cycles
 with the card inserted, driven by hand (`powercycle_watch.py`, scratchpad). Every cycle: application
@@ -6222,6 +6238,45 @@ completes 2 048 chunks single-open, twice, on both cards, with no panic and a co
 
 > `sdprobe` builds its bench fixture in short bursts specifically to route around this. If this is
 > fixed, revert that to a plain single-open write — the burst loop is a workaround, not a design.
+
+### TASK-425 — re-measure the SD/arena memory table under arena-first ordering
+
+ADR-059 D1 amendment #2 changed the Player-mode lifecycle to **acquire the decoder arena before
+mounting SD**, on the asymmetry that the arena needs one contiguous 23 216 B block while FATFS needs
+~19 KB in many small pieces. Every number the ruling rests on was measured **mount-first**, and the
+amendment says so explicitly: *"Re-measure the whole table under arena-first before relying on any
+row of it."* This task is that re-measure. Filed because the ADR names it as a condition of the
+acceptance and TASK-408 closed without discharging it.
+
+Two things to settle, both currently hypotheses:
+
+1. **Does `max_files=4` become viable under arena-first?** Mount-first it is not — largest free block
+   after mounting 4 slots is 20 468 B against the arena's 23 216 B need, measured. Arena-first takes
+   the big block from a clean heap and lets FATFS's small allocations fit around it, which *may*
+   make 4 work. If it does, the browser-handle closure rule (amendment #2) becomes optional rather
+   than load-bearing.
+2. **The Player-mode concurrent peak** — condition 1 of the acceptance, never measured. Every heap
+   figure in TASK-408 is mount cost in isolation, idle, WiFi up, no stream. The number that matters
+   is free heap and largest-free-block with the arena held *and* SD mounted *and* a playlist loaded
+   *and* a file playing.
+
+At `max_files=3` the mount-first margin over the arena is **1 348 B** (measured; the ADR derived
+1 388). That is thin enough that fragmentation alone could close it — this project has already had a
+byte-count-only gate pass in a narrow environment and then crash in the full build.
+
+**Blocker on method:** this cannot be measured with today's firmware. The arena is acquired inside
+`WebRadioApp::_play()`, so the only way to hold it is to start a stream — which drags ~40 KB of TLS
+in and measures the wrong profile entirely. Needs either a debug hook that acquires/releases
+`mb_arena` standalone (cheap, `set arenaHold 0|1`) or `LocalPlayerApp` to exist.
+
+**Owner:** Developer (Architect consult — the ruling depends on the result) · **Deps:** none for the
+debug hook; the full peak needs TASK-410 · **Gate:** the amendment #2 table re-measured arena-first,
+all rows, with mount `heapDelta` and unmount `reclaimedB` agreeing; plus a stated `max_files` for
+TASK-410 with its arena margin · **Priority:** P1 — TASK-410 cannot pick `max_files` without it ·
+**Status:** OPEN.
+
+> Do not carry any row of TASK-408's `max_files` table into TASK-410. It is all mount-first, and
+> mount-first is the ordering the ADR replaced.
 
 ### TASK-409 — extract the audio engine to `audio/audioEngine.h` (PURE MOVE)
 

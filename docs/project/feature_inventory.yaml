@@ -2371,7 +2371,7 @@ features:
       long-filename round-trip, listDir() timing, and a sustained-read benchmark with
       latency histogram, plus a supporting probe surface (sdmem/sdmount/sdumount/
       sdcycle/sdls/sdread/sdwrite/sdclean/sdmbr).
-    status: phase-0 partial (gate PARTIAL — see TASK-408, not closeable)
+    status: phase-0 done (gate passed with one recorded exception — TASK-408 closed 2026-08-09)
     git_ref: "380e378, 18be2b2, ce5af0e"
     files:
       - app/src/main.cpp            # probe surface + boot mount, all under #ifdef SERIAL_DEBUG
@@ -2387,14 +2387,24 @@ features:
       heap delta <=8 KB. SPIFFS is explicitly NOT an accepted fallback (1.4 MB shared with
       skin/settings/config ~= one track).
 
-      STATE 2026-08-08: the go/no-go pair passes by a wide margin after two driver defects
-      were fixed — sustained read 1380.8 KB/s (bar >=200) and worst-case 3.70 ms (bar <=50),
-      at 20 MHz on a 30 GB SDHC card. But only 4 of 9 phase-0 ids are satisfied, so the gate
-      is PARTIAL and TASK-408 is NOT closed. T_SD_06 FAILS structurally (15300 B at 2
-      open-file slots vs an <=8 KB bar, driven by FF_MAX_SS=4096 in the PRECOMPILED IDF
-      FATFS — not tunable from this project; Architect ruling pending). T_SD_02 (20 physical
-      power-cycles; GPIO5 is a strapping pin, boot-loop class), T_SD_07 (~200-file listing)
-      and T_SD_09 (absent/unformatted card) all need bench access and are unrun.
+      STATE 2026-08-09 — CLOSED, passed with one recorded exception. 7 of 9 ids PASS;
+      T_SD_06 is an accepted exception; T_SD_09's exFAT half is operator-waived.
+      Read performance under the named Aquarium load: 637.2 KB/s worst of 5 (bar >=200)
+      and 3.71 ms worst-case (bar <=50). T_SD_02 20/20 physical power-cycles with 20/20
+      cold-boot mounts. T_SD_07 200-file walk 5.3 s (26.4 ms/entry, and per-entry cost
+      RISES with directory size — browse-001 must not walk synchronously on mode entry).
+      T_SD_08 20 cycles, 0 B drift.
+
+      T_SD_06 accepted exception (ADR-059 D1 amendments #1/#2): the <=8 KB bar is
+      unreachable by construction. Measured mount cost is 11164 B at ONE open-file slot,
+      +4136 B (one sizeof(FIL)) per slot after that: 15100/19240/23376/27516 at 2/3/4/5.
+      Cause is FF_MAX_SS=4096 with FF_FS_TINY=0 in the PRECOMPILED IDF FATFS. The bar was
+      NOT retuned — it is recorded as an exception with the numbers, not as a pass.
+
+      NOT discharged by the close, both carried by TASK-425: the Player-mode concurrent
+      peak is unmeasured (all figures are mount cost in isolation, idle, no stream), and
+      the whole max_files table is mount-first while the accepted lifecycle is arena-first.
+      TASK-410 must NOT pick a max_files value from TASK-408's table.
 
       Two defects fixed, both driver-level, neither a card fault:
       (1) SD.begin() needs ONE contiguous byte-addressable block of
