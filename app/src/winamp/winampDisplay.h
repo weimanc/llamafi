@@ -92,6 +92,11 @@ public:
              e.name[0]   ? e.name   : "?");
     out.durationSec = e.durationMs / 1000;
     out.current     = (idx == 0);   // [0] is currently_playing (ADR-017)
+    // D3: right column is the row's own "M:SS" duration, drawn in the row's
+    // fg (rightColor left 0 — the renderer falls back to fg for that).
+    snprintf(out.rightText, sizeof(out.rightText), "%lu:%02lu",
+             (unsigned long)(out.durationSec / 60), (unsigned long)(out.durationSec % 60));
+    out.rightColor = 0;
     return true;
   }
 
@@ -100,6 +105,19 @@ public:
     uint32_t totalMs = 0;
     for (uint8_t i = 0; i < _snap->count; i++) totalMs += _snap->items[i].durationMs;
     return totalMs / 1000;   // sum first, divide once — matches the original rounding
+  }
+
+  // D10: total playlist time, "MM:SS" or "H:MM:SS" — the pre-extraction
+  // bottom-bar overlay format, unchanged.
+  void overlayText(char *buf, size_t bufSize) override {
+    const uint32_t total = totalSec();
+    const uint32_t h = total / 3600;
+    const uint32_t m = (total % 3600) / 60;
+    const uint32_t s = total % 60;
+    if (h > 0)
+      snprintf(buf, bufSize, "%lu:%02lu:%02lu", (unsigned long)h, (unsigned long)m, (unsigned long)s);
+    else
+      snprintf(buf, bufSize, "%lu:%02lu", (unsigned long)m, (unsigned long)s);
   }
 
   void onTap(uint16_t idx) override {
@@ -1299,27 +1317,47 @@ private:
   }
 
 public:
-  // TASK-411: PLEDIT rendering lives in winamp/pleditView.h. These four stay as
-  // this class's public surface because their callers (main.cpp's SpotifyApp,
-  // and webRadioApp.h's still-separate renderer until TASK-412) address the
-  // display object, not the view.
+  // TASK-412 / ADR-059 D4: PLEDIT rendering and gesture ownership live in
+  // winamp/pleditView.h behind PlaylistSource. This class's public surface is
+  // the one PleditView instance shared by every caller (SpotifyApp via
+  // drawPlaylist() below, WebRadioApp via the generic entry points here) —
+  // there is exactly one PLEDIT visible at a time, so one view instance is
+  // correct, not a per-app copy.
 
-  // TASK-051i: re-tile the right-side strip and blit the thumb at the current
-  // offset — much cheaper than a full drawPlaylist().
-  void drawScrollThumbOnly() { _plView.drawScrollThumbOnly(originX); }
+  bool pleditPress(int x, int y)   { return _plView.press(x, y, originX, originY); }
+  void pleditMove(int y)           { _plView.move(y, originX, originY); }
+  PlReleaseResult pleditRelease(PlaylistSource& src) { return _plView.release(src); }
+  bool pleditDragging() const      { return _plView.dragging(); }
+  PleditView::DragMode pleditDragMode() const { return _plView.dragMode(); }
+  int   pleditScrollOffset()   const { return _plView.scrollOffset(); }
+  float pleditScrollAccum()    const { return _plView.scrollAccum(); }
+  float pleditScrollVelocity() const { return _plView.scrollVelocity(); }
+  float pleditSpeedK()         const { return _plView.speedK(); }
+  void  pleditSetSpeedK(float k)     { _plView.setSpeedK(k); }
+  // D13: scroll the shared view to keep row idx visible (sources whose list
+  // doesn't reset the scroll position on a content change still want the
+  // current item scrolled into view on selection — see PleditView::scrollToRow).
+  void  pleditScrollToRow(int idx)   { _plView.scrollToRow(idx); }
+  // Cancel a live PLEDIT drag only — narrower than resetDragState() (which
+  // also clears the host's OTHER gestures: volume/posbar/taskbar). For a
+  // caller that must not drop an unrelated in-progress drag, e.g. WebRadio's
+  // _play() cancelling only its own PLEDIT gesture on an auto-skip (TASK-277
+  // QM-1-3), not a concurrent volume-slider drag.
+  void  pleditResetDrag()            { _plView.resetDrag(); }
+  // Force next draw() to repaint without a full invalidate() (no seqno-
+  // sentinel clear, no onListReset(), no scroll reset) — for a host-side
+  // change draw()'s own seqno/scroll tracking can't see on its own.
+  void  pleditMarkDirty()            { _plView.markDirty(); }
 
-  // TASK-348: PLEDIT bottom-bar overlay slot — the skin-font glyph blit and
-  // position Spotify uses for its total-playlist-time readout (x=127 in the
-  // PLEDIT frame, dark LCD area of the bottom bar), so WebRadio can render its
-  // country code in the identical slot. Caller owns startWrite()/endWrite()
-  // (matches drawPleditFrame()'s contract).
-  void drawPleditOverlayText(const char *str) { _plView.drawOverlayText(originX, str); }
+  // Touch cool-down gate (D17): shared across every PLEDIT caller and every
+  // other Winamp-chrome gesture, same object either app is driving at a time.
+  bool touchCoolingDown() const { return millis() <= touchScreenCoolDownTime; }
+  void armTouchCooldown(unsigned long ms) { touchScreenCoolDownTime = millis() + ms; }
 
-  // ADR-018 TASK-047c — PLEDIT frame chrome: gutters, title bar, side tiles,
-  // scrollbar thumb and bottom bar, for a list of `count` rows scrolled to
-  // `scroll`. Everything except the rows and any app-specific overlay. Shared
-  // with WebRadioApp::_drawPledit() (TASK-225). Caller owns startWrite()/endWrite().
-  void drawPleditFrame(int scroll, int count) { _plView.drawFrame(originX, scroll, count); }
+  // Generic entry point: draw the shared PLEDIT for any PlaylistSource. Call
+  // unconditionally from the main loop; the view returns immediately if the
+  // source's seqno hasn't changed and nothing scrolled.
+  void drawPlaylistFor(PlaylistSource& src) { _plView.draw(src, originX); }
 
   // Call unconditionally from the main loop; the view returns immediately if
   // the snapshot seqno has not changed and nothing scrolled.

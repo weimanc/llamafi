@@ -6355,7 +6355,12 @@ traded for deduplication — **do not relax the test to make it pass.**
 gate on the physical LCD** (BP-048): pixel-identity does not imply feel-identity, timing and gesture
 thresholds do not appear in a screenshot, and this is the code TASK-277 was spent tuning.
 `T_PLE_13` is a tripwire — one renderer replacing two must be a **negative** flash delta; a positive
-one means the old path was not deleted · **Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07.
+one means the old path was not deleted · **Priority:** P2 · **Status:** **IN PROGRESS** — code landed
+2026-08-09 (`webRadioApp.h` has zero PLEDIT render/scroll code, `T_PLE_12`/`14` PASS, `T_PLE_11`
+vacuously PASS, `T_PLE_07` 3/5 states pixel-identical with the other 2 root-caused and documented,
+`T_PLE_13` FAILS as literally worded — +36 B/+160 B flash, analysed, not an incomplete deletion).
+`T_PLE_08`/`09` not run — need a dedicated VE/eyeball DUT session. See design doc §7b for the full
+record. Not yet closeable.
 
 ### TASK-413 — `AppId::LocalPlayer`, three-valued mode, taskbar-icon cycling, taskbar assertion
 

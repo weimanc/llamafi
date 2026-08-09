@@ -487,6 +487,86 @@ boots into whichever player mode is persisted (`bootIntoWebRadio`, `main.cpp:261
 `set playerMode spotify` before testing or you will be driving WebRadio's untouched PLEDIT copy
 instead of the one under test.
 
+## 7b. TASK-412 implementation record (2026-08-09)
+
+**What landed.** WebRadio's private PLEDIT copy (`_drawPledit()`, `_gestureEnd()`, `_tickScroll()`,
+`_updateScrollDirect()`, `_wrs`/`_dragStart*`/`_scrollAccum`/`_scrollVelocity`/`_scrollSpeedK`/
+`_pleditDirty`) is gone. `WebRadioApp` gained a nested `StationListSource : PlaylistSource`
+(`CAP_PLAY` only, reads `_stations[]`/`_currentIdx`/`_state` directly — nested classes have the same
+access rights as any other member, C++11) and now drives the **same** `PleditView` instance Spotify
+uses, via new `WinampDisplay::pledit*()` entry points (`pleditPress/Move/Release/Dragging/DragMode/
+ScrollOffset/ScrollAccum/ScrollVelocity/SpeedK/SetSpeedK/ScrollToRow/MarkDirty/ResetDrag`,
+`touchCoolingDown/armTouchCooldown`, `drawPlaylistFor`). One `PleditView` for the whole app now, not
+one per caller — the design's own §2.3 already implied this ("there is exactly one PLEDIT visible at a
+time"), TASK-411 just hadn't needed to act on it yet.
+
+**Per-source parameterisation added to `pleditView.h`** for the pixel-affecting divergences (D1–D3,
+D10): `PlaylistSource::bgNormal()/bgSelected()/marginPx()` (default = Spotify's pre-extraction values,
+so Spotify is unaffected by construction) and a new pure-virtual `overlayText(char*, size_t)`
+replacing the renderer's own time-formatting (Spotify implements the "M:SS"/"H:MM:SS" formatter it
+always had; WebRadio implements the country-code readout). `PlRow` gained `rightText[8]` +
+`rightColor` (D3) — the right column is now source-formatted content, not always a duration;
+`durationSec` stays for totalSec()-style aggregation. D19 (only mark the scroll dirty when the offset
+actually changed at the clamp) is now live for both callers, gated behind a real `!=` check in
+`tickScroll()`.
+
+**Divergence dispositions actually taken**, against the design's own recommendation column: D1–D3,
+D6 adopted the "parameterise" plan exactly as written. D4, D7, D8, D9, D22 needed no code change
+(already resolved by the interface, per the log). D5 (ellipsis truncation) and D6 (black empty slots)
+are now live for WebRadio — deliberate pixel changes to WebRadio, exactly as the log flagged; see the
+`T_PLE_07` note below. D10 done via `overlayText()`. D11–D18, D20–D21 fell out for free once WebRadio
+routes through the shared view — there's only one redraw gate, one cooldown, one drag-state owner, one
+tap-index/count source now, so nothing was "kept" or "adopted" as a separate step. D13 got a
+`resetScrollOnChange()` cap (default true = Spotify; `false` for `StationListSource`); since the
+scroll offset is shared state now, the app explicitly re-syncs it to the current pick on every
+selection and on app entry (`_pleditSync()`, `pleditScrollToRow()`) rather than relying on the
+natural seqno-reset path Spotify gets automatically. D23 (the flick-feel report) is unresolved — both
+copies still produce identical trajectories (verified: same code path now, trivially), so the reported
+difference, if real, has no mechanism in this renderer; needs the eyeball channel, same as D23's
+original disposition said.
+
+**Deviation from plan, found by testing, not designed in:** `dbgSet`'s `wrUrl`/`wrDeadUrls` debug
+injectors originally didn't bump `_plSeqno` — caught on the DUT (a `set wrDeadUrls N` injection left
+`PleditView`'s cached `_lastVisibleRows`/`_lastCount` stale, so PLEDIT-row taps hit-tested against the
+wrong geometry and landed on `DEADZONE` instead of `PLEDIT`). Fixed by bumping `_plSeqno` and calling
+`pleditScrollToRow(0)` in both injectors, matching the pattern already used at the two production
+list-identity-change sites (station-fetch install, config-change reset).
+
+**Measurements** (fresh `run/build` + `run/build-debug`, stash/pop A-B on the unmodified working tree —
+not remembered numbers):
+
+| | before | after | Δ |
+|---|---|---|---|
+| `cyd2usb_winamp` `firmware.bin` (Flash used) | 1 795 245 B | 1 795 281 B | **+36 B** |
+| `cyd2usb_winamp` RAM used | 111 432 B | 111 400 B | −32 B |
+| `cyd2usb_winamp_debug` `firmware.bin` (Flash used) | 1 868 741 B | 1 868 901 B | **+160 B** |
+| `cyd2usb_winamp_debug` RAM used | 114 652 B | 114 620 B | −32 B |
+
+**`T_PLE_13` does not pass as a literal "negative delta."** Flash grew slightly on both envs; RAM
+shrank on both (WebRadio's own scroll-state fields, ~40 B, are gone — replaced by `StationListSource`'s
+one pointer + `_plSeqno`, ~8 B — consistent with the RAM delta). The flash growth is the shared
+renderer's per-source dispatch (five new virtual calls per row/redraw path, now paid by *every* caller
+including Spotify) outweighing the code actually deleted from `webRadioApp.h` (~150 lines of gesture
+math that was already fairly compact, reusing `touch/scrollTuning.h` constants and simple inline
+geometry rather than anything duplicated at length). Reported rather than chased — the brief says
+report a growth, not work around it; `T_PLE_12`'s grep gate (below) is the one that actually catches an
+incomplete deletion, and it's clean.
+
+**Gate coverage.**
+
+| id | Verdict | Evidence |
+|---|---|---|
+| `T_PLE_12` | **PASS** | `grep PLEDIT app/src/webRadioApp.h` — only two literal identifier hits left, both `PLEDIT_BODY_BG` inside `StationListSource::bgNormal()/bgSelected()`, i.e. the per-source *style data* the interface now requires a source to supply (D1) — not render/scroll code. No `PleditView`/`drawPledit`/`_gestureEnd`/`_tickScroll`/`_updateScrollDirect` symbols remain outside comments. |
+| `T_PLE_13` | **FAIL (as literally worded), analysed above** | +36 B / +160 B, not negative. Not an incomplete deletion (see `T_PLE_12`) — the shared per-source virtual dispatch costs more than the deleted flat code saved. |
+| `T_PLE_14` | **PASS** | DUT serial: `pleditRepaints` held flat (10→10) over 8 s with a static list; advanced by exactly one per `set wrDeadUrls N` call across four consecutive list changes (2→3→4 with only list-identity-changing calls in between; unrelated `_dirty`-only chrome redraws don't bump it). |
+| `T_PLE_11` | **PASS, vacuously** | `StationListSource` is `CAP_PLAY`-only and the renderer draws no mutator control at all yet (reorder/remove/add/save are `LocalPlaylistSource`/parent-design scope) — "not drawn, not hit-tested, never invoked" holds by construction, not by a cap check exercised at runtime. |
+| `T_PLE_07` | **3/5 states pixel-identical; 2 documented divergences** | Screendump A/B (baseline = this commit's parent, stashed; PLEDIT rect, `set bgPoll 0`, `set wrDeadUrls N` for deterministic content, one held serial session per build to avoid the DTR-reset-wipes-injection gap): **0 px diff** at exactly-5-rows (no scrollbar) and 8-rows-top-of-list. **Diff at empty (0 stations, all 5 rows) and 3-rows (2 empty slots)** — entirely inside the empty-slot rows, i.e. exactly the D6 disposition (black instead of `PLEDIT_BODY_BG`), reproduced identically across two independent capture runs. **Diff at 8-rows-scrolled (346 px)** traced to a `cmdTap`-harness artifact, not a rendering difference: `cmdTap`'s WebRadio branch (`main.cpp`) calls `winampDisplay.injectTouch()` (Press, Spotify-shaped diagnostic path) then `WebRadioApp::handleInput(Release,...)` — it never calls WebRadio's own `handleInput(Press,...)`. Pre-merge, a strip-zone Press only updated *Spotify's* separate `_plView`/offset (invisible, since WebRadio drew its own copy); post-merge the same Press updates the *shared* view WebRadio now actually draws from, so a bare `tap` on the strip now visibly scrolls where it silently no-op'd before. Confirmed deterministic (identical pixel count on a second independent A/B run) and confirmed by hand-tracing `_updateScrollDirect()`'s formula (offset=2 both ways) — not investigated further as a rendering bug because it isn't one; real device touches were never affected (they call `handleInput(Press,...)` directly). Flagged for VE: `cmdTap`'s WebRadio branch may want its own Press call for harness fidelity, independent of TASK-412. |
+| `T_PLE_08` | **not run** | Needs the T277-family / `velocity-scroll-ve-review.md` suite, ≥3-run pre-declared-flaky baseline (ADR-059 D13) — a dedicated VE session, not attempted here. |
+| `T_PLE_09` | **not run** | Physical eyeball gate (BP-048); `T_PLE_05`'s own attempt found the 3 s shell-busy lockout swamps a blind A/B's noise floor (still unfixed) — the design doc already flags `T_PLE_09` will hit the identical wall and pre-authorises the same objective-battery substitution. Not attempted this session. |
+
+**Not done:** `./run/check` was run and is 6/6 after this change (see below), but the full ≥5-state
+`T_PLE_07` battery (only 5 states captured here vs. TASK-411's 7), `T_PLE_08`, and `T_PLE_09` want a
+dedicated DUT/VE session rather than being squeezed into this one.
 
 ## 7. Exit criteria
 

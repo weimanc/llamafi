@@ -20,7 +20,6 @@
 #include "logSink.h"
 #include "perf.h"
 #include "spotifyTask.h"
-#include "touch/scrollTuning.h"   // TASK-277: shared gesture tuning with winampDisplay
 #include "winamp/winampDisplay.h"
 #include "winamp/vuMeter.h"
 
@@ -563,14 +562,81 @@ static void wrTeardownPumpTask() {
 class WebRadioApp : public App {
 public:
 
+    // ADR-059 D4 / TASK-412: WebRadio's station list as a PlaylistSource
+    // (CAP_PLAY only) for the shared PLEDIT renderer (winamp/pleditView.h).
+    // Nested in WebRadioApp (not a free class like winampDisplay.h's
+    // SpotifyQueueSource) so it can read the station array / current index /
+    // play state directly — there's no snapshot-copy seam here the way
+    // spotifyTask::QueueSnapshot gives Spotify; WebRadio's state already
+    // lives on the app object, and a nested class has the same access rights
+    // as any other member (C++11).
+    class StationListSource : public PlaylistSource {
+    public:
+        void bind(WebRadioApp* app) { _app = app; }
+
+        uint16_t count()    override { return _app ? _app->_stationCount : 0; }
+        uint32_t seqno()    override { return _app ? _app->_plSeqno : 0; }
+        uint8_t  caps()     override { return CAP_PLAY; }
+        uint32_t totalSec() override { return 0; }  // D10: overlayText() replaces this
+
+        // D4: station name only, no track numbering (a station list has none —
+        // already source-owned per the design, unchanged from TASK-411's
+        // resolution of the same row for Spotify).
+        bool row(uint16_t idx, PlRow &out) override {
+            if (!_app || idx >= _app->_stationCount) return false;
+            const dataTask::WebRadioStation &s = _app->_stations[idx];
+            strlcpy(out.text, s.name, sizeof(out.text));
+            out.durationSec = 0;
+            // D3: right column is the bitrate badge — fixed dim colour, only
+            // when known, not the row's fg (that's Spotify's duration rule).
+            if (s.bitrate > 0) {
+                snprintf(out.rightText, sizeof(out.rightText), "%uk", (unsigned)s.bitrate);
+                out.rightColor = 0x4208U;
+            } else {
+                out.rightText[0] = '\0';
+                out.rightColor   = 0;
+            }
+            // D7: "current" = the selected station while actually playing/
+            // connecting, not merely selected — matches the pre-merge
+            // definition; STOPPED clears the highlight.
+            out.current = (idx == _app->_currentIdx) && (_app->_state != WRPlayState::STOPPED);
+            return true;
+        }
+
+        void onTap(uint16_t idx) override {
+            if (_app) _app->_play((uint8_t)idx);   // D22: already resolved by the interface
+        }
+
+        // D1/D2: WebRadio's pre-merge copy gave every row the same
+        // background (no distinct "current" treatment) and no left margin.
+        uint16_t bgNormal()   override { return PLEDIT_BODY_BG; }
+        uint16_t bgSelected() override { return PLEDIT_BODY_BG; }
+        uint8_t  marginPx()   override { return 0; }
+
+        // D10: country code in the same bottom-bar overlay slot Spotify uses
+        // for total playlist time (was the old superimposed WR_BADGE).
+        void overlayText(char *buf, size_t bufSize) override {
+            strlcpy(buf, g_settings.webRadioCountry, bufSize);
+        }
+
+        // D13: the station list is the same list refetched, not a new one —
+        // keep the scroll position across a refresh. WebRadioApp explicitly
+        // re-syncs it to the current pick via winampDisplay.pleditScrollToRow()
+        // on selection and on app entry instead.
+        bool resetScrollOnChange() override { return false; }
+
+    private:
+        WebRadioApp* _app = nullptr;
+    };
+
     // ── Lifecycle ──────────────────────────────────────────────────────────
 
     void init() override {
         _state           = WRPlayState::STOPPED;
         _stationCount    = 0;
         _currentIdx      = g_settings.webRadioLastStation;
-        _scrollOffset    = 0;
         _pendingStations = false;
+        _stationSource.bind(this);   // TASK-412 / ADR-059 D4
         // ADR-050 rule 3 (M-WEBRADIO-SETTINGS): lastStation-at-load baseline for
         // the coalesced suspend()-save — no flash write when nothing changed.
         _lastStationSaved = g_settings.webRadioLastStation;
@@ -610,6 +676,7 @@ public:
         LOG_I("webradio", "HEAP pre-fetch free=%u min=%u",
               (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap());
         _enqueueStationFetch();
+        _pleditSync();   // TASK-412: init() runs alone on first launch (no resume() call)
 
         // _dirty=true; tick() handles first paint — init() must return fast
         // (called synchronously from cmdTap context; _drawFull here risks WDT).
@@ -617,6 +684,7 @@ public:
 
     void resume() override {
         _dirty = true;
+        _pleditSync();   // TASK-412: PLEDIT scroll state is shared with SpotifyApp now
         // Defer paint to tick() — resume() can also run from cmdTap context.
 
         // TASK-352: wire the shared volume-drag machine's commit seam to
@@ -646,7 +714,8 @@ public:
             if (_state != WRPlayState::STOPPED) _stopAudio();
             _currentIdx   = 0;
             _stationCount = 0;
-            _scrollOffset = 0;
+            _plSeqno++;   // TASK-412 / T_PLE_14: list identity changed (now empty, pending refetch)
+            winampDisplay.pleditScrollToRow(0);
             // The WR-2 edit-time reset already persisted lastStation=0 (UI
             // path) — refresh the suspend()-save baseline so the coalesced
             // save doesn't redundantly rewrite an unchanged value.
@@ -676,14 +745,10 @@ public:
     void suspend() override {
         // TASK-277 [DEV-1-4]: cancel any live gesture (precedent:
         // SpotifyApp::suspend() → resetDragState()) — serial switchApp /
-        // set wrEject can fire mid-gesture.
-        _wrs            = WRS_IDLE;
-        _scrollAccum    = 0.0f;
-        _scrollVelocity = 0.0f;
-        _pleditDirty    = false;
-        // TASK-352: a live volume drag is shared winampDisplay state (same
-        // precedent) — must not leave dragState==D_VOLUME_DRAG stuck across
-        // an eject mid-drag.
+        // set wrEject can fire mid-gesture. TASK-412: PLEDIT drag state now
+        // lives in the shared PleditView (winampDisplay._plView), reset below
+        // along with the shared D_VOLUME_DRAG machine (TASK-352 precedent) —
+        // must not leave either stuck across an eject mid-drag.
         winampDisplay.resetDragState();
 
         _stopAudio();
@@ -836,14 +901,15 @@ public:
             const float dt = (_lastScrollMs == 0) ? 0.0f
                                                   : (now - _lastScrollMs) * 0.001f;
             _lastScrollMs = now;
-            _tickScroll(dt);
+            winampDisplay.tickScroll(dt);
         }
-        // Scroll steps repaint the row region only — not a _dirty full repaint
-        // (§Gesture spec). A pending full repaint covers it anyway.
-        if (_pleditDirty) {
-            _pleditDirty = false;
-            if (!_dirty) _drawPledit();
-        }
+        // TASK-412: PLEDIT now owns its own seqno/scroll redraw gate
+        // (pleditView.h) — call unconditionally every tick, same as
+        // SpotifyApp::tick()'s winampDisplay.drawPlaylist(). Must run here,
+        // not folded into the _dirty branch below, so a scroll step or a
+        // _pleditSync() invalidate still repaints this tick even when
+        // nothing else changed.
+        winampDisplay.drawPlaylistFor(_stationSource);
 
         // TASK-234 (ADR-045): process a deferred retry / auto-skip from a prior
         // tick's playback failure. Done here (not inline at the failure site) so
@@ -939,6 +1005,8 @@ public:
                     memcpy(_stations, result.stations,
                            result.count * sizeof(dataTask::WebRadioStation));
                     if (_currentIdx >= _stationCount) _currentIdx = 0;
+                    _plSeqno++;   // TASK-412 / T_PLE_14: list identity changed
+                    winampDisplay.pleditScrollToRow((int)_currentIdx);
                     LOG_I("webradio", "stations loaded count=%u country=%s",
                           _stationCount, result.countryCode);
                 } else {
@@ -1171,39 +1239,29 @@ public:
         // captures can never compete for the same touch.
         if (winampDisplay.handleVolumeGesturePublic(phase, x, y)) return true;
 
-        // TASK-277 (M-WR-PLEDIT-SCROLL): captured gesture — while a drag is
-        // live, Move updates it and Release is consumed by drag-end BEFORE any
-        // eject/transport hit-test [DEV-1-1 blocker]. Mirrors the donor
-        // machine's phase structure (winampDisplay.h release-first/captured).
-        if (_wrs != WRS_IDLE) {
-            if (phase == TouchPhase::Release) return _gestureEnd();
-            if (_wrs == WRS_SCROLL) _dragCurrentY = y;
-            else                    _updateScrollDirect(y);
+        // TASK-412 (ADR-059 D4): PLEDIT press/move/release now dispatch
+        // through the shared PleditView (winamp/pleditView.h) via
+        // StationListSource — captured gesture first (Move updates it,
+        // Release is consumed by drag-end BEFORE any eject/transport
+        // hit-test [DEV-1-1 blocker], same priority the donor machine used).
+        if (winampDisplay.pleditDragging()) {
+            if (phase == TouchPhase::Release) {
+                const PlReleaseResult r = winampDisplay.pleditRelease(_stationSource);
+                if (r.cooldownMs) winampDisplay.armTouchCooldown(r.cooldownMs);  // D17
+                return true;
+            }
+            winampDisplay.pleditMove(y);
             return true;
         }
 
-        // TASK-277: Press in the PLEDIT bands anchors a gesture. Press
+        // TASK-277 / D17: Press in the PLEDIT bands anchors a gesture — gated
+        // by the shared cooldown now (WebRadio's pre-merge copy had no
+        // cooldown at all; adopting Spotify's closes that gap). Press
         // anywhere else is not consumed (eject/transport act on Release, as
         // today).
         if (phase == TouchPhase::Press) {
-            const int rowsY1 = PLEDIT_ROWS_Y + PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
-            if (y >= PLEDIT_ROWS_Y && y < rowsY1) {
-                if (x >= PLEDIT_CONTENT_X + PLEDIT_CONTENT_W && x < PLEDIT_W) {
-                    _wrs = WRS_SCROLL_DIRECT;         // scrollbar column
-                    _updateScrollDirect(y);
-                    return true;
-                }
-                if (x >= PLEDIT_CONTENT_X &&
-                    x < PLEDIT_CONTENT_X + PLEDIT_CONTENT_W && _stationCount > 0) {
-                    _wrs                   = WRS_SCROLL;
-                    _dragStartY            = y;
-                    _dragCurrentY          = y;
-                    _dragStartRow          = (y - PLEDIT_ROWS_Y) / PLEDIT_ROW_H;
-                    _dragStartMs           = millis();
-                    _dragStartScrollOffset = _scrollOffset;
-                    return true;
-                }
-            }
+            if (winampDisplay.touchCoolingDown()) return false;
+            if (winampDisplay.pleditPress(x, y)) return true;
             return false;
         }
 
@@ -1260,25 +1318,29 @@ public:
         }
         if (t == 4) { _nextStation(); return true; }
 
-        // PLEDIT rows → tap to select + play
-        if (_stationCount > 0 &&
-            x >= PLEDIT_CONTENT_X && x < PLEDIT_CONTENT_X + PLEDIT_CONTENT_W &&
-            y >= PLEDIT_ROWS_Y    && y < PLEDIT_ROWS_Y + PLEDIT_ROW_COUNT * PLEDIT_ROW_H) {
-            int row = (y - PLEDIT_ROWS_Y) / PLEDIT_ROW_H;
-            int idx = _scrollOffset + row;
-            if (idx >= 0 && idx < (int)_stationCount) {
-                _play((uint8_t)idx);
-                return true;
-            }
-        }
+        // TASK-412 / D21: pre-merge WebRadio had a SECOND, unanchored
+        // PLEDIT-row tap-at-(x,y) path here for cmdTap, which drives a bare
+        // Release with no prior Press against WebRadioApp's OWN gesture
+        // state. That's no longer a gap: cmdTap's WebRadio branch
+        // (main.cpp's cmdTap) calls winampDisplay.injectTouch() BEFORE this
+        // handleInput(Release,...) — injectTouch() runs handleWinampInput()'s
+        // Press phase, which (PLEDIT coordinates fall through every
+        // Spotify-only zone) still reaches the shared PleditView's press().
+        // Both the real-touch path (via the pleditDragging() branch above)
+        // and cmdTap now anchor and release through the SAME view instance,
+        // so the fallback would only ever double-dispatch a tap already
+        // handled above. Deleted rather than kept dead.
 
         return false;
     }
 
 #ifdef SERIAL_DEBUG
-    // TASK-277 [VE-1-5]: cmdTick drives the ACTIVE app's integrator — this is
-    // the WebRadio entry point (private _tickScroll + repaint marker intact).
-    void tickScrollDebug(float dt) { _tickScroll(dt); }
+    // TASK-277 [VE-1-5]: cmdTick drives the ACTIVE app's integrator. TASK-412:
+    // the integrator is the shared PleditView now — this just forwards, kept
+    // as its own entry point since main.cpp's cmdTick branches on which app
+    // is active before calling either this or winampDisplay.tickScroll()
+    // directly.
+    void tickScrollDebug(float dt) { winampDisplay.tickScroll(dt); }
 #endif
 
     // ── Serial debug surface (BP-036) ──────────────────────────────────────
@@ -1323,11 +1385,17 @@ public:
         // design doc §VE dbg-surface sign-off). offset/drag exact; vel/accum
         // tolerance-banded only [VE-1-4].
         if (strcmp(var, "wrScroll") == 0) {
+            // TASK-412: served from the shared PleditView now — the JSON
+            // shape and field meanings are unchanged (D14: "drag" values
+            // still line up with the old WRS_IDLE/WRS_SCROLL/WRS_SCROLL_DIRECT
+            // 0/1/2, since PleditView::DragMode uses the same ordinal values).
             snprintf(buf, len,
                      "\"var\":\"wrScroll\",\"offset\":%d,\"drag\":%d,\"vel\":%.4f,"
                      "\"accum\":%.4f,\"speedK\":%.4f,\"last\":true",
-                     _scrollOffset, (int)_wrs, (double)_scrollVelocity,
-                     (double)_scrollAccum, (double)_scrollSpeedK);
+                     winampDisplay.pleditScrollOffset(), (int)winampDisplay.pleditDragMode(),
+                     (double)winampDisplay.pleditScrollVelocity(),
+                     (double)winampDisplay.pleditScrollAccum(),
+                     (double)winampDisplay.pleditSpeedK());
             return true;
         }
         if (strcmp(var, "wrIcy") == 0) {
@@ -1547,10 +1615,12 @@ public:
         if (strcmp(var, "wrPrev") == 0) { _prevStation(); return true; }
         // TASK-277: WebRadio-local speed calibration (mirrors winampDisplay's
         // `set speedK` under the WebRadio dbg surface; shared default comes
-        // from scrollTuning.h).
+        // from scrollTuning.h). TASK-412: same PleditView instance now, so
+        // this and `set speedK` tune the identical value — documented
+        // consequence of one shared renderer, not a bug.
         if (strcmp(var, "wrSpeedK") == 0) {
             float k = (float)atof(val);
-            if (k > 0.0f && k <= 10.0f) _scrollSpeedK = k;
+            if (k > 0.0f && k <= 10.0f) winampDisplay.pleditSetSpeedK(k);
             return true;
         }
         // TASK-237: synthesize N unreachable stations + arm forced connect-fail, so
@@ -1573,6 +1643,8 @@ public:
             _autoSkipTried = 0;
             _stallRetries  = 0;
             _dirty = true;
+            _plSeqno++;   // TASK-412 / T_PLE_14: list identity changed
+            winampDisplay.pleditScrollToRow(0);
             if (_pendingStations) {
                 // TASK-289: the init()/resume() station fetch is still in
                 // flight. Playing now makes both sides race for the heap and
@@ -1598,6 +1670,7 @@ public:
                 _pendingAction = ACT_NONE;
                 _autoSkipTried = 0;
                 _stallRetries  = 0;
+                _plSeqno++;   // TASK-412 / T_PLE_14: list identity changed (now empty)
                 return true;
             }
             if (n > dataTask::WR_MAX_STATIONS) n = dataTask::WR_MAX_STATIONS;
@@ -1614,6 +1687,8 @@ public:
             _stallRetries       = 0;
             _debugForceConnFail = true;
             _dirty = true;
+            _plSeqno++;   // TASK-412 / T_PLE_14: list identity changed
+            winampDisplay.pleditScrollToRow(0);
             return true;
         }
         // T-WRSET-01 (M-WEBRADIO-SETTINGS D3, WR-1): fault-injection hook —
@@ -1760,22 +1835,15 @@ private:
     WRPlayState _state          = WRPlayState::STOPPED;
     uint8_t     _stationCount   = 0;
     uint8_t     _currentIdx     = 0;
-    int         _scrollOffset   = 0;
-    // TASK-277 (M-WR-PLEDIT-SCROLL): velocity-scroll gesture state — pattern
-    // copy of the ADR-030 machine (winampDisplay.h), clamped to _stationCount.
-    // Tuning constants come from touch/scrollTuning.h (shared, single-source).
-    enum WrScrollState : uint8_t { WRS_IDLE = 0, WRS_SCROLL = 1, WRS_SCROLL_DIRECT = 2 };
-    WrScrollState _wrs            = WRS_IDLE;
-    int         _dragStartY       = 0;
-    int         _dragCurrentY     = 0;
-    int         _dragStartRow     = -1;
-    unsigned long _dragStartMs    = 0;
-    int         _dragStartScrollOffset = 0;
-    float       _scrollVelocity   = 0.0f;
-    float       _scrollAccum      = 0.0f;
-    float       _scrollSpeedK     = SCROLL_SPEED_K_DEFAULT;
-    unsigned long _lastScrollMs   = 0;     // dt tracking for _tickScroll (M-LIST-v4 OQ1)
-    bool        _pleditDirty      = false; // row-region-only repaint marker (not _dirty)
+    // TASK-412 / ADR-059 D4: PLEDIT gesture + scroll state (formerly _wrs /
+    // _dragStart* / _scrollAccum / _scrollVelocity / _scrollSpeedK /
+    // _pleditDirty) now lives once, shared, in winampDisplay's PleditView —
+    // reached through the winampDisplay.pledit*() entry points and
+    // StationListSource below. _plSeqno is StationListSource's seqno()
+    // (T_PLE_14): bumped on every station-list identity change.
+    StationListSource _stationSource;
+    uint32_t          _plSeqno      = 0;
+    unsigned long     _lastScrollMs = 0;   // dt tracking for winampDisplay.tickScroll()
     bool        _pendingStations = false;
     // M-WEBRADIO-SETTINGS D3: config snapshot latched at every station-list
     // enqueue (_enqueueStationFetch()). resume() diffs it against g_settings
@@ -1873,6 +1941,18 @@ private:
         _pendingStations = true;
     }
 
+    // TASK-412: force a PLEDIT repaint and re-sync the shared view's scroll
+    // window to the current pick on app entry. Needed because the PLEDIT
+    // scroll offset is now shared state (one PleditView instance, both
+    // callers) — without this, WebRadio would inherit whatever scroll
+    // position Spotify's queue was left at, or vice versa. Mirrors
+    // SpotifyApp::resume()'s invalidatePlaylist() call, plus the explicit
+    // keep-visible clamp the pre-merge PLEDIT copy applied inline.
+    void _pleditSync() {
+        winampDisplay.invalidatePlaylist();
+        winampDisplay.pleditScrollToRow((int)_currentIdx);
+    }
+
     // ── Audio control ──────────────────────────────────────────────────────
 
     // TASK-278: per-tick read — short timeout-take, degrade to the last
@@ -1968,9 +2048,8 @@ private:
         // live (auto-skip is tick-driven, so this CAN coincide with a finger
         // down) cancels the gesture FIRST, then the keep-visible clamp below
         // runs. Offset stays consistent with list state; next Press re-anchors.
-        _wrs            = WRS_IDLE;
-        _scrollAccum    = 0.0f;
-        _scrollVelocity = 0.0f;
+        // TASK-412: the gesture lives in the shared PleditView now.
+        winampDisplay.pleditResetDrag();
 
         if (userInitiated) { _autoSkipTried = 0; _stallRetries = 0; }
         _lastAttemptMs = millis();   // TASK-273: stamp every attempt (paces auto retry/skip)
@@ -1990,12 +2069,13 @@ private:
         _snapPlaySec = 0;
         winampDisplay.updateTimeDigits(0);
 
-        // Scroll PLEDIT to keep current station visible
-        if ((int)_currentIdx < _scrollOffset)
-            _scrollOffset = (int)_currentIdx;
-        if ((int)_currentIdx >= _scrollOffset + PLEDIT_ROW_COUNT)
-            _scrollOffset = (int)_currentIdx - PLEDIT_ROW_COUNT + 1;
-        if (_scrollOffset < 0) _scrollOffset = 0;
+        // D13: scroll PLEDIT to keep the current station visible — the
+        // source doesn't reset scroll on its own (StationListSource is "the
+        // same list refetched"), so the app re-syncs it explicitly on every
+        // selection. markDirty() covers the case where idx was already
+        // visible but the current-row highlight still needs to move.
+        winampDisplay.pleditScrollToRow((int)_currentIdx);
+        winampDisplay.pleditMarkDirty();
 
         LOG_I("webradio", "play idx=%u name=%s url=%s",
               idx, _stations[idx].name, _stations[idx].url);
@@ -2174,7 +2254,10 @@ private:
         winampDisplay.drawVolume((int)g_settings.webRadioVolumePct);
         _drawPosbar();
         _drawTitleZone();   // TASK-254: title now carries the ICY StreamTitle inline
-        _drawPledit();
+        // TASK-412: PLEDIT is no longer drawn here — tick() calls
+        // winampDisplay.drawPlaylistFor(_stationSource) unconditionally every
+        // loop, same as SpotifyApp::tick(), and the shared view's own seqno/
+        // scroll gate decides whether that's a repaint or a no-op.
     }
 
     void _drawPosbar() {
@@ -2247,119 +2330,9 @@ private:
         winampDisplay.setTitle(t);
     }
 
-    // ── TASK-277: gesture helpers (ADR-030 pattern copy) ───────────────────
-
-    // Release while a gesture is captured. Tap/scroll discrimination identical
-    // to the donor (winampDisplay.h drag-end): dead zone + elapsed time, with
-    // the quick-swipe min-1-row fallback verbatim.
-    bool _gestureEnd() {
-        if (_wrs == WRS_SCROLL_DIRECT) {
-            _wrs = WRS_IDLE;
-            return true;
-        }
-        const int dy = _dragCurrentY - _dragStartY;
-        const unsigned long elapsed = (unsigned long)(millis() - _dragStartMs);
-        const bool isTap = abs(dy) < PLEDIT_TAP_PX && elapsed < PLEDIT_TAP_MS;
-        _scrollAccum    = 0.0f;
-        _scrollVelocity = 0.0f;
-        _wrs = WRS_IDLE;
-        if (isTap) {
-            const int idx = _dragStartScrollOffset + _dragStartRow;
-            if (_dragStartRow >= 0 && idx >= 0 && idx < (int)_stationCount)
-                _play((uint8_t)idx);
-        } else if (elapsed < PLEDIT_TAP_MS) {
-            // Quick swipe: integrator accumulated ~0 rows (brief dt); apply a
-            // guaranteed min-1-row delta from the press-time offset.
-            const int delta  = max(1, abs(dy) / PLEDIT_ROW_H);
-            const int dir    = (dy <= 0) ? 1 : -1;
-            const int maxOff = max(0, (int)_stationCount - PLEDIT_ROW_COUNT);
-            _scrollOffset = max(0, min(maxOff, _dragStartScrollOffset + dir * delta));
-            _pleditDirty  = true;
-        }
-        // Slow drag: velocity model already applied rows during ticks.
-        return true;
-    }
-
-    // Velocity integrator — form-identical to winampDisplay::tickScroll but
-    // clamping against _stationCount. Inherits the donor's at-limit release
-    // defect (M-LIST-v4 VE-C5) — accepted for parity, recorded there (OQ4).
-    void _tickScroll(float dt) {
-        if (_wrs != WRS_SCROLL) {
-            _scrollAccum    = 0.0f;
-            _scrollVelocity = 0.0f;
-            return;
-        }
-        if (dt <= 0.0f || dt > 0.2f) return;
-        const int dy = _dragCurrentY - _dragStartY;
-        const float effective = max(0.0f, (float)abs(dy) - (float)SCROLL_DEAD_ZONE_PX);
-        _scrollVelocity = (dy <= 0 ? 1.0f : -1.0f) * (effective * _scrollSpeedK);
-        _scrollAccum += _scrollVelocity * dt;
-        const int steps = (int)_scrollAccum;
-        if (steps != 0) {
-            _scrollAccum -= (float)steps;
-            const int maxOffset = max(0, (int)_stationCount - PLEDIT_ROW_COUNT);
-            const int no = max(0, min(maxOffset, _scrollOffset + steps));
-            if (no != _scrollOffset) {
-                _scrollOffset = no;
-                _pleditDirty  = true;
-            }
-        }
-    }
-
-    // Scrollbar-column positional mapping — donor's updateScrollDirect math,
-    // WebRadio window is not movable so no origin offsets.
-    void _updateScrollDirect(int sy) {
-        const int maxOffset = max(0, (int)_stationCount - PLEDIT_ROW_COUNT);
-        if (maxOffset <= 0) return;
-        constexpr int track_h = PLEDIT_ROW_COUNT * PLEDIT_ROW_H;
-        constexpr int travel  = track_h - SKIN_PLEDIT_THUMB_H;
-        const int relY = sy - PLEDIT_ROWS_Y;
-        const int no = max(0, min(maxOffset, relY * maxOffset / travel));
-        if (no != _scrollOffset) {
-            _scrollOffset = no;
-            _pleditDirty  = true;
-        }
-    }
-
-    void _drawPledit() {
-        // TASK-225: reuse the real Winamp PLEDIT sprite chrome (frame border,
-        // scrollbar thumb, bottom bar) instead of the old flat fillRect panel,
-        // so WebRadio's station list matches Spotify's playlist in the same skin.
-        // The skin title bar carries no text by design (§PLEDIT title bar — the
-        // active country is edited and surfaced via Settings > Applications >
-        // WebRadio (M-WEBRADIO-SETTINGS), not an overlay), so the old
-        // "N stations — country" header is dropped here too.
-        winampDisplay.drawPleditFrame(_scrollOffset, (int)_stationCount);
-
-        // TASK-348: country code in the same PLEDIT bottom-bar overlay slot
-        // Spotify uses for its total-playlist-time readout — replaces the old
-        // superimposed WR_BADGE. Repaints for free whenever this function
-        // runs (full repaint or the settings-refetch _dirty path); no new
-        // dirty tracking needed.
-        winampDisplay.drawPleditOverlayText(g_settings.webRadioCountry);
-
-        // Station rows — fill the CONTENT area only; the side frame tiles drawn
-        // by drawPleditFrame() must not be painted over.
-        for (int row = 0; row < PLEDIT_ROW_COUNT; row++) {
-            int    idx  = _scrollOffset + row;
-            int    rowY = PLEDIT_ROWS_Y + row * PLEDIT_ROW_H;
-            bool   isCur = (idx == (int)_currentIdx) &&
-                           (_state != WRPlayState::STOPPED);
-            uint16_t fg  = isCur ? (uint16_t)0xFFFFU
-                                 : (uint16_t)PLEDIT_FG_NORMAL;
-            uint16_t bg  = (uint16_t)PLEDIT_BODY_BG;
-            tft.fillRect(PLEDIT_CONTENT_X, rowY, PLEDIT_CONTENT_W, PLEDIT_ROW_H, bg);
-            if (idx >= 0 && idx < (int)_stationCount) {
-                tft.setTextColor(fg, bg);
-                tft.drawString(_stations[idx].name, PLEDIT_CONTENT_X, rowY + 2, 1);
-                if (_stations[idx].bitrate > 0) {
-                    char br[8];
-                    snprintf(br, sizeof(br), "%uk", (unsigned)_stations[idx].bitrate);
-                    tft.setTextColor(0x4208U, bg);
-                    tft.drawRightString(br,
-                        PLEDIT_CONTENT_X + PLEDIT_CONTENT_W, rowY + 2, 1);
-                }
-            }
-        }
-    }
+    // TASK-412: PLEDIT gesture handling (_gestureEnd/_tickScroll/
+    // _updateScrollDirect) and rendering (_drawPledit) are gone — both now
+    // live once, shared, in winamp/pleditView.h (PleditView), reached via
+    // StationListSource and the winampDisplay.pledit*()/drawPlaylistFor()
+    // entry points used above.
 };

@@ -48,6 +48,13 @@ struct PlRow {
   char     text[64];      // fully composed row text, source-formatted
   uint32_t durationSec;   // 0 = no duration column for this row
   bool     current;       // the item the source considers "playing"
+  // ADR-059 D3 (TASK-412): the right-hand column is per-source content, not
+  // just a duration — Spotify draws "M:SS" in the row's fg, WebRadio draws
+  // "%uk" bitrate in a fixed dim colour. durationSec stays for totalSec()-
+  // style aggregation; rightText is what actually gets drawn. Empty string =
+  // no right column for this row.
+  char     rightText[8];
+  uint16_t rightColor;    // 0 = use the row's fg colour (Spotify's duration)
 };
 
 enum PlCap : uint8_t {
@@ -81,6 +88,23 @@ struct PlaylistSource {
   virtual void     onListReset() {}
   virtual bool     move(uint16_t from, uint16_t to) { (void)from; (void)to; return false; }
   virtual bool     remove(uint16_t idx)             { (void)idx; return false; }
+
+  // ── TASK-412 / ADR-059 divergence log (design doc §Divergence log) ────────
+  // Pixel-affecting divergences between the Spotify and WebRadio PLEDIT
+  // copies become per-source parameters rather than a renderer-side pick —
+  // defaults below reproduce Spotify's pre-extraction pixels exactly, so a
+  // source that doesn't override them is byte-identical to TASK-411.
+  virtual uint16_t bgNormal()   { return PLEDIT_BG_NORMAL; }    // D1
+  virtual uint16_t bgSelected() { return PLEDIT_BG_SELECTED; }  // D1
+  virtual uint8_t  marginPx()   { return 3; }                   // D2 (TEXT_MARGIN)
+  // D10: total-time bar vs. WebRadio's country code — too source-specific to
+  // stay a formatted duration, so the source renders its own overlay string.
+  virtual void     overlayText(char* buf, size_t bufSize) = 0;
+  // D13: Spotify resets scrollOffset to 0 on every consumed list change (a
+  // refreshed queue is a new list); WebRadio's list is the same list
+  // refetched, so its current scroll position should survive. Genuine
+  // product difference, not something to pick a winner on.
+  virtual bool     resetScrollOnChange() { return true; }
 };
 
 class PleditView {
@@ -109,7 +133,7 @@ public:
         _scrollAccum    = 0.0f;
         _scrollVelocity = 0.0f;
       }
-      _scrollOffset   = 0;   // TASK-051f
+      if (src.resetScrollOnChange()) _scrollOffset = 0;   // TASK-051f / D13
       _optimisticRow  = -1;  // TASK-051a: a new list clears the optimistic highlight
       src.onListReset();
     }
@@ -318,12 +342,42 @@ public:
     if (steps != 0) {
       _scrollAccum -= (float)steps;
       const int maxOffset = max(0, (int)_lastCount - PLEDIT_ROW_COUNT);
-      _scrollOffset = max(0, min(maxOffset, _scrollOffset + steps));
-      _scrollDirty  = true;
+      const int newOffset = max(0, min(maxOffset, _scrollOffset + steps));
+      // D19 (TASK-412): only mark dirty when the offset actually moved — at
+      // the top/bottom clamp a non-zero step is a no-op and shouldn't repaint
+      // at the tick rate. Deliberately not taken in TASK-411 (T_PLE_04 pinned
+      // Spotify's repaint counts at the pre-merge behaviour); adopted here
+      // with `get pleditRepaints` as the evidence for both callers now.
+      if (newOffset != _scrollOffset) {
+        _scrollOffset = newOffset;
+        _scrollDirty  = true;
+      }
     }
   }
 
   void resetDrag() { _drag = DRAG_NONE; }
+
+  // Scroll so row idx is visible, if it is not already — the keep-visible-on-
+  // select clamp WebRadio's pre-merge PLEDIT copy applied inline in _play().
+  // A no-op when idx is already on screen (D13 sources call this AND
+  // markDirty(), since the current-row highlight can move without a scroll).
+  void scrollToRow(int idx) {
+    int off = _scrollOffset;
+    if (idx < off) off = idx;
+    if (idx >= off + PLEDIT_ROW_COUNT) off = idx - PLEDIT_ROW_COUNT + 1;
+    if (off < 0) off = 0;
+    if (off != _scrollOffset) {
+      _scrollOffset = off;
+      _scrollDirty  = true;
+    }
+  }
+
+  // Force the next draw() to repaint, without the full invalidate() reset
+  // (no seqno-sentinel clear, no onListReset(), no scroll-position change) —
+  // for a host that changed something draw()'s own seqno/scroll tracking
+  // can't see, e.g. WebRadio's current-station index moving via _play()
+  // rather than a PLEDIT tap.
+  void markDirty() { _scrollDirty = true; }
 
   // ── Observability / host plumbing ─────────────────────────────────────────
 
@@ -334,6 +388,7 @@ public:
   float scrollVelocity() const { return _scrollVelocity; }
   unsigned long lastDrawMs() const { return _lastDrawMs; }
   void  setSpeedK(float k) { _scrollSpeedK = k; }
+  float speedK() const { return _scrollSpeedK; }
 
   // ADR-059 D12: monotonic count of full PLEDIT repaints since boot. The
   // seqno redraw gate previously had no observable signal at all — "no repaint
@@ -363,12 +418,11 @@ public:
 
 private:
   // Row text metrics. Font 1 glyph height = 8px; TEXT_VOFF centres it in the
-  // 13px row. USABLE is the content width less both margins.
-  static const int TEXT_MARGIN = 3;
+  // 13px row. marginPx() (D2) makes the usable width per-source now — 238px
+  // at Spotify's default 3px margin, matching the pre-extraction constant.
   static const int TEXT_VOFF   = (PLEDIT_ROW_H - 8) / 2;
   static const int CHAR_W      = 6;   // Font 1 fixed-width glyph (px)
-  static const int TEXT_GAP    = 2;   // px gap between the text and the duration
-  static const int USABLE      = PLEDIT_CONTENT_W - 2 * TEXT_MARGIN;  // 238 px
+  static const int TEXT_GAP    = 2;   // px gap between the text and the right column
   static const int THUMB_TRAVEL = PLEDIT_ROW_COUNT * PLEDIT_ROW_H - SKIN_PLEDIT_THUMB_H;  // 48 px
   static const unsigned long PLAYLIST_DRAW_MIN_MS = 1000;  // 1 Hz cap
   static const unsigned long OPTIMISTIC_HOLD_MS   = 8000;  // TASK-051a
@@ -378,6 +432,11 @@ private:
     tft.setTextFont(1);
     tft.setTextSize(1);
     tft.setTextDatum(TL_DATUM);  // own our text state — don't inherit a datum from another app
+
+    const int margin = src.marginPx();                        // D2
+    const int usable  = PLEDIT_CONTENT_W - 2 * margin;         // 238px at Spotify's default
+    const uint16_t bgNormal   = src.bgNormal();                // D1
+    const uint16_t bgSelected = src.bgSelected();               // D1
 
     for (int i = 0; i < PLEDIT_ROW_COUNT; i++) {
       const int ry  = PLEDIT_ROWS_Y + i * PLEDIT_ROW_H;
@@ -396,62 +455,54 @@ private:
         // the repaint. ASCII only — Font 1 has no glyphs beyond it, and the
         // encoding question (design OQ3) is still open.
         strcpy(pr.text, "-- unreadable --");
-        pr.durationSec = 0;
-        pr.current     = false;
+        pr.rightText[0] = '\0';
+        pr.rightColor   = 0;
+        pr.current      = false;
       }
 
       const bool isOptimistic = (_optimisticRow == idx && millis() < _optimisticUntilMs);
-      const uint16_t bg = (pr.current || isOptimistic) ? PLEDIT_BG_SELECTED : PLEDIT_BG_NORMAL;
-      const uint16_t fg = (pr.current || isOptimistic) ? PLEDIT_FG_CURRENT  : PLEDIT_FG_NORMAL;
+      const uint16_t bg = (pr.current || isOptimistic) ? bgSelected     : bgNormal;
+      const uint16_t fg = (pr.current || isOptimistic) ? PLEDIT_FG_CURRENT : PLEDIT_FG_NORMAL;
       tft.fillRect(originX + PLEDIT_CONTENT_X, ry, PLEDIT_CONTENT_W, PLEDIT_ROW_H, bg);
 
-      // Right-aligned "M:SS" duration column — drawn for every readable row,
-      // including a zero duration ("0:00"), exactly as the pre-extraction code.
-      char dur[8];
-      dur[0] = '\0';
-      int durW = 0;
-      if (ok) {
-        snprintf(dur, sizeof(dur), "%lu:%02lu",
-                 (unsigned long)(pr.durationSec / 60), (unsigned long)(pr.durationSec % 60));
-        durW = (int)strlen(dur) * CHAR_W;
-      }
+      // Right column (D3) — source-formatted, e.g. Spotify's "M:SS" duration
+      // or WebRadio's "%uk" bitrate. Empty rightText = no right column.
+      const bool hasRight = ok && pr.rightText[0];
+      const int  rightW   = hasRight ? (int)strlen(pr.rightText) * CHAR_W : 0;
 
-      // Ellipsis truncation against the pixel budget left by the duration
-      // column (DEV-10). The pre-extraction code truncated the artist-title
-      // half against a budget that had the row-number prefix subtracted, then
-      // concatenated; because the prefix width is an exact multiple of CHAR_W,
-      // truncating the composed string against the un-subtracted budget lands
-      // the ellipsis on the identical character. The one place the two forms
-      // could differ — a budget under three characters — is unreachable here
-      // (USABLE 238 px, duration and prefix at most 42 px each => >= 32 chars).
-      textFit(pr.text, USABLE - TEXT_GAP - durW, CHAR_W);
+      // Ellipsis truncation against the pixel budget left by the right column
+      // (DEV-10). The pre-extraction code truncated the artist-title half
+      // against a budget that had the row-number prefix subtracted, then
+      // concatenated; because the prefix width is an exact multiple of
+      // CHAR_W, truncating the composed string against the un-subtracted
+      // budget lands the ellipsis on the identical character. The one place
+      // the two forms could differ — a budget under three characters — is
+      // unreachable here (usable 238px at margin=3, right column at most
+      // 42px, prefix at most 42px => >= 32 chars).
+      textFit(pr.text, usable - (hasRight ? TEXT_GAP : 0) - rightW, CHAR_W);
 
       tft.setTextColor(fg, bg);
       const int textY = ry + TEXT_VOFF;
-      tft.drawString(pr.text, originX + PLEDIT_CONTENT_X + TEXT_MARGIN, textY);
-      if (dur[0]) {
-        const int durX = originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W - TEXT_MARGIN - durW;
-        tft.drawString(dur, durX, textY);
+      tft.drawString(pr.text, originX + PLEDIT_CONTENT_X + margin, textY);
+      if (hasRight) {
+        const uint16_t rc = pr.rightColor ? pr.rightColor : fg;
+        tft.setTextColor(rc, bg);
+        const int rightX = originX + PLEDIT_CONTENT_X + PLEDIT_CONTENT_W - margin - rightW;
+        tft.drawString(pr.rightText, rightX, textY);
       }
     }
   }
 
-  // Total playlist time — left-aligned in the scrollbar track (dark LCD area,
-  // top row of the right section, x=127 in the PLEDIT frame, y+4 in the bottom
-  // bar). Rendered with the skin bitmap font to match the track-name style.
-  // Format: "MM:SS" or "H:MM:SS".
+  // Bottom-bar overlay slot — left-aligned in the scrollbar track (dark LCD
+  // area, top row of the right section, x=127 in the PLEDIT frame, y+4 in the
+  // bottom bar). D10: too source-specific to stay a formatted duration
+  // (Spotify: total playlist time; WebRadio: country code) — the source
+  // renders its own string, the renderer just blits it.
   void drawTotalTime(PlaylistSource& src, int originX) {
-    const uint32_t totalSec = src.totalSec();
-    char tstr[12];
-    const uint32_t h = totalSec / 3600;
-    const uint32_t m = (totalSec % 3600) / 60;
-    const uint32_t s = totalSec % 60;
-    if (h > 0)
-      snprintf(tstr, sizeof(tstr), "%lu:%02lu:%02lu",
-               (unsigned long)h, (unsigned long)m, (unsigned long)s);
-    else
-      snprintf(tstr, sizeof(tstr), "%lu:%02lu", (unsigned long)m, (unsigned long)s);
-    drawOverlayText(originX, tstr);
+    char buf[16];
+    buf[0] = '\0';
+    src.overlayText(buf, sizeof(buf));
+    drawOverlayText(originX, buf);
   }
 
   // Scrollbar-column positional mapping: finger Y maps straight onto offset.
