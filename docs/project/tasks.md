@@ -6296,7 +6296,146 @@ behaviour makes any regression undiagnosable.
 `T_AE_01`–`06`. `T_AE_01` re-runs WebRadio's **existing** suite unchanged and compares failure
 **sets**, not counts (LL-104) — **baseline it before the extraction lands or there is nothing to
 compare to**. `T_AE_03` requires a **full-length** `./run/wr-soak`; a short soak has given false
-confidence on precisely this code before · **Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07 (D2).
+confidence on precisely this code before · **Priority:** P2 · **Status:** **DONE** (2026-08-10) —
+ADR-059 accepted 2026-08-07 (D2); full gate `T_AE_01`–`04`/`06` DUT-PASS, see below.
+
+**`T_AE_01` pre-refactor baseline captured 2026-08-09 (ADR-059 D13, 3× `./run/test` on `cyd2usb_winamp_debug`, prod restored clean after each):**
+
+| Run | Passed | Failed | Skipped | Flaked |
+|---|---|---|---|---|
+| 1 | 131 | 2 | 39 | 1 |
+| 2 | 126 | 1 | 43 | 3 |
+| 3 | 126 | 1 | 43 | 3 |
+
+Runs 2 and 3 are byte-identical result sets. Run 1 differs from 2/3 only in six tests, all explained:
+
+- `T_WR_TLS_01` — **FAIL in all 3 runs**, not intermittent this session (`http=-101` on all mirrors,
+  both TLS paths). Host-side cert preflight (step 0) PASSED `de1.api.radio-browser.info` all 3 times,
+  so this isn't ADR-029-style CA rot — the failure is device-side/network, consistent with TASK-284's
+  "comes and goes" history, but **this baseline saw it fail, not flake**. It was on ADR-059's
+  pre-declared flaky list already (named alongside `T169`/`T_PR_05`), so it doesn't block the gate, but
+  flag to Developer/Architect as a live TASK-284 data point, not silently absorbed as "known flaky."
+- `T_WR_COEX_01`, `T_WR_HEAP_03`, `T_WR_HEAP_04`, `T_WR_VOL_03` — cascade of the above: run 1 happened
+  to have stations already loaded (prior session state) so these attempted and either passed or timed
+  out; runs 2/3 correctly `SKIP`ped ("station list unavailable"). Not independent flakes — downstream
+  of `T_WR_TLS_01`.
+- `T091` — FLAKE all 3 runs (reconnect `consecutiveFailures=1`, expected 0).
+- `T087`, `T092` — PASS in run 1, FLAKE in runs 2/3 — genuinely intermittent (reconnect/TLS-adjacent).
+
+**Pre-declared flaky set for the D13 "identical pass set" bar:** `T_WR_TLS_01`, `T_WR_COEX_01`,
+`T_WR_HEAP_03`, `T_WR_HEAP_04`, `T_WR_VOL_03`, `T091`, `T087`, `T092`, `T_PR_05` (network,
+pre-existing), plus the ~30 tests `SKIP`ped identically in all 3 runs (Premium/TASK-243-gated,
+hardware/audible-gated — pre-existing, not new). Everything else passed clean in all 3 runs and is
+the actual regression bar for post-extraction `T_AE_01`: **no test outside this set may fail after
+the move, and nothing outside it may newly fail.**
+
+D13 baseline satisfied — **TASK-409 is clear to start.**
+
+**Implementation landed 2026-08-09.** New `app/src/audio/audioEngine.h` — the Audio singleton
+(`s_wr_audio`/`wrAudio()`), the ICY queue + `audio_showstreamtitle`/`audio_info` callbacks,
+`audio_process_extern` (real VU/spectrum/wave-trace feed), volume policy
+(`wrEffectiveVolume`/`wrScaledVolume`/`wrVolumeSink`), and the whole pump task (mutex, TASK-398
+request/result protocol, `wrEnsurePumpTask`/`wrTeardownPumpTask`) moved out of `webRadioApp.h`
+verbatim — cut/paste only, zero statements touched. Single-TU include model (everything under
+`app/src` is textually pulled into one compilation via `main.cpp`), so every symbol kept its
+original name/linkage; `webRadioApp.h` picks the new header up via one `#include` and every call
+site (`_play`, `_stopAudio`, `init`, `_refreshAudioSnapshot`, etc.) is untouched. `connect(const
+Source&)` (the one new surface the task authorises) **not yet added** — deferred to land alongside
+TASK-410's FILE arm rather than sit unused, since introducing it now with only a URL variant would
+be exactly the "opportunistic" scope creep this task forbids.
+
+- `T_AE_06` (host, `run/check`) — **PASS**, 6/6 both envs.
+- Flash size **byte-for-byte identical** to the pre-move baseline on both environments (prod
+  1,795,281 B, debug 1,868,877 B) — the strongest evidence available pre-DUT that this was a true
+  zero-behaviour move, not just "no logic looks different."
+**DUT gate session 2026-08-09 (post-implementation):**
+
+- `T_AE_01` — **PASS.** Post-move `run/test` result set is byte-for-byte identical to the pre-move
+  3-run baseline (126 passed, 1 failed — `T_WR_TLS_01`, pre-declared, 43 skipped, 3 flaked — `T087`/
+  `T091`/`T092`, pre-declared). Zero drift outside the pre-declared flaky set. First attempt hit a
+  CH340 USB re-enumeration mid-run (`/dev/ttyUSB1`→`/dev/ttyUSB0`, known flaky-rig quirk, not a code
+  issue) — prod firmware manually restored, clean retry confirmed the result above.
+- `T_AE_02` (arena lifecycle balance) — **PASS.** 30-min `run/wr-soak`, 114 play/stop cycles: 115
+  acquires / 114 releases (balanced — 1 active at snapshot, correct per invariant), **zero acquire
+  failures**, contiguous INTERNAL block never dropped from 98 292 B. Real evidence the moved
+  pump/arena code handles repeated churn cleanly, including down the async-FAILED branch.
+- `T_AE_03` (no decode regression under load) — **PASS (final, 2026-08-10).** Earlier same-night
+  attempts were blocked by what looked like "WiFi down," then "DNS resolution failing" — both were
+  downstream symptoms of TASK-426 (WiFi supervisor wedge: a dead saved SSID stayed resident in the
+  STA config and got retried forever instead of the live AP — see
+  `project_task426_no_ap_found_wedge` memory). Once TASK-426 landed (commits `d19bcff`..`96a388a`),
+  re-ran clean: 30 real stations loaded, 67 play/stop cycles over 30 min, **66/67 reached PLAYING**
+  with sustained playback (median 18.2s against the 20s cap — genuine decode load ran nearly the
+  full window each cycle), arena balanced (67 acquires/66 releases, 1 correctly active at snapshot),
+  **zero acquire failures**, contiguous INTERNAL block never dropped from 42 996 B, only 1 underrun
+  across the whole soak, 0 error/skip cycles. `VERDICT: PASS`.
+  `run/wr-soak`/`test_webradio_soak.py` kept the `--inject-url` bypass added while chasing this —
+  harmless, useful for a future session if station fetch is ever down for an unrelated reason again.
+- `T_AE_04` (teardown ordering, eject mid-CONNECTING ×10) — **PASS (2026-08-10, after harness
+  rework).** `10/10 cycles clean, 0 invariant failures, 0 setup/precondition. VERDICT: PASS` via
+  `./run/ae04` (new wrapper: flash `cyd2usb_webradio` → run → restore prod + monitor, same shape as
+  `run/wr-soak`). Per cycle: teardown **9.9 s** (10.5 s once) through the pump's own
+  `torn down (post-connect)` branch, worst `[perf] iter=103 ms` (the ordinary app-switch repaint
+  baseline, ≤ 180 ms bound), arena **+1/−1 with `active` back to 0 and zero acquire failures**, no
+  crash signature, no ack-timeout tripwire. Dead flat across all ten cycles — the accumulation the
+  previous session suspected does not exist.
+
+  **All three (four) earlier findings were harness defects; firmware was never at fault.** Root
+  cause of the "worse and monotonic" cycles 3-10: the tool waited a fixed **8.0 s** for the pump to
+  die, but `DEAD_URL` is a raw IP and `Audio::connecttohost()` (`Audio.cpp:511-519`, TASK-295's own
+  patch) force-sets `m_timeout_ms = 10000` for raw-IP hosts. The pump is blocked inside that
+  `_client->connect()` and cannot observe the posted TEARDOWN until it returns — so an 8 s bound is
+  one the design is not built to meet, and the measured 9.9 s is correct behaviour, not a stall.
+  Whether a cycle "passed" depended only on how much of the 10 s had burned before the eject command
+  landed. Worse, a cycle that timed out left `_state` stale-`CONNECTING` off-screen, where
+  `set wrStop` cannot reconcile it (`_stopAudio()` returns early on CONNECTING) and `_play()`'s own
+  CONNECTING guard then silently no-ops the next `set wrUrl` — so one late teardown poisoned every
+  later cycle identically. That is the entire "monotonic degradation" signal.
+
+  Harness fixes landed (all in `app/tools/test_ae04_teardown.py`, documented in-file):
+  1. Teardown wait is now a poll with a deadline **derived from the connect timeout**
+     (`--teardown-deadline-s`, default 16 s = 10 s + margin), and the measured latency is reported
+     per cycle instead of being collapsed into pass/fail.
+  2. **Preconditions are proved, not assumed** — STOPPED before injection, CONNECTING + pump-alive
+     after — and a failed precondition is reported as `SETUP`, distinct from an invariant `FAIL`, so
+     a harness problem can never again be read as a firmware one (the run summary says
+     `INCONCLUSIVE` rather than `FAIL` in that case).
+  3. Measurement no longer flushes the serial buffer: `watch()` interleaves `get wrPump` probes into
+     one continuous raw read, so `[perf]`/`wrpump` lines between probes still count. The previous
+     `cmd()`-based polling discarded exactly the lines the loopTask bound and the ordering evidence
+     are read from.
+  4. Each cycle waits for `get wrCount` `pending==0` first. On first entry `init()`'s station fetch
+     is in flight and `set wrUrl` **defers** rather than plays (TASK-289's fetch/playback heap-race
+     guard) — that made cycle 1 vacuous and the late-firing deferred play left the arena acquired,
+     breaking cycle 2 too (both reproduced and then eliminated this session).
+  5. Arena is checked as a **per-cycle delta** against a baseline (counters never reset) with a
+     `upMs`-went-backwards reboot guard, and ordering is asserted positively by requiring the
+     `wrpump: torn down (post-connect|early-arrival)` log line — i.e. the TEARDOWN was serviced by
+     the pump task itself, not synchronously by loopTask.
+
+  Historical record of the three findings as they were first reported (all now explained above):
+  1. The tool's original 100 ms loopTask-block bound was a **false-positive generator, not a real
+     finding** — an isolation probe (ordinary WebRadio-STOPPED→Spotify switch, zero pump/arena
+     involvement) measured the *same* `[perf] iter=103ms (worst path shell.switch:76ms)` baseline —
+     that's this app's ordinary screen-repaint cost on any app switch, nothing to do with the audio
+     engine. Bound corrected to 180 ms (baseline + margin) in the script.
+  2. With that fixed, an alternating PASS/FAIL-by-cycle-parity pattern showed up identically under
+     both WiFi-down and WiFi-up conditions — ruling out network jitter and pointing at the test
+     harness's own cycle sequencing: `resume()`'s `webRadioAutoplay` (triggered by the script's own
+     `switchApp` back into WebRadio) can race the script's explicit `set wrUrl` injection, since
+     `_play()`'s CONNECTING guard silently no-ops a call that lands on an already-in-flight connect —
+     desyncing the "eject right after posting CONNECT" timing assumption the test depends on.
+  3. Patched to force-`wrStop`-and-poll-for-STOPPED before each injection — cycles 1-2 then passed
+     cleanly, but cycles 3-10 degraded to a *consistent* "pump still alive 8.3s after eject" failure,
+     i.e. **worse and monotonic, not flaky** — suggesting genuine accumulated state drift across
+     repeated injected-dead-URL cycles (possibly in the async request/result protocol's handling of
+     this specific back-to-back-dead-connect pattern) rather than a harness bug. **Superseded: it
+     was the 8 s-vs-10 s bound plus the stale-CONNECTING cascade described above — there is no
+     accumulation bug.**
+
+**Status: DONE — implementation complete, host-verified, `T_AE_01`–`T_AE_04` and `T_AE_06` all
+DUT-PASS (2026-08-10). `T_AE_05` was withdrawn on VE-9 (a review gate, not a test), so the gate is
+fully satisfied.**
 
 ### TASK-410 — drop `-DAUDIO_NO_SD_FS`, implement `connect(FILE)`, play one file
 

@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# run/ae04 — TASK-409 / ADR-059 T_AE_04: teardown ordering under eject-mid-CONNECTING.
+# Flashes the Spotify-DISABLED build (cyd2usb_webradio — same MEMBUDGET_PHASE1 arena
+# and debug instrumentation as run/wr-soak uses), injects a dead station URL, ejects
+# mid-CONNECTING x10 and checks pump -> Audio -> arena teardown ordering, arena
+# balance and the loopTask non-block invariant. Restores production firmware +
+# monitor on exit.
+#
+# NEVER kill this mid-flight (timeout/Ctrl-C/host suspend) — the trap-guarded prod
+# restore races and can leave the DUT boot-looping. ~4 min total.
+#
+# Usage: ./run/ae04            # 10 cycles (T_AE_04's exit criterion)
+#        ./run/ae04 3          # 3 cycles (quick smoke)
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+CYCLES="${CYCLES:-${1:-10}}"
+ENV_AE04="cyd2usb_webradio"     # Spotify-disabled; same arena + debug build as wr-soak
+PORT=$(resolve_port)
+
+_RC=0
+_cleanup() {
+  local rc=$_RC
+  echo ""
+  echo "[ae04] restoring $ENV_PROD (rc=$rc so far)"
+  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT") || {
+    echo "ERROR [ae04]: prod restore failed" >&2; rc=99; }
+  echo "[ae04] restarting monitor"
+  tmux new-session -d -s "$SESSION" \
+    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'" \
+    2>/dev/null || true
+  exit "$rc"
+}
+trap _cleanup EXIT INT TERM
+
+echo "[ae04] 1/4 — killing monitor"
+tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+
+echo "[ae04] 2/4 — flashing $ENV_AE04 to $PORT"
+(cd "$PIO_DIR" && "$PIO" run -e "$ENV_AE04" -t upload --upload-port "$PORT")
+
+echo "[ae04] 3/4 — waiting ${BOOT_WAIT}s for boot + WiFi"
+sleep "$BOOT_WAIT"
+
+echo "[ae04] 4/4 — running T_AE_04, ${CYCLES} cycles"
+(cd "$PIO_DIR" && "$VENV_PY" tools/test_ae04_teardown.py \
+    --port "$PORT" --cycles "$CYCLES") \
+  || _RC=$?
