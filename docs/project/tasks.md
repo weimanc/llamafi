@@ -6499,7 +6499,12 @@ only implementation in the tree.
 **Owner:** Developer (Architect consult) · **Deps:** none · **Gate:** `T_PLE_01`–`06` —
 pixel-identical via `run/screendump` diff across ≥5 states. Known limitation: screendump **cannot
 capture live navigated app state** (DTR-resets on connect), so reach states by serial injection ·
-**Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07 (D4).
+**Priority:** P2 · **Status:** **DONE** — `pleditView.h` extracted (`28b149e`), `winampDisplay.h`
+delegates via `SpotifyQueueSource`, WebRadio untouched as scoped. `T_PLE_01`–`04`+`06` PASS on DUT
+(0 differing pixels, 7 states, `e6ef89b`). `T_PLE_05` closed on a deterministic serial gesture
+battery, human-accepted in place of the void blind A/B (`078e689`). 22-row divergence log in
+`docs/architecture/designs/M-PLEDIT-ABSTRACTION-playlist-source.md` § Divergence log feeds
+TASK-412, which has since landed on top (`251c3c9`).
 
 ### TASK-412 — WebRadio as the second caller (`StationListSource`)
 
