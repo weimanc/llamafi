@@ -622,11 +622,8 @@ public:
       if (_plView.press(x, y, originX, originY)) {
         consumed = true;
       } else if (dragState == D_IDLE) {
-        if (hitTestLogo(x, y) && millis() >= logoTapCooldownMs) {
-          spotifyTask::resetTls();
-          spotifyTask::enqueue(spotifyTask::ACT_FORCE_POLL);
+        if (hitTestLogo(x, y) && tryReconnect()) {
           _lastInputWasAsync = true;
-          logoTapCooldownMs = millis() + LOGO_TAP_COOLDOWN_MS;
           repaintChrome();
           LOG_I("touch", "logo tap → TLS reset + force poll");
           consumed = true;
@@ -1030,6 +1027,19 @@ public:
            sx <  originX + CB_EJECT_X + CB_EJECT_W &&
            sy >= originY + CB_EJECT_Y &&
            sy <  originY + CB_EJECT_Y + CB_EJECT_H;
+  }
+
+  // TASK-053f/414: shared TLS-reset + force-poll reconnect action — the
+  // Winamp logo tap (below, internal) and SpotifyApp's eject-tap intercept
+  // (main.cpp, external) both perform the same recovery action and must
+  // share its cooldown, so it lives here once rather than twice. No-op
+  // (returns false) while the cooldown window is still active.
+  bool tryReconnect() {
+    if (millis() < logoTapCooldownMs) return false;
+    spotifyTask::resetTls();
+    spotifyTask::enqueue(spotifyTask::ACT_FORCE_POLL);
+    logoTapCooldownMs = millis() + LOGO_TAP_COOLDOWN_MS;
+    return true;
   }
 
   // M-WEBRADIO: public transport hit-test for apps other than SpotifyApp.

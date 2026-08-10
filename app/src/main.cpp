@@ -308,10 +308,18 @@ public:
       perf::record("display.bar", millis() - _t); }
   }
   bool handleInput(TouchPhase phase, int x, int y) override {
-    // M-WEBRADIO: eject button → switch to WebRadio (intercept before winampDisplay).
+    // TASK-414 / ADR-059 D6: eject is freed from "switch to WebRadio" (the
+    // taskbar player-slot cycle from TASK-413 owns app switching now) and
+    // becomes "load media from this source" — same TLS-reset + force-poll
+    // reconnect as the Winamp logo tap (TASK-053f), via the shared
+    // tryReconnect() (winampDisplay.h) so both affordances share one
+    // cooldown. Duplicating the affordance is harmless; silently deleting a
+    // recovery path is not, so the logo tap keeps its own behaviour
+    // unchanged.
     if (phase == TouchPhase::Release && winampDisplay.hitTestEject(x, y)) {
-        persistPlayerMode((uint8_t)PlayerMode::WebRadio);   // TASK-260
-        switchApp(AppId::WebRadio);
+        if (winampDisplay.tryReconnect()) {
+          LOG_I("touch", "eject tap → TLS reset + force poll");
+        }
         return true;
     }
     return winampDisplay.handleWinampInput(phase, x, y);
@@ -3083,6 +3091,15 @@ static void cmdTap(const char *args) {
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                     "\"hit\":\"PLANERADAR\",\"action\":\"%s\",\"skipped\":false}\n",
                     x, y, consumed ? "CONSUMED" : "NONE");
+    } else if (currentAppId == AppId::LocalPlayer && g_apps[(int)AppId::LocalPlayer]) {
+      // TASK-414: LocalPlayer's only real interaction so far is the eject
+      // stub (file browser lands TASK-416) — same Press/Release dispatch
+      // shape as the other real-canvas apps above.
+      g_apps[(int)AppId::LocalPlayer]->handleInput(TouchPhase::Press, x, y);
+      bool consumed = g_apps[(int)AppId::LocalPlayer]->handleInput(TouchPhase::Release, x, y);
+      Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                    "\"hit\":\"LOCALPLAYER\",\"action\":\"%s\",\"skipped\":false}\n",
+                    x, y, consumed ? "CONSUMED" : "NONE");
     } else if (currentAppId == AppId::WebRadio && g_apps[(int)AppId::WebRadio]) {
       // WebRadio: injectTouch populates lastTouchResult for the response;
       // WebRadioApp::handleInput executes the action (eject/transport/PLEDIT).
@@ -3125,7 +3142,8 @@ static void cmdTap(const char *args) {
   winampDisplay.injectTouch(x, y);
   winampDisplay.injectRelease();
   // Eject: injectTouch only sets lastTouchResult; SpotifyApp::handleInput must
-  // be called directly to execute switchApp(AppId::WebRadio).
+  // be called directly to execute the TLS-reset + force-poll reconnect
+  // (TASK-414).
   if (strcmp(winampDisplay.lastTouchResult.action, "EJECT") == 0) {
     g_apps[(int)AppId::Spotify]->handleInput(TouchPhase::Release, x, y);
   }

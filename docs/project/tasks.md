@@ -6588,7 +6588,30 @@ Accepted UX break: eject has meant "switch to radio" since M-WEBRADIO shipped. O
 call; recorded so it is not later mistaken for a regression.
 
 **Owner:** Developer · **Deps:** TASK-413 · **Gate:** `T_PLR_06`–`07` · **Priority:** P2 ·
-**Status:** **READY** — ADR-059 accepted 2026-08-07 (D6).
+**Status:** **DONE** — ADR-059 D6 implemented 2026-08-10.
+
+**DUT gate result (2026-08-10):** `T_PLR_06`/`07` PASS, plus regression rerun of `T_WR_EJECT_01`/`02`
+(rewritten for the new per-mode semantics — see below), `T_WR_VOL_CLAMP`, `T237`, `T_PLR_01`, `T_PLR_05`
+(5/5 PASS) to confirm the taskbar-cycle entry path introduced by TASK-413 still works everywhere the
+old eject-entry path was assumed. `T_WR_SPOTIFY_RESUME_01` SKIPped on a station-list fetch failure
+(radio-browser.info network flake, not a regression — its own taps were rewritten and exercised the
+same code path other passing tests confirm). Implementation: `SpotifyApp::handleInput` (`main.cpp`)
+and `WebRadioApp::handleInput` (`webRadioApp.h`) no longer call `switchApp()` on eject; `LocalPlayerApp`
+(`localPlayerApp.h`) gets a wired eject stub (logs + consumes the tap; the real file browser is
+TASK-416). The TLS-reset + force-poll action used to live inline in the logo-tap branch of
+`handleWinampInput()`; factored out to a shared `WinampDisplay::tryReconnect()` (public, cooldown-
+gated) so the logo tap and Spotify's eject share one implementation and one cooldown window, per the
+"duplicated affordance is harmless" call above.
+
+Ripple found and fixed: eject was WebRadio's **only** entry path in the test harness
+(`_switch_to_webradio_capture_heap()`, used transitively by `_webradio_enter_with_stations()` and
+~10 other tests) — TASK-413 introduced the taskbar-cycle entry path but never migrated the harness
+onto it, so it was silently still exercising the old eject-switch behaviour this task removes. Fixed
+at the one shared helper (now taps the taskbar player slot instead of eject); `T_WR_HEAP_02` and
+`T_WR_SPOTIFY_RESUME_01` had their own independent `tap_eject()` call sites for the same reason and
+needed the same fix individually. `T_WR_EJECT_01`/`02` were rewritten in place (same names, new
+assertions: TLS-reset-and-stay-on-Spotify / station-refresh-and-stay-on-WebRadio) rather than deleted,
+since `T_PLR_06` covers the cross-mode gate but these remain the WebRadio-app-specific unit checks.
 
 ### TASK-415 — `m3u.h` + index model + read-only `LocalPlaylistSource`
 

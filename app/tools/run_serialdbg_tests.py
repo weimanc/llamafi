@@ -12,7 +12,8 @@ T_WR_EJECT_01/02, T_WR_ERR_01–04, T_WR_COEX_01/02/04,
 T_WR_HEAP_01–04, T_WR_VOL_03, T_WR_TLS_01, T_WR_SPOTIFY_RESUME_01 (M-WEBRADIO),
 T_WR_VIS_01–03 (vu-002 / X043, M-WEBRADIO-REAL-VIS),
 T_WR_VIS_04/05 (vu-003 / X044, TASK-387, M-WEBRADIO-REAL-VIS-SPECTRUM),
-T_PR_01–06 (M-PLANERADAR, TASK-307)
+T_PR_01–06 (M-PLANERADAR, TASK-307),
+T_PLR_01–07 (M-PLAYER-STATE, TASK-413/414)
 against a DUT flashed with cyd2usb_winamp_debug.
 T089 (production ELF symbol check) is a host build check — not run here.
 T095 (physical vs. synthetic calibration) requires --interactive (human at DUT).
@@ -4887,6 +4888,124 @@ def t_plr_05(dut: Dut):
     pass_("T_PLR_05", f"restore->LocalPlayer, then cycle->Spotify — restore-vs-cycle distinction confirmed")
 
 
+# ── T_PLR_06/07 — eject remap (TASK-414 / ADR-059 D6) ──────────────────────────
+# Eject is freed from "switch to WebRadio" (the taskbar player-slot cycle above
+# owns app switching now) and becomes "load media from this source", one verb
+# with three per-mode realisations. The logo tap keeps its own TLS-reset
+# behaviour unchanged (T_PLR_07 regression-checks the shared helper refactor).
+
+def t_plr_06(dut: Dut):
+    """T_PLR_06: eject is per-mode. Spotify -> TLS reset + force poll, appId stays
+    Spotify. WebRadio -> station-list refresh (wrEnqueues advances), appId stays
+    WebRadio. Player -> file-browser stub tap consumed, appId stays LocalPlayer."""
+    print("T_PLR_06  Eject is per-mode: Spotify TLS-reset, WebRadio refresh, Player browser stub")
+    errors = []
+    ex, ey = _c.tap_eject()
+
+    # ── Spotify: TLS reset + force poll ─────────────────────────────────────
+    if not _restore_spotify(dut):
+        skip("T_PLR_06", "precondition: could not restore Spotify")
+        return
+    dut.set_cooldown_zero()
+    r = dut.cmd(f"tap {ex} {ey}", timeout=5.0)
+    if r.get("hit") != "EJECT" or r.get("action") != "EJECT":
+        errors.append(f"Spotify: hit={r.get('hit')} action={r.get('action')}")
+    else:
+        time.sleep(0.3)
+        appid = dut.cmd("get appId", timeout=3.0).get("name")
+        if appid != "Spotify":
+            errors.append(f"Spotify: appId={appid!r} after eject (expected Spotify — eject no longer switches apps)")
+        tls_log_found = False
+        deadline = time.monotonic() + 8.0
+        while time.monotonic() < deadline:
+            line = dut.ser.readline().decode(errors="replace").strip()
+            if "hard reset" in line or "stopping client" in line:
+                tls_log_found = True
+                break
+        if not tls_log_found:
+            errors.append("Spotify: no TLS-reset log line within 8 s")
+
+    # ── WebRadio: station-list refresh ──────────────────────────────────────
+    dut.cmd("set bgPoll 0", timeout=2.0)
+    ok, _ = _switch_to_webradio_capture_heap(dut)
+    if not ok:
+        errors.append("WebRadio: could not enter WebRadio via taskbar player-slot cycle")
+    else:
+        _wait_shell_not_busy(dut, timeout_s=5.0)
+        enq_before = dut.cmd("get dataq", timeout=3.0).get("wrEnqueues", 0)
+        dut.set_cooldown_zero()
+        r = dut.cmd(f"tap {ex} {ey}", timeout=5.0)
+        if r.get("hit") != "EJECT" or r.get("action") != "EJECT":
+            errors.append(f"WebRadio: hit={r.get('hit')} action={r.get('action')}")
+        else:
+            time.sleep(0.3)
+            appid = dut.cmd("get appId", timeout=3.0).get("name")
+            if appid != "WebRadio":
+                errors.append(f"WebRadio: appId={appid!r} after eject (expected WebRadio — eject no longer switches apps)")
+            enq_after = dut.cmd("get dataq", timeout=3.0).get("wrEnqueues", 0)
+            if enq_after <= enq_before:
+                errors.append(f"WebRadio: wrEnqueues did not advance ({enq_before} -> {enq_after})")
+    dut.cmd("set bgPoll 1", timeout=2.0)
+
+    # ── Player: file-browser stub (TASK-416 lands the real browser) ────────
+    dut.cmd("set playerMode player", timeout=3.0)
+    if not _switch_to(dut, "Clock"):
+        errors.append("Player: precondition: could not switch to Clock")
+    else:
+        dut.set_cooldown_zero()
+        sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
+        dut.cmd(f"tap {sx} {sy}", timeout=5.0)   # restore persisted mode -> LocalPlayer
+        time.sleep(0.3)
+        appid = dut.cmd("get appId", timeout=3.0).get("name")
+        if appid != "LocalPlayer":
+            errors.append(f"Player: precondition failed, appId={appid!r} (expected LocalPlayer)")
+        else:
+            dut.set_cooldown_zero()
+            r = dut.cmd(f"tap {ex} {ey}", timeout=5.0)
+            if r.get("hit") != "LOCALPLAYER" or r.get("action") != "CONSUMED":
+                errors.append(f"Player: hit={r.get('hit')} action={r.get('action')} (expected LOCALPLAYER/CONSUMED)")
+            time.sleep(0.3)
+            appid2 = dut.cmd("get appId", timeout=3.0).get("name")
+            if appid2 != "LocalPlayer":
+                errors.append(f"Player: appId={appid2!r} after eject (expected LocalPlayer — no browser UI yet, TASK-416)")
+
+    dut.cmd("set playerMode spotify", timeout=3.0)
+    _restore_spotify(dut)
+
+    if errors:
+        fail("T_PLR_06", "; ".join(errors))
+        return
+    pass_("T_PLR_06", "eject per-mode confirmed: Spotify TLS-reset, WebRadio refresh, Player browser-stub consumed")
+
+
+def t_plr_07(dut: Dut):
+    """T_PLR_07: Winamp logo tap still resets TLS — unchanged from TASK-053f.
+    Regression check for the TASK-414 refactor that moved the TLS-reset +
+    force-poll action into a shared tryReconnect() (winampDisplay.h) used by
+    both the logo tap and eject."""
+    print("T_PLR_07  Logo tap still resets TLS (unchanged from TASK-053f)")
+    if not _restore_spotify(dut):
+        skip("T_PLR_07", "precondition: could not restore Spotify")
+        return
+    dut.set_cooldown_zero()
+    lgx, lgy = _c.tap_logo()
+    r = dut.cmd(f"tap {lgx} {lgy}", timeout=5.0)
+    if r.get("hit") != "LOGO" or r.get("action") != "TLS_RESET":
+        fail("T_PLR_07", f"expected hit=LOGO action=TLS_RESET got hit={r.get('hit')} action={r.get('action')}")
+        return
+    tls_log_found = False
+    deadline = time.monotonic() + 8.0
+    while time.monotonic() < deadline:
+        line = dut.ser.readline().decode(errors="replace").strip()
+        if "hard reset" in line or "stopping client" in line:
+            tls_log_found = True
+            break
+    if not tls_log_found:
+        flake("T_PLR_07", "hit=LOGO action=TLS_RESET but no TLS-reset log line within 8 s")
+        return
+    pass_("T_PLR_07", "logo tap → TLS_RESET confirmed, unchanged from TASK-053f")
+
+
 # ── stock-002 suite (TASK-120) ────────────────────────────────────────────────
 # Tests the heatmap sub-view, navigation, fetch-gate, and chartSymbol guard.
 #
@@ -6323,18 +6442,21 @@ def _webradio_enter_with_stations(dut: Dut, tid: str,
 
 
 def _switch_to_webradio_capture_heap(dut: Dut) -> tuple[bool, dict]:
-    """Enter WebRadio via the Winamp EJECT button — its design entry path. WebRadio
-    has NO taskbar slot (TASK-242/LL-085); the old tap_taskbar_slot(WebRadio) only
-    "worked" by an off-screen-coordinate modulo accident and never exercised the
-    real path. Capture HEAP log lines emitted DURING init().
+    """Enter WebRadio via the taskbar player-slot cycle — its design entry path
+    since TASK-413/414 (ADR-059 D6). Eject no longer switches apps (TASK-414:
+    it means "load media from this source" per mode); tapping the player slot
+    (APP_SLOT["Spotify"]) while Spotify is active cycles to WebRadio
+    (resolvePlayerTap). WebRadio has NO taskbar slot of its own (TASK-242/
+    LL-085) — this taps the Spotify/player slot, not a WebRadio one. Capture
+    HEAP log lines emitted DURING init().
     Returns (switched_ok, heap_dict) where heap_dict keys are e.g. 'init', 'pre-fetch'.
     HEAP lines are logged before the JSON tap response, so we must read raw serial."""
     heap = {}
-    if not _restore_spotify(dut):  # eject button lives in the Spotify/Winamp UI
+    if not _restore_spotify(dut):  # start from Spotify so one cycle tap lands on WebRadio
         return False, heap
     dut.set_cooldown_zero()
     dut.wait_shell_cooldown_clear()  # TASK-297: raw send bypasses cmd()'s drain
-    x, y = _c.tap_eject()
+    x, y = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.send(f"tap {x} {y}")
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
@@ -6354,11 +6476,17 @@ def _switch_to_webradio_capture_heap(dut: Dut) -> tuple[bool, dict]:
     return r.get("name") == "WebRadio", heap
 
 
-# ── T_WR_EJECT_01 — Eject from Spotify → WebRadio ────────────────────────────
+# ── T_WR_EJECT_01 — Eject from Spotify: TLS reset + force poll, stays put ───
+# TASK-414 / ADR-059 D6: eject means "load media from this source" per mode
+# now, not "switch player app" — that's the taskbar player-slot cycle's job
+# (TASK-413). Superseded by T_PLR_06 for the cross-mode gate; kept as the
+# WebRadio-app-specific unit check for its own eject behaviour (station
+# refresh, no app switch).
 
 def t_wr_eject_01(dut: Dut):
-    """T_WR_EJECT_01: tap eject from Spotify → hit=EJECT; appId switches to WebRadio."""
-    print("T_WR_EJECT_01  Eject from Spotify → WebRadio")
+    """T_WR_EJECT_01: tap eject from Spotify → hit=EJECT; TLS reset + force poll
+    fires (same as the logo tap); appId stays on Spotify."""
+    print("T_WR_EJECT_01  Eject from Spotify → TLS reset + force poll, stays on Spotify")
     if not _restore_spotify(dut):
         skip("T_WR_EJECT_01", "precondition: could not restore Spotify")
         return
@@ -6375,17 +6503,30 @@ def t_wr_eject_01(dut: Dut):
         return
     time.sleep(0.4)
     r2 = dut.cmd("get appId", timeout=3.0)
-    if r2.get("name") != "WebRadio":
-        fail("T_WR_EJECT_01", f"appId={r2.get('name')!r} after eject (expected WebRadio)")
+    if r2.get("name") != "Spotify":
+        fail("T_WR_EJECT_01", f"appId={r2.get('name')!r} after eject (expected Spotify — eject no longer switches apps)")
         return
-    pass_("T_WR_EJECT_01", f"hit=EJECT action=EJECT; appId=WebRadio")
+    # TLS reset log line, same signature T087 waits on for the logo tap.
+    tls_log_found = False
+    deadline = time.monotonic() + 8.0
+    while time.monotonic() < deadline:
+        line = dut.ser.readline().decode(errors="replace").strip()
+        if "hard reset" in line or "stopping client" in line:
+            tls_log_found = True
+            break
+    if not tls_log_found:
+        flake("T_WR_EJECT_01", "hit=EJECT action=EJECT, appId stayed Spotify, but no "
+              "TLS-reset log line within 8 s")
+        return
+    pass_("T_WR_EJECT_01", "hit=EJECT action=EJECT; appId stays Spotify; TLS reset + force poll fired")
 
 
-# ── T_WR_EJECT_02 — Eject from WebRadio → Spotify ────────────────────────────
+# ── T_WR_EJECT_02 — Eject from WebRadio: station-list refresh, stays put ────
 
 def t_wr_eject_02(dut: Dut):
-    """T_WR_EJECT_02: tap eject from WebRadio → hit=EJECT; appId switches back to Spotify."""
-    print("T_WR_EJECT_02  Eject from WebRadio → Spotify")
+    """T_WR_EJECT_02: tap eject from WebRadio → hit=EJECT; station list is
+    re-enqueued (wrEnqueues advances); appId stays on WebRadio."""
+    print("T_WR_EJECT_02  Eject from WebRadio → station list refresh, stays on WebRadio")
     # _webradio_enter_with_stations suspends bgPoll so the station fetch completes
     # quickly. Once _pendingStations=false, the main loop clears g_shellBusy
     # (main.cpp:2604-2606) and the eject tap won't be blocked with CANVAS.
@@ -6395,6 +6536,7 @@ def t_wr_eject_02(dut: Dut):
         skip("T_WR_EJECT_02", "could not enter WebRadio")
         return
     _wait_shell_not_busy(dut, timeout_s=5.0)
+    enq_before = dut.cmd("get dataq", timeout=3.0).get("wrEnqueues", 0)
     dut.set_cooldown_zero()
     _ex, _ey = _c.tap_eject()
     r = dut.cmd(f"tap {_ex} {_ey}", timeout=5.0)
@@ -6410,11 +6552,18 @@ def t_wr_eject_02(dut: Dut):
         return
     time.sleep(0.4)
     r2 = dut.cmd("get appId", timeout=3.0)
-    if r2.get("name") != "Spotify":
-        fail("T_WR_EJECT_02", f"appId={r2.get('name')!r} after eject from WebRadio")
+    if r2.get("name") != "WebRadio":
+        fail("T_WR_EJECT_02", f"appId={r2.get('name')!r} after eject from WebRadio (expected WebRadio — eject no longer switches apps)")
         _restore_spotify(dut)
         return
-    pass_("T_WR_EJECT_02", "hit=EJECT action=EJECT; appId=Spotify")
+    enq_after = dut.cmd("get dataq", timeout=3.0).get("wrEnqueues", 0)
+    if enq_after <= enq_before:
+        fail("T_WR_EJECT_02", f"wrEnqueues did not advance ({enq_before} -> {enq_after}) — "
+             "station-list refresh did not fire")
+        _restore_spotify(dut)
+        return
+    pass_("T_WR_EJECT_02", f"hit=EJECT action=EJECT; appId=WebRadio; wrEnqueues {enq_before}->{enq_after}")
+    _restore_spotify(dut)
 
 
 # ── T_WR_ERR_* common helper ─────────────────────────────────────────────────
@@ -6625,7 +6774,11 @@ def t_wr_heap_02(dut: Dut):
     time.sleep(0.2)
     dut.cmd("set bgPoll 0", timeout=2.0)
     dut.set_cooldown_zero()
-    wx, wy = _c.tap_eject()  # TASK-242: WebRadio is eject-entered, not a taskbar slot
+    # TASK-414: WebRadio is entered via the taskbar player-slot cycle now
+    # (eject no longer switches apps — ADR-059 D6). Still no WebRadio taskbar
+    # slot of its own (TASK-242/LL-085); this taps the Spotify/player slot,
+    # which cycles Spotify -> WebRadio while Spotify is active.
+    wx, wy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.send(f"tap {wx} {wy}")
     print("    T_WR_HEAP_02  draining log for HEAP post-fetch line (up to 180s)…")
     lines = dut.drain_log_lines(r"webradio.*HEAP post-fetch free=", count=1, timeout=180.0)
@@ -6756,15 +6909,16 @@ def t_wr_vol_clamp(dut: Dut):
     tid = "T_WR_VOL_CLAMP"
     print(f"{tid}  HW-mod volume ceiling clamp (wrEffectiveVolume)")
 
-    # Enter WebRadio via its design entry path — the Winamp EJECT button (no taskbar
-    # slot; TASK-242). Suspend bgPoll so init()'s station-fetch tlsYield() doesn't
-    # stall on the failing Spotify poll. No stations/playback needed: the clamp reads
-    # g_settings only, we just need WebRadio active so the wr* dbg vars route to it.
+    # Enter WebRadio via its design entry path — the taskbar player-slot cycle
+    # (TASK-413/414; no WebRadio taskbar slot of its own, TASK-242). Suspend
+    # bgPoll so init()'s station-fetch tlsYield() doesn't stall on the failing
+    # Spotify poll. No stations/playback needed: the clamp reads g_settings
+    # only, we just need WebRadio active so the wr* dbg vars route to it.
     dut.cmd("set bgPoll 0", timeout=2.0)
     ok, _ = _switch_to_webradio_capture_heap(dut)
     if not ok:
         dut.cmd("set bgPoll 1", timeout=2.0)
-        skip(tid, "could not enter WebRadio via eject")
+        skip(tid, "could not enter WebRadio via taskbar player-slot cycle")
         return
 
     try:
@@ -6824,7 +6978,7 @@ def t237(dut: Dut):
     ok, _ = _switch_to_webradio_capture_heap(dut)
     if not ok:
         dut.cmd("set bgPoll 1", timeout=2.0)
-        skip(tid, "could not enter WebRadio via eject")
+        skip(tid, "could not enter WebRadio via taskbar player-slot cycle")
         return
 
     N = 4
@@ -6929,7 +7083,7 @@ def t276(dut: Dut):
     ok, _ = _switch_to_webradio_capture_heap(dut)
     if not ok:
         dut.cmd("set bgPoll 1", timeout=2.0)
-        skip(tid, "could not enter WebRadio via eject")
+        skip(tid, "could not enter WebRadio via taskbar player-slot cycle")
         return
 
     N = 3
@@ -7110,11 +7264,12 @@ def t_wr_tls_01(dut: Dut):
     pass_("T_WR_TLS_01", f"http={http_code} count={count} — TLS path used: {path}{trunc}")
 
 
-# ── T_WR_SPOTIFY_RESUME_01 — Spotify resumes after eject out of WebRadio ────
+# ── T_WR_SPOTIFY_RESUME_01 — Spotify resumes after switching out of WebRadio ─
 
 def t_wr_spotify_resume_01(dut: Dut):
     """T_WR_SPOTIFY_RESUME_01: play a WebRadio station (holds spotifyTask::tlsYield()
-    for the whole playback duration per dafa4a4), eject back to Spotify, and confirm
+    for the whole playback duration per dafa4a4), cycle off WebRadio back to Spotify
+    via the taskbar player slot (TASK-414: eject no longer switches apps), and confirm
     Spotify's own serial surface responds — not just that the device didn't crash
     and appId flipped. This coexistence path had no prior coverage; the tlsYield()/
     tlsResume() pairing is new in TASK-214, not part of the original M-WEBRADIO design."""
@@ -7130,18 +7285,27 @@ def t_wr_spotify_resume_01(dut: Dut):
     if not _wait_wr_state(dut, target=2, timeout=30.0):
         skip("T_WR_SPOTIFY_RESUME_01", "could not reach PLAYING state — see T_WR_COEX_01")
         return
-    # Eject while still PLAYING — this is the case that actually exercises
+    # Switch away while still PLAYING — this is the case that actually exercises
     # tlsResume() under load (tlsYield() is held for the whole playback span).
+    # TASK-414: eject no longer switches apps (it's WebRadio's own station-list
+    # refresh now — ADR-059 D6); the taskbar player-slot cycle is the only way
+    # off WebRadio, and it goes WebRadio -> LocalPlayer -> Spotify, so two taps
+    # are needed. The FIRST tap is what exercises tlsResume() under load (any
+    # switch away from WebRadio runs suspend() -> _stopAudio()); the second
+    # just lands the test on Spotify to run the liveness check below.
     dut.set_cooldown_zero()
-    _ex, _ey = _c.tap_eject()
-    r = dut.cmd(f"tap {_ex} {_ey}", timeout=5.0)
-    if r.get("action") != "EJECT":
-        fail("T_WR_SPOTIFY_RESUME_01", f"eject tap did not fire: {r}")
+    _sx, _sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
+    r = dut.cmd(f"tap {_sx} {_sy}", timeout=5.0)   # WebRadio -> LocalPlayer (cycle)
+    if r.get("hit") != "TASKBAR":
+        fail("T_WR_SPOTIFY_RESUME_01", f"taskbar cycle tap did not fire: {r}")
         return
+    time.sleep(0.3)
+    dut.set_cooldown_zero()
+    dut.cmd(f"tap {_sx} {_sy}", timeout=5.0)       # LocalPlayer -> Spotify (cycle)
     time.sleep(0.5)
     r2 = dut.cmd("get appId", timeout=3.0)
     if r2.get("name") != "Spotify":
-        fail("T_WR_SPOTIFY_RESUME_01", f"appId={r2.get('name')!r} after eject (expected Spotify)")
+        fail("T_WR_SPOTIFY_RESUME_01", f"appId={r2.get('name')!r} after cycling off WebRadio (expected Spotify)")
         return
 
     # Liveness proof that spotifyTask ITSELF resumed — not just the display/main
@@ -8210,6 +8374,8 @@ ALL_TESTS = {
     "T_PLR_03": t_plr_03,
     "T_PLR_04": t_plr_04,
     "T_PLR_05": t_plr_05,
+    "T_PLR_06": t_plr_06,
+    "T_PLR_07": t_plr_07,
     # velocity-scroll-001 WebRadio variant (TASK-412 / T_PLE_08)
     "T_PLE_WR_155": t_ple_wr_155,
     "T_PLE_WR_156": t_ple_wr_156,

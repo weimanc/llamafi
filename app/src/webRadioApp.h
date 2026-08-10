@@ -1,7 +1,9 @@
 #pragma once
 // webRadioApp.h — International Web Radio app (M-WEBRADIO).
 // Streams MP3 from radio-browser.info via ESP32-audioI2S on internal DAC GPIO26.
-// Entered via Winamp eject button; exits back to Spotify via the same button.
+// No taskbar slot of its own (eject-only tail, TASK-242) — reached via the
+// taskbar player-slot cycle/restore (TASK-413). Eject means "load media from
+// this source" here (station-list refresh), not "switch app" (TASK-414).
 
 #include <Arduino.h>
 #include <TFT_eSPI.h>
@@ -847,11 +849,20 @@ public:
             return true;
         }
 
-        // Eject → back to Spotify
+        // TASK-414 / ADR-059 D6: eject is freed from "switch back to Spotify"
+        // (the taskbar player-slot cycle from TASK-413 owns app switching
+        // now) and becomes "load media from this source" — a station-list
+        // refresh/browse, staying on WebRadio. Mirrors resume()'s
+        // config-change refetch (abort any in-flight fetch first, WR-1),
+        // but does NOT stop playback or reset the current station — a
+        // refresh is not a teardown.
         if (winampDisplay.hitTestEject(x, y)) {
-            _stopAudio();
-            persistPlayerMode((uint8_t)PlayerMode::Spotify);   // TASK-260
-            switchApp(AppId::Spotify);
+            if (millis() >= _ejectCooldownMs) {
+                if (_pendingStations) dataTask::abortWebRadioFetch();
+                _enqueueStationFetch();
+                _ejectCooldownMs = millis() + EJECT_COOLDOWN_MS;
+                LOG_I("webradio", "eject tap → station list refresh");
+            }
             return true;
         }
 
@@ -1399,6 +1410,11 @@ private:
     uint32_t          _plSeqno      = 0;
     unsigned long     _lastScrollMs = 0;   // dt tracking for winampDisplay.tickScroll()
     bool        _pendingStations = false;
+    // TASK-414: eject → station-list refresh cooldown (2 s), same window as
+    // the Winamp logo tap's TLS-reset debounce (winampDisplay.h) — prevents
+    // rapid re-taps from stacking dataTask enqueues.
+    unsigned long _ejectCooldownMs = 0;
+    static constexpr unsigned long EJECT_COOLDOWN_MS = 2000;
     // M-WEBRADIO-SETTINGS D3: config snapshot latched at every station-list
     // enqueue (_enqueueStationFetch()). resume() diffs it against g_settings
     // to detect Settings edits; tick()'s WR-1 identity check compares the
