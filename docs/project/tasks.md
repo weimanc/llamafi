@@ -6610,9 +6610,44 @@ old code would replay candidate 3 forever; and a real failed-cascade boot recove
 **Priority:** P1 (silent permanent loss of network on a headless device) · **Status:** DONE
 (2026-08-10), commits `0d35696` + `d19bcff`.
 
-> Two smaller things left open, both now cosmetic since recovery works. **The NVS stage interferes
-> with the cascade behind it:** with NVS holding the dead SSID, candidate 1 (the live AP) failed
-> ~2.7 s in; with NVS erased it connects in ~1 s. The 300 ms settle at `main.cpp:2350` is likely too
-> short to outlast an in-flight ~2.4 s NO_AP_FOUND scan. **Nothing evicts saved networks that
-> repeatedly `NO_AP_FOUND`** — a stale entry stays in the list forever, costing a 10 s boot window
-> each time and, before this fix, wedging the device outright.
+> One smaller thing left open: **nothing evicts saved networks that repeatedly `NO_AP_FOUND`** — a
+> stale entry stays in the list forever, costing a 10 s boot window each time and, before this fix,
+> wedging the device outright.
+
+### TASK-426b — boot cascade gives each candidate only one connect attempt
+
+Follow-up to the above, fixed in `ec0a6f8`. Originally filed as "the NVS stage interferes with the
+cascade behind it", on the observation that the first (live) candidate failed ~2.7 s in when NVS
+held a dead SSID but connected in ~1 s when NVS was erased. **That framing was wrong on both
+counts** and is recorded here so it is not re-derived.
+
+*Refuted 1 — it is not a stale in-flight scan.* A full driver stop/start before the cascade
+(`WIFI_OFF` → `WIFI_STA`, confirmed by `STA_STOP`/`STA_START` in the event log at t=11389/11614)
+changed nothing: the candidate still failed at 2.7 s. That attempt is reverted; the original 300 ms
+settle stands with a comment so nobody lengthens it hoping for a different result.
+
+*Refuted 2 — it is not deterministic.* It is intermittent, ~1 boot in 3. The original conclusion
+came from three boots, which is exactly the sample size that produced the two earlier
+misattributions in TASK-426.
+
+**Real defect.** TASK-404 disables auto-reconnect for the whole cascade. Nothing else re-issues a
+connect, so each candidate gets exactly ONE attempt; a transient `NO_AP_FOUND` leaves the rest of
+its 10 s window as dead air and the cascade gives up with a healthy AP at −56 dBm in range. The fix
+re-issues `begin()` on each observed failure, using `wifiDiag::discCount` as the completion edge.
+It is a **tolerance for the transient, not a cure** — the transient itself is still unexplained.
+
+**Gate:** met — same-build A/B, stale SSID forced into NVS before every boot:
+
+| arm | boots failing the cascade |
+|---|---|
+| retry disabled | 9 / 24 (37.5%) |
+| retry enabled | 0 / 16 |
+
+**Owner:** Developer · **Priority:** P2 · **Status:** DONE (2026-08-10), commit `ec0a6f8`.
+
+> Scaffolding worth keeping, all `SERIAL_DEBUG`-gated: `set nvsSsid <ssid>` recreates the stale-NVS
+> precondition without renaming a real AP; `set casRetry 0|1` picks the A/B arm; `set reboot 1`
+> software-resets. **The reset method is load-bearing** — an EN/RTS reset clears the RTC domain
+> where the arm flag lives, so the first attempt at this A/B ran the control in *both* arms and
+> looked perfectly clean. The flag is cookie-guarded and compiled out of prod, because an unguarded
+> `RTC_NOINIT` read would let a cold boot disable the retry at random in a production build.
