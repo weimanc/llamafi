@@ -6454,10 +6454,30 @@ already holding the mutex: self-deadlock. Drain the flag on loopTask's next tick
 cheap and falsifies this workstream's biggest assumption — arena HWM after file playback must still
 be **23 216 B** (the same nine Helix structs as the stream path); if it differs, "no new decoder" is
 wrong and `mem_manifest.yaml` needs revisiting. `T_AE_08` re-derives `.dram0.bss` headroom from a
-fresh map · **Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07; TASK-408's read
-gate is now PASSED (2026-08-07), so this is unblocked. Note two constraints it inherits: SD must be
-mounted in `setup()` and held (not lazily on mode entry), and the SD write path is a known open
-defect — `connect(FILE)` must be read-only.
+fresh map · **Priority:** P2 · **Status:** **DONE** (2026-08-10) — `./run/check` 6/6 both envs;
+`T_AE_07`/`09`/`10` DUT-PASS (commit `7f01680`). Note two constraints it inherits: SD must be mounted
+in `setup()` and held (not lazily on mode entry), and the SD write path is a known open defect —
+`connect(FILE)` stays read-only.
+
+**Two bugs found and fixed during DUT verification, neither anticipated by the design doc:**
+`s_wrAudioMutex`/`s_wrPumpAckSem` were only ever created inside `WebRadioApp::init()` — calling the
+engine standalone (no WebRadio app switch) null-derefed into a FreeRTOS assert and rebooted the
+device; fixed by moving idempotent creation into the shared `wrEnsurePumpTask()`. Separately,
+`aeConnectFile()` wasn't yielding Spotify's TLS session first the way `WebRadioApp::_play()` does —
+with Spotify connected, `mb_arena_acquire()` and even the pump task's own stack allocation reliably
+failed under that heap pressure; fixed with a standalone yield/resume pair (`s_aeSpotifyYielded`,
+separate from `WebRadioApp::_spotifyYielded` since this path has no app instance), resumed at the
+file's natural EOF.
+
+**DUT results** (real MP3 from the card's `/mp3/` folder, 192 s CBR, played via the new
+`set aePlayFile <path>` / `get aePlay` debug surface — no LocalPlayer app yet to drive this through,
+that's TASK-413+): `T_AE_07` PASS — `filePos` climbs monotonically to `fileSize`, `running` drops to 0
+right at `curSec≈durSec`. `T_AE_10` PASS — `audio_eof_mp3` fired, drained on loopTask, no stall/deadlock,
+`configASSERT` never tripped. `T_AE_09` PASS on the one run where Spotify's TLS session never
+established (arena HWM measured exactly `23216`); under concurrent Spotify the arena acquire
+gracefully falls back to `malloc` instead (by design, not an invariant violation) — **flagged for
+TASK-413**: concurrent Spotify+file playback may permanently run the file decoder off the malloc
+fallback path rather than the reserved arena.
 
 ### TASK-411 — extract `pleditView.h`, Spotify caller only
 
