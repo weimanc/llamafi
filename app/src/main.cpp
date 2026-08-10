@@ -48,6 +48,27 @@ bool writeContextToNfc = true;
 #include <WiFiClientSecure.h>
 #include <esp_wifi.h>   // TASK-282: esp_wifi_set_ps (wifiPs A/B toggle)
 
+// TASK-426 A/B control for the boot cascade's per-candidate retry. The thing
+// under test only happens during setup(), so a plain serial toggle cannot reach
+// it — the flag has to survive the reset that starts the run, which RTC slow
+// memory does (across a SOFTWARE reset; an EN/RTS reset clears the RTC domain
+// and was what silently made both arms run the control on the first attempt).
+//
+// Debug builds only, and cookie-guarded: RTC_NOINIT starts as garbage, so
+// without the cookie a cold boot could disable the retry by accident — in a
+// production build that would be a real, randomly-appearing regression. Prod
+// compiles this to a constant false and always retries.
+#ifdef SERIAL_DEBUG
+static constexpr uint32_t kCasRetryCookie = 0x426AB1FEu;
+RTC_NOINIT_ATTR uint32_t g_casRetryCookie;
+RTC_NOINIT_ATTR uint32_t g_casRetryOff;
+static inline bool casRetryDisabled() {
+  return g_casRetryCookie == kCasRetryCookie && g_casRetryOff != 0;
+}
+#else
+static inline bool casRetryDisabled() { return false; }
+#endif
+
 #include <FS.h>
 #include "SPIFFS.h"
 #include <time.h>     // configTime(), time(); needed for NTP sync at boot (time-001)
@@ -2350,6 +2371,11 @@ void setup()
     { unsigned long dl = millis() + 300;
       while (millis() < dl) { delay(20); esp_task_wdt_reset(); }
     }
+    // TASK-426: a full driver stop/start here (WIFI_OFF → WIFI_STA, confirmed
+    // by STA_STOP/STA_START in the event log) was tried and does NOT help — the
+    // first candidate still failed at ~2.7 s. So the cross-stage problem is not
+    // an in-flight scan surviving into the next stage, and lengthening this
+    // settle is not the fix. See the per-candidate retry below for what is.
   }
   if (!wifiConnected) {
     // Gather saved-network candidates from two merged sources:
@@ -2453,9 +2479,26 @@ void setup()
       // fire every ~2.4s, so 10s covers several rejection cycles before
       // moving on, not a hair trigger.
       { unsigned long dl = millis() + 10000;
+        // TASK-426: auto-reconnect is off for the whole cascade (TASK-404's
+        // fix for cross-stage collisions), which has the side effect that a
+        // candidate gets exactly ONE connect attempt — nothing re-issues it.
+        // A transient NO_AP_FOUND therefore burns the rest of the 10 s window
+        // as dead air. Measured with a stale SSID in NVS: the first attempt for
+        // the live AP failed ~2.7 s in, then the window idled to 10 s and the
+        // cascade gave up, while the very next attempt at the SAME ssid (via
+        // auto-reconnect, once re-armed) associated. Re-issue on each observed
+        // failure instead, using discCount as the "that attempt finished" edge.
+        uint32_t seenDisc = wifiDiag::discCount;
+        const bool casNoRetry = casRetryDisabled();
+        Serial.printf("[wifi] cascade retry %s\n",
+                      casNoRetry ? "DISABLED (A/B control)" : "on");
         // TASK-288: see hardcoded-SSID loop above — feed TWDT every iteration.
         while (WiFi.status() != WL_CONNECTED && millis() < dl) {
           delay(250); Serial.print("."); esp_task_wdt_reset();
+          if (!casNoRetry && wifiDiag::discCount != seenDisc) {
+            seenDisc = wifiDiag::discCount;
+            if (millis() < dl) { Serial.print("r"); WiFi.begin(cand[i].ssid, cand[i].pass); }
+          }
 #ifdef WINAMP_DISPLAY
           winampDisplay.tickMarquee();  // M-BOOT-UI (TASK-364) §3 Option B
 #endif
@@ -2500,6 +2543,9 @@ void setup()
       // anything else, so a live AP at -58 dBm goes untouched until reboot.
       // Re-point at the best (MRU-first) candidate so the 60 s of auto-reconnect
       // before the supervisor's first kick is spent on the likeliest AP.
+      // persistent(false) — the candidate is unverified, and committing an
+      // unverified SSID to NVS is how the stale-NVS state gets created.
+      WiFi.persistent(false);
       WiFi.begin(cand[0].ssid, cand[0].pass);
     }
   }
@@ -3817,6 +3863,45 @@ static void cmdSet(const char *args) {
   if (strcmp(var, "wifiScan") == 0) {
     WiFi.scanNetworks(/*async=*/true);
     Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"wifiScan\",\"val\":1}\n");
+    return;
+  }
+  // TASK-426 A/B: software reset. An EN-pin/RTS reset clears the RTC domain, so
+  // the casRetry flag below arrives as garbage and BOTH arms silently run the
+  // control — which is exactly what happened on the first attempt at this A/B.
+  // ESP.restart() is a software reset and preserves RTC memory, so the arm
+  // selection actually reaches setup().
+  if (strcmp(var, "reboot") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"reboot\"}\n");
+    Serial.flush();
+    delay(50);
+    ESP.restart();
+    return;
+  }
+  // TASK-426 A/B: `set casRetry 0` disables the per-candidate retry for the
+  // NEXT boot (survives a software reset in RTC memory), `1` re-enables it.
+  if (strcmp(var, "casRetry") == 0) {
+    g_casRetryCookie = kCasRetryCookie;
+    g_casRetryOff    = (val[0] == '0') ? 1u : 0u;
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"casRetry\",\"disabled\":%u}\n",
+                  (unsigned)g_casRetryOff);
+    return;
+  }
+  // TASK-426 repro hook: commit an arbitrary SSID to NVS so the stale-NVS
+  // precondition can be recreated on demand. Without this the bug is only
+  // reachable by renaming a real AP out from under a device that had already
+  // associated with the old name — which is how it was found, and is not a
+  // regression test anyone can re-run. Pair with a saved list holding the LIVE
+  // SSID, then reset: the boot NVS stage burns its window on the dead SSID and
+  // the cascade behind it must still connect.
+  if (strcmp(var, "nvsSsid") == 0) {
+    WiFi.persistent(true);          // FLASH storage — this is the point
+    WiFi.mode(WIFI_STA);
+    // Both args cast: mixing `char[]` with a string literal makes the
+    // begin(char*,char*) / begin(const char*,const char*) pair ambiguous.
+    WiFi.begin((const char*)val, (const char*)"notarealpassword");
+    delay(100);
+    WiFi.disconnect(false);
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"nvsSsid\",\"val\":\"%s\"}\n", val);
     return;
   }
   // TASK-426: quiesced connect — the control for a NO_AP_FOUND wedge. While
