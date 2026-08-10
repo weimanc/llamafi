@@ -163,6 +163,15 @@ void superviseTick() {
         // whole point — a bare begin() would just replay whatever dead SSID the
         // boot cascade left behind. Rotating means one dead entry costs a
         // single kick instead of every kick.
+        //
+        // persistent(false) is load-bearing, not tidiness. With FLASH storage
+        // every rotation step writes its candidate straight into NVS, so a dead
+        // candidate would be committed as the stored SSID — which is exactly
+        // the stale-NVS state that causes this bug in the first place. It would
+        // also put an NVS write on a 30 s timer for the whole of an outage.
+        // SPIFFS is the source of truth for credentials; boot re-persists a
+        // verified SSID on its own.
+        WiFi.persistent(false);
         const uint8_t i = s_candNext;
         s_candNext = (uint8_t)((s_candNext + 1) % s_candCount);
         WiFi.begin(s_candSsid[i], s_candPass[i]);
