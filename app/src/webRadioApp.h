@@ -1747,6 +1747,10 @@ private:
         // BEFORE the request post, so the pump — which only reads it after
         // observing CONNECT — never sees a partial/stale value.
         strlcpy(wrPumpConnectUrlBuf(), _stations[idx].url, WR_PUMP_CONNECT_URL_LEN);
+        // TASK-410: explicit URL kind — s_wrPumpConnectKind is state shared with
+        // aeConnectFile()'s FILE arm, so a stream play after a file play must
+        // reset it back, same write-before-post ordering as the buffer above.
+        s_wrPumpConnectKind = WrConnectKind::URL;
         s_wrPumpRequest = WrPumpRequest::CONNECT;
     }
 

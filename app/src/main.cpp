@@ -2195,6 +2195,11 @@ void setup()
   esp_task_wdt_add(NULL);  // re-subscribe loopTask (current task)
   esp_task_wdt_add(xTaskGetIdleTaskHandleForCPU(0));  // re-subscribe CPU0 idle
 
+  // TASK-410 / ADR-059 D12: capture loopTask's own handle once, here — setup()
+  // runs on loopTask, same task loop() will run on for the rest of the process
+  // lifetime. audioEngine.h's aeDrainEof() asserts against this.
+  g_loopTaskHandle = xTaskGetCurrentTaskHandle();
+
   Serial.begin(115200);
 
 #ifdef SERIAL_DEBUG
@@ -3212,6 +3217,28 @@ static void cmdGet(const char *args) {
                   );
     return;
   }
+  // TASK-410 (T_AE_07/09/10): raw engine state for `set aePlayFile` — isRunning()
+  // and the pump's result enum, independent of WebRadioApp's own dbgGet (which
+  // reads WRPlayState, never touched by aeConnectFile()'s bypass path).
+  if (strcmp(args, "aePlay") == 0) {
+    bool running = false;
+    uint32_t filePos = 0, fileSize = 0, curSec = 0, durSec = 0;
+    if (s_wr_audio && xSemaphoreTake(s_wrAudioMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+      running = s_wr_audio->isRunning();
+      filePos = s_wr_audio->getFilePos();
+      fileSize = s_wr_audio->getFileSize();
+      curSec = s_wr_audio->getAudioCurrentTime();
+      durSec = s_wr_audio->getAudioFileDuration();
+      xSemaphoreGive(s_wrAudioMutex);
+    }
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"aePlay\",\"alive\":%d,"
+                  "\"running\":%d,\"pumpResult\":%u,\"eofPending\":%d,"
+                  "\"filePos\":%u,\"fileSize\":%u,\"curSec\":%u,\"durSec\":%u,\"last\":true}\n",
+                  (int)wrPumpAlive(), (int)running, (unsigned)s_wrPumpResult,
+                  (int)s_aeEofPending, (unsigned)filePos, (unsigned)fileSize,
+                  (unsigned)curSec, (unsigned)durSec);
+    return;
+  }
   // TASK-274 (M-WIFI-DIAG §3.2): WiFi ground truth for outage attribution.
   // ms = device→host clock anchor; disc*/lastGotIpMs from the wifiDiag handler.
   // Field set VE-gated (BP-024) — extend, don't rename.
@@ -3803,6 +3830,20 @@ static void cmdSet(const char *args) {
     return;
   }
 
+  // TASK-410 (T_AE_07/09/10): drive the audio engine's FILE arm directly — no
+  // LocalPlayer app yet (TASK-413+), so this is the only entry point. Global
+  // (engine-level, not per-app dbgSet), like wifiKick/wifiDisc. Special-cased
+  // against raw args, same as kbText above: real filenames on this card carry
+  // spaces ("01 - Tomorrow Comes Today.mp3"), which the %127s split below
+  // would truncate at the first one. A bare `set aePlayFile` (no path) falls
+  // back to the hardcoded default path the gate uses.
+  if (strncmp(args, "aePlayFile", 10) == 0 && (args[10] == '\0' || args[10] == ' ')) {
+    const char* path = (args[10] == ' ' && args[11] != '\0') ? args + 11 : "/test.mp3";
+    bool posted = aeConnectFile(path);
+    Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"aePlayFile\",\"path\":\"%s\"}\n",
+                  posted ? "true" : "false", path);
+    return;
+  }
   if (sscanf(args, "%31s %127s", var, val) != 2) {
     Serial.println("{\"ok\":false,\"cmd\":\"set\",\"error\":\"bad args\"}");
     return;
@@ -5180,6 +5221,7 @@ void loop()
   unsigned long _loopStart = millis();
 
   drainInjectionQueue();   // serialdbg-001: pops one injection step per iter (TASK-056e)
+  aeDrainEof();            // TASK-410: audio_eof_mp3 flag, loopTask-only (ADR-059 D12)
   handleSerialCommands();
   logsink::serverLoop();
   heartbeat::tick();

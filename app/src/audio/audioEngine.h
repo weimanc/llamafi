@@ -15,6 +15,7 @@
 
 #include <Arduino.h>
 #include <Audio.h>
+#include <SD.h>  // TASK-410: connecttoFS(SD, path) — AUDIO_NO_SD_FS dropped
 #include <freertos/queue.h>
 #include <freertos/semphr.h>
 #include "esp_task_wdt.h"
@@ -104,6 +105,52 @@ void audio_info(const char *info) {
             (unsigned)mb_arena_hwm());
     }
 #endif
+}
+
+// TASK-410 / ADR-059 D12: loopTask's handle, captured once in setup() (this
+// file has no g_loopTaskHandle of its own before TASK-410 — there was no
+// callback that needed to prove which task it ran on). Everything that must
+// only ever run on loopTask asserts against it, below.
+static TaskHandle_t g_loopTaskHandle = nullptr;
+
+// M-AUDIO-ENGINE-extraction.md §4: audio_eof_mp3 fires on the pump task, from
+// inside Audio::loop(), WITH THE ENGINE MUTEX HELD. It may therefore only set
+// a flag — opening the next track here would call connecttoFS() from the task
+// already holding the mutex it needs: self-deadlock. Weak-linked by
+// ESP32-audioI2S (Audio.h:77); resolved here now that AUDIO_NO_SD_FS is gone.
+static volatile bool s_aeEofPending = false;
+
+// TASK-410: separate from WebRadioApp's _spotifyYielded — aeConnectFile() has
+// no app instance to hold it. DUT finding: without yielding Spotify's TLS
+// session first, its held heap fragments enough that both the arena acquire
+// and the pump task's stack alloc fail on a normal boot (reproduced: arena
+// acquire FAIL->libc-fallback, xTaskCreatePinnedToCore rc=-1) — same
+// ~50KB-contiguous need _play() already documents below. Resumed in
+// aeDrainEof(), the natural "done playing" point for this single-file scope
+// (TASK-413 gets a real stop/teardown path).
+static bool s_aeSpotifyYielded = false;
+
+void audio_eof_mp3(const char *info) {
+    (void)info;
+    s_aeEofPending = true;
+}
+
+// Drains the eof flag. Callable ONLY from loopTask — it is the sole context
+// allowed to touch SD, the playlist model and the display (§4) — enforced,
+// not just documented, per ADR-059 D12.
+//
+// TASK-410 scope is a single hardcoded file, so there is no next track to
+// open yet; this just proves the hook fires without deadlocking (T_AE_10).
+// Auto-advance is TASK-413+'s job, landing inside this same drain point.
+static void aeDrainEof() {
+    configASSERT(xTaskGetCurrentTaskHandle() == g_loopTaskHandle);
+    if (!s_aeEofPending) return;
+    s_aeEofPending = false;
+    LOG_I("audioengine", "eof drained on loopTask (no auto-advance wired yet)");
+    if (s_aeSpotifyYielded) {
+        spotifyTask::tlsResume();
+        s_aeSpotifyYielded = false;
+    }
 }
 
 // ── Audio singleton ──────────────────────────────────────────────────────────
@@ -262,6 +309,12 @@ static volatile bool     s_wrPumpStopReq = false;
 enum class WrPumpRequest : uint8_t { NONE, CONNECT, ABORT, TEARDOWN };
 enum class WrPumpResult  : uint8_t { NONE, CONNECTED, FAILED, ABORTED, TORN_DOWN };
 
+// TASK-410: which connecttoXXX() the CONNECT branch below dials. Same ordering
+// argument as s_wrPumpConnectUrl — written by the poster (loopTask) strictly
+// before the CONNECT post, read by the pump only after observing that post.
+enum class WrConnectKind : uint8_t { URL, FILE };
+static volatile WrConnectKind s_wrPumpConnectKind = WrConnectKind::URL;
+
 static volatile WrPumpRequest s_wrPumpRequest = WrPumpRequest::NONE;  // written by loopTask, read/cleared by the pump task
 static volatile WrPumpResult  s_wrPumpResult  = WrPumpResult::NONE;   // written by the pump task, read/cleared by tick()'s poll
 // Connect target for a posted CONNECT request — written by _play() (loopTask)
@@ -370,7 +423,12 @@ static void wrPumpTaskBody(void*) {
 
             xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
             unsigned long tConnect = millis();
-            bool connectOk = s_wr_audio->connecttohost(s_wrPumpConnectUrl);
+            // TASK-410: FILE arm reads s_wrPumpConnectUrl as an SD path instead
+            // of a stream URL — same buffer, same write-before-post ordering,
+            // just a different connecttoXXX() call.
+            bool connectOk = (s_wrPumpConnectKind == WrConnectKind::FILE)
+                ? s_wr_audio->connecttoFS(SD, s_wrPumpConnectUrl)
+                : s_wr_audio->connecttohost(s_wrPumpConnectUrl);
             perf::record("wr.connect", millis() - tConnect);
 
             WrPumpRequest after = s_wrPumpRequest;  // may have changed DURING the connect
@@ -455,6 +513,12 @@ static void wrPumpTaskBody(void*) {
 // repeated calls after the first are no-ops. Call only AFTER mb_arena_acquire()
 // [DEV-2-3].
 static void wrEnsurePumpTask() {
+    // TASK-410: created here, not left to WebRadioApp::init() — a second
+    // caller (aeConnectFile(), no WebRadioApp involved) must be able to bring
+    // the engine up standalone. WebRadioApp's own init() still does the same
+    // idempotent check; the null-guard makes creating it twice harmless.
+    if (!s_wrAudioMutex) s_wrAudioMutex = xSemaphoreCreateMutex();
+    if (!s_wrPumpAckSem) s_wrPumpAckSem = xSemaphoreCreateBinary();
     if (s_wrPumpTask) return;
     s_wrPumpStopReq         = false;
     s_wrPumpCycles          = 0;
@@ -482,4 +546,37 @@ static void wrTeardownPumpTask() {
               (unsigned)WR_PUMP_ACK_TIMEOUT_MS);
     }
     s_wrPumpTask = nullptr;
+}
+
+// ── TASK-410: local-file source ──────────────────────────────────────────────
+// Minimal entry point — the engine bring-up subset of WebRadioApp::_play()
+// (arena acquire, Audio construction, pump task, mutex-guarded volume set,
+// post-CONNECT-and-poll) with none of WebRadio's station-list/WRPlayState
+// machinery, since there is no LocalPlayer app yet (TASK-413+). The caller
+// owns preconditions (SD mounted, path exists); connecttoFS() failing surfaces
+// as WrPumpResult::FAILED exactly like a dead stream URL — same poll path.
+static bool aeConnectFile(const char* path) {
+    if (!path || !*path) return false;
+    if (!s_aeSpotifyYielded) {
+        spotifyTask::tlsYield();
+        s_aeSpotifyYielded = true;
+    }
+#ifdef MEMBUDGET_PHASE1
+    mb_arena_acquire();  // idempotent; on FAIL -> libc fallback, same as _play()
+#endif
+    if (!s_wr_audio) {
+        s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
+        wrApplyInBufTrial(s_wr_audio);
+        wrApplyConnectTimeout(s_wr_audio);
+    }
+    wrEnsurePumpTask();  // idempotent; must run AFTER mb_arena_acquire() [DEV-2-3]
+
+    xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
+    wrAudio().setVolume(wrScaledVolume());
+    xSemaphoreGive(s_wrAudioMutex);
+
+    strlcpy(wrPumpConnectUrlBuf(), path, WR_PUMP_CONNECT_URL_LEN);
+    s_wrPumpConnectKind = WrConnectKind::FILE;
+    s_wrPumpRequest = WrPumpRequest::CONNECT;
+    return true;
 }
