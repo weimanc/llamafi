@@ -108,6 +108,7 @@ class Soak:
         self.d = dut
         self.play_secs = play_secs
         self.verbose = verbose
+        self.inject_url = None   # TASK-409: bypass a broken station-list fetch
         self.lfb = []            # lfbBefore at each acquire
         self.acquires = 0
         self.releases = 0
@@ -176,9 +177,17 @@ class Soak:
 
     def cycle(self, idx):
         self.cycles += 1
-        # play a station — arena acquires in _play()
+        # play a station — arena acquires in _play(). TASK-409: when the real
+        # station-list fetch is unavailable (radio-browser.info reachability —
+        # T_WR_TLS_01's concern, not this soak's), --inject-url substitutes a
+        # known-reachable direct stream via the same `set wrUrl` path T_AE_04
+        # uses, exercising the identical CONNECTING->PLAYING->arena-release
+        # cycle the real station list would.
         self.d.ser.reset_input_buffer()
-        self.d.ser.write(f"set wrPlay {idx}\n".encode())
+        if self.inject_url:
+            self.d.ser.write(f"set wrUrl {self.inject_url}\n".encode())
+        else:
+            self.d.ser.write(f"set wrPlay {idx}\n".encode())
         self.d.ser.flush()
         lines = self._read_for(6.0, want_substr="arena acquire=")
         self._scan_arena(lines)
@@ -304,6 +313,10 @@ def main():
     ap.add_argument("--minutes", type=float, default=10.0)
     ap.add_argument("--play-secs", type=int, default=20, help="seconds to hold each station")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--inject-url", default=None,
+                     help="TASK-409: bypass the real station-list fetch and cycle this URL "
+                          "via `set wrUrl` instead — for when radio-browser.info reachability "
+                          "(T_WR_TLS_01's concern) is blocking an otherwise-unrelated soak")
     args = ap.parse_args()
 
     print(f"[wr-soak] connecting {args.port} …", flush=True)
@@ -316,20 +329,27 @@ def main():
     dut.cmd(f"switchApp {APP_SLOT['WebRadio']}", timeout=3.0)
     time.sleep(1.0)
 
-    cnt = 0
-    deadline = time.monotonic() + 150
-    while time.monotonic() < deadline:
-        cnt = dut.cmd("get wrCount", timeout=3.0).get("count", 0) or 0
-        if cnt > 0:
-            break
-        time.sleep(2.0)
-    if cnt <= 0:
-        print("[wr-soak] FAIL: no stations loaded (check WiFi / radio-browser reachability)", flush=True)
-        sys.exit(1)
-    print(f"[wr-soak] {cnt} stations loaded — soaking {args.minutes} min "
-          f"({args.play_secs}s/station)…", flush=True)
+    if args.inject_url:
+        cnt = 1
+        print(f"[wr-soak] --inject-url set — bypassing station-list fetch, "
+              f"cycling {args.inject_url} for {args.minutes} min…", flush=True)
+    else:
+        cnt = 0
+        deadline = time.monotonic() + 150
+        while time.monotonic() < deadline:
+            cnt = dut.cmd("get wrCount", timeout=3.0).get("count", 0) or 0
+            if cnt > 0:
+                break
+            time.sleep(2.0)
+        if cnt <= 0:
+            print("[wr-soak] FAIL: no stations loaded (check WiFi / radio-browser reachability; "
+                  "or re-run with --inject-url to bypass the fetch)", flush=True)
+            sys.exit(1)
+        print(f"[wr-soak] {cnt} stations loaded — soaking {args.minutes} min "
+              f"({args.play_secs}s/station)…", flush=True)
 
     soak = Soak(dut, args.play_secs, args.verbose)
+    soak.inject_url = args.inject_url
     soak.dev_start = soak.arena_stats()   # TASK-292 baseline (None on old firmware)
     soak.host_start = time.monotonic()
     if soak.dev_start is None:

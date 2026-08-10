@@ -20,3 +20,6 @@ gen/wave_atlas.npy
 
 # Python bytecode.
 **/__pycache__/
+
+# Soak/probe scratch output — regenerated per run, not a committed artifact.
+tools/rnd_logs/
