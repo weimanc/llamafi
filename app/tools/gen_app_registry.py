@@ -35,18 +35,26 @@ def parse_registry(header_path: pathlib.Path) -> list[tuple[str, str, int, str]]
     return rows
 
 
+# TASK-413 / ADR-059 D7: the eject-only tail, in required order. Each is excluded
+# from the taskbar (no slot, no icon); commenting one out of appRegistry.h to
+# disable it at build time is fine, the check below tolerates a shorter tail.
+EJECT_ONLY_TAIL = ["WebRadio", "LocalPlayer"]
+
+
 def check_settings_pinned(rows: list) -> None:
-    """TASK-347: Settings must be the second-to-last row, directly before WebRadio
-    (WebRadio itself stays last per TASK-242). Insert new apps BEFORE Settings —
-    see docs/architecture/designs/M-APP-ORDER-settings-last.md."""
+    """TASK-347 (+ TASK-413 D7): Settings must be the last taskbar slot, directly
+    before the eject-only tail (WebRadio, then LocalPlayer — whichever of those are
+    present, in order). Insert new taskbar apps BEFORE Settings — see
+    docs/architecture/designs/M-APP-ORDER-settings-last.md."""
     names = [r[0] for r in rows]
-    if "Settings" not in names or "WebRadio" not in names:
+    tail = [n for n in EJECT_ONLY_TAIL if n in names]
+    if "Settings" not in names or not tail:
         return
-    if names[-1] != "WebRadio" or names[-2] != "Settings":
+    if names[-len(tail):] != tail or names[-len(tail) - 1] != "Settings":
         sys.exit(
-            "ERROR: Settings must be the last taskbar slot (directly before WebRadio, "
-            "which must remain the final registry row). Found order: "
-            f"...{names[-3:]!r}. See docs/architecture/designs/M-APP-ORDER-settings-last.md."
+            "ERROR: Settings must be the last taskbar slot, directly before the "
+            f"eject-only tail {tail!r}. Found order: "
+            f"...{names[-(len(tail) + 2):]!r}. See docs/architecture/designs/M-APP-ORDER-settings-last.md."
         )
 
 

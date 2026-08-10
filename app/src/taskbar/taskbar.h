@@ -25,16 +25,24 @@
 // per OQ1). Firmware-only constant, same golden-hash rule as TASKBAR_BUSY_COLOR.
 #define TASKBAR_PRESSED_BG 0x4208
 
-// TASK-242: number of apps the taskbar cycles through. WebRadio (the last AppId)
-// is entered ONLY via the Winamp eject button — it has NO taskbar slot
-// (M-WEBRADIO design §Eject button toggle). The taskbar must therefore iterate
-// the apps BEFORE WebRadio, not all AppId::COUNT, or WebRadio leaks into the
+// TASK-242 / TASK-413 (ADR-059 D7): number of apps the taskbar cycles through.
+// WebRadio and LocalPlayer are entered ONLY via the Winamp player-slot mode
+// (eject button / taskbar-icon cycle, M-WEBRADIO / M-PLAYER-STATE) — neither has
+// a taskbar slot. The taskbar must therefore iterate only the apps up to and
+// including Settings, not all AppId::COUNT, or an eject-only mode leaks into the
 // scroll cycle and (with no baked icon) crashes in pushImage(nullptr).
-static_assert((int)AppId::WebRadio == (int)AppId::COUNT - 1,
-              "WebRadio must remain the last AppId (eject-only, excluded from taskbar). "
-              "A new app added after it would re-leak it into the taskbar — see "
+//
+// Anchored to Settings (the last taskbar slot) rather than to the eject-only tail
+// itself, so this survives any number of eject-only tail modes — a literal
+// "COUNT - N" here would silently break the moment a third one is added, which is
+// the exact failure this invariant exists to prevent (ADR-059 D7, corrected
+// 2026-08-07: the original draft got this backwards).
+static constexpr int TASKBAR_APP_COUNT = (int)AppId::Settings + 1;
+
+static_assert((int)AppId::Settings + 1 == TASKBAR_APP_COUNT,
+              "Settings must remain the last taskbar slot; every AppId after it is "
+              "eject-only and must have no taskbar slot. See "
               "docs/architecture/designs/NEW-APP-CHECKLIST.md.");
-static constexpr int TASKBAR_APP_COUNT = (int)AppId::WebRadio;
 
 // TASK-347: Settings is a utility, not a destination app — pinned as the last
 // visible taskbar slot, i.e. the second-to-last registry row (directly before
@@ -54,18 +62,23 @@ static_assert(TASKBAR_ICON_COUNT == TASKBAR_APP_COUNT,
               "baked icon (add <app>.png + <app>_active.png and re-run run/bake-icons), "
               "or an eject-only app leaked into the taskbar. See NEW-APP-CHECKLIST.md.");
 
-// M-WEBRADIO-ICON: WebRadio shares the Spotify/player slot rather than owning a
-// taskbar slot of its own (TASKBAR_APP_COUNT above deliberately excludes it), so
-// callers pass currentAppId straight through and it may legitimately equal
-// AppId::WebRadio. Every entry point below remaps that to AppId::Spotify for
-// comparison/indexing, and separately signals webRadioSkin so the icon (but not
-// the busy/error/idle indicator colour) gets swapped for the orange->red
-// recoloured variant. Do NOT resolve this ahead of a renderTaskbar() call and
-// pass the resolved AppId down — renderTaskbarSlot needs the original value to
-// compute webRadioSkin itself.
+// M-WEBRADIO-ICON (+ TASK-413): WebRadio and LocalPlayer share the Spotify/player
+// slot rather than owning a taskbar slot of their own (TASKBAR_APP_COUNT above
+// deliberately excludes both), so callers pass currentAppId straight through and it
+// may legitimately equal AppId::WebRadio or AppId::LocalPlayer. Every entry point
+// below remaps either to AppId::Spotify for comparison/indexing — otherwise the
+// active-slot highlight addresses an AppId past TASKBAR_APP_COUNT and never matches
+// any real slot, leaving the taskbar with no highlight at all while in that mode.
+// webRadioSkin separately signals the icon (but not the busy/error/idle indicator
+// colour) to swap for the orange->red recoloured variant — LocalPlayer has no such
+// variant yet (no baked asset, TASK-413 is shell-logic-only) and renders the plain
+// active Spotify icon. Do NOT resolve this ahead of a renderTaskbar() call and pass
+// the resolved AppId down — renderTaskbarSlot needs the original value to compute
+// webRadioSkin itself.
 inline bool isWebRadioSkin(AppId activeApp) { return activeApp == AppId::WebRadio; }
 inline AppId resolveTaskbarSlotApp(AppId activeApp) {
-    return isWebRadioSkin(activeApp) ? AppId::Spotify : activeApp;
+    return (activeApp == AppId::WebRadio || activeApp == AppId::LocalPlayer)
+        ? AppId::Spotify : activeApp;
 }
 
 // Recolours orange-ish RGB565 pixels to red via an HSV hue rotation, leaving

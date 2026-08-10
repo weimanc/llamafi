@@ -1216,11 +1216,24 @@ def _restore_spotify(dut: Dut, timeout: float = 3.0) -> bool:
     mode. Force playerMode=spotify first so the tap is guaranteed to land on Spotify
     regardless of what a prior test left persisted (previously masked by the bug this
     task fixed: cmdTap used to always land on Spotify no matter the persisted mode).
+
+    TASK-413: tapping the player slot while a player-mode app (Spotify/WebRadio/
+    LocalPlayer) is ALREADY active now CYCLES instead of restoring (resolvePlayerTap,
+    ADR-059 D6). So when currentAppId is WebRadio or LocalPlayer, setting
+    playerMode=spotify and tapping no longer lands on Spotify — it cycles away from
+    whatever `set playerMode spotify` just wrote. Step off to a non-player app
+    (Clock) first so the follow-up tap takes the restore path, not the cycle path.
     """
     import time
     r = dut.cmd("get appId", timeout=timeout)
     if r.get("name") == "Spotify":
         return True
+    if r.get("name") in ("WebRadio", "LocalPlayer"):
+        _tb_set_offset(dut, 0)
+        dut.set_cooldown_zero()
+        cx, cy = _c.tap_taskbar_slot(APP_SLOT["Clock"])
+        dut.cmd(f"tap {cx} {cy}", timeout=timeout)
+        time.sleep(0.2)
     dut.cmd("set playerMode spotify", timeout=timeout)
     _tb_set_offset(dut, 0)
     dut.set_cooldown_zero()
@@ -4519,7 +4532,14 @@ def t242(dut: Dut):
             fail("T242", f"DUT unresponsive at scrollOffset={target} — taskbar render crash")
             return
     # Tap the top slot at a few offsets; the selected app must never be WebRadio.
-    for target in (0, _TB_N // 2, _TB_N - 1):
+    # TASK-413: offset 0 IS the player slot (appIdx == AppId::Spotify) — tapping it
+    # while the player is already active now deliberately cycles Spotify -> WebRadio
+    # -> Player (ADR-059 D6, resolvePlayerTap), which is a different mechanism from
+    # "WebRadio leaked into the ordinary scroll rotation" this test guards against.
+    # That cycle behaviour is T_PLR_01's job; skip offset 0 here so this test keeps
+    # checking only the genuine leak class — a taskbar slot that ISN'T the player
+    # slot must never resolve to WebRadio/LocalPlayer.
+    for target in (_TB_N // 2, _TB_N - 1):
         _tb_set_offset(dut, target)
         dut.set_cooldown_zero()
         x, y = _c.tap_taskbar_slot(0)         # top visible slot → appIdx=target
@@ -4723,6 +4743,148 @@ def t_tbfb_05(dut: Dut):
         fail("T_TBFB_05", f"shellCooldown={rem_after}ms right after injected taskbar release — expected (0, 300]")
         return
     pass_("T_TBFB_05", f"decayed: 0ms; armed by injected release: {rem_after}ms (≤300)")
+
+
+# ── T_PLR_01–05 — M-PLAYER-STATE three-way mode (TASK-413 / ADR-059 D6/D7) ─────
+# PlayerMode widens Spotify=0/WebRadio=1 to +Player=2. Cycling moves off eject
+# onto the taskbar Winamp icon: tap the player slot while it's already active ->
+# cycle + persist (resolvePlayerTap, ADR-059 D6 amendment); tap it from another
+# app -> restore the persisted mode (resolvePlayerSlot, unchanged). Player has no
+# taskbar slot of its own (eject-only tail, same as WebRadio).
+
+def t_plr_01(dut: Dut):
+    """T_PLR_01: taskbar tap on the active player slot cycles Spotify -> WebRadio ->
+    Player -> Spotify -> WebRadio (x4 taps from Spotify)."""
+    print("T_PLR_01  Taskbar tap cycles the mode Spotify->WebRadio->Player->Spotify->WebRadio")
+    dut.cmd("set playerMode spotify", timeout=3.0)
+    if not _restore_spotify(dut):
+        skip("T_PLR_01", "precondition: could not restore Spotify")
+        return
+    dut.set_cooldown_zero()
+    sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
+    expected = ["WebRadio", "LocalPlayer", "Spotify", "WebRadio"]
+    got = []
+    for _ in expected:
+        dut.set_cooldown_zero()
+        dut.cmd(f"tap {sx} {sy}", timeout=5.0)
+        time.sleep(0.3)
+        got.append(dut.cmd("get appId", timeout=3.0).get("name"))
+    dut.cmd("set playerMode spotify", timeout=3.0)
+    _restore_spotify(dut)
+    if got != expected:
+        fail("T_PLR_01", f"cycle sequence={got} — expected {expected}")
+        return
+    pass_("T_PLR_01", f"cycle Spotify->{'->'.join(got)} confirmed (x4 taps)")
+
+
+def t_plr_02(dut: Dut):
+    """T_PLR_02: playerMode persists across reboot — set each of the 3 modes,
+    reboot, and check the persisted `set` echo round-trips (no live reboot here;
+    the boot-restore path itself is covered by manual DUT verification per
+    TASK-413's gate notes — this asserts the persisted-value contract the boot
+    code reads from is correct for all 3 values)."""
+    print("T_PLR_02  set/get playerMode round-trips all 3 values (persistence contract)")
+    r_pm0 = dut.cmd("get playerMode", timeout=3.0)
+    ok = True
+    results = {}
+    for name, val in (("spotify", 0), ("webradio", 1), ("player", 2)):
+        r_set = dut.cmd(f"set playerMode {name}", timeout=3.0)
+        r_get = dut.cmd("get playerMode", timeout=3.0)
+        results[name] = (r_set.get("val"), r_get.get("val"), r_get.get("name"))
+        if r_set.get("val") != val or r_get.get("val") != val:
+            ok = False
+    dut.cmd(f"set playerMode {r_pm0.get('val', 0)}", timeout=3.0)
+    if not ok:
+        fail("T_PLR_02", f"round-trip mismatch: {results}")
+        return
+    pass_("T_PLR_02", f"all 3 modes round-tripped: {results}")
+
+
+def t_plr_03(dut: Dut):
+    """T_PLR_03: taskbar has no leaked slot for WebRadio or LocalPlayer — full
+    scroll cycle stays responsive and neither eject-only app is ever selected
+    by a taskbar tap (TASK-242 regression, generalised to the wider tail)."""
+    print("T_PLR_03  Taskbar excludes WebRadio AND LocalPlayer (full scroll cycle, no crash)")
+    if not _tb_precondition(dut, "T_PLR_03"):
+        return
+    for off in range(_TB_N + 1):
+        target = off % _TB_N
+        if not _tb_set_offset(dut, target):
+            fail("T_PLR_03", f"could not reach scrollOffset={target} (DUT crash/reboot?)")
+            return
+        if not dut.cmd("get appId", timeout=3.0).get("name"):
+            fail("T_PLR_03", f"DUT unresponsive at scrollOffset={target} — taskbar render crash")
+            return
+    # Offset 0 IS the player slot (appIdx == AppId::Spotify) — tapping it while the
+    # player is already active deliberately cycles now (ADR-059 D6, resolvePlayerTap;
+    # covered by T_PLR_01), so it's excluded here: this check is only for the genuine
+    # leak class — a taskbar slot that ISN'T the player slot must never resolve to
+    # WebRadio/LocalPlayer.
+    for target in (_TB_N // 2, _TB_N - 1):
+        _tb_set_offset(dut, target)
+        dut.set_cooldown_zero()
+        x, y = _c.tap_taskbar_slot(0)
+        dut.cmd(f"tap {x} {y}", timeout=5.0)
+        name = dut.cmd("get appId", timeout=3.0).get("name")
+        if name in ("WebRadio", "LocalPlayer"):
+            fail("T_PLR_03", f"taskbar tap at offset {target} selected {name} — must be eject-only")
+            return
+    _restore_spotify(dut)
+    pass_("T_PLR_03", f"full scroll cycle ({_TB_N} offsets) — no crash; WebRadio/LocalPlayer never a taskbar slot")
+
+
+def t_plr_04(dut: Dut):
+    """T_PLR_04: get/set playerMode round-trip all three values by name and by
+    numeric index (§6.1 debug-surface widening — the pre-TASK-413 getter
+    collapsed Player(2) to WebRadio(1) and the setter rejected idx>1)."""
+    print("T_PLR_04  get/set playerMode round-trips all three values, name+numeric")
+    r_pm0 = dut.cmd("get playerMode", timeout=3.0)
+    cases = [("spotify", 0, "Spotify"), ("1", 1, "WebRadio"), ("player", 2, "Player")]
+    mismatches = []
+    for val_in, expect_val, expect_name in cases:
+        dut.cmd(f"set playerMode {val_in}", timeout=3.0)
+        r = dut.cmd("get playerMode", timeout=3.0)
+        if r.get("val") != expect_val or r.get("name") != expect_name:
+            mismatches.append((val_in, r.get("val"), r.get("name")))
+    r_bad = dut.cmd("set playerMode 3", timeout=3.0)
+    dut.cmd(f"set playerMode {r_pm0.get('val', 0)}", timeout=3.0)
+    if mismatches:
+        fail("T_PLR_04", f"round-trip mismatches: {mismatches}")
+        return
+    if r_bad.get("ok", True):
+        fail("T_PLR_04", f"set playerMode 3 (out of range) was accepted: {r_bad}")
+        return
+    pass_("T_PLR_04", "spotify/webradio(1)/player all round-trip; out-of-range idx=3 rejected")
+
+
+def t_plr_05(dut: Dut):
+    """T_PLR_05: tapping the player slot from ANOTHER app restores the persisted
+    mode (resolvePlayerSlot, unchanged), it does not cycle."""
+    print("T_PLR_05  Tap from another app restores the persisted mode, does not cycle")
+    r_pm0 = dut.cmd("get playerMode", timeout=3.0)
+    if not _switch_to(dut, "Clock"):
+        skip("T_PLR_05", "precondition: could not switch to Clock")
+        return
+    dut.cmd("set playerMode player", timeout=3.0)
+    dut.set_cooldown_zero()
+    sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
+    dut.cmd(f"tap {sx} {sy}", timeout=5.0)
+    time.sleep(0.3)
+    name1 = dut.cmd("get appId", timeout=3.0).get("name")
+    # A second tap, now that the player IS active, should cycle away from Player.
+    dut.set_cooldown_zero()
+    dut.cmd(f"tap {sx} {sy}", timeout=5.0)
+    time.sleep(0.3)
+    name2 = dut.cmd("get appId", timeout=3.0).get("name")
+    dut.cmd(f"set playerMode {r_pm0.get('val', 0)}", timeout=3.0)
+    _restore_spotify(dut)
+    if name1 != "LocalPlayer":
+        fail("T_PLR_05", f"restore tap landed on {name1!r} — expected LocalPlayer (persisted mode)")
+        return
+    if name2 != "Spotify":
+        fail("T_PLR_05", f"cycle tap from active Player landed on {name2!r} — expected Spotify")
+        return
+    pass_("T_PLR_05", f"restore->LocalPlayer, then cycle->Spotify — restore-vs-cycle distinction confirmed")
 
 
 # ── stock-002 suite (TASK-120) ────────────────────────────────────────────────
@@ -8042,6 +8204,12 @@ ALL_TESTS = {
     "T158": t158,
     "T159": t159,
     "T160": t160,
+    # M-PLAYER-STATE three-way mode (TASK-413 / ADR-059 D6/D7)
+    "T_PLR_01": t_plr_01,
+    "T_PLR_02": t_plr_02,
+    "T_PLR_03": t_plr_03,
+    "T_PLR_04": t_plr_04,
+    "T_PLR_05": t_plr_05,
     # velocity-scroll-001 WebRadio variant (TASK-412 / T_PLE_08)
     "T_PLE_WR_155": t_ple_wr_155,
     "T_PLE_WR_156": t_ple_wr_156,

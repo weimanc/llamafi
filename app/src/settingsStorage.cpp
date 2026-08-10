@@ -280,11 +280,11 @@ void SettingsStorage::load() {
         if (ck.containsKey("vfdTheme"))   g_settings.vfdTheme   = (uint8_t)(ck["vfdTheme"]   | 0) % 4;
     }
 
-    // Player slot (M-PLAYER-STATE / TASK-260): top-level object — the mode spans both
-    // Spotify and WebRadio, so it is not nested under "webRadio". Clamp to {0,1}.
+    // Player slot (M-PLAYER-STATE / TASK-260, widened TASK-413): top-level object — the
+    // mode spans Spotify/WebRadio/Player, so it is not nested under "webRadio". Clamp to {0,1,2}.
     if (doc.containsKey("player")) {
         uint8_t pm = doc["player"]["mode"] | 0;
-        g_settings.playerMode = (pm > (uint8_t)PlayerMode::WebRadio) ? (uint8_t)PlayerMode::Spotify : pm;
+        g_settings.playerMode = (pm > (uint8_t)PlayerMode::Player) ? (uint8_t)PlayerMode::Spotify : pm;
     }
 
     // Teletext

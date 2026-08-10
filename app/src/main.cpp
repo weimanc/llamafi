@@ -156,12 +156,14 @@ char clientSecret[200];
 
 AppId currentAppId = AppId::Spotify;
 static AppId g_previousAppId = AppId::Spotify;
-// TASK-259/260: the "player" is one slot with two modes {Spotify | WebRadio}. Eject
-// toggles the mode; returning to the player from the taskbar restores the last-active
-// one instead of always landing on Spotify. The mode is the persisted single source of
-// truth g_settings.playerMode (TASK-260) — written by the eject toggles + Settings UI,
-// read by resolvePlayerSlot. v2 boot (OQ-BOOT): cold-boot enters the persisted mode (see
-// the boot-into-mode redirect at the end of setup()); auto-play is the webRadioAutoplay knob.
+// TASK-259/260/413: the "player" is one slot with three modes {Spotify | WebRadio |
+// Player}. Tapping the taskbar icon while the player is already active cycles the
+// mode and persists (resolvePlayerTap); returning to the player from another app
+// restores the last-active one instead of always landing on Spotify. The mode is the
+// persisted single source of truth g_settings.playerMode (TASK-260) — written by the
+// eject toggles + taskbar cycle + Settings UI, read by resolvePlayerSlot. v2 boot
+// (OQ-BOOT): cold-boot enters the persisted mode (see the boot-into-mode redirect at
+// the end of setup()); auto-play is the webRadioAutoplay knob (WebRadio only).
 
 #ifdef TOUCH_DEBUG_OVERLAY
 #include "debug/touchDebugOverlay.h"
@@ -1896,6 +1898,9 @@ static bool planeRadarDbgSet(const char* v, const char* val) { return g_PlaneRad
 static WebRadioApp g_WebRadioApp;
 static bool webRadioDbgGet(const char* v, char* b, int l) { return g_WebRadioApp.dbgGet(v, b, l); }
 static bool webRadioDbgSet(const char* v, const char* val) { return g_WebRadioApp.dbgSet(v, val); }
+
+#include "localPlayerApp.h"
+static LocalPlayerApp g_LocalPlayerApp;   // TASK-413: placeholder, real UI is TASK-415+
 #endif
 
 #ifdef SERIAL_DEBUG
@@ -1948,14 +1953,26 @@ void setBusy(bool busy) {
 }
 }
 
-// TASK-259/260: the taskbar "player" slot (AppId::Spotify) restores whichever player
-// mode (Spotify | WebRadio) was last active — read from the persisted setting. WebRadio
-// is eject-only / excluded from the taskbar, so a taskbar tap only ever surfaces
-// AppId::Spotify here; we redirect to WebRadio when that's the persisted mode.
+// TASK-413 / ADR-059 D6: the three player-mode AppIds, and the reverse lookup.
+static inline AppId appIdForPlayerMode(uint8_t mode) {
+  switch ((PlayerMode)mode) {
+    case PlayerMode::WebRadio: return AppId::WebRadio;
+    case PlayerMode::Player:   return AppId::LocalPlayer;
+    default:                   return AppId::Spotify;
+  }
+}
+static inline bool isPlayerModeApp(AppId id) {
+  return id == AppId::Spotify || id == AppId::WebRadio || id == AppId::LocalPlayer;
+}
+
+// TASK-259/260/413: the taskbar "player" slot (AppId::Spotify) restores whichever
+// player mode (Spotify | WebRadio | Player) was last active — read from the
+// persisted setting. WebRadio/LocalPlayer are eject-only / excluded from the
+// taskbar, so a taskbar tap only ever surfaces AppId::Spotify here; we redirect to
+// the persisted mode's app.
 static AppId resolvePlayerSlot(AppId tapped) {
   if (tapped != AppId::Spotify) return tapped;
-  return (g_settings.playerMode == (uint8_t)PlayerMode::WebRadio) ? AppId::WebRadio
-                                                                  : AppId::Spotify;
+  return appIdForPlayerMode(g_settings.playerMode);
 }
 
 // TASK-260 §4: persist the player mode, immediate-save with an unchanged-value skip
@@ -1965,6 +1982,22 @@ void persistPlayerMode(uint8_t mode) {
   if (g_settings.playerMode == mode) return;   // unchanged-value skip
   g_settings.playerMode = mode;
   SettingsStorage::save();
+}
+
+// TASK-413 / ADR-059 D6 (amended DEV-1): the player slot's taskbar tap has a
+// second meaning no other slot has — restore the persisted mode when tapped from
+// another app, but CYCLE (Spotify -> WebRadio -> Player -> Spotify) and persist
+// when tapped while the player is already active. switchApp() early-returns on
+// same-app, and the two dispatch sites that can land a tap on this slot
+// (shellTbRelease() below, and cmdTap()'s SERIAL_DEBUG "tap" injection) guard
+// same-app differently — so this decision lives in ONE shared helper called from
+// both, not duplicated into either. Non-player-slot taps pass through unchanged.
+static AppId resolvePlayerTap(AppId tapped, bool playerAlreadyActive) {
+  if (tapped != AppId::Spotify) return tapped;
+  if (!playerAlreadyActive) return resolvePlayerSlot(tapped);
+  uint8_t next = (g_settings.playerMode + 1) % 3;
+  persistPlayerMode(next);
+  return appIdForPlayerMode(next);
 }
 
 // ── Taskbar tap feedback (M-TASKBAR-FEEDBACK / TASK-279) ──────────────────
@@ -2027,7 +2060,9 @@ static void shellTbRelease(int releaseY) {
   int appIdx = (int)currentAppId;
   if (winampDisplay.tbGestureEnd(releaseY, TASKBAR_APP_COUNT, &appIdx)) {
     if (pressedApp >= 0) appIdx = pressedApp;  // press-anchored commit [DEV-3-2]
-    AppId target = resolvePlayerSlot(static_cast<AppId>(appIdx));  // TASK-259
+    // TASK-413: cycle when the player slot is tapped while already active, restore
+    // otherwise — resolvePlayerTap() owns both decisions (ADR-059 D6).
+    AppId target = resolvePlayerTap(static_cast<AppId>(appIdx), isPlayerModeApp(currentAppId));
     if (target != currentAppId) {
       s_tbPressedSlot = -1;
       s_tbPressedApp  = -1;
@@ -2751,6 +2786,12 @@ void setup()
   else if (bootIntoWebRadio) {
     switchApp(AppId::WebRadio);
   }
+  // TASK-413: LocalPlayer has no network dependency (SD-backed), so unlike WebRadio
+  // its boot restore isn't gated on wifiConnected — it only needs the offline/no-creds
+  // Settings branch above to have not already claimed the boot screen.
+  else if (g_settings.playerMode == (uint8_t)PlayerMode::Player) {
+    switchApp(AppId::LocalPlayer);
+  }
   mb_heap_probe("post-init-idle");    // TASK-261 Phase 0 milestone M4 (steady idle)
   buildMathLUT();
 
@@ -2988,10 +3029,10 @@ static void cmdTap(const char *args) {
   if (x >= TASKBAR_X) {
     int slot   = (int)y / TASKBAR_SLOT_H;
     int appIdx = (winampDisplay.tbScrollOffset() + slot) % TASKBAR_APP_COUNT;
-    // TASK-280: route through the production resolve path — a tap on the player
-    // slot must redirect to WebRadio when that's the persisted mode, same as
-    // shellTbRelease()/switchApp() do for real taps and injected drags.
-    AppId target = resolvePlayerSlot(static_cast<AppId>(appIdx));
+    // TASK-280/413: route through the production resolve path — a tap on the
+    // player slot must restore the persisted mode, or cycle it if already active,
+    // same as shellTbRelease()/switchApp() do for real taps and injected drags.
+    AppId target = resolvePlayerTap(static_cast<AppId>(appIdx), isPlayerModeApp(currentAppId));
     switchApp(target);
     winampDisplay.lastTouchResult = { "TASKBAR", -1, "APP_SWITCH", 0, -1, false };
     Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
@@ -3585,11 +3626,13 @@ static void cmdGet(const char *args) {
                   "\"val\":\"%s\",\"last\":true}\n", g_ClockApp.dbgLastAction());
     return;
   }
-  if (strcmp(args, "playerMode") == 0) {   // TASK-260 (VE: agent-driven persist/settings tests)
-    uint8_t pm = g_settings.playerMode ? 1 : 0;
+  if (strcmp(args, "playerMode") == 0) {   // TASK-260/413 (VE: agent-driven persist/settings tests)
+    static const char* kPmNames[] = { "Spotify", "WebRadio", "Player" };
+    uint8_t pm = g_settings.playerMode;   // true value — §6.1: no longer collapsed to a bool
+    const char* name = (pm < 3) ? kPmNames[pm] : "unknown";
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"playerMode\","
                   "\"val\":%d,\"name\":\"%s\",\"last\":true}\n",
-                  pm, pm ? "WebRadio" : "Spotify");
+                  pm, name);
     return;
   }
   if (strcmp(args, "kb") == 0) {
@@ -4140,14 +4183,16 @@ static void cmdSet(const char *args) {
                   var, idx, names[idx]);
     return;
   }
-  if (strcmp(var, "playerMode") == 0) {   // TASK-260 (VE: agent-driven persist/boot tests)
+  if (strcmp(var, "playerMode") == 0) {   // TASK-260/413 (VE: agent-driven persist/boot tests)
+    static const char* kPmNames[] = { "Spotify", "WebRadio", "Player" };
     int idx = -1;
     if      (strcasecmp(val, "spotify")  == 0) idx = 0;
     else if (strcasecmp(val, "webradio") == 0) idx = 1;
-    else if (sscanf(val, "%d", &idx) != 1 || idx < 0 || idx > 1) idx = -1;
+    else if (strcasecmp(val, "player")   == 0) idx = 2;
+    else if (sscanf(val, "%d", &idx) != 1 || idx < 0 || idx > 2) idx = -1;
     if (idx < 0) {
       Serial.printf("{\"ok\":false,\"cmd\":\"set\","
-                    "\"error\":\"bad val — use 0/1 or spotify/webradio\"}\n");
+                    "\"error\":\"bad val — use 0-2 or spotify/webradio/player\"}\n");
       return;
     }
     // Pure persist (no app switch): sets + saves the mode so a reboot exercises the v2
@@ -4155,7 +4200,7 @@ static void cmdSet(const char *args) {
     persistPlayerMode((uint8_t)idx);
     Serial.printf("{\"ok\":true,\"cmd\":\"set\","
                   "\"var\":\"playerMode\",\"val\":%d,\"name\":\"%s\"}\n",
-                  idx, idx ? "WebRadio" : "Spotify");
+                  idx, kPmNames[idx]);
     return;
   }
   if (strcmp(var, "prloc") == 0) {

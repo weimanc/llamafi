@@ -6558,9 +6558,24 @@ unwidened it would log confident wrong data for the very bug it exists to catch.
 
 **Owner:** Developer · **Deps:** TASK-410, TASK-412 · **Gate:** `T_PLR_01`–`05`; `T_PLR_03` is the
 TASK-242 regression check, `T_PLR_04` requires `get`/`set playerMode` to round-trip all three
-values · **Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07 (D6/D7). Related:
+values · **Priority:** P2 · **Status:** **DONE** — ADR-059 D6/D7 implemented 2026-08-10. Related:
 TASK-407 (OPEN, passive) tracks an unexplained flip of this exact field — does **not** block, but
 see TASK-422's `T_PLR_36`.
+
+**DUT gate result (2026-08-10):** `T_PLR_01`–`05` all PASS, plus regression rerun of `T242`/`T162`/
+`T_TBFB_03` (8/8 PASS) to confirm the existing taskbar/player-slot suite survives the cycling change.
+`AppId::LocalPlayer` lands as a minimal placeholder App (`app/src/localPlayerApp.h`) — reachable via
+mode cycling/reboot-restore, no crash — the real file-browser/M3U UI is TASK-415+. Found and fixed
+along the way: (1) `resolvePlayerTap()` — the taskbar tap on the player slot now cycles when already
+active, restores otherwise, called from both `shellTbRelease()` and `cmdTap()`'s SERIAL_DEBUG
+injection (ADR-059 D6 amendment); (2) the taskbar's `isWebRadioSkin`/`resolveTaskbarSlotApp` remap
+had to be widened to LocalPlayer too, or the active-slot highlight would address an AppId past
+`TASKBAR_APP_COUNT` and show no highlight at all while in Player mode; (3) the harness's
+`_restore_spotify()` test helper broke under the new cycling semantics (tapping the player slot from
+an already-active WebRadio/LocalPlayer no longer unconditionally lands on Spotify) — fixed to step
+off to Clock first; (4) `T242`'s and the new `T_PLR_03`'s "WebRadio never a taskbar slot" tap-check
+had to skip offset 0 (the player's own slot), since tapping it while active is now *supposed* to
+cycle — that's not the TASK-242 leak class, it's D6 working as designed.
 
 ### TASK-414 — eject remap: "load media from this source"
 

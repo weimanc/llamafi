@@ -25,3 +25,7 @@ APP_X( Teletext,  'T',   1, "Teletext" )
 APP_X( PlaneRadar,'P',   1, "PlaneRadar" )
 APP_X( Settings,  '=',   0, "Settings" )
 APP_X( WebRadio,  'R',   1, "WebRadio" )
+// LocalPlayer (TASK-413): eject-only, same tail as WebRadio — no taskbar slot, no own
+// Settings > Applications row (cfg=0). Shares the player slot's "Mode" row instead
+// (AppId::Spotify's _cyclePlayer in settings/appsSection.h).
+APP_X( LocalPlayer,'L',   0, "Player" )
