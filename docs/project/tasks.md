@@ -6552,3 +6552,67 @@ Close-out: complete the reserved `feature_inventory.yaml` entries and X050–X06
 not null-app-crash, and it is only reproducible over *existing* settings: **a clean flash will not
 catch it** (X064). `T_PLR_39` is ≥30 min playback **with concurrent browsing and scrolling**, not
 idle playback · **Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07 (D10).
+
+---
+
+## Closed — TASK-426 (2026-08-10, filed from a DUT "no network" investigation)
+
+### TASK-426 — supervisor replays a dead SSID forever after a failed boot cascade
+
+Filed and fixed in the same session. Reported as "the DUT is off the network"; two earlier passes
+attributed it to the AP being down, then to DNS. Both are **downstream symptoms** — with no
+association there is no DNS, and `hostByName(): DNS Failed` + `errno=9` on every fetcher is what
+that looks like. Recording the real cause here because the misattribution is the expensive part.
+
+**Root cause.** `WiFiSTAClass::begin()` — the *no-arg* overload — is
+`esp_wifi_get_config() → esp_wifi_set_config() → esp_wifi_connect()`. It reuses whatever STA config
+is already resident and never reloads NVS or the saved list. Three things call it: the WiFiGeneric
+auto-reconnect handler (~2.44 s), `wifiDiag::superviseTick()` (30 s), and the boot NVS stage. The
+boot cascade (`main.cpp:2431`) leaves **whichever candidate it tried last** resident. When that last
+candidate is a dead SSID — here `<home-ssid>`, whose AP had been renamed back to plain
+`<home-ssid>` on ch 3 — every subsequent kick re-attacks the dead SSID and the live AP is never
+retried. Reboot-only recovery, with the real AP sitting at **−58 dBm**.
+
+`NO_AP_FOUND` was accurate the whole time: it was reported for the SSID actually being requested,
+which was not the one the operator had configured. An intermediate conclusion in-session that "the
+driver is lying" was wrong and is withdrawn — at that moment the resident config happened to hold
+the good SSID, so the comparison was against the wrong thing. **Read `get wifiCfg` and the scan in
+the same breath, or the scan means nothing.**
+
+**Evidence (A/B, same firmware, same AP, same failing boot).** Dead entry present → 9+ supervisor
+kicks over 5+ min, zero recovery. Dead entry removed → kick #1 reconnected in **225 ms**.
+
+**Refuted along the way** (do not re-run): the TASK-404 collision/silent-no-op variant (no
+`connect failed! 0x…` is ever logged, so `esp_wifi_connect()` returned OK); stale channel/BSSID pin,
+RSSI and authmode thresholds, PMF, WPA3, wrong credentials (all refuted by `get wifiCfg`:
+`bssid_set=0 ch=3 thr_rssi=-127 thr_auth=3 pmf_r=0 pwlen=25`); RF or power marginality (the DUT's own
+scan saw 9 APs with the target at −58 dBm *while wedged*).
+
+**Fix** (`d19bcff`). The supervisor takes a registered candidate list and connects with an explicit
+ssid+pass per kick, **rotating one step each kick** — replacing the resident config instead of
+replaying it, so one dead entry costs one kick rather than every kick. With no candidates registered
+it falls back to the historic bare `begin()`, leaving no-credentials and NVS-connected boots
+unchanged. `main.cpp` additionally re-points at the MRU candidate on cascade failure so the ~60 s
+before the first kick is not spent on the last-tried AP. Costs ~582 B static; mem-budget gate passes.
+`[wifi-sup]` stays a stable grep contract — `ssid`/`cand` are appended, never substituted.
+
+**Tooling** (`0d35696`, all `SERIAL_DEBUG`-gated; prod answers `unknown command`). `get wifiCfg`
+dumps the STA config and is what cracked this. `get wifiScan` now prints `own=` plus every scan row —
+the stock `matches:[]` form is ambiguous, because an unassociated STA has an empty `own`, so "AP
+absent" and "filter matched nothing" print identically. `set wifiKick 1` quiesces then does exactly
+one `begin()`; both its waits feed the TWDT per TASK-288, without which it panic-reset the board and
+the reset masqueraded as a recovery.
+
+**Owner:** Developer · **Deps:** none · **Gate:** met — forced-failure boot (NVS erased, three
+unreachable SSIDs) rotated `kick=1 gamma cand=1/3 → kick=2 alpha 2/3 → kick=3 beta 3/3`, where the
+old code would replay candidate 3 forever; and a real failed-cascade boot recovered via
+`kick=1 ssid="<home-ssid>" cand=1/1` → `STA_GOT_IP` **609 ms** later. `./run/check` 6/6 ·
+**Priority:** P1 (silent permanent loss of network on a headless device) · **Status:** DONE
+(2026-08-10), commits `0d35696` + `d19bcff`.
+
+> Two smaller things left open, both now cosmetic since recovery works. **The NVS stage interferes
+> with the cascade behind it:** with NVS holding the dead SSID, candidate 1 (the live AP) failed
+> ~2.7 s in; with NVS erased it connects in ~1 s. The 300 ms settle at `main.cpp:2350` is likely too
+> short to outlast an in-flight ~2.4 s NO_AP_FOUND scan. **Nothing evicts saved networks that
+> repeatedly `NO_AP_FOUND`** — a stale entry stays in the list forever, costing a 10 s boot window
+> each time and, before this fix, wedging the device outright.
