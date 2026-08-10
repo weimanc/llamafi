@@ -40,6 +40,26 @@ extern volatile uint32_t superviseKicks;   // re-kicks issued since boot
 void superviseTick();
 void superviseArm();   // TASK-296: arm without a GOT_IP (creds known, boot connect failed)
 
+// TASK-426: candidate list for the supervisor's kicks.
+//
+// A kick used to be a bare WiFi.begin(). That overload is `get_config →
+// set_config → connect` — it reuses whatever STA config is already resident
+// and never reloads NVS or the saved list. The boot cascade leaves the LAST
+// candidate it tried resident, so when that candidate is a dead SSID (a saved
+// network whose AP is gone) every kick re-attacks the dead SSID forever and
+// the live AP is never retried — reboot-only recovery even at -58 dBm.
+// Observed 2026-08-09: 9+ kicks over 5 min, zero recovery; with the dead entry
+// removed the very first kick reconnected in 225 ms.
+//
+// Registering candidates makes each kick target a real SSID explicitly and
+// rotate on to the next one, so no single dead entry can wedge recovery.
+// Registration is optional: with none registered the kick falls back to the
+// historic bare WiFi.begin().
+static constexpr uint8_t kSupMaxCandidates = 6;   // WIFI_MAX_SAVED(5) + /wifi_creds.json
+void superviseClearCandidates();
+bool superviseAddCandidate(const char* ssid, const char* pass);  // false if full/invalid
+uint8_t superviseCandidateCount();
+
 #ifdef SERIAL_DEBUG
 // TASK-282 (M-WIFI-DIAG Phase 2): frame-level instruments for the H-A/H-C split
 // the Phase-1 reason codes can't make (BEACON_TIMEOUT is ambiguous — design §5).

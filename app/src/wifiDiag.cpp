@@ -98,6 +98,25 @@ static bool     s_supBootArmed  = false;
 
 void superviseArm() { s_supBootArmed = true; }
 
+// TASK-426: candidate rotation. See wifiDiag.h for why a bare WiFi.begin()
+// kick cannot escape a dead resident config.
+static char    s_candSsid[kSupMaxCandidates][33] = {};
+static char    s_candPass[kSupMaxCandidates][64] = {};
+static uint8_t s_candCount = 0;
+static uint8_t s_candNext  = 0;   // rotates one step per kick
+
+void superviseClearCandidates() { s_candCount = 0; s_candNext = 0; }
+
+uint8_t superviseCandidateCount() { return s_candCount; }
+
+bool superviseAddCandidate(const char* ssid, const char* pass) {
+    if (!ssid || !ssid[0] || s_candCount >= kSupMaxCandidates) return false;
+    snprintf(s_candSsid[s_candCount], sizeof(s_candSsid[0]), "%s", ssid);
+    snprintf(s_candPass[s_candCount], sizeof(s_candPass[0]), "%s", pass ? pass : "");
+    s_candCount++;
+    return true;
+}
+
 void superviseTick() {
     // Armed after the first GOT_IP this boot, or via superviseArm() when boot
     // had stored credentials but its connect windows all expired before any
@@ -107,6 +126,7 @@ void superviseTick() {
     if (lastGotIpMs == 0 && !s_supBootArmed) return;
     if (WiFi.status() == WL_CONNECTED) {
         s_supDownSince = s_supLastKickMs = 0;   // next outage gets a fresh budget
+        s_candNext     = 0;                     // TASK-426: retry best-first next time
         return;
     }
 
@@ -122,15 +142,33 @@ void superviseTick() {
     s_supLastKickMs = now;
     superviseKicks  = superviseKicks + 1;
 
-    char buf[80];
-    snprintf(buf, sizeof(buf), "[wifi-sup] t=%lu kick=%lu downMs=%lu\n",
-             (unsigned long)now, (unsigned long)superviseKicks,
-             (unsigned long)(now - s_supDownSince));
+    // TASK-426: name the candidate this kick targets — "[wifi-sup]" is a
+    // grep contract, so the ssid is appended, never substituted.
+    char buf[128];
+    if (s_candCount)
+        snprintf(buf, sizeof(buf), "[wifi-sup] t=%lu kick=%lu downMs=%lu ssid=\"%s\" cand=%u/%u\n",
+                 (unsigned long)now, (unsigned long)superviseKicks,
+                 (unsigned long)(now - s_supDownSince),
+                 s_candSsid[s_candNext], (unsigned)(s_candNext + 1), (unsigned)s_candCount);
+    else
+        snprintf(buf, sizeof(buf), "[wifi-sup] t=%lu kick=%lu downMs=%lu\n",
+                 (unsigned long)now, (unsigned long)superviseKicks,
+                 (unsigned long)(now - s_supDownSince));
     Serial.print(buf);   // single write — no tearing (VE-8)
 
     WiFi.disconnect(false);
     WiFi.setAutoReconnect(true);   // restore it if the wedge cleared the flag
-    WiFi.begin();                  // reconnect from NVS creds
+    if (s_candCount) {
+        // Explicit ssid+pass: this REPLACES the resident config, which is the
+        // whole point — a bare begin() would just replay whatever dead SSID the
+        // boot cascade left behind. Rotating means one dead entry costs a
+        // single kick instead of every kick.
+        const uint8_t i = s_candNext;
+        s_candNext = (uint8_t)((s_candNext + 1) % s_candCount);
+        WiFi.begin(s_candSsid[i], s_candPass[i]);
+    } else {
+        WiFi.begin();              // no candidates registered — historic path
+    }
 }
 
 #ifdef SERIAL_DEBUG

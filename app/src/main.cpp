@@ -2426,6 +2426,14 @@ void setup()
     }
     if (candCount > 0) wifiCredsKnown = true;  // TASK-296
 
+    // TASK-426: hand the (already MRU-sorted) candidates to the supervisor so
+    // its kicks target real SSIDs instead of replaying whatever config the
+    // cascade below happens to leave resident. Registered before the attempts
+    // so a supervisor armed on ANY exit path from here has them.
+    wifiDiag::superviseClearCandidates();
+    for (uint8_t i = 0; i < candCount; i++)
+      wifiDiag::superviseAddCandidate(cand[i].ssid, cand[i].pass);
+
     const char* connectedSsid = nullptr;
     const char* connectedPass = nullptr;
     for (uint8_t i = 0; i < candCount && !wifiConnected; i++) {
@@ -2485,6 +2493,14 @@ void setup()
       Serial.println("[wifi] saved-network credentials saved to NVS");
     } else if (candCount > 0) {
       Serial.println("[wifi] all saved-network connect attempts failed");
+      // TASK-426: the loop above leaves its LAST candidate resident in the STA
+      // config, and auto-reconnect (armed just below) re-attacks that resident
+      // config every ~2.4 s via a bare WiFi.begin(). When the last candidate is
+      // a dead SSID that is an unrecoverable wedge — auto-reconnect never tries
+      // anything else, so a live AP at -58 dBm goes untouched until reboot.
+      // Re-point at the best (MRU-first) candidate so the 60 s of auto-reconnect
+      // before the supervisor's first kick is spent on the likeliest AP.
+      WiFi.begin(cand[0].ssid, cand[0].pass);
     }
   }
 
