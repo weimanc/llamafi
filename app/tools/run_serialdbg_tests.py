@@ -4102,6 +4102,238 @@ def t160(dut: Dut):
           f"scrollOffset={post} (unchanged) scrollVelocity=0.0000 — tickScroll D_IDLE guard confirmed")
 
 
+# ── velocity-scroll-001 WebRadio variant (TASK-412 / T_PLE_08) ──────────────
+# TASK-412 unified PLEDIT render/scroll behind the shared PleditView, so these
+# mirror T155-T160 exactly but drive WebRadio's StationListSource (synthetic
+# stations via `set wrDeadUrls`, no network needed) instead of Spotify's
+# queue. Entry uses _switch_to_webradio_capture_heap (the real eject path) —
+# NOT _switch_to("WebRadio")/_ensure_webradio, which tap a taskbar slot
+# WebRadio doesn't have (eject-only app, see _switch_to_webradio_capture_heap
+# docstring).
+
+def _vs_precondition_webradio(dut: Dut, tid: str) -> bool:
+    """Shared precondition for the WebRadio-side battery: WebRadio active, 15
+    synthetic stations (set wrDeadUrls), scrollOffset=0, D_IDLE."""
+    r = dut.cmd("get appId", timeout=3.0)
+    if r.get("name") != "WebRadio":
+        ok, _heap = _switch_to_webradio_capture_heap(dut)
+        if not ok:
+            skip(tid, "precondition: could not switch to WebRadio")
+            return False
+    r_dead = dut.cmd("set wrDeadUrls 15", timeout=5.0)
+    if not r_dead.get("ok", False):
+        skip(tid, f"precondition: set wrDeadUrls 15 failed: {r_dead}")
+        return False
+    r_c = dut.cmd("get wrCount", timeout=3.0)
+    if r_c.get("count", 0) < 15:
+        skip(tid, f"precondition: wrCount={r_c.get('count')} after set wrDeadUrls 15")
+        return False
+    xd, yd, xd2, yd2 = _c.pledit_swipe("down")
+    for _ in range(5):
+        _do_drag(dut, xd, yd, xd2, yd2)
+    so = _get_scroll(dut)
+    if so != 0:
+        skip(tid, f"precondition: scrollOffset={so} could not be reset to 0")
+        return False
+    rg = dut.cmd("get dragState", timeout=3.0)
+    if rg.get("state") != "D_IDLE":
+        skip(tid, f"precondition: dragState={rg.get('state')!r} not D_IDLE")
+        return False
+    dut.set_cooldown_zero()
+    return True
+
+
+def t_ple_wr_155(dut: Dut):
+    """T_PLE_WR_155 (T_PLE_08): WebRadio — 0-dy tap in dead zone fires PLEDIT hit."""
+    print("T_PLE_WR_155  WebRadio: tap within dead zone fires PLEDIT hit (0-dy)")
+    if not _vs_precondition_webradio(dut, "T_PLE_WR_155"):
+        return
+    baseline = _get_scroll(dut)
+    r = dut.cmd(f"tap {_PLEDIT_X} {_PLEND_Y}", timeout=5.0)
+    if not r.get("ok"):
+        fail("T_PLE_WR_155", f"tap returned ok=false: {r}")
+        return
+    if r.get("hit") != "PLEDIT":
+        fail("T_PLE_WR_155", f"hit={r.get('hit')!r} — expected PLEDIT; tap missed content zone")
+        return
+    post = _get_scroll(dut)
+    if post != baseline:
+        fail("T_PLE_WR_155", f"scrollOffset changed {baseline}→{post} — scroll-end fired instead of tap")
+        return
+    rg = dut.cmd("get dragState", timeout=3.0)
+    if rg.get("state") != "D_IDLE":
+        fail("T_PLE_WR_155", f"dragState={rg.get('state')!r} — Release cleanup failed")
+        return
+    pass_("T_PLE_WR_155",
+          f"hit=PLEDIT scrollOffset={post} (unchanged) dragState=D_IDLE — tap path confirmed")
+
+
+def t_ple_wr_156(dut: Dut):
+    """T_PLE_WR_156 (T_PLE_08): WebRadio — dy=13 px drag outside dead zone → scroll-end."""
+    print("T_PLE_WR_156  WebRadio: release outside dead zone suppresses tap (dy=13 px)")
+    if not _vs_precondition_webradio(dut, "T_PLE_WR_156"):
+        return
+    dut.send(f"drag {_PLEDIT_X} {_PLEND_Y} {_PLEDIT_X} {_PLSTART_Y} 1")
+    _, drag_resp = _vs_drain_until_drag(dut, timeout=10.0)
+    if drag_resp is None:
+        fail("T_PLE_WR_156", "no drag response within 10 s")
+        return
+    if not drag_resp.get("ok"):
+        fail("T_PLE_WR_156", f"drag response ok=false: {drag_resp}")
+        return
+    rg = dut.cmd("get dragState", timeout=3.0)
+    if rg.get("state") != "D_IDLE":
+        fail("T_PLE_WR_156", f"dragState={rg.get('state')!r} — Release did not complete")
+        return
+    rc = dut.cmd("get cooldown", timeout=3.0)
+    cooldown_ms = rc.get("remainingMs", 9999)
+    if cooldown_ms > 220:
+        fail("T_PLE_WR_156", f"cooldown={cooldown_ms} ms > 220 — tap branch fired (expected scroll-end ≤220 ms)")
+        return
+    pass_("T_PLE_WR_156",
+          f"dragState=D_IDLE cooldown={cooldown_ms} ms ≤ 220 — scroll-end confirmed, tap suppressed")
+
+
+def t_ple_wr_157(dut: Dut):
+    """T_PLE_WR_157 (T_PLE_08): WebRadio — velocity ≈ 2.0 rows/s at dy=-13 px.
+    Uses `drag ... hold` (synchronous ack, no interleaved sends) + `get
+    wrScroll` (WebRadio's own debug surface — `tick`'s scrollOffset field is
+    winampDisplay-only per TASK-277 VE-1-5). The interleaved-send pattern
+    T157 uses is tuned to Spotify's loop() iteration cost; when WebRadio is
+    active that cost differs, and the reads raced ahead of the injection
+    queue's Press step, misreporting D_IDLE. Confirmed by manual delay-padded
+    probe: the same gesture reaches D_PLEDIT_SCROLL, vel≈2.0004 rows/s."""
+    print("T_PLE_WR_157  WebRadio: tick 50×20ms at dy=-13 → wrScroll.offset ∈ [1,3]")
+    if not _vs_precondition_webradio(dut, "T_PLE_WR_157"):
+        return
+    r_drag = dut.cmd(f"drag {_PLEDIT_X} {_PLSTART_Y} {_PLEDIT_X} {_PLEND_Y} 1 hold", timeout=5.0)
+    if not r_drag.get("ok") or not r_drag.get("hold"):
+        fail("T_PLE_WR_157", f"drag hold ack failed: {r_drag}")
+        return
+    rg = dut.cmd("get dragState", timeout=3.0)
+    if rg.get("state") != "D_PLEDIT_SCROLL":
+        fail("T_PLE_WR_157", f"dragState={rg.get('state')!r} — gesture did not enter D_PLEDIT_SCROLL")
+        dut.cmd("release", timeout=3.0)
+        return
+    r_tick = dut.cmd("tick 50 20", timeout=5.0)
+    if not r_tick.get("ok"):
+        fail("T_PLE_WR_157", f"tick failed: {r_tick}")
+        dut.cmd("release", timeout=3.0)
+        return
+    r_ws = dut.cmd("get wrScroll", timeout=3.0)
+    so = r_ws.get("offset", -1)
+    dut.cmd("release", timeout=3.0)
+    if not (1 <= so <= 3):
+        fail("T_PLE_WR_157", f"wrScroll.offset={so} after tick 50×20ms at dy=-13 — "
+                     f"expected [1,3] (velocity≈2.0 rows/s)")
+        return
+    pass_("T_PLE_WR_157", f"D_PLEDIT_SCROLL confirmed; wrScroll.offset={so} ∈ [1,3] → velocity≈2.0 rows/s")
+
+
+def t_ple_wr_158(dut: Dut):
+    """T_PLE_WR_158 (T_PLE_08): WebRadio — tick 50×20ms at dy=-13 advances wrScroll.offset ≥ 1.
+    See T_PLE_WR_157 docstring for why `hold`/`get wrScroll` replace the
+    interleaved-send pattern here."""
+    print("T_PLE_WR_158  WebRadio: tick integration: 1 s at dy=-13 → wrScroll.offset ≥ 1")
+    if not _vs_precondition_webradio(dut, "T_PLE_WR_158"):
+        return
+    r_drag = dut.cmd(f"drag {_PLEDIT_X} {_PLSTART_Y} {_PLEDIT_X} {_PLEND_Y} 1 hold", timeout=5.0)
+    if not r_drag.get("ok") or not r_drag.get("hold"):
+        fail("T_PLE_WR_158", f"drag hold ack failed: {r_drag}")
+        return
+    rg = dut.cmd("get dragState", timeout=3.0)
+    if rg.get("state") != "D_PLEDIT_SCROLL":
+        fail("T_PLE_WR_158", f"dragState={rg.get('state')!r} — gesture did not enter D_PLEDIT_SCROLL")
+        dut.cmd("release", timeout=3.0)
+        return
+    r_tick = dut.cmd("tick 50 20", timeout=5.0)
+    if not r_tick.get("ok"):
+        fail("T_PLE_WR_158", f"tick failed: {r_tick}")
+        dut.cmd("release", timeout=3.0)
+        return
+    r_ws = dut.cmd("get wrScroll", timeout=3.0)
+    so = r_ws.get("offset", -1)
+    dut.cmd("release", timeout=3.0)
+    if so < 1:
+        fail("T_PLE_WR_158", f"wrScroll.offset={so} after tick 50×20ms at dy=-13 — "
+                     f"expected ≥ 1; accumulator integration or tickScroll guard broken")
+        return
+    pass_("T_PLE_WR_158", f"wrScroll.offset={so} ≥ 1 after tick 50×20ms at dy=-13 — integration confirmed")
+
+
+def t_ple_wr_159(dut: Dut):
+    """T_PLE_WR_159 (T_PLE_08): WebRadio — scrollAccum non-zero during drag, 0.0000 on Release.
+    See T_PLE_WR_157 docstring for why `hold`/`get wrScroll` replace the
+    interleaved-send pattern here."""
+    print("T_PLE_WR_159  WebRadio: accumulator resets to 0.0000 on Release")
+    if not _vs_precondition_webradio(dut, "T_PLE_WR_159"):
+        return
+    r_drag = dut.cmd(f"drag {_PLEDIT_X} {_PLSTART_Y} {_PLEDIT_X} {_PLEND_Y} 1 hold", timeout=5.0)
+    if not r_drag.get("ok") or not r_drag.get("hold"):
+        fail("T_PLE_WR_159", f"drag hold ack failed: {r_drag}")
+        return
+    rg = dut.cmd("get dragState", timeout=3.0)
+    if rg.get("state") != "D_PLEDIT_SCROLL":
+        fail("T_PLE_WR_159", f"dragState={rg.get('state')!r} — gesture not active mid-drag")
+        dut.cmd("release", timeout=3.0)
+        return
+    r_tick = dut.cmd("tick 10 20", timeout=5.0)
+    if not r_tick.get("ok"):
+        fail("T_PLE_WR_159", f"tick failed: {r_tick}")
+        dut.cmd("release", timeout=3.0)
+        return
+    r_ws_pre = dut.cmd("get wrScroll", timeout=3.0)
+    accum_pre = r_ws_pre.get("accum", 0.0)
+    if accum_pre == 0.0:
+        fail("T_PLE_WR_159", f"scrollAccum={accum_pre} mid-drag — expected non-zero")
+        dut.cmd("release", timeout=3.0)
+        return
+    dut.cmd("release", timeout=3.0)
+    r_ws_post = dut.cmd("get wrScroll", timeout=3.0)
+    accum_post = r_ws_post.get("accum", -1.0)
+    if accum_post != 0.0:
+        fail("T_PLE_WR_159", f"scrollAccum={accum_post} after Release — expected 0.0000; "
+                     f"Release cleanup (_scrollAccum=0) not firing")
+        return
+    rg2 = dut.cmd("get dragState", timeout=3.0)
+    if rg2.get("state") != "D_IDLE":
+        fail("T_PLE_WR_159", f"dragState={rg2.get('state')!r} after Release — expected D_IDLE")
+        return
+    pass_("T_PLE_WR_159",
+          f"scrollAccum={accum_pre:.4f} mid-drag (non-zero) → 0.0000 after Release; dragState=D_IDLE")
+
+
+def t_ple_wr_160(dut: Dut):
+    """T_PLE_WR_160 (T_PLE_08): WebRadio — tickScroll is a no-op when dragState is D_IDLE."""
+    print("T_PLE_WR_160  WebRadio: tickScroll no-op when D_IDLE")
+    if not _vs_precondition_webradio(dut, "T_PLE_WR_160"):
+        return
+    rg = dut.cmd("get dragState", timeout=3.0)
+    if rg.get("state") != "D_IDLE":
+        fail("T_PLE_WR_160", f"precondition: dragState={rg.get('state')!r} not D_IDLE")
+        return
+    baseline = _get_scroll(dut)
+    if baseline is None:
+        fail("T_PLE_WR_160", "get scrollOffset failed")
+        return
+    r_tick = dut.cmd("tick 50 20", timeout=5.0)
+    if not r_tick.get("ok"):
+        fail("T_PLE_WR_160", f"tick command failed: {r_tick}")
+        return
+    post = _get_scroll(dut)
+    if post != baseline:
+        fail("T_PLE_WR_160", f"scrollOffset changed {baseline}→{post} during D_IDLE tick — "
+                     f"tickScroll guard clause not firing")
+        return
+    r_vel = dut.cmd("get scrollVelocity", timeout=3.0)
+    vel = r_vel.get("val", None)
+    if vel != 0.0:
+        fail("T_PLE_WR_160", f"scrollVelocity={vel} after D_IDLE tick — expected 0.0000")
+        return
+    pass_("T_PLE_WR_160",
+          f"scrollOffset={post} (unchanged) scrollVelocity=0.0000 — tickScroll D_IDLE guard confirmed")
+
+
 # ── taskbar-scroll-001 suite (TASK-105/TASK-106) ─────────────────────────────
 # Tests T162–T166 for the taskbar scroll gesture (tbScrollOffset mechanics).
 #
@@ -7810,6 +8042,13 @@ ALL_TESTS = {
     "T158": t158,
     "T159": t159,
     "T160": t160,
+    # velocity-scroll-001 WebRadio variant (TASK-412 / T_PLE_08)
+    "T_PLE_WR_155": t_ple_wr_155,
+    "T_PLE_WR_156": t_ple_wr_156,
+    "T_PLE_WR_157": t_ple_wr_157,
+    "T_PLE_WR_158": t_ple_wr_158,
+    "T_PLE_WR_159": t_ple_wr_159,
+    "T_PLE_WR_160": t_ple_wr_160,
     # taskbar-scroll-001 (TASK-105/TASK-106)
     "T162": t162,
     "T163": t163,

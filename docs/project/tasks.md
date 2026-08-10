@@ -6519,12 +6519,20 @@ traded for deduplication — **do not relax the test to make it pass.**
 gate on the physical LCD** (BP-048): pixel-identity does not imply feel-identity, timing and gesture
 thresholds do not appear in a screenshot, and this is the code TASK-277 was spent tuning.
 `T_PLE_13` is a tripwire — one renderer replacing two must be a **negative** flash delta; a positive
-one means the old path was not deleted · **Priority:** P2 · **Status:** **IN PROGRESS** — code landed
+one means the old path was not deleted · **Priority:** P2 · **Status:** **DONE** — code landed
 2026-08-09 (`webRadioApp.h` has zero PLEDIT render/scroll code, `T_PLE_12`/`14` PASS, `T_PLE_11`
 vacuously PASS, `T_PLE_07` 3/5 states pixel-identical with the other 2 root-caused and documented,
 `T_PLE_13` FAILS as literally worded — +36 B/+160 B flash, analysed, not an incomplete deletion).
-`T_PLE_08`/`09` not run — need a dedicated VE/eyeball DUT session. See design doc §7b for the full
-record. Not yet closeable.
+2026-08-10: `T_PLE_08` **PASS** — new `T_PLE_WR_155`–`160` battery, 3/3 clean ADR-059 D13 baselines
+(18/18). First attempt failed 3/6 on a harness-timing artifact (interleaved-send pattern tuned to
+Spotify's `loop()` cost raced WebRadio's), root-caused and rewritten with `drag ... hold` + `get
+wrScroll`, not a product regression. `T_PLE_09` **PASS** — live DUT feel-check on production
+firmware, human-accepted (same standard as `T_PLE_05`): WebRadio's station-list scroll reported
+identical to Spotify's queue scroll (acceleration, quick-swipe fallback, clamps, direct-scroll strip
+tracking). All five exit criteria in the design doc §7 met; `run/check` 6/6. See design doc §7b for
+the full gate record.
+
+**Status: DONE.**
 
 ### TASK-413 — `AppId::LocalPlayer`, three-valued mode, taskbar-icon cycling, taskbar assertion
 
