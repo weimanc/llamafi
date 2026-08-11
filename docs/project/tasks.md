@@ -7565,7 +7565,86 @@ and must never be mutated from the pump task.**
 
 **Owner:** Developer · **Deps:** TASK-415, TASK-417 · **Gate:** `T_PLR_20`–`26`; `T_PLR_21` is all
 four cells 4/4, `T_PLR_22` is 0/20 collisions over 20 wrap cycles · **Priority:** P2 ·
-**Status:** **READY** — ADR-059 accepted 2026-08-07 (D9).
+**Status:** **DONE** (2026-08-11) — order engine proven 6/6; the two auto-advance-on-EOF ids are
+**NOT RUN**, blocked on arena acquisition. See below.
+
+**Gate — order logic, 6/6 on `cyd2usb_winamp_debug` (clean run, no traceback, no unknown ids):**
+
+| id | result |
+|---|---|
+| `T_PLR_20` | PASS — 20/20 distinct rows visited via `advance next`, matching `plOrder` exactly |
+| `T_PLR_21` | PASS — **all four end-of-list cells match design §8 exactly, 4/4** |
+| `T_PLR_22` | PASS — **0/20 collisions over 20 forced wraps** |
+| `T_PLR_23` | PASS — forward `[7,10,16,1,15]`, backward retraced exactly, `plOrder` unchanged (no reroll) |
+| `T_PLR_24` | PASS — tap-to-play row 5 moved the cursor to bag position 2, `plOrder` unchanged (no reshuffle) |
+| `T_PLR_26` | PASS — shuffle=on repeat=all survived reboot (`caps=15, lastShuffle=1, lastRepeat=0`) |
+
+`T_PLR_22` + `T_PLR_23` together are what prove ADR-059 D9's central claim: 0/20 collisions means a
+real Fisher-Yates **bag**, and Prev retracing with `plOrder` unchanged means it is **materialised**,
+not re-rolled per `next`. `T_PLR_24` closes the "tap-to-play moves the cursor rather than
+reshuffling" half.
+
+**NOT RUN — auto-advance on `audio_eof_mp3`.** These need real decoded audio, so they can only run on
+`cyd2usb_player`. Two attempts, the second from a genuinely cold flash, both failed **before** any
+play-order code was reached:
+
+```
+[membudget] TASK-267 arena acquire=24576B lfbBefore=42996 FAIL→libc-fallback
+FAIL: playback never started (plCount.playing/curRow never reached (True,0) within 15s)
+```
+
+The arena never acquired, so nothing decoded, so `audio_eof_mp3` could not fire. **This is not a
+TASK-418 defect** — see the escalation filed as TASK-435, because TASK-427 measured this same
+variant acquiring cleanly at `lfbBefore=69620 OK`, and the figure is now stuck at 42 996 across
+repeated cold flashes.
+
+**Harness note (why the gate had to be split).** `Dut._verify_debug_firmware()`
+(`app/tools/run_serialdbg_tests.py:327-360`) hardcodes `.pio/build/cyd2usb_winamp_debug/firmware.bin`
+for its ELF-hash check, with no override — so the main harness **cannot** be run against a
+`cyd2usb_player` flash at all. The audio-free ids therefore ran through the harness on the debug
+build (via the D12 `advance` command, which exists precisely so order logic needs no playback), and
+the audio-dependent half needs a standalone driver (`app/tools/test_playorder_player.py` +
+`run/playorder-player`, following TASK-416's `test_fbrowser_player.py` precedent). Escalated as part
+of TASK-435.
+
+**Delivered:** the D12 observability this task owed — `advance next|prev`, `get plOrder`,
+`get plCursor`, `set plCursor` — plus `get shufRep`. Without these, several of these ids were
+unrunnable by design.
+
+### TASK-435 — Player-mode arena acquisition regressed on `cyd2usb_player`; harness cannot target that variant
+
+Two defects surfaced together while closing TASK-418; filed as one task because the second is what
+stops the first from being investigated properly.
+
+**1. The arena no longer acquires on `cyd2usb_player`.** TASK-427 (2026-08-11, earlier the same day)
+DUT-proved local playback on this variant: `arena acquire=24576B lfbBefore=69620 OK`, decoding
+44 100/16/stereo for 3+ minutes. Closing TASK-418 the same evening, two attempts — the second from a
+genuinely cold flash — both produced `arena acquire=24576B lfbBefore=42996 FAIL→libc-fallback`, and
+playback never started. **The same figure, 42 996, both times.** Between those two points
+TASK-433 landed 3 072 B of permanently-resident browser arrays and TASK-418 added play-order state,
+so a real regression in the milestone's *shipping* configuration is the leading candidate — but it
+is not established, and 42 996 is the 32-bit `lfbInt` reading, which over-reports what a
+byte-addressable allocation can use (BP-055). **Re-measure with
+`MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT` before theorising**, and bisect against `510afef` (TASK-427's
+commit, where it demonstrably worked). If it is a regression, the milestone currently has no working
+playback configuration at all, which makes it P1.
+
+**2. The harness cannot target `cyd2usb_player`.** `Dut._verify_debug_firmware()`
+(`run_serialdbg_tests.py:327-360`) hardcodes `.pio/build/cyd2usb_winamp_debug/firmware.bin` for its
+ELF-hash guard, with no env override, and aborts with `FIRMWARE ELF MISMATCH` against any other
+build. The guard's intent is right (ADR-042 E1 / BP-017) — it predates the existence of a second
+testable variant. Consequence: every feature needing playback must ship its own standalone driver
+(`test_fbrowser_player.py`, `test_playorder_player.py`), duplicating settle/port/reporting logic, and
+none of it participates in the suite or its failure-set comparisons. TASK-422 will hit this directly.
+Suggested fix: an env override (e.g. `DUT_ENV=cyd2usb_player`) selecting the build directory, so the
+guard still verifies but against the right binary.
+
+**Owner:** Architect (item 1 ruling) + VE (item 2, harness) · **Deps:** none · **Gate:** item 1 —
+a stated cause for the 69 620 → 42 996 change with 8-bit-cap numbers, and playback restored on
+`cyd2usb_player` or an explicit ruling that it is not expected to work; item 2 — the harness runs a
+targeted suite against a `cyd2usb_player` flash without tripping the ELF guard · **Priority:** P1
+(item 1 — it may mean Player mode has no working configuration) / P2 (item 2) · **Status:** OPEN —
+filed 2026-08-11 from TASK-418's close-out.
 
 ### TASK-419 — real posbar seek for local files
 

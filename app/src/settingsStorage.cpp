@@ -96,6 +96,8 @@ static void applyDefaults() {
     // Player slot (M-PLAYER-STATE / TASK-260)
     g_settings.playerMode = (uint8_t)PlayerMode::Spotify;
     g_settings.playerPlaylist[0] = '\0';   // TASK-415: no playlist until one is loaded
+    g_settings.playerShuffle = false;      // TASK-418
+    g_settings.playerRepeat  = 2;          // TASK-418: 2 = off
 
     // Teletext
     g_settings.teletextPage        = 101;
@@ -290,6 +292,14 @@ void SettingsStorage::load() {
         // error to load-time — LocalPlayerApp degrades to "No playlist".
         strlcpy(g_settings.playerPlaylist, doc["player"]["playlist"] | "",
                 sizeof(g_settings.playerPlaylist));
+        // TASK-418: restore shuffle/repeat. Repeat clamped to the D9 binary
+        // domain — a hand-edited or stale settings.json carrying a "1" (the
+        // tri-state repeat-one Spotify's own domain allows) must not resolve
+        // to an unreachable-from-UI state; fold it to off like §6.1 folds an
+        // out-of-range playerMode.
+        g_settings.playerShuffle = doc["player"]["shuffle"] | false;
+        uint8_t pr = doc["player"]["repeat"] | 2;
+        g_settings.playerRepeat = (pr == 0) ? 0 : 2;
     }
 
     // Teletext
@@ -481,6 +491,8 @@ void SettingsStorage::save() {
         auto pl = doc.createNestedObject("player");
         pl["mode"]     = g_settings.playerMode;
         pl["playlist"] = g_settings.playerPlaylist;   // TASK-415
+        pl["shuffle"]  = g_settings.playerShuffle;    // TASK-418
+        pl["repeat"]   = g_settings.playerRepeat;     // TASK-418
     }
 
     auto tt = doc.createNestedObject("teletext");

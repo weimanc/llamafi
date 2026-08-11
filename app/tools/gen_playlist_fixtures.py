@@ -142,9 +142,28 @@ def empty() -> bytes:
     return b"#EXTM3U\n"
 
 
+def gate20() -> bytes:
+    """T_PLR_20-24 (TASK-418) — 20 entries, absolute paths. The play-order
+    engine tests (shuffle bag / end-of-list cells / prev-history / tap-to-play
+    cursor) all run through the debug surface (`advance`/`set plCursor`),
+    never decoding audio, so the 20 entries do not need 20 distinct files —
+    entry ids are per-RECORD (position in the M3U), not per-file, so cycling
+    through the same 12 real tracks still yields 20 distinct ids. Only
+    T_PLR_25 (the one real-playback case) needs actual short audio, and it
+    reuses gate100/real files rather than this fixture.
+    """
+    out = ["#EXTM3U"]
+    for i in range(20):
+        name, artist, title, dur = TRACKS[i % len(TRACKS)]
+        out.append(f"#EXTINF:{dur},{artist} - {title} ({i + 1:02d})")
+        out.append(f"/mp3/{name}")
+    return ("\n".join(out) + "\n").encode("utf-8")
+
+
 def main() -> None:
     print("writing playlist fixtures:")
     write(OUT / "playlists" / "gate100.m3u", gate100())
+    write(OUT / "playlists" / "gate20.m3u", gate20())
     write(OUT / "playlists" / "relpar.m3u", rel_parent())
     write(OUT / "playlists" / "utf8.m3u", utf8())
     write(OUT / "playlists" / "bad.m3u", malformed())
@@ -153,6 +172,8 @@ def main() -> None:
     print("\ncopy onto the card (host card reader — the device write path is TASK-424):")
     print("  cp -r app/tools/fixtures/sd/playlists <CARD>/")
     print("  cp    app/tools/fixtures/sd/mp3/rel.m3u <CARD>/mp3/")
+    print("\nor push a single fixture over serial (TASK-415/424 short-burst path):")
+    print("  python3 app/tools/sd_put.py app/tools/fixtures/sd/playlists/gate20.m3u /playlists/gate20.m3u")
 
 
 if __name__ == "__main__":

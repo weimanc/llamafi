@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# run/playorder-player — TASK-418 / T_PLR_25 (playback half): auto-advance
+# end to end across 5 real short tracks, on cyd2usb_player — the only env
+# where local playback actually works (TASK-425/431). The order-logic ids
+# (T_PLR_20-24/26 — the shuffle bag, the four end-of-list cells, prev-history,
+# tap-to-play cursor, persistence) need no audio and run on
+# cyd2usb_winamp_debug via run/test-targeted instead — see
+# app/tools/test_playorder_player.py's docstring.
+#
+# Mirrors run/browser-player (TASK-416 precedent) exactly.
+#
+# NEVER kill this mid-flight — the trap-guarded prod restore races and can
+# leave the DUT boot-looping (same rule as run/browser-player, run/ae04,
+# run/wr-soak).
+#
+# Usage: ./run/playorder-player
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+ENV_PLAYER="cyd2usb_player"
+PORT=$(resolve_port)
+
+_RC=0
+_cleanup() {
+  local rc=$_RC
+  echo ""
+  echo "[playorder-player] restoring $ENV_PROD (rc=$rc so far)"
+  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT") || {
+    echo "ERROR [playorder-player]: prod restore failed" >&2; rc=99; }
+  echo "[playorder-player] restarting monitor"
+  tmux new-session -d -s "$SESSION" \
+    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'" \
+    2>/dev/null || true
+  exit "$rc"
+}
+trap _cleanup EXIT INT TERM
+
+echo "[playorder-player] 1/3 — killing monitor"
+tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+
+echo "[playorder-player] 2/3 — flashing $ENV_PLAYER to $PORT"
+(cd "$PIO_DIR" && "$PIO" run -e "$ENV_PLAYER" -t upload --upload-port "$PORT")
+
+# Same double-reset-detector gap as run/browser-player — the upload's own
+# end-of-flash reset and this script's serial.Serial() open both toggle
+# DTR; too close together and the ESP32 lands in a stuck non-clean boot.
+echo "[playorder-player] 2.5/3 — 15s gap before reopening the port (avoid DRD, BP-018-class)"
+sleep 15
+
+echo "[playorder-player] 3/3 — running the auto-advance check"
+(cd "$PIO_DIR" && "$VENV_PY" tools/test_playorder_player.py --port "$PORT" \
+    --settle-s "${SETTLE_S:-90}") \
+  || _RC=$?

@@ -258,13 +258,56 @@ public:
     uint16_t durationAt(uint16_t viewIdx) const {
         return (viewIdx < _count) ? _entries[_view[viewIdx]].durSec : 0;
     }
-    // playOrder position -> view-order row. Identity until TASK-418.
+    // playOrder position -> view-order row.
     uint16_t playRowAt(uint16_t playIdx) const {
         if (playIdx >= _count) return 0;
-        const uint16_t id = _play[playIdx];
-        for (uint16_t i = 0; i < _count; i++) if (_view[i] == id) return i;
-        return 0;
+        const int16_t r = viewRowOfId(_play[playIdx]);
+        return (r >= 0) ? (uint16_t)r : 0;
     }
+
+    // ── TASK-418 / ADR-059 D9 — the shuffle bag ─────────────────────────────
+    // playOrder[] is a Fisher-Yates permutation of the CURRENT view ids
+    // (§2: shuffle never touches viewOrder, so this provably cannot affect
+    // what PLEDIT shows or what SAVE writes). Rebuilt from _view fresh every
+    // call rather than permuting whatever _play last held, so a shuffle
+    // toggled on after an edit (TASK-420+) always reflects the live list —
+    // there is no stale membership to repair.
+    //
+    // `avoidId` is the guard against the reshuffle-on-wrap annoyance (design
+    // §8): a track that just finished must not immediately re-open the next
+    // cycle. Pass an id outside the entries[] domain (e.g. 0xFFFF) to skip
+    // the guard, which toggle-ON does — nothing has "just finished" yet.
+    void shuffleReset(uint16_t avoidId) {
+        if (!_play || !_view || _count == 0) return;
+        for (uint16_t i = 0; i < _count; i++) _play[i] = _view[i];
+        // Fisher-Yates, standard backward walk: for i from count-1 down to 1,
+        // swap _play[i] with _play[random(0..i)].
+        for (uint16_t i = _count - 1; i > 0; i--) {
+            const uint16_t j = (uint16_t)random(0, i + 1);
+            const uint16_t tmp = _play[i]; _play[i] = _play[j]; _play[j] = tmp;
+        }
+        if (_count > 1 && _play[0] == avoidId) {
+            const uint16_t j = (uint16_t)random(1, _count);
+            const uint16_t tmp = _play[0]; _play[0] = _play[j]; _play[j] = tmp;
+        }
+    }
+
+    // Raw playOrder dump (ids), for `get plOrder` (ADR-059 D12) and for
+    // T_PLR_20-24's collision/history checks.
+    const uint16_t* playOrder() const { return _play; }
+    uint16_t idAtPlayPos(uint16_t pos) const { return (pos < _count) ? _play[pos] : 0; }
+    // Linear scan is fine at PL_MAX_ENTRIES=256 (same trade-off playRowAt/
+    // viewRowOfId already make) — tap-to-play and prev/next are user-paced,
+    // not a per-frame hot path.
+    int16_t playPosOfId(uint16_t id) const {
+        for (uint16_t i = 0; i < _count; i++) if (_play[i] == id) return (int16_t)i;
+        return -1;
+    }
+    int16_t viewRowOfId(uint16_t id) const {
+        for (uint16_t i = 0; i < _count; i++) if (_view[i] == id) return (int16_t)i;
+        return -1;
+    }
+    uint16_t idAtView(uint16_t viewIdx) const { return (viewIdx < _count) ? _view[viewIdx] : 0; }
 
     // Display text for a row, ASCII-folded (design OQ1) and cached. Never
     // fails visibly: an unreadable record renders the placeholder so a bad row

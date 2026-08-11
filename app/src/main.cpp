@@ -2916,6 +2916,7 @@ static void cmdSdMkdir(const char *);
 static void cmdSdPut(const char *);
 static void cmdHelp(const char *);
 static void cmdReboot(const char *);
+static void cmdAdvance(const char *);
 #endif
 
 static const SerialCmd kCmds[] = {
@@ -2945,6 +2946,7 @@ static const SerialCmd kCmds[] = {
   { "sdput", cmdSdPut, "TASK-415: write/append <=90 B of base64 to a file (test fixtures)", "<w|a> <base64|-> <path>" },
   { "help",   cmdHelp,   "list commands",                   ""                                   },
   { "reboot", cmdReboot, "software reset (ESP.restart)",   ""                                   },
+  { "advance", cmdAdvance, "TASK-418: step the play-order engine, no audio (ADR-059 D12)", "<next|prev>" },
 #endif
 };
 static constexpr int kNumCmds = sizeof(kCmds) / sizeof(kCmds[0]);
@@ -3840,6 +3842,11 @@ static void cmdGet(const char *args) {
   // TASK-416 / ADR-059 D12: file browser observables — T_PLR_13-16 drive the
   // walk and navigation deterministically from here rather than only via taps.
   if (strcmp(args, "fbState") == 0) { g_LocalPlayerApp.dbgFbState(); return; }
+  // TASK-418 / ADR-059 D12: the play-order engine's own observability —
+  // T_PLR_20-24 exercise the shuffle bag, all four end-of-list cells and
+  // prev-history without any real playback.
+  if (strcmp(args, "plOrder")  == 0) { g_LocalPlayerApp.dbgOrder();  return; }
+  if (strcmp(args, "plCursor") == 0) { g_LocalPlayerApp.dbgCursor(); return; }
   // OQ1 (design §11): the UTF-8 -> renderable-ASCII fold, testable without a
   // card. Everything a PLEDIT row can contain goes through this one helper.
   if (strncmp(args, "plFold", 6) == 0 && (args[6] == '\0' || args[6] == ' ')) {
@@ -4130,6 +4137,22 @@ static void cmdSet(const char *args) {
     const bool ok = g_LocalPlayerApp.dbgPlayRow((uint16_t)idx);
     Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"plPlay\",\"idx\":%d}\n",
                   ok ? "true" : "false", idx);
+    return;
+  }
+  // TASK-418 / ADR-059 D12: sets the play-order cursor directly, in
+  // whichever domain is active (view row / bag position), WITHOUT decoding
+  // audio — T_PLR_21/22 force the end-of-list cells and wrap collisions by
+  // jumping straight to the last position rather than playing there.
+  if (strncmp(args, "plCursor", 8) == 0 && (args[8] == '\0' || args[8] == ' ')) {
+    int n = -1;
+    if (sscanf(args + 8, "%d", &n) != 1) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"plCursor\","
+                     "\"error\":\"usage: set plCursor <n>\"}");
+      return;
+    }
+    const bool ok = g_LocalPlayerApp.dbgSetCursor(n);
+    Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"plCursor\",\"n\":%d}\n",
+                  ok ? "true" : "false", n);
     return;
   }
   // TASK-416 (T_PLR_13-16): open a directory in the file browser without a
@@ -5543,6 +5566,26 @@ static void cmdReboot(const char *) {
   Serial.flush();
   delay(50);
   ESP.restart();
+}
+
+// TASK-418 / ADR-059 D12: steps the play-order engine WITHOUT decoding audio
+// — reads the LocalPlayer instance directly, same "reachable without the
+// mode being on screen" contract as `get plCount`/`get plOrder` above, since
+// this is what makes T_PLR_20-24 runnable in seconds instead of hours of
+// real playback.
+static void cmdAdvance(const char *args) {
+  const bool next = (strcmp(args, "prev") != 0);   // anything but "prev" == next
+  if (strcmp(args, "next") != 0 && strcmp(args, "prev") != 0) {
+    Serial.println("{\"ok\":false,\"cmd\":\"advance\",\"error\":\"usage: advance <next|prev>\"}");
+    return;
+  }
+  bool moved = false, reshuffled = false;
+  uint16_t row = 0;
+  g_LocalPlayerApp.dbgAdvance(next, &moved, &row, &reshuffled);
+  Serial.printf("{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"%s\",\"moved\":%s,"
+                "\"row\":%u,\"reshuffled\":%s}\n",
+                next ? "next" : "prev", moved ? "true" : "false",
+                (unsigned)row, reshuffled ? "true" : "false");
 }
 
 static void cmdHelp(const char *) {

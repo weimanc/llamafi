@@ -124,6 +124,12 @@ struct AppSettings {
     // reopens on entry. Absolute SD path; empty = nothing loaded yet. Written
     // by `set plLoad` today and by the file browser from TASK-416.
     char    playerPlaylist[64];
+    // TASK-418 (ADR-059 D9): Player-scoped shuffle/repeat. Spotify's own
+    // shuffle/repeat stay server-owned and are never written here — this is
+    // the local play-order engine's state only, restored on resume() so a
+    // reboot mid-shuffle doesn't silently drop back to sequential.
+    bool    playerShuffle;   // false = off (default)
+    uint8_t playerRepeat;    // tri-state domain, D9: only 2=off / 0=repeat-all used
 
     // --- Teletext (ADR-044) ---
     uint16_t teletextPage;        // starting page on resume (default 101)

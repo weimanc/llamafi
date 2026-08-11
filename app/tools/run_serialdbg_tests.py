@@ -5119,6 +5119,14 @@ _PL_REL    = "/mp3/rel.m3u"
 _PL_BAD    = "/playlists/bad.m3u"
 _PL_EMPTY  = "/playlists/empty.m3u"
 _PL_UTF8   = "/playlists/utf8.m3u"
+# TASK-418: 20-entry fixture for the play-order engine (gen_playlist_fixtures.py's
+# gate20()) — entry ids are per-record, not per-file, so it does not need 20
+# distinct audio files; T_PLR_20-24 never decode audio at all (D12's `advance`/
+# `set plCursor`). T_PLR_25 is the one real-playback case and needs actual
+# short files — see _PL_SHORT5 (5 real ~3s tones, not part of
+# gen_playlist_fixtures.py since they're binary audio, not generated text).
+_PL_20     = "/playlists/gate20.m3u"
+_PL_SHORT5 = "/playlists/short5.m3u"
 
 
 def _enter_player(dut: Dut, tid: str) -> bool:
@@ -5996,6 +6004,424 @@ def t_plr_19(dut: Dut):
         pass_("T_PLR_19", "caps=15; shuffle/repeat drawn+hit-tested with Player-sourced state "
                           "(not spotifyTask), no leak to spotifyTask; seek zone reachable via the "
                           "real input path without engaging Spotify's drag machine")
+
+
+# ── T_PLR_20-26 — play-order engine (TASK-418 / ADR-059 D9/D12) ─────────────
+# The debug surface these depend on (`get plOrder`, `get plCursor`,
+# `set plCursor <n>`, `advance next|prev`) steps the SAME _stepOrder()/bag
+# real playback uses, without decoding audio — that's what turns "20-track
+# shuffle cycle" and "20 forced wraps" from ~3h of real playback (the design's
+# original ask) into a few seconds of serial round-trips (VE-1).
+#
+# Shuffle/repeat have no dedicated `set` debug verb (D12 lists only the
+# order-engine surface) — they're driven the same way a real finger would,
+# via `tap` on the sprite coordinates, reading back `get shufRep` to confirm
+# the toggle actually landed (not just that the tap hit-tested).
+
+def _pl_shuffle(dut: Dut, want_on: bool, timeout_s: float = 3.0) -> bool:
+    """Tap the shuffle sprite until `get shufRep`'s lastShuffle matches
+    want_on. Bounded — a stuck toggle reports False rather than looping."""
+    sx, sy = _c.tap_shuffle()
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        r = dut.cmd("get shufRep", timeout=3.0)
+        cur = r.get("lastShuffle")
+        if (cur == 1) == want_on:
+            return True
+        dut.set_cooldown_zero()
+        dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+        time.sleep(0.15)
+    r = dut.cmd("get shufRep", timeout=3.0)
+    return (r.get("lastShuffle") == 1) == want_on
+
+
+def _pl_repeat(dut: Dut, want_off: bool, timeout_s: float = 4.0) -> bool:
+    """Tap the repeat sprite until it reads the target D9 binary state:
+    2 (off) or NOT-2 (repeat-all, folded to 0 by playerRepeatSink — see
+    localPlayerApp.h's onRepeatChanged()). handleWinampInput()'s shared
+    dispatch cycles a Spotify-shaped tri-state (2->1->0->2) regardless of
+    mode, so this may pass through 1 on the way — only the final resting
+    value matters here."""
+    rx, ry = _c.tap_repeat()
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        r = dut.cmd("get shufRep", timeout=3.0)
+        cur = r.get("lastRepeat")
+        if want_off and cur == 2:
+            return True
+        if not want_off and cur != 2:
+            return True
+        dut.set_cooldown_zero()
+        dut.cmd(f"tap {rx} {ry}", timeout=3.0)
+        time.sleep(0.15)
+    r = dut.cmd("get shufRep", timeout=3.0)
+    cur = r.get("lastRepeat")
+    return (cur == 2) if want_off else (cur != 2)
+
+
+def t_plr_20(dut: Dut):
+    """T_PLR_20: the shuffle bag visits each track exactly once over a full
+    cycle — 20x `advance next` on a 20-track list, no repeats, no skips."""
+    print("T_PLR_20  Shuffle bag visits each track once (20-track cycle)")
+    if not _enter_player(dut, "T_PLR_20"):
+        return
+    errors = []
+    r = _pl_load(dut, _PL_20)
+    if r.get("count", 0) == 0:
+        _leave_player(dut)
+        skip("T_PLR_20", f"fixture {_PL_20} not on the card (gen_playlist_fixtures.py + sd_put.py)")
+        return
+    if r.get("count") != 20:
+        _leave_player(dut)
+        fail("T_PLR_20", f"count={r.get('count')} (expected 20)")
+        return
+    if not _pl_shuffle(dut, True):
+        _leave_player(dut)
+        fail("T_PLR_20", "could not toggle shuffle ON via tap")
+        return
+    order = dut.cmd("get plOrder", timeout=5.0).get("order", [])
+    if len(order) != 20 or len(set(order)) != 20:
+        errors.append(f"plOrder after shuffle-ON not a 20-entry permutation: {order}")
+
+    visited = []
+    for i in range(20):
+        adv = dut.cmd("advance next", timeout=5.0)
+        if not adv.get("ok") or not adv.get("moved"):
+            errors.append(f"advance next #{i}: {adv}")
+            break
+        visited.append(adv.get("row"))
+    if len(visited) == 20 and len(set(visited)) != 20:
+        errors.append(f"visited rows not all distinct: {visited}")
+    if visited != order:
+        errors.append(f"advance sequence {visited} != get plOrder {order} "
+                       f"(advance should walk the bag exactly)")
+
+    _leave_player(dut)
+    if errors:
+        fail("T_PLR_20", "; ".join(errors))
+    else:
+        pass_("T_PLR_20", f"20/20 distinct rows visited via advance next, matching plOrder exactly: {order}")
+
+
+def t_plr_21(dut: Dut):
+    """T_PLR_21: all four shuffle x repeat end-of-list cells (design §8),
+    forced via `set plCursor <last>` + `advance next` — no real playback."""
+    print("T_PLR_21  All four shuffle x repeat end-of-list cells")
+    if not _enter_player(dut, "T_PLR_21"):
+        return
+    errors = []
+    r = _pl_load(dut, _PL_20)
+    if r.get("count", 0) != 20:
+        _leave_player(dut)
+        skip("T_PLR_21", f"fixture {_PL_20} not on the card (count={r.get('count')})")
+        return
+
+    last_idx = r.get("count", 20) - 1
+
+    def _force_wrap_from_last():
+        # Always set explicitly to the known last index — do NOT infer "am I
+        # already at the end" from a `get plCursor` read first. That reflects
+        # whatever the PREVIOUS cell's advance left behind, not this cell's
+        # precondition, and masks a real firmware bug the same way (a stale
+        # cursor near the start silently reads as "close enough", producing
+        # exactly the kind of drifted-cell failure this test exists to catch).
+        dut.cmd(f"set plCursor {last_idx}", timeout=3.0)
+        return dut.cmd("advance next", timeout=5.0)
+
+    # Cell 1: shuffle off, repeat off -> stop at last row.
+    if not _pl_shuffle(dut, False) or not _pl_repeat(dut, True):
+        errors.append("cell1: could not set shuffle=off repeat=off")
+    else:
+        adv = _force_wrap_from_last()
+        if adv.get("moved") is not False:
+            errors.append(f"cell1 (shuffle off, repeat off): expected moved=false, got {adv}")
+
+    # Cell 2: shuffle off, repeat all -> wrap to viewOrder[0].
+    if not _pl_repeat(dut, False):
+        errors.append("cell2: could not set repeat=all")
+    else:
+        adv = _force_wrap_from_last()
+        if adv.get("moved") is not True or adv.get("row") != 0 or adv.get("reshuffled"):
+            errors.append(f"cell2 (shuffle off, repeat all): expected moved=true row=0 "
+                          f"reshuffled=false, got {adv}")
+
+    # Cell 3: shuffle on, repeat off -> play each once, then stop.
+    if not _pl_shuffle(dut, True) or not _pl_repeat(dut, True):
+        errors.append("cell3: could not set shuffle=on repeat=off")
+    else:
+        adv = _force_wrap_from_last()
+        if adv.get("moved") is not False:
+            errors.append(f"cell3 (shuffle on, repeat off): expected moved=false, got {adv}")
+
+    # Cell 4: shuffle on, repeat all -> reshuffle and continue.
+    if not _pl_repeat(dut, False):
+        errors.append("cell4: could not set repeat=all")
+    else:
+        adv = _force_wrap_from_last()
+        if adv.get("moved") is not True or not adv.get("reshuffled"):
+            errors.append(f"cell4 (shuffle on, repeat all): expected moved=true "
+                          f"reshuffled=true, got {adv}")
+
+    _leave_player(dut)
+    if errors:
+        fail("T_PLR_21", "; ".join(errors))
+    else:
+        pass_("T_PLR_21", "all four end-of-list cells match design §8 exactly, 4/4 — "
+                          "no real-time playback")
+
+
+def t_plr_22(dut: Dut):
+    """T_PLR_22: reshuffle-on-wrap never re-opens with the track that just
+    finished — 20 forced wraps (shuffle on, repeat all), 0 collisions."""
+    print("T_PLR_22  Reshuffle does not re-open with the last track (20 forced wraps)")
+    if not _enter_player(dut, "T_PLR_22"):
+        return
+    errors = []
+    r = _pl_load(dut, _PL_20)
+    if r.get("count", 0) != 20:
+        _leave_player(dut)
+        skip("T_PLR_22", f"fixture {_PL_20} not on the card (count={r.get('count')})")
+        return
+    if not _pl_shuffle(dut, True) or not _pl_repeat(dut, False):
+        _leave_player(dut)
+        fail("T_PLR_22", "could not set shuffle=on repeat=all")
+        return
+
+    collisions = 0
+    for i in range(20):
+        before = dut.cmd("get plOrder", timeout=5.0).get("order", [])
+        if len(before) != 20:
+            errors.append(f"wrap {i}: plOrder count={len(before)} (expected 20)")
+            break
+        last_id = before[19]
+        dut.cmd("set plCursor 19", timeout=3.0)
+        adv = dut.cmd("advance next", timeout=5.0)
+        if not adv.get("moved") or not adv.get("reshuffled"):
+            errors.append(f"wrap {i}: expected moved=true reshuffled=true, got {adv}")
+            continue
+        after = dut.cmd("get plOrder", timeout=5.0).get("order", [])
+        if len(after) == 20 and after[0] == last_id:
+            collisions += 1
+            errors.append(f"wrap {i}: reshuffle re-opened with the just-finished id {last_id}")
+
+    _leave_player(dut)
+    if errors:
+        fail("T_PLR_22", f"{collisions}/20 collisions; " + "; ".join(errors[:5]))
+    else:
+        pass_("T_PLR_22", f"{collisions}/20 collisions over 20 forced wraps")
+
+
+def t_plr_23(dut: Dut):
+    """T_PLR_23: Prev replays history — walks playOrder backward, never
+    rerolls. advance next x5 then advance prev x5 must be the exact reverse,
+    and plOrder must be byte-identical before and after (no reshuffle)."""
+    print("T_PLR_23  Prev replays history (no reroll, plOrder unchanged)")
+    if not _enter_player(dut, "T_PLR_23"):
+        return
+    errors = []
+    r = _pl_load(dut, _PL_20)
+    if r.get("count", 0) != 20:
+        _leave_player(dut)
+        skip("T_PLR_23", f"fixture {_PL_20} not on the card (count={r.get('count')})")
+        return
+    if not _pl_shuffle(dut, True):
+        _leave_player(dut)
+        fail("T_PLR_23", "could not toggle shuffle ON")
+        return
+
+    order_before = dut.cmd("get plOrder", timeout=5.0).get("order", [])
+    forward = []
+    for i in range(5):
+        adv = dut.cmd("advance next", timeout=5.0)
+        if not adv.get("moved"):
+            errors.append(f"advance next #{i} did not move: {adv}")
+            break
+        forward.append(adv.get("row"))
+    backward = []
+    for i in range(5):
+        adv = dut.cmd("advance prev", timeout=5.0)
+        backward.append((adv.get("moved"), adv.get("row")))
+    order_after = dut.cmd("get plOrder", timeout=5.0).get("order", [])
+
+    if len(forward) == 5:
+        # 5 nexts land at bag positions 0..4. 5 prevs should retrace
+        # positions 3,2,1,0 (rows = forward[3],forward[2],forward[1],forward[0])
+        # and then report moved=false on the 5th (nothing before position 0).
+        expected_rows = list(reversed(forward[:-1]))
+        got_rows = [row for (moved, row) in backward[:4] if moved]
+        if got_rows != expected_rows:
+            errors.append(f"prev sequence {got_rows} != expected reverse {expected_rows}")
+        if len(backward) < 4 or not all(m for (m, _) in backward[:4]):
+            errors.append(f"one of the first 4 prevs did not move: {backward}")
+        if len(backward) == 5 and backward[4][0] is not False:
+            errors.append(f"5th prev (at position 0) should report moved=false, got {backward[4]}")
+    if order_before != order_after:
+        errors.append(f"plOrder changed across the next/prev walk: "
+                      f"before={order_before} after={order_after}")
+
+    _leave_player(dut)
+    if errors:
+        fail("T_PLR_23", "; ".join(errors))
+    else:
+        pass_("T_PLR_23", f"forward={forward} backward retraced exactly, "
+                          f"plOrder unchanged (no reroll)")
+
+
+def t_plr_24(dut: Dut):
+    """T_PLR_24: tap-to-play under shuffle moves the bag cursor to that
+    entry's position — it does not reshuffle. Uses `set plPlay` (dbgPlayRow,
+    the same tap-to-play entry point PLEDIT's onTap() drives) rather than a
+    screen-coordinate tap, since row position depends on live scroll offset."""
+    print("T_PLR_24  Tap-to-play moves the cursor, does not reshuffle")
+    if not _enter_player(dut, "T_PLR_24"):
+        return
+    errors = []
+    r = _pl_load(dut, _PL_20)
+    if r.get("count", 0) != 20:
+        _leave_player(dut)
+        skip("T_PLR_24", f"fixture {_PL_20} not on the card (count={r.get('count')})")
+        return
+    if not _pl_shuffle(dut, True):
+        _leave_player(dut)
+        fail("T_PLR_24", "could not toggle shuffle ON")
+        return
+
+    order_before = dut.cmd("get plOrder", timeout=5.0).get("order", [])
+    target_row = 5
+    if target_row >= len(order_before) or target_row not in order_before:
+        errors.append(f"row {target_row} not present in plOrder {order_before}")
+    else:
+        expected_pos = order_before.index(target_row)
+        pick = dut.cmd(f"set plPlay {target_row}", timeout=8.0)
+        if not pick.get("ok"):
+            errors.append(f"set plPlay {target_row} failed: {pick}")
+        cur = dut.cmd("get plCursor", timeout=5.0)
+        if cur.get("cursor") != expected_pos:
+            errors.append(f"cursor={cur.get('cursor')} (expected bag position "
+                          f"{expected_pos} of row {target_row})")
+        if cur.get("curRow") != target_row:
+            errors.append(f"curRow={cur.get('curRow')} (expected {target_row})")
+        order_after = dut.cmd("get plOrder", timeout=5.0).get("order", [])
+        if order_before != order_after:
+            errors.append(f"plOrder changed by tap-to-play: before={order_before} "
+                          f"after={order_after}")
+        # Leave playback stopped — this test never means to leave audio running.
+        if pick.get("ok"):
+            dut.cmd(f"tap {_c.tap_button('STOP')[0]} {_c.tap_button('STOP')[1]}", timeout=5.0)
+
+    _leave_player(dut)
+    if errors:
+        fail("T_PLR_24", "; ".join(errors))
+    else:
+        pass_("T_PLR_24", f"tap-to-play row {target_row} moved cursor to bag position "
+                          f"{expected_pos}, plOrder unchanged (no reshuffle)")
+
+
+def t_plr_25(dut: Dut):
+    """T_PLR_25: auto-advance end to end — the one real-playback case, proving
+    audio_eof_mp3() drives the SAME _stepOrder()/_startPlayback() path the
+    debug surface exercises above. 5 short (~3s) real files, shuffle off,
+    repeat off; advances 5/5 without a WDT reset. Known hazard on this path
+    (do not re-diagnose if hit): TASK-432 (`new Audio()` can throw an
+    uncaught bad_alloc under heap pressure) and TASK-430 (tlsTryYield's
+    1.5s budget on aeConnectFile) — both filed, not this task's to fix."""
+    print("T_PLR_25  Auto-advance end to end (5 real short files)")
+    if not _enter_player(dut, "T_PLR_25"):
+        return
+    errors = []
+    r = _pl_load(dut, _PL_SHORT5, timeout=15.0)
+    if r.get("count", 0) == 0:
+        _leave_player(dut)
+        skip("T_PLR_25", f"fixture {_PL_SHORT5} not on the card")
+        return
+    if not _pl_shuffle(dut, False) or not _pl_repeat(dut, True):
+        _leave_player(dut)
+        fail("T_PLR_25", "could not set shuffle=off repeat=off")
+        return
+
+    dut.cmd("set bgPoll 0", timeout=3.0)
+    played_rows = []
+    play = dut.cmd("set plPlay 0", timeout=10.0)
+    if not play.get("ok"):
+        dut.cmd("set bgPoll 1", timeout=3.0)
+        _leave_player(dut)
+        fail("T_PLR_25", f"set plPlay 0 failed: {play}")
+        return
+
+    deadline = time.monotonic() + 60.0
+    last_row = None
+    stopped_after_last = False
+    while time.monotonic() < deadline:
+        time.sleep(0.5)
+        st = dut.cmd("get plCount", timeout=5.0)
+        if not st.get("ok"):
+            errors.append("DUT stopped responding mid-playback")
+            break
+        cur = st.get("curRow")
+        if cur != last_row and cur is not None and cur >= 0:
+            played_rows.append(cur)
+            last_row = cur
+        if last_row == 4 and not st.get("playing") and len(played_rows) >= 1:
+            # Row 4 (the last) finished and nothing followed — repeat is off,
+            # so this is the expected end, not a hang.
+            stopped_after_last = True
+            break
+
+    dut.cmd("set bgPoll 1", timeout=3.0)
+    _leave_player(dut)
+    if played_rows != [0, 1, 2, 3, 4]:
+        errors.append(f"row sequence {played_rows} != [0,1,2,3,4]")
+    if not stopped_after_last:
+        errors.append("did not observe playback stop after row 4 (repeat off) within 60s")
+    if errors:
+        fail("T_PLR_25", "; ".join(errors))
+    else:
+        pass_("T_PLR_25", f"auto-advanced 5/5 real short files: {played_rows}, no WDT")
+
+
+def t_plr_26(dut: Dut):
+    """T_PLR_26: shuffle/repeat persist across reboot; Spotify's own
+    shuffle/repeat are never written to g_settings.player* (ADR-059 D9)."""
+    print("T_PLR_26  Shuffle/repeat persist across reboot")
+    if not _enter_player(dut, "T_PLR_26"):
+        return
+    errors = []
+    if not _pl_shuffle(dut, True) or not _pl_repeat(dut, False):
+        _leave_player(dut)
+        fail("T_PLR_26", "could not set shuffle=on repeat=all before reboot")
+        return
+    before = dut.cmd("get shufRep", timeout=3.0)
+    # suspend()'s coalesced write only fires on a mode switch away (ADR-050
+    # rule 3) — leave Player before rebooting, same discipline plLoad's own
+    # persistence gates use elsewhere in this suite.
+    _leave_player(dut)
+    if not _switch_to(dut, "Clock"):
+        skip("T_PLR_26", "precondition: could not step off Player before reboot")
+        return
+
+    # [REBOOT] — same idiom as T_PR_04: reuse the same Dut/port, the CH34x
+    # driver's DTR-reset detection in _wait_for_ready() handles the reconnect.
+    dut.send("reboot")
+    time.sleep(0.3)
+    dut._wait_for_ready()
+
+    if not _enter_player(dut, "T_PLR_26"):
+        return
+    after = dut.cmd("get shufRep", timeout=5.0)
+    if after.get("lastShuffle") != 1:
+        errors.append(f"shuffle did not survive reboot: before={before} after={after}")
+    if after.get("lastRepeat") == 2:
+        errors.append(f"repeat did not survive reboot: before={before} after={after}")
+    # Restore a clean default (off/off) so later tests in the suite don't
+    # inherit an unexpected shuffle/repeat state.
+    _pl_shuffle(dut, False)
+    _pl_repeat(dut, True)
+    _leave_player(dut)
+
+    if errors:
+        fail("T_PLR_26", "; ".join(errors))
+    else:
+        pass_("T_PLR_26", f"shuffle=on repeat=all survived reboot: {after}")
 
 
 # ── stock-002 suite (TASK-120) ────────────────────────────────────────────────
@@ -9392,6 +9818,14 @@ ALL_TESTS = {
     "T_PLR_17": t_plr_17,
     "T_PLR_18": t_plr_18,
     "T_PLR_19": t_plr_19,
+    # play-order engine (TASK-418 / ADR-059 D9/D12)
+    "T_PLR_20": t_plr_20,
+    "T_PLR_21": t_plr_21,
+    "T_PLR_22": t_plr_22,
+    "T_PLR_23": t_plr_23,
+    "T_PLR_24": t_plr_24,
+    "T_PLR_25": t_plr_25,
+    "T_PLR_26": t_plr_26,
     # velocity-scroll-001 WebRadio variant (TASK-412 / T_PLE_08)
     "T_PLE_WR_155": t_ple_wr_155,
     "T_PLE_WR_156": t_ple_wr_156,
