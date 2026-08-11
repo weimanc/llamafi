@@ -7694,6 +7694,50 @@ guard · **Priority:** **P1** / P2 (item 2) · **Status:** OPEN — investigated
 >
 > **Note the irony for the record:** TASK-433's fix was accepted partly because `cyd2usb_player`
 > "has ample headroom" — measured with the over-reporting metric.
+>
+> ---
+>
+> **RESOLVED 2026-08-11 — root cause found, fix landed, arena now acquires.** Everything above about
+> a *regression* was wrong, and three separate hypotheses died on the way (recorded because each cost
+> real time): (1) TASK-433's browser residency — falsified, the browser is never touched on this
+> repro path; (2) a boot-time regression — falsified, HEAD 30 708 B vs `510afef` 31 732 B, noise;
+> (3) a playlist-load code regression — falsified, `m3u.h`'s `alloc()`/`bytes()`/`load()` are
+> **byte-for-byte unchanged** since `510afef`. Static RAM also ruled out (~520 B spread across all
+> three revisions, matching only TASK-418's known `+512 B playOrder`).
+>
+> **The actual mechanism, and it was never a regression at all.**
+> `LocalPlayerApp::_startPlayback()` resolves the row's path with `_pl.pathAt()`, which goes
+> `_readRecord()` → `_ensureOpen()` (`m3u.h:467`) and **reopens the playlist's FIL handle** if
+> `closeIfIdle()` had dropped it — newlib gives that handle a **~4.4 KB** stdio buffer (FATFS reports
+> `st_blksize` 4096). The very next statement asked `aeConnectFile()` for the arena's **24 576 B
+> contiguous**. The reopen and the arena ask were structurally forced to be resident **at the same
+> instant on every real play call**. That is why no amount of waiting for the idle-close before
+> calling play ever helped — *play reopens it itself*. Measured across one `plPlay` call:
+> `lfb8` **26 612 B** on the last poll before the call, **22 516 B** inside it at the acquire.
+>
+> **Fix:** `_pl.closeIfIdle(0)` immediately before `aeConnectFile()` in both `_startPlayback()` and
+> `_playPathDirect()`. The path is already resolved into a local buffer by then, so the handle has no
+> remaining reader and the next row read reopens it transparently.
+>
+> **DUT-verified on `cyd2usb_player`** (150 s settle, no `arenaHold` probe anywhere in the script):
+>
+> | | before fix | after fix |
+> |---|---|---|
+> | `arena acquire=24576B` | `lfbBefore=22516 FAIL→libc-fallback` | `lfbBefore=28660` **OK** |
+> | then | `xTaskCreatePinnedToCore failed rc=-1`, `playing:false` | reaches `new Audio(...)` |
+>
+> **Item 1 is closed. The remaining failure is TASK-432** — with the arena now acquired, the next
+> allocation is the unchecked `new Audio(...)`, which throws `bad_alloc` and reboots the device
+> (`abort()` at `0x401be60b` → `rst:0xc SW_CPU_RESET`). That is the P1 already filed, and it is now
+> the *only* thing between here and local playback.
+>
+> **Two method lessons paid for in hours, both already covered by adopted BPs:**
+> 1. **The diagnostic perturbed the thing it measured.** `set arenaHold 1`/`0` cycles the exact
+>    24 576 B block under test; every early "arena FAILS" reading taken with it in the script is
+>    contaminated. BP-057's "capture, don't probe" instinct applies to heap as much as to serial.
+> 2. **`lfbBefore` in the arena log used `MALLOC_CAP_INTERNAL` while allocating 8-bit** (fixed in
+>    `8323fc4`). The `69 620 → 42 996` comparison that started this whole investigation was of a
+>    number that never gated the allocation — BP-055, exactly.
 
 ### TASK-419 — real posbar seek for local files
 

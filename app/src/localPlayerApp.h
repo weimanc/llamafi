@@ -540,15 +540,23 @@ public:
         return ok;
     }
     void dbgReport() const {
+        // TASK-435 temporary diagnostic (not part of the fix, do not commit):
+        // fileOpen tells the caller whether closeIfIdle() has actually fired
+        // yet (tick()-driven, not a timer — wall-clock waits alone don't
+        // prove it), lfb8 is the same byte-addressable cap mb_arena.cpp's own
+        // acquire log uses (BP-055), read here with no allocation of its own.
         Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\","
                       "\"path\":\"%s\",\"count\":%u,\"loadMs\":%lu,\"totalSec\":%lu,"
                       "\"truncated\":%s,\"error\":%s,\"curRow\":%d,\"playing\":%s,"
+                      "\"fileOpen\":%s,\"lfb8\":%u,"
                       "\"last\":true}\n",
                       _pl.path(), (unsigned)_pl.count(), (unsigned long)_pl.loadMs(),
                       (unsigned long)_pl.totalSec(),
                       _pl.truncated() ? "true" : "false",
                       _pl.error() ? "true" : "false",
-                      _curRow, _playing ? "true" : "false");
+                      _curRow, _playing ? "true" : "false",
+                      _pl.fileOpen() ? "true" : "false",
+                      (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
     }
     void dbgRow(uint16_t idx) {
         if (idx >= _pl.count()) {
@@ -820,6 +828,20 @@ private:
         // Tapping/advancing to a new row while one plays: stop first, so the
         // engine isn't asked to connect on top of a live decode.
         if (_playing || _connecting) aeStopFile(_connecting);
+        // TASK-435: drop the playlist's file handle BEFORE the arena is asked
+        // for its 24 576 B contiguous block. pathAt() above went through
+        // _readRecord() -> _ensureOpen() (m3u.h:467), which reopens the FIL if
+        // closeIfIdle() had dropped it — and newlib gives that handle a ~4.4 KB
+        // stdio buffer (FATFS reports st_blksize 4096). Without this line the
+        // reopen and the arena ask are forced to be resident at the same
+        // instant on *every* play call, which on cyd2usb_player is the
+        // difference between acquiring and not: DUT-measured lfb8 26 612 B
+        // immediately before the call, 22 516 B inside it at the acquire,
+        // against a 24 576 B need. That is why waiting for the idle-close
+        // before calling play never helped — play reopens it itself. The path
+        // is already resolved into `path` by this point, so the handle has no
+        // remaining reader; the next row read reopens it transparently.
+        _pl.closeIfIdle(0);
         LOG_I("localplayer", "play row %u: %s", (unsigned)idx, path);
         if (!aeConnectFile(path)) { _err = true; return; }
         _curRow     = (int)idx;
@@ -856,6 +878,13 @@ private:
     // a cursor that no longer means anything — see tick()'s _direct branch).
     void _playPathDirect(const char* path) {
         if (_playing || _connecting) aeStopFile(_connecting);
+        // TASK-435: same reason as _startPlayback() — this path does not call
+        // pathAt(), so it never reopens the handle itself, but the playlist's
+        // ~4.4 KB handle can still be open from PLEDIT scrolling before the
+        // user browsed to this file. Drop it before the arena's 24 576 B ask
+        // rather than leaving the outcome to how recently the list was
+        // scrolled.
+        _pl.closeIfIdle(0);
         LOG_I("localplayer", "play (direct): %s", path);
         if (!aeConnectFile(path)) { _err = true; _dirty = true; return; }
         strlcpy(_directPath, path, sizeof(_directPath));
