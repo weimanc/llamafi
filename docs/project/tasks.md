@@ -6390,9 +6390,61 @@ allocation) so a real reopen failure **fails loudly** instead of hiding in a ski
 
 **Owner:** Developer · **Deps:** TASK-416 · **Gate:** open the same directory 20× in a row, with an
 intervening cancel and an intervening app switch, 20/20 `ok:true`; plus open-handle count back to
-its pre-open value after every cancel · **Priority:** P2 — the browser works, but a user who backs
-out of a directory and re-enters it can hit a dead browser · **Status:** OPEN — filed 2026-08-11
-from TASK-416's gate re-run.
+its pre-open value after every cancel · **Priority:** **P1** (raised from P2 — see below) ·
+**Status:** OPEN — filed 2026-08-11 from TASK-416's gate re-run.
+
+**Escalated the same day: it is not intermittent, it is suite-state-dependent and reproducible.**
+The full `./run/test` baseline captured for TASK-417 (2026-08-11, `cyd2usb_winamp_debug`, clean tree
+at `c5e0e78`) failed **three** browser tests, all on the same cause:
+
+```
+T_PLR_13: FAIL: fbOpen /probe200 failed but sdls says the directory IS on the card
+T_PLR_15: FAIL: fbOpen /probe200 failed but sdls says the directory IS on the card
+T_PLR_16: FAIL: empty dir: fbOpen /probefb/empty failed; nested: fbOpen /probefb/nested failed
+```
+
+The same ids pass when run targeted from a fresh flash. That is the
+[[feedback_isolated_rerun_vs_suite_state]] pattern exactly — an isolated rerun cannot clear this,
+and TASK-416's own gate (targeted, fresh boot) is why it read as "intermittent" at filing time.
+
+**Ruled out by inspection, so do not re-derive:** it is not a `_dh` leak. `open()`, `_finish()` and
+`free()` all call `_closeDir()` on every exit path, and `open()` closes before re-opening.
+
+**Live hypothesis — handle exhaustion, not heap.** The browser holds **two** handles at once during
+a walk: `_dh` across ticks, plus the transient `File e = _dh.openNextFile()` inside each batch.
+TASK-416 bumped `kSdMaxFiles` 2 → 3 on the accounting that the browser needs *one*. With
+`m3u::PlaylistIndex` holding the playlist `File` open for the session, a walk peaks at
+playlist(1) + `_dh`(1) + entry(1) = **3 of 3**, leaving nothing for audio — and the suite reaches
+`T_PLR_13` with a playlist already loaded. Each open `File` also costs ~4.4 KB of stdio buffer, so
+this interacts with the heap picture rather than being cleanly separable from it. **Measure the
+open-handle count on the DUT rather than reasoning further** — that is what the gate asks for, and
+it decides between bumping `max_files` again and holding only one handle at a time.
+
+Blocks TASK-418: auto-advance puts this path on the end-of-track path with no user gesture.
+
+### Open triage — five non-browser failures in the 2026-08-11 baseline
+
+The same full-suite baseline showed **133 passed / 10 failed / 47 skipped / 5 flaked**. Beyond the
+three TASK-433 ids, five failures sit **outside** the 2026-08-09 pre-declared flaky set and are
+therefore unexplained as of this writing:
+
+| id | reported reason |
+|---|---|
+| `T082` | `only 0 ACT_VOLUME enqueue(s); need >= 2 for debounce coverage` |
+| `T181` | `re-drill did not enter chart view` |
+| `T186` / `T187` | `fetchOkCount did not advance after 45 s` (MSFT / NVDA) |
+| `T_PRM_01` | `prPollSec=10 after reboot, expected 30 (not persisted)` |
+
+`T_WR_COEX_01` and `T_WR_VOL_03` also failed but ARE on the pre-declared list.
+
+**Do not assume these are regressions from 2026-08-11's commits, and do not assume they are
+environmental.** The 2026-08-09 baseline predates TASK-415/425/427/430/416, so the comparison is
+confounded and cannot be settled by argument. `T186`/`T187` are yahoo-network-shaped and this
+project has a documented history of exactly that flake class; `T_PRM_01` is a settings-persist
+failure and TASK-429 (a settings save during playback silently aborting) is already open and
+adjacent. Settle it with a bisect run at `c5e0e78^` rather than by reasoning.
+
+**Owner:** VE (triage) · **Priority:** P2 · **Status:** OPEN — filed 2026-08-11.
 
 ### TASK-432 — `aeConnectFile()` lets `new Audio(...)` throw an uncaught `bad_alloc`
 
