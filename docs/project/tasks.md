@@ -6441,6 +6441,162 @@ a run must terminate with the distinguishable setup status and the captured seri
 path · **Priority:** P2 — costs real investigation time on every degraded-WiFi day and has already
 caused three misreads in one session · **Status:** OPEN — proposed 2026-08-11, awaiting VE review.
 
+> **VE review (2026-08-11):**
+>
+> Verified against `app/tools/run_serialdbg_tests.py` (line refs current as of `8e2d05d`),
+> `screendump.py`, `test_ceefax_ws_soak.py`, `run/test*`, `app/src/wifiDiag.{h,cpp}`,
+> `app/src/main.cpp`, BP-057/059/060/018, and the 2026-08-11 audit log entry. No code changed, no
+> DUT touched, per the review brief.
+>
+> **Verdict on priority items:**
+> - **Item 1 (distinguishable setup status) — ENDORSE, and I agree it is the highest-value item.**
+>   Confirmed: `dut = Dut(...)` at `:9531` is unwrapped in `main()` — the `RuntimeError` at `:218`
+>   propagates as a bare traceback, `sys.exit(0 if failed == 0 else 1)` at `:9605` is never reached,
+>   and Python's own uncaught-exception exit is `1` — the **same code** a real test failure produces
+>   (`failed != 0` also exits `1`). Today a reader cannot tell a rig fault from a test fault by exit
+>   code alone; grepping for PASS/FAIL and finding neither is the only signal, exactly as the
+>   proposal states. This is the real bug and fixing it is cheap. Implement as: wrap the `Dut(...)`
+>   construction in `main()` in `try/except RuntimeError`, print a `[SETUP-FAIL] <reason>` line, and
+>   `sys.exit(3)`.
+> - **Item 2 (auto-retry via the portal RTS-reset structure) — REJECT as specified. See challenge
+>   below; this is not a safe reuse.**
+> - **Item 3 (wait on progress, not a fixed deadline) — AMEND, the literal design does not work.
+>   See challenge below.**
+> - **Item 4 (dump last ~40 lines on abort) — ENDORSE**, cheap and directly answers BP-060's
+>   rationale (rig noise read as results because nobody could re-derive DUT state after the fact).
+>   `_TeeSerial` already exists for `--log-file`; the abort path should keep an in-memory ring of the
+>   last N raw lines regardless of `--log-file`, since the sessions that hit this are exactly the
+>   ones without a log file running.
+>
+> **Answers to the four open questions:**
+> 1. **Exit code 3 is free.** Checked `run/test`, `run/test-targeted`, `run/test-sync`; `test-smoke`
+>    execs `test-targeted`. All four capture the harness's exit status only as `|| _TEST_RC=$?` and
+>    pass it through unexamined to the trap's `exit "$rc"` — no script branches on a specific value.
+>    The one existing collision to flag: the trap's own prod-restore failure **overwrites** `rc` to
+>    `99` regardless of what `_TEST_RC` was (`run/test:23-25` and the equivalent in
+>    `test-targeted`/`test-sync`). If a run hits SETUP-FAIL *and* the prod-restore then fails, the
+>    caller sees `99`, not `3` — pre-existing behavior, not a regression, but the SETUP-FAIL status
+>    line printed after restore (item 4) becomes the only surviving evidence in that case, which is
+>    another reason item 4 is not optional. Grepped the repo for anything else invoking these
+>    scripts or `run_serialdbg_tests.py` (`ve_suite_base.py`, `test_fetch_stress.py`, and the other
+>    `app/tools/test_*.py` soak scripts) — none of them shell out to `run/test*` or parse its exit
+>    code; they're independent runners. Exit 3 is unclaimed.
+> 2. **Hand back to the operator by default; do not auto-retry the whole run.** BP-059's failure
+>    mode is exactly on point: a SETUP-FAIL that silently retries and then passes reads in the log
+>    as "clean run," burying the fact that the rig was degraded once. TASK-434's own evidence
+>    (three misreads, `DUT_WIFI_WAIT=120` needed for the rest of the session) describes a
+>    *sustained* degraded state, not a one-off blip an auto-retry would plausibly clear. Print
+>    `[SETUP-FAIL]` and stop; let the operator decide whether to re-run with a longer wait. (The
+>    proposal's item 2 auto-retry is separately rejected below on safety grounds, which makes this
+>    answer moot for item 2 specifically, but the general question stands for any future retry
+>    design.)
+> 3. **Separate defect — do not fold it into this task, but do name it.** The symptom text
+>    (`"multiple access on port?"`) is pyserial's own message for a port already open elsewhere
+>    (`SerialException`, raised from `readline()`/`open()`), not the `RuntimeError` this task is
+>    about — different exception type, different message, different call site. Today both surface
+>    as uncaught tracebacks with the same exit code `1`, which is *why* they read as
+>    indistinguishable to a log reader — that symptom is fixed by item 1 alone, once a
+>    `SerialException` is caught next to the `RuntimeError` and reported as `[SETUP-FAIL]
+>    port-busy: <msg>` rather than `[SETUP-FAIL] wifi-not-connected`. File a follow-up task for
+>    detecting a busy port *before* attempting the open (e.g. `lsof`/`fuser` on the resolved port,
+>    matching `run/lib.sh`'s existing tmux-monitor-kill step) — that is new work, not a rename of
+>    this one.
+> 4. **Amend: make it one shared helper, but scope it down from what the proposal implies.**
+>    `screendump.py:30` imports `_DUT_WIFI_WAIT_S` from `run_serialdbg_tests` already — the module
+>    boundary exists. `DutLite._wait_for_ready` (`screendump.py:42-58`) is a deliberate *subset* of
+>    `Dut._wait_for_ready` (stops at WiFi-up, explicitly skips the Spotify-poll wait — see its own
+>    docstring) — a shared helper needs a parameter for "stop point," not a full override delete.
+>    `test_ceefax_ws_soak.py`'s `MiniDut._wait_for_boot` (`:84-93`) is explicitly `simplified from
+>    run_serialdbg_tests.Dut._wait_for_ready (no portal-recovery/DRD-gap handling; this is a
+>    controlled scratch run, not an unattended regression suite)` per its own comment — that's an
+>    intentional, documented difference for a throwaway experiment script, not drift to fix. Extract
+>    the boot-detect + IP-wait *loop mechanics* (the `[boot]`/`ets Jul` scan, the deadline loop, the
+>    portal-indicator check) into one function all three can call with different deadlines/behaviors
+>    on timeout, but do not force `test_ceefax_ws_soak.py` onto the full `Dut` readiness contract —
+>    its docstring's reason for staying separate is sound and predates this task.
+>
+> **Challenges to the proposal:**
+> - **Item 3 ("wait on progress, not a fixed deadline") is not implementable as written — the
+>   proposal's own example line does not exist on serial.** Grepped `app/src/*.cpp`/`*.h` for
+>   `NO_AP_FOUND`: it appears **only in comments** (`main.cpp:3578`, `wifiDiag.h:26`,
+>   `wifiDiag.cpp` none) and in one debug-command *response* field (`get wifiCfg`, which the harness
+>   would have to actively poll for, not something that streams unprompted). Nothing in the boot
+>   path ever `Serial.print`s the literal string `"NO_AP_FOUND"`. What actually streams is
+>   `[wifi-ev] t=<ms> ev=<n> STA_DISCONNECTED reason=<code>` (`wifiDiag.cpp:65-69`) — a **numeric**
+>   ESP-IDF disconnect reason, not a name; `WIFI_REASON_NO_AP_FOUND` is reason code `201`
+>   (confirmed against the installed `esp_wifi_types.h` under
+>   `~/.platformio/packages/framework-arduinoespressif32`), decoded nowhere in this firmware's
+>   `evName()` switch (`wifiDiag.cpp:23-31` — only handles the `ev` enum, not the disconnect
+>   `reason`). "Fail fast on repeating NO_AP_FOUND" as literally specified would grep for a string
+>   that is never emitted and would never fire. It is implementable, but only after rewriting it as
+>   "repeating `reason=201`" (or whatever the live AP-absent code turns out to be — worth confirming
+>   on an actual storm capture before hardcoding a number into a test harness). Second problem, more
+>   structural: `wifiDiag.cpp:48-56` caps `[wifi-ev]` at **10 lines per rolling minute**, after which
+>   individual events are suppressed and only a `suppressed=N` summary prints once the window rolls —
+>   so during an active storm, "progress" lines can go silent for up to ~60 s even while the DUT is
+>   actively flapping, which undercuts "silent = give up" as a fail-fast signal. And on the *good*
+>   path, a healthy boot emits at most `STA_START` → `STA_CONNECTED` → (silence during DHCP) →
+>   `STA_GOT_IP` — one or two wifi-ev lines, then legitimate silence for the DHCP round trip. A
+>   "silence means give up" rule has to be tuned against that gap or it fails healthy boots. This
+>   item needs a redesign (key on `reason=` value + count, not string presence; treat the DHCP gap
+>   after `STA_CONNECTED` as expected silence) before it's buildable — flagging as directed, since
+>   the proposal itself says this is the item it's least confident in, and that instinct is correct.
+> - **Item 2's reuse of the portal-retry structure is unsafe for this failure mode — recommend
+>   dropping the RTS-reset retry, not adapting it.** The portal branch's RTS pulse
+>   (`:175-183`) exists to escape `WiFiManager::startConfigPortal()`, a function that **never
+>   returns** on its own (LL-051/BP-018) — a reset is the *only* exit. A plain WiFi-association
+>   timeout is not that: `setup()` is not blocked forever, it eventually reaches `loop()`, and
+>   `wifiDiag::superviseTick()` (`wifiDiag.cpp:92-141`) is the mechanism this project already built
+>   and proved for exactly this case — TASK-426's fix. But `WIFI_SUP_DOWN_MS = 60000` (60 s
+>   continuously down before the *first* kick, `wifiDiag.cpp:92`) is longer than even a doubled
+>   default wait (`2 × 25 s = 50 s`) — so an RTS-reset retry fired at the harness's own timeout would
+>   almost always land **before** the supervisor's candidate-rotation kick (the thing that actually
+>   fixed TASK-426's dead-last-candidate wedge) ever gets to run, since a hard reset restarts
+>   `setup()` from scratch and discards all in-progress supervisor arming state. Per TASK-426's own
+>   finding, the boot cascade retries saved candidates in the same order every time; if the failure
+>   mode is "the cascade's last-tried candidate is dead" (the exact wedge TASK-426 found and fixed
+>   with candidate rotation, not with a reset), a bare reset just re-runs the identical losing
+>   sequence and reproduces the identical timeout — burning the harness's entire retry budget for no
+>   chance of success, on the specific failure class this project has already seen in production.
+>   Recommend: item 2 as scoped (a bounded retry) is fine in principle, but it should be a **longer
+>   wait on the same boot**, not a reset-and-rewait — a reset only helps for the portal case, where
+>   it's not optional, and actively working against the fix this project already shipped for the
+>   WiFi case.
+> - **The gate as written is not runnable in this rig, and that's a real gap, not a nitpick.**
+>   "With the AP unreachable…" has no operator-safe realization here: `run/`'s own workflow docs and
+>   this project's WiFi history (LL-096, `project_wifi_flapping_ap_side`) are explicit that host-side
+>   WiFi manipulation from this machine is not a controlled input — there's no `run/` script that
+>   fences the AP off, and yanking the real AP the DUT depends on for its own dev-loop connectivity
+>   (SSH, `run/spiffs`, etc. all ride the same LAN) is not something to do to a shared rig for a unit
+>   gate. Propose instead: (a) a **host-side unit test** against `Dut._wait_for_ready` with a fake
+>   serial object (e.g. a `io.BytesIO`-backed stub or `unittest.mock` of `self.ser`) that never emits
+>   `IP address:` — this exercises the timeout/exit-code/log-dump logic with zero DUT and zero AP
+>   involvement, and is the natural home for asserting exit code `3` and the `[SETUP-FAIL]` line
+>   without touching hardware at all; (b) for the "no added latency on the good path" half of the
+>   gate, a real DUT run timing `Dut.__init__` on a healthy boot, compared before/after — this part
+>   *is* runnable as stated. Recommend splitting the compound gate into these two pieces; as one
+>   gate spanning "AP unreachable" it cannot be executed as written.
+> - **What the proposal missed:** it never states what `[SETUP-FAIL]` should do to `RESULTS` for
+>   any tests that already ran before the port ever got the chance — moot for the `Dut.__init__`
+>   failure path (nothing has run yet), but worth stating explicitly so a future edit that adds a
+>   *mid-run* reconnect-and-retry (e.g. inside `_verify_debug_firmware`'s own retry-via-reconnect
+>   path, which this review did not audit) doesn't silently inherit the same bare-`RuntimeError`
+>   problem this task fixes only at the `Dut.__init__` call site. Also worth noting for whoever
+>   implements: BP-060's own rationale paragraph (adopted the same day as this proposal) describes
+>   this exact defect as "an 8 s WiFi wait aborting" — the actual constant is `_DUT_WIFI_WAIT_S`
+>   default **25 s** (`:68`), not `BOOT_WAIT` (which is a fixed pre-sleep in `run/test*`, unrelated
+>   to this wait). Even the best-practice writeup adopted specifically because of this class of
+>   confusion mislabels the number — worth a one-line fix to BP-060 itself when this lands, so the
+>   record is internally consistent.
+>
+> **Summary:** proposal is not misconceived — item 1 is real and worth landing largely as-is; item 4
+> is real and cheap. Item 3 needs its keying signal rewritten against actual firmware output before
+> it's buildable. Item 2 should drop the RTS-reset mechanism and either retry-in-place (same boot,
+> longer wait) or not auto-retry at all — reusing the portal structure verbatim fights a fix this
+> project already shipped. The compound gate needs to split into a host-side unit test (exit
+> code/log-dump/timeout logic) plus a real-DUT good-path timing check; there is no safe way to
+> physically unplug the AP for this rig as a repeatable gate.
+
 ### TASK-433 — a repeat `fbOpen` of the same directory fails intermittently
 
 Found by the orchestrator re-running TASK-416's own gate rather than accepting the implementing
