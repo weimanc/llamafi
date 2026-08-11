@@ -589,6 +589,46 @@ LL-101; BP-046 adopted 2026-07-11 from LL-105.)_
 
 ---
 
+### BP-057 — Observing an asynchronous firmware trace needs one continuous capture; "the output never appeared" must be proven against raw serial before it is blamed on firmware
+
+**Adopted from**: LL-122
+**Date adopted**: 2026-08-11 (human)
+**Rule**: When a test must observe a firmware log line that is emitted asynchronously — by a different FreeRTOS task than the one answering the command — the capture must span the command and the wait as a **single continuous read**. Never `dut.cmd(...)` followed by a separate reader loop: `read_json()` discards every non-JSON line while hunting for its ack, and anything printed in that window is gone. Use `_tap_and_wait_log()` (`app/tools/run_serialdbg_tests.py`) or the same pattern. Independently of the harness: before attributing a "missing output" symptom to firmware, capture the raw serial stream once (`--log-file`) and confirm the output is genuinely **absent** rather than merely **unobserved**. A read helper that discards unmatched input must say so in its docstring and name what it is safe for.
+**Rationale**: TASK-417's gate cost four agents and ~3 h on `T_PLR_17`/`T_PLR_06`/`T_WR_EJECT_01` failing as "dispatch did not reach spotifyTask" and "no TLS-reset log line within 8 s". A `LOG_FILE` capture showed the firmware had printed `[D][spotify.task] dequeued action=SHUFFLE param=1`, `action=REPEAT` and `hard reset — stopping client`, in order, in the exact second the tests reported them absent. The evidence was being consumed by the test's own transport before the test looked for it, which makes the defect invisible from inside the harness by construction — better assertions, longer timeouts and cleaner preconditions could never have found it, and three successive root-cause theories were built and discarded before anyone changed instrument rather than hypothesis. It also retro-explains a long tail of "flakiness" on this suite: `T_WR_EJECT_01` sat on the pre-declared flaky list in both 2026-08-11 full-suite baselines and is the same race.
+**Applies to**: VE (owns the harness), Developer (writes gate tests), All (reading a "missing output" symptom)
+
+---
+
+### BP-058 — A heap comparison states the mount state and the time-since-reset for both sides, and is taken at ≥150 s settle
+
+**Adopted from**: LL-123
+**Date adopted**: 2026-08-11 (human)
+**Rule**: Any A/B heap measurement on this device must record, **for both sides**, the SD mount state and the elapsed time since reset, and must be taken at **≥150 s post-reset** unless the transient itself is the subject. `lfb8` is not stable before then: on one build and one boot it reads **69 620 B at ~30 s, 32 756 B at ~90 s, and 29 684–30 708 B from ~150 s onward**, as the Spotify TLS working set becomes resident. Where an escalation rests on a delta between two measurements, re-take both sides back-to-back in one session before escalating. Pairs with BP-055's `MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT` clause — same family: the number is real, the comparison is not.
+**Rationale**: TASK-425 reported that LocalPlayer's screen costs ~12 KB of largest-free-block on its own, concluded no `max_files` value could work, and escalated it as an Architect-level blocker requiring a lifecycle redesign. The two sides of that comparison differed in **SD mount state**, not in active app; with mount state held constant, arena-hold results are byte-identical with Spotify vs LocalPlayer active. Both numbers were real. The escalation was quantified, well-written and wrong, and it nearly took a correct and more important finding down with it — that arena 24 576 B + the smallest usable FATFS context 12 556 B need 37 132 B contiguous against 30 708 B available, a **6 424 B shortfall no acquisition ordering can close**, which disproves ADR-059 D1 amendment #2's premise that ordering is the lever.
+**Applies to**: Developer, Architect (memory-budget rulings rest on these numbers)
+
+---
+
+### BP-059 — A `skip()` reason states what the test observed, not a cause it has not verified
+
+**Adopted from**: LL-124
+**Date adopted**: 2026-08-11 (human)
+**Rule**: A skip message may state only what the test **actually observed**. If it names a cause, that cause must be verified independently first — and where a test skips on a precondition failure, probe that precondition through a path that does **not** go through the code under test. A skip reads as "nothing to see here" in every summary, so an unverified cause in a skip reason is the most effective way to hide a defect in this project's reporting.
+**Rationale**: `T_PLR_13` and `T_PLR_15` guarded on `set fbOpen <path>` and, on failure, reported `skip("fixture /probe200 not on the card")` — neither test ever checked whether the fixture was on the card. In one run `T_PLR_13` opened `/probe200` successfully and `T_PLR_15` failed to open the same path minutes later, reporting it as missing. The full-suite baseline then failed all three browser tests on that cause while the same ids pass targeted from a fresh flash. It became TASK-433 at P1, blocking TASK-418, whose auto-advance puts the same path on the end-of-track path with no user gesture. The implementing agent's own gate run had reported 6 passed / 0 skipped, so it was invisible there, and two separate readers absorbed the skip without investigating — while the same session's stale *assertion* in `T_PLR_06` produced a loud FAIL and was diagnosed in minutes. The fix probes with `sdls`, which does not touch `fileBrowser`'s state or allocation.
+**Applies to**: VE, Developer (anyone writing a guarded test)
+
+---
+
+### BP-060 — A handover prompt labels every diagnostic claim as measured, inferred or assumed, and grants the receiving agent standing permission to contradict it
+
+**Adopted from**: LL-125
+**Date adopted**: 2026-08-11 (human)
+**Rule**: When briefing a fresh or continuing agent, mark each diagnostic claim with how it was established — **measured** (with the evidence), **inferred from X**, or **assumed**. Any instruction to act on a theory must carry an explicit instruction to verify it first and to report back if it does not hold; the receiving agent needs stated permission to contradict the brief. On a symptom of "expected output never appeared", capture the raw stream (BP-057) **before** writing any theory into a prompt at all. Delegation multiplies the cost of an unverified assertion: a theory a single engineer would test in five minutes instead becomes hours of plausible-looking work across several agents.
+**Rationale**: During TASK-417 the orchestrator wrote three successive root-cause theories into handover prompts, each justified and each wrong: `hit='CANVAS'` means the eject zone is dead (it is the shell-busy swallow marker); the persisted `playerMode` leaks across tests (disproved by direct measurement — `appId=Spotify`, `playerMode=Spotify`, `shellBusy=False` immediately before every failing tap); and the shuffle-commit's 250 ms cooldown swallows the following repeat tap (same race as BP-057). Every receiving agent acted on them unchallenged, because a prompt reads as briefing rather than hypothesis. Three agents rewrote `winampDisplay.h` chasing a firmware defect that did not exist, and two of those iterations introduced real regressions into shipped behaviour that the control tests caught. The agent that resolved the task was the one that instrumented the state and reported "this disproves the leading hypothesis". The task's two substantive claims (`T_PLR_18`, `T_PLR_19`) had been green since the first gate run. Rig noise amplified it further — an 8 s WiFi wait aborting as `RuntimeError: DUT WiFi not connected`, plus serial-port contention from a peer session and from the orchestrator's own probing, produced non-results that were read as test results.
+**Applies to**: All (anyone writing a handover prompt or orchestrating subagents)
+
+---
+
 ## Entry Format
 
 ```

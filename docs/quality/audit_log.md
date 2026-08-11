@@ -1736,6 +1736,52 @@ state of M-WINAMP-PLAYER's registry/doc set behind it.
 
 ---
 
+### Audit — 2026-08-11 — M-WINAMP-PLAYER overnight burndown (TASK-425/427/430/416/417) retrospective
+**Triggered by**: human (post-session QM request)
+
+**Scope**: One ~10 h orchestrated session, six commits (`e6878d9`, `510afef`, `76ad456`, `c5e0e78`,
+`5a4b8b1`, `40b519d`), five of eight queued tasks closed. All work gated on `./run/check` 6/6.
+
+**Findings**:
+1. **The milestone's memory premise was wrong and is now measured.** ADR-059 D1 amendment #2 held
+   that acquisition ordering was the lever for SD/arena coexistence. TASK-425 measured a **6 424 B
+   contiguous shortfall** (arena 24 576 B + FATFS ctx 12 556 B vs 30 708 B `lfb8`) that no ordering
+   closes; arena-first is strictly worse. Resolved as TASK-431 option (a) — Player mode ships in
+   `cyd2usb_player` with Spotify compiled out — and DUT-proven under TASK-427.
+2. **Three subagent findings were wrong in a way that would have shipped as fact** without
+   orchestrator re-verification: a heap confound escalated as an Architect blocker (→ LL-123), a
+   test rewritten under a false history claim ("could never have passed" — it passed at TASK-414;
+   TASK-415 broke it and it was not re-run), and a 6/6 gate report that did not reproduce.
+3. **Two harness defects, both older than the tasks that exposed them, both previously absorbed as
+   flakiness**: `dut.cmd()` discarding async traces (→ LL-122/BP-057) and unverified causes in
+   `skip()` reasons (→ LL-124/BP-059). The first retro-explains entries on the pre-declared flaky
+   list; the second was hiding what is now TASK-433 at P1.
+4. **Orchestration itself was the largest single cost.** Three unverified diagnoses written into
+   handover prompts were executed on unchallenged across four agents (→ LL-125/BP-060). TASK-417's
+   substantive claims were green from its first gate run; ~3 h went into a firmware defect that did
+   not exist, and two iterations introduced real regressions that control tests caught.
+5. **Process notes.** Subagents repeatedly parked waiting on Monitor notifications and needed
+   orchestrator nudges; `T_PLR_17`–`19` were specified in `tasks.md` but did not exist in the
+   harness until challenged, i.e. the task would have closed with its central claim unverified —
+   BP-056's failure mode, caught this time.
+
+**Actions assigned**:
+- **QM** — LL-122..125 filed; BP-057..060 adopted (human, 2026-08-11). Done.
+- **Developer** — TASK-433 (P1, blocks TASK-418): measure open-handle count either side of a browser
+  cancel; hypothesis is two handles held during a walk vs `kSdMaxFiles=3`. TASK-432 (`new (std::nothrow)`
+  in `aeConnectFile()`).
+- **VE** — triage the five non-browser baseline failures (`T082`, `T181`, `T186`, `T187`, `T_PRM_01`)
+  with a bisect at `c5e0e78^`; four passed on the later run. Also: no test restores `playerMode` on
+  exit — latent cross-test leak, unobserved so far.
+- **PM** — TASK-418 stays blocked behind TASK-433; 419/420/421/422 unblocked by TASK-417 landing.
+- **Rig** — the harness's 8 s WiFi wait aborts as `RuntimeError: DUT WiFi not connected` and reads as
+  a test failure; `DUT_WIFI_WAIT=120` is currently required. Worth raising the default or failing
+  with a distinguishable status.
+
+**Resolution**: _(open — TASK-433/432 outstanding, VE triage outstanding; QM items closed)_
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:
