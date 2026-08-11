@@ -29,6 +29,7 @@
 #include "audio/audioEngine.h"
 #include "gen/shell_layout.h"
 #include "logSink.h"
+#include "player/fileBrowser.h"
 #include "player/m3u.h"
 #include "settingsStorage.h"
 #include "winamp/winampDisplay.h"
@@ -37,7 +38,7 @@ extern TFT_eSPI tft;
 extern WinampDisplay winampDisplay;
 extern bool sdReady();   // main.cpp — the boot mount's outcome (TASK-408)
 
-class LocalPlayerApp : public App {
+class LocalPlayerApp : public App, public player::FileBrowser::Delegate {
 public:
     // ── The playlist as a PlaylistSource (ADR-059 D4) ──────────────────────
     // Nested, like WebRadio's StationListSource and for the same reason: the
@@ -103,6 +104,7 @@ public:
 
     void init() override {
         _src.bind(this);
+        _browser.bind(this);
         // No allocation here: a compiled-in-but-never-entered mode must cost
         // nothing but flash (design §10). resume() acquires.
     }
@@ -130,6 +132,10 @@ public:
         // machine are global state; a mode switch mid-drag must not leave
         // either armed (TASK-352 / TASK-277 precedent).
         winampDisplay.resetDragState();
+        // TASK-416: close the browser and free its heap — same discipline as
+        // _pl below (design §10 suspend order: cancel gestures, close the
+        // browser, THEN tear down the engine).
+        _browser.free();
         // Stop and fully release the engine: pump task, Audio, arena. Leaving
         // the arena held would silently starve WebRadio's next station fetch
         // and Spotify's TLS of contiguous heap.
@@ -157,6 +163,19 @@ public:
     }
 
     void tick() override {
+        // TASK-416: continue any in-flight directory walk (≤FB_BATCH entries
+        // — see fileBrowser.h). Cheap no-op when the browser isn't Walking.
+        _browser.tick();
+        // The browser owns the whole canvas while active (CP-1, same contract
+        // as g_countryPicker) — force a full repaint the tick after it
+        // closes, since its SPickerList painted over the player screen.
+        const bool browserActive = _browser.active();
+        if (_browserWasActive && !browserActive) {
+            _dirty = true;
+            winampDisplay.invalidatePlaylist();
+        }
+        _browserWasActive = browserActive;
+
         // Reconcile the pump task's async connect outcome. This app polls it
         // itself rather than leaving it parked: s_wrPumpResult is a single
         // shared slot, and a FILE-arm result left unconsumed would be picked
@@ -190,6 +209,7 @@ public:
             if (_playing) {
                 _playing = false;
                 _curRow  = -1;
+                _direct  = false;
                 _plSeqno++;
                 _dirty = true;
                 LOG_I("localplayer", "track ended (auto-advance is TASK-418)");
@@ -213,6 +233,10 @@ public:
         // user just looks at the screen.
         _pl.closeIfIdle(1500);
 
+        // TASK-416: the browser is modal and owns the canvas — its own
+        // repaint/updateCount() calls are its rendering, not this one's.
+        if (browserActive) return;
+
         if (_dirty) {
             _dirty = false;
             _drawFull();
@@ -228,9 +252,31 @@ public:
     // WebRadio's.
     bool isConnecting() const override { return _connecting; }
 
+    // TASK-416 / NEW-APP-CHECKLIST item 1: true while a browser page read is
+    // in flight — self-clears when the walk finishes (fileBrowser.h's tick()
+    // flips its own state, this just observes it).
+    bool hasPendingAsync() const override { return _browser.pending(); }
+
+    // TASK-416 / NEW-APP-CHECKLIST item 4, TASK-384 precedent: except the
+    // browser's own back/up zone from the shell busy gate, or a tap there
+    // while a page walk is in flight is silently dropped — confirmed on real
+    // hardware to feel broken in a way the harness alone would not catch.
+    bool isNavigationTap(int x, int y) const override {
+        return _browser.active() && _browser.isBackZone(x, y);
+    }
+
     // ── Input ──────────────────────────────────────────────────────────────
 
     bool handleInput(TouchPhase phase, int x, int y) override {
+        // TASK-416: the browser is modal (CP-1, same contract as
+        // g_countryPicker) — it owns every touch phase while active, ahead of
+        // PLEDIT/eject/transport, exactly like AppsSection forwards to
+        // g_countryPicker before its own tap logic.
+        if (_browser.active()) {
+            _browser.handleInput(phase, x, y);
+            return true;
+        }
+
         // NOTE: no handleVolumeGesturePublic() call. The shared volume-drag
         // machine commits through a sink that still defaults to Spotify's
         // ACT_VOLUME, so wiring it here would send Spotify volume commands
@@ -256,14 +302,19 @@ public:
         }
         if (phase != TouchPhase::Release) return false;
 
-        // TASK-414 / ADR-059 D6: eject means "load media from this source" —
-        // for Player that is the file browser. Still a stub (TASK-416), but a
-        // reload of the persisted playlist is a strictly better placeholder
-        // than a log line: it is the same verb, just without the picker.
+        // TASK-414/416 / ADR-059 D6: eject means "load media from this
+        // source" — for Player that is the file browser. Starts from the
+        // loaded playlist's directory if there is one (a browse session
+        // after loading a playlist should land where that playlist lives,
+        // not at the card root), else the last-browsed directory, else root.
         if (winampDisplay.hitTestEject(x, y)) {
-            LOG_I("localplayer", "eject tap → file browser (stub, TASK-416): reloading %s",
-                  g_settings.playerPlaylist[0] ? g_settings.playerPlaylist : "(none)");
-            if (g_settings.playerPlaylist[0]) _load(g_settings.playerPlaylist);
+            const char* startDir = _pl.count() > 0 ? _pl.dir()
+                                  : (_lastBrowseDir[0] ? _lastBrowseDir : "/");
+            LOG_I("localplayer", "eject tap -> file browser: %s", startDir);
+            if (!_browser.open(startDir)) {
+                _err = true;
+                _dirty = true;
+            }
             return true;
         }
 
@@ -280,12 +331,28 @@ public:
                 aeStopFile(_connecting);
                 _playing = _connecting = false;
                 _curRow  = -1;
+                _direct  = false;
                 _plSeqno++;
                 _dirty = true;
             }
             return true;
         }
         return false;
+    }
+
+    // ── player::FileBrowser::Delegate ─────────────────────────────────────
+    // The browser resolves the tap to a full path and tells us what kind of
+    // file it was; playback/loading policy stays here, not in fileBrowser.h.
+
+    void fbPlayFile(const char* path) override {
+        strlcpy(_lastBrowseDir, _browser.dir(), sizeof(_lastBrowseDir));
+        _playPathDirect(path);
+    }
+
+    void fbLoadPlaylist(const char* path) override {
+        strlcpy(_lastBrowseDir, _browser.dir(), sizeof(_lastBrowseDir));
+        if (!_pl.allocated() && !_pl.alloc()) { _err = true; _dirty = true; return; }
+        if (_load(path)) _rememberPlaylist(path);
     }
 
 #ifdef SERIAL_DEBUG
@@ -342,6 +409,13 @@ public:
         _playRow(idx);
         return true;
     }
+    // TASK-416 (ADR-059 D12): drives the browser from the harness — T_PLR_13-16
+    // need to open big/nested/empty directories and select rows deterministically,
+    // not just via injected taps.
+    bool dbgFbOpen(const char* path)   { return _browser.open(path); }
+    bool dbgFbSelect(int16_t idx)      { return _browser.dbgSelect(idx); }
+    bool dbgFbCancel()                 { return _browser.dbgCancel(); }
+    void dbgFbState() const            { _browser.dbgReport(); }
 #endif
 
 private:
@@ -384,6 +458,25 @@ private:
         LOG_I("localplayer", "play row %u: %s", (unsigned)idx, path);
         if (!aeConnectFile(path)) { _err = true; return; }
         _curRow     = (int)idx;
+        _direct     = false;   // a playlist row, not a browser-direct file
+        _connecting = true;
+        _playing    = false;
+        _err        = false;
+        _plSeqno++;
+        _dirty      = true;
+    }
+
+    // TASK-416: playing a file tapped straight out of the browser, not
+    // through the loaded playlist's index — _curRow stays -1 (no playlist row
+    // "is" this track; PLEDIT correctly shows no current-row highlight) and
+    // _direct + _directPath carry what the title bar needs instead.
+    void _playPathDirect(const char* path) {
+        if (_playing || _connecting) aeStopFile(_connecting);
+        LOG_I("localplayer", "play (direct): %s", path);
+        if (!aeConnectFile(path)) { _err = true; _dirty = true; return; }
+        strlcpy(_directPath, path, sizeof(_directPath));
+        _direct     = true;
+        _curRow     = -1;
         _connecting = true;
         _playing    = false;
         _err        = false;
@@ -403,7 +496,11 @@ private:
 
     void _drawTitle() {
         char buf[64];
-        if (_err && _pl.count() == 0) {
+        if (_direct) {
+            const char* slash = strrchr(_directPath, '/');
+            snprintf(buf, sizeof(buf), "%s%s", _connecting ? "Opening: " : "",
+                     slash ? slash + 1 : _directPath);
+        } else if (_err && _pl.count() == 0) {
             snprintf(buf, sizeof(buf), "%s", sdReady() ? "No playlist" : "No SD card");
         } else if (_pl.count() == 0) {
             snprintf(buf, sizeof(buf), "No playlist");
@@ -419,8 +516,13 @@ private:
         winampDisplay.setTitle(buf);
     }
 
-    m3u::PlaylistIndex  _pl;
-    LocalPlaylistSource _src;
+    m3u::PlaylistIndex     _pl;
+    LocalPlaylistSource    _src;
+    player::FileBrowser    _browser;
+    bool          _browserWasActive = false;
+    char          _lastBrowseDir[m3u::PL_PATH_MAX] = {0};
+    bool          _direct     = false;   // playing a browser-tapped file, not a playlist row
+    char          _directPath[m3u::PL_PATH_MAX] = {0};
     uint32_t      _plSeqno    = 1;    // never 0 — the view's gate starts at 0
     int           _curRow     = -1;
     bool          _playing    = false;

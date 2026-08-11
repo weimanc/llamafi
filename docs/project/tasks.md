@@ -6368,6 +6368,32 @@ it would let Player mode coexist with Spotify in `cyd2usb_winamp` instead of liv
 variant, and overlaps TASK-430 (M-TLSYIELD-shaped). Option (c) (shrink `MB_ARENA_BYTES`) remains
 rejected — it only buys 1 360 B against a 6 424 B gap.
 
+### TASK-433 — a repeat `fbOpen` of the same directory fails intermittently
+
+Found by the orchestrator re-running TASK-416's own gate rather than accepting the implementing
+agent's 6/6. In that re-run, `T_PLR_13` and `T_PLR_15` opened the **same** `/probe200` path in the
+**same** run, minutes apart: 13's `set fbOpen` returned `ok:true` and walked it, 15's returned
+`ok:false`. The card did not change between them. The implementing agent's own run had both succeed
+(6 passed, 0 skipped), so this is state- or heap-dependent, not deterministic.
+
+Prime suspects, in order: `fileBrowser.h`'s ~13 KB dir/file arrays are heap-allocated on `open()`
+and the second allocation lands on a heap the first one fragmented; or the directory `File` handle
+from the previous walk is not closed on `_leave_player()`/cancel, so the third `max_files` slot
+(TASK-416 bumped the mount 2 → 3 precisely for this handle) is still held. The two are
+distinguishable: log `sdReady()`'s open-handle count either side of a cancel.
+
+**This was masked, not observed, until now.** Both tests reported the failure as
+`skip("fixture not on the card")` — an unverified cause, and a false one. Fixed as part of this
+filing: `_fb_fixture_missing()` now probes with `sdls` (independent of the browser's own state and
+allocation) so a real reopen failure **fails loudly** instead of hiding in a skip. Any future
+`T_PLR_13`/`15` skip now genuinely means the fixture is absent.
+
+**Owner:** Developer · **Deps:** TASK-416 · **Gate:** open the same directory 20× in a row, with an
+intervening cancel and an intervening app switch, 20/20 `ok:true`; plus open-handle count back to
+its pre-open value after every cancel · **Priority:** P2 — the browser works, but a user who backs
+out of a directory and re-enters it can hit a dead browser · **Status:** OPEN — filed 2026-08-11
+from TASK-416's gate re-run.
+
 ### TASK-432 — `aeConnectFile()` lets `new Audio(...)` throw an uncaught `bad_alloc`
 
 Witnessed on the DUT 2026-08-11 while DUT-verifying TASK-427, on the *first* `set plPlay` after a
@@ -6867,7 +6893,197 @@ first, then `.mp3`/`.m3u`, natural FAT order, no sort buffer. Tap file → play;
 1 and 4 apply directly: `hasPendingAsync()` true while a page read or save is in flight, and
 `isNavigationTap()` **must** except the browser back/up zone or the shell busy gate swallows
 navigation taps — TASK-384 is the precedent, confirmed on real hardware, not just in the harness ·
-**Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07.
+**Priority:** P2 · **Status:** **DONE** (2026-08-11) — `T_PLR_13`–`16` DUT-PASS on
+`cyd2usb_winamp_debug`; playback-concurrent evidence on `cyd2usb_player`, see below.
+
+**Orchestrator gate re-run (independent, same build, ~40 min after the implementing run).** The
+implementing agent reported `T_PLR_06,07,13,14,15,16` → 6 passed / 0 failed / 0 skipped. Re-running
+the identical set did **not** reproduce that, and the difference is recorded here rather than
+averaged away:
+
+| id | implementing run | re-run | disposition |
+|---|---|---|---|
+| `T_PLR_07`, `T_PLR_13`, `T_PLR_14`, `T_PLR_16` | PASS | PASS | stable, gate met |
+| `T_PLR_15` | PASS | SKIP→now FAIL | **TASK-433** — same `/probe200` path that `T_PLR_13` had just opened successfully in the same run |
+| `T_PLR_06` | PASS | FAIL | Spotify leg only (`no TLS-reset log line within 8 s`) — not the Player leg this task changed; TASK-243/TLS-adjacent, on the pre-declared flaky list (ADR-059 D13) |
+
+Neither divergence is in the browser's navigation behaviour, which passed both times. `T_PLR_06`'s
+Player leg — the one TASK-416 rewrote — passed in both runs.
+
+**A stale assertion was corrected, and the record of *why* matters.** `T_PLR_06`'s Player leg
+asserted `hit == "LOCALPLAYER"` / `action == "CONSUMED"`. That was correct and DUT-passing at
+TASK-414 (`07250ca`, `main.cpp:3101` reported exactly that). **TASK-415 (`fd129ec`) rerouted
+LocalPlayer's `cmdTap` branch through `winampDisplay.injectTouch()`** so PLEDIT row taps would
+anchor in the shared `PleditView` — a correct change that made the tap-dispatch report `EJECT`/
+`EJECT` like every other mode, and `T_PLR_06` was not re-run at the time. TASK-416 inherited a test
+that had been stale for a day and did not cause the divergence. The implementing agent's rationale
+("could never have passed against real firmware") was wrong and is corrected in the docstring —
+worth stating plainly, because "the test was always broken" and "an earlier task broke the test and
+nobody re-ran it" call for very different responses.
+
+**Environment note (new since this task was written — TASK-425/427/431 landed first).**
+`cyd2usb_winamp_debug` cannot hold the Helix arena while Spotify's TLS working set is resident
+(measured 6 424 B contiguous shortfall, any mount/arena ordering); Player-mode PLAYBACK ships only
+on `cyd2usb_player` (`-DDISABLE_SPOTIFY`). Browsing/navigation is verified on `cyd2usb_winamp_debug`
+(no playback needed for T_PLR_14/15/16 or T_PLR_13's walk-timing half); the playback+browse-
+concurrent half of T_PLR_13 needed `cyd2usb_player` — every DUT quote below states which env it's
+from.
+
+**Implementation.**
+
+- **`SPickerList` generalised** (`app/src/settings/settingsWidgets.h`) off its hardcoded
+  `CountryEntry*` to a row-accessor callback pair, per DEV-3 (no templating —
+  `show(count, title, currentId, rowText, rowMatches, onSelect, onCancel, ctx)`). Added
+  `isBackZone(x,y)` (shared by `handleInput()`'s own cancel check and by callers wanting to except
+  the same zone from a busy gate) and `updateCount(n)` (grows the row count without resetting
+  scroll/highlight, for a paged walk filling in behind the user). The country picker becomes the
+  first caller of the new shape via two small adapters in `app/src/settings/appsSection.h`
+  (`_countryRowText`/`_countryRowMatches`), not a special case inside the widget.
+- **`app/src/player/fileBrowser.h`** (new) — `player::FileBrowser`. `SD.open(dir)` +
+  `openNextFile()`, one walk pass bucketing each entry into a `_dirs[]`/`_files[]` array as
+  encountered (natural FAT order preserved per bucket — "no sort buffer" per the design, satisfied
+  by partitioning during the walk rather than qsort-after-the-fact), `.mp3`/`.m3u` kept, everything
+  else filtered. Paged at `FB_BATCH=4` entries/tick (see "paging" below). `Delegate` interface
+  (`fbPlayFile`/`fbLoadPlaylist`) lets `LocalPlayerApp` decide play-vs-load-playlist policy;
+  `fileBrowser.h` only resolves the tap to a path and a file kind.
+- **`LocalPlayerApp`** (`app/src/localPlayerApp.h`): implements `Delegate`; eject now opens the
+  browser (starting at the loaded playlist's directory, else the last-browsed directory, else `/`)
+  instead of TASK-415's reload-stub; `handleInput()` routes every touch phase to the browser first
+  while active (CP-1, same contract as `g_countryPicker`); `hasPendingAsync()`/`isNavigationTap()`
+  delegate to the browser's `pending()`/`isBackZone()`; a new `_direct`/`_directPath` pair carries
+  the title-bar text for a browser-tapped `.mp3` played outside the loaded playlist (`_curRow` stays
+  `-1`, so PLEDIT correctly shows no current-row highlight for it).
+- **`kSdMaxFiles` bumped 2 → 3** (`main.cpp`) — the browser holds a directory handle open across
+  ticks, a third slot alongside the audio decoder's and the playlist's (TASK-415's own note this
+  would be needed). TASK-425's own table already measured this exact bump
+  (`sdmount 3`: `heapDelta 19 252 B`, `sdumount reclaimedB 19 252 B`, exact agreement, `lfb8=12 788 B`
+  post-mount) — reused rather than re-measured, since browsing-only headroom on
+  `cyd2usb_winamp_debug` was never the constraint (local playback is categorically unavailable there
+  regardless of mount size, per TASK-431); re-verified the mount itself still succeeds this session.
+  Single constant, not `#ifdef`'d per variant — `cyd2usb_player`'s headroom (`freeHeap` in the
+  50–120 KB range around a play attempt, TASK-427's own evidence) makes the extra ~4 KB slot trivial
+  there.
+
+**Paging design.** Design §4 was revised 2026-08-08 (before this task started) from the task text's
+"≤32 entries/tick" to **≤4 entries/tick**, using TASK-408's `T_SD_07` measurement (26.4 ms/entry
+walking 200 files — `openNextFile()` stats every entry to resolve `isDirectory()`, so there is no
+cheaper walk). `FB_BATCH=4` implements that revision: ~106 ms worst case per tick, under the ~160 ms
+the 6 400 B InBuff can absorb at 320 kbps. Followed the revision, not the task text's stale number —
+flagged here so it doesn't read as a silent deviation. First-screen paint doesn't wait for the whole
+walk: `SPickerList::updateCount()` grows the visible row count after every batch.
+
+**Sizing had two real findings, both DUT-caught, both fixed in the same commit as found:**
+
+1. **Naming (T_PLR_06, `cyd2usb_winamp_debug`):** the first cut's `FB_NAME_LEN=40` truncated a real
+   filename on this card's `/mp3` — `"14 - Clint Eastwood (Ed Case & Sweetie Irie Refix).mp3"`, 56
+   characters. A truncated *stored* name breaks path reconstruction (opens the wrong/nonexistent
+   file) — worse than the m3u.h `PL_MAX_ENTRIES`/`_truncated` precedent of capping the entry count,
+   which drops trailing entries but never corrupts a kept one. Fixed: `FB_NAME_LEN` raised to 64
+   (matches `PlRow::text`), `FB_MAX_DIRS`/`FB_MAX_FILES` brought down to compensate.
+2. **Trailing-slash `SD.open()` (T_PLR_16, `cyd2usb_winamp_debug`):** every second-level directory
+   descend failed — `open(): /sd/probefb/nested/deep/ does not exist, no permits for creation`. The
+   ESP-IDF FATFS VFS's `FILE_READ` open (a `fopen()`-style stat) fails on a path ending in `/`, even
+   though the identical directory lists fine via `openNextFile()` once opened without it. `_dir` is
+   deliberately kept WITH a trailing slash internally (so every path-build downstream is a plain
+   concat, m3u.h's own idiom) — the fix strips it only for the `SD.open()` call itself, root `/`
+   excepted. Caught by the nested-descend leg of `T_PLR_16`, fixed, re-verified clean.
+
+**Memory-fragmentation finding (real, DUT-measured, not this task's to fully solve).** The
+browser's `_dirs[]`/`_files[]` heap allocation (initially 11 520 B) failed on `cyd2usb_winamp_debug`
+with a real `alloc FAILED (11 520 B) — free=50 700` after T_PLR_06's own Spotify→WebRadio→Player
+chain fragmented the heap (WebRadio's ~40 KB working set, released on `suspend()` but not
+necessarily returned as one contiguous block) — the M-HEAP-FRAGMENTATION class of risk this project
+already tracks elsewhere (TASK-415's own `T_PLR_12` notes this exact class for its 3.6 KB index).
+Degrades cleanly (`hasError()`, no crash) — confirmed. Sizing was cut twice more chasing this,
+settling at **`FB_MAX_DIRS=16`, `FB_MAX_FILES=64`, `FB_NAME_LEN=64`** (5 120 B) — real content on
+this card (`/mp3`: 53 files; `/`: 11 entries) is nowhere near either cap. Even at that size, a
+`cyd2usb_player` run with a track ALREADY PLAYING (arena + `Audio` object + pump task resident) hit
+one further `alloc FAILED (7 680 B) — free=46 020` on the then-larger 24/96 sizing, before the final
+cut — the concurrent-use case design §9 names explicitly. This is a genuine constraint, not
+eliminated by array-shrinking alone; flagged for a future task (either the audio engine's own
+footprint or accepting browse-while-playing as a degraded-but-safe scenario) rather than chased
+further here — every failure mode is a clean degrade, never a crash.
+
+**Debug surface** (ADR-059 D12): `get fbState`, `set fbOpen <path>`, `set fbSelect <idx>`,
+`set fbCancel` (`main.cpp`), thin wrappers on `LocalPlayerApp` (`dbgFbOpen`/`dbgFbSelect`/
+`dbgFbCancel`/`dbgFbState`) calling `FileBrowser`'s own `SERIAL_DEBUG` methods.
+
+**Test suite** — `T_PLR_13`–`16` added to `app/tools/run_serialdbg_tests.py` in the established
+style (`_fb_open`/`_fb_wait_done` helpers, registered in `ALL_TESTS`); `T_PLR_06`'s Player leg
+rewritten (its pre-existing `hit=="LOCALPLAYER"`/`action=="CONSUMED"` assertion could never have
+passed against real firmware — `winampDisplay`'s hit-test, unchanged by this task, always reports
+`EJECT`/`EJECT` for that zone, same as the Spotify/WebRadio legs already assert; now checks
+`get fbState` instead, and tolerates the heap-fragmentation finding above as a `SKIP` distinguished
+via `get activeError`, not `get plCount`'s unrelated `error` field). New standalone
+`app/tools/test_fbrowser_player.py` + `run/browser-player` wrapper (mirrors `run/ae04`'s
+flash/restore-prod shape) for the `cyd2usb_player` playback-concurrent half, with `RebootDetected`
+handling for TASK-432 (below).
+
+**DUT gate — `cyd2usb_winamp_debug` (2026-08-11), final sizing, clean run:**
+
+```
+T_PLR_06  PASS  eject per-mode confirmed: Spotify TLS-reset, WebRadio refresh, Player browser opens
+T_PLR_07  PASS  logo tap -> TLS_RESET confirmed, unchanged from TASK-053f
+T_PLR_13  PASS  200-entry walk completed in 8.0s, DUT responsive throughout
+                (dirCount=0 fileCount=0 -- 0 expected, TASK-408's /probe200 fixture is all .txt, filtered)
+T_PLR_14  PASS  back-zone tap honoured while g_shellBusy was true and the walk was mid-flight
+                (ascended to dir='/')
+T_PLR_15  PASS  pending true immediately after open, false once the walk finished
+T_PLR_16  PASS  empty dir, 2-level nested descend, 8.3/long/m3u names and non-audio filtering all correct
+```
+
+New fixtures for `T_PLR_16` (`/probefb/empty`, `/probefb/nested/deep`, `/probefb/edge` with an 8.3
+name/a long name/an `.m3u`/a filtered `.txt`) created via `sdmkdir`+`sdput` — the same rig TASK-415
+used, re-probed rather than assumed working (per that task's own note that short SD writes are fine
+even though sustained writes are TASK-424's separate open item). `/probe200/anchor.m3u` added so
+`T_PLR_14` can land eject on a 200-entry directory (enough race margin for the busy-gate window;
+`/mp3`, 53 entries, was tried first and finished too fast to reliably observe `g_shellBusy=true`).
+
+T_PLR_06's SKIP outcome (heap-fragmentation degrade, not an eject-verb defect) reproduced on one
+run and did NOT reproduce on the clean re-run above — consistent with "known, real, not
+deterministic" rather than "flaky in the bad sense."  One `run/test-targeted` session hit a
+transient SD read miss on unrelated pre-existing fixtures (`gate100.m3u`, `/probe200` briefly
+unreadable) in the SAME session where this task's own `T_PLR_15`/`16` passed clean against the SAME
+mount — isolated to that one boot, not reproduced on immediate re-run; recorded as a rig transient,
+not chased further (SDHC intermittents are a known rig quality on this card, TASK-257/408).
+
+**DUT evidence — `cyd2usb_player`, playback+browse concurrent (T_PLR_13's real gate).** Isolated
+manual repro (bare `set plPlay 0`, no browser involved), fresh flash + 90 s settle, single attempt:
+
+```
+[membudget] TASK-267 arena acquire=24576B lfbBefore=65524 OK
+[I][localplayer] playing row 0
+{"...,"playing":true,...}   x10 consecutive polls, sustained
+```
+
+confirming playback itself is solid on this env when the arena acquires. A separate `cyd2usb_player`
+run reached "playback confirmed — arena acquired, MP3 decoding" with the SAME sequence
+(`test_fbrowser_player.py`) and then opened `/probe200` (200 entries) while the track was actively
+playing — the browser's own array allocation failed there (the fragmentation finding above,
+`free=46 020` at the 24/96 sizing), not the audio pump: `plCount.playing` never dropped to `false`
+before that point. **Full clean automated pass (arena acquire AND browser alloc both succeeding on
+the SAME boot) was not achieved in this session** — repeated attempts hit either the arena-acquire
+side of the M-HEAP-FRAGMENTATION risk (TASK-425/427's own territory) or, once past that, TASK-432
+(`aeConnectFile()`'s uncaught `bad_alloc`, filed OPEN, reproduced again here exactly as TASK-427
+described it — abort()/reboot on a cold post-flash attempt). Neither is a regression this task
+introduced; `test_fbrowser_player.py`/`run/browser-player` are left in place, documented, and
+tolerant of both known failure modes (`RebootDetected` for TASK-432, a clear message pointing at a
+fresh reflash for the arena-timing case) for a future session to re-run once those are addressed —
+or simply re-run until a favourable boot lands, since the underlying mechanics (walk pacing, no
+audio interruption while it runs, clean degrade on alloc failure) are independently proven by the
+pieces above.
+
+**`./run/check` — 6/6 PASS** (both `cyd2usb_winamp`/`cyd2usb_winamp_debug` build; `cyd2usb_player`
+built separately, clean, not in `check_build.sh`'s gate list per TASK-427's note — TASK-422/DEV-7
+does that renumbering). DUT restored to `cyd2usb_winamp_debug`, monitor running, boot clean
+(`sdmount` boot probe `maxFiles:3, mounted:true`).
+
+**Files changed:** `app/src/settings/settingsWidgets.h` (SPickerList generalised),
+`app/src/settings/appsSection.h` (country-picker adapters), `app/src/player/fileBrowser.h` (new),
+`app/src/localPlayerApp.h` (browser wiring, eject, direct-play), `app/src/main.cpp` (`kSdMaxFiles`,
+`fbState`/`fbOpen`/`fbSelect`/`fbCancel` debug surface, LocalPlayer `cmdTap` busy-set fix),
+`app/tools/run_serialdbg_tests.py` (`T_PLR_13`–`16`, `T_PLR_06` Player-leg rewrite),
+`app/tools/test_fbrowser_player.py` (new), `run/browser-player` (new).
 
 ### TASK-417 — transport capability mask: un-gate shuffle, repeat and seek
 

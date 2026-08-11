@@ -3072,7 +3072,25 @@ static uint32_t s_sdFreqHz = 20000000;
 // FF_FS_TINY=0 (CONFIG_FATFS_PER_FILE_CACHE=1) — so FATFS carries a 4 KB window
 // buffer and every FIL carries its own 4 KB sector cache. The Arduino default of
 // 5 therefore asks for ~25 KB in one piece. See `sdmem`.
-static const uint8_t kSdMaxFiles = 2;
+//
+// TASK-416: bumped 2 -> 3. m3u::PlaylistIndex keeps the playlist File open for
+// the session (audio decoder + playlist = 2, TASK-415's own accounting), and
+// fileBrowser.h now holds a THIRD handle open across ticks — the directory
+// SD.open() plus the File openNextFile() returns. TASK-425 measured this
+// exact bump on this exact DUT (2026-08-11, cyd2usb_winamp_debug, mount-first):
+// `sdmount 3` mounts cleanly (heapDelta 19 252 B, sdumount reclaimedB 19 252 B,
+// exact agreement) leaving lfb8=12 788 B — enough to browse (no arena
+// contention: TASK-431 already confines all Player-mode PLAYBACK to
+// cyd2usb_player, where Spotify's ~39 KB TLS working set is compiled out
+// entirely and isn't resident to compete for it; browsing-only headroom on
+// this debug build was never the constraint). On cyd2usb_player itself the
+// margin is not remotely close: TASK-427's DUT evidence shows free
+// heap/largest-block in the ~50-120 KB range around a play attempt, so this
+// one extra ~4 KB FIL slot is nowhere near the constraint there either. Single
+// constant, not `#ifdef`'d per variant — TASK-425/427/431 already established
+// that mount-size tuning is not the lever that matters once Spotify's TLS
+// working set is out of the picture.
+static const uint8_t kSdMaxFiles = 3;
 
 static SPIClass s_sdSPI(VSPI);
 static bool s_sdReady = false;
@@ -3209,6 +3227,14 @@ static void cmdTap(const char *args) {
       // taps are observable, not just CONSUMED/NONE.
       winampDisplay.injectTouch(x, y);
       g_apps[(int)AppId::LocalPlayer]->handleInput(TouchPhase::Release, x, y);
+      // TASK-416: same busy-set-on-Release-starts-async-work shape as the
+      // Stock/Teletext/PlaneRadar branches above — an eject tap that opens
+      // the browser (or a row tap into a subdirectory) starts a page walk,
+      // and T_PLR_14 needs g_shellBusy to actually go true here to exercise
+      // the isNavigationTap() bypass at cmdTap's own busy-gate check above,
+      // not just observe it as dead code.
+      if (!g_shellBusy && g_apps[(int)AppId::LocalPlayer]->hasPendingAsync())
+        shell::setBusy(true);
       const auto &lp = winampDisplay.lastTouchResult;
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                     "\"hit\":\"%s\",\"row\":%d,\"action\":\"%s\",\"skipped\":%s}\n",
@@ -3784,6 +3810,9 @@ static void cmdGet(const char *args) {
     g_LocalPlayerApp.dbgRow((uint16_t)idx);
     return;
   }
+  // TASK-416 / ADR-059 D12: file browser observables — T_PLR_13-16 drive the
+  // walk and navigation deterministically from here rather than only via taps.
+  if (strcmp(args, "fbState") == 0) { g_LocalPlayerApp.dbgFbState(); return; }
   // OQ1 (design §11): the UTF-8 -> renderable-ASCII fold, testable without a
   // card. Everything a PLEDIT row can contain goes through this one helper.
   if (strncmp(args, "plFold", 6) == 0 && (args[6] == '\0' || args[6] == ' ')) {
@@ -4074,6 +4103,37 @@ static void cmdSet(const char *args) {
     const bool ok = g_LocalPlayerApp.dbgPlayRow((uint16_t)idx);
     Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"plPlay\",\"idx\":%d}\n",
                   ok ? "true" : "false", idx);
+    return;
+  }
+  // TASK-416 (T_PLR_13-16): open a directory in the file browser without a
+  // tap — real card paths carry spaces, same raw-args shape as plLoad above.
+  if (strncmp(args, "fbOpen", 6) == 0 && (args[6] == '\0' || args[6] == ' ')) {
+    const char *path = (args[6] == ' ' && args[7] != '\0') ? args + 7 : "/";
+    const bool ok = g_LocalPlayerApp.dbgFbOpen(path);
+    Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"fbOpen\",\"path\":\"%s\"}\n",
+                  ok ? "true" : "false", path);
+    return;
+  }
+  // TASK-416: select a browser row by index (descend / play / load) exactly
+  // as if it were tapped — screen coordinates depend on the live scroll offset.
+  if (strncmp(args, "fbSelect", 8) == 0 && (args[8] == '\0' || args[8] == ' ')) {
+    int idx = -1;
+    if (sscanf(args + 8, "%d", &idx) != 1 || idx < 0) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"fbSelect\","
+                     "\"error\":\"usage: set fbSelect <idx>\"}");
+      return;
+    }
+    const bool ok = g_LocalPlayerApp.dbgFbSelect((int16_t)idx);
+    Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"fbSelect\",\"idx\":%d}\n",
+                  ok ? "true" : "false", idx);
+    return;
+  }
+  // TASK-416 (T_PLR_14): the browser's back/up affordance — the isNavigationTap
+  // regression this exercises is about the REAL tap path, not this debug
+  // shortcut, but this is what T_PLR_13/15/16 use to drive ascend/close.
+  if (strcmp(args, "fbCancel") == 0) {
+    const bool ok = g_LocalPlayerApp.dbgFbCancel();
+    Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"fbCancel\"}\n", ok ? "true" : "false");
     return;
   }
   if (sscanf(args, "%31s %127s", var, val) != 2) {

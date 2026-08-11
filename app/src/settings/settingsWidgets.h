@@ -26,7 +26,6 @@
 // from touch/hitbox.h via settingsSection.h — no duplication here.
 
 #include "settingsSection.h"
-#include "gen/countries.h"   // CountryEntry — SPickerList row shape (M-COUNTRY-PICKER)
 
 // ---- Geometry ---------------------------------------------------------------
 
@@ -161,10 +160,13 @@ struct SSpinner {
 };
 
 // ---- SPickerList --------------------------------------------------------------
-// Modal full-canvas scroll picker (M-COUNTRY-PICKER D1) over CountryEntry-shaped
-// (name, code) rows. Deliberate EXCEPTION to the "no global state, no callbacks"
-// kit contract above (CP-11): like KeyboardWidget, an active picker owns the
-// whole canvas and ALL touch phases — host sections integrate via the
+// Modal full-canvas scroll picker (M-COUNTRY-PICKER D1), generalised (TASK-416,
+// M-WINAMP-PLAYER-local §4/DEV-3) to any row shape via an accessor callback
+// pair, matching the widget's existing onSelect/onCancel style rather than
+// templating (216 B of debug headroom does not afford instantiating the whole
+// widget twice — DEV-3). Deliberate EXCEPTION to the "no global state, no
+// callbacks" kit contract above (CP-11): like KeyboardWidget, an active picker
+// owns the whole canvas and ALL touch phases — host sections integrate via the
 // g_keyboard capture precedent (forward every phase while active(); early-
 // return their repaint()). Cancel is the picker's own "< back" header zone,
 // checked here — the host's back-tap code is unreachable while it captures.
@@ -176,25 +178,42 @@ struct SSpinner {
 // scrolled to the current selection, highlighted (CP-6 — NEW code, the donor
 // always opens at offset 0; unset/unknown selection opens at the top).
 // The donor (TimeSection) is intentionally untouched in v1.
+//
+// Second client (TASK-416): fileBrowser.h's directory listing. The country
+// picker becomes one caller of this shape rather than the shape everyone else
+// must conform to — see settings/appsSection.h's `_countryRowText()` /
+// `_countryRowMatches()` adapters for the reference caller.
 
 class SPickerList {
 public:
-    void show(const CountryEntry* items, int16_t count, const char* currentCode,
+    // rowText fills `left`/`right` for row idx (e.g. name + ISO code, or a
+    // filename + a ">" directory chevron). rowMatches(idx, id, ctx) is used
+    // both to locate `currentId` at show()-time (CP-6, the open-scrolled-to-
+    // selection behaviour) and by pickByCode()'s debug injection below — a
+    // caller with no notion of "current" (fileBrowser.h) passes a rowMatches
+    // that always returns false and a null currentId, which is exactly the
+    // donor's "unset selection opens at the top" case.
+    void show(int16_t count, const char* title, const char* currentId,
+              void (*rowText)(int16_t idx, char* left, size_t leftSize,
+                               char* right, size_t rightSize, void* ctx),
+              bool (*rowMatches)(int16_t idx, const char* id, void* ctx),
               void (*onSelect)(int16_t idx, void* ctx),
               void (*onCancel)(void* ctx),
               void* ctx)
     {
-        _items      = items;
         _count      = count;
+        _rowText    = rowText;
+        _rowMatches = rowMatches;
         _onSelect   = onSelect;
         _onCancel   = onCancel;
         _ctx        = ctx;
+        strlcpy(_title, title ? title : "", sizeof(_title));
         _sbDragging = false;
         _highlight  = -1;
         _offset     = 0;
-        if (items && currentCode && currentCode[0]) {
+        if (rowMatches && currentId && currentId[0]) {
             for (int16_t i = 0; i < count; i++) {
-                if (strcasecmp(items[i].code, currentCode) == 0) { _highlight = i; break; }
+                if (rowMatches(i, currentId, ctx)) { _highlight = i; break; }
             }
         }
         // CP-6: open scrolled to the current selection (clamped so the last
@@ -210,6 +229,21 @@ public:
     void hide() { _active = false; _sbDragging = false; }
     bool active() const { return _active; }
 
+    // TASK-416: true when (x, y) is the picker's own back-zone — exposed so a
+    // host app can except it from a busy gate the same way App::isNavigationTap
+    // does elsewhere (TASK-384 precedent), without duplicating the geometry.
+    bool isBackZone(int x, int y) const { return x < S_BACK_ZONE_W && y < S_HEADER_H; }
+
+    // Grow/shrink the row count without resetting scroll, highlight or the
+    // active selection — TASK-416's paged directory walk calls this once per
+    // batch as more entries become readable, so the list fills in behind
+    // whatever the user is already looking at instead of jumping.
+    void updateCount(int16_t count) {
+        _count = count;
+        if (_offset > _maxOffset()) _offset = _maxOffset();
+        if (_active) repaint();
+    }
+
     void repaint() {
         if (!_active) return;
         // Own header — "< back" is the cancel zone (the host never paints
@@ -219,7 +253,7 @@ public:
         tft.setTextDatum(ML_DATUM);
         tft.drawString("< back", 4, 14, 2);
         tft.setTextDatum(MR_DATUM);
-        tft.drawString("Select country", S_CANVAS_W - 4, 14, 2);
+        tft.drawString(_title, S_CANVAS_W - 4, 14, 2);
         tft.drawFastHLine(0, S_HEADER_H - 1, S_CANVAS_W, S_SEP);
         tft.setTextDatum(TL_DATUM);
         tft.fillRect(0, S_CONTENT_Y, S_CANVAS_W, S_CONTENT_H, S_BG);
@@ -232,8 +266,7 @@ public:
         if (!_active) return;
 
         // Cancel via the picker's own back zone (Release only, never mid-drag).
-        if (phase == TouchPhase::Release && !_sbDragging
-                && x < S_BACK_ZONE_W && y < S_HEADER_H) {
+        if (phase == TouchPhase::Release && !_sbDragging && isBackZone(x, y)) {
             _cancel();
             return;
         }
@@ -284,13 +317,16 @@ public:
     // CP-8 observables (`get pick`) + CP-4 injection (`set pick <CC>`).
     int16_t dbgOffset()    const { return _offset; }
     int16_t dbgHighlight() const { return _highlight; }
-    // Selects by code exactly as if the row were tapped — same onSelect
+    // Selects by id exactly as if the row were tapped — same onSelect
     // callback, same hide()/cleanup (the kbText/kbOk submit-equivalent idiom,
-    // BP-047/LL-110: no duplicated commit logic).
+    // BP-047/LL-110: no duplicated commit logic). Generalised (TASK-416) via
+    // the same rowMatches callback show() uses to locate the current
+    // selection — a caller with no notion of "current" (fileBrowser.h) simply
+    // never has this called (nothing in its debug surface needs it yet).
     bool pickByCode(const char* code) {
-        if (!_active || !_items || !code || !code[0]) return false;
+        if (!_active || !_rowMatches || !code || !code[0]) return false;
         for (int16_t i = 0; i < _count; i++) {
-            if (strcasecmp(_items[i].code, code) == 0) { _select(i); return true; }
+            if (_rowMatches(i, code, _ctx)) { _select(i); return true; }
         }
         return false;
     }
@@ -307,7 +343,6 @@ private:
     static constexpr int16_t kSbDnY0 = 220;
     static constexpr int16_t kSbDnY1 = 240;
 
-    const CountryEntry* _items = nullptr;
     int16_t _count      = 0;
     int16_t _offset     = 0;      // first visible row index
     int16_t _highlight  = -1;     // index of the current selection, -1 = none
@@ -315,9 +350,13 @@ private:
     bool    _sbDragging = false;
     int16_t _sbDragAnchorY      = 0;
     int16_t _sbDragAnchorOffset = 0;
+    char    _title[32]  = {0};
     // Scrollbar step arrows as kit buttons at the scrollbar's own 18x20
     // geometry (timeSection precedent — S_BTN_H is a bar-button contract).
     SButton _sbUp, _sbDn;
+    void (*_rowText)(int16_t idx, char* left, size_t leftSize,
+                      char* right, size_t rightSize, void* ctx) = nullptr;
+    bool (*_rowMatches)(int16_t idx, const char* id, void* ctx) = nullptr;
     void  (*_onSelect)(int16_t idx, void* ctx) = nullptr;
     void  (*_onCancel)(void* ctx)              = nullptr;
     void*   _ctx = nullptr;
@@ -349,14 +388,18 @@ private:
         for (int16_t i = _offset; i < end; i++) {
             bool cur = (i == _highlight);
             int mid = y + S_ROW_H / 2;
-            // Name (left) + code (right-aligned at x=246, before the
-            // scrollbar) — the city picker's country-code column idiom.
+            // Left label + right-aligned right column (x=246, before the
+            // scrollbar) — the city picker's country-code column idiom,
+            // generalised (TASK-416) to whatever the caller's rowText wants
+            // there (a country code, a directory chevron, nothing).
+            char left[40] = {0}, right[16] = {0};
+            if (_rowText) _rowText(i, left, sizeof(left), right, sizeof(right), _ctx);
             tft.setTextDatum(ML_DATUM);
             tft.setTextColor(cur ? S_VALUE_ON : S_LABEL);
-            tft.drawString(_items[i].name, S_COL_LABEL, mid, 2);
+            tft.drawString(left, S_COL_LABEL, mid, 2);
             tft.setTextDatum(MR_DATUM);
             tft.setTextColor(cur ? S_VALUE_ON : S_VALUE_OFF);
-            tft.drawString(_items[i].code, 246, mid, 2);
+            tft.drawString(right, 246, mid, 2);
             tft.setTextDatum(TL_DATUM);
             y += S_ROW_H;
         }

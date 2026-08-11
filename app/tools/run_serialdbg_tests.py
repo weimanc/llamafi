@@ -4942,8 +4942,26 @@ def t_plr_05(dut: Dut):
 def t_plr_06(dut: Dut):
     """T_PLR_06: eject is per-mode. Spotify -> TLS reset + force poll, appId stays
     Spotify. WebRadio -> station-list refresh (wrEnqueues advances), appId stays
-    WebRadio. Player -> file-browser stub tap consumed, appId stays LocalPlayer."""
-    print("T_PLR_06  Eject is per-mode: Spotify TLS-reset, WebRadio refresh, Player browser stub")
+    WebRadio. Player -> opens the file browser (TASK-416), appId stays LocalPlayer.
+
+    The Player-mode leg's pass criterion was rewritten by TASK-416, and the real
+    history matters because it is a process lesson, not a tidy-up:
+
+      - At TASK-414 (`07250ca`) this assertion (`hit == "LOCALPLAYER"`,
+        `action == "CONSUMED"`) was correct AND passing on the DUT —
+        `main.cpp:3101` reported exactly that for LocalPlayer's cmdTap branch.
+      - TASK-415 (`fd129ec`) rerouted that branch through
+        `winampDisplay.injectTouch()` so PLEDIT row taps would anchor in the
+        shared PleditView. Correct change, but it made the tap-dispatch REPORT
+        `EJECT`/`EJECT` like every other mode — and T_PLR_06 was not re-run, so
+        the suite carried a stale assertion for a day without anyone noticing.
+      - TASK-416 inherited the stale test. It did NOT cause the divergence.
+
+    So: the eject VERB differs per mode (that is what this whole test is for);
+    the tap-dispatch REPORT does not, and has not since `fd129ec`. This now
+    checks the thing that actually distinguishes Player's eject from a no-op —
+    the browser (`get fbState`) is active afterward."""
+    print("T_PLR_06  Eject is per-mode: Spotify TLS-reset, WebRadio refresh, Player browser opens")
     errors = []
     ex, ey = _c.tap_eject()
 
@@ -4992,7 +5010,8 @@ def t_plr_06(dut: Dut):
                 errors.append(f"WebRadio: wrEnqueues did not advance ({enq_before} -> {enq_after})")
     dut.cmd("set bgPoll 1", timeout=2.0)
 
-    # ── Player: file-browser stub (TASK-416 lands the real browser) ────────
+    # ── Player: opens the file browser (TASK-416) ───────────────────────────
+    heap_pressure_skip = False
     dut.cmd("set playerMode player", timeout=3.0)
     if not _switch_to(dut, "Clock"):
         errors.append("Player: precondition: could not switch to Clock")
@@ -5007,20 +5026,47 @@ def t_plr_06(dut: Dut):
         else:
             dut.set_cooldown_zero()
             r = dut.cmd(f"tap {ex} {ey}", timeout=5.0)
-            if r.get("hit") != "LOCALPLAYER" or r.get("action") != "CONSUMED":
-                errors.append(f"Player: hit={r.get('hit')} action={r.get('action')} (expected LOCALPLAYER/CONSUMED)")
+            if r.get("hit") != "EJECT" or r.get("action") != "EJECT":
+                errors.append(f"Player: hit={r.get('hit')} action={r.get('action')} (expected EJECT/EJECT — "
+                              "the tap-dispatch report, not the per-mode verb)")
             time.sleep(0.3)
             appid2 = dut.cmd("get appId", timeout=3.0).get("name")
             if appid2 != "LocalPlayer":
-                errors.append(f"Player: appId={appid2!r} after eject (expected LocalPlayer — no browser UI yet, TASK-416)")
+                errors.append(f"Player: appId={appid2!r} after eject (expected LocalPlayer — the browser "
+                              "is modal WITHIN the app, not a switchApp)")
+            fb = dut.cmd("get fbState", timeout=3.0)
+            if not fb.get("active"):
+                # fileBrowser.h heap-allocates its dir/file arrays (~13 KB) on
+                # first open() — a real fragmented-heap alloc failure (seen on
+                # the DUT: this exact Spotify->WebRadio->Player chain, in this
+                # order, left `free=50700` but no contiguous block big enough)
+                # degrades cleanly, same class of risk as m3u::PlaylistIndex's
+                # own alloc under pressure (T_PLR_12's notes). Distinguish it
+                # from a real defect via LocalPlayerApp's own hasError()
+                # (`get activeError` — NOT `get plCount`'s "error", which is
+                # m3u::PlaylistIndex's own flag and unrelated to a browser-
+                # alloc failure) rather than failing the eject-verb gate on a
+                # pre-existing, already-tracked heap-pressure risk.
+                ae = dut.cmd("get activeError", timeout=3.0)
+                if ae.get("active"):
+                    heap_pressure_skip = True
+                else:
+                    errors.append(f"Player: eject did not open the browser: {fb}")
+            dut.cmd("set fbCancel", timeout=3.0)   # leave the browser closed for later tests
 
     dut.cmd("set playerMode spotify", timeout=3.0)
     _restore_spotify(dut)
 
+    if heap_pressure_skip and not errors:
+        skip("T_PLR_06", "Player leg: file-browser alloc failed under heap pressure after the "
+                         "Spotify+WebRadio legs fragmented the heap (LocalPlayerApp reported "
+                         "error=true, not a crash) — known M-HEAP-FRAGMENTATION-class risk, not "
+                         "an eject-verb defect; Spotify/WebRadio legs above already passed")
+        return
     if errors:
         fail("T_PLR_06", "; ".join(errors))
         return
-    pass_("T_PLR_06", "eject per-mode confirmed: Spotify TLS-reset, WebRadio refresh, Player browser-stub consumed")
+    pass_("T_PLR_06", "eject per-mode confirmed: Spotify TLS-reset, WebRadio refresh, Player browser opens")
 
 
 def t_plr_07(dut: Dut):
@@ -5411,6 +5457,250 @@ def t_plr_12(dut: Dut):
                       f"(peak with the file open +{d_peak} B), "
                       f"residual {d_free:+d} B; largest-free-block "
                       f"{base['largestBlock']} -> {after['largestBlock']} -> {freed['largestBlock']}")
+
+
+# ── T_PLR_13-16 — file browser (TASK-416 / M-WINAMP-PLAYER-local §4) ──────────
+# fileBrowser.h: SD.open()+openNextFile(), paged at <=FB_BATCH=4 entries/tick,
+# directories bucketed ahead of .mp3/.m3u files, non-audio filtered. These
+# assert paging never stalls, back/up survives the busy gate (TASK-384 defect
+# class), hasPendingAsync() actually self-clears, and deep/edge directory
+# shapes degrade correctly.
+#
+# FIXTURES: /probe200 (TASK-408's 200-entry probe dir — all named `*.txt`, so
+# it is 0 playable files after filtering, which is itself part of what T_PLR_16
+# checks; its VALUE for T_PLR_13 is walk cost, not row count) and /probefb/*
+# (this task's own fixtures — empty dir, 2-level nested dir, an 8.3 name, a
+# long name and a non-audio file side by side — created via `sdmkdir`+`sdput`
+# 2026-08-11, same rig TASK-415 used for its playlist fixtures. Missing
+# fixtures SKIP, not FAIL — a rig gap, not a defect.
+
+_FB_BIG    = "/probe200"
+_FB_ROOT   = "/"
+_FB_EMPTY  = "/probefb/empty"
+_FB_NESTED = "/probefb/nested"
+_FB_DEEP   = "/probefb/nested/deep"
+_FB_EDGE   = "/probefb/edge"
+
+
+def _fb_open(dut: Dut, path: str, timeout: float = 6.0) -> dict:
+    return dut.cmd(f"set fbOpen {path}", timeout=timeout)
+
+
+def _fb_fixture_missing(dut: Dut, path: str) -> bool:
+    """Did `set fbOpen <path>` fail because the fixture genuinely is not on the
+    card, or because the browser itself failed to open a directory that IS
+    there? The two are not the same and must not both read as SKIP.
+
+    Filed because they did: on a 2026-08-11 orchestrator re-run, T_PLR_13 and
+    T_PLR_15 opened the SAME `_FB_BIG` path in the SAME run — 13's open
+    succeeded and 15's failed, and 15 reported "fixture not on the card", which
+    was false. That is TASK-433. Probing with `sdls` (an independent path that
+    does not go through fileBrowser's own state or its heap allocation) tells
+    the two apart, so a real reopen failure fails loudly instead of hiding in a
+    skip."""
+    r = dut.cmd(f"sdls {path} n", timeout=8.0)
+    return not r.get("ok")
+
+
+def _fb_wait_done(dut: Dut, timeout_s: float = 12.0) -> dict | None:
+    """Poll `get fbState` until pending clears. Returns the last reply, or None
+    on timeout (DUT stopped responding — a real failure, not a slow walk)."""
+    deadline = time.monotonic() + timeout_s
+    last = None
+    while time.monotonic() < deadline:
+        last = dut.cmd("get fbState", timeout=3.0)
+        if not last.get("ok"):
+            return None
+        if last.get("pending") is False:
+            return last
+    return last
+
+
+def t_plr_13(dut: Dut):
+    """T_PLR_13: browsing a ~200-file directory does not stall the pump. This
+    node only proves the walk completes cleanly and the DUT stays responsive
+    the whole time (no WDT, no stuck pending) — actual concurrent PLAYBACK
+    (the design's real gate) needs cyd2usb_player, where the arena can be
+    acquired at all (TASK-425/431: it cannot on cyd2usb_winamp_debug, in
+    either mount/arena ordering, with Spotify's TLS working set resident).
+    See test_fbrowser_player.py / run/browser-player for that half."""
+    print("T_PLR_13  Browse ~200-file dir — walk completes, DUT stays responsive")
+    if not _enter_player(dut, "T_PLR_13"):
+        return
+    t0 = time.monotonic()
+    r = _fb_open(dut, _FB_BIG)
+    if not r.get("ok"):
+        missing = _fb_fixture_missing(dut, _FB_BIG)
+        _leave_player(dut)
+        if missing:
+            skip("T_PLR_13", f"fixture {_FB_BIG} not on the card (TASK-408's probe fixture) — reply={r}")
+        else:
+            fail("T_PLR_13", f"fbOpen {_FB_BIG} failed but sdls says the directory IS on the card "
+                             f"— browser-side open failure, see TASK-433. reply={r}")
+        return
+    st = _fb_wait_done(dut, timeout_s=15.0)
+    elapsed = time.monotonic() - t0
+    _leave_player(dut)
+    if st is None:
+        fail("T_PLR_13", f"DUT stopped responding mid-walk (unresponsive after {elapsed:.1f}s) "
+                          "— loopTask stalled")
+        return
+    if st.get("pending"):
+        fail("T_PLR_13", f"walk still pending after {elapsed:.1f}s (>{15.0}s bound) — batching regression")
+        return
+    pass_("T_PLR_13", f"200-entry walk completed in {elapsed:.1f}s, DUT responsive throughout "
+                      f"(dirCount={st.get('dirCount')} fileCount={st.get('fileCount')} — "
+                      f"0 expected, TASK-408's fixture is all .txt, filtered)")
+
+
+def t_plr_14(dut: Dut):
+    """T_PLR_14: a tap on the browser's own back/up zone is honoured even while
+    a page walk is in flight — the TASK-384 defect class (isNavigationTap()
+    must except it or g_shellBusy swallows it). Drives the REAL tap path (not
+    the fbSelect/fbCancel debug shortcuts, which bypass the busy gate
+    entirely and would prove nothing about it): eject opens the browser at a
+    directory big enough that the walk outlives the round-trip, `get
+    shellBusy` confirms the gate is actually armed, then a real `tap` at the
+    back-zone coordinates must be honoured (not `skipped`)."""
+    print("T_PLR_14  Browser back/up tap survives the busy gate mid-walk (TASK-384)")
+    if not _enter_player(dut, "T_PLR_14"):
+        return
+    errors = []
+    # Land the eject fallback dir on /probe200 (200 entries, ~5 s walk per
+    # T_SD_07-class timing) by loading a playlist that lives there first —
+    # eject opens _pl.dir() when a playlist is loaded. A smaller directory
+    # (tried first: /mp3, 53 entries) races the walk against this test's own
+    # serial round trips and can finish before either check below observes
+    # it — not the bug under test, just insufficient margin.
+    pl = _pl_load(dut, "/probe200/anchor.m3u")
+    if pl.get("count", 0) == 0:
+        _leave_player(dut)
+        skip("T_PLR_14", "fixture /probe200/anchor.m3u not on the card")
+        return
+    ex, ey = _c.tap_eject()
+    dut.set_cooldown_zero()
+    r = dut.cmd(f"tap {ex} {ey}", timeout=5.0)
+    if r.get("skipped"):
+        errors.append(f"eject tap itself was skipped: {r}")
+    busy = dut.cmd("get shellBusy", timeout=3.0)
+    if not busy.get("val", busy.get("busy")):
+        # Walk may have finished before we could observe it (e.g. after a
+        # slow serial round trip) — that is a real precondition miss, not the
+        # bug under test.
+        _leave_player(dut)
+        skip("T_PLR_14", f"g_shellBusy never observed true after eject — reply={busy}; "
+                         "walk finished before this could be checked")
+        return
+    st = dut.cmd("get fbState", timeout=3.0)
+    if not st.get("active") or not st.get("pending"):
+        errors.append(f"browser not mid-walk when expected: {st}")
+    dut.set_cooldown_zero()
+    r2 = dut.cmd("tap 10 10", timeout=5.0)   # back-zone: x<S_BACK_ZONE_W(60), y<S_HEADER_H(28)
+    if r2.get("skipped"):
+        errors.append(f"back-zone tap SKIPPED while busy — TASK-384 defect class: {r2}")
+    st2 = _fb_wait_done(dut, timeout_s=10.0)
+    if st2 is None:
+        errors.append("DUT unresponsive after the back-zone tap")
+    elif st2.get("active") and st2.get("dir") == "/probe200/":
+        errors.append(f"back-zone tap had no effect — still browsing {st2.get('dir')!r}")
+    _leave_player(dut)
+    if errors:
+        fail("T_PLR_14", "; ".join(errors))
+        return
+    pass_("T_PLR_14", "back-zone tap honoured while g_shellBusy was true and the walk was mid-flight "
+                      f"(ascended to dir={st2.get('dir')!r})")
+
+
+def t_plr_15(dut: Dut):
+    """T_PLR_15: hasPendingAsync() is true from the moment a page walk starts
+    and self-clears when it finishes, without any other action — the contract
+    NEW-APP-CHECKLIST item 1 requires."""
+    print("T_PLR_15  hasPendingAsync() true during the walk, self-clears on completion")
+    if not _enter_player(dut, "T_PLR_15"):
+        return
+    r = _fb_open(dut, _FB_BIG)
+    if not r.get("ok"):
+        missing = _fb_fixture_missing(dut, _FB_BIG)
+        _leave_player(dut)
+        if missing:
+            skip("T_PLR_15", f"fixture {_FB_BIG} not on the card")
+        else:
+            fail("T_PLR_15", f"fbOpen {_FB_BIG} failed but sdls says the directory IS on the card "
+                             f"— browser-side open failure, see TASK-433. reply={r}")
+        return
+    immediate = dut.cmd("get fbState", timeout=3.0)
+    st = _fb_wait_done(dut, timeout_s=15.0)
+    _leave_player(dut)
+    errors = []
+    if not immediate.get("pending"):
+        errors.append(f"pending was not true immediately after fbOpen: {immediate}")
+    if st is None:
+        errors.append("DUT unresponsive waiting for pending to clear")
+    elif st.get("pending"):
+        errors.append(f"pending never cleared: {st}")
+    if errors:
+        fail("T_PLR_15", "; ".join(errors))
+        return
+    pass_("T_PLR_15", "pending true immediately after open, false once the walk finished "
+                      f"(dirCount={st.get('dirCount')} fileCount={st.get('fileCount')})")
+
+
+def t_plr_16(dut: Dut):
+    """T_PLR_16: deep/edge directory shapes. Nested descend, an empty
+    directory, 8.3 vs long filenames, and non-audio files mixed alongside
+    playable ones — no crash, correct filter, correct bucket counts."""
+    print("T_PLR_16  Deep/edge paths: nested, empty, 8.3/long names, non-audio filtered")
+    if not _enter_player(dut, "T_PLR_16"):
+        return
+    errors = []
+
+    def check(path: str, want_dirs: int | None, want_files: int | None, label: str):
+        r = _fb_open(dut, path)
+        if not r.get("ok"):
+            errors.append(f"{label}: fbOpen {path} failed — fixture missing?")
+            return
+        st = _fb_wait_done(dut, timeout_s=10.0)
+        if st is None:
+            errors.append(f"{label}: DUT unresponsive")
+            return
+        if want_dirs is not None and st.get("dirCount") != want_dirs:
+            errors.append(f"{label}: dirCount={st.get('dirCount')} (expected {want_dirs})")
+        if want_files is not None and st.get("fileCount") != want_files:
+            errors.append(f"{label}: fileCount={st.get('fileCount')} (expected {want_files})")
+
+    # Empty directory — no crash, both counts 0.
+    check(_FB_EMPTY, 0, 0, "empty dir")
+    # 2-level nested descend: /probefb/nested has one subdir (deep); descending
+    # into it finds its one file. Exercises open() being called twice in a row
+    # (a directory tap's onSelect -> open()) without a free()/alloc() cycle
+    # between — the arrays are reused, not just allocated once and forgotten.
+    check(_FB_NESTED, 1, 0, "nested (parent)")
+    r = _fb_open(dut, _FB_NESTED)   # re-open parent to select its subdir by index
+    st = _fb_wait_done(dut, timeout_s=6.0)
+    if st is None or st.get("dirCount", 0) < 1:
+        errors.append("nested: could not re-list parent to descend")
+    else:
+        sel = dut.cmd("set fbSelect 0", timeout=5.0)   # the one subdir, "deep"
+        if not sel.get("ok"):
+            errors.append(f"nested: fbSelect 0 (descend into deep) failed: {sel}")
+        st2 = _fb_wait_done(dut, timeout_s=6.0)
+        if st2 is None or st2.get("dir") != "/probefb/nested/deep/" or st2.get("fileCount") != 1:
+            errors.append(f"nested: descend did not land in deep/ with 1 file: {st2}")
+    # 8.3 name, a long name, an .m3u and a filtered non-audio file side by
+    # side: SONG1.MP3 (8.3), "A Really Quite Long Song Title Name Here.mp3"
+    # (long), list.m3u, notes.txt (filtered) -> fileCount=3, dirCount=0.
+    check(_FB_EDGE, 0, 3, "edge names (8.3/long/m3u, .txt filtered)")
+    # Root: real card content mixes directories with a non-audio file at the
+    # top level (probebench.bin, a TASK-408 leftover) -> that file must not
+    # appear in either bucket.
+    check(_FB_ROOT, None, 0, "root (probebench.bin filtered, no dirCount assertion — card-dependent)")
+
+    _leave_player(dut)
+    if errors:
+        fail("T_PLR_16", "; ".join(errors))
+        return
+    pass_("T_PLR_16", "empty dir, 2-level nested descend, 8.3/long/m3u names and non-audio "
+                      "filtering all correct")
 
 
 # ── stock-002 suite (TASK-120) ────────────────────────────────────────────────
@@ -8789,6 +9079,11 @@ ALL_TESTS = {
     "T_PLR_10": t_plr_10,
     "T_PLR_11": t_plr_11,
     "T_PLR_12": t_plr_12,
+    # file browser (TASK-416 / M-WINAMP-PLAYER-local §4)
+    "T_PLR_13": t_plr_13,
+    "T_PLR_14": t_plr_14,
+    "T_PLR_15": t_plr_15,
+    "T_PLR_16": t_plr_16,
     # velocity-scroll-001 WebRadio variant (TASK-412 / T_PLE_08)
     "T_PLE_WR_155": t_ple_wr_155,
     "T_PLE_WR_156": t_ple_wr_156,

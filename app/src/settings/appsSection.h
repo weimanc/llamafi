@@ -8,8 +8,24 @@
 #include "planeRadarConfig.h"
 #include "logDecode.h"   // httpErr() — TASK-321 geocode error decode
 #include "cities.h"      // M-HOME-LOCATION H-4: divergence-hint reference coords (kCities lookup by name)
+#include "gen/countries.h"   // CountryEntry — SPickerList's country-picker client (M-COUNTRY-PICKER)
 
 const char* cgIdToDisplay(const char* id);
+
+// TASK-416: SPickerList was generalised off a hardcoded CountryEntry* to a
+// row-accessor callback pair (settingsWidgets.h). These two free functions are
+// the country picker's adapter — kCountries is a global table, so neither
+// needs `ctx` to reach the item; `ctx` is only what onSelect/onCancel use.
+static void _countryRowText(int16_t idx, char* left, size_t leftSize,
+                             char* right, size_t rightSize, void* ctx) {
+    (void)ctx;
+    strlcpy(left,  kCountries[idx].name, leftSize);
+    strlcpy(right, kCountries[idx].code, rightSize);
+}
+static bool _countryRowMatches(int16_t idx, const char* id, void* ctx) {
+    (void)ctx;
+    return strcasecmp(kCountries[idx].code, id) == 0;
+}
 
 class AppsSection : public SettingsSection {
 public:
@@ -634,8 +650,8 @@ private:
             // 2-char keyboard; WR-SETTINGS OQ2's "invalid code -> empty
             // station list" failure mode is now unrepresentable. Opens at
             // the currently persisted code (CP-6).
-            g_countryPicker.show(kCountries, kCountryCount,
-                settings().webRadioCountry,
+            g_countryPicker.show(kCountryCount, "Select country", settings().webRadioCountry,
+                _countryRowText, _countryRowMatches,
                 _onWrCountryPicked, _onWrCountryPickCancel, this);
             return;   // nothing changed yet — the select handler saves
         } else if (row == 1) {
@@ -952,7 +968,8 @@ private:
     // to the Postcode keyboard exactly as the old keyboard submit did.
     void _openPrCountryPicker() {
         _prLocState = PrLocView::LookupCountry;
-        g_countryPicker.show(kCountries, kCountryCount, _prLastCountry,
+        g_countryPicker.show(kCountryCount, "Select country", _prLastCountry,
+            _countryRowText, _countryRowMatches,
             _onPrCountryPicked, _onPrCountryPickCancel, this);
     }
 
