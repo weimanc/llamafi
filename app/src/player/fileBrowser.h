@@ -32,6 +32,7 @@
 
 #include <Arduino.h>
 #include <SD.h>
+#include <esp_heap_caps.h>
 #include <string.h>
 
 #include "logSink.h"
@@ -88,8 +89,48 @@ public:
     // trades away real capability (this card's /mp3 has 53 files; 48 would
     // already truncate it) for a fragmentation risk that array-shrinking
     // alone cannot fully close — see the note above this block.
-    static const uint16_t FB_MAX_DIRS  = 16;
+    //
+    // Cut a fourth time (TASK-433, 2026-08-11): the two arrays now allocate
+    // once and are never freed (suspend() no longer calls free() — see
+    // localPlayerApp.h) to kill the suite-state-dependent fbOpen failure this
+    // task fixes. That makes the resident cost permanent for the rest of the
+    // boot session instead of transient, and the first full-suite proof of
+    // that fix starved the m3u playlist index's own (much smaller, 3 616 B)
+    // allocation later in the same run — `[m3u] index alloc FAILED` 0 -> 15,
+    // failing T_PLR_11/12.
+    //
+    // FIRST DRAFT OF THIS FIX cut FB_MAX_FILES 64 -> 32 unconditionally and
+    // justified it as "actual playback doesn't work in this build anyway
+    // (TASK-425/431)". That justification does not hold and was wrong: 64 is
+    // not a debug-only number. Re-read the "Cut further"/"Cut a third time"
+    // notes above — they were measured ON `cyd2usb_player`, WHILE A TRACK WAS
+    // PLAYING, and 16/64 is the already-established floor for that variant's
+    // real concurrent-use case (arena + Audio + pump task resident, no
+    // Spotify involved at all). Shrinking it globally would have quietly
+    // undercut the one variant this feature actually ships in, to relieve a
+    // contiguous-heap fight that is specific to Spotify's ~39 KB TLS working
+    // set being resident (TASK-425) — a condition that does not exist on
+    // `cyd2usb_player` (`DISABLE_SPOTIFY`).
+    //
+    // Fixed: the cap is now variant-conditional. `cyd2usb_player` (and any
+    // other DISABLE_SPOTIFY build) keeps the full, already-measured 64 —
+    // unaffected by this task, no capability lost where the feature is
+    // actually used for real playback. Builds with Spotify compiled in
+    // (`cyd2usb_winamp`/`cyd2usb_winamp_debug`, where TASK-425/431 already
+    // established local playback itself cannot work regardless of this
+    // constant) get the smaller 32, trading this dev card's real /mp3
+    // directory (53 files) truncating at 32 instead of 64 — a real loss, but
+    // confined to builds where browsing was already the only usable half of
+    // this feature, in exchange for 2 048 B of permanent headroom that keeps
+    // the m3u index from starving in the same builds. Re-measure before
+    // raising either number; nothing here forces the two variants to share
+    // one value again.
+#if defined(DISABLE_SPOTIFY)
     static const uint16_t FB_MAX_FILES = 64;
+#else
+    static const uint16_t FB_MAX_FILES = 32;
+#endif
+    static const uint16_t FB_MAX_DIRS  = 16;
     static const size_t   FB_NAME_LEN  = 64;    // basename only; matches PlRow::text's 64
 
     // TASK-408's T_SD_07 measured 26.4 ms/entry walking a 200-file directory
@@ -107,8 +148,15 @@ public:
         _dirs  = (FBEntry*)malloc(sizeof(FBEntry) * FB_MAX_DIRS);
         _files = (FBEntry*)malloc(sizeof(FBEntry) * FB_MAX_FILES);
         if (!_dirs || !_files) {
-            LOG_W("filebrowser", "alloc FAILED (%u B) — free=%u",
-                  (unsigned)bytes(), (unsigned)ESP.getFreeHeap());
+            // TASK-433: `free=` alone reads as healthy (50 016 B measured on a
+            // run that still failed a 4 096 B contiguous ask) and hides the
+            // real cause — BP-055, the metric that over-reports. Log the
+            // largest 8-bit-capable contiguous block too; that is the number
+            // that actually decides malloc()'s outcome here, same cap
+            // TASK-425 used for the arena/FATFS table.
+            LOG_W("filebrowser", "alloc FAILED (%u B) — free=%u largest=%u",
+                  (unsigned)bytes(), (unsigned)ESP.getFreeHeap(),
+                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
             free();
             return false;
         }
@@ -116,9 +164,17 @@ public:
     }
 
     void free() {
-        _closeDir();
+        cancel();
         if (_dirs)  { ::free(_dirs);  _dirs  = nullptr; }
         if (_files) { ::free(_files); _files = nullptr; }
+    }
+
+    // TASK-433: everything free() does EXCEPT releasing the two heap arrays —
+    // close the open directory handle, hide the modal picker, reset the walk
+    // state. LocalPlayerApp::suspend() calls this instead of free() so the
+    // 5 120 B arrays survive a mode switch (see suspend()'s comment for why).
+    void cancel() {
+        _closeDir();
         _picker.hide();
         _state = State::Idle;
         _dir[0] = '\0';

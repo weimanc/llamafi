@@ -175,6 +175,19 @@ public:
         // session loaded or the debug surface's `set plLoad`.
         if (g_settings.playerPlaylist[0]) _load(g_settings.playerPlaylist);
         _dirty = true;
+        // TASK-433 revision: an earlier version of this fix eagerly claimed
+        // the browser's arrays here on every resume(), on the theory that
+        // grabbing them as early as possible beats later fragmentation.
+        // Measured cost on the DUT: it claims the block on the FIRST-EVER
+        // Player-mode entry of the whole boot session, which starves the
+        // m3u playlist index (`_pl`, above) for the REST of the session —
+        // `[m3u] index alloc FAILED` went 0 -> 15 in a full-suite run,
+        // failing T_PLR_11/12 (T_PLR_12's ±256 B residual budget is a hard
+        // acceptance line, not a suggestion). Reverted: the browser now
+        // stays lazily allocated at first `open()` (eject tap or `set
+        // fbOpen`), same as before this task, so a Player-mode session that
+        // never opens the browser costs the m3u index nothing extra. It
+        // still never frees once opened — see suspend() below.
     }
 
     void suspend() override {
@@ -182,10 +195,24 @@ public:
         // machine are global state; a mode switch mid-drag must not leave
         // either armed (TASK-352 / TASK-277 precedent).
         winampDisplay.resetDragState();
-        // TASK-416: close the browser and free its heap — same discipline as
-        // _pl below (design §10 suspend order: cancel gestures, close the
-        // browser, THEN tear down the engine).
-        _browser.free();
+        // TASK-433: do NOT free the browser's 5 120 B here (was: _browser.free(),
+        // same discipline as _pl below). Measured cause of the suite-state-
+        // dependent fbOpen failure: suspend()/resume() fires around every mode
+        // switch, so free-then-realloc asks for a 4 096 B contiguous block
+        // against whatever the heap looks like at that moment — `largestBlock`
+        // was measured as low as 756 B after a realistic test sequence, well
+        // under the ask, while total free heap still read a healthy 50 016 B
+        // (BP-055). Allocate once (resume(), below) and hold for the rest of
+        // the boot session instead — the arrays are cheap (5 120 B) and the
+        // alternative is an alloc that can fail at any mode switch for the
+        // life of the session. Still fully closes the open directory handle
+        // and hides the picker (_closeDir()/_picker.hide() inside free()'s
+        // sibling _cancel-shaped cleanup — see open()/handleInput()), just
+        // keeps the two heap arrays resident. Cost: 5 120 B permanently taken
+        // from the shared internal-8-bit pool from the first Player-mode
+        // entry onward — see the TASK-433 writeup in tasks.md for the margin
+        // this leaves WebRadio's 24 576 B arena grab.
+        _browser.cancel();
         // Stop and fully release the engine: pump task, Audio, arena. Leaving
         // the arena held would silently starve WebRadio's next station fetch
         // and Spotify's TLS of contiguous heap.

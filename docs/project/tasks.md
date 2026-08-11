@@ -6620,9 +6620,68 @@ allocation) so a real reopen failure **fails loudly** instead of hiding in a ski
 **Owner:** Developer · **Deps:** TASK-416 · **Gate:** open the same directory 20× in a row, with an
 intervening cancel and an intervening app switch, 20/20 `ok:true`; plus open-handle count back to
 its pre-open value after every cancel · **Priority:** **P1** (raised from P2 — see below) ·
-**Status:** OPEN — filed 2026-08-11 from TASK-416's gate re-run.
+**Status:** **DONE** (2026-08-11) — root-caused by raw capture, fixed, full-suite verified. See
+"Resolution" below.
 
-**Escalated the same day: it is not intermittent, it is suite-state-dependent and reproducible.**
+### TASK-433 resolution (2026-08-11)
+
+**Confirmed cause — `alloc()`, not `SD.open()`.** Full suite with `--log-file`, raw counts:
+`[filebrowser] alloc FAILED` **8**, `open failed` **0**. The line:
+
+```
+[W][filebrowser] alloc FAILED (5120 B) — free=50016
+```
+
+**50 016 B free and a 4 096 B contiguous ask still fails** — fragmentation, not exhaustion. Any fix
+framed as "free up heap" would have missed. Four earlier runs across two agents hit this same
+failure and could not name it, purely because none captured raw serial; the firmware had been
+printing the answer the whole time (BP-057, adopted hours earlier).
+
+**Fix, in two parts:**
+1. `LocalPlayerApp::suspend()` no longer calls `_browser.free()`. A new `FileBrowser::cancel()` does
+   everything `free()` did — `_closeDir()`, hide the picker, reset walk state — **except** releasing
+   the two arrays, so the open directory handle is still closed on every mode switch (no handle
+   leak) while the 3 072 B stays resident. `free()` survives for real teardown.
+2. `FB_MAX_FILES` is now **variant-conditional**: `DISABLE_SPOTIFY` builds (`cyd2usb_player`, the
+   shipping home for Player mode per TASK-427/431) keep the measured **64**; Spotify-resident builds
+   get **32**, buying 2 048 B of permanent headroom so the m3u index's 3 616 B ask stops losing.
+
+> **A wrong justification was caught in review and corrected — recorded because it nearly shipped.**
+> The first draft cut `FB_MAX_FILES` to 32 *unconditionally*, justified as "playback doesn't work in
+> this build anyway (TASK-425/431)". That is false: playback works on `cyd2usb_player`, and 16/64
+> were measured *on that variant, while a track was playing*. Shrinking globally would have degraded
+> the one variant the feature ships in, to relieve contiguous-heap pressure that only exists where
+> Spotify's ~39 KB TLS working set is resident — a condition `DISABLE_SPOTIFY` removes entirely.
+
+**Verification — full suite, `--log-file`, complete run (198 results, no `SerialException`):**
+
+| | pre-fix baseline | fix v1 | **final** |
+|---|---|---|---|
+| passed / failed / skipped / flaked | 135 / 15 / 45 / 3 | 133 / 12 / 48 / 5 | **145 / 5 / 44 / 4** |
+| `[filebrowser] alloc FAILED` | 8 | 0 | **0** |
+| `[m3u] index alloc FAILED` | 0 | **15** | **0** |
+| `T_PLR_11` / `T_PLR_12` | pass / pass | **FAIL / FAIL** | **PASS / PASS** |
+| `T_PLR_13`/`15`/`16` | FAIL | PASS | **PASS** |
+
+`T_PLR_12` (the memory-budget guard) reads `resume +4088 B, loaded +3680 B, residual +0 B` — within
+its 5.2 KB budget and back to baseline. Fix v1 is shown because it is instructive: it fixed the
+browser and starved the playlist index instead (`0 → 15`), red-lining `T_PLR_12` at `+2952 B`
+against a ±256 B limit. Whack-a-mole in a fragmented heap is the default outcome here; only the
+per-component counts made it visible.
+
+Only two failures are new against the pre-fix baseline: `T_PLR_06` (`hit=None action=None` — the
+shell-swallow signature, BP-057's class) and `T092` (pre-declared flaky). `T272` went from a hard
+FAIL to `SKIP — HTTP -120 (network, not contention)`.
+
+> **Two observations recorded, not chased (both pre-date this fix):**
+> 1. **`T_PLR_17` fails in full-suite context while passing targeted.** It failed in the pre-fix
+>    baseline — the first full run after TASK-417 landed — and again in the final run
+>    (`no 'dequeued action=SHUFFLE' within 20s`). TASK-417 was signed off on a **targeted** 6/6 gate,
+>    which is exactly the isolated-vs-suite-state trap this project has documented before. TASK-417's
+>    implementation is not in doubt (`T_PLR_18`/`19` pass everywhere), but **its gate does not hold
+>    under suite state and the sign-off was therefore weaker than it looked.** Needs its own task.
+> 2. `T_PLR_14` skipped in one run as "fixture `/probe200/anchor.m3u` not on the card" — the LL-124
+>    pattern (a skip asserting an unverified cause) in a test outside that fix's scope.
 The full `./run/test` baseline captured for TASK-417 (2026-08-11, `cyd2usb_winamp_debug`, clean tree
 at `c5e0e78`) failed **three** browser tests, all on the same cause:
 
