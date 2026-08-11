@@ -6359,7 +6359,35 @@ compiled out (TASK-427 option 3); (b) release the Spotify TLS working set on Pla
 
 **Owner:** Architect · **Deps:** TASK-425 (done) · **Gate:** an ADR-059 amendment stating the chosen
 direction with the measured numbers · **Priority:** P1 — blocks TASK-427, and blocks Player mode
-shipping anywhere but a dedicated variant · **Status:** OPEN — filed 2026-08-11 from TASK-425.
+shipping anywhere but a dedicated variant · **Status:** **RESOLVED** (2026-08-11) — **option (a)
+adopted**: `cyd2usb_player` (Spotify compiled out via the existing `-DDISABLE_SPOTIFY`) is the shipping
+home for Player mode; TASK-427 implements and DUT-verifies it (arena acquired, MP3 decoded and played
+for 3+ minutes, see TASK-427's DUT evidence). Option (b) — releasing the Spotify TLS working set on
+Player-mode entry and re-establishing it on exit — is **not implemented** and survives as future work;
+it would let Player mode coexist with Spotify in `cyd2usb_winamp` instead of living only in a dedicated
+variant, and overlaps TASK-430 (M-TLSYIELD-shaped). Option (c) (shrink `MB_ARENA_BYTES`) remains
+rejected — it only buys 1 360 B against a 6 424 B gap.
+
+### TASK-432 — `aeConnectFile()` lets `new Audio(...)` throw an uncaught `bad_alloc`
+
+Witnessed on the DUT 2026-08-11 while DUT-verifying TASK-427, on the *first* `set plPlay` after a
+flash — i.e. before the heap settles (TASK-425: `lfb8` is not stable until ~150 s post-reset). The
+allocation for the `Audio` object at `audio/audioEngine.h:577` failed and the exception propagated
+out: `abort()` → `std::terminate()`, device reset. A retry at steady heap succeeded and it did not
+reproduce a second time, but "did not reproduce" is not "cannot happen" — this is exactly the
+transient-pressure window that Player-mode entry sits in, and TASK-431 option (b) would widen it.
+
+Every other allocation on this path is checked (`mb_arena_acquire()` falls back to libc, the Helix
+sub-allocations are checked and fail cleanly to `play FAILED`). This one is a bare `new`. The fix is
+`new (std::nothrow)` plus the same clean `play FAILED` path the decoder buffers already take.
+
+Note for whoever picks this up: the exception decoder's inline backtrace guesses were **bogus**
+(`AquariumApp::drawSeaweed`, `TFT_eSPI::drawChar`); the real frame came from `addr2line` against the
+actual ELF. Do not trust the inline decode on this project.
+
+**Owner:** Developer · **Deps:** none · **Gate:** with the heap deliberately pressured, a failed
+`aeConnectFile()` must render `play FAILED` and leave the shell alive — no `abort()` ·
+**Priority:** P2 · **Status:** OPEN — filed 2026-08-11 from TASK-427's DUT verification.
 
 ### TASK-409 — extract the audio engine to `audio/audioEngine.h` (PURE MOVE)
 
@@ -6942,6 +6970,17 @@ only compiled-in modes. Existing `-DDISABLE_SPOTIFY` stays as-is — load-bearin
 unusable. Add exactly one dev env `cyd2usb_player` (Player only), mirroring the existing
 `cyd2usb_webradio` precedent. Gates go 6 → 7.
 
+**`cyd2usb_player` already exists** (landed in TASK-427, 2026-08-11 — Architect ruling TASK-431 option
+a required it ahead of this task's own schedule). `app/platformio.ini`: extends
+`cyd2usb_winamp_debug`, adds `-DDISABLE_SPOTIFY`. DUT-verified: boots, mounts SD, arena acquires, MP3
+plays. This task's remaining scope here is narrower than originally scoped: just the
+`check_build.sh` 6→7 gate addition — the env itself, and its build+boot+playback verification, are
+done. **One loose end for this task:** as landed, `cyd2usb_player` is flag-for-flag identical to
+`cyd2usb_webradio` (both are `cyd2usb_winamp_debug` + `-DDISABLE_SPOTIFY`) — it is a distinct name and
+binary but not yet a distinct *configuration*. This task's `-DPLAYER_LOCAL` / `-DPLAYER_WEBRADIO`
+work is what makes them actually differ; until then, do not read a `cyd2usb_player` result as
+evidence about a Player-only compiled mode set.
+
 Close-out: complete the reserved `feature_inventory.yaml` entries and X050–X064, walk
 `NEW-APP-CHECKLIST.md` for `AppId::LocalPlayer`, and run the sustained soak.
 
@@ -7078,7 +7117,76 @@ Options, in the order they should be considered:
 **Owner:** Architect (Developer implements) · **Deps:** TASK-425 (the re-measure this rests on) ·
 **Gate:** `T_PLR_35`/`T_PLR_36` cover it once decided; add a production-build assertion that
 `sdReady()` and the compiled-in mode set agree · **Priority:** P2 — blocks Player mode shipping in
-production, blocks nothing before that · **Status:** OPEN — filed 2026-08-11 from TASK-415.
+production, blocks nothing before that · **Status:** **DONE** (2026-08-11) — Architect ruling (TASK-431)
+resolved this as **option 3**. Implementation + DUT evidence below.
+
+**Architect ruling (TASK-431):** TASK-425 measured a 6 424 B contiguous-memory shortfall between the
+Helix arena (24 576 B) and the smallest usable FATFS context (12 556 B at `max_files=2`) against
+30 708 B of steady-state `lfb8` — local playback cannot work in any build where the Spotify TLS
+working set is resident, in either mount/arena ordering. Player mode therefore ships in a dedicated
+variant, not in `cyd2usb_winamp`.
+
+**Implementation.** `sdProbeBootMount()`'s forward decl, its `setup()` call site, and the definitions
+(`kSdCsPin`/`kSdMaxFiles`/etc., `sdMountAttempt()`, `sdProbeBootMount()`, `sdReady()`) all moved off
+`#ifdef SERIAL_DEBUG` onto a new presence-only flag `-DSD_BOOT_MOUNT` (never `=0`, LL-006). The
+definitions block moved out of the giant `SERIAL_DEBUG` command region entirely (it now sits just
+ahead of it in `main.cpp`, gated on `SD_BOOT_MOUNT` with an `#else` stub `sdReady() { return false; }`)
+so it compiles independent of `SERIAL_DEBUG`. `SD.h`/`SPI.h` includes widened to
+`#if defined(SERIAL_DEBUG) || defined(SD_BOOT_MOUNT)`; `sd_diskio.h`/`ff.h`/`ffconf.h` (only used by
+the `sdmbr`/`sdmem` bring-up probes) stay `SERIAL_DEBUG`-only. The interactive bring-up commands
+(`sdmount`/`sdumount`/`sdls`/`sdread`/`sdwrite`/`sdclean`/`sdcycle`/`sdprobe`/`sdmem`) were not moved
+— they stay `SERIAL_DEBUG`-only exactly as instructed, now referencing the statics/functions defined
+just above that block. `cyd2usb_winamp_debug` gained `-DSD_BOOT_MOUNT` (every existing T_PLR/T_SD gate
+keeps working unchanged); `cyd2usb_winamp` (production) defines neither flag — unchanged behaviour,
+unchanged heap profile. New env `cyd2usb_player` added (`app/platformio.ini`), mirroring
+`cyd2usb_webradio`'s structure: extends `cyd2usb_winamp_debug` (so it inherits `SD_BOOT_MOUNT` +
+`SERIAL_DEBUG`, same as the webradio precedent) and adds the existing `-DDISABLE_SPOTIFY` flag — no
+new mode-flag matrix (that's TASK-422/DEV-7). Added `run/flash-player` (mirrors `run/flash-webradio`).
+Not added to `check_build.sh`'s gate list — TASK-422 (DEV-7) does the 6→7 renumbering.
+
+**Degrade-without-SD_BOOT_MOUNT assertion:** verified via code inspection, not a new behaviour —
+`localPlayerApp.h:355`/`:407` already check `sdReady()` and render `"No SD card"` (vs `"No playlist"`)
+when it is false; this is unchanged logic from TASK-415, only the macro that gates the underlying
+mount/stub changed name. `cyd2usb_winamp` (no `SD_BOOT_MOUNT`) compiles the `sdReady() { return
+false; }` stub, so the existing degrade path applies unchanged.
+
+**DUT evidence (`cyd2usb_player`, 2026-08-11):** all three envs (`cyd2usb_winamp`,
+`cyd2usb_winamp_debug`, `cyd2usb_player`) build clean. Flashed `cyd2usb_player`; boot log:
+`{"probe":"sdmount","tag":"boot","maxFiles":2,"mounted":true,"elapsedMs":7,...}` — SD mounts at boot.
+`switchApp 12` → `set plLoad /playlists/gate100.m3u` (120 entries) → `set plPlay 1`:
+
+```
+[membudget] TASK-267 arena acquire=24576B lfbBefore=69620 OK
+[membudget] arena init base=0x3ffee0c8 cap=24576
+[mbdbg] arena FIRST alloc: base=0x3ffee0c8 cap=24576 req=2000
+[mbdbg] helix alloc: DecInfo=... Sub=0x3fff1958(8708) FInfo=...
+[I][webradio] audio_info: MP3Decoder has been initialized, free Heap: 48176 bytes
+[membudget] CP2-decoder-init freeInt=48176 lfbInt=42996 freeDma=5100 lfbDma=4852 arenaHWM=23216
+[I][webradio] audio_info: stream ready
+[I][webradio] audio_info: syncword found at pos 0
+[I][webradio] audio_info: Channels: 2 SampleRate: 44100 BitsPerSample: 16 BitRate: 256000
+```
+
+Arena acquired (not the libc fallback — no "not enough memory to allocate mp3decoder buffers"), MP3
+decoded and played for 3+ minutes of continuous uptime without stall. After ≥150 s of playback
+(TASK-425 settle methodology — moot here since `DISABLE_SPOTIFY` means no TLS working set to settle,
+but honoured anyway): `get plMem` → `{"allocated":true,"freeHeap":52544,"largestBlock":4852,
+"minFreeHeap":47916}`; `set arenaHold 1` → `{"held":true,"freeInt":52544,"lfbInt":42996,"free8":9468,
+"lfb8":4852}`. `cyd2usb_winamp` production build unaffected (no `sdmount` probe line at boot, as
+before). `cyd2usb_winamp_debug` reflashed and reboot-verified: boots clean, `sdmount` boot probe still
+fires (`"mounted":true`) — no regression to existing T_PLR/T_SD gates. `./run/check` — 6/6 PASS.
+
+**Surprise, noted not fixed (out of scope for this task):** the *first* `set plPlay 1` attempt on
+`cyd2usb_player`, issued immediately post-flash before WiFi had settled, crashed —
+`abort()`/`std::terminate()` from an uncaught `bad_alloc` out of `new Audio(...)` in
+`audioEngine.h:577`'s `aeConnectFile()` (real backtrace recovered via `addr2line` against the actual
+elf — the exception-decoder's inline guesses were bogus, pointed at `AquariumApp`/`TFT_eSPI` symbols
+that were never on the stack). Heap was still settling at that point. A retry once WiFi/heap were
+steady (`freeHeap=121184`, `largestBlock=73716` before play) succeeded cleanly and is the evidence
+above. `new` throwing under transient heap pressure and being uncaught is a real hardening gap
+(`aeConnectFile` should check the pointer / catch the exception rather than let it abort), not
+reproduced a second time — flag for a future task, not filed as a numbered TASK here since it did not
+block this gate.
 
 ### TASK-428 — apply the ASCII fold to the Spotify queue and station-list rows
 

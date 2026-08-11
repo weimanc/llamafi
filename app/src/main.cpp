@@ -77,11 +77,17 @@ static inline bool casRetryDisabled() { return false; }
 #include <esp_task_wdt.h> // esp_task_wdt_init() — extended timeout for dataTask TLS
 #include <esp_heap_caps.h> // T_MB_PROBE_00: caps-split heap probes (TASK-261 Phase 0)
 #include <mbedtls/base64.h> // SERIAL_DEBUG `screendump` command — TFT readback encoding
-#ifdef SERIAL_DEBUG
+// TASK-427: SD.h/SPI.h now also needed by SD_BOOT_MOUNT builds (cyd2usb_player) that
+// don't define SERIAL_DEBUG — the boot mount itself moved out of the SERIAL_DEBUG gate.
+// sd_diskio.h/ff.h/ffconf.h stay SERIAL_DEBUG-only: only the bring-up probes (`sdmbr`,
+// `sdmem`) use them.
+#if defined(SERIAL_DEBUG) || defined(SD_BOOT_MOUNT)
 #include <SD.h>   // TASK-408: sdprobe bring-up probe, own VSPI bus (SD/FS is not otherwise linked)
+#include <SPI.h>
+#endif
+#ifdef SERIAL_DEBUG
 #include <sd_diskio.h>  // TASK-408: raw-sector access for `sdmbr` (below SD/FatFs)
 #include <ff.h>   // TASK-408: FATFS/FIL sizes — the mount's real memory cost (see cmdSdMem)
-#include <SPI.h>
 #include "ffconf.h" // TASK-408: FF_VOLUMES — kept for anyone re-investigating the deferred
                     // live-mount corruption (see setup()'s sdProbeBootMount() comment)
 #endif
@@ -2223,8 +2229,9 @@ void appTick(AppId id) {
   if (g_apps[(int)id]) g_apps[(int)id]->tick();
 }
 
-#ifdef SERIAL_DEBUG
-static void sdProbeBootMount();  // TASK-408: defined near cmdSdProbe, called from setup()
+#ifdef SD_BOOT_MOUNT
+static void sdProbeBootMount();  // TASK-408: defined ahead of the SERIAL_DEBUG command
+                                  // block (TASK-427), called from setup()
 #endif
 
 void setup()
@@ -2245,7 +2252,7 @@ void setup()
 
   Serial.begin(115200);
 
-#ifdef SERIAL_DEBUG
+#ifdef SD_BOOT_MOUNT
   // TASK-408 (2026-08-07): mount SD here, synchronously, and hold the session for
   // the process lifetime — NOT the lazy per-mode-entry mount M-SDFS §5 assumes.
   //
@@ -2261,6 +2268,10 @@ void setup()
   // the user enters the mode, and LocalPlayer needs the card mounted *and* the Helix
   // arena acquired at the same time. Mounting before any of that exists is the design,
   // not a workaround.
+  //
+  // TASK-427: gated on SD_BOOT_MOUNT, not SERIAL_DEBUG — production (cyd2usb_winamp)
+  // does not define it and never mounts (sdReady() stubs to false there); the dedicated
+  // cyd2usb_player variant and cyd2usb_winamp_debug both define it.
   sdProbeBootMount();
 #endif
 
@@ -3023,6 +3034,99 @@ static void handleSerialCommands() {
     }
   }
 }
+
+// TASK-408 (M-SDFS phase-0): own VSPI bus — SCK18/MISO19/MOSI23/CS5 — entirely free of
+// the HSPI TFT bus and the touch controller's own SPI (see M-SDFS-sd-card-exploration.md
+// §2). The mount is established once in setup() and held — see sdProbeBootMount()'s call
+// site for why a lazy per-mode-entry mount cannot be relied on here.
+//
+// TASK-427: this block — the statics, `sdMountAttempt()`, `sdProbeBootMount()`, and
+// `sdReady()` — is gated on SD_BOOT_MOUNT, not SERIAL_DEBUG, so it compiles into any
+// variant that wants the boot mount without pulling in the rest of the SERIAL_DEBUG
+// command surface (`cyd2usb_player`). `cyd2usb_winamp_debug` defines both, so every
+// existing T_PLR/T_SD gate is unaffected. `cyd2usb_winamp` (production) defines
+// neither — no mount, sdReady() stubs to false, Player mode degrades to "No SD card".
+// That remains deliberate: an unconditional boot mount costs ~13 KB of permanently-held
+// contiguous internal heap (FATFS window + max_files × FIL), which TASK-425 measured
+// does not fit alongside the Spotify TLS working set and the Helix arena — see
+// TASK-431. The interactive bring-up probes below this SERIAL_DEBUG gate — `sdmem`,
+// `sdmount`/`sdumount` (live commands), `sdcycle`, `sdls`, `sdread`, `sdwrite`,
+// `sdclean`, `sdprobe` (the full T_SD_01–09 sweep) — stay SERIAL_DEBUG-only and
+// reference the statics/functions defined here.
+#ifdef SD_BOOT_MOUNT
+static const int kSdCsPin = 5;
+static const int kSdSckPin = 18;
+static const int kSdMisoPin = 19;
+static const int kSdMosiPin = 23;
+// SPI clock for data transfers (card identification always runs at 400 kHz inside
+// ff_sd_initialize, and the library caps this at 25 MHz). 20 MHz, not the 4 MHz the
+// M-SDFS bring-up plan suggested: on the SDHC card, 4 MHz reproducibly panics inside
+// FatFs mid-read (2/2 runs; `validate()` sees obj->fs == NULL after ff_req_grant())
+// while 20 MHz is clean (3/3) and 40x faster. Runtime-settable via `sdmount`.
+static uint32_t s_sdFreqHz = 20000000;
+
+// Open-file slots requested of SD.begin(). This is the single dominant term in the
+// mount's memory cost, not a throughput knob: esp_vfs_fat_register() allocates
+// `sizeof(vfs_fat_ctx_t) + max_files * sizeof(FIL)` as ONE contiguous internal
+// block, and this IDF build has FF_MAX_SS=4096 (CONFIG_WL_SECTOR_SIZE) with
+// FF_FS_TINY=0 (CONFIG_FATFS_PER_FILE_CACHE=1) — so FATFS carries a 4 KB window
+// buffer and every FIL carries its own 4 KB sector cache. The Arduino default of
+// 5 therefore asks for ~25 KB in one piece. See `sdmem`.
+static const uint8_t kSdMaxFiles = 2;
+
+static SPIClass s_sdSPI(VSPI);
+static bool s_sdReady = false;
+static bool s_sdSpiUp = false;
+static size_t s_sdBootFreeIntBefore = 0, s_sdBootFreeIntAfter = 0;
+static size_t s_sdBootLfbIntBefore = 0, s_sdBootLfbIntAfter = 0;
+
+// One mount attempt with full before/after heap accounting, usable from setup()
+// and from a live serial command. `tag` names the call site in the JSON line.
+static bool sdMountAttempt(const char *tag, uint8_t maxFiles) {
+  size_t freeBefore = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  size_t lfbBefore = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  size_t lfb8Before = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (!s_sdSpiUp) {
+    s_sdSPI.begin(kSdSckPin, kSdMisoPin, kSdMosiPin, kSdCsPin);
+    s_sdSpiUp = true;
+  }
+  unsigned long t0 = millis();
+  bool ok = SD.begin(kSdCsPin, s_sdSPI, s_sdFreqHz, "/sd", maxFiles);
+  unsigned long elapsedMs = millis() - t0;
+  size_t freeAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  size_t lfbAfter = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  Serial.printf("{\"probe\":\"sdmount\",\"tag\":\"%s\",\"maxFiles\":%u,\"mounted\":%s,"
+                "\"elapsedMs\":%lu,\"heapDeltaB\":%ld,"
+                "\"freeIntBefore\":%u,\"freeIntAfter\":%u,"
+                "\"lfbIntBefore\":%u,\"lfbIntAfter\":%u,\"lfb8Before\":%u,\"lfb8After\":%u}\n",
+                tag, (unsigned)maxFiles, ok ? "true" : "false", elapsedMs,
+                (long)freeBefore - (long)freeAfter,
+                (unsigned)freeBefore, (unsigned)freeAfter,
+                (unsigned)lfbBefore, (unsigned)lfbAfter,
+                (unsigned)lfb8Before,
+                (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+  s_sdBootFreeIntBefore = freeBefore;
+  s_sdBootFreeIntAfter = freeAfter;
+  s_sdBootLfbIntBefore = lfbBefore;
+  s_sdBootLfbIntAfter = lfbAfter;
+  return ok;
+}
+
+static void sdProbeBootMount() {
+  s_sdReady = sdMountAttempt("boot", kSdMaxFiles);
+  if (!s_sdReady && s_sdSpiUp) { s_sdSPI.end(); s_sdSpiUp = false; }
+}
+
+// TASK-415: the boot mount's outcome, for code outside this file (LocalPlayerApp
+// must degrade to "No SD card" rather than opening files against a dead mount).
+// A function, not an extern on s_sdReady, so the mount state stays owned here.
+bool sdReady() { return s_sdReady; }
+
+#else  // !SD_BOOT_MOUNT
+// TASK-427: builds without SD_BOOT_MOUNT (today: cyd2usb_winamp production) compile no
+// SD mount at all. Same symbol, honest answer — LocalPlayerApp degrades to "No SD card".
+bool sdReady() { return false; }
+#endif // SD_BOOT_MOUNT
 
 // ── SERIAL_DEBUG command implementations (TASK-056e/h/i) ─────────────
 // All compile only when SERIAL_DEBUG is defined (cyd2usb_winamp_debug env).
@@ -4564,94 +4668,8 @@ static void cmdColorProbe(const char *) {
   }
 }
 
-// TASK-408 (M-SDFS phase-0): own VSPI bus — SCK18/MISO19/MOSI23/CS5 — entirely free of
-// the HSPI TFT bus and the touch controller's own SPI (see M-SDFS-sd-card-exploration.md
-// §2). The mount is established once in setup() and held — see sdProbeBootMount()'s call
-// site for why a lazy per-mode-entry mount cannot be relied on here.
-//
-// Probe surface, all SERIAL_DEBUG-only: `sdmem` (ctx sizing + contiguous-alloc ceiling),
-// `sdmount`/`sdumount` (mount at N slots and a given SPI clock, with heap accounting),
-// `sdcycle` (mount/unmount leak check), `sdls`, `sdread` (read-only benchmark against an
-// existing file), `sdwrite`, `sdclean`, `sdprobe` (the full T_SD_01–09 sweep).
-static const int kSdCsPin = 5;
-static const int kSdSckPin = 18;
-static const int kSdMisoPin = 19;
-static const int kSdMosiPin = 23;
-// SPI clock for data transfers (card identification always runs at 400 kHz inside
-// ff_sd_initialize, and the library caps this at 25 MHz). 20 MHz, not the 4 MHz the
-// M-SDFS bring-up plan suggested: on the SDHC card, 4 MHz reproducibly panics inside
-// FatFs mid-read (2/2 runs; `validate()` sees obj->fs == NULL after ff_req_grant())
-// while 20 MHz is clean (3/3) and 40x faster. Runtime-settable via `sdmount`.
-static uint32_t s_sdFreqHz = 20000000;
-
-// Open-file slots requested of SD.begin(). This is the single dominant term in the
-// mount's memory cost, not a throughput knob: esp_vfs_fat_register() allocates
-// `sizeof(vfs_fat_ctx_t) + max_files * sizeof(FIL)` as ONE contiguous internal
-// block, and this IDF build has FF_MAX_SS=4096 (CONFIG_WL_SECTOR_SIZE) with
-// FF_FS_TINY=0 (CONFIG_FATFS_PER_FILE_CACHE=1) — so FATFS carries a 4 KB window
-// buffer and every FIL carries its own 4 KB sector cache. The Arduino default of
-// 5 therefore asks for ~25 KB in one piece. See `sdmem`.
-static const uint8_t kSdMaxFiles = 2;
-
-static SPIClass s_sdSPI(VSPI);
-static bool s_sdReady = false;
-static bool s_sdSpiUp = false;
-static size_t s_sdBootFreeIntBefore = 0, s_sdBootFreeIntAfter = 0;
-static size_t s_sdBootLfbIntBefore = 0, s_sdBootLfbIntAfter = 0;
-
-// One mount attempt with full before/after heap accounting, usable from setup()
-// and from a live serial command. `tag` names the call site in the JSON line.
-static bool sdMountAttempt(const char *tag, uint8_t maxFiles) {
-  size_t freeBefore = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-  size_t lfbBefore = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-  size_t lfb8Before = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  if (!s_sdSpiUp) {
-    s_sdSPI.begin(kSdSckPin, kSdMisoPin, kSdMosiPin, kSdCsPin);
-    s_sdSpiUp = true;
-  }
-  unsigned long t0 = millis();
-  bool ok = SD.begin(kSdCsPin, s_sdSPI, s_sdFreqHz, "/sd", maxFiles);
-  unsigned long elapsedMs = millis() - t0;
-  size_t freeAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-  size_t lfbAfter = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-  Serial.printf("{\"probe\":\"sdmount\",\"tag\":\"%s\",\"maxFiles\":%u,\"mounted\":%s,"
-                "\"elapsedMs\":%lu,\"heapDeltaB\":%ld,"
-                "\"freeIntBefore\":%u,\"freeIntAfter\":%u,"
-                "\"lfbIntBefore\":%u,\"lfbIntAfter\":%u,\"lfb8Before\":%u,\"lfb8After\":%u}\n",
-                tag, (unsigned)maxFiles, ok ? "true" : "false", elapsedMs,
-                (long)freeBefore - (long)freeAfter,
-                (unsigned)freeBefore, (unsigned)freeAfter,
-                (unsigned)lfbBefore, (unsigned)lfbAfter,
-                (unsigned)lfb8Before,
-                (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
-  s_sdBootFreeIntBefore = freeBefore;
-  s_sdBootFreeIntAfter = freeAfter;
-  s_sdBootLfbIntBefore = lfbBefore;
-  s_sdBootLfbIntAfter = lfbAfter;
-  return ok;
-}
-
-static void sdProbeBootMount() {
-  s_sdReady = sdMountAttempt("boot", kSdMaxFiles);
-  if (!s_sdReady && s_sdSpiUp) { s_sdSPI.end(); s_sdSpiUp = false; }
-}
-
-// TASK-415: the boot mount's outcome, for code outside this file (LocalPlayerApp
-// must degrade to "No SD card" rather than opening files against a dead mount).
-// A function, not an extern on s_sdReady, so the mount state stays owned here.
-//
-// NOTE: this whole SD block — including sdProbeBootMount()'s call in setup() —
-// is inside the file's `#ifdef SERIAL_DEBUG` region, because TASK-408 landed it
-// as bring-up tooling. So **production builds never mount the card**, and Player
-// mode degrades to "No SD card" there. That is deliberate for now, not an
-// oversight: an unconditional boot mount costs ~13 KB of permanently-held
-// contiguous internal heap (FATFS window + max_files × FIL), which sits right on
-// top of WebRadio's 40 KB TLS fetch guard and the Helix arena's 23 KB contiguous
-// need. Making it unconditional is an Architect call with a memory budget behind
-// it, not a side effect of this task — see TASK-427. The non-debug stub below
-// keeps that honest instead of failing to link.
-bool sdReady() { return s_sdReady; }
-
+// TASK-408/427: SD mount state + sdReady() live here, gated on SD_BOOT_MOUNT (not
+// SERIAL_DEBUG) — see the block just above the SERIAL_DEBUG command section below.
 static const char *sdCardTypeName(sdcard_type_t t) {
   switch (t) {
     case CARD_MMC:  return "MMC";
@@ -5451,10 +5469,6 @@ static void cmdHelp(const char *) {
   Serial.println("]}");
 }
 
-#else   // !SERIAL_DEBUG
-// TASK-415: production builds compile no SD mount at all (see sdReady()'s note
-// above the debug definition). Same symbol, honest answer.
-bool sdReady() { return false; }
 #endif // SERIAL_DEBUG
 
 void loop()
