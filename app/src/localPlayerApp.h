@@ -38,6 +38,25 @@ extern TFT_eSPI tft;
 extern WinampDisplay winampDisplay;
 extern bool sdReady();   // main.cpp — the boot mount's outcome (TASK-408)
 
+// TASK-417 / ADR-059 D8/D9 — winampDisplay's shuffle/repeat commit seams
+// (setShuffleSink()/setRepeatSink()/setSeekSink(), mirrors TASK-352's
+// setVolumeSink()) for Player mode. State is instance-free, file-scope: no
+// play-order bag exists yet to attach it to (TASK-418), and no persistence
+// yet (also TASK-418/D9's job — this task only un-gates the zones). Repeat
+// deliberately reuses the shipped tri-state domain but Player only ever
+// emits 2 (off) or 0 (repeat-all) per D9's binary domain.
+static bool   s_plShuffleOn   = false;
+static int8_t s_plRepeatState = 2;   // 2=off, 0=repeat-all
+static void playerShuffleSink(int next) { s_plShuffleOn = (next != 0); }
+static void playerRepeatSink(int next)  { s_plRepeatState = (next == 2) ? 2 : 0; }
+static void playerSeekSink(long ms) {
+    // TASK-419 wires this to the vendored Audio's setFilePos()/
+    // setTimeOffset(). Until then the zone is capability-gated and
+    // hit-testable (T_PLR_19) but the seek itself is a documented no-op —
+    // real duration-accurate scrubbing is that task's own gate (T_PLR_27/28).
+    (void)ms;
+}
+
 class LocalPlayerApp : public App, public player::FileBrowser::Delegate {
 public:
     // ── The playlist as a PlaylistSource (ADR-059 D4) ──────────────────────
@@ -107,9 +126,40 @@ public:
         _browser.bind(this);
         // No allocation here: a compiled-in-but-never-entered mode must cost
         // nothing but flash (design §10). resume() acquires.
+
+        // TASK-417 / ADR-059 D8: switchApp() (main.cpp) calls init() XOR
+        // resume() — never both — on an AppId's first-ever entry each boot
+        // session (`if (!g_appLaunched[next]) init(); else resume();`).
+        // Wiring caps/sinks only in resume() (as first written) left the
+        // WinampDisplay defaults (all four caps, Spotify's sinks) live for
+        // Player's first-ever session each boot — caps happened to read
+        // correct by coincidence (Player wants all four too) but the sinks
+        // did not: a first-session shuffle/repeat tap would have dispatched
+        // to spotifyTask::ACT_SHUFFLE/ACT_REPEAT instead of this file's own
+        // sinks. Same wiring as resume(), duplicated rather than factored,
+        // to keep this diff small.
+        winampDisplay.setPlayerCaps(CAP_TRANSPORT | CAP_SEEK | CAP_SHUFFLE | CAP_REPEAT);
+        winampDisplay.setShuffleSink(&playerShuffleSink);
+        winampDisplay.setRepeatSink(&playerRepeatSink);
+        winampDisplay.setSeekSink(&playerSeekSink);
     }
 
     void resume() override {
+        // TASK-417 / ADR-059 D8: Player advertises all four capabilities.
+        // Wire the shuffle/repeat/seek commit seams to this file's
+        // instance-free state (above) so the shared dispatch path (used by
+        // SERIAL_DEBUG's injectTouch() as a side channel regardless of
+        // which app is active) never leaks a spotifyTask::ACT_SHUFFLE/
+        // ACT_REPEAT/ACT_SEEK enqueue while Player is the active app.
+        winampDisplay.setPlayerCaps(CAP_TRANSPORT | CAP_SEEK | CAP_SHUFFLE | CAP_REPEAT);
+        winampDisplay.setShuffleSink(&playerShuffleSink);
+        winampDisplay.setRepeatSink(&playerRepeatSink);
+        winampDisplay.setSeekSink(&playerSeekSink);
+        // Seed the sprites from this mode's own state rather than whatever
+        // repaintChrome()'s shared cache last held (D8: "rendered state
+        // sourced from the mode, not from spotifyTask::Snapshot").
+        winampDisplay.drawShuffle(s_plShuffleOn ? 1 : 0);
+        winampDisplay.drawRepeat(s_plRepeatState);
         winampDisplay.pleditScrollToRow(0);
         strlcpy(_playlistSaved, g_settings.playerPlaylist, sizeof(_playlistSaved));
         _playlistDirty = false;
@@ -280,8 +330,13 @@ public:
         // NOTE: no handleVolumeGesturePublic() call. The shared volume-drag
         // machine commits through a sink that still defaults to Spotify's
         // ACT_VOLUME, so wiring it here would send Spotify volume commands
-        // from Player mode. Volume (and shuffle/repeat/seek) become real for
-        // this mode in TASK-417's capability mask, with a Player sink.
+        // from Player mode. Volume stays deliberately out of scope here —
+        // TASK-417's task statement says handleVolumeGesturePublic() is
+        // retirable but explicitly "in its own commit" (it shares the
+        // D_VOLUME_DRAG machine with TASK-352, and WebRadio's volume path
+        // already cost TASK-406 a real bug). Shuffle/repeat/seek are NOT
+        // part of that machine — TASK-417 wires them below via
+        // winampDisplay's capability-gated hit-tests + this file's own sinks.
 
         // Captured PLEDIT gesture wins over every hit-test — Release must end
         // the drag before eject/transport get a look (the DEV-1-1 ordering).
@@ -298,6 +353,39 @@ public:
         if (phase == TouchPhase::Press) {
             if (winampDisplay.touchCoolingDown()) return false;
             if (winampDisplay.pleditPress(x, y)) return true;
+            // TASK-417 / ADR-059 D8: shuffle/repeat/seek, dispatched on
+            // Press to match Spotify's own immediate-feedback timing
+            // (handleWinampInput() dispatches these on Press too). Deliberately
+            // NOT duplicated in the Release branch below — SERIAL_DEBUG's
+            // cmdTap drives Player taps via injectTouch() (a Press against
+            // the shared handleWinampInput(), capability-gated + sunk to
+            // this file's sinks — see resume()) followed by a real Release
+            // against this handler; dispatching here-only means each tap
+            // fires exactly once regardless of which path drove it.
+            const uint8_t caps = winampDisplay.playerCaps();
+            if ((caps & CAP_SHUFFLE) && winampDisplay.hitTestShufflePublic(x, y)) {
+                int next = (winampDisplay.getLastShuffleRendered() == 1) ? 0 : 1;
+                winampDisplay.drawShuffle(next);
+                playerShuffleSink(next);
+                winampDisplay.armTouchCooldown(250);
+                return true;
+            }
+            if ((caps & CAP_REPEAT) && winampDisplay.hitTestRepeatPublic(x, y)) {
+                // D9: binary domain — only 2 (off) / 0 (repeat-all) are
+                // meaningful for Player, unlike Spotify's tri-state cycle.
+                int next = (winampDisplay.getLastRepeatRendered() == 2) ? 0 : 2;
+                winampDisplay.drawRepeat(next);
+                playerRepeatSink(next);
+                winampDisplay.armTouchCooldown(250);
+                return true;
+            }
+            if ((caps & CAP_SEEK) && winampDisplay.hitTestPosbarZonePublic(x, y)) {
+                // TASK-419 wires the real scrub against the playing file's
+                // actual duration; this only proves the zone is reachable
+                // (T_PLR_19) instead of falling through to the dead zone.
+                playerSeekSink(0);
+                return true;
+            }
             return false;
         }
         if (phase != TouchPhase::Release) return false;

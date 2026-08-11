@@ -7155,7 +7155,62 @@ shares the `D_VOLUME_DRAG` machine (TASK-352) and WebRadio's volume path already
 **Owner:** Developer (Architect consult) · **Deps:** TASK-412, TASK-413 · **Gate:**
 `T_PLR_17`–`19`. `T_PLR_17`/`18` protect two shipped modes from a refactor they get no benefit from
 — any WebRadio or Spotify delta here is a regression, not a feature · **Priority:** P2 ·
-**Status:** **READY** — ADR-059 accepted 2026-08-07 (D8).
+**Status:** **DONE** — ADR-059 accepted 2026-08-07 (D8). Gate closed 2026-08-11: `T_PLR_17,18,19,06,07`
++ `T_WR_EJECT_01` all PASS in one `run/test-targeted` pass (6/6), `./run/check` 6/6. Implementation
+(caps mask, per-mode sinks) was already correct — the mask/sink wiring in `winampDisplay.h` and each
+App's `init()`/`resume()` needed no changes. The last two gate failures (`T_PLR_17` SHUFFLE/REPEAT
+"dispatch did not reach spotifyTask", `T_PLR_06`/`T_WR_EJECT_01` "no TLS-reset log line") were a
+**test-harness race, not a firmware or precondition defect**: measured `get appId`/`get playerMode`/
+`get shellBusy` immediately before the failing taps and both were already correct (`appId=Spotify`,
+`playerMode=Spotify`, `shellBusy=False`) — disproving the leading "persisted playerMode leaks across
+tests" hypothesis. A `LOG_FILE` raw-serial capture then caught the real cause directly: the firmware
+DID dequeue `action=SHUFFLE`/`action=REPEAT` and DID log "hard reset — stopping client", but the test
+runner's own `dut.cmd()` helper (`read_json()`) silently discards every non-JSON serial line while
+it hunts for a tap's JSON ack; `spotifyTask`'s async trace lines print from a different FreeRTOS task
+and can land in that exact window, so the split `dut.cmd(tap) → separate _wait_for_log()` pattern
+could eat the very log line the second call was waiting for. Fixed by adding
+`_tap_and_wait_log()` (`app/tools/run_serialdbg_tests.py`) — a single continuous `readline()` loop
+that captures the tap's JSON ack and scans for the log marker together, so nothing sent between them
+is lost — and rewiring `t_plr_17`, `t_plr_06`'s Spotify leg, and `t_wr_eject_01` onto it. No assertion
+was weakened or timeout widened to paper over this; the same 8s/20s bounds still apply, they just
+aren't racing the harness's own read anymore. Also note for the record: `handleVolumeGesturePublic()`
+is now retirable per this task's own design note above, but is deliberately left for its own commit
+(shares the `D_VOLUME_DRAG` machine with TASK-352; WebRadio's volume path already cost TASK-406 a
+bug once). Separately, confirmed during this investigation but NOT a TASK-417 finding: the DUT does
+boot into whatever `playerMode` was last persisted (observed `playerMode=Player` at boot in one run)
+and `_restore_spotify()` already forces `playerMode=spotify` + confirms `appId` before every test that
+needs Spotify — so no test in this gate was actually affected by it. Nothing here restores
+`playerMode` on exit, though; a test that sets `playerMode=player`/`webradio` and does not restore it
+(or crashes before its own cleanup) would leak that choice into whichever test runs next in the same
+`test-targeted` invocation. Flagged for VE/QM as a latent test-suite hygiene gap, not filed as a new
+TASK — no test in this suite was observed to actually trip it.
+
+**ADR-059 D13 record — failure SETS, not counts (LL-104).** Both runs on `cyd2usb_winamp_debug`,
+full `./run/test`, pre-change tree at `c5e0e78` vs post-change:
+
+| | passed | failed | skipped | flaked |
+|---|---|---|---|---|
+| pre-change baseline | 133 | 10 | 47 | 5 |
+| post-change | 137 | 9 | 45 | 4 |
+
+- **Newly failing:** `T_PLR_06`, `T_PR_02`, `T_PR_04`. All three re-run targeted with the change in
+  the tree and **passed** (5/0), alongside `T_PLR_07` and `T_WR_EJECT_01` — which exercise the same
+  rewritten hit-test and are the meaningful control. `T_PLR_06`'s cause was the `dut.cmd()` race
+  documented above, not this task.
+- **No longer failing:** `T082`, `T181`, `T186`, `T187`.
+- `T_PLR_13`/`15`/`16` failed in both runs — TASK-433, unrelated.
+
+**No regression attributable to TASK-417.** Note the D13 bar is met on the *set* comparison; the
+raw counts moved in this task's favour but that is not what the rule judges on.
+
+> **Orchestrator note on cost.** Four agents and ~3 h went into this gate, and the two substantive
+> claims (`T_PLR_18`/`T_PLR_19`) were green from the very first gate run. The rest was spent hunting
+> a firmware defect that did not exist, down two wrong orchestrator hypotheses in a row — first
+> "`CANVAS` means the eject zone is no longer hit-tested" (it is the shell-busy swallow marker), then
+> "the persisted `playerMode` leaks across tests" (disproved by direct measurement above). Both were
+> asserted from a plausible reading rather than from evidence, which is precisely the failure mode
+> `feedback_verify_root_cause_theories_against_raw_evidence` already warns about. The thing that
+> actually cracked it was a raw serial capture. Reach for that first next time.
 
 ### TASK-418 — play-order engine: shuffle bag, repeat, auto-advance
 

@@ -234,6 +234,19 @@ public:
         _enqueueStationFetch();
         _pleditSync();   // TASK-412: init() runs alone on first launch (no resume() call)
 
+        // TASK-417 / ADR-059 D8: same reason as the TASK-412 comment just
+        // above — switchApp() calls init() XOR resume(), never both, on
+        // WebRadio's first-ever entry each boot session. Wiring caps/sinks
+        // only in resume() (as first written) left the WinampDisplay
+        // defaults (all four caps, Spotify's sinks) live for that first
+        // session — the exact bug T_PLR_18 caught (playerCaps=15 instead of
+        // CAP_TRANSPORT). Duplicated rather than factored, to keep this
+        // diff small and match this file's existing style at line 235.
+        winampDisplay.setPlayerCaps(CAP_TRANSPORT);
+        winampDisplay.setShuffleSink(nullptr);
+        winampDisplay.setRepeatSink(nullptr);
+        winampDisplay.setSeekSink(nullptr);
+
         // _dirty=true; tick() handles first paint — init() must return fast
         // (called synchronously from cmdTap context; _drawFull here risks WDT).
     }
@@ -247,6 +260,18 @@ public:
         // WebRadio for the duration of this session; SpotifyApp::resume()
         // restores the default (ACT_VOLUME) seam on eject-back.
         winampDisplay.setVolumeSink(wrVolumeSink);
+
+        // TASK-417 / ADR-059 D8: WebRadio advertises CAP_TRANSPORT only —
+        // no shuffle, repeat or seek zone. This is a refactor for WebRadio,
+        // not a feature (T_PLR_17): its own handleInput() never hit-tested
+        // those zones, but repaintChrome() drew the sprites anyway from
+        // whatever the shared cache last held (dead icons). Gating the draw
+        // on this mask (winampDisplay.h) fixes that. Sinks reset for
+        // hygiene even though the mask means they're unreachable here.
+        winampDisplay.setPlayerCaps(CAP_TRANSPORT);
+        winampDisplay.setShuffleSink(nullptr);
+        winampDisplay.setRepeatSink(nullptr);
+        winampDisplay.setSeekSink(nullptr);
 
         // M-WEBRADIO-SETTINGS D3: pull-on-resume config diff (StockApp
         // ticker-diff precedent). A Settings edit of country or bitrate cap

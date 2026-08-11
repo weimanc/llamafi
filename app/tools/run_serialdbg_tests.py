@@ -4969,23 +4969,29 @@ def t_plr_06(dut: Dut):
     if not _restore_spotify(dut):
         skip("T_PLR_06", "precondition: could not restore Spotify")
         return
+    # TASK-417: pre-existing gap (predates this task, same as T_WR_EJECT_01)
+    # — without this, a tap landing while g_shellBusy is still true from
+    # _restore_spotify's own app-switch/poll is silently swallowed
+    # (hit=CANVAS), which then also starves the TLS-reset log check below.
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    # TASK-417 gate investigation: tap + log-scan combined into one
+    # continuous read (_tap_and_wait_log) — the previous split
+    # dut.cmd(tap)+manual-readline-loop pattern raced read_json()'s
+    # non-JSON-line discard against spotifyTask's async "hard reset —
+    # stopping client" trace (a different FreeRTOS task) and could silently
+    # eat the very log line being waited for. See _tap_and_wait_log's
+    # docstring for the raw-serial-capture proof (T_PLR_17's SHUFFLE/REPEAT
+    # case, same mechanism).
     dut.set_cooldown_zero()
-    r = dut.cmd(f"tap {ex} {ey}", timeout=5.0)
-    if r.get("hit") != "EJECT" or r.get("action") != "EJECT":
-        errors.append(f"Spotify: hit={r.get('hit')} action={r.get('action')}")
+    r, tls_seen = _tap_and_wait_log(dut, ex, ey, "hard reset", tap_timeout=5.0, log_timeout=8.0)
+    if r is None or r.get("hit") != "EJECT" or r.get("action") != "EJECT":
+        errors.append(f"Spotify: hit={r.get('hit') if r else None} action={r.get('action') if r else None}")
     else:
         time.sleep(0.3)
         appid = dut.cmd("get appId", timeout=3.0).get("name")
         if appid != "Spotify":
             errors.append(f"Spotify: appId={appid!r} after eject (expected Spotify — eject no longer switches apps)")
-        tls_log_found = False
-        deadline = time.monotonic() + 8.0
-        while time.monotonic() < deadline:
-            line = dut.ser.readline().decode(errors="replace").strip()
-            if "hard reset" in line or "stopping client" in line:
-                tls_log_found = True
-                break
-        if not tls_log_found:
+        if not tls_seen:
             errors.append("Spotify: no TLS-reset log line within 8 s")
 
     # ── WebRadio: station-list refresh ──────────────────────────────────────
@@ -5701,6 +5707,295 @@ def t_plr_16(dut: Dut):
         return
     pass_("T_PLR_16", "empty dir, 2-level nested descend, 8.3/long/m3u names and non-audio "
                       "filtering all correct")
+
+
+def _tap_and_wait_log(dut: Dut, x: int, y: int, marker: str,
+                       tap_timeout: float = 5.0, log_timeout: float = 8.0
+                       ) -> tuple[dict | None, bool]:
+    """Send a tap and scan for `marker` in ONE continuous serial read.
+
+    TASK-417 gate investigation (2026-08-11): the split pattern used
+    elsewhere — dut.cmd(f"tap {x} {y}") followed by a separate
+    _wait_for_log() — has a real race. dut.cmd()'s read_json() silently
+    discards every non-JSON line while hunting for the tap's own JSON
+    reply. spotifyTask's async trace lines ("dequeued action=SHUFFLE",
+    "hard reset — stopping client") are printed from a DIFFERENT FreeRTOS
+    task and can land in that exact window — read_json() eats them before
+    the caller's own _wait_for_log() ever starts reading, and the check
+    then times out even though the firmware did exactly the right thing.
+    Confirmed on the DUT: a raw serial capture (LOG_FILE) showed
+    "dequeued action=SHUFFLE" and "dequeued action=REPEAT" both present,
+    in order, within the same second — while T_PLR_17's old split-read
+    reported FAIL for both ("dispatch did not reach spotifyTask"). The
+    firmware was never at fault; the harness was reading around the line
+    it needed. This helper keeps the tap-ack JSON parse and the log-marker
+    scan in one unbroken readline() loop so nothing sent to the wire
+    between them can be silently lost. Returns
+    (json_response_or_None, marker_found)."""
+    dut.wait_shell_cooldown_clear()
+    dut.send(f"tap {x} {y}")
+    resp: dict | None = None
+    marker_found = False
+    deadline = time.monotonic() + max(tap_timeout, log_timeout)
+    while time.monotonic() < deadline and not (resp is not None and marker_found):
+        try:
+            line = dut.ser.readline().decode(errors="replace").strip()
+        except Exception:
+            break
+        if not line:
+            continue
+        if resp is None and line.startswith("{"):
+            try:
+                obj = json.loads(line)
+                if obj.get("cmd") == "tap":
+                    resp = obj
+                    continue
+            except json.JSONDecodeError:
+                pass
+        if marker in line:
+            marker_found = True
+    return resp, marker_found
+
+
+def _wait_for_log(dut: Dut, marker: str, timeout_s: float = 5.0) -> bool:
+    """Read serial lines until `marker` is seen (True) or timeout (False).
+    Same idiom as T087/T095's inline log scans, extracted since T_PLR_17-19
+    need it three different ways (positive AND negative assertions)."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            line = dut.ser.readline().decode(errors="replace").strip()
+        except Exception:
+            break
+        if marker in line:
+            return True
+    return False
+
+
+def _drain_serial(dut: Dut, seconds: float = 0.3) -> None:
+    """Discard buffered serial output for `seconds` — prevents a stale log
+    line from a prior tap/test being misread as this one's effect."""
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        try:
+            dut.ser.readline()
+        except Exception:
+            break
+
+
+# ── T_PLR_17-19 — transport capability mask (TASK-417 / ADR-059 D8) ──────────
+# CAP_TRANSPORT|CAP_SEEK|CAP_SHUFFLE|CAP_REPEAT gate winampDisplay's shuffle/
+# repeat/seek zones per active mode: neither drawn (repaintChrome()) nor
+# hit-tested (handleWinampInput() / each app's own hit-test) when the bit is
+# absent. Spotify keeps all four (T_PLR_17 — a shipped mode getting no
+# benefit from this refactor; ANY delta here is a regression, not a finding).
+# WebRadio keeps CAP_TRANSPORT only (T_PLR_18) — before TASK-417 the SHUFREP
+# sprites were drawn in WebRadio anyway (repaintChrome() was unconditional,
+# sourced from whatever the shared cache last held) despite never being
+# hit-tested; this closes that visual/hit-test mismatch. Player advertises
+# all four (T_PLR_19), with its own state (not spotifyTask::Snapshot) behind
+# the sprites — `get shufRep` reports both the active mask and the
+# currently-rendered sprite indices, so a test can check what's REACHABLE
+# (mask) and what's actually PAINTED (lastShuffle/lastRepeat) in one call.
+
+def t_plr_17(dut: Dut):
+    """T_PLR_17: Spotify still advertises all four capabilities — shuffle and
+    repeat are still drawn and still hit-tested, dispatching ACT_SHUFFLE/
+    ACT_REPEAT exactly as before TASK-417. Zero delta is the pass condition."""
+    print("T_PLR_17  Spotify: all four capabilities unchanged (shuffle/repeat still real)")
+    if not _restore_spotify(dut):
+        skip("T_PLR_17", "precondition: could not restore Spotify app")
+        return
+    # TASK-417: pre-existing gap (predates this task, same class as
+    # T_WR_EJECT_01/T_PLR_06) — a tap fired while g_shellBusy is still true
+    # from _restore_spotify's own app-switch/poll is silently swallowed
+    # (hit=CANVAS), which then also starves the "dequeued action=SHUFFLE/
+    # REPEAT" log-line check below (the dispatch never happened at all).
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    errors = []
+
+    r = dut.cmd("get shufRep", timeout=3.0)
+    if not r.get("ok") or r.get("caps") != 15:   # CAP_TRANSPORT|SEEK|SHUFFLE|REPEAT = 1+2+4+8
+        errors.append(f"playerCaps={r.get('caps')} (expected 15 — all four bits set)")
+
+    # SHUFFLE: hit-tested AND dispatches. dequeue log ("dequeued action=SHUFFLE
+    # param=N") is spotifyTask's generic dispatcher trace (spotifyTaskStorage.cpp)
+    # — proves the tap reached the real ACT_SHUFFLE enqueue, not just the sprite.
+    # 20 s bound, not an arbitrary short one: T082's own comment documents that
+    # the dequeue can "lag by many seconds behind a backlog of HTTPS calls on
+    # spotify.task", and T082 itself waits up to 20 s for the same class of
+    # confirmation — a shorter bound here would flag that backlog as a defect.
+    # TASK-417 gate investigation: tap + log-scan combined into one
+    # continuous read (_tap_and_wait_log) — the previous split
+    # dut.cmd(tap)+_wait_for_log() pattern raced read_json()'s non-JSON-line
+    # discard against spotifyTask's async dequeue trace and could silently
+    # eat the very log line being waited for (see _tap_and_wait_log's
+    # docstring; confirmed via raw serial capture showing both dequeue
+    # lines present while the old split-read reported FAIL for both).
+    dut.set_cooldown_zero()
+    shx, shy = _c.tap_shuffle()
+    r, shuffle_seen = _tap_and_wait_log(dut, shx, shy, "dequeued action=SHUFFLE",
+                                         tap_timeout=5.0, log_timeout=20.0)
+    if r is None or r.get("hit") != "SHUFFLE" or r.get("action") != "SHUFFLE":
+        errors.append(f"SHUFFLE hit-test: hit={r.get('hit') if r else None} "
+                      f"action={r.get('action') if r else None}")
+    if not shuffle_seen:
+        errors.append("SHUFFLE: no 'dequeued action=SHUFFLE' within 20s — dispatch did not reach spotifyTask")
+
+    _poll_shell_busy(dut, False, timeout_ms=3000)
+    dut.set_cooldown_zero()
+    rpx, rpy = _c.tap_repeat()
+    r, repeat_seen = _tap_and_wait_log(dut, rpx, rpy, "dequeued action=REPEAT",
+                                        tap_timeout=5.0, log_timeout=20.0)
+    if r is None or r.get("hit") != "REPEAT" or r.get("action") != "REPEAT":
+        errors.append(f"REPEAT hit-test: hit={r.get('hit') if r else None} "
+                      f"action={r.get('action') if r else None}")
+    if not repeat_seen:
+        errors.append("REPEAT: no 'dequeued action=REPEAT' within 20s — dispatch did not reach spotifyTask")
+
+    if errors:
+        fail("T_PLR_17", "; ".join(errors))
+    else:
+        pass_("T_PLR_17", "caps=15 (all four); SHUFFLE/REPEAT still hit-tested and still "
+                          "dispatch ACT_SHUFFLE/ACT_REPEAT — no delta from pre-TASK-417 behaviour")
+
+
+def t_plr_18(dut: Dut):
+    """T_PLR_18: WebRadio advertises CAP_TRANSPORT only. Shuffle/repeat zones
+    must be neither drawn (caps bit absent) nor hit-tested (tap there must not
+    report a SHUFFLE/REPEAT hit, and must not reach spotifyTask). Volume stays
+    on its own TASK-352 seam, untouched by this task — confirm it still
+    hit-tests correctly (TASK-406 was a real WebRadio-volume regression once)."""
+    print("T_PLR_18  WebRadio: CAP_TRANSPORT only — shuffle/repeat neither drawn nor hit-tested")
+    if not _switch_to(dut, "WebRadio"):
+        skip("T_PLR_18", "precondition: could not switch to WebRadio")
+        return
+    errors = []
+
+    r = dut.cmd("get shufRep", timeout=3.0)
+    if not r.get("ok") or r.get("caps") != 1:   # CAP_TRANSPORT only
+        errors.append(f"playerCaps={r.get('caps')} (expected 1 — CAP_TRANSPORT only)")
+
+    # Drain any residual dequeue lines from a prior test before probing —
+    # otherwise an old "dequeued action=SHUFFLE" from a previous suite entry
+    # could be misread as this tap's effect.
+    _drain_serial(dut, 0.3)
+
+    dut.set_cooldown_zero()
+    shx, shy = _c.tap_shuffle()
+    r = dut.cmd(f"tap {shx} {shy}")
+    if r.get("hit") == "SHUFFLE" or r.get("action") == "SHUFFLE":
+        errors.append(f"SHUFFLE zone still hit-tested in WebRadio: hit={r.get('hit')} "
+                      f"action={r.get('action')} (expected NOT SHUFFLE)")
+    if _wait_for_log(dut, "dequeued action=SHUFFLE", timeout_s=8.0):  # generous — this is a NEGATIVE check, more time only strengthens it
+        errors.append("SHUFFLE: 'dequeued action=SHUFFLE' seen — WebRadio tap leaked into "
+                      "spotifyTask (the exact cross-mode leak TASK-417's sink seam exists to stop)")
+
+    dut.set_cooldown_zero()
+    rpx, rpy = _c.tap_repeat()
+    r = dut.cmd(f"tap {rpx} {rpy}")
+    if r.get("hit") == "REPEAT" or r.get("action") == "REPEAT":
+        errors.append(f"REPEAT zone still hit-tested in WebRadio: hit={r.get('hit')} "
+                      f"action={r.get('action')} (expected NOT REPEAT)")
+    if _wait_for_log(dut, "dequeued action=REPEAT", timeout_s=8.0):  # generous — this is a NEGATIVE check, more time only strengthens it
+        errors.append("REPEAT: 'dequeued action=REPEAT' seen — WebRadio tap leaked into spotifyTask")
+
+    # Volume: unaffected by the mask (TASK-352's own seam) — confirm the
+    # zone is still correctly classified for WebRadio (TASK-406 territory).
+    dut.set_cooldown_zero()
+    vx = (_c.vol_drag_x()[0] + _c.vol_drag_x()[1]) // 2
+    vy = _c.vol_drag_y()
+    r = dut.cmd(f"tap {vx} {vy}")
+    if r.get("hit") != "VOLUME":
+        errors.append(f"VOLUME hit-test regressed in WebRadio: hit={r.get('hit')} "
+                      f"(expected VOLUME — TASK-352/TASK-406 seam, untouched by this task)")
+
+    if errors:
+        fail("T_PLR_18", "; ".join(errors))
+    else:
+        pass_("T_PLR_18", "caps=1 (CAP_TRANSPORT only); shuffle/repeat neither hit-tested nor "
+                          "leaked to spotifyTask; volume zone still hit-tests correctly")
+
+
+def t_plr_19(dut: Dut):
+    """T_PLR_19: Player advertises all four capabilities. Shuffle/repeat are
+    drawn and hit-tested with STATE SOURCED FROM PLAYER, not spotifyTask::
+    Snapshot (D8) — confirmed by toggling in Player and reading back via
+    `get shufRep` rather than trusting the tap reply alone. Seek is confirmed
+    reachable (not falling through to the dead zone) via the real per-app
+    input path (`drag`), distinct from Spotify's songDuration-gated posbar —
+    TASK-419 is the real duration-accurate scrub, this only proves the zone
+    is captured."""
+    print("T_PLR_19  Player: all four capabilities, state sourced from Player not Spotify")
+    if not _enter_player(dut, "T_PLR_19"):
+        return
+    errors = []
+
+    r = dut.cmd("get shufRep", timeout=3.0)
+    if not r.get("ok") or r.get("caps") != 15:
+        errors.append(f"playerCaps={r.get('caps')} (expected 15 — all four bits set)")
+    base = r
+
+    # SHUFFLE: hit-tested (reported by lastTouchResult, same as Spotify/
+    # WebRadio above) AND the sprite cache changes — proving the toggle is
+    # real, not just a reported hit with no effect.
+    _drain_serial(dut, 0.3)
+    dut.set_cooldown_zero()
+    shx, shy = _c.tap_shuffle()
+    r = dut.cmd(f"tap {shx} {shy}")
+    if r.get("hit") != "SHUFFLE" or r.get("action") != "SHUFFLE":
+        errors.append(f"SHUFFLE hit-test: hit={r.get('hit')} action={r.get('action')}")
+    r2 = dut.cmd("get shufRep", timeout=3.0)
+    if r2.get("lastShuffle") == base.get("lastShuffle"):
+        errors.append(f"SHUFFLE: lastShuffle unchanged ({r2.get('lastShuffle')}) after tap — "
+                      f"hit-tested but not actually toggled")
+    # D8: this must NOT have gone through spotifyTask — Player has its own sink.
+    if _wait_for_log(dut, "dequeued action=SHUFFLE", timeout_s=8.0):  # generous — this is a NEGATIVE check, more time only strengthens it
+        errors.append("SHUFFLE: 'dequeued action=SHUFFLE' seen while in Player mode — "
+                      "leaked to spotifyTask instead of Player's own sink")
+
+    _drain_serial(dut, 0.3)
+    dut.set_cooldown_zero()
+    rpx, rpy = _c.tap_repeat()
+    r = dut.cmd(f"tap {rpx} {rpy}")
+    if r.get("hit") != "REPEAT" or r.get("action") != "REPEAT":
+        errors.append(f"REPEAT hit-test: hit={r.get('hit')} action={r.get('action')}")
+    r3 = dut.cmd("get shufRep", timeout=3.0)
+    if r3.get("lastRepeat") == r2.get("lastRepeat"):
+        errors.append(f"REPEAT: lastRepeat unchanged ({r3.get('lastRepeat')}) after tap — "
+                      f"hit-tested but not actually toggled")
+    if _wait_for_log(dut, "dequeued action=REPEAT", timeout_s=8.0):  # generous — this is a NEGATIVE check, more time only strengthens it
+        errors.append("REPEAT: 'dequeued action=REPEAT' seen while in Player mode — "
+                      "leaked to spotifyTask instead of Player's own sink")
+
+    # SEEK: drive through `drag` (single-step = a tap), the real per-app
+    # dispatch path (main.cpp's drainInjectionQueue() calls the ACTIVE app's
+    # handleInput() directly) — NOT `tap`/injectTouch, which classifies via
+    # Spotify's songDuration-gated hitTestPosbar() and would be unreliable
+    # here (Player never sets songDuration). dragState must stay D_IDLE
+    # throughout: Player's seek zone deliberately does not engage Spotify's
+    # shared D_POSBAR_DRAG machine (that's TASK-419's real-scrub wiring).
+    rd0 = dut.cmd("get dragState", timeout=3.0)
+    bx, by = _c.tap_posbar()
+    dr = dut.cmd(f"drag {bx} {by} {bx} {by} 1", timeout=5.0)
+    if not dr.get("ok"):
+        errors.append(f"SEEK zone drag: no ok reply ({dr})")
+    rd1 = dut.cmd("get dragState", timeout=3.0)
+    if rd1.get("state") != "D_IDLE":
+        errors.append(f"SEEK zone drag left dragState={rd1.get('state')} "
+                      f"(expected D_IDLE — Player must not engage Spotify's posbar-drag machine)")
+    # DUT still responsive after the seek tap — proves it didn't wedge on an
+    # unimplemented engine call (TASK-419's stub is a documented no-op).
+    if not dut.cmd("get plCount", timeout=5.0).get("ok"):
+        errors.append("SEEK zone drag: DUT unresponsive to a follow-up command")
+
+    _leave_player(dut)
+    if errors:
+        fail("T_PLR_19", "; ".join(errors))
+    else:
+        pass_("T_PLR_19", "caps=15; shuffle/repeat drawn+hit-tested with Player-sourced state "
+                          "(not spotifyTask), no leak to spotifyTask; seek zone reachable via the "
+                          "real input path without engaging Spotify's drag machine")
 
 
 # ── stock-002 suite (TASK-120) ────────────────────────────────────────────────
@@ -7187,11 +7482,28 @@ def t_wr_eject_01(dut: Dut):
     if not _restore_spotify(dut):
         skip("T_WR_EJECT_01", "precondition: could not restore Spotify")
         return
+    # TASK-417: pre-existing gap (predates this task) — a tap fired while
+    # g_shellBusy is still true from a prior async action (e.g. the restore
+    # sequence's own app-switch/poll) is silently swallowed and reported as
+    # hit=CANVAS (main.cpp's busy gate; see T_WR_EJECT_02's own comment on
+    # the same mechanism). Every other tap-driving test in this file guards
+    # with _wait_shell_not_busy() first — this one didn't.
+    _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.set_cooldown_zero()
     _ex, _ey = _c.tap_eject()
-    r = dut.cmd(f"tap {_ex} {_ey}", timeout=5.0)
-    hit    = r.get("hit", "")
-    action = r.get("action", "")
+    # TASK-417 gate investigation: tap + log-scan combined into one
+    # continuous read (_tap_and_wait_log) — the previous split
+    # dut.cmd(tap)+manual-readline-loop pattern raced read_json()'s
+    # non-JSON-line discard against spotifyTask's async "hard reset —
+    # stopping client" trace (a different FreeRTOS task) and could silently
+    # eat the very log line being waited for (confirmed on the DUT for the
+    # identical T_PLR_06/T_PLR_17 pattern — see _tap_and_wait_log's
+    # docstring). This test's own FLAKE result under the old pattern was
+    # the same race, not a real intermittent firmware issue.
+    r, tls_log_found = _tap_and_wait_log(dut, _ex, _ey, "hard reset",
+                                          tap_timeout=5.0, log_timeout=8.0)
+    hit    = r.get("hit", "") if r else ""
+    action = r.get("action", "") if r else ""
     if hit != "EJECT":
         fail("T_WR_EJECT_01", f"expected hit=EJECT got {hit!r}")
         return
@@ -7203,14 +7515,6 @@ def t_wr_eject_01(dut: Dut):
     if r2.get("name") != "Spotify":
         fail("T_WR_EJECT_01", f"appId={r2.get('name')!r} after eject (expected Spotify — eject no longer switches apps)")
         return
-    # TLS reset log line, same signature T087 waits on for the logo tap.
-    tls_log_found = False
-    deadline = time.monotonic() + 8.0
-    while time.monotonic() < deadline:
-        line = dut.ser.readline().decode(errors="replace").strip()
-        if "hard reset" in line or "stopping client" in line:
-            tls_log_found = True
-            break
     if not tls_log_found:
         flake("T_WR_EJECT_01", "hit=EJECT action=EJECT, appId stayed Spotify, but no "
               "TLS-reset log line within 8 s")
@@ -9084,6 +9388,10 @@ ALL_TESTS = {
     "T_PLR_14": t_plr_14,
     "T_PLR_15": t_plr_15,
     "T_PLR_16": t_plr_16,
+    # transport capability mask (TASK-417 / ADR-059 D8)
+    "T_PLR_17": t_plr_17,
+    "T_PLR_18": t_plr_18,
+    "T_PLR_19": t_plr_19,
     # velocity-scroll-001 WebRadio variant (TASK-412 / T_PLE_08)
     "T_PLE_WR_155": t_ple_wr_155,
     "T_PLE_WR_156": t_ple_wr_156,

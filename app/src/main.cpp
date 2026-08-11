@@ -243,9 +243,26 @@ bool g_appLaunched[(int)AppId::COUNT] = {};
 class SpotifyApp : public App {
 public:
   void init() override {
+    // TASK-417 / ADR-059 D8: switchApp() calls init() XOR resume(), never
+    // both, on an AppId's first-ever entry each boot session — and Spotify
+    // is ALWAYS a first-ever entry (main.cpp inits it directly at boot,
+    // never through switchApp()/resume()). This happened to be harmless for
+    // Spotify specifically (WinampDisplay's field defaults already match
+    // Spotify's own caps/sinks — see winampDisplay.h), but relying on that
+    // coincidence rather than setting it explicitly is exactly the gap that
+    // bit WebRadio and Player (T_PLR_18's caught bug). Set it here too so
+    // it's not accidental.
+    winampDisplay.setPlayerCaps(CAP_TRANSPORT | CAP_SEEK | CAP_SHUFFLE | CAP_REPEAT);
+    winampDisplay.setShuffleSink(nullptr);
+    winampDisplay.setRepeatSink(nullptr);
+    winampDisplay.setSeekSink(nullptr);
     winampDisplay.showDefaultScreen();
   }
   void resume() override {
+    // TASK-417 / ADR-059 D8: set caps BEFORE repaintChrome() below — it's
+    // the very first paint of this resume() and must not draw shuffle/
+    // repeat gated by whatever mode was active before this switch.
+    winampDisplay.setPlayerCaps(CAP_TRANSPORT | CAP_SEEK | CAP_SHUFFLE | CAP_REPEAT);
     winampDisplay.repaintChrome();
     winampDisplay.invalidatePlaylist();
     // TASK-352: restore the default volume-commit seam (WebRadio may have
@@ -253,9 +270,19 @@ public:
     // snapshot rather than whatever pct repaintChrome() just redrew from
     // its lastVolumeRendered cache (could be WebRadio's, from before eject).
     winampDisplay.setVolumeSink(nullptr);
+    // TASK-417: same reasoning for shuffle/repeat — restore the default
+    // (spotifyTask ACT_SHUFFLE/ACT_REPEAT) commit seam and re-seed the
+    // sprites from the live snapshot rather than repaintChrome()'s cache,
+    // which could hold Player's locally-toggled state from before the
+    // switch.
+    winampDisplay.setShuffleSink(nullptr);
+    winampDisplay.setRepeatSink(nullptr);
+    winampDisplay.setSeekSink(nullptr);
     spotifyTask::Snapshot snap;
     spotifyTask::copySnapshot(&snap);
     winampDisplay.drawVolume(snap.volumePercent);
+    winampDisplay.drawShuffle(snap.shuffleState ? 1 : 0);
+    winampDisplay.drawRepeat((int)snap.repeatState);
   }
   void suspend() override {
     winampDisplay.resetDragState();

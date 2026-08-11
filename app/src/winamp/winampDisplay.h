@@ -152,6 +152,20 @@ private:
   bool     _skipPending = false;
 };
 
+// ADR-059 D8 / TASK-417 — per-mode transport capability mask. A zone whose
+// capability bit is absent is neither drawn nor hit-tested. Spotify
+// advertises all four (today's shipped behaviour); WebRadio advertises
+// CAP_TRANSPORT only (unchanged — T_PLR_17); Player advertises all four
+// (T_PLR_19). Deliberately a plain top-level enum, not nested in
+// WinampDisplay, so every App file that includes this header can build a
+// mask literal without qualifying it.
+enum : uint8_t {
+  CAP_TRANSPORT = 1 << 0,
+  CAP_SEEK      = 1 << 1,
+  CAP_SHUFFLE   = 1 << 2,
+  CAP_REPEAT    = 1 << 3,
+};
+
 class WinampDisplay : public CheapYellowDisplay {
 public:
   void displaySetup(SpotifyArduino *spotifyObj) override {
@@ -265,9 +279,18 @@ public:
     // chrome-001 final: paint the cached shuffle + repeat. Sentinel
     // values render the OFF sprite (off is the safe default both
     // visually and semantically when there's no snapshot yet).
-    drawShuffle(lastShuffleRendered == 1 ? 1 : 0);
-    drawRepeat (lastRepeatRendered  >= 0 && lastRepeatRendered <= 2
-                ? (int)lastRepeatRendered : 2);
+    // TASK-417 / ADR-059 D8: gated by capability — a mode that doesn't
+    // advertise CAP_SHUFFLE/CAP_REPEAT gets neither sprite drawn (previously
+    // both were always drawn here regardless of mode, sourced from whatever
+    // this shared cache last held — visible-but-dead icons in WebRadio and
+    // Player before either could interact with them).
+    if (_playerCaps & CAP_SHUFFLE) {
+      drawShuffle(lastShuffleRendered == 1 ? 1 : 0);
+    }
+    if (_playerCaps & CAP_REPEAT) {
+      drawRepeat (lastRepeatRendered  >= 0 && lastRepeatRendered <= 2
+                  ? (int)lastRepeatRendered : 2);
+    }
     // VU rect lives inside the area we just blitted from MAIN.BMP, so
     // any cached pixel-widths are stale. Force the next vu::tick to
     // repaint from scratch.
@@ -405,6 +428,19 @@ public:
     _volumeSink = sink ? sink : &_defaultVolumeSink;
   }
 
+  // TASK-417 / ADR-059 D8: mirrors setVolumeSink() — swap the shuffle/
+  // repeat/seek commit seams (nullptr restores the Spotify defaults).
+  void setShuffleSink(void (*sink)(int))  { _shuffleSink = sink ? sink : &_defaultShuffleSink; }
+  void setRepeatSink (void (*sink)(int))  { _repeatSink  = sink ? sink : &_defaultRepeatSink;  }
+  void setSeekSink   (void (*sink)(long)) { _seekSink    = sink ? sink : &_defaultSeekSink;    }
+
+  // TASK-417 / ADR-059 D8: each App sets this in resume() to advertise
+  // which of CAP_TRANSPORT|CAP_SEEK|CAP_SHUFFLE|CAP_REPEAT it supports. A
+  // zone whose bit is absent is neither drawn (repaintChrome()) nor
+  // hit-tested (handleWinampInput()).
+  void setPlayerCaps(uint8_t caps) { _playerCaps = caps; }
+  uint8_t playerCaps() const       { return _playerCaps; }
+
   void drawShuffle(int on) override {
     SkinUV uv;
     if (on) { uv = SR_SHUFFLE_ON; }
@@ -492,7 +528,7 @@ public:
         if (r.cooldownMs)    touchScreenCoolDownTime = millis() + r.cooldownMs;
       }
       if (dragState == D_POSBAR_DRAG) {
-        spotifyTask::enqueue(spotifyTask::ACT_SEEK, (int32_t)_posbarDragCurrentMs);
+        _seekSink((long)_posbarDragCurrentMs);
         _lastInputWasAsync = true;
         songStartMillis = millis() - _posbarDragCurrentMs;
         touchScreenCoolDownTime = millis() + 200;
@@ -547,12 +583,18 @@ public:
     }
 
     // Phase 2 — D_IDLE only: run hit-tests to start a new gesture.
+    // TASK-417 / ADR-059 D8: each hit-test is gated by the active mode's
+    // capability mask — a zone whose bit is absent is skipped entirely
+    // (not just its dispatch), so it never fires and never eats the touch
+    // ahead of whatever real zone is underneath. Volume and vis are outside
+    // the mask by design (unaffected by this task — TASK-352 owns volume,
+    // and vis is universal).
     if (millis() <= touchScreenCoolDownTime) { _tickMarquee(); return false; }
-    int  pressed    = hitTestTransport(x, y);
-    long seekMs     = hitTestPosbar(x, y);
+    int  pressed    = (_playerCaps & CAP_TRANSPORT) ? hitTestTransport(x, y) : -1;
+    long seekMs     = (_playerCaps & CAP_SEEK)      ? hitTestPosbar(x, y)    : -1;
     long volPct     = hitTestVolume(x, y);
-    int  hitShuffle = hitTestShuffle(x, y);
-    int  hitRepeat  = hitTestRepeat (x, y);
+    int  hitShuffle = (_playerCaps & CAP_SHUFFLE)   ? hitTestShuffle(x, y)   : 0;
+    int  hitRepeat  = (_playerCaps & CAP_REPEAT)    ? hitTestRepeat (x, y)   : 0;
     bool hitVis     = hitTestVis(x, y);
 
     bool consumed = false;
@@ -582,7 +624,7 @@ public:
     } else if (hitShuffle) {
       int next = (lastShuffleRendered == 1) ? 0 : 1;
       drawShuffle(next);
-      spotifyTask::enqueue(spotifyTask::ACT_SHUFFLE, (int32_t)next);
+      _shuffleSink(next);
       _lastInputWasAsync = true;
       optimisticShufRepUntilMs = millis() + SHUFREP_OPTIMISTIC_HOLD_MS;
       touchScreenCoolDownTime = millis() + 250;
@@ -594,7 +636,7 @@ public:
       else if (cur == 1) next = 0;
       else               next = 2;
       drawRepeat(next);
-      spotifyTask::enqueue(spotifyTask::ACT_REPEAT, (int32_t)next);
+      _repeatSink(next);
       _lastInputWasAsync = true;
       optimisticShufRepUntilMs = millis() + SHUFREP_OPTIMISTIC_HOLD_MS;
       touchScreenCoolDownTime = millis() + 250;
@@ -814,6 +856,37 @@ private:
     spotifyTask::enqueue(spotifyTask::ACT_VOLUME, (int32_t)pct);
   }
   void (*_volumeSink)(int) = &_defaultVolumeSink;
+
+  // TASK-417 / ADR-059 D8: same seam shape as _volumeSink, for the same
+  // reason — handleWinampInput()'s hit-test/optimistic-draw machinery is
+  // mode-agnostic, only the commit action is Spotify-coupled. Without this,
+  // a capability-gated Player mode would still dispatch straight to
+  // spotifyTask::ACT_SHUFFLE/ACT_REPEAT/ACT_SEEK whenever the shared
+  // dispatch path is exercised on its behalf (SERIAL_DEBUG's injectTouch(),
+  // which runs handleWinampInput()'s Press phase regardless of the app
+  // that's actually active — see cmdTap in main.cpp). Default wires the
+  // original enqueue calls so Spotify's behaviour is unchanged with zero
+  // wiring (T_PLR_18); Player swaps these in its own resume().
+  static void _defaultShuffleSink(int next) {
+    spotifyTask::enqueue(spotifyTask::ACT_SHUFFLE, (int32_t)next);
+  }
+  static void _defaultRepeatSink(int next) {
+    spotifyTask::enqueue(spotifyTask::ACT_REPEAT, (int32_t)next);
+  }
+  static void _defaultSeekSink(long ms) {
+    spotifyTask::enqueue(spotifyTask::ACT_SEEK, (int32_t)ms);
+  }
+  void (*_shuffleSink)(int)  = &_defaultShuffleSink;
+  void (*_repeatSink)(int)   = &_defaultRepeatSink;
+  void (*_seekSink)(long)    = &_defaultSeekSink;
+
+  // TASK-417: per-mode transport capability mask (CAP_TRANSPORT|CAP_SEEK|
+  // CAP_SHUFFLE|CAP_REPEAT). Defaults to the full set — matches Spotify,
+  // which is always the first app initialised at boot (main.cpp inits
+  // SpotifyApp before any persisted-mode switchApp() runs), so an early
+  // repaintChrome() before any App::resume() has run still renders exactly
+  // what it always has.
+  uint8_t _playerCaps = CAP_TRANSPORT | CAP_SEEK | CAP_SHUFFLE | CAP_REPEAT;
 
   // chrome-001 final — shuffle / repeat indicator cache + optimistic
   // freeze. -1 / 3 = "never rendered" sentinels.
@@ -1045,6 +1118,30 @@ public:
   // M-WEBRADIO: public transport hit-test for apps other than SpotifyApp.
   int hitTestTransportPublic(int sx, int sy) { return hitTestTransport(sx, sy); }
 
+  // TASK-417 / ADR-059 D8: public wrappers so LocalPlayerApp can hit-test
+  // shuffle/repeat itself — real touches for Player never reach
+  // handleWinampInput() (that entry point stays SpotifyApp-only, same as
+  // hitTestTransportPublic() above), so Player's own handleInput() does its
+  // own capability-gated hit-test + dispatch, mirroring how it already
+  // calls hitTestTransportPublic() for PLAY/PAUSE/STOP.
+  int  hitTestShufflePublic(int sx, int sy) { return hitTestShuffle(sx, sy); }
+  int  hitTestRepeatPublic (int sx, int sy) { return hitTestRepeat (sx, sy); }
+  // Geometry-only posbar zone check — unlike hitTestPosbar() (Spotify's,
+  // gated on the shared `songDuration` global and returning a computed ms
+  // offset) this only answers "is (sx,sy) inside the posbar groove", with
+  // no duration dependency. Real duration-accurate scrubbing for local
+  // files is TASK-419 (`setFilePos()`/`getAudioFileDuration()`); this task
+  // only has to prove the zone is reachable (T_PLR_19), not accurate
+  // (T_PLR_27/28).
+  bool hitTestPosbarZonePublic(int sx, int sy) {
+    const int py0 = originY + POSBAR_Y;
+    const int py1 = py0 + POSBAR_BG.h;
+    if (sy < py0 || sy >= py1) return false;
+    const int px0 = originX + POSBAR_X;
+    const int px1 = px0 + POSBAR_BG.w;
+    return (sx >= px0 && sx < px1);
+  }
+
 #ifdef SERIAL_DEBUG
   // TASK-056d — synthetic touch injection (ADR-021 AC-2 resolution).
   // Mirrors the ts.touched() hit-test branch in checkForInput() but
@@ -1066,11 +1163,15 @@ public:
     handleWinampInput(TouchPhase::Press, sx, sy);
     // Populate lastTouchResult based on what handleWinampInput did.
     // We detect the action by checking what changed.
-    int  pressed    = hitTestTransport(sx, sy);
-    long seekMs     = hitTestPosbar(sx, sy);
+    // TASK-417: mirror handleWinampInput()'s own capability gating here —
+    // otherwise a WebRadio/Player cmdTap could report a SHUFFLE/REPEAT/
+    // POSBAR hit that handleWinampInput() itself skipped (or vice versa for
+    // Player once its own real-touch path also hit-tests these zones).
+    int  pressed    = (_playerCaps & CAP_TRANSPORT) ? hitTestTransport(sx, sy) : -1;
+    long seekMs     = (_playerCaps & CAP_SEEK)      ? hitTestPosbar(sx, sy)    : -1;
     long volPct     = hitTestVolume(sx, sy);
-    int  hitShuffle = hitTestShuffle(sx, sy);
-    int  hitRepeat  = hitTestRepeat(sx, sy);
+    int  hitShuffle = (_playerCaps & CAP_SHUFFLE)   ? hitTestShuffle(sx, sy)   : 0;
+    int  hitRepeat  = (_playerCaps & CAP_REPEAT)    ? hitTestRepeat(sx, sy)    : 0;
     bool hitVis     = hitTestVis(sx, sy);
     if (pressed >= 0) {
       static const char *ta[] = { "PREV","PLAY","PAUSE","STOP","NEXT" };
@@ -1152,6 +1253,20 @@ public:
     if (strcmp(var, "songDuration") == 0) {
       snprintf(buf, len, "\"var\":\"songDuration\",\"ms\":%ld,\"last\":true",
                songDuration);
+      return true;
+    }
+    // TASK-417 / ADR-059 D8: T_PLR_17-19 observability. shufRep reports the
+    // currently-rendered sprite state (whatever mode last drew it — the
+    // point of D8 is that this is now sourced from the active mode, not
+    // always Spotify's snapshot) alongside the active capability mask, so a
+    // test can confirm both "is this drawn" (playerCaps bit) and "does the
+    // sprite reflect this mode's own state" (lastShuffle/lastRepeat) without
+    // a separate getter per mode.
+    if (strcmp(var, "shufRep") == 0) {
+      snprintf(buf, len,
+               "\"var\":\"shufRep\",\"caps\":%u,\"lastShuffle\":%d,\"lastRepeat\":%d,"
+               "\"last\":true",
+               (unsigned)_playerCaps, (int)lastShuffleRendered, (int)lastRepeatRendered);
       return true;
     }
     // TASK-390: marquee/title state observability — no prior getter exposed
