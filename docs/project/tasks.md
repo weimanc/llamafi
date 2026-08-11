@@ -7270,4 +7270,86 @@ Mitigation in place meanwhile: the `T_PLR_08`–`12` suite suspends the backgrou
 **Owner:** Developer (Architect consult) · **Deps:** none · **Gate:** with a deliberately wedged
 Spotify call in flight, a row tap must either start playback or fail visibly within ~2 s; the shell
 must answer serial throughout · **Priority:** P2 — becomes P1 if TASK-418 lands auto-advance on top
-of it · **Status:** OPEN — filed 2026-08-11 from TASK-415.
+of it · **Status:** **DONE** (2026-08-11) — DUT-verified, see below.
+
+**Fix landed.** `spotifyTask::tlsTryYield(uint32_t timeoutMs)` (`spotifyTask.h`/
+`spotifyTaskStorage.cpp`) — same ref-counted handshake as `tlsYield()` (TASK-287/293/299), 100 ms
+TWDT-feeding slices, but gives up and returns `false` after `timeoutMs` instead of riding the full
+150 s ceiling. On timeout it rolls back its own `s_tlsYieldReqCount` increment unless the spotify
+task acked at the wire in the gap between the last check and the rollback, in which case it returns
+`true` and the caller owes a `tlsResume()` like any successful caller — no path strands the ref
+count. `aeConnectFile()` (`audio/audioEngine.h`) now calls `tlsTryYield(AE_CONNECT_FILE_TLS_TRYYIELD_MS
+= 1500)` and returns `false` cleanly (no arena/Audio/pump stood up) on timeout, logging
+`aeConnectFile: tls try-yield timed out after 1500ms — play FAILED, not blocking`.
+
+**Debug wedge for the gate:** `set spotifyWedge <ms>` (`SERIAL_DEBUG` only, `spotifyTaskStorage.cpp`)
+arms a one-shot simulated stuck-mid-HTTP window — the task honours it right after its next dequeue,
+before the yield-ack checkpoint, feeding the TWDT in 100 ms slices — reproducing the real bug's shape
+without an actual wedged HTTP call. Wired into `dbg_set()` alongside `bgPoll`/`lastHttp`/`backoff`; no
+`main.cpp` changes needed since `set <var> <val>` already falls through to `spotifyTask::dbg_set()`
+generically. `s_dbgWedgeMs` is a genuine new 4-byte `SERIAL_DEBUG`-only static (an earlier comment
+claiming it added no new `.bss` was wrong and has been corrected) — confirmed harmless: `dram0_0_seg`
+`_bss_end` is byte-identical with and without this session's full diff (8 816 B headroom either way,
+re-derived fresh from the `.map`, not carried over from an old number).
+
+**Real defect caught by the gate before it shipped:** `tlsTryYield()`'s null-guard
+(`!s_tlsYieldedSem || !reqQueue`) originally returned `false`. On `cyd2usb_player` (TASK-431's
+shipping home for Player mode) `spotifyTask::begin()` is never called — `DISABLE_SPOTIFY`'s "sole
+functional guard" — so those stay null forever. `tlsYield()`'s equivalent null-guard is a silent
+no-op *success* (the caller proceeds); returning `false` from `tlsTryYield()` instead meant
+`aeConnectFile()` would have failed **every single call** on the one variant local playback is
+supposed to work on. Fixed to return `true` (matching `tlsYield()`'s semantics — `tlsResume()` is
+safe to call unconditionally afterward, it only touches the plain `s_tlsYieldReqCount`/`s_tlsStopped`
+ints, no pointer deref). Caught by building + running gate half (a) on `cyd2usb_player` before
+declaring done, not assumed from the diff.
+
+**DUT gate (2026-08-11).** Two environments, deliberately different, per the task's own reasoning:
+local playback on `cyd2usb_winamp_debug` cannot succeed regardless of TLS timing (TASK-425/431: a
+6 424 B contiguous-memory shortfall between the Helix arena and FATFS when Spotify's TLS working set
+is resident) — that failure is real, filed, and orthogonal to this task, so it cannot be used to
+prove "no regression". `cyd2usb_player` has Spotify compiled out, so it cannot host the wedge (no
+spotify task exists to wedge). Each half ran where it is actually meaningful:
+
+- **(a) TLS-free, no regression — `cyd2usb_player`.** `switchApp 12` → `set plLoad
+  /playlists/gate100.m3u` (120 entries) → `set plPlay 1` → `get plCount` polled until `playing:true`.
+  Reached `playing: true, curRow: 1` — playback starts normally, `tlsTryYield()`'s null-guard fix is
+  what makes this environment work at all (see the defect above).
+- **(b) wedge, shell stays responsive — `cyd2usb_winamp_debug`.** `set spotifyWedge 8000` then
+  immediately `set plPlay 1`: that call itself took **1.53 s** (bounded by
+  `AE_CONNECT_FILE_TLS_TRYYIELD_MS`) and the raw serial log shows the expected pair —
+  `[W][spotify.tls] tls try-yield timed out after 1500ms — ref count rolled back, no yield granted`
+  followed by `[W][audioengine] aeConnectFile: tls try-yield timed out after 1500ms — play FAILED,
+  not blocking` — with `plCount.curRow` staying `-1` (no play). For the remaining ~6.5 s of the 8 s
+  wedge window, 12× `get plMem` probes every ~0.5 s all returned in **18–20 ms**; a follow-up run
+  probing `get heap` instead got 14–50 ms round trips throughout a 5 s wedge — the shell answers
+  serial the whole time, only the play attempt itself was gated.
+- **(c) recovery after release — `cyd2usb_winamp_debug`.** Immediately after the 8 s wedge elapsed,
+  `get dataq` read `yieldCount: 0, tlsStopped: false` — the timeout rollback left no trace, matching
+  `tlsTryYield()`'s contract. The very next two `set plPlay` attempts *also* hit the 1.5 s bound and
+  failed the same way — not a strand, but genuine contention: the raw log shows a real
+  `[D][spotify.poll] GET .../queue` / `403 Forbidden` round trip in flight at that exact moment
+  (TASK-243's account-Premium-lapsed 403 loop still polls on its own ~5 s cadence and is real network
+  traffic, not simulated). Waiting for `dataq.inFlight == -1` (task genuinely idle) and retrying then
+  succeeded in **0.06 s** with no try-yield warning at all, `plCount.curRow: 1` — the system is not
+  stranded, it was racing real Spotify traffic on the same 1.5 s window, which is expected given the
+  account's 403 state and is exactly what half (b) proves is now *bounded* instead of unbounded.
+
+**T_PLR_08–12's `set bgPoll 0` workaround: kept, not removed, rationale updated.** Only `T_PLR_09`
+calls `aeConnectFile()` (via `plPlay`); `T_PLR_08/10/11/12` never touch it. The workaround's original
+justification — avoid a 150 s harness-wide hang — is fixed by this task and no longer applies. It
+stays for `T_PLR_09` because half (c) above **DUT-reproduced** the replacement risk directly: with
+`bgPoll` left on, this account's real 403-retry HTTP traffic can be in flight exactly when the test
+calls `plPlay`, and `tlsTryYield()` then legitimately times out at its 1.5 s bound — a clean but FLAKY
+play failure instead of the old hang. `set bgPoll 0` avoids that race entirely. Updated the stale
+"avoid a 150 s hang" comments in `app/tools/run_serialdbg_tests.py` (`_enter_player()`, `t_plr_09()`)
+to state the real, current reason instead of leaving comment debt behind.
+
+**WebRadio's station path: deliberately left on the blocking `tlsYield()`.** This is a decision, not
+an omission. WebRadio's entry points (eject, station tap) are already understood by the UI as "this
+will take a moment" — unlike a PLEDIT row tap, there is no expectation of a sub-2 s response — and
+TASK-406 already cost a real defect from changing that path's timing assumptions once. Porting
+`tlsTryYield()` onto WebRadio's `_play()` is future work if it is ever needed, not part of this gate.
+
+**Build:** `./run/build-debug` clean; `./run/check` 6/6 PASS. Tree left uncommitted per instructions
+(spotifyTask.h, audioEngine.h, spotifyTaskStorage.cpp, plus the run_serialdbg_tests.py comment
+updates above).

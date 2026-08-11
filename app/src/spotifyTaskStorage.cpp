@@ -81,6 +81,18 @@ static volatile bool s_webRadioActive = false;
 // ADR-042 E2: background poll inhibit. 1 = normal, 0 = suspended.
 // Set/cleared by dbg_set("bgPoll", ...). Reset to 1 by resetTls() (recovery invariant).
 static volatile uint8_t s_bgPollEnabled = 1;
+
+// TASK-430: test-only wedge injection. This IS a new 4-byte static
+// (SERIAL_DEBUG-only, so it does not exist in the production .bss at all).
+// Debug .bss headroom is near zero (see CLAUDE.md) — 4 bytes was checked
+// against dram0_0_seg before landing this. Arms a one-shot simulated "stuck mid-HTTP-call"
+// window: the task honours it AFTER its next dequeue but BEFORE the
+// yield-ack checkpoint that follows, so an in-flight tlsYield()/
+// tlsTryYield() request queued during the window goes un-acked until the
+// window elapses — reproducing the real bug's shape (a task that will not
+// check the yield flag again until its blocking network call returns)
+// without an actual wedged HTTP call. `set spotifyWedge <ms>` arms it.
+static volatile uint32_t s_dbgWedgeMs = 0;
 #endif
 
 // TASK-131: TLS yield — dataTask requests Spotify TLS stop so it can
@@ -409,6 +421,26 @@ static void taskBody(void *) {
             actionName(req.action), (long)req.param);
     }
 
+#ifdef SERIAL_DEBUG
+    // TASK-430: fire the armed wedge here — after this dequeue, before the
+    // yield-ack checkpoint below — so any tlsYield()/tlsTryYield() request
+    // that lands while we're "busy" goes un-acked until the window elapses,
+    // same as a real stuck-mid-HTTP-call task would. Feeds the TWDT in
+    // slices, same shape as tlsYield()'s own wait, so it cannot crash the
+    // device on its own.
+    if (s_dbgWedgeMs > 0) {
+      uint32_t wedge = s_dbgWedgeMs;
+      s_dbgWedgeMs = 0;
+      LOG_W("spotify.tls", "debug wedge armed — simulating %ums unresponsive HTTP call",
+            (unsigned)wedge);
+      for (uint32_t waited = 0; waited < wedge; waited += 100) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        esp_task_wdt_reset();
+      }
+      LOG_W("spotify.tls", "debug wedge released");
+    }
+#endif
+
     // TASK-131: TLS yield — stop Spotify TLS so dataTask can reuse the client
     // for its own fetch (shared-client approach avoids double-TLS-context OOM).
     // Runs after xQueueReceive so any in-flight API call has already completed.
@@ -686,6 +718,62 @@ void tlsYield() {
   }
 }
 
+// TASK-430: bounded non-blocking sibling of tlsYield() above — same
+// ref-counted handshake, but gives up after timeoutMs instead of riding the
+// full 150 s ceiling. Mirrors tlsYield()'s increment/wake/slice-wait shape;
+// only the exit paths differ (see spotifyTask.h for the contract).
+bool tlsTryYield(uint32_t timeoutMs) {
+  // DISABLE_SPOTIFY builds (cyd2usb_player — TASK-431's shipping home for
+  // Player mode) never call begin(), so these stay null and there is no TLS
+  // session to yield. tlsYield() null-guards to a silent no-op success (the
+  // caller proceeds, tlsResume() below no-ops too since it only touches the
+  // plain s_tlsYieldReqCount/s_tlsStopped ints, no pointer deref). Returning
+  // false here instead would make aeConnectFile() fail EVERY call on the one
+  // variant local playback is supposed to work on — caught by TASK-430's own
+  // gate before it shipped.
+  if (!s_tlsYieldedSem || !reqQueue) return true;
+
+  bool needWait;
+  portENTER_CRITICAL(&s_tlsYieldMux);
+  needWait = !s_tlsStopped;
+  s_tlsYieldReqCount++;
+  portEXIT_CRITICAL(&s_tlsYieldMux);
+  if (!needWait) return true;
+
+  // Same orphaned-give drain as tlsYield() — see its comment.
+  xSemaphoreTake(s_tlsYieldedSem, 0);
+  Request r{ACT_POLL, 0};
+  xQueueSendToFront(reqQueue, &r, 0);
+
+  constexpr uint32_t kSliceMs = 100;
+  uint32_t waited = 0;
+  while (waited < timeoutMs) {
+    uint32_t slice = (timeoutMs - waited < kSliceMs) ? (timeoutMs - waited) : kSliceMs;
+    if (xSemaphoreTake(s_tlsYieldedSem, pdMS_TO_TICKS(slice)) == pdTRUE) {
+      s_tlsStopped = true;
+      return true;
+    }
+    if (s_tlsStopped) return true;  // TASK-287: concurrent caller already got the ack
+    esp_task_wdt_reset();
+    waited += slice;
+  }
+
+  // Timed out. Roll back our own increment so a caller that gives up leaves
+  // no trace — unless the task acked in the gap between the last check above
+  // and here, in which case this caller now legitimately holds the yield and
+  // must be treated as a success (its ref count stays, and it owes a
+  // tlsResume() like any other successful caller).
+  portENTER_CRITICAL(&s_tlsYieldMux);
+  bool ackedAtTheWire = s_tlsStopped;
+  if (!ackedAtTheWire && s_tlsYieldReqCount > 0) s_tlsYieldReqCount--;
+  portEXIT_CRITICAL(&s_tlsYieldMux);
+  if (!ackedAtTheWire) {
+    LOG_W("spotify.tls", "tls try-yield timed out after %ums — ref count rolled back, no yield granted",
+          (unsigned)timeoutMs);
+  }
+  return ackedAtTheWire;
+}
+
 uint8_t tlsYieldCount()  { return s_tlsYieldReqCount; }
 bool    tlsStoppedFlag() { return s_tlsStopped; }
 int8_t  taskActivity()   { return s_dbgActivity; }
@@ -855,6 +943,14 @@ bool dbg_set(const char* var, const char* val) {
     s_bgPollEnabled = (atoi(val) != 0) ? 1 : 0;
     return true;
   }
+#ifdef SERIAL_DEBUG
+  // TASK-430: `set spotifyWedge <ms>` arms the one-shot simulated-stuck-task
+  // wedge (see s_dbgWedgeMs above) for the spotify task's next dequeue.
+  if (strcmp(var, "spotifyWedge") == 0) {
+    s_dbgWedgeMs = (uint32_t)strtoul(val, nullptr, 10);
+    return true;
+  }
+#endif
   // TASK-245: inject a poll HTTP status so VE can drive authError()
   // deterministically without a real account 403. Applies the same latch rule
   // as a real poll (403 → set, 200/204 → clear), so `set lastHttp 403` → red,

@@ -5074,11 +5074,18 @@ def _enter_player(dut: Dut, tid: str) -> bool:
     Tapping the slot while a player mode is already active CYCLES (T_PLR_01), so
     the step-off is mandatory, not defensive.
 
-    Also suspends Spotify's background poll for the whole T_PLR_08-12 suite. None
-    of these tests touch the network, and the poll is not merely noise here: a
-    Spotify task stuck mid-HTTP parks loopTask inside tlsYield() for up to 150 s
-    (see T_PLR_09's note), which the harness sees as every command timing out.
-    Observed turning a green run amber twice on a flapping-AP day, 2026-08-11.
+    Also suspends Spotify's background poll for the whole T_PLR_08-12 suite.
+    TASK-430 (2026-08-11) bounded aeConnectFile()'s yield to tlsTryYield()'s
+    1.5 s ceiling, so a stuck-mid-HTTP Spotify task can no longer park loopTask
+    for up to 150 s the way it could when this comment was first written — that
+    original failure mode (every later command in the run timing out) is fixed.
+    Kept anyway, DUT-reproduced under TASK-430's own gate: with bgPoll left on,
+    this account's real TASK-243 403-retry loop (a genuine ~5 s-cadence HTTP
+    round trip, not a debug simulation) can still be in flight exactly when
+    T_PLR_09 calls plPlay, and tlsTryYield() then legitimately times out at its
+    1.5 s bound — a clean, fast, but FLAKY play failure instead of a hang. Only
+    T_PLR_09 actually calls aeConnectFile(); 08/10/11/12 never touch it, so this
+    suite-wide suspension is now precautionary for them, not load-bearing.
     Restored by _leave_player()."""
     dut.cmd("set bgPoll 0", timeout=3.0)
     dut.cmd("set playerMode player", timeout=3.0)
@@ -5168,11 +5175,15 @@ def t_plr_09(dut: Dut):
         skip("T_PLR_09", f"fixture {_PL_GATE} missing or short (count={r.get('count')})")
         return
     # Spotify's background poll must be off for any test that starts playback.
-    # aeConnectFile() calls spotifyTask::tlsYield(), which blocks the CALLING task
-    # (loopTask) until the Spotify task acks — up to 150 s if that task is stuck
-    # mid-HTTP. It feeds the TWDT, so the DUT does not crash; it just goes
-    # completely silent and every later test in the run times out. Observed
-    # 2026-08-11 against a wedged queue GET (the TASK-243 403 makes this likely).
+    # aeConnectFile() calls spotifyTask::tlsTryYield() (TASK-430), which blocks
+    # the CALLING task (loopTask) for at most ~1.5 s now, not tlsYield()'s old
+    # 150 s ceiling — a stuck Spotify task fails the play cleanly instead of
+    # hanging the harness. Left OFF anyway: this account's real TASK-243
+    # 403-retry loop is enough real HTTP traffic on its own ~5 s cadence to
+    # occasionally win the race and time out the try-yield for real, turning a
+    # would-be PASS into a flaky FAIL. Redundant with _enter_player()'s own
+    # suite-wide bgPoll=0 (belt and suspenders — this is the one test in the
+    # suite where it's actually load-bearing).
     dut.cmd("set bgPoll 0", timeout=3.0)
     dut.cmd("set plPlay 0", timeout=8.0)
     # connecttoFS + first decode: give the pump task a real window before judging.

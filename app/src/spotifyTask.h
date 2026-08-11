@@ -177,6 +177,21 @@ size_t stackSizeBytes();
 void tlsYield();
 void tlsResume();
 
+// TASK-430: bounded non-blocking variant of tlsYield(). Same ref-counted
+// semantics (safe alongside concurrent tlsYield()/tlsTryYield() callers —
+// TASK-287) but gives up and returns false if the spotify task has not
+// acked the stop within timeoutMs, instead of tlsYield()'s 150 s ceiling.
+//
+// Contract: on true, TLS is yielded and the caller MUST call tlsResume()
+// exactly once, same as after tlsYield(). On false, NO yield was granted —
+// the caller must NOT call tlsResume(); the outstanding-requester ref count
+// is left exactly as it was found (the internal increment made while
+// waiting is rolled back before returning false), so a timed-out caller can
+// never strand the spotify task stopped forever with no matching resume.
+// Intended for callers that must stay responsive (e.g. a PLEDIT row tap)
+// where blocking up to 150 s is not acceptable — see TASK-430.
+bool tlsTryYield(uint32_t timeoutMs);
+
 // TASK-299: lock-free snapshot of the yield handshake for get dataq —
 // outstanding tlsYield() callers and whether the task has acked the stop.
 // A dataq read showing wrPhase=0 with yieldCount>0 and tlsStopped=false for

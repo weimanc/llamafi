@@ -564,10 +564,26 @@ static void wrTeardownPumpTask() {
 // machinery, since there is no LocalPlayer app yet (TASK-413+). The caller
 // owns preconditions (SD mounted, path exists); connecttoFS() failing surfaces
 // as WrPumpResult::FAILED exactly like a dead stream URL — same poll path.
+// TASK-430: local-file play must not block loopTask behind tlsYield()'s
+// 150 s ceiling — a PLEDIT row tap (and TASK-418's auto-advance) needs to
+// start or fail visibly within ~2 s. tlsTryYield()'s budget leaves headroom
+// inside that gate; on timeout the play fails cleanly (no arena/Audio/pump
+// stood up, ref count already rolled back by tlsTryYield()) rather than
+// stalling the shell. WebRadio's station path is a deliberate exception —
+// left on the blocking tlsYield() (see TASK-430's write-up in tasks.md):
+// its entry points (eject, station tap) are already understood as "this
+// will take a moment", and TASK-406 already cost a real bug changing that
+// path's timing assumptions.
+constexpr uint32_t AE_CONNECT_FILE_TLS_TRYYIELD_MS = 1500;
+
 static bool aeConnectFile(const char* path) {
     if (!path || !*path) return false;
     if (!s_aeSpotifyYielded) {
-        spotifyTask::tlsYield();
+        if (!spotifyTask::tlsTryYield(AE_CONNECT_FILE_TLS_TRYYIELD_MS)) {
+            LOG_W("audioengine", "aeConnectFile: tls try-yield timed out after %ums — play FAILED, not blocking",
+                  (unsigned)AE_CONNECT_FILE_TLS_TRYYIELD_MS);
+            return false;
+        }
         s_aeSpotifyYielded = true;
     }
 #ifdef MEMBUDGET_PHASE1
