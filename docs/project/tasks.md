@@ -6368,6 +6368,79 @@ it would let Player mode coexist with Spotify in `cyd2usb_winamp` instead of liv
 variant, and overlaps TASK-430 (M-TLSYIELD-shaped). Option (c) (shrink `MB_ARENA_BYTES`) remains
 rejected — it only buys 1 360 B against a 6 424 B gap.
 
+### TASK-434 — a rig-level WiFi timeout aborts as a bare traceback and reads as a test failure
+
+**Proposal, not yet a design ruling — VE review requested before implementation.**
+
+**The defect.** `Dut._wait_for_ready()` (`app/tools/run_serialdbg_tests.py:131`) waits
+`_DUT_WIFI_WAIT_S` (env `DUT_WIFI_WAIT`, **default 25 s**) for an `IP address:` line after the
+port-open DTR reset. On timeout it does `raise RuntimeError("DUT WiFi not connected — check serial
+output")` (`:218`). That propagates as an unhandled Python traceback, the run exits non-zero, and
+`run/test*` proceeds to its trap-guarded prod restore — whose flash output is the last thing in the
+log. A reader greps the log for PASS/FAIL, finds none, and sees a failed run.
+
+Note the number: **25 s, not the 8 s `BOOT_WAIT` printed by `run/test*` step 3.** The code comment at
+`:64` is explicit that `BOOT_WAIT` does not cover this window, because opening the serial port
+asserts DTR and reboots the DUT — so this wait alone decides how long a boot gets to reach `GOT_IP`.
+
+**Evidence (2026-08-11 session).** Three separate runs aborted here and were initially read as test
+results — twice by the orchestrator, once by a subagent, costing two misdiagnosed investigations. In
+each case the DUT was healthy: a direct serial read minutes later showed a clean boot (`rst:0x1
+POWERON_RESET`, 62 lines in 25 s) and `rssi(-57) disc=0`. Every run for the rest of the session
+required `DUT_WIFI_WAIT=120`. Related but distinct: at least one abort coincided with serial-port
+contention (a peer session's capture, and the orchestrator's own probing) — see "open question 3".
+
+**Why the default is not simply too low.** The failure is not a slow association *per se*. This
+project's WiFi history (TASK-426, LL-096, `project_wifi_flapping_ap_side`) is that a degraded boot
+either associates within a few seconds or wedges for far longer than any fixed deadline; the
+supervisor kick that recovers a dead-saved-SSID wedge does so in ~225 ms once it fires. So a bigger
+constant mostly buys latency on the good path and still fails on the bad one. Raising the default is
+the least interesting part of this proposal.
+
+**Proposed changes, in priority order:**
+
+1. **Make setup failure structurally distinguishable from test failure.** Do not raise a bare
+   `RuntimeError`. Exit with a dedicated status (e.g. exit code 3 + a machine-greppable
+   `[SETUP-FAIL] wifi-not-connected` line), and have `run/test*` print it as the last line *after*
+   the prod restore. **This is the fix that matters** — every other item is optimisation. A rig
+   condition must never be summarisable as "the tests failed".
+2. **One bounded recovery attempt, mirroring the precedent already in this function.** The portal
+   path at `:175` already does exactly this — `_recovery_attempt >= 1` guards a single retry through
+   an RTS reset. A WiFi timeout gets none. Add the same: on first timeout, RTS-reset and re-wait
+   once; abort on the second. Reuses proven structure rather than inventing one.
+3. **Wait on progress, not on a fixed deadline.** The loop already reads every line. Extend the
+   deadline while WiFi-event lines are still arriving (association attempts, `wifi-ev` traces) and
+   fail fast when the stream is silent or repeating `NO_AP_FOUND`. Turns a fixed 25 s into "wait
+   while it is making progress, give up when it is not", which is what the constant is trying to
+   approximate.
+4. **Put the evidence in the log.** `"check serial output"` names a stream the harness has just
+   closed and that no longer exists once prod is reflashed. On abort, dump the last ~40 captured
+   lines into the run log. Two of this session's misdiagnoses came from having to re-derive DUT
+   state by hand afterwards.
+
+**Explicitly out of scope:** the `--no-wifi` / `NO_WIFI=1` path (`:186`ff) is well-reasoned and
+correct as-is — its comment ("a WiFi failure is a real result for every network-touching test") is
+exactly right and this task must not weaken it.
+
+**Open questions for VE:**
+1. Is exit code 3 free across `run/test`, `run/test-targeted`, `run/test-smoke`, `run/test-sync`, and
+   does anything parse their exit codes today?
+2. Should a SETUP-FAIL auto-retry the whole run once, or always hand back to the operator? Auto-retry
+   risks masking a genuinely degraded rig — the same "absorbed as flakiness" failure mode as BP-059.
+3. Serial-port contention produced `device reports readiness to read but returned no data (multiple
+   access on port?)` this session. Is that a separate defect (the harness should detect and name a
+   busy port) or the same one? It is currently indistinguishable from a WiFi timeout to a log reader.
+4. `screendump.py:30` imports `_DUT_WIFI_WAIT_S` and reimplements the wait at `:58`; `test_ceefax_ws_soak.py:93`
+   hardcodes its own 45 s and its own `RuntimeError`. Should this become one shared readiness helper,
+   or is the duplication tolerable? A fix landing in only one of three places is the likely outcome
+   otherwise.
+
+**Owner:** VE (proposal from QM/orchestrator) · **Deps:** none · **Gate:** with the AP unreachable,
+a run must terminate with the distinguishable setup status and the captured serial tail, and
+`run/test*` must still complete its prod restore; with the AP healthy, no added latency on the good
+path · **Priority:** P2 — costs real investigation time on every degraded-WiFi day and has already
+caused three misreads in one session · **Status:** OPEN — proposed 2026-08-11, awaiting VE review.
+
 ### TASK-433 — a repeat `fbOpen` of the same directory fails intermittently
 
 Found by the orchestrator re-running TASK-416's own gate rather than accepting the implementing

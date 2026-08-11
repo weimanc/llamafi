@@ -1774,9 +1774,10 @@ state of M-WINAMP-PLAYER's registry/doc set behind it.
   with a bisect at `c5e0e78^`; four passed on the later run. Also: no test restores `playerMode` on
   exit — latent cross-test leak, unobserved so far.
 - **PM** — TASK-418 stays blocked behind TASK-433; 419/420/421/422 unblocked by TASK-417 landing.
-- **Rig** — the harness's 8 s WiFi wait aborts as `RuntimeError: DUT WiFi not connected` and reads as
-  a test failure; `DUT_WIFI_WAIT=120` is currently required. Worth raising the default or failing
-  with a distinguishable status.
+- **Rig** — the harness's post-reset WiFi wait (`_DUT_WIFI_WAIT_S`, default **25 s** — not the 8 s
+  `BOOT_WAIT` in `run/test*`, which the code comment says explicitly does not cover this) aborts as
+  a bare `RuntimeError: DUT WiFi not connected` traceback, indistinguishable from a test failure at
+  the summary level; `DUT_WIFI_WAIT=120` was required all session. Written up as **TASK-434**.
 
 **Resolution**: _(open — TASK-433/432 outstanding, VE triage outstanding; QM items closed)_
 
