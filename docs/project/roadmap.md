@@ -1314,19 +1314,56 @@ and 3 984 B flash; flash sits at 68.7 % of `app0` with ~821 KB free. Local playb
 TLS, so it is the cheapest of the three player modes at runtime. The Helix MP3 decoder and
 `mb_arena` are reused unchanged — there is no second decoder and no new codec work.
 
-**Status:** **SCHEDULED — ADR-059 accepted 2026-08-07** (human sign-off, thirteen decisions;
-D7 was corrected and D12/D13 added from the VE and Developer reviews before sign-off). All five
-design docs `accepted`; implementation authorised. Filed 2026-08-07; design set `a8d0369`,
+**Status:** **IN PROGRESS — 9 of 16 tasks DONE** (updated 2026-08-11). ADR-059 accepted 2026-08-07
+(human sign-off, thirteen decisions; D7 was corrected and D12/D13 added from the VE and Developer
+reviews before sign-off). All five design docs `accepted`. Filed 2026-08-07; design set `a8d0369`,
 reviews `44a6ef3`, review fold-in `d503739`.
 
-Execution order is not numeric: **TASK-423 first** (DRAM reclaim), then 408 (SD gate), then
-409/411 (the two SD-independent refactors). D13's ≥3-run behaviour-neutrality baselines must be
-captured on the DUT **before** TASK-409, 412 and 417 land. Acceptance does not pre-approve D1's
-outcome — a failing probe closes the milestone with a hardware note.
+| Tasks | State |
+|---|---|
+| 423 (DRAM reclaim), 408 (SD gate), 409/410 (engine), 411/412 (PLEDIT), 413/414/415 (mode, eject, M3U index) | **DONE**, each DUT-gated |
+| 416–422 (browser, capability mask, play-order, seek, edit mode, save/restore, variants+soak) | **READY** — all remaining work is the Player-mode workstream |
+
+Every foundation workstream has landed. The design is holding up under contact: D3's
+one-immutable-array-plus-two-permutations model needed no revision, and the D6/D7 corrections were
+caught in review before sign-off rather than in code.
+
+**Revised execution order (2026-08-11).** The original "423 → 408 → 409/411" ordering is spent; all
+of it is done. The remaining order is **not** numeric either, and is driven by two blockers found
+while landing 415:
+
+1. **TASK-425** (re-measure the SD/arena table under arena-first ordering) — the ADR-059 D1
+   amendment made this a condition of acceptance and it was never discharged. It has stopped being
+   bookkeeping: during TASK-415's gate the arena repeatedly failed its 23 216 B contiguous acquire
+   and fell back to libc, and the playlist index twice could not allocate at all at the end of a
+   full suite. **D1 is unconfirmed under load**, and acceptance explicitly did not pre-approve its
+   outcome.
+2. **TASK-427** (production builds never mount the card) — Player mode is debug-build-only today.
+   A milestone-completion blocker, and it decides the same `max_files` question 425 is measuring.
+
+Both gate **TASK-416**: the file browser needs a third open-file slot, so starting it before the
+mount size is settled means designing against a mount that may move. Then **TASK-430** (a row tap
+can park the UI up to 150 s inside `tlsYield()`) before **TASK-418**, because auto-advance puts that
+same freeze on a path with no user gesture to explain it — P2 today, P1 the moment 418 lands.
+
+    425 → 427 → 430 → 416 → 417/418 → 419/420/421 → 422
+
+D13's ≥3-run behaviour-neutrality baselines must still be captured on the DUT **before** TASK-417
+lands (409 and 412 have already discharged theirs). TASK-424 stays parked until 421 needs it —
+though note 415 measured that short open/write/close bursts *do* work on the current card, so 424 is
+narrower than filed. TASK-428/429 are genuinely deferrable.
+
+**Open risks.** (a) The memory story above — the milestone's biggest one. (b) No human has viewed
+Player mode on the physical LCD yet; everything so far is serial-asserted, and LL-109/BP-048 exist
+because that gap has bitten before — fold an eyeball gate into 422 at the latest. (c) Rig health:
+the AP flapped throughout 2026-08-11 (boot cascade acquires an IP then drops it, TASK-426's
+neighbourhood) and Spotify's 403 is still externally blocked (TASK-243); 422's ≥30 min soak will
+feel both.
+
 **Deps:** none (workstreams 2 and 3); TASK-408 gates the rest.
 **Design:** [M-WINAMP-PLAYER.md](../architecture/designs/M-WINAMP-PLAYER.md) (umbrella) ·
 **Decision:** [ADR-059](../architecture/decisions/ADR-059.md) ·
-**Tasks:** TASK-408..423
+**Tasks:** TASK-408..423, plus TASK-424/425/427..430 filed from the work
 
 ---
 
