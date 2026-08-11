@@ -6273,10 +6273,93 @@ in and measures the wrong profile entirely. Needs either a debug hook that acqui
 debug hook; the full peak needs TASK-410 · **Gate:** the amendment #2 table re-measured arena-first,
 all rows, with mount `heapDelta` and unmount `reclaimedB` agreeing; plus a stated `max_files` for
 TASK-410 with its arena margin · **Priority:** P1 — TASK-410 cannot pick `max_files` without it ·
-**Status:** OPEN.
+**Status:** **DONE** (2026-08-11) — table re-measured both orderings, see below. The answer is
+negative for both hypotheses, and the ADR's premise (that ordering is the lever) is **disproven**.
 
 > Do not carry any row of TASK-408's `max_files` table into TASK-410. It is all mount-first, and
 > mount-first is the ordering the ADR replaced.
+
+**Debug hook landed:** `set arenaHold 0|1` (`main.cpp` `cmdSet`, already `#ifdef SERIAL_DEBUG`)
+calls `mb_arena_acquire()`/`mb_arena_release()` directly — the same calls `AudioEngine`/
+`WebRadioApp::_play()` make — and reports `freeInt/lfbInt/free8/lfb8`. No new static state
+(`mb_arena.cpp` owns its own), so TASK-423's debug-`.bss` headroom is untouched. `set sdMaxFiles`
+proved unnecessary: TASK-408's `sdmount [maxFiles] [freqHz]` already takes a runtime slot count.
+
+### TASK-425 measured result (DUT, `cyd2usb_winamp_debug`, 2026-08-11)
+
+**Methodology note — this is what makes or breaks the numbers.** `lfb8`
+(`MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT` largest free block — the cap that actually gates both
+`SD.begin()`'s contiguous calloc and the arena's `heap_caps_malloc`) is **not stable until the
+Spotify TLS working set is resident**. Measured on the same build, same boot, `lfb8` reads
+**69 620 B** at ~30 s post-reset, **32 756 B** at ~90 s, and settles at **29 684–30 708 B** from
+~150 s onward (8 samples over 160 s, ±1 024 B). Any table measured before that settle is measuring
+an empty room. Every row below is post-settle.
+
+**Baseline, steady state, SD unmounted: `lfb8` = 30 708 B** (worst sample 29 684 B).
+Identical with `AppId::Spotify` active and with `AppId::LocalPlayer` active — **28 660/30 708 in both
+cases, byte-identical arena-hold results.** LocalPlayer's screen costs *nothing* measurable in
+`lfb8`; an earlier reading that appeared to show a 12 KB LocalPlayer penalty was a confound — the two
+sides differed in **SD mount state** (boot-mounted vs not), not in active app. `MB_ARENA_BYTES` is
+**24 576 B**.
+
+| ordering | step | `lfb8` after | mount `heapDelta` | `sdumount reclaimedB` | agree? |
+|---|---|---|---|---|---|
+| — | baseline (steady, SD off) | 30 708 | — | — | — |
+| mount-first | `sdmount 2` | 16 372 | 15 096 | 15 128 | ✅ (+32 B) |
+| mount-first | then `arenaHold 1` | 16 372 | — | — | **arena FAILS** |
+| mount-first | `sdmount 3` | 12 788 | 19 252 | 19 252 | ✅ exact |
+| mount-first | then `arenaHold 1` | 12 788 | — | — | **arena FAILS** |
+| mount-first | `sdmount 4` | 8 692 | 23 388 | 23 388 | ✅ exact |
+| mount-first | then `arenaHold 1` | 8 692 | — | — | **arena FAILS** |
+| arena-first | `arenaHold 1` | 9 716 | — | — | held ✅ |
+| arena-first | then `sdmount 2` (ctx 12 556 B) | 9 716 | 0–32 (no-op) | n/a | **mount FAILS** |
+| arena-first | then `sdmount 3` (ctx 16 692 B) | 9 716 | 0 | n/a | **mount FAILS** |
+| arena-first | then `sdmount 4` (ctx 20 828 B) | 9 716 | 0 | n/a | **mount FAILS** |
+
+`heapDelta` and `reclaimedB` agree on every row that actually mounted — the gate's consistency
+condition is discharged.
+
+**Q1 — does `max_files=4` become viable arena-first? NO.** Nothing ≥2 becomes viable arena-first;
+arena-first is *strictly worse* for the mount than mount-first. Taking the 24 576 B block first
+leaves a 9 716 B residual, below even `max_files=2`'s 12 556 B context. The browser-handle closure
+rule (amendment #2) is therefore **not** made optional by re-ordering.
+
+**Q2 — the Player-mode concurrent peak: there is no such state to measure.** With SD mounted at the
+shipped `kSdMaxFiles=2`, `mb_arena_acquire()` fails and `_playRow` falls through to the libc
+fallback, where `mp3_decoder`'s 8 708 B sub-allocation then also fails:
+`[E] not enough memory to allocate mp3decoder buffers` → `[W][localplayer] play FAILED`. Reproduced
+on two different rows of a 120-entry real fixture. Free heap and `lfb8` returned to their exact
+pre-attempt values afterwards, so the failure is clean, not a leak.
+
+**Root cause, and why it is not an ordering problem.** Both consumers need one *contiguous* 8-bit
+internal block: arena 24 576 B, FATFS context 12 556 B at `max_files=2`. That is **37 132 B against
+30 708 B available — a 6 424 B shortfall** at the cheapest usable slot count. No permutation of two
+allocations fixes a total that exceeds the pool. ADR-059 D1 amendment #2's premise — that ordering
+is the lever — is disproven; the lever is the **~39 KB the Spotify TLS working set holds resident**
+(`lfb8` 69 620 pre-TLS vs 30 708 post-settle). With that reclaimed, `sdmount 3` (19 252 B) plus the
+arena fit with room to spare.
+
+**Stated recommendation for TASK-410/416/427:** `max_files=2` is the only slot count that leaves any
+margin at all, and **its arena margin is negative (−6 424 B)** in any build where Spotify is
+compiled in and polling. Do not ship Player mode into `cyd2usb_winamp` on the strength of a
+`max_files` choice. Two viable directions, both Architect calls, filed as **TASK-431**:
+(a) TASK-427 option 3 — Player mode ships in a `cyd2usb_player` variant with Spotify compiled out,
+where the shortfall does not exist; (b) make Player mode *release* the Spotify TLS working set on
+entry and re-establish it on exit, which is M-TLSYIELD-shaped and overlaps TASK-430.
+
+### TASK-431 — arena vs FATFS contiguous-memory shortfall (Architect decision)
+
+TASK-425 measured a **6 424 B contiguous-memory shortfall** between the Helix arena (24 576 B) and
+the smallest usable FATFS context (12 556 B at `max_files=2`) against 30 708 B of steady-state
+`lfb8`. Local playback therefore cannot work in any build where the Spotify TLS working set is
+resident, in either mount/arena ordering. Decide between: (a) `cyd2usb_player` variant with Spotify
+compiled out (TASK-427 option 3); (b) release the Spotify TLS working set on Player-mode entry
+(~39 KB, M-TLSYIELD-shaped, overlaps TASK-430); (c) shrink `MB_ARENA_BYTES` toward its 23 216 B HWM
+(buys 1 360 B — **does not close a 6 424 B gap**, listed only so it is not re-proposed).
+
+**Owner:** Architect · **Deps:** TASK-425 (done) · **Gate:** an ADR-059 amendment stating the chosen
+direction with the measured numbers · **Priority:** P1 — blocks TASK-427, and blocks Player mode
+shipping anywhere but a dedicated variant · **Status:** OPEN — filed 2026-08-11 from TASK-425.
 
 ### TASK-409 — extract the audio engine to `audio/audioEngine.h` (PURE MOVE)
 

@@ -3995,6 +3995,35 @@ static void cmdSet(const char *args) {
     }
     return;
   }
+  // TASK-425: standalone decoder-arena hold, independent of any stream. Lets the
+  // arena-first SD/arena memory table be re-measured without dragging in WebRadio's
+  // ~40 KB TLS fetch (mb_arena_acquire()/release() are the same calls WebRadioApp::
+  // _play()/suspend() make — no duplicated logic, just called directly). No new
+  // static state here: mb_arena.cpp already owns its own statics, this command only
+  // calls through and reports heap. `set arenaHold 1` acquires (idempotent — a
+  // second call while held is a no-op, same as production), `set arenaHold 0`
+  // releases. Reports free heap + largest free (INTERNAL|8BIT, the byte-addressable
+  // number that actually gates SD.begin()) so the caller can diff before/after
+  // against a clean heap.
+  if (strcmp(var, "arenaHold") == 0) {
+    const uint32_t kByteCap = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+    bool want = (atoi(val) != 0);
+    bool ok;
+    if (want) {
+      ok = mb_arena_acquire();
+    } else {
+      mb_arena_release();
+      ok = true;
+    }
+    Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"arenaHold\",\"held\":%s,"
+                  "\"freeInt\":%u,\"lfbInt\":%u,\"free8\":%u,\"lfb8\":%u}\n",
+                  ok ? "true" : "false", mb_arena_active() ? "true" : "false",
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+                  (unsigned)heap_caps_get_free_size(kByteCap),
+                  (unsigned)heap_caps_get_largest_free_block(kByteCap));
+    return;
+  }
   // TASK-248: runtime log-volume control (for stress soaks). `set logLevel <d|i|w|e>`
   // sets the min severity emitted by LOG_x; `set logKeep <prefix>` always keeps tags
   // matching the prefix regardless of level (e.g. logKeep dataTask). `set logKeep -`
