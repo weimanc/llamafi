@@ -6639,7 +6639,53 @@ and TASK-416's own gate (targeted, fresh boot) is why it read as "intermittent" 
 **Ruled out by inspection, so do not re-derive:** it is not a `_dh` leak. `open()`, `_finish()` and
 `free()` all call `_closeDir()` on every exit path, and `open()` closes before re-opening.
 
-**Live hypothesis — handle exhaustion, not heap.** The browser holds **two** handles at once during
+> **Orchestrator investigation 2026-08-11 (BP-057: raw capture before theory). Read this before
+> starting — it kills the original hypothesis and supplies measured numbers.**
+>
+> **The handle-exhaustion hypothesis below is DISPROVEN.** Measured on the DUT: with a playlist
+> loaded (`set plLoad /playlists/gate100.m3u`, which holds a `File` open for the session),
+> `set fbOpen /probe200` returns `ok:true`. Opening the same path twice in a row also succeeds. So
+> `max_files` is not the constraint and `kSdMaxFiles` should not be bumped again on that reasoning.
+>
+> **What `fbOpen` returning false actually means — there are TWO return sites, and both log** (so a
+> raw serial capture of any failing run names the cause immediately; BP-055):
+> 1. `alloc()` failing — `fileBrowser.h`: `malloc(sizeof(FBEntry) * FB_MAX_DIRS)` = **1 024 B** plus
+>    `malloc(sizeof(FBEntry) * FB_MAX_FILES)` = **4 096 B** (`FBEntry` is 64 B; `FB_MAX_DIRS=16`,
+>    `FB_MAX_FILES=64`). Logs `alloc FAILED (%u B) — free=%u`. Note this needs **4 096 B contiguous**,
+>    which is the interesting number. *(A comment added in TASK-416's own test file calls these arrays
+>    "~13 KB" — that is wrong, it is 5 120 B total.)*
+> 2. `SD.open()` failing — logs `open failed: %s`.
+>
+> **The mechanism that makes this suite-state-dependent.** `LocalPlayerApp::suspend()` calls
+> `_browser.free()` (`localPlayerApp.h:188`), which releases both arrays. The harness enters and
+> leaves Player mode around every test, so **every** browser test re-allocates that 4 096 B block
+> from whatever the heap looks like at that moment — it is not allocated once per boot.
+>
+> **Measured `largestBlock` (via `get plMem`) at different points, same build:**
+>
+> | state | largestBlock |
+> |---|---|
+> | fresh boot, Player active, nothing loaded | 8 692 B |
+> | after the `T_PLR_08`–`16` sequence, playlist loaded | **756 B** |
+> | after a suspend/resume cycle (frees playlist + browser) | 5 108 B |
+>
+> 756 B against a 4 096 B contiguous requirement is the shape of the bug. **But this is a mechanism,
+> not a confirmed diagnosis: I did not reproduce the failure.** Three deliberate attempts all
+> returned `ok:true` — with a playlist loaded, on a re-open, and after a suspend/resume cycle — and
+> `T_PLR_08`–`16` run as a block passed 8/0/1. The failing condition is `largestBlock < 4 096` *at
+> the moment of the first open after a suspend*, and I could not land on it on demand.
+>
+> **Cheapest decisive next step:** re-run the **full** `./run/test` with `--log-file` and grep the
+> raw capture for `alloc FAILED` vs `open failed`. No prior failing run captured raw serial, which is
+> the only reason this is still open. Do that before writing any fix.
+>
+> **If it is the alloc:** the fix candidate is to allocate once and never free — drop `_browser.free()`
+> from `suspend()` and keep the 5 120 B resident. That is the accepted narrow pattern on this project
+> for exactly this situation (lazy malloc once, never freed), and 5 120 B of permanently-held heap
+> needs weighing against TASK-425's contiguous-block findings before it is adopted. Alternatives:
+> shrink `FB_MAX_FILES` so the block is smaller, or page the file list.
+
+**Superseded hypothesis — handle exhaustion, not heap.** The browser holds **two** handles at once during
 a walk: `_dh` across ticks, plus the transient `File e = _dh.openNextFile()` inside each batch.
 TASK-416 bumped `kSdMaxFiles` 2 → 3 on the accounting that the browser needs *one*. With
 `m3u::PlaylistIndex` holding the playlist `File` open for the session, a walk peaks at
