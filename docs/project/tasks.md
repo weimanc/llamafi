@@ -6799,7 +6799,12 @@ actual ELF. Do not trust the inline decode on this project.
 
 **Owner:** Developer · **Deps:** none · **Gate:** with the heap deliberately pressured, a failed
 `aeConnectFile()` must render `play FAILED` and leave the shell alive — no `abort()` ·
-**Priority:** P2 · **Status:** OPEN — filed 2026-08-11 from TASK-427's DUT verification.
+**Priority:** **P1** (raised 2026-08-11 from P2) · **Status:** OPEN — filed from TASK-427's DUT
+verification; **confirmed reproducible on the ordinary play path 2026-08-11**, see TASK-435's
+investigation. With the arena held and a playlist loaded on `cyd2usb_player`, `set plPlay` produces
+`abort() was called at PC 0x401be637` → `rst:0xc (SW_CPU_RESET)`. This is not a rare pressure edge
+case: it is the shipping variant's normal usage, and a memory shortfall must degrade to a visible
+"play FAILED", never to a device reset. Fix independently of TASK-435's ruling.
 
 ### TASK-409 — extract the audio engine to `audio/audioEngine.h` (PURE MOVE)
 
@@ -7640,11 +7645,55 @@ Suggested fix: an env override (e.g. `DUT_ENV=cyd2usb_player`) selecting the bui
 guard still verifies but against the right binary.
 
 **Owner:** Architect (item 1 ruling) + VE (item 2, harness) · **Deps:** none · **Gate:** item 1 —
-a stated cause for the 69 620 → 42 996 change with 8-bit-cap numbers, and playback restored on
-`cyd2usb_player` or an explicit ruling that it is not expected to work; item 2 — the harness runs a
-targeted suite against a `cyd2usb_player` flash without tripping the ELF guard · **Priority:** P1
-(item 1 — it may mean Player mode has no working configuration) / P2 (item 2) · **Status:** OPEN —
-filed 2026-08-11 from TASK-418's close-out.
+playback restored on `cyd2usb_player`, or an explicit ruling on what Player mode may hold at once;
+item 2 — the harness runs a targeted suite against a `cyd2usb_player` flash without tripping the ELF
+guard · **Priority:** **P1** / P2 (item 2) · **Status:** OPEN — investigated 2026-08-11, see below.
+
+> **Orchestrator investigation, 2026-08-11 (DUT-measured, `cyd2usb_player`, 150 s settle).
+> Item 1 as filed was WRONG about the cause. Read this before acting on it.**
+>
+> **There is no simple "arena regression", and the number that suggested one is not measurable.**
+> `mb_arena_acquire()` logged `lfbBefore` using `MALLOC_CAP_INTERNAL` while allocating with
+> `MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT`. The first counts the 32-bit-only D/IRAM region and
+> over-reports what a byte-addressable `heap_caps_malloc` can serve. Measured in the same instant:
+> **42 996 (32-bit) vs 27 636 (8-bit, the real one)**. So the `69 620 → 42 996` comparison that made
+> this look like a regression compares a metric that never gated the allocation. **Fixed** — the log
+> now measures with the allocating cap (BP-055). Treat every historical `lfbBefore=` figure as the
+> over-reporting number.
+>
+> **What is actually happening.** At steady state on `cyd2usb_player`, real `lfb8` ≈ **27 636 B**
+> against the arena's **24 576 B** — a margin of only **3 060 B**. The arena *can* be acquired: a
+> standalone `set arenaHold 1` returns `held=true` and drops `lfb8` to 3 956. But the playlist index
+> needs **3 680 B**, which exceeds that margin, so **the arena and a loaded playlist cannot both
+> hold the contiguous space**, and whichever allocates second loses:
+>
+> | sequence | outcome |
+> |---|---|
+> | arena alone, nothing loaded | acquires, `lfb8` 27 636 → 3 956 |
+> | playlist loaded, then play (normal path) | `arena acquire=24576B FAIL→libc-fallback`, then `[E][wrpump] xTaskCreatePinnedToCore failed rc=-1` — no pump task, `playing:false` |
+> | arena pre-held, then playlist, then play | **DEVICE REBOOTS** |
+>
+> Reordering does not rescue it — the same lesson TASK-425 established for the arena/FATFS pair, at
+> a different boundary.
+>
+> **TASK-432 is confirmed reachable on the ordinary play path, and it reboots the device.** The
+> arena-first row above ends in `abort() was called at PC 0x401be637` → `rst:0xc (SW_CPU_RESET)`.
+> That is `aeConnectFile()`'s unchecked `new Audio(...)` throwing `bad_alloc` under exactly the
+> pressure this configuration creates. It was filed as a P2 "witnessed once" hardening gap; it is a
+> reproducible crash in the shipping variant's normal usage. **Raise TASK-432 to P1 and fix it
+> regardless of how item 1 is resolved** — a memory shortfall should degrade to "play FAILED", never
+> to a reset.
+>
+> **Still open, deliberately not concluded:** whether today's commits *narrowed* the margin. TASK-427
+> demonstrably played 3+ minutes on this variant at `510afef`, and since then TASK-433 made 5 120 B
+> of browser arrays permanently resident on this variant (`FB_MAX_FILES=64` under `DISABLE_SPOTIFY`)
+> and TASK-418 added play-order state. 5 120 B against a 3 060 B margin is more than sufficient to
+> explain it, but **it is not measured** — the honest test is a bisect at `510afef` with the corrected
+> 8-bit metric, plus one run with TASK-433's arrays made transient again on this variant only. Do
+> that before redesigning anything.
+>
+> **Note the irony for the record:** TASK-433's fix was accepted partly because `cyd2usb_player`
+> "has ample headroom" — measured with the over-reporting metric.
 
 ### TASK-419 — real posbar seek for local files
 

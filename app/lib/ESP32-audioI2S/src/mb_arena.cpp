@@ -96,7 +96,16 @@ void mb_arena_release(void) {
 
 bool mb_arena_acquire(void) {
     if (s_owned) return true;  // idempotent — already held this session
-    size_t lfb = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+    // TASK-435 / BP-055: measure with the SAME cap the allocation below uses.
+    // This previously read MALLOC_CAP_INTERNAL alone, which counts the
+    // 32-bit-only D/IRAM region and therefore over-reports what a
+    // byte-addressable heap_caps_malloc can actually serve. Measured on
+    // cyd2usb_player 2026-08-11: the two read 42 996 vs 27 636 in the same
+    // instant. Every historical "lfbBefore=" figure in a log or task write-up
+    // is the over-reporting number and must not be compared against
+    // MB_ARENA_BYTES — that mistake is what made TASK-418's acquisition
+    // failure look like a heap regression against TASK-427's 69 620.
+    size_t lfb = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     s_owned = heap_caps_malloc(MB_ARENA_BYTES, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 #ifdef SERIAL_DEBUG
     Serial.printf("[membudget] TASK-267 arena acquire=%uB lfbBefore=%u %s\n",
