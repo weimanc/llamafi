@@ -6628,11 +6628,116 @@ instance's members in `.bss`. Acquire in `resume()`, free in `suspend()`. Regist
 
 **Owner:** Developer · **Deps:** TASK-410, TASK-413 · **Gate:** `T_PLR_08`–`12`; `T_PLR_11` covers
 malformed input (truncated, missing `#EXTINF`, CRLF, BOM), `T_PLR_12` requires the heap delta to
-return to baseline ±256 B on suspend · **Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07 (D3).
+return to baseline ±256 B on suspend · **Priority:** P2 · **Status:** **DONE** — implemented and
+DUT-gated 2026-08-11 (`T_PLR_08`–`12` 5/5 PASS).
 
-> **Blocking sub-decision (OQ1):** M3U and ID3 are UTF-8; PLEDIT renders TFT_eSPI Font 1 (GLCD,
-> ASCII). Needs a shared transliterate-then-substitute helper — the Spotify path has the same latent
-> bug today. **Resolve before row rendering is written**; it changes `PlRow`'s contract.
+> ~~**Blocking sub-decision (OQ1)**~~ — **resolved 2026-08-11**: `app/src/util/asciiFold.h`
+> (`textfold::foldUtf8`). It did **not** change `PlRow`'s contract as feared — the fold belongs in
+> the source that composes the row text, so `PlRow::text` keeps its existing "already renderable"
+> meaning. Applying it to the Spotify/WebRadio sources, which carry the same latent bug, is
+> TASK-428 (separate because it deliberately changes pixels those tasks' gates froze).
+
+**Implementation.** `app/src/player/m3u.h` — `PlEntry {uint32 offset, uint16 durSec, uint16 flags}`,
+`PlaylistIndex` with `entries[]`/`viewOrder[]`/`playOrder[]` (identity permutations for now; nothing
+mutates them until TASK-418/420) and an 8-row text cache; `app/src/localPlayerApp.h` grows a nested
+`LocalPlaylistSource` (CAP_PLAY only) and real resume/suspend/tick/input. Heap, never `.bss`:
+3 616 B, acquired in `resume()`, freed in `suspend()` — registered in `mem_manifest.yaml` as
+`player_index` + `player_rowcache`, both `placement: runtime`.
+
+Four decisions worth recording, because each has a wrong-looking-right alternative:
+
+1. **`offset` addresses the record, not the path line.** Pointing it at the path (the obvious read
+   of "one entry, one file") makes the `#EXTINF` artist/title unreachable without rescanning from
+   the top of the file for every row repaint.
+2. **The playlist `File` stays open for the session.** Re-opening per row read costs a FAT
+   directory scan each time. This spends the mount's second open-file slot — `kSdMaxFiles = 2`
+   (audio + playlist), so **TASK-416's browser needs the mount bumped to 3** before it can hold a
+   directory handle. Recorded here so that lands as a mount-sizing change and not as a mystery.
+3. **`../` is not collapsed.** `_resolve()` strips a leading `./` and otherwise prepends the
+   playlist's directory verbatim, letting FatFs resolve `..`. A hand-rolled collapse would be a
+   second, divergent path parser — the classic place these disagree.
+4. **The FILE arm's pump result is consumed by this app.** `s_wrPumpResult` is one shared slot;
+   TASK-410's debug entry point left FILE results parked, so a `CONNECTED` from a local file would
+   have been picked up by `WebRadioApp::tick()` on the next mode switch and applied to a stream
+   connect that never happened. `LocalPlayerApp::tick()` polls and clears it, and the engine gained
+   `aeStopFile()`/`aeTeardownFile()` (mirroring `_stopAudio()` and `suspend()`'s teardown ordering
+   exactly — one engine, one ordering) so suspend releases the pump task, `Audio` and the arena.
+
+**Debug surface** (ADR-059 D12, all `SERIAL_DEBUG`): `set plLoad <path>` (raw-args, paths on this
+card have spaces), `set plPlay <n>`, `get plCount`, `get plRow <n>`, `get plMem` (free heap **and**
+largest-free-block, VE-15), `get plFold <text>`. `cmdTap`'s LocalPlayer branch now calls
+`injectTouch()` before `handleInput(Release)`, like the WebRadio branch — without it the harness
+could reach eject and transport but never a PLEDIT row, and the injected and real-touch paths would
+anchor against different state (the TASK-406 defect class).
+
+**Found along the way, filed not fixed:** production builds never mount the card at all — the boot
+mount is inside `main.cpp`'s `SERIAL_DEBUG` region from TASK-408 (**TASK-427**).
+
+**Fixtures.** `app/tools/gen_playlist_fixtures.py` generates the six M3U fixtures the gate needs
+(120-entry, relative-path, UTF-8, malformed, empty). Getting them onto the card was supposed to need
+a host card reader — TASK-424 says the write path is broken. Re-probed it instead of assuming:
+`sdwrite 2` wrote 1 KB in 5 ms with no panic, so **short bursts work on this SDHC card today** even
+though sustained writes do not. That bought a much better rig: `sdmkdir` + `sdput <w|a> <base64>
+<path>` (SERIAL_DEBUG, ≤90 B per call — the 160 B serial line buffer sets the chunk) driven by
+`app/tools/sd_put.py --tree`. All six fixtures uploaded byte-exact, no panic. This does **not**
+reopen TASK-424: it is one open/write/close per call, it is test tooling, and TASK-421's save path
+is still blocked on the sustained-write defect.
+
+**DUT gate (2026-08-11, `cyd2usb_winamp_debug`): `T_PLR_08`–`12` all PASS, one clean 5/5 run on the
+final build** (`5 passed, 0 failed, 0 skipped, 0 flaked`).
+
+| id | result |
+|---|---|
+| `T_PLR_08` | PASS — 120 entries in 18–19 ms, `totalSec` 29890, last row correct |
+| `T_PLR_09` | PASS — 12 full-list swipes during playback, still playing, worst swipe round-trip 0.1 s |
+| `T_PLR_10` | PASS — bare, `./` and `../` all resolve against the playlist directory |
+| `T_PLR_11` | PASS — 8/8 malformed cases; empty file loads to 0; UTF-8 folded to ASCII |
+| `T_PLR_12` | PASS — +3 676 B resting, +8 052 B peak with the file open, residual **+0 B**, largest-free-block unchanged 19 444 → 19 444 → 19 444 |
+
+`T_PLR_12`'s residual is exactly 0 B here and on three earlier runs, and an independent 3-cycle
+enter/play/leave probe returned free heap to 72 844 B every single time — the index is balanced.
+Two earlier full-suite runs failed it on the *allocation* side rather than the leak side (one ended
+with largest-free-block at 1 460 B after the playback tests, too fragmented to acquire 3.6 KB).
+Neither reproduced in isolation or in the clean run. Watch it during TASK-422's soak: the suspicion
+is the decoder's libc-fallback allocations when the arena acquire fails, which is not this task's
+code but is the state this task's allocation lands in.
+
+**Four defects the gate found, all fixed here:**
+
+1. **Path normalisation was needed after all, and then written wrong.** Decision 3 above ("let FatFs
+   collapse `..`") is false on this platform: the ESP-IDF FATFS VFS passes the path through
+   untouched and `/playlists/../mp3/x.mp3` fails to open. Added `_normalize()` — and its first cut
+   appended the separator *after* each segment, which on the final segment writes over the string's
+   NUL, the byte the read cursor is standing on, so the loop reads on into the heap and emits
+   `/mp3/02 - Clint Eastwood.mp3/<garbage>`. Intermittent by nature (it depends on the next byte
+   being non-zero), which is exactly why it took a DUT run to see. Now writes the separator *before*
+   each segment, where the write cursor is provably behind the read cursor. The playlist's own path
+   is normalised too, or `_deriveDir()` hands every relative track a directory containing `..`.
+2. **Trailing whitespace on a path line was not trimmed** — leading was. FAT will not open
+   `"/mp3/x.mp3   "`, and hand-edited playlists collect stray spaces.
+3. **Persisting the last playlist at selection time fails during playback.** `SettingsStorage`
+   allocates a 6 KB ArduinoJson doc; with the Helix arena holding the large contiguous blocks the
+   8-bit largest-free drops to ~2.8 KB, the ctor alloc fails, capacity is 0 and TASK-329's guard
+   aborts the save (`JSON doc OVERFLOWED`). Moved to a coalesced suspend()-time write per ADR-050
+   rule 3 — by then the engine is torn down and the arena released. Filed as TASK-429 because the
+   same trap catches every settings write during playback, not just this one.
+4. **A row tap can park the UI for up to 150 s.** `aeConnectFile()` calls `spotifyTask::tlsYield()`,
+   which blocks the *calling* task until the Spotify task acks — 150 s worst case, and it feeds the
+   TWDT, so the device does not crash, it just goes silent. Pre-existing engine behaviour that
+   WebRadio's `_play()` shares; TASK-415 makes it reachable from a PLEDIT row tap. Not fixed here
+   (it is the M-TLSYIELD thread's problem) — filed as TASK-430, and the tests now `set bgPoll 0`.
+
+**Harness gaps found and fixed** (`run_serialdbg_tests.py`): the readiness check knew `WebRadio` but
+not `Player`, so a device persisted in Player mode fell through to the 60 s Spotify-poll wait and
+then failed startup — the same TASK-413 widening miss as §6.1's getter. Added `--no-wifi`
+(`NO_WIFI=1 ./run/test-targeted`) for suites that touch no network, which waits for the *shell*
+rather than for an IP — "do not require WiFi" is not "do not wait for the DUT", and the first cut
+got that wrong and simply moved the failure to the first command. `_enter_player()` retries the
+taskbar tap once (a dropped scroll-anchor landed it on PlaneRadar).
+
+**Rig note:** the AP was flapping throughout this session — the boot cascade repeatedly gets an IP
+and then drops it (`STA_GOT_IP` → `ASSOC_LEAVE` ~150 ms later). That is TASK-426's neighbourhood,
+not this task's, but it is why the gate needed several runs.
 
 ### TASK-416 — `fileBrowser.h` via `SPickerList`, eject entry, play-from-browser
 
@@ -6861,3 +6966,117 @@ It is a **tolerance for the transient, not a cure** — the transient itself is 
 > where the arm flag lives, so the first attempt at this A/B ran the control in *both* arms and
 > looked perfectly clean. The flag is cookie-guarded and compiled out of prod, because an unguarded
 > `RTC_NOINIT` read would let a cold boot disable the retry at random in a production build.
+
+### TASK-427 — production builds never mount the SD card
+
+Found while landing TASK-415. `sdProbeBootMount()` and its `setup()` call site sit inside
+`main.cpp`'s `#ifdef SERIAL_DEBUG` region, because TASK-408 landed them as bring-up tooling
+alongside `sdprobe`/`sdmount`/`sdls`. Nothing since has moved them out. So **`cyd2usb_winamp`
+(production) has no SD mount at all**, and Player mode degrades to "No SD card" there while working
+fully on `cyd2usb_winamp_debug`. Every T_PLR gate runs on the debug build, so no gate catches this —
+it is exactly the class of divergence `T_PLR_35` (each variant builds *and boots*) exists for.
+
+Not fixed inside TASK-415, deliberately: an unconditional boot mount costs ~13 KB of
+permanently-held **contiguous** internal heap (FATFS window + `max_files` × `FIL`, `FF_MAX_SS=4096`,
+`FF_FS_TINY=0`), and that lands on top of WebRadio's 40 KB TLS fetch guard and the Helix arena's
+23 216 B contiguous need. It is a memory-budget decision with an ADR-059 D1 dependency
+(TASK-425 is re-measuring that same table under arena-first ordering), not a `#ifdef` move.
+
+Options, in the order they should be considered:
+1. Mount unconditionally at boot in every build, and re-run the M-HEAP-FRAGMENTATION numbers —
+   simplest, and the only one that makes the mount deterministic, but it taxes every app.
+2. Mount on first entry to Player mode and unmount on suspend — cheapest for the other apps, but
+   TASK-408's measurement is that a lazy mount is only as reliable as the heap happens to be at
+   that moment (it fails outright once WebRadio is playing), which is precisely why the boot mount
+   was chosen.
+3. Gate the mount on a build flag that the Player-mode variant sets — keeps prod unchanged and makes
+   `cyd2usb_player` (TASK-422) work, at the cost of Player mode being absent from the main build.
+
+**Owner:** Architect (Developer implements) · **Deps:** TASK-425 (the re-measure this rests on) ·
+**Gate:** `T_PLR_35`/`T_PLR_36` cover it once decided; add a production-build assertion that
+`sdReady()` and the compiled-in mode set agree · **Priority:** P2 — blocks Player mode shipping in
+production, blocks nothing before that · **Status:** OPEN — filed 2026-08-11 from TASK-415.
+
+### TASK-428 — apply the ASCII fold to the Spotify queue and station-list rows
+
+TASK-415 resolved design OQ1 with a shared helper (`util/asciiFold.h`, `textfold::foldUtf8`) and
+wired it into `LocalPlaylistSource` only. The same latent bug is live in the two shipped sources:
+`SpotifyQueueSource::row()` copies the API's UTF-8 artist/title straight into `PlRow::text`, and
+`StationListSource::row()` does the same with radio-browser station names — both then render through
+TFT_eSPI Font 1 (GLCD), whose glyphs above 0x7F are box-drawing symbols. An accented artist name
+("Björk", "Sigur Rós", "Motörhead") therefore renders as unrelated symbols today, one per UTF-8
+continuation byte.
+
+The fix is one call per source. What makes it a separate task is the gate: TASK-411 and TASK-412
+were held to **pixel identity** against the pre-extraction PLEDIT copies, and this deliberately
+changes pixels for exactly the rows that were wrong. It needs its own before/after screendump pair
+on real content, not a silent rider on a task whose gate is about something else.
+
+Also in scope: the Winamp **title marquee** (`winampDisplay.setTitle()`) draws through `SKIN_FONT` /
+`SKIN_GLYPH[128]`, i.e. a 128-entry ASCII atlas — same class of bug, same one-line fix, and the more
+visible of the two since the title is 8 px tall and scrolls.
+
+**Owner:** Developer · **Deps:** TASK-415 (helper landed) · **Gate:** screendump before/after on a
+queue containing at least one Latin-1 and one Latin-Extended-A name; `T_PLE_*` row-geometry tests
+must be unchanged (the fold changes glyphs, never column widths — a 2-byte codepoint folding to 1–2
+ASCII characters can change a row's rendered *length*, so the truncation path is what to watch) ·
+**Priority:** P3 · **Status:** OPEN — filed 2026-08-11 from TASK-415's OQ1 resolution.
+
+### TASK-429 — a settings save during playback silently aborts
+
+Found in TASK-415. `SettingsStorage::save()` builds a `DynamicJsonDocument(6144)`. While a track is
+playing, the Helix arena holds the large contiguous blocks and the **8-bit-capable** largest free
+block drops to ~2.8 KB (boot log: `freeDma=3028 lfbDma=2804` right after decoder init), so the
+document's constructor allocation fails, ArduinoJson reports capacity 0, every add no-ops, and
+TASK-329's `doc.overflowed()` guard aborts the write with
+`SettingsStorage: JSON doc OVERFLOWED — save aborted, previous file kept!`.
+
+The guard does its job — nothing is corrupted and the previous file survives — but the *caller* is
+told nothing: `save()` returns void, so a feature that persists something during playback silently
+does not persist it. TASK-415 dodged this by coalescing its write into `suspend()` (ADR-050 rule 3),
+which is the right pattern anyway, but the trap is general: any settings write while audio is up
+hits it, and the next author will not know.
+
+Worth noting the diagnostic gap too: the success path logs `saved (doc 1914/6144 B)` while the
+failure path logs no numbers at all, so the log line reads like a capacity overflow when it is
+really a failed allocation. The two are indistinguishable in the field today.
+
+Candidate fixes: (a) `save()` returns bool and callers handle it; (b) defer-and-retry a failed save
+rather than dropping it; (c) shrink or statically place the document so the allocation cannot fail;
+(d) at minimum, log `memoryUsage()`/`capacity()` on the failure path so the two modes are
+distinguishable. (a)+(d) are the cheap pair.
+
+**Owner:** Developer · **Deps:** none · **Gate:** set a persisted value from a debug command while a
+local file is playing, reboot, confirm it survived; assert the log distinguishes alloc-failure from
+true overflow · **Priority:** P2 · **Status:** OPEN — filed 2026-08-11 from TASK-415.
+
+### TASK-430 — a PLEDIT row tap can freeze the UI for up to 150 s
+
+Found in TASK-415, but the mechanism is older than it. `aeConnectFile()` (and `WebRadioApp::_play()`
+before it) calls `spotifyTask::tlsYield()`, which blocks the **calling** task until the Spotify task
+acknowledges the stop. That wait is bounded at 150 s by design (TASK-286: two API calls × 75 s), and
+it deliberately feeds the task watchdog in 200 ms slices so the device does not reboot. The result
+when the Spotify task is genuinely stuck mid-HTTP: loopTask stops for as long as it takes — no
+repaints, no heartbeat, no serial responses — and then everything resumes as if nothing happened.
+
+Observed on the DUT 2026-08-11: a `set plPlay` with a wedged Spotify queue GET in flight (the
+TASK-243 403 makes a wedged call likely) took the shell out entirely; the test harness saw every
+subsequent command time out and reported three unrelated failures. The device was never crashed.
+
+Why it matters more now than it did for WebRadio: WebRadio's entry points are eject and a station
+tap, both already understood as "this will take a moment". TASK-415 puts the same 150 s exposure
+behind an ordinary PLEDIT row tap on a local file that should start in ~200 ms, and TASK-418's
+auto-advance will put it on the end-of-track path where no user gesture is involved at all.
+
+The fix is not to shorten the timeout (that just moves the failure into the connect). Options: make
+the yield asynchronous — post the request, return to the caller, and let the connect proceed from
+the ack — or give the caller a short non-blocking try-yield and fail the play cleanly when TLS is
+busy. Both are M-TLSYIELD-shaped changes touching WebRadio's path too, hence a separate task.
+
+Mitigation in place meanwhile: the `T_PLR_08`–`12` suite suspends the background poll
+(`set bgPoll 0`) for its duration.
+
+**Owner:** Developer (Architect consult) · **Deps:** none · **Gate:** with a deliberately wedged
+Spotify call in flight, a row tap must either start playback or fail visibly within ~2 s; the shell
+must answer serial throughout · **Priority:** P2 — becomes P1 if TASK-418 lands auto-advance on top
+of it · **Status:** OPEN — filed 2026-08-11 from TASK-415.

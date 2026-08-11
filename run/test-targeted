@@ -49,5 +49,10 @@ if [ -n "${LOG_FILE:-}" ]; then
   echo "[test-targeted] raw serial log: $LOG_FILE"
   _LOG_ARGS=(--log-file "$LOG_FILE")
 fi
-(cd "$PIO_DIR" && "$VENV_PY" tools/run_serialdbg_tests.py --port "$PORT" --tests "$TESTS" "${_LOG_ARGS[@]}") \
+# NO_WIFI=1 ./run/test-targeted T_PLR_08,... — for suites that touch no network
+# (the SD-backed player tests). Off by default: a WiFi failure must stay a real
+# failure for everything else.
+_WIFI_ARGS=()
+[ "${NO_WIFI:-}" = "1" ] && _WIFI_ARGS+=(--no-wifi)
+(cd "$PIO_DIR" && "$VENV_PY" tools/run_serialdbg_tests.py --port "$PORT" --tests "$TESTS" "${_LOG_ARGS[@]}" "${_WIFI_ARGS[@]}") \
   || _TEST_RC=$?

@@ -95,6 +95,7 @@ static void applyDefaults() {
 
     // Player slot (M-PLAYER-STATE / TASK-260)
     g_settings.playerMode = (uint8_t)PlayerMode::Spotify;
+    g_settings.playerPlaylist[0] = '\0';   // TASK-415: no playlist until one is loaded
 
     // Teletext
     g_settings.teletextPage        = 101;
@@ -285,6 +286,10 @@ void SettingsStorage::load() {
     if (doc.containsKey("player")) {
         uint8_t pm = doc["player"]["mode"] | 0;
         g_settings.playerMode = (pm > (uint8_t)PlayerMode::Player) ? (uint8_t)PlayerMode::Spotify : pm;
+        // TASK-415: last M3U path. A stale path whose file is gone is not an
+        // error to load-time — LocalPlayerApp degrades to "No playlist".
+        strlcpy(g_settings.playerPlaylist, doc["player"]["playlist"] | "",
+                sizeof(g_settings.playerPlaylist));
     }
 
     // Teletext
@@ -472,7 +477,11 @@ void SettingsStorage::save() {
     ck["vfdTheme"]   = g_settings.vfdTheme;
 
     // Player slot (M-PLAYER-STATE / TASK-260)
-    doc.createNestedObject("player")["mode"] = g_settings.playerMode;
+    {
+        auto pl = doc.createNestedObject("player");
+        pl["mode"]     = g_settings.playerMode;
+        pl["playlist"] = g_settings.playerPlaylist;   // TASK-415
+    }
 
     auto tt = doc.createNestedObject("teletext");
     tt["page"]        = g_settings.teletextPage;

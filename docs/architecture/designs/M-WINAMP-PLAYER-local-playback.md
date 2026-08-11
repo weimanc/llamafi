@@ -369,9 +369,22 @@ acquire/release balance invariant.
 
 ## 11. Open questions
 
-- **OQ1** — text encoding: M3U/ID3 are UTF-8, PLEDIT renders Font 1 (GLCD, ASCII). Shared
-  transliterate-then-substitute helper; the Spotify path has the same latent bug today. Blocks row
-  rendering.
+- ~~**OQ1** — text encoding~~ — **RESOLVED 2026-08-11 (TASK-415)**. `app/src/util/asciiFold.h`,
+  `textfold::foldUtf8(in, out, n)`: one pass, no allocation, ASCII passes through; Latin-1
+  Supplement and Latin Extended-A fold to their base letters (`é`→`e`, `Æ`→`AE`, `ß`→`ss`,
+  `ł`→`l`); typographic punctuation substitutes (curly quotes, en/em dash, `…`→`...`, NBSP);
+  everything else — CJK, emoji, malformed or truncated UTF-8 — becomes one `?` **per codepoint**,
+  and control characters become spaces so a row can never smuggle a line break into the renderer.
+  Truncation is substitution-safe: a replacement that does not fit whole is not written at all.
+  Verified on the DUT through `get plFold <text>`, which is the shipped helper, not a copy of it.
+
+  Two decisions inside the resolution worth keeping: (a) the fold happens in the **source**, when
+  the row text is composed, not in the renderer — `PlRow::text` is defined as already-renderable,
+  so the contract change the open question warned about turned out to be no change at all;
+  (b) `LocalPlaylistSource` uses it, and **`SpotifyQueueSource` and `StationListSource` do not yet**.
+  The latent bug is real there (an accented artist name renders as two GLCD symbols today), but
+  retro-fitting it changes shipped pixels and would have to answer to TASK-411/412's pixel-identity
+  gate — a separate change with its own before/after, not a rider on this one. Tracked as TASK-428.
 - **OQ2** — PLEDIT button sprites (§5).
 - **OQ3** — playlist location and naming: `/playlists/*.m3u`, or alongside the media? Default name,
   auto-restore-last behaviour.

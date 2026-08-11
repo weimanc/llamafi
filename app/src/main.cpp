@@ -2874,6 +2874,8 @@ static void cmdSdWrite(const char *);
 static void cmdSdLs(const char *);
 static void cmdSdRead(const char *);
 static void cmdSdMbr(const char *);
+static void cmdSdMkdir(const char *);
+static void cmdSdPut(const char *);
 static void cmdHelp(const char *);
 static void cmdReboot(const char *);
 #endif
@@ -2901,6 +2903,8 @@ static const SerialCmd kCmds[] = {
   { "sdls", cmdSdLs, "TASK-408: list a directory with sizes", "[dir=/] [q=quiet | n=quiet,no stat]" },
   { "sdmbr", cmdSdMbr, "TASK-408: raw sector 0 / partition table / volume ID (no mount needed)", "" },
   { "sdread", cmdSdRead, "TASK-408: read-only benchmark against an existing file", "<reads> <path>" },
+  { "sdmkdir", cmdSdMkdir, "TASK-415: create a directory (test fixtures)", "<path>" },
+  { "sdput", cmdSdPut, "TASK-415: write/append <=90 B of base64 to a file (test fixtures)", "<w|a> <base64|-> <path>" },
   { "help",   cmdHelp,   "list commands",                   ""                                   },
   { "reboot", cmdReboot, "software reset (ESP.restart)",   ""                                   },
 #endif
@@ -3092,14 +3096,20 @@ static void cmdTap(const char *args) {
                     "\"hit\":\"PLANERADAR\",\"action\":\"%s\",\"skipped\":false}\n",
                     x, y, consumed ? "CONSUMED" : "NONE");
     } else if (currentAppId == AppId::LocalPlayer && g_apps[(int)AppId::LocalPlayer]) {
-      // TASK-414: LocalPlayer's only real interaction so far is the eject
-      // stub (file browser lands TASK-416) — same Press/Release dispatch
-      // shape as the other real-canvas apps above.
-      g_apps[(int)AppId::LocalPlayer]->handleInput(TouchPhase::Press, x, y);
-      bool consumed = g_apps[(int)AppId::LocalPlayer]->handleInput(TouchPhase::Release, x, y);
+      // TASK-415: same shape as the WebRadio branch below, and for the same
+      // reason — injectTouch() runs handleWinampInput()'s Press phase, which
+      // is what anchors a PLEDIT row tap in the shared PleditView. Without it
+      // the harness could reach eject and transport but never a row, and the
+      // real-touch path and cmdTap would be anchoring against different state
+      // (the TASK-406 defect class). The reply reports lastTouchResult so row
+      // taps are observable, not just CONSUMED/NONE.
+      winampDisplay.injectTouch(x, y);
+      g_apps[(int)AppId::LocalPlayer]->handleInput(TouchPhase::Release, x, y);
+      const auto &lp = winampDisplay.lastTouchResult;
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
-                    "\"hit\":\"LOCALPLAYER\",\"action\":\"%s\",\"skipped\":false}\n",
-                    x, y, consumed ? "CONSUMED" : "NONE");
+                    "\"hit\":\"%s\",\"row\":%d,\"action\":\"%s\",\"skipped\":%s}\n",
+                    x, y, lp.region, lp.transportPressed, lp.action,
+                    lp.skipped ? "true" : "false");
     } else if (currentAppId == AppId::WebRadio && g_apps[(int)AppId::WebRadio]) {
       // WebRadio: injectTouch populates lastTouchResult for the response;
       // WebRadioApp::handleInput executes the action (eject/transport/PLEDIT).
@@ -3653,6 +3663,33 @@ static void cmdGet(const char *args) {
                   pm, name);
     return;
   }
+  // ── TASK-415 / ADR-059 D12: LocalPlayer playlist observables ─────────────
+  // These read the app instance directly, not currentAppId, so a test can
+  // assert on a loaded playlist without the mode being on screen — same
+  // always-reachable contract as `get wrStation`. The index is only allocated
+  // while the mode is resumed, so the honest answer off-screen is count=0.
+  if (strcmp(args, "plCount") == 0) { g_LocalPlayerApp.dbgReport(); return; }
+  if (strcmp(args, "plMem")   == 0) { g_LocalPlayerApp.dbgMem();    return; }
+  if (strncmp(args, "plRow", 5) == 0 && (args[5] == '\0' || args[5] == ' ')) {
+    int idx = 0;
+    if (sscanf(args + 5, "%d", &idx) != 1 || idx < 0) {
+      Serial.println("{\"ok\":false,\"cmd\":\"get\",\"var\":\"plRow\","
+                     "\"error\":\"usage: get plRow <idx>\"}");
+      return;
+    }
+    g_LocalPlayerApp.dbgRow((uint16_t)idx);
+    return;
+  }
+  // OQ1 (design §11): the UTF-8 -> renderable-ASCII fold, testable without a
+  // card. Everything a PLEDIT row can contain goes through this one helper.
+  if (strncmp(args, "plFold", 6) == 0 && (args[6] == '\0' || args[6] == ' ')) {
+    const char *in = (args[6] == ' ') ? args + 7 : "";
+    char out[96];
+    textfold::foldUtf8(in, out, sizeof(out));
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"plFold\","
+                  "\"in\":\"%s\",\"out\":\"%s\",\"last\":true}\n", in, out);
+    return;
+  }
   if (strcmp(args, "kb") == 0) {
     // TASK-325 (M-SERIALDBG, VE-PRL-1 blocker): cheap KeyboardWidget state
     // dump for host assertions after kbText/kbOk/kbCancel — same diagnostic-
@@ -3903,6 +3940,36 @@ static void cmdSet(const char *args) {
     bool posted = aeConnectFile(path);
     Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"aePlayFile\",\"path\":\"%s\"}\n",
                   posted ? "true" : "false", path);
+    return;
+  }
+  // TASK-415: load an M3U into the Player mode's index. Special-cased against
+  // raw args for the same reason `set aePlayFile` is — real paths on this card
+  // carry spaces, which the %127s split below truncates at the first one.
+  // Persists as the last playlist, so a reboot into Player mode reopens it.
+  if (strncmp(args, "plLoad", 6) == 0 && (args[6] == '\0' || args[6] == ' ')) {
+    const char *path = (args[6] == ' ' && args[7] != '\0') ? args + 7 : "";
+    if (!*path) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"plLoad\","
+                     "\"error\":\"usage: set plLoad <path>\"}");
+      return;
+    }
+    const bool ok = g_LocalPlayerApp.dbgLoad(path);
+    Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"%s\"}\n",
+                  ok ? "true" : "false", path);
+    return;
+  }
+  // TASK-415: play a row by index — tap-to-play without needing the row's
+  // screen coordinates (which depend on the live scroll offset).
+  if (strncmp(args, "plPlay", 6) == 0 && (args[6] == '\0' || args[6] == ' ')) {
+    int idx = -1;
+    if (sscanf(args + 6, "%d", &idx) != 1 || idx < 0) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"plPlay\","
+                     "\"error\":\"usage: set plPlay <idx>\"}");
+      return;
+    }
+    const bool ok = g_LocalPlayerApp.dbgPlayRow((uint16_t)idx);
+    Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"plPlay\",\"idx\":%d}\n",
+                  ok ? "true" : "false", idx);
     return;
   }
   if (sscanf(args, "%31s %127s", var, val) != 2) {
@@ -4540,6 +4607,22 @@ static void sdProbeBootMount() {
   if (!s_sdReady && s_sdSpiUp) { s_sdSPI.end(); s_sdSpiUp = false; }
 }
 
+// TASK-415: the boot mount's outcome, for code outside this file (LocalPlayerApp
+// must degrade to "No SD card" rather than opening files against a dead mount).
+// A function, not an extern on s_sdReady, so the mount state stays owned here.
+//
+// NOTE: this whole SD block — including sdProbeBootMount()'s call in setup() —
+// is inside the file's `#ifdef SERIAL_DEBUG` region, because TASK-408 landed it
+// as bring-up tooling. So **production builds never mount the card**, and Player
+// mode degrades to "No SD card" there. That is deliberate for now, not an
+// oversight: an unconditional boot mount costs ~13 KB of permanently-held
+// contiguous internal heap (FATFS window + max_files × FIL), which sits right on
+// top of WebRadio's 40 KB TLS fetch guard and the Helix arena's 23 KB contiguous
+// need. Making it unconditional is an Architect call with a memory budget behind
+// it, not a side effect of this task — see TASK-427. The non-debug stub below
+// keeps that honest instead of failing to link.
+bool sdReady() { return s_sdReady; }
+
 static const char *sdCardTypeName(sdcard_type_t t) {
   switch (t) {
     case CARD_MMC:  return "MMC";
@@ -4688,6 +4771,68 @@ static void cmdSdCycle(const char *args) {
     esp_task_wdt_reset();
   }
   s_sdReady = (okCount == cycles);
+}
+
+// ── TASK-415: host → card file upload, for test fixtures ─────────────────────
+// `sdmkdir <path>` and `sdput <w|a> <base64> <path>` — the path comes LAST because
+// real paths on this card contain spaces and the args split does not quote.
+//
+// This exists because the M3U gate fixtures have to get onto the card somehow and
+// the alternative is a human with a card reader. It is test tooling, SERIAL_DEBUG
+// only, and it is emphatically NOT the "playlist persistence" that TASK-424 says
+// must not be built on this write path: each call is one open/write/close of <=108
+// bytes, which is the short-burst pattern that measurably works, and no product
+// feature depends on it. TASK-421's save path is still blocked on TASK-424.
+//
+// The 160-byte serial line buffer sets the chunk size: ~120 base64 characters, so
+// 90 bytes per call. app/tools/sd_put.py drives it.
+static void cmdSdMkdir(const char *args) {
+  if (!s_sdReady) { Serial.println("{\"ok\":false,\"cmd\":\"sdmkdir\",\"error\":\"not mounted\"}"); return; }
+  if (!args || !*args) { Serial.println("{\"ok\":false,\"cmd\":\"sdmkdir\",\"error\":\"usage: sdmkdir <path>\"}"); return; }
+  const bool existed = SD.exists(args);
+  const bool ok = existed || SD.mkdir(args);
+  Serial.printf("{\"ok\":%s,\"cmd\":\"sdmkdir\",\"path\":\"%s\",\"existed\":%s}\n",
+                ok ? "true" : "false", args, existed ? "true" : "false");
+}
+
+static void cmdSdPut(const char *args) {
+  if (!s_sdReady) { Serial.println("{\"ok\":false,\"cmd\":\"sdput\",\"error\":\"not mounted\"}"); return; }
+  char op = 0;
+  char b64[144];
+  if (!args || sscanf(args, "%c %143s", &op, b64) != 2 || (op != 'w' && op != 'a')) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdput\",\"error\":\"usage: sdput <w|a> <base64|-> <path>\"}");
+    return;
+  }
+  // Path is everything after the base64 field — spaces and all.
+  const char *p = strstr(args, b64);
+  const char *path = p ? p + strlen(b64) : nullptr;
+  while (path && *path == ' ') path++;
+  if (!path || !*path) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdput\",\"error\":\"missing path\"}");
+    return;
+  }
+  uint8_t bin[112];
+  size_t  olen = 0;
+  if (strcmp(b64, "-") != 0) {   // "-" = no payload (create/truncate only)
+    const int rc = mbedtls_base64_decode(bin, sizeof(bin), &olen,
+                                         (const unsigned char *)b64, strlen(b64));
+    if (rc != 0) {
+      Serial.printf("{\"ok\":false,\"cmd\":\"sdput\",\"error\":\"base64 decode rc=%d\"}\n", rc);
+      return;
+    }
+  }
+  File f = SD.open(path, op == 'w' ? FILE_WRITE : FILE_APPEND);
+  if (!f) {
+    Serial.printf("{\"ok\":false,\"cmd\":\"sdput\",\"error\":\"open failed\",\"path\":\"%s\"}\n", path);
+    return;
+  }
+  const size_t wrote = olen ? f.write(bin, olen) : 0;
+  f.flush();                 // size() reads the FIL, which is stale until the
+  const size_t total = f.size();   // write is pushed through — 0 B otherwise
+  f.close();
+  Serial.printf("{\"ok\":%s,\"cmd\":\"sdput\",\"op\":\"%c\",\"wrote\":%u,\"sizeB\":%u,\"path\":\"%s\"}\n",
+                (wrote == olen) ? "true" : "false", op,
+                (unsigned)wrote, (unsigned)total, path);
 }
 
 // Raw sector reader, below the FatFs layer, so a card that initialises over SPI but
@@ -5277,6 +5422,10 @@ static void cmdHelp(const char *) {
   Serial.println("]}");
 }
 
+#else   // !SERIAL_DEBUG
+// TASK-415: production builds compile no SD mount at all (see sdReady()'s note
+// above the debug definition). Same symbol, honest answer.
+bool sdReady() { return false; }
 #endif // SERIAL_DEBUG
 
 void loop()

@@ -13,7 +13,9 @@ T_WR_HEAP_01–04, T_WR_VOL_03, T_WR_TLS_01, T_WR_SPOTIFY_RESUME_01 (M-WEBRADIO)
 T_WR_VIS_01–03 (vu-002 / X043, M-WEBRADIO-REAL-VIS),
 T_WR_VIS_04/05 (vu-003 / X044, TASK-387, M-WEBRADIO-REAL-VIS-SPECTRUM),
 T_PR_01–06 (M-PLANERADAR, TASK-307),
-T_PLR_01–07 (M-PLAYER-STATE, TASK-413/414)
+T_PLR_01–07 (M-PLAYER-STATE, TASK-413/414),
+T_PLR_08–12 (M3U index model, TASK-415 — needs the SD fixtures from
+             app/tools/gen_playlist_fixtures.py copied onto the card)
 against a DUT flashed with cyd2usb_winamp_debug.
 T089 (production ELF symbol check) is a host build check — not run here.
 T095 (physical vs. synthetic calibration) requires --interactive (human at DUT).
@@ -64,6 +66,9 @@ _DUT_DRD_WINDOW_S   = 12.0
 # how long a storm boot gets to reach GOT_IP. Raise on stormy days (LL-096):
 #   DUT_WIFI_WAIT=120 ./run/test-targeted …
 _DUT_WIFI_WAIT_S    = float(os.environ.get("DUT_WIFI_WAIT", "25"))
+# Set by main() from --no-wifi (or NO_WIFI=1). Module-level because Dut's
+# readiness check runs inside __init__, before any per-run state exists.
+_NO_WIFI            = os.environ.get("NO_WIFI", "") == "1"
 _PORTAL_INDICATORS  = (
     "Forcing config mode", "configuring access point", "SpotifyDIY", "WiFiManager"
 )
@@ -176,6 +181,39 @@ class Dut:
             self._wait_for_ready(_recovery_attempt=1)
             return
         if not ip_seen:
+            if _NO_WIFI:
+                # Opt-in, never the default: a WiFi failure is a real result for
+                # every network-touching test, and silently proceeding would turn
+                # those into confusing downstream failures. Only pass --no-wifi for
+                # a suite that touches no network at all (the SD-backed T_PLR_08-12).
+                # "Do not require an IP" is not "do not wait for the DUT".
+                # setup()'s WiFi cascade runs before loop(), so the serial shell
+                # does not answer at all until the cascade gives up — proceeding
+                # straight to the tests just moves the failure to the first
+                # command. Poll for a live shell instead, then continue.
+                print("  [Dut] WiFi DOWN — continuing anyway (--no-wifi). Network tests "
+                      "in this run are not trustworthy. Waiting for the shell…", flush=True)
+                self.ser.timeout = 1.0
+                shell_up = False
+                shell_deadline = time.monotonic() + 90.0
+                while time.monotonic() < shell_deadline:
+                    self.ser.reset_input_buffer()
+                    self.ser.write(b"get heap\n"); self.ser.flush()
+                    probe_deadline = time.monotonic() + 3.0
+                    while time.monotonic() < probe_deadline:
+                        line = self.ser.readline().decode(errors="replace").strip()
+                        if '"var":"heap"' in line:
+                            shell_up = True
+                            break
+                    if shell_up:
+                        break
+                self.ser.timeout = orig_timeout
+                self.ser.reset_input_buffer()
+                if not shell_up:
+                    raise RuntimeError("DUT shell unresponsive for 90 s (--no-wifi) — "
+                                       "the boot cascade is still running or the DUT is wedged")
+                print("  [Dut] shell responsive — proceeding.", flush=True)
+                return
             self.ser.timeout = orig_timeout
             raise RuntimeError("DUT WiFi not connected — check serial output")
         # TASK-255 (M-WEBRADIO-NOPSRAM V0): variant-aware readiness. On the
@@ -204,18 +242,25 @@ class Dut:
         # shell responsive is "ready" here, same standard as the variant_off branch above.
         self.ser.reset_input_buffer()
         self.ser.write(b"get playerMode\n"); self.ser.flush()
-        player_mode_webradio = False
+        # TASK-415: Player counts here too. playerMode widened to three values and
+        # this check still named only WebRadio, so a device persisted in Player
+        # mode fell through to the 60 s Spotify-poll wait and then failed startup —
+        # Spotify is just as idle by design in Player mode as in WebRadio.
+        player_mode_offline = None
         deadline = time.monotonic() + 5.0
         while time.monotonic() < deadline:
             line = self.ser.readline().decode(errors="replace").strip()
             if '"var":"playerMode"' in line:
-                player_mode_webradio = '"name":"WebRadio"' in line
+                for name in ("WebRadio", "Player"):
+                    if f'"name":"{name}"' in line:
+                        player_mode_offline = name
                 break
-        if player_mode_webradio:
+        if player_mode_offline:
             time.sleep(0.5)
             self.ser.timeout = orig_timeout
             self.ser.reset_input_buffer()
-            print("  [Dut] DUT ready (playerMode=WebRadio — Spotify idle by design, poll wait skipped).", flush=True)
+            print(f"  [Dut] DUT ready (playerMode={player_mode_offline} — Spotify idle by "
+                  "design, poll wait skipped).", flush=True)
             return
         # Wait for first successful Spotify poll (ok 200) AND queue fetch completion.
         # 60s window covers backoff after a failed startup poll.
@@ -5006,6 +5051,357 @@ def t_plr_07(dut: Dut):
     pass_("T_PLR_07", "logo tap → TLS_RESET confirmed, unchanged from TASK-053f")
 
 
+# ── T_PLR_08–12 — M3U index model (TASK-415 / ADR-059 D3) ─────────────────────
+# The playlist is a RAM index over an SD-backed file: entries[] plus viewOrder/
+# playOrder permutations, with row text read on demand. These assert the load,
+# the resolution rules, the degradation behaviour and — the one that would ship
+# broken while looking fine — that the index is bounded and actually freed.
+#
+# FIXTURES: app/tools/gen_playlist_fixtures.py writes them; they must be copied
+# onto the card from a host reader (the device write path is TASK-424). Missing
+# fixtures SKIP rather than FAIL — that's a rig gap, not a defect.
+
+_PL_GATE   = "/playlists/gate100.m3u"
+_PL_RELPAR = "/playlists/relpar.m3u"
+_PL_REL    = "/mp3/rel.m3u"
+_PL_BAD    = "/playlists/bad.m3u"
+_PL_EMPTY  = "/playlists/empty.m3u"
+_PL_UTF8   = "/playlists/utf8.m3u"
+
+
+def _enter_player(dut: Dut, tid: str) -> bool:
+    """Leave the player slot, persist Player mode, tap back in (the restore path).
+    Tapping the slot while a player mode is already active CYCLES (T_PLR_01), so
+    the step-off is mandatory, not defensive.
+
+    Also suspends Spotify's background poll for the whole T_PLR_08-12 suite. None
+    of these tests touch the network, and the poll is not merely noise here: a
+    Spotify task stuck mid-HTTP parks loopTask inside tlsYield() for up to 150 s
+    (see T_PLR_09's note), which the harness sees as every command timing out.
+    Observed turning a green run amber twice on a flapping-AP day, 2026-08-11.
+    Restored by _leave_player()."""
+    dut.cmd("set bgPoll 0", timeout=3.0)
+    dut.cmd("set playerMode player", timeout=3.0)
+    if dut.cmd("get appId", timeout=3.0).get("name") in ("Spotify", "WebRadio", "LocalPlayer"):
+        if not _switch_to(dut, "Clock"):
+            _leave_player(dut)
+            skip(tid, "precondition: could not step off the player slot")
+            return False
+    dut.cmd("set playerMode player", timeout=3.0)
+    # Two attempts: the taskbar tap resolves against the CURRENT scroll offset,
+    # and a dropped `set tbScroll` leaves the tap landing on whichever app now
+    # occupies that slot (seen once as appId='PlaneRadar'). Re-anchoring and
+    # re-tapping costs a second and removes a whole class of false SKIPs.
+    name = None
+    for attempt in range(2):
+        _tb_set_offset(dut, 0)
+        dut.set_cooldown_zero()
+        x, y = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
+        dut.cmd(f"tap {x} {y}", timeout=5.0)
+        time.sleep(0.4)
+        name = dut.cmd("get appId", timeout=3.0).get("name")
+        if name == "LocalPlayer":
+            return True
+        # Landed somewhere else: step back off the player slot before retrying,
+        # or the next tap cycles the mode instead of restoring it.
+        if attempt == 0:
+            _switch_to(dut, "Clock")
+            dut.cmd("set playerMode player", timeout=3.0)
+    _leave_player(dut)
+    skip(tid, f"precondition: appId={name!r} (expected LocalPlayer, 2 attempts)")
+    return False
+
+
+def _leave_player(dut: Dut) -> None:
+    """Undo _enter_player()'s poll suspension. Every T_PLR_08-12 exit path calls
+    this — a suite that left bgPoll off would silently disarm Spotify for every
+    test that runs after it."""
+    dut.cmd("set bgPoll 1", timeout=3.0)
+
+
+def _pl_load(dut: Dut, path: str, timeout: float = 20.0) -> dict:
+    """`set plLoad <path>` then `get plCount`. Returns the plCount reply."""
+    dut.cmd(f"set plLoad {path}", timeout=timeout)
+    return dut.cmd("get plCount", timeout=8.0)
+
+
+def t_plr_08(dut: Dut):
+    """T_PLR_08: a >=100-track M3U loads, count is exact, load time recorded."""
+    print("T_PLR_08  >=100-track M3U loads (count exact, load time recorded)")
+    if not _enter_player(dut, "T_PLR_08"):
+        return
+    r = _pl_load(dut, _PL_GATE)
+    if r.get("count", 0) == 0:
+        _leave_player(dut)
+        skip("T_PLR_08", f"fixture {_PL_GATE} not on the card (gen_playlist_fixtures.py) — reply={r}")
+        return
+    if r.get("count") != 120:
+        _leave_player(dut)
+        fail("T_PLR_08", f"count={r.get('count')} (expected 120) truncated={r.get('truncated')}")
+        return
+    if r.get("truncated"):
+        _leave_player(dut)
+        fail("T_PLR_08", "index reports truncated at 120 entries — PL_MAX_ENTRIES is 256")
+        return
+    # Spot-check the last row: an off-by-one in the record scan shows up here,
+    # not in the count.
+    last = dut.cmd(f"get plRow {r['count'] - 1}", timeout=8.0)
+    if not last.get("ok") or "(120)" not in last.get("text", ""):
+        _leave_player(dut)
+        fail("T_PLR_08", f"last row text={last.get('text')!r} (expected the '(120)' entry)")
+        return
+    _leave_player(dut)
+    pass_("T_PLR_08", f"120 entries in {r.get('loadMs')} ms, totalSec={r.get('totalSec')}, "
+                      f"last row={last.get('text')!r}")
+
+
+def t_plr_09(dut: Dut):
+    """T_PLR_09: scroll the list end to end while a track plays — no stall, no
+    reboot, playback survives. The short end of the same risk T_PLR_13/39 attack
+    at longer durations (loopTask SD I/O starving the audio pump)."""
+    print("T_PLR_09  Scroll end to end during playback")
+    if not _enter_player(dut, "T_PLR_09"):
+        return
+    r = _pl_load(dut, _PL_GATE)
+    if r.get("count", 0) < 100:
+        _leave_player(dut)
+        skip("T_PLR_09", f"fixture {_PL_GATE} missing or short (count={r.get('count')})")
+        return
+    # Spotify's background poll must be off for any test that starts playback.
+    # aeConnectFile() calls spotifyTask::tlsYield(), which blocks the CALLING task
+    # (loopTask) until the Spotify task acks — up to 150 s if that task is stuck
+    # mid-HTTP. It feeds the TWDT, so the DUT does not crash; it just goes
+    # completely silent and every later test in the run times out. Observed
+    # 2026-08-11 against a wedged queue GET (the TASK-243 403 makes this likely).
+    dut.cmd("set bgPoll 0", timeout=3.0)
+    dut.cmd("set plPlay 0", timeout=8.0)
+    # connecttoFS + first decode: give the pump task a real window before judging.
+    playing = False
+    deadline = time.monotonic() + 15.0
+    while time.monotonic() < deadline:
+        time.sleep(1.0)
+        if dut.cmd("get plCount", timeout=5.0).get("playing"):
+            playing = True
+            break
+    if not playing:
+        dut.cmd("set bgPoll 1", timeout=3.0)
+        _leave_player(dut)
+        skip("T_PLR_09", "track never reached playing=true — audio precondition failed, "
+                         "not a scroll result (check the card's /mp3 files)")
+        return
+    xu, yu, xu2, yu2 = _c.pledit_swipe("up")
+    worst_gap = 0.0
+    for i in range(12):                      # 12 swipes ≈ the full 120-row list
+        t0 = time.monotonic()
+        if _do_drag(dut, xu, yu, xu2, yu2, steps=20, timeout=20.0) is None:
+            dut.cmd("set bgPoll 1", timeout=3.0)
+            _leave_player(dut)
+            fail("T_PLR_09", f"DUT stopped responding on swipe {i + 1} — drag timeout")
+            return
+        worst_gap = max(worst_gap, time.monotonic() - t0)
+    off = _get_scroll(dut)
+    still = dut.cmd("get plCount", timeout=5.0)
+    if not still.get("ok"):
+        _leave_player(dut)
+        fail("T_PLR_09", "DUT unresponsive after the scroll sweep")
+        return
+    if not still.get("playing"):
+        _leave_player(dut)
+        fail("T_PLR_09", f"playback stopped during the scroll sweep (scrollOffset={off})")
+        return
+    if not off:
+        _leave_player(dut)
+        fail("T_PLR_09", f"scrollOffset={off} after 12 up-swipes — the list did not scroll")
+        return
+    dut.cmd("set plPlay 0", timeout=5.0)     # leave a defined state
+    dut.cmd("set bgPoll 1", timeout=3.0)
+    _leave_player(dut)
+    pass_("T_PLR_09", f"scrolled to offset {off} over 12 swipes, still playing; "
+                      f"worst swipe round-trip {worst_gap:.1f}s")
+
+
+def t_plr_10(dut: Dut):
+    """T_PLR_10: relative paths resolve against the PLAYLIST's directory, not the
+    root and not the current working directory (there isn't one)."""
+    print("T_PLR_10  Relative paths resolve against the playlist directory")
+    if not _enter_player(dut, "T_PLR_10"):
+        return
+    errors = []
+
+    dut.cmd("set bgPoll 0", timeout=3.0)   # see T_PLR_09's note on tlsYield
+    r = _pl_load(dut, _PL_REL)
+    if r.get("count", 0) == 0:
+        dut.cmd("set bgPoll 1", timeout=3.0)
+        _leave_player(dut)
+        skip("T_PLR_10", f"fixture {_PL_REL} not on the card (gen_playlist_fixtures.py)")
+        return
+    row0 = dut.cmd("get plRow 0", timeout=8.0)       # bare "name.mp3"
+    row4 = dut.cmd("get plRow 4", timeout=8.0)       # "./name.mp3"
+    if row0.get("path") != "/mp3/01 - Tomorrow Comes Today.mp3":
+        errors.append(f"bare relative resolved to {row0.get('path')!r}")
+    if not str(row4.get("path", "")).startswith("/mp3/") or "./" in str(row4.get("path", "")):
+        errors.append(f"'./' relative resolved to {row4.get('path')!r}")
+
+    r2 = _pl_load(dut, _PL_RELPAR)
+    if r2.get("count", 0) == 0:
+        errors.append(f"fixture {_PL_RELPAR} not on the card")
+    else:
+        rp = dut.cmd("get plRow 0", timeout=8.0)
+        if rp.get("path") != "/mp3/01 - Tomorrow Comes Today.mp3":
+            errors.append(f"'../' relative resolved to {rp.get('path')!r} "
+                          "(expected the COLLAPSED /mp3/... — the FATFS VFS does not "
+                          "resolve '..' itself; measured on the DUT, T_PLR_10 2026-08-11)")
+
+    # Resolution is only half of it: a collapsed path must actually OPEN. Prove
+    # that by loading a playlist THROUGH a '..' path rather than by playing a
+    # track — SD.open() is the same syscall either way, and routing the proof
+    # through the audio engine makes the test fail whenever the Helix arena
+    # cannot get its 24 KB contiguous (observed with WiFi + TLS resident: the
+    # decoder alloc fails, which says nothing about path resolution).
+    r3 = _pl_load(dut, "/mp3/../playlists/gate100.m3u")
+    if r3.get("count", 0) != 120:
+        errors.append(f"opening through a '..' path failed: count={r3.get('count')} "
+                      f"error={r3.get('error')} (expected the 120-entry fixture)")
+    if errors:
+        _leave_player(dut)
+        fail("T_PLR_10", "; ".join(errors))
+        return
+    _leave_player(dut)
+    pass_("T_PLR_10", "bare, './' and '../' relative paths all resolve against the playlist dir")
+
+
+def t_plr_11(dut: Dut):
+    """T_PLR_11: malformed input degrades — BOM, CRLF, missing/garbage #EXTINF,
+    stray directives, a trailing record with no path line, and an empty file.
+    Loads what it can, never crashes, and the UTF-8 fold (design OQ1) is applied
+    to row text."""
+    print("T_PLR_11  Malformed M3U degrades (BOM/CRLF/no-EXTINF/truncated/empty) + UTF-8 fold")
+    if not _enter_player(dut, "T_PLR_11"):
+        return
+    errors = []
+
+    r = _pl_load(dut, _PL_BAD)
+    if r.get("count", 0) == 0 and not r.get("ok"):
+        _leave_player(dut)
+        skip("T_PLR_11", f"fixture {_PL_BAD} not on the card (gen_playlist_fixtures.py)")
+        return
+    if r.get("count") != 8:
+        errors.append(f"bad.m3u count={r.get('count')} (expected 8 — the trailing "
+                      "#EXTINF with no path line must NOT produce an entry)")
+    rows = {i: dut.cmd(f"get plRow {i}", timeout=8.0) for i in range(min(8, r.get("count", 0)))}
+    checks = [
+        (0, "Gorillaz - Tomorrow Comes Today", 192, "normal record"),
+        (1, "02 - Clint Eastwood", 0, "no #EXTINF -> basename, no duration"),
+        (2, "Unknown duration", 0, "#EXTINF:-1 -> duration 0"),
+        (3, "Junk duration", 0, "unparsable duration -> 0"),
+        # `#EXTINF:222` — a duration with no ",title". The duration is real and
+        # is kept; only the text falls back to the basename. (This expectation
+        # was wrong on the first gate run: it demanded durSec 0, i.e. that a
+        # malformed *title* discard a perfectly good duration.)
+        (4, "05 - Feel Good Inc", 222, "#EXTINF with no comma -> basename, duration kept"),
+        (5, "Gorillaz - DARE", 246, "directive between #EXTINF and path"),
+    ]
+    for idx, want_text, want_dur, why in checks:
+        got = rows.get(idx, {})
+        if got.get("text") != want_text:
+            errors.append(f"row {idx} text={got.get('text')!r} expected {want_text!r} ({why})")
+        if got.get("durSec") != want_dur:
+            errors.append(f"row {idx} durSec={got.get('durSec')} expected {want_dur} ({why})")
+    if 7 in rows and rows[7].get("path") != "/mp3/07 - Dirty Harry.mp3":
+        errors.append(f"row 7 path={rows[7].get('path')!r} — leading/trailing spaces not trimmed")
+
+    r_empty = _pl_load(dut, _PL_EMPTY)
+    if r_empty.get("count") != 0:
+        errors.append(f"empty.m3u count={r_empty.get('count')} (expected 0)")
+
+    r_utf8 = _pl_load(dut, _PL_UTF8)
+    if r_utf8.get("count", 0) == 0:
+        errors.append(f"fixture {_PL_UTF8} not on the card")
+    else:
+        folded = {0: "Bjork - Joga", 1: "Sigur Ros - Saeglopur",
+                  2: "Antonin Dvorak - Symphony No. 9", 3: "Motorhead - Ace of Spades"}
+        for idx, want in folded.items():
+            got = dut.cmd(f"get plRow {idx}", timeout=8.0).get("text")
+            if got != want:
+                errors.append(f"fold: row {idx} text={got!r} expected {want!r}")
+        cjk = dut.cmd("get plRow 7", timeout=8.0).get("text", "")
+        if not cjk.startswith("????"):
+            errors.append(f"fold: CJK row text={cjk!r} (expected '?' per codepoint)")
+
+    # Still alive after all of it — the whole point of "degrades".
+    if not dut.cmd("get plMem", timeout=5.0).get("ok"):
+        errors.append("DUT unresponsive after the malformed-input sweep")
+    if errors:
+        _leave_player(dut)
+        fail("T_PLR_11", "; ".join(errors))
+        return
+    _leave_player(dut)
+    pass_("T_PLR_11", "8/8 malformed-input cases degraded correctly; empty file loads to 0; "
+                      "UTF-8 folded to ASCII")
+
+
+def t_plr_12(dut: Dut):
+    """T_PLR_12: the index is bounded and freed. Heap AND largest-free-block are
+    both reported (VE-15) — a clean free-heap figure hides fragmentation, which
+    is the real risk for a 3 KB allocation taken and returned every mode switch."""
+    print("T_PLR_12  Index memory bounded (<=5.2 KB) and returned on suspend (+/-256 B)")
+    if not _enter_player(dut, "T_PLR_12"):
+        return
+    # Baseline with the index NOT allocated: step off the mode entirely.
+    if not _switch_to(dut, "Clock"):
+        _leave_player(dut)
+        skip("T_PLR_12", "precondition: could not switch to Clock for the baseline")
+        return
+    time.sleep(0.5)
+    base = dut.cmd("get plMem", timeout=5.0)
+    if base.get("allocated"):
+        _leave_player(dut)
+        fail("T_PLR_12", "index still allocated after leaving Player mode — suspend() did not free")
+        return
+    if not _enter_player(dut, "T_PLR_12"):
+        return
+    time.sleep(0.5)
+    entered = dut.cmd("get plMem", timeout=5.0)
+    loaded = _pl_load(dut, _PL_GATE)
+    peak = dut.cmd("get plMem", timeout=5.0)     # handle still open
+    # The playlist File is dropped 1.5 s after the last row read (an open handle
+    # is ~4.4 KB of stdio buffer, not index memory) — measure the resting cost,
+    # and report the open-handle peak alongside it.
+    time.sleep(3.0)
+    after = dut.cmd("get plMem", timeout=5.0)
+    if not _switch_to(dut, "Clock"):
+        _leave_player(dut)
+        skip("T_PLR_12", "could not leave Player mode for the free measurement")
+        return
+    time.sleep(0.5)
+    freed = dut.cmd("get plMem", timeout=5.0)
+
+    d_enter = base["freeHeap"] - entered["freeHeap"]
+    d_load  = base["freeHeap"] - after["freeHeap"]
+    d_free  = base["freeHeap"] - freed["freeHeap"]
+    errors = []
+    if freed.get("allocated"):
+        errors.append("index still allocated after suspend")
+    d_peak = base["freeHeap"] - peak["freeHeap"]
+    if d_load > 5324:                       # 5.2 KB
+        errors.append(f"load delta {d_load} B exceeds the 5.2 KB budget")
+    if abs(d_free) > 256:
+        errors.append(f"heap did not return to baseline: {d_free:+d} B (limit +/-256)")
+    if loaded.get("count", 0) == 0:
+        errors.append(f"fixture {_PL_GATE} not on the card — the delta above is index-only, "
+                      "not index+rowcache under load")
+    if errors:
+        _leave_player(dut)
+        fail("T_PLR_12", f"{'; '.join(errors)} | resume={d_enter}B load={d_load}B "
+                         f"residual={d_free:+d}B lfb {base['largestBlock']}->{freed['largestBlock']}")
+        return
+    _leave_player(dut)
+    pass_("T_PLR_12", f"resume +{d_enter} B, loaded ({loaded.get('count')} rows) +{d_load} B "
+                      f"(peak with the file open +{d_peak} B), "
+                      f"residual {d_free:+d} B; largest-free-block "
+                      f"{base['largestBlock']} -> {after['largestBlock']} -> {freed['largestBlock']}")
+
+
 # ── stock-002 suite (TASK-120) ────────────────────────────────────────────────
 # Tests the heatmap sub-view, navigation, fetch-gate, and chartSymbol guard.
 #
@@ -8376,6 +8772,12 @@ ALL_TESTS = {
     "T_PLR_05": t_plr_05,
     "T_PLR_06": t_plr_06,
     "T_PLR_07": t_plr_07,
+    # M3U index model (TASK-415 / ADR-059 D3)
+    "T_PLR_08": t_plr_08,
+    "T_PLR_09": t_plr_09,
+    "T_PLR_10": t_plr_10,
+    "T_PLR_11": t_plr_11,
+    "T_PLR_12": t_plr_12,
     # velocity-scroll-001 WebRadio variant (TASK-412 / T_PLE_08)
     "T_PLE_WR_155": t_ple_wr_155,
     "T_PLE_WR_156": t_ple_wr_156,
@@ -8492,6 +8894,9 @@ def main():
     default_tests = ",".join(k for k in ALL_TESTS if k not in _interactive_tests)
     p.add_argument("--tests", default=default_tests,
                    help="comma-separated test IDs, e.g. T080,T083,T084")
+    p.add_argument("--no-wifi", action="store_true",
+                   help="proceed even if the DUT never gets an IP. Only for suites that "
+                        "touch no network (e.g. the SD-backed T_PLR_08-12).")
     p.add_argument("--log-file", default=None,
                    help="append every raw serial line (JSON responses AND bare "
                         "LOG_D/LOG_W lines) to this file — for diagnosing "
@@ -8506,6 +8911,9 @@ def main():
     print(f"Connecting to {args.port} @ {args.baud}…")
     if args.log_file:
         print(f"Raw serial log: {args.log_file}")
+    if args.no_wifi:
+        global _NO_WIFI
+        _NO_WIFI = True
     dut = Dut(args.port, args.baud, timeout=args.timeout, log_file=args.log_file)
     # Warmup ping: flush any residual DUT serial output before first test.
     try:

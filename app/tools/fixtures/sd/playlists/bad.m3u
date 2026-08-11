@@ -1,0 +1,20 @@
+﻿#EXTM3U
+# a plain comment, not a directive
+
+#EXTINF:192,Gorillaz - Tomorrow Comes Today
+/mp3/01 - Tomorrow Comes Today.mp3
+/mp3/02 - Clint Eastwood.mp3
+#EXTINF:-1,Unknown duration
+/mp3/03 - 19-2000.mp3
+#EXTINF:not-a-number,Junk duration
+/mp3/04 - Rock The House.mp3
+#EXTINF:222
+/mp3/05 - Feel Good Inc.mp3
+#EXTGRP:something we ignore
+#EXTINF:246,Gorillaz - DARE
+#EXTVLCOPT:no-video
+/mp3/06 - DARE.mp3
+#EXTINF:231,Missing File
+/mp3/this-file-does-not-exist.mp3
+   /mp3/07 - Dirty Harry.mp3   
+#EXTINF:999,Truncated - no path line follows

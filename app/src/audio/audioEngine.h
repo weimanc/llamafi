@@ -142,10 +142,19 @@ void audio_eof_mp3(const char *info) {
 // TASK-410 scope is a single hardcoded file, so there is no next track to
 // open yet; this just proves the hook fires without deadlocking (T_AE_10).
 // Auto-advance is TASK-413+'s job, landing inside this same drain point.
+// TASK-415: monotonic count of drained end-of-file events. LocalPlayerApp
+// polls it to notice "the track finished" without owning the eof flag itself
+// (the flag is engine state and must stay single-drain — two consumers racing
+// to clear it is how an auto-advance silently skips a track). TASK-418's
+// auto-advance hangs off the same drain point, not off a second flag.
+static uint32_t s_aeEofCount = 0;
+static inline uint32_t aeEofCount() { return s_aeEofCount; }
+
 static void aeDrainEof() {
     configASSERT(xTaskGetCurrentTaskHandle() == g_loopTaskHandle);
     if (!s_aeEofPending) return;
     s_aeEofPending = false;
+    s_aeEofCount++;
     LOG_I("audioengine", "eof drained on loopTask (no auto-advance wired yet)");
     if (s_aeSpotifyYielded) {
         spotifyTask::tlsResume();
@@ -579,4 +588,54 @@ static bool aeConnectFile(const char* path) {
     s_wrPumpConnectKind = WrConnectKind::FILE;
     s_wrPumpRequest = WrPumpRequest::CONNECT;
     return true;
+}
+
+// TASK-415: stop the FILE arm without tearing the engine down — the transport
+// STOP button and "the user tapped another row" path. Deliberately the same
+// shape as WebRadioApp::_stopAudio()'s non-CONNECTING branch (control call
+// under the engine mutex, pump task left alive), because the two arms share
+// one Audio object and one pump: a divergent stop here would be a second,
+// subtly different teardown ordering for the same hardware.
+//
+// `connecting` is the caller's own "a CONNECT is still in flight" state — the
+// engine does not track WRPlayState. In that case nothing is playing at the
+// codec level yet, and taking the mutex would block loopTask for the connect's
+// full remaining duration (TASK-398's freeze), so post ABORT and let the
+// caller's result poll reconcile. TEARDOWN is never downgraded.
+static void aeStopFile(bool connecting) {
+    if (connecting) {
+        if (wrPumpAlive() && s_wrPumpRequest != WrPumpRequest::TEARDOWN)
+            s_wrPumpRequest = WrPumpRequest::ABORT;
+        return;
+    }
+    if (s_wr_audio) {
+        xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
+        s_wr_audio->stopSong();
+        xSemaphoreGive(s_wrAudioMutex);
+    }
+    if (s_aeSpotifyYielded) {
+        spotifyTask::tlsResume();
+        s_aeSpotifyYielded = false;
+    }
+}
+
+// TASK-415: full release of the engine for the FILE arm — pump task, then the
+// Audio object, then the arena, in that order (TASK-278's teardown ordering;
+// the decoder buffers live IN the arena, so ~Audio must run while the arena is
+// still valid). Mirrors WebRadioApp::suspend()'s teardown block for the same
+// reason aeStopFile() mirrors _stopAudio(): one engine, one ordering.
+//
+// `connecting`: hand the teardown to the pump task instead of blocking
+// loopTask on the in-flight connect (TASK-398).
+static void aeTeardownFile(bool connecting) {
+    aeStopFile(connecting);
+    if (connecting) {
+        if (wrPumpAlive()) s_wrPumpRequest = WrPumpRequest::TEARDOWN;
+        return;
+    }
+#ifdef MEMBUDGET_PHASE1
+    wrTeardownPumpTask();
+    if (s_wr_audio) { delete s_wr_audio; s_wr_audio = nullptr; }
+    mb_arena_release();
+#endif
 }

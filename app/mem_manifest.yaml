@@ -27,6 +27,21 @@ buffers:
   # exclusive (dataTask is serial + Stock/Crypto are foreground), result copied to a separate
   # struct so the doc is pure scratch. (aquarium_strip deferred — TFT_eSprite has no external-
   # buffer API → needs a TFT_eSPI fork; see TASK-270.)
+  # TASK-415 (ADR-059 D3): the playlist index — one immutable entries[] plus the
+  # viewOrder/playOrder permutations, and the on-demand row-text cache. Acquired
+  # in LocalPlayerApp::resume(), freed in suspend(), so it is placement:runtime
+  # like WebRadio's decoder rather than statically placed: the debug build has
+  # no static-BSS headroom for a global app instance's members, and a
+  # compiled-in-but-never-entered Player mode must cost nothing but flash.
+  # Sizes are exact (m3u.h: PL_MAX_ENTRIES=256, PL_TEXT_CACHE=8).
+  - { name: player_index,     app: LocalPlayer, caps: INTERNAL, group: foreground, size: 3072, kind: scratch, placement: runtime }
+  # 256*8 entries[] + 256*2 viewOrder[] + 256*2 playOrder[]
+  - { name: player_rowcache,  app: LocalPlayer, caps: INTERNAL, group: foreground, size: 544,  kind: scratch, placement: runtime }
+  # 8 * sizeof(CacheRow{uint16 id; bool valid; char text[64]}) = 8 * 68
+  # NOT registered: the 16x96 B staging arena the design budgets for not-yet-
+  # written additions. Nothing can stage an entry until TASK-420 adds edit mode,
+  # and budgeting 1 536 B that is never allocated overstates the foreground
+  # figure the same way webradio_stations_doc is documented to.
   - { name: heatmap_doc,      app: Stock,    caps: ANY,      group: foreground, size: 2560,  kind: scratch }
   # dataTaskStorage.cpp:616 — static DynamicJsonDocument s_heatmapDoc(2560); result → s_heatmapResult
   - { name: crypto_doc,       app: Crypto,   caps: ANY,      group: foreground, size: 2048,  kind: scratch }

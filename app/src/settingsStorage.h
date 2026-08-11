@@ -119,7 +119,11 @@ struct AppSettings {
     // The Winamp "player" slot is one slot with two mutually-exclusive modes. Persisted
     // so the taskbar player-slot restore + Settings display + cold-boot survive a reboot.
     // Stored as uint8_t (PlayerMode). v2 (OQ-BOOT): boot enters the persisted mode.
-    uint8_t playerMode;      // PlayerMode: Spotify=0 | WebRadio=1
+    uint8_t playerMode;      // PlayerMode: Spotify=0 | WebRadio=1 | Player=2 (TASK-413)
+    // TASK-415 (ADR-059 D3, design §10 resume step 3): the M3U the Player mode
+    // reopens on entry. Absolute SD path; empty = nothing loaded yet. Written
+    // by `set plLoad` today and by the file browser from TASK-416.
+    char    playerPlaylist[64];
 
     // --- Teletext (ADR-044) ---
     uint16_t teletextPage;        // starting page on resume (default 101)
