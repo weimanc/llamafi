@@ -1,8 +1,22 @@
 #!/usr/bin/env bash
-# run/monitor-read — dump last N lines from tmux monitor pane
-# Usage: ./run/monitor-read [lines]   (default 200)
+# run/monitor-read — dump last N lines of serial output (default 200)
+# Usage: ./run/monitor-read [lines]
+#        PANE=1 ./run/monitor-read [lines]   (force the tmux pane, ignore disk log)
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 N="${1:-200}"
+MONITOR_LOG="${MONITOR_LOG:-/tmp/spotify-mon-serial.log}"
+
+# LL-128: prefer the disk log. The tmux pane holds whatever fits in its
+# creation-time history-limit (2000 lines on this box, and the debug builds
+# wrap that fast); the log written by run/monitor-start's pipe-pane is bounded
+# by disk and survives the session being killed by every run/flash* and
+# run/test*. A user reporting a symptom minutes later — TASK-437 — needs the
+# window to outlive both.
+if [ "${PANE:-0}" != "1" ] && [ -s "$MONITOR_LOG" ]; then
+  tail -n "$N" "$MONITOR_LOG"
+  exit 0
+fi
+
 tmux capture-pane -t "$SESSION" -p -S "-$N" 2>/dev/null \
-  || { echo "ERROR: session '$SESSION' not running" >&2; exit 1; }
+  || { echo "ERROR: session '$SESSION' not running and no disk log at $MONITOR_LOG" >&2; exit 1; }

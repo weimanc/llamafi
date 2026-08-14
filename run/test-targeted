@@ -28,6 +28,17 @@ _cleanup() {
   tmux new-session -d -s "$SESSION" \
     "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'" \
     2>/dev/null || true
+  # TASK-434 item 1: the harness exits SETUP_FAIL_EXIT (3) for a RIG condition —
+  # WiFi never came up, wrong firmware flashed, port busy. Re-state it AFTER the
+  # prod restore, because the restore's flash output is the last thing in the log
+  # and a reader who greps for PASS/FAIL finds neither. Note rc is deliberately
+  # read after the restore block: a restore failure overwrites it with 99, and in
+  # that case this line is the only surviving evidence that no tests ever ran.
+  if [ "$rc" = "3" ] || [ "$_TEST_RC" = "3" ]; then
+    echo ""
+    echo "[SETUP-FAIL] rig condition — NO TESTS RAN. This is not a test failure."
+    echo "             See the [SETUP-FAIL] block and serial tail above the restore output."
+  fi
   exit "$rc"
 }
 trap _cleanup EXIT INT TERM

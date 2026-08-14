@@ -1,10 +1,41 @@
 #!/usr/bin/env bash
 # run/monitor-start — start detached tmux serial monitor
 # Usage: ./run/monitor-start
+#        MONITOR_LOG=/path/to/serial.log ./run/monitor-start
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 PORT=$(resolve_port)
+
+# LL-128: the evidence window used to be whatever fitted in the default tmux
+# pane scrollback — measured at ~167 lines on 2026-08-14, which the debug
+# builds wrap in well under a minute. A user reporting a symptom minutes after
+# it happened (TASK-437) found the deciding [wifi-ev] line already gone, and
+# the investigation could not be completed at all. Two sinks now:
+#   * a disk log — bounded by disk, not by pane scrollback, and it survives the
+#     session being killed by run/flash* and run/test* (which happens
+#     constantly). run/monitor-read prefers it automatically.
+#   * a session history-limit bump, best-effort — see the note at the set below
+#     for why it is not the load-bearing half.
+MONITOR_HISTORY="${MONITOR_HISTORY:-50000}"
+MONITOR_LOG="${MONITOR_LOG:-/tmp/spotify-mon-serial.log}"
+
 tmux kill-session -t "$SESSION" 2>/dev/null || true
+
 tmux new-session -d -s "$SESSION" \
   "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'"
+# Session-scoped only, and deliberately NOT relied upon: pane capacity is fixed
+# at creation, and on this box killing the last session kills the tmux server,
+# so a global-set-then-create dance raced the server restart and left the pane
+# at the 2000 default anyway (measured, several ways round). The disk log below
+# is what actually delivers the deep window; this just helps any pane created
+# later in this session and costs nothing.
+tmux set-option -t "$SESSION" history-limit "$MONITOR_HISTORY" >/dev/null 2>&1 || true
+
+# pipe-pane appends everything the pane renders to the log. Deliberately
+# append (-o … >>): consecutive monitor sessions across a flash cycle stay in
+# one timeline, which is the whole point when the symptom predates the flash.
+tmux pipe-pane -o -t "$SESSION" "cat >> '$MONITOR_LOG'" 2>/dev/null || \
+  echo "WARN [monitor-start]: pipe-pane failed — disk log not running" >&2
+
 echo "[monitor-start] session '$SESSION' started on $PORT"
+echo "[monitor-start] disk log $MONITOR_LOG (run/monitor-read reads it)"

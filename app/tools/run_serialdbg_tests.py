@@ -39,6 +39,7 @@ M-MULTIAPP changes WINDOW_W (no literal edits required in this file).
 import argparse
 from contextlib import contextmanager
 import json
+import collections
 import os
 import pathlib
 import re
@@ -66,31 +67,72 @@ _DUT_DRD_WINDOW_S   = 12.0
 # how long a storm boot gets to reach GOT_IP. Raise on stormy days (LL-096):
 #   DUT_WIFI_WAIT=120 ./run/test-targeted …
 _DUT_WIFI_WAIT_S    = float(os.environ.get("DUT_WIFI_WAIT", "25"))
+# TASK-434 item 2: the ONE bounded extension, on the same boot. Sized so the
+# total (25 + 75 = 100 s) clears wifiDiag's WIFI_SUP_DOWN_MS = 60 s — the
+# supervisor's first kick, the mechanism that actually recovers a dead-candidate
+# wedge (TASK-426), cannot fire within the 25 s default at all.
+_DUT_WIFI_WAIT_2_S  = float(os.environ.get("DUT_WIFI_WAIT_2", "75"))
 # Set by main() from --no-wifi (or NO_WIFI=1). Module-level because Dut's
 # readiness check runs inside __init__, before any per-run state exists.
 _NO_WIFI            = os.environ.get("NO_WIFI", "") == "1"
 _PORTAL_INDICATORS  = (
     "Forcing config mode", "configuring access point", "SpotifyDIY", "WiFiManager"
 )
+# TASK-434 item 4: how many raw serial lines to keep for the abort dump. Kept
+# unconditionally, not only under --log-file: the sessions that hit a setup
+# failure are exactly the ones running without a log file, and "check serial
+# output" names a stream the harness has just closed.
+_SETUP_FAIL_TAIL_LINES = 40
+# TASK-434 item 1 / VE answer 1: exit status for a RIG condition, distinct from
+# a test failure. Verified free across run/test, run/test-targeted, run/test-sync
+# (test-smoke execs test-targeted) — none of them branch on a specific value.
+SETUP_FAIL_EXIT = 3
+
+
+class SetupFailure(RuntimeError):
+    """A rig condition, not a test result.
+
+    Subclasses RuntimeError deliberately: every existing `except RuntimeError`
+    around Dut construction in the other app/tools/ runners keeps working
+    unchanged, while main() can catch this specifically and exit with
+    SETUP_FAIL_EXIT instead of the bare traceback that TASK-434 documents
+    three misreads from. `reason` is the machine-greppable slug."""
+
+    def __init__(self, reason: str, message: str):
+        super().__init__(message)
+        self.reason = reason
 
 
 class _TeeSerial:
-    """Wraps a pyserial Serial to also append every readline() line (JSON
-    responses and bare LOG_D/LOG_W lines alike — everything the harness's own
-    parsing normally discards) to a plain-text file. Delegates everything
-    else to the wrapped object unchanged."""
+    """Wraps a pyserial Serial to observe every readline() line (JSON responses
+    and bare LOG_D/LOG_W lines alike — everything the harness's own parsing
+    normally discards). Delegates everything else to the wrapped object
+    unchanged.
 
-    def __init__(self, ser, log_path: str):
+    Two sinks, independently optional:
+      * `log_path` — append to a plain-text file (the pre-existing --log-file).
+      * ring buffer — the last _SETUP_FAIL_TAIL_LINES lines, always kept
+        (TASK-434 item 4). Costs a bounded deque and buys the abort dump for
+        runs that had no log file, which is most of the ones that abort."""
+
+    def __init__(self, ser, log_path: Optional[str] = None):
         self._ser = ser
-        self._log = open(log_path, "a", buffering=1)
+        self._log = open(log_path, "a", buffering=1) if log_path else None
+        self._ring = collections.deque(maxlen=_SETUP_FAIL_TAIL_LINES)
 
     def readline(self, *a, **kw):
         line = self._ser.readline(*a, **kw)
         if line:
-            self._log.write(line.decode(errors="replace"))
-            if not line.endswith(b"\n"):
-                self._log.write("\n")
+            text = line.decode(errors="replace")
+            self._ring.append(text.rstrip("\n"))
+            if self._log:
+                self._log.write(text)
+                if not line.endswith(b"\n"):
+                    self._log.write("\n")
         return line
+
+    def tail(self):
+        return list(self._ring)
 
     def __getattr__(self, name):
         return getattr(self._ser, name)
@@ -116,8 +158,9 @@ class Dut:
         except (FileNotFoundError, ValueError):
             pass
         self.ser.open()
-        if log_file:
-            self.ser = _TeeSerial(self.ser, log_file)
+        # TASK-434 item 4: wrap unconditionally now — the ring buffer is the
+        # point, the file is optional.
+        self.ser = _TeeSerial(self.ser, log_file)
         self._port_open_time = time.monotonic()
         # Serial stream is NOT thread-safe. All methods that touch self.ser must be
         # called from the thread that constructed this Dut. Never read self.ser from
@@ -125,8 +168,16 @@ class Dut:
         # silently consumed, causing timeouts. Use fire-and-forget + drain-phase
         # pattern for tests that need async log collection (LL-042).
         self._owner_thread = threading.current_thread()
-        self._wait_for_ready()
-        self._verify_debug_firmware()
+        # TASK-434 item 4: attach the captured serial tail to any setup failure
+        # here, at the one place that still has the live _TeeSerial. main()'s
+        # handler prints it — by the time it runs, run/test* is moments away
+        # from reflashing prod over the evidence.
+        try:
+            self._wait_for_ready()
+            self._verify_debug_firmware()
+        except SetupFailure as e:
+            e.tail = self.ser.tail()
+            raise
 
     def _wait_for_ready(self, _recovery_attempt: int = 0):
         """CH341 driver asserts DTR during open() regardless of userspace settings,
@@ -152,6 +203,7 @@ class Dut:
         # Wait for WiFi, watching for portal indicators (BP-018 / LL-051)
         ip_seen = False
         portal_seen = False
+        extended = False   # TASK-434 item 2: one bounded second wait, below
         deadline = time.monotonic() + _DUT_WIFI_WAIT_S
         while time.monotonic() < deadline:
             line = self.ser.readline().decode(errors="replace").strip()
@@ -173,7 +225,8 @@ class Dut:
             self.ser.rts = False
             self.ser.timeout = orig_timeout
             if _recovery_attempt >= 1:
-                raise RuntimeError(
+                raise SetupFailure(
+                    "portal-recurred",
                     "[Dut] Portal recurred after auto-recovery — manual intervention required.\n"
                     "Hold the reset button for 15 s to clear the DRD counter, "
                     "then re-run the test script."
@@ -210,12 +263,44 @@ class Dut:
                 self.ser.timeout = orig_timeout
                 self.ser.reset_input_buffer()
                 if not shell_up:
-                    raise RuntimeError("DUT shell unresponsive for 90 s (--no-wifi) — "
-                                       "the boot cascade is still running or the DUT is wedged")
+                    raise SetupFailure(
+                        "shell-unresponsive",
+                        "DUT shell unresponsive for 90 s (--no-wifi) — "
+                        "the boot cascade is still running or the DUT is wedged")
                 print("  [Dut] shell responsive — proceeding.", flush=True)
                 return
-            self.ser.timeout = orig_timeout
-            raise RuntimeError("DUT WiFi not connected — check serial output")
+            # TASK-434 item 2, per VE's amendment: ONE bounded second wait on
+            # the SAME boot — explicitly not the portal branch's RTS reset.
+            # That reset exists because startConfigPortal() never returns
+            # (LL-051/BP-018); an association timeout is not that. A reset here
+            # would restart setup() from scratch, discard the supervisor's
+            # arming state, and re-run the identical losing candidate sequence
+            # (TASK-426's finding) — burning the retry budget for no chance of
+            # success. Waiting instead lets wifiDiag::superviseTick() reach its
+            # first kick, which needs WIFI_SUP_DOWN_MS = 60 s continuously down
+            # and therefore cannot fire inside the 25 s default at all.
+            if not extended:
+                print(f"  [Dut] no IP in {_DUT_WIFI_WAIT_S:.0f}s — extending "
+                      f"{_DUT_WIFI_WAIT_2_S:.0f}s to let the WiFi supervisor's "
+                      f"first kick land (needs 60s down)…", flush=True)
+                deadline = time.monotonic() + _DUT_WIFI_WAIT_2_S
+                while time.monotonic() < deadline:
+                    line = self.ser.readline().decode(errors="replace").strip()
+                    if "IP address:" in line:
+                        ip_seen = True
+                        break
+                extended = True
+            if ip_seen:
+                print("  [Dut] IP acquired on the extended wait.", flush=True)
+            else:
+                self.ser.timeout = orig_timeout
+                raise SetupFailure(
+                    "wifi-not-connected",
+                    f"DUT WiFi not connected within "
+                    f"{_DUT_WIFI_WAIT_S + _DUT_WIFI_WAIT_2_S:.0f}s of the port-open reset "
+                    f"({_DUT_WIFI_WAIT_S:.0f}s + a {_DUT_WIFI_WAIT_2_S:.0f}s extension that "
+                    f"covered the supervisor's first kick). Raise DUT_WIFI_WAIT (LL-096) if the "
+                    f"AP is merely slow today; the captured serial tail below is the evidence.")
         # TASK-255 (M-WEBRADIO-NOPSRAM V0): variant-aware readiness. On the
         # Spotify-disabled build there is no spotifyTask, so the first-poll wait
         # below never completes (it would hang ~120 s). The shell is responsive once
@@ -332,7 +417,10 @@ class Dut:
         """
         r = self.cmd("get heap", timeout=3.0)
         if not r.get("ok") and r.get("error") == "unknown command":
-            raise RuntimeError(
+            # TASK-434: also a rig condition, not a test result — same
+            # reasoning as the WiFi timeout, so it gets the same status.
+            raise SetupFailure(
+                "prod-firmware-flashed",
                 "\n"
                 "╔══════════════════════════════════════════════════════════╗\n"
                 "║  PRODUCTION FIRMWARE DETECTED — SERIAL_DEBUG not active  ║\n"
@@ -355,7 +443,8 @@ class Dut:
             _expected_elf = _fw_bytes[176:180].hex()
             _info = self.cmd("info", timeout=3.0)
             if _info.get("ok") and _info.get("elf") and _info["elf"] != _expected_elf:
-                raise RuntimeError(
+                raise SetupFailure(
+                    "elf-mismatch",
                     f"\n"
                     f"╔══════════════════════════════════════════════════════════╗\n"
                     f"║  FIRMWARE ELF MISMATCH — wrong debug build flashed       ║\n"
@@ -9930,6 +10019,26 @@ ALL_TESTS = {
     "T_PRI_01": t_pri_01,
 }
 
+def _setup_fail(reason: str, message: str, tail=None):
+    """Report a rig condition and exit with SETUP_FAIL_EXIT. Never returns.
+
+    The `[SETUP-FAIL]` prefix is the machine-greppable half; the serial tail is
+    the half a human needs, because "check serial output" (the old message)
+    names a stream that is closed by the time anyone reads it — and that
+    run/test* is about to overwrite by reflashing prod."""
+    print("", flush=True)
+    print(f"[SETUP-FAIL] {reason}", flush=True)
+    print(message, flush=True)
+    if tail:
+        print(f"\n--- last {len(tail)} serial lines before the abort ---", flush=True)
+        for line in tail:
+            print(f"  | {line}", flush=True)
+        print("--- end serial tail ---", flush=True)
+    print("\nThis is a RIG condition, not a test result. No tests ran; "
+          "nothing here says the firmware is broken.", flush=True)
+    sys.exit(SETUP_FAIL_EXIT)
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--port", default="/dev/ttyUSB0")
@@ -9962,7 +10071,25 @@ def main():
     if args.no_wifi:
         global _NO_WIFI
         _NO_WIFI = True
-    dut = Dut(args.port, args.baud, timeout=args.timeout, log_file=args.log_file)
+    # TASK-434 item 1 (VE-endorsed): a rig condition must never be
+    # summarisable as "the tests failed". Without this wrapper the
+    # SetupFailure propagates as a bare traceback and Python exits 1 — the
+    # SAME code a real test failure produces — and the last thing in the log is
+    # run/test*'s prod-restore flash output. Three misreads in one session came
+    # from exactly that (2026-08-11).
+    #
+    # SerialException is caught alongside it per VE answer 3: pyserial's
+    # "multiple access on port?" is a different exception from a different call
+    # site, but it is equally a rig condition and today reads identically to a
+    # log reader. Detecting a busy port BEFORE the open is separate work.
+    try:
+        dut = Dut(args.port, args.baud, timeout=args.timeout, log_file=args.log_file)
+    except SetupFailure as e:
+        _setup_fail(e.reason, str(e), getattr(e, "tail", None))
+    except serial.SerialException as e:
+        _setup_fail("port-busy", f"{e}\n"
+                    f"Another process holds {args.port} — the tmux monitor "
+                    f"(run/monitor-stop) or a peer session.")
     # Warmup ping: flush any residual DUT serial output before first test.
     try:
         dut.cmd("help", timeout=4.0)

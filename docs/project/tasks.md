@@ -6439,7 +6439,9 @@ exactly right and this task must not weaken it.
 a run must terminate with the distinguishable setup status and the captured serial tail, and
 `run/test*` must still complete its prod restore; with the AP healthy, no added latency on the good
 path · **Priority:** P2 — costs real investigation time on every degraded-WiFi day and has already
-caused three misreads in one session · **Status:** OPEN — proposed 2026-08-11, awaiting VE review.
+caused three misreads in one session · **Status:** **DONE** (2026-08-14) — items 1, 2 (VE's amended
+form) and 4 implemented and verified; item 3 deferred to TASK-439 as VE directed. See the
+implementation note below the VE review.
 
 > **VE review (2026-08-11):**
 >
@@ -6596,6 +6598,104 @@ caused three misreads in one session · **Status:** OPEN — proposed 2026-08-11
 > project already shipped. The compound gate needs to split into a host-side unit test (exit
 > code/log-dump/timeout logic) plus a real-DUT good-path timing check; there is no safe way to
 > physically unplug the AP for this rig as a repeatable gate.
+
+### TASK-434 implementation note (2026-08-14)
+
+Built to the VE review, not to the original proposal — items 1 and 4 as endorsed, item 2 in the
+amended form VE recommended, item 3 deferred.
+
+**Item 1 — setup status.** New `SetupFailure(RuntimeError)` carrying a machine-greppable `reason`.
+It subclasses `RuntimeError` deliberately so the other `app/tools/` runners' existing
+`except RuntimeError` blocks keep working. `main()` wraps the `Dut(...)` construction and exits
+`SETUP_FAIL_EXIT = 3` after printing `[SETUP-FAIL] <reason>`. Four reasons now carry it:
+`wifi-not-connected`, `shell-unresponsive`, `portal-recurred`, and — added beyond the proposal —
+`prod-firmware-flashed` and `elf-mismatch`, which are rig conditions by exactly the same argument
+and were also exiting `1` as bare tracebacks. `serial.SerialException` is caught alongside as
+`port-busy`, per VE answer 3.
+
+`run/test`, `run/test-targeted` and `run/test-sync` re-state the condition **after** the prod
+restore. Note the ordering rationale, which VE's answer 1 supplies: a restore failure overwrites
+`rc` with `99`, so in that case the printed line is the only surviving evidence that no tests ran.
+
+**Item 2 — one bounded second wait, NOT a reset.** VE rejected reusing the portal branch's RTS
+pulse (that exists because `startConfigPortal()` never returns; a reset here would restart `setup()`
+and re-run TASK-426's identical losing candidate sequence). Implemented instead as VE recommended:
+a single extension on the same boot, `DUT_WIFI_WAIT_2` (default 75 s). The number is not arbitrary —
+`wifiDiag`'s `WIFI_SUP_DOWN_MS` is 60 s, so the supervisor's first kick, the thing that actually
+recovers a dead-candidate wedge, **cannot fire inside the 25 s default at all**. 25 + 75 clears it.
+
+**Item 4 — evidence.** `_TeeSerial` now wraps unconditionally (was only under `--log-file`) and
+keeps a 40-line ring regardless. `Dut.__init__` attaches the tail to any `SetupFailure` at the one
+point that still holds the live serial object, and `_setup_fail()` prints it. The old message told
+the reader to "check serial output" — a stream the harness had just closed and `run/test*` was about
+to overwrite by reflashing prod.
+
+**Item 3 — NOT implemented, deferred to TASK-439.** VE showed the proposal's own example is
+unbuildable: nothing ever prints the literal `NO_AP_FOUND`; what streams is a numeric
+`[wifi-ev] … reason=<code>`. **This session supplied the missing measurement VE asked for**: during
+TASK-436, an AP-absent DUT emitted `reason=201` metronomically at a 2.42 s cadence, confirming 201
+as the live AP-absent code on this rig. That closes VE's "confirm on an actual storm capture before
+hardcoding a number" caveat, but the second objection stands untouched — `wifiDiag` caps `[wifi-ev]`
+at 10 lines/minute, so an active storm can go silent for ~60 s, and a healthy boot has a legitimate
+DHCP-gap silence. "Silence = give up" still needs the redesign VE described.
+
+**Verification (host + DUT, 2026-08-14).**
+
+| path | result |
+|---|---|
+| port busy (monitor holding `/dev/ttyUSB0`) | `[SETUP-FAIL] port-busy`, exit **3** |
+| prod firmware flashed | `[SETUP-FAIL] prod-firmware-flashed`, exit **3**, 40-line serial tail printed — with `{"ok":false,"error":"unknown command","cmd":"get"}` visible as the smoking gun |
+| happy path (`cyd2usb_winamp_debug`, T077+T078) | 2 passed, 0 failed, exit **0**; `--log-file` still written (68 lines) |
+
+The happy path was run deliberately: the always-on `_TeeSerial` wrap and the changed wait sit in
+every runner's `Dut.__init__`, so "it fails correctly now" is only half the claim.
+
+**Companion, LL-128 (not part of TASK-434's scope, same session):** `run/monitor-start` now pipes the
+pane to `/tmp/spotify-mon-serial.log` and `run/monitor-read` prefers that log over `capture-pane`
+(`PANE=1` forces the old behaviour). The pane held ~167 lines when TASK-437 needed it and the
+deciding `[wifi-ev]` line was already gone. Raising tmux's `history-limit` turned out **not** to be a
+reliable fix and is left as a best-effort session option: pane capacity is fixed at creation, and
+because killing the last session kills the tmux server, a global-set-then-create sequence raced the
+server restart and still produced a 2000-line pane. The disk log is bounded by disk instead, and
+survives the session kills that every `run/flash*` and `run/test*` performs.
+
+### TASK-439 — progress-based DUT readiness wait (TASK-434 item 3, redesigned)
+
+Deferred from TASK-434 on VE's challenge. The goal stands: replace a fixed deadline with "wait while
+the boot is making progress, fail fast when it is not", so a healthy-but-slow boot is not failed and
+a wedged one does not burn the full budget.
+
+**What is already settled**, so the next attempt does not re-derive it:
+- The literal string `NO_AP_FOUND` is never printed by this firmware. The observable is
+  `[wifi-ev] t=<ms> ev=5 STA_DISCONNECTED reason=<code>` (`wifiDiag.cpp`).
+- `reason=201` **is** the live AP-absent code, measured on this rig 2026-08-14 (TASK-436): a metronomic
+  2.42 s cadence while the saved AP was out of range.
+- `wifiDiag` caps `[wifi-ev]` at 10 lines per rolling minute, then prints only a `suppressed=N`
+  summary — so an actively flapping DUT can be silent for up to ~60 s. Silence alone cannot mean
+  "give up".
+- A healthy boot emits `STA_START` → `STA_CONNECTED` → *silence for the DHCP round trip* →
+  `STA_GOT_IP`. Any silence rule must treat the post-`STA_CONNECTED` gap as expected.
+
+**Design constraint:** key on `reason=` value and repetition count, not on string presence, and
+anchor the silence rule to which event was last seen rather than to a bare timer.
+
+**Owner:** VE (design) / Developer (implement) · **Deps:** TASK-434 (landed) · **Gate:** a healthy
+boot must not be slowed measurably; an AP-absent boot must fail faster than the 100 s TASK-434 now
+allows, and must still print the `[SETUP-FAIL]` block with its serial tail · **Priority:** P3 — the
+100 s bounded wait plus a clear setup status already removes the misread that made this urgent ·
+**Status:** OPEN — filed 2026-08-14.
+
+### TASK-440 — detect a busy serial port before opening it
+
+VE answer 3 to TASK-434: the `port-busy` case is now *reported* correctly (`[SETUP-FAIL] port-busy`,
+exit 3, since 2026-08-14), but it is still only detected by letting pyserial fail on a port another
+process holds. Detecting it up front — `lsof`/`fuser` on the resolved port, mirroring `run/lib.sh`'s
+existing tmux-monitor-kill step — would name the holder instead of reporting a generic
+"multiple access on port?", and could offer the fix (`run/monitor-stop`) directly.
+
+Low value on its own; worth doing next time anything else touches port resolution.
+
+**Owner:** Developer · **Deps:** none · **Priority:** P3 · **Status:** OPEN — filed 2026-08-14.
 
 ### TASK-433 — a repeat `fbOpen` of the same directory fails intermittently
 
