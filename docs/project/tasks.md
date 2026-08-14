@@ -7059,11 +7059,58 @@ the answer determines an architectural call — how the ~3 KB is reclaimed, or w
 variant sheds features — that is the Architect's and the human's to make, not something to decide by
 picking a number.
 
-**Owner:** Architect (ruling) + Developer (bisect) · **Deps:** TASK-425/431's memory ruling ·
-**Gate:** local playback works on `cyd2usb_player` for a full 5-track playlist, or an explicit ruling
-that Player mode ships with a different memory configuration · **Priority:** **P1** — the milestone's
-shipping variant cannot play audio · **Status:** OPEN — filed 2026-08-14, escalated to the human the
-same session.
+**Owner:** Architect (ruling) · **Deps:** TASK-425/431's memory ruling · **Gate:** local playback
+works on `cyd2usb_player` for a full 5-track playlist, or an explicit ruling that Player mode ships
+with a different memory configuration · **Priority:** **P1** — the milestone's shipping variant
+cannot play audio · **Status:** OPEN — filed 2026-08-14; **bisect run 2026-08-15, result below: NOT
+a regression.** Now purely an Architect memory-budget call.
+
+#### TASK-442 bisect result (2026-08-15) — the five suspect commits are innocent
+
+`cyd2usb_player` built from a clean worktree at **`510afef`** (TASK-427's own commit, where 3+
+minutes of local playback was DUT-proved on 2026-08-11), flashed to the same board, same
+`/playlists/short5.m3u` fixture, 150 s settle per TASK-425:
+
+```
+### SENT set plPlay 0
+[I][localplayer] play row 0: /mp3/short1.mp3
+[membudget] TASK-267 arena acquire=24576B lfbBefore=42996 OK
+abort() was called at PC 0x401bca8f on core 1
+rst:0xc (SW_CPU_RESET) ... Rebooting...
+```
+
+**It does not play at `510afef` either — it crashes, in exactly the way TASK-432 was filed for.**
+That is the bare `new Audio(...)` throwing `bad_alloc` with no handler. So:
+
+1. **TASK-433's 3 072 B of resident browser arrays and TASK-418's ~512 B are NOT the cause.** The
+   shortfall predates both. The hypothesis this bisect existed to test is refuted, and the five-commit
+   range is closed.
+2. **TASK-427's "DUT-proved, 3+ minutes" measurement does not reproduce on its own commit.** Same
+   binary source, same board, same fixture, different day, different result. It was
+   environment-dependent, and nothing in the task recorded which environment.
+3. **TASK-432's fix is demonstrably doing its job.** Identical scenario, old code vs new: `510afef`
+   reboots the device; master renders a clean `play FAILED` and stays alive. That is a direct A/B on
+   hardware, not an inference.
+
+**The measured difference is in the idle baseline, not in any commit.** At `510afef` today,
+`post-init-idle lfbInt=42996`; TASK-427 recorded `lfbBefore=69620` at the same point. Note both are
+the **32-bit** `MALLOC_CAP_INTERNAL` figure that BP-055 warns over-reports — but they are the same
+metric as each other, so the ~26 KB gap between them is real and is not a measurement artifact.
+
+**What changed environmentally is not established, and must not be guessed.** The one difference
+known to be present today is the network: the device is on an unfamiliar AP (RSSI -76 vs -54 at
+home), its boot cascade fails over every saved network before the supervisor connects it, and
+`post-wifi` is the first probe that already differs. That is a *candidate*, not a finding — the
+honest next experiment is to re-run this exact probe at `510afef` on the home network, where
+TASK-427's number was taken. Until then, "the AP moved the heap baseline" is a hypothesis with one
+supporting coincidence.
+
+**Consequence for the ruling.** This is no longer "which commit broke it" but "the arena
+(24 576 B) plus the I2S/decoder allocation do not both fit in this variant's heap, and did not fit
+at TASK-427 either" — which is TASK-425's measured 6 424 B contiguous shortfall and TASK-431's
+option (a), now with the additional fact that option (a) as shipped was never sufficient. The
+options (shrink the arena, drop resident state, or accept Player mode as non-shipping) are the
+Architect's and the human's.
 
 ### TASK-409 — extract the audio engine to `audio/audioEngine.h` (PURE MOVE)
 
