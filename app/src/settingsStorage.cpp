@@ -110,7 +110,7 @@ static void applyDefaults() {
     g_settings.vfdTheme   = 0;  // teal
 
     // Player slot (M-PLAYER-STATE / TASK-260)
-    g_settings.playerMode = (uint8_t)PlayerMode::Spotify;
+    g_settings.playerMode = (uint8_t)kPlayerModes[0];   // TASK-422: first compiled-in mode (== Spotify on a full build)
     g_settings.playerPlaylist[0] = '\0';   // TASK-415: no playlist until one is loaded
     g_settings.playerShuffle = false;      // TASK-418
     g_settings.playerRepeat  = 2;          // TASK-418: 2 = off
@@ -300,10 +300,14 @@ void SettingsStorage::load() {
     }
 
     // Player slot (M-PLAYER-STATE / TASK-260, widened TASK-413): top-level object — the
-    // mode spans Spotify/WebRadio/Player, so it is not nested under "webRadio". Clamp to {0,1,2}.
+    // mode spans Spotify/WebRadio/Player, so it is not nested under "webRadio". Clamp to
+    // the compiled-in set (TASK-422).
     if (doc.containsKey("player")) {
         uint8_t pm = doc["player"]["mode"] | 0;
-        g_settings.playerMode = (pm > (uint8_t)PlayerMode::Player) ? (uint8_t)PlayerMode::Spotify : pm;
+        // TASK-422: one clamp, widened from "out of range -> Spotify" to "not in the
+        // compiled-in set -> first compiled-in mode" (a variant reflash can leave a
+        // perfectly in-range value naming a mode this build does not have).
+        g_settings.playerMode = playerModeResolve(pm);
         // TASK-415: last M3U path. A stale path whose file is gone is not an
         // error to load-time — LocalPlayerApp degrades to "No playlist".
         strlcpy(g_settings.playerPlaylist, doc["player"]["playlist"] | "",

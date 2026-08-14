@@ -3,7 +3,8 @@
 //
 // AFTER EDITING: re-run the codegen script to keep generated files in sync:
 //   ~/proj/esp/venv/bin/python3 app/tools/gen_app_registry.py
-// Then run check_build.sh — step [5/5] enforces staleness.
+// Then run check_build.sh — step [6/7] enforces staleness (renumbered TASK-422;
+// the count moves whenever a gate is added, so trust the label, not the number).
 //
 // NEW APP? Run the integration checklist before closing the milestone:
 //   docs/architecture/designs/NEW-APP-CHECKLIST.md

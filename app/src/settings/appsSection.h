@@ -452,15 +452,21 @@ private:
     // row cycles the persisted g_settings.playerMode. The change applies on next
     // entry to the player slot (the settings screen is a different app, so no live
     // app-switch is forced from here).
+    // TASK-422: the row shows and cycles only the compiled-in modes (kPlayerModes,
+    // settingsStorage.h) — kNames stays indexed by PlayerMode value, the set decides
+    // which of those values is reachable. On a single-mode build the row is a
+    // read-only label: the tap resolves to the same mode and nothing is saved.
     void _repaintPlayer() {
         static const char* kNames[] = { "Spotify", "WebRadio", "Player" };
-        uint8_t pm = settings().playerMode % 3;
+        uint8_t pm = playerModeResolve(settings().playerMode);
         drawRow(S_CONTENT_Y, { "Mode", kNames[pm], S_LABEL, S_VALUE });
     }
 
     void _cyclePlayer(int row) {
         if (row != 0) return;
-        settings().playerMode = (settings().playerMode + 1) % 3;
+        uint8_t next = playerModeNext(settings().playerMode);
+        if (next == settings().playerMode) return;   // single-mode build: nothing to cycle
+        settings().playerMode = next;
         saveSettings();
         repaint();
     }

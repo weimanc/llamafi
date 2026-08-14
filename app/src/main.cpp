@@ -1995,8 +1995,11 @@ void setBusy(bool busy) {
 }
 
 // TASK-413 / ADR-059 D6: the three player-mode AppIds, and the reverse lookup.
+// TASK-422: the argument is resolved through the compiled-in set first, so a
+// persisted (or serial-injected) mode this build does not have lands on the first
+// compiled-in mode's app instead of an app that was never instantiated.
 static inline AppId appIdForPlayerMode(uint8_t mode) {
-  switch ((PlayerMode)mode) {
+  switch ((PlayerMode)playerModeResolve(mode)) {
     case PlayerMode::WebRadio: return AppId::WebRadio;
     case PlayerMode::Player:   return AppId::LocalPlayer;
     default:                   return AppId::Spotify;
@@ -2036,7 +2039,11 @@ void persistPlayerMode(uint8_t mode) {
 static AppId resolvePlayerTap(AppId tapped, bool playerAlreadyActive) {
   if (tapped != AppId::Spotify) return tapped;
   if (!playerAlreadyActive) return resolvePlayerSlot(tapped);
-  uint8_t next = (g_settings.playerMode + 1) % 3;
+  // TASK-422: iterate the compiled-in set, not a hardcoded 0->1->2. On a
+  // single-mode build playerModeNext() returns the current mode, persistPlayerMode()
+  // skips the unchanged write and switchApp() early-returns on same-app — so tapping
+  // the active player slot is a genuine no-op rather than a repaint or a save.
+  uint8_t next = playerModeNext(g_settings.playerMode);
   persistPlayerMode(next);
   return appIdForPlayerMode(next);
 }

@@ -19,6 +19,68 @@ enum class MatrixColor   : uint8_t { Green = 0, White = 1, Amber = 2 };
 enum class LifeColors    : uint8_t { Rainbow = 0, Mono = 1 };
 enum class ClockStyle    : uint8_t { Digital = 0, Flip = 1, Nixie = 2, VFD = 3 };
 enum class PlayerMode    : uint8_t { Spotify = 0, WebRadio = 1, Player = 2 };   // M-PLAYER-STATE / TASK-260 / TASK-413
+
+// TASK-422 / ADR-059 D10: the player modes are compile-time optional, selected by
+// PRESENCE-ONLY flags -DPLAYER_SPOTIFY / -DPLAYER_WEBRADIO / -DPLAYER_LOCAL. Never
+// `=0` (LL-006) — every consumer below tests with #ifdef, so `-DPLAYER_LOCAL=0`
+// would read as "compiled in", which is the whole reason the negative form is
+// banned. Backward compatibility: an env that defines NONE of the three gets all
+// three, so every existing env is bit-identical to before this flag existed.
+//
+// Lives in settingsStorage.h (not main.cpp) because both translation units need it:
+// main.cpp for the cycle/app-lookup, settingsStorage.cpp for the load-time clamp.
+// This ordered set is the SINGLE source of truth — cycling, the persisted-mode
+// fallback and the Settings row all read kPlayerModes[], and no consumer re-derives
+// membership with its own #ifdef. Order is fixed Spotify -> WebRadio -> Player: it
+// is the cycle order and kPlayerModes[0] is the fallback mode.
+//
+// NOTE (scope, TASK-422): the flags currently gate mode REACHABILITY only — which
+// modes cycle, persist and appear in Settings. They do not yet drop the app objects
+// or their appRegistry.h rows, so a single-mode build is not smaller. That half of
+// D10 is not implemented here.
+#if !defined(PLAYER_SPOTIFY) && !defined(PLAYER_WEBRADIO) && !defined(PLAYER_LOCAL)
+  #define PLAYER_SPOTIFY
+  #define PLAYER_WEBRADIO
+  #define PLAYER_LOCAL
+#endif
+
+static constexpr PlayerMode kPlayerModes[] = {
+#ifdef PLAYER_SPOTIFY
+    PlayerMode::Spotify,
+#endif
+#ifdef PLAYER_WEBRADIO
+    PlayerMode::WebRadio,
+#endif
+#ifdef PLAYER_LOCAL
+    PlayerMode::Player,
+#endif
+};
+static constexpr int kPlayerModeCount = (int)(sizeof(kPlayerModes) / sizeof(kPlayerModes[0]));
+
+// Is `mode` (a raw persisted uint8_t, possibly garbage) compiled into this build?
+static inline bool playerModeCompiledIn(uint8_t mode) {
+    for (int i = 0; i < kPlayerModeCount; i++)
+        if ((uint8_t)kPlayerModes[i] == mode) return true;
+    return false;
+}
+
+// Persisted-mode fallback: a value naming a compiled-out mode (variant reflash over
+// existing settings — a clean flash never reaches this, X064/T_PLR_36) or an
+// out-of-range value resolves to the FIRST compiled-in mode. Without it the mode
+// resolves to an app that is not there — a boot-crash class bug.
+static inline uint8_t playerModeResolve(uint8_t mode) {
+    return playerModeCompiledIn(mode) ? mode : (uint8_t)kPlayerModes[0];
+}
+
+// Next mode in the compiled-in set, wrapping. A single-mode build returns the mode
+// it was given, i.e. cycling is a no-op rather than a bounce through absent modes.
+static inline uint8_t playerModeNext(uint8_t mode) {
+    uint8_t cur = playerModeResolve(mode);
+    for (int i = 0; i < kPlayerModeCount; i++)
+        if ((uint8_t)kPlayerModes[i] == cur)
+            return (uint8_t)kPlayerModes[(i + 1) % kPlayerModeCount];
+    return cur;   // unreachable — playerModeResolve() guarantees a hit
+}
 // M-PLANERADAR / phase0-preview-ui.md Q2: tag-collision rule. (a) reference —
 // always place at the centre-side position, never nudge/drop. (b) + vertical
 // nudge (±10/±20px), place at the un-nudged position if all four still

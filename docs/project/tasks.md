@@ -8112,6 +8112,63 @@ evidence about a Player-only compiled mode set.
 Close-out: complete the reserved `feature_inventory.yaml` entries and X050–X064, walk
 `NEW-APP-CHECKLIST.md` for `AppId::LocalPlayer`, and run the sustained soak.
 
+### TASK-422 parts A + B (2026-08-14) — implemented by subagent, reviewed and independently verified
+
+**Part A — compile-time mode flags.** Presence-only `-DPLAYER_SPOTIFY` / `-DPLAYER_WEBRADIO` /
+`-DPLAYER_LOCAL` (never `=0`, LL-006), with a backfill: an env defining none of the three gets all
+three, so every existing env is unchanged. The ordered set `kPlayerModes[]` in `settingsStorage.h`
+is the single source of truth — cycling (`playerModeNext`), the persisted-mode fallback
+(`playerModeResolve`) and the Settings row all read it, and no consumer re-derives membership with
+its own `#ifdef`. It lives in the header rather than `main.cpp` because `settingsStorage.cpp` is a
+separate TU and needs the same set for the load-time clamp.
+
+Consequences wired: cycling iterates the set (`main.cpp resolvePlayerTap`, was `% 3`); a persisted
+mode naming an absent one resolves to the first compiled-in mode (one widened clamp in
+`SettingsStorage::load()`, not a second divergent one); `appIdForPlayerMode()` resolves before
+mapping, so an injected absent mode cannot select an app that was never instantiated; the Settings
+"Applications → Winamp → Mode" row (`appsSection.h`) lists and cycles only compiled-in modes and
+early-returns on a single-mode build (no save, no repaint).
+
+**Part B — `check_build.sh` 6 → 7.** `cyd2usb_player` added as gate 3, labels renumbered, and the
+warn-only settings-wiring gate now prints `[warn] … (not counted)` instead of a `[7/7]` sitting next
+to a `[6/6]` total. `run/check`'s "5-gate" header (already stale before this) corrected.
+
+**Verification — done by the orchestrator, not taken on report.**
+- Full diff reviewed line by line.
+- `./run/check` re-run independently: **7 passed, 0 failed**.
+- **Set construction proved with a stronger probe than the subagent's**: temporary `static_assert`s
+  on the set *contents and order*, not just its size — `-DPLAYER_LOCAL` alone yields
+  `kPlayerModeCount == 1 && kPlayerModes[0] == Player`; no flags yields `count == 3`,
+  `[0] == Spotify` (the fallback), `[2] == Player` (cycle order). Both compiled clean.
+- **Negative control run** (LL-127): flipping one assertion to a deliberately wrong value produced
+  the expected compile error, proving the probe could fail. Probes and scratch envs removed;
+  `app/platformio.ini` is byte-identical to its committed state.
+
+**Two claims in this task's own text were checked rather than implemented on faith:**
+- *"`TASKBAR_APP_COUNT` computed from the compiled-in tail"* — **does not hold, no work done.**
+  `TASKBAR_APP_COUNT` is already anchored to `AppId::Settings + 1` (TASK-413 fixed exactly this), and
+  `gen_app_registry.py`'s `EJECT_ONLY_TAIL = ["WebRadio", "LocalPlayer"]` puts both player apps after
+  Settings, so neither owns a taskbar slot and compiling a mode out cannot change the count.
+- *"Settings lists only compiled-in modes"* — **holds, implemented** (`appsSection.h`).
+
+**Scope NOT taken, stated so it is not mistaken for done:** the flags gate mode *reachability* only.
+They do not drop app objects, headers or `appRegistry.h` rows, so a single-mode build is not smaller.
+ADR-059 D10 also asks for that; it would move `AppId` values and disturb the taskbar/registry
+static_asserts, and is left for its own task.
+
+**Design tension for the Architect — do NOT resolve it by editing `platformio.ini` casually.** This
+task's text says the added dev env should be "Player only", i.e. `cyd2usb_player` should carry
+`-DPLAYER_LOCAL`. It deliberately does not, because that env is currently the *playback test vehicle
+for the whole milestone*: `T_PLR_01`/`T_PLR_02` cycle all three modes on it and were run green on it
+today. Adding `-DPLAYER_LOCAL` would make those two tests unrunnable there. Either the flag goes on a
+new fourth env, or those tests move — an Architect call, not a config tweak.
+
+**Gates `T_PLR_35`–`40` remain owed.** `T_PLR_36` (persisted mode naming a compiled-out mode must
+fall back, only reproducible over *existing* settings — X064) cannot run at all until some env
+actually defines the flags: today none does, so the fallback path is implemented but unexercised in
+every shipping configuration. `T_PLR_39` (≥30 min playback with concurrent browsing) is blocked by
+**TASK-442** — that variant cannot start playback.
+
 ### TASK-422 part C — `NEW-APP-CHECKLIST.md` walk for `AppId::LocalPlayer` (2026-08-14)
 
 Walked all eight sections against the code. **5 pass, 1 documented deviation, 1 gap, 1 owed.**
@@ -8147,11 +8204,9 @@ holding `app/src` for TASK-422 part A.
 **`T_PLR_36` is the dangerous one** — a persisted mode naming a compiled-out mode must fall back,
 not null-app-crash, and it is only reproducible over *existing* settings: **a clean flash will not
 catch it** (X064). `T_PLR_39` is ≥30 min playback **with concurrent browsing and scrolling**, not
-idle playback · **Priority:** P2 · **Status:** **READY**, with a known gap — ADR-059 accepted
-2026-08-07 (D10). The soak and VE-suite halves depend on **TASK-435 item 2** (the harness cannot
-target `cyd2usb_player`), which is also what blocks TASK-432's owed FILE-arm gate. Two closed tasks
-now wait on that one unblock, which makes it the highest-leverage open item on the board —
-schedule it ahead of the remaining M-WINAMP-PLAYER work (PM, 2026-08-14).
+idle playback · **Priority:** P2 · **Status:** **PARTIAL — parts A, B, C done 2026-08-14; part D
+(soak) BLOCKED.** Not DONE, deliberately: see the resolution note below for exactly what is and is
+not verified. ADR-059 accepted 2026-08-07 (D10).
 
 ---
 

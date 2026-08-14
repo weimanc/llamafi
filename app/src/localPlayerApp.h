@@ -540,7 +540,10 @@ public:
         return ok;
     }
     void dbgReport() const {
-        // TASK-435 temporary diagnostic (not part of the fix, do not commit):
+        // TASK-435 added fileOpen/lfb8 as a throwaway diagnostic marked "do not
+        // commit"; it was committed (fea2978) and has since earned its place —
+        // lfb8 is what measured TASK-442's 2932 B shortfall. Comment retired
+        // TASK-422; these two fields are deliberate now, not leftovers:
         // fileOpen tells the caller whether closeIfIdle() has actually fired
         // yet (tick()-driven, not a timer — wall-clock waits alone don't
         // prove it), lfb8 is the same byte-addressable cap mb_arena.cpp's own
