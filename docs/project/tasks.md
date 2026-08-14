@@ -8110,9 +8110,13 @@ libc (`mb_arena.h:20`, "acquire the arena stays inactive and mb_arena_alloc fall
 malloc"). Today the acquire *succeeds* and is therefore itself what starves the I2S allocation — the
 engine takes 24 KB of the very pool the DAC needs. Local playback also has the property the arena
 was invented for on WebRadio's behalf and does not need: **no TLS session to fragment around** (the
-FILE arm yields Spotify TLS and, on this variant, Spotify is compiled out entirely). The obvious
-counter-argument is decoder locality/latency, which is exactly TASK-278's territory and must not be
-assumed away.
+FILE arm yields Spotify TLS and, on this variant, Spotify is compiled out entirely). ~~The obvious
+counter-argument is decoder locality/latency, which is exactly TASK-278's territory.~~ **Struck by the
+Architect review below: fabricated.** `grep -rn locality docs/ app/src` returns exactly one hit —
+that sentence. The arena is a free-list over ordinary internal DRAM from
+`heap_caps_malloc(..., MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT)`, byte-for-byte the same memory `malloc`
+returns, so there is no locality or latency difference either way; and TASK-278 is the pump-task
+move, nothing to do with buffer placement. Verified independently before accepting the correction.
 *Cheap to settle empirically*: gate the acquire on connect kind, or add a debug knob, then play. One
 flash cycle. **Recommended as the first experiment, not as the answer.**
 
@@ -8146,6 +8150,77 @@ which option is taken and why, plus — for whichever is chosen — a `cyd2usb_p
 a 5-track playlist end to end · **Priority:** **P1** — blocks TASK-422's `T_PLR_39` soak, TASK-429's
 gate, TASK-432's FILE-arm check 4, and the milestone's close · **Status:** OPEN — filed 2026-08-15
 from TASK-442's bisect.
+
+#### @Architect review of TASK-443 (2026-08-15)
+
+**RULING: option (a), in its stronger form — retire the arena from the FILE path**, not "try it as
+an experiment first". `aeConnectFile()` does not acquire; the decoder allocates through the libc
+fallback `mb_arena.h:19-21` has specified since TASK-267. WebRadio's URL path is unchanged. **The
+gate is the connect kind, not the build variant** — a variant-conditional gate would be a second
+divergent path through the one engine ADR-059 D2 exists to prevent.
+
+The reasoning is a dominance argument, not a preference:
+
+| | arena path | libc path |
+|---|---|---|
+| total demand | 24 576 B (`mb_arena.h:27`) | 23 216 B (measured HWM) |
+| **largest contiguous block** | **24 576 B** | **8 708 B** (`SubbandInfo_t.vbuf`, `mp3_decoder.h:176`) |
+
+The arena *manufactures* the contiguity requirement that is failing. ADR-059 D1 amendment #2 already
+states the governing asymmetry — "small allocations tolerate a fragmented heap; the arena cannot" —
+and applied it to FATFS; it applies to the decoder in the opposite direction. Un-arena'd, the decoder
+*is* the small-allocation consumer. The arena's only residual value is temporal (reserve early), and
+TASK-425 Q1 measured arena-first as strictly worse.
+
+**Three corrections to this task's own text — two of them to claims I wrote. All verified before
+acceptance:**
+1. **"A failed acquire is a designed state with a libc fallback" — true, but used as evidence of
+   viability, which it is not.** TASK-425 Q2 *is* that libc path, and it **failed**, at the 8 708 B
+   sub-allocation on `cyd2usb_winamp_debug`. "A fallback exists" ≠ "the fallback works". The
+   Architect names this as the LL-125 shape in my own brief, and it is.
+2. **"No TLS session to fragment around" — true for TLS, wrong if read as "no churn".** `Audio` frees
+   the Helix buffers at **every end-of-file** (`Audio.cpp:3053`) and reallocates on the next
+   `connecttoFS` (`:3769`), with the `audio_eof_mp3` callback and an SD `File` open (~4.4 KB stdio
+   buffer, TASK-415) landing in the hole between. Local playlist advance churns the decoder exactly
+   as WebRadio's auto-skip does. **Verified in the vendored source.** That, not latency, is the real
+   risk option (a) carries.
+3. **The "decoder locality/latency (TASK-278)" counter-argument was fabricated** — struck above.
+
+**Sizing, stated with its margin.** From TASK-425's control (`lfb8` = 16 372) the libc fallback died
+at the 8 708 B block after Audio + 8 192 B DMA + 6 400 B InBuff had carved it. `cyd2usb_player` has
+26 612 B, ~10.2 KB more, predicting the 8 708 lands with **≈1.1 KB to spare**. Confirming measurement
+is a full 5-track play plus `lfb8` at steady playback; **if the residual margin is under ~4 KB,
+escalate to TASK-431 option (b) rather than tuning numbers.**
+
+**Four invariants are the acceptance conditions:** the `mb_arena.h:51` acquire/release balance across
+a mixed Player+WebRadio session; `aeReleaseArenaIfIdle()`'s `!s_wr_audio && !wrPumpAlive()` guard as
+the sole releaser on failed bring-up; a shortfall degrading to a visible `play FAILED` and never a
+reset (TASK-432); and one code path for both arms (D2).
+
+**Ruled out, so they are not re-proposed:** (c) cut resident footprint — refuted by TASK-442's bisect
+and 3 584 B cannot close a 23 680 B contiguity gap; (b) shrink `MB_ARENA_BYTES` — max recovery
+1 360 B, and moot under (a); (d) don't ship Player mode — premature, but see the D10 contradiction
+below; and "acquire the arena *after* Audio + InBuff exist" — dominated, both orderings measured
+failing.
+
+**Five things this fault falsifies or corrects, beyond the ruling:**
+1. **ADR-059 D1 amendment #2's lifecycle is falsified twice** — its premise by TASK-425, and its
+   factual claim by the code: `LocalPlayerApp::resume()` never acquired the arena. The ADR has
+   described a lifecycle the firmware does not have since 2026-08-09.
+2. **ADR-059 D10 vs TASK-431 is an unreconciled contradiction, and it is load-bearing.** D10 calls
+   `cyd2usb_player` a *development* env with "production ships all three modes"; TASK-431 made it the
+   shipping home for Player mode without amending D10. **The milestone has been proceeding as if a
+   dev variant were the product**, and option (a) fixes the dev variant only — with Spotify resident,
+   `lfb8` is 16 372 B, where TASK-425 Q2 measured this same libc path failing.
+3. ADR-047 Amendment 1 is not falsified but needs one scoping line: its "sequential and disjoint"
+   rationale holds for WebRadio, not for the FILE path where FATFS is resident all session.
+4. `mem_manifest.yaml` should record **max-single-allocation**, not only totals — every failure in
+   this chain was a contiguity failure that totals cannot express.
+5. Stale comment at `audioEngine.h:709-714` ("the arena is deliberately NOT released here") documents
+   behaviour that TASK-432's follow-up already fixed.
+
+Full ADR-059 D2 amendment text supplied by the reviewer; to be landed by the Architect when the
+ruling is accepted.
 
 ### TASK-419 — real posbar seek for local files
 
