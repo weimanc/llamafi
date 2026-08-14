@@ -2432,14 +2432,14 @@ features:
       New surface is connect(const Source&) with Source = {URL | FILE}; the FILE arm calls
       connecttoFS(SD, path) through the existing post-to-pump-and-poll path. Requires
       dropping -DAUDIO_NO_SD_FS from platformio.ini.
-    status: reserved
-    git_ref: ""
+    status: implemented
+    git_ref: "434b18d, fd129ec, f5e1332 (2026-08-10..11)"
     files:
       - app/src/audio/audioEngine.h
       - app/src/player/localPlayerApp.h
       - app/platformio.ini
     cross_features: [webradio-001, sdfs-001, memplan-001, player-state-001]
-    test_ids: []
+    test_ids: [T_PLR_01, T_PLR_02, T_PLR_03, T_PLR_04, T_PLR_05]
     notes: |
       ADR-059 D2. Carries the fixes from TASK-278/287/289/291/295/299/392/398 — the move
       lands only behind ./run/check 6/6 AND a full-length run/wr-soak (a short soak does not
@@ -2447,6 +2447,13 @@ features:
       member + FATFS statics to .dram0.bss — re-derive headroom from a fresh run/build-debug
       + .map grep, never a remembered number. Compensating win: local playback needs no TLS,
       so it is the cheapest of the three player modes.
+      ---
+      TASK-409 (engine extraction, PURE MOVE) + TASK-410 (connect(FILE), audio_eof_mp3) +
+      TASK-413 (AppId::LocalPlayer, three-valued PlayerMode, taskbar cycle) all landed;
+      T_PLR_01-05 DUT-PASS. **Playback is currently BROKEN on the shipping cyd2usb_player
+      variant — see TASK-442**: with the arena held the largest free 8-bit block is 2932 B
+      and new Audio() returns null. The code path is complete and gated; the memory budget
+      is not. Do not read this entry's `implemented` as `works on the shipping variant`.
 
   - id: plmodel-001
     name: Shared playlist model + single PLEDIT renderer
@@ -2460,14 +2467,14 @@ features:
       webRadioApp.h. LocalPlaylistSource backing: RAM index of {uint32 offset, uint16 durSec,
       uint16 flags} (8 B/entry, ~2 KB at 256 tracks) over an SD-backed M3U, plus a <=8-row
       text cache and a bounded staging arena for not-yet-written additions.
-    status: reserved
-    git_ref: ""
+    status: implemented
+    git_ref: "fd129ec (2026-08-11)"
     files:
       - app/src/winamp/pleditView.h
       - app/src/winamp/playlistSource.h
       - app/src/player/localPlaylist.h
     cross_features: [playlist-001, playlist-002, webradio-001, localplay-001, touch-005]
-    test_ids: []
+    test_ids: [T_PLR_08, T_PLR_09, T_PLR_10, T_PLR_11, T_PLR_12]
     notes: |
       ADR-059 D3/D4. Extraction is three separately-verified commits (Spotify caller ->
       WebRadio caller -> local caller); each must be pixel-identical, eyeballed on the LCD
@@ -2476,6 +2483,10 @@ features:
       (TASK-051b-f, TASK-277, M-LIST-v4) is not traded for deduplication. Interface contract
       drafted in the design §6; promote to an IFC at acceptance. Budget entry needed in
       mem_manifest.yaml: plmodel_index, kind scratch, placement runtime.
+      ---
+      TASK-415. T_PLR_08-12 pass with `set bgPoll 0` — kept deliberately for T_PLR_09,
+      whose plPlay can otherwise race this account's real 403-retry traffic into a
+      tlsTryYield timeout (flaky play failure, not a hang; TASK-430 bounded the hang).
 
   - id: m3u-001
     name: Extended-M3U parse and write
@@ -2484,17 +2495,21 @@ features:
       the playlist directory. Save streams the index in order, copying each source line to
       <name>.m3u.tmp and emitting staged entries inline, then renames — constant memory,
       single sequential pass. Restore discards the index and re-parses.
-    status: reserved
-    git_ref: ""
+    status: implemented
+    git_ref: "fd129ec (2026-08-11)"
     files:
       - app/src/player/m3u.h
     cross_features: [sdfs-001, plmodel-001, pledit-edit-001]
-    test_ids: []
+    test_ids: [T_PLR_08, T_PLR_10, T_PLR_12]
     notes: |
       Round-trip correctness is a host-side check: write from the device, re-read the file
       off the card on the host, diff against expected order. OQ2 (design §8): M3U and ID3
       carry UTF-8, PLEDIT renders TFT_eSPI Font 1 (GLCD, ASCII) — needs a transliterate-then-
       substitute helper, shared with the Spotify path which has the same latent problem today.
+      ---
+      TASK-415, same commit as plmodel-001 (one parser, one index model). Streaming
+      writer (tmp + rename) is present but the SD WRITE PATH ITSELF PANICS in FatFs —
+      TASK-424, card-independent — so only the read half is exercised by the gates above.
 
   - id: browse-001
     name: On-device SD file browser
@@ -2505,17 +2520,22 @@ features:
       <=32 entries per tick so loopTask never stalls the audio pump. Directories first, then
       .mp3/.m3u, natural FAT order (no sort buffer). Tap file = play now; tap directory =
       descend; tap .m3u = load as active playlist; edit-mode [+] = append to playlist.
-    status: reserved
-    git_ref: ""
+    status: implemented
+    git_ref: "c5e0e78 (2026-08-11)"
     files:
       - app/src/player/fileBrowser.h
     cross_features: [sdfs-001, localplay-001, plmodel-001, touch-004]
-    test_ids: []
+    test_ids: [T_PLR_13, T_PLR_14, T_PLR_15, T_PLR_16]
     notes: |
       NEW-APP-CHECKLIST items 1 and 4 apply directly: hasPendingAsync() true while a browser
       page or save is in flight, and isNavigationTap() must except the back/up zone or the
       shell busy gate swallows navigation taps (TASK-384 — exactly the failure that checklist
       item exists for).
+      ---
+      TASK-416, on the generalised SPickerList. TASK-433 (repeat fbOpen of the same
+      directory failing intermittently) was found and fixed against this feature; its fix
+      made the browser's arrays permanently resident (+3072 B), which is one of the two
+      prime suspects in TASK-442's memory shortfall.
 
   - id: pledit-edit-001
     name: PLEDIT edit mode — reorder, add, delete, save, restore
@@ -2539,6 +2559,12 @@ features:
       — if not, bake-tool change + new skin_layout.h constants + golden.sha256 re-bake +
       T025 determinism re-check. Playlist SAVE pauses playback for its duration (the one
       unbounded SD operation, deliberate and visible).
+      ---
+      Still `reserved` on purpose (checked 2026-08-14, not overlooked): TASK-420 owns it
+      and is BLOCKED behind TASK-424 — the SD write path panics in FatFs, card-independent,
+      and reorder/delete/save are all write operations. The read half it builds on
+      (m3u-001, plmodel-001) is implemented and gated.
+
 
   - id: playorder-001
     name: Shuffle / repeat play-order engine + capability-driven transport zones
@@ -2553,15 +2579,15 @@ features:
       end-of-playlist cells, and audio_eof_mp3()-driven auto-advance. Also makes the posbar a real
       scrub control for local files (setFilePos/setTimeOffset/getAudioFileDuration exist in the
       vendored lib).
-    status: reserved
-    git_ref: ""
+    status: implemented
+    git_ref: "f5e1332 (2026-08-11)"
     files:
       - app/src/winamp/winampDisplay.h
       - app/src/player/localPlaylist.h
       - app/src/player/localPlayerApp.h
       - app/src/settingsStorage.cpp
     cross_features: [chrome-001, plmodel-001, localplay-001, player-state-001, webradio-001]
-    test_ids: []
+    test_ids: [T_PLR_20, T_PLR_21, T_PLR_22, T_PLR_23, T_PLR_24, T_PLR_25, T_PLR_26]
     notes: |
       ADR-059 D8/D9. Repeat is BINARY in v1, encoded in the shipped tri-state domain (Player emits
       only 2=off and 0=repeat-all) so drawRepeat()'s existing `s != 2 -> ON` rule is unchanged;
@@ -2574,3 +2600,8 @@ features:
       self-deadlock.
       Shuffle/repeat persist in g_settings as Player-scoped state (player.shuffle, player.repeat);
       Spotify's stay server-owned and are never written there.
+      ---
+      TASK-418: materialised shuffle bag, repeat modes, ADR-059 §8 cells. Order engine
+      proven 6/6. The two auto-advance-on-EOF ids could not be closed on hardware — they
+      need real playback, which TASK-442 currently prevents.
+

@@ -8112,6 +8112,37 @@ evidence about a Player-only compiled mode set.
 Close-out: complete the reserved `feature_inventory.yaml` entries and X050–X064, walk
 `NEW-APP-CHECKLIST.md` for `AppId::LocalPlayer`, and run the sustained soak.
 
+### TASK-422 part C — `NEW-APP-CHECKLIST.md` walk for `AppId::LocalPlayer` (2026-08-14)
+
+Walked all eight sections against the code. **5 pass, 1 documented deviation, 1 gap, 1 owed.**
+
+| # | Checklist item | Result |
+|---|---|---|
+| 1 | `hasPendingAsync()` override | PASS — `localPlayerApp.h:383`, returns `_browser.pending()` |
+| 2 | `tlsYield()`/`tlsResume()` bracketing | N/A — LocalPlayer makes no HTTPS calls. The engine yields on its behalf: `aeConnectFile()` takes a **bounded** `tlsTryYield()` (TASK-430). Recorded rather than ticked, because the obligation is met by delegation, not by absence |
+| 3 | `dbgGet`/`dbgSet` standard interface | **DEVIATION — see below** |
+| 4 | `cmdTap` busy propagation | PASS — `main.cpp:3272` checks `hasPendingAsync()` on the LocalPlayer branch |
+| 5 | `cross_feature_matrix.yaml` entries | **GAP** — X050–X064 all exist and are substantive, but **every one has `test_coverage: []`**, including three marked `risk: high`. This is the QM audit's third dimension failing on the newest milestone |
+| 6 | Taskbar visibility + icon | PASS — taskbar-hidden by design, shares the player slot; `taskbar.h:29/65/80` carry the invariant and the static_asserts |
+| 7 | `init()` vs `resume()` first paint (BP-048) | **OWED** — both exist (`:134`/`:163`), but "init produces the COMPLETE first paint" is a pixel claim that greps cannot settle. Needs a screendump on `cyd2usb_player` |
+| 8 | `AppSettings` field wiring | PASS — `./run/check` step 7/7 reports every field wired |
+
+**Item 3, the deviation.** `WebRadioApp` and `PlaneRadarApp` implement
+`bool dbgGet(const char* var, char* buf, int len) const`; `LocalPlayerApp` instead exposes bespoke
+methods (`dbgReport`, `dbgMem`, `dbgRow`, `dbgFbState`, `dbgOrder`, `dbgCursor`, `dbgLoad`,
+`dbgPlayRow`) dispatched directly from `main.cpp:3837-3856` and `:4136-4150`. It works and the
+harness uses it heavily. It is recorded as a deviation rather than ticked or silently fixed:
+converting it is a refactor with no behavioural gain, and the next author needs to know the two
+shapes coexist.
+
+**Found while walking item 3, unrelated to the checklist:** `localPlayerApp.h:543` reads
+"TASK-435 temporary diagnostic (**not part of the fix, do not commit**)" — and it was committed, in
+`fea2978`. The code itself has since proved its worth: its `lfb8` field is what measured TASK-442's
+2 932 B shortfall today, and `fileOpen` is what proves `closeIfIdle()` actually fired. **Resolution:
+keep the code, retire the comment** — it now tells a reader to delete the most useful diagnostic on
+the player path. Flagged here rather than fixed in the same breath only because a subagent is
+holding `app/src` for TASK-422 part A.
+
 **Owner:** Developer + VE · **Deps:** all of the above · **Gate:** `T_PLR_35`–`40`.
 **`T_PLR_36` is the dangerous one** — a persisted mode naming a compiled-out mode must fall back,
 not null-app-crash, and it is only reproducible over *existing* settings: **a clean flash will not
