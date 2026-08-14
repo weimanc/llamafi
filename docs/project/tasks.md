@@ -6799,12 +6799,71 @@ actual ELF. Do not trust the inline decode on this project.
 
 **Owner:** Developer · **Deps:** none · **Gate:** with the heap deliberately pressured, a failed
 `aeConnectFile()` must render `play FAILED` and leave the shell alive — no `abort()` ·
-**Priority:** **P1** (raised 2026-08-11 from P2) · **Status:** OPEN — filed from TASK-427's DUT
-verification; **confirmed reproducible on the ordinary play path 2026-08-11**, see TASK-435's
-investigation. With the arena held and a playlist loaded on `cyd2usb_player`, `set plPlay` produces
+**Priority:** **P1** (raised 2026-08-11 from P2) · **Status:** **DONE** (2026-08-14) — fixed,
+`./run/check` 6/6, all four affected variants build, gate PASSED 4/4 on the DUT. See the resolution
+below. Filed from TASK-427's DUT verification; **confirmed reproducible on the ordinary play path
+2026-08-11**, see TASK-435's investigation. With the arena held and a playlist loaded on `cyd2usb_player`, `set plPlay` produces
 `abort() was called at PC 0x401be637` → `rst:0xc (SW_CPU_RESET)`. This is not a rare pressure edge
 case: it is the shipping variant's normal usage, and a memory shortfall must degrade to a visible
 "play FAILED", never to a device reset. Fix independently of TASK-435's ruling.
+
+### TASK-432 resolution (2026-08-14)
+
+**The fix is one function, not three call sites.** `aeEnsureAudio()` in `audio/audioEngine.h` is now
+the only place an `Audio` is constructed. It carries both guards:
+
+1. TASK-289's I2S DMA floor (16 KB of `MALLOC_CAP_DMA`), which existed **only** in
+   `WebRadioApp::_play()` as a literal and was entirely absent from `aeConnectFile()`. That asymmetry
+   is half of why a plain `set plPlay` could reset the device while WebRadio degraded politely.
+2. `new (std::nothrow)` plus a null check — the actual bare `new` this task was filed for.
+
+Both arms now route through it. `WebRadioApp::_play()` keeps its own degrade path
+(`ERROR_UNREACHABLE` + `tlsResume` + `_onPlaybackFailed`); `aeConnectFile()` rolls back the TLS yield
+it took and returns false, which the caller already renders as `play FAILED`.
+
+**The arena is deliberately NOT released on the failure path.** `mb_arena_acquire()` is not
+ref-counted, so releasing would yank the arena out from under a live WebRadio session that acquired
+it first (in which case `aeConnectFile()`'s own acquire was a no-op). This mirrors WebRadio's
+existing DMA-floor abort, which also leaves it held; `aeTeardownFile()` on mode exit is the release.
+
+**The lazy-constructing `wrAudio()` accessor is gone.** It was a third bare-`new` site, and DEV-2-4
+already forbade what it enabled (constructing an `Audio` with no pump task, no mutex discipline, no
+arena) — enforced only by a comment on `set wrVol`. Both real callers took it immediately after the
+object was known to exist, so they now use `s_wr_audio->` directly and the trap is structurally gone.
+
+**Gate: `app/tools/task432_alloc_guard_gate.py`, 4/4 PASS on the DUT (`cyd2usb_winamp_debug`).**
+
+| check | result |
+|---|---|
+| play with injected alloc failure lands in `ERROR_UNREACHABLE` | PASS (state=5) |
+| device did not reset across the failed play | PASS (uptime 36s → 66s, 0 reset signatures) |
+| the allocation guard is what failed the play | PASS (1 injected-failure log line) |
+| engine still usable after the injected failure | PASS (state=1 CONNECTING, real connect attempt) |
+
+**Fault injection (`set aeFailAudio 0|1`, debug builds only) rather than heap pressure, on purpose.**
+The natural trigger is a transient window — first play after a flash, before TASK-425's ~150 s heap
+settle — which a test cannot schedule. This task's own filing records that a retry at steady heap
+succeeded and it "did not reproduce a second time"; that is precisely the outcome a pressure-based
+gate would keep producing, proving nothing. With the injection, a PASS means the guard ran.
+
+**Two false results this gate caught in itself, recorded because both are re-treadable traps:**
+
+* `set wrDeadUrls` is the obvious station injector and is **wrong** here: it arms
+  `_debugForceConnFail`, and `_play()` then short-circuits to `ERROR_UNREACHABLE` *before* the audio
+  path. Check 1 passed vacuously — right state, wrong reason — and only the "was the guard what
+  failed it?" check exposed that. A gate that had asserted on state alone would have shipped green
+  against untested code. `set wrUrl` clears the flag, so it is the one to use.
+* `set wrUrl` alone does not play while a station fetch is in flight (TASK-289's deliberate
+  deferral). It needs an explicit `set wrPlay 0` kick.
+
+**Unrelated observation, filed as TASK-438:** on this rig the boot station fetch never resolved —
+`get wrCount` reported `count=0,pending=1` continuously for 90 s, and `set wrUrl`'s
+`abortWebRadioFetch()` did not clear it either.
+
+**Still owed (does NOT block this task's close):** the FILE arm's own rollback — `aeConnectFile()`'s
+`tlsResume()` on failure — was not exercised on hardware. The guard it depends on is shared and is
+now DUT-proven, but the rollback around it is verified by inspection only. Closing that needs
+`cyd2usb_player` plus an SD card with a playlist, which is TASK-435 item 2's harness gap.
 
 ### TASK-409 — extract the audio engine to `audio/audioEngine.h` (PURE MOVE)
 
@@ -8281,3 +8340,31 @@ losing the evidence window is what made this un-diagnosable the first time.
 (`./run/spiffs push wifi_creds.json`) is a working operator path, so this is not a device-bricking
 gap; but it is the *only* on-device way to join a new network, so it is P1 for anyone without a
 host · **Status:** OPEN — filed 2026-08-14, awaiting the screen text.
+
+### TASK-438 — the WebRadio station fetch can stay `pending` indefinitely, and abort does not clear it
+
+Observed 2026-08-14 while building TASK-432's gate, on `cyd2usb_winamp_debug` with WiFi up (RSSI -43,
+`disc=0`, the device was reachable by ping from the host throughout). `get wrCount` returned
+`count=0,pending=1` on every poll for 90 s continuously. `set wrUrl` — which calls
+`dataTask::abortWebRadioFetch()` before deferring — did not clear it either, so the deferred
+injection it queues (`_deferredInject`, played by `tick()` "once the result lands") never fired.
+
+**Consequence:** any path that waits on the fetch resolving waits forever. That includes `set wrUrl`
+without an explicit `set wrPlay` kick, which is why two runs of TASK-432's gate sat watching
+`state=STOPPED`.
+
+**Not yet distinguished, and the whole point of the task:** whether this is (a) the network — this
+was an unfamiliar AP, and TASK-284 already documents radio-browser mirror truncation and rate
+limiting coming and going, or (b) `abortWebRadioFetch()` genuinely failing to park a result when the
+in-flight request is stuck in DNS/connect rather than at a checkpoint. Case (b) would be a real
+defect and would also explain some of TASK-284's "empty list forever" history.
+
+**How to tell them apart:** run `app/tools/test_radiobrowser_api.py` from the host on the same
+network first (per the established "validate on the host before flailing on the device" practice). A
+host fetch that also fails puts it on the network; a host fetch that succeeds while the device sits
+at `pending=1` puts it on the abort path. Then check whether `dataTask` ever posts a result with
+`http=-102` after an abort.
+
+**Owner:** Developer · **Deps:** none · **Priority:** P2 · **Status:** OPEN — filed 2026-08-14 from
+TASK-432's gate development. Do not merge into TASK-284 until (a) vs (b) is settled; they are only
+the same bug under hypothesis (a).

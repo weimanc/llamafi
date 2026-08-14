@@ -20,6 +20,7 @@
 #include <freertos/semphr.h>
 #include "esp_task_wdt.h"
 #include <esp_heap_caps.h> // T_MB_PROBE_00: caps-split for CP1/CP2 (TASK-261 Phase 0+2)
+#include <new>             // TASK-432: std::nothrow — a bare `new Audio` reset the device
 #ifdef MEMBUDGET_PHASE1
 #include "mb_arena.h"  // Phase 2: arena HWM reporting at CP2
 #endif
@@ -273,13 +274,70 @@ static inline void wrApplyConnectTimeout(Audio* a) {
     a->setConnectionTimeout(WR_CONNECT_TIMEOUT_MS, WR_CONNECT_TIMEOUT_MS_SSL);
 }
 
-static Audio& wrAudio() {
-    if (!s_wr_audio) {
-        s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
-        wrApplyInBufTrial(s_wr_audio);
-        wrApplyConnectTimeout(s_wr_audio);
+// TASK-432: the I2S DMA floor that must be clear before an Audio can be
+// constructed. i2s_driver_install()'s DMA malloc failure is UNCHECKED in the
+// vendored Audio ctor — it null-derefs (LoadProhibited, EXCVADDR 0x1c) and
+// reboots. TASK-289 measured it failing at lfbDma 13.8 KB and succeeding at
+// 30+ KB; 16 KB sits just above the known-bad point without rejecting plays
+// that fragmentation alone would allow. Was a literal inside
+// WebRadioApp::_play(); hoisted here so the FILE arm gets the same guard
+// rather than a second copy that can drift.
+static constexpr size_t AE_I2S_DMA_FLOOR_BYTES = 16 * 1024;
+
+// TASK-432: the ONLY place an Audio is constructed. Both arms (WebRadio's
+// _play() and the FILE arm's aeConnectFile()) route through here, so the DMA
+// floor and the allocation check cannot diverge between them.
+//
+// Returns false instead of crashing on either failure mode — the bare `new`
+// this replaces threw `bad_alloc` out of aeConnectFile(), which nothing
+// catches: abort() -> std::terminate() -> device reset, reproduced on the
+// ordinary `set plPlay` path on cyd2usb_player. A memory shortfall must
+// degrade to a visible "play FAILED", never to a reset.
+//
+// Callers own their own rollback (TLS yield, play state); this function
+// leaves no partial engine behind when it fails.
+#ifdef SERIAL_DEBUG
+// TASK-432 gate: force the guard to fail. The defect's natural trigger is a
+// transient heap window (first play after a flash, before the ~150 s settle of
+// TASK-425), which is exactly the kind of condition a regression test cannot
+// schedule — "did not reproduce" would prove nothing. Set this and the degrade
+// path runs deterministically. Debug builds only; `set aeFailAudio 0|1`.
+static bool s_aeFailAudioInject = false;
+#endif
+
+static bool aeEnsureAudio() {
+    if (s_wr_audio) return true;
+
+#ifdef SERIAL_DEBUG
+    if (s_aeFailAudioInject) {
+        LOG_E("audioengine", "Audio alloc failure INJECTED (set aeFailAudio 1) — abort play");
+        return false;
     }
-    return *s_wr_audio;
+#endif
+
+    size_t lfbDma = heap_caps_get_largest_free_block(MALLOC_CAP_DMA);
+    if (lfbDma < AE_I2S_DMA_FLOOR_BYTES) {
+        LOG_E("audioengine", "DMA pool too low for I2S init: lfbDma=%u — abort play",
+              (unsigned)lfbDma);
+        return false;
+    }
+
+    // TASK-432: nothrow + check. Every other allocation on this path is
+    // already checked (mb_arena_acquire() falls back to libc, the Helix
+    // sub-allocations fail cleanly to "play FAILED"); this one was the lone
+    // bare `new`.
+    Audio* a = new (std::nothrow) Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
+    if (!a) {
+        LOG_E("audioengine", "Audio alloc failed: lfbInt=%u freeInt=%u — abort play",
+              (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+              (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+        return false;
+    }
+
+    s_wr_audio = a;
+    wrApplyInBufTrial(s_wr_audio);      // EXP-012: before connecttohost (InBuff not yet alloc'd)
+    wrApplyConnectTimeout(s_wr_audio);  // TASK-392
+    return true;
 }
 
 // ── Audio pump task (TASK-278 / M-WR-AUDIO-TASK, Phase 1) ────────────────────
@@ -589,15 +647,31 @@ static bool aeConnectFile(const char* path) {
 #ifdef MEMBUDGET_PHASE1
     mb_arena_acquire();  // idempotent; on FAIL -> libc fallback, same as _play()
 #endif
-    if (!s_wr_audio) {
-        s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
-        wrApplyInBufTrial(s_wr_audio);
-        wrApplyConnectTimeout(s_wr_audio);
+    // TASK-432: was a bare `new Audio(...)`. On the first `set plPlay` after a
+    // flash — before the heap settles (TASK-425: lfb8 is not stable until
+    // ~150 s post-reset) — that allocation failed, threw bad_alloc through a
+    // path with no handler, and reset the device. Now it degrades to the same
+    // `play FAILED` the caller already renders for a dead path.
+    if (!aeEnsureAudio()) {
+        // Roll back what THIS call took. The pump task was not created and no
+        // Audio exists, so the TLS yield is the only thing outstanding.
+        //
+        // The arena is deliberately NOT released here: mb_arena_acquire() is
+        // not ref-counted, so a release would yank the arena out from under a
+        // live WebRadio session that acquired it first (our acquire above
+        // would have been a no-op in that case). This mirrors WebRadio's own
+        // DMA-floor abort, which also leaves it held; aeTeardownFile() on
+        // mode exit is what releases it.
+        if (s_aeSpotifyYielded) {
+            spotifyTask::tlsResume();
+            s_aeSpotifyYielded = false;
+        }
+        return false;
     }
     wrEnsurePumpTask();  // idempotent; must run AFTER mb_arena_acquire() [DEV-2-3]
 
     xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
-    wrAudio().setVolume(wrScaledVolume());
+    s_wr_audio->setVolume(wrScaledVolume());
     xSemaphoreGive(s_wrAudioMutex);
 
     strlcpy(wrPumpConnectUrlBuf(), path, WR_PUMP_CONNECT_URL_LEN);

@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""TASK-432 gate — a failed Audio allocation must degrade, never reset.
+
+The defect: `new Audio(...)` in aeConnectFile()/WebRadioApp::_play() was a bare
+`new`. When it failed (first play after a flash, before the ~150s heap settle of
+TASK-425) it threw bad_alloc through a path with no handler — abort() ->
+std::terminate() -> device reset. Reproduced on the ordinary `set plPlay` path
+on cyd2usb_player, so this is shipping-variant normal usage, not a rare edge.
+
+Why fault injection rather than heap pressure: the natural trigger is a
+transient window that a test cannot schedule. TASK-432's own filing records that
+a retry at steady heap succeeded and "did not reproduce a second time" — which
+proves nothing either way. `set aeFailAudio 1` makes the degrade path
+deterministic, so a PASS here means the guard ran, not that the heap happened to
+be roomy.
+
+Checks (WebRadio arm — the shared aeEnsureAudio() guard, no SD card needed):
+  1. With injection armed, a play attempt lands in ERROR_UNREACHABLE.
+  2. The device does NOT reset: uptime keeps climbing across the attempt.
+  3. The injected-failure log line is actually emitted (proves the guard ran,
+     rather than the play failing earlier for an unrelated reason).
+  4. With injection cleared, a play attempt reaches CONNECTING — the engine is
+     not left wedged by the failed attempt.
+
+PRECONDITION: run on a freshly booted DUT, before any successful play. Once an
+Audio exists, aeEnsureAudio() returns early and the injection is inert by
+design (it must never destroy a live engine). Check 4 depends on the same thing
+in reverse and is skipped, not failed, if the station list never loads.
+
+Usage:  ./run/flash-debug && app/tools/task432_alloc_guard_gate.py
+Exit 0 if every check passes, 1 otherwise.
+"""
+import argparse
+import pathlib
+import re
+import sys
+import time
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+from run_serialdbg_tests import Dut  # noqa: E402
+from task398_connect_async_verify import (  # noqa: E402
+    check, fresh_dead_url, grep_new, log_pos, switch_app, wait_state, _results,
+)
+
+ERROR_UNREACHABLE = 5
+CONNECTING = 1
+
+
+# There is no `get uptime` serial var; the heartbeat log line carries it.
+_UPTIME_RE = re.compile(r"uptime=(\d+):(\d+):(\d+)")
+
+# A reset is exactly what this gate is about, so look for its signatures
+# directly instead of inferring it from a missing boot banner.
+_RESET_RE = re.compile(r"abort\(\) was called|rst:0x|Guru Meditation|SW_CPU_RESET")
+
+
+def wait_uptime(dut, timeout=45.0):
+    """The next uptime the heartbeat reports. Drains the wire rather than
+    polling the log file: the log is a tee of what someone reads, so a sleep
+    loop over the file sees nothing arrive (learned the hard way on the first
+    run of this gate). The heartbeat's ~30s cadence is also why this waits for
+    a genuinely NEW line — two reads seconds apart would land on the same one
+    and compare equal for the wrong reason."""
+    for line in dut.drain_log_lines(r"uptime=", 1, timeout=timeout):
+        m = _UPTIME_RE.search(line)
+        if m:
+            h, mi, s = (int(x) for x in m.groups())
+            return h * 3600 + mi * 60 + s
+    return None
+
+
+def start_play(dut, timeout=12.0):
+    """Get a play attempt actually started, without depending on the network.
+
+    Two rig hazards had to be routed around, both discovered by this gate's own
+    check 3 rather than assumed:
+
+    * `set wrUrl` alone defers whenever a station fetch is in flight (TASK-289 —
+      playing into a live fetch raced the heap), and on this rig the boot fetch
+      never resolves at all (`get wrCount` sat at count=0,pending=1 for 90s;
+      radio-browser mirror flakiness is TASK-284's known territory). So the play
+      is kicked explicitly with `set wrPlay 0`, which calls _play() directly and
+      aborts the pending fetch itself.
+
+    * `set wrDeadUrls` looks like the natural station injector but is useless
+      here: it arms _debugForceConnFail, and _play() then short-circuits to
+      ERROR_UNREACHABLE *before* the audio path. Using it made check 1 pass
+      vacuously — the right state for entirely the wrong reason. `set wrUrl`
+      clears that flag, which is why it is the one used.
+    """
+    dut.cmd(f"set wrUrl {fresh_dead_url()}", timeout=5.0)
+    dut.cmd("set wrPlay 0", timeout=5.0)
+    return wait_state(dut, lambda s: s != 0, timeout=timeout)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--port", default="/dev/ttyUSB0")
+    args = ap.parse_args()
+
+    log_path = "/tmp/task432_gate_raw.log"
+    dut = Dut(args.port, log_file=log_path)
+
+    print("TASK-432 gate — failed Audio alloc must degrade, not reset")
+
+    if not switch_app(dut, "WebRadio", timeout=10.0):
+        print("  SETUP FAIL: could not enter WebRadio")
+        return 1
+
+    up0 = wait_uptime(dut, timeout=45.0)
+    if up0 is None:
+        print("  SETUP FAIL: no heartbeat uptime seen in 45s")
+        return 1
+
+    # --- 1-3: injected failure -------------------------------------------
+    pos = log_pos(log_path)
+    r = dut.cmd("set aeFailAudio 1", timeout=5.0)
+    if not r.get("ok"):
+        print("  SETUP FAIL: `set aeFailAudio 1` not accepted "
+              "(debug build required)")
+        return 1
+
+    # A dead station, deliberately: the guard must fire BEFORE any connect is
+    # attempted, so a reachable stream would only muddy which failure won.
+    start_play(dut)
+    ok_state, st = wait_state(dut, lambda s: s == ERROR_UNREACHABLE, timeout=12.0)
+    check("play with injected alloc failure lands in ERROR_UNREACHABLE",
+          ok_state, f"state={st}")
+
+    up1 = wait_uptime(dut, timeout=45.0)
+    resets = grep_new(log_path, pos, _RESET_RE.pattern)
+    no_reset = up1 is not None and up1 > up0 and resets == 0
+    check("device did not reset across the failed play",
+          no_reset, f"uptime {up0}s -> {up1}s, {resets} reset signature(s)")
+
+    hits = grep_new(log_path, pos, r"Audio alloc failure INJECTED")
+    check("the allocation guard is what failed the play",
+          hits >= 1, f"{hits} injected-failure log line(s)")
+
+    # --- 4: engine still usable afterwards --------------------------------
+    dut.cmd("set aeFailAudio 0", timeout=5.0)
+    ok_recover, st2 = start_play(dut, timeout=12.0)
+    # A dead URL ends in ERROR_UNREACHABLE either way; what distinguishes a
+    # working engine is that it got as far as CONNECTING first. Passing on
+    # either state would make this check vacuous, so require the log to show a
+    # real connect attempt.
+    connected_attempt = grep_new(log_path, pos, r"HEAP pre-connect") >= 1
+    check("engine still usable after the injected failure",
+          ok_recover and connected_attempt,
+          f"state={st2} connect-attempt={connected_attempt}")
+
+    dut.cmd("set wrStop 1", timeout=5.0)
+
+    failed = [n for n, ok, _ in _results if not ok]
+    print(f"\n=== {len(_results) - len(failed)} passed, {len(failed)} failed ===")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -4139,6 +4139,18 @@ static void cmdSet(const char *args) {
                   ok ? "true" : "false", idx);
     return;
   }
+  // TASK-432: fault-inject a failed Audio allocation so the degrade path can
+  // be gated deterministically. With this set, the next play attempt (FILE or
+  // WebRadio) must render "play FAILED" / ERROR_UNREACHABLE and leave the
+  // shell alive — no abort(), no reset.
+  if (strncmp(args, "aeFailAudio", 11) == 0 && (args[11] == '\0' || args[11] == ' ')) {
+    int v = 1;
+    sscanf(args + 11, "%d", &v);
+    s_aeFailAudioInject = (v != 0);
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"aeFailAudio\",\"val\":%d}\n",
+                  s_aeFailAudioInject ? 1 : 0);
+    return;
+  }
   // TASK-418 / ADR-059 D12: sets the play-order cursor directly, in
   // whichever domain is active (view row / bag position), WITHOUT decoding
   // audio — T_PLR_21/22 force the end-of-list cells and wrap collisions by

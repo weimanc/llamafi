@@ -1329,9 +1329,11 @@ public:
             if (v < 0 || v > (int)WR_VOLUME_MAX) return true;
             if (!s_wr_audio) {
                 // DEV-2-4: no live Audio session — wrVol must NOT lazily construct
-                // one via wrAudio() (that would create an Audio with no pump task,
-                // no mutex discipline, no arena). Clamp-store-only: nothing to
-                // apply until a real _play() session exists.
+                // one (that would create an Audio with no pump task, no mutex
+                // discipline, no arena). Clamp-store-only: nothing to apply until
+                // a real _play() session exists. TASK-432 made this structural:
+                // the lazy-constructing wrAudio() accessor is gone, and
+                // aeEnsureAudio() is only ever called from the two _play arms.
                 LOG_I("webradio", "vol set=%d — no active session, not applied", v);
                 return true;
             }
@@ -1732,28 +1734,18 @@ private:
         }
 #endif
 #endif
-        if (!s_wr_audio) {
-            // TASK-289: I2S DMA-buffer floor. i2s_driver_install()'s DMA malloc
-            // failure is UNCHECKED in the vendored Audio ctor — it null-derefs
-            // (LoadProhibited, EXCVADDR 0x1c) and reboots the device. Observed
-            // failing at lfbDma 13.8 KB (concurrent TLS held the pool) and
-            // succeeding at 30+ KB; 16 KB sits just above the known-bad point
-            // without rejecting plays that fragmentation alone would allow.
-            // Degrade to the same path as a failed connect instead of crashing.
-            size_t lfbDma = heap_caps_get_largest_free_block(MALLOC_CAP_DMA);
-            if (lfbDma < 16 * 1024) {
-                LOG_E("webradio", "DMA pool too low for I2S init: lfbDma=%u — abort play",
-                      (unsigned)lfbDma);
-                _state = WRPlayState::ERROR_UNREACHABLE;
-                spotifyTask::tlsResume();
-                _spotifyYielded = false;
-                _onPlaybackFailed(/*connectFail=*/true);
-                _dirty = true;
-                return;
-            }
-            s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
-            wrApplyInBufTrial(s_wr_audio);   // EXP-012: before connecttohost (InBuff not yet alloc'd)
-            wrApplyConnectTimeout(s_wr_audio);  // TASK-392
+        // TASK-289's I2S DMA floor and TASK-432's checked allocation now both
+        // live in aeEnsureAudio(), so this arm and the FILE arm cannot drift
+        // apart — the DMA floor used to be a literal here and absent there,
+        // which is half of why TASK-432 could reset the device from a plain
+        // `set plPlay`. The degrade path below is unchanged.
+        if (!aeEnsureAudio()) {
+            _state = WRPlayState::ERROR_UNREACHABLE;
+            spotifyTask::tlsResume();
+            _spotifyYielded = false;
+            _onPlaybackFailed(/*connectFail=*/true);
+            _dirty = true;
+            return;
         }
         // TASK-278: lazily create the pump task — AFTER mb_arena_acquire() above
         // [DEV-2-3], idempotent across churn within a session (persists until
@@ -1762,7 +1754,7 @@ private:
 
         // TASK-278: control calls — blocking take (§Locking model).
         xSemaphoreTake(s_wrAudioMutex, portMAX_DELAY);
-        wrAudio().setVolume(wrScaledVolume());  // TASK-209 ceiling + TASK-352 session pct
+        s_wr_audio->setVolume(wrScaledVolume());  // TASK-209 ceiling + TASK-352 session pct
         xSemaphoreGive(s_wrAudioMutex);
         // TASK-208 / TASK-261 CP1: heap watermark at connecttohost (audio buffer alloc point).
         // Extended with caps-split (T_MB_PROBE_00) for Phase 0: freeInt/lfbInt distinguish
