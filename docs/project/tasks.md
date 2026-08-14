@@ -6650,6 +6650,11 @@ DHCP-gap silence. "Silence = give up" still needs the redesign VE described.
 The happy path was run deliberately: the always-on `_TeeSerial` wrap and the changed wait sit in
 every runner's `Dut.__init__`, so "it fails correctly now" is only half the claim.
 
+**Follow-up correction:** TASK-440 (up-front busy-port detection), filed alongside this, was
+**retracted the same day** — every `run/` script that opens the port already kills the monitor, and
+the busy port only occurred because the harness was invoked directly instead of through one. See
+TASK-440's entry.
+
 **Companion, LL-128 (not part of TASK-434's scope, same session):** `run/monitor-start` now pipes the
 pane to `/tmp/spotify-mon-serial.log` and `run/monitor-read` prefers that log over `capture-pane`
 (`PANE=1` forces the old behaviour). The pane held ~167 lines when TASK-437 needed it and the
@@ -6685,17 +6690,33 @@ allows, and must still print the `[SETUP-FAIL]` block with its serial tail · **
 100 s bounded wait plus a clear setup status already removes the misread that made this urgent ·
 **Status:** OPEN — filed 2026-08-14.
 
-### TASK-440 — detect a busy serial port before opening it
+### TASK-440 — detect a busy serial port before opening it — **RETRACTED (2026-08-14, same day)**
 
-VE answer 3 to TASK-434: the `port-busy` case is now *reported* correctly (`[SETUP-FAIL] port-busy`,
-exit 3, since 2026-08-14), but it is still only detected by letting pyserial fail on a port another
-process holds. Detecting it up front — `lsof`/`fuser` on the resolved port, mirroring `run/lib.sh`'s
-existing tmux-monitor-kill step — would name the holder instead of reporting a generic
-"multiple access on port?", and could offer the fix (`run/monitor-stop`) directly.
+Filed from VE answer 3 to TASK-434, retracted within the hour when the human asked "isn't that a
+solved problem already?". It is.
 
-Low value on its own; worth doing next time anything else touches port resolution.
+**Every `run/` script that opens the serial port already kills the monitor first** — audited all of
+them: `test`, `test-targeted`, `test-sync`, `flash`, `flash-debug`, `flash-fs`, `flash-player`,
+`flash-webradio`, `spiffs`, `screendump`, `stress`, `wr-soak`, `wr-gate`, `pr-soak`,
+`pr-fetch-soak`, `ae04`, `browser-player`, `playorder-player`, `ceefax-ws-soak`. The only scripts
+without a `kill-session` are ones that never touch the port (`build`, `build-debug`, the two
+host-side API/cert checks), `test-smoke` (which `exec`s `test-targeted`), and `run/setup` (whose
+`PORT` is an HTTP port, and which shells out to `run/spiffs` for the device write).
 
-**Owner:** Developer · **Deps:** none · **Priority:** P3 · **Status:** OPEN — filed 2026-08-14.
+**The busy port was self-inflicted.** It happened because `app/tools/run_serialdbg_tests.py` was
+invoked directly rather than through a `run/` script — exactly what `CLAUDE.md` says not to do
+("Always use these instead of raw `pio` or `tmux` commands — the scripts handle port resolution,
+monitor lifecycle, and DUT safety automatically"). Filing a task to add a second guard at the spot
+reached by stepping around the first one is how a codebase accretes redundant safety.
+
+**What survives, and it is small:** a *peer session* (another agent, another terminal) holding the
+port is not covered by the monitor-kill, and that did happen on 2026-08-11. TASK-434 already reports
+it correctly — `[SETUP-FAIL] port-busy`, exit 3, naming `run/monitor-stop` as the likely fix — which
+is the part that was actually missing. Naming the holding PID would be a marginal improvement over
+that; it does not need a task of its own, and if anyone wants it, do it while touching
+`resolve_port()` for another reason.
+
+**Owner:** — · **Status:** **RETRACTED** — not a defect; the guard exists and works.
 
 ### TASK-433 — a repeat `fbOpen` of the same directory fails intermittently
 
