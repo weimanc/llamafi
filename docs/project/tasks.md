@@ -8080,6 +8080,73 @@ was blocked on exactly this. Neither is done by this change; both are now runnab
 drivers (`test_fbrowser_player.py`, `test_playorder_player.py`) still exist and still duplicate
 settle/port/reporting logic — folding them into the suite is TASK-422's work, not this task's.
 
+### TASK-443 — Architect ruling: Player-mode memory configuration (TASK-442's decision)
+
+TASK-442 established the fault and closed the bisect; it did not choose a fix, and choosing one is
+an architecture call because every option trades away something the milestone currently assumes.
+This task exists to make that call, with the measurements already in hand.
+
+**The fault, in one line:** on `cyd2usb_player`, acquiring the 24 KB arena drops the largest free
+8-bit block from **26 612 B to 2 932 B**, and `new (std::nothrow) Audio(...)` then returns null, so
+local playback cannot start. Not a regression — `510afef` crashes at the same allocation
+(TASK-442's bisect).
+
+**Measured inputs (all DUT, 2026-08-14/15, `cyd2usb_player`):**
+
+| quantity | value | source |
+|---|---|---|
+| `MB_ARENA_BYTES` | 24 576 B | `mb_arena.h:27` |
+| `lfb8` at idle, before acquire | 26 612 B | `get plCount` |
+| `lfb8` after acquire | 2 932 B | same, post-acquire |
+| I2S DMA floor (guard) | 16 384 B | TASK-289, hoisted to `AE_I2S_DMA_FLOOR_BYTES` |
+| arena + FATFS ctx vs `lfb8` | 6 424 B short | TASK-425 |
+| `lfbInt` idle, `510afef`, 2026-08-11 vs 2026-08-15 | 69 620 → 42 996 | TASK-427 vs TASK-442 (same 32-bit metric; BP-055 says it over-reports, but both readings are that metric) |
+
+**Options, with what each costs. None is free; that is why this is a ruling and not a fix.**
+
+**(a) Don't acquire the arena on the FILE path at all — the cheapest to test, and it may already be
+supported.** `mb_arena_acquire()` failing is a *designed* state: `mb_arena_alloc()` falls back to
+libc (`mb_arena.h:20`, "acquire the arena stays inactive and mb_arena_alloc falls back to libc
+malloc"). Today the acquire *succeeds* and is therefore itself what starves the I2S allocation — the
+engine takes 24 KB of the very pool the DAC needs. Local playback also has the property the arena
+was invented for on WebRadio's behalf and does not need: **no TLS session to fragment around** (the
+FILE arm yields Spotify TLS and, on this variant, Spotify is compiled out entirely). The obvious
+counter-argument is decoder locality/latency, which is exactly TASK-278's territory and must not be
+assumed away.
+*Cheap to settle empirically*: gate the acquire on connect kind, or add a debug knob, then play. One
+flash cycle. **Recommended as the first experiment, not as the answer.**
+
+**(b) Shrink `MB_ARENA_BYTES`.** Needs the decoder's true high-water mark, which `mb_arena_hwm()`
+already reports at CP2 — but the number must come from a *successful* local play, and there isn't
+one yet on this variant, so this option cannot even be sized until (a) or (c) yields a playing
+device. EXP-011 is the standing warning: a static-always 23 216 B decoder took `maxBlk` below the
+TLS need and produced SSL -32512.
+
+**(c) Cut resident footprint until it fits.** TASK-433's browser arrays (+3 072 B) and TASK-418's
+play-order state (+512 B) are the known recent tenants. **The bisect proves this alone is
+insufficient** — removing both returns the build to `510afef`, which crashes. It could only ever be
+part of a combination, and it would undo a fix (TASK-433) that was itself DUT-proven.
+
+**(d) Rule that Player mode does not ship on this hardware.** Honest, and consistent with TASK-431
+already having conceded a dedicated variant. It costs the milestone its headline feature and should
+not be chosen before (a) is tested.
+
+**The environment question that must be answered before (b) or (c) are sized.** The idle baseline
+moved ~26 KB at a fixed commit between 2026-08-11 and 2026-08-15 (table above). The only known
+difference is the network: the device is on an unfamiliar AP (RSSI -76) whose boot cascade fails over
+every saved network before the supervisor connects it, versus the home AP at -54 where TASK-427's
+number was taken. **This is a candidate with one supporting coincidence, not a finding** (LL-132).
+If it is real, then any arena size chosen today is calibrated against the worse of two environments —
+which may be the right conservative choice, but must be a decision rather than an accident. The clean
+experiment is TASK-442's probe at `510afef` on the home network.
+
+**Owner:** Architect (ruling) · **Deps:** TASK-442 (fault + bisect, done), TASK-425 (shortfall
+measurement), TASK-431 (the option-(a) ruling this revisits) · **Gate:** an ADR-059 amendment stating
+which option is taken and why, plus — for whichever is chosen — a `cyd2usb_player` build that plays
+a 5-track playlist end to end · **Priority:** **P1** — blocks TASK-422's `T_PLR_39` soak, TASK-429's
+gate, TASK-432's FILE-arm check 4, and the milestone's close · **Status:** OPEN — filed 2026-08-15
+from TASK-442's bisect.
+
 ### TASK-419 — real posbar seek for local files
 
 The vendored `Audio` exposes `setFilePos()`, `setTimeOffset()`, `getFilePos()`, `getFileSize()`,
