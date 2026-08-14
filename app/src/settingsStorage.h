@@ -192,7 +192,7 @@ extern AppSettings g_settings;
 
 namespace SettingsStorage {
     void load();   // SPIFFS → g_settings; per-key defaults applied for missing entries
-    void save();   // g_settings → SPIFFS
+    bool save();   // g_settings → SPIFFS; false = NOTHING was persisted (TASK-429)
 
     // M-HOME-LOCATION (H-1/H-3): the writer×mirror matrix lives HERE and only
     // here (BP-047 — one shared sequence, never a second inline copy). Two
@@ -215,5 +215,12 @@ namespace SettingsStorage {
     // station-index change) with a hard counter instead of parsing
     // "SettingsStorage: saved" log lines. Debug-only; `get settingsSaveCount`.
     uint32_t debugSaveCount();
+    // TASK-429: failed-save counters, split by cause — an allocation failure
+    // (saved while the audio arena holds the contiguous heap) needs a
+    // different fix from a genuine capacity overflow, and the two used to log
+    // the same line. Debug-only; folded into `get settingsSaveCount`.
+    uint32_t debugSaveFailAlloc();
+    uint32_t debugSaveFailOverflow();
+    uint32_t debugSaveFailWrite();
 #endif
 }

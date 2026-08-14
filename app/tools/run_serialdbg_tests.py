@@ -80,6 +80,20 @@ _NO_WIFI            = os.environ.get("NO_WIFI", "") == "1"
 # run/lib.sh's ENV_DEBUG, which reads the same variable — set it once and the
 # flash and the guard agree by construction.
 _DUT_ENV            = os.environ.get("DUT_ENV", "cyd2usb_winamp_debug")
+def _is_ip_line(line: str) -> bool:
+    """Does this serial line mean the DUT has a link?
+
+    TASK-441: `IP address:` is printed ONLY by setup()'s boot-cascade success
+    path (main.cpp:2650). When the cascade fails and wifiDiag's supervisor
+    brings the link up afterwards — routine on an AP the saved list does not
+    cover — the device is fully connected and never prints it again. Measured
+    2026-08-14: heartbeat `wifi=rssi(-56)`, NTP synced, token refreshed, and
+    the harness still aborted at 195 s having seen no `IP address:`.
+    `[wifi-ev] … STA_GOT_IP` (wifiDiag.cpp) streams on every path that
+    acquires an address, including the supervisor's."""
+    return "IP address:" in line or "STA_GOT_IP" in line
+
+
 _PORTAL_INDICATORS  = (
     "Forcing config mode", "configuring access point", "SpotifyDIY", "WiFiManager"
 )
@@ -212,7 +226,7 @@ class Dut:
         deadline = time.monotonic() + _DUT_WIFI_WAIT_S
         while time.monotonic() < deadline:
             line = self.ser.readline().decode(errors="replace").strip()
-            if "IP address:" in line:
+            if _is_ip_line(line):
                 ip_seen = True
                 break
             if any(ind in line for ind in _PORTAL_INDICATORS):
@@ -291,10 +305,24 @@ class Dut:
                 deadline = time.monotonic() + _DUT_WIFI_WAIT_2_S
                 while time.monotonic() < deadline:
                     line = self.ser.readline().decode(errors="replace").strip()
-                    if "IP address:" in line:
+                    if _is_ip_line(line):
                         ip_seen = True
                         break
                 extended = True
+            if not ip_seen:
+                # Last resort: ASK. Both waits above are passive line-watchers,
+                # and a link that came up before the port was opened emits
+                # nothing further — the DUT is ready and the harness is staring
+                # at a stream that already said so. One cheap query settles it.
+                self.ser.reset_input_buffer()
+                self.ser.write(b"get ip\n"); self.ser.flush()
+                probe_deadline = time.monotonic() + 5.0
+                while time.monotonic() < probe_deadline:
+                    line = self.ser.readline().decode(errors="replace").strip()
+                    if '"var":"ip"' in line and '0.0.0.0' not in line:
+                        ip_seen = True
+                        print(f"  [Dut] link confirmed by query: {line}", flush=True)
+                        break
             if ip_seen:
                 print("  [Dut] IP acquired on the extended wait.", flush=True)
             else:

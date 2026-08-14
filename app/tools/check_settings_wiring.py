@@ -56,7 +56,15 @@ def main():
     fields = parse_fields()
 
     cpp = CPP.read_text()
-    load_i, save_i = cpp.find("void SettingsStorage::load"), cpp.find("void SettingsStorage::save")
+    # Return types are not part of what this gate checks, so do not pin them:
+    # TASK-429 changed save() from void to bool and every one of the 58 fields
+    # instantly read as "unwired" because find() returned -1 and sliced the
+    # file backwards. Match on the qualified name alone.
+    load_i, save_i = (cpp.find("SettingsStorage::load("),
+                      cpp.find("SettingsStorage::save("))
+    if load_i < 0 or save_i < 0:
+        sys.exit("check_settings_wiring: could not locate SettingsStorage::load/save "
+                 f"in {CPP} (load_i={load_i} save_i={save_i}) — parser out of date")
     load_body, save_body = cpp[load_i:save_i], cpp[save_i:]
 
     consumer_files = [

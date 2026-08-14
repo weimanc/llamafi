@@ -283,6 +283,17 @@ static inline void wrApplyConnectTimeout(Audio* a) {
 // WebRadioApp::_play(); hoisted here so the FILE arm gets the same guard
 // rather than a second copy that can drift.
 static constexpr size_t AE_I2S_DMA_FLOOR_BYTES = 16 * 1024;
+#ifdef SERIAL_DEBUG
+// TASK-442: runtime override for the floor (`set aeDmaFloor <bytes>`, 0 =
+// disable the check). The floor is a *largest-contiguous-block* test, but
+// i2s_driver_install() allocates several small DMA buffers, not one 16 KB
+// block — so the check may reject states the driver could actually serve.
+// Deciding that needs an A/B on hardware, which needs this knob.
+static size_t s_aeDmaFloorOverride = AE_I2S_DMA_FLOOR_BYTES;
+#define AE_DMA_FLOOR() (s_aeDmaFloorOverride)
+#else
+#define AE_DMA_FLOOR() (AE_I2S_DMA_FLOOR_BYTES)
+#endif
 
 // TASK-432: the ONLY place an Audio is constructed. Both arms (WebRadio's
 // _play() and the FILE arm's aeConnectFile()) route through here, so the DMA
@@ -296,6 +307,35 @@ static constexpr size_t AE_I2S_DMA_FLOOR_BYTES = 16 * 1024;
 //
 // Callers own their own rollback (TLS yield, play state); this function
 // leaves no partial engine behind when it fails.
+// TASK-432 (follow-up, 2026-08-14): give the arena back when a play attempt
+// dies before an engine exists.
+//
+// The first cut of TASK-432 deliberately left the arena held on the failure
+// path, reasoning that mb_arena_acquire() is not ref-counted and a release
+// could yank it from a live WebRadio session. That reasoning was wrong, and
+// the gate's own "is the engine still usable?" check caught it on the DUT:
+//
+//   arena acquire=24576B lfbBefore=28660 OK     <- arena taken
+//   Audio alloc failure INJECTED — abort play    <- guard fires, arena kept
+//   DMA pool too low for I2S init: lfbDma=4084   <- next play, 24 KB missing
+//
+// One failed play poisoned every later play until mode exit — strictly worse
+// than the reset it replaced, for a user who would just tap play again.
+//
+// The feared case cannot occur: a live WebRadio session implies s_wr_audio is
+// non-null, and then aeEnsureAudio() returns early and never reaches here. So
+// "no Audio object AND no pump task" is a sufficient test for "nobody is using
+// the arena", whoever acquired it.
+static bool wrPumpAlive();   // defined below; single-TU forward declaration
+static void aeReleaseArenaIfIdle() {
+#ifdef MEMBUDGET_PHASE1
+    if (!s_wr_audio && !wrPumpAlive()) {
+        mb_arena_release();
+        LOG_W("audioengine", "play aborted before engine bring-up — arena released");
+    }
+#endif
+}
+
 #ifdef SERIAL_DEBUG
 // TASK-432 gate: force the guard to fail. The defect's natural trigger is a
 // transient heap window (first play after a flash, before the ~150 s settle of
@@ -308,17 +348,11 @@ static bool s_aeFailAudioInject = false;
 static bool aeEnsureAudio() {
     if (s_wr_audio) return true;
 
-#ifdef SERIAL_DEBUG
-    if (s_aeFailAudioInject) {
-        LOG_E("audioengine", "Audio alloc failure INJECTED (set aeFailAudio 1) — abort play");
-        return false;
-    }
-#endif
-
     size_t lfbDma = heap_caps_get_largest_free_block(MALLOC_CAP_DMA);
-    if (lfbDma < AE_I2S_DMA_FLOOR_BYTES) {
+    if (AE_DMA_FLOOR() && lfbDma < AE_DMA_FLOOR()) {
         LOG_E("audioengine", "DMA pool too low for I2S init: lfbDma=%u — abort play",
               (unsigned)lfbDma);
+        aeReleaseArenaIfIdle();
         return false;
     }
 
@@ -326,11 +360,27 @@ static bool aeEnsureAudio() {
     // already checked (mb_arena_acquire() falls back to libc, the Helix
     // sub-allocations fail cleanly to "play FAILED"); this one was the lone
     // bare `new`.
-    Audio* a = new (std::nothrow) Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
+    // TASK-432: the injection suppresses the allocation and then falls through
+    // to the SAME failure handling below — it does not return early. An
+    // injector that short-circuits past the rollback tests a path that does not
+    // exist in production: the first cut did exactly that, skipped
+    // aeReleaseArenaIfIdle(), and produced a FAIL that looked like a firmware
+    // defect (LL-127, one level deeper — the fault must enter through the real
+    // door).
+    Audio* a = nullptr;
+#ifdef SERIAL_DEBUG
+    if (s_aeFailAudioInject) {
+        LOG_E("audioengine", "Audio alloc failure INJECTED (set aeFailAudio 1)");
+    } else
+#endif
+    {
+        a = new (std::nothrow) Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
+    }
     if (!a) {
         LOG_E("audioengine", "Audio alloc failed: lfbInt=%u freeInt=%u — abort play",
               (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
               (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+        aeReleaseArenaIfIdle();
         return false;
     }
 

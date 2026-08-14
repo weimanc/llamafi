@@ -6986,6 +6986,85 @@ gate would keep producing, proving nothing. With the injection, a PASS means the
 now DUT-proven, but the rollback around it is verified by inspection only. Closing that needs
 `cyd2usb_player` plus an SD card with a playlist, which is TASK-435 item 2's harness gap.
 
+### TASK-432 FILE-arm gate + two follow-up fixes (2026-08-14, later same day)
+
+Runnable at last because TASK-435 item 2 landed. `app/tools/task432_alloc_guard_gate.py --arm file`
+drives `cyd2usb_player` with the `/playlists/short5.m3u` fixture. **3 of 4 checks PASS**; the fourth
+is not a gate failure but the discovery below.
+
+| check | result |
+|---|---|
+| play with injected alloc failure does not start playback | PASS (`playing=False`) |
+| device did not reset across the failed local-file play | PASS (uptime 47→77 s, 0 reset signatures) |
+| the allocation guard is what failed the play | PASS |
+| local playback still works after the injected failure | **FAIL — see TASK-442** |
+
+**Fix 1 — the arena is now released when a play dies before bring-up.** TASK-432's first cut
+deliberately kept it, reasoning a release could yank the arena from a live WebRadio session. That
+reasoning was wrong: a live WebRadio session implies `s_wr_audio != nullptr`, and then
+`aeEnsureAudio()` returns early and never reaches the failure path. `!s_wr_audio && !wrPumpAlive()`
+is therefore a sufficient test for "nobody is using the arena". The gate caught the consequence
+directly on hardware:
+
+```
+arena acquire=24576B lfbBefore=28660 OK      <- arena taken
+Audio alloc failure INJECTED — abort play     <- guard fires, arena kept
+DMA pool too low for I2S init: lfbDma=4084    <- next play, the 24 KB is the missing headroom
+```
+
+One failed play poisoned every later play until mode exit — strictly worse than the reset it
+replaced, for a user who would simply tap play again.
+
+**Fix 2 — the injector was bypassing the rollback it exists to exercise.** `set aeFailAudio 1`
+returned early, skipping `aeReleaseArenaIfIdle()`, so the gate measured a path that does not exist
+in production and reported a FAIL that looked like a firmware defect. It now suppresses the
+allocation and falls through to the identical failure handling. **This is LL-127 one level deeper**:
+it is not enough that the injected fault produces the right symptom, it must enter through the
+same door as the real one.
+
+### TASK-442 — `cyd2usb_player` cannot construct the Audio object at all; the variant has no working playback
+
+**Measured on the DUT 2026-08-14, A/B'd, no injection involved.** With the arena acquired
+(24 576 B), the largest free 8-bit block is **2 932 B**, and `new (std::nothrow) Audio(...)` returns
+null. Local playback fails on every attempt.
+
+| arm | `set aeDmaFloor` | result |
+|---|---|---|
+| control | 16384 (production) | `DMA pool too low for I2S init: lfbDma=2932 — abort play` |
+| experiment | 0 (check disabled) | `Audio alloc failed: lfbInt=2932 freeInt=50524 — abort play` |
+
+**The floor check is not the problem and is not too strict.** Disabling it only moves the failure
+one line down, from a predicted failure to the actual one. That was the open question the
+`set aeDmaFloor` knob was added to settle, and it is settled: TASK-289's floor is doing its job.
+
+**Nor is TASK-432 the cause** — it changed a crash into a clean abort. Before it, this same
+allocation threw `bad_alloc` and reset the device. The device could not play then either; it just
+failed louder.
+
+**What this means for the milestone.** TASK-427 DUT-proved 3+ minutes of local playback on this
+exact variant at `510afef` (2026-08-11). Since then **TASK-433 added 3 072 B of permanently-resident
+browser arrays and TASK-418 added ~512 B of play-order state.** TASK-435's filing flagged precisely
+this possibility and said it was "not established" — it is now much better established, because with
+TASK-432 fixed there is no remaining candidate cause between "it played at `510afef`" and "the
+allocation returns null today". **The shipping Player configuration currently has no working
+playback path at all.**
+
+**The one experiment left, and it is decisive:** build and flash `cyd2usb_player` at `510afef`, run
+the same fixture. If it plays, the regression is in what landed after it and the bisect range is
+five commits wide. If it does not, then TASK-427's measurement was environment-dependent and the
+variant never had the headroom, which changes TASK-431's ruling rather than any single commit.
+
+**Not attempted here**, deliberately: it needs a checkout of an old commit (worktree or stash) and
+the answer determines an architectural call — how the ~3 KB is reclaimed, or whether the Player
+variant sheds features — that is the Architect's and the human's to make, not something to decide by
+picking a number.
+
+**Owner:** Architect (ruling) + Developer (bisect) · **Deps:** TASK-425/431's memory ruling ·
+**Gate:** local playback works on `cyd2usb_player` for a full 5-track playlist, or an explicit ruling
+that Player mode ships with a different memory configuration · **Priority:** **P1** — the milestone's
+shipping variant cannot play audio · **Status:** OPEN — filed 2026-08-14, escalated to the human the
+same session.
+
 ### TASK-409 — extract the audio engine to `audio/audioEngine.h` (PURE MOVE)
 
 Exactly one `Audio` object can exist (one internal DAC, one 23 216 B Helix arena, one 6 400 B

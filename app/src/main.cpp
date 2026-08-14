@@ -3955,9 +3955,15 @@ static void cmdGet(const char *args) {
   // (WIRE2 §6 W-1) to force a save and confirm the counter advances by
   // exactly one.
   if (strcmp(args, "settingsSaveCount") == 0) {
+    // TASK-429: the fail counters ride along on the existing var so a test can
+    // assert "the save did not silently vanish" in one call.
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"settingsSaveCount\","
-                  "\"count\":%u,\"last\":true}\n",
-                  (unsigned)SettingsStorage::debugSaveCount());
+                  "\"count\":%u,\"failAlloc\":%u,\"failOverflow\":%u,"
+                  "\"failWrite\":%u,\"last\":true}\n",
+                  (unsigned)SettingsStorage::debugSaveCount(),
+                  (unsigned)SettingsStorage::debugSaveFailAlloc(),
+                  (unsigned)SettingsStorage::debugSaveFailOverflow(),
+                  (unsigned)SettingsStorage::debugSaveFailWrite());
     return;
   }
   Serial.printf("{\"ok\":false,\"cmd\":\"get\","
@@ -4137,6 +4143,20 @@ static void cmdSet(const char *args) {
     const bool ok = g_LocalPlayerApp.dbgPlayRow((uint16_t)idx);
     Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"plPlay\",\"idx\":%d}\n",
                   ok ? "true" : "false", idx);
+    return;
+  }
+  // TASK-442: lower/disable the I2S DMA floor so the "is the floor too strict
+  // on this variant?" A/B can be run on hardware. 0 disables the check.
+  if (strncmp(args, "aeDmaFloor", 10) == 0 && (args[10] == '\0' || args[10] == ' ')) {
+    int v = -1;
+    if (sscanf(args + 10, "%d", &v) != 1 || v < 0) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"aeDmaFloor\","
+                     "\"error\":\"usage: set aeDmaFloor <bytes|0>\"}");
+      return;
+    }
+    s_aeDmaFloorOverride = (size_t)v;
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"aeDmaFloor\",\"val\":%u}\n",
+                  (unsigned)s_aeDmaFloorOverride);
     return;
   }
   // TASK-432: fault-inject a failed Audio allocation so the degrade path can

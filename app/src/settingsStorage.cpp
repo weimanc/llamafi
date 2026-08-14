@@ -2,6 +2,7 @@
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
 #include <math.h>
+#include <esp_heap_caps.h>   // TASK-429: name the alloc-failure mode with real numbers
 #include "settings/cities.h"   // M-HOME-LOCATION D4: migration seeds home from the kCities table (standalone data, no include cycle)
 
 AppSettings g_settings;
@@ -31,6 +32,21 @@ static constexpr size_t kSettingsJsonCapacity = 6144;
 // the increment site below for exactly which failure paths are excluded.
 static uint32_t s_saveCount = 0;
 #endif
+
+// TASK-429: failed saves, split by cause. A save during playback fails at the
+// DynamicJsonDocument ctor (the Helix arena holds the contiguous blocks; the
+// 8-bit lfb drops to ~2.8 KB), which ArduinoJson reports as capacity 0 and
+// every add silently no-ops — indistinguishable, in the old log line, from the
+// schema genuinely outgrowing kSettingsJsonCapacity.
+//
+// NOT behind SERIAL_DEBUG, unlike s_saveCount above: the failure branches that
+// bump these are compiled into production too, and 12 B of .bss is a fair
+// price for not having a prod-only path that silently loses a user's settings
+// with no counter behind it. Only the `get settingsSaveCount` accessors are
+// debug-gated.
+static uint32_t s_saveFailAllocCount    = 0;
+static uint32_t s_saveFailOverflowCount = 0;
+static uint32_t s_saveFailWriteCount    = 0;
 
 // ---- Defaults --------------------------------------------------------------
 
@@ -435,7 +451,11 @@ void SettingsStorage::load() {
 
 // ---- Save ------------------------------------------------------------------
 
-void SettingsStorage::save() {
+// TASK-429: returns false when nothing was persisted. Previously void, so a
+// caller that persisted something during playback was told nothing and simply
+// lost the write. Every existing call site compiles unchanged (a discarded
+// bool is fine); the ones that can do something useful with it should.
+bool SettingsStorage::save() {
     DynamicJsonDocument doc(kSettingsJsonCapacity);
 
     auto t = doc.createNestedObject("time");
@@ -540,15 +560,45 @@ void SettingsStorage::save() {
     // it opens, so this guard MUST run before the open — abort here and the
     // previous settings.json stays intact on flash.
     if (doc.overflowed()) {
-        Serial.println("SettingsStorage: JSON doc OVERFLOWED — save aborted, previous file kept!");
-        return;
+        // TASK-429: name which of the two failure modes this is. They need
+        // opposite fixes — a real overflow means raise kSettingsJsonCapacity,
+        // an allocation failure means the caller saved at the wrong moment
+        // (ADR-050 rule 3: coalesce the write into suspend()) — and the old
+        // message covered both without a single number to tell them apart.
+        if (doc.capacity() == 0) {
+            s_saveFailAllocCount++;
+            Serial.printf("SettingsStorage: save aborted — doc ALLOC FAILED "
+                          "(capacity 0, wanted %u B; lfb8=%u freeInt=%u). "
+                          "Audio arena up? Coalesce the write into suspend() "
+                          "(ADR-050 rule 3). Previous file kept.\n",
+                          (unsigned)kSettingsJsonCapacity,
+                          (unsigned)heap_caps_get_largest_free_block(
+                              MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                          (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+        } else {
+            s_saveFailOverflowCount++;
+            Serial.printf("SettingsStorage: save aborted — JSON doc OVERFLOWED "
+                          "(used %u of %u B). Schema outgrew "
+                          "kSettingsJsonCapacity. Previous file kept.\n",
+                          (unsigned)doc.memoryUsage(),
+                          (unsigned)kSettingsJsonCapacity);
+        }
+        return false;
     }
 
     File f = SPIFFS.open(SETTINGS_JSON, "w");
-    if (!f) { Serial.println("SettingsStorage: failed to open for write"); return; }
+    if (!f) {
+        s_saveFailWriteCount++;
+        Serial.println("SettingsStorage: failed to open for write");
+        return false;
+    }
     size_t written = serializeJson(doc, f);
     f.close();
-    if (written == 0) { Serial.println("SettingsStorage: write failed"); return; }
+    if (written == 0) {
+        s_saveFailWriteCount++;
+        Serial.println("SettingsStorage: write failed");
+        return false;
+    }
 #ifdef SERIAL_DEBUG
     // T-WRSET-04: only a fully-completed write reaches here — the
     // doc.overflowed() abort above and the written==0 failure just above
@@ -560,10 +610,14 @@ void SettingsStorage::save() {
     // kSettingsJsonCapacity above).
     Serial.printf("SettingsStorage: saved (doc %u/%u B)\n",
                   (unsigned)doc.memoryUsage(), (unsigned)kSettingsJsonCapacity);
+    return true;
 }
 
 #ifdef SERIAL_DEBUG
 uint32_t SettingsStorage::debugSaveCount() { return s_saveCount; }
+uint32_t SettingsStorage::debugSaveFailAlloc()    { return s_saveFailAllocCount; }
+uint32_t SettingsStorage::debugSaveFailOverflow() { return s_saveFailOverflowCount; }
+uint32_t SettingsStorage::debugSaveFailWrite()    { return s_saveFailWriteCount; }
 #endif
 
 // ---- M-HOME-LOCATION writer×mirror matrix (H-1/H-3) ------------------------
