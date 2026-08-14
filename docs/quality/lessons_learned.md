@@ -2048,6 +2048,13 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 **Suggested improvement**: Before filing a task that proposes adding a guard, check whether the guard exists and why it did not fire. State that check in the task's own text ("verified absent: `grep …`"). A task whose premise has not been checked is a claim, not a record.
 **Status**: open — proposed for BP promotion, human sign-off required
 
+### LL-132 — 2026-08-15 — A DUT measurement whose environment is not recorded is not a measurement
+**Context**: TASK-427 closed on 2026-08-11 with "DUT-verified: boots, mounts SD, arena acquires, MP3 plays" — 3+ minutes of local playback on `cyd2usb_player` at commit `510afef`, with `arena acquire=24576B lfbBefore=69620 OK`. Four days later the same variant could not construct the audio engine at all, and the natural suspects were the two commits that had landed since (TASK-433's 3 072 B of resident arrays, TASK-418's ~512 B).
+**Observation**: A bisect built `510afef` in a clean worktree and ran the same fixture on the same board: it crashed, at the same allocation, with `abort()` → `SW_CPU_RESET`. The suspect commits were innocent; the shortfall predated them. The idle baseline had moved from `lfbInt=69620` to `42996` — same metric, ~26 KB apart — with no code change between the two readings. The only recorded difference is that the device is now on a different network. **TASK-427's write-up records the number but not one fact about the conditions that produced it**: which AP, what RSSI, whether the boot cascade succeeded, how long after reset, what else was resident.
+**Root cause**: Heap headroom on this board is a function of the environment (which network path the boot took, how much the TLS/WiFi working set fragmented, how long since reset — TASK-425 already established the last one). A number recorded without those conditions cannot be re-tested, so it cannot be falsified, and it silently becomes a premise: three separate task write-ups reasoned from "it played at `510afef`" as if it were a property of the commit.
+**Suggested improvement**: A DUT measurement that will be cited later must carry its conditions in the same line or table as the number — at minimum: commit, variant, seconds since reset, network state (SSID/RSSI or "cascade failed, supervisor connected"), and whether the reading is the 8-bit or 32-bit cap (BP-055). A measurement lacking them is quotable only as "observed once", never as a baseline. When a later run contradicts such a number, suspect the environment before suspecting the commits in between.
+**Status**: open — proposed for BP promotion, human sign-off required
+
 ## Entry Format
 
 ---
