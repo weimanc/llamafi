@@ -8238,6 +8238,46 @@ immediate need was a working device, so credentials were pushed via
 independently confirmed by pinging it from a host on the same AP). That leaves `_startScan()` taking
 its already-working "connected" branch, so the repaired branch has NOT been exercised on hardware.
 
-**Gate still owed:** from a connected state, Settings -> WiFi -> Forget network (re-creates the
-absent-AP condition), then tap Scan networks — expect a populated list within ~4 s. Until that is
-run, treat the quiesce path as reasoned-and-compiled, not DUT-proven.
+**Gate CLOSED (2026-08-14, operator-run on the DUT).** The operator tapped Scan networks on the
+fixed firmware and the scan returned a populated list. The repaired path is now DUT-proven, not
+merely compiled.
+
+**Follow-up observed in the same session, filed as TASK-437:** selecting a network from that list
+and entering its password did NOT connect. Confirmed a real failure rather than a UI misreport —
+`/wifi_networks.json` on the device still contains only the old `<home-ssid>` entry, and that
+file is written by `_onConnectSuccess()`, so the success path never ran. Root cause NOT established:
+the tmux serial capture holds only ~167 lines and the attempt had scrolled off before it was read,
+so no `[wifi-ev]` reason code survives. Do not guess between the candidates — see TASK-437.
+
+### TASK-437 — a WiFi password entered in the Settings UI did not connect
+
+Observed 2026-08-14 immediately after TASK-436's scan fix let the network list render for the first
+time on a foreign AP. The operator selected the AP, typed the password on the on-screen keyboard,
+and the connect failed. Real failure, not a UI misreport: `/wifi_networks.json` still holds only the
+pre-existing `<home-ssid>` entry, and `_onConnectSuccess()` is the only writer.
+
+**Root cause NOT established, and deliberately not guessed at.** The serial capture had already
+wrapped (~167 lines of tmux scrollback) so the `[wifi-ev]` reason code is gone. The one datum that
+would split the candidates is what `repaintResult()` printed, which the operator saw and can
+report — it already distinguishes three cases:
+
+| Screen text | `_failReason` | Points at |
+|---|---|---|
+| `Wrong password` | `WL_CONNECT_FAILED` | keyboard entry — a dropped shift on a mixed-case password, or a real `keyboardWidget` defect |
+| `Network not found` | `WL_NO_SSID_AVAIL` | scan/association mismatch — band steering or an SSID that scanned but would not associate |
+| `Timed out` | neither (15 s bound in `tick()`) | the 15 s window is too tight; a BT Whole Home mesh can exceed it, and the boot chain elsewhere allows far longer |
+
+The third is the one with real fix content: `tick()`'s bound is a bare `15000` while the boot
+cascade budgets much more per candidate, and a connect that succeeds at 16 s would render as a
+failure *and* still land in NVS via `WiFi.persistent(true)` — a confusing "it says failed but it
+works later" state.
+
+**Do not close this by reasoning from the three candidates.** Get the screen text first, or
+reproduce with the debug build (`kb:submit pass_len=` is `SERIAL_DEBUG`-gated, and the `[wifi-ev]`
+reason code names AUTH_FAIL vs NO_AP_FOUND directly). Raise the tmux scrollback before retrying —
+losing the evidence window is what made this un-diagnosable the first time.
+
+**Owner:** Developer · **Deps:** none · **Priority:** P2 — the SPIFFS push
+(`./run/spiffs push wifi_creds.json`) is a working operator path, so this is not a device-bricking
+gap; but it is the *only* on-device way to join a new network, so it is P1 for anyone without a
+host · **Status:** OPEN — filed 2026-08-14, awaiting the screen text.
