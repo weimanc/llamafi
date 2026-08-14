@@ -7822,7 +7822,11 @@ jump), delete memmoves `viewOrder` **and** drops the id from `playOrder`, fixing
 pointed past the removed slot.
 
 **Owner:** Developer · **Deps:** TASK-415, TASK-417 · **Gate:** `T_PLR_29`, `T_PLR_34` ·
-**Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07 (D5).
+**Priority:** P2 · **Status:** **BLOCKED** (was READY; re-marked 2026-08-14 by PM) — behind
+**TASK-424** (SD write path panics in FatFs, card-independent). Delete and reorder are edits to a
+playlist that has to be written back; TASK-424's own text names TASK-420/421 as the only things it
+blocks, so READY was a board error, not a design change. ADR-059 (D5) is still accepted and the
+design is unaffected — this is purely a sequencing correction.
 
 > **Blocking sub-decision (OQ2):** does `bake_skin.py`'s `build_pledit_atlas()` already crop
 > ADD/REM/SEL/MISC/LIST from `PLEDIT.BMP`? If not: bake-tool change + new `skin_layout.h` constants
@@ -7843,7 +7847,8 @@ duration — deliberate and visible, not a background write.
 are verified host-side, off the card** — shuffle ON + reorder + SAVE must write **display** order,
 and staged adds must survive. Both have failure modes where the device confidently reports success;
 **never verify a save by re-reading through the structure that produced it** ·
-**Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07.
+**Priority:** P2 · **Status:** **BLOCKED** (was READY; re-marked 2026-08-14 by PM) — behind
+**TASK-424** for the same reason as TASK-420: save/restore is a write path. ADR-059 unaffected.
 
 ### TASK-422 — build variants, soak, VE suite, registry completion
 
@@ -7876,7 +7881,11 @@ Close-out: complete the reserved `feature_inventory.yaml` entries and X050–X06
 **`T_PLR_36` is the dangerous one** — a persisted mode naming a compiled-out mode must fall back,
 not null-app-crash, and it is only reproducible over *existing* settings: **a clean flash will not
 catch it** (X064). `T_PLR_39` is ≥30 min playback **with concurrent browsing and scrolling**, not
-idle playback · **Priority:** P2 · **Status:** **READY** — ADR-059 accepted 2026-08-07 (D10).
+idle playback · **Priority:** P2 · **Status:** **READY**, with a known gap — ADR-059 accepted
+2026-08-07 (D10). The soak and VE-suite halves depend on **TASK-435 item 2** (the harness cannot
+target `cyd2usb_player`), which is also what blocks TASK-432's owed FILE-arm gate. Two closed tasks
+now wait on that one unblock, which makes it the highest-leverage open item on the board —
+schedule it ahead of the remaining M-WINAMP-PLAYER work (PM, 2026-08-14).
 
 ---
 

@@ -1779,7 +1779,74 @@ state of M-WINAMP-PLAYER's registry/doc set behind it.
   a bare `RuntimeError: DUT WiFi not connected` traceback, indistinguishable from a test failure at
   the summary level; `DUT_WIFI_WAIT=120` was required all session. Written up as **TASK-434**.
 
-**Resolution**: _(open — TASK-433/432 outstanding, VE triage outstanding; QM items closed)_
+**Resolution**: _(partially closed 2026-08-14 — TASK-433 DONE (`80c7ee8`), TASK-432 DONE
+(`3921a05`, gate 4/4 on DUT). **Still outstanding**: the VE triage of the five unexplained
+full-suite failures (`T082`, `T181`, `T186`/`T187`, `T_PRM_01`), which needs the bisect run at
+`c5e0e78^` and has had no owner action since filing; and TASK-434, now VE-reviewed but not
+implemented.)_
+
+---
+
+### Audit — 2026-08-14 — Field-defect session (TASK-436/437/432/438) + WiFi feature-inventory currency
+**Triggered by**: human (post-session QM request)
+
+**Scope**: One session driven by a live field report rather than a queued task. Three commits
+(`e9a1d33`, `45837e5`, `3921a05`), two P1s closed (TASK-436 WiFi scan refusal, TASK-432 unchecked
+`Audio` allocation), three tasks filed (TASK-437, TASK-438, plus TASK-436's own gate closure). All
+work gated on `./run/check` 6/6; TASK-432 additionally gated 4/4 on the DUT.
+
+**Areas checked**:
+- [x] Feature inventory completeness (features in code not in inventory)
+- [x] Test coverage per feature (implemented features with no test_ids)
+- [ ] Cross-feature test coverage (interactions with no test_coverage) — partial, WiFi only
+- [x] Documentation currency (docs lagging behind code)
+
+**Findings**:
+1. **A flagged-but-unvalidated cross-feature risk reached a user in the field.** `settings-wifi` has
+   carried `X014: Scan ↔ Spotify TLS conflict — DUT validation pending (T-WIFI-06)` since June 2026.
+   TASK-436 is that interaction, one layer down: not Spotify's TLS but the WiFi driver's own
+   auto-reconnect loop refusing `esp_wifi_scan_start()`. The risk was identified, written down,
+   assigned a test id, and then neither tested nor closed for two months — and the defect it
+   predicted is what stranded a travelling device. **The `X` register is only worth its ink if
+   unvalidated entries are pulled into a gate; nothing in the process currently does that.**
+2. **`settings-wifi`'s inventory entry describes firmware that no longer exists.** Status is still
+   `in_progress` with "Phase 2 (planned)" covering the keyboard, `WiFi.begin()` connect, RESULT
+   state and "Forget network" — all of which shipped. The description also states the scan is
+   `WiFi.scanNetworks(true)` (async); it has been synchronous for some time, and TASK-436 has now
+   rewritten that path again (quiesce + retry + failure surface). `test_ids` lists T-WIFI-01..06,
+   whose currency against the shipped UI is unverified.
+3. **`wifi-001` is a dead entry marked `implemented`.** It points at
+   `Spotify-Diy-Thing/SpotifyDiyThing/WifiManagerHandler.h`, deleted with M-SETUP-WIZARD, and
+   describes a captive portal (`SpotifyDIY`/`thing123`, DoubleResetDetector) that was retired. Its
+   own `settings-wifi` sibling records the retirement ("Phase 2 removes wifi-001 (X013)") — so the
+   inventory contains both the retirement note and the un-retired entry. `test_ids: []`.
+4. **`wifi-002` shipped without traceability.** `git_ref: "(commit pending)"` and `test_ids: []`, for
+   the multi-network storage that TASK-436's `leave()` re-arm now touches.
+5. **Today's two P1 fixes are not registered.** No inventory entry covers TASK-436's scan quiesce or
+   TASK-432's `aeEnsureAudio()` consolidation, and the latter removed a public-ish accessor
+   (`wrAudio()`) that inventory-adjacent docs may still reference.
+6. **Two process lessons filed, both recurrences of known patterns.** LL-126 (a live failure state is
+   perishable — the TASK-436 gate was forfeited to restore service) and LL-127 (a fault-injection
+   gate green against code that never ran; same outcome-matching shape as LL-104 and BP-059).
+   LL-128 records the evidence-window gap that left TASK-437 undiagnosable and that TASK-434 is
+   another face of.
+7. **Positive, recorded deliberately**: TASK-432's gate caught its own false pass. The check that did
+   it ("was the guard what failed the play?") existed only because the outcome assertion was
+   distrusted on principle. That is BP-059's discipline working as intended.
+
+**Actions assigned**:
+- **Developer** — refresh `settings-wifi` (status, scan description, Phase 2 → shipped), retire
+  `wifi-001`, fill `wifi-002`'s `git_ref`/`test_ids`, and register TASK-436/TASK-432. Owner of
+  `feature_inventory.yaml`; QM is not editing it.
+- **VE** — re-validate `T-WIFI-01..06` against the shipped WifiSection, and give `X014` a real
+  disposition (closed by TASK-436's gate, or a remaining scenario with a test id). Also still owed:
+  the `c5e0e78^` bisect from the 2026-08-11 audit.
+- **PM** — TASK-420/421 are marked READY but are blocked by TASK-424 (SD write panic); re-mark and
+  schedule TASK-424 or TASK-435 item 2 ahead of them.
+- **QM** — LL-126/127/128 filed, status `open`, brought to human for BP sign-off. Not self-promoted.
+- **Human** — sign-off decision on LL-126/127/128.
+
+**Resolution**: _(open — filed 2026-08-14)_
 
 ---
 
