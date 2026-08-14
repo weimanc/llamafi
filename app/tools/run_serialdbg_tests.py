@@ -16,7 +16,8 @@ T_PR_01–06 (M-PLANERADAR, TASK-307),
 T_PLR_01–07 (M-PLAYER-STATE, TASK-413/414),
 T_PLR_08–12 (M3U index model, TASK-415 — needs the SD fixtures from
              app/tools/gen_playlist_fixtures.py copied onto the card)
-against a DUT flashed with cyd2usb_winamp_debug.
+against a DUT flashed with cyd2usb_winamp_debug (or another testable variant —
+set DUT_ENV, e.g. DUT_ENV=cyd2usb_player, and run/lib.sh + the ELF guard follow it).
 T089 (production ELF symbol check) is a host build check — not run here.
 T095 (physical vs. synthetic calibration) requires --interactive (human at DUT).
 
@@ -75,6 +76,10 @@ _DUT_WIFI_WAIT_2_S  = float(os.environ.get("DUT_WIFI_WAIT_2", "75"))
 # Set by main() from --no-wifi (or NO_WIFI=1). Module-level because Dut's
 # readiness check runs inside __init__, before any per-run state exists.
 _NO_WIFI            = os.environ.get("NO_WIFI", "") == "1"
+# TASK-435 item 2: which build the ELF-hash guard verifies against. Mirrors
+# run/lib.sh's ENV_DEBUG, which reads the same variable — set it once and the
+# flash and the guard agree by construction.
+_DUT_ENV            = os.environ.get("DUT_ENV", "cyd2usb_winamp_debug")
 _PORTAL_INDICATORS  = (
     "Forcing config mode", "configuring access point", "SpotifyDIY", "WiFiManager"
 )
@@ -425,10 +430,10 @@ class Dut:
                 "╔══════════════════════════════════════════════════════════╗\n"
                 "║  PRODUCTION FIRMWARE DETECTED — SERIAL_DEBUG not active  ║\n"
                 "╚══════════════════════════════════════════════════════════╝\n"
-                "Reflash the debug build before running tests:\n"
+                f"Reflash the debug build ({_DUT_ENV}) before running tests:\n"
                 "  tmux kill-session -t spotify-mon\n"
                 "  cd app\n"
-                "  ~/.platformio/penv/bin/pio run -e cyd2usb_winamp_debug \\\n"
+                f"  ~/.platformio/penv/bin/pio run -e {_DUT_ENV} \\\n"
                 "      -t upload --upload-port /dev/ttyUSB0\n"
                 "  tmux new-session -d -s spotify-mon \\\n"
                 "      'cd app && \\\n"
@@ -437,7 +442,16 @@ class Dut:
             )
 
         # ADR-042 E1 gate: verify elf hash matches the compiled debug build.
-        _fw = pathlib.Path(__file__).parent.parent / ".pio" / "build" / "cyd2usb_winamp_debug" / "firmware.bin"
+        # TASK-435 item 2: the build dir is selected by DUT_ENV rather than
+        # hardcoded. The guard's intent (BP-017 — never test yesterday's
+        # binary) is unchanged; what changes is that it can now verify against
+        # a SECOND testable variant instead of aborting on it. Before this,
+        # every playback feature had to ship a standalone driver
+        # (test_fbrowser_player.py, test_playorder_player.py), duplicating
+        # settle/port/reporting logic and sitting outside the suite's
+        # failure-set comparisons entirely.
+        _fw = (pathlib.Path(__file__).parent.parent / ".pio" / "build"
+               / _DUT_ENV / "firmware.bin")
         if _fw.exists():
             _fw_bytes = _fw.read_bytes()
             _expected_elf = _fw_bytes[176:180].hex()
@@ -451,9 +465,10 @@ class Dut:
                     f"╚══════════════════════════════════════════════════════════╝\n"
                     f"  Flashed elf: {_info['elf']}\n"
                     f"  Expected:    {_expected_elf}\n"
-                    f"Reflash the debug build before running tests:\n"
+                    f"  Expected build: {_DUT_ENV} (set DUT_ENV to target another variant)\n"
+                    f"Reflash it before running tests:\n"
                     f"  cd app\n"
-                    f"  ~/.platformio/penv/bin/pio run -e cyd2usb_winamp_debug \\\n"
+                    f"  ~/.platformio/penv/bin/pio run -e {_DUT_ENV} \\\n"
                     f"      -t upload --upload-port /dev/ttyUSB0\n"
                 )
 

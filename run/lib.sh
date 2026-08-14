@@ -8,7 +8,14 @@ VENV_PY="${VENV_PY:-$([ -x "$_venv_default" ] && echo "$_venv_default" || comman
 PIO_DIR="$PROJ_ROOT/app"
 SESSION="spotify-mon"
 ENV_PROD="cyd2usb_winamp"
-ENV_DEBUG="cyd2usb_winamp_debug"
+# TASK-435 item 2: the debug env the test scripts flash and the harness verifies
+# against. Overridable so a suite can run on a second testable variant —
+# DUT_ENV=cyd2usb_player ./run/test-targeted T_PLR_01,T_PLR_02
+# The same variable is read by run_serialdbg_tests.py for its ELF-hash guard
+# (it inherits the environment), so the two cannot disagree about which binary
+# is supposed to be on the device. ENV_PROD is deliberately NOT overridable:
+# every test script's trap restores production, and that must stay production.
+ENV_DEBUG="${DUT_ENV:-cyd2usb_winamp_debug}"
 BOOT_WAIT="${BOOT_WAIT:-8}"
 
 resolve_port() {

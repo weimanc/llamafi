@@ -7827,7 +7827,9 @@ guard still verifies but against the right binary.
 **Owner:** Architect (item 1 ruling) + VE (item 2, harness) · **Deps:** none · **Gate:** item 1 —
 playback restored on `cyd2usb_player`, or an explicit ruling on what Player mode may hold at once;
 item 2 — the harness runs a targeted suite against a `cyd2usb_player` flash without tripping the ELF
-guard · **Priority:** **P1** / P2 (item 2) · **Status:** OPEN — investigated 2026-08-11, see below.
+guard · **Priority:** **P1** / P2 (item 2) · **Status:** **DONE** (2026-08-14) — item 1 was closed
+by the 2026-08-11 investigation below (no arena regression; the real failure was TASK-432, now
+fixed); item 2 implemented and gated 2026-08-14, see the note at the end of this entry.
 
 > **Orchestrator investigation, 2026-08-11 (DUT-measured, `cyd2usb_player`, 150 s settle).
 > Item 1 as filed was WRONG about the cause. Read this before acting on it.**
@@ -7918,6 +7920,39 @@ guard · **Priority:** **P1** / P2 (item 2) · **Status:** OPEN — investigated
 > 2. **`lfbBefore` in the arena log used `MALLOC_CAP_INTERNAL` while allocating 8-bit** (fixed in
 >    `8323fc4`). The `69 620 → 42 996` comparison that started this whole investigation was of a
 >    number that never gated the allocation — BP-055, exactly.
+
+### TASK-435 item 2 resolution (2026-08-14)
+
+`DUT_ENV` now selects the build the harness expects, in both halves at once:
+
+* `run/lib.sh` — `ENV_DEBUG="${DUT_ENV:-cyd2usb_winamp_debug}"`, so `run/test*` flashes it.
+* `run_serialdbg_tests.py` — `_DUT_ENV` drives the ELF-hash guard's build directory, and the two
+  reflash-hint messages now name the selected env instead of hardcoding the winamp one.
+
+Because both read the same variable from the same environment, the flash and the guard cannot
+disagree about which binary is supposed to be on the device. **`ENV_PROD` is deliberately not
+overridable** — every test script's trap restores production on exit, and that must stay production
+whatever variant the run targeted.
+
+The guard's intent (ADR-042 E1 / BP-017 — never test yesterday's binary) is unchanged. What changes
+is that a second testable variant is verified rather than rejected.
+
+**Gate PASSED (2026-08-14):**
+
+```
+DUT_ENV=cyd2usb_player DUT_WIFI_WAIT=120 ./run/test-targeted T_PLR_01,T_PLR_02
+  [PASS] T_PLR_01  cycle Spotify->WebRadio->LocalPlayer->Spotify->WebRadio confirmed (x4 taps)
+  [PASS] T_PLR_02  all 3 modes round-tripped
+  2 passed, 0 failed, 0 skipped, 0 flaked        exit 0, prod restored by the trap
+```
+
+That is the task's own gate wording — "the harness runs a targeted suite against a `cyd2usb_player`
+flash without tripping the ELF guard" — met literally.
+
+**What this unblocks:** TASK-422's soak/VE-suite halves, and TASK-432's owed FILE-arm gate, which
+was blocked on exactly this. Neither is done by this change; both are now runnable. The standalone
+drivers (`test_fbrowser_player.py`, `test_playorder_player.py`) still exist and still duplicate
+settle/port/reporting logic — folding them into the suite is TASK-422's work, not this task's.
 
 ### TASK-419 — real posbar seek for local files
 
