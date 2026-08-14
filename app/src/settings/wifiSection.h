@@ -15,6 +15,7 @@
 #include <SPIFFS.h>
 #include <ArduinoJson.h>   // TASK-401: /wifi_networks.json read/write
 #include <esp_wifi.h>      // TASK-401: esp_wifi_get_config() reads the just-set NVS
+#include <esp_task_wdt.h>  // TASK-436: the scan quiesce wait feeds the TWDT
                             // password back out in _onConnectSuccess() -- avoids
                             // keeping a second plaintext copy in a member field
 #include "settingsSection.h"
@@ -136,6 +137,12 @@ public:
         if (_step == WifiStep::Connecting) {
             WiFi.disconnect();
         }
+        // TASK-436: _startScan() turns auto-reconnect off and deliberately
+        // leaves it off for the section's lifetime (a re-armed reconnect loop
+        // would contend with the user's own connect attempt). Re-arm on the
+        // way out so the background supervisor and the driver can heal the
+        // link again — including when the user backs out without connecting.
+        WiFi.setAutoReconnect(true);
     }
 
     SectionResult tick() override {
@@ -245,6 +252,7 @@ private:
     WifiNet       _nets[S_MAX_ROWS];
     uint8_t       _netCount    = 0;
     int16_t       _scanRowY    = 0;
+    bool          _scanFailed  = false;   // TASK-436: last scan was refused
     int16_t       _forgetRowY  = 0;
     // TASK-401: no separate _savedRowY member -- "Saved networks" is always
     // laid out immediately below "Scan networks" (repaintStatus() below),
@@ -310,7 +318,11 @@ private:
         }
 
         _scanRowY = (int16_t)y;
-        drawChevronRow(y, "Scan networks");
+        // TASK-436: a refused scan used to return here indistinguishably from
+        // a dropped tap. Label the row itself rather than adding a step — the
+        // row is where the user is already looking, and the retry is the same
+        // tap they just made.
+        drawChevronRow(y, _scanFailed ? "Scan failed - tap again" : "Scan networks");
         y += S_ROW_H;
 
         // "Saved networks" row: y == _scanRowY + S_ROW_H, always (see the
@@ -616,6 +628,7 @@ private:
         // for unverified file-read credentials).
         WiFi.persistent(true);
         WiFi.mode(WIFI_STA);
+        WiFi.setAutoReconnect(true);   // TASK-436: _startScan() cleared it
         if (pass[0])
             WiFi.begin(_pendingSsid, pass);
         else
@@ -665,11 +678,39 @@ private:
         _step        = WifiStep::Scanning;
         _spinFrame   = 0;
         _lastSpin    = millis();
+        _scanFailed  = false;
         repaint();
-        // Synchronous scan: blocks ~2-3s but immune to async-scan cancellation
-        // by concurrent Spotify task socket attempts on the same core.
-        int16_t n = WiFi.scanNetworks(/*async=*/false);
-        if (n < 0) { _step = WifiStep::Status; repaint(); return; }
+        // TASK-436: quiesce the radio before scanning. When saved credentials
+        // exist but their AP does not (the device travels; the AP is renamed),
+        // the boot cascade's "creds known, connect failed" arm re-arms
+        // auto-reconnect (main.cpp), and the driver then re-fires
+        // esp_wifi_connect() roughly every 2.4s forever. esp_wifi_scan_start()
+        // is refused outright while a connect is in flight, so scanNetworks()
+        // returns a negative count and the old code below bounced silently
+        // back to Status — the "Scan networks" row looked dead. superviseTick()
+        // was already suppressed while Settings is foreground, but nothing
+        // ever turned auto-reconnect off, which is what actually blocks it.
+        //
+        // Auto-reconnect stays off for the whole section; leave() and
+        // _startConnect() re-arm it. Only disconnect when NOT associated —
+        // scanning while connected is legal, and dropping a working link to
+        // scan would be a regression for the ordinary "add another network"
+        // case.
+        WiFi.setAutoReconnect(false);
+        int16_t n = _scanOnce(/*quiesce=*/WiFi.status() != WL_CONNECTED);
+        if (n < 0) {
+            // One retry: the first disconnect() can itself land mid-attempt,
+            // and the driver needs the retry interval to go quiet.
+            n = _scanOnce(/*quiesce=*/WiFi.status() != WL_CONNECTED);
+        }
+        if (n < 0) {
+            // Surface it. A silent bounce to Status is indistinguishable from
+            // a dropped tap, which is exactly how this defect stayed hidden.
+            _scanFailed = true;
+            _step       = WifiStep::Status;
+            repaint();
+            return;
+        }
         _netCount = 0;
         for (int16_t i = 0; i < n && _netCount < S_MAX_ROWS; i++) {
             int32_t rssi = WiFi.RSSI(i);
@@ -688,6 +729,23 @@ private:
         WiFi.scanDelete();
         _step = WifiStep::List;
         repaint();
+    }
+
+    // TASK-436: one quiesced scan attempt. Synchronous (blocks ~2-3s) but
+    // immune to the async-scan cancellation by concurrent Spotify-task socket
+    // attempts on the same core that the async form suffered.
+    int16_t _scanOnce(bool quiesce) {
+        if (quiesce) {
+            WiFi.disconnect(/*wifioff=*/false, /*eraseap=*/false);
+            // TASK-288 discipline: every bounded wait feeds the TWDT, or the
+            // board panics mid-diagnosis. 600ms clears the ~2.4s retry cadence
+            // of one in-flight attempt.
+            unsigned long dl = millis() + 600;
+            while (millis() < dl) { delay(50); esp_task_wdt_reset(); }
+        }
+        int16_t n = WiFi.scanNetworks(/*async=*/false);
+        esp_task_wdt_reset();
+        return n;
     }
 
     // ---- Utility -------------------------------------------------------------

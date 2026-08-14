@@ -5616,6 +5616,10 @@ void loop()
   // TASK-283: link supervisor — re-kick a wedged link (all builds). Suppressed
   // while Settings is foreground: WifiSection's scan flow owns the radio and
   // deliberately runs with auto-reconnect off.
+  // TASK-436: that second clause was aspirational until TASK-436 — nothing in
+  // WifiSection actually cleared auto-reconnect, so suppressing the supervisor
+  // here bought nothing: the driver's own ~2.4s reconnect loop still refused
+  // every esp_wifi_scan_start(). _startScan() now clears it for real.
   if (currentAppId != AppId::Settings) wifiDiag::superviseTick();
 #ifdef WINAMP_DISPLAY
   // M-BOOT-UI §6 (TASK-364, ADR-055 decision 5): whole-session background

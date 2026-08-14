@@ -8182,3 +8182,62 @@ TASK-406 already cost a real defect from changing that path's timing assumptions
 **Build:** `./run/build-debug` clean; `./run/check` 6/6 PASS. Tree left uncommitted per instructions
 (spotifyTask.h, audioEngine.h, spotifyTaskStorage.cpp, plus the run_serialdbg_tests.py comment
 updates above).
+
+---
+
+## Filed 2026-08-14 — from a live "Scan networks does nothing" report
+
+### TASK-436 — WiFi Settings scan is refused whenever the saved AP is absent
+
+Reported from the field: the device was taken to a different location, and Settings -> WiFi ->
+"Scan networks" did nothing at all — no scan screen, no error, no list. The row read as a dead
+control.
+
+**Root cause, measured on the DUT, not inferred.** The boot cascade's "credentials known, connect
+failed" arm (`main.cpp`) calls `WiFi.setAutoReconnect(true)` and arms the supervisor, so the link
+self-heals when the AP returns. With the AP genuinely absent, that leaves the driver re-firing
+`esp_wifi_connect()` roughly every 2.4 s indefinitely — confirmed on the device as a metronomic
+`[wifi-ev] STA_DISCONNECTED reason=201` (NO_AP_FOUND) at a 2.42 s interval, with
+`get wifiCfg` showing the STA still configured for the home SSID.
+
+`esp_wifi_scan_start()` is refused outright while a connect is in flight. Proven directly rather
+than argued: `set wifiScan 1` (the async debug kick) was issued in that state and `get wifiScan`
+reported `state:"idle"` on every poll for 12 s — the scan never started at all, it was rejected at
+the call.
+
+`WifiSection::_startScan()` then hit `if (n < 0) { _step = Status; repaint(); return; }` and
+returned silently. A refused scan and a dropped tap were pixel-identical, which is why this
+presented as "the button does nothing" and not as an error.
+
+**Second, compounding defect.** `main.cpp`'s supervisor-suppression site carried the comment
+"WifiSection's scan flow owns the radio and deliberately runs with auto-reconnect off". That was
+never true — nothing in `wifiSection.h` ever called `setAutoReconnect(false)`. Suppressing
+`superviseTick()` while Settings is foreground bought nothing, because the blocker was the driver's
+own reconnect loop, not the 30 s supervisor kick. The comment actively misdirects anyone reading
+this path, so it is corrected rather than deleted.
+
+**Fix.**
+1. `_startScan()` clears auto-reconnect, and (only when not currently associated) disconnects and
+   drains for 600 ms before scanning. Scanning while associated is legal, so a working link is
+   never dropped just to scan — that would regress the ordinary "add another network" case.
+2. One retry, because the first `disconnect()` can itself land mid-attempt.
+3. Auto-reconnect stays off for the section's lifetime and is re-armed in `leave()` and
+   `_startConnect()` — a reconnect loop re-armed mid-section would contend with the user's own
+   connect attempt.
+4. A refused scan now relabels the row `Scan failed - tap again` instead of bouncing silently.
+5. TASK-288 discipline: the drain wait feeds the TWDT.
+
+**Owner:** Developer · **Deps:** none · **Priority:** P1 (a device that travels cannot be put on a
+new network at all through its own UI; the only recovery is a host with `run/spiffs`) ·
+**Status:** **DONE** (2026-08-14) — `./run/check` 6/6.
+
+**Verification status, stated precisely.** The *mechanism* is DUT-proven (the refusal above, on the
+failing firmware). The *fix* is host-verified only: by the time it was flashed the operator's
+immediate need was a working device, so credentials were pushed via
+`./run/spiffs push wifi_creds.json` and the device associated at boot (RSSI -43, `disc=0`,
+independently confirmed by pinging it from a host on the same AP). That leaves `_startScan()` taking
+its already-working "connected" branch, so the repaired branch has NOT been exercised on hardware.
+
+**Gate still owed:** from a connected state, Settings -> WiFi -> Forget network (re-creates the
+absent-AP condition), then tap Scan networks — expect a populated list within ~4 s. Until that is
+run, treat the quiesce path as reasoned-and-compiled, not DUT-proven.
