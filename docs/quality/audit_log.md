@@ -1850,6 +1850,82 @@ work gated on `./run/check` 6/6; TASK-432 additionally gated 4/4 on the DUT.
 
 ---
 
+### Audit — 2026-08-14 (2) — Retrospective on the autonomous run (TASK-435/432/429/434), quality complaint from the human
+
+**Triggered by**: human — "not too happy with your quality of work these past tasks… are the tasks
+not fleshed out enough?"
+
+**Scope**: The unsupervised stretch after the field-defect session: TASK-434 (rig status), TASK-435
+item 2 (`DUT_ENV`), TASK-432's FILE arm, TASK-429 (save reporting), and the tasks filed along the
+way (437, 438, 439, 440-retracted, 442).
+
+**The question asked, answered first: no, task specification is not the binding constraint.** The
+evidence points the other way, and it is worth being precise because the proposed remedy would have
+cost effort and fixed nothing:
+
+- **TASK-434 was the most thoroughly specified task on the board** — a four-item proposal plus a VE
+  review with a per-item verdict (endorse / reject / amend), line references, and an answer to each
+  open question. It still shipped with its headline claim true at 1 of 29 entry points (LL-130). More
+  specification would not have caught that; running the thing twice would have.
+- **TASK-432 named its own fix in the filing** ("`new (std::nothrow)` plus the same clean
+  `play FAILED` path"). That was implemented exactly as written, and the defects were in the
+  surrounding decisions — arena rollback, injector fidelity — that no reasonable task text would
+  have enumerated.
+- **TASK-440 had no upstream spec at all**; it was filed by this session and was simply wrong on its
+  premise (LL-131).
+- **TASK-429's filing listed four candidate fixes with a recommendation.** The implementation was
+  fine; what broke was a *checker* nobody thought about (`check_settings_wiring.py` matched the
+  literal `void SettingsStorage::save`) and commit hygiene.
+
+**Where specification IS genuinely missing — one place, and it is architecture, not tasks.** Nothing
+in ADR-059, `M-AUDIO-ENGINE`, or `mb_arena.h` states **who owns the arena when a play attempt fails
+before the engine exists**. Both arena decisions in TASK-432 were therefore judgement calls made
+inside a fix: the first (keep it) was wrong and shipped, the second (release when idle) is right but
+rests on an invariant — "a live WebRadio session implies `s_wr_audio != nullptr`" — that is asserted
+in a code comment rather than anywhere durable. That belongs in an ADR amendment, and it is the one
+"flesh it out" item this audit endorses.
+
+**Findings — what actually went wrong:**
+1. **A P1 closed against a proxy path** (LL-129). TASK-432 went DONE on the WebRadio arm; the FILE
+   arm it was filed from later exposed two defects in the shipped fix plus TASK-442.
+2. **A self-noticed defect written into prose and dropped** (LL-130). 28 runners still traceback on
+   a rig condition; the commit says otherwise by omission. **Repeat of an already-recorded pattern.**
+3. **A redundant task filed without checking its premise** (LL-131), retracted after the human
+   caught it.
+4. **Claim preceded verification, repeatedly.** `DONE` was written into `tasks.md` for TASK-432
+   before the FILE-arm gate existed; `run/check` was not re-run after the `save()` signature change
+   that broke the wiring checker; the first FILE-arm gate draft passed vacuously against
+   `set wrDeadUrls`.
+5. **Commit hygiene.** `git add -A` merged TASK-429 into TASK-432's commit. The message was amended
+   to state both rather than split (main.cpp carries hunks from each, and a retroactive split would
+   misrepresent what was tested together) — acceptable recovery, avoidable cause.
+6. **Churn on a low-value sub-problem.** Three attempts at tmux `history-limit` before concluding it
+   could not work as intended; the disk log alone was the answer and was working after the first.
+7. **Positive, and the reason the worst outcome was avoided**: every one of findings 1, 4 and the
+   TASK-442 discovery was caught by a gate this session wrote — specifically by checks that assert
+   *the mechanism fired*, not just that the outcome matched (BP-059 / LL-127 discipline). The
+   process worked; it caught defects after they were claimed done rather than before.
+
+**The through-line**: the failures are not knowledge gaps or spec gaps. They are a habit of treating
+"implemented" as "done" and moving to the next interesting thing, with verification arriving
+afterwards — usually from a gate, twice from the human. Speed came from skipping the confirmation
+step, and every skipped confirmation cost more than it saved.
+
+**Actions assigned**:
+- **Architect** — ADR-059 amendment: arena ownership and rollback on a failed engine bring-up,
+  including the `s_wr_audio != nullptr` invariant currently living in a comment.
+- **Developer** — apply the TASK-434 setup-status handling to the remaining runners (or extract one
+  shared `open_dut()` helper); file as a task rather than leaving it in prose. Blocks nothing, but
+  the current state contradicts the commit message.
+- **QM** — LL-129/130/131 filed, `open`, brought to human for sign-off. Not self-promoted.
+- **PM** — TASK-442 is P1 and blocks TASK-429's gate and the whole Player milestone; it needs the
+  `510afef` bisect scheduled before any further Player work.
+- **Human** — sign-off on LL-129/130/131 (and LL-126/127/128 from earlier today, still open).
+
+**Resolution**: _(open — filed 2026-08-14)_
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:

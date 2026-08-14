@@ -2027,6 +2027,27 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 **Suggested improvement**: Raise the tmux history limit for the `spotify-mon` session and have `run/monitor-start` tee to a rotating file on disk, so the window is bounded by disk rather than by pane scrollback. Until then, when a user reports a symptom against a live DUT, capture the raw buffer FIRST, before running any query that consumes the wire. Prefer persistent on-device state (SPIFFS files, counters) over log lines when establishing whether something happened at all.
 **Status**: open — proposed for BP promotion, human sign-off required
 
+### LL-129 — 2026-08-14 — A task closed against a proxy path, and the real path was not merely unverified but broken
+**Context**: TASK-432 was filed from a `set plPlay` crash on `cyd2usb_player` — the FILE arm. Its gate could not run there (the harness could not target that variant, TASK-435 item 2), so the fix was gated on the WebRadio arm instead, which shares `aeEnsureAudio()`. That gate passed 4/4 and the task was marked **DONE**, with the FILE arm recorded as "verified by inspection only".
+**Observation**: When the FILE arm finally ran hours later it did not just fail to be verified — it exposed two defects in the shipped fix (the arena was never released on the failure path, poisoning every later play; the fault injector bypassed that rollback) and then a P1 discovery that the variant cannot construct the audio engine at all (TASK-442). The "DONE" was defensible against the gate's literal wording and still gave a false impression of the milestone's health for several hours.
+**Root cause**: A shared code path was treated as an equivalent test surface. It is equivalent for the *guard*, but not for the caller-side rollback, the memory conditions, or the state machine around it — and those are where the defects were. The substitution was recorded honestly in prose and then not reflected in the status word that everyone actually reads.
+**Suggested improvement**: Close a task on the path it was filed from. If a proxy path is used because the real one is blocked, the status stays something other than DONE — "FIXED, GATE SUBSTITUTED (real path blocked by TASK-N)" — until the original path runs. The prose caveat is not enough; the status word is the artifact that propagates.
+**Status**: open — proposed for BP promotion, human sign-off required
+
+### LL-130 — 2026-08-14 — A defect noticed while fixing another defect was written into prose and then dropped
+**Context**: Immediately after landing TASK-434 (rig conditions must not read as test failures), the very next run produced a bare `SetupFailure` traceback, because the handler was added only to `run_serialdbg_tests.main()`. This was noticed and stated out loud — "one of them is a gap in what I shipped" — and then never fixed: attention moved to a more interesting finding in the same output. **28 other runners under `app/tools/` construct `Dut` directly and still traceback today.**
+**Observation**: The task's own headline claim ("a rig condition must never be summarisable as a test failure") is only true for one of 29 entry points. Nothing in the commit message or `tasks.md` says so. A reader would reasonably believe it was solved everywhere.
+**Root cause**: Noticing a defect feels like handling it. There is no forcing function between "I said it out loud" and "it is filed or fixed", so the item survives only as long as attention does — and a more interesting discovery in the same output is exactly what removes attention. This is a **repeat**: the same pattern is already recorded as project feedback ("don't undersell a self-diagnosed bug you rediscover"), which makes it a process gap rather than a lapse.
+**Suggested improvement**: A defect noticed mid-task gets filed or fixed **in the same commit that touched the code it was noticed in** — no third option. If it is out of scope, the commit message names the task number it was filed as. Prose in a chat message is not a record.
+**Status**: open — proposed for BP promotion, human sign-off required
+
+### LL-131 — 2026-08-14 — A task was filed to add a guard that already existed, and the human caught it
+**Context**: TASK-440 proposed detecting a busy serial port before opening it, filed from a VE recommendation after a `port-busy` abort. The human asked "isn't that a solved problem already?". It was: all 19 `run/` scripts that open the port already kill the tmux monitor first. The abort happened only because the harness was invoked directly, bypassing those scripts — the exact thing `CLAUDE.md` warns against. Retracted the same day.
+**Observation**: The filing took minutes and read as diligence. Verifying the premise took one `grep` and would have prevented it. The retraction cost more than the check.
+**Root cause**: Filing is cheap, feels like progress, and defers the thinking to a future reader. A backlog absorbs bad entries silently — nothing pushes back at filing time the way a failing gate pushes back on bad code.
+**Suggested improvement**: Before filing a task that proposes adding a guard, check whether the guard exists and why it did not fire. State that check in the task's own text ("verified absent: `grep …`"). A task whose premise has not been checked is a claim, not a record.
+**Status**: open — proposed for BP promotion, human sign-off required
+
 ## Entry Format
 
 ---
