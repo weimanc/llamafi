@@ -6233,8 +6233,65 @@ must not start until this is understood.
 
 **Owner:** Developer · **Deps:** none (TASK-408 supplies the repro) · **Gate:** the `sdwrite` command
 completes 2 048 chunks single-open, twice, on both cards, with no panic and a correct `endSizeB` ·
-**Priority:** P2 (blocks TASK-420/421 only) · **Status:** OPEN — repro is `sdwrite 2048` on a
-`cyd2usb_winamp_debug` build.
+**Priority:** P2 (blocks TASK-420/421 only) · **Status:** OPEN — **re-characterised 2026-08-15 with a
+measured mechanism; the model in the paragraphs above is wrong in two ways.** No fix yet.
+
+#### TASK-424 re-characterisation (2026-08-15, `cyd2usb_winamp_debug`, 32 GB SDHC)
+
+**Reproduced deterministically**: `sdwrite 2048` panicked on both consecutive attempts.
+
+**Fault resolved with `addr2line` against the real ELF** (the inline decoder is untrustworthy on this
+project — TASK-432):
+
+```
+0x40168974: validate     ff.c:3465
+0x40169bce: f_write      ff.c:3852
+0x4016bb45: vfs_fat_write vfs_fat.c:379
+0x4014544e: esp_vfs_write vfs.c:431
+EXCVADDR: 0x00000001
+```
+
+`EXCVADDR = 0x1` with the fault inside `validate()` means the `FFOBJID*` **is** `0x1` — the FIL is
+corrupt, not merely unmounted.
+
+**Correction 1 — it is not "sustained writes".** Chunk count is not monotonic and not the variable:
+
+| chunks | outcome |
+|---|---|
+| 64 | PANIC |
+| 256 | OK, 131 072 B, 1 143 kB/s |
+| 512 | OK, 262 144 B, 1 213 kB/s |
+| 1024 | short write at chunk 22, then OK-with-loss |
+| 2048 | PANIC |
+
+**Correction 2 — the dominant failure is silent data loss, not the panic.** `f.write()` returns **0**
+(not a partial count) at a varying chunk — 22 and 49 in two runs — and the loop's own `endSizeB` is
+*smaller still* than the bytes it accepted: 49 chunks accepted (25 088 B) but 23 552 B on the card.
+So writes the caller was told succeeded were never flushed. A playlist-save built on this path
+(TASK-420/421) would silently truncate.
+
+**The decisive negative: `sd_diskio` never logs an error.** `CORE_DEBUG_LEVEL=1` is on, so a media
+failure would appear. Nothing does — **FatFs fails before touching the card**. That is exactly what
+`validate()` returning `FR_INVALID_OBJECT` looks like, and it is the same function that faults when
+the pointer is garbage instead of null. **One mechanism explains both symptoms: the FIL is
+invalidated mid-write.** Heap integrity checks (`sdwrite N 32`) pass right up to the fault, so it is
+not general heap corruption.
+
+**Also confirmed**: the damaged-directory-entry symptom persists across sessions — a fresh open
+reported `startSizeB=1073628004` (~1 GB), the same class as the 1 073 678 476 B in the original
+filing.
+
+**Next step for whoever fixes it** — and it is now a narrow question, not a hunt: instrument
+`fp->obj.fs` and `fs->id` per chunk (a debug build already has `ff.h` and `ffconf.h` included for
+exactly this, `main.cpp:89-92`) and find who invalidates them. `fs->id` changes on every `f_mount`,
+so a concurrent remount is the leading candidate — `SD.begin()`/`SD.end()` live at `main.cpp:3195`,
+`:5060`, `:5095`, `:5099`, and `main.cpp:92` already refers to a "deferred live-mount corruption"
+investigation that was never completed.
+
+**Fixture safety, checked after the runs**: `/playlists/short5.m3u` still loads 5 entries and
+`/playlists` still lists 7 files, so the T_PLR fixtures survived. `sdwrite` only touches
+`/probebench.bin`, but the FS damage this path produces makes that worth re-checking after any
+future run.
 
 > `sdprobe` builds its bench fixture in short bursts specifically to route around this. If this is
 > fixed, revert that to a plain single-open write — the burst loop is a workaround, not a design.
