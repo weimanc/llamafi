@@ -334,10 +334,43 @@ already has the diagnostic (`mb_arena.cpp:207` logs "in arena range but not in s
 refuse to release while any slot is still `in_use`; (c) generation-count the arena so a stale-
 provenance free is detectable rather than inferable.
 
-**Owner:** Architect (fix choice) + Developer · **Deps:** none to file; interacts with TASK-452 (decide the two together) ·
-**Gate:** `T_AE_15` Part B green, including zero "in arena range but not in slot table" lines ·
-**Priority:** P2 today, **P1 the moment TASK-452 lands** · **Status:** OPEN — filed
-2026-08-15 from the VE review.
+**Owner:** Developer · **Deps:** none · **Gate:** ~~`T_AE_15` Part B~~ — met by a deliberate
+reproducer instead, see below · **Priority:** P2 · **Status:** **DONE, DUT-verified 2026-08-15 —
+option (a), chosen by the human.**
+
+#### TASK-444 result — the stale free is refused, loudly
+
+**PATCH-ARENA-STALE-1.** `mb_arena_release()` now records the block's range and bumps a generation
+counter before freeing it; `mb_arena_free()` checks a pointer against that *previous* range before
+falling through to libc. A pointer from a released generation is refused with a named error and the
+`mb_arena_stale_free_total()` counter, instead of being handed to `free()` — which is what corrupted
+the heap.
+
+It leaks nothing real: `heap_caps_free()` already returned the 24 KB at release time, so refusing the
+stale free discards bookkeeping only. **A loud leak of nothing beats a silent corruption that
+surfaces somewhere else entirely.**
+
+**Gated with a deliberate reproducer, not by waiting for `T_AE_15`.** The natural trigger needs the
+two engine arms to alternate with a teardown in between, which no test in this repo does and
+`T_AE_15` is blocked on the station fetch. `set arenaStaleFree` runs the exact four steps — acquire,
+allocate, release, free — in one command:
+
+```
+[E] mb_arena_free(): STALE FREE REFUSED: ptr 0x3ffed23c is inside arena generation 1
+    (base 0x3ffed23c, cap 24576) — NOT passing it to libc free()
+{"var":"arenaStaleFree","ptr":"0x3ffed23c","staleBefore":0,"staleAfter":1,"alive":true}
+{"var":"arenaStaleFree","ptr":"0x3ffed23c","staleBefore":1,"staleAfter":2,"alive":true}
+```
+
+Twice, counter advancing, **zero crashes**, and a 5-track playlist still plays afterwards — the check
+that matters, since heap corruption's signature is damage that appears later somewhere unrelated.
+
+**Invoke it as `set arenaStaleFree` with NO value.** A two-token `set <var> <val>` routes through
+`cmdSet`'s var-based dispatch, which does not know this name and answers `unknown var`. Measured, not
+guessed, and noted at the handler so the next caller does not lose the same ten minutes.
+
+**Does not depend on TASK-452 and no longer gates it.** The corruption path is closed whether or not
+the arena is retired from the FILE path.
 
 ### TASK-445 — `mb_arena.h`'s header comment misdescribes which sites call the arena
 

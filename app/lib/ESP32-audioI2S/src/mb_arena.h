@@ -51,6 +51,10 @@ void   mb_arena_free(void* ptr);
 
 // High-water mark (bytes) for monitoring.
 size_t mb_arena_hwm(void);
+// TASK-444: frees refused because the pointer belonged to an already-released
+// arena generation. Non-zero means someone is freeing decoder memory after the
+// arena went away — a real defect, and the counter is the observable for it.
+uint32_t mb_arena_stale_free_total(void);
 
 // TASK-292: lifetime acquire/release/fail totals, never reset across the
 // arena's JIT lifecycle. Serial `[membudget]` lines get dropped at harness
@@ -70,6 +74,7 @@ static inline void   mb_arena_init(void*, size_t) {}
 static inline void*  mb_arena_alloc(size_t sz) { return malloc(sz); }
 static inline void   mb_arena_free(void* p)    { free(p); }
 static inline size_t mb_arena_hwm(void)        { return 0; }
+static inline uint32_t mb_arena_stale_free_total(void)    { return 0; }
 static inline uint32_t mb_arena_acquire_total(void)      { return 0; }
 static inline uint32_t mb_arena_release_total(void)      { return 0; }
 static inline uint32_t mb_arena_acquire_fail_total(void) { return 0; }

@@ -4305,6 +4305,38 @@ static void cmdSet(const char *args) {
                   (unsigned)s_aeDmaFloorOverride);
     return;
   }
+  // TASK-444 gate: reproduce a stale arena free on demand. The natural trigger
+  // needs the two engine arms to alternate with a teardown in between, which no
+  // test in this repo does (and T_AE_15, which would, is blocked). This runs the
+  // exact sequence in four lines instead: take the arena, allocate from it,
+  // release it, then free the pointer. Before PATCH-ARENA-STALE-1 that last step
+  // called libc free() on memory heap_caps_free() had already returned.
+  // NOTE: invoke as `set arenaStaleFree` with NO value. cmdSet routes a
+  // two-token "set <var> <val>" through the var-based dispatch further down,
+  // which does not know this name and answers "unknown var" — measured, not
+  // guessed (2026-08-15: the no-value form fired the refusal, the "1" form did
+  // not). The command takes no argument anyway; it is a fixed four-step probe.
+  if (strncmp(args, "arenaStaleFree", 14) == 0 &&
+      (args[14] == '\0' || args[14] == ' ')) {
+#ifdef MEMBUDGET_PHASE1
+    const uint32_t before = mb_arena_stale_free_total();
+    if (!mb_arena_acquire()) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"arenaStaleFree\","
+                     "\"error\":\"arena would not acquire\"}");
+      return;
+    }
+    void* p = mb_arena_alloc(128);
+    mb_arena_release();
+    mb_arena_free(p);          // the stale free — must be REFUSED, not passed to libc
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"arenaStaleFree\","
+                  "\"ptr\":\"%p\",\"staleBefore\":%u,\"staleAfter\":%u,\"alive\":true}\n",
+                  p, (unsigned)before, (unsigned)mb_arena_stale_free_total());
+#else
+    Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"arenaStaleFree\","
+                   "\"error\":\"MEMBUDGET_PHASE1 not built\"}");
+#endif
+    return;
+  }
   // TASK-443: run the FILE path WITHOUT the arena, to measure the ruling before
   // accepting it. `set aeNoArena 1` then `set plPlay <n>`.
   if (strncmp(args, "aeNoArena", 9) == 0 && (args[9] == '\0' || args[9] == ' ')) {

@@ -65,17 +65,29 @@ production instance.**
 
 Measured across `app/src`, excluding comments and counting only real call sites:
 
-| Pair | Acquires | Releases |
-|---|---:|---:|
-| `tlsYield()` / `tlsResume()` | 12 | **24** |
-| `http.begin` / `http.end` | 25 | 22 |
-| `mb_arena_acquire` / `mb_arena_release` | 13 | 8 |
-| `xSemaphoreTake` / `xSemaphoreGive` | 18 | 19 |
-| `portENTER_CRITICAL_SAFE` / `portEXIT_CRITICAL_SAFE` | 59 | 59 |
+| Pair | Acquires | Releases | Reading |
+|---|---:|---:|---|
+| `tlsYield()` / `tlsResume()` | 12 | **24** | one acquire per fetch, one release per exit path |
+| `http.begin` / `http.end` | 8 | **15** | all in `dataTaskStorage.cpp`; ~2 exit paths per fetch |
+| `mb_arena_acquire` / `mb_arena_release` | 4 | **7** | 2/5 in production (`main.cpp:4317/4323` and `:4441/4443` are balanced debug-command pairs) |
+| `xSemaphoreTake` / `xSemaphoreGive` | 17 | 19 | — |
+| `portENTER_CRITICAL_SAFE` / `portEXIT_CRITICAL_SAFE` | 59 | 59 | balanced |
 
-The 12/24 ratio is not itself a bug — it is one acquire per fetch and one release per *exit path*.
-That is precisely the problem: correctness depends on a human enumerating every `return`. The code
-says so at `dataTaskStorage.cpp:277` — `spotifyTask::tlsResume();  // BP-031: every exit path`.
+> **Counting note.** These are real call sites — comment lines stripped, `(` required. A naive
+> `grep -c` of the bare names inflates every row: it picks up declarations, the stats accessors
+> (`mb_arena_acquire_total` etc.), and the `#else` no-op inlines in `mb_arena.h:70-71`. An earlier
+> pass of this analysis reported `mb_arena` as **13/8** and `http` as **25/22** from exactly that
+> mistake. Anyone re-deriving these numbers must filter, or they will "find" leaks that are not there.
+
+**None of the asymmetric rows is a leak.** All three resolve to the same shape as the headline
+finding: **one acquire, many exit paths, each releasing by hand.** `mb_arena_acquire()` is
+documented idempotent at both call sites (`webRadioApp.h:1727`, `audioEngine.h:711` — *"idempotent;
+on FAIL → libc fallback"*), so it is a latch rather than a refcount and multiple releases are the
+expected shape. That is the argument for C2, not against it: the imbalance is *by design*, and the
+design is the thing that keeps costing bugs.
+
+Correctness therefore depends on a human enumerating every `return`. The code says so out loud at
+`dataTaskStorage.cpp:277` — `spotifyTask::tlsResume();  // BP-031: every exit path`.
 
 **The discipline has already failed in production.** `dataTaskStorage.cpp:264-267`:
 

@@ -4,7 +4,7 @@
 > Status: **proposed** — 2026-08-15. Needs ADR-060 sign-off before TASK-451 begins.
 > Date: 2026-08-15
 > Feeds: ADR-060 (to be written)
-> Tracked-as: TASK-451, TASK-452, TASK-453, TASK-454, TASK-455
+> Tracked-as: TASK-451, TASK-452, TASK-453, TASK-454, TASK-455, TASK-462
 > Registers: no new `feature_inventory.yaml` id — this is structural, not a feature. New cross-feature
 > seam registers as **X065** (shell state ownership).
 > Precedent: [M-AUDIO-ENGINE-extraction.md](M-AUDIO-ENGINE-extraction.md) / ADR-059 D2 — the
@@ -214,11 +214,24 @@ text within the existing translation unit, the last two change what the compiler
 | **C** | TASK-453 | D2 + D3 + D4 — state ownership: `appById()`, `ShellState`, instances move to their app files | **yes** — enables independent `.cpp`s | real, measured |
 | **D** | TASK-454 | Promote selected modules to their own `.cpp`, **one at a time**, each measured | yes | real, measured |
 | — | TASK-455 | `main.cpp` reduced to `setup()` + `loop()`; hygiene items (§8) | — | — |
+| — | **TASK-462** | **Documentation-reference sweep** — see below | — | mechanical, large |
 
-Stages A and B deliver most of the readability win at near-zero risk, because a pure text move within
-one TU presents the compiler with a near-identical blob. **Stage D is optional and may be
-partially declined** — if a module's measured flash/DRAM delta is not worth it, recording that
-decision is a legitimate outcome, not a failure.
+**TASK-462 is its own task, not a hygiene bullet.** Stages A–D invalidate **308 `main.cpp:NNN`
+line-number citations across 49 documentation files**, plus **44 `main.cpp` references in
+`feature_inventory.yaml`**. That is too large to ride along inside a stage commit — and it must be
+paid **once, at the end of Stage B**, not per-stage, or the same 49 files are rewritten four times.
+Stages C/D move far less text and can be absorbed into TASK-462's second pass.
+
+**Stages A+B are proposed as a standalone deliverable; C and D need separate approval** (ADR-060 D7).
+A and B deliver most of the readability win at near-zero risk — a pure text move within one TU
+presents the compiler with a near-identical blob — and take `main.cpp` from 5 880 to roughly
+1 400 lines without introducing any new convention. The cost, the memory risk and the new
+state-ownership vocabulary all concentrate in C. The recommendation is to land A+B, live with the
+result for a milestone, and decide on C with the benefit felt rather than argued. Paying TASK-462's
+documentation cost at the end of B rather than the end of D follows from the same split.
+
+**Stage D is optional and may be partially declined** — if a module's measured flash/DRAM delta is
+not worth it, recording that decision is a legitimate outcome, not a failure.
 
 ## 6. Build and memory cost
 
@@ -254,9 +267,14 @@ ADR-059 D2's discipline verbatim: *the extraction commit carries no behavioural 
 
 ## 8. Hygiene items folded in (TASK-455)
 
-- **`run/check` gate count disagrees with itself in three places**: `CLAUDE.md` says 5 gates,
-  ADR-059 §"What acceptance authorises" says `6/6`, `appRegistry.h`'s comment says step `[6/7]`.
-  Reconcile to the actual number and fix all three.
+- **`run/check` gate count — the drift is real but smaller than first reported, and the script is
+  not at fault.** `check_build.sh` is correct and internally consistent: it prints `[1/7]` … `[7/7]`,
+  and `:100-101` explicitly documents the historical `[6/6]`-vs-`[7/7]` confusion as already fixed
+  (TASK-422 / DEV-7). **The true count is 7.** `appRegistry.h`'s `[6/7]` is therefore *also correct* —
+  the registry staleness check really is gate 6 of 7 — and an earlier pass of this document wrongly
+  listed it as drifted. Actually wrong, and to be fixed: **`CLAUDE.md:114` and `:129`** (both say 5)
+  and **ADR-059 `:19` and `:227`** (both say `6/6`). `CLAUDE.md:129` also carries a stale *list*, not
+  just a stale number — it omits the `cyd2usb_player` build and the `gen_mem_layout` gate.
 - `appRegistry.h` is included twice in `main.cpp` (`1959`, `3665`). Legitimate X-macro re-inclusion,
   but it should carry a comment saying so at both sites.
 - `main.cpp:164`'s `g_previousAppId` and `appShell.h`'s `currentAppId` are the same concept split

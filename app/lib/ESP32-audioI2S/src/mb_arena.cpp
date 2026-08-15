@@ -32,6 +32,14 @@ static uint8_t*  s_base    = nullptr;
 static size_t    s_cap     = 0;
 static size_t    s_bump    = 0;   // next free byte offset from s_base
 static size_t    s_hwm     = 0;   // high-water mark (max bytes ever used)
+// TASK-444 option (a): the last released block's range + a generation counter,
+// so a free() of arena-provenance memory after release is recognisable rather
+// than being mistaken for a libc pointer. Deliberately NOT cleared by acquire —
+// a pointer from generation N-1 is stale even while generation N is live.
+static uint8_t*  s_lastBase = nullptr;
+static size_t    s_lastCap  = 0;
+static uint32_t  s_lastGen  = 0;
+static uint32_t  s_staleFreeTotal = 0;
 static MbSlot    s_slots[MB_ARENA_MAX_SLOTS] = {};
 static int       s_nslots  = 0;
 
@@ -124,6 +132,17 @@ bool mb_arena_acquire(void) {
 
 void mb_arena_release(void) {
     if (!s_owned) return;
+    // PATCH-ARENA-STALE-1 (TASK-444 option a): remember where the block WAS.
+    // mb_arena_free() routes by range against the CURRENT s_base, which this
+    // function nulls — so without this record, a buffer allocated from the arena
+    // and freed after the release fails the range test, takes the libc branch,
+    // and calls free() on a pointer interior to a block heap_caps_free() has
+    // already returned. That is heap corruption with a delayed, misleading
+    // signature. Keeping the range lets the free path recognise the pointer and
+    // refuse instead.
+    s_lastBase = s_base;
+    s_lastCap  = s_cap;
+    s_lastGen++;
     heap_caps_free(s_owned);
     s_owned = nullptr;
     s_releaseTotal++;
@@ -192,6 +211,21 @@ void mb_arena_free(void* ptr) {
 
     uint8_t* p = (uint8_t*)ptr;
 
+    // PATCH-ARENA-STALE-1 (TASK-444 option a): a pointer that lies inside a
+    // PREVIOUSLY released arena is arena-provenance, not libc-provenance, and
+    // handing it to free() corrupts the heap. Refuse it, loudly, and leak the
+    // (already-freed) 24 KB block's worth of nothing — the memory went back with
+    // heap_caps_free() at release time, so this leaks bookkeeping only. A loud
+    // leak beats a silent corruption that surfaces somewhere else entirely.
+    if (!s_base && s_lastBase && p >= s_lastBase && p < s_lastBase + s_lastCap) {
+        s_staleFreeTotal++;
+        log_e("[mb_arena] STALE FREE REFUSED: ptr %p is inside arena generation %u "
+              "(base %p, cap %u) which was released — NOT passing it to libc free(). "
+              "Someone is freeing decoder memory after the arena went away (TASK-444).",
+              ptr, (unsigned)s_lastGen, (void*)s_lastBase, (unsigned)s_lastCap);
+        return;
+    }
+
     // Out-of-arena pointer: libc free (handles PSRAM path / pre-init pointers)
     if (!s_base || p < s_base || p >= s_base + s_cap) {
         free(ptr);
@@ -211,6 +245,7 @@ void mb_arena_free(void* ptr) {
 }
 
 size_t mb_arena_hwm(void) { return s_hwm; }
+uint32_t mb_arena_stale_free_total(void) { return s_staleFreeTotal; }
 
 uint32_t mb_arena_acquire_total(void)      { return s_acquireTotal; }
 uint32_t mb_arena_release_total(void)      { return s_releaseTotal; }
