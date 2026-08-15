@@ -42,6 +42,7 @@ Exit 0 if every check passes, 1 otherwise.
 """
 import argparse
 import pathlib
+import subprocess
 import re
 import sys
 import time
@@ -82,6 +83,15 @@ def wait_uptime(dut, timeout=45.0):
             h, mi, s = (int(x) for x in m.groups())
             return h * 3600 + mi * 60 + s
     return None
+
+
+def _default_port():
+    try:
+        return subprocess.check_output(
+            [str(pathlib.Path(__file__).parent.parent.parent / "run" / "port")]
+        ).decode().strip()
+    except Exception:
+        return "/dev/ttyUSB0"
 
 
 def start_play(dut, timeout=12.0):
@@ -188,7 +198,10 @@ def file_arm(dut, log_path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", default="/dev/ttyUSB0")
+    # Resolve by VID:PID like every run/ script does — the CH340 re-enumerates
+    # between ttyUSB0 and ttyUSB1 and a hardcoded default crashed this gate on
+    # 2026-08-15 (found while re-running the FILE arm after TASK-447).
+    ap.add_argument("--port", default=_default_port())
     ap.add_argument("--arm", choices=("webradio", "file"), default="webradio")
     args = ap.parse_args()
 

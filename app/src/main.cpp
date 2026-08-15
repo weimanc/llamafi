@@ -2145,8 +2145,18 @@ void switchApp(AppId next) {
   // would clobber the persisted mode at boot, since v1 boots to the Spotify view.
   // TASK-264 (Q3-a): drop Spotify TLS when WebRadio is active (reclaims ~50 K arena).
   // Non-blocking — setWebRadioActive() only sets flags, never calls tlsYield().
+  // TASK-448: LocalPlayer qualifies for the identical reason WebRadio does —
+  // it is a non-Spotify player that owns the audio path and the arena, so
+  // Spotify's TLS must stay down while it is foreground. Without this, the
+  // boot switchApp(AppId::LocalPlayer) below immediately CLEARS the idle flag
+  // that begin(startIdle=true) had just seeded, and the task self-issues its
+  // first ACT_POLL ~5 s later anyway — measured on cyd2usb_winamp_debug:
+  // begin ok startIdle=1, then `Refresh of the Access token is due` and
+  // lfbDma 65524 -> maxAlloc=41k. The begin() gate alone is NOT sufficient;
+  // this predicate is the durable half of the same decision.
 #ifndef DISABLE_SPOTIFY
-  spotifyTask::setWebRadioActive(next == AppId::WebRadio);
+  spotifyTask::setWebRadioActive(next == AppId::WebRadio ||
+                                 next == AppId::LocalPlayer);
 #endif
   if (g_apps[(int)next]) {
     if (!g_appLaunched[(int)next]) {
@@ -2826,7 +2836,16 @@ void setup()
   // closes the boot race where setWebRadioActive(true) (from the
   // switchApp(WebRadio) call below) arrived too late to stop the first
   // self-issued ACT_POLL from connecting TLS ~5s after begin().
-  spotifyTask::begin(&spotify, bootIntoWebRadio);
+  //
+  // TASK-448: the gate keyed on WebRadio alone, so a Player-mode boot on a
+  // Spotify-enabled build deferred the boot refresh (TASK-447) and then handed
+  // the memory straight back ~5s later when the task self-issued its first
+  // ACT_POLL and refreshed the token anyway (measured: post-init-idle
+  // lfbDma=65524 collapsing to a steady-state maxAlloc=41k, indistinguishable
+  // from Spotify mode). Reuse deferSpotifyRefresh so the two decisions cannot
+  // drift apart again — its DISABLE_SPOTIFY definition (always true) is
+  // unreachable from here, this call site being inside #ifndef DISABLE_SPOTIFY.
+  spotifyTask::begin(&spotify, deferSpotifyRefresh);
 #else
   // TASK-255 (M-WEBRADIO-NOPSRAM): the SOLE functional guard. Skipping begin()
   // means reqQueue / s_tlsYieldedSem stay null, so tlsYield()/tlsResume() (and

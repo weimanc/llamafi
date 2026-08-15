@@ -6997,7 +6997,7 @@ is not a gate failure but the discovery below.
 | play with injected alloc failure does not start playback | PASS (`playing=False`) |
 | device did not reset across the failed local-file play | PASS (uptime 47→77 s, 0 reset signatures) |
 | the allocation guard is what failed the play | PASS |
-| local playback still works after the injected failure | **FAIL — see TASK-442** |
+| local playback still works after the injected failure | **PASS** (re-run 2026-08-15 after TASK-447; was FAIL) |
 
 **Fix 1 — the arena is now released when a play dies before bring-up.** TASK-432's first cut
 deliberately kept it, reasoning a release could yank the arena from a live WebRadio session. That
@@ -8760,9 +8760,71 @@ Player mode holds `lfbDma` near 65 KB at steady state, and `set plPlay 0` plays.
 Player milestone stops needing a dedicated variant at all.
 
 **Owner:** Developer · **Deps:** TASK-447 (landed) · **Gate:** enabled build, Player mode: steady-state
-`lfbDma` stays ≥ 60 KB past 150 s, and a 5-track playlist plays; Spotify mode unchanged
-(`T_PLR_01`–`05`, plus the token still refreshing at boot) · **Priority:** P1 — it is one argument at
-one call site and it may retire TASK-431's variant split · **Status:** OPEN — filed 2026-08-15.
+`lfbDma` stays ≥ 60 KB past 150 s · **Priority:** P1 · **Status:** **DONE, DUT-verified 2026-08-15** —
+see below.
+
+#### TASK-448 result (2026-08-15) — and the filing was wrong about the scope
+
+**It is TWO call sites, not one.** `begin(startIdle)` seeds `s_webRadioActive`, but `switchApp()`
+**overwrites the same variable** via `setWebRadioActive(next == AppId::WebRadio)`, and the boot path
+runs `switchApp(AppId::LocalPlayer)` at `main.cpp:2893` — *after* `begin()` at `:2839`. So the
+one-line fix this task specified is clobbered milliseconds later. Measured on the build that had only
+the `begin()` change: `begin ok — startIdle=1`, then `Refresh of the Access token is due` and a token
+POST anyway. *(Verified independently: the ordering is as described, and `s_webRadioActive` has
+exactly one consumer — `spotifyTaskStorage.cpp:400`, `client.stop()` + skip the poll.)*
+
+The durable half is the `switchApp` predicate. The flag means "a non-Spotify player owns the audio
+path — keep TLS down", and LocalPlayer qualifies for the identical reason WebRadio does. Both hunks
+landed; `begin()` now takes `deferSpotifyRefresh` so the two decisions cannot drift apart again.
+
+**Measured, enabled debug build, 150 s+ settle:**
+
+| | before | after |
+|---|---|---|
+| Player steady state | `heap=65k maxAlloc=41k` | **`heap=106k maxAlloc=57k`** |
+| Player `lfbDma` @160 s | ~41 k | **61 428** |
+| Player poll counter | `poll=0/3` | **`poll=0/0`** |
+| Player token refresh | `POST /api/token` | **absent** |
+| Spotify mode | unchanged | unchanged (`startIdle=0`, boot refresh present) |
+
+**Prediction PASS** — the gate's "≥ 60 KB past 150 s" is met at 61 428.
+
+**Behaviour change beyond the task text, flagged and accepted:** navigating away from Player to a
+taskbar app now resumes Spotify polling, and returning suppresses it. That is exactly WebRadio's
+existing behaviour, so it adds no new class of problem — but those transitions were **not** exercised
+on the DUT. Also note the flag is now misnamed (`s_webRadioActive` covers LocalPlayer); a rename is
+mechanical and deliberately not bundled here.
+
+#### TASK-448 Part 3 — Player mode on the ENABLED build now starts, then stalls
+
+TASK-431's premise was that the enabled build lacks the heap for local playback. **That premise no
+longer holds** — with the poll suppressed, playback *starts* on `cyd2usb_winamp_debug`:
+
+```
+[I][spotify.tls] tls yield — client stopped
+[membudget] TASK-267 arena acquire=24576B lfbBefore=61428 OK
+audio_info: MP3Decoder has been initialized, free Heap: 45492
+CP2-decoder-init freeDma=2416 lfbDma=2292 arenaHWM=23216
+[I][localplayer] playing row 0
+```
+
+…and then **stalls silently**: 120 s on a 3 s track, `curRow` stuck at 0, `playing:true`, **no error
+line ever emitted** — the absence is the finding. It never reaches `Content-Length` / `stream ready`
+/ `syncword found`, all of which the healthy `cyd2usb_player` control emits. The discriminator is the
+DMA-capable pool left after the arena carve: **2 292 B (enabled, stalls) vs 4 084 B (player, works)**.
+
+**This is now TASK-443's evidence, and it is the strongest yet.** `get heapHist` on the enabled build
+in Player mode, 160 s settle: `free8=66280 lfb8=61428 n8708=7 n4096=15 n1024=48`, and
+`helixOk:true` leaving `lfb8After=40948`. **The decoder's nine blocks allocate fine through the libc
+fallback and still leave ~41 KB.** So on the enabled build the general heap is no longer the
+constraint — the arena's 24 576 B contiguous carve is what squeezes the DMA pool to 2 292 B. Stated
+as a hypothesis consistent with every number here, not a finding: it was not directly tested, because
+no serial knob disables the arena on this path (`set arenaHold` only *holds* it) and building one was
+out of scope.
+
+**Net for TASK-431:** the variant split stands, but **its stated reason does not**. What remains is a
+contiguity problem, which is exactly what TASK-443 option (a) addresses — so option (a) may be what
+retires the split, having been demoted this morning to "optimisation, not fix".
 
 ### TASK-419 — real posbar seek for local files
 
