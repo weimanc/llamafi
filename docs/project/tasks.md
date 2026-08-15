@@ -8509,11 +8509,14 @@ does the rest. `set wrUrl <url>` bypasses the station list entirely. Today that 
 allocation attempt on a heap that cannot serve it — the failure mode TASK-432 spent a day making
 survivable for the MP3 path, arriving through a door nobody has guarded.
 
-**Scope:**
-1. Stop compiling `aac_decoder/` and `flac_decoder/` (needs a mechanism — PlatformIO's `lib_ignore`
-   is whole-library, and `build_src_filter` does not apply to `app/lib/`; a `library.json` srcFilter
-   on the vendored fork is the likely lever, and it is a **new local patch that must be recorded in a
-   `LOCAL_PATCHES.md` the fork does not currently have**).
+**Scope — narrowed by the human, 2026-08-15: "leave the flash".** Item 1 below is **OUT OF SCOPE**.
+Do not chase the build-exclusion or the flash saving; flash sits at 69.1 % with ~811 KB free and the
+lever would cost a new patch to a fork with no `LOCAL_PATCHES.md`. **The task is item 2 only: refuse
+non-MP3 explicitly.** The dead decoders stay compiled in and unreachable.
+
+1. ~~Stop compiling `aac_decoder/` and `flac_decoder/`~~ — **dropped** (see above). For the record,
+   had it been pursued: `lib_ignore` is whole-library and `build_src_filter` does not apply to
+   `app/lib/`, so a `library.json` srcFilter on the vendored fork was the likely lever.
 2. Make the dispatch refuse explicitly: a non-MP3 codec must surface as a clean `play FAILED` /
    `ERROR_*` with a named reason, not fall through to an allocation that cannot succeed.
 3. Keep the metadata filter as-is — it is still worth having, it is just not a guarantee.
@@ -8528,7 +8531,7 @@ allocator.
 **Not measured, deliberately:** the exact flash/`.rodata` saving, because the exclusion mechanism
 does not exist yet and quoting a number before the lever exists would be a guess.
 
-**Owner:** Developer (Architect consult on the fork mechanism) · **Deps:** none · **Gate:** MP3
+**Owner:** Developer · **Deps:** none · **Gate:** MP3
 playback unaffected on both arms (WebRadio station + local file); a deliberately AAC stream injected
 via `set wrUrl` produces a named refusal and a live device, not an allocation failure; `./run/check`
 7/7 · **Priority:** P2 · **Status:** OPEN — filed 2026-08-15 from the human's decision.
