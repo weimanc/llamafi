@@ -16,13 +16,20 @@ file) drives the exact same _stepOrder()/_startPlayback() path the debug
 surface exercises — that can only be observed by actually playing something
 to completion.
 
-TASK-432 tolerance (same as test_fbrowser_player.py, do not re-diagnose):
-`aeConnectFile()`'s `new Audio(...)` can throw an uncaught bad_alloc under
-transient heap pressure right after a flash — abort() -> reboot. A retry at
-settled heap succeeds cleanly. If a reboot signature appears mid-sequence,
-it is not this test's failure; the whole sequence restarts from scratch
-after a settle wait, up to MAX_ATTEMPTS times. A `PlaybackNeverStarted`
-(pump task creation / arena acquire failing without a crash) is NOT retried
+A REBOOT IS A HARD FAIL (VE, 2026-08-15). This script used to retry the
+whole sequence up to MAX_ATTEMPTS times on a reboot signature, because
+`aeConnectFile()`'s `new Audio(...)` could throw an uncaught bad_alloc under
+transient heap pressure right after a flash (abort() -> reboot) and a retry
+at settled heap succeeded cleanly. **TASK-432 fixed that** — `aeEnsureAudio()`
+is now the only construction site and carries both TASK-289's 16 KB DMA floor
+and `new (std::nothrow)` + a null check, so a shortfall degrades to a clean
+`play FAILED`, not a reset. The retry loop therefore no longer tolerates a
+known transient: it can only launder the defect under test into a green run.
+Any reset signature now fails immediately, loudly, on the first occurrence.
+(This is independent of TASK-443's ruling — the crash being retried past is
+already fixed either way.) A `PlaybackNeverStarted`
+(pump task creation / the decoder allocation failing without a crash — under
+TASK-443's ruling the FILE arm never acquires the arena) is NOT retried
 in-process — DUT-measured (TASK-416's own script, same board): re-opening the
 serial port lands inside the ESP32's double-reset-detector window and
 reproduces the identical stuck state rather than a clean boot. Only a real
@@ -43,8 +50,6 @@ import time
 import serial
 
 PL_SHORT5 = "/playlists/short5.m3u"   # 5 real short tracks (TASK-418 fixture)
-MAX_ATTEMPTS = 3
-REBOOT_SETTLE_S = 90.0
 
 _REBOOT_MARKERS = ("ets Jul", "rst:0x", "abort() was called")
 
@@ -54,9 +59,9 @@ class RebootDetected(Exception):
 
 
 class PlaybackNeverStarted(Exception):
-    """Same tolerance as test_fbrowser_player.py's — pump-task creation /
-    arena acquire can fail transiently under heap pressure that hasn't
-    settled yet, without an actual crash."""
+    """Same class as test_fbrowser_player.py's — pump-task creation or the
+    decoder allocation can fail under heap pressure that hasn't settled yet,
+    without an actual crash. NOT retried in-process (see main())."""
     pass
 
 
@@ -99,8 +104,9 @@ def fail(msg: str) -> None:
 def run_sequence(ser: serial.Serial, per_track_timeout_s: float) -> list:
     """The whole enter-player -> load -> play -> auto-advance x5 sequence,
     one shot. Returns the observed row sequence on success. Raises
-    RebootDetected on a crash-reboot (caller retries from scratch) or calls
-    fail() (via SystemExit) on a real, non-reboot defect."""
+    RebootDetected on a crash-reboot (the caller FAILS on it — a reset is a
+    defect, not a transient) or calls fail() (via SystemExit) on any other
+    real defect."""
     print("=== enter Player mode, load the 5-short-track playlist ===")
     r = cmd(ser, "set playerMode player")
     if not r.get("ok"):
@@ -155,7 +161,11 @@ def run_sequence(ser: serial.Serial, per_track_timeout_s: float) -> list:
         # Same tolerance class as test_fbrowser_player.py's — see its
         # PlaybackNeverStarted docstring for the DUT-measured reasoning.
         raise PlaybackNeverStarted("plCount.playing/curRow never reached (True, 0) within 15s")
-    print("playback confirmed — arena acquired, MP3 decoding")
+    # Do NOT claim "arena acquired" here: this script never reads arenaStats, and
+    # under TASK-443's ruling the FILE arm does not acquire the arena at all (the
+    # decoder allocates through mb_arena_alloc()'s libc fallback). All that is
+    # actually observed is that the decode started.
+    print("playback confirmed — decoding row 0")
 
     print("=== waiting for auto-advance through all 5 short tracks ===")
     played_rows = [0]
@@ -202,32 +212,29 @@ def main() -> int:
     time.sleep(0.3)
     wait_boot(ser, args.settle_s)
 
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        try:
-            played_rows = run_sequence(ser, args.per_track_timeout_s)
-        except RebootDetected as e:
-            if attempt == MAX_ATTEMPTS:
-                fail(f"device rebooted on attempt {attempt}/{MAX_ATTEMPTS} ({e}) — "
-                     "TASK-432 (aeConnectFile's uncaught bad_alloc, filed OPEN) reproduced "
-                     "and did not clear after retries; that task's fix, not this one's")
-            print(f"\n=== reboot detected on attempt {attempt}/{MAX_ATTEMPTS} ({e}) — "
-                  "TASK-432-class transient crash (filed, OPEN, not this task's scope). "
-                  f"Waiting {REBOOT_SETTLE_S:.0f}s and retrying the whole sequence "
-                  "(state does not survive a reboot) ===\n")
-            wait_boot(ser, REBOOT_SETTLE_S)
-            continue
-        except PlaybackNeverStarted as e:
-            fail(f"playback never started ({e}) — DUT-measured (TASK-416 precedent): this "
-                 "needs a genuinely fresh boot (a real reflash), not an in-process retry, "
-                 "which lands inside the double-reset-detector window and reproduces the "
-                 "identical stuck state. Re-run run/playorder-player.")
-        else:
-            print(f"\nPASS: auto-advanced 5/5 real short files ({played_rows}), stopped "
-                  f"cleanly after the last (repeat off) — no WDT, env=cyd2usb_player, "
-                  f"attempt={attempt}/{MAX_ATTEMPTS}")
-            ser.close()
-            return 0
-    return 1  # unreachable
+    try:
+        played_rows = run_sequence(ser, args.per_track_timeout_s)
+    except RebootDetected as e:
+        # VE 2026-08-15: hard FAIL, no retry. TASK-432's fix (aeEnsureAudio's
+        # DMA floor + nothrow/null-check) means a memory shortfall degrades to
+        # `play FAILED` with the device alive. A reset on this path is now a
+        # real defect — retrying past it is how a broken build goes green.
+        fail(f"device reset during the sequence ({e}) — a reset is a hard FAIL since "
+             "TASK-432: the alloc guards degrade a shortfall to `play FAILED` without "
+             "resetting, so this is a genuine crash to diagnose (capture the backtrace "
+             "and addr2line it), not a transient to retry past")
+    except PlaybackNeverStarted as e:
+        fail(f"playback never started ({e}) — DUT-measured (TASK-416 precedent): this "
+             "needs a genuinely fresh boot (a real reflash), not an in-process retry, "
+             "which lands inside the double-reset-detector window and reproduces the "
+             "identical stuck state. Re-run run/playorder-player.")
+    else:
+        print(f"\nPASS: auto-advanced 5/5 real short files ({played_rows}), stopped "
+              f"cleanly after the last (repeat off) — no WDT, no reset, "
+              f"env=cyd2usb_player")
+        ser.close()
+        return 0
+    return 1  # unreachable — fail() exits
 
 
 if __name__ == "__main__":

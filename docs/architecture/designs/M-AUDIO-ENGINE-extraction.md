@@ -156,6 +156,26 @@ New ids cover only what the extraction itself can break.
 | `T_AE_09` | Arena HWM unchanged by the file path | DUT serial — **fresh boot, file playback only, no stream connect**, then `get wrArena` HWM (VE-8: `mb_arena_hwm()` is a session high-water mark — any earlier stream playback contaminates it and the assertion becomes vacuous) | **23 216 B** — same nine Helix structs as the stream path. If it differs, the codec assumption in §2 is wrong |
 | `T_AE_10` | `audio_eof_mp3` fires and does not deadlock | DUT — play a short file to its end, ×10; "stall" measured via `perf::record()` on the loopTask tick (VE-2: unmeasured "no stall" degrades to "it didn't crash") | callback observed 10/10; **max loopTask tick gap < 100 ms**, matching `T_AE_04`'s bound; flag drained on loopTask, not acted on in-callback |
 
+> **VE status annotation, 2026-08-15 (TASK-443 ruling).** Rationale and replacement criteria are in
+> `docs/verification/test_plan.md`, suite **M-AUDIO-ENGINE** ("Corrections to existing ids"); this is
+> the pointer, not a rewrite of the ids above.
+>
+> - **`T_AE_09` — BLOCKED.** If the ruling (retire the arena from the FILE path) is accepted, the
+>   criterion `mb_arena_hwm() == 23 216` is falsified *by construction*: `s_hwm` is written only by
+>   the bump allocator (`mb_arena.cpp:180`), which the libc fallback never reaches, so the metric
+>   reads **0** on every FILE session. **0 is an absent instrument, not a pass — do not report this
+>   id green on `hwm == 0`.** Its **PASS of 2026-08-10 (commit `7f01680`) stands as taken**, on the
+>   arena'd path; it does not carry over. Replacement criterion, blocked on libc-fallback accounting
+>   landing in `get arenaStats`: `Δ libcBytes == 23 216 × tracks` and `libcMax == 8 708`
+>   (`SubbandInfo_t.vbuf`, `mp3_decoder.h:176`).
+> - **`T_AE_10` — criteria unchanged, weight increased.** End-of-file is exactly where `Audio` frees
+>   the nine Helix buffers (`Audio.cpp:3053`) and the next `connecttoFS` reallocates them
+>   (`:3769`), so post-ruling this id is the smallest instance of the fragmentation experiment, not
+>   only a deadlock check. **Its ×10 repetition merges into `T_AE_12`** (repeat-all ×10 over a
+>   5-track playlist = 50 cycles) — run the repetition once, at the deeper depth.
+> - **`T_AE_07` — criteria stand, evidence stale.** Its 2026-08-10 PASS predates both TASK-432's fix
+>   and the ruling; re-run alongside `T_AE_11`.
+
 **Validation notes.** `T_AE_01` is the load-bearing test and it is *deliberately not new work* — the
 value is that the existing suite runs untouched. Baseline it **before** the extraction lands, or
 there is nothing to compare against.

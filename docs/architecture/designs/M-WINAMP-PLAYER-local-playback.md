@@ -437,7 +437,18 @@ Ids reserved in the `T_PLR_` family, grouped by task. VE owns the suite and may 
 | `T_PLR_09` | Scroll end to end during playback | DUT — scroll full list while a track plays | no audible underrun, no dropped frames |
 | `T_PLR_10` | Relative paths resolve | DUT — playlist referencing `./sub/x.mp3` | resolves against the playlist's directory |
 | `T_PLR_11` | Malformed M3U degrades | DUT — truncated file, missing `#EXTINF`, CRLF, BOM | loads what it can; no crash; unreadable rows render the placeholder |
-| `T_PLR_12` | Index memory is bounded and freed | DUT serial — heap before load / after load / after suspend, quiesced; report **largest-free-block alongside free-heap** (fragmentation is the real risk per M-HEAP-FRAGMENTATION, and a clean free-heap figure hides it — VE-15) | ≤5.2 KB delta; returns to baseline ±256 B on suspend |
+| `T_PLR_12` | Index memory is bounded and freed | DUT serial — heap before load / after load / after suspend, quiesced; report **largest-free-block alongside free-heap** (fragmentation is the real risk per M-HEAP-FRAGMENTATION, and a clean free-heap figure hides it — VE-15). **All three samples must come from ONE boot** | ≤5.2 KB delta; returns to baseline ±256 B on suspend — **within-run deltas only** |
+
+> **VE correction, 2026-08-15 — `T_PLR_12`: cross-run absolute `lfb` comparisons are struck.**
+> The id's own criteria (≤5.2 KB delta, ±256 B on suspend) are **within-run** and stand unchanged —
+> `run_serialdbg_tests.py::t_plr_12` takes baseline / loaded / post-suspend on a single boot. What
+> must never be carried forward is an absolute largest-free-block figure compared against a number
+> from a **different run or date**: at a fixed commit the idle baseline moved ~26 KB between
+> 2026-08-11 and 2026-08-15 (`lfbInt` 69 620 → 42 996, TASK-427 vs TASK-442), and BP-055 already
+> records that this 32-bit metric over-reports. The historical
+> "largest-free-block unchanged 19 444 → 19 444 → 19 444" note is a within-run triple and is fine;
+> treating 19 444 as an *expected value* for a future run is not. Also note BP: no heap number is
+> trustworthy before ~150 s of settle (TASK-425).
 
 ### TASK-416 — file browser
 

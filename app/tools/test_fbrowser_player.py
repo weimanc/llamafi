@@ -2,24 +2,32 @@
 """TASK-416 / T_PLR_13 (playback half) — browse a ~200-file directory while a
 real track plays, on cyd2usb_player.
 
-TASK-425/431: local playback (the Helix arena acquiring at all) only works on
-cyd2usb_player, where Spotify's ~39 KB TLS working set is compiled out
-entirely (-DDISABLE_SPOTIFY). On cyd2usb_winamp_debug the arena FAILS in every
-mount/arena ordering whenever that working set is resident — proven, not
-theoretical (TASK-425's measured table). run_serialdbg_tests.py's t_plr_13
+TASK-425/431: local playback only works on cyd2usb_player, where Spotify's
+~39 KB TLS working set is compiled out entirely (-DDISABLE_SPOTIFY). On
+cyd2usb_winamp_debug the arena acquire FAILS in every mount/arena ordering
+whenever that working set is resident — proven, not theoretical (TASK-425's
+measured table). NOTE (VE 2026-08-15): under TASK-443's proposed ruling the
+FILE arm stops acquiring the arena altogether and the decoder allocates
+through mb_arena_alloc()'s libc fallback, so "the arena acquiring" ceases to
+be what this paragraph is about; the variant constraint itself is unchanged
+(TASK-442 — even the acquire-free path has not yet been shown to play here).
+run_serialdbg_tests.py's t_plr_13
 covers the browsing-only half (walk completes, DUT stays responsive) on
 cyd2usb_winamp_debug; THIS script is the half that needs real audio: start a
 real track, browse a 200-entry directory while it plays, and confirm playback
 never stops and the DUT never stalls.
 
-TASK-432 tolerance. `aeConnectFile()`'s `new Audio(...)` can throw an
-uncaught bad_alloc under transient heap pressure right after a flash (filed,
-OPEN, not this task's to fix) — abort() -> reboot. TASK-427's own DUT
-evidence hit this on its first play attempt and a retry at settled heap
-succeeded cleanly; this script does the same: if a reboot signature appears
-mid-command, it is NOT treated as this test's failure — it waits for the
-device to re-settle and restarts the whole sequence from scratch (state does
-not survive a reboot), up to MAX_ATTEMPTS times.
+A REBOOT IS A HARD FAIL (VE, 2026-08-15). This script used to restart the
+whole sequence up to MAX_ATTEMPTS times on a reboot signature, because
+`aeConnectFile()`'s `new Audio(...)` could throw an uncaught bad_alloc under
+transient heap pressure right after a flash (abort() -> reboot) and TASK-427's
+own DUT evidence showed a retry at settled heap succeeding cleanly.
+**TASK-432 fixed that** — `aeEnsureAudio()` is the sole construction site and
+carries TASK-289's 16 KB DMA floor plus `new (std::nothrow)` and a null check,
+so a memory shortfall now degrades to a clean `play FAILED` instead of a
+reset. Keeping the retry loop would mean a run can go green by retrying past
+the very defect under test. Any reset signature fails immediately.
+(Independent of TASK-443's ruling — the crash retried past is already fixed.)
 
 Usage: run/browser-player (flashes cyd2usb_player, runs this, restores prod)
        python3 test_fbrowser_player.py --port /dev/ttyUSB1
@@ -34,8 +42,6 @@ import serial
 PL_PATH = "/mp3/rel.m3u"     # a real playlist (TASK-415 fixture) pointing at
                               # this card's actual mp3s, not a synthetic one
 BROWSE_DIR = "/probe200"     # TASK-408's 200-entry probe fixture
-MAX_ATTEMPTS = 3
-REBOOT_SETTLE_S = 90.0
 
 _REBOOT_MARKERS = ("ets Jul", "rst:0x", "abort() was called")
 
@@ -45,13 +51,13 @@ class RebootDetected(Exception):
 
 
 class PlaybackNeverStarted(Exception):
-    """Not a crash — pump-task creation / arena acquire can fail transiently
+    """Not a crash — pump-task creation or the decoder allocation can fail
     under heap pressure that hasn't fully settled yet (seen on the DUT: a
     `[E][wrpump] xTaskCreatePinnedToCore failed rc=-1` at 60s post-boot,
-    clean at a later attempt). Gets the same retry-from-scratch treatment as
-    a reboot — this env has no Spotify TLS working set to wait out
-    (TASK-425/431), but WiFi/HTTPS/dataTask startup can still transiently
-    hold task-table/heap headroom this close to boot."""
+    clean at a later attempt). This env has no Spotify TLS working set to
+    wait out (TASK-425/431), but WiFi/HTTPS/dataTask startup can still
+    transiently hold task-table/heap headroom this close to boot. NOT
+    retried in-process — see main()."""
     pass
 
 
@@ -94,8 +100,8 @@ def fail(msg: str) -> None:
 def run_sequence(ser: serial.Serial, walk_timeout_s: float) -> tuple:
     """The whole enter-player -> load -> play -> browse sequence, one shot.
     Returns (elapsed, st) on success. Raises RebootDetected on a crash-reboot
-    (caller retries from scratch) or calls fail() (via a raised SystemExit)
-    on a real, non-reboot defect."""
+    (the caller FAILS on it — a reset is a defect, not a transient) or calls
+    fail() (via a raised SystemExit) on any other real defect."""
     print("=== enter Player mode, load a real playlist, start playback ===")
     r = cmd(ser, "set playerMode player")
     if not r.get("ok"):
@@ -109,7 +115,7 @@ def run_sequence(ser: serial.Serial, walk_timeout_s: float) -> tuple:
     if not r.get("ok"):
         fail(f"set plPlay 0 failed: {r}")
 
-    print("=== waiting for playback to actually start (arena acquire + decode) ===")
+    print("=== waiting for playback to actually start (decode running) ===")
     playing = False
     deadline = time.monotonic() + 15.0
     while time.monotonic() < deadline:
@@ -130,7 +136,11 @@ def run_sequence(ser: serial.Serial, walk_timeout_s: float) -> tuple:
         # DTR-toggle reconnect lands inside the ESP32 double-reset-detector
         # window and reproduces the SAME stuck state rather than a clean boot.
         raise PlaybackNeverStarted("plCount.playing stayed false for 15s after plPlay")
-    print("playback confirmed — arena acquired, MP3 decoding")
+    # Do NOT claim "arena acquired" here: this script never reads arenaStats, and
+    # under TASK-443's ruling the FILE arm does not acquire the arena at all (the
+    # decoder allocates through mb_arena_alloc()'s libc fallback). All that is
+    # actually observed is that the decode started.
+    print("playback confirmed — decoding")
 
     print(f"=== opening {BROWSE_DIR} (200 entries) while playback continues ===")
     t0 = time.monotonic()
@@ -179,37 +189,34 @@ def main() -> int:
     time.sleep(0.3)
     wait_boot(ser, args.settle_s)
 
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        try:
-            elapsed, st = run_sequence(ser, args.walk_timeout_s)
-        except RebootDetected as e:
-            if attempt == MAX_ATTEMPTS:
-                fail(f"device rebooted on attempt {attempt}/{MAX_ATTEMPTS} ({e}) — "
-                     "TASK-432 (aeConnectFile's uncaught bad_alloc, filed OPEN) reproduced "
-                     "and did not clear after retries; that task's fix, not this one's")
-            print(f"\n=== reboot detected on attempt {attempt}/{MAX_ATTEMPTS} ({e}) — "
-                  "TASK-432-class transient crash (filed, OPEN, not this task's scope). "
-                  f"Waiting {REBOOT_SETTLE_S:.0f}s and retrying the whole sequence "
-                  "(state does not survive a reboot) ===\n")
-            wait_boot(ser, REBOOT_SETTLE_S)
-            continue
-        except PlaybackNeverStarted as e:
-            # A soft reconnect lands inside the ESP32 double-reset-detector
-            # window and reproduces the identical stuck state rather than a
-            # clean boot (DUT-measured — see run_sequence()'s comment). Only
-            # a real reflash gets a genuinely fresh boot, so this is not
-            # retried in-process; fail with the exact remedy.
-            fail(f"playback never started ({e}) — DUT-measured: this needs a genuinely fresh "
-                 "boot (a real reflash), not an in-process retry, which lands inside the "
-                 "double-reset-detector window and reproduces the identical stuck state. "
-                 "Re-run run/browser-player.")
-        else:
-            print(f"\nPASS: 200-entry walk completed in {elapsed:.1f}s with playback continuous "
-                  f"throughout (dirCount={st.get('dirCount')} fileCount={st.get('fileCount')}), "
-                  f"env=cyd2usb_player, attempt={attempt}/{MAX_ATTEMPTS}")
-            ser.close()
-            return 0
-    return 1  # unreachable
+    try:
+        elapsed, st = run_sequence(ser, args.walk_timeout_s)
+    except RebootDetected as e:
+        # VE 2026-08-15: hard FAIL, no retry. TASK-432's fix (aeEnsureAudio's
+        # DMA floor + nothrow/null-check) means a memory shortfall degrades to
+        # `play FAILED` with the device alive. A reset on this path is now a
+        # real defect — retrying past it is how a broken build goes green.
+        fail(f"device reset during the sequence ({e}) — a reset is a hard FAIL since "
+             "TASK-432: the alloc guards degrade a shortfall to `play FAILED` without "
+             "resetting, so this is a genuine crash to diagnose (capture the backtrace "
+             "and addr2line it), not a transient to retry past")
+    except PlaybackNeverStarted as e:
+        # A soft reconnect lands inside the ESP32 double-reset-detector
+        # window and reproduces the identical stuck state rather than a
+        # clean boot (DUT-measured — see run_sequence()'s comment). Only
+        # a real reflash gets a genuinely fresh boot, so this is not
+        # retried in-process; fail with the exact remedy.
+        fail(f"playback never started ({e}) — DUT-measured: this needs a genuinely fresh "
+             "boot (a real reflash), not an in-process retry, which lands inside the "
+             "double-reset-detector window and reproduces the identical stuck state. "
+             "Re-run run/browser-player.")
+    else:
+        print(f"\nPASS: 200-entry walk completed in {elapsed:.1f}s with playback continuous "
+              f"throughout (dirCount={st.get('dirCount')} fileCount={st.get('fileCount')}), "
+              f"no reset, env=cyd2usb_player")
+        ser.close()
+        return 0
+    return 1  # unreachable — fail() exits
 
 
 if __name__ == "__main__":

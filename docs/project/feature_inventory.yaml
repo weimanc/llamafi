@@ -2439,7 +2439,8 @@ features:
       - app/src/player/localPlayerApp.h
       - app/platformio.ini
     cross_features: [webradio-001, sdfs-001, memplan-001, player-state-001]
-    test_ids: [T_PLR_01, T_PLR_02, T_PLR_03, T_PLR_04, T_PLR_05]
+    test_ids: [T_PLR_01, T_PLR_02, T_PLR_03, T_PLR_04, T_PLR_05,
+               T_AE_11, T_AE_12, T_AE_13, T_AE_14, T_AE_15, T_AE_16]
     notes: |
       ADR-059 D2. Carries the fixes from TASK-278/287/289/291/295/299/392/398 — the move
       lands only behind ./run/check 6/6 AND a full-length run/wr-soak (a short soak does not
@@ -2454,6 +2455,13 @@ features:
       variant — see TASK-442**: with the arena held the largest free 8-bit block is 2932 B
       and new Audio() returns null. The code path is complete and gated; the memory budget
       is not. Do not read this entry's `implemented` as `works on the shipping variant`.
+      ---
+      VE 2026-08-15: T_AE_11-16 (test_plan.md, suite M-AUDIO-ENGINE) are the gate for
+      TASK-443's ruling + TASK-444. All six are **planned and unrunnable today** — they need
+      the DUT, the ruling accepted and implemented, four pieces of firmware that do not exist
+      (libc-fallback accounting in `get arenaStats`, `set aeFailDecoder`, `err` on
+      `get plCount`, `set plRepeat`/`set plShuffle`), and for three of them the home network
+      (TASK-438). Coverage is claimed by this list, not yet earned by a run.
 
   - id: plmodel-001
     name: Shared playlist model + single PLEDIT renderer

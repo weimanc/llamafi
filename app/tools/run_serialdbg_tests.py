@@ -5387,10 +5387,26 @@ def t_plr_09(dut: Dut):
             playing = True
             break
     if not playing:
+        # VE 2026-08-15 (TASK-443), DELIBERATELY still a SKIP — read before changing.
+        # This SKIP is correct on cyd2usb_winamp_debug, where local playback cannot
+        # start at all with Spotify's TLS working set resident (TASK-425/431), and
+        # that is the env this whole harness runs on. It is WRONG on cyd2usb_player
+        # once TASK-443's ruling (retire the arena from the FILE path) lands: there,
+        # "never reached playing=true" IS the ruling failing, and a SKIP would hide
+        # exactly the regression the ruling has to be gated on.
+        # It is not flipped today because (a) the ruling is proposed, not accepted,
+        # (b) on cyd2usb_player playback genuinely cannot start right now (TASK-442,
+        # open P1), so flipping turns a SKIP into a permanent red no one can action,
+        # and (c) the harness carries no env discriminator to make it conditional,
+        # and inventing one unverified with no DUT access is worse than a note.
+        # WHEN THE RULING LANDS: gate on the build variant and make this a fail()
+        # on cyd2usb_player, keeping skip() only on cyd2usb_winamp_debug.
         dut.cmd("set bgPoll 1", timeout=3.0)
         _leave_player(dut)
         skip("T_PLR_09", "track never reached playing=true — audio precondition failed, "
-                         "not a scroll result (check the card's /mp3 files)")
+                         "not a scroll result (check the card's /mp3 files). NOTE: this "
+                         "must become a FAIL on cyd2usb_player once TASK-443's ruling "
+                         "lands — see the comment above this call")
         return
     xu, yu, xu2, yu2 = _c.pledit_swipe("up")
     worst_gap = 0.0

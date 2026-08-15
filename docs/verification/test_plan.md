@@ -4486,6 +4486,222 @@ Landed 2026-07-17 (`13bb3fd`). Design: `docs/architecture/designs/M-COUNTRY-PICK
 
 ---
 
+## Suite: M-AUDIO-ENGINE — Helix arena provenance and the FILE-path memory gate (TASK-443/444)
+
+**Why this suite exists.** Before 2026-08-15 `docs/verification/` contained **zero** occurrences of
+the word "arena": every arena assertion in the project lived in Architect-owned design docs
+(`docs/architecture/designs/M-AUDIO-ENGINE-extraction.md` for `T_AE_01`–`T_AE_10`,
+`M-WINAMP-PLAYER-local-playback.md` for `T_PLR_*`) or was implicit in three host drivers
+(`test_webradio_soak.py`, `test_ae04_teardown.py`, `task398_connect_async_verify.py` — all
+URL-arm). This suite is the VE-owned home for arena coverage. `T_AE_01`–`T_AE_10` are **not** moved
+here (they are the extraction design's gate and stay with it); the VE corrections to `T_AE_09`,
+`T_AE_10` and `T_PLR_12` are recorded both here and, as a status annotation, in the design docs that
+carry the id text.
+
+**Scope.** `T_AE_11`–`T_AE_16` are the gate for the @Architect ruling on TASK-443 — *retire the
+Helix arena from the FILE path; the decoder allocates through `mb_arena_alloc()`'s libc fallback;
+the gate is the connect kind, not the build variant* — plus TASK-444, the stale-provenance
+`free()` this suite is the first thing in the repo to be able to reach.
+
+### Runnability — read before scheduling any of these
+
+**None of these six ids can run today.** Their blockers, honestly stated:
+
+| blocker | what it is | affects |
+|---|---|---|
+| **B-DUT** | Every id needs the physical DUT on `cyd2usb_player`, flashed via `run/playorder-player` / `run/browser-player`. No id here is host-runnable. | all six |
+| **B-RULING** | TASK-443's ruling is **proposed, not accepted** by the human operator, and no firmware implements it. Until the acquire at `audioEngine.h:697-699` is gone, `T_AE_11`/`T_AE_13`/`T_AE_16` assert the opposite of current behaviour and would FAIL correctly-but-uselessly. | 11, 12, 13, 15, 16 |
+| **B-FW-LIBC** | Libc-fallback accounting (`libcCount` / `libcBytes` / `libcMax`) in `get arenaStats` does not exist. It is the *only* positive instrument that a play ran un-arena'd — `mb_arena_hwm()` reads 0 on the libc path because `s_hwm` is written only by the bump allocator (`mb_arena.cpp:180`). **Land the accounting before quieting the nine `log_e` lines**: that log is currently the sole discriminator of allocation provenance. | 11, 12, 13, 15 |
+| **B-FW-FAIL** | `set aeFailDecoder` (fault injection at the decoder sub-allocation, distinct from TASK-432's `Audio`-construction guard) does not exist. | 14 |
+| **B-FW-ERR** | `get plCount` reports no `err`/`connecting` field; "play FAILED" is today only inferable from a serial line the harness's `reset_input_buffer()` can drop. | 14 |
+| **B-FW-ORDER** | `set plRepeat` / `set plShuffle` do not exist; `T_AE_12`'s precondition currently rides on hardcoded sprite taps against a baked skin layout (`tap 187 96` / `tap 225 96`, see `test_playorder_player.py`). Workable, but brittle enough that a skin re-bake silently changes the test's meaning. | 12 |
+| **B-FW-EOF** | No end-of-file **count** on the wire; EOF is observable only as a `curRow` transition. | 12, 10 |
+| **B-NET** | The rig's current AP cannot complete a WebRadio station fetch (TASK-438: the fetch stays `pending` indefinitely and abort does not clear it). Any id needing a live URL-arm play is unrunnable here **independent of the ruling** — it needs the home network. | 13, 15, 16 |
+
+**On the margin (the ≈1.1 KB figure).** `T_AE_11`/`T_AE_12` **record** the residual `lfb8`; they do
+not rule on it. The Architect's "<4 KB → escalate to TASK-431 option (b)" trigger must not be fired
+from a single environment: the idle baseline moved ~26 KB at a fixed commit between 2026-08-11 and
+2026-08-15 with the AP as the only known difference (LL-132). Fire it only after a home-network
+re-run. Firing it off one number repeats TASK-427's mistake exactly.
+
+**A structural trap that invalidates the obvious cheap tests (VE-F1).** `mb_arena_release()`
+early-returns on `!s_owned` *before* `s_releaseTotal++` (`mb_arena.cpp:126-129`). So any assertion of
+the form "releases did not move" **passes vacuously when nothing was held**. Every proof of the
+never-release-what-you-never-acquired invariant must run with the arena genuinely held by the other
+arm — that is why `T_AE_16` is built on a live WebRadio CONNECTING state and not on `set arenaHold`.
+
+### T_AE_11 — [localplay-001, plmodel-001] FILE path plays five tracks without ever acquiring the arena
+
+- **Type**: integration (DUT, serial-driven) [SLOW]
+- **Feature(s)**: localplay-001, plmodel-001
+- **Objective**: The ruling's primary assertion: a full local playlist decodes end to end **and the arena is never taken**. This is the id that distinguishes "the ruling landed" from "it still works".
+- **Blocked by**: B-DUT, B-RULING, B-FW-LIBC.
+- **Preconditions**: `cyd2usb_player` flashed with the ruling's change (no acquire in `aeConnectFile()`, and `aeTeardownFile()`'s unconditional `mb_arena_release()` at `:779` removed — an arm that never acquires must never release). SD mounted, `/playlists/short5.m3u` present (5 real ~3 s tones). **Fresh boot, no stream connect at any point in the session.** ≥90 s settle before the first command (BP: never trust a heap number before ~150 s; take the baseline at 150 s if the run allows it).
+- **Steps**:
+  1. `get arenaStats` → record `acquires₀`, `releases₀`, `fails₀`, `hwm₀`, `libcCount₀`, `libcBytes₀`, `libcMax₀`.
+  2. `set playerMode player`; `set bgPoll 0`; `set plLoad /playlists/short5.m3u`; confirm `count == 5`.
+  3. `get plCount` → record `lfb8` baseline.
+  4. `set plPlay 0`, then poll `get plCount` until `playing == true && curRow == 0`.
+  5. Sample `get plCount` continuously; at **every** `curRow` transition record `lfb8` and `fileOpen`.
+  6. After row 4 finishes and `playing` goes false: `get arenaStats`.
+- **Expected result**:
+  - `Δacquires == 0` **and** `Δfails == 0` (a failed acquire is still an acquire attempt; both must be zero, otherwise the gate is still on the acquire path and merely losing).
+  - `Δreleases == 0`, and `active == 0` throughout.
+  - `Δ libcCount == 9 × 5 == 45` (nine Helix structs per decoder init, `mp3_decoder.cpp:1549-1557`), `libcMax == 8 708` (`SubbandInfo_t.vbuf`, `mp3_decoder.h:176`), `libcBytes` consistent with 23 216 B per init. **Assert the delta, never equality with 9** — these are lifetime monotonic totals.
+  - Row sequence `[0,1,2,3,4]`, playback stops after row 4 (shuffle off, repeat off).
+  - `hwm` stays at `hwm₀` (0 on a stream-free session) — **recorded, not asserted**; see the `T_AE_09` correction below for why `hwm == 0` is an absent instrument and not a pass.
+  - **Recorded, not gated**: the per-boundary `lfb8` series and the residual at steady playback. Track 1 succeeding proves nothing about track 4 — a monotone decline across the five is the signal to escalate to `T_AE_12`.
+- **Status**: **planned — cannot run** (B-DUT, B-RULING, B-FW-LIBC).
+
+### T_AE_12 — [localplay-001, plmodel-001] Fragmentation curve: repeat-all ×10 over the 5-track playlist
+
+- **Type**: e2e (DUT, serial-driven) [SLOW]
+- **Feature(s)**: localplay-001, plmodel-001
+- **Objective**: The libc path frees nine blocks at **every** end-of-file (`Audio.cpp:3053`) and reallocates on the next `connecttoFS` (`:3769`), with an SD `File` open (~4.4 KB stdio buffer, TASK-415) landing in the hole between. This id asks the only question that matters about that: **does the largest free block trend down across 50 decoder init/teardown cycles?** Absorbs `T_AE_10`'s ×10 repetition (see the `T_AE_10` correction below) — EOF is exactly where the decoder frees, so the two are the same experiment at different depths.
+- **Blocked by**: B-DUT, B-RULING, B-FW-LIBC, B-FW-ORDER, B-FW-EOF.
+- **Preconditions**: as `T_AE_11`, plus repeat-all engaged. Prefer `set plRepeat all` once it exists; until then the sprite taps (`tap 225 96`) from `test_playorder_player.py`, with `get shufRep` read back to confirm — **do not assume the tap landed**.
+- **Steps**:
+  1. Baseline as `T_AE_11` steps 1–3.
+  2. Engage repeat-all, shuffle off; confirm via `get shufRep`.
+  3. `set plPlay 0`; let it run 10 full passes (50 tracks, ~10 min at 3 s + overhead).
+  4. Record `lfb8` at every `curRow` transition (50 samples) and `get arenaStats` at each pass boundary.
+- **Expected result**:
+  - `Δacquires == 0` across the whole run.
+  - `Δ libcCount == 9 × 50 == 450`; `libcMax` still `8 708` at the end — **if the 8 708 B block ever fails to allocate, that is the failure this entire chain has been about.**
+  - No reset, no WDT, `playing` never drops except at the intended boundaries.
+  - **The fragmentation criterion is provisional and must stay labelled so.** Proposed: `lfb8` at pass 10 ≥ `lfb8` at pass 1 − 2 048 B, and no sample below `8 708 + 1 024`. **These numbers have no measured basis yet** — the first green run publishes the real spread, and the threshold is set from it. Reporting a made-up threshold as PASS/FAIL before that is the LL-125 shape.
+- **Status**: **planned — cannot run** (B-DUT, B-RULING, B-FW-LIBC, B-FW-ORDER).
+
+### T_AE_13 — [localplay-001, webradio-001] Mixed session: exactly one acquire, and it is WebRadio's
+
+- **Type**: cross-feature (DUT, serial-driven) [NETWORK][SLOW]
+- **Feature(s)**: localplay-001, webradio-001, plmodel-001
+- **Objective**: **The single assertion that distinguishes "the ruling landed" from "the counters happen to balance."** `Δacquires == 1` across a session containing three local plays and one stream play. The conventional invariant `acquires − releases == active` passes unchanged even if nothing was changed at all, and is therefore not a gate.
+- **Blocked by**: B-DUT, B-RULING, B-FW-LIBC, **B-NET** (needs a working station fetch — unrunnable on the current AP regardless of the ruling, TASK-438).
+- **Preconditions**: `cyd2usb_player` with the ruling's change; **home network**, a station that reaches playback; SD fixtures as `T_AE_11`.
+- **Steps**:
+  1. `get arenaStats` baseline.
+  2. Player mode → load → play row 0 → let one track complete.
+  3. Cycle to WebRadio (eject/taskbar per the current mode cycle) → play a station → confirm audible/`bufPct` progress → let it run ≥30 s.
+  4. Cycle back to Player → play row 1 → let it complete.
+  5. Play row 2 → let it complete.
+  6. `get arenaStats`.
+- **Expected result**:
+  - `Δacquires == 1` **exactly**, and `Δreleases == 1`, and `active == 0` at the end.
+  - `Δ libcCount == 9 × 3` from the three FILE plays **plus** whatever the stream arm took from the arena — so assert the FILE contribution by differencing `libcCount` across steps 2/4/5 individually, not only end-to-end.
+  - `hwm > 0` at the end (the stream arm did use the arena) — this is the positive control that the URL path is genuinely unchanged.
+  - No reset; no `in arena range but not in slot table` line anywhere in the capture.
+- **Status**: **planned — cannot run** (B-DUT, B-RULING, B-NET).
+
+### T_AE_14 — [localplay-001] A decoder shortfall degrades to `play FAILED` and never resets the device
+
+- **Type**: integration (DUT, fault injection)
+- **Feature(s)**: localplay-001, plmodel-001
+- **Objective**: The third acceptance invariant. TASK-432 closed the `Audio`-construction half (`new (std::nothrow)` + the 16 KB DMA floor); the ruling opens a *new* failure site — the nine libc sub-allocations, of which the 8 708 B one is the real risk. A shortfall there must surface as a visible failed play with the heap restored, not an abort.
+- **Blocked by**: B-DUT, **B-FW-FAIL** (`set aeFailDecoder`), **B-FW-ERR** (`err` on `get plCount`).
+- **Preconditions**: `cyd2usb_player`; `set aeFailDecoder <n>` implemented to fail the *n*-th libc sub-allocation (n = 9 targets `vbuf`, the block that actually fails in the wild). **Do not substitute `set arenaHold 1` + `set plPlay 0` for this** — that combination fails on the wrong guard (holding 24 576 B leaves `lfb8 ≈ 2 036`, so `aeEnsureAudio()`'s DMA floor aborts before `new Audio` and long before any decoder allocation), and it disarms itself, because that abort calls `aeReleaseArenaIfIdle()` which frees the arena `arenaHold` just took. Right state, wrong reason — the same vacuous-pass shape TASK-432 caught in itself with `set wrDeadUrls`.
+- **Steps**:
+  1. `get arenaStats`, `get plCount` → baselines including `lfb8` and uptime.
+  2. `set aeFailDecoder 9`.
+  3. `set plPlay 0`.
+  4. Poll `get plCount`: expect `playing == false`, `err` set (once B-FW-ERR is closed).
+  5. `set aeFailDecoder 0`; `set plPlay 0` again.
+  6. `get plCount`, `get arenaStats`.
+- **Expected result**:
+  - Step 4: `playing == false`, `err` populated, **uptime monotonic** (zero reset signatures in the capture — `ets Jul`, `rst:0x`, `abort() was called`).
+  - `lfb8` after the failed play returns to within 512 B of the baseline (every partial allocation rolled back).
+  - Step 6: playback starts normally — the failed attempt left no residue. This is the check `task432_alloc_guard_gate.py --arm file` currently reports as **FAIL** for TASK-442's reasons; it becomes the honest re-run of that gate.
+  - `Δacquires == 0` throughout.
+- **Status**: **planned — cannot run** (B-DUT, B-FW-FAIL, B-FW-ERR).
+
+### T_AE_15 — [localplay-001, webradio-001] Arm alternation — the TASK-444 stale-provenance free
+
+- **Type**: cross-feature (DUT, serial-driven) [NETWORK][SLOW]
+- **Feature(s)**: localplay-001, webradio-001
+- **Objective**: **The first test in the repo that alternates the two arms in one session.** `mb_arena_free()` routes by pointer range against the *current* `s_base` (`mb_arena.cpp:190-196`), and `mb_arena_release()` nulls `s_base` right after `heap_caps_free()` (`:125-131`) — so an arena-provenance buffer freed after a release takes the out-of-range branch and calls libc `free()` on a pointer interior to an already-freed block. Latent today; the ruling makes it reachable, because the arms will differ in provenance while sharing one `Audio` and one pump. Every existing driver is single-arm: `test_ae04_teardown.py` / `task398_connect_async_verify.py` / `test_webradio_soak.py` are URL-only, `test_playorder_player.py` / `test_fbrowser_player.py` are FILE-only.
+- **Blocked by**: B-DUT, B-RULING, B-FW-LIBC, **B-NET**.
+- **Preconditions**: home network; `cyd2usb_player` with the ruling's change; the TASK-444 fix under test (whichever of the Architect's (a)/(b)/(c) is chosen).
+- **Steps** — two parts, both required:
+  - **Part A (safe direction, the control)**: start a stream play (arena live) → **without** tearing it down, enter Player and start a local file → confirm both the FILE decode succeeds and `Δacquires == 0` for the FILE play. Libc-provenance buffers freed with an arena active fall out of range and go to libc correctly; this direction must be clean.
+  - **Part B (the dangerous direction)**: start a stream play → enter Player and start a local file **while the stream engine is still up** → tear down the stream arm first (so the release runs while decoder buffers of arena provenance are still live) → let the local file run to EOF, where `Audio` frees the Helix buffers.
+- **Expected result**:
+  - Part A: FILE play succeeds, `Δacquires == 0`, no corruption markers.
+  - Part B: **zero `in arena range but not in slot table` lines** (`mb_arena.cpp:207` — the arena's own diagnostic, and the gate condition TASK-444 records), zero `CORRUPT HEAP` / `assert failed` / reset signatures, and the device still answers `get arenaStats` with `active == 0` afterwards.
+  - **A silent pass is not enough**: if the chosen TASK-444 fix is (a) "fail loudly", Part B must produce the *loud* line and a survived device, not silence.
+- **Status**: **planned — cannot run** (B-DUT, B-RULING, B-NET). Gate for **TASK-444**.
+
+### T_AE_16 — [localplay-001, webradio-001] Never acquired ⇒ never released (non-vacuously)
+
+- **Type**: cross-feature (DUT, serial-driven) [NETWORK]
+- **Feature(s)**: localplay-001, webradio-001
+- **Objective**: Prove the FILE arm cannot yank an arena it does not own. Two code sites make this a real risk rather than a formality: `aeTeardownFile()`'s **unconditional** `mb_arena_release()` (`:779`), and `aeReleaseArenaIfIdle()`, whose guard is `!s_wr_audio && !wrPumpAlive()` — "nobody is *using* it", **not** "this arm *took* it". Post-ruling the second releases an arena belonging to another party's intent, so the Developer's proposed remedy for `:779` ("use `aeReleaseArenaIfIdle()`, safe here") imports the very asymmetry it fixes. The correct invariant is symmetry with the acquire: release gated on the same connect kind.
+- **Blocked by**: B-DUT, B-RULING, **B-NET**.
+- **Preconditions**: home network. **Per VE-F1 this test is worthless unless the arena is genuinely held by WebRadio at the moment the FILE teardown runs** — a "releases did not move" assertion passes vacuously otherwise, because `mb_arena_release()` early-returns before incrementing.
+- **Steps**:
+  1. Start a WebRadio connect and **eject mid-`CONNECTING`** (the `T_AE_04` shape, inverted). `WebRadioApp::suspend()` calls `aeTeardownFile()` only `if (_playing || _connecting)` and the CONNECTING branch defers teardown to the pump for up to the ~10 s connect timeout — that deferred branch is the **only** real path into `:779` (contra the Developer review's claim that `set arenaHold 1` is a second one: under `arenaHold`, `aeConnectFile()` returns false, so neither `_playing` nor `_connecting` is ever set).
+  2. Immediately, inside that window, start a local file play.
+  3. Sample `get arenaStats` at ≥2 Hz across the whole window.
+- **Expected result**:
+  - `active` follows **WebRadio's** lifecycle only: it does not drop to 0 at the moment the FILE play starts or tears down.
+  - `Δreleases` attributable to the FILE arm is 0 — and this is now a **non-vacuous** 0, because the arena was demonstrably held (`active == 1`) for the duration.
+  - The local play either succeeds or degrades to `play FAILED`; a reset is a FAIL.
+- **Status**: **planned — cannot run** (B-DUT, B-RULING, B-NET).
+
+### Corrections to existing ids (VE, 2026-08-15)
+
+The id text for these lives in Architect-owned design docs; a matching annotation has been added
+there. This is the VE record of *why*.
+
+- **`T_AE_09` → BLOCKED.** Its criterion is `mb_arena_hwm() == 23 216`. Post-ruling `s_hwm` is written
+  only by the bump allocator (`mb_arena.cpp:180`), which the libc path never reaches, so the metric
+  reads **0** on every FILE session. **0 is an absent instrument, not a pass** — reporting it green
+  would be the purest form of a vacuous test. Replacement criterion, once B-FW-LIBC lands:
+  `Δ libcBytes == 23 216 × tracks` and `libcMax == 8 708`. **Its 2026-08-10 PASS stands as taken**:
+  it was a true measurement of the arena'd path at commit `7f01680` and is not being rewritten — it
+  simply does not carry over to a path that no longer uses the instrument it read.
+- **`T_PLR_12` → cross-run absolute `lfb` comparisons struck; within-run deltas kept.** The id's
+  own criteria (≤5.2 KB delta, return to baseline ±256 B on suspend) are measured **inside a single
+  run** and remain valid — the harness (`run_serialdbg_tests.py::t_plr_12`) takes its baseline,
+  loaded and post-suspend samples minutes apart on one boot. What must not be carried is any
+  comparison of an absolute `lfb` figure against a number recorded on a **different** run or date:
+  the idle baseline moved ~26 KB at a fixed commit between 2026-08-11 and 2026-08-15
+  (`lfbInt` 69 620 → 42 996), and BP-055 already warns that the 32-bit metric over-reports. The
+  historical "largest-free-block unchanged 19 444 → 19 444 → 19 444" note is a *within-run* triple
+  and is fine; treating 19 444 as a expected value for a future run is not.
+- **`T_AE_10` → more load-bearing, and its ×10 merges into `T_AE_12`.** End-of-file is precisely
+  where `Audio` frees the Helix buffers (`Audio.cpp:3053`), so post-ruling `T_AE_10` is no longer
+  only a deadlock check — it is the smallest instance of the fragmentation experiment. Keep its own
+  criteria (callback observed 10/10, max loopTask tick gap < 100 ms, flag drained on loopTask) and
+  run the repetition **once**, as `T_AE_12`'s 50-cycle sweep, rather than twice at different depths.
+- **`T_AE_07`** — criteria stand; evidence is stale (2026-08-10, arena'd path, pre-TASK-432-fix).
+  Re-run alongside `T_AE_11`.
+- **`T_PLR_09` — SKIP retained today, deliberately, with the flip scheduled.** The harness
+  (`run_serialdbg_tests.py::t_plr_09`) SKIPs when `playing != true` after `set plPlay 0`. That SKIP
+  is *correct* on `cyd2usb_winamp_debug`, the env this whole suite runs on, where local playback
+  genuinely cannot start with Spotify's TLS working set resident (TASK-425/431). It is *wrong* on
+  `cyd2usb_player` once TASK-443's ruling lands: there, "never reached playing" **is** the ruling
+  failing, and a SKIP would hide precisely the regression the ruling must be gated on. It is not
+  flipped now for three reasons: the ruling is proposed and unaccepted; `cyd2usb_player` cannot play
+  today at all (TASK-442, open P1), so a flip yields a permanent red no one can action and trains
+  readers to ignore it; and the harness carries no build-variant discriminator, so a conditional flip
+  would mean inventing an unverified probe with the DUT unavailable. Recorded instead as an
+  in-code note at the `skip()` call and in the SKIP text itself. **Flip trigger:** the ruling is
+  accepted and a `cyd2usb_player` build plays a track — at that moment `t_plr_09` gates on the
+  variant and `fail()`s on `cyd2usb_player`, keeping `skip()` only for `cyd2usb_winamp_debug`.
+
+**Driver correction (independent of the ruling, already applied).** `test_playorder_player.py` and
+`test_fbrowser_player.py` carried a `RebootDetected` / `MAX_ATTEMPTS = 3` retry loop that restarted
+the whole sequence on a reset signature. That tolerance existed for TASK-432's uncaught `bad_alloc`
+— **which TASK-432 fixed** (`aeEnsureAudio()` is now the sole `Audio` construction site, with
+TASK-289's 16 KB DMA floor and `new (std::nothrow)` + null check, so a shortfall degrades to
+`play FAILED` with the device alive). A retry loop over a fixed crash can only launder the defect
+under test into a green run, so a reset is now a **hard FAIL on first occurrence** in both drivers.
+Their "playback confirmed — arena acquired, MP3 decoding" line was also false on two counts (neither
+script reads `arenaStats`; post-ruling the FILE arm acquires nothing) and now says only what is
+observed.
+
+---
+
 ## Entry Format
 
 ```
