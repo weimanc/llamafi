@@ -8406,6 +8406,47 @@ provenance free is detectable rather than inferable.
 **Priority:** P2 today, **P1 the moment TASK-443's ruling lands** · **Status:** OPEN — filed
 2026-08-15 from the VE review.
 
+### TASK-445 — `mb_arena.h`'s header comment misdescribes which sites call the arena
+
+Found while explaining the arena's origins (2026-08-15). `app/lib/ESP32-audioI2S/src/mb_arena.h:3`
+says:
+
+```
+// Called by the 3 patched sites in Audio.cpp + mp3_decoder.cpp.
+```
+
+Wrong on both the count and the file list. Verified by grepping every `mb_arena_alloc` /
+`mb_arena_free` call site in the vendored library:
+
+| patch | location | status | calls the arena? |
+|---|---|---|---|
+| `PATCH-MEMBUDGET-1` | `mp3_decoder.cpp:1534` — `#define __malloc_heap_psram(size) mb_arena_alloc(size)`, covering all 9 Helix allocs | live | **yes** |
+| `PATCH-MEMBUDGET-2` | `mp3_decoder.cpp:1599` — the 9 matching `mb_arena_free()` calls | live | **yes** |
+| `PATCH-MEMBUDGET-3` | InBuff | **REVERTED** (`Audio.cpp:15` — "40 K arena exhausted") | no; it is plain `calloc` (`Audio.cpp:62`) |
+| `PATCH-MEMBUDGET-4` | `Audio.cpp:187-195` — halved I2S DMA config under `MEMBUDGET_PHASE1` | live | **no** — a config change, not an allocation |
+
+So it is **two** arena call sites, both in `mp3_decoder.cpp`, and **`Audio.cpp` contains no arena
+call site at all**. The surviving Audio.cpp patch is unrelated to the allocator.
+
+**Why this is worth a task rather than a silent edit.** The sentence is the first thing a reader
+meets in the arena's own header, and it is the sentence that decides where they go looking. It
+implies Audio.cpp participates in arena allocation, which is exactly the wrong mental model for
+TASK-443's ruling (retire the arena from the FILE path) and for TASK-444 (an arena-provenance buffer
+freed after a release). Someone reasoning about provenance from this comment would look for a call
+site in Audio.cpp that does not exist, or assume InBuff is arena-backed when it is not — and InBuff
+being 6 400 B of plain heap is load-bearing in every one of the memory measurements in TASK-425,
+TASK-442 and TASK-443.
+
+**Fix:** correct the sentence to name the two live sites and their file, and note that
+`PATCH-MEMBUDGET-4` is a DMA-config patch with no allocator involvement. While there, the same
+header's `mb_arena.h:17-20` says acquire is "Called from `WebRadioApp::_play()` (acquire) and
+::suspend() (release)" — accurate today, and it becomes the *whole* truth only if TASK-443's ruling
+lands, so amend it in that change rather than now.
+
+**Owner:** Developer · **Deps:** none (do it standalone, or fold into whichever change lands
+TASK-443) · **Gate:** the comment matches a fresh grep of `mb_arena_alloc|mb_arena_free` call sites ·
+**Priority:** P3 — comment-only, no behaviour · **Status:** OPEN — filed 2026-08-15.
+
 ### TASK-419 — real posbar seek for local files
 
 The vendored `Audio` exposes `setFilePos()`, `setTimeOffset()`, `getFilePos()`, `getFileSize()`,
