@@ -4086,11 +4086,12 @@ static void cmdGet(const char *args) {
     // assert "the save did not silently vanish" in one call.
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"settingsSaveCount\","
                   "\"count\":%u,\"failAlloc\":%u,\"failOverflow\":%u,"
-                  "\"failWrite\":%u,\"last\":true}\n",
+                  "\"failWrite\":%u,\"pending\":%s,\"last\":true}\n",
                   (unsigned)SettingsStorage::debugSaveCount(),
                   (unsigned)SettingsStorage::debugSaveFailAlloc(),
                   (unsigned)SettingsStorage::debugSaveFailOverflow(),
-                  (unsigned)SettingsStorage::debugSaveFailWrite());
+                  (unsigned)SettingsStorage::debugSaveFailWrite(),
+                  SettingsStorage::savePending() ? "true" : "false");
     return;
   }
   Serial.printf("{\"ok\":false,\"cmd\":\"get\","
@@ -5787,6 +5788,7 @@ void loop()
   handleSerialCommands();
   logsink::serverLoop();
   heartbeat::tick();
+  SettingsStorage::tickDeferredSave();   // TASK-429 (b): land a save the heap refused earlier
 #ifdef SERIAL_DEBUG
   wifiDiag::poll();        // TASK-282: drain queued [beacon] gap lines
 #endif

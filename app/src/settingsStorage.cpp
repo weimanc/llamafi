@@ -48,6 +48,16 @@ static uint32_t s_saveFailAllocCount    = 0;
 static uint32_t s_saveFailOverflowCount = 0;
 static uint32_t s_saveFailWriteCount    = 0;
 
+// TASK-429 fix (b): a save that could not allocate is REMEMBERED, not dropped.
+// The failure is transient by nature — the arena and decoder own the contiguous
+// heap only while audio is up — so the same document will build fine minutes
+// later. Without this, fixes (a)+(d) only made the loss visible; the setting
+// was still gone. Retry is slow and silent: the point is that the write
+// eventually lands, not that it lands promptly.
+static bool     s_savePending   = false;
+static uint32_t s_saveRetryAtMs = 0;
+static constexpr uint32_t SAVE_RETRY_INTERVAL_MS = 10000;
+
 // ---- Defaults --------------------------------------------------------------
 
 static void applyDefaults() {
@@ -571,10 +581,20 @@ bool SettingsStorage::save() {
         // message covered both without a single number to tell them apart.
         if (doc.capacity() == 0) {
             s_saveFailAllocCount++;
-            Serial.printf("SettingsStorage: save aborted — doc ALLOC FAILED "
+            // TASK-429: report the first abort of an episode in full; a retry
+            // that fails again is expected (the heap has not freed yet) and
+            // must not spam an ERROR-shaped line every 10 s. DUT-observed:
+            // 6 identical lines in 45 s of one playback session.
+            const bool quiet = s_savePending;
+            // TASK-429 (b): retry this one — it is a heap-timing failure, not a
+            // schema problem. A true overflow (below) and a write error are NOT
+            // retried: neither resolves on its own, and retrying would spin.
+            s_savePending   = true;
+            s_saveRetryAtMs = millis() + SAVE_RETRY_INTERVAL_MS;
+            if (!quiet) Serial.printf("SettingsStorage: save aborted — doc ALLOC FAILED "
                           "(capacity 0, wanted %u B; lfb8=%u freeInt=%u). "
                           "Audio arena up? Coalesce the write into suspend() "
-                          "(ADR-050 rule 3). Previous file kept.\n",
+                          "(ADR-050 rule 3). Deferred; will retry.\n",
                           (unsigned)kSettingsJsonCapacity,
                           (unsigned)heap_caps_get_largest_free_block(
                               MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
@@ -612,10 +632,30 @@ bool SettingsStorage::save() {
     // doc usage vs capacity in the log so future schema growth is visible
     // long before it becomes another TASK-329 (worst case ≈ 2271 B, see
     // kSettingsJsonCapacity above).
+    if (s_savePending) {
+        s_savePending = false;
+        Serial.println("SettingsStorage: deferred save landed (TASK-429)");
+    }
     Serial.printf("SettingsStorage: saved (doc %u/%u B)\n",
                   (unsigned)doc.memoryUsage(), (unsigned)kSettingsJsonCapacity);
     return true;
 }
+
+// TASK-429 (b): called from loop(). Cheap when idle — one bool test. Retries at
+// SAVE_RETRY_INTERVAL_MS so a long playback session costs a handful of attempts
+// rather than one per tick, and a failed retry re-arms silently (save() itself
+// logs, and its alloc branch re-sets the flag).
+void SettingsStorage::tickDeferredSave(bool force) {
+    if (!s_savePending) return;
+    // `force` is the teardown flush (LocalPlayerApp::suspend): the heap has just
+    // been handed back, so waiting out the interval would only widen the window
+    // in which a reboot loses the write.
+    if (!force && (int32_t)(millis() - s_saveRetryAtMs) < 0) return;
+    s_saveRetryAtMs = millis() + SAVE_RETRY_INTERVAL_MS;
+    save();
+}
+
+bool SettingsStorage::savePending() { return s_savePending; }
 
 #ifdef SERIAL_DEBUG
 uint32_t SettingsStorage::debugSaveCount() { return s_saveCount; }

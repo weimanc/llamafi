@@ -214,6 +214,14 @@ public:
         // still never frees once opened — see suspend() below.
     }
 
+    // TASK-429 (b): the deferred-save retry in loop() cannot succeed while this
+    // app is foreground — the arena and decoder hold the contiguous heap for the
+    // whole session, not just while a track plays, so lfb8 stays ~5.6 KB even
+    // when idle (DUT-measured: 6 retries in 45 s, all refused, lfb8 unchanged).
+    // suspend() is where the engine is torn down and the memory comes back, so
+    // it is the first moment the write can land — which is precisely ADR-050
+    // rule 3's "coalesce the write into suspend()", applied to a write the user
+    // made earlier and that would otherwise be lost.
     void suspend() override {
         // Cancel live gestures — the PLEDIT drag and the shared volume-drag
         // machine are global state; a mode switch mid-drag must not leave
@@ -276,6 +284,7 @@ public:
             _repeatSaved  = g_settings.playerRepeat;
             _playlistDirty = _shuffleRepeatDirty = false;
         }
+        SettingsStorage::tickDeferredSave(/*force=*/true);   // TASK-429 (b)
     }
 
     void tick() override {

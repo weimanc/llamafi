@@ -255,6 +255,11 @@ extern AppSettings g_settings;
 namespace SettingsStorage {
     void load();   // SPIFFS → g_settings; per-key defaults applied for missing entries
     bool save();   // g_settings → SPIFFS; false = NOTHING was persisted (TASK-429)
+    // TASK-429 (b): a save that failed to ALLOCATE is retried until it lands.
+    // Call from loop(); no-op unless a save is outstanding. savePending() is the
+    // observable a test asserts on ("did the write eventually happen?").
+    void tickDeferredSave(bool force = false);
+    bool savePending();
 
     // M-HOME-LOCATION (H-1/H-3): the writer×mirror matrix lives HERE and only
     // here (BP-047 — one shared sequence, never a second inline copy). Two

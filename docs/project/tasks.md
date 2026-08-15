@@ -9455,8 +9455,28 @@ SettingsStorage: save aborted — doc ALLOC FAILED (capacity 0, wanted 6144 B;
 `failAlloc:2` with `count` still 1. The overflow branch is code-separate with its own counter but is
 not triggerable without a schema change, so it is unproven by observation.
 
-**Half 1 — "set a value during playback, reboot, confirm it survived": FAIL, by design of the partial
-fix.** Verified independently of the write path via `./run/spiffs pull settings.json` → `fmt24h`
+**Half 1 — "set a value during playback, reboot, confirm it survived": now PASS (2026-08-15, after
+fix (b) landed).** Full chain on `cyd2usb_player`:
+
+```
+set fmt24h 0 during playback -> save aborted — ALLOC FAILED (lfb8=5364) … Deferred; will retry
+switchApp away from Player   -> SettingsStorage: deferred save landed (TASK-429)
+                                SettingsStorage: saved (doc 1929/6144 B)
+counters: count 1->2, failAlloc 1, pending true -> false
+after reboot, ./run/spiffs pull settings.json -> "fmt24h": false     <- the value survived
+```
+
+Verified through the SPIFFS file rather than the write path that produced it.
+
+**The retry alone was not enough, and the measurement is why.** A first implementation retried every
+10 s from `loop()` and never landed: the engine holds the contiguous heap for the whole Player
+session, not just while a track plays, so `lfb8` stayed ~5.6 KB even idle — six retries in 45 s, all
+refused. The write can only land when the engine is torn down, so `suspend()` now force-flushes it.
+That is ADR-050 rule 3's "coalesce the write into suspend()" applied to a write **the user made
+earlier**, which is the case the rule never covered. Also quieted the repeat: the first abort of an
+episode reports in full, retries are silent (six identical ERROR-shaped lines in 45 s otherwise).
+
+**Superseded — the original FAIL, kept for the record:** Verified independently of the write path via `./run/spiffs pull settings.json` → `fmt24h`
 still `true` after a reboot. Only fixes (a) and (d) landed; **nothing defers or retries the write**,
 so the value set during playback is still lost. The gate as written cannot pass until (b)
 (defer-and-retry) is implemented — which is now the remaining work on this task, and the idle-control
