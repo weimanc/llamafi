@@ -9,6 +9,12 @@
 > Extends: **LL-114** (host tools mirror firmware truth by copy) — §6 closes the hole TASK-335
 > could not reach.
 
+> **Line references updated 2026-08-16.** M-SRCLAYOUT Stages A/B (`78caa95`, `b36f184`) moved the
+> debug console out of `main.cpp`, so every `main.cpp:NNNN` citation in the first draft of this
+> document was invalidated within a day of writing it. This is TASK-464's cost arriving early, and a
+> live argument for citing *symbols* rather than line numbers in design docs — the symbol names below
+> survived the move; the numbers did not.
+
 **Relationship to M-SRCLAYOUT — read this first.** M-SRCLAYOUT's Stages A/B are contracted as *pure
 moves*: `git diff -M` ≥95 % rename similarity, zero behavioural hunks. **Nothing in this document may
 be folded into those commits.** A move that also cleans up is a move that cannot be reviewed as a
@@ -69,7 +75,7 @@ Measured across `app/src`, excluding comments and counting only real call sites:
 |---|---:|---:|---|
 | `tlsYield()` / `tlsResume()` | 12 | **24** | one acquire per fetch, one release per exit path |
 | `http.begin` / `http.end` | 8 | **15** | all in `dataTaskStorage.cpp`; ~2 exit paths per fetch |
-| `mb_arena_acquire` / `mb_arena_release` | 4 | **7** | 2/5 in production (`main.cpp:4317/4323` and `:4441/4443` are balanced debug-command pairs) |
+| `mb_arena_acquire` / `mb_arena_release` | 4 | **7** | 2/5 in production (`debug/serialConsole/cmdSet.h:211/217` and `:335/…` are balanced debug-command pairs) |
 | `xSemaphoreTake` / `xSemaphoreGive` | 17 | 19 | — |
 | `portENTER_CRITICAL_SAFE` / `portEXIT_CRITICAL_SAFE` | 59 | 59 | balanced |
 
@@ -130,16 +136,16 @@ demonstration of C2's value — but note it is a **deliberate** cross-scope hold
 
 ## 4. C3 — table-driven debug dispatch
 
-`cmdGet` is 616 lines / 40 `strcmp` branches (`main.cpp:3484`). `cmdSet` is 692 lines / 28 branches
-(`main.cpp:4101`). **1 308 lines to dispatch 68 keys.**
+`cmdGet` is 616 lines / 40 `strcmp` branches (`debug/serialConsole/cmdGet.h:7`). `cmdSet` is 733
+lines / 28 branches (`debug/serialConsole/cmdSet.h:7`). **1 308 lines to dispatch 68 keys.**
 
-The table-driven pattern **already exists in this file**: `kCmds[]` at `main.cpp:2976` dispatches the
-command *verbs* through a `{name, handler}` table, and every app implements `dbgGet`/`dbgSet`. Only
+The table-driven pattern **already exists alongside them**: `kCmds[]` at `main.cpp:1335` dispatches
+the command *verbs* through a `{name, handler}` table, and every app implements `dbgGet`/`dbgSet`. Only
 the shell-level variable dispatch never adopted either.
 
 **Design.** A `{name, getter, setter, help}` table, sectioned per subsystem. Three follow-on wins:
 
-1. `cmdHelp` (`main.cpp:5769`) enumerates the table instead of hardcoding text — it cannot go stale.
+1. `cmdHelp` (`debug/serialConsole/cmdSystem.h:35`) enumerates the table instead of hardcoding text — it cannot go stale.
 2. The debug surface becomes *introspectable*, which is what `run_serialdbg_tests.py` wants.
 3. `T_SRC_07`'s "every registered key still resolves" becomes a loop over the table rather than a
    hand-written list.
@@ -149,10 +155,10 @@ Debug-only code, so a defect here cannot ship. Low risk, high readability payoff
 ## 5. C4 — the debug/production seam
 
 There is no written convention, so three mechanisms coexist: `#ifdef SERIAL_DEBUG` (the bulk),
-`#ifdef SD_BOOT_MOUNT` (production-safe subset, correctly separated at `main.cpp:3127-3139` and
-explained there), and `#ifdef MEMBUDGET_PHASE1`. The separation is *reasoned* — `main.cpp:81-84`
-documents exactly why the SD boot mount left the `SERIAL_DEBUG` gate — but it is reasoned per-site,
-not by policy.
+`#ifdef SD_BOOT_MOUNT` (production-safe subset, correctly separated and explained at
+`main.cpp:1486`), and `#ifdef MEMBUDGET_PHASE1`. The separation is *reasoned* — `main.cpp:675`
+documents why the SD boot mount is gated on `SD_BOOT_MOUNT` rather than `SERIAL_DEBUG` — but it is
+reasoned per-site, not by policy.
 
 **Design — adopt the compile-out-behind-a-stable-interface convention (§ "Debug code" below), and
 state it once:**
