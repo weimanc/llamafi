@@ -156,7 +156,10 @@ static void aeDrainEof() {
     if (!s_aeEofPending) return;
     s_aeEofPending = false;
     s_aeEofCount++;
-    LOG_I("audioengine", "eof drained on loopTask (no auto-advance wired yet)");
+    // TASK-418 wired auto-advance; this string kept saying otherwise and was
+    // emitted 31 times on a DUT run where auto-advance demonstrably worked
+    // (rows 0->1->2->3->4->0...). Corrected 2026-08-15.
+    LOG_I("audioengine", "eof drained on loopTask");
     if (s_aeSpotifyYielded) {
         spotifyTask::tlsResume();
         s_aeSpotifyYielded = false;

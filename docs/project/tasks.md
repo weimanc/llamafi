@@ -8828,13 +8828,120 @@ in Player mode, 160 s settle: `free8=66280 lfb8=61428 n8708=7 n4096=15 n1024=48`
 `helixOk:true` leaving `lfb8After=40948`. **The decoder's nine blocks allocate fine through the libc
 fallback and still leave ~41 KB.** So on the enabled build the general heap is no longer the
 constraint — the arena's 24 576 B contiguous carve is what squeezes the DMA pool to 2 292 B. Stated
-as a hypothesis consistent with every number here, not a finding: it was not directly tested, because
-no serial knob disables the arena on this path (`set arenaHold` only *holds* it) and building one was
-out of scope.
+as a hypothesis consistent with every number here, not a finding.
+**~~it was not directly tested, because no serial knob disables the arena on this path~~ — that was
+wrong: `set aeNoArena` had been added earlier the same day (`660db74`) and documented two sections
+above. The hypothesis WAS then tested, and FALSIFIED — see TASK-443's falsification note.**
 
 **Net for TASK-431:** the variant split stands, but **its stated reason does not**. What remains is a
 contiguity problem, which is exactly what TASK-443 option (a) addresses — so option (a) may be what
 retires the split, having been demoted this morning to "optimisation, not fix".
+
+#### TASK-443 — option (a) FALSIFIED as the fix for the enabled build (2026-08-15)
+
+`set aeNoArena 1` on `cyd2usb_winamp_debug`, Player mode, 150 s settle, run twice from separate
+boots with byte-identical results. **Prediction "with the arena skipped, the ENABLED build plays 5
+tracks end to end": FAIL — it plays zero.** Skipping the arena converts a silent stall into a clean,
+loud failure. That is worth having, and it is not a fix.
+
+```
+{"ok":true,"cmd":"set","var":"aeNoArena","val":1}
+9 x [E] mb_arena_alloc(): alloc called before init, falling back to malloc
+[mbdbg] helix alloc: DecInfo=…(2000) FHdr=…(44) SI=…(40) SFJS=…(36) Huff=…(4624)
+                     Deq=…(792) IMDCT=…(6944) Sub=0x0(8708) FInfo=…(28)
+MP3Decoder_AllocateBuffers(): not enough memory to allocate mp3decoder buffers
+[W][localplayer] play FAILED row 0
+```
+
+`arenaStats` `acquires:0` before and after — Δ0, proven not assumed. **Eight of nine allocations
+land; only `SubbandInfo_t` (8 708 B) fails.** With Audio + InBuff resident the usable region is
+22 516 B against 23 216 B needed: **short by ~700 B**, not the ~15 KB this task recorded earlier
+(that figure was the pre-TASK-447 `cyd2usb_player` baseline and does not transfer — corrected).
+
+**THE STALL MECHANISM, and it is not memory arithmetic.** The discriminator between the enabled build
+(stalls) and `cyd2usb_player` (works) is one log line:
+
+| | enabled | player |
+|---|---|---|
+| `audio_info: PSRAM not found, inputBufferSize: 6399 bytes` | **absent** | **present** |
+
+`Audio::initInBuff()` (`Audio.cpp:264-271`) calls `InBuff.init()`, which returns 0 when its
+`calloc(6400)` fails — and **logs only `if (size > 0)`, propagates nothing, returns void**
+*(verified in source)*. So `connecttoFS()` succeeds, the decoder initialises, `m_f_running` is set,
+`playing:true` is rendered, and no byte ever enters an uninitialised ring buffer. The pump spins at
+~525 cycles/s with `maxPumpMs:0` — `Audio::loop()` returning instantly, doing nothing, forever, with
+no error line. Filed as **TASK-449**.
+
+The arithmetic is airtight: at CP2 `lfb8` = 2 292 and the decoder came out of the *arena*, so it did
+not move `lfb8` — therefore `lfb8` was already ≈2 292 when the 6 400 B InBuff `calloc` was attempted,
+~4.1 KB short. The `aeNoArena` arm, which never carves 24 576 B, gets its InBuff fine and dies 700 B
+later at the decoder. **Two arms, two different allocations, and the arena's only effect is to move
+the failure from loud to silent.**
+
+**Correction to TASK-448's discriminator:** "2 292 B (stalls) vs 4 084 B (works)" is wrong. Measured
+today on `cyd2usb_player`: **5 620**, flat across 32 track starts. All of 2 292 / 4 084 / 5 620 are
+*below* the 6 400 B InBuff needs, so post-decoder `lfbDma` cannot be the discriminator. Idle `lfb8`
+differs by exactly **8 192 B** (61 428 enabled vs 69 620 player) — that is the whole margin.
+
+**Bonus finding from the healthy control**: `lfb8` flat at 5 620 across **32 track starts**, and
+`Δacquires == 1` over the whole run. The per-EOF free/realloc churn that the Architect and Developer
+reviews both flagged as the main risk of option (a) **does not fragment in practice** — 31 `End of
+file` cycles, no monotone decline. That retires one of the two named objections to (a).
+
+**Disposition:** option (a) remains worth doing — it makes an invisible failure visible, and TASK-444
+is untouched — but it is **not** what makes Player mode work on the enabled build, and TASK-431's
+variant split is **not** retired by it. The enabled build needs ~8 KB it does not have; TASK-449 is
+what makes that fact observable instead of a hang.
+
+### TASK-449 — `Audio::initInBuff()` ignores a failed InBuff allocation, producing a silent stall
+
+**DUT-observed 2026-08-15 while testing TASK-443.** `Audio::initInBuff()` (`Audio.cpp:264-271`,
+vendored fork):
+
+```cpp
+void Audio::initInBuff() {
+    if(!InBuff.isInitialized()) {
+        size_t size = InBuff.init();
+        if (size > 0) { AUDIO_INFO("PSRAM %sfound, inputBufferSize: %u bytes", ...); }
+    }
+    changeMaxBlockSize(1600);
+}
+```
+
+`InBuff.init()` returns 0 when its `calloc(6400)` fails (`Audio.cpp:50-70`, leaving `m_f_init`
+false). Nothing checks it. `connecttoFS()` then reports success, the decoder initialises,
+`m_f_running` is set and the UI renders `playing:true` — with no ring buffer. Observed: 122 s on a
+3 s track, `curRow` never leaving 0, `lfb8` flat, pump spinning ~525 cycles/s at `maxPumpMs:0`, and
+**not one error line**.
+
+**Impact beyond the current investigation:** this is the reason TASK-448 Part 3's stall took a whole
+extra DUT session to characterise, and it is a permanent trap — any future heap regression that
+squeezes 6 400 B will present as a hang rather than a failure. `aeEnsureAudio()`'s
+`AE_I2S_DMA_FLOOR_BYTES` guard does not cover it: the floor is checked before the I2S install, and
+the InBuff `calloc` happens after.
+
+**Fix:** check the return in `initInBuff()` and fail the connect, so it surfaces as `play FAILED`
+like every other shortfall on this path (TASK-432's invariant). One-line-plus-plumbing in the
+vendored fork — **and it needs a `LOCAL_PATCHES.md` entry, which this fork still does not have**.
+
+**Owner:** Developer · **Deps:** none · **Gate:** with InBuff deliberately starved, a play attempt
+renders `play FAILED` and the device stays alive; no silent `playing:true` · **Priority:** **P1** — a
+hang with no diagnostic is worse than a crash · **Status:** OPEN — filed 2026-08-15.
+
+### TASK-450 — a failed play leaks the engine: Audio + InBuff + pump stay resident
+
+**DUT-observed 2026-08-15.** After `play FAILED row 0` on the enabled build, `lfb8` sits at
+**22 516** for the full 120 s watch and never returns to the 61 428 idle baseline. `wrpump created`
+appears with no matching teardown. So the Audio object, its InBuff and the pump task all survive a
+failed attempt, and **a retry starts from a worse heap than the first attempt did** — which on a
+marginal build converts a recoverable failure into a permanent one.
+
+Note this is not the arena (that path is separately handled by `aeReleaseArenaIfIdle()`); it is
+everything else the bring-up allocated. TASK-432's rollback covers the arena only.
+
+**Owner:** Developer · **Deps:** interacts with TASK-432's rollback and TASK-444's ownership question
+· **Gate:** after a failed `plPlay`, `lfb8` returns to within 512 B of the pre-attempt value within
+10 s · **Priority:** P2 · **Status:** OPEN — filed 2026-08-15.
 
 ### TASK-419 — real posbar seek for local files
 
@@ -9260,7 +9367,38 @@ distinguishable. (a)+(d) are the cheap pair.
 
 **Owner:** Developer · **Deps:** none · **Gate:** set a persisted value from a debug command while a
 local file is playing, reboot, confirm it survived; assert the log distinguishes alloc-failure from
-true overflow · **Priority:** P2 · **Status:** OPEN — filed 2026-08-11 from TASK-415.
+true overflow · **Priority:** P2 · **Status:** OPEN — **gate run 2026-08-15: half PASS, half FAIL,
+and the FAIL is expected.** See below.
+
+#### TASK-429 gate result (2026-08-15, `cyd2usb_player`, during real playback)
+
+**Half 2 — "the log distinguishes alloc failure from true overflow": PASS.** Captured live while a
+track was playing (`playing:true`, `curRow:2`, `lfb8:5620`):
+
+```
+>>> set fmt24h 0
+SettingsStorage: save aborted — doc ALLOC FAILED (capacity 0, wanted 6144 B;
+  lfb8=5620 freeInt=48828). Audio arena up? Coalesce the write into suspend()
+  (ADR-050 rule 3). Previous file kept.
+```
+
+`settingsSaveCount` → `count:1 failAlloc:1`; a forced `set settingsSave 1` while still playing gave
+`failAlloc:2` with `count` still 1. The overflow branch is code-separate with its own counter but is
+not triggerable without a schema change, so it is unproven by observation.
+
+**Half 1 — "set a value during playback, reboot, confirm it survived": FAIL, by design of the partial
+fix.** Verified independently of the write path via `./run/spiffs pull settings.json` → `fmt24h`
+still `true` after a reboot. Only fixes (a) and (d) landed; **nothing defers or retries the write**,
+so the value set during playback is still lost. The gate as written cannot pass until (b)
+(defer-and-retry) is implemented — which is now the remaining work on this task, and the idle-control
+first (`set fmt24h 1` → `saved (doc 1907/6144 B)`, `count` 0→1) proves the mechanism is sound when
+the heap allows.
+
+**New defect found by the gate, fixed in the same commit:** `save()` returns bool (fix (a)) but
+**both debug call sites discarded it** — `set settingsSave` printed `"saved":true` unconditionally
+and `set fmt24h` printed `"ok":true`, both while the save had just aborted with `failAlloc`.
+Any harness asserting on those replies would false-PASS. Both now report the real result
+(`"saved":false`), which is exactly what fix (a) existed for and was not wired to.
 
 ### TASK-430 — a PLEDIT row tap can freeze the UI for up to 150 s
 

@@ -4590,8 +4590,14 @@ static void cmdSet(const char *args) {
   // pushed bytes verbatim and proves nothing. Value is ignored ("set
   // settingsSave 1" per house two-token syntax).
   if (strcmp(var, "settingsSave") == 0) {
-    SettingsStorage::save();
-    Serial.println("{\"ok\":true,\"cmd\":\"set\",\"var\":\"settingsSave\",\"saved\":true}");
+    // TASK-429: report what actually happened. This printed "saved":true
+    // unconditionally while discarding save()'s bool, so a save aborted by the
+    // alloc failure (DUT-observed 2026-08-15: `failAlloc:2` while this reply
+    // still said true) reads as success to any harness asserting on it. Only
+    // `get settingsSaveCount` told the truth.
+    const bool saved = SettingsStorage::save();
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"settingsSave\",\"saved\":%s}\n",
+                  saved ? "true" : "false");
     return;
   }
   // WIRE2-G5 (§4-G5, W-7): sticky LDR override for T-SETW-14 — the harness
@@ -4617,10 +4623,12 @@ static void cmdSet(const char *args) {
       return;
     }
     g_settings.fmt24h = (val[0] == '1');
-    SettingsStorage::save();
+    // TASK-429: `saved` distinguishes "the value is live in RAM" (always true
+    // here) from "it will survive a reboot" (false when the save aborted).
+    const bool saved = SettingsStorage::save();
     if (currentAppId == AppId::Clock) g_ClockApp.resume();
-    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"fmt24h\",\"val\":%d}\n",
-                  g_settings.fmt24h ? 1 : 0);
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"fmt24h\",\"val\":%d,\"saved\":%s}\n",
+                  g_settings.fmt24h ? 1 : 0, saved ? "true" : "false");
     return;
   }
   // WIRE2-G3 (§6 debug hooks, W-7): date format. 0-2 or dmy/mdy/ymd.
