@@ -1105,11 +1105,27 @@ interactions:
       LocalPlayer become peer clients of it. Mode mutual-exclusion (already relied on by
       M-MEMBUDGET) is what makes one engine sufficient — the two modes can never both hold it.
     risk: high
-    test_coverage: []
+    test_coverage: [T_AE_13, T_AE_15, T_AE_16]
     notes: |
       The extracted code carries TASK-278/287/289/291/295/299/392/398. Verification obligation
       is a PURE MOVE plus ./run/check 6/6 plus a FULL-LENGTH run/wr-soak — short soaks have
       given false confidence on exactly this code before.
+      ---
+      TASK-443 (2026-08-15) CHANGES THIS EDGE and the description above is now only half true.
+      The two arms still share one Audio object, one mutex and one pump — but under the accepted
+      ruling they no longer share the decoder's MEMORY PROVENANCE: WebRadio's URL path keeps the
+      arena, the FILE path allocates through mb_arena_alloc()'s libc fallback. "Mode
+      mutual-exclusion is what makes one engine sufficient" therefore stops being the whole
+      safety argument: the modes are still mutually exclusive at the UI level, but a FILE play
+      entered while WebRadio's engine is up decodes out of a LIVE arena, and whichever teardown
+      runs first decides whether those buffers outlive it. That is TASK-444 (mb_arena_free()
+      routes on the current s_base, which release() nulls — an arena-provenance buffer freed
+      after a release calls libc free() on a pointer inside an already-freed block).
+      COVERAGE CLAIMED, NOT YET EARNED: T_AE_13/15/16 are specified (test_plan.md, M-AUDIO-ENGINE
+      suite) and all three are "planned — cannot run" — 13 and 15 need a working station fetch
+      (TASK-438 has it stuck on the current AP), 16 needs the deferred-CONNECTING overlap. Before
+      TASK-443 no test in the repo alternated the two arms at all; every driver was URL-only or
+      FILE-only, which is why this high-risk edge sat at zero coverage.
 
   - id: X051
     feature_a: localplay-001
@@ -1123,7 +1139,7 @@ interactions:
       context that forces webradio_decoder + webradio_inbuf to stay placement:runtime is absent
       in this mode — LocalPlayer is the cheapest of the three player modes, not the most costly.
     risk: high
-    test_coverage: []
+    test_coverage: [T_AE_11, T_AE_12, T_AE_14]
     notes: |
       MEASURED 2026-08-07 (not estimated): debug dram0_0_seg headroom is 304 B (prod 13160 B).
       Enabling SD/FS with the code actually REFERENCED (a probe TU calling SD.begin/openNextFile/
@@ -1143,6 +1159,18 @@ interactions:
       Headroom must still be re-derived from a fresh run/build-debug + .map grep at each phase.
       New manifest entries expected: sdfs_fatfs (unmeasured, M-SDFS pass bar <=8 KB) plus
       plmodel_entries/view/play/rowcache/staging and browser_page, all scratch + runtime.
+      ---
+      TASK-442/443 (2026-08-15) are this dependency failing in production: on cyd2usb_player the
+      24 576 B arena acquire takes lfb8 from 26 612 to 2 932 and new (std::nothrow) Audio()
+      returns null, so local playback cannot start at all. Bisect (TASK-442) proved the shortfall
+      predates the milestone's recent commits — it is not a regression, it is this edge never
+      having had the headroom. The accepted ruling removes the arena from this path, which changes
+      the dependency's shape: the decoder becomes a nine-allocation consumer (largest 8 708 B)
+      instead of a single 24 576 B contiguous one.
+      COVERAGE CLAIMED, NOT YET EARNED: T_AE_11/12 (5-track and repeat-all x10, the fragmentation
+      curve) can run on the current rig once the ruling lands; T_AE_14 (degrade-not-reset) needs
+      `set aeFailDecoder`, firmware that does not exist — so the invariant TASK-432 was filed for
+      currently has NO runnable proof.
 
   - id: X052
     feature_a: sdfs-001
@@ -1364,12 +1392,24 @@ interactions:
       next tick. Calling connecttoFS() from the callback re-enters the engine mutex from the task
       that already holds it — self-deadlock.
     risk: high
-    test_coverage: []
+    test_coverage: [T_AE_12]
     notes: |
       Same single-writer/post-a-request discipline as the existing wrPumpConnect path (TASK-398) and
       the X043/X044/X048 audio_process_extern edges. Reuse that pattern; do not invent a second one.
       Note also that audio_eof_mp3 is the natural place a naive implementation would advance the
       shuffle bag — the bag lives in loopTask-owned state and must not be mutated from the pump task.
+      ---
+      TASK-443 (2026-08-15) raises this edge's weight. Audio frees the Helix buffers at EVERY
+      end-of-file (Audio.cpp:3053) and reallocates on the next connecttoFS (:3769), with the
+      audio_eof_mp3 hop and an SD File open (~4.4 KB stdio buffer, TASK-415) landing in the hole
+      between. Auto-advance is what drives that churn, so playorder-001 is the feature that
+      exercises localplay-001's allocator hardest — and post-ruling those allocations come from
+      the general heap rather than a reserved block, where fragmentation is a real outcome rather
+      than an arena-internal bookkeeping detail. A single-track play proves nothing about track 4.
+      COVERAGE CLAIMED, NOT YET EARNED: T_AE_12 walks two full laps of a 5-track playlist and
+      samples lfb8 at all ten track starts; a monotone decline across the ten fails the id even if
+      audio never stuttered. Its threshold is explicitly provisional until a first green run
+      publishes the real spread.
 
   - id: X064
     feature_a: player-state-001
