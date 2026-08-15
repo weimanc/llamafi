@@ -1001,8 +1001,10 @@ distinguishable. (a)+(d) are the cheap pair.
 
 **Owner:** Developer · **Deps:** none · **Gate:** set a persisted value from a debug command while a
 local file is playing, reboot, confirm it survived; assert the log distinguishes alloc-failure from
-true overflow · **Priority:** P2 · **Status:** OPEN — **gate run 2026-08-15: half PASS, half FAIL,
-and the FAIL is expected.** See below.
+true overflow · **Priority:** P2 · **Status:** **DONE 2026-08-15** — both halves of the gate pass;
+fixes (a), (b) and (d) all landed. The status said OPEN until 2026-08-15 because it was written when
+half the gate still failed and was not revisited when fix (b) closed it — caught by generating the
+placeholder table in `tasks.md`, which is a use for that table nobody intended. See below.
 
 #### TASK-429 gate result (2026-08-15, `cyd2usb_player`, during real playback)
 

@@ -32,6 +32,33 @@ deliberately NOT filed — it waits for the study's graduation proposal (R&D pro
 
 ---
 
+## M-WINAMP-PLAYER — placeholders (full entries in [tasks-winamp-player.md](tasks-winamp-player.md))
+
+These are stubs so the ids stay visible and searchable from the main board; **the entries themselves
+live in the split file** and are edited there, not here. Anchors are best-effort — if one misses,
+search the task id in that file.
+
+| task | pri | status | title |
+|---|---|---|---|
+| **[TASK-407](tasks-winamp-player.md#task-407--gsettingsplayermode-reverts-to-webradio-between-dut-sessions-with-no-manual-trigger-found)** | P4 | OPEN | `g_settings.playerMode` reverts to WebRadio between DUT sessions wi… |
+| **[TASK-424](tasks-winamp-player.md#task-424--sd-write-path-panics-in-fatfs-card-independent)** | P2 | OPEN | SD write path panics in FatFs (card-independent) |
+| **[TASK-443](tasks-winamp-player.md#task-443--architect-ruling-player-mode-memory-configuration-task-442s-decision)** | P1 | OPEN | Architect ruling: Player-mode memory configuration (TASK-442's deci… |
+| **[TASK-444](tasks-winamp-player.md#task-444--mbarenafree-can-call-libc-free-on-a-pointer-inside-an-already-freed-arena)** | P2 | OPEN | `mb_arena_free()` can call libc `free()` on a pointer inside an alr… |
+| **[TASK-445](tasks-winamp-player.md#task-445--mbarenahs-header-comment-misdescribes-which-sites-call-the-arena)** | P3 | OPEN | `mb_arena.h`'s header comment misdescribes which sites call the arena |
+| **[TASK-446](tasks-winamp-player.md#task-446--mp3-only-make-the-unreachable-codecs-actually-unreachable)** | P2 | OPEN | MP3 only: make the unreachable codecs actually unreachable |
+| **[TASK-419](tasks-winamp-player.md#task-419--real-posbar-seek-for-local-files)** | P3 | READY | real posbar seek for local files |
+| **[TASK-420](tasks-winamp-player.md#task-420--pledit-edit-mode-button-strip-reorder-delete)** | P2 | BLOCKED | PLEDIT edit mode: button strip, reorder, delete |
+| **[TASK-421](tasks-winamp-player.md#task-421--add-from-browser-staging-save-restore)** | P2 | BLOCKED | add-from-browser (staging), save, restore |
+| **[TASK-422](tasks-winamp-player.md#task-422--build-variants-soak-ve-suite-registry-completion)** | P2 | PARTIAL | build variants, soak, VE suite, registry completion |
+| **[TASK-428](tasks-winamp-player.md#task-428--apply-the-ascii-fold-to-the-spotify-queue-and-station-list-rows)** | P3 | OPEN | apply the ASCII fold to the Spotify queue and station-list rows |
+| **[TASK-429](tasks-winamp-player.md#task-429--a-settings-save-during-playback-silently-aborts)** | P2 | DONE | a settings save during playback silently aborts |
+
+> **Drift warning:** this table is hand-maintained. If a status changes in the split file and not
+> here, the split file wins — it is the entry, this is a label. Re-generate the table when the player
+> board changes rather than patching single rows.
+
+---
+
 ### TASK-243 — BLOCKER: Spotify Web API 403 — owner account lacks active Premium
 
 **This blocks all remaining WebRadio verification** (TASK-241 tight-condition test, the WebRadio
