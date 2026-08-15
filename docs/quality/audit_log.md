@@ -1846,7 +1846,12 @@ work gated on `./run/check` 6/6; TASK-432 additionally gated 4/4 on the DUT.
 - **QM** — LL-126/127/128 filed, status `open`, brought to human for BP sign-off. Not self-promoted.
 - **Human** — sign-off decision on LL-126/127/128.
 
-**Resolution**: _(open — filed 2026-08-14)_
+**Resolution**: _(partially closed 2026-08-15 — **LL-129, LL-132 and LL-133 adopted by the human as
+BP-061, BP-062 and BP-063**. LL-126/127/128/130/131 remain `open` and were explicitly NOT signed off:
+QM's own recommendation was to rule on three rather than eight, on the grounds that a lessons file
+where half the entries never get a verdict is a backlog rather than a memory — 129 lessons, 66 open,
+52 adopted as of 2026-08-15. The five unadopted entries stand as recorded observations; they carry no
+authority and should not be cited as practice.)_
 
 ---
 
