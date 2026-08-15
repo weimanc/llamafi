@@ -8222,6 +8222,72 @@ failing.
 Full ADR-059 D2 amendment text supplied by the reviewer; to be landed by the Architect when the
 ruling is accepted.
 
+#### @Developer review of TASK-443 (2026-08-15) — implementable, but it is not "delete one line"
+
+Verdict: **the ruling is buildable and the diff is small.** Four things it did not consider, one of
+which removes the instrument the ruling's own escalation rule depends on.
+
+**The change.** Delete the acquire at `audioEngine.h:697-699` — that is the whole functional edit on
+the FILE arm. `aeEnsureAudio()` needs no change: it never touches the arena except through
+`aeReleaseArenaIfIdle()`, whose `!s_wr_audio && !wrPumpAlive()` guard stays correct and becomes a
+no-op for FILE (`mb_arena_release()` early-returns on `!s_owned`).
+
+**REQUIRED, not cosmetic — `aeTeardownFile()`'s unconditional `mb_arena_release()` (`:779`) must
+go.** *(Verified independently: the line is unconditional as described.)* An arm that never acquires
+must never release. Normally unreachable, because `switchApp()` suspends the outgoing app and
+`WebRadioApp::suspend()` releases — but two paths reach it: `set arenaHold 1` (`main.cpp:4262`) and
+`suspend()`'s CONNECTING branch, which defers teardown to the pump for up to the ~10 s connect
+timeout. In both, the FILE arm would yank a live WebRadio arena. Replace with nothing, or with
+`aeReleaseArenaIfIdle()` (safe here — `s_wr_audio` is already null); unconditional is not defensible.
+
+**The four invariants, with how to *prove* rather than assert each:**
+- **Balance** — structurally preserved; the counters only move inside real ownership transitions. The
+  assertion that actually proves the ruling landed is `Δacquires == 1` across a full mixed session
+  (Player play → cycle to WebRadio → play → cycle back → play), not `acquires − releases == active`,
+  which passes even if nothing changed.
+- **No cross-arm yank** — preserved *only* with the teardown fix. Proof is the T_AE_04 shape
+  inverted: eject WebRadio mid-CONNECTING, immediately play a file, assert `arenaStats.active`
+  follows WebRadio's lifecycle.
+- **Degrade, never reset** — preserved and already evidenced: TASK-425 Q2 measured this exact libc
+  failure as `not enough memory to allocate mp3decoder buffers` → `play FAILED`, heap restored. The
+  honest trigger for a gate is `set arenaHold 1` then `set plPlay 0` — a real fault through the real
+  door (LL-127), needing no new firmware.
+- **One code path** — preserved, but with a caveat: the gate is per-callsite, not an engine
+  invariant. `s_wr_audio` is shared, so a FILE play entered while WebRadio's engine is up can still
+  decode out of a live arena.
+
+**Four gaps in the ruling:**
+1. **`mb_arena_hwm()` returns 0 for every FILE session** — `s_hwm` is written only by the bump
+   allocator (`mb_arena.cpp:180`), which the libc path never reaches. *(Verified.)* No crash, no
+   garbage — but **the ruling's "escalate to option (b) if margin < 4 KB" escalates to an option that
+   can no longer be sized**, because the only instrument for the decoder's footprint was the arena
+   just removed. Fix: ~15 lines of libc accounting (`s_libcCount/Bytes/Max` at the fallback), exposed
+   via `get arenaStats` and CP2. It also gives VE a *positive* assertion that the play ran
+   un-arena'd (`libcCount == 9`), which nothing else provides.
+2. **The ≈1.1 KB margin is a lower bound, not an estimate.** It is derived from a *failure* at
+   `lfb8` 16 372, which bounds the residual from above only; the true margin on `cyd2usb_player`
+   is somewhere in ~1.5–10 KB. The <4 KB escalation trigger can therefore fire on a floor. Say so in
+   the ADR or the first measurement reads as "barely passed" when it may be comfortable.
+3. **Nothing in the test suite breaks** — checked: `docs/verification/` has zero occurrences of
+   "arena"; the three tools that regex arena lines all drive the URL arm. Two prose strings in
+   `test_fbrowser_player.py` / `test_playorder_player.py` ("arena acquired") become factually wrong
+   and need rewording. Nothing greps the `log_e` string *(verified)*.
+4. **The `log_e` noise lands on exactly the wrong variant.** `cyd2usb_player` inherits
+   `-DCORE_DEBUG_LEVEL=1`, so 9 ERROR lines per decoder init are compiled in there and invisible on
+   production at level 0 — noise on the variant the milestone tests, silence on the one that ships.
+   Downgrade to accounting, keep `log_e` for arena-exhausted and slot-table-full, which remain real
+   faults.
+
+**Also found, pre-existing, not to be folded in:** the `#ifdef MEMBUDGET_PHASE1` at `:776` wraps
+`wrTeardownPumpTask()` and `delete s_wr_audio` as well as the release — so in a build without that
+flag, `aeTeardownFile(false)` tears down nothing and both leak. Latent (every shipping env defines
+it), but it deserves its own entry.
+
+**Gate consequence, agreeing with the Architect's correction #2:** a 5-track playlist does five
+rounds of nine libc allocations interleaved with an SD `File` open (~4.4 KB stdio buffer). Track 1
+succeeding proves nothing about track 4. Sample `lfb8` (already in `get plCount`) at every track
+boundary — a monotone decline across the five is the signal.
+
 ### TASK-419 — real posbar seek for local files
 
 The vendored `Audio` exposes `setFilePos()`, `setTimeOffset()`, `getFilePos()`, `getFileSize()`,
