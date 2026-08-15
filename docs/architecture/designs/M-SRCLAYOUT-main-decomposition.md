@@ -1,18 +1,18 @@
 # Design — M-SRCLAYOUT: decompose `main.cpp` and move state ownership out of it
 
 > Owner: Architect
-> Status: **proposed** — 2026-08-15. Needs ADR-060 sign-off before TASK-451 begins.
+> Status: **proposed** — 2026-08-15. Needs ADR-060 sign-off before TASK-453 begins.
 > Date: 2026-08-15
 > Feeds: ADR-060 (to be written)
-> Tracked-as: TASK-451, TASK-452, TASK-453, TASK-454, TASK-455, TASK-462
+> Tracked-as: TASK-453, TASK-454, TASK-455, TASK-456, TASK-457, TASK-464
 > Registers: no new `feature_inventory.yaml` id — this is structural, not a feature. New cross-feature
 > seam registers as **X065** (shell state ownership).
 > Precedent: [M-AUDIO-ENGINE-extraction.md](M-AUDIO-ENGINE-extraction.md) / ADR-059 D2 — the
 > pure-move-plus-gate discipline this design reuses wholesale.
 
 **Standalone value:** full. Every stage is behaviour-neutral and independently valuable. Nothing here
-depends on M-WINAMP-PLAYER, M-SDFS or the TASK-442 playback blocker, and none of it needs a working
-Spotify account or a playing audio path.
+depends on M-WINAMP-PLAYER or M-SDFS, and none of it needs a working Spotify account or a playing
+audio path — `run/check` is the whole gate.
 
 ---
 
@@ -110,22 +110,63 @@ whole world already in scope.**
 
 ### D1 — Target tree
 
+Sizes are the measured line counts of the regions being moved, so the destinations are concrete
+rather than notional.
+
 ```
 app/src/
-  main.cpp                    setup() + loop() ONLY.  Target: < 300 lines
+  main.cpp                  ~150   includes + setup(){bootSequence();} + loop()
   shell/
-    appShell.h / .cpp         App, AppId, ShellState, dispatch, taskbar press/release
-    appTable.h                X-macro-generated App* table + appById()
-    taskbar/                  (moved as-is)
+    appShell.h              ~160   App, AppId, ShellState  (existing file + D3)
+    appShell.cpp            ~360   dispatch :1960-2280 + ShellState + appById() table
+    appTable.h               ~20   generated from appRegistry.h
+    boot.h                   631   setup() body, VERBATIM, as bootSequence()
+    taskbar/taskbar.h        221   moved as-is
   apps/
-    spotifyApp.h  clockApp.h  weatherApp.h  cryptoApp.h
-    matrixApp.h   lifeApp.h   settingsApp.h
-    stock/        stockApp.h  stockList.h  stockChart.h  stockHeatmap.h
-    aquariumApp.h teletextApp.h planeRadarApp.h webRadioApp.h localPlayerApp.h
+    spotifyApp.h             118   :243-360
+    matrixApp.h               93   :380-472
+    weatherApp.h             128   :482-609
+    cryptoApp.h              130   :625-754   (+ cgIdToDisplay, formatCryptoPrice)
+    lifeApp.h                152   :767-918
+    settingsApp.h            203   :938-1140  (sections stay in settings/)
+    stock/stockApp.h         734   :1186-1919 (+ heatmapColour, formatStockPrice)
+    clockApp.h teletextApp.h planeRadarApp.h webRadioApp.h localPlayerApp.h aquariumApp.h
+                                   moved unchanged
+  sd/
+    sdMount.h                 94   :3138-3231  PRODUCTION — see note below
   debug/
-    serialConsole/            console.h  cmdGet.h  cmdSet.h  cmdTouch.h  sdProbe.h
+    serialConsole/
+      console.h              226   SerialCmd, kCmds[], injection ring, handleSerialCommands
+      cmdTouch.h             246   cmdTap / cmdDrag / cmdRelease / cmdTick
+      cmdGet.h               617
+      cmdSet.h               693
+      cmdMisc.h              167   cmdSwitchApp / cmdInfo / cmdScreenDump / cmdColorProbe
+      cmdSd.h                781   sdCardTypeName … cmdSdProbe
+      cmdSystem.h             40   cmdReboot / cmdAdvance / cmdHelp
   audio/ player/ winamp/ settings/ util/          unchanged
 ```
+
+**`sd/sdMount.h` is production code and must not land under `debug/`.** It sits adjacent to the SD
+bring-up probes in today's `main.cpp`, but `:3127-3139` documents at length why the boot mount was
+deliberately moved *out* of the `SERIAL_DEBUG` gate — it ships. Filing it under `debug/` on proximity
+alone would silently undo that decision. This is the case ADR-061 D4 exists to protect.
+
+**`stock/stockApp.h` arrives already needing a second split** (`stockList.h`, `stockChart.h`,
+`stockHeatmap.h`, mirroring `winamp/pleditView.h`). That is a follow-up, **not** part of the move
+commit — a move that also restructures is a move that cannot be reviewed as a move.
+
+### D1a — `setup()` moves whole; this is not OQ3
+
+`setup()` is **631 lines**, so "`main.cpp` holds `setup()` and `loop()`, under 300 lines" is
+arithmetically impossible and an earlier draft of this document asserted both. The resolution:
+`setup()`'s body moves **verbatim** into `shell/boot.h` as `bootSequence()`, and `main.cpp` keeps
+`void setup() { bootSequence(); }`.
+
+That is a pure move — one call site added, zero statements reordered — and it is **a different thing
+from OQ3**, which proposes *decomposing* `setup()` into staged init functions (`initDisplay()`,
+`initWifi()`, `initApps()`). OQ3 stays deferred: the boot ordering is load-bearing and hard-won
+(TASK-288, TASK-404, TASK-426), and breaking it apart is not behaviour-neutral in the way a whole-body
+move is.
 
 ### D2 — App instances: use the registry, not 13 accessors
 
@@ -209,25 +250,25 @@ text within the existing translation unit, the last two change what the compiler
 
 | Stage | Task | What | TU change? | Binary risk |
 |---|---|---|---|---|
-| **A** | TASK-451 | Move the 7 inline app classes into `apps/`; move the 6 existing app headers there too, same commit, so the tree is consistent | none — still `#include`d by `main.cpp` | ~none |
-| **B** | TASK-452 | Move the ~2 780-line `SERIAL_DEBUG` console into `debug/serialConsole/` headers | none | ~none (not in prod binary at all) |
-| **C** | TASK-453 | D2 + D3 + D4 — state ownership: `appById()`, `ShellState`, instances move to their app files | **yes** — enables independent `.cpp`s | real, measured |
-| **D** | TASK-454 | Promote selected modules to their own `.cpp`, **one at a time**, each measured | yes | real, measured |
-| — | TASK-455 | `main.cpp` reduced to `setup()` + `loop()`; hygiene items (§8) | — | — |
-| — | **TASK-462** | **Documentation-reference sweep** — see below | — | mechanical, large |
+| **A** | TASK-453 | Move the 7 inline app classes into `apps/`; move the 6 existing app headers there too, same commit, so the tree is consistent | none — still `#include`d by `main.cpp` | ~none |
+| **B** | TASK-454 | Move the ~2 780-line `SERIAL_DEBUG` console into `debug/serialConsole/` headers | none | ~none (not in prod binary at all) |
+| **C** | TASK-455 | D2 + D3 + D4 — state ownership: `appById()`, `ShellState`, instances move to their app files | **yes** — enables independent `.cpp`s | real, measured |
+| **D** | TASK-456 | Promote selected modules to their own `.cpp`, **one at a time**, each measured | yes | real, measured |
+| — | TASK-457 | `main.cpp` reduced to `setup()` + `loop()`; hygiene items (§8) | — | — |
+| — | **TASK-464** | **Documentation-reference sweep** — see below | — | mechanical, large |
 
-**TASK-462 is its own task, not a hygiene bullet.** Stages A–D invalidate **308 `main.cpp:NNN`
+**TASK-464 is its own task, not a hygiene bullet.** Stages A–D invalidate **308 `main.cpp:NNN`
 line-number citations across 49 documentation files**, plus **44 `main.cpp` references in
 `feature_inventory.yaml`**. That is too large to ride along inside a stage commit — and it must be
 paid **once, at the end of Stage B**, not per-stage, or the same 49 files are rewritten four times.
-Stages C/D move far less text and can be absorbed into TASK-462's second pass.
+Stages C/D move far less text and can be absorbed into TASK-464's second pass.
 
 **Stages A+B are proposed as a standalone deliverable; C and D need separate approval** (ADR-060 D7).
 A and B deliver most of the readability win at near-zero risk — a pure text move within one TU
 presents the compiler with a near-identical blob — and take `main.cpp` from 5 880 to roughly
 1 400 lines without introducing any new convention. The cost, the memory risk and the new
 state-ownership vocabulary all concentrate in C. The recommendation is to land A+B, live with the
-result for a milestone, and decide on C with the benefit felt rather than argued. Paying TASK-462's
+result for a milestone, and decide on C with the benefit felt rather than argued. Paying TASK-464's
 documentation cost at the end of B rather than the end of D follows from the same split.
 
 **Stage D is optional and may be partially declined** — if a module's measured flash/DRAM delta is
@@ -263,9 +304,13 @@ ADR-059 D2's discipline verbatim: *the extraction commit carries no behavioural 
 5. Stage C additionally: `./run/test-smoke`, plus `get dataq` and taskbar indicator states
    (idle/busy/connecting/error) confirmed unchanged.
 
-**No stage requires Spotify playback**, so TASK-442 does not block any of this.
+**No stage requires Spotify playback or a DUT audio path** — `run/check` plus the DUT navigation pass
+in item 4 is the whole gate. (An earlier draft justified this by noting TASK-442 was blocking every
+playback-dependent gate. That is no longer true — TASK-442 was root-caused on 2026-08-15 to a Spotify
+token refresh burning 43 596 B at boot on a `DISABLE_SPOTIFY` build, and fixed by TASK-447/448. The
+independence claim stands on its own merits and never depended on that blocker.)
 
-## 8. Hygiene items folded in (TASK-455)
+## 8. Hygiene items folded in (TASK-457)
 
 - **`run/check` gate count — the drift is real but smaller than first reported, and the script is
   not at fault.** `check_build.sh` is correct and internally consistent: it prints `[1/7]` … `[7/7]`,
@@ -320,7 +365,9 @@ answer.
 
 ## 11. Exit criteria
 
-1. `main.cpp` contains `setup()` and `loop()` and nothing else — **under 300 lines**.
+1. `main.cpp` contains trimmed includes, `void setup() { bootSequence(); }` and `loop()`, and nothing
+   else — **under 300 lines** (~150 expected; ~60 if `loop()`'s body also moves into
+   `shell/appShell.cpp`). `setup()`'s 631-line body lives in `shell/boot.h`, moved verbatim (D1a).
 2. No app class, app instance, or shell state variable is defined in `main.cpp`.
 3. No `SERIAL_DEBUG` command implementation is defined in `main.cpp`.
 4. `ShellState` and `appById()` are the sole access paths to shell state; the 72 `extern`s pointing

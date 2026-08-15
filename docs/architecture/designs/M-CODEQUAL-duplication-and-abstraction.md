@@ -4,7 +4,7 @@
 > Status: **proposed** — 2026-08-15
 > Date: 2026-08-15
 > Companion to: [M-SRCLAYOUT-main-decomposition.md](M-SRCLAYOUT-main-decomposition.md)
-> Tracked-as: TASK-456 … TASK-461
+> Tracked-as: TASK-458 … TASK-463
 > Registers: no new `feature_inventory.yaml` id — structural.
 > Extends: **LL-114** (host tools mirror firmware truth by copy) — §6 closes the hole TASK-335
 > could not reach.
@@ -289,15 +289,15 @@ rank the three items above at the top and the real findings below them.
 
 | Task | Item | Depends on | Risk | Gate |
 |---|---|---|---|---|
-| **TASK-456** | C2 — `TlsYieldGuard` + `HttpSession` guards | — | low | `run/check`; `T_CQ_01` |
-| **TASK-457** | C2b — migrate `s_aeSpotifyYielded` to a transferable guard | 456 | **medium** | `run/check`; `wr-soak` ≥30 min |
-| **TASK-458** | C1 — consolidate the nine fetch functions | 456 | medium | `run/check`; `T_CQ_02`; cert preflight |
-| **TASK-459** | C5 — canonical canvas/window constants, firmware + bake + tools | — | low | `T_CQ_03`; golden re-bake |
-| **TASK-460** | C3 — table-driven `cmdGet`/`cmdSet` | M-SRCLAYOUT B | low | `T_CQ_04` |
-| **TASK-461** | C4 policy + C6 palette | — | low | `run/check` |
+| **TASK-458** | C2 — `TlsYieldGuard` + `HttpSession` guards | — | low | `run/check`; `T_CQ_01` |
+| **TASK-459** | C2b — migrate `s_aeSpotifyYielded` to a transferable guard | 456 | **medium** | `run/check`; `wr-soak` ≥30 min |
+| **TASK-460** | C1 — consolidate the nine fetch functions | 456 | medium | `run/check`; `T_CQ_02`; cert preflight |
+| **TASK-461** | C5 — canonical canvas/window constants, firmware + bake + tools | — | low | `T_CQ_03`; golden re-bake |
+| **TASK-462** | C3 — table-driven `cmdGet`/`cmdSet` | M-SRCLAYOUT B | low | `T_CQ_04` |
+| **TASK-463** | C4 policy + C6 palette | — | low | `run/check` |
 
-TASK-456 and TASK-459 are independent of M-SRCLAYOUT and of each other — either can start
-immediately. **TASK-457 is the one to be careful with**: it touches the audio engine's teardown
+TASK-458 and TASK-461 are independent of M-SRCLAYOUT and of each other — either can start
+immediately. **TASK-459 is the one to be careful with**: it touches the audio engine's teardown
 ordering, which `T_AE_04` exists to protect.
 
 ## 10. Test & validation
