@@ -8595,6 +8595,68 @@ all, comparing `free8` at `post-init-idle`.
 **Firmware added for this measurement** (both debug-only, both to be kept — they are the instruments
 this decision needs): `get heapHist` and `set aeNoArena 0|1`.
 
+### TASK-447 — a Spotify-disabled build still burns ~43.6 KB on a boot token refresh
+
+**Found 2026-08-15 by doing the accounting TASK-443 should have started with.** This is the leading
+candidate for the whole TASK-442 shortfall, and it is a one-line guard.
+
+**The measurement** (`cyd2usb_player`, 150 s settle, 8-bit pool via `freeDma`/`lfbDma` — on ESP32
+`MALLOC_CAP_DMA` *is* the 8-bit-capable internal pool, so the existing boot probes were carrying the
+right metric all along):
+
+| milestone | free8 | Δ | largest8 |
+|---|---|---|---|
+| boot-baseline | 149 964 | — | 110 580 |
+| post-wifi | 94 124 | −55 840 | 90 100 |
+| **post-spotifyTask** | **50 528** | **−43 596** | **40 948** |
+| post-dataTask | 35 672 | −14 856 | 27 636 |
+| post-init-idle | 35 672 | 0 | 27 636 |
+
+The serial log shows exactly what spends the 43 596 B, on a build with Spotify **compiled out**:
+
+```
+[time] synced epoch=... in 701ms
+Refreshing Access Tokens
+[lib] POST /api/token -> 200        <- a full mbedTLS session
+[boot] spotify=off                  <- printed AFTER the refresh it just paid for
+```
+
+`largest8` drops 90 100 → 40 948 across it and **never recovers**: idle sits at 27 636 for the rest
+of the session. The session is torn down; the carve it left is permanent.
+
+**The defect.** `spotifyRefreshToken(refreshToken)` (`main.cpp:2786`) sits **outside** the
+`#ifndef DISABLE_SPOTIFY` guard that starts nine lines later at `:2795`. The deferral pattern already
+exists directly above it — `if (bootIntoWebRadio) { spotify.setRefreshToken(...); "refresh deferred
+to first toggle" }` (TASK-363 / ADR-054 decision 1) — but it keys on WebRadio alone, so **both** a
+`DISABLE_SPOTIFY` build and a `playerMode == Player` boot pay full price for a token they will never
+use.
+
+**Why this is probably the answer to TASK-442/443.** Local playback needs ~47 KB (engine ~23 KB +
+decoder 23 216 B) against 32 032 free — short by ~15 KB (see TASK-443's measurement note). Skipping
+this refresh returns ~43.6 KB, which covers the shortfall roughly three times over. It also explains
+TASK-442's unexplained baseline swing without needing the AP hypothesis: **the swing is not
+environmental drift, it is one TLS session's carve**, and whether it happens at all depends on
+`playerMode` at boot — which is persisted state, and which differed between TASK-427's run and today.
+
+**That last point is a prediction, not a finding.** It is consistent with every number in hand, and
+it must be tested, not assumed — the same error TASK-427's own write-up made.
+
+**Fix**: extend the existing deferral to cover `DISABLE_SPOTIFY` builds and Player-mode boots — set
+the refresh token, skip the network call, let the first actual Spotify use trigger it. The
+credential-bootstrap path (`forceRefreshToken`/`launchRefreshTokenFlow`) stays unconditional, as its
+comment at `:2780` requires.
+
+**Owner:** Developer · **Deps:** none · **Gate:** on `cyd2usb_player`, `post-init-idle free8` and
+`lfb8` measurably higher (predict ~79 KB / ~90 KB) and a 5-track local playlist plays end to end;
+Spotify-enabled builds unaffected — token still refreshes at boot, `T_PLR_01`–`05` unchanged ·
+**Priority:** **P1** — it plausibly unblocks the milestone without any arena change at all ·
+**Status:** OPEN — filed 2026-08-15.
+
+**Sequencing note for TASK-443:** do not accept the arena ruling until this is tested. If this is the
+shortfall, then (a) and (e) are both solving a problem that was never binding, and the honest
+disposition of the ruling changes — (a) may still be right on its own merits (contiguity, TASK-444),
+but it would no longer be urgent, and it would no longer be sold as what makes Player mode work.
+
 ### TASK-419 — real posbar seek for local files
 
 The vendored `Audio` exposes `setFilePos()`, `setTimeOffset()`, `getFilePos()`, `getFileSize()`,
