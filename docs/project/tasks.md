@@ -8131,6 +8131,43 @@ play-order state (+512 B) are the known recent tenants. **The bisect proves this
 insufficient** — removing both returns the build to `510afef`, which crashes. It could only ever be
 part of a combination, and it would undo a fix (TASK-433) that was itself DUT-proven.
 
+**(e) Keep the arena, but reserve N blocks instead of one — proposed by the human, 2026-08-15, and
+NOT considered by any of the three reviews.** The failure is contiguity, not volume. Reserving the
+decoder's nine real allocations (largest **8 708 B**) instead of one 24 576 B block makes the biggest
+single ask a size the heap can serve in states where the current one cannot, and it lets the
+allocator place the small pieces in holes the single block is forbidden from using.
+
+*What it converges on, stated plainly*: nine `heap_caps_malloc`s of exactly the decoder's sizes is
+what the decoder already does unaided — so this is a **pre-reservation wrapper around libc**. That is
+not damning, because it keeps the two things option (a) throws away: the **temporal** property
+(reserve before TLS/FATFS carve the heap — the arena's original point for WebRadio) and the
+**instrument** (`mb_arena_hwm()`/stats, whose loss is the Developer review's gap 1 and which option
+(a) has no replacement for without new accounting code).
+
+*What it does not fix, and may worsen*: TASK-444 is untouched — provenance range-checking gets harder
+with nine ranges instead of one. And "reserve early" has already failed once here: TASK-425 Q1
+measured arena-first as strictly worse than mount-first.
+
+*The fragility objection is weaker than it first appears — checked 2026-08-15.* A size table coupled
+to a vendored decoder's internals would normally be fragile across codecs, **but only MP3 is
+reachable in this firmware**: the file browser lists `.mp3`/`.m3u` only (`fileBrowser.h:17`) and the
+station query pins `codec=MP3` (`dataTaskStorage.cpp:1004`). The AAC decoder is compiled in but is
+**not** arena-routed at all (its `__malloc_heap_psram` is upstream's `heap_caps_malloc_prefer`,
+unpatched — only `mp3_decoder.cpp` carries PATCH-MEMBUDGET-1/2) and could never run here anyway:
+its four allocations are `PSInfoSBR_t` 50 788 + `PSInfoBase_t` 27 364 + 1 408 ≈ **79 KB**, against a
+board whose largest free 8-bit block is ~26 KB. So a nine-slot table needs to cover exactly one
+codec, which is a far tighter coupling than the general case.
+
+*The measurement that decides (e) vs (a), and nobody has it.* Whether nine smaller asks actually
+land depends on the heap's **free-block histogram under `MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT`** at
+the moment of acquire — how many holes ≥ 8 708 B, ≥ 4 KB, ≥ 1 KB. It is tempting to infer this from
+the `freeInt=50524` vs `lfbInt=2932` pair already measured, and that inference is **invalid**:
+`freeInt` is the 32-bit-inclusive metric and `lfb8` the byte-addressable one, which is exactly the
+mix-up BP-055 exists for and that made TASK-435 look like a regression. A small debug command
+(`get heapHist`) settles it on evidence; without it, (e) is a plausible mechanism with no supporting
+measurement, and (a) is a measured dominance argument. **On the evidence available today (a) wins;
+(e) is the option that could overturn it, and it is cheap to falsify.**
+
 **(d) Rule that Player mode does not ship on this hardware.** Honest, and consistent with TASK-431
 already having conceded a dedicated variant. It costs the milestone its headline feature and should
 not be chosen before (a) is tested.
