@@ -8925,8 +8925,45 @@ like every other shortfall on this path (TASK-432's invariant). One-line-plus-pl
 vendored fork — **and it needs a `LOCAL_PATCHES.md` entry, which this fork still does not have**.
 
 **Owner:** Developer · **Deps:** none · **Gate:** with InBuff deliberately starved, a play attempt
-renders `play FAILED` and the device stays alive; no silent `playing:true` · **Priority:** **P1** — a
-hang with no diagnostic is worse than a crash · **Status:** OPEN — filed 2026-08-15.
+renders `play FAILED` and the device stays alive; no silent `playing:true` · **Priority:** **P1** ·
+**Status:** **DONE, DUT-verified 2026-08-15.**
+
+#### TASK-449 result — the hang is now a refusal
+
+Fixed as **PATCH-INBUFF-1** in the vendored fork: `initInBuff()` gains the missing `else` branch
+naming the failure with the live `lfb8`, and `connecttoFS()` refuses immediately after
+`setDefaults()` when `!InBuff.isInitialized()`.
+
+Gate run on `cyd2usb_winamp_debug` booted into Player mode (150 s settle) — the configuration that
+produced the original silent stall, so this is a true before/after rather than a synthetic one:
+
+```
+[E][Audio.cpp:279] initInBuff(): [audio] InBuff alloc FAILED — connect will be refused (lfb8=6900)
+[E][Audio.cpp:757] connecttoFS(): [audio] no input buffer — refusing connecttoFS("/mp3/short1.mp3")
+[W][localplayer] play FAILED row 0        ->  playing:false
+```
+
+Before: `playing:true`, `curRow` stuck for 122 s, pump spinning, no error line. After: refused in
+~30 ms with the shortfall quantified. **The enabled build still cannot play** — this adds no memory —
+but it now says so instead of hanging, which is TASK-432's invariant extended to the one allocation
+that escaped it.
+
+**`connecttohost()` is deliberately NOT guarded.** It has the identical exposure, but the WebRadio
+path was not under test and TASK-406 already cost a real defect from changing its timing blind. Do it
+behind a WebRadio soak. Recorded in `LOCAL_PATCHES.md`.
+
+**Also created: `app/lib/ESP32-audioI2S/LOCAL_PATCHES.md`.** This fork has carried local patches since
+`f36152b` (TASK-261 Phase 2) with **no patch record at all**, unlike `app/lib/SD/` and
+`app/lib/SpotifyArduino/` which both have one. A platform bump would have silently dropped
+PATCH-MEMBUDGET-1/2/4 and `mb_arena` itself. All five entries (including the reverted -3, whose
+absence is load-bearing in every memory measurement since TASK-425) are now written down. Adding a
+fifth undocumented patch to an undocumented fork was not defensible.
+
+**Gate note for the incidental finding:** the first attempt at this gate used `set playerMode player`
+without a reboot and failed at `tls try-yield timed out after 1500ms` instead — `set playerMode` is a
+pure persist and does not switch apps or suppress polling, so the device was still in Spotify mode
+with TLS live. TASK-430's bounded yield behaved exactly as designed (degrade, do not hang). Boot into
+the mode with `set reboot 1`, or the test measures the wrong path.
 
 ### TASK-450 — a failed play leaks the engine: Audio + InBuff + pump stay resident
 

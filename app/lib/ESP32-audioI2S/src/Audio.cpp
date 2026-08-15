@@ -267,6 +267,17 @@ void Audio::initInBuff() {
         if (size > 0) {
             AUDIO_INFO("PSRAM %sfound, inputBufferSize: %u bytes", InBuff.havePSRAM()?"":"not ", size - 1);
         }
+        // PATCH-INBUFF-1 (TASK-449): upstream logs only on success and returns
+        // void, so a failed calloc was completely silent. connecttoFS() then
+        // succeeded, the decoder initialised, m_f_running went true and the UI
+        // rendered "playing" — with no ring buffer, so no byte ever moved.
+        // DUT-observed 2026-08-15: 122 s on a 3 s track, pump spinning at ~525
+        // cycles/s with maxPumpMs=0 and not one error line. The callers below
+        // refuse the connect; this is the line that says why.
+        else {
+            log_e("[audio] InBuff alloc FAILED — connect will be refused (lfb8=%u)",
+                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+        }
     }
     changeMaxBlockSize(1600); // default size mp3 or aac
 }
@@ -740,6 +751,12 @@ bool Audio::connecttoFS(fs::FS &fs, const char* path, uint32_t resumeFilePos) {
     m_resumeFilePos = resumeFilePos;
     char audioName[256];
     setDefaults(); // free buffers an set defaults
+    // PATCH-INBUFF-1 (TASK-449): setDefaults() -> initInBuff() may have failed
+    // to allocate the ring buffer. Refuse rather than "play" into nothing.
+    if(!InBuff.isInitialized()) {
+        log_e("[audio] no input buffer — refusing connecttoFS(\"%s\")", path);
+        return false;
+    }
     memcpy(audioName, path, strlen(path)+1);
     if(audioName[0] != '/'){
         for(int i = 255; i > 0; i--){
