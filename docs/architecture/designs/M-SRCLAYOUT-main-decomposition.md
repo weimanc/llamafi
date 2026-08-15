@@ -6,7 +6,7 @@
 > and need ADR-060 sign-off before TASK-455 begins.
 > Date: 2026-08-15
 > Feeds: ADR-060 (to be written)
-> Tracked-as: TASK-453, TASK-454, TASK-455, TASK-456, TASK-457, TASK-464
+> Tracked-as: TASK-453, TASK-454, TASK-455, TASK-456, TASK-457, TASK-464, TASK-471, TASK-472
 > Registers: no new `feature_inventory.yaml` id — this is structural, not a feature. New cross-feature
 > seam registers as **X065** (shell state ownership).
 > Precedent: [M-AUDIO-ENGINE-extraction.md](M-AUDIO-ENGINE-extraction.md) / ADR-059 D2 — the
@@ -110,52 +110,203 @@ whole world already in scope.**
 
 ## 4. Design
 
+### D0 — The unit of physical design is a *component*: one class, one `.h`, one `.cpp`
+
+This is the decision everything else follows from, and the one the first draft of this document
+failed to make. It is not a preference — it is what the standard references require, and this
+codebase currently violates all of them.
+
+| Reference | Requirement | Status here |
+|---|---|---|
+| **C++ Core Guidelines, SF.1** | *"Use a `.cpp` suffix for code files and `.h` for interface files"* | violated — 58 headers, 8 `.cpp` |
+| **C++ Core Guidelines, SF.5** | a `.cpp` must include the `.h` defining its interface | n/a — most classes have no `.cpp` |
+| **C++ Core Guidelines, SF.11** | headers must be **self-contained** | violated — app headers rely on `main.cpp`'s include order |
+| **Lakos, *Large-Scale C++ Software Design*** | a **component** = one `.h` + one `.cpp`; it is the atomic unit of physical design, of testing, and of dependency management | violated — no component boundaries exist |
+| **Google C++ Style Guide** | self-contained headers; one class per header, `.h`/`.cc` pairs | violated |
+
+Lakos is the governing reference because this is precisely the problem he defines: *physical* design
+(files, translation units, link-time dependencies) as distinct from *logical* design (classes,
+inheritance). This codebase has reasonable logical design — a clean `App` interface, an X-macro
+registry, per-app `dbgGet`/`dbgSet` — and effectively **no physical design at all**. One translation
+unit contained 20 % of the source.
+
+**The rule, stated once:**
+
+> Every class that is not a pure interface, a template, or a set of `constexpr`/`inline` helpers gets
+> exactly one component: `foo.h` declaring it, `foo.cpp` defining it. The header is self-contained —
+> it compiles standing alone, includes what it uses, and never depends on being included at a
+> particular point in some other file.
+
+**The three legitimate header-only exceptions**, so this does not get applied mechanically:
+
+- **Pure interfaces / abstract base classes** — `app.h` is correct as a header with no `.cpp`; it is
+  all pure-virtual with an inline defaulted destructor.
+- **Templates** — must be visible at instantiation.
+- **`constexpr` / `inline` helper sets** — `util/mathUtil.h`, `util/textFit.h`, `touch/hitbox.h`.
+
+Everything else — all thirteen apps, the shell, the taskbar, the boot sequence, the debug console —
+is a component.
+
+### D0a — The embedded objection, bounded honestly
+
+The counter-argument for header-only on a 320 KB-RAM device is lost cross-TU inlining. It is real but
+**much smaller here than it first appears**, and it does not justify abandoning physical design:
+
+- **The shell↔app boundary is already un-inlinable.** Every `App` method is `virtual`; the shell calls
+  through an `App*` via vtable dispatch. Moving app bodies into `.cpp` files costs *nothing* at the
+  boundary that carries the most calls, because no inlining happens there today.
+- **An app's internal helpers stay in its own `.cpp`** and continue to be inlined.
+- **Shared `inline`/`static inline` utility headers** keep being inlined everywhere.
+- What genuinely moves out of reach is cross-app and app→shell inlining of small non-virtual helpers —
+  a narrow set.
+
+So the cost is measured per component (§6) and, where a component's promotion proves genuinely
+expensive, **that component may stay header-only with the reason recorded**. That is an engineering
+exception, granted on evidence. It is not the default, and "we might lose some inlining" is not a
+reason to skip physical design wholesale.
+
+### D0b — `main.cpp` is an entry point and contains no logic
+
+Target: **under 40 lines.**
+
+```cpp
+// main.cpp — Arduino entry point. Nothing else belongs here.
+#include "boot/boot.h"
+#include "shell/appShell.h"
+
+void setup() { boot::run(); }
+void loop()  { shell::tick(); }
+```
+
+Everything currently in `main.cpp` — `setup()`'s 631 lines, the shell dispatch, the app instances,
+the serial command table, the SD boot mount — is somebody's component. The entry point's only job is
+to name the composition root and hand control to it.
+
+### D0c — A composition root owns the instances
+
+Thirteen `static XApp g_XApp;` definitions scattered through the entry point is the anti-pattern that
+made `main.cpp` load-bearing in the first place: every app had to be *textually downstream* of its own
+instance.
+
+Instead, one **composition root** — `shell/appTable.cpp` — constructs every app and exposes them
+through the registry:
+
+```cpp
+// shell/appTable.h
+App& appById(AppId id);
+```
+
+```cpp
+// shell/appTable.cpp — the ONLY place app instances are constructed
+#define APP_X(Name, icon, cfg, disp)  static Name##App s_##Name;
+#include "appRegistry.h"
+#undef APP_X
+
+static App* const s_apps[(int)AppId::COUNT] = {
+#define APP_X(Name, icon, cfg, disp)  &s_##Name,
+#include "appRegistry.h"
+#undef APP_X
+};
+
+App& appById(AppId id) { return *s_apps[(int)id]; }
+```
+
+The X-macro registry already exists and is already staleness-gated by `run/check` step 6, so the
+table cannot drift from `AppId`. `switchApp` / `appTick` / `appHandleInput` stop naming individual
+apps and index instead.
+
+This also removes the naming inconsistency the current code carries — `g_SpotifyApp` is `static` (so
+the `g_` prefix is wrong; it is not global) while `g_ledFlow` genuinely is global.
+
+### D0d — Dependency direction is one-way, and cycles are prohibited
+
+Lakos's second requirement after components is **levelization**: the dependency graph must be acyclic,
+so components can be built, tested and reasoned about bottom-up.
+
+```
+level 3   apps/*                    (may depend on 2, 1, 0)
+level 2   shell/, boot/, debug/     (may depend on 1, 0)
+level 1   audio/, player/, winamp/, settings/, taskbar/
+level 0   util/, gen/, touch/, app.h
+```
+
+Two rules with teeth:
+
+- **An app never includes another app.** Shared behaviour moves down a level.
+- **No level-0 or level-1 component includes anything from `apps/` or `shell/`.**
+
+The one known violation to fix on the way: `apps/spotifyApp.h` and `webRadioApp.h` both reach into
+`winamp/winampDisplay.h`, which reaches back into player-mode concepts. ADR-059's capability mask is
+the accepted fix for that direction.
+
 ### D1 — Target tree
 
-Sizes are the measured line counts of the regions being moved, so the destinations are concrete
-rather than notional.
-
+Every entry below is a component (`.h` + `.cpp`) unless marked **[H]** for a legitimate header-only
+exception per D0. Line counts are the measured size of the code being moved.
 ```
 app/src/
-  main.cpp                  ~150   includes + setup(){bootSequence();} + loop()
+  main.cpp                     <40   entry point ONLY — setup(){boot::run();} loop(){shell::tick();}
+
+  app.h                    [H]   51   the App interface — pure virtual, no .cpp needed (D0 exception)
+
   shell/
-    appShell.h              ~160   App, AppId, ShellState  (existing file + D3)
-    appShell.cpp            ~360   dispatch :1960-2280 + ShellState + appById() table
-    appTable.h               ~20   generated from appRegistry.h
-    boot.h                   631   setup() body, VERBATIM, as bootSequence()
-    taskbar/taskbar.h        221   moved as-is
-  apps/
-    spotifyApp.h             118   :243-360
-    matrixApp.h               93   :380-472
-    weatherApp.h             128   :482-609
-    cryptoApp.h              130   :625-754   (+ cgIdToDisplay, formatCryptoPrice)
-    lifeApp.h                152   :767-918
-    settingsApp.h            203   :938-1140  (sections stay in settings/)
-    stock/stockApp.h         734   :1186-1919 (+ heatmapColour, formatStockPrice)
-    clockApp.h teletextApp.h planeRadarApp.h webRadioApp.h localPlayerApp.h aquariumApp.h
-                                   moved unchanged
+    appId.h                [H]   ~20   generated AppId enum (X-macro over appRegistry.h)
+    appTable.h/.cpp               ~60   COMPOSITION ROOT — constructs all 13 apps, appById()
+    appShell.h/.cpp              ~360   dispatch, switchApp, ShellState, persistPlayerMode
+    taskbar.h/.cpp               ~221   moved from taskbar/
+
+  boot/
+    boot.h/.cpp                  ~631   the staged init sequence, moved verbatim from setup()
+
+  apps/                              one component per app — 13 of them
+    spotifyApp.h/.cpp             118
+    clockApp.h/.cpp               669
+    weatherApp.h/.cpp             135
+    cryptoApp.h/.cpp              143
+    matrixApp.h/.cpp              100
+    lifeApp.h/.cpp                162
+    settingsApp.h/.cpp            220
+    aquariumApp.h/.cpp          1 598
+    teletextApp.h/.cpp            724
+    planeRadarApp.h/.cpp        1 428
+    webRadioApp.h/.cpp          1 929
+    localPlayerApp.h/.cpp       1 003
+    stock/
+      stockApp.h/.cpp            ~300   list view + coordination
+      stockChart.h/.cpp          ~250
+      stockHeatmap.h/.cpp        ~220
+
   sd/
-    sdMount.h                 94   :3138-3231  PRODUCTION — see note below
+    sdMount.h/.cpp                ~94   PRODUCTION (SD_BOOT_MOUNT) — never under debug/
+
   debug/
     serialConsole/
-      console.h              226   SerialCmd, kCmds[], injection ring, handleSerialCommands
-      cmdTouch.h             246   cmdTap / cmdDrag / cmdRelease / cmdTick
-      cmdGet.h               617
-      cmdSet.h               693
-      cmdMisc.h              167   cmdSwitchApp / cmdInfo / cmdScreenDump / cmdColorProbe
-      cmdSd.h                781   sdCardTypeName … cmdSdProbe
-      cmdSystem.h             40   cmdReboot / cmdAdvance / cmdHelp
-  audio/ player/ winamp/ settings/ util/          unchanged
+      console.h/.cpp             ~226   SerialCmd, kCmds[], injection ring, dispatch loop
+      cmdTouch.h/.cpp             245
+      cmdGet.h/.cpp               616
+      cmdSet.h/.cpp               733
+      cmdMisc.h/.cpp              166
+      cmdSd.h/.cpp                780
+      cmdSystem.h/.cpp             39
+    touchDebugOverlay.h/.cpp       43
+
+  audio/ player/ winamp/ settings/ util/ touch/ gen/     unchanged for now
 ```
 
-**`sd/sdMount.h` is production code and must not land under `debug/`.** It sits adjacent to the SD
-bring-up probes in today's `main.cpp`, but `:3127-3139` documents at length why the boot mount was
-deliberately moved *out* of the `SERIAL_DEBUG` gate — it ships. Filing it under `debug/` on proximity
-alone would silently undo that decision. This is the case ADR-061 D4 exists to protect.
+**~28 components.** That is an ordinary size for 30 000 lines of C++ — the anomaly is the current
+8 `.cpp` files, not the target.
 
-**`stock/stockApp.h` arrives already needing a second split** (`stockList.h`, `stockChart.h`,
-`stockHeatmap.h`, mirroring `winamp/pleditView.h`). That is a follow-up, **not** part of the move
-commit — a move that also restructures is a move that cannot be reviewed as a move.
+Three entries above are decisions, not mechanical placements:
+
+- **`app.h` stays header-only** — pure interface, D0's first exception. It does not get a `.cpp`
+  merely for symmetry.
+- **`stock/` becomes three components**, not one 770-line file. `StockApp` has three genuinely
+  separable views (list, chart detail, heatmap detail) already expressed as a `StockSubView` enum;
+  they are separate concerns sharing a data model, which is exactly the split `winamp/pleditView.h`
+  established as house precedent.
+- **`sd/sdMount` is production code** and is deliberately *not* under `debug/`, despite sitting
+  adjacent to the SD probes in the old `main.cpp`. It is gated on `SD_BOOT_MOUNT`, not
+  `SERIAL_DEBUG`. Filing it by proximity would undo a documented decision — see ADR-061 D4.
 
 ### D1a — `setup()` moves whole; this is not OQ3
 
@@ -170,19 +321,15 @@ from OQ3**, which proposes *decomposing* `setup()` into staged init functions (`
 (TASK-288, TASK-404, TASK-426), and breaking it apart is not behaviour-neutral in the way a whole-body
 move is.
 
-### D2 — App instances: use the registry, not 13 accessors
+### D2 — App instances: superseded by D0c
 
-`appRegistry.h` already drives `AppId` via X-macro. Extend it to generate the instance table:
+*(Retained as a pointer; the first draft placed the instance table in `appShell.cpp` and left each
+instance "in its own app file". Both are wrong. An app component must not define its own global
+instance — that reintroduces the scattered-ownership problem one directory down, and makes the app
+untestable in isolation because merely linking it constructs it.)*
 
-```cpp
-// shell/appTable.h
-App& appById(AppId id);            // declaration — includable anywhere
-```
-
-with the table and the one definition in `appShell.cpp`. Each instance then moves out of `main.cpp`
-into its own app file alongside its class, and `switchApp` / `appTick` / `appHandleInput` stop
-naming individual apps entirely — they index. One accessor replaces thirteen, built on machinery
-that already exists and is already staleness-gated by `run/check`.
+**See D0c.** One composition root, `shell/appTable.cpp`, constructs all thirteen. App components
+declare and define their class and nothing else.
 
 ### D3 — Shell state: one struct, one accessor
 
@@ -247,18 +394,35 @@ state that could be a parameter. New code reaching for `shell()` is a review que
 
 ## 5. Staging
 
-The stages are ordered by risk, and **A/B are deliberately separated from C/D**: the first two move
-text within the existing translation unit, the last two change what the compiler sees.
+Stages are ordered so each is independently landable and independently revertible. **The end state
+is D0's component model; header-only intermediates are scaffolding, not a destination.**
 
-| Stage | Task | What | TU change? | Binary risk |
-|---|---|---|---|---|
-| **A** | TASK-453 | Move the 7 inline app classes into `apps/`; move the 6 existing app headers there too, same commit, so the tree is consistent | none — still `#include`d by `main.cpp` | ~none |
-| **B** | TASK-454 | Move the ~2 780-line `SERIAL_DEBUG` console into `debug/serialConsole/` headers | none | ~none (not in prod binary at all) |
+| Stage | Task | What | Status |
+|---|---|---|---|
+| **A** | TASK-453 | 7 app classes out of `main.cpp` into `apps/*.h` | **landed** `78caa95` — unreviewed |
+| **B** | TASK-454 | `SERIAL_DEBUG` console into `debug/serialConsole/*.h` | **landed** `b36f184` — unreviewed |
+| **C** | TASK-455 | `setup()` → `boot/boot.{h,cpp}` (D1a, verbatim) | proposed |
+| **D** | TASK-456 | `shell/appTable.{h,cpp}` composition root (D0c) + `ShellState` (D3); instances leave `main.cpp` | proposed |
+| **E** | TASK-471 | **Component conversion** — every app and console file becomes a real `.h`/`.cpp` pair (D0), self-contained headers (SF.11), measured per component | proposed |
+| **F** | TASK-472 | `stock/` split into three components; `sd/sdMount`; levelization audit (D0d) | proposed |
+| — | TASK-457 | hygiene items (§8) | proposed |
+| — | TASK-464 | documentation-reference sweep | proposed |
 
-| **C** | TASK-455 | D2 + D3 + D4 — state ownership: `appById()`, `ShellState`, instances move to their app files | **yes** — enables independent `.cpp`s | real, measured |
-| **D** | TASK-456 | Promote selected modules to their own `.cpp`, **one at a time**, each measured | yes | real, measured |
-| — | TASK-457 | `main.cpp` reduced to `setup()` + `loop()`; hygiene items (§8) | — | — |
-| — | **TASK-464** | **Documentation-reference sweep** — see below | — | mechanical, large |
+**Stage E is the one that matters** and the one the first draft of this document quietly omitted.
+A and B moved text into headers; that shrank `main.cpp` but produced **no components** — the headers
+are not self-contained, they still rely on being included at the right point in `main.cpp`, and the
+translation-unit count is unchanged at 8. Measured against D0's table, the tree after B violates
+SF.1, SF.11 and Lakos exactly as thoroughly as it did before.
+
+**Order matters: D before E.** Converting an app to a `.cpp` requires its instance to live somewhere
+other than `main.cpp` (otherwise the component still cannot be linked independently) and requires
+the shell state it touches to be reachable through a declared accessor. D0c and D3 supply both.
+Attempting E first means each app conversion drags shell-state plumbing along with it.
+
+**Stage E is per-component, measured, and may grant exceptions.** Each conversion is its own commit:
+move method bodies out-of-line, make the header self-contained, build, record the `.map` delta. A
+component whose promotion costs more than **256 B** of `dram0_0_seg` stays header-only **with the
+measurement recorded in the task** — an evidence-based exception per D0a, not a default.
 
 ### 5a. As-built — Stages A and B landed 2026-08-15, PENDING REVIEW
 
@@ -273,19 +437,20 @@ matches the tree rather than describing landed work as hypothetical.
 
 `./run/check` 7/7 after each commit. **No DUT flash; no hardware verification.**
 
-**Three deviations from this document as written — none of them silent:**
+**What landed is scaffolding, not the target.** Measured against D0, the tree after `b36f184` still
+violates SF.1, SF.11 and Lakos as thoroughly as before: **zero components were created.** Three gaps,
+each now an explicit stage rather than an unstated shortfall:
 
-1. **Headers only, not `.h`/`.cpp` pairs.** §4 D1 and the human's explicit request both call for a
-   `.cpp` per app. What landed is a `.h` per app, still `#include`d by `main.cpp` — one translation
-   unit, exactly as the Stage A definition says, but *not* what the target tree shows. Converting to
-   real pairs needs each app's method bodies moved out-of-line and an accessor for its instance;
-   that is Stage C work (D2/D3), not a text move. **The tree in §4 D1 describes the end state, not
-   the current one.**
-2. **The `static XApp g_XApp;` instances stayed in `main.cpp`**, matching how the six pre-existing app
-   headers are already used. Moving them out is D2 and needs `appById()`.
-3. **`setup()` has not moved.** D1a's `shell/boot.h` is still pending, so `main.cpp` is 1 726 rather
-   than the ~150 target — `setup()` (631), the shell dispatch (321), the serial command *table*, the
-   app instances and the SD boot mount are all still there.
+1. **Headers only, no components.** A `.h` per app, still `#include`d by `main.cpp`, still not
+   self-contained, translation-unit count unchanged at 8. `main.cpp` got shorter; the physical design
+   did not improve. → **Stage E (TASK-471)**.
+2. **The `static XApp g_XApp;` instances stayed in `main.cpp`** — thirteen of them, so the entry point
+   is still the composition root by accident. → **Stage D (TASK-456)**, via D0c.
+3. **`setup()` has not moved**, so `main.cpp` is 1 726 against a target of under 40. → **Stage C
+   (TASK-455)**, via D1a.
+
+The honest summary: A and B were the easy 44 % of the file and left the architectural problem —
+no component boundaries, no independent linkage, no self-contained headers — completely intact.
 
 **One deliberate non-move worth recording:** the SD boot mount (`sdProbeBootMount`, `sdReady`) sits
 physically adjacent to the SD probes in the old `main.cpp` but is gated on `SD_BOOT_MOUNT`, not
