@@ -1,7 +1,9 @@
 # Design — M-SRCLAYOUT: decompose `main.cpp` and move state ownership out of it
 
 > Owner: Architect
-> Status: **proposed** — 2026-08-15. Needs ADR-060 sign-off before TASK-453 begins.
+> Status: **partially landed, PENDING REVIEW** — Stages A and B committed 2026-08-15 (a044f5d,
+> 78caa95, b36f184), unreviewed and not DUT-verified — see §5a. Stages C and D remain **proposed**
+> and need ADR-060 sign-off before TASK-455 begins.
 > Date: 2026-08-15
 > Feeds: ADR-060 (to be written)
 > Tracked-as: TASK-453, TASK-454, TASK-455, TASK-456, TASK-457, TASK-464
@@ -252,10 +254,56 @@ text within the existing translation unit, the last two change what the compiler
 |---|---|---|---|---|
 | **A** | TASK-453 | Move the 7 inline app classes into `apps/`; move the 6 existing app headers there too, same commit, so the tree is consistent | none — still `#include`d by `main.cpp` | ~none |
 | **B** | TASK-454 | Move the ~2 780-line `SERIAL_DEBUG` console into `debug/serialConsole/` headers | none | ~none (not in prod binary at all) |
+
 | **C** | TASK-455 | D2 + D3 + D4 — state ownership: `appById()`, `ShellState`, instances move to their app files | **yes** — enables independent `.cpp`s | real, measured |
 | **D** | TASK-456 | Promote selected modules to their own `.cpp`, **one at a time**, each measured | yes | real, measured |
 | — | TASK-457 | `main.cpp` reduced to `setup()` + `loop()`; hygiene items (§8) | — | — |
 | — | **TASK-464** | **Documentation-reference sweep** — see below | — | mechanical, large |
+
+### 5a. As-built — Stages A and B landed 2026-08-15, PENDING REVIEW
+
+**Status: committed to local master, not reviewed, not DUT-verified.** Recorded here so the document
+matches the tree rather than describing landed work as hypothetical.
+
+| Commit | What | Result |
+|---|---|---|
+| `a044f5d` | `App` interface → `app.h`; three never-instantiated state structs removed | `appShell.h` 158 → 99 |
+| `78caa95` | 7 app classes → `apps/*.h` (1 581 lines) | `main.cpp` 5 880 → 4 299 |
+| `b36f184` | `SERIAL_DEBUG` console → `debug/serialConsole/*.h` (2 579 lines) | `main.cpp` 4 299 → **1 726** |
+
+`./run/check` 7/7 after each commit. **No DUT flash; no hardware verification.**
+
+**Three deviations from this document as written — none of them silent:**
+
+1. **Headers only, not `.h`/`.cpp` pairs.** §4 D1 and the human's explicit request both call for a
+   `.cpp` per app. What landed is a `.h` per app, still `#include`d by `main.cpp` — one translation
+   unit, exactly as the Stage A definition says, but *not* what the target tree shows. Converting to
+   real pairs needs each app's method bodies moved out-of-line and an accessor for its instance;
+   that is Stage C work (D2/D3), not a text move. **The tree in §4 D1 describes the end state, not
+   the current one.**
+2. **The `static XApp g_XApp;` instances stayed in `main.cpp`**, matching how the six pre-existing app
+   headers are already used. Moving them out is D2 and needs `appById()`.
+3. **`setup()` has not moved.** D1a's `shell/boot.h` is still pending, so `main.cpp` is 1 726 rather
+   than the ~150 target — `setup()` (631), the shell dispatch (321), the serial command *table*, the
+   app instances and the SD boot mount are all still there.
+
+**One deliberate non-move worth recording:** the SD boot mount (`sdProbeBootMount`, `sdReady`) sits
+physically adjacent to the SD probes in the old `main.cpp` but is gated on `SD_BOOT_MOUNT`, not
+`SERIAL_DEBUG`, and ships in production. It was left behind rather than swept into `debug/` — the
+exact mistake ADR-061 D4 exists to prevent. It still wants an `sd/` home.
+
+**Review obligation before anything further lands.** These are asserted to be pure moves; that
+assertion is unverified by anyone but the author. §7's items 2–4 have not been performed. The
+verification recipe is in §7a.
+
+### 5b. What remains, in descending value
+
+1. `setup()` → `shell/boot.h` (631 lines, verbatim per D1a) — the largest single remaining block.
+2. Shell dispatch + `ShellState` → `shell/appShell.cpp` — the first real new `.cpp`, and what lets
+   the app instances leave `main.cpp` (D2/D3).
+3. `apps/stockApp.h` (770 lines) → `stock/{stockApp,stockList,stockChart,stockHeatmap}.h`.
+4. The five surviving per-app state structs out of `appShell.h` into their apps' headers.
+5. Per-app `.h`/`.cpp` conversion (deviation 1 above), measured per module against §6.
 
 **TASK-464 is its own task, not a hygiene bullet.** Stages A–D invalidate **308 `main.cpp:NNN`
 line-number citations across 49 documentation files**, plus **44 `main.cpp` references in
@@ -309,6 +357,56 @@ in item 4 is the whole gate. (An earlier draft justified this by noting TASK-442
 playback-dependent gate. That is no longer true — TASK-442 was root-caused on 2026-08-15 to a Spotify
 token refresh burning 43 596 B at boot on a `DISABLE_SPOTIFY` build, and fixed by TASK-447/448. The
 independence claim stands on its own merits and never depended on that blocker.)
+
+## 7a. Review recipe — how to check a "pure move" claim without reading 4 000 lines
+
+A move commit asserts that text changed location and nothing else. That is *checkable*, and the
+check is cheap. Applies to `a044f5d`, `78caa95`, `b36f184` and to every future stage.
+
+**1. Does git agree it is a move?** Rename detection is the fastest signal — a block that moved
+intact scores high similarity, a block that was edited in transit does not:
+
+```sh
+git show --stat -M --find-copies-harder <commit>
+git show -M -C --summary <commit>          # explicit rename/copy detections
+```
+
+**2. Is the moved text byte-identical?** The strongest check, and the one that actually settles it —
+extract the block from both sides and diff:
+
+```sh
+# example: the 7 app classes, old main.cpp vs the new headers
+git show 78caa95~1:app/src/main.cpp | sed -n '243,360p'  > /tmp/before.txt
+sed -n '/^class SpotifyApp/,/^};/p' app/src/apps/spotifyApp.h > /tmp/after.txt
+diff /tmp/before.txt /tmp/after.txt        # empty == verbatim
+```
+
+Repeat per block. Empty diffs across all of them is proof, not assertion.
+
+**3. Did the production binary change?** The real question for Stages A/B, since both claim to be
+text moves inside one translation unit:
+
+```sh
+cd app && ~/.platformio/penv/bin/pio run -e cyd2usb_winamp
+# compare .text/.data/.bss extents against the pre-move build
+grep -E '^(\.text|\.data|\.bss|\.dram0|\.iram0)' .pio/build/cyd2usb_winamp/*.map
+```
+
+Sizes should be identical or near-identical. A meaningful delta means something other than a move
+happened. (Exact byte-identity is not expected — `__FILE__`/`__LINE__` in asserts and log macros
+shift with line numbers.)
+
+**4. Is the deletion justified?** `a044f5d` removes three structs. The claim is zero references:
+
+```sh
+for s in SpotifyAppState ClockAppState AquariumAppState; do
+  echo -n "$s: "; git grep -c "\b$s\b" a044f5d~1 -- app/src app/lib | grep -v appShell.h | wc -l
+done                                        # 0 each == safe to delete
+```
+
+**5. Does the device still behave?** Nothing above proves this. `run/check` covers compile + smoke
+only. The outstanding gate is §7 item 4 — a DUT pass over app switching, taskbar cycling, eject and
+Settings navigation, which has **not** been run.
 
 ## 8. Hygiene items folded in (TASK-457)
 
