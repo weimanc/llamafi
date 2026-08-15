@@ -4486,7 +4486,7 @@ Landed 2026-07-17 (`13bb3fd`). Design: `docs/architecture/designs/M-COUNTRY-PICK
 
 ---
 
-## Suite: M-AUDIO-ENGINE — Helix arena provenance and the FILE-path memory gate (TASK-443/444)
+## Suite: M-AUDIO-ENGINE — Helix arena provenance and the FILE-path memory gate (TASK-452/444)
 
 **Why this suite exists.** Before 2026-08-15 `docs/verification/` contained **zero** occurrences of
 the word "arena": every arena assertion in the project lived in Architect-owned design docs
@@ -4498,7 +4498,8 @@ here (they are the extraction design's gate and stay with it); the VE correction
 `T_AE_10` and `T_PLR_12` are recorded both here and, as a status annotation, in the design docs that
 carry the id text.
 
-**Scope.** `T_AE_11`–`T_AE_16` are the gate for the @Architect ruling on TASK-443 — *retire the
+**Scope.** `T_AE_11`–`T_AE_16` are the gate for **TASK-452** (TASK-443 was withdrawn 2026-08-15 and
+its successor is scoped smaller; the ids are unchanged and still apply) — *retire the
 Helix arena from the FILE path; the decoder allocates through `mb_arena_alloc()`'s libc fallback;
 the gate is the connect kind, not the build variant* — plus TASK-444, the stale-provenance
 `free()` this suite is the first thing in the repo to be able to reach.
@@ -4510,7 +4511,7 @@ the gate is the connect kind, not the build variant* — plus TASK-444, the stal
 | blocker | what it is | affects |
 |---|---|---|
 | **B-DUT** | Every id needs the physical DUT on `cyd2usb_player`, flashed via `run/playorder-player` / `run/browser-player`. No id here is host-runnable. | all six |
-| **B-RULING** | TASK-443's ruling is **proposed, not accepted** by the human operator, and no firmware implements it. Until the acquire at `audioEngine.h:697-699` is gone, `T_AE_11`/`T_AE_13`/`T_AE_16` assert the opposite of current behaviour and would FAIL correctly-but-uselessly. | 11, 12, 13, 15, 16 |
+| **B-RULING** | TASK-452 is **filed, not accepted**, and no firmware implements it (TASK-443, its predecessor, was withdrawn). Until the acquire at `audioEngine.h:697-699` is gone, `T_AE_11`/`T_AE_13`/`T_AE_16` assert the opposite of current behaviour and would FAIL correctly-but-uselessly. | 11, 12, 13, 15, 16 |
 | **B-FW-LIBC** | Libc-fallback accounting (`libcCount` / `libcBytes` / `libcMax`) in `get arenaStats` does not exist. It is the *only* positive instrument that a play ran un-arena'd — `mb_arena_hwm()` reads 0 on the libc path because `s_hwm` is written only by the bump allocator (`mb_arena.cpp:180`). **Land the accounting before quieting the nine `log_e` lines**: that log is currently the sole discriminator of allocation provenance. | 11, 12, 13, 15 |
 | **B-FW-FAIL** | `set aeFailDecoder` (fault injection at the decoder sub-allocation, distinct from TASK-432's `Audio`-construction guard) does not exist. | 14 |
 | **B-FW-ERR** | `get plCount` reports no `err`/`connecting` field; "play FAILED" is today only inferable from a serial line the harness's `reset_input_buffer()` can drop. | 14 |

@@ -156,7 +156,7 @@ New ids cover only what the extraction itself can break.
 | `T_AE_09` | Arena HWM unchanged by the file path | DUT serial — **fresh boot, file playback only, no stream connect**, then `get wrArena` HWM (VE-8: `mb_arena_hwm()` is a session high-water mark — any earlier stream playback contaminates it and the assertion becomes vacuous) | **23 216 B** — same nine Helix structs as the stream path. If it differs, the codec assumption in §2 is wrong |
 | `T_AE_10` | `audio_eof_mp3` fires and does not deadlock | DUT — play a short file to its end, ×10; "stall" measured via `perf::record()` on the loopTask tick (VE-2: unmeasured "no stall" degrades to "it didn't crash") | callback observed 10/10; **max loopTask tick gap < 100 ms**, matching `T_AE_04`'s bound; flag drained on loopTask, not acted on in-callback |
 
-> **VE status annotation, 2026-08-15 (TASK-443 ruling).** Rationale and replacement criteria are in
+> **VE status annotation, 2026-08-15 (TASK-443, withdrawn — successor TASK-452).** Rationale and replacement criteria are in
 > `docs/verification/test_plan.md`, suite **M-AUDIO-ENGINE** ("Corrections to existing ids"); this is
 > the pointer, not a rewrite of the ids above.
 >
