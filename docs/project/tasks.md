@@ -7062,8 +7062,18 @@ picking a number.
 **Owner:** Architect (ruling) · **Deps:** TASK-425/431's memory ruling · **Gate:** local playback
 works on `cyd2usb_player` for a full 5-track playlist, or an explicit ruling that Player mode ships
 with a different memory configuration · **Priority:** **P1** — the milestone's shipping variant
-cannot play audio · **Status:** OPEN — filed 2026-08-14; **bisect run 2026-08-15, result below: NOT
-a regression.** Now purely an Architect memory-budget call.
+cannot play audio · **Status:** **DONE 2026-08-15** — gate met: a 5-track playlist plays end to end
+on `cyd2usb_player` with auto-advance (see TASK-447's result section). Filed 2026-08-14; the bisect
+below proved it was **not** a regression; the cause was found by accounting rather than arena theory
+— **43 596 B spent on a boot TLS token refresh for a feature compiled out of the build**
+(TASK-447/448). The arena was never the blocker on this variant: playback succeeds with the arena
+acquired and `hwm=23216` inside its 24 576 B.
+
+**What this cost, recorded because that is the expensive part:** two DUT sessions of bisecting, an
+Architect ruling, three team reviews and five filed tasks all pursued a contiguity theory, while the
+fault sat in every boot log as `Refreshing Access Tokens` immediately before `[boot] spotify=off`.
+The `[membudget]` milestone probes had been printing the 8-bit figures that expose it since
+TASK-261, and nobody diffed them. See **LL-133**.
 
 #### TASK-442 bisect result (2026-08-15) — the five suspect commits are innocent
 
