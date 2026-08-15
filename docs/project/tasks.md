@@ -8695,14 +8695,74 @@ out of the build.
   all rather than bisected through reboots.
 - **TASK-444 stands unchanged** — it is a provenance bug, independent of who wins the arena argument.
 
-**Still owed:** a Spotify-enabled build regression check (`cyd2usb_winamp_debug`: token must still
-refresh at boot, `T_PLR_01`–`05` unchanged). Not run — the fix's guard is variant/mode-conditional
-and the enabled path is the one it must not disturb.
+#### TASK-447 regression check on the Spotify-ENABLED build (2026-08-15) — passes, and corrects the claim above
+
+Run on `cyd2usb_winamp_debug`, both modes, 150 s settle, verified against raw logs:
+
+| check | result | evidence |
+|---|---|---|
+| `playerMode=Spotify` still refreshes at boot | **PASS** | `Refreshing Access Tokens` + `POST /api/token -> 200`; zero `deferred` lines in the whole boot log |
+| `playerMode=Player` defers at boot | **PASS** | `[boot] spotify=idle (playerMode=player) — refresh deferred…`, no token POST during init |
+| `T_PLR_01`–`05` | **PASS** | `5 passed, 0 failed, 0 skipped, 0 flaked` |
+
+**CORRECTION to the result section above — the win is `DISABLE_SPOTIFY`-only.** That section
+generalises the +41 964 / +46 080 B saving to "`playerMode == Player` boots". On a Spotify-**enabled**
+build that is false: the deferral holds only until `spotifyTask` issues its first poll ~5 s later,
+which refreshes the token anyway —
+
+```
+[membudget] post-init-idle freeDma=66508 lfbDma=65524   <- the apparent gain
+[D][spotify.poll] GET /v1/me/player/currently-playing
+Refresh of the Access token is due, doing that now.
+[lib] POST /api/token -> 200                            <- given straight back
+```
+
+and at steady state the two modes are **indistinguishable**: `heap=65k maxAlloc=41k` from uptime
+00:02:01 through 00:03:01 in both. So `post-init-idle` on an enabled build is a snapshot inside a
+~5 s window, not a durable saving. The measured win on `cyd2usb_player` stands — there `spotifyTask`
+is compiled out entirely, so nothing gives it back.
+
+**Cause**: `spotifyTask::begin(&spotify, bootIntoWebRadio)` still passes `startIdle` keyed on
+**WebRadio only**. TASK-363 gated the task's first self-issued poll for WebRadio and nobody extended
+it when Player mode arrived. Filed as TASK-448.
+
+Secondary, unrelated: `set reboot` with no argument returns `{"ok":false,…,"error":"bad args"}` and
+needs a dummy value (`set reboot 1`); the comment at `main.cpp:4435` does not say so.
 
 **Sequencing note for TASK-443:** do not accept the arena ruling until this is tested. If this is the
 shortfall, then (a) and (e) are both solving a problem that was never binding, and the honest
 disposition of the ruling changes — (a) may still be right on its own merits (contiguity, TASK-444),
 but it would no longer be urgent, and it would no longer be sold as what makes Player mode work.
+
+### TASK-448 — `spotifyTask`'s first poll is gated on WebRadio only, so Player mode gives the TLS carve straight back
+
+Found by TASK-447's regression check on the Spotify-enabled build. `spotifyTask::begin(&spotify,
+bootIntoWebRadio)` seeds the task idle for WebRadio boots (TASK-363 / ADR-054 decision 1) and for
+nothing else. When Player mode arrived (TASK-413) that call site was not revisited, so on
+`cyd2usb_winamp*` a Player-mode boot defers the token refresh (TASK-447) and then hands the memory
+back ~5 s later when the task self-issues its first poll and refreshes anyway. Measured: an apparent
+`post-init-idle lfbDma` of 65 524 collapsing to a steady state of `maxAlloc=41k`, identical to
+Spotify mode.
+
+**Fix**: make the `startIdle` argument use the same condition TASK-447 introduced for the refresh —
+WebRadio **or** Player — rather than `bootIntoWebRadio` alone. One call site.
+
+**Why it may matter more than it looks.** TASK-431 ruled that Player mode ships only in a dedicated
+`DISABLE_SPOTIFY` variant, because with Spotify's TLS working set resident there was not enough heap
+for the audio engine. That ruling was made against a heap where the Spotify task was polling. If this
+fix holds the ~46 KB that TASK-447 frees at boot, the enabled build's steady state changes
+materially, and **TASK-431's premise deserves a re-test**: local playback needs ~47 KB (engine ~23 KB
++ decoder 23 216 B), and today's enabled-build steady state is `heap=65k maxAlloc=41k`.
+
+**That is a hypothesis with a testable prediction, not a finding** — the same discipline TASK-427's
+write-up failed. The prediction: with `startIdle` gated on Player, a `cyd2usb_winamp_debug` boot in
+Player mode holds `lfbDma` near 65 KB at steady state, and `set plPlay 0` plays. If it does, the
+Player milestone stops needing a dedicated variant at all.
+
+**Owner:** Developer · **Deps:** TASK-447 (landed) · **Gate:** enabled build, Player mode: steady-state
+`lfbDma` stays ≥ 60 KB past 150 s, and a 5-track playlist plays; Spotify mode unchanged
+(`T_PLR_01`–`05`, plus the token still refreshing at boot) · **Priority:** P1 — it is one argument at
+one call site and it may retire TASK-431's variant split · **Status:** OPEN — filed 2026-08-15.
 
 ### TASK-419 — real posbar seek for local files
 
