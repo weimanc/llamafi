@@ -2770,6 +2770,28 @@ void setup()
   // playerMode would silently strand it idle.
   bool bootIntoWebRadio = wifiConnected && (g_settings.playerMode == (uint8_t)PlayerMode::WebRadio);
 
+  // TASK-447: the same argument as TASK-363's, for the two cases it did not
+  // cover. MEASURED on cyd2usb_player 2026-08-15: this refresh is a full
+  // mbedTLS session costing 43 596 B of the 8-bit internal pool
+  // (post-wifi free8 94 124 -> post-spotifyTask 50 528), and it takes the
+  // largest free block from 90 100 to 40 948 permanently — the session is torn
+  // down, its carve is not. Local playback needs ~47 KB and had 32 032, i.e.
+  // the whole shortfall was being spent on a token the build cannot use.
+  //   - DISABLE_SPOTIFY: there is no Spotify at all; refreshing is pure cost.
+  //   - playerMode == Player: same reasoning TASK-363 applied to WebRadio —
+  //     nothing will call the API until the user toggles to Spotify, and
+  //     SpotifyArduino's autoTokenRefresh handles it lazily when they do.
+  // Mirrors bootIntoWebRadio's wifiConnected guard for the Player case for the
+  // identical reason (a not-yet-connected boot leaves Spotify visibly on screen
+  // and it must still be able to connect when the supervisor brings WiFi up).
+#ifdef DISABLE_SPOTIFY
+  const bool deferSpotifyRefresh = true;
+#else
+  const bool deferSpotifyRefresh =
+      bootIntoWebRadio ||
+      (wifiConnected && g_settings.playerMode == (uint8_t)PlayerMode::Player);
+#endif
+
   // TASK-363 companion 1 (Finding 2/3): under bootIntoWebRadio, skip the
   // eager network-calling refreshAccessToken() leg — it opens a real TLS
   // connect on the same shared `client` spotifyTask uses, independent of
@@ -2779,9 +2801,15 @@ void setup()
   // design only happens after an explicit toggle-to-Spotify. The
   // forceRefreshToken/launchRefreshTokenFlow() credential-bootstrap path
   // above is unaffected — stays unconditional.
-  if (bootIntoWebRadio) {
+  if (deferSpotifyRefresh) {
     spotify.setRefreshToken(refreshToken);
-    Serial.println("[boot] spotify=idle (playerMode=webradio) — refresh deferred to first toggle");
+    Serial.printf("[boot] spotify=idle (%s) — refresh deferred, no TLS at boot (TASK-447)\n",
+#ifdef DISABLE_SPOTIFY
+                  "build has DISABLE_SPOTIFY"
+#else
+                  bootIntoWebRadio ? "playerMode=webradio" : "playerMode=player"
+#endif
+                  );
   } else {
     spotifyRefreshToken(refreshToken);
   }

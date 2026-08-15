@@ -8647,10 +8647,57 @@ credential-bootstrap path (`forceRefreshToken`/`launchRefreshTokenFlow`) stays u
 comment at `:2780` requires.
 
 **Owner:** Developer · **Deps:** none · **Gate:** on `cyd2usb_player`, `post-init-idle free8` and
-`lfb8` measurably higher (predict ~79 KB / ~90 KB) and a 5-track local playlist plays end to end;
-Spotify-enabled builds unaffected — token still refreshes at boot, `T_PLR_01`–`05` unchanged ·
-**Priority:** **P1** — it plausibly unblocks the milestone without any arena change at all ·
-**Status:** OPEN — filed 2026-08-15.
+`lfb8` measurably higher and a 5-track local playlist plays end to end; Spotify-enabled builds
+unaffected · **Priority:** **P1** · **Status:** **FIXED and DUT-VERIFIED 2026-08-15** — see below.
+Spotify-build regression check still owed.
+
+#### TASK-447 result (2026-08-15) — fixed, and it makes Player mode work
+
+`spotifyRefreshToken()` is now deferred for `DISABLE_SPOTIFY` builds and for `playerMode == Player`
+boots, extending TASK-363's existing WebRadio deferral to the two cases it did not cover.
+`setRefreshToken()` still primes the library; SpotifyArduino's `autoTokenRefresh` handles the rest
+lazily when the user actually toggles to Spotify. The credential-bootstrap path is untouched.
+
+**Boot milestones, same rig, same 150 s settle, 8-bit pool:**
+
+| milestone | before | after | Δ |
+|---|---|---|---|
+| post-wifi `free8` | 94 124 | 94 256 | — |
+| **post-init-idle `free8`** | **35 672** | **77 636** | **+41 964** |
+| **post-init-idle `lfb8`** | **27 636** | **73 716** | **+46 080** |
+
+The `Refreshing Access Tokens` / `POST /api/token -> 200` pair is gone, replaced by
+`[boot] spotify=idle (build has DISABLE_SPOTIFY) — refresh deferred, no TLS at boot (TASK-447)`.
+
+**And local playback now works, arena untouched:**
+
+```
+play row 0 -> playing row 0 -> eof -> auto-advance -> row 1 -> ... -> row 4
+arenaStats: acquires:1 releases:0 active:1 hwm:23216
+lfb8 during playback: 5620
+```
+
+**Read that `arenaStats` line carefully: the arena WAS acquired and playback succeeded anyway.**
+`hwm` 23 216 is the decoder fitting inside the 24 576 B arena exactly as originally designed. The
+arena was never the blocker; the blocker was 43 596 B spent on a TLS session for a feature compiled
+out of the build.
+
+**Consequences for the open arena work — all reclassified, none deleted:**
+- **TASK-442** is explained. Its "~26 KB unexplained baseline swing" was one TLS session's carve,
+  and its occurrence depends on persisted `playerMode` at boot — which is exactly why TASK-427's
+  measurement did not reproduce. Not environmental drift, and not the AP.
+- **TASK-443's ruling is no longer urgent and must not be sold as what makes Player mode work.**
+  Option (a) may still be correct on its own merits — the contiguity asymmetry is real (measured:
+  three holes ≥ 8 708 B) and TASK-444 is unaffected — but it is now an optimisation, not a fix, and
+  the Architect should re-rule with that framing. Options (b)/(c)/(d) are moot.
+- **TASK-432's guards are vindicated and stay**: every failed attempt in this investigation degraded
+  to `play FAILED` with the device alive, which is the only reason the fault could be measured at
+  all rather than bisected through reboots.
+- **TASK-444 stands unchanged** — it is a provenance bug, independent of who wins the arena argument.
+
+**Still owed:** a Spotify-enabled build regression check (`cyd2usb_winamp_debug`: token must still
+refresh at boot, `T_PLR_01`–`05` unchanged). Not run — the fix's guard is variant/mode-conditional
+and the enabled path is the one it must not disturb.
 
 **Sequencing note for TASK-443:** do not accept the arena ruling until this is tested. If this is the
 shortfall, then (a) and (e) are both solving a problem that was never binding, and the honest
