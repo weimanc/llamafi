@@ -8484,6 +8484,55 @@ lands, so amend it in that change rather than now.
 TASK-443) · **Gate:** the comment matches a fresh grep of `mb_arena_alloc|mb_arena_free` call sites ·
 **Priority:** P3 — comment-only, no behaviour · **Status:** OPEN — filed 2026-08-15.
 
+### TASK-446 — MP3 only: make the unreachable codecs actually unreachable
+
+**Human decision, 2026-08-15: this firmware supports MP3 and nothing else.** That is already true in
+practice at both entry points; this task makes it true in the build, and turns a silent
+impossible-path into an explicit refusal.
+
+**Where it is already true.** The file browser lists `.mp3`/`.m3u` only (`fileBrowser.h:17`), and the
+station query pins `codec=MP3` (`dataTaskStorage.cpp:1004`).
+
+**Where it is not.** `aac_decoder/`, `flac_decoder/` and `mp3_decoder/` all compile unconditionally —
+there is **no** codec-exclusion lever in the vendored fork (`Audio.h` carries only `AUDIO_NO_SD_FS`),
+so `Audio.cpp`'s dispatch (`:3768-3787`, `:4146-4147`) can still select AAC/M4A/FLAC at runtime.
+Reaching them is a memory disaster rather than a clean failure: AAC allocates
+`PSInfoSBR_t` 50 788 + `PSInfoBase_t` 27 364 + 1 408 ≈ **79 KB** in four blocks, on a board whose
+largest free 8-bit block is ~26 KB. It also allocates through **upstream's**
+`heap_caps_malloc_prefer` — the arena patch covers `mp3_decoder.cpp` only — so none of the
+`MEMBUDGET_PHASE1` accounting or guards apply to it.
+
+**The reachable path to that disaster, and the real reason for this task.** The `codec=MP3` filter is
+on **radio-browser metadata, not on the stream**. A station whose metadata is wrong, or a `.pls`/`.m3u`
+redirect that resolves to an AAC stream, hands `Audio` a non-MP3 bitstream and the codec dispatch
+does the rest. `set wrUrl <url>` bypasses the station list entirely. Today that ends in a 79 KB
+allocation attempt on a heap that cannot serve it — the failure mode TASK-432 spent a day making
+survivable for the MP3 path, arriving through a door nobody has guarded.
+
+**Scope:**
+1. Stop compiling `aac_decoder/` and `flac_decoder/` (needs a mechanism — PlatformIO's `lib_ignore`
+   is whole-library, and `build_src_filter` does not apply to `app/lib/`; a `library.json` srcFilter
+   on the vendored fork is the likely lever, and it is a **new local patch that must be recorded in a
+   `LOCAL_PATCHES.md` the fork does not currently have**).
+2. Make the dispatch refuse explicitly: a non-MP3 codec must surface as a clean `play FAILED` /
+   `ERROR_*` with a named reason, not fall through to an allocation that cannot succeed.
+3. Keep the metadata filter as-is — it is still worth having, it is just not a guarantee.
+
+**Expected win, stated honestly.** Mostly **not** memory: the AAC/FLAC buffers are allocated lazily
+at decoder init, so an unreached decoder costs no DRAM today — the win there is removing a
+catastrophic path, not reclaiming bytes. Flash: the decoder tables are `.rodata`, so a real but
+unmeasured saving; **flash is not currently tight** (prod at 69.1 %, ~811 KB free), so this is not
+urgent on space grounds. The genuine value is correctness and one less unguarded route into the
+allocator.
+
+**Not measured, deliberately:** the exact flash/`.rodata` saving, because the exclusion mechanism
+does not exist yet and quoting a number before the lever exists would be a guess.
+
+**Owner:** Developer (Architect consult on the fork mechanism) · **Deps:** none · **Gate:** MP3
+playback unaffected on both arms (WebRadio station + local file); a deliberately AAC stream injected
+via `set wrUrl` produces a named refusal and a live device, not an allocation failure; `./run/check`
+7/7 · **Priority:** P2 · **Status:** OPEN — filed 2026-08-15 from the human's decision.
+
 ### TASK-419 — real posbar seek for local files
 
 The vendored `Audio` exposes `setFilePos()`, `setTimeOffset()`, `getFilePos()`, `getFileSize()`,
