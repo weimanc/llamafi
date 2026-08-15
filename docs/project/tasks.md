@@ -59,6 +59,41 @@ search the task id in that file.
 
 ---
 
+### TASK-451 — five unexplained full-suite failures, unowned since 2026-08-11
+
+**Promoted 2026-08-15 from an unnumbered sub-section of TASK-433.** It was filed as prose inside a
+task that later closed, and today's archive sweep moved it — still OPEN — into `tasks-archive.md`
+with its parent. Nothing was wrong with the item; it had no number, so nothing could track it. This
+is precisely the "flagged but never filed" failure mode BP-050 exists for, one level up: it *was*
+written down, just not as an entry.
+
+The 2026-08-11 full-suite baseline showed **133 passed / 10 failed / 47 skipped / 5 flaked**. Beyond
+the three ids TASK-433 explained, five sit **outside** the 2026-08-09 pre-declared flaky set:
+
+| id | reported reason |
+|---|---|
+| `T082` | `only 0 ACT_VOLUME enqueue(s); need >= 2 for debounce coverage` |
+| `T181` | `re-drill did not enter chart view` |
+| `T186` / `T187` | `fetchOkCount did not advance after 45 s` (MSFT / NVDA) |
+| `T_PRM_01` | `prPollSec=10 after reboot, expected 30 (not persisted)` |
+
+`T_WR_COEX_01` and `T_WR_VOL_03` also failed but ARE on the pre-declared list.
+
+**Do not assume these are regressions from 2026-08-11's commits, and do not assume they are
+environmental.** The 2026-08-09 baseline predates TASK-415/425/427/430/416, so the comparison is
+confounded and cannot be settled by argument. Settle it with a bisect run at `c5e0e78^`.
+
+**One update since filing:** `T_PRM_01` is a settings-persist failure, and **TASK-429 — a settings
+save aborting under heap pressure — was root-caused and fixed on 2026-08-15** (defer-and-retry, gate
+green). That is a live candidate for `T_PRM_01` specifically and should be re-run before any bisect:
+`prPollSec` is written by a PlaneRadar settings path, and if the write happened while the audio arena
+was up it would have been silently dropped exactly as `fmt24h` was. If `T_PRM_01` now passes, the
+remaining four are a smaller and differently-shaped problem.
+
+**Owner:** VE · **Deps:** none · **Gate:** each of the five either reproduces at `c5e0e78^` (→ not a
+regression from that range) or does not (→ bisect the range), with the disposition recorded per id ·
+**Priority:** P2 · **Status:** OPEN — filed 2026-08-11 as prose, numbered 2026-08-15.
+
 ### TASK-243 — BLOCKER: Spotify Web API 403 — owner account lacks active Premium
 
 **This blocks all remaining WebRadio verification** (TASK-241 tight-condition test, the WebRadio

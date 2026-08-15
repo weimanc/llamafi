@@ -16790,7 +16790,10 @@ project has a documented history of exactly that flake class; `T_PRM_01` is a se
 failure and TASK-429 (a settings save during playback silently aborting) is already open and
 adjacent. Settle it with a bisect run at `c5e0e78^` rather than by reasoning.
 
-**Owner:** VE (triage) · **Priority:** P2 · **Status:** OPEN — filed 2026-08-11.
+**Owner:** VE (triage) · **Priority:** P2 · **Status:** **MOVED — this is now TASK-451 in
+`tasks.md`** (numbered 2026-08-15). It was OPEN prose inside a task that closed, and the archive
+sweep carried it here with its parent; it is tracked properly now. Left in place for context, not
+as live work.
 
 ### TASK-432 — `aeConnectFile()` lets `new Audio(...)` throw an uncaught `bad_alloc`
 
