@@ -8288,6 +8288,124 @@ rounds of nine libc allocations interleaved with an SD `File` open (~4.4 KB stdi
 succeeding proves nothing about track 4. Sample `lfb8` (already in `get plCount`) at every track
 boundary — a monotone decline across the five is the signal.
 
+#### @VE review of TASK-443 (2026-08-15) — gate spec, and two structural findings the other reviews missed
+
+**F1 — a spurious release is INVISIBLE to `get arenaStats`.** `mb_arena_release()` early-returns on
+`!s_owned` *before* `s_releaseTotal++` (`mb_arena.cpp:126-129`). *(Verified.)* So any assertion of the
+form "releases did not move" passes vacuously when nothing was held. **Every proof of the
+never-release-what-you-never-acquired invariant must run with the arena actually held by someone
+else**, or it proves nothing. This invalidates the obvious cheap test.
+
+**F2 — `aeReleaseArenaIfIdle()` has the same asymmetry the Developer found at `:779`, one function
+earlier, and it is in code landed TODAY (TASK-432 follow-up).** *(Verified.)* Its guard is
+`!s_wr_audio && !wrPumpAlive()` — "nobody is *using* it", not "this arm *took* it". Post-ruling the
+FILE arm never acquires, so on that path the call can only ever release an arena belonging to
+another party's intent. **The Developer's proposed remedy for `:779` — "use `aeReleaseArenaIfIdle()`,
+safe here" — imports the very asymmetry it is fixing.** The correct invariant is symmetry with the
+acquire: release gated on the same connect kind. *(Orchestrator's note: this is my code from
+today's TASK-432 follow-up. It is benign at present — the FILE arm still acquires, so the release is
+symmetric — and becomes wrong the moment the ruling lands.)*
+
+**Both proposed proofs REJECTED, with reasons:**
+- **`set arenaHold 1` + `set plPlay 0` as the shortfall trigger.** (i) It fails on the **wrong guard**:
+  holding 24 576 B leaves `lfb8 ≈ 2 036`, so `aeEnsureAudio()`'s DMA floor aborts *before*
+  `new Audio` and long before any decoder allocation — TASK-289's floor, already covered, not the
+  libc path the ruling creates. Same vacuous-pass shape TASK-432 caught in itself with
+  `set wrDeadUrls`: right state, wrong reason. (ii) It **disarms itself** — that abort calls
+  `aeReleaseArenaIfIdle()`, which frees the very arena `arenaHold` took (F2 in operation).
+  (iii) The Developer's claim that `arenaHold` is one of two paths reaching `aeTeardownFile()`'s
+  release is **false**: `suspend()` calls it only `if (_playing || _connecting)`, and under
+  `arenaHold` `aeConnectFile()` returns false so neither is ever set. The deferred-CONNECTING branch
+  is the *only* real path.
+- **`libcCount == 9`** — right instinct, wrong shape. 9 is correct per decoder init
+  (`mp3_decoder.cpp:1549-1557`), but the counter must be a lifetime monotonic total, so assert
+  **`Δ libcCount == 9 × tracks started`**, not equality with 9. Add `libcMax` (must read **8 708**,
+  the single block every failure in this chain has been about) and `libcBytes` (23 216 — this is what
+  re-instruments option (b)). **Sequencing matters: land the accounting BEFORE quieting the `log_e`**
+  — that line is currently the only discriminator between arena and libc provenance.
+
+**The gate: six ids.** `T_AE_11` (5-track, no acquire, `Δacquires == 0`, `lfb8` per track boundary),
+`T_AE_12` (repeat-all ×10 — the fragmentation curve; threshold explicitly provisional until a first
+green run publishes the real spread), `T_AE_13` (mixed session, `Δacquires == 1` exactly — the one
+assertion that distinguishes "ruling landed" from "counters balance"), `T_AE_14` (degrade-not-reset
+via a new `set aeFailDecoder`), `T_AE_15` (arm alternation, §4), `T_AE_16` (never-acquire →
+never-release, which per F1 must be built from a live WebRadio CONNECTING state). Full preconditions,
+steps and criteria are in the VE write-up; all six need the DUT, and **`T_AE_13`/`T_AE_15` are not
+runnable on the current AP at all** (TASK-438's stuck fetch), independent of this ruling.
+
+**THE REGRESSION NOBODY NAMED — heap corruption, and it is real.** *(Verified.)* `mb_arena_free()`
+routes by pointer range against the *current* `s_base` (`mb_arena.cpp:190-196`), and
+`mb_arena_release()` sets `s_base = nullptr` after freeing the block. **So an arena-provenance decoder
+buffer freed after a release takes the out-of-range branch and calls libc `free()` on a pointer
+interior to an already-`heap_caps_free`d block.** Always latent; the ruling makes it newly reachable,
+because the two arms will differ in provenance while still sharing one `Audio` and one pump. **No test
+in the repo alternates the arms in one session** — every existing driver is URL-only or FILE-only.
+Filed as TASK-444.
+
+**Existing ids that no longer mean what they claim:**
+- **`T_AE_09` is falsified by construction** — its criterion is `mb_arena_hwm() == 23 216`, which
+  reads **0** post-ruling. 0 is an absent instrument, not a pass. **Mark BLOCKED until the libc
+  accounting lands; do not report it green on `hwm == 0`.** Its 2026-08-10 PASS was on the arena'd
+  path and does not carry over.
+- **`T_PLR_09` SKIPs on `playing != true`** — written when an acquire could legitimately fail. That
+  SKIP would now hide the ruling failing. On `cyd2usb_player` it must **FAIL**; keep the SKIP only on
+  `cyd2usb_winamp_debug`.
+- **`T_PLR_25`'s driver retries past the defect under test** — `test_playorder_player.py`'s
+  `RebootDetected`/`MAX_ATTEMPTS` machinery exists to tolerate exactly the TASK-432/442 crash this
+  ruling eliminates. Post-ruling a reboot is a hard FAIL, not something to retry through.
+- `T_AE_07` criteria stand but its evidence is stale; `T_AE_10` becomes *more* load-bearing (EOF is
+  where the decoder frees) and should merge its ×10 into `T_AE_12`; `T_PLR_12`'s cross-run absolute
+  `lfb` comparisons must be struck (taken inside the 26 KB baseline swing).
+
+**Firmware that must exist before parts of the gate can run:** libc accounting in `arenaStats`;
+`set aeFailDecoder`; `err`/`connecting` in `get plCount` (today "play FAILED" is only inferable from
+a droppable serial line); `set plRepeat`/`set plShuffle` (T_AE_12's precondition currently rides on
+hardcoded sprite taps against a baked skin layout); and an EOF **count** on the wire.
+
+**VE position on the margin:** record it in `T_AE_11`/`T_AE_12`, **rule on it only after a
+home-network re-run**. Firing the "<4 KB → escalate" trigger off a single-environment number repeats
+TASK-427's mistake exactly.
+
+### TASK-444 — `mb_arena_free()` can call libc `free()` on a pointer inside an already-freed arena
+
+Found by the @VE review of TASK-443; verified in source, not yet observed on hardware.
+
+`mb_arena_free()` decides arena-vs-libc by pointer range against the **current** `s_base`
+(`mb_arena.cpp:190-196`):
+
+```c
+if (!s_base || p < s_base || p >= s_base + s_cap) { free(ptr); return; }
+```
+
+`mb_arena_release()` sets `s_base = nullptr` immediately after `heap_caps_free(s_owned)`
+(`:125-131`). So any buffer allocated **from** the arena and freed **after** a release fails the
+range test, takes the libc branch, and calls `free()` on a pointer interior to a block that
+`heap_caps_free()` has already returned to the allocator. That is heap corruption, and it surfaces
+later and elsewhere — the worst possible failure signature to diagnose.
+
+**Reachability.** Latent today, because both arms allocate from the arena and teardown order has so
+far kept frees ahead of releases. **TASK-443's ruling makes it newly reachable**: the FILE and URL
+arms will differ in provenance while still sharing one `Audio` object and one pump, so a FILE play
+entered while WebRadio's engine is up decodes out of a live arena, and whichever teardown runs first
+decides whether those buffers outlive their arena. The reverse direction is safe (libc-provenance
+buffers freed with an arena active fall out of range and go to libc correctly).
+
+**Nothing covers this.** Every existing driver is single-arm: `test_ae04_teardown.py`,
+`task398_connect_async_verify.py` and `test_webradio_soak.py` are URL-only;
+`test_playorder_player.py` and `test_fbrowser_player.py` are FILE-only. TASK-443's `T_AE_15` is the
+first test that would alternate them.
+
+**Candidate fixes** (Architect's call, not settled here): (a) make `mb_arena_free()` fail loudly
+rather than silently libc-free an unrecognised pointer that *was* in range at alloc time — the arena
+already has the diagnostic (`mb_arena.cpp:207` logs "in arena range but not in slot table"); (b)
+refuse to release while any slot is still `in_use`; (c) generation-count the arena so a stale-
+provenance free is detectable rather than inferable.
+
+**Owner:** Architect (fix choice) + Developer · **Deps:** none to file; interacts with TASK-443 ·
+**Gate:** `T_AE_15` Part B green, including zero "in arena range but not in slot table" lines ·
+**Priority:** P2 today, **P1 the moment TASK-443's ruling lands** · **Status:** OPEN — filed
+2026-08-15 from the VE review.
+
 ### TASK-419 — real posbar seek for local files
 
 The vendored `Audio` exposes `setFilePos()`, `setTimeOffset()`, `getFilePos()`, `getFileSize()`,
