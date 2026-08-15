@@ -92,7 +92,45 @@ remaining four are a smaller and differently-shaped problem.
 
 **Owner:** VE · **Deps:** none · **Gate:** each of the five either reproduces at `c5e0e78^` (→ not a
 regression from that range) or does not (→ bisect the range), with the disposition recorded per id ·
-**Priority:** P2 · **Status:** OPEN — filed 2026-08-11 as prose, numbered 2026-08-15.
+**Priority:** P2 · **Status:** OPEN — **1 of 5 explained and fixed 2026-08-15**; four remain.
+
+#### `T_PRM_01` — RESOLVED 2026-08-15 (root cause + fix, no bisect needed)
+
+Reproduced on demand rather than waiting for a suite run, and the mechanism is TASK-429's:
+
+```
+get prPollSec -> 10 ;  set prPollSec 30 (during playback) ;  get -> 30 (live) ;  reboot -> 10
+settingsSaveCount: count:0  failAlloc:1  pending:true
+```
+
+The write aborted because the audio arena held the contiguous heap, exactly as `fmt24h` did. So
+`T_PRM_01` was never a PlaneRadar defect and never environmental — it is a settings-persistence
+failure whose trigger is "something held the heap when the value was set".
+
+**It also exposed a gap in TASK-429's own fix.** The deferred write is retried at engine teardown and
+on the `loop()` tick, and **an intentional reboot beat both** — `tickDeferredSave(force)` skips the
+retry *interval*, but it cannot conjure heap, so on a reboot issued while audio plays the retry fails
+exactly as the original save did. First attempt at this fix did precisely that and still lost the
+value; the measurement is what caught it.
+
+**Fix:** `prepareForReboot()` in `main.cpp`, wired into all three intentional-restart paths (`set
+reboot`, the `reboot` command, and Settings → System → Reboot). It tears the audio engine down first
+— returning the arena, Audio and pump — and only then flushes the deferred save. Harmless by
+construction: the device is about to restart, so stopping audio a few ms early costs nothing. A crash
+reset still loses a pending write, which is accepted and recorded.
+
+**Verified end to end:**
+
+```
+set prPollSec 30 during playback -> save aborted … Deferred; will retry
+set reboot 1                     -> deferred save landed (TASK-429)
+                                    saved (doc 1929/6144 B)
+after reboot                     -> prPollSec = 30
+```
+
+**Remaining four** (`T082`, `T181`, `T186`/`T187`) are untouched by this and still want the
+`c5e0e78^` comparison. Note `T186`/`T187` are yahoo-network-shaped, which this project has a
+documented flake history for.
 
 ### TASK-243 — BLOCKER: Spotify Web API 403 — owner account lacks active Premium
 

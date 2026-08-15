@@ -3223,11 +3223,29 @@ static void sdProbeBootMount() {
 // A function, not an extern on s_sdReady, so the mount state stays owned here.
 bool sdReady() { return s_sdReady; }
 
+
+
 #else  // !SD_BOOT_MOUNT
 // TASK-427: builds without SD_BOOT_MOUNT (today: cyd2usb_winamp production) compile no
 // SD mount at all. Same symbol, honest answer — LocalPlayerApp degrades to "No SD card".
 bool sdReady() { return false; }
 #endif // SD_BOOT_MOUNT
+
+// TASK-451: an intentional reboot must not eat a deferred settings write.
+// `tickDeferredSave(force)` only skips the retry INTERVAL — it cannot conjure
+// heap, so on a reboot issued while audio is playing the retry fails exactly as
+// the original save did (DUT-measured: prPollSec set during playback, rebooted,
+// value gone, `deferred save landed` never printed). The engine has to go first:
+// aeTeardownFile() returns the arena + Audio + pump, and THEN the 6 144 B
+// document can be built. Harmless here by construction — the device is about to
+// restart anyway, so stopping audio a few ms early costs nothing.
+// A crash reset still loses a pending write; this covers the paths we control.
+void prepareForReboot() {
+#ifdef MEMBUDGET_PHASE1
+  aeTeardownFile(/*connecting=*/false);
+#endif
+  SettingsStorage::tickDeferredSave(/*force=*/true);
+}
 
 // ── SERIAL_DEBUG command implementations (TASK-056e/h/i) ─────────────
 // All compile only when SERIAL_DEBUG is defined (cyd2usb_winamp_debug env).
@@ -4453,6 +4471,15 @@ static void cmdSet(const char *args) {
   // ESP.restart() is a software reset and preserves RTC memory, so the arm
   // selection actually reaches setup().
   if (strcmp(var, "reboot") == 0) {
+    // TASK-429/451: land any deferred settings write before the reset. A save
+    // that failed to allocate (audio arena up) is retried at engine teardown or
+    // on the loop() tick — neither of which happens if the user reboots first,
+    // so the write was silently lost across an INTENTIONAL restart. DUT-measured
+    // 2026-08-15 (T_PRM_01's exact signature): `set prPollSec 30` during
+    // playback -> failAlloc:1, pending:true -> reboot -> the value reads 10
+    // again. force=true skips the retry interval; a crash reset still loses it,
+    // which is accepted — this covers the paths we control.
+    prepareForReboot();
     Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"reboot\"}\n");
     Serial.flush();
     delay(50);
@@ -5740,6 +5767,7 @@ static void cmdSdProbe(const char *args) {
 }
 
 static void cmdReboot(const char *) {
+  prepareForReboot();   // TASK-429/451, see the helper
   Serial.println("{\"ok\":true,\"cmd\":\"reboot\"}");
   Serial.flush();
   delay(50);

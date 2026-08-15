@@ -1,4 +1,6 @@
 #pragma once
+
+void prepareForReboot();   // main.cpp — TASK-451: teardown + flush before a restart
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 #include "settingsSection.h"
@@ -138,6 +140,14 @@ private:
             // cmdReboot's own ack (main.cpp:4022-4026). Grep-stable text:
             // "[settings] system-reboot confirmed".
             LOG_I("settings", "system-reboot confirmed");
+            prepareForReboot();   // TASK-451: land a deferred save (engine down first)
+    // that failed to allocate (audio arena up) is retried at engine teardown or
+    // on the loop() tick — neither of which happens if the user reboots first,
+    // so the write was silently lost across an INTENTIONAL restart. DUT-measured
+    // 2026-08-15 (T_PRM_01's exact signature): `set prPollSec 30` during
+    // playback -> failAlloc:1, pending:true -> reboot -> the value reads 10
+    // again. force=true skips the retry interval; a crash reset still loses it,
+    // which is accepted — this covers the paths we control.
             Serial.flush();
             delay(50);
             ESP.restart();
