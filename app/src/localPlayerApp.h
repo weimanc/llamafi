@@ -308,6 +308,23 @@ public:
                     if (r == WrPumpResult::FAILED) {
                         _err = true;
                         LOG_W("localplayer", "play FAILED row %d", _curRow);
+                        // TASK-450: give the engine back. A failed connect used
+                        // to leave the Audio object, its 6 400 B InBuff and the
+                        // pump task resident — DUT-measured 2026-08-15: lfb8 sat
+                        // at 22 516 for 120 s instead of returning to its 61 428
+                        // baseline, so a retry began from a worse heap than the
+                        // attempt that had just failed. On a marginal build that
+                        // turns one recoverable failure into a permanent one.
+                        //
+                        // aeTeardownFile(false) is the same call suspend() makes,
+                        // and every step inside it is individually guarded
+                        // (wrTeardownPumpTask() no-ops without a pump, the delete
+                        // is null-checked, mb_arena_release() early-returns when
+                        // unheld) — so it is safe on the paths that failed BEFORE
+                        // standing anything up, e.g. the tlsTryYield timeout. It
+                        // also resumes Spotify TLS via aeStopFile(), which that
+                        // early-return path would otherwise leave yielded.
+                        aeTeardownFile(/*connecting=*/false);
                     }
                 }
                 _connecting = false;

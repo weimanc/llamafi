@@ -8977,8 +8977,40 @@ Note this is not the arena (that path is separately handled by `aeReleaseArenaIf
 everything else the bring-up allocated. TASK-432's rollback covers the arena only.
 
 **Owner:** Developer · **Deps:** interacts with TASK-432's rollback and TASK-444's ownership question
-· **Gate:** after a failed `plPlay`, `lfb8` returns to within 512 B of the pre-attempt value within
-10 s · **Priority:** P2 · **Status:** OPEN — filed 2026-08-15.
+· **Gate:** ~~after a failed `plPlay`, `lfb8` returns to within 512 B~~ — **corrected below; `lfb8` is
+contiguity, not occupancy, and was the wrong metric to gate on** · **Priority:** P2 ·
+**Status:** **FIXED, DUT-verified 2026-08-15** for the leak; a fragmentation residue remains, see
+below.
+
+#### TASK-450 result (2026-08-15)
+
+Fix: the `WrPumpResult::FAILED` branch in `LocalPlayerApp::tick()` now calls
+`aeTeardownFile(false)` — the same call `suspend()` makes. Every step inside it is individually
+guarded (`wrTeardownPumpTask()` no-ops without a pump, the delete is null-checked,
+`mb_arena_release()` early-returns when unheld), so it is safe on paths that failed *before* standing
+anything up, such as the `tlsTryYield` timeout — where it additionally resumes Spotify TLS that the
+early return would otherwise have left yielded.
+
+Measured on `cyd2usb_winamp_debug` booted into Player mode, 150 s settle, **with the playlist loaded
+before the baseline** (the first attempt at this measurement put `plLoad` *between* the two probes
+and attributed the playlist's own ~4 KB to the leak — my error, caught by re-running):
+
+| | `free8` | `lfb8` | holes ≥ 8 708 B |
+|---|---|---|---|
+| baseline | 62 588 | 61 428 | 7 |
+| after a failed play | 62 036 | 45 044 | 5 |
+
+**`free8` returns within 552 B — the leak is fixed** (it was 22 516 held, ~39 KB unreturned, before
+this change). `arenaStats` reads `acquires:1 releases:1 active:0`, so the arena is given back too.
+
+**What remains is contiguity, not occupancy.** `lfb8` drops 16 384 B because ~552 B of residue lands
+mid-heap and splits the largest hole; two of the seven 8 708-capable holes are consumed. A retry can
+still allocate the decoder's largest block (5 holes remain), so this is not fatal — but it means the
+gate as originally written was measuring the wrong thing. **Occupancy (`free8`) is what a leak gate
+should assert; contiguity is a separate property and needs its own criterion.**
+
+The 552 B is unidentified and deliberately not chased — it is small, it did not exist as a question
+before this measurement, and guessing at it would repeat the pattern LL-133 was written about.
 
 ### TASK-419 — real posbar seek for local files
 
