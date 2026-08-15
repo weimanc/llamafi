@@ -3674,6 +3674,79 @@ static void cmdGet(const char *args) {
   // T_MB_PROBE_00 (TASK-261 Phase 0): caps-split heap query — internal vs DMA pool,
   // free + largest_free_block each. Distinguishes the two pools so fragmentation in
   // the INTERNAL (large) pool is visible separately from the scarce DMA pool.
+  // TASK-443 option (e) decision probe — `get heapHist`. Answers the one question
+  // that separates ruling option (a) (retire the arena from the FILE path) from
+  // option (e) (keep it, but reserve the decoder's nine blocks instead of one
+  // 24 576 B block): does this heap actually have somewhere to put nine smaller
+  // allocations, or is it one big block and dust?
+  //
+  // Two independent measurements, both under MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT
+  // — the SAME cap the arena allocates with. Reading the 32-bit-inclusive figure
+  // here and comparing it against an 8-bit one is the BP-055 error that made
+  // TASK-435 look like a regression for four days.
+  //
+  //  1. A hole histogram: how many blocks of 8708 / 4096 / 1024 B can be held at
+  //     once, each class measured from the same starting state and freed after.
+  //     8708 is SubbandInfo_t, the decoder's largest single allocation.
+  //  2. The real thing: call MP3Decoder_AllocateBuffers() with the arena INACTIVE,
+  //     so its nine allocations take mb_arena_alloc()'s libc fallback — exactly
+  //     what option (e)/(a) would do in production. No hardcoded size table, no
+  //     new patch to the vendored fork, real sizes, real allocator path. The
+  //     [mbdbg] helix line the decoder already prints reports all nine sizes.
+  if (strcmp(args, "heapHist") == 0) {
+    // Declared here rather than #including mp3_decoder.h at the top of this TU:
+    // the header pulls the whole Helix type set into a translation unit that has
+    // no other business with it, and these two symbols are the vendored library's
+    // public API (mp3_decoder.h:458-459), stable across the pinned v2.3.0.
+    extern bool MP3Decoder_AllocateBuffers(void);
+    extern void MP3Decoder_FreeBuffers(void);
+
+    constexpr uint32_t CAP8 = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+    // Refuse while an engine exists: AllocateBuffers() would stomp a live decoder.
+    if (s_wr_audio || wrPumpAlive()) {
+      Serial.println("{\"ok\":false,\"cmd\":\"get\",\"var\":\"heapHist\","
+                     "\"error\":\"engine up — stop playback first\",\"last\":true}");
+      return;
+    }
+    const size_t free0 = heap_caps_get_free_size(CAP8);
+    const size_t lfb0  = heap_caps_get_largest_free_block(CAP8);
+
+    // (1) hole histogram
+    static const size_t kClasses[3] = { 8708, 4096, 1024 };
+    int counts[3] = { 0, 0, 0 };
+    void* held[48];
+    for (int c = 0; c < 3; c++) {
+      int n = 0;
+      while (n < 48) {
+        void* p = heap_caps_malloc(kClasses[c], CAP8);
+        if (!p) break;
+        held[n++] = p;
+      }
+      counts[c] = n;
+      for (int i = 0; i < n; i++) free(held[i]);
+      esp_task_wdt_reset();
+    }
+
+    // (2) the real nine, through the real path, arena inactive
+    const bool helixOk = MP3Decoder_AllocateBuffers();
+    const size_t freeH = heap_caps_get_free_size(CAP8);
+    const size_t lfbH  = heap_caps_get_largest_free_block(CAP8);
+    MP3Decoder_FreeBuffers();
+    const size_t free1 = heap_caps_get_free_size(CAP8);
+    const size_t lfb1  = heap_caps_get_largest_free_block(CAP8);
+
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"heapHist\","
+                  "\"free8\":%u,\"lfb8\":%u,"
+                  "\"n8708\":%d,\"n4096\":%d,\"n1024\":%d,"
+                  "\"helixOk\":%s,\"free8Helix\":%u,\"lfb8Helix\":%u,"
+                  "\"free8After\":%u,\"lfb8After\":%u,\"last\":true}\n",
+                  (unsigned)free0, (unsigned)lfb0,
+                  counts[0], counts[1], counts[2],
+                  helixOk ? "true" : "false",
+                  (unsigned)freeH, (unsigned)lfbH,
+                  (unsigned)free1, (unsigned)lfb1);
+    return;
+  }
   if (strcmp(args, "heap") == 0) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\","
                   "\"freeInt\":%u,\"lfbInt\":%u,"
@@ -4164,6 +4237,16 @@ static void cmdSet(const char *args) {
     s_aeDmaFloorOverride = (size_t)v;
     Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"aeDmaFloor\",\"val\":%u}\n",
                   (unsigned)s_aeDmaFloorOverride);
+    return;
+  }
+  // TASK-443: run the FILE path WITHOUT the arena, to measure the ruling before
+  // accepting it. `set aeNoArena 1` then `set plPlay <n>`.
+  if (strncmp(args, "aeNoArena", 9) == 0 && (args[9] == '\0' || args[9] == ' ')) {
+    int v = 1;
+    sscanf(args + 9, "%d", &v);
+    s_aeNoArenaInject = (v != 0);
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"aeNoArena\",\"val\":%d}\n",
+                  s_aeNoArenaInject ? 1 : 0);
     return;
   }
   // TASK-432: fault-inject a failed Audio allocation so the degrade path can

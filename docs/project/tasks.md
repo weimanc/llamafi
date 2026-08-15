@@ -8536,6 +8536,65 @@ playback unaffected on both arms (WebRadio station + local file); a deliberately
 via `set wrUrl` produces a named refusal and a live device, not an allocation failure; `./run/check`
 7/7 · **Priority:** P2 · **Status:** OPEN — filed 2026-08-15 from the human's decision.
 
+#### TASK-443 — DUT measurement, 2026-08-15: the arena is NOT the blocker at today's baseline
+
+Conditions, recorded per LL-132: `cyd2usb_player` (`SD_BOOT_MOUNT`, `DISABLE_SPOTIFY`,
+`MEMBUDGET_PHASE1`), 150 s post-reset settle, holiday AP (RSSI -47…-54, boot cascade fails over every
+saved SSID before the supervisor connects), SD mounted with `/playlists/short5.m3u` loaded. All
+figures are `MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT` — the cap the arena allocates with (BP-055).
+
+**Measurement 1 — the heap is not "one big block and dust", and the nine decoder allocations fit on
+their own.** New `get heapHist` probe (allocates until failure per size class, then frees; then calls
+the REAL `MP3Decoder_AllocateBuffers()` with the arena inactive — real sizes, real allocator path, no
+hardcoded table):
+
+```
+free8=32032 lfb8=27636   n8708=3  n4096=6  n1024=28
+helixOk=true -> free8=8660 lfb8=6900     (then fully restored)
+```
+
+So option (e)'s premise holds: three holes ≥ 8 708 B exist, and the decoder's nine real allocations
+succeed un-arena'd from an idle heap, leaving ~8.7 KB.
+
+**Measurement 2 — but a real play still fails with the arena skipped.** New `set aeNoArena 1` toggle
+(debug-only; the ruling would delete the acquire outright), then `set plPlay 0`:
+
+```
+arenaStats: acquires:0        <- the arena genuinely was not taken
+play row 0 -> Audio + pump created -> "buffers freed, free Heap: 43884"
+MP3Decoder_AllocateBuffers(): not enough memory to allocate mp3decoder buffers
+play FAILED row 0             <- clean degrade, no reset (TASK-432 holding)
+plCount.lfb8 after the attempt: 8180
+```
+
+**The arithmetic, and it is not close.** Engine bring-up (Audio + I2S DMA + the 6 400 B InBuff) takes
+`lfb8` from 27 636 to ~8 180 — call it ~23 KB. The decoder then needs another 23 216 B. Total ≈ 47 KB
+against **free8 = 32 032**. The shortfall is **~15 KB**, and no arrangement of the arena closes it:
+option (a) removes a contiguity requirement that is real but not the binding constraint, and option
+(e) redistributes the same bytes.
+
+**What this does to the ruling.** Both (a) and (e) are downstream of a fact neither addresses: on
+this rig, at this baseline, the variant is ~15 KB short of what one playback session costs. TASK-427
+played 3+ minutes on this exact variant — and TASK-442 measured today's idle baseline as ~26 KB below
+that era's. **26 KB > 15 KB**, which means the baseline swing alone accounts for the difference. The
+environment question, previously filed as a side issue, **is the issue**.
+
+**This does not make the ruling wrong.** (a) remains correct on its own terms — the arena converts a
+tolerant demand into an intolerant one, measurement 1 confirms the tolerant shape is real, and
+TASK-444's corruption path is unaffected by any of this. It means (a) is **necessary but not
+sufficient**, and that accepting it today would produce a variant that still cannot play, which is
+exactly the outcome to avoid claiming otherwise about.
+
+**Next experiment, and it is cheap.** Find the ~26 KB. It is not Spotify (compiled out on this
+variant). The candidates are the WiFi/lwIP working set left by a boot cascade that fails over every
+saved network before the supervisor connects, `dataTask`'s 14 336 B stack, and TASK-433's 3 072 B of
+resident browser arrays. The discriminating run is the same probe on the **home** network, where
+TASK-427's number was taken — and, if that is not available, a boot with WiFi never brought up at
+all, comparing `free8` at `post-init-idle`.
+
+**Firmware added for this measurement** (both debug-only, both to be kept — they are the instruments
+this decision needs): `get heapHist` and `set aeNoArena 0|1`.
+
 ### TASK-419 — real posbar seek for local files
 
 The vendored `Audio` exposes `setFilePos()`, `setTimeOffset()`, `getFilePos()`, `getFileSize()`,

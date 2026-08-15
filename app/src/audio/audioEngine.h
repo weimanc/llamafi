@@ -337,6 +337,8 @@ static void aeReleaseArenaIfIdle() {
 }
 
 #ifdef SERIAL_DEBUG
+// TASK-443: skip the arena acquire on the FILE path (`set aeNoArena 1`).
+static bool s_aeNoArenaInject = false;
 // TASK-432 gate: force the guard to fail. The defect's natural trigger is a
 // transient heap window (first play after a flash, before the ~150 s settle of
 // TASK-425), which is exactly the kind of condition a regression test cannot
@@ -695,6 +697,14 @@ static bool aeConnectFile(const char* path) {
         s_aeSpotifyYielded = true;
     }
 #ifdef MEMBUDGET_PHASE1
+    // TASK-443 option (a)/(e) EXPERIMENT TOGGLE — `set aeNoArena 1`, debug only.
+    // Not the ruling: the ruling would delete this acquire outright. This lets the
+    // decisive measurement (does a full local play succeed with the decoder on the
+    // libc path?) run on hardware before the ruling is accepted, instead of after.
+    // Default keeps today's behaviour exactly.
+#ifdef SERIAL_DEBUG
+    if (!s_aeNoArenaInject)
+#endif
     mb_arena_acquire();  // idempotent; on FAIL -> libc fallback, same as _play()
 #endif
     // TASK-432: was a bare `new Audio(...)`. On the first `set plPlay` after a
