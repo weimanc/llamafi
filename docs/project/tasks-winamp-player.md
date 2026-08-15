@@ -376,9 +376,12 @@ header's `mb_arena.h:17-20` says acquire is "Called from `WebRadioApp::_play()` 
 ::suspend() (release)" — accurate today, and it becomes the *whole* truth only if TASK-443's ruling
 lands, so amend it in that change rather than now.
 
-**Owner:** Developer · **Deps:** none (do it standalone, or fold into whichever change lands
-TASK-443) · **Gate:** the comment matches a fresh grep of `mb_arena_alloc|mb_arena_free` call sites ·
-**Priority:** P3 — comment-only, no behaviour · **Status:** OPEN — filed 2026-08-15.
+**Owner:** Developer · **Deps:** none · **Gate:** the comment matches a fresh grep of
+`mb_arena_alloc|mb_arena_free` call sites · **Priority:** P3 — comment-only, no behaviour ·
+**Status:** **DONE 2026-08-15** — corrected to "2 patched sites, BOTH in mp3_decoder.cpp", with the
+reverted PATCH-MEMBUDGET-3 and the non-allocator PATCH-MEMBUDGET-4 both named so the next reader is
+not sent hunting an Audio.cpp call site that does not exist. Gate met by construction (no DUT
+needed): the comment now states what the grep returns.
 
 ### TASK-446 — MP3 only: make the unreachable codecs actually unreachable
 
@@ -430,7 +433,18 @@ does not exist yet and quoting a number before the lever exists would be a guess
 **Owner:** Developer · **Deps:** none · **Gate:** MP3
 playback unaffected on both arms (WebRadio station + local file); a deliberately AAC stream injected
 via `set wrUrl` produces a named refusal and a live device, not an allocation failure; `./run/check`
-7/7 · **Priority:** P2 · **Status:** OPEN — filed 2026-08-15 from the human's decision.
+7/7 · **Priority:** P2 · **Status:** **IMPLEMENTED 2026-08-15, DUT GATE OWED.**
+
+`initializeDecoder()` now refuses any codec that is not MP3 (PATCH-MP3ONLY-1), returning false into a
+caller that already handles it — so it degrades like any other shortfall rather than attempting ~79 KB
+in four blocks through upstream's allocator, outside every `MEMBUDGET_PHASE1` guard. All three envs
+build; `./run/check` 7/7.
+
+**Not verified on hardware, and the status says so rather than the prose only (BP-061).** The DUT went
+off the USB bus mid-session — no `/dev/ttyUSB*`, no CH340 in `lsusb` — before either half of the gate
+could run. Owed when it returns: (a) MP3 still plays a 5-track playlist, (b) an AAC stream injected via
+`set wrUrl` produces the named refusal. Half (b) additionally needs a reachable AAC stream, which this
+AP cannot currently supply (TASK-438).
 
 #### TASK-443 — DUT measurement, 2026-08-15: the arena is NOT the blocker at today's baseline
 

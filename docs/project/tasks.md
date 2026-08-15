@@ -44,8 +44,8 @@ search the task id in that file.
 | **[TASK-424](tasks-winamp-player.md#task-424--sd-write-path-panics-in-fatfs-card-independent)** | P2 | OPEN | SD write path panics in FatFs (card-independent) |
 | **[TASK-452](tasks-winamp-player.md#task-452--retire-the-arena-from-the-file-path-successor-to-the-withdrawn-task-443)** | P3 | OPEN | retire the arena from the FILE path (TASK-443 withdrawn, see archive) |
 | **[TASK-444](tasks-winamp-player.md#task-444--mbarenafree-can-call-libc-free-on-a-pointer-inside-an-already-freed-arena)** | P2 | OPEN | `mb_arena_free()` can call libc `free()` on a pointer inside an alr… |
-| **[TASK-445](tasks-winamp-player.md#task-445--mbarenahs-header-comment-misdescribes-which-sites-call-the-arena)** | P3 | OPEN | `mb_arena.h`'s header comment misdescribes which sites call the arena |
-| **[TASK-446](tasks-winamp-player.md#task-446--mp3-only-make-the-unreachable-codecs-actually-unreachable)** | P2 | OPEN | MP3 only: make the unreachable codecs actually unreachable |
+| **[TASK-445](tasks-winamp-player.md#task-445--mbarenahs-header-comment-misdescribes-which-sites-call-the-arena)** | P3 | DONE | `mb_arena.h`'s header comment misdescribes which sites call the arena |
+| **[TASK-446](tasks-winamp-player.md#task-446--mp3-only-make-the-unreachable-codecs-actually-unreachable)** | P2 | IMPL | MP3 only: make the unreachable codecs actually unreachable |
 | **[TASK-419](tasks-winamp-player.md#task-419--real-posbar-seek-for-local-files)** | P3 | READY | real posbar seek for local files |
 | **[TASK-420](tasks-winamp-player.md#task-420--pledit-edit-mode-button-strip-reorder-delete)** | P2 | BLOCKED | PLEDIT edit mode: button strip, reorder, delete |
 | **[TASK-421](tasks-winamp-player.md#task-421--add-from-browser-staging-save-restore)** | P2 | BLOCKED | add-from-browser (staging), save, restore |

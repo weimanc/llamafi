@@ -3781,6 +3781,22 @@ bool Audio::parseHttpResponseHeader() { // this is the response to a GET / reque
 }
 //---------------------------------------------------------------------------------------------------------------------
 bool Audio:: initializeDecoder(){
+    // PATCH-MP3ONLY-1 (TASK-446): this firmware supports MP3 and nothing else.
+    // Both sources already enforce it — the file browser lists .mp3/.m3u only
+    // (fileBrowser.h) and the station query pins codec=MP3 (dataTaskStorage.cpp)
+    // — but that second filter reads radio-browser METADATA, not the stream, so a
+    // mislabelled station or a .pls redirect can still hand us AAC. Reaching the
+    // AAC path is not a graceful failure: it asks for ~79 KB in four blocks
+    // (PSInfoSBR_t 50 788 + PSInfoBase_t 27 364 + 1 408) on a board whose largest
+    // free 8-bit block is ~26 KB, through UPSTREAM's heap_caps_malloc_prefer —
+    // outside mb_arena, so none of the MEMBUDGET_PHASE1 accounting or guards
+    // apply to it. Refuse here instead: the caller already handles false
+    // (`if(!initializeDecoder()) return false;`), so this surfaces as the same
+    // clean play/connect failure as any other shortfall (TASK-432's invariant).
+    if(m_codec != CODEC_MP3 && m_codec != CODEC_NONE){
+        log_e("[audio] codec %d is not MP3 — refused (TASK-446: MP3-only firmware)", (int)m_codec);
+        return false;
+    }
     switch(m_codec){
         case CODEC_MP3:
             if(!MP3Decoder_AllocateBuffers()) goto exit;

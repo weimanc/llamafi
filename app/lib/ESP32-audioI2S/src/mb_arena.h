@@ -1,6 +1,14 @@
 // mb_arena.h — TASK-261 Phase 2: fixed-slot free-list arena allocator
 // Over the Phase 1 MALLOC_CAP_INTERNAL reservation (s_mb_arena, 40 K).
-// Called by the 3 patched sites in Audio.cpp + mp3_decoder.cpp.
+// Called by 2 patched sites, BOTH in mp3_decoder.cpp (PATCH-MEMBUDGET-1/2).
+// TASK-445: this line used to say "the 3 patched sites in Audio.cpp +
+// mp3_decoder.cpp", which was wrong on the count and the file list and sent
+// readers looking for an arena call site in Audio.cpp that does not exist.
+// PATCH-MEMBUDGET-3 (InBuff) was REVERTED — InBuff is plain calloc, and its
+// 6 400 B coming from the general heap is load-bearing in every memory
+// measurement from TASK-425 on. PATCH-MEMBUDGET-4 does live in Audio.cpp but
+// is a halved-DMA config change that never touches this allocator.
+// See app/lib/ESP32-audioI2S/LOCAL_PATCHES.md for the full patch record.
 // All public symbols are no-ops (inline wrappers for standard heap) when
 // MEMBUDGET_PHASE1 is not defined — production (cyd2usb_winamp) is byte-clean.
 
