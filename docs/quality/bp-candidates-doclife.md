@@ -132,3 +132,78 @@ session in which all three failure modes occurred within one working day — inc
 collision (TASK-451/452 reserved in a document while another session was already using them). Both
 are multi-agent failure modes with no single-agent equivalent, and neither is addressed by the three
 rules above — they belong to PM's process recommendations in M-DOCLIFE §3.
+
+---
+
+## Staged for QM to land — LL-134 and an audit-log entry
+
+Drafted by @QM on review, 2026-08-16. **QM owns `lessons_learned.md` and `audit_log.md`; these are
+staged here, not landed.** Architect corrections are marked inline — two of QM's supporting claims
+needed narrowing, and one new fact emerged after the draft was written.
+
+### LL-134 (draft)
+
+**Context**: A one-day architecture pass produced nine design docs, two ADRs and three IFCs. A
+three-reviewer chain (Developer → VE → QM) raised nine findings; **eight were confirmed**, none
+rejected outright. The errors sat inside contracts written the same day, including an IFC invariant
+false about one of its own named examples.
+
+**Observation**: **Two failure classes co-occurred and must not be merged into one lesson.**
+*(This is QM's central insight and the reason this is a new entry rather than an LL-114 amendment.)*
+
+1. **Decay** — a fact true when written, rotting because nothing re-checks it. LL-114's shape:
+   positional citations, stale status, dangling ids.
+2. **Fabrication** — a claim written as fact, never checked, false from the moment of writing: the
+   duplicate-symbol-linkage claim; IFC-002's two overgeneralised invariants; a misfiled `AGENTS.md
+   rule 10` citation.
+
+Neither was caught by the author. Both were caught by external review.
+
+> **Architect correction 1.** QM called the `AGENTS.md rule 10` citation *fabricated*. Verified: the
+> rule is real (`docs/agents/architect.md:20`) but AGENTS.md has no numbered rules — a **misfiled
+> pointer, not an invented one.** Weaker than QM framed it, and it belongs in the *decay* class more
+> than the fabrication one.
+>
+> **Architect correction 2.** QM's supporting claim that the fabrication lesson "duplicates BP-060 /
+> BP-046" does not hold — BP-060 is scoped to handover prompts, BP-046 to preview-tool claims;
+> neither reaches an ADR or IFC. The disposition (widen BP-060) survives; the reason changes from
+> *redundancy* to *right home, wrong scope*.
+>
+> **New fact, found while applying the fixes.** **Both** QM-found errors recurred elsewhere in the
+> same doc set — `rule 10` also in M-DOCLIFE §3, the stale count also in its D1 table row. A fix
+> applied at the first hit was not a fix. Any rule this becomes should say: *when a documentation
+> error is found, grep the corpus for it before calling it fixed.*
+
+**Root cause**: There is no required step between "written" and "committed as authoritative for other
+agents." Self-review is optional and demonstrably insufficient — the author who wrote the
+citation-rot warning miscited a rule and quoted two different corpus counts for one claim in the same
+session. Output speed and verification are in tension; verification loses by default.
+
+**Suggested improvement**:
+(a) **No ADR / design doc / IFC gates other work, or is cited as fact by another agent, until at
+least one independent review has run against it.** *(This is the load-bearing recommendation —
+escalated as E-03.)*
+(b) Decay gets the mechanical treatment: BP-DOC-1 + `run/check-docs` C1–C5, with C1 in `delta` mode.
+(c) Fabrication folds into a **BP-060 scope widening**, not a new number.
+(d) **Track reviewer hit-rate** (confirmed / raised) across future passes as a leading indicator — a
+sustained near-100 % rate says the authoring pace needs a brake, not that review should be trusted
+less.
+
+**Status**: draft — pending human sign-off.
+
+### audit_log.md entry (draft)
+
+**Triggered by**: QM review, overnight reviewer chain (`ESCALATIONS-2026-08-16.md`).
+**Areas checked**: documentation currency, scoped to the 2026-08-16 architecture output — not a full
+sweep.
+
+**Findings**: eight confirmed errors from nine raised across three independent reviewers, zero
+rejected. QM's own pass found the seventh in the one document nobody else was scoped to read
+(`bp-candidates-doclife.md`) — a coverage gap in the chain, not a one-off miss. Two errors recurred at
+a second site after being fixed at the first.
+
+**Actions**: Architect — corrections applied (`38edadb`, `e97e7d3`, `2d1d0ac`). QM — BP-DOC-1 and
+BP-DOC-2 staged for sign-off; BP-DOC-3 folded into a BP-060 amendment; LL-134 drafted. PM — consider
+(a) above as standing process, and track reviewer hit-rate.
+
+**Resolution**: open — pending human review.
