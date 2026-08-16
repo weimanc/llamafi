@@ -256,6 +256,16 @@ TASK-404) have no fourth sibling waiting.
 
 ---
 
+## Follow-ups raised by the TASK-467/496 implementation, 2026-08-16
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-500 | P3 | OPEN | X015 also calls `serialdbg` "Core 1" — but Arduino's `loop()` defaults to `CONFIG_ARDUINO_RUNNING_CORE=1`, the same core `dataTask` pins to. The entry may describe a **same-core**, not cross-core, interaction — which changes its framing, not just a label. Architect call. |
+| TASK-501 | P3 | OPEN | ~20 further `#ifdef WINAMP_DISPLAY` blocks remain in `main.cpp` after TASK-496. The same logic applies — every env now defines the flag — but the implementing agent correctly stayed in scope rather than sweeping them. |
+| TASK-502 | P3 | OPEN | `docs/process/project_run_scripts.md` and `dut_workflow.md` still say "5-gate". Stale before this session; now 11. |
+
+---
+
 ## PM note — the honest read
 
 This board was produced in a single day by one Architect pass, and its shape reflects that. Three
