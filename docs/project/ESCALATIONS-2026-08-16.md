@@ -27,8 +27,8 @@ Nothing escalated yet. Entries appear here as `E-NN` with the decision needed an
 | # | Reviewer | Scope | Status |
 |---|---|---|---|
 | 1 | @Developer | ADR-060, M-SRCLAYOUT, M-CODEQUAL | **DONE** — 3 MAJOR accepted, all verified true |
-| 2 | @VE | IFC-002, IFC-003, M-CONCURRENCY, M-TESTARCH, reserved test ids | **RUNNING** |
-| 3 | @QM | M-DOCLIFE, check-docs spec, 3 BP candidates | not started |
+| 2 | @VE | IFC-002, IFC-003, M-CONCURRENCY, M-TESTARCH, reserved test ids | **DONE** — 1 BLOCKER + 2 MAJOR, all verified true; IFC-002 → v2 |
+| 3 | @QM | M-DOCLIFE, check-docs spec, 3 BP candidates | **RUNNING** |
 | 4 | @PM | `tasks-architecture.md`, sequencing, M-ARCH split | not started |
 
 **Self-review passes** (do these while a subagent runs — never touch a doc a running agent owns):
@@ -84,6 +84,36 @@ constructor claim; both hold.
 
 **Cost note:** ~130 k subagent tokens for that review. At that rate the remaining three reviewers fit
 comfortably in the overnight budget.
+
+### ~03:30 — @VE review integrated (commits `55913fd`, `bd7282d`)
+**1 BLOCKER + 2 MAJOR, all verified against source before accepting, all correct — and all three were
+errors in contracts I wrote yesterday.**
+
+- **BLOCKER, IFC-002 I5**: I asserted "*every* cross-context result carries a monotonic seq or epoch",
+  citing IFC-001 as the house standard **while contradicting IFC-001's own table**, which records
+  *"none (single consumer)"* for five of nine result types. IFC-001's rule 5 is conditional; I wrote a
+  universal from it. Restated; real set is 3 of 9. `T_CC_04` discarded — it tested a false claim.
+- **MAJOR, IFC-002 I4**: "pump-task callbacks may only set a flag" was **false about one of its own
+  four named examples** — `audio_process_extern` runs a rectified peak scan and a 19-band Goertzel
+  every decoded block. Split into I4a/I4b. `T_CC_03` discarded.
+- **MAJOR, I1 enforcement**: I claimed "guaranteed by construction after TASK-458". That task is open
+  and gated on TASK-495 (E-02, unresolved). Corrected to what it actually is: manual comment
+  discipline — the discipline that already failed once, in TASK-222.
+
+**VE overturned one of my own notes**, which is the review working: I had pre-labelled `T_CC_01` as
+"review-shaped". VE checked — zero `tft.` hits in the three non-loopTask TUs — and ruled it a genuine
+automatable grep, provided it walks one level of call-graph closure. Kept as a test.
+
+**Net on the reserved ids: 2 of 5 discarded because the invariants they tested were factually wrong.**
+That is a better outcome than 5 of 5 passing would have been.
+
+Also: `T_CQ_03`'s grep as printed matches `TASK-320` and `111.320` — noise, not signal. Must not be
+adopted as a gate unscoped. Filed TASK-497 (retrospective baseline — window is **not** closed, costs
+2× DUT time), TASK-498 (`T_SRC_09`), TASK-499 (G1 has no test id at all).
+
+**Pattern worth noting for the morning:** two reviewers, six confirmed errors, **zero rejected
+findings.** Every single challenge has held up on verification. That says the docs were written faster
+than they were checked — which is exactly what BP-DOC-3 (candidate) is about.
 
 ---
 
