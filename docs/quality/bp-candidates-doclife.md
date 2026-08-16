@@ -37,8 +37,9 @@ primary reference. A line number may follow a symbol as a convenience (`fetchWea
 `dataTaskStorage.cpp:248`), but the symbol must be present so the reference survives without it.
 Historical records — `tasks-archive.md`, `lessons_learned.md`, `audit_log.md`, `docs/rnd/` — are
 exempt: they describe the tree as it was, and their coordinates are correct as history.
-**Rationale**: Measured 2026-08-16: **1 201 `file:line` citations across the corpus; 274 of the 576 in
-live documents (48 %) are already broken** — the file is gone or has fewer lines than the citation.
+**Rationale**: Measured 2026-08-16 over the **gated corpus** (223 live docs; historical records
+exempt per §1 of the check-docs spec): **274 of 576 `file:line` citations — 48 % — are already
+broken** — the file is gone or has fewer lines than the citation.
 The mechanism was demonstrated end-to-end inside a single session: `M-CODEQUAL` was written citing
 `main.cpp:3484` / `:4101` / `:2976` / `:5769`, and the *same author's next three commits* moved every
 one. In the same document, every reference by symbol name survived unchanged. The asymmetry is not

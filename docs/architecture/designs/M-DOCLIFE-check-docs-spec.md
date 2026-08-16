@@ -111,7 +111,23 @@ Every failure prints `file:line: <what> -> <why>` so it is directly actionable.
 | 4 | C5, C2, C3, C4 | C1 | C4 scoped per §2; `draft` folded in |
 | 5 | all | — | C1's 274 cleared — **may never happen, and that is acceptable** |
 
-**C1 likely stays advisory permanently, and the spec says so on purpose.** 274 failures across ~40
+### 4a. C1 gets a delta-only blocking mode — @QM amendment, 2026-08-16
+
+**Accepted.** The spec below argues C1 stays advisory forever. QM's objection: *that gives up more
+than necessary, and the spec's own "conventions decay, checks do not" argument applies to itself.*
+
+**Add a third mode.** Alongside `off` and `advisory`, C1 gains **`delta`**: fail only on positional
+citations **newly introduced in the diff** of changed `.md` lines. Existing debt is invisible to it.
+
+That flips C1 from a permanently-ignored warning into a live gate **immediately**, with no cleanup
+precondition — and it is what actually operationalises BP-DOC-1, which is otherwise a convention with
+nothing behind it. The 274-citation backlog then decays opportunistically instead of needing a
+milestone.
+
+Revised rollout: **C1 goes `delta`-blocking in phase 1**, alongside C5. Full-corpus C1 stays advisory,
+and phase 5 becomes optional rather than aspirational.
+
+**C1's full-corpus mode likely stays advisory permanently, and the spec says so on purpose.** 274 failures across ~40
 documents is a milestone of its own, it would go stale mid-flight, and a gate that fails on day one
 gets switched off. The BP in §5 is the real fix: stop creating new positional citations. C1's job is
 to make the existing debt *visible and non-growing*, not to force a sweep.

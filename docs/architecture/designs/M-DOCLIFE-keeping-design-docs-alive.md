@@ -26,8 +26,15 @@ Not a hypothetical. Over roughly one working day, in one session:
 | **Fact rot** | Found `cross_feature_matrix.yaml` X015 asserting `dataTask` runs on Core 0. It pins to `APP_CPU_NUM`, and never did otherwise. |
 | **Count rot** | `run/check` gate count read 5 (CLAUDE.md ×2), `6/6` (ADR-059 ×2) and `[6/7]` (appRegistry.h) against an actual 7. |
 
-Scale of the exposure: **1 171 `file:line` citations across 102 documents.** Every one is a hostage
-to the next refactor.
+Scale of the exposure: **274 of 576 `file:line` citations in the gated corpus are already broken —
+48 %.** Every surviving one is a hostage to the next refactor.
+
+> *Corrected on @QM review, 2026-08-16.* This line and its sibling in `bp-candidates-doclife.md`
+> quoted **1 171** and **1 201** for the same claim — two unlabelled corpora (`docs/` vs
+> `docs/` + `CLAUDE.md`), same author, same session, neither stated which. Both are now stale anyway
+> (1 188 / 1 236 today). A citation-count inconsistency inside the document diagnosing citation
+> inconsistency. Fixed by dropping the corpus-wide figure entirely and keeping only the gated-corpus
+> ratio, which is the number any decision actually turns on.
 
 None of this was carelessness — each document was accurate when written. **That is the point.**
 Accuracy at write time is not the problem; *decay* is, and decay has no owner.
