@@ -39,15 +39,16 @@ deliberately NOT filed — it waits for the study's graduation proposal (R&D pro
 From the 2026-08-16 Architect pass: nine design docs, ADR-060/061, IFC-002/003 (+004–006 stubs).
 Stubs only — **the entries live in the split file** and are edited there.
 
-**Read first:** three refactor commits (`a044f5d`, `78caa95`, `b36f184`) landed ahead of ADR sign-off,
-are unreviewed and not DUT-verified, and by ADR-060 D0's measure created **zero components**.
-TASK-488 gates the rest of the board.
+**Read first:** three refactor commits (`a044f5d`, `78caa95`, `b36f184`) landed ahead of ADR sign-off.
+**TASK-488 closed them out on 2026-08-16 (`64bf839`): verified pure moves, nothing reverted**, with
+TASK-497's owed 3-run baseline taken in the same DUT block. The gate is lifted. What still stands:
+by ADR-060 D0's measure they created **zero components**, so Stages C–F remain the actual work.
 
 | task | pri | status | title |
 |---|---|---|---|
-| **TASK-488** | **P1** | OPEN | review the three landed refactor commits + take the owed DUT baseline |
-| TASK-453/454 | — | LANDED, UNVERIFIED | Stage A/B — app classes and debug console out of `main.cpp` |
-| TASK-455/456/471/472 | P2 | BLOCKED | Stages C–F — `boot/`, composition root, component conversion, `stock/` split |
+| **TASK-488, 497** | **P1/P2** | **DONE 2026-08-16** (`64bf839`) | three refactor commits verified + 3-run DUT baseline taken |
+| TASK-453/454 | — | LANDED, VERIFIED | Stage A/B — app classes and debug console out of `main.cpp` |
+| TASK-455/456/471/472 | P2 | **455 UNBLOCKED**, rest chained | Stages C–F — `boot/`, composition root, component conversion, `stock/` split |
 | TASK-457, 464 | P2/P3 | OPEN | shell hygiene; documentation-reference sweep (308 cites / 49 files) |
 | **TASK-458** | **P2** | OPEN | RAII scope guards — fixes a bug class with a proven instance (TASK-222) |
 | TASK-459/460/461/462/463 | P2/P3 | MIXED | fetch-skeleton consolidation, canvas constants, table dispatch, palette |
@@ -58,13 +59,13 @@ TASK-488 gates the rest of the board.
 | TASK-476/477 | P3 | OPEN | `mb_arena` relocation (blocked on a build question); header-comment fix |
 | TASK-483…487 | P2–P4 | SKELETON | test architecture, error model, levelization audit, vendoring, ADR-028 revisit |
 | TASK-489…494 | P2/P3 | MIXED | handoff debt — X065 + test-id reservations (done), X015 fix, `architecture.md` sync |
+| TASK-503…506 | P2/P3 | OPEN | from the TASK-488 verification — stale `*AppState` docs, `T_488_11` redesign, heap-settling question, `run/test` mutates user settings |
 
 > **▶ Execution order lives in [tasks-architecture.md](tasks-architecture.md) § EXECUTION SEQUENCE**
-> — start there, not with this table. In short: **TASK-488 + 497 in one DUT block first** (and write
-> 488's pass criteria before running it), then decide the M-SRCLAYOUT chain on what it finds, then
-> 475 → 478 → 458 (with 495 in front), then M-WINAMP-PLAYER.
+> — start there, not with this table. **Steps 1/1a are done (488 + 497, `64bf839`); the chain was
+> continued, not reworked.** Next is 475 → 478 → 458 (with 495 in front), then M-WINAMP-PLAYER.
 >
-> **Landed 2026-08-16:** TASK-466 (build gate 3 → 11 envs), 467, 477, 491, 496.
+> **Landed 2026-08-16:** TASK-466 (build gate 3 → 11 envs), 467, 477, 491, 496, **488, 497**.
 
 > **Drift warning:** hand-maintained, same as the player board. The split file is the entry; this is
 > a label. If they disagree, the split file wins.

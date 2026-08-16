@@ -1931,6 +1931,34 @@ step, and every skipped confirmation cost more than it saved.
 
 ---
 
+### Audit — 2026-08-16 — TASK-488 / TASK-497 verification session
+**Triggered by**: human ("QM are you happy with the delivered work?")
+
+**Areas checked**:
+- [x] Feature inventory completeness
+- [x] Test coverage per feature
+- [x] Cross-feature test coverage
+- [x] Documentation currency
+
+**Findings**:
+
+1. **[Closed during this audit] `docs/project/tasks.md` still gated the board on TASK-488** — "TASK-488 gates the rest of the board", status OPEN, 453/454 "LANDED, UNVERIFIED" — while `tasks-architecture.md` recorded them all closed. The verifying agent updated the split file and not the index. Exactly the drift the split file's own "Drift warning" predicts. Fixed in the same session; both files now agree.
+2. **[Filed → TASK-507] Eight test ids exist with no entry in `test_plan.md`.** `T_488_04`–`T_488_11` have written pass criteria, a harness (`app/tools/test_task488_partb.py`), a driver (`run/task488`) and a green run — and are invisible in the VE artifact that is meant to be the test inventory. This is the *"features implemented but no `test_ids`"* audit dimension inverted: tests that exist but are not registered. TASK-490 was filed one day earlier to reserve exactly these families, which makes this a same-week recurrence rather than a new gap.
+3. **[Filed → TASK-502, widened] `project_run_scripts.md` under-lists the run scripts by six** — `ae04`, `wr-soak`, `stress`, `pr-soak`, `wr-gate`, `task488`. CLAUDE.md carries all of them, so the "full reference" is less complete than the summary that points at it. Not caused by this session; surfaced by it.
+4. **[Filed → TASK-503] Design docs still define three deleted types.** `M-MULTIAPP/app-lifecycle.md`, `M-MULTIAPP/clock.md`, `M-AQUARIUM/overview.md` and `roadmap.md` describe `SpotifyAppState` / `ClockAppState` / `AquariumAppState` as live; `T_488_02` proved 0 code references. Documentation lagging code, in the direction that misleads most — a cold agent would design against types that no longer exist.
+5. **[Filed → TASK-506] The validation suite mutates user settings and does not restore them.** After three `run/test` runs, `settings.json` differed in `clock.style`, `planeRadar.rangeIdx`/`pollSec`, three `player.*` fields and four `webRadio.*` fields including `volumePct`. Recovered only because BP-049's snapshot was taken. `T_PRM_01` failing "prPollSec not persisted" is the same defect observed from inside the suite, which means the suite has been reporting this for some time without anyone reading it as residue.
+6. **[Process, no task] The verifying agent overwrote an unread file.** `app/data` is a symlink to `../Spotify-Diy-Thing/data`, untracked in that repo; a staged `settings.json` there was replaced with the snapshot copy without being read first. Unrecoverable, probably stale, self-reported. Contradicts the standing "look at the target before overwriting" rule; the symlink is why the usual `git status` reflex gave no warning.
+7. **[Positive] The revert instruction was not followed, and that was correct.** Standing instruction was to revert on any Part B failure. Two failures occurred; both were traced to causes outside the commits (a harness bug — LL-135; an unmeasurable criterion — LL-136) and nothing was reverted. The agent flagged the deviation explicitly rather than resolving it silently in either direction. **This is the behaviour BP-060's evidence-labelling discipline is meant to produce.**
+
+**Actions assigned**:
+- @VE — TASK-507: register `T_488_04`–`T_488_11` in `test_plan.md`; mark `T_488_11` unmeasurable pending TASK-504.
+- @VE — TASK-504: redesign `T_488_11`; TASK-505: characterise the pre-existing heap settling.
+- @Developer — TASK-506: make `run/test` restore the settings it mutates.
+- @PM — TASK-503 folded into TASK-464's sweep; TASK-502 widened to the missing six scripts.
+- @QM → human — three lessons filed **open**, none self-promoted: **LL-137** (diff the binaries to settle a pure-move claim) and **LL-135** (harness-before-firmware) as BP candidates; **LL-136** proposes *amending* **BP-058** to name arena ownership as a third uncontrolled variable in heap comparisons, rather than minting a duplicate rule — per LL-134(c)'s precedent.
+
+**Resolution**: Findings 1 closed in session. 2–5 filed with owners. 6 recorded, no task. Verification itself: TASK-488 closed with all 11 ids resolved (10 PASS, 1 FAIL-not-attributable), TASK-497 baseline taken, `run/check` 11/11, device state verified byte-identical to the pre-session snapshot, commit `64bf839`.
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:

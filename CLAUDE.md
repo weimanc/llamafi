@@ -110,6 +110,7 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
 ./run/stress [min]            # multi-app fetch stress/soak (TASK-248; flash debug → soak → restore prod)
 ./run/wr-soak [min]           # WebRadio playback + A-lite arena-churn soak (TASK-271; flash webradio build → soak → restore prod)
 ./run/ae04 [cycles]           # T_AE_04 audio-engine teardown ordering, eject mid-CONNECTING (TASK-409; flash webradio build → test → restore prod)
+./run/task488 [ids]           # T_488_04-11 refactor verification (TASK-488; DUT_TREE=<worktree> flashes another checkout for an A/B)
 ./run/pr-soak [min]           # PlaneRadar + Spotify coexistence soak (TASK-307; flash debug → soak → restore prod)
 ./run/check                   # 11-gate build check (check_build.sh)
 ./run/bake-skin               # bake Winamp skin assets
