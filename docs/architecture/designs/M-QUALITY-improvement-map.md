@@ -5,7 +5,7 @@
 > Purpose: one page that says what we are trying to improve, which document owns each area, what
 > unlocks what, and — explicitly — what we have decided *not* to do.
 > Indexes: [M-TESTARCH](M-TESTARCH-test-architecture.md) · [M-TOOLING](M-TOOLING-host-tool-architecture.md) ·
-> [M-CODEQUAL](M-CODEQUAL-duplication-and-abstraction.md) + [its review](M-CODEQUAL-review.md) ·
+> [M-CODEQUAL](M-CODEQUAL-duplication-and-abstraction.md) + [§12–§13](M-CODEQUAL-duplication-and-abstraction.md) ·
 > [M-SRCLAYOUT](M-SRCLAYOUT-main-decomposition.md) / [ADR-060](../decisions/ADR-060.md) ·
 > [M-DOCLIFE](M-DOCLIFE-keeping-design-docs-alive.md)
 
@@ -35,9 +35,9 @@ per-mode so cross-mode breakage is unobservable. Read §0 before treating anythi
 | **B2** | **Test *logical* design (conformance matrices)** | M-TESTARCH §2 | new 2026-08-16 | the app/settings contract exists only as a human checklist; tests are hand-copied per app, so the gaps are invisible (Aquarium: zero coverage) |
 | **C** | **Test synchronisation** | M-TESTARCH §3b | new 2026-08-16 | 924 hand-tuned waits; the harness polls a device that is already an event source |
 | **D** | **Host tooling architecture** | M-TOOLING | proposed | 36 877 lines of Python, never architected; the DUT library lives inside the suite that uses it |
-| **E** | **Constant ownership (SSoT)** | M-CODEQUAL C5, review §5 | proposed, gate red | 24 self-declared firmware mirrors, one 5-constant block copy-pasted 4× |
-| **F** | **Code quality in the firmware** | M-CODEQUAL C1–C4, C6 | proposed | one proven bug class (hand-managed acquire/release), plus readability debt |
-| **G** | **Ownership + type hygiene** | M-CODEQUAL review C8/C9 | new 2026-08-16 | a coherent memory policy that is written down nowhere; zero `= delete` in the tree |
+| **E** | **Constant ownership (SSoT)** | M-CODEQUAL C5, VE-review §3 | proposed, gate red | 24 self-declared firmware mirrors, one 5-constant block copy-pasted 4× |
+| **F** | **Code quality in the firmware** | M-CODEQUAL C1–C6 | proposed | one proven bug class (hand-managed acquire/release), plus readability debt |
+| **G** | **Ownership + type hygiene** | M-CODEQUAL §12 C8/C9 | new 2026-08-16 | a coherent memory policy that is written down nowhere; zero `= delete` in the tree |
 | **H** | **Documentation lifecycle** | M-DOCLIFE | **phase 1 landed** | design docs rot; `run/check-docs` now gates the worst of it |
 | **I** | **Feature↔test traceability + VE process** | [M-TESTARCH-VE-review](M-TESTARCH-VE-review.md) | new 2026-08-16 | 51 % of features claim no tests and 54 % of the claims don't resolve; **no VE review exists for any of the 11 structural design docs** |
 
@@ -115,10 +115,10 @@ Recorded so they are not re-proposed. Each was measured, not assumed.
 
 | Not doing | Why | Source |
 |---|---|---|
-| Convert 66 headers to `.h`/`.cpp` pairs | very large diff, low reward on its own; the fix is D0 stating the rule for *new* components | review C7 |
-| Replace 1 116 C-style casts with `static_cast` | sampled: all idiomatic embedded numeric conversion; catches nothing | review §3 |
-| Chase a "77 `new` vs 19 `delete`" leak | real counts are 5 and 5; the gap was the English word *new* in comments | review §3 |
-| Abstract `weatherApp`/`cryptoApp`'s shared shape | two instances, ~30 lines of shared control flow, different render bodies | review §5 |
+| Convert 66 headers to `.h`/`.cpp` pairs | very large diff, low reward on its own; the fix is D0 stating the rule for *new* components | M-CODEQUAL §12 |
+| Replace 1 116 C-style casts with `static_cast` | sampled: all idiomatic embedded numeric conversion; catches nothing | M-CODEQUAL §13 |
+| Chase a "77 `new` vs 19 `delete`" leak | real counts are 5 and 5; the gap was the English word *new* in comments | M-CODEQUAL §13 |
+| Abstract `weatherApp`/`cryptoApp`'s shared shape | two instances, ~30 lines of shared control flow, different render bodies | VE-review §3 |
 | Refactor `webRadioApp::tick()` (399 lines) | worst by raw measure; carries 9 tasks' interleaved fixes; no forcing reason | M-CODEQUAL §8 |
 | Name the `clockApp` hex literals | nixie glyph bitmap data — naming them is worse | M-CODEQUAL §8 |
 | Adopt a C++ test framework (Unity/GTest) | generalise the in-tree `test_check_docs.py` pattern instead | M-TESTARCH §3 |
@@ -128,19 +128,11 @@ Recorded so they are not re-proposed. Each was measured, not assumed.
 count is a hypothesis, not a finding.* M-CODEQUAL §3's counting note should be promoted to
 `best_practices.md` — it has prevented four bad findings and would have prevented three published ones.
 
-## 6. If only three things happen
+## 6. Priority
 
-1. **ADR-060 states that a component is a translation unit** (A). Doc-only. Unblocks B and F/G.
-2. **Extract `lib/dut.py`, with the timeout policy and correlation in the same pass** (D + C). It is
-   already touching all 16 call sites; doing it once is the difference between one migration and three.
-3. **Build the app conformance matrix on its two static rows** (B2). Generated from
-   `app_ids_gen.APP_ORDER`, no DUT, and it proves the pattern that `check_settings_wiring.py` has
-   already been running green for one contract row. It also lands the Aquarium hole as a failing cell
-   on day one — the correct first result.
+Set by **[M-TESTBASE phase 1](M-TESTBASE-phase1-player-gate.md)** — see §0. Phase 1 funds four items
+against area **B2/C/D** only, scoped to the 3-mode player, and defers every other area in this map.
 
-Honourable mention: the id-binding check on `check-docs` (B) is the cheapest way to make coverage
-knowable, on a gate that already runs, in a repo where 37 of the last 40 commits were docs-only. It
-gets much easier once B2 exists, because generated ids bind by construction.
-
-Everything else in this map is worth doing and none of it is urgent. These three are load-bearing for
-the rest.
+The three keystones in §2 remain the right *structural* order for whatever is funded after it:
+component-as-translation-unit (A, doc-only), the `lib/dut.py` extraction (D — phase 1 P1 is exactly
+this), and reusing `check-docs` as the gate mechanism (H).

@@ -173,6 +173,32 @@ It proves the generation pattern against `check_settings_wiring.py`'s working pr
 time, and lands the Aquarium hole as a real failing cell on day one — which is the correct first
 result, and the same shape as every other gate in this programme.
 
+
+
+## 2b. The physical design: what the tiers actually are
+
+A test architecture for *this* system has to answer one question honestly: **what can be known
+without the device?** Everything else follows. Five tiers, ordered by cost per run, each with an
+entry rule strict enough that things cannot drift upward into the expensive tier by default —
+which is exactly how the project arrived at 100 % DUT testing.
+
+| Tier | Runs on | Cost | Gate | What belongs here |
+|---|---|---|---|---|
+| **T0 — static** | host, no compile | ~1 s | every commit | grep/parse invariants over the source: `run/check-docs`, `check_settings_wiring`, registry staleness, `T_CC_01`/`T_CQ_03`-shaped rules, id binding (§6) |
+| **T1 — unit** | host, compiled | seconds | every commit | pure functions over pure data: `util/mathUtil`, `asciiFold`, `textFit`, `timeFmt`, M3U parsing, playlist ordering, settings (de)serialisation, ICY/HTTP header parsing |
+| **T2 — component** | host, compiled, mocked seams | seconds | every commit | one component against a faked collaborator: an app's tick/input state machine against a fake `dataTask` (IFC-001), playlist source against a fake FS |
+| **T3 — functional** | **the DUT** | 30–90 min | before merge of behaviour change | anything touching `tft`, WiFi, I2S, SD, touch, FreeRTOS scheduling, or real Spotify — today's whole suite |
+| **T4 — endurance** | the DUT, hours | hours | on demand / before a milestone close | `run/wr-soak`, `run/stress`, `run/pr-soak`, heap-fragmentation and drift behaviour |
+
+**The entry rule, which is the whole design:** a test goes in the *lowest* tier that can falsify the
+claim. A test may only sit in T3 if it names the physical dependency that forces it there. That one
+sentence, enforced at review, is what stops T3 growing to 209 bodies again.
+
+**What this project would gain, concretely.** Of the 209 T3 bodies, the ones asserting on parsing,
+ordering, formatting, clamping and state-machine transitions do not need a device — they need the
+device only because that is where the code is. That is a structural fact about `#include <Arduino.h>`,
+not about the tests. Which brings us to why T1 is not free.
+
 ## 2c. Coverage against ADR-060's levels — the answer is *no*, and it is structural
 
 ADR-060 D2a declares four levels. [M-LEVELS](M-LEVELS-dependency-audit.md) has now measured them.
@@ -204,7 +230,7 @@ Three consequences worth stating plainly:
    the long way round.
 2. **The cause is C7, not the test suite.** You cannot address a component you cannot compile alone,
    and the firmware is effectively one translation unit
-   ([M-CODEQUAL review C7](M-CODEQUAL-review.md)). This is the third document to arrive at C7 from a
+   ([M-CODEQUAL §12 C7](M-CODEQUAL-duplication-and-abstraction.md)). This is the third document to arrive at C7 from a
    different direction, and the sharpest statement of why it matters: **D0 is what makes level-aware
    testing possible at all.**
 3. **The conformance matrices (§2) are level-aware where it is free.** Rows `A5` (TLS bracket) and
@@ -216,30 +242,6 @@ Three consequences worth stating plainly:
 must be read as *end-to-end coverage of L3 behaviour*, and should never be quoted as component
 coverage — and that the levels, once gated (M-LEVELS §5), give the tier model something real to
 attach to.
-
-## 2b. The physical design: what the tiers actually are
-
-A test architecture for *this* system has to answer one question honestly: **what can be known
-without the device?** Everything else follows. Five tiers, ordered by cost per run, each with an
-entry rule strict enough that things cannot drift upward into the expensive tier by default —
-which is exactly how the project arrived at 100 % DUT testing.
-
-| Tier | Runs on | Cost | Gate | What belongs here |
-|---|---|---|---|---|
-| **T0 — static** | host, no compile | ~1 s | every commit | grep/parse invariants over the source: `run/check-docs`, `check_settings_wiring`, registry staleness, `T_CC_01`/`T_CQ_03`-shaped rules, id binding (§6) |
-| **T1 — unit** | host, compiled | seconds | every commit | pure functions over pure data: `util/mathUtil`, `asciiFold`, `textFit`, `timeFmt`, M3U parsing, playlist ordering, settings (de)serialisation, ICY/HTTP header parsing |
-| **T2 — component** | host, compiled, mocked seams | seconds | every commit | one component against a faked collaborator: an app's tick/input state machine against a fake `dataTask` (IFC-001), playlist source against a fake FS |
-| **T3 — functional** | **the DUT** | 30–90 min | before merge of behaviour change | anything touching `tft`, WiFi, I2S, SD, touch, FreeRTOS scheduling, or real Spotify — today's whole suite |
-| **T4 — endurance** | the DUT, hours | hours | on demand / before a milestone close | `run/wr-soak`, `run/stress`, `run/pr-soak`, heap-fragmentation and drift behaviour |
-
-**The entry rule, which is the whole design:** a test goes in the *lowest* tier that can falsify the
-claim. A test may only sit in T3 if it names the physical dependency that forces it there. That one
-sentence, enforced at review, is what stops T3 growing to 209 bodies again.
-
-**What this project would gain, concretely.** Of the 209 T3 bodies, the ones asserting on parsing,
-ordering, formatting, clamping and state-machine transitions do not need a device — they need the
-device only because that is where the code is. That is a structural fact about `#include <Arduino.h>`,
-not about the tests. Which brings us to why T1 is not free.
 
 ## 3. T1/T2 — the honest cost, and the one thing that makes it payable
 
@@ -495,24 +497,22 @@ what a flake *entitles* you to. Proposed, minimal:
 The existing watchlist memory (`T169` yahoo/network, `T_PR_05` `[NETWORK]`, `T_WR_TLS_01` residual)
 is the seed list, and it already carries reasons — it just lives outside the harness.
 
-## 8. Staging — cost-ranked, and honest about what is not worth doing
 
-| # | Item | Cost | Payoff | Verdict |
-|---|---|---|---|---|
-| 1 | `lib/dut.py` extraction + `resolve_port()` + migrate 16 importers | low–med | unblocks everything else; kills 19 hardcoded ports | **do first** — supersedes TASK-478 as scoped |
-| 2 | Id-binding check in `run/check-docs` (§6) | low | the only thing that makes coverage knowable | **do second** — cheapest real win in the document |
-| 3 | Flake policy in `report.py` (§7) | low | makes D13 baselines trustworthy | **do** |
-| 3b | T1 runner on the 3 already-clean `util/` files (§3) | **low** | a real unit tier, gated, no shim | **do** — cheapest proof T1 works |
-| 4 | Arduino/FS host shim spike (§3), timeboxed | med | decides whether T1 extends past `util/` | **do as a spike, then decide** |
-| 4b | **`get idle` quiescence predicate (§3b.3 item 3)** | **low** | probes whether 252 settling sleeps are removable, for one day's work | **do early** — cheapest test of the whole synchronisation thesis |
-| 5 | Generated typed console accessors (§4 I2) | med | deletes helpers; renames fail on host in 1 s | **do after 1** |
-| 5b | Correlated commands + completion acks (§3b.3 items 1–2) | med | removes positional matching; deletes the tap-settle sleeps | **land with item 1**, not after |
-| 5c | `watch <var>` for the ~10 polled keys (§3b.3 item 4) | med, firmware | deletes the condition-poll loops; makes latency measurable | **after 5b** — unsafe without correlation |
-| 6 | Split the 209 test bodies by family (TASK-480) | med–**high risk** | legibility | **do after 1, not before** |
-| 7 | Directory move + taxonomy (TASK-481) | low, wide | consistency | **do last** — it churns every doc path |
-| 8 | `set fault` injection surface (§4) | med, firmware | soak-only tests become deterministic | **price it first**; proposal only |
-| 9 | A C++ test framework (Unity/GTest) | med | — | **do not** — generalise `test_check_docs.py` instead |
-| 10 | T2 mock infrastructure | high | — | **do not, yet** — no components to mock until D0 |
+## 8. Staging — superseded; see M-TESTBASE phase 1
+
+**Priority is set by [M-TESTBASE phase 1](M-TESTBASE-phase1-player-gate.md)**, which scopes the first
+tranche to the 3-mode player and funds four items: `lib/dut.py` (P1), `get player` (P2), the 9×7
+mode-transition matrix (P3), `get idle` (P4). That document is the schedule; this one is the reasoning
+behind it.
+
+Everything else this document argues for is **deferred, deliberately**, and recorded here so it is not
+re-derived: id-binding gate (§6), flake policy (§7), T1 on the three clean `util/` files (§3), the
+Arduino/FS shim spike (§3), generated console accessors (§4 I2), correlated commands + `watch`
+(§3b.3 items 1/2/4 — gated on P4 producing evidence), the runner split (TASK-480, **after** P1 not
+before), the directory move (TASK-481).
+
+Two items remain **do-not**, on measurement rather than taste: a C++ test framework (generalise
+`test_check_docs.py` instead) and T2 mock infrastructure (nothing to mock until D0).
 
 ## 9. Do not lose
 
