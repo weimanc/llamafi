@@ -16,6 +16,7 @@ Nothing escalated yet. Entries appear here as `E-NN` with the decision needed an
 | id | doc | question | my lean |
 |---|---|---|---|
 | **E-01** | ADR-060 | I narrowed the ADR to authorise **Stages A+B only**; C/D/E/F now need a separate ADR. This reverses a sign-off you have not given yet, in the conservative direction. Confirm? | **Accept the narrowing.** @Developer's argument is strong and matches M-SRCLAYOUT §5b's own lean: A+B already captured most of the listed benefits at near-zero risk; Stage E's distinct win is build time, which nobody here has ever complained about; and two of Stage E's costs were underweighted (wrong budget axis, and a composition-root gap four documents missed). |
+| **E-05** | **scheduling** | **@PM: this whole board should lose to closing M-WINAMP-PLAYER.** That milestone is paused over work quality with 12 open entries; this board reproduces two of its three diagnosed failure modes on a compressed timescale, in the same week. Do you want the M-ARCH programme scheduled at all, or M-WINAMP-PLAYER resumed first? | **@PM is right and I do not overrule it.** I produced this board; PM is the scheduler and read it cold. Recommended next session, in order: **TASK-488 + 497 in one DUT block** → decide 455/456/471/472 on what it finds → **495 folded into 458** → **466** → **475** → **478** → then M-WINAMP-PLAYER (PM would put **TASK-424**, the SD write panic, ahead of most of this board if DUT time is scarce). |
 | **E-03** | process | QM proposes a standing rule: **no ADR / design doc / IFC gates other work, or is cited as fact by another agent, until at least one independent review has run against it.** Adopt? | **Adopt.** Eight confirmed errors from nine raised, across three reviewers, in one day's output. The rule is the only one of QM's recommendations that would have prevented all of them. Cost is real — it serialises authoring behind review — which is why it is yours to decide, not mine. |
 | **E-04** | `best_practices.md` | Land **BP-DOC-1** (cite symbols, not coordinates) and **BP-DOC-2** (landed work says so, with the commit) as new entries, and amend **BP-060** to widen its scope from handover prompts to any document a cold agent treats as fact? | **Yes to all three.** BP-DOC-1 has a measured baseline and a gate; BP-DOC-2 has two real precedents; the BP-060 widening replaces what would have been a redundant BP-DOC-3. Drafts are staged in `docs/quality/bp-candidates-doclife.md`. |
 | **E-02** | `dataTaskStorage.cpp` | **A live divergence, not a doc issue.** `fetchWeather` resumes Spotify's TLS **after** its JSON parse; `fetchCrypto` **before** — and a comment claims they match. One is wrong, or it is deliberate and undocumented. Which timing is correct? | **Needs someone who knows the intent.** Resume-before-parse gives Spotify heap back sooner but lets it reconnect *during* a parse — on this device that is the TASK-289 shape. Resume-after is safer and slower. I lean **after** (weather's behaviour), but this is a judgement about a real runtime tradeoff. Filed TASK-495; it **gates** TASK-458. |
@@ -31,7 +32,7 @@ Nothing escalated yet. Entries appear here as `E-NN` with the decision needed an
 | 1 | @Developer | ADR-060, M-SRCLAYOUT, M-CODEQUAL | **DONE** — 3 MAJOR accepted, all verified true |
 | 2 | @VE | IFC-002, IFC-003, M-CONCURRENCY, M-TESTARCH, reserved test ids | **DONE** — 1 BLOCKER + 2 MAJOR, all verified true; IFC-002 → v2 |
 | 3 | @QM | M-DOCLIFE, check-docs spec, 3 BP candidates | **DONE + INTEGRATED** (`38edadb`, `e97e7d3`, `2d1d0ac`, `728fb15`) |
-| 4 | @PM | `tasks-architecture.md`, sequencing, M-ARCH split | **RUNNING** |
+| 4 | @PM | `tasks-architecture.md`, sequencing, M-ARCH split | **DONE + INTEGRATED** (`b540f4c`) — chain complete |
 
 **Self-review passes** (do these while a subagent runs — never touch a doc a running agent owns):
 
@@ -185,6 +186,39 @@ grep the corpus before calling it fixed.
 LL-114. They do not. LL-114 is about *decay*; BP-DOC-3's precedent is *fabrication at write time*.
 Filing a fabrication lesson under a decay lesson misfiles it for whoever searches next — QM's
 sharpest point of the night, and the reason LL-134 exists as its own entry.
+
+### ~05:15 — @PM integrated (`b540f4c`). **REVIEWER CHAIN COMPLETE.**
+The last reviewer read the one artefact nobody had checked — the board itself — and its central
+finding is about **altitude, not detail** (E-05). Accepted without argument: I produced the board, PM
+is the scheduler, and PM read it cold.
+
+Applied: the PM verdict now sits at the **top** of `tasks-architecture.md`; the inflated "47 tasks"
+figure corrected to **~10–12 actually actionable**; **TASK-458 marked GATED** — its row said OPEN
+while the same file's prose said "gates TASK-458", which would have walked a scheduler into a wall;
+455/456/471/472 demoted **P2 → P3** (a five-deep chain whose step 1 has no owner should not outrank
+independently actionable work); TASK-497 folded into TASK-488's DUT block; TASK-487 folded into 493.
+
+---
+
+## FINAL TALLY — reviewer chain, 2026-08-16
+
+| Reviewer | Raised | Confirmed | Notes |
+|---|---:|---:|---|
+| @Developer | 3 | 3 | all MAJOR; one reversed the ADR's own scope |
+| @VE | 3 | 3 | 1 BLOCKER; 2 of 5 reserved test ids discarded as testing false claims |
+| @QM | 4 | 3 + 1 narrowed | found the 7th error in the doc nobody else was scoped to read |
+| @PM | 6 | 6 | the only altitude finding; corrected a live table/prose contradiction |
+| **Total** | **16** | **15** | **one finding narrowed, none rejected** |
+
+**Fifteen of sixteen findings held.** Not one reviewer was wrong about the substance of what they
+challenged. That is not a sign the reviews were lenient — it is the measurement that matters here:
+**same-day architecture output, unreviewed, currently carries a defect rate high enough that shipping
+any of it without an independent pass is unsafe.** I am the case study, and E-03 is the fix.
+
+Every error clustered in one authoring shape: **an absolute claim written from a partial or
+conditional source.** IFC-002 I5 (universal from a conditional), IFC-002 I4 (universal false about its
+own example), the duplicate-symbol claim, the misfiled citation, "every fetch runs the same
+sequence", "47 tasks". Same mistake, six times, by one author in one day.
 
 ---
 
