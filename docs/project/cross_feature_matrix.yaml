@@ -1433,3 +1433,39 @@ interactions:
       mirroring the existing cyd2usb_webradio precedent — check_build.sh gates go 6 -> 7, not 6 -> 13.
       A full 2^3 matrix is explicitly rejected. Existing -DDISABLE_SPOTIFY stays as-is (load-bearing
       for the harness's `get variant` fast path); do not migrate it in this milestone.
+
+  # ── RESERVED by Architect 2026-08-16 (AGENTS.md rule 10) ──────────────────────
+  # Reserved at design acceptance, NOT at task close-out. Developer completes and
+  # corrects these at implementation; VE attaches test ids. Ownership of this file
+  # stays with Developer — the Architect reserves the row, nothing more.
+  - id: X065
+    feature_a: app-registry-001
+    feature_b: app-interface-001
+    interaction_type: shared_state
+    description: |
+      RESERVED — ADR-060 D2/D3 (M-SRCLAYOUT). Today every app instance and every piece of shell
+      state is defined in main.cpp: 13 `static XApp g_XApp;` definitions plus ~9 loose flags
+      (g_shellBusy, g_previousAppId, g_appLaunched[], s_inGesture, s_lastTouchX/Y, s_cooldownMs,
+      s_tbPressedSlot, s_tbPressedApp), reached by 72 `extern` declarations across the headers.
+      Because those definitions sit mid-file, any code touching them must be textually downstream
+      of that point — which is why main.cpp became the only place new features could land.
+
+      ADR-060 moves ownership: a composition root (shell/appTable.cpp) constructs all thirteen and
+      exposes `App& appById(AppId)`; the loose flags become one `ShellState` behind
+      `ShellState& shell()`. The registry X-macro drives the table, so it cannot drift from AppId
+      (run/check step 6 already gates that).
+
+      The seam this row records: **the app registry and the App interface now share a single owned
+      state object and a single construction site**, where previously each app was independently
+      defined and independently reachable. Two consequences to verify at implementation:
+      (1) construction order — all 13 instances land in ONE translation unit, so order is
+      well-defined top-to-bottom, but only while no App subclass has a user-defined constructor
+      (ADR-060 D5; verified true 2026-08-16, and a constraint from here on);
+      (2) `hasError()` stickiness across switchApp must survive the move (see X019).
+    risk: medium
+    test_coverage: []
+    notes: |
+      RESERVED, NOT COMPLETE — Developer to correct feature_a/feature_b if the seam is better
+      described against different ids, fill risk from implementation, and VE to attach ids from the
+      T_SRC_ family (reserved in test_plan.md, same date). Tracked as TASK-456 / TASK-471.
+      Design: docs/architecture/designs/M-SRCLAYOUT-main-decomposition.md

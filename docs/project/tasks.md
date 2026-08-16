@@ -29,7 +29,7 @@ deliberately NOT filed — it waits for the study's graduation proposal (R&D pro
 
 - **M-WINAMP-PLAYER** active tasks: [tasks-winamp-player.md](tasks-winamp-player.md) — 12 entries.
 - **M-ARCH** (M-SRCLAYOUT · M-CODEQUAL · M-TOOLING · M-DOCLIFE) active tasks:
-  [tasks-architecture.md](tasks-architecture.md) — 36 entries.
+  [tasks-architecture.md](tasks-architecture.md) — 42 entries.
 - Closed tasks (all milestones): [tasks-archive.md](tasks-archive.md).
 
 ---
@@ -57,6 +57,7 @@ TASK-488 gates the rest of the board.
 | **TASK-478**, 479/480/481/482 | P2/P3 | OPEN | `tools/lib/dut.py`; split the 10 229-line runner; spike retirement |
 | TASK-476/477 | P3 | OPEN | `mb_arena` relocation (blocked on a build question); header-comment fix |
 | TASK-483…487 | P2–P4 | SKELETON | test architecture, error model, levelization audit, vendoring, ADR-028 revisit |
+| TASK-489…494 | P2/P3 | MIXED | handoff debt — X065 + test-id reservations (done), X015 fix, `architecture.md` sync |
 
 > **Unblocked and independently valuable today**, if this board is only partly scheduled:
 > **TASK-458** (RAII), **TASK-466** (build matrix — `cyd2usb` has been broken for months),

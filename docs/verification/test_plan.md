@@ -11,6 +11,63 @@ From `feature_inventory.yaml` + `cross_feature_matrix.yaml`. Hierarchy: suite→
 
 ---
 
+## Suite: M-ARCH — RESERVED id families (Architect, 2026-08-16)
+
+> **RESERVED, NOT WRITTEN.** Per AGENTS.md the Architect reserves and **VE owns this file** — these
+> rows exist so the ids are visible and not re-used, and so the design docs' test obligations are
+> not stranded in `docs/architecture/`. VE writes the actual entries (Objective / Preconditions /
+> Steps / Expected result / Status), challenges the criteria for testability, and may rename or
+> discard any of them.
+>
+> Three families, ~19 ids, all currently **planned**. Full criteria live in the design docs linked
+> per family; they are deliberately **not** duplicated here, because a criterion copied into two
+> files diverges (LL-114).
+
+### `T_CC_01`–`T_CC_05` — task-ownership contract
+**Source**: [IFC-002](../architecture/interfaces/IFC-002.md) ·
+[M-CONCURRENCY §6](../architecture/designs/M-CONCURRENCY-task-ownership-contract.md) ·
+**Task**: TASK-473
+
+| id | Must be true |
+|---|---|
+| `T_CC_01` | no context but `loopTask` calls `tft.*` (IFC-002 I2) |
+| `T_CC_02` | every `tlsYield()` has a matching resume on all paths (I1) — guaranteed by construction after TASK-458 |
+| `T_CC_03` | pump-task callbacks set flags only (I4) |
+| `T_CC_04` | cross-context results carry identity (I5) |
+| `T_CC_05` | task core/priority/stack matches IFC-002 §1 — catches drift like the X015 Core-0 error |
+
+**VE note**: I2/I3/I5 have **no enforcement today**; only I4 has a `configASSERT`. `T_CC_01` and
+`T_CC_04` are review-shaped rather than executable, and VE should decide whether they are tests at
+all or belong on a checklist — the `T_AE_05` precedent says a review gate counted as a test inflates
+coverage.
+
+### `T_SRC_01`–`T_SRC_08` — source layout
+**Source**: [M-SRCLAYOUT §9](../architecture/designs/M-SRCLAYOUT-main-decomposition.md) ·
+[ADR-060](../architecture/decisions/ADR-060.md) · **Tasks**: TASK-453…457, 471, 472, 488
+
+Covers behaviour-neutrality across the decomposition stages, dispatch integrity after the
+composition root lands, taskbar indicator semantics (ADR-046), debug-surface parity, registry
+staleness, and the `dram0_0_seg` budget per component.
+
+**VE note**: `T_SRC_01` is the load-bearing one and is **deliberately not new work** — it is the
+existing suite run unchanged. It requires a **≥3-run baseline with the flaky set pre-declared**
+(ADR-059 D13). **That baseline was never taken for the two stages that already landed** (`78caa95`,
+`b36f184`) — see TASK-488.
+
+### `T_CQ_01`–`T_CQ_06` — code quality
+**Source**: [M-CODEQUAL §10](../architecture/designs/M-CODEQUAL-duplication-and-abstraction.md) ·
+**Tasks**: TASK-458…463
+
+Covers yield/resume balance after the RAII guards, fetch-consolidation neutrality (incl. cert-break
+injection per tag), the single-source geometry grep, debug-surface parity after table dispatch, bake
+determinism against `golden.sha256`, and the memory budget.
+
+**VE note**: `T_CQ_03` is a grep, not a DUT test — `grep -rnE '\b(275|320)\b' app/tools/ app/src/`
+returning only generated headers and data tables. Cheap and objective; worth keeping as a gate
+rather than a test.
+
+---
+
 ## Suite: serialdbg-001 — Serial debug command surface (M-SERIALDBG)
 
 Tests for the expanded serial command interface. All require M-SERIALDBG firmware in tree (`tap` / `drag` / `get` / `set` / `info` / `help` commands implemented). Host-side: pyserial or `pio device monitor` piped through a script.

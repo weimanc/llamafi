@@ -114,6 +114,54 @@ fill in.
 | TASK-486 | P3 | SKELETON | [M-VENDORING](../architecture/designs/M-VENDORING-upstream-policy.md) — five vendored trees, five conventions, no upstream refs recorded |
 | TASK-487 | P4 | SKELETON | [M-DISPLAYSEAM](../architecture/designs/M-DISPLAYSEAM-adr028-revisit.md) — re-read ADR-028. Likely outcome: rejection stands |
 
+## Handoff debt — reservations the Architect owed and did not perform
+
+These are the failure AGENTS.md rule 10 was written to prevent, reproduced by the pass that cited
+the rule. Filed 2026-08-16 after a second sweep for uncaptured items.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-489 | P2 | **DONE 2026-08-16** | reserve X065 in `cross_feature_matrix.yaml` — Developer completes |
+| TASK-490 | P2 | **DONE 2026-08-16** | reserve `T_CC_`/`T_SRC_`/`T_CQ_` families in `test_plan.md` — VE completes |
+| TASK-491 | P3 | OPEN | correct X015 — it claims `dataTask` runs on Core 0; it pins to `APP_CPU_NUM` |
+| TASK-492 | P3 | OPEN | retire `handleVolumeGesturePublic()` — M-AUDIO-ENGINE OQ2's surviving half |
+| TASK-493 | P2 | OPEN | sync `architecture.md` — its diagram still shows `loop()` as the app shell |
+| TASK-494 | P3 | OPEN | `feature_inventory.files:` → `components:` once components exist |
+
+**TASK-489 / TASK-490 — reservations performed.** M-SRCLAYOUT's header claimed *"registers as
+X065"*; the matrix contained no such row. M-CONCURRENCY mined 24 matrix entries and registered none
+back. ~19 test ids (`T_CC_01–05`, `T_SRC_01–08`, `T_CQ_01–06`) existed only inside design docs, with
+`test_plan.md` — which VE owns — untouched. Both now carry **reservations**, explicitly marked
+incomplete: Developer corrects and completes the matrix row, VE writes the test entries and may
+rename or discard any of them. The Architect reserves; it does not fill in other roles' files.
+
+**TASK-491 — X015 is factually wrong.** It states *"dataTask fetch functions … run on Core 0"*.
+`dataTaskStorage.cpp:117` pins to `APP_CPU_NUM` (core 1), and `git log -S'PRO_CPU_NUM'` shows it
+never did otherwise. The entry's *conclusion* (spinlock-published results) is correct; its stated
+reason is not. Matters because IFC-002 §1.1 turns on all four contexts sharing one core — a reader
+who believes X015 will reason about SMP races that cannot occur. Developer owns the file.
+
+**TASK-492 — `handleVolumeGesturePublic()`.** M-AUDIO-ENGINE OQ2 had two halves. The first — the
+Spotify-hardcoded `handleWinampInput()` — **is fixed**: ADR-059 D7's capability mask landed and
+`winampDisplay.h:593-597` gates every zone on `_playerCaps`. The second is the workaround that
+hardcoding forced: `handleVolumeGesturePublic()` at `winampDisplay.h:696`, still called from
+`webRadioApp.h:821`. OQ2 is explicit that it must be retired **in its own commit, never as a side
+effect** — it shares the `D_VOLUME_DRAG` state machine (TASK-352), and WebRadio's volume-drag path
+already cost TASK-406 a missing-log-line bug.
+
+**TASK-493 — `architecture.md` sync.** AGENTS.md rule 8 makes this the Architect's job. Line 49 still
+draws `loop() — app shell (appShell.h)`, which the three landed commits and ADR-060 D0/D1 both
+contradict. **Do it after TASK-488**, not before: the living spec should reflect *validated*
+implementation, and none of it is validated yet.
+
+**TASK-494 — the inventory join key.** `feature_inventory.files:` is the only mapping between the
+functional decomposition (81 features) and the physical one (~28 components). It broke the moment
+Stages A/B landed. Pointing it at components instead of files makes it survive moves — and makes
+"31 of 81 features list `main.cpp`" into a metric rather than noise. Blocked until components exist
+(TASK-471).
+
+---
+
 ---
 
 ## PM note — the honest read
