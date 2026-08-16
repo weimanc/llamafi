@@ -35,6 +35,18 @@
 > good TASK-458/466/475/478 are individually.
 >
 > Escalated as **E-05**. The Architect does not overrule this.
+>
+> ### Human ruling, 2026-08-16: **M-ARCH is prioritised. PM's recommendation is overruled.**
+>
+> Recorded rather than quietly applied, because PM's reasoning stands on its own and the next reader
+> should see both. PM's case — that this board reproduces two of M-WINAMP-PLAYER's diagnosed failure
+> modes while that paused milestone waits — is **not withdrawn and is not wrong**. The human has
+> weighed it and chosen differently, which is theirs to do.
+>
+> What does **not** change under this ruling: **TASK-488 still gates the M-SRCLAYOUT chain** (three
+> commits landed unreviewed and un-baselined; prioritising the programme does not un-land them), and
+> **BP-066 now applies to everything on this board** — no document here gates work or is cited as
+> fact until independently reviewed. Prioritising the programme raises the value of both, not less.
 
 **Priority key**: P1 blocking · P2 should-do · P3 nice-to-have · P4 watch
 
@@ -74,7 +86,7 @@ navigation has **not** been run. **Nothing in this board should land until this 
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-458 | **P2** | **GATED on 495** | C2 — `TlsYieldGuard` / `HttpSession` RAII guards. **Highest value in this board**: fixes a bug class with a proven production instance (TASK-222). *@PM: the table said OPEN while this file's own prose said "gates TASK-458" — corrected. **Fold TASK-495 in as 458's first step**, not a separate schedulable item; it is a 30-minute decision, not a build.* |
+| TASK-458 | **P2** | **UNBLOCKED** (495 decided) | C2 — `TlsYieldGuard` / `HttpSession` RAII guards. **Highest value in this board**: fixes a bug class with a proven production instance (TASK-222). *@PM: the table said OPEN while this file's own prose said "gates TASK-458" — corrected. **Fold TASK-495 in as 458's first step**, not a separate schedulable item; it is a 30-minute decision, not a build.* |
 | TASK-459 | P3 | BLOCKED on 458 | C2b — migrate `s_aeSpotifyYielded` to a transferable guard. Touches audio teardown ordering (`T_AE_04`) |
 | TASK-460 | P2 | BLOCKED on 458 | C1 — consolidate the nine `fetch*()` functions onto one skeleton |
 | TASK-461 | P2 | OPEN | C5 — one canonical canvas/window constant across firmware, bake and previews. 275 has **six names in three layers** |
@@ -189,10 +201,19 @@ Stages A/B landed. Pointing it at components instead of files makes it survive m
 
 | task | pri | status | title |
 |---|---|---|---|
-| **TASK-495** | **P2** | OPEN | `fetchWeather` and `fetchCrypto` disagree on when `tlsResume()` fires — decide which is correct |
+| **TASK-495** | **P2** | **DECIDED 2026-08-16 — resume-AFTER; implementation open** | `fetchCrypto` moves its `tlsResume()` to after its JSON parse, matching `fetchWeather`. Human ruling (E-02). |
 | TASK-496 | P2 | OPEN | `appRegistry.h` has no conditional-compilation column; 3 of 13 apps are `#ifdef WINAMP_DISPLAY` |
 
-**TASK-495 — a live divergence, found by review, verified in source.** `fetchWeather` resumes the
+> **RESOLVED 2026-08-16 (E-02, human): resume-AFTER the parse.** `fetchCrypto` changes to match
+> `fetchWeather`; the stale comment at `dataTaskStorage.cpp:262-265` claiming they already match
+> becomes true. Rationale: resume-before hands heap back sooner but lets the Spotify task reconnect
+> *during* a parse — the TASK-289 shape. Resume-after is the safer of the two and is what the
+> `TlsYieldGuard` scoped to end-of-function would produce anyway, so TASK-458 no longer has to change
+> behaviour silently. **TASK-458 is unblocked**; do this as its first commit, separately, so the
+> behaviour change is reviewable on its own.
+>
+> *Original finding, retained:*
+> **TASK-495 — a live divergence, found by review, verified in source.** `fetchWeather` resumes the
 Spotify TLS session **after** its JSON parse (`dataTaskStorage.cpp:311`; parse `:289-309`).
 `fetchCrypto` resumes **before** its parse (`:360`; parse `:362-386`). The comment at `:262-265`
 asserts weather *"matches crypto below"* — it does not. One of these is wrong, or the difference is
