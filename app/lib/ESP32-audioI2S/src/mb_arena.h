@@ -10,7 +10,9 @@
 // is a halved-DMA config change that never touches this allocator.
 // See app/lib/ESP32-audioI2S/LOCAL_PATCHES.md for the full patch record.
 // All public symbols are no-ops (inline wrappers for standard heap) when
-// MEMBUDGET_PHASE1 is not defined — production (cyd2usb_winamp) is byte-clean.
+// MEMBUDGET_PHASE1 is not defined. Production (cyd2usb_winamp) DEFINES
+// MEMBUDGET_PHASE1 (platformio.ini, TASK-262 promotion 2026-06-29) — the
+// arena is live there, not a no-op.
 
 #pragma once
 #include <stddef.h>
