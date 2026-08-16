@@ -111,7 +111,7 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
 ./run/wr-soak [min]           # WebRadio playback + A-lite arena-churn soak (TASK-271; flash webradio build → soak → restore prod)
 ./run/ae04 [cycles]           # T_AE_04 audio-engine teardown ordering, eject mid-CONNECTING (TASK-409; flash webradio build → test → restore prod)
 ./run/pr-soak [min]           # PlaneRadar + Spotify coexistence soak (TASK-307; flash debug → soak → restore prod)
-./run/check                   # 7-gate build check (check_build.sh)
+./run/check                   # 11-gate build check (check_build.sh)
 ./run/bake-skin               # bake Winamp skin assets
 ```
 
@@ -126,9 +126,12 @@ Other envs (don't use on this board): `cyd` (single-USB CYD, inversion off), `tr
 ### Build check (run before/after structural changes)
 
 ```sh
-./run/check   # 7 gates: cyd2usb_winamp, cyd2usb_winamp_debug, cyd2usb_player, golden.sha256,
-              # smoke, app-registry staleness, mem_layout staleness+budget
-              # (+ one warn-only settings-wiring gate, not counted)
+./run/check   # 11 gates: full env matrix (cyd2usb_winamp, cyd2usb_winamp_debug, cyd2usb_player,
+              # cyd2usb_winamp_screenlog, cyd2usb_webradio, cyd2usb_webradio_16k,
+              # cyd2usb_winamp_debug_noSpotify — every buildable env in app/platformio.ini;
+              # [env:cyd2usb] excluded, demoted to non-building [cyd2usb_base] per ADR-061 D8/
+              # TASK-467), golden.sha256, smoke, app-registry staleness, mem_layout
+              # staleness+budget (+ one warn-only settings-wiring gate, not counted)
 ```
 
 Exit 0 = all pass. Minimum safety gate before committing structural changes (see BP-008).
