@@ -35,6 +35,21 @@ Nothing escalated yet. Entries appear here as `E-NN` with the decision needed an
 
 ---
 
+## 1b. SIGN-OFF — 2026-08-16, session closed
+
+**@PM: qualified yes.** Build gate 3 → 11 envs, dead variants retired, *"a chain that's earning its
+keep, not decoration"*. **Still disagrees with the E-05 ruling** — stated once, not relitigated, and
+that dissent is CLOSED, preserved for the record only. **Not fully safe to stop: TASK-488.**
+*"Establishing the baseline now is cheap; reconstructing it later against a moving master isn't."*
+
+**@QM: qualified yes**, verified against the commits rather than the summary. All four bars met —
+BP-061 (TASK-467 refused to delete on the ADR's word and grepped instead), BP-062 (TASK-466 measured
+the claim its predecessor never had), BP-063 (491/477 cite the line that grounds them). **Trend
+improving** — *"not because errors stopped, but because the catch rate went up faster than the error
+rate."* **Nothing to reject or redo.** TASK-488 correctly left open rather than quietly closed.
+
+**Both agree: documentation and review work stops here. TASK-488 is the one load-bearing item left.**
+
 ## 2. STATE — how to resume
 
 **Reviewer chain, ONE AT A TIME, never concurrent:**
