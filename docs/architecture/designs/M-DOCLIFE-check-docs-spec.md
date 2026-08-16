@@ -105,11 +105,11 @@ Every failure prints `file:line: <what> -> <why>` so it is directly actionable.
 
 | Phase | Blocking | Advisory | Precondition |
 |---|---|---|---|
-| 1 | C5 | C1, C2, C3, C4 | none — ship immediately |
-| 2 | C5, C2 | C1, C3, C4 | PM files TASK-453…474 |
-| 3 | C5, C2, C3 | C1, C4 | ADR-061 D8 lands |
-| 4 | C5, C2, C3, C4 | C1 | C4 scoped per §2; `draft` folded in |
-| 5 | all | — | C1's 274 cleared — **may never happen, and that is acceptable** |
+| 1 | C5, **C1-`delta`** | C1-full, C2, C3, C4 | none — ship immediately (§4a) |
+| 2 | + C2 | C1-full, C3, C4 | ~~PM files TASK-453…474~~ **DONE** — filed 2026-08-16, C2 now reads 0 |
+| 3 | + C3 | C1-full, C4 | ADR-061 D8 lands |
+| 4 | + C4 | C1-full | C4 scoped per §2; `draft` folded in |
+| 5 | + C1-full | — | the 274 backlog cleared — **optional; may never happen** |
 
 ### 4a. C1 gets a delta-only blocking mode — @QM amendment, 2026-08-16
 

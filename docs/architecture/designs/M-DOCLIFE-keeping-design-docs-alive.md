@@ -43,7 +43,7 @@ Accuracy at write time is not the problem; *decay* is, and decay has no owner.
 
 | # | Mode | Detectable? | Precedent |
 |---|---|---|---|
-| **D1** | **Positional** — `file:line` moves | **yes, cheaply** | this session; 1 171 citations |
+| **D1** | **Positional** — `file:line` moves | **yes, cheaply** | this session; 274 of 576 gated citations already broken |
 | **D2** | **Mirrored fact** — a doc/tool copies a firmware truth | **yes** | **LL-114**, TASK-335 |
 | **D3** | **Status** — landed work still marked `proposed` | **yes** | July sweep found 9 stale-`proposed` ADRs |
 | **D4** | **Dangling reference** — points at a deleted thing | **yes** | `run/ceefax-ws-soak` → deleted env |
@@ -56,8 +56,10 @@ D1–D4 are mechanical. **D5 is not, and no gate will catch it** — that one ne
 **PM position: doc updates belong in exit criteria, never in a follow-up task.**
 
 The evidence is already in the tracker. M-PR-LOCATIONS shipped TASK-315..325 with **zero** matrix
-entries, backfilled weeks later. AGENTS.md rule 10 exists *because* end-of-work discipline failed
-once already. A follow-up doc task is a task that competes with feature work and loses.
+entries, backfilled weeks later. `docs/agents/architect.md:20` ("Reserve registry entries at design
+time") exists *because* end-of-work discipline failed once already. *(Citation corrected on @QM
+review — the original said "AGENTS.md rule 10"; AGENTS.md has no numbered rules. Second instance of
+the same misfiled pointer in this document set.)* A follow-up doc task is a task that competes with feature work and loses.
 
 **PM recommendations:**
 
