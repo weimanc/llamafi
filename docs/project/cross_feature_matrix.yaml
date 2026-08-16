@@ -236,13 +236,14 @@ interactions:
 #   feature_a: auth-001
 #   feature_b: api-001
   - id: X015
-    feature_a: dataTask (Core 0 fetch functions)
+    feature_a: dataTask (APP_CPU_NUM fetch functions)
     feature_b: serialdbg (Core 1 serial handler)
     interaction_type: shared_state
     description: |
       dataTask fetch functions (fetchStockQuote, fetchCrypto, fetchWeather,
-      fetchHeatmapQuote) run on Core 0 and publish committed results atomically via
-      spinlock-protected result structs. Core 1's serialdbg handler can query app-layer
+      fetchHeatmapQuote) run on the task pinned to APP_CPU_NUM (dataTaskStorage.cpp:117,
+      `constexpr BaseType_t kPinnedCpu = APP_CPU_NUM;`) and publish committed results
+      atomically via spinlock-protected result structs. Core 1's serialdbg handler can query app-layer
       state (quoteOkCount, fetchErrorCode, cryptoReady, etc.) but only sees the last
       committed result — not in-progress state. If a fetch hangs mid-execution, all
       Core 1 diagnostics reflect default/stale values with no indication of where the
