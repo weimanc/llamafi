@@ -7,7 +7,20 @@
 > Source: [M-DOCLIFE-keeping-design-docs-alive.md](../architecture/designs/M-DOCLIFE-keeping-design-docs-alive.md)
 > Next free ids at time of writing: **BP-064**, and these would derive from a new **LL-134**.
 
-Three candidates. All three are generalisations of **LL-114** — *"artifacts encode truth by copy, with
+**Dispositioned by @QM, 2026-08-16 — read this first.** Two adopt, one does not. My original framing
+below said *"one adoption or none"*; **@QM rejected that bundling and was right to.** QM named it a
+mild instance of the exact failure `tasks-winamp-player.md` records — a persuasive bundle is the shape
+to distrust by default, independent of whether it happens to be partly correct. BP-DOC-1 and BP-DOC-2
+are independently strong and independently gateable; bundling them with a weaker third would have
+forced either lowering the bar or blocking two good candidates to carry one.
+
+| candidate | QM disposition |
+|---|---|
+| **BP-DOC-1** cite symbols, not coordinates | **ADOPT** — clears the BP-063/BP-049 bar |
+| **BP-DOC-2** landed work says so, with the commit | **ADOPT, with a mandatory citation fix** (applied below) |
+| **BP-DOC-3** an admitted gap beats an invented contract | **DO NOT MINT** — fold into a **BP-060 scope widening** instead (§BP-DOC-3 below) |
+
+Two candidates are generalisations of **LL-114** — *"artifacts encode truth by copy, with
 nothing but a comment binding them; the copies rot invisibly because they have no gate"* — moved up
 one altitude from host tools to documents.
 
@@ -50,41 +63,67 @@ concluded wrongly at first that `cheapYellowLCD.h` was droppable, when it still 
 object and `WinampDisplay`'s base class. (2) The July 2026 ADR sweep found **nine** ADRs stuck at
 `proposed` after being implemented, requiring a nine-way disposition pass with code evidence.
 Follow-up status tasks do not get done: M-PR-LOCATIONS shipped TASK-315..325 with zero matrix entries
-and was backfilled weeks later, which is why AGENTS.md rule 10 exists at all. A stale `proposed` is
+and was backfilled weeks later — which is why `docs/agents/architect.md:20` ("Reserve registry entries
+at design time") exists at all. *(Citation corrected on @QM review: the original said "AGENTS.md rule
+10". `AGENTS.md` has no numbered rules — the rule is real but lives in `architect.md`. A misfiled
+pointer, not an invented one, inside the document arguing for accurate references.)* A stale `proposed` is
 not a cosmetic defect — a cold agent reads it as "not yet built" and may rebuild it.
 **Applies to**: All
 
 ---
 
-### BP-DOC-3 — An admitted gap beats an invented contract
+### BP-DOC-3 — **withdrawn as a new entry; re-proposed as a BP-060 scope widening**
 
-**Adopted from**: LL-134 (proposed)
-**Date adopted**: — *(candidate)*
-**Rule**: When a document would need to state something not actually verified — an interface not
-read, a mechanism not measured, a dependency not traced — say so explicitly and reserve the space:
-mark it `STUB`, state what it must cover, and state that it is not implementable. Do not fill the gap
-with a plausible construction. Where a claim *was* checked, say what was checked; where a claim is
-later falsified, correct it **in place, visibly**, rather than quietly deleting it.
-**Rationale**: The failure this prevents was demonstrated at the start of the same session: an
-assertion that certain headers "physically cannot be included from a second `.cpp` — duplicate-symbol
-link errors" was written confidently, was **false**, and a staging plan was built on top of it before
-anyone checked. `dataTask.h` has 32 declarations and zero definitions, and is already included from
-two `.cpp` files. Under many agents the cost is asymmetric: a human who reads a wrong claim tends to
-notice and adapt; **an agent takes it as fact and designs against it**, because documents are the only
-shared memory between sessions. The mitigation is cheap — `IFC-004/005/006` are reserved stubs that
-each say "not yet contracted, blocked on TASK-NNN", and no one can implement the wrong thing against
-them.
-**Applies to**: All
+**@QM disposition, 2026-08-16: do not mint a new number.** I accept it. But the *reason* matters,
+because it changes the edit:
+
+QM argued BP-DOC-3 "substantially overlaps" **BP-060** and **BP-046**. I checked both, and it does not.
+**BP-060 is scoped to handover prompts** — *"When briefing a fresh or continuing agent, mark each
+diagnostic claim as measured / inferred / assumed."* An ADR or an IFC is not a handover prompt.
+**BP-046** is narrower still: design-doc claims about preview/PoC tools. Neither reaches this
+session's failures, so "duplicate" overstates it.
+
+What *is* true, and is the better argument, is that **BP-060's rationale is precisely this disease**:
+
+> *"Delegation multiplies the cost of an unverified assertion: a theory a single engineer would test
+> in five minutes instead becomes hours of plausible-looking work across several agents."*
+
+That is exactly what happened here, one altitude up. A false duplicate-symbol claim became a
+four-stage plan. Two overgeneralised IFC-002 invariants became five reserved test ids, two of which
+had to be discarded once someone checked.
+
+**Proposed amendment to BP-060** — widen the scope clause, leave the rule's substance intact:
+
+> **Rule (amended):** When briefing a fresh or continuing agent, **or writing any document a cold
+> agent will treat as fact — an ADR, a design doc, an interface contract —** mark each diagnostic
+> claim with how it was established: **measured** (with the evidence), **inferred from X**, or
+> **assumed**. Where a document would need to state something not actually verified, say so and
+> reserve the space (`STUB`, "blocked on TASK-NNN") rather than filling the gap with a plausible
+> construction. …*(remainder unchanged)*
+
+**New evidence to append to BP-060's rationale**: the 2026-08-16 architecture pass. Nine design docs,
+two ADRs and three IFCs in one day; three independent reviewers raised nine findings and **eight were
+confirmed**, including an IFC invariant that was false about one of its own named examples and another
+that asserted a universal while citing a source whose own table contradicted it. The mitigation that
+worked was already in use in the same session — `IFC-004/005/006` are reserved stubs saying "not yet
+contracted, blocked on TASK-NNN", and nobody can implement the wrong thing against them.
+
+*(This is QM's call to carry to the human as a BP-060 edit, not mine to land.)*
 
 ---
 
 ## Note for QM
 
-These are worth considering as **one adoption or none**. They are three faces of a single lesson:
-a document is a mirror of a fact, and every mirror needs either a gate or a discipline that stops it
-drifting. BP-DOC-1 has a gate coming (`run/check-docs` C1, spec'd in
-[M-DOCLIFE-check-docs-spec.md](../architecture/designs/M-DOCLIFE-check-docs-spec.md)); BP-DOC-2 has a
-partial one (C4); **BP-DOC-3 can never have one**, which is exactly why it needs to be a practice.
+~~These are worth considering as one adoption or none.~~ **Withdrawn — see the disposition table at
+the top.** QM rejected the bundling and I accept it: BP-DOC-1 and BP-DOC-2 stand on their own evidence
+and their own gates (C1 and C4 respectively), and BP-DOC-3's lesson lands better as a BP-060 widening
+than as a third number.
+
+One correction to my own framing while withdrawing it: I claimed all three generalise LL-114. **They
+do not.** LL-114's shape is *decay* — a fact true when written, rotting because nothing re-checks it.
+BP-DOC-3's precedent is **fabrication at write time**: the duplicate-symbol claim was never true. QM
+caught this, and it matters for retrieval — filing a fabrication lesson under a decay lesson misfiles
+it for whoever searches next.
 
 The supporting evidence would be a single lessons-learned entry, LL-134, covering the 2026-08-16
 session in which all three failure modes occurred within one working day — including custody loss
