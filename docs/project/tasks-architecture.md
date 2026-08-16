@@ -8,10 +8,11 @@
 > M-WINAMP-PLAYER board.
 >
 > **Read this first — the honest state.** Three refactor commits (`a044f5d`, `78caa95`, `b36f184`)
-> **already landed** ahead of ADR sign-off. They are unreviewed, not DUT-verified, and by ADR-060
-> D0's measure they created **zero components** — `main.cpp` went 5 880 → 1 726 lines, which is
-> readability, not physical design. The ≥3-run DUT baseline ADR-060 D9 requires was never taken.
-> **TASK-453 and TASK-454 are therefore retro-filed as landed-but-unverified, not as open work.**
+> **already landed** ahead of ADR sign-off. **As of 2026-08-16 they are reviewed and DUT-verified
+> (TASK-488) and the owed ≥3-run baseline is taken (TASK-497) — nothing was reverted.** What that
+> does *not* change: by ADR-060 D0's measure they created **zero components** — `main.cpp` went
+> 5 880 → 1 726 lines, which is readability, not physical design. **TASK-453 and TASK-454 are filed
+> as landed-and-verified, not as open work.**
 >
 > Closed entries go to [tasks-archive.md](tasks-archive.md).
 
@@ -48,7 +49,8 @@
 > weighed it and chosen differently, which is theirs to do.
 >
 > What does **not** change under this ruling: **TASK-488 still gates the M-SRCLAYOUT chain** (three
-> commits landed unreviewed and un-baselined; prioritising the programme does not un-land them), and
+> commits landed unreviewed and un-baselined; prioritising the programme does not un-land them)
+> — *gate satisfied 2026-08-16: 488 and 497 both closed, chain unblocked* — and
 > **BP-066 now applies to everything on this board** — no document here gates work or is cited as
 > fact until independently reviewed. Prioritising the programme raises the value of both, not less.
 
@@ -63,16 +65,17 @@ landed. **Do these in order**; everything not listed stays filed and unscheduled
 
 | # | Do | Why this position |
 |---|---|---|
-| **1** | **TASK-488 + TASK-497 — one DUT block** | Three refactor commits sit on master unreviewed with no baseline. Everything in M-SRCLAYOUT is gated on this, and **the cost of delay compounds**: each further commit on top widens the blame surface from one to four. Same hardware session covers both — 488's byte-identity/`.map` review and 497's retrospective ≥3-run baseline. |
-| **1a** | *(prerequisite, ~15 lines)* **write TASK-488's pass criteria first** | Its DUT procedure is currently one sentence — *"a pass over app switching, taskbar cycling, eject and Settings navigation"* — with no id, steps, iteration count or fail condition. Compare `T_AE_04`, which specifies ×10 and a 100 ms bound. **Running 488 without criteria is closing against a proxy (BP-061)**: nothing visibly breaks, it gets called verified. |
-| **2** | **Decide 455/456/471/472 on what 488 finds** | Do not pre-schedule. They may need rework rather than continuation. Note ADR-060 authorises **A+B only** — C–F need a new ADR regardless. |
+| ~~**1**~~ **DONE 2026-08-16** | ~~**TASK-488 + TASK-497 — one DUT block**~~ | Three refactor commits sit on master unreviewed with no baseline. Everything in M-SRCLAYOUT is gated on this, and **the cost of delay compounds**: each further commit on top widens the blame surface from one to four. Same hardware session covers both — 488's byte-identity/`.map` review and 497's retrospective ≥3-run baseline. |
+| ~~**1a**~~ **DONE** | *(prerequisite, ~15 lines)* ~~**write TASK-488's pass criteria first**~~ | Its DUT procedure is currently one sentence — *"a pass over app switching, taskbar cycling, eject and Settings navigation"* — with no id, steps, iteration count or fail condition. Compare `T_AE_04`, which specifies ×10 and a 100 ms bound. **Running 488 without criteria is closing against a proxy (BP-061)**: nothing visibly breaks, it gets called verified. |
+| **2** | **Decide 455/456/471/472 on what 488 finds** | **488 found nothing wrong — continuation, not rework.** Do not pre-schedule. They may need rework rather than continuation. Note ADR-060 authorises **A+B only** — C–F need a new ADR regardless. |
 | **3** | **TASK-475** — `run/check-docs` | Unblocked, cheap, self-correcting from then on. C5 blocking day one, C1 in `delta` mode. |
 | **4** | **TASK-478** — `tools/lib/dut.py` | Unblocked, cheap; its absence caused three of M-TOOLING's five findings. Unblocks 479/480. |
 | **5** | **TASK-458** — RAII guards — **with TASK-495 as its first commit** | Real bug class with a proven instance (TASK-222). 495 is parked but **must land in front of this** — see its ordering note. |
 | **6** | **M-WINAMP-PLAYER** | Still paused, 12 entries. @PM would put **TASK-424** (SD write panic, card-independent) ahead of most of this board if DUT time is scarce. |
 
 **Already done, do not re-schedule:** TASK-466 (build gate, 3 → 11 envs), 467, 477, 491, 496 — all
-landed 2026-08-16, `run/check` 11/11.
+landed 2026-08-16, `run/check` 11/11 — plus **TASK-488 and TASK-497**, closed 2026-08-16 in one DUT
+block. **Next in sequence is now #3 (TASK-475).** New follow-ups from the verification: 503–506.
 
 **Not scheduled by design:** the four skeletons (483–486), the M-CODEQUAL remainder (459–463), the
 ADR-061 decommission tail (465, 468–470), M-TOOLING 479–482, and the handoff/registry debt (489–494,
@@ -84,7 +87,45 @@ ADR-061 decommission tail (465, 468–470), M-TOOLING 479–482, and the handoff
 
 | task | pri | status | title |
 |---|---|---|---|
-| **TASK-488** | **P1** | OPEN | review `a044f5d` / `78caa95` / `b36f184` per M-SRCLAYOUT §7a, and take the owed DUT baseline |
+| **TASK-488** | **P1** | **DONE 2026-08-16** — verified, nothing reverted | review `a044f5d` / `78caa95` / `b36f184` per M-SRCLAYOUT §7a, and take the owed DUT baseline |
+
+#### TASK-488 — result, 2026-08-16
+
+**All three commits are verified as pure moves. Nothing was reverted.** Run by a fresh agent against
+the pass criteria below; harness is `app/tools/test_task488_partb.py`, driver `run/task488`, raw logs
+in the session scratchpad.
+
+| id | verdict | evidence |
+|---|---|---|
+| `T_488_01` | **PASS** | All 14 moved blocks byte-identical **and contiguous, in original order**. Removed-vs-added line multisets differ only by added preamble (`#pragma once`, includes, header comment) plus, for `a044f5d`, the 19 struct lines it declares deleted. |
+| `T_488_02` | **PASS** | `SpotifyAppState` / `ClockAppState` / `AquariumAppState`: **0** code references at `a044f5d~1`. Only design docs mention them → TASK-503. |
+| `T_488_03` | **PASS** (stronger than asked) | `.text`/`.rodata`/`.data`/`.bss` extents **identical to the byte** at `a044f5d~1`, `b36f184` and HEAD — 0 B delta, not "<512 B". `firmware.bin` differs by 66 B (prod) / 73 B (debug): build timestamp, injected git hash, app-descriptor SHA256, image checksum. Nothing else. |
+| `T_488_04` | **PASS** | 39/39 switches landed on the requested id; no reboot, WDT or Guru Meditation. |
+| `T_488_05` | **PASS (partial)** | Aquarium — one of the three deleted-struct apps — logged `init` on cycle 1 only and `resume` on cycles 2 and 3, exactly as specified. **The other eleven apps emit no init/resume marker**, so the criterion is not observable for them without firmware instrumentation, which is out of scope for a verification-only session. Recorded as not-observable, not inferred. |
+| `T_488_06` | **PASS** | Clock style `[3,3,3]`, Aquarium fish `[8,8,8]` across three re-entries each; Spotify probe readable throughout. |
+| `T_488_07` | **PASS** | 15 taps over 3 scroll rounds; every slot landed on the app its icon showed. |
+| `T_488_08` | **PASS** | 9/9 mode transitions, `playerMode` tracked each one. |
+| `T_488_09` | **PASS** | All 7 sections entered (`section` 0..6) and each returned to the category list. |
+| `T_488_10` | **PASS** | `help` lists exactly the 26-command `kCmds[]` set, which a static diff confirms is unchanged from `b36f184~1`; all **108** `get` keys resolve, none "unknown". This is the criterion most likely to catch a bad console move, and it is clean. |
+| `T_488_11` | **FAIL as written — NOT ATTRIBUTABLE** | See below. |
+
+**`T_488_11` — why no commit was reverted.** The criterion fails its literal threshold but cannot
+implicate these commits, on two independent grounds:
+
+1. **The binaries are the same machine code.** `cyd2usb_winamp_debug` at `78caa95~1` and at HEAD
+   differ by 73 bytes, all of it build metadata. Heap behaviour cannot differ between them.
+2. **A/B on hardware.** The same test flashed against pre-refactor firmware reproduced the same
+   decline, slightly **worse**: −7548 B on sweep 3 versus HEAD's −3756 B.
+
+The criterion is also not measurable as specified on this DUT: entering WebRadio / LocalPlayer takes
+and releases the ~48 KB A-lite audio arena, which swamps the signal — one pre-refactor sweep read
+**+39144 B**. With the players excluded the per-sweep deltas were −10576, −8580, **+24**: front-loaded
+allocation reaching steady state, not an unbounded leak. An idle control of equal duration drifted
+0 B / +40 B / −32 B across runs, so the harness itself is sound.
+
+**This is a deliberate deviation** from the handover's "on any Part B failure, revert the offending
+commit". There is no offending commit; reverting would not move the number. Redesign of the criterion
+is TASK-504; the pre-existing settling behaviour is TASK-505.
 
 ### TASK-488 — pass criteria
 
@@ -152,20 +193,23 @@ the three deleted structs (`SpotifyAppState`, `ClockAppState`, `AquariumAppState
 covers compile + smoke only — the DUT pass over app switching, taskbar cycling, eject and Settings
 navigation has **not** been run. **Nothing in this board should land until this closes.**
 
+> **CLOSED 2026-08-16.** Performed in full; all three commits verified, nothing reverted. Result
+> table above. The gate this paragraph describes is lifted.
+
 ---
 
 ## M-SRCLAYOUT — decompose main.cpp ([design](../architecture/designs/M-SRCLAYOUT-main-decomposition.md) · [ADR-060](../architecture/decisions/ADR-060.md))
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-453 | — | **LANDED, UNVERIFIED** | Stage A — 7 app classes → `apps/*.h` (`78caa95`) |
-| TASK-454 | — | **LANDED, UNVERIFIED** | Stage B — SERIAL_DEBUG console → `debug/serialConsole/*.h` (`b36f184`) |
-| TASK-455 | P3 | BLOCKED on 488 | Stage C — `setup()` (621 lines) → `boot/boot.{h,cpp}`, verbatim (D1a) |
+| TASK-453 | — | **LANDED, VERIFIED 2026-08-16** | Stage A — 7 app classes → `apps/*.h` (`78caa95`) |
+| TASK-454 | — | **LANDED, VERIFIED 2026-08-16** | Stage B — SERIAL_DEBUG console → `debug/serialConsole/*.h` (`b36f184`) |
+| TASK-455 | P3 | **UNBLOCKED** (488 closed) | Stage C — `setup()` (621 lines) → `boot/boot.{h,cpp}`, verbatim (D1a) |
 | TASK-456 | P3 | BLOCKED on 455 | Stage D — `shell/appTable.{h,cpp}` composition root + `ShellState` (D2/D3/D4) |
 | TASK-471 | P3 | BLOCKED on 456 | Stage E — component conversion; real `.h`/`.cpp` pairs, self-contained (D0) |
 | TASK-472 | P3 | BLOCKED on 471 | Stage F — `stock/` → 3 components, `sd/sdMount`, levelization audit |
 | TASK-457 | P3 | OPEN | hygiene — `appRegistry.h` double-include comment, `currentAppId`/`g_previousAppId` unify |
-| TASK-464 | P2 | BLOCKED on 454 | documentation-reference sweep — 308 `main.cpp:NNN` cites across 49 files + 44 in `feature_inventory.yaml`; pay **once**, at end of Stage B |
+| TASK-464 | P2 | **UNBLOCKED** (454 verified; fold TASK-503 in) | documentation-reference sweep — 308 `main.cpp:NNN` cites across 49 files + 44 in `feature_inventory.yaml`; pay **once**, at end of Stage B |
 
 ## M-CODEQUAL — duplication and abstraction ([design](../architecture/designs/M-CODEQUAL-duplication-and-abstraction.md))
 
@@ -175,7 +219,7 @@ navigation has **not** been run. **Nothing in this board should land until this 
 | TASK-459 | P3 | BLOCKED on 458 | C2b — migrate `s_aeSpotifyYielded` to a transferable guard. Touches audio teardown ordering (`T_AE_04`) |
 | TASK-460 | P2 | BLOCKED on 458 | C1 — consolidate the nine `fetch*()` functions onto one skeleton |
 | TASK-461 | P2 | OPEN | C5 — one canonical canvas/window constant across firmware, bake and previews. 275 has **six names in three layers** |
-| TASK-462 | P3 | BLOCKED on 454 | C3 — table-driven `cmdGet`/`cmdSet` (1 308 lines → a table) |
+| TASK-462 | P3 | **UNBLOCKED** (454 verified) | C3 — table-driven `cmdGet`/`cmdSet` (1 308 lines → a table) |
 | TASK-463 | P3 | OPEN | C4 debug-code convention + C6 shared UI palette |
 
 ## ADR-061 — build-variant hygiene ([ADR](../architecture/decisions/ADR-061.md))
@@ -337,7 +381,7 @@ argument arriving from a second direction. **Blocks TASK-456.**
 
 | task | pri | status | title |
 |---|---|---|---|
-| **TASK-497** | **P2** | OPEN — **run inside TASK-488's DUT session** | retrospective ≥3-run DUT baseline for the landed Stages A/B. *@PM: worth paying for — it is the only way left to recover D13's guarantee, and the cost is bounded and one-time. But it needs the same DUT block as 488's diff review. **One scheduling block, not two.*** |
+| **TASK-497** | **P2** | **DONE 2026-08-16** — 3 runs at HEAD; base-tree half retired on evidence | retrospective ≥3-run DUT baseline for the landed Stages A/B. *@PM: worth paying for — it is the only way left to recover D13's guarantee, and the cost is bounded and one-time. But it needs the same DUT block as 488's diff review. **One scheduling block, not two.*** |
 | TASK-498 | P3 | OPEN | `T_SRC_09` — regression test for IFC-003 I9 (the TASK-384 swallow shape) |
 | TASK-499 | P3 | OPEN | a `T_CC_` id for M-CONCURRENCY G1: enumerate every `WiFi.` call site against the known-safe set |
 
@@ -349,6 +393,35 @@ master. That **does** recover D13's actual guarantee (no test passing in all bas
 What it cannot recover is catching a regression *live*, when a bisect would have been cheap.
 **"We'll trust the diff review instead" is explicitly insufficient** — that is the
 review-reinforces-a-wrong-frame failure the milestone note called out. Pairs with TASK-488.
+
+**TASK-497 — result, 2026-08-16.** Three full `./run/test` runs at HEAD (`3d300e4`), same DUT
+session as TASK-488, sleep-inhibited, each trap-restoring production.
+
+| run | passed | failed | skipped | flaked |
+|---|---|---|---|---|
+| 1 | 138 | 15 | 47 | 5 |
+| 2 | 133 | 17 | 51 | 4 |
+| 3 | 134 | 16 | 51 | 4 |
+
+**Stable core — failed in all three runs (6):** `T_WR_TLS_01`, `T_WR_COEX_01`, `T_WR_VOL_03`,
+`T_WR_EJECT_02`, `T_PLR_06`, `T_PRM_02`. `T_WR_TLS_01` is the root — station fetch failed on every
+mirror (the TASK-284 truncation shape) — and the four other WebRadio/Player ids all need a station
+list, so they cascade from it. None sits near the moved code.
+
+**Union across the three runs: 29 ids — so 23 of 29 failures are run-specific.** Environmental noise
+outweighs deterministic failure on this rig by roughly 4:1. Run 2's extra failures were a network
+degradation visible in the diagnostics as the dataTask backoff counter climbing `cf=17→19` (`T186`,
+`T188`, `T192`, `T193`, `T204`, `T-BUSY-01`, `T272`); run 1's extra failures were missing SD fixtures.
+
+**That ratio is the baseline's real product.** D13's guarantee — *no test passing in all baselines
+fails after* — can only be read against the 6-id core; a single post-change run proves close to
+nothing here. Anyone comparing a future run against this baseline must compare **sets**, per LL-104.
+
+**The base-tree half was retired on evidence, with human sign-off.** The plan was 3 runs at
+`78caa95~1` then 3 at HEAD. `T_488_03` established that the debug binaries at those two trees are the
+same machine code (73 bytes of build metadata apart), so the base-tree runs would have executed an
+identical binary. The human chose to skip them. `78caa95~1` **does** build (verified), so the option
+is still open if the ruling is ever revisited.
 
 **TASK-499 — G1 has no test id at all.** M-CONCURRENCY calls the missing WiFi arbiter "the largest
 unclosed gap" and then reserves nothing for it. If OQ1 there resolves to *document-only*, that
@@ -367,13 +440,26 @@ TASK-404) have no fourth sibling waiting.
 
 ---
 
+## Follow-ups raised by the TASK-488 verification, 2026-08-16
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-503 | P3 | OPEN | Design docs still describe `SpotifyAppState` / `ClockAppState` / `AquariumAppState` as live types — `M-MULTIAPP/app-lifecycle.md` (defines all three), `M-MULTIAPP/clock.md`, `M-AQUARIUM/overview.md`, plus a `roadmap.md` mention. `T_488_02` proved they have **0** code references; `a044f5d` deleted them. Fold into TASK-464's reference sweep rather than paying the doc-open cost twice. |
+| TASK-504 | **P2** | OPEN | **`T_488_11` is not measurable as written** — redesign it. Entering WebRadio / LocalPlayer takes and releases the ~48 KB A-lite arena, which swamps a before/after free-heap read (one pre-refactor sweep measured **+39144 B**). Options: exclude the two player apps (`--no-players`, already implemented), or force arena release before sampling. Also mandate a same-duration **idle control** — a bare before/after at two uptimes cannot separate a leak from settling drift, which is what made the first run's −6768 B unreadable. |
+| TASK-505 | P3 | OPEN | Free internal heap falls ~10 KB then ~8.6 KB over the first two 33-switch app sweeps, then flattens (+24 B on the third). **Pre-existing** — reproduced on pre-refactor firmware — so not a TASK-488 regression, but nobody has established whether the plateau is genuine or just a slower slope. Wants a longer sweep count on a quiet rig. |
+| TASK-506 | P3 | OPEN | `./run/test` leaves user settings mutated: after the TASK-497 runs, `settings.json` came back with `clock.style` vfd→digital, `planeRadar.rangeIdx` 3→1 and `pollSec` 30→10, `player.mode`/`playlist`/`repeat` changed, and four `webRadio` fields including `volumePct` 55→49. BP-049's snapshot made it recoverable, but the suite should restore what it changes — `T_PRM_01` failing "prPollSec not persisted" is the same defect seen from inside. |
+
+---
+
 ## PM note — the honest read
 
 This board was produced in a single day by one Architect pass, and its shape reflects that. Three
 things a scheduler should know:
 
-1. **Nothing here is verified.** The only code that landed did so ahead of its own ADR, and TASK-488
-   exists to close that. Treat every "LANDED" as provisional.
+1. ~~**Nothing here is verified.**~~ **Superseded 2026-08-16.** TASK-488 closed: Stages A and B
+   (`a044f5d`, `78caa95`, `b36f184`) are verified pure moves — byte-identical blocks, identical
+   `.map` extents, and a DUT pass over app switching, taskbar, eject, Settings and the whole debug
+   console. TASK-497's 3-run baseline is taken. The chain below is unblocked; TASK-455 can start.
 2. **The dependency chain is long and mostly serial** — 488 → 455 → 456 → 471 → 472. Anything
    promising "main.cpp under 40 lines" is five tasks away, not one.
 3. **Four tasks are independently valuable and unblocked today**: TASK-458 (RAII guards, fixes a real

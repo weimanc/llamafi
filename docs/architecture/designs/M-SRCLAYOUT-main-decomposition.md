@@ -1,9 +1,9 @@
 # Design — M-SRCLAYOUT: decompose `main.cpp` and move state ownership out of it
 
 > Owner: Architect
-> Status: **partially landed, PENDING REVIEW** — Stages A and B committed 2026-08-15 (a044f5d,
-> 78caa95, b36f184), unreviewed and not DUT-verified — see §5a. Stages C and D remain **proposed**
-> and need ADR-060 sign-off before TASK-455 begins.
+> Status: **partially landed; Stages A and B VERIFIED 2026-08-16** (a044f5d, 78caa95, b36f184) —
+> reviewed and DUT-verified under TASK-488, nothing reverted; see §5a. Stages C and D remain
+> **proposed** and need ADR-060 sign-off before TASK-455 begins.
 > Date: 2026-08-15
 > Feeds: ADR-060 (to be written)
 > Tracked-as: TASK-453, TASK-454, TASK-455, TASK-456, TASK-457, TASK-464, TASK-471, TASK-472
@@ -424,10 +424,30 @@ move method bodies out-of-line, make the header self-contained, build, record th
 component whose promotion costs more than **256 B** of `dram0_0_seg` stays header-only **with the
 measurement recorded in the task** — an evidence-based exception per D0a, not a default.
 
-### 5a. As-built — Stages A and B landed 2026-08-15, PENDING REVIEW
+### 5a. As-built — Stages A and B landed 2026-08-15, VERIFIED 2026-08-16
 
-**Status: committed to local master, not reviewed, not DUT-verified.** Recorded here so the document
-matches the tree rather than describing landed work as hypothetical.
+**Status: committed to local master, reviewed and DUT-verified under TASK-488. Nothing reverted.**
+Recorded here so the document matches the tree rather than describing landed work as hypothetical.
+
+**Verification of record (TASK-488, 2026-08-16).** Full id-by-id result table and the `T_488_11`
+disposition live in [tasks-architecture.md § TASK-488 — result](../../project/tasks-architecture.md).
+The three findings that matter to this design:
+
+- **The moves are pure, provably.** Every one of the 14 moved blocks is byte-identical *and*
+  contiguous in its original order; the only added lines are each file's `#pragma once`, includes and
+  header comment. `a044f5d`'s three deleted structs had **0** code references.
+- **The compiled output is unchanged.** `.text`/`.rodata`/`.data`/`.bss` extents are identical to the
+  byte across `a044f5d~1`, `b36f184` and HEAD. The `cyd2usb_winamp_debug` binaries — the build that
+  actually compiles the moved SERIAL_DEBUG console — differ by 73 bytes, all build metadata
+  (timestamp, injected git hash, app-descriptor SHA256, image checksum). §7a's "include order or
+  static init order could still change behaviour" caveat is therefore closed by measurement, not
+  argument: there is no machine-code difference for it to hide in.
+- **Behaviour holds on hardware.** 39 app switches over 3 cycles with no reset; `init` once /
+  `resume` after, on the one app that logs it; taskbar, eject cycle and all 7 Settings sections
+  clean; the whole moved console intact — 26 commands and all 108 `get` keys resolving.
+
+Harness: `app/tools/test_task488_partb.py`, driver `run/task488` (supports `DUT_TREE=` for flashing
+another checkout, which is how the pre-refactor A/B was run).
 
 | Commit | What | Result |
 |---|---|---|
@@ -457,9 +477,10 @@ physically adjacent to the SD probes in the old `main.cpp` but is gated on `SD_B
 `SERIAL_DEBUG`, and ships in production. It was left behind rather than swept into `debug/` — the
 exact mistake ADR-061 D4 exists to prevent. It still wants an `sd/` home.
 
-**Review obligation before anything further lands.** These are asserted to be pure moves; that
-assertion is unverified by anyone but the author. §7's items 2–4 have not been performed. The
-verification recipe is in §7a.
+**Review obligation — DISCHARGED 2026-08-16 (TASK-488).** These were asserted to be pure moves by
+their author alone; §7a's recipe has now been performed in full by a second agent, and the assertion
+held. TASK-497's owed ≥3-run DUT baseline was taken in the same session. Stage C (TASK-455) is
+unblocked.
 
 ### 5b. What remains, in descending value
 

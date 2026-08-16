@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# run/task488 — TASK-488 Part B: DUT verification of the three M-SRCLAYOUT
+# refactor commits (a044f5d / 78caa95 / b36f184). Ids T_488_04..11; the spec is
+# docs/project/tasks-architecture.md § TASK-488 — pass criteria.
+#
+# Flashes cyd2usb_winamp_debug, waits out the heap settle window, runs the
+# 39-switch sweep + taskbar/eject/Settings/console checks, restores production
+# firmware + monitor on exit.
+#
+# NEVER kill this mid-flight (timeout/Ctrl-C/host suspend) — the trap-guarded
+# prod restore races and can leave the DUT boot-looping. ~15 min total.
+#
+# Usage: ./run/task488                        # full Part B
+#        SETTLE=0 ./run/task488 T_488_10      # single id, no settle wait
+#        DUT_TREE=/path/to/worktree ./run/task488 T_488_11
+#            flash the debug build from ANOTHER checkout of this repo (a git
+#            worktree at a pre-refactor commit) and run the ids against it —
+#            the A/B that tells a pre-existing firmware property apart from a
+#            regression introduced by the commits under review. Production is
+#            always restored from THIS tree, never the worktree.
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+PORT=$(resolve_port)
+DUT_TREE="${DUT_TREE:-}"
+FLASH_DIR="$PIO_DIR"
+if [ -n "$DUT_TREE" ]; then
+  FLASH_DIR="$DUT_TREE/app"
+  [ -d "$FLASH_DIR" ] || { echo "ERROR: no app/ under DUT_TREE=$DUT_TREE" >&2; exit 1; }
+  echo "[task488] A/B mode — debug build from $FLASH_DIR"
+fi
+SETTLE="${SETTLE:-150}"     # TASK-425: heap is not stable before ~150 s post-reset
+TESTS="${1:-}"
+
+# Every `get` key the console implements — cmdGet.h's own strcmp chain plus the
+# per-app dbgGet chains it delegates to. Regenerate with:
+#   python3 app/tools/gen_get_keys.py
+GET_KEYS="$("$VENV_PY" "$PROJ_ROOT/app/tools/gen_get_keys.py")"
+
+_RC=0
+_cleanup() {
+  local rc=$_RC
+  echo ""
+  echo "[task488] restoring $ENV_PROD (rc=$rc so far)"
+  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT") || {
+    echo "ERROR [task488]: prod restore failed" >&2; rc=99; }
+  echo "[task488] restarting monitor"
+  tmux new-session -d -s "$SESSION" \
+    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'" \
+    2>/dev/null || true
+  exit "$rc"
+}
+trap _cleanup EXIT INT TERM
+
+echo "[task488] 1/4 — killing monitor"
+tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+
+echo "[task488] 2/4 — flashing $ENV_DEBUG to $PORT (from $FLASH_DIR)"
+(cd "$FLASH_DIR" && "$PIO" run -e "$ENV_DEBUG" -t upload --upload-port "$PORT")
+
+echo "[task488] 3/4 — waiting ${BOOT_WAIT}s for boot + WiFi"
+sleep "$BOOT_WAIT"
+
+echo "[task488] 4/4 — running Part B (settle ${SETTLE}s)"
+_ARGS=(--port "$PORT" --settle "$SETTLE" --get-keys "$GET_KEYS")
+[ "${NO_PLAYERS:-0}" = "1" ] && _ARGS+=(--no-players)
+[ -n "$TESTS" ] && _ARGS+=(--tests "$TESTS")
+# The suite's ELF-hash guard (BP-017) resolves .pio/build relative to its own
+# location, so in A/B mode it must run from the tree whose firmware is on the
+# device — otherwise it aborts on an elf-mismatch it is right to report.
+RUN_DIR="$FLASH_DIR"
+if [ -n "$DUT_TREE" ]; then
+  cp "$PROJ_ROOT/app/tools/test_task488_partb.py" "$FLASH_DIR/tools/"
+fi
+(cd "$RUN_DIR" && "$VENV_PY" tools/test_task488_partb.py "${_ARGS[@]}") || _RC=$?
