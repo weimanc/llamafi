@@ -235,10 +235,12 @@ static inline void mb_heap_probe(const char *) {}   // no-op (production / non-d
 bool g_appLaunched[(int)AppId::COUNT] = {};
 
 // ── SpotifyApp (TASK-090d) ─────────────────────────────────────────────
-#ifdef WINAMP_DISPLAY
+// TASK-496/467: WINAMP_DISPLAY is defined by every buildable env
+// (ADR-061 D8 demoted the one env that didn't, [env:cyd2usb], to a
+// non-building base section) — the #ifdef here was unconditionally
+// true and has been removed.
 #include "apps/spotifyApp.h"
 static SpotifyApp g_SpotifyApp;
-#endif // WINAMP_DISPLAY
 
 // ── ClockApp (M-CLOCK-STYLES) ─────────────────────────────────────────
 #include "clockApp.h"
@@ -289,7 +291,7 @@ static PlaneRadarApp g_PlaneRadarApp;
 static bool planeRadarDbgGet(const char* v, char* b, int l) { return g_PlaneRadarApp.dbgGet(v, b, l); }
 static bool planeRadarDbgSet(const char* v, const char* val) { return g_PlaneRadarApp.dbgSet(v, val); }
 
-#ifdef WINAMP_DISPLAY
+// TASK-496/467: WINAMP_DISPLAY is unconditionally defined (see note above); #ifdef removed.
 #include "webRadioApp.h"
 static WebRadioApp g_WebRadioApp;
 static bool webRadioDbgGet(const char* v, char* b, int l) { return g_WebRadioApp.dbgGet(v, b, l); }
@@ -297,7 +299,6 @@ static bool webRadioDbgSet(const char* v, const char* val) { return g_WebRadioAp
 
 #include "localPlayerApp.h"
 static LocalPlayerApp g_LocalPlayerApp;   // TASK-413: placeholder, real UI is TASK-415+
-#endif
 
 #ifdef SERIAL_DEBUG
 static bool matrixDbgGet(const char* v, char* b, int l)   { return g_MatrixApp.dbgGet(v, b, l); }
@@ -308,15 +309,13 @@ static bool aquariumDbgGet(const char* v, char* b, int l) { return g_AquariumApp
 
 // ── App registry + shell gesture state (TASK-090f) ────────────────────
 
-#ifdef WINAMP_DISPLAY
+// TASK-496/467: WINAMP_DISPLAY is unconditionally defined (see note above);
+// the {} else-branch (populated by no buildable env) is removed.
 App* g_apps[(int)AppId::COUNT] = {
 #define APP_X(Name, icon, cfg, disp) &g_##Name##App,
 #include "appRegistry.h"
 #undef APP_X
 };
-#else
-App* g_apps[(int)AppId::COUNT] = {};
-#endif
 
 static bool          s_inGesture  = false;
 static int           s_lastTouchX = 0, s_lastTouchY = 0;
