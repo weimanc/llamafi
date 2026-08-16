@@ -16,6 +16,8 @@ Nothing escalated yet. Entries appear here as `E-NN` with the decision needed an
 | id | doc | question | my lean |
 |---|---|---|---|
 | **E-01** | ADR-060 | I narrowed the ADR to authorise **Stages A+B only**; C/D/E/F now need a separate ADR. This reverses a sign-off you have not given yet, in the conservative direction. Confirm? | **Accept the narrowing.** @Developer's argument is strong and matches M-SRCLAYOUT §5b's own lean: A+B already captured most of the listed benefits at near-zero risk; Stage E's distinct win is build time, which nobody here has ever complained about; and two of Stage E's costs were underweighted (wrong budget axis, and a composition-root gap four documents missed). |
+| **E-03** | process | QM proposes a standing rule: **no ADR / design doc / IFC gates other work, or is cited as fact by another agent, until at least one independent review has run against it.** Adopt? | **Adopt.** Eight confirmed errors from nine raised, across three reviewers, in one day's output. The rule is the only one of QM's recommendations that would have prevented all of them. Cost is real — it serialises authoring behind review — which is why it is yours to decide, not mine. |
+| **E-04** | `best_practices.md` | Land **BP-DOC-1** (cite symbols, not coordinates) and **BP-DOC-2** (landed work says so, with the commit) as new entries, and amend **BP-060** to widen its scope from handover prompts to any document a cold agent treats as fact? | **Yes to all three.** BP-DOC-1 has a measured baseline and a gate; BP-DOC-2 has two real precedents; the BP-060 widening replaces what would have been a redundant BP-DOC-3. Drafts are staged in `docs/quality/bp-candidates-doclife.md`. |
 | **E-02** | `dataTaskStorage.cpp` | **A live divergence, not a doc issue.** `fetchWeather` resumes Spotify's TLS **after** its JSON parse; `fetchCrypto` **before** — and a comment claims they match. One is wrong, or it is deliberate and undocumented. Which timing is correct? | **Needs someone who knows the intent.** Resume-before-parse gives Spotify heap back sooner but lets it reconnect *during* a parse — on this device that is the TASK-289 shape. Resume-after is safer and slower. I lean **after** (weather's behaviour), but this is a judgement about a real runtime tradeoff. Filed TASK-495; it **gates** TASK-458. |
 
 ---
@@ -28,8 +30,8 @@ Nothing escalated yet. Entries appear here as `E-NN` with the decision needed an
 |---|---|---|---|
 | 1 | @Developer | ADR-060, M-SRCLAYOUT, M-CODEQUAL | **DONE** — 3 MAJOR accepted, all verified true |
 | 2 | @VE | IFC-002, IFC-003, M-CONCURRENCY, M-TESTARCH, reserved test ids | **DONE** — 1 BLOCKER + 2 MAJOR, all verified true; IFC-002 → v2 |
-| 3 | @QM | M-DOCLIFE, check-docs spec, 3 BP candidates | **DONE** — integration PENDING (see below) |
-| 4 | @PM | `tasks-architecture.md`, sequencing, M-ARCH split | not started |
+| 3 | @QM | M-DOCLIFE, check-docs spec, 3 BP candidates | **DONE + INTEGRATED** (`38edadb`, `e97e7d3`, `2d1d0ac`, `728fb15`) |
+| 4 | @PM | `tasks-architecture.md`, sequencing, M-ARCH split | **RUNNING** |
 
 **Self-review passes** (do these while a subagent runs — never touch a doc a running agent owns):
 
@@ -167,6 +169,22 @@ IFCs)" — not as a redundancy cleanup. Same landing place, materially different
 **Reviewer hit-rate: 8 confirmed / 9 raised, plus one finding whose disposition survives but whose
 reasoning did not.** Both QM findings I checked (F1, F5) were directionally right and imprecise in the
 same way — which is itself worth noting, since QM was the reviewer auditing precision.
+
+### ~04:45 — @QM integrated (`38edadb`, `e97e7d3`, `2d1d0ac`, `728fb15`)
+Applied: bundling withdrawn; BP-DOC-2's citation retargeted; BP-DOC-3 withdrawn as a number and
+re-proposed as a **BP-060 scope widening**; corpus-count figures dropped in favour of the gated ratio;
+**C1 gains a `delta` blocking mode** so it gates new debt from phase 1 instead of sitting advisory
+forever. LL-134 and an audit-log entry staged for QM to land (E-04).
+
+**New finding, mine, found while applying the fixes: both QM-found errors recurred at a second site.**
+`AGENTS.md rule 10` was also in M-DOCLIFE §3; the stale count was also in its D1 table row. **A fix
+applied at the first hit was not a fix.** Folded into LL-134: when a documentation error is found,
+grep the corpus before calling it fixed.
+
+**Also corrected my own framing**, on QM's prompting: I had claimed all three candidates generalise
+LL-114. They do not. LL-114 is about *decay*; BP-DOC-3's precedent is *fabrication at write time*.
+Filing a fabrication lesson under a decay lesson misfiles it for whoever searches next — QM's
+sharpest point of the night, and the reason LL-134 exists as its own entry.
 
 ---
 
