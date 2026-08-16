@@ -56,6 +56,30 @@
 
 ---
 
+## ▶ EXECUTION SEQUENCE — start here
+
+Current as of 2026-08-16 end-of-session. Derived from @PM's review, adjusted for what has since
+landed. **Do these in order**; everything not listed stays filed and unscheduled.
+
+| # | Do | Why this position |
+|---|---|---|
+| **1** | **TASK-488 + TASK-497 — one DUT block** | Three refactor commits sit on master unreviewed with no baseline. Everything in M-SRCLAYOUT is gated on this, and **the cost of delay compounds**: each further commit on top widens the blame surface from one to four. Same hardware session covers both — 488's byte-identity/`.map` review and 497's retrospective ≥3-run baseline. |
+| **1a** | *(prerequisite, ~15 lines)* **write TASK-488's pass criteria first** | Its DUT procedure is currently one sentence — *"a pass over app switching, taskbar cycling, eject and Settings navigation"* — with no id, steps, iteration count or fail condition. Compare `T_AE_04`, which specifies ×10 and a 100 ms bound. **Running 488 without criteria is closing against a proxy (BP-061)**: nothing visibly breaks, it gets called verified. |
+| **2** | **Decide 455/456/471/472 on what 488 finds** | Do not pre-schedule. They may need rework rather than continuation. Note ADR-060 authorises **A+B only** — C–F need a new ADR regardless. |
+| **3** | **TASK-475** — `run/check-docs` | Unblocked, cheap, self-correcting from then on. C5 blocking day one, C1 in `delta` mode. |
+| **4** | **TASK-478** — `tools/lib/dut.py` | Unblocked, cheap; its absence caused three of M-TOOLING's five findings. Unblocks 479/480. |
+| **5** | **TASK-458** — RAII guards — **with TASK-495 as its first commit** | Real bug class with a proven instance (TASK-222). 495 is parked but **must land in front of this** — see its ordering note. |
+| **6** | **M-WINAMP-PLAYER** | Still paused, 12 entries. @PM would put **TASK-424** (SD write panic, card-independent) ahead of most of this board if DUT time is scarce. |
+
+**Already done, do not re-schedule:** TASK-466 (build gate, 3 → 11 envs), 467, 477, 491, 496 — all
+landed 2026-08-16, `run/check` 11/11.
+
+**Not scheduled by design:** the four skeletons (483–486), the M-CODEQUAL remainder (459–463), the
+ADR-061 decommission tail (465, 468–470), M-TOOLING 479–482, and the handoff/registry debt (489–494,
+500–502).
+
+---
+
 ## Owed before anything else proceeds
 
 | task | pri | status | title |

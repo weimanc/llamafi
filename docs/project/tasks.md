@@ -59,9 +59,12 @@ TASK-488 gates the rest of the board.
 | TASK-483…487 | P2–P4 | SKELETON | test architecture, error model, levelization audit, vendoring, ADR-028 revisit |
 | TASK-489…494 | P2/P3 | MIXED | handoff debt — X065 + test-id reservations (done), X015 fix, `architecture.md` sync |
 
-> **Unblocked and independently valuable today**, if this board is only partly scheduled:
-> **TASK-458** (RAII), **TASK-466** (build matrix — `cyd2usb` has been broken for months),
-> **TASK-475** (`run/check-docs`), **TASK-478** (`lib/dut.py`).
+> **▶ Execution order lives in [tasks-architecture.md](tasks-architecture.md) § EXECUTION SEQUENCE**
+> — start there, not with this table. In short: **TASK-488 + 497 in one DUT block first** (and write
+> 488's pass criteria before running it), then decide the M-SRCLAYOUT chain on what it finds, then
+> 475 → 478 → 458 (with 495 in front), then M-WINAMP-PLAYER.
+>
+> **Landed 2026-08-16:** TASK-466 (build gate 3 → 11 envs), 467, 477, 491, 496.
 
 > **Drift warning:** hand-maintained, same as the player board. The split file is the entry; this is
 > a label. If they disagree, the split file wins.
