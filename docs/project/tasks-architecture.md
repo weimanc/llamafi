@@ -86,6 +86,63 @@ ADR-061 decommission tail (465, 468–470), M-TOOLING 479–482, and the handoff
 |---|---|---|---|
 | **TASK-488** | **P1** | OPEN | review `a044f5d` / `78caa95` / `b36f184` per M-SRCLAYOUT §7a, and take the owed DUT baseline |
 
+### TASK-488 — pass criteria
+
+*Written 2026-08-16. Previously this task's procedure was one sentence with no id, steps, iteration
+count or fail condition — below the bar `T_AE_04` sets (×10 iterations, a 100 ms bound). Running it
+as written would have been closing against a proxy (BP-061): nothing visibly breaks, it gets called
+verified.*
+
+**Scope.** `a044f5d` (App interface → `app.h`, three unused state structs deleted), `78caa95` (seven
+App classes → `apps/`), `b36f184` (SERIAL_DEBUG console → `debug/serialConsole/`). All three claim to
+be **pure moves**. The claim is unverified.
+
+#### Part A — static, host-only, no DUT (do this first; it may fail the whole task cheaply)
+
+| id | Check | PASS | FAIL |
+|---|---|---|---|
+| `T_488_01` | Each moved block is byte-identical. For every block: `git show <commit>~1:app/src/main.cpp \| sed -n 'A,Bp' > /tmp/before` vs the same span extracted from its new file | **every diff empty** | any non-empty diff → the commit is not a pure move; stop and re-scope the task |
+| `T_488_02` | Deleted structs were truly unreferenced: `git grep -c '\bSpotifyAppState\b' a044f5d~1` etc., excluding `appShell.h` | 0 for all three | any hit → a deletion removed live code |
+| `T_488_03` | Production binary essentially unchanged. Build `cyd2usb_winamp` at `a044f5d~1` and at HEAD; compare `.text`/`.rodata`/`.data`/`.bss` extents from the `.map` | deltas explained by `__FILE__`/`__LINE__` shifts only; **no section moves >512 B** | a larger delta means something other than a move happened |
+
+#### Part B — DUT. **Flash `cyd2usb_winamp_debug`.** Requires the device.
+
+Run each step **three full cycles** unless stated. Three, not one: `g_appLaunched[]` makes the first
+visit to an app call `init()` and every later visit `resume()` — a one-pass sweep exercises only
+`init()` and would miss a broken `resume()` entirely. That is the specific bug class these commits
+could introduce.
+
+| id | Procedure | PASS | FAIL |
+|---|---|---|---|
+| `T_488_04` | `switchapp 0` … `switchapp 12` in order, ×3 cycles (39 switches). After each, `info` | every switch reports the requested id; every app renders; **no reboot, no WDT, no Guru Meditation** across all 39 | any wrong id, blank screen, or reset |
+| `T_488_05` | Same sweep, watching `init`/`resume` in the serial log | each app logs **`init` exactly once** (cycle 1) and **`resume` on cycles 2 and 3** | an app that re-inits, or never resumes |
+| `T_488_06` | **Spotify, Clock, Aquarium specifically** — the three whose state structs `a044f5d` deleted. Enter, leave, re-enter ×3 each | state persists across re-entry as before (Clock keeps its style, Aquarium its fish, Spotify its track) | any state reset that did not reset before |
+| `T_488_07` | Taskbar: tap every visible slot, scroll, tap again — ×3 | each tap lands on the app its icon shows | any slot→app mismatch (the TASK-413 remap shape) |
+| `T_488_08` | Eject from each player mode: Spotify → WebRadio → Player → Spotify, ×3 | the cycle completes and `get playerMode` tracks it | a mode that will not leave, or lands wrong |
+| `T_488_09` | Settings: open, enter and leave **all seven sections**, ×1 (Settings was a moved class) | every section renders and returns cleanly | any section blank, or a return that lands elsewhere |
+| `T_488_10` | Debug surface (whole console moved by `b36f184`): `help`, then **`get` on every key it lists** | `help` lists the same command set as before the move; **every key resolves** — no "unknown" | any missing command or unresolvable key |
+| `T_488_11` | Heap stability: `get heap` before cycle 1 and after cycle 3 of `T_488_04` | free heap after ≥ before − 2 KB | a monotonic decline suggests a changed static lifetime |
+
+#### Explicitly NOT a pass
+
+- **"I flashed it and it looked fine."** That is the proxy this section exists to prevent.
+- `./run/check` green. It proves compilation, not behaviour, and was already green when these commits
+  landed unverified.
+- Part A passing alone. Byte-identical text can still change behaviour via include order or static
+  init order — that is what Part B is for.
+- Any part **skipped** because the device was busy. Record it as skipped; do not infer it.
+
+#### On failure
+
+A failing `T_488_01` means a commit is mis-described, not necessarily broken — re-scope and re-review.
+A failing Part B means **revert the offending commit** rather than patch forward: these are moves, so
+reverting is cheap and the alternative is debugging a refactor nobody has verified.
+
+**Pairs with TASK-497** — the retrospective ≥3-run baseline runs in the same DUT session, against
+`78caa95~1` and then HEAD. One hardware block covers both.
+
+---
+
 **TASK-488 — review the three landed refactor commits**
 **Owner**: human + VE · **Design**: [M-SRCLAYOUT §5a, §7a](../architecture/designs/M-SRCLAYOUT-main-decomposition.md)
 Three commits assert pure moves. That assertion is unverified by anyone but their author. §7a gives
