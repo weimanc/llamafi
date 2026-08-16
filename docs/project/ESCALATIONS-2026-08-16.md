@@ -15,7 +15,8 @@ Nothing escalated yet. Entries appear here as `E-NN` with the decision needed an
 
 | id | doc | question | my lean |
 |---|---|---|---|
-| — | — | — | — |
+| **E-01** | ADR-060 | I narrowed the ADR to authorise **Stages A+B only**; C/D/E/F now need a separate ADR. This reverses a sign-off you have not given yet, in the conservative direction. Confirm? | **Accept the narrowing.** @Developer's argument is strong and matches M-SRCLAYOUT §5b's own lean: A+B already captured most of the listed benefits at near-zero risk; Stage E's distinct win is build time, which nobody here has ever complained about; and two of Stage E's costs were underweighted (wrong budget axis, and a composition-root gap four documents missed). |
+| **E-02** | `dataTaskStorage.cpp` | **A live divergence, not a doc issue.** `fetchWeather` resumes Spotify's TLS **after** its JSON parse; `fetchCrypto` **before** — and a comment claims they match. One is wrong, or it is deliberate and undocumented. Which timing is correct? | **Needs someone who knows the intent.** Resume-before-parse gives Spotify heap back sooner but lets it reconnect *during* a parse — on this device that is the TASK-289 shape. Resume-after is safer and slower. I lean **after** (weather's behaviour), but this is a judgement about a real runtime tradeoff. Filed TASK-495; it **gates** TASK-458. |
 
 ---
 
@@ -25,8 +26,8 @@ Nothing escalated yet. Entries appear here as `E-NN` with the decision needed an
 
 | # | Reviewer | Scope | Status |
 |---|---|---|---|
-| 1 | @Developer | ADR-060, M-SRCLAYOUT, M-CODEQUAL | **RUNNING** (spawned ~02:30) |
-| 2 | @VE | IFC-002, IFC-003, M-CONCURRENCY, M-TESTARCH, reserved test ids | not started |
+| 1 | @Developer | ADR-060, M-SRCLAYOUT, M-CODEQUAL | **DONE** — 3 MAJOR accepted, all verified true |
+| 2 | @VE | IFC-002, IFC-003, M-CONCURRENCY, M-TESTARCH, reserved test ids | **RUNNING** |
 | 3 | @QM | M-DOCLIFE, check-docs spec, 3 BP candidates | not started |
 | 4 | @PM | `tasks-architecture.md`, sequencing, M-ARCH split | not started |
 
@@ -65,6 +66,24 @@ Nothing escalated yet. Entries appear here as `E-NN` with the decision needed an
   3. **Findings cite `file:symbol`, carry a severity, and end in accept / amend / reject** — so they
      can be acted on rather than admired.
 - Scheduled hourly wakeup; the human's 5-hour allowance resets ~05:00.
+
+### ~03:00 — @Developer review integrated (commit `b4ca2ff`)
+Three MAJOR findings. **I verified all three against source before accepting; all three were right.**
+
+- **F1** ADR-060 D2's composition root is not implementable as sketched — 3 of 13 apps are
+  `#ifdef WINAMP_DISPLAY` and `g_apps[]` already forks. → TASK-496, Stage D definition-of-done.
+- **F2** M-CODEQUAL C1 was wrong: two skeletons (buffered vs streaming), not one — *and* it hid a
+  live weather/crypto `tlsResume()` divergence a guard would have silently changed. → TASK-495 (E-02).
+- **F3** The memory gate measured the wrong axis: `-fno-lto` is unconditional on this toolchain and
+  ADR-059 measured 88 B DRAM vs 3 984 B flash. Stage E now gates flash too.
+
+**The review also worked as intended on framing** — it attacked the ADR's premise rather than
+refining inside it (E-01), which is exactly what the M-WINAMP-PLAYER post-mortem said the last round
+of reviews failed to do. It independently re-verified the `mb_arena` 4/7 figure and D5's
+constructor claim; both hold.
+
+**Cost note:** ~130 k subagent tokens for that review. At that rate the remaining three reviewers fit
+comfortably in the overnight budget.
 
 ---
 
