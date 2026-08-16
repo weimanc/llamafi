@@ -206,10 +206,6 @@ SpotifyDisplay *spotifyDisplay = &matrixDisplay;
 #include "nfc.h"
 #endif
 
-#ifdef SPIKE_MODE
-#include "spikeMode.h"
-#endif
-
 // ── TASK-261/267 A-lite heap probes (caps-split diagnostic) ──
 // The mb_arena itself ships in production (TASK-262 promotion — MEMBUDGET_PHASE1 now in
 // cyd2usb_winamp; arena acquired JIT in WebRadioApp::_play(), released in ::suspend()).
@@ -1253,10 +1249,6 @@ void setup()
   }
   mb_heap_probe("post-init-idle");    // TASK-261 Phase 0 milestone M4 (steady idle)
   buildMathLUT();
-
-#ifdef SPIKE_MODE
-  spike::setup(&spotify);
-#endif
 }
 
 // ── serial command dispatcher (serialdbg-001, TASK-056c) ───────────────
@@ -1676,10 +1668,6 @@ void loop()
 #ifdef SCREEN_LOG
   { unsigned long _t = millis(); screenlog::tick(spotifyDisplay);
     perf::record("screenlog.tick", millis() - _t); }
-#endif
-
-#ifdef SPIKE_MODE
-  spike::loop();
 #endif
 
   { unsigned long _t = millis(); appHandleInput(currentAppId);

@@ -119,7 +119,7 @@ Full reference: `docs/process/project_run_scripts.md`. Rationale and failure mod
 
 Port is resolved automatically by VID:PID. Override: `PORT=/dev/ttyUSB1 ./run/flash`.
 
-Other envs in `platformio.ini` (don't use on this board): `cyd` (single-USB CYD, inversion off), `trinity` (HUB75 matrix). Env selects display via `-DYELLOW_DISPLAY` vs `-DMATRIX_DISPLAY`. The `cyd*` envs bake the full TFT_eSPI `User_Setup.h` into `build_flags` — the library's bundled User_Setup is ignored.
+Other envs (don't use on this board): `cyd` (single-USB CYD, inversion off), `trinity` (HUB75 matrix). These live in `Spotify-Diy-Thing/platformio.ini` (the separate upstream project) — not `app/platformio.ini`, which has no `cyd`/`trinity` envs. Env selects display via `-DYELLOW_DISPLAY` vs `-DMATRIX_DISPLAY`. The `cyd*` envs bake the full TFT_eSPI `User_Setup.h` into `build_flags` — the library's bundled User_Setup is ignored.
 
 `platformio.ini` keeps `lib_ldf_mode = deep+` because `Seeed_Arduino_NFC` needs conditional includes resolved.
 
@@ -223,7 +223,7 @@ PN532 detection runs unconditionally in `setup()` (`NFC_ENABLED` in the .ino). O
 **Upstream files** (`Spotify-Diy-Thing/SpotifyDiyThing/`, included via `lib_extra_dirs`):
 - `spotifyLogic.h` — Spotify API call + state-machine logic.
 - `spotifyDisplay.h` — display abstraction (superseded by app shell; kept for upstream compat).
-- `cheapYellowLCD.h` / `matrixDisplay.h` — concrete display backends (cheapYellowLCD.h has PATCH-001).
+- `cheapYellowLCD.h` — concrete display backend (has PATCH-001). `matrixDisplay.h` was deleted (TASK-467/ADR-061 D8) — no env defined `MATRIX_DISPLAY`, so it was unreachable.
 - `nfc.h` — optional PN532 NFC reader; tags carry Spotify URIs/URLs that get played on swipe. Set `NFC_ENABLED 0` in the `.ino` to disable. `writeContextToNfc` toggles writing the currently-playing context back to a tag (off for albums that auto-flow into related songs).
 - `touchScreen.h` / `CYD28_TouchscreenR.{h,cpp}` — CYD touch input (rotated coordinates).
 - `configFile.h` — SPIFFS-backed persisted config.
