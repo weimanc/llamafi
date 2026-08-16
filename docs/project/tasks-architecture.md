@@ -15,6 +15,27 @@
 >
 > Closed entries go to [tasks-archive.md](tasks-archive.md).
 
+> ## ⚠ @PM verdict, 2026-08-16 — read before scheduling anything here
+>
+> **This board should lose to closing M-WINAMP-PLAYER, and the count is inflated.**
+>
+> **On the count:** 47 entries, but **~10–12 are actually actionable** without a design decision
+> first. The rest are BLOCKED on the five-deep serial chain, SKELETON (research prompts with "no
+> conclusions" by design), or gated on an unresolved question. *"47 tasks"* must not be quoted
+> without that caveat.
+>
+> **On the altitude — the finding that matters:** M-WINAMP-PLAYER has 12 open entries and was
+> **paused by the human over work quality**. Its PM note diagnoses three failure modes. **This board
+> reproduces two of them, on a compressed timescale, in the same week**: nine design docs and 47
+> tasks in one day; three commits landed ahead of ADR sign-off with no baseline (BP-062's
+> "measurement without conditions", and D13 skipped outright); and a review chain that found errors
+> in *every document it reviewed* — 8 of 9 confirmed, including an invariant false about its own
+> example. **Higher volume, lower verification, same week, same shop.** Scheduling 47 new
+> architecture tasks while 12 paused player tasks sit unresolved is the wrong order regardless of how
+> good TASK-458/466/475/478 are individually.
+>
+> Escalated as **E-05**. The Architect does not overrule this.
+
 **Priority key**: P1 blocking · P2 should-do · P3 nice-to-have · P4 watch
 
 ---
@@ -42,9 +63,9 @@ navigation has **not** been run. **Nothing in this board should land until this 
 |---|---|---|---|
 | TASK-453 | — | **LANDED, UNVERIFIED** | Stage A — 7 app classes → `apps/*.h` (`78caa95`) |
 | TASK-454 | — | **LANDED, UNVERIFIED** | Stage B — SERIAL_DEBUG console → `debug/serialConsole/*.h` (`b36f184`) |
-| TASK-455 | P2 | BLOCKED on 488 | Stage C — `setup()` (621 lines) → `boot/boot.{h,cpp}`, verbatim (D1a) |
-| TASK-456 | P2 | BLOCKED on 455 | Stage D — `shell/appTable.{h,cpp}` composition root + `ShellState` (D2/D3/D4) |
-| TASK-471 | P2 | BLOCKED on 456 | Stage E — component conversion; real `.h`/`.cpp` pairs, self-contained (D0) |
+| TASK-455 | P3 | BLOCKED on 488 | Stage C — `setup()` (621 lines) → `boot/boot.{h,cpp}`, verbatim (D1a) |
+| TASK-456 | P3 | BLOCKED on 455 | Stage D — `shell/appTable.{h,cpp}` composition root + `ShellState` (D2/D3/D4) |
+| TASK-471 | P3 | BLOCKED on 456 | Stage E — component conversion; real `.h`/`.cpp` pairs, self-contained (D0) |
 | TASK-472 | P3 | BLOCKED on 471 | Stage F — `stock/` → 3 components, `sd/sdMount`, levelization audit |
 | TASK-457 | P3 | OPEN | hygiene — `appRegistry.h` double-include comment, `currentAppId`/`g_previousAppId` unify |
 | TASK-464 | P2 | BLOCKED on 454 | documentation-reference sweep — 308 `main.cpp:NNN` cites across 49 files + 44 in `feature_inventory.yaml`; pay **once**, at end of Stage B |
@@ -53,7 +74,7 @@ navigation has **not** been run. **Nothing in this board should land until this 
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-458 | **P2** | OPEN | C2 — `TlsYieldGuard` / `HttpSession` RAII guards. **Highest value in this board**: fixes a bug class with a proven production instance (TASK-222) |
+| TASK-458 | **P2** | **GATED on 495** | C2 — `TlsYieldGuard` / `HttpSession` RAII guards. **Highest value in this board**: fixes a bug class with a proven production instance (TASK-222). *@PM: the table said OPEN while this file's own prose said "gates TASK-458" — corrected. **Fold TASK-495 in as 458's first step**, not a separate schedulable item; it is a 30-minute decision, not a build.* |
 | TASK-459 | P3 | BLOCKED on 458 | C2b — migrate `s_aeSpotifyYielded` to a transferable guard. Touches audio teardown ordering (`T_AE_04`) |
 | TASK-460 | P2 | BLOCKED on 458 | C1 — consolidate the nine `fetch*()` functions onto one skeleton |
 | TASK-461 | P2 | OPEN | C5 — one canonical canvas/window constant across firmware, bake and previews. 275 has **six names in three layers** |
@@ -112,7 +133,7 @@ fill in.
 | TASK-484 | P3 | SKELETON | [M-ERRMODEL](../architecture/designs/M-ERRMODEL-error-model.md) — four overlapping error conventions; IFC-001 already ships the `errorCode==0` ambiguity |
 | TASK-485 | P2 | SKELETON | [M-LEVELS](../architecture/designs/M-LEVELS-dependency-audit.md) — audit D2a's asserted levels. **No include graph has ever been generated**; the audit may contradict D2a |
 | TASK-486 | P3 | SKELETON | [M-VENDORING](../architecture/designs/M-VENDORING-upstream-policy.md) — five vendored trees, five conventions, no upstream refs recorded |
-| TASK-487 | P4 | SKELETON | [M-DISPLAYSEAM](../architecture/designs/M-DISPLAYSEAM-adr028-revisit.md) — re-read ADR-028. Likely outcome: rejection stands |
+| ~~TASK-487~~ | — | **FOLDED into TASK-493** | @PM: a five-minute re-read, not a milestone thread. Carry it as a checklist line on the `architecture.md` sync, not a standalone task id. The doc stays. |
 
 ## Handoff debt — reservations the Architect owed and did not perform
 
@@ -194,7 +215,7 @@ argument arriving from a second direction. **Blocks TASK-456.**
 
 | task | pri | status | title |
 |---|---|---|---|
-| **TASK-497** | **P2** | OPEN | retrospective ≥3-run DUT baseline for the landed Stages A/B — costs 2× DUT time |
+| **TASK-497** | **P2** | OPEN — **run inside TASK-488's DUT session** | retrospective ≥3-run DUT baseline for the landed Stages A/B. *@PM: worth paying for — it is the only way left to recover D13's guarantee, and the cost is bounded and one-time. But it needs the same DUT block as 488's diff review. **One scheduling block, not two.*** |
 | TASK-498 | P3 | OPEN | `T_SRC_09` — regression test for IFC-003 I9 (the TASK-384 swallow shape) |
 | TASK-499 | P3 | OPEN | a `T_CC_` id for M-CONCURRENCY G1: enumerate every `WiFi.` call site against the known-safe set |
 
