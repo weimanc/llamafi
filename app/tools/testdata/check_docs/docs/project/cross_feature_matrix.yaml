@@ -1,0 +1,5 @@
+interactions:
+  - id: X001
+    feature_a: fix-001
+    feature_b: fix-002
+    interaction_type: dependency

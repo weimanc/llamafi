@@ -21,4 +21,13 @@ if echo "$output" | grep -q "No such file or directory"; then
     exit 1
 fi
 
+# 3. check-docs harness — T_DOC_01..09 (TASK-475).
+# Runs here rather than as its own check_build.sh gate so the documentation
+# gate itself (gate 12) stays one slot: gate 9 covers the CHECKER, gate 12
+# runs it against the live corpus. Host-side only, no DUT, ~2 s.
+if ! "$PYTHON" test_check_docs.py; then
+    echo "FAIL: test_check_docs.py (T_DOC_01..09) FAILED" >&2
+    exit 1
+fi
+
 echo "OK: smoke_test.sh passed"

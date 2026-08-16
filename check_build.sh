@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
-# Pre-restructure build check. Run before and after each restructure step.
-# Exit 0 = all checks pass. Exit non-zero = something broke.
+# Repository build + documentation gate. Run before committing structural
+# changes (BP-008). Exit 0 = all checks pass. Exit non-zero = something broke.
+#
+# 12 counted gates: 1-7 the full firmware env matrix (ADR-061 D6), 8 golden
+# assets, 9 tool smoke tests, 10 app-registry staleness, 11 mem_layout
+# staleness+budget, 12 the documentation staleness gate (TASK-475). One
+# additional warn-only gate (settings wiring) is deliberately not counted.
+#
+# The header used to read "Pre-restructure build check" and run/check called it
+# a "7-gate" wrapper; both were stale by four gates. TASK-475 corrected them.
 
 set -euo pipefail
 
@@ -13,7 +21,7 @@ GEN_DIR="$PROJ_ROOT/app/gen"
 
 PASS=0
 FAIL=0
-TOTAL=11
+TOTAL=12
 
 ok()   { echo "  PASS  $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL  $1"; FAIL=$((FAIL + 1)); }
@@ -93,6 +101,19 @@ else
     fail "gen_mem_layout.py failed (budget overflow or manifest error)"
 fi
 rm -rf "$TMPDIR_MEM"
+
+# ── 12. Documentation staleness gate (TASK-475 / M-DOCLIFE phase 1) ───────────
+# Blocking: C5 (relative .md links) and C1-delta (positional citations newly
+# added in the diff) — both read 0 today, which is why they can block on day
+# one. C1-full, C2, C3, C4 print [warn] and cannot fail the build until their
+# own rollout phase. --quiet keeps this to one gate slot so check_build.sh's
+# "=== Results:" tail stays the only one in the log.
+echo "[12/$TOTAL] check-docs documentation gate"
+if "$PROJ_ROOT/run/check-docs" --quiet; then
+    ok "documentation gate (C5 + C1-delta) clean"
+else
+    fail "check-docs FAILED — see the file:line list above"
+fi
 
 # ── Warn-only: settings-wiring gate (ADR-050 / M-SETTINGS-WIRE2 §6c) — WARN-ONLY ─────
 # Every AppSettings field must have load/save mappings and a runtime owner

@@ -1,0 +1,10 @@
+// fixture target: exactly 10 lines
+int line2() { return 2; }
+int line3() { return 3; }
+int line4() { return 4; }
+int line5() { return 5; }
+int line6() { return 6; }
+int line7() { return 7; }
+int line8() { return 8; }
+int line9() { return 9; }
+int line10() { return 10; }

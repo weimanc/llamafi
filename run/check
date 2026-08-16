@@ -1,7 +1,38 @@
 #!/usr/bin/env bash
-# run/check — 7-gate build check (thin wrapper around check_build.sh), plus one
-# warn-only gate that is not counted. TASK-422 added the cyd2usb_player build gate
-# and corrected this header, which had said "5-gate" since the gate count was 5.
+# run/check — 12-gate repository check (thin wrapper around check_build.sh),
+# plus one warn-only gate that is not counted.
+#
+# Gates: 1-7 firmware env matrix, 8 golden.sha256, 9 tool smoke tests,
+# 10 app-registry staleness, 11 mem_layout staleness+budget, 12 check-docs
+# (TASK-475). TASK-422 added the cyd2usb_player build gate; TASK-475 added the
+# documentation gate and corrected this header, which had said "7-gate" while
+# eleven gates were running.
+#
+#   ./run/check              # everything, including the 7-env firmware matrix
+#   ./run/check --docs-only  # gate 12 only — seconds, no compiler
+#
+# --docs-only exists because 37 of the last 40 commits touched only .md files.
+# Putting a seconds-long documentation gate behind a multi-minute firmware
+# matrix means the dominant commit class waits or skips it, and a skipped gate
+# is a disabled gate. Both paths run the SAME script with the SAME arguments,
+# so they cannot return different verdicts.
 set -euo pipefail
-PROJ_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+source "$(dirname "$0")/lib.sh"
+
+if [ "${1:-}" = "--docs-only" ]; then
+  echo "=== Doc gate only (run/check --docs-only) ==="
+  echo
+  echo "[12/12] check-docs documentation gate"
+  if "$PROJ_ROOT/run/check-docs" --quiet; then
+    echo "  PASS  documentation gate (C5 + C1-delta) clean"
+    echo
+    echo "=== Results: 1 passed, 0 failed ==="
+    exit 0
+  fi
+  echo "  FAIL  check-docs FAILED — see the file:line list above"
+  echo
+  echo "=== Results: 0 passed, 1 failed ==="
+  exit 1
+fi
+
 exec "$PROJ_ROOT/check_build.sh"

@@ -95,9 +95,25 @@ Regex `([\w./-]+\.(h|cpp|py|ini|sh|yaml|json|md)):(\d+)`, resolved against `.`, 
 >   C1 calls it broken. **10 of the 282 current failures are the checker's fault**, not the corpus's.
 > - **C1 needs a suppression mechanism.** `file.h:46` in this spec is an *example of the format*, not a
 >   citation — so any document that documents the citation convention trips its own gate. Specified:
->   **skip matches inside inline backticks and fenced code blocks**, plus an explicit
->   `<!-- check-docs: ignore-line -->` escape for prose that must name a coordinate. Without this,
->   phase 1 is unshippable: this spec cannot pass the gate it defines.
+>   **skip matches inside FENCED code blocks only, plus an explicit
+>   `<!-- check-docs: ignore-line -->` escape** for prose that must name a coordinate. Without some
+>   escape, phase 1 is unshippable: this spec cannot pass the gate it defines.
+>
+> **[O-rev] "Skip inline backticks too" was measured and rejected — it destroys the check.**
+> [MEASURED at `90baa8c`] Citations still visible to C1 under each suppression rule:
+>
+> | suppression | citations visible |
+> |---|---|
+> | none | 604 |
+> | **fenced blocks only (specified)** | **598** |
+> | inline backticks only | 27 |
+> | both | 21 |
+>
+> Backticked `` `file.h:123` `` **is** the normal markdown way to write a citation here, so suppressing <!-- check-docs: ignore-line -->
+> inline code hides **96 %** of the corpus and C1 silently passes everything. The earlier wording
+> ("inline backticks and fenced code blocks") would have shipped a gate that checks 21 of 604
+> citations while reporting success. The explicit `ignore-line` marker is what covers the
+> format-example case — that is what markers are for.
 
 Worst live offenders: `M-BOOT-UI.md` (32), `M-SPOTIFY-BOOT-GATE.md` (24), `tasks-winamp-player.md`
 (15), `M-TASKBAR-FEEDBACK.md` (12), `test_plan.md` (10).

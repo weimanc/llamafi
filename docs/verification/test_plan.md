@@ -103,6 +103,74 @@ mandatory: without them a `return 0` stub passes. (c) None of these need a DUT, 
 blocked on TASK-478; land flat in `app/tools/` per the existing `test_*.py` convention and add to
 TASK-480's migration list.
 
+### `T_DOC_*` — written entries (Developer, TASK-475 phase 1)
+
+**Harness**: `app/tools/test_check_docs.py` · **Under test**: `app/tools/check_docs.py`, `run/check-docs`
+**Fixture**: `app/tools/testdata/check_docs/` + `golden.txt` · **Runner**: `python3 app/tools/test_check_docs.py`,
+also invoked by `app/tools/smoke_test.sh` (so `run/check` gate 9 covers the checker, while gate 12
+runs it against the live corpus). Host-side only: no DUT, no serial, no network.
+
+All nine are **passing** as of TASK-475 phase 1. Delta/split scenarios build throwaway repos in
+`mktemp -d`; the live tree is never modified by a test.
+
+| id | Type | Objective | Expected result | Status |
+|---|---|---|---|---|
+| `T_DOC_01` | unit | output contract + exit-status semantics | Blocking failure → `exit 1`; advisory-only failure → `exit 0`; standalone prints banner/`[n/N]`/`Results` tail, `--quiet` prints none of them | passing |
+| `T_DOC_02` | integration | corpus + exemption resolution | Live corpus = **234 gated / 69 exempt**, `CLAUDE.md` gated; exempt files never scanned; **negative test** — exempt files remain resolution sources, live C2 = 0 (a resolver that drops `tasks-archive.md` scores 1246+) | passing |
+| `T_DOC_03` | unit | C1-full golden over the frozen fixture | Byte-identical to `golden.txt`: 5 broken of 9 citations. Asserts the **backticked broken citation in `M-FIX-main.md` (the inline-backtick anti-regression case) is reported**, and that fenced-block and `ignore-line` content is not | passing |
+| `T_DOC_04` | integration | C1-`delta` reports a known non-zero count | Clean tree → 0; two added broken citations → 2; untracked gated `.md` → 3; a `.md` outside `docs/` → still 3 | passing |
+| `T_DOC_05` | integration | document-split carve-out + controls | Split → **0**; edit-after-move → **1**; new broken citation in an untouched file → **1**; pure rename → **0**; verbatim relocation into an existing dissimilar file → **0**; a new citation in that same file → **1** | passing |
+| `T_DOC_06` | integration | `CHECK_DOCS_BASE` rev and range | `B..C` → 1, `A..C` → 2, rev `A` → 2, `HEAD` on a clean tree → 0; env-var override reaches the checker | passing |
+| `T_DOC_07` | unit | C2 glob resolution incl. a simulated board split | Unfiled id → 1 failure; once the id is filed in a **new** `tasks-*.md`, the glob discovers it → 0 | passing |
+| `T_DOC_08` | unit | C3 scope | the fixture's unknown prefixed env is flagged; `cyd` and `trinity` **not** flagged in fixture or live corpus | passing |
+| `T_DOC_09` | unit | C5 link integrity | 4 links, exactly 1 broken; anchors stripped, URL-encoded targets resolved, external links ignored | passing |
+
+**Non-vacuity — mutation-tested, not assumed.** Each mechanism was deliberately broken and the suite
+re-run. Caught: inline-backtick suppression reintroduced (`T_DOC_03` ×2), recursive `docs/`
+resolution removed (`T_DOC_03`), exemptions applied to resolution sources (`T_DOC_02`), line ranges
+using the lower bound (`T_DOC_03`), C3 widened to bare `cyd`/`trinity` (`T_DOC_03`/`08`), board glob
+hardcoded to `tasks.md` (`T_DOC_02`), verbatim carve-out removed (`T_DOC_05`).
+
+> **The carve-out mutation initially ESCAPED**, and the escape is worth recording: every split
+> scenario was being carried by `git diff -M -C` rename/copy detection alone, so deleting the
+> verbatim rule left the suite green — the test named a mechanism it did not exercise. It only bites
+> when relocated content lands in a file that already existed at the base rev and is too dissimilar
+> to be attributed as a copy. `T_DOC_05` now contains exactly that case. **Corollary for a future
+> maintainer: `-M -C` is belt-and-braces here; the verbatim rule is the load-bearing half**, and
+> removing `-M -C` alone is currently undetectable by this suite.
+
+---
+
+## Suite: refactor-verification-001 — `T_488_*` M-SRCLAYOUT move verification (TASK-488)
+
+> **Registered 2026-08-16 (TASK-507), after the fact.** These ids ran green before they were written
+> down here — a harness, a driver and a full DUT pass existed while this file recorded nothing. The
+> gap was found by QM audit the same day. `T_DOC_*` above was reserved *before* its harness precisely
+> so this does not recur.
+
+**Harness**: `app/tools/test_task488_partb.py` · **Driver**: `run/task488` (`DUT_TREE=<worktree>`
+flashes another checkout for an A/B) · **Criteria**: [tasks-architecture.md § TASK-488](../project/tasks-architecture.md)
+**Result of record**: 2026-08-16, commit `64bf839` — 10 PASS, 1 FAIL-not-attributable.
+
+| id | Objective | Status |
+|---|---|---|
+| `T_488_01` | every moved block byte-identical and contiguous in original order | **PASS** — host-only, 14/14 blocks |
+| `T_488_02` | the three deleted state structs had zero code references | **PASS** — 0 refs; doc-only mentions → TASK-503 |
+| `T_488_03` | production binary essentially unchanged across the moves | **PASS** — `.text`/`.rodata`/`.data`/`.bss` identical to the byte; 66 B (prod) / 73 B (debug) of build metadata only |
+| `T_488_04` | 39 app switches over 3 cycles, no reset/WDT/Guru | **PASS** |
+| `T_488_05` | `init()` once, `resume()` on later cycles | **PASS (partial)** — only Aquarium and WebRadio emit a distinguishable marker; the other 11 apps are **not observable** without firmware instrumentation. Recorded, not inferred |
+| `T_488_06` | Spotify/Clock/Aquarium state survives re-entry ×3 | **PASS** |
+| `T_488_07` | every taskbar slot lands on the app its icon shows | **PASS** — 15 taps over 3 scroll rounds |
+| `T_488_08` | eject cycle Spotify→WebRadio→Player→Spotify ×3 | **PASS** — 9/9. First run FAILed 9/9 on a harness defect (missing taskbar-offset reset), not firmware → LL-135 |
+| `T_488_09` | all 7 Settings sections enter and return | **PASS** |
+| `T_488_10` | debug console intact after `b36f184` moved it | **PASS** — 26 commands (`kCmds[]` byte-identical to pre-move), all **108** `get` keys resolve |
+| `T_488_11` | heap stable across the sweep | **FAIL as written — NOT ATTRIBUTABLE.** The ~48 KB A-lite arena around WebRadio/LocalPlayer swamps the signal (a pre-refactor sweep measured **+39144 B**); binaries are identical machine code and an A/B on pre-refactor firmware reproduced the decline worse. Redesign → **TASK-504**; residual settling → **TASK-505** |
+
+**VE notes**: (a) `T_488_01`–`03` are host-only and belong in a CI-able gate, not a DUT suite — they
+are the cheapest and strongest of the eleven, and `T_488_03` closed the include-order/static-init
+question by measurement (LL-137). (b) `T_488_11` must not be re-run as written; see TASK-504.
+(c) The suite mutates persisted settings — take the BP-049 snapshot first (TASK-506).
+
 ---
 
 ## Suite: serialdbg-001 — Serial debug command surface (M-SERIALDBG)

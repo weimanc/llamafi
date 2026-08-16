@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# run/check-docs — documentation staleness gate (TASK-475, M-DOCLIFE phase 1).
+#
+# Phase 1 blocks on C5 (relative .md links) and C1-delta (positional citations
+# newly added in the diff). C1-full, C2, C3 and C4 print [warn] and cannot fail
+# the build until their own rollout phase.
+#
+#   ./run/check-docs                      # gate the working tree against HEAD
+#   CHECK_DOCS_BASE=HEAD~1 ./run/check-docs   # audit the commit just made
+#   CHECK_DOCS_BASE=a..b ./run/check-docs     # audit a push range
+#   ./run/check-docs --quiet              # one gate slot, for check_build.sh
+#
+# Also reachable as `./run/check --docs-only`, which is the fast path for
+# doc-only commits — 37 of the last 40 commits touched only .md, and putting a
+# seconds-long doc gate behind a 7-env firmware matrix is how gates get skipped.
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+
+exec "$VENV_PY" "$PIO_DIR/tools/check_docs.py" --root "$PROJ_ROOT" "$@"
