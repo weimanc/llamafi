@@ -28,18 +28,21 @@ From `feature_inventory.yaml` + `cross_feature_matrix.yaml`. Hierarchy: suite→
 [M-CONCURRENCY §6](../architecture/designs/M-CONCURRENCY-task-ownership-contract.md) ·
 **Task**: TASK-473
 
-| id | Must be true |
-|---|---|
-| `T_CC_01` | no context but `loopTask` calls `tft.*` (IFC-002 I2) |
-| `T_CC_02` | every `tlsYield()` has a matching resume on all paths (I1) — guaranteed by construction after TASK-458 |
-| `T_CC_03` | pump-task callbacks set flags only (I4) |
-| `T_CC_04` | cross-context results carry identity (I5) |
-| `T_CC_05` | task core/priority/stack matches IFC-002 §1 — catches drift like the X015 Core-0 error |
+| id | Must be true | VE disposition, 2026-08-16 |
+|---|---|---|
+| `T_CC_01` | no context but `loopTask` calls `tft.*` (IFC-002 I2) | **KEEP as an automatable host test.** Verified 0 hits today across the three non-loopTask TUs. Scope it to those TUs **plus one level of call-graph closure** into shared headers — closer in kind to `T_CQ_03`'s grep than to a checklist. *(Overturns the Architect's "review-shaped" note.)* |
+| `T_CC_02` | every `tlsYield()` has a matching resume on all paths (I1) | **KEEP, but BLOCKED** on TASK-495 → TASK-458. Not "guaranteed by construction after TASK-458" — that task is open and gated on an unresolved judgement call. **Today it is a manual review item and must not be counted as a passing test.** |
+| `T_CC_03` | ~~pump-task callbacks set flags only~~ | **DISCARD as written — the claim was false** (`audio_process_extern` runs a 19-band Goertzel). After IFC-002 v2's I4a/I4b split, I4a is already covered by the existing `aeDrainEof()` assert and needs no id; I4b needs a doc note, not a test. |
+| `T_CC_04` | ~~cross-context results carry identity~~ | **DISCARD as written — the claim was false.** Only 3 of 9 result types carry identity. Do **not** convert to a checklist item; re-derive a narrower assertion against IFC-002 v2's enumerated set first, then decide grep-or-review. |
+| `T_CC_05` | task core/priority/stack matches IFC-002 §1 | **KEEP unchanged.** VE independently verified every figure — pinning, priorities 1/1/2, stacks 10240/11264/8192/20480. Clean, cheap, executable. |
 
-**VE note**: I2/I3/I5 have **no enforcement today**; only I4 has a `configASSERT`. `T_CC_01` and
-`T_CC_04` are review-shaped rather than executable, and VE should decide whether they are tests at
-all or belong on a checklist — the `T_AE_05` precedent says a review gate counted as a test inflates
-coverage.
+**VE verdict**: of five reserved ids, **two were discarded because the invariants they tested were
+factually wrong** (see IFC-002 v2). One is blocked, two stand. The `T_AE_05` precedent — a review gate
+counted as a test inflates coverage — was applied and, for `T_CC_01`, found *not* to apply.
+
+**New id — `T_SRC_09`** (IFC-003 I9, the TASK-384 shape): drive, per app that overrides
+`isNavigationTap()`, that an async-pending **non**-navigation tap is swallowed **and** a navigation tap
+is not. No regression test covers this today; only TASK-384's one-off hardware repro exists.
 
 ### `T_SRC_01`–`T_SRC_08` — source layout
 **Source**: [M-SRCLAYOUT §9](../architecture/designs/M-SRCLAYOUT-main-decomposition.md) ·
