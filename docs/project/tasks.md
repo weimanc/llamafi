@@ -28,7 +28,42 @@ deliberately NOT filed — it waits for the study's graduation proposal (R&D pro
 ## Split-out boards
 
 - **M-WINAMP-PLAYER** active tasks: [tasks-winamp-player.md](tasks-winamp-player.md) — 12 entries.
+- **M-ARCH** (M-SRCLAYOUT · M-CODEQUAL · M-TOOLING · M-DOCLIFE) active tasks:
+  [tasks-architecture.md](tasks-architecture.md) — 36 entries.
 - Closed tasks (all milestones): [tasks-archive.md](tasks-archive.md).
+
+---
+
+## M-ARCH — placeholders (full entries in [tasks-architecture.md](tasks-architecture.md))
+
+From the 2026-08-16 Architect pass: nine design docs, ADR-060/061, IFC-002/003 (+004–006 stubs).
+Stubs only — **the entries live in the split file** and are edited there.
+
+**Read first:** three refactor commits (`a044f5d`, `78caa95`, `b36f184`) landed ahead of ADR sign-off,
+are unreviewed and not DUT-verified, and by ADR-060 D0's measure created **zero components**.
+TASK-488 gates the rest of the board.
+
+| task | pri | status | title |
+|---|---|---|---|
+| **TASK-488** | **P1** | OPEN | review the three landed refactor commits + take the owed DUT baseline |
+| TASK-453/454 | — | LANDED, UNVERIFIED | Stage A/B — app classes and debug console out of `main.cpp` |
+| TASK-455/456/471/472 | P2 | BLOCKED | Stages C–F — `boot/`, composition root, component conversion, `stock/` split |
+| TASK-457, 464 | P2/P3 | OPEN | shell hygiene; documentation-reference sweep (308 cites / 49 files) |
+| **TASK-458** | **P2** | OPEN | RAII scope guards — fixes a bug class with a proven instance (TASK-222) |
+| TASK-459/460/461/462/463 | P2/P3 | MIXED | fetch-skeleton consolidation, canvas constants, table dispatch, palette |
+| TASK-465…470 | P2/P3 | OPEN | ADR-061 — debug convention, build-matrix gate, decommission, `display/tft` |
+| TASK-473 | P2 | OPEN | concurrency contract gaps — WiFi arbiter, assert I2/I3 |
+| **TASK-475**, 474 | P2/P3 | OPEN | `run/check-docs` gate; PM/QM doc-lifecycle process |
+| **TASK-478**, 479/480/481/482 | P2/P3 | OPEN | `tools/lib/dut.py`; split the 10 229-line runner; spike retirement |
+| TASK-476/477 | P3 | OPEN | `mb_arena` relocation (blocked on a build question); header-comment fix |
+| TASK-483…487 | P2–P4 | SKELETON | test architecture, error model, levelization audit, vendoring, ADR-028 revisit |
+
+> **Unblocked and independently valuable today**, if this board is only partly scheduled:
+> **TASK-458** (RAII), **TASK-466** (build matrix — `cyd2usb` has been broken for months),
+> **TASK-475** (`run/check-docs`), **TASK-478** (`lib/dut.py`).
+
+> **Drift warning:** hand-maintained, same as the player board. The split file is the entry; this is
+> a label. If they disagree, the split file wins.
 
 ---
 
