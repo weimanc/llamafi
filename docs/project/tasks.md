@@ -29,7 +29,7 @@ deliberately NOT filed — it waits for the study's graduation proposal (R&D pro
 
 - **M-WINAMP-PLAYER** active tasks: [tasks-winamp-player.md](tasks-winamp-player.md) — 12 entries.
 - **M-ARCH** (M-SRCLAYOUT · M-CODEQUAL · M-TOOLING · M-DOCLIFE) active tasks:
-  [tasks-architecture.md](tasks-architecture.md) — 44 entries.
+  [tasks-architecture.md](tasks-architecture.md) — 47 entries.
 - Closed tasks (all milestones): [tasks-archive.md](tasks-archive.md).
 
 ---

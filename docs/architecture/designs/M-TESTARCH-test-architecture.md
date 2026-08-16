@@ -36,12 +36,19 @@
 
 ## Open
 
-- **OQ1 — is a host unit tier worth it here?** This is VE's call more than the Architect's. "DUT-only,
-  but with a real DUT library" may be the honest answer for a project this size. Do not assume the
-  textbook pyramid.
-- **OQ2 — which seams would a unit tier actually use?** Candidates: `util/*`, `player/m3u`,
-  `settings/settingsStorage`, the `PlaylistSource` interface (IFC-005). Anything touching `tft`,
-  WiFi or the audio engine is probably DUT-forever.
+- **OQ1 — ANSWERED by @VE, 2026-08-16: DUT-only, with a real DUT library.** Keep DUT-only as the
+  default. A host unit tier is a **two-step ask**, not a quick win: first audit which `util/*` files
+  are genuinely Arduino-free, and only after the component model lands do `m3u`/`settingsStorage`
+  become candidates at real cost. VE's caution, recorded verbatim because it corrects this document's
+  own framing: *"Don't let 'D0 makes unit tests possible' imply it makes them cheap — construction-
+  order/global-state coupling (21 `g_` globals, 72 `extern`s) is the actual blocker, and D0 alone
+  doesn't remove it."*
+- **OQ2 — the candidate seam list below was optimistic; @VE checked it.** `player/m3u.h` includes
+  `<Arduino.h>` and `<SD.h>`; `settingsStorage.h` includes `<Arduino.h>`. **Neither is host-buildable
+  today** — both need an Arduino/SD mock layer first, which is real work this document did not price.
+  Genuinely host-clean **today**: `util/mathUtil.{h,cpp}` (pure `<cmath>`, one LUT). Close, and worth
+  a transitive check: `util/asciiFold.h`, `util/textFit.h`. Anything touching `tft`, WiFi or the audio
+  engine is DUT-forever.
 - **OQ3 — how do test ids stay bound to test code?** Today a `T_XXX` in `test_plan.md` and a
   `def t077` in the runner are bound by nothing. That is LL-114's mirror problem one layer up, and
   `run/check-docs` could gate it.

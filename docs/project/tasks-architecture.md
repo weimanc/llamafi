@@ -190,6 +190,30 @@ argument arriving from a second direction. **Blocks TASK-456.**
 
 ---
 
+## From the @VE review, 2026-08-16
+
+| task | pri | status | title |
+|---|---|---|---|
+| **TASK-497** | **P2** | OPEN | retrospective ≥3-run DUT baseline for the landed Stages A/B — costs 2× DUT time |
+| TASK-498 | P3 | OPEN | `T_SRC_09` — regression test for IFC-003 I9 (the TASK-384 swallow shape) |
+| TASK-499 | P3 | OPEN | a `T_CC_` id for M-CONCURRENCY G1: enumerate every `WiFi.` call site against the known-safe set |
+
+**TASK-497 — the baseline window is not closed, but it now costs double.** ADR-059 D13 and
+`T_SRC_01` both require ≥3 full runs *before* a stage lands. Stages A (`78caa95`) and B (`b36f184`)
+landed without one. @VE's ruling: because both are claimed **pure text moves**, the pre-refactor tree
+still exists in git — checkout `78caa95~1`, run the suite 3×, then diff against 3 fresh runs on
+master. That **does** recover D13's actual guarantee (no test passing in all baselines fails after).
+What it cannot recover is catching a regression *live*, when a bisect would have been cheap.
+**"We'll trust the diff review instead" is explicitly insufficient** — that is the
+review-reinforces-a-wrong-frame failure the milestone note called out. Pairs with TASK-488.
+
+**TASK-499 — G1 has no test id at all.** M-CONCURRENCY calls the missing WiFi arbiter "the largest
+unclosed gap" and then reserves nothing for it. If OQ1 there resolves to *document-only*, that
+decision itself needs an id whose job is proving the three known collisions (X014, TASK-436,
+TASK-404) have no fourth sibling waiting.
+
+---
+
 ## PM note — the honest read
 
 This board was produced in a single day by one Architect pass, and its shape reflects that. Three
