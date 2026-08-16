@@ -11,7 +11,7 @@ From `feature_inventory.yaml` + `cross_feature_matrix.yaml`. Hierarchy: suite→
 
 ---
 
-## Suite: M-ARCH — RESERVED id families (Architect, 2026-08-16)
+## Suite: M-ARCH — RESERVED id families (Architect, 2026-08-16; `T_DOC_` added by VE, 2026-08-16)
 
 > **RESERVED, NOT WRITTEN.** Per AGENTS.md the Architect reserves and **VE owns this file** — these
 > rows exist so the ids are visible and not re-used, and so the design docs' test obligations are
@@ -68,6 +68,40 @@ determinism against `golden.sha256`, and the memory budget.
 **VE note**: `T_CQ_03` is a grep, not a DUT test — `grep -rnE '\b(275|320)\b' app/tools/ app/src/`
 returning only generated headers and data tables. Cheap and objective; worth keeping as a gate
 rather than a test.
+
+---
+
+### `T_DOC_01`–`T_DOC_09` — `run/check-docs` documentation gate
+**Source**: [M-DOCLIFE check-docs spec §5a](../architecture/designs/M-DOCLIFE-check-docs-spec.md) ·
+**Tasks**: TASK-475 (harness), TASK-508 (C4 rule)
+
+**Reserved by @VE, 2026-08-16, deliberately BEFORE the harness exists.** TASK-507 was filed the same
+day for the opposite order: eight `T_488_*` ids that have written criteria, a harness, a driver and a
+green run, and **zero presence in this file** — confirmed by grep, `T_488` appears here 0 times. This
+spec was on the identical trajectory, so the ids are reserved now and E9 makes registration a
+condition of TASK-475 closing, not a follow-up.
+
+A new family rather than `T_SRC_`/`T_CQ_`/`T_CC_`: those three are all about firmware source, and
+`check-docs` is host-side documentation tooling with no DUT involvement.
+
+| id | Covers |
+|---|---|
+| `T_DOC_01` | output contract + exit-status semantics; standalone vs `--quiet` under `run/check` (E1) |
+| `T_DOC_02` | corpus/exemption resolution, **including the negative test** that exempt files stay resolution sources (E2) |
+| `T_DOC_03` | C1-full against the frozen fixture, golden-file (E4) |
+| `T_DOC_04` | C1-`delta` on a fixture diff, non-zero expected — the half that makes E3 non-vacuous |
+| `T_DOC_05` | document-split carve-out **plus the edit-after-move and new-citation controls** (E6) |
+| `T_DOC_06` | `CHECK_DOCS_BASE` rev and range (E6) |
+| `T_DOC_07` | C2 glob resolution, including a simulated board split |
+| `T_DOC_08` | C3 scoped to `cyd2usb*`; asserts `cyd` and `trinity` are **not** flagged (they are the sibling project's envs) |
+| `T_DOC_09` | C5 link integrity, including anchor stripping and URL-encoded paths |
+
+**VE notes**: (a) `T_DOC_03`/`T_DOC_04` run against a **committed fixture corpus**, never the live
+tree — the live count moved 280→282 inside a single commit and reads 286 in a clean checkout, because
+three citations resolve only through the untracked sibling repo. (b) `T_DOC_05`'s controls are
+mandatory: without them a `return 0` stub passes. (c) None of these need a DUT, so they are not
+blocked on TASK-478; land flat in `app/tools/` per the existing `test_*.py` convention and add to
+TASK-480's migration list.
 
 ---
 

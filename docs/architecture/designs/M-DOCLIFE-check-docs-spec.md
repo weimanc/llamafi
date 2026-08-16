@@ -56,6 +56,9 @@ unusable and gets disabled on day one:
 
 **Rule:** a file is gated if it is intended to be *true now*. Historical records are exempt by nature,
 not by convenience — and any new exemption needs that justification, or the gate erodes.
+**[V-rev] The enumerated table above is normative; "intended to be true now" is guidance for the human
+adding a row.** Intent is not mechanical — left as the implementation rule, every new file becomes a
+judgement call at gate time.
 
 > **[A-rev] Exemptions govern which files are SCANNED, never which files are RESOLUTION SOURCES.**
 > Stated because the natural misreading is expensive: `tasks-archive.md` is exempt from scanning, but
@@ -83,6 +86,18 @@ not by convenience — and any new exemption needs that justification, or the ga
 ### C1 — positional citations
 Regex `([\w./-]+\.(h|cpp|py|ini|sh|yaml|json|md)):(\d+)`, resolved against `.`, `app/`, `app/src/`,
 `app/tools/`, `docs/`. Fails if no candidate file exists, or the file has fewer than NNN lines.
+
+> **[V-rev] Two resolver defects, found by running C1-`delta` against the commit that specified it —
+> @VE, 2026-08-16. It failed on its own amendment commit, twice.** [MEASURED over `efab524..a22dd07`.]
+>
+> - **`docs/` must be searched recursively.** The root list is flat, so a doc citing a sibling doc by
+>   basename never resolves: `M-SRCLAYOUT-main-decomposition.md:4` is a **correct, live** citation and
+>   C1 calls it broken. **10 of the 282 current failures are the checker's fault**, not the corpus's.
+> - **C1 needs a suppression mechanism.** `file.h:46` in this spec is an *example of the format*, not a
+>   citation — so any document that documents the citation convention trips its own gate. Specified:
+>   **skip matches inside inline backticks and fenced code blocks**, plus an explicit
+>   `<!-- check-docs: ignore-line -->` escape for prose that must name a coordinate. Without this,
+>   phase 1 is unshippable: this spec cannot pass the gate it defines.
 
 Worst live offenders: `M-BOOT-UI.md` (32), `M-SPOTIFY-BOOT-GATE.md` (24), `tasks-winamp-player.md`
 (15), `M-TASKBAR-FEEDBACK.md` (12), `test_plan.md` (10).
@@ -190,6 +205,11 @@ uses, so the convention exists.
 
 Every failure prints `file:line: <what> -> <why>` so it is directly actionable.
 
+> **[V-rev] Two output modes, because nesting the full contract inside `check_build.sh` collides with
+> it** — two `=== Results:` tails and two independent `[n/N]` sequences in one log. **Standalone:** the
+> full contract above. **Under `run/check` (`--quiet`):** exactly one gate slot — a single `ok`/`fail`
+> line plus indented `[warn]`s — so `check_build.sh`'s tail stays the only one a parser can key on.
+
 ## 4. Rollout — driven by the baselines, not by preference
 
 | Phase | Blocking | Advisory | Precondition |
@@ -270,13 +290,16 @@ one had none. A spec without exit criteria is thrown, not handed off.
 
 | # | Criterion |
 |---|---|
-| E1 | `run/check-docs` exists, follows `check_build.sh`'s output contract (§3), exits non-zero **only** on a blocking check |
-| E2 | Corpus resolution matches §1 exactly: 233 gated under `docs/` + `CLAUDE.md`; 69 exempt; exemptions scope scanning only, never resolution |
-| E3 | C5 and C1-`delta` are blocking and both read **0** on a clean tree at the commit under test |
-| E4 | C1-full reports **280 / 599**, C2 **0**, C3 **9** — an implementer who cannot reproduce these has found either a bug or a further spec defect, and must say which |
-| E5 | C4 runs advisory and prints its count without a pass/fail claim, pending TASK-508's matching rule |
-| E6 | `CHECK_DOCS_BASE` override works for a rev and for a range; a document split produces **0** C1-`delta` failures (regression test for the [A-rev] carve-out) |
-| E7 | `run/check` invokes it from phase 1 (closed OQ1) and stays 11/11 + this gate |
+| E1 | `run/check-docs` exists, follows §3's output contract standalone and its `--quiet` shape under `run/check`, and exits non-zero **only** on a blocking check — proved by injecting an advisory failure (expect `exit 0`) and a blocking one (expect `exit 1`) **into the fixture**, not the live corpus |
+| E2 | Corpus resolution matches §1 exactly: 233 gated under `docs/` + `CLAUDE.md`, 69 exempt. Includes the **negative** test that exempt files remain resolution sources — a resolver that skips `tasks-archive.md` scores 1261 false failures, so this criterion fails loudly if the distinction is lost |
+| E3 | C1-`delta` reads 0 on a clean tree **and** reports a known non-zero count on a fixture diff introducing N broken citations. *(The clean-tree half alone is vacuous — `git diff HEAD` is empty by construction there, and a `return 0` stub passes it.)* |
+| E4 | **Golden-file over a committed fixture corpus at `app/tools/testdata/check_docs/`** — every check's count and full stdout pinned against frozen inputs that cannot drift. *(Replaces pinning live-corpus numbers, which failed three ways: E4's 280/599 was **already 282/601** in the commit that wrote it; a clean checkout scores **286** because three citations resolve only through the untracked sibling repo `Spotify-Diy-Thing/`; and its `C3 9` contradicted this spec's own per-occurrence rule — C3 is **60 occurrences / 9 names**.)* |
+| E4a | The **live** corpus count is recorded in TASK-475's close-out note as the baseline *as of that commit* — an observation, never a pass condition |
+| E5 | C4 is present and wired, and prints `[warn] C4: rule undefined pending TASK-508` — **no count**. An unruled number gets quoted, exactly as 67 and 91 were |
+| E6 | Document-split carve-out, in a throwaway repo built by the test in `mktemp -d`, never the live tree: commit A with 3 broken citations → commit B that `git mv`-splits them out **verbatim** → `CHECK_DOCS_BASE=<A>` gives **0**. **Plus two mandatory controls**: editing a relocated citation to a new broken line → **1**, and a genuinely new broken citation in an untouched file → **1**. Without the controls a `return 0` stub passes. `CHECK_DOCS_BASE` rev vs range must give different, predictable counts on that fixture |
+| E7 | `run/check` invokes it from phase 1 with the gate **counted** — `TOTAL` 11 → **12**, and the stale "7-gate"/"Pre-restructure" headers in `run/check` and `check_build.sh` corrected. *(Uncounted would silently demote C5 and C1-`delta` to advisory — the most likely way phase 1 ships broken.)* |
+| E8 | A `--docs-only` fast path exists and returns the same verdict as the full `run/check` invocation. **[MEASURED] 37 of the last 40 commits touch only `.md`** — putting a seconds-long doc gate behind a 7-env firmware matrix means the dominant commit class waits or skips it, and a skipped gate is a disabled gate |
+| E9 | `T_DOC_01`–`T_DOC_09` are registered in `test_plan.md` **in the same commit as the harness** — the TASK-507 lesson, which this spec was on course to repeat |
 
 ## 6. Non-goals
 
