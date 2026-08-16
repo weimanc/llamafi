@@ -243,7 +243,8 @@ navigation has **not** been run. **Nothing in this board should land until this 
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-475 | **P2** | OPEN | implement `run/check-docs` C1–C5 per spec. C5 blocking day one (0 failures); C1 advisory (274/576) |
+| TASK-475 | **P2** | OPEN — **spec amended 2026-08-16, re-review before starting** | implement `run/check-docs` C1–C5 per spec. Baselines re-taken at `efab524`: C5 **0** (blocking day one, holds), C1 **280/599** advisory + `delta` blocking, C2 **0** via [A1]'s glob, C3 **9**, C4 **struck, order 100–200** → TASK-508. Amendments [A1] C2 resolution set (138 false failures), [A2] `delta` diff base defined, [A3] C4 baseline struck. **Then @Architect-reviewed: falsified 3 of the amendments' own numbers, found 11 further defects; 5 were handoff-blocking and are now fixed** (failure unit, exemption-vs-resolver, C3 detection rule, OQ1 contradiction, split-file carve-out), plus §5a exit criteria E1–E7 added. |
+| TASK-508 | P3 | OPEN — **blocks `run/check-docs` phase 4** | C4 status-vocabulary migration: **order 100–200** architecture-doc headers (the exact count is undefined until the matching rule is — @Architect measured 100–218 across eight plausible readings, so **91 was struck**) use `done`/`planned`/`implemented`/`resolved`/`updated`/`draft` instead of the closed vocabulary. Filed by amendment [A3] to the check-docs spec, which had quoted 67 corpus-wide hits as the reason to scope C4 — scoped, it is 91. Needs an Architect ruling on how landed work is spelled, and on whether C4 matches on prefix (M-SRCLAYOUT's header is `partially landed; Stages A and B VERIFIED …`). |
 | TASK-474 | P3 | OPEN | PM/QM process items — `docs-touched:` in exit criteria, closed status vocabulary, reservations land immediately |
 
 ## M-TOOLING — host tool architecture ([design](../architecture/designs/M-TOOLING-host-tool-architecture.md))
