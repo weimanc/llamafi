@@ -38,6 +38,10 @@
 >
 > ### Human ruling, 2026-08-16: **M-ARCH is prioritised. PM's recommendation is overruled.**
 >
+> **This is CLOSED, not open.** PM's case is preserved below for the record, **not as a live
+> objection** — do not reopen it. *(Clarified 2026-08-16 on PM's own request: a cold agent skimming
+> "PM's case intact" could misread it as unresolved.)*
+>
 > Recorded rather than quietly applied, because PM's reasoning stands on its own and the next reader
 > should see both. PM's case — that this board reproduces two of M-WINAMP-PLAYER's diagnosed failure
 > modes while that paused milestone waits — is **not withdrawn and is not wrong**. The human has
