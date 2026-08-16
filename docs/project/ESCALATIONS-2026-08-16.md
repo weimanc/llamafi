@@ -28,7 +28,7 @@ Nothing escalated yet. Entries appear here as `E-NN` with the decision needed an
 |---|---|---|---|
 | 1 | @Developer | ADR-060, M-SRCLAYOUT, M-CODEQUAL | **DONE** — 3 MAJOR accepted, all verified true |
 | 2 | @VE | IFC-002, IFC-003, M-CONCURRENCY, M-TESTARCH, reserved test ids | **DONE** — 1 BLOCKER + 2 MAJOR, all verified true; IFC-002 → v2 |
-| 3 | @QM | M-DOCLIFE, check-docs spec, 3 BP candidates | **RUNNING** |
+| 3 | @QM | M-DOCLIFE, check-docs spec, 3 BP candidates | **DONE** — integration PENDING (see below) |
 | 4 | @PM | `tasks-architecture.md`, sequencing, M-ARCH split | not started |
 
 **Self-review passes** (do these while a subagent runs — never touch a doc a running agent owns):
@@ -114,6 +114,34 @@ adopted as a gate unscoped. Filed TASK-497 (retrospective baseline — window is
 **Pattern worth noting for the morning:** two reviewers, six confirmed errors, **zero rejected
 findings.** Every single challenge has held up on verification. That says the docs were written faster
 than they were checked — which is exactly what BP-DOC-3 (candidate) is about.
+
+### ~04:00 — @QM review received. **NOT YET INTEGRATED — this is the resume point.**
+Hit the usage checkpoint mid-verification. The review is captured below; the doc amendments are not
+made. **Resume here.**
+
+QM's dispositions: **BP-DOC-1 adopt** · **BP-DOC-2 adopt with a mandatory citation fix** ·
+**BP-DOC-3 reject as a new number — fold into a BP-060 amendment instead** (it duplicates BP-060 and
+BP-046, and its claimed LL-114 lineage does not hold: LL-114 is about *decay*, BP-DOC-3's precedent is
+about *fabrication at write time* — a different failure class). QM also **rejected my "one adoption or
+none" bundling**, and named it a mild instance of the very framing failure this chain exists to catch.
+QM drafted **LL-134** and an **audit_log entry**, and recommends amending the check-docs spec to add a
+**delta-only blocking mode for C1** (fail only on *newly introduced* positional citations) rather than
+accepting advisory-forever.
+
+**The first reviewer finding that does NOT fully hold — recorded because I said I would record these.**
+QM's F1 calls "AGENTS.md rule 10" a *fabricated* reference. I verified: AGENTS.md indeed has **no
+numbered rules** (QM is right about that), **but the rule exists** — `docs/agents/architect.md:20`,
+"Reserve registry entries at design time." So it is a **misfiled citation, not an invented one**. The
+fix is a corrected pointer, not a replacement citation. Severity drops from MAJOR to MINOR; QM's
+conclusion that BP-DOC-2 must be fixed before promotion still stands.
+
+Its F2 (1 171 vs 1 201 citation counts) **is** a real inconsistency — the two figures measure
+different corpora (`docs/` vs `docs/` + `CLAUDE.md`) and neither was labelled. Both are also now stale:
+today's figures are **1 188** and **1 236**. Fix by stating the corpus with the number, or by dropping
+the corpus-wide figure and keeping only the live-doc one (274/576), which is the number that matters.
+
+**Reviewer hit-rate is now 8 confirmed / 9 raised** across three reviewers — still the strongest
+signal in this whole exercise.
 
 ---
 
