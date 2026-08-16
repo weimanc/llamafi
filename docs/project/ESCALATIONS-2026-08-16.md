@@ -9,7 +9,19 @@
 
 ---
 
-## 1. ESCALATIONS — need human judgement
+## 1. ESCALATIONS — **ALL FIVE RULED, 2026-08-16.** Nothing outstanding.
+
+| id | ruling | applied in |
+|---|---|---|
+| **E-01** | ADR-060 narrowed — **approved** | `3681e9b` — status now "accepted for Stages A+B only" |
+| **E-02** | **resume-AFTER** | `3681e9b` — TASK-495 decided, **TASK-458 unblocked** |
+| **E-03** | **adopt** | `df9493a` — landed as **BP-066** |
+| **E-04** | **adopt** | `df9493a` — **LL-134**, **BP-064**, **BP-065**, BP-060 widened |
+| **E-05** | **M-ARCH prioritised — PM overruled** | `3681e9b` — recorded on the board with PM's case intact |
+
+Original detail below, retained as the decision trail.
+
+## 1a. Original escalations (superseded by the rulings above)
 
 Nothing escalated yet. Entries appear here as `E-NN` with the decision needed and my recommendation.
 
