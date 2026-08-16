@@ -86,7 +86,7 @@ navigation has **not** been run. **Nothing in this board should land until this 
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-458 | **P2** | **UNBLOCKED** (495 decided) | C2 — `TlsYieldGuard` / `HttpSession` RAII guards. **Highest value in this board**: fixes a bug class with a proven production instance (TASK-222). *@PM: the table said OPEN while this file's own prose said "gates TASK-458" — corrected. **Fold TASK-495 in as 458's first step**, not a separate schedulable item; it is a 30-minute decision, not a build.* |
+| TASK-458 | **P2** | **UNBLOCKED** — but see the TASK-495 ordering note | C2 — `TlsYieldGuard` / `HttpSession` RAII guards. **Highest value in this board**: fixes a bug class with a proven production instance (TASK-222). *@PM: the table said OPEN while this file's own prose said "gates TASK-458" — corrected. **Fold TASK-495 in as 458's first step**, not a separate schedulable item; it is a 30-minute decision, not a build.* |
 | TASK-459 | P3 | BLOCKED on 458 | C2b — migrate `s_aeSpotifyYielded` to a transferable guard. Touches audio teardown ordering (`T_AE_04`) |
 | TASK-460 | P2 | BLOCKED on 458 | C1 — consolidate the nine `fetch*()` functions onto one skeleton |
 | TASK-461 | P2 | OPEN | C5 — one canonical canvas/window constant across firmware, bake and previews. 275 has **six names in three layers** |
@@ -201,9 +201,25 @@ Stages A/B landed. Pointing it at components instead of files makes it survive m
 
 | task | pri | status | title |
 |---|---|---|---|
-| **TASK-495** | **P2** | **DECIDED 2026-08-16 — resume-AFTER; implementation open** | `fetchCrypto` moves its `tlsResume()` to after its JSON parse, matching `fetchWeather`. Human ruling (E-02). |
+| **TASK-495** | P3 | **PARKED 2026-08-16 — decided, not implemented** | `fetchCrypto` moves its `tlsResume()` to after its JSON parse, matching `fetchWeather`. Decision made (E-02, resume-AFTER); the two-line change is deliberately not scheduled. **Read the ordering note below before touching TASK-458 or TASK-460.** |
 | TASK-496 | P2 | OPEN | `appRegistry.h` has no conditional-compilation column; 3 of 13 apps are `#ifdef WINAMP_DISPLAY` |
 
+> ### ⚠ PARKED 2026-08-16 — read this before starting TASK-458 or TASK-460
+>
+> **The decision is made; the code change is not.** Parking is safe *on its own* — the divergence has
+> existed for months and no reported symptom is attributed to it. What is **not** safe is doing
+> TASK-458 or TASK-460 while this stays parked.
+>
+> A `TlsYieldGuard` scoped to end-of-function, or the C1 fetch consolidation, **normalises crypto to
+> resume-after as a side effect.** That happens to be the correct outcome — so it would not be a
+> *bug*, it would be an **untracked behaviour change buried inside a refactor.** If crypto then
+> misbehaves, nothing distinguishes "the guard broke it" from "the timing change broke it", which is
+> exactly the diagnostic trap `tasks-winamp-player.md`'s post-mortem is about.
+>
+> **Therefore: if TASK-458 or TASK-460 is scheduled, TASK-495 lands first, as its own commit.** Two
+> lines, ten minutes, bisectable. It is not worth scheduling alone, and it must not be skipped in
+> front of those two.
+>
 > **RESOLVED 2026-08-16 (E-02, human): resume-AFTER the parse.** `fetchCrypto` changes to match
 > `fetchWeather`; the stale comment at `dataTaskStorage.cpp:262-265` claiming they already match
 > becomes true. Rationale: resume-before hands heap back sooner but lets the Spotify task reconnect
