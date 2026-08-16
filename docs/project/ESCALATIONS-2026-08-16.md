@@ -143,6 +143,31 @@ the corpus-wide figure and keeping only the live-doc one (274/576), which is the
 **Reviewer hit-rate is now 8 confirmed / 9 raised** across three reviewers — still the strongest
 signal in this whole exercise.
 
+### ~04:15 — QM's F5 verified. Disposition right, reasoning needs correcting.
+QM says BP-DOC-3 *"substantially overlaps"* BP-060 and BP-046, so it should fold into a BP-060
+amendment rather than take a new number. **I checked both. The disposition is right; the stated reason
+is not, and the difference changes the amendment's wording.**
+
+- **BP-060** is scoped to *handover prompts* — "When briefing a fresh or continuing agent, mark each
+  diagnostic claim as measured / inferred / assumed." An ADR or IFC is not a handover prompt, so
+  **BP-060 as written does not cover this session's failures at all.**
+- **BP-046** is scoped to *design-doc claims about preview/PoC tools* — narrower still.
+
+So it is **not** already covered, and "duplicate" overstates it. What is true — and is the stronger
+argument — is that **BP-060's *rationale* is precisely this disease**: *"Delegation multiplies the cost
+of an unverified assertion: a theory a single engineer would test in five minutes instead becomes
+hours of plausible-looking work across several agents."* That is exactly what happened here at a
+different altitude: a false duplicate-symbol claim became a four-stage plan; two overgeneralised
+IFC-002 invariants became five reserved test ids, two of which had to be discarded.
+
+**Therefore: fold into BP-060 as QM recommends, but as a genuine scope widening** — from "a handover
+prompt" to "a handover prompt, or any document a cold agent will treat as fact (ADRs, design docs,
+IFCs)" — not as a redundancy cleanup. Same landing place, materially different edit.
+
+**Reviewer hit-rate: 8 confirmed / 9 raised, plus one finding whose disposition survives but whose
+reasoning did not.** Both QM findings I checked (F1, F5) were directionally right and imprecise in the
+same way — which is itself worth noting, since QM was the reviewer auditing precision.
+
 ---
 
 ## 4. STANDING CONSTRAINTS for this work
