@@ -54,7 +54,7 @@ by ADR-060 D0's measure they created **zero components**, so Stages C–F remain
 | TASK-459/460/461/462/463 | P2/P3 | MIXED | fetch-skeleton consolidation, canvas constants, table dispatch, palette |
 | TASK-465…470 | P2/P3 | OPEN | ADR-061 — debug convention, build-matrix gate, decommission, `display/tft` |
 | TASK-473 | P2 | OPEN | concurrency contract gaps — WiFi arbiter, assert I2/I3 |
-| **TASK-475**, 474 | P2/P3 | OPEN | `run/check-docs` gate; PM/QM doc-lifecycle process |
+| **TASK-475**, 474 | P2/P3 | **475 PHASE 1 DONE** (`b0d0202`) | `run/check-docs` gate shipped as counted gate 12 (C5 + C1-delta blocking); 474 PM/QM doc-lifecycle process still open |
 | **TASK-478**, 479/480/481/482 | P2/P3 | OPEN | `tools/lib/dut.py`; split the 10 229-line runner; spike retirement |
 | TASK-476/477 | P3 | OPEN | `mb_arena` relocation (blocked on a build question); header-comment fix |
 | TASK-483…487 | P2–P4 | SKELETON | test architecture, error model, levelization audit, vendoring, ADR-028 revisit |
