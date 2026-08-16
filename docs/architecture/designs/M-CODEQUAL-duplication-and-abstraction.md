@@ -56,10 +56,35 @@ roughly 200 lines of repetition, and it is *load-bearing* repetition: the phase 
 `tlsResume`-on-every-exit-path rule, the HTTP/1.0-forces-close trick and the `certSentinel` wrapper
 are all correctness-critical, and each is independently re-typed per fetch.
 
-**Design.** A single `httpFetchJson()` taking `{url, rootCa, certTag, phaseSlot}` and a parse
-callback; each `fetch*()` shrinks to URL construction plus its parse body. Do it **after C2** — the
-scope guards are what make the consolidation safe, because they remove the exit-path bookkeeping that
-is the most error-prone part of the skeleton.
+> **CORRECTED — @Developer review, 2026-08-16 (finding 2). The claim above is wrong: these are two
+> skeletons, not one, and there is a live behavioural divergence inside them.**
+>
+> **Two I/O strategies, not one.** *Buffered* — `fetchWeather`, `fetchCrypto`, `fetchTeletext`,
+> `fetchGeocode` — `http.getString()` into a `String`, `http.end()`, *then* parse. *Streaming* —
+> `fetchStockQuote` (`:437`), `fetchStockChartWithRetry` (`:511`), `fetchHeatmapQuote` (`:947`),
+> `fetchStockChartBySym` (`:1049`), `fetchPlaneRadar` (`:1228`, plus a bespoke `prParseStream()` that
+> is not even `deserializeJson`) — parse directly off `http.getStream()` under a
+> `DeserializationOption::Filter`, so `http.end()` runs *after* the parse. The skeleton written above
+> describes only the buffered half. One fixed-order wrapper cannot serve both without dropping the
+> streaming `Filter` for five endpoints — a real heap regression, since those filters are load-bearing
+> for headroom.
+>
+> **And a genuine correctness divergence, verified in source.** `fetchWeather` resumes **after** its
+> parse (`:311`, parse at `:289-309`). `fetchCrypto` resumes **before** its parse (`:360`, parse at
+> `:362-386`) — while `:262-265` claims in a comment that weather *"matches crypto below"*. It does
+> not. **A `TlsYieldGuard` scoped to end-of-function would silently move crypto's resume to after its
+> parse**, changing when the Spotify task may reconnect and re-take heap mid-parse. That is a
+> behaviour change a refactor must not make by accident. **Filed as TASK-495 — decide which timing is
+> correct first; do not let tooling pick.**
+>
+> `fetchWebRadioStations` (`:1518-1636`) is a `fetch*()` in the same file but is **out of C1's scope**
+> — multi-mirror retry loop with an abort window, no single GET, nothing like either skeleton.
+
+**Design (revised).** **Scope C1 v1 to the four buffered fetches only.** A `httpFetchJsonBuffered()`
+taking `{url, rootCa, certTag, phaseSlot}` plus a parse callback; the five streaming fetches get their
+own consolidation later, or none. Do it **after C2 and after TASK-495** — the guards remove the
+exit-path bookkeeping, and TASK-495 settles the resume timing that a guard would otherwise decide
+silently.
 
 **Constraint.** `-std=gnu++11` — the parse callback is a template parameter or a plain function
 pointer, not `std::function` (heap allocation on a memory-constrained device).

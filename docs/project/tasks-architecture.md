@@ -164,6 +164,32 @@ Stages A/B landed. Pointing it at components instead of files makes it survive m
 
 ---
 
+## From the @Developer review, 2026-08-16
+
+| task | pri | status | title |
+|---|---|---|---|
+| **TASK-495** | **P2** | OPEN | `fetchWeather` and `fetchCrypto` disagree on when `tlsResume()` fires — decide which is correct |
+| TASK-496 | P2 | OPEN | `appRegistry.h` has no conditional-compilation column; 3 of 13 apps are `#ifdef WINAMP_DISPLAY` |
+
+**TASK-495 — a live divergence, found by review, verified in source.** `fetchWeather` resumes the
+Spotify TLS session **after** its JSON parse (`dataTaskStorage.cpp:311`; parse `:289-309`).
+`fetchCrypto` resumes **before** its parse (`:360`; parse `:362-386`). The comment at `:262-265`
+asserts weather *"matches crypto below"* — it does not. One of these is wrong, or the difference is
+deliberate and undocumented; nobody currently knows which. **This must be settled before TASK-458's
+`TlsYieldGuard` lands**, because a guard scoped to end-of-function silently moves crypto's resume to
+after its parse — changing when Spotify may reconnect and re-take heap mid-parse. A refactor must not
+make that decision by accident. Blocks TASK-460 (C1) and gates TASK-458.
+
+**TASK-496 — the composition root cannot be built as designed.** `main.cpp:242-245` / `:296-303` gate
+`SpotifyApp`, `WebRadioApp` and `LocalPlayerApp` behind `#ifdef WINAMP_DISPLAY`, and `:314-321`
+already forks `g_apps[]` — populated under that flag, `{}` otherwise. ADR-060 D2's X-macro sketch has
+no conditional mechanism. Resolve by **retiring `cyd2usb`** (ADR-061 D8 already proposes demoting it —
+so TASK-496 and TASK-467 are interdependent) or by adding a conditional column to the registry.
+Un-gated today because `check_build.sh` builds only `WINAMP_DISPLAY` envs — which is ADR-061 D6's
+argument arriving from a second direction. **Blocks TASK-456.**
+
+---
+
 ## PM note — the honest read
 
 This board was produced in a single day by one Architect pass, and its shape reflects that. Three
