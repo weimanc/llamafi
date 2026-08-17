@@ -285,6 +285,27 @@ Design rule, per M-TESTARCH §4 I1: **additive-only, VE-gated field set.** Exten
 > **No coordinate appears anywhere except `T_PMT_00`**, which derives one from `get playerBind` —
 > so a relocation costs exactly one edit, which was §8's whole objective.
 >
+> **LEG B RAN, AND IT DID NOT BUY WHAT IT WAS FOR — 2026-08-17.** `T_PMT_00`–`03` are **4/4 PASS on
+> `cyd2usb_player`** as well. But leg B exists for **M2, the arena**, and a direct probe shows the
+> arena is **never acquired at all** on this path:
+>
+> | mode (leg B) | `arenaHeld` | `plCount` | `arenaStats` |
+> |---|---|---|---|
+> | Player | 0 | **0** | active=0 **acquires=0** releases=0 |
+> | WebRadio | 0 | n/a | active=0 acquires=0 releases=0 |
+> | Spotify | 0 | n/a | active=0 acquires=0 releases=0 |
+>
+> **`T_PMT_03`'s M2 assertion is therefore vacuous on both legs** — it asserts "still 0" against a
+> counter that was never incremented. Mode switching alone does not acquire the arena; **starting
+> playback does**, and `plCount=0` says no playlist is loaded, because the SD fixture precondition
+> (§6, W2) has never been satisfied on this rig.
+>
+> **So M2 / X052 remains genuinely uncovered, and this document must not claim otherwise.** Leg B as
+> run reproduces leg A. Closing M2 needs a playback arm: push the `sd_put.py` fixture, start playback
+> in Player, switch away, then assert `acquires > 0` **and** `active == 0`. Recorded rather than
+> quietly counted — this is exactly the "covered vs green" conflation @VE's status column exists to
+> prevent, arriving one layer up in the same document that introduced the column.
+
 > **Regression note, and a flake for the pre-declared set.** Running
 > `T_PLR_01,05,17,18,19` after the new family, `T_PLR_17` failed once
 > (*"no 'dequeued action=SHUFFLE' within 20s"*), then **passed in isolation and passed again on the

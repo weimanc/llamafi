@@ -295,7 +295,7 @@ visually close.
 | `T_PMT_00` | the surface named by `get playerBind` still performs `playerCycle` — **the binding test; if it fails T_PMT_01-03 are meaningless** | @VE | [M-TESTBASE §8](../architecture/designs/M-TESTBASE-phase1-player-gate.md) | `impl` |
 | `T_PMT_01` | S→W edge — whole `get player` vector (leg A) | @VE / @Dev (P2, P3) | [M-TESTBASE §4 P3](../architecture/designs/M-TESTBASE-phase1-player-gate.md) | `impl` |
 | `T_PMT_02` | W→L edge — same vector (leg A) | @VE / @Dev (P2, P3) | [M-TESTBASE §4 P3](../architecture/designs/M-TESTBASE-phase1-player-gate.md) | `impl` |
-| `T_PMT_03` | L→S edge — same, plus outgoing engine teardown (leg B) | @VE / @Dev (P2, P3) | [M-TESTBASE §4 P3](../architecture/designs/M-TESTBASE-phase1-player-gate.md) | `impl` |
+| `T_PMT_03` | L→S edge — same vector. **Does NOT cover M2/arena**: probed 2026-08-17, `acquires=0` on both legs, so the arena assertion is vacuous until a playback arm exists (needs the SD fixture) | @VE / @Dev (P2, P3) | [M-TESTBASE §4 P3](../architecture/designs/M-TESTBASE-phase1-player-gate.md) | `impl` |
 
 Only three edges are reachable (`playerModeNext()` is a successor-only cycle); the M4b invariant is
 **not** in this family — it is `T_PLR_30`, deferred behind TASK-424.
