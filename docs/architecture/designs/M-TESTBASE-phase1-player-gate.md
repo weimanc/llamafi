@@ -1,8 +1,8 @@
 # Design — M-TESTBASE phase 1: a base test framework, scoped to the 3-mode player
 
 > Owner: Architect + VE
-> Status: **proposed, revised after @Architect design review** — 2026-08-17
-> Review record: §7. Five blockers were upheld; P2/P3/P4 are re-scoped and P0 is new.
+> Status: **proposed, revised after @Architect + @VE review (round 2, consensus)** — 2026-08-17
+> Review record: §7. VE **overturned B1** and resized P0; P3 is now 3 new ids, not 15 cells.
 > Goal (human, 2026-08-16): *reduce the noise that is making M-WINAMP-PLAYER unimplementable.*
 > Parent: [M-TESTARCH](M-TESTARCH-test-architecture.md) · [M-QUALITY map](M-QUALITY-improvement-map.md) ·
 > [VE review](M-TESTARCH-VE-review.md)
@@ -40,7 +40,7 @@ player-area commits carry a fix/revert/regress marker in the subject line.**
 
 > **CORRECTED — @Architect review, 2026-08-17. "No test covers any of them" is overstated, and this
 > document made the error it warned about.** 26 of the 56 orphan runner ids M-TESTARCH §1 counts are
-> `T_PLR_01..26`, and `app/tools/test_playorder_player.py:9` documents that **T_PLR_20-24/26 — the
+> `T_PLR_01..26` (and the specified family runs to `T_PLR_41` — see P0), and `app/tools/test_playorder_player.py:9` documents that **T_PLR_20-24/26 — the
 > shuffle bag — already exercise X062's subject** on `cyd2usb_winamp_debug` via the
 > `advance` / `set plCursor` / `get plOrder` surface. `winamp/winampDisplay.h:158` likewise cites
 > `T_PLR_17` for the CAP_TRANSPORT invariant behind X061. Both interactions still record
@@ -111,16 +111,35 @@ Three of four are insulated from the decomposition. One collides squarely.
    Writing `get idle` first means writing it twice; folding it into D costs almost nothing extra.
 4. **Stage E.** The only stage with structural payoff, and the precondition for T1.
 
-### 3.4 Why the test work is a precondition, not merely parallel
+### 3.4 The baseline argument — overturned by @VE, and the lever is different
 
-Each of C/D/E owes a `T_SRC_01` baseline: ≥3 full runs with the flaky set pre-declared (ADR-059 D13).
-**A baseline taken on today's suite — 252 unnamed sleeps, no declared flaky set, 56 orphan ids —
-cannot distinguish a regression from noise.** P1's single timeout policy and a declared flaky set are
-what make that baseline mean anything.
+The first draft claimed a trustworthy ADR-059 D13 baseline is impossible on today's suite, and that
+P1's timeout policy is what would make one meaningful. **@VE, who owns that process, rejects both
+halves — and is right.**
 
-That is the sequencing argument, and it comes from the project's own D13 rule rather than a
-preference. The earlier framing ("you cannot use a broken instrument to verify the repair of the
-workbench") stands as the intuition; §3.2 is the part that decides the order.
+**A ≥3-run baseline *was* taken**, under TASK-497. It measured **4:1 environmental noise with a stable
+core of 6 ids**. So the question was never possible-vs-impossible; it is that the baseline yields a
+small stable core. And **the noise is environmental (network/DUT), not timeout literals** — P1 will
+not move that ratio. P1 remains a good item on its own merits; it is **not** the precondition this
+section claimed.
+
+Minimum to make a D13 baseline meaningful, VE's ranking by effect per unit cost:
+
+1. **A machine-readable declared flaky set.** The knowledge exists, scattered in annotations (`T169`
+   network, `T_PR_05` `[NETWORK]`, `T_WR_TLS_01`); the artifact does not. A `flaky.yaml` the runner
+   reads and reports separately is the cheapest change and the one **D13 literally requires**.
+2. **Partition the suite by dependency class** — `[NETWORK]` / `[SD]` / `[AUDIO]` / `[PURE]` — and
+   baseline over `[PURE]`+`[SD]` only. The 4:1 noise concentrates in `[NETWORK]`.
+3. **Pre-declare the pass set as a file of ids, not a count.** "≥3 runs" without the identity of what
+   passed is the exact failure TASK-488 hit.
+4. *Then* P1's timeout policy — real, but second-order.
+
+**Consequence for the sequencing in §3.3: a trustworthy baseline for the player gate specifically is
+achievable now, at a fraction of the assumed cost**, because the player suite is mostly network-free —
+`run_serialdbg_tests.py:260` already notes `T_PLR_08`–`12` as *"a suite that touches no network at
+all"*. §3.3's order stands on the P4/Stage-D collision, which is independently verified; it no longer
+stands on a baseline argument.
+
 
 ### 3.5 One debt owed before C
 
@@ -132,18 +151,32 @@ further and makes the sweep larger.
 
 ## 4. Phase 1 — five items, in order
 
-### P0 — reconcile the 26 orphan `T_PLR` ids against X052–X064 *(new, and it is free)*
+### P0 — transcribe the existing coverage table *(@VE; not derivation, and smaller than stated)*
 
-**Do this before anything else is scheduled.** 26 of the 56 orphan runner ids are `T_PLR_01..26`;
-`test_playorder_player.py:9` and `winamp/winampDisplay.h:158` both name specific ones as covering the exact
-subjects of X062 and X061, while the matrix records `test_coverage: []` for both.
+> **CORRECTED — @VE, 2026-08-17. P0 is not new work.** The interaction→id table already exists for
+> **all fifteen** X050–X064 at `M-WINAMP-PLAYER-VE-review.md:215-231`, written before ADR-059 was
+> signed. And the family is **41 ids, not 26** — `T_PLR_27`–`41` are fully specified with method and
+> pass criteria at `M-WINAMP-PLAYER-local-playback.md:452-511`. Every count in this document's first
+> draft, and in the @Architect review's finding M1, was off by fifteen.
 
-Output: a mapping table, interaction → covering test ids (or *genuinely uncovered*). Host-side, ~1 h,
-no DUT, no firmware. **It may retire P3 cells before they are built**, and it is the only item here
-that costs nothing. It also supplies exit criterion 3's missing half: without it, "every failing cell
-maps to a named X0NN" produces reds that map to tests already passing under other names.
+What P0 actually is: **transcription plus one column the existing table lacks — implementation
+status.** VE's own verdict on its predecessor: *"A coverage table without an implementation-status
+column is how 'covered' and 'green' got conflated across this whole document set."*
 
-Owner: **@VE** — this is `test_plan.md`/`cross_feature_matrix` bookkeeping, VE's artifacts.
+The real bookkeeping debt: `T_PLR_*` appears in `test_plan.md` exactly **four** times, all incidental.
+**41 ids specified in Architect-owned design docs; zero registered in the VE-owned plan.**
+
+Two defects to fix while transcribing:
+
+- **`T_PLR_17`/`T_PLR_18` are swapped.** `M-WINAMP-PLAYER-local-playback.md:466-467` assigns 17 =
+  "WebRadio unchanged", 18 = "Spotify unchanged"; the runner implements them the other way round
+  (`run_serialdbg_tests.py:5957` is Spotify). `ADR-059.md:396` cites both as baseline ids, so **every
+  citation is currently ambiguous.**
+- Seven ids (`06`,`07`,`08`,`10`,`11`,`12`,`16`) map to no interaction. **That is correct, not a
+  defect** — they are single-feature ids and the matrix records feature *pairs*. Do not manufacture
+  interactions for them.
+
+Owner: **@VE**. Host-side, no DUT, no firmware.
 
 
 ### P1 — `lib/dut.py`, scoped hard *(the enabler; everything else needs it)*
@@ -179,6 +212,11 @@ mode · caps mask · engine state · arena held · source bound
 > (`webRadioApp.h:129`). Two of three modes report **N/A** for the two fields §4 claimed would make
 > X062 observable.
 
+> **@VE proposed a third missing observable (`get pleditRepaints`); rejected on evidence.** It **is**
+> implemented, at `winamp/winampDisplay.h:1306`, inside the per-app `dbgGet` chain rather than under
+> `debug/` — which is where VE's grep looked. `gen_get_keys.py` finds it because it parses the
+> delegated chains too. **B4's count of two stands.**
+
 **Honest scope: aggregation of ~6 existing keys, plus 2 new observables** (a `viewOrder` accessor, and
 the bound `PlaylistSource`), with the playlist fields N/A in 2 of 3 modes. The order hashes are cheap
 (≤256 × `uint16_t`). Still the right item — it is just not free, and the claim that it makes X062
@@ -212,21 +250,57 @@ pattern still applies to 13 apps and 58 settings fields; it does not apply to 3 
 | ~~`M6`~~ | ~~taskbar slot + `AppId` tail~~ | X057, X064 | **DROPPED — already enforced at T0.** `taskbar/taskbar.h:42-63` carries three `static_assert`s for exactly this. M-TESTARCH §2b's own rule — *a test goes in the lowest tier that can falsify the claim* — puts it at compile time, where it is already green |
 | ~~`M7`~~ | ~~`playerMode` survives reboot~~ | settings `S5` | **DROPPED from P3 — it is settings row `S5`, not a transition invariant.** Nine reboots (the most expensive operation in the suite) for one persisted byte. Test it once |
 
-#### P3's blocker: the three modes do not coexist in one build
+#### P3 and the build matrix — B1 overturned by @VE, and the gate is two legs
 
-`app/platformio.ini:193` — `cyd2usb_player` inherits `cyd2usb_winamp_debug`'s flags **and adds
-`-DDISABLE_SPOTIFY`**. `docs/project/tasks-winamp-player.md:263` records that local playback works on
-`cyd2usb_player` and that skipping the arena on the Spotify-enabled build *"produces zero tracks"*.
+> **B1 WAS WRONG AS STATED — @VE, 2026-08-17, and the correction is verified.** "The three modes do
+> not coexist" conflated two different flags. `kPlayerModes[]` (`settingsStorage.h:47-55`) is gated on
+> `PLAYER_SPOTIFY` / `PLAYER_WEBRADIO` / `PLAYER_LOCAL` — **not** on `DISABLE_SPOTIFY`, which compiles
+> out Spotify's *network stack* only. `cyd2usb_player` deliberately does **not** carry `-DPLAYER_LOCAL`
+> (`tasks-winamp-player.md:665-669`, which records that env as *"the playback test vehicle for the
+> whole milestone: `T_PLR_01`/`T_PLR_02` cycle all three modes on it and were run green on it today"*).
+>
+> **All three mode slots, and all three edges, are drivable on both builds.** What does not coexist is
+> Spotify's live TLS working set alongside local audio decode (TASK-425/431).
 
-So: on the Spotify debug build LocalPlayer cannot decode; on the player build Spotify does not exist.
-**Exit criterion 5 as originally written — "a mode fix that breaks another mode fails in the same
-run" — is forbidden by the build matrix.** No document in this set mentioned build variants at all.
+That dissolves most of the blocker. What genuinely needs `cyd2usb_player` is narrow:
 
-The mitigating fact, from P0's evidence: `T_PLR_20-24/26` already run the shuffle/cursor/end-of-list
-**state machine** on `cyd2usb_winamp_debug` without decoding audio. So the split is likely
-*state-machine rows on the Spotify build, decode-dependent rows (M1, M2) on the player build* — **but
-that split is VE's call to make, and it is the open question §7 hands to VE.** Until it is answered,
-P3 is not schedulable.
+| Invariant | Provable on `cyd2usb_winamp_debug`, no decode? |
+|---|---|
+| **M1** engine teardown | **Partly** — S→W and W→L tear down the *outgoing* engine, no local decode needed. **L→S needs `cyd2usb_player`** (Player must have had an engine to tear down) |
+| **M2** arena | **No — `cyd2usb_player` only.** TASK-425 measured that the arena cannot be acquired on `winamp_debug` with the TLS working set resident, in any ordering |
+| **M3** capability mask | **Yes** — pure render/hit-test, already green under `T_PLR_17`–`19` |
+| **M4a** playOrder | **Yes** — already green under `T_PLR_20`–`24`/`26` |
+| **M4b** viewOrder + SAVE | **Neither build** — see below |
+| **M5** bound `PlaylistSource` | **Yes**, once P2's observable exists (pure RAM read) |
+
+**Replacement for the withdrawn exit criterion 5** (VE's wording, adopted):
+
+> The phase-1 player gate is **one ordered execution of two legs at the same commit.** *Leg A*
+> (`cyd2usb_winamp_debug`): `T_PLR_01`–`24`,`26`, the M3/M4a/M5 cells, and the **S→W** and **W→L**
+> transition cells. *Leg B* (`cyd2usb_player`): `test_fbrowser_player.py`, `test_playorder_player.py`,
+> the **L→S** cell and all M2 cells. The gate FAILS if any cell in either leg regresses against a
+> pre-declared baseline pass set.
+
+Two conditions, or it is theatre: **(a) each leg must contain at least one genuinely cross-mode cell**
+— asserting on mode X *after arriving from* mode Y — else it is two per-mode suites concatenated and
+the objective is lost; **(b)** the gate costs two flashes and two boots, and `run/task488`'s
+`DUT_TREE` two-checkout pattern is the existing precedent for driving it from one script.
+
+#### M4b is not blocked on tooling — it is blocked on TASK-424
+
+> **@VE, sharpening B5.** `player/m3u.h:230` — `_view[_count] = _count; // identity until TASK-420
+> reorders`. **`viewOrder` is an identity permutation with no mutator, and there is no SAVE.**
+> TASK-420/421 are blocked behind **TASK-424**, an open, deterministically reproducible FatFs
+> `LoadProhibited` panic on the SD write path with no fix (`tasks-winamp-player.md:177-215`).
+
+So X062's destructive failure **cannot be provoked**, let alone observed — not for want of a
+card-extraction arm, but because the code that would destroy the playlist does not exist yet. Building
+the arm against firmware that cannot write is theatre.
+
+**Decision: split M4.** M4a is executable now under `T_PLR_20`–`24`. **M4b ≡ `T_PLR_30`** (already
+specified, including the VE-10 precondition that N≥20 and `plOrder != viewOrder` before saving, so a
+Fisher-Yates identity cannot fake a pass) — **deferred behind TASK-424.** Phase 1 states plainly that
+it **observes X062 and does not close it.**
 
 
 ### P4 — `get idle`: one quiescence predicate *(kills the settling sleeps)*
@@ -278,60 +352,90 @@ must be priced as an interface change.
 
 | # | Item | DUT time | Verifiable by |
 |---|---|---|---|
-| **P0** | reconcile 26 `T_PLR` ids ↔ X052–X064 | **none** | a mapping table with no "unknown" rows |
+| **P0** | transcribe the X050–X064 table + status column; fix the `T_PLR_17`/`18` swap | **none** | 41 ids registered in `test_plan.md`, no "unknown" rows |
 | P1 | `lib/dut.py` + port + timeout policy | none | imports resolve; suite runs unchanged |
-| P2 | `get player` (6 aggregated + 2 new observables) | minutes | key returns in all 3 modes, N/A where honest |
-| P3 | 3 edges × 5 invariants ≈ 15 cells | **blocked on the build-variant answer** | lands red; every red maps to a named X0NN |
+| P2 | `get player` (≈6 aggregated + 2 new observables) | minutes | key returns in all 3 modes, **N/A** where honest |
+| P3 | **3 new ids** (`T_PMT_01`–`03`), one per edge | two legs | both legs green against a pre-declared pass set |
 | P4 | `hasInFlightOp()` / `get idle` | minutes | **lands with Stage D**; interface change, priced as one |
 
-P0 first — it is free and it resizes P3. Then P1. P2 and P3 follow; P4 rides with Stage D.
+**P3 is ~60 % bookkeeping.** M3 and M4a are already green under existing ids; M1 duplicates the
+already-specified `T_PLR_38`. **Net new: three ids, not fifteen cells.**
+
+### 6.1 Id allocation (@VE)
+
+`T_PLR_27`–`41` are **taken**. Do not extend that family — it is partitioned per-task (one block per
+TASK's gate), and these cells are cross-mode by construction. New reserved family **`T_PMT_`** (Player
+Mode Transition); prefix is free, though `T_PRM_` already exists in the runner and is visually close.
+
+| id | Cell | Leg |
+|---|---|---|
+| `T_PMT_01` | S→W — full `get player` vector: arena released, source rebound, caps match | A |
+| `T_PMT_02` | W→L — same | A |
+| `T_PMT_03` | L→S — same, plus outgoing engine teardown | B |
+
+**One id per edge, asserting the whole vector** — not one per edge×invariant. That is precisely what
+P2 buys, and 3×5 separate cells throws it away. M1 → write the existing `T_PLR_38`. M3 →
+`T_PLR_17`/`18`/`19` after the swap fix. M4a → `T_PLR_20`–`24`. M4b → `T_PLR_30`, deferred.
 
 **Exit criteria — revised:**
 
-1. `lib/dut.py` exists; 16 importers migrated; **zero** argparse `/dev/ttyUSB0` defaults (13 today);
-   one timeout policy.
+1. `lib/dut.py` exists; 16 importers migrated; **zero** argparse `/dev/ttyUSB0` defaults (13 today).
 2. `get player` returns the full vector in all three modes, reporting **N/A** rather than a fake value
-   where a field does not apply.
-3. Every failing matrix cell maps to a named `X0NN` **or to an existing `T_PLR` id from P0**.
-4. The seven high-risk interactions have reserved ids in `test_plan.md` (VE), whether or not the cells
-   pass yet.
-5. ~~A mode fix that breaks another mode fails in the same run.~~ **Withdrawn — the build matrix
-   forbids it** (§4, P3's blocker). Replacement, pending VE's split: *a mode fix that breaks another
-   mode fails in the phase-1 gate*, where the gate is defined as both builds run in sequence. **The
-   objective is unchanged; the word "run" was wrong.**
+   where a field does not apply. `M5`'s source field is a **stable enum, not a class-name string** — a
+   string silently passes through a rename.
+3. Every failing cell maps to a named `X0NN` **or an existing `T_PLR` id from P0**.
+4. The seven interactions are registered in `test_plan.md` as **id + owner + source link + status
+   only** — criteria stay in the design docs. *(Corrected: the first draft asked VE to restate criteria
+   in `test_plan.md`, which `test_plan.md:22-24` warns against in its own voice — "a criterion copied
+   into two files diverges (LL-114)". The M-ARCH block at `:14-24` is the shape to copy.)*
+5. ~~A mode fix that breaks another mode fails in the same run.~~ **Replaced by the two-leg gate**
+   (§4). The objective is unchanged; "run" was the wrong word, and "the modes do not coexist" was the
+   wrong reason.
 
-**Preconditions nobody had written down:**
+**Preconditions:** SD card must carry `/playlists/*.m3u` (`test_playorder_player.py` uses a fixture
+pushed once via `sd_put.py`, never regenerated). **X062 is observed, not closed** — blocked on
+TASK-424.
 
-- **SD card state.** Every LocalPlayer row needs `/playlists/*.m3u` present; `test_playorder_player.py`
-  uses a fixture pushed once via `sd_put.py` and never regenerated. Name it as a phase-1 precondition.
-- **X062 cannot be closed from RAM.** Its own notes require host-side verification **from the card**,
-  *"not by re-reading through the same structure that produced the write"*. M4 as designed reads the
-  in-RAM `viewOrder` hash — the check X062 explicitly rejects. Either add an SD-extraction arm
-  (`run/spiffs`/`sd_put` pull + host compare) or **state plainly that phase 1 observes X062 and does
-  not close it.**
 
-**Not promised:** phase 1 does not clean up the suite, build a unit tier, or reduce the 209 test
-bodies. It makes the 3-mode player observable and its couplings testable.
+## 7. Review record — two rounds, consensus reached 2026-08-17
 
-## 7. Review record — @Architect, 2026-08-17
+**Round 1 — @Architect.** Five blockers, four verified in source before acceptance.
 
-Five blockers upheld, all verified in source before acceptance:
-
-| id | Finding | Effect |
+| id | Finding | Outcome |
 |---|---|---|
-| **B1** | the 3 modes do not coexist in one build (`-DDISABLE_SPOTIFY`) | exit criterion 5 withdrawn; P3 blocked pending VE |
-| **B2** | no live-transition command; `playerModeNext()` is successor-only | 63 cells → ~15; generator → 5 hand-written bodies |
-| **B3** | `isConnecting()` means two different things across 13 apps; Spotify's never latches under a 403 | P4 re-priced as an interface change |
-| **B4** | `viewOrder` and the bound `PlaylistSource` are exposed nowhere | P2 = aggregation **+ 2 new observables**, N/A in 2 of 3 modes |
-| **B5** | X062 must be verified from the card, not from RAM | M4 as designed cannot falsify it |
-| **M1** | 26 orphan `T_PLR` ids may already cover these interactions | **P0 added, ahead of P1** |
+| B1 | the 3 modes do not coexist in one build | **OVERTURNED in round 2** — see below |
+| **B2** | no live-transition command; `playerModeNext()` successor-only | **upheld** — 63 cells → 3 edges; generator → hand-written bodies |
+| **B3** | `isConnecting()` means two things across 13 apps; Spotify's never latches under the live 403 | **upheld** — P4 re-priced as an interface change |
+| **B4** | `viewOrder` and the bound `PlaylistSource` exposed nowhere | **upheld** (count of 2 confirmed against VE's proposed 3) |
+| B5 | X062 must be verified from the card | **upheld but superseded** — the binding constraint is TASK-424, not tooling |
+| M1 | orphan `T_PLR` ids may already cover these interactions | **upheld and enlarged** — 41 ids, not 26 |
 
-**One risk retired.** Debug-build headroom measured from `cyd2usb_winamp_debug/firmware.map`:
-`dram0_0_seg` 124 580 B, `.dram0.bss` ending `0x3ffda188` against a segment end of `0x3ffdc200` —
-**≈ 8 312 B free.** P2/P4 are `printf` handlers whose format strings land in `.rodata`, not
-`.dram0.bss`. The institutional memory of "0 B / 40 B headroom" (2026-07-29 / 08-02) is **stale by
-~8 KB** — re-derive, never cite it.
+**Round 2 — @VE.** Overturned one blocker, resized two items, corrected the baseline argument.
 
-**Open, handed to @VE:** the two-build verification split (which invariants are provable on
-`cyd2usb_winamp_debug` without decode, which need `cyd2usb_player`), the P0 mapping table, id
-allocation for what survives, and whether a trustworthy D13 baseline is achievable on today's suite.
+| VE finding | Adjudication |
+|---|---|
+| **B1 wrong**: modes are gated by `PLAYER_*`, not `DISABLE_SPOTIFY`; `T_PLR_01`/`02` ran green on `cyd2usb_player` | **ACCEPTED — verified.** `settingsStorage.h:47-55` + `tasks-winamp-player.md:665-669`. The round-1 review verified the *flag* but not its *consequence*, and so did I |
+| **P0 is transcription, not derivation** — the table exists at `M-WINAMP-PLAYER-VE-review.md:215-231` | **ACCEPTED — verified** |
+| **41 ids, not 26** (`T_PLR_27`–`41` specified at `M-WINAMP-PLAYER-local-playback.md:452-511`) | **ACCEPTED — verified.** Every downstream count was off by fifteen |
+| **X062 blocked on TASK-424**, `viewOrder` identity-only with no mutator | **ACCEPTED — verified** at `player/m3u.h:230` |
+| **§3.4's baseline claim is wrong**; a D13 baseline *was* taken (TASK-497, 4:1 environmental noise, stable core 6). A declared flaky set, not a timeout policy, is the lever | **ACCEPTED.** §3.4 rewritten |
+| `T_PLR_17`/`18` swapped between spec and implementation | **ACCEPTED — verified.** Folded into P0 |
+| `get pleditRepaints` is a third missing observable | **REJECTED — verified false.** It exists at `winamp/winampDisplay.h:1306`, in the per-app `dbgGet` chain rather than under `debug/`, which is where VE's grep looked |
+| P3 is ~60 % bookkeeping; 3 new ids not 15 cells | **ACCEPTED** |
+
+**One risk retired (round 1, verified).** Debug-build headroom measured from
+`cyd2usb_winamp_debug/firmware.map`: `dram0_0_seg` 124 580 B, `.dram0.bss` ending `0x3ffda188` against
+a segment end of `0x3ffdc200` — **≈ 8 312 B free.** P2/P4 are `printf` handlers whose format strings
+land in `.rodata`, not `.dram0.bss`. The institutional memory of "0 B / 40 B headroom"
+(2026-07-29 / 08-02) is **stale by ~8 KB** — re-derive, never cite it.
+
+**Method note worth keeping.** Both reviews were wrong about something, in the same way: each verified
+a *fact* and inferred a *consequence* without checking the inference. Round 1 read `-DDISABLE_SPOTIFY`
+in `platformio.ini` and concluded the modes were compiled out; round 2 grepped `debug/` for
+`pleditRepaints` and concluded it was unimplemented. Both facts were correct; both conclusions were
+not. **This is M-CODEQUAL §13.2's counting note one level up — in this codebase a verified fact is
+still only a hypothesis about its consequence.** Recommend QM promote it alongside the counting note.
+
+**Still open, and genuinely:** whether `run/task488`'s `DUT_TREE` pattern is the right driver for the
+two-leg gate, and whether the `[NETWORK]`/`[SD]`/`[AUDIO]`/`[PURE]` partition (§3.4 item 2) is worth
+doing before the player gate or after it.
