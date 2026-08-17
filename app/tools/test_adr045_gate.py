@@ -29,6 +29,9 @@ Exit 0 = ADR-045 gate PASS; 1 otherwise. The attribution table prints either way
 import os
 import re
 import sys
+import pathlib as _pl, sys as _sy
+_sy.path.insert(0, str(_pl.Path(__file__).resolve().parent))
+from lib.dut import resolve_port  # P1: one port resolver (run/port)
 import json
 import time
 import queue
@@ -320,7 +323,7 @@ def run_trial(d, n, hold_secs, max_skips, trial_cap):
 
 def main():
     ap = argparse.ArgumentParser(description="ADR-045 gate + outage attribution (TASK-238/275)")
-    ap.add_argument("--port", default="/dev/ttyUSB0")
+    ap.add_argument("--port", default=resolve_port())
     ap.add_argument("--trials", type=int, default=10)
     ap.add_argument("--hold-secs", type=int, default=60)
     ap.add_argument("--max-skips", type=int, default=6)

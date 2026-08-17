@@ -38,6 +38,9 @@ Exit 0 = soak completed, arena balanced, zero acquire-FAIL, no lfb collapse; 1 o
 """
 import re
 import sys
+import pathlib as _pl, sys as _sy
+_sy.path.insert(0, str(_pl.Path(__file__).resolve().parent))
+from lib.dut import resolve_port  # P1: one port resolver (run/port)
 import json
 import time
 import argparse
@@ -309,7 +312,7 @@ class Soak:
 
 def main():
     ap = argparse.ArgumentParser(description="WebRadio playback + arena-churn soak (TASK-271)")
-    ap.add_argument("--port", default="/dev/ttyUSB0")
+    ap.add_argument("--port", default=resolve_port())
     ap.add_argument("--minutes", type=float, default=10.0)
     ap.add_argument("--play-secs", type=int, default=20, help="seconds to hold each station")
     ap.add_argument("--verbose", action="store_true")

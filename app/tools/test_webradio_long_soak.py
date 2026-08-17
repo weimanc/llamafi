@@ -70,6 +70,9 @@ becomes ready or no station can be resolved.
 """
 import re
 import sys
+import pathlib as _pl, sys as _sy
+_sy.path.insert(0, str(_pl.Path(__file__).resolve().parent))
+from lib.dut import resolve_port  # P1: one port resolver (run/port)
 import json
 import time
 import atexit
@@ -341,7 +344,7 @@ def write_report(report_out, data):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--port", default="/dev/ttyUSB0")
+    ap.add_argument("--port", default=resolve_port())
     ap.add_argument("--hours", type=float, default=4.0)
     ap.add_argument("--station-name", default="SLAM! DANCE CLASSICS",
                      help="substring to match against loaded station names "

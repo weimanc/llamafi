@@ -56,6 +56,7 @@ import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from run_serialdbg_tests import Dut  # noqa: E402
+from lib.dut import resolve_port  # P1: one port resolver (run/port)
 from app_ids_gen import APP_SLOT  # noqa: E402
 
 _results = []
@@ -133,7 +134,7 @@ def arm_dead_url(dut):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", default="/dev/ttyUSB0")
+    ap.add_argument("--port", default=resolve_port())
     args = ap.parse_args()
 
     log_path = "/tmp/task398_verify_raw.log"

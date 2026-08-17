@@ -35,6 +35,7 @@ import statistics
 import time
 
 from run_serialdbg_tests import Dut
+from lib.dut import resolve_port  # P1: one port resolver (run/port)
 from wifi_watch import WatchDut  # lenient gate: skips ELF + Spotify-poll checks
 
 # App registry order (appRegistry.h) — taskbar slot i shows app (tbScrollOffset+i) % 10.
@@ -194,7 +195,7 @@ def med_max(vals):
 
 def main():
     p = argparse.ArgumentParser(description="E0 shared baseline (TASK-278 E0 + TASK-279 matrix)")
-    p.add_argument("--port", default="/dev/ttyUSB0")
+    p.add_argument("--port", default=resolve_port())
     p.add_argument("--baud", type=int, default=115200)
     p.add_argument("--window-min", type=float, default=10.0)
     p.add_argument("--taps", type=int, default=5)

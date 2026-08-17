@@ -26,6 +26,9 @@ import base64
 import json
 import pathlib
 import sys
+import pathlib as _pl, sys as _sy
+_sy.path.insert(0, str(_pl.Path(__file__).resolve().parent))
+from lib.dut import resolve_port  # P1: one port resolver (run/port)
 import time
 import urllib.error
 import urllib.parse
@@ -266,7 +269,7 @@ def run_once(dut: Dut, token: str, progress_slack: int, verbose: bool) -> bool:
 
 def main():
     ap = argparse.ArgumentParser(description="Diff DUT snapshot against Spotify /me/player.")
-    ap.add_argument("--port", default="/dev/ttyUSB0")
+    ap.add_argument("--port", default=resolve_port())
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--progress-slack", type=int, default=_PROGRESS_SLACK_MS_DEFAULT,
                     metavar="MS", help="max allowed progressMs delta (default %(default)s ms)")

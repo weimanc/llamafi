@@ -53,7 +53,7 @@ def make_arg_parser(
     description: str | None = None,
 ) -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=description)
-    p.add_argument("--port", default="/dev/ttyUSB0")
+    p.add_argument("--port", default=resolve_port())
     p.add_argument("--baud", type=int, default=115200)
     p.add_argument("--timeout", type=float, default=3.0,
                    help="default serial read timeout in seconds")

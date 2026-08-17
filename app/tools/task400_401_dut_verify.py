@@ -15,6 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from run_serialdbg_tests import Dut, APP_SLOT  # noqa: E402
+from lib.dut import resolve_port  # P1: one port resolver (run/port)
 
 RESULTS = []
 
@@ -34,7 +35,7 @@ def settings_tap_row(dut, row, x=137):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", default="/dev/ttyUSB0")
+    ap.add_argument("--port", default=resolve_port())
     args = ap.parse_args()
 
     dut = Dut(args.port, log_file=str(Path(__file__).resolve().parent

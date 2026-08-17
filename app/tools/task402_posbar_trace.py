@@ -26,13 +26,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from run_serialdbg_tests import (  # noqa: E402
     Dut, _ensure_webradio, _webradio_enter_with_stations, _wait_wr_state,
 )
+from lib.dut import resolve_port  # P1: one port resolver (run/port)
 
 WR_STATE_PLAYING = 2
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", default="/dev/ttyUSB0")
+    ap.add_argument("--port", default=resolve_port())
     ap.add_argument("--stations", type=int, default=5)
     ap.add_argument("--window", type=float, default=45.0,
                      help="seconds of wrPosbar polling per station")

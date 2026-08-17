@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from run_serialdbg_tests import (  # noqa: E402
     Dut, _ensure_webradio, _webradio_enter_with_stations, _wait_wr_state,
 )
+from lib.dut import resolve_port  # P1: one port resolver (run/port)
 
 WR_STATE_PLAYING = 2
 MAX_STEP = 2  # WR_POSBAR_MAX_STEP_PER_TICK
@@ -43,7 +44,7 @@ def check(name, cond, detail=""):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", default="/dev/ttyUSB0")
+    ap.add_argument("--port", default=resolve_port())
     args = ap.parse_args()
 
     dut = Dut(args.port, log_file=str(Path(__file__).resolve().parent

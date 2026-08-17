@@ -27,6 +27,9 @@ for the experiment table, not gated.
 """
 import re
 import sys
+import pathlib as _pl, sys as _sy
+_sy.path.insert(0, str(_pl.Path(__file__).resolve().parent))
+from lib.dut import resolve_port  # P1: one port resolver (run/port)
 import json
 import time
 import argparse
@@ -151,7 +154,7 @@ def play_and_hold(d, idx, hold, sample_every=None):
 
 def main():
     ap = argparse.ArgumentParser(description="EXP-012 8K-vs-16K measurement pass")
-    ap.add_argument("--port", default="/dev/ttyUSB0")
+    ap.add_argument("--port", default=resolve_port())
     ap.add_argument("--hold", type=int, default=18, help="survey hold secs/station (Phase 0 used 18)")
     ap.add_argument("--slow", default="auto",
                     help="slow-station indices for the long soak, or 'auto' = pick the "
