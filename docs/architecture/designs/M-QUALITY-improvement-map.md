@@ -34,7 +34,7 @@ per-mode so cross-mode breakage is unobservable. Read §0 before treating anythi
 | **B** | **Test architecture** | M-TESTARCH | reviewed 2026-08-16 | 100 % of testing is integration, on hardware, on one device — and the plan and the code do not agree on what exists |
 | **B2** | **Test *logical* design (conformance matrices)** | M-TESTARCH §2 | new 2026-08-16 | the app/settings contract exists only as a human checklist; tests are hand-copied per app, so the gaps are invisible (Aquarium: zero coverage) |
 | **C** | **Test synchronisation** | M-TESTARCH §3b | new 2026-08-16 | 924 hand-tuned waits; the harness polls a device that is already an event source |
-| **D** | **Host tooling architecture** | M-TOOLING | proposed | 36 877 lines of Python, never architected; the DUT library lives inside the suite that uses it |
+| **D** | **Host tooling architecture** | M-TOOLING | proposed | ~39 000 lines of Python, never architected; the DUT library lives inside the suite that uses it |
 | **E** | **Constant ownership (SSoT)** | M-CODEQUAL C5, VE-review §3 | proposed, gate red | 24 self-declared firmware mirrors, one 5-constant block copy-pasted 4× |
 | **F** | **Code quality in the firmware** | M-CODEQUAL C1–C6 | proposed | one proven bug class (hand-managed acquire/release), plus readability debt |
 | **G** | **Ownership + type hygiene** | M-CODEQUAL §12 C8/C9 | new 2026-08-16 | a coherent memory policy that is written down nowhere; zero `= delete` in the tree |

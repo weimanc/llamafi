@@ -376,7 +376,7 @@ Consequences, all currently paid:
 1. **No incremental build.** Any header edit rebuilds everything. With 7 build envs in `run/check`
    this is the dominant cost of the gate.
 2. **No link-time isolation, so no enforced boundaries.** Every header can see every global
-   (40 `g_*`, 70 `extern`s, 24 file-static `s_*`). ADR-060 D0's component model is not just
+   (40 `g_*`, 70 `extern`s, **158** file-static `s_*` — the last figure corrected from 24 on review, 2026-08-17). ADR-060 D0's component model is not just
    *unimplemented* — the current physical design actively permits what D0 wants to forbid, and
    nothing fails when it is violated.
 3. **It is the root cause of M-TESTARCH's T1 problem.** A host unit tier needs a component that can
@@ -397,11 +397,11 @@ The `*Storage.cpp` convention is the existing precedent to name and generalise.
 
 ### C8 — the memory-ownership policy is coherent, deliberate, and unwritten
 
-Five real allocation sites, and they fall into exactly two patterns:
+**Six** real allocation sites, and they fall into exactly two patterns:
 
 | Pattern | Sites | Freed? |
 |---|---|---|
-| **Lazy-allocate-once, never free** | `logServer.h:53`, `teletextApp.h:382`, `planeRadarApp.h:646`, `settings/systemSection.h:81`, `settings/wifiSection.h:774` | never, by design |
+| **Lazy-allocate-once, never free** | `logServer.h:53`, `teletextApp.h:382`, `planeRadarApp.h:646`, `settings/systemSection.h:81`, `settings/wifiSection.h:774`, **`audio/audioEngine.h:455`** (`new char[WR_PUMP_CONNECT_URL_LEN]` — missed on the first pass because the type is lowercase) | never, by design |
 | **Explicit lifecycle** | `audio/audioEngine.h:559,601,791`, `webRadioApp.h:364` (`s_wr_audio`) | yes, and the teardown ordering is what `T_AE_04` protects |
 
 The first pattern is the accepted fix for `.dram0.bss` pressure — allocate on first use so the debug
@@ -465,7 +465,7 @@ who skips the measurement will file it anyway.
   `static_cast` would be more precise and would catch nothing here. **Not a finding.** Filing it
   would generate a large, risky, zero-value diff.
 - **"77 `new` vs 19 `delete`."** Wrong by an order of magnitude: the English word *new* in comments.
-  Real allocations: **5**. Real `delete`: **5**, all in the audio engine. See C8.
+  Real allocations: **6** (the first pass said 5 — a lowercase-type `new char[]` escaped the pattern, which is the counting note biting its own author). Real `delete`: 5, all in the audio engine. See C8.
 - **"40 plain enums."** The regex matches `enum class` too. Real plain enums: **8**.
 
 Each is the same trap M-CODEQUAL §3 documents. That note now has four independent confirmations and

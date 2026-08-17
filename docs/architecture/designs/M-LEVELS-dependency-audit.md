@@ -38,7 +38,7 @@ become one — see §5).
 
 | Level | lines | share |
 |---|---:|---:|
-| L0 `util/ gen/ touch/ app.h touchPhase.h` | 560 | 2 % |
+| L0 `util/ gen/ touch/ app.h touchPhase.h` | 395–560 | 2 % |
 | L1 `audio/ player/ winamp/ settings/ taskbar/ dataTask spotifyTask settingsStorage wifiDiag` | **15 289** | **52 %** |
 | L2 `appShell logging screenLog backlightFlow ledFlow debug/` | 5 272 | 18 % |
 | L3 `apps/ + 6 app headers outside it` | 9 067 | 31 % |
@@ -52,6 +52,8 @@ become one — see §5).
 | `backlightFlow.h` / `ledFlow.h` ← `settings/` | **2** | Same class as logging — a "flow" is L1, not L2 |
 | `taskbar/taskbar.h` → `appShell.h` | **1** | **Genuine** |
 | `util/timeFmt.h` → `settingsStorage.h` | **1** | **Genuine** — and the only L0→L1 edge in the codebase |
+
+*(The L0 figure varies with where `perf.h`/`secret.h`/`planeRadarConfig.h` are assigned; an independent re-measure put it at 395. The conclusion is unaffected.)*
 
 **Two genuine violations out of 27.** D2a's asserted graph survives the audit far better than the
 skeleton feared. The value of the audit is not the violations — it is the two classification errors

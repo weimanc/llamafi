@@ -58,10 +58,15 @@ the plan: **the tier is an implementation detail of a contract row, not the orga
 
 ### 2.1 The evidence that this is missing, not merely unstated
 
-`t_wx_01…05` (Weather) and `t_cx_01…05` (Crypto) are **the same five tests, character for character**
-— same comment banners, same `sleep(0.15)`/`sleep(0.1)`, same skip strings — with `Weather`→`Crypto`
-and `weatherReady`→`cryptoReady` substituted. They are two hand-copied instances of an unnamed
-battery.
+`t_wx_01…05` (Weather) and `t_cx_01…05` (Crypto) are hand-copied instances of an unnamed battery:
+**01–03 are identical character for character** — same comment banners, same `sleep(0.15)`/`sleep(0.1)`
+— with `Weather`→`Crypto` and `weatherReady`→`cryptoReady` substituted.
+
+> **Corrected, @Architect review 2026-08-17:** 04 and 05 have since **drifted**. `t_cx_04` dropped
+> three comments and changed the skip string (the "network too fast?" text quoted in §3b.1 exists only
+> in `t_wx_04`); `t_cx_05` gained `cryptoHttpCode` diagnostics. The original claim said "all five,
+> character for character" and was wrong. **The drift strengthens the argument** — hand-copied tests
+> do not stay copies, so the battery diverges silently per app.
 
 Because the battery is unnamed, nobody can see where it was *not* copied. Derived mechanically from
 `app_ids_gen.APP_ORDER` against the test bodies:
@@ -111,7 +116,7 @@ The domain here is unusually regular, and it is *already generated*:
   `APP_SLOT`, `DISPLAY`. 13 apps, all implementing one `App` interface with documented defaults.
 - **Settings** — one `AppSettings` struct, 58 fields, each with its domain written in the header
   comment (`1..10`, `0..255`, `0=km, 1=mi`, `30/60/120`). That is a schema with boundary values in it.
-- **Debug keys** — `gen_get_keys.py` already statically enumerates all 68.
+- **Debug keys** — `gen_get_keys.py` already statically enumerates all **108**.
 
 So:
 
@@ -248,7 +253,7 @@ attach to.
 VE's OQ1 caution is upheld and restated as the governing constraint:
 
 > *"Don't let 'D0 makes unit tests possible' imply it makes them cheap — construction-order/global-state
-> coupling (21 `g_` globals, 72 `extern`s) is the actual blocker, and D0 alone doesn't remove it."*
+> coupling (21 `g_` globals, 72 `extern`s [*sic* — re-measured 2026-08-17 as **40** `g_` and 158 file-static `s_*`; VE's point stands and is larger than stated]) is the actual blocker, and D0 alone doesn't remove it."*
 
 Re-verified against the tree: `player/m3u.h` includes `<Arduino.h>` and `<SD.h>`; `settingsStorage.h`
 includes `<Arduino.h>`. Host-clean **today** — re-checked at the include level, and better than both the skeleton and OQ2
@@ -297,11 +302,11 @@ Measured in the T3 suite:
 
 | Kind | Count | Shape | Removable? |
 |---|---:|---|---|
-| **A — transport timeout** | **672+** (`timeout=3.0` ×454, `5.0` ×99, `2.0` ×76) | "how long may the shell take to answer" | **No.** Serial is a real channel. But it is *one policy*, currently retyped 672 times |
+| **A — transport timeout** | **701** numeric (`timeout=3.0` ×454, `5.0` ×99, `2.0` ×76) | "how long may the shell take to answer" | **No.** Serial is a real channel. But it is *one policy*, currently retyped 672 times |
 | **B — condition poll** | ~40 loops | `while deadline: cmd("get X"); sleep(2.0)` | **Yes, entirely** |
 | **C — settling sleep** | **252** (`sleep(0.3)` ×63, `0.5` ×38, `0.2` ×32 …) | "give the device a moment after a tap" | **Yes, nearly all** |
 
-Against **2** named sleep constants and 42 module-level constants in a 10 229-line file. Every one of
+Measured in `run_serialdbg_tests.py`; across all of `app/tools` the sleep count is **539**. Against **2** named sleep constants and 42 module-level constants in a 10 229-line file. Every one of
 those 924 numbers is a guess calibrated on one device, one network, one day.
 
 ### 3b.1 They are not robust, and the project has the scars to prove it
@@ -360,7 +365,7 @@ Ordered — each depends on the one before.
    assert it happened within 30 s, and report *when* it actually happened, exactly. Latency
    measurement goes from ±2 s to real, which is what makes a latency regression detectable at all.
 
-   **Scope discipline:** do not build `watch` for all 68 debug keys. Build it for the ~10 that the
+   **Scope discipline:** do not build `watch` for all 108 debug keys. Build it for the ~10 that the
    existing condition loops actually target — that list is derivable mechanically from the loops
    themselves, and it should be, not guessed.
 
