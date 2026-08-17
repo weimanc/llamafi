@@ -402,7 +402,7 @@ is D0's component model; header-only intermediates are scaffolding, not a destin
 |---|---|---|---|
 | **A** | TASK-453 | 7 app classes out of `main.cpp` into `apps/*.h` | **landed** `78caa95` — unreviewed |
 | **B** | TASK-454 | `SERIAL_DEBUG` console into `debug/serialConsole/*.h` | **landed** `b36f184` — unreviewed |
-| **C** | TASK-455 | `setup()` → `boot/boot.{h,cpp}` (D1a, verbatim) | proposed |
+| **C** | TASK-455 | `setup()` → `boot/boot.h` (D1a, verbatim) | **landed** — pure move proven by symbol identity |
 | **D** | TASK-456 | `shell/appTable.{h,cpp}` composition root (D0c) + `ShellState` (D3); instances leave `main.cpp` | proposed |
 | **E** | TASK-471 | **Component conversion** — every app and console file becomes a real `.h`/`.cpp` pair (D0), self-contained headers (SF.11), measured per component | proposed |
 | **F** | TASK-472 | `stock/` split into three components; `sd/sdMount`; levelization audit (D0d) | proposed |
