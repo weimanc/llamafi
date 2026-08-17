@@ -140,7 +140,7 @@ public:
 
         // TASK-417 / ADR-059 D8: switchApp() (main.cpp) calls init() XOR
         // resume() — never both — on an AppId's first-ever entry each boot
-        // session (`if (!g_appLaunched[next]) init(); else resume();`).
+        // session (`if (!shell::state().launched[next]) init(); else resume()`).
         // Wiring caps/sinks only in resume() (as first written) left the
         // WinampDisplay defaults (all four caps, Spotify's sinks) live for
         // Player's first-ever session each boot — caps happened to read

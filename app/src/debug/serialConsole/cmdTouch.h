@@ -30,7 +30,7 @@ static void cmdTap(const char *args) {
   // the gate to protect against here. See isNavigationTap()'s doc comment.
   bool navTapBypass = g_apps[(int)currentAppId] &&
                        g_apps[(int)currentAppId]->isNavigationTap(x, y);
-  if (g_shellBusy && !navTapBypass) {
+  if (shell::state().busy && !navTapBypass) {
     Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                   "\"hit\":\"CANVAS\",\"action\":\"NONE\",\"skipped\":true}\n", x, y);
     return;
@@ -42,7 +42,7 @@ static void cmdTap(const char *args) {
     if (currentAppId == AppId::Stock && g_apps[(int)AppId::Stock]) {
       g_apps[(int)AppId::Stock]->handleInput(TouchPhase::Press, x, y);
       bool consumed = g_apps[(int)AppId::Stock]->handleInput(TouchPhase::Release, x, y);
-      if (!g_shellBusy && g_apps[(int)AppId::Stock]->hasPendingAsync())
+      if (!shell::state().busy && g_apps[(int)AppId::Stock]->hasPendingAsync())
         shell::setBusy(true);
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                     "\"hit\":\"STOCK\",\"action\":\"%s\",\"skipped\":false}\n",
@@ -56,7 +56,7 @@ static void cmdTap(const char *args) {
     } else if (currentAppId == AppId::Teletext && g_apps[(int)AppId::Teletext]) {
       g_apps[(int)AppId::Teletext]->handleInput(TouchPhase::Press, x, y);
       bool consumed = g_apps[(int)AppId::Teletext]->handleInput(TouchPhase::Release, x, y);
-      if (!g_shellBusy && g_apps[(int)AppId::Teletext]->hasPendingAsync())
+      if (!shell::state().busy && g_apps[(int)AppId::Teletext]->hasPendingAsync())
         shell::setBusy(true);
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                     "\"hit\":\"TELETEXT\",\"action\":\"%s\",\"skipped\":false}\n",
@@ -64,7 +64,7 @@ static void cmdTap(const char *args) {
     } else if (currentAppId == AppId::PlaneRadar && g_apps[(int)AppId::PlaneRadar]) {
       g_apps[(int)AppId::PlaneRadar]->handleInput(TouchPhase::Press, x, y);
       bool consumed = g_apps[(int)AppId::PlaneRadar]->handleInput(TouchPhase::Release, x, y);
-      if (!g_shellBusy && g_apps[(int)AppId::PlaneRadar]->hasPendingAsync())
+      if (!shell::state().busy && g_apps[(int)AppId::PlaneRadar]->hasPendingAsync())
         shell::setBusy(true);
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                     "\"hit\":\"PLANERADAR\",\"action\":\"%s\",\"skipped\":false}\n",
@@ -82,10 +82,10 @@ static void cmdTap(const char *args) {
       // TASK-416: same busy-set-on-Release-starts-async-work shape as the
       // Stock/Teletext/PlaneRadar branches above — an eject tap that opens
       // the browser (or a row tap into a subdirectory) starts a page walk,
-      // and T_PLR_14 needs g_shellBusy to actually go true here to exercise
+      // and T_PLR_14 needs ShellState::busy to actually go true here to exercise
       // the isNavigationTap() bypass at cmdTap's own busy-gate check above,
       // not just observe it as dead code.
-      if (!g_shellBusy && g_apps[(int)AppId::LocalPlayer]->hasPendingAsync())
+      if (!shell::state().busy && g_apps[(int)AppId::LocalPlayer]->hasPendingAsync())
         shell::setBusy(true);
       const auto &lp = winampDisplay.lastTouchResult;
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
@@ -139,7 +139,7 @@ static void cmdTap(const char *args) {
   if (strcmp(winampDisplay.lastTouchResult.action, "EJECT") == 0) {
     g_apps[(int)AppId::Spotify]->handleInput(TouchPhase::Release, x, y);
   }
-  if (!g_shellBusy && g_apps[(int)AppId::Spotify]->hasPendingAsync())
+  if (!shell::state().busy && g_apps[(int)AppId::Spotify]->hasPendingAsync())
     shell::setBusy(true);
   const auto &r = winampDisplay.lastTouchResult;
   if (strcmp(r.region, "TRANSPORT") == 0) {

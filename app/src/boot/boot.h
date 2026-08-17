@@ -600,7 +600,7 @@ void setup()
 
   // Boot: init the Spotify app via the App interface, then draw taskbar.
   if (g_apps[(int)AppId::Spotify]) {
-    g_appLaunched[(int)AppId::Spotify] = true;
+    shell::state().launched[(int)AppId::Spotify] = true;
     g_apps[(int)AppId::Spotify]->init();
   } else {
     spotifyDisplay->showDefaultScreen();

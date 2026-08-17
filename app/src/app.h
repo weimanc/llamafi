@@ -35,7 +35,8 @@ struct App {
     // TASK-384: return true when (x, y) is a pure-navigation tap for the app's
     // CURRENT state — one that changes what's on screen without starting any
     // new async work (e.g. Stock's chart/heatmap "back" zone, Teletext's
-    // STRIP_BACK). The shell's g_shellBusy pre-dispatch gate normally drops
+    // STRIP_BACK). The shell's busy pre-dispatch gate (ShellState::busy)
+    // normally drops
     // every tap while the app's own hasPendingAsync() is true, to stop a tap
     // from stacking a redundant fetch on top of one already in flight — but
     // that gate has no way to tell "will start a new fetch" apart from "just

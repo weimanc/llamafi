@@ -403,11 +403,37 @@ is D0's component model; header-only intermediates are scaffolding, not a destin
 | **A** | TASK-453 | 7 app classes out of `main.cpp` into `apps/*.h` | **landed** `78caa95` — unreviewed |
 | **B** | TASK-454 | `SERIAL_DEBUG` console into `debug/serialConsole/*.h` | **landed** `b36f184` — unreviewed |
 | **C** | TASK-455 | `setup()` → `boot/boot.h` (D1a, verbatim) | **landed** — pure move proven by symbol identity |
-| **D** | TASK-456 | `shell/appTable.{h,cpp}` composition root (D0c) + `ShellState` (D3); instances leave `main.cpp` | proposed |
+| **D** | TASK-456 | `shell/appTable.h` composition root (D0c) + `shell/shellState.{h,cpp}` (D3/D4); instances leave `main.cpp` | **landed** — part 1 pure move proven by symbol identity; part 2 behavioural, DUT gate owed |
 | **E** | TASK-471 | **Component conversion** — every app and console file becomes a real `.h`/`.cpp` pair (D0), self-contained headers (SF.11), measured per component | proposed |
 | **F** | TASK-472 | `stock/` split into three components; `sd/sdMount`; levelization audit (D0d) | proposed |
 | — | TASK-457 | hygiene items (§8) | proposed |
 | — | TASK-464 | documentation-reference sweep | proposed |
+
+**Three deviations from D0c/D3/D4 that Stage D took and that need Architect sign-off** (recorded
+here against the table row rather than silently, per BP-DOC-2):
+
+1. **`appTable` is a header, not `appTable.cpp`.** D0c and ADR-060 D2 both sketch a `.cpp`. A second
+   translation unit is not safe before Stage E, and *not* for the reason ADR-060 D2 recorded — that
+   one (the `#ifdef WINAMP_DISPLAY` fork in the table) was already closed by TASK-496/467. Two
+   mechanisms, both verified in the source: (a) `audio/audioEngine.h` defines three
+   **external-linkage** function bodies (`audio_showstreamtitle` `:83`, `audio_info` `:94`,
+   `audio_process_extern` `:209`; `:82` documents the constraint) and both `webRadioApp.h` and
+   `localPlayerApp.h` include it, so a TU constructing those two apps duplicates all three at link
+   time; (b) silently worse, those headers carry **file-scope statics holding live engine state**
+   (`s_icyTitleQueue`, `s_wr_audio`, the `ae*` flags). App methods are implicitly `inline` so the
+   linker keeps one copy of each *method*, but each TU compiles its own copy of the *statics* —
+   `main.cpp`'s `loop()`/`aeDrainEof()` and an `appTable.cpp`-constructed `WebRadioApp` would then
+   read and write different objects, with no link error and no diagnostic. §2's "no link-level
+   barrier" conclusion is correct about *classes* and wrong about *these three functions and their
+   statics*. Splitting them out is Stage E's work.
+2. **The accessor is `shell::state()`, not `shell()`.** `namespace shell` already exists in
+   `main.cpp` and owns `setBusy()` / `activeError()` / `activeConnecting()`; a global function and a
+   namespace cannot share the name. The namespace is the older and wider-used name.
+3. **`currentAppId` is not a `ShellState` member.** D3's own struct sketch omits it while the
+   surrounding prose — and §8, which files the item under TASK-457 — says to unify it with
+   `previous`. Stage D followed the sketch: 85 references across nine files, and D4 mandates an
+   out-of-line accessor, so folding it in adds a function call to the hottest read in the firmware
+   for a naming win. Deferred to TASK-457 with the trade recorded.
 
 **Stage E is the one that matters** and the one the first draft of this document quietly omitted.
 A and B moved text into headers; that shrank `main.cpp` but produced **no components** — the headers

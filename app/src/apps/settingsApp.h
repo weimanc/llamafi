@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 #include "appShell.h"
+#include "shell/shellState.h"   // ShellState::previous (M-SRCLAYOUT D3)
 #include "settingsStorage.h"
 
 // ── SettingsApp constants (TASK-141a) ─────────────────────────────────
@@ -66,7 +67,7 @@ public:
         _activeSection->leave();
         _activeSection = nullptr;
         _s.section = -1;
-        switchApp(g_previousAppId);
+        switchApp(shell::state().previous);
         return;
       }
       if (_activeSection == &_cal && _cal.justSaved()) {
@@ -102,7 +103,7 @@ public:
       return true;
     }
     if (phase != TouchPhase::Release) return false;
-    if (y < SETTINGS_HEADER_H && x < 60) { switchApp(g_previousAppId); return true; }
+    if (y < SETTINGS_HEADER_H && x < 60) { switchApp(shell::state().previous); return true; }
     int cancelRowTop = SETTINGS_CONTENT_Y + SETTINGS_CAT_COUNT * SETTINGS_ROW_H + 1;
     if (y >= cancelRowTop && y < cancelRowTop + SETTINGS_ROW_H) { _cancel(); return true; }
     int row = (y - SETTINGS_HEADER_H) / SETTINGS_ROW_H;
@@ -175,7 +176,7 @@ private:
   void _cancel() {
     g_settings = _snapshot;
     SettingsStorage::save();
-    switchApp(g_previousAppId);
+    switchApp(shell::state().previous);
   }
 
   void _onCategoryTap(int idx) {

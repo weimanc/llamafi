@@ -369,17 +369,17 @@ static void cmdGet(const char *args) {
   }
   if (strcmp(args, "shellBusy") == 0) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\","
-                  "\"busy\":%s,\"last\":true}\n", g_shellBusy ? "true" : "false");
+                  "\"busy\":%s,\"last\":true}\n", shell::state().busy ? "true" : "false");
     return;
   }
   if (strcmp(args, "shellCooldown") == 0) {
-    // TASK-294: shell-level post-gesture cooldown (s_cooldownMs) remaining.
+    // TASK-294: shell-level post-gesture cooldown (ShellState::cooldownMs) remaining.
     // Distinct from winampDisplay's `cooldown` var (TASK-052 dead-zone-tap
     // force-poll cooldown in SpotifyApp) despite the similar name.
     unsigned long now = millis();
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\","
                   "\"remainingMs\":%lu,\"last\":true}\n",
-                  (s_cooldownMs > now) ? (s_cooldownMs - now) : 0UL);
+                  (shell::state().cooldownMs > now) ? (shell::state().cooldownMs - now) : 0UL);
     return;
   }
   if (strcmp(args, "visMode") == 0) {

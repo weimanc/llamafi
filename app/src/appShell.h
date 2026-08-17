@@ -89,8 +89,8 @@ struct StockAppState {
     char          chartSymbol[8];  // symbol for heatmap drill-through chart
 };
 
-// First-launch tracking — indexed by (int)AppId.
-extern bool g_appLaunched[(int)AppId::COUNT];
+// First-launch tracking moved into ShellState::launched[] — see
+// shell/shellState.h (M-SRCLAYOUT D3 / TASK-456).
 
 // Sanity checks (T127/T129): catch compile-time drift between appShell.h and shell_layout.h.
 static_assert(TASKBAR_X == 275,                           "TASKBAR_X drift vs appShell");

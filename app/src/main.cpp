@@ -156,12 +156,12 @@ char clientSecret[200];
 // App shell
 // ----------------------------
 #include "appShell.h"
+#include "shell/shellState.h"   // ShellState + shell::state() (M-SRCLAYOUT D3)
 #include "taskbar/taskbar.h"
 #include "dataTask.h"
 #include "settingsStorage.h"
 
 AppId currentAppId = AppId::Spotify;
-static AppId g_previousAppId = AppId::Spotify;
 // TASK-259/260/413: the "player" is one slot with three modes {Spotify | WebRadio |
 // Player}. Tapping the taskbar icon while the player is already active cycles the
 // mode and persists (resolvePlayerTap); returning to the player from another app
@@ -232,20 +232,13 @@ static inline void mb_heap_probe(const char *) {}   // no-op (production / non-d
 
 // ── App dispatch (M-MULTIAPP, TASK-087c/d) ─────────────────────────────
 
-bool g_appLaunched[(int)AppId::COUNT] = {};
-
 #include "shell/appTable.h"   // COMPOSITION ROOT — the 13 App instances + g_apps[],
                              // moved verbatim, M-SRCLAYOUT Stage D (TASK-456)
 
-// ── shell gesture state (TASK-090f) ───────────────────────────────────
-
-static bool          s_inGesture  = false;
-static int           s_lastTouchX = 0, s_lastTouchY = 0;
-static unsigned long s_cooldownMs = 0;
-
-// ── Shell busy state (M-TOUCH-UX TASK-115b) ───────────────────────────────
-static bool          g_shellBusy      = false;
-static unsigned long g_shellBusySetMs = 0;
+// ── Shell state (M-SRCLAYOUT D3 / TASK-456) ───────────────────────────────
+// The gesture flags (TASK-090f), the busy gate (M-TOUCH-UX TASK-115b), the
+// first-launch table and the taskbar press-anchor all live in ShellState now —
+// one owned struct in shell/shellState.cpp, reached through shell::state().
 static constexpr unsigned long SHELL_BUSY_TIMEOUT_MS = 3000;
 
 namespace shell {
@@ -262,8 +255,8 @@ inline bool activeConnecting() {
 }
 // Sets busy flag and immediately repaints only the active-slot indicator.
 void setBusy(bool busy) {
-    g_shellBusy = busy;
-    if (busy) g_shellBusySetMs = millis();
+    shell::state().busy = busy;
+    if (busy) shell::state().busySetMs = millis();
     renderActiveIndicator(tft, currentAppId,
                           winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
                           busy, activeError(), activeConnecting());
@@ -352,18 +345,17 @@ static void cmdPlayerCycle(const char *) {
 // Press-anchored commit [DEV-3-2]: the slot captured at Press is also the slot the
 // tap commits — release-y is never re-resolved (resistive-panel jitter inside the
 // dead zone could otherwise highlight slot A and switch slot B).
-static int s_tbPressedSlot = -1;  // visible slot highlighted at Press; -1 = none
-static int s_tbPressedApp  = -1;  // press-anchored app index (highlight == commit)
+// (the two press-anchor fields are ShellState::tbPressedSlot / ::tbPressedApp)
 
 // F-a: pressed-slot highlight, same loop iteration as the Press sample.
 static void shellTbPress(int y) {
   int slot = y / TASKBAR_SLOT_H;
   if (slot < 0 || slot >= TASKBAR_SLOT_COUNT) return;  // y is 0..239 → 0..5, defensive
-  s_tbPressedSlot = slot;
-  s_tbPressedApp  = (winampDisplay.tbScrollOffset() + slot) % TASKBAR_APP_COUNT;
+  shell::state().tbPressedSlot = slot;
+  shell::state().tbPressedApp  = (winampDisplay.tbScrollOffset() + slot) % TASKBAR_APP_COUNT;
   renderTaskbarSlot(tft, slot, currentAppId,
                     winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
-                    g_shellBusy, shell::activeError(), shell::activeConnecting(),
+                    shell::state().busy, shell::activeError(), shell::activeConnecting(),
                     /*pressed=*/true);
 #ifdef SERIAL_DEBUG
   Serial.printf("[shell] tb-press slot=%d\n", slot);
@@ -373,13 +365,13 @@ static void shellTbPress(int y) {
 // F-a: cancel the highlight — scroll-start (dead zone exceeded) or a tap that
 // resolves to the already-active app. Idempotent.
 static void shellTbCancel() {
-  if (s_tbPressedSlot < 0) return;
-  renderTaskbarSlot(tft, s_tbPressedSlot, currentAppId,
+  if (shell::state().tbPressedSlot < 0) return;
+  renderTaskbarSlot(tft, shell::state().tbPressedSlot, currentAppId,
                     winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
-                    g_shellBusy, shell::activeError(), shell::activeConnecting(),
+                    shell::state().busy, shell::activeError(), shell::activeConnecting(),
                     /*pressed=*/false);
-  s_tbPressedSlot = -1;
-  s_tbPressedApp  = -1;
+  shell::state().tbPressedSlot = -1;
+  shell::state().tbPressedApp  = -1;
 #ifdef SERIAL_DEBUG
   Serial.printf("[shell] tb-press-cancel\n");
 #endif
@@ -400,8 +392,8 @@ static void shellTbCommit(int slot) {
 // Shared taskbar-release resolution — both dispatch sites call this so tap commit,
 // press-anchoring, and the feedback paints stay identical [VE-3-1].
 static void shellTbRelease(int releaseY) {
-  const int pressedSlot = s_tbPressedSlot;
-  const int pressedApp  = s_tbPressedApp;
+  const int pressedSlot = shell::state().tbPressedSlot;
+  const int pressedApp  = shell::state().tbPressedApp;
   int appIdx = (int)currentAppId;
   if (winampDisplay.tbGestureEnd(releaseY, TASKBAR_APP_COUNT, &appIdx)) {
     if (pressedApp >= 0) appIdx = pressedApp;  // press-anchored commit [DEV-3-2]
@@ -409,8 +401,8 @@ static void shellTbRelease(int releaseY) {
     // otherwise — resolvePlayerTap() owns both decisions (ADR-059 D6).
     AppId target = resolvePlayerTap(static_cast<AppId>(appIdx), isPlayerModeApp(currentAppId));
     if (target != currentAppId) {
-      s_tbPressedSlot = -1;
-      s_tbPressedApp  = -1;
+      shell::state().tbPressedSlot = -1;
+      shell::state().tbPressedApp  = -1;
       shellTbCommit(pressedSlot);
       switchApp(target);
       return;
@@ -435,7 +427,7 @@ void switchApp(AppId next) {
   const unsigned long tSuspend = millis();
   tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK);
   const unsigned long tWipe = millis();
-  if (next == AppId::Settings) g_previousAppId = currentAppId;
+  if (next == AppId::Settings) shell::state().previous = currentAppId;
   currentAppId = next;
   // TASK-260: the player mode is NOT tracked here — it is written only by the deliberate
   // eject toggles + Settings UI (persistPlayerMode / _cyclePlayer). Tracking navigation
@@ -456,8 +448,8 @@ void switchApp(AppId next) {
                                  next == AppId::LocalPlayer);
 #endif
   if (g_apps[(int)next]) {
-    if (!g_appLaunched[(int)next]) {
-      g_appLaunched[(int)next] = true;
+    if (!shell::state().launched[(int)next]) {
+      shell::state().launched[(int)next] = true;
       g_apps[(int)next]->init();
     } else {
       g_apps[(int)next]->resume();
@@ -491,14 +483,14 @@ void appHandleInput(AppId) {
     CYD28_TS_Point p = ts.getPointScaled();
     spotifyTask::resetBackoff();
     if (p.x >= TASKBAR_X) {
-      if (s_inGesture && g_apps[(int)currentAppId]) {
+      if (shell::state().inGesture && g_apps[(int)currentAppId]) {
         g_apps[(int)currentAppId]->handleInput(
-            TouchPhase::Release, s_lastTouchX, s_lastTouchY);
-        s_inGesture = false;
-        if (!g_shellBusy && g_apps[(int)currentAppId]->hasPendingAsync())
+            TouchPhase::Release, shell::state().lastTouchX, shell::state().lastTouchY);
+        shell::state().inGesture = false;
+        if (!shell::state().busy && g_apps[(int)currentAppId]->hasPendingAsync())
           shell::setBusy(true);
       }
-      s_lastTouchY = p.y;  // track for release
+      shell::state().lastTouchY = p.y;  // track for release
       if (winampDisplay.tbIsDragging()) {
         if (winampDisplay.tbGestureContinue(p.y, TASKBAR_APP_COUNT))
           renderTaskbar(tft, currentAppId,
@@ -518,15 +510,17 @@ void appHandleInput(AppId) {
     // isNavigationTap()'s doc comment) — cooldown debounce still applies.
     bool navTapBypass = g_apps[(int)currentAppId] &&
                          g_apps[(int)currentAppId]->isNavigationTap(p.x, p.y);
-    if (!s_inGesture && (millis() <= s_cooldownMs || (g_shellBusy && !navTapBypass))) return;
-    s_lastTouchX = p.x; s_lastTouchY = p.y;
-    if (!s_inGesture) {
-      s_inGesture = true;
+    if (!shell::state().inGesture &&
+        (millis() <= shell::state().cooldownMs ||
+         (shell::state().busy && !navTapBypass))) return;
+    shell::state().lastTouchX = p.x; shell::state().lastTouchY = p.y;
+    if (!shell::state().inGesture) {
+      shell::state().inGesture = true;
       if (g_apps[(int)currentAppId]) {
         bool consumed = g_apps[(int)currentAppId]->handleInput(
             TouchPhase::Press, p.x, p.y);
-        if (consumed) s_cooldownMs = millis() + 200;
-        if (!g_shellBusy && g_apps[(int)currentAppId]->hasPendingAsync())
+        if (consumed) shell::state().cooldownMs = millis() + 200;
+        if (!shell::state().busy && g_apps[(int)currentAppId]->hasPendingAsync())
           shell::setBusy(true);
 #ifdef TOUCH_DEBUG_OVERLAY
         g_touchDebug.onTouch(p.x, p.y);
@@ -535,7 +529,7 @@ void appHandleInput(AppId) {
     } else {
       if (g_apps[(int)currentAppId]) {
         g_apps[(int)currentAppId]->handleInput(TouchPhase::Move, p.x, p.y);
-        if (!g_shellBusy && g_apps[(int)currentAppId]->hasPendingAsync())
+        if (!shell::state().busy && g_apps[(int)currentAppId]->hasPendingAsync())
           shell::setBusy(true);
 #ifdef TOUCH_DEBUG_OVERLAY
         g_touchDebug.onTouch(p.x, p.y);
@@ -548,17 +542,17 @@ void appHandleInput(AppId) {
         && !winampDisplay._injectingDrag
 #endif
     ) {
-      shellTbRelease(s_lastTouchY);  // TASK-279: shared commit path [VE-3-1]
-      s_cooldownMs = millis() + 300;
-    } else if (s_inGesture) {
-      s_inGesture = false;
+      shellTbRelease(shell::state().lastTouchY);  // TASK-279: shared commit path [VE-3-1]
+      shell::state().cooldownMs = millis() + 300;
+    } else if (shell::state().inGesture) {
+      shell::state().inGesture = false;
       if (g_apps[(int)currentAppId]) {
         g_apps[(int)currentAppId]->handleInput(
-            TouchPhase::Release, s_lastTouchX, s_lastTouchY);
-        if (!g_shellBusy && g_apps[(int)currentAppId]->hasPendingAsync())
+            TouchPhase::Release, shell::state().lastTouchX, shell::state().lastTouchY);
+        if (!shell::state().busy && g_apps[(int)currentAppId]->hasPendingAsync())
           shell::setBusy(true);
       }
-      s_cooldownMs = millis() + 200;
+      shell::state().cooldownMs = millis() + 200;
     }
   }
 }
@@ -696,8 +690,8 @@ static inline void drainInjectionQueue() {
       // [VE-3-1]. TASK-280: also set the same 300 ms post-gesture cooldown
       // appHandleInput() sets after its shellTbRelease() call, so the injected
       // path can't double-fire faster than a real gesture could.
-      shellTbRelease(s_lastTouchY);
-      s_cooldownMs = millis() + 300;
+      shellTbRelease(shell::state().lastTouchY);
+      shell::state().cooldownMs = millis() + 300;
       renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
                 false, shell::activeError(), shell::activeConnecting());
     } else {
@@ -729,7 +723,7 @@ static inline void drainInjectionQueue() {
           s_injectHead + 1, s_injectTotal - 1, step.sx, step.sy);
     if (step.sx >= TASKBAR_X) {
       // Taskbar zone: route to gesture handlers, not app handleInput.
-      s_lastTouchY = step.sy;
+      shell::state().lastTouchY = step.sy;
       if (!winampDisplay.tbIsDragging()) {
         winampDisplay.tbGesturePress(step.sy);
         shellTbPress(step.sy);  // TASK-279 (F-a): same shared paint as production
@@ -1006,11 +1000,11 @@ void loop()
     perf::record("app.tick", millis() - _t); }
 
   // Primary busy clear: app reports work done (TASK-115d).
-  if (g_shellBusy && g_apps[(int)currentAppId] &&
+  if (shell::state().busy && g_apps[(int)currentAppId] &&
       !g_apps[(int)currentAppId]->hasPendingAsync())
       shell::setBusy(false);
   // Fallback: auto-clear after timeout (safety net).
-  if (g_shellBusy && millis() - g_shellBusySetMs > SHELL_BUSY_TIMEOUT_MS)
+  if (shell::state().busy && millis() - shell::state().busySetMs > SHELL_BUSY_TIMEOUT_MS)
       shell::setBusy(false);
 
   // TASK-245 / ADR-046: repaint the active-slot indicator when the active app's
@@ -1029,7 +1023,7 @@ void loop()
       s_connShown = conn;
       s_errApp    = currentAppId;
       renderActiveIndicator(tft, currentAppId, winampDisplay.tbScrollOffset(),
-                            TASKBAR_APP_COUNT, g_shellBusy, err, conn);
+                            TASKBAR_APP_COUNT, shell::state().busy, err, conn);
     }
   }
 

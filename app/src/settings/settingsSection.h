@@ -73,7 +73,7 @@ struct SettingsRow {
 enum class SectionResult : uint8_t {
     Continue,       // stay in this section
     GoBack,         // SettingsApp should pop this section
-    NavigateHome,   // exit Settings entirely and return to g_previousAppId
+    NavigateHome,   // exit Settings entirely and return to shell::state().previous
 };
 
 // ============================================================================
