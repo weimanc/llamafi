@@ -30,4 +30,13 @@ if ! "$PYTHON" test_check_docs.py; then
     exit 1
 fi
 
+# 4. player-mode binding gate — M-TESTBASE §8.4 (TASK-512).
+# Asserts the resolvePlayerTap -> playerCycle -> playerBind -> T_PMT_00 chain is
+# intact. TASK-413 added a dispatch path and left the harness on the old surface
+# with every gate green; this is the check that would have caught it.
+if ! "$PYTHON" check_player_binding.py; then
+    echo "FAIL: check_player_binding.py (M-TESTBASE §8.4) FAILED" >&2
+    exit 1
+fi
+
 echo "OK: smoke_test.sh passed"

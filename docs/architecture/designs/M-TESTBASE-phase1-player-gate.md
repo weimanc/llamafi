@@ -600,8 +600,29 @@ A static check, in the shape this programme keeps reusing (`check_settings_wirin
 docs claim.** Two today (`app/src/main.cpp:467`, `app/src/debug/serialConsole/cmdTouch.h:21`) plus
 `playerCycle` once it lands. A third appearing without a doc update fails `run/check`.
 
-That is ~15 lines of grep, and it is the only mechanism here that would have caught the original
-problem: TASK-413 added a dispatch path and left the harness on the old one, and **nothing failed**.
+> **LANDED 2026-08-17 — `app/tools/check_player_binding.py`, wired into `run/check` gate 9.** It
+> turned out to be ~180 lines rather than 15, because it asserts the whole chain, not just the call
+> sites: `resolvePlayerTap` defined once → **called exactly twice** in `main.cpp` and once in
+> `cmdTouch.h` → `playerCycle` registered in `kCmds[]` **and reusing the shared helper** → `get
+> playerBind` and `get player` present → `T_PMT_00` registered in `ALL_TESTS` **and** reading
+> `playerBind`.
+>
+> **Four negative tests, and two of them failed the first version — which is the only reason the gate
+> is worth anything:**
+>
+> | Break | First version | Now |
+> |---|---|---|
+> | extra dispatch site inside `main.cpp` | **passed** — it compared filenames, not counts, so the exact TASK-413 failure slipped through | fails |
+> | `playerCycle` unregistered from `kCmds[]` | fails | fails |
+> | `get playerBind` deleted | fails | fails |
+> | `T_PMT_00` removed from `ALL_TESTS` | **passed** — the id still appeared in the body's own `pass_()`/`fail()` strings, so a substring check matched a test that no longer ran | fails |
+>
+> The gate's own first run also miscounted: `kCmds[]`'s help text contains
+> *"…via resolvePlayerTap (surface-independent)"*, and the pattern matched the space before the
+> paren — **a help string counted as a dispatch site.** It now strips string literals as well as
+> comments. Three self-inflicted errors in one 180-line file, all found by testing the gate rather
+> than reading it, and all of the same family M-CODEQUAL §13.2 names: *a grep-derived count is a
+> hypothesis.*
 
 ### 8.5 What this does not do
 
