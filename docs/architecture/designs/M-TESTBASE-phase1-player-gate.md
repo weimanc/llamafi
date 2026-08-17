@@ -277,6 +277,22 @@ Design rule, per M-TESTARCH §4 I1: **additive-only, VE-gated field set.** Exten
 > And `playerModeNext()` (`settingsStorage.h:77`) is a **successor-only cycle**, so the reachable
 > direct-transition set is **3 edges** (S→W, W→L, L→S); S→L is two hops, not one.
 
+> **DONE 2026-08-17 — `T_PMT_00`–`03`, 4/4 PASS on Leg A, first run.**
+> `T_PMT_00  TASKBAR_SLOT slot 0 cycled 0 -> 1` ·
+> `T_PMT_01  Spotify -> WebRadio: src=StationList caps=1` ·
+> `T_PMT_02  WebRadio -> Player: src=LocalPlaylist caps=15` ·
+> `T_PMT_03  Player -> Spotify: src=SpotifyQueue caps=15`.
+> **No coordinate appears anywhere except `T_PMT_00`**, which derives one from `get playerBind` —
+> so a relocation costs exactly one edit, which was §8's whole objective.
+>
+> **Regression note, and a flake for the pre-declared set.** Running
+> `T_PLR_01,05,17,18,19` after the new family, `T_PLR_17` failed once
+> (*"no 'dequeued action=SHUFFLE' within 20s"*), then **passed in isolation and passed again on the
+> identical five-id sequence** — 1 fail in 3 runs, no mechanism connecting it to this change
+> (`T_PLR_01/05/17` never call `playerCycle`). Recorded as a **flake candidate**, not a regression and
+> not a clean bill: one failure in three runs is evidence, not a verdict. This is exactly the artifact
+> M-TESTARCH §7 wants — a flake with a run count attached instead of a shrug.
+
 **Real domain: 3 edges × 5 invariants ≈ 15 cells.** At that size the generator framing was
 over-engineering on a product the state machine does not offer — **these are 5 hand-written
 parameterised bodies over a 3-edge list, not a code generator.** The M-TESTARCH §2.3 conformance-matrix

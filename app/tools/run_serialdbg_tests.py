@@ -9308,6 +9308,141 @@ def t_pri_01(dut: Dut):
                       f"decaying toward 0 (tau=2s)")
 
 
+# ── T_PMT_00..03 — player mode transitions (M-TESTBASE P3, §8) ───────────────
+# The whole point of this family: it drives the OPERATION (`playerCycle`), never
+# a coordinate. The gesture that cycles player mode has already moved once
+# (eject -> taskbar player slot, TASK-413/414, ADR-059 D6) and silently
+# invalidated every test that had hardcoded the old surface. T_PMT_00 is the ONE
+# test that touches a coordinate, and it derives it from `get playerBind` — so
+# relocating the surface costs an edit HERE and nowhere else.
+
+# Expected per-mode vector. srcKind is the source that last actually drove a
+# PLEDIT draw; caps is the ADR-059 D8 transport capability mask.
+_PMT_EXPECT = {
+    0: ("Spotify",  "SpotifyQueue",  15),
+    1: ("WebRadio", "StationList",    1),
+    2: ("Player",   "LocalPlaylist", 15),
+}
+_PMT_SETTLE_S = 2.5   # PLEDIT must actually repaint before srcKind is meaningful
+
+
+def _pmt_vector(dut: Dut, timeout: float = 6.0) -> dict:
+    return dut.cmd("get player", timeout=timeout)
+
+
+def _pmt_goto(dut: Dut, want: int, tid: str) -> bool:
+    """Cycle to `want` using the operation, never a gesture. Max 3 hops."""
+    for _ in range(4):
+        r = _pmt_vector(dut)
+        if not r.get("ok"):
+            fail(tid, f"get player failed: {r}")
+            return False
+        if r.get("mode") == want:
+            return True
+        dut.cmd("playerCycle", timeout=8.0)
+        time.sleep(_PMT_SETTLE_S)
+    fail(tid, f"could not reach mode {want} in 3 cycles")
+    return False
+
+
+def _pmt_edge(dut: Dut, tid: str, frm: int, to: int):
+    """One transition: cycle frm -> to and assert the whole get-player vector."""
+    if not _pmt_goto(dut, frm, tid):
+        return
+    before = _pmt_vector(dut)
+    c = dut.cmd("playerCycle", timeout=8.0)
+    if not c.get("ok"):
+        fail(tid, f"playerCycle failed: {c}")
+        return
+    if c.get("from") != frm or c.get("to") != to:
+        fail(tid, f"cycle reported {c.get('from')}->{c.get('to')}, expected {frm}->{to}")
+        return
+    time.sleep(_PMT_SETTLE_S)
+    v = _pmt_vector(dut)
+    name, src, caps = _PMT_EXPECT[to]
+    problems = []
+    if v.get("mode") != to:
+        problems.append(f"mode={v.get('mode')} expected {to}")
+    if v.get("modeName") != name:
+        problems.append(f"modeName={v.get('modeName')!r} expected {name!r}")
+    # M5 (X054/X055): the right PlaylistSource is actually driving PLEDIT.
+    if v.get("srcName") != src:
+        problems.append(f"srcName={v.get('srcName')!r} expected {src!r}")
+    # M3 (X061): the capability mask matches the mode.
+    if v.get("caps") != caps:
+        problems.append(f"caps={v.get('caps')} expected {caps}")
+    # M2 (X052): leaving Player must not strand the arena. On this build the
+    # arena is never acquired (TASK-425), so this asserts "still 0" rather than
+    # a release — the real acquire/release cell is Leg B, cyd2usb_player.
+    if frm == 2 and v.get("arenaHeld") not in (0, None):
+        problems.append(f"arenaHeld={v.get('arenaHeld')} after leaving Player")
+    # M4a (X062): playlist fields exist in Player and are honestly absent elsewhere.
+    if to == 2:
+        if v.get("plCount") is None:
+            problems.append("plCount missing in Player mode")
+    elif v.get("plCount") is not None:
+        problems.append(f"plCount={v.get('plCount')} leaked into non-Player mode")
+    if problems:
+        fail(tid, "; ".join(problems))
+        return
+    pass_(tid, f"{before.get('modeName')} -> {name}: src={src} caps={caps}")
+
+
+def t_pmt_00(dut: Dut):
+    """T_PMT_00: the surface named by `get playerBind` still performs the cycle.
+
+    THE binding test. If it fails, T_PMT_01-03 are meaningless — they would be
+    exercising an operation nothing on screen can reach."""
+    print("T_PMT_00  playerBind: the documented surface still cycles")
+    b = dut.cmd("get playerBind", timeout=5.0)
+    if not b.get("ok"):
+        fail("T_PMT_00", f"get playerBind failed: {b}")
+        return
+    if b.get("op") != "playerCycle":
+        fail("T_PMT_00", f"playerBind op={b.get('op')!r}, expected 'playerCycle'")
+        return
+    region = b.get("region")
+    if region != "TASKBAR_SLOT":
+        skip("T_PMT_00",
+             f"playerBind region={region!r} — surface relocated; update this test "
+             "(that is the design intent: ONE edit, here)")
+        return
+    # Player must be active for the tap to CYCLE rather than RESTORE (ADR-059 D6).
+    if not _pmt_goto(dut, 0, "T_PMT_00"):
+        return
+    slot_app = b.get("appId", APP_SLOT["Spotify"])
+    before = _pmt_vector(dut).get("mode")
+    sx, sy = _c.tap_taskbar_slot(slot_app)
+    dut.set_cooldown_zero()
+    dut.cmd(f"tap {sx} {sy}", timeout=5.0)
+    time.sleep(_PMT_SETTLE_S)
+    after = _pmt_vector(dut).get("mode")
+    if after == before:
+        fail("T_PMT_00",
+             f"tapping the bound surface ({region}, slot {slot_app}) did not cycle "
+             f"(mode stayed {before}) — binding is stale, exactly the TASK-413/414 failure")
+        return
+    pass_("T_PMT_00", f"{region} slot {slot_app} cycled {before} -> {after}")
+
+
+def t_pmt_01(dut: Dut):
+    """T_PMT_01: Spotify -> WebRadio; full get-player vector correct after."""
+    print("T_PMT_01  transition Spotify -> WebRadio")
+    _pmt_edge(dut, "T_PMT_01", 0, 1)
+
+
+def t_pmt_02(dut: Dut):
+    """T_PMT_02: WebRadio -> Player; full get-player vector correct after."""
+    print("T_PMT_02  transition WebRadio -> Player")
+    _pmt_edge(dut, "T_PMT_02", 1, 2)
+
+
+def t_pmt_03(dut: Dut):
+    """T_PMT_03: Player -> Spotify; vector correct + arena not stranded."""
+    print("T_PMT_03  transition Player -> Spotify")
+    _pmt_edge(dut, "T_PMT_03", 2, 0)
+
+
 ALL_TESTS = {
     "T077": t077,
     "T078": t078,
@@ -9440,6 +9575,11 @@ ALL_TESTS = {
     "T_PLR_15": t_plr_15,
     "T_PLR_16": t_plr_16,
     # transport capability mask (TASK-417 / ADR-059 D8)
+    # player mode transitions (M-TESTBASE P3 / §8) — operation-driven, not gesture
+    "T_PMT_00": t_pmt_00,
+    "T_PMT_01": t_pmt_01,
+    "T_PMT_02": t_pmt_02,
+    "T_PMT_03": t_pmt_03,
     "T_PLR_17": t_plr_17,
     "T_PLR_18": t_plr_18,
     "T_PLR_19": t_plr_19,

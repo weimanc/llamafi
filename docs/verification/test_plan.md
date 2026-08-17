@@ -173,7 +173,7 @@ question by measurement (LL-137). (b) `T_488_11` must not be re-run as written; 
 
 ---
 
-## Suite: M-WINAMP-PLAYER — RESERVED id families `T_PLR_01`–`41`, `T_PMT_01`–`03` (VE, 2026-08-17)
+## Suite: M-WINAMP-PLAYER — RESERVED id families `T_PLR_01`–`41`, `T_PMT_00`–`03` (VE, 2026-08-17)
 
 > **Registered by @VE, 2026-08-17, executing P0 of
 > [M-TESTBASE §4](../architecture/designs/M-TESTBASE-phase1-player-gate.md).** Before this block,
@@ -283,7 +283,7 @@ Confirmed by grep: `T_PLR_2[7-9]`/`3[0-9]`/`4[01]` appear **nowhere** in `app/to
   The fallback path is implemented and unexercised in every configuration. That is `blocked`, not
   `resv`, and it is exactly `X064`.
 
-### `T_PMT_01`–`03` — player-mode transition cells (new family, reserved)
+### `T_PMT_00`–`03` — player-mode transition cells (new family; **`00`–`03` implemented 2026-08-17, 4/4 PASS on leg A**)
 
 **Source**: [M-TESTBASE §6.1](../architecture/designs/M-TESTBASE-phase1-player-gate.md),
 `docs/architecture/designs/M-TESTBASE-phase1-player-gate.md:364-378`. Prefix `T_PMT_` chosen because
@@ -292,9 +292,10 @@ visually close.
 
 | id | Covers | Owner | Source | Status |
 |---|---|---|---|---|
-| `T_PMT_01` | S→W edge — whole `get player` vector (leg A) | @VE / @Dev (P2, P3) | `docs/architecture/designs/M-TESTBASE-phase1-player-gate.md:372` | `resv` — needs P2's `get player` |
-| `T_PMT_02` | W→L edge — same vector (leg A) | @VE / @Dev (P2, P3) | `docs/architecture/designs/M-TESTBASE-phase1-player-gate.md:373` | `resv` — needs P2 |
-| `T_PMT_03` | L→S edge — same, plus outgoing engine teardown (leg B) | @VE / @Dev (P2, P3) | `docs/architecture/designs/M-TESTBASE-phase1-player-gate.md:374` | `resv` — needs P2 |
+| `T_PMT_00` | the surface named by `get playerBind` still performs `playerCycle` — **the binding test; if it fails T_PMT_01-03 are meaningless** | @VE | [M-TESTBASE §8](../architecture/designs/M-TESTBASE-phase1-player-gate.md) | `impl` |
+| `T_PMT_01` | S→W edge — whole `get player` vector (leg A) | @VE / @Dev (P2, P3) | [M-TESTBASE §4 P3](../architecture/designs/M-TESTBASE-phase1-player-gate.md) | `impl` |
+| `T_PMT_02` | W→L edge — same vector (leg A) | @VE / @Dev (P2, P3) | [M-TESTBASE §4 P3](../architecture/designs/M-TESTBASE-phase1-player-gate.md) | `impl` |
+| `T_PMT_03` | L→S edge — same, plus outgoing engine teardown (leg B) | @VE / @Dev (P2, P3) | [M-TESTBASE §4 P3](../architecture/designs/M-TESTBASE-phase1-player-gate.md) | `impl` |
 
 Only three edges are reachable (`playerModeNext()` is a successor-only cycle); the M4b invariant is
 **not** in this family — it is `T_PLR_30`, deferred behind TASK-424.
