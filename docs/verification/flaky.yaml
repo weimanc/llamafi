@@ -42,6 +42,26 @@ flaky:
     # NOT a verdict. One failure in three runs is evidence that this id is
     # unstable, not proof of a root cause. Re-derive before acting on it.
 
+  - id: T_PMT_04
+    suite: run_serialdbg_tests
+    since: 2026-08-17
+    evidence: "1 fail in 5 fresh-boot runs (TASK-513). On the failing boot all three
+      play attempts left curRow=-1 and acquires never left 0; the built-in retry
+      (3 attempts, 20s apart, after a 100s heap-settle wait) did not clear it
+      within that boot. Runs 2-5 passed with identical arena numbers."
+    symptom: "playback never starts — aeConnectFile() refuses before reaching
+      mb_arena_acquire(); T_PMT_04 hard-FAILs rather than passing vacuously"
+    dependency: "[SD] [AUDIO] — cyd2usb_player only; real MP3 decode from the card"
+    suspected: "PLAYBACK-START flake, NOT an arena-contract flake — the arena numbers
+      never varied across runs (0->1->released, hwm=23216 every time). Boot playerMode
+      was ruled out: run 1 booted Spotify and failed, runs 3-5 booted Spotify and passed."
+    owner: "@VE"
+    task: TASK-513
+    review_by: 2026-09-17
+    # The FAILURE mode here is safe by construction: a run that cannot start
+    # playback fails loudly naming the vacuum, so this id cannot go green without
+    # a real acquire. That is the whole point of TASK-513.
+
 # ── Candidates, NOT yet declared ────────────────────────────────────────────
 # These are named in project memory and test annotations but have no run-count
 # evidence recorded here yet. They must be measured before they earn an entry

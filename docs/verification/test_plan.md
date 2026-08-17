@@ -173,7 +173,7 @@ question by measurement (LL-137). (b) `T_488_11` must not be re-run as written; 
 
 ---
 
-## Suite: M-WINAMP-PLAYER — RESERVED id families `T_PLR_01`–`41`, `T_PMT_00`–`03` (VE, 2026-08-17)
+## Suite: M-WINAMP-PLAYER — RESERVED id families `T_PLR_01`–`41`, `T_PMT_00`–`04` (VE, 2026-08-17)
 
 > **Registered by @VE, 2026-08-17, executing P0 of
 > [M-TESTBASE §4](../architecture/designs/M-TESTBASE-phase1-player-gate.md).** Before this block,
@@ -283,7 +283,7 @@ Confirmed by grep: `T_PLR_2[7-9]`/`3[0-9]`/`4[01]` appear **nowhere** in `app/to
   The fallback path is implemented and unexercised in every configuration. That is `blocked`, not
   `resv`, and it is exactly `X064`.
 
-### `T_PMT_00`–`03` — player-mode transition cells (new family; **`00`–`03` implemented 2026-08-17, 4/4 PASS on leg A**)
+### `T_PMT_00`–`04` — player-mode transition cells (new family; **`00`–`03` implemented 2026-08-17, 4/4 PASS on leg A; `04` added 2026-08-17, PASS on leg B**)
 
 **Source**: [M-TESTBASE §6.1](../architecture/designs/M-TESTBASE-phase1-player-gate.md),
 `docs/architecture/designs/M-TESTBASE-phase1-player-gate.md:364-378`. Prefix `T_PMT_` chosen because
@@ -295,7 +295,16 @@ visually close.
 | `T_PMT_00` | the surface named by `get playerBind` still performs `playerCycle` — **the binding test; if it fails T_PMT_01-03 are meaningless** | @VE | [M-TESTBASE §8](../architecture/designs/M-TESTBASE-phase1-player-gate.md) | `impl` |
 | `T_PMT_01` | S→W edge — whole `get player` vector (leg A) | @VE / @Dev (P2, P3) | [M-TESTBASE §4 P3](../architecture/designs/M-TESTBASE-phase1-player-gate.md) | `impl` |
 | `T_PMT_02` | W→L edge — same vector (leg A) | @VE / @Dev (P2, P3) | [M-TESTBASE §4 P3](../architecture/designs/M-TESTBASE-phase1-player-gate.md) | `impl` |
-| `T_PMT_03` | L→S edge — same vector. **Does NOT cover M2/arena**: probed 2026-08-17, `acquires=0` on both legs, so the arena assertion is vacuous until a playback arm exists (needs the SD fixture) | @VE / @Dev (P2, P3) | [M-TESTBASE §4 P3](../architecture/designs/M-TESTBASE-phase1-player-gate.md) | `impl` |
+| `T_PMT_03` | L→S edge — the whole `get player` vector. **Its `arenaHeld == 0` check does NOT cover M2/arena**: mode switching alone never touches the arena (probed 2026-08-17, `acquires=0` on both legs), so that clause asserts "a counter nothing incremented is still zero". Kept as a cheap tripwire; the real M2 cell is `T_PMT_04` | @VE / @Dev (P2, P3) | [M-TESTBASE §4 P3](../architecture/designs/M-TESTBASE-phase1-player-gate.md) | `impl` |
+| `T_PMT_04` | **M2/X052 for real** (TASK-513) — load `/playlists/short5.m3u`, start real playback in Player mode, confirm it is actually decoding (`plCount.playing && curRow==0`), assert `arenaStats.active==1` mid-play, then `playerCycle` out and assert `acquires > 0` **and** `active == 0` **and** `releases` moved. **Leg B only** (`DUT_ENV=cyd2usb_player`): local playback does not work on leg A (TASK-425/431/442), so it SKIPs there rather than reporting a documented variant constraint as a regression | @VE | TASK-513 | `impl` — **PASS 4/5 runs on leg B 2026-08-17** (measured `acquires 0→1`, `releases 0→1`, `hwm=23216`); one boot failed all 3 play attempts with no `acquires` movement, see the flake note below |
+
+**`T_PMT_04` flake note (2026-08-17).** Five consecutive fresh-boot runs on `cyd2usb_player`: run 1
+FAILED (`set plPlay 0` returned `ok:true` but `curRow` stayed `-1` for all three attempts — i.e.
+`aeConnectFile()` refused before the acquire, so `acquires` never left 0); runs 2–5 PASSED
+identically. Boot playerMode was not the variable (run 1 booted Spotify and failed; runs 3–5 booted Spotify and passed). The test's own retry loop (3 attempts, 20 s apart, after a 100 s heap-settle
+wait) did not clear it within that boot. This is a **playback-start** flake, not an arena-contract
+flake — the arena numbers are identical on every run that started. Not yet declared in
+`docs/verification/flaky.yaml`; nothing reads that file until TASK-520 lands.
 
 Only three edges are reachable (`playerModeNext()` is a successor-only cycle); the M4b invariant is
 **not** in this family — it is `T_PLR_30`, deferred behind TASK-424.
@@ -312,7 +321,7 @@ the last column is the honest one.
 |---|---|---|
 | `X050` | `T_AE_04` `impl` (`app/tools/test_ae04_teardown.py`); `T_AE_01`–`03` have **no id-labelled body** — `app/tools/test_webradio_soak.py` (`run/wr-soak`) is their only vehicle and it labels `T_AE_04` alone; `T_AE_13`/`15`/`16` `blocked` (M-AUDIO-ENGINE suite below) | **partial** — teardown ordering only |
 | `X051` | `T_AE_08` `resv`; `T_AE_11`/`12`/`14` `blocked`; **gate-covered** by `run/check` mem-budget gate (VE-17) | **gate-covered**, no test |
-| `X052` | `T_PLR_09` `impl`, `T_PLR_13` `impl`, `T_PLR_39` `resv` | **partial** — short-duration only; the soak is the uncovered half |
+| `X052` | `T_PLR_09` `impl`, `T_PLR_13` `impl`, `T_PMT_04` `impl`, `T_PLR_39` `resv` | **partial** — the acquire/release edge is now really covered (`T_PMT_04`, TASK-513: `acquires 0→1`, `active` back to 0 on mode exit); still short-duration only, the soak is the uncovered half |
 | `X053` | `T_SD_01`–`03`, `08` — **no bodies exist for any `T_SD_` id** | **GENUINELY UNCOVERED** |
 | `X054` | `T_PLE_01`–`06` — no bodies | **GENUINELY UNCOVERED** |
 | `X055` | `T_PLE_07`–`13`: only `T_PLE_08` realised, as `T_PLE_WR_155`–`160` `impl`; `T_PLE_14` (seqno-vs-dirty-flag) **not specified in any owned doc** | **partial**, and the seqno gap is **GENUINELY UNCOVERED** |

@@ -28,8 +28,7 @@ known transient: it can only launder the defect under test into a green run.
 Any reset signature now fails immediately, loudly, on the first occurrence.
 (This is independent of TASK-443's ruling — the crash being retried past is
 already fixed either way.) A `PlaybackNeverStarted`
-(pump task creation / the decoder allocation failing without a crash — under
-TASK-443's ruling the FILE arm never acquires the arena) is NOT retried
+(pump task creation / the decoder allocation failing without a crash) is NOT retried
 in-process — DUT-measured (TASK-416's own script, same board): re-opening the
 serial port lands inside the ESP32's double-reset-detector window and
 reproduces the identical stuck state rather than a clean boot. Only a real
@@ -161,10 +160,14 @@ def run_sequence(ser: serial.Serial, per_track_timeout_s: float) -> list:
         # Same tolerance class as test_fbrowser_player.py's — see its
         # PlaybackNeverStarted docstring for the DUT-measured reasoning.
         raise PlaybackNeverStarted("plCount.playing/curRow never reached (True, 0) within 15s")
-    # Do NOT claim "arena acquired" here: this script never reads arenaStats, and
-    # under TASK-443's ruling the FILE arm does not acquire the arena at all (the
-    # decoder allocates through mb_arena_alloc()'s libc fallback). All that is
-    # actually observed is that the decode started.
+    # Do NOT claim "arena acquired" here: this script never reads arenaStats.
+    # All that is actually observed is that the decode started.
+    # CORRECTED 2026-08-17 (TASK-513): this comment used to add "and under
+    # TASK-443's ruling the FILE arm does not acquire the arena at all". That
+    # ruling was WITHDRAWN (successor TASK-452, still OPEN) and never landed, and
+    # T_PMT_04 has now MEASURED the opposite on cyd2usb_player: acquires 0 -> 1
+    # with active=1 during real playback, released on mode exit. A withdrawn
+    # decision was being cited as fact in three places.
     print("playback confirmed — decoding row 0")
 
     print("=== waiting for auto-advance through all 5 short tracks ===")

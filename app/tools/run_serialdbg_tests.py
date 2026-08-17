@@ -9443,6 +9443,175 @@ def t_pmt_03(dut: Dut):
     _pmt_edge(dut, "T_PMT_03", 2, 0)
 
 
+# ── T_PMT_04 — M2/X052, the arena cell with an actual acquire in it ──────────
+# TASK-513. T_PMT_03 asserts `arenaHeld == 0` after leaving Player, and that
+# assertion is VACUOUS by construction: mode switching alone never touches the
+# arena (a 2026-08-17 probe read `arenaStats acquires=0` on BOTH build legs),
+# so it checks a counter nothing ever incremented. The only acquire site on the
+# FILE arm is aeConnectFile() (audioEngine.h, under MEMBUDGET_PHASE1), reached
+# only by REAL playback; the only release is aeTeardownFile(), reached from
+# LocalPlayerApp::suspend() on mode exit. This test drives that whole edge.
+#
+# LEG B ONLY. Local playback works on cyd2usb_player alone (TASK-425/431/442 —
+# Spotify's ~39 KB TLS working set otherwise leaves no contiguous room), so on
+# cyd2usb_winamp_debug this SKIPs rather than fails: a red cell there would be
+# reporting a known, documented variant constraint as a regression.
+_PMT04_PLAYLIST = "/playlists/short5.m3u"   # 5 real ~3 s tones (TASK-418 fixture)
+_PMT04_SETTLE_S = 100.0   # heap is not stable until ~150 s post-reset (TASK-425);
+                          # Dut.__init__ has already burned 25-40 s of that
+_PMT04_PLAY_TIMEOUT_S = 20.0
+_PMT04_PLAY_ATTEMPTS = 3
+
+
+def t_pmt_04(dut: Dut):
+    """T_PMT_04: real local playback acquires the arena, and leaving Player
+    releases it — acquires > 0 AND active == 0.
+
+    The non-vacuous half of M2/X052. T_PMT_03 only proves the counter is not
+    non-zero; this proves the counter MOVED and then came back to rest."""
+    print("T_PMT_04  arena acquire/release across a real Player-mode playback")
+
+    # Leg guard (TASK-255's `get variant`, the same probe Dut's readiness path
+    # uses). On leg A this test cannot start playback at all, and a red cell
+    # there would be reporting TASK-425/431/442's documented variant constraint
+    # as a regression.
+    var = dut.cmd("get variant", timeout=5.0)
+    if var.get("spotify") != "off":
+        skip("T_PMT_04",
+             f"leg A (variant spotify={var.get('spotify')!r}) — local playback needs "
+             f"cyd2usb_player (TASK-425/431/442). Run: DUT_ENV=cyd2usb_player "
+             f"python3 -u tools/run_serialdbg_tests.py --tests T_PMT_04")
+        return
+
+    base = dut.cmd("get arenaStats", timeout=5.0)
+    if not base.get("ok"):
+        skip("T_PMT_04", f"get arenaStats unsupported on this build: {base}")
+        return
+    base_acq = base.get("acquires", 0)
+    print(f"  baseline arenaStats: acquires={base_acq} releases={base.get('releases')} "
+          f"active={base.get('active')} fails={base.get('fails')} hwm={base.get('hwm')}")
+
+    if not _pmt_goto(dut, 2, "T_PMT_04"):
+        return
+
+    # Spotify's background poll competes for exactly the contiguous heap the
+    # decoder needs. Best-effort: the key does not exist on -DDISABLE_SPOTIFY.
+    dut.cmd("set bgPoll 0", timeout=5.0)
+
+    r = dut.cmd(f"set plLoad {_PMT04_PLAYLIST}", timeout=20.0)
+    if not r.get("ok"):
+        skip("T_PMT_04",
+             f"set plLoad {_PMT04_PLAYLIST} failed — SD fixture missing "
+             f"(push it with app/tools/sd_put.py): {r}")
+        return
+    c = dut.cmd("get plCount", timeout=6.0)
+    if not c.get("count"):
+        skip("T_PMT_04", f"plCount={c.get('count')} after loading {_PMT04_PLAYLIST} "
+                         f"— fixture empty or unreadable: {c}")
+        return
+    print(f"  loaded {_PMT04_PLAYLIST}: {c.get('count')} rows, lfb8={c.get('lfb8')}")
+
+    # Heap settle. A `set plPlay` before the internal pool has coalesced fails
+    # cleanly (TASK-432) but for a reason that has nothing to do with the arena
+    # contract under test, so wait it out rather than mis-attribute it.
+    elapsed = time.monotonic() - getattr(dut, "_port_open_time", time.monotonic())
+    if elapsed < _PMT04_SETTLE_S:
+        wait = _PMT04_SETTLE_S - elapsed
+        print(f"  waiting {wait:.0f}s more for heap settle (~150 s post-reset, TASK-425)…")
+        time.sleep(wait)
+
+    playing = False
+    last_state = {}
+    for attempt in range(1, _PMT04_PLAY_ATTEMPTS + 1):
+        p = dut.cmd("set plPlay 0", timeout=15.0)
+        if not p.get("ok"):
+            print(f"  attempt {attempt}: set plPlay 0 refused: {p}")
+        else:
+            deadline = time.monotonic() + _PMT04_PLAY_TIMEOUT_S
+            while time.monotonic() < deadline:
+                st = dut.cmd("get plCount", timeout=6.0)
+                last_state = st
+                if st.get("playing") and st.get("curRow") == 0:
+                    playing = True
+                    break
+                time.sleep(1.0)
+        if playing:
+            break
+        if not playing:
+            # Diagnostics, not assertions: aeConnectFile() can fail at the TLS
+            # yield, the DMA floor, or the Audio alloc, and dbgPlayRow() reports
+            # ok:true in all three (it returns "row index valid", not "started").
+            print(f"  attempt {attempt}: playback never started — "
+                  f"arenaStats={dut.cmd('get arenaStats', timeout=5.0)}")
+            print(f"  attempt {attempt}: aePlay={dut.cmd('get aePlay', timeout=5.0)}")
+        if not playing and attempt < _PMT04_PLAY_ATTEMPTS:
+            print(f"  attempt {attempt}: lfb8={last_state.get('lfb8')} — retrying in 20s")
+            time.sleep(20.0)
+
+    if not playing:
+        # NOT a pass and NOT an arena verdict: nothing was ever asked of the
+        # arena, so this is the same vacuum T_PMT_03 sits in. Report it as a
+        # rig/precondition failure, loudly.
+        fail("T_PMT_04",
+             f"playback never started after {_PMT04_PLAY_ATTEMPTS} attempts "
+             f"(last plCount={last_state}) — the arena assertion below would be "
+             f"vacuous, which is the exact defect TASK-513 exists to remove")
+        return
+    print(f"  playing row 0 (lfb8={last_state.get('lfb8')})")
+
+    # ── mid-playback: the arena must be HELD ──
+    mid = dut.cmd("get arenaStats", timeout=5.0)
+    midv = _pmt_vector(dut)
+    mid_acq = mid.get("acquires", 0)
+    print(f"  mid-playback arenaStats: acquires={mid_acq} releases={mid.get('releases')} "
+          f"active={mid.get('active')} fails={mid.get('fails')} hwm={mid.get('hwm')}; "
+          f"get player arenaHeld={midv.get('arenaHeld')}")
+    if mid_acq <= base_acq:
+        fail("T_PMT_04",
+             f"acquires did not move during REAL playback: {base_acq} -> {mid_acq} "
+             f"(fails={mid.get('fails')}). Either the FILE arm no longer acquires "
+             f"(TASK-452 landed?) or the acquire failed into the libc fallback — "
+             f"either way M2/X052 has no acquire/release edge to cover and the "
+             f"close condition needs re-specifying, not forcing")
+        return
+    if mid.get("active") != 1:
+        fail("T_PMT_04", f"arena active={mid.get('active')} during playback, expected 1 "
+                         f"(arenaStats={mid})")
+        return
+
+    # ── leave Player via the OPERATION, never a coordinate (§8) ──
+    cyc = dut.cmd("playerCycle", timeout=10.0)
+    if not cyc.get("ok") or cyc.get("from") != 2:
+        fail("T_PMT_04", f"playerCycle out of Player failed: {cyc}")
+        return
+    time.sleep(_PMT_SETTLE_S)
+
+    end = dut.cmd("get arenaStats", timeout=5.0)
+    v = _pmt_vector(dut)
+    end_acq = end.get("acquires", 0)
+    print(f"  post-exit arenaStats: acquires={end_acq} releases={end.get('releases')} "
+          f"active={end.get('active')} hwm={end.get('hwm')}; "
+          f"get player mode={v.get('mode')} arenaHeld={v.get('arenaHeld')}")
+
+    problems = []
+    if not (end_acq > 0):
+        problems.append(f"acquires={end_acq}, expected > 0")
+    if end.get("active") != 0:
+        problems.append(f"arena still held after leaving Player: active={end.get('active')}")
+    if v.get("arenaHeld") not in (0, None):
+        problems.append(f"get player arenaHeld={v.get('arenaHeld')} after leaving Player")
+    if end.get("releases", 0) <= base.get("releases", 0):
+        problems.append(f"releases did not move: {base.get('releases')} -> {end.get('releases')}")
+    if problems:
+        fail("T_PMT_04", "; ".join(problems))
+        return
+    pass_("T_PMT_04",
+          f"real playback acquired the arena ({base_acq} -> {mid_acq} acquires, "
+          f"active 1 mid-play) and leaving Player released it "
+          f"(active=0, releases {base.get('releases')} -> {end.get('releases')}, "
+          f"hwm={end.get('hwm')})")
+
+
 ALL_TESTS = {
     "T077": t077,
     "T078": t078,
@@ -9580,6 +9749,7 @@ ALL_TESTS = {
     "T_PMT_01": t_pmt_01,
     "T_PMT_02": t_pmt_02,
     "T_PMT_03": t_pmt_03,
+    "T_PMT_04": t_pmt_04,
     "T_PLR_17": t_plr_17,
     "T_PLR_18": t_plr_18,
     "T_PLR_19": t_plr_19,
