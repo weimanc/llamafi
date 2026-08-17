@@ -122,8 +122,18 @@ def t_doc_02() -> None:
     tid = "T_DOC_02"
     live = os.path.dirname(os.path.dirname(HERE))
     c = cd.Corpus(live)
-    check(tid, len(c.gated) == 234, f"live gated corpus must be 234, got {len(c.gated)}")
-    check(tid, len(c.exempt) == 69, f"live exempt set must be 69, got {len(c.exempt)}")
+    # TASK-511: these were `== 234` / `== 69`, i.e. live-corpus counts used as pass
+    # conditions — exactly what this file's own docstring forbids ("live numbers are
+    # observations, never pass conditions"). Adding four design documents in one
+    # session turned gate 9 red for a reason unrelated to the checker's behaviour.
+    # Assert the *invariants* instead and print the counts as observations.
+    print(f"    [obs] live corpus: {len(c.gated)} gated, {len(c.exempt)} exempt")
+    check(tid, len(c.gated) > 0, "live gated corpus must be non-empty")
+    check(tid, len(c.exempt) > 0, "live exempt set must be non-empty")
+    check(tid, len(c.gated) > len(c.exempt),
+          f"gated ({len(c.gated)}) must exceed exempt ({len(c.exempt)})")
+    check(tid, not (set(c.gated) & set(c.exempt)),
+          "gated and exempt must be disjoint")
     check(tid, "CLAUDE.md" in c.gated, "CLAUDE.md must be gated")
 
     fx = cd.Corpus(FIXTURE)

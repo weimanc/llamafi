@@ -59,6 +59,9 @@ by ADR-060 D0's measure they created **zero components**, so Stages C–F remain
 | TASK-476/477 | P3 | OPEN | `mb_arena` relocation (blocked on a build question); header-comment fix |
 | TASK-483…487 | P2–P4 | SKELETON | test architecture, error model, levelization audit, vendoring, ADR-028 revisit |
 | TASK-489…494 | P2/P3 | MIXED | handoff debt — X065 + test-id reservations (done), X015 fix, `architecture.md` sync |
+| **TASK-509** | P2 | OPEN | **`T_PLE_14` is unspecified anywhere** — the X055 seqno gap (StationListSource bumps exactly once per change). @VE named it in the M-WINAMP-PLAYER review; nobody filed it. Needs an Architect spec before VE can write it; it is the one genuinely missing *specification* in the X050–X064 range |
+| **TASK-510** | P3 | OPEN | apply the P0 convention repo-wide — `test_coverage:` lists only ids with a running body, everything else under `notes: PLANNED COVERAGE:`. Done for X050–X064 (`cross_feature_matrix.yaml`); the other 50 interactions are unswept, and 3 of the 15 swept rows had claimed coverage that did not exist |
+| **TASK-511** | P2 | **DONE** | `T_DOC_02` asserted live-corpus counts (`==234`/`==69`) as pass conditions — the exact thing `test_check_docs.py`'s own docstring forbids. Adding 4 design docs turned `run/check` gate 9 red for a reason unrelated to the checker. Replaced with invariants (non-empty, gated > exempt, disjoint) + counts printed as observations |
 | TASK-503…506 | P2/P3 | OPEN | from the TASK-488 verification — stale `*AppState` docs, `T_488_11` redesign, heap-settling question, `run/test` mutates user settings |
 
 > **▶ Execution order lives in [tasks-architecture.md](tasks-architecture.md) § EXECUTION SEQUENCE**

@@ -263,7 +263,7 @@ public:
 
         // TASK-417 / ADR-059 D8: WebRadio advertises CAP_TRANSPORT only —
         // no shuffle, repeat or seek zone. This is a refactor for WebRadio,
-        // not a feature (T_PLR_17): its own handleInput() never hit-tested
+        // not a feature (T_PLR_18): its own handleInput() never hit-tested
         // those zones, but repaintChrome() drew the sprites anyway from
         // whatever the shared cache last held (dead icons). Gating the draw
         // on this mask (winampDisplay.h) fixes that. Sinks reset for

@@ -671,8 +671,12 @@ new fourth env, or those tests move — an Architect call, not a config tweak.
 **Gates `T_PLR_35`–`40` remain owed.** `T_PLR_36` (persisted mode naming a compiled-out mode must
 fall back, only reproducible over *existing* settings — X064) cannot run at all until some env
 actually defines the flags: today none does, so the fallback path is implemented but unexercised in
-every shipping configuration. `T_PLR_39` (≥30 min playback with concurrent browsing) is blocked by
-**TASK-442** — that variant cannot start playback.
+every shipping configuration. ~~`T_PLR_39` (≥30 min playback with concurrent browsing) is blocked by **TASK-442** — that variant
+cannot start playback.~~ **UNBLOCKED 2026-08-17 (P0 sweep).** TASK-442 is closed and archived — the
+43 596 B was a Spotify token refresh on a `DISABLE_SPOTIFY` build, fixed by TASK-447/448, and
+`cyd2usb_player` now plays a 5-track playlist with the arena acquired. **`T_PLR_39` is schedulable**;
+it is registered `resv`, not `blocked`, in `docs/verification/test_plan.md`. It is also X052's own
+exit criterion, so X052 cannot close without it.
 
 ### TASK-422 part C — `NEW-APP-CHECKLIST.md` walk for `AppId::LocalPlayer` (2026-08-14)
 

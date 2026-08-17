@@ -155,7 +155,7 @@ private:
 // ADR-059 D8 / TASK-417 — per-mode transport capability mask. A zone whose
 // capability bit is absent is neither drawn nor hit-tested. Spotify
 // advertises all four (today's shipped behaviour); WebRadio advertises
-// CAP_TRANSPORT only (unchanged — T_PLR_17); Player advertises all four
+// CAP_TRANSPORT only (unchanged — T_PLR_18); Player advertises all four
 // (T_PLR_19). Deliberately a plain top-level enum, not nested in
 // WinampDisplay, so every App file that includes this header can build a
 // mask literal without qualifying it.

@@ -1106,7 +1106,7 @@ interactions:
       LocalPlayer become peer clients of it. Mode mutual-exclusion (already relied on by
       M-MEMBUDGET) is what makes one engine sufficient — the two modes can never both hold it.
     risk: high
-    test_coverage: [T_AE_13, T_AE_15, T_AE_16]
+    test_coverage: [T_AE_04]
     notes: |
       The extracted code carries TASK-278/287/289/291/295/299/392/398. Verification obligation
       is a PURE MOVE plus ./run/check 6/6 plus a FULL-LENGTH run/wr-soak — short soaks have
@@ -1127,7 +1127,8 @@ interactions:
       (TASK-438 has it stuck on the current AP), 16 needs the deferred-CONNECTING overlap. Before
       TASK-443 no test in the repo alternated the two arms at all; every driver was URL-only or
       FILE-only, which is why this high-risk edge sat at zero coverage.
-
+      ---
+      PLANNED COVERAGE (2026-08-17, P0: only ids with a running body are listed above.) T_AE_01-03 (no id-labelled body; run/wr-soak is the vehicle), T_AE_13/15/16 (blocked).
   - id: X051
     feature_a: localplay-001
     feature_b: memplan-001
@@ -1140,7 +1141,7 @@ interactions:
       context that forces webradio_decoder + webradio_inbuf to stay placement:runtime is absent
       in this mode — LocalPlayer is the cheapest of the three player modes, not the most costly.
     risk: high
-    test_coverage: [T_AE_11, T_AE_12, T_AE_14]
+    test_coverage: []
     notes: |
       MEASURED 2026-08-07 (not estimated): debug dram0_0_seg headroom is 304 B (prod 13160 B).
       Enabling SD/FS with the code actually REFERENCED (a probe TU calling SD.begin/openNextFile/
@@ -1172,7 +1173,8 @@ interactions:
       curve) can run on the current rig once the ruling lands; T_AE_14 (degrade-not-reset) needs
       `set aeFailDecoder`, firmware that does not exist — so the invariant TASK-432 was filed for
       currently has NO runnable proof.
-
+      ---
+      PLANNED COVERAGE (2026-08-17, P0: only ids with a running body are listed above.) T_AE_08, T_AE_11/12/14 (blocked). GATE-COVERED by run/check mem_layout budget gate.
   - id: X052
     feature_a: sdfs-001
     feature_b: localplay-001
@@ -1186,12 +1188,13 @@ interactions:
       for its duration; the audio engine mutex guards Audio method calls only and must NOT be
       widened to cover the filesystem.
     risk: high
-    test_coverage: []
+    test_coverage: [T_PLR_09, T_PLR_13]
     notes: |
       The phase-0 latency bar (worst-case single read <=50 ms) is set against the InBuff holding
       ~160 ms of 320 kbps audio. Exit criterion 8: >=30 min local-playback soak WITH concurrent
       browsing and scrolling, not idle playback.
-
+      ---
+      PLANNED COVERAGE (2026-08-17, P0: only ids with a running body are listed above.) T_PLR_39 (soak, resv - schedulable now, TASK-442 closed).
   - id: X053
     feature_a: sdfs-001
     feature_b: memplan-001
@@ -1208,7 +1211,8 @@ interactions:
     notes: |
       Several CYD revisions omit pull-ups on the SD lines; start at 4 MHz and only raise after
       the benchmark is clean. All of this is phase-0 probe output, not design assumption.
-
+      ---
+      PLANNED COVERAGE (2026-08-17, P0: only ids with a running body are listed above.) T_SD_01-03, T_SD_08 - none has a body.
   - id: X054
     feature_a: plmodel-001
     feature_b: playlist-002
@@ -1225,7 +1229,8 @@ interactions:
       This is the most gesture-tuned code in the project (TASK-051b-f, TASK-277, M-LIST-v4).
       Extraction must be pixel-identical and eyeballed on the physical LCD (BP-048). Documented
       fallback if it cannot be: keep the local playlist on its own third renderer.
-
+      ---
+      PLANNED COVERAGE (2026-08-17, P0: only ids with a running body are listed above.) T_PLE_01-06 - none has a body.
   - id: X055
     feature_a: plmodel-001
     feature_b: webradio-001
@@ -1237,11 +1242,12 @@ interactions:
       merge must pick one behaviour deliberately per divergence rather than silently inheriting
       whichever caller lands second.
     risk: high
-    test_coverage: []
+    test_coverage: [T_PLE_WR_155, T_PLE_WR_156, T_PLE_WR_157, T_PLE_WR_158, T_PLE_WR_159, T_PLE_WR_160]
     notes: |
       Re-run the T277-family WebRadio PLEDIT scroll suite after this step. A scroll-feel
       regression here is a real and likely failure mode and will not show up in serial output.
-
+      ---
+      PLANNED COVERAGE (2026-08-17, P0: only ids with a running body are listed above.) T_PLE_07/09-13. T_PLE_14 (StationListSource seqno bumps exactly once per change) is NOT YET SPECIFIED in any owned doc.
   - id: X056
     feature_a: player-state-001
     feature_b: taskbar-icons-001
@@ -1254,7 +1260,7 @@ interactions:
       active-slot tap a second meaning it has for no other app — a deliberate asymmetry that
       belongs in the taskbar contract rather than in one app's handler.
     risk: medium
-    test_coverage: []
+    test_coverage: [T_PLR_01, T_PLR_05]
     notes: |
       g_settings.playerMode already stores a uint8_t, so the SPIFFS schema is unchanged; only
       the value domain widens. Settings > Applications > Player row must cycle three values.
@@ -1284,11 +1290,12 @@ interactions:
       otherwise a future third eject-only mode silently leaks into the taskbar and null-icon
       crashes, exactly as TASK-242 / LL-085 did.
     risk: high
-    test_coverage: []
+    test_coverage: [T_PLR_03]
     notes: |
       appRegistry.h edit requires re-running gen_app_registry.py; run/check step [5/5] enforces
       staleness. Exit criterion 7 is a direct TASK-242 regression check.
-
+      ---
+      PLANNED COVERAGE (2026-08-17, P0: only ids with a running body are listed above.) also enforced at compile time by three static_asserts in app/src/taskbar/taskbar.h.
   - id: X058
     feature_a: browse-001
     feature_b: touch-004
@@ -1299,7 +1306,7 @@ interactions:
       isNavigationTap() to except the browser's back/up zone — without the latter the shell's
       g_shellBusy pre-dispatch gate swallows navigation taps while a page read is in flight.
     risk: medium
-    test_coverage: []
+    test_coverage: [T_PLR_14, T_PLR_15]
     notes: |
       TASK-384 is the precedent: the identical failure, confirmed on real hardware and not just
       in the serial harness. NEW-APP-CHECKLIST.md items 1 and 4.
@@ -1321,7 +1328,8 @@ interactions:
       Round-trip verification is host-side: write from the device, pull the file off the card,
       diff against the expected order. Do not verify save by re-reading through the same index
       that produced it.
-
+      ---
+      PLANNED COVERAGE (2026-08-17, P0: only ids with a running body are listed above.) T_PLR_31 - blocked on TASK-424.
   # ── M-WINAMP-PLAYER shuffle/repeat amendment (Architect, 2026-08-07) ───────
   # Design §4.8/§4.9, ADR-059 D8/D9.
 
@@ -1337,7 +1345,7 @@ interactions:
       tri-state domain (emits only 2=off and 0=repeat-all) so drawRepeat()'s `s != 2 -> ON` rule is
       byte-for-byte unchanged and Spotify's 2->1->0->2 cycle is unaffected.
     risk: low
-    test_coverage: []
+    test_coverage: [T_PLR_19]
     notes: |
       The constraint runs the other way too: chrome-001's repeat sprite pair is now shared by two
       modes with different state domains. Anyone adding a third repeat state (repeat-one) must add a
@@ -1355,7 +1363,7 @@ interactions:
       exactly the zones it does today and no more. This is a pure refactor for WebRadio; any
       behavioural delta is a regression, not a feature.
     risk: high
-    test_coverage: []
+    test_coverage: [T_PLR_17, T_PLR_18, T_PLR_19]
     notes: |
       Exit criterion 5b is the check. handleVolumeGesturePublic() can be retired once the mask lands
       — but retire it deliberately in its own commit, not as a side effect: it is shared state with
@@ -1380,7 +1388,8 @@ interactions:
       SHUFFLED order to the card, silently destroying the user's playlist. Exit criterion 5a
       verifies it host-side, from the card — not by re-reading through the same structure that
       produced the write.
-
+      ---
+      PLANNED COVERAGE (2026-08-17, P0: only ids with a running body are listed above.) T_PLR_30 - blocked on TASK-424. X062 is OBSERVED, NOT CLOSED by M-TESTBASE phase 1.
   - id: X063
     feature_a: playorder-001
     feature_b: localplay-001
@@ -1393,7 +1402,7 @@ interactions:
       next tick. Calling connecttoFS() from the callback re-enters the engine mutex from the task
       that already holds it — self-deadlock.
     risk: high
-    test_coverage: [T_AE_12]
+    test_coverage: [T_PLR_25]
     notes: |
       Same single-writer/post-a-request discipline as the existing wrPumpConnect path (TASK-398) and
       the X043/X044/X048 audio_process_extern edges. Reuse that pattern; do not invent a second one.
@@ -1411,7 +1420,8 @@ interactions:
       samples lfb8 at all ten track starts; a monotone decline across the ten fails the id even if
       audio never stuttered. Its threshold is explicitly provisional until a first green run
       publishes the real spread.
-
+      ---
+      PLANNED COVERAGE (2026-08-17, P0: only ids with a running body are listed above.) T_AE_12 (blocked).
   - id: X064
     feature_a: player-state-001
     feature_b: app-registry-001
@@ -1434,7 +1444,8 @@ interactions:
       mirroring the existing cyd2usb_webradio precedent — check_build.sh gates go 6 -> 7, not 6 -> 13.
       A full 2^3 matrix is explicitly rejected. Existing -DDISABLE_SPOTIFY stays as-is (load-bearing
       for the harness's `get variant` fast path); do not migrate it in this milestone.
-
+      ---
+      PLANNED COVERAGE (2026-08-17, P0: only ids with a running body are listed above.) T_PLR_36, T_PLR_37 - both blocked: no shipping env defines -DPLAYER_SPOTIFY/-DPLAYER_WEBRADIO/-DPLAYER_LOCAL.
   # ── RESERVED by Architect 2026-08-16 (AGENTS.md rule 10) ──────────────────────
   # Reserved at design acceptance, NOT at task close-out. Developer completes and
   # corrects these at implementation; VE attaches test ids. Ownership of this file
