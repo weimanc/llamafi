@@ -1,0 +1,55 @@
+# flaky.yaml — the pre-declared flaky set (ADR-059 D13, M-TESTARCH §7)
+#
+# Owner: @VE
+#
+# WHY THIS FILE EXISTS. ADR-059 D13 requires a >=3-run behaviour-neutrality
+# baseline "with the flaky set pre-declared". The knowledge existed — scattered
+# across test docstrings, task notes and one project memory — but the ARTIFACT
+# did not, so "pre-declared" was unenforceable and every flake was re-argued
+# from scratch. @VE ranked this as the single cheapest change that makes a D13
+# baseline mean anything, ABOVE the timeout policy (M-TESTBASE §3.4).
+#
+# THE POLICY IT IMPLEMENTS (M-TESTARCH §7):
+#   1. A flake must be declared HERE, before the run. Calling flake() for an id
+#      not in this file is a FAIL, not a flake.
+#   2. A declared flake is retried once and BOTH outcomes are reported.
+#      PASS(1 retry) is not PASS.
+#   3. Every entry carries an owning task and a review date. No date, no flake
+#      status — an entry past its review date is a FAIL until re-justified.
+#   4. A flake blocks a D13 baseline unless it was declared BEFORE the first
+#      baseline run. Otherwise the baseline absorbs the regression it exists to
+#      detect.
+#
+# STATUS: the file is the artifact; the runner does not read it yet. Wiring
+# ve_suite_base.flake() to consult it is the next step (TASK-520).
+
+flaky:
+  - id: T_PLR_17
+    suite: run_serialdbg_tests
+    since: 2026-08-17
+    evidence: "1 fail in 3 runs, same build, same session (df21bbd). FAILED in the
+      sequence T_PLR_01,05,17,18,19; PASSED in isolation; PASSED again on the
+      identical five-id sequence."
+    symptom: "no 'dequeued action=SHUFFLE' within 20s — dispatch did not reach spotifyTask"
+    dependency: "[NETWORK] — Spotify action dispatch; this rig runs under a live 403
+      (TASK-243, Premium lapsed), so the poll path is already degraded"
+    suspected: "suite-order dependence — T_PLR_01/05 are mode-cyclers and run
+      immediately before. NOT attributed to the T_PMT work: T_PLR_01/05/17 never
+      call playerCycle, and the new debug surfaces are inert unless invoked."
+    owner: "@VE"
+    task: TASK-520
+    review_by: 2026-09-17
+    # NOT a verdict. One failure in three runs is evidence that this id is
+    # unstable, not proof of a root cause. Re-derive before acting on it.
+
+# ── Candidates, NOT yet declared ────────────────────────────────────────────
+# These are named in project memory and test annotations but have no run-count
+# evidence recorded here yet. They must be measured before they earn an entry
+# above — an undeclared flake and an unmeasured one are the same problem.
+candidates:
+  - id: T169
+    note: "yahoo/network flakiness, long-standing; no run count recorded"
+  - id: T_PR_05
+    note: "annotated [NETWORK]-flaky in the suite itself"
+  - id: T_WR_TLS_01
+    note: "residual flake after TASK-299; mirror truncation (TASK-284) suspected"

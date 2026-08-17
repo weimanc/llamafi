@@ -1959,6 +1959,75 @@ step, and every skipped confirmation cost more than it saved.
 
 **Resolution**: Findings 1 closed in session. 2–5 filed with owners. 6 recorded, no task. Verification itself: TASK-488 closed with all 11 ids resolved (10 PASS, 1 FAIL-not-attributable), TASK-497 baseline taken, `run/check` 11/11, device state verified byte-identical to the pre-session snapshot, commit `64bf839`.
 
+### Audit — 2026-08-17 — M-TESTBASE phase 1 (P0–P3, §8) + close-out
+
+**Scope**: 13 commits, `13e5d4b..b945c8f`. Test-architecture design set, phase-1 implementation, two
+independent reviews, one DUT gate. Triggered by the human asking whether PM and QM were happy — **not
+by the process**, which is finding 1.
+
+**Delivered and verified**
+- **P0** — 44 test ids registered in `test_plan.md` with an implementation-status column
+  (26 `impl` / 8 `blocked` / 10 `resv`). Found that the only three populated `test_coverage:` rows in
+  `X050`–`X064` cited `T_AE_11`–`16`, **none of which has a body**; twelve empty rows included ids
+  green for weeks.
+- **P1** — `app/tools/lib/dut.py` extracted (byte-identical move, verified), `resolve_port()`
+  delegating to `run/port`, one timeout policy. Runner 10 229 → 9 705 lines, 16 importers unbroken
+  behind a compat shim.
+- **P2** — `get player`, DUT-verified in three modes, **zero `.dram0.bss` cost** (8 312 B headroom
+  before and after).
+- **§8** — mode-cycle decoupled from its hit-surface (`playerCycle` + `get playerBind`), enforced by
+  `check_player_binding.py` at `run/check` gate 9.
+- **P3** — `T_PMT_00`–`03`, 4/4 on both build legs.
+- Every commit gated: `run/check` 12/12 or `--docs-only` green. DUT restored to production after
+  every hardware session.
+
+**Findings**
+
+1. **Close-out was not performed until prompted (LL-142).** `M-TESTBASE` had **zero** task ids on any
+   board; three new firmware debug surfaces had **zero** rows in `feature_inventory.yaml`; the one
+   genuine flake data point lived in a commit message. Every gap is the same shape as the gaps this
+   session was fixing, and each was created *after* diagnosing that shape elsewhere. Closed here:
+   TASK-514…520 filed, `playerdbg-001` registered, `docs/verification/flaky.yaml` created.
+
+2. **Two independent reviews made the same class of error (LL-138 → BP-067 candidate).** Both
+   verified a fact and inferred a consequence without checking the inference. One blocker (B1) was
+   wrong and had already withdrawn an exit criterion before a fourth pass caught it. Review yield was
+   otherwise high: 4 of 5 Architect blockers held and materially resized the plan; VE overturned B1,
+   resized P0 by 15 ids, and corrected a false baseline claim.
+
+3. **A new gate had three defects invisible to reading (LL-139 → BP-068 candidate).** Two negative
+   tests passed when they should have failed — including the *exact* TASK-413 failure mode the gate
+   exists to catch. Found by breaking the tree on purpose, minutes after the gate went green.
+
+4. **"Covered" vs "green" recurred one layer above its own fix (LL-140).** `T_PMT_00`–`03` passed on
+   both legs; a probe then showed `arenaStats acquires=0` everywhere, making `T_PMT_03`'s arena
+   assertion vacuous. M2/X052 remains uncovered → TASK-513. Reported rather than counted.
+
+5. **A gate shipped 24 h earlier violated its own docstring (LL-141).** `T_DOC_02` asserted live
+   corpus counts as pass conditions; four new documents turned gate 9 red → TASK-511.
+
+**Corrections made to this session's own claims** — recorded because the count matters: M-TESTBASE
+§1's headline statistic moved **three times** (7-of-8 → premise overstated → drifted in both
+directions, final: `X053`, `X054`, `X059`, `X062`, `X064` + the `X055` seqno half). §3.4's baseline
+argument was withdrawn entirely on VE's evidence. The eject finding was downgraded from discovery to
+rediscovery. A P1 bug (`resolve_port` off-by-one, silent fallback to `/dev/ttyUSB0`) was found by
+hardware, not review, and had made P1's headline claim false for several hours.
+
+**PM position**: the milestone did not advance — `player-state-001` is still `partial`. That was the
+agreed trade (instruments before features), but there is **no before/after measure of the noise** the
+work was meant to reduce. Recommend M-WINAMP-PLAYER carry a completion criterion expressed as feature
+state, not test count.
+
+**QM verdict**: **discipline held, bookkeeping did not.** No unverified claim shipped in a document,
+several were corrected downward on evidence, and every hardware session left the DUT in production.
+Against that: no QM artifact was touched for 13 commits until the human asked. The gap is process, not
+rigour — and BP-068's negative-test rule is the one change most likely to have caught real defects
+earlier.
+
+**Open**: BP-067 and BP-068 are **candidates awaiting human sign-off** (QM does not self-promote).
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:

@@ -2463,6 +2463,49 @@ features:
       `get plCount`, `set plRepeat`/`set plShuffle`), and for three of them the home network
       (TASK-438). Coverage is claimed by this list, not yet earned by a run.
 
+  - id: playerdbg-001
+    name: Player-slot debug contract — `get player`, `get playerBind`, `playerCycle`
+    milestone: M-TESTBASE
+    status: implemented
+    git_ref: "55cc2d6, 74ae09d (2026-08-17)"
+    description: |
+      One aggregated observable for the whole player-slot contract, plus a
+      surface-independent way to drive it. Exists because the ~30 player debug keys
+      are organised by implementation silo (wr*/pl*/aePlay/arenaStats), so a
+      cross-mode question needed eight commands correlated by hand with a different
+      valid subset per mode — and a cross-mode bug is invisible to a per-mode
+      observation (X055/X061/X062).
+        get player      mode, modeName, caps, srcKind, srcName, arenaHeld, pending,
+                        err, connecting; plus plCount/playHash/viewHash/orderIdentical
+                        in Player mode and an explicit "n/a" note elsewhere.
+        get playerBind  THE binding: which hit-surface currently owns the mode cycle
+                        (op/region/helper). The one place it is stated.
+        playerCycle     the mode-cycle OPERATION via resolvePlayerTap() — tests drive
+                        this, never a coordinate.
+      Two of get player's fields are new observables, not aggregation: PlSrcKind
+      (a stable enum, recorded from the source that actually drove the last PLEDIT
+      draw) and PlaylistIndex::viewOrder(), which had no accessor at all.
+    files:
+      - app/src/debug/serialConsole/cmdGet.h
+      - app/src/main.cpp
+      - app/src/winamp/pleditView.h
+      - app/src/winamp/winampDisplay.h
+      - app/src/player/m3u.h
+      - app/tools/check_player_binding.py
+    cross_features: [player-state-001, plmodel-001, playorder-001, localplay-001, webradio-001]
+    test_ids: [T_PMT_00, T_PMT_01, T_PMT_02, T_PMT_03]
+    binding: |
+      MODE-CYCLE BINDING (M-TESTBASE §8): operation = resolvePlayerTap();
+      current surface = the taskbar player slot (ADR-059 D6, TASK-413/414).
+      It has moved once (from the eject button) and silently invalidated the test
+      harness and a design document when it did. If it moves again, update
+      `get playerBind`, T_PMT_00 and check_player_binding.py's EXPECTED_CALLERS —
+      and nothing else should need to change.
+    notes: |
+      Additive-only field set (BP-024): extend, never rename. Zero .dram0.bss cost —
+      headroom measured 8312 B before and after (printf handlers land in .rodata).
+      Enforced by app/tools/check_player_binding.py at run/check gate 9.
+
   - id: plmodel-001
     name: Shared playlist model + single PLEDIT renderer
     description: |

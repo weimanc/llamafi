@@ -55,7 +55,9 @@ by ADR-060 D0's measure they created **zero components**, so Stages C–F remain
 | TASK-465…470 | P2/P3 | OPEN | ADR-061 — debug convention, build-matrix gate, decommission, `display/tft` |
 | TASK-473 | P2 | OPEN | concurrency contract gaps — WiFi arbiter, assert I2/I3 |
 | **TASK-475**, 474 | P2/P3 | **475 PHASE 1 DONE** (`b0d0202`) | `run/check-docs` gate shipped as counted gate 12 (C5 + C1-delta blocking); 474 PM/QM doc-lifecycle process still open |
-| **TASK-478**, 479/480/481/482 | P2/P3 | OPEN | `tools/lib/dut.py`; split the 10 229-line runner; spike retirement |
+| **TASK-478** | P2 | **DONE-superseded** (`989c1ea`) | `tools/lib/dut.py` landed as M-TESTBASE **P1**, re-scoped: `Dut` already existed with 16 importers, so this was an extraction + `resolve_port()` + one timeout policy, not a build. Runner 10 229 → 9 705 lines |
+| TASK-479/481/482 | P3 | OPEN | migrate the 16 importers off the compat shim; directory move + taxonomy; spike retirement |
+| **TASK-480** | P3 | **BLOCKED-behind-P1-remainder** | split the runner. Must follow the importer migration (TASK-479) — 16 tools still reach through the shim, several for private names |
 | TASK-476/477 | P3 | OPEN | `mb_arena` relocation (blocked on a build question); header-comment fix |
 | TASK-483…487 | P2–P4 | SKELETON | test architecture, error model, levelization audit, vendoring, ADR-028 revisit |
 | TASK-489…494 | P2/P3 | MIXED | handoff debt — X065 + test-id reservations (done), X015 fix, `architecture.md` sync |
@@ -63,6 +65,14 @@ by ADR-060 D0's measure they created **zero components**, so Stages C–F remain
 | **TASK-510** | P3 | OPEN | apply the P0 convention repo-wide — `test_coverage:` lists only ids with a running body, everything else under `notes: PLANNED COVERAGE:`. Done for X050–X064 (`cross_feature_matrix.yaml`); the other 50 interactions are unswept, and 3 of the 15 swept rows had claimed coverage that did not exist |
 | **TASK-511** | P2 | **DONE** | `T_DOC_02` asserted live-corpus counts (`==234`/`==69`) as pass conditions — the exact thing `test_check_docs.py`'s own docstring forbids. Adding 4 design docs turned `run/check` gate 9 red for a reason unrelated to the checker. Replaced with invariants (non-empty, gated > exempt, disjoint) + counts printed as observations |
 | **TASK-513** | P2 | OPEN | **M2/X052 arena coverage is vacuous** — `T_PMT_03` asserts `arenaHeld==0` but a 2026-08-17 probe shows `acquires=0` on BOTH build legs; mode switching never acquires the arena, playback does. Needs a playback arm: push the `sd_put.py` playlist fixture (`plCount=0` today), start playback in Player, switch away, assert `acquires>0` **and** `active==0` |
+| — | — | — | **M-TESTBASE phase 1 — [design](../architecture/designs/M-TESTBASE-phase1-player-gate.md); scoped to the 3-mode player, everything else in M-QUALITY deferred** |
+| **TASK-514** | P2 | **DONE** (`116c64f`, `6107a73`) | **P0** — register `T_PLR_01..41` + `T_PMT_00..03` in `test_plan.md` with an implementation-status column (26 impl / 8 blocked / 10 resv); fix the `T_PLR_17`/`18` spec-vs-code swap; propose the `X050`–`X064` `test_coverage` values |
+| **TASK-515** | P2 | **DONE** (`55cc2d6`) | **P2** — `get player`, the player-slot contract in one observation. DUT-verified in all 3 modes; zero `.dram0.bss` cost |
+| **TASK-516** | P2 | **DONE** (`74ae09d`, `7bc98ce`) | **§8** — decouple the mode-cycle from its hit-surface: `playerCycle` + `get playerBind` + `check_player_binding.py` at `run/check` gate 9. Also fixed a P1 bug hardware found (`resolve_port` off-by-one) |
+| **TASK-517** | P2 | **DONE** (`df21bbd`, `b945c8f`) | **P3** — `T_PMT_00..03`, operation-driven mode transitions. 4/4 on **both** build legs. NOTE: does **not** close M2/arena — see TASK-513 |
+| **TASK-518** | P2 | **BLOCKED-behind-Stage-D** | **P4** — `hasInFlightOp()`/`get idle`. Collides with M-SRCLAYOUT Stage D (`ShellState`/`appTable` own `g_shellBusy`/`g_apps[]`); and per review B3 it is an `App`-interface change across 13 implementations, not a debug key |
+| **TASK-519** | P3 | OPEN | wire the two-leg phase-1 gate into a script (`run/player-gate`): leg A `cyd2usb_winamp_debug`, leg B `cyd2usb_player`, one commit, pre-declared pass set. `run/task488`'s `DUT_TREE` pattern is the precedent |
+| **TASK-520** | P2 | OPEN | make `ve_suite_base.flake()` consult `docs/verification/flaky.yaml` — declared-only flakes, retry-once, both outcomes reported (M-TESTARCH §7). The file exists; nothing reads it |
 | TASK-503…506 | P2/P3 | OPEN | from the TASK-488 verification — stale `*AppState` docs, `T_488_11` redesign, heap-settling question, `run/test` mutates user settings |
 
 > **▶ Execution order lives in [tasks-architecture.md](tasks-architecture.md) § EXECUTION SEQUENCE**
