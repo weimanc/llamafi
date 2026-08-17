@@ -246,6 +246,26 @@ observable does not survive §7 B5.
 
 Design rule, per M-TESTARCH §4 I1: **additive-only, VE-gated field set.** Extend, never rename.
 
+> **DONE 2026-08-17, DUT-verified.** `get player` returns
+> `mode · modeName · caps · srcKind · srcName · arenaHeld · pending · err · connecting`, plus
+> `plCount · playHash · viewHash · orderIdentical` in Player mode and an explicit
+> `"n/a"` note elsewhere. Two new observables landed as predicted: `PlSrcKind` (a **stable enum**,
+> per VE's condition — a class-name string would pass silently through a rename) recorded from the
+> source that *actually* drove the last PLEDIT draw, and `PlaylistIndex::viewOrder()`, which had no
+> accessor at all. Order hashes are FNV-1a over the u16 sequence, so a permutation is detectable
+> without dumping 256 entries per poll.
+>
+> **Memory cost: zero.** `dram0_0_seg` headroom measured **8 312 B before and after** — the review's
+> prediction that `printf` handlers land in `.rodata` rather than `.dram0.bss` held exactly.
+>
+> **It discriminates.** Booted live in Spotify: `srcKind=1 (SpotifyQueue), caps=15`. Booted live in
+> WebRadio: `srcKind=2 (StationList), caps=1`. That is X061's subject — the capability mask — visible
+> in one observation for the first time.
+>
+> **B2 confirmed empirically.** Setting `set playerMode 0/1/2` moved `mode` but left `srcKind` and
+> `caps` unchanged, because it is pure persist and never switches the live slot. `mode` and `srcKind`
+> disagreeing is the instrument working, not a defect.
+
 ### P3 — the mode-transition matrix *(the base framework, testing the core feature)*
 
 > **RE-DERIVED — @Architect review, 2026-08-17. The 9-transition domain does not exist in the
@@ -294,6 +314,13 @@ That dissolves most of the blocker. What genuinely needs `cyd2usb_player` is nar
 | **M4a** playOrder | **Yes** — already green under `T_PLR_20`–`24`/`26` |
 | **M4b** viewOrder + SAVE | **Neither build** — see below |
 | **M5** bound `PlaylistSource` | **Yes**, once P2's observable exists (pure RAM read) |
+
+> **NEW, from P2's DUT session — P3 must not use the eject toggle.** Four eject taps in a row left
+> `mode=Spotify` unchanged. Per TASK-414 eject is **per-mode** (Spotify → TLS reset/force-poll,
+> WebRadio → station refresh, Player → stub); it is no longer a mode cycle. The live-transition
+> gesture is the **taskbar player-slot tap** (`resolvePlayerTap`, TASK-413). `T_PMT_01`–`03` must
+> drive that path. This is the third artifact to record that eject was remapped, and the first to
+> catch a test design still assuming the old behaviour.
 
 **Replacement for the withdrawn exit criterion 5** (VE's wording, adopted):
 

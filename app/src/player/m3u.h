@@ -295,6 +295,13 @@ public:
     // Raw playOrder dump (ids), for `get plOrder` (ADR-059 D12) and for
     // T_PLR_20-24's collision/history checks.
     const uint16_t* playOrder() const { return _play; }
+    // M-TESTBASE P2 / X062: viewOrder had NO accessor at all — _view was private
+    // with only idAtView()/viewRowOfId(), so "what PLEDIT renders and what SAVE
+    // writes" could not be observed even in principle. NOTE the standing caveat:
+    // _view is identity until TASK-420 lands a reorder mutator, so today this
+    // reads as 0..n-1 by construction. Exposing it now is what lets T_PLR_30
+    // become writable the moment TASK-424/420 unblock it.
+    const uint16_t* viewOrder() const { return _view; }
     uint16_t idAtPlayPos(uint16_t pos) const { return (pos < _count) ? _play[pos] : 0; }
     // Linear scan is fine at PL_MAX_ENTRIES=256 (same trade-off playRowAt/
     // viewRowOfId already make) — tap-to-play and prev/next are user-paced,

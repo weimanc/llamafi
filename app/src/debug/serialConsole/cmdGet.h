@@ -463,6 +463,51 @@ static void cmdGet(const char *args) {
                   "\"val\":\"%s\",\"last\":true}\n", g_ClockApp.dbgLastAction());
     return;
   }
+  // ── M-TESTBASE P2: `get player` — the whole player-slot contract, one line ──
+  // WHY THIS EXISTS: the ~30 player debug keys are organised by implementation
+  // silo (wr* / pl* / aePlay / arenaStats), so answering "is the player slot
+  // consistent?" took eight commands correlated by hand, with a different
+  // subset valid per mode. A cross-mode bug is invisible to a per-mode
+  // observation — which is exactly what X055/X061/X062 are.
+  //
+  // HONEST SCOPE (@Architect review B4): this is aggregation of existing state
+  // PLUS two genuinely new observables — PlSrcKind (nothing reported which
+  // source was driving PLEDIT) and viewOrder (PlaylistIndex::_view was private
+  // with no accessor). Playlist fields are LocalPlayer-only and report
+  // "n/a" elsewhere, deliberately, rather than a plausible-looking zero.
+  //
+  // Field set is ADDITIVE-ONLY and VE-gated (BP-024): extend, never rename.
+  if (strcmp(args, "player") == 0) {
+    static const char* kPmNames[]  = { "Spotify", "WebRadio", "Player" };
+    static const char* kSrcNames[] = { "None", "SpotifyQueue", "StationList", "LocalPlaylist" };
+    const uint8_t pm = g_settings.playerMode;
+    const uint8_t sk = (uint8_t)winampDisplay.pleditLastSrcKind();
+    const int ai = (int)currentAppId;
+    const bool pend = g_apps[ai] && g_apps[ai]->hasPendingAsync();
+    const bool err  = g_apps[ai] && g_apps[ai]->hasError();
+    const bool conn = g_apps[ai] && g_apps[ai]->isConnecting();
+
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"player\","
+                  "\"mode\":%u,\"modeName\":\"%s\","
+                  "\"caps\":%u,\"srcKind\":%u,\"srcName\":\"%s\","
+                  "\"arenaHeld\":%d,\"pending\":%d,\"err\":%d,\"connecting\":%d,",
+                  (unsigned)pm, (pm < 3) ? kPmNames[pm] : "unknown",
+                  (unsigned)winampDisplay.playerCaps(),
+                  (unsigned)sk, (sk < 4) ? kSrcNames[sk] : "unknown",
+                  (int)mb_arena_active(), (int)pend, (int)err, (int)conn);
+
+    // Playlist half — LocalPlayer only. X062's subject: playOrder vs viewOrder.
+    // The hashes are order-sensitive (FNV-1a over the u16 sequence) so a
+    // permutation is detectable without dumping up to 256 entries per poll.
+    if (pm == 2) {
+      g_LocalPlayerApp.dbgPlayerVector();
+    } else {
+      Serial.printf("\"plCount\":null,\"playHash\":null,\"viewHash\":null,"
+                    "\"note\":\"n/a — playOrder/viewOrder exist only in LocalPlayer\",");
+    }
+    Serial.printf("\"last\":true}\n");
+    return;
+  }
   if (strcmp(args, "playerMode") == 0) {   // TASK-260/413 (VE: agent-driven persist/settings tests)
     static const char* kPmNames[] = { "Spotify", "WebRadio", "Player" };
     uint8_t pm = g_settings.playerMode;   // true value — §6.1: no longer collapsed to a bool

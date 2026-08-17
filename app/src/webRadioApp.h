@@ -128,6 +128,7 @@ public:
     // as any other member (C++11).
     class StationListSource : public PlaylistSource {
     public:
+        PlSrcKind kind() const override { return PlSrcKind::StationList; }   // P2
         void bind(WebRadioApp* app) { _app = app; }
 
         uint16_t count()    override { return _app ? _app->_stationCount : 0; }

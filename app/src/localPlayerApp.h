@@ -75,6 +75,7 @@ public:
     // seam (the Spotify path's QueueSnapshot) to read instead.
     class LocalPlaylistSource : public PlaylistSource {
     public:
+        PlSrcKind kind() const override { return PlSrcKind::LocalPlaylist; }   // P2
         void bind(LocalPlayerApp* app) { _app = app; }
 
         uint16_t count()    override { return _app ? _app->_pl.count() : 0; }
@@ -633,6 +634,25 @@ public:
     // T_PLR_20-24 exercise the whole shuffle bag, all four end-of-list
     // cells and prev-history in seconds instead of the ~3h of real playback
     // the design originally specified (VE-1).
+    // P2 (M-TESTBASE): the playlist half of `get player`. Emits FRAGMENT JSON —
+    // no braces, no "last" — because cmdGet's `get player` composes it into one
+    // line. Order-sensitive FNV-1a over the u16 sequence, so a permutation is
+    // detectable without dumping up to 256 entries on every poll.
+    void dbgPlayerVector() const {
+        const uint16_t n = _pl.count();
+        const uint16_t* pv = _pl.playOrder();
+        const uint16_t* vv = _pl.viewOrder();
+        uint32_t ph = 2166136261u, vh = 2166136261u;
+        for (uint16_t i = 0; i < n; i++) {
+            ph = (ph ^ (uint32_t)pv[i]) * 16777619u;
+            vh = (vh ^ (uint32_t)vv[i]) * 16777619u;
+        }
+        Serial.printf("\"plCount\":%u,\"playHash\":%lu,\"viewHash\":%lu,"
+                      "\"orderIdentical\":%d,",
+                      (unsigned)n, (unsigned long)ph, (unsigned long)vh,
+                      (int)(ph == vh));
+    }
+
     void dbgOrder() const {
         // Streamed rather than built into one big local buffer — up to 256
         // entries would cost ~1.5 KB of loopTask stack for a single debug

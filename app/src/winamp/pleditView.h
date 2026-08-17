@@ -73,7 +73,21 @@ struct PlReleaseResult {
 // block but never runs on the audio pump task; a cap that is not advertised
 // means the renderer HIDES the control rather than relying on a default-false
 // mutator; mutators run only from loopTask, only outside an active drag.
+// M-TESTBASE P2 / X054+X055: which source is actually driving PLEDIT. A STABLE
+// ENUM, deliberately not a class-name string — @VE's condition, because a string
+// silently passes through a rename and the whole point is to catch a mis-wire.
+// Additive-only (BP-024): append, never renumber.
+enum class PlSrcKind : uint8_t {
+  None          = 0,
+  SpotifyQueue  = 1,
+  StationList   = 2,
+  LocalPlaylist = 3,
+};
+
 struct PlaylistSource {
+  // Non-pure: a source that does not identify itself reads as None rather than
+  // failing the build, so this stays additive for any out-of-tree source.
+  virtual PlSrcKind kind() const { return PlSrcKind::None; }
   virtual uint16_t count()  = 0;
   virtual bool     row(uint16_t idx, PlRow& out) = 0;   // may block on SD
   virtual uint32_t seqno()  = 0;
@@ -119,6 +133,7 @@ public:
   // OR a pending scroll repaint, with seqno changes additionally rate-limited
   // to PLAYLIST_DRAW_MIN_MS. Cheap to call unconditionally from the main loop.
   void draw(PlaylistSource& src, int originX) {
+    _lastSrcKind = src.kind();   // P2: observed binding, set before any early return
     const unsigned long now = millis();
     const uint32_t sq = src.seqno();
     const bool seqnoChanged = (sq != _lastSeqno);
@@ -277,6 +292,8 @@ public:
   // Release while a PLEDIT gesture is captured. Tap/scroll discrimination is
   // the shipped M-LIST-v4 model: dead zone + elapsed time, with the quick-swipe
   // minimum-one-row fallback.
+  PlSrcKind lastSrcKind() const { return _lastSrcKind; }
+
   PlReleaseResult release(PlaylistSource& src) {
     PlReleaseResult r;
     r.tapDispatched = false;
@@ -521,6 +538,7 @@ private:
   }
 
   // Redraw gate
+  PlSrcKind _lastSrcKind = PlSrcKind::None;   // P2: last source draw() saw
   uint32_t      _lastSeqno       = 0xFFFFFFFF;  // force first draw
   unsigned long _lastDrawMs      = 0;
   bool          _scrollDirty     = false;

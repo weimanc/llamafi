@@ -70,6 +70,7 @@ static constexpr int kTitleMarqueeSepLen = 9;  // 3 blank + 3 glyph + 3 blank sl
 // the skip suppressor itself. None of that is renderer business.
 class SpotifyQueueSource : public PlaylistSource {
 public:
+  PlSrcKind kind() const override { return PlSrcKind::SpotifyQueue; }   // P2
   // The snapshot lives on the caller's stack for the duration of one repaint.
   // A QueueSnapshot member here would be a permanent multi-KB .bss cost for
   // data that is only live inside drawPlaylist().
@@ -1452,6 +1453,8 @@ public:
   bool pleditPress(int x, int y)   { return _plView.press(x, y, originX, originY); }
   void pleditMove(int y)           { _plView.move(y, originX, originY); }
   PlReleaseResult pleditRelease(PlaylistSource& src) { return _plView.release(src); }
+  // P2: which source last actually drove a PLEDIT draw (observed, not derived).
+  PlSrcKind pleditLastSrcKind() const { return _plView.lastSrcKind(); }
   bool pleditDragging() const      { return _plView.dragging(); }
   PleditView::DragMode pleditDragMode() const { return _plView.dragMode(); }
   int   pleditScrollOffset()   const { return _plView.scrollOffset(); }
