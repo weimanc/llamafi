@@ -300,6 +300,13 @@ Design rule, per M-TESTARCH §4 I1: **additive-only, VE-gated field set.** Exten
 > playback does**, and `plCount=0` says no playlist is loaded, because the SD fixture precondition
 > (§6, W2) has never been satisfied on this rig.
 >
+> **CORRECTED 2026-08-17, same day.** The paragraph above blamed the SD fixture precondition (§6, W2).
+> That was wrong, and it is the same error BP-067 names — an unverified consequence drawn from a
+> verified fact (`plCount=0`). A direct `sdls` probe shows the card **mounted and fully stocked**:
+> `/mp3` holds 20+ real MP3s, `/playlists` holds 7 fixtures including `short5.m3u`. `plCount=0` means
+> *no playlist is loaded*, not *no playlist exists*. No fixture push is required; what is missing is a
+> test that starts playback.
+>
 > **So M2 / X052 remains genuinely uncovered, and this document must not claim otherwise.** Leg B as
 > run reproduces leg A. Closing M2 needs a playback arm: push the `sd_put.py` fixture, start playback
 > in Player, switch away, then assert `acquires > 0` **and** `active == 0`. Recorded rather than
