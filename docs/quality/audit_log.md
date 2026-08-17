@@ -2024,7 +2024,7 @@ Against that: no QM artifact was touched for 13 commits until the human asked. T
 rigour — and BP-068's negative-test rule is the one change most likely to have caught real defects
 earlier.
 
-**Open**: BP-067 and BP-068 are **candidates awaiting human sign-off** (QM does not self-promote).
+**Closed**: BP-067 and BP-068 **adopted by the human, 2026-08-17**, same session.
 
 ---
 

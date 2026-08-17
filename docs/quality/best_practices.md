@@ -685,7 +685,7 @@ LL-101; BP-046 adopted 2026-07-11 from LL-105.)_
 ### BP-067 — A review finding of the form "X exists, therefore Y" states how BOTH halves were established
 
 **Adopted from**: LL-138
-**Date proposed**: 2026-08-17 (QM — **candidate, human sign-off pending**)
+**Date adopted**: 2026-08-17 (human)
 **Rule**: When a review raises a finding whose force depends on an inference — "this flag is set, therefore that is compiled out"; "this grep is empty, therefore the symbol does not exist" — the finding names the verified fact **and** the inference separately, and says how each was checked. A finding that **gates, blocks or withdraws** other work must have its *consequence* verified at the mechanism: read the enum, not the build flag; grep the delegated call chain, not the directory.
 **Rationale**: On 2026-08-17 two independent reviews of the same plan each made exactly this error. One read `-DDISABLE_SPOTIFY` in `app/platformio.ini:193` and concluded the three player modes could not coexist in a build — withdrawing an exit criterion and blocking an item — when `kPlayerModes[]` gates on `PLAYER_*` flags, not that one. The other grepped `app/src/debug/` for an observable and reported it missing; it lives in a per-app `dbgGet` chain. Both facts were true. Neither conclusion was. The first error additionally survived acceptance by a third party who verified the flag and not its effect. This is M-CODEQUAL §13.2's counting note generalised: **a verified fact is still only a hypothesis about its consequence.**
 **Applies to**: All (reviewers especially); pairs with BP-066
@@ -695,7 +695,7 @@ LL-101; BP-046 adopted 2026-07-11 from LL-105.)_
 ### BP-068 — A gate ships with negative tests, and they break it the way it is meant to catch
 
 **Adopted from**: LL-139
-**Date proposed**: 2026-08-17 (QM — **candidate, human sign-off pending**)
+**Date adopted**: 2026-08-17 (human)
 **Rule**: A new gate, checker or staleness test is not complete until at least one **negative test per assertion** has been run by deliberately breaking the tree, and the negative tests are committed with it. The break must be the *specific* failure the gate exists to catch, not a convenient proxy. A gate that has only ever been observed passing has been read, not tested.
 **Rationale**: `check_player_binding.py` (M-TESTBASE §8.4) passed on the clean tree and looked correct to its author on two readings. Four deliberate breaks found **three defects**: adding a second dispatch call inside `main.cpp` — the exact TASK-413 failure the gate exists to prevent — was invisible because it compared filenames rather than call counts; unregistering `T_PMT_00` was invisible because a substring check still matched the id inside the test body's own strings; and the gate miscounted its own subject, scoring a `kCmds[]` help string containing "resolvePlayerTap (surface-independent)" as a dispatch site. Separately and on the same day, `T_DOC_02` — a gate shipped 24 hours earlier — broke on routine documentation growth because it asserted live-corpus counts (LL-141). Both gates were reviewed. Neither was broken on purpose before shipping.
 **Applies to**: All (Developer, VE); `test_check_docs.py`'s `T_DOC_01..09` is the in-tree template

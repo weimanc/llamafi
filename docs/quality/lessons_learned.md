@@ -2096,7 +2096,7 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 **Observation**: The author (me) accepted B1 after verifying the *flag* in `platformio.ini` and not what the flag *does* — so the error survived a third check by an agent explicitly trying to falsify it. It was caught only when a fourth pass read `kPlayerModes[]` directly. Both reviews were otherwise high-yield: of the Architect's five blockers four held and materially resized the plan.
 **Root cause**: M-CODEQUAL §13.2's counting note ("a grep-derived count is a hypothesis") one level up. The generalisation is that **a verified fact is still only a hypothesis about its consequence**. Verification effort naturally stops at the point where something is confirmed true, which is one step before the claim that actually matters.
 **Suggested improvement**: When a review's finding takes the form "X exists, therefore Y", the reviewer states both halves and says how *each* was established. A finding that gates or withdraws other work must have its consequence verified at the mechanism — read the enum, not the build flag; grep the delegated chain, not the directory. Adopt as a review-brief requirement, alongside BP-066.
-**Status**: open — proposed as a BP candidate
+**Status**: adopted → **BP-067** (human, 2026-08-17)
 
 ### LL-139 — 2026-08-17 — A gate that has never been deliberately broken has not been tested, only read
 
@@ -2104,7 +2104,7 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 **Observation**: Three defects in one ~180-line file, none visible by reading it, all found within minutes of trying to break it. The file had been written carefully and reviewed by its author twice.
 **Root cause**: A passing gate proves the gate *runs*; it says nothing about whether it *discriminates*. Reading a gate confirms intent, not sensitivity — and every gate in this project has been reviewed rather than broken.
 **Suggested improvement**: A new gate ships with at least one negative test per assertion, and the negative tests are committed alongside it. Where the gate's subject is a count or a registration, the negative test must break it in the *specific* way the gate exists to catch, not a convenient way. `T_DOC_01..09` (`test_check_docs.py`) is the in-tree precedent for gating a checker; it should be the template.
-**Status**: open — proposed as a BP candidate
+**Status**: adopted → **BP-068** (human, 2026-08-17)
 
 ### LL-140 — 2026-08-17 — "Covered" and "green" got conflated again, one layer above the fix that had just been introduced for it
 
@@ -2196,47 +2196,6 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 **Root cause**: Delegation multiplies the cost of an unverified assertion. A theory a single engineer would test in five minutes instead gets executed on by an agent that treats it as given, and the resulting work looks like progress.
 **Suggested improvement**: A handover prompt must label diagnostic claims as hypothesis or evidence, and state how each was established ("measured", "inferred from X", "assumed"). Any instruction to act on a theory should carry an explicit instruction to verify it first and to report back if it fails to hold — the receiving agent needs standing permission to contradict the brief. On a symptom of "expected output never appeared", capture the raw stream before writing any theory into a prompt at all.
 **Status**: adopted → **BP-060** (human, 2026-08-11)
-
-### LL-138 — 2026-08-17 — Two independent reviews made the same error: verifying a fact, then inferring a consequence from it without checking the inference
-
-**Context**: M-TESTBASE phase 1. An @Architect review raised five blockers against the plan; a @VE review then reviewed the revised plan. **Both were wrong about exactly one thing, in the same shape.** The Architect read `-DDISABLE_SPOTIFY` in `app/platformio.ini:193` and concluded the three player modes could not coexist in one build — blocker B1, which withdrew an exit criterion and blocked an item. The flag is real; the conclusion is false, because `kPlayerModes[]` (`app/src/settingsStorage.h`) gates on `PLAYER_SPOTIFY`/`PLAYER_WEBRADIO`/`PLAYER_LOCAL`, not on `DISABLE_SPOTIFY`. VE then grepped `app/src/debug/` for `pleditRepaints`, found nothing, and reported a missing observable; it exists at `app/src/winamp/winampDisplay.h:1306`, in the per-app `dbgGet` chain, which the grep did not cover.
-**Observation**: The author (me) accepted B1 after verifying the *flag* in `platformio.ini` and not what the flag *does* — so the error survived a third check by an agent explicitly trying to falsify it. It was caught only when a fourth pass read `kPlayerModes[]` directly. Both reviews were otherwise high-yield: of the Architect's five blockers four held and materially resized the plan.
-**Root cause**: M-CODEQUAL §13.2's counting note ("a grep-derived count is a hypothesis") one level up. The generalisation is that **a verified fact is still only a hypothesis about its consequence**. Verification effort naturally stops at the point where something is confirmed true, which is one step before the claim that actually matters.
-**Suggested improvement**: When a review's finding takes the form "X exists, therefore Y", the reviewer states both halves and says how *each* was established. A finding that gates or withdraws other work must have its consequence verified at the mechanism — read the enum, not the build flag; grep the delegated chain, not the directory. Adopt as a review-brief requirement, alongside BP-066.
-**Status**: open — proposed as a BP candidate
-
-### LL-139 — 2026-08-17 — A gate that has never been deliberately broken has not been tested, only read
-
-**Context**: `app/tools/check_player_binding.py`, written to enforce M-TESTBASE §8.4 — that the player mode-cycle binding chain stays intact. It passed on the clean tree immediately. Four negative tests were then run by breaking the tree on purpose. **Two of them passed when they should have failed.** (1) Adding a second dispatch call inside `main.cpp` — the *exact* TASK-413 failure mode the gate exists to catch — was invisible, because the gate compared which *files* called `resolvePlayerTap`, not how many times. (2) Deleting `"T_PMT_00": t_pmt_00` from `ALL_TESTS` was invisible, because the check was a substring search for `"T_PMT_00"`, which still matched the id inside the test body's own `pass_()`/`fail()` strings — a test that no longer ran still looked registered. Separately, the gate's first run miscounted its own subject: `kCmds[]`'s help text contains *"…via resolvePlayerTap (surface-independent)"* and the pattern matched the space before the paren, counting a help string as a dispatch site.
-**Observation**: Three defects in one ~180-line file, none visible by reading it, all found within minutes of trying to break it. The file had been written carefully and reviewed by its author twice.
-**Root cause**: A passing gate proves the gate *runs*; it says nothing about whether it *discriminates*. Reading a gate confirms intent, not sensitivity — and every gate in this project has been reviewed rather than broken.
-**Suggested improvement**: A new gate ships with at least one negative test per assertion, and the negative tests are committed alongside it. Where the gate's subject is a count or a registration, the negative test must break it in the *specific* way the gate exists to catch, not a convenient way. `T_DOC_01..09` (`test_check_docs.py`) is the in-tree precedent for gating a checker; it should be the template.
-**Status**: open — proposed as a BP candidate
-
-### LL-140 — 2026-08-17 — "Covered" and "green" got conflated again, one layer above the fix that had just been introduced for it
-
-**Context**: P0 registered 44 M-WINAMP-PLAYER test ids with an implementation-status column, precisely because a coverage table without one lets "specified" read as "passing" — @VE's words: *"A coverage table without an implementation-status column is how 'covered' and 'green' got conflated across this whole document set."* Hours later, `T_PMT_00`–`03` passed **4/4 on both build legs**, and the natural report was "leg B green, the two-leg gate is complete". A direct probe showed `arenaStats acquires=0` in every mode on both legs: `T_PMT_03`'s arena assertion checks `arenaHeld == 0` against a counter that was never incremented. Mode switching does not acquire the arena — playback does, and no playlist fixture was on the card (`plCount=0`). **M2 / X052 is uncovered**, filed as TASK-513.
-**Observation**: The pass was real, the assertion was vacuous, and nothing in the run distinguished the two. The same conflation the status column was introduced to prevent reappeared in the document that introduced it, within the same day.
-**Root cause**: A green assertion whose precondition never occurred is indistinguishable from a green assertion that was exercised. Test frameworks report pass/fail, not *was this assertion reachable*.
-**Suggested improvement**: An assertion over a counter, latch or resource state records the value it observed, and a value that means "the condition under test never arose" is reported as **inconclusive rather than pass**. Where a test's subject requires a precondition (SD fixture, playback started, network up), the precondition is asserted first and its absence skips loudly — the same rule LL-124/BP-059 established for skip messages, applied to passes.
-**Status**: open
-
-### LL-141 — 2026-08-17 — A gate shipped two days earlier violated its own docstring, and broke on routine documentation growth
-
-**Context**: `run/check` gate 9 went red mid-session. Cause: `test_check_docs.py`'s `T_DOC_02` asserted `len(c.gated) == 234` and `len(c.exempt) == 69` against the **live** corpus. Adding four design documents moved the counts to 237/70. The same file's module docstring says: *"Every count assertion runs against the frozen fixture … never the live tree. The live corpus moved 280 → 282 inside a single commit … so live numbers are observations, never pass conditions."* The gate was shipped by TASK-475 on 2026-08-16 and failed on 2026-08-17.
-**Observation**: The rule was not merely known, it was **written down in the same file, above the code that broke it**. The obvious repair (bump 234 → 237) would have re-armed the trap for the next document; the assertion was replaced with invariants (non-empty, gated > exempt, disjoint) and the counts printed as observations. Filed as TASK-511.
-**Root cause**: A pinned live count is the cheapest thing to write and reads as strictness. The docstring recorded the conclusion of a previous incident but nothing enforced it, and the author of the assertion was the author of the docstring.
-**Suggested improvement**: Extend BP-058's family — a check's pass conditions run against frozen fixtures; live-corpus figures may be printed but never asserted. Worth a mechanical rule: an equality assertion against a value derived from the working tree is a defect unless the value is under version control.
-**Status**: open
-
-### LL-142 — 2026-08-17 — The session applied its own registration discipline to tests and then failed to apply it to itself
-
-**Context**: A 13-commit session that fixed, among other things, 41 test ids specified in design docs and registered in none (P0), and a mode-cycle binding recorded in an ADR and two commit messages but enforced nowhere (§8.4). At close-out: **`M-TESTBASE` appears zero times in `tasks.md` and zero times in `tasks-architecture.md`** — P0–P4 have no task ids; three new firmware debug surfaces (`get player`, `get playerBind`, `playerCycle`) appear **zero times** in `feature_inventory.yaml`; a genuine flake data point (`T_PLR_17`, 1 fail in 3 runs) existed only in a commit message; and no QM artifact was touched at all until prompted by the human asking whether PM and QM were happy.
-**Observation**: Every gap is the same shape as the gaps the session was fixing, and each was created *after* diagnosing that shape in someone else's work. The commit messages are unusually complete — which is exactly what made the omission invisible, because the information existed and simply was not where a tool or a cold reader would look.
-**Root cause**: Registration is a separate act from doing the work, and a session in flow treats a thorough commit message as discharge of it. `git log` is not an artifact anyone queries when planning.
-**Suggested improvement**: Close-out is a step, not a courtesy: board entries, inventory rows, flake set and QM artifacts land before a work session is considered finished — and the prompt for it should not be the human noticing. Candidate mechanism: extend `run/check-docs` with a check that any `M-*` design doc cited by a commit in the last N commits has at least one task id on a board.
-**Status**: open
-
 
 ## Entry Format
 
