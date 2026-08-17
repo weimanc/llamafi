@@ -402,6 +402,27 @@ static AppId resolvePlayerTap(AppId tapped, bool playerAlreadyActive) {
   return appIdForPlayerMode(next);
 }
 
+#ifdef SERIAL_DEBUG
+// ── M-TESTBASE §8: the mode-cycle OPERATION, decoupled from its hit-surface ──
+// The gesture that cycles player mode has moved once already (eject -> taskbar
+// slot, TASK-413/414) and the move silently broke the harness once and a design
+// document once, because both bound to the GESTURE when they meant the
+// OPERATION. Tests call this; exactly one test (T_PMT_00) asserts that the
+// surface named by `get playerBind` still reaches it.
+//
+// Deliberately calls the SAME shared helper both production dispatch sites call
+// (ADR-059 D6 amendment) rather than re-deriving the cycle — a second cycle path
+// is the TASK-406 defect class this decision exists to prevent.
+static void cmdPlayerCycle(const char *) {
+  const uint8_t before = g_settings.playerMode;
+  AppId target = resolvePlayerTap(AppId::Spotify, isPlayerModeApp(currentAppId));
+  switchApp(target);
+  Serial.printf("{\"ok\":true,\"cmd\":\"playerCycle\","
+                "\"from\":%u,\"to\":%u,\"appId\":%d,\"last\":true}\n",
+                (unsigned)before, (unsigned)g_settings.playerMode, (int)target);
+}
+#endif
+
 // ── Taskbar tap feedback (M-TASKBAR-FEEDBACK / TASK-279) ──────────────────
 // Single shared helper set [VE-3-1 + DEV-3-6]: paint + stable-prefix log live here,
 // invoked from BOTH dispatch sites (appHandleInput and drainInjectionQueue) so the
@@ -1303,6 +1324,7 @@ static void cmdTick(const char *);
 static void cmdGet(const char *);
 static void cmdSet(const char *);
 static void cmdSwitchApp(const char *);
+static void cmdPlayerCycle(const char *);
 static void cmdInfo(const char *);
 static void cmdScreenDump(const char *);
 static void cmdColorProbe(const char *);
@@ -1333,6 +1355,7 @@ static const SerialCmd kCmds[] = {
   { "get",  cmdGet,  "read internal state",             "<snapshot|backoff|heap|stacks|cooldown|shellCooldown>"    },
   { "set",  cmdSet,  "write debug state",               "<backoff|cooldown> <val>"            },
   { "switchApp", cmdSwitchApp, "switch active app by id", "<appId 0..8>"                      },
+  { "playerCycle", cmdPlayerCycle, "M-TESTBASE: cycle player mode via resolvePlayerTap (surface-independent)", "" },
   { "info", cmdInfo, "git+elf+build+snapshot summary",  ""                                   },
   { "screendump", cmdScreenDump, "read back TFT GRAM, base64 RGB565 bands", "[x=0] [y=0] [w=320] [h=240]" },
   { "colorprobe", cmdColorProbe, "TASK-340: fillRect/pushRect known values, readRect them back", "" },

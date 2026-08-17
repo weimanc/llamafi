@@ -72,15 +72,28 @@ def resolve_port(explicit: Optional[str] = None) -> str:
     env = os.environ.get("PORT")
     if env:
         return env
-    run_port = pathlib.Path(__file__).resolve().parents[2] / "run" / "port"
+    # parents[3], NOT [2]: this file is app/tools/lib/dut.py, so [2] is app/.
+    # The off-by-one shipped and was invisible for exactly as long as the DUT
+    # happened to sit on the fallback port — then the CH340 re-enumerated to
+    # ttyUSB1 and every caller silently kept asking for ttyUSB0. A resolver
+    # that guesses wrong in silence is worse than the 13 hardcoded defaults it
+    # replaced, so the failure paths below are loud now.
+    run_port = pathlib.Path(__file__).resolve().parents[3] / "run" / "port"
+    if not run_port.exists():
+        print(f"  [dut] WARNING: {run_port} not found — falling back to /dev/ttyUSB0",
+              flush=True)
+        return "/dev/ttyUSB0"
     try:
         import subprocess
         out = subprocess.run([str(run_port)], capture_output=True, text=True, timeout=10)
         got = out.stdout.strip()
         if out.returncode == 0 and got:
             return got
-    except Exception:
-        pass
+        print(f"  [dut] WARNING: run/port found no CH340 (rc={out.returncode}) — "
+              f"falling back to /dev/ttyUSB0", flush=True)
+    except Exception as e:
+        print(f"  [dut] WARNING: run/port failed ({e}) — falling back to /dev/ttyUSB0",
+              flush=True)
     return "/dev/ttyUSB0"
 
 

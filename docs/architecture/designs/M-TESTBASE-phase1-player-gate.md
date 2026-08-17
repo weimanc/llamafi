@@ -315,12 +315,26 @@ That dissolves most of the blocker. What genuinely needs `cyd2usb_player` is nar
 | **M4b** viewOrder + SAVE | **Neither build** — see below |
 | **M5** bound `PlaylistSource` | **Yes**, once P2's observable exists (pure RAM read) |
 
-> **NEW, from P2's DUT session — P3 must not use the eject toggle.** Four eject taps in a row left
-> `mode=Spotify` unchanged. Per TASK-414 eject is **per-mode** (Spotify → TLS reset/force-poll,
-> WebRadio → station refresh, Player → stub); it is no longer a mode cycle. The live-transition
-> gesture is the **taskbar player-slot tap** (`resolvePlayerTap`, TASK-413). `T_PMT_01`–`03` must
-> drive that path. This is the third artifact to record that eject was remapped, and the first to
-> catch a test design still assuming the old behaviour.
+> **P3 must not use the eject toggle — and this is a REDISCOVERY, not a discovery.** Four eject taps
+> in P2's DUT session left `mode=Spotify` unchanged. The binding moved ten months ago and is fully
+> documented:
+>
+> - **`434b18d` (TASK-413)** moved the cycle to the taskbar player slot — `resolvePlayerTap()`,
+>   `app/src/main.cpp:393`, called from exactly two dispatch sites (`app/src/main.cpp:467` and
+>   `app/src/debug/serialConsole/cmdTouch.h:21`).
+> - **`07250ca` (TASK-414)** remapped eject: *"Eject no longer switches player apps (that's the
+>   taskbar player-slot cycle from TASK-413 now). It becomes one verb, three realisations."*
+> - **[ADR-059 D6](../decisions/ADR-059.md)** is the decision, amended 2026-08-07 (DEV-1).
+>
+> **Correction to this document's first draft**, which claimed this was new and that it was "the first
+> artifact to catch a test design still assuming the old behaviour". Both were wrong: TASK-414 caught
+> exactly this ripple in the harness — *"eject was WebRadio's only entry path in the test harness,
+> silently un-migrated since TASK-413"* — and fixed three call sites for it.
+>
+> **What is actually new is worse.** The stale assumption re-entered through a *design document*, written
+> with TASK-414's own commit message available. The binding is recorded in an ADR and two commit
+> messages, and **nothing executable prevents a new test design from assuming the old surface.** That
+> is the argument for §8, and a stronger one than the first draft made.
 
 **Replacement for the withdrawn exit criterion 5** (VE's wording, adopted):
 
@@ -488,3 +502,94 @@ still only a hypothesis about its consequence.** Recommend QM promote it alongsi
 **Still open, and genuinely:** whether `run/task488`'s `DUT_TREE` pattern is the right driver for the
 two-leg gate, and whether the `[NETWORK]`/`[SD]`/`[AUDIO]`/`[PURE]` partition (§3.4 item 2) is worth
 doing before the player gate or after it.
+
+## 8. Binding robustness — surviving the next relocation
+
+**The problem, stated once.** The gesture that cycles player mode has moved once already (eject →
+taskbar player slot, TASK-413/414) and the move broke things twice: the harness in August, and a
+design document ten months later. Both breaks share one cause — **downstream artifacts bind to the
+gesture when what they mean is the operation.**
+
+That will happen again. `resolvePlayerTap()` is reachable from a taskbar slot today; a future skin,
+a hardware button, or a settings row could own it tomorrow. The goal is not to prevent the move. It
+is to make the move cost **one edit in one place**.
+
+### 8.1 The rule
+
+> **Tests drive the OPERATION. Exactly one test asserts the GESTURE→operation binding.**
+
+Today every mode-switch in the suite taps a coordinate: 4 `tap_eject()` sites plus
+`_ensure_webradio()` and `_switch_to()` walking taskbar pixels. Each is an independent copy of the
+assumption "this surface performs that operation". Relocate the surface and every one of them is
+silently wrong — they will still tap, still get a JSON reply, and still assert against a mode that
+never changed. **That is precisely the failure P2's DUT session reproduced: four taps, a valid
+response each time, and no state change.**
+
+Under the rule: N tests call the operation directly, one test asserts the binding. Relocation edits
+that one test.
+
+### 8.2 The mechanism — two debug surfaces, both small
+
+| Surface | Kind | What it does |
+|---|---|---|
+| `playerCycle` | **command** | invokes `resolvePlayerTap(AppId::Spotify, isPlayerModeApp(currentAppId))` + `switchApp()` — the *semantic operation*, no coordinates |
+| `get playerBind` | **observable** | reports which region currently owns it: `{"op":"playerCycle","region":"TASKBAR_SLOT","appId":0}` |
+
+`playerCycle` is what `T_PMT_01`–`03` and every future mode-transition test call. `get playerBind` is
+what the **single** binding test reads, so it can locate the live surface instead of assuming one.
+
+Both are `SERIAL_DEBUG`-only, both are printf handlers, and P2 measured that class of change at
+**zero `.dram0.bss` cost** (headroom 8 312 B, unchanged).
+
+> **BOTH LANDED AND DUT-VERIFIED, 2026-08-17.** `get playerBind` reports
+> `op=playerCycle region=TASKBAR_SLOT helper=resolvePlayerTap`. Four `playerCycle` calls, **no
+> coordinate anywhere in the test**, drove the full three-way cycle with `get player` confirming each
+> arrival:
+>
+> | from → to | mode | srcKind | caps |
+> |---|---|---|---|
+> | — | Spotify | `SpotifyQueue` | 15 |
+> | 0 → 1 | WebRadio | `StationList` | **1** |
+> | 1 → 2 | Player | `LocalPlaylist` | 15 |
+> | 2 → 0 | Spotify | `SpotifyQueue` | 15 |
+>
+> First time all three live modes have been observed in one session, and the capability mask (X061)
+> and bound source (X054/X055) discriminate correctly at every step. This is the gesture-free
+> transition driver `T_PMT_01`–`03` needed and B2 said did not exist.
+
+This also closes the gap B2 identified — *"there is no command that forces an arbitrary live
+transition"* — without inventing a second mode-cycle path in production: `playerCycle` calls the same
+shared helper both production dispatch sites call, which is the discipline ADR-059 D6's amendment
+imposed for exactly this reason.
+
+### 8.3 Making the other three artifacts robust
+
+The same rule, applied per artifact — each currently states the binding implicitly, which is why none
+of them failed when it changed:
+
+- **`feature_inventory.yaml`** — `player-state-001` describes three-valued mode but does not name
+  **what performs the cycle**. Add a `binding:` line naming the operation and its current surface, so
+  the fact lives in a field rather than in prose that nobody diffs.
+- **`cross_feature_matrix.yaml`** — `X056` (player-mode cycling on the taskbar slot) has the surface
+  **in its title**. That is the right place for it, and it means X056 is the interaction that must be
+  re-read on any relocation. Its `test_coverage` should be the binding test, not the operation tests.
+- **`test_plan.md`** — one reserved id for the binding assertion, distinct from the transition ids.
+  Proposed: **`T_PMT_00`** — *"the surface reported by `get playerBind` performs `playerCycle`"* —
+  deliberately numbered ahead of `T_PMT_01`–`03` because if it fails, their results are meaningless.
+
+### 8.4 The gate
+
+A static check, in the shape this programme keeps reusing (`check_settings_wiring.py`,
+`appRegistry.h`, `gen_get_keys.py`): **assert that `resolvePlayerTap` has exactly the call sites the
+docs claim.** Two today (`app/src/main.cpp:467`, `app/src/debug/serialConsole/cmdTouch.h:21`) plus
+`playerCycle` once it lands. A third appearing without a doc update fails `run/check`.
+
+That is ~15 lines of grep, and it is the only mechanism here that would have caught the original
+problem: TASK-413 added a dispatch path and left the harness on the old one, and **nothing failed**.
+
+### 8.5 What this does not do
+
+It does not stop someone relocating the surface and forgetting to update `get playerBind` — the
+binding observable is itself a mirror of the truth, and LL-114 says mirrors rot. The honest defence is
+that `T_PMT_00` fails loudly the moment they disagree, which is the same bargain
+`check_settings_wiring.py` makes and the reason it has held.

@@ -508,6 +508,24 @@ static void cmdGet(const char *args) {
     Serial.printf("\"last\":true}\n");
     return;
   }
+  // ── M-TESTBASE §8: which hit-surface currently owns the mode-cycle ──────────
+  // The ONE place the gesture->operation binding is stated for tests. T_PMT_00
+  // reads this to locate the live surface; T_PMT_01-03 never tap a coordinate
+  // at all, they call `playerCycle`. Relocating the cycle to a different
+  // surface should edit THIS STRING and T_PMT_00, and nothing else.
+  //
+  // History that makes the indirection worth its bytes: the binding moved from
+  // the eject button to the taskbar player slot (TASK-413/414, ADR-059 D6) and
+  // the move silently invalidated the test harness once and a design document
+  // once. Both had hardcoded the old surface.
+  if (strcmp(args, "playerBind") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"playerBind\","
+                  "\"op\":\"playerCycle\",\"region\":\"TASKBAR_SLOT\","
+                  "\"appId\":%d,\"helper\":\"resolvePlayerTap\","
+                  "\"note\":\"cycle fires when the player slot is tapped while the player is active\","
+                  "\"last\":true}\n", (int)AppId::Spotify);
+    return;
+  }
   if (strcmp(args, "playerMode") == 0) {   // TASK-260/413 (VE: agent-driven persist/settings tests)
     static const char* kPmNames[] = { "Spotify", "WebRadio", "Player" };
     uint8_t pm = g_settings.playerMode;   // true value — §6.1: no longer collapsed to a bool
