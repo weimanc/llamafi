@@ -463,8 +463,15 @@ Ids reserved in the `T_PLR_` family, grouped by task. VE owns the suite and may 
 
 | id | Must be true | Method | Pass criterion |
 |---|---|---|---|
-| `T_PLR_17` | **WebRadio unchanged** | DUT serial — hit-test sweep across the whole main window | no shuffle/repeat/seek zone drawn or hit-tested; identical `lastTouchResult` region map to baseline |
-| `T_PLR_18` | **Spotify unchanged** | DUT serial — repeat cycle + optimistic hold | 2→1→0→2 preserved; `SHUFREP_OPTIMISTIC_HOLD_MS` behaviour identical |
+> **Corrected 2026-08-17 (P0).** These two rows were assigned the other way round and disagreed with
+> the implementation: `app/tools/run_serialdbg_tests.py:5958` is Spotify, `:6019` is WebRadio. **The
+> spec was changed to match the code, not the reverse** — the runner's numbering is already baked into
+> five closed quality artifacts (`docs/quality/lessons_learned.md:2132`, `:2153`;
+> `docs/quality/best_practices.md:597`, `:627`; `docs/quality/audit_log.md:1764`) and a passed gate
+> (`docs/project/tasks-archive.md:16689`). Renaming the code would falsify all of them.
+
+| `T_PLR_17` | **Spotify unchanged** | DUT serial — repeat cycle + optimistic hold | 2→1→0→2 preserved; `SHUFREP_OPTIMISTIC_HOLD_MS` behaviour identical |
+| `T_PLR_18` | **WebRadio unchanged** | DUT serial — hit-test sweep across the whole main window | no shuffle/repeat/seek zone drawn or hit-tested; identical `lastTouchResult` region map to baseline |
 | `T_PLR_19` | Player advertises all four | DUT serial | shuffle, repeat, seek, transport all drawn and hit-testable |
 
 ### TASK-418 — play-order engine

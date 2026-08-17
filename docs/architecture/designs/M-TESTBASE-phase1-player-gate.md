@@ -52,8 +52,22 @@ player-area commits carry a fix/revert/regress marker in the subject line.**
 > much of the underlying mechanics is already covered.** That is still a real problem — but it makes
 > **P0 (§4) the first item, not P1.**
 
-**Conclusion: the noise is concentrated, not diffuse — seven couplings in the one subsystem being
-actively built, of unknown existing coverage.** That is a far smaller problem than the quality
+> **CORRECTED AGAIN — @VE, P0 execution, 2026-08-17. The "seven with zero coverage" list was drifted
+> in *both* directions, and now there is status data instead of guesses.** Three of the seven have
+> running bodies today (`X057`, `X061` fully; `X052` partially). Two the list never flagged —
+> **`X053` and `X054`** (plus `X059`) — are as uncovered as any it did.
+>
+> **The genuinely uncovered set is `X053`, `X054`, `X059`, `X062`, `X064`, plus the `X055` seqno
+> half** — five and a half, overlapping the original seven by three. The matrix's *bookkeeping* claim
+> (7 of 8 high-risk rows read `test_coverage: []`) was accurate; the *inference* that the couplings
+> were untested was not.
+>
+> Worse, in the other direction: the only three populated rows in the whole X050–X064 range
+> (`X050`, `X051`, `X063`) cite `T_AE_11`–`16`, **none of which has a body anywhere in `app/tools`**
+> — verified. The three populated rows are less honest than the twelve empty ones.
+
+**Conclusion: the noise is concentrated, not diffuse — five and a half genuinely uncovered couplings
+in the one subsystem being actively built.** That is a far smaller problem than the quality
 programme, and the first move against it is free.
 
 ## 2. Why the instrumentation cannot see it
@@ -177,6 +191,14 @@ Two defects to fix while transcribing:
   interactions for them.
 
 Owner: **@VE**. Host-side, no DUT, no firmware.
+
+> **DONE 2026-08-17** (`116c64f`). 44 ids registered in `test_plan.md` — **26 `impl`, 8 `blocked`,
+> 10 `resv`**, zero unknown rows — plus the X050–X064 table with a status column, and a proposed
+> `test_coverage:` patch at `docs/verification/regression_suite/m-winamp-player-coverage.md` for
+> @Developer to apply. The `T_PLR_17`/`18` swap is fixed **in the spec, not the code**: the runner's
+> numbering is load-bearing in five closed quality artifacts and a passed gate. Two board items
+> surfaced for @PM: `T_PLR_39`'s blocker is stale (TASK-442 closed), and `T_PLE_14` is still
+> unspecified anywhere.
 
 
 ### P1 — `lib/dut.py`, scoped hard *(the enabler; everything else needs it)*

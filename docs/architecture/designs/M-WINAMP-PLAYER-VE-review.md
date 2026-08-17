@@ -226,7 +226,7 @@ happens.
 | X058 | `T_PLR_14`, `15` | yes |
 | X059 | `T_PLR_31` | yes |
 | X060 | `T_PLR_19` + golden.sha256 | yes (VE-16) |
-| X061 | `T_PLR_17` | yes (subject to VE-3) |
+| X061 | `T_PLR_17`, `T_PLR_18`, `T_PLR_19` | yes (subject to VE-3) — id assignment corrected 2026-08-17, see P0 |
 | X062 | `T_PLR_30` | yes (subject to VE-10) |
 | X063 | `T_PLR_25` | **reclassify** — VE-2(3) |
 | X064 | `T_PLR_36` | yes (subject to VE-11) |
