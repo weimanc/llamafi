@@ -76,23 +76,15 @@ from lib.dut import (resolve_port,                                              
 
 # ── test registry ─────────────────────────────────────────────────────────────
 
-RESULTS: dict[str, str] = {}
-
-def pass_(tid: str, detail: str = ""):
-    RESULTS[tid] = "PASS"
-    print(f"  [PASS] {tid}" + (f"  {detail}" if detail else ""))
-
-def fail(tid: str, reason: str):
-    RESULTS[tid] = f"FAIL: {reason}"
-    print(f"  [FAIL] {tid}  {reason}")
-
-def skip(tid: str, reason: str):
-    RESULTS[tid] = f"SKIP: {reason}"
-    print(f"  [SKIP] {tid}  {reason}")
-
-def flake(tid: str, reason: str):
-    RESULTS[tid] = f"FLAKE: {reason}"
-    print(f"  [FLAKE] {tid}  {reason}")
+# Result recording — extracted to lib/results.py (TASK-520). This file and
+# ve_suite_base.py each carried an identical private copy; the flaky policy
+# (ADR-059 D13 / M-TESTARCH §7) has to be enforced in exactly one of them, so
+# both now re-export the shared implementation. Same shim pattern as lib/dut.py
+# above, and RESULTS is now genuinely one dict rather than two that happened to
+# agree. flake() consults docs/verification/flaky.yaml; an undeclared or expired
+# id is a FAIL, a declared one is retried once by the dispatch loop in main().
+from lib.results import (RESULTS, pass_, fail, skip, flake,   # noqa: E402,F401
+                         run_with_flake_retry, print_results)
 
 
 
@@ -9976,19 +9968,23 @@ def main():
             dut.cmd(f"get __TEST_{tid}__", timeout=2.0)
         except TimeoutError:
             pass
-        try:
-            if tid == "T093":
-                t093(dut, args.interactive)
-            elif tid == "T094":
-                t094(dut, args.interactive)
-            elif tid == "T095":
-                t095(dut, args.interactive)
-            else:
-                ALL_TESTS[tid](dut)
-        except TimeoutError as e:
-            fail(tid, f"TimeoutError: {e}")
-        except Exception as e:
-            fail(tid, f"Exception: {e}")
+        def _once(tid=tid):
+            try:
+                if tid == "T093":
+                    t093(dut, args.interactive)
+                elif tid == "T094":
+                    t094(dut, args.interactive)
+                elif tid == "T095":
+                    t095(dut, args.interactive)
+                else:
+                    ALL_TESTS[tid](dut)
+            except TimeoutError as e:
+                fail(tid, f"TimeoutError: {e}")
+            except Exception as e:
+                fail(tid, f"Exception: {e}")
+        # TASK-520: one mandated retry for a DECLARED flake, both outcomes kept.
+        # Undeclared/expired ids never get here — flake() already failed them.
+        run_with_flake_retry(tid, _once)
         time.sleep(0.5)
 
     # TASK-407: see entry snapshot above for rationale.
@@ -10000,15 +9996,9 @@ def main():
 
     dut.close()
 
-    print("\n── Results ──────────────────────────────────")
-    passed = sum(1 for v in RESULTS.values() if v == "PASS")
-    failed = sum(1 for v in RESULTS.values() if v.startswith("FAIL"))
-    skipped = sum(1 for v in RESULTS.values() if v.startswith("SKIP"))
-    flaked = sum(1 for v in RESULTS.values() if v.startswith("FLAKE"))
-    for tid, result in RESULTS.items():
-        print(f"  {tid}: {result}")
-    print(f"\n{passed} passed, {failed} failed, {skipped} skipped, {flaked} flaked")
-    sys.exit(0 if failed == 0 else 1)
+    # TASK-520: shared summary — reports declared flakes in their own bucket
+    # instead of folding them into the pass count. sys.exit()s.
+    print_results()
 
 
 if __name__ == "__main__":

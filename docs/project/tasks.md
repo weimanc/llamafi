@@ -74,8 +74,8 @@ never starts, naming the vacuum, so it cannot go green without a real acquire. *
 | **TASK-516** | P2 | **DONE** (`74ae09d`, `7bc98ce`) | **§8** — decouple the mode-cycle from its hit-surface: `playerCycle` + `get playerBind` + `check_player_binding.py` at `run/check` gate 9. Also fixed a P1 bug hardware found (`resolve_port` off-by-one) |
 | **TASK-517** | P2 | **DONE** (`df21bbd`, `b945c8f`) | **P3** — `T_PMT_00..03`, operation-driven mode transitions. 4/4 on **both** build legs. NOTE: does **not** close M2/arena — see TASK-513 |
 | **TASK-518** | P2 | **BLOCKED-behind-Stage-D** | **P4** — `hasInFlightOp()`/`get idle`. Collides with M-SRCLAYOUT Stage D (`ShellState`/`appTable` own `g_shellBusy`/`g_apps[]`); and per review B3 it is an `App`-interface change across 13 implementations, not a debug key |
-| **TASK-519** | P3 | OPEN | wire the two-leg phase-1 gate into a script (`run/player-gate`): leg A `cyd2usb_winamp_debug`, leg B `cyd2usb_player`, one commit, pre-declared pass set. `run/task488`'s `DUT_TREE` pattern is the precedent |
-| **TASK-520** | P2 | OPEN | make `ve_suite_base.flake()` consult `docs/verification/flaky.yaml` — declared-only flakes, retry-once, both outcomes reported (M-TESTARCH §7). The file exists; nothing reads it |
+| **TASK-519** | P3 | **DONE** | `run/player-gate` — two legs at one commit, pass set in `regression_suite/player-gate-baseline.md`, condition (a) enforced (refuses a leg with no cross-mode cell, rc=2, zero pio), `--selftest` for the comparator. First real run **correctly returned GATE FAIL** on a regressed cell |
+| **TASK-520** | P2 | **DONE** | `lib/flaky.py` + `lib/results.py`; undeclared `flake()` = FAIL, expired `review_by` = FAIL, retry-once with both outcomes, unreadable set fails closed. 22 host tests in `test_flaky_policy.py` |
 | TASK-503…506 | P2/P3 | OPEN | from the TASK-488 verification — stale `*AppState` docs, `T_488_11` redesign, heap-settling question, `run/test` mutates user settings |
 
 > **▶ Execution order lives in [tasks-architecture.md](tasks-architecture.md) § EXECUTION SEQUENCE**

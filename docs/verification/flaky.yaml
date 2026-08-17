@@ -67,6 +67,13 @@ flaky:
 # evidence recorded here yet. They must be measured before they earn an entry
 # above — an undeclared flake and an unmeasured one are the same problem.
 candidates:
+  - id: T_PLR_13_playback
+    note: "playback-start flake, same family as T_PMT_04: FAILED on run/player-gate's
+      first full two-leg run (2026-08-17) with 'plCount.playing stayed false for 15s
+      after plPlay'. test_fbrowser_player.py's own message says it needs a genuinely
+      fresh boot, not an in-process retry — the retry lands inside the double-reset-
+      detector window and reproduces the identical stuck state. 1 observation; needs
+      a run count before it earns a declared entry."
   - id: T169
     note: "yahoo/network flakiness, long-standing; no run count recorded"
   - id: T_PR_05

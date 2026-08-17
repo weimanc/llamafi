@@ -1,0 +1,424 @@
+#!/usr/bin/env bash
+# run/player-gate — M-TESTBASE phase-1 player gate (TASK-519), ONE runnable script.
+#
+# The gate is ONE ORDERED EXECUTION OF TWO LEGS AT THE SAME COMMIT
+# (M-TESTBASE-phase1-player-gate.md §4 P3, VE's wording):
+#
+#   Leg A  cyd2usb_winamp_debug : T_PLR_01-24,26 + M3/M4a/M5 + the S->W and W->L cells
+#   Leg B  cyd2usb_player       : test_fbrowser_player.py, test_playorder_player.py,
+#                                 the L->S cell and the M2 cells
+#
+# It FAILS if any cell in either leg regresses against the pre-declared pass set at
+# docs/verification/regression_suite/player-gate-baseline.md — which is a file of
+# IDS, not a count (§3.4 item 3: "'>=3 runs' without the identity of what passed is
+# the exact failure TASK-488 hit").
+#
+# Condition (a) of §4 is ENFORCED, not documented: a leg whose id list contains no
+# cross-mode cell (T_PMT_01-04) is refused with exit 2, because without one the leg
+# is two per-mode suites concatenated and the gate's objective is lost.
+# Condition (b): the two-build drive follows run/task488's DUT_TREE shape — one
+# script, one trap, per-leg DUT_ENV so each leg's ELF-hash guard checks the binary
+# that is actually on the device.
+#
+# NEVER kill this mid-flight (timeout / Ctrl-C / host suspend). The trap-guarded
+# production restore races and can leave the DUT boot-looping. Budget ~45 min for a
+# full two-leg run: 2 flashes, 4 boots, 2 x 90 s settle.
+#
+# Usage
+#   ./run/player-gate                        # full gate, both legs
+#   LEGS=A ./run/player-gate                 # leg A only (PARTIAL verdict)
+#   LEGS=B SKIP_SCRIPTS=1 ./run/player-gate  # leg B runner cells only, no playback scripts
+#   LEG_A_TESTS=T_PMT_00,T_PMT_01 ./run/player-gate   # validation-sized id set
+#   RECORD=1 ./run/player-gate               # also emit the observed table for re-declaring
+#   ./run/player-gate --selftest             # host-only negative tests of the comparator (BP-068)
+#
+# Env
+#   PORT           serial port override (default: CH340 by VID:PID via run/port)
+#   LEGS           comma list of legs to run                      (default A,B)
+#   LEG_A_TESTS    override leg A's runner id list                (default: full leg A set)
+#   LEG_B_TESTS    override leg B's runner id list                (default T_PMT_00,03,04)
+#   SKIP_SCRIPTS   1 = skip leg B's two standalone playback scripts
+#   SKIP_FLASH     1 = do not flash; run against whatever is on the device. For
+#                  negative tests and re-runs only — the ELF-hash guard still fires.
+#   BASELINE       path to the pass-set markdown            (default: the doc above)
+#   OUT_DIR        artifact dir                             (default: mktemp -d)
+#   RECORD         1 = write $OUT_DIR/observed.md
+#   SETTLE_S       settle for the leg-B playback scripts           (default 90)
+#   BOOT_WAIT      post-flash wait before the runner opens the port (default 8, lib.sh)
+#   ALLOW_NO_CROSSMODE  1 = waive condition (a). Validation runs only; it makes the
+#                  run NOT a gate run and the summary says so.
+#
+# Exit codes
+#   0   every declared cell in every leg that ran met the pass set
+#   1   REGRESSION — a declared cell failed, went missing, or a new cell failed
+#   2   usage / configuration error (bad leg, unreadable baseline, condition (a) unmet)
+#   3   RIG condition — a leg exited SETUP_FAIL_EXIT; NO VERDICT, no tests ran
+#   99  production restore FAILED — the DUT is not on production firmware
+#
+# Always, on every exit path including failure and interrupt: reflash cyd2usb_winamp
+# (production) and restart the tmux serial monitor. Copied from run/test's trap.
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+
+ENV_LEG_A="cyd2usb_winamp_debug"
+ENV_LEG_B="cyd2usb_player"
+
+BASELINE="${BASELINE:-$PROJ_ROOT/docs/verification/regression_suite/player-gate-baseline.md}"
+LEGS="${LEGS:-A,B}"
+SETTLE_S="${SETTLE_S:-90}"
+SKIP_SCRIPTS="${SKIP_SCRIPTS:-0}"
+SKIP_FLASH="${SKIP_FLASH:-0}"
+RECORD="${RECORD:-0}"
+ALLOW_NO_CROSSMODE="${ALLOW_NO_CROSSMODE:-0}"
+
+# The default leg id lists. Leg A is T_PLR_01-24 and 26 (25 is the real-decode cell
+# and lives on leg B as T_PLR_25_playback), plus the binding cell and the two leg-A
+# edges. M3 = T_PLR_17/18/19, M4a = T_PLR_20-24/26, M5 is asserted inside the
+# `get player` vector every T_PMT_0x cell reads — all already in this list.
+_DEFAULT_A="T_PLR_01,T_PLR_02,T_PLR_03,T_PLR_04,T_PLR_05,T_PLR_06,T_PLR_07,T_PLR_08,\
+T_PLR_09,T_PLR_10,T_PLR_11,T_PLR_12,T_PLR_13,T_PLR_14,T_PLR_15,T_PLR_16,T_PLR_17,\
+T_PLR_18,T_PLR_19,T_PLR_20,T_PLR_21,T_PLR_22,T_PLR_23,T_PLR_24,T_PLR_26,\
+T_PMT_00,T_PMT_01,T_PMT_02"
+_DEFAULT_B="T_PMT_00,T_PMT_03,T_PMT_04"
+
+LEG_A_TESTS="${LEG_A_TESTS:-$_DEFAULT_A}"
+LEG_B_TESTS="${LEG_B_TESTS:-$_DEFAULT_B}"
+
+# The cross-mode cells — the ones that assert on mode X after ARRIVING FROM mode Y.
+# Condition (a) is checked against this list.
+_CROSSMODE="T_PMT_01 T_PMT_02 T_PMT_03 T_PMT_04"
+
+SETUP_FAIL_EXIT=3
+
+# ── pure functions (no DUT) — also exercised by --selftest ───────────────────
+
+# Emit "leg<TAB>id<TAB>expected" for every adjudicated row of the pass set.
+# Positional markdown columns: | leg | id | expected | note |. A row whose
+# expected column is neither PASS nor SKIP is INVISIBLE on purpose: an
+# un-adjudicated row must not silently weaken the gate.
+_baseline_rows() {
+  awk -F'|' '
+    /^[[:space:]]*\|/ {
+      # NB: not `exp` — that is an awk builtin and using it as a variable is a
+      # syntax error the parser reports per input line. Caught by --selftest,
+      # which is the only reason it was not a silently empty pass set.
+      leg=$2; id=$3; want=$4
+      gsub(/[[:space:]`*]/, "", leg); gsub(/[[:space:]`*]/, "", id)
+      gsub(/[[:space:]`*]/, "", want)
+      if ((leg=="A" || leg=="B") && id ~ /^T_/ && (want=="PASS" || want=="SKIP"))
+        print leg"\t"id"\t"want
+    }' "$1"
+}
+
+# Extract "id status" from a runner log. run_serialdbg_tests.py prints a
+# "── Results ──" block of "  <id>: <STATUS>[: reason]" lines; that block only
+# exists if the run reached its summary, so an aborted leg yields nothing and
+# every declared id is then MISSING — which is a regression, correctly.
+_parse_runner_log() {
+  sed -n 's/^  \([A-Za-z0-9_]\{1,\}\): \(PASS\|FAIL\|SKIP\|FLAKE\).*/\1 \2/p' "$1"
+}
+
+# Compare one leg. $1=leg $2=file of ids that RAN $3=file of "id status" observed.
+# Prints one verdict line per cell; returns 1 if the leg regressed.
+_compare_leg() {
+  local leg="$1" ran="$2" obs="$3"
+  local rc=0 id exp got line
+  # declared cells for this leg, restricted to the ids that actually ran
+  while IFS=$'\t' read -r rleg id exp; do
+    [ "$rleg" = "$leg" ] || continue
+    grep -qxF "$id" "$ran" || continue
+    got="$(awk -v i="$id" '$1==i{print $2; exit}' "$obs")"
+    [ -n "$got" ] || got="MISSING"
+    case "$exp:$got" in
+      PASS:PASS|SKIP:SKIP)
+        echo "    ok        $leg $id  $got (declared $exp)" ;;
+      SKIP:PASS)
+        echo "    improved  $leg $id  PASS where SKIP was declared — re-declare the row" ;;
+      *)
+        echo "    REGRESS   $leg $id  observed $got, declared $exp"
+        rc=1 ;;
+    esac
+  done < <(_baseline_rows "$BASELINE")
+
+  # A cell that failed but was never declared is still a failure. A cell that
+  # passed and was never declared is only bookkeeping drift.
+  while read -r id got; do
+    grep -qxF "$id" "$ran" || continue
+    if _baseline_rows "$BASELINE" | awk -v l="$leg" -v i="$id" \
+         '$1==l && $2==i {found=1} END{exit !found}'; then continue; fi
+    case "$got" in
+      PASS) echo "    unbaselined $leg $id  PASS — not in the pass set" ;;
+      SKIP) echo "    unbaselined $leg $id  SKIP — not in the pass set" ;;
+      *)    echo "    REGRESS   $leg $id  observed $got, not in the pass set"; rc=1 ;;
+    esac
+  done < "$obs"
+  return $rc
+}
+
+# Condition (a), M-TESTBASE §4: enforced, not documented.
+_assert_crossmode() {
+  local leg="$1" ids="$2" c
+  for c in $_CROSSMODE; do
+    case ",$ids," in *,"$c",*) return 0 ;; esac
+  done
+  if [ "$ALLOW_NO_CROSSMODE" = "1" ]; then
+    echo "!! [player-gate] leg $leg has NO cross-mode cell — waived by ALLOW_NO_CROSSMODE=1."
+    echo "!!   This run is NOT a gate run: without a cell asserting on mode X after"
+    echo "!!   arriving from mode Y the leg is a per-mode suite (M-TESTBASE §4 (a))."
+    return 0
+  fi
+  echo "ERROR [player-gate]: leg $leg id list has no cross-mode cell." >&2
+  echo "  M-TESTBASE §4 (a): each leg must contain at least one cell asserting on" >&2
+  echo "  mode X after arriving from mode Y, else it is two per-mode suites" >&2
+  echo "  concatenated and the objective is lost. Cross-mode cells: $_CROSSMODE" >&2
+  echo "  Set ALLOW_NO_CROSSMODE=1 for a validation run that is explicitly not a gate." >&2
+  exit 2
+}
+
+# ── --selftest: the gate's own negative tests (BP-068) ───────────────────────
+# A gate ships with tests that break it the way it is meant to catch. These run
+# the real comparator against synthetic observations — no DUT, no flash.
+_selftest() {
+  local tmp; tmp="$(mktemp -d)"; trap "rm -rf '$tmp'" RETURN
+  local fails=0 out rc
+  cat >"$tmp/base.md" <<'EOF'
+| leg | id | expected | note |
+|---|---|---|---|
+| A | T_PMT_00 | PASS | binding |
+| A | T_PMT_01 | PASS | cross-mode |
+| A | T_PLR_09 | SKIP | declared skip |
+| B | T_PMT_04 | PASS | arena |
+| A | T_PLR_99 | resv | un-adjudicated: must be invisible |
+EOF
+  BASELINE="$tmp/base.md"
+  printf 'T_PMT_00\nT_PMT_01\nT_PLR_09\n' >"$tmp/ran"
+
+  _case() { # name expect_rc observed...
+    local name="$1" want="$2"; shift 2
+    : >"$tmp/obs"; printf '%s\n' "$@" >"$tmp/obs"
+    set +e; out="$(_compare_leg A "$tmp/ran" "$tmp/obs")"; rc=$?; set -e
+    if [ "$rc" = "$want" ]; then
+      echo "  [PASS] selftest $name (rc=$rc)"
+    else
+      echo "  [FAIL] selftest $name — rc=$rc want=$want"; echo "$out" | sed 's/^/         /'
+      fails=$((fails+1))
+    fi
+  }
+
+  echo "── run/player-gate --selftest — negative tests of the comparator ──"
+  _case "green run passes"              0 "T_PMT_00 PASS" "T_PMT_01 PASS" "T_PLR_09 SKIP"
+  _case "declared PASS observed FAIL"   1 "T_PMT_00 PASS" "T_PMT_01 FAIL" "T_PLR_09 SKIP"
+  _case "declared PASS went MISSING"    1 "T_PMT_00 PASS" "T_PLR_09 SKIP"
+  _case "leg aborted, nothing observed" 1 ""
+  _case "declared PASS degraded to SKIP" 1 "T_PMT_00 PASS" "T_PMT_01 SKIP" "T_PLR_09 SKIP"
+  _case "declared SKIP observed FAIL"   1 "T_PMT_00 PASS" "T_PMT_01 PASS" "T_PLR_09 FAIL"
+  _case "declared SKIP observed PASS is not a failure" \
+                                        0 "T_PMT_00 PASS" "T_PMT_01 PASS" "T_PLR_09 PASS"
+  _case "FLAKE is not a PASS"           1 "T_PMT_00 FLAKE" "T_PMT_01 PASS" "T_PLR_09 SKIP"
+  # an un-adjudicated baseline row (expected=resv) must not be read as declared
+  printf 'T_PMT_00\nT_PMT_01\nT_PLR_09\nT_PLR_99\n' >"$tmp/ran"
+  _case "un-adjudicated row is invisible, and its FAIL still fails" \
+                                        1 "T_PMT_00 PASS" "T_PMT_01 PASS" "T_PLR_09 SKIP" "T_PLR_99 FAIL"
+  _case "un-adjudicated row passing is only drift" \
+                                        0 "T_PMT_00 PASS" "T_PMT_01 PASS" "T_PLR_09 SKIP" "T_PLR_99 PASS"
+
+  # condition (a) is a hard refusal
+  set +e
+  ( ALLOW_NO_CROSSMODE=0; _assert_crossmode A "T_PLR_01,T_PLR_02" ) >/dev/null 2>&1
+  rc=$?; set -e
+  if [ "$rc" = "2" ]; then echo "  [PASS] selftest condition (a) refuses a leg with no cross-mode cell (rc=2)"
+  else echo "  [FAIL] selftest condition (a) — rc=$rc want=2"; fails=$((fails+1)); fi
+  set +e
+  ( _assert_crossmode A "T_PLR_01,T_PMT_02" ) >/dev/null 2>&1; rc=$?; set -e
+  if [ "$rc" = "0" ]; then echo "  [PASS] selftest condition (a) accepts a leg with one"
+  else echo "  [FAIL] selftest condition (a) accept — rc=$rc want=0"; fails=$((fails+1)); fi
+
+  echo ""
+  if [ "$fails" = "0" ]; then echo "selftest: all green"; return 0; fi
+  echo "selftest: $fails FAILED"; return 1
+}
+
+if [ "${1:-}" = "--selftest" ]; then _selftest; exit $?; fi
+
+# ── real run ─────────────────────────────────────────────────────────────────
+[ -r "$BASELINE" ] || { echo "ERROR [player-gate]: pass set unreadable: $BASELINE" >&2; exit 2; }
+if [ -z "$(_baseline_rows "$BASELINE")" ]; then
+  echo "ERROR [player-gate]: pass set has no adjudicated rows: $BASELINE" >&2; exit 2
+fi
+
+PORT=$(resolve_port)
+OUT_DIR="${OUT_DIR:-$(mktemp -d -t player-gate-XXXXXX)}"
+mkdir -p "$OUT_DIR"
+
+_RC=0
+_SETUP_FAIL=0
+_cleanup() {
+  # $? here is the status that triggered the trap. A refusal path uses `exit 2`
+  # and never sets _RC, so taking _RC unconditionally reported 0 for a run that
+  # had explicitly refused — the trap silently converted a refusal into success.
+  # Found by negative-testing this script (BP-068).
+  local trigger=$?
+  local rc=$_RC
+  [ "$rc" = "0" ] && [ "$trigger" != "0" ] && rc=$trigger
+  echo ""
+  echo "[player-gate] restoring $ENV_PROD (rc=$rc so far)"
+  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT") || {
+    echo "ERROR [player-gate]: prod restore failed — DUT still running a test build" >&2
+    rc=99
+  }
+  echo "[player-gate] restarting monitor"
+  tmux new-session -d -s "$SESSION" \
+    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'" \
+    2>/dev/null || echo "WARN [player-gate]: monitor start failed" >&2
+  # run/test's step-6 lesson (TASK-434 item 1): a rig condition must be re-stated
+  # AFTER the restore, because the restore's flash output is the last thing in the
+  # log and a reader who greps for the verdict finds neither PASS nor FAIL.
+  if [ "$_SETUP_FAIL" = "1" ]; then
+    echo ""
+    echo "[SETUP-FAIL] rig condition — NO VERDICT. This is not a gate failure."
+    echo "             Artifacts: $OUT_DIR"
+  fi
+  echo "[player-gate] artifacts: $OUT_DIR"
+  exit "$rc"
+}
+case "$LEGS" in *[!AB,]*) echo "ERROR [player-gate]: LEGS must be A, B or A,B (got '$LEGS')" >&2; exit 2 ;; esac
+_want_leg() { case ",$LEGS," in *,"$1",*) return 0 ;; esac; return 1; }
+
+# ── precondition validation — BEFORE the trap arms ──────────────────────────
+# Deliberately ahead of `trap _cleanup`: a config error (bad leg name, a leg with
+# no cross-mode cell) must refuse WITHOUT touching the DUT. When these ran after
+# the trap was installed, refusing still triggered a full production reflash, and
+# on a busy port that reflash failed and reported 99 — a config typo looked like
+# a hardware fault. Found by negative-testing this script (BP-068).
+_want_leg A && _assert_crossmode A "$LEG_A_TESTS"
+if _want_leg B; then
+  _b_all="$LEG_B_TESTS"
+  [ "$SKIP_SCRIPTS" = "1" ] || _b_all="$_b_all,T_PLR_13_playback,T_PLR_25_playback"
+  _assert_crossmode B "$_b_all"
+fi
+
+trap _cleanup EXIT INT TERM
+
+_flash() { # $1 = env
+  if [ "$SKIP_FLASH" = "1" ]; then
+    echo "[player-gate] SKIP_FLASH=1 — not flashing $1 (the ELF-hash guard still checks it)"
+    return 0
+  fi
+  echo "[player-gate] flashing $1 to $PORT"
+  (cd "$PIO_DIR" && "$PIO" run -e "$1" -t upload --upload-port "$PORT")
+  # BP-018-class: the upload's end-of-flash reset and the next serial open both
+  # toggle DTR; too close together they trip the ESP32 double-reset-detector and
+  # produce a stuck, non-clean boot (run/browser-player measured this).
+  echo "[player-gate] ${BOOT_WAIT}s boot wait + 15s DRD gap"
+  sleep "$BOOT_WAIT"; sleep 15
+}
+
+# $1=leg $2=env $3=id list -> writes $OUT_DIR/leg$1.{log,results,ran}
+_run_runner_leg() {
+  local leg="$1" env="$2" ids="$3" rc=0
+  local log="$OUT_DIR/leg$leg.log"
+  echo "$ids" | tr ',' '\n' | sed '/^$/d' > "$OUT_DIR/leg$leg.ran"
+  echo ""
+  echo "[player-gate] leg $leg — $env — $(wc -l <"$OUT_DIR/leg$leg.ran") runner cells"
+  set +e
+  ( cd "$PIO_DIR" && DUT_ENV="$env" "$VENV_PY" -u tools/run_serialdbg_tests.py \
+      --port "$PORT" --tests "$ids" ) 2>&1 | tee "$log"
+  rc=${PIPESTATUS[0]}
+  set -e
+  _parse_runner_log "$log" > "$OUT_DIR/leg$leg.results"
+  if [ "$rc" = "$SETUP_FAIL_EXIT" ]; then
+    echo "ERROR [player-gate]: leg $leg exited SETUP_FAIL ($rc) — rig condition, no verdict" >&2
+    _SETUP_FAIL=1; _RC=3
+    return 3
+  fi
+  return 0
+}
+
+# A standalone playback script is ONE cell: exit 0 = PASS, anything else = FAIL.
+# There is no per-id output to parse — that is the whole contract these two have.
+_run_script_cell() {
+  local leg="$1" id="$2" script="$3" rc=0
+  echo ""
+  echo "[player-gate] leg $leg — cell $id — $script"
+  set +e
+  ( cd "$PIO_DIR" && "$VENV_PY" -u "tools/$script" --port "$PORT" --settle-s "$SETTLE_S" ) \
+    2>&1 | tee -a "$OUT_DIR/leg$leg.log"
+  rc=${PIPESTATUS[0]}
+  set -e
+  echo "$id" >> "$OUT_DIR/leg$leg.ran"
+  if [ "$rc" = "0" ]; then echo "$id PASS" >> "$OUT_DIR/leg$leg.results"
+  else echo "$id FAIL" >> "$OUT_DIR/leg$leg.results"; fi
+  echo "[player-gate] cell $id rc=$rc"
+  sleep 10   # DRD gap before the next serial open
+}
+
+
+
+echo "[player-gate] pass set: $BASELINE"
+echo "[player-gate] legs: $LEGS   port: $PORT   artifacts: $OUT_DIR"
+
+
+echo "[player-gate] killing monitor"
+tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+
+_LEGS_RUN=""
+if _want_leg A; then
+  _flash "$ENV_LEG_A"
+  _run_runner_leg A "$ENV_LEG_A" "$LEG_A_TESTS" || true
+  [ "$_SETUP_FAIL" = "1" ] && exit 3
+  _LEGS_RUN="$_LEGS_RUN A"
+fi
+
+if _want_leg B; then
+  _flash "$ENV_LEG_B"
+  _run_runner_leg B "$ENV_LEG_B" "$LEG_B_TESTS" || true
+  [ "$_SETUP_FAIL" = "1" ] && exit 3
+  if [ "$SKIP_SCRIPTS" != "1" ]; then
+    _run_script_cell B T_PLR_13_playback test_fbrowser_player.py
+    _run_script_cell B T_PLR_25_playback test_playorder_player.py
+  fi
+  _LEGS_RUN="$_LEGS_RUN B"
+fi
+
+# ── verdict ──────────────────────────────────────────────────────────────────
+echo ""
+echo "── player gate — verdict against the pre-declared pass set ──────────────"
+_GATE_RC=0
+for leg in $_LEGS_RUN; do
+  echo "  leg $leg:"
+  _compare_leg "$leg" "$OUT_DIR/leg$leg.ran" "$OUT_DIR/leg$leg.results" || _GATE_RC=1
+done
+
+if [ "$RECORD" = "1" ]; then
+  {
+    echo "| leg | id | expected | note |"
+    echo "|---|---|---|---|"
+    for leg in $_LEGS_RUN; do
+      while read -r id got; do
+        echo "| $leg | $id | $got | recorded $(date -Iseconds) — adjudicate before committing |"
+      done < "$OUT_DIR/leg$leg.results"
+    done
+  } > "$OUT_DIR/observed.md"
+  echo ""
+  echo "[player-gate] RECORD=1 — observed table at $OUT_DIR/observed.md"
+fi
+
+echo ""
+_PARTIAL=""
+[ "$LEG_A_TESTS" = "$_DEFAULT_A" ] || _PARTIAL="yes"
+[ "$LEG_B_TESTS" = "$_DEFAULT_B" ] || _PARTIAL="yes"
+[ "$SKIP_SCRIPTS" = "1" ] && _PARTIAL="yes"
+[ "$LEGS" = "A,B" ] || _PARTIAL="yes"
+[ "$ALLOW_NO_CROSSMODE" = "1" ] && _PARTIAL="yes"
+
+if [ "$_GATE_RC" = "0" ]; then
+  if [ -n "$_PARTIAL" ]; then
+    echo "PARTIAL PASS — legs run:$_LEGS_RUN. Not a gate verdict: the id set was reduced."
+  else
+    echo "GATE PASS — both legs, every declared cell met the pass set."
+  fi
+else
+  echo "GATE FAIL — at least one cell regressed against the pass set (see REGRESS lines)."
+fi
+_RC=$_GATE_RC
+# EXIT trap fires here: production restore + monitor, unconditionally.

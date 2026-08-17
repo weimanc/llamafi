@@ -21,29 +21,13 @@ from typing import Callable, TYPE_CHECKING
 if TYPE_CHECKING:
     from run_serialdbg_tests import Dut
 
-# ── result tracking ───────────────────────────────────────────────────────────
-
-RESULTS: dict[str, str] = {}
-
-
-def pass_(tid: str, detail: str = ""):
-    RESULTS[tid] = "PASS"
-    print(f"  [PASS] {tid}" + (f"  {detail}" if detail else ""))
-
-
-def fail(tid: str, reason: str):
-    RESULTS[tid] = f"FAIL: {reason}"
-    print(f"  [FAIL] {tid}  {reason}")
-
-
-def skip(tid: str, reason: str):
-    RESULTS[tid] = f"SKIP: {reason}"
-    print(f"  [SKIP] {tid}  {reason}")
-
-
-def flake(tid: str, reason: str):
-    RESULTS[tid] = f"FLAKE: {reason}"
-    print(f"  [FLAKE] {tid}  {reason}")
+# ── result tracking — moved to lib/results.py (TASK-520) ──────────────────────
+# These were byte-identical copies of run_serialdbg_tests.py's. Re-exported here
+# so every satellite suite keeps its existing import line, exactly like the
+# lib/dut.py shim. flake() now consults docs/verification/flaky.yaml.
+from lib.dut import resolve_port                              # noqa: E402,F401
+from lib.results import (RESULTS, pass_, fail, skip, flake,   # noqa: E402,F401
+                         run_with_flake_retry, print_results)
 
 
 # ── CLI factory ───────────────────────────────────────────────────────────────
@@ -72,26 +56,18 @@ def run_suite(
     inter_test_sleep: float = 0.5,
 ) -> None:
     for tid in selected:
-        try:
-            test_fns[tid](dut)
-        except TimeoutError as e:
-            fail(tid, f"TimeoutError: {e}")
-        except Exception as e:
-            fail(tid, f"Exception: {e}")
-            traceback.print_exc()
+        def _once(tid=tid):
+            try:
+                test_fns[tid](dut)
+            except TimeoutError as e:
+                fail(tid, f"TimeoutError: {e}")
+            except Exception as e:
+                fail(tid, f"Exception: {e}")
+                traceback.print_exc()
+        # TASK-520: a declared flake gets exactly one mandated retry here; an
+        # undeclared one never reaches this path (flake() already made it a FAIL).
+        run_with_flake_retry(tid, _once)
         time.sleep(inter_test_sleep)
 
 
-# ── results summary ───────────────────────────────────────────────────────────
-
-def print_results(all_tests: list[str]) -> None:
-    print("\n── Results ──────────────────────────────────")
-    passed  = sum(1 for v in RESULTS.values() if v == "PASS")
-    failed  = sum(1 for v in RESULTS.values() if v.startswith("FAIL"))
-    skipped = sum(1 for v in RESULTS.values() if v.startswith("SKIP"))
-    flaked  = sum(1 for v in RESULTS.values() if v.startswith("FLAKE"))
-    for tid in all_tests:
-        if tid in RESULTS:
-            print(f"  {tid}: {RESULTS[tid]}")
-    print(f"\n{passed} passed, {failed} failed, {skipped} skipped, {flaked} flaked")
-    sys.exit(0 if failed == 0 else 1)
+# ── results summary — lib/results.print_results (imported above) ──────────────
