@@ -234,88 +234,10 @@ static inline void mb_heap_probe(const char *) {}   // no-op (production / non-d
 
 bool g_appLaunched[(int)AppId::COUNT] = {};
 
-// ── SpotifyApp (TASK-090d) ─────────────────────────────────────────────
-// TASK-496/467: WINAMP_DISPLAY is defined by every buildable env
-// (ADR-061 D8 demoted the one env that didn't, [env:cyd2usb], to a
-// non-building base section) — the #ifdef here was unconditionally
-// true and has been removed.
-#include "apps/spotifyApp.h"
-static SpotifyApp g_SpotifyApp;
+#include "shell/appTable.h"   // COMPOSITION ROOT — the 13 App instances + g_apps[],
+                             // moved verbatim, M-SRCLAYOUT Stage D (TASK-456)
 
-// ── ClockApp (M-CLOCK-STYLES) ─────────────────────────────────────────
-#include "clockApp.h"
-static ClockApp g_ClockApp;
-
-// ── VE instrumentation statics (consumed by SERIAL_DEBUG cmdGet) ─────────────
-static bool s_wxDataReady   = false;   // set true when WeatherApp receives first fetch
-static bool s_cxDataReady   = false;   // set true when CryptoApp receives first fetch
-static int  s_golAliveCount = -1;      // -1 = GoL never ticked; ≥0 = last alive count
-
-#include "apps/matrixApp.h"
-static MatrixApp g_MatrixApp;
-
-#include "apps/weatherApp.h"
-static WeatherApp g_WeatherApp;
-
-#include "apps/cryptoApp.h"
-static CryptoApp g_CryptoApp;
-
-#include "apps/lifeApp.h"
-static LifeApp g_LifeApp;
-
-#include "apps/settingsApp.h"
-static SettingsApp g_SettingsApp;
-LedFlow      g_ledFlow;
-BacklightFlow g_backlight;   // WIRE2-G5: backlight owner (ADR-050)
-KeyboardWidget g_keyboard;
-SPickerList g_countryPicker;   // M-COUNTRY-PICKER: shared modal country picker (settingsWidgets.h)
-#ifdef SERIAL_DEBUG
-static bool settingsDbgGet(const char* v, char* b, int l) { return g_SettingsApp.dbgGet(v, b, l); }
-#endif
-
-#include "apps/stockApp.h"
-static StockApp g_StockApp;
-static bool stockDbgGet(const char* v, char* b, int l) { return g_StockApp.dbgGet(v, b, l); }
-static bool stockDbgSet(const char* v, const char* val) { return g_StockApp.dbgSet(v, val); }
-
-#include "aquarium/aquariumApp.h"
-static AquariumApp g_AquariumApp;
-
-#include "teletextApp.h"
-static TeletextApp g_TeletextApp;
-static bool teletextDbgGet(const char* v, char* b, int l) { return g_TeletextApp.dbgGet(v, b, l); }
-static bool teletextDbgSet(const char* v, const char* val) { return g_TeletextApp.dbgSet(v, val); }
-
-#include "planeRadarApp.h"
-static PlaneRadarApp g_PlaneRadarApp;
-static bool planeRadarDbgGet(const char* v, char* b, int l) { return g_PlaneRadarApp.dbgGet(v, b, l); }
-static bool planeRadarDbgSet(const char* v, const char* val) { return g_PlaneRadarApp.dbgSet(v, val); }
-
-// TASK-496/467: WINAMP_DISPLAY is unconditionally defined (see note above); #ifdef removed.
-#include "webRadioApp.h"
-static WebRadioApp g_WebRadioApp;
-static bool webRadioDbgGet(const char* v, char* b, int l) { return g_WebRadioApp.dbgGet(v, b, l); }
-static bool webRadioDbgSet(const char* v, const char* val) { return g_WebRadioApp.dbgSet(v, val); }
-
-#include "localPlayerApp.h"
-static LocalPlayerApp g_LocalPlayerApp;   // TASK-413: placeholder, real UI is TASK-415+
-
-#ifdef SERIAL_DEBUG
-static bool matrixDbgGet(const char* v, char* b, int l)   { return g_MatrixApp.dbgGet(v, b, l); }
-static bool lifeDbgGet(const char* v, char* b, int l)     { return g_LifeApp.dbgGet(v, b, l); }
-static bool cryptoDbgGet(const char* v, char* b, int l)   { return g_CryptoApp.dbgGet(v, b, l); }
-static bool aquariumDbgGet(const char* v, char* b, int l) { return g_AquariumApp.dbgGet(v, b, l); }
-#endif
-
-// ── App registry + shell gesture state (TASK-090f) ────────────────────
-
-// TASK-496/467: WINAMP_DISPLAY is unconditionally defined (see note above);
-// the {} else-branch (populated by no buildable env) is removed.
-App* g_apps[(int)AppId::COUNT] = {
-#define APP_X(Name, icon, cfg, disp) &g_##Name##App,
-#include "appRegistry.h"
-#undef APP_X
-};
+// ── shell gesture state (TASK-090f) ───────────────────────────────────
 
 static bool          s_inGesture  = false;
 static int           s_lastTouchX = 0, s_lastTouchY = 0;
