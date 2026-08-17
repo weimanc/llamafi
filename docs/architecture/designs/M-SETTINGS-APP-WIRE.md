@@ -21,16 +21,16 @@ Every app ignores the stored preferences and uses hardcoded constants or default
 
 | App | `g_settings` field | Settings UI | App consumes | Hardcoded in |
 |-----|--------------------|-------------|--------------|--------------|
-| Matrix | `matrixColor` | ✅ green/white/amber | ❌ | `main.cpp:342,344` — `TFT_WHITE` / `TFT_GREEN` |
-| Matrix | `matrixSpeed` | ✅ slow/normal/fast | ❌ | `main.cpp:324` — `random(5,15)` range; `MATRIX_TICK_MS=25` |
-| Life   | `lifeSpeed`   | ✅ slow/normal/fast | ❌ | `main.cpp:541` — `GOL_TICK_MS=100` constant |
-| Life   | `lifeColors`  | ✅ rainbow/mono | ❌ | `main.cpp:590` — always `tft.color565(r, g, 255-r)` |
+| Matrix | `matrixColor` | ✅ green/white/amber | ❌ | `app/src/apps/matrixApp.h` (`MatrixApp::_applyMatrixSettings`) — `TFT_WHITE` / `TFT_GREEN` |
+| Matrix | `matrixSpeed` | ✅ slow/normal/fast | ❌ | `app/src/apps/matrixApp.h` (`MatrixApp::initMatrixState`) — `random(5,15)` range; `MATRIX_TICK_MS=25` |
+| Life   | `lifeSpeed`   | ✅ slow/normal/fast | ❌ | `app/src/apps/lifeApp.h` (`GOL_TICK_MS`) — `GOL_TICK_MS=100` constant |
+| Life   | `lifeColors`  | ✅ rainbow/mono | ❌ | `app/src/apps/lifeApp.h` (`LifeApp::repaintLife`) — always `tft.color565(r, g, 255-r)` |
 | Aquarium | `aquariumFish` | ✅ 4/8/12/16 | ❌ | `aquariumApp.h:181` — `AQ_FISH_COUNT=16` compile-time |
 | Aquarium | `aquariumSpeed` | ✅ slow/normal/fast | ❌ | hardcoded speed constants in aquariumApp.h |
-| Crypto | `cryptoCoins[6]` | ✅ cycle pool | ❌ | `main.cpp:467` `CRYPTO_SYMBOLS[]`; `dataTaskStorage.cpp:75` `CRYPTO_IDS[]` + URL |
-| Crypto | `cryptoCcy` | ✅ USD/EUR | ❌ | `dataTaskStorage.cpp:72` — `"usd"` in URL |
-| Stock  | `stockTickers[8]` | ✅ cycle pool | ❌ | `main.cpp:925-928` `strcpy` hardcoded; `dataTaskStorage.cpp:79` `STOCK_TICKERS[]` |
-| Stock  | `stockMode` | ✅ list/chart/heatmap | ❌ | `main.cpp:929` — always `StockSubView::List` |
+| Crypto | `cryptoCoins[6]` | ✅ cycle pool | ❌ | the pool is now `kPool[]` in `app/src/settings/appsSection.h`, displayed via `app/src/apps/cryptoApp.h` (`cgIdToDisplay`); `app/src/dataTaskStorage.cpp` (`fetchCrypto`) builds the URL. The `CRYPTO_SYMBOLS[]` / `CRYPTO_IDS[]` arrays this row originally cited no longer exist |
+| Crypto | `cryptoCcy` | ✅ USD/EUR | ❌ | `app/src/dataTaskStorage.cpp` (`fetchCrypto`) — `"usd"` in URL |
+| Stock  | `stockTickers[8]` | ✅ cycle pool | ❌ | `app/src/apps/stockApp.h` (`StockApp::init`) `strcpy` hardcoded; `dataTaskStorage.cpp:79` `STOCK_TICKERS[]` |
+| Stock  | `stockMode` | ✅ list/chart/heatmap | ❌ | `app/src/apps/stockApp.h` (`StockApp::init`) — always `StockSubView::List` |
 
 ---
 
@@ -318,7 +318,7 @@ bool hasPendingAsync() const override {
 **Tickers — app layer (StockApp):**
 
 `StockApp::init()` seeds `_s.tickers[i]` from `g_settings.stockTickers[i]` (removes
-hardcoded `strcpy` at `main.cpp:925-928`).
+hardcoded `strcpy` at `app/src/apps/stockApp.h` (`StockApp::init`)).
 
 `StockApp::resume()` compares `g_settings.stockTickers` against `_s.tickers`; if any
 differ, re-seeds and triggers immediate re-fetch (same as before — no change from

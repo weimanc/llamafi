@@ -99,7 +99,8 @@ at them. They fall into three groups needing three different answers:
 | **Shell state** | `g_shellBusy`, `g_shellBusySetMs`, `g_previousAppId`, `g_appLaunched[]`, `s_inGesture`, `s_lastTouchX/Y`, `s_cooldownMs`, `s_tbPressedSlot`, `s_tbPressedApp` | loose file-scope variables in `main.cpp` |
 | **Shared widgets** | `g_ledFlow`, `g_backlight`, `g_keyboard`, `g_countryPicker`, `g_touchDebug` | non-`static` in `main.cpp`, reached by `extern` |
 
-Because these definitions live at `main.cpp:164`–`1971`, any code that touches them must be
+Because these definitions live in the globals block near the top of `app/src/main.cpp` (`currentAppId`
+through the app-instance table), any code that touches them must be
 *textually downstream of that point*, and `main.cpp` is the only translation unit that is. The
 include list is correspondingly load-bearing: `settings/*.h` is pulled in mid-file at `938`–`944`,
 apps are instantiated immediately before the `dbg` shims that reference them, and `appRegistry.h` is
@@ -606,7 +607,7 @@ Settings navigation, which has **not** been run.
   just a stale number — it omits the `cyd2usb_player` build and the `gen_mem_layout` gate.
 - `appRegistry.h` is included twice in `main.cpp` (`1959`, `3665`). Legitimate X-macro re-inclusion,
   but it should carry a comment saying so at both sites.
-- `main.cpp:164`'s `g_previousAppId` and `appShell.h`'s `currentAppId` are the same concept split
+- `app/src/main.cpp` (`g_previousAppId`)'s `g_previousAppId` and `appShell.h`'s `currentAppId` are the same concept split
   across two files with different naming conventions. Unify under `ShellState` in Stage C.
 
 ## 9. Test & validation

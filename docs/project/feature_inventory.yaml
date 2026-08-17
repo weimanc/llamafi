@@ -716,6 +716,7 @@ features:
     git_ref: "4c3cb05 (HEAD; impl 27bd86b; tickers f704c2e+4d71798; stream fix 4c3cb05)"
     files:
       - app/src/main.cpp
+      - app/src/apps/stockApp.h
       - app/src/appShell.h
       - app/src/dataTask.h
       - app/src/dataTaskStorage.cpp
@@ -754,6 +755,7 @@ features:
     git_ref: "483920e (area+orientation fix; impl 11eb6bb; nav fixes 40dd18c/82b6a18)"
     files:
       - app/src/main.cpp
+      - app/src/apps/stockApp.h
       - app/src/appShell.h
       - app/src/dataTask.h
       - app/src/dataTaskStorage.cpp
@@ -890,6 +892,7 @@ features:
     git_ref: "fff0208 (2026-07-17)"
     files:
       - app/src/main.cpp
+      - app/src/clockApp.h
     cross_features: [taskbar-001]
     test_ids: []
     notes: |
@@ -917,6 +920,7 @@ features:
       - app/src/appShell.h
       - app/src/touchPhase.h
       - app/src/main.cpp
+      - app/src/app.h
       - app/src/winamp/winampDisplay.h
     cross_features: [taskbar-001, clock-001, touch-002, serialdbg-001]
     test_ids: [T_BI_01, T_BI_02, T_BI_03, T_BI_04]
@@ -937,6 +941,7 @@ features:
     git_ref: "eeb8091"
     files:
       - app/src/main.cpp
+      - app/src/apps/matrixApp.h
       - app/src/appShell.h
     cross_features: [app-interface-001, taskbar-001]
     test_ids: [T_MA_01, T_MA_02, T_MA_03, T_MA_04, T_MA_05]
@@ -957,6 +962,7 @@ features:
     git_ref: "8ed2385"
     files:
       - app/src/main.cpp
+      - app/src/apps/lifeApp.h
       - app/src/appShell.h
     cross_features: [app-interface-001, taskbar-001]
     test_ids: [T_GOL_01, T_GOL_02, T_GOL_03, T_GOL_04, T_GOL_05, T_GOL_06, T_GOL_07]
@@ -980,6 +986,7 @@ features:
     git_ref: "e96bb60"
     files:
       - app/src/main.cpp
+      - app/src/apps/weatherApp.h
       - app/src/appShell.h
       - app/src/dataTask.h
       - app/src/dataTaskStorage.cpp
@@ -1009,6 +1016,7 @@ features:
     git_ref: "e96bb60"
     files:
       - app/src/main.cpp
+      - app/src/apps/cryptoApp.h
       - app/src/appShell.h
       - app/src/dataTask.h
       - app/src/dataTaskStorage.cpp
@@ -1120,6 +1128,7 @@ features:
     git_ref: "8005297, 2661e4a"
     files:
       - app/src/main.cpp
+      - app/src/apps/settingsApp.h
       - app/src/settingsStorage.h
       - app/src/settingsStorage.cpp
       - app/src/settings/settingsSection.h
@@ -2166,7 +2175,7 @@ features:
       + TouchCalStorage::load()/backlight handoff in setup() — before the
       WiFi connect cascade and NTP sync — replacing the black screen that
       previously persisted until the first post-network chrome paint
-      (main.cpp:2415-2422, unchanged, now a cheap idempotent second pass).
+      (app/src/main.cpp (setup), unchanged, now a cheap idempotent second pass).
       Boot progress (WiFi fallback stage, NTP sync/fallback) is surfaced via
       the existing title marquee (winampDisplay::setTitle(), redraw-on-change
       reused as-is) with marquee-scroll liveness riding the WiFi/NTP wait
@@ -2185,7 +2194,7 @@ features:
       stash on reconnect) rather than per-app rendering code, plus a new
       loop()-level edge-triggered detector gated by the same
       currentAppId != AppId::Settings condition wifiDiag::superviseTick()
-      already uses (main.cpp:3886) — load-bearing, not cosmetic: Settings
+      already uses (app/src/main.cpp, loop) — load-bearing, not cosmetic: Settings
       already repaints that whole pixel region itself (full-screen canvas
       convention), so an ungated override would corrupt the Settings UI.
     git_ref: "fc39056 (TASK-364, 2026-07-25)"

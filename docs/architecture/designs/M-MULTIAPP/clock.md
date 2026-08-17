@@ -181,6 +181,8 @@ for (int i = 0; i < 4; i++) {
 
 ## State
 
+> **Removed — this struct no longer exists.** Deleted in commit `a044f5d` (`T_488_02`: 0 code references before the delete); the state it described lives as private members of the app class. Retained as the design record.
+
 ```cpp
 struct ClockAppState {
     bool initialised;   // triggers chrome repaint on first launch

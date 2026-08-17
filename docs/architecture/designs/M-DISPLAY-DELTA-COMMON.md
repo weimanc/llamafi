@@ -167,7 +167,7 @@ this design's own survey):** the claim above that this technique is "brand
 new to this codebase, zero prior call sites" is **wrong**. `grep -rn
 setViewport app/src/` (re-run properly this time) finds it already inline in
 two places: `clockApp.h:425-438` (Flip face digit clipping — almost
-certainly landed as part of TASK-354 itself) and `main.cpp:1677-1680`
+certainly landed as part of TASK-354 itself) and `app/src/apps/stockApp.h` (`StockApp::repaintHeatmap`)
 (heatmap rotated-text clipping). Both call `resetViewport()` correctly on
 every path — no live bug — but this means PlaneRadar is the **first
 consumer of the new `withViewportRepair` helper**, not the first use of the

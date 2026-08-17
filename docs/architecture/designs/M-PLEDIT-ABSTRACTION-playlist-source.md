@@ -407,8 +407,8 @@ failed. The control is the only reason we know that; a 2-presentation A/B withou
 been read as a regression in whichever build happened to land second.
 
 **The dominant noise source is the shell busy lockout, not the renderer.** `SHELL_BUSY_TIMEOUT_MS`
-is 3 000 ms (`main.cpp:1906`) and `appHandleInput` drops input outright while it is set
-(`main.cpp:2110`). Any gesture that qualifies as a tap — `abs(dy) < 6 px` and `< 250 ms` — dispatches
+is 3 000 ms (`app/src/main.cpp`, `SHELL_BUSY_TIMEOUT_MS`) and `appHandleInput` drops input outright while it is set
+(`app/src/main.cpp`, `appHandleInput`). Any gesture that qualifies as a tap — `abs(dy) < 6 px` and `< 250 ms` — dispatches
 `ACT_PLAY_URI`, which sets busy, which silently swallows **every gesture for the next ~3 s**. During
 feel-testing, taps happen constantly by accident, so a run degenerates into "half my gestures did
 nothing", and *how many* land differs run to run. This is pre-existing behaviour with nothing to do
@@ -483,7 +483,7 @@ Rig notes for whoever picks this up: the CH340 moved `/dev/ttyUSB0` → `/dev/tt
 always use `./run/port`. `run/screendump`'s height flag is `-H` (`-h` is help). Injection and capture
 must share one serial session: `run/screendump` DTR-resets on connect, which wipes the injected
 queue, and so does closing the port — hold it open for the duration instead. With WiFi up the board
-boots into whichever player mode is persisted (`bootIntoWebRadio`, `main.cpp:2616`), so force
+boots into whichever player mode is persisted (`bootIntoWebRadio`, `app/src/main.cpp` (`setup`)), so force
 `set playerMode spotify` before testing or you will be driving WebRadio's untouched PLEDIT copy
 instead of the one under test.
 

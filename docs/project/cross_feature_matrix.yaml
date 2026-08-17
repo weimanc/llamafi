@@ -474,7 +474,7 @@ interactions:
       _prDeleteSlot() (appsSection.h:808/:632 — H-11 name/line fix: was cited as
       _prSaveGeocode), and `set prloc <i> <label> <lat> <lon>` (main.cpp serialdbg).
       KNOWN NON-COMPLIANT (H-3, found 2026-07-16 review): the full-form serial
-      writer at main.cpp:3422-3426 refreshes NO mirror today — editing the active
+      writer at app/src/debug/serialConsole/cmdSet.h (cmdSet) refreshes NO mirror today — editing the active
       slot's coords over serial leaves the radar stale until reboot/switch. Fix
       owned by M-HOME-LOCATION's shared writer helper (T-HOME-06). A new writer
       that skips the mirror leaves the radar centred on stale coordinates with no
@@ -582,10 +582,10 @@ interactions:
     description: |
       The persisted timezone (g_settings.posixTz) must be applied at boot by time-001's
       NTP-init path, not only by the Settings city picker. Today boot calls
-      configTime(0, 0, ...) = UTC (main.cpp:2265) and the saved rule is applied solely
+      configTime(0, 0, ...) = UTC (app/src/main.cpp, setup) and the saved rule is applied solely
       inside timeSection's city pick (configTzTime, timeSection.h:241) — so every
       reboot silently reverts all clocks to UTC (M-SETTINGS-WIRE2 G1). Fix couples the
-      two: boot ordering guarantee is SettingsStorage::load() (main.cpp:2119) BEFORE
+      two: boot ordering guarantee is SettingsStorage::load() (app/src/main.cpp, setup) BEFORE
       configTzTime(g_settings.posixTz, ...); the city picker remains the change-time
       applier. Same edge-shape as X001 (time-001 must precede TLS): boot-order
       dependencies around time-001 keep biting.
@@ -628,7 +628,7 @@ interactions:
       Auto-brightness (dispAuto/ldrLow/ldrHigh) needs an owner outside the Settings UI:
       today the whole LDR sample→map→ledcWrite loop lives in DisplaySection::tick()
       (displaySection.h:24-42) and runs ONLY while Settings→Display is the active view;
-      boot applies manual dispLevel unconditionally (main.cpp:2127) even when
+      boot applies manual dispLevel unconditionally (app/src/main.cpp, setup) even when
       dispAuto=true (M-SETTINGS-WIRE2 G5). Fix introduces a global BacklightFlow
       (LedFlow clone: applyMode() at boot, tick() in main loop, pause()/resume() so the
       Display section's manual-slider preview doesn't fight the controller). Invariant
@@ -834,7 +834,7 @@ interactions:
       from a new, earlier call site in main.cpp's setup() — immediately
       after displaySetup() + TouchCalStorage::load()/backlight handoff,
       before the WiFi connect cascade. The later, existing call site
-      (main.cpp:2415-2422) is unchanged and becomes a harmless idempotent
+      (app/src/main.cpp, setup) is unchanged and becomes a harmless idempotent
       second paint. No new rendering logic in chrome-001 — a call-site
       relocation plus reuse from boot-ui-001's side.
     risk: low
@@ -871,7 +871,7 @@ interactions:
     interaction_type: dependency
     description: |
       Same shape as X040, keyed to time-001's NTP sync wait
-      (main.cpp:2308-2332) and its HTTPS-Date fallback branch — boot-ui-001
+      (app/src/main.cpp, setup) and its HTTPS-Date fallback branch — boot-ui-001
       sets marquee status text at phase entry/fallback and drives
       tickMarquee() from the loop's existing yield() call. Read-only with
       respect to time-001.
@@ -889,7 +889,7 @@ interactions:
     description: |
       boot-ui-001's §6 loop()-level WiFi-down marquee detector must be
       gated by the SAME currentAppId != AppId::Settings condition
-      wifi-diag-001's superviseTick() already uses (main.cpp:3886) — not a
+      wifi-diag-001's superviseTick() already uses (app/src/main.cpp, loop) — not a
       function-call dependency (the down-duration tracking is deliberately
       self-contained in the new loop() block, no new wifiDiag API added),
       but a shared policy that must not drift: if superviseTick()'s
@@ -1154,7 +1154,7 @@ interactions:
       RECLAIM (ADR-059 D11, operator decision 2026-08-07 — proactive, scheduled FIRST as TASK-423):
       11956 B of the debug build's 12792 B .bss overage over prod (93%) is two function statics in
       one #ifdef SERIAL_DEBUG command — cmdScreenDump's s_b64 (6836 B) and s_band (5120 B),
-      main.cpp:3966-3967. Neither appears in the production map (verified, zero matches). Moving them
+      app/src/debug/serialConsole/cmdMisc.h (cmdScreenDump). Neither appears in the production map (verified, zero matches). Moving them
       to per-invocation malloc/free takes debug headroom 304 B -> ~12.2 KB with zero production
       impact. No separate X-entry: screendump has no feature id of its own (a small registry gap,
       noted not fixed here), so the edge is recorded against this one.
@@ -1269,11 +1269,11 @@ interactions:
       entry and exit of every run/test* session, and one repro attempt was clean (0/1). Does not
       block the widening.
       BUT the debug surface is hardcoded two-valued and fails SILENTLY, not loudly:
-        - main.cpp:3336 (get): `uint8_t pm = g_settings.playerMode ? 1 : 0;` + name = pm ?
+        - app/src/debug/serialConsole/cmdGet.h (cmdGet), the `get` handler: `uint8_t pm = g_settings.playerMode ? 1 : 0;` + name = pm ?
           "WebRadio" : "Spotify" -> reports Player mode as WebRadio(1). The TASK-407
           instrumentation reads exactly this getter, so it will log confident wrong data for the
           very bug it exists to catch.
-        - main.cpp:3806-3807 (set): rejects idx > 1 and only accepts "spotify"/"webradio", so
+        - app/src/debug/serialConsole/cmdSet.h (cmdSet), the `set` handler: rejects idx > 1 and only accepts "spotify"/"webradio", so
           Player mode is unreachable from the harness.
       TASK-413 must widen BOTH in the same commit as the enum change. VE gate: `get playerMode`
       round-trips all three values.

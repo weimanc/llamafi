@@ -197,7 +197,8 @@ proposed guard #2; fewer touched lines = a cleaner byte-unchanged gate).
 
 **Link-safety constraint (VE B2 — design-level, must be honoured by impl):** `cmdGet`/`info`/dbg
 paths call `spotifyTask::stackHighWaterBytes()`, `stackSizeBytes()`, `activeError()`, `dbgGet/
-dbgSet`, `cmdReconnect` **unconditionally** (main.cpp:2461/2470/2536/2611/2124). Each must remain
+dbgSet`, `cmdReconnect` **unconditionally** — five call sites, all in the serial-console
+handlers under `app/src/debug/serialConsole/` (`cmdGet`, `cmdSet`, `cmdMisc`). Each must remain
 **link-safe and return a zero/empty/no-op value when the task was never created** (most already
 null-check; the impl must audit *all* of them, or the disabled build crashes on the first `get
 stacks`). This is the real design obligation — not new `#ifdef`s, but a verified null-safety

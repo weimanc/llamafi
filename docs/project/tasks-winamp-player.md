@@ -52,10 +52,10 @@ TASK-406 itself was originally triggered by — worth a process note (see below)
 this task's actual mystery.
 
 **Ruled out / considered:**
-- `persistPlayerMode()` (`main.cpp:1935`) does an immediate `SettingsStorage::save()`, not a
+- `persistPlayerMode()` (`app/src/main.cpp`, `planeRadarDbgSet`) does an immediate `SettingsStorage::save()`, not a
   coalesced/RAM-only write — no reason a completed `set playerMode 0` response should be lying
   about having persisted.
-- The debug `set playerMode` handler (`main.cpp:3803-3819`) parses both numeric and
+- The debug `set playerMode` handler (`app/src/debug/serialConsole/cmdGet.h`, `cmdGet`) parses both numeric and
   `spotify`/`webradio` string forms correctly; not a parsing bug.
 - Not explained by any test in the T077-T082 group or the T079/T082 targeted subset — neither
   touches `playerMode`.
@@ -243,9 +243,10 @@ filing.
 
 **Next step for whoever fixes it** — and it is now a narrow question, not a hunt: instrument
 `fp->obj.fs` and `fs->id` per chunk (a debug build already has `ff.h` and `ffconf.h` included for
-exactly this, `main.cpp:89-92`) and find who invalidates them. `fs->id` changes on every `f_mount`,
-so a concurrent remount is the leading candidate — `SD.begin()`/`SD.end()` live at `main.cpp:3195`,
-`:5060`, `:5095`, `:5099`, and `main.cpp:92` already refers to a "deferred live-mount corruption"
+exactly this, `app/src/main.cpp` (`casRetryDisabled`)) and find who invalidates them. `fs->id` changes on every `f_mount`,
+so a concurrent remount is the leading candidate — `SD.begin()`/`SD.end()` live in
+`app/src/main.cpp` (`sdMountAttempt`, `sdProbeBootMount`) and `app/src/debug/serialConsole/cmdSd.h`,
+and `app/src/main.cpp` already refers to a "deferred live-mount corruption"
 investigation that was never completed.
 
 **Fixture safety, checked after the runs**: `/playlists/short5.m3u` still loads 5 entries and
@@ -687,7 +688,7 @@ Walked all eight sections against the code. **5 pass, 1 documented deviation, 1 
 | 1 | `hasPendingAsync()` override | PASS — `localPlayerApp.h:383`, returns `_browser.pending()` |
 | 2 | `tlsYield()`/`tlsResume()` bracketing | N/A — LocalPlayer makes no HTTPS calls. The engine yields on its behalf: `aeConnectFile()` takes a **bounded** `tlsTryYield()` (TASK-430). Recorded rather than ticked, because the obligation is met by delegation, not by absence |
 | 3 | `dbgGet`/`dbgSet` standard interface | **DEVIATION — see below** |
-| 4 | `cmdTap` busy propagation | PASS — `main.cpp:3272` checks `hasPendingAsync()` on the LocalPlayer branch |
+| 4 | `cmdTap` busy propagation | PASS — `app/src/debug/serialConsole/cmdTouch.h` (`cmdTap`) checks `hasPendingAsync()` on the LocalPlayer branch |
 | 5 | `cross_feature_matrix.yaml` entries | **GAP** — X050–X064 all exist and are substantive, but **every one has `test_coverage: []`**, including three marked `risk: high`. This is the QM audit's third dimension failing on the newest milestone |
 | 6 | Taskbar visibility + icon | PASS — taskbar-hidden by design, shares the player slot; `taskbar.h:29/65/80` carry the invariant and the static_asserts |
 | 7 | `init()` vs `resume()` first paint (BP-048) | **OWED** — both exist (`:134`/`:163`), but "init produces the COMPLETE first paint" is a pixel claim that greps cannot settle. Needs a screendump on `cyd2usb_player` |
@@ -696,7 +697,8 @@ Walked all eight sections against the code. **5 pass, 1 documented deviation, 1 
 **Item 3, the deviation.** `WebRadioApp` and `PlaneRadarApp` implement
 `bool dbgGet(const char* var, char* buf, int len) const`; `LocalPlayerApp` instead exposes bespoke
 methods (`dbgReport`, `dbgMem`, `dbgRow`, `dbgFbState`, `dbgOrder`, `dbgCursor`, `dbgLoad`,
-`dbgPlayRow`) dispatched directly from `main.cpp:3837-3856` and `:4136-4150`. It works and the
+`dbgPlayRow`) dispatched directly from `app/src/debug/serialConsole/cmdGet.h` (`cmdGet`) and
+`app/src/debug/serialConsole/cmdSet.h` (`cmdSet`). It works and the
 harness uses it heavily. It is recorded as a deviation rather than ticked or silently fixed:
 converting it is a refactor with no behavioural gain, and the next author needs to know the two
 shapes coexist.

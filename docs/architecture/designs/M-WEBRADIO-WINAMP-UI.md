@@ -76,7 +76,7 @@ Repaint cost: one guarded call per UI tick, 4 sprite blits at most 1×/second.
 ## Item 3 — reuse the synthetic visualizer in radio mode (TASK-350)
 
 **Today:** `vu::tick()` is called only from the Spotify app's tick
-(`main.cpp:243`); the vis area in radio mode is static `MAIN_BG`. Blocker:
+(`app/src/apps/spotifyApp.h`, `SpotifyApp::tick`); the vis area in radio mode is static `MAIN_BG`. Blocker:
 `vu::tick()` **internally** grabs `spotifyTask::copySnapshot()` and
 `songStartMillis` to derive `playing`/`elapsed` (`vuMeter.h:368-378`) — it is
 hard-coupled to Spotify state and would render a dead vis (or worse, dance to
@@ -86,7 +86,7 @@ a stale Spotify snapshot) if simply called from WebRadio.
 
 - Refactor the entry point to `vu::tick(originX, originY, mainBg, playing,
   elapsedMs)`; move the snapshot read into a thin Spotify-side wrapper (or
-  the call site at `main.cpp:243`) so the Spotify path is byte-identical in
+  the call site at `app/src/apps/spotifyApp.h` (`SpotifyApp::tick`)) so the Spotify path is byte-identical in
   behaviour.
 - WebRadio's tick calls it with `playing = (_state == PLAYING)` and
   `elapsedMs` from the item-2 time source (seconds×1000 is fine — the
@@ -99,7 +99,7 @@ a stale Spotify snapshot) if simply called from WebRadio.
   `handleInput` doesn't already fall through to it, route a tap in the vis
   rect to `vu::nextMode()` — small, and the M-VIS zone geometry is already
   in `vuMeter.h`.
-- `get visMode` (`main.cpp:3050`) works unchanged — same global.
+- `get visMode` (`app/src/debug/serialConsole/cmdGet.h`, `cmdGet`) works unchanged — same global.
 
 Interaction with item 2: both read pump-task state each tick; keep them in
 the same read block (one take, both values out).

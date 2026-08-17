@@ -72,13 +72,15 @@ No `.cpp` companion file is needed; the simulation is compute-bound with no long
 
 ## 3. State Struct in appShell.h
 
+> **Removed — this struct no longer exists.** Deleted in commit `a044f5d` (`T_488_02`: 0 code references before the delete); the state it described lives as private members of the app class. Retained as the design record.
+
 ```cpp
 struct AquariumAppState {
     bool initialised;   // true after first init() call
 };
 ```
 
-The full simulation state (fish pool, bubble pool, flakes, octopus, seahorse, timing fields) lives inside `AquariumApp` as private members, **not** in this struct. `AquariumAppState` exists only to satisfy the pattern used by other apps (ClockAppState, LifeAppState) for the `g_appLaunched` first-launch gate.
+The full simulation state (fish pool, bubble pool, flakes, octopus, seahorse, timing fields) lives inside `AquariumApp` as private members, **not** in this struct. `AquariumAppState` existed only to satisfy the pattern used by other apps (`ClockAppState`, `LifeAppState`) for the `g_appLaunched` first-launch gate — and, since nothing ever read it, was deleted along with `ClockAppState` and `SpotifyAppState` in `a044f5d`.
 
 Add to `appShell.h` after `LifeAppState`:
 

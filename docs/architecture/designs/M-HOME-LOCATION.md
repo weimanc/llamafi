@@ -87,7 +87,7 @@ TWO mirrors and "the mirror" unqualified is banned: the **active mirror**
 | `_prSaveCoords` (slot editor) | iff edited slot == 0, **unconditionally** (H-2) | iff edited slot == active (existing) |
 | `_prDeleteSlot` | never — slot 0 undeletable, its coords don't move (H-2 note: do NOT add one "for symmetry") | on active-delete fallback (existing) |
 | `_setActiveLoc` (strip/serial) | **never** — switching must not move home | always (existing) |
-| `set prloc <i> <label> <lat> <lon>` | iff i==0 | iff i==active — **PRE-EXISTING BUG (H-3): this writer refreshes NO mirror today (`main.cpp:3422-3426`), violating X026's accounting. Fix both obligations here.** |
+| `set prloc <i> <label> <lat> <lon>` | iff i==0 | iff i==active — **PRE-EXISTING BUG (H-3): this writer refreshes NO mirror today (`app/src/debug/serialConsole/cmdSet.h`, `cmdSet`), violating X026's accounting. Fix both obligations here.** |
 
 Implementation routes all writers through one shared helper so the matrix
 lives in exactly one place (the BP-047 no-duplication shape).

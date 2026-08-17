@@ -116,9 +116,9 @@ This pattern is valuable anywhere a Core 0 dataTask function has multiple discre
 | Function | Steps | Progress indicator | Status |
 |---|---|---|---|
 | `fetchStockQuote()` | 8 ticker fetches | `stockQuoteProgress` (ticker index 0–7) | **Shipped** — Phase 1 (TASK-173/174) |
-| `fetchWeather()` | 1 HTTP + 1 JSON parse | `weatherFetchPhase` (0=TLS, 1=GET, 2=parse, -1=idle) | **Shipped** — `dataTaskStorage.cpp:61,116,126,141,160`; exposed via `main.cpp:2377-2380` |
-| `fetchCrypto()` | 1 HTTP + 1 JSON parse | `cryptoFetchPhase` (0=TLS, 1=GET, 2=parse, -1=idle) | **Shipped** — `dataTaskStorage.cpp:62,188,196,200,212,234`; exposed via `main.cpp:2382-2385` |
-| `fetchStockChart()` | 1 HTTP + streaming parse | `stockChartProgress` (0=TLS, 1=GET, 2=parse, -1=idle) | **Shipped** — `dataTaskStorage.cpp:63,314/695 etc.`; exposed via `main.cpp:2387-2390` |
+| `fetchWeather()` | 1 HTTP + 1 JSON parse | `weatherFetchPhase` (0=TLS, 1=GET, 2=parse, -1=idle) | **Shipped** — `dataTaskStorage.cpp:61,116,126,141,160`; exposed via `app/src/debug/serialConsole/cmdGet.h` (`cmdGet`) |
+| `fetchCrypto()` | 1 HTTP + 1 JSON parse | `cryptoFetchPhase` (0=TLS, 1=GET, 2=parse, -1=idle) | **Shipped** — `dataTaskStorage.cpp:62,188,196,200,212,234`; exposed via `app/src/debug/serialConsole/cmdGet.h` (`cmdGet`) |
+| `fetchStockChart()` | 1 HTTP + streaming parse | `stockChartProgress` (0=TLS, 1=GET, 2=parse, -1=idle) | **Shipped** — `dataTaskStorage.cpp:63,314/695 etc.`; exposed via `app/src/debug/serialConsole/cmdGet.h` (`cmdGet`) |
 | `fetchHeatmapQuote()` | 1 HTTP + streaming parse | `heatmapFetchPhase` | Not implemented — no candidate progress atom exists for this function |
 | dataTask queue depth | N items waiting | `dataTaskQueueDepth` | Not implemented beyond existing partial `get` command coverage |
 | SPIFFS load at boot | multi-file read | — | Not implemented; not a dataTask item |

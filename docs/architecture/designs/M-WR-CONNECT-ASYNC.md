@@ -514,7 +514,7 @@ and in one case (#2) understate a crash-class risk as an open question.
    cites "1900ms" as a real figure.
 
 6. Informational, not required: `webRadioApp.h:866`'s existing `isConnecting()` hook (already wired
-   to the taskbar's amber active-indicator, `main.cpp:1878-1893`) could cheaply surface "still
+   to the taskbar's amber active-indicator, `app/src/main.cpp` (`activeConnecting`)) could cheaply surface "still
    connecting" feedback when a WebRadio-own control tap is silently ignored per finding #1/#3's
    fix — addresses OQ1's fairness question with a UI affordance rather than leaving a tap that does
    nothing unexplained. Worth a look during implementation; not a gate.
@@ -598,7 +598,7 @@ it.** Five findings, four blocking.
    touch file-static globals (`s_wr_audio`, `s_wrPumpTeardownPending`, etc.), never `_state`. Neither
    `resume()` (`:474-530`, the function that actually runs on WebRadio re-entry — confirmed `init()`
    runs exactly once per app lifetime, gated by `g_appLaunched[]` in `switchApp()`,
-   `main.cpp:2013-2019`) nor `tick()`'s dispatch polls any "deferred teardown finished" signal to
+   `app/src/main.cpp` (`switchApp`)) nor `tick()`'s dispatch polls any "deferred teardown finished" signal to
    close this loop, and `tick()` doesn't even run while WebRadio is suspended (appShell only ticks
    `currentAppId`), so nothing observes completion until the user is already back in WebRadio. Net
    effect, once requirement 1/2 are patched to stop blocking: **any single eject during `CONNECTING`
@@ -609,7 +609,7 @@ it.** Five findings, four blocking.
    (`_state == STOPPED` at `:527`) never fires; `_play()`'s new requirement-1 guard permanently no-ops
    PREV/NEXT/PLEDIT-tap because `_state == CONNECTING` never stops being true; `_drawTitleZone()`
    (`:1799`) shows "Connecting..." forever; the taskbar's `isConnecting()` amber indicator (`:866`,
-   wired at `main.cpp:1878-1893`) stays lit forever. WebRadio is permanently wedged until the device
+   wired at `app/src/main.cpp` (`activeConnecting`)) stays lit forever. WebRadio is permanently wedged until the device
    reboots. **This is a fifth mandatory requirement** (or a rework of the flag mechanism so it stores
    enough for `tick()`/`resume()` to reconcile `_state` once the deferred teardown lands — e.g. a
    second static, `s_wrPumpTeardownDone`, that `resume()` checks first and uses to reset `_state =

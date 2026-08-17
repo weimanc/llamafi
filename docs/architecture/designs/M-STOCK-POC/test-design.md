@@ -171,7 +171,8 @@ Note: `dbgSet("fetchFailed"/"fetchErrorCode"/"triggerFetch")` mutates `_s` direc
 | `set fetchErrorCode -1` | `{"ok":true,"cmd":"set","var":"fetchErrorCode","val":"-1"}` |
 | `set triggerFetch 1` | `{"ok":true,"cmd":"set","var":"triggerFetch","val":"1"}` |
 
-All responses follow the existing pattern from `cmdGet`/`cmdSet` in `main.cpp:1490–1536`.
+All responses follow the existing pattern from `cmdGet` / `cmdSet`
+(`app/src/debug/serialConsole/cmdGet.h`, `app/src/debug/serialConsole/cmdSet.h`).
 
 ---
 
@@ -256,7 +257,7 @@ A new `cmdSwitchApp` handler in `main.cpp` that calls `switchApp(static_cast<App
 switchApp 7   →  {"ok":true,"cmd":"switchApp","id":7,"name":"Stock"}
 ```
 
-**Trade-off:** Adds a firmware command that bypasses the taskbar entirely; `tbScrollOffset` is unchanged. Tests that verify taskbar-driven switching can't use it. Tests that only need "stock app active" benefit from the simplicity. Does not conflict with the existing `switchApp()` C++ function — it's already a free function in `main.cpp:1047`.
+**Trade-off:** Adds a firmware command that bypasses the taskbar entirely; `tbScrollOffset` is unchanged. Tests that verify taskbar-driven switching can't use it. Tests that only need "stock app active" benefit from the simplicity. Does not conflict with the existing `switchApp()` C++ function — it's already a free function in `app/src/main.cpp` (`switchApp`).
 
 ### 3.4 Recommendation
 

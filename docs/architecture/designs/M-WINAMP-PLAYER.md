@@ -144,8 +144,8 @@ command**:
 
 | Symbol | Size | Home |
 |---|---|---|
-| `cmdScreenDump::s_b64` | 6 836 B | `main.cpp:3967` |
-| `cmdScreenDump::s_band` | 5 120 B | `main.cpp:3966` |
+| `cmdScreenDump::s_b64` | 6 836 B | `app/src/debug/serialConsole/cmdMisc.h` (`cmdScreenDump`) |
+| `cmdScreenDump::s_band` | 5 120 B | `app/src/debug/serialConsole/cmdMisc.h` (`cmdScreenDump`) |
 
 Both live inside the `#ifdef SERIAL_DEBUG` block, and neither appears in the production map
 (verified: zero matches). They are the band buffers for `screendump`, an on-demand host-driven
@@ -397,6 +397,6 @@ confounder.
   milestone.
 
   **One consequence carried forward:** that instrumentation reads `get playerMode`, whose getter is
-  hardcoded two-valued (`main.cpp:3336`) and will report Player mode as `WebRadio(1)`. See
+  hardcoded two-valued (`app/src/debug/serialConsole/cmdGet.h`, `cmdGet`) and will report Player mode as `WebRadio(1)`. See
   [local-playback §6.1](M-WINAMP-PLAYER-local-playback.md) — TASK-413 must widen the getter and
   setter in the same commit as the enum, or the TASK-407 trap starts producing confident wrong data.

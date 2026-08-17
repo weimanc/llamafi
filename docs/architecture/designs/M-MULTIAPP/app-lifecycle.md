@@ -21,6 +21,14 @@ variable alongside the app state union.
 
 ## State structs
 
+> **Superseded — `SpotifyAppState`, `ClockAppState` and `AquariumAppState` no longer exist.**
+> The POD-struct-plus-union model below was never carried through: each app ended up owning
+> its own state as private members of its `App` subclass (`app/src/apps/*.h`,
+> `app/src/clockApp.h`, `app/src/aquariumApp.h`). The three structs survived only as dead
+> declarations and were deleted in commit `a044f5d`, which also extracted the `App` interface
+> into `app/src/app.h`; `T_488_02` confirmed **0** code references before the delete.
+> The section is retained as the design record — read it as history, not as current structure.
+
 Each app declares a POD state struct. All are kept in RAM simultaneously
 (total ~3.8 KB — dominated by the GoL grid). On switch the active app's
 state is written back to its slot; the incoming app's state is restored.

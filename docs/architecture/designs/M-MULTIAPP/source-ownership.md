@@ -96,6 +96,11 @@ Patches against upstream are tracked in `docs/architecture/designs/M-MULTIAPP/up
 
 ## Interface boundary: SpotifyAppState
 
+> **Not built this way.** `SpotifyAppState` was never populated and was deleted in commit
+> `a044f5d` (`T_488_02`: 0 code references). The Spotify render cache lives in
+> `app/src/apps/spotifyApp.h` and `app/src/winamp/winampDisplay.h` instead. Section kept as
+> the design record.
+
 `app-lifecycle.md` already defines `SpotifyAppState` — the render-cache fields
 that winampDisplay.h reads and the shell saves/restores on app switch. This is
 the interface between the Spotify data layer (upstream `spotifyLogic.h`) and

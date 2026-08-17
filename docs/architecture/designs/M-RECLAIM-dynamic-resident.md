@@ -22,7 +22,7 @@ not here.
 ## The lifecycle seam (already exists)
 
 `App` (`appShell.h:9`) has `init()` / `resume()` / `suspend()` / `tick()` / `handleInput()`. `switchApp()`
-(`main.cpp:1762`) already calls `suspend()` on the outgoing app and `init()` (first time) / `resume()` on the
+(`app/src/main.cpp`, `switchApp`) already calls `suspend()` on the outgoing app and `init()` (first time) / `resume()` on the
 incoming one. **These are the triggers** — no new framework needed. The player mode-state (TASK-259) adds the
 Spotify⇄WebRadio sub-state, which is the trigger for Q3 (see §Q3).
 

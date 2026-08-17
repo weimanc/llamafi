@@ -176,7 +176,7 @@ Timezone picker: **dropped** — timezone always follows city selection.
 
 Cycle-on-tap. Stored as `fmt24h: true/false`.
 
-**Clock app changes — `drawTime()` (`main.cpp:255`):**
+**Clock app changes — `drawTime()` (`app/src/clockApp.h`):**
 
 ```cpp
 void drawTime() {
@@ -217,7 +217,7 @@ Three formats, cycle-on-tap. Stored as `dateFmt: "DMY" | "MDY" | "YMD"`.
 | `MDY` | `MM/DD/YYYY` | `06/04/2026` |
 | `YMD` | `YYYY-MM-DD` | `2026-06-04` |
 
-**Clock app changes — `drawDate()` (`main.cpp:278`):**
+**Clock app changes — `drawDate()` (`app/src/clockApp.h`):**
 
 ```cpp
 void drawDate() {

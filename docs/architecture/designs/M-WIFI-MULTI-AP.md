@@ -49,11 +49,11 @@ sized) is noise against this budget. Storage was never the constraint.
 
 - **NVS**, via `WiFi.persistent(true)` — ESP-IDF's WiFi driver persists
   exactly **one** STA config. Boot's fast path: `WiFi.begin()` with no args
-  reconnects directly from NVS, no scan needed (`main.cpp:2271-2292`).
+  reconnects directly from NVS, no scan needed (`app/src/main.cpp`, `setup`).
 - **SPIFFS `/wifi_creds.json`** — a single `{ssid, pass}` object, written
   only by the host-side `run/setup` wizard (`run/setup:128`) as a one-time
   bootstrap seed. Boot falls back to it only if the NVS attempt fails
-  (`main.cpp:2293-2347`), and on success re-persists it into NVS.
+  (`app/src/main.cpp`, `setup`), and on success re-persists it into NVS.
 - **`WifiSection`'s on-device UI** (`app/src/settings/wifiSection.h`) —
   scan → tap → password → `WiFi.begin(ssid, pass)`, `persistent(true)`.
   Writes **only NVS**, never SPIFFS. "Forget network" (`_doForget()`, line
@@ -178,7 +178,7 @@ zero new autonomous behavior anywhere.**
    One-time boot migration: if `/wifi_creds.json` exists and
    `/wifi_networks.json` doesn't, convert the single entry over (keeps
    existing DUTs/host-wizard flow working without a re-setup).
-2. Boot chain (`main.cpp:2239-2349`): **no changes.** Hardcoded tier, NVS
+2. Boot chain (`app/src/main.cpp`, `setup`): **no changes.** Hardcoded tier, NVS
    fast path, single-file SPIFFS fallback, and the "no credentials → open
    Settings" tail all stay exactly as they are today. The saved-network
    *list* is not consulted at boot at all — only the one active NVS

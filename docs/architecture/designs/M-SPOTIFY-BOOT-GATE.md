@@ -9,7 +9,7 @@
 
 ## Context / pain points
 
-`spotifyTask::begin(&spotify)` (`app/src/main.cpp:2372`) — which spawns Spotify's
+`spotifyTask::begin(&spotify)` (`app/src/main.cpp`, `setup`) — which spawns Spotify's
 async HTTP polling task and shortly after connects its persistent TLS session —
 is gated **only** by the `DISABLE_SPOTIFY` compile-time macro (a separate,
 Spotify-free no-PSRAM build variant, `docs/architecture/designs/
@@ -18,7 +18,7 @@ the standard `cyd2usb_winamp` production build). It is **not** gated on
 `g_settings.playerMode` (`enum class PlayerMode : uint8_t { Spotify = 0,
 WebRadio = 1 }`, `app/src/settingsStorage.h:21`) at all — the persisted
 runtime preference that governs which app the device boots into
-(`main.cpp:2402-2409`, "TASK-260 v2 (OQ-BOOT)"). So on the standard
+(`app/src/main.cpp` (`setup`), "TASK-260 v2 (OQ-BOOT)"). So on the standard
 production build, a boot where the user's own persisted preference is
 `WebRadio` still spins up Spotify's task and (as this investigation found,
 below) connects its TLS session — regardless of user intent for that
@@ -42,7 +42,7 @@ workaround of that parked work.
 `spotifyTask` already has exactly the mechanism this design would otherwise
 need to invent: `setWebRadioActive(bool)` (`spotifyTaskStorage.cpp:605-611`,
 TASK-264/Q3-a), called from **every** `switchApp()` transition
-(`main.cpp:1973-1977`):
+(`app/src/main.cpp`, `switchApp`):
 
 ```cpp
 // TASK-264 (Q3-a): drop Spotify TLS when WebRadio is active (reclaims ~50 K arena).
@@ -54,7 +54,7 @@ TASK-264/Q3-a), called from **every** `switchApp()` transition
 When `active == true` it sets `s_webRadioActive` and kicks
 `s_resetTlsPending`; `taskBody()`'s loop top (`spotifyTaskStorage.cpp:370-377`)
 then holds `client.stop()` + a 500 ms idle instead of ever polling. This
-*is* called on the boot path: `main.cpp:2407-2409` calls
+*is* called on the boot path: `app/src/main.cpp` (`setup`) calls
 `switchApp(AppId::WebRadio)` when `wifiConnected && g_settings.playerMode ==
 WebRadio`, which reaches the exact same `setWebRadioActive(true)` call.
 
@@ -68,9 +68,9 @@ to dispatching the action (`doPoll()` for `ACT_POLL`) — it does **not**
 re-check `s_webRadioActive` before that dispatch. Sequence, confirmed by
 reading `begin()` (task spawns with an empty queue, base cadence
 `kPollPeriodMs = 5000 ms`, `spotifyTaskStorage.cpp:43/382`) and boot order
-(`main.cpp:2371-2409`, nothing enqueues to `reqQueue` between `begin()` and
+(`app/src/main.cpp` (`setup`), nothing enqueues to `reqQueue` between `begin()` and
 the boot's `switchApp(WebRadio)` call — verified by reading `SpotifyApp::
-init()`, `main.cpp:208-210`, which only paints a screen):
+init()`, `app/src/apps/spotifyApp.h` (`SpotifyApp::init`), which only paints a screen):
 
 1. `t=0`: `begin()` spawns the task. Iteration 1 starts, `s_webRadioActive`
    is still `false` (nothing has set it yet) — the loop proceeds past all
@@ -97,9 +97,9 @@ task creation.
 
 ### Finding 2 — the eager access-token refresh at setup() already connects TLS on the SAME shared client, before `begin()` is even reached — independent of any gate on `begin()`
 
-`main.cpp:2363` calls `spotifyRefreshToken(refreshToken)`
+`app/src/main.cpp` (`setup`) calls `spotifyRefreshToken(refreshToken)`
 (`Spotify-Diy-Thing/SpotifyDiyThing/spotifyLogic.h:66-78`) **unconditionally**,
-9 lines before `spotifyTask::begin()` (`main.cpp:2372`). Reading it:
+9 lines before `spotifyTask::begin()` (`app/src/main.cpp`, `setup`). Reading it:
 
 ```cpp
 void spotifyRefreshToken(const char *refreshToken) {
@@ -110,7 +110,7 @@ void spotifyRefreshToken(const char *refreshToken) {
 
 `spotify` (`spotifyLogic.h:9`) is `SpotifyArduino spotify(client, NULL,
 NULL)` — the **same global `client` (`WiFiClientSecure client;`,
-`main.cpp:72`)** that `spotifyTask`'s poll loop later uses
+`app/src/main.cpp` (`client`))** that `spotifyTask`'s poll loop later uses
 (`spotifyTaskStorage.cpp:20`, `extern WiFiClientSecure client;`).
 `refreshAccessToken()` → `makePostRequest(SPOTIFY_TOKEN_ENDPOINT, ...,
 SPOTIFY_ACCOUNTS_HOST)` → `SpotifyArduino::makeRequestWithBody()`
@@ -150,7 +150,7 @@ bool SpotifyArduino::checkAndRefreshAccessToken() {
 Both `timeTokenRefreshed` and `tokenTimeToLiveMs` default to 0, so on a
 fresh boot with no explicit refresh yet, this condition is true and the
 **first real API call auto-refreshes anyway.** The explicit eager call at
-`main.cpp:2363` is therefore not load-bearing for correctness — only
+`app/src/main.cpp` (`setup`) is therefore not load-bearing for correctness — only
 `spotify.setRefreshToken(refreshToken)` (a pure string store, zero network,
 same line) needs to run at boot to prime the library; the network round
 trip can be deferred to whenever the first real call happens, with the
@@ -232,7 +232,7 @@ as ready, exactly like the `DISABLE_SPOTIFY` branch already does.
   those handles at all, e.g. `authError()`/`connecting()`/`isHealthy()`).
   Its V0 section is the direct precedent for Finding 5's required harness
   fix — same shape (`get variant` branch), different trigger.
-- **`resolvePlayerSlot()` / taskbar (`main.cpp:1865-1867`,
+- **`resolvePlayerSlot()` / taskbar (`app/src/main.cpp` (`resolvePlayerSlot`),
   `renderActiveIndicator`, `ADR-046`).** `resolvePlayerSlot()` reads only
   `g_settings.playerMode`, never `spotifyTask` state — unaffected by this
   design. The taskbar active-bar reads the **active app's**
@@ -294,11 +294,11 @@ Direct, minimal extension of the already-shipped TASK-264/Q3-a mechanism
 (Finding 1), closing its boot-race gap rather than replacing it:
 
 1. **Compute the boot target once, matching the existing boot-switch
-   condition exactly** (`main.cpp:2407`'s own guard, factored into a named
+   condition exactly** (`app/src/main.cpp` (`setup`)'s own guard, factored into a named
    local before it's needed): `bool bootIntoWebRadio = wifiConnected &&
    (g_settings.playerMode == (uint8_t)PlayerMode::WebRadio);`. **This must
    NOT simply read `g_settings.playerMode` on its own** — the no-WiFi edge
-   case matters: if WiFi isn't up at boot, `main.cpp:2407`'s guard already
+   case matters: if WiFi isn't up at boot, `app/src/main.cpp` (`setup`)'s guard already
    keeps `currentAppId == Spotify` (visible on screen) regardless of the
    persisted preference, and the Spotify app the user is actually looking
    at must still be allowed to connect once WiFi comes up via the
@@ -313,9 +313,9 @@ Direct, minimal extension of the already-shipped TASK-264/Q3-a mechanism
    as true (if applicable) at its first top-of-loop check, before ever
    reaching `xQueueReceive`/`doPoll()`. This closes Finding 1's race
    directly: there is no longer a window where the flag arrives too late
-   for the loop to have already committed to a connect. `main.cpp:2372`
+   for the loop to have already committed to a connect. `app/src/main.cpp` (`setup`)
    becomes `spotifyTask::begin(&spotify, bootIntoWebRadio);`.
-3. The **existing** `switchApp(AppId::WebRadio)` call at `main.cpp:2408`
+3. The **existing** `switchApp(AppId::WebRadio)` call at `app/src/main.cpp` (`setup`)
    still fires under the same condition and still calls
    `setWebRadioActive(true)` — now purely confirmatory/idempotent (the flag
    is already true), not load-bearing. No change needed there.
@@ -329,7 +329,7 @@ Direct, minimal extension of the already-shipped TASK-264/Q3-a mechanism
    M-RECLAIM already used to justify shipping Q3-a over Q3-b).
 
 **Companion change 1 (required to satisfy Goal 2 — Finding 2/3):** gate the
-*eager* `refreshAccessToken()` network call the same way. At `main.cpp:2363`,
+*eager* `refreshAccessToken()` network call the same way. At `app/src/main.cpp` (`setup`),
 under `bootIntoWebRadio`, call only `spotify.setRefreshToken(refreshToken)`
 (primes the library, zero network) and skip the `spotify.refreshAccessToken()`
 leg; rely on `SpotifyArduino`'s already-used `checkAndRefreshAccessToken()`
@@ -337,7 +337,7 @@ leg; rely on `SpotifyArduino`'s already-used `checkAndRefreshAccessToken()`
 on whatever the first real API call turns out to be — which, under this
 design, only happens after an explicit toggle-to-Spotify. Not new library
 behavior, just not forcing it early. The `forceRefreshToken`
-(GPIO0-held-at-boot) / `launchRefreshTokenFlow()` path (`main.cpp:2338-2361`,
+(GPIO0-held-at-boot) / `launchRefreshTokenFlow()` path (`app/src/main.cpp` (`setup`),
 missing/invalid-refresh-token bootstrap) is **unaffected** — it's a
 credential-acquisition flow, orthogonal to whether the ongoing poll session
 connects, and stays unconditional. **Consequence:** a revoked/expired
@@ -350,7 +350,7 @@ point is "don't touch Spotify until asked."
 identical in shape to the existing `spotify=off` branch (`:153-171`) — WiFi
 up + shell responsive is "ready" when the persisted mode is `WebRadio` (no
 poll to wait for), same as the `DISABLE_SPOTIFY` case. VE-owned; a firmware
-`get playerMode` command already exists (`main.cpp:3129-3133`) for the probe.
+`get playerMode` command already exists (`app/src/debug/serialConsole/cmdGet.h`, `cmdGet`) for the probe.
 
 **Why this wins over A:** delivers Goals 1-3 with zero null-safety delta
 (Goal 4), reuses 100% of already-shipped/DUT-proven mechanism for the
@@ -412,7 +412,7 @@ doesn't address the goal).
   whether to bundle it (full Goals 1+2) or ship Goal 1 only and treat the
   side-benefit as a documented non-outcome for now.
 - **OQ2 (boot-log observability).** Worth an explicit `Serial.println`
-  token (mirroring `"[boot] spotify=off"`, `main.cpp:2380`) when
+  token (mirroring `"[boot] spotify=off"`, `app/src/main.cpp` (`setup`)) when
   `bootIntoWebRadio` is true, e.g. `"[boot] spotify=idle (playerMode=
   webradio)"` — cheap, aids both manual debugging and Finding 5's harness
   fix (belt-and-suspenders alongside the `get playerMode` probe). Developer
@@ -480,7 +480,7 @@ coupling: `poll-001`'s `spotifyTask::begin()` now reads `player-state-001`'s
 persisted `g_settings.playerMode` — via the `wifiConnected`-qualified
 `bootIntoWebRadio` condition, not the raw field, per Design space Option B
 point 1 — to decide whether to seed the task idle at creation time, and
-`main.cpp:2363`'s eager token-refresh call reads the same condition to
+`app/src/main.cpp` (`setup`)'s eager token-refresh call reads the same condition to
 decide whether to skip its network leg). Both `player-state-001` and
 `poll-001` already exist in `feature_inventory.yaml` (`:1348`, `:58`) — no
 new feature id needed, this design modifies existing behavior of both

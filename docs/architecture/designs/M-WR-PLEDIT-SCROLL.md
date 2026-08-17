@@ -26,7 +26,7 @@ WebRadio's PLEDIT is tap-to-play only. `WebRadioApp::handleInput`
   velocity-joystick machine (ADR-030, accepted; DUT-validated VE T155–T161). Users see one
   widget with two behaviours.
 
-The plumbing already exists: `appHandleInput` (`main.cpp:1860-1931`) delivers
+The plumbing already exists: `appHandleInput` (`app/src/main.cpp`, `appHandleInput`) delivers
 Press/Move/Release to `WebRadioApp::handleInput` exactly as it does for Spotify. Only the
 app-side gesture logic is missing. Chrome is already shared (`drawPleditFrame`, scrollbar
 thumb); input logic is not.
@@ -174,21 +174,21 @@ the model and the tuning values, not the code.
   tap-at-(x,y) path: eject/transport hit-tests, then PLEDIT row tap. The T_WR_* suite
   passes unchanged (exit criterion below).
 - **`suspend()` cancels the gesture [DEV-1-4]:** zero the WRS state + accumulators in
-  `suspend()` (precedent: `SpotifyApp::suspend()` → `resetDragState()`, `main.cpp:211-213`);
+  `suspend()` (precedent: `SpotifyApp::suspend()` → `resetDragState()`, `app/src/apps/spotifyApp.h` (`SpotifyApp::suspend`));
   serial `switchApp`/`set wrEject` can fire mid-gesture.
 
 ## Serial debug / VE surface
 
 1. **Fix drag injection routing (prerequisite for VE) [VE-1-1 blocker + DEV-1-2]:**
-   `drainInjectionQueue` (`main.cpp:2289-2334`) hardwires non-taskbar samples to
+   `drainInjectionQueue` (`app/src/main.cpp`, `drainInjectionQueue`) hardwires non-taskbar samples to
    `winampDisplay.handleWinampInput` — **and the release sentinel is a separate branch
-   hardwired to `handleWinampInput(Release, 0, 0)`** (`main.cpp:2300-2302`). The reroute
+   hardwired to `handleWinampInput(Release, 0, 0)`** (`app/src/main.cpp`, `drainInjectionQueue`). The reroute
    covers **all three phases**: samples dispatch to
    `g_apps[(int)currentAppId]->handleInput(phase, x, y)`, and the release step dispatches
    to the same target **carrying the last sample's coordinates, not (0,0)** — otherwise an
    injected WebRadio drag delivers Press/Move to the new machine and Release to Spotify's,
    and the gesture never ends. Two behaviour deltas, stated for the record: (i) injected
-   Releases now pass `SpotifyApp::handleInput`'s eject intercept (`main.cpp:256-260`) —
+   Releases now pass `SpotifyApp::handleInput`'s eject intercept (`app/src/apps/spotifyApp.h`, `SpotifyApp::handleInput`) —
    last-sample coords make that hit-test evaluate real data; (ii) injected canvas drags now
    reach every app's handler (Stock/Settings/Teletext previously never saw injected
    Press/Move) [VE-1-6] — regression sweep: T155–T161 re-run (the Spotify gate) plus one
@@ -208,7 +208,7 @@ the model and the tuning values, not the code.
 5. **`tick n dtMs`** (`cmdTick`) must drive the *current app's* scroll tick, not only
    `winampDisplay.tickScroll` — route through app when WebRadio active (small dispatch in
    `cmdTick`). **The reply JSON's `scrollOffset` field is read from
-   `winampDisplay.dbgGet` (`main.cpp:2521-2523`) and stays Spotify-only — WebRadio tests
+   `winampDisplay.dbgGet` (`app/src/debug/serialConsole/cmdTouch.h`, `cmdTick`) and stays Spotify-only — WebRadio tests
    assert via `get wrScroll` exclusively** [VE-1-5].
 6. **VE signs off this dbg surface before implementation (BP-024)** [QM-1-4] — gate
    recorded in the exit criteria.

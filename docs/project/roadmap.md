@@ -282,7 +282,8 @@ Work:
 Decouple our winamp-app code from the upstream `SpotifyDiyThing` entrypoint.
 The upstream `.ino` becomes our shell; winamp code moves into named subdirectories;
 a `WinampState`/`SpotifyAppState` struct becomes the interface between the Spotify
-data layer and the renderer. No behaviour change — firmware output is identical
+data layer and the renderer. (As built, no such struct was used: `SpotifyAppState` was
+never populated and was deleted in `a044f5d` — the renderer reads the app object directly.) No behaviour change — firmware output is identical
 before and after. Prerequisite for M-MULTIAPP because it makes the `originX=0`
 shift a one-liner in the shell rather than a global variable to audit.
 

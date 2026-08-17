@@ -173,7 +173,7 @@ demonstration of C2's value — but note it is a **deliberate** cross-scope hold
 `cmdGet` is 616 lines / 40 `strcmp` branches (`debug/serialConsole/cmdGet.h:7`). `cmdSet` is 733
 lines / 28 branches (`debug/serialConsole/cmdSet.h:7`). **1 308 lines to dispatch 68 keys.**
 
-The table-driven pattern **already exists alongside them**: `kCmds[]` at `main.cpp:1335` dispatches
+The table-driven pattern **already exists alongside them**: `kCmds[]` at `app/src/main.cpp` (`kCmds`) dispatches
 the command *verbs* through a `{name, handler}` table, and every app implements `dbgGet`/`dbgSet`. Only
 the shell-level variable dispatch never adopted either.
 
@@ -190,7 +190,7 @@ Debug-only code, so a defect here cannot ship. Low risk, high readability payoff
 
 There is no written convention, so three mechanisms coexist: `#ifdef SERIAL_DEBUG` (the bulk),
 `#ifdef SD_BOOT_MOUNT` (production-safe subset, correctly separated and explained at
-`main.cpp:1486`), and `#ifdef MEMBUDGET_PHASE1`. The separation is *reasoned* — `main.cpp:675`
+`app/src/main.cpp` (`handleSerialCommands`)), and `#ifdef MEMBUDGET_PHASE1`. The separation is *reasoned* — `app/src/main.cpp` (`setup`)
 documents why the SD boot mount is gated on `SD_BOOT_MOUNT` rather than `SERIAL_DEBUG` — but it is
 reasoned per-site, not by policy.
 

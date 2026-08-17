@@ -553,13 +553,16 @@ to lut_sin anyway, so the reciprocal is free).
 
 ---
 
-### 10.4 `main.cpp` millis divisions (high-frequency)
+### 10.4 Scroll millis divisions (high-frequency)
+
+Both sites have since moved out of `main.cpp`: the scroll delta is now computed in
+`app/src/webRadioApp.h` and `tickScroll()` itself lives in `app/src/winamp/pleditView.h`.
 
 ```cpp
-// main.cpp:204  (SpotifyApp tick, scroll delta)
+// app/src/webRadioApp.h — scroll delta
 (now - _lastScrollMs) / 1000.0f   →   (now - _lastScrollMs) * 0.001f
 
-// main.cpp:1900 (tickScroll call)
+// app/src/winamp/pleditView.h (tickScroll)
 dtMs / 1000.0f   →   dtMs * 0.001f
 ```
 

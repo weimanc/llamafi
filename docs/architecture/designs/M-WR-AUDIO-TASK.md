@@ -41,7 +41,7 @@ this design's primary target, but the option space should not foreclose fixing i
   enqueue no fetches; E0/E1 confirm)* [QM-2-3] — the only busy core-1 task while PLAYING is
   loopTask itself.
 - **Playback is strictly foreground.** `switchApp()` calls `suspend()` on the outgoing app
-  (main.cpp:1828); `WebRadioApp::suspend()` stops audio, and (MEMBUDGET_PHASE1 — now the
+  (`app/src/main.cpp`, `switchApp`); `WebRadioApp::suspend()` stops audio, and (MEMBUDGET_PHASE1 — now the
   production env, platformio.ini cyd2usb_winamp) **deletes the Audio object and releases
   the JIT arena** (TASK-267/ADR-047 Amd 1). Eject does the same via `_stopAudio()` +
   `switchApp(Spotify)`. No background-playback requirement exists — the pump task's

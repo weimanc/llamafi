@@ -72,7 +72,7 @@ if (delta >= 2) {
 ```
 (`webRadioApp.h:976-981`)
 
-`tick()` itself runs once per `loop()` iteration (`main.cpp:4127-4128`),
+`tick()` itself runs once per `loop()` iteration (`app/src/main.cpp`, `loop`),
 and `loop()` has **no `delay()` call anywhere in its body** — confirmed by
 reading the full function, not assumed. So there is no fixed frame rate to
 report: the redraw gate is purely "did the raw value move ≥2 points since
@@ -133,7 +133,7 @@ once.
 `perf::record()` has exactly 10 named paths in use, against
 `MAX_PATHS = 10` (`perf.h:28-34`) — **zero free slots today**. WebRadio's
 posbar redraw cost is folded entirely into the generic `"app.tick"` slot
-(`main.cpp:4127-4128`), which wraps the whole `WebRadioApp::tick()` call —
+(`app/src/main.cpp`, `loop`), which wraps the whole `WebRadioApp::tick()` call —
 there's no way to isolate the posbar's own contribution to loop time from
 existing telemetry. There is also no debug getter for a redraw count, last
 redraw timestamp, or effective rate — `get wrUnderruns` exposes the

@@ -19,7 +19,7 @@ Not a hypothetical. Over roughly one working day, in one session:
 
 | Failure | What happened |
 |---|---|
-| **Positional rot** | Wrote M-CODEQUAL citing `main.cpp:3484`, `:4101`, `:2976`, `:5769`. My own next commits moved every one of them. Stale **within a day of writing.** |
+| **Positional rot** | Wrote M-CODEQUAL citing `main.cpp:3484`, `:4101`, `:2976`, `:5769`. My own next commits moved every one of them. Stale **within a day of writing.** | <!-- check-docs: ignore-line -->
 | **Status rot** | M-SRCLAYOUT described Stages A/B as `proposed` while they were already committed. |
 | **Reference rot** | Reserved TASK-451/452; a parallel session had already taken both. Renumbered 18 references. |
 | **Custody loss** | All four documents were swept into `c7686aa`, an unrelated arena fix, by another session's `git add`. The commit message describes none of them. |
@@ -87,7 +87,7 @@ Replace "host tools" with "design docs" and it is the same lesson at a different
 answer was **parse, don't mirror**. The documentation equivalent:
 
 > **BP candidate — cite symbols, not coordinates.** In any document, refer to `cmdGet` or
-> `dataTaskStorage.cpp :: fetchWeather`, not `main.cpp:3484`. Symbol names survive refactors; line
+> `dataTaskStorage.cpp :: fetchWeather`, not `main.cpp:3484`. Symbol names survive refactors; line <!-- check-docs: ignore-line -->
 > numbers do not. This session proved both halves in one day: every symbol reference in M-CODEQUAL
 > survived Stages A/B; every line number broke.
 
@@ -123,7 +123,7 @@ a QM retrospective question, and pretending otherwise would give false assurance
 Everything above holds for one careful human. What changes with many agents is **the cost of a wrong
 document.**
 
-A human reading `main.cpp:3484` and finding something else notices and adapts. **An agent takes it as
+A human reading `main.cpp:3484` and finding something else notices and adapts. **An agent takes it as <!-- check-docs: ignore-line -->
 fact**, and may edit on that basis — this session began with me asserting a duplicate-symbol linkage
 barrier that did not exist, and designing around it, until it was checked. Docs are the only shared
 memory between agent sessions; a stale doc is not a stale doc, it is **an instruction**.

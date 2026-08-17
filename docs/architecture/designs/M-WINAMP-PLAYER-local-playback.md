@@ -152,14 +152,14 @@ Player → Spotify, and persist. This gives the taskbar's active-slot tap a seco
 other app — a deliberate asymmetry that belongs in the taskbar contract.
 
 **Where that logic lives (corrected 2026-08-07, DEV-1).** *Not* in `resolvePlayerSlot()`, as this
-design originally said. `switchApp()` early-returns on same-app (`main.cpp:2014`), so a tap on the
+design originally said. `switchApp()` early-returns on same-app (`app/src/main.cpp`, `switchApp`), so a tap on the
 already-active slot resolves to the current app and silently no-ops — and the two dispatch sites guard
 differently:
 
 | Site | Path | Same-app guard |
 |---|---|---|
-| `main.cpp:2001` | production taskbar dispatch | **its own** `if (target != currentAppId)` at `:2002`, *plus* `switchApp()`'s |
-| `main.cpp:2793` | serial-injection drain | `switchApp()`'s internal return only |
+| `app/src/main.cpp` (`shellTbRelease`) | production taskbar dispatch | **its own** `if (target != currentAppId)` guard, *plus* `switchApp()`'s |
+| `app/src/debug/serialConsole/cmdTouch.h` (`cmdTap`) | serial-injection drain | `switchApp()`'s internal return only |
 
 A cycle branch added to one site only makes the feature behave differently under the harness than in
 production — the TASK-406 defect class, invisible to every build gate. Introduce one shared helper,
@@ -214,8 +214,8 @@ loudly when it stops being one:
 
 | Site | Code | Behaviour at `playerMode = 2` |
 |---|---|---|
-| `main.cpp:3336` (`get`) | `uint8_t pm = g_settings.playerMode ? 1 : 0;` then `name = pm ? "WebRadio" : "Spotify"` | **reports Player mode as `WebRadio(1)`** — silently wrong, no error |
-| `main.cpp:3806-3807` (`set`) | `idx < 0 \|\| idx > 1` → reject; strings only `"spotify"` / `"webradio"` | `set playerMode 2` is rejected as a bad value — Player mode is unreachable from the harness |
+| `get` — `app/src/debug/serialConsole/cmdGet.h` (`cmdGet`) | `uint8_t pm = g_settings.playerMode ? 1 : 0;` then `name = pm ? "WebRadio" : "Spotify"` | **reports Player mode as `WebRadio(1)`** — silently wrong, no error |
+| `set` — `app/src/debug/serialConsole/cmdSet.h` (`cmdSet`) | `idx < 0 \|\| idx > 1` → reject; strings only `"spotify"` / `"webradio"` | `set playerMode 2` is rejected as a bad value — Player mode is unreachable from the harness |
 
 This is not cosmetic. The TASK-407 instrumentation landed 2026-08-07 (`run_serialdbg_tests.py`,
 entry/exit `get playerMode` snapshots in every `run/test*` session) reads exactly this getter. Once
@@ -337,7 +337,7 @@ are acquired in `resume()`, so a compiled-in-but-never-entered mode costs nothin
 3. Allocate the playlist model (§2, ≈5.2 KB heap). Failure → degraded, unmount, release, bail.
 3. Restore last playlist + shuffle/repeat from `g_settings`; rebuild `playOrder`.
 4. Seed `winampDisplay`'s volume/shuffle/repeat caches from Player state — they may hold Spotify's or
-   WebRadio's values from before the switch (the precedent this exists for is `main.cpp:217`).
+   WebRadio's values from before the switch (the precedent this exists for is `app/src/apps/spotifyApp.h` (`SpotifyApp::resume`)).
 5. Repaint.
 
 **`suspend()`** — in this order:

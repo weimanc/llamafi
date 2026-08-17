@@ -37,7 +37,7 @@ persists until the device is power-cycled.
 Today's only reset paths:
 - A hard power cycle (physical, requires access to the device).
 - `ESP.restart()` reachable only via the `SERIAL_DEBUG` `reboot` command
-  (`main.cpp:4022-4026`) — requires a USB/serial connection, not available
+  (`app/src/debug/serialConsole/cmdSystem.h`, `cmdReboot`) — requires a USB/serial connection, not available
   to an end user.
 - `ESP.restart()` as an unprompted side effect of WiFi's "Forget network"
   action (`wifiSection.h:372-378`, `_doForget()`) — exists, but is scoped to
@@ -125,7 +125,7 @@ already goes to look for "system-level" actions.
 `SettingsApp`'s category list renders `SETTINGS_CAT_COUNT` rows of
 `SETTINGS_ROW_H = 26`px inside a `SETTINGS_CONTENT_H = 212`px content area,
 plus one more 26px row for "Cancel" below a separator
-(`main.cpp:1016-1040`). Today: `SETTINGS_CAT_COUNT = 6`
+(`app/src/apps/settingsApp.h`, `SettingsApp::repaintCategoryList`). Today: `SETTINGS_CAT_COUNT = 6`
 (WiFi/Time & Location/Touch Calibration/Display/LED/Applications) → 6×26 +
 26 (Cancel) = **182px used, 30px spare**. Adding a 7th category ("System")
 brings it to 7×26 + 26 = **208px used, 4px spare** — it fits, but just
@@ -165,7 +165,7 @@ Checked, not assumed: every existing `SettingsSection` widget calls
 `saveSettings()` (→ `SettingsStorage::save()`) **immediately on change**
 (displaySection.h, ledSection.h, appsSection.h — 40+ call sites, all
 per-field, not batched). `SettingsApp::_cancel()`'s snapshot/rollback
-(`main.cpp:988-992`) exists for the "Cancel" affordance at the category-list
+(`app/src/apps/settingsApp.h`, `SettingsApp::_cancel`) exists for the "Cancel" affordance at the category-list
 level, not because edits are otherwise held unsaved — by the time a user
 could navigate into a hypothetical "System" section, any edit made in
 *another* section this same Settings visit is already durably on SPIFFS.
@@ -186,11 +186,12 @@ already accepted project-wide).
    tap. Confirming fires `SButton::flash()`, then **emits a stable-prefix
    log line — `[settings] system-reboot confirmed` — immediately before**
    calling `ESP.restart()` directly (VE-1-1: mirrors `cmdReboot`'s own
-   `{"ok":true,"cmd":"reboot"}` ack, `main.cpp:4023-4026`, so a harness
+   `{"ok":true,"cmd":"reboot"}` ack, `app/src/debug/serialConsole/cmdSystem.h` (`cmdReboot`), so a harness
    reconnecting after the restart can confirm this was the confirm-tap path
    firing as designed, not a coincidental crash/TWDT reset landing at the
    same moment). Otherwise the same one-line `ESP.restart()` call already
-   proven at `wifiSection.h:377` and `main.cpp:4026` — no new reset
+   proven at `app/src/settings/wifiSection.h` (`WifiSection::_doForget`) and
+   `app/src/debug/serialConsole/cmdSystem.h` (`cmdReboot`) — no new reset
    mechanism.
 3. No changes to `settingsStorage.h`/`SettingsApp::_cancel()` — confirmed
    unnecessary above.
@@ -237,7 +238,7 @@ severity match for this action).
   mechanism needed, just the new log line to assert against.
 - DUT: after tapping the System row from the category list,
   `get settingsSection` reports `section==6` (same observable pattern as
-  `T-WIFI-04`'s `section==-1` check, `main.cpp:951-955`) — confirms the
+  `T-WIFI-04`'s `section==-1` check, `app/src/apps/settingsApp.h` (`SettingsApp::dbgGet`)) — confirms the
   category is reachable before exercising the confirm flow above.
 - DUT: tapping Cancel on the confirm screen returns to the System section
   with no restart and no side effects.

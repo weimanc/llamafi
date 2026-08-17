@@ -269,11 +269,11 @@ contiguous block") to this problem. Two parts:
    "no stations." This alone fixes the user-visible symptom for the common
    case (a device that has ever successfully fetched once).
 2. **Deterministic pristine-heap boot fetch.** Spotify's TLS session first
-   forms shortly after `spotifyTask::begin()` (`main.cpp:2372`); before that
+   forms shortly after `spotifyTask::begin()` (`app/src/main.cpp`, `setup`); before that
    call the heap is boot-fresh and has never been touched by the
    carve-and-split pattern this design is about. Move `dataTask::begin()`
    ahead of `spotifyTask::begin()` (it already sits only 11 lines later,
-   `main.cpp:2383`, and depends only on WiFi being up, which it already is
+   `app/src/main.cpp` (`setup`), and depends only on WiFi being up, which it already is
    by that point in `setup()`) and insert a **bounded, one-shot** WebRadio
    station-list fetch (existing `enqueueWebRadioStations()` +
    `fetchWebRadioStations()` machinery, unchanged) between them, gated by a

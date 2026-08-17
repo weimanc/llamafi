@@ -41,7 +41,7 @@ exempt: they describe the tree as it was, and their coordinates are correct as h
 exempt per §1 of the check-docs spec): **274 of 576 `file:line` citations — 48 % — are already
 broken** — the file is gone or has fewer lines than the citation.
 The mechanism was demonstrated end-to-end inside a single session: `M-CODEQUAL` was written citing
-`main.cpp:3484` / `:4101` / `:2976` / `:5769`, and the *same author's next three commits* moved every
+`main.cpp:3484` / `:4101` / `:2976` / `:5769`, and the *same author's next three commits* moved every <!-- check-docs: ignore-line -->
 one. In the same document, every reference by symbol name survived unchanged. The asymmetry is not
 about care — the line-number document was written carefully — it is that coordinates are a mirror of
 a fact that moves, and symbols are the fact.

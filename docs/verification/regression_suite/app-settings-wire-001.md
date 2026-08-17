@@ -122,7 +122,7 @@ before VE can run agent-driven tests. Format: `get <var>` → JSON with `"val"`.
 | `cryptoLastFetch` | ms timestamp | `_s.lastCryptoFetch` |
 
 Register `cryptoDbgGet` in `cmdGet()` dispatch (mirror `stockDbgGet` pattern at
-`main.cpp:2255`). Register `matrixDbgGet`, `lifeDbgGet`, `aquariumDbgGet` similarly.
+`app/src/debug/serialConsole/cmdGet.h` (`cmdGet`)). Register `matrixDbgGet`, `lifeDbgGet`, `aquariumDbgGet` similarly.
 
 ### dataTask log line (CHALLENGE-2 resolution)
 

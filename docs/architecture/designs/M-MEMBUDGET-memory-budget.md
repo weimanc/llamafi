@@ -39,7 +39,7 @@ Total internal SRAM ≈ **320 K** usable heap pool (after ~57.5 K static, per EX
 | Heatmap doc | 2.56 K (m), file-scope `static` | any | yes | **resident** (could be made transient) | not as written — see Q4 |
 | WR station table | 30 × `sizeof(WebRadioStation)` (m) | any | yes | resident in dataTask | no (small) |
 | Aquarium sprite | `AQ_W×AQ_STRIP_H×1B` (m, 8-bit) | any | yes | per-app-entry | yes — on app exit |
-| Marquee sprite (`main.cpp:1584`) | `sprW×8×?` (m, small) | any | yes | transient | yes |
+| Marquee sprite (`app/src/apps/stockApp.h`, `StockApp::repaintHeatmap`) | `sprW×8×?` (m, small) | any | yes | transient | yes |
 | ~~Album-art JPEG decode~~ | **REMOVED** | — | — | — | — |
 | **WebRadio audio path** (only when active) | **~41 K** (m): InBuff ~8 K + Helix 22.7 K + conn | **INTERNAL contiguous** (InBuff+decoder) — see caps note | **yes — the wall** | dynamic (play→stop) | yes |
 | └ I2S DMA ring | ~8 K (m: `16×512`) | **DMA-capable** but **512-B chunks** (driver-owned) | per-buffer 512 B only | dynamic | yes |
@@ -84,7 +84,7 @@ TASK-252/254, *not* a sprite), **app shell/registry**, **WiFi/LWIP/TLS stack**. 
 
 ● = resident while app active · ◐ = needed transiently · ○ = transient (alloc/free with the app) · — = none
 ¹ WebRadio uses dataTask **only to fetch its station list**, then never again — needed briefly, not during play.
-² Stock/heatmap narrow-tile rotated label (`main.cpp:1584`) — `createSprite`→`deleteSprite` on the spot.
+² Stock/heatmap narrow-tile rotated label (`app/src/apps/stockApp.h`, `StockApp::repaintHeatmap`) — `createSprite`→`deleteSprite` on the spot.
 ³ Aquarium strip canvas (`aquariumApp.h`) — created on entry, freed on exit.
 (Correction vs the first draft: there is **no "Spotify marquee sprite"** — the scrolling title is the shared
 0-RAM direct-draw marquee above; the only real `TFT_eSprite`s belong to Stock/heatmap and Aquarium.)
@@ -242,7 +242,7 @@ cleaner budget claim than "WebRadio takes 40 K the others must fund."
 member/static storage, never in the arena.** This is a hard design rule, not a guideline — violating it is the
 one way the overlay can silently break app behaviour.
 
-Why it holds: `switchApp()` (`main.cpp:1777-1782`) runs `init()` **once ever** per app (guarded by
+Why it holds: `switchApp()` (`app/src/main.cpp`, `switchApp`) runs `init()` **once ever** per app (guarded by
 `g_appLaunched[]`) and `resume()` on **every** re-entry. So the framework already models cold-init vs
 warm-resume; an app returning from a switch is a *warm resume*, not a cold boot. The arena reset on exit
 discards that app's scratch slice — which is fine **iff** the slice held only regenerable data.

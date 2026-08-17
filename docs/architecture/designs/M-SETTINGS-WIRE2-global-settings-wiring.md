@@ -21,17 +21,17 @@ edited, persisted, and then partially or entirely ignored at runtime:
 
 | # | Setting(s) | Symptom | Root cause |
 |---|-----------|---------|------------|
-| G1 | `posixTz` | Timezone resets to UTC on every reboot; correct only after the user re-picks a city | Boot calls `configTime(0, 0, …)` (`app/src/main.cpp:2265`); the saved `posixTz` is applied only inside the city picker (`settings/timeSection.h:241`) |
-| G2 | `fmt24h` | 12h/24h toggle does nothing | No consumer. All clock renderers hardcode 24h: `clockApp.h` (`%02d` on `tm_hour`, all 4 styles), weather TIME tile `strftime("%H:%M")` (`main.cpp:444`), aquarium clock overlay (`aquarium/aquariumApp.h:933`) |
+| G1 | `posixTz` | Timezone resets to UTC on every reboot; correct only after the user re-picks a city | Boot calls `configTime(0, 0, …)` (`app/src/main.cpp`, `setup`); the saved `posixTz` is applied only inside the city picker (`settings/timeSection.h:241`) |
+| G2 | `fmt24h` | 12h/24h toggle does nothing | No consumer. All clock renderers hardcode 24h: `clockApp.h` (`%02d` on `tm_hour`, all 4 styles), weather TIME tile `strftime("%H:%M")` (`app/src/apps/weatherApp.h`, `WeatherApp::repaintWeatherTime`), aquarium clock overlay (`aquarium/aquariumApp.h:933`) |
 | G3 | `dateFmt` | DMY/MDY/YMD cycle does nothing | No consumer. Both date render sites hardcode DMY (`clockApp.h:148`, `clockApp.h:352`) |
 | G4 | `lat`, `lon` (+ `city` indirectly) | Weather always shows one hardcoded location regardless of the selected city | `WEATHER_URL` is a compile-time constant with `latitude=51.75&longitude=-0.47&timezone=Europe/London` baked in (`app/src/dataTaskStorage.cpp:121`). The city picker writes `g_settings.lat/lon` (`timeSection.h:239-240`) that nothing reads |
-| G5 | `dispAuto`, `ldrLow`, `ldrHigh` | Auto-brightness only works while the Settings → Display screen is open; backlight freezes at the last duty on leaving; boot applies manual `dispLevel` even when `dispAuto=true` | The entire LDR sample + map + `ledcWrite` loop lives in `DisplaySection::tick()` (`settings/displaySection.h:24-42`), which only runs while that section is the active settings view. Boot path (`main.cpp:2127`) ignores `dispAuto` |
+| G5 | `dispAuto`, `ldrLow`, `ldrHigh` | Auto-brightness only works while the Settings → Display screen is open; backlight freezes at the last duty on leaving; boot applies manual `dispLevel` even when `dispAuto=true` | The entire LDR sample + map + `ledcWrite` loop lives in `DisplaySection::tick()` (`settings/displaySection.h:24-42`), which only runs while that section is the active settings view. Boot path (`app/src/main.cpp`, `setup`) ignores `dispAuto` |
 
 Common shape of all five: **the Settings section that edits the value is also the only actor
 that applies it.** The correctly-wired settings (LED, stock, crypto, aquarium, matrix, life,
 clock style, playerMode, teletext, webRadio, planeRadar) all have an applier *outside*
 `settings/` — either a global flow object ticked from the main loop (`g_ledFlow`,
-`main.cpp:2044`) or a pull-on-`resume()`/`init()` consumer in the owning app
+`app/src/main.cpp` (`appTick`)) or a pull-on-`resume()`/`init()` consumer in the owning app
 (M-SETTINGS-APP-WIRE D1).
 
 Out of scope (separate class of finding, not "broken wiring"; PM may file separately):
@@ -70,8 +70,8 @@ static gate) and should be added to `NEW-APP-CHECKLIST.md` once accepted.
 
 ### G1 — Timezone at boot → configTzTime with the loaded posixTz
 
-Boot ordering is already correct: `SettingsStorage::load()` runs at `main.cpp:2119`, NTP
-init at `main.cpp:2265`. Replace:
+Boot ordering is already correct: `SettingsStorage::load()` runs at `app/src/main.cpp` (`setup`), NTP
+init at `app/src/main.cpp` (`setup`). Replace:
 
 ```cpp
 configTime(0, 0, "pool.ntp.org", "time.google.com", "time.cloudflare.com");
@@ -164,7 +164,7 @@ URL details: `&timezone=Europe/London` is dropped — the app consumes only
 timezone-shaped. (If a daily forecast is ever added, use `timezone=auto`.)
 
 Change-time application: WeatherApp `resume()` compares a lat/lon snapshot the same way
-StockApp diffs tickers (`main.cpp:1080-1090`) and forces a refetch on mismatch, so
+StockApp diffs tickers (`app/src/apps/stockApp.h`, `StockApp::resume`) and forces a refetch on mismatch, so
 Settings → city change → return to Weather shows the new location without waiting out the
 poll interval. Log the full fetch URL at LOG_D (WebRadio full-URL precedent) — VE hooks on it.
 
@@ -198,9 +198,9 @@ extern BacklightFlow g_backlight;
   four LED fields have zero consumers outside `settings/`). G5 moves LedFlow to
   `app/src/ledFlow.h`, the literal sibling of `backlightFlow.h`; ADR-050 rule 2 then
   holds by file layout and the gate is honest with no allowlist entry.
-- **Boot**: `main.cpp:2126-2129` block becomes `g_backlight.applyMode()` — honours
+- **Boot**: `app/src/main.cpp` (`setup`) block becomes `g_backlight.applyMode()` — honours
   `dispAuto` instead of unconditionally applying `dispLevel`.
-- **Main loop**: `g_backlight.tick()` next to `g_ledFlow.tick()` (`main.cpp:2044`).
+- **Main loop**: `g_backlight.tick()` next to `g_ledFlow.tick()` (`app/src/main.cpp`, `appTick`).
 - **DisplaySection** becomes a pure editor: renders `g_backlight.ldrRaw()` in its LDR rows,
   calls `pause()/resume()` around manual-slider drags, `applyMode()` after toggling
   `dispAuto` or committing a slider value. Its `tick()` keeps only the row-repaint cadence.

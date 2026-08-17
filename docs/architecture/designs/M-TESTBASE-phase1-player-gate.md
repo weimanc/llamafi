@@ -270,7 +270,7 @@ Design rule, per M-TESTARCH §4 I1: **additive-only, VE-gated field set.** Exten
 
 > **RE-DERIVED — @Architect review, 2026-08-17. The 9-transition domain does not exist in the
 > firmware, and two of the seven invariants do not belong here.** Verified in source:
-> `persistPlayerMode()` (`main.cpp:380`) opens `if (g_settings.playerMode == mode) return;` — the three
+> `persistPlayerMode()` (`app/src/main.cpp`, `persistPlayerMode`) opens `if (g_settings.playerMode == mode) return;` — the three
 > diagonal cells are no-ops, so **21 of the 63 cells were vacuous**. `set playerMode`
 > (`debug/serialConsole/cmdSet.h:651`) is documented *"Pure persist (no app switch)… Use the eject toggle to actually
 > switch the live player slot"* — there is **no command that forces an arbitrary live transition**.
@@ -364,8 +364,8 @@ That dissolves most of the blocker. What genuinely needs `cyd2usb_player` is nar
 > documented:
 >
 > - **`434b18d` (TASK-413)** moved the cycle to the taskbar player slot — `resolvePlayerTap()`,
->   `app/src/main.cpp:393`, called from exactly two dispatch sites (`app/src/main.cpp:467` and
->   `app/src/debug/serialConsole/cmdTouch.h:21`).
+>   `app/src/main.cpp` (`resolvePlayerTap`), called from exactly two dispatch sites (`app/src/main.cpp` (`shellTbCancel`) and
+>   `app/src/debug/serialConsole/cmdTouch.h` (`cmdTap`)).
 > - **`07250ca` (TASK-414)** remapped eject: *"Eject no longer switches player apps (that's the
 >   taskbar player-slot cycle from TASK-413 now). It becomes one verb, three realisations."*
 > - **[ADR-059 D6](../decisions/ADR-059.md)** is the decision, amended 2026-08-07 (DEV-1).
@@ -625,7 +625,7 @@ of them failed when it changed:
 
 A static check, in the shape this programme keeps reusing (`check_settings_wiring.py`,
 `appRegistry.h`, `gen_get_keys.py`): **assert that `resolvePlayerTap` has exactly the call sites the
-docs claim.** Two today (`app/src/main.cpp:467`, `app/src/debug/serialConsole/cmdTouch.h:21`) plus
+docs claim.** Two today (`app/src/main.cpp` (`shellTbCancel`), `app/src/debug/serialConsole/cmdTouch.h` (`cmdTap`)) plus
 `playerCycle` once it lands. A third appearing without a doc update fails `run/check`.
 
 > **LANDED 2026-08-17 — `app/tools/check_player_binding.py`, wired into `run/check` gate 9.** It

@@ -13,12 +13,12 @@ click has landed, or if an app is busy."
 
 ### Anatomy of a taskbar tap today
 
-1. **Press** — `appHandleInput()` (`main.cpp:1860`) sees `p.x >= TASKBAR_X` and calls
+1. **Press** — `appHandleInput()` (`app/src/main.cpp`, `appHandleInput`) sees `p.x >= TASKBAR_X` and calls
    `winampDisplay.tbGesturePress(p.y)` (`winampDisplay.h:63`). **Zero pixels change.**
 2. **Release** — the `!touched` branch calls `tbGestureEnd()`; if the dead zone was never
    exceeded (`!_tbIsScrolling`) it resolves the slot and calls `switchApp()`
-   (`main.cpp:1909-1919`).
-3. **`switchApp()`** (`main.cpp:1819`) — `suspend()` old app → `setBusy(false)` (3 px
+   (`app/src/main.cpp`, `appHandleInput`).
+3. **`switchApp()`** (`app/src/main.cpp`, `switchApp`) — `suspend()` old app → `setBusy(false)` (3 px
    indicator repaint) → **275×240 black `fillRect` canvas wipe** → target `init()` or
    `resume()` → full `renderTaskbar()`.
 
@@ -38,7 +38,7 @@ release, *after* the old app's `suspend()`. Everything before that is invisible.
   `app.tick`, `vu.tick`, but **not** `switchApp`. We do not currently know where the
   milliseconds go; only the `[shell] leaving/entered` SERIAL_DEBUG lines bracket it.
 - **Sampled-touch tap loss.** Touch is polled once per `loop()` iteration
-  (`ts.touched()`, `main.cpp:1861`). A tap shorter than one loop period lands entirely
+  (`ts.touched()`, `app/src/main.cpp` (`appHandleInput`)). A tap shorter than one loop period lands entirely
   between two samples and is **never seen** — no gesture, no feedback, nothing. Loop
   iterations inflate badly while WebRadio plays (`s_wr_audio->loop()` decode runs inline
   in `tick()` — see M-WR-AUDIO-TASK); the `>50 ms` perf warning fires routinely there.
@@ -47,8 +47,9 @@ release, *after* the old app's `suspend()`. Everything before that is invisible.
 - **Cooldown correction (for the record).** The roadmap/task framing said cooldowns
   "silently drop rapid follow-up taps" at the taskbar. Reading the dispatch order: the
   taskbar zone is handled **before** the `s_cooldownMs`/`g_shellBusy` gate
-  (`main.cpp:1865` vs `:1884`), so taskbar presses are *never* cooldown- or busy-gated.
-  The 300 ms cooldown set after a taskbar gesture (`:1919`) gates the next **app-canvas**
+  (both inside `app/src/main.cpp` (`appHandleInput`) — the taskbar branch runs ahead of the
+  gate), so taskbar presses are *never* cooldown- or busy-gated.
+  The 300 ms cooldown set after a taskbar gesture (same function) gates the next **app-canvas**
   press only. Taskbar→taskbar rapid taps are dropped by *sampling loss*, not by cooldown.
 
 ### Constraints
@@ -114,7 +115,7 @@ from **both** dispatch sites (`appHandleInput` and `drainInjectionQueue`), for p
 cancel, and the F-b commit paint alike; otherwise the injected path the measurement plan
 depends on drifts from production.
 *Tradeoff:* touches the gesture state machine's shell side only; `WinampDisplay` keeps
-zero switch/render responsibility (same separation `cmdTap` respects, `main.cpp:2386`).
+zero switch/render responsibility (same separation `cmdTap` respects, `app/src/debug/serialConsole/cmdTouch.h` (`cmdTap`)).
 
 **F-b. Post-release "switching…" affordance.**
 At tap resolution in the release path, *before* `switchApp()` does its heavy work, paint
@@ -160,7 +161,7 @@ stay; feedback (sub-problem A) closes the *perception* gap instead.
 
 **L-c. Cooldown audit.** Findings from the code read:
 - Taskbar presses are never cooldown-gated (see Context correction) — nothing to fix.
-- The 300 ms post-taskbar-gesture cooldown (`:1919`) gates the next app-canvas press.
+- The 300 ms post-taskbar-gesture cooldown (`app/src/main.cpp`, `appHandleInput`) gates the next app-canvas press.
   Load-bearing candidate: finger-lift bounce from a taskbar scroll bleeding into the
   canvas as a phantom tap (resistive digitizer). Aligning it to 200 ms (the tap value) is
   plausible but low-value; verify bounce rate on DUT with `set cooldown 0` before touching.
@@ -180,7 +181,7 @@ silently under SCREEN_LOG; **`MAX_PATHS` goes 8 → 10 in whichever trio task la
 
 **Definition — "press-to-first-pixel":** time from the loop iteration that samples the
 taskbar Press (injected: `drainInjectionQueue` routes `sx >= TASKBAR_X` samples to
-`tbGesturePress`, `main.cpp:2312-2321`) to completion of the pressed-slot repaint (new
+`tbGesturePress`, `app/src/main.cpp` (`drainInjectionQueue`)) to completion of the pressed-slot repaint (new
 timestamped log line). Target: same loop iteration.
 
 **Definition — "tap-to-switch-committed":** injected release → `[shell] entered N` line.
@@ -237,10 +238,11 @@ path is measured today.
 3. Is the 300 ms post-taskbar cooldown load-bearing against release bounce on this
    resistive panel? Testable: `set cooldown 0`, scroll taskbar, count phantom canvas taps.
 4. `cmdTap`'s taskbar branch calls `switchApp(appIdx)` directly and **skips
-   `resolvePlayerSlot()`** (`main.cpp:2390` vs `:1916`) — injected taps on the player slot
+   `resolvePlayerSlot()`** (`app/src/debug/serialConsole/cmdTouch.h` (`cmdTap`) vs
+   `app/src/main.cpp` (`shellTbRelease`)) — injected taps on the player slot
    land on Spotify even when the persisted mode is WebRadio (TASK-259/260 divergence from
    production path). A second divergence [VE-3-6]: the injected taskbar release never sets
-   the 300 ms post-gesture cooldown that production sets (`main.cpp:1919`). **Filed as
+   the 300 ms post-gesture cooldown that production sets (`app/src/main.cpp`, `appHandleInput`). **Filed as
    TASK-280** (align injection with production dispatch) [QM-3-4].
 
 ## Exit criteria

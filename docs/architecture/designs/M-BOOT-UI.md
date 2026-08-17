@@ -8,6 +8,12 @@
 > Tracked-as: — (PM to file; suggest TASK-364+)
 > Registers: boot-ui-001, wifi-diag-001, X039–X042 (`cross_feature_matrix.yaml`) — see §Registers
 
+> **Note on coordinates (TASK-464).** File citations here were converted to symbol form.
+> Bare `:NNN` fragments that remain are lines in `main.cpp` **as it stood when this design
+> was written** (pre-M-SRCLAYOUT Stage A/B, when `main.cpp` was 5 940 lines). They are kept
+> as written rather than renumbered — all of them fall inside `setup()` in
+> `app/src/main.cpp`, in the order listed.
+
 ## Context / pain points
 
 A timestamped fresh-boot capture this session found the boot sequence paints
@@ -15,27 +21,27 @@ the one thing that costs nothing (the flash-resident Winamp skin chrome)
 *last*, after everything slow and failure-prone (WiFi, NTP):
 
 - `t=0.78s`: `[boot]` banner.
-- `t=0.8–1.2s`: `spotifyDisplay->displaySetup(&spotify)` (`main.cpp:2134`) —
+- `t=0.8–1.2s`: `spotifyDisplay->displaySetup(&spotify)` (`app/src/main.cpp`, `setup`) —
   `tft.init(); tft.setRotation(1); tft.fillScreen(TFT_BLACK);`
   (`Spotify-Diy-Thing/SpotifyDiyThing/cheapYellowLCD.h:69-87`) plus
   `WinampDisplay::displaySetup()`'s override (byte-swap flag only,
   `app/src/winamp/winampDisplay.h:49-55`). **Screen goes solid black here and
   stays black** — no skin chrome yet.
 - `t=1.2–1.3s`: SPIFFS mount, `SettingsStorage::load()`,
-  `TouchCalStorage::load()`, config file load (`main.cpp:2147-2179`) — fast,
+  `TouchCalStorage::load()`, config file load (`app/src/main.cpp`, `setup`) — fast,
   all local, no network.
 - `t=1.3–2.1s` (this capture): WiFi connect. But the code has a **cascading
   fallback with no shared deadline**: hardcoded-SSID attempt (30 s,
-  `main.cpp:2199-2208`, compiled in only under `wifi_creds.h`) → NVS-stored
+  `app/src/main.cpp` (`setup`), compiled in only under `wifi_creds.h`) → NVS-stored
   attempt (10 s, `:2219-2223`) → SPIFFS-file-creds attempt (30 s, `:2237-2241`,
   plus a 15 s re-association settle wait, `:2251-2253`). **Worst case ≈ 85 s**
   of solid black before boot even reaches NTP.
 - `t=2.1–4.1s`: NTP sync (bounded 5 s, HTTPS-Date fallback on timeout,
-  `main.cpp:2308-2332`).
+  `app/src/main.cpp` (`setup`)).
 - `t≈4.1–4.3s`: **only now** does the first real chrome paint happen —
-  `main.cpp:2415-2422`'s `g_apps[(int)AppId::Spotify]->init()` (→
+  `app/src/main.cpp` (`setup`)'s `g_apps[(int)AppId::Spotify]->init()` (→
   `SpotifyApp::init()` → `winampDisplay.showDefaultScreen()`,
-  `main.cpp:208-210`) then `renderTaskbar(...)`. `showDefaultScreen()`
+  `app/src/apps/spotifyApp.h` (`SpotifyApp::init`)) then `renderTaskbar(...)`. `showDefaultScreen()`
   (`winampDisplay.h:108-117`) calls `repaintChrome()`
   (`winampDisplay.h:122-168`), which is a straight `tft.pushImage()` composite
   from flash-resident arrays (`SKIN_MAIN_BG` etc.) — **this paint itself costs
@@ -62,7 +68,7 @@ and *how much* liveness during the still-blocking waits is worth building now.
   The only real question was whether it assumes anything about *when* first
   paint happens or what the title looks like pre-playback. It doesn't: entry
   into WebRadio mode always goes through `switchApp(AppId::WebRadio)`
-  (`main.cpp:1952-1985`), which unconditionally wipes the app area
+  (`app/src/main.cpp`, `switchApp`), which unconditionally wipes the app area
   (`tft.fillRect(0,0,TASKBAR_X,240,TFT_BLACK)`, `:1966`) and calls
   `WebRadioApp::init()`/`resume()` before anything else runs — so whatever
   boot-status text this design leaves in the marquee is torn down and
@@ -103,7 +109,7 @@ and *how much* liveness during the still-blocking waits is worth building now.
 5. Small, auditable diff, scoped to the `WINAMP_DISPLAY` build family (the
    production `cyd2usb_winamp` env and everything that `extends` it) —
    matching the existing `#ifdef WINAMP_DISPLAY` boundary around
-   `SpotifyApp`/`g_apps[]` (`main.cpp:205-269`, `:1820-1828`). The non-Winamp
+   `SpotifyApp`/`g_apps[]` (`app/src/main.cpp`, the `g_apps[]` table). The non-Winamp
    `cyd` and `trinity` envs are untouched.
 6. **(2026-07-19 scope extension, resolves OQ2)** The same title marquee
    also surfaces a **whole-session, `loop()`-time** WiFi outage — not just
@@ -138,35 +144,35 @@ safe point (not the first plausible-looking one):
   `gen/shell_layout.h` and `gen/taskbar_icons.h` — both compile-time-generated,
   flash-resident headers (baked by `run/bake-skin`/icon tooling, not a
   runtime step) — plus `shell::activeError()`/`activeConnecting()`
-  (`main.cpp:1843-1850`), which read `g_apps[(int)currentAppId]->hasError()`/
-  `isConnecting()`. `g_apps[]` (`main.cpp:1821-1825`) is populated from
+  (`app/src/main.cpp`, `activeError` / `activeConnecting`), which read `g_apps[(int)currentAppId]->hasError()`/
+  `isConnecting()`. `g_apps[]` (`app/src/main.cpp`, `g_apps`) is populated from
   `static SpotifyApp g_SpotifyApp;`-style globals at **static-init time**,
   before `setup()` ever runs — always non-null, always safe to index.
-  `currentAppId` (`main.cpp:128`) is `AppId::Spotify` by static initializer.
-  `SpotifyApp::hasError()`/`isConnecting()` (`main.cpp:228-235`) call the same
+  `currentAppId` (`app/src/main.cpp`, `currentAppId`) is `AppId::Spotify` by static initializer.
+  `SpotifyApp::hasError()`/`isConnecting()` (`app/src/apps/spotifyApp.h`, `SpotifyApp::hasError`) call the same
   two `spotifyTask::` statics already covered above. **No dependency beyond
   what `repaintChrome()` already needs.**
 - **`winampDisplay.setTitle(text)`** (`:189-196`) — pure string-compare +
   `drawTitleText()` (flash `SKIN_GLYPH` blits). No dependency.
 
 **Conclusion: the true earliest safe point is immediately after
-`displaySetup()`** (`main.cpp:2134`) — before SPIFFS mount, before
+`displaySetup()`** (`app/src/main.cpp`, `setup`) — before SPIFFS mount, before
 `SettingsStorage::load()`, before WiFi. Nothing the paint touches needs any
 of that. Two real-world considerations argue for placing it slightly later,
 right after `TouchCalStorage::load()` + the backlight-PWM handoff
-(`main.cpp:2159-2176`, i.e. before `fetchConfigFile()`/`wifiDiag::begin()`),
+(`app/src/main.cpp` (`setup`), i.e. before `fetchConfigFile()`/`wifiDiag::begin()`),
 instead of at the theoretical earliest point:
 
 1. **Backlight sequencing.** `tft.init()` (inside `displaySetup()`) does a
    bare `digitalWrite(TFT_BL, HIGH)` — full brightness, no LEDC channel
-   configured yet (`main.cpp:2156-2158`'s own comment). `g_backlight.applyMode()`
+   configured yet (`app/src/main.cpp` (`setup`)'s own comment). `g_backlight.applyMode()`
    (`:2169`) then applies the user's saved brightness (`dispAuto`/`dispLevel`).
    Painting at the theoretical-earliest point would flash the chrome at full
    brightness for the ~20-100 ms until `applyMode()` runs, then dim —
    cosmetic, not a correctness issue, but avoidable for free by painting
    ~20 lines later.
 2. **The SPIFFS-mount-failure path stays exactly as it is today.**
-   `SPIFFS.begin()` failing (`main.cpp:2147-2153`) drops into
+   `SPIFFS.begin()` failing (`app/src/main.cpp`, `setup`) drops into
    `while(1) yield();` — a permanent hang, no screen feedback, existing
    behavior. Painting chrome *before* this check would leave a "working-looking"
    but frozen skin on that hang instead of black — arguably a wash (a
@@ -184,7 +190,7 @@ not the sub-second SPIFFS/settings phase, this tradeoff is not close.
 
 **The early paint must be an *additional* direct call to
 `winampDisplay.showDefaultScreen()` + `renderTaskbar(...)`, not a reordering
-of the existing `main.cpp:2415-2422` block.** That block still runs, unchanged,
+of the existing `app/src/main.cpp` (`setup`) block.** That block still runs, unchanged,
 later: `g_appLaunched[(int)AppId::Spotify] = true; g_apps[(int)AppId::Spotify]->init();`
 then `renderTaskbar(...)` again. The second pass is a harmless, cheap,
 idempotent repaint (`repaintChrome()`'s own doc comment: "Idempotent given
@@ -204,7 +210,7 @@ scroll to be legible.
 Proposed phase strings, each tied to an **existing** call site (adds one
 `setTitle()` call per site, no new branching):
 
-| Phase | Call site (`main.cpp`) | Text |
+| Phase | Call site (inside `setup()`, `app/src/main.cpp`) | Text |
 |---|---|---|
 | Early paint | new, ~`:2176` | `"STARTING UP..."` |
 | WiFi: connecting (any fallback stage — hardcoded-SSID `:2193`, NVS `:2210`, SPIFFS-creds `:2224`, re-assoc settle `:2244-2253`) | all four sites above | `"WI-FI: CONNECTING..."` (single generic string — human decision, OQ1 below: not worth keeping the per-stage granularity in sync) |
@@ -266,10 +272,10 @@ smoothed over.
 ### Option B (fuller): also drive marquee scroll during the waits
 
 Every wait loop already calls `esp_task_wdt_reset()` every iteration
-(`main.cpp:2205,2221,2239,2252` — added by TASK-288 specifically so
+(four sites in `app/src/main.cpp` (`setup`) — added by TASK-288 specifically so
 cumulative un-fed time across the whole cascade doesn't trip the watchdog).
 That is a **ready-made, already-present, per-iteration hook** — adding
-`winampDisplay.tickMarquee()` (`:200`, thin wrapper over the already-`millis()`-
+`winampDisplay.tickMarquee()` (`app/src/winamp/winampDisplay.h`, thin wrapper over the already-`millis()`-
 gated `_tickMarquee()`, `:713-725`) immediately alongside each
 `esp_task_wdt_reset()` call costs one function call per loop iteration, is
 self-throttled internally (only repaints when `titleScrollDeadline` has
@@ -325,7 +331,7 @@ below for the same reasoning applied to the fallback cascade itself).
 ## §4 — The WiFi fallback cascade (flagged, not solved here)
 
 The three-stage fallback (30 s hardcoded → 10 s NVS → 30 s SPIFFS + 15 s
-settle = **85 s worst case**, `main.cpp:2199-2253`) is a separate, real
+settle = **85 s worst case**, `app/src/main.cpp` (`setup`)) is a separate, real
 opportunity: painting chrome early and showing status text makes the wait
 *look* dramatically better (§3), but does not make it *shorter*.
 Shortening or parallelizing that cascade (e.g. racing NVS and SPIFFS creds
@@ -341,7 +347,7 @@ schedule).
 ## §5 — Other constraints checked
 
 - **`tft`/SPI availability at the proposed call site:** safe.
-  `displaySetup()` (`main.cpp:2134`) runs `tft.init()` unconditionally before
+  `displaySetup()` (`app/src/main.cpp`, `setup`) runs `tft.init()` unconditionally before
   any of the other setup() work; the proposed call site (~`:2176`) is after
   it. No concurrent SPI user exists at this point in `setup()` —
   `spotifyTask::begin()` and `dataTask::begin()` (the two FreeRTOS tasks that
@@ -358,8 +364,8 @@ schedule).
   `_debug_noSpotify`) inherit the flag; `cyd`/`cyd2usb` (plain, non-Winamp)
   and `trinity` (HUB75 matrix, `-DMATRIX_DISPLAY`) do not. This design's new
   code must live inside the same `#ifdef WINAMP_DISPLAY` guard the existing
-  `SpotifyApp`/`g_apps[]`/taskbar code already uses (`main.cpp:205-269`,
-  `:1820-1828`) — on non-Winamp builds, fall back to the existing
+  `SpotifyApp`/`g_apps[]`/taskbar code already uses (`app/src/main.cpp`, the `g_apps[]`
+  table) — on non-Winamp builds, fall back to the existing
   `spotifyDisplay->showDefaultScreen()` call with no marquee/taskbar (those
   backends have no such concepts; out of scope, matches current behavior).
 
@@ -370,7 +376,7 @@ happens **mid-session**, at any point after boot, with any app foreground —
 not just the `setup()`-time boot wait §1-§5 cover. The mechanism already
 exists and is already silent: `wifiDiag::superviseTick()`
 (`app/src/wifiDiag.cpp:101-134`), called from `loop()`
-(`main.cpp:3886`, guarded `if (currentAppId != AppId::Settings)`) whenever
+(`app/src/main.cpp` (`loop`), guarded `if (currentAppId != AppId::Settings)`) whenever
 WiFi is down and the supervisor is armed. Retry policy: wait until
 continuously down for `WIFI_SUP_DOWN_MS = 60000`, then kick
 (`WiFi.disconnect()`+`WiFi.begin()`), repeat every `WIFI_SUP_PACE_MS = 30000`,
@@ -401,7 +407,7 @@ Checked both candidate existing signals; neither covers this adequately:
    recolor + a 4×4 amber pip, `repaintChrome():135-139`), easy to miss, and
    **only present while Spotify is foreground**. The more globally-visible
    signal — the taskbar active-slot amber/red indicator, edge-triggered
-   every `loop()` iteration (`main.cpp:3912-3930`) — reads
+   every `loop()` iteration (`app/src/main.cpp`, `loop`) — reads
    `shell::activeError()`/`activeConnecting()`, which call
    `SpotifyApp::hasError()`/`isConnecting()` →
    `spotifyTask::authError()`/`connecting()` **only** — `authError()` is
@@ -543,7 +549,7 @@ Spotify trace above, it demonstrably isn't.
   `WiFi.status() == WL_CONNECTED`** — edge-triggered, no polling delay
   beyond one `loop()` tick (sub-millisecond in practice).
 - **Settings-foreground suppression is load-bearing, not just tidy.**
-  `switchApp()` (`main.cpp:1952-1985`) unconditionally wipes the entire app
+  `switchApp()` (`app/src/main.cpp`, `switchApp`) unconditionally wipes the entire app
   canvas (`tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK)`, `TASKBAR_X =
   275`) before the next app paints — every app, including Settings, then
   owns and repaints that **entire** region itself (the "full-screen canvas"
@@ -556,7 +562,7 @@ Spotify trace above, it demonstrably isn't.
   text over the Settings UI**, a real visual corruption, not a hypothetical
   one. The new `loop()`-level detector block must therefore be gated by
   the **exact same** `currentAppId != AppId::Settings` condition
-  `superviseTick()` already uses (`main.cpp:3886`) — co-located with that
+  `superviseTick()` already uses (`app/src/main.cpp`, `loop`) — co-located with that
   call for discoverability, not a separately-invented condition that could
   drift out of sync with it. Secondary, complementary reason: a user
   inside Settings' WiFi section is already looking at connection status
@@ -590,7 +596,7 @@ Spotify trace above, it demonstrably isn't.
   deferred.** The original framing treated `loop()`-time background
   reconnect as a natural follow-up outside this design's boot-sequence
   scope. The human overruled that: the marquee should surface
-  `wifiDiag::superviseTick()`'s silent background reconnect (`main.cpp:3886`,
+  `wifiDiag::superviseTick()`'s silent background reconnect (`app/src/main.cpp` (`loop`),
   `wifiDiag.cpp:101-134`) too — mid-session, any foreground app, not just
   the `setup()`-time wait. Investigated (not assumed) whether this is
   redundant with anything that already exists (it isn't — Spotify's title
@@ -706,7 +712,7 @@ build and has been live since TASK-274/283, but had no `feature_inventory.yaml`
 entry before this design created a real, code-level coupling to it (§6:
 `boot-ui-001`'s new `loop()`-level detector must track the exact same
 `currentAppId != AppId::Settings` suppression condition
-`wifiDiag::superviseTick()` already uses, `main.cpp:3886` — a shared-policy
+`wifiDiag::superviseTick()` already uses, `app/src/main.cpp` (`loop`) — a shared-policy
 coupling that needs an anchor on both sides to stay in sync, not a
 call-graph dependency). Status `implemented` (pre-existing, shipped);
 `git_ref`/`test_ids` back-filled from existing task history, `boot-ui-001`
@@ -716,7 +722,7 @@ added to `cross_features` as the new (design-time) consumer.
   `risk: low`. `boot-ui-001` calls `chrome-001`'s existing
   `showDefaultScreen()`/`repaintChrome()`/`renderTaskbar()` from a new,
   earlier call site in `setup()`; the later, existing call site
-  (`main.cpp:2415-2422`) is unchanged and becomes a harmless idempotent
+  (`app/src/main.cpp`, `setup`) is unchanged and becomes a harmless idempotent
   repaint. No new rendering logic — a call-site relocation plus reuse.
 - **X040** — `boot-ui-001` × `wifi-001`, `interaction_type: dependency`,
   `risk: low`. Marquee text is keyed to WiFi connect-loop phase transitions
@@ -726,12 +732,12 @@ added to `cross_features` as the new (design-time) consumer.
   change WiFi connect/retry behavior, only observes its phase transitions.
 - **X041** — `boot-ui-001` × `time-001`, `interaction_type: dependency`,
   `risk: low`. Same shape as X040, keyed to the NTP sync wait
-  (`main.cpp:2308-2332`) and its HTTPS-Date fallback branch.
+  (`app/src/main.cpp`, `setup`) and its HTTPS-Date fallback branch.
 - **X042 (new, §6)** — `boot-ui-001` × `wifi-diag-001`,
   `interaction_type: shared_state`, `risk: medium`. `boot-ui-001`'s
   `loop()`-level WiFi-down marquee detector must be gated by the **same**
   `currentAppId != AppId::Settings` condition `wifiDiag::superviseTick()`
-  already uses (`main.cpp:3886`) — not a function-call dependency (§6
+  already uses (`app/src/main.cpp`, `loop`) — not a function-call dependency (§6
   deliberately keeps the down-duration tracking self-contained, no new
   `wifiDiag` API), but a **shared policy** that must not drift: if
   `superviseTick()`'s suppression condition is ever changed (e.g. a future

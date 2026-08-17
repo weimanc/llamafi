@@ -98,7 +98,7 @@ merely configures it. The Applications list grows to 10 entries —
 ### D3 — Change propagation (the ADR-050 owner contract)
 
 Owner is `webRadioApp` via **pull-on-resume with a config snapshot diff**
-(StockApp ticker-diff precedent, `main.cpp:1080-1090`):
+(StockApp ticker-diff precedent, `app/src/apps/stockApp.h` (`StockApp::resume`)):
 
 - App keeps `_cfgCountry[4]` + `_cfgCap` snapshots taken at each list fetch.
 - **Result identity (WR-1, r2 — BLOCKER fix).** The diff alone cannot defeat a
