@@ -173,6 +173,173 @@ question by measurement (LL-137). (b) `T_488_11` must not be re-run as written; 
 
 ---
 
+## Suite: M-WINAMP-PLAYER — RESERVED id families `T_PLR_01`–`41`, `T_PMT_01`–`03` (VE, 2026-08-17)
+
+> **Registered by @VE, 2026-08-17, executing P0 of
+> [M-TESTBASE §4](../architecture/designs/M-TESTBASE-phase1-player-gate.md).** Before this block,
+> `T_PLR_` appeared in this file exactly **four** times, all incidental (`T_PLR_09`/`12` corrections
+> inside other suites) — **41 ids specified in Architect-owned design docs, zero registered in the
+> VE-owned plan.** Same class of debt as `T_488_*` above, found the same week.
+>
+> **Criteria are NOT copied here.** Each row carries id + what it covers + owner + source link +
+> status only; the method and the pass criterion stay in the design doc linked per group, because a
+> criterion copied into two files diverges (LL-114). Same shape as the M-ARCH block above.
+>
+> **Status vocabulary — three values, and the distinction is the whole point of this block:**
+>
+> | status | meaning |
+> |---|---|
+> | `impl` | a test body exists and runs — registry `app/tools/run_serialdbg_tests.py:9947-9976`, or a host driver (`app/tools/test_playorder_player.py`, `app/tools/test_fbrowser_player.py`, `app/tools/test_ae04_teardown.py`) |
+> | `resv` | specified in a design doc; no code anywhere |
+> | `blocked` | specified, and cannot run today — the blocking task is named in the row |
+>
+> `impl` means *a body exists*, not *it passed*. Results of record live with the task that ran them.
+
+**Spec owner**: @Architect ([M-WINAMP-PLAYER-local-playback §12](../architecture/designs/M-WINAMP-PLAYER-local-playback.md),
+`docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:415-518`; task→id map at
+`docs/architecture/designs/M-WINAMP-PLAYER.md:353-364`). **Criteria owner**: @VE — VE may rename,
+re-scope or discard any of these, per the M-ARCH block's rule. **Gate owner** per row = the task.
+
+### `T_PLR_01`–`26` — implemented family (bodies in the serial-dbg runner)
+
+| id | Covers | Owner | Source | Status |
+|---|---|---|---|---|
+| `T_PLR_01` | taskbar tap cycles the player mode | @Dev TASK-413 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:419` | `impl` |
+| `T_PLR_02` | mode persists across reboot | @Dev TASK-413 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:420` | `impl` |
+| `T_PLR_03` | no leaked taskbar slot (TASK-242 regression) | @Dev TASK-413 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:421` | `impl` |
+| `T_PLR_04` | `get`/`set playerMode` round-trips all three | @Dev TASK-413 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:422` | `impl` |
+| `T_PLR_05` | tap from another app restores, not cycles | @Dev TASK-413 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:423` | `impl` |
+| `T_PLR_06` | eject is per-mode | @Dev TASK-414 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:429` | `impl` |
+| `T_PLR_07` | logo tap still resets TLS | @Dev TASK-414 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:430` | `impl` |
+| `T_PLR_08` | ≥100-track M3U loads | @Dev TASK-415 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:436` | `impl` |
+| `T_PLR_09` | scroll end to end during playback | @Dev TASK-415 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:437` | `impl` |
+| `T_PLR_10` | relative paths resolve | @Dev TASK-415 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:438` | `impl` |
+| `T_PLR_11` | malformed M3U degrades | @Dev TASK-415 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:439` | `impl` |
+| `T_PLR_12` | index memory bounded and freed | @Dev TASK-415 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:440` | `impl` |
+| `T_PLR_13` | browser paging never stalls audio | @Dev TASK-416 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:457` | `impl` |
+| `T_PLR_14` | navigation taps survive the busy gate | @Dev TASK-416 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:458` | `impl` |
+| `T_PLR_15` | busy indicator reflects real work | @Dev TASK-416 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:459` | `impl` |
+| `T_PLR_16` | deep/edge browser paths | @Dev TASK-416 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:460` | `impl` |
+| `T_PLR_17` | capability mask — **one shipped mode unchanged; see the swap note** | @Dev TASK-417 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:466` | `impl` |
+| `T_PLR_18` | capability mask — **the other shipped mode; see the swap note** | @Dev TASK-417 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:467` | `impl` |
+| `T_PLR_19` | Player advertises all four capabilities | @Dev TASK-417 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:468` | `impl` |
+| `T_PLR_20` | shuffle bag visits each track once | @Dev TASK-418 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:474` | `impl` |
+| `T_PLR_21` | four end-of-list shuffle×repeat cells | @Dev TASK-418 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:475` | `impl` |
+| `T_PLR_22` | reshuffle does not re-open on the last track | @Dev TASK-418 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:476` | `impl` |
+| `T_PLR_23` | prev replays history | @Dev TASK-418 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:477` | `impl` |
+| `T_PLR_24` | tap-to-play moves the bag cursor, no reshuffle | @Dev TASK-418 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:478` | `impl` |
+| `T_PLR_25` | auto-advance end to end (the one real-playback case) | @Dev TASK-418 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:479` | `impl` |
+| `T_PLR_26` | shuffle/repeat persist across reboot | @Dev TASK-418 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:481` | `impl` |
+
+**`T_PLR_25b` is not an id.** ADR-059 D12 reclassified it to a runtime `configASSERT` on the
+open-next-track path (`docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:480`) — it panics
+in every debug run rather than being probed once. Recorded so an audit does not file it as missing.
+
+> **DEFECT, unresolved, and it is NOT mine to fix — `T_PLR_17`/`T_PLR_18` are swapped between spec
+> and implementation.** The design doc assigns 17 = "WebRadio unchanged", 18 = "Spotify unchanged"
+> (`docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:466-467`); the runner implements
+> 17 = Spotify, 18 = WebRadio (`app/tools/run_serialdbg_tests.py:5958`,
+> `app/tools/run_serialdbg_tests.py:6019`). Firmware comments are split **2–2** between the two
+> conventions. `docs/architecture/decisions/ADR-059.md:396` cites both as baseline ids, so **every
+> citation of either id is currently ambiguous** and the rows above deliberately do not say which
+> mode each one covers. VE recommendation and full blast radius: see the "17/18" section of
+> [regression_suite/m-winamp-player-coverage.md](regression_suite/m-winamp-player-coverage.md).
+> Fixing it spans an Architect-owned doc and test code; it is filed, not done here.
+
+### `T_PLR_27`–`41` — reserved and blocked (no bodies anywhere)
+
+Confirmed by grep: `T_PLR_2[7-9]`/`3[0-9]`/`4[01]` appear **nowhere** in `app/tools/`.
+
+| id | Covers | Owner | Source | Status |
+|---|---|---|---|---|
+| `T_PLR_27` | posbar scrubs against real duration | @Dev TASK-419 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:487` | `resv` — TASK-419 READY, unimplemented |
+| `T_PLR_28` | seek during playback does not underrun | @Dev TASK-419 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:488` | `resv` — as above |
+| `T_PLR_29` | edits mutate RAM only, card untouched until SAVE | @Dev TASK-420 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:494` | `blocked` — **TASK-424** (FatFs SD-write panic) via TASK-420 |
+| `T_PLR_30` | shuffle ON + reorder + SAVE writes **display** order | @Dev TASK-421 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:495` | `blocked` — **TASK-424** via TASK-421 |
+| `T_PLR_31` | staged adds survive SAVE | @Dev TASK-421 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:496` | `blocked` — **TASK-424** via TASK-421 |
+| `T_PLR_32` | SAVE is atomic across a mid-write reboot | @Dev TASK-421 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:497` | `blocked` — **TASK-424** via TASK-421 |
+| `T_PLR_33` | restore discards edits | @Dev TASK-421 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:498` | `blocked` — **TASK-424** via TASK-421 |
+| `T_PLR_34` | delete repairs both permutations | @Dev TASK-420 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:499` | `blocked` — **TASK-424** via TASK-420 |
+| `T_PLR_35` | each variant builds and boots | @Dev TASK-422 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:505` | `resv` — gate owed, parts A+B landed |
+| `T_PLR_36` | persisted mode naming an absent mode falls back | @Dev TASK-422 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:506` | `blocked` — **no env defines `-DPLAYER_*`** (`docs/project/tasks-winamp-player.md:664-676`) |
+| `T_PLR_37` | single-mode build does not cycle | @Dev TASK-422 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:507` | `blocked` — same missing single-mode env |
+| `T_PLR_38` | suspend leaves nothing behind (×20 switches) | @Dev TASK-422 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:508` | `resv` |
+| `T_PLR_39` | ≥30 min soak, injection-driven | @Dev TASK-422 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:509` | `resv` — **its recorded blocker is stale**, see note |
+| `T_PLR_40` | `NEW-APP-CHECKLIST` walked for `AppId::LocalPlayer` | @Dev TASK-422 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:510` | `resv` — walked once 2026-08-14, no re-runnable body |
+| `T_PLR_41` | card removed mid-playback degrades | @Dev TASK-422 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:511` | `resv` — manual, physical |
+
+**VE notes on this half.**
+
+- **`T_PLR_39`'s blocker is stale.** `docs/project/tasks-winamp-player.md:675` records it as blocked
+  by TASK-442 ("that variant cannot start playback"). TASK-442 is **closed and archived**
+  (`docs/project/tasks-archive.md:16919`); TASK-447/448 fixed it and `cyd2usb_player` plays. The id
+  is therefore `resv`, not `blocked` — it is schedulable. The board text needs a PM sweep; I have not
+  edited it.
+- **`T_PLR_40` is a review walk, not a test.** The walk was done (5 pass, 1 deviation, 1 gap, 1
+  owed — `docs/project/tasks-winamp-player.md:677-712`). Per the `T_AE_05` precedent it must **not**
+  be counted as a passing test. Its own recorded gap is that every `X050`–`X064` row has
+  `test_coverage: []` — the debt this block exists to start paying.
+- **`T_PLR_36`/`37` cannot pass or fail today**, because no shipping env defines the presence flags.
+  The fallback path is implemented and unexercised in every configuration. That is `blocked`, not
+  `resv`, and it is exactly `X064`.
+
+### `T_PMT_01`–`03` — player-mode transition cells (new family, reserved)
+
+**Source**: [M-TESTBASE §6.1](../architecture/designs/M-TESTBASE-phase1-player-gate.md),
+`docs/architecture/designs/M-TESTBASE-phase1-player-gate.md:364-378`. Prefix `T_PMT_` chosen because
+`T_PLR_` is partitioned per-task and full to 41; note `T_PRM_` already exists in the runner and is
+visually close.
+
+| id | Covers | Owner | Source | Status |
+|---|---|---|---|---|
+| `T_PMT_01` | S→W edge — whole `get player` vector (leg A) | @VE / @Dev (P2, P3) | `docs/architecture/designs/M-TESTBASE-phase1-player-gate.md:372` | `resv` — needs P2's `get player` |
+| `T_PMT_02` | W→L edge — same vector (leg A) | @VE / @Dev (P2, P3) | `docs/architecture/designs/M-TESTBASE-phase1-player-gate.md:373` | `resv` — needs P2 |
+| `T_PMT_03` | L→S edge — same, plus outgoing engine teardown (leg B) | @VE / @Dev (P2, P3) | `docs/architecture/designs/M-TESTBASE-phase1-player-gate.md:374` | `resv` — needs P2 |
+
+Only three edges are reachable (`playerModeNext()` is a successor-only cycle); the M4b invariant is
+**not** in this family — it is `T_PLR_30`, deferred behind TASK-424.
+
+### Interaction coverage — `X050`–`X064`, with the status column the old table lacked
+
+Transcribed from the pre-ADR-059 table at
+`docs/architecture/designs/M-WINAMP-PLAYER-VE-review.md:216-232`, plus the implementation-status
+column it lacked. **A coverage table without an implementation-status column is how "covered" and
+"green" got conflated across this document set** — so "covering ids" below never means "green", and
+the last column is the honest one.
+
+| X | Covering ids (id-level status) | Interaction status |
+|---|---|---|
+| `X050` | `T_AE_04` `impl` (`app/tools/test_ae04_teardown.py`); `T_AE_01`–`03` have **no id-labelled body** — `app/tools/test_webradio_soak.py` (`run/wr-soak`) is their only vehicle and it labels `T_AE_04` alone; `T_AE_13`/`15`/`16` `blocked` (M-AUDIO-ENGINE suite below) | **partial** — teardown ordering only |
+| `X051` | `T_AE_08` `resv`; `T_AE_11`/`12`/`14` `blocked`; **gate-covered** by `run/check` mem-budget gate (VE-17) | **gate-covered**, no test |
+| `X052` | `T_PLR_09` `impl`, `T_PLR_13` `impl`, `T_PLR_39` `resv` | **partial** — short-duration only; the soak is the uncovered half |
+| `X053` | `T_SD_01`–`03`, `08` — **no bodies exist for any `T_SD_` id** | **GENUINELY UNCOVERED** |
+| `X054` | `T_PLE_01`–`06` — no bodies | **GENUINELY UNCOVERED** |
+| `X055` | `T_PLE_07`–`13`: only `T_PLE_08` realised, as `T_PLE_WR_155`–`160` `impl`; `T_PLE_14` (seqno-vs-dirty-flag) **not specified in any owned doc** | **partial**, and the seqno gap is **GENUINELY UNCOVERED** |
+| `X056` | `T_PLR_01` `impl`, `T_PLR_05` `impl` | **covered** |
+| `X057` | `T_PLR_03` `impl`; plus three `static_assert`s at T0 (`app/src/taskbar/taskbar.h:42-63`) | **covered** |
+| `X058` | `T_PLR_14` `impl`, `T_PLR_15` `impl` | **covered** |
+| `X059` | `T_PLR_31` `blocked` (TASK-424) | **GENUINELY UNCOVERED** |
+| `X060` | `T_PLR_19` `impl` (hit-test) + `golden.sha256` in `run/check` (asset identity, VE-16) | **covered**, split test+gate |
+| `X061` | the capability-mask id for **WebRadio** — `T_PLR_18` under the runner's numbering, `T_PLR_17` under the design doc's; `impl` either way | **covered**, *but the id name is ambiguous until the swap is settled* |
+| `X062` | `T_PLR_30` `blocked` (TASK-424). `T_PLR_20`–`24`/`26` `impl` cover `playOrder` mechanics **only** — never the `playOrder` vs `viewOrder` vs written-file divergence, which is the interaction | **GENUINELY UNCOVERED** — highest-risk row |
+| `X063` | `T_PLR_25` `impl` + the D12 runtime assert; matrix also cites `T_AE_12` `blocked` | **covered** |
+| `X064` | `T_PLR_36` `blocked`, `T_PLR_37` `blocked` | **GENUINELY UNCOVERED** |
+
+**Five genuinely uncovered interactions: `X053`, `X054`, `X059`, `X062`, `X064`** (plus the `X055`
+seqno half). M-TESTBASE §1 named seven high-risk uncovered rows in the player area; against
+implementation status, three of those seven (`X052` partially, `X057`, `X061`) do have running
+bodies, and two rows it did **not** flag (`X053`, `X054`, `X059`) are as uncovered as the ones it did.
+
+`X062` remains observable-but-not-closable: `viewOrder` is an identity permutation with no mutator
+(`app/src/player/m3u.h:230`) and there is no SAVE, so the destructive failure cannot be provoked —
+blocked on TASK-424, not on tooling.
+
+**`cross_feature_matrix.yaml` is Developer-owned and is NOT edited here.** The proposed
+`test_coverage:` value for each of `X050`–`X064`, in mechanically-applicable form, is at
+[regression_suite/m-winamp-player-coverage.md](regression_suite/m-winamp-player-coverage.md).
+
+---
+
 ## Suite: serialdbg-001 — Serial debug command surface (M-SERIALDBG)
 
 Tests for the expanded serial command interface. All require M-SERIALDBG firmware in tree (`tap` / `drag` / `get` / `set` / `info` / `help` commands implemented). Host-side: pyserial or `pio device monitor` piped through a script.
