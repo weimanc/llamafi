@@ -685,3 +685,19 @@ answer.
    into `main.cpp` are gone.
 5. §7 items 1–5 green at every stage.
 6. ADR-060 records the state-ownership convention (D2/D3/D4) and the D5 caution.
+
+### Stage D — DUT verification, 2026-08-18
+
+Stage D is the first stage where symbol identity cannot substitute for hardware: part 2 relocates nine
+shell variables into a TU-static struct behind an out-of-line accessor.
+
+**Battery chosen to hit the relocated members, not a generic run** — busy gate, cooldown, canvas
+gesture, taskbar press-anchoring, `previous` (Settings back), and mode transitions:
+`T-BUSY-01/01b/02/03/05`, `T-CDWN-01/02/03`, `T147`, `T148`, `T162`–`T166`, `T242`, `T_MA_01`–`03`,
+`T_TBFB_01`–`05`, `T_PMT_00`–`03` — **27 passed, 0 failed, 1 skipped** on `cyd2usb_winamp_debug`.
+The skip is `T_MA_03` ("Spotify not rendering"), the standing TASK-243 403, not a Stage D effect.
+
+Leg B via `run/player-gate`: `T_PMT_00`/`03`/`04` and `T_PLR_25_playback` all PASS.
+
+**`T_SRC_05`/`T_SRC_06` and D9's ≥3-run baseline remain owed** — this battery is targeted evidence,
+not a behaviour-neutrality baseline, and it should not be recorded as one.
