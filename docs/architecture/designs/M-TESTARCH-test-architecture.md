@@ -178,6 +178,38 @@ It proves the generation pattern against `check_settings_wiring.py`'s working pr
 time, and lands the Aquarium hole as a real failing cell on day one — which is the correct first
 result, and the same shape as every other gate in this programme.
 
+> **BUILT — @VE, 2026-08-18.** `app/tools/check_app_conformance.py` (rows A5/A6),
+> negative suite `app/tools/test_check_app_conformance.py` (10 cases, BP-068), ledger
+> `docs/verification/app_conformance_exceptions.md` (5 rows), plan section
+> `test_plan.md` → *Suite: app-conformance-001*. Wired at `run/check` gate 9. The
+> generation pattern holds: the domain is `APP_ORDER`, no app name is typed into the
+> checker, and a case asserts that (N10). Four corrections to this section, from
+> building it:
+>
+> 1. **"the 27 empty cells in §2.1 become failing or explicitly allowlisted" does not
+>    apply to A5/A6.** A5 is `n/a` for six apps that open no HTTPS session at all —
+>    a third cell value this section does not have. "Missing" and "not applicable" are
+>    different, and collapsing them would have manufactured six fake failures. Aquarium,
+>    §2.1's zero-coverage app, **passes both T0 rows outright**; its hole is real but
+>    entirely functional-tier.
+> 2. **A6 needed a definition this section does not give.** "app registers `dbgGet` + its
+>    minimum VE hook" is two contracts. A crude `grep dbgGet` over app headers calls
+>    Spotify, Clock, Weather and LocalPlayer failures; verified at the mechanism, **Clock
+>    and LocalPlayer pass** (their surfaces are `cmdGet.h` branches on the instance, not
+>    `dbgGet()` overrides) and only **Weather** is a genuine gap. The row asserts
+>    *reachability of the app instance from the console*; "minimum VE hook" is not
+>    machine-decidable and stays a review item. See the plan section for the reasoning.
+> 3. **A5's domain has moved out of the apps entirely.** No app header opens a TLS session
+>    any more — every HTTPS fetch goes through `dataTask`, which brackets centrally. So A5
+>    is not really a per-app row: it is a per-*fetch-function* row, projected onto apps by
+>    attribution, and two of the ten `FetchType` tags name a feature rather than an app and
+>    cannot be attributed at all. NEW-APP-CHECKLIST item 2 still names two app-level
+>    precedent functions that no longer exist.
+> 4. **The row lands green, not red.** All seven app-attributable HTTPS sites bracket
+>    correctly — three of them only because every *caller* brackets, which a per-function
+>    check would have called failures. The predicted day-one red is on A6, and it is one
+>    cell, not a wall.
+
 
 
 ## 2b. The physical design: what the tiers actually are

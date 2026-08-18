@@ -153,6 +153,83 @@ hardcoded to `tasks.md` (`T_DOC_02`), verbatim carve-out removed (`T_DOC_05`).
 
 ---
 
+## Suite: app-conformance-001 — the generated app conformance matrix, rows A5/A6 (VE, 2026-08-18)
+
+> **Tier T0 — static, host-only, no device, no build.** ~0.8 s.
+> Tool: `app/tools/check_app_conformance.py` · negative suite: `app/tools/test_check_app_conformance.py`
+> Gate: `run/check` gate 9 (`app/tools/smoke_test.sh`) · Ledger:
+> [app_conformance_exceptions.md](app_conformance_exceptions.md) ·
+> Design: [M-TESTARCH §2.3](../architecture/designs/M-TESTARCH-test-architecture.md) ·
+> Task: TASK-483
+
+**This suite mints no `T_` ids, deliberately.** Its instances are *generated*: one cell per
+(app × row), named `A5/<App>` / `A6/<App>`, where the app list comes from
+`app_ids_gen.APP_ORDER` — itself generated from `appRegistry.h`'s X-macro. A typed id per cell
+would re-introduce exactly what M-TESTARCH §2.4 item 2 says a generated matrix removes: a
+hand-maintained copy of the app list. The cell set is therefore always complete by construction;
+when a fourteenth app is registered its two cells appear, failing, on the next run (proven by
+case N5 of the negative suite).
+
+### What the two rows assert
+
+| row | source | asserts | domain |
+|---|---|---|---|
+| `A5` | NEW-APP-CHECKLIST item 2 / BP-031 | every HTTPS **session-open** site (`WiFiClientSecure x;`, `connecttohost()`) attributable to an app is preceded by `tlsYield()`/`tlsTryYield()` and followed by a `tlsResume()` **on every exit path**, either in its own function or in **every caller** of it | all of `app/src` |
+| `A6` | NEW-APP-CHECKLIST item 3 | ≥1 `get` key statically resolves to the app **instance** — via the app's own `dbgGet()` reached through a shim `cmdGet.h` actually calls, or via a `cmdGet.h` branch that calls `g_<Name>App` | `APP_ORDER` |
+
+Two definitional choices, both deliberate:
+
+- **A6 is "reachable from the console", not "has a `dbgGet` method".** The checklist asks for both a
+  method *and* a `cmdGet.h` registration; the method alone is untestable state. Requiring
+  reachability catches the defined-but-unwired case, which a `grep dbgGet` over app headers cannot
+  see (negative case N4). It also correctly passes Clock and LocalPlayer, whose surfaces are
+  `cmdGet.h` branches on the instance rather than a `dbgGet()` override — a naive grep calls both
+  of those failures, and it is wrong.
+- **A6 asserts reachability, not the checklist's "`get <appName>LastAction` or equivalent state
+  key".** "Equivalent" is not machine-decidable. What a key *means* stays a review item; that it
+  *exists and resolves* is now gated.
+- **A5's exit-path rule is dominance-based, not "a resume appears later".** The weaker form passes
+  a mutation that deletes a fetch's final `tlsResume()` while leaving its early-return one in place
+  (negative case N2). A resume covers an exit only if it is at a brace depth that still encloses it.
+
+### Relationship to `T_CC_02`
+
+`T_CC_02` (M-ARCH, above) reserves "every `tlsYield()` has a matching resume on all paths", and VE's
+2026-08-16 disposition records it as **blocked, a manual review item today**. Row `A5` automates the
+**HTTPS-session half** of it statically: 11 session sites, 7 app-attributable, all bracketed. It does
+**not** discharge `T_CC_02` — the WebRadio/LocalPlayer pump-task bracket crosses a task boundary via
+flags and is unreachable by static analysis (ledger row 2), and yields raised for reasons other than
+opening a session are out of this row's domain. `T_CC_02` stays blocked, with a smaller remainder.
+
+### Result of record — 2026-08-18, first run
+
+| app | `A5` | `A6` |
+|---|---|---|
+| Spotify | n/a | EXCEPT |
+| Clock | n/a | PASS |
+| Weather | PASS | **FAIL** |
+| Crypto | PASS | PASS |
+| Matrix | n/a | PASS |
+| Life | n/a | PASS |
+| Stock | PASS | PASS |
+| Aquarium | n/a | PASS |
+| Teletext | PASS | PASS |
+| PlaneRadar | PASS | PASS |
+| Settings | n/a | PASS |
+| WebRadio | PASS | PASS |
+| LocalPlayer | n/a | PASS |
+
+`n/a` = the app opens no HTTPS session of its own (it has no fetch, or its fetch is a `dataTask`
+kind attributed to another cell). One unexcepted finding, `A6/Weather`; five ledger rows. The matrix
+is **advisory** while that count is non-zero — the negative suite that grades the checker is
+**blocking**. **Status**: passing (checker + negative suite); matrix advisory.
+
+**Aquarium note.** §2.1 measured Aquarium at zero coverage across every T3 conformance row. On both
+T0 rows it passes outright (`get aquariumFish`, no HTTPS). The hole §2.1 found is real and is a
+functional-tier hole; it is not an every-row hole, and `A5`/`A6` should not be counted toward it.
+
+---
+
 ## Suite: refactor-verification-001 — `T_488_*` M-SRCLAYOUT move verification (TASK-488)
 
 > **Registered 2026-08-16 (TASK-507), after the fact.** These ids ran green before they were written

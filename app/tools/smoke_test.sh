@@ -39,4 +39,21 @@ if ! "$PYTHON" check_player_binding.py; then
     exit 1
 fi
 
+# 5. app conformance matrix, rows A5/A6 — M-TESTARCH §2.3 (TASK-483).
+# The CHECKER's own negative suite (BP-068) is blocking: a conformance gate that
+# cannot be shown to fail is not a gate. The MATRIX itself is advisory today —
+# it lands with one unexcepted finding (A6/Weather), and warn-only is the same
+# bargain check_settings_wiring.py makes. Promote by flipping STRICT_DEFAULT in
+# check_app_conformance.py once that cell is closed or excepted; the ledger
+# (docs/verification/app_conformance_exceptions.md) states the criterion.
+if ! "$PYTHON" test_check_app_conformance.py; then
+    echo "FAIL: test_check_app_conformance.py (A5/A6 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" check_app_conformance.py; then
+    echo "FAIL: check_app_conformance.py crashed (findings are warn-only; a" \
+         "non-zero exit here means the checker itself broke)" >&2
+    exit 1
+fi
+
 echo "OK: smoke_test.sh passed"
